@@ -1,0 +1,55 @@
+/**
+ * Polyglobe – Reusable low-poly 3D globe (hexagons + 12 pentagons) with Three.js.
+ * Terrain, water, sun, camera presets, atmosphere, and tile-based placement.
+ */
+
+// Core
+export { Globe } from "./core/Globe.js";
+export {
+  buildGeodesicTiles,
+  createGeodesicGeometry,
+  type GeodesicTile,
+  type GeodesicMeshOptions,
+  type TileKind,
+} from "./core/geodesic.js";
+
+// Terrain
+export type { TerrainType, TileTerrain } from "./terrain/types.js";
+export {
+  TERRAIN_STYLES,
+  applyTerrainToGeometry,
+  type TerrainStyle,
+  type TileTerrainData,
+} from "./terrain/terrainMaterial.js";
+
+// Lighting
+export { Sun, type SunOptions } from "./lighting/Sun.js";
+
+// Camera
+export {
+  getPreset,
+  applyPreset,
+  STRATEGY_PRESET,
+  ADVENTURE_PRESET,
+  ORBIT_PRESET,
+  TOP_DOWN_PRESET,
+  type CameraPreset,
+  type CameraPresetKind,
+} from "./camera/CameraPresets.js";
+
+// Atmosphere
+export { Atmosphere, type AtmosphereOptions, type WeatherKind } from "./atmosphere/Atmosphere.js";
+
+// Water (spherical; gravity is toward planet center by construction)
+export { WaterSphere, type WaterSphereOptions } from "./water/WaterSphere.js";
+
+// Placement by tile ID (hex/pentagon)
+export {
+  getPlacementMatrix,
+  placeObject,
+  getTileTransform,
+  type PlaceOptions,
+} from "./placement/placeOnGlobe.js";
+
+// Twinkling starfield background
+export { Starfield, type StarfieldOptions } from "./stars/Starfield.js";

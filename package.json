@@ -1,0 +1,52 @@
+{
+  "name": "polyglobe",
+  "version": "0.1.0",
+  "description": "Reusable low-poly 3D globe with hexagons and pentagons, terrain, water, and placement tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "three",
+    "three.js",
+    "globe",
+    "low-poly",
+    "hexagon",
+    "geodesic",
+    "terrain",
+    "water",
+    "planet"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.170.0",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "three": ">=0.160.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": false
+    }
+  }
+}
