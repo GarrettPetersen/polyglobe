@@ -8,8 +8,11 @@ export { Globe } from "./core/Globe.js";
 export {
   buildGeodesicTiles,
   createGeodesicGeometry,
+  createGeodesicGeometryFlat,
+  getEdgeNeighbor,
   type GeodesicTile,
   type GeodesicMeshOptions,
+  type GeodesicFlatMeshOptions,
   type TileKind,
 } from "./core/geodesic.js";
 
@@ -18,6 +21,10 @@ export type { TerrainType, TileTerrain } from "./terrain/types.js";
 export {
   TERRAIN_STYLES,
   applyTerrainToGeometry,
+  applyTerrainColorsToGeometry,
+  geometryLandOnly,
+  geometryOceanFloor,
+  geometryCoastSkirt,
   type TerrainStyle,
   type TileTerrainData,
 } from "./terrain/terrainMaterial.js";
@@ -42,6 +49,8 @@ export { Atmosphere, type AtmosphereOptions, type WeatherKind } from "./atmosphe
 
 // Water (spherical; gravity is toward planet center by construction)
 export { WaterSphere, type WaterSphereOptions } from "./water/WaterSphere.js";
+export { createCoastMaskTexture, createCoastLandMaskTexture } from "./water/coastMask.js";
+export { CoastFoamOverlay } from "./water/coastFoamOverlay.js";
 
 // Placement by tile ID (hex/pentagon)
 export {

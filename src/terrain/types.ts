@@ -8,9 +8,11 @@ export type TerrainType =
   | "mountain"
   | "desert"
   | "snow"
+  | "ice"
   | "forest"
   | "grassland"
-  | "swamp";
+  | "swamp"
+  | "beach";
 
 export interface TileTerrain {
   tileId: number;

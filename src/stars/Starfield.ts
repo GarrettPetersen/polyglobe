@@ -1,15 +1,20 @@
 /**
- * Twinkling starfield as a fullscreen quad fixed to the camera (screen-space).
- * No depth or clipping issues — stars are always visible in the background.
+ * Twinkling starfield on a fixed celestial sphere (world space).
+ * Stars stay fixed as you orbit — you see different stars when you rotate the view.
  */
 
 import * as THREE from "three";
 
 const VERTEX = `
   varying vec2 vUv;
+  varying vec3 vWorldDir;
+  uniform mat4 uInvViewMatrix;
   void main() {
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 viewPos = modelViewMatrix * vec4(position, 1.0);
+    vec3 viewDir = normalize(viewPos.xyz);
+    vWorldDir = (uInvViewMatrix * vec4(viewDir, 0.0)).xyz;
+    gl_Position = projectionMatrix * viewPos;
   }
 `;
 
@@ -19,32 +24,47 @@ const FRAGMENT = `
   uniform float uTwinkleAmount;
   uniform vec3 uColor;
   uniform float uDensity;
+  uniform float uSparsity;
   varying vec2 vUv;
+  varying vec3 vWorldDir;
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
   }
   void main() {
-    vec2 grid = vUv * uDensity;
+    vec3 d = normalize(vWorldDir);
+    float phi = acos(clamp(d.y, -1.0, 1.0));
+    float theta = atan(d.z, d.x);
+    vec2 skyUv = vec2((theta + 3.14159265) / 6.28318531, phi / 3.14159265);
+    vec2 grid = skyUv * uDensity;
     vec2 cell = floor(grid);
     vec2 cellUv = fract(grid);
     float h = hash(cell);
-    vec2 starCenter = vec2(hash(cell + 0.1), hash(cell + 0.2));
-    float d = length(cellUv - starCenter);
-    float starRadius = 0.08 + h * 0.04;
-    if (d > starRadius) {
+    if (h >= uSparsity) {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
       return;
     }
-    float soft = 1.0 - smoothstep(starRadius * 0.3, starRadius, d);
+    vec2 starCenter = vec2(hash(cell + 0.1), hash(cell + 0.2));
+    float dist = length(cellUv - starCenter);
+    float size = hash(cell + 0.3);
+    float starRadius = 0.012 + size * 0.02;
+    if (dist > starRadius) {
+      gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+      return;
+    }
+    float soft = 1.0 - smoothstep(starRadius * 0.15, starRadius * 0.6, dist);
     float twinkle = sin(uTime * uTwinkleSpeed + h * 6.28318) * 0.5 + 0.5;
-    float brightness = (1.0 - uTwinkleAmount) + uTwinkleAmount * twinkle;
-    gl_FragColor = vec4(uColor * brightness, soft);
+    float baseBright = (1.0 - uTwinkleAmount) + uTwinkleAmount * twinkle;
+    float magnitude = h < 0.04 ? 1.0 : (h < 0.09 ? 0.45 : 0.06);
+    float brightness = baseBright * magnitude;
+    gl_FragColor = vec4(uColor * brightness, soft * magnitude);
   }
 `;
 
 export interface StarfieldOptions {
-  /** Grid density (higher = more, smaller stars). */
+  /** Grid density (higher = more cells; fewer stars shown due to sparsity). */
   density?: number;
+  /** Fraction of cells that show a star (0–1). e.g. 0.12 = few stars, 0.3 = more. */
+  sparsity?: number;
   /** Twinkle speed (time multiplier). */
   twinkleSpeed?: number;
   /** How much stars dim at minimum (0 = no twinkle, 1 = full twinkle to dark). */
@@ -67,10 +87,12 @@ export class Starfield {
       fragmentShader: FRAGMENT,
       uniforms: {
         uTime: { value: 0 },
+        uInvViewMatrix: { value: new THREE.Matrix4() },
+        uDensity: { value: options.density ?? 80 },
+        uSparsity: { value: options.sparsity ?? 0.14 },
         uTwinkleSpeed: { value: options.twinkleSpeed ?? 0.8 },
         uTwinkleAmount: { value: options.twinkleAmount ?? 0.6 },
         uColor: { value: new THREE.Color(options.color ?? 0xffffff) },
-        uDensity: { value: options.density ?? 120 },
       },
       transparent: true,
       depthWrite: false,
@@ -85,7 +107,7 @@ export class Starfield {
 
   /**
    * Attach to camera so the quad stays at the far plane (call after camera is in the scene).
-   * Pass the camera's far plane so the quad sits just in front of it.
+   * Stars are in world space; pass the camera each frame so the correct sky is shown.
    */
   attachToCamera(camera: THREE.PerspectiveCamera): void {
     const far = camera.far;
@@ -94,9 +116,12 @@ export class Starfield {
     camera.add(this.mesh);
   }
 
-  /** Call once per frame to update twinkle. */
-  update(): void {
+  /** Call once per frame to update twinkle and view (so stars change as you orbit). */
+  update(camera?: THREE.PerspectiveCamera): void {
     this.material.uniforms.uTime.value = this.clock.getElapsedTime();
+    if (camera) {
+      this.material.uniforms.uInvViewMatrix.value.copy(camera.matrixWorld);
+    }
   }
 
   dispose(): void {

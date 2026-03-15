@@ -60,6 +60,29 @@ export class Globe {
     };
   }
 
+  /**
+   * Return the tile ID that contains the given direction (unit vector on the sphere).
+   */
+  getTileIdAtDirection(direction: THREE.Vector3): number {
+    const p = direction.clone().normalize();
+    for (const tile of this.tiles) {
+      const c = tile.center;
+      const verts = tile.vertices;
+      const n = verts.length;
+      let inside = true;
+      for (let i = 0; i < n && inside; i++) {
+        const va = verts[i];
+        const vb = verts[(i + 1) % n];
+        const edgeNormal = new THREE.Vector3().crossVectors(va, vb).normalize();
+        const sideC = c.dot(edgeNormal);
+        const sideP = p.dot(edgeNormal);
+        if (sideC * sideP < -1e-6) inside = false;
+      }
+      if (inside) return tile.id;
+    }
+    return 0;
+  }
+
   dispose(): void {
     this.mesh.geometry.dispose();
   }

@@ -158,6 +158,127 @@ export interface GeodesicMeshOptions {
   subdivisions?: number;
 }
 
+const EPS = 1e-6;
+function vec3Equal(a: THREE.Vector3, b: THREE.Vector3): boolean {
+  return Math.abs(a.x - b.x) < EPS && Math.abs(a.y - b.y) < EPS && Math.abs(a.z - b.z) < EPS;
+}
+
+/** Which neighbor tile shares the edge from vertices[edgeIndex] to vertices[(edgeIndex+1)%n]. */
+export function getEdgeNeighbor(
+  tile: GeodesicTile,
+  edgeIndex: number,
+  tiles: GeodesicTile[]
+): number | undefined {
+  const n = tile.vertices.length;
+  const va = tile.vertices[edgeIndex];
+  const vb = tile.vertices[(edgeIndex + 1) % n];
+  for (const neighborId of tile.neighbors) {
+    const N = tiles[neighborId];
+    const nn = N.vertices.length;
+    for (let j = 0; j < nn; j++) {
+      const na = N.vertices[j];
+      const nb = N.vertices[(j + 1) % nn];
+      if (
+        (vec3Equal(va, na) && vec3Equal(vb, nb)) ||
+        (vec3Equal(va, nb) && vec3Equal(vb, na))
+      ) {
+        return neighborId;
+      }
+    }
+  }
+  return undefined;
+}
+
+export interface GeodesicFlatMeshOptions {
+  radius?: number;
+  /** Elevation per tile (same scale as terrain). Will be scaled by elevationScale in applyTerrainToGeometry. */
+  getElevation: (tileId: number) => number;
+  elevationScale?: number;
+}
+
+/**
+ * Create BufferGeometry with flat hex/pentagon tops and vertical steps between different elevations.
+ * No vertex sharing: each tile has its own vertices at (radius + elevation) * normal.
+ */
+export function createGeodesicGeometryFlat(
+  tiles: GeodesicTile[],
+  options: GeodesicFlatMeshOptions
+): THREE.BufferGeometry {
+  const radius = options.radius ?? 1;
+  const elevationScale = options.elevationScale ?? 1;
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const indices: number[] = [];
+  const tileIds: number[] = [];
+  let vertexOffset = 0;
+
+  for (const tile of tiles) {
+    const elev = options.getElevation(tile.id) * elevationScale;
+    const r = radius + elev;
+    const n = tile.vertices.length;
+    const base = vertexOffset;
+    const centerNormal = tile.center.clone().normalize();
+    for (let i = 0; i < n; i++) {
+      const v = tile.vertices[i].clone().normalize();
+      positions.push(v.x * r, v.y * r, v.z * r);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      tileIds.push(tile.id);
+      vertexOffset++;
+    }
+    for (let i = 1; i + 1 < n; i++) {
+      indices.push(base, base + i, base + i + 1);
+    }
+  }
+
+  for (const tile of tiles) {
+    const elev = options.getElevation(tile.id) * elevationScale;
+    const rThis = radius + elev;
+    const n = tile.vertices.length;
+    for (let i = 0; i < n; i++) {
+      const neighborId = getEdgeNeighbor(tile, i, tiles);
+      if (neighborId === undefined || tile.id >= neighborId) continue;
+      const neighborElev = options.getElevation(neighborId) * elevationScale;
+      const rNeighbor = radius + neighborElev;
+      if (Math.abs(rThis - rNeighbor) < 1e-9) continue;
+      const rTop = Math.max(rThis, rNeighbor);
+      const rBot = Math.min(rThis, rNeighbor);
+      const topTileId = rThis >= rNeighbor ? tile.id : neighborId;
+      const botTileId = rThis >= rNeighbor ? neighborId : tile.id;
+      const va = tile.vertices[i].clone().normalize();
+      const vb = tile.vertices[(i + 1) % n].clone().normalize();
+      const aTop = vertexOffset;
+      positions.push(va.x * rTop, va.y * rTop, va.z * rTop);
+      normals.push(va.x, va.y, va.z);
+      tileIds.push(topTileId);
+      vertexOffset++;
+      const bTop = vertexOffset;
+      positions.push(vb.x * rTop, vb.y * rTop, vb.z * rTop);
+      normals.push(vb.x, vb.y, vb.z);
+      tileIds.push(topTileId);
+      vertexOffset++;
+      const bBot = vertexOffset;
+      positions.push(vb.x * rBot, vb.y * rBot, vb.z * rBot);
+      normals.push(vb.x, vb.y, vb.z);
+      tileIds.push(botTileId);
+      vertexOffset++;
+      const aBot = vertexOffset;
+      positions.push(va.x * rBot, va.y * rBot, va.z * rBot);
+      normals.push(va.x, va.y, va.z);
+      tileIds.push(botTileId);
+      vertexOffset++;
+      indices.push(aTop, bTop, bBot, aTop, bBot, aBot);
+    }
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geom.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  geom.setAttribute("tileId", new THREE.Float32BufferAttribute(tileIds, 1));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+  return geom;
+}
+
 /**
  * Create a Three.js BufferGeometry for the geodesic globe (flat shading per tile).
  */
