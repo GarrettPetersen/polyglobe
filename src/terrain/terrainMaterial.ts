@@ -48,8 +48,15 @@ export function applyTerrainColorsToGeometry(
   if (!tileIdAttr) return;
   const count = tileIdAttr.count;
   const colors = new Float32Array(count * 3);
+  const snowCapColor = new THREE.Color(TERRAIN_STYLES.snow.color);
   for (let i = 0; i < count; i++) {
     const tid = Math.round(tileIdAttr.getX(i));
+    if (tid < 0) {
+      colors[i * 3] = snowCapColor.r;
+      colors[i * 3 + 1] = snowCapColor.g;
+      colors[i * 3 + 2] = snowCapColor.b;
+      continue;
+    }
     const data = tileTerrain.get(tid) ?? {
       tileId: tid,
       type: "water" as TerrainType,

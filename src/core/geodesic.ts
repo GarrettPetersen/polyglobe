@@ -189,16 +189,27 @@ export function getEdgeNeighbor(
   return undefined;
 }
 
+/** If present, this tile is drawn as a pyramid (apex above base) instead of a flat top. */
+export interface TilePeak {
+  /** Peak height in meters; scaled by peakElevationScale for globe units. */
+  apexElevationM: number;
+}
+
 export interface GeodesicFlatMeshOptions {
   radius?: number;
   /** Elevation per tile (same scale as terrain). Will be scaled by elevationScale in applyTerrainToGeometry. */
   getElevation: (tileId: number) => number;
   elevationScale?: number;
+  /** Optional: tiles that are 3D peaks (pyramid with apex). Base ring uses getElevation; apex = base + peakElevationScale * apexElevationM. */
+  getPeak?: (tileId: number) => TilePeak | undefined;
+  /** Scale meters → globe units for peak apex height. Default 0.00002 (e.g. Everest ~0.18 units above base). */
+  peakElevationScale?: number;
 }
 
 /**
  * Create BufferGeometry with flat hex/pentagon tops and vertical steps between different elevations.
- * No vertex sharing: each tile has its own vertices at (radius + elevation) * normal.
+ * Each tile is a true hex or pentagon: land in plane through center*r, water on sphere at r.
+ * Small gaps can appear at shared edges; walls fill vertical steps between elevations.
  */
 export function createGeodesicGeometryFlat(
   tiles: GeodesicTile[],
@@ -206,11 +217,26 @@ export function createGeodesicGeometryFlat(
 ): THREE.BufferGeometry {
   const radius = options.radius ?? 1;
   const elevationScale = options.elevationScale ?? 1;
+  const peakElevationScale = options.peakElevationScale ?? 0.00002;
+  const getPeak = options.getPeak;
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
   const tileIds: number[] = [];
   let vertexOffset = 0;
+
+  const projectVertexOntoTilePlane = (
+    v: THREE.Vector3,
+    center: THREE.Vector3,
+    r: number,
+    out: THREE.Vector3
+  ) => {
+    const dot = v.dot(center);
+    out.copy(center).multiplyScalar(r).add(v).addScaledVector(center, -dot);
+    return out;
+  };
+  const vaOut = new THREE.Vector3();
+  const vbOut = new THREE.Vector3();
 
   for (const tile of tiles) {
     const elev = options.getElevation(tile.id) * elevationScale;
@@ -218,15 +244,72 @@ export function createGeodesicGeometryFlat(
     const n = tile.vertices.length;
     const base = vertexOffset;
     const centerNormal = tile.center.clone().normalize();
+    const isLand = elev >= 0;
+    const peak = getPeak?.(tile.id);
+
     for (let i = 0; i < n; i++) {
       const v = tile.vertices[i].clone().normalize();
-      positions.push(v.x * r, v.y * r, v.z * r);
+      if (isLand) {
+        const dot = v.dot(centerNormal);
+        const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
+        const topPos = centerNormal.clone().multiplyScalar(r).add(inPlane);
+        positions.push(topPos.x, topPos.y, topPos.z);
+      } else {
+        positions.push(v.x * r, v.y * r, v.z * r);
+      }
       normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
       tileIds.push(tile.id);
       vertexOffset++;
     }
-    for (let i = 1; i + 1 < n; i++) {
-      indices.push(base, base + i, base + i + 1);
+
+    if (peak && isLand) {
+      let baseRadius = 0;
+      for (let i = 0; i < n; i++) {
+        const v = tile.vertices[i].clone().normalize();
+        const dot = v.dot(centerNormal);
+        const inPlaneLen = Math.sqrt(1 - dot * dot);
+        baseRadius = Math.max(baseRadius, r * inPlaneLen);
+      }
+      const rawHeight = peak.apexElevationM * peakElevationScale;
+      const h = Math.min(rawHeight, baseRadius);
+      const rApex = r + h;
+      const apexPos = centerNormal.clone().multiplyScalar(rApex);
+      const apexIdx = vertexOffset;
+      positions.push(apexPos.x, apexPos.y, apexPos.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      tileIds.push(tile.id);
+      vertexOffset++;
+      for (let i = 0; i < n; i++) {
+        indices.push(apexIdx, base + i, base + ((i + 1) % n));
+      }
+      const capHeight = 0.85;
+      const capRadiusFrac = 0.28;
+      const rCap = r + h * capHeight;
+      const snowApexIdx = vertexOffset;
+      positions.push(apexPos.x, apexPos.y, apexPos.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      tileIds.push(-1);
+      vertexOffset++;
+      const capBase = vertexOffset;
+      for (let i = 0; i < n; i++) {
+        const v = tile.vertices[i].clone().normalize();
+        const dot = v.dot(centerNormal);
+        const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
+        if (inPlane.lengthSq() > 1e-20) inPlane.normalize();
+        inPlane.multiplyScalar(baseRadius * capRadiusFrac);
+        const capPos = centerNormal.clone().multiplyScalar(rCap).add(inPlane);
+        positions.push(capPos.x, capPos.y, capPos.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        tileIds.push(-1);
+        vertexOffset++;
+      }
+      for (let i = 0; i < n; i++) {
+        indices.push(snowApexIdx, capBase + i, capBase + ((i + 1) % n));
+      }
+    } else {
+      for (let i = 1; i + 1 < n; i++) {
+        indices.push(base, base + i, base + i + 1);
+      }
     }
   }
 
@@ -237,32 +320,51 @@ export function createGeodesicGeometryFlat(
     for (let i = 0; i < n; i++) {
       const neighborId = getEdgeNeighbor(tile, i, tiles);
       if (neighborId === undefined || tile.id >= neighborId) continue;
+      const neighbor = tiles[neighborId];
       const neighborElev = options.getElevation(neighborId) * elevationScale;
       const rNeighbor = radius + neighborElev;
       if (Math.abs(rThis - rNeighbor) < 1e-9) continue;
       const rTop = Math.max(rThis, rNeighbor);
       const rBot = Math.min(rThis, rNeighbor);
+      const topTile = rThis >= rNeighbor ? tile : neighbor;
+      const botTile = rThis >= rNeighbor ? neighbor : tile;
+      const topElev = rThis >= rNeighbor ? elev : neighborElev;
+      const botElev = rThis >= rNeighbor ? neighborElev : elev;
       const topTileId = rThis >= rNeighbor ? tile.id : neighborId;
       const botTileId = rThis >= rNeighbor ? neighborId : tile.id;
       const va = tile.vertices[i].clone().normalize();
       const vb = tile.vertices[(i + 1) % n].clone().normalize();
+      if (topElev >= 0) {
+        projectVertexOntoTilePlane(va, topTile.center, rTop, vaOut);
+        projectVertexOntoTilePlane(vb, topTile.center, rTop, vbOut);
+      } else {
+        vaOut.set(va.x * rTop, va.y * rTop, va.z * rTop);
+        vbOut.set(vb.x * rTop, vb.y * rTop, vb.z * rTop);
+      }
       const aTop = vertexOffset;
-      positions.push(va.x * rTop, va.y * rTop, va.z * rTop);
+      positions.push(vaOut.x, vaOut.y, vaOut.z);
       normals.push(va.x, va.y, va.z);
       tileIds.push(topTileId);
       vertexOffset++;
       const bTop = vertexOffset;
-      positions.push(vb.x * rTop, vb.y * rTop, vb.z * rTop);
+      positions.push(vbOut.x, vbOut.y, vbOut.z);
       normals.push(vb.x, vb.y, vb.z);
       tileIds.push(topTileId);
       vertexOffset++;
+      if (botElev >= 0) {
+        projectVertexOntoTilePlane(va, botTile.center, rBot, vaOut);
+        projectVertexOntoTilePlane(vb, botTile.center, rBot, vbOut);
+      } else {
+        vaOut.set(va.x * rBot, va.y * rBot, va.z * rBot);
+        vbOut.set(vb.x * rBot, vb.y * rBot, vb.z * rBot);
+      }
       const bBot = vertexOffset;
-      positions.push(vb.x * rBot, vb.y * rBot, vb.z * rBot);
+      positions.push(vbOut.x, vbOut.y, vbOut.z);
       normals.push(vb.x, vb.y, vb.z);
       tileIds.push(botTileId);
       vertexOffset++;
       const aBot = vertexOffset;
-      positions.push(va.x * rBot, va.y * rBot, va.z * rBot);
+      positions.push(vaOut.x, vaOut.y, vaOut.z);
       normals.push(va.x, va.y, va.z);
       tileIds.push(botTileId);
       vertexOffset++;

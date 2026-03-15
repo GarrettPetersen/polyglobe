@@ -5,9 +5,6 @@
 
 import * as THREE from "three";
 
-const PI = Math.PI;
-const TAU = 2 * PI;
-
 export interface CoastFoamOverlayOptions {
   /** Radius of the overlay sphere (shoreline = where water meets land). Default 1.0 */
   radius?: number;

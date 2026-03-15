@@ -5,6 +5,8 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { Lensflare, LensflareElement } from "three/examples/jsm/objects/Lensflare.js";
 import * as topojson from "topojson-client";
+import * as JSZipNS from "jszip";
+const JSZip = (JSZipNS as unknown as { default: typeof JSZipNS }).default ?? JSZipNS;
 import {
   Globe,
   Sun,
@@ -20,15 +22,47 @@ import {
   buildTerrainFromEarthRaster,
   earthRasterFromImageData,
   applyCoastalBeach,
+  parseKoppenAsciiGrid,
   applyPreset,
   getPreset,
   placeObject,
   type TileTerrainData,
   type EarthRaster,
+  type ClimateGrid,
   type GeodesicTile,
 } from "polyglobe";
 
 const EARTH_LAND_TOPOLOGY_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
+/** Natural Earth 110m lakes (Great Lakes, Baikal, Victoria, etc.) – drawn as water to punch holes in land. */
+const EARTH_LAKES_GEOJSON_URL =
+  "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json";
+const KOPPEN_BIN_SAME_ORIGIN = "/koppen.bin";
+const KOPPEN_ZIP_SAME_ORIGIN = "/koppen_ascii.zip";
+const KOPPEN_ZIP_REMOTE =
+  "https://people.eng.unimelb.edu.au/mpeel/Koppen/koppen_ascii.zip";
+const ELEVATION_BIN_SAME_ORIGIN = "/elevation.bin";
+const MOUNTAINS_JSON_SAME_ORIGIN = "/mountains.json";
+
+/** Mountain entry: lat/lon in degrees, elevation in meters. Sorted by elevation (highest first). */
+interface MountainEntry {
+  name: string;
+  lat: number;
+  lon: number;
+  elevationM: number;
+}
+
+/** Convert geographic lat/lon (degrees) to unit direction. Matches tileCenterToLatLon convention (lon = -atan2(z,x)) so getTileIdAtDirection finds the same tile the Earth raster uses. */
+function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
+  const latRad = (latDeg * Math.PI) / 180;
+  const lonRad = (lonDeg * Math.PI) / 180;
+  const cosLat = Math.cos(latRad);
+  const dir = new THREE.Vector3(
+    cosLat * Math.cos(lonRad),
+    Math.sin(latRad),
+    -cosLat * Math.sin(lonRad)
+  );
+  return dir.normalize();
+}
 
 export interface DemoState {
   useEarth: boolean;
@@ -192,8 +226,90 @@ async function loadEarthLandRaster(): Promise<EarthRaster> {
     drawGeometry(ctx, land.geometry, toX, toY);
   }
 
+  // Punch out lakes (Great Lakes, Baikal, Victoria, etc.) so they render as water
+  try {
+    const lakesRes = await fetch(EARTH_LAKES_GEOJSON_URL);
+    if (lakesRes.ok) {
+      const lakes = (await lakesRes.json()) as {
+        type: string;
+        features?: Array<{ type: string; geometry: GeoJSONGeometry }>;
+      };
+      ctx.fillStyle = "black";
+      if (lakes.features) {
+        for (const f of lakes.features) {
+          if (f.geometry) drawGeometry(ctx, f.geometry, toX, toY);
+        }
+      }
+    }
+  } catch {
+    // Lakes optional; globe still works without them
+  }
+
   const imageData = ctx.getImageData(0, 0, width, height);
   return earthRasterFromImageData(imageData, 128);
+}
+
+const KOPPEN_BIN_WIDTH = 360;
+const KOPPEN_BIN_HEIGHT = 180;
+
+/** Load pre-built 360×180 Köppen binary (run `npm run build-koppen` to generate). */
+async function loadKoppenFromBinary(): Promise<ClimateGrid | null> {
+  try {
+    const res = await fetch(KOPPEN_BIN_SAME_ORIGIN);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength !== KOPPEN_BIN_WIDTH * KOPPEN_BIN_HEIGHT) return null;
+    return {
+      width: KOPPEN_BIN_WIDTH,
+      height: KOPPEN_BIN_HEIGHT,
+      data: new Uint8Array(buf),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Load Köppen–Geiger climate: try bundled koppen.bin first, then zip. */
+async function loadKoppenClimate(): Promise<ClimateGrid | null> {
+  const fromBin = await loadKoppenFromBinary();
+  if (fromBin) return fromBin;
+
+  const tryFetch = async (url: string): Promise<ArrayBuffer | null> => {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return res.arrayBuffer();
+  };
+  let buf: ArrayBuffer | null = await tryFetch(KOPPEN_ZIP_SAME_ORIGIN);
+  if (!buf && KOPPEN_ZIP_REMOTE) {
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(KOPPEN_ZIP_REMOTE);
+    buf = await tryFetch(proxyUrl);
+  }
+  if (!buf) return null;
+  try {
+    const zip = await JSZip.loadAsync(buf);
+    const names = Object.keys(zip.files).filter((n) => /\.(asc|txt)$/i.test(n));
+    const name = names[0] ?? Object.keys(zip.files)[0];
+    if (!name) return null;
+    const blob = await zip.files[name].async("blob");
+    const text = await new Response(blob).text();
+    return parseKoppenAsciiGrid(text);
+  } catch {
+    return null;
+  }
+}
+
+/** Load elevation (meters) from same-origin binary. 360×180 float32, row 0 = north. Run `npm run build-elevation` to generate. */
+async function loadElevation(): Promise<Float32Array | null> {
+  try {
+    const res = await fetch(ELEVATION_BIN_SAME_ORIGIN);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const size = 360 * 180 * 4;
+    if (buf.byteLength !== size) return null;
+    return new Float32Array(buf);
+  } catch {
+    return null;
+  }
 }
 
 const scene = new THREE.Scene();
@@ -223,6 +339,8 @@ let coastLandMaskTexture: THREE.DataTexture;
 let controls: OrbitControls;
 let marker: THREE.Mesh;
 let earthRaster: EarthRaster | null = null;
+/** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
+let mountainsList: MountainEntry[] | null = null;
 
 function yieldToMain(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -306,12 +424,33 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     }
     await yieldToMain();
 
-    const elevationScale = 0.2;
-    const flatGeometry = createGeodesicGeometryFlat(globe.tiles, {
+    const elevationScale = 0.08;
+    const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
       radius: globe.radius,
       getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
       elevationScale,
-    });
+    };
+    if (state.useEarth && mountainsList && mountainsList.length > 0) {
+      // Target distinct hexes with peaks (many list peaks share a hex), so iterate until we fill that many
+      const targetDistinctTiles = Math.max(24, Math.floor(globe.tileCount / 40));
+      const peakTiles = new Map<number, number>();
+      for (const m of mountainsList) {
+        if (peakTiles.size >= targetDistinctTiles) break;
+        const dir = latLonDegToDirection(m.lat, m.lon);
+        const tileId = globe.getTileIdAtDirection(dir);
+        const terrain = tileTerrain.get(tileId);
+        if (terrain && terrain.type !== "water" && terrain.type !== "ice") {
+          const existing = peakTiles.get(tileId) ?? 0;
+          if (m.elevationM > existing) peakTiles.set(tileId, m.elevationM);
+        }
+      }
+      opts.getPeak = (id) => {
+        const apexM = peakTiles.get(id);
+        return apexM != null ? { apexElevationM: apexM } : undefined;
+      };
+      opts.peakElevationScale = 0.000006;
+    }
+    const flatGeometry = createGeodesicGeometryFlat(globe.tiles, opts);
     applyTerrainColorsToGeometry(flatGeometry, tileTerrain);
     globe.mesh.geometry = flatGeometry;
     (globe.mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
@@ -336,6 +475,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       shorelineRadius: 1.0,
       size: 1.5,
       timeScale: 0.4,
+      waveAmplitude: 0.0007,
     });
     scene.add(water.mesh);
 
@@ -464,6 +604,31 @@ function createPanel(state: DemoState, onRebuild: () => void) {
 
 async function init() {
   earthRaster = await loadEarthLandRaster();
+  const res = await fetch(MOUNTAINS_JSON_SAME_ORIGIN);
+  if (res.ok) {
+    const raw = (await res.json()) as unknown;
+    mountainsList =
+      Array.isArray(raw) &&
+      raw.every(
+        (e: unknown) =>
+          e != null &&
+          typeof e === "object" &&
+          "lat" in e &&
+          "lon" in e &&
+          "elevationM" in e &&
+          typeof (e as MountainEntry).lat === "number" &&
+          typeof (e as MountainEntry).lon === "number" &&
+          typeof (e as MountainEntry).elevationM === "number"
+      )
+        ? (raw as MountainEntry[])
+        : null;
+  } else {
+    mountainsList = null;
+  }
+  const climate = await loadKoppenClimate();
+  if (climate) earthRaster.climate = climate;
+  const elevation = await loadElevation();
+  if (elevation) earthRaster.elevation = elevation;
 
   const state: DemoState = { ...DEFAULT_STATE };
   createPanel(state, () => scheduleRebuild(state));

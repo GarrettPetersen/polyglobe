@@ -7,4 +7,7 @@ export default defineConfig({
       polyglobe: path.resolve(__dirname, "../../src/index.ts"),
     },
   },
+  optimizeDeps: {
+    include: ["jszip"],
+  },
 });

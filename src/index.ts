@@ -13,6 +13,7 @@ export {
   type GeodesicTile,
   type GeodesicMeshOptions,
   type GeodesicFlatMeshOptions,
+  type TilePeak,
   type TileKind,
 } from "./core/geodesic.js";
 
@@ -38,7 +39,10 @@ export {
   buildTerrainFromEarthRaster,
   buildTerrainFromSampler,
   applyCoastalBeach,
+  parseKoppenAsciiGrid,
+  elevationFromImageData,
   type EarthRaster,
+  type ClimateGrid,
   type SampleResult,
   type BuildTerrainFromRasterOptions,
   type TerrainSampleMode,
