@@ -29,6 +29,22 @@ export {
   type TileTerrainData,
 } from "./terrain/terrainMaterial.js";
 
+// Earth (real geography from rasters or custom samplers)
+export {
+  tileCenterToLatLon,
+  latLonToDegrees,
+  earthRasterFromImageData,
+  sampleRasterAtLatLon,
+  buildTerrainFromEarthRaster,
+  buildTerrainFromSampler,
+  applyCoastalBeach,
+  type EarthRaster,
+  type SampleResult,
+  type BuildTerrainFromRasterOptions,
+  type TerrainSampleMode,
+  type EarthTerrainSampler,
+} from "./earth/earthSampling.js";
+
 // Lighting
 export { Sun, type SunOptions } from "./lighting/Sun.js";
 
