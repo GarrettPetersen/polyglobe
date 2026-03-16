@@ -177,6 +177,15 @@ export interface BuildTerrainFromRasterOptions {
   /** If set, land/water is taken from this (e.g. point-in-polygon on vector data) instead of the raster. Avoids rasterization artifacts at the antimeridian. */
   landSampler?: (latRad: number, lonRad: number) => boolean;
   /**
+   * When set, used to compute hex topology from vector data: samples points inside the hex and uses
+   * land polygon index and water region id to detect isthmuses (samples in ≥2 land polygons → land)
+   * and channels (samples in ≥2 water regions → water). Takes precedence over landSampler for topology resolution.
+   */
+  topologySampler?: (
+    latRad: number,
+    lonRad: number
+  ) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
+  /**
    * When true (default), tiles with mixed land/water samples are resolved by topology:
    * - If the hex connects two land masses (isthmus, e.g. Panama), assign land.
    * - If the hex connects two water bodies (strait, e.g. Dardanelles), assign water.
@@ -187,6 +196,29 @@ export interface BuildTerrainFromRasterOptions {
   topologyLandThreshold?: number;
   /** Fraction of land samples below which a tile is treated as definite water for topology. Default 0.3. */
   topologyWaterThreshold?: number;
+  /**
+   * When a tile touches no other land (isolated / potential island), treat as land if land fraction >= this.
+   * Biases towards including small islands (e.g. Hawaii) rather than losing them. Default 0.2.
+   */
+  topologyIslandLandThreshold?: number;
+  /**
+   * When set, land/water is resolved per contiguous landmass/ocean/lake from precomputed region rasters
+   * instead of per-hex topology. More efficient: rasterize each region once, score every hex from grids,
+   * then satisfy contiguity and no-landmass-touch constraints. Takes precedence over topologyResolve.
+   */
+  getRegionScores?: (tile: GeodesicTile) => RegionScores;
+}
+
+/** Per-hex scores from sampling region rasters (one per landmass, ocean components, lakes). */
+export interface RegionScores {
+  /** Fraction of samples in any landmass (0..1). */
+  landFraction: number;
+  /** Landmass id (1..N) → fraction of samples in that landmass. */
+  landmassFractions: Map<number, number>;
+  /** Ocean region id (1..M) → fraction of samples in that ocean component. */
+  oceanFractions: Map<number, number>;
+  /** Lake id (1..K) → fraction of samples in that lake. */
+  lakeFractions: Map<number, number>;
 }
 
 const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
@@ -201,9 +233,12 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   sampleMode: "tile",
   sampleCount: 24,
   landSampler: undefined!,
+  topologySampler: undefined!,
   topologyResolve: true,
   topologyLandThreshold: 0.7,
   topologyWaterThreshold: 0.3,
+  topologyIslandLandThreshold: 0.2,
+  getRegionScores: undefined!,
 };
 
 /** Barycentric coords (u, v) with u,v >= 0 and u+v <= 1 for sampling inside a triangle. */
@@ -396,20 +431,64 @@ type TileSampleResult = ReturnType<typeof sampleTile>;
 
 /**
  * Resolve ambiguous (mixed land/water) tiles by topology so that:
- * - Isthmuses (e.g. Panama) become land and keep continents connected.
- * - Straits (e.g. Dardanelles) become water and keep seas connected.
- * Returns a map of tileId -> land (true) or water (false) for all tiles.
+ * - Isthmuses (hex has samples in ≥2 land polygons) → land — do not split a landmass.
+ * - Channels (hex has samples in ≥2 water regions) → water — do not split a seaway.
+ *
+ * When opts.topologySampler is provided, we sample the hex interior (center + points in tile)
+ * and use landPolygonIndex / waterRegionId from vector data. Otherwise uses component-based
+ * heuristics and opts.landSampler for tie-breaking. Returns a map of tileId -> land (true) or water (false).
  */
 function resolveLandWaterByTopology(
   tiles: GeodesicTile[],
   resultsByTile: Map<number, TileSampleResult>,
-  opts: Required<Pick<BuildTerrainFromRasterOptions, "topologyLandThreshold" | "topologyWaterThreshold">>
+  opts: Required<
+    Pick<
+      BuildTerrainFromRasterOptions,
+      "topologyLandThreshold" | "topologyWaterThreshold" | "topologyIslandLandThreshold" | "sampleMode" | "sampleCount"
+    >
+  > & {
+    landSampler?: (latRad: number, lonRad: number) => boolean;
+    topologySampler?: (
+      latRad: number,
+      lonRad: number
+    ) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
+  }
 ): Map<number, boolean> {
   const tileById = new Map<number, GeodesicTile>();
   for (const t of tiles) tileById.set(t.id, t);
 
   const landThresh = opts.topologyLandThreshold;
   const waterThresh = opts.topologyWaterThreshold;
+  const islandLandThresh = opts.topologyIslandLandThreshold;
+  const landSampler = opts.landSampler;
+  const topologySampler = opts.topologySampler;
+
+  /** Sample hex with topologySampler; return distinct land polygon indices, water region ids, and counts. */
+  function sampleHexTopology(tile: GeodesicTile): { landPolygonIndices: Set<number>; waterRegionIds: Set<number>; landCount: number; sampleCount: number } {
+    const landPolygonIndices = new Set<number>();
+    const waterRegionIds = new Set<number>();
+    let landCount = 0;
+    const points: { lat: number; lon: number }[] = [tileCenterToLatLon(tile.center)];
+    if (opts.sampleMode === "tile") {
+      const interior = samplePointsInTile(tile, opts.sampleCount);
+      for (const p of interior) points.push(tileCenterToLatLon(p));
+    }
+    for (const { lat, lon } of points) {
+      let s: { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
+      try {
+        s = topologySampler!(lat, lon);
+      } catch {
+        continue;
+      }
+      if (s.land) {
+        landCount++;
+        if (s.landPolygonIndex !== undefined) landPolygonIndices.add(s.landPolygonIndex);
+      } else {
+        if (s.waterRegionId !== undefined) waterRegionIds.add(s.waterRegionId);
+      }
+    }
+    return { landPolygonIndices, waterRegionIds, landCount, sampleCount: points.length };
+  }
 
   const landByTile = new Map<number, boolean>();
   const definiteLand = new Set<number>();
@@ -434,19 +513,21 @@ function resolveLandWaterByTopology(
   function getLandComponents(landSet: Set<number>): Map<number, number> {
     const compId = new Map<number, number>();
     let id = 0;
-    const visit = (tid: number) => {
-      if (compId.has(tid)) return;
-      compId.set(tid, id);
-      const t = tileById.get(tid);
-      if (!t) return;
-      for (const n of t.neighbors) {
-        if (landSet.has(n)) visit(n);
-      }
-    };
+    const stack: number[] = [];
     for (const tid of landSet) {
-      if (!compId.has(tid)) {
-        visit(tid);
-        id++;
+      if (compId.has(tid)) continue;
+      id++;
+      stack.length = 0;
+      stack.push(tid);
+      while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (compId.has(current)) continue;
+        compId.set(current, id);
+        const t = tileById.get(current);
+        if (!t) continue;
+        for (const n of t.neighbors) {
+          if (landSet.has(n) && !compId.has(n)) stack.push(n);
+        }
       }
     }
     return compId;
@@ -469,16 +550,22 @@ function resolveLandWaterByTopology(
 
   while (ambiguous.size > 0 && iterations < maxIterations) {
     iterations++;
-    const landSet = new Set(definiteLand);
-    const waterSet = new Set(definiteWater);
-    for (const [tid, isLand] of landByTile) {
-      if (isLand) landSet.add(tid);
-      else waterSet.add(tid);
+    let landCompId: Map<number, number> | undefined;
+    let waterCompId: Map<number, number> | undefined;
+    let landSizes: Map<number, number> | undefined;
+    let waterSizes: Map<number, number> | undefined;
+    if (!topologySampler) {
+      const landSet = new Set(definiteLand);
+      const waterSet = new Set(definiteWater);
+      for (const [tid, isLand] of landByTile) {
+        if (isLand) landSet.add(tid);
+        else waterSet.add(tid);
+      }
+      landCompId = getLandComponents(landSet);
+      waterCompId = getWaterComponents(waterSet);
+      landSizes = componentSizes(landCompId);
+      waterSizes = componentSizes(waterCompId);
     }
-    const landCompId = getLandComponents(landSet);
-    const waterCompId = getWaterComponents(waterSet);
-    const landSizes = componentSizes(landCompId);
-    const waterSizes = componentSizes(waterCompId);
 
     const toResolve: { id: number; land: boolean }[] = [];
 
@@ -486,46 +573,80 @@ function resolveLandWaterByTopology(
       const t = tileById.get(tid);
       const r = resultsByTile.get(tid);
       if (!t || !r) continue;
-      const landNeighbors = t.neighbors.filter((n) => landSet.has(n));
-      const waterNeighbors = t.neighbors.filter((n) => waterSet.has(n));
-      const landCompIds = new Set<number>();
-      const waterCompIds = new Set<number>();
-      for (const n of landNeighbors) {
-        const c = landCompId.get(n);
-        if (c !== undefined) landCompIds.add(c);
-      }
-      for (const n of waterNeighbors) {
-        const c = waterCompId.get(n);
-        if (c !== undefined) waterCompIds.add(c);
-      }
-      const nLandComp = landCompIds.size;
-      const nWaterComp = waterCompIds.size;
 
       let assignLand: boolean;
       let shouldResolve = false;
-      if (nLandComp >= 2 && nWaterComp < 2) {
-        assignLand = true;
-        shouldResolve = true;
-      } else if (nWaterComp >= 2 && nLandComp < 2) {
-        assignLand = false;
-        shouldResolve = true;
-      } else if (nLandComp >= 2 && nWaterComp >= 2) {
-        const sumLand = [...landCompIds].reduce((s, c) => s + (landSizes.get(c) ?? 0), 0);
-        const sumWater = [...waterCompIds].reduce((s, c) => s + (waterSizes.get(c) ?? 0), 0);
-        assignLand = sumLand >= sumWater;
-        shouldResolve = true;
-      } else if (landNeighbors.length >= 2 && waterNeighbors.length < 2) {
-        assignLand = true;
-        shouldResolve = true;
-      } else if (waterNeighbors.length >= 2 && landNeighbors.length < 2) {
-        assignLand = false;
-        shouldResolve = true;
-      } else if (landNeighbors.length >= 2 || waterNeighbors.length >= 2) {
-        assignLand = landNeighbors.length >= waterNeighbors.length;
-        shouldResolve = true;
+
+      if (topologySampler) {
+        const topo = sampleHexTopology(t);
+        if (topo.landPolygonIndices.size >= 2) {
+          assignLand = true;
+          shouldResolve = true;
+        } else if (topo.waterRegionIds.size >= 2) {
+          assignLand = false;
+          shouldResolve = true;
+        } else {
+          assignLand = topo.landCount > topo.sampleCount / 2;
+          shouldResolve = true;
+        }
       } else {
-        assignLand = r.landCount > r.sampleCount / 2;
-        shouldResolve = false;
+        const landNeighbors = t.neighbors.filter((n) => landCompId!.has(n));
+        const waterNeighbors = t.neighbors.filter((n) => waterCompId!.has(n));
+        const landCompIds = new Set<number>();
+        const waterCompIds = new Set<number>();
+        for (const n of landNeighbors) {
+          const c = landCompId!.get(n);
+          if (c !== undefined) landCompIds.add(c);
+        }
+        for (const n of waterNeighbors) {
+          const c = waterCompId!.get(n);
+          if (c !== undefined) waterCompIds.add(c);
+        }
+        const nLandComp = landCompIds.size;
+        const nWaterComp = waterCompIds.size;
+
+        if (nLandComp >= 2 && nWaterComp < 2) {
+          assignLand = true;
+          shouldResolve = true;
+        } else if (nWaterComp >= 2 && nLandComp < 2) {
+          assignLand = false;
+          shouldResolve = true;
+        } else if (nLandComp >= 2 && nWaterComp >= 2) {
+          if (landSampler) {
+            const { lat, lon } = tileCenterToLatLon(t.center);
+            assignLand = landSampler(lat, lon);
+          } else {
+            const sumLand = [...landCompIds].reduce((s, c) => s + (landSizes!.get(c) ?? 0), 0);
+            const sumWater = [...waterCompIds].reduce((s, c) => s + (waterSizes!.get(c) ?? 0), 0);
+            assignLand = sumLand >= sumWater;
+          }
+          shouldResolve = true;
+        } else if (landNeighbors.length >= 2 && waterNeighbors.length < 2) {
+          assignLand = true;
+          shouldResolve = true;
+        } else if (waterNeighbors.length >= 2 && landNeighbors.length < 2) {
+          assignLand = false;
+          shouldResolve = true;
+        } else if (landNeighbors.length >= 2 || waterNeighbors.length >= 2) {
+          assignLand = landNeighbors.length >= waterNeighbors.length;
+          shouldResolve = true;
+        } else if (
+          landNeighbors.length === 0 &&
+          r.sampleCount > 0 &&
+          r.landCount / r.sampleCount >= islandLandThresh
+        ) {
+          assignLand = true;
+          shouldResolve = true;
+        } else {
+          if (landSampler) {
+            const { lat, lon } = tileCenterToLatLon(t.center);
+            assignLand = landSampler(lat, lon);
+            shouldResolve = true;
+          } else {
+            assignLand = r.landCount > r.sampleCount / 2;
+            shouldResolve = false;
+          }
+        }
       }
       if (shouldResolve) toResolve.push({ id: tid, land: assignLand });
     }
@@ -540,11 +661,639 @@ function resolveLandWaterByTopology(
   }
 
   for (const tid of ambiguous) {
+    const t = tileById.get(tid);
     const r = resultsByTile.get(tid);
-    landByTile.set(tid, r ? r.landCount > r.sampleCount / 2 : true);
+    let land: boolean;
+    if (t && r) {
+      if (topologySampler) {
+        const topo = sampleHexTopology(t);
+        if (topo.landPolygonIndices.size >= 2) land = true;
+        else if (topo.waterRegionIds.size >= 2) land = false;
+        else land = topo.landCount > topo.sampleCount / 2;
+      } else {
+        const landNeighbors = t.neighbors.filter((n) => landByTile.get(n));
+        if (
+          landNeighbors.length === 0 &&
+          r.sampleCount > 0 &&
+          r.landCount / r.sampleCount >= islandLandThresh
+        ) {
+          land = true;
+        } else if (landSampler) {
+          const { lat, lon } = tileCenterToLatLon(t.center);
+          land = landSampler(lat, lon);
+        } else {
+          land = r.landCount > r.sampleCount / 2;
+        }
+      }
+    } else {
+      land = true;
+    }
+    landByTile.set(tid, land);
   }
 
   return landByTile;
+}
+
+/** Connected components of a set of tile ids using the hex graph (neighbors). Returns component id -> set of tile ids. */
+function getHexComponents(
+  tileIds: Set<number>,
+  tileById: Map<number, GeodesicTile>
+): Map<number, Set<number>> {
+  const compId = new Map<number, number>();
+  let id = 0;
+  const stack: number[] = [];
+  for (const tid of tileIds) {
+    if (compId.has(tid)) continue;
+    id++;
+    stack.length = 0;
+    stack.push(tid);
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (compId.has(current)) continue;
+      compId.set(current, id);
+      const t = tileById.get(current);
+      if (!t) continue;
+      for (const n of t.neighbors) {
+        if (tileIds.has(n) && !compId.has(n)) stack.push(n);
+      }
+    }
+  }
+  const byComp = new Map<number, Set<number>>();
+  for (const [tid, cid] of compId) {
+    let s = byComp.get(cid);
+    if (!s) {
+      s = new Set();
+      byComp.set(cid, s);
+    }
+    s.add(tid);
+  }
+  return byComp;
+}
+
+export interface ResolveLandWaterByRegionsOptions {
+  /** Only enforce landmass contiguity for landmasses with at least this many hexes. Default 2. */
+  minLandmassSize?: number;
+  /** Min landmass fraction to consider flipping a water hex to land for bridging. Default 0.08. */
+  bridgeThreshold?: number;
+  /** Max water-hex "gap" to consider for bridging (1 = only direct neighbors, 2 = allow one water hex between components). Default 2. */
+  bridgeMaxGap?: number;
+  /** Min ocean fraction to flip a land hex to water for straits (connect seas or open Malacca-style gap). Default 0.25. */
+  straitOceanThreshold?: number;
+  /** Min ocean fraction to flip land to water when connecting two ocean components. Default 0.12. */
+  oceanConnectThreshold?: number;
+  /** Max iterations for constraint satisfaction. Default 50. */
+  maxIterations?: number;
+  /** After rule-based steps, refine by constraint score (penalize bad touches, reward correct straits/isthmuses). Default true. */
+  useConstraintRefinement?: boolean;
+  /** Max refinement iterations (try flipping hexes to improve score). Default 40. */
+  constraintRefinementMaxIter?: number;
+}
+
+/**
+ * Resolve land/water per contiguous landmass and ocean/lakes. Uses precomputed region scores
+ * (from rasters per landmass, ocean, lake). Ensures: (1) each sufficiently large landmass is
+ * contiguous, (2) ocean and each lake remain contiguous, (3) no two distinct landmasses touch.
+ * When constraints don't apply, uses majority (landFraction > 0.5). Returns tileId -> isLand.
+ */
+export function resolveLandWaterByRegions(
+  tiles: GeodesicTile[],
+  getRegionScores: (tile: GeodesicTile) => RegionScores,
+  options: ResolveLandWaterByRegionsOptions = {}
+): Map<number, boolean> {
+  const minLandmassSize = options.minLandmassSize ?? 2;
+  const bridgeThreshold = options.bridgeThreshold ?? 0.08;
+  const bridgeMaxGap = options.bridgeMaxGap ?? 2;
+  const straitOceanThreshold = options.straitOceanThreshold ?? 0.25;
+  const oceanConnectThreshold = options.oceanConnectThreshold ?? 0.12;
+  const maxIterations = options.maxIterations ?? 50;
+  const useConstraintRefinement = options.useConstraintRefinement !== false;
+  const refinementMaxIter = options.constraintRefinementMaxIter ?? 40;
+
+  const P_DISCONNECT_LAND = 100;
+  const P_BAD_TOUCH = 100;
+  const P_BLOCK_OCEAN = 100;
+
+  /** True if removing `tid` from `landSet` would increase the number of connected components (cut vertex). */
+  function isCutVertex(tid: number, landSet: Set<number>): boolean {
+    if (!landSet.has(tid)) return false;
+    const without = new Set(landSet);
+    without.delete(tid);
+    if (without.size === 0) return false;
+    const comps = getHexComponents(without, tileById);
+    return comps.size > 1;
+  }
+
+  /** True if water hex `nid` is adjacent to `comp` or reachable from `nid` by a path of only water hexes of length <= bridgeMaxGap. */
+  function waterReachesComponent(nid: number, comp: Set<number>): boolean {
+    if (comp.has(nid)) return true;
+    const neighbor = tileById.get(nid);
+    if (!neighbor) return false;
+    if (neighbor.neighbors.some((n) => comp.has(n))) return true;
+    if (bridgeMaxGap < 2) return false;
+    for (const w of neighbor.neighbors) {
+      if (assign.get(w)?.isLand) continue;
+      const wTile = tileById.get(w);
+      if (wTile?.neighbors.some((m) => comp.has(m))) return true;
+    }
+    return false;
+  }
+
+  const tileById = new Map<number, GeodesicTile>();
+  for (const t of tiles) tileById.set(t.id, t);
+
+  type Assignment = {
+    isLand: boolean;
+    landmassId?: number;
+    oceanRegionId?: number;
+    lakeId?: number;
+  };
+  const assign = new Map<number, Assignment>();
+  const scoresCache = new Map<number, RegionScores>();
+
+  function scores(t: GeodesicTile): RegionScores {
+    let s = scoresCache.get(t.id);
+    if (!s) {
+      s = getRegionScores(t);
+      scoresCache.set(t.id, s);
+    }
+    return s;
+  }
+
+  // Initial assignment: majority rule
+  for (const tile of tiles) {
+    const s = scores(tile);
+    const landFraction = s.landFraction;
+    if (landFraction > 0.5) {
+      let bestLandmass = 0;
+      let bestF = 0;
+      for (const [id, f] of s.landmassFractions) {
+        if (f > bestF) {
+          bestF = f;
+          bestLandmass = id;
+        }
+      }
+      assign.set(tile.id, { isLand: true, landmassId: bestLandmass || undefined });
+    } else {
+      let oceanSum = 0;
+      let lakeSum = 0;
+      for (const f of s.oceanFractions.values()) oceanSum += f;
+      for (const f of s.lakeFractions.values()) lakeSum += f;
+      if (lakeSum > oceanSum) {
+        let bestLake = 0;
+        let bestF = 0;
+        for (const [id, f] of s.lakeFractions) {
+          if (f > bestF) {
+            bestF = f;
+            bestLake = id;
+          }
+        }
+        assign.set(tile.id, { isLand: false, lakeId: bestLake || undefined });
+      } else {
+        let bestOcean = 0;
+        let bestF = 0;
+        for (const [id, f] of s.oceanFractions) {
+          if (f > bestF) {
+            bestF = f;
+            bestOcean = id;
+          }
+        }
+        assign.set(tile.id, { isLand: false, oceanRegionId: bestOcean || undefined });
+      }
+    }
+  }
+
+  let iterations = 0;
+  while (iterations < maxIterations) {
+    iterations++;
+    let changed = false;
+
+    const byLandmass = new Map<number, Set<number>>();
+    for (const [tid, a] of assign) {
+      if (!a.isLand || a.landmassId == null) continue;
+      let set = byLandmass.get(a.landmassId);
+      if (!set) {
+        set = new Set();
+        byLandmass.set(a.landmassId, set);
+      }
+      set.add(tid);
+    }
+
+    // (0) Strait opening: land hexes that are cut vertices with ocean > land → water (true straits only; isthmuses stay land)
+    // Opens Malacca (Sumatra–Malaysia). Panama stays land because there ocean fraction < land fraction.
+    for (const [, tileSet] of byLandmass) {
+      if (tileSet.size < 3) continue;
+      for (const tid of tileSet) {
+        if (!isCutVertex(tid, tileSet)) continue;
+        const t = tileById.get(tid)!;
+        const s = scores(t);
+        let oceanF = 0;
+        for (const f of s.oceanFractions.values()) oceanF += f;
+        if (oceanF < straitOceanThreshold || oceanF <= s.landFraction) continue;
+        let bestOcean = 0;
+        let bestF = 0;
+        for (const [id, f] of s.oceanFractions) {
+          if (f > bestF) {
+            bestF = f;
+            bestOcean = id;
+          }
+        }
+        assign.set(tid, { isLand: false, oceanRegionId: bestOcean || 1 });
+        changed = true;
+        break;
+      }
+      if (changed) break;
+    }
+    if (changed) continue;
+
+    // (1a) Isthmus between different landmasses: water hex between two landmasses (e.g. Panama) → land
+    for (const tile of tiles) {
+      const a = assign.get(tile.id);
+      if (a?.isLand) continue;
+      const neighborLandmassIds = new Set<number>();
+      for (const nid of tile.neighbors) {
+        const na = assign.get(nid);
+        if (na?.isLand && na.landmassId != null) neighborLandmassIds.add(na.landmassId);
+      }
+      for (const idA of neighborLandmassIds) {
+        if (changed) break;
+        const setA = byLandmass.get(idA)!;
+        if (!tile.neighbors.some((n) => setA.has(n))) continue;
+        for (const [idB, setB] of byLandmass) {
+          if (idB === idA) continue;
+          if (!waterReachesComponent(tile.id, setB)) continue;
+          const s = scores(tile);
+          if (s.landFraction < bridgeThreshold) continue;
+          const fA = s.landmassFractions.get(idA) ?? 0;
+          const fB = s.landmassFractions.get(idB) ?? 0;
+          if (fA + fB < bridgeThreshold) continue;
+          const assignTo = fA >= fB ? idA : idB;
+          const mergeFrom = assignTo === idA ? idB : idA;
+          assign.set(tile.id, { isLand: true, landmassId: assignTo });
+          for (const [tid, aa] of assign) {
+            if (aa.isLand && aa.landmassId === mergeFrom) assign.set(tid, { ...aa, landmassId: assignTo });
+          }
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) continue;
+
+    // (1) Landmass contiguity: for each landmass with >= minLandmassSize hexes, ensure one component
+    for (const [landmassId, tileSet] of byLandmass) {
+      if (tileSet.size < minLandmassSize) continue;
+      const components = getHexComponents(tileSet, tileById);
+      if (components.size <= 1) continue;
+      // Find a water hex adjacent to two different components with high fraction for this landmass
+      const compList = [...components.values()];
+      for (let i = 0; i < compList.length; i++) {
+        for (let j = i + 1; j < compList.length; j++) {
+          const cA = compList[i];
+          const cB = compList[j];
+          let best: { tid: number; f: number } | null = null;
+          for (const tid of cA) {
+            const t = tileById.get(tid);
+            if (!t) continue;
+            for (const nid of t.neighbors) {
+              if (assign.get(nid)?.isLand) continue;
+              const neighbor = tileById.get(nid);
+              if (!neighbor) continue;
+              const touchesA = cA.has(nid) || neighbor.neighbors.some((n) => cA.has(n));
+              if (!touchesA) continue;
+              if (!waterReachesComponent(nid, cB)) continue;
+              const s = scores(neighbor);
+              const f = s.landmassFractions.get(landmassId) ?? 0;
+              if (f < bridgeThreshold) continue;
+              const neighborLandmassIds = new Set<number>();
+              for (const n of neighbor.neighbors) {
+                const a = assign.get(n);
+                if (a?.isLand && a.landmassId != null) neighborLandmassIds.add(a.landmassId);
+              }
+              if (neighborLandmassIds.size > 1) continue;
+              if (!best || f > best.f) best = { tid: nid, f };
+            }
+          }
+          if (best) {
+            const t = tileById.get(best.tid)!;
+            const s = scores(t);
+            let bestLm = 0;
+            let bestF = 0;
+            for (const [id, f] of s.landmassFractions) {
+              if (f > bestF) {
+                bestF = f;
+                bestLm = id;
+              }
+            }
+            assign.set(best.tid, { isLand: true, landmassId: bestLm || landmassId });
+            changed = true;
+            break;
+          }
+        }
+        if (changed) break;
+      }
+      if (changed) break;
+    }
+    if (changed) continue;
+
+    // (2) Ocean contiguity: if ocean hexes form >1 component, flip land hexes with high ocean fraction to connect
+    // Penalizes separating Atlantic / Med / Black Sea; opens Gibraltar and Dardanelles as straits.
+    const oceanTiles = new Set<number>();
+    for (const [tid, a] of assign) {
+      if (!a.isLand && a.oceanRegionId != null) oceanTiles.add(tid);
+    }
+    if (oceanTiles.size >= minLandmassSize) {
+      const components = getHexComponents(oceanTiles, tileById);
+      if (components.size > 1) {
+        const compList = [...components.values()];
+        for (let i = 0; i < compList.length && !changed; i++) {
+          for (let j = i + 1; j < compList.length; j++) {
+            const boundary = new Set<number>();
+            for (const tid of compList[i]) {
+              const t = tileById.get(tid)!;
+              for (const nid of t.neighbors) boundary.add(nid);
+            }
+            for (const tid of compList[j]) {
+              const t = tileById.get(tid)!;
+              for (const nid of t.neighbors) boundary.add(nid);
+            }
+            const toFlip: { tid: number; bestOcean: number }[] = [];
+            for (const tid of boundary) {
+              const a = assign.get(tid);
+              if (!a?.isLand) continue;
+              const s = scores(tileById.get(tid)!);
+              let oceanF = 0;
+              for (const f of s.oceanFractions.values()) oceanF += f;
+              if (oceanF < oceanConnectThreshold) continue;
+              const hasA = tileById.get(tid)!.neighbors.some((n) => compList[i].has(n));
+              const hasB = tileById.get(tid)!.neighbors.some((n) => compList[j].has(n));
+              if (!hasA || !hasB) continue;
+              let bestOcean = 0;
+              let bestF = 0;
+              for (const [id, f] of s.oceanFractions) {
+                if (f > bestF) {
+                  bestF = f;
+                  bestOcean = id;
+                }
+              }
+              toFlip.push({ tid, bestOcean: bestOcean || 1 });
+            }
+            for (const { tid, bestOcean } of toFlip) {
+              assign.set(tid, { isLand: false, oceanRegionId: bestOcean });
+              changed = true;
+            }
+            if (changed) break;
+          }
+        }
+      }
+    }
+    if (changed) continue;
+
+    // (3) Lake contiguity: each lake one component (similar)
+    const byLake = new Map<number, Set<number>>();
+    for (const [tid, a] of assign) {
+      if (!a.isLand && a.lakeId != null) {
+        let set = byLake.get(a.lakeId);
+        if (!set) {
+          set = new Set();
+          byLake.set(a.lakeId, set);
+        }
+        set.add(tid);
+      }
+    }
+    for (const [lakeId, tileSet] of byLake) {
+      if (tileSet.size < 2) continue;
+      const components = getHexComponents(tileSet, tileById);
+      if (components.size <= 1) continue;
+      const compList = [...components.values()];
+      for (let i = 0; i < compList.length && !changed; i++) {
+        for (let j = i + 1; j < compList.length; j++) {
+          let best: { tid: number; f: number } | null = null;
+          const boundary = new Set<number>();
+          for (const tid of compList[i]) {
+            for (const nid of tileById.get(tid)!.neighbors) boundary.add(nid);
+          }
+          for (const tid of compList[j]) {
+            for (const nid of tileById.get(tid)!.neighbors) boundary.add(nid);
+          }
+          for (const tid of boundary) {
+            if (!assign.get(tid)?.isLand) continue;
+            const s = scores(tileById.get(tid)!);
+            const f = s.lakeFractions.get(lakeId) ?? 0;
+            if (f < 0.2) continue;
+            const t = tileById.get(tid)!;
+            const hasA = t.neighbors.some((n) => compList[i].has(n));
+            const hasB = t.neighbors.some((n) => compList[j].has(n));
+            if (hasA && hasB && (!best || f > best.f)) best = { tid, f };
+          }
+          if (best) {
+            assign.set(best.tid, { isLand: false, lakeId });
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+    if (changed) continue;
+
+    // (4) No two landmasses touch: find adjacent (A,B) with different landmassId, flip one to water
+    for (const tile of tiles) {
+      const a = assign.get(tile.id);
+      if (!a?.isLand || a.landmassId == null) continue;
+      for (const nid of tile.neighbors) {
+        const b = assign.get(nid);
+        if (!b?.isLand || b.landmassId == null || b.landmassId === a.landmassId) continue;
+        const sA = scores(tile);
+        const sB = scores(tileById.get(nid)!);
+        const fracA = sA.landmassFractions.get(a.landmassId) ?? 0;
+        const fracB = sB.landmassFractions.get(b.landmassId) ?? 0;
+        let flipId: number;
+        if (fracA <= fracB) flipId = tile.id;
+        else flipId = nid;
+        const after = new Map(assign);
+        after.set(flipId, { isLand: false, oceanRegionId: 1 });
+        const landSet = new Set<number>();
+        for (const [tid, asn] of after) {
+          if (asn.isLand && asn.landmassId === (flipId === tile.id ? a.landmassId : b.landmassId)) landSet.add(tid);
+        }
+        const comps = getHexComponents(landSet, tileById);
+        if (comps.size > 1) {
+          flipId = flipId === tile.id ? nid : tile.id;
+        }
+        assign.set(flipId, { isLand: false, oceanRegionId: 1 });
+        changed = true;
+        break;
+      }
+      if (changed) break;
+    }
+    if (!changed) break;
+  }
+
+  /** Constraint score (lower is better): penalize disconnected landmasses, bad touches (straits as land), blocked oceans. */
+  function constraintScore(): number {
+    let total = 0;
+    const byLandmass = new Map<number, Set<number>>();
+    for (const [tid, a] of assign) {
+      if (!a.isLand || a.landmassId == null) continue;
+      let set = byLandmass.get(a.landmassId);
+      if (!set) {
+        set = new Set();
+        byLandmass.set(a.landmassId, set);
+      }
+      set.add(tid);
+    }
+    const byRasterLandmass = new Map<number, Set<number>>();
+    for (const tile of tiles) {
+      const a = assign.get(tile.id);
+      if (!a?.isLand) continue;
+      const s = scores(tile);
+      let bestLm = 0;
+      let bestF = 0;
+      for (const [id, f] of s.landmassFractions) {
+        if (f > bestF) {
+          bestF = f;
+          bestLm = id;
+        }
+      }
+      if (bestLm === 0) continue;
+      let set = byRasterLandmass.get(bestLm);
+      if (!set) {
+        set = new Set();
+        byRasterLandmass.set(bestLm, set);
+      }
+      set.add(tile.id);
+    }
+    for (const [rasterLm, tileSet] of byRasterLandmass) {
+      if (tileSet.size < 2) continue;
+      const comps = getHexComponents(tileSet, tileById);
+      if (comps.size <= 1) continue;
+      const compList = [...comps.values()];
+      for (let i = 0; i < compList.length; i++) {
+        for (let j = i + 1; j < compList.length; j++) {
+          const cA = compList[i];
+          const cB = compList[j];
+          for (const tid of cA) {
+            const t = tileById.get(tid)!;
+            for (const nid of t.neighbors) {
+              if (assign.get(nid)?.isLand) continue;
+              if (!waterReachesComponent(nid, cB)) continue;
+              const s = scores(tileById.get(nid)!);
+              const landF = s.landmassFractions.get(rasterLm) ?? 0;
+              if (landF <= 0) continue;
+              total += landF * P_DISCONNECT_LAND;
+            }
+          }
+        }
+      }
+    }
+    for (const tile of tiles) {
+      const a = assign.get(tile.id);
+      if (!a?.isLand || a.landmassId == null) continue;
+      const neighborLm = new Set<number>();
+      for (const nid of tile.neighbors) {
+        const na = assign.get(nid);
+        if (na?.isLand && na.landmassId != null) neighborLm.add(na.landmassId);
+      }
+      if (neighborLm.size < 2) continue;
+      const s = scores(tile);
+      if (s.landFraction >= 0.5) continue;
+      total += P_BAD_TOUCH;
+    }
+    const oceanTiles = new Set<number>();
+    for (const [tid, a] of assign) {
+      if (!a.isLand && a.oceanRegionId != null) oceanTiles.add(tid);
+    }
+    if (oceanTiles.size >= 2) {
+      const oComps = getHexComponents(oceanTiles, tileById);
+      if (oComps.size > 1) {
+        const oList = [...oComps.values()];
+        for (let i = 0; i < oList.length; i++) {
+          for (let j = i + 1; j < oList.length; j++) {
+            const boundary = new Set<number>();
+            for (const tid of oList[i]) {
+              for (const nid of tileById.get(tid)!.neighbors) boundary.add(nid);
+            }
+            for (const tid of oList[j]) {
+              for (const nid of tileById.get(tid)!.neighbors) boundary.add(nid);
+            }
+            for (const tid of boundary) {
+              if (!assign.get(tid)?.isLand) continue;
+              const s = scores(tileById.get(tid)!);
+              let oceanF = 0;
+              for (const f of s.oceanFractions.values()) oceanF += f;
+              total += oceanF * P_BLOCK_OCEAN;
+            }
+          }
+        }
+      }
+    }
+    return total;
+  }
+
+  if (useConstraintRefinement) {
+    for (let r = 0; r < refinementMaxIter; r++) {
+      const baseScore = constraintScore();
+      let bestTid: number | null = null;
+      let bestScore = baseScore;
+      let bestAssign: Assignment | null = null;
+      for (const tile of tiles) {
+        const a = assign.get(tile.id)!;
+        const s = scores(tile);
+        const newIsLand = !a.isLand;
+        let newA: Assignment;
+        if (newIsLand) {
+          let bestLm = 0;
+          let bestF = 0;
+          for (const [id, f] of s.landmassFractions) {
+            if (f > bestF) {
+              bestF = f;
+              bestLm = id;
+            }
+          }
+          newA = { isLand: true, landmassId: bestLm || undefined };
+        } else {
+          let oceanSum = 0;
+          let lakeSum = 0;
+          for (const f of s.oceanFractions.values()) oceanSum += f;
+          for (const f of s.lakeFractions.values()) lakeSum += f;
+          if (lakeSum > oceanSum) {
+            let bestLake = 0;
+            let bestF = 0;
+            for (const [id, f] of s.lakeFractions) {
+              if (f > bestF) {
+                bestF = f;
+                bestLake = id;
+              }
+            }
+            newA = { isLand: false, lakeId: bestLake || undefined };
+          } else {
+            let bestOcean = 0;
+            let bestF = 0;
+            for (const [id, f] of s.oceanFractions) {
+              if (f > bestF) {
+                bestF = f;
+                bestOcean = id;
+              }
+            }
+            newA = { isLand: false, oceanRegionId: bestOcean || undefined };
+          }
+        }
+        assign.set(tile.id, newA);
+        const sc = constraintScore();
+        if (sc < bestScore) {
+          bestScore = sc;
+          bestTid = tile.id;
+          bestAssign = newA;
+        }
+        assign.set(tile.id, a);
+      }
+      if (bestTid == null || bestScore >= baseScore) break;
+      assign.set(bestTid, bestAssign!);
+    }
+  }
+
+  const out = new Map<number, boolean>();
+  for (const [tid, a] of assign) out.set(tid, a.isLand);
+  return out;
 }
 
 /**
@@ -571,8 +1320,9 @@ export function buildTerrainFromEarthRaster(
     elevationByTile.set(tile.id, elevM);
   }
 
-  const landByTile =
-    opts.topologyResolve && opts.sampleMode === "tile"
+  const landByTile = opts.getRegionScores
+    ? resolveLandWaterByRegions(tiles, opts.getRegionScores)
+    : opts.topologyResolve && opts.sampleMode === "tile"
       ? resolveLandWaterByTopology(tiles, resultsByTile, opts)
       : null;
 

@@ -41,12 +41,15 @@ export {
   applyCoastalBeach,
   parseKoppenAsciiGrid,
   elevationFromImageData,
+  resolveLandWaterByRegions,
   type EarthRaster,
   type ClimateGrid,
   type SampleResult,
   type BuildTerrainFromRasterOptions,
   type TerrainSampleMode,
   type EarthTerrainSampler,
+  type RegionScores,
+  type ResolveLandWaterByRegionsOptions,
 } from "./earth/earthSampling.js";
 
 // Lighting

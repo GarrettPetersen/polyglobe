@@ -26,10 +26,12 @@ import {
   applyPreset,
   getPreset,
   placeObject,
+  tileCenterToLatLon,
   type TileTerrainData,
   type EarthRaster,
   type ClimateGrid,
   type GeodesicTile,
+  type RegionScores,
 } from "polyglobe";
 
 const EARTH_LAND_TOPOLOGY_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
@@ -78,7 +80,7 @@ export interface DemoState {
 
 const DEFAULT_STATE: DemoState = {
   useEarth: true,
-  subdivisions: 3,
+  subdivisions: 6,
   sunLongitude: 0.6,
   sunLatitude: 0.35,
   moonLongitude: -0.6,
@@ -169,7 +171,7 @@ function ringSignedArea(ring: number[][]): number {
   return sum * 0.5;
 }
 
-function ringBounds(ring: number[][]) {
+function ringBounds(ring: number[][]): { latSpan: number; lonSpan: number } {
   let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
   for (const [lon, lat] of ring) {
     minLat = Math.min(minLat, lat);
@@ -177,47 +179,14 @@ function ringBounds(ring: number[][]) {
     minLon = Math.min(minLon, lon);
     maxLon = Math.max(maxLon, lon);
   }
-  return { minLat, maxLat, minLon, maxLon, latSpan: maxLat - minLat, lonSpan: maxLon - minLon };
+  return { latSpan: maxLat - minLat, lonSpan: maxLon - minLon };
 }
 
-function ringCentroid(ring: number[][]): [number, number] {
-  let cx = 0, cy = 0;
-  for (const [lon, lat] of ring) {
-    cx += lon;
-    cy += lat;
-  }
-  const n = ring.length;
-  return [cx / n, cy / n];
-}
-
-/**
- * True if the ring is a full-globe horizontal line (constant lat, lon spans ~360°).
- * TopoJSON has no "boundary" layer: the land object is one MultiPolygon and some arcs
- * are the dataset bbox boundary (e.g. world-atlas bbox ≈ [-180,-85.6,180,83.6]). Those
- * arcs become rings at constant latitude; no real landmass has this. We skip drawing them.
- */
+/** Skip dataset-boundary artifact: ring at constant latitude spanning ~360° (no real landmass). */
 function isArtifactGlobeLine(ring: number[][]): boolean {
   if (ring.length < 3) return false;
   const { latSpan, lonSpan } = ringBounds(ring);
   return latSpan < 2 && lonSpan >= 350;
-}
-
-/**
- * True if the ring is a "North Atlantic ocean" artifact: exterior ring whose centroid is
- * in the North Atlantic (ocean between Norway, Iceland, Greenland) and ring is large
- * (latSpan > 15 or lonSpan > 180). That ring's interior is ocean; we must not fill it as
- * land (no Norway–Greenland land bridge). Small rings (e.g. Iceland, Svalbard) are kept.
- * We do NOT skip globe‑wrapping bands (e.g. lonSpan >= 350, latSpan > 20) — that is the
- * main Afro‑Eurasia polygon; skipping it would remove Europe, Asia, Africa.
- */
-function isNorthAtlanticOceanArtifact(ring: number[][], isExterior: boolean): boolean {
-  if (ring.length < 3) return false;
-  if (!isExterior) return false;
-  const b = ringBounds(ring);
-  const [clon, clat] = ringCentroid(ring);
-  const inNorthAtlantic = clat >= 58 && clat <= 85 && clon >= -45 && clon <= 25;
-  if (inNorthAtlantic && (b.latSpan > 15 || b.lonSpan > 180)) return true;
-  return false;
 }
 
 /** Rewind for canvas nonzero: exterior (first ring) = CCW so inside = land; holes (later rings) = CW so inside = empty. Fixes inverted holes (e.g. rings through Greenland, Brazil). */
@@ -254,7 +223,7 @@ function drawRingUnwrapped(
   toY: (lat: number) => number
 ): void {
   if (ring.length < 3) return;
-  if (isArtifactGlobeLine(ring) || isNorthAtlanticOceanArtifact(ring, isExterior)) return;
+  if (isExterior && isArtifactGlobeLine(ring)) return;
   const r = rewindRing(ring, isExterior);
   const [first, ...rest] = r;
   let currentLon = first[0];
@@ -305,7 +274,7 @@ function drawRing(
   toY: (lat: number) => number
 ): void {
   if (ring.length < 3) return;
-  if (isArtifactGlobeLine(ring) || isNorthAtlanticOceanArtifact(ring, isExterior)) return;
+  if (isExterior && isArtifactGlobeLine(ring)) return;
   const r = rewindRing(ring, isExterior);
   const [first, ...rest] = r;
   ctx.moveTo(toX(first[0]), toY(first[1]));
@@ -424,21 +393,17 @@ function pointInPolygon(polygon: number[][][], lonDeg: number, latDeg: number): 
   return true;
 }
 
-/** Collect polygons from land GeoJSON (MultiPolygon) with rewind and artifact rings skipped. */
+/** Collect polygons from land GeoJSON (MultiPolygon) with rewind. Skip dataset-boundary artifact (full-globe horizontal line). */
 function collectLandPolygons(geom: GeoJSONGeometry): number[][][][] {
   const out: number[][][][] = [];
   const push = (g: GeoJSONGeometry) => {
     if (g.type === "Polygon") {
       const rings = g.coordinates.map((ring, i) => rewindRing(ring, i === 0));
-      if (rings.length > 0 && !isArtifactGlobeLine(rings[0]) && !isNorthAtlanticOceanArtifact(rings[0], true)) {
-        out.push(rings);
-      }
+      if (rings.length > 0 && !isArtifactGlobeLine(rings[0])) out.push(rings);
     } else if (g.type === "MultiPolygon") {
       for (const polygon of g.coordinates) {
         const rings = polygon.map((ring, i) => rewindRing(ring, i === 0));
-        if (rings.length > 0 && !isArtifactGlobeLine(rings[0]) && !isNorthAtlanticOceanArtifact(rings[0], true)) {
-          out.push(rings);
-        }
+        if (rings.length > 0 && !isArtifactGlobeLine(rings[0])) out.push(rings);
       }
     } else if (g.type === "GeometryCollection") {
       for (const child of g.geometries) push(child);
@@ -466,13 +431,16 @@ function collectLakePolygons(geom: GeoJSONGeometry): number[][][][] {
   return out;
 }
 
+const SOUTH_POLE_CAP_LAT = -80;
+
 function createLandSampler(
   landPolygons: number[][][][],
   lakePolygons: number[][][][]
 ): (latRad: number, lonRad: number) => boolean {
   return (latRad: number, lonRad: number) => {
-    const lonDeg = (lonRad * 180) / Math.PI;
     const latDeg = (latRad * 180) / Math.PI;
+    if (latDeg <= SOUTH_POLE_CAP_LAT) return true;
+    const lonDeg = (lonRad * 180) / Math.PI;
     for (const poly of lakePolygons) {
       if (pointInPolygon(poly, lonDeg, latDeg)) return false;
     }
@@ -483,8 +451,231 @@ function createLandSampler(
   };
 }
 
-/** Fetch world-atlas land TopoJSON, build raster (for elevation/climate sampling) and vector land sampler (for land/water, no rasterization artifacts). */
-async function loadEarthLandRaster(): Promise<{ raster: EarthRaster; landSampler: (latRad: number, lonRad: number) => boolean }> {
+const TOPO_GRID_W = 360;
+const TOPO_GRID_H = 180;
+
+/** Build water region ids: grid of land/water, then connected components of water (8-connect). */
+function buildWaterRegions(
+  landPolygons: number[][][][],
+  lakePolygons: number[][][][]
+): Uint32Array {
+  const n = TOPO_GRID_W * TOPO_GRID_H;
+  const isLand = new Uint8Array(n);
+  for (let j = 0; j < TOPO_GRID_H; j++) {
+    const lat = (TOPO_GRID_H - 1) > 0 ? 90 - (180 * j) / (TOPO_GRID_H - 1) : 0;
+    const inSouthCap = lat <= SOUTH_POLE_CAP_LAT;
+    for (let i = 0; i < TOPO_GRID_W; i++) {
+      const lon = (TOPO_GRID_W - 1) > 0 ? -180 + (360 * i) / (TOPO_GRID_W - 1) : 0;
+      if (inSouthCap) {
+        isLand[j * TOPO_GRID_W + i] = 1;
+        continue;
+      }
+      let inLake = false;
+      for (const poly of lakePolygons) {
+        if (pointInPolygon(poly, lon, lat)) {
+          inLake = true;
+          break;
+        }
+      }
+      if (inLake) {
+        isLand[j * TOPO_GRID_W + i] = 0;
+        continue;
+      }
+      let onLand = false;
+      for (const poly of landPolygons) {
+        if (pointInPolygon(poly, lon, lat)) {
+          onLand = true;
+          break;
+        }
+      }
+      isLand[j * TOPO_GRID_W + i] = onLand ? 1 : 0;
+    }
+  }
+  const waterRegionId = new Uint32Array(n);
+  let nextId = 1;
+  const stack: number[] = [];
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  for (let idx = 0; idx < n; idx++) {
+    if (isLand[idx] !== 0 || waterRegionId[idx] !== 0) continue;
+    const id = nextId++;
+    stack.length = 0;
+    stack.push(idx);
+    waterRegionId[idx] = id;
+    while (stack.length > 0) {
+      const c = stack.pop()!;
+      const ci = c % TOPO_GRID_W;
+      const cj = Math.floor(c / TOPO_GRID_W);
+      for (let d = 0; d < 8; d++) {
+        const ni = ci + dx[d];
+        const nj = cj + dy[d];
+        if (ni < 0 || ni >= TOPO_GRID_W || nj < 0 || nj >= TOPO_GRID_H) continue;
+        const nidx = nj * TOPO_GRID_W + ni;
+        if (isLand[nidx] !== 0 || waterRegionId[nidx] !== 0) continue;
+        waterRegionId[nidx] = id;
+        stack.push(nidx);
+      }
+    }
+  }
+  return waterRegionId;
+}
+
+/** Create topologySampler: (lat, lon) => land, landPolygonIndex, waterRegionId for hex topology. */
+function createTopologySampler(
+  landPolygons: number[][][][],
+  lakePolygons: number[][][][],
+  waterRegionId: Uint32Array
+): (latRad: number, lonRad: number) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number } {
+  return (latRad: number, lonRad: number) => {
+    const latDeg = (latRad * 180) / Math.PI;
+    const lonDeg = (lonRad * 180) / Math.PI;
+    if (latDeg <= SOUTH_POLE_CAP_LAT) {
+      return { land: true, landPolygonIndex: 0 };
+    }
+    for (const poly of lakePolygons) {
+      if (pointInPolygon(poly, lonDeg, latDeg)) {
+        const i = Math.max(0, Math.min(TOPO_GRID_W - 1, Math.round(((lonDeg + 180) / 360) * (TOPO_GRID_W - 1))));
+        const j = Math.max(0, Math.min(TOPO_GRID_H - 1, Math.round(((90 - latDeg) / 180) * (TOPO_GRID_H - 1))));
+        const wid = waterRegionId[j * TOPO_GRID_W + i];
+        return { land: false, waterRegionId: wid || undefined };
+      }
+    }
+    for (let pi = 0; pi < landPolygons.length; pi++) {
+      if (pointInPolygon(landPolygons[pi], lonDeg, latDeg)) {
+        return { land: true, landPolygonIndex: pi };
+      }
+    }
+    const i = Math.max(0, Math.min(TOPO_GRID_W - 1, Math.round(((lonDeg + 180) / 360) * (TOPO_GRID_W - 1))));
+    const j = Math.max(0, Math.min(TOPO_GRID_H - 1, Math.round(((90 - latDeg) / 180) * (TOPO_GRID_H - 1))));
+    const wid = waterRegionId[j * TOPO_GRID_W + i];
+    return { land: false, waterRegionId: wid || undefined };
+  };
+}
+
+export type TopologySampler = (
+  latRad: number,
+  lonRad: number
+) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
+
+const REGION_GRID_W = 360;
+const REGION_GRID_H = 180;
+
+/** 8-connected components with x-wraparound (antimeridian). Filled cells (data[idx] !== 0) get id 1..N; rest 0. */
+function connectedComponentsWrap(
+  data: Uint8Array,
+  width: number,
+  height: number
+): Uint32Array {
+  const n = width * height;
+  const out = new Uint32Array(n);
+  let nextId = 1;
+  const stack: number[] = [];
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  for (let idx = 0; idx < n; idx++) {
+    if (data[idx] === 0 || out[idx] !== 0) continue;
+    const id = nextId++;
+    stack.length = 0;
+    stack.push(idx);
+    out[idx] = id;
+    while (stack.length > 0) {
+      const c = stack.pop()!;
+      const ci = c % width;
+      const cj = Math.floor(c / width);
+      for (let d = 0; d < 8; d++) {
+        let ni = ci + dx[d];
+        const nj = cj + dy[d];
+        ni = ((ni % width) + width) % width;
+        if (nj < 0 || nj >= height) continue;
+        const nidx = nj * width + ni;
+        if (data[nidx] === 0 || out[nidx] !== 0) continue;
+        out[nidx] = id;
+        stack.push(nidx);
+      }
+    }
+  }
+  return out;
+}
+
+/** Per-cell lake id from PIP (1..K); 0 = not lake. */
+function buildLakeIdGrid(
+  lakePolygons: number[][][][],
+  width: number,
+  height: number
+): Uint32Array {
+  const out = new Uint32Array(width * height);
+  for (let j = 0; j < height; j++) {
+    const lat = (height - 1) > 0 ? 90 - (180 * j) / (height - 1) : 0;
+    if (lat <= SOUTH_POLE_CAP_LAT) continue;
+    for (let i = 0; i < width; i++) {
+      const lon = (width - 1) > 0 ? -180 + (360 * i) / (width - 1) : 0;
+      for (let k = 0; k < lakePolygons.length; k++) {
+        if (pointInPolygon(lakePolygons[k], lon, lat)) {
+          out[j * width + i] = k + 1;
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Build getRegionScores from precomputed landmass/ocean/lake grids. Scores each hex by sampling grid at tile center + vertices. */
+function createRegionScorer(
+  landmassId: Uint32Array,
+  oceanRegionId: Uint32Array,
+  lakeId: Uint32Array,
+  width: number,
+  height: number
+): (tile: GeodesicTile) => RegionScores {
+  return (tile: GeodesicTile) => {
+    const points: { lat: number; lon: number }[] = [tileCenterToLatLon(tile.center)];
+    for (const v of tile.vertices) {
+      points.push(tileCenterToLatLon(v));
+    }
+    const landmassCounts = new Map<number, number>();
+    const oceanCounts = new Map<number, number>();
+    const lakeCounts = new Map<number, number>();
+    let landTotal = 0;
+    for (const { lat, lon } of points) {
+      const latDeg = (lat * 180) / Math.PI;
+      const lonDeg = (lon * 180) / Math.PI;
+      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
+      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      const idx = j * width + i;
+      const lm = landmassId[idx];
+      const oc = oceanRegionId[idx];
+      const lk = lakeId[idx];
+      if (lm !== 0) {
+        landTotal++;
+        landmassCounts.set(lm, (landmassCounts.get(lm) ?? 0) + 1);
+      }
+      if (oc !== 0) oceanCounts.set(oc, (oceanCounts.get(oc) ?? 0) + 1);
+      if (lk !== 0) lakeCounts.set(lk, (lakeCounts.get(lk) ?? 0) + 1);
+    }
+    const n = points.length;
+    const landmassFractions = new Map<number, number>();
+    for (const [id, count] of landmassCounts) landmassFractions.set(id, count / n);
+    const oceanFractions = new Map<number, number>();
+    for (const [id, count] of oceanCounts) oceanFractions.set(id, count / n);
+    const lakeFractions = new Map<number, number>();
+    for (const [id, count] of lakeCounts) lakeFractions.set(id, count / n);
+    return {
+      landFraction: landTotal / n,
+      landmassFractions,
+      oceanFractions,
+      lakeFractions,
+    };
+  };
+}
+
+/** Fetch world-atlas land TopoJSON, build raster, land sampler, topology sampler, and region scorer (per-landmass resolution). */
+async function loadEarthLandRaster(): Promise<{
+  raster: EarthRaster;
+  landSampler: (latRad: number, lonRad: number) => boolean;
+  topologySampler: TopologySampler;
+  getRegionScores: (tile: GeodesicTile) => RegionScores;
+}> {
   const res = await fetch(EARTH_LAND_TOPOLOGY_URL);
   const topology = (await res.json()) as Parameters<typeof topojson.feature>[0] & {
     objects?: Record<string, unknown>;
@@ -519,6 +710,17 @@ async function loadEarthLandRaster(): Promise<{ raster: EarthRaster; landSampler
   }
 
   const landSampler = createLandSampler(landPolygons, lakePolygons);
+  let topologySampler: TopologySampler;
+  try {
+    const waterRegionId = buildWaterRegions(landPolygons, lakePolygons);
+    topologySampler = createTopologySampler(landPolygons, lakePolygons, waterRegionId);
+  } catch (e) {
+    console.warn("[loadEarthLandRaster] topologySampler build failed, using landSampler only:", e);
+    topologySampler = (latRad: number, lonRad: number) => {
+      const land = landSampler(latRad, lonRad);
+      return { land, landPolygonIndex: land ? 0 : undefined, waterRegionId: land ? undefined : 1 };
+    };
+  }
 
   const width = 360;
   const height = 180;
@@ -557,6 +759,8 @@ async function loadEarthLandRaster(): Promise<{ raster: EarthRaster; landSampler
   const collapsed = new ImageData(width, height);
   const scale = (wideWidth - 1) / 1080;
   for (let j = 0; j < height; j++) {
+    const lat = (height - 1) > 0 ? 90 - (180 * j) / (height - 1) : 0;
+    const inSouthCap = lat <= SOUTH_POLE_CAP_LAT;
     for (let i = 0; i < width; i++) {
       const lon = (width - 1) > 0 ? -180 + (360 * i) / (width - 1) : 0;
       const xLeft = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 180) * scale)));
@@ -565,7 +769,7 @@ async function loadEarthLandRaster(): Promise<{ raster: EarthRaster; landSampler
       const landLeft = (wideData.data[(j * wideWidth + xLeft) * 4] ?? 0) >= 128;
       const landCenter = (wideData.data[(j * wideWidth + xCenter) * 4] ?? 0) >= 128;
       const landRight = (wideData.data[(j * wideWidth + xRight) * 4] ?? 0) >= 128;
-      const land = landLeft || landCenter || landRight;
+      const land = inSouthCap || landLeft || landCenter || landRight;
       const outIdx = (j * width + i) * 4;
       const v = land ? 255 : 0;
       collapsed.data[outIdx] = v;
@@ -576,6 +780,15 @@ async function loadEarthLandRaster(): Promise<{ raster: EarthRaster; landSampler
   }
   const imageData = collapsed;
   const raster = earthRasterFromImageData(imageData, 128);
+
+  const landmassId = connectedComponentsWrap(raster.data, width, height);
+  const lakeIdGrid = buildLakeIdGrid(lakePolygons, width, height);
+  const oceanMask = new Uint8Array(width * height);
+  for (let idx = 0; idx < width * height; idx++) {
+    oceanMask[idx] = raster.data[idx] === 0 && lakeIdGrid[idx] === 0 ? 255 : 0;
+  }
+  const oceanRegionId = connectedComponentsWrap(oceanMask, width, height);
+  const getRegionScores = createRegionScorer(landmassId, oceanRegionId, lakeIdGrid, width, height);
 
   if (typeof window !== "undefined" && /[?&]showRaster=1/i.test(window.location.search)) {
     const debugCanvas = document.createElement("canvas");
@@ -598,7 +811,7 @@ async function loadEarthLandRaster(): Promise<{ raster: EarthRaster; landSampler
     document.body.appendChild(debugCanvas);
     console.log("[Earth raster] Debug view visible. Remove ?showRaster=1 to hide.");
   }
-  return { raster, landSampler };
+  return { raster, landSampler, topologySampler, getRegionScores };
 }
 
 const KOPPEN_BIN_WIDTH = 360;
@@ -692,6 +905,8 @@ let controls: OrbitControls;
 let marker: THREE.Mesh;
 let earthRaster: EarthRaster | null = null;
 let earthLandSampler: ((latRad: number, lonRad: number) => boolean) | null = null;
+let earthTopologySampler: TopologySampler | null = null;
+let earthGetRegionScores: ((tile: GeodesicTile) => RegionScores) | null = null;
 /** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
 let mountainsList: MountainEntry[] | null = null;
 
@@ -765,13 +980,19 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     let tileTerrain: Map<number, TileTerrainData>;
     if (state.useEarth && earthRaster) {
-      tileTerrain = buildTerrainFromEarthRaster(globe.tiles, earthRaster, {
-        waterElevation: -0.18,
-        landElevation: 0.1,
-        elevationScale: 0.00004,
-        latitudeTerrain: true,
-      });
-      applyCoastalBeach(globe.tiles, tileTerrain);
+      try {
+        tileTerrain = buildTerrainFromEarthRaster(globe.tiles, earthRaster, {
+          waterElevation: -0.18,
+          landElevation: 0.1,
+          elevationScale: 0.00004,
+          latitudeTerrain: true,
+          getRegionScores: earthGetRegionScores ?? undefined,
+        });
+        applyCoastalBeach(globe.tiles, tileTerrain);
+      } catch (e) {
+        console.error("[buildTerrainFromEarthRaster]", e);
+        throw e;
+      }
     } else {
       tileTerrain = buildProceduralTerrain(globe.tiles, state);
     }
@@ -858,14 +1079,19 @@ function scheduleRebuild(state: DemoState) {
   }
   buildInProgress = true;
   pendingState = null;
-  buildWorldAsync(state).then(() => {
-    buildInProgress = false;
-    if (pendingState) {
-      const next = pendingState;
-      pendingState = null;
-      scheduleRebuild(next);
-    }
-  });
+  buildWorldAsync(state)
+    .then(() => {
+      buildInProgress = false;
+      if (pendingState) {
+        const next = pendingState;
+        pendingState = null;
+        scheduleRebuild(next);
+      }
+    })
+    .catch((e) => {
+      console.error("[buildWorldAsync]", e);
+      buildInProgress = false;
+    });
 }
 
 function createPanel(state: DemoState, onRebuild: () => void) {
@@ -959,6 +1185,8 @@ async function init() {
   const landResult = await loadEarthLandRaster();
   earthRaster = landResult.raster;
   earthLandSampler = landResult.landSampler;
+  earthTopologySampler = landResult.topologySampler;
+  earthGetRegionScores = landResult.getRegionScores;
   const res = await fetch(MOUNTAINS_JSON_SAME_ORIGIN);
   if (res.ok) {
     const raw = (await res.json()) as unknown;
@@ -1082,4 +1310,6 @@ async function init() {
   });
   animate();
 }
-init();
+init().catch((e) => {
+  console.error("[Earth init]", e);
+});

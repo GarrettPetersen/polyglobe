@@ -31,33 +31,6 @@ function ringSignedArea(ring) {
   }
   return sum * 0.5;
 }
-function ringBounds(ring) {
-  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-  for (const [lon, lat] of ring) {
-    minLat = Math.min(minLat, lat);
-    maxLat = Math.max(maxLat, lat);
-    minLon = Math.min(minLon, lon);
-    maxLon = Math.max(maxLon, lon);
-  }
-  return { minLat, maxLat, minLon, maxLon, latSpan: maxLat - minLat, lonSpan: maxLon - minLon };
-}
-
-function ringCentroid(ring) {
-  let cx = 0, cy = 0;
-  for (const [lon, lat] of ring) {
-    cx += lon;
-    cy += lat;
-  }
-  const n = ring.length;
-  return [cx / n, cy / n];
-}
-
-function isArtifactGlobeLine(ring) {
-  if (ring.length < 3) return false;
-  const { latSpan, lonSpan } = ringBounds(ring);
-  return latSpan < 2 && lonSpan >= 350;
-}
-
 function unwrapLon(currentLon, nextLon) {
   let n = nextLon;
   const d = n - currentLon;
@@ -66,9 +39,26 @@ function unwrapLon(currentLon, nextLon) {
   return n;
 }
 
+function ringBounds(ring) {
+  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  for (const [lon, lat] of ring) {
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+    minLon = Math.min(minLon, lon);
+    maxLon = Math.max(maxLon, lon);
+  }
+  return { latSpan: maxLat - minLat, lonSpan: maxLon - minLon };
+}
+
+function isArtifactGlobeLine(ring) {
+  if (ring.length < 3) return false;
+  const { latSpan, lonSpan } = ringBounds(ring);
+  return latSpan < 2 && lonSpan >= 350;
+}
+
 function drawRingUnwrapped(ctx, ring, isExterior, toX, toY) {
   if (ring.length < 3) return;
-  if (isArtifactGlobeLine(ring) || isNorthAtlanticOceanArtifact(ring, isExterior)) return;
+  if (isExterior && isArtifactGlobeLine(ring)) return;
   const r = rewindRing(ring, isExterior);
   const [first, ...rest] = r;
   let currentLon = first[0];
@@ -104,7 +94,7 @@ function lineToLonLat(ctx, fromLon, fromLat, toLon, toLat, toX, toY) {
 
 function drawRing(ctx, ring, isExterior, toX, toY) {
   if (ring.length < 3) return;
-  if (isArtifactGlobeLine(ring) || isNorthAtlanticOceanArtifact(ring, isExterior)) return;
+  if (isExterior && isArtifactGlobeLine(ring)) return;
   const r = rewindRing(ring, isExterior);
   const [first, ...rest] = r;
   ctx.moveTo(toX(first[0]), toY(first[1]));
@@ -116,16 +106,6 @@ function drawRing(ctx, ring, isExterior, toX, toY) {
   }
   lineToLonLat(ctx, prevLon, prevLat, first[0], first[1], toX, toY);
   ctx.closePath();
-}
-
-function isNorthAtlanticOceanArtifact(ring, isExterior) {
-  if (ring.length < 3) return false;
-  if (!isExterior) return false;
-  const b = ringBounds(ring);
-  const [clon, clat] = ringCentroid(ring);
-  const inNorthAtlantic = clat >= 58 && clat <= 85 && clon >= -45 && clon <= 25;
-  if (inNorthAtlantic && (b.latSpan > 15 || b.lonSpan > 180)) return true;
-  return false;
 }
 
 function rewindRing(ring, isExterior) {
@@ -218,18 +198,22 @@ async function main() {
     console.warn("Lakes fetch failed:", e.message);
   }
 
+  const SOUTH_POLE_CAP_LAT = -80;
   const wideData = ctx.getImageData(0, 0, wideWidth, height);
   const scale = (wideWidth - 1) / 1080;
   const outCanvas = createCanvas(width, height);
   const outCtx = outCanvas.getContext("2d");
   const collapsed = outCtx.createImageData(width, height);
   for (let j = 0; j < height; j++) {
+    const lat = (height - 1) > 0 ? 90 - (180 * j) / (height - 1) : 0;
+    const inSouthCap = lat <= SOUTH_POLE_CAP_LAT;
     for (let i = 0; i < width; i++) {
       const lon = (width - 1) > 0 ? -180 + (360 * i) / (width - 1) : 0;
       const xLeft = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 180) * scale)));
       const xCenter = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 540) * scale)));
       const xRight = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 900) * scale)));
       const land =
+        inSouthCap ||
         (wideData.data[(j * wideWidth + xLeft) * 4] ?? 0) >= 128 ||
         (wideData.data[(j * wideWidth + xCenter) * 4] ?? 0) >= 128 ||
         (wideData.data[(j * wideWidth + xRight) * 4] ?? 0) >= 128;
