@@ -8,7 +8,7 @@
  * Writes to public/:
  *   land-110m.json, ne_110m_lakes.json, ne_110m_geography_marine_polys.json,
  *   koppen_ascii.zip, ne_10m_geography_regions_elevation_points.json,
- *   ne_50m_geography_regions_elevation_points.json
+ *   ne_50m_geography_regions_elevation_points.json, ne_10m_rivers_lake_centerlines.json
  */
 
 import fs from "fs";
@@ -26,6 +26,7 @@ const ASSETS = [
   { url: "https://people.eng.unimelb.edu.au/mpeel/Koppen/koppen_ascii.zip", file: "koppen_ascii.zip" },
   { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/10m/physical/ne_10m_geography_regions_elevation_points.json", file: "ne_10m_geography_regions_elevation_points.json" },
   { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_geography_regions_elevation_points.json", file: "ne_50m_geography_regions_elevation_points.json" },
+  { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/10m/physical/ne_10m_rivers_lake_centerlines.json", file: "ne_10m_rivers_lake_centerlines.json" },
 ];
 
 async function fetchUrl(url) {
