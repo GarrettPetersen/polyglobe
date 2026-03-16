@@ -37,6 +37,29 @@ function positionKey(x: number, y: number, z: number): string {
 }
 
 /**
+ * Set vertex colors by tileId using a callback (e.g. for lerped animation).
+ * Use with flat hex geometry from createGeodesicGeometryFlat.
+ * tileId may be negative for special vertices (e.g. snow cap); callback receives it as-is.
+ */
+export function applyVertexColorsByTileId(
+  geometry: THREE.BufferGeometry,
+  getColor: (tileId: number) => THREE.ColorRepresentation
+): void {
+  const tileIdAttr = geometry.getAttribute("tileId") as THREE.BufferAttribute;
+  if (!tileIdAttr) return;
+  const count = tileIdAttr.count;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const tid = Math.round(tileIdAttr.getX(i));
+    const c = new THREE.Color(getColor(tid));
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+}
+
+/**
  * Set vertex colors by tileId only (no position change).
  * Use with flat hex geometry from createGeodesicGeometryFlat.
  */
@@ -44,31 +67,16 @@ export function applyTerrainColorsToGeometry(
   geometry: THREE.BufferGeometry,
   tileTerrain: Map<number, TileTerrainData>
 ): void {
-  const tileIdAttr = geometry.getAttribute("tileId") as THREE.BufferAttribute;
-  if (!tileIdAttr) return;
-  const count = tileIdAttr.count;
-  const colors = new Float32Array(count * 3);
-  const snowCapColor = new THREE.Color(TERRAIN_STYLES.snow.color);
-  for (let i = 0; i < count; i++) {
-    const tid = Math.round(tileIdAttr.getX(i));
-    if (tid < 0) {
-      colors[i * 3] = snowCapColor.r;
-      colors[i * 3 + 1] = snowCapColor.g;
-      colors[i * 3 + 2] = snowCapColor.b;
-      continue;
-    }
+  const snowCapColor = TERRAIN_STYLES.snow.color;
+  applyVertexColorsByTileId(geometry, (tid) => {
+    if (tid < 0) return snowCapColor;
     const data = tileTerrain.get(tid) ?? {
       tileId: tid,
       type: "water" as TerrainType,
       elevation: 0,
     };
-    const style = TERRAIN_STYLES[data.type];
-    const c = new THREE.Color(style.color);
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
-  }
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    return TERRAIN_STYLES[data.type].color;
+  });
 }
 
 /**

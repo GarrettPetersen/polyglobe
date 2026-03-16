@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Generate public/land-raster-debug.png (360×180) from the same TopoJSON + lakes
- * the demo uses. Run from examples/globe-demo: npm run build-land-raster-png
- * Use this to inspect whether northern-hemisphere rings are in the map data.
+ * Generate public/land-raster-debug.png (3600×1800) from the same TopoJSON + lakes the demo uses.
+ * Matches in-browser demo resolution; raw land/water so straits show as water. Run from examples/globe-demo:
+ * npm run build-land-raster-png
  */
 
 import fs from "fs";
@@ -15,10 +15,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 const OUT_PATH = path.join(PUBLIC_DIR, "land-raster-debug.png");
+const BIN_PATH = path.join(PUBLIC_DIR, "earth-region-grid.bin");
 
 const LAND_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
 const LAKES_URL =
   "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json";
+const MARINE_POLYS_URL =
+  "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_geography_marine_polys.json";
+/** Inland (landlocked) seas to punch out of land; open/connected seas (e.g. Caribbean) are already ocean. */
+const INLAND_SEAS_WHITELIST = new Set(["Caspian Sea"]);
 
 // Signed area in (lon, 90-lat); positive = CCW. Exterior = CCW (inside land), holes = CW (inside empty).
 function ringSignedArea(ring) {
@@ -155,10 +160,43 @@ function drawGeometryUnwrapped(ctx, geom, toX, toY) {
   }
 }
 
+/** 8-connected components with x-wraparound. Filled cells (data[idx] !== 0) get id 1..N; rest 0. */
+function connectedComponentsWrap(data, width, height) {
+  const n = width * height;
+  const out = new Uint32Array(n);
+  let nextId = 1;
+  const stack = [];
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  for (let idx = 0; idx < n; idx++) {
+    if (data[idx] === 0 || out[idx] !== 0) continue;
+    const id = nextId++;
+    stack.length = 0;
+    stack.push(idx);
+    out[idx] = id;
+    while (stack.length > 0) {
+      const c = stack.pop();
+      const ci = c % width;
+      const cj = Math.floor(c / width);
+      for (let d = 0; d < 8; d++) {
+        let ni = ci + dx[d];
+        const nj = cj + dy[d];
+        ni = ((ni % width) + width) % width;
+        if (nj < 0 || nj >= height) continue;
+        const nidx = nj * width + ni;
+        if (data[nidx] === 0 || out[nidx] !== 0) continue;
+        out[nidx] = id;
+        stack.push(nidx);
+      }
+    }
+  }
+  return out;
+}
+
 async function main() {
-  const width = 360;
-  const height = 180;
-  const wideWidth = 1080;
+  const width = 3600;
+  const height = 1800;
+  const wideWidth = 10800;
 
   console.log("Fetching", LAND_URL, "...");
   const landRes = await fetch(LAND_URL);
@@ -172,38 +210,77 @@ async function main() {
   ctx.fillRect(0, 0, wideWidth, height);
   ctx.fillStyle = "white";
 
-  const toX = (lon) =>
-    Math.max(0, Math.min(wideWidth - 1, (lon + 540) * (wideWidth - 1) / 1080));
+  const scaleX = (wideWidth - 1) / 1080;
+  const wrapLon = (lon) => ((lon + 180) % 360 + 360) % 360 - 180;
+  const toXCenter = (lon) =>
+    Math.max(0, Math.min(wideWidth - 1, (lon + 540) * scaleX));
+  const toXLeft = (lon) =>
+    Math.max(0, Math.min(wideWidth - 1, (lon + 180) * scaleX));
+  const toXRight = (lon) =>
+    Math.max(0, Math.min(wideWidth - 1, (lon + 900) * scaleX));
   const toY = (lat) =>
     Math.max(0, Math.min(height - 1, ((90 - lat) / 180) * (height - 1)));
+  const toXLeftInThird = (lon) => toXLeft(wrapLon(lon));
+  const toXRightInThird = (lon) => toXRight(wrapLon(lon));
+
+  const threeWorlds = [toXLeftInThird, toXCenter, toXRightInThird];
 
   if (land.features) {
-    for (const f of land.features) drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
+    for (const f of land.features) drawGeometryUnwrapped(ctx, f.geometry, toXCenter, toY);
   } else if (land.geometry) {
-    drawGeometryUnwrapped(ctx, land.geometry, toX, toY);
+    drawGeometryUnwrapped(ctx, land.geometry, toXCenter, toY);
   }
-
   try {
     const lakesRes = await fetch(LAKES_URL);
     if (lakesRes.ok) {
       const lakes = await lakesRes.json();
       ctx.fillStyle = "black";
       if (lakes.features) {
-        for (const f of lakes.features) {
-          if (f.geometry) drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
+        for (const toX of threeWorlds) {
+          for (const f of lakes.features) {
+            if (f.geometry) drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
+          }
         }
       }
     }
   } catch (e) {
     console.warn("Lakes fetch failed:", e.message);
   }
+  const afterLandAndLakes = ctx.getImageData(0, 0, wideWidth, height);
+  try {
+    const marineRes = await fetch(MARINE_POLYS_URL);
+    if (marineRes.ok) {
+      const fc = await marineRes.json();
+      ctx.fillStyle = "black";
+      if (fc.features) {
+        for (const toX of threeWorlds) {
+          for (const f of fc.features) {
+            const name = (f.properties?.name ?? "").trim();
+            if (!INLAND_SEAS_WHITELIST.has(name) || !f.geometry) continue;
+            drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
+          }
+        }
+      }
+      const marineDrawn = ctx.getImageData(0, 0, wideWidth, height);
+      for (let i = 0; i < wideWidth * height * 4; i += 4) {
+        if ((afterLandAndLakes.data[i] ?? 0) >= 128) {
+          marineDrawn.data[i] = 255;
+          marineDrawn.data[i + 1] = 255;
+          marineDrawn.data[i + 2] = 255;
+        }
+      }
+      ctx.putImageData(marineDrawn, 0, 0);
+    } else {
+      console.warn("Marine polys HTTP", marineRes.status);
+    }
+  } catch (e) {
+    console.warn("Marine polys fetch failed:", e.message);
+  }
 
   const SOUTH_POLE_CAP_LAT = -80;
   const wideData = ctx.getImageData(0, 0, wideWidth, height);
   const scale = (wideWidth - 1) / 1080;
-  const outCanvas = createCanvas(width, height);
-  const outCtx = outCanvas.getContext("2d");
-  const collapsed = outCtx.createImageData(width, height);
+  const rawData = new Uint8Array(width * height);
   for (let j = 0; j < height; j++) {
     const lat = (height - 1) > 0 ? 90 - (180 * j) / (height - 1) : 0;
     const inSouthCap = lat <= SOUTH_POLE_CAP_LAT;
@@ -217,20 +294,46 @@ async function main() {
         (wideData.data[(j * wideWidth + xLeft) * 4] ?? 0) >= 128 ||
         (wideData.data[(j * wideWidth + xCenter) * 4] ?? 0) >= 128 ||
         (wideData.data[(j * wideWidth + xRight) * 4] ?? 0) >= 128;
-      const v = land ? 255 : 0;
-      const outIdx = (j * width + i) * 4;
-      collapsed.data[outIdx] = v;
-      collapsed.data[outIdx + 1] = v;
-      collapsed.data[outIdx + 2] = v;
-      collapsed.data[outIdx + 3] = 255;
+      rawData[j * width + i] = land ? 255 : 0;
     }
   }
-  outCtx.putImageData(collapsed, 0, 0);
+
+  console.log("Computing connected components (land)...");
+  const landmassId = connectedComponentsWrap(rawData, width, height);
+  const oceanMask = new Uint8Array(width * height);
+  for (let idx = 0; idx < width * height; idx++) {
+    oceanMask[idx] = rawData[idx] === 0 ? 255 : 0;
+  }
+  console.log("Computing connected components (ocean)...");
+  const oceanRegionId = connectedComponentsWrap(oceanMask, width, height);
 
   if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-  const buf = outCanvas.toBuffer("image/png");
-  fs.writeFileSync(OUT_PATH, buf);
-  console.log("Wrote", OUT_PATH, "(360×180, 3×-wide unwrapped then OR-collapsed)");
+
+  const n = width * height;
+  const binBuf = Buffer.allocUnsafe(8 + n * 4 * 2);
+  let off = 0;
+  binBuf.writeUInt32LE(width, off); off += 4;
+  binBuf.writeUInt32LE(height, off); off += 4;
+  for (let i = 0; i < n; i++) binBuf.writeUInt32LE(landmassId[i], off + i * 4);
+  off += n * 4;
+  for (let i = 0; i < n; i++) binBuf.writeUInt32LE(oceanRegionId[i], off + i * 4);
+  fs.writeFileSync(BIN_PATH, binBuf);
+  console.log("Wrote", BIN_PATH, `(${width}×${height}, landmass + ocean IDs)`);
+
+  const outCanvas = createCanvas(width, height);
+  const outCtx = outCanvas.getContext("2d");
+  const collapsed = outCtx.createImageData(width, height);
+  for (let idx = 0; idx < n; idx++) {
+    const v = rawData[idx] > 0 ? 255 : 0;
+    collapsed.data[idx * 4] = v;
+    collapsed.data[idx * 4 + 1] = v;
+    collapsed.data[idx * 4 + 2] = v;
+    collapsed.data[idx * 4 + 3] = 255;
+  }
+  outCtx.putImageData(collapsed, 0, 0);
+  const pngBuf = outCanvas.toBuffer("image/png");
+  fs.writeFileSync(OUT_PATH, pngBuf);
+  console.log("Wrote", OUT_PATH, `(${width}×${height}, raw land/water)`);
 }
 
 main().catch((err) => {

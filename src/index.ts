@@ -7,9 +7,12 @@
 export { Globe } from "./core/Globe.js";
 export {
   buildGeodesicTiles,
+  buildFlatGeometryData,
   createGeodesicGeometry,
   createGeodesicGeometryFlat,
+  updateFlatGeometryFromTerrain,
   getEdgeNeighbor,
+  type FlatGeometryData,
   type GeodesicTile,
   type GeodesicMeshOptions,
   type GeodesicFlatMeshOptions,
@@ -23,6 +26,7 @@ export {
   TERRAIN_STYLES,
   applyTerrainToGeometry,
   applyTerrainColorsToGeometry,
+  applyVertexColorsByTileId,
   geometryLandOnly,
   geometryOceanFloor,
   geometryCoastSkirt,

@@ -14,7 +14,9 @@ import {
   WaterSphere,
   Starfield,
   createGeodesicGeometryFlat,
+  updateFlatGeometryFromTerrain,
   applyTerrainColorsToGeometry,
+  applyVertexColorsByTileId,
   applyTerrainToGeometry,
   createCoastMaskTexture,
   createCoastLandMaskTexture,
@@ -27,6 +29,7 @@ import {
   getPreset,
   placeObject,
   tileCenterToLatLon,
+  TERRAIN_STYLES,
   type TileTerrainData,
   type EarthRaster,
   type ClimateGrid,
@@ -34,10 +37,17 @@ import {
   type RegionScores,
 } from "polyglobe";
 
+console.log("[globe-build] demo main.ts loaded");
+
 const EARTH_LAND_TOPOLOGY_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
+/** Precomputed landmass + ocean IDs (from npm run build-land-raster-png). Load once, sample only where needed. */
+const EARTH_REGION_GRID_BIN = "/earth-region-grid.bin";
 /** Natural Earth 110m lakes (Great Lakes, Baikal, Victoria, etc.) – drawn as water to punch holes in land. */
 const EARTH_LAKES_GEOJSON_URL =
   "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json";
+/** Natural Earth 110m geography marine polygons (seas, bays, Caspian, Black Sea, etc.). We use sea/bay features only. */
+const EARTH_MARINE_POLYS_URL =
+  "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_geography_marine_polys.json";
 const KOPPEN_BIN_SAME_ORIGIN = "/koppen.bin";
 const KOPPEN_ZIP_SAME_ORIGIN = "/koppen_ascii.zip";
 const KOPPEN_ZIP_REMOTE =
@@ -151,6 +161,181 @@ function buildProceduralTerrain(
     if (hasLandNeighbor) tileTerrain.set(i, { ...data, type: "beach" });
   }
   return tileTerrain;
+}
+
+/** Build a simple land/water terrain map from a landMask (0..1) for progressive display. */
+function terrainFromLandMask(
+  landMask: Float32Array,
+  tiles: GeodesicTile[],
+  landFraction: number
+): Map<number, TileTerrainData> {
+  const out = new Map<number, TileTerrainData>();
+  for (let i = 0; i < tiles.length; i++) {
+    const isLand = landMask[i] > landFraction;
+    out.set(i, {
+      tileId: i,
+      type: isLand ? "land" : "water",
+      elevation: isLand ? 0.1 : -0.18,
+    });
+  }
+  return out;
+}
+
+/** Build procedural terrain, calling onProgress after each blob iteration so the globe can render in progress. */
+async function buildProceduralTerrainProgressive(
+  tiles: GeodesicTile[],
+  state: DemoState,
+  onProgress: (intermediate: Map<number, TileTerrainData>) => Promise<void>
+): Promise<Map<number, TileTerrainData>> {
+  const rnd = seededRandom(state.seed);
+  const landMask = new Float32Array(tiles.length);
+  for (let i = 0; i < tiles.length; i++) landMask[i] = rnd();
+  for (let iter = 0; iter < state.blobiness; iter++) {
+    const next = new Float32Array(tiles.length);
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i];
+      let sum = landMask[i];
+      let n = 1;
+      for (const j of t.neighbors) {
+        sum += landMask[j];
+        n++;
+      }
+      next[i] = sum / n;
+    }
+    for (let i = 0; i < tiles.length; i++) landMask[i] = next[i];
+    console.log(BUILD_LOG, "Procedural: blob iteration", iter + 1, "/", state.blobiness);
+    const intermediate = terrainFromLandMask(landMask, tiles, state.landFraction);
+    await onProgress(intermediate);
+  }
+  console.log(BUILD_LOG, "Procedural: deriving final terrain types");
+  const landThreshold = state.landFraction;
+  const tileTerrain = new Map<number, TileTerrainData>();
+  const midLandTypes: TileTerrainData["type"][] = ["land", "forest", "mountain", "grassland"];
+  for (let i = 0; i < tiles.length; i++) {
+    const isLand = landMask[i] > landThreshold;
+    const y = tiles[i].center.y;
+    const absLat = Math.abs(y);
+    let type: TileTerrainData["type"];
+    let elevation: number;
+    if (!isLand) {
+      type = "water";
+      elevation = -0.18;
+    } else {
+      if (absLat > 0.82) {
+        type = rnd() < 0.7 ? "ice" : "snow";
+        elevation = 0.06;
+      } else if (absLat < 0.32) {
+        type = rnd() < 0.65 ? "desert" : rnd() < 0.6 ? "land" : "forest";
+        elevation = type === "desert" ? 0.05 : 0.1;
+      } else {
+        type = midLandTypes[Math.floor(rnd() * midLandTypes.length)];
+        elevation = type === "mountain" ? 0.28 : 0.1;
+      }
+    }
+    tileTerrain.set(i, { tileId: i, type, elevation });
+  }
+  for (let i = 0; i < tiles.length; i++) {
+    const data = tileTerrain.get(i)!;
+    if (data.type !== "water") continue;
+    const hasLandNeighbor = tiles[i].neighbors.some((n) => tileTerrain.get(n)?.type !== "water");
+    if (hasLandNeighbor) tileTerrain.set(i, { ...data, type: "beach" });
+  }
+  return tileTerrain;
+}
+
+const TERRAIN_ANIMATION_FRAMES = 28;
+const TERRAIN_ANIMATION_EASING = (t: number) => t * (2 - t); // ease-out quadratic
+
+/** Return a set of tile IDs that have peaks (for geometry layout comparison). */
+function getPeakTileSet(
+  peakTiles: Map<number, number> | undefined
+): Set<number> {
+  if (!peakTiles) return new Set();
+  return new Set(peakTiles.keys());
+}
+
+/** Animate terrain from previous to next: lerp elevation and color over several frames. */
+async function runTerrainTransition(
+  globe: Globe,
+  prevTerrain: Map<number, TileTerrainData>,
+  nextTerrain: Map<number, TileTerrainData>,
+  elevationScale: number,
+  peakElevationScale: number,
+  peakTilesPrev: Map<number, number> | undefined,
+  peakTilesNext: Map<number, number> | undefined,
+  yieldToMain: () => Promise<void>
+): Promise<void> {
+  const peakSetPrev = getPeakTileSet(peakTilesPrev);
+  const peakSetNext = getPeakTileSet(peakTilesNext);
+  const peakSetChanged =
+    peakSetPrev.size !== peakSetNext.size ||
+    [...peakSetNext].some((id) => !peakSetPrev.has(id));
+
+  const opts = {
+    radius: globe.radius,
+    elevationScale,
+    peakElevationScale,
+  };
+
+  if (peakSetChanged && peakTilesNext != null) {
+    console.log(BUILD_LOG, "TerrainTransition: peak set changed, replacing geometry (no animation)");
+    const nextOpts = {
+      ...opts,
+      getElevation: (id: number) => nextTerrain.get(id)?.elevation ?? 0,
+      getPeak: (id: number) => {
+        const m = peakTilesNext.get(id);
+        return m != null ? { apexElevationM: m } : undefined;
+      },
+    };
+    const geom = createGeodesicGeometryFlat(globe.tiles, nextOpts);
+    applyTerrainColorsToGeometry(geom, nextTerrain);
+    globe.mesh.geometry.dispose();
+    globe.mesh.geometry = geom;
+    return;
+  }
+
+  console.log(BUILD_LOG, "TerrainTransition: animating", TERRAIN_ANIMATION_FRAMES + 1, "frames");
+  const colorPrev = new THREE.Color();
+  const colorNext = new THREE.Color();
+
+  for (let frame = 0; frame <= TERRAIN_ANIMATION_FRAMES; frame++) {
+    if (frame % 7 === 0 || frame === TERRAIN_ANIMATION_FRAMES) {
+      console.log(BUILD_LOG, "TerrainTransition: frame", frame, "/", TERRAIN_ANIMATION_FRAMES);
+    }
+    const t = TERRAIN_ANIMATION_EASING(frame / TERRAIN_ANIMATION_FRAMES);
+    const getElevation = (id: number) => {
+      const a = prevTerrain.get(id)?.elevation ?? -0.18;
+      const b = nextTerrain.get(id)?.elevation ?? -0.18;
+      return a + (b - a) * t;
+    };
+    const getPeakLerp =
+      peakTilesNext && peakTilesNext.size > 0
+        ? (id: number) => {
+            const prevM = peakTilesPrev?.get(id) ?? 0;
+            const nextM = peakTilesNext.get(id) ?? 0;
+            const m = prevM + (nextM - prevM) * t;
+            return m > 0 ? { apexElevationM: m } : undefined;
+          }
+        : undefined;
+    const optsLerp = {
+      ...opts,
+      getElevation,
+      getPeak: getPeakLerp,
+    };
+    updateFlatGeometryFromTerrain(globe.mesh.geometry, globe.tiles, optsLerp);
+    applyVertexColorsByTileId(globe.mesh.geometry, (tid) => {
+      if (tid < 0) return TERRAIN_STYLES.snow.color;
+      const a = prevTerrain.get(tid);
+      const b = nextTerrain.get(tid);
+      const styleA = a ? TERRAIN_STYLES[a.type].color : TERRAIN_STYLES.water.color;
+      const styleB = b ? TERRAIN_STYLES[b.type].color : TERRAIN_STYLES.water.color;
+      colorPrev.set(styleA);
+      colorNext.set(styleB);
+      colorPrev.lerp(colorNext, t);
+      return colorPrev;
+    });
+    await yieldToMain();
+  }
 }
 
 type GeoJSONPolygon = { type: "Polygon"; coordinates: number[][][] };
@@ -431,6 +616,27 @@ function collectLakePolygons(geom: GeoJSONGeometry): number[][][][] {
   return out;
 }
 
+/** Fetch Natural Earth marine polys and return polygons for sea/bay features only (Caspian, Black Sea, etc.). */
+async function loadMarineSeaBayPolygons(): Promise<number[][][][]> {
+  const out: number[][][][] = [];
+  try {
+    const res = await fetch(EARTH_MARINE_POLYS_URL);
+    if (!res.ok) return out;
+    const fc = (await res.json()) as { type: string; features?: Array<{ geometry: GeoJSONGeometry; properties?: { featurecla?: string } }> };
+    if (fc.features) {
+      for (const f of fc.features) {
+        const cla = f.properties?.featurecla;
+        if ((cla === "sea" || cla === "bay") && f.geometry) {
+          out.push(...collectLakePolygons(f.geometry));
+        }
+      }
+    }
+  } catch {
+    /* optional */
+  }
+  return out;
+}
+
 const SOUTH_POLE_CAP_LAT = -80;
 
 function createLandSampler(
@@ -597,21 +803,24 @@ function connectedComponentsWrap(
   return out;
 }
 
-/** Per-cell lake id from PIP (1..K); 0 = not lake. */
+/** Per-cell lake id from PIP (1..K); 0 = not lake. Only runs PIP for water pixels when landRaster is provided. */
 function buildLakeIdGrid(
   lakePolygons: number[][][][],
   width: number,
-  height: number
+  height: number,
+  landRaster?: Uint8Array
 ): Uint32Array {
   const out = new Uint32Array(width * height);
   for (let j = 0; j < height; j++) {
     const lat = (height - 1) > 0 ? 90 - (180 * j) / (height - 1) : 0;
     if (lat <= SOUTH_POLE_CAP_LAT) continue;
     for (let i = 0; i < width; i++) {
+      const idx = j * width + i;
+      if (landRaster != null && landRaster[idx] !== 0) continue;
       const lon = (width - 1) > 0 ? -180 + (360 * i) / (width - 1) : 0;
       for (let k = 0; k < lakePolygons.length; k++) {
         if (pointInPolygon(lakePolygons[k], lon, lat)) {
-          out[j * width + i] = k + 1;
+          out[idx] = k + 1;
           break;
         }
       }
@@ -669,6 +878,59 @@ function createRegionScorer(
   };
 }
 
+/** Same as createRegionScorer but lakes come from on-demand point-in-polygon (for precomputed bin; no lake grid). */
+function createRegionScorerFromBin(
+  landmassId: Uint32Array,
+  oceanRegionId: Uint32Array,
+  width: number,
+  height: number,
+  lakePolygons: number[][][][]
+): (tile: GeodesicTile) => RegionScores {
+  return (tile: GeodesicTile) => {
+    const points: { lat: number; lon: number }[] = [tileCenterToLatLon(tile.center)];
+    for (const v of tile.vertices) {
+      points.push(tileCenterToLatLon(v));
+    }
+    const landmassCounts = new Map<number, number>();
+    const oceanCounts = new Map<number, number>();
+    const lakeCounts = new Map<number, number>();
+    let landTotal = 0;
+    for (const { lat, lon } of points) {
+      const latDeg = (lat * 180) / Math.PI;
+      const lonDeg = (lon * 180) / Math.PI;
+      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
+      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      const idx = j * width + i;
+      const lm = landmassId[idx];
+      const oc = oceanRegionId[idx];
+      if (lm !== 0) {
+        landTotal++;
+        landmassCounts.set(lm, (landmassCounts.get(lm) ?? 0) + 1);
+      }
+      if (oc !== 0) oceanCounts.set(oc, (oceanCounts.get(oc) ?? 0) + 1);
+      for (let k = 0; k < lakePolygons.length; k++) {
+        if (pointInPolygon(lakePolygons[k], lonDeg, latDeg)) {
+          lakeCounts.set(k + 1, (lakeCounts.get(k + 1) ?? 0) + 1);
+          break;
+        }
+      }
+    }
+    const n = points.length;
+    const landmassFractions = new Map<number, number>();
+    for (const [id, count] of landmassCounts) landmassFractions.set(id, count / n);
+    const oceanFractions = new Map<number, number>();
+    for (const [id, count] of oceanCounts) oceanFractions.set(id, count / n);
+    const lakeFractions = new Map<number, number>();
+    for (const [id, count] of lakeCounts) lakeFractions.set(id, count / n);
+    return {
+      landFraction: landTotal / n,
+      landmassFractions,
+      oceanFractions,
+      lakeFractions,
+    };
+  };
+}
+
 /** Fetch world-atlas land TopoJSON, build raster, land sampler, topology sampler, and region scorer (per-landmass resolution). */
 async function loadEarthLandRaster(): Promise<{
   raster: EarthRaster;
@@ -676,6 +938,55 @@ async function loadEarthLandRaster(): Promise<{
   topologySampler: TopologySampler;
   getRegionScores: (tile: GeodesicTile) => RegionScores;
 }> {
+  const binRes = await fetch(EARTH_REGION_GRID_BIN);
+  if (binRes.ok) {
+    const buf = await binRes.arrayBuffer();
+    const dv = new DataView(buf);
+    const width = dv.getUint32(0, true);
+    const height = dv.getUint32(4, true);
+    const n = width * height;
+    const landmassId = new Uint32Array(buf, 8, n);
+    const oceanRegionId = new Uint32Array(buf, 8 + n * 4, n);
+    let lakePolygons: number[][][][] = [];
+    try {
+      const lakesRes = await fetch(EARTH_LAKES_GEOJSON_URL);
+      if (lakesRes.ok) {
+        const lakes = (await lakesRes.json()) as { features?: Array<{ geometry: GeoJSONGeometry }> };
+        if (lakes.features) {
+          for (const f of lakes.features) {
+            if (f.geometry) lakePolygons = lakePolygons.concat(collectLakePolygons(f.geometry));
+          }
+        }
+      }
+    } catch {
+      /* optional */
+    }
+    const marinePolygons = await loadMarineSeaBayPolygons();
+    lakePolygons = lakePolygons.concat(marinePolygons);
+    const getRegionScores = createRegionScorerFromBin(landmassId, oceanRegionId, width, height, lakePolygons);
+    const landSampler = (latRad: number, lonRad: number) => {
+      const latDeg = (latRad * 180) / Math.PI;
+      const lonDeg = (lonRad * 180) / Math.PI;
+      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
+      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      return landmassId[j * width + i] !== 0;
+    };
+    const topologySampler: TopologySampler = (latRad: number, lonRad: number) => {
+      const land = landSampler(latRad, lonRad);
+      const latDeg = (latRad * 180) / Math.PI;
+      const lonDeg = (lonRad * 180) / Math.PI;
+      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
+      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      const oceanId = oceanRegionId[j * width + i];
+      return { land, landPolygonIndex: land ? 0 : undefined, waterRegionId: land ? undefined : oceanId || 1 };
+    };
+    const rasterData = new Uint8Array(n);
+    for (let idx = 0; idx < n; idx++) rasterData[idx] = landmassId[idx] !== 0 ? 255 : 0;
+    const raster: EarthRaster = { width, height, data: rasterData };
+    console.log("[Earth raster] Loaded precomputed region grid", width, "×", height, "(sample only where needed)");
+    return { raster, landSampler, topologySampler, getRegionScores };
+  }
+
   const res = await fetch(EARTH_LAND_TOPOLOGY_URL);
   const topology = (await res.json()) as Parameters<typeof topojson.feature>[0] & {
     objects?: Record<string, unknown>;
@@ -708,6 +1019,8 @@ async function loadEarthLandRaster(): Promise<{
   } catch {
     // Lakes optional
   }
+  const marinePolygons = await loadMarineSeaBayPolygons();
+  lakePolygons = lakePolygons.concat(marinePolygons);
 
   const landSampler = createLandSampler(landPolygons, lakePolygons);
   let topologySampler: TopologySampler;
@@ -722,9 +1035,11 @@ async function loadEarthLandRaster(): Promise<{
     };
   }
 
-  const width = 360;
-  const height = 180;
-  const wideWidth = 1080;
+  // 3600×1800 keeps Gibraltar/Malacca/Bosphorus/Red Sea visible without hanging the main thread.
+  // (7200×3600 is possible for the build script but too heavy in-browser.)
+  const width = 3600;
+  const height = 1800;
+  const wideWidth = 10800;
   const canvas = document.createElement("canvas");
   canvas.width = wideWidth;
   canvas.height = height;
@@ -755,6 +1070,10 @@ async function loadEarthLandRaster(): Promise<{
   } catch {
     // optional
   }
+  ctx.fillStyle = "black";
+  for (const poly of await loadMarineSeaBayPolygons()) {
+    drawGeometryUnwrapped(ctx, { type: "Polygon", coordinates: poly } as GeoJSONGeometry, toX, toY);
+  }
   const wideData = ctx.getImageData(0, 0, wideWidth, height);
   const collapsed = new ImageData(width, height);
   const scale = (wideWidth - 1) / 1080;
@@ -782,7 +1101,7 @@ async function loadEarthLandRaster(): Promise<{
   const raster = earthRasterFromImageData(imageData, 128);
 
   const landmassId = connectedComponentsWrap(raster.data, width, height);
-  const lakeIdGrid = buildLakeIdGrid(lakePolygons, width, height);
+  const lakeIdGrid = buildLakeIdGrid(lakePolygons, width, height, raster.data);
   const oceanMask = new Uint8Array(width * height);
   for (let idx = 0; idx < width * height; idx++) {
     oceanMask[idx] = raster.data[idx] === 0 && lakeIdGrid[idx] === 0 ? 255 : 0;
@@ -794,7 +1113,7 @@ async function loadEarthLandRaster(): Promise<{
     const debugCanvas = document.createElement("canvas");
     debugCanvas.width = width;
     debugCanvas.height = height;
-    debugCanvas.title = "Raw land raster (white=land, black=water). Close or remove ?showRaster=1.";
+    debugCanvas.title = "Land raster (white=land, black=water). Close or remove ?showRaster=1.";
     debugCanvas.style.cssText =
       "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:90vw;max-height:90vh;border:2px solid #6b9b5c;z-index:9999;cursor:pointer;";
     const dctx = debugCanvas.getContext("2d")!;
@@ -910,8 +1229,25 @@ let earthGetRegionScores: ((tile: GeodesicTile) => RegionScores) | null = null;
 /** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
 let mountainsList: MountainEntry[] | null = null;
 
+const BUILD_LOG = "[globe-build]";
+
+/** Delay (ms) after each resolution iteration so the browser can render and the user can watch. ~40ms ≈ 25 updates/sec. */
+const RESOLVE_ITERATION_DELAY_MS = 40;
+
 function yieldToMain(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/** Wait for the next paint and optionally a short delay so rendering keeps up and iterations are watchable. */
+function yieldForRender(delayMs: number = RESOLVE_ITERATION_DELAY_MS): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (delayMs <= 0) resolve();
+        else setTimeout(resolve, delayMs);
+      });
+    });
+  });
 }
 
 let buildInProgress = false;
@@ -955,10 +1291,46 @@ function createFlareTexture(size: number, soft: boolean = true): THREE.CanvasTex
   return t;
 }
 
+function baseWaterTerrain(tileCount: number): Map<number, TileTerrainData> {
+  const m = new Map<number, TileTerrainData>();
+  for (let i = 0; i < tileCount; i++) {
+    m.set(i, { tileId: i, type: "water", elevation: -0.18 });
+  }
+  return m;
+}
+
+function setGlobeGeometryFromTerrain(
+  globe: Globe,
+  tileTerrain: Map<number, TileTerrainData>,
+  peakTiles: Map<number, number> | undefined,
+  elevationScale: number,
+  peakElevationScale: number
+): void {
+  const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
+    radius: globe.radius,
+    getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+    elevationScale,
+    peakElevationScale,
+  };
+  if (peakTiles != null && peakTiles.size > 0) {
+    opts.getPeak = (id) => {
+      const m = peakTiles.get(id);
+      return m != null ? { apexElevationM: m } : undefined;
+    };
+  }
+  const geom = createGeodesicGeometryFlat(globe.tiles, opts);
+  applyTerrainColorsToGeometry(geom, tileTerrain);
+  if (globe.mesh.geometry) globe.mesh.geometry.dispose();
+  globe.mesh.geometry = geom;
+  globe.mesh.renderOrder = 0;
+}
+
 async function buildWorldAsync(state: DemoState): Promise<void> {
+  console.log(BUILD_LOG, "buildWorldAsync start", state.useEarth ? "Earth" : "procedural", "subdivisions:", state.subdivisions);
   setLoading(true);
   try {
     if (globe) {
+      console.log(BUILD_LOG, "teardown previous globe/water/overlay");
       scene.remove(globe.mesh);
       globe.mesh.geometry.dispose();
       (globe.mesh as THREE.Mesh).material.dispose();
@@ -974,71 +1346,129 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     if (marker) scene.remove(marker);
     await yieldToMain();
 
+    console.log(BUILD_LOG, "create Globe, add base water terrain");
     globe = new Globe({ radius: 1, subdivisions: state.subdivisions });
-    scene.add(globe.mesh);
-    await yieldToMain();
-
-    let tileTerrain: Map<number, TileTerrainData>;
-    if (state.useEarth && earthRaster) {
-      try {
-        tileTerrain = buildTerrainFromEarthRaster(globe.tiles, earthRaster, {
-          waterElevation: -0.18,
-          landElevation: 0.1,
-          elevationScale: 0.00004,
-          latitudeTerrain: true,
-          getRegionScores: earthGetRegionScores ?? undefined,
-        });
-        applyCoastalBeach(globe.tiles, tileTerrain);
-      } catch (e) {
-        console.error("[buildTerrainFromEarthRaster]", e);
-        throw e;
-      }
-    } else {
-      tileTerrain = buildProceduralTerrain(globe.tiles, state);
-    }
-    await yieldToMain();
-
-    const elevationScale = 0.08;
-    const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
-      radius: globe.radius,
-      getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
-      elevationScale,
-    };
-    if (state.useEarth && mountainsList && mountainsList.length > 0) {
-      // Target distinct hexes with peaks (many list peaks share a hex), so iterate until we fill that many
-      const targetDistinctTiles = Math.max(24, Math.floor(globe.tileCount / 20));
-      const peakTiles = new Map<number, number>();
-      for (const m of mountainsList) {
-        if (peakTiles.size >= targetDistinctTiles) break;
-        const dir = latLonDegToDirection(m.lat, m.lon);
-        const tileId = globe.getTileIdAtDirection(dir);
-        const terrain = tileTerrain.get(tileId);
-        if (terrain && terrain.type !== "water" && terrain.type !== "ice") {
-          const existing = peakTiles.get(tileId) ?? 0;
-          if (m.elevationM > existing) peakTiles.set(tileId, m.elevationM);
-        }
-      }
-      opts.getPeak = (id) => {
-        const apexM = peakTiles.get(id);
-        return apexM != null ? { apexElevationM: apexM } : undefined;
-      };
-      opts.peakElevationScale = 0.000006;
-    }
-    const flatGeometry = createGeodesicGeometryFlat(globe.tiles, opts);
-    applyTerrainColorsToGeometry(flatGeometry, tileTerrain);
-    globe.mesh.geometry = flatGeometry;
+    (globe.mesh as THREE.Mesh).material.dispose();
     (globe.mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       flatShading: true,
       side: THREE.DoubleSide,
     });
-    globe.mesh.renderOrder = 0;
+    scene.add(globe.mesh);
+    const elevationScale = 0.08;
+    const peakElevationScale = 0.000006;
+
+    const baseTerrain = baseWaterTerrain(globe.tileCount);
+    setGlobeGeometryFromTerrain(globe, baseTerrain, undefined, elevationScale, peakElevationScale);
+    await yieldToMain();
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+    let tileTerrain: Map<number, TileTerrainData>;
+    let lastDisplayedTerrain = baseTerrain;
+    let peakTiles: Map<number, number> | undefined;
+
+    if (state.useEarth && earthRaster) {
+      console.log(BUILD_LOG, "Earth: buildTerrainFromEarthRaster start (tiles:", globe.tileCount, ")");
+      try {
+        tileTerrain = await buildTerrainFromEarthRaster(globe.tiles, earthRaster, {
+          waterElevation: -0.18,
+          landElevation: 0.1,
+          elevationScale: 0.00004,
+          latitudeTerrain: true,
+          getRegionScores: earthGetRegionScores ?? undefined,
+          onFirstPassProgress: async () => {
+            await yieldForRender(20);
+          },
+          resolveOptions: {
+            useGreedyLandmassPlacement: true,
+            onIteration: async (_iteration, landByTile) => {
+              const terrain = new Map<number, TileTerrainData>();
+              for (const [tid, isLand] of landByTile) {
+                terrain.set(tid, {
+                  tileId: tid,
+                  type: isLand ? "land" : "water",
+                  elevation: isLand ? 0.1 : -0.18,
+                });
+              }
+              setGlobeGeometryFromTerrain(globe, terrain, undefined, elevationScale, peakElevationScale);
+              await yieldForRender();
+            },
+          },
+        });
+        applyCoastalBeach(globe.tiles, tileTerrain);
+        console.log(BUILD_LOG, "Earth: buildTerrainFromEarthRaster done");
+      } catch (e) {
+        console.error(BUILD_LOG, "buildTerrainFromEarthRaster", e);
+        throw e;
+      }
+      if (mountainsList && mountainsList.length > 0) {
+        console.log(BUILD_LOG, "Earth: computing peak tiles");
+        const targetDistinctTiles = Math.max(24, Math.floor(globe.tileCount / 20));
+        peakTiles = new Map<number, number>();
+        for (const m of mountainsList) {
+          if (peakTiles.size >= targetDistinctTiles) break;
+          const dir = latLonDegToDirection(m.lat, m.lon);
+          const tileId = globe.getTileIdAtDirection(dir);
+          const terrain = tileTerrain.get(tileId);
+          if (terrain && terrain.type !== "water" && terrain.type !== "ice") {
+            const existing = peakTiles.get(tileId) ?? 0;
+            if (m.elevationM > existing) peakTiles.set(tileId, m.elevationM);
+          }
+        }
+        console.log(BUILD_LOG, "Earth: peaks done, count:", peakTiles?.size ?? 0);
+      }
+      console.log(BUILD_LOG, "Earth: runTerrainTransition start");
+      await runTerrainTransition(
+        globe,
+        lastDisplayedTerrain,
+        tileTerrain,
+        elevationScale,
+        peakElevationScale,
+        undefined,
+        peakTiles,
+        yieldToMain
+      );
+      console.log(BUILD_LOG, "Earth: runTerrainTransition done");
+      lastDisplayedTerrain = tileTerrain;
+    } else {
+      console.log(BUILD_LOG, "Procedural: buildProceduralTerrainProgressive start, blobiness:", state.blobiness);
+      tileTerrain = await buildProceduralTerrainProgressive(
+        globe.tiles,
+        state,
+        async (intermediate) => {
+          setGlobeGeometryFromTerrain(
+            globe,
+            intermediate,
+            undefined,
+            elevationScale,
+            peakElevationScale
+          );
+          lastDisplayedTerrain = intermediate;
+          await yieldToMain();
+        }
+      );
+      console.log(BUILD_LOG, "Procedural: buildProceduralTerrainProgressive done, runTerrainTransition start");
+      await runTerrainTransition(
+        globe,
+        lastDisplayedTerrain,
+        tileTerrain,
+        elevationScale,
+        peakElevationScale,
+        undefined,
+        undefined,
+        yieldToMain
+      );
+      console.log(BUILD_LOG, "Procedural: runTerrainTransition done");
+    }
+
     await yieldToMain();
 
+    console.log(BUILD_LOG, "create coast masks");
     coastMaskTexture = createCoastMaskTexture(globe, tileTerrain, 256, 128);
     coastLandMaskTexture = createCoastLandMaskTexture(globe, tileTerrain, 256, 128);
     await yieldToMain();
 
+    console.log(BUILD_LOG, "create WaterSphere, coast foam, marker");
     water = new WaterSphere({
       radius: 0.995,
       color: 0x1a5a6a,
@@ -1067,6 +1497,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const tileId = Math.min(42, globe.tileCount - 1);
     placeObject(marker, globe, { tileId, heightOffset: 0.06 });
     scene.add(marker);
+    console.log(BUILD_LOG, "buildWorldAsync done");
   } finally {
     setLoading(false);
   }
@@ -1074,9 +1505,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
 function scheduleRebuild(state: DemoState) {
   if (buildInProgress) {
+    console.log(BUILD_LOG, "scheduleRebuild: build already in progress, queuing state");
     pendingState = { ...state };
     return;
   }
+  console.log(BUILD_LOG, "scheduleRebuild: starting build");
   buildInProgress = true;
   pendingState = null;
   buildWorldAsync(state)
@@ -1182,11 +1615,14 @@ function createPanel(state: DemoState, onRebuild: () => void) {
 }
 
 async function init() {
+  console.log(BUILD_LOG, "init start");
+  console.log(BUILD_LOG, "init: loading Earth land raster…");
   const landResult = await loadEarthLandRaster();
   earthRaster = landResult.raster;
   earthLandSampler = landResult.landSampler;
   earthTopologySampler = landResult.topologySampler;
   earthGetRegionScores = landResult.getRegionScores;
+  console.log(BUILD_LOG, "init: land raster done, fetching mountains.json…");
   const res = await fetch(MOUNTAINS_JSON_SAME_ORIGIN);
   if (res.ok) {
     const raw = (await res.json()) as unknown;
@@ -1208,10 +1644,13 @@ async function init() {
   } else {
     mountainsList = null;
   }
+  console.log(BUILD_LOG, "init: loading Koppen climate…");
   const climate = await loadKoppenClimate();
   if (climate) earthRaster.climate = climate;
+  console.log(BUILD_LOG, "init: loading elevation…");
   const elevation = await loadElevation();
   if (elevation) earthRaster.elevation = elevation;
+  console.log(BUILD_LOG, "init: assets done, creating panel and scheduling build");
 
   const state: DemoState = { ...DEFAULT_STATE };
   createPanel(state, () => scheduleRebuild(state));

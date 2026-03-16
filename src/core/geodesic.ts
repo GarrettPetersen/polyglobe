@@ -206,15 +206,21 @@ export interface GeodesicFlatMeshOptions {
   peakElevationScale?: number;
 }
 
+export interface FlatGeometryData {
+  positions: Float32Array;
+  normals: Float32Array;
+  tileIds: Float32Array;
+  indices: number[];
+}
+
 /**
- * Create BufferGeometry with flat hex/pentagon tops and vertical steps between different elevations.
- * Each tile is a true hex or pentagon: land in plane through center*r, water on sphere at r.
- * Small gaps can appear at shared edges; walls fill vertical steps between elevations.
+ * Build position, normal, tileId and index arrays for flat hex geometry.
+ * Used by createGeodesicGeometryFlat and updateFlatGeometryFromTerrain.
  */
-export function createGeodesicGeometryFlat(
+export function buildFlatGeometryData(
   tiles: GeodesicTile[],
   options: GeodesicFlatMeshOptions
-): THREE.BufferGeometry {
+): FlatGeometryData {
   const radius = options.radius ?? 1;
   const elevationScale = options.elevationScale ?? 1;
   const peakElevationScale = options.peakElevationScale ?? 0.00002;
@@ -372,6 +378,24 @@ export function createGeodesicGeometryFlat(
     }
   }
 
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    tileIds: new Float32Array(tileIds),
+    indices,
+  };
+}
+
+/**
+ * Create BufferGeometry with flat hex/pentagon tops and vertical steps between different elevations.
+ * Each tile is a true hex or pentagon: land in plane through center*r, water on sphere at r.
+ * Small gaps can appear at shared edges; walls fill vertical steps between elevations.
+ */
+export function createGeodesicGeometryFlat(
+  tiles: GeodesicTile[],
+  options: GeodesicFlatMeshOptions
+): THREE.BufferGeometry {
+  const { positions, normals, tileIds, indices } = buildFlatGeometryData(tiles, options);
   const geom = new THREE.BufferGeometry();
   geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geom.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
@@ -379,6 +403,30 @@ export function createGeodesicGeometryFlat(
   geom.setIndex(indices);
   geom.computeVertexNormals();
   return geom;
+}
+
+/**
+ * Update an existing flat geometry's positions (and normals) in place from new elevation/peak options.
+ * Use when the set of tiles with peaks is unchanged (same vertex count); otherwise replace the geometry.
+ */
+export function updateFlatGeometryFromTerrain(
+  geometry: THREE.BufferGeometry,
+  tiles: GeodesicTile[],
+  options: GeodesicFlatMeshOptions
+): void {
+  const posAttr = geometry.getAttribute("position") as THREE.BufferAttribute;
+  if (!posAttr) return;
+  const { positions, normals } = buildFlatGeometryData(tiles, options);
+  if (positions.length !== posAttr.count * 3) return;
+  (posAttr.array as Float32Array).set(positions);
+  posAttr.needsUpdate = true;
+  const normAttr = geometry.getAttribute("normal") as THREE.BufferAttribute;
+  if (normAttr && normAttr.count * 3 === normals.length) {
+    (normAttr.array as Float32Array).set(normals);
+    normAttr.needsUpdate = true;
+  } else {
+    geometry.computeVertexNormals();
+  }
 }
 
 /**

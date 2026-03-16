@@ -24,4 +24,5 @@ The “rings” you see (horizontal lines at constant latitude that span the ful
 ### Inspecting and viewing the raster
 
 1. **Inspect topology**: Open the browser console. On load you’ll see `[Earth raster] Topology objects: [...] bbox: [...]`. That shows which layers exist in the TopoJSON (e.g. only `land` in world-atlas) and the data extent.
-2. **View raw raster**: Run `npm run build-land-raster-png` to generate `public/land-raster-debug.png` (360×180, white = land, black = water). Open that file to see exactly what the demo samples. If a ring appears in the image, it comes from the source data or our drawing; we skip full-globe horizontal-line rings so they should not appear after the fix.
+2. **Precomputed region grid (recommended)**: Run `npm run build-land-raster-png` to generate `public/earth-region-grid.bin` and `public/land-raster-debug.png`. The demo loads the bin once and samples only at tile center + vertices (no canvas, no connected components in-browser). If the bin is missing, the demo falls back to building the raster from TopoJSON in the browser (slower).
+3. **View raw raster**: Open `public/land-raster-debug.png` (3600×1800, white = land, black = water). Straits show as water. If a ring appears in the image, it comes from the source data or our drawing; we skip full-globe horizontal-line rings so they should not appear after the fix.
