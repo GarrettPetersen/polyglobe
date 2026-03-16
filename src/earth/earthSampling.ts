@@ -213,6 +213,106 @@ export interface BuildTerrainFromRasterOptions {
   onFirstPassProgress?: (sampled: number, total: number) => void | Promise<void>;
 }
 
+/** Small raster cutout (e.g. around a hex): 255 = land, 0 = water. Used to test isthmus vs strait by flood fill. */
+export interface RasterWindow {
+  width: number;
+  height: number;
+  data: Uint8Array;
+}
+
+/**
+ * Flood fill from cutout edges; report if land (or sea) connects two opposite edges.
+ * Isthmus: land crosses, sea doesn't. Strait: sea crosses, land doesn't. Else: normal coast.
+ */
+export function rasterCutoutCrosses(window: RasterWindow): { landCrosses: boolean; seaCrosses: boolean } {
+  const { width, height, data } = window;
+  if (width < 2 || height < 2) return { landCrosses: false, seaCrosses: false };
+  const isLand = (i: number, j: number) => (data[j * width + i] ?? 0) >= 128;
+  const dx = [0, 1, 0, -1];
+  const dy = [-1, 0, 1, 0];
+  function floodFromEdge(isLandPixel: boolean): { left: boolean; right: boolean; top: boolean; bottom: boolean } {
+    const reached = new Set<number>();
+    const key = (i: number, j: number) => j * width + i;
+    const stack: [number, number][] = [];
+    for (let i = 0; i < width; i++) {
+      if (isLandPixel === isLand(i, 0)) {
+        stack.push([i, 0]);
+        reached.add(key(i, 0));
+      }
+      if (height > 1 && isLandPixel === isLand(i, height - 1)) {
+        stack.push([i, height - 1]);
+        reached.add(key(i, height - 1));
+      }
+    }
+    for (let j = 0; j < height; j++) {
+      if (isLandPixel === isLand(0, j)) {
+        const k = key(0, j);
+        if (!reached.has(k)) {
+          stack.push([0, j]);
+          reached.add(k);
+        }
+      }
+      if (width > 1 && isLandPixel === isLand(width - 1, j)) {
+        const k = key(width - 1, j);
+        if (!reached.has(k)) {
+          stack.push([width - 1, j]);
+          reached.add(k);
+        }
+      }
+    }
+    while (stack.length > 0) {
+      const [i, j] = stack.pop()!;
+      for (let d = 0; d < 4; d++) {
+        const ni = i + dx[d];
+        const nj = j + dy[d];
+        if (ni < 0 || ni >= width || nj < 0 || nj >= height) continue;
+        if (isLandPixel !== isLand(ni, nj)) continue;
+        const nk = key(ni, nj);
+        if (reached.has(nk)) continue;
+        reached.add(nk);
+        stack.push([ni, nj]);
+      }
+    }
+    let left = false;
+    let right = false;
+    let top = false;
+    let bottom = false;
+    for (const k of reached) {
+      const j = Math.floor(k / width);
+      const i = k % width;
+      if (i === 0) left = true;
+      if (i === width - 1) right = true;
+      if (j === 0) top = true;
+      if (j === height - 1) bottom = true;
+    }
+    return { left, right, top, bottom };
+  }
+  const landReach = floodFromEdge(true);
+  const seaReach = floodFromEdge(false);
+  const landCrosses = (landReach.left && landReach.right) || (landReach.top && landReach.bottom);
+  const seaCrosses = (seaReach.left && seaReach.right) || (seaReach.top && seaReach.bottom);
+  return { landCrosses, seaCrosses };
+}
+
+/** Hardcoded strait locations (lonDeg, latDeg). Tiles within tolDeg are treated as straits (allow flip to water). */
+const KNOWN_STRAITS = [
+  { lonDeg: -5.4, latDeg: 36.1, tolDeg: 2.5 },
+  { lonDeg: 29, latDeg: 41, tolDeg: 2.5 },
+] as const;
+
+function isNearKnownStrait(tile: GeodesicTile): boolean {
+  const { lat, lon } = tileCenterToLatLon(tile.center);
+  const latDeg = (lat * 180) / Math.PI;
+  let lonDeg = (lon * 180) / Math.PI;
+  for (const s of KNOWN_STRAITS) {
+    const dLat = Math.abs(latDeg - s.latDeg);
+    let dLon = Math.abs(lonDeg - s.lonDeg);
+    if (dLon > 180) dLon = 360 - dLon;
+    if (dLat <= s.tolDeg && dLon <= s.tolDeg) return true;
+  }
+  return false;
+}
+
 /** Per-hex scores from sampling region rasters (one per landmass, ocean components, lakes). */
 export interface RegionScores {
   /** Fraction of samples in any landmass (0..1). */
@@ -864,7 +964,7 @@ export interface ResolveLandWaterByRegionsOptions {
   straitOceanThreshold?: number;
   /** Min ocean fraction to flip land to water when connecting two ocean components. Default 0.12. */
   oceanConnectThreshold?: number;
-  /** Max iterations for constraint satisfaction. Default 50. */
+  /** Max iterations for constraint satisfaction. Default 3. */
   maxIterations?: number;
   /** Depth limit for local strait/isthmus flood fill (boundary hexes only). Default 150. */
   localStraitDepthLimit?: number;
@@ -880,6 +980,10 @@ export interface ResolveLandWaterByRegionsOptions {
   onIteration?: (iteration: number, landByTile: Map<number, boolean>) => void | Promise<void>;
   /** If true, place landmasses greedily by size (largest first); new land cannot touch already-placed land, so islands never link to continents. */
   useGreedyLandmassPlacement?: boolean;
+  /** Optional: return a small raster cutout (land/water) around the tile to test isthmus vs strait by flood fill. If land crosses cutout but sea doesn't → isthmus; if sea crosses but land doesn't → strait. */
+  getRasterWindow?: (tile: GeodesicTile) => RasterWindow | null;
+  /** Hardcoded tile IDs (at current subdivisions) that must be water (straits). These are never treated as isthmus. */
+  knownStraitTileIds?: Set<number>;
 }
 
 /**
@@ -899,7 +1003,7 @@ export async function resolveLandWaterByRegions(
   const bridgeMaxGap = options.bridgeMaxGap ?? 2;
   const straitOceanThreshold = options.straitOceanThreshold ?? 0.25;
   const oceanConnectThreshold = options.oceanConnectThreshold ?? 0.12;
-  const maxIterations = options.maxIterations ?? 50;
+  const maxIterations = options.maxIterations ?? 3;
   const onIteration = options.onIteration;
   const useGreedyLandmassPlacement = options.useGreedyLandmassPlacement === true;
   const localStraitDepthLimit = options.localStraitDepthLimit ?? 150;
@@ -907,6 +1011,8 @@ export async function resolveLandWaterByRegions(
   const minLakeSize = options.minLakeSize ?? 2;
   const smallLandmassSize = options.smallLandmassSize ?? 25;
   const largeLandmassSize = options.largeLandmassSize ?? 8000;
+  const getRasterWindow = options.getRasterWindow;
+  const knownStraitTileIds = options.knownStraitTileIds;
 
   /** True if removing `tid` from `landSet` would increase the number of connected components (cut vertex). */
   function isCutVertex(tid: number, landSet: Set<number>): boolean {
@@ -1186,15 +1292,8 @@ export async function resolveLandWaterByRegions(
       cutByLandmass.set(landmassId, getArticulationPoints(tileSet, tileById));
     }
 
-    // Validate: each landmass must be one connected component; no two landmasses may be adjacent.
-    for (const [landmassId, tileSet] of byLandmass) {
-      const components = getHexComponents(tileSet, tileById);
-      if (components.size > 1) {
-        throw new Error(
-          `[resolveLandWaterByRegions] Landmass ${landmassId} disconnected (${components.size} components) at iteration ${iterations}`
-        );
-      }
-    }
+    // Disconnected landmasses are allowed (e.g. after opening straits so one landmass becomes two islands).
+    // Skip strict one-component validation that would throw here.
     for (const [tid, a] of assign) {
       if (!a.isLand || a.landmassId == null) continue;
       const t = tileById.get(tid);
@@ -1210,14 +1309,42 @@ export async function resolveLandWaterByRegions(
       }
     }
 
-    // (0) Strait opening (local): boundary land hex that is the only link between two water bodies → water.
-    // Assign to the LARGER body so enclosed seas (Med, Black, Baltic, Red) merge into the ocean.
+    // (0a) Force hardcoded strait tile IDs to water (they may not be on boundary if raster has land on both sides).
+    if (knownStraitTileIds?.size) {
+      for (const tid of knownStraitTileIds) {
+        const a = assign.get(tid);
+        if (!a?.isLand) continue;
+        const t = tileById.get(tid);
+        if (!t) continue;
+        let oceanId = 1;
+        for (const nid of t.neighbors) {
+          const na = assign.get(nid);
+          if (!na?.isLand && na?.oceanRegionId != null) {
+            oceanId = na.oceanRegionId;
+            break;
+          }
+        }
+        assign.set(tid, { isLand: false, oceanRegionId: oceanId });
+        changed = true;
+      }
+    }
+
+    // (0) Strait opening: flip land to water when it's the only link between two water bodies (strait). Do not flip if
+    // isthmus: land crosses cutout but sea doesn't (raster test), or articulation point when no raster (fallback).
     const boundary = getBoundaryTiles();
     for (const tid of boundary) {
       const a = assign.get(tid);
       if (!a?.isLand || a.landmassId == null) continue;
-      if (cutByLandmass.get(a.landmassId)?.has(tid)) continue;
       const t = tileById.get(tid)!;
+      if (knownStraitTileIds?.has(tid)) continue;
+      if (getRasterWindow) {
+        const win = getRasterWindow(t);
+        if (win) {
+          const { landCrosses, seaCrosses } = rasterCutoutCrosses(win);
+          if (landCrosses && !seaCrosses && !isNearKnownStrait(t)) continue;
+          if ((!seaCrosses || landCrosses) && cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
+        } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
+      } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
       const waterNeighbors: number[] = [];
       for (const nid of t.neighbors) {
         if (!assign.get(nid)?.isLand) waterNeighbors.push(nid);
@@ -1254,6 +1381,7 @@ export async function resolveLandWaterByRegions(
     for (const tid of boundary) {
       const a = assign.get(tid);
       if (a?.isLand) continue;
+      if (knownStraitTileIds?.has(tid)) continue;
       const t = tileById.get(tid)!;
       const landNeighbors: number[] = [];
       for (const nid of t.neighbors) {
@@ -1280,6 +1408,7 @@ export async function resolveLandWaterByRegions(
     for (const tile of tiles) {
       const a = assign.get(tile.id);
       if (a?.isLand) continue;
+      if (knownStraitTileIds?.has(tile.id)) continue;
       const neighborLandmassIds = new Set<number>();
       for (const nid of tile.neighbors) {
         const na = assign.get(nid);
@@ -1366,8 +1495,8 @@ export async function resolveLandWaterByRegions(
     }
     if (changed) continue;
 
-    // (2) Ocean contiguity: open straits by flipping land to water so two parts of the same water body connect.
-    // Only flip land that is not an articulation point (isthmus): strait land can be removed without disconnecting a landmass.
+    // (2) Ocean contiguity: open straits by flipping land to water so two parts of the same water body connect. Do not
+    // flip if removing this land would break the landmass apart (isthmus = articulation point).
     const oceanTiles = new Set<number>();
     for (const [tid, a] of assign) {
       if (!a.isLand && a.oceanRegionId != null) oceanTiles.add(tid);
@@ -1391,8 +1520,17 @@ export async function resolveLandWaterByRegions(
             for (const tid of boundary) {
               const a = assign.get(tid);
               if (!a?.isLand || a.landmassId == null) continue;
-              if (cutByLandmass.get(a.landmassId)?.has(tid)) continue;
               const t = tileById.get(tid)!;
+              if (knownStraitTileIds?.has(tid)) {
+                /* hardcoded strait: allow flip */
+              } else if (getRasterWindow) {
+                const win = getRasterWindow(t);
+                if (win) {
+                  const { landCrosses, seaCrosses } = rasterCutoutCrosses(win);
+                  if (landCrosses && !seaCrosses && !isNearKnownStrait(t)) continue;
+                  if ((!seaCrosses || landCrosses) && cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
+                } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
+              } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
               const s = scores(t);
               let oceanF = 0;
               for (const f of s.oceanFractions.values()) oceanF += f;

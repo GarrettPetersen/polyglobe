@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 const OUT_PATH = path.join(PUBLIC_DIR, "koppen.bin");
-
+const ZIP_LOCAL = path.join(PUBLIC_DIR, "koppen_ascii.zip");
 const KOPPEN_ZIP_URL =
   "https://people.eng.unimelb.edu.au/mpeel/Koppen/koppen_ascii.zip";
 
@@ -93,8 +93,17 @@ function downsampleTo360x180(grid) {
 }
 
 async function main() {
-  console.log("Fetching", KOPPEN_ZIP_URL, "...");
-  const zipBuf = await fetchUrl(KOPPEN_ZIP_URL);
+  let zipBuf;
+  if (fs.existsSync(ZIP_LOCAL)) {
+    console.log("Reading", ZIP_LOCAL, "...");
+    zipBuf = fs.readFileSync(ZIP_LOCAL);
+  } else {
+    console.log("Fetching", KOPPEN_ZIP_URL, "...");
+    zipBuf = await fetchUrl(KOPPEN_ZIP_URL);
+    if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+    fs.writeFileSync(ZIP_LOCAL, zipBuf);
+    console.log("Saved", ZIP_LOCAL, "for next time.");
+  }
   const zip = await JSZip.loadAsync(zipBuf);
   const names = Object.keys(zip.files).filter((n) => /\.(asc|txt)$/i.test(n));
   const name = names[0] ?? Object.keys(zip.files)[0];

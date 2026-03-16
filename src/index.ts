@@ -54,6 +54,8 @@ export {
   type EarthTerrainSampler,
   type RegionScores,
   type ResolveLandWaterByRegionsOptions,
+  rasterCutoutCrosses,
+  type RasterWindow,
 } from "./earth/earthSampling.js";
 
 // Lighting

@@ -6,10 +6,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "download-data": "node scripts/download-data.mjs",
     "build-koppen": "node scripts/build-koppen.mjs",
     "build-elevation": "node scripts/build-elevation.mjs",
     "build-mountains": "node scripts/build-mountains.mjs",
-    "build-land-raster-png": "node scripts/build-land-raster-png.mjs"
+    "build-land-raster-png": "node scripts/build-land-raster-png.mjs",
+    "setup-data": "npm run download-data && npm run build-koppen && npm run build-mountains && npm run build-land-raster-png && npm run build-elevation"
   },
   "dependencies": {
     "jszip": "^3.10.1",

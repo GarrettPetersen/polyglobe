@@ -35,23 +35,19 @@ import {
   type ClimateGrid,
   type GeodesicTile,
   type RegionScores,
+  type RasterWindow,
 } from "polyglobe";
 
 console.log("[globe-build] demo main.ts loaded");
 
-const EARTH_LAND_TOPOLOGY_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
-/** Precomputed landmass + ocean IDs (from npm run build-land-raster-png). Load once, sample only where needed. */
+/** All geography data is loaded from public/ (run npm run download-data once, then commit public/). */
+const EARTH_LAND_TOPOLOGY_URL = "/land-110m.json";
 const EARTH_REGION_GRID_BIN = "/earth-region-grid.bin";
-/** Natural Earth 110m lakes (Great Lakes, Baikal, Victoria, etc.) – drawn as water to punch holes in land. */
-const EARTH_LAKES_GEOJSON_URL =
-  "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json";
-/** Natural Earth 110m geography marine polygons (seas, bays, Caspian, Black Sea, etc.). We use sea/bay features only. */
-const EARTH_MARINE_POLYS_URL =
-  "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_geography_marine_polys.json";
+const EARTH_LAKES_GEOJSON_URL = "/ne_110m_lakes.json";
+const EARTH_MARINE_POLYS_URL = "/ne_110m_geography_marine_polys.json";
 const KOPPEN_BIN_SAME_ORIGIN = "/koppen.bin";
 const KOPPEN_ZIP_SAME_ORIGIN = "/koppen_ascii.zip";
-const KOPPEN_ZIP_REMOTE =
-  "https://people.eng.unimelb.edu.au/mpeel/Koppen/koppen_ascii.zip";
+const KOPPEN_ZIP_REMOTE: string | null = null;
 const ELEVATION_BIN_SAME_ORIGIN = "/elevation.bin";
 const MOUNTAINS_JSON_SAME_ORIGIN = "/mountains.json";
 
@@ -263,7 +259,8 @@ async function runTerrainTransition(
   peakElevationScale: number,
   peakTilesPrev: Map<number, number> | undefined,
   peakTilesNext: Map<number, number> | undefined,
-  yieldToMain: () => Promise<void>
+  yieldToMain: () => Promise<void>,
+  minLandElevation?: number
 ): Promise<void> {
   const peakSetPrev = getPeakTileSet(peakTilesPrev);
   const peakSetNext = getPeakTileSet(peakTilesNext);
@@ -271,11 +268,17 @@ async function runTerrainTransition(
     peakSetPrev.size !== peakSetNext.size ||
     [...peakSetNext].some((id) => !peakSetPrev.has(id));
 
-  const opts = {
+  const opts: {
+    radius: number;
+    elevationScale: number;
+    peakElevationScale: number;
+    minLandElevation?: number;
+  } = {
     radius: globe.radius,
     elevationScale,
     peakElevationScale,
   };
+  if (minLandElevation != null) opts.minLandElevation = minLandElevation;
 
   if (peakSetChanged && peakTilesNext != null) {
     console.log(BUILD_LOG, "TerrainTransition: peak set changed, replacing geometry (no animation)");
@@ -878,6 +881,49 @@ function createRegionScorer(
   };
 }
 
+/** Build getRasterWindow for isthmus vs strait: cutout around tile in raster, 255=land 0=water. */
+function createGetRasterWindow(
+  width: number,
+  height: number,
+  landData: Uint8Array
+): (tile: GeodesicTile) => RasterWindow | null {
+  const PAD = 4;
+  return (tile: GeodesicTile) => {
+    const points = [tileCenterToLatLon(tile.center)];
+    for (const v of tile.vertices) points.push(tileCenterToLatLon(v));
+    let iMin = width;
+    let iMax = -1;
+    let jMin = height;
+    let jMax = -1;
+    for (const { lat, lon } of points) {
+      const latDeg = (lat * 180) / Math.PI;
+      const lonDeg = (lon * 180) / Math.PI;
+      const i = Math.round(((lonDeg + 180) / 360) * (width - 1));
+      const j = Math.round(((90 - latDeg) / 180) * (height - 1));
+      iMin = Math.min(iMin, i);
+      iMax = Math.max(iMax, i);
+      jMin = Math.min(jMin, j);
+      jMax = Math.max(jMax, j);
+    }
+    iMin = Math.max(0, iMin - PAD);
+    iMax = Math.min(width - 1, iMax + PAD);
+    jMin = Math.max(0, jMin - PAD);
+    jMax = Math.min(height - 1, jMax + PAD);
+    const w = iMax - iMin + 1;
+    const h = jMax - jMin + 1;
+    if (w < 2 || h < 2) return null;
+    const data = new Uint8Array(w * h);
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        const si = iMin + i;
+        const sj = jMin + j;
+        data[j * w + i] = (landData[sj * width + si] ?? 0) >= 128 ? 255 : 0;
+      }
+    }
+    return { width: w, height: h, data };
+  };
+}
+
 /** Same as createRegionScorer but lakes come from on-demand point-in-polygon (for precomputed bin; no lake grid). */
 function createRegionScorerFromBin(
   landmassId: Uint32Array,
@@ -937,6 +983,7 @@ async function loadEarthLandRaster(): Promise<{
   landSampler: (latRad: number, lonRad: number) => boolean;
   topologySampler: TopologySampler;
   getRegionScores: (tile: GeodesicTile) => RegionScores;
+  getRasterWindow?: (tile: GeodesicTile) => RasterWindow | null;
 }> {
   const binRes = await fetch(EARTH_REGION_GRID_BIN);
   if (binRes.ok) {
@@ -983,8 +1030,9 @@ async function loadEarthLandRaster(): Promise<{
     const rasterData = new Uint8Array(n);
     for (let idx = 0; idx < n; idx++) rasterData[idx] = landmassId[idx] !== 0 ? 255 : 0;
     const raster: EarthRaster = { width, height, data: rasterData };
+    const getRasterWindow = createGetRasterWindow(width, height, rasterData);
     console.log("[Earth raster] Loaded precomputed region grid", width, "×", height, "(sample only where needed)");
-    return { raster, landSampler, topologySampler, getRegionScores };
+    return { raster, landSampler, topologySampler, getRegionScores, getRasterWindow };
   }
 
   const res = await fetch(EARTH_LAND_TOPOLOGY_URL);
@@ -1130,7 +1178,8 @@ async function loadEarthLandRaster(): Promise<{
     document.body.appendChild(debugCanvas);
     console.log("[Earth raster] Debug view visible. Remove ?showRaster=1 to hide.");
   }
-  return { raster, landSampler, topologySampler, getRegionScores };
+  const getRasterWindow = createGetRasterWindow(raster.width, raster.height, raster.data);
+  return { raster, landSampler, topologySampler, getRegionScores, getRasterWindow };
 }
 
 const KOPPEN_BIN_WIDTH = 360;
@@ -1163,11 +1212,7 @@ async function loadKoppenClimate(): Promise<ClimateGrid | null> {
     if (!res.ok) return null;
     return res.arrayBuffer();
   };
-  let buf: ArrayBuffer | null = await tryFetch(KOPPEN_ZIP_SAME_ORIGIN);
-  if (!buf && KOPPEN_ZIP_REMOTE) {
-    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(KOPPEN_ZIP_REMOTE);
-    buf = await tryFetch(proxyUrl);
-  }
+  const buf: ArrayBuffer | null = await tryFetch(KOPPEN_ZIP_SAME_ORIGIN);
   if (!buf) return null;
   try {
     const zip = await JSZip.loadAsync(buf);
@@ -1226,6 +1271,7 @@ let earthRaster: EarthRaster | null = null;
 let earthLandSampler: ((latRad: number, lonRad: number) => boolean) | null = null;
 let earthTopologySampler: TopologySampler | null = null;
 let earthGetRegionScores: ((tile: GeodesicTile) => RegionScores) | null = null;
+let earthGetRasterWindow: ((tile: GeodesicTile) => RasterWindow | null) | null = null;
 /** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
 let mountainsList: MountainEntry[] | null = null;
 
@@ -1304,7 +1350,8 @@ function setGlobeGeometryFromTerrain(
   tileTerrain: Map<number, TileTerrainData>,
   peakTiles: Map<number, number> | undefined,
   elevationScale: number,
-  peakElevationScale: number
+  peakElevationScale: number,
+  minLandElevation?: number
 ): void {
   const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
     radius: globe.radius,
@@ -1312,6 +1359,7 @@ function setGlobeGeometryFromTerrain(
     elevationScale,
     peakElevationScale,
   };
+  if (minLandElevation != null) opts.minLandElevation = minLandElevation;
   if (peakTiles != null && peakTiles.size > 0) {
     opts.getPeak = (id) => {
       const m = peakTiles.get(id);
@@ -1358,6 +1406,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const elevationScale = 0.08;
     const peakElevationScale = 0.000006;
 
+    // Sea level: land at 0 m must sit just above the water sphere's max wave height so coast isn't submerged.
+    // Water sphere radius 0.995, waveAmplitude 0.0007 × (1 + 0.85 + 0.6) → max wave ≈ 0.00171. Min land radius ≈ 0.9967.
+    // Vertex radius = 1 + landElevation * elevationScale, so landElevation >= (0.9967 - 1) / 0.08 ≈ -0.041.
+    const SEA_LEVEL_LAND_ELEVATION = -0.042;
+
     const baseTerrain = baseWaterTerrain(globe.tileCount);
     setGlobeGeometryFromTerrain(globe, baseTerrain, undefined, elevationScale, peakElevationScale);
     await yieldToMain();
@@ -1372,7 +1425,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       try {
         tileTerrain = await buildTerrainFromEarthRaster(globe.tiles, earthRaster, {
           waterElevation: -0.18,
-          landElevation: 0.1,
+          landElevation: SEA_LEVEL_LAND_ELEVATION,
           elevationScale: 0.00004,
           latitudeTerrain: true,
           getRegionScores: earthGetRegionScores ?? undefined,
@@ -1381,16 +1434,19 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           },
           resolveOptions: {
             useGreedyLandmassPlacement: true,
+            getRasterWindow: earthGetRasterWindow ?? undefined,
+            /** Gibraltar, Bosphorus, Japanese strait (scale 6 only). */
+            knownStraitTileIds: globe.subdivisions === 6 ? new Set([40361, 24757, 4129]) : undefined,
             onIteration: async (_iteration, landByTile) => {
               const terrain = new Map<number, TileTerrainData>();
               for (const [tid, isLand] of landByTile) {
                 terrain.set(tid, {
                   tileId: tid,
                   type: isLand ? "land" : "water",
-                  elevation: isLand ? 0.1 : -0.18,
+                  elevation: isLand ? SEA_LEVEL_LAND_ELEVATION : -0.18,
                 });
               }
-              setGlobeGeometryFromTerrain(globe, terrain, undefined, elevationScale, peakElevationScale);
+              setGlobeGeometryFromTerrain(globe, terrain, undefined, elevationScale, peakElevationScale, SEA_LEVEL_LAND_ELEVATION);
               await yieldForRender();
             },
           },
@@ -1402,18 +1458,15 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         throw e;
       }
       if (mountainsList && mountainsList.length > 0) {
-        console.log(BUILD_LOG, "Earth: computing peak tiles");
+        console.log(BUILD_LOG, "Earth: computing peak tiles from mountain list");
         const targetDistinctTiles = Math.max(24, Math.floor(globe.tileCount / 20));
         peakTiles = new Map<number, number>();
         for (const m of mountainsList) {
           if (peakTiles.size >= targetDistinctTiles) break;
           const dir = latLonDegToDirection(m.lat, m.lon);
           const tileId = globe.getTileIdAtDirection(dir);
-          const terrain = tileTerrain.get(tileId);
-          if (terrain && terrain.type !== "water" && terrain.type !== "ice") {
-            const existing = peakTiles.get(tileId) ?? 0;
-            if (m.elevationM > existing) peakTiles.set(tileId, m.elevationM);
-          }
+          const existing = peakTiles.get(tileId) ?? 0;
+          if (m.elevationM > existing) peakTiles.set(tileId, m.elevationM);
         }
         console.log(BUILD_LOG, "Earth: peaks done, count:", peakTiles?.size ?? 0);
       }
@@ -1426,7 +1479,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         peakElevationScale,
         undefined,
         peakTiles,
-        yieldToMain
+        yieldToMain,
+        SEA_LEVEL_LAND_ELEVATION
       );
       console.log(BUILD_LOG, "Earth: runTerrainTransition done");
       lastDisplayedTerrain = tileTerrain;
@@ -1456,7 +1510,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         peakElevationScale,
         undefined,
         undefined,
-        yieldToMain
+        yieldToMain,
+        undefined
       );
       console.log(BUILD_LOG, "Procedural: runTerrainTransition done");
     }
@@ -1484,7 +1539,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     scene.add(water.mesh);
 
     coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
-      radius: 1.0,
+      radius: 0.995,
       speed: 0.073,
       timeScale: 0.4,
     });
@@ -1596,7 +1651,11 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   };
 
   let sec = addSection("World");
-  addToggle(sec, "Use Earth map", "useEarth", onRebuild);
+  addToggle(sec, "Use Earth map", "useEarth", () => {
+    onRebuild();
+    const proc = panel.querySelector(".procedural-options");
+    if (proc) (proc as HTMLElement).style.display = state.useEarth ? "none" : "";
+  });
   addSlider(sec, "Scale (subdivisions)", "subdivisions", 1, 6, 1, (v) => `${v} (~${2 + 10 * Math.pow(4, v)} tiles)`);
 
   sec = addSection("Sun");
@@ -1608,7 +1667,8 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   addSlider(sec, "Latitude", "moonLatitude", -0.5, 0.5, 0.02, (v) => (v * 90).toFixed(0) + "°", false);
 
   sec = addSection("Procedural (when Earth off)");
-  sec.classList.add("procedural");
+  sec.classList.add("procedural", "procedural-options");
+  sec.style.display = state.useEarth ? "none" : "";
   addSlider(sec, "Land fraction", "landFraction", 0.2, 0.8, 0.02, (v) => (v * 100).toFixed(0) + "%");
   addSlider(sec, "Blobiness (smoothing)", "blobiness", 0, 12, 1, (v) => String(v));
   addSlider(sec, "Seed", "seed", 1, 99999, 1, (v) => String(v));
@@ -1622,6 +1682,7 @@ async function init() {
   earthLandSampler = landResult.landSampler;
   earthTopologySampler = landResult.topologySampler;
   earthGetRegionScores = landResult.getRegionScores;
+  earthGetRasterWindow = landResult.getRasterWindow ?? null;
   console.log(BUILD_LOG, "init: land raster done, fetching mountains.json…");
   const res = await fetch(MOUNTAINS_JSON_SAME_ORIGIN);
   if (res.ok) {
@@ -1737,6 +1798,22 @@ async function init() {
     }
     composer.render();
   }
+
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  renderer.domElement.addEventListener("click", (event: MouseEvent) => {
+    if (!globe?.mesh) return;
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(globe.mesh);
+    if (intersects.length > 0) {
+      const dir = intersects[0].point.clone().normalize();
+      const tileId = globe.getTileIdAtDirection(dir);
+      const scale = globe.subdivisions;
+      console.log("[globe-build] Hex clicked: tileId =", tileId, ", scale (subdivisions) =", scale);
+    }
+  });
 
   window.addEventListener("resize", () => {
     const w = innerWidth;

@@ -17,11 +17,12 @@ const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 const OUT_PATH = path.join(PUBLIC_DIR, "land-raster-debug.png");
 const BIN_PATH = path.join(PUBLIC_DIR, "earth-region-grid.bin");
 
+const LAND_LOCAL = path.join(PUBLIC_DIR, "land-110m.json");
+const LAKES_LOCAL = path.join(PUBLIC_DIR, "ne_110m_lakes.json");
+const MARINE_LOCAL = path.join(PUBLIC_DIR, "ne_110m_geography_marine_polys.json");
 const LAND_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
-const LAKES_URL =
-  "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json";
-const MARINE_POLYS_URL =
-  "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_geography_marine_polys.json";
+const LAKES_URL = "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json";
+const MARINE_POLYS_URL = "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_geography_marine_polys.json";
 /** Inland (landlocked) seas to punch out of land; open/connected seas (e.g. Caribbean) are already ocean. */
 const INLAND_SEAS_WHITELIST = new Set(["Caspian Sea"]);
 
@@ -198,10 +199,17 @@ async function main() {
   const height = 1800;
   const wideWidth = 10800;
 
-  console.log("Fetching", LAND_URL, "...");
-  const landRes = await fetch(LAND_URL);
-  if (!landRes.ok) throw new Error(`Land HTTP ${landRes.status}`);
-  const topology = await landRes.json();
+  async function loadJson(localPath, url) {
+    if (fs.existsSync(localPath)) {
+      return JSON.parse(fs.readFileSync(localPath, "utf8"));
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${url} HTTP ${res.status}`);
+    return res.json();
+  }
+
+  console.log("Loading land topology (local or fetch)...");
+  const topology = await loadJson(LAND_LOCAL, LAND_URL);
   const land = topojson.feature(topology, topology.objects.land);
 
   const canvas = createCanvas(wideWidth, height);
@@ -231,9 +239,14 @@ async function main() {
     drawGeometryUnwrapped(ctx, land.geometry, toXCenter, toY);
   }
   try {
-    const lakesRes = await fetch(LAKES_URL);
-    if (lakesRes.ok) {
-      const lakes = await lakesRes.json();
+    let lakes = null;
+    if (fs.existsSync(LAKES_LOCAL)) {
+      lakes = JSON.parse(fs.readFileSync(LAKES_LOCAL, "utf8"));
+    } else {
+      const lakesRes = await fetch(LAKES_URL);
+      if (lakesRes.ok) lakes = await lakesRes.json();
+    }
+    if (lakes) {
       ctx.fillStyle = "black";
       if (lakes.features) {
         for (const toX of threeWorlds) {
@@ -244,13 +257,18 @@ async function main() {
       }
     }
   } catch (e) {
-    console.warn("Lakes fetch failed:", e.message);
+    console.warn("Lakes load failed:", e.message);
   }
   const afterLandAndLakes = ctx.getImageData(0, 0, wideWidth, height);
   try {
-    const marineRes = await fetch(MARINE_POLYS_URL);
-    if (marineRes.ok) {
-      const fc = await marineRes.json();
+    let fc = null;
+    if (fs.existsSync(MARINE_LOCAL)) {
+      fc = JSON.parse(fs.readFileSync(MARINE_LOCAL, "utf8"));
+    } else {
+      const marineRes = await fetch(MARINE_POLYS_URL);
+      if (marineRes.ok) fc = await marineRes.json();
+    }
+    if (fc) {
       ctx.fillStyle = "black";
       if (fc.features) {
         for (const toX of threeWorlds) {
@@ -270,11 +288,9 @@ async function main() {
         }
       }
       ctx.putImageData(marineDrawn, 0, 0);
-    } else {
-      console.warn("Marine polys HTTP", marineRes.status);
     }
   } catch (e) {
-    console.warn("Marine polys fetch failed:", e.message);
+    console.warn("Marine polys load failed:", e.message);
   }
 
   const SOUTH_POLE_CAP_LAT = -80;

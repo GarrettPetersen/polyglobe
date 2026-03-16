@@ -200,6 +200,12 @@ export interface GeodesicFlatMeshOptions {
   /** Elevation per tile (same scale as terrain). Will be scaled by elevationScale in applyTerrainToGeometry. */
   getElevation: (tileId: number) => number;
   elevationScale?: number;
+  /**
+   * Optional: minimum terrain elevation to treat a tile as land (for flat tops and peaks).
+   * Use when sea-level land uses a negative value (e.g. -0.042). Tiles with getElevation(id) >= minLandElevation are land.
+   * If omitted, land is determined by (getElevation(id) * elevationScale) >= 0.
+   */
+  minLandElevation?: number;
   /** Optional: tiles that are 3D peaks (pyramid with apex). Base ring uses getElevation; apex = base + peakElevationScale * apexElevationM. */
   getPeak?: (tileId: number) => TilePeak | undefined;
   /** Scale meters → globe units for peak apex height. Default 0.00002 (e.g. Everest ~0.18 units above base). */
@@ -244,13 +250,16 @@ export function buildFlatGeometryData(
   const vaOut = new THREE.Vector3();
   const vbOut = new THREE.Vector3();
 
+  const minLandElevation = options.minLandElevation;
   for (const tile of tiles) {
-    const elev = options.getElevation(tile.id) * elevationScale;
+    const rawElev = options.getElevation(tile.id);
+    const elev = rawElev * elevationScale;
     const r = radius + elev;
     const n = tile.vertices.length;
     const base = vertexOffset;
     const centerNormal = tile.center.clone().normalize();
-    const isLand = elev >= 0;
+    const isLand =
+      minLandElevation != null ? rawElev >= minLandElevation : elev >= 0;
     const peak = getPeak?.(tile.id);
 
     for (let i = 0; i < n; i++) {
