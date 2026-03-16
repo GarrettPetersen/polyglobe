@@ -168,12 +168,25 @@ export interface BuildTerrainFromRasterOptions {
   landElevation?: number;
   /** When temperatureC < this, water tiles become ice (frozen). °C. Default 1.5. */
   freezeThresholdC?: number;
-  /** Latitude (degrees) beyond which water tiles are shown as ice (covers pole ocean gaps where land rasters cut off). Land tiles above this latitude are left as land (e.g. northern Russia/Canada). Default 70. */
+  /** Latitude (degrees) beyond which every tile is forced to ice (solid polar ice caps, no holes in Antarctica/Arctic). Uses tile extent (max of center and vertices). Default 70. */
   polarCapLat?: number;
   /** "center" = sample only tile center. "tile" = sample many points inside the hex/pentagon, majority land. Default "tile". */
   sampleMode?: TerrainSampleMode;
   /** When sampleMode is "tile", number of sample points per tile (distributed inside the polygon). Default 24. */
   sampleCount?: number;
+  /** If set, land/water is taken from this (e.g. point-in-polygon on vector data) instead of the raster. Avoids rasterization artifacts at the antimeridian. */
+  landSampler?: (latRad: number, lonRad: number) => boolean;
+  /**
+   * When true (default), tiles with mixed land/water samples are resolved by topology:
+   * - If the hex connects two land masses (isthmus, e.g. Panama), assign land.
+   * - If the hex connects two water bodies (strait, e.g. Dardanelles), assign water.
+   * Avoids splitting continents or seas by a single misclassified hex.
+   */
+  topologyResolve?: boolean;
+  /** Fraction of land samples above which a tile is treated as definite land for topology. Default 0.7. */
+  topologyLandThreshold?: number;
+  /** Fraction of land samples below which a tile is treated as definite water for topology. Default 0.3. */
+  topologyWaterThreshold?: number;
 }
 
 const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
@@ -187,6 +200,10 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   polarCapLat: 70,
   sampleMode: "tile",
   sampleCount: 24,
+  landSampler: undefined!,
+  topologyResolve: true,
+  topologyLandThreshold: 0.7,
+  topologyWaterThreshold: 0.3,
 };
 
 /** Barycentric coords (u, v) with u,v >= 0 and u+v <= 1 for sampling inside a triangle. */
@@ -264,12 +281,16 @@ function terrainFromSample(
   const latDeg = (absLat * 180) / Math.PI;
   const inPolarCap = maxAbsLatDeg != null ? maxAbsLatDeg >= opts.polarCapLat : latDeg >= opts.polarCapLat;
 
+  // Tiles in the polar cap are always ice (solid ice caps, no holes in Antarctica/Arctic)
+  if (inPolarCap) {
+    return { type: "ice", elevation: opts.landElevation };
+  }
+
   if (!result.land) {
     const frozen =
-      (result.temperatureC != null &&
-        Number.isFinite(result.temperatureC) &&
-        result.temperatureC < opts.freezeThresholdC) ||
-      inPolarCap;
+      result.temperatureC != null &&
+      Number.isFinite(result.temperatureC) &&
+      result.temperatureC < opts.freezeThresholdC;
     return {
       type: frozen ? "ice" : "water",
       elevation: opts.waterElevation,
@@ -320,7 +341,7 @@ function sampleTile(
   tile: GeodesicTile,
   raster: EarthRaster,
   opts: Required<BuildTerrainFromRasterOptions>
-): { land: boolean; elevationM?: number; climateCode?: number; temperatureC?: number; latRad: number; maxAbsLatDeg: number } {
+): { land: boolean; landCount: number; sampleCount: number; elevationM?: number; climateCode?: number; temperatureC?: number; latRad: number; maxAbsLatDeg: number } {
   const centerLatLon = tileCenterToLatLon(tile.center);
   const maxAbsLatDeg = tileMaxAbsLatDeg(tile);
   const points: { lat: number; lon: number }[] = [centerLatLon];
@@ -330,15 +351,18 @@ function sampleTile(
       points.push(tileCenterToLatLon(p));
     }
   }
+  const sampleCount = points.length;
   let landCount = 0;
   let elevSum = 0;
   let elevCount = 0;
   let tempSum = 0;
   let tempCount = 0;
   const climateCounts = new Map<number, number>();
+  const useLandSampler = opts.landSampler != null;
   for (const { lat, lon } of points) {
     const r = sampleRasterAtLatLon(raster, lat, lon);
-    if (r.land) landCount++;
+    const land = useLandSampler ? opts.landSampler!(lat, lon) : r.land;
+    if (land) landCount++;
     if (r.elevationM != null) {
       elevSum += r.elevationM;
       elevCount++;
@@ -351,7 +375,7 @@ function sampleTile(
       climateCounts.set(r.climateCode, (climateCounts.get(r.climateCode) ?? 0) + 1);
     }
   }
-  const land = opts.sampleMode === "center" ? landCount > 0 : landCount > points.length / 2;
+  const land = opts.sampleMode === "center" ? landCount > 0 : landCount > sampleCount / 2;
   const elevationM = elevCount > 0 ? elevSum / elevCount : undefined;
   const temperatureC = tempCount > 0 ? tempSum / tempCount : undefined;
   let climateCode: number | undefined;
@@ -364,12 +388,169 @@ function sampleTile(
       }
     }
   }
-  return { land, elevationM, climateCode, temperatureC, latRad: centerLatLon.lat, maxAbsLatDeg };
+  return { land, landCount, sampleCount, elevationM, climateCode, temperatureC, latRad: centerLatLon.lat, maxAbsLatDeg };
+}
+
+/** Full result of sampling a tile (sampleTile return type); used for topology resolution. */
+type TileSampleResult = ReturnType<typeof sampleTile>;
+
+/**
+ * Resolve ambiguous (mixed land/water) tiles by topology so that:
+ * - Isthmuses (e.g. Panama) become land and keep continents connected.
+ * - Straits (e.g. Dardanelles) become water and keep seas connected.
+ * Returns a map of tileId -> land (true) or water (false) for all tiles.
+ */
+function resolveLandWaterByTopology(
+  tiles: GeodesicTile[],
+  resultsByTile: Map<number, TileSampleResult>,
+  opts: Required<Pick<BuildTerrainFromRasterOptions, "topologyLandThreshold" | "topologyWaterThreshold">>
+): Map<number, boolean> {
+  const tileById = new Map<number, GeodesicTile>();
+  for (const t of tiles) tileById.set(t.id, t);
+
+  const landThresh = opts.topologyLandThreshold;
+  const waterThresh = opts.topologyWaterThreshold;
+
+  const landByTile = new Map<number, boolean>();
+  const definiteLand = new Set<number>();
+  const definiteWater = new Set<number>();
+  let ambiguous = new Set<number>();
+
+  for (const tile of tiles) {
+    const r = resultsByTile.get(tile.id);
+    if (!r) continue;
+    const frac = r.sampleCount > 0 ? r.landCount / r.sampleCount : 0;
+    if (frac >= landThresh) {
+      definiteLand.add(tile.id);
+      landByTile.set(tile.id, true);
+    } else if (frac <= waterThresh) {
+      definiteWater.add(tile.id);
+      landByTile.set(tile.id, false);
+    } else {
+      ambiguous.add(tile.id);
+    }
+  }
+
+  function getLandComponents(landSet: Set<number>): Map<number, number> {
+    const compId = new Map<number, number>();
+    let id = 0;
+    const visit = (tid: number) => {
+      if (compId.has(tid)) return;
+      compId.set(tid, id);
+      const t = tileById.get(tid);
+      if (!t) return;
+      for (const n of t.neighbors) {
+        if (landSet.has(n)) visit(n);
+      }
+    };
+    for (const tid of landSet) {
+      if (!compId.has(tid)) {
+        visit(tid);
+        id++;
+      }
+    }
+    return compId;
+  }
+
+  function getWaterComponents(waterSet: Set<number>): Map<number, number> {
+    return getLandComponents(waterSet);
+  }
+
+  function componentSizes(compId: Map<number, number>): Map<number, number> {
+    const sizes = new Map<number, number>();
+    for (const cid of compId.values()) {
+      sizes.set(cid, (sizes.get(cid) ?? 0) + 1);
+    }
+    return sizes;
+  }
+
+  let iterations = 0;
+  const maxIterations = 100;
+
+  while (ambiguous.size > 0 && iterations < maxIterations) {
+    iterations++;
+    const landSet = new Set(definiteLand);
+    const waterSet = new Set(definiteWater);
+    for (const [tid, isLand] of landByTile) {
+      if (isLand) landSet.add(tid);
+      else waterSet.add(tid);
+    }
+    const landCompId = getLandComponents(landSet);
+    const waterCompId = getWaterComponents(waterSet);
+    const landSizes = componentSizes(landCompId);
+    const waterSizes = componentSizes(waterCompId);
+
+    const toResolve: { id: number; land: boolean }[] = [];
+
+    for (const tid of ambiguous) {
+      const t = tileById.get(tid);
+      const r = resultsByTile.get(tid);
+      if (!t || !r) continue;
+      const landNeighbors = t.neighbors.filter((n) => landSet.has(n));
+      const waterNeighbors = t.neighbors.filter((n) => waterSet.has(n));
+      const landCompIds = new Set<number>();
+      const waterCompIds = new Set<number>();
+      for (const n of landNeighbors) {
+        const c = landCompId.get(n);
+        if (c !== undefined) landCompIds.add(c);
+      }
+      for (const n of waterNeighbors) {
+        const c = waterCompId.get(n);
+        if (c !== undefined) waterCompIds.add(c);
+      }
+      const nLandComp = landCompIds.size;
+      const nWaterComp = waterCompIds.size;
+
+      let assignLand: boolean;
+      let shouldResolve = false;
+      if (nLandComp >= 2 && nWaterComp < 2) {
+        assignLand = true;
+        shouldResolve = true;
+      } else if (nWaterComp >= 2 && nLandComp < 2) {
+        assignLand = false;
+        shouldResolve = true;
+      } else if (nLandComp >= 2 && nWaterComp >= 2) {
+        const sumLand = [...landCompIds].reduce((s, c) => s + (landSizes.get(c) ?? 0), 0);
+        const sumWater = [...waterCompIds].reduce((s, c) => s + (waterSizes.get(c) ?? 0), 0);
+        assignLand = sumLand >= sumWater;
+        shouldResolve = true;
+      } else if (landNeighbors.length >= 2 && waterNeighbors.length < 2) {
+        assignLand = true;
+        shouldResolve = true;
+      } else if (waterNeighbors.length >= 2 && landNeighbors.length < 2) {
+        assignLand = false;
+        shouldResolve = true;
+      } else if (landNeighbors.length >= 2 || waterNeighbors.length >= 2) {
+        assignLand = landNeighbors.length >= waterNeighbors.length;
+        shouldResolve = true;
+      } else {
+        assignLand = r.landCount > r.sampleCount / 2;
+        shouldResolve = false;
+      }
+      if (shouldResolve) toResolve.push({ id: tid, land: assignLand });
+    }
+
+    for (const { id, land } of toResolve) {
+      landByTile.set(id, land);
+      ambiguous.delete(id);
+      if (land) definiteLand.add(id);
+      else definiteWater.add(id);
+    }
+    if (toResolve.length === 0) break;
+  }
+
+  for (const tid of ambiguous) {
+    const r = resultsByTile.get(tid);
+    landByTile.set(tid, r ? r.landCount > r.sampleCount / 2 : true);
+  }
+
+  return landByTile;
 }
 
 /**
  * Build a tileId → TileTerrainData map by sampling the raster (center only or center + vertices).
  * Works at any subdivision: more tiles = finer sampling of the same raster.
+ * When topologyResolve is true, mixed land/water tiles are resolved to preserve straits and isthmuses.
  */
 export function buildTerrainFromEarthRaster(
   tiles: GeodesicTile[],
@@ -390,24 +571,31 @@ export function buildTerrainFromEarthRaster(
     elevationByTile.set(tile.id, elevM);
   }
 
+  const landByTile =
+    opts.topologyResolve && opts.sampleMode === "tile"
+      ? resolveLandWaterByTopology(tiles, resultsByTile, opts)
+      : null;
+
   for (const tile of tiles) {
     const result = resultsByTile.get(tile.id)!;
+    const land = landByTile ? (landByTile.get(tile.id) ?? result.land) : result.land;
+    const effectiveResult = { ...result, land };
     let neighborMaxElevM = 0;
     for (const neighborId of tile.neighbors) {
       const nElev = elevationByTile.get(neighborId) ?? 0;
       if (nElev > neighborMaxElevM) neighborMaxElevM = nElev;
     }
     const { type, elevation } = terrainFromSample(
-      result,
+      effectiveResult,
       result.latRad,
       opts,
       neighborMaxElevM,
       result.maxAbsLatDeg
     );
     let elev = elevation;
-    if (result.land && result.elevationM != null && result.elevationM > 0) {
+    if (land && result.elevationM != null && result.elevationM > 0) {
       elev = opts.landElevation + result.elevationM * opts.elevationScale;
-    } else if (!result.land) {
+    } else if (!land) {
       elev = opts.waterElevation;
     }
     out.set(tile.id, { tileId: tile.id, type, elevation: elev });

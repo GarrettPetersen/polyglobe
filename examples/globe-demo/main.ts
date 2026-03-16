@@ -155,6 +155,170 @@ type GeoJSONPolygon = { type: "Polygon"; coordinates: number[][][] };
 type GeoJSONMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
 type GeoJSONGeometry = GeoJSONPolygon | GeoJSONMultiPolygon | { type: "GeometryCollection"; geometries: GeoJSONGeometry[] };
 
+/** Signed area of a ring in (lon, 90-lat) space; positive = counter-clockwise (exterior per GeoJSON). TopoJSON often uses CW for outer rings, which inverts fill. */
+function ringSignedArea(ring: number[][]): number {
+  let sum = 0;
+  const n = ring.length;
+  for (let i = 0; i < n; i++) {
+    const [x0, ,] = ring[i];
+    const [x1, ,] = ring[(i + 1) % n];
+    const y0 = 90 - ring[i][1];
+    const y1 = 90 - ring[(i + 1) % n][1];
+    sum += (x1 - x0) * (y1 + y0);
+  }
+  return sum * 0.5;
+}
+
+function ringBounds(ring: number[][]) {
+  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  for (const [lon, lat] of ring) {
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+    minLon = Math.min(minLon, lon);
+    maxLon = Math.max(maxLon, lon);
+  }
+  return { minLat, maxLat, minLon, maxLon, latSpan: maxLat - minLat, lonSpan: maxLon - minLon };
+}
+
+function ringCentroid(ring: number[][]): [number, number] {
+  let cx = 0, cy = 0;
+  for (const [lon, lat] of ring) {
+    cx += lon;
+    cy += lat;
+  }
+  const n = ring.length;
+  return [cx / n, cy / n];
+}
+
+/**
+ * True if the ring is a full-globe horizontal line (constant lat, lon spans ~360°).
+ * TopoJSON has no "boundary" layer: the land object is one MultiPolygon and some arcs
+ * are the dataset bbox boundary (e.g. world-atlas bbox ≈ [-180,-85.6,180,83.6]). Those
+ * arcs become rings at constant latitude; no real landmass has this. We skip drawing them.
+ */
+function isArtifactGlobeLine(ring: number[][]): boolean {
+  if (ring.length < 3) return false;
+  const { latSpan, lonSpan } = ringBounds(ring);
+  return latSpan < 2 && lonSpan >= 350;
+}
+
+/**
+ * True if the ring is a "North Atlantic ocean" artifact: exterior ring whose centroid is
+ * in the North Atlantic (ocean between Norway, Iceland, Greenland) and ring is large
+ * (latSpan > 15 or lonSpan > 180). That ring's interior is ocean; we must not fill it as
+ * land (no Norway–Greenland land bridge). Small rings (e.g. Iceland, Svalbard) are kept.
+ * We do NOT skip globe‑wrapping bands (e.g. lonSpan >= 350, latSpan > 20) — that is the
+ * main Afro‑Eurasia polygon; skipping it would remove Europe, Asia, Africa.
+ */
+function isNorthAtlanticOceanArtifact(ring: number[][], isExterior: boolean): boolean {
+  if (ring.length < 3) return false;
+  if (!isExterior) return false;
+  const b = ringBounds(ring);
+  const [clon, clat] = ringCentroid(ring);
+  const inNorthAtlantic = clat >= 58 && clat <= 85 && clon >= -45 && clon <= 25;
+  if (inNorthAtlantic && (b.latSpan > 15 || b.lonSpan > 180)) return true;
+  return false;
+}
+
+/** Rewind for canvas nonzero: exterior (first ring) = CCW so inside = land; holes (later rings) = CW so inside = empty. Fixes inverted holes (e.g. rings through Greenland, Brazil). */
+function rewindRing(ring: number[][], isExterior: boolean): number[][] {
+  const area = ringSignedArea(ring);
+  const wantCcw = isExterior;
+  const isCcw = area > 0;
+  return isCcw !== wantCcw ? [...ring].reverse() : ring;
+}
+
+/**
+/**
+ * Choose longitude for the next point so the segment from currentLon to next is the short path
+ * (no wrap-around). Returns nextLon in the range that minimizes |nextLon - currentLon|.
+ */
+function unwrapLon(currentLon: number, nextLon: number): number {
+  let n = nextLon;
+  const d = n - currentLon;
+  if (d > 180) n -= 360;
+  else if (d < -180) n += 360;
+  return n;
+}
+
+/**
+ * Draw a ring in "unwrapped" longitude space so each edge goes the short way. Used with a
+ * canvas 3× wide (e.g. lon in [-540, 540] → x in [0, 1080]); shapes that cross the
+ * antimeridian then draw into the extra hemisphere instead of looping the long way.
+ */
+function drawRingUnwrapped(
+  ctx: CanvasRenderingContext2D,
+  ring: number[][],
+  isExterior: boolean,
+  toX: (lon: number) => number,
+  toY: (lat: number) => number
+): void {
+  if (ring.length < 3) return;
+  if (isArtifactGlobeLine(ring) || isNorthAtlanticOceanArtifact(ring, isExterior)) return;
+  const r = rewindRing(ring, isExterior);
+  const [first, ...rest] = r;
+  let currentLon = first[0];
+  ctx.moveTo(toX(currentLon), toY(first[1]));
+  for (const [lon, lat] of rest) {
+    currentLon = unwrapLon(currentLon, lon);
+    ctx.lineTo(toX(currentLon), toY(lat));
+  }
+  currentLon = unwrapLon(currentLon, first[0]);
+  ctx.lineTo(toX(currentLon), toY(first[1]));
+  ctx.closePath();
+}
+
+/** Legacy: draw segment with antimeridian split (used if not using wide canvas). */
+function lineToLonLat(
+  ctx: CanvasRenderingContext2D,
+  fromLon: number,
+  fromLat: number,
+  toLon: number,
+  toLat: number,
+  toX: (lon: number) => number,
+  toY: (lat: number) => number
+): void {
+  const rawD = toLon - fromLon;
+  if (rawD > 180) {
+    const totalShort = 360 - rawD;
+    const distToCross = fromLon - (-180);
+    const t = distToCross / totalShort;
+    const latCross = fromLat + t * (toLat - fromLat);
+    ctx.lineTo(toX(-180), toY(latCross));
+    ctx.lineTo(toX(180), toY(latCross));
+  } else if (rawD < -180) {
+    const totalShort = 360 + rawD;
+    const distToCross = 180 - fromLon;
+    const t = distToCross / totalShort;
+    const latCross = fromLat + t * (toLat - fromLat);
+    ctx.lineTo(toX(180), toY(latCross));
+    ctx.lineTo(toX(-180), toY(latCross));
+  }
+  ctx.lineTo(toX(toLon), toY(toLat));
+}
+
+function drawRing(
+  ctx: CanvasRenderingContext2D,
+  ring: number[][],
+  isExterior: boolean,
+  toX: (lon: number) => number,
+  toY: (lat: number) => number
+): void {
+  if (ring.length < 3) return;
+  if (isArtifactGlobeLine(ring) || isNorthAtlanticOceanArtifact(ring, isExterior)) return;
+  const r = rewindRing(ring, isExterior);
+  const [first, ...rest] = r;
+  ctx.moveTo(toX(first[0]), toY(first[1]));
+  let prevLon = first[0], prevLat = first[1];
+  for (const [lon, lat] of rest) {
+    lineToLonLat(ctx, prevLon, prevLat, lon, lat, toX, toY);
+    prevLon = lon;
+    prevLat = lat;
+  }
+  lineToLonLat(ctx, prevLon, prevLat, first[0], first[1], toX, toY);
+  ctx.closePath();
+}
+
 function drawGeometry(
   ctx: CanvasRenderingContext2D,
   geom: GeoJSONGeometry,
@@ -167,86 +331,274 @@ function drawGeometry(
   }
   if (geom.type === "Polygon") {
     ctx.beginPath();
-    for (const ring of geom.coordinates) {
-      const [first, ...rest] = ring;
-      ctx.moveTo(toX(first[0]), toY(first[1]));
-      for (const [lon, lat] of rest) ctx.lineTo(toX(lon), toY(lat));
-      ctx.closePath();
-    }
-    ctx.fill("evenodd");
+    geom.coordinates.forEach((ring, i) => drawRing(ctx, ring, i === 0, toX, toY));
+    ctx.fill("nonzero");
     return;
   }
   if (geom.type === "MultiPolygon") {
     ctx.beginPath();
     for (const polygon of geom.coordinates) {
-      for (const ring of polygon) {
-        const [first, ...rest] = ring;
-        ctx.moveTo(toX(first[0]), toY(first[1]));
-        for (const [lon, lat] of rest) ctx.lineTo(toX(lon), toY(lat));
-        ctx.closePath();
-      }
+      polygon.forEach((ring, i) => drawRing(ctx, ring, i === 0, toX, toY));
     }
-    ctx.fill("evenodd");
+    ctx.fill("nonzero");
   }
 }
 
-/** Fetch world-atlas land TopoJSON, rasterize to 360×180 land/sea, return EarthRaster. */
-async function loadEarthLandRaster(): Promise<EarthRaster> {
+/** Same as drawGeometry but uses unwrapped rings (short path per edge) for a 3×-wide canvas. */
+function drawGeometryUnwrapped(
+  ctx: CanvasRenderingContext2D,
+  geom: GeoJSONGeometry,
+  toX: (lon: number) => number,
+  toY: (lat: number) => number
+): void {
+  if (geom.type === "GeometryCollection") {
+    for (const g of geom.geometries) drawGeometryUnwrapped(ctx, g, toX, toY);
+    return;
+  }
+  if (geom.type === "Polygon") {
+    ctx.beginPath();
+    geom.coordinates.forEach((ring, i) => drawRingUnwrapped(ctx, ring, i === 0, toX, toY));
+    ctx.fill("nonzero");
+    return;
+  }
+  if (geom.type === "MultiPolygon") {
+    ctx.beginPath();
+    for (const polygon of geom.coordinates) {
+      polygon.forEach((ring, i) => drawRingUnwrapped(ctx, ring, i === 0, toX, toY));
+    }
+    ctx.fill("nonzero");
+  }
+}
+
+/**
+ * Point-in-polygon via ray casting. Edges that cross the antimeridian (|Δlon| > 180°) are
+ * treated as the short path (two segments at ±180°) so land/water is correct for any lon.
+ */
+/** Test if horizontal ray from (px, py) eastward intersects segment (xa,ya)-(xb,yb); count once if so. */
+function segmentCrossesRay(xa: number, ya: number, xb: number, yb: number, px: number, py: number): boolean {
+  if (ya === yb) return false;
+  if ((ya <= py && py < yb) || (yb <= py && py < ya)) {
+    const t = (py - ya) / (yb - ya);
+    if (t >= 0 && t <= 1) {
+      const xHit = xa + t * (xb - xa);
+      return xHit >= px;
+    }
+  }
+  return false;
+}
+
+function rayCrossingCount(ring: number[][], px: number, py: number): number {
+  const n = ring.length;
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = ring[i];
+    const [x1, y1] = ring[(i + 1) % n];
+    const rawD = x1 - x0;
+    if (Math.abs(rawD) > 180) {
+      const crossLon = rawD > 0 ? -180 : 180;
+      const totalShort = 360 - Math.abs(rawD);
+      const distToCross = rawD > 0 ? x0 - crossLon : crossLon - x0;
+      const tCross = distToCross / totalShort;
+      const yCross = y0 + tCross * (y1 - y0);
+      const otherLon = crossLon === 180 ? -180 : 180;
+      if (segmentCrossesRay(x0, y0, crossLon, yCross, px, py)) count++;
+      if (segmentCrossesRay(otherLon, yCross, x1, y1, px, py)) count++;
+    } else {
+      if (segmentCrossesRay(x0, y0, x1, y1, px, py)) count++;
+    }
+  }
+  return count;
+}
+
+function pointInRing(ring: number[][], lonDeg: number, latDeg: number): boolean {
+  return rayCrossingCount(ring, lonDeg, latDeg) % 2 === 1;
+}
+
+function pointInPolygon(polygon: number[][][], lonDeg: number, latDeg: number): boolean {
+  if (polygon.length === 0) return false;
+  const exterior = polygon[0];
+  if (!pointInRing(exterior, lonDeg, latDeg)) return false;
+  for (let i = 1; i < polygon.length; i++) {
+    if (pointInRing(polygon[i], lonDeg, latDeg)) return false;
+  }
+  return true;
+}
+
+/** Collect polygons from land GeoJSON (MultiPolygon) with rewind and artifact rings skipped. */
+function collectLandPolygons(geom: GeoJSONGeometry): number[][][][] {
+  const out: number[][][][] = [];
+  const push = (g: GeoJSONGeometry) => {
+    if (g.type === "Polygon") {
+      const rings = g.coordinates.map((ring, i) => rewindRing(ring, i === 0));
+      if (rings.length > 0 && !isArtifactGlobeLine(rings[0]) && !isNorthAtlanticOceanArtifact(rings[0], true)) {
+        out.push(rings);
+      }
+    } else if (g.type === "MultiPolygon") {
+      for (const polygon of g.coordinates) {
+        const rings = polygon.map((ring, i) => rewindRing(ring, i === 0));
+        if (rings.length > 0 && !isArtifactGlobeLine(rings[0]) && !isNorthAtlanticOceanArtifact(rings[0], true)) {
+          out.push(rings);
+        }
+      }
+    } else if (g.type === "GeometryCollection") {
+      for (const child of g.geometries) push(child);
+    }
+  };
+  push(geom);
+  return out;
+}
+
+/** Same for lakes (no artifact skip; used as holes). */
+function collectLakePolygons(geom: GeoJSONGeometry): number[][][][] {
+  const out: number[][][][] = [];
+  const push = (g: GeoJSONGeometry) => {
+    if (g.type === "Polygon") {
+      out.push(g.coordinates.map((ring, i) => rewindRing(ring, i === 0)));
+    } else if (g.type === "MultiPolygon") {
+      for (const polygon of g.coordinates) {
+        out.push(polygon.map((ring, i) => rewindRing(ring, i === 0)));
+      }
+    } else if (g.type === "GeometryCollection") {
+      for (const child of g.geometries) push(child);
+    }
+  };
+  push(geom);
+  return out;
+}
+
+function createLandSampler(
+  landPolygons: number[][][][],
+  lakePolygons: number[][][][]
+): (latRad: number, lonRad: number) => boolean {
+  return (latRad: number, lonRad: number) => {
+    const lonDeg = (lonRad * 180) / Math.PI;
+    const latDeg = (latRad * 180) / Math.PI;
+    for (const poly of lakePolygons) {
+      if (pointInPolygon(poly, lonDeg, latDeg)) return false;
+    }
+    for (const poly of landPolygons) {
+      if (pointInPolygon(poly, lonDeg, latDeg)) return true;
+    }
+    return false;
+  };
+}
+
+/** Fetch world-atlas land TopoJSON, build raster (for elevation/climate sampling) and vector land sampler (for land/water, no rasterization artifacts). */
+async function loadEarthLandRaster(): Promise<{ raster: EarthRaster; landSampler: (latRad: number, lonRad: number) => boolean }> {
   const res = await fetch(EARTH_LAND_TOPOLOGY_URL);
-  const topology = (await res.json()) as Parameters<typeof topojson.feature>[0];
+  const topology = (await res.json()) as Parameters<typeof topojson.feature>[0] & {
+    objects?: Record<string, unknown>;
+    bbox?: number[];
+  };
+  const objNames = topology.objects ? Object.keys(topology.objects) : [];
+  console.log("[Earth raster] Topology objects:", objNames, "bbox:", topology.bbox ?? "(none)");
   const land = topojson.feature(topology, topology.objects.land) as {
     type: string;
     geometry?: GeoJSONGeometry;
     features?: Array<{ geometry: GeoJSONGeometry }>;
   };
 
-  const width = 360;
-  const height = 180;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = "white";
+  const landGeom = land.features
+    ? ({ type: "GeometryCollection" as const, geometries: land.features.map((f) => f.geometry) } as GeoJSONGeometry)
+    : land.geometry!;
+  const landPolygons = collectLandPolygons(landGeom);
 
-  // GeoJSON is [longitude, latitude]. Normalize lon to [-180, 180] and map to pixel bounds.
-  const toX = (lon: number) => {
-    let l = lon;
-    while (l > 180) l -= 360;
-    while (l < -180) l += 360;
-    return Math.max(0, Math.min(width - 1, ((l + 180) / 360) * (width - 1)));
-  };
-  const toY = (lat: number) =>
-    Math.max(0, Math.min(height - 1, ((90 - lat) / 180) * (height - 1)));
-
-  if (land.features) {
-    for (const f of land.features) drawGeometry(ctx, f.geometry, toX, toY);
-  } else if (land.geometry) {
-    drawGeometry(ctx, land.geometry, toX, toY);
-  }
-
-  // Punch out lakes (Great Lakes, Baikal, Victoria, etc.) so they render as water
+  let lakePolygons: number[][][][] = [];
   try {
     const lakesRes = await fetch(EARTH_LAKES_GEOJSON_URL);
     if (lakesRes.ok) {
-      const lakes = (await lakesRes.json()) as {
-        type: string;
-        features?: Array<{ type: string; geometry: GeoJSONGeometry }>;
-      };
-      ctx.fillStyle = "black";
+      const lakes = (await lakesRes.json()) as { type: string; features?: Array<{ geometry: GeoJSONGeometry }> };
       if (lakes.features) {
         for (const f of lakes.features) {
-          if (f.geometry) drawGeometry(ctx, f.geometry, toX, toY);
+          if (f.geometry) lakePolygons = lakePolygons.concat(collectLakePolygons(f.geometry));
         }
       }
     }
   } catch {
-    // Lakes optional; globe still works without them
+    // Lakes optional
   }
 
-  const imageData = ctx.getImageData(0, 0, width, height);
-  return earthRasterFromImageData(imageData, 128);
+  const landSampler = createLandSampler(landPolygons, lakePolygons);
+
+  const width = 360;
+  const height = 180;
+  const wideWidth = 1080;
+  const canvas = document.createElement("canvas");
+  canvas.width = wideWidth;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, wideWidth, height);
+  ctx.fillStyle = "white";
+  const toX = (lon: number) =>
+    Math.max(0, Math.min(wideWidth - 1, (lon + 540) * (wideWidth - 1) / 1080));
+  const toY = (lat: number) =>
+    Math.max(0, Math.min(height - 1, ((90 - lat) / 180) * (height - 1)));
+  if (land.features) {
+    for (const f of land.features) drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
+  } else if (land.geometry) {
+    drawGeometryUnwrapped(ctx, land.geometry, toX, toY);
+  }
+  try {
+    const lakesRes = await fetch(EARTH_LAKES_GEOJSON_URL);
+    if (lakesRes.ok) {
+      const lakes = (await lakesRes.json()) as { type: string; features?: Array<{ geometry: GeoJSONGeometry }> };
+      ctx.fillStyle = "black";
+      if (lakes.features) {
+        for (const f of lakes.features) {
+          if (f.geometry) drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
+        }
+      }
+    }
+  } catch {
+    // optional
+  }
+  const wideData = ctx.getImageData(0, 0, wideWidth, height);
+  const collapsed = new ImageData(width, height);
+  const scale = (wideWidth - 1) / 1080;
+  for (let j = 0; j < height; j++) {
+    for (let i = 0; i < width; i++) {
+      const lon = (width - 1) > 0 ? -180 + (360 * i) / (width - 1) : 0;
+      const xLeft = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 180) * scale)));
+      const xCenter = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 540) * scale)));
+      const xRight = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 900) * scale)));
+      const landLeft = (wideData.data[(j * wideWidth + xLeft) * 4] ?? 0) >= 128;
+      const landCenter = (wideData.data[(j * wideWidth + xCenter) * 4] ?? 0) >= 128;
+      const landRight = (wideData.data[(j * wideWidth + xRight) * 4] ?? 0) >= 128;
+      const land = landLeft || landCenter || landRight;
+      const outIdx = (j * width + i) * 4;
+      const v = land ? 255 : 0;
+      collapsed.data[outIdx] = v;
+      collapsed.data[outIdx + 1] = v;
+      collapsed.data[outIdx + 2] = v;
+      collapsed.data[outIdx + 3] = 255;
+    }
+  }
+  const imageData = collapsed;
+  const raster = earthRasterFromImageData(imageData, 128);
+
+  if (typeof window !== "undefined" && /[?&]showRaster=1/i.test(window.location.search)) {
+    const debugCanvas = document.createElement("canvas");
+    debugCanvas.width = width;
+    debugCanvas.height = height;
+    debugCanvas.title = "Raw land raster (white=land, black=water). Close or remove ?showRaster=1.";
+    debugCanvas.style.cssText =
+      "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:90vw;max-height:90vh;border:2px solid #6b9b5c;z-index:9999;cursor:pointer;";
+    const dctx = debugCanvas.getContext("2d")!;
+    const id = dctx.createImageData(width, height);
+    for (let i = 0; i < raster.data.length; i++) {
+      const v = raster.data[i] > 0 ? 255 : 0;
+      id.data[i * 4] = v;
+      id.data[i * 4 + 1] = v;
+      id.data[i * 4 + 2] = v;
+      id.data[i * 4 + 3] = 255;
+    }
+    dctx.putImageData(id, 0, 0);
+    debugCanvas.onclick = () => debugCanvas.remove();
+    document.body.appendChild(debugCanvas);
+    console.log("[Earth raster] Debug view visible. Remove ?showRaster=1 to hide.");
+  }
+  return { raster, landSampler };
 }
 
 const KOPPEN_BIN_WIDTH = 360;
@@ -339,6 +691,7 @@ let coastLandMaskTexture: THREE.DataTexture;
 let controls: OrbitControls;
 let marker: THREE.Mesh;
 let earthRaster: EarthRaster | null = null;
+let earthLandSampler: ((latRad: number, lonRad: number) => boolean) | null = null;
 /** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
 let mountainsList: MountainEntry[] | null = null;
 
@@ -432,7 +785,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     };
     if (state.useEarth && mountainsList && mountainsList.length > 0) {
       // Target distinct hexes with peaks (many list peaks share a hex), so iterate until we fill that many
-      const targetDistinctTiles = Math.max(24, Math.floor(globe.tileCount / 40));
+      const targetDistinctTiles = Math.max(24, Math.floor(globe.tileCount / 20));
       const peakTiles = new Map<number, number>();
       for (const m of mountainsList) {
         if (peakTiles.size >= targetDistinctTiles) break;
@@ -603,7 +956,9 @@ function createPanel(state: DemoState, onRebuild: () => void) {
 }
 
 async function init() {
-  earthRaster = await loadEarthLandRaster();
+  const landResult = await loadEarthLandRaster();
+  earthRaster = landResult.raster;
+  earthLandSampler = landResult.landSampler;
   const res = await fetch(MOUNTAINS_JSON_SAME_ORIGIN);
   if (res.ok) {
     const raw = (await res.json()) as unknown;
