@@ -29,6 +29,7 @@ export {
   applyVertexColorsByTileId,
   geometryLandOnly,
   geometryOceanFloor,
+  geometryWaterSurfacePatch,
   geometryCoastSkirt,
   type TerrainStyle,
   type TileTerrainData,
@@ -43,6 +44,7 @@ export {
   buildTerrainFromEarthRaster,
   buildTerrainFromSampler,
   applyCoastalBeach,
+  computeWaterLevelsByBody,
   parseKoppenAsciiGrid,
   elevationFromImageData,
   resolveLandWaterByRegions,
@@ -57,6 +59,7 @@ export {
   type ResolveLandWaterByRegionsOptions,
   rasterCutoutCrosses,
   type RasterWindow,
+  type WaterLevelsByBody,
 } from "./earth/earthSampling.js";
 
 // Lighting

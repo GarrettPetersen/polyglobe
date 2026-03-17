@@ -1766,26 +1766,29 @@ export async function buildTerrainFromEarthRaster(
     if (land && result.elevationM != null && result.elevationM > 0) {
       elev = opts.landElevation + result.elevationM * opts.elevationScale;
     } else if (!land) {
-      elev = lakeId != null ? opts.lakeElevation : opts.waterElevation;
+      const surfaceElev = lakeId != null ? opts.lakeElevation : opts.waterElevation;
+      const belowWaterLevel = 0.01;
+      elev = Math.min(elev, surfaceElev - belowWaterLevel);
     }
-    out.set(tile.id, { tileId: tile.id, type, elevation: elev });
+    out.set(tile.id, { tileId: tile.id, type, elevation: elev, lakeId: lakeId ?? undefined });
   }
 
-  // Per-body water level: set each contiguous water body's elevation to the lowest adjacent land elevation (minus a small delta) so lakes and enclosed seas sit at the right height.
+  // Per-body water level: set each water body's tile elevation from surrounding land (min shore - delta) so each lake/ocean has its own elevation.
   const tileById = new Map(tiles.map((t) => [t.id, t]));
   const bodyToTiles = new Map<string, Set<number>>();
   for (const tile of tiles) {
-    const lw = landByTile?.get(tile.id);
-    if (lw?.isLand) continue;
-    const key = lw?.lakeId != null ? `lake-${lw.lakeId}` : `ocean-${lw?.oceanRegionId ?? 0}`;
-    let set = bodyToTiles.get(key);
-    if (!set) {
-      set = new Set<number>();
-      bodyToTiles.set(key, set);
+    const data = out.get(tile.id);
+    if (!data || data.type === "water" || data.type === "beach") {
+      const key = data?.lakeId != null ? `lake-${data.lakeId}` : "ocean";
+      let set = bodyToTiles.get(key);
+      if (!set) {
+        set = new Set<number>();
+        bodyToTiles.set(key, set);
+      }
+      set.add(tile.id);
     }
-    set.add(tile.id);
   }
-  const waterLevelBelowShore = 0.005;
+  const belowWaterLevel = 0.01;
   for (const [, tileIds] of bodyToTiles) {
     let minShoreElev = Infinity;
     for (const tid of tileIds) {
@@ -1793,19 +1796,70 @@ export async function buildTerrainFromEarthRaster(
       if (!tile) continue;
       for (const nid of tile.neighbors) {
         const nd = out.get(nid);
-        if (!nd || nd.type === "water") continue;
+        if (!nd || nd.type === "water" || nd.type === "beach") continue;
         minShoreElev = Math.min(minShoreElev, nd.elevation);
       }
     }
     if (minShoreElev === Infinity) continue;
-    const waterLevel = minShoreElev - waterLevelBelowShore;
+    const waterLevelElev = minShoreElev - WATER_LEVEL_BELOW_SHORE;
+    const tileElev = waterLevelElev - belowWaterLevel;
     for (const tid of tileIds) {
       const data = out.get(tid);
-      if (data) out.set(tid, { ...data, elevation: waterLevel });
+      if (data) out.set(tid, { ...data, elevation: tileElev });
     }
   }
 
   return out;
+}
+
+const WATER_LEVEL_BELOW_SHORE = 0.005;
+
+export interface WaterLevelsByBody {
+  /** Water surface elevation per body (same units as terrain). Use for rendering water meshes. */
+  levels: Map<string, number>;
+  /** Tile IDs belonging to each body (so you can build a water surface patch per lake). */
+  tileIdsByBody: Map<string, Set<number>>;
+}
+
+/**
+ * Compute the correct water surface elevation for each water body (ocean and each lake).
+ * Use this for rendering water meshes at the right height; do not write these back into terrain.
+ */
+export function computeWaterLevelsByBody(
+  tiles: GeodesicTile[],
+  terrain: Map<number, TileTerrainData>
+): WaterLevelsByBody {
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  const bodyToTiles = new Map<string, Set<number>>();
+  for (const tile of tiles) {
+    const data = terrain.get(tile.id);
+    if (!data || data.type === "water" || data.type === "beach") {
+      const key = data?.lakeId != null ? `lake-${data.lakeId}` : "ocean";
+      let set = bodyToTiles.get(key);
+      if (!set) {
+        set = new Set<number>();
+        bodyToTiles.set(key, set);
+      }
+      set.add(tile.id);
+    }
+  }
+  const levels = new Map<string, number>();
+  for (const [key, tileIds] of bodyToTiles) {
+    let minShoreElev = Infinity;
+    for (const tid of tileIds) {
+      const tile = tileById.get(tid);
+      if (!tile) continue;
+      for (const nid of tile.neighbors) {
+        const nd = terrain.get(nid);
+        if (!nd || nd.type === "water" || nd.type === "beach") continue;
+        minShoreElev = Math.min(minShoreElev, nd.elevation);
+      }
+    }
+    if (minShoreElev !== Infinity) {
+      levels.set(key, minShoreElev - WATER_LEVEL_BELOW_SHORE);
+    }
+  }
+  return { levels, tileIdsByBody: bodyToTiles };
 }
 
 /**
@@ -1819,6 +1873,7 @@ export function applyCoastalBeach(
   for (const tile of tiles) {
     const data = terrain.get(tile.id);
     if (!data || data.type !== "water") continue;
+    if (data.lakeId != null) continue; // Lakes stay water; only ocean coasts become beach
     const hasLandNeighbor = tile.neighbors.some((n) => {
       const d = terrain.get(n);
       return d && d.type !== "water";
@@ -1867,7 +1922,8 @@ export function buildTerrainFromSampler(
     if (result.land && result.elevationM != null && result.elevationM > 0) {
       elev = opts.landElevation + result.elevationM * opts.elevationScale;
     } else if (!result.land) {
-      elev = opts.waterElevation;
+      const bedElev = opts.waterElevation - 0.01;
+      elev = Math.min(elev, bedElev);
     }
     out.set(tile.id, { tileId: tile.id, type, elevation: elev });
   }

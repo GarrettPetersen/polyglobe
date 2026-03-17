@@ -29,6 +29,8 @@ export interface TileTerrainData {
   tileId: number;
   type: TerrainType;
   elevation: number;
+  /** If set, this tile is a lake (not ocean); used to keep lake tiles water-colored instead of beach. */
+  lakeId?: number;
 }
 
 function positionKey(x: number, y: number, z: number): string {
@@ -214,6 +216,54 @@ export function geometryOceanFloor(
   }
   pos.needsUpdate = true;
   out.setIndex(waterIndices);
+  out.computeVertexNormals();
+  return out;
+}
+
+/**
+ * Return geometry for a patch of tiles at a given surface radius (e.g. for lake water).
+ * Keeps only triangles whose tileId is in tileIds; scales those vertices to surfaceRadius.
+ * Use with the water shader so lakes render as water at the correct elevation.
+ */
+export function geometryWaterSurfacePatch(
+  geometry: THREE.BufferGeometry,
+  tileIds: Set<number>,
+  surfaceRadius: number
+): THREE.BufferGeometry {
+  const indexAttr = geometry.index;
+  const tileIdAttr = geometry.getAttribute("tileId") as THREE.BufferAttribute;
+  const posAttr = geometry.getAttribute("position") as THREE.BufferAttribute;
+  if (!indexAttr || !tileIdAttr || !posAttr) return geometry.clone();
+
+  const index = indexAttr.array;
+  const patchIndices: number[] = [];
+  const verticesToScale = new Set<number>();
+
+  for (let i = 0; i < index.length; i += 3) {
+    const tid = Math.round(tileIdAttr.getX(index[i]));
+    if (tileIds.has(tid)) {
+      patchIndices.push(index[i], index[i + 1], index[i + 2]);
+      verticesToScale.add(index[i]);
+      verticesToScale.add(index[i + 1]);
+      verticesToScale.add(index[i + 2]);
+    }
+  }
+
+  const out = geometry.clone();
+  const pos = out.getAttribute("position") as THREE.BufferAttribute;
+
+  for (const vi of verticesToScale) {
+    const x = pos.getX(vi);
+    const y = pos.getY(vi);
+    const z = pos.getZ(vi);
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    const s = surfaceRadius / len;
+    pos.setX(vi, x * s);
+    pos.setY(vi, y * s);
+    pos.setZ(vi, z * s);
+  }
+  pos.needsUpdate = true;
+  out.setIndex(patchIndices);
   out.computeVertexNormals();
   return out;
 }

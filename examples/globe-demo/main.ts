@@ -24,6 +24,8 @@ import {
   buildTerrainFromEarthRaster,
   earthRasterFromImageData,
   applyCoastalBeach,
+  computeWaterLevelsByBody,
+  geometryWaterSurfacePatch,
   parseKoppenAsciiGrid,
   applyPreset,
   getPreset,
@@ -140,7 +142,7 @@ function buildProceduralTerrain(
     let elevation: number;
     if (!isLand) {
       type = "water";
-      elevation = -0.18;
+      elevation = MAX_SEA_BED_ELEVATION;
     } else {
       if (absLat > 0.82) {
         type = rnd() < 0.7 ? "ice" : "snow";
@@ -176,7 +178,7 @@ function terrainFromLandMask(
     out.set(i, {
       tileId: i,
       type: isLand ? "land" : "water",
-      elevation: isLand ? 0.1 : -0.18,
+      elevation: isLand ? 0.1 : MAX_SEA_BED_ELEVATION,
     });
   }
   return out;
@@ -220,7 +222,7 @@ async function buildProceduralTerrainProgressive(
     let elevation: number;
     if (!isLand) {
       type = "water";
-      elevation = -0.18;
+      elevation = MAX_SEA_BED_ELEVATION;
     } else {
       if (absLat > 0.82) {
         type = rnd() < 0.7 ? "ice" : "snow";
@@ -304,15 +306,28 @@ async function runTerrainTransition(
 
   if (peakSetChanged && peakTilesNext != null) {
     console.log(BUILD_LOG, "TerrainTransition: peak set changed, replacing geometry (no animation)");
+    const elevatedSeaTiles = new Map<number, number>();
     const nextOpts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
       ...opts,
-      getElevation: (id: number) => nextTerrain.get(id)?.elevation ?? 0,
+      getElevation: (id: number) => {
+        const d = nextTerrain.get(id);
+        const raw = d?.elevation ?? MAX_SEA_BED_ELEVATION;
+        if (d && (d.type === "water" || d.type === "beach")) {
+          if (raw > MAX_SEA_BED_ELEVATION) elevatedSeaTiles.set(id, raw);
+          return Math.min(raw, MAX_SEA_BED_ELEVATION);
+        }
+        return raw;
+      },
       getPeak: (id: number) => {
         const m = peakTilesNext.get(id);
         return m != null ? { apexElevationM: m } : undefined;
       },
     };
     const geom = createGeodesicGeometryFlat(globe.tiles, nextOpts);
+    if (elevatedSeaTiles.size > 0) {
+      const list = [...elevatedSeaTiles.entries()].map(([tid, elev]) => `tile ${tid} elev ${elev.toFixed(4)}`).join(", ");
+      console.warn(BUILD_LOG, "Sea bottom hex(es) drawn above submerged level (", MAX_SEA_BED_ELEVATION, "):", list);
+    }
     applyTerrainColorsToGeometry(geom, nextTerrain);
     globe.mesh.geometry.dispose();
     globe.mesh.geometry = geom;
@@ -329,8 +344,8 @@ async function runTerrainTransition(
     }
     const t = TERRAIN_ANIMATION_EASING(frame / TERRAIN_ANIMATION_FRAMES);
     const getElevation = (id: number) => {
-      const a = prevTerrain.get(id)?.elevation ?? -0.18;
-      const b = nextTerrain.get(id)?.elevation ?? -0.18;
+      const a = prevTerrain.get(id)?.elevation ?? MAX_SEA_BED_ELEVATION;
+      const b = nextTerrain.get(id)?.elevation ?? MAX_SEA_BED_ELEVATION;
       return a + (b - a) * t;
     };
     const getPeakLerp =
@@ -1302,8 +1317,15 @@ let riverLinesLonLat: number[][][] | null = null;
 let riverLineIsDelta: boolean[] | null = null;
 /** River mesh in Earth mode; updated each frame for wave animation. */
 let riverMesh: THREE.Mesh | null = null;
+/** Lake water surfaces (share ocean water material) in Earth mode. */
+let lakeWaterMeshes: THREE.Mesh[] = [];
 
 const BUILD_LOG = "[globe-build]";
+
+/** Ocean water surface elevation (globe units). */
+const OCEAN_WATER_LEVEL = -0.18;
+/** Max sea-bed elevation so it stays fully submerged (slightly below water surface). */
+const MAX_SEA_BED_ELEVATION = OCEAN_WATER_LEVEL - 0.01;
 
 /** Delay (ms) after each resolution iteration so the browser can render and the user can watch. ~40ms ≈ 25 updates/sec. */
 const RESOLVE_ITERATION_DELAY_MS = 40;
@@ -1368,7 +1390,7 @@ function createFlareTexture(size: number, soft: boolean = true): THREE.CanvasTex
 function baseWaterTerrain(tileCount: number): Map<number, TileTerrainData> {
   const m = new Map<number, TileTerrainData>();
   for (let i = 0; i < tileCount; i++) {
-    m.set(i, { tileId: i, type: "water", elevation: -0.18 });
+    m.set(i, { tileId: i, type: "water", elevation: MAX_SEA_BED_ELEVATION });
   }
   return m;
 }
@@ -1383,9 +1405,18 @@ function setGlobeGeometryFromTerrain(
   riverEdgesByTile?: Map<number, Set<number>>,
   riverEdgeToWaterByTile?: Map<number, Set<number>>
 ): void {
+  const elevatedSeaTiles = new Map<number, number>();
   const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
     radius: globe.radius,
-    getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+    getElevation: (id) => {
+      const d = tileTerrain.get(id);
+      const raw = d?.elevation ?? MAX_SEA_BED_ELEVATION;
+      if (d && (d.type === "water" || d.type === "beach")) {
+        if (raw > MAX_SEA_BED_ELEVATION) elevatedSeaTiles.set(id, raw);
+        return Math.min(raw, MAX_SEA_BED_ELEVATION);
+      }
+      return raw;
+    },
     elevationScale,
     peakElevationScale,
   };
@@ -1403,6 +1434,10 @@ function setGlobeGeometryFromTerrain(
     opts.riverBowlInnerScale = 0.4;
   }
   const geom = createGeodesicGeometryFlat(globe.tiles, opts);
+  if (elevatedSeaTiles.size > 0) {
+    const list = [...elevatedSeaTiles.entries()].map(([tid, elev]) => `tile ${tid} elev ${elev.toFixed(4)}`).join(", ");
+    console.warn(BUILD_LOG, "Sea bottom hex(es) drawn above submerged level (", MAX_SEA_BED_ELEVATION, "):", list);
+  }
   applyTerrainColorsToGeometry(geom, tileTerrain);
   if (globe.mesh.geometry) globe.mesh.geometry.dispose();
   globe.mesh.geometry = geom;
@@ -1433,6 +1468,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       (riverMesh.material as THREE.Material).dispose();
       riverMesh = null;
     }
+    for (const m of lakeWaterMeshes) {
+      scene.remove(m);
+      m.geometry.dispose();
+    }
+    lakeWaterMeshes = [];
     if (marker) scene.remove(marker);
     await yieldToMain();
 
@@ -1486,7 +1526,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
               const terrain = new Map<number, TileTerrainData>();
               for (const [tid, lw] of landByTile) {
                 const isLand = lw.isLand;
-                const elev = isLand ? SEA_LEVEL_LAND_ELEVATION : (lw.lakeId != null ? LAKE_ELEVATION : -0.18);
+                const elev = isLand ? SEA_LEVEL_LAND_ELEVATION : (lw.lakeId != null ? LAKE_ELEVATION - 0.01 : MAX_SEA_BED_ELEVATION);
                 terrain.set(tid, {
                   tileId: tid,
                   type: isLand ? "land" : "water",
@@ -1637,6 +1677,24 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     });
     scene.add(water.mesh);
 
+    const waterLevels = computeWaterLevelsByBody(globe.tiles, tileTerrain);
+    const elevationScaleForLakes = 0.08;
+    for (const [key, tileIds] of waterLevels.tileIdsByBody) {
+      if (key === "ocean") continue;
+      const level = waterLevels.levels.get(key);
+      if (level == null || tileIds.size === 0) continue;
+      const surfaceRadius = globe.radius + level * elevationScaleForLakes;
+      const geom = geometryWaterSurfacePatch(globe.mesh.geometry, tileIds, surfaceRadius);
+      const mesh = new THREE.Mesh(geom, water.material);
+      mesh.name = `LakeWater-${key}`;
+      mesh.renderOrder = 1;
+      scene.add(mesh);
+      lakeWaterMeshes.push(mesh);
+    }
+    if (lakeWaterMeshes.length > 0) {
+      console.log(BUILD_LOG, "lake water meshes:", lakeWaterMeshes.length);
+    }
+
     coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
       radius: 0.995,
       speed: 0.073,
@@ -1675,7 +1733,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             radius: globe.radius,
             getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
             elevationScale,
-            channelWidthFraction: 0.45,
+            riverBowlInnerScale: 0.4,
             sunDirection: sunDirectionFromState(state),
             waterSurfaceRadius: 0.995,
             isWater: (id) => tileTerrain.get(id)?.type === "water",
@@ -1869,12 +1927,14 @@ async function init() {
       };
       const lines: number[][][] = [];
       const lineIsDelta: boolean[] = [];
+      const alwaysIncludeRiverNames = /\b(saint\s*lawrence|st\.?\s*lawrence)\b/i;
       for (const f of rivers.features ?? []) {
         const cla = f.properties?.featurecla ?? "";
         if (cla !== "River" && cla !== "Lake Centerline") continue;
-        const sr = f.properties?.scalerank;
-        if (sr != null && sr > RIVER_MAX_SCALERANK) continue;
         const name = (f.properties?.name_en ?? f.properties?.name ?? "");
+        const sr = f.properties?.scalerank;
+        const withinScale = sr == null || sr <= RIVER_MAX_SCALERANK;
+        if (!withinScale && !alwaysIncludeRiverNames.test(name)) continue;
         const isDelta = /\b(rosetta|damietta)\b/i.test(name);
         const g = f.geometry;
         if (!g?.coordinates) continue;

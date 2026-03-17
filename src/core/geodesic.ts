@@ -344,7 +344,6 @@ export function buildFlatGeometryData(
       const vo = new THREE.Vector3();
       const v1 = new THREE.Vector3();
       const v2 = new THREE.Vector3();
-      const centerPos = centerNormal.clone().multiplyScalar(rTop);
 
       for (let i = 0; i < n; i++) {
         const i1 = (i + 1) % n;
@@ -362,11 +361,8 @@ export function buildFlatGeometryData(
         } else if (isRiverSide) {
           readPos(o0, vo);
           readPos(o1, v1);
-          const L_outer = vo.distanceTo(v1);
-          v2.addVectors(vo, v1).multiplyScalar(0.5);
-          const outerApothem = centerPos.distanceTo(v2);
-          const openingWidth = 2 * riverBowlInnerScale * outerApothem;
-          const frac = L_outer > 1e-10 ? Math.min(1, openingWidth / L_outer) : 1;
+          // Use same fraction for slot on shared edge so both hexes get aligned tLeft/tRight (widest points connect in a straight line, no kink)
+          const frac = Math.min(1, riverBowlInnerScale);
           const tLeft = Math.max(0, 0.5 - frac * 0.5);
           const tRight = Math.min(1, 0.5 + frac * 0.5);
 

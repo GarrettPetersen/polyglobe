@@ -35,8 +35,10 @@ export interface RiverMeshOptions {
   riverWidth?: number;
   /** Half-width as fraction of segment length (e.g. 0.28 = narrow ribbon relative to hex). Use this to scale to hex size. */
   riverWidthFraction?: number;
-  /** For per-hex river: channel half-width as fraction of center-to-edge (e.g. 0.45 = 90% of hex, boat-sized). Used by createRiverMeshFromTileEdges. */
+  /** For per-hex river: channel half-width as fraction of center-to-edge (e.g. 0.45 = 90% of hex, boat-sized). Ignored if riverBowlInnerScale is set. */
   channelWidthFraction?: number;
+  /** If set, strip width matches the bowl slot (same as geodesic riverBowlInnerScale) and a central water hex fills the bowl interior. */
+  riverBowlInnerScale?: number;
   /** Sun direction for water specular. */
   sunDirection?: THREE.Vector3;
   /** If set with isWater, adds a ramp quad from each river edge that connects to water up to this radius (e.g. 0.995 for ocean sphere), so river mouths blend into the water surface. */
@@ -47,6 +49,8 @@ export interface RiverMeshOptions {
 
 /** Max radial wave displacement (sum of Gerstner amps) so default surfaceOffset aligns wave crests with bowl lip. */
 const RIVER_MAX_WAVE_AMPLITUDE = 0.0004 * (1 + 0.85 + 0.6);
+/** 1/sqrt(3): for a regular hex, slot half-width = len * riverBowlInnerScale / SQRT3 to match bowl opening. */
+const SQRT3 = Math.sqrt(3);
 
 /** Options for getRiverEdgesByTile: if provided, end segments (tiles with only one river edge) get an extra opening toward any adjacent water tile so the river connects to ocean/lake. */
 export interface GetRiverEdgesOptions {
@@ -105,6 +109,7 @@ export function getRiverEdgesByTile(
       }
     }
 
+    // Add ocean/lake edge to terminus tiles (size 1) that border water
     for (const [tileId, edgeSet] of byTile) {
       if (edgeSet.size !== 1) continue;
       const tile = tileById.get(tileId);
@@ -113,6 +118,44 @@ export function getRiverEdgesByTile(
         if (edgeSet.has(e)) continue;
         const neighborId = getEdgeNeighbor(tile, e, tiles);
         if (neighborId !== undefined && isWater(neighborId)) edgeSet.add(e);
+      }
+    }
+
+    // Aggressive: terminuses that still have no water edge may end one tile inland. Walk backward
+    // along the river and add an ocean edge to the first tile we find that borders the ocean.
+    const MAX_TERMINUS_WALK = 5;
+    for (const [tileId, edgeSet] of byTile) {
+      if (edgeSet.size !== 1) continue;
+      const tile = tileById.get(tileId);
+      if (!tile) continue;
+      const hasWaterNeighbor = tile.vertices.some((_, e) => {
+        const nid = getEdgeNeighbor(tile, e, tiles);
+        return nid !== undefined && isWater(nid);
+      });
+      if (hasWaterNeighbor) continue; // already connected
+
+      let currentId: number | undefined = tileId;
+      let currentSet = edgeSet;
+      let steps = 0;
+      while (currentId !== undefined && steps < MAX_TERMINUS_WALK) {
+        const t = tileById.get(currentId);
+        if (!t || !currentSet) break;
+        for (let e = 0; e < t.vertices.length; e++) {
+          const neighborId = getEdgeNeighbor(t, e, tiles);
+          if (neighborId === undefined || !isWater(neighborId)) continue;
+          const targetSet = byTile.get(currentId);
+          if (targetSet) targetSet.add(e);
+          currentId = undefined;
+          break;
+        }
+        if (currentId === undefined) break;
+        const singleEdge = [...currentSet][0];
+        const upstreamId = getEdgeNeighbor(t, singleEdge, tiles);
+        const nextSet = upstreamId !== undefined ? byTile.get(upstreamId) : undefined;
+        if (upstreamId === undefined || nextSet === undefined) break;
+        currentId = upstreamId;
+        currentSet = nextSet;
+        steps++;
       }
     }
   }
@@ -349,6 +392,7 @@ export function createRiverMeshFromTileEdges(
   const radius = options.radius ?? globe.radius;
   const elevationScale = options.elevationScale ?? 1;
   const surfaceOffset = options.surfaceOffset ?? RIVER_MAX_WAVE_AMPLITUDE;
+  const riverBowlInnerScale = options.riverBowlInnerScale;
   const channelWidthFraction = options.channelWidthFraction ?? 0.45;
   const waterSurfaceRadius = options.waterSurfaceRadius;
   const isWater = options.isWater;
@@ -367,6 +411,7 @@ export function createRiverMeshFromTileEdges(
   const tangent = new THREE.Vector3();
   const perp = new THREE.Vector3();
   const outer = new THREE.Vector3();
+  const innerPoint = new THREE.Vector3();
 
   for (const [tileId, edgeSet] of riverEdgesByTile) {
     if (edgeSet.size === 0) continue;
@@ -377,6 +422,30 @@ export function createRiverMeshFromTileEdges(
     centerNormal.copy(tile.center).normalize();
     centerPos.copy(centerNormal).multiplyScalar(r);
     const usePlane = elev >= 0;
+    const n = tile.vertices.length;
+
+    if (riverBowlInnerScale != null) {
+      const centerIdx = vertexOffset;
+      positions.push(centerPos.x, centerPos.y, centerPos.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      vertexOffset++;
+      const innerBase = vertexOffset;
+      for (let e = 0; e < n; e++) {
+        edgeMidpoint(tile, e, r, centerNormal, usePlane, edgeMid);
+        innerPoint.lerpVectors(centerPos, edgeMid, riverBowlInnerScale);
+        positions.push(innerPoint.x, innerPoint.y, innerPoint.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        vertexOffset++;
+      }
+      for (let e = 0; e < n; e++) {
+        const i0 = innerBase + e;
+        const i1 = innerBase + (e + 1) % n;
+        indices.push(centerIdx, i0, i1);
+      }
+    }
+
+    const halfWidthScale =
+      riverBowlInnerScale != null ? riverBowlInnerScale / SQRT3 : channelWidthFraction;
 
     for (const edgeIndex of edgeSet) {
       edgeMidpoint(tile, edgeIndex, r, centerNormal, usePlane, edgeMid);
@@ -386,7 +455,7 @@ export function createRiverMeshFromTileEdges(
       tangent.normalize();
       perp.crossVectors(centerNormal, tangent).normalize();
       if (perp.lengthSq() < 1e-10) continue;
-      const halfWidth = len * channelWidthFraction;
+      const halfWidth = len * halfWidthScale;
       perp.multiplyScalar(halfWidth);
 
       const a0 = vertexOffset;
