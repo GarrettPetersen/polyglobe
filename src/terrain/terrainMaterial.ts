@@ -17,7 +17,7 @@ export const TERRAIN_STYLES: Record<TerrainType, TerrainStyle> = {
   land: { color: 0x6b9b5c, roughness: 0.9, metalness: 0 },
   mountain: { color: 0x8b8b8b, roughness: 0.95, metalness: 0 },
   desert: { color: 0xe5d4a0, roughness: 0.85, metalness: 0 },
-  snow: { color: 0xf5f5f5, roughness: 0.8, metalness: 0 },
+  snow: { color: 0xffffff, roughness: 0.8, metalness: 0 },
   ice: { color: 0xd8e8f0, roughness: 0.7, metalness: 0.05 },
   forest: { color: 0x3d7028, roughness: 0.9, metalness: 0 },
   grassland: { color: 0x7aac50, roughness: 0.85, metalness: 0 },
@@ -69,7 +69,7 @@ export function applyTerrainColorsToGeometry(
 ): void {
   const snowCapColor = TERRAIN_STYLES.snow.color;
   applyVertexColorsByTileId(geometry, (tid) => {
-    if (tid < 0) return snowCapColor;
+    if (Number(tid) < 0) return snowCapColor;
     const data = tileTerrain.get(tid) ?? {
       tileId: tid,
       type: "water" as TerrainType,

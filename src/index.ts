@@ -53,6 +53,7 @@ export {
   type TerrainSampleMode,
   type EarthTerrainSampler,
   type RegionScores,
+  type LandWaterAssignment,
   type ResolveLandWaterByRegionsOptions,
   rasterCutoutCrosses,
   type RasterWindow,
@@ -79,6 +80,17 @@ export { Atmosphere, type AtmosphereOptions, type WeatherKind } from "./atmosphe
 // Water (spherical; gravity is toward planet center by construction)
 export { WaterSphere, type WaterSphereOptions } from "./water/WaterSphere.js";
 export { createCoastMaskTexture, createCoastLandMaskTexture } from "./water/coastMask.js";
+export {
+  traceRiverThroughTiles,
+  createRiverMesh,
+  createRiverMeshFromTileEdges,
+  getRiverEdgesByTile,
+  lonLatToDirection,
+  updateRiverMaterialTime,
+  type RiverSegment,
+  type RiverMeshOptions,
+  type GetRiverEdgesOptions,
+} from "./water/rivers.js";
 export { CoastFoamOverlay } from "./water/coastFoamOverlay.js";
 
 // Placement by tile ID (hex/pentagon)

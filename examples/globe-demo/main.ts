@@ -29,6 +29,10 @@ import {
   getPreset,
   placeObject,
   tileCenterToLatLon,
+  traceRiverThroughTiles,
+  getRiverEdgesByTile,
+  createRiverMeshFromTileEdges,
+  updateRiverMaterialTime,
   TERRAIN_STYLES,
   type TileTerrainData,
   type EarthRaster,
@@ -260,7 +264,8 @@ async function runTerrainTransition(
   peakTilesPrev: Map<number, number> | undefined,
   peakTilesNext: Map<number, number> | undefined,
   yieldToMain: () => Promise<void>,
-  minLandElevation?: number
+  minLandElevation?: number,
+  riverEdgesByTile?: Map<number, Set<number>>
 ): Promise<void> {
   const peakSetPrev = getPeakTileSet(peakTilesPrev);
   const peakSetNext = getPeakTileSet(peakTilesNext);
@@ -280,9 +285,23 @@ async function runTerrainTransition(
   };
   if (minLandElevation != null) opts.minLandElevation = minLandElevation;
 
+  if (riverEdgesByTile != null && riverEdgesByTile.size > 0) {
+    console.log(BUILD_LOG, "TerrainTransition: river bowls, setting geometry once (no animation)");
+    setGlobeGeometryFromTerrain(
+      globe,
+      nextTerrain,
+      peakTilesNext ?? undefined,
+      elevationScale,
+      peakElevationScale,
+      minLandElevation,
+      riverEdgesByTile
+    );
+    return;
+  }
+
   if (peakSetChanged && peakTilesNext != null) {
     console.log(BUILD_LOG, "TerrainTransition: peak set changed, replacing geometry (no animation)");
-    const nextOpts = {
+    const nextOpts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
       ...opts,
       getElevation: (id: number) => nextTerrain.get(id)?.elevation ?? 0,
       getPeak: (id: number) => {
@@ -327,7 +346,7 @@ async function runTerrainTransition(
     };
     updateFlatGeometryFromTerrain(globe.mesh.geometry, globe.tiles, optsLerp);
     applyVertexColorsByTileId(globe.mesh.geometry, (tid) => {
-      if (tid < 0) return TERRAIN_STYLES.snow.color;
+      if (Number(tid) < 0) return TERRAIN_STYLES.snow.color;
       const a = prevTerrain.get(tid);
       const b = nextTerrain.get(tid);
       const styleA = a ? TERRAIN_STYLES[a.type].color : TERRAIN_STYLES.water.color;
@@ -1274,6 +1293,12 @@ let earthGetRegionScores: ((tile: GeodesicTile) => RegionScores) | null = null;
 let earthGetRasterWindow: ((tile: GeodesicTile) => RasterWindow | null) | null = null;
 /** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
 let mountainsList: MountainEntry[] | null = null;
+/** Nile polylines (one per segment/country) [lon, lat] in degrees; from ne_10m_rivers_lake_centerlines.json. Used for river channel in Earth mode. */
+let nileLinesLonLat: number[][][] | null = null;
+/** Parallel to nileLinesLonLat: true if that line is a delta branch (Rosetta/Damietta) and should prefer sea over other river. */
+let nileLineIsDelta: boolean[] | null = null;
+/** River mesh (Nile) in Earth mode; updated each frame for wave animation. */
+let riverMesh: THREE.Mesh | null = null;
 
 const BUILD_LOG = "[globe-build]";
 
@@ -1351,7 +1376,8 @@ function setGlobeGeometryFromTerrain(
   peakTiles: Map<number, number> | undefined,
   elevationScale: number,
   peakElevationScale: number,
-  minLandElevation?: number
+  minLandElevation?: number,
+  riverEdgesByTile?: Map<number, Set<number>>
 ): void {
   const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
     radius: globe.radius,
@@ -1365,6 +1391,11 @@ function setGlobeGeometryFromTerrain(
       const m = peakTiles.get(id);
       return m != null ? { apexElevationM: m } : undefined;
     };
+  }
+  if (riverEdgesByTile != null && riverEdgesByTile.size > 0) {
+    opts.getRiverEdges = (id) => riverEdgesByTile.get(id);
+    opts.riverBowlDepth = 0.012;
+    opts.riverBowlInnerScale = 0.4;
   }
   const geom = createGeodesicGeometryFlat(globe.tiles, opts);
   applyTerrainColorsToGeometry(geom, tileTerrain);
@@ -1391,6 +1422,12 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       scene.remove(coastFoamOverlay.mesh);
       coastFoamOverlay.dispose();
     }
+    if (riverMesh) {
+      scene.remove(riverMesh);
+      riverMesh.geometry.dispose();
+      (riverMesh.material as THREE.Material).dispose();
+      riverMesh = null;
+    }
     if (marker) scene.remove(marker);
     await yieldToMain();
 
@@ -1410,6 +1447,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     // Water sphere radius 0.995, waveAmplitude 0.0007 × (1 + 0.85 + 0.6) → max wave ≈ 0.00171. Min land radius ≈ 0.9967.
     // Vertex radius = 1 + landElevation * elevationScale, so landElevation >= (0.9967 - 1) / 0.08 ≈ -0.041.
     const SEA_LEVEL_LAND_ELEVATION = -0.042;
+    /** Lake surface elevation (above ocean -0.18) so rivers flow into lakes; matches buildTerrainFromEarthRaster lakeElevation. */
+    const LAKE_ELEVATION = -0.04;
 
     const baseTerrain = baseWaterTerrain(globe.tileCount);
     setGlobeGeometryFromTerrain(globe, baseTerrain, undefined, elevationScale, peakElevationScale);
@@ -1425,6 +1464,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       try {
         tileTerrain = await buildTerrainFromEarthRaster(globe.tiles, earthRaster, {
           waterElevation: -0.18,
+          lakeElevation: LAKE_ELEVATION,
           landElevation: SEA_LEVEL_LAND_ELEVATION,
           elevationScale: 0.00004,
           latitudeTerrain: true,
@@ -1439,11 +1479,13 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             knownStraitTileIds: globe.subdivisions === 6 ? new Set([40361, 24757, 4129]) : undefined,
             onIteration: async (_iteration, landByTile) => {
               const terrain = new Map<number, TileTerrainData>();
-              for (const [tid, isLand] of landByTile) {
+              for (const [tid, lw] of landByTile) {
+                const isLand = lw.isLand;
+                const elev = isLand ? SEA_LEVEL_LAND_ELEVATION : (lw.lakeId != null ? LAKE_ELEVATION : -0.18);
                 terrain.set(tid, {
                   tileId: tid,
                   type: isLand ? "land" : "water",
-                  elevation: isLand ? SEA_LEVEL_LAND_ELEVATION : -0.18,
+                  elevation: elev,
                 });
               }
               setGlobeGeometryFromTerrain(globe, terrain, undefined, elevationScale, peakElevationScale, SEA_LEVEL_LAND_ELEVATION);
@@ -1470,6 +1512,26 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
         console.log(BUILD_LOG, "Earth: peaks done, count:", peakTiles?.size ?? 0);
       }
+      let riverEdgesByTile: Map<number, Set<number>> | undefined;
+      if (nileLinesLonLat && nileLinesLonLat.length > 0) {
+        const riverSegments: ReturnType<typeof traceRiverThroughTiles> = [];
+        const isDeltaByLine = nileLineIsDelta ?? nileLinesLonLat.map(() => false);
+        for (let i = 0; i < nileLinesLonLat.length; i++) {
+          const line = nileLinesLonLat[i];
+          if (line.length >= 2) {
+            const segs = traceRiverThroughTiles(globe, line);
+            const isDelta = isDeltaByLine[i] ?? false;
+            for (const s of segs) riverSegments.push({ ...s, isDelta });
+          }
+        }
+        riverEdgesByTile =
+          riverSegments.length > 0
+            ? getRiverEdgesByTile(riverSegments, {
+                tiles: globe.tiles,
+                isWater: (id) => tileTerrain.get(id)?.type === "water",
+              })
+            : undefined;
+      }
       console.log(BUILD_LOG, "Earth: runTerrainTransition start");
       await runTerrainTransition(
         globe,
@@ -1480,7 +1542,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         undefined,
         peakTiles,
         yieldToMain,
-        SEA_LEVEL_LAND_ELEVATION
+        SEA_LEVEL_LAND_ELEVATION,
+        riverEdgesByTile
       );
       console.log(BUILD_LOG, "Earth: runTerrainTransition done");
       lastDisplayedTerrain = tileTerrain;
@@ -1511,6 +1574,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         undefined,
         undefined,
         yieldToMain,
+        undefined,
         undefined
       );
       console.log(BUILD_LOG, "Procedural: runTerrainTransition done");
@@ -1544,6 +1608,44 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       timeScale: 0.4,
     });
     scene.add(coastFoamOverlay.mesh);
+
+    if (state.useEarth && nileLinesLonLat && nileLinesLonLat.length > 0) {
+      const elevationScale = 0.08;
+      const riverSegments: ReturnType<typeof traceRiverThroughTiles> = [];
+      const isDeltaByLine = nileLineIsDelta ?? nileLinesLonLat.map(() => false);
+      for (let i = 0; i < nileLinesLonLat.length; i++) {
+        const line = nileLinesLonLat[i];
+        if (line.length >= 2) {
+          const segs = traceRiverThroughTiles(globe, line);
+          const isDelta = isDeltaByLine[i] ?? false;
+          for (const s of segs) riverSegments.push({ ...s, isDelta });
+        }
+      }
+      const totalPoints = nileLinesLonLat.reduce((s, l) => s + l.length, 0);
+      console.log(BUILD_LOG, "river: Nile", nileLinesLonLat.length, "lines,", totalPoints, "points →", riverSegments.length, "segments");
+      if (riverSegments.length > 0) {
+        const riverEdgesByTile = getRiverEdgesByTile(riverSegments, {
+          tiles: globe.tiles,
+          isWater: (id) => tileTerrain.get(id)?.type === "water",
+        });
+        console.log(BUILD_LOG, "Nile placed on hex tile IDs:", [...riverEdgesByTile.keys()]);
+        riverMesh = createRiverMeshFromTileEdges(globe, riverEdgesByTile, {
+          radius: globe.radius,
+          getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+          elevationScale,
+          channelWidthFraction: 0.45,
+          sunDirection: sunDirectionFromState(state),
+        });
+        scene.add(riverMesh);
+        console.log(BUILD_LOG, "river: mesh added, vertices", (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0);
+      } else {
+        riverMesh = null;
+      }
+    } else {
+      if (state.useEarth && (!nileLinesLonLat || nileLinesLonLat.length === 0))
+        console.warn(BUILD_LOG, "river: Nile data not loaded", nileLinesLonLat?.length ?? 0);
+      riverMesh = null;
+    }
 
     marker = new THREE.Mesh(
       new THREE.SphereGeometry(0.03, 12, 12),
@@ -1705,6 +1807,49 @@ async function init() {
   } else {
     mountainsList = null;
   }
+  console.log(BUILD_LOG, "init: loading rivers (Nile, all segments)…");
+  try {
+    const riversRes = await fetch("/ne_10m_rivers_lake_centerlines.json");
+    if (riversRes.ok) {
+      const rivers = (await riversRes.json()) as { type: string; features?: Array<{ properties?: { name_en?: string; name?: string; featurecla?: string }; geometry?: { type: string; coordinates: number[][] | number[][][] } }> };
+      const lines: number[][][] = [];
+      const lineIsDelta: boolean[] = [];
+      for (const f of rivers.features ?? []) {
+        const cla = f.properties?.featurecla ?? "";
+        const name = (f.properties?.name_en ?? f.properties?.name ?? "");
+        if (!/\bnile\b|rosetta|damietta/i.test(name)) continue;
+        if (cla !== "River" && cla !== "Lake Centerline") continue;
+        const isDelta = /\b(rosetta|damietta)\b/i.test(name);
+        const g = f.geometry;
+        if (!g?.coordinates) continue;
+        if (g.type === "LineString" && Array.isArray(g.coordinates)) {
+          if (g.coordinates.length >= 2) {
+            lines.push(g.coordinates as number[][]);
+            lineIsDelta.push(isDelta);
+          }
+        } else if (g.type === "MultiLineString" && Array.isArray(g.coordinates)) {
+          for (const ring of g.coordinates as number[][][]) {
+            if (ring.length >= 2) {
+              lines.push(ring);
+              lineIsDelta.push(isDelta);
+            }
+          }
+        }
+      }
+      nileLinesLonLat = lines.length > 0 ? lines : null;
+      nileLineIsDelta = nileLinesLonLat && lineIsDelta.length === nileLinesLonLat.length ? lineIsDelta : null;
+      const totalPoints = nileLinesLonLat?.reduce((s, l) => s + l.length, 0) ?? 0;
+      console.log(BUILD_LOG, "init: Nile loaded,", nileLinesLonLat?.length ?? 0, "segments,", totalPoints, "total points");
+    } else {
+      nileLinesLonLat = null;
+      nileLineIsDelta = null;
+      console.warn(BUILD_LOG, "init: rivers fetch failed", riversRes?.status);
+    }
+  } catch (e) {
+    nileLinesLonLat = null;
+    nileLineIsDelta = null;
+    console.warn(BUILD_LOG, "init: rivers load error", e);
+  }
   console.log(BUILD_LOG, "init: loading Koppen climate…");
   const climate = await loadKoppenClimate();
   if (climate) earthRaster.climate = climate;
@@ -1795,6 +1940,11 @@ async function init() {
     if (coastFoamOverlay) {
       coastFoamOverlay.setSunDirection(sunDir);
       coastFoamOverlay.update();
+    }
+    if (riverMesh) {
+      const mat = riverMesh.material as THREE.ShaderMaterial;
+      if (mat.uniforms?.uSunDirection) mat.uniforms.uSunDirection.value.copy(sunDir);
+      updateRiverMaterialTime(riverMesh, performance.now() * 0.001 * 0.4);
     }
     composer.render();
   }

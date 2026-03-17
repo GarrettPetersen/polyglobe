@@ -210,6 +210,12 @@ export interface GeodesicFlatMeshOptions {
   getPeak?: (tileId: number) => TilePeak | undefined;
   /** Scale meters → globe units for peak apex height. Default 0.00002 (e.g. Everest ~0.18 units above base). */
   peakElevationScale?: number;
+  /** Optional: for tiles with river, build a hex-shaped bowl (inner hex cut out, sides cut for river directions). */
+  getRiverEdges?: (tileId: number) => Set<number> | undefined;
+  /** Depth of river bowl below tile surface (globe units). Default 0.012. */
+  riverBowlDepth?: number;
+  /** Inner hex radius as fraction of center-to-corner (0–1). Default 0.4. */
+  riverBowlInnerScale?: number;
 }
 
 export interface FlatGeometryData {
@@ -251,6 +257,10 @@ export function buildFlatGeometryData(
   const vbOut = new THREE.Vector3();
 
   const minLandElevation = options.minLandElevation;
+  const getRiverEdges = options.getRiverEdges;
+  const riverBowlDepth = options.riverBowlDepth ?? 0.012;
+  const riverBowlInnerScale = options.riverBowlInnerScale ?? 0.4;
+
   for (const tile of tiles) {
     const rawElev = options.getElevation(tile.id);
     const elev = rawElev * elevationScale;
@@ -261,6 +271,138 @@ export function buildFlatGeometryData(
     const isLand =
       minLandElevation != null ? rawElev >= minLandElevation : elev >= 0;
     const peak = getPeak?.(tile.id);
+    const riverEdges = getRiverEdges?.(tile.id);
+    const isRiverBowl =
+      isLand &&
+      riverEdges != null &&
+      riverEdges.size > 0;
+
+    if (isRiverBowl) {
+      const rTop = r;
+      const rBot = r - riverBowlDepth;
+      const inPlaneVec = new THREE.Vector3();
+      const inPlaneByVertex: THREE.Vector3[] = [];
+      for (let i = 0; i < n; i++) {
+        const v = tile.vertices[i].clone().normalize();
+        const dot = v.dot(centerNormal);
+        inPlaneVec.copy(v).sub(centerNormal.clone().multiplyScalar(dot));
+        inPlaneByVertex.push(inPlaneVec.clone());
+        const topPos = centerNormal.clone().multiplyScalar(rTop).add(inPlaneVec);
+        positions.push(topPos.x, topPos.y, topPos.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        tileIds.push(tile.id);
+        vertexOffset++;
+      }
+      const innerTopBase = vertexOffset;
+      for (let i = 0; i < n; i++) {
+        const i1 = (i + 1) % n;
+        const mid = inPlaneByVertex[i].clone().add(inPlaneByVertex[i1]).multiplyScalar(0.5);
+        const innerPos = centerNormal
+          .clone()
+          .multiplyScalar(rTop)
+          .add(mid.multiplyScalar(riverBowlInnerScale));
+        positions.push(innerPos.x, innerPos.y, innerPos.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        tileIds.push(tile.id);
+        vertexOffset++;
+      }
+      const innerBotBase = vertexOffset;
+      for (let i = 0; i < n; i++) {
+        const i1 = (i + 1) % n;
+        const mid = inPlaneByVertex[i].clone().add(inPlaneByVertex[i1]).multiplyScalar(0.5);
+        const innerPos = centerNormal
+          .clone()
+          .multiplyScalar(rBot)
+          .add(mid.multiplyScalar(riverBowlInnerScale));
+        positions.push(innerPos.x, innerPos.y, innerPos.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        tileIds.push(tile.id);
+        vertexOffset++;
+      }
+      const centerBotIdx = vertexOffset;
+      positions.push(
+        centerNormal.x * rBot,
+        centerNormal.y * rBot,
+        centerNormal.z * rBot
+      );
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      tileIds.push(tile.id);
+      vertexOffset++;
+
+      const readPos = (vi: number, out: THREE.Vector3) => {
+        out.set(positions[vi * 3], positions[vi * 3 + 1], positions[vi * 3 + 2]);
+      };
+      const pushVertex = (p: THREE.Vector3) => {
+        positions.push(p.x, p.y, p.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        tileIds.push(tile.id);
+        vertexOffset++;
+      };
+      const vo = new THREE.Vector3();
+      const v1 = new THREE.Vector3();
+      const v2 = new THREE.Vector3();
+      const centerPos = centerNormal.clone().multiplyScalar(rTop);
+
+      for (let i = 0; i < n; i++) {
+        const i1 = (i + 1) % n;
+        const o0 = base + i;
+        const o1 = base + i1;
+        const it0 = innerTopBase + i;
+        const it1 = innerTopBase + i1;
+        const ib0 = innerBotBase + i;
+        const ib1 = innerBotBase + i1;
+        const isRiverSide = riverEdges.has(i);
+
+        if (isRiverSide) {
+          readPos(o0, vo);
+          readPos(o1, v1);
+          const L_outer = vo.distanceTo(v1);
+          v2.addVectors(vo, v1).multiplyScalar(0.5);
+          const outerApothem = centerPos.distanceTo(v2);
+          const openingWidth = 2 * riverBowlInnerScale * outerApothem;
+          const frac = L_outer > 1e-10 ? Math.min(1, openingWidth / L_outer) : 1;
+          const tLeft = Math.max(0, 0.5 - frac * 0.5);
+          const tRight = Math.min(1, 0.5 + frac * 0.5);
+
+          readPos(o0, vo);
+          readPos(o1, v1);
+          v2.lerpVectors(vo, v1, tLeft);
+          const outerLeftIdx = vertexOffset;
+          pushVertex(v2);
+          v2.lerpVectors(vo, v1, tRight);
+          const outerRightIdx = vertexOffset;
+          pushVertex(v2);
+
+          readPos(it0, vo);
+          readPos(it1, v1);
+          v2.lerpVectors(vo, v1, tLeft);
+          const innerLeftIdx = vertexOffset;
+          pushVertex(v2);
+          v2.lerpVectors(vo, v1, tRight);
+          const innerRightIdx = vertexOffset;
+          pushVertex(v2);
+
+          readPos(ib0, vo);
+          readPos(ib1, v1);
+          v2.lerpVectors(vo, v1, tLeft);
+          const innerLeftBotIdx = vertexOffset;
+          pushVertex(v2);
+          v2.lerpVectors(vo, v1, tRight);
+          const innerRightBotIdx = vertexOffset;
+          pushVertex(v2);
+
+          indices.push(o0, outerLeftIdx, innerLeftIdx, o0, innerLeftIdx, it0);
+          indices.push(outerRightIdx, o1, it1, outerRightIdx, it1, innerRightIdx);
+          indices.push(it0, innerLeftIdx, innerLeftBotIdx, it0, innerLeftBotIdx, ib0);
+          indices.push(innerRightIdx, it1, ib1, innerRightIdx, ib1, innerRightBotIdx);
+        } else {
+          indices.push(o0, o1, it1, o0, it1, it0);
+          indices.push(it0, it1, ib1, it0, ib1, ib0);
+        }
+        indices.push(centerBotIdx, innerBotBase + i, innerBotBase + i1);
+      }
+      continue;
+    }
 
     for (let i = 0; i < n; i++) {
       const v = tile.vertices[i].clone().normalize();

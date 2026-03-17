@@ -164,6 +164,8 @@ export interface BuildTerrainFromRasterOptions {
   latitudeTerrain?: boolean;
   /** Water tile elevation (globe units, below surface). Default -0.18. */
   waterElevation?: number;
+  /** Lake tile elevation (globe units); higher than ocean so rivers flow into lakes. Default -0.04. */
+  lakeElevation?: number;
   /** Land base elevation (globe units). Default 0.1. */
   landElevation?: number;
   /** When temperatureC < this, water tiles become ice (frozen). °C. Default 1.5. */
@@ -325,12 +327,19 @@ export interface RegionScores {
   lakeFractions: Map<number, number>;
 }
 
+/** Result of land/water resolution for one tile. Lakes have lakeId set so elevation can use lake level. */
+export interface LandWaterAssignment {
+  isLand: boolean;
+  lakeId?: number;
+}
+
 const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   elevationScale: 0.00004,
   mountainThresholdM: 1200,
   mountainReliefM: 400,
   latitudeTerrain: true,
   waterElevation: -0.18,
+  lakeElevation: -0.04,
   landElevation: 0.1,
   freezeThresholdC: 1.5,
   polarCapLat: 70,
@@ -343,6 +352,8 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   topologyWaterThreshold: 0.3,
   topologyIslandLandThreshold: 0.2,
   getRegionScores: undefined!,
+  resolveOptions: undefined!,
+  onFirstPassProgress: undefined!,
 };
 
 /** Barycentric coords (u, v) with u,v >= 0 and u+v <= 1 for sampling inside a triangle. */
@@ -557,7 +568,7 @@ function resolveLandWaterByTopology(
       lonRad: number
     ) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
   }
-): Map<number, boolean> {
+): Map<number, LandWaterAssignment> {
   const tileById = new Map<number, GeodesicTile>();
   for (const t of tiles) tileById.set(t.id, t);
 
@@ -795,7 +806,9 @@ function resolveLandWaterByTopology(
     landByTile.set(tid, land);
   }
 
-  return landByTile;
+  const out = new Map<number, LandWaterAssignment>();
+  for (const [tid, isLand] of landByTile) out.set(tid, { isLand });
+  return out;
 }
 
 /** Connected components of a set of tile ids using the hex graph (neighbors). Returns component id -> set of tile ids. */
@@ -977,7 +990,7 @@ export interface ResolveLandWaterByRegionsOptions {
   /** Landmass size above which we are sea-biased on neutral boundary hexes (trim coasts). Default 8000. */
   largeLandmassSize?: number;
   /** Called after each main-loop iteration with (iteration, landByTile). If it returns a Promise, it is awaited so the UI can update. */
-  onIteration?: (iteration: number, landByTile: Map<number, boolean>) => void | Promise<void>;
+  onIteration?: (iteration: number, landByTile: Map<number, LandWaterAssignment>) => void | Promise<void>;
   /** If true, place landmasses greedily by size (largest first); new land cannot touch already-placed land, so islands never link to continents. */
   useGreedyLandmassPlacement?: boolean;
   /** Optional: return a small raster cutout (land/water) around the tile to test isthmus vs strait by flood fill. If land crosses cutout but sea doesn't → isthmus; if sea crosses but land doesn't → strait. */
@@ -990,39 +1003,32 @@ export interface ResolveLandWaterByRegionsOptions {
  * Resolve land/water per contiguous landmass and ocean/lakes. Uses precomputed region scores
  * (from rasters per landmass, ocean, lake). Ensures: (1) each sufficiently large landmass is
  * contiguous, (2) ocean and each lake remain contiguous, (3) no two distinct landmasses touch.
- * When constraints don't apply, uses majority (landFraction > 0.5). Returns tileId -> isLand.
+ * When constraints don't apply, uses majority (landFraction > 0.5). Returns tileId -> { isLand, lakeId? }.
  */
 export async function resolveLandWaterByRegions(
   tiles: GeodesicTile[],
   getRegionScores: (tile: GeodesicTile) => RegionScores,
   options: ResolveLandWaterByRegionsOptions = {}
-): Promise<Map<number, boolean>> {
+): Promise<Map<number, LandWaterAssignment>> {
   console.log("[polyglobe] resolveLandWaterByRegions: start, tiles:", tiles.length);
   const minLandmassSize = options.minLandmassSize ?? 2;
   const bridgeThreshold = options.bridgeThreshold ?? 0.08;
   const bridgeMaxGap = options.bridgeMaxGap ?? 2;
-  const straitOceanThreshold = options.straitOceanThreshold ?? 0.25;
+  const _straitOceanThreshold = options.straitOceanThreshold ?? 0.25;
+  void _straitOceanThreshold;
   const oceanConnectThreshold = options.oceanConnectThreshold ?? 0.12;
   const maxIterations = options.maxIterations ?? 3;
   const onIteration = options.onIteration;
   const useGreedyLandmassPlacement = options.useGreedyLandmassPlacement === true;
   const localStraitDepthLimit = options.localStraitDepthLimit ?? 150;
-  const minIslandSize = options.minIslandSize ?? 3;
-  const minLakeSize = options.minLakeSize ?? 2;
+  const _minIslandSize = options.minIslandSize ?? 3;
+  const _minLakeSize = options.minLakeSize ?? 2;
+  void _minIslandSize;
+  void _minLakeSize;
   const smallLandmassSize = options.smallLandmassSize ?? 25;
   const largeLandmassSize = options.largeLandmassSize ?? 8000;
   const getRasterWindow = options.getRasterWindow;
   const knownStraitTileIds = options.knownStraitTileIds;
-
-  /** True if removing `tid` from `landSet` would increase the number of connected components (cut vertex). */
-  function isCutVertex(tid: number, landSet: Set<number>): boolean {
-    if (!landSet.has(tid)) return false;
-    const without = new Set(landSet);
-    without.delete(tid);
-    if (without.size === 0) return false;
-    const comps = getHexComponents(without, tileById);
-    return comps.size > 1;
-  }
 
   /** True if water hex `nid` is adjacent to `comp` or reachable from `nid` by a path of only water hexes of length <= bridgeMaxGap. */
   function waterReachesComponent(nid: number, comp: Set<number>): boolean {
@@ -1122,7 +1128,6 @@ export async function resolveLandWaterByRegions(
         const compList = [...components.values()].sort((a, b) => b.size - a.size);
         const main = compList[0];
         let path: number[] | null = null;
-        let otherComp: Set<number> | null = null;
         for (let i = 1; i < compList.length; i++) {
           const other = compList[i];
           // BFS from main to other through allowed hexes: raster says this landmass (fraction >= threshold) and no neighbor in placedLand
@@ -1138,7 +1143,6 @@ export async function resolveLandWaterByRegions(
           while (queue.length > 0) {
             const tid = queue.shift()!;
             if (other.has(tid)) {
-              otherComp = other;
               path = [];
               for (let p: number | undefined = tid; p != null; p = prev.get(p)) path.push(p);
               break;
@@ -1269,8 +1273,8 @@ export async function resolveLandWaterByRegions(
       console.log("[polyglobe] resolveLandWaterByRegions: main loop iteration", iterations);
     }
     if (onIteration) {
-      const landByTileStart = new Map<number, boolean>();
-      for (const [tid, a] of assign) landByTileStart.set(tid, a.isLand);
+      const landByTileStart = new Map<number, LandWaterAssignment>();
+      for (const [tid, a] of assign) landByTileStart.set(tid, { isLand: a.isLand, lakeId: a.lakeId });
       const result = onIteration(iterations, landByTileStart);
       if (result && typeof (result as Promise<unknown>).then === "function") await result;
     }
@@ -1622,7 +1626,7 @@ export async function resolveLandWaterByRegions(
         const neighborCut = cutB?.has(nid);
         let flipId: number;
         if (!tileCut && !neighborCut) {
-          const sA = scores(tile);
+          const sA = scores(t);
           const sB = scores(tileById.get(nid)!);
           const fracA = sA.landmassFractions.get(a.landmassId) ?? 0;
           const fracB = sB.landmassFractions.get(b.landmassId!) ?? 0;
@@ -1692,8 +1696,8 @@ export async function resolveLandWaterByRegions(
   }
   console.log("[polyglobe] resolveLandWaterByRegions: main loop done, iterations:", iterations);
 
-  const out = new Map<number, boolean>();
-  for (const [tid, a] of assign) out.set(tid, a.isLand);
+  const out = new Map<number, LandWaterAssignment>();
+  for (const [tid, a] of assign) out.set(tid, { isLand: a.isLand, lakeId: a.lakeId });
   return out;
 }
 
@@ -1741,7 +1745,9 @@ export async function buildTerrainFromEarthRaster(
 
   for (const tile of tiles) {
     const result = resultsByTile.get(tile.id)!;
-    const land = landByTile ? (landByTile.get(tile.id) ?? result.land) : result.land;
+    const lw = landByTile?.get(tile.id);
+    const land = lw ? lw.isLand : result.land;
+    const lakeId = lw?.lakeId;
     const effectiveResult = { ...result, land };
     let neighborMaxElevM = 0;
     for (const neighborId of tile.neighbors) {
@@ -1759,7 +1765,7 @@ export async function buildTerrainFromEarthRaster(
     if (land && result.elevationM != null && result.elevationM > 0) {
       elev = opts.landElevation + result.elevationM * opts.elevationScale;
     } else if (!land) {
-      elev = opts.waterElevation;
+      elev = lakeId != null ? opts.lakeElevation : opts.waterElevation;
     }
     out.set(tile.id, { tileId: tile.id, type, elevation: elev });
   }
