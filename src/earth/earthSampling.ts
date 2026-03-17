@@ -327,10 +327,11 @@ export interface RegionScores {
   lakeFractions: Map<number, number>;
 }
 
-/** Result of land/water resolution for one tile. Lakes have lakeId set so elevation can use lake level. */
+/** Result of land/water resolution for one tile. Lakes have lakeId; ocean tiles have oceanRegionId. */
 export interface LandWaterAssignment {
   isLand: boolean;
   lakeId?: number;
+  oceanRegionId?: number;
 }
 
 const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
@@ -1274,7 +1275,7 @@ export async function resolveLandWaterByRegions(
     }
     if (onIteration) {
       const landByTileStart = new Map<number, LandWaterAssignment>();
-      for (const [tid, a] of assign) landByTileStart.set(tid, { isLand: a.isLand, lakeId: a.lakeId });
+      for (const [tid, a] of assign) landByTileStart.set(tid, { isLand: a.isLand, lakeId: a.lakeId, oceanRegionId: a.oceanRegionId });
       const result = onIteration(iterations, landByTileStart);
       if (result && typeof (result as Promise<unknown>).then === "function") await result;
     }
@@ -1697,7 +1698,7 @@ export async function resolveLandWaterByRegions(
   console.log("[polyglobe] resolveLandWaterByRegions: main loop done, iterations:", iterations);
 
   const out = new Map<number, LandWaterAssignment>();
-  for (const [tid, a] of assign) out.set(tid, { isLand: a.isLand, lakeId: a.lakeId });
+  for (const [tid, a] of assign) out.set(tid, { isLand: a.isLand, lakeId: a.lakeId, oceanRegionId: a.oceanRegionId });
   return out;
 }
 
@@ -1768,6 +1769,40 @@ export async function buildTerrainFromEarthRaster(
       elev = lakeId != null ? opts.lakeElevation : opts.waterElevation;
     }
     out.set(tile.id, { tileId: tile.id, type, elevation: elev });
+  }
+
+  // Per-body water level: set each contiguous water body's elevation to the lowest adjacent land elevation (minus a small delta) so lakes and enclosed seas sit at the right height.
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  const bodyToTiles = new Map<string, Set<number>>();
+  for (const tile of tiles) {
+    const lw = landByTile?.get(tile.id);
+    if (lw?.isLand) continue;
+    const key = lw?.lakeId != null ? `lake-${lw.lakeId}` : `ocean-${lw?.oceanRegionId ?? 0}`;
+    let set = bodyToTiles.get(key);
+    if (!set) {
+      set = new Set<number>();
+      bodyToTiles.set(key, set);
+    }
+    set.add(tile.id);
+  }
+  const waterLevelBelowShore = 0.005;
+  for (const [, tileIds] of bodyToTiles) {
+    let minShoreElev = Infinity;
+    for (const tid of tileIds) {
+      const tile = tileById.get(tid);
+      if (!tile) continue;
+      for (const nid of tile.neighbors) {
+        const nd = out.get(nid);
+        if (!nd || nd.type === "water") continue;
+        minShoreElev = Math.min(minShoreElev, nd.elevation);
+      }
+    }
+    if (minShoreElev === Infinity) continue;
+    const waterLevel = minShoreElev - waterLevelBelowShore;
+    for (const tid of tileIds) {
+      const data = out.get(tid);
+      if (data) out.set(tid, { ...data, elevation: waterLevel });
+    }
   }
 
   return out;

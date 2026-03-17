@@ -28,6 +28,7 @@ import {
   applyPreset,
   getPreset,
   placeObject,
+  getEdgeNeighbor,
   tileCenterToLatLon,
   traceRiverThroughTiles,
   getRiverEdgesByTile,
@@ -265,7 +266,8 @@ async function runTerrainTransition(
   peakTilesNext: Map<number, number> | undefined,
   yieldToMain: () => Promise<void>,
   minLandElevation?: number,
-  riverEdgesByTile?: Map<number, Set<number>>
+  riverEdgesByTile?: Map<number, Set<number>>,
+  riverEdgeToWaterByTile?: Map<number, Set<number>>
 ): Promise<void> {
   const peakSetPrev = getPeakTileSet(peakTilesPrev);
   const peakSetNext = getPeakTileSet(peakTilesNext);
@@ -294,7 +296,8 @@ async function runTerrainTransition(
       elevationScale,
       peakElevationScale,
       minLandElevation,
-      riverEdgesByTile
+      riverEdgesByTile,
+      riverEdgeToWaterByTile
     );
     return;
   }
@@ -1293,11 +1296,11 @@ let earthGetRegionScores: ((tile: GeodesicTile) => RegionScores) | null = null;
 let earthGetRasterWindow: ((tile: GeodesicTile) => RasterWindow | null) | null = null;
 /** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
 let mountainsList: MountainEntry[] | null = null;
-/** Nile polylines (one per segment/country) [lon, lat] in degrees; from ne_10m_rivers_lake_centerlines.json. Used for river channel in Earth mode. */
-let nileLinesLonLat: number[][][] | null = null;
-/** Parallel to nileLinesLonLat: true if that line is a delta branch (Rosetta/Damietta) and should prefer sea over other river. */
-let nileLineIsDelta: boolean[] | null = null;
-/** River mesh (Nile) in Earth mode; updated each frame for wave animation. */
+/** River/lake centerline polylines [lon, lat] in degrees; from ne_10m_rivers_lake_centerlines.json. Used for river channel in Earth mode. */
+let riverLinesLonLat: number[][][] | null = null;
+/** Parallel to riverLinesLonLat: true if that line is a delta branch (e.g. Rosetta/Damietta) and should prefer sea over other river. */
+let riverLineIsDelta: boolean[] | null = null;
+/** River mesh in Earth mode; updated each frame for wave animation. */
 let riverMesh: THREE.Mesh | null = null;
 
 const BUILD_LOG = "[globe-build]";
@@ -1377,7 +1380,8 @@ function setGlobeGeometryFromTerrain(
   elevationScale: number,
   peakElevationScale: number,
   minLandElevation?: number,
-  riverEdgesByTile?: Map<number, Set<number>>
+  riverEdgesByTile?: Map<number, Set<number>>,
+  riverEdgeToWaterByTile?: Map<number, Set<number>>
 ): void {
   const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
     radius: globe.radius,
@@ -1394,6 +1398,7 @@ function setGlobeGeometryFromTerrain(
   }
   if (riverEdgesByTile != null && riverEdgesByTile.size > 0) {
     opts.getRiverEdges = (id) => riverEdgesByTile.get(id);
+    opts.getRiverEdgeToWater = riverEdgeToWaterByTile ? (id) => riverEdgeToWaterByTile.get(id) : undefined;
     opts.riverBowlDepth = 0.012;
     opts.riverBowlInnerScale = 0.4;
   }
@@ -1476,7 +1481,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             useGreedyLandmassPlacement: true,
             getRasterWindow: earthGetRasterWindow ?? undefined,
             /** Gibraltar, Bosphorus, Japanese strait (scale 6 only). */
-            knownStraitTileIds: globe.subdivisions === 6 ? new Set([40361, 24757, 4129]) : undefined,
+            knownStraitTileIds: globe.subdivisions === 6 ? new Set([40361, 24757, 4129, 25328]) : undefined,
             onIteration: async (_iteration, landByTile) => {
               const terrain = new Map<number, TileTerrainData>();
               for (const [tid, lw] of landByTile) {
@@ -1513,24 +1518,52 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         console.log(BUILD_LOG, "Earth: peaks done, count:", peakTiles?.size ?? 0);
       }
       let riverEdgesByTile: Map<number, Set<number>> | undefined;
-      if (nileLinesLonLat && nileLinesLonLat.length > 0) {
+      let riverEdgeToWaterByTile: Map<number, Set<number>> | undefined;
+      if (riverLinesLonLat && riverLinesLonLat.length > 0) {
         const riverSegments: ReturnType<typeof traceRiverThroughTiles> = [];
-        const isDeltaByLine = nileLineIsDelta ?? nileLinesLonLat.map(() => false);
-        for (let i = 0; i < nileLinesLonLat.length; i++) {
-          const line = nileLinesLonLat[i];
+        const isDeltaByLine = riverLineIsDelta ?? riverLinesLonLat.map(() => false);
+        for (let i = 0; i < riverLinesLonLat.length; i++) {
+          const line = riverLinesLonLat[i];
           if (line.length >= 2) {
             const segs = traceRiverThroughTiles(globe, line);
             const isDelta = isDeltaByLine[i] ?? false;
             for (const s of segs) riverSegments.push({ ...s, isDelta });
           }
         }
-        riverEdgesByTile =
-          riverSegments.length > 0
-            ? getRiverEdgesByTile(riverSegments, {
-                tiles: globe.tiles,
-                isWater: (id) => tileTerrain.get(id)?.type === "water",
-              })
-            : undefined;
+        if (riverSegments.length > 0) {
+          const raw = getRiverEdgesByTile(riverSegments, {
+            tiles: globe.tiles,
+            isWater: (id) => tileTerrain.get(id)?.type === "water",
+          });
+          riverEdgesByTile = new Map<number, Set<number>>();
+          for (const [tid, set] of raw) {
+            const type = tileTerrain.get(tid)?.type;
+            if (type === "water" || type === "beach") continue;
+            riverEdgesByTile.set(tid, set);
+          }
+          if (riverEdgesByTile.size === 0) {
+            riverEdgesByTile = undefined;
+          } else {
+            riverEdgeToWaterByTile = new Map<number, Set<number>>();
+            const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
+            const isWater = (id: number) => {
+              const t = tileTerrain.get(id)?.type;
+              return t === "water" || t === "beach";
+            };
+            for (const [tid, set] of riverEdgesByTile) {
+              const tile = tileById.get(tid);
+              if (!tile) continue;
+              const toWater = new Set<number>();
+              for (const e of set) {
+                const nid = getEdgeNeighbor(tile, e, globe.tiles);
+                if (nid !== undefined && isWater(nid)) toWater.add(e);
+              }
+              if (toWater.size > 0) riverEdgeToWaterByTile.set(tid, toWater);
+            }
+          }
+        } else {
+          riverEdgesByTile = undefined;
+        }
       }
       console.log(BUILD_LOG, "Earth: runTerrainTransition start");
       await runTerrainTransition(
@@ -1543,7 +1576,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         peakTiles,
         yieldToMain,
         SEA_LEVEL_LAND_ELEVATION,
-        riverEdgesByTile
+        riverEdgesByTile,
+        riverEdgeToWaterByTile
       );
       console.log(BUILD_LOG, "Earth: runTerrainTransition done");
       lastDisplayedTerrain = tileTerrain;
@@ -1574,6 +1608,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         undefined,
         undefined,
         yieldToMain,
+        undefined,
         undefined,
         undefined
       );
@@ -1609,41 +1644,53 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     });
     scene.add(coastFoamOverlay.mesh);
 
-    if (state.useEarth && nileLinesLonLat && nileLinesLonLat.length > 0) {
+    if (state.useEarth && riverLinesLonLat && riverLinesLonLat.length > 0) {
       const elevationScale = 0.08;
       const riverSegments: ReturnType<typeof traceRiverThroughTiles> = [];
-      const isDeltaByLine = nileLineIsDelta ?? nileLinesLonLat.map(() => false);
-      for (let i = 0; i < nileLinesLonLat.length; i++) {
-        const line = nileLinesLonLat[i];
+      const isDeltaByLine = riverLineIsDelta ?? riverLinesLonLat.map(() => false);
+      for (let i = 0; i < riverLinesLonLat.length; i++) {
+        const line = riverLinesLonLat[i];
         if (line.length >= 2) {
           const segs = traceRiverThroughTiles(globe, line);
           const isDelta = isDeltaByLine[i] ?? false;
           for (const s of segs) riverSegments.push({ ...s, isDelta });
         }
       }
-      const totalPoints = nileLinesLonLat.reduce((s, l) => s + l.length, 0);
-      console.log(BUILD_LOG, "river: Nile", nileLinesLonLat.length, "lines,", totalPoints, "points →", riverSegments.length, "segments");
+      const totalPoints = riverLinesLonLat.reduce((s, l) => s + l.length, 0);
+      console.log(BUILD_LOG, "river:", riverLinesLonLat.length, "lines,", totalPoints, "points →", riverSegments.length, "segments");
       if (riverSegments.length > 0) {
-        const riverEdgesByTile = getRiverEdgesByTile(riverSegments, {
+        const raw = getRiverEdgesByTile(riverSegments, {
           tiles: globe.tiles,
           isWater: (id) => tileTerrain.get(id)?.type === "water",
         });
-        console.log(BUILD_LOG, "Nile placed on hex tile IDs:", [...riverEdgesByTile.keys()]);
-        riverMesh = createRiverMeshFromTileEdges(globe, riverEdgesByTile, {
-          radius: globe.radius,
-          getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
-          elevationScale,
-          channelWidthFraction: 0.45,
-          sunDirection: sunDirectionFromState(state),
-        });
-        scene.add(riverMesh);
-        console.log(BUILD_LOG, "river: mesh added, vertices", (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0);
+        const riverEdgesByTile = new Map<number, Set<number>>();
+        for (const [tid, set] of raw) {
+          const type = tileTerrain.get(tid)?.type;
+          if (type === "water" || type === "beach") continue;
+          riverEdgesByTile.set(tid, set);
+        }
+        console.log(BUILD_LOG, "rivers placed on hex tile IDs:", riverEdgesByTile.size, "tiles (land only)");
+        if (riverEdgesByTile.size > 0) {
+          riverMesh = createRiverMeshFromTileEdges(globe, riverEdgesByTile, {
+            radius: globe.radius,
+            getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+            elevationScale,
+            channelWidthFraction: 0.45,
+            sunDirection: sunDirectionFromState(state),
+            waterSurfaceRadius: 0.995,
+            isWater: (id) => tileTerrain.get(id)?.type === "water",
+          });
+          scene.add(riverMesh);
+          console.log(BUILD_LOG, "river: mesh added, vertices", (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0);
+        } else {
+          riverMesh = null;
+        }
       } else {
         riverMesh = null;
       }
     } else {
-      if (state.useEarth && (!nileLinesLonLat || nileLinesLonLat.length === 0))
-        console.warn(BUILD_LOG, "river: Nile data not loaded", nileLinesLonLat?.length ?? 0);
+      if (state.useEarth && (!riverLinesLonLat || riverLinesLonLat.length === 0))
+        console.warn(BUILD_LOG, "river data not loaded", riverLinesLonLat?.length ?? 0);
       riverMesh = null;
     }
 
@@ -1807,18 +1854,27 @@ async function init() {
   } else {
     mountainsList = null;
   }
-  console.log(BUILD_LOG, "init: loading rivers (Nile, all segments)…");
+  /** Natural Earth rivers: scalerank 0–2 = major (Amazon, Mississippi, Yangtze, Ganges, Nile, etc.), 3 = still major, 4+ = smaller. We keep scalerank <= 3 so we get navigable/famous rivers without every stream. */
+  const RIVER_MAX_SCALERANK = 3;
+  console.log(BUILD_LOG, "init: loading rivers (scalerank <=", RIVER_MAX_SCALERANK, ")…");
   try {
     const riversRes = await fetch("/ne_10m_rivers_lake_centerlines.json");
     if (riversRes.ok) {
-      const rivers = (await riversRes.json()) as { type: string; features?: Array<{ properties?: { name_en?: string; name?: string; featurecla?: string }; geometry?: { type: string; coordinates: number[][] | number[][][] } }> };
+      const rivers = (await riversRes.json()) as {
+        type: string;
+        features?: Array<{
+          properties?: { name_en?: string; name?: string; featurecla?: string; scalerank?: number };
+          geometry?: { type: string; coordinates: number[][] | number[][][] };
+        }>;
+      };
       const lines: number[][][] = [];
       const lineIsDelta: boolean[] = [];
       for (const f of rivers.features ?? []) {
         const cla = f.properties?.featurecla ?? "";
-        const name = (f.properties?.name_en ?? f.properties?.name ?? "");
-        if (!/\bnile\b|rosetta|damietta/i.test(name)) continue;
         if (cla !== "River" && cla !== "Lake Centerline") continue;
+        const sr = f.properties?.scalerank;
+        if (sr != null && sr > RIVER_MAX_SCALERANK) continue;
+        const name = (f.properties?.name_en ?? f.properties?.name ?? "");
         const isDelta = /\b(rosetta|damietta)\b/i.test(name);
         const g = f.geometry;
         if (!g?.coordinates) continue;
@@ -1836,18 +1892,18 @@ async function init() {
           }
         }
       }
-      nileLinesLonLat = lines.length > 0 ? lines : null;
-      nileLineIsDelta = nileLinesLonLat && lineIsDelta.length === nileLinesLonLat.length ? lineIsDelta : null;
-      const totalPoints = nileLinesLonLat?.reduce((s, l) => s + l.length, 0) ?? 0;
-      console.log(BUILD_LOG, "init: Nile loaded,", nileLinesLonLat?.length ?? 0, "segments,", totalPoints, "total points");
+      riverLinesLonLat = lines.length > 0 ? lines : null;
+      riverLineIsDelta = riverLinesLonLat && lineIsDelta.length === riverLinesLonLat.length ? lineIsDelta : null;
+      const totalPoints = riverLinesLonLat?.reduce((s, l) => s + l.length, 0) ?? 0;
+      console.log(BUILD_LOG, "init: rivers loaded (scalerank <=", RIVER_MAX_SCALERANK, "),", riverLinesLonLat?.length ?? 0, "lines,", totalPoints, "total points");
     } else {
-      nileLinesLonLat = null;
-      nileLineIsDelta = null;
+      riverLinesLonLat = null;
+      riverLineIsDelta = null;
       console.warn(BUILD_LOG, "init: rivers fetch failed", riversRes?.status);
     }
   } catch (e) {
-    nileLinesLonLat = null;
-    nileLineIsDelta = null;
+    riverLinesLonLat = null;
+    riverLineIsDelta = null;
     console.warn(BUILD_LOG, "init: rivers load error", e);
   }
   console.log(BUILD_LOG, "init: loading Koppen climate…");
@@ -1920,8 +1976,11 @@ async function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
-  controls.minDistance = 1.5;
+  controls.minDistance = 0.2;
   controls.maxDistance = 6;
+  controls.enableRotate = true;
+  controls.minPolarAngle = 0;
+  controls.maxPolarAngle = Math.PI;
 
   function animate() {
     requestAnimationFrame(animate);

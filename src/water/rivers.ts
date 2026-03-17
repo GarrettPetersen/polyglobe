@@ -39,6 +39,10 @@ export interface RiverMeshOptions {
   channelWidthFraction?: number;
   /** Sun direction for water specular. */
   sunDirection?: THREE.Vector3;
+  /** If set with isWater, adds a ramp quad from each river edge that connects to water up to this radius (e.g. 0.995 for ocean sphere), so river mouths blend into the water surface. */
+  waterSurfaceRadius?: number;
+  /** Used with waterSurfaceRadius to decide which edges get a transition strip to the ocean/lake. */
+  isWater?: (tileId: number) => boolean;
 }
 
 /** Max radial wave displacement (sum of Gerstner amps) so default surfaceOffset aligns wave crests with bowl lip. */
@@ -346,6 +350,9 @@ export function createRiverMeshFromTileEdges(
   const elevationScale = options.elevationScale ?? 1;
   const surfaceOffset = options.surfaceOffset ?? RIVER_MAX_WAVE_AMPLITUDE;
   const channelWidthFraction = options.channelWidthFraction ?? 0.45;
+  const waterSurfaceRadius = options.waterSurfaceRadius;
+  const isWater = options.isWater;
+  const addTransition = waterSurfaceRadius != null && isWater != null;
   const tiles = globe.tiles;
   const tileById = new Map(tiles.map((t) => [t.id, t]));
 
@@ -359,6 +366,7 @@ export function createRiverMeshFromTileEdges(
   const edgeMid = new THREE.Vector3();
   const tangent = new THREE.Vector3();
   const perp = new THREE.Vector3();
+  const outer = new THREE.Vector3();
 
   for (const [tileId, edgeSet] of riverEdgesByTile) {
     if (edgeSet.size === 0) continue;
@@ -395,6 +403,21 @@ export function createRiverMeshFromTileEdges(
       normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
       vertexOffset++;
       indices.push(a0, a0 + 1, a0 + 2, a0, a0 + 2, a0 + 3);
+
+      if (addTransition) {
+        const neighborId = getEdgeNeighbor(tile, edgeIndex, tiles);
+        if (neighborId !== undefined && isWater(neighborId)) {
+          outer.copy(edgeMid).normalize().multiplyScalar(waterSurfaceRadius);
+          const t0 = vertexOffset;
+          positions.push(outer.x - perp.x, outer.y - perp.y, outer.z - perp.z);
+          normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+          vertexOffset++;
+          positions.push(outer.x + perp.x, outer.y + perp.y, outer.z + perp.z);
+          normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+          vertexOffset++;
+          indices.push(a0 + 2, a0 + 3, t0, a0 + 2, t0, t0 + 1);
+        }
+      }
     }
   }
 

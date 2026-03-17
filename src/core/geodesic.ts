@@ -212,6 +212,8 @@ export interface GeodesicFlatMeshOptions {
   peakElevationScale?: number;
   /** Optional: for tiles with river, build a hex-shaped bowl (inner hex cut out, sides cut for river directions). */
   getRiverEdges?: (tileId: number) => Set<number> | undefined;
+  /** Optional: for river bowls, set of edge indices that connect to ocean/lake; those sides get a full opening instead of a slot. */
+  getRiverEdgeToWater?: (tileId: number) => Set<number> | undefined;
   /** Depth of river bowl below tile surface (globe units). Default 0.012. */
   riverBowlDepth?: number;
   /** Inner hex radius as fraction of center-to-corner (0–1). Default 0.4. */
@@ -258,6 +260,7 @@ export function buildFlatGeometryData(
 
   const minLandElevation = options.minLandElevation;
   const getRiverEdges = options.getRiverEdges;
+  const getRiverEdgeToWater = options.getRiverEdgeToWater;
   const riverBowlDepth = options.riverBowlDepth ?? 0.012;
   const riverBowlInnerScale = options.riverBowlInnerScale ?? 0.4;
 
@@ -352,8 +355,11 @@ export function buildFlatGeometryData(
         const ib0 = innerBotBase + i;
         const ib1 = innerBotBase + i1;
         const isRiverSide = riverEdges.has(i);
+        const isEdgeToWater = isRiverSide && getRiverEdgeToWater?.(tile.id)?.has(i);
 
-        if (isRiverSide) {
+        if (isEdgeToWater) {
+          // Full opening toward ocean/lake: no slot geometry, bowl opens fully on this side
+        } else if (isRiverSide) {
           readPos(o0, vo);
           readPos(o1, v1);
           const L_outer = vo.distanceTo(v1);
@@ -399,7 +405,8 @@ export function buildFlatGeometryData(
           indices.push(o0, o1, it1, o0, it1, it0);
           indices.push(it0, it1, ib1, it0, ib1, ib0);
         }
-        indices.push(centerBotIdx, innerBotBase + i, innerBotBase + i1);
+        // Floor triangle: wind so front face is toward globe center (visible when looking into bowl)
+        indices.push(centerBotIdx, innerBotBase + i1, innerBotBase + i);
       }
       continue;
     }
