@@ -89,6 +89,7 @@ animate();
 - **`applyTerrainToGeometry(geometry, tileTerrain, elevationScale)`** – Writes vertex colors and elevation from a `Map<tileId, TileTerrainData>`.
 - **`placeObject(object, globe, { tileId, heightOffset?, bearing?, scale? })`** – Place a Three.js object on a tile by ID.
 - **`getPlacementMatrix(globe, options)`** / **`getTileTransform(globe, options)`** – For custom placement or physics.
+- **Tile tangent plane** – `getTileTangentFrame(tile)` gives orthonormal `ex`, `ey`, `normal` and each corner as planar `(x,y)`. Use `tilePlanePoint(frame, lx, ly, r)` for world position on the flat face at radius `r` (same convention as land mesh corners). Also `tileCornerWorldFlat`, `tileEdgeMidpointWorldFlat`, `worldToTilePlane`, `getTileTangentFrameById(tiles, id)`.
 
 ## Water and gravity
 

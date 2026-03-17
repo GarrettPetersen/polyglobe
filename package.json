@@ -35,9 +35,12 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "earcut": "^2.2.4",
+    "polygon-clipping": "^0.15.7",
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@types/earcut": "^2.1.4",
     "@types/three": "^0.170.0",
     "typescript": "^5.7.2"
   },

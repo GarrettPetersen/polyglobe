@@ -1735,7 +1735,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       if (riverSegments.length > 0) {
         const raw = getRiverEdgesByTile(riverSegments, {
           tiles: globe.tiles,
-          isWater: (id) => tileTerrain.get(id)?.type === "water",
+          isWater: (id) => {
+            const t = tileTerrain.get(id)?.type;
+            return t === "water" || t === "beach";
+          },
         });
         const riverEdgesByTile = new Map<number, Set<number>>();
         for (const [tid, set] of raw) {
@@ -1753,7 +1756,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             fillInnerRiverHex: false,
             sunDirection: sunDirectionFromState(state),
             waterSurfaceRadius: 0.995,
-            isWater: (id) => tileTerrain.get(id)?.type === "water",
+            isWater: (id) => {
+              const t = tileTerrain.get(id)?.type;
+              return t === "water" || t === "beach";
+            },
           });
           scene.add(riverMesh);
           const terrain = createRiverTerrainMeshes(globe, riverEdgesByTile, {

@@ -19,6 +19,16 @@ export {
   type TilePeak,
   type TileKind,
 } from "./core/geodesic.js";
+export {
+  getTileTangentFrame,
+  getTileTangentFrameById,
+  tilePlanePoint,
+  tileCornerWorldFlat,
+  tileEdgeMidpointWorldFlat,
+  worldToTilePlane,
+  tileMeanCornerRadius,
+  type TileTangentFrame,
+} from "./core/tileLocalFrame.js";
 
 // Terrain
 export type { TerrainType, TileTerrain } from "./terrain/types.js";
@@ -95,6 +105,16 @@ export {
   type GetRiverEdgesOptions,
 } from "./water/rivers.js";
 export { CoastFoamOverlay } from "./water/coastFoamOverlay.js";
+export {
+  createRiverTerrainMeshes,
+  buildRiverLandAndVoidMultipolygon,
+  hexRiverWedgeEdgeIndices,
+  buildRiverBankExtrusionGeometry,
+  tileHexPlanarBasis6,
+  tileCanonicalHexBasis6,
+  type RiverTerrainMeshesOptions,
+  type BuildRiverBankExtrusionParams,
+} from "./water/riverHexGeometry.js";
 
 // Placement by tile ID (hex/pentagon)
 export {

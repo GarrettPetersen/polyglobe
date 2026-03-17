@@ -6,6 +6,8 @@
 import * as THREE from "three";
 import type { GeodesicTile } from "../core/geodesic.js";
 import { getEdgeNeighbor } from "../core/geodesic.js";
+import { hexRiverVertexPairForTwoEdges } from "./riverCutouts.js";
+import { getTileTangentFrame, tileCornerWorldFlat } from "../core/tileLocalFrame.js";
 // Globe is only used for getTileIdAtDirection and .tiles, .radius
 interface GlobeLike {
   tiles: GeodesicTile[];
@@ -39,6 +41,8 @@ export interface RiverMeshOptions {
   channelWidthFraction?: number;
   /** If set, strip width matches the bowl slot (same as geodesic riverBowlInnerScale) and a central water hex fills the bowl interior. */
   riverBowlInnerScale?: number;
+  /** When false, skip the center water disk (use with extruded river banks). Default true. */
+  fillInnerRiverHex?: boolean;
   /** Sun direction for water specular. */
   sunDirection?: THREE.Vector3;
   /** If set with isWater, adds a ramp quad from each river edge that connects to water up to this radius (e.g. 0.995 for ocean sphere), so river mouths blend into the water surface. */
@@ -49,8 +53,31 @@ export interface RiverMeshOptions {
 
 /** Max radial wave displacement (sum of Gerstner amps) so default surfaceOffset aligns wave crests with bowl lip. */
 const RIVER_MAX_WAVE_AMPLITUDE = 0.0004 * (1 + 0.85 + 0.6);
-/** 1/sqrt(3): for a regular hex, slot half-width = len * riverBowlInnerScale / SQRT3 to match bowl opening. */
-const SQRT3 = Math.sqrt(3);
+function convexHull2dWorld(
+  pts: { x: number; y: number; world: THREE.Vector3 }[]
+): { x: number; y: number; world: THREE.Vector3 }[] {
+  if (pts.length <= 2) return pts;
+  const sorted = [...pts].sort((p, q) => (p.x === q.x ? p.y - q.y : p.x - q.x));
+  const cross = (
+    o: { x: number; y: number },
+    p: { x: number; y: number },
+    q: { x: number; y: number }
+  ) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+  const lower: typeof sorted = [];
+  for (const p of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 1e-10) lower.pop();
+    lower.push(p);
+  }
+  const upper: typeof sorted = [];
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const p = sorted[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 1e-10) upper.pop();
+    upper.push(p);
+  }
+  upper.pop();
+  lower.pop();
+  return lower.concat(upper);
+}
 
 /** Options for getRiverEdgesByTile: if provided, end segments (tiles with only one river edge) get an extra opening toward any adjacent water tile so the river connects to ocean/lake. */
 export interface GetRiverEdgesOptions {
@@ -58,7 +85,12 @@ export interface GetRiverEdgesOptions {
   isWater: (tileId: number) => boolean;
 }
 
-/** Map from tile ID to set of edge indices (0..n-1) where the river goes. Confluences/deltas have 3+. If options provided, end tiles next to water get that edge added so the river connects to the sea/lake. When segments are tagged isDelta, sea-adjacent delta tiles drop edges to other sea-adjacent river tiles so they connect to the sea instead of reconnecting with each other. */
+/**
+ * Map from tile ID to set of edge indices (0..n-1) where the river crosses the hex boundary.
+ * After building from segments: edges are symmetrized between adjacent river tiles; every edge
+ * bordering water (ocean/lake per `isWater`) is added so mouths and coast matches reference tiles.
+ * Confluences/deltas may have 3+ edges. Delta tiles may drop edges between sea-adjacent river neighbors.
+ */
 export function getRiverEdgesByTile(
   segments: RiverSegment[],
   options?: GetRiverEdgesOptions
@@ -158,7 +190,37 @@ export function getRiverEdgesByTile(
         steps++;
       }
     }
+
+    for (const [tileId, edgeSet] of byTile) {
+      const tile = tileById.get(tileId);
+      if (!tile) continue;
+      for (const e of [...edgeSet]) {
+        const nid = getEdgeNeighbor(tile, e, tiles);
+        if (nid === undefined) continue;
+        const nset = byTile.get(nid);
+        if (!nset) continue;
+        const neighbor = tileById.get(nid);
+        if (!neighbor) continue;
+        for (let k = 0; k < neighbor.vertices.length; k++) {
+          if (getEdgeNeighbor(neighbor, k, tiles) === tileId) {
+            nset.add(k);
+            break;
+          }
+        }
+      }
+    }
+
+    for (const tileId of byTile.keys()) {
+      const tile = tileById.get(tileId);
+      if (!tile) continue;
+      const edgeSet = byTile.get(tileId)!;
+      for (let e = 0; e < tile.vertices.length; e++) {
+        const nid = getEdgeNeighbor(tile, e, tiles);
+        if (nid !== undefined && isWater(nid)) edgeSet.add(e);
+      }
+    }
   }
+
   return byTile;
 }
 
@@ -273,6 +335,103 @@ function edgeMidpoint(
     return out.copy(centerNormal).multiplyScalar(r).add(inPlane);
   }
   return out.copy(mid).multiplyScalar(r);
+}
+
+/** Hex corner on land plane at r (matches geodesic land); on ocean, on sphere. */
+function vertexOnTileSurface(
+  tile: GeodesicTile,
+  vi: number,
+  r: number,
+  centerNormal: THREE.Vector3,
+  usePlane: boolean,
+  out: THREE.Vector3
+): void {
+  const v = tile.vertices[vi].clone().normalize();
+  if (!usePlane) {
+    out.copy(v).multiplyScalar(r);
+    return;
+  }
+  const dot = v.dot(centerNormal);
+  const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
+  out.copy(centerNormal).multiplyScalar(r).add(inPlane);
+}
+
+type XY = { x: number; y: number };
+
+function cross2(ax: number, ay: number, bx: number, by: number): number {
+  return ax * by - ay * bx;
+}
+
+function lineIntersectInfinite(p1: XY, p2: XY, p3: XY, p4: XY, out: XY): boolean {
+  const x1 = p1.x,
+    y1 = p1.y,
+    x2 = p2.x,
+    y2 = p2.y;
+  const x3 = p3.x,
+    y3 = p3.y,
+    x4 = p4.x,
+    y4 = p4.y;
+  const d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(d) < 1e-14) return false;
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d;
+  out.x = x1 + t * (x2 - x1);
+  out.y = y1 + t * (y2 - y1);
+  return true;
+}
+
+/** Clip subject polygon (CCW) to inside convex CCW clipBoundary. */
+function clipPolygonToConvex(subject: XY[], clipBoundary: XY[]): XY[] {
+  let output = subject.length > 0 ? subject.map((p) => ({ x: p.x, y: p.y })) : [];
+  const cn = clipBoundary.length;
+  for (let i = 0; i < cn; i++) {
+    const a = clipBoundary[i];
+    const b = clipBoundary[(i + 1) % cn];
+    const input = output;
+    output = [];
+    if (input.length === 0) break;
+    const inside = (p: XY) => cross2(b.x - a.x, b.y - a.y, p.x - a.x, p.y - a.y) >= -1e-8;
+    const ip: XY = { x: 0, y: 0 };
+    let prev = input[input.length - 1];
+    let prevIn = inside(prev);
+    for (let j = 0; j < input.length; j++) {
+      const cur = input[j];
+      const curIn = inside(cur);
+      if (curIn) {
+        if (!prevIn && lineIntersectInfinite(prev, cur, a, b, ip)) {
+          output.push({ x: ip.x, y: ip.y });
+        }
+        output.push(cur);
+      } else if (prevIn && lineIntersectInfinite(prev, cur, a, b, ip)) {
+        output.push({ x: ip.x, y: ip.y });
+      }
+      prev = cur;
+      prevIn = curIn;
+    }
+  }
+  return output;
+}
+
+function signedArea2(poly: XY[]): number {
+  let s = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const j = (i + 1) % poly.length;
+    s += poly[i].x * poly[j].y - poly[j].x * poly[i].y;
+  }
+  return s * 0.5;
+}
+
+function worldToUv(
+  p: THREE.Vector3,
+  centerPos: THREE.Vector3,
+  basisU: THREE.Vector3,
+  basisV: THREE.Vector3,
+  out: XY
+): void {
+  const dx = p.x - centerPos.x;
+  const dy = p.y - centerPos.y;
+  const dz = p.z - centerPos.z;
+  out.x = dx * basisU.x + dy * basisU.y + dz * basisU.z;
+  out.y = dx * basisV.x + dy * basisV.y + dz * basisV.z;
 }
 
 /**
@@ -393,10 +552,8 @@ export function createRiverMeshFromTileEdges(
   const elevationScale = options.elevationScale ?? 1;
   const surfaceOffset = options.surfaceOffset ?? RIVER_MAX_WAVE_AMPLITUDE;
   const riverBowlInnerScale = options.riverBowlInnerScale;
+  const fillInnerRiverHex = options.fillInnerRiverHex !== false;
   const channelWidthFraction = options.channelWidthFraction ?? 0.45;
-  const waterSurfaceRadius = options.waterSurfaceRadius;
-  const isWater = options.isWater;
-  const addTransition = waterSurfaceRadius != null && isWater != null;
   const tiles = globe.tiles;
   const tileById = new Map(tiles.map((t) => [t.id, t]));
 
@@ -408,10 +565,35 @@ export function createRiverMeshFromTileEdges(
   const centerNormal = new THREE.Vector3();
   const centerPos = new THREE.Vector3();
   const edgeMid = new THREE.Vector3();
+  const basisU = new THREE.Vector3();
+  const basisV = new THREE.Vector3();
   const tangent = new THREE.Vector3();
   const perp = new THREE.Vector3();
-  const outer = new THREE.Vector3();
   const innerPoint = new THREE.Vector3();
+  const tempVec = new THREE.Vector3();
+  const scratchRiverV0 = new THREE.Vector3();
+  const scratchRiverV1 = new THREE.Vector3();
+  const cornerW = [
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+  ];
+  const ribUv: XY[] = [
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+  ];
+
+  const projectToPlane = (p: THREE.Vector3, origin: THREE.Vector3) => {
+    tempVec.copy(p).sub(origin);
+    return {
+      x: tempVec.dot(basisU),
+      y: tempVec.dot(basisV),
+      world: p.clone(),
+    };
+  };
 
   for (const [tileId, edgeSet] of riverEdgesByTile) {
     if (edgeSet.size === 0) continue;
@@ -423,8 +605,11 @@ export function createRiverMeshFromTileEdges(
     centerPos.copy(centerNormal).multiplyScalar(r);
     const usePlane = elev >= 0;
     const n = tile.vertices.length;
+    const tileFrame = getTileTangentFrame(tile);
+    basisU.copy(tileFrame.ex);
+    basisV.copy(tileFrame.ey);
 
-    if (riverBowlInnerScale != null) {
+    if (riverBowlInnerScale != null && fillInnerRiverHex) {
       const centerIdx = vertexOffset;
       positions.push(centerPos.x, centerPos.y, centerPos.z);
       normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
@@ -444,47 +629,159 @@ export function createRiverMeshFromTileEdges(
       }
     }
 
-    const halfWidthScale =
-      riverBowlInnerScale != null ? riverBowlInnerScale / SQRT3 : channelWidthFraction;
-
+    const edgeMidPts: { x: number; y: number; world: THREE.Vector3; edgeIndex: number }[] = [];
     for (const edgeIndex of edgeSet) {
       edgeMidpoint(tile, edgeIndex, r, centerNormal, usePlane, edgeMid);
-      tangent.subVectors(edgeMid, centerPos);
-      const len = tangent.length();
-      if (len < 1e-6) continue;
+      const pt = projectToPlane(edgeMid, centerPos);
+      edgeMidPts.push({ ...pt, edgeIndex });
+    }
+    if (edgeMidPts.length === 0) continue;
+
+    const edgeList = [...edgeSet].sort((a, b) => a - b);
+    const widthScale =
+      (riverBowlInnerScale != null ? riverBowlInnerScale : channelWidthFraction) * 0.5;
+
+    const pushRibbonQuad = (p0w: THREE.Vector3, p1w: THREE.Vector3) => {
+      tangent.subVectors(p1w, p0w);
+      if (tangent.lengthSq() < 1e-12) return;
       tangent.normalize();
       perp.crossVectors(centerNormal, tangent).normalize();
-      if (perp.lengthSq() < 1e-10) continue;
-      const halfWidth = len * halfWidthScale;
+      if (perp.lengthSq() < 1e-12) return;
+      const halfWidth = widthScale * Math.max(0.0001, p0w.distanceTo(p1w));
       perp.multiplyScalar(halfWidth);
+      const base = vertexOffset;
+      positions.push(p0w.x - perp.x, p0w.y - perp.y, p0w.z - perp.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      vertexOffset++;
+      positions.push(p0w.x + perp.x, p0w.y + perp.y, p0w.z + perp.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      vertexOffset++;
+      positions.push(p1w.x + perp.x, p1w.y + perp.y, p1w.z + perp.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      vertexOffset++;
+      positions.push(p1w.x - perp.x, p1w.y - perp.y, p1w.z - perp.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      vertexOffset++;
+      indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    };
 
-      const a0 = vertexOffset;
-      positions.push(centerPos.x - perp.x, centerPos.y - perp.y, centerPos.z - perp.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
-      vertexOffset++;
-      positions.push(centerPos.x + perp.x, centerPos.y + perp.y, centerPos.z + perp.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
-      vertexOffset++;
-      positions.push(edgeMid.x + perp.x, edgeMid.y + perp.y, edgeMid.z + perp.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
-      vertexOffset++;
-      positions.push(edgeMid.x - perp.x, edgeMid.y - perp.y, edgeMid.z - perp.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
-      vertexOffset++;
-      indices.push(a0, a0 + 1, a0 + 2, a0, a0 + 2, a0 + 3);
-
-      if (addTransition) {
-        const neighborId = getEdgeNeighbor(tile, edgeIndex, tiles);
-        if (neighborId !== undefined && isWater(neighborId)) {
-          outer.copy(edgeMid).normalize().multiplyScalar(waterSurfaceRadius);
-          const t0 = vertexOffset;
-          positions.push(outer.x - perp.x, outer.y - perp.y, outer.z - perp.z);
+    /** Land ribbon clipped to tile footprint in tangent plane (hex or pent). */
+    const pushLandRiverRibbonClipped = (p0w: THREE.Vector3, p1w: THREE.Vector3) => {
+      tangent.subVectors(p1w, p0w);
+      const tlen = tangent.length();
+      if (tlen < 1e-9) return;
+      tangent.divideScalar(tlen);
+      perp.crossVectors(centerNormal, tangent);
+      if (perp.lengthSq() < 1e-12) return;
+      perp.normalize();
+      const hw = widthScale * Math.max(0.0001, tlen);
+      perp.multiplyScalar(hw);
+      cornerW[0].copy(p0w).sub(perp);
+      cornerW[1].copy(p0w).add(perp);
+      cornerW[2].copy(p1w).add(perp);
+      cornerW[3].copy(p1w).sub(perp);
+      const footprintUv: XY[] = [];
+      for (let i = 0; i < n; i++) {
+        tileCornerWorldFlat(tileFrame, i, r, edgeMid);
+        const xy = { x: 0, y: 0 };
+        worldToUv(edgeMid, centerPos, basisU, basisV, xy);
+        footprintUv.push(xy);
+      }
+      if (signedArea2(footprintUv) < 0) footprintUv.reverse();
+      for (let k = 0; k < 4; k++) {
+        worldToUv(cornerW[k], centerPos, basisU, basisV, ribUv[k]);
+      }
+      if (signedArea2(ribUv) < 0) {
+        for (let k = 0; k < 2; k++) {
+          const j = 3 - k;
+          const tx = ribUv[k].x;
+          const ty = ribUv[k].y;
+          ribUv[k].x = ribUv[j].x;
+          ribUv[k].y = ribUv[j].y;
+          ribUv[j].x = tx;
+          ribUv[j].y = ty;
+        }
+      }
+      const clipped = clipPolygonToConvex(ribUv, footprintUv);
+      if (clipped.length >= 3) {
+        const base = vertexOffset;
+        for (const p of clipped) {
+          tempVec.copy(centerPos).addScaledVector(basisU, p.x).addScaledVector(basisV, p.y);
+          positions.push(tempVec.x, tempVec.y, tempVec.z);
           normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
           vertexOffset++;
-          positions.push(outer.x + perp.x, outer.y + perp.y, outer.z + perp.z);
+        }
+        for (let k = 1; k < clipped.length - 1; k++) {
+          indices.push(base, base + k, base + k + 1);
+        }
+        return;
+      }
+      pushRibbonQuad(p0w, p1w);
+    };
+
+    if (n === 6 && edgeList.length === 2) {
+      const [v0i, v1i] = hexRiverVertexPairForTwoEdges(edgeList[0], edgeList[1]);
+      vertexOnTileSurface(tile, v0i, r, centerNormal, usePlane, scratchRiverV0);
+      vertexOnTileSurface(tile, v1i, r, centerNormal, usePlane, scratchRiverV1);
+      if (usePlane) {
+        pushLandRiverRibbonClipped(scratchRiverV0, scratchRiverV1);
+      } else {
+        pushRibbonQuad(scratchRiverV0, scratchRiverV1);
+      }
+    } else if (n === 6 && edgeList.length === 1) {
+      const e = edgeList[0];
+      edgeMidpoint(tile, e, r, centerNormal, usePlane, edgeMid);
+      const pm = projectToPlane(edgeMid, centerPos);
+      const rlen = Math.hypot(pm.x, pm.y) || 1;
+      const rdx = pm.x / rlen;
+      const rdy = pm.y / rlen;
+      const oppositeTriples: Array<[number, number]> = [
+        [0, 3],
+        [1, 4],
+        [2, 5],
+      ];
+      let best: [number, number] = oppositeTriples[0];
+      let bestScore = Infinity;
+      for (const [ia, ib] of oppositeTriples) {
+        const va = tile.vertices[ia].clone().normalize().multiplyScalar(r);
+        const vb = tile.vertices[ib].clone().normalize().multiplyScalar(r);
+        const pa = projectToPlane(va, centerPos);
+        const pb = projectToPlane(vb, centerPos);
+        let sx = pb.x - pa.x;
+        let sy = pb.y - pa.y;
+        const slen = Math.hypot(sx, sy) || 1;
+        sx /= slen;
+        sy /= slen;
+        const score = Math.abs(sx * rdx + sy * rdy);
+        if (score < bestScore) {
+          bestScore = score;
+          best = [ia, ib];
+        }
+      }
+      vertexOnTileSurface(tile, best[0], r, centerNormal, usePlane, scratchRiverV0);
+      vertexOnTileSurface(tile, best[1], r, centerNormal, usePlane, scratchRiverV1);
+      if (usePlane) {
+        pushLandRiverRibbonClipped(scratchRiverV0, scratchRiverV1);
+      } else {
+        pushRibbonQuad(scratchRiverV0, scratchRiverV1);
+      }
+    } else {
+      const hull = convexHull2dWorld(edgeMidPts.map((p) => ({ x: p.x, y: p.y, world: p.world })));
+      if (hull.length >= 3) {
+        const hullBase = vertexOffset;
+        for (const p of hull) {
+          positions.push(p.world.x, p.world.y, p.world.z);
           normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
           vertexOffset++;
-          indices.push(a0 + 2, a0 + 3, t0, a0 + 2, t0, t0 + 1);
+        }
+        for (let i = 1; i < hull.length - 1; i++) {
+          indices.push(hullBase, hullBase + i, hullBase + i + 1);
+        }
+      } else if (hull.length === 2) {
+        if (usePlane) {
+          pushLandRiverRibbonClipped(hull[0].world, hull[1].world);
+        } else {
+          pushRibbonQuad(hull[0].world, hull[1].world);
         }
       }
     }

@@ -4,6 +4,7 @@
  */
 
 import * as THREE from "three";
+import { riverBowlSlotTRangeForHexTwoEdges } from "../water/riverCutouts.js";
 
 const T = (1 + Math.sqrt(5)) / 2;
 
@@ -275,10 +276,14 @@ export function buildFlatGeometryData(
       minLandElevation != null ? rawElev >= minLandElevation : elev >= 0;
     const peak = getPeak?.(tile.id);
     const riverEdges = getRiverEdges?.(tile.id);
+    const isHexRiver =
+      isLand && riverEdges != null && riverEdges.size > 0 && n === 6;
     const isRiverBowl =
-      isLand &&
-      riverEdges != null &&
-      riverEdges.size > 0;
+      isLand && riverEdges != null && riverEdges.size > 0 && n !== 6;
+
+    if (isHexRiver) {
+      continue;
+    }
 
     if (isRiverBowl) {
       const rTop = r;
@@ -344,6 +349,13 @@ export function buildFlatGeometryData(
       const vo = new THREE.Vector3();
       const v1 = new THREE.Vector3();
       const v2 = new THREE.Vector3();
+      const riverHexTwo: [number, number] | null =
+        n === 6 && riverEdges.size === 2
+          ? (() => {
+              const a = [...riverEdges].sort((x, y) => x - y);
+              return [a[0], a[1]] as [number, number];
+            })()
+          : null;
 
       for (let i = 0; i < n; i++) {
         const i1 = (i + 1) % n;
@@ -361,10 +373,33 @@ export function buildFlatGeometryData(
         } else if (isRiverSide) {
           readPos(o0, vo);
           readPos(o1, v1);
-          // Use same fraction for slot on shared edge so both hexes get aligned tLeft/tRight (widest points connect in a straight line, no kink)
-          const frac = Math.min(1, riverBowlInnerScale);
-          const tLeft = Math.max(0, 0.5 - frac * 0.5);
-          const tRight = Math.min(1, 0.5 + frac * 0.5);
+          let tLeft: number;
+          let tRight: number;
+          if (riverHexTwo) {
+            const span = riverBowlSlotTRangeForHexTwoEdges(
+              tile,
+              i,
+              riverHexTwo[0],
+              riverHexTwo[1],
+              rTop,
+              centerNormal,
+              riverBowlInnerScale,
+              vo,
+              v1
+            );
+            if (span) {
+              tLeft = span.tMin;
+              tRight = span.tMax;
+            } else {
+              const frac = Math.min(1, riverBowlInnerScale);
+              tLeft = Math.max(0, 0.5 - frac * 0.5);
+              tRight = Math.min(1, 0.5 + frac * 0.5);
+            }
+          } else {
+            const frac = Math.min(1, riverBowlInnerScale);
+            tLeft = Math.max(0, 0.5 - frac * 0.5);
+            tRight = Math.min(1, 0.5 + frac * 0.5);
+          }
 
           readPos(o0, vo);
           readPos(o1, v1);
