@@ -26,9 +26,24 @@
       #panel .value { float: right; color: #8090a0; font-variant-numeric: tabular-nums; }
       #panel .loading { margin-top: 10px; padding: 6px 10px; background: rgba(100,120,140,0.3); border-radius: 6px; font-size: 12px; color: #a0b0c0; display: none; }
       #panel .loading.visible { display: block; }
+      .viewer-links {
+        position: fixed; top: 12px; right: 12px; z-index: 11;
+        display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+      }
+      .viewer-links a {
+        padding: 8px 12px; border-radius: 8px;
+        background: rgba(30, 80, 100, 0.85); color: #b8e8f0;
+        font-size: 12px; text-decoration: none;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+      }
+      .viewer-links a:hover { background: rgba(40, 100, 120, 0.95); color: #fff; }
     </style>
   </head>
   <body>
+    <div class="viewer-links">
+      <a href="/river-hex-viewer.html">River hex patterns →</a>
+      <a href="/river-bank-hex-viewer.html">River bank 3D (globe pipeline) →</a>
+    </div>
     <div id="panel"></div>
     <script type="module" src="/main.ts"></script>
   </body>

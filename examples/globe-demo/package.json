@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:rivers": "vite --open /river-hex-viewer.html",
+    "dev:river-bank": "vite --open /river-bank-hex-viewer.html",
     "build": "vite build",
     "preview": "vite preview",
     "download-data": "node scripts/download-data.mjs",
@@ -14,11 +16,14 @@
     "setup-data": "npm run download-data && npm run build-koppen && npm run build-mountains && npm run build-land-raster-png && npm run build-elevation"
   },
   "dependencies": {
+    "earcut": "^3.0.2",
     "jszip": "^3.10.1",
+    "polygon-clipping": "^0.15.7",
     "three": "^0.170.0",
     "topojson-client": "^3.1.0"
   },
   "devDependencies": {
+    "@types/earcut": "^3.0.0",
     "canvas": "^3.2.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.1"

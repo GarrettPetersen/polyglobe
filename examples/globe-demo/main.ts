@@ -35,6 +35,7 @@ import {
   traceRiverThroughTiles,
   getRiverEdgesByTile,
   createRiverMeshFromTileEdges,
+  createRiverTerrainMeshes,
   updateRiverMaterialTime,
   TERRAIN_STYLES,
   type TileTerrainData,
@@ -1317,6 +1318,8 @@ let riverLinesLonLat: number[][][] | null = null;
 let riverLineIsDelta: boolean[] | null = null;
 /** River mesh in Earth mode; updated each frame for wave animation. */
 let riverMesh: THREE.Mesh | null = null;
+let riverBanksMesh: THREE.Mesh | null = null;
+let riverBedMesh: THREE.Mesh | null = null;
 /** Lake water surfaces (share ocean water material) in Earth mode. */
 let lakeWaterMeshes: THREE.Mesh[] = [];
 
@@ -1430,8 +1433,9 @@ function setGlobeGeometryFromTerrain(
   if (riverEdgesByTile != null && riverEdgesByTile.size > 0) {
     opts.getRiverEdges = (id) => riverEdgesByTile.get(id);
     opts.getRiverEdgeToWater = riverEdgeToWaterByTile ? (id) => riverEdgeToWaterByTile.get(id) : undefined;
+    /* Hex river tiles use extruded banks (riverHexGeometry); bowl only for rare pentagon river tiles. */
     opts.riverBowlDepth = 0.012;
-    opts.riverBowlInnerScale = 0.4;
+    opts.riverBowlInnerScale = 0.78;
   }
   const geom = createGeodesicGeometryFlat(globe.tiles, opts);
   if (elevatedSeaTiles.size > 0) {
@@ -1467,6 +1471,18 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       riverMesh.geometry.dispose();
       (riverMesh.material as THREE.Material).dispose();
       riverMesh = null;
+    }
+    if (riverBanksMesh) {
+      scene.remove(riverBanksMesh);
+      riverBanksMesh.geometry.dispose();
+      (riverBanksMesh.material as THREE.Material).dispose();
+      riverBanksMesh = null;
+    }
+    if (riverBedMesh) {
+      scene.remove(riverBedMesh);
+      riverBedMesh.geometry.dispose();
+      (riverBedMesh.material as THREE.Material).dispose();
+      riverBedMesh = null;
     }
     for (const m of lakeWaterMeshes) {
       scene.remove(m);
@@ -1733,13 +1749,45 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             radius: globe.radius,
             getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
             elevationScale,
-            riverBowlInnerScale: 0.4,
+            riverBowlInnerScale: 0.78,
+            fillInnerRiverHex: false,
             sunDirection: sunDirectionFromState(state),
             waterSurfaceRadius: 0.995,
             isWater: (id) => tileTerrain.get(id)?.type === "water",
           });
           scene.add(riverMesh);
-          console.log(BUILD_LOG, "river: mesh added, vertices", (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0);
+          const terrain = createRiverTerrainMeshes(globe, riverEdgesByTile, {
+            radius: globe.radius,
+            getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+            elevationScale,
+            riverBedDepth: 0.012,
+            riverVoidInnerRadiusFraction: 0.58,
+            getBankVertexRgb: (id) => {
+              const typ = tileTerrain.get(id)?.type ?? "land";
+              const hex = TERRAIN_STYLES[typ]?.color ?? TERRAIN_STYLES.land.color;
+              const c = new THREE.Color(hex);
+              return [c.r, c.g, c.b];
+            },
+          });
+          const bn = terrain.banks.geometry.getAttribute("position")?.count ?? 0;
+          const dn = terrain.bed.geometry.getAttribute("position")?.count ?? 0;
+          if (bn > 0) {
+            riverBanksMesh = terrain.banks;
+            scene.add(riverBanksMesh);
+          }
+          if (dn > 0) {
+            riverBedMesh = terrain.bed;
+            scene.add(riverBedMesh);
+          }
+          console.log(
+            BUILD_LOG,
+            "river: water verts",
+            (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0,
+            "banks",
+            riverBanksMesh?.geometry.getAttribute("position")?.count ?? 0,
+            "bed",
+            riverBedMesh?.geometry.getAttribute("position")?.count ?? 0
+          );
         } else {
           riverMesh = null;
         }

@@ -2,6 +2,14 @@
 
 Run `npm run dev` and open the app. Use Earth map mode to see real geography.
 
+### River hex viewer (mini app)
+
+The main dev server opens the **full globe** at `/`. For the **river hex pattern gallery** (flat hexes only — no Earth):
+
+- **`npm run dev:rivers`** or **`make demo-rivers`** opens **`/river-hex-viewer.html`**, or use **“River hex patterns →”** (top-right on the main demo).
+
+That page shows **seven canonical configurations** (1 edge, two-edge gaps 1/2/3, sample 3- and 4-edge cases). Yellow = river edges. No terrain data required.
+
 ## Data (Earth mode) — all local
 
 All data is loaded from **`public/`** (same-origin). Run `npm run download-data` once to fetch sources into `public/`, then `npm run setup-data` (or individual build-* scripts) to generate binaries. Commit `public/` so the repo works offline.
