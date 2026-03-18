@@ -255,7 +255,7 @@ export class WaterSphere {
         uShorelineRadius: { value: options.shorelineRadius ?? 1.0 },
       },
       transparent: true,
-      side: THREE.FrontSide,
+      side: THREE.DoubleSide, // DoubleSide for terrain-following water table
       depthWrite: false,
     });
 
@@ -277,6 +277,92 @@ export class WaterSphere {
   setNormalMap(texture: THREE.Texture | null): void {
     this.material.uniforms.uNormalMap.value = texture;
     this.material.uniforms.uUseNormalMap.value = texture ? 1 : 0;
+  }
+
+  /**
+   * Replace the sphere geometry with a "water table" geometry that follows terrain elevation.
+   * Water sits just below each tile's elevation, naturally filling river cutouts while
+   * staying invisible under solid land hexes.
+   */
+  setWaterTableGeometry(
+    tiles: Array<{ id: number; center: THREE.Vector3; vertices: THREE.Vector3[] }>,
+    getElevation: (tileId: number) => number,
+    options: {
+      baseRadius: number;
+      elevationScale?: number;
+      /** Offset below land surface (negative = below). Default -0.008 */
+      depthBelowSurface?: number;
+      /** Ocean surface level. Default baseRadius * 0.995 */
+      oceanLevel?: number;
+      /** Check if tile is ocean/water (use ocean level) vs land (use elevation-based level) */
+      isOcean?: (tileId: number) => boolean;
+    }
+  ): void {
+    const { baseRadius, elevationScale = 1, depthBelowSurface = -0.008 } = options;
+    const oceanLevel = options.oceanLevel ?? baseRadius * 0.995;
+    const isOcean = options.isOcean ?? (() => false);
+
+    const positions: number[] = [];
+    const normals: number[] = [];
+    const indices: number[] = [];
+
+    let oceanCount = 0;
+    let landCount = 0;
+    
+    for (const tile of tiles) {
+      if (!tile.vertices || tile.vertices.length < 3) continue;
+      
+      const n = tile.vertices.length;
+      const elev = getElevation(tile.id) * elevationScale;
+      
+      let waterR: number;
+      if (isOcean(tile.id)) {
+        // Ocean tiles: water at ocean surface level
+        waterR = oceanLevel;
+        oceanCount++;
+      } else {
+        // Land tiles: water just below the surface (to fill rivers through cutouts)
+        waterR = baseRadius + elev + depthBelowSurface;
+        landCount++;
+      }
+
+      // Center vertex
+      const centerNormal = tile.center.clone().normalize();
+      const centerPos = centerNormal.clone().multiplyScalar(waterR);
+      const centerIdx = positions.length / 3;
+      positions.push(centerPos.x, centerPos.y, centerPos.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+
+      // Corner vertices
+      const cornerBase = positions.length / 3;
+      for (let v = 0; v < n; v++) {
+        const cornerNormal = tile.vertices[v].clone().normalize();
+        const cornerPos = cornerNormal.clone().multiplyScalar(waterR);
+        positions.push(cornerPos.x, cornerPos.y, cornerPos.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z); // Use tile normal for smooth look
+      }
+
+      // Fan triangles from center to corners (CCW winding for outward-facing)
+      for (let v = 0; v < n; v++) {
+        const i0 = cornerBase + v;
+        const i1 = cornerBase + (v + 1) % n;
+        // Reverse winding to face outward (center, i1, i0 instead of center, i0, i1)
+        indices.push(centerIdx, i1, i0);
+      }
+    }
+    
+    console.log(`[WaterSphere] water table: ${oceanCount} ocean tiles, ${landCount} land tiles`);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals(); // Recompute normals for correct lighting
+    
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = geometry;
+    
+    console.log(`[WaterSphere] setWaterTableGeometry: ${tiles.length} tiles, ${positions.length / 3} vertices, ${indices.length / 3} triangles`);
   }
 
   set radius(r: number) {

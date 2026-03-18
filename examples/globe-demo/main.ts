@@ -24,8 +24,6 @@ import {
   buildTerrainFromEarthRaster,
   earthRasterFromImageData,
   applyCoastalBeach,
-  computeWaterLevelsByBody,
-  geometryWaterSurfacePatch,
   parseKoppenAsciiGrid,
   applyPreset,
   getPreset,
@@ -39,9 +37,7 @@ import {
   fillRiverGaps,
   forceRiverReciprocity,
   symmetrizeRiverNeighborEdgesUntilStable,
-  createRiverMeshFromTileEdges,
   createRiverTerrainMeshes,
-  updateRiverMaterialTime,
   TERRAIN_STYLES,
   type TileTerrainData,
   type EarthRaster,
@@ -1348,12 +1344,10 @@ let mountainsList: MountainEntry[] | null = null;
 let riverLinesLonLat: number[][][] | null = null;
 /** Parallel to riverLinesLonLat: true if that line is a delta branch (e.g. Rosetta/Damietta) and should prefer sea over other river. */
 let riverLineIsDelta: boolean[] | null = null;
-/** River mesh in Earth mode; updated each frame for wave animation. */
-let riverMesh: THREE.Mesh | null = null;
+/** River terrain (banks/bed) in Earth mode. Water provided by terrain-following water table. */
 /** U-shaped river banks + bed (land mesh); separate from transparent water ribbon. */
 let riverTerrainGroup: THREE.Group | null = null;
-/** Lake water surfaces (share ocean water material) in Earth mode. */
-let lakeWaterMeshes: THREE.Mesh[] = [];
+/** Lake water now provided by terrain-following water table (no separate meshes). */
 /** Module-level terrain data for debug panel access. */
 let globalTileTerrain: Map<number, TileTerrainData> | null = null;
 /** Module-level river edges for debug panel access. */
@@ -1501,12 +1495,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       scene.remove(coastFoamOverlay.mesh);
       coastFoamOverlay.dispose();
     }
-    if (riverMesh) {
-      scene.remove(riverMesh);
-      riverMesh.geometry.dispose();
-      (riverMesh.material as THREE.Material).dispose();
-      riverMesh = null;
-    }
+    // River water now provided by water table (no separate river mesh to clean up)
     if (riverTerrainGroup) {
       scene.remove(riverTerrainGroup);
       riverTerrainGroup.traverse((obj) => {
@@ -1517,11 +1506,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       });
       riverTerrainGroup = null;
     }
-    for (const m of lakeWaterMeshes) {
-      scene.remove(m);
-      m.geometry.dispose();
-    }
-    lakeWaterMeshes = [];
+    // Lake water now provided by water table (no separate lake meshes to clean up)
     if (marker) scene.remove(marker);
     await yieldToMain();
 
@@ -1768,7 +1753,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     coastLandMaskTexture = createCoastLandMaskTexture(globe, tileTerrain, 256, 128);
     await yieldToMain();
 
-    console.log(BUILD_LOG, "create WaterSphere, coast foam, marker");
+    console.log(BUILD_LOG, "create WaterSphere with terrain-following water table");
     water = new WaterSphere({
       radius: 0.995,
       color: 0x1a5a6a,
@@ -1781,25 +1766,26 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       timeScale: 0.4,
       waveAmplitude: 0.0007,
     });
+    // Replace sphere with terrain-following water table:
+    // Water sits just below each tile's elevation, filling rivers/lakes through cutouts
+    // while staying invisible under solid land hexes.
+    const waterTableElevationScale = 0.08;
+    water.setWaterTableGeometry(
+      globe.tiles,
+      (id) => tileTerrain.get(id)?.elevation ?? 0,
+      {
+        baseRadius: globe.radius,
+        elevationScale: waterTableElevationScale,
+        depthBelowSurface: -0.006, // Slightly below land surface
+        oceanLevel: 0.995,
+        isOcean: (id) => {
+          const t = tileTerrain.get(id)?.type;
+          return t === "water" || t === "beach";
+        },
+      }
+    );
     scene.add(water.mesh);
-
-    const waterLevels = computeWaterLevelsByBody(globe.tiles, tileTerrain);
-    const elevationScaleForLakes = 0.08;
-    for (const [key, tileIds] of waterLevels.tileIdsByBody) {
-      if (key === "ocean") continue;
-      const level = waterLevels.levels.get(key);
-      if (level == null || tileIds.size === 0) continue;
-      const surfaceRadius = globe.radius + level * elevationScaleForLakes;
-      const geom = geometryWaterSurfacePatch(globe.mesh.geometry, tileIds, surfaceRadius);
-      const mesh = new THREE.Mesh(geom, water.material);
-      mesh.name = `LakeWater-${key}`;
-      mesh.renderOrder = 1;
-      scene.add(mesh);
-      lakeWaterMeshes.push(mesh);
-    }
-    if (lakeWaterMeshes.length > 0) {
-      console.log(BUILD_LOG, "lake water meshes:", lakeWaterMeshes.length);
-    }
+    console.log(BUILD_LOG, "water table geometry applied, vertices:", water.mesh.geometry.getAttribute("position")?.count ?? 0);
 
     coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
       radius: 0.995,
@@ -1853,19 +1839,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
         console.log(BUILD_LOG, "rivers placed on hex tile IDs:", riverEdgesByTile.size, "tiles (land only)");
         if (riverEdgesByTile.size > 0) {
-          riverMesh = createRiverMeshFromTileEdges(globe, riverEdgesByTile, {
-            radius: globe.radius,
-            getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
-            elevationScale,
-            /** Wider inner fill + ribbons so neighboring hex water overlaps and doesn’t leave cracks. */
-            riverBowlInnerScale: 0.48,
-            sunDirection: sunDirectionFromState(state),
-            waterSurfaceRadius: 0.995,
-            isWater: (id) => tileTerrain.get(id)?.type === "water",
-          });
-          scene.add(riverMesh);
-          console.log(BUILD_LOG, "river: mesh added, vertices", (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0);
-
+          // River water now provided by terrain-following water table
           const { banks, bed } = createRiverTerrainMeshes(globe, riverEdgesByTile, {
             radius: globe.radius,
             getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
@@ -1888,29 +1862,13 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           const bv = banks.geometry.getAttribute("position")?.count ?? 0;
           const dv = bed.geometry.getAttribute("position")?.count ?? 0;
           console.log(BUILD_LOG, "river: U-banks/bed vertices", bv + dv, "(banks", bv, ", bed", dv, ")");
-        } else {
-          riverMesh = null;
         }
-      } else {
-        riverMesh = null;
       }
     }
 
-    // Create river meshes from cached or freshly computed data
+    // Create river terrain from cached data (water provided by water table)
     const elevationScaleRiver = 0.08;
-    if (riverEdgesByTile && riverEdgesByTile.size > 0 && !riverMesh) {
-      riverMesh = createRiverMeshFromTileEdges(globe, riverEdgesByTile, {
-        radius: globe.radius,
-        getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
-        elevationScale: elevationScaleRiver,
-        riverBowlInnerScale: 0.48,
-        sunDirection: sunDirectionFromState(state),
-        waterSurfaceRadius: 0.995,
-        isWater: (id) => tileTerrain.get(id)?.type === "water",
-      });
-      scene.add(riverMesh);
-      console.log(BUILD_LOG, "river: mesh added (from cache), vertices", (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0);
-
+    if (riverEdgesByTile && riverEdgesByTile.size > 0 && !riverTerrainGroup) {
       const { banks, bed } = createRiverTerrainMeshes(globe, riverEdgesByTile, {
         radius: globe.radius,
         getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
@@ -1933,8 +1891,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       const bv = banks.geometry.getAttribute("position")?.count ?? 0;
       const dv = bed.geometry.getAttribute("position")?.count ?? 0;
       console.log(BUILD_LOG, "river: U-banks/bed vertices (from cache)", bv + dv, "(banks", bv, ", bed", dv, ")");
-    } else if (!riverMesh) {
-      riverMesh = null;
     }
 
     marker = new THREE.Mesh(
@@ -2245,11 +2201,7 @@ async function init() {
       coastFoamOverlay.setSunDirection(sunDir);
       coastFoamOverlay.update();
     }
-    if (riverMesh) {
-      const mat = riverMesh.material as THREE.ShaderMaterial;
-      if (mat.uniforms?.uSunDirection) mat.uniforms.uSunDirection.value.copy(sunDir);
-      updateRiverMaterialTime(riverMesh, performance.now() * 0.001 * 0.4);
-    }
+    // River water animation now handled by water table (WaterSphere.update())
     composer.render();
   }
 
@@ -2260,7 +2212,7 @@ async function init() {
   function getClickTargets(): THREE.Object3D[] {
     const targets: THREE.Object3D[] = [];
     if (globe?.mesh) targets.push(globe.mesh);
-    if (riverMesh) targets.push(riverMesh);
+    // River water now part of water table, raycast against terrain instead
     if (riverTerrainGroup) targets.push(riverTerrainGroup);
     return targets;
   }

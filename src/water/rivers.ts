@@ -1047,21 +1047,28 @@ export function createRiverMeshFromTileEdges(
     basisV.copy(tileFrame.ey);
 
     if (riverBowlInnerScale != null && fillInnerRiverHex) {
+      // Create inner water hex using actual hex corners (not edge midpoints)
+      // This matches the hex shape for consistent appearance
       const centerIdx = vertexOffset;
       positions.push(centerPos.x, centerPos.y, centerPos.z);
       normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
       vertexOffset++;
       const innerBase = vertexOffset;
-      for (let e = 0; e < n; e++) {
-        edgeMidpoint(tile, e, r, centerNormal, usePlane, edgeMid);
-        innerPoint.lerpVectors(centerPos, edgeMid, riverBowlInnerScale);
+      for (let v = 0; v < n; v++) {
+        // Use tile vertex (corner) instead of edge midpoint
+        const corner = tile.vertices[v].clone().normalize().multiplyScalar(r);
+        if (usePlane) {
+          const d = corner.dot(centerNormal);
+          corner.sub(centerNormal.clone().multiplyScalar(d - r));
+        }
+        innerPoint.lerpVectors(centerPos, corner, riverBowlInnerScale);
         positions.push(innerPoint.x, innerPoint.y, innerPoint.z);
         normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
         vertexOffset++;
       }
-      for (let e = 0; e < n; e++) {
-        const i0 = innerBase + e;
-        const i1 = innerBase + (e + 1) % n;
+      for (let v = 0; v < n; v++) {
+        const i0 = innerBase + v;
+        const i1 = innerBase + (v + 1) % n;
         indices.push(centerIdx, i0, i1);
       }
     }

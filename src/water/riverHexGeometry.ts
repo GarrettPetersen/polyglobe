@@ -433,6 +433,41 @@ function appendRiverMouthUGeometry(
   pushLeg(o0[0], o0[1], A[0], A[1]);
   pushLeg(B[0], B[1], o1[0], o1[1]);
 
+  // The polygon-clipping uses slightly inset A/B points (0.0001 from edge).
+  // Add a thin strip at rTop to cover this gap between outer edge and inset line.
+  // This strip spans from A to B along the outer edge, inward to slightly inside the channel.
+  {
+    const nx = nUp.x, ny = nUp.y, nz = nUp.z;
+    // Outer edge direction
+    const edx = o1[0] - o0[0];
+    const edy = o1[1] - o0[1];
+    const edLen = Math.hypot(edx, edy) || 1;
+    // Normal pointing inward (toward center)
+    const inx = -edy / edLen;
+    const iny = edx / edLen;
+    // Inset amount matches the polygon-clipping inset plus a small margin
+    const coverInset = 0.0003;
+    // Create 4 points for the covering strip
+    const Ao = [A[0], A[1]];  // A on outer position (where U-leg meets)
+    const Bo = [B[0], B[1]];  // B on outer position
+    const Ai = [A[0] + inx * coverInset, A[1] + iny * coverInset];  // A inset
+    const Bi = [B[0] + inx * coverInset, B[1] + iny * coverInset];  // B inset
+    
+    if (Math.hypot(Bo[0] - Ao[0], Bo[1] - Ao[1]) > MOUTH_LEG_EPS) {
+      const stripBase = positions.length / 3;
+      // Quad: Ao -> Bo -> Bi -> Ai (CCW when viewed from above/outside)
+      tilePlanePoint(frame, Ao[0], Ao[1], rTop, pTop);
+      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
+      tilePlanePoint(frame, Bo[0], Bo[1], rTop, pTop);
+      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
+      tilePlanePoint(frame, Bi[0], Bi[1], rTop, pTop);
+      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
+      tilePlanePoint(frame, Ai[0], Ai[1], rTop, pTop);
+      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
+      indices.push(stripBase, stripBase + 1, stripBase + 2, stripBase, stripBase + 2, stripBase + 3);
+    }
+  }
+
   if (Math.hypot(B[0] - A[0], B[1] - A[1]) < MOUTH_LEG_EPS) return;
   const nx = nUp.x;
   const ny = nUp.y;
