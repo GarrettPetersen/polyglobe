@@ -1,7 +1,12 @@
 /**
- * Hex river terrain: land = outer − (inner ∪ river wedges) in the tile's true planar footprint.
- * Geodesic hexes are slightly irregular on the sphere — we use actual corner projections so banks
- * align with neighbor land; no regular-hex rotation/scale mismatch.
+ * Hex river terrain on the geodesic footprint (actual corner projections).
+ *
+ * **Straight-through tiles** (one river axis = two opposite hex edges, including single-edge + virtual
+ * opposite): additive **U-channel** — flat bed quad + two banks built by lofting outer perimeter chains
+ * down to the bed (north/south style banks on irregular hexes). Pentagons are skipped (no 6-corner frame).
+ *
+ * **Forks / bends** (non-opposite wedge set): boolean cutout (outer − void) + extruded land + mouth U’s;
+ * bed from void multipolygon when cutout land is empty so the channel still has a floor.
  */
 
 import * as THREE from "three";
@@ -721,6 +726,243 @@ function ringArea(ring: Ring2): number {
   return a * 0.5;
 }
 
+/** Wedge mouths are exactly two opposite edges (channel runs straight through hex). */
+function isOppositePairRiverWedge(riverEdges: Set<number>): boolean {
+  const w = hexRiverWedgeEdgeIndices(riverEdges);
+  if (w.size !== 2) return false;
+  const a = [...w].sort((x, y) => x - y);
+  return a[1] - a[0] === 3;
+}
+
+/** Vertices O[j] strictly between start of edge e0 and start of edge e1 when walking CCW around hex. */
+function hexVertexIndicesBetweenEdgesCCW(e0: number, e1: number): number[] {
+  const verts: number[] = [];
+  let j = m(e0 + 1);
+  while (j !== m(e1)) {
+    verts.push(j);
+    j = m(j + 1);
+  }
+  return verts;
+}
+
+/**
+ * U-shaped river: flat bed quad + two banks built by lofting outer hex chains down to the bed
+ * (additive “north/south” banks for a through-channel), instead of boolean cutout land.
+ */
+function appendUShapedOppositeRiverTerrain(
+  O: [number, number][],
+  riverEdges: Set<number>,
+  innerFrac: number,
+  frame: TileTangentFrame,
+  rTop: number,
+  rBot: number,
+  bankPos: number[],
+  bankNorm: number[],
+  bankIdx: number[],
+  bankTileIds: number[],
+  bedPos: number[],
+  bedIdx: number[],
+  bedTileIds: number[],
+  tileId: number,
+  bankColors: number[] | null,
+  rgb: [number, number, number],
+  nUp: THREE.Vector3
+): boolean {
+  if (!isOppositePairRiverWedge(riverEdges)) return false;
+  const w = hexRiverWedgeEdgeIndices(riverEdges);
+  const [e0, e1] = [...w].sort((a, b) => a - b);
+  const mouths = riverMouthOpeningsByEdge(O, riverEdges, innerFrac);
+  const m0 = mouths.get(e0);
+  const m1 = mouths.get(e1);
+  if (!m0 || !m1) return false;
+  const [A0, B0] = m0;
+  const [A1, B1] = m1;
+  const fi = Math.min(0.9, Math.max(0.28, innerFrac * 0.92));
+  const ins = (p: [number, number]): [number, number] => [p[0] * fi, p[1] * fi];
+  const iA0 = ins(A0);
+  const iB0 = ins(B0);
+  const iA1 = ins(A1);
+  const iB1 = ins(B1);
+
+  const p3 = new THREE.Vector3();
+  const [cr, cg, cb] = rgb;
+  const pushBankVert = (x: number, y: number, z: number, nx: number, ny: number, nz: number) => {
+    bankPos.push(x, y, z);
+    bankNorm.push(nx, ny, nz);
+    bankTileIds.push(tileId);
+    if (bankColors) bankColors.push(cr, cg, cb);
+  };
+
+  /* Bed: quad at rBot; winding must face +normal (outward) or FrontSide culls → see-through to far side */
+  const b0 = bedPos.length / 3;
+  const p0 = new THREE.Vector3();
+  const p1 = new THREE.Vector3();
+  const p2 = new THREE.Vector3();
+  for (const q of [iA0, iB0, iB1, iA1]) {
+    tilePlanePoint(frame, q[0], q[1], rBot, p3);
+    bedPos.push(p3.x, p3.y, p3.z);
+    bedTileIds.push(tileId);
+  }
+  tilePlanePoint(frame, iA0[0], iA0[1], rBot, p0);
+  tilePlanePoint(frame, iB0[0], iB0[1], rBot, p1);
+  tilePlanePoint(frame, iB1[0], iB1[1], rBot, p2);
+  const ex1 = p1.x - p0.x,
+    ey1 = p1.y - p0.y,
+    ez1 = p1.z - p0.z;
+  const ex2 = p2.x - p0.x,
+    ey2 = p2.y - p0.y,
+    ez2 = p2.z - p0.z;
+  const gx = ey1 * ez2 - ez1 * ey2,
+    gy = ez1 * ex2 - ex1 * ez2,
+    gz = ex1 * ey2 - ey1 * ex2;
+  const flip = gx * nUp.x + gy * nUp.y + gz * nUp.z < 0;
+  if (flip) {
+    bedIdx.push(b0, b0 + 2, b0 + 1, b0, b0 + 3, b0 + 2);
+  } else {
+    bedIdx.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);
+  }
+
+  const dedupeConsecutive2d = (chain: [number, number][], eps = 1e-6): [number, number][] => {
+    const out: [number, number][] = [];
+    for (const p of chain) {
+      if (
+        out.length === 0 ||
+        Math.hypot(p[0] - out[out.length - 1][0], p[1] - out[out.length - 1][1]) > eps
+      ) {
+        out.push([p[0], p[1]]);
+      }
+    }
+    return out;
+  };
+
+  const appendLoftedBank = (
+    outer2d: [number, number][],
+    bedStart: [number, number],
+    bedEnd: [number, number]
+  ): void => {
+    const outer = dedupeConsecutive2d(outer2d, 1e-10);
+    const k = outer.length;
+    if (k < 2) return;
+    /** Arc length along the actual bank chain (must match `outer`, not pre-dedupe `outer2d`). */
+    const dists: number[] = [0];
+    for (let i = 1; i < k; i++) {
+      dists.push(
+        dists[i - 1] +
+          Math.hypot(outer[i][0] - outer[i - 1][0], outer[i][1] - outer[i - 1][1])
+      );
+    }
+    const total = dists[k - 1] || 1;
+    const bottom2d: [number, number][] = dists.map((d) => {
+      const t = d / total;
+      return [
+        bedStart[0] + t * (bedEnd[0] - bedStart[0]),
+        bedStart[1] + t * (bedEnd[1] - bedStart[1]),
+      ] as [number, number];
+    });
+
+    const flat: number[] = [];
+    for (const p of outer) flat.push(p[0], p[1]);
+    let tris = earcut(flat, undefined, 2);
+    const baseTop = bankPos.length / 3;
+    for (const p of outer) {
+      tilePlanePoint(frame, p[0], p[1], rTop, p3);
+      pushBankVert(p3.x, p3.y, p3.z, nUp.x, nUp.y, nUp.z);
+    }
+    const nx = nUp.x;
+    const ny = nUp.y;
+    const nz = nUp.z;
+    if (tris.length === 0 && k >= 3) {
+      const fan: number[] = [];
+      for (let i = 1; i < k - 1; i++) fan.push(0, i, i + 1);
+      tris = fan;
+    }
+    for (let ti = 0; ti < tris.length; ti += 3) {
+      const ia = baseTop + tris[ti];
+      const ib = baseTop + tris[ti + 1];
+      const ic = baseTop + tris[ti + 2];
+      const ax = bankPos[ia * 3],
+        ay = bankPos[ia * 3 + 1],
+        az = bankPos[ia * 3 + 2];
+      const bx = bankPos[ib * 3],
+        by = bankPos[ib * 3 + 1],
+        bz = bankPos[ib * 3 + 2];
+      const cx = bankPos[ic * 3],
+        cy = bankPos[ic * 3 + 1],
+        cz = bankPos[ic * 3 + 2];
+      const e1x = bx - ax,
+        e1y = by - ay,
+        e1z = bz - az;
+      const e2x = cx - ax,
+        e2y = cy - ay,
+        e2z = cz - az;
+      const gx = e1y * e2z - e1z * e2y;
+      const gy = e1z * e2x - e1x * e2z;
+      const gz = e1x * e2y - e1y * e2x;
+      if (gx * nx + gy * ny + gz * nz < 0) bankIdx.push(ia, ic, ib);
+      else bankIdx.push(ia, ib, ic);
+    }
+
+    const e1 = new THREE.Vector3();
+    const e2 = new THREE.Vector3();
+    const wallN = new THREE.Vector3();
+    for (let i = 0; i < k - 1; i++) {
+      const aT = outer[i];
+      const bT = outer[i + 1];
+      const aB = bottom2d[i];
+      const bB = bottom2d[i + 1];
+      tilePlanePoint(frame, aT[0], aT[1], rTop, p3);
+      const t0x = p3.x,
+        t0y = p3.y,
+        t0z = p3.z;
+      tilePlanePoint(frame, bT[0], bT[1], rTop, p3);
+      const t1x = p3.x,
+        t1y = p3.y,
+        t1z = p3.z;
+      tilePlanePoint(frame, bB[0], bB[1], rBot, p3);
+      const bbx = p3.x,
+        bby = p3.y,
+        bbz = p3.z;
+      tilePlanePoint(frame, aB[0], aB[1], rBot, p3);
+      const bax = p3.x,
+        bay = p3.y,
+        baz = p3.z;
+      e1.set(t1x - t0x, t1y - t0y, t1z - t0z);
+      e2.set(bax - t0x, bay - t0y, baz - t0z);
+      wallN.crossVectors(e1, e2);
+      if (wallN.lengthSq() < 1e-20) wallN.copy(nUp);
+      else wallN.normalize();
+      if (wallN.dot(nUp) < 0) wallN.negate();
+      const w0 = bankPos.length / 3;
+      pushBankVert(t0x, t0y, t0z, wallN.x, wallN.y, wallN.z);
+      pushBankVert(t1x, t1y, t1z, wallN.x, wallN.y, wallN.z);
+      pushBankVert(bbx, bby, bbz, wallN.x, wallN.y, wallN.z);
+      pushBankVert(bax, bay, baz, wallN.x, wallN.y, wallN.z);
+      bankIdx.push(w0, w0 + 1, w0 + 2, w0, w0 + 2, w0 + 3);
+    }
+  };
+
+  /**
+   * Full outer-perimeter chain from mouth on e0 (B0 → O[e0+1]) to mouth on e1 (… → O[e1] → A1).
+   * hexVertexIndicesBetweenEdgesCCW omits O[e1] / O[e0], which left a diagonal cut and a “missing” corner.
+   */
+  const verts01 = hexVertexIndicesBetweenEdgesCCW(e0, e1);
+  const outer1: [number, number][] = [B0];
+  for (const vi of verts01) outer1.push(O[vi]);
+  outer1.push(O[e1]);
+  outer1.push(A1);
+
+  const verts10 = hexVertexIndicesBetweenEdgesCCW(e1, e0);
+  const outer2: [number, number][] = [B1];
+  for (const vi of verts10) outer2.push(O[vi]);
+  outer2.push(O[e0]);
+  outer2.push(A0);
+
+  appendLoftedBank(outer1, iB0, iA1);
+  appendLoftedBank(outer2, iB1, iA0);
+
+  return true;
+}
+
 function appendVoidBed(
   voidMp: MultiPoly,
   rBot: number,
@@ -762,8 +1004,31 @@ function appendVoidBed(
       positions.push(p.x, p.y, p.z);
       tileIds.push(tileId);
     }
+    const nx = frame.normal.x,
+      ny = frame.normal.y,
+      nz = frame.normal.z;
+    const idx0 = indices.length;
     for (let i = 0; i < tris.length; i++) {
       indices.push(base + tris[i]);
+    }
+    for (let ti = 0; ti < tris.length; ti += 3) {
+      const ia = indices[idx0 + ti] * 3;
+      const ib = indices[idx0 + ti + 1] * 3;
+      const ic = indices[idx0 + ti + 2] * 3;
+      const e1x = positions[ib] - positions[ia];
+      const e1y = positions[ib + 1] - positions[ia + 1];
+      const e1z = positions[ib + 2] - positions[ia + 2];
+      const e2x = positions[ic] - positions[ia];
+      const e2y = positions[ic + 1] - positions[ia + 1];
+      const e2z = positions[ic + 2] - positions[ia + 2];
+      const gx = e1y * e2z - e1z * e2y;
+      const gy = e1z * e2x - e1x * e2z;
+      const gz = e1x * e2y - e1y * e2x;
+      if (gx * nx + gy * ny + gz * nz < 0) {
+        const t = indices[idx0 + ti + 1];
+        indices[idx0 + ti + 1] = indices[idx0 + ti + 2];
+        indices[idx0 + ti + 2] = t;
+      }
     }
   }
 }
@@ -928,9 +1193,56 @@ export function createRiverTerrainMeshes(
     const rBot = radius + elev - depth;
     if (tile.vertices.length !== 6) continue;
     const frame = getTileTangentFrame(tile);
+    const rgb = options.getBankVertexRgb?.(tileId) ?? defaultBankRgb;
+    const nUp = frame.normal.clone().normalize();
+
+    if (
+      appendUShapedOppositeRiverTerrain(
+        frame.corners2d,
+        edgeSet,
+        rInFrac,
+        frame,
+        rTop,
+        rBot,
+        bankPos,
+        bankNorm,
+        bankIdx,
+        bankTileIds,
+        bedPos,
+        bedIdx,
+        bedTileIds,
+        tileId,
+        bankColors,
+        rgb,
+        nUp
+      )
+    ) {
+      const mouthsU = riverMouthOpeningsByEdge(frame.corners2d, edgeSet, rInFrac);
+      for (const e of hexRiverWedgeEdgeIndices(edgeSet)) {
+        const ends = mouthsU.get(e);
+        if (!ends) continue;
+        const [A, B] = ends;
+        appendRiverMouthUGeometry(
+          frame,
+          e,
+          A,
+          B,
+          frame.corners2d,
+          rTop,
+          rBot,
+          bankPos,
+          bankNorm,
+          bankIdx,
+          bankTileIds,
+          tileId,
+          bankColors,
+          rgb
+        );
+      }
+      continue;
+    }
 
     const { landMp, voidMp } = buildRiverLandAndVoidFromCorners(frame.corners2d, edgeSet, rInFrac);
-    if (landMp.length === 0) continue;
 
     const mouths = riverMouthOpeningsByEdge(frame.corners2d, edgeSet, rInFrac);
     const riverMouthChordsAB: Array<[[number, number], [number, number]]> = [];
@@ -939,48 +1251,51 @@ export function createRiverTerrainMeshes(
       if (ends) riverMouthChordsAB.push([[ends[0][0], ends[0][1]], [ends[1][0], ends[1][1]]]);
     }
 
-    const rgb = options.getBankVertexRgb?.(tileId) ?? defaultBankRgb;
-    appendExtrudedLand(
-      landMp,
-      rTop,
-      rBot,
-      frame,
-      bankPos,
-      bankNorm,
-      bankIdx,
-      bankTileIds,
-      tileId,
-      bankColors,
-      rgb,
-      channelWallInset,
-      {
-        hexCorners2d: frame.corners2d,
-        skipOuterWallsOnHexEdges: hexRiverWedgeEdgeIndices(edgeSet),
-        riverMouthChordsAB,
-      }
-    );
-    for (const e of hexRiverWedgeEdgeIndices(edgeSet)) {
-      const ends = mouths.get(e);
-      if (!ends) continue;
-      const [A, B] = ends;
-      appendRiverMouthUGeometry(
-        frame,
-        e,
-        A,
-        B,
-        frame.corners2d,
+    if (landMp.length > 0) {
+      appendExtrudedLand(
+        landMp,
         rTop,
         rBot,
+        frame,
         bankPos,
         bankNorm,
         bankIdx,
         bankTileIds,
         tileId,
         bankColors,
-        rgb
+        rgb,
+        channelWallInset,
+        {
+          hexCorners2d: frame.corners2d,
+          skipOuterWallsOnHexEdges: hexRiverWedgeEdgeIndices(edgeSet),
+          riverMouthChordsAB,
+        }
       );
+      for (const e of hexRiverWedgeEdgeIndices(edgeSet)) {
+        const ends = mouths.get(e);
+        if (!ends) continue;
+        const [A, B] = ends;
+        appendRiverMouthUGeometry(
+          frame,
+          e,
+          A,
+          B,
+          frame.corners2d,
+          rTop,
+          rBot,
+          bankPos,
+          bankNorm,
+          bankIdx,
+          bankTileIds,
+          tileId,
+          bankColors,
+          rgb
+        );
+      }
     }
-    appendVoidBed(voidMp, rBot, frame, bedPos, bedIdx, bedTileIds, tileId);
+    if (voidMp.length > 0) {
+      appendVoidBed(voidMp, rBot, frame, bedPos, bedIdx, bedTileIds, tileId);
+    }
   }
 
   const bankGeom = new THREE.BufferGeometry();
@@ -1015,6 +1330,10 @@ export function createRiverTerrainMeshes(
     roughness: options.bedRoughness ?? 0.92,
     metalness: 0,
     flatShading: false,
+    /** Inward-facing bed tris were culled → apparent holes through the globe; double-side is a safety net. */
+    side: THREE.DoubleSide,
+    depthWrite: true,
+    depthTest: true,
   });
 
   const banks = new THREE.Mesh(bankGeom, bankMat);

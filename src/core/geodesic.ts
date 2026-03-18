@@ -190,6 +190,29 @@ export function getEdgeNeighbor(
   return undefined;
 }
 
+/** Neighbor's edge index for the same physical edge as `tile` edge `edgeIndex`. */
+function getNeighborEdgeIndex(
+  tile: GeodesicTile,
+  edgeIndex: number,
+  neighbor: GeodesicTile
+): number | undefined {
+  const n = tile.vertices.length;
+  const va = tile.vertices[edgeIndex];
+  const vb = tile.vertices[(edgeIndex + 1) % n];
+  const nn = neighbor.vertices.length;
+  for (let j = 0; j < nn; j++) {
+    const na = neighbor.vertices[j];
+    const nb = neighbor.vertices[(j + 1) % nn];
+    if (
+      (vec3Equal(va, na) && vec3Equal(vb, nb)) ||
+      (vec3Equal(va, nb) && vec3Equal(vb, na))
+    ) {
+      return j;
+    }
+  }
+  return undefined;
+}
+
 /** If present, this tile is drawn as a pyramid (apex above base) instead of a flat top. */
 export interface TilePeak {
   /** Peak height in meters; scaled by peakElevationScale for globe units. */
@@ -211,7 +234,10 @@ export interface GeodesicFlatMeshOptions {
   getPeak?: (tileId: number) => TilePeak | undefined;
   /** Scale meters → globe units for peak apex height. Default 0.00002 (e.g. Everest ~0.18 units above base). */
   peakElevationScale?: number;
-  /** Optional: for tiles with river, build a hex-shaped bowl (inner hex cut out, sides cut for river directions). */
+  /**
+   * Optional: for tiles with river, build a hex-shaped bowl (inner hex cut out, sides cut for river directions).
+   * Also suppresses elevation step-walls on those edges so the channel stays open across height changes.
+   */
   getRiverEdges?: (tileId: number) => Set<number> | undefined;
   /** Optional: for river bowls, set of edge indices that connect to ocean/lake; those sides get a full opening instead of a slot. */
   getRiverEdgeToWater?: (tileId: number) => Set<number> | undefined;
@@ -516,6 +542,12 @@ export function buildFlatGeometryData(
       const neighborId = getEdgeNeighbor(tile, i, tiles);
       if (neighborId === undefined || tile.id >= neighborId) continue;
       const neighbor = tiles[neighborId];
+      if (getRiverEdges) {
+        const nj = getNeighborEdgeIndex(tile, i, neighbor);
+        if (getRiverEdges(tile.id)?.has(i) || (nj !== undefined && getRiverEdges(neighborId)?.has(nj))) {
+          continue;
+        }
+      }
       const neighborElev = options.getElevation(neighborId) * elevationScale;
       const rNeighbor = radius + neighborElev;
       if (Math.abs(rThis - rNeighbor) < 1e-9) continue;

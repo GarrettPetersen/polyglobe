@@ -14,6 +14,9 @@ export default defineConfig({
   resolve: {
     alias: {
       polyglobe: path.resolve(__dirname, "../../src/index.ts"),
+      // Source under ../../src imports these; Rollup does not use globe-demo/node_modules for those paths.
+      earcut: path.resolve(__dirname, "node_modules/earcut"),
+      "polygon-clipping": path.resolve(__dirname, "node_modules/polygon-clipping"),
     },
   },
   optimizeDeps: {

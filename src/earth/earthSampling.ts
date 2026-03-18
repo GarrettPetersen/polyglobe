@@ -60,16 +60,72 @@ export interface ClimateGrid {
   data: Uint8Array;
 }
 
+/** High-res DEM (equirectangular, row 0 = north). Sampled with bilinear filtering. */
+export interface ElevationGrid {
+  width: number;
+  height: number;
+  data: Float32Array;
+}
+
+const ELEVATION_BIN_MAGIC = 0x4c454750; // "PGEL" little-endian
+
+/**
+ * Parse `elevation.bin`: legacy 360×180 float32, or PGEL header + uint32 width/height + float32[w*h].
+ */
+export function parseElevationBin(buf: ArrayBuffer): Float32Array | ElevationGrid | null {
+  const n = buf.byteLength;
+  if (n === 360 * 180 * 4) {
+    return new Float32Array(buf);
+  }
+  if (n < 12) return null;
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== ELEVATION_BIN_MAGIC) return null;
+  const w = dv.getUint32(4, true);
+  const h = dv.getUint32(8, true);
+  if (w < 4 || h < 4 || w > 32768 || h > 16384) return null;
+  const need = 12 + w * h * 4;
+  if (n < need) return null;
+  return {
+    width: w,
+    height: h,
+    data: new Float32Array(buf, 12, w * h),
+  };
+}
+
+function sampleElevationBilinear(
+  width: number,
+  height: number,
+  data: Float32Array,
+  latDeg: number,
+  lonDeg: number
+): number {
+  const x = ((lonDeg + 180) / 360) * (width - 1);
+  const y = ((90 - latDeg) / 180) * (height - 1);
+  const x0 = Math.max(0, Math.min(Math.floor(x), width - 2));
+  const y0 = Math.max(0, Math.min(Math.floor(y), height - 2));
+  const x1 = x0 + 1;
+  const y1 = y0 + 1;
+  const fx = x - x0;
+  const fy = y - y0;
+  const v00 = data[y0 * width + x0]!;
+  const v10 = data[y0 * width + x1]!;
+  const v01 = data[y1 * width + x0]!;
+  const v11 = data[y1 * width + x1]!;
+  const a = v00 * (1 - fx) + v10 * fx;
+  const b = v01 * (1 - fx) + v11 * fx;
+  return a * (1 - fy) + b * fy;
+}
+
 export interface EarthRaster {
   width: number;
   height: number;
   /** Land/sea: 0 = water, non-zero = land. Or use as elevation byte 0–255. */
   data: Uint8Array;
   /**
-   * If provided, elevation in meters at each pixel (negative = below sea level).
-   * Same dimensions as data (width * height).
+   * Elevation in meters. Either same length as data (nearest-neighbor with land raster), or
+   * {@link ElevationGrid} for higher resolution (bilinear).
    */
-  elevation?: Float32Array;
+  elevation?: Float32Array | ElevationGrid;
   /**
    * If provided, climate classification (e.g. Köppen–Geiger 1–30).
    * Best source for desert vs rainforest; sampled at same lat/lon as land/elevation.
@@ -129,8 +185,13 @@ export function sampleRasterAtLatLon(
   const i = Math.max(0, Math.min(yi, height - 1)) * width + Math.max(0, Math.min(xi, width - 1));
   const land = raster.data[i] > 0;
   let elevationM: number | undefined;
-  if (raster.elevation) {
-    elevationM = raster.elevation[i];
+  const elev = raster.elevation;
+  if (elev) {
+    if (elev instanceof Float32Array) {
+      elevationM = elev[i];
+    } else {
+      elevationM = sampleElevationBilinear(elev.width, elev.height, elev.data, latDeg, lonDeg);
+    }
   }
   let climateCode: number | undefined;
   if (raster.climate) {
@@ -213,6 +274,19 @@ export interface BuildTerrainFromRasterOptions {
   resolveOptions?: ResolveLandWaterByRegionsOptions;
   /** Called periodically during first-pass tile sampling; if it returns a Promise, it is awaited (lets the UI update). */
   onFirstPassProgress?: (sampled: number, total: number) => void | Promise<void>;
+  /**
+   * Land hex height from DEM: max(0, elevationM) * scale (globe units), before cap. Default ~1.8e-5.
+   * Finer DEM + this gives gentler steps between neighbors than flat biome-only heights.
+   */
+  terrainDemMeterScale?: number;
+  /** Max globe lift from DEM on land (before mountain peak extra). Default 0.09. */
+  maxTerrainDemLiftGlobe?: number;
+  /**
+   * Snap mean tile elevation (m) to this step (e.g. 30 = 30 m buckets). 0 = continuous from averaged samples.
+   */
+  elevationQuantizationM?: number;
+  /** Extra globe height on mountain-class tiles (on top of biome + DEM). Default 0.1. */
+  mountainPeakExtraGlobe?: number;
 }
 
 /** Small raster cutout (e.g. around a hex): 255 = land, 0 = water. Used to test isthmus vs strait by flood fill. */
@@ -355,6 +429,10 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   getRegionScores: undefined!,
   resolveOptions: undefined!,
   onFirstPassProgress: undefined!,
+  terrainDemMeterScale: 0.000018,
+  maxTerrainDemLiftGlobe: 0.09,
+  elevationQuantizationM: 0,
+  mountainPeakExtraGlobe: 0.1,
 };
 
 /** Barycentric coords (u, v) with u,v >= 0 and u+v <= 1 for sampling inside a triangle. */
@@ -474,14 +552,32 @@ function terrainFromSample(
     }
   }
 
+  let demM = result.elevationM;
+  if (demM != null && Number.isFinite(demM)) {
+    if (opts.elevationQuantizationM > 0) {
+      demM =
+        Math.round(demM / opts.elevationQuantizationM) * opts.elevationQuantizationM;
+    }
+    const lift = THREE.MathUtils.clamp(
+      Math.max(0, demM) * opts.terrainDemMeterScale,
+      0,
+      opts.maxTerrainDemLiftGlobe
+    );
+    elevation += lift;
+  }
+
   // Mountain only where elevation is high AND stands above neighbors (relief), not just high plateaus
   if (result.elevationM != null && result.elevationM > opts.mountainThresholdM) {
     const relief =
       neighborMaxElevM != null ? result.elevationM - neighborMaxElevM : result.elevationM;
     if (relief >= opts.mountainReliefM) {
       type = "mountain";
-      const t = (result.elevationM - opts.mountainThresholdM) / 3500;
-      elevation = 0.1 + THREE.MathUtils.clamp(t, 0, 1) * 0.18;
+      const t = THREE.MathUtils.clamp(
+        (result.elevationM - opts.mountainThresholdM) / 3500,
+        0,
+        1
+      );
+      elevation += t * opts.mountainPeakExtraGlobe;
     }
   }
 

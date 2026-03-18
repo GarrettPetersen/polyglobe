@@ -1,56 +1,57 @@
 #!/usr/bin/env python3
 """
-Read ETOPO1 NetCDF (e.g. ETOPO1_Bed_g_gmt4.grd) and write 360×180 float32 elevation.bin.
-Row 0 = north (90°N), longitude -180..180. Meters (negative = bathymetry).
-Usage: python3 etopo1_to_bin.py <input.nc> <output.bin>
+Read ETOPO1 NetCDF and write elevation.bin with PGEL header + uint32 width/height + float32 grid.
+Default 1440×720 (~0.25°). Legacy 360×180: pass 360 180 as args.
+
+Usage: python3 etopo1_to_bin.py <input.nc> <output.bin> [width] [height]
 Requires: netCDF4 (pip install netCDF4)
 """
 import sys
 import struct
 
 def main():
-    if len(sys.argv) != 3:
-        sys.stderr.write("Usage: etopo1_to_bin.py <input.nc> <output.bin>\n")
+    if len(sys.argv) < 3:
+        sys.stderr.write(
+            "Usage: python3 etopo1_to_bin.py <input.nc> <output.bin> [width] [height]\n"
+        )
         sys.exit(1)
     inp, out = sys.argv[1], sys.argv[2]
+    W = int(sys.argv[3]) if len(sys.argv) > 3 else 1440
+    H = int(sys.argv[4]) if len(sys.argv) > 4 else 720
+    if W < 360 or H < 180 or W > 8192 or H > 4096:
+        sys.stderr.write("Bad dimensions\n")
+        sys.exit(1)
     try:
         from netCDF4 import Dataset
     except ImportError:
         sys.stderr.write("Requires netCDF4: pip install netCDF4\n")
         sys.exit(1)
-    W, H = 360, 180
     ds = Dataset(inp, "r")
-    # ETOPO1 GMT4: variable often 'z' or 'z'; dimensions (lat, lon) or (y, x)
     z = None
     for name in ("z", "altitude", "elevation", "Band1"):
         if name in ds.variables:
             z = ds.variables[name]
             break
     if z is None:
-        sys.stderr.write("No elevation variable (z, altitude, elevation) in %s\n" % inp)
+        sys.stderr.write("No elevation variable in %s\n" % inp)
         sys.exit(1)
-    dims = z.dimensions
-    if len(dims) != 2:
-        sys.stderr.write("Expected 2D variable, got %s\n" % dims)
-        sys.exit(1)
-    lat_dim, lon_dim = dims[0], dims[1]
     nlat, nlon = z.shape[0], z.shape[1]
-    # stride to get 180×360
     step_y, step_x = max(1, nlat // H), max(1, nlon // W)
     fill_val = getattr(z, "_FillValue", None) or getattr(z, "missing_value", 32767)
     out_bin = open(out, "wb")
-    # Output row 0 = north (90°N). ETOPO1 GMT4 lat often 90 → -90, so row 0 = 90.
+    out_bin.write(b"PGEL")
+    out_bin.write(struct.pack("<II", W, H))
     for j in range(H):
-        src_j = j * step_y
+        src_j = min(j * step_y, nlat - 1)
         for i in range(W):
-            src_i = i * step_x
+            src_i = min(i * step_x, nlon - 1)
             v = float(z[src_j, src_i])
             if v == fill_val or (v != v):
                 v = 0.0
             out_bin.write(struct.pack("f", v))
     out_bin.close()
     ds.close()
-    print("Wrote %s (%d×%d float32 m)" % (out, W, H))
+    print("Wrote %s (PGEL %d×%d float32 m)" % (out, W, H))
 
 if __name__ == "__main__":
     main()

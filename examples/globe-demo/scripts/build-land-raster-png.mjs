@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * Generate public/land-raster-debug.png (3600×1800) from the same TopoJSON + lakes the demo uses.
- * Matches in-browser demo resolution; raw land/water so straits show as water. Run from examples/globe-demo:
- * npm run build-land-raster-png
+ * Generate public/land-raster-debug.png and earth-region-grid.bin from world-atlas land-50m + lakes.
+ * Raster: 7200×3600 (2× prior); run: npm run build-land-raster-png
  */
 
 import fs from "fs";
@@ -17,10 +16,10 @@ const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 const OUT_PATH = path.join(PUBLIC_DIR, "land-raster-debug.png");
 const BIN_PATH = path.join(PUBLIC_DIR, "earth-region-grid.bin");
 
-const LAND_LOCAL = path.join(PUBLIC_DIR, "land-110m.json");
+const LAND_LOCAL = path.join(PUBLIC_DIR, "land-50m.json");
 const LAKES_LOCAL = path.join(PUBLIC_DIR, "ne_110m_lakes.json");
 const MARINE_LOCAL = path.join(PUBLIC_DIR, "ne_110m_geography_marine_polys.json");
-const LAND_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
+const LAND_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json";
 const LAKES_URL = "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json";
 const MARINE_POLYS_URL = "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_geography_marine_polys.json";
 /** Inland (landlocked) seas to punch out of land; open/connected seas (e.g. Caribbean) are already ocean. */
@@ -195,9 +194,9 @@ function connectedComponentsWrap(data, width, height) {
 }
 
 async function main() {
-  const width = 3600;
-  const height = 1800;
-  const wideWidth = 10800;
+  const width = 7200;
+  const height = 3600;
+  const wideWidth = width * 3;
 
   async function loadJson(localPath, url) {
     if (fs.existsSync(localPath)) {

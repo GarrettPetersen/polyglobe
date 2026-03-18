@@ -224,6 +224,268 @@ export function getRiverEdgesByTile(
   return byTile;
 }
 
+/**
+ * Land tiles that share a river edge both ways (reciprocal edge indices).
+ */
+function reciprocalRiverNeighbors(
+  tileId: number,
+  byTile: Map<number, Set<number>>,
+  tileById: Map<number, GeodesicTile>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean
+): Set<number> {
+  const out = new Set<number>();
+  const tile = tileById.get(tileId);
+  const set = byTile.get(tileId);
+  if (!tile || !set || isWater(tileId)) return out;
+  for (const e of set) {
+    const nid = getEdgeNeighbor(tile, e, tiles);
+    if (nid === undefined || isWater(nid) || !byTile.has(nid)) continue;
+    const ntile = tileById.get(nid);
+    const nset = byTile.get(nid);
+    if (!ntile || !nset) continue;
+    for (let k = 0; k < ntile.vertices.length; k++) {
+      if (getEdgeNeighbor(ntile, k, tiles) === tileId && nset.has(k)) {
+        out.add(nid);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+function riverEdgeLinkExists(
+  a: number,
+  b: number,
+  byTile: Map<number, Set<number>>,
+  tileById: Map<number, GeodesicTile>,
+  tiles: GeodesicTile[]
+): boolean {
+  const ta = tileById.get(a);
+  const sa = byTile.get(a);
+  if (!ta || !sa) return false;
+  for (const e of sa) {
+    if (getEdgeNeighbor(ta, e, tiles) === b) return true;
+  }
+  return false;
+}
+
+function removeRiverEdgeBetween(
+  a: number,
+  b: number,
+  byTile: Map<number, Set<number>>,
+  tileById: Map<number, GeodesicTile>,
+  tiles: GeodesicTile[]
+): void {
+  const at = tileById.get(a);
+  const bt = tileById.get(b);
+  const aset = byTile.get(a);
+  const bset = byTile.get(b);
+  if (!at || !bt || !aset || !bset) return;
+  for (const e of [...aset]) {
+    if (getEdgeNeighbor(at, e, tiles) === b) aset.delete(e);
+  }
+  for (let k = 0; k < bt.vertices.length; k++) {
+    if (getEdgeNeighbor(bt, k, tiles) === a) {
+      bset.delete(k);
+      break;
+    }
+  }
+}
+
+/**
+ * Only removes a river link when it is one edge of a **triangle**: three land hexes pairwise
+ * connected by river edges. Removing that edge still leaves those three hexes connected through the
+ * other two edges, so the river cannot be severed. Star confluences (one hex adjacent to three
+ * others that are not mutually adjacent) are never pruned.
+ */
+export function pruneThreeWayRiverJunctions(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean
+): number {
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+
+  const adj = (id: number) =>
+    reciprocalRiverNeighbors(id, byTile, tileById, tiles, isWater);
+
+  const triangleKeys = new Set<string>();
+  for (const tid of byTile.keys()) {
+    if (isWater(tid)) continue;
+    const n = adj(tid);
+    const arr = [...n].sort((x, y) => x - y);
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        const u = arr[i];
+        const v = arr[j];
+        if (adj(u).has(v)) {
+          const s = [tid, u, v].sort((x, y) => x - y);
+          triangleKeys.add(`${s[0]},${s[1]},${s[2]}`);
+        }
+      }
+    }
+  }
+
+  let removed = 0;
+  for (const key of triangleKeys) {
+    const parts = key.split(",").map(Number);
+    const a = parts[0]!;
+    const b = parts[1]!;
+    const c = parts[2]!;
+    if (
+      !riverEdgeLinkExists(a, b, byTile, tileById, tiles) ||
+      !riverEdgeLinkExists(b, c, byTile, tileById, tiles) ||
+      !riverEdgeLinkExists(a, c, byTile, tileById, tiles)
+    ) {
+      continue;
+    }
+    const pairs: [number, number][] = [
+      [Math.min(a, b), Math.max(a, b)],
+      [Math.min(b, c), Math.max(b, c)],
+      [Math.min(a, c), Math.max(a, c)],
+    ];
+    pairs.sort((p, q) => (p[0] !== q[0] ? p[0] - q[0] : p[1] - q[1]));
+    const [x, y] = pairs[1]!;
+    removeRiverEdgeBetween(x, y, byTile, tileById, tiles);
+    removed++;
+  }
+
+  return removed;
+}
+
+function edgeIndexTowardNeighbor(
+  tile: GeodesicTile,
+  neighborTileId: number,
+  tiles: GeodesicTile[]
+): number | undefined {
+  for (let k = 0; k < tile.vertices.length; k++) {
+    if (getEdgeNeighbor(tile, k, tiles) === neighborTileId) return k;
+  }
+  return undefined;
+}
+
+/** True if this tile shares at least one river edge with a reciprocal edge on an adjacent river tile (land). */
+function riverTileTouchesAnotherRiverTile(
+  tileId: number,
+  byTile: Map<number, Set<number>>,
+  tileById: Map<number, GeodesicTile>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean
+): boolean {
+  const tile = tileById.get(tileId);
+  const set = byTile.get(tileId);
+  if (!tile || !set) return false;
+  for (const e of set) {
+    const nid = getEdgeNeighbor(tile, e, tiles);
+    if (nid === undefined || isWater(nid) || !byTile.has(nid)) continue;
+    const ntile = tileById.get(nid);
+    const nset = byTile.get(nid);
+    if (!ntile || !nset) continue;
+    const k = edgeIndexTowardNeighbor(ntile, tileId, tiles);
+    if (k !== undefined && nset.has(k)) return true;
+  }
+  return false;
+}
+
+/**
+ * Tiles that appear in the river graph but share no reciprocal river edge with any other river tile
+ * (orphan hexes) get bidirectional river edges added along every shared boundary with adjacent
+ * tiles that are also in the graph—so they connect to the surrounding river network.
+ */
+export function connectIsolatedRiverTiles(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean
+): number {
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  let added = 0;
+  const toFix: number[] = [];
+  for (const tid of byTile.keys()) {
+    if (isWater(tid)) continue;
+    if (!riverTileTouchesAnotherRiverTile(tid, byTile, tileById, tiles, isWater)) {
+      toFix.push(tid);
+    }
+  }
+  for (const tid of toFix) {
+    const tile = tileById.get(tid);
+    if (!tile || isWater(tid)) continue;
+    let tset = byTile.get(tid);
+    if (!tset) {
+      tset = new Set<number>();
+      byTile.set(tid, tset);
+    }
+    for (let e = 0; e < tile.vertices.length; e++) {
+      const nid = getEdgeNeighbor(tile, e, tiles);
+      if (nid === undefined || isWater(nid) || !byTile.has(nid)) continue;
+      const ntile = tileById.get(nid);
+      if (!ntile) continue;
+      const k = edgeIndexTowardNeighbor(ntile, tid, tiles);
+      if (k === undefined) continue;
+      const beforeT = tset.has(e);
+      const nset = byTile.get(nid)!;
+      const beforeN = nset.has(k);
+      tset.add(e);
+      nset.add(k);
+      if (!beforeT || !beforeN) added++;
+    }
+  }
+  return added;
+}
+
+/**
+ * If land river tile N has a river edge toward J, ensure J has the reciprocal edge toward N (and vice versa).
+ * Fixes one-sided links from tracing/delta logic so channels render through instead of a center “dot”.
+ */
+export function symmetrizeRiverNeighborEdges(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean
+): number {
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  let added = 0;
+  for (const tid of byTile.keys()) {
+    if (isWater(tid)) continue;
+    const tile = tileById.get(tid);
+    const tset = byTile.get(tid);
+    if (!tile || !tset) continue;
+    for (let e = 0; e < tile.vertices.length; e++) {
+      const nid = getEdgeNeighbor(tile, e, tiles);
+      if (nid === undefined || isWater(nid) || !byTile.has(nid)) continue;
+      const ntile = tileById.get(nid);
+      const nset = byTile.get(nid);
+      if (!ntile || !nset) continue;
+      const k = edgeIndexTowardNeighbor(ntile, tid, tiles);
+      if (k === undefined) continue;
+      const tHas = tset.has(e);
+      const nHas = nset.has(k);
+      if (nHas && !tHas) {
+        tset.add(e);
+        added++;
+      } else if (tHas && !nHas) {
+        nset.add(k);
+        added++;
+      }
+    }
+  }
+  return added;
+}
+
+/** Run symmetrize until stable (usually 1–2 passes). */
+export function symmetrizeRiverNeighborEdgesUntilStable(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean,
+  maxPasses: number = 4
+): number {
+  let total = 0;
+  for (let p = 0; p < maxPasses; p++) {
+    const n = symmetrizeRiverNeighborEdges(byTile, tiles, isWater);
+    total += n;
+    if (n === 0) break;
+  }
+  return total;
+}
+
 /** Convert lon/lat (degrees) to unit direction vector. Uses same convention as tileCenterToLatLon (lon = -atan2(z,x)) so getTileIdAtDirection returns the tile the Earth raster uses for that lon/lat. */
 export function lonLatToDirection(lonDeg: number, latDeg: number): THREE.Vector3 {
   const lat = (latDeg * Math.PI) / 180;
@@ -354,6 +616,58 @@ function vertexOnTileSurface(
   const dot = v.dot(centerNormal);
   const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
   out.copy(centerNormal).multiplyScalar(r).add(inPlane);
+}
+
+const _arcMidA = new THREE.Vector3();
+const _arcMidB = new THREE.Vector3();
+const _arcCorner = new THREE.Vector3();
+
+/**
+ * World points along hex perimeter from mid(ea) to mid(eb) on the **shorter** arc (so we do not
+ * flood the dry side of the hex). Used for 3+ river edges so water reaches tile boundaries and
+ * meets neighbor ribbons (convex hull of midpoints alone stays inset and looks disconnected).
+ */
+function hexRiverPerimeterArcWorld(
+  tile: GeodesicTile,
+  ea: number,
+  eb: number,
+  r: number,
+  centerNormal: THREE.Vector3,
+  usePlane: boolean,
+  out: THREE.Vector3[]
+): void {
+  const n = 6;
+  if (ea === eb) {
+    edgeMidpoint(tile, ea, r, centerNormal, usePlane, _arcMidA);
+    out.push(_arcMidA.clone());
+    return;
+  }
+  const forwardSteps = (eb - ea + n) % n;
+  const backwardSteps = (ea - eb + n) % n;
+  const useFwd = forwardSteps <= backwardSteps;
+  if (useFwd) {
+    edgeMidpoint(tile, ea, r, centerNormal, usePlane, _arcMidA);
+    out.push(_arcMidA.clone());
+    let cur = ea;
+    while (cur !== eb) {
+      vertexOnTileSurface(tile, (cur + 1) % n, r, centerNormal, usePlane, _arcCorner);
+      out.push(_arcCorner.clone());
+      cur = (cur + 1) % n;
+    }
+    edgeMidpoint(tile, eb, r, centerNormal, usePlane, _arcMidB);
+    out.push(_arcMidB.clone());
+  } else {
+    edgeMidpoint(tile, ea, r, centerNormal, usePlane, _arcMidA);
+    out.push(_arcMidA.clone());
+    let cur = ea;
+    while (cur !== eb) {
+      vertexOnTileSurface(tile, cur, r, centerNormal, usePlane, _arcCorner);
+      out.push(_arcCorner.clone());
+      cur = (cur - 1 + n) % n;
+    }
+    edgeMidpoint(tile, eb, r, centerNormal, usePlane, _arcMidB);
+    out.push(_arcMidB.clone());
+  }
 }
 
 type XY = { x: number; y: number };
@@ -765,6 +1079,28 @@ export function createRiverMeshFromTileEdges(
       } else {
         pushRibbonQuad(scratchRiverV0, scratchRiverV1);
       }
+    } else if (n === 6 && edgeList.length >= 3) {
+      const es = edgeList.slice().sort((a, b) => a - b);
+      const arcRing: THREE.Vector3[] = [];
+      for (let k = 0; k < es.length; k++) {
+        const ea = es[k]!;
+        const eb = es[(k + 1) % es.length]!;
+        arcRing.length = 0;
+        hexRiverPerimeterArcWorld(tile, ea, eb, r, centerNormal, usePlane, arcRing);
+        for (let i = 0; i < arcRing.length - 1; i++) {
+          const a0 = vertexOffset;
+          positions.push(centerPos.x, centerPos.y, centerPos.z);
+          normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+          vertexOffset++;
+          positions.push(arcRing[i]!.x, arcRing[i]!.y, arcRing[i]!.z);
+          normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+          vertexOffset++;
+          positions.push(arcRing[i + 1]!.x, arcRing[i + 1]!.y, arcRing[i + 1]!.z);
+          normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+          vertexOffset++;
+          indices.push(a0, a0 + 1, a0 + 2);
+        }
+      }
     } else {
       const hull = convexHull2dWorld(edgeMidPts.map((p) => ({ x: p.x, y: p.y, world: p.world })));
       if (hull.length >= 3) {
@@ -881,7 +1217,8 @@ const RIVER_FRAGMENT = `
       reflectance
     );
     float sunFactor = 0.03 + 0.97 * max(0.0, dot(surfaceNormal, uSunDirection));
-    gl_FragColor = vec4(albedo * sunFactor, 0.92);
+    /* Opaque + depth write so cracks/gaps don’t punch through to the far side of the globe. */
+    gl_FragColor = vec4(albedo * sunFactor, 1.0);
   }
 `;
 
@@ -914,9 +1251,9 @@ function createRiverWaterMaterial(options: RiverMeshOptions): THREE.ShaderMateri
       uGerstnerDir2: { value: d2 },
       uGerstnerDir3: { value: d3 },
     },
-    transparent: true,
+    transparent: false,
     side: THREE.DoubleSide,
-    depthWrite: false,
+    depthWrite: true,
     depthTest: true,
   });
 }

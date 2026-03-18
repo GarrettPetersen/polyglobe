@@ -5,3 +5,7 @@ dist/
 .env
 .env.*
 *.tsbuildinfo
+
+# ~198MB precomputed land/ocean region grid (GitHub limit 100MB). Generate locally:
+#   cd examples/globe-demo && npm run download-data && npm run build-land-raster-png
+examples/globe-demo/public/earth-region-grid.bin

@@ -4,7 +4,7 @@ Sample real Earth land/sea, **climate** (desert vs rainforest), **elevation** (m
 
 ## How the pipeline uses the data
 
-- **Elevation** (optional `raster.elevation` in meters): Tiles above `mountainThresholdM` (default 1500 m) become **mountain**; elevation also drives geometry height. If you don’t attach elevation, no mountains are generated from data (only from procedural logic if any).
+- **Elevation** (optional `raster.elevation`): `Float32Array` (same size as land raster, nearest) or **`ElevationGrid`** `{ width, height, data }` (bilinear). Land tiles get **biome base height + DEM lift** (see `terrainDemMeterScale`, `maxTerrainDemLiftGlobe`, `elevationQuantizationM`) plus **mountain** extra where relief exceeds thresholds. Use `parseElevationBin()` for PGEL/legacy `elevation.bin`.
 - **Climate / Köppen** (optional `raster.climate`): Encodes **precipitation and temperature**; used for **deserts** (BWh, BWk), **rainforest** (Af, Am), grassland, and land **ice/snow** (ET, EF). This is the main source for “rainfall” (and temperature) for biomes.
 - **Temperature** (optional `raster.temperatureC` in °C): When a **water** tile has temperature below `freezeThresholdC` (default 1.5 °C), it becomes **ice** (frozen water). Use for Arctic/Antarctic ocean and cold seas.
 

@@ -23,8 +23,9 @@ const DEMO_ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 const OUT_PATH = path.join(PUBLIC_DIR, "elevation.bin");
 
-const W = 360;
-const H = 180;
+/** Equirectangular DEM resolution (PGEL format). ~0.25° cells at 1440×720. */
+const EW = 1440;
+const EH = 720;
 
 const ETOPO1_GZ_URL =
   "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/bedrock/grid_registered/netcdf/ETOPO1_Bed_g_gmt4.grd.gz";
@@ -49,22 +50,30 @@ function bump(latDeg, lonDeg, lat0, lon0, amp, sigma) {
   return amp * Math.exp(-d2 / (2 * sigma * sigma));
 }
 
+function writePgElBuffer(float32) {
+  const header = Buffer.alloc(12);
+  header.write("PGEL", 0, 4, "ascii");
+  header.writeUInt32LE(EW, 4);
+  header.writeUInt32LE(EH, 8);
+  return Buffer.concat([header, Buffer.from(float32.buffer, float32.byteOffset, float32.byteLength)]);
+}
+
 function writeSynthetic() {
   if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-  const view = new Float32Array(W * H);
-  for (let j = 0; j < H; j++) {
-    const latDeg = 90 - (j / (H - 1)) * 180;
-    for (let i = 0; i < W; i++) {
-      const lonDeg = (i / (W - 1)) * 360 - 180;
+  const view = new Float32Array(EW * EH);
+  for (let j = 0; j < EH; j++) {
+    const latDeg = 90 - (j / (EH - 1)) * 180;
+    for (let i = 0; i < EW; i++) {
+      const lonDeg = (i / (EW - 1)) * 360 - 180;
       let elev = 0;
       for (const [lat0, lon0, amp, sigma] of PEAKS) {
         elev += bump(latDeg, lonDeg, lat0, lon0, amp, sigma);
       }
-      view[j * W + i] = Math.max(0, elev);
+      view[j * EW + i] = Math.max(0, elev);
     }
   }
-  fs.writeFileSync(OUT_PATH, Buffer.from(view.buffer));
-  console.log("[build-elevation] Wrote", OUT_PATH, "(synthetic peaks, no ETOPO1).");
+  fs.writeFileSync(OUT_PATH, writePgElBuffer(view));
+  console.log("[build-elevation] Wrote", OUT_PATH, "(synthetic PGEL", EW, "×", EH, ").");
 }
 
 function streamDownload(url, destPath) {
@@ -124,7 +133,7 @@ async function main() {
     await runPython(pythonScript, [tmpGrd, OUT_PATH]);
     try { fs.unlinkSync(tmpGz); } catch (_) {}
     try { fs.unlinkSync(tmpGrd); } catch (_) {}
-    console.log("[build-elevation] Wrote", OUT_PATH, "(ETOPO1 360×180 float32 m).");
+    console.log("[build-elevation] Wrote", OUT_PATH, "(ETOPO1 PGEL 1440×720 m).");
   } catch (e) {
     console.warn("[build-elevation] ETOPO1 failed:", e.message);
     console.log("[build-elevation] Using synthetic elevation.");

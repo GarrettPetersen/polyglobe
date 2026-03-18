@@ -6,7 +6,7 @@
  * Run from examples/globe-demo: npm run download-data
  *
  * Writes to public/:
- *   land-110m.json, ne_110m_lakes.json, ne_110m_geography_marine_polys.json,
+ *   land-50m.json, ne_110m_lakes.json, ne_110m_geography_marine_polys.json,
  *   koppen_ascii.zip, ne_10m_geography_regions_elevation_points.json,
  *   ne_50m_geography_regions_elevation_points.json, ne_10m_rivers_lake_centerlines.json
  */
@@ -20,7 +20,7 @@ const DEMO_ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 
 const ASSETS = [
-  { url: "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json", file: "land-110m.json" },
+  { url: "https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json", file: "land-50m.json" },
   { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json", file: "ne_110m_lakes.json" },
   { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_geography_marine_polys.json", file: "ne_110m_geography_marine_polys.json" },
   { url: "https://people.eng.unimelb.edu.au/mpeel/Koppen/koppen_ascii.zip", file: "koppen_ascii.zip" },

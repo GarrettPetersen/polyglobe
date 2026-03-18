@@ -13,7 +13,8 @@
     "build-elevation": "node scripts/build-elevation.mjs",
     "build-mountains": "node scripts/build-mountains.mjs",
     "build-land-raster-png": "node scripts/build-land-raster-png.mjs",
-    "setup-data": "npm run download-data && npm run build-koppen && npm run build-mountains && npm run build-land-raster-png && npm run build-elevation"
+    "setup-data": "npm run download-data && npm run build-koppen && npm run build-mountains && npm run build-land-raster-png && npm run build-elevation",
+    "build-earth-globe-cache": "tsx scripts/build-earth-globe-cache.ts"
   },
   "dependencies": {
     "earcut": "^3.0.2",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@types/earcut": "^3.0.0",
     "canvas": "^3.2.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.1"
   }
