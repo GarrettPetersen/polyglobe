@@ -13,16 +13,59 @@ export interface TerrainStyle {
 }
 
 export const TERRAIN_STYLES: Record<TerrainType, TerrainStyle> = {
+  // Water / special
   water: { color: 0x2a5a8a, roughness: 0.2, metalness: 0.1 },
-  land: { color: 0x6b9b5c, roughness: 0.9, metalness: 0 },
+  beach: { color: 0xe8d8a8, roughness: 0.9, metalness: 0 },
   mountain: { color: 0x8b8b8b, roughness: 0.95, metalness: 0 },
+  
+  // Tropical (A) - lush greens
+  tropical_rainforest: { color: 0x1a5c1a, roughness: 0.9, metalness: 0 },  // Deep jungle green
+  tropical_monsoon: { color: 0x2d6b2d, roughness: 0.9, metalness: 0 },     // Slightly lighter jungle
+  tropical_savanna: { color: 0x8ba84a, roughness: 0.85, metalness: 0 },    // Yellow-green savanna
+  
+  // Arid (B) - browns and tans
+  hot_desert: { color: 0xe5c890, roughness: 0.85, metalness: 0 },          // Sandy tan
+  cold_desert: { color: 0xc4a875, roughness: 0.85, metalness: 0 },         // Cooler brown
+  hot_steppe: { color: 0xb8a060, roughness: 0.85, metalness: 0 },          // Dry grass
+  cold_steppe: { color: 0x9a9055, roughness: 0.85, metalness: 0 },         // Dried grass
+  
+  // Temperate (C) - varied greens
+  mediterranean_hot: { color: 0x7a9a50, roughness: 0.85, metalness: 0 },   // Olive/scrub
+  mediterranean_warm: { color: 0x6d8d48, roughness: 0.85, metalness: 0 },  // Slightly darker olive
+  mediterranean_cold: { color: 0x5f7f40, roughness: 0.85, metalness: 0 },  // Mountain scrub
+  humid_subtropical: { color: 0x4a7a35, roughness: 0.9, metalness: 0 },    // Rich green
+  subtropical_highland: { color: 0x558844, roughness: 0.9, metalness: 0 }, // Highland green
+  subtropical_highland_cold: { color: 0x4a7040, roughness: 0.9, metalness: 0 },
+  humid_subtropical_hot: { color: 0x3d6d2d, roughness: 0.9, metalness: 0 }, // Deep subtropical
+  oceanic: { color: 0x4a8a4a, roughness: 0.9, metalness: 0 },              // Lush oceanic green
+  subpolar_oceanic: { color: 0x3d7040, roughness: 0.9, metalness: 0 },     // Cooler oceanic
+  
+  // Continental (D) - boreal/taiga greens and browns
+  hot_summer_continental: { color: 0x5a8545, roughness: 0.9, metalness: 0 },
+  warm_summer_continental: { color: 0x4d7540, roughness: 0.9, metalness: 0 },
+  subarctic_dry: { color: 0x4a6a3d, roughness: 0.9, metalness: 0 },        // Sparse taiga
+  subarctic_very_cold_dry: { color: 0x3d5a35, roughness: 0.9, metalness: 0 },
+  humid_continental_hot: { color: 0x558050, roughness: 0.9, metalness: 0 },
+  humid_continental_warm: { color: 0x4a7048, roughness: 0.9, metalness: 0 },
+  subarctic_dry_winter: { color: 0x3d6038, roughness: 0.9, metalness: 0 },
+  subarctic_very_cold_dry_winter: { color: 0x355530, roughness: 0.9, metalness: 0 },
+  humid_continental: { color: 0x4d7545, roughness: 0.9, metalness: 0 },    // Mixed forest
+  warm_summer_humid: { color: 0x457040, roughness: 0.9, metalness: 0 },    // Deciduous
+  subarctic: { color: 0x3a5535, roughness: 0.9, metalness: 0 },            // Taiga/boreal
+  subarctic_very_cold: { color: 0x304a2d, roughness: 0.9, metalness: 0 },  // Sparse taiga
+  
+  // Polar (E) - whites and grays
+  tundra: { color: 0xa0a890, roughness: 0.85, metalness: 0 },              // Lichen/moss gray-green
+  ice_cap: { color: 0xe8f0f8, roughness: 0.7, metalness: 0.05 },           // Pure ice
+  
+  // Legacy/fallback types (keep for compatibility)
+  land: { color: 0x6b9b5c, roughness: 0.9, metalness: 0 },
   desert: { color: 0xe5d4a0, roughness: 0.85, metalness: 0 },
   snow: { color: 0xffffff, roughness: 0.8, metalness: 0 },
   ice: { color: 0xd8e8f0, roughness: 0.7, metalness: 0.05 },
   forest: { color: 0x3d7028, roughness: 0.9, metalness: 0 },
   grassland: { color: 0x7aac50, roughness: 0.85, metalness: 0 },
   swamp: { color: 0x5d6d3d, roughness: 0.9, metalness: 0 },
-  beach: { color: 0xe8d8a8, roughness: 0.9, metalness: 0 },
 };
 
 export interface TileTerrainData {
@@ -31,6 +74,8 @@ export interface TileTerrainData {
   elevation: number;
   /** If set, this tile is a lake (not ocean); used to keep lake tiles water-colored instead of beach. */
   lakeId?: number;
+  /** If true, this tile has hilly terrain (high local variance) and gets rounded bump geometry. */
+  isHilly?: boolean;
 }
 
 function positionKey(x: number, y: number, z: number): string {

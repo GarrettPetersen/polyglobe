@@ -266,15 +266,16 @@ async function main() {
     }
   }
 
-  const tiles: Array<{ id: number; t: string; e: number; l?: number }> = [];
+  const tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1 }> = [];
   for (let i = 0; i < globe.tileCount; i++) {
     const d = tileTerrain.get(i)!;
-    const o: { id: number; t: string; e: number; l?: number } = {
+    const o: { id: number; t: string; e: number; l?: number; h?: 1 } = {
       id: i,
       t: d.type,
       e: d.elevation,
     };
     if (d.lakeId != null) o.l = d.lakeId;
+    if (d.isHilly) o.h = 1;
     tiles.push(o);
   }
 

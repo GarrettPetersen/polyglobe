@@ -283,6 +283,9 @@ export class WaterSphere {
    * Replace the sphere geometry with a "water table" geometry that follows terrain elevation.
    * Water sits just below each tile's elevation, naturally filling river cutouts while
    * staying invisible under solid land hexes.
+   * 
+   * For river tiles, corner vertices are smoothly interpolated between neighboring tile
+   * water levels to create gradual river slopes. Ocean and lake tiles stay flat.
    */
   setWaterTableGeometry(
     tiles: Array<{ id: number; center: THREE.Vector3; vertices: THREE.Vector3[] }>,
@@ -296,11 +299,28 @@ export class WaterSphere {
       oceanLevel?: number;
       /** Check if tile is ocean/water (use ocean level) vs land (use elevation-based level) */
       isOcean?: (tileId: number) => boolean;
+      /** Check if tile is a river (smooth transitions) vs regular land (flat) */
+      isRiver?: (tileId: number) => boolean;
+      /** Get neighbor tile IDs for a given edge (0-5). Returns undefined if no neighbor. */
+      getEdgeNeighbor?: (tileId: number, edgeIndex: number) => number | undefined;
     }
   ): void {
     const { baseRadius, elevationScale = 1, depthBelowSurface = -0.008 } = options;
     const oceanLevel = options.oceanLevel ?? baseRadius * 0.995;
     const isOcean = options.isOcean ?? (() => false);
+    const isRiver = options.isRiver ?? (() => false);
+    const getEdgeNeighbor = options.getEdgeNeighbor;
+
+    // Pre-compute water radius for each tile
+    const tileWaterR = new Map<number, number>();
+    for (const tile of tiles) {
+      if (isOcean(tile.id)) {
+        tileWaterR.set(tile.id, oceanLevel);
+      } else {
+        const elev = getElevation(tile.id) * elevationScale;
+        tileWaterR.set(tile.id, baseRadius + elev + depthBelowSurface);
+      }
+    }
 
     const positions: number[] = [];
     const normals: number[] = [];
@@ -308,56 +328,84 @@ export class WaterSphere {
 
     let oceanCount = 0;
     let landCount = 0;
+    let riverCount = 0;
     
     for (const tile of tiles) {
       if (!tile.vertices || tile.vertices.length < 3) continue;
       
       const n = tile.vertices.length;
-      const elev = getElevation(tile.id) * elevationScale;
+      const tileIsOcean = isOcean(tile.id);
+      const tileIsRiver = !tileIsOcean && isRiver(tile.id);
+      const waterR = tileWaterR.get(tile.id) ?? oceanLevel;
       
-      let waterR: number;
-      if (isOcean(tile.id)) {
-        // Ocean tiles: water at ocean surface level
-        waterR = oceanLevel;
-        oceanCount++;
-      } else {
-        // Land tiles: water just below the surface (to fill rivers through cutouts)
-        waterR = baseRadius + elev + depthBelowSurface;
-        landCount++;
-      }
+      if (tileIsOcean) oceanCount++;
+      else if (tileIsRiver) riverCount++;
+      else landCount++;
 
-      // Center vertex
+      // Center vertex - always at tile's water level
       const centerNormal = tile.center.clone().normalize();
       const centerPos = centerNormal.clone().multiplyScalar(waterR);
       const centerIdx = positions.length / 3;
       positions.push(centerPos.x, centerPos.y, centerPos.z);
       normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
 
-      // Corner vertices
+      // Corner vertices - smoothed for rivers, flat for oceans/lakes/regular land
       const cornerBase = positions.length / 3;
       for (let v = 0; v < n; v++) {
         const cornerNormal = tile.vertices[v].clone().normalize();
-        const cornerPos = cornerNormal.clone().multiplyScalar(waterR);
+        
+        let cornerR = waterR;
+        
+        // For river tiles, interpolate corner height with neighbors
+        if (tileIsRiver && getEdgeNeighbor) {
+          // This corner is shared by edges v-1 and v (the edges on either side)
+          // Get neighbors on those edges
+          const prevEdge = (v - 1 + n) % n;
+          const neighborA = getEdgeNeighbor(tile.id, prevEdge);
+          const neighborB = getEdgeNeighbor(tile.id, v);
+          
+          // Average water levels of this tile and its corner-sharing neighbors
+          let sum = waterR;
+          let count = 1;
+          
+          if (neighborA !== undefined) {
+            const nR = tileWaterR.get(neighborA);
+            if (nR !== undefined) {
+              sum += nR;
+              count++;
+            }
+          }
+          if (neighborB !== undefined && neighborB !== neighborA) {
+            const nR = tileWaterR.get(neighborB);
+            if (nR !== undefined) {
+              sum += nR;
+              count++;
+            }
+          }
+          
+          cornerR = sum / count;
+        }
+        
+        const cornerPos = cornerNormal.clone().multiplyScalar(cornerR);
         positions.push(cornerPos.x, cornerPos.y, cornerPos.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z); // Use tile normal for smooth look
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
       }
 
       // Fan triangles from center to corners (CCW winding for outward-facing)
       for (let v = 0; v < n; v++) {
         const i0 = cornerBase + v;
         const i1 = cornerBase + (v + 1) % n;
-        // Reverse winding to face outward (center, i1, i0 instead of center, i0, i1)
         indices.push(centerIdx, i1, i0);
       }
     }
     
-    console.log(`[WaterSphere] water table: ${oceanCount} ocean tiles, ${landCount} land tiles`);
+    console.log(`[WaterSphere] water table: ${oceanCount} ocean, ${riverCount} river, ${landCount} other land tiles`);
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
     geometry.setIndex(indices);
-    geometry.computeVertexNormals(); // Recompute normals for correct lighting
+    geometry.computeVertexNormals();
     
     this.mesh.geometry.dispose();
     this.mesh.geometry = geometry;

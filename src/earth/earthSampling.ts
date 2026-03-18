@@ -143,6 +143,8 @@ export interface SampleResult {
   land: boolean;
   /** Elevation in meters if available (negative = ocean). */
   elevationM?: number;
+  /** Standard deviation of elevation samples within tile (meters). Used for hills detection. */
+  elevationStdDevM?: number;
   /** Köppen climate class 1–30 if climate grid provided. 0 = water/nodata. */
   climateCode?: number;
   /** Temperature in °C if temperature grid provided. Used for frozen water. */
@@ -221,6 +223,8 @@ export interface BuildTerrainFromRasterOptions {
   mountainThresholdM?: number;
   /** Minimum meters this tile must stand above its highest neighbor to count as mountain (tracks relief, not just altitude). Default 400. */
   mountainReliefM?: number;
+  /** Elevation standard deviation (meters) above which terrain is considered "hilly". Default 25. */
+  hillsVarianceM?: number;
   /** Use latitude for ice/snow near poles and desert near equator. Default true. */
   latitudeTerrain?: boolean;
   /** Water tile elevation (globe units, below surface). Default -0.18. */
@@ -412,6 +416,7 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   elevationScale: 0.00004,
   mountainThresholdM: 1200,
   mountainReliefM: 400,
+  hillsVarianceM: 600, // High threshold: only very rugged terrain (well above avg ~312m)
   latitudeTerrain: true,
   waterElevation: -0.18,
   lakeElevation: -0.04,
@@ -473,28 +478,59 @@ function samplePointsInTile(tile: GeodesicTile, count: number): THREE.Vector3[] 
   return out;
 }
 
-/** Map Köppen–Geiger code (1–30) to terrain type. Desert from BWh/BWk, forest from Af/Am/Cfa/Cfb, etc. */
+/** Map Köppen–Geiger code (1–30) to terrain type. Full 30-code mapping for game world detail. */
 function koppenToTerrainType(code: number): TerrainType {
   switch (code) {
-    case 1: // Af – tropical rainforest
-    case 2: // Am – tropical monsoon
-    case 14: // Cfa – humid subtropical
-    case 15: // Cfb – oceanic
-      return "forest";
-    case 3: // Aw – tropical savanna
-    case 6: // BSh – hot steppe
-    case 7: // BSk – cold steppe
-      return "grassland";
-    case 4: // BWh – hot desert
-    case 5: // BWk – cold desert
-      return "desert";
-    case 29: // ET – tundra
-      return "snow";
-    case 30: // EF – ice cap
-      return "ice";
+    // Tropical (A)
+    case 1: return "tropical_rainforest";  // Af
+    case 2: return "tropical_monsoon";     // Am
+    case 3: return "tropical_savanna";     // Aw
+    
+    // Arid (B)
+    case 4: return "hot_desert";           // BWh
+    case 5: return "cold_desert";          // BWk
+    case 6: return "hot_steppe";           // BSh
+    case 7: return "cold_steppe";          // BSk
+    
+    // Temperate (C) - Mediterranean
+    case 8: return "mediterranean_hot";    // Csa
+    case 9: return "mediterranean_warm";   // Csb
+    case 10: return "mediterranean_cold";  // Csc
+    
+    // Temperate (C) - Subtropical
+    case 11: return "humid_subtropical";   // Cwa
+    case 12: return "subtropical_highland"; // Cwb
+    case 13: return "subtropical_highland_cold"; // Cwc
+    
+    // Temperate (C) - Oceanic
+    case 14: return "humid_subtropical_hot"; // Cfa
+    case 15: return "oceanic";             // Cfb
+    case 16: return "subpolar_oceanic";    // Cfc
+    
+    // Continental (D) - Dry summer
+    case 17: return "hot_summer_continental"; // Dsa
+    case 18: return "warm_summer_continental"; // Dsb
+    case 19: return "subarctic_dry";       // Dsc
+    case 20: return "subarctic_very_cold_dry"; // Dsd
+    
+    // Continental (D) - Dry winter
+    case 21: return "humid_continental_hot"; // Dwa
+    case 22: return "humid_continental_warm"; // Dwb
+    case 23: return "subarctic_dry_winter"; // Dwc
+    case 24: return "subarctic_very_cold_dry_winter"; // Dwd
+    
+    // Continental (D) - No dry season
+    case 25: return "humid_continental";   // Dfa
+    case 26: return "warm_summer_humid";   // Dfb
+    case 27: return "subarctic";           // Dfc
+    case 28: return "subarctic_very_cold"; // Dfd
+    
+    // Polar (E)
+    case 29: return "tundra";              // ET
+    case 30: return "ice_cap";             // EF
+    
     default:
-      // Cs, Cw, Cfc, D* – temperate/continental
-      return "land";
+      return "land"; // Fallback for unknown codes
   }
 }
 
@@ -502,10 +538,10 @@ function terrainFromSample(
   result: SampleResult,
   latRad: number,
   opts: Required<BuildTerrainFromRasterOptions>,
-  neighborMaxElevM?: number,
+  _neighborMaxElevM?: number, // Kept for API compatibility; mountains now come from peak dataset only
   /** If set, max absolute latitude (deg) over the tile; used so water tiles that extend into the polar cap become ice and avoid an ocean donut. */
   maxAbsLatDeg?: number
-): Pick<TileTerrainData, "type" | "elevation"> {
+): Pick<TileTerrainData, "type" | "elevation" | "isHilly"> {
   const absLat = Math.abs(latRad);
   const latDeg = (absLat * 180) / Math.PI;
   const inPolarCap = maxAbsLatDeg != null ? maxAbsLatDeg >= opts.polarCapLat : latDeg >= opts.polarCapLat;
@@ -566,29 +602,25 @@ function terrainFromSample(
     elevation += lift;
   }
 
-  // Mountain only where elevation is high AND stands above neighbors (relief), not just high plateaus
-  if (result.elevationM != null && result.elevationM > opts.mountainThresholdM) {
-    const relief =
-      neighborMaxElevM != null ? result.elevationM - neighborMaxElevM : result.elevationM;
-    if (relief >= opts.mountainReliefM) {
-      type = "mountain";
-      const t = THREE.MathUtils.clamp(
-        (result.elevationM - opts.mountainThresholdM) / 3500,
-        0,
-        1
-      );
-      elevation += t * opts.mountainPeakExtraGlobe;
-    }
+  // Hills: detected by local terrain roughness (elevation variance within the tile)
+  // Hills can occur at any elevation - they're about bumpiness, not altitude
+  const isHilly = result.elevationStdDevM != null && 
+                  result.elevationStdDevM >= opts.hillsVarianceM;
+  
+  if (isHilly) {
+    elevation += 0.02;
   }
 
-  return { type, elevation };
+  // Note: isMountain is NOT set here - it comes from the peak dataset (mountainsList)
+  // which contains actual named mountain peaks, not just high-elevation tiles
+  return { type, elevation, isHilly };
 }
 
 function sampleTile(
   tile: GeodesicTile,
   raster: EarthRaster,
   opts: Required<BuildTerrainFromRasterOptions>
-): { land: boolean; landCount: number; sampleCount: number; elevationM?: number; climateCode?: number; temperatureC?: number; latRad: number; maxAbsLatDeg: number } {
+): { land: boolean; landCount: number; sampleCount: number; elevationM?: number; elevationStdDevM?: number; climateCode?: number; temperatureC?: number; latRad: number; maxAbsLatDeg: number } {
   const centerLatLon = tileCenterToLatLon(tile.center);
   const maxAbsLatDeg = tileMaxAbsLatDeg(tile);
   const points: { lat: number; lon: number }[] = [centerLatLon];
@@ -600,8 +632,7 @@ function sampleTile(
   }
   const sampleCount = points.length;
   let landCount = 0;
-  let elevSum = 0;
-  let elevCount = 0;
+  const elevSamples: number[] = [];
   let tempSum = 0;
   let tempCount = 0;
   const climateCounts = new Map<number, number>();
@@ -611,8 +642,7 @@ function sampleTile(
     const land = useLandSampler ? opts.landSampler!(lat, lon) : r.land;
     if (land) landCount++;
     if (r.elevationM != null) {
-      elevSum += r.elevationM;
-      elevCount++;
+      elevSamples.push(r.elevationM);
     }
     if (r.temperatureC != null && Number.isFinite(r.temperatureC)) {
       tempSum += r.temperatureC;
@@ -623,7 +653,62 @@ function sampleTile(
     }
   }
   const land = opts.sampleMode === "center" ? landCount > 0 : landCount > sampleCount / 2;
-  const elevationM = elevCount > 0 ? elevSum / elevCount : undefined;
+  
+  // Compute mean elevation from interpolated samples (for terrain height)
+  let elevationM: number | undefined;
+  if (elevSamples.length > 0) {
+    const sum = elevSamples.reduce((a, b) => a + b, 0);
+    elevationM = sum / elevSamples.length;
+  }
+  
+  // Compute elevation variance from RAW PIXELS in the hex's bounding box
+  // This captures true terrain roughness better than interpolated samples
+  let elevationStdDevM: number | undefined;
+  const elev = raster.elevation;
+  if (elev && "width" in elev) {
+    // Get lat/lon bounding box of the hex
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const v of tile.vertices) {
+      const ll = tileCenterToLatLon(v);
+      minLat = Math.min(minLat, ll.lat);
+      maxLat = Math.max(maxLat, ll.lat);
+      minLon = Math.min(minLon, ll.lon);
+      maxLon = Math.max(maxLon, ll.lon);
+    }
+    // Convert to pixel coordinates
+    const latToDeg = 180 / Math.PI;
+    const minLatDeg = minLat * latToDeg;
+    const maxLatDeg = maxLat * latToDeg;
+    const minLonDeg = minLon * latToDeg;
+    const maxLonDeg = maxLon * latToDeg;
+    // Pixel bounds (y0 = top = north, y1 = bottom = south)
+    const y0 = Math.max(0, Math.floor(((90 - maxLatDeg) / 180) * (elev.height - 1)));
+    const y1 = Math.min(elev.height - 1, Math.ceil(((90 - minLatDeg) / 180) * (elev.height - 1)));
+    const x0 = Math.max(0, Math.floor(((minLonDeg + 180) / 360) * (elev.width - 1)));
+    const x1 = Math.min(elev.width - 1, Math.ceil(((maxLonDeg + 180) / 360) * (elev.width - 1)));
+    // Collect raw pixel values
+    const rawPixels: number[] = [];
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const v = elev.data[y * elev.width + x];
+        if (v != null && Number.isFinite(v)) {
+          rawPixels.push(v);
+        }
+      }
+    }
+    // Compute variance from raw pixels
+    if (rawPixels.length > 1) {
+      const rawSum = rawPixels.reduce((a, b) => a + b, 0);
+      const rawMean = rawSum / rawPixels.length;
+      const sqDiffSum = rawPixels.reduce((acc, e) => acc + (e - rawMean) ** 2, 0);
+      elevationStdDevM = Math.sqrt(sqDiffSum / rawPixels.length);
+    }
+  } else if (elevSamples.length > 1) {
+    // Fallback for non-grid elevation data
+    const sqDiffSum = elevSamples.reduce((acc, e) => acc + (e - elevationM!) ** 2, 0);
+    elevationStdDevM = Math.sqrt(sqDiffSum / elevSamples.length);
+  }
+  
   const temperatureC = tempCount > 0 ? tempSum / tempCount : undefined;
   let climateCode: number | undefined;
   if (climateCounts.size > 0) {
@@ -635,7 +720,7 @@ function sampleTile(
       }
     }
   }
-  return { land, landCount, sampleCount, elevationM, climateCode, temperatureC, latRad: centerLatLon.lat, maxAbsLatDeg };
+  return { land, landCount, sampleCount, elevationM, elevationStdDevM, climateCode, temperatureC, latRad: centerLatLon.lat, maxAbsLatDeg };
 }
 
 /** Full result of sampling a tile (sampleTile return type); used for topology resolution. */
@@ -1165,9 +1250,10 @@ export async function resolveLandWaterByRegions(
 
   if (useGreedyLandmassPlacement) {
     console.log("[polyglobe] resolveLandWaterByRegions: using greedy landmass placement (largest first, no touching already-placed)");
-    // Include a small island iff it can be placed without touching a larger already-placed landmass. We only add
-    // candidates that have no neighbor in placedLand, so we place exactly the hexes that are not coast-adjacent to
-    // a larger continent/island; if part of an island touches, we place the rest (the part that doesn't touch).
+    // Pixel-based allocation: each landmass gets a number of hexes proportional to its raster pixel count.
+    // Small islands that would otherwise disappear get at least 1 hex.
+    
+    // Calculate total pixel weight for each landmass
     const landmassSizes = new Map<number, number>();
     for (const tile of tiles) {
       const s = scores(tile);
@@ -1175,52 +1261,57 @@ export async function resolveLandWaterByRegions(
         if (id > 0) landmassSizes.set(id, (landmassSizes.get(id) ?? 0) + f);
       }
     }
+    
+    // Process landmasses largest first (to reserve space before small islands)
     const landmassIdsBySize = [...landmassSizes.entries()]
       .filter(([, size]) => size > 0)
       .sort((a, b) => b[1] - a[1])
       .map(([id]) => id);
     const placedLand = new Set<number>();
-    const smallIslandLandmassFraction = 0.1; // only used when strict rule gives 0 hexes (tiny islands)
+    
+    // Debug: log landmass allocation summary
+    let smallIslandCount = 0;
+    let smallIslandHexes = 0;
+    
     for (const landmassId of landmassIdsBySize) {
-      let candidates = new Set<number>();
+      // Target hex count based on pixel weight (minimum 1)
+      const pixelWeight = landmassSizes.get(landmassId) ?? 0;
+      const targetHexes = Math.max(1, Math.round(pixelWeight));
+      
+      // Collect all tiles with any pixels from this landmass, sorted by fraction descending
+      const tilesWithFraction: Array<{ tile: GeodesicTile; fraction: number }> = [];
       for (const tile of tiles) {
         const s = scores(tile);
-        let bestId = 0;
-        let bestF = 0;
-        for (const [id, f] of s.landmassFractions) {
-          if (f > bestF) {
-            bestF = f;
-            bestId = id;
-          }
+        const f = s.landmassFractions.get(landmassId) ?? 0;
+        if (f > 0) {
+          tilesWithFraction.push({ tile, fraction: f });
         }
-        if (bestId !== landmassId) continue;
-        if (s.landFraction <= 0.5) continue;
+      }
+      tilesWithFraction.sort((a, b) => b.fraction - a.fraction);
+      
+      // Select top tiles that don't touch already-placed land, up to targetHexes
+      let candidates = new Set<number>();
+      for (const { tile } of tilesWithFraction) {
+        if (candidates.size >= targetHexes) break;
         if (tile.neighbors.some((n) => placedLand.has(n))) continue;
         candidates.add(tile.id);
       }
-      if (candidates.size === 0) {
-        for (const tile of tiles) {
-          const s = scores(tile);
-          let bestId = 0;
-          let bestF = 0;
-          for (const [id, f] of s.landmassFractions) {
-            if (f > bestF) {
-              bestF = f;
-              bestId = id;
-            }
-          }
-          if (bestId !== landmassId) continue;
-          const fThis = s.landmassFractions.get(landmassId) ?? 0;
-          if (fThis < smallIslandLandmassFraction) continue;
-          if (tile.neighbors.some((n) => placedLand.has(n))) continue;
-          candidates.add(tile.id);
-        }
-      }
+      
       if (candidates.size === 0) continue;
 
       // Require one connected landmass: if disjoint, find bridge hexes on the raster to connect components.
+      // For small landmasses, skip bridging (could inflate their size) - just keep the largest component.
       const landmassBridgeFraction = 0.15; // min raster fraction for this landmass to allow a hex as bridge
+      const skipBridgingIfSmall = targetHexes <= 3;
       let components = getHexComponents(candidates, tileById);
+      
+      if (skipBridgingIfSmall && components.size > 1) {
+        // Just keep the largest connected component for small islands
+        const largest = [...components.values()].sort((a, b) => b.size - a.size)[0];
+        candidates = largest;
+        components = new Map([[0, candidates]]);
+      }
+      
       while (components.size > 1) {
         const compList = [...components.values()].sort((a, b) => b.size - a.size);
         const main = compList[0];
@@ -1254,20 +1345,32 @@ export async function resolveLandWaterByRegions(
           }
           if (path != null) break;
         }
-        if (path == null) break; // cannot connect; keep all components that don't touch placedLand (all small islands)
+        if (path == null) {
+          // Cannot connect components - keep only the largest one to ensure contiguity
+          const largest = [...components.values()].sort((a, b) => b.size - a.size)[0];
+          candidates = largest;
+          break;
+        }
         for (const tid of path) candidates.add(tid);
         components = getHexComponents(candidates, tileById);
       }
 
-      const toAssign = new Set<number>();
-      for (const comp of components.values()) {
-        for (const tid of comp) toAssign.add(tid);
-      }
+      // At this point, candidates is either fully connected or reduced to largest component
+      const toAssign = new Set<number>(candidates);
       for (const tid of toAssign) {
         assign.set(tid, { isLand: true, landmassId });
         placedLand.add(tid);
       }
+      
+      // Track small islands for debug logging
+      if (targetHexes <= 5) {
+        smallIslandCount++;
+        smallIslandHexes += toAssign.size;
+      }
     }
+    
+    console.log(`[polyglobe] Landmass allocation: ${landmassIdsBySize.length} landmasses, ${smallIslandCount} small islands (≤5 target hexes) got ${smallIslandHexes} total hexes`);
+    
     for (const tile of tiles) {
       if (assign.has(tile.id)) continue;
       const s = scores(tile);
@@ -1840,18 +1943,31 @@ export async function buildTerrainFromEarthRaster(
 
   console.log("[polyglobe] buildTerrainFromEarthRaster: land/water done, building output");
 
+  // Debug: collect variance statistics
+  let hillsCount = 0;
+  let maxVariance = 0;
+  let varianceSum = 0;
+  let varianceCount = 0;
+
   for (const tile of tiles) {
     const result = resultsByTile.get(tile.id)!;
     const lw = landByTile?.get(tile.id);
     const land = lw ? lw.isLand : result.land;
     const lakeId = lw?.lakeId;
     const effectiveResult = { ...result, land };
+    
+    // Track variance stats
+    if (land && result.elevationStdDevM != null) {
+      varianceSum += result.elevationStdDevM;
+      varianceCount++;
+      if (result.elevationStdDevM > maxVariance) maxVariance = result.elevationStdDevM;
+    }
     let neighborMaxElevM = 0;
     for (const neighborId of tile.neighbors) {
       const nElev = elevationByTile.get(neighborId) ?? 0;
       if (nElev > neighborMaxElevM) neighborMaxElevM = nElev;
     }
-    const { type, elevation } = terrainFromSample(
+    const { type, elevation, isHilly } = terrainFromSample(
       effectiveResult,
       result.latRad,
       opts,
@@ -1866,8 +1982,13 @@ export async function buildTerrainFromEarthRaster(
       const belowWaterLevel = 0.01;
       elev = Math.min(elev, surfaceElev - belowWaterLevel);
     }
-    out.set(tile.id, { tileId: tile.id, type, elevation: elev, lakeId: lakeId ?? undefined });
+    if (isHilly) hillsCount++;
+    out.set(tile.id, { tileId: tile.id, type, elevation: elev, lakeId: lakeId ?? undefined, isHilly: isHilly || undefined });
   }
+  
+  // Debug: print variance stats
+  console.log(`[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsThreshold=${opts.hillsVarianceM}m`);
+  console.log(`[polyglobe] Hills tiles detected: ${hillsCount}`);
 
   // Per-body water level: set each water body's tile elevation from surrounding land (min shore - delta) so each lake/ocean has its own elevation.
   const tileById = new Map(tiles.map((t) => [t.id, t]));
@@ -2004,7 +2125,7 @@ export function buildTerrainFromSampler(
   for (const tile of tiles) {
     const { lat, lon } = tileCenterToLatLon(tile.center);
     const result = sampler(lat, lon);
-    const { type, elevation } = terrainFromSample(
+    const { type, elevation, isHilly } = terrainFromSample(
       {
         land: result.land,
         elevationM: result.elevationM,
@@ -2021,7 +2142,7 @@ export function buildTerrainFromSampler(
       const bedElev = opts.waterElevation - 0.01;
       elev = Math.min(elev, bedElev);
     }
-    out.set(tile.id, { tileId: tile.id, type, elevation: elev });
+    out.set(tile.id, { tileId: tile.id, type, elevation: elev, isHilly: isHilly || undefined });
   }
 
   return out;

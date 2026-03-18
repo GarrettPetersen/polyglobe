@@ -57,7 +57,7 @@ type EarthGlobeCacheFile = {
   version: string;
   subdivisions: number;
   tileCount: number;
-  tiles: Array<{ id: number; t: string; e: number; l?: number }>;
+  tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1 }>;
   peaks: [number, number][];
   riverEdges: Record<string, number[]>;
   riverEdgeToWater: Record<string, number[]>;
@@ -1347,6 +1347,8 @@ let riverLineIsDelta: boolean[] | null = null;
 /** River terrain (banks/bed) in Earth mode. Water provided by terrain-following water table. */
 /** U-shaped river banks + bed (land mesh); separate from transparent water ribbon. */
 let riverTerrainGroup: THREE.Group | null = null;
+/** Black sphere inside the globe to prevent seeing through geometry gaps. */
+let innerBlackSphere: THREE.Mesh | null = null;
 /** Lake water now provided by terrain-following water table (no separate meshes). */
 /** Module-level terrain data for debug panel access. */
 let globalTileTerrain: Map<number, TileTerrainData> | null = null;
@@ -1460,6 +1462,9 @@ function setGlobeGeometryFromTerrain(
       return m != null ? { apexElevationM: m } : undefined;
     };
   }
+  // Add hilly terrain bumps
+  opts.getHilly = (id) => tileTerrain.get(id)?.isHilly ?? false;
+  
   if (riverEdgesByTile != null && riverEdgesByTile.size > 0) {
     opts.getRiverEdges = (id) => riverEdgesByTile.get(id);
     opts.getRiverEdgeToWater = riverEdgeToWaterByTile ? (id) => riverEdgeToWaterByTile.get(id) : undefined;
@@ -1505,6 +1510,12 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
       });
       riverTerrainGroup = null;
+    }
+    if (innerBlackSphere) {
+      scene.remove(innerBlackSphere);
+      innerBlackSphere.geometry.dispose();
+      (innerBlackSphere.material as THREE.Material).dispose();
+      innerBlackSphere = null;
     }
     // Lake water now provided by water table (no separate lake meshes to clean up)
     if (marker) scene.remove(marker);
@@ -1557,6 +1568,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             type: row.t as TileTerrainData["type"],
             elevation: row.e,
             ...(row.l != null ? { lakeId: row.l } : {}),
+            ...(row.h ? { isHilly: true } : {}),
           });
         }
         peakTiles = new Map(cache.peaks);
@@ -1770,6 +1782,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     // Water sits just below each tile's elevation, filling rivers/lakes through cutouts
     // while staying invisible under solid land hexes.
     const waterTableElevationScale = 0.08;
+    // Build tile lookup for getEdgeNeighbor
+    const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
+    
     water.setWaterTableGeometry(
       globe.tiles,
       (id) => tileTerrain.get(id)?.elevation ?? 0,
@@ -1782,10 +1797,24 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           const t = tileTerrain.get(id)?.type;
           return t === "water" || t === "beach";
         },
+        isRiver: (id) => riverEdgesByTile?.has(id) ?? false,
+        getEdgeNeighbor: (id, edge) => {
+          const tile = tileById.get(id);
+          return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
+        },
       }
     );
     scene.add(water.mesh);
     console.log(BUILD_LOG, "water table geometry applied, vertices:", water.mesh.geometry.getAttribute("position")?.count ?? 0);
+    
+    // Add black inner sphere to prevent seeing through any geometry gaps
+    const innerSphereGeom = new THREE.SphereGeometry(0.98, 64, 32);
+    const innerSphereMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+    innerBlackSphere = new THREE.Mesh(innerSphereGeom, innerSphereMat);
+    innerBlackSphere.name = "InnerBlackSphere";
+    innerBlackSphere.renderOrder = -10;
+    scene.add(innerBlackSphere);
+    console.log(BUILD_LOG, "added inner black sphere at radius 0.98");
 
     coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
       radius: 0.995,

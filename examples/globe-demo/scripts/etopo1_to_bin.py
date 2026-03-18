@@ -38,19 +38,24 @@ def main():
     nlat, nlon = z.shape[0], z.shape[1]
     step_y, step_x = max(1, nlat // H), max(1, nlon // W)
     fill_val = getattr(z, "_FillValue", None) or getattr(z, "missing_value", 32767)
-    out_bin = open(out, "wb")
-    out_bin.write(b"PGEL")
-    out_bin.write(struct.pack("<II", W, H))
+    import numpy as np
+    # Read entire grid and resample efficiently
+    z_full = z[:]
+    out_data = np.zeros((H, W), dtype=np.float32)
     for j in range(H):
         src_j = min(j * step_y, nlat - 1)
         for i in range(W):
             src_i = min(i * step_x, nlon - 1)
-            v = float(z[src_j, src_i])
+            v = float(z_full[src_j, src_i])
             if v == fill_val or (v != v):
                 v = 0.0
-            out_bin.write(struct.pack("f", v))
-    out_bin.close()
+            out_data[j, i] = v
     ds.close()
+    # Write header + data in one go
+    with open(out, "wb") as f:
+        f.write(b"PGEL")
+        f.write(struct.pack("<II", W, H))
+        out_data.tofile(f)
     print("Wrote %s (PGEL %d×%d float32 m)" % (out, W, H))
 
 if __name__ == "__main__":

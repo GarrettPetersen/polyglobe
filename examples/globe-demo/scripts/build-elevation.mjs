@@ -23,9 +23,9 @@ const DEMO_ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 const OUT_PATH = path.join(PUBLIC_DIR, "elevation.bin");
 
-/** Equirectangular DEM resolution (PGEL format). ~0.25° cells at 1440×720. */
-const EW = 1440;
-const EH = 720;
+/** Equirectangular DEM resolution (PGEL format). ~0.083° cells at 4320×2160 (~8km). */
+const EW = 4320;
+const EH = 2160;
 
 const ETOPO1_GZ_URL =
   "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/bedrock/grid_registered/netcdf/ETOPO1_Bed_g_gmt4.grd.gz";
@@ -76,20 +76,21 @@ function writeSynthetic() {
   console.log("[build-elevation] Wrote", OUT_PATH, "(synthetic PGEL", EW, "×", EH, ").");
 }
 
-function streamDownload(url, destPath) {
+import { Readable } from "stream";
+
+async function streamDownload(url, destPath) {
+  const res = await fetch(url, { redirect: "follow" });
+  if (!res.ok) {
+    throw new Error(`Download failed: ${res.status}`);
+  }
+  const file = createWriteStream(destPath);
+  // Convert web ReadableStream to Node.js stream
+  const nodeStream = Readable.fromWeb(res.body);
   return new Promise((resolve, reject) => {
-    fetch(url, { redirect: "follow" })
-      .then((res) => {
-        if (!res.ok) {
-          reject(new Error(`Download failed: ${res.status}`));
-          return;
-        }
-        const file = createWriteStream(destPath);
-        res.body.pipe(file);
-        file.on("finish", () => file.close(() => resolve(destPath)));
-        file.on("error", reject);
-      })
-      .catch(reject);
+    nodeStream.pipe(file);
+    file.on("finish", () => file.close(() => resolve(destPath)));
+    file.on("error", reject);
+    nodeStream.on("error", reject);
   });
 }
 
@@ -107,7 +108,9 @@ function gunzipFile(srcPath, destPath) {
 
 function runPython(scriptPath, args) {
   return new Promise((resolve, reject) => {
-    const proc = spawn("python3", [scriptPath, ...args], { stdio: "inherit" });
+    // Use full path to python3 to ensure we get the right version with netCDF4
+    const python = process.env.PYTHON3_PATH || "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
+    const proc = spawn(python, [scriptPath, ...args], { stdio: "inherit" });
     proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error("Python exited " + code))));
     proc.on("error", reject);
   });
@@ -128,12 +131,13 @@ async function main() {
     await gunzipFile(tmpGz, tmpGrd);
     if (!fs.existsSync(tmpGrd)) throw new Error("Decompress failed");
     if (!fs.existsSync(pythonScript)) throw new Error("etopo1_to_bin.py not found");
-    console.log("[build-elevation] Running etopo1_to_bin.py...");
+    console.log("[build-elevation] Running etopo1_to_bin.py on", tmpGrd, "...");
+    console.log("[build-elevation] tmpGrd exists:", fs.existsSync(tmpGrd), "size:", fs.existsSync(tmpGrd) ? fs.statSync(tmpGrd).size : 0);
     if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-    await runPython(pythonScript, [tmpGrd, OUT_PATH]);
+    await runPython(pythonScript, [tmpGrd, OUT_PATH, String(EW), String(EH)]);
     try { fs.unlinkSync(tmpGz); } catch (_) {}
     try { fs.unlinkSync(tmpGrd); } catch (_) {}
-    console.log("[build-elevation] Wrote", OUT_PATH, "(ETOPO1 PGEL 1440×720 m).");
+    console.log("[build-elevation] Wrote", OUT_PATH, `(ETOPO1 PGEL ${EW}×${EH} m).`);
   } catch (e) {
     console.warn("[build-elevation] ETOPO1 failed:", e.message);
     console.log("[build-elevation] Using synthetic elevation.");

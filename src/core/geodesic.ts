@@ -234,6 +234,10 @@ export interface GeodesicFlatMeshOptions {
   getPeak?: (tileId: number) => TilePeak | undefined;
   /** Scale meters → globe units for peak apex height. Default 0.00002 (e.g. Everest ~0.18 units above base). */
   peakElevationScale?: number;
+  /** Optional: tiles with hilly terrain get a gentle rounded bump (center raised). */
+  getHilly?: (tileId: number) => boolean;
+  /** Height of hill bump in globe units. Default 0.008. */
+  hillyBumpHeight?: number;
   /**
    * Optional: for tiles with river, build a hex-shaped bowl (inner hex cut out, sides cut for river directions).
    * Also suppresses elevation step-walls on those edges so the channel stays open across height changes.
@@ -266,6 +270,8 @@ export function buildFlatGeometryData(
   const elevationScale = options.elevationScale ?? 1;
   const peakElevationScale = options.peakElevationScale ?? 0.00002;
   const getPeak = options.getPeak;
+  const getHilly = options.getHilly;
+  const hillyBumpHeight = options.hillyBumpHeight ?? 0.008;
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
@@ -526,6 +532,56 @@ export function buildFlatGeometryData(
       }
       for (let i = 0; i < n; i++) {
         indices.push(snowApexIdx, capBase + i, capBase + ((i + 1) % n));
+      }
+    } else if (getHilly?.(tile.id) && isLand) {
+      // Hilly terrain: flat-topped truncated cone (mesa/plateau shape)
+      // Distinct from pyramidal mountains
+      const rHillTop = r + hillyBumpHeight;
+      const flatTopRadiusFrac = 0.55; // Size of flat top relative to hex size
+      
+      // Compute base radius for scaling the flat top
+      let baseRadius = 0;
+      for (let i = 0; i < n; i++) {
+        const v = tile.vertices[i].clone().normalize();
+        const dot = v.dot(centerNormal);
+        const inPlaneLen = Math.sqrt(1 - dot * dot);
+        baseRadius = Math.max(baseRadius, r * inPlaneLen);
+      }
+      
+      // Create flat top center vertex
+      const hillCenterPos = centerNormal.clone().multiplyScalar(rHillTop);
+      const hillCenterIdx = vertexOffset;
+      positions.push(hillCenterPos.x, hillCenterPos.y, hillCenterPos.z);
+      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      tileIds.push(tile.id);
+      vertexOffset++;
+      
+      // Create flat top edge vertices (inner ring at raised height)
+      const hillTopBase = vertexOffset;
+      for (let i = 0; i < n; i++) {
+        const v = tile.vertices[i].clone().normalize();
+        const dot = v.dot(centerNormal);
+        const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
+        if (inPlane.lengthSq() > 1e-20) inPlane.normalize();
+        inPlane.multiplyScalar(baseRadius * flatTopRadiusFrac);
+        const topPos = centerNormal.clone().multiplyScalar(rHillTop).add(inPlane);
+        positions.push(topPos.x, topPos.y, topPos.z);
+        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        tileIds.push(tile.id);
+        vertexOffset++;
+      }
+      
+      // Flat top triangles (center to inner ring)
+      for (let i = 0; i < n; i++) {
+        indices.push(hillCenterIdx, hillTopBase + i, hillTopBase + ((i + 1) % n));
+      }
+      
+      // Sloped sides (inner ring to outer base edge)
+      for (let i = 0; i < n; i++) {
+        const i1 = (i + 1) % n;
+        // Quad from top ring to base ring (two triangles)
+        indices.push(hillTopBase + i, base + i, base + i1);
+        indices.push(hillTopBase + i, base + i1, hillTopBase + i1);
       }
     } else {
       for (let i = 1; i + 1 < n; i++) {
