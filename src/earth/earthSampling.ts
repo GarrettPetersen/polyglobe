@@ -16,7 +16,10 @@ import type { TileTerrainData } from "../terrain/terrainMaterial.js";
 import type { TerrainType } from "../terrain/types.js";
 
 /** Convert tile center (unit vector) to latitude and longitude in radians. Longitude matches equirectangular convention (e.g. raster x=0 is -180°). */
-export function tileCenterToLatLon(center: THREE.Vector3): { lat: number; lon: number } {
+export function tileCenterToLatLon(center: THREE.Vector3): {
+  lat: number;
+  lon: number;
+} {
   const x = center.x;
   const y = center.y;
   const z = center.z;
@@ -26,7 +29,10 @@ export function tileCenterToLatLon(center: THREE.Vector3): { lat: number; lon: n
 }
 
 /** Latitude in radians to degrees. */
-export function latLonToDegrees(lat: number, lon: number): { latDeg: number; lonDeg: number } {
+export function latLonToDegrees(
+  lat: number,
+  lon: number,
+): { latDeg: number; lonDeg: number } {
   return {
     latDeg: (lat * 180) / Math.PI,
     lonDeg: (lon * 180) / Math.PI,
@@ -72,7 +78,9 @@ const ELEVATION_BIN_MAGIC = 0x4c454750; // "PGEL" little-endian
 /**
  * Parse `elevation.bin`: legacy 360×180 float32, or PGEL header + uint32 width/height + float32[w*h].
  */
-export function parseElevationBin(buf: ArrayBuffer): Float32Array | ElevationGrid | null {
+export function parseElevationBin(
+  buf: ArrayBuffer,
+): Float32Array | ElevationGrid | null {
   const n = buf.byteLength;
   if (n === 360 * 180 * 4) {
     return new Float32Array(buf);
@@ -97,7 +105,7 @@ function sampleElevationBilinear(
   height: number,
   data: Float32Array,
   latDeg: number,
-  lonDeg: number
+  lonDeg: number,
 ): number {
   const x = ((lonDeg + 180) / 360) * (width - 1);
   const y = ((90 - latDeg) / 180) * (height - 1);
@@ -157,7 +165,7 @@ export interface SampleResult {
  */
 export function earthRasterFromImageData(
   imageData: { data: Uint8ClampedArray; width: number; height: number },
-  landThreshold: number = 128
+  landThreshold: number = 128,
 ): EarthRaster {
   const { width, height, data } = imageData;
   const out = new Uint8Array(width * height);
@@ -175,7 +183,7 @@ export function earthRasterFromImageData(
 export function sampleRasterAtLatLon(
   raster: EarthRaster,
   latRad: number,
-  lonRad: number
+  lonRad: number,
 ): SampleResult {
   const latDeg = (latRad * 180) / Math.PI;
   const lonDeg = (lonRad * 180) / Math.PI;
@@ -184,7 +192,9 @@ export function sampleRasterAtLatLon(
   const y = ((90 - latDeg) / 180) * (height - 1);
   const xi = Math.round(x);
   const yi = Math.round(y);
-  const i = Math.max(0, Math.min(yi, height - 1)) * width + Math.max(0, Math.min(xi, width - 1));
+  const i =
+    Math.max(0, Math.min(yi, height - 1)) * width +
+    Math.max(0, Math.min(xi, width - 1));
   const land = raster.data[i] > 0;
   let elevationM: number | undefined;
   const elev = raster.elevation;
@@ -192,7 +202,13 @@ export function sampleRasterAtLatLon(
     if (elev instanceof Float32Array) {
       elevationM = elev[i];
     } else {
-      elevationM = sampleElevationBilinear(elev.width, elev.height, elev.data, latDeg, lonDeg);
+      elevationM = sampleElevationBilinear(
+        elev.width,
+        elev.height,
+        elev.data,
+        latDeg,
+        lonDeg,
+      );
     }
   }
   let climateCode: number | undefined;
@@ -201,7 +217,9 @@ export function sampleRasterAtLatLon(
     const ch = raster.climate.height;
     const cx = ((lonDeg + 180) / 360) * (cw - 1);
     const cy = ((90 - latDeg) / 180) * (ch - 1);
-    const ci = Math.max(0, Math.min(Math.round(cy), ch - 1)) * cw + Math.max(0, Math.min(Math.round(cx), cw - 1));
+    const ci =
+      Math.max(0, Math.min(Math.round(cy), ch - 1)) * cw +
+      Math.max(0, Math.min(Math.round(cx), cw - 1));
     const v = raster.climate.data[ci];
     if (v > 0) climateCode = v;
   }
@@ -254,7 +272,7 @@ export interface BuildTerrainFromRasterOptions {
    */
   topologySampler?: (
     latRad: number,
-    lonRad: number
+    lonRad: number,
   ) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
   /**
    * When true (default), tiles with mixed land/water samples are resolved by topology:
@@ -281,7 +299,10 @@ export interface BuildTerrainFromRasterOptions {
   /** Options passed to resolveLandWaterByRegions when getRegionScores is set (e.g. onIteration for progressive display). */
   resolveOptions?: ResolveLandWaterByRegionsOptions;
   /** Called periodically during first-pass tile sampling; if it returns a Promise, it is awaited (lets the UI update). */
-  onFirstPassProgress?: (sampled: number, total: number) => void | Promise<void>;
+  onFirstPassProgress?: (
+    sampled: number,
+    total: number,
+  ) => void | Promise<void>;
   /**
    * Land hex height from DEM: max(0, elevationM) * scale (globe units), before cap. Default ~1.8e-5.
    * Finer DEM + this gives gentler steps between neighbors than flat biome-only heights.
@@ -308,13 +329,21 @@ export interface RasterWindow {
  * Flood fill from cutout edges; report if land (or sea) connects two opposite edges.
  * Isthmus: land crosses, sea doesn't. Strait: sea crosses, land doesn't. Else: normal coast.
  */
-export function rasterCutoutCrosses(window: RasterWindow): { landCrosses: boolean; seaCrosses: boolean } {
+export function rasterCutoutCrosses(window: RasterWindow): {
+  landCrosses: boolean;
+  seaCrosses: boolean;
+} {
   const { width, height, data } = window;
   if (width < 2 || height < 2) return { landCrosses: false, seaCrosses: false };
   const isLand = (i: number, j: number) => (data[j * width + i] ?? 0) >= 128;
   const dx = [0, 1, 0, -1];
   const dy = [-1, 0, 1, 0];
-  function floodFromEdge(isLandPixel: boolean): { left: boolean; right: boolean; top: boolean; bottom: boolean } {
+  function floodFromEdge(isLandPixel: boolean): {
+    left: boolean;
+    right: boolean;
+    top: boolean;
+    bottom: boolean;
+  } {
     const reached = new Set<number>();
     const key = (i: number, j: number) => j * width + i;
     const stack: [number, number][] = [];
@@ -373,8 +402,10 @@ export function rasterCutoutCrosses(window: RasterWindow): { landCrosses: boolea
   }
   const landReach = floodFromEdge(true);
   const seaReach = floodFromEdge(false);
-  const landCrosses = (landReach.left && landReach.right) || (landReach.top && landReach.bottom);
-  const seaCrosses = (seaReach.left && seaReach.right) || (seaReach.top && seaReach.bottom);
+  const landCrosses =
+    (landReach.left && landReach.right) || (landReach.top && landReach.bottom);
+  const seaCrosses =
+    (seaReach.left && seaReach.right) || (seaReach.top && seaReach.bottom);
   return { landCrosses, seaCrosses };
 }
 
@@ -422,7 +453,7 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   mountainReliefM: 400,
   hillsVarianceScale: 400, // Variance contribution: variance / hillsVarianceScale
   hillsElevationScale: 1500, // Elevation contribution: elevation / hillsElevationScale
-  hillsScoreThreshold: 1.0, // Combined score threshold: (elev/elevScale + variance/varianceScale) >= threshold
+  hillsScoreThreshold: 2.0, // Combined score threshold: (elev/elevScale + variance/varianceScale) >= threshold
   latitudeTerrain: true,
   waterElevation: -0.18,
   lakeElevation: -0.04,
@@ -460,12 +491,18 @@ const BARY_SAMPLES: [number, number][] = [
 ];
 
 /** Return sample points inside the tile (on the unit sphere). Triangulate from center to each edge, sample in each triangle. */
-function samplePointsInTile(tile: GeodesicTile, count: number): THREE.Vector3[] {
+function samplePointsInTile(
+  tile: GeodesicTile,
+  count: number,
+): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
   const c = tile.center;
   const verts = tile.vertices;
   const n = verts.length;
-  const perTri = Math.max(1, Math.min(BARY_SAMPLES.length, Math.floor(count / n)));
+  const perTri = Math.max(
+    1,
+    Math.min(BARY_SAMPLES.length, Math.floor(count / n)),
+  );
   const bary = BARY_SAMPLES.slice(0, perTri);
   const v0 = new THREE.Vector3();
   const v1 = new THREE.Vector3();
@@ -488,53 +525,83 @@ function samplePointsInTile(tile: GeodesicTile, count: number): THREE.Vector3[] 
 function koppenToTerrainType(code: number): TerrainType {
   switch (code) {
     // Tropical (A)
-    case 1: return "tropical_rainforest";  // Af
-    case 2: return "tropical_monsoon";     // Am
-    case 3: return "tropical_savanna";     // Aw
-    
+    case 1:
+      return "tropical_rainforest"; // Af
+    case 2:
+      return "tropical_monsoon"; // Am
+    case 3:
+      return "tropical_savanna"; // Aw
+
     // Arid (B)
-    case 4: return "hot_desert";           // BWh
-    case 5: return "cold_desert";          // BWk
-    case 6: return "hot_steppe";           // BSh
-    case 7: return "cold_steppe";          // BSk
-    
+    case 4:
+      return "hot_desert"; // BWh
+    case 5:
+      return "cold_desert"; // BWk
+    case 6:
+      return "hot_steppe"; // BSh
+    case 7:
+      return "cold_steppe"; // BSk
+
     // Temperate (C) - Mediterranean
-    case 8: return "mediterranean_hot";    // Csa
-    case 9: return "mediterranean_warm";   // Csb
-    case 10: return "mediterranean_cold";  // Csc
-    
+    case 8:
+      return "mediterranean_hot"; // Csa
+    case 9:
+      return "mediterranean_warm"; // Csb
+    case 10:
+      return "mediterranean_cold"; // Csc
+
     // Temperate (C) - Subtropical
-    case 11: return "humid_subtropical";   // Cwa
-    case 12: return "subtropical_highland"; // Cwb
-    case 13: return "subtropical_highland_cold"; // Cwc
-    
+    case 11:
+      return "humid_subtropical"; // Cwa
+    case 12:
+      return "subtropical_highland"; // Cwb
+    case 13:
+      return "subtropical_highland_cold"; // Cwc
+
     // Temperate (C) - Oceanic
-    case 14: return "humid_subtropical_hot"; // Cfa
-    case 15: return "oceanic";             // Cfb
-    case 16: return "subpolar_oceanic";    // Cfc
-    
+    case 14:
+      return "humid_subtropical_hot"; // Cfa
+    case 15:
+      return "oceanic"; // Cfb
+    case 16:
+      return "subpolar_oceanic"; // Cfc
+
     // Continental (D) - Dry summer
-    case 17: return "hot_summer_continental"; // Dsa
-    case 18: return "warm_summer_continental"; // Dsb
-    case 19: return "subarctic_dry";       // Dsc
-    case 20: return "subarctic_very_cold_dry"; // Dsd
-    
+    case 17:
+      return "hot_summer_continental"; // Dsa
+    case 18:
+      return "warm_summer_continental"; // Dsb
+    case 19:
+      return "subarctic_dry"; // Dsc
+    case 20:
+      return "subarctic_very_cold_dry"; // Dsd
+
     // Continental (D) - Dry winter
-    case 21: return "humid_continental_hot"; // Dwa
-    case 22: return "humid_continental_warm"; // Dwb
-    case 23: return "subarctic_dry_winter"; // Dwc
-    case 24: return "subarctic_very_cold_dry_winter"; // Dwd
-    
+    case 21:
+      return "humid_continental_hot"; // Dwa
+    case 22:
+      return "humid_continental_warm"; // Dwb
+    case 23:
+      return "subarctic_dry_winter"; // Dwc
+    case 24:
+      return "subarctic_very_cold_dry_winter"; // Dwd
+
     // Continental (D) - No dry season
-    case 25: return "humid_continental";   // Dfa
-    case 26: return "warm_summer_humid";   // Dfb
-    case 27: return "subarctic";           // Dfc
-    case 28: return "subarctic_very_cold"; // Dfd
-    
+    case 25:
+      return "humid_continental"; // Dfa
+    case 26:
+      return "warm_summer_humid"; // Dfb
+    case 27:
+      return "subarctic"; // Dfc
+    case 28:
+      return "subarctic_very_cold"; // Dfd
+
     // Polar (E)
-    case 29: return "tundra";              // ET
-    case 30: return "ice_cap";             // EF
-    
+    case 29:
+      return "tundra"; // ET
+    case 30:
+      return "ice_cap"; // EF
+
     default:
       return "land"; // Fallback for unknown codes
   }
@@ -546,11 +613,14 @@ function terrainFromSample(
   opts: Required<BuildTerrainFromRasterOptions>,
   _neighborMaxElevM?: number, // Kept for API compatibility; mountains now come from peak dataset only
   /** If set, max absolute latitude (deg) over the tile; used so water tiles that extend into the polar cap become ice and avoid an ocean donut. */
-  maxAbsLatDeg?: number
+  maxAbsLatDeg?: number,
 ): Pick<TileTerrainData, "type" | "elevation" | "isHilly"> {
   const absLat = Math.abs(latRad);
   const latDeg = (absLat * 180) / Math.PI;
-  const inPolarCap = maxAbsLatDeg != null ? maxAbsLatDeg >= opts.polarCapLat : latDeg >= opts.polarCapLat;
+  const inPolarCap =
+    maxAbsLatDeg != null
+      ? maxAbsLatDeg >= opts.polarCapLat
+      : latDeg >= opts.polarCapLat;
 
   // Tiles in the polar cap are always ice (solid ice caps, no holes in Antarctica/Arctic)
   if (inPolarCap) {
@@ -572,7 +642,11 @@ function terrainFromSample(
   let elevation = opts.landElevation;
 
   // Prefer climate (Köppen) when available – correct source for desert vs rainforest
-  if (result.climateCode != null && result.climateCode >= 1 && result.climateCode <= 30) {
+  if (
+    result.climateCode != null &&
+    result.climateCode >= 1 &&
+    result.climateCode <= 30
+  ) {
     type = koppenToTerrainType(result.climateCode);
     if (type === "desert") elevation = 0.05;
     else if (type === "forest" || type === "grassland") elevation = 0.1;
@@ -598,12 +672,13 @@ function terrainFromSample(
   if (demM != null && Number.isFinite(demM)) {
     if (opts.elevationQuantizationM > 0) {
       demM =
-        Math.round(demM / opts.elevationQuantizationM) * opts.elevationQuantizationM;
+        Math.round(demM / opts.elevationQuantizationM) *
+        opts.elevationQuantizationM;
     }
     const lift = THREE.MathUtils.clamp(
       Math.max(0, demM) * opts.terrainDemMeterScale,
       0,
-      opts.maxTerrainDemLiftGlobe
+      opts.maxTerrainDemLiftGlobe,
     );
     elevation += lift;
   }
@@ -613,12 +688,13 @@ function terrainFromSample(
   // This allows high mountains with moderate variance OR moderate elevation with high variance
   let isHilly = false;
   if (result.elevationM != null && result.elevationStdDevM != null) {
-    const elevContrib = Math.max(0, result.elevationM) / opts.hillsElevationScale;
+    const elevContrib =
+      Math.max(0, result.elevationM) / opts.hillsElevationScale;
     const varContrib = result.elevationStdDevM / opts.hillsVarianceScale;
     const hillScore = elevContrib + varContrib;
     isHilly = hillScore >= opts.hillsScoreThreshold;
   }
-  
+
   if (isHilly) {
     elevation += 0.02;
   }
@@ -631,8 +707,18 @@ function terrainFromSample(
 function sampleTile(
   tile: GeodesicTile,
   raster: EarthRaster,
-  opts: Required<BuildTerrainFromRasterOptions>
-): { land: boolean; landCount: number; sampleCount: number; elevationM?: number; elevationStdDevM?: number; climateCode?: number; temperatureC?: number; latRad: number; maxAbsLatDeg: number } {
+  opts: Required<BuildTerrainFromRasterOptions>,
+): {
+  land: boolean;
+  landCount: number;
+  sampleCount: number;
+  elevationM?: number;
+  elevationStdDevM?: number;
+  climateCode?: number;
+  temperatureC?: number;
+  latRad: number;
+  maxAbsLatDeg: number;
+} {
   const centerLatLon = tileCenterToLatLon(tile.center);
   const maxAbsLatDeg = tileMaxAbsLatDeg(tile);
   const points: { lat: number; lon: number }[] = [centerLatLon];
@@ -661,25 +747,32 @@ function sampleTile(
       tempCount++;
     }
     if (r.climateCode != null) {
-      climateCounts.set(r.climateCode, (climateCounts.get(r.climateCode) ?? 0) + 1);
+      climateCounts.set(
+        r.climateCode,
+        (climateCounts.get(r.climateCode) ?? 0) + 1,
+      );
     }
   }
-  const land = opts.sampleMode === "center" ? landCount > 0 : landCount > sampleCount / 2;
-  
+  const land =
+    opts.sampleMode === "center" ? landCount > 0 : landCount > sampleCount / 2;
+
   // Compute mean elevation from interpolated samples (for terrain height)
   let elevationM: number | undefined;
   if (elevSamples.length > 0) {
     const sum = elevSamples.reduce((a, b) => a + b, 0);
     elevationM = sum / elevSamples.length;
   }
-  
+
   // Compute elevation variance from RAW PIXELS in the hex's bounding box
   // This captures true terrain roughness better than interpolated samples
   let elevationStdDevM: number | undefined;
   const elev = raster.elevation;
   if (elev && "width" in elev) {
     // Get lat/lon bounding box of the hex
-    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    let minLat = Infinity,
+      maxLat = -Infinity,
+      minLon = Infinity,
+      maxLon = -Infinity;
     for (const v of tile.vertices) {
       const ll = tileCenterToLatLon(v);
       minLat = Math.min(minLat, ll.lat);
@@ -694,10 +787,22 @@ function sampleTile(
     const minLonDeg = minLon * latToDeg;
     const maxLonDeg = maxLon * latToDeg;
     // Pixel bounds (y0 = top = north, y1 = bottom = south)
-    const y0 = Math.max(0, Math.floor(((90 - maxLatDeg) / 180) * (elev.height - 1)));
-    const y1 = Math.min(elev.height - 1, Math.ceil(((90 - minLatDeg) / 180) * (elev.height - 1)));
-    const x0 = Math.max(0, Math.floor(((minLonDeg + 180) / 360) * (elev.width - 1)));
-    const x1 = Math.min(elev.width - 1, Math.ceil(((maxLonDeg + 180) / 360) * (elev.width - 1)));
+    const y0 = Math.max(
+      0,
+      Math.floor(((90 - maxLatDeg) / 180) * (elev.height - 1)),
+    );
+    const y1 = Math.min(
+      elev.height - 1,
+      Math.ceil(((90 - minLatDeg) / 180) * (elev.height - 1)),
+    );
+    const x0 = Math.max(
+      0,
+      Math.floor(((minLonDeg + 180) / 360) * (elev.width - 1)),
+    );
+    const x1 = Math.min(
+      elev.width - 1,
+      Math.ceil(((maxLonDeg + 180) / 360) * (elev.width - 1)),
+    );
     // Collect raw pixel values
     const rawPixels: number[] = [];
     for (let y = y0; y <= y1; y++) {
@@ -712,15 +817,21 @@ function sampleTile(
     if (rawPixels.length > 1) {
       const rawSum = rawPixels.reduce((a, b) => a + b, 0);
       const rawMean = rawSum / rawPixels.length;
-      const sqDiffSum = rawPixels.reduce((acc, e) => acc + (e - rawMean) ** 2, 0);
+      const sqDiffSum = rawPixels.reduce(
+        (acc, e) => acc + (e - rawMean) ** 2,
+        0,
+      );
       elevationStdDevM = Math.sqrt(sqDiffSum / rawPixels.length);
     }
   } else if (elevSamples.length > 1) {
     // Fallback for non-grid elevation data
-    const sqDiffSum = elevSamples.reduce((acc, e) => acc + (e - elevationM!) ** 2, 0);
+    const sqDiffSum = elevSamples.reduce(
+      (acc, e) => acc + (e - elevationM!) ** 2,
+      0,
+    );
     elevationStdDevM = Math.sqrt(sqDiffSum / elevSamples.length);
   }
-  
+
   const temperatureC = tempCount > 0 ? tempSum / tempCount : undefined;
   let climateCode: number | undefined;
   if (climateCounts.size > 0) {
@@ -732,7 +843,17 @@ function sampleTile(
       }
     }
   }
-  return { land, landCount, sampleCount, elevationM, elevationStdDevM, climateCode, temperatureC, latRad: centerLatLon.lat, maxAbsLatDeg };
+  return {
+    land,
+    landCount,
+    sampleCount,
+    elevationM,
+    elevationStdDevM,
+    climateCode,
+    temperatureC,
+    latRad: centerLatLon.lat,
+    maxAbsLatDeg,
+  };
 }
 
 /** Full result of sampling a tile (sampleTile return type); used for topology resolution. */
@@ -753,15 +874,19 @@ function resolveLandWaterByTopology(
   opts: Required<
     Pick<
       BuildTerrainFromRasterOptions,
-      "topologyLandThreshold" | "topologyWaterThreshold" | "topologyIslandLandThreshold" | "sampleMode" | "sampleCount"
+      | "topologyLandThreshold"
+      | "topologyWaterThreshold"
+      | "topologyIslandLandThreshold"
+      | "sampleMode"
+      | "sampleCount"
     >
   > & {
     landSampler?: (latRad: number, lonRad: number) => boolean;
     topologySampler?: (
       latRad: number,
-      lonRad: number
+      lonRad: number,
     ) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
-  }
+  },
 ): Map<number, LandWaterAssignment> {
   const tileById = new Map<number, GeodesicTile>();
   for (const t of tiles) tileById.set(t.id, t);
@@ -773,17 +898,28 @@ function resolveLandWaterByTopology(
   const topologySampler = opts.topologySampler;
 
   /** Sample hex with topologySampler; return distinct land polygon indices, water region ids, and counts. */
-  function sampleHexTopology(tile: GeodesicTile): { landPolygonIndices: Set<number>; waterRegionIds: Set<number>; landCount: number; sampleCount: number } {
+  function sampleHexTopology(tile: GeodesicTile): {
+    landPolygonIndices: Set<number>;
+    waterRegionIds: Set<number>;
+    landCount: number;
+    sampleCount: number;
+  } {
     const landPolygonIndices = new Set<number>();
     const waterRegionIds = new Set<number>();
     let landCount = 0;
-    const points: { lat: number; lon: number }[] = [tileCenterToLatLon(tile.center)];
+    const points: { lat: number; lon: number }[] = [
+      tileCenterToLatLon(tile.center),
+    ];
     if (opts.sampleMode === "tile") {
       const interior = samplePointsInTile(tile, opts.sampleCount);
       for (const p of interior) points.push(tileCenterToLatLon(p));
     }
     for (const { lat, lon } of points) {
-      let s: { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
+      let s: {
+        land: boolean;
+        landPolygonIndex?: number;
+        waterRegionId?: number;
+      };
       try {
         s = topologySampler!(lat, lon);
       } catch {
@@ -791,12 +927,18 @@ function resolveLandWaterByTopology(
       }
       if (s.land) {
         landCount++;
-        if (s.landPolygonIndex !== undefined) landPolygonIndices.add(s.landPolygonIndex);
+        if (s.landPolygonIndex !== undefined)
+          landPolygonIndices.add(s.landPolygonIndex);
       } else {
         if (s.waterRegionId !== undefined) waterRegionIds.add(s.waterRegionId);
       }
     }
-    return { landPolygonIndices, waterRegionIds, landCount, sampleCount: points.length };
+    return {
+      landPolygonIndices,
+      waterRegionIds,
+      landCount,
+      sampleCount: points.length,
+    };
   }
 
   const landByTile = new Map<number, boolean>();
@@ -925,8 +1067,14 @@ function resolveLandWaterByTopology(
             const { lat, lon } = tileCenterToLatLon(t.center);
             assignLand = landSampler(lat, lon);
           } else {
-            const sumLand = [...landCompIds].reduce((s, c) => s + (landSizes!.get(c) ?? 0), 0);
-            const sumWater = [...waterCompIds].reduce((s, c) => s + (waterSizes!.get(c) ?? 0), 0);
+            const sumLand = [...landCompIds].reduce(
+              (s, c) => s + (landSizes!.get(c) ?? 0),
+              0,
+            );
+            const sumWater = [...waterCompIds].reduce(
+              (s, c) => s + (waterSizes!.get(c) ?? 0),
+              0,
+            );
             assignLand = sumLand >= sumWater;
           }
           shouldResolve = true;
@@ -1008,7 +1156,7 @@ function resolveLandWaterByTopology(
 /** Connected components of a set of tile ids using the hex graph (neighbors). Returns component id -> set of tile ids. */
 function getHexComponents(
   tileIds: Set<number>,
-  tileById: Map<number, GeodesicTile>
+  tileById: Map<number, GeodesicTile>,
 ): Map<number, Set<number>> {
   const compId = new Map<number, number>();
   let id = 0;
@@ -1047,7 +1195,7 @@ function reachableThroughWater(
   exclude: number,
   maxDepth: number,
   isLand: (tid: number) => boolean,
-  tileById: Map<number, GeodesicTile>
+  tileById: Map<number, GeodesicTile>,
 ): Set<number> {
   const out = new Set<number>();
   const queue: { tid: number; d: number }[] = [{ tid: from, d: 0 }];
@@ -1074,7 +1222,7 @@ function reachableThroughLand(
   exclude: number,
   maxDepth: number,
   isLand: (tid: number) => boolean,
-  tileById: Map<number, GeodesicTile>
+  tileById: Map<number, GeodesicTile>,
 ): Set<number> {
   const out = new Set<number>();
   const queue: { tid: number; d: number }[] = [{ tid: from, d: 0 }];
@@ -1098,7 +1246,7 @@ function reachableThroughLand(
 /** Articulation points (cut vertices) of the subgraph induced by tileIds. O(|tileIds| + edges). */
 function getArticulationPoints(
   tileIds: Set<number>,
-  tileById: Map<number, GeodesicTile>
+  tileById: Map<number, GeodesicTile>,
 ): Set<number> {
   const points = new Set<number>();
   const depth = new Map<number, number>();
@@ -1184,7 +1332,10 @@ export interface ResolveLandWaterByRegionsOptions {
   /** Landmass size above which we are sea-biased on neutral boundary hexes (trim coasts). Default 8000. */
   largeLandmassSize?: number;
   /** Called after each main-loop iteration with (iteration, landByTile). If it returns a Promise, it is awaited so the UI can update. */
-  onIteration?: (iteration: number, landByTile: Map<number, LandWaterAssignment>) => void | Promise<void>;
+  onIteration?: (
+    iteration: number,
+    landByTile: Map<number, LandWaterAssignment>,
+  ) => void | Promise<void>;
   /** If true, place landmasses greedily by size (largest first); new land cannot touch already-placed land, so islands never link to continents. */
   useGreedyLandmassPlacement?: boolean;
   /** Optional: return a small raster cutout (land/water) around the tile to test isthmus vs strait by flood fill. If land crosses cutout but sea doesn't → isthmus; if sea crosses but land doesn't → strait. */
@@ -1202,9 +1353,12 @@ export interface ResolveLandWaterByRegionsOptions {
 export async function resolveLandWaterByRegions(
   tiles: GeodesicTile[],
   getRegionScores: (tile: GeodesicTile) => RegionScores,
-  options: ResolveLandWaterByRegionsOptions = {}
+  options: ResolveLandWaterByRegionsOptions = {},
 ): Promise<Map<number, LandWaterAssignment>> {
-  console.log("[polyglobe] resolveLandWaterByRegions: start, tiles:", tiles.length);
+  console.log(
+    "[polyglobe] resolveLandWaterByRegions: start, tiles:",
+    tiles.length,
+  );
   const minLandmassSize = options.minLandmassSize ?? 2;
   const bridgeThreshold = options.bridgeThreshold ?? 0.08;
   const bridgeMaxGap = options.bridgeMaxGap ?? 2;
@@ -1213,7 +1367,8 @@ export async function resolveLandWaterByRegions(
   const oceanConnectThreshold = options.oceanConnectThreshold ?? 0.12;
   const maxIterations = options.maxIterations ?? 3;
   const onIteration = options.onIteration;
-  const useGreedyLandmassPlacement = options.useGreedyLandmassPlacement === true;
+  const useGreedyLandmassPlacement =
+    options.useGreedyLandmassPlacement === true;
   const localStraitDepthLimit = options.localStraitDepthLimit ?? 150;
   const _minIslandSize = options.minIslandSize ?? 3;
   const _minLakeSize = options.minLakeSize ?? 2;
@@ -1261,10 +1416,12 @@ export async function resolveLandWaterByRegions(
   }
 
   if (useGreedyLandmassPlacement) {
-    console.log("[polyglobe] resolveLandWaterByRegions: using greedy landmass placement (largest first, no touching already-placed)");
+    console.log(
+      "[polyglobe] resolveLandWaterByRegions: using greedy landmass placement (largest first, no touching already-placed)",
+    );
     // Pixel-based allocation: each landmass gets a number of hexes proportional to its raster pixel count.
     // Small islands that would otherwise disappear get at least 1 hex.
-    
+
     // Calculate total pixel weight for each landmass
     const landmassSizes = new Map<number, number>();
     for (const tile of tiles) {
@@ -1273,25 +1430,26 @@ export async function resolveLandWaterByRegions(
         if (id > 0) landmassSizes.set(id, (landmassSizes.get(id) ?? 0) + f);
       }
     }
-    
+
     // Process landmasses largest first (to reserve space before small islands)
     const landmassIdsBySize = [...landmassSizes.entries()]
       .filter(([, size]) => size > 0)
       .sort((a, b) => b[1] - a[1])
       .map(([id]) => id);
     const placedLand = new Set<number>();
-    
+
     // Debug: log landmass allocation summary
     let smallIslandCount = 0;
     let smallIslandHexes = 0;
-    
+
     for (const landmassId of landmassIdsBySize) {
       // Target hex count based on pixel weight (minimum 1)
       const pixelWeight = landmassSizes.get(landmassId) ?? 0;
       const targetHexes = Math.max(1, Math.round(pixelWeight));
-      
+
       // Collect all tiles with any pixels from this landmass, sorted by fraction descending
-      const tilesWithFraction: Array<{ tile: GeodesicTile; fraction: number }> = [];
+      const tilesWithFraction: Array<{ tile: GeodesicTile; fraction: number }> =
+        [];
       for (const tile of tiles) {
         const s = scores(tile);
         const f = s.landmassFractions.get(landmassId) ?? 0;
@@ -1300,7 +1458,7 @@ export async function resolveLandWaterByRegions(
         }
       }
       tilesWithFraction.sort((a, b) => b.fraction - a.fraction);
-      
+
       // Select top tiles that don't touch already-placed land, up to targetHexes
       let candidates = new Set<number>();
       for (const { tile } of tilesWithFraction) {
@@ -1308,7 +1466,7 @@ export async function resolveLandWaterByRegions(
         if (tile.neighbors.some((n) => placedLand.has(n))) continue;
         candidates.add(tile.id);
       }
-      
+
       if (candidates.size === 0) continue;
 
       // Require one connected landmass: if disjoint, find bridge hexes on the raster to connect components.
@@ -1316,16 +1474,20 @@ export async function resolveLandWaterByRegions(
       const landmassBridgeFraction = 0.15; // min raster fraction for this landmass to allow a hex as bridge
       const skipBridgingIfSmall = targetHexes <= 3;
       let components = getHexComponents(candidates, tileById);
-      
+
       if (skipBridgingIfSmall && components.size > 1) {
         // Just keep the largest connected component for small islands
-        const largest = [...components.values()].sort((a, b) => b.size - a.size)[0];
+        const largest = [...components.values()].sort(
+          (a, b) => b.size - a.size,
+        )[0];
         candidates = largest;
         components = new Map([[0, candidates]]);
       }
-      
+
       while (components.size > 1) {
-        const compList = [...components.values()].sort((a, b) => b.size - a.size);
+        const compList = [...components.values()].sort(
+          (a, b) => b.size - a.size,
+        );
         const main = compList[0];
         let path: number[] | null = null;
         for (let i = 1; i < compList.length; i++) {
@@ -1335,7 +1497,8 @@ export async function resolveLandWaterByRegions(
           for (const tile of tiles) {
             if (tile.neighbors.some((n) => placedLand.has(n))) continue;
             const f = scores(tile).landmassFractions.get(landmassId) ?? 0;
-            if (f >= landmassBridgeFraction || candidates.has(tile.id)) allowed.add(tile.id);
+            if (f >= landmassBridgeFraction || candidates.has(tile.id))
+              allowed.add(tile.id);
           }
           const prev = new Map<number, number>();
           const queue: number[] = [...main];
@@ -1344,7 +1507,8 @@ export async function resolveLandWaterByRegions(
             const tid = queue.shift()!;
             if (other.has(tid)) {
               path = [];
-              for (let p: number | undefined = tid; p != null; p = prev.get(p)) path.push(p);
+              for (let p: number | undefined = tid; p != null; p = prev.get(p))
+                path.push(p);
               break;
             }
             const t = tileById.get(tid)!;
@@ -1359,7 +1523,9 @@ export async function resolveLandWaterByRegions(
         }
         if (path == null) {
           // Cannot connect components - keep only the largest one to ensure contiguity
-          const largest = [...components.values()].sort((a, b) => b.size - a.size)[0];
+          const largest = [...components.values()].sort(
+            (a, b) => b.size - a.size,
+          )[0];
           candidates = largest;
           break;
         }
@@ -1373,16 +1539,18 @@ export async function resolveLandWaterByRegions(
         assign.set(tid, { isLand: true, landmassId });
         placedLand.add(tid);
       }
-      
+
       // Track small islands for debug logging
       if (targetHexes <= 5) {
         smallIslandCount++;
         smallIslandHexes += toAssign.size;
       }
     }
-    
-    console.log(`[polyglobe] Landmass allocation: ${landmassIdsBySize.length} landmasses, ${smallIslandCount} small islands (≤5 target hexes) got ${smallIslandHexes} total hexes`);
-    
+
+    console.log(
+      `[polyglobe] Landmass allocation: ${landmassIdsBySize.length} landmasses, ${smallIslandCount} small islands (≤5 target hexes) got ${smallIslandHexes} total hexes`,
+    );
+
     for (const tile of tiles) {
       if (assign.has(tile.id)) continue;
       const s = scores(tile);
@@ -1409,7 +1577,10 @@ export async function resolveLandWaterByRegions(
             bestOcean = id;
           }
         }
-        assign.set(tile.id, { isLand: false, oceanRegionId: bestOcean || undefined });
+        assign.set(tile.id, {
+          isLand: false,
+          oceanRegionId: bestOcean || undefined,
+        });
       }
     }
   } else {
@@ -1426,7 +1597,10 @@ export async function resolveLandWaterByRegions(
             bestLandmass = id;
           }
         }
-        assign.set(tile.id, { isLand: true, landmassId: bestLandmass || undefined });
+        assign.set(tile.id, {
+          isLand: true,
+          landmassId: bestLandmass || undefined,
+        });
       } else {
         let oceanSum = 0;
         let lakeSum = 0;
@@ -1451,7 +1625,10 @@ export async function resolveLandWaterByRegions(
               bestOcean = id;
             }
           }
-          assign.set(tile.id, { isLand: false, oceanRegionId: bestOcean || undefined });
+          assign.set(tile.id, {
+            isLand: false,
+            oceanRegionId: bestOcean || undefined,
+          });
         }
       }
     }
@@ -1482,13 +1659,22 @@ export async function resolveLandWaterByRegions(
   while (iterations < maxIterations) {
     iterations++;
     if (iterations === 1 || iterations % 10 === 0) {
-      console.log("[polyglobe] resolveLandWaterByRegions: main loop iteration", iterations);
+      console.log(
+        "[polyglobe] resolveLandWaterByRegions: main loop iteration",
+        iterations,
+      );
     }
     if (onIteration) {
       const landByTileStart = new Map<number, LandWaterAssignment>();
-      for (const [tid, a] of assign) landByTileStart.set(tid, { isLand: a.isLand, lakeId: a.lakeId, oceanRegionId: a.oceanRegionId });
+      for (const [tid, a] of assign)
+        landByTileStart.set(tid, {
+          isLand: a.isLand,
+          lakeId: a.lakeId,
+          oceanRegionId: a.oceanRegionId,
+        });
       const result = onIteration(iterations, landByTileStart);
-      if (result && typeof (result as Promise<unknown>).then === "function") await result;
+      if (result && typeof (result as Promise<unknown>).then === "function")
+        await result;
     }
     let changed = false;
 
@@ -1519,7 +1705,7 @@ export async function resolveLandWaterByRegions(
         if (!b?.isLand || b.landmassId == null) continue;
         if (b.landmassId !== a.landmassId) {
           throw new Error(
-            `[resolveLandWaterByRegions] Landmasses ${a.landmassId} and ${b.landmassId} connected (tiles ${tid}, ${nid}) at iteration ${iterations}`
+            `[resolveLandWaterByRegions] Landmasses ${a.landmassId} and ${b.landmassId} connected (tiles ${tid}, ${nid}) at iteration ${iterations}`,
           );
         }
       }
@@ -1558,9 +1744,22 @@ export async function resolveLandWaterByRegions(
         if (win) {
           const { landCrosses, seaCrosses } = rasterCutoutCrosses(win);
           if (landCrosses && !seaCrosses && !isNearKnownStrait(t)) continue;
-          if ((!seaCrosses || landCrosses) && cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
-        } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
-      } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
+          if (
+            (!seaCrosses || landCrosses) &&
+            cutByLandmass.get(a.landmassId)?.has(tid) &&
+            !isNearKnownStrait(t)
+          )
+            continue;
+        } else if (
+          cutByLandmass.get(a.landmassId)?.has(tid) &&
+          !isNearKnownStrait(t)
+        )
+          continue;
+      } else if (
+        cutByLandmass.get(a.landmassId)?.has(tid) &&
+        !isNearKnownStrait(t)
+      )
+        continue;
       const waterNeighbors: number[] = [];
       for (const nid of t.neighbors) {
         if (!assign.get(nid)?.isLand) waterNeighbors.push(nid);
@@ -1571,7 +1770,7 @@ export async function resolveLandWaterByRegions(
         tid,
         localStraitDepthLimit,
         isLandFn,
-        tileById
+        tileById,
       );
       const inOtherComponent = waterNeighbors.find((w) => !reachableA.has(w));
       if (inOtherComponent == null) continue;
@@ -1580,7 +1779,7 @@ export async function resolveLandWaterByRegions(
         tid,
         localStraitDepthLimit,
         isLandFn,
-        tileById
+        tileById,
       );
       const oceanIdA = assign.get(waterNeighbors[0])?.oceanRegionId ?? 1;
       const oceanIdB = assign.get(inOtherComponent)?.oceanRegionId ?? 1;
@@ -1609,9 +1808,11 @@ export async function resolveLandWaterByRegions(
         tid,
         localStraitDepthLimit,
         isLandFn,
-        tileById
+        tileById,
       );
-      const another = landNeighbors.find((l) => l !== landNeighbors[0] && reachable.has(l));
+      const another = landNeighbors.find(
+        (l) => l !== landNeighbors[0] && reachable.has(l),
+      );
       if (another == null) continue;
       const landmassId = assign.get(landNeighbors[0])?.landmassId ?? 0;
       assign.set(tid, { isLand: true, landmassId });
@@ -1628,7 +1829,8 @@ export async function resolveLandWaterByRegions(
       const neighborLandmassIds = new Set<number>();
       for (const nid of tile.neighbors) {
         const na = assign.get(nid);
-        if (na?.isLand && na.landmassId != null) neighborLandmassIds.add(na.landmassId);
+        if (na?.isLand && na.landmassId != null)
+          neighborLandmassIds.add(na.landmassId);
       }
       for (const idA of neighborLandmassIds) {
         if (changed) break;
@@ -1646,7 +1848,8 @@ export async function resolveLandWaterByRegions(
           const mergeFrom = assignTo === idA ? idB : idA;
           assign.set(tile.id, { isLand: true, landmassId: assignTo });
           for (const [tid, aa] of assign) {
-            if (aa.isLand && aa.landmassId === mergeFrom) assign.set(tid, { ...aa, landmassId: assignTo });
+            if (aa.isLand && aa.landmassId === mergeFrom)
+              assign.set(tid, { ...aa, landmassId: assignTo });
           }
           changed = true;
           break;
@@ -1674,7 +1877,8 @@ export async function resolveLandWaterByRegions(
               if (assign.get(nid)?.isLand) continue;
               const neighbor = tileById.get(nid);
               if (!neighbor) continue;
-              const touchesA = cA.has(nid) || neighbor.neighbors.some((n) => cA.has(n));
+              const touchesA =
+                cA.has(nid) || neighbor.neighbors.some((n) => cA.has(n));
               if (!touchesA) continue;
               if (!waterReachesComponent(nid, cB)) continue;
               const s = scores(neighbor);
@@ -1683,7 +1887,8 @@ export async function resolveLandWaterByRegions(
               const neighborLandmassIds = new Set<number>();
               for (const n of neighbor.neighbors) {
                 const a = assign.get(n);
-                if (a?.isLand && a.landmassId != null) neighborLandmassIds.add(a.landmassId);
+                if (a?.isLand && a.landmassId != null)
+                  neighborLandmassIds.add(a.landmassId);
               }
               if (neighborLandmassIds.size > 1) continue;
               if (!best || f > best.f) best = { tid: nid, f };
@@ -1700,7 +1905,10 @@ export async function resolveLandWaterByRegions(
                 bestLm = id;
               }
             }
-            assign.set(best.tid, { isLand: true, landmassId: bestLm || landmassId });
+            assign.set(best.tid, {
+              isLand: true,
+              landmassId: bestLm || landmassId,
+            });
             changed = true;
             break;
           }
@@ -1743,10 +1951,24 @@ export async function resolveLandWaterByRegions(
                 const win = getRasterWindow(t);
                 if (win) {
                   const { landCrosses, seaCrosses } = rasterCutoutCrosses(win);
-                  if (landCrosses && !seaCrosses && !isNearKnownStrait(t)) continue;
-                  if ((!seaCrosses || landCrosses) && cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
-                } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
-              } else if (cutByLandmass.get(a.landmassId)?.has(tid) && !isNearKnownStrait(t)) continue;
+                  if (landCrosses && !seaCrosses && !isNearKnownStrait(t))
+                    continue;
+                  if (
+                    (!seaCrosses || landCrosses) &&
+                    cutByLandmass.get(a.landmassId)?.has(tid) &&
+                    !isNearKnownStrait(t)
+                  )
+                    continue;
+                } else if (
+                  cutByLandmass.get(a.landmassId)?.has(tid) &&
+                  !isNearKnownStrait(t)
+                )
+                  continue;
+              } else if (
+                cutByLandmass.get(a.landmassId)?.has(tid) &&
+                !isNearKnownStrait(t)
+              )
+                continue;
               const s = scores(t);
               let oceanF = 0;
               for (const f of s.oceanFractions.values()) oceanF += f;
@@ -1831,7 +2053,8 @@ export async function resolveLandWaterByRegions(
       const t = tileById.get(tid)!;
       for (const nid of t.neighbors) {
         const b = assign.get(nid);
-        if (!b?.isLand || b.landmassId == null || b.landmassId === a.landmassId) continue;
+        if (!b?.isLand || b.landmassId == null || b.landmassId === a.landmassId)
+          continue;
         const cutA = cutByLandmass.get(a.landmassId);
         const cutB = cutByLandmass.get(b.landmassId!);
         const tileCut = cutA?.has(tid);
@@ -1858,7 +2081,10 @@ export async function resolveLandWaterByRegions(
     const cutByLandmassForBias = new Map<number, Set<number>>();
     for (const [landmassId, tileSet] of byLandmass) {
       if (tileSet.size < 2) continue;
-      cutByLandmassForBias.set(landmassId, getArticulationPoints(tileSet, tileById));
+      cutByLandmassForBias.set(
+        landmassId,
+        getArticulationPoints(tileSet, tileById),
+      );
     }
     for (const tid of boundary) {
       const a = assign.get(tid);
@@ -1890,7 +2116,7 @@ export async function resolveLandWaterByRegions(
           tid,
           localStraitDepthLimit,
           isLandFn,
-          tileById
+          tileById,
         );
         const inOther = landNeighbors.find((l) => !reachable.has(l));
         if (inOther != null) continue;
@@ -1906,10 +2132,18 @@ export async function resolveLandWaterByRegions(
 
     if (!changed) break;
   }
-  console.log("[polyglobe] resolveLandWaterByRegions: main loop done, iterations:", iterations);
+  console.log(
+    "[polyglobe] resolveLandWaterByRegions: main loop done, iterations:",
+    iterations,
+  );
 
   const out = new Map<number, LandWaterAssignment>();
-  for (const [tid, a] of assign) out.set(tid, { isLand: a.isLand, lakeId: a.lakeId, oceanRegionId: a.oceanRegionId });
+  for (const [tid, a] of assign)
+    out.set(tid, {
+      isLand: a.isLand,
+      lakeId: a.lakeId,
+      oceanRegionId: a.oceanRegionId,
+    });
   return out;
 }
 
@@ -1921,7 +2155,7 @@ export async function resolveLandWaterByRegions(
 export async function buildTerrainFromEarthRaster(
   tiles: GeodesicTile[],
   raster: EarthRaster,
-  options: BuildTerrainFromRasterOptions = {}
+  options: BuildTerrainFromRasterOptions = {},
 ): Promise<Map<number, TileTerrainData>> {
   const opts = { ...DEFAULT_OPTS, ...options };
   const out = new Map<number, TileTerrainData>();
@@ -1931,13 +2165,19 @@ export async function buildTerrainFromEarthRaster(
   const resultsByTile = new Map<number, ReturnType<typeof sampleTile>>();
   const onFirstPassProgress = opts.onFirstPassProgress;
   const progressInterval = 2000;
-  console.log("[polyglobe] buildTerrainFromEarthRaster: first pass sampling", tiles.length, "tiles");
+  console.log(
+    "[polyglobe] buildTerrainFromEarthRaster: first pass sampling",
+    tiles.length,
+    "tiles",
+  );
   let sampled = 0;
   for (const tile of tiles) {
     const result = sampleTile(tile, raster, opts);
     resultsByTile.set(tile.id, result);
     const elevM =
-      result.land && result.elevationM != null && result.elevationM > 0 ? result.elevationM : 0;
+      result.land && result.elevationM != null && result.elevationM > 0
+        ? result.elevationM
+        : 0;
     elevationByTile.set(tile.id, elevM);
     sampled++;
     if (onFirstPassProgress && sampled % progressInterval === 0) {
@@ -1945,15 +2185,23 @@ export async function buildTerrainFromEarthRaster(
       if (p && typeof (p as Promise<unknown>).then === "function") await p;
     }
   }
-  console.log("[polyglobe] buildTerrainFromEarthRaster: first pass done, resolving land/water");
+  console.log(
+    "[polyglobe] buildTerrainFromEarthRaster: first pass done, resolving land/water",
+  );
 
   const landByTile = opts.getRegionScores
-    ? await resolveLandWaterByRegions(tiles, opts.getRegionScores, opts.resolveOptions ?? {})
+    ? await resolveLandWaterByRegions(
+        tiles,
+        opts.getRegionScores,
+        opts.resolveOptions ?? {},
+      )
     : opts.topologyResolve && opts.sampleMode === "tile"
       ? resolveLandWaterByTopology(tiles, resultsByTile, opts)
       : null;
 
-  console.log("[polyglobe] buildTerrainFromEarthRaster: land/water done, building output");
+  console.log(
+    "[polyglobe] buildTerrainFromEarthRaster: land/water done, building output",
+  );
 
   // Debug: collect variance statistics
   let hillsCount = 0;
@@ -1967,12 +2215,13 @@ export async function buildTerrainFromEarthRaster(
     const land = lw ? lw.isLand : result.land;
     const lakeId = lw?.lakeId;
     const effectiveResult = { ...result, land };
-    
+
     // Track variance stats
     if (land && result.elevationStdDevM != null) {
       varianceSum += result.elevationStdDevM;
       varianceCount++;
-      if (result.elevationStdDevM > maxVariance) maxVariance = result.elevationStdDevM;
+      if (result.elevationStdDevM > maxVariance)
+        maxVariance = result.elevationStdDevM;
     }
     let neighborMaxElevM = 0;
     for (const neighborId of tile.neighbors) {
@@ -1984,26 +2233,41 @@ export async function buildTerrainFromEarthRaster(
       result.latRad,
       opts,
       neighborMaxElevM,
-      result.maxAbsLatDeg
+      result.maxAbsLatDeg,
     );
     let elev = elevation;
     if (land && result.elevationM != null && result.elevationM > 0) {
       elev = opts.landElevation + result.elevationM * opts.elevationScale;
     } else if (!land) {
-      const surfaceElev = lakeId != null ? opts.lakeElevation : opts.waterElevation;
+      const surfaceElev =
+        lakeId != null ? opts.lakeElevation : opts.waterElevation;
       const belowWaterLevel = 0.01;
       elev = Math.min(elev, surfaceElev - belowWaterLevel);
     }
     if (isHilly) hillsCount++;
-    out.set(tile.id, { tileId: tile.id, type, elevation: elev, lakeId: lakeId ?? undefined, isHilly: isHilly || undefined });
+    out.set(tile.id, {
+      tileId: tile.id,
+      type,
+      elevation: elev,
+      lakeId: lakeId ?? undefined,
+      isHilly: isHilly || undefined,
+    });
   }
-  
+
   // Debug: print variance stats
-  console.log(`[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsScore=(elev/${opts.hillsElevationScale}+var/${opts.hillsVarianceScale})>=${opts.hillsScoreThreshold}`);
+  console.log(
+    `[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsScore=(elev/${opts.hillsElevationScale}+var/${opts.hillsVarianceScale})>=${opts.hillsScoreThreshold}`,
+  );
   console.log(`[polyglobe] Hills tiles detected: ${hillsCount}`);
-  
+
   // Debug: print Rockies region tiles variance (lat 35-50°N, lon -120 to -100°W)
-  const rockiesTiles: Array<{id: number, lat: number, lon: number, variance: number, isHilly: boolean}> = [];
+  const rockiesTiles: Array<{
+    id: number;
+    lat: number;
+    lon: number;
+    variance: number;
+    isHilly: boolean;
+  }> = [];
   for (const tile of tiles) {
     const result = resultsByTile.get(tile.id);
     if (!result || !result.land) continue;
@@ -2017,14 +2281,28 @@ export async function buildTerrainFromEarthRaster(
         lat: latDeg,
         lon: lonDeg,
         variance: result.elevationStdDevM ?? 0,
-        isHilly: data?.isHilly ?? false
+        isHilly: data?.isHilly ?? false,
       });
     }
   }
   rockiesTiles.sort((a, b) => b.variance - a.variance);
-  console.log(`[polyglobe] Rockies region (lat 35-50, lon -120 to -100): ${rockiesTiles.length} land tiles`);
-  console.log(`[polyglobe] Top 10 variance in Rockies:`, rockiesTiles.slice(0, 10).map(t => `${t.id}@(${t.lat.toFixed(1)},${t.lon.toFixed(1)}):${t.variance.toFixed(0)}m${t.isHilly ? '*' : ''}`).join(', '));
-  console.log(`[polyglobe] Rockies hills:`, rockiesTiles.filter(t => t.isHilly).length);
+  console.log(
+    `[polyglobe] Rockies region (lat 35-50, lon -120 to -100): ${rockiesTiles.length} land tiles`,
+  );
+  console.log(
+    `[polyglobe] Top 10 variance in Rockies:`,
+    rockiesTiles
+      .slice(0, 10)
+      .map(
+        (t) =>
+          `${t.id}@(${t.lat.toFixed(1)},${t.lon.toFixed(1)}):${t.variance.toFixed(0)}m${t.isHilly ? "*" : ""}`,
+      )
+      .join(", "),
+  );
+  console.log(
+    `[polyglobe] Rockies hills:`,
+    rockiesTiles.filter((t) => t.isHilly).length,
+  );
 
   // Per-body water level: set each water body's tile elevation from surrounding land (min shore - delta) so each lake/ocean has its own elevation.
   const tileById = new Map(tiles.map((t) => [t.id, t]));
@@ -2080,7 +2358,7 @@ export interface WaterLevelsByBody {
  */
 export function computeWaterLevelsByBody(
   tiles: GeodesicTile[],
-  terrain: Map<number, TileTerrainData>
+  terrain: Map<number, TileTerrainData>,
 ): WaterLevelsByBody {
   const tileById = new Map(tiles.map((t) => [t.id, t]));
   const bodyToTiles = new Map<string, Set<number>>();
@@ -2121,7 +2399,7 @@ export function computeWaterLevelsByBody(
  */
 export function applyCoastalBeach(
   tiles: GeodesicTile[],
-  terrain: Map<number, TileTerrainData>
+  terrain: Map<number, TileTerrainData>,
 ): void {
   for (const tile of tiles) {
     const data = terrain.get(tile.id);
@@ -2143,8 +2421,13 @@ export function applyCoastalBeach(
  */
 export type EarthTerrainSampler = (
   latRad: number,
-  lonRad: number
-) => { land: boolean; elevationM?: number; temperatureC?: number; climateCode?: number };
+  lonRad: number,
+) => {
+  land: boolean;
+  elevationM?: number;
+  temperatureC?: number;
+  climateCode?: number;
+};
 
 /**
  * Build terrain from a custom sampler. Same as buildTerrainFromEarthRaster but
@@ -2153,7 +2436,7 @@ export type EarthTerrainSampler = (
 export function buildTerrainFromSampler(
   tiles: GeodesicTile[],
   sampler: EarthTerrainSampler,
-  options: BuildTerrainFromRasterOptions = {}
+  options: BuildTerrainFromRasterOptions = {},
 ): Map<number, TileTerrainData> {
   const opts = { ...DEFAULT_OPTS, ...options };
   const out = new Map<number, TileTerrainData>();
@@ -2169,7 +2452,7 @@ export function buildTerrainFromSampler(
         climateCode: result.climateCode,
       },
       lat,
-      opts
+      opts,
     );
     let elev = elevation;
     if (result.land && result.elevationM != null && result.elevationM > 0) {
@@ -2178,7 +2461,12 @@ export function buildTerrainFromSampler(
       const bedElev = opts.waterElevation - 0.01;
       elev = Math.min(elev, bedElev);
     }
-    out.set(tile.id, { tileId: tile.id, type, elevation: elev, isHilly: isHilly || undefined });
+    out.set(tile.id, {
+      tileId: tile.id,
+      type,
+      elevation: elev,
+      isHilly: isHilly || undefined,
+    });
   }
 
   return out;
@@ -2216,7 +2504,10 @@ export function parseKoppenAsciiGrid(content: string): ClimateGrid {
     for (const t of tokens) {
       if (idx >= data.length) break;
       const v = Number(t);
-      data[idx++] = Number.isFinite(v) && v !== nodata && v >= 0 && v <= 31 ? Math.round(v) : 0;
+      data[idx++] =
+        Number.isFinite(v) && v !== nodata && v >= 0 && v <= 31
+          ? Math.round(v)
+          : 0;
     }
   }
   return { width, height, data };
@@ -2230,7 +2521,7 @@ export function parseKoppenAsciiGrid(content: string): ClimateGrid {
 export function elevationFromImageData(
   imageData: { data: Uint8ClampedArray; width: number; height: number },
   scale: number = 10000,
-  offset: number = -500
+  offset: number = -500,
 ): Float32Array {
   const { width, height, data } = imageData;
   const out = new Float32Array(width * height);
