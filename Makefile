@@ -1,6 +1,6 @@
 DEMO_DIR := examples/globe-demo
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-clean
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean
 
 help:
 	@echo "Targets:"
@@ -10,7 +10,8 @@ help:
 	@echo "  make demo-preview       Preview the built globe demo"
 	@echo "  make demo-download-data Download demo assets into public/"
 	@echo "  make demo-setup-data    Download and build demo data assets"
-	@echo "  make demo-clean        Remove demo build output"
+	@echo "  make demo-build-cache   Build earth-globe-cache.json (precomputed tiles/rivers)"
+	@echo "  make demo-clean         Remove demo build output"
 
 demo-dev:
 	cd $(DEMO_DIR) && npm run dev
@@ -29,6 +30,9 @@ demo-download-data:
 
 demo-setup-data:
 	cd $(DEMO_DIR) && npm run setup-data
+
+demo-build-cache:
+	cd $(DEMO_DIR) && npm run build-earth-globe-cache
 
 demo-clean:
 	rm -rf $(DEMO_DIR)/dist

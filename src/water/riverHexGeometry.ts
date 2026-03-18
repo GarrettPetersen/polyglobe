@@ -12,7 +12,7 @@
 import * as THREE from "three";
 import earcut from "earcut";
 import polygonClipping from "polygon-clipping";
-import type { GeodesicTile } from "../core/geodesic.js";
+import { getEdgeNeighbor, getNeighborEdgeIndex, type GeodesicTile } from "../core/geodesic.js";
 import {
   getTileTangentFrame,
   tilePlanePoint,
@@ -26,7 +26,7 @@ type MultiPoly = Ring2[][];
 
 const m = (k: number) => ((k % 6) + 6) % 6;
 
-/** Convex hull as closed CCW ring (first point repeated at end). Always simple → safe for polygon-clipping. */
+/** Convex hull as closed CCW ring (first point repeated at end). */
 function convexHull2dClosed(pts: [number, number][]): Ring2 {
   const D = 1e-9;
   const dedup: [number, number][] = [];
@@ -103,8 +103,10 @@ export function tileCanonicalHexBasis6(tile: GeodesicTile): {
 export function buildRiverLandAndVoidFromCorners(
   O: [number, number][],
   riverEdges: Set<number>,
-  innerFrac: number
+  innerFrac: number,
+  debugTileId?: number
 ): { landMp: MultiPoly; voidMp: MultiPoly } {
+  const DEBUG = debugTileId !== undefined;
   if (O.length !== 6) {
     return { landMp: [], voidMp: [] };
   }
@@ -137,6 +139,7 @@ export function buildRiverLandAndVoidFromCorners(
   const fInner = Math.min(f, (minMouth * 0.99) / (avgRO * Math.sqrt(3)));
   const I: [number, number][] = O.map(([x, y]) => [x * fInner, y * fInner]);
 
+  // Returns mouth opening points slightly INSET from outer edge to avoid coincident edges
   const outerOpeningEnds = (e: number): [[number, number], [number, number]] => {
     const o0 = O[m(e)];
     const o1 = O[m(e + 1)];
@@ -145,18 +148,18 @@ export function buildRiverLandAndVoidFromCorners(
     const el = Math.hypot(ux, uy) || 1;
     ux /= el;
     uy /= el;
-    const midx = (o0[0] + o1[0]) * 0.5;
-    const midy = (o0[1] + o1[1]) * 0.5;
+    // Edge normal pointing inward (toward hex center)
+    const nx = -uy;
+    const ny = ux;
+    const insetDist = 0.0001;
+    const midx = (o0[0] + o1[0]) * 0.5 + nx * insetDist;
+    const midy = (o0[1] + o1[1]) * 0.5 + ny * insetDist;
     const halfW = halfWNarrow(e);
     return [
       [midx - ux * halfW, midy - uy * halfW],
       [midx + ux * halfW, midy + uy * halfW],
     ];
   };
-
-  const innerRev = [...I].reverse();
-  const innerRing: Ring2 = innerRev.map((p) => [p[0], p[1]]);
-  innerRing.push([innerRev[0][0], innerRev[0][1]]);
 
   /**
    * Edges that get an outer-hex mouth in the void. For exactly one logical river edge, the water
@@ -168,11 +171,20 @@ export function buildRiverLandAndVoidFromCorners(
       ? new Set([...riverEdges, m([...riverEdges][0] + 3)])
       : riverEdges;
 
+  // Build void by unioning inner hex with wedge shapes.
+  // Each wedge: A, B (mouth points) + 4 inner corners on far side → convex hull.
+  // All points slightly inset from outer edge to avoid polygon-clipping coincident edge issues.
+  
+  const innerRev = [...I].reverse();
+  const innerRing: Ring2 = innerRev.map((p) => [p[0], p[1]]);
+  innerRing.push([innerRev[0][0], innerRev[0][1]]);
+  
   let voidMp: MultiPoly = [[innerRing]];
-  /** Same cutout topology as river-hex-viewer (A,B + four inner corners); hull removes self-crossings on irregular hexes. */
+  
   for (let e = 0; e < 6; e++) {
     if (!wedgeEdges.has(e)) continue;
     const [A, B] = outerOpeningEnds(e);
+    // Include 4 inner corners on the "far" side of this edge
     const wedgePts: [number, number][] = [
       A,
       B,
@@ -183,23 +195,120 @@ export function buildRiverLandAndVoidFromCorners(
     ];
     const hullRing = convexHull2dClosed(wedgePts);
     if (hullRing.length >= 4) {
-      voidMp = polygonClipping.union(voidMp, [hullRing]);
+      try {
+        voidMp = polygonClipping.union(voidMp, [hullRing]);
+      } catch {
+        // If union fails, just skip this wedge (better than crashing)
+        if (DEBUG) {
+          console.warn(`[buildRiverLandAndVoid] tile ${debugTileId}: union failed for edge ${e}`);
+        }
+      }
     }
   }
 
+  if (DEBUG) {
+    for (const e of wedgeEdges) {
+      const [A, B] = outerOpeningEnds(e);
+      const o0 = O[m(e)];
+      const o1 = O[m(e + 1)];
+      console.log(`[buildRiverLandAndVoid] tile ${debugTileId} edge ${e}:`);
+      console.log(`  outer edge: [${o0[0].toFixed(4)},${o0[1].toFixed(4)}] -> [${o1[0].toFixed(4)},${o1[1].toFixed(4)}]`);
+      console.log(`  mouth A=[${A[0].toFixed(4)},${A[1].toFixed(4)}], B=[${B[0].toFixed(4)},${B[1].toFixed(4)}]`);
+    }
+    console.log(`[buildRiverLandAndVoid] tile ${debugTileId}: void has ${voidMp[0]?.[0]?.length ?? 0} pts`);
+  }
+
+  // Now do the difference: outer hex minus void
   const outerRing: Ring2 = O.map((p) => [p[0], p[1]]);
   outerRing.push([O[0][0], O[0][1]]);
   const outerMp: MultiPoly = [[outerRing]];
+  
   let landMp: MultiPoly;
   try {
     landMp = polygonClipping.difference(outerMp, voidMp);
-  } catch {
-    landMp = polygonClipping.difference(outerMp, [[innerRing]]);
+  } catch (e) {
+    throw new Error(
+      `[buildRiverLandAndVoid] tile ${debugTileId}: polygon-clipping.difference threw. ` +
+      `outerMp=${JSON.stringify(outerMp)}, voidMp=${JSON.stringify(voidMp)}, error=${e}`
+    );
   }
+  
   if (landMp.length === 0) {
-    landMp = polygonClipping.difference(outerMp, [[innerRing]]);
+    throw new Error(
+      `[buildRiverLandAndVoid] tile ${debugTileId}: polygon-clipping.difference returned empty. ` +
+      `outerMp=${JSON.stringify(outerMp)}, voidMp=${JSON.stringify(voidMp)}`
+    );
   }
+  
   return { landMp, voidMp };
+}
+
+/**
+ * Validate that a river hex land polygon has the expected openings.
+ * Returns null if valid, or an error message describing what's wrong.
+ */
+export function validateRiverHexOpenings(
+  landMp: MultiPoly,
+  O: [number, number][],
+  riverEdges: Set<number>,
+  tileId: number
+): string | null {
+  if (O.length !== 6) return null; // skip pentagons
+  
+  const wedgeEdges = hexRiverWedgeEdgeIndices(riverEdges);
+  const expectedOpenings = wedgeEdges.size;
+  
+  // Get the land polygon's outer ring
+  const landRing = landMp[0]?.[0];
+  if (!landRing || landRing.length < 3) {
+    return `Tile ${tileId}: land polygon has no valid outer ring (expected ${expectedOpenings} openings for edges [${[...wedgeEdges].join(",")}])`;
+  }
+  
+  // For each expected opening edge, check if there's a gap in the land polygon
+  const openingsFound: number[] = [];
+  const edgesClosed: number[] = [];
+  
+  for (const e of wedgeEdges) {
+    const o0 = O[m(e)];
+    const o1 = O[m(e + 1)];
+    const edgeVec = [o1[0] - o0[0], o1[1] - o0[1]];
+    const edgeLen = Math.hypot(edgeVec[0], edgeVec[1]);
+    
+    // Find all land ring segments that lie on this hex edge
+    let coveredLength = 0;
+    for (let i = 0; i < landRing.length - 1; i++) {
+      const a = landRing[i];
+      const b = landRing[i + 1];
+      
+      // Check if segment is on this edge
+      const distA = Math.abs((a[0] - o0[0]) * (-edgeVec[1]) + (a[1] - o0[1]) * edgeVec[0]) / edgeLen;
+      const distB = Math.abs((b[0] - o0[0]) * (-edgeVec[1]) + (b[1] - o0[1]) * edgeVec[0]) / edgeLen;
+      
+      if (distA < 0.0005 && distB < 0.0005) {
+        // Both points on edge line, measure length along edge
+        const tA = ((a[0] - o0[0]) * edgeVec[0] + (a[1] - o0[1]) * edgeVec[1]) / (edgeLen * edgeLen);
+        const tB = ((b[0] - o0[0]) * edgeVec[0] + (b[1] - o0[1]) * edgeVec[1]) / (edgeLen * edgeLen);
+        if (tA >= -0.01 && tA <= 1.01 && tB >= -0.01 && tB <= 1.01) {
+          coveredLength += Math.abs(tB - tA) * edgeLen;
+        }
+      }
+    }
+    
+    // If land covers more than 95% of the edge, there's no opening
+    const coverageRatio = coveredLength / edgeLen;
+    if (coverageRatio > 0.95) {
+      edgesClosed.push(e);
+    } else if (coverageRatio < 0.85) {
+      // Less than 85% covered means there's a gap (opening)
+      openingsFound.push(e);
+    }
+  }
+  
+  if (edgesClosed.length > 0) {
+    return `Tile ${tileId}: expected openings on edges [${[...wedgeEdges].join(",")}] but edges [${edgesClosed.join(",")}] are CLOSED (no gap in land polygon). Land ring has ${landRing.length} vertices. River edges: [${[...riverEdges].join(",")}]`;
+  }
+  
+  return null; // validation passed
 }
 
 /**
@@ -638,7 +747,6 @@ function appendExtrudedLand(
           if (ei != null && skipOuter.has(ei)) continue;
         }
         if (
-          !isOuterHexRing &&
           mouthChords &&
           mouthChords.length > 0 &&
           segmentIsRiverMouthChord(a, b, mouthChords)
@@ -1183,10 +1291,91 @@ export function createRiverTerrainMeshes(
 
   const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
 
+  // Debug specific tiles - add IDs here to inspect
+  const DEBUG_TILE_IDS = new Set<number>([]); // e.g. [1602] for debugging
+  
+  // Check if debug tiles are in the input data
+  for (const tid of DEBUG_TILE_IDS) {
+    if (riverEdgesByTile.has(tid)) {
+      console.log(`[riverHexGeometry] DEBUG: tile ${tid} IS in riverEdgesByTile with edges [${[...riverEdgesByTile.get(tid)!].join(",")}]`);
+    } else {
+      console.log(`[riverHexGeometry] DEBUG: tile ${tid} is NOT in riverEdgesByTile (total tiles: ${riverEdgesByTile.size})`);
+      // Check if neighbors are river tiles
+      const debugTile = tileById.get(tid);
+      if (debugTile) {
+        const neighborInfo: string[] = [];
+        for (let e = 0; e < debugTile.vertices.length; e++) {
+          const nid = getEdgeNeighbor(debugTile, e, globe.tiles);
+          const isRiver = nid !== undefined && riverEdgesByTile.has(nid);
+          neighborInfo.push(`edge${e}→${nid}${isRiver ? "(RIVER)" : ""}`);
+        }
+        console.log(`[riverHexGeometry] DEBUG: tile ${tid} neighbors: ${neighborInfo.join(", ")}`);
+      }
+    }
+  }
+
   for (const [tileId, edgeSet] of riverEdgesByTile) {
     if (edgeSet.size === 0) continue;
     const tile = tileById.get(tileId);
     if (!tile || tile.vertices.length !== 6) continue;
+
+    // Check connectivity: does each edge connect to another river tile with reciprocal edge?
+    const edgeNeighborDebug: Array<{
+      edge: number;
+      neighborId: number | undefined;
+      neighborHasRiver: boolean;
+      neighborRiverEdges: number[] | null;
+      reciprocalEdge: number | undefined;
+      isReciprocal: boolean;
+    }> = [];
+    for (const e of edgeSet) {
+      const neighborId = getEdgeNeighbor(tile, e, globe.tiles);
+      const neighborTile = neighborId !== undefined ? tileById.get(neighborId) : undefined;
+      const neighborEdges = neighborId !== undefined ? riverEdgesByTile.get(neighborId) : undefined;
+      const neighborHasRiver = neighborEdges !== undefined && neighborEdges.size > 0;
+      const reciprocalEdge = neighborTile ? getNeighborEdgeIndex(tile, e, neighborTile) : undefined;
+      const isReciprocal = reciprocalEdge !== undefined && neighborEdges !== undefined && neighborEdges.has(reciprocalEdge);
+      edgeNeighborDebug.push({
+        edge: e,
+        neighborId,
+        neighborHasRiver,
+        neighborRiverEdges: neighborEdges ? [...neighborEdges] : null,
+        reciprocalEdge,
+        isReciprocal,
+      });
+    }
+    // Only warn for edges where neighbor IS a river tile but lacks reciprocal edge (data bug)
+    // Edges to non-river tiles are expected river endpoints/termini
+    const brokenEdges = edgeNeighborDebug.filter(e => e.neighborHasRiver && !e.isReciprocal);
+    if (brokenEdges.length > 0) {
+      console.warn(
+        `[riverHexGeometry] BROKEN EDGE(S): tileId=${tileId}, edges=${[...edgeSet].join(",")}, ` +
+        `broken=${brokenEdges.length}/${edgeSet.size}:`,
+        brokenEdges.map(e => ({
+          edge: e.edge,
+          neighborId: e.neighborId,
+          reciprocalEdge: e.reciprocalEdge,
+          neighborRiverEdges: e.neighborRiverEdges
+        }))
+      );
+    }
+    // Log river endpoints (edges to non-river land tiles)
+    const endpoints = edgeNeighborDebug.filter(e => e.neighborRiverEdges === null);
+    if (endpoints.length > 0 && endpoints.length === edgeSet.size) {
+      // ALL edges point to non-river tiles - this is a true orphan (isolated river hex)
+      console.warn(
+        `[riverHexGeometry] ISOLATED river hex: tileId=${tileId}, edges=${[...edgeSet].join(",")}, ` +
+        `all ${endpoints.length} edges point to non-river tiles`
+      );
+    }
+
+    // Debug specific tiles
+    if (DEBUG_TILE_IDS.has(tileId)) {
+      console.log(
+        `[riverHexGeometry] DEBUG tile ${tileId}: edges=${[...edgeSet].join(",")}, ` +
+        `neighbors:`, edgeNeighborDebug
+      );
+    }
 
     const elev = options.getElevation(tileId) * elevationScale;
     const rTop = radius + elev + bankTopLift;
@@ -1195,6 +1384,16 @@ export function createRiverTerrainMeshes(
     const frame = getTileTangentFrame(tile);
     const rgb = options.getBankVertexRgb?.(tileId) ?? defaultBankRgb;
     const nUp = frame.normal.clone().normalize();
+
+    const bankIdxBefore = bankIdx.length;
+    const bedIdxBefore = bedIdx.length;
+
+    // Check which code path will be used
+    const isOpposite = isOppositePairRiverWedge(edgeSet);
+    if (DEBUG_TILE_IDS.has(tileId)) {
+      console.log(`[riverHexGeometry] DECISION tile ${tileId}: edges=[${[...edgeSet].join(",")}], isOpposite=${isOpposite}`);
+      console.log(`  -> will use ${isOpposite ? "U-SHAPED (opposite edges)" : "BOOLEAN CUTOUT (non-opposite)"} path`);
+    }
 
     if (
       appendUShapedOppositeRiverTerrain(
@@ -1239,10 +1438,61 @@ export function createRiverTerrainMeshes(
           rgb
         );
       }
+      const bankTrisAdded = (bankIdx.length - bankIdxBefore) / 3;
+      const bedTrisAdded = (bedIdx.length - bedIdxBefore) / 3;
+      if (bedTrisAdded === 0) {
+        console.warn(
+          `[riverHexGeometry] NO CHANNEL (U-path, 0 bed tris): tileId=${tileId}, edges=${[...edgeSet].join(",")}, ` +
+          `bankTris=${bankTrisAdded}, bedTris=${bedTrisAdded}`
+        );
+      }
       continue;
     }
 
-    const { landMp, voidMp } = buildRiverLandAndVoidFromCorners(frame.corners2d, edgeSet, rInFrac);
+    const debugThisTile = DEBUG_TILE_IDS.has(tileId) ? tileId : undefined;
+    const { landMp, voidMp } = buildRiverLandAndVoidFromCorners(frame.corners2d, edgeSet, rInFrac, debugThisTile);
+
+    if (DEBUG_TILE_IDS.has(tileId)) {
+      console.log(
+        `[riverHexGeometry] DEBUG tile ${tileId} (boolean path): ` +
+        `wedgeEdges=[${[...hexRiverWedgeEdgeIndices(edgeSet)].join(",")}], ` +
+        `landMp.length=${landMp.length}, voidMp.length=${voidMp.length}`
+      );
+      // Log void polygon (what gets cut out)
+      for (let pi = 0; pi < voidMp.length; pi++) {
+        const poly = voidMp[pi];
+        console.log(`  voidMp[${pi}]: ${poly.length} rings, outer has ${poly[0]?.length} points`);
+        if (poly[0]) {
+          console.log(`    void points:`, poly[0].map(p => `[${p[0].toFixed(3)},${p[1].toFixed(3)}]`).join(' '));
+        }
+      }
+      // Log land polygon (what remains after cutting)
+      for (let pi = 0; pi < landMp.length; pi++) {
+        const poly = landMp[pi];
+        console.log(`  landMp[${pi}]: ${poly.length} rings (outer + ${poly.length - 1} holes)`);
+        for (let ri = 0; ri < poly.length; ri++) {
+          console.log(`    ring[${ri}]: ${poly[ri].length} points`);
+        }
+      }
+      // Log hex corners for reference
+      console.log(`  hex corners:`, frame.corners2d.map(p => `[${p[0].toFixed(3)},${p[1].toFixed(3)}]`).join(' '));
+    }
+
+    // Warn if boolean path produces no void (no channel carved out)
+    if (voidMp.length === 0) {
+      console.warn(
+        `[riverHexGeometry] NO CHANNEL: tileId=${tileId}, edges=${[...edgeSet].join(",")}, ` +
+        `wedgeEdges=${[...hexRiverWedgeEdgeIndices(edgeSet)].join(",")}, ` +
+        `landMp.length=${landMp.length}, voidMp.length=${voidMp.length}, ` +
+        `corners2d:`, frame.corners2d
+      );
+    }
+
+    // Validate that the land polygon has the expected openings
+    const validationError = validateRiverHexOpenings(landMp, frame.corners2d, edgeSet, tileId);
+    if (validationError) {
+      console.error(`[riverHexGeometry] BROKEN OPENING: ${validationError}`);
+    }
 
     const mouths = riverMouthOpeningsByEdge(frame.corners2d, edgeSet, rInFrac);
     const riverMouthChordsAB: Array<[[number, number], [number, number]]> = [];
@@ -1295,6 +1545,32 @@ export function createRiverTerrainMeshes(
     }
     if (voidMp.length > 0) {
       appendVoidBed(voidMp, rBot, frame, bedPos, bedIdx, bedTileIds, tileId);
+    }
+
+    const bankTrisAdded = (bankIdx.length - bankIdxBefore) / 3;
+    const bedTrisAdded = (bedIdx.length - bedIdxBefore) / 3;
+    if (bankTrisAdded === 0 && bedTrisAdded === 0) {
+      const edgeNeighborInfo: Array<{
+        edge: number;
+        neighborId: number | undefined;
+        neighborHasRiver: boolean;
+        neighborRiverEdges: number[] | null;
+      }> = [];
+      for (const e of edgeSet) {
+        const neighborId = getEdgeNeighbor(tile, e, globe.tiles);
+        const neighborHasRiver = neighborId !== undefined && riverEdgesByTile.has(neighborId);
+        const neighborRiverEdges = neighborId !== undefined ? riverEdgesByTile.get(neighborId) : null;
+        edgeNeighborInfo.push({
+          edge: e,
+          neighborId,
+          neighborHasRiver,
+          neighborRiverEdges: neighborRiverEdges ? [...neighborRiverEdges] : null,
+        });
+      }
+      console.warn(
+        `[riverHexGeometry] Orphan river hex (boolean path, 0 tris): tileId=${tileId}, edges=${[...edgeSet].join(",")}, landMp=${landMp.length}, voidMp=${voidMp.length}, neighbors:`,
+        edgeNeighborInfo
+      );
     }
   }
 

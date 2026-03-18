@@ -16,6 +16,8 @@ import {
   getEdgeNeighbor,
   pruneThreeWayRiverJunctions,
   connectIsolatedRiverTiles,
+  fillRiverGaps,
+  forceRiverReciprocity,
   symmetrizeRiverNeighborEdgesUntilStable,
 } from "../../../src/index.js";
 import { loadEarthBinRasterForCache } from "../earthLandRasterBin.js";
@@ -194,8 +196,17 @@ async function main() {
       const pruned = pruneThreeWayRiverJunctions(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
       if (pruned > 0) console.log("pruned", pruned, "3-way river junction edges");
       let sym = symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+      // Fill gap tiles where river data has low resolution
+      const gaps = fillRiverGaps(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+      if (gaps > 0) console.log("filled", gaps, "river gap tiles");
+      sym += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
       const iso = connectIsolatedRiverTiles(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
       if (iso > 0) console.log("connected", iso, "orphan river tile edges");
+      sym += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+      // Force reciprocity: ensure every river edge has a reciprocal edge on the neighbor
+      const forced = forceRiverReciprocity(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+      if (forced > 0) console.log("forced", forced, "reciprocal river edges");
+      // Run symmetrize again after forcing reciprocity
       sym += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
       if (sym > 0) console.log("symmetrized", sym, "river neighbor edges");
       const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
@@ -203,6 +214,8 @@ async function main() {
         const t = tileTerrain.get(id)?.type;
         return t === "water" || t === "beach";
       };
+      // Validate and collect
+      let brokenCount = 0;
       for (const [tid, set] of raw) {
         const type = tileTerrain.get(tid)?.type;
         if (type === "water" || type === "beach") continue;
@@ -215,6 +228,40 @@ async function main() {
           if (nid !== undefined && isWaterNeighbor(nid)) toWater.add(e);
         }
         if (toWater.size > 0) riverEdgeToWater[String(tid)] = [...toWater];
+        
+        // Check for broken edges (non-reciprocal)
+        for (const e of set) {
+          const nid = getEdgeNeighbor(tile, e, globe.tiles);
+          if (nid === undefined) continue;
+          const ntype = tileTerrain.get(nid)?.type;
+          if (ntype === "water" || ntype === "beach") continue; // pointing to water is OK
+          const nset = raw.get(nid);
+          if (!nset) {
+            console.warn(`BROKEN: tile ${tid} edge ${e} -> neighbor ${nid} NOT in river map`);
+            brokenCount++;
+            continue;
+          }
+          const ntile = tileById.get(nid);
+          if (!ntile) continue;
+          // Find reciprocal edge
+          let reciprocal: number | undefined;
+          for (let k = 0; k < ntile.vertices.length; k++) {
+            if (getEdgeNeighbor(ntile, k, globe.tiles) === tid) {
+              reciprocal = k;
+              break;
+            }
+          }
+          if (reciprocal === undefined) {
+            console.warn(`BROKEN: tile ${tid} edge ${e} -> neighbor ${nid} has no edge back`);
+            brokenCount++;
+          } else if (!nset.has(reciprocal)) {
+            console.warn(`BROKEN: tile ${tid} edge ${e} -> neighbor ${nid} edge ${reciprocal} not in neighbor's river edges [${[...nset].join(",")}]`);
+            brokenCount++;
+          }
+        }
+      }
+      if (brokenCount > 0) {
+        console.log(`Found ${brokenCount} broken river edges`);
       }
     }
   }

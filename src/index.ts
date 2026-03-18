@@ -102,6 +102,8 @@ export {
   getRiverEdgesByTile,
   pruneThreeWayRiverJunctions,
   connectIsolatedRiverTiles,
+  fillRiverGaps,
+  forceRiverReciprocity,
   symmetrizeRiverNeighborEdgesUntilStable,
   lonLatToDirection,
   updateRiverMaterialTime,

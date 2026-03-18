@@ -191,7 +191,7 @@ export function getEdgeNeighbor(
 }
 
 /** Neighbor's edge index for the same physical edge as `tile` edge `edgeIndex`. */
-function getNeighborEdgeIndex(
+export function getNeighborEdgeIndex(
   tile: GeodesicTile,
   edgeIndex: number,
   neighbor: GeodesicTile

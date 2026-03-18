@@ -36,6 +36,8 @@ import {
   getRiverEdgesByTile,
   pruneThreeWayRiverJunctions,
   connectIsolatedRiverTiles,
+  fillRiverGaps,
+  forceRiverReciprocity,
   symmetrizeRiverNeighborEdgesUntilStable,
   createRiverMeshFromTileEdges,
   createRiverTerrainMeshes,
@@ -1352,6 +1354,10 @@ let riverMesh: THREE.Mesh | null = null;
 let riverTerrainGroup: THREE.Group | null = null;
 /** Lake water surfaces (share ocean water material) in Earth mode. */
 let lakeWaterMeshes: THREE.Mesh[] = [];
+/** Module-level terrain data for debug panel access. */
+let globalTileTerrain: Map<number, TileTerrainData> | null = null;
+/** Module-level river edges for debug panel access. */
+let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
 
 const BUILD_LOG = "[globe-build]";
 
@@ -1573,13 +1579,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         for (const [k, arr] of Object.entries(cache.riverEdges)) {
           riverEdgesByTile.set(Number(k), new Set(arr));
         }
-        const jn = pruneThreeWayRiverJunctions(riverEdgesByTile, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (jn > 0) console.log(BUILD_LOG, "pruned", jn, "3-way river junction edges (cache)");
-        let sym = symmetrizeRiverNeighborEdgesUntilStable(riverEdgesByTile, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        const iso = connectIsolatedRiverTiles(riverEdgesByTile, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (iso > 0) console.log(BUILD_LOG, "connected", iso, "orphan river tile edges (cache)");
-        sym += symmetrizeRiverNeighborEdgesUntilStable(riverEdgesByTile, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (sym > 0) console.log(BUILD_LOG, "symmetrized", sym, "river neighbor edges (cache)");
+        // Cache already has processed river data - skip re-processing
+        console.log(BUILD_LOG, "river edges loaded from cache:", riverEdgesByTile.size, "tiles");
         if (riverEdgesByTile.size === 0) {
           riverEdgesByTile = undefined;
         } else {
@@ -1668,8 +1669,14 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             const jn2 = pruneThreeWayRiverJunctions(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
             if (jn2 > 0) console.log(BUILD_LOG, "pruned", jn2, "3-way river junction edges");
             let symR = symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+            const gaps2 = fillRiverGaps(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+            if (gaps2 > 0) console.log(BUILD_LOG, "filled", gaps2, "river gap tiles");
+            symR += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
             const iso2 = connectIsolatedRiverTiles(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
             if (iso2 > 0) console.log(BUILD_LOG, "connected", iso2, "orphan river tile edges");
+            symR += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+            const forced2 = forceRiverReciprocity(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+            if (forced2 > 0) console.log(BUILD_LOG, "forced", forced2, "reciprocal river edges");
             symR += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
             if (symR > 0) console.log(BUILD_LOG, "symmetrized", symR, "river neighbor edges");
             riverEdgesByTile = new Map<number, Set<number>>();
@@ -1717,6 +1724,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       );
       console.log(BUILD_LOG, "Earth: runTerrainTransition done");
       lastDisplayedTerrain = tileTerrain;
+      // Expose for debug panel
+      globalTileTerrain = tileTerrain;
+      globalRiverEdgesByTile = riverEdgesByTile ?? null;
     } else {
       console.log(BUILD_LOG, "Procedural: buildProceduralTerrainProgressive start, blobiness:", state.blobiness);
       tileTerrain = await buildProceduralTerrainProgressive(
@@ -1798,7 +1808,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     });
     scene.add(coastFoamOverlay.mesh);
 
-    if (state.useEarth && riverLinesLonLat && riverLinesLonLat.length > 0) {
+    // Skip river re-processing if already loaded from cache
+    if (state.useEarth && riverLinesLonLat && riverLinesLonLat.length > 0 && !riverEdgesByTile) {
       const elevationScale = 0.08;
       const riverSegments: ReturnType<typeof traceRiverThroughTiles> = [];
       const isDeltaByLine = riverLineIsDelta ?? riverLinesLonLat.map(() => false);
@@ -1820,13 +1831,23 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         const jn3 = pruneThreeWayRiverJunctions(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
         if (jn3 > 0) console.log(BUILD_LOG, "pruned", jn3, "3-way river junction tiles");
         let sym3 = symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+        const gaps3 = fillRiverGaps(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+        if (gaps3 > 0) console.log(BUILD_LOG, "filled", gaps3, "river gap tiles");
+        sym3 += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
         const iso3 = connectIsolatedRiverTiles(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
         if (iso3 > 0) console.log(BUILD_LOG, "connected", iso3, "orphan river tile edges");
         sym3 += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+        const forced3 = forceRiverReciprocity(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
+        if (forced3 > 0) console.log(BUILD_LOG, "forced", forced3, "reciprocal river edges");
+        sym3 += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
         if (sym3 > 0) console.log(BUILD_LOG, "symmetrized", sym3, "river neighbor edges");
-        const riverEdgesByTile = new Map<number, Set<number>>();
+        riverEdgesByTile = new Map<number, Set<number>>();
+        const DEBUG_TILES = [17543];
         for (const [tid, set] of raw) {
           const type = tileTerrain.get(tid)?.type;
+          if (DEBUG_TILES.includes(tid)) {
+            console.log(BUILD_LOG, `DEBUG tile ${tid}: in raw with edges [${[...set].join(",")}], type="${type}"`);
+          }
           if (type === "water" || type === "beach") continue;
           riverEdgesByTile.set(tid, set);
         }
@@ -1873,9 +1894,46 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       } else {
         riverMesh = null;
       }
-    } else {
-      if (state.useEarth && (!riverLinesLonLat || riverLinesLonLat.length === 0))
-        console.warn(BUILD_LOG, "river data not loaded", riverLinesLonLat?.length ?? 0);
+    }
+
+    // Create river meshes from cached or freshly computed data
+    const elevationScaleRiver = 0.08;
+    if (riverEdgesByTile && riverEdgesByTile.size > 0 && !riverMesh) {
+      riverMesh = createRiverMeshFromTileEdges(globe, riverEdgesByTile, {
+        radius: globe.radius,
+        getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+        elevationScale: elevationScaleRiver,
+        riverBowlInnerScale: 0.48,
+        sunDirection: sunDirectionFromState(state),
+        waterSurfaceRadius: 0.995,
+        isWater: (id) => tileTerrain.get(id)?.type === "water",
+      });
+      scene.add(riverMesh);
+      console.log(BUILD_LOG, "river: mesh added (from cache), vertices", (riverMesh.geometry as THREE.BufferGeometry).getAttribute("position")?.count ?? 0);
+
+      const { banks, bed } = createRiverTerrainMeshes(globe, riverEdgesByTile, {
+        radius: globe.radius,
+        getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+        elevationScale: elevationScaleRiver,
+        riverBedDepth: 0.016,
+        riverVoidInnerRadiusFraction: 0.52,
+        bankTopLift: 0,
+        riverBankChannelWallInset: 0,
+        getBankVertexRgb: (id) => {
+          const t = tileTerrain.get(id)?.type ?? "land";
+          const col = TERRAIN_STYLES[t]?.color ?? TERRAIN_STYLES.land.color;
+          const c = new THREE.Color(col);
+          return [c.r, c.g, c.b];
+        },
+      });
+      riverTerrainGroup = new THREE.Group();
+      riverTerrainGroup.name = "RiverTerrain";
+      riverTerrainGroup.add(bed, banks);
+      scene.add(riverTerrainGroup);
+      const bv = banks.geometry.getAttribute("position")?.count ?? 0;
+      const dv = bed.geometry.getAttribute("position")?.count ?? 0;
+      console.log(BUILD_LOG, "river: U-banks/bed vertices (from cache)", bv + dv, "(banks", bv, ", bed", dv, ")");
+    } else if (!riverMesh) {
       riverMesh = null;
     }
 
@@ -2197,19 +2255,251 @@ async function init() {
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
+  
+  // Collect all meshes to raycast against (globe + river geometry)
+  function getClickTargets(): THREE.Object3D[] {
+    const targets: THREE.Object3D[] = [];
+    if (globe?.mesh) targets.push(globe.mesh);
+    if (riverMesh) targets.push(riverMesh);
+    if (riverTerrainGroup) targets.push(riverTerrainGroup);
+    return targets;
+  }
+  
   renderer.domElement.addEventListener("click", (event: MouseEvent) => {
     if (!globe?.mesh) return;
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(globe.mesh);
-    if (intersects.length > 0) {
-      const dir = intersects[0].point.clone().normalize();
+    
+    // Raycast against all relevant meshes and take the nearest hit
+    const targets = getClickTargets();
+    const allIntersects: THREE.Intersection[] = [];
+    for (const target of targets) {
+      const hits = raycaster.intersectObject(target, true);
+      allIntersects.push(...hits);
+    }
+    // Sort by distance to get nearest
+    allIntersects.sort((a, b) => a.distance - b.distance);
+    
+    if (allIntersects.length > 0) {
+      const dir = allIntersects[0].point.clone().normalize();
       const tileId = globe.getTileIdAtDirection(dir);
       const scale = globe.subdivisions;
-      console.log("[globe-build] Hex clicked: tileId =", tileId, ", scale (subdivisions) =", scale);
+      // Convert direction to lat/lon for verification
+      const latRad = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+      const lonRad = Math.atan2(dir.z, dir.x);
+      const latDeg = (latRad * 180) / Math.PI;
+      const lonDeg = (lonRad * 180) / Math.PI;
+      const tileType = globalTileTerrain?.get(tileId)?.type ?? "unknown";
+      const inRiverData = globalRiverEdgesByTile?.has(tileId) ?? false;
+      console.log(
+        "[globe-build] Hex clicked: tileId =", tileId,
+        ", lat/lon =", latDeg.toFixed(2) + "°," + lonDeg.toFixed(2) + "°",
+        ", type =", tileType,
+        ", inRiverData =", inRiverData,
+        ", scale =", scale
+      );
     }
   });
+
+  // ========== DEBUG: Hex ID lookup panel ==========
+  let highlightMesh: THREE.Mesh | null = null;
+  let highlightedTileId: number | null = null;
+
+  function createHighlightMesh(tile: GeodesicTile): THREE.Mesh {
+    const n = tile.vertices.length;
+    const center = tile.center.clone().normalize();
+    const positions: number[] = [];
+    const indices: number[] = [];
+    
+    // Lift slightly above the tile surface
+    const lift = 1.008;
+    
+    // Center vertex
+    positions.push(center.x * lift, center.y * lift, center.z * lift);
+    
+    // Edge vertices
+    for (let i = 0; i < n; i++) {
+      const v = tile.vertices[i].clone().normalize().multiplyScalar(lift);
+      positions.push(v.x, v.y, v.z);
+    }
+    
+    // Triangles (fan from center)
+    for (let i = 0; i < n; i++) {
+      indices.push(0, i + 1, ((i + 1) % n) + 1);
+    }
+    
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthTest: true,
+      depthWrite: false,
+    });
+    
+    return new THREE.Mesh(geo, mat);
+  }
+
+  function zoomToTile(tileId: number) {
+    const tile = globe.tiles.find(t => t.id === tileId);
+    if (!tile) {
+      console.warn("[debug] Tile not found:", tileId);
+      return;
+    }
+    
+    // Remove old highlight
+    if (highlightMesh) {
+      scene.remove(highlightMesh);
+      highlightMesh.geometry.dispose();
+      (highlightMesh.material as THREE.Material).dispose();
+    }
+    
+    // Add new highlight
+    highlightMesh = createHighlightMesh(tile);
+    scene.add(highlightMesh);
+    highlightedTileId = tileId;
+    
+    // Calculate camera target position
+    const center = tile.center.clone().normalize();
+    const cameraDistance = 1.5; // Distance from globe center
+    const targetPos = center.clone().multiplyScalar(cameraDistance);
+    
+    // Animate camera
+    const startPos = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const endTarget = new THREE.Vector3(0, 0, 0);
+    const duration = 800; // ms
+    const startTime = performance.now();
+    
+    function animateCamera() {
+      const elapsed = performance.now() - startTime;
+      const t = Math.min(1, elapsed / duration);
+      // Ease out cubic
+      const ease = 1 - Math.pow(1 - t, 3);
+      
+      camera.position.lerpVectors(startPos, targetPos, ease);
+      controls.target.lerpVectors(startTarget, endTarget, ease);
+      controls.update();
+      
+      if (t < 1) {
+        requestAnimationFrame(animateCamera);
+      }
+    }
+    animateCamera();
+    
+    // Log tile info
+    const tileType = globalTileTerrain?.get(tileId)?.type ?? "unknown";
+    const inRiverData = globalRiverEdgesByTile?.has(tileId) ?? false;
+    const riverEdges = globalRiverEdgesByTile?.get(tileId);
+    const latRad = Math.asin(THREE.MathUtils.clamp(center.y, -1, 1));
+    const lonRad = Math.atan2(center.z, center.x);
+    const latDeg = (latRad * 180) / Math.PI;
+    const lonDeg = (lonRad * 180) / Math.PI;
+    
+    console.log(
+      "[debug] Zoomed to tile:", tileId,
+      "\n  lat/lon:", latDeg.toFixed(2) + "°, " + lonDeg.toFixed(2) + "°",
+      "\n  type:", tileType,
+      "\n  inRiverData:", inRiverData,
+      riverEdges ? "\n  riverEdges: [" + [...riverEdges].join(", ") + "]" : ""
+    );
+  }
+
+  // Create debug panel UI
+  const debugPanel = document.createElement("div");
+  debugPanel.style.cssText = `
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 14px;
+    z-index: 1000;
+  `;
+  debugPanel.innerHTML = `
+    <div style="margin-bottom: 8px; font-weight: bold;">Hex Debug</div>
+    <input type="number" id="hexIdInput" placeholder="Enter hex ID" 
+      style="width: 120px; padding: 6px; border: none; border-radius: 4px; margin-right: 8px;">
+    <button id="hexGoBtn" style="padding: 6px 12px; border: none; border-radius: 4px; background: #ff00ff; color: white; cursor: pointer;">
+      Go
+    </button>
+    <div id="hexInfo" style="margin-top: 8px; font-size: 12px; color: #aaa;"></div>
+  `;
+  document.body.appendChild(debugPanel);
+
+  const hexIdInput = document.getElementById("hexIdInput") as HTMLInputElement;
+  const hexGoBtn = document.getElementById("hexGoBtn") as HTMLButtonElement;
+  const hexInfo = document.getElementById("hexInfo") as HTMLDivElement;
+
+  function goToHex() {
+    const id = parseInt(hexIdInput.value, 10);
+    if (isNaN(id)) {
+      hexInfo.textContent = "Invalid ID";
+      return;
+    }
+    const tile = globe.tiles.find(t => t.id === id);
+    if (!tile) {
+      hexInfo.textContent = `Tile ${id} not found (max: ${globe.tiles.length - 1})`;
+      return;
+    }
+    zoomToTile(id);
+    const tileType = globalTileTerrain?.get(id)?.type ?? "?";
+    const inRiver = globalRiverEdgesByTile?.has(id) ?? false;
+    hexInfo.innerHTML = `ID: ${id}<br>Type: ${tileType}<br>River: ${inRiver}`;
+  }
+
+  hexGoBtn.addEventListener("click", goToHex);
+  hexIdInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") goToHex();
+  });
+
+  // Also update highlight when clicking on a tile
+  renderer.domElement.addEventListener("click", (event: MouseEvent) => {
+    if (!globe?.mesh) return;
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Raycast against all relevant meshes
+    const targets = getClickTargets();
+    const allIntersects: THREE.Intersection[] = [];
+    for (const target of targets) {
+      const hits = raycaster.intersectObject(target, true);
+      allIntersects.push(...hits);
+    }
+    allIntersects.sort((a, b) => a.distance - b.distance);
+    
+    if (allIntersects.length > 0) {
+      const dir = allIntersects[0].point.clone().normalize();
+      const tileId = globe.getTileIdAtDirection(dir);
+      // Update input and highlight
+      hexIdInput.value = String(tileId);
+      const tile = globe.tiles.find(t => t.id === tileId);
+      if (tile && highlightedTileId !== tileId) {
+        if (highlightMesh) {
+          scene.remove(highlightMesh);
+          highlightMesh.geometry.dispose();
+          (highlightMesh.material as THREE.Material).dispose();
+        }
+        highlightMesh = createHighlightMesh(tile);
+        scene.add(highlightMesh);
+        highlightedTileId = tileId;
+      }
+      const tileType = globalTileTerrain?.get(tileId)?.type ?? "?";
+      const inRiver = globalRiverEdgesByTile?.has(tileId) ?? false;
+      hexInfo.innerHTML = `ID: ${tileId}<br>Type: ${tileType}<br>River: ${inRiver}`;
+    }
+  });
+  // ========== END DEBUG PANEL ==========
 
   window.addEventListener("resize", () => {
     const w = innerWidth;

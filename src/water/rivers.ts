@@ -470,6 +470,129 @@ export function symmetrizeRiverNeighborEdges(
   return added;
 }
 
+/**
+ * Force reciprocity: if a river tile has an edge pointing to a land neighbor,
+ * ensure that neighbor exists in the river data with the reciprocal edge.
+ * This is more aggressive than symmetrizeRiverNeighborEdges - it adds new tiles to byTile.
+ */
+export function forceRiverReciprocity(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean
+): number {
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  let added = 0;
+  
+  // Collect all edges we need to add (to avoid modifying while iterating)
+  const toAdd: Array<{ tileId: number; edge: number }> = [];
+  
+  for (const [tid, tset] of byTile) {
+    if (isWater(tid)) continue;
+    const tile = tileById.get(tid);
+    if (!tile) continue;
+    
+    for (const e of tset) {
+      const nid = getEdgeNeighbor(tile, e, tiles);
+      if (nid === undefined || isWater(nid)) continue;
+      
+      const ntile = tileById.get(nid);
+      if (!ntile) continue;
+      
+      const k = edgeIndexTowardNeighbor(ntile, tid, tiles);
+      if (k === undefined) continue;
+      
+      // Check if neighbor has the reciprocal edge
+      const nset = byTile.get(nid);
+      if (!nset || !nset.has(k)) {
+        toAdd.push({ tileId: nid, edge: k });
+      }
+    }
+  }
+  
+  // Apply all additions
+  for (const { tileId, edge } of toAdd) {
+    let set = byTile.get(tileId);
+    if (!set) {
+      set = new Set<number>();
+      byTile.set(tileId, set);
+    }
+    if (!set.has(edge)) {
+      set.add(edge);
+      added++;
+    }
+  }
+  
+  return added;
+}
+
+/**
+ * Fill in "gap" tiles that should be part of the river network.
+ * A gap tile is a non-river land tile where 2+ adjacent river tiles have edges pointing toward it.
+ * This fixes cases where the river polyline skipped a tile due to low sampling resolution.
+ */
+export function fillRiverGaps(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  isWater: (tileId: number) => boolean,
+  debug: boolean = false
+): number {
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  let filled = 0;
+
+  // Count how many river tiles point at each non-river land tile
+  const incomingCount = new Map<number, { fromTiles: number[]; fromEdges: number[] }>();
+  
+  for (const tid of byTile.keys()) {
+    if (isWater(tid)) continue;
+    const tile = tileById.get(tid);
+    const tset = byTile.get(tid);
+    if (!tile || !tset) continue;
+    
+    for (const e of tset) {
+      const nid = getEdgeNeighbor(tile, e, tiles);
+      if (nid === undefined || isWater(nid)) continue;
+      // Only consider tiles not already in river data
+      if (byTile.has(nid)) continue;
+      
+      let entry = incomingCount.get(nid);
+      if (!entry) {
+        entry = { fromTiles: [], fromEdges: [] };
+        incomingCount.set(nid, entry);
+      }
+      entry.fromTiles.push(tid);
+      // Find which edge of the gap tile points back to this river tile
+      const gapTile = tileById.get(nid);
+      if (gapTile) {
+        const backEdge = edgeIndexTowardNeighbor(gapTile, tid, tiles);
+        if (backEdge !== undefined) {
+          entry.fromEdges.push(backEdge);
+        }
+      }
+    }
+  }
+
+  if (debug && incomingCount.size > 0) {
+    console.log("[fillRiverGaps] Candidates with 2+ incoming:");
+    for (const [gapTid, { fromTiles, fromEdges }] of incomingCount) {
+      if (fromTiles.length >= 2) {
+        console.log(`  gap tile ${gapTid}: from tiles [${fromTiles.join(", ")}], back edges [${fromEdges.join(", ")}]`);
+      }
+    }
+  }
+
+  // Fill gaps: tiles with 2+ incoming river connections
+  for (const [gapTid, { fromTiles, fromEdges }] of incomingCount) {
+    if (fromTiles.length >= 2) {
+      // Create river edges for this gap tile pointing back to all the river tiles that point to it
+      const gapSet = new Set<number>(fromEdges);
+      byTile.set(gapTid, gapSet);
+      filled++;
+    }
+  }
+
+  return filled;
+}
+
 /** Run symmetrize until stable (usually 1–2 passes). */
 export function symmetrizeRiverNeighborEdgesUntilStable(
   byTile: Map<number, Set<number>>,
