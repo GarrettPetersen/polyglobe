@@ -266,6 +266,33 @@ async function main() {
     }
   }
 
+  // Mark tiles from mountains dataset as hilly (extends beyond variance-based detection)
+  // Reuse the already-loaded mountains list
+  if (mountains && mountains.length > 0) {
+    const hillyFromMountains = new Set<number>();
+    for (const m of mountains) {
+      const dir = latLonDegToDirection(m.lat, m.lon);
+      const tileId = globe.getTileIdAtDirection(dir);
+      hillyFromMountains.add(tileId);
+      // Also mark neighboring tiles as hilly
+      const tile = globe.tiles.find(t => t.id === tileId);
+      if (tile) {
+        for (const nid of tile.neighbors) {
+          hillyFromMountains.add(nid);
+        }
+      }
+    }
+    let addedHills = 0;
+    for (const tileId of hillyFromMountains) {
+      const existing = tileTerrain.get(tileId);
+      if (existing && existing.type !== "water" && existing.type !== "beach" && !existing.isHilly) {
+        tileTerrain.set(tileId, { ...existing, isHilly: true });
+        addedHills++;
+      }
+    }
+    console.log("Added", addedHills, "hills from mountains dataset");
+  }
+
   const tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1 }> = [];
   for (let i = 0; i < globe.tileCount; i++) {
     const d = tileTerrain.get(i)!;

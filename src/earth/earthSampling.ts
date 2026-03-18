@@ -223,8 +223,12 @@ export interface BuildTerrainFromRasterOptions {
   mountainThresholdM?: number;
   /** Minimum meters this tile must stand above its highest neighbor to count as mountain (tracks relief, not just altitude). Default 400. */
   mountainReliefM?: number;
-  /** Elevation standard deviation (meters) above which terrain is considered "hilly". Default 25. */
-  hillsVarianceM?: number;
+  /** Variance scale for combined hills score: variance / hillsVarianceScale. Default 400. */
+  hillsVarianceScale?: number;
+  /** Elevation scale for combined hills score: elevation / hillsElevationScale. Default 1500. */
+  hillsElevationScale?: number;
+  /** Combined score threshold for hills: (elev/elevScale + variance/varianceScale) >= threshold. Default 1.0. */
+  hillsScoreThreshold?: number;
   /** Use latitude for ice/snow near poles and desert near equator. Default true. */
   latitudeTerrain?: boolean;
   /** Water tile elevation (globe units, below surface). Default -0.18. */
@@ -416,7 +420,9 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   elevationScale: 0.00004,
   mountainThresholdM: 1200,
   mountainReliefM: 400,
-  hillsVarianceM: 600, // High threshold: only very rugged terrain (well above avg ~312m)
+  hillsVarianceScale: 400, // Variance contribution: variance / hillsVarianceScale
+  hillsElevationScale: 1500, // Elevation contribution: elevation / hillsElevationScale
+  hillsScoreThreshold: 1.0, // Combined score threshold: (elev/elevScale + variance/varianceScale) >= threshold
   latitudeTerrain: true,
   waterElevation: -0.18,
   lakeElevation: -0.04,
@@ -602,10 +608,16 @@ function terrainFromSample(
     elevation += lift;
   }
 
-  // Hills: detected by local terrain roughness (elevation variance within the tile)
-  // Hills can occur at any elevation - they're about bumpiness, not altitude
-  const isHilly = result.elevationStdDevM != null && 
-                  result.elevationStdDevM >= opts.hillsVarianceM;
+  // Hills: combined score of elevation and variance
+  // hillScore = (elevation / elevScale) + (variance / varianceScale)
+  // This allows high mountains with moderate variance OR moderate elevation with high variance
+  let isHilly = false;
+  if (result.elevationM != null && result.elevationStdDevM != null) {
+    const elevContrib = Math.max(0, result.elevationM) / opts.hillsElevationScale;
+    const varContrib = result.elevationStdDevM / opts.hillsVarianceScale;
+    const hillScore = elevContrib + varContrib;
+    isHilly = hillScore >= opts.hillsScoreThreshold;
+  }
   
   if (isHilly) {
     elevation += 0.02;
@@ -1987,8 +1999,32 @@ export async function buildTerrainFromEarthRaster(
   }
   
   // Debug: print variance stats
-  console.log(`[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsThreshold=${opts.hillsVarianceM}m`);
+  console.log(`[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsScore=(elev/${opts.hillsElevationScale}+var/${opts.hillsVarianceScale})>=${opts.hillsScoreThreshold}`);
   console.log(`[polyglobe] Hills tiles detected: ${hillsCount}`);
+  
+  // Debug: print Rockies region tiles variance (lat 35-50°N, lon -120 to -100°W)
+  const rockiesTiles: Array<{id: number, lat: number, lon: number, variance: number, isHilly: boolean}> = [];
+  for (const tile of tiles) {
+    const result = resultsByTile.get(tile.id);
+    if (!result || !result.land) continue;
+    const latDeg = (result.latRad * 180) / Math.PI;
+    const center = tileCenterToLatLon(tile.center);
+    const lonDeg = (center.lon * 180) / Math.PI;
+    if (latDeg >= 35 && latDeg <= 50 && lonDeg >= -112 && lonDeg <= -104) {
+      const data = out.get(tile.id);
+      rockiesTiles.push({
+        id: tile.id,
+        lat: latDeg,
+        lon: lonDeg,
+        variance: result.elevationStdDevM ?? 0,
+        isHilly: data?.isHilly ?? false
+      });
+    }
+  }
+  rockiesTiles.sort((a, b) => b.variance - a.variance);
+  console.log(`[polyglobe] Rockies region (lat 35-50, lon -120 to -100): ${rockiesTiles.length} land tiles`);
+  console.log(`[polyglobe] Top 10 variance in Rockies:`, rockiesTiles.slice(0, 10).map(t => `${t.id}@(${t.lat.toFixed(1)},${t.lon.toFixed(1)}):${t.variance.toFixed(0)}m${t.isHilly ? '*' : ''}`).join(', '));
+  console.log(`[polyglobe] Rockies hills:`, rockiesTiles.filter(t => t.isHilly).length);
 
   // Per-body water level: set each water body's tile elevation from surrounding land (min shore - delta) so each lake/ocean has its own elevation.
   const tileById = new Map(tiles.map((t) => [t.id, t]));

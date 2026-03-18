@@ -1705,6 +1705,33 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           }
         }
       }
+      // Mark tiles from mountains dataset as hilly (not just the top peaks used for geometry)
+      // This ensures mountain ranges like the Rockies get hill geometry even if variance is low
+      if (mountainsList && mountainsList.length > 0) {
+        const hillyFromMountains = new Set<number>();
+        for (const m of mountainsList) {
+          const dir = latLonDegToDirection(m.lat, m.lon);
+          const tileId = globe.getTileIdAtDirection(dir);
+          hillyFromMountains.add(tileId);
+          // Also mark neighboring tiles as hilly for mountain ranges
+          const tile = globe.tiles.find(t => t.id === tileId);
+          if (tile) {
+            for (const nid of tile.neighbors) {
+              hillyFromMountains.add(nid);
+            }
+          }
+        }
+        let addedHills = 0;
+        for (const tileId of hillyFromMountains) {
+          const existing = tileTerrain.get(tileId);
+          if (existing && existing.type !== "water" && existing.type !== "beach" && !existing.isHilly) {
+            tileTerrain.set(tileId, { ...existing, isHilly: true });
+            addedHills++;
+          }
+        }
+        console.log(BUILD_LOG, "Earth: marked", addedHills, "tiles as hilly from mountains dataset");
+      }
+      
       console.log(BUILD_LOG, "Earth: runTerrainTransition start");
       await runTerrainTransition(
         globe,
