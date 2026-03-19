@@ -936,19 +936,19 @@ function appendUShapedOppositeRiverTerrain(
     if (bankColors) bankColors.push(cr, cg, cb);
   };
 
-  /* Bed: quad [iA0, iB0, iB1, iA1]; edges 1–2 and 3–0 are the banks (iB0–iB1, iA1–iA0), full length along channel. */
+  /* Bed: quad so edges 0–1 and 2–3 match wall bottoms (iA1–iB0, iA0–iB1). Order [iB0, iA1, iA0, iB1]. */
   const b0 = bedPos.length / 3;
   const p0 = new THREE.Vector3();
   const p1 = new THREE.Vector3();
   const p2 = new THREE.Vector3();
-  for (const q of [iA0, iB0, iB1, iA1]) {
+  for (const q of [iB0, iA1, iA0, iB1]) {
     tilePlanePoint(frame, q[0], q[1], rBot, p3);
     bedPos.push(p3.x, p3.y, p3.z);
     bedTileIds.push(tileId);
   }
-  tilePlanePoint(frame, iA0[0], iA0[1], rBot, p0);
-  tilePlanePoint(frame, iB0[0], iB0[1], rBot, p1);
-  tilePlanePoint(frame, iB1[0], iB1[1], rBot, p2);
+  tilePlanePoint(frame, iB0[0], iB0[1], rBot, p0);
+  tilePlanePoint(frame, iA1[0], iA1[1], rBot, p1);
+  tilePlanePoint(frame, iA0[0], iA0[1], rBot, p2);
   const ex1 = p1.x - p0.x,
     ey1 = p1.y - p0.y,
     ez1 = p1.z - p0.z;
@@ -980,8 +980,12 @@ function appendUShapedOppositeRiverTerrain(
 
   const appendLoftedBank = (
     outer2d: [number, number][],
-    bedStart: [number, number],
-    bedEnd: [number, number]
+    /** Top edge of wall = cap closing chord (actual drawn boundary). */
+    topStart: [number, number],
+    topEnd: [number, number],
+    /** Bottom edge of wall = bed edge (inset). */
+    botStart: [number, number],
+    botEnd: [number, number]
   ): void => {
     const outer = dedupeConsecutive2d(outer2d, 1e-10);
     const k = outer.length;
@@ -1033,22 +1037,20 @@ function appendUShapedOppositeRiverTerrain(
     const e2 = new THREE.Vector3();
     const wallN = new THREE.Vector3();
     const toChannel = new THREE.Vector3();
-    /* One vertical quad per bank: use only bedStart and bedEnd so vertices match bed and mouth. */
-    const a = bedStart;
-    const b = bedEnd;
-    tilePlanePoint(frame, a[0], a[1], rTop, p3);
+    /* Wall from cap chord (top) down to bed (bottom): same 2D as what draws the bank top. */
+    tilePlanePoint(frame, topStart[0], topStart[1], rTop, p3);
     const t0x = p3.x,
       t0y = p3.y,
       t0z = p3.z;
-    tilePlanePoint(frame, b[0], b[1], rTop, p3);
+    tilePlanePoint(frame, topEnd[0], topEnd[1], rTop, p3);
     const t1x = p3.x,
       t1y = p3.y,
       t1z = p3.z;
-    tilePlanePoint(frame, b[0], b[1], rBot, p3);
+    tilePlanePoint(frame, botEnd[0], botEnd[1], rBot, p3);
     const bbx = p3.x,
       bby = p3.y,
       bbz = p3.z;
-    tilePlanePoint(frame, a[0], a[1], rBot, p3);
+    tilePlanePoint(frame, botStart[0], botStart[1], rBot, p3);
     const bax = p3.x,
       bay = p3.y,
       baz = p3.z;
@@ -1087,9 +1089,9 @@ function appendUShapedOppositeRiverTerrain(
   outer2.push(O[e0]);
   outer2.push(A0);
 
-  /* Bank walls = bed edges along channel: iB0–iB1 (one side) and iA1–iA0 (other side), full segment length. */
-  appendLoftedBank(outer1, iB0, iB1);
-  appendLoftedBank(outer2, iA1, iA0);
+  /* Top edge of bank = cap closing chord (outer1 closes A1→B0, outer2 closes A0→B1). Bottom = bed inset. */
+  appendLoftedBank(outer1, A1, B0, iA1, iB0);
+  appendLoftedBank(outer2, A0, B1, iA0, iB1);
 
   return true;
 }

@@ -32,7 +32,8 @@ async function main() {
   }
 
   // Wait for async build (globe → plant GLTF load → createVegetationLayer → tree-debug logs)
-  await page.waitForTimeout(20000);
+  const waitMs = Number(process.env.CAPTURE_CONSOLE_WAIT_MS) || 60000;
+  await page.waitForTimeout(waitMs);
 
   const treeLogs = logs.filter((l) => l.text.includes("[tree-debug]") || l.text.includes("tree"));
   console.log("=== [tree-debug] and tree-related logs ===\n");

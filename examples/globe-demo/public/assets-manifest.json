@@ -235,6 +235,21 @@
     "folder": "plants"
   },
   {
+    "path": "assets/plants/palm_A_Color1.glb",
+    "name": "palm_A_Color1.glb",
+    "folder": "plants"
+  },
+  {
+    "path": "assets/plants/palm_B_Color1.glb",
+    "name": "palm_B_Color1.glb",
+    "folder": "plants"
+  },
+  {
+    "path": "assets/plants/palm_C_Color1.glb",
+    "name": "palm_C_Color1.glb",
+    "folder": "plants"
+  },
+  {
     "path": "assets/plants/bush_acacia_A_Color1.gltf",
     "name": "bush_acacia_A_Color1.gltf",
     "folder": "plants"

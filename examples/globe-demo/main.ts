@@ -72,6 +72,9 @@ const treeUrls = [
   `${_plantBase}/deciduous_boxy_A_Color1.gltf`,
   `${_plantBase}/deciduous_boxy_B_Color1.gltf`,
   `${_plantBase}/deciduous_boxy_C_Color1.gltf`,
+  `${_plantBase}/palm_A_Color1.glb`,
+  `${_plantBase}/palm_B_Color1.glb`,
+  `${_plantBase}/palm_C_Color1.glb`,
 ];
 const bushUrls = [
   `${_plantBase}/bush_deciduous_round_A_Color1.gltf`,
@@ -92,15 +95,26 @@ const rockUrls = [
 
 console.log("[globe-build] demo main.ts loaded");
 
-/** Tree variant indices: 0–2 deciduous_round; 3–5 acacia; 6–8 pine; 9 bamboo; 10–12 deciduous_boxy. */
+/** Tree variant indices: 0–2 deciduous_round; 3–5 acacia; 6–8 pine; 9 bamboo; 10–12 deciduous_boxy; 13–15 palm. */
 const TREE_VARIANT_DECIDUOUS_ROUND = [0, 1, 2];
 const TREE_VARIANT_ACACIA = [3, 4, 5];
 const TREE_VARIANT_PINE = [6, 7, 8];
 const TREE_VARIANT_BAMBOO = 9;
 const TREE_VARIANT_DECIDUOUS_BOXY = [10, 11, 12];
+const TREE_VARIANT_PALM = [13, 14, 15];
 
+/**
+ * Monsoonal bamboo belt (China, Japan, Korea, Vietnam, etc.).
+ *
+ * `tileCenterToLatLon` uses `lon = -atan2(z, x)` on the geodesic sphere. That is **not**
+ * “east-positive geography”: East Asia ends up with **negative** `lonDeg` (e.g. Beijing ~−116°),
+ * while the Americas have **positive** `lonDeg` (e.g. Denver ~+105°). A box `lonDeg ∈ [72, 152]`
+ * therefore selected the **Americas**, not Asia — bamboo never appeared in China.
+ *
+ * East Asia in this convention: roughly **−152° ≤ lonDeg ≤ −72°** (standard 72°E–152°E).
+ */
 function isBambooRegion(latDeg: number, lonDeg: number): boolean {
-  return latDeg >= -10 && latDeg <= 45 && lonDeg >= 80 && lonDeg <= 150;
+  return latDeg >= -10 && latDeg <= 45 && lonDeg >= -152 && lonDeg <= -72;
 }
 
 function pick<T>(arr: T[], rnd: () => number): T {
@@ -109,7 +123,21 @@ function pick<T>(arr: T[], rnd: () => number): T {
 
 function getTreeVariantIndex(biome: string, latDeg: number, lonDeg: number, rnd: () => number): number {
   if (isBambooRegion(latDeg, lonDeg)) return TREE_VARIANT_BAMBOO;
-  if (biome === "tropical_savanna") return pick(TREE_VARIANT_ACACIA, rnd);
+  if (biome === "tropical_rainforest" || biome === "tropical_monsoon") {
+    if (rnd() < 0.45) return pick(TREE_VARIANT_PALM, rnd);
+    return rnd() < 0.5 ? pick(TREE_VARIANT_DECIDUOUS_ROUND, rnd) : pick(TREE_VARIANT_DECIDUOUS_BOXY, rnd);
+  }
+  if (biome === "tropical_savanna") {
+    if (rnd() < 0.28) return pick(TREE_VARIANT_PALM, rnd);
+    return pick(TREE_VARIANT_ACACIA, rnd);
+  }
+  if (
+    biome === "humid_subtropical" ||
+    biome === "humid_subtropical_hot" ||
+    biome === "swamp"
+  ) {
+    if (rnd() < 0.22) return pick(TREE_VARIANT_PALM, rnd);
+  }
   if (
     biome.startsWith("subarctic") ||
     biome === "humid_continental_hot" ||
@@ -2639,11 +2667,42 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const TRUNK_NAME = /trunk|bark|stem|branch|wood|log/i;
     const FOLIAGE_NAME = /leaf|leaves|foliage|crown|canopy|needle|frond|palm/i;
 
+    /**
+     * GLB/GLTF both parse to the same scene graph; `.glb` is binary packaging only.
+     * Meshes often have scale/rotation on parents — geometry is in **local** space until we bake
+     * `matrixWorld` (otherwise bamboo/palm can be microscopic or huge vs `.gltf` trees).
+     */
+    function bakeMeshWorldMatrix(mesh: THREE.Mesh, geom: THREE.BufferGeometry): void {
+      geom.applyMatrix4(mesh.matrixWorld);
+    }
+
+    /** Scale trunk+foliage together so the tallest extent = 1 — keeps species visually comparable. */
+    function normalizeTrunkFoliagePair(trunk: THREE.BufferGeometry, foliage: THREE.BufferGeometry): void {
+      trunk.computeBoundingBox();
+      foliage.computeBoundingBox();
+      const tb = trunk.boundingBox;
+      const fb = foliage.boundingBox;
+      if (!tb || !fb) return;
+      const box = new THREE.Box3().copy(tb).union(fb);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const axis = getHeightAxis(box);
+      const h = axis === 0 ? size.x : axis === 1 ? size.y : size.z;
+      if (h < 1e-8) return;
+      const s = 1 / h;
+      trunk.scale(s, s, s);
+      foliage.scale(s, s, s);
+      trunk.computeVertexNormals();
+      foliage.computeVertexNormals();
+    }
+
     function splitTreeFromGltfScene(gltf: { scene: THREE.Group }): { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | null {
+      gltf.scene.updateMatrixWorld(true);
       const meshes: { name: string; geom: THREE.BufferGeometry; box: THREE.Box3 }[] = [];
       gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.geometry) {
+        if (child instanceof THREE.Mesh && child.geometry && !(child instanceof THREE.SkinnedMesh)) {
           const geom = child.geometry.clone();
+          bakeMeshWorldMatrix(child, geom);
           geom.computeBoundingBox();
           const box = geom.boundingBox!;
           meshes.push({ name: (child.name || "").toLowerCase(), geom, box });
@@ -2731,15 +2790,24 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           (gltf) => {
             const split = splitTreeFromGltfScene(gltf);
             if (split) {
+              normalizeTrunkFoliagePair(split.trunk, split.foliage);
               resolve(split);
               return;
             }
             let geom: THREE.BufferGeometry | undefined;
+            gltf.scene.updateMatrixWorld(true);
             gltf.scene.traverse((child) => {
-              if (geom == null && child instanceof THREE.Mesh && child.geometry) geom = child.geometry.clone();
+              if (geom == null && child instanceof THREE.Mesh && child.geometry && !(child instanceof THREE.SkinnedMesh)) {
+                const g = child.geometry.clone();
+                bakeMeshWorldMatrix(child, g);
+                geom = g;
+              }
             });
             if (geom) {
               const fallback = splitTreeTrunkFoliageByHeight(geom);
+              if (fallback) {
+                normalizeTrunkFoliagePair(fallback.trunk, fallback.foliage);
+              }
               resolve(fallback ?? undefined);
             } else resolve(undefined);
           },

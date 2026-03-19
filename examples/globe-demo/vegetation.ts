@@ -7,8 +7,8 @@
  * Pass in options.geometries: { tree, bush, grass, rock } (GLTF mesh geometry per type).
  *
  * Plant selection: we use one 3D model per category (tree, bush, grass, rock) and tint by
- * biome (getBiomeColor). We do not pick different species per region (e.g. acacia vs pine);
- * asset variants (acacia, pine, bamboo, etc.) are available but not yet wired by biome.
+ * biome (getBiomeColor). Tree variants (acacia, pine, bamboo, palm, etc.) are chosen in main via
+ * getTreeVariantIndex (biome + lat/lon).
  */
 
 import * as THREE from "three";
@@ -432,7 +432,10 @@ export function createVegetationLayer(
     lonDeg: number,
     rnd: () => number
   ): number {
-    const nT = options.geometries?.trees?.length ?? 0;
+    const nT =
+      options.geometries?.trees?.length ??
+      options.geometries?.treeTrunkFoliage?.length ??
+      0;
     const nB = options.geometries?.bushes?.length ?? 0;
     const grassOpt = options.geometries?.grass;
     const nG = Array.isArray(grassOpt) ? grassOpt.length : 0;
@@ -464,6 +467,17 @@ export function createVegetationLayer(
     byType[p.type].push(p);
   }
 
+  /** Matches `treeUrls` order in globe-demo main (variant index → species group). */
+  function treeSpeciesGroup(variantIndex: number): string {
+    if (variantIndex >= 0 && variantIndex <= 2) return "deciduous_round";
+    if (variantIndex >= 3 && variantIndex <= 5) return "acacia";
+    if (variantIndex >= 6 && variantIndex <= 8) return "pine";
+    if (variantIndex === 9) return "bamboo";
+    if (variantIndex >= 10 && variantIndex <= 12) return "deciduous_boxy";
+    if (variantIndex >= 13 && variantIndex <= 15) return "palm";
+    return `other_${variantIndex}`;
+  }
+
   const TREE_LOG = "[tree-debug]";
   console.log(TREE_LOG, "placements by type", {
     tree: byType.tree.length,
@@ -471,6 +485,18 @@ export function createVegetationLayer(
     grass: byType.grass.length,
     rock: byType.rock.length,
   });
+  {
+    const bySpecies: Record<string, number> = {};
+    const byVariantIndex: Record<string, number> = {};
+    for (const p of byType.tree) {
+      const g = treeSpeciesGroup(p.variantIndex);
+      bySpecies[g] = (bySpecies[g] ?? 0) + 1;
+      const k = String(p.variantIndex);
+      byVariantIndex[k] = (byVariantIndex[k] ?? 0) + 1;
+    }
+    console.log(TREE_LOG, "tree counts by species", bySpecies);
+    console.log(TREE_LOG, "tree counts by variant index", byVariantIndex);
+  }
 
   type MeshEntry = { type: PlantType; list: Placement[]; geometry: THREE.BufferGeometry; name: string; isTrunk?: boolean };
   const entries: MeshEntry[] = [];

@@ -2,6 +2,7 @@
 /**
  * Rename asset files to descriptive names for easier identification.
  * Tree_1=deciduous_round, Tree_2=deciduous_boxy, Tree_3=acacia, Tree_4=pine, Tree_5/Palm*=palm;
+ * Palm_Tree_A/B/C.glb → palm_A/B/C_Color1.glb (match other trees’ *_Color1 suffix).
  * bare variants; bushes match tree numbers; rocks = rock_1/2/3; grass = grass_1/2; fern, fiddlehead, bamboo_stand.
  * Run from examples/globe-demo. Updates .gltf buffer/node/mesh names to match.
  */
@@ -23,6 +24,10 @@ const PREFIX_MAP = [
   ["Tree_3_", "acacia_"],
   ["Tree_4_", "pine_"],
   ["Tree_5_", "palm_"],
+  /* Longest first: Palm_Tree_* before generic Palm_ */
+  ["Palm_Tree_A", "palm_A_Color1"],
+  ["Palm_Tree_B", "palm_B_Color1"],
+  ["Palm_Tree_C", "palm_C_Color1"],
   ["Palm_1_", "palm_"],
   ["Palm_", "palm_"],
   ["Bush_1_", "bush_deciduous_round_"],
