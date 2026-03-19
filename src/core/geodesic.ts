@@ -236,7 +236,7 @@ export interface GeodesicFlatMeshOptions {
   peakElevationScale?: number;
   /** Optional: tiles with hilly terrain get a gentle rounded bump (center raised). */
   getHilly?: (tileId: number) => boolean;
-  /** Height of hill bump in globe units. Default 0.008. */
+  /** Height of hill bump in globe units. Default 0.003. */
   hillyBumpHeight?: number;
   /**
    * Optional: for tiles with river, build a hex-shaped bowl (inner hex cut out, sides cut for river directions).
@@ -271,7 +271,7 @@ export function buildFlatGeometryData(
   const peakElevationScale = options.peakElevationScale ?? 0.00002;
   const getPeak = options.getPeak;
   const getHilly = options.getHilly;
-  const hillyBumpHeight = options.hillyBumpHeight ?? 0.008;
+  const hillyBumpHeight = options.hillyBumpHeight ?? 0.003;
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
@@ -537,7 +537,7 @@ export function buildFlatGeometryData(
       // Hilly terrain: flat-topped truncated cone (mesa/plateau shape)
       // Distinct from pyramidal mountains
       const rHillTop = r + hillyBumpHeight;
-      const flatTopRadiusFrac = 0.55; // Size of flat top relative to hex size
+      const flatTopRadiusFrac = 0.78; // Size of flat top relative to hex size (wider = gentler slope)
       
       // Compute base radius for scaling the flat top
       let baseRadius = 0;

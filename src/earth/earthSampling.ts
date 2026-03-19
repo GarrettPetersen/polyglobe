@@ -696,7 +696,7 @@ function terrainFromSample(
   }
 
   if (isHilly) {
-    elevation += 0.02;
+    elevation += 0.008;
   }
 
   // Note: isMountain is NOT set here - it comes from the peak dataset (mountainsList)

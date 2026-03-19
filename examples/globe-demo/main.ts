@@ -1,12 +1,17 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { Lensflare, LensflareElement } from "three/examples/jsm/objects/Lensflare.js";
+import {
+  Lensflare,
+  LensflareElement,
+} from "three/examples/jsm/objects/Lensflare.js";
 import * as topojson from "topojson-client";
 import * as JSZipNS from "jszip";
-const JSZip = (JSZipNS as unknown as { default: typeof JSZipNS }).default ?? JSZipNS;
+const JSZip =
+  (JSZipNS as unknown as { default: typeof JSZipNS }).default ?? JSZipNS;
 import {
   Globe,
   Sun,
@@ -64,14 +69,21 @@ type EarthGlobeCacheFile = {
 };
 
 async function fetchEarthGlobeCache(): Promise<EarthGlobeCacheFile | null> {
-  if (typeof window !== "undefined" && /[?&]noEarthCache=1/i.test(window.location.search)) {
+  if (
+    typeof window !== "undefined" &&
+    /[?&]noEarthCache=1/i.test(window.location.search)
+  ) {
     return null;
   }
   try {
     const res = await fetch(EARTH_GLOBE_CACHE_URL);
     if (!res.ok) return null;
     const j = (await res.json()) as EarthGlobeCacheFile;
-    if (j.version !== EARTH_GLOBE_CACHE_VERSION || j.subdivisions !== 6 || !Array.isArray(j.tiles)) {
+    if (
+      j.version !== EARTH_GLOBE_CACHE_VERSION ||
+      j.subdivisions !== 6 ||
+      !Array.isArray(j.tiles)
+    ) {
       return null;
     }
     return j;
@@ -107,7 +119,7 @@ function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
   const dir = new THREE.Vector3(
     cosLat * Math.cos(lonRad),
     Math.sin(latRad),
-    -cosLat * Math.sin(lonRad)
+    -cosLat * Math.sin(lonRad),
   );
   return dir.normalize();
 }
@@ -145,7 +157,7 @@ function seededRandom(seed: number) {
 
 function buildProceduralTerrain(
   tiles: GeodesicTile[],
-  state: DemoState
+  state: DemoState,
 ): Map<number, TileTerrainData> {
   const rnd = seededRandom(state.seed);
   const landMask = new Float32Array(tiles.length);
@@ -166,7 +178,12 @@ function buildProceduralTerrain(
   }
   const landThreshold = state.landFraction;
   const tileTerrain = new Map<number, TileTerrainData>();
-  const midLandTypes: TileTerrainData["type"][] = ["land", "forest", "mountain", "grassland"];
+  const midLandTypes: TileTerrainData["type"][] = [
+    "land",
+    "forest",
+    "mountain",
+    "grassland",
+  ];
   for (let i = 0; i < tiles.length; i++) {
     const isLand = landMask[i] > landThreshold;
     const y = tiles[i].center.y;
@@ -193,7 +210,9 @@ function buildProceduralTerrain(
   for (let i = 0; i < tiles.length; i++) {
     const data = tileTerrain.get(i)!;
     if (data.type !== "water") continue;
-    const hasLandNeighbor = tiles[i].neighbors.some((n) => tileTerrain.get(n)?.type !== "water");
+    const hasLandNeighbor = tiles[i].neighbors.some(
+      (n) => tileTerrain.get(n)?.type !== "water",
+    );
     if (hasLandNeighbor) tileTerrain.set(i, { ...data, type: "beach" });
   }
   return tileTerrain;
@@ -203,7 +222,7 @@ function buildProceduralTerrain(
 function terrainFromLandMask(
   landMask: Float32Array,
   tiles: GeodesicTile[],
-  landFraction: number
+  landFraction: number,
 ): Map<number, TileTerrainData> {
   const out = new Map<number, TileTerrainData>();
   for (let i = 0; i < tiles.length; i++) {
@@ -221,7 +240,7 @@ function terrainFromLandMask(
 async function buildProceduralTerrainProgressive(
   tiles: GeodesicTile[],
   state: DemoState,
-  onProgress: (intermediate: Map<number, TileTerrainData>) => Promise<void>
+  onProgress: (intermediate: Map<number, TileTerrainData>) => Promise<void>,
 ): Promise<Map<number, TileTerrainData>> {
   const rnd = seededRandom(state.seed);
   const landMask = new Float32Array(tiles.length);
@@ -239,14 +258,29 @@ async function buildProceduralTerrainProgressive(
       next[i] = sum / n;
     }
     for (let i = 0; i < tiles.length; i++) landMask[i] = next[i];
-    console.log(BUILD_LOG, "Procedural: blob iteration", iter + 1, "/", state.blobiness);
-    const intermediate = terrainFromLandMask(landMask, tiles, state.landFraction);
+    console.log(
+      BUILD_LOG,
+      "Procedural: blob iteration",
+      iter + 1,
+      "/",
+      state.blobiness,
+    );
+    const intermediate = terrainFromLandMask(
+      landMask,
+      tiles,
+      state.landFraction,
+    );
     await onProgress(intermediate);
   }
   console.log(BUILD_LOG, "Procedural: deriving final terrain types");
   const landThreshold = state.landFraction;
   const tileTerrain = new Map<number, TileTerrainData>();
-  const midLandTypes: TileTerrainData["type"][] = ["land", "forest", "mountain", "grassland"];
+  const midLandTypes: TileTerrainData["type"][] = [
+    "land",
+    "forest",
+    "mountain",
+    "grassland",
+  ];
   for (let i = 0; i < tiles.length; i++) {
     const isLand = landMask[i] > landThreshold;
     const y = tiles[i].center.y;
@@ -273,7 +307,9 @@ async function buildProceduralTerrainProgressive(
   for (let i = 0; i < tiles.length; i++) {
     const data = tileTerrain.get(i)!;
     if (data.type !== "water") continue;
-    const hasLandNeighbor = tiles[i].neighbors.some((n) => tileTerrain.get(n)?.type !== "water");
+    const hasLandNeighbor = tiles[i].neighbors.some(
+      (n) => tileTerrain.get(n)?.type !== "water",
+    );
     if (hasLandNeighbor) tileTerrain.set(i, { ...data, type: "beach" });
   }
   return tileTerrain;
@@ -284,7 +320,7 @@ const TERRAIN_ANIMATION_EASING = (t: number) => t * (2 - t); // ease-out quadrat
 
 /** Return a set of tile IDs that have peaks (for geometry layout comparison). */
 function getPeakTileSet(
-  peakTiles: Map<number, number> | undefined
+  peakTiles: Map<number, number> | undefined,
 ): Set<number> {
   if (!peakTiles) return new Set();
   return new Set(peakTiles.keys());
@@ -302,7 +338,7 @@ async function runTerrainTransition(
   yieldToMain: () => Promise<void>,
   minLandElevation?: number,
   riverEdgesByTile?: Map<number, Set<number>>,
-  riverEdgeToWaterByTile?: Map<number, Set<number>>
+  riverEdgeToWaterByTile?: Map<number, Set<number>>,
 ): Promise<void> {
   const peakSetPrev = getPeakTileSet(peakTilesPrev);
   const peakSetNext = getPeakTileSet(peakTilesNext);
@@ -323,7 +359,10 @@ async function runTerrainTransition(
   if (minLandElevation != null) opts.minLandElevation = minLandElevation;
 
   if (riverEdgesByTile != null && riverEdgesByTile.size > 0) {
-    console.log(BUILD_LOG, "TerrainTransition: river bowls, setting geometry once (no animation)");
+    console.log(
+      BUILD_LOG,
+      "TerrainTransition: river bowls, setting geometry once (no animation)",
+    );
     setGlobeGeometryFromTerrain(
       globe,
       nextTerrain,
@@ -332,13 +371,16 @@ async function runTerrainTransition(
       peakElevationScale,
       minLandElevation,
       riverEdgesByTile,
-      riverEdgeToWaterByTile
+      riverEdgeToWaterByTile,
     );
     return;
   }
 
   if (peakSetChanged && peakTilesNext != null) {
-    console.log(BUILD_LOG, "TerrainTransition: peak set changed, replacing geometry (no animation)");
+    console.log(
+      BUILD_LOG,
+      "TerrainTransition: peak set changed, replacing geometry (no animation)",
+    );
     const elevatedSeaTiles = new Map<number, number>();
     const nextOpts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
       ...opts,
@@ -358,8 +400,16 @@ async function runTerrainTransition(
     };
     const geom = createGeodesicGeometryFlat(globe.tiles, nextOpts);
     if (elevatedSeaTiles.size > 0) {
-      const list = [...elevatedSeaTiles.entries()].map(([tid, elev]) => `tile ${tid} elev ${elev.toFixed(4)}`).join(", ");
-      console.warn(BUILD_LOG, "Sea bottom hex(es) drawn above submerged level (", MAX_SEA_BED_ELEVATION, "):", list);
+      const list = [...elevatedSeaTiles.entries()]
+        .map(([tid, elev]) => `tile ${tid} elev ${elev.toFixed(4)}`)
+        .join(", ");
+      console.warn(
+        BUILD_LOG,
+        "Sea bottom hex(es) drawn above submerged level (",
+        MAX_SEA_BED_ELEVATION,
+        "):",
+        list,
+      );
     }
     applyTerrainColorsToGeometry(geom, nextTerrain);
     globe.mesh.geometry.dispose();
@@ -367,13 +417,24 @@ async function runTerrainTransition(
     return;
   }
 
-  console.log(BUILD_LOG, "TerrainTransition: animating", TERRAIN_ANIMATION_FRAMES + 1, "frames");
+  console.log(
+    BUILD_LOG,
+    "TerrainTransition: animating",
+    TERRAIN_ANIMATION_FRAMES + 1,
+    "frames",
+  );
   const colorPrev = new THREE.Color();
   const colorNext = new THREE.Color();
 
   for (let frame = 0; frame <= TERRAIN_ANIMATION_FRAMES; frame++) {
     if (frame % 7 === 0 || frame === TERRAIN_ANIMATION_FRAMES) {
-      console.log(BUILD_LOG, "TerrainTransition: frame", frame, "/", TERRAIN_ANIMATION_FRAMES);
+      console.log(
+        BUILD_LOG,
+        "TerrainTransition: frame",
+        frame,
+        "/",
+        TERRAIN_ANIMATION_FRAMES,
+      );
     }
     const t = TERRAIN_ANIMATION_EASING(frame / TERRAIN_ANIMATION_FRAMES);
     const getElevation = (id: number) => {
@@ -400,8 +461,12 @@ async function runTerrainTransition(
       if (Number(tid) < 0) return TERRAIN_STYLES.snow.color;
       const a = prevTerrain.get(tid);
       const b = nextTerrain.get(tid);
-      const styleA = a ? TERRAIN_STYLES[a.type].color : TERRAIN_STYLES.water.color;
-      const styleB = b ? TERRAIN_STYLES[b.type].color : TERRAIN_STYLES.water.color;
+      const styleA = a
+        ? TERRAIN_STYLES[a.type].color
+        : TERRAIN_STYLES.water.color;
+      const styleB = b
+        ? TERRAIN_STYLES[b.type].color
+        : TERRAIN_STYLES.water.color;
       colorPrev.set(styleA);
       colorNext.set(styleB);
       colorPrev.lerp(colorNext, t);
@@ -412,8 +477,14 @@ async function runTerrainTransition(
 }
 
 type GeoJSONPolygon = { type: "Polygon"; coordinates: number[][][] };
-type GeoJSONMultiPolygon = { type: "MultiPolygon"; coordinates: number[][][][] };
-type GeoJSONGeometry = GeoJSONPolygon | GeoJSONMultiPolygon | { type: "GeometryCollection"; geometries: GeoJSONGeometry[] };
+type GeoJSONMultiPolygon = {
+  type: "MultiPolygon";
+  coordinates: number[][][][];
+};
+type GeoJSONGeometry =
+  | GeoJSONPolygon
+  | GeoJSONMultiPolygon
+  | { type: "GeometryCollection"; geometries: GeoJSONGeometry[] };
 
 /** Signed area of a ring in (lon, 90-lat) space; positive = counter-clockwise (exterior per GeoJSON). TopoJSON often uses CW for outer rings, which inverts fill. */
 function ringSignedArea(ring: number[][]): number {
@@ -430,7 +501,10 @@ function ringSignedArea(ring: number[][]): number {
 }
 
 function ringBounds(ring: number[][]): { latSpan: number; lonSpan: number } {
-  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  let minLat = Infinity,
+    maxLat = -Infinity,
+    minLon = Infinity,
+    maxLon = -Infinity;
   for (const [lon, lat] of ring) {
     minLat = Math.min(minLat, lat);
     maxLat = Math.max(maxLat, lat);
@@ -478,7 +552,7 @@ function drawRingUnwrapped(
   ring: number[][],
   isExterior: boolean,
   toX: (lon: number) => number,
-  toY: (lat: number) => number
+  toY: (lat: number) => number,
 ): void {
   if (ring.length < 3) return;
   if (isExterior && isArtifactGlobeLine(ring)) return;
@@ -503,12 +577,12 @@ function lineToLonLat(
   toLon: number,
   toLat: number,
   toX: (lon: number) => number,
-  toY: (lat: number) => number
+  toY: (lat: number) => number,
 ): void {
   const rawD = toLon - fromLon;
   if (rawD > 180) {
     const totalShort = 360 - rawD;
-    const distToCross = fromLon - (-180);
+    const distToCross = fromLon - -180;
     const t = distToCross / totalShort;
     const latCross = fromLat + t * (toLat - fromLat);
     ctx.lineTo(toX(-180), toY(latCross));
@@ -529,14 +603,15 @@ function drawRing(
   ring: number[][],
   isExterior: boolean,
   toX: (lon: number) => number,
-  toY: (lat: number) => number
+  toY: (lat: number) => number,
 ): void {
   if (ring.length < 3) return;
   if (isExterior && isArtifactGlobeLine(ring)) return;
   const r = rewindRing(ring, isExterior);
   const [first, ...rest] = r;
   ctx.moveTo(toX(first[0]), toY(first[1]));
-  let prevLon = first[0], prevLat = first[1];
+  let prevLon = first[0],
+    prevLat = first[1];
   for (const [lon, lat] of rest) {
     lineToLonLat(ctx, prevLon, prevLat, lon, lat, toX, toY);
     prevLon = lon;
@@ -550,7 +625,7 @@ function drawGeometry(
   ctx: CanvasRenderingContext2D,
   geom: GeoJSONGeometry,
   toX: (lon: number) => number,
-  toY: (lat: number) => number
+  toY: (lat: number) => number,
 ): void {
   if (geom.type === "GeometryCollection") {
     for (const g of geom.geometries) drawGeometry(ctx, g, toX, toY);
@@ -558,7 +633,9 @@ function drawGeometry(
   }
   if (geom.type === "Polygon") {
     ctx.beginPath();
-    geom.coordinates.forEach((ring, i) => drawRing(ctx, ring, i === 0, toX, toY));
+    geom.coordinates.forEach((ring, i) =>
+      drawRing(ctx, ring, i === 0, toX, toY),
+    );
     ctx.fill("nonzero");
     return;
   }
@@ -576,7 +653,7 @@ function drawGeometryUnwrapped(
   ctx: CanvasRenderingContext2D,
   geom: GeoJSONGeometry,
   toX: (lon: number) => number,
-  toY: (lat: number) => number
+  toY: (lat: number) => number,
 ): void {
   if (geom.type === "GeometryCollection") {
     for (const g of geom.geometries) drawGeometryUnwrapped(ctx, g, toX, toY);
@@ -584,14 +661,18 @@ function drawGeometryUnwrapped(
   }
   if (geom.type === "Polygon") {
     ctx.beginPath();
-    geom.coordinates.forEach((ring, i) => drawRingUnwrapped(ctx, ring, i === 0, toX, toY));
+    geom.coordinates.forEach((ring, i) =>
+      drawRingUnwrapped(ctx, ring, i === 0, toX, toY),
+    );
     ctx.fill("nonzero");
     return;
   }
   if (geom.type === "MultiPolygon") {
     ctx.beginPath();
     for (const polygon of geom.coordinates) {
-      polygon.forEach((ring, i) => drawRingUnwrapped(ctx, ring, i === 0, toX, toY));
+      polygon.forEach((ring, i) =>
+        drawRingUnwrapped(ctx, ring, i === 0, toX, toY),
+      );
     }
     ctx.fill("nonzero");
   }
@@ -602,7 +683,14 @@ function drawGeometryUnwrapped(
  * treated as the short path (two segments at ±180°) so land/water is correct for any lon.
  */
 /** Test if horizontal ray from (px, py) eastward intersects segment (xa,ya)-(xb,yb); count once if so. */
-function segmentCrossesRay(xa: number, ya: number, xb: number, yb: number, px: number, py: number): boolean {
+function segmentCrossesRay(
+  xa: number,
+  ya: number,
+  xb: number,
+  yb: number,
+  px: number,
+  py: number,
+): boolean {
   if (ya === yb) return false;
   if ((ya <= py && py < yb) || (yb <= py && py < ya)) {
     const t = (py - ya) / (yb - ya);
@@ -637,11 +725,19 @@ function rayCrossingCount(ring: number[][], px: number, py: number): number {
   return count;
 }
 
-function pointInRing(ring: number[][], lonDeg: number, latDeg: number): boolean {
+function pointInRing(
+  ring: number[][],
+  lonDeg: number,
+  latDeg: number,
+): boolean {
   return rayCrossingCount(ring, lonDeg, latDeg) % 2 === 1;
 }
 
-function pointInPolygon(polygon: number[][][], lonDeg: number, latDeg: number): boolean {
+function pointInPolygon(
+  polygon: number[][][],
+  lonDeg: number,
+  latDeg: number,
+): boolean {
   if (polygon.length === 0) return false;
   const exterior = polygon[0];
   if (!pointInRing(exterior, lonDeg, latDeg)) return false;
@@ -695,7 +791,13 @@ async function loadMarineSeaBayPolygons(): Promise<number[][][][]> {
   try {
     const res = await fetch(EARTH_MARINE_POLYS_URL);
     if (!res.ok) return out;
-    const fc = (await res.json()) as { type: string; features?: Array<{ geometry: GeoJSONGeometry; properties?: { featurecla?: string } }> };
+    const fc = (await res.json()) as {
+      type: string;
+      features?: Array<{
+        geometry: GeoJSONGeometry;
+        properties?: { featurecla?: string };
+      }>;
+    };
     if (fc.features) {
       for (const f of fc.features) {
         const cla = f.properties?.featurecla;
@@ -714,7 +816,7 @@ const SOUTH_POLE_CAP_LAT = -80;
 
 function createLandSampler(
   landPolygons: number[][][][],
-  lakePolygons: number[][][][]
+  lakePolygons: number[][][][],
 ): (latRad: number, lonRad: number) => boolean {
   return (latRad: number, lonRad: number) => {
     const latDeg = (latRad * 180) / Math.PI;
@@ -736,15 +838,16 @@ const TOPO_GRID_H = 180;
 /** Build water region ids: grid of land/water, then connected components of water (8-connect). */
 function buildWaterRegions(
   landPolygons: number[][][][],
-  lakePolygons: number[][][][]
+  lakePolygons: number[][][][],
 ): Uint32Array {
   const n = TOPO_GRID_W * TOPO_GRID_H;
   const isLand = new Uint8Array(n);
   for (let j = 0; j < TOPO_GRID_H; j++) {
-    const lat = (TOPO_GRID_H - 1) > 0 ? 90 - (180 * j) / (TOPO_GRID_H - 1) : 0;
+    const lat = TOPO_GRID_H - 1 > 0 ? 90 - (180 * j) / (TOPO_GRID_H - 1) : 0;
     const inSouthCap = lat <= SOUTH_POLE_CAP_LAT;
     for (let i = 0; i < TOPO_GRID_W; i++) {
-      const lon = (TOPO_GRID_W - 1) > 0 ? -180 + (360 * i) / (TOPO_GRID_W - 1) : 0;
+      const lon =
+        TOPO_GRID_W - 1 > 0 ? -180 + (360 * i) / (TOPO_GRID_W - 1) : 0;
       if (inSouthCap) {
         isLand[j * TOPO_GRID_W + i] = 1;
         continue;
@@ -788,7 +891,8 @@ function buildWaterRegions(
       for (let d = 0; d < 8; d++) {
         const ni = ci + dx[d];
         const nj = cj + dy[d];
-        if (ni < 0 || ni >= TOPO_GRID_W || nj < 0 || nj >= TOPO_GRID_H) continue;
+        if (ni < 0 || ni >= TOPO_GRID_W || nj < 0 || nj >= TOPO_GRID_H)
+          continue;
         const nidx = nj * TOPO_GRID_W + ni;
         if (isLand[nidx] !== 0 || waterRegionId[nidx] !== 0) continue;
         waterRegionId[nidx] = id;
@@ -803,8 +907,11 @@ function buildWaterRegions(
 function createTopologySampler(
   landPolygons: number[][][][],
   lakePolygons: number[][][][],
-  waterRegionId: Uint32Array
-): (latRad: number, lonRad: number) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number } {
+  waterRegionId: Uint32Array,
+): (
+  latRad: number,
+  lonRad: number,
+) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number } {
   return (latRad: number, lonRad: number) => {
     const latDeg = (latRad * 180) / Math.PI;
     const lonDeg = (lonRad * 180) / Math.PI;
@@ -813,8 +920,20 @@ function createTopologySampler(
     }
     for (const poly of lakePolygons) {
       if (pointInPolygon(poly, lonDeg, latDeg)) {
-        const i = Math.max(0, Math.min(TOPO_GRID_W - 1, Math.round(((lonDeg + 180) / 360) * (TOPO_GRID_W - 1))));
-        const j = Math.max(0, Math.min(TOPO_GRID_H - 1, Math.round(((90 - latDeg) / 180) * (TOPO_GRID_H - 1))));
+        const i = Math.max(
+          0,
+          Math.min(
+            TOPO_GRID_W - 1,
+            Math.round(((lonDeg + 180) / 360) * (TOPO_GRID_W - 1)),
+          ),
+        );
+        const j = Math.max(
+          0,
+          Math.min(
+            TOPO_GRID_H - 1,
+            Math.round(((90 - latDeg) / 180) * (TOPO_GRID_H - 1)),
+          ),
+        );
         const wid = waterRegionId[j * TOPO_GRID_W + i];
         return { land: false, waterRegionId: wid || undefined };
       }
@@ -824,8 +943,20 @@ function createTopologySampler(
         return { land: true, landPolygonIndex: pi };
       }
     }
-    const i = Math.max(0, Math.min(TOPO_GRID_W - 1, Math.round(((lonDeg + 180) / 360) * (TOPO_GRID_W - 1))));
-    const j = Math.max(0, Math.min(TOPO_GRID_H - 1, Math.round(((90 - latDeg) / 180) * (TOPO_GRID_H - 1))));
+    const i = Math.max(
+      0,
+      Math.min(
+        TOPO_GRID_W - 1,
+        Math.round(((lonDeg + 180) / 360) * (TOPO_GRID_W - 1)),
+      ),
+    );
+    const j = Math.max(
+      0,
+      Math.min(
+        TOPO_GRID_H - 1,
+        Math.round(((90 - latDeg) / 180) * (TOPO_GRID_H - 1)),
+      ),
+    );
     const wid = waterRegionId[j * TOPO_GRID_W + i];
     return { land: false, waterRegionId: wid || undefined };
   };
@@ -833,7 +964,7 @@ function createTopologySampler(
 
 export type TopologySampler = (
   latRad: number,
-  lonRad: number
+  lonRad: number,
 ) => { land: boolean; landPolygonIndex?: number; waterRegionId?: number };
 
 const REGION_GRID_W = 360;
@@ -843,7 +974,7 @@ const REGION_GRID_H = 180;
 function connectedComponentsWrap(
   data: Uint8Array,
   width: number,
-  height: number
+  height: number,
 ): Uint32Array {
   const n = width * height;
   const out = new Uint32Array(n);
@@ -881,16 +1012,16 @@ function buildLakeIdGrid(
   lakePolygons: number[][][][],
   width: number,
   height: number,
-  landRaster?: Uint8Array
+  landRaster?: Uint8Array,
 ): Uint32Array {
   const out = new Uint32Array(width * height);
   for (let j = 0; j < height; j++) {
-    const lat = (height - 1) > 0 ? 90 - (180 * j) / (height - 1) : 0;
+    const lat = height - 1 > 0 ? 90 - (180 * j) / (height - 1) : 0;
     if (lat <= SOUTH_POLE_CAP_LAT) continue;
     for (let i = 0; i < width; i++) {
       const idx = j * width + i;
       if (landRaster != null && landRaster[idx] !== 0) continue;
-      const lon = (width - 1) > 0 ? -180 + (360 * i) / (width - 1) : 0;
+      const lon = width - 1 > 0 ? -180 + (360 * i) / (width - 1) : 0;
       for (let k = 0; k < lakePolygons.length; k++) {
         if (pointInPolygon(lakePolygons[k], lon, lat)) {
           out[idx] = k + 1;
@@ -908,10 +1039,12 @@ function createRegionScorer(
   oceanRegionId: Uint32Array,
   lakeId: Uint32Array,
   width: number,
-  height: number
+  height: number,
 ): (tile: GeodesicTile) => RegionScores {
   return (tile: GeodesicTile) => {
-    const points: { lat: number; lon: number }[] = [tileCenterToLatLon(tile.center)];
+    const points: { lat: number; lon: number }[] = [
+      tileCenterToLatLon(tile.center),
+    ];
     for (const v of tile.vertices) {
       points.push(tileCenterToLatLon(v));
     }
@@ -922,8 +1055,14 @@ function createRegionScorer(
     for (const { lat, lon } of points) {
       const latDeg = (lat * 180) / Math.PI;
       const lonDeg = (lon * 180) / Math.PI;
-      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
-      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      const i = Math.max(
+        0,
+        Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))),
+      );
+      const j = Math.max(
+        0,
+        Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))),
+      );
       const idx = j * width + i;
       const lm = landmassId[idx];
       const oc = oceanRegionId[idx];
@@ -937,7 +1076,8 @@ function createRegionScorer(
     }
     const n = points.length;
     const landmassFractions = new Map<number, number>();
-    for (const [id, count] of landmassCounts) landmassFractions.set(id, count / n);
+    for (const [id, count] of landmassCounts)
+      landmassFractions.set(id, count / n);
     const oceanFractions = new Map<number, number>();
     for (const [id, count] of oceanCounts) oceanFractions.set(id, count / n);
     const lakeFractions = new Map<number, number>();
@@ -955,7 +1095,7 @@ function createRegionScorer(
 function createGetRasterWindow(
   width: number,
   height: number,
-  landData: Uint8Array
+  landData: Uint8Array,
 ): (tile: GeodesicTile) => RasterWindow | null {
   const PAD = 4;
   return (tile: GeodesicTile) => {
@@ -1000,10 +1140,12 @@ function createRegionScorerFromBin(
   oceanRegionId: Uint32Array,
   width: number,
   height: number,
-  lakePolygons: number[][][][]
+  lakePolygons: number[][][][],
 ): (tile: GeodesicTile) => RegionScores {
   return (tile: GeodesicTile) => {
-    const points: { lat: number; lon: number }[] = [tileCenterToLatLon(tile.center)];
+    const points: { lat: number; lon: number }[] = [
+      tileCenterToLatLon(tile.center),
+    ];
     for (const v of tile.vertices) {
       points.push(tileCenterToLatLon(v));
     }
@@ -1014,8 +1156,14 @@ function createRegionScorerFromBin(
     for (const { lat, lon } of points) {
       const latDeg = (lat * 180) / Math.PI;
       const lonDeg = (lon * 180) / Math.PI;
-      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
-      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      const i = Math.max(
+        0,
+        Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))),
+      );
+      const j = Math.max(
+        0,
+        Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))),
+      );
       const idx = j * width + i;
       const lm = landmassId[idx];
       const oc = oceanRegionId[idx];
@@ -1033,7 +1181,8 @@ function createRegionScorerFromBin(
     }
     const n = points.length;
     const landmassFractions = new Map<number, number>();
-    for (const [id, count] of landmassCounts) landmassFractions.set(id, count / n);
+    for (const [id, count] of landmassCounts)
+      landmassFractions.set(id, count / n);
     const oceanFractions = new Map<number, number>();
     for (const [id, count] of oceanCounts) oceanFractions.set(id, count / n);
     const lakeFractions = new Map<number, number>();
@@ -1068,10 +1217,15 @@ async function loadEarthLandRaster(): Promise<{
     try {
       const lakesRes = await fetch(EARTH_LAKES_GEOJSON_URL);
       if (lakesRes.ok) {
-        const lakes = (await lakesRes.json()) as { features?: Array<{ geometry: GeoJSONGeometry }> };
+        const lakes = (await lakesRes.json()) as {
+          features?: Array<{ geometry: GeoJSONGeometry }>;
+        };
         if (lakes.features) {
           for (const f of lakes.features) {
-            if (f.geometry) lakePolygons = lakePolygons.concat(collectLakePolygons(f.geometry));
+            if (f.geometry)
+              lakePolygons = lakePolygons.concat(
+                collectLakePolygons(f.geometry),
+              );
           }
         }
       }
@@ -1080,38 +1234,83 @@ async function loadEarthLandRaster(): Promise<{
     }
     const marinePolygons = await loadMarineSeaBayPolygons();
     lakePolygons = lakePolygons.concat(marinePolygons);
-    const getRegionScores = createRegionScorerFromBin(landmassId, oceanRegionId, width, height, lakePolygons);
+    const getRegionScores = createRegionScorerFromBin(
+      landmassId,
+      oceanRegionId,
+      width,
+      height,
+      lakePolygons,
+    );
     const landSampler = (latRad: number, lonRad: number) => {
       const latDeg = (latRad * 180) / Math.PI;
       const lonDeg = (lonRad * 180) / Math.PI;
-      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
-      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      const i = Math.max(
+        0,
+        Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))),
+      );
+      const j = Math.max(
+        0,
+        Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))),
+      );
       return landmassId[j * width + i] !== 0;
     };
-    const topologySampler: TopologySampler = (latRad: number, lonRad: number) => {
+    const topologySampler: TopologySampler = (
+      latRad: number,
+      lonRad: number,
+    ) => {
       const land = landSampler(latRad, lonRad);
       const latDeg = (latRad * 180) / Math.PI;
       const lonDeg = (lonRad * 180) / Math.PI;
-      const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
-      const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+      const i = Math.max(
+        0,
+        Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))),
+      );
+      const j = Math.max(
+        0,
+        Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))),
+      );
       const oceanId = oceanRegionId[j * width + i];
-      return { land, landPolygonIndex: land ? 0 : undefined, waterRegionId: land ? undefined : oceanId || 1 };
+      return {
+        land,
+        landPolygonIndex: land ? 0 : undefined,
+        waterRegionId: land ? undefined : oceanId || 1,
+      };
     };
     const rasterData = new Uint8Array(n);
-    for (let idx = 0; idx < n; idx++) rasterData[idx] = landmassId[idx] !== 0 ? 255 : 0;
+    for (let idx = 0; idx < n; idx++)
+      rasterData[idx] = landmassId[idx] !== 0 ? 255 : 0;
     const raster: EarthRaster = { width, height, data: rasterData };
     const getRasterWindow = createGetRasterWindow(width, height, rasterData);
-    console.log("[Earth raster] Loaded precomputed region grid", width, "×", height, "(sample only where needed)");
-    return { raster, landSampler, topologySampler, getRegionScores, getRasterWindow };
+    console.log(
+      "[Earth raster] Loaded precomputed region grid",
+      width,
+      "×",
+      height,
+      "(sample only where needed)",
+    );
+    return {
+      raster,
+      landSampler,
+      topologySampler,
+      getRegionScores,
+      getRasterWindow,
+    };
   }
 
   const res = await fetch(EARTH_LAND_TOPOLOGY_URL);
-  const topology = (await res.json()) as Parameters<typeof topojson.feature>[0] & {
+  const topology = (await res.json()) as Parameters<
+    typeof topojson.feature
+  >[0] & {
     objects?: Record<string, unknown>;
     bbox?: number[];
   };
   const objNames = topology.objects ? Object.keys(topology.objects) : [];
-  console.log("[Earth raster] Topology objects:", objNames, "bbox:", topology.bbox ?? "(none)");
+  console.log(
+    "[Earth raster] Topology objects:",
+    objNames,
+    "bbox:",
+    topology.bbox ?? "(none)",
+  );
   const land = topojson.feature(topology, topology.objects.land) as {
     type: string;
     geometry?: GeoJSONGeometry;
@@ -1119,7 +1318,10 @@ async function loadEarthLandRaster(): Promise<{
   };
 
   const landGeom = land.features
-    ? ({ type: "GeometryCollection" as const, geometries: land.features.map((f) => f.geometry) } as GeoJSONGeometry)
+    ? ({
+        type: "GeometryCollection" as const,
+        geometries: land.features.map((f) => f.geometry),
+      } as GeoJSONGeometry)
     : land.geometry!;
   const landPolygons = collectLandPolygons(landGeom);
 
@@ -1127,10 +1329,14 @@ async function loadEarthLandRaster(): Promise<{
   try {
     const lakesRes = await fetch(EARTH_LAKES_GEOJSON_URL);
     if (lakesRes.ok) {
-      const lakes = (await lakesRes.json()) as { type: string; features?: Array<{ geometry: GeoJSONGeometry }> };
+      const lakes = (await lakesRes.json()) as {
+        type: string;
+        features?: Array<{ geometry: GeoJSONGeometry }>;
+      };
       if (lakes.features) {
         for (const f of lakes.features) {
-          if (f.geometry) lakePolygons = lakePolygons.concat(collectLakePolygons(f.geometry));
+          if (f.geometry)
+            lakePolygons = lakePolygons.concat(collectLakePolygons(f.geometry));
         }
       }
     }
@@ -1144,12 +1350,23 @@ async function loadEarthLandRaster(): Promise<{
   let topologySampler: TopologySampler;
   try {
     const waterRegionId = buildWaterRegions(landPolygons, lakePolygons);
-    topologySampler = createTopologySampler(landPolygons, lakePolygons, waterRegionId);
+    topologySampler = createTopologySampler(
+      landPolygons,
+      lakePolygons,
+      waterRegionId,
+    );
   } catch (e) {
-    console.warn("[loadEarthLandRaster] topologySampler build failed, using landSampler only:", e);
+    console.warn(
+      "[loadEarthLandRaster] topologySampler build failed, using landSampler only:",
+      e,
+    );
     topologySampler = (latRad: number, lonRad: number) => {
       const land = landSampler(latRad, lonRad);
-      return { land, landPolygonIndex: land ? 0 : undefined, waterRegionId: land ? undefined : 1 };
+      return {
+        land,
+        landPolygonIndex: land ? 0 : undefined,
+        waterRegionId: land ? undefined : 1,
+      };
     };
   }
 
@@ -1165,18 +1382,25 @@ async function loadEarthLandRaster(): Promise<{
   ctx.fillRect(0, 0, wideWidth, height);
   ctx.fillStyle = "white";
   const toX = (lon: number) =>
-    Math.max(0, Math.min(wideWidth - 1, (lon + 540) * (wideWidth - 1) / 1080));
+    Math.max(
+      0,
+      Math.min(wideWidth - 1, ((lon + 540) * (wideWidth - 1)) / 1080),
+    );
   const toY = (lat: number) =>
     Math.max(0, Math.min(height - 1, ((90 - lat) / 180) * (height - 1)));
   if (land.features) {
-    for (const f of land.features) drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
+    for (const f of land.features)
+      drawGeometryUnwrapped(ctx, f.geometry, toX, toY);
   } else if (land.geometry) {
     drawGeometryUnwrapped(ctx, land.geometry, toX, toY);
   }
   try {
     const lakesRes = await fetch(EARTH_LAKES_GEOJSON_URL);
     if (lakesRes.ok) {
-      const lakes = (await lakesRes.json()) as { type: string; features?: Array<{ geometry: GeoJSONGeometry }> };
+      const lakes = (await lakesRes.json()) as {
+        type: string;
+        features?: Array<{ geometry: GeoJSONGeometry }>;
+      };
       ctx.fillStyle = "black";
       if (lakes.features) {
         for (const f of lakes.features) {
@@ -1189,22 +1413,38 @@ async function loadEarthLandRaster(): Promise<{
   }
   ctx.fillStyle = "black";
   for (const poly of await loadMarineSeaBayPolygons()) {
-    drawGeometryUnwrapped(ctx, { type: "Polygon", coordinates: poly } as GeoJSONGeometry, toX, toY);
+    drawGeometryUnwrapped(
+      ctx,
+      { type: "Polygon", coordinates: poly } as GeoJSONGeometry,
+      toX,
+      toY,
+    );
   }
   const wideData = ctx.getImageData(0, 0, wideWidth, height);
   const collapsed = new ImageData(width, height);
   const scale = (wideWidth - 1) / 1080;
   for (let j = 0; j < height; j++) {
-    const lat = (height - 1) > 0 ? 90 - (180 * j) / (height - 1) : 0;
+    const lat = height - 1 > 0 ? 90 - (180 * j) / (height - 1) : 0;
     const inSouthCap = lat <= SOUTH_POLE_CAP_LAT;
     for (let i = 0; i < width; i++) {
-      const lon = (width - 1) > 0 ? -180 + (360 * i) / (width - 1) : 0;
-      const xLeft = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 180) * scale)));
-      const xCenter = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 540) * scale)));
-      const xRight = Math.max(0, Math.min(wideWidth - 1, Math.round((lon + 900) * scale)));
+      const lon = width - 1 > 0 ? -180 + (360 * i) / (width - 1) : 0;
+      const xLeft = Math.max(
+        0,
+        Math.min(wideWidth - 1, Math.round((lon + 180) * scale)),
+      );
+      const xCenter = Math.max(
+        0,
+        Math.min(wideWidth - 1, Math.round((lon + 540) * scale)),
+      );
+      const xRight = Math.max(
+        0,
+        Math.min(wideWidth - 1, Math.round((lon + 900) * scale)),
+      );
       const landLeft = (wideData.data[(j * wideWidth + xLeft) * 4] ?? 0) >= 128;
-      const landCenter = (wideData.data[(j * wideWidth + xCenter) * 4] ?? 0) >= 128;
-      const landRight = (wideData.data[(j * wideWidth + xRight) * 4] ?? 0) >= 128;
+      const landCenter =
+        (wideData.data[(j * wideWidth + xCenter) * 4] ?? 0) >= 128;
+      const landRight =
+        (wideData.data[(j * wideWidth + xRight) * 4] ?? 0) >= 128;
       const land = inSouthCap || landLeft || landCenter || landRight;
       const outIdx = (j * width + i) * 4;
       const v = land ? 255 : 0;
@@ -1224,13 +1464,23 @@ async function loadEarthLandRaster(): Promise<{
     oceanMask[idx] = raster.data[idx] === 0 && lakeIdGrid[idx] === 0 ? 255 : 0;
   }
   const oceanRegionId = connectedComponentsWrap(oceanMask, width, height);
-  const getRegionScores = createRegionScorer(landmassId, oceanRegionId, lakeIdGrid, width, height);
+  const getRegionScores = createRegionScorer(
+    landmassId,
+    oceanRegionId,
+    lakeIdGrid,
+    width,
+    height,
+  );
 
-  if (typeof window !== "undefined" && /[?&]showRaster=1/i.test(window.location.search)) {
+  if (
+    typeof window !== "undefined" &&
+    /[?&]showRaster=1/i.test(window.location.search)
+  ) {
     const debugCanvas = document.createElement("canvas");
     debugCanvas.width = width;
     debugCanvas.height = height;
-    debugCanvas.title = "Land raster (white=land, black=water). Close or remove ?showRaster=1.";
+    debugCanvas.title =
+      "Land raster (white=land, black=water). Close or remove ?showRaster=1.";
     debugCanvas.style.cssText =
       "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:90vw;max-height:90vh;border:2px solid #6b9b5c;z-index:9999;cursor:pointer;";
     const dctx = debugCanvas.getContext("2d")!;
@@ -1245,10 +1495,22 @@ async function loadEarthLandRaster(): Promise<{
     dctx.putImageData(id, 0, 0);
     debugCanvas.onclick = () => debugCanvas.remove();
     document.body.appendChild(debugCanvas);
-    console.log("[Earth raster] Debug view visible. Remove ?showRaster=1 to hide.");
+    console.log(
+      "[Earth raster] Debug view visible. Remove ?showRaster=1 to hide.",
+    );
   }
-  const getRasterWindow = createGetRasterWindow(raster.width, raster.height, raster.data);
-  return { raster, landSampler, topologySampler, getRegionScores, getRasterWindow };
+  const getRasterWindow = createGetRasterWindow(
+    raster.width,
+    raster.height,
+    raster.data,
+  );
+  return {
+    raster,
+    landSampler,
+    topologySampler,
+    getRegionScores,
+    getRasterWindow,
+  };
 }
 
 const KOPPEN_BIN_WIDTH = 360;
@@ -1310,7 +1572,12 @@ async function loadElevation() {
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x030508);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 4000);
+const camera = new THREE.PerspectiveCamera(
+  60,
+  innerWidth / innerHeight,
+  0.1,
+  4000,
+);
 const starfield = new Starfield({
   density: 70,
   sparsity: 0.12,
@@ -1334,10 +1601,12 @@ let coastLandMaskTexture: THREE.DataTexture;
 let controls: OrbitControls;
 let marker: THREE.Mesh;
 let earthRaster: EarthRaster | null = null;
-let earthLandSampler: ((latRad: number, lonRad: number) => boolean) | null = null;
+let earthLandSampler: ((latRad: number, lonRad: number) => boolean) | null =
+  null;
 let earthTopologySampler: TopologySampler | null = null;
 let earthGetRegionScores: ((tile: GeodesicTile) => RegionScores) | null = null;
-let earthGetRasterWindow: ((tile: GeodesicTile) => RasterWindow | null) | null = null;
+let earthGetRasterWindow: ((tile: GeodesicTile) => RasterWindow | null) | null =
+  null;
 /** Loaded from /mountains.json; used for 3D peak geometry (pyramid tiles) in Earth mode. */
 let mountainsList: MountainEntry[] | null = null;
 /** River/lake centerline polylines [lon, lat] in degrees; from ne_10m_rivers_lake_centerlines.json. Used for river channel in Earth mode. */
@@ -1354,6 +1623,12 @@ let innerBlackSphere: THREE.Mesh | null = null;
 let globalTileTerrain: Map<number, TileTerrainData> | null = null;
 /** Module-level river edges for debug panel access. */
 let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
+/** Biome vegetation (instanced plants, distance-culled). */
+let vegetationLayer: {
+  group: THREE.Group;
+  update: (camera: THREE.Camera) => void;
+  dispose: () => void;
+} | null = null;
 
 const BUILD_LOG = "[globe-build]";
 
@@ -1370,7 +1645,9 @@ function yieldToMain(): Promise<void> {
 }
 
 /** Wait for the next paint and optionally a short delay so rendering keeps up and iterations are watchable. */
-function yieldForRender(delayMs: number = RESOLVE_ITERATION_DELAY_MS): Promise<void> {
+function yieldForRender(
+  delayMs: number = RESOLVE_ITERATION_DELAY_MS,
+): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1391,7 +1668,7 @@ function sunDirectionFromState(s: DemoState): THREE.Vector3 {
   return new THREE.Vector3(
     Math.cos(lat) * Math.cos(lon),
     Math.sin(lat),
-    Math.cos(lat) * Math.sin(lon)
+    Math.cos(lat) * Math.sin(lon),
   ).normalize();
 }
 
@@ -1401,11 +1678,16 @@ function moonPositionFromState(s: DemoState, distance: number): THREE.Vector3 {
   return new THREE.Vector3(
     Math.cos(lat) * Math.cos(lon),
     Math.sin(lat),
-    Math.cos(lat) * Math.sin(lon)
-  ).normalize().multiplyScalar(distance);
+    Math.cos(lat) * Math.sin(lon),
+  )
+    .normalize()
+    .multiplyScalar(distance);
 }
 
-function createFlareTexture(size: number, soft: boolean = true): THREE.CanvasTexture {
+function createFlareTexture(
+  size: number,
+  soft: boolean = true,
+): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = size;
   c.height = size;
@@ -1438,7 +1720,7 @@ function setGlobeGeometryFromTerrain(
   peakElevationScale: number,
   minLandElevation?: number,
   riverEdgesByTile?: Map<number, Set<number>>,
-  riverEdgeToWaterByTile?: Map<number, Set<number>>
+  riverEdgeToWaterByTile?: Map<number, Set<number>>,
 ): void {
   const elevatedSeaTiles = new Map<number, number>();
   const opts: Parameters<typeof createGeodesicGeometryFlat>[1] = {
@@ -1464,17 +1746,27 @@ function setGlobeGeometryFromTerrain(
   }
   // Add hilly terrain bumps
   opts.getHilly = (id) => tileTerrain.get(id)?.isHilly ?? false;
-  
+
   if (riverEdgesByTile != null && riverEdgesByTile.size > 0) {
     opts.getRiverEdges = (id) => riverEdgesByTile.get(id);
-    opts.getRiverEdgeToWater = riverEdgeToWaterByTile ? (id) => riverEdgeToWaterByTile.get(id) : undefined;
+    opts.getRiverEdgeToWater = riverEdgeToWaterByTile
+      ? (id) => riverEdgeToWaterByTile.get(id)
+      : undefined;
     opts.riverBowlDepth = 0.012;
     opts.riverBowlInnerScale = 0.48;
   }
   const geom = createGeodesicGeometryFlat(globe.tiles, opts);
   if (elevatedSeaTiles.size > 0) {
-    const list = [...elevatedSeaTiles.entries()].map(([tid, elev]) => `tile ${tid} elev ${elev.toFixed(4)}`).join(", ");
-    console.warn(BUILD_LOG, "Sea bottom hex(es) drawn above submerged level (", MAX_SEA_BED_ELEVATION, "):", list);
+    const list = [...elevatedSeaTiles.entries()]
+      .map(([tid, elev]) => `tile ${tid} elev ${elev.toFixed(4)}`)
+      .join(", ");
+    console.warn(
+      BUILD_LOG,
+      "Sea bottom hex(es) drawn above submerged level (",
+      MAX_SEA_BED_ELEVATION,
+      "):",
+      list,
+    );
   }
   applyTerrainColorsToGeometry(geom, tileTerrain);
   if (globe.mesh.geometry) globe.mesh.geometry.dispose();
@@ -1483,7 +1775,13 @@ function setGlobeGeometryFromTerrain(
 }
 
 async function buildWorldAsync(state: DemoState): Promise<void> {
-  console.log(BUILD_LOG, "buildWorldAsync start", state.useEarth ? "Earth" : "procedural", "subdivisions:", state.subdivisions);
+  console.log(
+    BUILD_LOG,
+    "buildWorldAsync start",
+    state.useEarth ? "Earth" : "procedural",
+    "subdivisions:",
+    state.subdivisions,
+  );
   setLoading(true);
   try {
     if (globe) {
@@ -1517,6 +1815,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       (innerBlackSphere.material as THREE.Material).dispose();
       innerBlackSphere = null;
     }
+    if (vegetationLayer) {
+      scene.remove(vegetationLayer.group);
+      vegetationLayer.dispose();
+      vegetationLayer = null;
+    }
     // Lake water now provided by water table (no separate lake meshes to clean up)
     if (marker) scene.remove(marker);
     await yieldToMain();
@@ -1541,7 +1844,13 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const LAKE_ELEVATION = -0.04;
 
     const baseTerrain = baseWaterTerrain(globe.tileCount);
-    setGlobeGeometryFromTerrain(globe, baseTerrain, undefined, elevationScale, peakElevationScale);
+    setGlobeGeometryFromTerrain(
+      globe,
+      baseTerrain,
+      undefined,
+      elevationScale,
+      peakElevationScale,
+    );
     await yieldToMain();
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -1553,14 +1862,22 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     let riverEdgeToWaterByTile: Map<number, Set<number>> | undefined;
 
     if (state.useEarth && earthRaster) {
-      const cache = state.subdivisions === 6 ? await fetchEarthGlobeCache() : null;
+      const cache =
+        state.subdivisions === 6 ? await fetchEarthGlobeCache() : null;
       const cacheOk =
         cache != null &&
         cache.tileCount === globe.tileCount &&
         cache.tiles.length === globe.tileCount;
 
       if (cacheOk) {
-        console.log(BUILD_LOG, "Earth: using", EARTH_GLOBE_CACHE_URL, "(version", cache.version, ")");
+        console.log(
+          BUILD_LOG,
+          "Earth: using",
+          EARTH_GLOBE_CACHE_URL,
+          "(version",
+          cache.version,
+          ")",
+        );
         tileTerrain = new Map();
         for (const row of cache.tiles) {
           tileTerrain.set(row.id, {
@@ -1577,7 +1894,12 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           riverEdgesByTile.set(Number(k), new Set(arr));
         }
         // Cache already has processed river data - skip re-processing
-        console.log(BUILD_LOG, "river edges loaded from cache:", riverEdgesByTile.size, "tiles");
+        console.log(
+          BUILD_LOG,
+          "river edges loaded from cache:",
+          riverEdgesByTile.size,
+          "tiles",
+        );
         if (riverEdgesByTile.size === 0) {
           riverEdgesByTile = undefined;
         } else {
@@ -1585,47 +1907,71 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           for (const [k, arr] of Object.entries(cache.riverEdgeToWater)) {
             riverEdgeToWaterByTile.set(Number(k), new Set(arr));
           }
-          if (riverEdgeToWaterByTile.size === 0) riverEdgeToWaterByTile = undefined;
+          if (riverEdgeToWaterByTile.size === 0)
+            riverEdgeToWaterByTile = undefined;
         }
       } else {
         if (state.subdivisions === 6 && cache == null) {
           console.log(
             BUILD_LOG,
-            "Earth: no matching cache (run npm run build-earth-globe-cache); use ?noEarthCache=1 to force full recompute"
+            "Earth: no matching cache (run npm run build-earth-globe-cache); use ?noEarthCache=1 to force full recompute",
           );
         }
-        console.log(BUILD_LOG, "Earth: buildTerrainFromEarthRaster start (tiles:", globe.tileCount, ")");
+        console.log(
+          BUILD_LOG,
+          "Earth: buildTerrainFromEarthRaster start (tiles:",
+          globe.tileCount,
+          ")",
+        );
         try {
-          tileTerrain = await buildTerrainFromEarthRaster(globe.tiles, earthRaster, {
-            waterElevation: -0.18,
-            lakeElevation: LAKE_ELEVATION,
-            landElevation: SEA_LEVEL_LAND_ELEVATION,
-            elevationScale: 0.00004,
-            latitudeTerrain: true,
-            getRegionScores: earthGetRegionScores ?? undefined,
-            onFirstPassProgress: async () => {
-              await yieldForRender(20);
-            },
-            resolveOptions: {
-              useGreedyLandmassPlacement: true,
-              getRasterWindow: earthGetRasterWindow ?? undefined,
-              knownStraitTileIds: globe.subdivisions === 6 ? new Set([40361, 24757, 4129, 25328]) : undefined,
-              onIteration: async (_iteration, landByTile) => {
-                const terrain = new Map<number, TileTerrainData>();
-                for (const [tid, lw] of landByTile) {
-                  const isLand = lw.isLand;
-                  const elev = isLand ? SEA_LEVEL_LAND_ELEVATION : (lw.lakeId != null ? LAKE_ELEVATION - 0.01 : MAX_SEA_BED_ELEVATION);
-                  terrain.set(tid, {
-                    tileId: tid,
-                    type: isLand ? "land" : "water",
-                    elevation: elev,
-                  });
-                }
-                setGlobeGeometryFromTerrain(globe, terrain, undefined, elevationScale, peakElevationScale, SEA_LEVEL_LAND_ELEVATION);
-                await yieldForRender();
+          tileTerrain = await buildTerrainFromEarthRaster(
+            globe.tiles,
+            earthRaster,
+            {
+              waterElevation: -0.18,
+              lakeElevation: LAKE_ELEVATION,
+              landElevation: SEA_LEVEL_LAND_ELEVATION,
+              elevationScale: 0.00004,
+              latitudeTerrain: true,
+              getRegionScores: earthGetRegionScores ?? undefined,
+              onFirstPassProgress: async () => {
+                await yieldForRender(20);
+              },
+              resolveOptions: {
+                useGreedyLandmassPlacement: true,
+                getRasterWindow: earthGetRasterWindow ?? undefined,
+                knownStraitTileIds:
+                  globe.subdivisions === 6
+                    ? new Set([40361, 24757, 4129, 25328])
+                    : undefined,
+                onIteration: async (_iteration, landByTile) => {
+                  const terrain = new Map<number, TileTerrainData>();
+                  for (const [tid, lw] of landByTile) {
+                    const isLand = lw.isLand;
+                    const elev = isLand
+                      ? SEA_LEVEL_LAND_ELEVATION
+                      : lw.lakeId != null
+                        ? LAKE_ELEVATION - 0.01
+                        : MAX_SEA_BED_ELEVATION;
+                    terrain.set(tid, {
+                      tileId: tid,
+                      type: isLand ? "land" : "water",
+                      elevation: elev,
+                    });
+                  }
+                  setGlobeGeometryFromTerrain(
+                    globe,
+                    terrain,
+                    undefined,
+                    elevationScale,
+                    peakElevationScale,
+                    SEA_LEVEL_LAND_ELEVATION,
+                  );
+                  await yieldForRender();
+                },
               },
             },
-          });
+          );
           applyCoastalBeach(globe.tiles, tileTerrain);
           console.log(BUILD_LOG, "Earth: buildTerrainFromEarthRaster done");
         } catch (e) {
@@ -1633,8 +1979,14 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           throw e;
         }
         if (mountainsList && mountainsList.length > 0) {
-          console.log(BUILD_LOG, "Earth: computing peak tiles from mountain list");
-          const targetDistinctTiles = Math.max(24, Math.floor(globe.tileCount / 20));
+          console.log(
+            BUILD_LOG,
+            "Earth: computing peak tiles from mountain list",
+          );
+          const targetDistinctTiles = Math.max(
+            24,
+            Math.floor(globe.tileCount / 20),
+          );
           peakTiles = new Map<number, number>();
           for (const m of mountainsList) {
             if (peakTiles.size >= targetDistinctTiles) break;
@@ -1643,13 +1995,18 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             const existing = peakTiles.get(tileId) ?? 0;
             if (m.elevationM > existing) peakTiles.set(tileId, m.elevationM);
           }
-          console.log(BUILD_LOG, "Earth: peaks done, count:", peakTiles?.size ?? 0);
+          console.log(
+            BUILD_LOG,
+            "Earth: peaks done, count:",
+            peakTiles?.size ?? 0,
+          );
         }
         riverEdgesByTile = undefined;
         riverEdgeToWaterByTile = undefined;
         if (riverLinesLonLat && riverLinesLonLat.length > 0) {
           const riverSegments: ReturnType<typeof traceRiverThroughTiles> = [];
-          const isDeltaByLine = riverLineIsDelta ?? riverLinesLonLat.map(() => false);
+          const isDeltaByLine =
+            riverLineIsDelta ?? riverLinesLonLat.map(() => false);
           for (let i = 0; i < riverLinesLonLat.length; i++) {
             const line = riverLinesLonLat[i];
             if (line.length >= 2) {
@@ -1663,19 +2020,76 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
               tiles: globe.tiles,
               isWater: (id) => tileTerrain.get(id)?.type === "water",
             });
-            const jn2 = pruneThreeWayRiverJunctions(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            if (jn2 > 0) console.log(BUILD_LOG, "pruned", jn2, "3-way river junction edges");
-            let symR = symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            const gaps2 = fillRiverGaps(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            if (gaps2 > 0) console.log(BUILD_LOG, "filled", gaps2, "river gap tiles");
-            symR += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            const iso2 = connectIsolatedRiverTiles(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            if (iso2 > 0) console.log(BUILD_LOG, "connected", iso2, "orphan river tile edges");
-            symR += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            const forced2 = forceRiverReciprocity(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            if (forced2 > 0) console.log(BUILD_LOG, "forced", forced2, "reciprocal river edges");
-            symR += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-            if (symR > 0) console.log(BUILD_LOG, "symmetrized", symR, "river neighbor edges");
+            const jn2 = pruneThreeWayRiverJunctions(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            if (jn2 > 0)
+              console.log(
+                BUILD_LOG,
+                "pruned",
+                jn2,
+                "3-way river junction edges",
+              );
+            let symR = symmetrizeRiverNeighborEdgesUntilStable(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            const gaps2 = fillRiverGaps(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            if (gaps2 > 0)
+              console.log(BUILD_LOG, "filled", gaps2, "river gap tiles");
+            symR += symmetrizeRiverNeighborEdgesUntilStable(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            const iso2 = connectIsolatedRiverTiles(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            if (iso2 > 0)
+              console.log(
+                BUILD_LOG,
+                "connected",
+                iso2,
+                "orphan river tile edges",
+              );
+            symR += symmetrizeRiverNeighborEdgesUntilStable(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            const forced2 = forceRiverReciprocity(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            if (forced2 > 0)
+              console.log(
+                BUILD_LOG,
+                "forced",
+                forced2,
+                "reciprocal river edges",
+              );
+            symR += symmetrizeRiverNeighborEdgesUntilStable(
+              raw,
+              globe.tiles,
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            if (symR > 0)
+              console.log(
+                BUILD_LOG,
+                "symmetrized",
+                symR,
+                "river neighbor edges",
+              );
             riverEdgesByTile = new Map<number, Set<number>>();
             for (const [tid, set] of raw) {
               const type = tileTerrain.get(tid)?.type;
@@ -1714,7 +2128,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           const tileId = globe.getTileIdAtDirection(dir);
           hillyFromMountains.add(tileId);
           // Also mark neighboring tiles as hilly for mountain ranges
-          const tile = globe.tiles.find(t => t.id === tileId);
+          const tile = globe.tiles.find((t) => t.id === tileId);
           if (tile) {
             for (const nid of tile.neighbors) {
               hillyFromMountains.add(nid);
@@ -1724,14 +2138,24 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         let addedHills = 0;
         for (const tileId of hillyFromMountains) {
           const existing = tileTerrain.get(tileId);
-          if (existing && existing.type !== "water" && existing.type !== "beach" && !existing.isHilly) {
+          if (
+            existing &&
+            existing.type !== "water" &&
+            existing.type !== "beach" &&
+            !existing.isHilly
+          ) {
             tileTerrain.set(tileId, { ...existing, isHilly: true });
             addedHills++;
           }
         }
-        console.log(BUILD_LOG, "Earth: marked", addedHills, "tiles as hilly from mountains dataset");
+        console.log(
+          BUILD_LOG,
+          "Earth: marked",
+          addedHills,
+          "tiles as hilly from mountains dataset",
+        );
       }
-      
+
       console.log(BUILD_LOG, "Earth: runTerrainTransition start");
       await runTerrainTransition(
         globe,
@@ -1744,7 +2168,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         yieldToMain,
         SEA_LEVEL_LAND_ELEVATION,
         riverEdgesByTile,
-        riverEdgeToWaterByTile
+        riverEdgeToWaterByTile,
       );
       console.log(BUILD_LOG, "Earth: runTerrainTransition done");
       lastDisplayedTerrain = tileTerrain;
@@ -1752,7 +2176,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       globalTileTerrain = tileTerrain;
       globalRiverEdgesByTile = riverEdgesByTile ?? null;
     } else {
-      console.log(BUILD_LOG, "Procedural: buildProceduralTerrainProgressive start, blobiness:", state.blobiness);
+      console.log(
+        BUILD_LOG,
+        "Procedural: buildProceduralTerrainProgressive start, blobiness:",
+        state.blobiness,
+      );
       tileTerrain = await buildProceduralTerrainProgressive(
         globe.tiles,
         state,
@@ -1762,13 +2190,16 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             intermediate,
             undefined,
             elevationScale,
-            peakElevationScale
+            peakElevationScale,
           );
           lastDisplayedTerrain = intermediate;
           await yieldToMain();
-        }
+        },
       );
-      console.log(BUILD_LOG, "Procedural: buildProceduralTerrainProgressive done, runTerrainTransition start");
+      console.log(
+        BUILD_LOG,
+        "Procedural: buildProceduralTerrainProgressive done, runTerrainTransition start",
+      );
       await runTerrainTransition(
         globe,
         lastDisplayedTerrain,
@@ -1780,7 +2211,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         yieldToMain,
         undefined,
         undefined,
-        undefined
+        undefined,
       );
       console.log(BUILD_LOG, "Procedural: runTerrainTransition done");
     }
@@ -1789,10 +2220,18 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     console.log(BUILD_LOG, "create coast masks");
     coastMaskTexture = createCoastMaskTexture(globe, tileTerrain, 256, 128);
-    coastLandMaskTexture = createCoastLandMaskTexture(globe, tileTerrain, 256, 128);
+    coastLandMaskTexture = createCoastLandMaskTexture(
+      globe,
+      tileTerrain,
+      256,
+      128,
+    );
     await yieldToMain();
 
-    console.log(BUILD_LOG, "create WaterSphere with terrain-following water table");
+    console.log(
+      BUILD_LOG,
+      "create WaterSphere with terrain-following water table",
+    );
     water = new WaterSphere({
       radius: 0.995,
       color: 0x1a5a6a,
@@ -1811,7 +2250,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const waterTableElevationScale = 0.08;
     // Build tile lookup for getEdgeNeighbor
     const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
-    
+
     water.setWaterTableGeometry(
       globe.tiles,
       (id) => tileTerrain.get(id)?.elevation ?? 0,
@@ -1829,14 +2268,21 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           const tile = tileById.get(id);
           return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
         },
-      }
+      },
     );
     scene.add(water.mesh);
-    console.log(BUILD_LOG, "water table geometry applied, vertices:", water.mesh.geometry.getAttribute("position")?.count ?? 0);
-    
+    console.log(
+      BUILD_LOG,
+      "water table geometry applied, vertices:",
+      water.mesh.geometry.getAttribute("position")?.count ?? 0,
+    );
+
     // Add black inner sphere to prevent seeing through any geometry gaps
     const innerSphereGeom = new THREE.SphereGeometry(0.98, 64, 32);
-    const innerSphereMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+    const innerSphereMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      side: THREE.BackSide,
+    });
     innerBlackSphere = new THREE.Mesh(innerSphereGeom, innerSphereMat);
     innerBlackSphere.name = "InnerBlackSphere";
     innerBlackSphere.renderOrder = -10;
@@ -1851,10 +2297,16 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     scene.add(coastFoamOverlay.mesh);
 
     // Skip river re-processing if already loaded from cache
-    if (state.useEarth && riverLinesLonLat && riverLinesLonLat.length > 0 && !riverEdgesByTile) {
+    if (
+      state.useEarth &&
+      riverLinesLonLat &&
+      riverLinesLonLat.length > 0 &&
+      !riverEdgesByTile
+    ) {
       const elevationScale = 0.08;
       const riverSegments: ReturnType<typeof traceRiverThroughTiles> = [];
-      const isDeltaByLine = riverLineIsDelta ?? riverLinesLonLat.map(() => false);
+      const isDeltaByLine =
+        riverLineIsDelta ?? riverLinesLonLat.map(() => false);
       for (let i = 0; i < riverLinesLonLat.length; i++) {
         const line = riverLinesLonLat[i];
         if (line.length >= 2) {
@@ -1864,60 +2316,128 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
       }
       const totalPoints = riverLinesLonLat.reduce((s, l) => s + l.length, 0);
-      console.log(BUILD_LOG, "river:", riverLinesLonLat.length, "lines,", totalPoints, "points →", riverSegments.length, "segments");
+      console.log(
+        BUILD_LOG,
+        "river:",
+        riverLinesLonLat.length,
+        "lines,",
+        totalPoints,
+        "points →",
+        riverSegments.length,
+        "segments",
+      );
       if (riverSegments.length > 0) {
         const raw = getRiverEdgesByTile(riverSegments, {
           tiles: globe.tiles,
           isWater: (id) => tileTerrain.get(id)?.type === "water",
         });
-        const jn3 = pruneThreeWayRiverJunctions(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (jn3 > 0) console.log(BUILD_LOG, "pruned", jn3, "3-way river junction tiles");
-        let sym3 = symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        const gaps3 = fillRiverGaps(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (gaps3 > 0) console.log(BUILD_LOG, "filled", gaps3, "river gap tiles");
-        sym3 += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        const iso3 = connectIsolatedRiverTiles(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (iso3 > 0) console.log(BUILD_LOG, "connected", iso3, "orphan river tile edges");
-        sym3 += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        const forced3 = forceRiverReciprocity(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (forced3 > 0) console.log(BUILD_LOG, "forced", forced3, "reciprocal river edges");
-        sym3 += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
-        if (sym3 > 0) console.log(BUILD_LOG, "symmetrized", sym3, "river neighbor edges");
+        const jn3 = pruneThreeWayRiverJunctions(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        if (jn3 > 0)
+          console.log(BUILD_LOG, "pruned", jn3, "3-way river junction tiles");
+        let sym3 = symmetrizeRiverNeighborEdgesUntilStable(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        const gaps3 = fillRiverGaps(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        if (gaps3 > 0)
+          console.log(BUILD_LOG, "filled", gaps3, "river gap tiles");
+        sym3 += symmetrizeRiverNeighborEdgesUntilStable(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        const iso3 = connectIsolatedRiverTiles(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        if (iso3 > 0)
+          console.log(BUILD_LOG, "connected", iso3, "orphan river tile edges");
+        sym3 += symmetrizeRiverNeighborEdgesUntilStable(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        const forced3 = forceRiverReciprocity(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        if (forced3 > 0)
+          console.log(BUILD_LOG, "forced", forced3, "reciprocal river edges");
+        sym3 += symmetrizeRiverNeighborEdgesUntilStable(
+          raw,
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.type === "water",
+        );
+        if (sym3 > 0)
+          console.log(BUILD_LOG, "symmetrized", sym3, "river neighbor edges");
         riverEdgesByTile = new Map<number, Set<number>>();
         const DEBUG_TILES = [17543];
         for (const [tid, set] of raw) {
           const type = tileTerrain.get(tid)?.type;
           if (DEBUG_TILES.includes(tid)) {
-            console.log(BUILD_LOG, `DEBUG tile ${tid}: in raw with edges [${[...set].join(",")}], type="${type}"`);
+            console.log(
+              BUILD_LOG,
+              `DEBUG tile ${tid}: in raw with edges [${[...set].join(",")}], type="${type}"`,
+            );
           }
           if (type === "water" || type === "beach") continue;
           riverEdgesByTile.set(tid, set);
         }
-        console.log(BUILD_LOG, "rivers placed on hex tile IDs:", riverEdgesByTile.size, "tiles (land only)");
+        console.log(
+          BUILD_LOG,
+          "rivers placed on hex tile IDs:",
+          riverEdgesByTile.size,
+          "tiles (land only)",
+        );
         if (riverEdgesByTile.size > 0) {
           // River water now provided by terrain-following water table
-          const { banks, bed } = createRiverTerrainMeshes(globe, riverEdgesByTile, {
-            radius: globe.radius,
-            getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
-            elevationScale,
-            riverBedDepth: 0.016,
-            riverVoidInnerRadiusFraction: 0.52,
-            bankTopLift: 0,
-            riverBankChannelWallInset: 0,
-            getBankVertexRgb: (id) => {
-              const t = tileTerrain.get(id)?.type ?? "land";
-              const col = TERRAIN_STYLES[t]?.color ?? TERRAIN_STYLES.land.color;
-              const c = new THREE.Color(col);
-              return [c.r, c.g, c.b];
+          const { banks, bed } = createRiverTerrainMeshes(
+            globe,
+            riverEdgesByTile,
+            {
+              radius: globe.radius,
+              getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+              elevationScale,
+              riverBedDepth: 0.016,
+              riverVoidInnerRadiusFraction: 0.52,
+              bankTopLift: 0,
+              riverBankChannelWallInset: 0,
+              getBankVertexRgb: (id) => {
+                const t = tileTerrain.get(id)?.type ?? "land";
+                const col =
+                  TERRAIN_STYLES[t]?.color ?? TERRAIN_STYLES.land.color;
+                const c = new THREE.Color(col);
+                return [c.r, c.g, c.b];
+              },
             },
-          });
+          );
           riverTerrainGroup = new THREE.Group();
           riverTerrainGroup.name = "RiverTerrain";
           riverTerrainGroup.add(bed, banks);
           scene.add(riverTerrainGroup);
           const bv = banks.geometry.getAttribute("position")?.count ?? 0;
           const dv = bed.geometry.getAttribute("position")?.count ?? 0;
-          console.log(BUILD_LOG, "river: U-banks/bed vertices", bv + dv, "(banks", bv, ", bed", dv, ")");
+          console.log(
+            BUILD_LOG,
+            "river: U-banks/bed vertices",
+            bv + dv,
+            "(banks",
+            bv,
+            ", bed",
+            dv,
+            ")",
+          );
         }
       }
     }
@@ -1946,12 +2466,70 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       scene.add(riverTerrainGroup);
       const bv = banks.geometry.getAttribute("position")?.count ?? 0;
       const dv = bed.geometry.getAttribute("position")?.count ?? 0;
-      console.log(BUILD_LOG, "river: U-banks/bed vertices (from cache)", bv + dv, "(banks", bv, ", bed", dv, ")");
+      console.log(
+        BUILD_LOG,
+        "river: U-banks/bed vertices (from cache)",
+        bv + dv,
+        "(banks",
+        bv,
+        ", bed",
+        dv,
+        ")",
+      );
     }
+
+    // Biome vegetation (low-poly plants, draw-distance culled) — load real plant assets
+    const { createVegetationLayer } = await import("./vegetation.js");
+    const gltfLoader = new GLTFLoader();
+    const loadPlantGeometry = (url: string): Promise<THREE.BufferGeometry | undefined> =>
+      new Promise((resolve) => {
+        gltfLoader.load(
+          url,
+          (gltf) => {
+            let geom: THREE.BufferGeometry | undefined;
+            gltf.scene.traverse((child) => {
+              if (geom == null && child instanceof THREE.Mesh && child.geometry) {
+                geom = child.geometry.clone();
+              }
+            });
+            resolve(geom ?? undefined);
+          },
+          undefined,
+          () => resolve(undefined)
+        );
+      });
+    const [treeGeom, bushGeom, grassGeom, rockGeom] = await Promise.all([
+      loadPlantGeometry("/assets/plants/deciduous_round_A_Color1.gltf"),
+      loadPlantGeometry("/assets/plants/bush_deciduous_round_A_Color1.gltf"),
+      loadPlantGeometry("/assets/plants/grass_1_A_Color1.gltf"),
+      loadPlantGeometry("/assets/environment/rock_1_A_Color1.gltf"),
+    ]);
+    vegetationLayer = createVegetationLayer(globe, tileTerrain, {
+      maxDrawDistance: 2.5,
+      elevationScale,
+      maxPlantsPerHex: 12,
+      baseScale: 0.2,
+      maxInstancesPerType: 2048,
+      hillyBumpHeight: 0.003,
+      getPeak: peakTiles
+        ? (id: number) => {
+            const m = peakTiles!.get(id);
+            return m != null ? { apexElevationM: m } : undefined;
+          }
+        : undefined,
+      peakElevationScale,
+      geometries: {
+        ...(treeGeom && { tree: treeGeom }),
+        ...(bushGeom && { bush: bushGeom }),
+        ...(grassGeom && { grass: grassGeom }),
+        ...(rockGeom && { rock: rockGeom }),
+      },
+    });
+    scene.add(vegetationLayer.group);
 
     marker = new THREE.Mesh(
       new THREE.SphereGeometry(0.03, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0xff4444 })
+      new THREE.MeshStandardMaterial({ color: 0xff4444 }),
     );
     const tileId = Math.min(42, globe.tileCount - 1);
     placeObject(marker, globe, { tileId, heightOffset: 0.06 });
@@ -1964,7 +2542,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
 function scheduleRebuild(state: DemoState) {
   if (buildInProgress) {
-    console.log(BUILD_LOG, "scheduleRebuild: build already in progress, queuing state");
+    console.log(
+      BUILD_LOG,
+      "scheduleRebuild: build already in progress, queuing state",
+    );
     pendingState = { ...state };
     return;
   }
@@ -1998,7 +2579,8 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   loadingEl.className = "loading";
   loadingEl.textContent = "Building globe…";
   panel.appendChild(loadingEl);
-  setLoading = (visible: boolean) => loadingEl.classList.toggle("visible", visible);
+  setLoading = (visible: boolean) =>
+    loadingEl.classList.toggle("visible", visible);
 
   const addSection = (title: string) => {
     const sec = document.createElement("section");
@@ -2015,7 +2597,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     max: number,
     step: number,
     format: (v: number) => string,
-    triggerRebuild: boolean = true
+    triggerRebuild: boolean = true,
   ) => {
     const row = document.createElement("div");
     row.className = "row";
@@ -2039,7 +2621,12 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     parent.appendChild(input);
   };
 
-  const addToggle = (parent: HTMLElement, label: string, key: keyof DemoState, onRebuild: () => void) => {
+  const addToggle = (
+    parent: HTMLElement,
+    label: string,
+    key: keyof DemoState,
+    onRebuild: () => void,
+  ) => {
     const row = document.createElement("div");
     row.className = "row";
     const cb = document.createElement("input");
@@ -2058,23 +2645,78 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   addToggle(sec, "Use Earth map", "useEarth", () => {
     onRebuild();
     const proc = panel.querySelector(".procedural-options");
-    if (proc) (proc as HTMLElement).style.display = state.useEarth ? "none" : "";
+    if (proc)
+      (proc as HTMLElement).style.display = state.useEarth ? "none" : "";
   });
-  addSlider(sec, "Scale (subdivisions)", "subdivisions", 1, 6, 1, (v) => `${v} (~${2 + 10 * Math.pow(4, v)} tiles)`);
+  addSlider(
+    sec,
+    "Scale (subdivisions)",
+    "subdivisions",
+    1,
+    6,
+    1,
+    (v) => `${v} (~${2 + 10 * Math.pow(4, v)} tiles)`,
+  );
 
   sec = addSection("Sun");
-  addSlider(sec, "Longitude", "sunLongitude", -1, 1, 0.02, (v) => (v * 180).toFixed(0) + "°", false);
-  addSlider(sec, "Latitude", "sunLatitude", -0.5, 0.5, 0.02, (v) => (v * 90).toFixed(0) + "°", false);
+  addSlider(
+    sec,
+    "Longitude",
+    "sunLongitude",
+    -1,
+    1,
+    0.02,
+    (v) => (v * 180).toFixed(0) + "°",
+    false,
+  );
+  addSlider(
+    sec,
+    "Latitude",
+    "sunLatitude",
+    -0.5,
+    0.5,
+    0.02,
+    (v) => (v * 90).toFixed(0) + "°",
+    false,
+  );
 
   sec = addSection("Moon");
-  addSlider(sec, "Longitude", "moonLongitude", -1, 1, 0.02, (v) => (v * 180).toFixed(0) + "°", false);
-  addSlider(sec, "Latitude", "moonLatitude", -0.5, 0.5, 0.02, (v) => (v * 90).toFixed(0) + "°", false);
+  addSlider(
+    sec,
+    "Longitude",
+    "moonLongitude",
+    -1,
+    1,
+    0.02,
+    (v) => (v * 180).toFixed(0) + "°",
+    false,
+  );
+  addSlider(
+    sec,
+    "Latitude",
+    "moonLatitude",
+    -0.5,
+    0.5,
+    0.02,
+    (v) => (v * 90).toFixed(0) + "°",
+    false,
+  );
 
   sec = addSection("Procedural (when Earth off)");
   sec.classList.add("procedural", "procedural-options");
   sec.style.display = state.useEarth ? "none" : "";
-  addSlider(sec, "Land fraction", "landFraction", 0.2, 0.8, 0.02, (v) => (v * 100).toFixed(0) + "%");
-  addSlider(sec, "Blobiness (smoothing)", "blobiness", 0, 12, 1, (v) => String(v));
+  addSlider(
+    sec,
+    "Land fraction",
+    "landFraction",
+    0.2,
+    0.8,
+    0.02,
+    (v) => (v * 100).toFixed(0) + "%",
+  );
+  addSlider(sec, "Blobiness (smoothing)", "blobiness", 0, 12, 1, (v) =>
+    String(v),
+  );
   addSlider(sec, "Seed", "seed", 1, 99999, 1, (v) => String(v));
 }
 
@@ -2102,7 +2744,7 @@ async function init() {
           "elevationM" in e &&
           typeof (e as MountainEntry).lat === "number" &&
           typeof (e as MountainEntry).lon === "number" &&
-          typeof (e as MountainEntry).elevationM === "number"
+          typeof (e as MountainEntry).elevationM === "number",
       )
         ? (raw as MountainEntry[])
         : null;
@@ -2111,24 +2753,35 @@ async function init() {
   }
   /** Natural Earth rivers: scalerank 0–2 = major (Amazon, Mississippi, Yangtze, Ganges, Nile, etc.), 3 = still major, 4+ = smaller. We keep scalerank <= 3 so we get navigable/famous rivers without every stream. */
   const RIVER_MAX_SCALERANK = 3;
-  console.log(BUILD_LOG, "init: loading rivers (scalerank <=", RIVER_MAX_SCALERANK, ")…");
+  console.log(
+    BUILD_LOG,
+    "init: loading rivers (scalerank <=",
+    RIVER_MAX_SCALERANK,
+    ")…",
+  );
   try {
     const riversRes = await fetch("/ne_10m_rivers_lake_centerlines.json");
     if (riversRes.ok) {
       const rivers = (await riversRes.json()) as {
         type: string;
         features?: Array<{
-          properties?: { name_en?: string; name?: string; featurecla?: string; scalerank?: number };
+          properties?: {
+            name_en?: string;
+            name?: string;
+            featurecla?: string;
+            scalerank?: number;
+          };
           geometry?: { type: string; coordinates: number[][] | number[][][] };
         }>;
       };
       const lines: number[][][] = [];
       const lineIsDelta: boolean[] = [];
-      const alwaysIncludeRiverNames = /\b(saint\s*lawrence|st\.?\s*lawrence)\b/i;
+      const alwaysIncludeRiverNames =
+        /\b(saint\s*lawrence|st\.?\s*lawrence)\b/i;
       for (const f of rivers.features ?? []) {
         const cla = f.properties?.featurecla ?? "";
         if (cla !== "River" && cla !== "Lake Centerline") continue;
-        const name = (f.properties?.name_en ?? f.properties?.name ?? "");
+        const name = f.properties?.name_en ?? f.properties?.name ?? "";
         const sr = f.properties?.scalerank;
         const withinScale = sr == null || sr <= RIVER_MAX_SCALERANK;
         if (!withinScale && !alwaysIncludeRiverNames.test(name)) continue;
@@ -2140,7 +2793,10 @@ async function init() {
             lines.push(g.coordinates as number[][]);
             lineIsDelta.push(isDelta);
           }
-        } else if (g.type === "MultiLineString" && Array.isArray(g.coordinates)) {
+        } else if (
+          g.type === "MultiLineString" &&
+          Array.isArray(g.coordinates)
+        ) {
           for (const ring of g.coordinates as number[][][]) {
             if (ring.length >= 2) {
               lines.push(ring);
@@ -2150,9 +2806,22 @@ async function init() {
         }
       }
       riverLinesLonLat = lines.length > 0 ? lines : null;
-      riverLineIsDelta = riverLinesLonLat && lineIsDelta.length === riverLinesLonLat.length ? lineIsDelta : null;
-      const totalPoints = riverLinesLonLat?.reduce((s, l) => s + l.length, 0) ?? 0;
-      console.log(BUILD_LOG, "init: rivers loaded (scalerank <=", RIVER_MAX_SCALERANK, "),", riverLinesLonLat?.length ?? 0, "lines,", totalPoints, "total points");
+      riverLineIsDelta =
+        riverLinesLonLat && lineIsDelta.length === riverLinesLonLat.length
+          ? lineIsDelta
+          : null;
+      const totalPoints =
+        riverLinesLonLat?.reduce((s, l) => s + l.length, 0) ?? 0;
+      console.log(
+        BUILD_LOG,
+        "init: rivers loaded (scalerank <=",
+        RIVER_MAX_SCALERANK,
+        "),",
+        riverLinesLonLat?.length ?? 0,
+        "lines,",
+        totalPoints,
+        "total points",
+      );
     } else {
       riverLinesLonLat = null;
       riverLineIsDelta = null;
@@ -2169,7 +2838,10 @@ async function init() {
   console.log(BUILD_LOG, "init: loading elevation…");
   const elevation = await loadElevation();
   if (elevation) earthRaster.elevation = elevation;
-  console.log(BUILD_LOG, "init: assets done, creating panel and scheduling build");
+  console.log(
+    BUILD_LOG,
+    "init: assets done, creating panel and scheduling build",
+  );
 
   const state: DemoState = { ...DEFAULT_STATE };
   createPanel(state, () => scheduleRebuild(state));
@@ -2190,21 +2862,44 @@ async function init() {
   });
   sun.addTo(scene);
   const lensflare = new Lensflare();
-  lensflare.addElement(new LensflareElement(createFlareTexture(64, true), 120, 0, new THREE.Color(0xffffee)));
-  lensflare.addElement(new LensflareElement(createFlareTexture(32, true), 80, 0.4, new THREE.Color(0xffffee)));
-  lensflare.addElement(new LensflareElement(createFlareTexture(128, false), 200, 0.6, new THREE.Color(0xffffff)));
+  lensflare.addElement(
+    new LensflareElement(
+      createFlareTexture(64, true),
+      120,
+      0,
+      new THREE.Color(0xffffee),
+    ),
+  );
+  lensflare.addElement(
+    new LensflareElement(
+      createFlareTexture(32, true),
+      80,
+      0.4,
+      new THREE.Color(0xffffee),
+    ),
+  );
+  lensflare.addElement(
+    new LensflareElement(
+      createFlareTexture(128, false),
+      200,
+      0.6,
+      new THREE.Color(0xffffff),
+    ),
+  );
   sun.directional.add(lensflare);
 
   const composer = new EffectComposer(renderer);
   composer.setPixelRatio(renderer.getPixelRatio());
   composer.setSize(innerWidth, innerHeight);
   composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new UnrealBloomPass(
-    new THREE.Vector2(innerWidth, innerHeight),
-    0.9,
-    0.4,
-    0.55
-  ));
+  composer.addPass(
+    new UnrealBloomPass(
+      new THREE.Vector2(innerWidth, innerHeight),
+      0.9,
+      0.4,
+      0.55,
+    ),
+  );
 
   const atmosphere = new Atmosphere(scene, { timeOfDay: 0.5 });
   scene.background = new THREE.Color(0x030508);
@@ -2227,7 +2922,12 @@ async function init() {
     side: THREE.FrontSide,
   });
   scene.add(moon.mesh);
-  const moonLight = new THREE.PointLight(0xb0b8c8, 0.5, moonDistance * 2.5, 1.5);
+  const moonLight = new THREE.PointLight(
+    0xb0b8c8,
+    0.5,
+    moonDistance * 2.5,
+    1.5,
+  );
   scene.add(moonLight);
 
   controls = new OrbitControls(camera, renderer.domElement);
@@ -2253,6 +2953,7 @@ async function init() {
       water.setSunDirection(sunDir);
       water.update();
     }
+    vegetationLayer?.update(camera);
     if (coastFoamOverlay) {
       coastFoamOverlay.setSunDirection(sunDir);
       coastFoamOverlay.update();
@@ -2263,7 +2964,7 @@ async function init() {
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-  
+
   // Collect all meshes to raycast against (globe + river geometry)
   function getClickTargets(): THREE.Object3D[] {
     const targets: THREE.Object3D[] = [];
@@ -2272,13 +2973,13 @@ async function init() {
     if (riverTerrainGroup) targets.push(riverTerrainGroup);
     return targets;
   }
-  
+
   renderer.domElement.addEventListener("click", (event: MouseEvent) => {
     if (!globe?.mesh) return;
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    
+
     // Raycast against all relevant meshes and take the nearest hit
     const targets = getClickTargets();
     const allIntersects: THREE.Intersection[] = [];
@@ -2288,7 +2989,7 @@ async function init() {
     }
     // Sort by distance to get nearest
     allIntersects.sort((a, b) => a.distance - b.distance);
-    
+
     if (allIntersects.length > 0) {
       const dir = allIntersects[0].point.clone().normalize();
       const tileId = globe.getTileIdAtDirection(dir);
@@ -2301,11 +3002,16 @@ async function init() {
       const tileType = globalTileTerrain?.get(tileId)?.type ?? "unknown";
       const inRiverData = globalRiverEdgesByTile?.has(tileId) ?? false;
       console.log(
-        "[globe-build] Hex clicked: tileId =", tileId,
-        ", lat/lon =", latDeg.toFixed(2) + "°," + lonDeg.toFixed(2) + "°",
-        ", type =", tileType,
-        ", inRiverData =", inRiverData,
-        ", scale =", scale
+        "[globe-build] Hex clicked: tileId =",
+        tileId,
+        ", lat/lon =",
+        latDeg.toFixed(2) + "°," + lonDeg.toFixed(2) + "°",
+        ", type =",
+        tileType,
+        ", inRiverData =",
+        inRiverData,
+        ", scale =",
+        scale,
       );
     }
   });
@@ -2319,29 +3025,32 @@ async function init() {
     const center = tile.center.clone().normalize();
     const positions: number[] = [];
     const indices: number[] = [];
-    
+
     // Lift slightly above the tile surface
     const lift = 1.008;
-    
+
     // Center vertex
     positions.push(center.x * lift, center.y * lift, center.z * lift);
-    
+
     // Edge vertices
     for (let i = 0; i < n; i++) {
       const v = tile.vertices[i].clone().normalize().multiplyScalar(lift);
       positions.push(v.x, v.y, v.z);
     }
-    
+
     // Triangles (fan from center)
     for (let i = 0; i < n; i++) {
       indices.push(0, i + 1, ((i + 1) % n) + 1);
     }
-    
+
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
     geo.setIndex(indices);
     geo.computeVertexNormals();
-    
+
     const mat = new THREE.MeshBasicMaterial({
       color: 0xff00ff,
       transparent: true,
@@ -2350,57 +3059,57 @@ async function init() {
       depthTest: true,
       depthWrite: false,
     });
-    
+
     return new THREE.Mesh(geo, mat);
   }
 
   function zoomToTile(tileId: number) {
-    const tile = globe.tiles.find(t => t.id === tileId);
+    const tile = globe.tiles.find((t) => t.id === tileId);
     if (!tile) {
       console.warn("[debug] Tile not found:", tileId);
       return;
     }
-    
+
     // Remove old highlight
     if (highlightMesh) {
       scene.remove(highlightMesh);
       highlightMesh.geometry.dispose();
       (highlightMesh.material as THREE.Material).dispose();
     }
-    
+
     // Add new highlight
     highlightMesh = createHighlightMesh(tile);
     scene.add(highlightMesh);
     highlightedTileId = tileId;
-    
+
     // Calculate camera target position
     const center = tile.center.clone().normalize();
     const cameraDistance = 1.5; // Distance from globe center
     const targetPos = center.clone().multiplyScalar(cameraDistance);
-    
+
     // Animate camera
     const startPos = camera.position.clone();
     const startTarget = controls.target.clone();
     const endTarget = new THREE.Vector3(0, 0, 0);
     const duration = 800; // ms
     const startTime = performance.now();
-    
+
     function animateCamera() {
       const elapsed = performance.now() - startTime;
       const t = Math.min(1, elapsed / duration);
       // Ease out cubic
       const ease = 1 - Math.pow(1 - t, 3);
-      
+
       camera.position.lerpVectors(startPos, targetPos, ease);
       controls.target.lerpVectors(startTarget, endTarget, ease);
       controls.update();
-      
+
       if (t < 1) {
         requestAnimationFrame(animateCamera);
       }
     }
     animateCamera();
-    
+
     // Log tile info
     const tileType = globalTileTerrain?.get(tileId)?.type ?? "unknown";
     const inRiverData = globalRiverEdgesByTile?.has(tileId) ?? false;
@@ -2409,13 +3118,17 @@ async function init() {
     const lonRad = Math.atan2(center.z, center.x);
     const latDeg = (latRad * 180) / Math.PI;
     const lonDeg = (lonRad * 180) / Math.PI;
-    
+
     console.log(
-      "[debug] Zoomed to tile:", tileId,
-      "\n  lat/lon:", latDeg.toFixed(2) + "°, " + lonDeg.toFixed(2) + "°",
-      "\n  type:", tileType,
-      "\n  inRiverData:", inRiverData,
-      riverEdges ? "\n  riverEdges: [" + [...riverEdges].join(", ") + "]" : ""
+      "[debug] Zoomed to tile:",
+      tileId,
+      "\n  lat/lon:",
+      latDeg.toFixed(2) + "°, " + lonDeg.toFixed(2) + "°",
+      "\n  type:",
+      tileType,
+      "\n  inRiverData:",
+      inRiverData,
+      riverEdges ? "\n  riverEdges: [" + [...riverEdges].join(", ") + "]" : "",
     );
   }
 
@@ -2454,7 +3167,7 @@ async function init() {
       hexInfo.textContent = "Invalid ID";
       return;
     }
-    const tile = globe.tiles.find(t => t.id === id);
+    const tile = globe.tiles.find((t) => t.id === id);
     if (!tile) {
       hexInfo.textContent = `Tile ${id} not found (max: ${globe.tiles.length - 1})`;
       return;
@@ -2476,7 +3189,7 @@ async function init() {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    
+
     // Raycast against all relevant meshes
     const targets = getClickTargets();
     const allIntersects: THREE.Intersection[] = [];
@@ -2485,13 +3198,13 @@ async function init() {
       allIntersects.push(...hits);
     }
     allIntersects.sort((a, b) => a.distance - b.distance);
-    
+
     if (allIntersects.length > 0) {
       const dir = allIntersects[0].point.clone().normalize();
       const tileId = globe.getTileIdAtDirection(dir);
       // Update input and highlight
       hexIdInput.value = String(tileId);
-      const tile = globe.tiles.find(t => t.id === tileId);
+      const tile = globe.tiles.find((t) => t.id === tileId);
       if (tile && highlightedTileId !== tileId) {
         if (highlightMesh) {
           scene.remove(highlightMesh);

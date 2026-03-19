@@ -8,6 +8,7 @@ export default defineConfig({
         main: path.resolve(__dirname, "index.html"),
         riverHex: path.resolve(__dirname, "river-hex-viewer.html"),
         riverBankHex: path.resolve(__dirname, "river-bank-hex-viewer.html"),
+        assetViewer: path.resolve(__dirname, "asset-viewer.html"),
       },
     },
   },
