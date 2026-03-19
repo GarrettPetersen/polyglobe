@@ -9,6 +9,8 @@
  * Plant selection: we use one 3D model per category (tree, bush, grass, rock) and tint by
  * biome (getBiomeColor). Tree variants (acacia, pine, bamboo, palm, etc.) are chosen in main via
  * getTreeVariantIndex (biome + lat/lon).
+ *
+ * River hexes: samples only along rays to tile corners (vertices), never the mid-tile channel.
  */
 
 import * as THREE from "three";
@@ -29,7 +31,7 @@ export interface VegetationOptions {
   maxDrawDistance?: number;
   /** Globe radius + elevation scale (same as terrain). Default 0.08. */
   elevationScale?: number;
-  /** Max plants per hex (0–12). Default 12. */
+  /** Max plants per hex (capped ~20). Default 12. */
   maxPlantsPerHex?: number;
   /** Base instance scale so N plants fit spaciously on a hex (globe radius ≈ 1). Default 0.006. */
   baseScale?: number;
@@ -80,8 +82,19 @@ export interface VegetationOptions {
   getRockVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
 }
 
-/** On river tiles, only place on the bank: exclude points inside this fraction of hex radius (river channel). */
-const RIVER_BANK_MIN_FRAC = 0.52;
+/**
+ * Non-river tiles: max offset from center in tangent plane (× mean corner radius).
+ * ~0.78 fills most of the hex without clustering in the middle.
+ */
+const PLANT_JITTER_FRAC = 0.78;
+
+/**
+ * River tiles: place only along rays toward hex **vertices**. The channel sits mid-tile along edges;
+ * corners stay on land regardless of river orientation, so we never sample the water.
+ * Fraction of the way from center to corner (avoid exact vertex for float robustness).
+ */
+const RIVER_BANK_CORNER_FRAC_MIN = 0.68;
+const RIVER_BANK_CORNER_FRAC_MAX = 0.96;
 
 /** Match geodesic flat-top hill: inner flat disk at this fraction of hex radius, then slope to edge. */
 const HILL_FLAT_TOP_RADIUS_FRAC = 0.78;
@@ -173,7 +186,7 @@ const SKIP_BIOMES = new Set<string>(["water", "beach", "ice", "ice_cap"]);
 
 /** Returns number of plants for this hex (0–max). Rainforest dense, savanna sparse, desert very few. */
 function getPlantCount(biome: string, maxPerHex: number, rnd: () => number): number {
-  const cap = Math.max(0, Math.min(12, maxPerHex));
+  const cap = Math.max(0, Math.min(20, maxPerHex));
   if (biome === "tropical_rainforest" || biome === "tropical_monsoon") {
     return Math.floor(8 + rnd() * (cap - 7)); // 8–12 dense
   }
@@ -186,7 +199,7 @@ function getPlantCount(biome: string, maxPerHex: number, rnd: () => number): num
     biome === "humid_subtropical_hot" ||
     biome === "swamp"
   ) {
-    return Math.floor(4 + rnd() * 5); // 4–8
+    return Math.floor(5 + rnd() * 5); // 5–9
   }
   if (
     biome === "hot_steppe" ||
@@ -206,7 +219,7 @@ function getPlantCount(biome: string, maxPerHex: number, rnd: () => number): num
     biome === "warm_summer_continental" ||
     biome === "forest"
   ) {
-    return Math.floor(2 + rnd() * 5); // 2–6
+    return Math.floor(4 + rnd() * 6); // 4–9 (temperate forest — was 2–6, felt sparse)
   }
   if (
     biome === "subarctic" ||
@@ -216,7 +229,7 @@ function getPlantCount(biome: string, maxPerHex: number, rnd: () => number): num
     biome === "subarctic_very_cold_dry_winter" ||
     biome === "subarctic_very_cold"
   ) {
-    return Math.floor(1 + rnd() * 4); // 1–4 taiga
+    return Math.floor(2 + rnd() * 4); // 2–5 taiga
   }
   if (biome === "desert" || biome === "hot_desert" || biome === "cold_desert") {
     return rnd() < 0.4 ? 1 : 0; // 0–1
@@ -282,7 +295,8 @@ function getPlantType(biome: string, rnd: () => number): PlantType {
     biome === "warm_summer_continental" ||
     biome === "forest"
   ) {
-    return t < 0.4 ? "grass" : t < 0.72 ? "bush" : "tree";
+    /** ~42% trees — conifer/broadleaf forest reads better than mostly understory. */
+    return t < 0.33 ? "grass" : t < 0.58 ? "bush" : "tree";
   }
   if (
     biome === "subarctic" ||
@@ -292,7 +306,7 @@ function getPlantType(biome: string, rnd: () => number): PlantType {
     biome === "subarctic_very_cold_dry_winter" ||
     biome === "subarctic_very_cold"
   ) {
-    return t < 0.25 ? "tree" : t < 0.6 ? "bush" : t < 0.85 ? "grass" : "rock"; // Taiga: some trees
+    return t < 0.38 ? "tree" : t < 0.65 ? "bush" : t < 0.88 ? "grass" : "rock"; // Taiga: more trees
   }
   return t < 0.35 ? "tree" : t < 0.68 ? "grass" : t < 0.92 ? "bush" : "rock";
 }
@@ -367,7 +381,7 @@ export function createVegetationLayer(
 } {
   const maxDrawDistance = options.maxDrawDistance ?? 5.5;
   const elevationScale = options.elevationScale ?? 0.08;
-  const maxPlantsPerHex = Math.max(0, Math.min(12, options.maxPlantsPerHex ?? 12));
+  const maxPlantsPerHex = Math.max(0, Math.min(20, options.maxPlantsPerHex ?? 12));
   const baseScale = options.baseScale ?? 0.006;
   const maxInstances = options.maxInstancesPerType ?? 2048;
   const hillyBumpHeight = options.hillyBumpHeight ?? 0.003;
@@ -397,20 +411,32 @@ export function createVegetationLayer(
     const r = radius + elev;
     const frame = getTileTangentFrame(tile);
     const meanRadius = tileMeanCornerRadius(frame);
-    const jitterRadius = 0.42 * meanRadius;
+    const jitterRadius = PLANT_JITTER_FRAC * meanRadius;
 
     const isHilly = data.isHilly ?? false;
     const peakApexM = peak?.apexElevationM;
     const hasRiver = (getRiverEdges?.(tile.id)?.size ?? 0) > 0;
-    const bankMinDist = hasRiver ? RIVER_BANK_MIN_FRAC * meanRadius : 0;
     const { lat, lon } = tileCenterToLatLon(tile.center);
     const { latDeg, lonDeg } = latLonToDegrees(lat, lon);
+    const corners2d = frame.corners2d;
     for (let i = 0; i < count; i++) {
-      const angle = rnd() * Math.PI * 2;
-      const rad = Math.sqrt(rnd()) * jitterRadius;
-      const lx = rad * Math.cos(angle);
-      const ly = rad * Math.sin(angle);
-      if (hasRiver && Math.hypot(lx, ly) < bankMinDist) continue;
+      let lx = 0;
+      let ly = 0;
+      if (hasRiver && corners2d.length >= 3) {
+        /** Bank-only: random corner + distance along center→vertex (never in channel). */
+        const c = corners2d[Math.floor(rnd() * corners2d.length)]!;
+        const t =
+          RIVER_BANK_CORNER_FRAC_MIN +
+          rnd() * (RIVER_BANK_CORNER_FRAC_MAX - RIVER_BANK_CORNER_FRAC_MIN);
+        lx = c[0] * t;
+        ly = c[1] * t;
+      } else {
+        const angle = rnd() * Math.PI * 2;
+        /** Uniform disk: sqrt(rnd) spreads samples by area (not clumped toward center). */
+        const rad = Math.sqrt(rnd()) * jitterRadius;
+        lx = rad * Math.cos(angle);
+        ly = rad * Math.sin(angle);
+      }
       const rPoint = radiusAtPoint(
         lx,
         ly,

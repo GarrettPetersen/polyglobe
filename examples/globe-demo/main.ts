@@ -149,19 +149,45 @@ function getTreeVariantIndex(biome: string, latDeg: number, lonDeg: number, rnd:
     const palmFrac = carib ? 0.48 : 0.22;
     if (rnd() < palmFrac) return pick(TREE_VARIANT_PALM, rnd);
   }
+  /**
+   * Conifers: Köppen Dfc/Dfd, tundra — and **Cfb/Cfc/Dfb** etc., which cover most of BC, PNW, Rockies,
+   * Scandinavia. Previously only Dwa/Dwb + "subarctic*" used pine; coastal BC was `oceanic` → all deciduous.
+   */
+  if (biome.startsWith("subarctic") || biome === "tundra") {
+    return pick(TREE_VARIANT_PINE, rnd);
+  }
   if (
-    biome.startsWith("subarctic") ||
     biome === "humid_continental_hot" ||
     biome === "humid_continental_warm" ||
-    biome === "tundra"
-  )
-    return pick(TREE_VARIANT_PINE, rnd);
+    biome === "humid_continental" ||
+    biome === "warm_summer_humid" ||
+    biome === "hot_summer_continental" ||
+    biome === "warm_summer_continental" ||
+    biome === "oceanic" ||
+    biome === "subpolar_oceanic" ||
+    biome === "subtropical_highland_cold"
+  ) {
+    if (rnd() < 0.72) return pick(TREE_VARIANT_PINE, rnd);
+    return rnd() < 0.5 ? pick(TREE_VARIANT_DECIDUOUS_ROUND, rnd) : pick(TREE_VARIANT_DECIDUOUS_BOXY, rnd);
+  }
   return rnd() < 0.5 ? pick(TREE_VARIANT_DECIDUOUS_ROUND, rnd) : pick(TREE_VARIANT_DECIDUOUS_BOXY, rnd);
 }
 
 function getBushVariantIndex(biome: string, _latDeg: number, _lonDeg: number, rnd: () => number): number {
   if (biome === "tropical_savanna") return 2;
   if (biome.startsWith("subarctic") || biome === "tundra") return 3;
+  if (
+    biome === "oceanic" ||
+    biome === "subpolar_oceanic" ||
+    biome === "warm_summer_humid" ||
+    biome === "humid_continental" ||
+    biome === "humid_continental_hot" ||
+    biome === "humid_continental_warm" ||
+    biome === "hot_summer_continental" ||
+    biome === "warm_summer_continental"
+  ) {
+    if (rnd() < 0.55) return 3;
+  }
   return rnd() < 0.5 ? 0 : 1;
 }
 
@@ -2910,15 +2936,15 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       console.warn(TREE_LOG, "bamboo (index 9) failed to load — East Asia will fall back to other trees");
     }
 
-    /** Globe radius ≈1; 0.0012 made GLTF trees very small vs vegetation default (0.006). Scale trees up only (bushes/grass use baseScale). */
-    const VEG_BASE_SCALE = 0.0012;
-    const TREE_SIZE_MUL = 2.25;
+    /** Globe radius ≈1; bushes/grass stay readable; trees get TREE_SIZE_MUL on top. */
+    const VEG_BASE_SCALE = 0.00175;
+    const TREE_SIZE_MUL = 3.1;
     vegetationLayer = createVegetationLayer(globe, tileTerrain, {
       maxDrawDistance: Infinity,
       elevationScale,
-      maxPlantsPerHex: 12,
+      maxPlantsPerHex: 16,
       baseScale: VEG_BASE_SCALE,
-      maxInstancesPerType: 2048,
+      maxInstancesPerType: 4096,
       hillyBumpHeight: 0.003,
       getPeak: peakTiles
         ? (id: number) => {
