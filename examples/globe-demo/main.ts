@@ -119,14 +119,26 @@ function pick<T>(arr: T[], rnd: () => number): T {
   return arr[Math.floor(rnd() * arr.length)]!;
 }
 
+/**
+ * Greater Antilles / Bahamas / Yucatán / Florida-ish — lots of palms; often `humid_subtropical_hot` (e.g. Cuba) not `Aw`.
+ * Lon uses same east-positive convention as {@link latLonDegToDirection}.
+ */
+function isCaribbeanTropicalPalmBelt(latDeg: number, lonDeg: number): boolean {
+  return latDeg >= 9 && latDeg <= 30 && lonDeg >= -98 && lonDeg <= -65;
+}
+
 function getTreeVariantIndex(biome: string, latDeg: number, lonDeg: number, rnd: () => number): number {
+  const carib = isCaribbeanTropicalPalmBelt(latDeg, lonDeg);
   if (isBambooRegion(latDeg, lonDeg)) return TREE_VARIANT_BAMBOO;
   if (biome === "tropical_rainforest" || biome === "tropical_monsoon") {
-    if (rnd() < 0.45) return pick(TREE_VARIANT_PALM, rnd);
+    /** Slightly below half — Amazon canopy is mostly broadleaf; palms are common but not dominant. */
+    if (rnd() < 0.38) return pick(TREE_VARIANT_PALM, rnd);
     return rnd() < 0.5 ? pick(TREE_VARIANT_DECIDUOUS_ROUND, rnd) : pick(TREE_VARIANT_DECIDUOUS_BOXY, rnd);
   }
   if (biome === "tropical_savanna") {
-    if (rnd() < 0.28) return pick(TREE_VARIANT_PALM, rnd);
+    /** Savanna has very few tree placements overall; when we do pick a tree, palms should be likely (Caribbean / NE South America Aw). */
+    const palmFrac = carib ? 0.58 : 0.52;
+    if (rnd() < palmFrac) return pick(TREE_VARIANT_PALM, rnd);
     return pick(TREE_VARIANT_ACACIA, rnd);
   }
   if (
@@ -134,7 +146,8 @@ function getTreeVariantIndex(biome: string, latDeg: number, lonDeg: number, rnd:
     biome === "humid_subtropical_hot" ||
     biome === "swamp"
   ) {
-    if (rnd() < 0.22) return pick(TREE_VARIANT_PALM, rnd);
+    const palmFrac = carib ? 0.48 : 0.22;
+    if (rnd() < palmFrac) return pick(TREE_VARIANT_PALM, rnd);
   }
   if (
     biome.startsWith("subarctic") ||

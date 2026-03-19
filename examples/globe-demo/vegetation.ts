@@ -237,7 +237,8 @@ function getPlantType(biome: string, rnd: () => number): PlantType {
     return t < 0.72 ? "tree" : "bush"; // Dense canopy — no grass
   }
   if (biome === "tropical_savanna") {
-    return t < 0.65 ? "grass" : t < 0.93 ? "bush" : "tree"; // Sparse trees (acacia-like), grass dominant
+    /** ~12% trees (was ~7%) — enough instances for palm/acacia; still grass + bush dominant. */
+    return t < 0.60 ? "grass" : t < 0.88 ? "bush" : "tree";
   }
   if (
     biome === "grassland" ||
