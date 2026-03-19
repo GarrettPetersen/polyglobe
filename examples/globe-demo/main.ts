@@ -104,17 +104,15 @@ const TREE_VARIANT_DECIDUOUS_BOXY = [10, 11, 12];
 const TREE_VARIANT_PALM = [13, 14, 15];
 
 /**
- * Monsoonal bamboo belt (China, Japan, Korea, Vietnam, etc.).
+ * Monsoonal bamboo belt (China, Japan, Korea, Vietnam, SE Asia).
  *
- * `tileCenterToLatLon` uses `lon = -atan2(z, x)` on the geodesic sphere. That is **not**
- * “east-positive geography”: East Asia ends up with **negative** `lonDeg` (e.g. Beijing ~−116°),
- * while the Americas have **positive** `lonDeg` (e.g. Denver ~+105°). A box `lonDeg ∈ [72, 152]`
- * therefore selected the **Americas**, not Asia — bamboo never appeared in China.
- *
- * East Asia in this convention: roughly **−152° ≤ lonDeg ≤ −72°** (standard 72°E–152°E).
+ * `tileCenterToLatLon` + `latLonToDegrees` match {@link latLonDegToDirection} / Earth raster:
+ * **east longitude is positive** (e.g. Beijing ~+116°), **west is negative** (e.g. Mississippi ~−90°).
+ * A box on **negative** lon (e.g. −152…−72) therefore selected the **Americas** — bamboo in the
+ * Mississippi basin, not Asia. Use **+72°…+152°** for monsoonal East / SE Asia.
  */
 function isBambooRegion(latDeg: number, lonDeg: number): boolean {
-  return latDeg >= -10 && latDeg <= 45 && lonDeg >= -152 && lonDeg <= -72;
+  return latDeg >= -10 && latDeg <= 45 && lonDeg >= 72 && lonDeg <= 152;
 }
 
 function pick<T>(arr: T[], rnd: () => number): T {
@@ -2664,7 +2662,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     }
 
     /** Prefer mesh name hints; fallback to lower half of bbox along height axis = trunk. */
-    const TRUNK_NAME = /trunk|bark|stem|branch|wood|log/i;
+    const TRUNK_NAME = /trunk|bark|stem|branch|wood|log|bamboo/i;
     const FOLIAGE_NAME = /leaf|leaves|foliage|crown|canopy|needle|frond|palm/i;
 
     /**
@@ -2696,7 +2694,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       foliage.computeVertexNormals();
     }
 
-    function splitTreeFromGltfScene(gltf: { scene: THREE.Group }): { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | null {
+    function splitTreeFromGltfScene(
+      gltf: { scene: THREE.Group },
+      trunkHeightFrac = 0.32
+    ): { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | null {
       gltf.scene.updateMatrixWorld(true);
       const meshes: { name: string; geom: THREE.BufferGeometry; box: THREE.Box3 }[] = [];
       gltf.scene.traverse((child) => {
@@ -2709,7 +2710,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
       });
       if (meshes.length === 0) return null;
-      if (meshes.length === 1) return splitTreeTrunkFoliageByHeight(meshes[0]!.geom);
+      if (meshes.length === 1) return splitTreeTrunkFoliageByHeight(meshes[0]!.geom, trunkHeightFrac);
 
       const sceneBox = new THREE.Box3().setFromObject(gltf.scene);
       const axis = getHeightAxis(sceneBox);
@@ -2734,7 +2735,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
       }
       if (trunkGeoms.length === 0 || foliageGeoms.length === 0) {
-        return splitTreeTrunkFoliageByHeight(mergeBufferGeometries(meshes.map((m) => m.geom)));
+        return splitTreeTrunkFoliageByHeight(mergeBufferGeometries(meshes.map((m) => m.geom)), trunkHeightFrac);
       }
       const trunk = trunkGeoms.length === 1 ? trunkGeoms[0]! : mergeBufferGeometries(trunkGeoms);
       const foliage = foliageGeoms.length === 1 ? foliageGeoms[0]! : mergeBufferGeometries(foliageGeoms);
@@ -2783,12 +2784,14 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       new Promise((resolve) => {
         const resourceDir = url.replace(/\/[^/]+$/, "/");
         const filename = url.slice(resourceDir.length);
+        /** Bamboo clump: slightly more trunk band so stalks tint brown. */
+        const trunkFrac = /bamboo/i.test(url) ? 0.42 : 0.32;
         gltfLoader.setPath(resourceDir);
         gltfLoader.setResourcePath(resourceDir);
         gltfLoader.load(
           filename,
           (gltf) => {
-            const split = splitTreeFromGltfScene(gltf);
+            const split = splitTreeFromGltfScene(gltf, trunkFrac);
             if (split) {
               normalizeTrunkFoliagePair(split.trunk, split.foliage);
               resolve(split);
@@ -2804,7 +2807,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
               }
             });
             if (geom) {
-              const fallback = splitTreeTrunkFoliageByHeight(geom);
+              const fallback = splitTreeTrunkFoliageByHeight(geom, trunkFrac);
               if (fallback) {
                 normalizeTrunkFoliagePair(fallback.trunk, fallback.foliage);
               }
@@ -2851,33 +2854,57 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       Promise.all(rockUrls.map((url) => loadPlantGeometry(url))),
     ]);
 
-    const treeTrunkFoliage = treeTrunkFoliageGeoms.filter(
-      (g): g is TreeTrunkFoliage => g != null
-    );
+    /** Fixed index alignment with `treeUrls` / `getTreeVariantIndex` — do not compact (would remap species). */
+    const treeTrunkFoliageSlots: (TreeTrunkFoliage | undefined)[] = treeTrunkFoliageGeoms;
+    const treesLoadedCount = treeTrunkFoliageSlots.filter((g): g is TreeTrunkFoliage => g != null).length;
     const bushes = bushGeoms.filter((g): g is THREE.BufferGeometry => g != null);
     const grass = grassGeoms.filter((g): g is THREE.BufferGeometry => g != null);
     const rocks = rockGeoms.filter((g): g is THREE.BufferGeometry => g != null);
 
     console.log(TREE_LOG, "plant variants loaded", {
-      treeTrunkFoliage: treeTrunkFoliage.length,
+      treeSlots: treeTrunkFoliageSlots.length,
+      treesLoaded: treesLoadedCount,
       treeGeomsNulls: treeTrunkFoliageGeoms.filter((g) => g == null).length,
       bushes: bushes.length,
       grass: grass.length,
       rocks: rocks.length,
     });
-    if (treeTrunkFoliage.length > 0) {
-      const t0 = treeTrunkFoliage[0]!;
-      console.log(TREE_LOG, "first tree trunk/foliage", {
+    treeTrunkFoliageSlots.forEach((g, i) => {
+      if (g == null) console.warn(TREE_LOG, "tree variant missing", { index: i, url: treeUrls[i] });
+    });
+    if (treesLoadedCount > 0) {
+      const t0 = treeTrunkFoliageSlots.find((g) => g != null)!;
+      console.log(TREE_LOG, "first loaded tree trunk/foliage", {
         trunkVerts: t0.trunk.getAttribute("position")?.count ?? 0,
         foliageVerts: t0.foliage.getAttribute("position")?.count ?? 0,
       });
     }
+    const bambooLoaded = treeTrunkFoliageSlots[TREE_VARIANT_BAMBOO];
+    if (bambooLoaded) {
+      bambooLoaded.trunk.computeBoundingBox();
+      bambooLoaded.foliage.computeBoundingBox();
+      const u = new THREE.Box3().copy(bambooLoaded.trunk.boundingBox!).union(bambooLoaded.foliage.boundingBox!);
+      const sz = new THREE.Vector3();
+      u.getSize(sz);
+      console.log(TREE_LOG, "bamboo variant (index 9) after normalize — bbox size (tallest axis ≈1)", {
+        sx: Number(sz.x.toFixed(4)),
+        sy: Number(sz.y.toFixed(4)),
+        sz: Number(sz.z.toFixed(4)),
+        trunkVerts: bambooLoaded.trunk.getAttribute("position")?.count ?? 0,
+        foliageVerts: bambooLoaded.foliage.getAttribute("position")?.count ?? 0,
+      });
+    } else {
+      console.warn(TREE_LOG, "bamboo (index 9) failed to load — East Asia will fall back to other trees");
+    }
 
+    /** Globe radius ≈1; 0.0012 made GLTF trees very small vs vegetation default (0.006). Scale trees up only (bushes/grass use baseScale). */
+    const VEG_BASE_SCALE = 0.0012;
+    const TREE_SIZE_MUL = 2.25;
     vegetationLayer = createVegetationLayer(globe, tileTerrain, {
       maxDrawDistance: Infinity,
       elevationScale,
       maxPlantsPerHex: 12,
-      baseScale: 0.0012,
+      baseScale: VEG_BASE_SCALE,
       maxInstancesPerType: 2048,
       hillyBumpHeight: 0.003,
       getPeak: peakTiles
@@ -2889,15 +2916,17 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       peakElevationScale,
       getRiverEdges: (id: number) => riverEdgesByTile?.get(id),
       geometries:
-        treeTrunkFoliage.length > 0 || bushes.length > 0 || grass.length > 0 || rocks.length > 0
+        treesLoadedCount > 0 || bushes.length > 0 || grass.length > 0 || rocks.length > 0
           ? {
-              ...(treeTrunkFoliage.length > 0 && { treeTrunkFoliage }),
+              ...(treesLoadedCount > 0 && { treeTrunkFoliage: treeTrunkFoliageSlots }),
               ...(bushes.length > 0 && { bushes }),
               ...(grass.length > 0 && { grass }),
               ...(rocks.length > 0 && { rocks }),
             }
           : {},
-      getTreeVariantIndex: treeTrunkFoliage.length > 0 ? getTreeVariantIndex : undefined,
+      getTreeVariantScale: (v: number) =>
+        TREE_SIZE_MUL * (v === TREE_VARIANT_BAMBOO ? 2.35 : 1),
+      getTreeVariantIndex: treesLoadedCount > 0 ? getTreeVariantIndex : undefined,
       getBushVariantIndex: bushes.length > 0 ? getBushVariantIndex : undefined,
       getGrassVariantIndex: grass.length > 0 ? getGrassVariantIndex : undefined,
       getRockVariantIndex: rocks.length > 0 ? getRockVariantIndex : undefined,

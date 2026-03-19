@@ -64,10 +64,15 @@ export interface VegetationOptions {
     /** Multiple geometries per type: one InstancedMesh per variant. Use with getXxxVariantIndex. */
     trees?: THREE.BufferGeometry[];
     /** When set, trees are drawn as trunk (brown) + foliage (tinted) per variant. Overrides trees for tree type. */
-    treeTrunkFoliage?: { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry }[];
+    treeTrunkFoliage?: ({ trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | undefined)[];
     bushes?: THREE.BufferGeometry[];
     rocks?: THREE.BufferGeometry[];
   };
+  /**
+   * Uniform scale multiplier for instanced trees by variant index (thin clumps e.g. bamboo may need &gt;1).
+   * Default 1. Only applied to tree placements.
+   */
+  getTreeVariantScale?: (variantIndex: number) => number;
   /** Pick tree variant index (0..trees.length-1) from biome and lon/lat (degrees). For region-specific e.g. bamboo. */
   getTreeVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
   getBushVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
@@ -368,6 +373,7 @@ export function createVegetationLayer(
   const getPeak = options.getPeak;
   const getRiverEdges = options.getRiverEdges;
   const peakElevationScale = options.peakElevationScale ?? 0.00002;
+  const getTreeVariantScale = options.getTreeVariantScale;
   const radius = globe.radius;
 
   const placements: Placement[] = [];
@@ -512,22 +518,42 @@ export function createVegetationLayer(
     const rocksArr = options.geometries?.rocks;
 
     if (type === "tree" && treeTrunkFoliageArr && treeTrunkFoliageArr.length > 0) {
+      const firstLoadedTree = treeTrunkFoliageArr.find(
+        (p): p is { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } =>
+          p != null &&
+          !!p.trunk.getAttribute("position") &&
+          !!p.foliage.getAttribute("position")
+      );
       const byVariant = new Map<number, Placement[]>();
       for (const p of list) {
         const v = p.variantIndex;
         if (!byVariant.has(v)) byVariant.set(v, []);
         byVariant.get(v)!.push(p);
       }
+      let addedAnyTree = false;
       for (const [variantIndex, variantList] of byVariant) {
-        const pair = treeTrunkFoliageArr[variantIndex] ?? treeTrunkFoliageArr[variantIndex % treeTrunkFoliageArr.length];
+        /** Prefer exact treeUrls slot; if missing or empty verts, reuse first OK tree so placements aren't invisible. */
+        let pair: { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | undefined =
+          treeTrunkFoliageArr[variantIndex];
+        const ok =
+          pair &&
+          pair.trunk.getAttribute("position") &&
+          pair.foliage.getAttribute("position");
+        if (!ok) pair = firstLoadedTree;
         if (!pair || variantList.length === 0) continue;
         const { trunk, foliage } = pair;
         if (trunk.getAttribute("position") && foliage.getAttribute("position")) {
           entries.push({ type: "tree", list: variantList, geometry: trunk, name: `Vegetation-tree-v${variantIndex}-trunk`, isTrunk: true });
           entries.push({ type: "tree", list: variantList, geometry: foliage, name: `Vegetation-tree-v${variantIndex}-foliage` });
+          addedAnyTree = true;
         }
       }
-      return;
+      if (addedAnyTree) return;
+      console.warn(TREE_LOG, "tree trunk/foliage: no variant had geometry; falling back to placeholder cones", {
+        placements: list.length,
+        slots: treeTrunkFoliageArr.length,
+      });
+      /** fall through — same as no GLTF trees */
     }
     if (type === "tree" && treesArr && treesArr.length > 0) {
       const byVariant = new Map<number, Placement[]>();
@@ -681,7 +707,10 @@ export function createVegetationLayer(
       for (let k = 0; k < drawCount; k++) {
         const p = list[sortedIndices[k]!];
         _q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.normal);
-        _mat.compose(p.position, _q, _s.set(p.scale, p.scale, p.scale));
+        const mul =
+          p.type === "tree" ? (getTreeVariantScale?.(p.variantIndex) ?? 1) : 1;
+        const s = p.scale * mul;
+        _mat.compose(p.position, _q, _s.set(s, s, s));
         mesh.setMatrixAt(k, _mat);
         if (mesh.instanceColor) mesh.setColorAt(k, p.color);
       }
