@@ -1,7 +1,10 @@
 import path from "path";
 import { defineConfig } from "vite";
 
+const root = path.resolve(__dirname);
 export default defineConfig({
+  root,
+  publicDir: path.join(root, "public"),
   build: {
     rollupOptions: {
       input: {

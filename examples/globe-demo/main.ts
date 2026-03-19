@@ -54,7 +54,85 @@ import {
 } from "polyglobe";
 import { EARTH_GLOBE_CACHE_VERSION } from "./earthGlobeCacheVersion";
 
+/** Plant assets live in public/plant-models/ so Vite serves them at /plant-models/. Run dev from examples/globe-demo. */
+const PLANT_BASE =
+  (typeof import.meta !== "undefined" && (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) || "";
+const _plantBase = (PLANT_BASE.replace(/\/?$/, "/") + "plant-models").replace(/^\/?/, "/");
+const treeUrls = [
+  `${_plantBase}/deciduous_round_A_Color1.gltf`,
+  `${_plantBase}/deciduous_round_B_Color1.gltf`,
+  `${_plantBase}/deciduous_round_C_Color1.gltf`,
+  `${_plantBase}/acacia_A_Color1.gltf`,
+  `${_plantBase}/acacia_B_Color1.gltf`,
+  `${_plantBase}/acacia_C_Color1.gltf`,
+  `${_plantBase}/pine_A_Color1.gltf`,
+  `${_plantBase}/pine_B_Color1.gltf`,
+  `${_plantBase}/pine_C_Color1.gltf`,
+  `${_plantBase}/bamboo_stand.glb`,
+  `${_plantBase}/deciduous_boxy_A_Color1.gltf`,
+  `${_plantBase}/deciduous_boxy_B_Color1.gltf`,
+  `${_plantBase}/deciduous_boxy_C_Color1.gltf`,
+];
+const bushUrls = [
+  `${_plantBase}/bush_deciduous_round_A_Color1.gltf`,
+  `${_plantBase}/bush_deciduous_round_B_Color1.gltf`,
+  `${_plantBase}/bush_acacia_A_Color1.gltf`,
+  `${_plantBase}/bush_pine_A_Color1.gltf`,
+];
+const grassUrls = [
+  `${_plantBase}/grass_1_A_Color1.gltf`,
+  `${_plantBase}/grass_1_B_Color1.gltf`,
+  `${_plantBase}/grass_2_A_Color1.gltf`,
+];
+const rockUrls = [
+  `${_plantBase}/rock_1_A_Color1.gltf`,
+  `${_plantBase}/rock_1_B_Color1.gltf`,
+  `${_plantBase}/rock_1_C_Color1.gltf`,
+];
+
 console.log("[globe-build] demo main.ts loaded");
+
+/** Tree variant indices: 0–2 deciduous_round; 3–5 acacia; 6–8 pine; 9 bamboo; 10–12 deciduous_boxy. */
+const TREE_VARIANT_DECIDUOUS_ROUND = [0, 1, 2];
+const TREE_VARIANT_ACACIA = [3, 4, 5];
+const TREE_VARIANT_PINE = [6, 7, 8];
+const TREE_VARIANT_BAMBOO = 9;
+const TREE_VARIANT_DECIDUOUS_BOXY = [10, 11, 12];
+
+function isBambooRegion(latDeg: number, lonDeg: number): boolean {
+  return latDeg >= -10 && latDeg <= 45 && lonDeg >= 80 && lonDeg <= 150;
+}
+
+function pick<T>(arr: T[], rnd: () => number): T {
+  return arr[Math.floor(rnd() * arr.length)]!;
+}
+
+function getTreeVariantIndex(biome: string, latDeg: number, lonDeg: number, rnd: () => number): number {
+  if (isBambooRegion(latDeg, lonDeg)) return TREE_VARIANT_BAMBOO;
+  if (biome === "tropical_savanna") return pick(TREE_VARIANT_ACACIA, rnd);
+  if (
+    biome.startsWith("subarctic") ||
+    biome === "humid_continental_hot" ||
+    biome === "humid_continental_warm" ||
+    biome === "tundra"
+  )
+    return pick(TREE_VARIANT_PINE, rnd);
+  return rnd() < 0.5 ? pick(TREE_VARIANT_DECIDUOUS_ROUND, rnd) : pick(TREE_VARIANT_DECIDUOUS_BOXY, rnd);
+}
+
+function getBushVariantIndex(biome: string, _latDeg: number, _lonDeg: number, rnd: () => number): number {
+  if (biome === "tropical_savanna") return 2;
+  if (biome.startsWith("subarctic") || biome === "tundra") return 3;
+  return rnd() < 0.5 ? 0 : 1;
+}
+
+function getGrassVariantIndex(_biome: string, _latDeg: number, _lonDeg: number, rnd: () => number): number {
+  return Math.min(2, Math.floor(rnd() * 3));
+}
+
+function getRockVariantIndex(_biome: string, _latDeg: number, _lonDeg: number, rnd: () => number): number {
+  return Math.min(2, Math.floor(rnd() * 3));
+}
 
 const EARTH_GLOBE_CACHE_URL = "/earth-globe-cache.json";
 
@@ -1575,7 +1653,7 @@ scene.background = new THREE.Color(0x030508);
 const camera = new THREE.PerspectiveCamera(
   60,
   innerWidth / innerHeight,
-  0.1,
+  0.01,
   4000,
 );
 const starfield = new Starfield({
@@ -2480,35 +2558,258 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     // Biome vegetation (low-poly plants, draw-distance culled) — load real plant assets
     const { createVegetationLayer } = await import("./vegetation.js");
-    const gltfLoader = new GLTFLoader();
+
+    const TREE_LOG = "[tree-debug]";
+
+    /** Height axis = axis with largest bbox extent (works for Y-up, Z-up, etc.). */
+    function getHeightAxis(box: THREE.Box3): 0 | 1 | 2 {
+      const dx = box.max.x - box.min.x;
+      const dy = box.max.y - box.min.y;
+      const dz = box.max.z - box.min.z;
+      if (dy >= dx && dy >= dz) return 1;
+      if (dz >= dx && dz >= dy) return 2;
+      return 0;
+    }
+
+    /** Split tree geometry into trunk (lower fraction along height axis) and foliage. Robust to any up-axis. */
+    function splitTreeTrunkFoliageByHeight(
+      geom: THREE.BufferGeometry,
+      trunkHeightFrac = 0.32
+    ): { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | null {
+      const pos = geom.getAttribute("position");
+      if (!pos) return null;
+      geom.computeBoundingBox();
+      const box = geom.boundingBox!;
+      const axis = getHeightAxis(box);
+      const minH = axis === 0 ? box.min.x : axis === 1 ? box.min.y : box.min.z;
+      const maxH = axis === 0 ? box.max.x : axis === 1 ? box.max.y : box.max.z;
+      const range = maxH - minH;
+      if (range <= 0) return null;
+      const threshold = minH + trunkHeightFrac * range;
+      const getH = (i: number) => (axis === 0 ? pos.getX(i) : axis === 1 ? pos.getY(i) : pos.getZ(i));
+      const index = geom.index;
+      const trunkIndices: number[] = [];
+      const foliageIndices: number[] = [];
+
+      if (index) {
+        for (let i = 0; i < index.count; i += 3) {
+          const i0 = index.getX(i)!;
+          const i1 = index.getX(i + 1)!;
+          const i2 = index.getX(i + 2)!;
+          const h0 = getH(i0);
+          const h1 = getH(i1);
+          const h2 = getH(i2);
+          const triMax = Math.max(h0, h1, h2);
+          const triMin = Math.min(h0, h1, h2);
+          if (triMax < threshold) trunkIndices.push(i0, i1, i2);
+          else if (triMin >= threshold) foliageIndices.push(i0, i1, i2);
+          else {
+            trunkIndices.push(i0, i1, i2);
+            foliageIndices.push(i0, i1, i2);
+          }
+        }
+      } else {
+        for (let i = 0; i < pos.count; i += 3) {
+          const h0 = getH(i);
+          const h1 = getH(i + 1);
+          const h2 = getH(i + 2);
+          const triMax = Math.max(h0, h1, h2);
+          const triMin = Math.min(h0, h1, h2);
+          if (triMax < threshold) trunkIndices.push(i, i + 1, i + 2);
+          else if (triMin >= threshold) foliageIndices.push(i, i + 1, i + 2);
+          else {
+            trunkIndices.push(i, i + 1, i + 2);
+            foliageIndices.push(i, i + 1, i + 2);
+          }
+        }
+      }
+      if (trunkIndices.length === 0 || foliageIndices.length === 0) return null;
+      const trunk = geom.clone();
+      trunk.setIndex(new THREE.BufferAttribute(new Uint32Array(trunkIndices), 1));
+      trunk.computeBoundingSphere();
+      trunk.computeBoundingBox();
+      const foliage = geom.clone();
+      foliage.setIndex(new THREE.BufferAttribute(new Uint32Array(foliageIndices), 1));
+      foliage.computeBoundingSphere();
+      foliage.computeBoundingBox();
+      return { trunk, foliage };
+    }
+
+    /** Prefer mesh name hints; fallback to lower half of bbox along height axis = trunk. */
+    const TRUNK_NAME = /trunk|bark|stem|branch|wood|log/i;
+    const FOLIAGE_NAME = /leaf|leaves|foliage|crown|canopy|needle|frond|palm/i;
+
+    function splitTreeFromGltfScene(gltf: { scene: THREE.Group }): { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | null {
+      const meshes: { name: string; geom: THREE.BufferGeometry; box: THREE.Box3 }[] = [];
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.geometry) {
+          const geom = child.geometry.clone();
+          geom.computeBoundingBox();
+          const box = geom.boundingBox!;
+          meshes.push({ name: (child.name || "").toLowerCase(), geom, box });
+        }
+      });
+      if (meshes.length === 0) return null;
+      if (meshes.length === 1) return splitTreeTrunkFoliageByHeight(meshes[0]!.geom);
+
+      const sceneBox = new THREE.Box3().setFromObject(gltf.scene);
+      const axis = getHeightAxis(sceneBox);
+      const getCenterH = (box: THREE.Box3) =>
+        axis === 0 ? (box.min.x + box.max.x) / 2 : axis === 1 ? (box.min.y + box.max.y) / 2 : (box.min.z + box.max.z) / 2;
+
+      const trunkGeoms: THREE.BufferGeometry[] = [];
+      const foliageGeoms: THREE.BufferGeometry[] = [];
+      for (const m of meshes) {
+        const isTrunkName = TRUNK_NAME.test(m.name);
+        const isFoliageName = FOLIAGE_NAME.test(m.name);
+        if (isTrunkName && !isFoliageName) trunkGeoms.push(m.geom);
+        else if (isFoliageName && !isTrunkName) foliageGeoms.push(m.geom);
+        else {
+          const centerH = getCenterH(m.box);
+          const allCenters = meshes.map((x) => getCenterH(x.box));
+          const minC = Math.min(...allCenters);
+          const maxC = Math.max(...allCenters);
+          const t = maxC > minC ? (centerH - minC) / (maxC - minC) : 0;
+          if (t < 0.5) trunkGeoms.push(m.geom);
+          else foliageGeoms.push(m.geom);
+        }
+      }
+      if (trunkGeoms.length === 0 || foliageGeoms.length === 0) {
+        return splitTreeTrunkFoliageByHeight(mergeBufferGeometries(meshes.map((m) => m.geom)));
+      }
+      const trunk = trunkGeoms.length === 1 ? trunkGeoms[0]! : mergeBufferGeometries(trunkGeoms);
+      const foliage = foliageGeoms.length === 1 ? foliageGeoms[0]! : mergeBufferGeometries(foliageGeoms);
+      return { trunk, foliage };
+    }
+
+    function mergeBufferGeometries(geoms: THREE.BufferGeometry[]): THREE.BufferGeometry {
+      const merged = new THREE.BufferGeometry();
+      const positions: number[] = [];
+      const normals: number[] = [];
+      const indices: number[] = [];
+      let offset = 0;
+      for (const g of geoms) {
+        const pos = g.getAttribute("position");
+        const norm = g.getAttribute("normal");
+        const idx = g.index;
+        if (!pos) continue;
+        for (let i = 0; i < pos.count; i++) {
+          positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+          if (norm) normals.push(norm.getX(i), norm.getY(i), norm.getZ(i));
+        }
+        if (idx) for (let i = 0; i < idx.count; i++) indices.push(offset + idx.getX(i)!);
+        else for (let i = 0; i < pos.count; i++) indices.push(offset + i);
+        offset += pos.count;
+      }
+      merged.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      if (normals.length === positions.length) merged.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+      merged.setIndex(indices);
+      merged.computeBoundingSphere();
+      merged.computeBoundingBox();
+      return merged;
+    }
+
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.setURLModifier((url: string) => {
+      if (url.endsWith("forest_texture.png"))
+        return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+      return url;
+    });
+    const gltfLoader = new GLTFLoader(loadingManager);
+    const fullUrl = (path: string) =>
+      typeof location !== "undefined" ? `${location.origin}${path.startsWith("/") ? path : `/${path}`}` : path;
+    type TreeTrunkFoliage = { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry };
+
+    const loadTreeGeometry = (url: string): Promise<TreeTrunkFoliage | undefined> =>
+      new Promise((resolve) => {
+        const resourceDir = url.replace(/\/[^/]+$/, "/");
+        const filename = url.slice(resourceDir.length);
+        gltfLoader.setPath(resourceDir);
+        gltfLoader.setResourcePath(resourceDir);
+        gltfLoader.load(
+          filename,
+          (gltf) => {
+            const split = splitTreeFromGltfScene(gltf);
+            if (split) {
+              resolve(split);
+              return;
+            }
+            let geom: THREE.BufferGeometry | undefined;
+            gltf.scene.traverse((child) => {
+              if (geom == null && child instanceof THREE.Mesh && child.geometry) geom = child.geometry.clone();
+            });
+            if (geom) {
+              const fallback = splitTreeTrunkFoliageByHeight(geom);
+              resolve(fallback ?? undefined);
+            } else resolve(undefined);
+          },
+          undefined,
+          (err) => {
+            console.warn(TREE_LOG, "GLTF load failed", url, "full URL:", fullUrl(url), err);
+            resolve(undefined);
+          }
+        );
+      });
+
     const loadPlantGeometry = (url: string): Promise<THREE.BufferGeometry | undefined> =>
       new Promise((resolve) => {
+        const resourceDir = url.replace(/\/[^/]+$/, "/");
+        const filename = url.slice(resourceDir.length);
+        gltfLoader.setPath(resourceDir);
+        gltfLoader.setResourcePath(resourceDir);
         gltfLoader.load(
-          url,
+          filename,
           (gltf) => {
             let geom: THREE.BufferGeometry | undefined;
             gltf.scene.traverse((child) => {
-              if (geom == null && child instanceof THREE.Mesh && child.geometry) {
-                geom = child.geometry.clone();
-              }
+              if (geom == null && child instanceof THREE.Mesh && child.geometry) geom = child.geometry.clone();
             });
             resolve(geom ?? undefined);
           },
           undefined,
-          () => resolve(undefined)
+          (err) => {
+            console.warn(TREE_LOG, "GLTF load failed", url, "full URL:", fullUrl(url), err);
+            resolve(undefined);
+          }
         );
       });
-    const [treeGeom, bushGeom, grassGeom, rockGeom] = await Promise.all([
-      loadPlantGeometry("/assets/plants/deciduous_round_A_Color1.gltf"),
-      loadPlantGeometry("/assets/plants/bush_deciduous_round_A_Color1.gltf"),
-      loadPlantGeometry("/assets/plants/grass_1_A_Color1.gltf"),
-      loadPlantGeometry("/assets/environment/rock_1_A_Color1.gltf"),
+    if (treeUrls.length > 0) {
+      console.log(TREE_LOG, "plant asset base", { firstTreeUrl: treeUrls[0], full: fullUrl(treeUrls[0]!), origin: typeof location !== "undefined" ? location.origin : "" });
+    }
+    const [treeTrunkFoliageGeoms, bushGeoms, grassGeoms, rockGeoms] = await Promise.all([
+      Promise.all(treeUrls.map((url) => loadTreeGeometry(url))),
+      Promise.all(bushUrls.map((url) => loadPlantGeometry(url))),
+      Promise.all(grassUrls.map((url) => loadPlantGeometry(url))),
+      Promise.all(rockUrls.map((url) => loadPlantGeometry(url))),
     ]);
+
+    const treeTrunkFoliage = treeTrunkFoliageGeoms.filter(
+      (g): g is TreeTrunkFoliage => g != null
+    );
+    const bushes = bushGeoms.filter((g): g is THREE.BufferGeometry => g != null);
+    const grass = grassGeoms.filter((g): g is THREE.BufferGeometry => g != null);
+    const rocks = rockGeoms.filter((g): g is THREE.BufferGeometry => g != null);
+
+    console.log(TREE_LOG, "plant variants loaded", {
+      treeTrunkFoliage: treeTrunkFoliage.length,
+      treeGeomsNulls: treeTrunkFoliageGeoms.filter((g) => g == null).length,
+      bushes: bushes.length,
+      grass: grass.length,
+      rocks: rocks.length,
+    });
+    if (treeTrunkFoliage.length > 0) {
+      const t0 = treeTrunkFoliage[0]!;
+      console.log(TREE_LOG, "first tree trunk/foliage", {
+        trunkVerts: t0.trunk.getAttribute("position")?.count ?? 0,
+        foliageVerts: t0.foliage.getAttribute("position")?.count ?? 0,
+      });
+    }
+
     vegetationLayer = createVegetationLayer(globe, tileTerrain, {
-      maxDrawDistance: 2.5,
+      maxDrawDistance: Infinity,
       elevationScale,
       maxPlantsPerHex: 12,
-      baseScale: 0.2,
+      baseScale: 0.0012,
       maxInstancesPerType: 2048,
       hillyBumpHeight: 0.003,
       getPeak: peakTiles
@@ -2518,14 +2819,29 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           }
         : undefined,
       peakElevationScale,
-      geometries: {
-        ...(treeGeom && { tree: treeGeom }),
-        ...(bushGeom && { bush: bushGeom }),
-        ...(grassGeom && { grass: grassGeom }),
-        ...(rockGeom && { rock: rockGeom }),
-      },
+      getRiverEdges: (id: number) => riverEdgesByTile?.get(id),
+      geometries:
+        treeTrunkFoliage.length > 0 || bushes.length > 0 || grass.length > 0 || rocks.length > 0
+          ? {
+              ...(treeTrunkFoliage.length > 0 && { treeTrunkFoliage }),
+              ...(bushes.length > 0 && { bushes }),
+              ...(grass.length > 0 && { grass }),
+              ...(rocks.length > 0 && { rocks }),
+            }
+          : {},
+      getTreeVariantIndex: treeTrunkFoliage.length > 0 ? getTreeVariantIndex : undefined,
+      getBushVariantIndex: bushes.length > 0 ? getBushVariantIndex : undefined,
+      getGrassVariantIndex: grass.length > 0 ? getGrassVariantIndex : undefined,
+      getRockVariantIndex: rocks.length > 0 ? getRockVariantIndex : undefined,
     });
     scene.add(vegetationLayer.group);
+    const vegGroup = vegetationLayer.group;
+    const treeChildren = vegGroup.children.filter((c) => c.name?.includes("tree"));
+    console.log(TREE_LOG, "vegetation layer added to scene", {
+      groupChildren: vegGroup.children.length,
+      groupInScene: scene.children.includes(vegGroup),
+      treeMeshNames: treeChildren.map((c) => c.name),
+    });
 
     marker = new THREE.Mesh(
       new THREE.SphereGeometry(0.03, 12, 12),

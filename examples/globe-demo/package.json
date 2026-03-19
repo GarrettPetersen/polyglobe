@@ -28,6 +28,7 @@
   "devDependencies": {
     "@types/earcut": "^3.0.0",
     "canvas": "^3.2.1",
+    "playwright": "^1.58.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.1"

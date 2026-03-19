@@ -936,7 +936,7 @@ function appendUShapedOppositeRiverTerrain(
     if (bankColors) bankColors.push(cr, cg, cb);
   };
 
-  /* Bed: quad at rBot; winding must face +normal (outward) or FrontSide culls → see-through to far side */
+  /* Bed: quad [iA0, iB0, iB1, iA1]; edges 1–2 and 3–0 are the banks (iB0–iB1, iA1–iA0), full length along channel. */
   const b0 = bedPos.length / 3;
   const p0 = new THREE.Vector3();
   const p1 = new THREE.Vector3();
@@ -986,22 +986,6 @@ function appendUShapedOppositeRiverTerrain(
     const outer = dedupeConsecutive2d(outer2d, 1e-10);
     const k = outer.length;
     if (k < 2) return;
-    /** Arc length along the actual bank chain (must match `outer`, not pre-dedupe `outer2d`). */
-    const dists: number[] = [0];
-    for (let i = 1; i < k; i++) {
-      dists.push(
-        dists[i - 1] +
-          Math.hypot(outer[i][0] - outer[i - 1][0], outer[i][1] - outer[i - 1][1])
-      );
-    }
-    const total = dists[k - 1] || 1;
-    const bottom2d: [number, number][] = dists.map((d) => {
-      const t = d / total;
-      return [
-        bedStart[0] + t * (bedEnd[0] - bedStart[0]),
-        bedStart[1] + t * (bedEnd[1] - bedStart[1]),
-      ] as [number, number];
-    });
 
     const flat: number[] = [];
     for (const p of outer) flat.push(p[0], p[1]);
@@ -1048,40 +1032,43 @@ function appendUShapedOppositeRiverTerrain(
     const e1 = new THREE.Vector3();
     const e2 = new THREE.Vector3();
     const wallN = new THREE.Vector3();
-    for (let i = 0; i < k - 1; i++) {
-      const aT = outer[i];
-      const bT = outer[i + 1];
-      const aB = bottom2d[i];
-      const bB = bottom2d[i + 1];
-      tilePlanePoint(frame, aT[0], aT[1], rTop, p3);
-      const t0x = p3.x,
-        t0y = p3.y,
-        t0z = p3.z;
-      tilePlanePoint(frame, bT[0], bT[1], rTop, p3);
-      const t1x = p3.x,
-        t1y = p3.y,
-        t1z = p3.z;
-      tilePlanePoint(frame, bB[0], bB[1], rBot, p3);
-      const bbx = p3.x,
-        bby = p3.y,
-        bbz = p3.z;
-      tilePlanePoint(frame, aB[0], aB[1], rBot, p3);
-      const bax = p3.x,
-        bay = p3.y,
-        baz = p3.z;
-      e1.set(t1x - t0x, t1y - t0y, t1z - t0z);
-      e2.set(bax - t0x, bay - t0y, baz - t0z);
-      wallN.crossVectors(e1, e2);
-      if (wallN.lengthSq() < 1e-20) wallN.copy(nUp);
-      else wallN.normalize();
-      if (wallN.dot(nUp) < 0) wallN.negate();
-      const w0 = bankPos.length / 3;
-      pushBankVert(t0x, t0y, t0z, wallN.x, wallN.y, wallN.z);
-      pushBankVert(t1x, t1y, t1z, wallN.x, wallN.y, wallN.z);
-      pushBankVert(bbx, bby, bbz, wallN.x, wallN.y, wallN.z);
-      pushBankVert(bax, bay, baz, wallN.x, wallN.y, wallN.z);
-      bankIdx.push(w0, w0 + 1, w0 + 2, w0, w0 + 2, w0 + 3);
-    }
+    const toChannel = new THREE.Vector3();
+    /* One vertical quad per bank: use only bedStart and bedEnd so vertices match bed and mouth. */
+    const a = bedStart;
+    const b = bedEnd;
+    tilePlanePoint(frame, a[0], a[1], rTop, p3);
+    const t0x = p3.x,
+      t0y = p3.y,
+      t0z = p3.z;
+    tilePlanePoint(frame, b[0], b[1], rTop, p3);
+    const t1x = p3.x,
+      t1y = p3.y,
+      t1z = p3.z;
+    tilePlanePoint(frame, b[0], b[1], rBot, p3);
+    const bbx = p3.x,
+      bby = p3.y,
+      bbz = p3.z;
+    tilePlanePoint(frame, a[0], a[1], rBot, p3);
+    const bax = p3.x,
+      bay = p3.y,
+      baz = p3.z;
+    e1.set(t1x - t0x, t1y - t0y, t1z - t0z);
+    e2.set(bax - t0x, bay - t0y, baz - t0z);
+    wallN.crossVectors(e1, e2);
+    if (wallN.lengthSq() < 1e-20) wallN.copy(nUp);
+    else wallN.normalize();
+    toChannel.set(
+      (bax + bbx) * 0.5 - (t0x + t1x) * 0.5,
+      (bay + bby) * 0.5 - (t0y + t1y) * 0.5,
+      (baz + bbz) * 0.5 - (t0z + t1z) * 0.5
+    );
+    if (toChannel.lengthSq() > 1e-20 && wallN.dot(toChannel) < 0) wallN.negate();
+    const w0 = bankPos.length / 3;
+    pushBankVert(t0x, t0y, t0z, wallN.x, wallN.y, wallN.z);
+    pushBankVert(t1x, t1y, t1z, wallN.x, wallN.y, wallN.z);
+    pushBankVert(bbx, bby, bbz, wallN.x, wallN.y, wallN.z);
+    pushBankVert(bax, bay, baz, wallN.x, wallN.y, wallN.z);
+    bankIdx.push(w0, w0 + 1, w0 + 2, w0, w0 + 2, w0 + 3);
   };
 
   /**
@@ -1100,8 +1087,9 @@ function appendUShapedOppositeRiverTerrain(
   outer2.push(O[e0]);
   outer2.push(A0);
 
-  appendLoftedBank(outer1, iB0, iA1);
-  appendLoftedBank(outer2, iB1, iA0);
+  /* Bank walls = bed edges along channel: iB0–iB1 (one side) and iA1–iA0 (other side), full segment length. */
+  appendLoftedBank(outer1, iB0, iB1);
+  appendLoftedBank(outer2, iA1, iA0);
 
   return true;
 }
