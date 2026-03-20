@@ -39,8 +39,11 @@ import {
   computeWindForTiles,
   createWindArrows,
   updateWindArrows,
+  createFlowArrows,
+  updateFlowArrows,
   traceRiverThroughTiles,
   getRiverEdgesByTile,
+  getRiverFlowByTile,
   pruneThreeWayRiverJunctions,
   connectIsolatedRiverTiles,
   fillRiverGaps,
@@ -55,6 +58,16 @@ import {
   type RegionScores,
   type RasterWindow,
   parseElevationBin,
+  getPrecipitation,
+  getTemperature,
+  createPrecipitationOverlay,
+  updatePrecipitationOverlay,
+  getPrecipitationByTile,
+  createCloudLayer,
+  updateCloudLayer,
+  createLowPolyClouds,
+  updateLowPolyClouds,
+  sortLowPolyCloudsByCamera,
 } from "polyglobe";
 import { EARTH_GLOBE_CACHE_VERSION } from "./earthGlobeCacheVersion";
 import {
@@ -62,7 +75,10 @@ import {
   dateToSublunarPoint,
   dateToDatetimeLocalUTC,
   datetimeLocalUTCToDate,
+  dateToGreenwichMeanSiderealTimeRad,
 } from "./astronomy.js";
+import { createPlanetsMesh } from "./planets.js";
+import { createSkyDome } from "./skyDome.js";
 
 /** Plant assets live in public/plant-models/ so Vite serves them at /plant-models/. Run dev from examples/globe-demo. */
 const PLANT_BASE =
@@ -114,15 +130,14 @@ const TREE_VARIANT_DECIDUOUS_BOXY = [10, 11, 12];
 const TREE_VARIANT_PALM = [13, 14, 15];
 
 /**
- * Monsoonal bamboo belt (China, Japan, Korea, Vietnam, SE Asia).
+ * Monsoonal bamboo belt: East Asia and SE Asia (China, Japan, Korea, Vietnam, Thailand, Myanmar).
+ * Excludes Indonesia (southern boundary 5°N) and India (western boundary 98°E — India is ~68–97°E).
  *
  * `tileCenterToLatLon` + `latLonToDegrees` match {@link latLonDegToDirection} / Earth raster:
- * **east longitude is positive** (e.g. Beijing ~+116°), **west is negative** (e.g. Mississippi ~−90°).
- * A box on **negative** lon (e.g. −152…−72) therefore selected the **Americas** — bamboo in the
- * Mississippi basin, not Asia. Use **+72°…+152°** for monsoonal East / SE Asia.
+ * **east longitude is positive** (e.g. Beijing ~+116°).
  */
 function isBambooRegion(latDeg: number, lonDeg: number): boolean {
-  return latDeg >= -10 && latDeg <= 45 && lonDeg >= 72 && lonDeg <= 152;
+  return latDeg >= 5 && latDeg <= 45 && lonDeg >= 98 && lonDeg <= 152;
 }
 
 function pick<T>(arr: T[], rnd: () => number): T {
@@ -137,9 +152,12 @@ function isCaribbeanTropicalPalmBelt(latDeg: number, lonDeg: number): boolean {
   return latDeg >= 9 && latDeg <= 30 && lonDeg >= -98 && lonDeg <= -65;
 }
 
+/** Fraction of tree placements that are bamboo when in the bamboo region (rest use biome mix). */
+const BAMBOO_REGION_BAMBOO_FRAC = 0.52;
+
 function getTreeVariantIndex(biome: string, latDeg: number, lonDeg: number, rnd: () => number): number {
   const carib = isCaribbeanTropicalPalmBelt(latDeg, lonDeg);
-  if (isBambooRegion(latDeg, lonDeg)) return TREE_VARIANT_BAMBOO;
+  if (isBambooRegion(latDeg, lonDeg) && rnd() < BAMBOO_REGION_BAMBOO_FRAC) return TREE_VARIANT_BAMBOO;
   if (biome === "tropical_rainforest" || biome === "tropical_monsoon") {
     /** Slightly below half — Amazon canopy is mostly broadleaf; palms are common but not dominant. */
     if (rnd() < 0.38) return pick(TREE_VARIANT_PALM, rnd);
@@ -284,6 +302,12 @@ export interface DemoState {
   dateTimeStr: string;
   /** Show wind arrows overlay (seasonal trade winds, westerlies, etc.). */
   showWinds: boolean;
+  /** Show flow overlay (river flow + ocean currents). */
+  showFlow: boolean;
+  /** Show precipitation overlay (rain band). */
+  showPrecipitation: boolean;
+  /** Show cloud layer. */
+  showClouds: boolean;
   landFraction: number;
   blobiness: number;
   seed: number;
@@ -294,6 +318,9 @@ const DEFAULT_STATE: DemoState = {
   subdivisions: 6,
   dateTimeStr: "",
   showWinds: false,
+  showFlow: false,
+  showPrecipitation: false,
+  showClouds: false,
   landFraction: 0.5,
   blobiness: 6,
   seed: 12345,
@@ -565,6 +592,8 @@ async function runTerrainTransition(
     applyTerrainColorsToGeometry(geom, nextTerrain);
     globe.mesh.geometry.dispose();
     globe.mesh.geometry = geom;
+    (globe.mesh as THREE.Mesh).receiveShadow = true;
+    (globe.mesh as THREE.Mesh).castShadow = true;
     return;
   }
 
@@ -1729,7 +1758,7 @@ const camera = new THREE.PerspectiveCamera(
   0.01,
   4000,
 );
-const starfield = new Starfield({
+let starfield: InstanceType<typeof Starfield> = new Starfield({
   density: 70,
   sparsity: 0.12,
   twinkleSpeed: 0.5,
@@ -1737,11 +1766,17 @@ const starfield = new Starfield({
   color: 0xf0f4ff,
 });
 starfield.attachToCamera(camera);
+/** When using catalog starfield, updates planet positions each frame. */
+let planetsUpdate: ((date: Date) => void) | null = null;
+const skyDome = createSkyDome({ radius: 4000 });
+scene.add(skyDome.mesh);
 scene.add(camera);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setClearColor(0x030508, 1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 let globe: Globe;
@@ -1770,13 +1805,31 @@ let riverTerrainGroup: THREE.Group | null = null;
 /** Black sphere inside the globe to prevent seeing through geometry gaps. */
 let innerBlackSphere: THREE.Mesh | null = null;
 let windArrowsGroup: THREE.Group | null = null;
+/** River flow arrows (green, lower). */
+let riverFlowArrowsGroup: THREE.Group | null = null;
+/** Ocean current arrows (blue, higher). */
+let currentArrowsGroup: THREE.Group | null = null;
+/** Precipitation overlay (per-tile rain intensity). */
+let precipitationOverlayGroup: THREE.Group | null = null;
+/** Cloud layer (low-poly clouds). */
+let cloudGroup: THREE.Group | null = null;
+/** Sun light (module-level so panel can force shadow update on cloud toggle). */
+let sun: InstanceType<typeof Sun> | null = null;
+/** Invisible sphere that casts shadow so Earth blocks light to night-side clouds (shadow map always sees globe bulk). */
+let earthOccluder: THREE.Mesh | null = null;
 /** Lake water now provided by terrain-following water table (no separate meshes). */
 /** Module-level terrain data for debug panel access. */
 let globalTileTerrain: Map<number, TileTerrainData> | null = null;
 /** Module-level wind data for debug panel access (direction rad, strength 0–1). */
 let globalWindByTile: Map<number, { directionRad: number; strength: number }> | null = null;
+/** Module-level flow (river + current): direction of flow, strength; for overlay and debug. */
+let globalFlowByTile: Map<number, { directionRad: number; strength: number }> | null = null;
 /** Module-level river edges for debug panel access. */
 let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
+/** Module-level river flow (exit edge + direction) for debug panel; from elevation + mouth. */
+let globalRiverFlowByTile: Map<number, { exitEdge: number; directionRad: number }> | null = null;
+/** Last date string we used for wind; animate loop syncs wind when state.dateTimeStr changes. */
+let lastWindDateStr: string | null = null;
 /** Biome vegetation (instanced plants, distance-culled). */
 let vegetationLayer: {
   group: THREE.Group;
@@ -1829,7 +1882,7 @@ function moonPositionFromState(s: DemoState, distance: number): THREE.Vector3 {
 }
 
 /** Recompute wind from date and terrain, update arrow overlay. No-op if globe/wind group not ready. */
-function updateWindFromState(dateTimeStr?: string): void {
+function updateWindFromState(state: DemoState, dateTimeStr?: string): void {
   if (!globe || !windArrowsGroup || !globalTileTerrain) return;
   const str = dateTimeStr ?? state.dateTimeStr ?? dateToDatetimeLocalUTC(new Date());
   const date = datetimeLocalUTCToDate(str);
@@ -1855,6 +1908,122 @@ function updateWindFromState(dateTimeStr?: string): void {
     minStrength: 0.06,
   });
   windArrowsGroup.visible = state.showWinds;
+}
+
+const RIVER_FLOW_OPTIONS = {
+  heightOffset: 0.05,
+  arrowScale: 0.055,
+  color: 0x66aa44,
+  minStrength: 0.08,
+};
+
+const CURRENT_FLOW_OPTIONS = {
+  heightOffset: 0.12,
+  arrowScale: 0.08,
+  color: 0x2288cc,
+  minStrength: 0.03,
+};
+
+/** River flow: direction from elevation + mouth; strength scaled by seasonal precipitation. */
+function buildRiverFlowByTile(
+  subsolarLatDeg: number
+): Map<number, { directionRad: number; strength: number }> {
+  const flow = new Map<number, { directionRad: number; strength: number }>();
+  if (!globe || !globalTileTerrain || !globalRiverFlowByTile) return flow;
+
+  for (const tile of globe.tiles) {
+    const id = tile.id;
+    const r = globalRiverFlowByTile.get(id);
+    if (!r) continue;
+    const { lat } = tileCenterToLatLon(tile.center);
+    const latDeg = (lat * 180) / Math.PI;
+    const precip = getPrecipitation(latDeg, subsolarLatDeg);
+    const strength = 0.35 + 0.55 * precip;
+    flow.set(id, { directionRad: r.directionRad, strength });
+  }
+  return flow;
+}
+
+/** Ocean currents: wind-driven, Ekman deflection, water tiles only. */
+function buildCurrentFlowByTile(): Map<number, { directionRad: number; strength: number }> {
+  const flow = new Map<number, { directionRad: number; strength: number }>();
+  if (!globe || !globalTileTerrain || !globalWindByTile) return flow;
+
+  for (const tile of globe.tiles) {
+    const id = tile.id;
+    const terrain = globalTileTerrain.get(id);
+    const isWater = terrain?.type === "water" || terrain?.type === "beach";
+    if (!isWater) continue;
+
+    const w = globalWindByTile.get(id);
+    if (!w) continue;
+
+    const { lat } = tileCenterToLatLon(tile.center);
+    const blow = w.directionRad + Math.PI;
+    const ekman = lat > 0 ? -Math.PI / 4 : Math.PI / 4;
+    const strength = Math.min(0.6, w.strength * 0.2);
+    flow.set(id, { directionRad: blow + ekman, strength });
+  }
+  return flow;
+}
+
+/** Merge river + current for hex debug. */
+function mergeFlowByTile(
+  river: Map<number, { directionRad: number; strength: number }>,
+  current: Map<number, { directionRad: number; strength: number }>
+): Map<number, { directionRad: number; strength: number }> {
+  const out = new Map<number, { directionRad: number; strength: number }>();
+  for (const [id, f] of river) out.set(id, f);
+  for (const [id, f] of current) out.set(id, f);
+  return out;
+}
+
+/** Recompute river + current flow, update both arrow groups, sync visibility. */
+function updateFlowFromState(state: DemoState): void {
+  if (!globe || !globalTileTerrain) return;
+  const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+  const subsolar = dateToSubsolarPoint(date);
+
+  const riverFlow = buildRiverFlowByTile(subsolar.latDeg);
+  const currentFlow = buildCurrentFlowByTile();
+  globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
+
+  if (riverFlowArrowsGroup) {
+    updateFlowArrows(riverFlowArrowsGroup, globe, riverFlow, RIVER_FLOW_OPTIONS);
+    riverFlowArrowsGroup.visible = state.showFlow;
+  }
+  if (currentArrowsGroup) {
+    updateFlowArrows(currentArrowsGroup, globe, currentFlow, CURRENT_FLOW_OPTIONS);
+    currentArrowsGroup.visible = state.showFlow;
+  }
+}
+
+/** Recompute precipitation overlay and cloud texture from date, sync visibility. */
+function updatePrecipitationAndCloudsFromState(state: DemoState): void {
+  if (!globe) return;
+  const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+  const subsolar = dateToSubsolarPoint(date);
+  const precipByTile = getPrecipitationByTile(globe.tiles, subsolar.latDeg);
+
+  if (precipitationOverlayGroup) {
+    updatePrecipitationOverlay(precipitationOverlayGroup, globe, precipByTile, {
+      heightOffset: 0.06,
+      quadSize: 0.08,
+      opacity: 0.5,
+      minPrecip: 0.05,
+    });
+    precipitationOverlayGroup.visible = state.showPrecipitation;
+  }
+  if (cloudGroup) {
+    updateLowPolyClouds(cloudGroup, globe, precipByTile, {
+      heightOffset: 0.04,
+      minPrecip: 0.2,
+      gridDeg: 8,
+      cloudScale: 0.032,
+      opacity: 0.92,
+    });
+    cloudGroup.visible = state.showClouds;
+  }
 }
 
 function createFlareTexture(
@@ -1945,6 +2114,8 @@ function setGlobeGeometryFromTerrain(
   if (globe.mesh.geometry) globe.mesh.geometry.dispose();
   globe.mesh.geometry = geom;
   globe.mesh.renderOrder = 0;
+  (globe.mesh as THREE.Mesh).receiveShadow = true;
+  (globe.mesh as THREE.Mesh).castShadow = true;
 }
 
 async function buildWorldAsync(state: DemoState): Promise<void> {
@@ -1998,6 +2169,47 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       });
       windArrowsGroup = null;
     }
+    if (riverFlowArrowsGroup) {
+      scene.remove(riverFlowArrowsGroup);
+      riverFlowArrowsGroup.traverse((c) => {
+        if (c instanceof THREE.InstancedMesh) {
+          c.geometry.dispose();
+          (c.material as THREE.Material).dispose();
+        }
+      });
+      riverFlowArrowsGroup = null;
+    }
+    if (currentArrowsGroup) {
+      scene.remove(currentArrowsGroup);
+      currentArrowsGroup.traverse((c) => {
+        if (c instanceof THREE.InstancedMesh) {
+          c.geometry.dispose();
+          (c.material as THREE.Material).dispose();
+        }
+      });
+      currentArrowsGroup = null;
+    }
+    if (precipitationOverlayGroup) {
+      scene.remove(precipitationOverlayGroup);
+      precipitationOverlayGroup.traverse((c) => {
+        if (c instanceof THREE.InstancedMesh) {
+          c.geometry.dispose();
+          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+          else c.material.dispose();
+        }
+      });
+      precipitationOverlayGroup = null;
+    }
+    if (cloudGroup) {
+      scene.remove(cloudGroup);
+      cloudGroup.traverse((c) => {
+        if (c instanceof THREE.Mesh) {
+          c.geometry.dispose();
+          if (c.material instanceof THREE.Material) c.material.dispose();
+        }
+      });
+      cloudGroup = null;
+    }
     if (vegetationLayer) {
       scene.remove(vegetationLayer.group);
       vegetationLayer.dispose();
@@ -2015,6 +2227,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       flatShading: true,
       side: THREE.DoubleSide,
     });
+    (globe.mesh as THREE.Mesh).receiveShadow = true;
+    (globe.mesh as THREE.Mesh).castShadow = true;
     scene.add(globe.mesh);
     const elevationScale = 0.08;
     const peakElevationScale = 0.000006;
@@ -2358,6 +2572,13 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       // Expose for debug panel
       globalTileTerrain = tileTerrain;
       globalRiverEdgesByTile = riverEdgesByTile ?? null;
+      globalRiverFlowByTile =
+        riverEdgesByTile && riverEdgesByTile.size > 0
+          ? getRiverFlowByTile(riverEdgesByTile, globe.tiles, {
+              getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+              isWater: (id) => tileTerrain.get(id)?.type === "water",
+            })
+          : null;
     } else {
       console.log(
         BUILD_LOG,
@@ -2497,6 +2718,47 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     });
     windArrowsGroup.visible = state.showWinds;
     scene.add(windArrowsGroup!);
+    lastWindDateStr = state.dateTimeStr || dateToDatetimeLocalUTC(new Date());
+
+    const dateForFlow = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+    const subsolarFlow = dateToSubsolarPoint(dateForFlow);
+    const riverFlow = buildRiverFlowByTile(subsolarFlow.latDeg);
+    const currentFlow = buildCurrentFlowByTile();
+    globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
+    riverFlowArrowsGroup = createFlowArrows(globe, riverFlow, RIVER_FLOW_OPTIONS);
+    riverFlowArrowsGroup!.visible = state.showFlow;
+    scene.add(riverFlowArrowsGroup!);
+    currentArrowsGroup = createFlowArrows(globe, currentFlow, CURRENT_FLOW_OPTIONS);
+    currentArrowsGroup!.visible = state.showFlow;
+    scene.add(currentArrowsGroup!);
+
+    const precipByTile = getPrecipitationByTile(globe.tiles, subsolarFlow.latDeg);
+    precipitationOverlayGroup = createPrecipitationOverlay(globe, precipByTile, {
+      heightOffset: 0.06,
+      quadSize: 0.08,
+      opacity: 0.5,
+      minPrecip: 0.05,
+    });
+    precipitationOverlayGroup!.visible = state.showPrecipitation;
+    precipitationOverlayGroup!.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.receiveShadow = true;
+    });
+    scene.add(precipitationOverlayGroup!);
+
+    cloudGroup = createLowPolyClouds(globe, precipByTile, {
+      heightOffset: 0.04,
+      minPrecip: 0.2,
+      gridDeg: 8,
+      cloudScale: 0.032,
+      opacity: 0.92,
+    });
+    if (cloudGroup) {
+      cloudGroup.visible = state.showClouds;
+      cloudGroup.traverse((o) => {
+        if (o instanceof THREE.Mesh) o.receiveShadow = true;
+      });
+      scene.add(cloudGroup);
+    }
 
     coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
       radius: 0.995,
@@ -2634,6 +2896,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           riverTerrainGroup = new THREE.Group();
           riverTerrainGroup.name = "RiverTerrain";
           riverTerrainGroup.add(bed, banks);
+          riverTerrainGroup.traverse((o) => {
+            if (o instanceof THREE.Mesh) o.receiveShadow = true;
+          });
           scene.add(riverTerrainGroup);
           const bv = banks.geometry.getAttribute("position")?.count ?? 0;
           const dv = bed.geometry.getAttribute("position")?.count ?? 0;
@@ -2672,6 +2937,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       riverTerrainGroup = new THREE.Group();
       riverTerrainGroup.name = "RiverTerrain";
       riverTerrainGroup.add(bed, banks);
+      riverTerrainGroup.traverse((o) => {
+        if (o instanceof THREE.Mesh) o.receiveShadow = true;
+      });
       scene.add(riverTerrainGroup);
       const bv = banks.geometry.getAttribute("position")?.count ?? 0;
       const dv = bed.geometry.getAttribute("position")?.count ?? 0;
@@ -3038,6 +3306,12 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       getDate: () =>
         datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date())),
     });
+    vegetationLayer.group.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.receiveShadow = true;
+        o.castShadow = true;
+      }
+    });
     scene.add(vegetationLayer.group);
     const vegGroup = vegetationLayer.group;
     const treeChildren = vegGroup.children.filter((c) => c.name?.includes("tree"));
@@ -3189,7 +3463,9 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   if (!state.dateTimeStr) state.dateTimeStr = dateTimeInput.value;
   function applyDateTimeAndWinds() {
     state.dateTimeStr = dateTimeInput.value;
-    updateWindFromState(dateTimeInput.value);
+    updateWindFromState(state, dateTimeInput.value);
+    if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
+    if (precipitationOverlayGroup || cloudGroup) updatePrecipitationAndCloudsFromState(state);
   }
   dateTimeInput.addEventListener("change", applyDateTimeAndWinds);
   dateTimeInput.addEventListener("input", applyDateTimeAndWinds);
@@ -3198,11 +3474,6 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   dateTimeRow.appendChild(dateTimeLabel);
   dateTimeRow.appendChild(dateTimeInput);
   sec.appendChild(dateTimeRow);
-  const dateTimeHint = document.createElement("p");
-  dateTimeHint.className = "hint";
-  dateTimeHint.textContent =
-    "Subsolar and sublunar points are computed from this time (no sliders).";
-  sec.appendChild(dateTimeHint);
 
   const windRow = document.createElement("div");
   windRow.className = "row";
@@ -3218,6 +3489,58 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   windRow.appendChild(windCheck);
   windRow.appendChild(windLabel);
   sec.appendChild(windRow);
+
+  const flowRow = document.createElement("div");
+  flowRow.className = "row";
+  const flowCheck = document.createElement("input");
+  flowCheck.type = "checkbox";
+  flowCheck.checked = state.showFlow;
+  flowCheck.addEventListener("change", () => {
+    state.showFlow = flowCheck.checked;
+    if (riverFlowArrowsGroup) riverFlowArrowsGroup.visible = state.showFlow;
+    if (currentArrowsGroup) currentArrowsGroup.visible = state.showFlow;
+  });
+  const flowLabel = document.createElement("label");
+  flowLabel.textContent = "Show flow (rivers & currents)";
+  flowRow.appendChild(flowCheck);
+  flowRow.appendChild(flowLabel);
+  sec.appendChild(flowRow);
+
+  const precipRow = document.createElement("div");
+  precipRow.className = "row";
+  const precipCheck = document.createElement("input");
+  precipCheck.type = "checkbox";
+  precipCheck.checked = state.showPrecipitation;
+  precipCheck.addEventListener("change", () => {
+    state.showPrecipitation = precipCheck.checked;
+    if (precipitationOverlayGroup) precipitationOverlayGroup.visible = state.showPrecipitation;
+  });
+  const precipLabel = document.createElement("label");
+  precipLabel.textContent = "Show precipitation";
+  precipRow.appendChild(precipCheck);
+  precipRow.appendChild(precipLabel);
+  sec.appendChild(precipRow);
+
+  const cloudsRow = document.createElement("div");
+  cloudsRow.className = "row";
+  const cloudsCheck = document.createElement("input");
+  cloudsCheck.type = "checkbox";
+  cloudsCheck.checked = state.showClouds;
+  cloudsCheck.addEventListener("change", () => {
+    state.showClouds = cloudsCheck.checked;
+    if (cloudGroup) {
+      cloudGroup.visible = state.showClouds;
+      cloudGroup.updateMatrixWorld(true);
+      if (sun?.directional?.castShadow && sun.directional.shadow) {
+        sun.directional.shadow.needsUpdate = true;
+      }
+    }
+  });
+  const cloudsLabel = document.createElement("label");
+  cloudsLabel.textContent = "Show clouds";
+  cloudsRow.appendChild(cloudsCheck);
+  cloudsRow.appendChild(cloudsLabel);
+  sec.appendChild(cloudsRow);
 
   sec = addSection("Procedural (when Earth off)");
   sec.classList.add("procedural", "procedural-options");
@@ -3239,6 +3562,25 @@ function createPanel(state: DemoState, onRebuild: () => void) {
 
 async function init() {
   console.log(BUILD_LOG, "init start");
+  try {
+    const starsRes = await fetch("/stars.json");
+    if (starsRes.ok) {
+      const catalog = (await starsRes.json()) as Array<{ ra: number; dec: number; mag: number }>;
+      if (Array.isArray(catalog) && catalog.length > 0) {
+        camera.remove(starfield.mesh);
+        starfield.dispose();
+        starfield = new Starfield({ catalog, color: 0xf0f4ff });
+        scene.add(starfield.catalogGroup!);
+        const catalogRadius = 800;
+        const { points, update } = createPlanetsMesh(catalogRadius);
+        starfield.catalogGroup!.add(points);
+        planetsUpdate = update;
+        console.log(BUILD_LOG, "starfield: using real star catalog,", catalog.length, "stars; planets added");
+      }
+    }
+  } catch {
+    // keep procedural starfield
+  }
   console.log(BUILD_LOG, "init: loading Earth land raster…");
   const landResult = await loadEarthLandRaster();
   earthRaster = landResult.raster;
@@ -3368,14 +3710,15 @@ async function init() {
   applyPreset(camera, getPreset("strategy"), 1);
   camera.position.multiplyScalar(2.8);
 
-  const sun = new Sun({
+  sun = new Sun({
     direction: sunDirectionFromState(state),
     distance: 3500,
     intensity: 2.2,
-    ambientIntensity: 0.15,
-    ambientColor: 0x202830,
+    ambientIntensity: 0.06,
+    ambientColor: 0x181c24,
     sphereRadius: 90,
     sphereColor: 0xfff5e0,
+    castShadow: true,
   });
   sun.addTo(scene);
   const lensflare = new Lensflare();
@@ -3404,6 +3747,17 @@ async function init() {
     ),
   );
   sun.directional.add(lensflare);
+
+  {
+    const occluderGeom = new THREE.SphereGeometry(1, 32, 32);
+    const occluderMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    earthOccluder = new THREE.Mesh(occluderGeom, occluderMat);
+    earthOccluder.name = "EarthOccluder";
+    earthOccluder.castShadow = true;
+    earthOccluder.receiveShadow = false;
+    earthOccluder.layers.set(1);
+    scene.add(earthOccluder);
+  }
 
   const composer = new EffectComposer(renderer);
   composer.setPixelRatio(renderer.getPixelRatio());
@@ -3537,10 +3891,41 @@ async function init() {
   function animate() {
     requestAnimationFrame(animate);
     controls.update();
-    starfield.update(camera);
+    const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+    const gmstRad = dateToGreenwichMeanSiderealTimeRad(date);
+    starfield.update(camera, gmstRad);
+    if (planetsUpdate) planetsUpdate(date);
     const sunDir = sunDirectionFromState(state);
+    skyDome.update(sunDir, camera.position);
     sun.directional.position.copy(sunDir).multiplyScalar(3500);
-    if (sun.sphere) sun.sphere.position.copy(sun.directional.position);
+    sun.directional.target.position.set(0, 0, 0);
+    const camUp = camera.position.lengthSq() < 1e-6
+      ? new THREE.Vector3(0, 1, 0)
+      : camera.position.clone().normalize();
+    const sunAltitudeFromCamera = sunDir.dot(camUp);
+    const sunriseRed = 1 - Math.max(0, Math.min(1, (sunAltitudeFromCamera + 0.1) / 0.5));
+    sun.directional.color.lerpColors(
+      new THREE.Color(0xfff5e6),
+      new THREE.Color(0xff6b2b),
+      sunriseRed,
+    );
+    if (sun.sphere) {
+      sun.sphere.position.copy(sun.directional.position);
+      (sun.sphere.material as THREE.MeshBasicMaterial).color.lerpColors(
+        new THREE.Color(0xfff5e0),
+        new THREE.Color(0xff8844),
+        sunriseRed,
+      );
+    }
+    if (sun.directional.castShadow && sun.directional.shadow) {
+      const sc = sun.directional.shadow.camera;
+      sc.position.copy(sun.directional.position);
+      sc.lookAt(0, 0, 0);
+      const sunDist = sun.directional.position.length();
+      sc.near = 1;
+      sc.far = sunDist + 10;
+      sc.updateMatrixWorld(true);
+    }
     const moonPos = moonPositionFromState(state, moonDistance);
     moon.mesh.position.copy(moonPos);
     moonLight.position.copy(moonPos);
@@ -3553,8 +3938,23 @@ async function init() {
       coastFoamOverlay.setSunDirection(sunDir);
       coastFoamOverlay.update();
     }
-    // River water animation now handled by water table (WaterSphere.update())
-    composer.render();
+    // Recompute wind and flow whenever date changes (currents follow wind)
+    if (globe && windArrowsGroup && globalTileTerrain && state.dateTimeStr !== lastWindDateStr) {
+      updateWindFromState(state);
+      lastWindDateStr = state.dateTimeStr;
+      if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
+    if (precipitationOverlayGroup || cloudGroup) updatePrecipitationAndCloudsFromState(state);
+    }
+    if (cloudGroup) sortLowPolyCloudsByCamera(cloudGroup, camera);
+    if (sun.directional.castShadow && sun.directional.shadow) {
+      sun.directional.shadow.camera.layers.enable(0);
+      sun.directional.shadow.camera.layers.enable(1);
+      sun.directional.shadow.needsUpdate = true;
+    }
+    // Render directly to screen so shadow maps are applied (EffectComposer path can skip shadows).
+    renderer.setRenderTarget(null);
+    renderer.clear();
+    renderer.render(scene, camera);
   }
 
   const raycaster = new THREE.Raycaster();
@@ -3756,7 +4156,7 @@ async function init() {
   const hexGoBtn = document.getElementById("hexGoBtn") as HTMLButtonElement;
   const hexInfo = document.getElementById("hexInfo") as HTMLDivElement;
 
-  /** Format hex debug line: elevation (globe units), wind from (compass °), wind speed (relative). */
+  /** Format hex debug line: elevation, wind, river flow (when in river). */
   function formatHexInfo(tileId: number): string {
     const terrain = globalTileTerrain?.get(tileId);
     const tileType = terrain?.type ?? "?";
@@ -3770,7 +4170,11 @@ async function init() {
       const dirLabel = compassDeg < 22.5 ? "N" : compassDeg < 67.5 ? "NE" : compassDeg < 112.5 ? "E" : compassDeg < 157.5 ? "SE" : compassDeg < 202.5 ? "S" : compassDeg < 247.5 ? "SW" : compassDeg < 292.5 ? "W" : compassDeg < 337.5 ? "NW" : "N";
       windStr = `from ${compassDeg.toFixed(0)}° (${dirLabel}), ${(wind.strength * 15).toFixed(1)} m/s`;
     }
-    return `ID: ${tileId}<br>Type: ${tileType}<br>River: ${inRiver}<br>Elevation: ${elevStr}<br>Wind: ${windStr}`;
+    const flow = globalFlowByTile?.get(tileId);
+    const flowStr = flow
+      ? `${((flow.directionRad * 180) / Math.PI).toFixed(0)}°, str ${flow.strength.toFixed(2)}`
+      : "—";
+    return `ID: ${tileId}<br>Type: ${tileType}<br>River: ${inRiver}<br>Flow: ${flowStr}<br>Elevation: ${elevStr}<br>Wind: ${windStr}`;
   }
 
   function goToHex() {

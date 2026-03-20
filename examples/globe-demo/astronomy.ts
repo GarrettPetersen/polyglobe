@@ -106,3 +106,40 @@ export function datetimeLocalUTCToDate(s: string): Date {
   const [h, min] = (timePart || "00:00").split(":").map(Number);
   return new Date(Date.UTC(y, m - 1, d, h ?? 0, min ?? 0, 0, 0));
 }
+
+/** Modified Julian Date at 0h UT for a given UTC date (integer day). */
+function mjdUtcMidnight(date: Date): number {
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth() + 1;
+  const d = date.getUTCDate();
+  const a = Math.floor((14 - m) / 12);
+  const y2 = y + 4800 - a;
+  const m2 = m + 12 * a - 3;
+  let jd =
+    d +
+    Math.floor((153 * m2 + 2) / 5) +
+    365 * y2 +
+    Math.floor(y2 / 4) -
+    Math.floor(y2 / 100) +
+    Math.floor(y2 / 400) -
+    32045;
+  return jd - 2400000.5 - 0.5;
+}
+
+/**
+ * Greenwich Mean Sidereal Time in radians (0 to 2π).
+ * Approximate formula; sufficient for starfield orientation (~0.1°).
+ */
+export function dateToGreenwichMeanSiderealTimeRad(date: Date): number {
+  const mjd = mjdUtcMidnight(date);
+  const utHours =
+    date.getUTCHours() +
+    date.getUTCMinutes() / 60 +
+    date.getUTCSeconds() / 3600 +
+    date.getUTCMilliseconds() / 3600000;
+  const d = mjd - 51544.5 + utHours / 24;
+  const gmstDeg =
+    (280.46061837 + 360.98564736629 * d) % 360;
+  const gmstNorm = gmstDeg < 0 ? gmstDeg + 360 : gmstDeg;
+  return (gmstNorm * Math.PI) / 180;
+}

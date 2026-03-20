@@ -19,6 +19,7 @@
     "rename-assets": "node scripts/rename-assets.mjs"
   },
   "dependencies": {
+    "astronomy-engine": "^2.1.19",
     "earcut": "^3.0.2",
     "jszip": "^3.10.1",
     "polygon-clipping": "^0.15.7",

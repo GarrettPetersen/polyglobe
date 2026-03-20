@@ -26,6 +26,10 @@ export interface SunOptions {
   sphereRadius?: number;
   /** Color of the visible sun sphere. Defaults to light color. */
   sphereColor?: THREE.ColorRepresentation;
+  /** Enable shadow casting (e.g. for cloud shadows on globe). Call renderer.shadowMap.enabled = true and set receiveShadow on receivers. */
+  castShadow?: boolean;
+  /** Shadow darkness 0–1. Lower = softer (e.g. 0.45 for diffuse cloudy shadows). Default 0.45 when castShadow. */
+  shadowIntensity?: number;
 }
 
 export class Sun {
@@ -68,6 +72,28 @@ export class Sun {
       this.sphere.position.copy(this.directional.position);
     } else {
       this.sphere = null;
+    }
+
+    if (options.castShadow) {
+      this.directional.castShadow = true;
+      this.directional.shadow.mapSize.width = 4096;
+      this.directional.shadow.mapSize.height = 4096;
+      this.directional.shadow.camera.near = 0.5;
+      /** Far must exceed actual light distance when position is updated (e.g. demo uses 3500). Use large default so shadows work. */
+      this.directional.shadow.camera.far = Math.max(this._distance + 10, 5000);
+      const d = 5.0;
+      this.directional.shadow.camera.left = -d;
+      this.directional.shadow.camera.right = d;
+      this.directional.shadow.camera.bottom = -d;
+      this.directional.shadow.camera.top = d;
+      this.directional.shadow.bias = -0.0002;
+      this.directional.shadow.normalBias = 0.02;
+      this.directional.shadow.camera.layers.enable(0);
+      this.directional.shadow.camera.layers.enable(1);
+      const shadowIntensity = options.shadowIntensity ?? 0.45;
+      if ("intensity" in this.directional.shadow) {
+        (this.directional.shadow as { intensity: number }).intensity = shadowIntensity;
+      }
     }
   }
 

@@ -100,6 +100,7 @@ export {
   createRiverMesh,
   createRiverMeshFromTileEdges,
   getRiverEdgesByTile,
+  getRiverFlowByTile,
   pruneThreeWayRiverJunctions,
   connectIsolatedRiverTiles,
   fillRiverGaps,
@@ -110,6 +111,8 @@ export {
   type RiverSegment,
   type RiverMeshOptions,
   type GetRiverEdgesOptions,
+  type RiverFlowAtTile,
+  type GetRiverFlowOptions,
 } from "./water/rivers.js";
 export { CoastFoamOverlay } from "./water/coastFoamOverlay.js";
 export {
@@ -132,7 +135,11 @@ export {
 } from "./placement/placeOnGlobe.js";
 
 // Twinkling starfield background
-export { Starfield, type StarfieldOptions } from "./stars/Starfield.js";
+export {
+  Starfield,
+  type StarfieldOptions,
+  type StarCatalogEntry,
+} from "./stars/Starfield.js";
 
 // Wind (seasonal patterns + arrow overlay)
 export {
@@ -143,5 +150,34 @@ export {
 export {
   createWindArrows,
   updateWindArrows,
+  createFlowArrows,
+  updateFlowArrows,
   type WindArrowsOptions,
+  type HexFlow,
+  type FlowArrowsOptions,
 } from "./wind/windArrows.js";
+
+// Climate (seasonal precip/temp for rivers, future snow)
+export { getPrecipitation, getTemperature } from "./climate/seasonalClimate.js";
+export {
+  createPrecipitationOverlay,
+  updatePrecipitationOverlay,
+  getPrecipitationByTile,
+  type PrecipitationOverlayOptions,
+} from "./climate/precipitationOverlay.js";
+export {
+  createPuffyClouds,
+  updatePuffyClouds,
+  createLowPolyClouds,
+  updateLowPolyClouds,
+  sortLowPolyCloudsByCamera,
+  CLOUD_SHADOW_LAYER,
+  createCloudSphereLayer,
+  updateCloudSphereLayer,
+  createCloudLayer,
+  updateCloudLayer,
+  type PuffyCloudOptions,
+  type LowPolyCloudOptions,
+  type CloudSphereOptions,
+  type CloudLayerOptions,
+} from "./climate/cloudLayer.js";

@@ -224,6 +224,112 @@ export function getRiverEdgesByTile(
   return byTile;
 }
 
+/** Per-tile river flow: downstream exit edge and direction angle in tile tangent plane (radians, 0 = ex). */
+export interface RiverFlowAtTile {
+  /** Edge index (0..n-1) where the river exits this tile (toward ocean or downstream). */
+  exitEdge: number;
+  /** Direction in tile tangent plane from center toward exit edge midpoint: angle in radians (0 = frame.ex). */
+  directionRad: number;
+}
+
+export interface GetRiverFlowOptions {
+  /** Elevation per tile (used to break ties when multiple neighbors have same distance to mouth). */
+  getElevation: (tileId: number) => number;
+  /** True for ocean/lake tiles (river mouths are river tiles with a river edge to a water tile). */
+  isWater: (tileId: number) => boolean;
+}
+
+/**
+ * Compute river flow direction per tile from elevation and mouth (ocean) connectivity.
+ * Uses BFS from all mouth tiles (river tiles that border water) to get distance-to-mouth,
+ * then for each river tile picks the downstream exit edge as the one toward the neighbor
+ * with smallest distance-to-mouth (tie-break: lower elevation).
+ */
+export function getRiverFlowByTile(
+  riverEdgesByTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  options: GetRiverFlowOptions
+): Map<number, RiverFlowAtTile> {
+  const { getElevation, isWater } = options;
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  const out = new Map<number, RiverFlowAtTile>();
+
+  // Mouths: river tiles that have at least one river edge to water
+  const mouthTiles = new Set<number>();
+  for (const [tileId, edgeSet] of riverEdgesByTile) {
+    if (isWater(tileId)) continue;
+    const tile = tileById.get(tileId);
+    if (!tile) continue;
+    for (const e of edgeSet) {
+      const nid = getEdgeNeighbor(tile, e, tiles);
+      if (nid !== undefined && isWater(nid)) {
+        mouthTiles.add(tileId);
+        break;
+      }
+    }
+  }
+
+  // BFS from mouths: distanceToMouth[tileId] = number of river-tile steps to nearest mouth (mouth = 0)
+  const distanceToMouth = new Map<number, number>();
+  const queue: number[] = [];
+  for (const tid of mouthTiles) {
+    distanceToMouth.set(tid, 0);
+    queue.push(tid);
+  }
+  while (queue.length > 0) {
+    const tid = queue.shift()!;
+    const dist = distanceToMouth.get(tid)!;
+    const tile = tileById.get(tid);
+    const edgeSet = riverEdgesByTile.get(tid);
+    if (!tile || !edgeSet) continue;
+    for (const e of edgeSet) {
+      const nid = getEdgeNeighbor(tile, e, tiles);
+      if (nid === undefined || isWater(nid)) continue;
+      if (!riverEdgesByTile.has(nid)) continue;
+      if (distanceToMouth.has(nid)) continue;
+      distanceToMouth.set(nid, dist + 1);
+      queue.push(nid);
+    }
+  }
+
+  // For each river tile, choose exit edge = edge to neighbor with minimum distanceToMouth (tie: lower elevation)
+  for (const [tileId, edgeSet] of riverEdgesByTile) {
+    if (isWater(tileId)) continue;
+    const tile = tileById.get(tileId);
+    if (!tile) continue;
+
+    let bestEdge: number | undefined;
+    let bestDist = Infinity;
+    let bestElev = Infinity;
+
+    for (const e of edgeSet) {
+      const nid = getEdgeNeighbor(tile, e, tiles);
+      if (nid === undefined) continue;
+      const dist = isWater(nid) ? 0 : (distanceToMouth.get(nid) ?? Infinity);
+      const elev = getElevation(nid);
+      if (dist < bestDist || (dist === bestDist && elev < bestElev)) {
+        bestDist = dist;
+        bestElev = elev;
+        bestEdge = e;
+      }
+    }
+
+    if (bestEdge === undefined) continue;
+
+    const frame = getTileTangentFrame(tile);
+    const n = frame.corners2d.length;
+    const a = frame.corners2d[bestEdge];
+    const b = frame.corners2d[(bestEdge + 1) % n];
+    const mx = (a[0] + b[0]) * 0.5;
+    const my = (a[1] + b[1]) * 0.5;
+    const directionRad = Math.atan2(my, mx);
+
+    out.set(tileId, { exitEdge: bestEdge, directionRad });
+  }
+
+  return out;
+}
+
 /**
  * Land tiles that share a river edge both ways (reciprocal edge indices).
  */

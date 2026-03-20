@@ -1624,13 +1624,14 @@ export function createRiverTerrainMeshes(
     vertexColors: useVertexColors,
     roughness: options.bankRoughness ?? TERRAIN_STYLES.land.roughness,
     metalness: options.metalness ?? TERRAIN_STYLES.land.metalness,
-    flatShading: false,
+    flatShading: true,
+    side: THREE.DoubleSide,
   });
   const bedMat = new THREE.MeshStandardMaterial({
     color: options.bedColor ?? 0x1a2520,
     roughness: options.bedRoughness ?? 0.92,
     metalness: 0,
-    flatShading: false,
+    flatShading: true,
     /** Inward-facing bed tris were culled → apparent holes through the globe; double-side is a safety net. */
     side: THREE.DoubleSide,
     depthWrite: true,

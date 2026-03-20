@@ -61,7 +61,7 @@ export const TERRAIN_STYLES: Record<TerrainType, TerrainStyle> = {
   // Legacy/fallback types (keep for compatibility)
   land: { color: 0x6b9b5c, roughness: 0.9, metalness: 0 },
   desert: { color: 0xe5d4a0, roughness: 0.85, metalness: 0 },
-  snow: { color: 0xffffff, roughness: 0.8, metalness: 0 },
+  snow: { color: 0xe2e6eb, roughness: 0.8, metalness: 0 },
   ice: { color: 0xd8e8f0, roughness: 0.7, metalness: 0.05 },
   forest: { color: 0x3d7028, roughness: 0.9, metalness: 0 },
   grassland: { color: 0x7aac50, roughness: 0.85, metalness: 0 },

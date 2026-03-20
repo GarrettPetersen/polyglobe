@@ -1,9 +1,17 @@
 /**
  * Twinkling starfield on a fixed celestial sphere (world space).
- * Stars stay fixed as you orbit — you see different stars when you rotate the view.
+ * Can be procedural (random) or real: pass a catalog of stars (ra, dec, mag) and
+ * sidereal angle each frame so positions match the date/time.
  */
 
 import * as THREE from "three";
+
+/** One star: RA and Dec in degrees (J2000), magnitude (brighter = smaller number). */
+export interface StarCatalogEntry {
+  ra: number;
+  dec: number;
+  mag: number;
+}
 
 const VERTEX = `
   varying vec2 vUv;
@@ -61,22 +69,74 @@ const FRAGMENT = `
 `;
 
 export interface StarfieldOptions {
-  /** Grid density (higher = more cells; fewer stars shown due to sparsity). */
+  /** Grid density (higher = more cells; fewer stars shown due to sparsity). Procedural only. */
   density?: number;
-  /** Fraction of cells that show a star (0–1). e.g. 0.12 = few stars, 0.3 = more. */
+  /** Fraction of cells that show a star (0–1). Procedural only. */
   sparsity?: number;
-  /** Twinkle speed (time multiplier). */
+  /** Twinkle speed (time multiplier). Procedural only. */
   twinkleSpeed?: number;
-  /** How much stars dim at minimum (0 = no twinkle, 1 = full twinkle to dark). */
+  /** How much stars dim at minimum (0 = no twinkle, 1 = full twinkle to dark). Procedural only. */
   twinkleAmount?: number;
   /** Star color. */
   color?: THREE.ColorRepresentation;
+  /**
+   * Real star catalog (RA/Dec in degrees, magnitude). When set, stars are placed on a celestial
+   * sphere and rotated by sidereal angle in update(); pass dateToGreenwichMeanSiderealTimeRad(date).
+   */
+  catalog?: StarCatalogEntry[];
+  /** Radius of the star sphere in catalog mode. Default 800. */
+  catalogSphereRadius?: number;
+  /** Overall brightness multiplier for catalog stars (1 = normalized to brightest). Default 4. */
+  catalogBrightnessScale?: number;
+}
+
+const CATALOG_VERTEX = `
+  attribute float size;
+  attribute float magnitude;
+  varying float vMagnitude;
+  void main() {
+    vMagnitude = magnitude;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float ptSize = size * (1000.0 / -mv.z);
+    gl_PointSize = max(ptSize, 2.0);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const CATALOG_FRAGMENT = `
+  uniform vec3 uColor;
+  uniform float uMagBrightest;
+  uniform float uBrightnessScale;
+  varying float vMagnitude;
+  void main() {
+    float dist = length(gl_PointCoord - vec2(0.5));
+    float soft = 1.0 - smoothstep(0.1, 0.5, dist);
+    float bright = pow(2.512, uMagBrightest - vMagnitude);
+    bright = clamp(bright * uBrightnessScale, 0.65, 1.0);
+    float alpha = soft * bright;
+    gl_FragColor = vec4(uColor, alpha);
+  }
+`;
+
+function raDecToDirection(raDeg: number, decDeg: number): THREE.Vector3 {
+  const ra = (raDeg * Math.PI) / 180;
+  const dec = (decDeg * Math.PI) / 180;
+  const cosDec = Math.cos(dec);
+  return new THREE.Vector3(
+    cosDec * Math.cos(ra),
+    Math.sin(dec),
+    cosDec * Math.sin(ra)
+  );
 }
 
 export class Starfield {
   readonly mesh: THREE.Mesh;
   private material: THREE.ShaderMaterial;
   private clock: THREE.Clock;
+  /** When using catalog: group to add to scene; rotate by sidereal angle in update(). */
+  readonly catalogGroup: THREE.Group | null;
+  private catalogPoints: THREE.Points | null = null;
+  private catalogMaterial: THREE.ShaderMaterial | null = null;
 
   constructor(options: StarfieldOptions = {}) {
     this.clock = new THREE.Clock();
@@ -103,21 +163,75 @@ export class Starfield {
     this.mesh.name = "Starfield";
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = -1000;
+
+    if (options.catalog && options.catalog.length > 0) {
+      const radius = options.catalogSphereRadius ?? 800;
+      const positions: number[] = [];
+      const sizes: number[] = [];
+      const magnitudes: number[] = [];
+      let magBrightest = Infinity;
+      for (const star of options.catalog) {
+        const dir = raDecToDirection(star.ra, star.dec);
+        positions.push(dir.x * radius, dir.y * radius, dir.z * radius);
+        const mag = Math.max(-2, Math.min(7, star.mag));
+        if (mag < magBrightest) magBrightest = mag;
+        sizes.push(1.2 + (7 - mag) * 0.25);
+        magnitudes.push(mag);
+      }
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute("size", new THREE.Float32BufferAttribute(sizes, 1));
+      geom.setAttribute("magnitude", new THREE.Float32BufferAttribute(magnitudes, 1));
+      this.catalogMaterial = new THREE.ShaderMaterial({
+        vertexShader: CATALOG_VERTEX,
+        fragmentShader: CATALOG_FRAGMENT,
+        uniforms: {
+          uColor: { value: new THREE.Color(options.color ?? 0xf0f4ff) },
+          uMagBrightest: { value: magBrightest },
+          uBrightnessScale: { value: options.catalogBrightnessScale ?? 4.0 },
+        },
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+      });
+      this.catalogPoints = new THREE.Points(geom, this.catalogMaterial);
+      this.catalogPoints.frustumCulled = false;
+      this.catalogPoints.renderOrder = -1000;
+      this.catalogGroup = new THREE.Group();
+      this.catalogGroup.name = "StarfieldCatalog";
+      this.catalogGroup.add(this.catalogPoints);
+    } else {
+      this.catalogGroup = null;
+    }
+  }
+
+  /** True when using real star catalog (add catalogGroup to scene). */
+  get useCatalog(): boolean {
+    return this.catalogGroup != null;
   }
 
   /**
-   * Attach to camera so the quad stays at the far plane (call after camera is in the scene).
-   * Stars are in world space; pass the camera each frame so the correct sky is shown.
+   * Attach procedural starfield to camera (far plane). Only used when not using catalog.
    */
   attachToCamera(camera: THREE.PerspectiveCamera): void {
+    if (this.catalogGroup) return;
     const far = camera.far;
     this.mesh.position.set(0, 0, -far * 0.99);
     this.mesh.scale.setScalar((far * 0.5) / 100);
     camera.add(this.mesh);
   }
 
-  /** Call once per frame to update twinkle and view (so stars change as you orbit). */
-  update(camera?: THREE.PerspectiveCamera): void {
+  /**
+   * Call once per frame. Pass siderealAngleRad (e.g. from dateToGreenwichMeanSiderealTimeRad(date))
+   * when using catalog so star positions match the date/time.
+   */
+  update(camera?: THREE.PerspectiveCamera, siderealAngleRad?: number): void {
+    if (this.catalogGroup != null) {
+      if (siderealAngleRad != null) {
+        this.catalogGroup.rotation.y = siderealAngleRad;
+      }
+      return;
+    }
     this.material.uniforms.uTime.value = this.clock.getElapsedTime();
     if (camera) {
       this.material.uniforms.uInvViewMatrix.value.copy(camera.matrixWorld);
@@ -127,5 +241,11 @@ export class Starfield {
   dispose(): void {
     this.mesh.geometry.dispose();
     this.material.dispose();
+    if (this.catalogPoints?.geometry) {
+      this.catalogPoints.geometry.dispose();
+    }
+    if (this.catalogMaterial) {
+      this.catalogMaterial.dispose();
+    }
   }
 }

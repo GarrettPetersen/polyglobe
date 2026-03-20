@@ -107,3 +107,102 @@ export function updateWindArrows(
   const fresh = createWindArrows(globe, windByTile, options);
   for (const c of fresh.children) group.add(c);
 }
+
+/** Flow at a tile (river or ocean current): direction water flows, strength 0–1. */
+export interface HexFlow {
+  /** Direction of flow in tile tangent plane (radians). Arrow points this way. */
+  directionRad: number;
+  /** Relative strength (0–1). */
+  strength: number;
+}
+
+/** Same options as wind arrows; used for flow (rivers + currents) overlay. */
+export interface FlowArrowsOptions extends WindArrowsOptions {}
+
+/**
+ * Create a group of instanced arrows for hex flow (rivers + ocean currents).
+ * directionRad is the direction water flows; the arrow points in that direction.
+ */
+export function createFlowArrows(
+  globe: Globe,
+  flowByTile: Map<number, HexFlow>,
+  options: FlowArrowsOptions = {}
+): THREE.Group {
+  const {
+    heightOffset = 0.08,
+    arrowScale = 0.06,
+    color = 0x44aacc,
+    minStrength = 0.05,
+  } = options;
+
+  const group = new THREE.Group();
+  group.name = "FlowArrows";
+
+  const count = flowByTile.size;
+  if (count === 0) return group;
+
+  const arrowGeom = new THREE.ConeGeometry(0.015, 0.08, 6);
+  const arrowMat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.85,
+    depthTest: true,
+    depthWrite: false,
+  });
+  const mesh = new THREE.InstancedMesh(arrowGeom, arrowMat, count);
+  mesh.count = 0;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  group.add(mesh);
+
+  const dummy = new THREE.Object3D();
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  const east = new THREE.Vector3();
+  const north = new THREE.Vector3();
+  const arrowDir = new THREE.Vector3();
+
+  let idx = 0;
+  for (const tile of globe.tiles) {
+    const f = flowByTile.get(tile.id);
+    if (!f || f.strength < minStrength) continue;
+    const pose = globe.getTilePose(tile.id);
+    if (!pose) continue;
+    const { position, up } = pose;
+    dummy.position.copy(position).add(up.clone().multiplyScalar(heightOffset));
+    // Flow direction = directionRad (arrow points in flow direction, no +π)
+    east.crossVectors(worldUp, up).normalize();
+    if (east.lengthSq() < 1e-6) east.set(1, 0, 0).cross(up).normalize();
+    north.crossVectors(up, east).normalize();
+    arrowDir.copy(east).multiplyScalar(Math.cos(f.directionRad)).addScaledVector(north, Math.sin(f.directionRad)).normalize();
+    dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), arrowDir);
+    dummy.scale.setScalar(f.strength * arrowScale);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(idx, dummy.matrix);
+    idx++;
+  }
+  mesh.count = idx;
+  mesh.instanceMatrix.needsUpdate = true;
+
+  return group;
+}
+
+/**
+ * Update existing flow arrows group after flow map or options changed.
+ */
+export function updateFlowArrows(
+  group: THREE.Group,
+  globe: Globe,
+  flowByTile: Map<number, HexFlow>,
+  options: FlowArrowsOptions = {}
+): void {
+  while (group.children.length > 0) {
+    const c = group.children[0];
+    group.remove(c);
+    if (c instanceof THREE.InstancedMesh) {
+      c.geometry.dispose();
+      if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+      else c.material.dispose();
+    }
+  }
+  const fresh = createFlowArrows(globe, flowByTile, options);
+  for (const c of fresh.children) group.add(c);
+}
