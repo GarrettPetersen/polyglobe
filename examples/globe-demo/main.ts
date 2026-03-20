@@ -35,6 +35,7 @@ import {
   placeObject,
   getEdgeNeighbor,
   tileCenterToLatLon,
+  latLonToDegrees,
   traceRiverThroughTiles,
   getRiverEdgesByTile,
   pruneThreeWayRiverJunctions,
@@ -53,6 +54,12 @@ import {
   parseElevationBin,
 } from "polyglobe";
 import { EARTH_GLOBE_CACHE_VERSION } from "./earthGlobeCacheVersion";
+import {
+  dateToSubsolarPoint,
+  dateToSublunarPoint,
+  dateToDatetimeLocalUTC,
+  datetimeLocalUTCToDate,
+} from "./astronomy.js";
 
 /** Plant assets live in public/plant-models/ so Vite serves them at /plant-models/. Run dev from examples/globe-demo. */
 const PLANT_BASE =
@@ -270,10 +277,8 @@ function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
 export interface DemoState {
   useEarth: boolean;
   subdivisions: number;
-  sunLongitude: number;
-  sunLatitude: number;
-  moonLongitude: number;
-  moonLatitude: number;
+  /** UTC date/time for sun/moon positions (YYYY-MM-DDTHH:mm). When set, sun/moon are derived from this. */
+  dateTimeStr: string;
   landFraction: number;
   blobiness: number;
   seed: number;
@@ -282,10 +287,7 @@ export interface DemoState {
 const DEFAULT_STATE: DemoState = {
   useEarth: true,
   subdivisions: 6,
-  sunLongitude: 0.6,
-  sunLatitude: 0.35,
-  moonLongitude: -0.6,
-  moonLatitude: -0.5,
+  dateTimeStr: "",
   landFraction: 0.5,
   blobiness: 6,
   seed: 12345,
@@ -1806,25 +1808,15 @@ let pendingState: DemoState | null = null;
 let setLoading: (visible: boolean) => void = () => {};
 
 function sunDirectionFromState(s: DemoState): THREE.Vector3 {
-  const lon = s.sunLongitude * Math.PI;
-  const lat = s.sunLatitude * Math.PI * 0.5;
-  return new THREE.Vector3(
-    Math.cos(lat) * Math.cos(lon),
-    Math.sin(lat),
-    Math.cos(lat) * Math.sin(lon),
-  ).normalize();
+  const date = datetimeLocalUTCToDate(s.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+  const p = dateToSubsolarPoint(date);
+  return latLonDegToDirection(p.latDeg, p.lonDeg);
 }
 
 function moonPositionFromState(s: DemoState, distance: number): THREE.Vector3 {
-  const lon = s.moonLongitude * Math.PI;
-  const lat = s.moonLatitude * Math.PI * 0.5;
-  return new THREE.Vector3(
-    Math.cos(lat) * Math.cos(lon),
-    Math.sin(lat),
-    Math.cos(lat) * Math.sin(lon),
-  )
-    .normalize()
-    .multiplyScalar(distance);
+  const date = datetimeLocalUTCToDate(s.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+  const p = dateToSublunarPoint(date);
+  return latLonDegToDirection(p.latDeg, p.lonDeg).multiplyScalar(distance);
 }
 
 function createFlareTexture(
@@ -2969,6 +2961,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       getBushVariantIndex: bushes.length > 0 ? getBushVariantIndex : undefined,
       getGrassVariantIndex: grass.length > 0 ? getGrassVariantIndex : undefined,
       getRockVariantIndex: rocks.length > 0 ? getRockVariantIndex : undefined,
+      getDate: () =>
+        datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date())),
     });
     scene.add(vegetationLayer.group);
     const vegGroup = vegetationLayer.group;
@@ -3110,49 +3104,28 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     (v) => `${v} (~${2 + 10 * Math.pow(4, v)} tiles)`,
   );
 
-  sec = addSection("Sun");
-  addSlider(
-    sec,
-    "Longitude",
-    "sunLongitude",
-    -1,
-    1,
-    0.02,
-    (v) => (v * 180).toFixed(0) + "°",
-    false,
-  );
-  addSlider(
-    sec,
-    "Latitude",
-    "sunLatitude",
-    -0.5,
-    0.5,
-    0.02,
-    (v) => (v * 90).toFixed(0) + "°",
-    false,
-  );
-
-  sec = addSection("Moon");
-  addSlider(
-    sec,
-    "Longitude",
-    "moonLongitude",
-    -1,
-    1,
-    0.02,
-    (v) => (v * 180).toFixed(0) + "°",
-    false,
-  );
-  addSlider(
-    sec,
-    "Latitude",
-    "moonLatitude",
-    -0.5,
-    0.5,
-    0.02,
-    (v) => (v * 90).toFixed(0) + "°",
-    false,
-  );
+  sec = addSection("Date & time (UTC)");
+  const dateTimeRow = document.createElement("div");
+  dateTimeRow.className = "row";
+  const dateTimeInput = document.createElement("input");
+  dateTimeInput.type = "datetime-local";
+  dateTimeInput.step = "60";
+  dateTimeInput.value =
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date());
+  if (!state.dateTimeStr) state.dateTimeStr = dateTimeInput.value;
+  dateTimeInput.addEventListener("change", () => {
+    state.dateTimeStr = dateTimeInput.value;
+  });
+  const dateTimeLabel = document.createElement("label");
+  dateTimeLabel.textContent = "Sun & moon position:";
+  dateTimeRow.appendChild(dateTimeLabel);
+  dateTimeRow.appendChild(dateTimeInput);
+  sec.appendChild(dateTimeRow);
+  const dateTimeHint = document.createElement("p");
+  dateTimeHint.className = "hint";
+  dateTimeHint.textContent =
+    "Subsolar and sublunar points are computed from this time (no sliders).";
+  sec.appendChild(dateTimeHint);
 
   sec = addSection("Procedural (when Earth off)");
   sec.classList.add("procedural", "procedural-options");
@@ -3356,9 +3329,82 @@ async function init() {
   const atmosphere = new Atmosphere(scene, { timeOfDay: 0.5 });
   scene.background = new THREE.Color(0x030508);
 
+  /** Earth colors by terrain type (TERRAIN_STYLES), not by sampling a color image. Moon uses a single equirectangular texture sampled at each tile center, then the same vertex-color-by-tileId path (applyVertexColorsByTileId). Prefer local public/ so we are not always fetching from the web (npm run download-data writes public/lroc_color_2k.jpg); fallback to NASA URL if local file is missing. */
+  const MOON_TEXTURE_LOCAL = "/lroc_color_2k.jpg";
+  const MOON_TEXTURE_FALLBACK =
+    "https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_2k.jpg";
+
+  async function loadImageAsImageData(
+    url: string,
+  ): Promise<{ data: Uint8ClampedArray; width: number; height: number } | null> {
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+        img.src = url;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      return {
+        data: imageData.data,
+        width: imageData.width,
+        height: imageData.height,
+      };
+    } catch (e) {
+      console.warn(BUILD_LOG, "Moon texture load failed:", e);
+      return null;
+    }
+  }
+
+  function sampleEquirectangular(
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+    latDeg: number,
+    lonDeg: number,
+  ): number {
+    const x = Math.max(
+      0,
+      Math.min(width - 1, ((lonDeg + 180) / 360) * width),
+    );
+    const y = Math.max(
+      0,
+      Math.min(height - 1, ((90 - latDeg) / 180) * height),
+    );
+    const i = (Math.floor(y) * width + Math.floor(x)) * 4;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    return (r << 16) | (g << 8) | b;
+  }
+
+  function applyMoonTextureFromImageData(
+    moon: Globe,
+    imageData: { data: Uint8ClampedArray; width: number; height: number },
+  ): void {
+    const { data, width, height } = imageData;
+    const getColor = (tileId: number): number => {
+      const tile = moon.tiles.find((t) => t.id === tileId);
+      if (!tile) return 0x888888;
+      const { lat, lon } = tileCenterToLatLon(tile.center);
+      const { latDeg, lonDeg } = latLonToDegrees(lat, lon);
+      return sampleEquirectangular(data, width, height, latDeg, lonDeg);
+    };
+    applyVertexColorsByTileId(moon.mesh.geometry, getColor);
+  }
+
   const moonRadius = 0.14;
   const moonDistance = 2.6;
-  const moon = new Globe({ radius: moonRadius, subdivisions: 2 });
+  /** Same hex scale as Earth: linear hex size ∝ R/√(tile count). Earth subdiv 6 → ~40k tiles; moon needs ~800 tiles so 0.14/√N ≈ 1/√40k → N ≈ 800. Subdiv 3 = 642 tiles (hexes ~same size). */
+  const moonSubdivisions = 3;
+  const moon = new Globe({ radius: moonRadius, subdivisions: moonSubdivisions });
   const moonTerrain = new Map<number, TileTerrainData>();
   for (let i = 0; i < moon.tileCount; i++) {
     moonTerrain.set(i, {
@@ -3374,6 +3420,11 @@ async function init() {
     side: THREE.FrontSide,
   });
   scene.add(moon.mesh);
+  void loadImageAsImageData(MOON_TEXTURE_LOCAL)
+    .then((img) => (img ? img : loadImageAsImageData(MOON_TEXTURE_FALLBACK)))
+    .then((img) => {
+      if (img) applyMoonTextureFromImageData(moon, img);
+    });
   const moonLight = new THREE.PointLight(
     0xb0b8c8,
     0.5,

@@ -80,6 +80,8 @@ export interface VegetationOptions {
   getBushVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
   getGrassVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
   getRockVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
+  /** Current date for seasonal foliage (deciduous fall/winter). When set, deciduous trees use fall colors and drop leaves in winter; Southern hemisphere and tropics (dry/wet) are handled. */
+  getDate?: () => Date;
 }
 
 /**
@@ -142,6 +144,56 @@ interface Placement {
   color: THREE.Color;
   /** Index into geometries.trees/bushes/grass/rocks array when using multi-variant. */
   variantIndex: number;
+  /** Tile center lat/lon (degrees) for seasonal phase (deciduous fall/winter, tropics dry/wet). */
+  latDeg: number;
+  lonDeg: number;
+}
+
+/**
+ * Season phase from date and latitude. Southern hemisphere is inverted; tropics use dry/wet.
+ * Fall = gradual 0..1 (Sep→Nov north, Mar→May south). Winter = leaves off (Dec–Feb north, Jun–Aug south).
+ */
+export function getSeasonPhase(
+  date: Date,
+  latDeg: number,
+): { fallProgress: number; isWinter: boolean; isTropical: boolean; dryFactor: number } {
+  const month = date.getUTCMonth();
+  const dayOfYear =
+    (Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
+      Date.UTC(date.getUTCFullYear(), 0, 0)) /
+    86400000;
+  const isTropical = Math.abs(latDeg) < 23.5;
+  if (isTropical) {
+    const dryFactor =
+      latDeg >= 0
+        ? month >= 10 || month <= 2
+          ? 1
+          : month >= 3 && month <= 5
+            ? 0.5
+            : 0
+        : month >= 4 && month <= 8
+          ? 1
+          : month >= 9 && month <= 10
+            ? 0.5
+            : 0;
+    return { fallProgress: 0, isWinter: false, isTropical: true, dryFactor };
+  }
+  const northern = latDeg >= 0;
+  const effectiveDay = northern ? dayOfYear : (dayOfYear + 365 / 2) % 365;
+  const fallStart = 266;
+  const fallEnd = 334;
+  const winterStart = 355;
+  const winterEnd = 59;
+  const fallProgress =
+    effectiveDay >= fallStart && effectiveDay <= fallEnd
+      ? (effectiveDay - fallStart) / (fallEnd - fallStart)
+      : effectiveDay >= 0 && effectiveDay <= 59
+        ? 1
+        : 0;
+  const isWinter =
+    (northern && (month === 11 || month === 0 || month === 1)) ||
+    (!northern && (month >= 5 && month <= 7));
+  return { fallProgress, isWinter, isTropical: false, dryFactor: 0 };
 }
 
 /** Köppen land types that get vegetation. No generic "land" — only real climate zones. */
@@ -219,7 +271,7 @@ function getPlantCount(biome: string, maxPerHex: number, rnd: () => number): num
     biome === "warm_summer_continental" ||
     biome === "forest"
   ) {
-    return Math.floor(4 + rnd() * 6); // 4–9 (temperate forest — was 2–6, felt sparse)
+    return Math.floor(5 + rnd() * 7); // 5–11 temperate / boreal forest
   }
   if (
     biome === "subarctic" ||
@@ -229,7 +281,7 @@ function getPlantCount(biome: string, maxPerHex: number, rnd: () => number): num
     biome === "subarctic_very_cold_dry_winter" ||
     biome === "subarctic_very_cold"
   ) {
-    return Math.floor(2 + rnd() * 4); // 2–5 taiga
+    return Math.floor(6 + rnd() * 7); // 6–12 dense taiga / boreal pine forest
   }
   if (biome === "desert" || biome === "hot_desert" || biome === "cold_desert") {
     return rnd() < 0.4 ? 1 : 0; // 0–1
@@ -306,7 +358,8 @@ function getPlantType(biome: string, rnd: () => number): PlantType {
     biome === "subarctic_very_cold_dry_winter" ||
     biome === "subarctic_very_cold"
   ) {
-    return t < 0.38 ? "tree" : t < 0.65 ? "bush" : t < 0.88 ? "grass" : "rock"; // Taiga: more trees
+    /** Dense taiga: mostly pines, some understory. */
+    return t < 0.62 ? "tree" : t < 0.82 ? "bush" : t < 0.95 ? "grass" : "rock";
   }
   return t < 0.35 ? "tree" : t < 0.68 ? "grass" : t < 0.92 ? "bush" : "rock";
 }
@@ -389,7 +442,15 @@ export function createVegetationLayer(
   const getRiverEdges = options.getRiverEdges;
   const peakElevationScale = options.peakElevationScale ?? 0.00002;
   const getTreeVariantScale = options.getTreeVariantScale;
+  const getDate = options.getDate;
   const radius = globe.radius;
+
+  function isDeciduousVariant(variantIndex: number): boolean {
+    return (variantIndex >= 0 && variantIndex <= 2) || (variantIndex >= 10 && variantIndex <= 12);
+  }
+
+  const fallYellow = new THREE.Color(0xddbb44);
+  const fallRed = new THREE.Color(0xbb4433);
 
   const placements: Placement[] = [];
   const rnd = seededRandom(42);
@@ -454,7 +515,16 @@ export function createVegetationLayer(
       const plantType = getPlantType(typeStr, rnd);
       const color = getBiomeColor(typeStr, plantType, rnd);
       const variantIndex = getVariantIndex(plantType, typeStr, latDeg, lonDeg, rnd);
-      placements.push({ position, normal, scale, type: plantType, color, variantIndex });
+      placements.push({
+        position,
+        normal,
+        scale,
+        type: plantType,
+        color,
+        variantIndex,
+        latDeg,
+        lonDeg,
+      });
     }
   }
 
@@ -731,15 +801,39 @@ export function createVegetationLayer(
         });
       }
 
+      const isDeciduousFoliage =
+        mesh.instanceColor != null &&
+        list[0] != null &&
+        list[0].type === "tree" &&
+        isDeciduousVariant(list[0].variantIndex);
+      const date = getDate?.();
+
       for (let k = 0; k < drawCount; k++) {
         const p = list[sortedIndices[k]!];
         _q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.normal);
         const mul =
           p.type === "tree" ? (getTreeVariantScale?.(p.variantIndex) ?? 1) : 1;
-        const s = p.scale * mul;
+        let s = p.scale * mul;
+        let color = p.color;
+
+        if (date && isDeciduousFoliage && isDeciduousVariant(p.variantIndex)) {
+          const phase = getSeasonPhase(date, p.latDeg);
+          if (phase.isWinter) {
+            s = 1e-7;
+          } else if (phase.fallProgress > 0) {
+          if (phase.fallProgress <= 0.4) {
+            color = p.color.clone().lerpColors(p.color, fallYellow, phase.fallProgress / 0.4);
+          } else {
+            color = fallYellow.clone().lerpColors(fallYellow, fallRed, (phase.fallProgress - 0.4) / 0.6);
+          }
+          } else if (phase.isTropical && phase.dryFactor > 0) {
+            color = p.color.clone().lerp(new THREE.Color(0x8a7a50), phase.dryFactor * 0.4);
+          }
+        }
+
         _mat.compose(p.position, _q, _s.set(s, s, s));
         mesh.setMatrixAt(k, _mat);
-        if (mesh.instanceColor) mesh.setColorAt(k, p.color);
+        if (mesh.instanceColor) mesh.setColorAt(k, color);
       }
       mesh.count = drawCount;
       mesh.instanceMatrix.needsUpdate = true;
