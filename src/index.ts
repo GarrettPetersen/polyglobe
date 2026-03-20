@@ -133,3 +133,15 @@ export {
 
 // Twinkling starfield background
 export { Starfield, type StarfieldOptions } from "./stars/Starfield.js";
+
+// Wind (seasonal patterns + arrow overlay)
+export {
+  computeWindForTiles,
+  type TileWind,
+  type ComputeWindOptions,
+} from "./wind/windPatterns.js";
+export {
+  createWindArrows,
+  updateWindArrows,
+  type WindArrowsOptions,
+} from "./wind/windArrows.js";

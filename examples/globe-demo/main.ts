@@ -36,6 +36,9 @@ import {
   getEdgeNeighbor,
   tileCenterToLatLon,
   latLonToDegrees,
+  computeWindForTiles,
+  createWindArrows,
+  updateWindArrows,
   traceRiverThroughTiles,
   getRiverEdgesByTile,
   pruneThreeWayRiverJunctions,
@@ -279,6 +282,8 @@ export interface DemoState {
   subdivisions: number;
   /** UTC date/time for sun/moon positions (YYYY-MM-DDTHH:mm). When set, sun/moon are derived from this. */
   dateTimeStr: string;
+  /** Show wind arrows overlay (seasonal trade winds, westerlies, etc.). */
+  showWinds: boolean;
   landFraction: number;
   blobiness: number;
   seed: number;
@@ -288,6 +293,7 @@ const DEFAULT_STATE: DemoState = {
   useEarth: true,
   subdivisions: 6,
   dateTimeStr: "",
+  showWinds: false,
   landFraction: 0.5,
   blobiness: 6,
   seed: 12345,
@@ -1763,9 +1769,12 @@ let riverLineIsDelta: boolean[] | null = null;
 let riverTerrainGroup: THREE.Group | null = null;
 /** Black sphere inside the globe to prevent seeing through geometry gaps. */
 let innerBlackSphere: THREE.Mesh | null = null;
+let windArrowsGroup: THREE.Group | null = null;
 /** Lake water now provided by terrain-following water table (no separate meshes). */
 /** Module-level terrain data for debug panel access. */
 let globalTileTerrain: Map<number, TileTerrainData> | null = null;
+/** Module-level wind data for debug panel access (direction rad, strength 0–1). */
+let globalWindByTile: Map<number, { directionRad: number; strength: number }> | null = null;
 /** Module-level river edges for debug panel access. */
 let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
 /** Biome vegetation (instanced plants, distance-culled). */
@@ -1817,6 +1826,35 @@ function moonPositionFromState(s: DemoState, distance: number): THREE.Vector3 {
   const date = datetimeLocalUTCToDate(s.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
   const p = dateToSublunarPoint(date);
   return latLonDegToDirection(p.latDeg, p.lonDeg).multiplyScalar(distance);
+}
+
+/** Recompute wind from date and terrain, update arrow overlay. No-op if globe/wind group not ready. */
+function updateWindFromState(dateTimeStr?: string): void {
+  if (!globe || !windArrowsGroup || !globalTileTerrain) return;
+  const str = dateTimeStr ?? state.dateTimeStr ?? dateToDatetimeLocalUTC(new Date());
+  const date = datetimeLocalUTCToDate(str);
+  const subsolar = dateToSubsolarPoint(date);
+  const windByTile = computeWindForTiles(globe.tiles, {
+    subsolarLatDeg: subsolar.latDeg,
+    baseStrength: 1,
+    noiseDirectionRad: 0.12,
+    noiseStrength: 0.08,
+    seed: 45678,
+    getTerrain: (id) => {
+      const t = globalTileTerrain!.get(id);
+      if (!t) return undefined;
+      const isWater = t.type === "water" || t.type === "beach";
+      return { isWater, elevation: t.elevation };
+    },
+  });
+  globalWindByTile = windByTile;
+  updateWindArrows(windArrowsGroup, globe, windByTile, {
+    heightOffset: 0.08,
+    arrowScale: 0.065,
+    color: 0x88ccff,
+    minStrength: 0.06,
+  });
+  windArrowsGroup.visible = state.showWinds;
 }
 
 function createFlareTexture(
@@ -1949,6 +1987,16 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       innerBlackSphere.geometry.dispose();
       (innerBlackSphere.material as THREE.Material).dispose();
       innerBlackSphere = null;
+    }
+    if (windArrowsGroup) {
+      scene.remove(windArrowsGroup);
+      windArrowsGroup.traverse((c) => {
+        if (c instanceof THREE.InstancedMesh) {
+          c.geometry.dispose();
+          (c.material as THREE.Material).dispose();
+        }
+      });
+      windArrowsGroup = null;
     }
     if (vegetationLayer) {
       scene.remove(vegetationLayer.group);
@@ -2423,6 +2471,32 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     innerBlackSphere.renderOrder = -10;
     scene.add(innerBlackSphere);
     console.log(BUILD_LOG, "added inner black sphere at radius 0.98");
+
+    // Wind arrows (seasonal trade winds, westerlies, polar easterlies + noise)
+    const dateForWind = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+    const subsolar = dateToSubsolarPoint(dateForWind);
+    const windByTile = computeWindForTiles(globe.tiles, {
+      subsolarLatDeg: subsolar.latDeg,
+      baseStrength: 1,
+      noiseDirectionRad: 0.12,
+      noiseStrength: 0.08,
+      seed: 45678,
+      getTerrain: (id) => {
+        const t = tileTerrain.get(id);
+        if (!t) return undefined;
+        const isWater = t.type === "water" || t.type === "beach";
+        return { isWater, elevation: t.elevation };
+      },
+    });
+    globalWindByTile = windByTile;
+    windArrowsGroup = createWindArrows(globe, windByTile, {
+      heightOffset: 0.08,
+      arrowScale: 0.065,
+      color: 0x88ccff,
+      minStrength: 0.06,
+    });
+    windArrowsGroup.visible = state.showWinds;
+    scene.add(windArrowsGroup!);
 
     coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
       radius: 0.995,
@@ -3113,9 +3187,12 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   dateTimeInput.value =
     state.dateTimeStr || dateToDatetimeLocalUTC(new Date());
   if (!state.dateTimeStr) state.dateTimeStr = dateTimeInput.value;
-  dateTimeInput.addEventListener("change", () => {
+  function applyDateTimeAndWinds() {
     state.dateTimeStr = dateTimeInput.value;
-  });
+    updateWindFromState(dateTimeInput.value);
+  }
+  dateTimeInput.addEventListener("change", applyDateTimeAndWinds);
+  dateTimeInput.addEventListener("input", applyDateTimeAndWinds);
   const dateTimeLabel = document.createElement("label");
   dateTimeLabel.textContent = "Sun & moon position:";
   dateTimeRow.appendChild(dateTimeLabel);
@@ -3126,6 +3203,21 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   dateTimeHint.textContent =
     "Subsolar and sublunar points are computed from this time (no sliders).";
   sec.appendChild(dateTimeHint);
+
+  const windRow = document.createElement("div");
+  windRow.className = "row";
+  const windCheck = document.createElement("input");
+  windCheck.type = "checkbox";
+  windCheck.checked = state.showWinds;
+  windCheck.addEventListener("change", () => {
+    state.showWinds = windCheck.checked;
+    if (windArrowsGroup) windArrowsGroup.visible = state.showWinds;
+  });
+  const windLabel = document.createElement("label");
+  windLabel.textContent = "Show winds (arrows)";
+  windRow.appendChild(windCheck);
+  windRow.appendChild(windLabel);
+  sec.appendChild(windRow);
 
   sec = addSection("Procedural (when Earth off)");
   sec.classList.add("procedural", "procedural-options");
@@ -3664,6 +3756,23 @@ async function init() {
   const hexGoBtn = document.getElementById("hexGoBtn") as HTMLButtonElement;
   const hexInfo = document.getElementById("hexInfo") as HTMLDivElement;
 
+  /** Format hex debug line: elevation (globe units), wind from (compass °), wind speed (relative). */
+  function formatHexInfo(tileId: number): string {
+    const terrain = globalTileTerrain?.get(tileId);
+    const tileType = terrain?.type ?? "?";
+    const inRiver = globalRiverEdgesByTile?.has(tileId) ?? false;
+    const elev = terrain?.elevation;
+    const elevStr = elev != null ? `${elev.toFixed(3)} (globe)` : "—";
+    const wind = globalWindByTile?.get(tileId);
+    let windStr = "—";
+    if (wind) {
+      const compassDeg = (90 - (wind.directionRad * 180) / Math.PI + 360) % 360;
+      const dirLabel = compassDeg < 22.5 ? "N" : compassDeg < 67.5 ? "NE" : compassDeg < 112.5 ? "E" : compassDeg < 157.5 ? "SE" : compassDeg < 202.5 ? "S" : compassDeg < 247.5 ? "SW" : compassDeg < 292.5 ? "W" : compassDeg < 337.5 ? "NW" : "N";
+      windStr = `from ${compassDeg.toFixed(0)}° (${dirLabel}), ${(wind.strength * 15).toFixed(1)} m/s`;
+    }
+    return `ID: ${tileId}<br>Type: ${tileType}<br>River: ${inRiver}<br>Elevation: ${elevStr}<br>Wind: ${windStr}`;
+  }
+
   function goToHex() {
     const id = parseInt(hexIdInput.value, 10);
     if (isNaN(id)) {
@@ -3676,9 +3785,7 @@ async function init() {
       return;
     }
     zoomToTile(id);
-    const tileType = globalTileTerrain?.get(id)?.type ?? "?";
-    const inRiver = globalRiverEdgesByTile?.has(id) ?? false;
-    hexInfo.innerHTML = `ID: ${id}<br>Type: ${tileType}<br>River: ${inRiver}`;
+    hexInfo.innerHTML = formatHexInfo(id);
   }
 
   hexGoBtn.addEventListener("click", goToHex);
@@ -3718,9 +3825,7 @@ async function init() {
         scene.add(highlightMesh);
         highlightedTileId = tileId;
       }
-      const tileType = globalTileTerrain?.get(tileId)?.type ?? "?";
-      const inRiver = globalRiverEdgesByTile?.has(tileId) ?? false;
-      hexInfo.innerHTML = `ID: ${tileId}<br>Type: ${tileType}<br>River: ${inRiver}`;
+      hexInfo.innerHTML = formatHexInfo(tileId);
     }
   });
   // ========== END DEBUG PANEL ==========

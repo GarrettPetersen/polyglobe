@@ -1,0 +1,139 @@
+/**
+ * Seasonal wind patterns for globe visualization (trade winds, westerlies, polar easterlies).
+ * Uses date for seasonal shift (ITCZ / pressure belts follow sun). Optional terrain modulation.
+ */
+
+import type { GeodesicTile } from "../core/geodesic.js";
+import { tileCenterToLatLon } from "../earth/earthSampling.js";
+
+/** Wind at a tile: direction in radians (0 = east, π/2 = north), strength in 0–1 or m/s scale. */
+export interface TileWind {
+  /** Direction wind is coming FROM (radians). 0 = from east, π/2 = from north. */
+  directionRad: number;
+  /** Strength (0–1 normalized, or use as relative scale). */
+  strength: number;
+}
+
+export interface ComputeWindOptions {
+  /** Subsolar latitude in degrees (from date). Default 0. */
+  subsolarLatDeg?: number;
+  /** Base strength multiplier. Default 1. */
+  baseStrength?: number;
+  /** Noise strength (Gaussian std dev for direction in rad, and for strength). Default 0.15 rad, 0.1. */
+  noiseDirectionRad?: number;
+  noiseStrength?: number;
+  /** Seed for reproducible noise. Default 12345. */
+  seed?: number;
+  /** If provided, reduce wind strength over land and more over elevated tiles. */
+  getTerrain?: (tileId: number) => { isWater?: boolean; elevation?: number } | undefined;
+  /** Terrain: strength multiplier for water (default 1), land (default 0.6), mountain (default 0.3). */
+  terrainStrengthWater?: number;
+  terrainStrengthLand?: number;
+  terrainStrengthMountain?: number;
+}
+
+/** Simple seeded random for reproducible noise. */
+function seededRandom(seed: number): () => number {
+  return function next() {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0xffffffff;
+  };
+}
+
+/** Box-Muller for Gaussian. */
+function gaussian(rng: () => number, mean: number, std: number): number {
+  const u1 = rng();
+  const u2 = rng();
+  if (u1 < 1e-10) return mean;
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  return mean + z * std;
+}
+
+/**
+ * Base wind direction and relative strength by latitude (no season).
+ * - Trade winds: 0–30° → from east (easterly); 30–60° westerlies; 60–90° polar easterlies.
+ * - Strength peaks in mid-latitudes (westerlies) and trades.
+ */
+function baseWindAtLat(latDeg: number): { directionRad: number; strength: number } {
+  const absLat = Math.abs(latDeg);
+  let directionRad: number; // direction wind is coming FROM
+  let strength: number;
+  if (absLat <= 25) {
+    // Trade winds: from east (blow westward)
+    directionRad = 0; // from east
+    strength = 0.5 + 0.4 * (1 - absLat / 25);
+  } else if (absLat <= 55) {
+    // Westerlies: from west (blow eastward)
+    directionRad = Math.PI;
+    const mid = 40;
+    strength = 0.6 + 0.35 * Math.exp(-Math.pow((absLat - mid) / 20, 2));
+  } else {
+    // Polar easterlies: from east
+    directionRad = 0;
+    strength = 0.3 + 0.2 * (1 - (absLat - 55) / 35);
+  }
+  return { directionRad, strength };
+}
+
+/**
+ * Shift latitude bands with season (ITCZ follows sun). Returns effective latitude for lookup.
+ */
+function effectiveLatForSeason(latDeg: number, subsolarLatDeg: number): number {
+  // Shift bands by ~subsolarLatDeg so trades move N/S
+  return latDeg - subsolarLatDeg * 0.4;
+}
+
+/**
+ * Compute wind for each tile. Uses tile center lat/lon, optional terrain modulation, and Gaussian noise.
+ */
+export function computeWindForTiles(
+  tiles: GeodesicTile[],
+  options: ComputeWindOptions = {}
+): Map<number, TileWind> {
+  const {
+    subsolarLatDeg = 0,
+    baseStrength = 1,
+    noiseDirectionRad = 0.15,
+    noiseStrength = 0.1,
+    seed = 12345,
+    getTerrain,
+    terrainStrengthWater = 1,
+    terrainStrengthLand = 0.6,
+    terrainStrengthMountain = 0.3,
+  } = options;
+
+  const rng = seededRandom(seed);
+  const out = new Map<number, TileWind>();
+
+  for (const tile of tiles) {
+    const { lat } = tileCenterToLatLon(tile.center);
+    const latDeg = (lat * 180) / Math.PI;
+    const effLat = effectiveLatForSeason(latDeg, subsolarLatDeg);
+    let { directionRad, strength } = baseWindAtLat(effLat);
+
+    // Terrain: reduce over land, more over mountains
+    if (getTerrain) {
+      const t = getTerrain(tile.id);
+      if (t) {
+        const elev = t.elevation ?? 0;
+        const isMountain = elev > 0.15; // rough globe-unit threshold
+        if (t.isWater === true) {
+          strength *= terrainStrengthWater;
+        } else if (isMountain) {
+          strength *= terrainStrengthMountain;
+        } else {
+          strength *= terrainStrengthLand;
+        }
+      }
+    }
+
+    // Gaussian noise on direction and strength
+    directionRad += gaussian(rng, 0, noiseDirectionRad);
+    strength *= 1 + gaussian(rng, 0, noiseStrength);
+    strength = Math.max(0.05, Math.min(1, strength)) * baseStrength;
+
+    out.set(tile.id, { directionRad, strength });
+  }
+
+  return out;
+}
