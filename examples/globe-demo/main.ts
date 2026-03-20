@@ -1758,6 +1758,7 @@ const camera = new THREE.PerspectiveCamera(
   0.01,
   4000,
 );
+camera.layers.set(0);
 let starfield: InstanceType<typeof Starfield> = new Starfield({
   density: 70,
   sparsity: 0.12,
@@ -3714,11 +3715,12 @@ async function init() {
     direction: sunDirectionFromState(state),
     distance: 3500,
     intensity: 2.2,
-    ambientIntensity: 0.06,
-    ambientColor: 0x181c24,
+    ambientIntensity: 0.025,
+    ambientColor: 0x12161c,
     sphereRadius: 90,
     sphereColor: 0xfff5e0,
     castShadow: true,
+    shadowIntensity: 0.82,
   });
   sun.addTo(scene);
   const lensflare = new Lensflare();
@@ -3756,6 +3758,7 @@ async function init() {
     earthOccluder.castShadow = true;
     earthOccluder.receiveShadow = false;
     earthOccluder.layers.set(1);
+    earthOccluder.renderOrder = -10000;
     scene.add(earthOccluder);
   }
 
