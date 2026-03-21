@@ -82,6 +82,26 @@ export interface VegetationOptions {
   getRockVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
   /** Current date for seasonal foliage (deciduous fall/winter). When set, deciduous trees use fall colors and drop leaves in winter; Southern hemisphere and tropics (dry/wet) are handled. */
   getDate?: () => Date;
+  /**
+   * Skip full vegetation CPU work on most frames (still draws last frame’s instance data).
+   * Use 2 on dense globes (~160k tiles) to roughly halve sort/cull cost.
+   */
+  updateEveryNFrames?: number;
+  /**
+   * Skip plants on the back side of the planet (cheap dot test vs camera direction from origin).
+   * Default true. Set false only if the camera can go inside the globe.
+   */
+  hemisphereCull?: boolean;
+  /**
+   * Dot(plant direction, camera direction from origin) below this → skip. Default -0.22.
+   * Values closer to 0 cull more aggressively (e.g. -0.05 for dense globes).
+   */
+  hemisphereCullDot?: number;
+  /**
+   * When a variant’s placement list is this long or more, use a K-nearest heap instead of
+   * sorting all in-range plants (faster when K ≪ n). Default 38_000.
+   */
+  heapCullMinPlacements?: number;
 }
 
 /**
@@ -418,6 +438,50 @@ function makePlaceholderGeometry(type: PlantType): THREE.BufferGeometry {
 }
 
 const _camPos = new THREE.Vector3();
+const _camUnit = new THREE.Vector3();
+/** Reused for K-nearest heap cull (avoids sorting huge in-range lists). */
+const _distHeap: { distSq: number; idx: number }[] = [];
+
+/**
+ * Max-heap helper: keep up to `cap` smallest distSq values (largest of the K at root).
+ * After all pushes, sort `heap` by distSq for near-to-far draw order.
+ */
+function heapPushCap(
+  heap: { distSq: number; idx: number }[],
+  cap: number,
+  distSq: number,
+  idx: number,
+): void {
+  if (heap.length < cap) {
+    heap.push({ distSq, idx });
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heap[p]!.distSq >= heap[i]!.distSq) break;
+      const tmp = heap[p]!;
+      heap[p] = heap[i]!;
+      heap[i] = tmp;
+      i = p;
+    }
+    return;
+  }
+  if (distSq >= heap[0]!.distSq) return;
+  heap[0] = { distSq, idx };
+  let i = 0;
+  const n = heap.length;
+  for (;;) {
+    const l = i * 2 + 1;
+    const r = l + 1;
+    let largest = i;
+    if (l < n && heap[l]!.distSq > heap[largest]!.distSq) largest = l;
+    if (r < n && heap[r]!.distSq > heap[largest]!.distSq) largest = r;
+    if (largest === i) break;
+    const tmp = heap[i]!;
+    heap[i] = heap[largest]!;
+    heap[largest] = tmp;
+    i = largest;
+  }
+}
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
 const _mat = new THREE.Matrix4();
@@ -443,7 +507,11 @@ export function createVegetationLayer(
   const peakElevationScale = options.peakElevationScale ?? 0.00002;
   const getTreeVariantScale = options.getTreeVariantScale;
   const getDate = options.getDate;
+  const updateEveryNFrames = Math.max(1, Math.floor(options.updateEveryNFrames ?? 1));
+  const hemisphereCull = options.hemisphereCull !== false;
+  const hemisphereCullDot = options.hemisphereCullDot ?? -0.22;
   const radius = globe.radius;
+  const heapCullMinList = options.heapCullMinPlacements ?? 38_000;
 
   function isDeciduousVariant(variantIndex: number): boolean {
     return (variantIndex >= 0 && variantIndex <= 2) || (variantIndex >= 10 && variantIndex <= 12);
@@ -775,28 +843,76 @@ export function createVegetationLayer(
     a.distanceToSquared(b);
 
   let treeDrawLogFrames = 0;
+  /** -1 so first increment → 0 and throttle (N=2) still runs on first frame. */
+  let vegetationFrame = -1;
   function update(camera: THREE.Camera): void {
+    vegetationFrame++;
+    if (
+      updateEveryNFrames > 1 &&
+      vegetationFrame % updateEveryNFrames !== 0
+    ) {
+      return;
+    }
+
     camera.getWorldPosition(_camPos);
+    if (hemisphereCull) _camUnit.copy(_camPos).normalize();
     const maxSq = maxDrawDistance * maxDrawDistance;
 
     const treeDrawCounts: { name: string; inRange: number; drawCount: number }[] = [];
 
     for (const { mesh, placements: list } of meshes) {
       sortedIndices.length = 0;
-      for (let i = 0; i < list.length; i++) {
-        const dSq = distSq(_camPos, list[i].position);
-        if (dSq <= maxSq) sortedIndices.push(i);
+      let inRangeCount = 0;
+      const useHeapCull = list.length >= heapCullMinList;
+
+      if (useHeapCull) {
+        const heap = _distHeap;
+        heap.length = 0;
+        for (let i = 0; i < list.length; i++) {
+          const pl = list[i]!;
+          if (hemisphereCull) {
+            const face =
+              pl.position.x * _camUnit.x +
+              pl.position.y * _camUnit.y +
+              pl.position.z * _camUnit.z;
+            if (face < hemisphereCullDot) continue;
+          }
+          const dSq = distSq(_camPos, pl.position);
+          if (dSq > maxSq) continue;
+          inRangeCount++;
+          heapPushCap(heap, maxInstances, dSq, i);
+        }
+        heap.sort((a, b) => a.distSq - b.distSq);
+        for (let h = 0; h < heap.length; h++) {
+          sortedIndices.push(heap[h]!.idx);
+        }
+      } else {
+        for (let i = 0; i < list.length; i++) {
+          const pl = list[i]!;
+          if (hemisphereCull) {
+            const face =
+              pl.position.x * _camUnit.x +
+              pl.position.y * _camUnit.y +
+              pl.position.z * _camUnit.z;
+            if (face < hemisphereCullDot) continue;
+          }
+          const dSq = distSq(_camPos, pl.position);
+          if (dSq <= maxSq) sortedIndices.push(i);
+        }
+        sortedIndices.sort(
+          (a, b) =>
+            distSq(_camPos, list[a]!.position) -
+            distSq(_camPos, list[b]!.position),
+        );
+        inRangeCount = sortedIndices.length;
       }
-      sortedIndices.sort(
-        (a, b) =>
-          distSq(_camPos, list[a].position) - distSq(_camPos, list[b].position)
-      );
+
       const drawCount = Math.min(sortedIndices.length, maxInstances);
 
       if (mesh.name?.includes("tree")) {
         treeDrawCounts.push({
           name: mesh.name,
-          inRange: sortedIndices.length,
+          inRange: inRangeCount,
           drawCount,
         });
       }
@@ -821,13 +937,23 @@ export function createVegetationLayer(
           if (phase.isWinter) {
             s = 1e-7;
           } else if (phase.fallProgress > 0) {
-          if (phase.fallProgress <= 0.4) {
-            color = p.color.clone().lerpColors(p.color, fallYellow, phase.fallProgress / 0.4);
-          } else {
-            color = fallYellow.clone().lerpColors(fallYellow, fallRed, (phase.fallProgress - 0.4) / 0.6);
-          }
+            if (phase.fallProgress <= 0.4) {
+              color = p.color
+                .clone()
+                .lerpColors(p.color, fallYellow, phase.fallProgress / 0.4);
+            } else {
+              color = fallYellow
+                .clone()
+                .lerpColors(
+                  fallYellow,
+                  fallRed,
+                  (phase.fallProgress - 0.4) / 0.6,
+                );
+            }
           } else if (phase.isTropical && phase.dryFactor > 0) {
-            color = p.color.clone().lerp(new THREE.Color(0x8a7a50), phase.dryFactor * 0.4);
+            color = p.color
+              .clone()
+              .lerp(new THREE.Color(0x8a7a50), phase.dryFactor * 0.4);
           }
         }
 

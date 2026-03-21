@@ -19,13 +19,20 @@ All data is loaded from **`public/`** (same-origin). Run `npm run download-data`
 - **Elevation**: `elevation.bin` — **PGEL** header (`PGEL` + width + height) + float32 DEM (default **1440×720**, ~0.25°; legacy **360×180** still works). Bilinear sampling. Land hex height = biome base + capped DEM lift + mountain peak extra (`terrainDemMeterScale`, `maxTerrainDemLiftGlobe`, optional `elevationQuantizationM` for stepped meters). `npm run build-elevation`: synthetic PGEL or ETOPO1 via `etopo1_to_bin.py` (pass width/height to change res).
 - **3D peaks**: `mountains.json` from Natural Earth elevation points (`npm run build-mountains`). Build scripts read from `public/` when files exist.
 
-### Earth globe cache (subdivisions = 6)
+### Earth globe cache (per subdivision)
 
-At max scale the demo can load **`public/earth-globe-cache.json`** (~2 MB) instead of recomputing land/water, peaks, and river edges. Version must match **`earthGlobeCacheVersion.ts`** (`EARTH_GLOBE_CACHE_VERSION`).
+The demo loads **`public/earth-globe-cache-{n}.json`** for the current scale (`n` = subdivisions 1–7). For **subdivisions = 6** it also tries legacy **`earth-globe-cache.json`**. Version must match **`earthGlobeCacheVersion.ts`** (`EARTH_GLOBE_CACHE_VERSION`, with optional legacy `6-v17` for old 6-only files).
 
-- **Regenerate** after changing raster, lakes/marine polys, strait IDs, river rules, mountains, Köppen/elevation, or terrain options:  
+- **Regenerate** (default: subdivision 6 only, also writes `earth-globe-cache.json`):  
   `npm run build-earth-globe-cache`
+- **One subdivision** (e.g. 7):  
+  `npm run build-earth-globe-cache -- 7`
+- **Several sizes** (6 and 7):  
+  `npm run build-earth-globe-cache-all` or `npm run build-earth-globe-cache -- 6 7`  
+  Subdivision 7 is much larger (~160k tiles) and slow to build.
+- **Strait tile IDs** in the terrain resolver are **only applied at subdivision 6** (tile IDs change at other scales).
 - **Force full in-browser recompute**: add **`?noEarthCache=1`** to the URL.
+- **Performance (subdivision 7, ~163k tiles)**: the demo auto-tiers **device pixel ratio** (cap **0.85**), **512² shadow maps** with **BasicShadowMap**, **no lensflare**, **smaller coast masks / foam grid / inner sphere**, **tighter vegetation** (fewer plants per hex, ~900 max instances per type, update every 8 frames, aggressive hemisphere cull), and **half-rate water & foam updates** plus **quarter-rate cloud depth sort**. Subdivision 6 keeps higher quality settings. **EffectComposer / bloom** is not used (direct `renderer.render` only).
 
 ### Rivers (Earth)
 

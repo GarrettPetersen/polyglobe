@@ -1,9 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
   Lensflare,
   LensflareElement,
@@ -69,7 +66,12 @@ import {
   updateLowPolyClouds,
   sortLowPolyCloudsByCamera,
 } from "polyglobe";
-import { EARTH_GLOBE_CACHE_VERSION } from "./earthGlobeCacheVersion";
+import {
+  EARTH_GLOBE_CACHE_VERSION,
+  EARTH_STRAIT_TILE_IDS_SUBDIVISION_6,
+  MAX_EARTH_GLOBE_SUBDIVISIONS,
+  isEarthGlobeCacheVersionOk,
+} from "./earthGlobeCacheVersion";
 import {
   dateToSubsolarPoint,
   dateToSublunarPoint,
@@ -227,8 +229,6 @@ function getRockVariantIndex(_biome: string, _latDeg: number, _lonDeg: number, r
   return Math.min(2, Math.floor(rnd() * 3));
 }
 
-const EARTH_GLOBE_CACHE_URL = "/earth-globe-cache.json";
-
 type EarthGlobeCacheFile = {
   version: string;
   subdivisions: number;
@@ -239,28 +239,39 @@ type EarthGlobeCacheFile = {
   riverEdgeToWater: Record<string, number[]>;
 };
 
-async function fetchEarthGlobeCache(): Promise<EarthGlobeCacheFile | null> {
+function earthGlobeCacheFetchUrls(subdivisions: number): string[] {
+  const urls = [`/earth-globe-cache-${subdivisions}.json`];
+  if (subdivisions === 6) urls.push("/earth-globe-cache.json");
+  return urls;
+}
+
+async function fetchEarthGlobeCache(
+  subdivisions: number,
+): Promise<EarthGlobeCacheFile | null> {
   if (
     typeof window !== "undefined" &&
     /[?&]noEarthCache=1/i.test(window.location.search)
   ) {
     return null;
   }
-  try {
-    const res = await fetch(EARTH_GLOBE_CACHE_URL);
-    if (!res.ok) return null;
-    const j = (await res.json()) as EarthGlobeCacheFile;
-    if (
-      j.version !== EARTH_GLOBE_CACHE_VERSION ||
-      j.subdivisions !== 6 ||
-      !Array.isArray(j.tiles)
-    ) {
-      return null;
+  for (const url of earthGlobeCacheFetchUrls(subdivisions)) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const j = (await res.json()) as EarthGlobeCacheFile;
+      if (
+        !isEarthGlobeCacheVersionOk(j.version, subdivisions) ||
+        j.subdivisions !== subdivisions ||
+        !Array.isArray(j.tiles)
+      ) {
+        continue;
+      }
+      return j;
+    } catch {
+      continue;
     }
-    return j;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 /** All geography data is loaded from public/ (run npm run download-data once, then commit public/). */
@@ -315,7 +326,8 @@ export interface DemoState {
 
 const DEFAULT_STATE: DemoState = {
   useEarth: true,
-  subdivisions: 6,
+  /** Default 7 uses `public/earth-globe-cache-7.json` (run `npm run build-earth-globe-cache -- 7` if missing). */
+  subdivisions: 7,
   dateTimeStr: "",
   showWinds: false,
   showFlow: false,
@@ -592,8 +604,7 @@ async function runTerrainTransition(
     applyTerrainColorsToGeometry(geom, nextTerrain);
     globe.mesh.geometry.dispose();
     globe.mesh.geometry = geom;
-    (globe.mesh as THREE.Mesh).receiveShadow = true;
-    (globe.mesh as THREE.Mesh).castShadow = true;
+    applyGlobeTerrainShadowFlags(globe);
     return;
   }
 
@@ -1780,13 +1791,72 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-let globe: Globe;
-let water: WaterSphere;
-let coastFoamOverlay: CoastFoamOverlay;
-let coastMaskTexture: THREE.DataTexture;
-let coastLandMaskTexture: THREE.DataTexture;
+/**
+ * Above this tile count, skip terrain casting shadows (main fill-rate killer on subdiv 7).
+ * Earth occluder + clouds still participate in the shadow map.
+ */
+const GLOBE_TERRAIN_CAST_SHADOW_TILE_THRESHOLD = 100_000;
+
+function applyGlobeTerrainShadowFlags(globe: Globe): void {
+  const cast =
+    globe.tileCount <= GLOBE_TERRAIN_CAST_SHADOW_TILE_THRESHOLD;
+  (globe.mesh as THREE.Mesh).receiveShadow = true;
+  (globe.mesh as THREE.Mesh).castShadow = cast;
+}
+
+/**
+ * Tiered when tile count is high (~40k subdiv 6, ~160k subdiv 7):
+ * DPR cap, shadow map size, shadow filter (Basic is cheaper than PCFSoft).
+ */
+let lastGlobePerfBucket: "normal" | "dense" | "veryDense" | null = null;
+/** Sun lensflare (extra draw cost); hidden on subdiv 7 for GPU headroom. */
+let sunLensflareRef: Lensflare | null = null;
+
+function applyGlobeRenderingPerf(tileCount: number): void {
+  const bucket =
+    tileCount > 100_000
+      ? "veryDense"
+      : tileCount > 70_000
+        ? "dense"
+        : "normal";
+  if (lastGlobePerfBucket !== bucket) {
+    lastGlobePerfBucket = bucket;
+    const cap =
+      bucket === "veryDense"
+        ? 0.85
+        : bucket === "dense"
+          ? 1.35
+          : 2;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
+    renderer.shadowMap.type =
+      bucket === "veryDense"
+        ? THREE.BasicShadowMap
+        : THREE.PCFSoftShadowMap;
+  }
+  const dir = sun?.directional;
+  if (dir?.castShadow && dir.shadow) {
+    const mapSz =
+      bucket === "veryDense" ? 512 : bucket === "dense" ? 2048 : 4096;
+    if (dir.shadow.mapSize.width !== mapSz) {
+      dir.shadow.mapSize.set(mapSz, mapSz);
+      dir.shadow.map?.dispose();
+      dir.shadow.map = null;
+      dir.shadow.needsUpdate = true;
+    }
+  }
+  if (sunLensflareRef) {
+    sunLensflareRef.visible = bucket !== "veryDense";
+  }
+}
+
+/** Initialized after first `scheduleRebuild` / `buildWorldAsync` (must default so animate() can run before build finishes). */
+let globe: Globe | undefined = undefined;
+let water: WaterSphere | undefined = undefined;
+let coastFoamOverlay: CoastFoamOverlay | undefined = undefined;
+let coastMaskTexture: THREE.DataTexture | undefined = undefined;
+let coastLandMaskTexture: THREE.DataTexture | undefined = undefined;
 let controls: OrbitControls;
-let marker: THREE.Mesh;
+let marker: THREE.Mesh | null = null;
 let earthRaster: EarthRaster | null = null;
 let earthLandSampler: ((latRad: number, lonRad: number) => boolean) | null =
   null;
@@ -2115,8 +2185,7 @@ function setGlobeGeometryFromTerrain(
   if (globe.mesh.geometry) globe.mesh.geometry.dispose();
   globe.mesh.geometry = geom;
   globe.mesh.renderOrder = 0;
-  (globe.mesh as THREE.Mesh).receiveShadow = true;
-  (globe.mesh as THREE.Mesh).castShadow = true;
+  applyGlobeTerrainShadowFlags(globe);
 }
 
 async function buildWorldAsync(state: DemoState): Promise<void> {
@@ -2217,7 +2286,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       vegetationLayer = null;
     }
     // Lake water now provided by water table (no separate lake meshes to clean up)
-    if (marker) scene.remove(marker);
+    if (marker) {
+      scene.remove(marker);
+      marker = null;
+    }
     await yieldToMain();
 
     console.log(BUILD_LOG, "create Globe, add base water terrain");
@@ -2228,8 +2300,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       flatShading: true,
       side: THREE.DoubleSide,
     });
-    (globe.mesh as THREE.Mesh).receiveShadow = true;
-    (globe.mesh as THREE.Mesh).castShadow = true;
+    applyGlobeTerrainShadowFlags(globe);
     scene.add(globe.mesh);
     const elevationScale = 0.08;
     const peakElevationScale = 0.000006;
@@ -2260,8 +2331,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     let riverEdgeToWaterByTile: Map<number, Set<number>> | undefined;
 
     if (state.useEarth && earthRaster) {
-      const cache =
-        state.subdivisions === 6 ? await fetchEarthGlobeCache() : null;
+      const cache = await fetchEarthGlobeCache(state.subdivisions);
       const cacheOk =
         cache != null &&
         cache.tileCount === globe.tileCount &&
@@ -2270,9 +2340,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       if (cacheOk) {
         console.log(
           BUILD_LOG,
-          "Earth: using",
-          EARTH_GLOBE_CACHE_URL,
-          "(version",
+          "Earth: using precomputed cache (subdivisions",
+          cache.subdivisions,
+          "version",
           cache.version,
           ")",
         );
@@ -2309,10 +2379,16 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             riverEdgeToWaterByTile = undefined;
         }
       } else {
-        if (state.subdivisions === 6 && cache == null) {
+        if (cache == null) {
           console.log(
             BUILD_LOG,
-            "Earth: no matching cache (run npm run build-earth-globe-cache); use ?noEarthCache=1 to force full recompute",
+            `Earth: no matching cache for subdivisions=${state.subdivisions} (need public/earth-globe-cache-${state.subdivisions}.json` +
+              (state.subdivisions === 6 ? " or legacy earth-globe-cache.json" : "") +
+              `, version ${EARTH_GLOBE_CACHE_VERSION}). Run: npm run build-earth-globe-cache -- ${state.subdivisions}`,
+          );
+          console.log(
+            BUILD_LOG,
+            "Or use ?noEarthCache=1 to force full recompute in the browser.",
           );
         }
         console.log(
@@ -2340,7 +2416,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
                 getRasterWindow: earthGetRasterWindow ?? undefined,
                 knownStraitTileIds:
                   globe.subdivisions === 6
-                    ? new Set([40361, 24757, 4129, 25328])
+                    ? new Set(EARTH_STRAIT_TILE_IDS_SUBDIVISION_6)
                     : undefined,
                 onIteration: async (_iteration, landByTile) => {
                   const terrain = new Map<number, TileTerrainData>();
@@ -2381,9 +2457,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             BUILD_LOG,
             "Earth: computing peak tiles from mountain list",
           );
+          /** Distinct tiles that get pyramid peaks — scan further into mountains.json than older tileCount/20. */
           const targetDistinctTiles = Math.max(
-            24,
-            Math.floor(globe.tileCount / 20),
+            48,
+            Math.floor(globe.tileCount / 10),
           );
           peakTiles = new Map<number, number>();
           for (const m of mountainsList) {
@@ -2517,21 +2594,14 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           }
         }
       }
-      // Mark tiles from mountains dataset as hilly (not just the top peaks used for geometry)
-      // This ensures mountain ranges like the Rockies get hill geometry even if variance is low
+      // Every mountains.json point marks its own tile isHilly (rounded bump). Pyramid peaks are a larger
+      // subset (targetDistinctTiles above). We do not mark neighbor tiles — that over-smoothed whole ranges.
       if (mountainsList && mountainsList.length > 0) {
         const hillyFromMountains = new Set<number>();
         for (const m of mountainsList) {
           const dir = latLonDegToDirection(m.lat, m.lon);
           const tileId = globe.getTileIdAtDirection(dir);
           hillyFromMountains.add(tileId);
-          // Also mark neighboring tiles as hilly for mountain ranges
-          const tile = globe.tiles.find((t) => t.id === tileId);
-          if (tile) {
-            for (const nid of tile.neighbors) {
-              hillyFromMountains.add(nid);
-            }
-          }
         }
         let addedHills = 0;
         for (const tileId of hillyFromMountains) {
@@ -2624,12 +2694,23 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     await yieldToMain();
 
     console.log(BUILD_LOG, "create coast masks");
-    coastMaskTexture = createCoastMaskTexture(globe, tileTerrain, 256, 128);
+    const coastMaskRes =
+      globe.tileCount > 100_000
+        ? { w: 192, h: 96 }
+        : globe.tileCount > 70_000
+          ? { w: 224, h: 112 }
+          : { w: 256, h: 128 };
+    coastMaskTexture = createCoastMaskTexture(
+      globe,
+      tileTerrain,
+      coastMaskRes.w,
+      coastMaskRes.h,
+    );
     coastLandMaskTexture = createCoastLandMaskTexture(
       globe,
       tileTerrain,
-      256,
-      128,
+      coastMaskRes.w,
+      coastMaskRes.h,
     );
     await yieldToMain();
 
@@ -2683,7 +2764,13 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     );
 
     // Add black inner sphere to prevent seeing through any geometry gaps
-    const innerSphereGeom = new THREE.SphereGeometry(0.98, 64, 32);
+    const innerSegW = globe.tileCount > 100_000 ? 24 : 64;
+    const innerSegH = globe.tileCount > 100_000 ? 12 : 32;
+    const innerSphereGeom = new THREE.SphereGeometry(
+      0.98,
+      innerSegW,
+      innerSegH,
+    );
     const innerSphereMat = new THREE.MeshBasicMaterial({
       color: 0x000000,
       side: THREE.BackSide,
@@ -2765,6 +2852,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       radius: 0.995,
       speed: 0.073,
       timeScale: 0.4,
+      ...(globe.tileCount > 100_000
+        ? { widthSegments: 24, heightSegments: 24 }
+        : globe.tileCount > 70_000
+          ? { widthSegments: 28, heightSegments: 28 }
+          : {}),
     });
     scene.add(coastFoamOverlay.mesh);
 
@@ -3274,12 +3366,16 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     /** Globe radius ≈1; bushes/grass stay readable; trees get TREE_SIZE_MUL on top. */
     const VEG_BASE_SCALE = 0.00175;
     const TREE_SIZE_MUL = 3.1;
+    const denseGlobe = globe.tileCount > 70_000;
+    const veryDenseGlobe = globe.tileCount > 100_000;
     vegetationLayer = createVegetationLayer(globe, tileTerrain, {
-      maxDrawDistance: Infinity,
+      maxDrawDistance: veryDenseGlobe ? 1.45 : denseGlobe ? 2.65 : Infinity,
       elevationScale,
-      maxPlantsPerHex: 16,
+      maxPlantsPerHex: veryDenseGlobe ? 3 : denseGlobe ? 8 : 16,
       baseScale: VEG_BASE_SCALE,
-      maxInstancesPerType: 4096,
+      maxInstancesPerType: veryDenseGlobe ? 896 : denseGlobe ? 3072 : 4096,
+      updateEveryNFrames: veryDenseGlobe ? 8 : denseGlobe ? 2 : 1,
+      hemisphereCullDot: veryDenseGlobe ? -0.02 : denseGlobe ? -0.15 : -0.22,
       hillyBumpHeight: 0.003,
       getPeak: peakTiles
         ? (id: number) => {
@@ -3310,7 +3406,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     vegetationLayer.group.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         o.receiveShadow = true;
-        o.castShadow = true;
+        /** Plant shadows are expensive with many instances; skip on dense globes. */
+        o.castShadow = !denseGlobe;
       }
     });
     scene.add(vegetationLayer.group);
@@ -3322,13 +3419,16 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       treeMeshNames: treeChildren.map((c) => c.name),
     });
 
-    marker = new THREE.Mesh(
-      new THREE.SphereGeometry(0.03, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0xff4444 }),
-    );
-    const tileId = Math.min(42, globe.tileCount - 1);
-    placeObject(marker, globe, { tileId, heightOffset: 0.06 });
-    scene.add(marker);
+    /** Debug marker at tile 42 — only meaningful at subdivision 6 (IDs differ at other scales). */
+    if (globe.subdivisions === 6 && globe.tileCount > 42) {
+      marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03, 12, 12),
+        new THREE.MeshStandardMaterial({ color: 0xff4444 }),
+      );
+      placeObject(marker, globe, { tileId: 42, heightOffset: 0.06 });
+      scene.add(marker);
+    }
+    applyGlobeRenderingPerf(globe.tileCount);
     console.log(BUILD_LOG, "buildWorldAsync done");
   } finally {
     setLoading(false);
@@ -3448,7 +3548,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     "Scale (subdivisions)",
     "subdivisions",
     1,
-    6,
+    MAX_EARTH_GLOBE_SUBDIVISIONS,
     1,
     (v) => `${v} (~${2 + 10 * Math.pow(4, v)} tiles)`,
   );
@@ -3705,7 +3805,6 @@ async function init() {
 
   const state: DemoState = { ...DEFAULT_STATE };
   createPanel(state, () => scheduleRebuild(state));
-
   scheduleRebuild(state);
 
   applyPreset(camera, getPreset("strategy"), 1);
@@ -3715,8 +3814,9 @@ async function init() {
     direction: sunDirectionFromState(state),
     distance: 3500,
     intensity: 2.2,
-    ambientIntensity: 0.025,
-    ambientColor: 0x12161c,
+    /** Slightly higher fill so night-side terrain / subdiv-7 mesh stay readable (was 0.025 → nearly black). */
+    ambientIntensity: 0.055,
+    ambientColor: 0x1a2230,
     sphereRadius: 90,
     sphereColor: 0xfff5e0,
     castShadow: true,
@@ -3749,9 +3849,11 @@ async function init() {
     ),
   );
   sun.directional.add(lensflare);
+  sunLensflareRef = lensflare;
 
   {
-    const occluderGeom = new THREE.SphereGeometry(1, 32, 32);
+    /** Low segment count: only casts a bulk shadow silhouette for clouds. */
+    const occluderGeom = new THREE.SphereGeometry(1, 20, 20);
     const occluderMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     earthOccluder = new THREE.Mesh(occluderGeom, occluderMat);
     earthOccluder.name = "EarthOccluder";
@@ -3761,19 +3863,6 @@ async function init() {
     earthOccluder.renderOrder = -10000;
     scene.add(earthOccluder);
   }
-
-  const composer = new EffectComposer(renderer);
-  composer.setPixelRatio(renderer.getPixelRatio());
-  composer.setSize(innerWidth, innerHeight);
-  composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(
-    new UnrealBloomPass(
-      new THREE.Vector2(innerWidth, innerHeight),
-      0.9,
-      0.4,
-      0.55,
-    ),
-  );
 
   const atmosphere = new Atmosphere(scene, { timeOfDay: 0.5 });
   scene.background = new THREE.Color(0x030508);
@@ -3891,8 +3980,13 @@ async function init() {
   controls.minPolarAngle = 0;
   controls.maxPolarAngle = Math.PI;
 
+  /** Throttle expensive per-frame work on subdiv 7 (~163k tiles). */
+  let animTick = 0;
+
   function animate() {
     requestAnimationFrame(animate);
+    animTick++;
+    const veryDenseAnim = lastGlobePerfBucket === "veryDense";
     controls.update();
     const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
     const gmstRad = dateToGreenwichMeanSiderealTimeRad(date);
@@ -3934,21 +4028,24 @@ async function init() {
     moonLight.position.copy(moonPos);
     if (water) {
       water.setSunDirection(sunDir);
-      water.update();
+      if (!veryDenseAnim || animTick % 2 === 0) water.update();
     }
     vegetationLayer?.update(camera);
     if (coastFoamOverlay) {
       coastFoamOverlay.setSunDirection(sunDir);
-      coastFoamOverlay.update();
+      if (!veryDenseAnim || animTick % 2 === 0) coastFoamOverlay.update();
     }
     // Recompute wind and flow whenever date changes (currents follow wind)
     if (globe && windArrowsGroup && globalTileTerrain && state.dateTimeStr !== lastWindDateStr) {
       updateWindFromState(state);
       lastWindDateStr = state.dateTimeStr;
       if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
-    if (precipitationOverlayGroup || cloudGroup) updatePrecipitationAndCloudsFromState(state);
+      if (precipitationOverlayGroup || cloudGroup)
+        updatePrecipitationAndCloudsFromState(state);
     }
-    if (cloudGroup) sortLowPolyCloudsByCamera(cloudGroup, camera);
+    if (cloudGroup && (!veryDenseAnim || animTick % 4 === 0)) {
+      sortLowPolyCloudsByCamera(cloudGroup, camera);
+    }
     if (sun.directional.castShadow && sun.directional.shadow) {
       sun.directional.shadow.camera.layers.enable(0);
       sun.directional.shadow.camera.layers.enable(1);
@@ -4242,9 +4339,14 @@ async function init() {
     const h = innerHeight;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    const cap =
+      lastGlobePerfBucket === "veryDense"
+        ? 0.85
+        : lastGlobePerfBucket === "dense"
+          ? 1.35
+          : 2;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
     renderer.setSize(w, h);
-    composer.setSize(w, h);
-    composer.setPixelRatio(renderer.getPixelRatio());
   });
   animate();
 }

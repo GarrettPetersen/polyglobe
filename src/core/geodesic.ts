@@ -70,7 +70,9 @@ export function buildGeodesicTiles(subdivisions: number): GeodesicTile[] {
       newFaces.push([a, mab, mac], [b, mbc, mab], [c, mac, mbc], [mab, mbc, mac]);
     }
     faces.length = 0;
-    faces.push(...newFaces);
+    for (let fi = 0; fi < newFaces.length; fi++) {
+      faces.push(newFaces[fi]!);
+    }
   }
 
   // Face centers

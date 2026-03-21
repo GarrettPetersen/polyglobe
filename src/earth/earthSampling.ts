@@ -1340,7 +1340,7 @@ export interface ResolveLandWaterByRegionsOptions {
   useGreedyLandmassPlacement?: boolean;
   /** Optional: return a small raster cutout (land/water) around the tile to test isthmus vs strait by flood fill. If land crosses cutout but sea doesn't → isthmus; if sea crosses but land doesn't → strait. */
   getRasterWindow?: (tile: GeodesicTile) => RasterWindow | null;
-  /** Hardcoded tile IDs (at current subdivisions) that must be water (straits). These are never treated as isthmus. */
+  /** Hardcoded tile IDs that must be water (straits). Tile IDs depend on geodesic subdivision — only pass for the scale they were authored for (e.g. subdivision 6 in globe-demo). Omit at other scales. */
   knownStraitTileIds?: Set<number>;
 }
 

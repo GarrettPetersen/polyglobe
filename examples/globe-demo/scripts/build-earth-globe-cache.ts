@@ -1,6 +1,13 @@
 /**
- * Regenerate public/earth-globe-cache.json for subdivisions=6 Earth mode.
- * Run from globe-demo: npm run build-earth-globe-cache
+ * Regenerate public/earth-globe-cache-{n}.json for Earth mode at given subdivision(s).
+ * Run from globe-demo:
+ *   npm run build-earth-globe-cache              → subdivision 6 only (default)
+ *   npm run build-earth-globe-cache -- 7         → subdivision 7 only
+ *   npm run build-earth-globe-cache -- 6 7       → both
+ *   npm run build-earth-globe-cache-all          → 6 and 7 (see package.json)
+ *
+ * For subdivision 6 also writes legacy public/earth-globe-cache.json (same content).
+ * Hardcoded strait tile IDs only apply at subdivision 6 (IDs differ at other scales).
  */
 import { readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
@@ -21,7 +28,13 @@ import {
   symmetrizeRiverNeighborEdgesUntilStable,
 } from "../../../src/index.js";
 import { loadEarthBinRasterForCache } from "../earthLandRasterBin.js";
-import { EARTH_GLOBE_CACHE_VERSION } from "../earthGlobeCacheVersion.js";
+import {
+  EARTH_GLOBE_CACHE_VERSION,
+  EARTH_STRAIT_TILE_IDS_SUBDIVISION_6,
+  MAX_EARTH_GLOBE_SUBDIVISIONS,
+} from "../earthGlobeCacheVersion.js";
+
+const KNOWN_STRAIT_TILE_IDS_SUB6 = new Set(EARTH_STRAIT_TILE_IDS_SUBDIVISION_6);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, "..", "public");
@@ -129,25 +142,32 @@ function loadElevation() {
   }
 }
 
-async function main() {
-  const loaded = loadEarthBinRasterForCache(PUBLIC);
-  if (!loaded) {
+function parseSubdivisionArgs(): number[] {
+  const raw = process.argv.slice(2).filter((a) => !a.startsWith("-"));
+  const subs = raw
+    .map((a) => parseInt(a, 10))
+    .filter(
+      (n) =>
+        Number.isInteger(n) &&
+        n >= 1 &&
+        n <= MAX_EARTH_GLOBE_SUBDIVISIONS,
+    );
+  if (raw.length > 0 && subs.length === 0) {
     console.error(
-      "Missing public/earth-region-grid.bin (not in git — large file).\n" +
-        "  From examples/globe-demo run:\n" +
-        "    npm run download-data && npm run build-land-raster-png\n" +
-        "  Or full setup: npm run setup-data"
+      `Invalid subdivision list. Use integers 1–${MAX_EARTH_GLOBE_SUBDIVISIONS}, e.g. 6 or 6 7`,
     );
     process.exit(1);
   }
-  const { raster, getRegionScores, getRasterWindow } = loaded;
-  const koppen = loadKoppen();
-  const elev = loadElevation();
-  if (koppen) raster.climate = { width: 360, height: 180, data: koppen };
-  if (elev) raster.elevation = elev;
+  return subs.length > 0 ? subs : [6];
+}
 
-  console.log("Globe subdivisions=6…");
-  const globe = new Globe({ radius: 1, subdivisions: 6 });
+async function buildCacheForSubdivisions(
+  subdivisions: number,
+  loaded: NonNullable<ReturnType<typeof loadEarthBinRasterForCache>>,
+): Promise<void> {
+  const { raster, getRegionScores, getRasterWindow } = loaded;
+  console.log(`\n=== Earth globe cache: subdivisions=${subdivisions} ===`);
+  const globe = new Globe({ radius: 1, subdivisions });
   console.log("buildTerrainFromEarthRaster…", globe.tileCount, "tiles");
   const tileTerrain = await buildTerrainFromEarthRaster(globe.tiles, raster, {
     waterElevation: -0.18,
@@ -159,7 +179,8 @@ async function main() {
     resolveOptions: {
       useGreedyLandmassPlacement: true,
       getRasterWindow,
-      knownStraitTileIds: new Set([40361, 24757, 4129, 25328]),
+      knownStraitTileIds:
+        subdivisions === 6 ? KNOWN_STRAIT_TILE_IDS_SUB6 : undefined,
     },
   });
   applyCoastalBeach(globe.tiles, tileTerrain);
@@ -167,7 +188,7 @@ async function main() {
   const mountains = loadMountains();
   const peaks: [number, number][] = [];
   if (mountains?.length) {
-    const target = Math.max(24, Math.floor(globe.tileCount / 20));
+    const target = Math.max(48, Math.floor(globe.tileCount / 10));
     const peakMap = new Map<number, number>();
     for (const m of mountains) {
       if (peakMap.size >= target) break;
@@ -266,21 +287,13 @@ async function main() {
     }
   }
 
-  // Mark tiles from mountains dataset as hilly (extends beyond variance-based detection)
-  // Reuse the already-loaded mountains list
+  // Each mountain point → isHilly on that tile only (no neighbor ring). Peaks array is more tiles via higher target.
   if (mountains && mountains.length > 0) {
     const hillyFromMountains = new Set<number>();
     for (const m of mountains) {
       const dir = latLonDegToDirection(m.lat, m.lon);
       const tileId = globe.getTileIdAtDirection(dir);
       hillyFromMountains.add(tileId);
-      // Also mark neighboring tiles as hilly
-      const tile = globe.tiles.find(t => t.id === tileId);
-      if (tile) {
-        for (const nid of tile.neighbors) {
-          hillyFromMountains.add(nid);
-        }
-      }
     }
     let addedHills = 0;
     for (const tileId of hillyFromMountains) {
@@ -308,17 +321,48 @@ async function main() {
 
   const out = {
     version: EARTH_GLOBE_CACHE_VERSION,
-    subdivisions: 6,
+    subdivisions,
     tileCount: globe.tileCount,
     tiles,
     peaks,
     riverEdges,
     riverEdgeToWater,
   };
-  const outPath = join(PUBLIC, "earth-globe-cache.json");
-  writeFileSync(outPath, JSON.stringify(out), "utf8");
-  const sz = readFileSync(outPath).length;
+  const json = JSON.stringify(out);
+  const outPath = join(PUBLIC, `earth-globe-cache-${subdivisions}.json`);
+  writeFileSync(outPath, json, "utf8");
+  let sz = readFileSync(outPath).length;
   console.log("Wrote", outPath, `(${Math.round(sz / 1024)} KB)`);
+  if (subdivisions === 6) {
+    const legacyPath = join(PUBLIC, "earth-globe-cache.json");
+    writeFileSync(legacyPath, json, "utf8");
+    sz = readFileSync(legacyPath).length;
+    console.log("Wrote", legacyPath, `(${Math.round(sz / 1024)} KB) [legacy alias]`);
+  }
+}
+
+async function main() {
+  const loaded = loadEarthBinRasterForCache(PUBLIC);
+  if (!loaded) {
+    console.error(
+      "Missing public/earth-region-grid.bin (not in git — large file).\n" +
+        "  From examples/globe-demo run:\n" +
+        "    npm run download-data && npm run build-land-raster-png\n" +
+        "  Or full setup: npm run setup-data"
+    );
+    process.exit(1);
+  }
+  const koppen = loadKoppen();
+  const elev = loadElevation();
+  if (koppen) loaded.raster.climate = { width: 360, height: 180, data: koppen };
+  if (elev) loaded.raster.elevation = elev;
+
+  const subdivisionList = parseSubdivisionArgs();
+  console.log("Building cache file(s) for subdivisions:", subdivisionList.join(", "));
+  for (const sub of subdivisionList) {
+    await buildCacheForSubdivisions(sub, loaded);
+  }
+  console.log("\nDone.");
 }
 
 main().catch((e) => {

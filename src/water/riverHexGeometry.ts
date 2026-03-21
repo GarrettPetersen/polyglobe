@@ -26,6 +26,16 @@ type MultiPoly = Ring2[][];
 
 const m = (k: number) => ((k % 6) + 6) % 6;
 
+/**
+ * Inset river mouth midpoint along the edge normal (tile-plane units). Scales with edge length so
+ * seams stay tight on all zoom levels; void + U-mouth geometry must use the same rule.
+ */
+const RIVER_MOUTH_INSET_ALONG_NORMAL_MIN = 1e-9;
+const RIVER_MOUTH_INSET_ALONG_NORMAL_FRAC = 0.0065;
+function riverMouthInsetAlongNormal(edgeLen: number): number {
+  return Math.max(RIVER_MOUTH_INSET_ALONG_NORMAL_MIN, edgeLen * RIVER_MOUTH_INSET_ALONG_NORMAL_FRAC);
+}
+
 /** Convex hull as closed CCW ring (first point repeated at end). */
 function convexHull2dClosed(pts: [number, number][]): Ring2 {
   const D = 1e-9;
@@ -151,9 +161,9 @@ export function buildRiverLandAndVoidFromCorners(
     // Edge normal pointing inward (toward hex center)
     const nx = -uy;
     const ny = ux;
-    const insetDist = 0.0001;
-    const midx = (o0[0] + o1[0]) * 0.5 + nx * insetDist;
-    const midy = (o0[1] + o1[1]) * 0.5 + ny * insetDist;
+    const insetN = riverMouthInsetAlongNormal(el);
+    const midx = (o0[0] + o1[0]) * 0.5 + nx * insetN;
+    const midy = (o0[1] + o1[1]) * 0.5 + ny * insetN;
     const halfW = halfWNarrow(e);
     return [
       [midx - ux * halfW, midy - uy * halfW],
@@ -357,8 +367,11 @@ export function riverMouthOpeningsByEdge(
     const el = Math.hypot(ux, uy) || 1;
     ux /= el;
     uy /= el;
-    const midx = (o0[0] + o1[0]) * 0.5;
-    const midy = (o0[1] + o1[1]) * 0.5;
+    const nx = -uy;
+    const ny = ux;
+    const insetN = riverMouthInsetAlongNormal(el);
+    const midx = (o0[0] + o1[0]) * 0.5 + nx * insetN;
+    const midy = (o0[1] + o1[1]) * 0.5 + ny * insetN;
     const halfW = halfWNarrow(e);
     return [
       [midx - ux * halfW, midy - uy * halfW],
@@ -403,6 +416,9 @@ function appendRiverMouthUGeometry(
   const ey = frame.ey;
   const nUp = frame.normal;
   const [cr, cg, cb] = rgb;
+  /** Slightly below bank top so mouth wall tops don’t Z-fight with lofted caps / neighbor tiles. */
+  const depth = Math.max(0, rTop - rBot);
+  const rLegTop = rTop - depth * 0.11;
   const pushVert = (x: number, y: number, z: number, nx: number, ny: number, nz: number) => {
     positions.push(x, y, z);
     normals.push(nx, ny, nz);
@@ -419,9 +435,9 @@ function appendRiverMouthUGeometry(
     if (Math.hypot(bx - ax, by - ay) < MOUTH_LEG_EPS) return;
     wallNormal2dTowardChannel(ax, ay, bx, by, ex, ey, wallN);
     const b0 = positions.length / 3;
-    tilePlanePoint(frame, ax, ay, rTop, pTop);
+    tilePlanePoint(frame, ax, ay, rLegTop, pTop);
     pushVert(pTop.x, pTop.y, pTop.z, wallN.x, wallN.y, wallN.z);
-    tilePlanePoint(frame, bx, by, rTop, pTop);
+    tilePlanePoint(frame, bx, by, rLegTop, pTop);
     pushVert(pTop.x, pTop.y, pTop.z, wallN.x, wallN.y, wallN.z);
     tilePlanePoint(frame, bx, by, rBot, pBot);
     pushVert(pBot.x, pBot.y, pBot.z, wallN.x, wallN.y, wallN.z);
@@ -433,40 +449,8 @@ function appendRiverMouthUGeometry(
   pushLeg(o0[0], o0[1], A[0], A[1]);
   pushLeg(B[0], B[1], o1[0], o1[1]);
 
-  // The polygon-clipping uses slightly inset A/B points (0.0001 from edge).
-  // Add a thin strip at rTop to cover this gap between outer edge and inset line.
-  // This strip spans from A to B along the outer edge, inward to slightly inside the channel.
-  {
-    const nx = nUp.x, ny = nUp.y, nz = nUp.z;
-    // Outer edge direction
-    const edx = o1[0] - o0[0];
-    const edy = o1[1] - o0[1];
-    const edLen = Math.hypot(edx, edy) || 1;
-    // Normal pointing inward (toward center)
-    const inx = -edy / edLen;
-    const iny = edx / edLen;
-    // Inset amount matches the polygon-clipping inset plus a small margin
-    const coverInset = 0.0003;
-    // Create 4 points for the covering strip
-    const Ao = [A[0], A[1]];  // A on outer position (where U-leg meets)
-    const Bo = [B[0], B[1]];  // B on outer position
-    const Ai = [A[0] + inx * coverInset, A[1] + iny * coverInset];  // A inset
-    const Bi = [B[0] + inx * coverInset, B[1] + iny * coverInset];  // B inset
-    
-    if (Math.hypot(Bo[0] - Ao[0], Bo[1] - Ao[1]) > MOUTH_LEG_EPS) {
-      const stripBase = positions.length / 3;
-      // Quad: Ao -> Bo -> Bi -> Ai (CCW when viewed from above/outside)
-      tilePlanePoint(frame, Ao[0], Ao[1], rTop, pTop);
-      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
-      tilePlanePoint(frame, Bo[0], Bo[1], rTop, pTop);
-      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
-      tilePlanePoint(frame, Bi[0], Bi[1], rTop, pTop);
-      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
-      tilePlanePoint(frame, Ai[0], Ai[1], rTop, pTop);
-      pushVert(pTop.x, pTop.y, pTop.z, nx, ny, nz);
-      indices.push(stripBase, stripBase + 1, stripBase + 2, stripBase, stripBase + 2, stripBase + 3);
-    }
-  }
+  // Do not add a flat rTop quad here: it created visible “bridges” at hex seams where two
+  // river tiles meet. Mouth A/B now match `buildRiverLandAndVoidFromCorners` (inset from edge).
 
   if (Math.hypot(B[0] - A[0], B[1] - A[1]) < MOUTH_LEG_EPS) return;
   const nx = nUp.x;

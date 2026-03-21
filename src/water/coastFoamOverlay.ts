@@ -12,6 +12,9 @@ export interface CoastFoamOverlayOptions {
   speed?: number;
   /** Same as WaterSphere timeScale so phase matches. Default 1.0 */
   timeScale?: number;
+  /** Sphere mesh density. Default 64×64; use 32×32 on very dense globes to save GPU. */
+  widthSegments?: number;
+  heightSegments?: number;
 }
 
 const VERTEX = `
@@ -70,7 +73,9 @@ export class CoastFoamOverlay {
     this.clock = new THREE.Clock();
 
     const waveCount = 3.2;
-    const geometry = new THREE.SphereGeometry(radius, 64, 64);
+    const wSeg = options.widthSegments ?? 64;
+    const hSeg = options.heightSegments ?? 64;
+    const geometry = new THREE.SphereGeometry(radius, wSeg, hSeg);
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,

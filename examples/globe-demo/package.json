@@ -15,6 +15,7 @@
     "build-land-raster-png": "node scripts/build-land-raster-png.mjs",
     "setup-data": "npm run download-data && npm run build-koppen && npm run build-mountains && npm run build-land-raster-png && npm run build-elevation",
     "build-earth-globe-cache": "npx tsx scripts/build-earth-globe-cache.ts",
+    "build-earth-globe-cache-all": "npx tsx scripts/build-earth-globe-cache.ts 6 7",
     "list-assets": "node scripts/list-assets.mjs",
     "rename-assets": "node scripts/rename-assets.mjs"
   },
