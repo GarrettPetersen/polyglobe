@@ -19,6 +19,7 @@ import {
   updateFlatGeometryFromTerrain,
   applyTerrainColorsToGeometry,
   applyLandSurfaceWeatherVertexColors,
+  combinedLandSnowCover,
   applyVertexColorsByTileId,
   applyTerrainToGeometry,
   createCoastMaskTexture,
@@ -56,8 +57,10 @@ import {
   type RegionScores,
   type RasterWindow,
   parseElevationBin,
+  parseTemperatureMonthlyBin,
+  attachMonthlyTemperatureToTerrainFromRaster,
   getPrecipitation,
-  getTemperature,
+  climateSurfaceSnowVisualForTerrain,
   createPrecipitationOverlay,
   updatePrecipitationOverlay,
   getPrecipitationByTile,
@@ -68,6 +71,7 @@ import {
   sortLowPolyCloudsByCamera,
   CloudClipField,
   buildAnnualCloudSpawnTable,
+  analyzePrecipClimatologyGap,
   createPrecipitationParticlesGroup,
   updatePrecipitationParticles,
   disposePrecipitationParticlesGroup,
@@ -296,6 +300,8 @@ const EARTH_REGION_GRID_BIN = "/earth-region-grid.bin";
 const EARTH_LAKES_GEOJSON_URL = "/ne_110m_lakes.json";
 const EARTH_MARINE_POLYS_URL = "/ne_110m_geography_marine_polys.json";
 const KOPPEN_BIN_SAME_ORIGIN = "/koppen.bin";
+/** WorldClim-style mean monthly tavg stack: {@link parseTemperatureMonthlyBin} (`PG12` + 12×W×H float32 °C). */
+const TAVG_MONTHLY_BIN_SAME_ORIGIN = "/tavg_monthly.bin";
 const KOPPEN_ZIP_SAME_ORIGIN = "/koppen_ascii.zip";
 const KOPPEN_ZIP_REMOTE: string | null = null;
 const ELEVATION_BIN_SAME_ORIGIN = "/elevation.bin";
@@ -356,8 +362,8 @@ const DEFAULT_STATE: DemoState = {
   dateTimeStr: "",
   showWinds: false,
   showFlow: false,
-  showPrecipitation: false,
-  showClouds: false,
+  showPrecipitation: true,
+  showClouds: true,
   gameClockUtcMinute: null,
   timePlaying: false,
   timePlaySpeed: 3600,
@@ -1788,6 +1794,17 @@ async function loadElevation() {
   }
 }
 
+/** Global 2D monthly means (not latitude-only): each cell is lon/lat on an equirectangular grid. */
+async function loadTemperatureMonthlyBin() {
+  try {
+    const res = await fetch(TAVG_MONTHLY_BIN_SAME_ORIGIN);
+    if (!res.ok) return null;
+    return parseTemperatureMonthlyBin(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x030508);
 
@@ -1901,6 +1918,12 @@ let riverLineIsDelta: boolean[] | null = null;
 /** River terrain (banks/bed) in Earth mode. Water provided by terrain-following water table. */
 /** U-shaped river banks + bed (land mesh); separate from transparent water ribbon. */
 let riverTerrainGroup: THREE.Group | null = null;
+
+/** Re-run {@link applyLandSurfaceWeatherVertexColors} on globe + river banks when true. */
+let landWeatherColorsDirty = true;
+let lastLandWeatherVisualMinute = Number.NaN;
+/** {@link climateSurfaceSnowVisualForTerrain} uses full date/subsolar — repaint land at least once per sim second, not only on UTC minute floor. */
+let lastLandWeatherPaintEpochSec = Number.NaN;
 /** Black sphere inside the globe to prevent seeing through geometry gaps. */
 let innerBlackSphere: THREE.Mesh | null = null;
 let windArrowsGroup: THREE.Group | null = null;
@@ -2140,26 +2163,146 @@ function updateFlowFromState(state: DemoState): void {
   }
 }
 
-/** Blend terrain vertex colors with wet / snow cover from {@link CloudClipField} surface state. */
-function syncGlobeLandWeatherVertexColors(): void {
-  if (!globe || !globalTileTerrain || !cloudClipField) return;
-  const mesh = globe.mesh as THREE.Mesh;
-  const geom = mesh.geometry;
-  if (!(geom instanceof THREE.BufferGeometry)) return;
+function getLandWeatherVertexPaintContext(state: DemoState): {
+  waterIds: Set<number>;
+  wetness: ReadonlyMap<number, number>;
+  snow: ReadonlyMap<number, number>;
+  subsolarLatDeg: number;
+  calendarUtc: Date;
+} | null {
+  if (!globe || !globalTileTerrain) return null;
   const waterIds = new Set<number>();
   for (const [id, t] of globalTileTerrain) {
     if (t.type === "water") waterIds.add(id);
   }
-  const surf = cloudClipField.getTileSurfaceState();
-  applyLandSurfaceWeatherVertexColors(
+  const date = datetimeLocalUTCToDate(
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+  );
+  const subsolarLatDeg = dateToSubsolarPoint(date).latDeg;
+  const surf = cloudClipField?.getTileSurfaceState();
+  return {
+    waterIds,
+    wetness: surf?.wetness ?? new Map<number, number>(),
+    snow: surf?.snow ?? new Map<number, number>(),
+    subsolarLatDeg,
+    calendarUtc: date,
+  };
+}
+
+function markLandWeatherColorsDirty(): void {
+  landWeatherColorsDirty = true;
+}
+
+/** Main globe hex mesh (excludes full river-hex tops — those use {@link syncRiverTerrainLandWeatherVertexColors}). */
+function syncGlobeLandWeatherVertexColors(state: DemoState): boolean {
+  const ctx = getLandWeatherVertexPaintContext(state);
+  if (!ctx || !globe) return false;
+  const geom = globe.mesh.geometry;
+  if (!(geom instanceof THREE.BufferGeometry)) return false;
+  return applyLandSurfaceWeatherVertexColors(
     geom,
     globalTileTerrain,
-    waterIds,
-    surf.wetness,
-    surf.snow,
+    ctx.waterIds,
+    ctx.wetness,
+    ctx.snow,
+    { globe, subsolarLatDeg: ctx.subsolarLatDeg, calendarUtc: ctx.calendarUtc },
   );
-  const ca = geom.getAttribute("color");
-  if (ca) ca.needsUpdate = true;
+}
+
+/**
+ * River hex tops are omitted from the main geodesic mesh; banks carry the visible land surface.
+ * Without this pass, trees (tile-matched) look snowy while ground stays static green.
+ */
+function syncRiverTerrainLandWeatherVertexColors(state: DemoState): boolean {
+  const ctx = getLandWeatherVertexPaintContext(state);
+  if (!ctx || !riverTerrainGroup || !globe) return true;
+  let ok = true;
+  riverTerrainGroup.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    if (obj.name !== "RiverBanks") return;
+    const g = obj.geometry;
+    if (!(g instanceof THREE.BufferGeometry)) return;
+    if (!g.getAttribute("tileId") || !g.getAttribute("color")) return;
+    if (
+      !applyLandSurfaceWeatherVertexColors(
+        g,
+        globalTileTerrain,
+        ctx.waterIds,
+        ctx.wetness,
+        ctx.snow,
+        { globe, subsolarLatDeg: ctx.subsolarLatDeg, calendarUtc: ctx.calendarUtc },
+      )
+    ) {
+      ok = false;
+    }
+  });
+  return ok;
+}
+
+function flushLandWeatherVertexColorsIfDirty(state: DemoState): void {
+  if (!landWeatherColorsDirty) return;
+  if (!globe || !globalTileTerrain) return;
+  const globeOk = syncGlobeLandWeatherVertexColors(state);
+  const riverOk = syncRiverTerrainLandWeatherVertexColors(state);
+  if (globeOk && riverOk) {
+    landWeatherColorsDirty = false;
+  }
+}
+
+let lastSnowDiagLogMs = 0;
+
+/** `?snowDiag=1` in the URL: periodic console stats for sim snow map vs climate snow (subarctic sample). */
+function maybeLogSnowSurfaceDiagnostic(date: Date): void {
+  if (typeof window === "undefined") return;
+  if (!new URLSearchParams(window.location.search).get("snowDiag")) return;
+  if (!globe || !globalTileTerrain) return;
+  const now = performance.now();
+  if (now - lastSnowDiagLogMs < 5000) return;
+  lastSnowDiagLogMs = now;
+  const subsolar = dateToSubsolarPoint(date).latDeg;
+  const snowMap = cloudClipField?.getTileSurfaceState().snow;
+  let simTilesOver002 = 0;
+  let simMax = 0;
+  if (snowMap) {
+    for (const v of snowMap.values()) {
+      if (v > 0.02) simTilesOver002++;
+      simMax = Math.max(simMax, v);
+    }
+  }
+  const SAMPLE_CAP = 2500;
+  let nSample = 0;
+  let subarcticLand = 0;
+  let sumClim = 0;
+  let sumSim = 0;
+  for (const t of globe.tiles) {
+    const data = globalTileTerrain.get(t.id);
+    if (!data || data.type === "water") continue;
+    const p = globe.getTileCenter(t.id);
+    if (!p) continue;
+    const latDegSigned = (tileCenterToLatLon(p).lat * 180) / Math.PI;
+    if (Math.abs(latDegSigned) < 55) continue;
+    subarcticLand++;
+    if (nSample >= SAMPLE_CAP) continue;
+    nSample++;
+    sumClim += climateSurfaceSnowVisualForTerrain(
+      latDegSigned,
+      subsolar,
+      data?.type,
+      data?.monthlyMeanTempC,
+      date,
+    );
+    sumSim += snowMap?.get(t.id) ?? 0;
+  }
+  console.log("[snowDiag]", {
+    simSnowTilesOver002: simTilesOver002,
+    simSnowMax: simMax.toFixed(3),
+    hasCloudClipField: !!cloudClipField,
+    subarcticLandTiles55lat: subarcticLand,
+    sampleSize: nSample,
+    meanClimateSnowVisualSampled: nSample ? (sumClim / nSample).toFixed(3) : "n/a",
+    meanSimSnowSampled: nSample ? (sumSim / nSample).toFixed(4) : "n/a",
+    hint: "Add ?precipGapDiag=1 for target vs cloud climatology tables (polar deficits).",
+  });
 }
 
 /** Recompute precipitation overlay (from cloud sim rain) and sync cloud meshes from sim. */
@@ -2186,7 +2329,7 @@ function updatePrecipitationAndCloudsFromState(state: DemoState): void {
     nowDate,
   });
   if (cloudGroup) {
-    cloudClipField.syncThreeGroup(cloudGroup, globe, targetMin);
+    cloudClipField.syncThreeGroup(cloudGroup, globe, targetMin, camera);
     cloudGroup.visible = state.showClouds;
   }
 
@@ -2204,7 +2347,7 @@ function updatePrecipitationAndCloudsFromState(state: DemoState): void {
     );
     precipitationOverlayGroup.visible = state.showPrecipitation;
   }
-  syncGlobeLandWeatherVertexColors();
+  markLandWeatherColorsDirty();
 }
 
 /** Bumped at each globe rebuild so in-flight cloud bootstrap aborts before touching stale globals. */
@@ -2250,24 +2393,78 @@ async function ensureCloudWeatherAndPrecipMeshes(
   }
   const field = new CloudClipField({
     maxClouds: hugeGlobe ? 72 : 96,
-    cloudScale: 0.024,
+    cloudScale: 0.038,
     cloudCastShadows: false,
     maxCloudMeshOpsPerSync: hugeGlobe ? 56 : 80,
     maxCatchUpMinutes: 720,
     waterTileIds,
+    getTerrainTypeForTile: (id) => globalTileTerrain?.get(id)?.type,
+    getMonthlyMeanTempCForTile: (id) =>
+      globalTileTerrain?.get(id)?.monthlyMeanTempC,
     getSubsolarLatDegForUtcMinute: (utcMin) =>
       dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
   });
   const maxSlots = Math.min(field.config.maxClouds, globe.tileCount);
-  field.setAnnualSpawnTable(
-    buildAnnualCloudSpawnTable(
-      globe,
-      globalMoistureByTile,
-      field.config,
-      maxSlots,
-      (utcMin) => dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
-    ),
+  const annualSpawnTable = buildAnnualCloudSpawnTable(
+    globe,
+    globalMoistureByTile,
+    field.config,
+    maxSlots,
+    (utcMin) => dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
   );
+  field.setAnnualSpawnTable(annualSpawnTable);
+
+  if (typeof window !== "undefined") {
+    const wPoly = window as unknown as {
+      __polyglobePrecipGap?: () => ReturnType<typeof analyzePrecipClimatologyGap>;
+    };
+    wPoly.__polyglobePrecipGap = () =>
+      analyzePrecipClimatologyGap(
+        globe,
+        annualSpawnTable,
+        globalMoistureByTile,
+        (utcMin) => dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
+        { waterTileIds },
+      );
+
+    if (new URLSearchParams(window.location.search).get("precipGapDiag")) {
+      const runGap = () => {
+        const rep = wPoly.__polyglobePrecipGap!();
+        console.log("[precipGapDiag] seasonal×Köppen target vs annual cloud climatology (spawn-tile proxy).");
+        console.log("[precipGapDiag] medians", {
+          medianScaleFactor: +rep.medianScaleFactor.toFixed(4),
+          medianTargetLand: +rep.medianTargetLand.toFixed(4),
+          medianCloudRawLand: +rep.medianCloudRawLand.toFixed(6),
+        });
+        console.log("[precipGapDiag] worst wet-tile deficits (add clouds upwind / boost polar spawn):");
+        console.table(
+          rep.worstDeficits.slice(0, 35).map((r) => ({
+            tileId: r.tileId,
+            lat: +r.latDeg.toFixed(1),
+            lon: +r.lonDeg.toFixed(1),
+            targetMean: +r.targetMean.toFixed(3),
+            ratio: +r.ratio.toFixed(2),
+          })),
+        );
+        console.log("[precipGapDiag] polar |lat|≥58, largest target−scaledCloud gap:");
+        console.table(
+          rep.polarUnderCloudVsTarget.slice(0, 24).map((r) => ({
+            tileId: r.tileId,
+            lat: +r.latDeg.toFixed(1),
+            lon: +r.lonDeg.toFixed(1),
+            targetMean: +r.targetMean.toFixed(3),
+            scaledCloud: +r.scaledCloudMean.toFixed(5),
+            ratio: +r.ratio.toFixed(2),
+          })),
+        );
+      };
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(() => runGap(), { timeout: 8000 });
+      } else {
+        setTimeout(runGap, 100);
+      }
+    }
+  }
   const nowDate = datetimeLocalUTCToDate(
     state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
   );
@@ -2303,14 +2500,14 @@ async function ensureCloudWeatherAndPrecipMeshes(
   if (!cloudGroup) {
     cloudGroup = new THREE.Group();
     cloudGroup.name = "LowPolyClouds";
-    field.syncThreeGroup(cloudGroup, globe, targetUtcMin);
+    field.syncThreeGroup(cloudGroup, globe, targetUtcMin, camera);
     cloudGroup.visible = state.showClouds;
     cloudGroup.traverse((o) => {
       if (o instanceof THREE.Mesh) o.receiveShadow = true;
     });
     scene.add(cloudGroup);
   } else {
-    field.syncThreeGroup(cloudGroup, globe, targetUtcMin);
+    field.syncThreeGroup(cloudGroup, globe, targetUtcMin, camera);
     cloudGroup.visible = state.showClouds;
   }
 
@@ -2322,6 +2519,7 @@ async function ensureCloudWeatherAndPrecipMeshes(
   }
   precipFxGroup.visible = state.showPrecipitation;
 
+  markLandWeatherColorsDirty();
   buildPerf?.mark("cloudClipFieldPrecipMesh");
 }
 
@@ -2448,6 +2646,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
   setLoading(true);
   try {
     cloudPrecipBuildGeneration++;
+    landWeatherColorsDirty = true;
+    lastLandWeatherVisualMinute = Number.NaN;
+    lastLandWeatherPaintEpochSec = Number.NaN;
     if (globe) {
       console.log(BUILD_LOG, "teardown previous globe/water/overlay");
       scene.remove(globe.mesh);
@@ -2615,6 +2816,18 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             ...(row.l != null ? { lakeId: row.l } : {}),
             ...(row.h ? { isHilly: true } : {}),
           });
+        }
+        /** Cache JSON has no per-tile monthly temps; sample tavg stack here so snow/rain matches gridded climate. */
+        if (earthRaster.temperatureMonthly) {
+          attachMonthlyTemperatureToTerrainFromRaster(
+            globe.tiles,
+            tileTerrain,
+            earthRaster.temperatureMonthly,
+          );
+          console.log(
+            BUILD_LOG,
+            "Earth: attached mean monthly °C to cached terrain (tavg_monthly.bin)",
+          );
         }
         peakTiles = new Map(cache.peaks);
         riverEdgesByTile = new Map();
@@ -3670,6 +3883,25 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date())),
       getTileWetness: (tileId: number) =>
         cloudClipField?.getTileSurfaceState().getWetness(tileId) ?? 0,
+      getTileSnowCover: (tileId: number) => {
+        const p = globe.getTileCenter(tileId);
+        if (!p) return 0;
+        const latDeg = (tileCenterToLatLon(p).lat * 180) / Math.PI;
+        const d = datetimeLocalUTCToDate(
+          state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+        );
+        const snSim =
+          cloudClipField?.getTileSurfaceState().snow.get(tileId) ?? 0;
+        const row = globalTileTerrain?.get(tileId);
+        const snClim = climateSurfaceSnowVisualForTerrain(
+          latDeg,
+          dateToSubsolarPoint(d).latDeg,
+          row?.type,
+          row?.monthlyMeanTempC,
+          d,
+        );
+        return combinedLandSnowCover(snSim, snClim);
+      },
     });
     vegetationLayer.group.traverse((o) => {
       if (o instanceof THREE.Mesh) {
@@ -3698,6 +3930,16 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       scene.add(marker);
     }
     applyGlobeRenderingPerf(globe.tileCount);
+    flushLandWeatherVertexColorsIfDirty(state);
+    {
+      const paintDate = datetimeLocalUTCToDate(
+        state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+      );
+      lastLandWeatherVisualMinute = Math.floor(
+        getCloudVisualUtcMinutes(state, paintDate),
+      );
+      lastLandWeatherPaintEpochSec = Math.floor(paintDate.getTime() / 1000);
+    }
     console.log(BUILD_LOG, "buildWorldAsync done");
   } finally {
     buildPerf?.finish();
@@ -4142,6 +4384,24 @@ async function init() {
   console.log(BUILD_LOG, "init: loading elevation…");
   const elevation = await loadElevation();
   if (elevation) earthRaster.elevation = elevation;
+  console.log(BUILD_LOG, "init: loading mean monthly temperature (optional)…");
+  const tavgMonthly = await loadTemperatureMonthlyBin();
+  if (tavgMonthly && earthRaster) {
+    earthRaster.temperatureMonthly = tavgMonthly;
+    console.log(
+      BUILD_LOG,
+      "init: tavg monthly",
+      tavgMonthly.width,
+      "×",
+      tavgMonthly.height,
+      "(°C × 12 layers)",
+    );
+  } else {
+    console.log(
+      BUILD_LOG,
+      "init: no tavg_monthly.bin — run `npm run build-tavg-monthly` in examples/globe-demo for gridded temps",
+    );
+  }
   console.log(
     BUILD_LOG,
     "init: assets done, creating panel and scheduling build",
@@ -4433,7 +4693,7 @@ async function init() {
     /** Visual-only cloud sync (physics runs on wind/precip minute tick + batched catch-up). */
     if (globe && cloudClipField && cloudGroup && state.showClouds) {
       const visUtc = getCloudVisualUtcMinutes(state, date);
-      cloudClipField.syncThreeGroup(cloudGroup, globe, visUtc);
+      cloudClipField.syncThreeGroup(cloudGroup, globe, visUtc, camera);
     }
     framePerf.slice("cloudClipMeshSync");
     if (
@@ -4450,6 +4710,8 @@ async function init() {
         subsolar.latDeg,
         getCloudVisualUtcMinutes(state, date),
         performance.now() * 0.001,
+        (id) => globalTileTerrain?.get(id)?.type,
+        (id) => globalTileTerrain?.get(id)?.monthlyMeanTempC,
       );
       precipFxGroup.visible = true;
     } else if (precipFxGroup) {
@@ -4465,6 +4727,25 @@ async function init() {
       sun.directional.shadow.needsUpdate = true;
     }
     framePerf.slice("shadowUniforms");
+    /**
+     * Land vertex weather (snow/wet/climate) must track the same clock as vegetation.
+     * Floored UTC minutes alone miss subsolar changes within a minute during time playback —
+     * trees refresh from {@link getTileSnowCover} while hexes stayed green until the minute rolled.
+     */
+    if (globe && globalTileTerrain) {
+      const visInt = Math.floor(getCloudVisualUtcMinutes(state, date));
+      if (visInt !== lastLandWeatherVisualMinute) {
+        lastLandWeatherVisualMinute = visInt;
+        markLandWeatherColorsDirty();
+      }
+      const epochSec = Math.floor(date.getTime() / 1000);
+      if (epochSec !== lastLandWeatherPaintEpochSec) {
+        lastLandWeatherPaintEpochSec = epochSec;
+        markLandWeatherColorsDirty();
+      }
+    }
+    flushLandWeatherVertexColorsIfDirty(state);
+    framePerf.slice("landWeatherVertexColors");
     // Render directly to screen so shadow maps are applied (EffectComposer path can skip shadows).
     renderer.setRenderTarget(null);
     renderer.clear();

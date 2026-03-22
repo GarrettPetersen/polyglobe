@@ -100,6 +100,93 @@ export function parseElevationBin(
   };
 }
 
+/** Magic "PG12" + uint32 width + uint32 height + 12×W×H float32 °C (month-major layers). */
+const TEMP_MONTHLY_BIN_MAGIC = 0x32314750; // "PG12" little-endian
+
+/**
+ * Twelve mean monthly temperatures (°C) on an equirectangular grid (e.g. WorldClim `tavg` rasters).
+ * **Month-major layout:** month `m` (0=Jan … 11=Dec) occupies indices `[m * (width*height), (m+1) * (width*height))`.
+ * Same lon/lat mapping as {@link sampleRasterAtLatLon}: global −180…180°, −90…90°, **not** a latitude-only profile —
+ * each cell has its own value (continentality, elevation, ocean currents, etc.).
+ */
+export interface TemperatureMonthlyLayer {
+  width: number;
+  height: number;
+  data: Float32Array;
+}
+
+/**
+ * Parse `tavg_monthly.bin`: `PG12` header + uint32 width/height + 12×W×H float32 °C (see {@link TemperatureMonthlyLayer}).
+ */
+export function parseTemperatureMonthlyBin(
+  buf: ArrayBuffer,
+): TemperatureMonthlyLayer | null {
+  const n = buf.byteLength;
+  if (n < 16) return null;
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== TEMP_MONTHLY_BIN_MAGIC) return null;
+  const w = dv.getUint32(4, true);
+  const h = dv.getUint32(8, true);
+  if (w < 2 || h < 2 || w > 32768 || h > 16384) return null;
+  const cells = w * h;
+  const need = 12 + cells * 12 * 4;
+  if (n < need) return null;
+  return {
+    width: w,
+    height: h,
+    data: new Float32Array(buf, 12, cells * 12),
+  };
+}
+
+function sampleTemperatureMonthlyNearest(
+  layer: TemperatureMonthlyLayer,
+  latDeg: number,
+  lonDeg: number,
+): Float32Array | undefined {
+  const { width: w, height: h, data } = layer;
+  const wh = w * h;
+  if (data.length !== 12 * wh) return undefined;
+  const x = ((lonDeg + 180) / 360) * (w - 1);
+  const y = ((90 - latDeg) / 180) * (h - 1);
+  const xi = Math.max(0, Math.min(Math.round(x), w - 1));
+  const yi = Math.max(0, Math.min(Math.round(y), h - 1));
+  const i = yi * w + xi;
+  const out = new Float32Array(12);
+  for (let m = 0; m < 12; m++) {
+    out[m] = data[m * wh + i]!;
+  }
+  return out;
+}
+
+/**
+ * Fills {@link TileTerrainData.monthlyMeanTempC} from a global monthly layer (e.g. after loading Earth from cache
+ * without recomputing full terrain).
+ */
+export function attachMonthlyTemperatureToTerrainFromRaster(
+  tiles: readonly GeodesicTile[],
+  terrain: Map<number, TileTerrainData>,
+  layer: TemperatureMonthlyLayer,
+): void {
+  for (const tile of tiles) {
+    const d = terrain.get(tile.id);
+    if (!d || d.type === "water" || d.type === "beach") continue;
+    const { lat, lon } = tileCenterToLatLon(tile.center);
+    const latDeg = (lat * 180) / Math.PI;
+    const lonDeg = (lon * 180) / Math.PI;
+    const m = sampleTemperatureMonthlyNearest(layer, latDeg, lonDeg);
+    if (!m) continue;
+    let ok = true;
+    for (let k = 0; k < 12; k++) {
+      if (!Number.isFinite(m[k])) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) continue;
+    terrain.set(tile.id, { ...d, monthlyMeanTempC: m });
+  }
+}
+
 function sampleElevationBilinear(
   width: number,
   height: number,
@@ -144,6 +231,11 @@ export interface EarthRaster {
    * Same dimensions as data. Used for frozen water (ice) when below freezeThresholdC.
    */
   temperatureC?: Float32Array;
+  /**
+   * Global mean monthly temperature (°C) on its own equirectangular grid (may differ from `data` resolution).
+   * See {@link TemperatureMonthlyLayer}.
+   */
+  temperatureMonthly?: TemperatureMonthlyLayer;
 }
 
 /** Result of sampling at one point (before mapping to TerrainType). */
@@ -157,6 +249,8 @@ export interface SampleResult {
   climateCode?: number;
   /** Temperature in °C if temperature grid provided. Used for frozen water. */
   temperatureC?: number;
+  /** Twelve monthly means (°C) if {@link EarthRaster.temperatureMonthly} is set. */
+  temperatureMonthlyC?: Float32Array;
 }
 
 /**
@@ -228,7 +322,15 @@ export function sampleRasterAtLatLon(
     const t = raster.temperatureC[i];
     if (Number.isFinite(t)) temperatureC = t;
   }
-  return { land, elevationM, climateCode, temperatureC };
+  let temperatureMonthlyC: Float32Array | undefined;
+  if (raster.temperatureMonthly) {
+    temperatureMonthlyC = sampleTemperatureMonthlyNearest(
+      raster.temperatureMonthly,
+      latDeg,
+      lonDeg,
+    );
+  }
+  return { land, elevationM, climateCode, temperatureC, temperatureMonthlyC };
 }
 
 /** How to sample the raster for each tile: center only, or many points in the interior (majority land). */
@@ -628,10 +730,22 @@ function terrainFromSample(
   }
 
   if (!result.land) {
+    let tFreeze = result.temperatureC;
+    if (
+      result.temperatureMonthlyC &&
+      result.temperatureMonthlyC.length === 12
+    ) {
+      let minM = Infinity;
+      for (let mi = 0; mi < 12; mi++) {
+        const v = result.temperatureMonthlyC[mi]!;
+        if (Number.isFinite(v) && v < minM) minM = v;
+      }
+      if (Number.isFinite(minM)) tFreeze = minM;
+    }
     const frozen =
-      result.temperatureC != null &&
-      Number.isFinite(result.temperatureC) &&
-      result.temperatureC < opts.freezeThresholdC;
+      tFreeze != null &&
+      Number.isFinite(tFreeze) &&
+      tFreeze < opts.freezeThresholdC;
     return {
       type: frozen ? "ice" : "water",
       elevation: opts.waterElevation,
@@ -716,6 +830,7 @@ function sampleTile(
   elevationStdDevM?: number;
   climateCode?: number;
   temperatureC?: number;
+  temperatureMonthlyC?: Float32Array;
   latRad: number;
   maxAbsLatDeg: number;
 } {
@@ -733,6 +848,8 @@ function sampleTile(
   const elevSamples: number[] = [];
   let tempSum = 0;
   let tempCount = 0;
+  const tempMonthAcc = new Float32Array(12);
+  let tempMonthSamples = 0;
   const climateCounts = new Map<number, number>();
   const useLandSampler = opts.landSampler != null;
   for (const { lat, lon } of points) {
@@ -745,6 +862,21 @@ function sampleTile(
     if (r.temperatureC != null && Number.isFinite(r.temperatureC)) {
       tempSum += r.temperatureC;
       tempCount++;
+    }
+    if (r.temperatureMonthlyC && r.temperatureMonthlyC.length === 12) {
+      let rowOk = true;
+      for (let mi = 0; mi < 12; mi++) {
+        if (!Number.isFinite(r.temperatureMonthlyC[mi])) {
+          rowOk = false;
+          break;
+        }
+      }
+      if (rowOk) {
+        for (let mi = 0; mi < 12; mi++) {
+          tempMonthAcc[mi] += r.temperatureMonthlyC[mi]!;
+        }
+        tempMonthSamples++;
+      }
     }
     if (r.climateCode != null) {
       climateCounts.set(
@@ -833,6 +965,14 @@ function sampleTile(
   }
 
   const temperatureC = tempCount > 0 ? tempSum / tempCount : undefined;
+  let temperatureMonthlyC: Float32Array | undefined;
+  if (tempMonthSamples > 0) {
+    temperatureMonthlyC = new Float32Array(12);
+    const inv = 1 / tempMonthSamples;
+    for (let mi = 0; mi < 12; mi++) {
+      temperatureMonthlyC[mi] = tempMonthAcc[mi]! * inv;
+    }
+  }
   let climateCode: number | undefined;
   if (climateCounts.size > 0) {
     let maxCount = 0;
@@ -851,6 +991,7 @@ function sampleTile(
     elevationStdDevM,
     climateCode,
     temperatureC,
+    temperatureMonthlyC,
     latRad: centerLatLon.lat,
     maxAbsLatDeg,
   };
@@ -2245,13 +2386,20 @@ export async function buildTerrainFromEarthRaster(
       elev = Math.min(elev, surfaceElev - belowWaterLevel);
     }
     if (isHilly) hillsCount++;
-    out.set(tile.id, {
+    const terrainRow: TileTerrainData = {
       tileId: tile.id,
       type,
       elevation: elev,
       lakeId: lakeId ?? undefined,
       isHilly: isHilly || undefined,
-    });
+    };
+    if (
+      result.temperatureMonthlyC &&
+      result.temperatureMonthlyC.length === 12
+    ) {
+      terrainRow.monthlyMeanTempC = Float32Array.from(result.temperatureMonthlyC);
+    }
+    out.set(tile.id, terrainRow);
   }
 
   // Debug: print variance stats

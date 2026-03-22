@@ -14,11 +14,12 @@ import {
   type SimCloudVisualSpec,
 } from "./cloudLayer.js";
 import type { PrecipSubsolarForMinute } from "./cloudSimulation.js";
-import { getTemperature } from "./seasonalClimate.js";
+import { getTileTemperature01 } from "./seasonalClimate.js";
 import {
   TileSurfaceState,
   type GroundSurfaceClimateParams,
 } from "./tileSurfaceState.js";
+import type { TerrainType } from "../terrain/types.js";
 
 const POLAR_LAT = 62;
 
@@ -59,7 +60,7 @@ function makeTemplate(seedBase: number, flatLate: boolean): CloudClipTemplate {
     const envelope = Math.sin(t * Math.PI);
     const scaleMul = 0.34 + envelope * 0.92;
     const opacity = 0.48 + envelope * 0.46;
-    const precipWeight = envelope * 0.13;
+    const precipWeight = envelope * 0.24;
     frames.push({
       scaleMul,
       opacity,
@@ -103,17 +104,28 @@ export interface CloudClipFieldConfig {
    * registers (rain/snow + overlay). Keeps clouds from always raining.
    */
   cloudPrecipHitChance: number;
-  /** {@link getTemperature} below this (0–1) → snow on the ground; above → rain / wetness. */
+  /**
+   * Multiplies each precip burst before it is split into overlay vs tile wetness/snow (stacked with
+   * {@link cloudScale} and per-frame {@link CloudClipFrame.precipWeight}).
+   */
+  cloudPrecipBurstScale: number;
+  /** {@link getTileTemperature01} below this (0–1) → snow on the ground; above → rain / wetness. */
   snowTemperatureThreshold: number;
   /** Multiplicative wetness decay per simulated minute when thawed. */
   wetGroundDecayPerMinute: number;
   /** Multiplicative wetness decay per simulated minute when frozen (slow). */
   wetGroundDecayPerMinuteCold: number;
   /**
-   * {@link getTemperature} below this → snowpack depth is preserved; wetness decays slowly.
+   * {@link getTileTemperature01} below this → snowpack depth is preserved; wetness decays slowly.
    * At/above → snow melts into wetness each minute, then wetness uses {@link wetGroundDecayPerMinute}.
    */
   groundFreezeTemperatureThreshold: number;
+  /**
+   * When set, snow vs rain and ground freeze use Köppen / terrain (see {@link getTileTemperature01}).
+   */
+  getTerrainTypeForTile?: (tileId: number) => TerrainType | undefined;
+  /** Optional twelve monthly mean °C per tile (global raster sampled per tile). */
+  getMonthlyMeanTempCForTile?: (tileId: number) => Float32Array | undefined;
   /** When thawed, retained snow fraction per minute (1 − retain becomes meltwater → wetness). */
   snowMeltPerMinuteWhenThawed: number;
   /**
@@ -123,11 +135,17 @@ export interface CloudClipFieldConfig {
   getSubsolarLatDegForUtcMinute?: (utcMinute: number) => number;
   /** Optional: skip surface + overlay accumulation on ocean tiles. */
   waterTileIds?: ReadonlySet<number>;
+  /**
+   * When {@link CloudClipField.syncThreeGroup} is called with a camera, hide clouds on the far side
+   * of the globe: `anchor·camDir < this` (camDir from origin toward camera). Typical −0.08…−0.15.
+   * Set `null` to disable culling even when a camera is passed.
+   */
+  cloudBackfaceCullDot: number | null;
 }
 
 const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   maxClouds: 96,
-  cloudScale: 0.024,
+  cloudScale: 0.038,
   cloudCastShadows: false,
   maxCloudMeshOpsPerSync: 72,
   maxCatchUpMinutes: 720,
@@ -139,12 +157,14 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   sizePowerMinMul: 0.2,
   sizePowerMaxMul: 4.5,
   sizePowerExponent: 2.05,
-  cloudPrecipHitChance: 0.5,
+  cloudPrecipHitChance: 0.88,
+  cloudPrecipBurstScale: 2.1,
   snowTemperatureThreshold: 0.44,
   wetGroundDecayPerMinute: 0.987,
   wetGroundDecayPerMinuteCold: 0.9972,
   groundFreezeTemperatureThreshold: 0.41,
   snowMeltPerMinuteWhenThawed: 0.991,
+  cloudBackfaceCullDot: -0.11,
 };
 
 interface ClipInstance {
@@ -169,6 +189,7 @@ const _east = new THREE.Vector3();
 const _north = new THREE.Vector3();
 const _blow = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
+const _camWorld = new THREE.Vector3();
 
 function sampleSizePowerMul(h: number, cfg: CloudClipFieldConfig): number {
   const u = Math.max(1e-6, unitFloat(h));
@@ -232,9 +253,9 @@ function pickSpawnTileId(
     const latDeg = (lat * 180) / Math.PI;
     const absLat = Math.abs(latDeg);
     const polar = absLat >= POLAR_LAT;
-    const effM = polar ? Math.max(m, 0.07) : m;
+    const effM = polar ? Math.max(m, 0.12) : m;
     const seasonal = seasonalSpawnBias(latDeg, day);
-    const p = Math.min(1, (0.02 + effM * 0.62) * seasonal * (polar ? 1.08 : 1));
+    const p = Math.min(1, (0.02 + effM * 0.62) * seasonal * (polar ? 1.28 : 1));
     const u = unitFloat(u32Hash([h, attempt, 0x4143]));
     if (u < p) return tile.id;
   }
@@ -269,6 +290,7 @@ function applyCloudPrecipToOverlayAndSurface(
   );
   if (gate >= cfg.cloudPrecipHitChance) return;
   const burst =
+    cfg.cloudPrecipBurstScale *
     framePrecipWeight *
     (0.35 + 0.65 * Math.min(1, col + 0.2)) *
     baseScale *
@@ -280,7 +302,16 @@ function applyCloudPrecipToOverlayAndSurface(
   if (!tc) return;
   const { lat } = tileCenterToLatLon(tc);
   const latDeg = (lat * 180) / Math.PI;
-  const temp = getTemperature(latDeg, subsolarLatDeg);
+  const terrain = cfg.getTerrainTypeForTile?.(foot);
+  const monthly = cfg.getMonthlyMeanTempCForTile?.(foot);
+  const cal = new Date(utcMinute * 60000);
+  const temp = getTileTemperature01(
+    latDeg,
+    subsolarLatDeg,
+    terrain,
+    monthly,
+    cal
+  );
   const asSnow = temp < cfg.snowTemperatureThreshold;
   surface.addPrecip(foot, burst * 0.015, asSnow);
 }
@@ -293,6 +324,8 @@ function groundClimateParamsFromCfg(
     wetGroundDecayPerMinute: cfg.wetGroundDecayPerMinute,
     wetGroundDecayPerMinuteCold: cfg.wetGroundDecayPerMinuteCold,
     snowMeltPerMinuteWhenThawed: cfg.snowMeltPerMinuteWhenThawed,
+    getTerrainTypeForTile: cfg.getTerrainTypeForTile,
+    getMonthlyMeanTempCForTile: cfg.getMonthlyMeanTempCForTile,
   };
 }
 
@@ -520,6 +553,7 @@ export function buildAnnualCloudSpawnTable(
  * Climatological cloud-precip **potential** per tile per day-of-year (365), summed from annual spawn
  * specs (peak lifecycle precip × scale). Use for diagnostics, seeding, or UI; runtime sim uses
  * {@link CloudClipField}'s overlay + {@link TileSurfaceState}.
+ * Compare to seasonal×Köppen targets: `analyzePrecipClimatologyGap` (`cloudPrecipDiagnostics.js`).
  */
 export function buildAnnualPrecipClimatology(
   annualTable: AnnualSpawnSpec[][]
@@ -746,7 +780,8 @@ export class CloudClipField {
         this.tileSurface.stepClimateMinute(
           globe,
           subsolarLatForClimateMinute(cfg, u, getPrecipSubsolar),
-          gClimate
+          gClimate,
+          u
         );
       }
 
@@ -843,7 +878,8 @@ export class CloudClipField {
         this.tileSurface.stepClimateMinute(
           globe,
           subsolarLatForClimateMinute(cfg, m + 1, getPrecipSubsolar),
-          gClimate
+          gClimate,
+          m + 1
         );
 
         for (const inst of this.instances) {
@@ -931,8 +967,14 @@ export class CloudClipField {
   /**
    * Sync Three.js groups. Pass **fractional** `utcMinuteVisual` (e.g. `Date.now()/60000`) for smooth
    * lifecycle lerping and sub-minute wind extrapolation past `lastPhysicsMinute`.
+   * Optional `camera` enables back-face culling (see {@link CloudClipFieldConfig.cloudBackfaceCullDot}).
    */
-  syncThreeGroup(root: THREE.Group, globe: Globe, utcMinuteVisual: number): void {
+  syncThreeGroup(
+    root: THREE.Group,
+    globe: Globe,
+    utcMinuteVisual: number,
+    camera?: THREE.Camera
+  ): void {
     const cfg = this.config;
     const heightOff = 0.04;
     const seen = new Set<number>();
@@ -944,6 +986,16 @@ export class CloudClipField {
 
     let meshOpsLeft = Math.max(1, Math.floor(cfg.maxCloudMeshOpsPerSync));
     const extraMin = Math.max(0, utcMinuteVisual - this.lastPhysicsMinute);
+    const cullDot = cfg.cloudBackfaceCullDot;
+    const doCull = camera != null && cullDot != null;
+    if (doCull) {
+      camera!.getWorldPosition(_camWorld);
+      if (_camWorld.lengthSq() < 1e-16) {
+        _camWorld.set(0, 0, 1);
+      } else {
+        _camWorld.normalize();
+      }
+    }
 
     for (const inst of this.instances) {
       const tpl = CLIP_TEMPLATES[inst.templateIndex]!;
@@ -993,6 +1045,7 @@ export class CloudClipField {
         delete grp.userData.clipAx;
         delete grp.userData.clipAy;
         delete grp.userData.clipAz;
+        grp.userData.clipInstanceId = inst.id;
         this.meshScratch.set(inst.id, grp);
       } else if (needNewMesh) {
         if (meshOpsLeft <= 0) {
@@ -1033,6 +1086,7 @@ export class CloudClipField {
           delete grp.userData.clipAx;
           delete grp.userData.clipAy;
           delete grp.userData.clipAz;
+          grp.userData.clipInstanceId = inst.id;
         }
       }
 
@@ -1071,10 +1125,19 @@ export class CloudClipField {
         grp.userData.clipAy = _renderAnchor.y;
         grp.userData.clipAz = _renderAnchor.z;
       }
+
+      if (doCull && cullDot != null) {
+        grp.visible = _renderAnchor.dot(_camWorld) > cullDot;
+      } else {
+        grp.visible = true;
+      }
     }
 
     for (const [id, grp] of this.meshScratch) {
       if (!seen.has(id)) {
+        if (grp.parent === root) {
+          root.remove(grp);
+        }
         grp.traverse((ch) => {
           if (ch instanceof THREE.Mesh) {
             ch.geometry.dispose();
@@ -1085,10 +1148,13 @@ export class CloudClipField {
       }
     }
 
-    root.clear();
     for (const inst of this.instances) {
       const grp = this.meshScratch.get(inst.id);
-      if (grp) root.add(grp);
+      if (!grp) continue;
+      grp.userData.clipInstanceId = inst.id;
+      if (grp.parent !== root) {
+        root.add(grp);
+      }
     }
   }
 

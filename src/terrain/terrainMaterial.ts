@@ -4,6 +4,9 @@
  */
 
 import * as THREE from "three";
+import type { Globe } from "../core/Globe.js";
+import { tileCenterToLatLon } from "../earth/earthSampling.js";
+import { climateSurfaceSnowVisualForTerrain } from "../climate/seasonalClimate.js";
 import type { TerrainType } from "./types.js";
 
 export interface TerrainStyle {
@@ -76,6 +79,11 @@ export interface TileTerrainData {
   lakeId?: number;
   /** If true, this tile has hilly terrain (high local variance) and gets rounded bump geometry. */
   isHilly?: boolean;
+  /**
+   * Twelve monthly mean temperatures (°C), index 0 = January … 11 = December, from a global
+   * equirectangular layer (e.g. WorldClim). Values vary with longitude and latitude per cell.
+   */
+  monthlyMeanTempC?: Float32Array;
 }
 
 function positionKey(x: number, y: number, z: number): string {
@@ -393,27 +401,79 @@ export function geometryCoastSkirt(
   return geom;
 }
 
-const _snowTopTint = new THREE.Color(0xeef6fc);
+const _snowTopTint = new THREE.Color(0xf6faff);
 const _wetCoolTint = new THREE.Color(0x6a8a9a);
 
 /**
- * Rebuilds land vertex colors from {@link tileTerrain}, then tints by per-tile wetness / snow cover maps.
- * Water tiles keep water colors; optional snow caps (negative tileId) unchanged.
+ * Sim snow depth (0–1) plus seasonal/latitude visual snow (0–1), capped at 1.
+ * Use for terrain and vegetation so both match.
+ */
+export function combinedLandSnowCover(
+  snowSim: number,
+  climateSnowVisual: number
+): number {
+  const s = Math.max(0, snowSim);
+  const c = Math.max(0, climateSnowVisual);
+  return Math.min(1, s + c * (1 - 0.5 * s));
+}
+
+/** When passed to {@link applyLandSurfaceWeatherVertexColors}, blends seasonal/latitude snow so cold high latitudes look white even with sparse sim snow. */
+export interface LandSurfaceWeatherVertexOptions {
+  globe: Globe;
+  subsolarLatDeg: number;
+  /** Calendar instant for monthly mean temperature lookup (UTC). */
+  calendarUtc: Date;
+}
+
+/**
+ * Rebuilds land vertex colors from {@link tileTerrain}, then tints by per-tile wetness / snow (uniform
+ * per vertex for a tile — no normal-based variation). Water tiles keep water colors; snow caps
+ * (negative tileId) unchanged.
+ * @returns false if required attributes are missing or counts mismatch (nothing written).
  */
 export function applyLandSurfaceWeatherVertexColors(
   geometry: THREE.BufferGeometry,
   tileTerrain: Map<number, TileTerrainData>,
   waterTileIds: ReadonlySet<number>,
   wetness: ReadonlyMap<number, number>,
-  snowCover: ReadonlyMap<number, number>
-): void {
+  snowCover: ReadonlyMap<number, number>,
+  climateOpts?: LandSurfaceWeatherVertexOptions
+): boolean {
   const tileIdAttr = geometry.getAttribute("tileId") as THREE.BufferAttribute | undefined;
   const pos = geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
-  const norm = geometry.getAttribute("normal") as THREE.BufferAttribute | undefined;
-  if (!tileIdAttr || !pos || !norm) return;
+  if (!tileIdAttr || !pos) return false;
+  if (tileIdAttr.count !== pos.count) {
+    console.warn(
+      "[polyglobe] applyLandSurfaceWeatherVertexColors: tileId vs position vertex count mismatch; skipping paint",
+      { tileIdCount: tileIdAttr.count, positionCount: pos.count },
+    );
+    return false;
+  }
 
-  const radial = new THREE.Vector3();
-  const nrm = new THREE.Vector3();
+  const climateLatByTile =
+    climateOpts != null ? new Map<number, number>() : null;
+  const climateSnowForTile = (tid: number): number => {
+    if (!climateOpts || climateLatByTile == null) return 0;
+    let latDeg = climateLatByTile.get(tid);
+    if (latDeg === undefined) {
+      const p = climateOpts.globe.getTileCenter(tid);
+      if (!p) {
+        climateLatByTile.set(tid, 0);
+        return 0;
+      }
+      latDeg = (tileCenterToLatLon(p).lat * 180) / Math.PI;
+      climateLatByTile.set(tid, latDeg);
+    }
+    const row = tileTerrain.get(tid);
+    return climateSurfaceSnowVisualForTerrain(
+      latDeg,
+      climateOpts.subsolarLatDeg,
+      row?.type,
+      row?.monthlyMeanTempC,
+      climateOpts.calendarUtc,
+    );
+  };
+
   const c = new THREE.Color();
   const colors = new Float32Array(pos.count * 3);
 
@@ -442,25 +502,25 @@ export function applyLandSurfaceWeatherVertexColors(
     const style = TERRAIN_STYLES[data.type];
     c.set(style.color);
 
-    radial.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
-    nrm.set(norm.getX(i), norm.getY(i), norm.getZ(i)).normalize();
-    const facing = Math.max(0, radial.dot(nrm));
-
     const w = wetness.get(tid) ?? 0;
-    const sn = snowCover.get(tid) ?? 0;
-    const snowAmt = Math.min(1, sn * (0.35 + 0.65 * facing * facing));
-    c.lerp(_snowTopTint, snowAmt * 0.82);
-
-    const wetAmt = Math.min(1, w * (0.45 + 0.35 * facing));
-    c.lerp(_wetCoolTint, wetAmt * 0.22);
-    if (wetAmt > 0.02) {
-      const lift = 1 + 0.12 * wetAmt * facing;
-      c.multiplyScalar(Math.min(1.18, lift));
+    const snSim = snowCover.get(tid) ?? 0;
+    const snClim = climateSnowForTile(tid);
+    const sn = combinedLandSnowCover(snSim, snClim);
+    /** Match vegetation {@link getTileSnowCover} threshold so hex tops and plants agree. */
+    if (sn > 0.002) {
+      c.copy(_snowTopTint);
+    } else if (w > 0.03) {
+      const tw = Math.min(1, w);
+      c.lerp(_wetCoolTint, tw * 0.28);
+      c.multiplyScalar(Math.min(1.1, 1 + 0.08 * tw));
     }
 
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
   }
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const landWeatherCol = geometry.getAttribute("color");
+  if (landWeatherCol) landWeatherCol.needsUpdate = true;
+  return true;
 }

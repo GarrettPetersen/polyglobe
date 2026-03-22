@@ -76,6 +76,8 @@ export interface CloudSimConfig {
    * across frames so hundreds of clouds do not freeze the tab or lose the WebGL context.
    */
   maxCloudMeshOpsPerSync: number;
+  /** Multiplier on each rain overlay increment from {@link CloudWeatherSimulator} lifecycle bursts. */
+  precipOverlayBurstScale: number;
 }
 
 export const DEFAULT_CLOUD_SIM_CONFIG: CloudSimConfig = {
@@ -95,11 +97,12 @@ export const DEFAULT_CLOUD_SIM_CONFIG: CloudSimConfig = {
   waterDrainDryScale: 0.00055,
   /** Fewer marching-cubes rebuilds when many clouds (pose still updates every frame). */
   visualResimIntervalMinutes: 24,
-  cloudScale: 0.032,
+  cloudScale: 0.05,
   flatDeckScaleMul: 2.0,
   windSeed: 90210,
   cloudCastShadows: false,
   maxCloudMeshOpsPerSync: 36,
+  precipOverlayBurstScale: 2.0,
 };
 
 export interface SimCloud {
@@ -201,7 +204,8 @@ export class CloudWeatherSimulator {
   private addPrecipBurstAtCloud(globe: Globe, c: SimCloud, amount: number): void {
     const tid = this.tileUnderCloud(globe, c);
     const cur = this.precipOverlay.get(tid) ?? 0;
-    this.precipOverlay.set(tid, Math.min(1, cur + amount));
+    const a = amount * this.config.precipOverlayBurstScale;
+    this.precipOverlay.set(tid, Math.min(1, cur + a));
   }
 
   private trySpawn(globe: Globe, precipByTile: Map<number, number>, utcMinute: number): void {
@@ -221,7 +225,7 @@ export class CloudWeatherSimulator {
       const latDeg = (lat * 180) / Math.PI;
       const absLat = Math.abs(latDeg);
       const polar = absLat >= POLAR_LAT;
-      const effPrecip = polar ? Math.max(precip, 0.06) : precip;
+      const effPrecip = polar ? Math.max(precip, 0.12) : precip;
 
       const pSpawn =
         cfg.spawnProbLow + effPrecip * cfg.spawnProbPrecipScale * (polar ? 1.15 : 1);

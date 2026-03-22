@@ -588,12 +588,13 @@ export function buildFlatGeometryData(
         indices.push(hillCenterIdx, hillTopBase + ((i + 1) % n), hillTopBase + i);
       }
       
-      // Sloped sides (inner ring to outer base edge)
+      // Sloped sides (inner ring to outer base edge). Wind CCW as seen from outside the solid
+      // (same convention as river-bowl walls: base+i → base+i1 → inner top), so FrontSide does
+      // not cull the outward faces.
       for (let i = 0; i < n; i++) {
         const i1 = (i + 1) % n;
-        // Quad from top ring to base ring (two triangles)
-        indices.push(hillTopBase + i, base + i, base + i1);
-        indices.push(hillTopBase + i, base + i1, hillTopBase + i1);
+        indices.push(base + i, base + i1, hillTopBase + i1);
+        indices.push(base + i, hillTopBase + i1, hillTopBase + i);
       }
     } else {
       for (let i = 1; i + 1 < n; i++) {

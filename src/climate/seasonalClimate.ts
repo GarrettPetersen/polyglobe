@@ -3,6 +3,9 @@
  * Used to scale river flow by "rainy season" and to support future snow/ice.
  */
 
+import type { TerrainType } from "../terrain/types.js";
+import { applyKoppenTerrainTemperatureModifier } from "./koppenTemperature.js";
+
 /** Latitude (degrees) above which we add extended polar precip. */
 const POLAR_PRECIP_LAT = 52;
 
@@ -38,7 +41,7 @@ export function getPrecipitation(
     const ramp = t * t;
     const lon = lonDeg ?? subsolarLatDeg;
     const noise = latLonNoise(latDeg, lon);
-    const polarAdd = ramp * 0.28 * (0.4 + 0.6 * noise);
+    const polarAdd = ramp * 0.38 * (0.45 + 0.55 * noise);
     precip = Math.max(precip, Math.min(1, polarAdd));
   }
 
@@ -59,4 +62,146 @@ export function getTemperature(latDeg: number, subsolarLatDeg: number): number {
     t *= 1 - 0.24 * u * u;
   }
   return Math.max(0, Math.min(1, t));
+}
+
+/**
+ * Same 0–1 temperature as {@link getTemperature}, then Köppen/terrain modifiers when `terrainType`
+ * is set (Earth tiles). Procedural legacy types (`land`, `forest`, …) use neutral traits.
+ */
+export function getTemperatureForTerrain(
+  latDeg: number,
+  subsolarLatDeg: number,
+  terrainType?: TerrainType | null
+): number {
+  const base = getTemperature(latDeg, subsolarLatDeg);
+  return applyKoppenTerrainTemperatureModifier(
+    base,
+    latDeg,
+    subsolarLatDeg,
+    terrainType ?? null
+  );
+}
+
+/**
+ * Map climatological monthly mean (°C) into the same 0–1 band as {@link getTemperature}.
+ * Tunable anchors for land-focused gameplay (polar cold / hot lowlands).
+ */
+export function meanMonthlyTempCToTemperature01(tempC: number): number {
+  const tCold = -38;
+  const tHot = 42;
+  return Math.max(0, Math.min(1, (tempC - tCold) / (tHot - tCold)));
+}
+
+/**
+ * Smooth climatological temperature (°C) from twelve monthly means.
+ *
+ * Uses **piecewise linear** interpolation between **mid-month anchors** (UTC 15th 12:00 of each month).
+ * At each anchor, the value equals that month’s tabulated mean; between anchors it ramps toward the
+ * next month, so there is no step on the 1st.
+ */
+export function interpolateMonthlyClimatologyC(
+  monthlyMeanC: Float32Array,
+  calendarUtc: Date
+): number {
+  if (!monthlyMeanC || monthlyMeanC.length !== 12) return NaN;
+
+  const midMonthUtcMs = (year: number, monthIndex: number): number =>
+    Date.UTC(year, monthIndex, 15, 12, 0, 0);
+
+  const t = calendarUtc.getTime();
+  if (Number.isNaN(t)) return NaN;
+  const y = calendarUtc.getUTCFullYear();
+
+  /** Ordered mid-month times surrounding calendar year `y`, each tied to a month index 0–11. */
+  const anchors: { ms: number; mon: number }[] = [
+    { ms: midMonthUtcMs(y - 1, 11), mon: 11 },
+  ];
+  for (let m = 0; m < 12; m++) {
+    anchors.push({ ms: midMonthUtcMs(y, m), mon: m });
+  }
+  anchors.push(
+    { ms: midMonthUtcMs(y + 1, 0), mon: 0 },
+    { ms: midMonthUtcMs(y + 1, 1), mon: 1 },
+  );
+
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const t0 = anchors[i]!.ms;
+    const t1 = anchors[i + 1]!.ms;
+    const lastSeg = i === anchors.length - 2;
+    if (t >= t0 && (lastSeg ? t <= t1 : t < t1)) {
+      const v0 = monthlyMeanC[anchors[i]!.mon];
+      const v1 = monthlyMeanC[anchors[i + 1]!.mon];
+      if (!Number.isFinite(v0) || !Number.isFinite(v1)) return NaN;
+      const span = t1 - t0;
+      const a = span <= 0 ? 0 : (t - t0) / span;
+      return v0 + a * (v1 - v0);
+    }
+  }
+
+  const fallback = monthlyMeanC[calendarUtc.getUTCMonth()];
+  return Number.isFinite(fallback) ? fallback : NaN;
+}
+
+/**
+ * Effective 0–1 temperature for a tile: blends **regional monthly climatology °C** (per lon/lat cell,
+ * smoothed day-to-day via {@link interpolateMonthlyClimatologyC}) with the subsolar + Köppen model so
+ * playback still responds to sun geometry.
+ */
+export function getTileTemperature01(
+  latDeg: number,
+  subsolarLatDeg: number,
+  terrainType: TerrainType | null | undefined,
+  monthlyMeanTempC: Float32Array | null | undefined,
+  calendarUtc: Date | null | undefined
+): number {
+  const model = getTemperatureForTerrain(latDeg, subsolarLatDeg, terrainType);
+  if (
+    !monthlyMeanTempC ||
+    monthlyMeanTempC.length !== 12 ||
+    !calendarUtc ||
+    Number.isNaN(calendarUtc.getTime())
+  ) {
+    return model;
+  }
+  const tc = interpolateMonthlyClimatologyC(monthlyMeanTempC, calendarUtc);
+  if (!Number.isFinite(tc)) return model;
+  const clim = meanMonthlyTempCToTemperature01(tc);
+  return Math.max(0, Math.min(1, 0.62 * clim + 0.38 * model));
+}
+
+/**
+ * Visual snow strength 0–1 from latitude and seasonal cold, independent of cloud sim snow depth.
+ * Used for ground/vegetation so subarctic winter reads as snowy even when precip hits are sparse.
+ */
+export function climateSurfaceSnowVisual(
+  latDeg: number,
+  subsolarLatDeg: number
+): number {
+  const temp = getTemperature(latDeg, subsolarLatDeg);
+  const cold = Math.max(0, Math.min(1, (0.38 - temp) / 0.26));
+  const polar = Math.max(0, Math.min(1, (Math.abs(latDeg) - 44) / 38));
+  return Math.max(0, Math.min(1, cold * (0.22 + 0.78 * polar)));
+}
+
+/**
+ * Like {@link climateSurfaceSnowVisual} but uses {@link getTileTemperature01} when terrain and optional
+ * monthly means + calendar are known.
+ */
+export function climateSurfaceSnowVisualForTerrain(
+  latDeg: number,
+  subsolarLatDeg: number,
+  terrainType?: TerrainType | null,
+  monthlyMeanTempC?: Float32Array | null,
+  calendarUtc?: Date | null
+): number {
+  const temp = getTileTemperature01(
+    latDeg,
+    subsolarLatDeg,
+    terrainType,
+    monthlyMeanTempC ?? null,
+    calendarUtc ?? null
+  );
+  const cold = Math.max(0, Math.min(1, (0.38 - temp) / 0.26));
+  const polar = Math.max(0, Math.min(1, (Math.abs(latDeg) - 44) / 38));
+  return Math.max(0, Math.min(1, cold * (0.22 + 0.78 * polar)));
 }

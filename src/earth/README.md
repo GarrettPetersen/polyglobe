@@ -7,6 +7,7 @@ Sample real Earth land/sea, **climate** (desert vs rainforest), **elevation** (m
 - **Elevation** (optional `raster.elevation`): `Float32Array` (same size as land raster, nearest) or **`ElevationGrid`** `{ width, height, data }` (bilinear). Land tiles get **biome base height + DEM lift** (see `terrainDemMeterScale`, `maxTerrainDemLiftGlobe`, `elevationQuantizationM`) plus **mountain** extra where relief exceeds thresholds. Use `parseElevationBin()` for PGEL/legacy `elevation.bin`.
 - **Climate / Köppen** (optional `raster.climate`): Encodes **precipitation and temperature**; used for **deserts** (BWh, BWk), **rainforest** (Af, Am), grassland, and land **ice/snow** (ET, EF). This is the main source for “rainfall” (and temperature) for biomes.
 - **Temperature** (optional `raster.temperatureC` in °C): When a **water** tile has temperature below `freezeThresholdC` (default 1.5 °C), it becomes **ice** (frozen water). Use for Arctic/Antarctic ocean and cold seas.
+- **Mean monthly temperature** (optional `raster.temperatureMonthly`): Global equirectangular stack **12 × (width × height)** float32 **°C** in **month-major** order (January…December). Each cell is indexed by **longitude and latitude** (same mapping as `sampleRasterAtLatLon`) — **not** a latitude-only profile. Parsed with `parseTemperatureMonthlyBin()` (`PG12` header; see demo `scripts/build-tavg-monthly.mjs`). `buildTerrainFromEarthRaster` copies per-tile averages into `TileTerrainData.monthlyMeanTempC` for use with `getTileTemperature01()` (snow/rain, thaw, visuals).
 
 ## Quick start
 
@@ -14,7 +15,7 @@ Sample real Earth land/sea, **climate** (desert vs rainforest), **elevation** (m
 2. Load it as an image, draw to a canvas, then use `getImageData()` and `earthRasterFromImageData()` to get an `EarthRaster`.
 3. Optionally attach **climate** (Köppen–Geiger) so deserts and rainforests are correct: use `parseKoppenAsciiGrid(asciiText)` to get a `ClimateGrid` and set `raster.climate = grid`. See data sources below.
 4. Optionally attach **elevation** (meters) via `raster.elevation = elevationFromImageData(imageData, scale, offset)` or your own `Float32Array` for mountains.
-5. Optionally attach **temperature** (°C) via `raster.temperatureC` (same dimensions as `data`) for frozen water (ice).
+5. Optionally attach **temperature** (°C) via `raster.temperatureC` (same dimensions as `data`) for frozen water (ice), and/or **mean monthly** °C via `raster.temperatureMonthly` for place-specific surface climate.
 6. Call `buildTerrainFromEarthRaster(globe.tiles, raster)` to get a `Map<tileId, TileTerrainData>`.
 7. Optionally call `applyCoastalBeach(tiles, terrain)` so coastal water tiles become beach.
 8. Use that map with `createGeodesicGeometryFlat` and `applyTerrainColorsToGeometry` as usual.
@@ -40,9 +41,10 @@ Sample real Earth land/sea, **climate** (desert vs rainforest), **elevation** (m
 - **ETOPO1** (1 arc‑minute): [NOAA ETOPO1](https://www.ngdc.noaa.gov/mgg/global/global.html). Export or downsample to a single-band raster; use `elevationFromImageData()` with scale/offset (e.g. scale 10000, offset -500 for 0–255 → about -500 m to ~9450 m).
 - **SRTM**, **ASTER GDEM**: other options; same idea: get a global equirectangular raster of elevation in meters (or 0–255 with known scale/offset) and fill `raster.elevation` (e.g. via `elevationFromImageData` or a custom `Float32Array`).
 
-### Temperature (frozen water)
+### Temperature (frozen water + monthly means)
 
 - **WorldClim**, **CHELSA**, **CRU**: global temperature rasters (mean annual or winter min in °C). Same grid dimensions as your land raster; fill `raster.temperatureC` (Float32Array). Water tiles with `temperatureC < freezeThresholdC` (default 1.5 °C) become **ice**.
+- **Mean monthly** (e.g. WorldClim `tavg` 12 bands): build a `PG12` binary (see `parseTemperatureMonthlyBin`) or set `raster.temperatureMonthly` with `{ width, height, data }` where `data` has length `12 × width × height`. The water **ice** test uses the **minimum** of the twelve monthly values when `temperatureMonthly` is present.
 - **Köppen** already encodes cold (ET, EF) for *land*; the temperature layer is used to mark *water* tiles as frozen (e.g. Arctic Ocean).
 
 ## Custom sampler

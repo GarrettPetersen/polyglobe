@@ -76,9 +76,9 @@ export function moistureFactorForKoppenCode(code: number | undefined | null): nu
     case 28:
       return 0.5; // Dfd
     case 29:
-      return 0.36; // ET
+      return 0.52; // ET (tundra — allow more game precip / snow vs arid multiplier)
     case 30:
-      return 0.17; // EF
+      return 0.34; // EF (ice cap: still low, but not as starved as before)
     default:
       return 0.65;
   }
@@ -164,9 +164,9 @@ export function moistureFactorForTerrainType(type: TerrainType): number {
     case "swamp":
       return 0.92;
     case "snow":
-      return 0.4;
+      return 0.55;
     case "ice":
-      return 0.2;
+      return 0.32;
     case "land":
     default:
       return 0.65;

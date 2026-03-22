@@ -5,7 +5,8 @@
 import * as THREE from "three";
 import type { Globe } from "../core/Globe.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
-import { getTemperature } from "./seasonalClimate.js";
+import type { TerrainType } from "../terrain/types.js";
+import { getTileTemperature01 } from "./seasonalClimate.js";
 
 function mixHash(a: number, b: number): number {
   let h = (2166136261 ^ a) >>> 0;
@@ -69,7 +70,9 @@ export function updatePrecipitationParticles(
   precipOverlay: ReadonlyMap<number, number>,
   subsolarLatDeg: number,
   simUtcMinute: number,
-  timeSec: number
+  timeSec: number,
+  getTerrainTypeForTile?: (tileId: number) => TerrainType | undefined,
+  getMonthlyMeanTempCForTile?: (tileId: number) => Float32Array | undefined
 ): void {
   const mesh = group.children[0] as THREE.InstancedMesh | undefined;
   if (!mesh?.instanceColor) return;
@@ -93,7 +96,16 @@ export function updatePrecipitationParticles(
     _east.copy(pose.position).normalize();
     const { lat } = tileCenterToLatLon(_east);
     const latDeg = (lat * 180) / Math.PI;
-    const temp = getTemperature(latDeg, subsolarLatDeg);
+    const terrain = getTerrainTypeForTile?.(tid);
+    const monthly = getMonthlyMeanTempCForTile?.(tid);
+    const cal = new Date(Math.floor(simUtcMinute) * 60000);
+    const temp = getTileTemperature01(
+      latDeg,
+      subsolarLatDeg,
+      terrain,
+      monthly,
+      cal
+    );
     const isSnow = temp < 0.44;
 
     const h = mixHash(pick, tid);

@@ -117,6 +117,8 @@ export interface VegetationOptions {
   skipCullWhenCameraStable?: boolean;
   /** When set, wet tiles (e.g. recent rain) get a slightly cooler, brighter instance color. */
   getTileWetness?: (tileId: number) => number;
+  /** When set, snow cover 0–1 (sim + climate); tints foliage/bushes/grass white, not tree trunks. */
+  getTileSnowCover?: (tileId: number) => number;
   /** Min squared world-space camera movement to force a refresh. Default 4e-6. */
   cameraStablePosEpsSq?: number;
   /** Max deviation of |quat dot| from 1 to still treat rotation as unchanged. Default 8e-5. */
@@ -545,6 +547,7 @@ export function createVegetationLayer(
   const cameraStablePosEpsSq = options.cameraStablePosEpsSq ?? 4e-6;
   const cameraStableQuatEps = options.cameraStableQuatEps ?? 8e-5;
   const getTileWetness = options.getTileWetness;
+  const getTileSnowCover = options.getTileSnowCover;
   let lastStableTimeKey = 0;
   let hasStableCullSample = false;
 
@@ -558,6 +561,7 @@ export function createVegetationLayer(
   const tropicalDryTint = new THREE.Color(0x8a7a50);
   const wetShine = new THREE.Color(0xc8d8e8);
   const wetScratch = new THREE.Color();
+  const snowTint = new THREE.Color(0xf2f8ff);
 
   const placements: Placement[] = [];
   const rnd = seededRandom(42);
@@ -1035,11 +1039,17 @@ export function createVegetationLayer(
 
         if (getTileWetness) {
           const w = getTileWetness(p.tileId);
-          if (w > 0.07) {
-            wetScratch.copy(color);
-            wetScratch.lerp(wetShine, Math.min(1, w) * 0.22);
-            wetScratch.multiplyScalar(1 + 0.1 * Math.min(1, w));
+          if (w > 0.03) {
+            const tw = Math.min(1, w);
+            wetScratch.copy(color).lerp(wetShine, tw * 0.3);
             color = wetScratch;
+          }
+        }
+
+        if (getTileSnowCover && !mesh.name.includes("-trunk")) {
+          const sn = getTileSnowCover(p.tileId);
+          if (sn > 0.002) {
+            color = snowTint;
           }
         }
 

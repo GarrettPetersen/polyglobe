@@ -3,6 +3,11 @@
  * earth-region-grid.bin, lakes/marine GeoJSON, strait tile IDs, river scalerank/filter,
  * mountains.json, koppen.bin / elevation.bin, river rules, or buildTerrainFromEarthRaster options.
  *
+ * **Monthly temperatures** are not stored in this JSON (would be huge). At runtime, if
+ * `public/tavg_monthly.bin` loaded into `earthRaster.temperatureMonthly`, the demo calls
+ * `attachMonthlyTemperatureToTerrainFromRaster` after hydrating the cache so snow/climate
+ * still use gridded means — no cache rebuild required for tavg alone.
+ *
  * Cache files are per subdivision: `public/earth-globe-cache-{n}.json` (and legacy `earth-globe-cache.json` for n=6).
  */
 /** Highest subdivision the demo UI and cache builder support (geodesic tile count grows as ~4^n). */

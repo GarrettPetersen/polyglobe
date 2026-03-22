@@ -7,19 +7,24 @@
  * it does not reset ground moisture.
  *
  * **Snow vs thaw:** Below {@link GroundSurfaceClimateParams.freezeTemperatureThreshold} (same 0–1 scale
- * as {@link getTemperature}), snow depth is preserved indefinitely. Above that, snow melts into
+ * as {@link getTileTemperature01}), snow depth is preserved indefinitely. Above that, snow melts into
  * wetness each minute; wetness then decays toward dry.
  */
 
 import type { Globe } from "../core/Globe.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
-import { getTemperature } from "./seasonalClimate.js";
+import type { TerrainType } from "../terrain/types.js";
+import { getTileTemperature01 } from "./seasonalClimate.js";
 
 export interface GroundSurfaceClimateParams {
   /**
-   * {@link getTemperature} strictly below this → “freezing”: snow does not melt; wetness dries slowly.
+   * {@link getTileTemperature01} strictly below this → “freezing”: snow does not melt; wetness dries slowly.
    */
   freezeTemperatureThreshold: number;
+  /** When set, temperature uses Köppen/terrain modifiers (same as cloud precip snow vs rain). */
+  getTerrainTypeForTile?: (tileId: number) => TerrainType | undefined;
+  /** Twelve monthly means (°C) per land tile when a global monthly layer was loaded. */
+  getMonthlyMeanTempCForTile?: (tileId: number) => Float32Array | undefined;
   /** Wetness multiplier per minute when thawed (evaporation). */
   wetGroundDecayPerMinute: number;
   /** Wetness multiplier per minute when frozen (slow drying / sublimation). */
@@ -48,21 +53,31 @@ export class TileSurfaceState {
   }
 
   /**
-   * One simulated minute: thaw-dependent snow melt and wet decay, using {@link getTemperature} at
-   * `subsolarLatDeg` for each occupied tile.
+   * One simulated minute: thaw-dependent snow melt and wet decay, using {@link getTileTemperature01}
+   * at `subsolarLatDeg` for each occupied tile.
    */
   stepClimateMinute(
     globe: Globe,
     subsolarLatDeg: number,
-    climate: GroundSurfaceClimateParams
+    climate: GroundSurfaceClimateParams,
+    utcMinute: number
   ): void {
+    const cal = new Date(utcMinute * 60000);
     const keys = new Set<number>([...this.wetness.keys(), ...this.snow.keys()]);
     for (const tid of keys) {
       const p = globe.getTileCenter(tid);
       if (!p) continue;
       const { lat } = tileCenterToLatLon(p);
       const latDeg = (lat * 180) / Math.PI;
-      const temp = getTemperature(latDeg, subsolarLatDeg);
+      const terrain = climate.getTerrainTypeForTile?.(tid);
+      const monthly = climate.getMonthlyMeanTempCForTile?.(tid);
+      const temp = getTileTemperature01(
+        latDeg,
+        subsolarLatDeg,
+        terrain,
+        monthly,
+        cal
+      );
       const frozen = temp < climate.freezeTemperatureThreshold;
 
       let w = this.wetness.get(tid) ?? 0;

@@ -37,6 +37,7 @@ export {
   applyTerrainToGeometry,
   applyTerrainColorsToGeometry,
   applyLandSurfaceWeatherVertexColors,
+  combinedLandSnowCover,
   applyVertexColorsByTileId,
   geometryLandOnly,
   geometryOceanFloor,
@@ -44,6 +45,7 @@ export {
   geometryCoastSkirt,
   type TerrainStyle,
   type TileTerrainData,
+  type LandSurfaceWeatherVertexOptions,
 } from "./terrain/terrainMaterial.js";
 
 // Earth (real geography from rasters or custom samplers)
@@ -59,7 +61,10 @@ export {
   parseKoppenAsciiGrid,
   elevationFromImageData,
   parseElevationBin,
+  parseTemperatureMonthlyBin,
+  attachMonthlyTemperatureToTerrainFromRaster,
   type ElevationGrid,
+  type TemperatureMonthlyLayer,
   resolveLandWaterByRegions,
   type EarthRaster,
   type ClimateGrid,
@@ -159,7 +164,22 @@ export {
 } from "./wind/windArrows.js";
 
 // Climate (seasonal precip/temp for rivers, future snow)
-export { getPrecipitation, getTemperature } from "./climate/seasonalClimate.js";
+export {
+  getPrecipitation,
+  getTemperature,
+  getTemperatureForTerrain,
+  meanMonthlyTempCToTemperature01,
+  interpolateMonthlyClimatologyC,
+  getTileTemperature01,
+  climateSurfaceSnowVisual,
+  climateSurfaceSnowVisualForTerrain,
+} from "./climate/seasonalClimate.js";
+export {
+  coldSeasonWeight,
+  koppenTerrainTemperatureTraits,
+  applyKoppenTerrainTemperatureModifier,
+  type TerrainTemperatureTraits,
+} from "./climate/koppenTemperature.js";
 export {
   createPrecipitationOverlay,
   updatePrecipitationOverlay,
@@ -215,6 +235,13 @@ export {
   type CloudClipFrame,
   type AnnualSpawnSpec,
 } from "./climate/cloudClipSystem.js";
+export {
+  buildSeasonalTargetPrecipByTile365,
+  analyzePrecipClimatologyGap,
+  type PrecipGapTileRow,
+  type PrecipClimatologyGapResult,
+  type AnalyzePrecipClimatologyGapOptions,
+} from "./climate/cloudPrecipDiagnostics.js";
 export {
   TileSurfaceState,
   type GroundSurfaceClimateParams,
