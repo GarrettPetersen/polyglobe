@@ -174,6 +174,9 @@ export function marchingCubes(
   }
 
   const geom = new THREE.BufferGeometry();
+  if (vertices.length === 0) {
+    return geom;
+  }
   geom.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
   geom.setIndex(indices);
   geom.computeVertexNormals();
@@ -184,6 +187,11 @@ export function marchingCubes(
 export function smoothMin(a: number, b: number, k: number): number {
   const h = Math.max(0, Math.min(1, 0.5 + (0.5 * (b - a)) / k));
   return a * h + b * (1 - h) - k * h * (1 - h);
+}
+
+/** Smooth maximum (for soft CSG difference when paired with negated SDF). */
+export function smoothMax(a: number, b: number, k: number): number {
+  return -smoothMin(-a, -b, k);
 }
 
 /** SDF for a sphere: distance from p to center minus radius. */

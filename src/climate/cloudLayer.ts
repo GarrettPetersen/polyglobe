@@ -7,6 +7,7 @@ import type { Globe } from "../core/Globe.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import {
   marchingCubes,
+  smoothMax,
   smoothUnionSdf,
   type SphereSdf,
 } from "./marchingCubes.js";
@@ -401,13 +402,29 @@ const SDF_CLOUD_GRID_RES = 20;
 const SDF_SMOOTH_K = 0.12;
 
 /**
+ * Earth-centered sphere (world space) subtracted from the cloud SDF so the underside follows the
+ * globe instead of a round blob “dangling” below the shell.
+ */
+interface CloudGlobeBottomClip {
+  worldPos: THREE.Vector3;
+  worldQuat: THREE.Quaternion;
+  /** Remove volume with ||p_world|| < shellRadius (typically ≈ anchor distance from origin). */
+  shellRadius: number;
+  /** 0 = hard cut; small positive = slightly soft junction. */
+  smoothK: number;
+}
+
+const _clipWorld = new THREE.Vector3();
+
+/**
  * Build a single cloud as one mesh from smooth SDF union + marching cubes (low-poly blob).
  */
 function createSingleCumulusCloudSdf(
   rng: () => number,
   baseScale: number,
   opacity: number,
-  flatDeck: boolean
+  flatDeck: boolean,
+  globeBottomClip: CloudGlobeBottomClip | null
 ): THREE.Group {
   const spheres = collectCloudSpheres(rng, baseScale, flatDeck);
   if (spheres.length === 0) {
@@ -429,7 +446,24 @@ function createSingleCumulusCloudSdf(
   minX -= pad; minY -= pad; minZ -= pad;
   maxX += pad; maxY += pad; maxZ += pad;
 
-  const sdf = smoothUnionSdf(spheres, baseScale * SDF_SMOOTH_K);
+  const unionSdf = smoothUnionSdf(spheres, baseScale * SDF_SMOOTH_K);
+  const sdf =
+    globeBottomClip === null
+      ? unionSdf
+      : (x: number, y: number, z: number) => {
+          const dCloud = unionSdf(x, y, z);
+          _clipWorld
+            .set(x, y, z)
+            .applyQuaternion(globeBottomClip.worldQuat)
+            .add(globeBottomClip.worldPos);
+          const dGlobe = _clipWorld.length() - globeBottomClip.shellRadius;
+          const k = globeBottomClip.smoothK;
+          if (k <= 1e-12) {
+            return Math.max(dCloud, -dGlobe);
+          }
+          return smoothMax(dCloud, -dGlobe, k);
+        };
+
   const geom = marchingCubes(
     sdf,
     minX, minY, minZ,
@@ -437,6 +471,11 @@ function createSingleCumulusCloudSdf(
     SDF_CLOUD_GRID_RES,
     { isoLevel: 0 }
   );
+  const posAttr = geom.getAttribute("position") as THREE.BufferAttribute | undefined;
+  if (!posAttr || posAttr.count === 0) {
+    geom.dispose();
+    return new THREE.Group();
+  }
   const mat = new THREE.MeshStandardMaterial({
     color: 0xe5e8ec,
     transparent: true,
@@ -473,6 +512,15 @@ export interface LowPolyCloudOptions {
   seed?: number;
   /** If true, each cloud casts a diffuse shadow via one proxy mesh (good performance). Default true. */
   castShadows?: boolean;
+  /**
+   * Subtract an Earth-centered sphere (through the cloud anchor on the shell) so bottoms are capped
+   * by the globe instead of smooth SDF bulbs below the layer.
+   */
+  clipBottomToGlobe?: boolean;
+  /** Added to the clip sphere radius (globe units). Positive = larger sphere = more underside removed. Default 0. */
+  clipGlobeShellRadiusOffset?: number;
+  /** Softness at the spherical cut; 0 = hard difference. Default 0. */
+  clipGlobeSmoothK?: number;
 }
 
 const LOW_POLY_CLOUD_DEFAULTS: Required<LowPolyCloudOptions> = {
@@ -484,6 +532,9 @@ const LOW_POLY_CLOUD_DEFAULTS: Required<LowPolyCloudOptions> = {
   opacity: 0.92,
   seed: 44444,
   castShadows: true,
+  clipBottomToGlobe: true,
+  clipGlobeShellRadiusOffset: 0,
+  clipGlobeSmoothK: 0,
 };
 
 /** Layer for shadow-proxy meshes (kept for API compatibility; proxies now use layer 0 so they are always in the shadow map). */
@@ -554,7 +605,23 @@ export function createLowPolyClouds(
     const clusterSizeMultiplier = Math.min(4, 0.5 + tileIds.length / 65);
     const scale = opts.cloudScale * sizeRandom * clusterSizeMultiplier;
     const flatDeck = tileIds.length >= flatDeckThreshold;
-    const cloud = createSingleCumulusCloudSdf(rng, scale, opts.opacity, flatDeck);
+    const quat = new THREE.Quaternion().setFromUnitVectors(worldUp, up);
+    const shellR = position.length() + opts.clipGlobeShellRadiusOffset;
+    const globeBottomClip: CloudGlobeBottomClip | null = opts.clipBottomToGlobe
+      ? {
+          worldPos: position.clone(),
+          worldQuat: quat.clone(),
+          shellRadius: shellR,
+          smoothK: opts.clipGlobeSmoothK,
+        }
+      : null;
+    const cloud = createSingleCumulusCloudSdf(
+      rng,
+      scale,
+      opts.opacity,
+      flatDeck,
+      globeBottomClip
+    );
     if (opts.castShadows) {
       addShadowProxy(cloud, scale, flatDeck);
     }
@@ -564,7 +631,7 @@ export function createLowPolyClouds(
       }
     });
     cloud.position.copy(position);
-    cloud.quaternion.setFromUnitVectors(worldUp, up);
+    cloud.quaternion.copy(quat);
     cloud.renderOrder = 5;
     root.add(cloud);
   }
