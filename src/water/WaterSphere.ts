@@ -5,6 +5,7 @@
  */
 
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 export interface WaterSphereOptions {
   /** Radius of the water sphere (typically globe radius). */
@@ -33,6 +34,12 @@ export interface WaterSphereOptions {
   coastMask?: THREE.Texture | null;
   /** Radius where water surface meets land (shoreline). Foam is drawn only on this contour. Default 1.0. */
   shorelineRadius?: number;
+  /** When true (default), Gerstner waves fade out with camera distance to save fragment/ALU cost. */
+  waveDistanceFade?: boolean;
+  /** World-space distance at which wave fade begins (full strength below this). Scaled by `radius` if < 10. Default 1.6 * radius. */
+  waveFadeNear?: number;
+  /** World-space distance at which waves are fully suppressed. Default 3.8 * radius. */
+  waveFadeFar?: number;
 }
 
 const VERTEX = `
@@ -45,6 +52,9 @@ const VERTEX = `
   uniform vec2 uGerstnerDir1;
   uniform vec2 uGerstnerDir2;
   uniform vec2 uGerstnerDir3;
+  uniform vec3 uCameraWorld;
+  uniform float uUseWaveDistanceFade;
+  uniform vec2 uWaveFadeNearFar;
 
   varying vec3 vWorldPosition;
   varying vec3 vNormal;
@@ -71,11 +81,16 @@ const VERTEX = `
     vec4 worldPos = modelMatrix * vec4(position, 1.0);
     vec3 pos = worldPos.xyz;
     vec3 N = normalize(pos);
+    float waveFade = 1.0;
+    if (uUseWaveDistanceFade > 0.5) {
+      float dist = length(uCameraWorld - pos);
+      waveFade = 1.0 - smoothstep(uWaveFadeNearFar.x, uWaveFadeNearFar.y, dist);
+    }
     vec3 disp = vec3(0.0);
     vec3 normalTilt = vec3(0.0);
-    gerstnerWave(uGerstnerDir1, uGerstnerAmps.x, uGerstnerWL.x, uGerstnerSpeed.x, uGerstnerQ.x, pos, N, disp, normalTilt);
-    gerstnerWave(uGerstnerDir2, uGerstnerAmps.y, uGerstnerWL.y, uGerstnerSpeed.y, uGerstnerQ.y, pos, N, disp, normalTilt);
-    gerstnerWave(uGerstnerDir3, uGerstnerAmps.z, uGerstnerWL.z, uGerstnerSpeed.z, uGerstnerQ.z, pos, N, disp, normalTilt);
+    gerstnerWave(uGerstnerDir1, uGerstnerAmps.x * waveFade, uGerstnerWL.x, uGerstnerSpeed.x, uGerstnerQ.x, pos, N, disp, normalTilt);
+    gerstnerWave(uGerstnerDir2, uGerstnerAmps.y * waveFade, uGerstnerWL.y, uGerstnerSpeed.y, uGerstnerQ.y, pos, N, disp, normalTilt);
+    gerstnerWave(uGerstnerDir3, uGerstnerAmps.z * waveFade, uGerstnerWL.z, uGerstnerSpeed.z, uGerstnerQ.z, pos, N, disp, normalTilt);
     vec3 newPos = pos + disp;
     vWorldPosition = newPos;
     vNormal = normalize(N - normalTilt);
@@ -225,6 +240,9 @@ export class WaterSphere {
     const wl = options.wavelength ?? 0.14;
     const q = options.waveSteepness ?? 0.22;
     const [d1, d2, d3] = defaultGerstnerDirs();
+    const fadeOn = options.waveDistanceFade !== false;
+    const fadeNear = options.waveFadeNear ?? radius * 1.6;
+    const fadeFar = options.waveFadeFar ?? radius * 3.8;
 
     const geometry = new THREE.SphereGeometry(radius, segments, segments);
     const sunDir = options.sunDirection ?? new THREE.Vector3(0.5, 0.6, 0.4).normalize();
@@ -248,6 +266,9 @@ export class WaterSphere {
         uGerstnerDir1: { value: d1 },
         uGerstnerDir2: { value: d2 },
         uGerstnerDir3: { value: d3 },
+        uCameraWorld: { value: new THREE.Vector3(0, 0, 3) },
+        uUseWaveDistanceFade: { value: fadeOn ? 1 : 0 },
+        uWaveFadeNearFar: { value: new THREE.Vector2(fadeNear, fadeFar) },
         uFoamCrestSpeed: { value: 0.073 },
         uFoamWaveCount: { value: 3.2 },
         uUseCoastMask: { value: options.coastMask ? 1 : 0 },
@@ -269,6 +290,13 @@ export class WaterSphere {
     this.material.uniforms.uTime.value = this.clock.getElapsedTime() * this._timeScale;
   }
 
+  /** World-space camera position; enables distance-based wave fade when `waveDistanceFade` is on. */
+  setCameraWorldPosition(position: THREE.Vector3): void {
+    (this.material.uniforms.uCameraWorld as THREE.IUniform<THREE.Vector3>).value.copy(
+      position,
+    );
+  }
+
   setSunDirection(direction: THREE.Vector3): void {
     this.material.uniforms.uSunDirection.value.copy(direction).normalize();
   }
@@ -285,7 +313,16 @@ export class WaterSphere {
    * staying invisible under solid land hexes.
    * 
    * For river tiles, corner vertices are smoothly interpolated between neighboring tile
-   * water levels to create gradual river slopes. Ocean and lake tiles stay flat.
+   * water levels to create gradual river slopes. Open-ocean tiles use a fixed level; lakes
+   * use elevation-based depth (caller should make `isOcean` false for lakes).
+   *
+   * Tiles that are not open ocean, not river, and not lake emit no geometry (no subsurface
+   * fan under dry land).
+   *
+   * Lake and river fans use the same **planar** corner placement as land hexes
+   * (`centerNormal * r + tangential` from each corner direction). Pure radial corners
+   * would sit outside that flat footprint and read as water spilling onto dry tiles.
+   * Open ocean / beach fans stay spherical to match radial water-tile terrain vertices.
    */
   setWaterTableGeometry(
     tiles: Array<{ id: number; center: THREE.Vector3; vertices: THREE.Vector3[] }>,
@@ -297,120 +334,264 @@ export class WaterSphere {
       depthBelowSurface?: number;
       /** Ocean surface level. Default baseRadius * 0.995 */
       oceanLevel?: number;
-      /** Check if tile is ocean/water (use ocean level) vs land (use elevation-based level) */
+      /** Open ocean / coastal water at fixed `oceanLevel` (exclude lakes — use `isLake` + elevation). */
       isOcean?: (tileId: number) => boolean;
-      /** Check if tile is a river (smooth transitions) vs regular land (flat) */
+      /** Inland lake or other water body that follows terrain elevation (not `oceanLevel`). */
+      isLake?: (tileId: number) => boolean;
+      /** River channel (smooth corner blending with neighbors). */
       isRiver?: (tileId: number) => boolean;
       /** Get neighbor tile IDs for a given edge (0-5). Returns undefined if no neighbor. */
       getEdgeNeighbor?: (tileId: number, edgeIndex: number) => number | undefined;
+      /**
+       * If set, tiles that are open ocean on all sides (no land, river, or lake neighbors)
+       * skip per-hex fans and are covered by one low-poly sphere at `oceanLevel` instead.
+       */
+      interiorOceanSphere?: { widthSegments: number; heightSegments: number };
+      /** Log tile/triangle counts (default false — avoid string work on huge builds). */
+      verbose?: boolean;
     }
   ): void {
     const { baseRadius, elevationScale = 1, depthBelowSurface = -0.008 } = options;
     const oceanLevel = options.oceanLevel ?? baseRadius * 0.995;
     const isOcean = options.isOcean ?? (() => false);
+    const isLake = options.isLake ?? (() => false);
     const isRiver = options.isRiver ?? (() => false);
     const getEdgeNeighbor = options.getEdgeNeighbor;
+    const interiorSphereCfg = options.interiorOceanSphere;
+    const verbose = options.verbose ?? false;
 
-    // Pre-compute water radius for each tile
-    const tileWaterR = new Map<number, number>();
-    for (const tile of tiles) {
-      if (isOcean(tile.id)) {
-        tileWaterR.set(tile.id, oceanLevel);
+    let maxTileId = 0;
+    for (let i = 0; i < tiles.length; i++) {
+      const id = tiles[i].id;
+      if (id > maxTileId) maxTileId = id;
+    }
+    const idSpan = maxTileId + 1;
+    const waterR = new Float32Array(idSpan);
+    for (let i = 0; i < tiles.length; i++) {
+      const tile = tiles[i];
+      const id = tile.id;
+      if (isOcean(id)) {
+        waterR[id] = oceanLevel;
       } else {
-        const elev = getElevation(tile.id) * elevationScale;
-        tileWaterR.set(tile.id, baseRadius + elev + depthBelowSurface);
+        const elev = getElevation(id) * elevationScale;
+        waterR[id] = baseRadius + elev + depthBelowSurface;
       }
     }
 
-    const positions: number[] = [];
-    const normals: number[] = [];
-    const indices: number[] = [];
-
-    let oceanCount = 0;
-    let landCount = 0;
-    let riverCount = 0;
-    
-    for (const tile of tiles) {
-      if (!tile.vertices || tile.vertices.length < 3) continue;
-      
-      const n = tile.vertices.length;
-      const tileIsOcean = isOcean(tile.id);
-      const tileIsRiver = !tileIsOcean && isRiver(tile.id);
-      const waterR = tileWaterR.get(tile.id) ?? oceanLevel;
-      
-      if (tileIsOcean) oceanCount++;
-      else if (tileIsRiver) riverCount++;
-      else landCount++;
-
-      // Center vertex - always at tile's water level
-      const centerNormal = tile.center.clone().normalize();
-      const centerPos = centerNormal.clone().multiplyScalar(waterR);
-      const centerIdx = positions.length / 3;
-      positions.push(centerPos.x, centerPos.y, centerPos.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
-
-      // Corner vertices - smoothed for rivers, flat for oceans/lakes/regular land
-      const cornerBase = positions.length / 3;
-      for (let v = 0; v < n; v++) {
-        const cornerNormal = tile.vertices[v].clone().normalize();
-        
-        let cornerR = waterR;
-        
-        // For river tiles, interpolate corner height with neighbors
-        if (tileIsRiver && getEdgeNeighbor) {
-          // This corner is shared by edges v-1 and v (the edges on either side)
-          // Get neighbors on those edges
-          const prevEdge = (v - 1 + n) % n;
-          const neighborA = getEdgeNeighbor(tile.id, prevEdge);
-          const neighborB = getEdgeNeighbor(tile.id, v);
-          
-          // Average water levels of this tile and its corner-sharing neighbors
-          let sum = waterR;
-          let count = 1;
-          
-          if (neighborA !== undefined) {
-            const nR = tileWaterR.get(neighborA);
-            if (nR !== undefined) {
-              sum += nR;
-              count++;
-            }
+    const interiorOceanFlags = new Uint8Array(idSpan);
+    if (interiorSphereCfg && getEdgeNeighbor) {
+      for (let ti = 0; ti < tiles.length; ti++) {
+        const tile = tiles[ti];
+        const tid = tile.id;
+        if (!isOcean(tid) || isRiver(tid) || isLake(tid)) continue;
+        const n = tile.vertices?.length ?? 0;
+        if (n < 3) continue;
+        let surroundedByOpenOcean = true;
+        for (let e = 0; e < n; e++) {
+          const nid = getEdgeNeighbor(tid, e);
+          if (nid === undefined || !isOcean(nid) || isRiver(nid) || isLake(nid)) {
+            surroundedByOpenOcean = false;
+            break;
           }
-          if (neighborB !== undefined && neighborB !== neighborA) {
-            const nR = tileWaterR.get(neighborB);
-            if (nR !== undefined) {
-              sum += nR;
-              count++;
-            }
-          }
-          
-          cornerR = sum / count;
         }
-        
-        const cornerPos = cornerNormal.clone().multiplyScalar(cornerR);
-        positions.push(cornerPos.x, cornerPos.y, cornerPos.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        if (surroundedByOpenOcean) interiorOceanFlags[tid] = 1;
+      }
+    }
+
+    const cN = new THREE.Vector3();
+    const cP = new THREE.Vector3();
+    const cornerN = new THREE.Vector3();
+    const cornerP = new THREE.Vector3();
+    /** `cn * (fv·cn)` for planar water corners (matches flat land hex in geodesic.ts). */
+    const cnProjFv = new THREE.Vector3();
+    const fvTan = new THREE.Vector3();
+
+    let oceanFanCount = 0;
+    let lakeCount = 0;
+    let riverCount = 0;
+    let skippedDryLand = 0;
+    let interiorOceanCount = 0;
+    let vertCount = 0;
+    let indexCount = 0;
+
+    for (let ti = 0; ti < tiles.length; ti++) {
+      const tile = tiles[ti];
+      if (!tile.vertices || tile.vertices.length < 3) continue;
+
+      const n = tile.vertices.length;
+      const tid = tile.id;
+      const tileIsOcean = isOcean(tid);
+      const tileIsLake = isLake(tid);
+      const tileIsRiver = !tileIsOcean && isRiver(tid);
+
+      if (!tileIsOcean && !tileIsRiver && !tileIsLake) {
+        skippedDryLand++;
+        continue;
       }
 
-      // Fan triangles from center to corners (CCW winding for outward-facing)
+      if (tileIsOcean && interiorOceanFlags[tid]) {
+        interiorOceanCount++;
+        continue;
+      }
+
+      vertCount += 1 + n;
+      indexCount += n * 3;
+    }
+
+    const positions = new Float32Array(vertCount * 3);
+    const normals = new Float32Array(vertCount * 3);
+    const use32BitIndex = vertCount > 65535;
+    const indices = use32BitIndex
+      ? new Uint32Array(indexCount)
+      : new Uint16Array(indexCount);
+
+    let vp = 0;
+    let ip = 0;
+    oceanFanCount = 0;
+    lakeCount = 0;
+    riverCount = 0;
+
+    for (let ti = 0; ti < tiles.length; ti++) {
+      const tile = tiles[ti];
+      if (!tile.vertices || tile.vertices.length < 3) continue;
+
+      const n = tile.vertices.length;
+      const tid = tile.id;
+      const tileIsOcean = isOcean(tid);
+      const tileIsLake = isLake(tid);
+      const tileIsRiver = !tileIsOcean && isRiver(tid);
+      const wr = waterR[tid] ?? oceanLevel;
+
+      if (!tileIsOcean && !tileIsRiver && !tileIsLake) continue;
+      if (tileIsOcean && interiorOceanFlags[tid]) continue;
+
+      if (tileIsOcean) oceanFanCount++;
+      else if (tileIsRiver) riverCount++;
+      else if (tileIsLake) lakeCount++;
+
+      cN.copy(tile.center).normalize();
+      cP.copy(cN).multiplyScalar(wr);
+      const centerIdx = vp / 3;
+      positions[vp] = cP.x;
+      positions[vp + 1] = cP.y;
+      positions[vp + 2] = cP.z;
+      normals[vp] = cN.x;
+      normals[vp + 1] = cN.y;
+      normals[vp + 2] = cN.z;
+      vp += 3;
+
+      const cornerBase = vp / 3;
+      for (let v = 0; v < n; v++) {
+        cornerN.copy(tile.vertices[v]).normalize();
+
+        let cornerR = wr;
+
+        if (tileIsRiver && getEdgeNeighbor) {
+          const prevEdge = (v - 1 + n) % n;
+          const neighborA = getEdgeNeighbor(tid, prevEdge);
+          const neighborB = getEdgeNeighbor(tid, v);
+
+          let sum = wr;
+          let count = 1;
+
+          if (neighborA !== undefined && neighborA < idSpan) {
+            sum += waterR[neighborA];
+            count++;
+          }
+          if (
+            neighborB !== undefined &&
+            neighborB !== neighborA &&
+            neighborB < idSpan
+          ) {
+            sum += waterR[neighborB];
+            count++;
+          }
+
+          cornerR = sum / count;
+        }
+
+        if (tileIsOcean) {
+          cornerP.copy(cornerN).multiplyScalar(cornerR);
+        } else {
+          const d = cornerN.dot(cN);
+          cnProjFv.copy(cN).multiplyScalar(d);
+          fvTan.copy(cornerN).sub(cnProjFv);
+          cornerP.copy(cN).multiplyScalar(cornerR).add(fvTan);
+        }
+        positions[vp] = cornerP.x;
+        positions[vp + 1] = cornerP.y;
+        positions[vp + 2] = cornerP.z;
+        normals[vp] = cN.x;
+        normals[vp + 1] = cN.y;
+        normals[vp + 2] = cN.z;
+        vp += 3;
+      }
+
       for (let v = 0; v < n; v++) {
         const i0 = cornerBase + v;
         const i1 = cornerBase + (v + 1) % n;
-        indices.push(centerIdx, i1, i0);
+        indices[ip++] = centerIdx;
+        indices[ip++] = i1;
+        indices[ip++] = i0;
       }
     }
-    
-    console.log(`[WaterSphere] water table: ${oceanCount} ocean, ${riverCount} river, ${landCount} other land tiles`);
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    
+    if (verbose) {
+      console.log(
+        `[WaterSphere] water table: ${oceanFanCount} ocean fans, ${interiorOceanCount} interior ocean (sphere), ${riverCount} river, ${lakeCount} lake, ${skippedDryLand} dry land skipped`,
+      );
+    }
+
+    const fanGeometry = new THREE.BufferGeometry();
+    fanGeometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
+    fanGeometry.setAttribute(
+      "normal",
+      new THREE.Float32BufferAttribute(normals, 3),
+    );
+    if (use32BitIndex) {
+      fanGeometry.setIndex(new THREE.Uint32BufferAttribute(indices as Uint32Array, 1));
+    } else {
+      fanGeometry.setIndex(new THREE.Uint16BufferAttribute(indices as Uint16Array, 1));
+    }
+    if (vertCount > 0) {
+      fanGeometry.computeVertexNormals();
+    }
+
+    let geometry: THREE.BufferGeometry = fanGeometry;
+    if (interiorOceanCount > 0 && interiorSphereCfg) {
+      const sphereGeom = new THREE.SphereGeometry(
+        oceanLevel,
+        interiorSphereCfg.widthSegments,
+        interiorSphereCfg.heightSegments,
+      );
+      sphereGeom.deleteAttribute("uv");
+      const parts =
+        vertCount > 0 ? [sphereGeom, fanGeometry] : [sphereGeom];
+      const merged = mergeGeometries(parts, false);
+      if (merged == null) {
+        sphereGeom.dispose();
+        throw new Error(
+          "[WaterSphere] mergeGeometries failed (sphere + water table attribute mismatch)",
+        );
+      }
+      sphereGeom.dispose();
+      if (vertCount > 0) fanGeometry.dispose();
+      geometry = merged;
+    }
+
     this.mesh.geometry.dispose();
     this.mesh.geometry = geometry;
-    
-    console.log(`[WaterSphere] setWaterTableGeometry: ${tiles.length} tiles, ${positions.length / 3} vertices, ${indices.length / 3} triangles`);
+
+    if (verbose) {
+      const posAttr = geometry.getAttribute("position");
+      const idx = geometry.getIndex();
+      console.log(
+        `[WaterSphere] setWaterTableGeometry: ${tiles.length} tiles, ${posAttr?.count ?? 0} vertices, ${(idx?.count ?? 0) / 3} triangles`,
+      );
+    }
   }
 
   set radius(r: number) {

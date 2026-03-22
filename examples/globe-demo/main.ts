@@ -18,6 +18,7 @@ import {
   createGeodesicGeometryFlat,
   updateFlatGeometryFromTerrain,
   applyTerrainColorsToGeometry,
+  applyLandSurfaceWeatherVertexColors,
   applyVertexColorsByTileId,
   applyTerrainToGeometry,
   createCoastMaskTexture,
@@ -60,11 +61,18 @@ import {
   createPrecipitationOverlay,
   updatePrecipitationOverlay,
   getPrecipitationByTile,
+  getPrecipitationByTileWithMoisture,
+  buildMoistureByTileFromTerrain,
   createCloudLayer,
   updateCloudLayer,
-  createLowPolyClouds,
-  updateLowPolyClouds,
   sortLowPolyCloudsByCamera,
+  CloudClipField,
+  buildAnnualCloudSpawnTable,
+  createPrecipitationParticlesGroup,
+  updatePrecipitationParticles,
+  disposePrecipitationParticlesGroup,
+  utcMinuteFromDate,
+  type PrecipSubsolarForMinute,
 } from "polyglobe";
 import {
   EARTH_GLOBE_CACHE_VERSION,
@@ -81,6 +89,12 @@ import {
 } from "./astronomy.js";
 import { createPlanetsMesh } from "./planets.js";
 import { createSkyDome } from "./skyDome.js";
+import {
+  logPerfDiagUrlHint,
+  logPerfDiagHelp,
+  createBuildPerfMarker,
+  createFramePerfSamplerOrNoop,
+} from "./perfDiag.js";
 
 /** Plant assets live in public/plant-models/ so Vite serves them at /plant-models/. Run dev from examples/globe-demo. */
 const PLANT_BASE =
@@ -122,6 +136,8 @@ const rockUrls = [
 ];
 
 console.log("[globe-build] demo main.ts loaded");
+logPerfDiagUrlHint();
+logPerfDiagHelp();
 
 /** Tree variant indices: 0–2 deciduous_round; 3–5 acacia; 6–8 pine; 9 bamboo; 10–12 deciduous_boxy; 13–15 palm. */
 const TREE_VARIANT_DECIDUOUS_ROUND = [0, 1, 2];
@@ -319,6 +335,15 @@ export interface DemoState {
   showPrecipitation: boolean;
   /** Show cloud layer. */
   showClouds: boolean;
+  /**
+   * If set, cloud/precip simulation uses this UTC minute index instead of deriving from
+   * {@link dateTimeStr} (for game clocks that tick separately from the sun/moon date).
+   */
+  gameClockUtcMinute: number | null;
+  /** When true, the animation loop advances {@link dateTimeStr} from real frame delta × {@link timePlaySpeed}. */
+  timePlaying: boolean;
+  /** Simulated-time multiplier vs real time (1 = real-time). */
+  timePlaySpeed: number;
   landFraction: number;
   blobiness: number;
   seed: number;
@@ -333,6 +358,9 @@ const DEFAULT_STATE: DemoState = {
   showFlow: false,
   showPrecipitation: false,
   showClouds: false,
+  gameClockUtcMinute: null,
+  timePlaying: false,
+  timePlaySpeed: 3600,
   landFraction: 0.5,
   blobiness: 6,
   seed: 12345,
@@ -1884,6 +1912,37 @@ let currentArrowsGroup: THREE.Group | null = null;
 let precipitationOverlayGroup: THREE.Group | null = null;
 /** Cloud layer (low-poly clouds). */
 let cloudGroup: THREE.Group | null = null;
+/** Falling rain/snow streaks under active cloud precip. */
+let precipFxGroup: THREE.Group | null = null;
+/** Köppen/terrain moisture multipliers for cloud + precip potential (null before terrain build). */
+let globalMoistureByTile: Map<number, number> | null = null;
+
+function getCloudSimTargetUtcMinute(state: DemoState): number {
+  if (
+    state.gameClockUtcMinute != null &&
+    Number.isFinite(state.gameClockUtcMinute)
+  ) {
+    return Math.floor(state.gameClockUtcMinute);
+  }
+  const date = datetimeLocalUTCToDate(
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date())
+  );
+  return utcMinuteFromDate(date);
+}
+
+/** Fractional UTC minutes for cloud lifecycle lerping and sub-minute drift. */
+function getCloudVisualUtcMinutes(state: DemoState, date: Date): number {
+  if (
+    state.gameClockUtcMinute != null &&
+    Number.isFinite(state.gameClockUtcMinute)
+  ) {
+    return state.gameClockUtcMinute;
+  }
+  return date.getTime() / 60000;
+}
+
+/** Clip-based cloud field + precip overlay (see {@link CloudClipField}). */
+let cloudClipField: CloudClipField | null = null;
 /** Sun light (module-level so panel can force shadow update on cloud toggle). */
 let sun: InstanceType<typeof Sun> | null = null;
 /** Invisible sphere that casts shadow so Earth blocks light to night-side clouds (shadow map always sees globe bulk). */
@@ -1899,8 +1958,12 @@ let globalFlowByTile: Map<number, { directionRad: number; strength: number }> | 
 let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
 /** Module-level river flow (exit edge + direction) for debug panel; from elevation + mouth. */
 let globalRiverFlowByTile: Map<number, { exitEdge: number; directionRad: number }> | null = null;
-/** Last date string we used for wind; animate loop syncs wind when state.dateTimeStr changes. */
-let lastWindDateStr: string | null = null;
+/** Last UTC minute index used for wind/flow/cloud sync (expensive; skip within the same minute). */
+let lastWindUtcMinute: number | null = null;
+/** UTC ms anchor for time playback (advanced while {@link DemoState.timePlaying}). */
+let playbackEpochMs = 0;
+/** Panel datetime input; updated while time is playing. */
+let panelDateTimeInput: HTMLInputElement | null = null;
 /** Biome vegetation (instanced plants, distance-culled). */
 let vegetationLayer: {
   group: THREE.Group;
@@ -1942,12 +2005,20 @@ let setLoading: (visible: boolean) => void = () => {};
 
 function sunDirectionFromState(s: DemoState): THREE.Vector3 {
   const date = datetimeLocalUTCToDate(s.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
-  const p = dateToSubsolarPoint(date);
-  return latLonDegToDirection(p.latDeg, p.lonDeg);
+  return sunDirectionFromDate(date);
 }
 
 function moonPositionFromState(s: DemoState, distance: number): THREE.Vector3 {
   const date = datetimeLocalUTCToDate(s.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+  return moonPositionFromDate(date, distance);
+}
+
+function sunDirectionFromDate(date: Date): THREE.Vector3 {
+  const p = dateToSubsolarPoint(date);
+  return latLonDegToDirection(p.latDeg, p.lonDeg);
+}
+
+function moonPositionFromDate(date: Date, distance: number): THREE.Vector3 {
   const p = dateToSublunarPoint(date);
   return latLonDegToDirection(p.latDeg, p.lonDeg).multiplyScalar(distance);
 }
@@ -2069,32 +2140,209 @@ function updateFlowFromState(state: DemoState): void {
   }
 }
 
-/** Recompute precipitation overlay and cloud texture from date, sync visibility. */
-function updatePrecipitationAndCloudsFromState(state: DemoState): void {
-  if (!globe) return;
-  const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
-  const subsolar = dateToSubsolarPoint(date);
-  const precipByTile = getPrecipitationByTile(globe.tiles, subsolar.latDeg);
-
-  if (precipitationOverlayGroup) {
-    updatePrecipitationOverlay(precipitationOverlayGroup, globe, precipByTile, {
-      heightOffset: 0.06,
-      quadSize: 0.08,
-      opacity: 0.5,
-      minPrecip: 0.05,
-    });
-    precipitationOverlayGroup.visible = state.showPrecipitation;
+/** Blend terrain vertex colors with wet / snow cover from {@link CloudClipField} surface state. */
+function syncGlobeLandWeatherVertexColors(): void {
+  if (!globe || !globalTileTerrain || !cloudClipField) return;
+  const mesh = globe.mesh as THREE.Mesh;
+  const geom = mesh.geometry;
+  if (!(geom instanceof THREE.BufferGeometry)) return;
+  const waterIds = new Set<number>();
+  for (const [id, t] of globalTileTerrain) {
+    if (t.type === "water") waterIds.add(id);
   }
+  const surf = cloudClipField.getTileSurfaceState();
+  applyLandSurfaceWeatherVertexColors(
+    geom,
+    globalTileTerrain,
+    waterIds,
+    surf.wetness,
+    surf.snow,
+  );
+  const ca = geom.getAttribute("color");
+  if (ca) ca.needsUpdate = true;
+}
+
+/** Recompute precipitation overlay (from cloud sim rain) and sync cloud meshes from sim. */
+function updatePrecipitationAndCloudsFromState(state: DemoState): void {
+  if (!globe || !cloudClipField) return;
+  const targetMin = getCloudSimTargetUtcMinute(state);
+  const getPS: PrecipSubsolarForMinute = (utcMin) => {
+    const d = new Date(utcMin * 60000);
+    const subsolar = dateToSubsolarPoint(d);
+    return {
+      precipByTile: getPrecipitationByTileWithMoisture(
+        globe.tiles,
+        subsolar.latDeg,
+        globalMoistureByTile
+      ),
+      subsolarLatDeg: subsolar.latDeg,
+    };
+  };
+  const nowDate = datetimeLocalUTCToDate(
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+  );
+  cloudClipField.syncToTargetMinute(targetMin, globe, getPS, {
+    moisture: globalMoistureByTile!,
+    nowDate,
+  });
   if (cloudGroup) {
-    updateLowPolyClouds(cloudGroup, globe, precipByTile, {
-      heightOffset: 0.04,
-      minPrecip: 0.2,
-      gridDeg: 8,
-      cloudScale: 0.032,
-      opacity: 0.92,
-    });
+    cloudClipField.syncThreeGroup(cloudGroup, globe, targetMin);
     cloudGroup.visible = state.showClouds;
   }
+
+  if (precipitationOverlayGroup) {
+    updatePrecipitationOverlay(
+      precipitationOverlayGroup,
+      globe,
+      cloudClipField.getPrecipOverlayMap(),
+      {
+        heightOffset: 0.06,
+        quadSize: 0.08,
+        opacity: 0.55,
+        minPrecip: 0.03,
+      }
+    );
+    precipitationOverlayGroup.visible = state.showPrecipitation;
+  }
+  syncGlobeLandWeatherVertexColors();
+}
+
+/** Bumped at each globe rebuild so in-flight cloud bootstrap aborts before touching stale globals. */
+let cloudPrecipBuildGeneration = 0;
+
+let cloudPrecipBootstrapPromise: Promise<void> | null = null;
+
+/**
+ * Clip-based cumulus field (lifecycle templates + wind advection). Skipped when both clouds and
+ * precip are off; toggles call `requestCloudPrecipBootstrap`.
+ */
+async function ensureCloudWeatherAndPrecipMeshes(
+  state: DemoState,
+  buildPerf?: ReturnType<typeof createBuildPerfMarker> | null,
+): Promise<void> {
+  if (!globe || !globalMoistureByTile) return;
+  if (cloudClipField && precipitationOverlayGroup && cloudGroup) {
+    cloudGroup.visible = state.showClouds;
+    precipitationOverlayGroup.visible = state.showPrecipitation;
+    if (precipFxGroup) precipFxGroup.visible = state.showPrecipitation;
+    return;
+  }
+  const gen = cloudPrecipBuildGeneration;
+  const targetUtcMin = getCloudSimTargetUtcMinute(state);
+  const hugeGlobe = globe.tileCount > 85_000;
+  const getPrecipSubsolar: PrecipSubsolarForMinute = (utcMin) => {
+    const d = new Date(utcMin * 60000);
+    const subsolar = dateToSubsolarPoint(d);
+    return {
+      precipByTile: getPrecipitationByTileWithMoisture(
+        globe!.tiles,
+        subsolar.latDeg,
+        globalMoistureByTile!
+      ),
+      subsolarLatDeg: subsolar.latDeg,
+    };
+  };
+  const waterTileIds = new Set<number>();
+  if (globalTileTerrain) {
+    for (const [id, t] of globalTileTerrain) {
+      if (t.type === "water") waterTileIds.add(id);
+    }
+  }
+  const field = new CloudClipField({
+    maxClouds: hugeGlobe ? 72 : 96,
+    cloudScale: 0.024,
+    cloudCastShadows: false,
+    maxCloudMeshOpsPerSync: hugeGlobe ? 56 : 80,
+    maxCatchUpMinutes: 720,
+    waterTileIds,
+    getSubsolarLatDegForUtcMinute: (utcMin) =>
+      dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
+  });
+  const maxSlots = Math.min(field.config.maxClouds, globe.tileCount);
+  field.setAnnualSpawnTable(
+    buildAnnualCloudSpawnTable(
+      globe,
+      globalMoistureByTile,
+      field.config,
+      maxSlots,
+      (utcMin) => dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
+    ),
+  );
+  const nowDate = datetimeLocalUTCToDate(
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+  );
+  field.initToMinute(
+    globe,
+    targetUtcMin,
+    globalMoistureByTile,
+    nowDate,
+    getPrecipSubsolar,
+  );
+  if (gen !== cloudPrecipBuildGeneration) return;
+  cloudClipField = field;
+
+  if (!precipitationOverlayGroup) {
+    const precipGrp = createPrecipitationOverlay(
+      globe,
+      field.getPrecipOverlayMap(),
+      {
+        heightOffset: 0.06,
+        quadSize: 0.08,
+        opacity: 0.55,
+        minPrecip: 0.03,
+      }
+    );
+    precipitationOverlayGroup = precipGrp;
+    precipGrp.visible = state.showPrecipitation;
+    precipGrp.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.receiveShadow = true;
+    });
+    scene.add(precipGrp);
+  }
+
+  if (!cloudGroup) {
+    cloudGroup = new THREE.Group();
+    cloudGroup.name = "LowPolyClouds";
+    field.syncThreeGroup(cloudGroup, globe, targetUtcMin);
+    cloudGroup.visible = state.showClouds;
+    cloudGroup.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.receiveShadow = true;
+    });
+    scene.add(cloudGroup);
+  } else {
+    field.syncThreeGroup(cloudGroup, globe, targetUtcMin);
+    cloudGroup.visible = state.showClouds;
+  }
+
+  if (!precipFxGroup) {
+    precipFxGroup = createPrecipitationParticlesGroup({
+      maxStreaks: hugeGlobe ? 240 : 440,
+    });
+    scene.add(precipFxGroup);
+  }
+  precipFxGroup.visible = state.showPrecipitation;
+
+  buildPerf?.mark("cloudClipFieldPrecipMesh");
+}
+
+function requestCloudPrecipBootstrap(state: DemoState): void {
+  if (!globe || !globalMoistureByTile) return;
+  if (cloudClipField && precipitationOverlayGroup && cloudGroup) {
+    cloudGroup.visible = state.showClouds;
+    precipitationOverlayGroup.visible = state.showPrecipitation;
+    if (precipFxGroup) precipFxGroup.visible = state.showPrecipitation;
+    return;
+  }
+  if (cloudPrecipBootstrapPromise) return;
+  cloudPrecipBootstrapPromise = (async () => {
+    try {
+      await ensureCloudWeatherAndPrecipMeshes(state, null);
+    } catch (e) {
+      console.error(BUILD_LOG, "cloud/precip bootstrap failed", e);
+    } finally {
+      cloudPrecipBootstrapPromise = null;
+    }
+  })();
 }
 
 function createFlareTexture(
@@ -2189,6 +2437,7 @@ function setGlobeGeometryFromTerrain(
 }
 
 async function buildWorldAsync(state: DemoState): Promise<void> {
+  const buildPerf = createBuildPerfMarker();
   console.log(
     BUILD_LOG,
     "buildWorldAsync start",
@@ -2198,6 +2447,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
   );
   setLoading(true);
   try {
+    cloudPrecipBuildGeneration++;
     if (globe) {
       console.log(BUILD_LOG, "teardown previous globe/water/overlay");
       scene.remove(globe.mesh);
@@ -2280,6 +2530,14 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       });
       cloudGroup = null;
     }
+    if (precipFxGroup) {
+      scene.remove(precipFxGroup);
+      disposePrecipitationParticlesGroup(precipFxGroup);
+      precipFxGroup = null;
+    }
+    cloudClipField?.dispose();
+    cloudClipField = null;
+    globalMoistureByTile = null;
     if (vegetationLayer) {
       scene.remove(vegetationLayer.group);
       vegetationLayer.dispose();
@@ -2291,6 +2549,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       marker = null;
     }
     await yieldToMain();
+    buildPerf?.mark("teardownYield");
 
     console.log(BUILD_LOG, "create Globe, add base water terrain");
     globe = new Globe({ radius: 1, subdivisions: state.subdivisions });
@@ -2298,7 +2557,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     (globe.mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       flatShading: true,
-      side: THREE.DoubleSide,
+      /** FrontSide lets the GPU cull back-facing land triangles (~half the globe from orbit). */
+      side: THREE.FrontSide,
     });
     applyGlobeTerrainShadowFlags(globe);
     scene.add(globe.mesh);
@@ -2691,6 +2951,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       console.log(BUILD_LOG, "Procedural: runTerrainTransition done");
     }
 
+    globalMoistureByTile = buildMoistureByTileFromTerrain(tileTerrain);
+
     await yieldToMain();
 
     console.log(BUILD_LOG, "create coast masks");
@@ -2737,6 +2999,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     // Build tile lookup for getEdgeNeighbor
     const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
 
+    const waterInteriorOceanSeg =
+      globe.tileCount > 100_000
+        ? { widthSegments: 28, heightSegments: 20 }
+        : { widthSegments: 44, heightSegments: 30 };
+
     water.setWaterTableGeometry(
       globe.tiles,
       (id) => tileTerrain.get(id)?.elevation ?? 0,
@@ -2745,15 +3012,20 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         elevationScale: waterTableElevationScale,
         depthBelowSurface: -0.006, // Slightly below land surface
         oceanLevel: 0.995,
+        // Lakes use terrain elevation for the water surface; only open ocean / beach use fixed level.
         isOcean: (id) => {
-          const t = tileTerrain.get(id)?.type;
-          return t === "water" || t === "beach";
+          const d = tileTerrain.get(id);
+          if (!d) return false;
+          if (d.lakeId != null) return false;
+          return d.type === "water" || d.type === "beach";
         },
+        isLake: (id) => tileTerrain.get(id)?.lakeId != null,
         isRiver: (id) => riverEdgesByTile?.has(id) ?? false,
         getEdgeNeighbor: (id, edge) => {
           const tile = tileById.get(id);
           return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
         },
+        interiorOceanSphere: waterInteriorOceanSeg,
       },
     );
     scene.add(water.mesh);
@@ -2780,6 +3052,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     innerBlackSphere.renderOrder = -10;
     scene.add(innerBlackSphere);
     console.log(BUILD_LOG, "added inner black sphere at radius 0.98");
+    buildPerf?.mark("terrainWaterRiversCoast");
 
     // Wind arrows (seasonal trade winds, westerlies, polar easterlies + noise)
     const dateForWind = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
@@ -2806,7 +3079,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     });
     windArrowsGroup.visible = state.showWinds;
     scene.add(windArrowsGroup!);
-    lastWindDateStr = state.dateTimeStr || dateToDatetimeLocalUTC(new Date());
+    lastWindUtcMinute = Math.floor(
+      datetimeLocalUTCToDate(
+        state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+      ).getTime() / 60000,
+    );
 
     const dateForFlow = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
     const subsolarFlow = dateToSubsolarPoint(dateForFlow);
@@ -2819,33 +3096,18 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     currentArrowsGroup = createFlowArrows(globe, currentFlow, CURRENT_FLOW_OPTIONS);
     currentArrowsGroup!.visible = state.showFlow;
     scene.add(currentArrowsGroup!);
+    buildPerf?.mark("windFlowArrows");
 
-    const precipByTile = getPrecipitationByTile(globe.tiles, subsolarFlow.latDeg);
-    precipitationOverlayGroup = createPrecipitationOverlay(globe, precipByTile, {
-      heightOffset: 0.06,
-      quadSize: 0.08,
-      opacity: 0.5,
-      minPrecip: 0.05,
-    });
-    precipitationOverlayGroup!.visible = state.showPrecipitation;
-    precipitationOverlayGroup!.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.receiveShadow = true;
-    });
-    scene.add(precipitationOverlayGroup!);
-
-    cloudGroup = createLowPolyClouds(globe, precipByTile, {
-      heightOffset: 0.04,
-      minPrecip: 0.2,
-      gridDeg: 8,
-      cloudScale: 0.032,
-      opacity: 0.92,
-    });
-    if (cloudGroup) {
-      cloudGroup.visible = state.showClouds;
-      cloudGroup.traverse((o) => {
-        if (o instanceof THREE.Mesh) o.receiveShadow = true;
-      });
-      scene.add(cloudGroup);
+    if (state.showClouds || state.showPrecipitation) {
+      await ensureCloudWeatherAndPrecipMeshes(state, buildPerf);
+    } else {
+      if (precipFxGroup) {
+        scene.remove(precipFxGroup);
+        disposePrecipitationParticlesGroup(precipFxGroup);
+        precipFxGroup = null;
+      }
+      cloudClipField?.dispose();
+      cloudClipField = null;
     }
 
     coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
@@ -3049,6 +3311,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     }
 
     // Biome vegetation (low-poly plants, draw-distance culled) — load real plant assets
+    buildPerf?.mark("preVegetationAssetLoad");
     const { createVegetationLayer } = await import("./vegetation.js");
 
     const TREE_LOG = "[tree-debug]";
@@ -3370,11 +3633,14 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const veryDenseGlobe = globe.tileCount > 100_000;
     vegetationLayer = createVegetationLayer(globe, tileTerrain, {
       maxDrawDistance: veryDenseGlobe ? 1.45 : denseGlobe ? 2.65 : Infinity,
+      /** From orbit, skip plant fill; zoom inside ~2.35 globe-units for biome detail. */
+      orbitViewCameraDistance: 2.35,
+      orbitViewMaxDrawDistance: 0.18,
       elevationScale,
       maxPlantsPerHex: veryDenseGlobe ? 3 : denseGlobe ? 8 : 16,
       baseScale: VEG_BASE_SCALE,
       maxInstancesPerType: veryDenseGlobe ? 896 : denseGlobe ? 3072 : 4096,
-      updateEveryNFrames: veryDenseGlobe ? 8 : denseGlobe ? 2 : 1,
+      updateEveryNFrames: veryDenseGlobe ? 12 : denseGlobe ? 2 : 1,
       hemisphereCullDot: veryDenseGlobe ? -0.02 : denseGlobe ? -0.15 : -0.22,
       hillyBumpHeight: 0.003,
       getPeak: peakTiles
@@ -3402,6 +3668,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       getRockVariantIndex: rocks.length > 0 ? getRockVariantIndex : undefined,
       getDate: () =>
         datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date())),
+      getTileWetness: (tileId: number) =>
+        cloudClipField?.getTileSurfaceState().getWetness(tileId) ?? 0,
     });
     vegetationLayer.group.traverse((o) => {
       if (o instanceof THREE.Mesh) {
@@ -3411,6 +3679,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       }
     });
     scene.add(vegetationLayer.group);
+    buildPerf?.mark("vegetationGltf");
     const vegGroup = vegetationLayer.group;
     const treeChildren = vegGroup.children.filter((c) => c.name?.includes("tree"));
     console.log(TREE_LOG, "vegetation layer added to scene", {
@@ -3431,6 +3700,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     applyGlobeRenderingPerf(globe.tileCount);
     console.log(BUILD_LOG, "buildWorldAsync done");
   } finally {
+    buildPerf?.finish();
     setLoading(false);
   }
 }
@@ -3558,18 +3828,89 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   dateTimeRow.className = "row";
   const dateTimeInput = document.createElement("input");
   dateTimeInput.type = "datetime-local";
-  dateTimeInput.step = "60";
+  dateTimeInput.step = "1";
   dateTimeInput.value =
     state.dateTimeStr || dateToDatetimeLocalUTC(new Date());
   if (!state.dateTimeStr) state.dateTimeStr = dateTimeInput.value;
+  panelDateTimeInput = dateTimeInput;
+  playbackEpochMs = datetimeLocalUTCToDate(state.dateTimeStr).getTime();
+
   function applyDateTimeAndWinds() {
     state.dateTimeStr = dateTimeInput.value;
+    playbackEpochMs = datetimeLocalUTCToDate(state.dateTimeStr).getTime();
+    lastWindUtcMinute = Math.floor(playbackEpochMs / 60000);
     updateWindFromState(state, dateTimeInput.value);
     if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
     if (precipitationOverlayGroup || cloudGroup) updatePrecipitationAndCloudsFromState(state);
   }
   dateTimeInput.addEventListener("change", applyDateTimeAndWinds);
   dateTimeInput.addEventListener("input", applyDateTimeAndWinds);
+
+  const playRow = document.createElement("div");
+  playRow.className = "row";
+  const playBtn = document.createElement("button");
+  playBtn.type = "button";
+  playBtn.textContent = state.timePlaying ? "Pause" : "Play";
+  playBtn.addEventListener("click", () => {
+    state.timePlaying = !state.timePlaying;
+    playBtn.textContent = state.timePlaying ? "Pause" : "Play";
+    dateTimeInput.disabled = state.timePlaying;
+    if (state.timePlaying) {
+      playbackEpochMs = datetimeLocalUTCToDate(
+        state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+      ).getTime();
+    }
+  });
+
+  const speedSelect = document.createElement("select");
+  speedSelect.setAttribute("aria-label", "Time play speed");
+  const speedPresets: { label: string; value: number }[] = [
+    { label: "1× (real-time)", value: 1 },
+    { label: "60× (1 sim min / sec)", value: 60 },
+    { label: "360× (6 sim min / sec)", value: 360 },
+    { label: "3600× (1 sim hour / sec)", value: 3600 },
+    { label: "86400× (1 sim day / sec)", value: 86400 },
+  ];
+  for (const { label, value } of speedPresets) {
+    const opt = document.createElement("option");
+    opt.value = String(value);
+    opt.textContent = label;
+    speedSelect.appendChild(opt);
+  }
+  speedSelect.value = String(
+    speedPresets.some((p) => p.value === state.timePlaySpeed)
+      ? state.timePlaySpeed
+      : 3600,
+  );
+  if (!speedPresets.some((p) => p.value === state.timePlaySpeed)) {
+    state.timePlaySpeed = 3600;
+  }
+  speedSelect.addEventListener("change", () => {
+    state.timePlaySpeed = Number(speedSelect.value);
+  });
+
+  const nowBtn = document.createElement("button");
+  nowBtn.type = "button";
+  nowBtn.textContent = "Now (UTC)";
+  nowBtn.title = "Set date and time to the current instant (UTC)";
+  nowBtn.addEventListener("click", () => {
+    const d = new Date();
+    state.dateTimeStr = dateToDatetimeLocalUTC(d);
+    dateTimeInput.value = state.dateTimeStr;
+    playbackEpochMs = d.getTime();
+    lastWindUtcMinute = Math.floor(playbackEpochMs / 60000);
+    updateWindFromState(state, state.dateTimeStr);
+    if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
+    if (precipitationOverlayGroup || cloudGroup)
+      updatePrecipitationAndCloudsFromState(state);
+  });
+
+  playRow.appendChild(playBtn);
+  playRow.appendChild(document.createTextNode("Speed"));
+  playRow.appendChild(speedSelect);
+  playRow.appendChild(nowBtn);
+  sec.appendChild(playRow);
+
   const dateTimeLabel = document.createElement("label");
   dateTimeLabel.textContent = "Sun & moon position:";
   dateTimeRow.appendChild(dateTimeLabel);
@@ -3614,7 +3955,9 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   precipCheck.checked = state.showPrecipitation;
   precipCheck.addEventListener("change", () => {
     state.showPrecipitation = precipCheck.checked;
-    if (precipitationOverlayGroup) precipitationOverlayGroup.visible = state.showPrecipitation;
+    if (state.showPrecipitation) requestCloudPrecipBootstrap(state);
+    if (precipitationOverlayGroup)
+      precipitationOverlayGroup.visible = state.showPrecipitation;
   });
   const precipLabel = document.createElement("label");
   precipLabel.textContent = "Show precipitation";
@@ -3629,6 +3972,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   cloudsCheck.checked = state.showClouds;
   cloudsCheck.addEventListener("change", () => {
     state.showClouds = cloudsCheck.checked;
+    if (state.showClouds) requestCloudPrecipBootstrap(state);
     if (cloudGroup) {
       cloudGroup.visible = state.showClouds;
       cloudGroup.updateMatrixWorld(true);
@@ -3982,17 +4326,46 @@ async function init() {
 
   /** Throttle expensive per-frame work on subdiv 7 (~163k tiles). */
   let animTick = 0;
+  let lastAnimRealMs = 0;
+  /** First perf report ~1s at 60fps; dense globes use longer averaging window. */
+  const framePerf = createFramePerfSamplerOrNoop(
+    lastGlobePerfBucket === "veryDense" ? 120 : 60,
+  );
 
   function animate() {
     requestAnimationFrame(animate);
     animTick++;
     const veryDenseAnim = lastGlobePerfBucket === "veryDense";
+    framePerf.startFrame();
     controls.update();
-    const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+    framePerf.slice("controls");
+
+    const realNow = performance.now();
+    if (lastAnimRealMs === 0) lastAnimRealMs = realNow;
+    const dtRealSec = Math.min((realNow - lastAnimRealMs) / 1000, 0.25);
+    lastAnimRealMs = realNow;
+
+    if (state.timePlaying) {
+      playbackEpochMs += dtRealSec * state.timePlaySpeed * 1000;
+      const wd = new Date(playbackEpochMs);
+      state.dateTimeStr = dateToDatetimeLocalUTC(wd);
+      if (panelDateTimeInput) panelDateTimeInput.value = state.dateTimeStr;
+    }
+    framePerf.slice("timePlayback");
+
+    let date = datetimeLocalUTCToDate(
+      state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+    );
+    if (Number.isNaN(date.getTime())) {
+      date = new Date();
+      state.dateTimeStr = dateToDatetimeLocalUTC(date);
+      if (panelDateTimeInput) panelDateTimeInput.value = state.dateTimeStr;
+    }
     const gmstRad = dateToGreenwichMeanSiderealTimeRad(date);
     starfield.update(camera, gmstRad);
     if (planetsUpdate) planetsUpdate(date);
-    const sunDir = sunDirectionFromState(state);
+    framePerf.slice("starfieldPlanets");
+    const sunDir = sunDirectionFromDate(date);
     skyDome.update(sunDir, camera.position);
     sun.directional.position.copy(sunDir).multiplyScalar(3500);
     sun.directional.target.position.set(0, 0, 0);
@@ -4023,38 +4396,81 @@ async function init() {
       sc.far = sunDist + 10;
       sc.updateMatrixWorld(true);
     }
-    const moonPos = moonPositionFromState(state, moonDistance);
+    const moonPos = moonPositionFromDate(date, moonDistance);
     moon.mesh.position.copy(moonPos);
     moonLight.position.copy(moonPos);
+    framePerf.slice("sunSkyMoonShadowCam");
     if (water) {
+      water.setCameraWorldPosition(camera.position);
       water.setSunDirection(sunDir);
       if (!veryDenseAnim || animTick % 2 === 0) water.update();
     }
+    framePerf.slice("water");
     vegetationLayer?.update(camera);
     if (coastFoamOverlay) {
       coastFoamOverlay.setSunDirection(sunDir);
       if (!veryDenseAnim || animTick % 2 === 0) coastFoamOverlay.update();
     }
+    framePerf.slice("vegetation");
+    framePerf.slice("coastFoam");
     // Recompute wind and flow whenever date changes (currents follow wind)
-    if (globe && windArrowsGroup && globalTileTerrain && state.dateTimeStr !== lastWindDateStr) {
+    const windUtcMin = Math.floor(date.getTime() / 60000);
+    if (
+      globe &&
+      windArrowsGroup &&
+      globalTileTerrain &&
+      windUtcMin !== lastWindUtcMinute
+    ) {
+      const tMinute0 = performance.now();
+      lastWindUtcMinute = windUtcMin;
       updateWindFromState(state);
-      lastWindDateStr = state.dateTimeStr;
       if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
       if (precipitationOverlayGroup || cloudGroup)
         updatePrecipitationAndCloudsFromState(state);
+      framePerf.addMinuteTickCpuMs(performance.now() - tMinute0);
+    }
+    framePerf.slice("windFlowPrecipCloudMinute");
+    /** Visual-only cloud sync (physics runs on wind/precip minute tick + batched catch-up). */
+    if (globe && cloudClipField && cloudGroup && state.showClouds) {
+      const visUtc = getCloudVisualUtcMinutes(state, date);
+      cloudClipField.syncThreeGroup(cloudGroup, globe, visUtc);
+    }
+    framePerf.slice("cloudClipMeshSync");
+    if (
+      globe &&
+      precipFxGroup &&
+      cloudClipField &&
+      state.showPrecipitation
+    ) {
+      const subsolar = dateToSubsolarPoint(date);
+      updatePrecipitationParticles(
+        precipFxGroup,
+        globe,
+        cloudClipField.getPrecipOverlayMap(),
+        subsolar.latDeg,
+        getCloudVisualUtcMinutes(state, date),
+        performance.now() * 0.001,
+      );
+      precipFxGroup.visible = true;
+    } else if (precipFxGroup) {
+      precipFxGroup.visible = false;
     }
     if (cloudGroup && (!veryDenseAnim || animTick % 4 === 0)) {
       sortLowPolyCloudsByCamera(cloudGroup, camera);
     }
+    framePerf.slice("cloudDepthSort");
     if (sun.directional.castShadow && sun.directional.shadow) {
       sun.directional.shadow.camera.layers.enable(0);
       sun.directional.shadow.camera.layers.enable(1);
       sun.directional.shadow.needsUpdate = true;
     }
+    framePerf.slice("shadowUniforms");
     // Render directly to screen so shadow maps are applied (EffectComposer path can skip shadows).
     renderer.setRenderTarget(null);
     renderer.clear();
     renderer.render(scene, camera);
+    framePerf.slice("render");
+    framePerf.endFrame(renderer, animTick);
   }
 
   const raycaster = new THREE.Raycaster();

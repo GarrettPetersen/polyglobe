@@ -36,6 +36,7 @@ export {
   TERRAIN_STYLES,
   applyTerrainToGeometry,
   applyTerrainColorsToGeometry,
+  applyLandSurfaceWeatherVertexColors,
   applyVertexColorsByTileId,
   geometryLandOnly,
   geometryOceanFloor,
@@ -163,14 +164,24 @@ export {
   createPrecipitationOverlay,
   updatePrecipitationOverlay,
   getPrecipitationByTile,
+  getPrecipitationByTileWithMoisture,
   type PrecipitationOverlayOptions,
 } from "./climate/precipitationOverlay.js";
+export {
+  OCEAN_MOISTURE_FACTOR,
+  moistureFactorForKoppenCode,
+  moistureFactorForTerrainType,
+  buildMoistureByTileFromTerrain,
+} from "./climate/koppenMoisture.js";
 export {
   createPuffyClouds,
   updatePuffyClouds,
   createLowPolyClouds,
   updateLowPolyClouds,
   sortLowPolyCloudsByCamera,
+  createLowPolyCloudGroupAtAnchor,
+  setLowPolyCloudGroupShellPose,
+  updateLowPolyCloudGroupVisualScaleOpacity,
   CLOUD_SHADOW_LAYER,
   createCloudSphereLayer,
   updateCloudSphereLayer,
@@ -180,4 +191,36 @@ export {
   type LowPolyCloudOptions,
   type CloudSphereOptions,
   type CloudLayerOptions,
+  type SimCloudVisualSpec,
 } from "./climate/cloudLayer.js";
+export {
+  CloudWeatherSimulator,
+  DEFAULT_CLOUD_SIM_CONFIG,
+  CLOUD_HISTORY_MINUTES,
+  replayCloudSimToUtcMinute,
+  replayCloudSimToUtcMinuteChunked,
+  syncCloudSimToUtcMinute,
+  utcMinuteFromDate,
+  type PrecipSubsolarForMinute,
+  type CloudSimConfig,
+} from "./climate/cloudSimulation.js";
+export type { SimCloud as SimulatedCloudParticle } from "./climate/cloudSimulation.js";
+export {
+  CloudClipField,
+  buildAnnualCloudSpawnTable,
+  buildAnnualPrecipClimatology,
+  annualSpawnDayIndex,
+  type CloudClipFieldConfig,
+  type CloudClipTemplate,
+  type CloudClipFrame,
+  type AnnualSpawnSpec,
+} from "./climate/cloudClipSystem.js";
+export {
+  TileSurfaceState,
+  type GroundSurfaceClimateParams,
+} from "./climate/tileSurfaceState.js";
+export {
+  createPrecipitationParticlesGroup,
+  updatePrecipitationParticles,
+  disposePrecipitationParticlesGroup,
+} from "./climate/precipitationParticles.js";

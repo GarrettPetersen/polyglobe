@@ -16,6 +16,8 @@ export default defineConfig({
     },
   },
   resolve: {
+    // Aliased ../../src otherwise resolves `three` from repo root; demo resolves from here — two copies → runtime warning.
+    dedupe: ["three"],
     alias: {
       polyglobe: path.resolve(__dirname, "../../src/index.ts"),
       // Source under ../../src imports these; Rollup does not use globe-demo/node_modules for those paths.

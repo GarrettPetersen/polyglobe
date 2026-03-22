@@ -52,5 +52,11 @@ export function getPrecipitation(
 export function getTemperature(latDeg: number, subsolarLatDeg: number): number {
   const pole = Math.abs(latDeg) > 75 ? 0.3 : 1 - Math.abs(latDeg) / 90;
   const season = Math.exp(-Math.pow((latDeg - subsolarLatDeg) / 40, 2));
-  return Math.max(0, Math.min(1, 0.4 * pole + 0.6 * season));
+  let t = Math.max(0, Math.min(1, 0.4 * pole + 0.6 * season));
+  const absLat = Math.abs(latDeg);
+  if (absLat > 58) {
+    const u = Math.min(1, (absLat - 58) / 32);
+    t *= 1 - 0.24 * u * u;
+  }
+  return Math.max(0, Math.min(1, t));
 }

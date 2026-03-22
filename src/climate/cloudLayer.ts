@@ -568,6 +568,116 @@ function addShadowProxy(cloudGroup: THREE.Group, scale: number, flatDeck: boolea
   });
 }
 
+/** One simulated cloud instance for mesh sync (see {@link createLowPolyCloudGroupAtAnchor}). */
+export interface SimCloudVisualSpec {
+  /** Unit outward anchor from globe center (world space). */
+  anchor: THREE.Vector3;
+  /** Visual size scale (globe-relative). */
+  scale: number;
+  /** Seeded appearance (SDF puff layout). */
+  meshSeed: number;
+  /** Larger masses use flatter deck puffs. */
+  flatDeck: boolean;
+}
+
+/**
+ * Build one low-poly marching-cubes cloud at a world anchor (for simulated clouds).
+ * Caller sets `group.position`/`quaternion` to identity if anchor already encodes shell position via this helper placing geometry in local space — here we match {@link createLowPolyClouds}: mesh is in group local space with group at shell position.
+ */
+export function createLowPolyCloudGroupAtAnchor(
+  globe: Globe,
+  spec: SimCloudVisualSpec,
+  options: Pick<
+    LowPolyCloudOptions,
+    | "heightOffset"
+    | "opacity"
+    | "castShadows"
+    | "clipBottomToGlobe"
+    | "clipGlobeShellRadiusOffset"
+    | "clipGlobeSmoothK"
+  > = {}
+): THREE.Group {
+  const heightOffset = options.heightOffset ?? LOW_POLY_CLOUD_DEFAULTS.heightOffset;
+  const opacity = options.opacity ?? LOW_POLY_CLOUD_DEFAULTS.opacity;
+  const castShadows = options.castShadows ?? LOW_POLY_CLOUD_DEFAULTS.castShadows;
+  const clipBottomToGlobe = options.clipBottomToGlobe ?? LOW_POLY_CLOUD_DEFAULTS.clipBottomToGlobe;
+  const clipGlobeShellRadiusOffset =
+    options.clipGlobeShellRadiusOffset ?? LOW_POLY_CLOUD_DEFAULTS.clipGlobeShellRadiusOffset;
+  const clipGlobeSmoothK = options.clipGlobeSmoothK ?? LOW_POLY_CLOUD_DEFAULTS.clipGlobeSmoothK;
+
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  const up = spec.anchor.clone().normalize();
+  const position = up.clone().multiplyScalar(globe.radius + heightOffset);
+  const quat = new THREE.Quaternion().setFromUnitVectors(worldUp, up);
+  const shellR = position.length() + clipGlobeShellRadiusOffset;
+  const globeBottomClip: CloudGlobeBottomClip | null = clipBottomToGlobe
+    ? {
+        worldPos: position.clone(),
+        worldQuat: quat.clone(),
+        shellRadius: shellR,
+        smoothK: clipGlobeSmoothK,
+      }
+    : null;
+
+  const rng = seededRandom(spec.meshSeed >>> 0);
+  const cloud = createSingleCumulusCloudSdf(
+    rng,
+    spec.scale,
+    opacity,
+    spec.flatDeck,
+    globeBottomClip
+  );
+  if (castShadows) {
+    addShadowProxy(cloud, spec.scale, spec.flatDeck);
+  }
+  cloud.traverse((c) => {
+    if (c instanceof THREE.Mesh && c.name !== "CloudShadowProxy") {
+      c.castShadow = castShadows;
+    }
+  });
+  cloud.position.copy(position);
+  cloud.quaternion.copy(quat);
+  cloud.renderOrder = 5;
+  return cloud;
+}
+
+/** Move an existing low-poly cloud group to a new shell anchor without rebuilding marching cubes. */
+export function setLowPolyCloudGroupShellPose(
+  globe: Globe,
+  group: THREE.Object3D,
+  anchor: THREE.Vector3,
+  heightOffset = LOW_POLY_CLOUD_DEFAULTS.heightOffset
+): void {
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  const up = anchor.clone().normalize();
+  const position = up.clone().multiplyScalar(globe.radius + heightOffset);
+  group.position.copy(position);
+  group.quaternion.setFromUnitVectors(worldUp, up);
+}
+
+/**
+ * Adjust marching-cubes shell scale and material opacity without rebuilding geometry.
+ * `builtReferenceScale` is the `spec.scale` used when the mesh was created; `targetScale` is the desired world scale.
+ */
+export function updateLowPolyCloudGroupVisualScaleOpacity(
+  group: THREE.Object3D,
+  builtReferenceScale: number,
+  targetScale: number,
+  opacity: number
+): void {
+  const k = builtReferenceScale > 1e-10 ? targetScale / builtReferenceScale : 1;
+  group.scale.setScalar(k);
+  group.traverse((ch) => {
+    if (
+      ch instanceof THREE.Mesh &&
+      ch.name !== "CloudShadowProxy" &&
+      ch.material instanceof THREE.MeshStandardMaterial
+    ) {
+      ch.material.opacity = opacity;
+    }
+  });
+}
+
 /**
  * Create low-poly cumulus clouds: each cloud is a group of stretched icospheres
  * (flat bottom + top puffs) placed above a cluster of 1–20 hexes in high-precip regions.

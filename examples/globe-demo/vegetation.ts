@@ -102,6 +102,25 @@ export interface VegetationOptions {
    * sorting all in-range plants (faster when K ≪ n). Default 38_000.
    */
   heapCullMinPlacements?: number;
+  /**
+   * When the camera is at least this distance from the origin (globe at ~radius 1), use
+   * {@link orbitViewMaxDrawDistance} instead of {@link maxDrawDistance} so orbital views
+   * skip almost all plants. Zoom in past this distance to restore normal ground detail.
+   */
+  orbitViewCameraDistance?: number;
+  /** Tight max draw distance in orbit (globe units). Default 0.2. */
+  orbitViewMaxDrawDistance?: number;
+  /**
+   * Skip the O(n) cull/sort/instance pass when camera pose and (if {@link getDate} is set) the UTC
+   * minute are unchanged since the last pass. Large CPU win when the view is idle. Default true.
+   */
+  skipCullWhenCameraStable?: boolean;
+  /** When set, wet tiles (e.g. recent rain) get a slightly cooler, brighter instance color. */
+  getTileWetness?: (tileId: number) => number;
+  /** Min squared world-space camera movement to force a refresh. Default 4e-6. */
+  cameraStablePosEpsSq?: number;
+  /** Max deviation of |quat dot| from 1 to still treat rotation as unchanged. Default 8e-5. */
+  cameraStableQuatEps?: number;
 }
 
 /**
@@ -164,6 +183,8 @@ interface Placement {
   color: THREE.Color;
   /** Index into geometries.trees/bushes/grass/rocks array when using multi-variant. */
   variantIndex: number;
+  /** Host hex for wetness / snow styling. */
+  tileId: number;
   /** Tile center lat/lon (degrees) for seasonal phase (deciduous fall/winter, tropics dry/wet). */
   latDeg: number;
   lonDeg: number;
@@ -438,6 +459,9 @@ function makePlaceholderGeometry(type: PlantType): THREE.BufferGeometry {
 }
 
 const _camPos = new THREE.Vector3();
+const _camQuatWorld = new THREE.Quaternion();
+const _lastStableCullPos = new THREE.Vector3();
+const _lastStableCullQuat = new THREE.Quaternion();
 const _camUnit = new THREE.Vector3();
 /** Reused for K-nearest heap cull (avoids sorting huge in-range lists). */
 const _distHeap: { distSq: number; idx: number }[] = [];
@@ -486,6 +510,8 @@ const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
 const _mat = new THREE.Matrix4();
 const _positionOut = new THREE.Vector3();
+/** World +Y; reused for every instance quaternion (avoid allocating in update loop). */
+const _treeUp = new THREE.Vector3(0, 1, 0);
 
 export function createVegetationLayer(
   globe: Globe,
@@ -512,6 +538,15 @@ export function createVegetationLayer(
   const hemisphereCullDot = options.hemisphereCullDot ?? -0.22;
   const radius = globe.radius;
   const heapCullMinList = options.heapCullMinPlacements ?? 38_000;
+  const orbitCamDist = options.orbitViewCameraDistance;
+  const orbitMaxDraw =
+    options.orbitViewMaxDrawDistance ?? 0.2;
+  const skipCullWhenCameraStable = options.skipCullWhenCameraStable !== false;
+  const cameraStablePosEpsSq = options.cameraStablePosEpsSq ?? 4e-6;
+  const cameraStableQuatEps = options.cameraStableQuatEps ?? 8e-5;
+  const getTileWetness = options.getTileWetness;
+  let lastStableTimeKey = 0;
+  let hasStableCullSample = false;
 
   function isDeciduousVariant(variantIndex: number): boolean {
     return (variantIndex >= 0 && variantIndex <= 2) || (variantIndex >= 10 && variantIndex <= 12);
@@ -519,6 +554,10 @@ export function createVegetationLayer(
 
   const fallYellow = new THREE.Color(0xddbb44);
   const fallRed = new THREE.Color(0xbb4433);
+  const foliageSeasonScratch = new THREE.Color();
+  const tropicalDryTint = new THREE.Color(0x8a7a50);
+  const wetShine = new THREE.Color(0xc8d8e8);
+  const wetScratch = new THREE.Color();
 
   const placements: Placement[] = [];
   const rnd = seededRandom(42);
@@ -590,6 +629,7 @@ export function createVegetationLayer(
         type: plantType,
         color,
         variantIndex,
+        tileId: tile.id,
         latDeg,
         lonDeg,
       });
@@ -855,8 +895,41 @@ export function createVegetationLayer(
     }
 
     camera.getWorldPosition(_camPos);
+    camera.getWorldQuaternion(_camQuatWorld);
+    const timeKey = getDate ? Math.floor(getDate().getTime() / 60000) : 0;
+    if (skipCullWhenCameraStable && hasStableCullSample) {
+      if (
+        timeKey === lastStableTimeKey &&
+        _camPos.distanceToSquared(_lastStableCullPos) < cameraStablePosEpsSq &&
+        Math.abs(_camQuatWorld.dot(_lastStableCullQuat)) > 1 - cameraStableQuatEps
+      ) {
+        return;
+      }
+    }
+
     if (hemisphereCull) _camUnit.copy(_camPos).normalize();
-    const maxSq = maxDrawDistance * maxDrawDistance;
+    const camDist = _camPos.length();
+    const effectiveMaxDraw =
+      orbitCamDist != null && camDist >= orbitCamDist
+        ? orbitMaxDraw
+        : maxDrawDistance;
+    const maxSq = effectiveMaxDraw * effectiveMaxDraw;
+
+    /** Tight orbit cull: no plant is within ~0.25 globe units of a camera at ~2.5+ — skip O(n) work. */
+    if (
+      orbitCamDist != null &&
+      camDist >= orbitCamDist &&
+      orbitMaxDraw <= 0.25
+    ) {
+      for (const { mesh } of meshes) {
+        mesh.count = 0;
+      }
+      lastStableTimeKey = timeKey;
+      _lastStableCullPos.copy(_camPos);
+      _lastStableCullQuat.copy(_camQuatWorld);
+      hasStableCullSample = true;
+      return;
+    }
 
     const treeDrawCounts: { name: string; inRange: number; drawCount: number }[] = [];
 
@@ -926,11 +999,11 @@ export function createVegetationLayer(
 
       for (let k = 0; k < drawCount; k++) {
         const p = list[sortedIndices[k]!];
-        _q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.normal);
+        _q.setFromUnitVectors(_treeUp, p.normal);
         const mul =
           p.type === "tree" ? (getTreeVariantScale?.(p.variantIndex) ?? 1) : 1;
         let s = p.scale * mul;
-        let color = p.color;
+        let color: THREE.Color = p.color;
 
         if (date && isDeciduousFoliage && isDeciduousVariant(p.variantIndex)) {
           const phase = getSeasonPhase(date, p.latDeg);
@@ -938,22 +1011,35 @@ export function createVegetationLayer(
             s = 1e-7;
           } else if (phase.fallProgress > 0) {
             if (phase.fallProgress <= 0.4) {
-              color = p.color
-                .clone()
+              foliageSeasonScratch
+                .copy(p.color)
                 .lerpColors(p.color, fallYellow, phase.fallProgress / 0.4);
+              color = foliageSeasonScratch;
             } else {
-              color = fallYellow
-                .clone()
+              foliageSeasonScratch
+                .copy(fallYellow)
                 .lerpColors(
                   fallYellow,
                   fallRed,
                   (phase.fallProgress - 0.4) / 0.6,
                 );
+              color = foliageSeasonScratch;
             }
           } else if (phase.isTropical && phase.dryFactor > 0) {
-            color = p.color
-              .clone()
-              .lerp(new THREE.Color(0x8a7a50), phase.dryFactor * 0.4);
+            foliageSeasonScratch
+              .copy(p.color)
+              .lerp(tropicalDryTint, phase.dryFactor * 0.4);
+            color = foliageSeasonScratch;
+          }
+        }
+
+        if (getTileWetness) {
+          const w = getTileWetness(p.tileId);
+          if (w > 0.07) {
+            wetScratch.copy(color);
+            wetScratch.lerp(wetShine, Math.min(1, w) * 0.22);
+            wetScratch.multiplyScalar(1 + 0.1 * Math.min(1, w));
+            color = wetScratch;
           }
         }
 
@@ -987,9 +1073,12 @@ export function createVegetationLayer(
       }
       treeDrawLogFrames++;
     }
-  }
 
-  update({ getWorldPosition: (v: THREE.Vector3) => v.set(0, 0, 2.8) } as THREE.Camera);
+    lastStableTimeKey = timeKey;
+    _lastStableCullPos.copy(_camPos);
+    _lastStableCullQuat.copy(_camQuatWorld);
+    hasStableCullSample = true;
+  }
 
   function dispose(): void {
     for (const { mesh } of meshes) {

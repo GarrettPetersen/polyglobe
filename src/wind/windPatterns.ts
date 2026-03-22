@@ -137,3 +137,37 @@ export function computeWindForTiles(
 
   return out;
 }
+
+/** Deterministic mixing for {@link windAtLatLonDeg}. */
+function u32Hash(parts: readonly number[]): number {
+  let h = 2166136261 >>> 0;
+  for (const p of parts) {
+    h ^= p >>> 0;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/**
+ * Wind at an arbitrary lat/lon (degrees), same latitude bands as {@link computeWindForTiles} but with
+ * deterministic jitter from (seed, position, sim minute) — no tile loop, for cloud advection.
+ */
+export function windAtLatLonDeg(
+  latDeg: number,
+  lonDeg: number,
+  subsolarLatDeg: number,
+  options: { baseStrength?: number; seed?: number; simMinute?: number } = {}
+): TileWind {
+  const { baseStrength = 1, seed = 12345, simMinute = 0 } = options;
+  const effLat = effectiveLatForSeason(latDeg, subsolarLatDeg);
+  let { directionRad, strength } = baseWindAtLat(effLat);
+  const la = Math.round(latDeg * 500);
+  const lo = Math.round(lonDeg * 500);
+  const h1 = u32Hash([seed, la, lo, simMinute, 0x7e3779b9]);
+  const h2 = u32Hash([seed, la, lo, simMinute, 0x9e3779b1]);
+  const dirJitter = ((h1 & 0xffff) / 0xffff - 0.5) * 2 * 0.12;
+  const strMul = 0.85 + ((h2 & 0xffff) / 0xffff) * 0.3;
+  directionRad += dirJitter;
+  strength = Math.max(0.05, Math.min(1, strength * strMul * baseStrength));
+  return { directionRad, strength };
+}

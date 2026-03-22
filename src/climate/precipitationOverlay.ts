@@ -36,6 +36,26 @@ export function getPrecipitationByTile(
 }
 
 /**
+ * ITCZ-style potential from {@link getPrecipitationByTile}, multiplied per tile by Köppen/terrain
+ * moisture (0.07–1.12 typical), then clamped to [0, 1].
+ */
+export function getPrecipitationByTileWithMoisture(
+  tiles: { id: number; center: THREE.Vector3 }[],
+  subsolarLatDeg: number,
+  moistureByTile: Map<number, number> | null | undefined
+): Map<number, number> {
+  const base = getPrecipitationByTile(tiles, subsolarLatDeg);
+  if (!moistureByTile || moistureByTile.size === 0) return base;
+  const out = new Map<number, number>();
+  for (const tile of tiles) {
+    const p = base.get(tile.id) ?? 0;
+    const mul = moistureByTile.get(tile.id) ?? 0.65;
+    out.set(tile.id, Math.max(0, Math.min(1, p * mul)));
+  }
+  return out;
+}
+
+/**
  * Create a group containing an instanced mesh of quads for precipitation overlay.
  */
 export function createPrecipitationOverlay(

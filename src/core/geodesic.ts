@@ -292,6 +292,12 @@ export function buildFlatGeometryData(
   };
   const vaOut = new THREE.Vector3();
   const vbOut = new THREE.Vector3();
+  const cn = new THREE.Vector3();
+  const cnTmp = new THREE.Vector3();
+  const fv = new THREE.Vector3();
+  const evb = new THREE.Vector3();
+  const inPlaneScratch = new THREE.Vector3();
+  const topPosScratch = new THREE.Vector3();
 
   const minLandElevation = options.minLandElevation;
   const getRiverEdges = options.getRiverEdges;
@@ -305,7 +311,7 @@ export function buildFlatGeometryData(
     const r = radius + elev;
     const n = tile.vertices.length;
     const base = vertexOffset;
-    const centerNormal = tile.center.clone().normalize();
+    cn.copy(tile.center).normalize();
     const isLand =
       minLandElevation != null ? rawElev >= minLandElevation : elev >= 0;
     const peak = getPeak?.(tile.id);
@@ -325,49 +331,50 @@ export function buildFlatGeometryData(
       const inPlaneVec = new THREE.Vector3();
       const inPlaneByVertex: THREE.Vector3[] = [];
       for (let i = 0; i < n; i++) {
-        const v = tile.vertices[i].clone().normalize();
-        const dot = v.dot(centerNormal);
-        inPlaneVec.copy(v).sub(centerNormal.clone().multiplyScalar(dot));
+        fv.copy(tile.vertices[i]).normalize();
+        const dot = fv.dot(cn);
+        cnTmp.copy(cn).multiplyScalar(dot);
+        inPlaneVec.copy(fv).sub(cnTmp);
         inPlaneByVertex.push(inPlaneVec.clone());
-        const topPos = centerNormal.clone().multiplyScalar(rTop).add(inPlaneVec);
-        positions.push(topPos.x, topPos.y, topPos.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        topPosScratch.copy(cn).multiplyScalar(rTop).add(inPlaneVec);
+        positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+        normals.push(cn.x, cn.y, cn.z);
         tileIds.push(tile.id);
         vertexOffset++;
       }
       const innerTopBase = vertexOffset;
       for (let i = 0; i < n; i++) {
         const i1 = (i + 1) % n;
-        const mid = inPlaneByVertex[i].clone().add(inPlaneByVertex[i1]).multiplyScalar(0.5);
-        const innerPos = centerNormal
-          .clone()
-          .multiplyScalar(rTop)
-          .add(mid.multiplyScalar(riverBowlInnerScale));
-        positions.push(innerPos.x, innerPos.y, innerPos.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        inPlaneScratch
+          .copy(inPlaneByVertex[i])
+          .add(inPlaneByVertex[i1])
+          .multiplyScalar(0.5 * riverBowlInnerScale);
+        topPosScratch.copy(cn).multiplyScalar(rTop).add(inPlaneScratch);
+        positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+        normals.push(cn.x, cn.y, cn.z);
         tileIds.push(tile.id);
         vertexOffset++;
       }
       const innerBotBase = vertexOffset;
       for (let i = 0; i < n; i++) {
         const i1 = (i + 1) % n;
-        const mid = inPlaneByVertex[i].clone().add(inPlaneByVertex[i1]).multiplyScalar(0.5);
-        const innerPos = centerNormal
-          .clone()
-          .multiplyScalar(rBot)
-          .add(mid.multiplyScalar(riverBowlInnerScale));
-        positions.push(innerPos.x, innerPos.y, innerPos.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        inPlaneScratch
+          .copy(inPlaneByVertex[i])
+          .add(inPlaneByVertex[i1])
+          .multiplyScalar(0.5 * riverBowlInnerScale);
+        topPosScratch.copy(cn).multiplyScalar(rBot).add(inPlaneScratch);
+        positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+        normals.push(cn.x, cn.y, cn.z);
         tileIds.push(tile.id);
         vertexOffset++;
       }
       const centerBotIdx = vertexOffset;
       positions.push(
-        centerNormal.x * rBot,
-        centerNormal.y * rBot,
-        centerNormal.z * rBot
+        cn.x * rBot,
+        cn.y * rBot,
+        cn.z * rBot
       );
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      normals.push(cn.x, cn.y, cn.z);
       tileIds.push(tile.id);
       vertexOffset++;
 
@@ -376,7 +383,7 @@ export function buildFlatGeometryData(
       };
       const pushVertex = (p: THREE.Vector3) => {
         positions.push(p.x, p.y, p.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        normals.push(cn.x, cn.y, cn.z);
         tileIds.push(tile.id);
         vertexOffset++;
       };
@@ -416,7 +423,7 @@ export function buildFlatGeometryData(
               riverHexTwo[0],
               riverHexTwo[1],
               rTop,
-              centerNormal,
+              cn,
               riverBowlInnerScale,
               vo,
               v1
@@ -477,16 +484,17 @@ export function buildFlatGeometryData(
     }
 
     for (let i = 0; i < n; i++) {
-      const v = tile.vertices[i].clone().normalize();
+      fv.copy(tile.vertices[i]).normalize();
       if (isLand) {
-        const dot = v.dot(centerNormal);
-        const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
-        const topPos = centerNormal.clone().multiplyScalar(r).add(inPlane);
-        positions.push(topPos.x, topPos.y, topPos.z);
+        const dot = fv.dot(cn);
+        cnTmp.copy(cn).multiplyScalar(dot);
+        inPlaneScratch.copy(fv).sub(cnTmp);
+        topPosScratch.copy(cn).multiplyScalar(r).add(inPlaneScratch);
+        positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
       } else {
-        positions.push(v.x * r, v.y * r, v.z * r);
+        positions.push(fv.x * r, fv.y * r, fv.z * r);
       }
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      normals.push(cn.x, cn.y, cn.z);
       tileIds.push(tile.id);
       vertexOffset++;
     }
@@ -494,46 +502,47 @@ export function buildFlatGeometryData(
     if (peak && isLand) {
       let baseRadius = 0;
       for (let i = 0; i < n; i++) {
-        const v = tile.vertices[i].clone().normalize();
-        const dot = v.dot(centerNormal);
+        fv.copy(tile.vertices[i]).normalize();
+        const dot = fv.dot(cn);
         const inPlaneLen = Math.sqrt(1 - dot * dot);
         baseRadius = Math.max(baseRadius, r * inPlaneLen);
       }
       const rawHeight = peak.apexElevationM * peakElevationScale;
       const h = Math.min(rawHeight, baseRadius);
       const rApex = r + h;
-      const apexPos = centerNormal.clone().multiplyScalar(rApex);
+      topPosScratch.copy(cn).multiplyScalar(rApex);
       const apexIdx = vertexOffset;
-      positions.push(apexPos.x, apexPos.y, apexPos.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+      normals.push(cn.x, cn.y, cn.z);
       tileIds.push(tile.id);
       vertexOffset++;
       for (let i = 0; i < n; i++) {
-        indices.push(apexIdx, base + i, base + ((i + 1) % n));
+        indices.push(apexIdx, base + ((i + 1) % n), base + i);
       }
       const capHeight = 0.85;
       const capRadiusFrac = 0.28;
       const rCap = r + h * capHeight;
       const snowApexIdx = vertexOffset;
-      positions.push(apexPos.x, apexPos.y, apexPos.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+      normals.push(cn.x, cn.y, cn.z);
       tileIds.push(-1);
       vertexOffset++;
       const capBase = vertexOffset;
       for (let i = 0; i < n; i++) {
-        const v = tile.vertices[i].clone().normalize();
-        const dot = v.dot(centerNormal);
-        const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
-        if (inPlane.lengthSq() > 1e-20) inPlane.normalize();
-        inPlane.multiplyScalar(baseRadius * capRadiusFrac);
-        const capPos = centerNormal.clone().multiplyScalar(rCap).add(inPlane);
-        positions.push(capPos.x, capPos.y, capPos.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        fv.copy(tile.vertices[i]).normalize();
+        const dot = fv.dot(cn);
+        cnTmp.copy(cn).multiplyScalar(dot);
+        inPlaneScratch.copy(fv).sub(cnTmp);
+        if (inPlaneScratch.lengthSq() > 1e-20) inPlaneScratch.normalize();
+        inPlaneScratch.multiplyScalar(baseRadius * capRadiusFrac);
+        topPosScratch.copy(cn).multiplyScalar(rCap).add(inPlaneScratch);
+        positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+        normals.push(cn.x, cn.y, cn.z);
         tileIds.push(-1);
         vertexOffset++;
       }
       for (let i = 0; i < n; i++) {
-        indices.push(snowApexIdx, capBase + i, capBase + ((i + 1) % n));
+        indices.push(snowApexIdx, capBase + ((i + 1) % n), capBase + i);
       }
     } else if (getHilly?.(tile.id) && isLand) {
       // Hilly terrain: flat-topped truncated cone (mesa/plateau shape)
@@ -544,38 +553,39 @@ export function buildFlatGeometryData(
       // Compute base radius for scaling the flat top
       let baseRadius = 0;
       for (let i = 0; i < n; i++) {
-        const v = tile.vertices[i].clone().normalize();
-        const dot = v.dot(centerNormal);
+        fv.copy(tile.vertices[i]).normalize();
+        const dot = fv.dot(cn);
         const inPlaneLen = Math.sqrt(1 - dot * dot);
         baseRadius = Math.max(baseRadius, r * inPlaneLen);
       }
       
       // Create flat top center vertex
-      const hillCenterPos = centerNormal.clone().multiplyScalar(rHillTop);
+      topPosScratch.copy(cn).multiplyScalar(rHillTop);
       const hillCenterIdx = vertexOffset;
-      positions.push(hillCenterPos.x, hillCenterPos.y, hillCenterPos.z);
-      normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+      positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+      normals.push(cn.x, cn.y, cn.z);
       tileIds.push(tile.id);
       vertexOffset++;
       
       // Create flat top edge vertices (inner ring at raised height)
       const hillTopBase = vertexOffset;
       for (let i = 0; i < n; i++) {
-        const v = tile.vertices[i].clone().normalize();
-        const dot = v.dot(centerNormal);
-        const inPlane = v.clone().sub(centerNormal.clone().multiplyScalar(dot));
-        if (inPlane.lengthSq() > 1e-20) inPlane.normalize();
-        inPlane.multiplyScalar(baseRadius * flatTopRadiusFrac);
-        const topPos = centerNormal.clone().multiplyScalar(rHillTop).add(inPlane);
-        positions.push(topPos.x, topPos.y, topPos.z);
-        normals.push(centerNormal.x, centerNormal.y, centerNormal.z);
+        fv.copy(tile.vertices[i]).normalize();
+        const dot = fv.dot(cn);
+        cnTmp.copy(cn).multiplyScalar(dot);
+        inPlaneScratch.copy(fv).sub(cnTmp);
+        if (inPlaneScratch.lengthSq() > 1e-20) inPlaneScratch.normalize();
+        inPlaneScratch.multiplyScalar(baseRadius * flatTopRadiusFrac);
+        topPosScratch.copy(cn).multiplyScalar(rHillTop).add(inPlaneScratch);
+        positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
+        normals.push(cn.x, cn.y, cn.z);
         tileIds.push(tile.id);
         vertexOffset++;
       }
       
       // Flat top triangles (center to inner ring)
       for (let i = 0; i < n; i++) {
-        indices.push(hillCenterIdx, hillTopBase + i, hillTopBase + ((i + 1) % n));
+        indices.push(hillCenterIdx, hillTopBase + ((i + 1) % n), hillTopBase + i);
       }
       
       // Sloped sides (inner ring to outer base edge)
@@ -587,7 +597,7 @@ export function buildFlatGeometryData(
       }
     } else {
       for (let i = 1; i + 1 < n; i++) {
-        indices.push(base, base + i, base + i + 1);
+        indices.push(base, base + i + 1, base + i);
       }
     }
   }
@@ -617,40 +627,40 @@ export function buildFlatGeometryData(
       const botElev = rThis >= rNeighbor ? neighborElev : elev;
       const topTileId = rThis >= rNeighbor ? tile.id : neighborId;
       const botTileId = rThis >= rNeighbor ? neighborId : tile.id;
-      const va = tile.vertices[i].clone().normalize();
-      const vb = tile.vertices[(i + 1) % n].clone().normalize();
+      fv.copy(tile.vertices[i]).normalize();
+      evb.copy(tile.vertices[(i + 1) % n]).normalize();
       if (topElev >= 0) {
-        projectVertexOntoTilePlane(va, topTile.center, rTop, vaOut);
-        projectVertexOntoTilePlane(vb, topTile.center, rTop, vbOut);
+        projectVertexOntoTilePlane(fv, topTile.center, rTop, vaOut);
+        projectVertexOntoTilePlane(evb, topTile.center, rTop, vbOut);
       } else {
-        vaOut.set(va.x * rTop, va.y * rTop, va.z * rTop);
-        vbOut.set(vb.x * rTop, vb.y * rTop, vb.z * rTop);
+        vaOut.set(fv.x * rTop, fv.y * rTop, fv.z * rTop);
+        vbOut.set(evb.x * rTop, evb.y * rTop, evb.z * rTop);
       }
       const aTop = vertexOffset;
       positions.push(vaOut.x, vaOut.y, vaOut.z);
-      normals.push(va.x, va.y, va.z);
+      normals.push(fv.x, fv.y, fv.z);
       tileIds.push(topTileId);
       vertexOffset++;
       const bTop = vertexOffset;
       positions.push(vbOut.x, vbOut.y, vbOut.z);
-      normals.push(vb.x, vb.y, vb.z);
+      normals.push(evb.x, evb.y, evb.z);
       tileIds.push(topTileId);
       vertexOffset++;
       if (botElev >= 0) {
-        projectVertexOntoTilePlane(va, botTile.center, rBot, vaOut);
-        projectVertexOntoTilePlane(vb, botTile.center, rBot, vbOut);
+        projectVertexOntoTilePlane(fv, botTile.center, rBot, vaOut);
+        projectVertexOntoTilePlane(evb, botTile.center, rBot, vbOut);
       } else {
-        vaOut.set(va.x * rBot, va.y * rBot, va.z * rBot);
-        vbOut.set(vb.x * rBot, vb.y * rBot, vb.z * rBot);
+        vaOut.set(fv.x * rBot, fv.y * rBot, fv.z * rBot);
+        vbOut.set(evb.x * rBot, evb.y * rBot, evb.z * rBot);
       }
       const bBot = vertexOffset;
       positions.push(vbOut.x, vbOut.y, vbOut.z);
-      normals.push(vb.x, vb.y, vb.z);
+      normals.push(evb.x, evb.y, evb.z);
       tileIds.push(botTileId);
       vertexOffset++;
       const aBot = vertexOffset;
       positions.push(vaOut.x, vaOut.y, vaOut.z);
-      normals.push(va.x, va.y, va.z);
+      normals.push(fv.x, fv.y, fv.z);
       tileIds.push(botTileId);
       vertexOffset++;
       indices.push(aTop, bTop, bBot, aTop, bBot, aBot);
@@ -721,19 +731,21 @@ export function createGeodesicGeometry(
   const indices: number[] = [];
   const tileIds: number[] = [];
   let vertexOffset = 0;
+  const c = new THREE.Vector3();
+  const corner = new THREE.Vector3();
 
   for (const tile of tiles) {
-    const center = tile.center.clone().multiplyScalar(radius);
-    const verts = tile.vertices.map((v) => v.clone().multiplyScalar(radius));
-    const n = verts.length;
+    c.copy(tile.center).multiplyScalar(radius);
+    const n = tile.vertices.length;
     const base = vertexOffset;
-    positions.push(center.x, center.y, center.z);
+    positions.push(c.x, c.y, c.z);
     normals.push(tile.center.x, tile.center.y, tile.center.z);
     tileIds.push(tile.id);
     vertexOffset++;
-    for (const v of verts) {
-      positions.push(v.x, v.y, v.z);
-      normals.push(v.x / radius, v.y / radius, v.z / radius);
+    for (let i = 0; i < n; i++) {
+      corner.copy(tile.vertices[i]).multiplyScalar(radius);
+      positions.push(corner.x, corner.y, corner.z);
+      normals.push(corner.x / radius, corner.y / radius, corner.z / radius);
       tileIds.push(tile.id);
       vertexOffset++;
     }

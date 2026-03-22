@@ -85,26 +85,31 @@ export function dateToSublunarPoint(date: Date): LatLonDeg {
 }
 
 /**
- * Format a Date as YYYY-MM-DDTHH:mm for datetime-local input (UTC).
+ * Format a Date as YYYY-MM-DDTHH:mm:ss for datetime-local input (UTC, second precision).
  */
 export function dateToDatetimeLocalUTC(date: Date): string {
   const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const mo = String(date.getUTCMonth() + 1).padStart(2, "0");
   const d = String(date.getUTCDate()).padStart(2, "0");
   const h = String(date.getUTCHours()).padStart(2, "0");
   const min = String(date.getUTCMinutes()).padStart(2, "0");
-  return `${y}-${m}-${d}T${h}:${min}`;
+  const sec = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${y}-${mo}-${d}T${h}:${min}:${sec}`;
 }
 
 /**
  * Parse a datetime-local string as UTC (no timezone in string, we treat as UTC).
+ * Accepts HH:mm or HH:mm:ss.
  */
 export function datetimeLocalUTCToDate(s: string): Date {
   if (!s) return new Date();
   const [datePart, timePart] = s.split("T");
   const [y, m, d] = datePart.split("-").map(Number);
-  const [h, min] = (timePart || "00:00").split(":").map(Number);
-  return new Date(Date.UTC(y, m - 1, d, h ?? 0, min ?? 0, 0, 0));
+  const parts = (timePart || "00:00").split(":");
+  const h = Number(parts[0]) || 0;
+  const min = Number(parts[1]) || 0;
+  const sec = parts[2] != null ? Number(parts[2]) || 0 : 0;
+  return new Date(Date.UTC(y, m - 1, d, h, min, sec, 0));
 }
 
 /** Modified Julian Date at 0h UT for a given UTC date (integer day). */

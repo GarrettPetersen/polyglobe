@@ -392,3 +392,75 @@ export function geometryCoastSkirt(
   geom.computeVertexNormals();
   return geom;
 }
+
+const _snowTopTint = new THREE.Color(0xeef6fc);
+const _wetCoolTint = new THREE.Color(0x6a8a9a);
+
+/**
+ * Rebuilds land vertex colors from {@link tileTerrain}, then tints by per-tile wetness / snow cover maps.
+ * Water tiles keep water colors; optional snow caps (negative tileId) unchanged.
+ */
+export function applyLandSurfaceWeatherVertexColors(
+  geometry: THREE.BufferGeometry,
+  tileTerrain: Map<number, TileTerrainData>,
+  waterTileIds: ReadonlySet<number>,
+  wetness: ReadonlyMap<number, number>,
+  snowCover: ReadonlyMap<number, number>
+): void {
+  const tileIdAttr = geometry.getAttribute("tileId") as THREE.BufferAttribute | undefined;
+  const pos = geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
+  const norm = geometry.getAttribute("normal") as THREE.BufferAttribute | undefined;
+  if (!tileIdAttr || !pos || !norm) return;
+
+  const radial = new THREE.Vector3();
+  const nrm = new THREE.Vector3();
+  const c = new THREE.Color();
+  const colors = new Float32Array(pos.count * 3);
+
+  for (let i = 0; i < pos.count; i++) {
+    const tid = Math.round(tileIdAttr.getX(i));
+    if (Number(tid) < 0) {
+      c.set(TERRAIN_STYLES.snow.color);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+      continue;
+    }
+    const data = tileTerrain.get(tid) ?? {
+      tileId: tid,
+      type: "water" as TerrainType,
+      elevation: 0,
+    };
+    if (waterTileIds.has(tid) || data.type === "water") {
+      c.set(TERRAIN_STYLES.water.color);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+      continue;
+    }
+
+    const style = TERRAIN_STYLES[data.type];
+    c.set(style.color);
+
+    radial.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
+    nrm.set(norm.getX(i), norm.getY(i), norm.getZ(i)).normalize();
+    const facing = Math.max(0, radial.dot(nrm));
+
+    const w = wetness.get(tid) ?? 0;
+    const sn = snowCover.get(tid) ?? 0;
+    const snowAmt = Math.min(1, sn * (0.35 + 0.65 * facing * facing));
+    c.lerp(_snowTopTint, snowAmt * 0.82);
+
+    const wetAmt = Math.min(1, w * (0.45 + 0.35 * facing));
+    c.lerp(_wetCoolTint, wetAmt * 0.22);
+    if (wetAmt > 0.02) {
+      const lift = 1 + 0.12 * wetAmt * facing;
+      c.multiplyScalar(Math.min(1.18, lift));
+    }
+
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+}
