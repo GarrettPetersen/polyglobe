@@ -50,6 +50,14 @@ export {
   type LandSurfaceWeatherVertexOptions,
   type ApplyLandSurfaceWeatherPaintOptions,
 } from "./terrain/terrainMaterial.js";
+export {
+  LAND_WEATHER_DATA_TEX_WIDTH,
+  createLandWeatherGpuState,
+  disposeLandWeatherGpuState,
+  uploadLandWeatherTextureTiles,
+  installLandWeatherOnMeshStandardMaterial,
+  type LandWeatherGpuState,
+} from "./terrain/landWeatherGpu.js";
 
 // Earth (real geography from rasters or custom samplers)
 export {
@@ -153,6 +161,7 @@ export {
 // Wind (seasonal patterns + arrow overlay)
 export {
   computeWindForTiles,
+  computeWindForGlobeTileIds,
   type TileWind,
   type ComputeWindOptions,
 } from "./wind/windPatterns.js";
@@ -194,9 +203,13 @@ export {
   annualDayIndexFromDate,
   buildAnnualTileWeatherTables,
   fillWindMapFromAnnual,
+  createAnnualWindTileIndexById,
+  fillWindMapFromAnnualForTileIds,
   fillPrecipMapFromAnnual,
   buildAnnualRiverFlowStrength,
   fillRiverFlowMapFromAnnual,
+  createAnnualRiverStrengthTileIndexById,
+  fillRiverFlowMapFromAnnualForTileIds,
   type AnnualTileWeatherTables,
   type AnnualRiverFlowStrength,
   type BuildAnnualWindOptions,

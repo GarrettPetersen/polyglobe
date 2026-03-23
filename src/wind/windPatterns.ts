@@ -4,6 +4,7 @@
  */
 
 import type { GeodesicTile } from "../core/geodesic.js";
+import type { Globe } from "../core/Globe.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
 
 /** Wind at a tile: direction in radians (0 = east, π/2 = north), strength in 0–1 or m/s scale. */
@@ -83,6 +84,58 @@ function effectiveLatForSeason(latDeg: number, subsolarLatDeg: number): number {
   return latDeg - subsolarLatDeg * 0.4;
 }
 
+function computeWindForGeodesicTile(
+  tile: GeodesicTile,
+  options: {
+    subsolarLatDeg: number;
+    baseStrength: number;
+    noiseDirectionRad: number;
+    noiseStrength: number;
+    getTerrain?: ComputeWindOptions["getTerrain"];
+    terrainStrengthWater: number;
+    terrainStrengthLand: number;
+    terrainStrengthMountain: number;
+  },
+  rng: () => number,
+): TileWind {
+  const {
+    subsolarLatDeg,
+    baseStrength,
+    noiseDirectionRad,
+    noiseStrength,
+    getTerrain,
+    terrainStrengthWater,
+    terrainStrengthLand,
+    terrainStrengthMountain,
+  } = options;
+
+  const { lat } = tileCenterToLatLon(tile.center);
+  const latDeg = (lat * 180) / Math.PI;
+  const effLat = effectiveLatForSeason(latDeg, subsolarLatDeg);
+  let { directionRad, strength } = baseWindAtLat(effLat);
+
+  if (getTerrain) {
+    const t = getTerrain(tile.id);
+    if (t) {
+      const elev = t.elevation ?? 0;
+      const isMountain = elev > 0.15;
+      if (t.isWater === true) {
+        strength *= terrainStrengthWater;
+      } else if (isMountain) {
+        strength *= terrainStrengthMountain;
+      } else {
+        strength *= terrainStrengthLand;
+      }
+    }
+  }
+
+  directionRad += gaussian(rng, 0, noiseDirectionRad);
+  strength *= 1 + gaussian(rng, 0, noiseStrength);
+  strength = Math.max(0.05, Math.min(1, strength)) * baseStrength;
+
+  return { directionRad, strength };
+}
+
 /**
  * Compute wind for each tile. Uses tile center lat/lon, optional terrain modulation, and Gaussian noise.
  */
@@ -104,37 +157,63 @@ export function computeWindForTiles(
 
   const rng = seededRandom(seed);
   const out = new Map<number, TileWind>();
+  const tileOpts = {
+    subsolarLatDeg,
+    baseStrength,
+    noiseDirectionRad,
+    noiseStrength,
+    getTerrain,
+    terrainStrengthWater,
+    terrainStrengthLand,
+    terrainStrengthMountain,
+  };
 
   for (const tile of tiles) {
-    const { lat } = tileCenterToLatLon(tile.center);
-    const latDeg = (lat * 180) / Math.PI;
-    const effLat = effectiveLatForSeason(latDeg, subsolarLatDeg);
-    let { directionRad, strength } = baseWindAtLat(effLat);
-
-    // Terrain: reduce over land, more over mountains
-    if (getTerrain) {
-      const t = getTerrain(tile.id);
-      if (t) {
-        const elev = t.elevation ?? 0;
-        const isMountain = elev > 0.15; // rough globe-unit threshold
-        if (t.isWater === true) {
-          strength *= terrainStrengthWater;
-        } else if (isMountain) {
-          strength *= terrainStrengthMountain;
-        } else {
-          strength *= terrainStrengthLand;
-        }
-      }
-    }
-
-    // Gaussian noise on direction and strength
-    directionRad += gaussian(rng, 0, noiseDirectionRad);
-    strength *= 1 + gaussian(rng, 0, noiseStrength);
-    strength = Math.max(0.05, Math.min(1, strength)) * baseStrength;
-
-    out.set(tile.id, { directionRad, strength });
+    out.set(tile.id, computeWindForGeodesicTile(tile, tileOpts, rng));
   }
 
+  return out;
+}
+
+/**
+ * Wind for a subset of tiles only (e.g. near a ship). Per-tile RNG is derived from `(seed, tileId)` so
+ * values differ from {@link computeWindForTiles} (order-dependent stream) but are stable for a given id.
+ */
+export function computeWindForGlobeTileIds(
+  globe: Globe,
+  tileIds: Iterable<number>,
+  options: ComputeWindOptions = {},
+): Map<number, TileWind> {
+  const {
+    subsolarLatDeg = 0,
+    baseStrength = 1,
+    noiseDirectionRad = 0.15,
+    noiseStrength = 0.1,
+    seed = 12345,
+    getTerrain,
+    terrainStrengthWater = 1,
+    terrainStrengthLand = 0.6,
+    terrainStrengthMountain = 0.3,
+  } = options;
+
+  const tileOpts = {
+    subsolarLatDeg,
+    baseStrength,
+    noiseDirectionRad,
+    noiseStrength,
+    getTerrain,
+    terrainStrengthWater,
+    terrainStrengthLand,
+    terrainStrengthMountain,
+  };
+
+  const out = new Map<number, TileWind>();
+  for (const id of tileIds) {
+    const tile = globe.getTile(id);
+    if (!tile) continue;
+    const rng = seededRandom((seed ^ Math.imul(id, 2654435761)) >>> 0);
+    out.set(id, computeWindForGeodesicTile(tile, tileOpts, rng));
+  }
   return out;
 }
 

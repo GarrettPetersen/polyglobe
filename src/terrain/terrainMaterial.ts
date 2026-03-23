@@ -610,9 +610,13 @@ export function applyLandSurfaceWeatherVertexColors(
     geometry.setAttribute("color", colorAttr);
   }
   const colors = colorAttr.array as Float32Array;
+  const tileIdArr = tileIdAttr.array as Float32Array;
+  /** {@link landWeatherStochasticPickLandTile} is identical for all vertices on a tile — compute once per tile. */
+  let stochPickCacheTid = NaN;
+  let stochPickCache = true;
 
   for (let i = 0; i < vtx; i++) {
-    const tid = Math.round(tileIdAttr.getX(i));
+    const tid = Math.round(tileIdArr[i]!);
     if (Number(tid) < 0) {
       unpackLandWeatherRgb(PACK_LAND_WEATHER_POLAR_SNOW, colors, i);
       continue;
@@ -627,11 +631,12 @@ export function applyLandSurfaceWeatherVertexColors(
       continue;
     }
 
-    if (
-      useStochasticLand &&
-      !landWeatherStochasticPickLandTile(tid, stSalt, stFrac)
-    ) {
-      continue;
+    if (useStochasticLand) {
+      if (tid !== stochPickCacheTid) {
+        stochPickCacheTid = tid;
+        stochPickCache = landWeatherStochasticPickLandTile(tid, stSalt, stFrac);
+      }
+      if (!stochPickCache) continue;
     }
 
     let packed = landRgbByTileId.get(tid);

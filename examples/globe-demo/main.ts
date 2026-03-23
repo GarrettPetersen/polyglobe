@@ -19,7 +19,11 @@ import {
   updateFlatGeometryFromTerrain,
   applyTerrainColorsToGeometry,
   precomputeTileTerrainWeatherFields,
-  applyLandSurfaceWeatherVertexColors,
+  createLandWeatherGpuState,
+  disposeLandWeatherGpuState,
+  uploadLandWeatherTextureTiles,
+  installLandWeatherOnMeshStandardMaterial,
+  type LandWeatherGpuState,
   type ApplyLandSurfaceWeatherPaintOptions,
   combinedLandSnowCover,
   applyVertexColorsByTileId,
@@ -38,6 +42,7 @@ import {
   tileCenterToLatLon,
   latLonToDegrees,
   computeWindForTiles,
+  computeWindForGlobeTileIds,
   createWindArrows,
   updateWindArrows,
   createFlowArrows,
@@ -71,9 +76,13 @@ import {
   annualDayIndexFromDate,
   buildAnnualTileWeatherTables,
   fillWindMapFromAnnual,
+  createAnnualWindTileIndexById,
+  fillWindMapFromAnnualForTileIds,
   fillPrecipMapFromAnnual,
   buildAnnualRiverFlowStrength,
   fillRiverFlowMapFromAnnual,
+  createAnnualRiverStrengthTileIndexById,
+  fillRiverFlowMapFromAnnualForTileIds,
   type AnnualTileWeatherTables,
   type AnnualRiverFlowStrength,
   type DiscreteWeatherYearBake,
@@ -375,6 +384,9 @@ function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
   return latLonDegToDirectionInto(latDeg, lonDeg, new THREE.Vector3());
 }
 
+/** Wind / ocean-current field scope: URL `?hydroField=` (full globe, regional, or off for train-style games). */
+type HydroFieldMode = "full" | "focus" | "off";
+
 export interface DemoState {
   useEarth: boolean;
   subdivisions: number;
@@ -397,6 +409,12 @@ export interface DemoState {
   timePlaying: boolean;
   /** Simulated-time multiplier vs real time (1 = real-time). */
   timePlaySpeed: number;
+  /** `full` = all tiles; `focus` = {@link hydroFocusTileIds} + graph ring; `off` = no wind/current maps. */
+  hydroFieldMode: HydroFieldMode;
+  /** Hex rings to expand from focus tiles when `hydroFieldMode === "focus"`. */
+  hydroFocusRing: number;
+  /** Focus tile ids for `focus` mode; empty uses the subsolar tile. */
+  hydroFocusTileIds: readonly number[];
   landFraction: number;
   blobiness: number;
   seed: number;
@@ -414,6 +432,9 @@ const DEFAULT_STATE: DemoState = {
   gameClockUtcMinute: null,
   timePlaying: false,
   timePlaySpeed: 3600,
+  hydroFieldMode: "full",
+  hydroFocusRing: 2,
+  hydroFocusTileIds: [],
   landFraction: 0.5,
   blobiness: 6,
   seed: 12345,
@@ -433,7 +454,7 @@ function readAutoTimeSpeedFromUrl(): number {
   return Math.min(n, 1e7);
 }
 
-/** `?landWeatherSample=f` — fraction of land tiles to repaint per flush (default 0.12); `1` = always full. */
+/** `?landWeatherSample=f` — stochastic fraction of **land** tiles updated per land-weather texture flush (default 0.12); `1` = full pass. */
 const LAND_WEATHER_STOCHASTIC_DEFAULT = 0.12;
 
 function readLandWeatherSampleFractionFromUrl(): number {
@@ -443,6 +464,43 @@ function readLandWeatherSampleFractionFromUrl(): number {
   const n = Number.parseFloat(raw);
   if (!Number.isFinite(n) || n <= 0) return LAND_WEATHER_STOCHASTIC_DEFAULT;
   return Math.min(n, 1);
+}
+
+/**
+ * `?hydroField=full|focus|sailing|off|train` — wind/current resolution. `focus` / `sailing` recomputes only
+ * a neighborhood of `?hydroFocusTiles=` (comma-separated ids); empty uses subsolar tile. `off` / `train`
+ * disables hydro maps entirely. Optional `?hydroFocusRing=N` (default 2, max 16).
+ */
+function readHydroFieldFromUrl(): {
+  mode: HydroFieldMode;
+  focusRing: number;
+  focusTileIds: number[];
+} {
+  if (typeof window === "undefined") {
+    return { mode: "full", focusRing: 2, focusTileIds: [] };
+  }
+  const q = new URLSearchParams(window.location.search);
+  const v = (q.get("hydroField") ?? "full").toLowerCase().trim();
+  let mode: HydroFieldMode = "full";
+  if (v === "off" || v === "train" || v === "none") mode = "off";
+  else if (v === "focus" || v === "sailing") mode = "focus";
+
+  const ringRaw = q.get("hydroFocusRing");
+  const ringParsed = ringRaw != null && ringRaw !== "" ? Number(ringRaw) : NaN;
+  const focusRing = Number.isFinite(ringParsed)
+    ? Math.max(0, Math.min(16, Math.floor(ringParsed)))
+    : 2;
+
+  const rawTiles = q.get("hydroFocusTiles");
+  const focusTileIds =
+    rawTiles == null || rawTiles === ""
+      ? []
+      : rawTiles
+          .split(/[,;\s]+/)
+          .map((s) => Number.parseInt(s.trim(), 10))
+          .filter((n) => Number.isFinite(n) && n >= 0);
+
+  return { mode, focusRing, focusTileIds };
 }
 
 function seededRandom(seed: number) {
@@ -2015,11 +2073,11 @@ let riverLineIsDelta: boolean[] | null = null;
 /** U-shaped river banks + bed (land mesh); separate from transparent water ribbon. */
 let riverTerrainGroup: THREE.Group | null = null;
 
-/** Re-run {@link applyLandSurfaceWeatherVertexColors} on globe + river banks when true. */
+/** Re-upload land-weather GPU texture (wet/snow/climate) when true. */
 let landWeatherColorsDirty = true;
 /** First flush after a globe build must paint all land vertices (new color buffer / base tints). */
 let landWeatherPrimeFullPaint = true;
-/** Bumped after each stochastic flush so different tiles are chosen. */
+/** Bumped after each stochastic texture flush so different land tiles are chosen. */
 let landWeatherStochasticSalt = 0;
 /** {@link climateSurfaceSnowVisualForTerrain} uses full date/subsolar — repaint land at least once per sim second while time is playing. */
 let lastLandWeatherPaintEpochSec = Number.NaN;
@@ -2071,8 +2129,9 @@ let globalTileTerrain: Map<number, TileTerrainData> | null = null;
 /** Lazily synced with {@link globalTileTerrain} via {@link precomputeTileTerrainWeatherFields}. */
 let cachedWaterTileIds: ReadonlySet<number> = new Set();
 let cachedWaterTileIdsTerrainRef: Map<number, TileTerrainData> | null = null;
-let warnedRiverLandWeatherSkip = false;
-/** Real-time throttle for {@link applyLandSurfaceWeatherVertexColors} when sim clock runs fast (see flush). */
+/** GPU wet/snow tint texture (per tile); river meshes share the same texture as the globe. */
+let landWeatherGpu: LandWeatherGpuState | null = null;
+/** Real-time throttle for land-weather texture upload when sim clock runs fast (see flush). */
 let lastLandWeatherFullPaintRealMs = 0;
 /** Last applied cloud sim ground-state revision after a successful land-weather paint (see animate). */
 let lastLandWeatherTileSurfaceRev = -1;
@@ -2118,8 +2177,12 @@ let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
 let globalRiverFlowByTile: Map<number, { exitEdge: number; directionRad: number }> | null = null;
 /** Packed wind + precip potential by calendar day (UTC noon ref. year); null if globe too large. */
 let annualTileWeather: AnnualTileWeatherTables | null = null;
+/** Row index in {@link annualTileWeather.windPacked} per tile id; null when annual tables missing. */
+let annualWindTileIndexById: Map<number, number> | null = null;
 /** River flow strength by day; requires {@link globalRiverFlowByTile}. */
 let annualRiverFlowStrength: AnnualRiverFlowStrength | null = null;
+/** Index into {@link annualRiverFlowStrength.strengthPacked} rows per river tile id. */
+let annualRiverStrengthIndexById: Map<number, number> | null = null;
 /** Reused for cloud physics when reading from {@link annualTileWeather}. */
 const annualPrecipReuseMap = new Map<number, number>();
 /** Discrete 365×tile bake: no minute-step cloud physics when set (see {@link catchUpCloudPhysicsBudgeted}). */
@@ -2128,6 +2191,10 @@ let globalDiscreteWeatherBake: DiscreteWeatherYearBake | null = null;
 let lastAppliedDiscreteDayIdx = -1;
 /** Last UTC minute index used for wind/flow/cloud sync (expensive; skip within the same minute). */
 let lastWindUtcMinute: number | null = null;
+/** Wall time of last wind/flow/precip overlay refresh; used to coalesce when play speed is high. */
+let lastWindFlowPrecipRefreshWallMs = 0;
+/** Wall time of last live {@link catchUpCloudPhysicsBudgeted} pass (discrete-bake mode does not use this). */
+let lastCloudPhysicsCatchUpWallMs = 0;
 /** UTC ms anchor for time playback (advanced while {@link DemoState.timePlaying}). */
 let playbackEpochMs = 0;
 /** Panel datetime input; updated while time is playing. */
@@ -2144,6 +2211,58 @@ let vegetationLayer: {
 } | null = null;
 
 const BUILD_LOG = "[globe-build]";
+
+/** Below this play speed, wind/flow/precip refresh every sim minute (when it changes). */
+const WIND_FLOW_PRECIP_REFRESH_SPEED_THRESHOLD = 60;
+
+function windFlowPrecipRefreshWallThrottleMs(state: DemoState): number {
+  if (!state.timePlaying || state.timePlaySpeed < WIND_FLOW_PRECIP_REFRESH_SPEED_THRESHOLD)
+    return 0;
+  const s = state.timePlaySpeed;
+  if (s >= 86400) return 800;
+  if (s >= 3600) return 400;
+  if (s >= 900) return 280;
+  if (s >= 300) return 180;
+  if (s >= 120) return 100;
+  return 0;
+}
+
+/**
+ * When true, skip wind/flow/precip refresh this frame: sim minute advanced but wall throttle not elapsed.
+ * Always runs when paused, below speed threshold, first minute, or huge sim jump (user seek / load).
+ */
+function shouldSkipWindFlowPrecipRefreshThisFrame(
+  windUtcMin: number,
+  state: DemoState,
+  wallNow: number,
+): boolean {
+  if (lastWindUtcMinute === null) return false;
+  if (!state.timePlaying || state.timePlaySpeed < WIND_FLOW_PRECIP_REFRESH_SPEED_THRESHOLD)
+    return false;
+  const throttle = windFlowPrecipRefreshWallThrottleMs(state);
+  if (throttle <= 0) return false;
+  const jump = Math.abs(windUtcMin - lastWindUtcMinute);
+  /** Large calendar jump — refresh immediately so overlays match the new date. */
+  if (jump >= 1440) return false;
+  return wallNow - lastWindFlowPrecipRefreshWallMs < throttle;
+}
+
+/**
+ * Skip live cloud minute physics this frame when play speed is high and wall throttle has not elapsed.
+ * Discrete weather uses a cheap day-index path — never skip that.
+ */
+function shouldSkipCloudPhysicsCatchUpWallThrottle(
+  state: DemoState,
+  wallNow: number,
+): boolean {
+  if (globalDiscreteWeatherBake) return false;
+  if (lastCloudPhysicsCatchUpWallMs === 0) return false;
+  if (!state.timePlaying || state.timePlaySpeed < WIND_FLOW_PRECIP_REFRESH_SPEED_THRESHOLD)
+    return false;
+  const throttle = windFlowPrecipRefreshWallThrottleMs(state);
+  if (throttle <= 0) return false;
+  return wallNow - lastCloudPhysicsCatchUpWallMs < throttle;
+}
 
 function applyAutoTimePlayAfterGlobeBuilt(state: DemoState): void {
   if (urlAutoTimePlaySpeed <= 0) return;
@@ -2243,12 +2362,115 @@ function moonPositionFromDateInto(
   return out.multiplyScalar(distance);
 }
 
-/** Recompute wind from date and terrain, update arrow overlay. No-op if globe/wind group not ready. */
-function updateWindFromState(state: DemoState, dateTimeStr?: string): void {
-  if (!globe || !windArrowsGroup || !globalTileTerrain) return;
+function hydroFieldOff(state: DemoState): boolean {
+  return state.hydroFieldMode === "off";
+}
+
+function useSparseHydroMaps(state: DemoState): boolean {
+  return state.hydroFieldMode === "focus";
+}
+
+function expandTileIdsByGraphRing(
+  g: Globe,
+  seedIds: Iterable<number>,
+  rings: number,
+): Set<number> {
+  const out = new Set<number>();
+  let frontier = new Set<number>();
+  for (const id of seedIds) {
+    if (g.getTile(id)) {
+      frontier.add(id);
+      out.add(id);
+    }
+  }
+  for (let r = 0; r < rings; r++) {
+    const next = new Set<number>();
+    for (const id of frontier) {
+      const t = g.getTile(id);
+      if (!t) continue;
+      for (const n of t.neighbors) {
+        if (!out.has(n)) {
+          out.add(n);
+          next.add(n);
+        }
+      }
+    }
+    frontier = next;
+    if (frontier.size === 0) break;
+  }
+  return out;
+}
+
+/** Non-null when `hydroFieldMode === "focus"` and globe exists; tile set for partial wind/flow. */
+function hydroRelevantTileSet(state: DemoState): Set<number> | null {
+  if (!globe || state.hydroFieldMode !== "focus") return null;
+  const seeds =
+    state.hydroFocusTileIds.length > 0
+      ? state.hydroFocusTileIds
+      : [globe.getTileIdAtDirection(sunDirectionFromState(state))];
+  return expandTileIdsByGraphRing(globe, seeds, state.hydroFocusRing);
+}
+
+/**
+ * Recompute wind from date and terrain, update arrow overlay. No-op if globe/wind group not ready.
+ * Minute ticks may pass `skipWindMapWhenOverlaysHidden` to avoid full-tile wind work when neither
+ * wind nor flow overlays need `globalWindByTile` updated this frame (skipped in `focus` mode so
+ * regional sim data can stay fresh without overlays).
+ */
+function updateWindFromState(
+  state: DemoState,
+  dateTimeStr?: string,
+  options?: { skipWindMapWhenOverlaysHidden?: boolean },
+): void {
+  if (!globe || !windArrowsGroup) return;
+  if (hydroFieldOff(state)) {
+    globalWindByTile = new Map();
+    windArrowsGroup.visible = false;
+    return;
+  }
+  if (!globalTileTerrain) return;
+  if (
+    options?.skipWindMapWhenOverlaysHidden &&
+    !state.showWinds &&
+    !state.showFlow &&
+    state.hydroFieldMode !== "focus"
+  ) {
+    windArrowsGroup.visible = false;
+    return;
+  }
   const str = dateTimeStr ?? state.dateTimeStr ?? dateToDatetimeLocalUTC(new Date());
   const date = datetimeLocalUTCToDate(str);
-  if (annualTileWeather) {
+  const relevant = hydroRelevantTileSet(state);
+  const sparse = useSparseHydroMaps(state);
+  const getTerrain = (id: number) => {
+    const t = globalTileTerrain!.get(id);
+    if (!t) return undefined;
+    const isWater = t.type === "water" || t.type === "beach";
+    return { isWater, elevation: t.elevation };
+  };
+
+  if (relevant) {
+    globalWindByTile = new Map();
+    if (annualTileWeather && annualWindTileIndexById) {
+      fillWindMapFromAnnualForTileIds(
+        annualTileWeather,
+        annualDayIndexFromDate(date),
+        globalWindByTile,
+        relevant,
+        annualWindTileIndexById,
+      );
+    } else {
+      const subsolar = dateToSubsolarPoint(date);
+      globalWindByTile = computeWindForGlobeTileIds(globe, relevant, {
+        subsolarLatDeg: subsolar.latDeg,
+        baseStrength: 1,
+        noiseDirectionRad: 0.12,
+        noiseStrength: 0.08,
+        seed: 45678,
+        getTerrain,
+      });
+    }
+  } else if (annualTileWeather) {
     if (!globalWindByTile) globalWindByTile = new Map();
     fillWindMapFromAnnual(
       annualTileWeather,
@@ -2263,14 +2485,10 @@ function updateWindFromState(state: DemoState, dateTimeStr?: string): void {
       noiseDirectionRad: 0.12,
       noiseStrength: 0.08,
       seed: 45678,
-      getTerrain: (id) => {
-        const t = globalTileTerrain!.get(id);
-        if (!t) return undefined;
-        const isWater = t.type === "water" || t.type === "beach";
-        return { isWater, elevation: t.elevation };
-      },
+      getTerrain,
     });
   }
+
   const windByTile = globalWindByTile;
   if (state.showWinds) {
     updateWindArrows(windArrowsGroup, globe, windByTile, {
@@ -2278,6 +2496,7 @@ function updateWindFromState(state: DemoState, dateTimeStr?: string): void {
       arrowScale: 0.065,
       color: 0x88ccff,
       minStrength: 0.06,
+      sparseInstances: sparse,
     });
   }
   windArrowsGroup.visible = state.showWinds;
@@ -2351,6 +2570,65 @@ function buildCurrentFlowByTile(): Map<number, { directionRad: number; strength:
   return flow;
 }
 
+function buildCurrentFlowByTileForRelevant(
+  relevant: ReadonlySet<number>,
+): Map<number, { directionRad: number; strength: number }> {
+  const flow = new Map<number, { directionRad: number; strength: number }>();
+  if (!globe || !globalWindByTile) return flow;
+  const ids = waterBeachTileIdsForOceanCurrents();
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i]!;
+    if (!relevant.has(id)) continue;
+    const w = globalWindByTile.get(id);
+    if (!w) continue;
+    const latDeg = globe.getTileCenterLatDeg(id);
+    if (latDeg === undefined) continue;
+    const blow = w.directionRad + Math.PI;
+    const ekman = latDeg > 0 ? -Math.PI / 4 : Math.PI / 4;
+    const strength = Math.min(0.6, w.strength * 0.2);
+    flow.set(id, { directionRad: blow + ekman, strength });
+  }
+  return flow;
+}
+
+function buildRiverFlowByTileSubset(
+  subsolarLatDeg: number,
+  annualDayIndex: number | undefined,
+  relevant: ReadonlySet<number>,
+): Map<number, { directionRad: number; strength: number }> {
+  const flow = new Map<number, { directionRad: number; strength: number }>();
+  if (!globe || !globalTileTerrain || !globalRiverFlowByTile) return flow;
+
+  if (
+    annualRiverFlowStrength &&
+    annualDayIndex != null &&
+    annualRiverStrengthIndexById
+  ) {
+    fillRiverFlowMapFromAnnualForTileIds(
+      annualRiverFlowStrength,
+      globalRiverFlowByTile,
+      annualDayIndex,
+      flow,
+      relevant,
+      annualRiverStrengthIndexById,
+    );
+    return flow;
+  }
+
+  for (const id of relevant) {
+    const r = globalRiverFlowByTile.get(id);
+    if (!r) continue;
+    const tile = globe.getTile(id);
+    if (!tile) continue;
+    const { lat } = tileCenterToLatLon(tile.center);
+    const latDeg = (lat * 180) / Math.PI;
+    const precip = getPrecipitation(latDeg, subsolarLatDeg);
+    const strength = 0.35 + 0.55 * precip;
+    flow.set(id, { directionRad: r.directionRad, strength });
+  }
+  return flow;
+}
+
 /** Merge river + current for hex debug. */
 function mergeFlowByTile(
   river: Map<number, { directionRad: number; strength: number }>,
@@ -2363,29 +2641,66 @@ function mergeFlowByTile(
 }
 
 /** Recompute river + current flow, update both arrow groups, sync visibility. */
-function updateFlowFromState(state: DemoState): void {
-  if (!globe || !globalTileTerrain) return;
+function updateFlowFromState(
+  state: DemoState,
+  options?: { skipHeavyWorkWhenFlowHidden?: boolean },
+): void {
+  if (!globe) return;
+  if (hydroFieldOff(state)) {
+    if (riverFlowArrowsGroup) riverFlowArrowsGroup.visible = false;
+    if (currentArrowsGroup) currentArrowsGroup.visible = false;
+    globalFlowByTile = new Map();
+    return;
+  }
+  if (!globalTileTerrain) return;
+  if (riverFlowArrowsGroup) riverFlowArrowsGroup.visible = state.showFlow;
+  if (currentArrowsGroup) currentArrowsGroup.visible = state.showFlow;
+  if (
+    options?.skipHeavyWorkWhenFlowHidden &&
+    !state.showFlow &&
+    state.hydroFieldMode !== "focus"
+  ) {
+    return;
+  }
+
   const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
   const subsolar = dateToSubsolarPoint(date);
   const dayIdx =
     annualTileWeather != null ? annualDayIndexFromDate(date) : undefined;
+  const relevant = hydroRelevantTileSet(state);
+  const sparse = useSparseHydroMaps(state);
+  const wantCurrentData =
+    state.showFlow || state.hydroFieldMode === "focus";
 
-  const riverFlow = buildRiverFlowByTile(subsolar.latDeg, dayIdx);
-  const currentFlow = state.showFlow
-    ? buildCurrentFlowByTile()
-    : EMPTY_HEX_FLOW_MAP;
+  let riverFlow: Map<number, { directionRad: number; strength: number }>;
+  let currentFlow: Map<number, { directionRad: number; strength: number }>;
+  if (relevant) {
+    riverFlow = buildRiverFlowByTileSubset(subsolar.latDeg, dayIdx, relevant);
+    currentFlow = wantCurrentData
+      ? buildCurrentFlowByTileForRelevant(relevant)
+      : EMPTY_HEX_FLOW_MAP;
+  } else {
+    riverFlow = buildRiverFlowByTile(subsolar.latDeg, dayIdx);
+    currentFlow = state.showFlow
+      ? buildCurrentFlowByTile()
+      : EMPTY_HEX_FLOW_MAP;
+  }
   globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
 
   if (state.showFlow) {
     if (riverFlowArrowsGroup) {
-      updateFlowArrows(riverFlowArrowsGroup, globe, riverFlow, RIVER_FLOW_OPTIONS);
+      updateFlowArrows(riverFlowArrowsGroup, globe, riverFlow, {
+        ...RIVER_FLOW_OPTIONS,
+        sparseInstances: sparse,
+      });
     }
     if (currentArrowsGroup) {
-      updateFlowArrows(currentArrowsGroup, globe, currentFlow, CURRENT_FLOW_OPTIONS);
+      updateFlowArrows(currentArrowsGroup, globe, currentFlow, {
+        ...CURRENT_FLOW_OPTIONS,
+        sparseInstances: sparse,
+      });
     }
   }
-  if (riverFlowArrowsGroup) riverFlowArrowsGroup.visible = state.showFlow;
-  if (currentArrowsGroup) currentArrowsGroup.visible = state.showFlow;
 }
 
 function getLandWeatherVertexPaintContext(state: DemoState): {
@@ -2417,7 +2732,9 @@ function markLandWeatherColorsDirty(): void {
 
 type LandWeatherPaintCtx = NonNullable<ReturnType<typeof getLandWeatherVertexPaintContext>>;
 
-function landWeatherPaintOptsForFlush(): ApplyLandSurfaceWeatherPaintOptions | undefined {
+function landWeatherPaintOptsForFlush():
+  | ApplyLandSurfaceWeatherPaintOptions
+  | undefined {
   const f = readLandWeatherSampleFractionFromUrl();
   if (landWeatherPrimeFullPaint || f >= 1) return undefined;
   return {
@@ -2426,88 +2743,75 @@ function landWeatherPaintOptsForFlush(): ApplyLandSurfaceWeatherPaintOptions | u
   };
 }
 
-/** Main globe hex mesh (excludes full river-hex tops — those use {@link syncRiverTerrainLandWeatherVertexColors}). */
-function syncGlobeLandWeatherVertexColors(state: DemoState, ctx?: LandWeatherPaintCtx): boolean {
-  const c = ctx ?? getLandWeatherVertexPaintContext(state);
-  if (!c || !globe) return false;
-  const geom = globe.mesh.geometry;
-  if (!(geom instanceof THREE.BufferGeometry)) return false;
-  return applyLandSurfaceWeatherVertexColors(
-    geom,
+/**
+ * Upload per-tile wet/snow/climate data for {@link landWeatherGpu}; globe + river materials sample it in the fragment shader.
+ */
+function syncLandWeatherGpuTexture(ctx: LandWeatherPaintCtx): boolean {
+  if (!globe || !globalTileTerrain || !landWeatherGpu) return false;
+  uploadLandWeatherTextureTiles(
+    landWeatherGpu,
+    globe,
     globalTileTerrain,
-    c.waterIds,
-    c.wetness,
-    c.snow,
-    { globe, subsolarLatDeg: c.subsolarLatDeg, calendarUtc: c.calendarUtc },
+    ctx.waterIds,
+    ctx.wetness,
+    ctx.snow,
+    {
+      globe,
+      subsolarLatDeg: ctx.subsolarLatDeg,
+      calendarUtc: ctx.calendarUtc,
+    },
     landWeatherPaintOptsForFlush(),
   );
+  return true;
 }
 
-/**
- * River hex tops are omitted from the main geodesic mesh; banks carry the visible land surface.
- * Without this pass, trees (tile-matched) look snowy while ground stays static green.
- */
-function syncRiverTerrainLandWeatherVertexColors(state: DemoState, ctx?: LandWeatherPaintCtx): boolean {
-  const c = ctx ?? getLandWeatherVertexPaintContext(state);
-  if (!c || !riverTerrainGroup || !globe) return true;
-  let ok = true;
+function patchRiverMeshesLandWeatherGpu(): void {
+  if (!landWeatherGpu || !riverTerrainGroup) return;
   riverTerrainGroup.traverse((obj) => {
-    if (!(obj instanceof THREE.Mesh)) return;
-    if (obj.name !== "RiverBanks") return;
-    const g = obj.geometry;
-    if (!(g instanceof THREE.BufferGeometry)) return;
-    if (!g.getAttribute("tileId")) return;
     if (
-      !applyLandSurfaceWeatherVertexColors(
-        g,
-        globalTileTerrain,
-        c.waterIds,
-        c.wetness,
-        c.snow,
-        { globe, subsolarLatDeg: c.subsolarLatDeg, calendarUtc: c.calendarUtc },
-        landWeatherPaintOptsForFlush(),
-      )
+      obj instanceof THREE.Mesh &&
+      obj.material instanceof THREE.MeshStandardMaterial
     ) {
-      ok = false;
+      installLandWeatherOnMeshStandardMaterial(obj.material, landWeatherGpu!);
     }
   });
-  return ok;
 }
 
 function flushLandWeatherVertexColorsIfDirty(state: DemoState): void {
   if (!landWeatherColorsDirty) return;
   if (!globe || !globalTileTerrain) return;
-  /** At 3600×+ sim, `epochSec` / cloud visual minute can change every real frame → O(vertices) paint each time. */
+  /**
+   * Throttle texture uploads when time plays fast (O(tiles) with climate snow per tile — much cheaper
+   * than the old O(vertices) pass, but still worth coalescing at extreme fast-forward).
+   */
   const throttleMs =
-    state.timePlaying && state.timePlaySpeed >= 120 ? 140 : 0;
+    state.timePlaying && state.timePlaySpeed >= 120
+      ? state.timePlaySpeed >= 3600
+        ? 200
+        : state.timePlaySpeed >= 900
+          ? 120
+          : state.timePlaySpeed >= 300
+            ? 80
+            : 60
+      : 0;
   if (throttleMs > 0) {
     const now = performance.now();
     if (now - lastLandWeatherFullPaintRealMs < throttleMs) return;
-    lastLandWeatherFullPaintRealMs = now;
   }
   const ctx = getLandWeatherVertexPaintContext(state);
   if (!ctx) return;
-  const globeOk = syncGlobeLandWeatherVertexColors(state, ctx);
-  const riverOk = syncRiverTerrainLandWeatherVertexColors(state, ctx);
-  if (globeOk) {
-    landWeatherColorsDirty = false;
-    const sampleF = readLandWeatherSampleFractionFromUrl();
-    if (landWeatherPrimeFullPaint) {
-      landWeatherPrimeFullPaint = false;
-    } else if (sampleF < 1) {
-      landWeatherStochasticSalt++;
-    }
-    if (cloudClipField) {
-      lastLandWeatherTileSurfaceRev = cloudClipField.getTileSurfaceState().revision;
-    }
-    if (riverOk) warnedRiverLandWeatherSkip = false;
-    else if (!warnedRiverLandWeatherSkip && riverTerrainGroup != null) {
-      warnedRiverLandWeatherSkip = true;
-      console.warn(
-        BUILD_LOG,
-        "River bank land-weather vertex paint failed (globe colors still update). Check RiverBanks tileId/position counts.",
-      );
-    }
+  if (!syncLandWeatherGpuTexture(ctx)) return;
+  landWeatherColorsDirty = false;
+  if (landWeatherPrimeFullPaint) {
+    landWeatherPrimeFullPaint = false;
+  } else if (readLandWeatherSampleFractionFromUrl() < 1) {
+    landWeatherStochasticSalt++;
+  }
+  if (cloudClipField) {
+    lastLandWeatherTileSurfaceRev = cloudClipField.getTileSurfaceState().revision;
+  }
+  if (throttleMs > 0) {
+    lastLandWeatherFullPaintRealMs = performance.now();
   }
 }
 
@@ -2655,6 +2959,7 @@ function syncPrecipitationCloudPhysicsAfterClockJump(
   budgetMs: number,
 ): void {
   catchUpCloudPhysicsBudgeted(state, budgetMs);
+  lastCloudPhysicsCatchUpWallMs = performance.now();
   refreshPrecipitationOverlayGroup(state);
 }
 
@@ -3000,8 +3305,12 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     lastLandWeatherFullPaintRealMs = 0;
     lastLandWeatherTileSurfaceRev = -1;
     lastLandWeatherPaintEpochSec = Number.NaN;
+    lastWindFlowPrecipRefreshWallMs = 0;
+    lastCloudPhysicsCatchUpWallMs = 0;
     if (globe) {
       console.log(BUILD_LOG, "teardown previous globe/water/overlay");
+      disposeLandWeatherGpuState(landWeatherGpu);
+      landWeatherGpu = null;
       scene.remove(globe.mesh);
       globe.mesh.geometry.dispose();
       (globe.mesh as THREE.Mesh).material.dispose();
@@ -3085,7 +3394,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     cloudClipField = null;
     globalMoistureByTile = null;
     annualTileWeather = null;
+    annualWindTileIndexById = null;
     annualRiverFlowStrength = null;
+    annualRiverStrengthIndexById = null;
     globalDiscreteWeatherBake = null;
     lastAppliedDiscreteDayIdx = -1;
     if (vegetationLayer) {
@@ -3110,6 +3421,12 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       /** FrontSide lets the GPU cull back-facing land triangles (~half the globe from orbit). */
       side: THREE.FrontSide,
     });
+    disposeLandWeatherGpuState(landWeatherGpu);
+    landWeatherGpu = createLandWeatherGpuState(globe.tileCount);
+    installLandWeatherOnMeshStandardMaterial(
+      globe.mesh.material as THREE.MeshStandardMaterial,
+      landWeatherGpu,
+    );
     applyGlobeTerrainShadowFlags(globe);
     scene.add(globe.mesh);
     const elevationScale = 0.08;
@@ -3520,7 +3837,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     globalMoistureByTile = buildMoistureByTileFromTerrain(tileTerrain);
 
     annualTileWeather = null;
+    annualWindTileIndexById = null;
     annualRiverFlowStrength = null;
+    annualRiverStrengthIndexById = null;
     globalDiscreteWeatherBake = null;
     lastAppliedDiscreteDayIdx = -1;
     const getSub = (utcMin: number) =>
@@ -3543,12 +3862,18 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           },
         },
       );
+      annualWindTileIndexById = createAnnualWindTileIndexById(annualTileWeather);
       if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
         annualRiverFlowStrength = buildAnnualRiverFlowStrength(
           globe,
           globalRiverFlowByTile,
           getSub,
         );
+        annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
+          annualRiverFlowStrength,
+        );
+      } else {
+        annualRiverStrengthIndexById = null;
       }
       const n = globe.tileCount;
       const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
@@ -3603,7 +3928,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     } catch (e) {
       console.warn(BUILD_LOG, "annual weather tables failed, using live samples:", e);
       annualTileWeather = null;
+      annualWindTileIndexById = null;
       annualRiverFlowStrength = null;
+      annualRiverStrengthIndexById = null;
       globalDiscreteWeatherBake = null;
     }
 
@@ -3693,8 +4020,40 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     // Wind arrows (seasonal trade winds, westerlies, polar easterlies + noise)
     const dateForWind = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
+    const hydroSparseBuild = useSparseHydroMaps(state);
+    const relevantBuild = hydroRelevantTileSet(state);
     let windByTile: Map<number, { directionRad: number; strength: number }>;
-    if (annualTileWeather) {
+    if (hydroFieldOff(state)) {
+      windByTile = new Map();
+      globalWindByTile = windByTile;
+    } else if (relevantBuild) {
+      windByTile = new Map();
+      if (annualTileWeather && annualWindTileIndexById) {
+        fillWindMapFromAnnualForTileIds(
+          annualTileWeather,
+          annualDayIndexFromDate(dateForWind),
+          windByTile,
+          relevantBuild,
+          annualWindTileIndexById,
+        );
+      } else {
+        const subsolar = dateToSubsolarPoint(dateForWind);
+        windByTile = computeWindForGlobeTileIds(globe, relevantBuild, {
+          subsolarLatDeg: subsolar.latDeg,
+          baseStrength: 1,
+          noiseDirectionRad: 0.12,
+          noiseStrength: 0.08,
+          seed: 45678,
+          getTerrain: (id) => {
+            const t = tileTerrain.get(id);
+            if (!t) return undefined;
+            const isWater = t.type === "water" || t.type === "beach";
+            return { isWater, elevation: t.elevation };
+          },
+        });
+      }
+      globalWindByTile = windByTile;
+    } else if (annualTileWeather) {
       windByTile = new Map();
       fillWindMapFromAnnual(
         annualTileWeather,
@@ -3724,6 +4083,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       arrowScale: 0.065,
       color: 0x88ccff,
       minStrength: 0.06,
+      sparseInstances: hydroSparseBuild,
     });
     windArrowsGroup.visible = state.showWinds;
     scene.add(windArrowsGroup!);
@@ -3737,13 +4097,35 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const subsolarFlow = dateToSubsolarPoint(dateForFlow);
     const flowDayIdx =
       annualTileWeather != null ? annualDayIndexFromDate(dateForFlow) : undefined;
-    const riverFlow = buildRiverFlowByTile(subsolarFlow.latDeg, flowDayIdx);
-    const currentFlow = buildCurrentFlowByTile();
-    globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
-    riverFlowArrowsGroup = createFlowArrows(globe, riverFlow, RIVER_FLOW_OPTIONS);
+    let riverFlow: Map<number, { directionRad: number; strength: number }>;
+    let currentFlow: Map<number, { directionRad: number; strength: number }>;
+    if (hydroFieldOff(state)) {
+      riverFlow = new Map();
+      currentFlow = new Map();
+      globalFlowByTile = new Map();
+    } else if (relevantBuild) {
+      riverFlow = buildRiverFlowByTileSubset(
+        subsolarFlow.latDeg,
+        flowDayIdx,
+        relevantBuild,
+      );
+      currentFlow = buildCurrentFlowByTileForRelevant(relevantBuild);
+      globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
+    } else {
+      riverFlow = buildRiverFlowByTile(subsolarFlow.latDeg, flowDayIdx);
+      currentFlow = buildCurrentFlowByTile();
+      globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
+    }
+    riverFlowArrowsGroup = createFlowArrows(globe, riverFlow, {
+      ...RIVER_FLOW_OPTIONS,
+      sparseInstances: hydroSparseBuild,
+    });
     riverFlowArrowsGroup!.visible = state.showFlow;
     scene.add(riverFlowArrowsGroup!);
-    currentArrowsGroup = createFlowArrows(globe, currentFlow, CURRENT_FLOW_OPTIONS);
+    currentArrowsGroup = createFlowArrows(globe, currentFlow, {
+      ...CURRENT_FLOW_OPTIONS,
+      sparseInstances: hydroSparseBuild,
+    });
     currentArrowsGroup!.visible = state.showFlow;
     scene.add(currentArrowsGroup!);
     buildPerf?.mark("windFlowArrows");
@@ -3905,6 +4287,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             if (o instanceof THREE.Mesh) o.receiveShadow = true;
           });
           scene.add(riverTerrainGroup);
+          patchRiverMeshesLandWeatherGpu();
           const bv = banks.geometry.getAttribute("position")?.count ?? 0;
           const dv = bed.geometry.getAttribute("position")?.count ?? 0;
           console.log(
@@ -3946,6 +4329,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         if (o instanceof THREE.Mesh) o.receiveShadow = true;
       });
       scene.add(riverTerrainGroup);
+      patchRiverMeshesLandWeatherGpu();
       const bv = banks.geometry.getAttribute("position")?.count ?? 0;
       const dv = bed.geometry.getAttribute("position")?.count ?? 0;
       console.log(
@@ -4621,13 +5005,34 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     state.showFlow = flowCheck.checked;
     if (riverFlowArrowsGroup) riverFlowArrowsGroup.visible = state.showFlow;
     if (currentArrowsGroup) currentArrowsGroup.visible = state.showFlow;
-    if (state.showFlow) updateFlowFromState(state);
+    if (state.showFlow) {
+      updateWindFromState(state);
+      updateFlowFromState(state);
+    }
   });
   const flowLabel = document.createElement("label");
   flowLabel.textContent = "Show flow (rivers & currents)";
   flowRow.appendChild(flowCheck);
   flowRow.appendChild(flowLabel);
   sec.appendChild(flowRow);
+
+  if (state.hydroFieldMode === "off") {
+    windCheck.disabled = true;
+    flowCheck.disabled = true;
+    state.showWinds = false;
+    state.showFlow = false;
+    windCheck.checked = false;
+    flowCheck.checked = false;
+    const hydroOffHint =
+      "Disabled: ?hydroField=off or train — wind/current maps are not built.";
+    windLabel.title = hydroOffHint;
+    flowLabel.title = hydroOffHint;
+  } else if (state.hydroFieldMode === "focus") {
+    windLabel.title =
+      "Regional wind: ?hydroField=focus (or sailing) with ?hydroFocusTiles= ids and ?hydroFocusRing=.";
+    flowLabel.title =
+      "Regional rivers/currents; in focus mode, current data near the focus updates each sim minute even if this is unchecked.";
+  }
 
   const precipRow = document.createElement("div");
   precipRow.className = "row";
@@ -4847,6 +5252,10 @@ async function init() {
   );
 
   const state: DemoState = { ...DEFAULT_STATE };
+  const hydroFromUrl = readHydroFieldFromUrl();
+  state.hydroFieldMode = hydroFromUrl.mode;
+  state.hydroFocusRing = hydroFromUrl.focusRing;
+  state.hydroFocusTileIds = hydroFromUrl.focusTileIds;
   urlAutoTimePlaySpeed = readAutoTimeSpeedFromUrl();
   if (urlAutoTimePlaySpeed > 0) {
     state.timePlaySpeed = urlAutoTimePlaySpeed;
@@ -5107,7 +5516,8 @@ async function init() {
       if (!veryDenseAnim || animTick % 2 === 0) coastFoamOverlay.update();
     }
     framePerf.slice("coastFoam");
-    // Recompute wind and flow whenever date changes (currents follow wind)
+    // Recompute wind and flow when sim UTC minute advances. At high play speed, coalesce wall-time
+    // so we do one refresh for the latest minute (not every crossed minute per frame).
     const windUtcMin = Math.floor(date.getTime() / 60000);
     if (
       globe &&
@@ -5115,16 +5525,46 @@ async function init() {
       globalTileTerrain &&
       windUtcMin !== lastWindUtcMinute
     ) {
-      const tMinute0 = performance.now();
-      lastWindUtcMinute = windUtcMin;
-      updateWindFromState(state);
-      if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
-      if (precipitationOverlayGroup)
-        refreshPrecipitationOverlayGroup(state);
-      framePerf.addMinuteTickCpuMs(performance.now() - tMinute0);
+      const wallNow = performance.now();
+      if (!shouldSkipWindFlowPrecipRefreshThisFrame(windUtcMin, state, wallNow)) {
+        const tMinute0 = performance.now();
+        lastWindUtcMinute = windUtcMin;
+        lastWindFlowPrecipRefreshWallMs = wallNow;
+        updateWindFromState(state, undefined, {
+          skipWindMapWhenOverlaysHidden: true,
+        });
+        if (riverFlowArrowsGroup || currentArrowsGroup)
+          updateFlowFromState(state, {
+            skipHeavyWorkWhenFlowHidden: true,
+          });
+        if (precipitationOverlayGroup && state.showPrecipitation)
+          refreshPrecipitationOverlayGroup(state);
+        framePerf.addMinuteTickCpuMs(performance.now() - tMinute0);
+      }
     }
     if (globe && cloudClipField && globalMoistureByTile) {
-      catchUpCloudPhysicsBudgeted(state, CLOUD_PHYSICS_CATCH_UP_BUDGET_MS);
+      if (globalDiscreteWeatherBake) {
+        catchUpCloudPhysicsBudgeted(state, CLOUD_PHYSICS_CATCH_UP_BUDGET_MS);
+      } else {
+        const wallNowCloud = performance.now();
+        if (!shouldSkipCloudPhysicsCatchUpWallThrottle(state, wallNowCloud)) {
+          const prevWall = lastCloudPhysicsCatchUpWallMs;
+          lastCloudPhysicsCatchUpWallMs = wallNowCloud;
+          const throttleBase = windFlowPrecipRefreshWallThrottleMs(state);
+          const gap = prevWall === 0 ? 0 : wallNowCloud - prevWall;
+          const extraBudget =
+            state.timePlaying &&
+            state.timePlaySpeed >= WIND_FLOW_PRECIP_REFRESH_SPEED_THRESHOLD &&
+            throttleBase > 0 &&
+            gap >= throttleBase
+              ? Math.min(44, Math.floor((gap - throttleBase * 0.5) / 10))
+              : 0;
+          catchUpCloudPhysicsBudgeted(
+            state,
+            CLOUD_PHYSICS_CATCH_UP_BUDGET_MS + extraBudget,
+          );
+        }
+      }
     }
     framePerf.slice("windFlowPrecipCloudMinute");
     /** Visual-only cloud sync; discrete-bake mode skips minute physics (see {@link globalDiscreteWeatherBake}). */

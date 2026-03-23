@@ -101,6 +101,40 @@ export function fillWindMapFromAnnual(
   }
 }
 
+/** O(n) once per annual table; reuse for {@link fillWindMapFromAnnualForTileIds}. */
+export function createAnnualWindTileIndexById(
+  t: AnnualTileWeatherTables,
+): Map<number, number> {
+  const m = new Map<number, number>();
+  for (let i = 0; i < t.tileCount; i++) {
+    m.set(t.tileIds[i]!, i);
+  }
+  return m;
+}
+
+/**
+ * Writes wind only for the given tile IDs (does not clear `out`). Matches full-table sampling for those ids.
+ */
+export function fillWindMapFromAnnualForTileIds(
+  t: AnnualTileWeatherTables,
+  dayIndex: number,
+  out: Map<number, TileWind>,
+  tileIds: Iterable<number>,
+  tileIndexById: ReadonlyMap<number, number>,
+): void {
+  const di = Math.max(0, Math.min(DAYS - 1, dayIndex));
+  const base = di * t.tileCount * 2;
+  for (const id of tileIds) {
+    const i = tileIndexById.get(id);
+    if (i === undefined) continue;
+    const o = base + i * 2;
+    out.set(id, {
+      directionRad: t.windPacked[o]!,
+      strength: t.windPacked[o + 1]!,
+    });
+  }
+}
+
 export function fillPrecipMapFromAnnual(
   t: AnnualTileWeatherTables,
   dayIndex: number,
@@ -171,6 +205,44 @@ export function fillRiverFlowMapFromAnnual(
     out.set(id, {
       directionRad: r.directionRad,
       strength: strengthPacked[base + i]!,
+    });
+  }
+}
+
+export function createAnnualRiverStrengthTileIndexById(
+  annual: AnnualRiverFlowStrength,
+): Map<number, number> {
+  const m = new Map<number, number>();
+  const { riverTileIds } = annual;
+  for (let i = 0; i < riverTileIds.length; i++) {
+    m.set(riverTileIds[i]!, i);
+  }
+  return m;
+}
+
+/**
+ * River flow strengths for a subset of tiles (does not clear `out`). Skips ids that are not river tiles.
+ */
+export function fillRiverFlowMapFromAnnualForTileIds(
+  annual: AnnualRiverFlowStrength,
+  riverFlowByTile: Map<number, { exitEdge: number; directionRad: number }>,
+  dayIndex: number,
+  out: Map<number, { directionRad: number; strength: number }>,
+  tileIds: Iterable<number>,
+  riverStrengthIndexById: ReadonlyMap<number, number>,
+): void {
+  const di = Math.max(0, Math.min(DAYS - 1, dayIndex));
+  const { strengthPacked } = annual;
+  const nr = annual.riverTileIds.length;
+  const row = di * nr;
+  for (const id of tileIds) {
+    const r = riverFlowByTile.get(id);
+    if (!r) continue;
+    const idx = riverStrengthIndexById.get(id);
+    if (idx === undefined) continue;
+    out.set(id, {
+      directionRad: r.directionRad,
+      strength: strengthPacked[row + idx]!,
     });
   }
 }

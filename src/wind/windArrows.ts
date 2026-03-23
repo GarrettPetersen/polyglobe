@@ -15,6 +15,11 @@ export interface WindArrowsOptions {
   color?: THREE.ColorRepresentation;
   /** Minimum strength to show (hide very calm). Default 0.05 */
   minStrength?: number;
+  /**
+   * When true, iterate only entries in `windByTile` instead of every globe tile (large win when the map
+   * is a small subset, e.g. near-player sailing sim).
+   */
+  sparseInstances?: boolean;
 }
 
 const _arrowYAxis = new THREE.Vector3(0, 1, 0);
@@ -98,6 +103,7 @@ export function updateWindArrows(
     arrowScale = 0.06,
     color = 0x88ccff,
     minStrength = 0.05,
+    sparseInstances = false,
   } = options;
 
   if (windByTile.size === 0) {
@@ -109,11 +115,10 @@ export function updateWindArrows(
   (mesh.material as THREE.MeshBasicMaterial).color.set(color);
 
   let idx = 0;
-  for (const tile of globe.tiles) {
-    const w = windByTile.get(tile.id);
-    if (!w || w.strength < minStrength) continue;
-    const pose = globe.getTilePose(tile.id);
-    if (!pose) continue;
+  const pushArrow = (tileId: number, w: TileWind) => {
+    if (w.strength < minStrength) return;
+    const pose = globe.getTilePose(tileId);
+    if (!pose) return;
     const { position, up } = pose;
     _poseDummy.position.copy(position).addScaledVector(up, heightOffset);
     const blow = w.directionRad + Math.PI;
@@ -130,6 +135,18 @@ export function updateWindArrows(
     _poseDummy.updateMatrix();
     mesh.setMatrixAt(idx, _poseDummy.matrix);
     idx++;
+  };
+
+  if (sparseInstances) {
+    for (const [tileId, w] of windByTile) {
+      pushArrow(tileId, w);
+    }
+  } else {
+    for (const tile of globe.tiles) {
+      const w = windByTile.get(tile.id);
+      if (!w) continue;
+      pushArrow(tile.id, w);
+    }
   }
   mesh.count = idx;
   mesh.instanceMatrix.needsUpdate = true;
@@ -175,6 +192,7 @@ export function updateFlowArrows(
     arrowScale = 0.06,
     color = 0x44aacc,
     minStrength = 0.05,
+    sparseInstances = false,
   } = options;
 
   if (flowByTile.size === 0) {
@@ -186,11 +204,10 @@ export function updateFlowArrows(
   (mesh.material as THREE.MeshBasicMaterial).color.set(color);
 
   let idx = 0;
-  for (const tile of globe.tiles) {
-    const f = flowByTile.get(tile.id);
-    if (!f || f.strength < minStrength) continue;
-    const pose = globe.getTilePose(tile.id);
-    if (!pose) continue;
+  const pushArrow = (tileId: number, f: HexFlow) => {
+    if (f.strength < minStrength) return;
+    const pose = globe.getTilePose(tileId);
+    if (!pose) return;
     const { position, up } = pose;
     _poseDummy.position.copy(position).addScaledVector(up, heightOffset);
     _east.crossVectors(_worldUp, up).normalize();
@@ -206,6 +223,18 @@ export function updateFlowArrows(
     _poseDummy.updateMatrix();
     mesh.setMatrixAt(idx, _poseDummy.matrix);
     idx++;
+  };
+
+  if (sparseInstances) {
+    for (const [tileId, f] of flowByTile) {
+      pushArrow(tileId, f);
+    }
+  } else {
+    for (const tile of globe.tiles) {
+      const f = flowByTile.get(tile.id);
+      if (!f) continue;
+      pushArrow(tile.id, f);
+    }
   }
   mesh.count = idx;
   mesh.instanceMatrix.needsUpdate = true;

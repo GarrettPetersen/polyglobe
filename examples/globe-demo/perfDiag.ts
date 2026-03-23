@@ -51,7 +51,8 @@ export function logPerfDiagHelp(): void {
       "Frame line is JSON sorted by cost; _unattributedMs is wall time minus summed slices (browser/GC). " +
       "Vegetation tree logs: ?treeDebug=1. " +
       "Auto-run sim clock after build: ?autoTimeSpeed=3600 (omit or 0 = paused until Play). " +
-      "Land-weather stochastic tiles: ?landWeatherSample=0.12 (default 0.12; 1 = full every flush).",
+      "Land wet/snow: GPU data texture; ?landWeatherSample=0.12 stochastic land updates per flush (1 = full). " +
+      "Wind/flow/precip: ?hydroField=off skips hydro; focus/sailing recomputes a tile ring only; minute tick skips full wind/river when overlays off (except focus mode); precip overlay updates reuse InstancedMesh (no geometry churn); wall-time coalesce ≥60×.",
   );
 }
 
