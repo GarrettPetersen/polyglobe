@@ -38,6 +38,7 @@ export {
   applyTerrainColorsToGeometry,
   precomputeTileTerrainWeatherFields,
   applyLandSurfaceWeatherVertexColors,
+  landWeatherStochasticPickLandTile,
   combinedLandSnowCover,
   applyVertexColorsByTileId,
   geometryLandOnly,
@@ -47,6 +48,7 @@ export {
   type TerrainStyle,
   type TileTerrainData,
   type LandSurfaceWeatherVertexOptions,
+  type ApplyLandSurfaceWeatherPaintOptions,
 } from "./terrain/terrainMaterial.js";
 
 // Earth (real geography from rasters or custom samplers)
@@ -188,6 +190,37 @@ export {
   getPrecipitationByTileWithMoisture,
   type PrecipitationOverlayOptions,
 } from "./climate/precipitationOverlay.js";
+export {
+  MAX_TILES_FOR_ANNUAL_WEATHER_TABLES,
+  annualDayIndexFromDate,
+  buildAnnualTileWeatherTables,
+  fillWindMapFromAnnual,
+  fillPrecipMapFromAnnual,
+  buildAnnualRiverFlowStrength,
+  fillRiverFlowMapFromAnnual,
+  type AnnualTileWeatherTables,
+  type AnnualRiverFlowStrength,
+  type BuildAnnualWindOptions,
+} from "./climate/annualWeatherTables.js";
+export {
+  TILE_DAY_CLEAR,
+  TILE_DAY_RAIN,
+  TILE_DAY_SNOW_FALL,
+  TILE_DAY_WET_SOIL,
+  TILE_DAY_SNOW_GROUND,
+  buildDiscreteWeatherYearBake,
+  discreteDayIndexFromPacked,
+  discreteTileOrdinalMap,
+  queryDiscreteWeatherForTileId,
+  applyDiscreteWeatherDayToClipField,
+  DISCRETE_WEATHER_BAKE_FILE_VERSION,
+  encodeDiscreteWeatherYearBakeFile,
+  decodeDiscreteWeatherYearBakeFile,
+  type DiscreteWeatherBakeFileMeta,
+  type DiscreteWeatherYearBake,
+  type BuildDiscreteWeatherYearOptions,
+  type DiscreteWeatherClipSink,
+} from "./climate/discreteWeatherYearBake.js";
 export {
   OCEAN_MOISTURE_FACTOR,
   moistureFactorForKoppenCode,

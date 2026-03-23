@@ -20,6 +20,7 @@ import {
   applyTerrainColorsToGeometry,
   precomputeTileTerrainWeatherFields,
   applyLandSurfaceWeatherVertexColors,
+  type ApplyLandSurfaceWeatherPaintOptions,
   combinedLandSnowCover,
   applyVertexColorsByTileId,
   applyTerrainToGeometry,
@@ -67,6 +68,19 @@ import {
   getPrecipitationByTile,
   getPrecipitationByTileWithMoisture,
   buildMoistureByTileFromTerrain,
+  MAX_TILES_FOR_ANNUAL_WEATHER_TABLES,
+  annualDayIndexFromDate,
+  buildAnnualTileWeatherTables,
+  fillWindMapFromAnnual,
+  fillPrecipMapFromAnnual,
+  buildAnnualRiverFlowStrength,
+  fillRiverFlowMapFromAnnual,
+  type AnnualTileWeatherTables,
+  type AnnualRiverFlowStrength,
+  type DiscreteWeatherYearBake,
+  buildDiscreteWeatherYearBake,
+  applyDiscreteWeatherDayToClipField,
+  decodeDiscreteWeatherYearBakeFile,
   createCloudLayer,
   updateCloudLayer,
   sortLowPolyCloudsByCamera,
@@ -85,6 +99,31 @@ import {
   MAX_EARTH_GLOBE_SUBDIVISIONS,
   isEarthGlobeCacheVersionOk,
 } from "./earthGlobeCacheVersion";
+
+/** Load `public/discrete-weather-bake-{subdivisions}.bin` when Earth cache version and tile order match. */
+async function tryLoadPrebuiltDiscreteWeatherBake(
+  subdivisions: number,
+  earthGlobeCacheVersion: number,
+  globe: Globe,
+): Promise<DiscreteWeatherYearBake | null> {
+  if (typeof fetch === "undefined") return null;
+  const globeTileIds = globe.tiles.map((t) => t.id);
+  const path = `discrete-weather-bake-${subdivisions}.bin`;
+  try {
+    const res = await fetch(path);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const decoded = decodeDiscreteWeatherYearBakeFile(
+      buf,
+      globeTileIds,
+      earthGlobeCacheVersion,
+      subdivisions,
+    );
+    return decoded?.bake ?? null;
+  } catch {
+    return null;
+  }
+}
 import {
   dateToSubsolarPoint,
   dateToSublunarPoint,
@@ -380,6 +419,32 @@ const DEFAULT_STATE: DemoState = {
   blobiness: 6,
   seed: 12345,
 };
+
+/**
+ * `?autoTimeSpeed=N` — when N > 0, start sim clock at N× (same units as time play speed) as soon as
+ * the globe finishes building. Omit or N = 0 leaves time paused until you press Play. For perf:
+ * `?perf=1&autoTimeSpeed=3600`.
+ */
+function readAutoTimeSpeedFromUrl(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = new URLSearchParams(window.location.search).get("autoTimeSpeed");
+  if (raw == null || raw === "") return 0;
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(n, 1e7);
+}
+
+/** `?landWeatherSample=f` — fraction of land tiles to repaint per flush (default 0.12); `1` = always full. */
+const LAND_WEATHER_STOCHASTIC_DEFAULT = 0.12;
+
+function readLandWeatherSampleFractionFromUrl(): number {
+  if (typeof window === "undefined") return LAND_WEATHER_STOCHASTIC_DEFAULT;
+  const raw = new URLSearchParams(window.location.search).get("landWeatherSample");
+  if (raw == null || raw === "") return LAND_WEATHER_STOCHASTIC_DEFAULT;
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n) || n <= 0) return LAND_WEATHER_STOCHASTIC_DEFAULT;
+  return Math.min(n, 1);
+}
 
 function seededRandom(seed: number) {
   return () => {
@@ -1953,6 +2018,10 @@ let riverTerrainGroup: THREE.Group | null = null;
 
 /** Re-run {@link applyLandSurfaceWeatherVertexColors} on globe + river banks when true. */
 let landWeatherColorsDirty = true;
+/** First flush after a globe build must paint all land vertices (new color buffer / base tints). */
+let landWeatherPrimeFullPaint = true;
+/** Bumped after each stochastic flush so different tiles are chosen. */
+let landWeatherStochasticSalt = 0;
 /** {@link climateSurfaceSnowVisualForTerrain} uses full date/subsolar — repaint land at least once per sim second while time is playing. */
 let lastLandWeatherPaintEpochSec = Number.NaN;
 let windArrowsGroup: THREE.Group | null = null;
@@ -2025,12 +2094,26 @@ let globalFlowByTile: Map<number, { directionRad: number; strength: number }> | 
 let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
 /** Module-level river flow (exit edge + direction) for debug panel; from elevation + mouth. */
 let globalRiverFlowByTile: Map<number, { exitEdge: number; directionRad: number }> | null = null;
+/** Packed wind + precip potential by calendar day (UTC noon ref. year); null if globe too large. */
+let annualTileWeather: AnnualTileWeatherTables | null = null;
+/** River flow strength by day; requires {@link globalRiverFlowByTile}. */
+let annualRiverFlowStrength: AnnualRiverFlowStrength | null = null;
+/** Reused for cloud physics when reading from {@link annualTileWeather}. */
+const annualPrecipReuseMap = new Map<number, number>();
+/** Discrete 365×tile bake: no minute-step cloud physics when set (see {@link catchUpCloudPhysicsBudgeted}). */
+let globalDiscreteWeatherBake: DiscreteWeatherYearBake | null = null;
+/** Last applied {@link annualDayIndexFromDate} for {@link globalDiscreteWeatherBake}. */
+let lastAppliedDiscreteDayIdx = -1;
 /** Last UTC minute index used for wind/flow/cloud sync (expensive; skip within the same minute). */
 let lastWindUtcMinute: number | null = null;
 /** UTC ms anchor for time playback (advanced while {@link DemoState.timePlaying}). */
 let playbackEpochMs = 0;
 /** Panel datetime input; updated while time is playing. */
 let panelDateTimeInput: HTMLInputElement | null = null;
+/** Parsed once at load from `?autoTimeSpeed=` (see `readAutoTimeSpeedFromUrl`). */
+let urlAutoTimePlaySpeed = 0;
+let panelPlayBtn: HTMLButtonElement | null = null;
+let panelSpeedSelect: HTMLSelectElement | null = null;
 /** Biome vegetation (instanced plants, distance-culled). */
 let vegetationLayer: {
   group: THREE.Group;
@@ -2039,6 +2122,38 @@ let vegetationLayer: {
 } | null = null;
 
 const BUILD_LOG = "[globe-build]";
+
+function applyAutoTimePlayAfterGlobeBuilt(state: DemoState): void {
+  if (urlAutoTimePlaySpeed <= 0) return;
+  state.timePlaySpeed = urlAutoTimePlaySpeed;
+  state.timePlaying = true;
+  playbackEpochMs = datetimeLocalUTCToDate(
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+  ).getTime();
+  if (panelPlayBtn) panelPlayBtn.textContent = "Pause";
+  if (panelDateTimeInput) panelDateTimeInput.disabled = true;
+  if (panelSpeedSelect) {
+    const v = String(state.timePlaySpeed);
+    let found = false;
+    for (let i = 0; i < panelSpeedSelect.options.length; i++) {
+      if (panelSpeedSelect.options[i]!.value === v) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = `${state.timePlaySpeed}× (URL)`;
+      panelSpeedSelect.appendChild(opt);
+    }
+    panelSpeedSelect.value = v;
+  }
+  console.log(
+    BUILD_LOG,
+    `autoTimeSpeed: playback started at ${state.timePlaySpeed}× (pause in UI or use ?autoTimeSpeed=0).`,
+  );
+}
 
 /** Ocean water surface elevation (globe units). */
 const OCEAN_WATER_LEVEL = -0.18;
@@ -2111,21 +2226,30 @@ function updateWindFromState(state: DemoState, dateTimeStr?: string): void {
   if (!globe || !windArrowsGroup || !globalTileTerrain) return;
   const str = dateTimeStr ?? state.dateTimeStr ?? dateToDatetimeLocalUTC(new Date());
   const date = datetimeLocalUTCToDate(str);
-  const subsolar = dateToSubsolarPoint(date);
-  const windByTile = computeWindForTiles(globe.tiles, {
-    subsolarLatDeg: subsolar.latDeg,
-    baseStrength: 1,
-    noiseDirectionRad: 0.12,
-    noiseStrength: 0.08,
-    seed: 45678,
-    getTerrain: (id) => {
-      const t = globalTileTerrain!.get(id);
-      if (!t) return undefined;
-      const isWater = t.type === "water" || t.type === "beach";
-      return { isWater, elevation: t.elevation };
-    },
-  });
-  globalWindByTile = windByTile;
+  if (annualTileWeather) {
+    if (!globalWindByTile) globalWindByTile = new Map();
+    fillWindMapFromAnnual(
+      annualTileWeather,
+      annualDayIndexFromDate(date),
+      globalWindByTile,
+    );
+  } else {
+    const subsolar = dateToSubsolarPoint(date);
+    globalWindByTile = computeWindForTiles(globe.tiles, {
+      subsolarLatDeg: subsolar.latDeg,
+      baseStrength: 1,
+      noiseDirectionRad: 0.12,
+      noiseStrength: 0.08,
+      seed: 45678,
+      getTerrain: (id) => {
+        const t = globalTileTerrain!.get(id);
+        if (!t) return undefined;
+        const isWater = t.type === "water" || t.type === "beach";
+        return { isWater, elevation: t.elevation };
+      },
+    });
+  }
+  const windByTile = globalWindByTile;
   updateWindArrows(windArrowsGroup, globe, windByTile, {
     heightOffset: 0.08,
     arrowScale: 0.065,
@@ -2151,10 +2275,24 @@ const CURRENT_FLOW_OPTIONS = {
 
 /** River flow: direction from elevation + mouth; strength scaled by seasonal precipitation. */
 function buildRiverFlowByTile(
-  subsolarLatDeg: number
+  subsolarLatDeg: number,
+  annualDayIndex?: number,
 ): Map<number, { directionRad: number; strength: number }> {
   const flow = new Map<number, { directionRad: number; strength: number }>();
   if (!globe || !globalTileTerrain || !globalRiverFlowByTile) return flow;
+
+  if (
+    annualRiverFlowStrength &&
+    annualDayIndex != null
+  ) {
+    fillRiverFlowMapFromAnnual(
+      annualRiverFlowStrength,
+      globalRiverFlowByTile,
+      annualDayIndex,
+      flow,
+    );
+    return flow;
+  }
 
   for (const tile of globe.tiles) {
     const id = tile.id;
@@ -2208,8 +2346,10 @@ function updateFlowFromState(state: DemoState): void {
   if (!globe || !globalTileTerrain) return;
   const date = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
   const subsolar = dateToSubsolarPoint(date);
+  const dayIdx =
+    annualTileWeather != null ? annualDayIndexFromDate(date) : undefined;
 
-  const riverFlow = buildRiverFlowByTile(subsolar.latDeg);
+  const riverFlow = buildRiverFlowByTile(subsolar.latDeg, dayIdx);
   const currentFlow = buildCurrentFlowByTile();
   globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
 
@@ -2252,6 +2392,15 @@ function markLandWeatherColorsDirty(): void {
 
 type LandWeatherPaintCtx = NonNullable<ReturnType<typeof getLandWeatherVertexPaintContext>>;
 
+function landWeatherPaintOptsForFlush(): ApplyLandSurfaceWeatherPaintOptions | undefined {
+  const f = readLandWeatherSampleFractionFromUrl();
+  if (landWeatherPrimeFullPaint || f >= 1) return undefined;
+  return {
+    stochasticLandTileFraction: f,
+    stochasticSalt: landWeatherStochasticSalt,
+  };
+}
+
 /** Main globe hex mesh (excludes full river-hex tops — those use {@link syncRiverTerrainLandWeatherVertexColors}). */
 function syncGlobeLandWeatherVertexColors(state: DemoState, ctx?: LandWeatherPaintCtx): boolean {
   const c = ctx ?? getLandWeatherVertexPaintContext(state);
@@ -2265,6 +2414,7 @@ function syncGlobeLandWeatherVertexColors(state: DemoState, ctx?: LandWeatherPai
     c.wetness,
     c.snow,
     { globe, subsolarLatDeg: c.subsolarLatDeg, calendarUtc: c.calendarUtc },
+    landWeatherPaintOptsForFlush(),
   );
 }
 
@@ -2290,6 +2440,7 @@ function syncRiverTerrainLandWeatherVertexColors(state: DemoState, ctx?: LandWea
         c.wetness,
         c.snow,
         { globe, subsolarLatDeg: c.subsolarLatDeg, calendarUtc: c.calendarUtc },
+        landWeatherPaintOptsForFlush(),
       )
     ) {
       ok = false;
@@ -2315,6 +2466,12 @@ function flushLandWeatherVertexColorsIfDirty(state: DemoState): void {
   const riverOk = syncRiverTerrainLandWeatherVertexColors(state, ctx);
   if (globeOk) {
     landWeatherColorsDirty = false;
+    const sampleF = readLandWeatherSampleFractionFromUrl();
+    if (landWeatherPrimeFullPaint) {
+      landWeatherPrimeFullPaint = false;
+    } else if (sampleF < 1) {
+      landWeatherStochasticSalt++;
+    }
     if (cloudClipField) {
       lastLandWeatherTileSurfaceRev = cloudClipField.getTileSurfaceState().revision;
     }
@@ -2385,18 +2542,53 @@ function maybeLogSnowSurfaceDiagnostic(date: Date): void {
   });
 }
 
-/** Recompute precipitation overlay (from cloud sim rain) and sync cloud meshes from sim. */
-function updatePrecipitationAndCloudsFromState(state: DemoState): void {
-  if (!globe || !cloudClipField) return;
+/** Real-time budget so multi-minute sim jumps don't stall one rAF (see `maxPhysicsMinutesPerSync`). */
+const CLOUD_PHYSICS_CATCH_UP_BUDGET_MS = 12;
+
+/**
+ * Advance cloud precip physics toward sim clock, at most a few minutes per inner call; repeat until
+ * caught up or `budgetMs` elapses. Does not touch Three.js meshes (those sync every frame elsewhere).
+ */
+function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
+  if (!globe || !cloudClipField || !globalMoistureByTile) return;
+  if (globalDiscreteWeatherBake) {
+    const targetMin = getCloudSimTargetUtcMinute(state);
+    const d = new Date(targetMin * 60000);
+    const dayIdx = annualDayIndexFromDate(d);
+    if (dayIdx !== lastAppliedDiscreteDayIdx) {
+      applyDiscreteWeatherDayToClipField(
+        globalDiscreteWeatherBake,
+        dayIdx,
+        waterTileIdsForGlobalTerrain(),
+        cloudClipField,
+      );
+      lastAppliedDiscreteDayIdx = dayIdx;
+    }
+    return;
+  }
+
+  const g = globe;
+  const moisture = globalMoistureByTile;
   const targetMin = getCloudSimTargetUtcMinute(state);
   const getPS: PrecipSubsolarForMinute = (utcMin) => {
     const d = new Date(utcMin * 60000);
     const subsolar = dateToSubsolarPoint(d);
+    if (annualTileWeather) {
+      fillPrecipMapFromAnnual(
+        annualTileWeather,
+        annualDayIndexFromDate(d),
+        annualPrecipReuseMap,
+      );
+      return {
+        precipByTile: annualPrecipReuseMap,
+        subsolarLatDeg: subsolar.latDeg,
+      };
+    }
     return {
       precipByTile: getPrecipitationByTileWithMoisture(
-        globe.tiles,
+        g.tiles,
         subsolar.latDeg,
-        globalMoistureByTile
+        moisture,
       ),
       subsolarLatDeg: subsolar.latDeg,
     };
@@ -2404,36 +2596,40 @@ function updatePrecipitationAndCloudsFromState(state: DemoState): void {
   const nowDate = datetimeLocalUTCToDate(
     state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
   );
-  cloudClipField.syncToTargetMinute(targetMin, globe, getPS, {
-    moisture: globalMoistureByTile!,
+  const reinitPayload = {
+    moisture,
     nowDate,
-  });
-  if (cloudGroup) {
-    sunDirectionFromDateInto(nowDate, _cloudSyncSunDir);
-    cloudClipField.syncThreeGroup(
-      cloudGroup,
-      globe,
-      targetMin,
-      camera,
-      _cloudSyncSunDir,
-    );
-    cloudGroup.visible = state.showClouds;
-  }
+  };
+  const budgetUntil = performance.now() + budgetMs;
+  do {
+    cloudClipField.syncToTargetMinute(targetMin, g, getPS, reinitPayload);
+    if (cloudClipField.getLastPhysicsUtcMinute() >= targetMin) break;
+  } while (performance.now() < budgetUntil);
+}
 
-  if (precipitationOverlayGroup) {
-    updatePrecipitationOverlay(
-      precipitationOverlayGroup,
-      globe,
-      cloudClipField.getPrecipOverlayMap(),
-      {
-        heightOffset: 0.06,
-        quadSize: 0.08,
-        opacity: 0.55,
-        minPrecip: 0.03,
-      }
-    );
-    precipitationOverlayGroup.visible = state.showPrecipitation;
-  }
+function refreshPrecipitationOverlayGroup(state: DemoState): void {
+  if (!globe || !cloudClipField || !precipitationOverlayGroup) return;
+  updatePrecipitationOverlay(
+    precipitationOverlayGroup,
+    globe,
+    cloudClipField.getPrecipOverlayMap(),
+    {
+      heightOffset: 0.06,
+      quadSize: 0.08,
+      opacity: 0.55,
+      minPrecip: 0.03,
+    },
+  );
+  precipitationOverlayGroup.visible = state.showPrecipitation;
+}
+
+/** After user changes date/time: catch up physics + refresh rain overlay (larger budget than per-frame). */
+function syncPrecipitationCloudPhysicsAfterClockJump(
+  state: DemoState,
+  budgetMs: number,
+): void {
+  catchUpCloudPhysicsBudgeted(state, budgetMs);
+  refreshPrecipitationOverlayGroup(state);
 }
 
 /** Bumped at each globe rebuild so in-flight cloud bootstrap aborts before touching stale globals. */
@@ -2462,6 +2658,17 @@ async function ensureCloudWeatherAndPrecipMeshes(
   const getPrecipSubsolar: PrecipSubsolarForMinute = (utcMin) => {
     const d = new Date(utcMin * 60000);
     const subsolar = dateToSubsolarPoint(d);
+    if (annualTileWeather) {
+      fillPrecipMapFromAnnual(
+        annualTileWeather,
+        annualDayIndexFromDate(d),
+        annualPrecipReuseMap,
+      );
+      return {
+        precipByTile: annualPrecipReuseMap,
+        subsolarLatDeg: subsolar.latDeg,
+      };
+    }
     return {
       precipByTile: getPrecipitationByTileWithMoisture(
         globe!.tiles,
@@ -2484,6 +2691,7 @@ async function ensureCloudWeatherAndPrecipMeshes(
     cloudHemisphereShading: true,
     cloudMarchingCubesGrid: hugeGlobe ? 14 : 16,
     maxCloudMeshOpsPerSync: hugeGlobe ? 56 : 80,
+    maxPhysicsMinutesPerSync: hugeGlobe ? 16 : 24,
     maxCatchUpMinutes: 720,
     waterTileIds,
     getTerrainTypeForTile: (id) => globalTileTerrain?.get(id)?.type,
@@ -2565,6 +2773,17 @@ async function ensureCloudWeatherAndPrecipMeshes(
   );
   if (gen !== cloudPrecipBuildGeneration) return;
   cloudClipField = field;
+
+  if (globalDiscreteWeatherBake) {
+    const di = annualDayIndexFromDate(new Date(targetUtcMin * 60000));
+    applyDiscreteWeatherDayToClipField(
+      globalDiscreteWeatherBake,
+      di,
+      waterTileIdsForGlobalTerrain(),
+      field,
+    );
+    lastAppliedDiscreteDayIdx = di;
+  }
 
   if (!precipitationOverlayGroup) {
     const precipGrp = createPrecipitationOverlay(
@@ -2748,6 +2967,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
   try {
     cloudPrecipBuildGeneration++;
     landWeatherColorsDirty = true;
+    landWeatherPrimeFullPaint = true;
+    landWeatherStochasticSalt = 0;
     invalidateShadowMapGate();
     lastLandWeatherFullPaintRealMs = 0;
     lastLandWeatherTileSurfaceRev = -1;
@@ -2836,6 +3057,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     cloudClipField?.dispose();
     cloudClipField = null;
     globalMoistureByTile = null;
+    annualTileWeather = null;
+    annualRiverFlowStrength = null;
+    globalDiscreteWeatherBake = null;
+    lastAppliedDiscreteDayIdx = -1;
     if (vegetationLayer) {
       scene.remove(vegetationLayer.group);
       vegetationLayer.dispose();
@@ -2887,6 +3112,8 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     let riverEdgesByTile: Map<number, Set<number>> | undefined;
     let riverEdgeToWaterByTile: Map<number, Set<number>> | undefined;
+    /** Matches `earth-globe-cache-*.json` `version` when cache used; else {@link EARTH_GLOBE_CACHE_VERSION}. */
+    let earthCacheVersionForWeatherBin = EARTH_GLOBE_CACHE_VERSION;
 
     if (state.useEarth && earthRaster) {
       const cache = await fetchEarthGlobeCache(state.subdivisions);
@@ -2896,6 +3123,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         cache.tiles.length === globe.tileCount;
 
       if (cacheOk) {
+        earthCacheVersionForWeatherBin = cache.version;
         console.log(
           BUILD_LOG,
           "Earth: using precomputed cache (subdivisions",
@@ -3264,6 +3492,105 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     globalMoistureByTile = buildMoistureByTileFromTerrain(tileTerrain);
 
+    annualTileWeather = null;
+    annualRiverFlowStrength = null;
+    globalDiscreteWeatherBake = null;
+    lastAppliedDiscreteDayIdx = -1;
+    if (globe.tileCount <= MAX_TILES_FOR_ANNUAL_WEATHER_TABLES) {
+      const getSub = (utcMin: number) =>
+        dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
+      try {
+        annualTileWeather = buildAnnualTileWeatherTables(
+          globe,
+          globalMoistureByTile,
+          getSub,
+          {
+            baseStrength: 1,
+            noiseDirectionRad: 0.12,
+            noiseStrength: 0.08,
+            seed: 45678,
+            getTerrain: (id) => {
+              const t = tileTerrain.get(id);
+              if (!t) return undefined;
+              const isWater = t.type === "water" || t.type === "beach";
+              return { isWater, elevation: t.elevation };
+            },
+          },
+        );
+        if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
+          annualRiverFlowStrength = buildAnnualRiverFlowStrength(
+            globe,
+            globalRiverFlowByTile,
+            getSub,
+          );
+        }
+        const n = globe.tileCount;
+        const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
+        console.log(
+          BUILD_LOG,
+          "annual weather tables (wind+precip 365d, UTC noon):",
+          n,
+          "tiles, ~",
+          mb,
+          "MiB packed",
+          annualRiverFlowStrength
+            ? `, river strengths ${annualRiverFlowStrength.riverTileIds.length} tiles`
+            : "",
+        );
+        const fromDisk =
+          state.useEarth &&
+          (await tryLoadPrebuiltDiscreteWeatherBake(
+            state.subdivisions,
+            earthCacheVersionForWeatherBin,
+            globe,
+          ));
+        if (fromDisk) {
+          globalDiscreteWeatherBake = fromDisk;
+          console.log(
+            BUILD_LOG,
+            "discrete weather year bake: loaded public/discrete-weather-bake-",
+            state.subdivisions,
+            ".bin (cache version",
+            earthCacheVersionForWeatherBin,
+            ")",
+          );
+        } else {
+          globalDiscreteWeatherBake = buildDiscreteWeatherYearBake(
+            globe,
+            annualTileWeather,
+            waterTileIdsForGlobalTerrain(),
+            getSub,
+            {
+              getTerrainTypeForTile: (id) => tileTerrain.get(id)?.type,
+              getMonthlyMeanTempCForTile: (id) =>
+                tileTerrain.get(id)?.monthlyMeanTempC,
+            },
+          );
+          const bakeMb = ((365 * n) / (1024 * 1024)).toFixed(2);
+          console.log(
+            BUILD_LOG,
+            "discrete weather year bake (flags per tile-day): ~",
+            bakeMb,
+            "MiB computed — run npm run build-earth-globe-cache to emit .bin for faster loads",
+          );
+        }
+      } catch (e) {
+        console.warn(BUILD_LOG, "annual weather tables failed, using live samples:", e);
+        annualTileWeather = null;
+        annualRiverFlowStrength = null;
+        globalDiscreteWeatherBake = null;
+      }
+    } else {
+      globalDiscreteWeatherBake = null;
+      lastAppliedDiscreteDayIdx = -1;
+      console.log(
+        BUILD_LOG,
+        "annual weather tables skipped (tileCount >",
+        MAX_TILES_FOR_ANNUAL_WEATHER_TABLES,
+        ")",
+      );
+    }
+
     await yieldToMain();
 
     console.log(BUILD_LOG, "create coast masks");
@@ -3350,21 +3677,32 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     // Wind arrows (seasonal trade winds, westerlies, polar easterlies + noise)
     const dateForWind = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
-    const subsolar = dateToSubsolarPoint(dateForWind);
-    const windByTile = computeWindForTiles(globe.tiles, {
-      subsolarLatDeg: subsolar.latDeg,
-      baseStrength: 1,
-      noiseDirectionRad: 0.12,
-      noiseStrength: 0.08,
-      seed: 45678,
-      getTerrain: (id) => {
-        const t = tileTerrain.get(id);
-        if (!t) return undefined;
-        const isWater = t.type === "water" || t.type === "beach";
-        return { isWater, elevation: t.elevation };
-      },
-    });
-    globalWindByTile = windByTile;
+    let windByTile: Map<number, { directionRad: number; strength: number }>;
+    if (annualTileWeather) {
+      windByTile = new Map();
+      fillWindMapFromAnnual(
+        annualTileWeather,
+        annualDayIndexFromDate(dateForWind),
+        windByTile,
+      );
+      globalWindByTile = windByTile;
+    } else {
+      const subsolar = dateToSubsolarPoint(dateForWind);
+      windByTile = computeWindForTiles(globe.tiles, {
+        subsolarLatDeg: subsolar.latDeg,
+        baseStrength: 1,
+        noiseDirectionRad: 0.12,
+        noiseStrength: 0.08,
+        seed: 45678,
+        getTerrain: (id) => {
+          const t = tileTerrain.get(id);
+          if (!t) return undefined;
+          const isWater = t.type === "water" || t.type === "beach";
+          return { isWater, elevation: t.elevation };
+        },
+      });
+      globalWindByTile = windByTile;
+    }
     windArrowsGroup = createWindArrows(globe, windByTile, {
       heightOffset: 0.08,
       arrowScale: 0.065,
@@ -3381,7 +3719,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     const dateForFlow = datetimeLocalUTCToDate(state.dateTimeStr || dateToDatetimeLocalUTC(new Date()));
     const subsolarFlow = dateToSubsolarPoint(dateForFlow);
-    const riverFlow = buildRiverFlowByTile(subsolarFlow.latDeg);
+    const flowDayIdx =
+      annualTileWeather != null ? annualDayIndexFromDate(dateForFlow) : undefined;
+    const riverFlow = buildRiverFlowByTile(subsolarFlow.latDeg, flowDayIdx);
     const currentFlow = buildCurrentFlowByTile();
     globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
     riverFlowArrowsGroup = createFlowArrows(globe, riverFlow, RIVER_FLOW_OPTIONS);
@@ -4018,6 +4358,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       );
       lastLandWeatherPaintEpochSec = Math.floor(paintDate.getTime() / 1000);
     }
+    applyAutoTimePlayAfterGlobeBuilt(state);
     console.log(BUILD_LOG, "buildWorldAsync done");
   } finally {
     buildPerf?.finish();
@@ -4161,7 +4502,8 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     lastWindUtcMinute = Math.floor(playbackEpochMs / 60000);
     updateWindFromState(state, dateTimeInput.value);
     if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
-    if (precipitationOverlayGroup || cloudGroup) updatePrecipitationAndCloudsFromState(state);
+    if (precipitationOverlayGroup || cloudGroup)
+      syncPrecipitationCloudPhysicsAfterClockJump(state, 48);
   }
   dateTimeInput.addEventListener("change", applyDateTimeAndWinds);
   dateTimeInput.addEventListener("input", applyDateTimeAndWinds);
@@ -4197,17 +4539,18 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     opt.textContent = label;
     speedSelect.appendChild(opt);
   }
-  speedSelect.value = String(
-    speedPresets.some((p) => p.value === state.timePlaySpeed)
-      ? state.timePlaySpeed
-      : 3600,
-  );
   if (!speedPresets.some((p) => p.value === state.timePlaySpeed)) {
-    state.timePlaySpeed = 3600;
+    const opt = document.createElement("option");
+    opt.value = String(state.timePlaySpeed);
+    opt.textContent = `${state.timePlaySpeed}× (URL)`;
+    speedSelect.appendChild(opt);
   }
+  speedSelect.value = String(state.timePlaySpeed);
   speedSelect.addEventListener("change", () => {
     state.timePlaySpeed = Number(speedSelect.value);
   });
+  panelPlayBtn = playBtn;
+  panelSpeedSelect = speedSelect;
 
   const nowBtn = document.createElement("button");
   nowBtn.type = "button";
@@ -4222,7 +4565,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     updateWindFromState(state, state.dateTimeStr);
     if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
     if (precipitationOverlayGroup || cloudGroup)
-      updatePrecipitationAndCloudsFromState(state);
+      syncPrecipitationCloudPhysicsAfterClockJump(state, 48);
   });
 
   playRow.appendChild(playBtn);
@@ -4486,6 +4829,10 @@ async function init() {
   );
 
   const state: DemoState = { ...DEFAULT_STATE };
+  urlAutoTimePlaySpeed = readAutoTimeSpeedFromUrl();
+  if (urlAutoTimePlaySpeed > 0) {
+    state.timePlaySpeed = urlAutoTimePlaySpeed;
+  }
   createPanel(state, () => scheduleRebuild(state));
   scheduleRebuild(state);
 
@@ -4754,12 +5101,18 @@ async function init() {
       lastWindUtcMinute = windUtcMin;
       updateWindFromState(state);
       if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
-      if (precipitationOverlayGroup || cloudGroup)
-        updatePrecipitationAndCloudsFromState(state);
+      if (precipitationOverlayGroup)
+        refreshPrecipitationOverlayGroup(state);
       framePerf.addMinuteTickCpuMs(performance.now() - tMinute0);
     }
+    if (globe && cloudClipField && globalMoistureByTile) {
+      catchUpCloudPhysicsBudgeted(state, CLOUD_PHYSICS_CATCH_UP_BUDGET_MS);
+    }
     framePerf.slice("windFlowPrecipCloudMinute");
-    /** Visual-only cloud sync (physics runs on wind/precip minute tick + batched catch-up). */
+    /** Visual-only cloud sync; discrete-bake mode skips minute physics (see {@link globalDiscreteWeatherBake}). */
+    if (globe && cloudClipField && globalDiscreteWeatherBake) {
+      cloudClipField.alignVisualPhysicsClock(getCloudVisualUtcMinutes(state, date));
+    }
     if (globe && cloudClipField && cloudGroup && state.showClouds) {
       const visUtc = getCloudVisualUtcMinutes(state, date);
       cloudClipField.syncThreeGroup(

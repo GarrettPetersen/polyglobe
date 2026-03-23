@@ -428,6 +428,34 @@ export function geometryCoastSkirt(
 
 const _snowTopTint = new THREE.Color(0xf6faff);
 const _wetCoolTint = new THREE.Color(0x6a8a9a);
+const _landWeatherPackScratch = new THREE.Color();
+
+/** Pack linear RGB (0–1) into one uint32 for per-tile dedupe maps (8 bits / channel). */
+function packLandWeatherRgb(r: number, g: number, b: number): number {
+  const R = Math.min(255, Math.max(0, Math.round(r * 255)));
+  const G = Math.min(255, Math.max(0, Math.round(g * 255)));
+  const B = Math.min(255, Math.max(0, Math.round(b * 255)));
+  return ((R << 16) | (G << 8) | B) >>> 0;
+}
+
+function unpackLandWeatherRgb(packed: number, colors: Float32Array, i: number): void {
+  const o = i * 3;
+  colors[o] = ((packed >>> 16) & 255) / 255;
+  colors[o + 1] = ((packed >>> 8) & 255) / 255;
+  colors[o + 2] = (packed & 255) / 255;
+}
+
+function packStyleColor(rep: THREE.ColorRepresentation): number {
+  _landWeatherPackScratch.set(rep);
+  return packLandWeatherRgb(
+    _landWeatherPackScratch.r,
+    _landWeatherPackScratch.g,
+    _landWeatherPackScratch.b,
+  );
+}
+
+const PACK_LAND_WEATHER_WATER = packStyleColor(TERRAIN_STYLES.water.color);
+const PACK_LAND_WEATHER_POLAR_SNOW = packStyleColor(TERRAIN_STYLES.snow.color);
 
 /**
  * Sim snow depth (0–1) plus seasonal/latitude visual snow (0–1), capped at 1.
@@ -450,10 +478,46 @@ export interface LandSurfaceWeatherVertexOptions {
   calendarUtc: Date;
 }
 
+/** Optional CPU saver: update only a random subset of *land* tiles per call (all vertices on a tile match). */
+export interface ApplyLandSurfaceWeatherPaintOptions {
+  /**
+   * Approximate fraction of **land** tiles to repaint this call (0–1]. Snow caps (negative tileId) and
+   * water tiles are always updated. Omitted or `1` → full land pass (default).
+   */
+  stochasticLandTileFraction?: number;
+  /** Changes which tiles are chosen; e.g. increment each flush. */
+  stochasticSalt?: number;
+}
+
+/** Deterministic: same `tileId` + `salt` always agrees for a given `fraction`. */
+export function landWeatherStochasticPickLandTile(
+  tileId: number,
+  salt: number,
+  fraction: number
+): boolean {
+  if (!(fraction > 0) || fraction >= 1) return true;
+  let h = Math.imul((tileId ^ salt) | 0, 0x9e3779b1 | 0);
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x7feb352d | 0);
+  h ^= h >>> 15;
+  const u = (h >>> 0) / 0x1_0000_0000;
+  return u < fraction;
+}
+
 /**
- * Rebuilds land vertex colors from {@link tileTerrain}, then tints by per-tile wetness / snow (uniform
- * per vertex for a tile — no normal-based variation). Water tiles keep water colors; snow caps
- * (negative tileId) unchanged.
+ * Rebuilds land vertex colors from {@link tileTerrain}, then tints by per-tile wetness / snow.
+ *
+ * **Per tile, not per vertex:** snow/wet tints are uniform across a hex; the heavy work (terrain base +
+ * climate snow + sim wet/snow) runs **once per distinct land tile id** per call, then every vertex on
+ * that tile copies the packed RGB. The loop is still O(vertices) to **write** the buffer (Three.js
+ * single-mesh model). A future win is a small **2D data texture** (one texel per tile) + vertex shader
+ * lookup by `tileId` to avoid touching every vertex on CPU.
+ *
+ * **Precomputing “change times”:** seasonal **climate** snow is deterministic on the calendar and could
+ * be baked (e.g. 365× per-tile samples or analytic change-segments vs day-of-year). **Sim** wetness /
+ * snow from cloud precip is **stateful** and not on a fixed annual loop — it still needs the live maps
+ * each time they change (or a diff from the last revision).
+ *
  * @returns false if required attributes are missing or counts mismatch (nothing written).
  */
 export function applyLandSurfaceWeatherVertexColors(
@@ -462,7 +526,8 @@ export function applyLandSurfaceWeatherVertexColors(
   waterTileIds: ReadonlySet<number>,
   wetness: ReadonlyMap<number, number>,
   snowCover: ReadonlyMap<number, number>,
-  climateOpts?: LandSurfaceWeatherVertexOptions
+  climateOpts?: LandSurfaceWeatherVertexOptions,
+  paintOpts?: ApplyLandSurfaceWeatherPaintOptions
 ): boolean {
   const tileIdAttr = geometry.getAttribute("tileId") as THREE.BufferAttribute | undefined;
   const pos = geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
@@ -499,37 +564,19 @@ export function applyLandSurfaceWeatherVertexColors(
     return sn;
   };
 
+  const stFrac = paintOpts?.stochasticLandTileFraction;
+  const stSalt = paintOpts?.stochasticSalt ?? 0;
+  const useStochasticLand =
+    stFrac != null && stFrac > 0 && stFrac < 1 && Number.isFinite(stFrac);
+
   const c = new THREE.Color();
-  const vtx = pos.count;
-  let colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
-  if (!colorAttr || colorAttr.count !== vtx || !(colorAttr.array instanceof Float32Array)) {
-    colorAttr = new THREE.BufferAttribute(new Float32Array(vtx * 3), 3);
-    geometry.setAttribute("color", colorAttr);
-  }
-  const colors = colorAttr.array as Float32Array;
+  /** One packed RGB per land tile id — snow/wet logic runs once per tile, not once per vertex. */
+  const landRgbByTileId = new Map<number, number>();
 
-  for (let i = 0; i < vtx; i++) {
-    const tid = Math.round(tileIdAttr.getX(i));
-    if (Number(tid) < 0) {
-      c.set(TERRAIN_STYLES.snow.color);
-      colors[i * 3] = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
-      continue;
-    }
-    const data = tileTerrain.get(tid) ?? {
-      tileId: tid,
-      type: "water" as TerrainType,
-      elevation: 0,
-    };
-    if (waterTileIds.has(tid) || data.type === "water") {
-      c.set(TERRAIN_STYLES.water.color);
-      colors[i * 3] = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
-      continue;
-    }
-
+  function computeLandTilePackedRgb(
+    tid: number,
+    data: TileTerrainData,
+  ): number {
     if (
       data.baseR !== undefined &&
       data.baseG !== undefined &&
@@ -553,9 +600,46 @@ export function applyLandSurfaceWeatherVertexColors(
       c.multiplyScalar(Math.min(1.1, 1 + 0.08 * tw));
     }
 
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
+    return packLandWeatherRgb(c.r, c.g, c.b);
+  }
+
+  const vtx = pos.count;
+  let colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
+  if (!colorAttr || colorAttr.count !== vtx || !(colorAttr.array instanceof Float32Array)) {
+    colorAttr = new THREE.BufferAttribute(new Float32Array(vtx * 3), 3);
+    geometry.setAttribute("color", colorAttr);
+  }
+  const colors = colorAttr.array as Float32Array;
+
+  for (let i = 0; i < vtx; i++) {
+    const tid = Math.round(tileIdAttr.getX(i));
+    if (Number(tid) < 0) {
+      unpackLandWeatherRgb(PACK_LAND_WEATHER_POLAR_SNOW, colors, i);
+      continue;
+    }
+    const data = tileTerrain.get(tid) ?? {
+      tileId: tid,
+      type: "water" as TerrainType,
+      elevation: 0,
+    };
+    if (waterTileIds.has(tid) || data.type === "water") {
+      unpackLandWeatherRgb(PACK_LAND_WEATHER_WATER, colors, i);
+      continue;
+    }
+
+    if (
+      useStochasticLand &&
+      !landWeatherStochasticPickLandTile(tid, stSalt, stFrac)
+    ) {
+      continue;
+    }
+
+    let packed = landRgbByTileId.get(tid);
+    if (packed === undefined) {
+      packed = computeLandTilePackedRgb(tid, data);
+      landRgbByTileId.set(tid, packed);
+    }
+    unpackLandWeatherRgb(packed, colors, i);
   }
   colorAttr.needsUpdate = true;
   return true;

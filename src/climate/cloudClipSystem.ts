@@ -96,6 +96,12 @@ export interface CloudClipFieldConfig {
    */
   cloudMarchingCubesGrid: number;
   maxCloudMeshOpsPerSync: number;
+  /**
+   * Max simulated minutes advanced in **one** {@link CloudClipField.syncToTargetMinute} call.
+   * Larger jumps are split across frames (call again until `getLastPhysicsUtcMinute()` reaches target).
+   * Keeps wind/precip catch-up from spiking one rAF when sim time leaps.
+   */
+  maxPhysicsMinutesPerSync: number;
   /** Skip physics catch-up past this many minutes (re-init field). */
   maxCatchUpMinutes: number;
   seed: number;
@@ -160,6 +166,7 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   cloudHemisphereShading: true,
   cloudMarchingCubesGrid: DEFAULT_CLOUD_SDF_GRID_RES,
   maxCloudMeshOpsPerSync: 72,
+  maxPhysicsMinutesPerSync: 24,
   maxCatchUpMinutes: 720,
   seed: 0x4b4c4452,
   windSeed: 90210,
@@ -645,6 +652,14 @@ export class CloudClipField {
   }
 
   /**
+   * When weather is driven by an external pre-baked year (no {@link syncToTargetMinute}), set this to
+   * the current visual/sim UTC minute each frame so {@link syncThreeGroup} extrapolation stays small.
+   */
+  alignVisualPhysicsClock(utcMinute: number): void {
+    this.lastPhysicsMinute = Math.floor(utcMinute);
+  }
+
+  /**
    * Full reset + spawn + wind catch-up to `targetUtc` (call on globe rebuild).
    * Seasonal spawn / annual column / year modulation use the **UTC calendar day of `targetUtc`**, not `_date`,
    * so they stay aligned across year boundaries.
@@ -748,8 +763,16 @@ export class CloudClipField {
   }
 
   /**
-   * Advance overlay + positions to `targetUtc` (cheap vs full replay).
-   * If the gap exceeds `maxCatchUpMinutes`, re-initializes when `moisture` and `nowDate` are passed.
+   * Last UTC minute index applied by {@link syncToTargetMinute} (may trail sim clock when catching up).
+   */
+  getLastPhysicsUtcMinute(): number {
+    return this.lastPhysicsMinute;
+  }
+
+  /**
+   * Advance overlay + positions toward `targetUtc` (cheap vs full replay).
+   * Advances at most {@link CloudClipFieldConfig.maxPhysicsMinutesPerSync} minutes per call; call again
+   * (same target) to finish. If the gap exceeds `maxCatchUpMinutes`, re-initializes when `moisture` and `nowDate` are passed.
    */
   syncToTargetMinute(
     targetUtc: number,
@@ -776,12 +799,22 @@ export class CloudClipField {
       return;
     }
 
-    const endCtx = utcMinuteToAnnualContext(targetUtc);
-    const day = endCtx.dayOfYear;
     const cfg = this.config;
+    const maxStepRaw = cfg.maxPhysicsMinutesPerSync;
+    const maxStep =
+      maxStepRaw != null && Number.isFinite(maxStepRaw) && maxStepRaw > 0
+        ? Math.floor(maxStepRaw)
+        : 1_000_000;
+    const advanceTarget =
+      targetUtc - this.lastPhysicsMinute > maxStep
+        ? this.lastPhysicsMinute + maxStep
+        : targetUtc;
+
+    const endCtx = utcMinuteToAnnualContext(advanceTarget);
+    const day = endCtx.dayOfYear;
     const gClimate = groundClimateParamsFromCfg(cfg);
     const minPer = cfg.lifecycleMinutesPerFrame;
-    const delta = targetUtc - this.lastPhysicsMinute;
+    const delta = advanceTarget - this.lastPhysicsMinute;
 
     if (delta > 1) {
       const decayPow = Math.pow(cfg.precipOverlayDecay, delta);
@@ -790,7 +823,7 @@ export class CloudClipField {
         if (nv < 0.02) this.precipOverlay.delete(tid);
         else this.precipOverlay.set(tid, nv);
       }
-      for (let u = this.lastPhysicsMinute + 1; u <= targetUtc; u++) {
+      for (let u = this.lastPhysicsMinute + 1; u <= advanceTarget; u++) {
         this.tileSurface.stepClimateMinute(
           globe,
           subsolarLatForClimateMinute(cfg, u, getPrecipSubsolar),
@@ -799,14 +832,14 @@ export class CloudClipField {
         );
       }
 
-      const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(targetUtc);
+      const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(advanceTarget);
       for (const inst of this.instances) {
         advectInstanceFixed(globe, inst, delta, cfg);
 
         let tpl = CLIP_TEMPLATES[inst.templateIndex]!;
         let dur = tpl.frames.length;
         let useAnnualRespawn = this.canUseAnnualForInstance(inst);
-        while (Math.floor((targetUtc - inst.birthUtcMinute) / minPer) >= dur) {
+        while (Math.floor((advanceTarget - inst.birthUtcMinute) / minPer) >= dur) {
           if (useAnnualRespawn) {
             const baseSpec = this.annualSpawnTable![inst.annualSlot]![endCtx.dayIndex]!;
             const spec = modulateAnnualSpecForCalendarYear(
@@ -815,7 +848,7 @@ export class CloudClipField {
               endCtx.calendarYear,
               inst.annualSlot
             );
-            if (applyAnnualSpawnSpec(globe, inst, spec, targetUtc, cfg)) {
+            if (applyAnnualSpawnSpec(globe, inst, spec, advanceTarget, cfg)) {
               useAnnualRespawn = false;
               tpl = CLIP_TEMPLATES[inst.templateIndex]!;
               dur = tpl.frames.length;
@@ -826,37 +859,40 @@ export class CloudClipField {
           const newTid = pickSpawnTileId(
             globe,
             precipByTile,
-            u32Hash([cfg.seed, inst.id, targetUtc, 0x525350]),
+            u32Hash([cfg.seed, inst.id, advanceTarget, 0x525350]),
             day,
             cfg.seed
           );
           const na = normalizeAnchorFromTile(globe, newTid);
           if (!na) {
-            inst.birthUtcMinute = targetUtc - (dur - 1) * minPer;
+            inst.birthUtcMinute = advanceTarget - (dur - 1) * minPer;
             break;
           }
           inst.ax = na.x;
           inst.ay = na.y;
           inst.az = na.z;
           inst.spawnTileId = newTid;
-          const phase = u32Hash([cfg.seed, inst.id, targetUtc, 0x5048]) % dur;
-          inst.birthUtcMinute = targetUtc - phase * minPer;
+          const phase = u32Hash([cfg.seed, inst.id, advanceTarget, 0x5048]) % dur;
+          inst.birthUtcMinute = advanceTarget - phase * minPer;
           inst.templateIndex =
-            (inst.templateIndex + 1 + (u32Hash([targetUtc, inst.id]) % 3)) %
+            (inst.templateIndex + 1 + (u32Hash([advanceTarget, inst.id]) % 3)) %
             CLIP_TEMPLATES.length;
           const pm = precipByTile.get(newTid) ?? 0;
-          const sizeMul = sampleSizePowerMul(u32Hash([targetUtc, inst.id, 0x53495a]), cfg);
+          const sizeMul = sampleSizePowerMul(
+            u32Hash([advanceTarget, inst.id, 0x53495a]),
+            cfg,
+          );
           inst.baseScale =
             cfg.cloudScale *
             sizeMul *
-            (0.78 + unitFloat(u32Hash([targetUtc, inst.id, 2])) * 0.44) *
+            (0.78 + unitFloat(u32Hash([advanceTarget, inst.id, 2])) * 0.44) *
             (0.82 + Math.min(1, pm) * 0.38);
-          sampleBirthWind(globe, inst, subsolarLatDeg, targetUtc, cfg);
+          sampleBirthWind(globe, inst, subsolarLatDeg, advanceTarget, cfg);
           tpl = CLIP_TEMPLATES[inst.templateIndex]!;
           dur = tpl.frames.length;
         }
 
-        const ageFrames = Math.floor((targetUtc - inst.birthUtcMinute) / minPer);
+        const ageFrames = Math.floor((advanceTarget - inst.birthUtcMinute) / minPer);
         const fi = Math.max(0, Math.min(dur - 1, ageFrames));
         const frame = tpl.frames[fi]!;
         if (frame.precipWeight > 0.008) {
@@ -871,7 +907,7 @@ export class CloudClipField {
             frame.precipWeight,
             col,
             inst.baseScale,
-            targetUtc,
+            advanceTarget,
             inst.id,
             fi,
             subsolarLatDeg,
@@ -881,7 +917,7 @@ export class CloudClipField {
         }
       }
     } else {
-      for (let m = this.lastPhysicsMinute; m < targetUtc; m++) {
+      for (let m = this.lastPhysicsMinute; m < advanceTarget; m++) {
         const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(m);
 
         for (const [tid, v] of this.precipOverlay) {
@@ -976,7 +1012,7 @@ export class CloudClipField {
     }
 
     this.tileSurface.revision++;
-    this.lastPhysicsMinute = targetUtc;
+    this.lastPhysicsMinute = advanceTarget;
   }
 
   /**

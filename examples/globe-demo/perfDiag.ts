@@ -49,7 +49,9 @@ export function logPerfDiagHelp(): void {
     "ENABLED — build phases log when the globe finishes building; frame averages every N animation frames. " +
       "Slice times are main-thread CPU; Three.js line is draw calls + triangles (not real GPU ms). " +
       "Frame line is JSON sorted by cost; _unattributedMs is wall time minus summed slices (browser/GC). " +
-      "Vegetation tree logs: ?treeDebug=1.",
+      "Vegetation tree logs: ?treeDebug=1. " +
+      "Auto-run sim clock after build: ?autoTimeSpeed=3600 (omit or 0 = paused until Play). " +
+      "Land-weather stochastic tiles: ?landWeatherSample=0.12 (default 0.12; 1 = full every flush).",
   );
 }
 

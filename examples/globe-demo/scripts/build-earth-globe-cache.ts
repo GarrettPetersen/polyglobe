@@ -8,6 +8,10 @@
  *
  * For subdivision 6 also writes legacy public/earth-globe-cache.json (same content).
  * Hardcoded strait tile IDs only apply at subdivision 6 (IDs differ at other scales).
+ *
+ * Also writes public/discrete-weather-bake-{n}.bin (365×tile discrete weather flags, same cache version)
+ * when tileCount ≤ 120k. Optional public/tavg_monthly.bin is attached first so the bake matches runtime
+ * snow/rain with monthly climatology.
  */
 import { readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
@@ -26,7 +30,14 @@ import {
   fillRiverGaps,
   forceRiverReciprocity,
   symmetrizeRiverNeighborEdgesUntilStable,
+  buildMoistureByTileFromTerrain,
+  buildAnnualTileWeatherTables,
+  buildDiscreteWeatherYearBake,
+  encodeDiscreteWeatherYearBakeFile,
+  parseTemperatureMonthlyBin,
+  attachMonthlyTemperatureToTerrainFromRaster,
 } from "../../../src/index.js";
+import { dateToSubsolarPoint } from "../astronomy.js";
 import { loadEarthBinRasterForCache } from "../earthLandRasterBin.js";
 import {
   EARTH_GLOBE_CACHE_VERSION,
@@ -35,6 +46,8 @@ import {
 } from "../earthGlobeCacheVersion.js";
 
 const KNOWN_STRAIT_TILE_IDS_SUB6 = new Set(EARTH_STRAIT_TILE_IDS_SUBDIVISION_6);
+
+const MAX_TILES_FOR_DISCRETE_WEATHER_BAKE = 120_000;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, "..", "public");
@@ -304,6 +317,81 @@ async function buildCacheForSubdivisions(
       }
     }
     console.log("Added", addedHills, "hills from mountains dataset");
+  }
+
+  try {
+    const tpath = join(PUBLIC, "tavg_monthly.bin");
+    const traw = readFileSync(tpath);
+    const tab = traw.buffer.slice(
+      traw.byteOffset,
+      traw.byteOffset + traw.byteLength,
+    );
+    const layer = parseTemperatureMonthlyBin(tab);
+    if (layer) {
+      attachMonthlyTemperatureToTerrainFromRaster(
+        globe.tiles,
+        tileTerrain,
+        layer,
+      );
+      console.log("Attached tavg_monthly.bin to terrain (discrete weather bake)");
+    }
+  } catch {
+    // Optional; bake still runs without monthly stack
+  }
+
+  if (globe.tileCount <= MAX_TILES_FOR_DISCRETE_WEATHER_BAKE) {
+    try {
+      const moisture = buildMoistureByTileFromTerrain(tileTerrain);
+      const getSub = (utcMin: number) =>
+        dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
+      const annual = buildAnnualTileWeatherTables(globe, moisture, getSub, {
+        baseStrength: 1,
+        noiseDirectionRad: 0.12,
+        noiseStrength: 0.08,
+        seed: 45678,
+        getTerrain: (id) => {
+          const t = tileTerrain.get(id);
+          if (!t) return undefined;
+          const isWater = t.type === "water" || t.type === "beach";
+          return { isWater, elevation: t.elevation };
+        },
+      });
+      const waterTileIds = new Set<number>();
+      for (const [id, t] of tileTerrain) {
+        if (t.type === "water") waterTileIds.add(id);
+      }
+      const bake = buildDiscreteWeatherYearBake(
+        globe,
+        annual,
+        waterTileIds,
+        getSub,
+        {
+          getTerrainTypeForTile: (id) => tileTerrain.get(id)?.type,
+          getMonthlyMeanTempCForTile: (id) =>
+            tileTerrain.get(id)?.monthlyMeanTempC,
+        },
+      );
+      const bin = encodeDiscreteWeatherYearBakeFile(
+        bake,
+        EARTH_GLOBE_CACHE_VERSION,
+        subdivisions,
+      );
+      const wb = join(PUBLIC, `discrete-weather-bake-${subdivisions}.bin`);
+      writeFileSync(wb, bin);
+      console.log(
+        "Wrote",
+        wb,
+        `(${Math.round(bin.byteLength / 1024)} KB, discrete weather year)`,
+      );
+    } catch (e) {
+      console.warn("discrete-weather-bake write failed:", e);
+    }
+  } else {
+    console.log(
+      "Skipped discrete-weather-bake (tileCount >",
+      MAX_TILES_FOR_DISCRETE_WEATHER_BAKE,
+      ")",
+    );
   }
 
   const tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1 }> = [];
