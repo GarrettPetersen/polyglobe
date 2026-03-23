@@ -398,7 +398,8 @@ function collectCloudSpheres(
   return spheres;
 }
 
-const SDF_CLOUD_GRID_RES = 20;
+/** Default SDF marching-cubes resolution per axis (was 20; lower = faster, blockier, good for stylized look). */
+export const DEFAULT_CLOUD_SDF_GRID_RES = 16;
 const SDF_SMOOTH_K = 0.12;
 
 /**
@@ -424,8 +425,15 @@ function createSingleCumulusCloudSdf(
   baseScale: number,
   opacity: number,
   flatDeck: boolean,
-  globeBottomClip: CloudGlobeBottomClip | null
+  globeBottomClip: CloudGlobeBottomClip | null,
+  receiveShadow: boolean,
+  castShadow: boolean,
+  marchingCubesGridRes: number,
 ): THREE.Group {
+  const gridN = Math.max(
+    8,
+    Math.min(32, Math.round(marchingCubesGridRes)),
+  );
   const spheres = collectCloudSpheres(rng, baseScale, flatDeck);
   if (spheres.length === 0) {
     const g = new THREE.Group();
@@ -468,7 +476,7 @@ function createSingleCumulusCloudSdf(
     sdf,
     minX, minY, minZ,
     maxX, maxY, maxZ,
-    SDF_CLOUD_GRID_RES,
+    gridN,
     { isoLevel: 0 }
   );
   const posAttr = geom.getAttribute("position") as THREE.BufferAttribute | undefined;
@@ -487,8 +495,8 @@ function createSingleCumulusCloudSdf(
     metalness: 0.0,
   });
   const mesh = new THREE.Mesh(geom, mat);
-  mesh.receiveShadow = true;
-  mesh.castShadow = true;
+  mesh.receiveShadow = receiveShadow;
+  mesh.castShadow = castShadow;
 
   const cloudGroup = new THREE.Group();
   cloudGroup.add(mesh);
@@ -521,6 +529,11 @@ export interface LowPolyCloudOptions {
   clipGlobeShellRadiusOffset?: number;
   /** Softness at the spherical cut; 0 = hard difference. Default 0. */
   clipGlobeSmoothK?: number;
+  /**
+   * Marching-cubes grid resolution per axis (~O(n³) SDF samples). Typical 12–20; default
+   * {@link DEFAULT_CLOUD_SDF_GRID_RES}.
+   */
+  marchingCubesGridRes?: number;
 }
 
 const LOW_POLY_CLOUD_DEFAULTS: Required<LowPolyCloudOptions> = {
@@ -535,6 +548,7 @@ const LOW_POLY_CLOUD_DEFAULTS: Required<LowPolyCloudOptions> = {
   clipBottomToGlobe: true,
   clipGlobeShellRadiusOffset: 0,
   clipGlobeSmoothK: 0,
+  marchingCubesGridRes: DEFAULT_CLOUD_SDF_GRID_RES,
 };
 
 /** Layer for shadow-proxy meshes (kept for API compatibility; proxies now use layer 0 so they are always in the shadow map). */
@@ -595,6 +609,7 @@ export function createLowPolyCloudGroupAtAnchor(
     | "clipBottomToGlobe"
     | "clipGlobeShellRadiusOffset"
     | "clipGlobeSmoothK"
+    | "marchingCubesGridRes"
   > = {}
 ): THREE.Group {
   const heightOffset = options.heightOffset ?? LOW_POLY_CLOUD_DEFAULTS.heightOffset;
@@ -604,6 +619,8 @@ export function createLowPolyCloudGroupAtAnchor(
   const clipGlobeShellRadiusOffset =
     options.clipGlobeShellRadiusOffset ?? LOW_POLY_CLOUD_DEFAULTS.clipGlobeShellRadiusOffset;
   const clipGlobeSmoothK = options.clipGlobeSmoothK ?? LOW_POLY_CLOUD_DEFAULTS.clipGlobeSmoothK;
+  const marchingCubesGridRes =
+    options.marchingCubesGridRes ?? LOW_POLY_CLOUD_DEFAULTS.marchingCubesGridRes;
 
   const worldUp = new THREE.Vector3(0, 1, 0);
   const up = spec.anchor.clone().normalize();
@@ -625,7 +642,10 @@ export function createLowPolyCloudGroupAtAnchor(
     spec.scale,
     opacity,
     spec.flatDeck,
-    globeBottomClip
+    globeBottomClip,
+    castShadows,
+    castShadows,
+    marchingCubesGridRes,
   );
   if (castShadows) {
     addShadowProxy(cloud, spec.scale, spec.flatDeck);
@@ -674,6 +694,50 @@ export function updateLowPolyCloudGroupVisualScaleOpacity(
       ch.material instanceof THREE.MeshStandardMaterial
     ) {
       ch.material.opacity = opacity;
+    }
+  });
+}
+
+const _hemiNight = new THREE.Color();
+const _hemiDay = new THREE.Color();
+const _hemiOut = new THREE.Color();
+
+export interface LowPolyCloudHemisphereShadeOptions {
+  /** Lit-side base (hex). Default low-poly cumulus gray. */
+  dayColor?: THREE.ColorRepresentation;
+  /** Unlit side (hex). Default darker gray. */
+  nightColor?: THREE.ColorRepresentation;
+  /** `dot(outward, sunDir)` at or below this → full night color. */
+  terminatorDark?: number;
+  /** `dot` at or above this → full day color. */
+  terminatorLight?: number;
+}
+
+/**
+ * Fake terminator without shadow maps: outward is unit vector from planet center through the cloud
+ * shell; sunDir is unit vector from planet center toward the sun (same frame as scene lighting).
+ */
+export function updateLowPolyCloudGroupHemisphereShade(
+  group: THREE.Object3D,
+  outwardUnit: THREE.Vector3,
+  sunDirUnit: THREE.Vector3,
+  opts?: LowPolyCloudHemisphereShadeOptions,
+): void {
+  const tDark = opts?.terminatorDark ?? -0.14;
+  const tLight = opts?.terminatorLight ?? 0.1;
+  const dot = outwardUnit.dot(sunDirUnit);
+  const span = Math.max(1e-5, tLight - tDark);
+  const u = THREE.MathUtils.clamp((dot - tDark) / span, 0, 1);
+  _hemiDay.set(opts?.dayColor ?? 0xe5e8ec);
+  _hemiNight.set(opts?.nightColor ?? 0x3a424c);
+  _hemiOut.copy(_hemiNight).lerp(_hemiDay, u);
+  group.traverse((ch) => {
+    if (
+      ch instanceof THREE.Mesh &&
+      ch.name !== "CloudShadowProxy" &&
+      ch.material instanceof THREE.MeshStandardMaterial
+    ) {
+      ch.material.color.copy(_hemiOut);
     }
   });
 }
@@ -730,7 +794,10 @@ export function createLowPolyClouds(
       scale,
       opts.opacity,
       flatDeck,
-      globeBottomClip
+      globeBottomClip,
+      opts.castShadows,
+      opts.castShadows,
+      opts.marchingCubesGridRes,
     );
     if (opts.castShadows) {
       addShadowProxy(cloud, scale, flatDeck);

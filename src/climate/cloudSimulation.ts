@@ -12,6 +12,7 @@ import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import { windAtLatLonDeg } from "../wind/windPatterns.js";
 import {
   createLowPolyCloudGroupAtAnchor,
+  DEFAULT_CLOUD_SDF_GRID_RES,
   setLowPolyCloudGroupShellPose,
   type SimCloudVisualSpec,
 } from "./cloudLayer.js";
@@ -76,6 +77,8 @@ export interface CloudSimConfig {
    * across frames so hundreds of clouds do not freeze the tab or lose the WebGL context.
    */
   maxCloudMeshOpsPerSync: number;
+  /** Marching-cubes grid per axis for each cloud mesh (default {@link DEFAULT_CLOUD_SDF_GRID_RES}). */
+  cloudMarchingCubesGrid: number;
   /** Multiplier on each rain overlay increment from {@link CloudWeatherSimulator} lifecycle bursts. */
   precipOverlayBurstScale: number;
 }
@@ -102,6 +105,7 @@ export const DEFAULT_CLOUD_SIM_CONFIG: CloudSimConfig = {
   windSeed: 90210,
   cloudCastShadows: false,
   maxCloudMeshOpsPerSync: 36,
+  cloudMarchingCubesGrid: DEFAULT_CLOUD_SDF_GRID_RES,
   precipOverlayBurstScale: 2.0,
 };
 
@@ -480,6 +484,7 @@ export class CloudWeatherSimulator {
               castShadows: cfg.cloudCastShadows,
               clipBottomToGlobe: true,
               heightOffset: heightOff,
+              marchingCubesGridRes: cfg.cloudMarchingCubesGrid,
             });
             for (const ch of fresh.children) grp.add(ch);
             fresh.traverse((ch) => {

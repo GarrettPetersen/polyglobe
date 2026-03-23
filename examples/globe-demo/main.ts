@@ -18,6 +18,7 @@ import {
   createGeodesicGeometryFlat,
   updateFlatGeometryFromTerrain,
   applyTerrainColorsToGeometry,
+  precomputeTileTerrainWeatherFields,
   applyLandSurfaceWeatherVertexColors,
   combinedLandSnowCover,
   applyVertexColorsByTileId,
@@ -316,16 +317,24 @@ interface MountainEntry {
 }
 
 /** Convert geographic lat/lon (degrees) to unit direction. Matches tileCenterToLatLon convention (lon = -atan2(z,x)) so getTileIdAtDirection finds the same tile the Earth raster uses. */
-function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
+function latLonDegToDirectionInto(
+  latDeg: number,
+  lonDeg: number,
+  out: THREE.Vector3,
+): THREE.Vector3 {
   const latRad = (latDeg * Math.PI) / 180;
   const lonRad = (lonDeg * Math.PI) / 180;
   const cosLat = Math.cos(latRad);
-  const dir = new THREE.Vector3(
+  out.set(
     cosLat * Math.cos(lonRad),
     Math.sin(latRad),
     -cosLat * Math.sin(lonRad),
   );
-  return dir.normalize();
+  return out.normalize();
+}
+
+function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
+  return latLonDegToDirectionInto(latDeg, lonDeg, new THREE.Vector3());
 }
 
 export interface DemoState {
@@ -699,6 +708,7 @@ async function runTerrainTransition(
     });
     await yieldToMain();
   }
+  precomputeTileTerrainWeatherFields(nextTerrain);
 }
 
 type GeoJSONPolygon = { type: "Polygon"; coordinates: number[][][] };
@@ -1838,9 +1848,31 @@ document.body.appendChild(renderer.domElement);
 
 /**
  * Above this tile count, skip terrain casting shadows (main fill-rate killer on subdiv 7).
- * Earth occluder + clouds still participate in the shadow map.
+ * Vegetation may still cast on smaller globes; demo clouds use hemisphere tint, not shadow casting.
  */
 const GLOBE_TERRAIN_CAST_SHADOW_TILE_THRESHOLD = 100_000;
+/** Matches vegetation: instanced plants cast shadows only when `tileCount <=` this. */
+const VEGETATION_SHADOW_CAST_TILE_THRESHOLD = 70_000;
+
+/** Previous sun direction for shadow-map gating (reuse with {@link sunDirectionFromDate}). */
+const _prevSunDirForShadow = new THREE.Vector3();
+let _shadowSunGateValid = false;
+
+/** Animation-loop scratch (avoid per-frame Vector3 / Color allocations). */
+const _animSunDir = new THREE.Vector3();
+const _animMoonPos = new THREE.Vector3();
+const _animCamUp = new THREE.Vector3();
+const _VEC3_UNIT_Y = new THREE.Vector3(0, 1, 0);
+const _sunDirLightTintA = new THREE.Color(0xfff5e6);
+const _sunDirLightTintB = new THREE.Color(0xff6b2b);
+const _sunSphereTintA = new THREE.Color(0xfff5e0);
+const _sunSphereTintB = new THREE.Color(0xff8844);
+/** Sun direction for cloud sync paths outside the main `sunDir` scratch timing. */
+const _cloudSyncSunDir = new THREE.Vector3();
+
+function invalidateShadowMapGate(): void {
+  _shadowSunGateValid = false;
+}
 
 function applyGlobeTerrainShadowFlags(globe: Globe): void {
   const cast =
@@ -1921,11 +1953,8 @@ let riverTerrainGroup: THREE.Group | null = null;
 
 /** Re-run {@link applyLandSurfaceWeatherVertexColors} on globe + river banks when true. */
 let landWeatherColorsDirty = true;
-let lastLandWeatherVisualMinute = Number.NaN;
-/** {@link climateSurfaceSnowVisualForTerrain} uses full date/subsolar — repaint land at least once per sim second, not only on UTC minute floor. */
+/** {@link climateSurfaceSnowVisualForTerrain} uses full date/subsolar — repaint land at least once per sim second while time is playing. */
 let lastLandWeatherPaintEpochSec = Number.NaN;
-/** Black sphere inside the globe to prevent seeing through geometry gaps. */
-let innerBlackSphere: THREE.Mesh | null = null;
 let windArrowsGroup: THREE.Group | null = null;
 /** River flow arrows (green, lower). */
 let riverFlowArrowsGroup: THREE.Group | null = null;
@@ -1968,11 +1997,26 @@ function getCloudVisualUtcMinutes(state: DemoState, date: Date): number {
 let cloudClipField: CloudClipField | null = null;
 /** Sun light (module-level so panel can force shadow update on cloud toggle). */
 let sun: InstanceType<typeof Sun> | null = null;
-/** Invisible sphere that casts shadow so Earth blocks light to night-side clouds (shadow map always sees globe bulk). */
-let earthOccluder: THREE.Mesh | null = null;
 /** Lake water now provided by terrain-following water table (no separate meshes). */
 /** Module-level terrain data for debug panel access. */
 let globalTileTerrain: Map<number, TileTerrainData> | null = null;
+/** Lazily synced with {@link globalTileTerrain} via {@link precomputeTileTerrainWeatherFields}. */
+let cachedWaterTileIds: ReadonlySet<number> = new Set();
+let cachedWaterTileIdsTerrainRef: Map<number, TileTerrainData> | null = null;
+let warnedRiverLandWeatherSkip = false;
+/** Real-time throttle for {@link applyLandSurfaceWeatherVertexColors} when sim clock runs fast (see flush). */
+let lastLandWeatherFullPaintRealMs = 0;
+/** Last applied cloud sim ground-state revision after a successful land-weather paint (see animate). */
+let lastLandWeatherTileSurfaceRev = -1;
+
+function waterTileIdsForGlobalTerrain(): ReadonlySet<number> {
+  if (!globalTileTerrain) return new Set();
+  if (cachedWaterTileIdsTerrainRef !== globalTileTerrain) {
+    cachedWaterTileIds = precomputeTileTerrainWeatherFields(globalTileTerrain);
+    cachedWaterTileIdsTerrainRef = globalTileTerrain;
+  }
+  return cachedWaterTileIds;
+}
 /** Module-level wind data for debug panel access (direction rad, strength 0–1). */
 let globalWindByTile: Map<number, { directionRad: number; strength: number }> | null = null;
 /** Module-level flow (river + current): direction of flow, strength; for overlay and debug. */
@@ -2041,9 +2085,25 @@ function sunDirectionFromDate(date: Date): THREE.Vector3 {
   return latLonDegToDirection(p.latDeg, p.lonDeg);
 }
 
+/** Writes unit direction; reuses `out` each frame in the render loop (no allocation). */
+function sunDirectionFromDateInto(date: Date, out: THREE.Vector3): THREE.Vector3 {
+  const p = dateToSubsolarPoint(date);
+  return latLonDegToDirectionInto(p.latDeg, p.lonDeg, out);
+}
+
 function moonPositionFromDate(date: Date, distance: number): THREE.Vector3 {
   const p = dateToSublunarPoint(date);
   return latLonDegToDirection(p.latDeg, p.lonDeg).multiplyScalar(distance);
+}
+
+function moonPositionFromDateInto(
+  date: Date,
+  distance: number,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  const p = dateToSublunarPoint(date);
+  latLonDegToDirectionInto(p.latDeg, p.lonDeg, out);
+  return out.multiplyScalar(distance);
 }
 
 /** Recompute wind from date and terrain, update arrow overlay. No-op if globe/wind group not ready. */
@@ -2171,10 +2231,7 @@ function getLandWeatherVertexPaintContext(state: DemoState): {
   calendarUtc: Date;
 } | null {
   if (!globe || !globalTileTerrain) return null;
-  const waterIds = new Set<number>();
-  for (const [id, t] of globalTileTerrain) {
-    if (t.type === "water") waterIds.add(id);
-  }
+  const waterIds = waterTileIdsForGlobalTerrain();
   const date = datetimeLocalUTCToDate(
     state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
   );
@@ -2193,19 +2250,21 @@ function markLandWeatherColorsDirty(): void {
   landWeatherColorsDirty = true;
 }
 
+type LandWeatherPaintCtx = NonNullable<ReturnType<typeof getLandWeatherVertexPaintContext>>;
+
 /** Main globe hex mesh (excludes full river-hex tops — those use {@link syncRiverTerrainLandWeatherVertexColors}). */
-function syncGlobeLandWeatherVertexColors(state: DemoState): boolean {
-  const ctx = getLandWeatherVertexPaintContext(state);
-  if (!ctx || !globe) return false;
+function syncGlobeLandWeatherVertexColors(state: DemoState, ctx?: LandWeatherPaintCtx): boolean {
+  const c = ctx ?? getLandWeatherVertexPaintContext(state);
+  if (!c || !globe) return false;
   const geom = globe.mesh.geometry;
   if (!(geom instanceof THREE.BufferGeometry)) return false;
   return applyLandSurfaceWeatherVertexColors(
     geom,
     globalTileTerrain,
-    ctx.waterIds,
-    ctx.wetness,
-    ctx.snow,
-    { globe, subsolarLatDeg: ctx.subsolarLatDeg, calendarUtc: ctx.calendarUtc },
+    c.waterIds,
+    c.wetness,
+    c.snow,
+    { globe, subsolarLatDeg: c.subsolarLatDeg, calendarUtc: c.calendarUtc },
   );
 }
 
@@ -2213,24 +2272,24 @@ function syncGlobeLandWeatherVertexColors(state: DemoState): boolean {
  * River hex tops are omitted from the main geodesic mesh; banks carry the visible land surface.
  * Without this pass, trees (tile-matched) look snowy while ground stays static green.
  */
-function syncRiverTerrainLandWeatherVertexColors(state: DemoState): boolean {
-  const ctx = getLandWeatherVertexPaintContext(state);
-  if (!ctx || !riverTerrainGroup || !globe) return true;
+function syncRiverTerrainLandWeatherVertexColors(state: DemoState, ctx?: LandWeatherPaintCtx): boolean {
+  const c = ctx ?? getLandWeatherVertexPaintContext(state);
+  if (!c || !riverTerrainGroup || !globe) return true;
   let ok = true;
   riverTerrainGroup.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
     if (obj.name !== "RiverBanks") return;
     const g = obj.geometry;
     if (!(g instanceof THREE.BufferGeometry)) return;
-    if (!g.getAttribute("tileId") || !g.getAttribute("color")) return;
+    if (!g.getAttribute("tileId")) return;
     if (
       !applyLandSurfaceWeatherVertexColors(
         g,
         globalTileTerrain,
-        ctx.waterIds,
-        ctx.wetness,
-        ctx.snow,
-        { globe, subsolarLatDeg: ctx.subsolarLatDeg, calendarUtc: ctx.calendarUtc },
+        c.waterIds,
+        c.wetness,
+        c.snow,
+        { globe, subsolarLatDeg: c.subsolarLatDeg, calendarUtc: c.calendarUtc },
       )
     ) {
       ok = false;
@@ -2242,10 +2301,31 @@ function syncRiverTerrainLandWeatherVertexColors(state: DemoState): boolean {
 function flushLandWeatherVertexColorsIfDirty(state: DemoState): void {
   if (!landWeatherColorsDirty) return;
   if (!globe || !globalTileTerrain) return;
-  const globeOk = syncGlobeLandWeatherVertexColors(state);
-  const riverOk = syncRiverTerrainLandWeatherVertexColors(state);
-  if (globeOk && riverOk) {
+  /** At 3600×+ sim, `epochSec` / cloud visual minute can change every real frame → O(vertices) paint each time. */
+  const throttleMs =
+    state.timePlaying && state.timePlaySpeed >= 120 ? 140 : 0;
+  if (throttleMs > 0) {
+    const now = performance.now();
+    if (now - lastLandWeatherFullPaintRealMs < throttleMs) return;
+    lastLandWeatherFullPaintRealMs = now;
+  }
+  const ctx = getLandWeatherVertexPaintContext(state);
+  if (!ctx) return;
+  const globeOk = syncGlobeLandWeatherVertexColors(state, ctx);
+  const riverOk = syncRiverTerrainLandWeatherVertexColors(state, ctx);
+  if (globeOk) {
     landWeatherColorsDirty = false;
+    if (cloudClipField) {
+      lastLandWeatherTileSurfaceRev = cloudClipField.getTileSurfaceState().revision;
+    }
+    if (riverOk) warnedRiverLandWeatherSkip = false;
+    else if (!warnedRiverLandWeatherSkip && riverTerrainGroup != null) {
+      warnedRiverLandWeatherSkip = true;
+      console.warn(
+        BUILD_LOG,
+        "River bank land-weather vertex paint failed (globe colors still update). Check RiverBanks tileId/position counts.",
+      );
+    }
   }
 }
 
@@ -2329,7 +2409,14 @@ function updatePrecipitationAndCloudsFromState(state: DemoState): void {
     nowDate,
   });
   if (cloudGroup) {
-    cloudClipField.syncThreeGroup(cloudGroup, globe, targetMin, camera);
+    sunDirectionFromDateInto(nowDate, _cloudSyncSunDir);
+    cloudClipField.syncThreeGroup(
+      cloudGroup,
+      globe,
+      targetMin,
+      camera,
+      _cloudSyncSunDir,
+    );
     cloudGroup.visible = state.showClouds;
   }
 
@@ -2347,7 +2434,6 @@ function updatePrecipitationAndCloudsFromState(state: DemoState): void {
     );
     precipitationOverlayGroup.visible = state.showPrecipitation;
   }
-  markLandWeatherColorsDirty();
 }
 
 /** Bumped at each globe rebuild so in-flight cloud bootstrap aborts before touching stale globals. */
@@ -2395,6 +2481,8 @@ async function ensureCloudWeatherAndPrecipMeshes(
     maxClouds: hugeGlobe ? 72 : 96,
     cloudScale: 0.038,
     cloudCastShadows: false,
+    cloudHemisphereShading: true,
+    cloudMarchingCubesGrid: hugeGlobe ? 14 : 16,
     maxCloudMeshOpsPerSync: hugeGlobe ? 56 : 80,
     maxCatchUpMinutes: 720,
     waterTileIds,
@@ -2497,17 +2585,30 @@ async function ensureCloudWeatherAndPrecipMeshes(
     scene.add(precipGrp);
   }
 
+  const cloudBootstrapDate = datetimeLocalUTCToDate(
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+  );
+  sunDirectionFromDateInto(cloudBootstrapDate, _cloudSyncSunDir);
   if (!cloudGroup) {
     cloudGroup = new THREE.Group();
     cloudGroup.name = "LowPolyClouds";
-    field.syncThreeGroup(cloudGroup, globe, targetUtcMin, camera);
+    field.syncThreeGroup(
+      cloudGroup,
+      globe,
+      targetUtcMin,
+      camera,
+      _cloudSyncSunDir,
+    );
     cloudGroup.visible = state.showClouds;
-    cloudGroup.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.receiveShadow = true;
-    });
     scene.add(cloudGroup);
   } else {
-    field.syncThreeGroup(cloudGroup, globe, targetUtcMin, camera);
+    field.syncThreeGroup(
+      cloudGroup,
+      globe,
+      targetUtcMin,
+      camera,
+      _cloudSyncSunDir,
+    );
     cloudGroup.visible = state.showClouds;
   }
 
@@ -2647,7 +2748,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
   try {
     cloudPrecipBuildGeneration++;
     landWeatherColorsDirty = true;
-    lastLandWeatherVisualMinute = Number.NaN;
+    invalidateShadowMapGate();
+    lastLandWeatherFullPaintRealMs = 0;
+    lastLandWeatherTileSurfaceRev = -1;
     lastLandWeatherPaintEpochSec = Number.NaN;
     if (globe) {
       console.log(BUILD_LOG, "teardown previous globe/water/overlay");
@@ -2673,12 +2776,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
       });
       riverTerrainGroup = null;
-    }
-    if (innerBlackSphere) {
-      scene.remove(innerBlackSphere);
-      innerBlackSphere.geometry.dispose();
-      (innerBlackSphere.material as THREE.Material).dispose();
-      innerBlackSphere = null;
     }
     if (windArrowsGroup) {
       scene.remove(windArrowsGroup);
@@ -3113,8 +3210,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       );
       console.log(BUILD_LOG, "Earth: runTerrainTransition done");
       lastDisplayedTerrain = tileTerrain;
-      // Expose for debug panel
-      globalTileTerrain = tileTerrain;
       globalRiverEdgesByTile = riverEdgesByTile ?? null;
       globalRiverFlowByTile =
         riverEdgesByTile && riverEdgesByTile.size > 0
@@ -3163,6 +3258,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       );
       console.log(BUILD_LOG, "Procedural: runTerrainTransition done");
     }
+
+    globalTileTerrain = tileTerrain;
+    cachedWaterTileIdsTerrainRef = null;
 
     globalMoistureByTile = buildMoistureByTileFromTerrain(tileTerrain);
 
@@ -3248,23 +3346,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       water.mesh.geometry.getAttribute("position")?.count ?? 0,
     );
 
-    // Add black inner sphere to prevent seeing through any geometry gaps
-    const innerSegW = globe.tileCount > 100_000 ? 24 : 64;
-    const innerSegH = globe.tileCount > 100_000 ? 12 : 32;
-    const innerSphereGeom = new THREE.SphereGeometry(
-      0.98,
-      innerSegW,
-      innerSegH,
-    );
-    const innerSphereMat = new THREE.MeshBasicMaterial({
-      color: 0x000000,
-      side: THREE.BackSide,
-    });
-    innerBlackSphere = new THREE.Mesh(innerSphereGeom, innerSphereMat);
-    innerBlackSphere.name = "InnerBlackSphere";
-    innerBlackSphere.renderOrder = -10;
-    scene.add(innerBlackSphere);
-    console.log(BUILD_LOG, "added inner black sphere at radius 0.98");
     buildPerf?.mark("terrainWaterRiversCoast");
 
     // Wind arrows (seasonal trade winds, westerlies, polar easterlies + noise)
@@ -3935,9 +4016,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       const paintDate = datetimeLocalUTCToDate(
         state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
       );
-      lastLandWeatherVisualMinute = Math.floor(
-        getCloudVisualUtcMinutes(state, paintDate),
-      );
       lastLandWeatherPaintEpochSec = Math.floor(paintDate.getTime() / 1000);
     }
     console.log(BUILD_LOG, "buildWorldAsync done");
@@ -4454,18 +4532,8 @@ async function init() {
   );
   sun.directional.add(lensflare);
   sunLensflareRef = lensflare;
-
-  {
-    /** Low segment count: only casts a bulk shadow silhouette for clouds. */
-    const occluderGeom = new THREE.SphereGeometry(1, 20, 20);
-    const occluderMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    earthOccluder = new THREE.Mesh(occluderGeom, occluderMat);
-    earthOccluder.name = "EarthOccluder";
-    earthOccluder.castShadow = true;
-    earthOccluder.receiveShadow = false;
-    earthOccluder.layers.set(1);
-    earthOccluder.renderOrder = -10000;
-    scene.add(earthOccluder);
+  if (sun.directional.shadow) {
+    sun.directional.shadow.autoUpdate = false;
   }
 
   const atmosphere = new Atmosphere(scene, { timeOfDay: 0.5 });
@@ -4625,25 +4693,26 @@ async function init() {
     starfield.update(camera, gmstRad);
     if (planetsUpdate) planetsUpdate(date);
     framePerf.slice("starfieldPlanets");
-    const sunDir = sunDirectionFromDate(date);
+    const sunDir = sunDirectionFromDateInto(date, _animSunDir);
     skyDome.update(sunDir, camera.position);
     sun.directional.position.copy(sunDir).multiplyScalar(3500);
     sun.directional.target.position.set(0, 0, 0);
-    const camUp = camera.position.lengthSq() < 1e-6
-      ? new THREE.Vector3(0, 1, 0)
-      : camera.position.clone().normalize();
+    const camUp =
+      camera.position.lengthSq() < 1e-6
+        ? _VEC3_UNIT_Y
+        : _animCamUp.copy(camera.position).normalize();
     const sunAltitudeFromCamera = sunDir.dot(camUp);
     const sunriseRed = 1 - Math.max(0, Math.min(1, (sunAltitudeFromCamera + 0.1) / 0.5));
     sun.directional.color.lerpColors(
-      new THREE.Color(0xfff5e6),
-      new THREE.Color(0xff6b2b),
+      _sunDirLightTintA,
+      _sunDirLightTintB,
       sunriseRed,
     );
     if (sun.sphere) {
       sun.sphere.position.copy(sun.directional.position);
       (sun.sphere.material as THREE.MeshBasicMaterial).color.lerpColors(
-        new THREE.Color(0xfff5e0),
-        new THREE.Color(0xff8844),
+        _sunSphereTintA,
+        _sunSphereTintB,
         sunriseRed,
       );
     }
@@ -4656,9 +4725,9 @@ async function init() {
       sc.far = sunDist + 10;
       sc.updateMatrixWorld(true);
     }
-    const moonPos = moonPositionFromDate(date, moonDistance);
-    moon.mesh.position.copy(moonPos);
-    moonLight.position.copy(moonPos);
+    moonPositionFromDateInto(date, moonDistance, _animMoonPos);
+    moon.mesh.position.copy(_animMoonPos);
+    moonLight.position.copy(_animMoonPos);
     framePerf.slice("sunSkyMoonShadowCam");
     if (water) {
       water.setCameraWorldPosition(camera.position);
@@ -4667,11 +4736,11 @@ async function init() {
     }
     framePerf.slice("water");
     vegetationLayer?.update(camera);
+    framePerf.slice("vegetation");
     if (coastFoamOverlay) {
       coastFoamOverlay.setSunDirection(sunDir);
       if (!veryDenseAnim || animTick % 2 === 0) coastFoamOverlay.update();
     }
-    framePerf.slice("vegetation");
     framePerf.slice("coastFoam");
     // Recompute wind and flow whenever date changes (currents follow wind)
     const windUtcMin = Math.floor(date.getTime() / 60000);
@@ -4693,7 +4762,13 @@ async function init() {
     /** Visual-only cloud sync (physics runs on wind/precip minute tick + batched catch-up). */
     if (globe && cloudClipField && cloudGroup && state.showClouds) {
       const visUtc = getCloudVisualUtcMinutes(state, date);
-      cloudClipField.syncThreeGroup(cloudGroup, globe, visUtc, camera);
+      cloudClipField.syncThreeGroup(
+        cloudGroup,
+        globe,
+        visUtc,
+        camera,
+        sunDir,
+      );
     }
     framePerf.slice("cloudClipMeshSync");
     if (
@@ -4722,26 +4797,48 @@ async function init() {
     }
     framePerf.slice("cloudDepthSort");
     if (sun.directional.castShadow && sun.directional.shadow) {
-      sun.directional.shadow.camera.layers.enable(0);
-      sun.directional.shadow.camera.layers.enable(1);
-      sun.directional.shadow.needsUpdate = true;
+      const sh = sun.directional.shadow;
+      sh.camera.layers.enable(0);
+      const mapMissing = sh.map === null;
+      const sunMoved =
+        !_shadowSunGateValid ||
+        _prevSunDirForShadow.dot(sunDir) < 1 - 1e-6;
+      const cloudsCastShadow =
+        cloudClipField != null && cloudClipField.config.cloudCastShadows;
+      const cloudsAnimate =
+        state.showClouds &&
+        cloudGroup != null &&
+        cloudClipField != null &&
+        cloudsCastShadow;
+      const vegetationCastsShadow =
+        vegetationLayer != null &&
+        globe != null &&
+        globe.tileCount <= VEGETATION_SHADOW_CAST_TILE_THRESHOLD;
+      sh.needsUpdate =
+        mapMissing || sunMoved || cloudsAnimate || vegetationCastsShadow;
+      _prevSunDirForShadow.copy(sunDir);
+      _shadowSunGateValid = true;
     }
     framePerf.slice("shadowUniforms");
     /**
-     * Land vertex weather (snow/wet/climate) must track the same clock as vegetation.
-     * Floored UTC minutes alone miss subsolar changes within a minute during time playback —
-     * trees refresh from {@link getTileSnowCover} while hexes stayed green until the minute rolled.
+     * Land vertex weather: wet/snow from cloud physics bump tile-surface `revision`;
+     * while time is playing, subsolar/climate snow can change within a sim minute — repaint on sim-second steps.
      */
     if (globe && globalTileTerrain) {
-      const visInt = Math.floor(getCloudVisualUtcMinutes(state, date));
-      if (visInt !== lastLandWeatherVisualMinute) {
-        lastLandWeatherVisualMinute = visInt;
-        markLandWeatherColorsDirty();
+      if (cloudClipField) {
+        const rev = cloudClipField.getTileSurfaceState().revision;
+        if (rev !== lastLandWeatherTileSurfaceRev) {
+          markLandWeatherColorsDirty();
+        }
       }
-      const epochSec = Math.floor(date.getTime() / 1000);
-      if (epochSec !== lastLandWeatherPaintEpochSec) {
-        lastLandWeatherPaintEpochSec = epochSec;
-        markLandWeatherColorsDirty();
+      if (state.timePlaying) {
+        const epochSec = Math.floor(date.getTime() / 1000);
+        if (epochSec !== lastLandWeatherPaintEpochSec) {
+          lastLandWeatherPaintEpochSec = epochSec;
+          markLandWeatherColorsDirty();
+        }
+      } else {
+        lastLandWeatherPaintEpochSec = Math.floor(date.getTime() / 1000);
       }
     }
     flushLandWeatherVertexColorsIfDirty(state);

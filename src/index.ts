@@ -36,6 +36,7 @@ export {
   TERRAIN_STYLES,
   applyTerrainToGeometry,
   applyTerrainColorsToGeometry,
+  precomputeTileTerrainWeatherFields,
   applyLandSurfaceWeatherVertexColors,
   combinedLandSnowCover,
   applyVertexColorsByTileId,
@@ -200,8 +201,10 @@ export {
   updateLowPolyClouds,
   sortLowPolyCloudsByCamera,
   createLowPolyCloudGroupAtAnchor,
+  DEFAULT_CLOUD_SDF_GRID_RES,
   setLowPolyCloudGroupShellPose,
   updateLowPolyCloudGroupVisualScaleOpacity,
+  updateLowPolyCloudGroupHemisphereShade,
   CLOUD_SHADOW_LAYER,
   createCloudSphereLayer,
   updateCloudSphereLayer,
@@ -212,6 +215,7 @@ export {
   type CloudSphereOptions,
   type CloudLayerOptions,
   type SimCloudVisualSpec,
+  type LowPolyCloudHemisphereShadeOptions,
 } from "./climate/cloudLayer.js";
 export {
   CloudWeatherSimulator,

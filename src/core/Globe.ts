@@ -36,6 +36,8 @@ export class Globe {
   readonly subdivisions: number;
   readonly tiles: GeodesicTile[];
   readonly mesh: THREE.Mesh;
+  /** Tile-center latitude in degrees (geodesic center, same convention as {@link tileCenterToLatLon} on unit sphere). */
+  readonly tileCenterLatDeg: Float32Array;
   private tileById: Map<number, GeodesicTile>;
   /** Spatial index: cell index -> tile IDs to test. Makes getTileIdAtDirection O(1) in tile count. */
   private directionGrid: number[][];
@@ -46,6 +48,12 @@ export class Globe {
     this.subdivisions = subdivisions;
     this.tiles = buildGeodesicTiles(subdivisions);
     this.tileById = new Map(this.tiles.map((t) => [t.id, t]));
+    const n = this.tiles.length;
+    this.tileCenterLatDeg = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const y = THREE.MathUtils.clamp(this.tiles[i]!.center.y, -1, 1);
+      this.tileCenterLatDeg[i] = (Math.asin(y) * 180) / Math.PI;
+    }
     this.directionGrid = this.buildDirectionGrid();
 
     const geometry = createGeodesicGeometry(this.tiles, { radius, subdivisions });
@@ -96,6 +104,14 @@ export class Globe {
   getTileCenter(id: number): THREE.Vector3 | undefined {
     const t = this.getTile(id);
     return t ? t.center.clone().multiplyScalar(this.radius) : undefined;
+  }
+
+  /** Latitude (degrees) of tile center on the unit sphere; O(1), no allocations. */
+  getTileCenterLatDeg(id: number): number | undefined {
+    if (!Number.isInteger(id) || id < 0 || id >= this.tileCenterLatDeg.length) {
+      return undefined;
+    }
+    return this.tileCenterLatDeg[id]!;
   }
 
   /** World position + “up” (normal) for a tile, e.g. for placing objects. */

@@ -38,10 +38,16 @@ export class TileSurfaceState {
   readonly wetness = new Map<number, number>();
   /** Snow lying on ground 0–1 (visual depth proxy). */
   readonly snow = new Map<number, number>();
+  /**
+   * Incremented when wetness/snow change so consumers can avoid full-terrain repaints when maps are
+   * unchanged (e.g. cloud visual lerp every frame without new physics).
+   */
+  revision = 0;
 
   clear(): void {
     this.wetness.clear();
     this.snow.clear();
+    this.revision++;
   }
 
   getWetness(tileId: number): number {

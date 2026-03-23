@@ -508,6 +508,13 @@ function heapPushCap(
     i = largest;
   }
 }
+function vegetationTreeDebug(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("treeDebug")
+  );
+}
+
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
 const _mat = new THREE.Matrix4();
@@ -694,23 +701,25 @@ export function createVegetationLayer(
   }
 
   const TREE_LOG = "[tree-debug]";
-  console.log(TREE_LOG, "placements by type", {
-    tree: byType.tree.length,
-    bush: byType.bush.length,
-    grass: byType.grass.length,
-    rock: byType.rock.length,
-  });
-  {
-    const bySpecies: Record<string, number> = {};
-    const byVariantIndex: Record<string, number> = {};
-    for (const p of byType.tree) {
-      const g = treeSpeciesGroup(p.variantIndex);
-      bySpecies[g] = (bySpecies[g] ?? 0) + 1;
-      const k = String(p.variantIndex);
-      byVariantIndex[k] = (byVariantIndex[k] ?? 0) + 1;
+  if (vegetationTreeDebug()) {
+    console.log(TREE_LOG, "placements by type", {
+      tree: byType.tree.length,
+      bush: byType.bush.length,
+      grass: byType.grass.length,
+      rock: byType.rock.length,
+    });
+    {
+      const bySpecies: Record<string, number> = {};
+      const byVariantIndex: Record<string, number> = {};
+      for (const p of byType.tree) {
+        const g = treeSpeciesGroup(p.variantIndex);
+        bySpecies[g] = (bySpecies[g] ?? 0) + 1;
+        const k = String(p.variantIndex);
+        byVariantIndex[k] = (byVariantIndex[k] ?? 0) + 1;
+      }
+      console.log(TREE_LOG, "tree counts by species", bySpecies);
+      console.log(TREE_LOG, "tree counts by variant index", byVariantIndex);
     }
-    console.log(TREE_LOG, "tree counts by species", bySpecies);
-    console.log(TREE_LOG, "tree counts by variant index", byVariantIndex);
   }
 
   type MeshEntry = { type: PlantType; list: Placement[]; geometry: THREE.BufferGeometry; name: string; isTrunk?: boolean };
@@ -833,7 +842,7 @@ export function createVegetationLayer(
     }
 
     const geom = options.geometries?.[type] ?? makePlaceholderGeometry(type);
-    if (type === "tree") {
+    if (type === "tree" && vegetationTreeDebug()) {
       console.log(TREE_LOG, "tree geometry source", options.geometries?.tree == null ? "PLACEHOLDER (cone)" : "loaded GLTF", {
         positionCount: geom.getAttribute("position")?.count ?? 0,
         indexCount: geom.index?.count ?? 0,
@@ -848,17 +857,19 @@ export function createVegetationLayer(
   addEntriesForType("rock");
 
   const treeEntries = entries.filter((e) => e.type === "tree");
-  console.log(TREE_LOG, "all entries", {
-    total: entries.length,
-    treeEntries: treeEntries.length,
-    treePlacementSum: treeEntries.reduce((s, e) => s + e.list.length, 0),
-  });
-  if (treeEntries.length > 0 && treeEntries[0]!.list.length > 0) {
-    const p0 = treeEntries[0]!.list[0]!;
-    console.log(TREE_LOG, "first tree placement", {
-      scale: p0.scale,
-      position: [p0.position.x.toFixed(4), p0.position.y.toFixed(4), p0.position.z.toFixed(4)],
+  if (vegetationTreeDebug()) {
+    console.log(TREE_LOG, "all entries", {
+      total: entries.length,
+      treeEntries: treeEntries.length,
+      treePlacementSum: treeEntries.reduce((s, e) => s + e.list.length, 0),
     });
+    if (treeEntries.length > 0 && treeEntries[0]!.list.length > 0) {
+      const p0 = treeEntries[0]!.list[0]!;
+      console.log(TREE_LOG, "first tree placement", {
+        scale: p0.scale,
+        position: [p0.position.x.toFixed(4), p0.position.y.toFixed(4), p0.position.z.toFixed(4)],
+      });
+    }
   }
 
   const meshes: { mesh: THREE.InstancedMesh; placements: Placement[] }[] = [];
@@ -936,6 +947,8 @@ export function createVegetationLayer(
     }
 
     const treeDrawCounts: { name: string; inRange: number; drawCount: number }[] = [];
+    const wetCache = getTileWetness ? new Map<number, number>() : null;
+    const snowCache = getTileSnowCover ? new Map<number, number>() : null;
 
     for (const { mesh, placements: list } of meshes) {
       sortedIndices.length = 0;
@@ -1037,8 +1050,12 @@ export function createVegetationLayer(
           }
         }
 
-        if (getTileWetness) {
-          const w = getTileWetness(p.tileId);
+        if (getTileWetness && wetCache) {
+          let w = wetCache.get(p.tileId);
+          if (w === undefined) {
+            w = getTileWetness(p.tileId);
+            wetCache.set(p.tileId, w);
+          }
           if (w > 0.03) {
             const tw = Math.min(1, w);
             wetScratch.copy(color).lerp(wetShine, tw * 0.3);
@@ -1046,8 +1063,12 @@ export function createVegetationLayer(
           }
         }
 
-        if (getTileSnowCover && !mesh.name.includes("-trunk")) {
-          const sn = getTileSnowCover(p.tileId);
+        if (getTileSnowCover && snowCache && !mesh.name.includes("-trunk")) {
+          let sn = snowCache.get(p.tileId);
+          if (sn === undefined) {
+            sn = getTileSnowCover(p.tileId);
+            snowCache.set(p.tileId, sn);
+          }
           if (sn > 0.002) {
             color = snowTint;
           }
@@ -1062,7 +1083,11 @@ export function createVegetationLayer(
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
 
-    if (treeDrawCounts.length > 0 && treeDrawLogFrames < 3) {
+    if (
+      vegetationTreeDebug() &&
+      treeDrawCounts.length > 0 &&
+      treeDrawLogFrames < 3
+    ) {
       console.log(TREE_LOG, "update tree drawCounts", treeDrawCounts);
       const treeEntry = meshes.find((m) => m.mesh.name?.includes("tree"));
       if (treeEntry && treeDrawLogFrames === 0) {

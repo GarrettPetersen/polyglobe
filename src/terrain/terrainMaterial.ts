@@ -5,7 +5,6 @@
 
 import * as THREE from "three";
 import type { Globe } from "../core/Globe.js";
-import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import { climateSurfaceSnowVisualForTerrain } from "../climate/seasonalClimate.js";
 import type { TerrainType } from "./types.js";
 
@@ -75,6 +74,10 @@ export interface TileTerrainData {
   tileId: number;
   type: TerrainType;
   elevation: number;
+  /** Linear RGB 0–1 from {@link TERRAIN_STYLES}[type]; filled by {@link precomputeTileTerrainWeatherFields}. */
+  baseR?: number;
+  baseG?: number;
+  baseB?: number;
   /** If set, this tile is a lake (not ocean); used to keep lake tiles water-colored instead of beach. */
   lakeId?: number;
   /** If true, this tile has hilly terrain (high local variance) and gets rounded bump geometry. */
@@ -89,6 +92,27 @@ export interface TileTerrainData {
 function positionKey(x: number, y: number, z: number): string {
   const p = 1e6;
   return `${Math.round(x * p)},${Math.round(y * p)},${Math.round(z * p)}`;
+}
+
+const _precomputeColor = new THREE.Color();
+
+/**
+ * Fills {@link TileTerrainData.baseR}/G/B from terrain type and returns water tile ids (`type === "water"` only).
+ * Call after terrain types are final for a map (and whenever geometry colors are rebuilt from that map).
+ */
+export function precomputeTileTerrainWeatherFields(
+  tileTerrain: Map<number, TileTerrainData>,
+): ReadonlySet<number> {
+  const waterIds = new Set<number>();
+  for (const [id, data] of tileTerrain) {
+    const style = TERRAIN_STYLES[data.type];
+    _precomputeColor.set(style.color);
+    data.baseR = _precomputeColor.r;
+    data.baseG = _precomputeColor.g;
+    data.baseB = _precomputeColor.b;
+    if (data.type === "water") waterIds.add(id);
+  }
+  return waterIds;
 }
 
 /**
@@ -132,6 +156,7 @@ export function applyTerrainColorsToGeometry(
     };
     return TERRAIN_STYLES[data.type].color;
   });
+  precomputeTileTerrainWeatherFields(tileTerrain);
 }
 
 /**
@@ -450,34 +475,40 @@ export function applyLandSurfaceWeatherVertexColors(
     return false;
   }
 
-  const climateLatByTile =
+  /** One climate snow value per land tile — same for all vertices on that tile (was O(vertices), now O(tiles)). */
+  const climateSnowByTile =
     climateOpts != null ? new Map<number, number>() : null;
   const climateSnowForTile = (tid: number): number => {
-    if (!climateOpts || climateLatByTile == null) return 0;
-    let latDeg = climateLatByTile.get(tid);
-    if (latDeg === undefined) {
-      const p = climateOpts.globe.getTileCenter(tid);
-      if (!p) {
-        climateLatByTile.set(tid, 0);
-        return 0;
-      }
-      latDeg = (tileCenterToLatLon(p).lat * 180) / Math.PI;
-      climateLatByTile.set(tid, latDeg);
+    if (!climateOpts || climateSnowByTile == null) return 0;
+    const cached = climateSnowByTile.get(tid);
+    if (cached !== undefined) return cached;
+    const latDeg = climateOpts.globe.getTileCenterLatDeg(tid);
+    if (latDeg == null || !Number.isFinite(latDeg)) {
+      climateSnowByTile.set(tid, 0);
+      return 0;
     }
     const row = tileTerrain.get(tid);
-    return climateSurfaceSnowVisualForTerrain(
+    const sn = climateSurfaceSnowVisualForTerrain(
       latDeg,
       climateOpts.subsolarLatDeg,
       row?.type,
       row?.monthlyMeanTempC,
       climateOpts.calendarUtc,
     );
+    climateSnowByTile.set(tid, sn);
+    return sn;
   };
 
   const c = new THREE.Color();
-  const colors = new Float32Array(pos.count * 3);
+  const vtx = pos.count;
+  let colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
+  if (!colorAttr || colorAttr.count !== vtx || !(colorAttr.array instanceof Float32Array)) {
+    colorAttr = new THREE.BufferAttribute(new Float32Array(vtx * 3), 3);
+    geometry.setAttribute("color", colorAttr);
+  }
+  const colors = colorAttr.array as Float32Array;
 
-  for (let i = 0; i < pos.count; i++) {
+  for (let i = 0; i < vtx; i++) {
     const tid = Math.round(tileIdAttr.getX(i));
     if (Number(tid) < 0) {
       c.set(TERRAIN_STYLES.snow.color);
@@ -499,8 +530,15 @@ export function applyLandSurfaceWeatherVertexColors(
       continue;
     }
 
-    const style = TERRAIN_STYLES[data.type];
-    c.set(style.color);
+    if (
+      data.baseR !== undefined &&
+      data.baseG !== undefined &&
+      data.baseB !== undefined
+    ) {
+      c.setRGB(data.baseR, data.baseG, data.baseB);
+    } else {
+      c.set(TERRAIN_STYLES[data.type].color);
+    }
 
     const w = wetness.get(tid) ?? 0;
     const snSim = snowCover.get(tid) ?? 0;
@@ -519,8 +557,6 @@ export function applyLandSurfaceWeatherVertexColors(
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
   }
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  const landWeatherCol = geometry.getAttribute("color");
-  if (landWeatherCol) landWeatherCol.needsUpdate = true;
+  colorAttr.needsUpdate = true;
   return true;
 }

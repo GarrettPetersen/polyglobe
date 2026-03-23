@@ -9,8 +9,10 @@ import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import { windAtLatLonDeg } from "../wind/windPatterns.js";
 import {
   createLowPolyCloudGroupAtAnchor,
+  DEFAULT_CLOUD_SDF_GRID_RES,
   setLowPolyCloudGroupShellPose,
   updateLowPolyCloudGroupVisualScaleOpacity,
+  updateLowPolyCloudGroupHemisphereShade,
   type SimCloudVisualSpec,
 } from "./cloudLayer.js";
 import type { PrecipSubsolarForMinute } from "./cloudSimulation.js";
@@ -72,19 +74,27 @@ function makeTemplate(seedBase: number, flatLate: boolean): CloudClipTemplate {
   return { frames };
 }
 
-/** Five distinct marshmallow lifecycles (different SDF seeds / flat-deck timing). */
+/** Fewer templates ⇒ more clouds share the same lifecycle frame mesh key (helps CPU cache); still varied. */
 const CLIP_TEMPLATES: readonly CloudClipTemplate[] = [
   makeTemplate(0x01c10d01, false),
   makeTemplate(0x02c20d02, true),
   makeTemplate(0x03c30d03, false),
-  makeTemplate(0x04c40d04, true),
-  makeTemplate(0x05c50d05, false),
 ];
 
 export interface CloudClipFieldConfig {
   maxClouds: number;
   cloudScale: number;
   cloudCastShadows: boolean;
+  /**
+   * When true and {@link CloudClipField.syncThreeGroup} receives `sunDirectionTowardSun`, cloud puff
+   * color follows a simple terminator (avoids shadow-map sampling on clouds).
+   */
+  cloudHemisphereShading: boolean;
+  /**
+   * Marching-cubes grid resolution per axis for each cloud mesh (see {@link DEFAULT_CLOUD_SDF_GRID_RES}).
+   * Lower = fewer triangles and faster SDF sampling (~O(n³)).
+   */
+  cloudMarchingCubesGrid: number;
   maxCloudMeshOpsPerSync: number;
   /** Skip physics catch-up past this many minutes (re-init field). */
   maxCatchUpMinutes: number;
@@ -147,6 +157,8 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   maxClouds: 96,
   cloudScale: 0.038,
   cloudCastShadows: false,
+  cloudHemisphereShading: true,
+  cloudMarchingCubesGrid: DEFAULT_CLOUD_SDF_GRID_RES,
   maxCloudMeshOpsPerSync: 72,
   maxCatchUpMinutes: 720,
   seed: 0x4b4c4452,
@@ -589,6 +601,8 @@ export class CloudClipField {
   private precipOverlay = new Map<number, number>();
   private tileSurface = new TileSurfaceState();
   private meshScratch = new Map<number, THREE.Group>();
+  /** Reused in {@link CloudClipField.syncThreeGroup} to avoid per-frame Set allocation. */
+  private readonly _syncSeenInstanceIds = new Set<number>();
   private lastPhysicsMinute = 0;
   private annualSpawnTable: AnnualSpawnSpec[][] | null = null;
 
@@ -961,6 +975,7 @@ export class CloudClipField {
       }
     }
 
+    this.tileSurface.revision++;
     this.lastPhysicsMinute = targetUtc;
   }
 
@@ -968,16 +983,19 @@ export class CloudClipField {
    * Sync Three.js groups. Pass **fractional** `utcMinuteVisual` (e.g. `Date.now()/60000`) for smooth
    * lifecycle lerping and sub-minute wind extrapolation past `lastPhysicsMinute`.
    * Optional `camera` enables back-face culling (see {@link CloudClipFieldConfig.cloudBackfaceCullDot}).
+   * Optional `sunDirectionTowardSun` (unit, planet center → sun) enables {@link CloudClipFieldConfig.cloudHemisphereShading}.
    */
   syncThreeGroup(
     root: THREE.Group,
     globe: Globe,
     utcMinuteVisual: number,
-    camera?: THREE.Camera
+    camera?: THREE.Camera,
+    sunDirectionTowardSun?: THREE.Vector3
   ): void {
     const cfg = this.config;
     const heightOff = 0.04;
-    const seen = new Set<number>();
+    const seen = this._syncSeenInstanceIds;
+    seen.clear();
     const minPer = cfg.lifecycleMinutesPerFrame;
 
     for (const inst of this.instances) {
@@ -1011,7 +1029,7 @@ export class CloudClipField {
       const f1 = tpl.frames[i1]!;
       const scaleMul = f0.scaleMul * (1 - t) + f1.scaleMul * t;
       const opacity = f0.opacity * (1 - t) + f1.opacity * t;
-      const meshFrameKey = `${inst.templateIndex}:${i0}`;
+      const meshFrameKey = `${inst.templateIndex}:${i0}:r${cfg.cloudMarchingCubesGrid}`;
 
       const builtRefScale = inst.baseScale * f0.scaleMul;
       const displayScale = inst.baseScale * scaleMul;
@@ -1036,6 +1054,7 @@ export class CloudClipField {
           castShadows: cfg.cloudCastShadows,
           clipBottomToGlobe: true,
           heightOffset: heightOff,
+          marchingCubesGridRes: cfg.cloudMarchingCubesGrid,
         });
         grp.userData.clipMeshKey = meshFrameKey;
         grp.userData.builtRefScale = builtRefScale;
@@ -1045,6 +1064,7 @@ export class CloudClipField {
         delete grp.userData.clipAx;
         delete grp.userData.clipAy;
         delete grp.userData.clipAz;
+        delete grp.userData.clipHemiDot;
         grp.userData.clipInstanceId = inst.id;
         this.meshScratch.set(inst.id, grp);
       } else if (needNewMesh) {
@@ -1070,6 +1090,7 @@ export class CloudClipField {
             castShadows: cfg.cloudCastShadows,
             clipBottomToGlobe: true,
             heightOffset: heightOff,
+            marchingCubesGridRes: cfg.cloudMarchingCubesGrid,
           });
           for (const ch of fresh.children) grp.add(ch);
           fresh.traverse((ch) => {
@@ -1086,6 +1107,7 @@ export class CloudClipField {
           delete grp.userData.clipAx;
           delete grp.userData.clipAy;
           delete grp.userData.clipAz;
+          delete grp.userData.clipHemiDot;
           grp.userData.clipInstanceId = inst.id;
         }
       }
@@ -1130,6 +1152,24 @@ export class CloudClipField {
         grp.visible = _renderAnchor.dot(_camWorld) > cullDot;
       } else {
         grp.visible = true;
+      }
+
+      if (
+        cfg.cloudHemisphereShading &&
+        sunDirectionTowardSun != null &&
+        sunDirectionTowardSun.lengthSq() > 1e-12
+      ) {
+        const hemiDot = Math.round(
+          _renderAnchor.dot(sunDirectionTowardSun) * 400,
+        );
+        if ((grp.userData.clipHemiDot as number | undefined) !== hemiDot) {
+          grp.userData.clipHemiDot = hemiDot;
+          updateLowPolyCloudGroupHemisphereShade(
+            grp,
+            _renderAnchor,
+            sunDirectionTowardSun,
+          );
+        }
       }
     }
 

@@ -47,7 +47,9 @@ export function logPerfDiagHelp(): void {
   console.info(
     PERF_LOG,
     "ENABLED — build phases log when the globe finishes building; frame averages every N animation frames. " +
-      "Slice times are main-thread CPU; Three.js line is draw calls + triangles (not real GPU ms).",
+      "Slice times are main-thread CPU; Three.js line is draw calls + triangles (not real GPU ms). " +
+      "Frame line is JSON sorted by cost; _unattributedMs is wall time minus summed slices (browser/GC). " +
+      "Vegetation tree logs: ?treeDebug=1.",
   );
 }
 
@@ -69,10 +71,16 @@ export function createBuildPerfMarker():
       const end = performance.now();
       segments.push({ label: "_tail", ms: end - last });
       const total = end - t0;
-      console.log(PERF_LOG, "buildWorldAsync CPU (ms)", {
-        total: +total.toFixed(1),
-        segments: segments.map((s) => ({ ...s, ms: +s.ms.toFixed(1) })),
-      });
+      const rounded = segments.map((s) => ({
+        label: s.label,
+        ms: +s.ms.toFixed(1),
+      }));
+      rounded.sort((a, b) => b.ms - a.ms);
+      console.log(
+        PERF_LOG,
+        "buildWorldAsync CPU (ms)",
+        JSON.stringify({ total: +total.toFixed(1), segmentsByCost: rounded }),
+      );
     },
   };
 }
@@ -142,17 +150,22 @@ export function createFramePerfSampler(logEvery: number): FramePerfSampler {
       }
 
       const n = logEvery <= 1 ? 1 : logEvery;
+      const wallAvg = wallAccum / n;
       const avg: Record<string, string> = {
-        _frameWallMs: (wallAccum / n).toFixed(2),
+        _frameWallMs: wallAvg.toFixed(2),
       };
       wallAccum = 0;
+      let sliceSum = 0;
       for (const k of Object.keys(sums)) {
-        avg[k] = (sums[k]! / n).toFixed(2);
+        const v = sums[k]! / n;
+        sliceSum += v;
+        avg[k] = v.toFixed(2);
       }
       if (minuteTickCount > 0) {
         avg._minuteTick_events = String(minuteTickCount);
         avg._minuteTick_avgMs = (minuteTickMsSum / minuteTickCount).toFixed(2);
       }
+      avg._unattributedMs = Math.max(0, wallAvg - sliceSum).toFixed(2);
 
       const r = renderer.info.render;
       const mem = renderer.info.memory;
@@ -168,7 +181,14 @@ export function createFramePerfSampler(logEvery: number): FramePerfSampler {
       const info = renderer.info as { reset?: () => void };
       info.reset?.();
 
-      console.log(PERF_LOG, `frame CPU avg ms (last ${n} frames)`, avg);
+      const sorted = Object.entries(avg).sort(
+        (a, b) => parseFloat(b[1]) - parseFloat(a[1]),
+      );
+      console.log(
+        PERF_LOG,
+        `frame CPU avg ms (last ${n} frames, sorted high→low)`,
+        JSON.stringify(Object.fromEntries(sorted)),
+      );
       console.log(PERF_LOG, "Three.js render info (last frame before reset)", gpuHint);
 
       for (const k of Object.keys(sums)) delete sums[k];
