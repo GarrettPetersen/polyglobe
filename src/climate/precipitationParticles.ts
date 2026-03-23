@@ -59,10 +59,14 @@ const _east = new THREE.Vector3();
 const _north = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
 const _col = new THREE.Color();
+const _particleCandScratch: number[] = [];
 
 /**
  * Repopulates instances from tiles with active overlay precip. `simUtcMinute` seeds layout; `timeSec`
  * animates fall along tile normal.
+ *
+ * When `candidateTileIds` is set (e.g. from {@link CloudClipField.getPrecipParticleCandidateTileIds}),
+ * skips scanning `precipOverlay` each frame.
  */
 export function updatePrecipitationParticles(
   group: THREE.Group,
@@ -72,24 +76,32 @@ export function updatePrecipitationParticles(
   simUtcMinute: number,
   timeSec: number,
   getTerrainTypeForTile?: (tileId: number) => TerrainType | undefined,
-  getMonthlyMeanTempCForTile?: (tileId: number) => Float32Array | undefined
+  getMonthlyMeanTempCForTile?: (tileId: number) => Float32Array | undefined,
+  candidateTileIds?: readonly number[]
 ): void {
   const mesh = group.children[0] as THREE.InstancedMesh | undefined;
   if (!mesh?.instanceColor) return;
   const maxStreaks = (group.userData.maxStreaks as number) ?? 420;
 
-  const candidates: number[] = [];
-  for (const [tid, v] of precipOverlay) {
-    if (v > 0.055) candidates.push(tid);
+  let pool: readonly number[];
+  if (candidateTileIds != null) {
+    pool = candidateTileIds;
+  } else {
+    const scratch = _particleCandScratch;
+    scratch.length = 0;
+    for (const [tid, v] of precipOverlay) {
+      if (v > 0.055) scratch.push(tid);
+    }
+    pool = scratch;
   }
 
   const seed = (Math.floor(simUtcMinute) ^ Math.floor(timeSec * 30)) >>> 0;
   let ci = 0;
 
-  for (let k = 0; k < maxStreaks && candidates.length > 0; k++) {
+  for (let k = 0; k < maxStreaks && pool.length > 0; k++) {
     const pick = (seed + k * 0x9e3779b9) >>> 0;
-    const j = pick % candidates.length;
-    const tid = candidates[j]!;
+    const j = pick % pool.length;
+    const tid = pool[j]!;
     const pose = globe.getTilePose(tid);
     if (!pose) continue;
 

@@ -68,7 +68,6 @@ import {
   getPrecipitationByTile,
   getPrecipitationByTileWithMoisture,
   buildMoistureByTileFromTerrain,
-  MAX_TILES_FOR_ANNUAL_WEATHER_TABLES,
   annualDayIndexFromDate,
   buildAnnualTileWeatherTables,
   fillWindMapFromAnnual,
@@ -103,7 +102,7 @@ import {
 /** Load `public/discrete-weather-bake-{subdivisions}.bin` when Earth cache version and tile order match. */
 async function tryLoadPrebuiltDiscreteWeatherBake(
   subdivisions: number,
-  earthGlobeCacheVersion: number,
+  earthGlobeCacheVersionKey: string,
   globe: Globe,
 ): Promise<DiscreteWeatherYearBake | null> {
   if (typeof fetch === "undefined") return null;
@@ -116,7 +115,7 @@ async function tryLoadPrebuiltDiscreteWeatherBake(
     const decoded = decodeDiscreteWeatherYearBakeFile(
       buf,
       globeTileIds,
-      earthGlobeCacheVersion,
+      earthGlobeCacheVersionKey,
       subdivisions,
     );
     return decoded?.bake ?? null;
@@ -2090,6 +2089,29 @@ function waterTileIdsForGlobalTerrain(): ReadonlySet<number> {
 let globalWindByTile: Map<number, { directionRad: number; strength: number }> | null = null;
 /** Module-level flow (river + current): direction of flow, strength; for overlay and debug. */
 let globalFlowByTile: Map<number, { directionRad: number; strength: number }> | null = null;
+
+const EMPTY_HEX_FLOW_MAP = new Map<
+  number,
+  { directionRad: number; strength: number }
+>();
+
+/** Water + beach tile ids for ocean currents (invalidated when {@link globalTileTerrain} is replaced). */
+let cachedWaterBeachTileIdsForCurrents: readonly number[] = [];
+let cachedWaterBeachTileIdsTerrainRef: Map<number, TileTerrainData> | null = null;
+
+function waterBeachTileIdsForOceanCurrents(): readonly number[] {
+  const terr = globalTileTerrain;
+  if (!terr) return [];
+  if (cachedWaterBeachTileIdsTerrainRef !== terr) {
+    const out: number[] = [];
+    for (const [id, t] of terr) {
+      if (t.type === "water" || t.type === "beach") out.push(id);
+    }
+    cachedWaterBeachTileIdsForCurrents = out;
+    cachedWaterBeachTileIdsTerrainRef = terr;
+  }
+  return cachedWaterBeachTileIdsForCurrents;
+}
 /** Module-level river edges for debug panel access. */
 let globalRiverEdgesByTile: Map<number, Set<number>> | null = null;
 /** Module-level river flow (exit edge + direction) for debug panel; from elevation + mouth. */
@@ -2250,12 +2272,14 @@ function updateWindFromState(state: DemoState, dateTimeStr?: string): void {
     });
   }
   const windByTile = globalWindByTile;
-  updateWindArrows(windArrowsGroup, globe, windByTile, {
-    heightOffset: 0.08,
-    arrowScale: 0.065,
-    color: 0x88ccff,
-    minStrength: 0.06,
-  });
+  if (state.showWinds) {
+    updateWindArrows(windArrowsGroup, globe, windByTile, {
+      heightOffset: 0.08,
+      arrowScale: 0.065,
+      color: 0x88ccff,
+      minStrength: 0.06,
+    });
+  }
   windArrowsGroup.visible = state.showWinds;
 }
 
@@ -2307,23 +2331,20 @@ function buildRiverFlowByTile(
   return flow;
 }
 
-/** Ocean currents: wind-driven, Ekman deflection, water tiles only. */
+/** Ocean currents: wind-driven, Ekman deflection, water + beach tiles only. */
 function buildCurrentFlowByTile(): Map<number, { directionRad: number; strength: number }> {
   const flow = new Map<number, { directionRad: number; strength: number }>();
-  if (!globe || !globalTileTerrain || !globalWindByTile) return flow;
+  if (!globe || !globalWindByTile) return flow;
 
-  for (const tile of globe.tiles) {
-    const id = tile.id;
-    const terrain = globalTileTerrain.get(id);
-    const isWater = terrain?.type === "water" || terrain?.type === "beach";
-    if (!isWater) continue;
-
+  const ids = waterBeachTileIdsForOceanCurrents();
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i]!;
     const w = globalWindByTile.get(id);
     if (!w) continue;
-
-    const { lat } = tileCenterToLatLon(tile.center);
+    const latDeg = globe.getTileCenterLatDeg(id);
+    if (latDeg === undefined) continue;
     const blow = w.directionRad + Math.PI;
-    const ekman = lat > 0 ? -Math.PI / 4 : Math.PI / 4;
+    const ekman = latDeg > 0 ? -Math.PI / 4 : Math.PI / 4;
     const strength = Math.min(0.6, w.strength * 0.2);
     flow.set(id, { directionRad: blow + ekman, strength });
   }
@@ -2350,17 +2371,21 @@ function updateFlowFromState(state: DemoState): void {
     annualTileWeather != null ? annualDayIndexFromDate(date) : undefined;
 
   const riverFlow = buildRiverFlowByTile(subsolar.latDeg, dayIdx);
-  const currentFlow = buildCurrentFlowByTile();
+  const currentFlow = state.showFlow
+    ? buildCurrentFlowByTile()
+    : EMPTY_HEX_FLOW_MAP;
   globalFlowByTile = mergeFlowByTile(riverFlow, currentFlow);
 
-  if (riverFlowArrowsGroup) {
-    updateFlowArrows(riverFlowArrowsGroup, globe, riverFlow, RIVER_FLOW_OPTIONS);
-    riverFlowArrowsGroup.visible = state.showFlow;
+  if (state.showFlow) {
+    if (riverFlowArrowsGroup) {
+      updateFlowArrows(riverFlowArrowsGroup, globe, riverFlow, RIVER_FLOW_OPTIONS);
+    }
+    if (currentArrowsGroup) {
+      updateFlowArrows(currentArrowsGroup, globe, currentFlow, CURRENT_FLOW_OPTIONS);
+    }
   }
-  if (currentArrowsGroup) {
-    updateFlowArrows(currentArrowsGroup, globe, currentFlow, CURRENT_FLOW_OPTIONS);
-    currentArrowsGroup.visible = state.showFlow;
-  }
+  if (riverFlowArrowsGroup) riverFlowArrowsGroup.visible = state.showFlow;
+  if (currentArrowsGroup) currentArrowsGroup.visible = state.showFlow;
 }
 
 function getLandWeatherVertexPaintContext(state: DemoState): {
@@ -2562,6 +2587,7 @@ function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
         waterTileIdsForGlobalTerrain(),
         cloudClipField,
       );
+      cloudClipField.markPrecipOverlayExternallyMutated();
       lastAppliedDiscreteDayIdx = dayIdx;
     }
     return;
@@ -2782,6 +2808,7 @@ async function ensureCloudWeatherAndPrecipMeshes(
       waterTileIdsForGlobalTerrain(),
       field,
     );
+    field.markPrecipOverlayExternallyMutated();
     lastAppliedDiscreteDayIdx = di;
   }
 
@@ -3496,99 +3523,88 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     annualRiverFlowStrength = null;
     globalDiscreteWeatherBake = null;
     lastAppliedDiscreteDayIdx = -1;
-    if (globe.tileCount <= MAX_TILES_FOR_ANNUAL_WEATHER_TABLES) {
-      const getSub = (utcMin: number) =>
-        dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
-      try {
-        annualTileWeather = buildAnnualTileWeatherTables(
-          globe,
-          globalMoistureByTile,
-          getSub,
-          {
-            baseStrength: 1,
-            noiseDirectionRad: 0.12,
-            noiseStrength: 0.08,
-            seed: 45678,
-            getTerrain: (id) => {
-              const t = tileTerrain.get(id);
-              if (!t) return undefined;
-              const isWater = t.type === "water" || t.type === "beach";
-              return { isWater, elevation: t.elevation };
-            },
+    const getSub = (utcMin: number) =>
+      dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
+    try {
+      annualTileWeather = buildAnnualTileWeatherTables(
+        globe,
+        globalMoistureByTile,
+        getSub,
+        {
+          baseStrength: 1,
+          noiseDirectionRad: 0.12,
+          noiseStrength: 0.08,
+          seed: 45678,
+          getTerrain: (id) => {
+            const t = tileTerrain.get(id);
+            if (!t) return undefined;
+            const isWater = t.type === "water" || t.type === "beach";
+            return { isWater, elevation: t.elevation };
           },
+        },
+      );
+      if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
+        annualRiverFlowStrength = buildAnnualRiverFlowStrength(
+          globe,
+          globalRiverFlowByTile,
+          getSub,
         );
-        if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
-          annualRiverFlowStrength = buildAnnualRiverFlowStrength(
-            globe,
-            globalRiverFlowByTile,
-            getSub,
-          );
-        }
-        const n = globe.tileCount;
-        const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
-        console.log(
-          BUILD_LOG,
-          "annual weather tables (wind+precip 365d, UTC noon):",
-          n,
-          "tiles, ~",
-          mb,
-          "MiB packed",
-          annualRiverFlowStrength
-            ? `, river strengths ${annualRiverFlowStrength.riverTileIds.length} tiles`
-            : "",
-        );
-        const fromDisk =
-          state.useEarth &&
-          (await tryLoadPrebuiltDiscreteWeatherBake(
-            state.subdivisions,
-            earthCacheVersionForWeatherBin,
-            globe,
-          ));
-        if (fromDisk) {
-          globalDiscreteWeatherBake = fromDisk;
-          console.log(
-            BUILD_LOG,
-            "discrete weather year bake: loaded public/discrete-weather-bake-",
-            state.subdivisions,
-            ".bin (cache version",
-            earthCacheVersionForWeatherBin,
-            ")",
-          );
-        } else {
-          globalDiscreteWeatherBake = buildDiscreteWeatherYearBake(
-            globe,
-            annualTileWeather,
-            waterTileIdsForGlobalTerrain(),
-            getSub,
-            {
-              getTerrainTypeForTile: (id) => tileTerrain.get(id)?.type,
-              getMonthlyMeanTempCForTile: (id) =>
-                tileTerrain.get(id)?.monthlyMeanTempC,
-            },
-          );
-          const bakeMb = ((365 * n) / (1024 * 1024)).toFixed(2);
-          console.log(
-            BUILD_LOG,
-            "discrete weather year bake (flags per tile-day): ~",
-            bakeMb,
-            "MiB computed — run npm run build-earth-globe-cache to emit .bin for faster loads",
-          );
-        }
-      } catch (e) {
-        console.warn(BUILD_LOG, "annual weather tables failed, using live samples:", e);
-        annualTileWeather = null;
-        annualRiverFlowStrength = null;
-        globalDiscreteWeatherBake = null;
       }
-    } else {
-      globalDiscreteWeatherBake = null;
-      lastAppliedDiscreteDayIdx = -1;
+      const n = globe.tileCount;
+      const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
       console.log(
         BUILD_LOG,
-        "annual weather tables skipped (tileCount >",
-        MAX_TILES_FOR_ANNUAL_WEATHER_TABLES,
-        ")",
+        "annual weather tables (wind+precip 365d, UTC noon):",
+        n,
+        "tiles, ~",
+        mb,
+        "MiB packed",
+        annualRiverFlowStrength
+          ? `, river strengths ${annualRiverFlowStrength.riverTileIds.length} tiles`
+          : "",
       );
+      const fromDisk =
+        state.useEarth &&
+        (await tryLoadPrebuiltDiscreteWeatherBake(
+          state.subdivisions,
+          earthCacheVersionForWeatherBin,
+          globe,
+        ));
+      if (fromDisk) {
+        globalDiscreteWeatherBake = fromDisk;
+        console.log(
+          BUILD_LOG,
+          "discrete weather year bake: loaded public/discrete-weather-bake-",
+          state.subdivisions,
+          ".bin (cache version",
+          earthCacheVersionForWeatherBin,
+          ")",
+        );
+      } else {
+        globalDiscreteWeatherBake = buildDiscreteWeatherYearBake(
+          globe,
+          annualTileWeather,
+          waterTileIdsForGlobalTerrain(),
+          getSub,
+          {
+            getTerrainTypeForTile: (id) => tileTerrain.get(id)?.type,
+            getMonthlyMeanTempCForTile: (id) =>
+              tileTerrain.get(id)?.monthlyMeanTempC,
+          },
+        );
+        const bakeMb = ((365 * n) / (1024 * 1024)).toFixed(2);
+        console.log(
+          BUILD_LOG,
+          "discrete weather year bake (flags per tile-day): ~",
+          bakeMb,
+          "MiB computed — run npm run build-earth-globe-cache to emit .bin for faster loads",
+        );
+      }
+    } catch (e) {
+      console.warn(BUILD_LOG, "annual weather tables failed, using live samples:", e);
+      annualTileWeather = null;
+      annualRiverFlowStrength = null;
+      globalDiscreteWeatherBake = null;
     }
 
     await yieldToMain();
@@ -4588,6 +4604,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   windCheck.addEventListener("change", () => {
     state.showWinds = windCheck.checked;
     if (windArrowsGroup) windArrowsGroup.visible = state.showWinds;
+    if (state.showWinds) updateWindFromState(state);
   });
   const windLabel = document.createElement("label");
   windLabel.textContent = "Show winds (arrows)";
@@ -4604,6 +4621,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     state.showFlow = flowCheck.checked;
     if (riverFlowArrowsGroup) riverFlowArrowsGroup.visible = state.showFlow;
     if (currentArrowsGroup) currentArrowsGroup.visible = state.showFlow;
+    if (state.showFlow) updateFlowFromState(state);
   });
   const flowLabel = document.createElement("label");
   flowLabel.textContent = "Show flow (rivers & currents)";
@@ -5140,6 +5158,7 @@ async function init() {
         performance.now() * 0.001,
         (id) => globalTileTerrain?.get(id)?.type,
         (id) => globalTileTerrain?.get(id)?.monthlyMeanTempC,
+        cloudClipField.getPrecipParticleCandidateTileIds(),
       );
       precipFxGroup.visible = true;
     } else if (precipFxGroup) {

@@ -714,6 +714,26 @@ export interface LowPolyCloudHemisphereShadeOptions {
 }
 
 /**
+ * Lit-side / night-side terminator tint for low-poly clouds (same model as
+ * {@link updateLowPolyCloudGroupHemisphereShade}).
+ */
+export function computeLowPolyCloudHemisphereColor(
+  outwardUnit: THREE.Vector3,
+  sunDirUnit: THREE.Vector3,
+  target: THREE.Color,
+  opts?: LowPolyCloudHemisphereShadeOptions
+): void {
+  const tDark = opts?.terminatorDark ?? -0.14;
+  const tLight = opts?.terminatorLight ?? 0.1;
+  const dot = outwardUnit.dot(sunDirUnit);
+  const span = Math.max(1e-5, tLight - tDark);
+  const u = THREE.MathUtils.clamp((dot - tDark) / span, 0, 1);
+  _hemiDay.set(opts?.dayColor ?? 0xe5e8ec);
+  _hemiNight.set(opts?.nightColor ?? 0x3a424c);
+  target.copy(_hemiNight).lerp(_hemiDay, u);
+}
+
+/**
  * Fake terminator without shadow maps: outward is unit vector from planet center through the cloud
  * shell; sunDir is unit vector from planet center toward the sun (same frame as scene lighting).
  */
@@ -723,14 +743,7 @@ export function updateLowPolyCloudGroupHemisphereShade(
   sunDirUnit: THREE.Vector3,
   opts?: LowPolyCloudHemisphereShadeOptions,
 ): void {
-  const tDark = opts?.terminatorDark ?? -0.14;
-  const tLight = opts?.terminatorLight ?? 0.1;
-  const dot = outwardUnit.dot(sunDirUnit);
-  const span = Math.max(1e-5, tLight - tDark);
-  const u = THREE.MathUtils.clamp((dot - tDark) / span, 0, 1);
-  _hemiDay.set(opts?.dayColor ?? 0xe5e8ec);
-  _hemiNight.set(opts?.nightColor ?? 0x3a424c);
-  _hemiOut.copy(_hemiNight).lerp(_hemiDay, u);
+  computeLowPolyCloudHemisphereColor(outwardUnit, sunDirUnit, _hemiOut, opts);
   group.traverse((ch) => {
     if (
       ch instanceof THREE.Mesh &&
@@ -740,6 +753,77 @@ export function updateLowPolyCloudGroupHemisphereShade(
       ch.material.color.copy(_hemiOut);
     }
   });
+}
+
+const _instProtoColor = new THREE.Color(0xffffff);
+
+/**
+ * Build one marching-cubes cloud mesh for {@link THREE.InstancedMesh} (geometry + material clones).
+ * Geometry matches {@link createLowPolyCloudGroupAtAnchor} at the given spec (pole anchor for a
+ * neutral globe clip). Caller owns lifecycle disposal.
+ */
+export function createLowPolyCloudInstancedPrototype(
+  globe: Globe,
+  spec: SimCloudVisualSpec,
+  options: {
+    marchingCubesGridRes: number;
+    castShadows: boolean;
+    opacity: number;
+    heightOffset?: number;
+  }
+): { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial } {
+  const heightOffset = options.heightOffset ?? LOW_POLY_CLOUD_DEFAULTS.heightOffset;
+  const temp = createLowPolyCloudGroupAtAnchor(globe, spec, {
+    opacity: options.opacity,
+    castShadows: options.castShadows,
+    clipBottomToGlobe: true,
+    heightOffset,
+    marchingCubesGridRes: options.marchingCubesGridRes,
+  });
+  let foundGeom: THREE.BufferGeometry | undefined;
+  let foundMat: THREE.MeshStandardMaterial | undefined;
+  temp.traverse((ch) => {
+    if (
+      ch instanceof THREE.Mesh &&
+      ch.name !== "CloudShadowProxy" &&
+      foundGeom === undefined &&
+      ch.material instanceof THREE.MeshStandardMaterial
+    ) {
+      foundGeom = ch.geometry as THREE.BufferGeometry;
+      foundMat = ch.material;
+    }
+  });
+  if (!foundGeom || !foundMat) {
+    temp.traverse((ch) => {
+      if (ch instanceof THREE.Mesh) {
+        ch.geometry.dispose();
+        if (ch.material instanceof THREE.Material) ch.material.dispose();
+      }
+    });
+    return {
+      geometry: new THREE.BufferGeometry(),
+      material: new THREE.MeshStandardMaterial({
+        color: 0xe5e8ec,
+        transparent: true,
+        opacity: options.opacity,
+        depthTest: true,
+        depthWrite: true,
+        flatShading: true,
+        roughness: 1,
+        metalness: 0,
+      }),
+    };
+  }
+  const geometry = foundGeom.clone();
+  const material = foundMat.clone();
+  material.color.copy(_instProtoColor);
+  temp.traverse((ch) => {
+    if (ch instanceof THREE.Mesh) {
+      ch.geometry.dispose();
+      if (ch.material instanceof THREE.Material) ch.material.dispose();
+    }
+  });
+  return { geometry, material };
 }
 
 /**
@@ -831,6 +915,7 @@ export function sortLowPolyCloudsByCamera(
   camera.getWorldPosition(_cameraPos);
   for (let i = 0; i < cloudGroup.children.length; i++) {
     const cloud = cloudGroup.children[i];
+    if (cloud instanceof THREE.InstancedMesh) continue;
     if (!(cloud instanceof THREE.Group)) continue;
     const puffs: THREE.Mesh[] = [];
     let proxy: THREE.Object3D | null = null;

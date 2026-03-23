@@ -191,7 +191,6 @@ export {
   type PrecipitationOverlayOptions,
 } from "./climate/precipitationOverlay.js";
 export {
-  MAX_TILES_FOR_ANNUAL_WEATHER_TABLES,
   annualDayIndexFromDate,
   buildAnnualTileWeatherTables,
   fillWindMapFromAnnual,
@@ -214,6 +213,7 @@ export {
   queryDiscreteWeatherForTileId,
   applyDiscreteWeatherDayToClipField,
   DISCRETE_WEATHER_BAKE_FILE_VERSION,
+  discreteWeatherBakeEarthCacheVersionU32,
   encodeDiscreteWeatherYearBakeFile,
   decodeDiscreteWeatherYearBakeFile,
   type DiscreteWeatherBakeFileMeta,

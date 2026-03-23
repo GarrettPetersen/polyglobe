@@ -14,9 +14,6 @@ import {
   type TileWind,
 } from "../wind/windPatterns.js";
 
-/** Skip packed tables above this tile count to avoid large RAM use (~365 × n × 12 bytes + river). */
-export const MAX_TILES_FOR_ANNUAL_WEATHER_TABLES = 120_000;
-
 const REF_YEAR = 2023;
 const DAYS = 365;
 

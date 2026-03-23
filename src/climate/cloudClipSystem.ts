@@ -8,7 +8,9 @@ import type { Globe } from "../core/Globe.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import { windAtLatLonDeg } from "../wind/windPatterns.js";
 import {
+  computeLowPolyCloudHemisphereColor,
   createLowPolyCloudGroupAtAnchor,
+  createLowPolyCloudInstancedPrototype,
   DEFAULT_CLOUD_SDF_GRID_RES,
   setLowPolyCloudGroupShellPose,
   updateLowPolyCloudGroupVisualScaleOpacity,
@@ -60,8 +62,9 @@ function makeTemplate(seedBase: number, flatLate: boolean): CloudClipTemplate {
   for (let i = 0; i < n; i++) {
     const t = n <= 1 ? 0 : i / (n - 1);
     const envelope = Math.sin(t * Math.PI);
-    const scaleMul = 0.34 + envelope * 0.92;
-    const opacity = 0.48 + envelope * 0.46;
+    /** Peaks mid-cycle; ends ~0 so clouds spawn/despawn small and dispersed. */
+    const scaleMul = 0.09 + envelope * 1.17;
+    const opacity = 0.26 + envelope * 0.68;
     const precipWeight = envelope * 0.24;
     frames.push({
       scaleMul,
@@ -157,6 +160,12 @@ export interface CloudClipFieldConfig {
    * Set `null` to disable culling even when a camera is passed.
    */
   cloudBackfaceCullDot: number | null;
+  /**
+   * When true, each clip template uses one shared marching-cubes mesh drawn with
+   * {@link THREE.InstancedMesh} (fixed slot count = {@link CloudClipFieldConfig.maxClouds} cap at init).
+   * Unused slots stay at zero scale. When false, legacy per-cloud groups (marching-cubes rebuilds).
+   */
+  useInstancedCloudMeshes: boolean;
 }
 
 const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
@@ -184,6 +193,7 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   groundFreezeTemperatureThreshold: 0.41,
   snowMeltPerMinuteWhenThawed: 0.991,
   cloudBackfaceCullDot: -0.11,
+  useInstancedCloudMeshes: true,
 };
 
 interface ClipInstance {
@@ -209,6 +219,12 @@ const _north = new THREE.Vector3();
 const _blow = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
 const _camWorld = new THREE.Vector3();
+const _instMat = new THREE.Matrix4();
+const _instPos = new THREE.Vector3();
+const _instScale = new THREE.Vector3();
+const _instQuat = new THREE.Quaternion();
+const _instTint = new THREE.Color();
+const _zeroInstanceMat = /*@__PURE__*/ new THREE.Matrix4().makeScale(0, 0, 0);
 
 function sampleSizePowerMul(h: number, cfg: CloudClipFieldConfig): number {
   const u = Math.max(1e-6, unitFloat(h));
@@ -425,7 +441,10 @@ export interface AnnualSpawnSpec {
   baseScale: number;
   birthWindDirectionRad: number;
   birthWindStrength: number;
-  /** Template frame index at spawn (0 … template length − 1). */
+  /**
+   * Kept for table layout; runtime always starts the clip at frame 0 so clouds grow from a small
+   * dispersed state instead of popping in mid-envelope.
+   */
   lifecyclePhase: number;
 }
 
@@ -476,7 +495,7 @@ function applyAnnualSpawnSpec(
   inst: ClipInstance,
   spec: AnnualSpawnSpec,
   targetUtc: number,
-  cfg: CloudClipFieldConfig
+  _cfg: CloudClipFieldConfig
 ): boolean {
   const anchor = normalizeAnchorFromTile(globe, spec.spawnTileId);
   if (!anchor) return false;
@@ -488,11 +507,7 @@ function applyAnnualSpawnSpec(
   inst.baseScale = spec.baseScale;
   inst.birthWindDirectionRad = spec.birthWindDirectionRad;
   inst.birthWindStrength = spec.birthWindStrength;
-  const tpl = CLIP_TEMPLATES[inst.templateIndex]!;
-  const dur = tpl.frames.length;
-  const minPer = cfg.lifecycleMinutesPerFrame;
-  const phase = Math.max(0, Math.min(dur - 1, spec.lifecyclePhase));
-  inst.birthUtcMinute = targetUtc - phase * minPer;
+  inst.birthUtcMinute = targetUtc;
   return true;
 }
 
@@ -525,10 +540,7 @@ export function buildAnnualCloudSpawnTable(
       const saltSpawn = u32Hash([cfg.seed, slot, doy, 0x50494b]);
       const tid = pickSpawnTileId(globe, moisture, saltSpawn, doy, cfg.seed);
       const tplIdx = u32Hash([cfg.seed, slot, doy, 0x54504c]) % CLIP_TEMPLATES.length;
-      const tpl = CLIP_TEMPLATES[tplIdx]!;
-      const dur = tpl.frames.length;
       const h = u32Hash([cfg.seed, utcMin, tid, slot]);
-      const phase = h % dur;
       const sizeMul = sampleSizePowerMul(u32Hash([h, 0x53495a]), cfg);
       const m0 = moisture.get(tid) ?? 0;
       const baseScale =
@@ -560,7 +572,7 @@ export function buildAnnualCloudSpawnTable(
         baseScale,
         birthWindDirectionRad: stub.birthWindDirectionRad,
         birthWindStrength: stub.birthWindStrength,
-        lifecyclePhase: phase,
+        lifecyclePhase: 0,
       });
     }
     rows.push(perDay);
@@ -608,10 +620,22 @@ export class CloudClipField {
   private precipOverlay = new Map<number, number>();
   private tileSurface = new TileSurfaceState();
   private meshScratch = new Map<number, THREE.Group>();
+  /** Fixed pool size from last {@link CloudClipField.initToMinute} (`min(maxClouds, tiles)`). */
+  private clipSlotCap = 0;
+  private instancedCloudMeshes: THREE.InstancedMesh[] | null = null;
+  private protoBuiltRefs: [number, number, number] | null = null;
+  private instancedMeshesInitKey = "";
   /** Reused in {@link CloudClipField.syncThreeGroup} to avoid per-frame Set allocation. */
   private readonly _syncSeenInstanceIds = new Set<number>();
   private lastPhysicsMinute = 0;
   private annualSpawnTable: AnnualSpawnSpec[][] | null = null;
+  /**
+   * Bumped whenever {@link precipOverlay} changes so {@link getPrecipParticleCandidateTileIds} can
+   * avoid scanning the map on every animation frame (particles only need tiles above ~0.055).
+   */
+  private precipOverlayMutationGen = 0;
+  private precipParticleCandidateTiles: number[] = [];
+  private precipParticleCandidatesGen = -1;
 
   constructor(config: Partial<CloudClipFieldConfig> = {}) {
     this.config = { ...DEFAULT_CLIP_CONFIG, ...config };
@@ -646,6 +670,30 @@ export class CloudClipField {
     return this.precipOverlay;
   }
 
+  /**
+   * Call after code outside this class mutates the map from {@link getPrecipOverlayMap} (e.g.
+   * {@link applyDiscreteWeatherDayToClipField}) so precip particle candidates stay in sync.
+   */
+  markPrecipOverlayExternallyMutated(): void {
+    this.precipOverlayMutationGen++;
+  }
+
+  /**
+   * Tile ids with overlay intensity high enough for rain/snow streaks. Rebuilt only when the overlay
+   * changes (see {@link markPrecipOverlayExternallyMutated} and physics sync).
+   */
+  getPrecipParticleCandidateTileIds(): readonly number[] {
+    if (this.precipParticleCandidatesGen !== this.precipOverlayMutationGen) {
+      const out = this.precipParticleCandidateTiles;
+      out.length = 0;
+      for (const [tid, v] of this.precipOverlay) {
+        if (v > 0.055) out.push(tid);
+      }
+      this.precipParticleCandidatesGen = this.precipOverlayMutationGen;
+    }
+    return this.precipParticleCandidateTiles;
+  }
+
   /** Wet ground + snow cover from recent cloud precip (decays each sim minute). */
   getTileSurfaceState(): TileSurfaceState {
     return this.tileSurface;
@@ -675,10 +723,14 @@ export class CloudClipField {
     this.instances = [];
     this.precipOverlay.clear();
     this.tileSurface.clear();
+    this.precipOverlayMutationGen++;
+    this.precipParticleCandidateTiles.length = 0;
+    this.precipParticleCandidatesGen = -1;
     this.nextId = 1;
 
     const cfg = this.config;
     const maxC = Math.min(cfg.maxClouds, globe.tiles.length);
+    this.clipSlotCap = maxC;
     const simCtx = utcMinuteToAnnualContext(targetUtc);
     const dayIdx = simCtx.dayIndex;
     const simDay = simCtx.dayOfYear;
@@ -723,11 +775,8 @@ export class CloudClipField {
       if (!anchor) continue;
 
       const tplIdx = u32Hash([cfg.seed, i, 0x54504c]) % CLIP_TEMPLATES.length;
-      const tpl = CLIP_TEMPLATES[tplIdx]!;
-      const dur = tpl.frames.length;
       const h = u32Hash([cfg.seed, targetUtc, tid, i]);
-      const lifeSpanMin = Math.max(dur * cfg.lifecycleMinutesPerFrame, dur);
-      const birth = targetUtc - (h % Math.max(1, Math.ceil(lifeSpanMin)));
+      const birth = targetUtc;
       const m0 = moisture.get(tid) ?? 0;
       const sizeMul = sampleSizePowerMul(u32Hash([h, 0x53495a]), cfg);
       const baseScale =
@@ -865,15 +914,14 @@ export class CloudClipField {
           );
           const na = normalizeAnchorFromTile(globe, newTid);
           if (!na) {
-            inst.birthUtcMinute = advanceTarget - (dur - 1) * minPer;
+            inst.birthUtcMinute = advanceTarget;
             break;
           }
           inst.ax = na.x;
           inst.ay = na.y;
           inst.az = na.z;
           inst.spawnTileId = newTid;
-          const phase = u32Hash([cfg.seed, inst.id, advanceTarget, 0x5048]) % dur;
-          inst.birthUtcMinute = advanceTarget - phase * minPer;
+          inst.birthUtcMinute = advanceTarget;
           inst.templateIndex =
             (inst.templateIndex + 1 + (u32Hash([advanceTarget, inst.id]) % 3)) %
             CLIP_TEMPLATES.length;
@@ -1012,6 +1060,7 @@ export class CloudClipField {
     }
 
     this.tileSurface.revision++;
+    this.precipOverlayMutationGen++;
     this.lastPhysicsMinute = advanceTarget;
   }
 
@@ -1029,6 +1078,18 @@ export class CloudClipField {
     sunDirectionTowardSun?: THREE.Vector3
   ): void {
     const cfg = this.config;
+    if (cfg.useInstancedCloudMeshes) {
+      this.syncInstancedClipClouds(
+        root,
+        globe,
+        utcMinuteVisual,
+        camera,
+        sunDirectionTowardSun
+      );
+      return;
+    }
+    this.disposeInstancedCloudMeshes();
+
     const heightOff = 0.04;
     const seen = this._syncSeenInstanceIds;
     seen.clear();
@@ -1234,8 +1295,11 @@ export class CloudClipField {
     }
   }
 
-  private disposeMeshes(): void {
+  private clearLegacyClipMeshScratch(root: THREE.Group): void {
     for (const grp of this.meshScratch.values()) {
+      if (grp.parent === root) {
+        root.remove(grp);
+      }
       grp.traverse((ch) => {
         if (ch instanceof THREE.Mesh) {
           ch.geometry.dispose();
@@ -1246,11 +1310,210 @@ export class CloudClipField {
     this.meshScratch.clear();
   }
 
+  private disposeInstancedCloudMeshes(): void {
+    const meshes = this.instancedCloudMeshes;
+    if (!meshes) {
+      this.protoBuiltRefs = null;
+      this.instancedMeshesInitKey = "";
+      return;
+    }
+    for (const m of meshes) {
+      if (m.parent) m.parent.remove(m);
+      m.geometry.dispose();
+      const mat = m.material;
+      if (Array.isArray(mat)) {
+        for (const mm of mat) mm.dispose();
+      } else {
+        mat.dispose();
+      }
+    }
+    this.instancedCloudMeshes = null;
+    this.protoBuiltRefs = null;
+    this.instancedMeshesInitKey = "";
+  }
+
+  private ensureInstancedCloudMeshes(root: THREE.Group, globe: Globe): void {
+    const cfg = this.config;
+    const cap = this.clipSlotCap;
+    if (cap <= 0) return;
+    const key = `${globe.radius.toFixed(6)}:${cap}:${cfg.cloudMarchingCubesGrid}:${cfg.cloudCastShadows}`;
+    if (
+      this.instancedCloudMeshes &&
+      this.instancedCloudMeshes.length === CLIP_TEMPLATES.length &&
+      this.instancedMeshesInitKey === key
+    ) {
+      for (const m of this.instancedCloudMeshes) {
+        if (m.parent !== root) root.add(m);
+      }
+      return;
+    }
+    this.disposeInstancedCloudMeshes();
+    this.instancedMeshesInitKey = key;
+    const meshes: THREE.InstancedMesh[] = [];
+    const refs: [number, number, number] = [0, 0, 0];
+    const nTpl = CLIP_TEMPLATES.length;
+    for (let t = 0; t < nTpl; t++) {
+      const f0 = CLIP_TEMPLATES[t]!.frames[0]!;
+      const builtRef = cfg.cloudScale * f0.scaleMul;
+      refs[t] = builtRef;
+      const spec: SimCloudVisualSpec = {
+        anchor: new THREE.Vector3(0, 1, 0),
+        scale: builtRef,
+        meshSeed: f0.meshSeed,
+        flatDeck: f0.flatDeck,
+      };
+      const proto = createLowPolyCloudInstancedPrototype(globe, spec, {
+        marchingCubesGridRes: cfg.cloudMarchingCubesGrid,
+        castShadows: cfg.cloudCastShadows,
+        opacity: f0.opacity,
+      });
+      const im = new THREE.InstancedMesh(proto.geometry, proto.material, cap);
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.instanceColor = new THREE.InstancedBufferAttribute(
+        new Float32Array(cap * 3),
+        3
+      );
+      im.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      im.count = cap;
+      im.name = `CloudClipInstanced_${t}`;
+      im.renderOrder = 5;
+      im.castShadow = cfg.cloudCastShadows;
+      im.receiveShadow = true;
+      im.frustumCulled = false;
+      meshes.push(im);
+      root.add(im);
+    }
+    this.instancedCloudMeshes = meshes;
+    this.protoBuiltRefs = refs;
+  }
+
+  private syncInstancedClipClouds(
+    root: THREE.Group,
+    globe: Globe,
+    utcMinuteVisual: number,
+    camera?: THREE.Camera,
+    sunDirectionTowardSun?: THREE.Vector3
+  ): void {
+    this.clearLegacyClipMeshScratch(root);
+    const cfg = this.config;
+    const cap = this.clipSlotCap;
+    if (cap <= 0) {
+      this.disposeInstancedCloudMeshes();
+      return;
+    }
+    this.ensureInstancedCloudMeshes(root, globe);
+    const meshes = this.instancedCloudMeshes;
+    const protoRefs = this.protoBuiltRefs;
+    if (!meshes || !protoRefs) return;
+
+    const extraMin = Math.max(0, utcMinuteVisual - this.lastPhysicsMinute);
+    const minPer = cfg.lifecycleMinutesPerFrame;
+    const cullDot = cfg.cloudBackfaceCullDot;
+    const doCull = camera != null && cullDot != null;
+    if (doCull) {
+      camera!.getWorldPosition(_camWorld);
+      if (_camWorld.lengthSq() < 1e-16) {
+        _camWorld.set(0, 0, 1);
+      } else {
+        _camWorld.normalize();
+      }
+    }
+
+    const heightOff = 0.04;
+    const doHemi =
+      cfg.cloudHemisphereShading &&
+      sunDirectionTowardSun != null &&
+      sunDirectionTowardSun.lengthSq() > 1e-12;
+
+    const z = _zeroInstanceMat.elements;
+    for (const mesh of meshes) {
+      const a = mesh.instanceMatrix.array as Float32Array;
+      for (let s = 0, o = 0; s < cap; s++, o += 16) {
+        a.set(z, o);
+      }
+    }
+
+    for (const inst of this.instances) {
+      const s = inst.annualSlot;
+      if (s < 0 || s >= cap) continue;
+
+      const tpl = CLIP_TEMPLATES[inst.templateIndex]!;
+      const dur = tpl.frames.length;
+      const lifeSpanMin = Math.max(dur * minPer, 1e-6);
+      let ageMin = utcMinuteVisual - inst.birthUtcMinute;
+      ageMin = ((ageMin % lifeSpanMin) + lifeSpanMin) % lifeSpanMin;
+      const frameFloat = ageMin / minPer;
+      const i0 = Math.min(dur - 1, Math.floor(frameFloat));
+      const i1 = (i0 + 1) % dur;
+      const tLerp = frameFloat - Math.floor(frameFloat);
+      const f0 = tpl.frames[i0]!;
+      const f1 = tpl.frames[i1]!;
+      const scaleMul = f0.scaleMul * (1 - tLerp) + f1.scaleMul * tLerp;
+      const opacity = f0.opacity * (1 - tLerp) + f1.opacity * tLerp;
+      const displayScale = inst.baseScale * scaleMul;
+      const t = inst.templateIndex % CLIP_TEMPLATES.length;
+      const protoRef = protoRefs[t]!;
+      const sVis = protoRef > 1e-12 ? displayScale / protoRef : 1;
+
+      extrapolateRenderAnchor(globe, inst, extraMin, cfg, _renderAnchor);
+      if (doCull && cullDot != null) {
+        if (_renderAnchor.dot(_camWorld) <= cullDot) {
+          continue;
+        }
+      }
+
+      _anchor.copy(_renderAnchor).normalize();
+      _instPos.copy(_anchor).multiplyScalar(globe.radius + heightOff);
+      _instQuat.setFromUnitVectors(_worldUp, _anchor);
+      _instScale.setScalar(sVis);
+      _instMat.compose(_instPos, _instQuat, _instScale);
+      const mesh = meshes[t]!;
+      _instMat.toArray(mesh.instanceMatrix.array as Float32Array, s * 16);
+
+      const bright = 0.78 + 0.24 * opacity;
+      if (doHemi) {
+        computeLowPolyCloudHemisphereColor(
+          _renderAnchor,
+          sunDirectionTowardSun!,
+          _instTint
+        );
+        _instTint.multiplyScalar(bright);
+      } else {
+        _instTint.set(0.898, 0.914, 0.925).multiplyScalar(bright);
+      }
+      const cArr = mesh.instanceColor!.array as Float32Array;
+      _instTint.toArray(cArr, s * 3);
+    }
+
+    for (const mesh of meshes) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
+    }
+  }
+
+  private disposeMeshes(): void {
+    for (const grp of this.meshScratch.values()) {
+      grp.traverse((ch) => {
+        if (ch instanceof THREE.Mesh) {
+          ch.geometry.dispose();
+          if (ch.material instanceof THREE.Material) ch.material.dispose();
+        }
+      });
+    }
+    this.meshScratch.clear();
+    this.disposeInstancedCloudMeshes();
+  }
+
   dispose(): void {
     this.disposeMeshes();
     this.instances = [];
     this.precipOverlay.clear();
     this.tileSurface.clear();
+    this.precipOverlayMutationGen++;
+    this.precipParticleCandidateTiles.length = 0;
+    this.precipParticleCandidatesGen = -1;
     this.annualSpawnTable = null;
   }
 }

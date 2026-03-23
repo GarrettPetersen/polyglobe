@@ -301,10 +301,26 @@ export function applyDiscreteWeatherDayToClipField(
 /** ASCII magic `PLYW` — polyglobe discrete **y**ear **w**eather. */
 const FILE_MAGIC = new Uint8Array([0x50, 0x4c, 0x59, 0x57]);
 
-/** Increment when on-disk layout or bake semantics change (invalidate old .bin files). */
-export const DISCRETE_WEATHER_BAKE_FILE_VERSION = 1;
+/** v1: `earthGlobeCacheVersion` header field was always 0 (string coerced with `>>> 0`). */
+const LEGACY_DISCRETE_WEATHER_BAKE_FILE_VERSION = 1;
+
+/**
+ * Current on-disk layout: header field is {@link discreteWeatherBakeEarthCacheVersionU32}(
+ * `EARTH_GLOBE_CACHE_VERSION`).
+ */
+export const DISCRETE_WEATHER_BAKE_FILE_VERSION = 2;
 
 const HEADER_BYTE_LENGTH = 20;
+
+/** FNV-1a u32 so string globe-cache versions (e.g. `"v19"`) round-trip in the .bin header. */
+export function discreteWeatherBakeEarthCacheVersionU32(key: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
 
 function readHeaderMagic(buf: Uint8Array): boolean {
   return (
@@ -324,12 +340,12 @@ export interface DiscreteWeatherBakeFileMeta {
 
 /**
  * Binary layout: magic `PLYW`, then little-endian
- * `fileVersion`, `earthGlobeCacheVersion`, `subdivisions`, `tileCount`, `tileCount` int32 tile ids,
+ * `fileVersion`, `earthGlobeCacheVersionU32`, `subdivisions`, `tileCount`, `tileCount` int32 tile ids,
  * then `365 * tileCount` packed flags.
  */
 export function encodeDiscreteWeatherYearBakeFile(
   bake: DiscreteWeatherYearBake,
-  earthGlobeCacheVersion: number,
+  earthGlobeCacheVersionKey: string,
   subdivisions: number,
 ): Uint8Array {
   const n = bake.tileCount;
@@ -340,7 +356,11 @@ export function encodeDiscreteWeatherYearBakeFile(
   let o = 4;
   dv.setUint32(o, DISCRETE_WEATHER_BAKE_FILE_VERSION, true);
   o += 4;
-  dv.setUint32(o, earthGlobeCacheVersion >>> 0, true);
+  dv.setUint32(
+    o,
+    discreteWeatherBakeEarthCacheVersionU32(earthGlobeCacheVersionKey),
+    true,
+  );
   o += 4;
   dv.setUint32(o, subdivisions >>> 0, true);
   o += 4;
@@ -357,7 +377,7 @@ export function encodeDiscreteWeatherYearBakeFile(
 export function decodeDiscreteWeatherYearBakeFile(
   buffer: ArrayBuffer,
   globeTileIds: readonly number[],
-  expectedEarthGlobeCacheVersion: number,
+  expectedEarthGlobeCacheVersionKey: string,
   expectedSubdivisions: number,
 ): { bake: DiscreteWeatherYearBake; meta: DiscreteWeatherBakeFileMeta } | null {
   const u8 = new Uint8Array(buffer);
@@ -374,8 +394,18 @@ export function decodeDiscreteWeatherYearBakeFile(
   const tileCount = dv.getUint32(o, true);
   o += 4;
 
-  if (fileVersion !== DISCRETE_WEATHER_BAKE_FILE_VERSION) return null;
-  if (earthGlobeCacheVersion !== expectedEarthGlobeCacheVersion) return null;
+  if (
+    fileVersion !== LEGACY_DISCRETE_WEATHER_BAKE_FILE_VERSION &&
+    fileVersion !== DISCRETE_WEATHER_BAKE_FILE_VERSION
+  ) {
+    return null;
+  }
+  if (fileVersion === DISCRETE_WEATHER_BAKE_FILE_VERSION) {
+    const want = discreteWeatherBakeEarthCacheVersionU32(
+      expectedEarthGlobeCacheVersionKey,
+    );
+    if (earthGlobeCacheVersion !== want) return null;
+  }
   if (subdivisions !== expectedSubdivisions) return null;
   if (tileCount !== globeTileIds.length) return null;
   if (tileCount > 2_000_000) return null;
