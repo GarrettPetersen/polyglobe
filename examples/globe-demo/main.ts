@@ -146,6 +146,8 @@ import {
   logPerfDiagHelp,
   createBuildPerfMarker,
   createFramePerfSamplerOrNoop,
+  isPerfDiagEnabled,
+  PERF_LOG,
 } from "./perfDiag.js";
 
 /** Plant assets live in public/plant-models/ so Vite serves them at /plant-models/. Run dev from examples/globe-demo. */
@@ -2965,6 +2967,8 @@ function syncPrecipitationCloudPhysicsAfterClockJump(
 
 /** Bumped at each globe rebuild so in-flight cloud bootstrap aborts before touching stale globals. */
 let cloudPrecipBuildGeneration = 0;
+/** Bumped with each build so deferred GLTF vegetation work does not touch a replaced globe. */
+let vegetationLoadGeneration = 0;
 
 let cloudPrecipBootstrapPromise: Promise<void> | null = null;
 
@@ -3298,6 +3302,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
   setLoading(true);
   try {
     cloudPrecipBuildGeneration++;
+    vegetationLoadGeneration++;
     landWeatherColorsDirty = true;
     landWeatherPrimeFullPaint = true;
     landWeatherStochasticSalt = 0;
@@ -3844,68 +3849,86 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     lastAppliedDiscreteDayIdx = -1;
     const getSub = (utcMin: number) =>
       dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
-    try {
-      annualTileWeather = buildAnnualTileWeatherTables(
+    /** When set, skip {@link buildAnnualTileWeatherTables} (365× full-tile wind+precip — very expensive at subdiv 7). */
+    let discreteBakeFromDisk: DiscreteWeatherYearBake | null = null;
+    if (state.useEarth) {
+      discreteBakeFromDisk = await tryLoadPrebuiltDiscreteWeatherBake(
+        state.subdivisions,
+        earthCacheVersionForWeatherBin,
         globe,
-        globalMoistureByTile,
-        getSub,
-        {
-          baseStrength: 1,
-          noiseDirectionRad: 0.12,
-          noiseStrength: 0.08,
-          seed: 45678,
-          getTerrain: (id) => {
-            const t = tileTerrain.get(id);
-            if (!t) return undefined;
-            const isWater = t.type === "water" || t.type === "beach";
-            return { isWater, elevation: t.elevation };
-          },
-        },
       );
-      annualWindTileIndexById = createAnnualWindTileIndexById(annualTileWeather);
-      if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
-        annualRiverFlowStrength = buildAnnualRiverFlowStrength(
-          globe,
-          globalRiverFlowByTile,
-          getSub,
-        );
-        annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
-          annualRiverFlowStrength,
-        );
-      } else {
-        annualRiverStrengthIndexById = null;
-      }
+    }
+    try {
       const n = globe.tileCount;
-      const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
-      console.log(
-        BUILD_LOG,
-        "annual weather tables (wind+precip 365d, UTC noon):",
-        n,
-        "tiles, ~",
-        mb,
-        "MiB packed",
-        annualRiverFlowStrength
-          ? `, river strengths ${annualRiverFlowStrength.riverTileIds.length} tiles`
-          : "",
-      );
-      const fromDisk =
-        state.useEarth &&
-        (await tryLoadPrebuiltDiscreteWeatherBake(
-          state.subdivisions,
-          earthCacheVersionForWeatherBin,
-          globe,
-        ));
-      if (fromDisk) {
-        globalDiscreteWeatherBake = fromDisk;
+      if (discreteBakeFromDisk) {
+        globalDiscreteWeatherBake = discreteBakeFromDisk;
+        annualTileWeather = null;
+        annualWindTileIndexById = null;
         console.log(
           BUILD_LOG,
-          "discrete weather year bake: loaded public/discrete-weather-bake-",
+          "discrete weather bake: loaded public/discrete-weather-bake-",
           state.subdivisions,
-          ".bin (cache version",
+          ".bin (version",
           earthCacheVersionForWeatherBin,
-          ")",
+          ") — skipping annual wind/precip tables (live wind + moisture precip where needed)",
         );
+        if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
+          annualRiverFlowStrength = buildAnnualRiverFlowStrength(
+            globe,
+            globalRiverFlowByTile,
+            getSub,
+          );
+          annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
+            annualRiverFlowStrength,
+          );
+        } else {
+          annualRiverFlowStrength = null;
+          annualRiverStrengthIndexById = null;
+        }
       } else {
+        annualTileWeather = buildAnnualTileWeatherTables(
+          globe,
+          globalMoistureByTile,
+          getSub,
+          {
+            baseStrength: 1,
+            noiseDirectionRad: 0.12,
+            noiseStrength: 0.08,
+            seed: 45678,
+            getTerrain: (id) => {
+              const t = tileTerrain.get(id);
+              if (!t) return undefined;
+              const isWater = t.type === "water" || t.type === "beach";
+              return { isWater, elevation: t.elevation };
+            },
+          },
+        );
+        annualWindTileIndexById = createAnnualWindTileIndexById(annualTileWeather);
+        if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
+          annualRiverFlowStrength = buildAnnualRiverFlowStrength(
+            globe,
+            globalRiverFlowByTile,
+            getSub,
+          );
+          annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
+            annualRiverFlowStrength,
+          );
+        } else {
+          annualRiverFlowStrength = null;
+          annualRiverStrengthIndexById = null;
+        }
+        const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
+        console.log(
+          BUILD_LOG,
+          "annual weather tables (wind+precip 365d, UTC noon):",
+          n,
+          "tiles, ~",
+          mb,
+          "MiB packed",
+          annualRiverFlowStrength
+            ? `, river strengths ${annualRiverFlowStrength.riverTileIds.length} tiles`
+            : "",
+        );
         globalDiscreteWeatherBake = buildDiscreteWeatherYearBake(
           globe,
           annualTileWeather,
@@ -4344,9 +4367,14 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       );
     }
 
-    // Biome vegetation (low-poly plants, draw-distance culled) — load real plant assets
+    // Biome vegetation: load GLTFs + build instancers off the critical path so the globe is usable sooner.
     buildPerf?.mark("preVegetationAssetLoad");
-    const { createVegetationLayer } = await import("./vegetation.js");
+    const vegBuildToken = vegetationLoadGeneration;
+    const vegetationDeferredT0 = performance.now();
+    const runVegetationDeferred = async (): Promise<void> => {
+      if (vegBuildToken !== vegetationLoadGeneration) return;
+      const { createVegetationLayer } = await import("./vegetation.js");
+      if (vegBuildToken !== vegetationLoadGeneration) return;
 
     const TREE_LOG = "[tree-debug]";
 
@@ -4616,6 +4644,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       Promise.all(grassUrls.map((url) => loadPlantGeometry(url))),
       Promise.all(rockUrls.map((url) => loadPlantGeometry(url))),
     ]);
+    if (vegBuildToken !== vegetationLoadGeneration) return;
 
     /** Fixed index alignment with `treeUrls` / `getTreeVariantIndex` — do not compact (would remap species). */
     const treeTrunkFoliageSlots: (TreeTrunkFoliage | undefined)[] = treeTrunkFoliageGeoms;
@@ -4665,6 +4694,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const TREE_SIZE_MUL = 3.1;
     const denseGlobe = globe.tileCount > 70_000;
     const veryDenseGlobe = globe.tileCount > 100_000;
+    if (vegBuildToken !== vegetationLoadGeneration) return;
     vegetationLayer = createVegetationLayer(globe, tileTerrain, {
       maxDrawDistance: veryDenseGlobe ? 1.45 : denseGlobe ? 2.65 : Infinity,
       /** From orbit, skip plant fill; zoom inside ~2.35 globe-units for biome detail. */
@@ -4732,13 +4762,24 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       }
     });
     scene.add(vegetationLayer.group);
-    buildPerf?.mark("vegetationGltf");
     const vegGroup = vegetationLayer.group;
     const treeChildren = vegGroup.children.filter((c) => c.name?.includes("tree"));
     console.log(TREE_LOG, "vegetation layer added to scene", {
       groupChildren: vegGroup.children.length,
       groupInScene: scene.children.includes(vegGroup),
       treeMeshNames: treeChildren.map((c) => c.name),
+    });
+    const vegetationDeferredMs = performance.now() - vegetationDeferredT0;
+    if (isPerfDiagEnabled()) {
+      console.log(
+        PERF_LOG,
+        "deferred vegetation GLTF+instancing (ms)",
+        +vegetationDeferredMs.toFixed(1),
+      );
+    }
+    };
+    void runVegetationDeferred().catch((err) => {
+      console.warn(BUILD_LOG, "deferred vegetation failed", err);
     });
 
     /** Debug marker at tile 42 — only meaningful at subdivision 6 (IDs differ at other scales). */

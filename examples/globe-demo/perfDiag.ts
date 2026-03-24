@@ -46,10 +46,11 @@ export function logPerfDiagHelp(): void {
   if (!isPerfDiagEnabled()) return;
   console.info(
     PERF_LOG,
-    "ENABLED — build phases log when the globe finishes building; frame averages every N animation frames. " +
+      "ENABLED — build phases log when the globe finishes building; frame averages every N animation frames. " +
+      "If `public/discrete-weather-bake-{subdiv}.bin` loads, the demo skips building 365× annual wind/precip tables (large CPU save). " +
       "Slice times are main-thread CPU; Three.js line is draw calls + triangles (not real GPU ms). " +
       "Frame line is JSON sorted by cost; _unattributedMs is wall time minus summed slices (browser/GC). " +
-      "Vegetation tree logs: ?treeDebug=1. " +
+      "Vegetation GLTF loads after the globe is ready (deferred); perf logs `deferred vegetation GLTF+instancing (ms)` when ?perf=1. Vegetation tree logs: ?treeDebug=1. " +
       "Auto-run sim clock after build: ?autoTimeSpeed=3600 (omit or 0 = paused until Play). " +
       "Land wet/snow: GPU data texture; ?landWeatherSample=0.12 stochastic land updates per flush (1 = full). " +
       "Wind/flow/precip: ?hydroField=off skips hydro; focus/sailing recomputes a tile ring only; minute tick skips full wind/river when overlays off (except focus mode); precip overlay updates reuse InstancedMesh (no geometry churn); wall-time coalesce ≥60×.",
