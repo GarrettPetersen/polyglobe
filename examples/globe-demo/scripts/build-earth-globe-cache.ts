@@ -13,6 +13,9 @@
  * `EARTH_GLOBE_CACHE_VERSION` hashed via `discreteWeatherBakeEarthCacheVersionU32` in the bin
  * header (file format v2). This bake uses annual wind +
  * precip potential only — not CloudClipField / instanced clouds / buildAnnualCloudSpawnTable.
+ *
+ * Writes public/globe-runtime-bake-{n}.bin: water-table geometry, coast masks, annual cloud spawn
+ * table, and river seasonal strengths (must match `examples/globe-demo/main.ts` + `demoCloudClipField.ts`).
  * Optional public/tavg_monthly.bin is attached first so the bake matches runtime snow/rain with monthly climatology.
  */
 import { readFileSync, writeFileSync } from "fs";
@@ -21,12 +24,14 @@ import { fileURLToPath } from "url";
 import * as THREE from "three";
 import {
   Globe,
+  WaterSphere,
   buildTerrainFromEarthRaster,
   parseElevationBin,
   applyCoastalBeach,
   traceRiverThroughTiles,
   getRiverEdgesByTile,
   getEdgeNeighbor,
+  getRiverFlowByTile,
   pruneThreeWayRiverJunctions,
   connectIsolatedRiverTiles,
   fillRiverGaps,
@@ -36,10 +41,19 @@ import {
   buildAnnualTileWeatherTables,
   buildDiscreteWeatherYearBake,
   encodeDiscreteWeatherYearBakeFile,
+  encodeGlobeRuntimeBakeFile,
+  globeRuntimeBakeCoastResolution,
+  globeRuntimeBakeCloudSpawnConfigHash,
+  globeRuntimeBakeWaterTableFingerprint,
+  buildAnnualCloudSpawnTable,
+  buildAnnualRiverFlowStrength,
+  createCoastMaskTexture,
+  createCoastLandMaskTexture,
   parseTemperatureMonthlyBin,
   attachMonthlyTemperatureToTerrainFromRaster,
 } from "../../../src/index.js";
 import { dateToSubsolarPoint } from "../astronomy.js";
+import { createEarthDemoCloudClipField } from "../demoCloudClipField.js";
 import { loadEarthBinRasterForCache } from "../earthLandRasterBin.js";
 import {
   EARTH_GLOBE_CACHE_VERSION,
@@ -384,6 +398,133 @@ async function buildCacheForSubdivisions(
     );
   } catch (e) {
     console.warn("discrete-weather-bake write failed:", e);
+  }
+
+  try {
+    const { w: cw, h: ch } = globeRuntimeBakeCoastResolution(globe.tileCount);
+    const riverEdgesByTile = new Map<number, Set<number>>();
+    for (const [k, arr] of Object.entries(riverEdges)) {
+      riverEdgesByTile.set(Number(k), new Set(arr as number[]));
+    }
+    const globalRiverFlow =
+      riverEdgesByTile.size > 0
+        ? getRiverFlowByTile(riverEdgesByTile, globe.tiles, {
+            getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
+            isWater: (id) => tileTerrain.get(id)?.type === "water",
+          })
+        : null;
+
+    const tw = createCoastMaskTexture(globe, tileTerrain, cw, ch);
+    const coastWater = new Uint8Array(
+      (tw.image as { data: Uint8Array }).data,
+    );
+    tw.dispose();
+    const tl = createCoastLandMaskTexture(globe, tileTerrain, cw, ch);
+    const coastLand = new Uint8Array(
+      (tl.image as { data: Uint8Array }).data,
+    );
+    tl.dispose();
+
+    const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
+    const water = new WaterSphere({
+      radius: 0.995,
+      color: 0x1a5a6a,
+      colorPole: 0x2a3548,
+      sunDirection: new THREE.Vector3(0, 1, 0),
+      sunColor: 0xffffff,
+    });
+    const waterInteriorOceanSeg =
+      globe.tileCount > 100_000
+        ? { widthSegments: 28, heightSegments: 20 }
+        : { widthSegments: 44, heightSegments: 30 };
+    water.setWaterTableGeometry(
+      globe.tiles,
+      (id) => tileTerrain.get(id)?.elevation ?? 0,
+      {
+        baseRadius: globe.radius,
+        elevationScale: 0.08,
+        depthBelowSurface: -0.006,
+        oceanLevel: 0.995,
+        isOcean: (id) => {
+          const d = tileTerrain.get(id);
+          if (!d) return false;
+          if (d.lakeId != null) return false;
+          return d.type === "water" || d.type === "beach";
+        },
+        isLake: (id) => tileTerrain.get(id)?.lakeId != null,
+        isRiver: (id) => riverEdgesByTile.has(id),
+        getEdgeNeighbor: (id, edge) => {
+          const tile = tileById.get(id);
+          return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
+        },
+        interiorOceanSphere: waterInteriorOceanSeg,
+      },
+    );
+
+    const geom = water.mesh.geometry;
+    const posA = geom.getAttribute("position") as THREE.BufferAttribute;
+    const norA = geom.getAttribute("normal") as THREE.BufferAttribute;
+    const idxBuf = geom.getIndex();
+    if (!idxBuf) throw new Error("water table geometry missing index");
+    const positions = new Float32Array(posA.array as ArrayLike<number>);
+    const normals = new Float32Array(norA.array as ArrayLike<number>);
+    const idxArr = idxBuf.array;
+    const indices =
+      idxBuf.array instanceof Uint32Array
+        ? new Uint32Array(idxArr)
+        : new Uint16Array(idxArr as ArrayLike<number>);
+
+    water.dispose();
+
+    const moistureRt = buildMoistureByTileFromTerrain(tileTerrain);
+    const getSubRt = (utcMin: number) =>
+      dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
+    const clipField = createEarthDemoCloudClipField(globe, tileTerrain);
+    const maxSlots = Math.min(clipField.config.maxClouds, globe.tileCount);
+    const spawnConfigHash = globeRuntimeBakeCloudSpawnConfigHash(
+      clipField.config,
+    );
+    const annualSpawnTable = buildAnnualCloudSpawnTable(
+      globe,
+      moistureRt,
+      clipField.config,
+      maxSlots,
+      getSubRt,
+    );
+
+    const annualRiverFlowStrength =
+      globalRiverFlow && globalRiverFlow.size > 0
+        ? buildAnnualRiverFlowStrength(globe, globalRiverFlow, getSubRt)
+        : null;
+
+    const grb = encodeGlobeRuntimeBakeFile({
+      earthGlobeCacheVersionKey: EARTH_GLOBE_CACHE_VERSION,
+      subdivisions,
+      tileCount: globe.tileCount,
+      coastW: cw,
+      coastH: ch,
+      maxCloudSlots: maxSlots,
+      spawnConfigHash,
+      waterTableFingerprint: globeRuntimeBakeWaterTableFingerprint(
+        globe.tileCount,
+      ),
+      positions,
+      normals,
+      indices,
+      coastWaterMask: coastWater,
+      coastLandMask: coastLand,
+      annualSpawnTable,
+      river: annualRiverFlowStrength,
+    });
+    const grbPath = join(PUBLIC, `globe-runtime-bake-${subdivisions}.bin`);
+    writeFileSync(grbPath, grb);
+    console.log(
+      "Wrote",
+      grbPath,
+      `(${Math.round(grb.byteLength / 1024)} KB, globe runtime bake)`,
+    );
+  } catch (e) {
+    console.warn("globe-runtime-bake write failed:", e);
   }
 
   const tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1 }> = [];

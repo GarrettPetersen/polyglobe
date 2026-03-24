@@ -111,7 +111,11 @@ export { Atmosphere, type AtmosphereOptions, type WeatherKind } from "./atmosphe
 
 // Water (spherical; gravity is toward planet center by construction)
 export { WaterSphere, type WaterSphereOptions } from "./water/WaterSphere.js";
-export { createCoastMaskTexture, createCoastLandMaskTexture } from "./water/coastMask.js";
+export {
+  createCoastMaskTexture,
+  createCoastLandMaskTexture,
+  createCoastDataTextureFromR8Buffer,
+} from "./water/coastMask.js";
 export {
   traceRiverThroughTiles,
   createRiverMesh,
@@ -234,6 +238,18 @@ export {
   type BuildDiscreteWeatherYearOptions,
   type DiscreteWeatherClipSink,
 } from "./climate/discreteWeatherYearBake.js";
+export {
+  GLOBE_RUNTIME_BAKE_FILE_VERSION,
+  encodeGlobeRuntimeBakeFile,
+  decodeGlobeRuntimeBakeFile,
+  globeRuntimeBakeCoastResolution,
+  globeRuntimeBakeMaxCloudSlots,
+  globeRuntimeBakeInteriorOceanSegments,
+  globeRuntimeBakeCloudSpawnConfigHash,
+  globeRuntimeBakeWaterTableFingerprint,
+  type GlobeRuntimeBakeEncodeInput,
+  type GlobeRuntimeBakeDecoded,
+} from "./climate/globeRuntimeBake.js";
 export {
   OCEAN_MOISTURE_FACTOR,
   moistureFactorForKoppenCode,

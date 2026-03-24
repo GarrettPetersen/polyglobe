@@ -30,6 +30,11 @@ import {
   applyTerrainToGeometry,
   createCoastMaskTexture,
   createCoastLandMaskTexture,
+  createCoastDataTextureFromR8Buffer,
+  decodeGlobeRuntimeBakeFile,
+  globeRuntimeBakeCloudSpawnConfigHash,
+  globeRuntimeBakeCoastResolution,
+  globeRuntimeBakeWaterTableFingerprint,
   CoastFoamOverlay,
   buildTerrainFromEarthRaster,
   earthRasterFromImageData,
@@ -107,6 +112,8 @@ import {
   MAX_EARTH_GLOBE_SUBDIVISIONS,
   isEarthGlobeCacheVersionOk,
 } from "./earthGlobeCacheVersion";
+import { createEarthDemoCloudClipField } from "./demoCloudClipField.js";
+import type { GlobeRuntimeBakeDecoded } from "polyglobe";
 
 /** Load `public/discrete-weather-bake-{subdivisions}.bin` when Earth cache version and tile order match. */
 async function tryLoadPrebuiltDiscreteWeatherBake(
@@ -132,6 +139,69 @@ async function tryLoadPrebuiltDiscreteWeatherBake(
     return null;
   }
 }
+
+/** Load `public/globe-runtime-bake-{subdivisions}.bin` when version, tile order, coast size, cloud cfg, and rivers match. */
+async function tryLoadGlobeRuntimeBake(
+  subdivisions: number,
+  earthGlobeCacheVersionKey: string,
+  globe: Globe,
+  tileTerrain: Map<number, TileTerrainData>,
+  riverFlowByTile: Map<number, { exitEdge: number; directionRad: number }> | null,
+): Promise<GlobeRuntimeBakeDecoded | null> {
+  if (typeof fetch === "undefined") return null;
+  const coast = globeRuntimeBakeCoastResolution(globe.tileCount);
+  const field = createEarthDemoCloudClipField(globe, tileTerrain);
+  const maxSlots = Math.min(field.config.maxClouds, globe.tileCount);
+  const spawnHash = globeRuntimeBakeCloudSpawnConfigHash(field.config);
+  const waterFp = globeRuntimeBakeWaterTableFingerprint(globe.tileCount);
+  const sortedRiverIds =
+    riverFlowByTile && riverFlowByTile.size > 0
+      ? [...riverFlowByTile.keys()].sort((a, b) => a - b)
+      : [];
+  const path = `globe-runtime-bake-${subdivisions}.bin`;
+  try {
+    const res = await fetch(path);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    return decodeGlobeRuntimeBakeFile(
+      buf,
+      globe.tiles.map((t) => t.id),
+      earthGlobeCacheVersionKey,
+      subdivisions,
+      coast.w,
+      coast.h,
+      maxSlots,
+      spawnHash,
+      waterFp,
+      sortedRiverIds,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function applyWaterTableGeometryFromDecodedBake(
+  water: WaterSphere,
+  bake: GlobeRuntimeBakeDecoded,
+): void {
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(bake.positions, 3),
+  );
+  geom.setAttribute(
+    "normal",
+    new THREE.Float32BufferAttribute(bake.normals, 3),
+  );
+  if (bake.indices instanceof Uint32Array) {
+    geom.setIndex(new THREE.Uint32BufferAttribute(bake.indices, 1));
+  } else {
+    geom.setIndex(new THREE.Uint16BufferAttribute(bake.indices, 1));
+  }
+  water.mesh.geometry.dispose();
+  water.mesh.geometry = geom;
+}
+
 import {
   dateToSubsolarPoint,
   dateToSublunarPoint,
@@ -2189,6 +2259,8 @@ let annualRiverStrengthIndexById: Map<number, number> | null = null;
 const annualPrecipReuseMap = new Map<number, number>();
 /** Discrete 365×tile bake: no minute-step cloud physics when set (see {@link catchUpCloudPhysicsBudgeted}). */
 let globalDiscreteWeatherBake: DiscreteWeatherYearBake | null = null;
+/** Pre-baked water table, coast masks, cloud spawn table, river strengths (`globe-runtime-bake-*.bin`). */
+let prebuiltGlobeRuntimeBake: GlobeRuntimeBakeDecoded | null = null;
 /** Last applied {@link annualDayIndexFromDate} for {@link globalDiscreteWeatherBake}. */
 let lastAppliedDiscreteDayIdx = -1;
 /** Last UTC minute index used for wind/flow/cloud sync (expensive; skip within the same minute). */
@@ -3013,37 +3085,25 @@ async function ensureCloudWeatherAndPrecipMeshes(
       subsolarLatDeg: subsolar.latDeg,
     };
   };
+  const field = createEarthDemoCloudClipField(globe, globalTileTerrain!);
+  const maxSlots = Math.min(field.config.maxClouds, globe.tileCount);
+  const annualSpawnTable = prebuiltGlobeRuntimeBake
+    ? prebuiltGlobeRuntimeBake.annualSpawnTable
+    : buildAnnualCloudSpawnTable(
+        globe,
+        globalMoistureByTile,
+        field.config,
+        maxSlots,
+        (utcMin) => dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
+      );
+  field.setAnnualSpawnTable(annualSpawnTable);
+
   const waterTileIds = new Set<number>();
   if (globalTileTerrain) {
     for (const [id, t] of globalTileTerrain) {
       if (t.type === "water") waterTileIds.add(id);
     }
   }
-  const field = new CloudClipField({
-    maxClouds: hugeGlobe ? 72 : 96,
-    cloudScale: 0.038,
-    cloudCastShadows: false,
-    cloudHemisphereShading: true,
-    cloudMarchingCubesGrid: hugeGlobe ? 14 : 16,
-    maxCloudMeshOpsPerSync: hugeGlobe ? 56 : 80,
-    maxPhysicsMinutesPerSync: hugeGlobe ? 16 : 24,
-    maxCatchUpMinutes: 720,
-    waterTileIds,
-    getTerrainTypeForTile: (id) => globalTileTerrain?.get(id)?.type,
-    getMonthlyMeanTempCForTile: (id) =>
-      globalTileTerrain?.get(id)?.monthlyMeanTempC,
-    getSubsolarLatDegForUtcMinute: (utcMin) =>
-      dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
-  });
-  const maxSlots = Math.min(field.config.maxClouds, globe.tileCount);
-  const annualSpawnTable = buildAnnualCloudSpawnTable(
-    globe,
-    globalMoistureByTile,
-    field.config,
-    maxSlots,
-    (utcMin) => dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg,
-  );
-  field.setAnnualSpawnTable(annualSpawnTable);
 
   if (typeof window !== "undefined") {
     const wPoly = window as unknown as {
@@ -3403,6 +3463,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     annualRiverFlowStrength = null;
     annualRiverStrengthIndexById = null;
     globalDiscreteWeatherBake = null;
+    prebuiltGlobeRuntimeBake = null;
     lastAppliedDiscreteDayIdx = -1;
     if (vegetationLayer) {
       scene.remove(vegetationLayer.group);
@@ -3846,18 +3907,59 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     annualRiverFlowStrength = null;
     annualRiverStrengthIndexById = null;
     globalDiscreteWeatherBake = null;
+    prebuiltGlobeRuntimeBake = null;
     lastAppliedDiscreteDayIdx = -1;
     const getSub = (utcMin: number) =>
       dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
     /** When set, skip {@link buildAnnualTileWeatherTables} (365× full-tile wind+precip — very expensive at subdiv 7). */
     let discreteBakeFromDisk: DiscreteWeatherYearBake | null = null;
     if (state.useEarth) {
-      discreteBakeFromDisk = await tryLoadPrebuiltDiscreteWeatherBake(
-        state.subdivisions,
-        earthCacheVersionForWeatherBin,
-        globe,
-      );
+      [discreteBakeFromDisk, prebuiltGlobeRuntimeBake] = await Promise.all([
+        tryLoadPrebuiltDiscreteWeatherBake(
+          state.subdivisions,
+          earthCacheVersionForWeatherBin,
+          globe,
+        ),
+        tryLoadGlobeRuntimeBake(
+          state.subdivisions,
+          earthCacheVersionForWeatherBin,
+          globe,
+          tileTerrain,
+          globalRiverFlowByTile,
+        ),
+      ]);
+      if (prebuiltGlobeRuntimeBake) {
+        console.log(
+          BUILD_LOG,
+          "globe-runtime-bake: loaded public/globe-runtime-bake-",
+          state.subdivisions,
+          ".bin — skipping CPU water table, coast rasters, cloud spawn table",
+          prebuiltGlobeRuntimeBake.riverFlowStrength
+            ? ", river seasonal strengths"
+            : "",
+        );
+      }
     }
+    const applyRiverStrengthFromBakeOrLive = () => {
+      if (prebuiltGlobeRuntimeBake?.riverFlowStrength) {
+        annualRiverFlowStrength = prebuiltGlobeRuntimeBake.riverFlowStrength;
+        annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
+          annualRiverFlowStrength,
+        );
+      } else if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
+        annualRiverFlowStrength = buildAnnualRiverFlowStrength(
+          globe,
+          globalRiverFlowByTile,
+          getSub,
+        );
+        annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
+          annualRiverFlowStrength,
+        );
+      } else {
+        annualRiverFlowStrength = null;
+        annualRiverStrengthIndexById = null;
+      }
+    };
     try {
       const n = globe.tileCount;
       if (discreteBakeFromDisk) {
@@ -3872,19 +3974,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           earthCacheVersionForWeatherBin,
           ") — skipping annual wind/precip tables (live wind + moisture precip where needed)",
         );
-        if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
-          annualRiverFlowStrength = buildAnnualRiverFlowStrength(
-            globe,
-            globalRiverFlowByTile,
-            getSub,
-          );
-          annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
-            annualRiverFlowStrength,
-          );
-        } else {
-          annualRiverFlowStrength = null;
-          annualRiverStrengthIndexById = null;
-        }
+        applyRiverStrengthFromBakeOrLive();
       } else {
         annualTileWeather = buildAnnualTileWeatherTables(
           globe,
@@ -3904,19 +3994,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           },
         );
         annualWindTileIndexById = createAnnualWindTileIndexById(annualTileWeather);
-        if (globalRiverFlowByTile && globalRiverFlowByTile.size > 0) {
-          annualRiverFlowStrength = buildAnnualRiverFlowStrength(
-            globe,
-            globalRiverFlowByTile,
-            getSub,
-          );
-          annualRiverStrengthIndexById = createAnnualRiverStrengthTileIndexById(
-            annualRiverFlowStrength,
-          );
-        } else {
-          annualRiverFlowStrength = null;
-          annualRiverStrengthIndexById = null;
-        }
+        applyRiverStrengthFromBakeOrLive();
         const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
         console.log(
           BUILD_LOG,
@@ -3955,6 +4033,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       annualRiverFlowStrength = null;
       annualRiverStrengthIndexById = null;
       globalDiscreteWeatherBake = null;
+      prebuiltGlobeRuntimeBake = null;
     }
 
     await yieldToMain();
@@ -3966,18 +4045,31 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         : globe.tileCount > 70_000
           ? { w: 224, h: 112 }
           : { w: 256, h: 128 };
-    coastMaskTexture = createCoastMaskTexture(
-      globe,
-      tileTerrain,
-      coastMaskRes.w,
-      coastMaskRes.h,
-    );
-    coastLandMaskTexture = createCoastLandMaskTexture(
-      globe,
-      tileTerrain,
-      coastMaskRes.w,
-      coastMaskRes.h,
-    );
+    if (prebuiltGlobeRuntimeBake) {
+      coastMaskTexture = createCoastDataTextureFromR8Buffer(
+        prebuiltGlobeRuntimeBake.coastWaterMask,
+        prebuiltGlobeRuntimeBake.coastW,
+        prebuiltGlobeRuntimeBake.coastH,
+      );
+      coastLandMaskTexture = createCoastDataTextureFromR8Buffer(
+        prebuiltGlobeRuntimeBake.coastLandMask,
+        prebuiltGlobeRuntimeBake.coastW,
+        prebuiltGlobeRuntimeBake.coastH,
+      );
+    } else {
+      coastMaskTexture = createCoastMaskTexture(
+        globe,
+        tileTerrain,
+        coastMaskRes.w,
+        coastMaskRes.h,
+      );
+      coastLandMaskTexture = createCoastLandMaskTexture(
+        globe,
+        tileTerrain,
+        coastMaskRes.w,
+        coastMaskRes.h,
+      );
+    }
     await yieldToMain();
 
     console.log(
@@ -4008,30 +4100,34 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         ? { widthSegments: 28, heightSegments: 20 }
         : { widthSegments: 44, heightSegments: 30 };
 
-    water.setWaterTableGeometry(
-      globe.tiles,
-      (id) => tileTerrain.get(id)?.elevation ?? 0,
-      {
-        baseRadius: globe.radius,
-        elevationScale: waterTableElevationScale,
-        depthBelowSurface: -0.006, // Slightly below land surface
-        oceanLevel: 0.995,
-        // Lakes use terrain elevation for the water surface; only open ocean / beach use fixed level.
-        isOcean: (id) => {
-          const d = tileTerrain.get(id);
-          if (!d) return false;
-          if (d.lakeId != null) return false;
-          return d.type === "water" || d.type === "beach";
+    if (prebuiltGlobeRuntimeBake) {
+      applyWaterTableGeometryFromDecodedBake(water, prebuiltGlobeRuntimeBake);
+    } else {
+      water.setWaterTableGeometry(
+        globe.tiles,
+        (id) => tileTerrain.get(id)?.elevation ?? 0,
+        {
+          baseRadius: globe.radius,
+          elevationScale: waterTableElevationScale,
+          depthBelowSurface: -0.006, // Slightly below land surface
+          oceanLevel: 0.995,
+          // Lakes use terrain elevation for the water surface; only open ocean / beach use fixed level.
+          isOcean: (id) => {
+            const d = tileTerrain.get(id);
+            if (!d) return false;
+            if (d.lakeId != null) return false;
+            return d.type === "water" || d.type === "beach";
+          },
+          isLake: (id) => tileTerrain.get(id)?.lakeId != null,
+          isRiver: (id) => riverEdgesByTile?.has(id) ?? false,
+          getEdgeNeighbor: (id, edge) => {
+            const tile = tileById.get(id);
+            return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
+          },
+          interiorOceanSphere: waterInteriorOceanSeg,
         },
-        isLake: (id) => tileTerrain.get(id)?.lakeId != null,
-        isRiver: (id) => riverEdgesByTile?.has(id) ?? false,
-        getEdgeNeighbor: (id, edge) => {
-          const tile = tileById.get(id);
-          return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
-        },
-        interiorOceanSphere: waterInteriorOceanSeg,
-      },
-    );
+      );
+    }
     scene.add(water.mesh);
     console.log(
       BUILD_LOG,

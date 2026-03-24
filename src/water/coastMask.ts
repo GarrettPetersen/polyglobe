@@ -54,6 +54,23 @@ export function createCoastMaskTexture(
   return tex;
 }
 
+/** Build a coast mask texture from a pre-baked R8 buffer (same sampling params as {@link createCoastMaskTexture}). */
+export function createCoastDataTextureFromR8Buffer(
+  data: Uint8Array,
+  width: number,
+  height: number,
+): THREE.DataTexture {
+  const owned = new Uint8Array(data.length);
+  owned.set(data);
+  const tex = new THREE.DataTexture(owned, width, height, THREE.RedFormat);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /**
  * Coast LAND mask: 1 on land (non-water, non-beach) tiles that border water/beach.
  * Used to draw left-behind foam on the beach (high-water mark).

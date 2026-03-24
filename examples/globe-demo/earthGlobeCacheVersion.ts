@@ -3,10 +3,11 @@
  * earth-region-grid.bin, lakes/marine GeoJSON, strait tile IDs, river scalerank/filter,
  * mountains.json, koppen.bin / elevation.bin, river rules, or buildTerrainFromEarthRaster options.
  *
- * **Clouds:** `public/discrete-weather-bake-{n}.bin` and this JSON are **not** driven by clip clouds
- * or `buildAnnualCloudSpawnTable` (spawn data is built at runtime in the demo). Rebuilding caches is
- * **not** required for cloud mesh / instancing / lifecycle-only code changes unless discrete-bake
- * inputs also changed (terrain, moisture, wind/precip sampling, `buildDiscreteWeatherYearBake`, etc.).
+ * **Baked binaries:** `public/discrete-weather-bake-{n}.bin` (365×tile discrete flags) and
+ * `public/globe-runtime-bake-{n}.bin` (water table mesh, coast masks, `buildAnnualCloudSpawnTable`,
+ * river seasonal strengths) are keyed on this version via `discreteWeatherBakeEarthCacheVersionU32`.
+ * Rebuild `npm run build-earth-globe-cache` when terrain, rivers, coast rules, or spawn-table inputs
+ * change; cloud mesh / instancing-only tweaks do not require a rebuild unless those inputs move.
  *
  * **Monthly temperatures** are not stored in this JSON (would be huge). At runtime, if
  * `public/tavg_monthly.bin` loaded into `earthRaster.temperatureMonthly`, the demo calls
