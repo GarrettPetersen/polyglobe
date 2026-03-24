@@ -105,15 +105,19 @@ function ensurePrecipitationOverlayMesh(
     opacity: opts.opacity,
     depthWrite: false,
     depthTest: true,
-    vertexColors: true,
+    /** Instance tints only; avoid vertexColors so we never multiply by missing per-vertex colors. */
+    vertexColors: false,
+    toneMapped: false,
+    fog: false,
+    blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
   });
   const mesh = new THREE.InstancedMesh(plane, mat, cap);
+  mesh.frustumCulled = false;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.instanceColor = new THREE.InstancedBufferAttribute(
-    new Float32Array(cap * 3),
-    3,
-  );
+  const colorInit = new Float32Array(cap * 3);
+  colorInit.fill(1);
+  mesh.instanceColor = new THREE.InstancedBufferAttribute(colorInit, 3);
   mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
   group.add(mesh);
   return mesh;

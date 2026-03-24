@@ -33,6 +33,8 @@ export function createPrecipitationParticlesGroup(
     opacity: 0.4,
     depthWrite: false,
     vertexColors: true,
+    toneMapped: false,
+    fog: false,
   });
   const mesh = new THREE.InstancedMesh(geom, mat, maxStreaks);
   mesh.count = 0;

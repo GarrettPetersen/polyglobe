@@ -56,21 +56,43 @@ export interface CloudClipTemplate {
   readonly frames: readonly CloudClipFrame[];
 }
 
+/** Equal thirds: grow / plateau / shrink; wall-clock length scales with {@link CloudClipFieldConfig.lifecycleMinutesPerFrame}. */
+const CLOUD_ENV_THIRD = 1 / 3;
+
+/**
+ * Normalised fullness 0…1: **grow** → **hold** → **shrink**, each one third of the lifecycle.
+ * Shrink uses cos(π·s²) so the fade lingers near full size early, then tapers (not a linear cosine ramp).
+ */
+function envelopeShapeFromLifecycleU(u: number): number {
+  const x = Math.min(1, Math.max(0, u));
+  if (x < CLOUD_ENV_THIRD) {
+    const g = x / CLOUD_ENV_THIRD;
+    return 0.5 - 0.5 * Math.cos(Math.PI * g);
+  }
+  if (x < 2 * CLOUD_ENV_THIRD) {
+    return 1;
+  }
+  const s = (x - 2 * CLOUD_ENV_THIRD) / CLOUD_ENV_THIRD;
+  const tau = s * s;
+  return 0.5 + 0.5 * Math.cos(Math.PI * tau);
+}
+
 function makeTemplate(seedBase: number, flatLate: boolean): CloudClipTemplate {
   const n = 14;
   const frames: CloudClipFrame[] = [];
   for (let i = 0; i < n; i++) {
     const t = n <= 1 ? 0 : i / (n - 1);
-    const envelope = Math.sin(t * Math.PI);
-    /** Peaks mid-cycle; ends ~0 so clouds spawn/despawn small and dispersed. */
-    const scaleMul = 0.09 + envelope * 1.17;
-    const opacity = 0.26 + envelope * 0.68;
+    const envelope = envelopeShapeFromLifecycleU(t);
+    /** Keyframes for legacy mesh + precip; instanced path uses {@link lifecycleEnvelopeScaleOpacity}. */
+    const scaleMul = 0.1 + envelope * 1.12;
+    const opacity = 0.26 + envelope * 0.7;
     const precipWeight = envelope * 0.24;
     frames.push({
       scaleMul,
       opacity,
       meshSeed: u32Hash([seedBase, i, 0x434c50]),
-      flatDeck: flatLate && t > 0.62,
+      flatDeck:
+        flatLate && t > 2 * CLOUD_ENV_THIRD + CLOUD_ENV_THIRD * 0.24,
       precipWeight,
     });
   }
@@ -166,6 +188,14 @@ export interface CloudClipFieldConfig {
    * Unused slots stay at zero scale. When false, legacy per-cloud groups (marching-cubes rebuilds).
    */
   useInstancedCloudMeshes: boolean;
+  /**
+   * Roll (about the local outward axis) from **downwind** azimuth: `twist ≈ scale * (birthWindDirectionRad + π)`.
+   * Westerlies / trades / easterlies then bias puff orientation around the vertical at the cloud site.
+   * `0` disables the wind term (see {@link cloudRadialTwistJitterRad} for hash-only variation).
+   */
+  cloudRadialTwistFromWindScale: number;
+  /** ± jitter (rad) from a stable hash so instances differ; applied after the wind term. */
+  cloudRadialTwistJitterRad: number;
 }
 
 const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
@@ -179,9 +209,9 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   maxCatchUpMinutes: 720,
   seed: 0x4b4c4452,
   windSeed: 90210,
-  windStepScale: 2.4e-3,
+  windStepScale: 1.875e-3,
   precipOverlayDecay: 0.92,
-  lifecycleMinutesPerFrame: 2.25,
+  lifecycleMinutesPerFrame: 60,
   sizePowerMinMul: 0.2,
   sizePowerMaxMul: 4.5,
   sizePowerExponent: 2.05,
@@ -194,6 +224,8 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   snowMeltPerMinuteWhenThawed: 0.991,
   cloudBackfaceCullDot: -0.11,
   useInstancedCloudMeshes: true,
+  cloudRadialTwistFromWindScale: 0.22,
+  cloudRadialTwistJitterRad: 0.2,
 };
 
 interface ClipInstance {
@@ -223,6 +255,7 @@ const _instMat = new THREE.Matrix4();
 const _instPos = new THREE.Vector3();
 const _instScale = new THREE.Vector3();
 const _instQuat = new THREE.Quaternion();
+const _instTwistQuat = new THREE.Quaternion();
 const _instTint = new THREE.Color();
 const _zeroInstanceMat = /*@__PURE__*/ new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -230,6 +263,25 @@ function sampleSizePowerMul(h: number, cfg: CloudClipFieldConfig): number {
   const u = Math.max(1e-6, unitFloat(h));
   const w = Math.pow(u, cfg.sizePowerExponent);
   return cfg.sizePowerMinMul * Math.pow(cfg.sizePowerMaxMul / cfg.sizePowerMinMul, w);
+}
+
+/**
+ * Randomize lifecycle phase per slot at init so clouds are not all at the same envelope minimum
+ * (which reads as almost no cover when instanced clips share one visual time).
+ */
+function staggeredBirthUtcMinute(
+  cfg: CloudClipFieldConfig,
+  slot: number,
+  templateIndex: number,
+  targetUtc: number,
+): number {
+  const tpl = CLIP_TEMPLATES[templateIndex % CLIP_TEMPLATES.length]!;
+  const lifeSpanMin = Math.max(
+    tpl.frames.length * cfg.lifecycleMinutesPerFrame,
+    1e-6,
+  );
+  const u = unitFloat(u32Hash([cfg.seed, slot, 0x42495254]));
+  return targetUtc - u * lifeSpanMin;
 }
 
 function sampleBirthWind(
@@ -305,6 +357,39 @@ function normalizeAnchorFromTile(globe: Globe, tileId: number): THREE.Vector3 | 
   return _anchor.set(p.x / len, p.y / len, p.z / len).clone();
 }
 
+const globeTileCircumRhoCache = new WeakMap<Globe, number>();
+
+/** Max angle (rad) from tile center to any vertex — bounds tile extent on the unit sphere. */
+function maxTileCircumAngularRadius(globe: Globe): number {
+  let r = globeTileCircumRhoCache.get(globe);
+  if (r !== undefined) return r;
+  let m = 0;
+  for (const t of globe.tiles) {
+    const c = t.center;
+    for (const v of t.vertices) {
+      const ang = Math.acos(THREE.MathUtils.clamp(c.dot(v), -1, 1));
+      if (ang > m) m = ang;
+    }
+  }
+  globeTileCircumRhoCache.set(globe, m);
+  return m;
+}
+
+/**
+ * Approximate angular half-width (rad) of the cloud’s ground footprint from globe-relative scale.
+ * Matches shell height used in {@link CloudClipField.syncInstancedClipClouds} (~0.04).
+ */
+function estimateCloudPrecipHalfAngleRad(
+  globe: Globe,
+  baseScale: number,
+  frameScaleMul: number,
+): number {
+  const shellR = globe.radius + 0.04;
+  const linearHalf = baseScale * frameScaleMul * globe.radius * 1.08;
+  const alpha = Math.atan2(linearHalf, shellR);
+  return Math.min(Math.max(alpha, 0.004), 0.52);
+}
+
 function applyCloudPrecipToOverlayAndSurface(
   globe: Globe,
   cfg: CloudClipFieldConfig,
@@ -317,7 +402,9 @@ function applyCloudPrecipToOverlayAndSurface(
   frameIndex: number,
   subsolarLatDeg: number,
   precipOverlay: Map<number, number>,
-  surface: TileSurfaceState
+  surface: TileSurfaceState,
+  /** Split one cloud’s burst across multiple tiles (footprint); default 1. */
+  areaShare: number = 1
 ): void {
   if (cfg.waterTileIds?.has(foot)) return;
   const gate = unitFloat(
@@ -329,7 +416,8 @@ function applyCloudPrecipToOverlayAndSurface(
     framePrecipWeight *
     (0.35 + 0.65 * Math.min(1, col + 0.2)) *
     baseScale *
-    42;
+    42 *
+    areaShare;
   const cur = precipOverlay.get(foot) ?? 0;
   precipOverlay.set(foot, Math.min(1, cur + burst * 0.018));
 
@@ -432,6 +520,51 @@ function extrapolateRenderAnchor(
   const step = cfg.windStepScale * R * inst.birthWindStrength * extraMinutes;
   _anchor.addScaledVector(_blow, step).normalize();
   out.copy(_anchor);
+}
+
+/** Roll about the outward radial: downwind azimuth × scale + deterministic jitter (see config). */
+function cloudInstanceRadialTwistRad(
+  cfg: CloudClipFieldConfig,
+  inst: ClipInstance,
+): number {
+  const j = cfg.cloudRadialTwistJitterRad;
+  const dj =
+    j > 1e-8
+      ? (unitFloat(u32Hash([cfg.seed, inst.id, 0x525457])) - 0.5) * 2 * j
+      : 0;
+  const sc = cfg.cloudRadialTwistFromWindScale;
+  if (Math.abs(sc) < 1e-8) {
+    return dj;
+  }
+  const downwind = inst.birthWindDirectionRad + Math.PI;
+  return downwind * sc + dj;
+}
+
+/**
+ * Normalised age in [0,1] for the current lifecycle. Rendering does **not** wrap: when physics
+ * respawns, `birthUtcMinute` jumps and a new cycle starts at a new location.
+ */
+function clipLifecycleNormAge(
+  utcMinuteVisual: number,
+  birthUtcMinute: number,
+  lifeSpanMin: number,
+): number {
+  const raw = utcMinuteVisual - birthUtcMinute;
+  if (raw <= 0) return 0;
+  if (raw >= lifeSpanMin) return 1;
+  return raw / lifeSpanMin;
+}
+
+/** Scale/opacity from {@link envelopeShapeFromLifecycleU} (grow → plateau → shrink). */
+function lifecycleEnvelopeScaleOpacity(u: number): {
+  scaleMul: number;
+  opacity: number;
+} {
+  const env = envelopeShapeFromLifecycleU(u);
+  return {
+    scaleMul: 0.1 + env * 1.12,
+    opacity: 0.26 + env * 0.7,
+  };
 }
 
 /** One row per calendar day (365 entries, non-leap reference year) for a fixed cloud slot. */
@@ -627,6 +760,10 @@ export class CloudClipField {
   private instancedMeshesInitKey = "";
   /** Reused in {@link CloudClipField.syncThreeGroup} to avoid per-frame Set allocation. */
   private readonly _syncSeenInstanceIds = new Set<number>();
+  /** Tiles under a cloud’s spherical footprint for precip (reused each burst). */
+  private readonly _precipFootprintTiles: number[] = [];
+  private readonly _precipFootprintVisited = new Set<number>();
+  private readonly _precipFootprintQueue: number[] = [];
   private lastPhysicsMinute = 0;
   private annualSpawnTable: AnnualSpawnSpec[][] | null = null;
   /**
@@ -642,8 +779,9 @@ export class CloudClipField {
   }
 
   /**
-   * When set (365 days × slot rows, built e.g. by {@link buildAnnualCloudSpawnTable}), init and
-   * respawns use stored spawn tile, template, scale, wind, and lifecycle phase instead of sampling.
+   * When set (365 days × slot rows, built e.g. by {@link buildAnnualCloudSpawnTable}), {@link initToMinute}
+   * uses stored spawn tile, template, scale, and wind. After that, lifecycle respawns pick a new tile via
+   * {@link pickSpawnTileId} so clouds do not reappear in the same place every cycle.
    */
   setAnnualSpawnTable(table: AnnualSpawnSpec[][] | null): void {
     this.annualSpawnTable = table;
@@ -659,13 +797,6 @@ export class CloudClipField {
     );
   }
 
-  private canUseAnnualForInstance(inst: ClipInstance): boolean {
-    const t = this.annualSpawnTable;
-    if (!t || inst.annualSlot < 0 || inst.annualSlot >= t.length) return false;
-    const row = t[inst.annualSlot];
-    return row !== undefined && row.length === 365;
-  }
-
   getPrecipOverlayMap(): Map<number, number> {
     return this.precipOverlay;
   }
@@ -676,6 +807,102 @@ export class CloudClipField {
    */
   markPrecipOverlayExternallyMutated(): void {
     this.precipOverlayMutationGen++;
+  }
+
+  /**
+   * Land tiles whose spherical footprint may intersect the cloud cap (center + angular size).
+   * Uses center-dot inclusion with tile circumradius; BFS from the anchor tile for neighbors.
+   */
+  private collectPrecipFootprintTileIds(
+    globe: Globe,
+    inst: ClipInstance,
+    cloudHalfAngleRad: number,
+  ): readonly number[] {
+    const out = this._precipFootprintTiles;
+    const visited = this._precipFootprintVisited;
+    const queue = this._precipFootprintQueue;
+    out.length = 0;
+    visited.clear();
+    queue.length = 0;
+
+    _anchor.set(inst.ax, inst.ay, inst.az).normalize();
+    const rho = maxTileCircumAngularRadius(globe);
+    const includeCos = Math.cos(Math.min(cloudHalfAngleRad + rho, Math.PI - 1e-6));
+    const expandCos = Math.cos(Math.min(cloudHalfAngleRad + 8 * rho, Math.PI - 1e-6));
+
+    const seed = globe.getTileIdAtDirection(_anchor);
+    if (seed <= 0) {
+      if (inst.spawnTileId > 0) out.push(inst.spawnTileId);
+      return out;
+    }
+
+    queue.push(seed);
+    visited.add(seed);
+    let qIdx = 0;
+    while (qIdx < queue.length) {
+      const id = queue[qIdx++]!;
+      const tile = globe.getTile(id);
+      if (!tile) continue;
+      const dot = tile.center.dot(_anchor);
+      if (dot < expandCos) continue;
+      if (dot >= includeCos) {
+        out.push(id);
+      }
+      for (const nid of tile.neighbors) {
+        if (visited.has(nid)) continue;
+        const nb = globe.getTile(nid);
+        if (!nb) continue;
+        if (nb.center.dot(_anchor) >= expandCos) {
+          visited.add(nid);
+          queue.push(nid);
+        }
+      }
+    }
+
+    if (out.length === 0 && inst.spawnTileId > 0) {
+      out.push(inst.spawnTileId);
+    }
+    return out;
+  }
+
+  private applyInstanceCloudPrecipAtFrame(
+    globe: Globe,
+    cfg: CloudClipFieldConfig,
+    inst: ClipInstance,
+    frame: CloudClipFrame,
+    frameIndex: number,
+    utcMinute: number,
+    subsolarLatDeg: number,
+    precipByTile: Map<number, number>,
+  ): void {
+    if (frame.precipWeight <= 0.008) return;
+    const halfAng = estimateCloudPrecipHalfAngleRad(
+      globe,
+      inst.baseScale,
+      frame.scaleMul,
+    );
+    const feet = this.collectPrecipFootprintTileIds(globe, inst, halfAng);
+    const n = feet.length;
+    const share = n > 0 ? 1 / n : 1;
+    for (let i = 0; i < n; i++) {
+      const foot = feet[i]!;
+      const col = precipByTile.get(foot) ?? 0;
+      applyCloudPrecipToOverlayAndSurface(
+        globe,
+        cfg,
+        foot,
+        frame.precipWeight,
+        col,
+        inst.baseScale,
+        utcMinute,
+        inst.id,
+        frameIndex,
+        subsolarLatDeg,
+        this.precipOverlay,
+        this.tileSurface,
+        share,
+      );
+    }
   }
 
   /**
@@ -750,7 +977,7 @@ export class CloudClipField {
           id: this.nextId++,
           annualSlot: i,
           templateIndex: spec.templateIndex,
-          birthUtcMinute: 0,
+          birthUtcMinute: targetUtc,
           ax: 0,
           ay: 0,
           az: 0,
@@ -759,7 +986,38 @@ export class CloudClipField {
           birthWindDirectionRad: spec.birthWindDirectionRad,
           birthWindStrength: spec.birthWindStrength,
         };
-        if (!applyAnnualSpawnSpec(globe, inst, spec, targetUtc, cfg)) continue;
+        if (!applyAnnualSpawnSpec(globe, inst, spec, targetUtc, cfg)) {
+          const tid = pickSpawnTileId(
+            globe,
+            moisture,
+            u32Hash([cfg.seed, targetUtc, i]),
+            simDay,
+            cfg.seed
+          );
+          const anchor = normalizeAnchorFromTile(globe, tid);
+          if (!anchor) continue;
+          inst.spawnTileId = tid;
+          inst.ax = anchor.x;
+          inst.ay = anchor.y;
+          inst.az = anchor.z;
+          inst.templateIndex =
+            u32Hash([cfg.seed, i, 0x54504c]) % CLIP_TEMPLATES.length;
+          const h = u32Hash([cfg.seed, targetUtc, tid, i]);
+          const m0 = moisture.get(tid) ?? 0;
+          const sizeMul = sampleSizePowerMul(u32Hash([h, 0x53495a]), cfg);
+          inst.baseScale =
+            cfg.cloudScale *
+            sizeMul *
+            (0.78 + unitFloat(u32Hash([h, 1])) * 0.44) *
+            (0.82 + Math.min(1, m0) * 0.38);
+          sampleBirthWind(globe, inst, sub0, targetUtc, cfg);
+        }
+        inst.birthUtcMinute = staggeredBirthUtcMinute(
+          cfg,
+          i,
+          inst.templateIndex,
+          targetUtc,
+        );
         this.instances.push(inst);
         continue;
       }
@@ -799,6 +1057,12 @@ export class CloudClipField {
         birthWindStrength: 0.5,
       };
       sampleBirthWind(globe, inst, sub0, targetUtc, cfg);
+      inst.birthUtcMinute = staggeredBirthUtcMinute(
+        cfg,
+        i,
+        inst.templateIndex,
+        targetUtc,
+      );
       this.instances.push(inst);
     }
 
@@ -822,12 +1086,16 @@ export class CloudClipField {
    * Advance overlay + positions toward `targetUtc` (cheap vs full replay).
    * Advances at most {@link CloudClipFieldConfig.maxPhysicsMinutesPerSync} minutes per call; call again
    * (same target) to finish. If the gap exceeds `maxCatchUpMinutes`, re-initializes when `moisture` and `nowDate` are passed.
+   *
+   * `physicsOpts.kinematicsOnly`: advect clouds and run lifecycle respawns only — skips precip overlay
+   * decay, tile-surface climate steps, and cloud→ground precip (for discrete-weather modes).
    */
   syncToTargetMinute(
     targetUtc: number,
     globe: Globe,
     getPrecipSubsolar: PrecipSubsolarForMinute,
-    reinit?: { moisture: Map<number, number>; nowDate: Date }
+    reinit?: { moisture: Map<number, number>; nowDate: Date },
+    physicsOpts?: { kinematicsOnly?: boolean }
   ): void {
     if (targetUtc < this.lastPhysicsMinute) {
       return;
@@ -864,21 +1132,24 @@ export class CloudClipField {
     const gClimate = groundClimateParamsFromCfg(cfg);
     const minPer = cfg.lifecycleMinutesPerFrame;
     const delta = advanceTarget - this.lastPhysicsMinute;
+    const kinematicsOnly = physicsOpts?.kinematicsOnly === true;
 
     if (delta > 1) {
-      const decayPow = Math.pow(cfg.precipOverlayDecay, delta);
-      for (const [tid, v] of this.precipOverlay) {
-        const nv = v * decayPow;
-        if (nv < 0.02) this.precipOverlay.delete(tid);
-        else this.precipOverlay.set(tid, nv);
-      }
-      for (let u = this.lastPhysicsMinute + 1; u <= advanceTarget; u++) {
-        this.tileSurface.stepClimateMinute(
-          globe,
-          subsolarLatForClimateMinute(cfg, u, getPrecipSubsolar),
-          gClimate,
-          u
-        );
+      if (!kinematicsOnly) {
+        const decayPow = Math.pow(cfg.precipOverlayDecay, delta);
+        for (const [tid, v] of this.precipOverlay) {
+          const nv = v * decayPow;
+          if (nv < 0.02) this.precipOverlay.delete(tid);
+          else this.precipOverlay.set(tid, nv);
+        }
+        for (let u = this.lastPhysicsMinute + 1; u <= advanceTarget; u++) {
+          this.tileSurface.stepClimateMinute(
+            globe,
+            subsolarLatForClimateMinute(cfg, u, getPrecipSubsolar),
+            gClimate,
+            u
+          );
+        }
       }
 
       const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(advanceTarget);
@@ -887,24 +1158,7 @@ export class CloudClipField {
 
         let tpl = CLIP_TEMPLATES[inst.templateIndex]!;
         let dur = tpl.frames.length;
-        let useAnnualRespawn = this.canUseAnnualForInstance(inst);
         while (Math.floor((advanceTarget - inst.birthUtcMinute) / minPer) >= dur) {
-          if (useAnnualRespawn) {
-            const baseSpec = this.annualSpawnTable![inst.annualSlot]![endCtx.dayIndex]!;
-            const spec = modulateAnnualSpecForCalendarYear(
-              baseSpec,
-              cfg,
-              endCtx.calendarYear,
-              inst.annualSlot
-            );
-            if (applyAnnualSpawnSpec(globe, inst, spec, advanceTarget, cfg)) {
-              useAnnualRespawn = false;
-              tpl = CLIP_TEMPLATES[inst.templateIndex]!;
-              dur = tpl.frames.length;
-              continue;
-            }
-            useAnnualRespawn = false;
-          }
           const newTid = pickSpawnTileId(
             globe,
             precipByTile,
@@ -940,45 +1194,41 @@ export class CloudClipField {
           dur = tpl.frames.length;
         }
 
-        const ageFrames = Math.floor((advanceTarget - inst.birthUtcMinute) / minPer);
-        const fi = Math.max(0, Math.min(dur - 1, ageFrames));
-        const frame = tpl.frames[fi]!;
-        if (frame.precipWeight > 0.008) {
-          _anchor.set(inst.ax, inst.ay, inst.az);
-          const under = globe.getTileIdAtDirection(_anchor);
-          const foot = under > 0 ? under : inst.spawnTileId;
-          const col = precipByTile.get(foot) ?? 0;
-          applyCloudPrecipToOverlayAndSurface(
-            globe,
-            cfg,
-            foot,
-            frame.precipWeight,
-            col,
-            inst.baseScale,
-            advanceTarget,
-            inst.id,
-            fi,
-            subsolarLatDeg,
-            this.precipOverlay,
-            this.tileSurface
-          );
+        if (!kinematicsOnly) {
+          const ageFrames = Math.floor((advanceTarget - inst.birthUtcMinute) / minPer);
+          const fi = Math.max(0, Math.min(dur - 1, ageFrames));
+          const frame = tpl.frames[fi]!;
+          if (frame.precipWeight > 0.008) {
+            this.applyInstanceCloudPrecipAtFrame(
+              globe,
+              cfg,
+              inst,
+              frame,
+              fi,
+              advanceTarget,
+              subsolarLatDeg,
+              precipByTile,
+            );
+          }
         }
       }
     } else {
       for (let m = this.lastPhysicsMinute; m < advanceTarget; m++) {
         const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(m);
 
-        for (const [tid, v] of this.precipOverlay) {
-          const nv = v * cfg.precipOverlayDecay;
-          if (nv < 0.02) this.precipOverlay.delete(tid);
-          else this.precipOverlay.set(tid, nv);
+        if (!kinematicsOnly) {
+          for (const [tid, v] of this.precipOverlay) {
+            const nv = v * cfg.precipOverlayDecay;
+            if (nv < 0.02) this.precipOverlay.delete(tid);
+            else this.precipOverlay.set(tid, nv);
+          }
+          this.tileSurface.stepClimateMinute(
+            globe,
+            subsolarLatForClimateMinute(cfg, m + 1, getPrecipSubsolar),
+            gClimate,
+            m + 1
+          );
         }
-        this.tileSurface.stepClimateMinute(
-          globe,
-          subsolarLatForClimateMinute(cfg, m + 1, getPrecipSubsolar),
-          gClimate,
-          m + 1
-        );
 
         for (const inst of this.instances) {
           advectInstanceFixed(globe, inst, 1, cfg);
@@ -988,79 +1238,61 @@ export class CloudClipField {
           let ageFrames = Math.floor((m + 1 - inst.birthUtcMinute) / minPer);
           if (ageFrames >= dur) {
             const respawnCtx = utcMinuteToAnnualContext(m + 1);
-            let respawned = false;
-            if (this.canUseAnnualForInstance(inst)) {
-              const baseSpec =
-                this.annualSpawnTable![inst.annualSlot]![respawnCtx.dayIndex]!;
-              const spec = modulateAnnualSpecForCalendarYear(
-                baseSpec,
-                cfg,
-                respawnCtx.calendarYear,
-                inst.annualSlot
-              );
-              respawned = applyAnnualSpawnSpec(globe, inst, spec, m + 1, cfg);
-            }
-            if (!respawned) {
-              const newTid = pickSpawnTileId(
-                globe,
-                precipByTile,
-                u32Hash([cfg.seed, inst.id, m, 0x525350]),
-                respawnCtx.dayOfYear,
-                cfg.seed
-              );
-              const na = normalizeAnchorFromTile(globe, newTid);
-              if (na) {
-                inst.ax = na.x;
-                inst.ay = na.y;
-                inst.az = na.z;
-                inst.spawnTileId = newTid;
-                inst.birthUtcMinute = m + 1;
-                inst.templateIndex =
-                  (inst.templateIndex + 1 + (u32Hash([m, inst.id]) % 3)) %
-                  CLIP_TEMPLATES.length;
-                const pm = precipByTile.get(newTid) ?? 0;
-                const sizeMul = sampleSizePowerMul(u32Hash([m, inst.id, 0x53495a]), cfg);
-                inst.baseScale =
-                  cfg.cloudScale *
-                  sizeMul *
-                  (0.78 + unitFloat(u32Hash([m, inst.id, 2])) * 0.44) *
-                  (0.82 + Math.min(1, pm) * 0.38);
-                sampleBirthWind(globe, inst, subsolarLatDeg, m + 1, cfg);
-              }
+            const newTid = pickSpawnTileId(
+              globe,
+              precipByTile,
+              u32Hash([cfg.seed, inst.id, m, 0x525350]),
+              respawnCtx.dayOfYear,
+              cfg.seed
+            );
+            const na = normalizeAnchorFromTile(globe, newTid);
+            if (na) {
+              inst.ax = na.x;
+              inst.ay = na.y;
+              inst.az = na.z;
+              inst.spawnTileId = newTid;
+              inst.birthUtcMinute = m + 1;
+              inst.templateIndex =
+                (inst.templateIndex + 1 + (u32Hash([m, inst.id]) % 3)) %
+                CLIP_TEMPLATES.length;
+              const pm = precipByTile.get(newTid) ?? 0;
+              const sizeMul = sampleSizePowerMul(u32Hash([m, inst.id, 0x53495a]), cfg);
+              inst.baseScale =
+                cfg.cloudScale *
+                sizeMul *
+                (0.78 + unitFloat(u32Hash([m, inst.id, 2])) * 0.44) *
+                (0.82 + Math.min(1, pm) * 0.38);
+              sampleBirthWind(globe, inst, subsolarLatDeg, m + 1, cfg);
             }
             tpl = CLIP_TEMPLATES[inst.templateIndex]!;
             dur = tpl.frames.length;
             ageFrames = Math.floor((m + 1 - inst.birthUtcMinute) / minPer);
           }
 
-          const fi = Math.max(0, Math.min(dur - 1, ageFrames));
-          const frame = tpl.frames[fi]!;
-          if (frame.precipWeight > 0.008) {
-            _anchor.set(inst.ax, inst.ay, inst.az);
-            const under = globe.getTileIdAtDirection(_anchor);
-            const foot = under > 0 ? under : inst.spawnTileId;
-            const col = precipByTile.get(foot) ?? 0;
-            applyCloudPrecipToOverlayAndSurface(
-              globe,
-              cfg,
-              foot,
-              frame.precipWeight,
-              col,
-              inst.baseScale,
-              m + 1,
-              inst.id,
-              fi,
-              subsolarLatDeg,
-              this.precipOverlay,
-              this.tileSurface
-            );
+          if (!kinematicsOnly) {
+            const fi = Math.max(0, Math.min(dur - 1, ageFrames));
+            const frame = tpl.frames[fi]!;
+            if (frame.precipWeight > 0.008) {
+              this.applyInstanceCloudPrecipAtFrame(
+                globe,
+                cfg,
+                inst,
+                frame,
+                fi,
+                m + 1,
+                subsolarLatDeg,
+                precipByTile,
+              );
+            }
           }
         }
       }
     }
 
-    this.tileSurface.revision++;
-    this.precipOverlayMutationGen++;
+    if (!kinematicsOnly) {
+      this.tileSurface.revision++;
+      this.precipOverlayMutationGen++;
+    }
     this.lastPhysicsMinute = advanceTarget;
   }
 
@@ -1116,16 +1348,14 @@ export class CloudClipField {
       const tpl = CLIP_TEMPLATES[inst.templateIndex]!;
       const dur = tpl.frames.length;
       const lifeSpanMin = Math.max(dur * minPer, 1e-6);
-      let ageMin = utcMinuteVisual - inst.birthUtcMinute;
-      ageMin = ((ageMin % lifeSpanMin) + lifeSpanMin) % lifeSpanMin;
-      const frameFloat = ageMin / minPer;
-      const i0 = Math.min(dur - 1, Math.floor(frameFloat));
-      const i1 = (i0 + 1) % dur;
-      const t = frameFloat - Math.floor(frameFloat);
+      const uLife = clipLifecycleNormAge(
+        utcMinuteVisual,
+        inst.birthUtcMinute,
+        lifeSpanMin,
+      );
+      const { scaleMul, opacity } = lifecycleEnvelopeScaleOpacity(uLife);
+      const i0 = Math.min(dur - 1, Math.floor(uLife * (dur - 1)));
       const f0 = tpl.frames[i0]!;
-      const f1 = tpl.frames[i1]!;
-      const scaleMul = f0.scaleMul * (1 - t) + f1.scaleMul * t;
-      const opacity = f0.opacity * (1 - t) + f1.opacity * t;
       const meshFrameKey = `${inst.templateIndex}:${i0}:r${cfg.cloudMarchingCubesGrid}`;
 
       const builtRefScale = inst.baseScale * f0.scaleMul;
@@ -1239,7 +1469,13 @@ export class CloudClipField {
           Math.abs(laz - _renderAnchor.z) >
           2e-5
       ) {
-        setLowPolyCloudGroupShellPose(globe, grp, _renderAnchor, heightOff);
+        setLowPolyCloudGroupShellPose(
+          globe,
+          grp,
+          _renderAnchor,
+          heightOff,
+          cloudInstanceRadialTwistRad(cfg, inst),
+        );
         grp.userData.clipAx = _renderAnchor.x;
         grp.userData.clipAy = _renderAnchor.y;
         grp.userData.clipAz = _renderAnchor.z;
@@ -1440,16 +1676,12 @@ export class CloudClipField {
       const tpl = CLIP_TEMPLATES[inst.templateIndex]!;
       const dur = tpl.frames.length;
       const lifeSpanMin = Math.max(dur * minPer, 1e-6);
-      let ageMin = utcMinuteVisual - inst.birthUtcMinute;
-      ageMin = ((ageMin % lifeSpanMin) + lifeSpanMin) % lifeSpanMin;
-      const frameFloat = ageMin / minPer;
-      const i0 = Math.min(dur - 1, Math.floor(frameFloat));
-      const i1 = (i0 + 1) % dur;
-      const tLerp = frameFloat - Math.floor(frameFloat);
-      const f0 = tpl.frames[i0]!;
-      const f1 = tpl.frames[i1]!;
-      const scaleMul = f0.scaleMul * (1 - tLerp) + f1.scaleMul * tLerp;
-      const opacity = f0.opacity * (1 - tLerp) + f1.opacity * tLerp;
+      const uLife = clipLifecycleNormAge(
+        utcMinuteVisual,
+        inst.birthUtcMinute,
+        lifeSpanMin,
+      );
+      const { scaleMul, opacity } = lifecycleEnvelopeScaleOpacity(uLife);
       const displayScale = inst.baseScale * scaleMul;
       const t = inst.templateIndex % CLIP_TEMPLATES.length;
       const protoRef = protoRefs[t]!;
@@ -1465,6 +1697,11 @@ export class CloudClipField {
       _anchor.copy(_renderAnchor).normalize();
       _instPos.copy(_anchor).multiplyScalar(globe.radius + heightOff);
       _instQuat.setFromUnitVectors(_worldUp, _anchor);
+      const twistR = cloudInstanceRadialTwistRad(cfg, inst);
+      if (Math.abs(twistR) > 1e-8) {
+        _instTwistQuat.setFromAxisAngle(_anchor, twistR);
+        _instQuat.multiply(_instTwistQuat);
+      }
       _instScale.setScalar(sVis);
       _instMat.compose(_instPos, _instQuat, _instScale);
       const mesh = meshes[t]!;

@@ -20,7 +20,7 @@ export function createEarthDemoCloudClipField(
   const hugeGlobe = globe.tileCount > 85_000;
   return new CloudClipField({
     maxClouds: hugeGlobe ? 72 : 96,
-    cloudScale: 0.038,
+    cloudScale: hugeGlobe ? 0.042 : 0.046,
     cloudCastShadows: false,
     cloudHemisphereShading: true,
     cloudMarchingCubesGrid: hugeGlobe ? 14 : 16,

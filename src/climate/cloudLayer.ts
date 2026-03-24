@@ -661,18 +661,26 @@ export function createLowPolyCloudGroupAtAnchor(
   return cloud;
 }
 
+const _shellTwistQuat = new THREE.Quaternion();
+
 /** Move an existing low-poly cloud group to a new shell anchor without rebuilding marching cubes. */
 export function setLowPolyCloudGroupShellPose(
   globe: Globe,
   group: THREE.Object3D,
   anchor: THREE.Vector3,
-  heightOffset = LOW_POLY_CLOUD_DEFAULTS.heightOffset
+  heightOffset = LOW_POLY_CLOUD_DEFAULTS.heightOffset,
+  /** Roll (rad) about the outward radial through the anchor; 0 = default “pole-up” orientation only. */
+  radialTwistRad = 0
 ): void {
   const worldUp = new THREE.Vector3(0, 1, 0);
   const up = anchor.clone().normalize();
   const position = up.clone().multiplyScalar(globe.radius + heightOffset);
   group.position.copy(position);
   group.quaternion.setFromUnitVectors(worldUp, up);
+  if (Math.abs(radialTwistRad) > 1e-8) {
+    _shellTwistQuat.setFromAxisAngle(up, radialTwistRad);
+    group.quaternion.multiply(_shellTwistQuat);
+  }
 }
 
 /**

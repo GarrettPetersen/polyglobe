@@ -73,8 +73,6 @@ import {
   attachMonthlyTemperatureToTerrainFromRaster,
   getPrecipitation,
   climateSurfaceSnowVisualForTerrain,
-  createPrecipitationOverlay,
-  updatePrecipitationOverlay,
   getPrecipitationByTile,
   getPrecipitationByTileWithMoisture,
   buildMoistureByTileFromTerrain,
@@ -100,9 +98,6 @@ import {
   CloudClipField,
   buildAnnualCloudSpawnTable,
   analyzePrecipClimatologyGap,
-  createPrecipitationParticlesGroup,
-  updatePrecipitationParticles,
-  disposePrecipitationParticlesGroup,
   utcMinuteFromDate,
   type PrecipSubsolarForMinute,
 } from "polyglobe";
@@ -468,12 +463,10 @@ export interface DemoState {
   showWinds: boolean;
   /** Show flow overlay (river flow + ocean currents). */
   showFlow: boolean;
-  /** Show precipitation overlay (rain band). */
-  showPrecipitation: boolean;
-  /** Show cloud layer. */
+  /** Show cloud layer (also drives sim wet/snow on terrain via land-weather texture). */
   showClouds: boolean;
   /**
-   * If set, cloud/precip simulation uses this UTC minute index instead of deriving from
+   * If set, cloud simulation uses this UTC minute index instead of deriving from
    * {@link dateTimeStr} (for game clocks that tick separately from the sun/moon date).
    */
   gameClockUtcMinute: number | null;
@@ -499,7 +492,6 @@ const DEFAULT_STATE: DemoState = {
   dateTimeStr: "",
   showWinds: false,
   showFlow: false,
-  showPrecipitation: true,
   showClouds: true,
   gameClockUtcMinute: null,
   timePlaying: false,
@@ -2158,12 +2150,8 @@ let windArrowsGroup: THREE.Group | null = null;
 let riverFlowArrowsGroup: THREE.Group | null = null;
 /** Ocean current arrows (blue, higher). */
 let currentArrowsGroup: THREE.Group | null = null;
-/** Precipitation overlay (per-tile rain intensity). */
-let precipitationOverlayGroup: THREE.Group | null = null;
-/** Cloud layer (low-poly clouds). */
+/** Cloud layer (low-poly clouds; cloud sim feeds terrain wet/snow in {@link landWeatherGpu}). */
 let cloudGroup: THREE.Group | null = null;
-/** Falling rain/snow streaks under active cloud precip. */
-let precipFxGroup: THREE.Group | null = null;
 /** Köppen/terrain moisture multipliers for cloud + precip potential (null before terrain build). */
 let globalMoistureByTile: Map<number, number> | null = null;
 
@@ -2191,7 +2179,7 @@ function getCloudVisualUtcMinutes(state: DemoState, date: Date): number {
   return date.getTime() / 60000;
 }
 
-/** Clip-based cloud field + precip overlay (see {@link CloudClipField}). */
+/** Clip-based cloud field; tile-surface wet/snow feeds {@link landWeatherGpu} (no rain mesh in demo). */
 let cloudClipField: CloudClipField | null = null;
 /** Sun light (module-level so panel can force shadow update on cloud toggle). */
 let sun: InstanceType<typeof Sun> | null = null;
@@ -2257,7 +2245,10 @@ let annualRiverFlowStrength: AnnualRiverFlowStrength | null = null;
 let annualRiverStrengthIndexById: Map<number, number> | null = null;
 /** Reused for cloud physics when reading from {@link annualTileWeather}. */
 const annualPrecipReuseMap = new Map<number, number>();
-/** Discrete 365×tile bake: no minute-step cloud physics when set (see {@link catchUpCloudPhysicsBudgeted}). */
+/**
+ * Discrete 365×tile bake: tile wet/snow comes from the bake, not per-minute climate sim. Clouds still
+ * advance via {@link catchUpCloudPhysicsBudgeted} with `kinematicsOnly` (drift + respawn).
+ */
 let globalDiscreteWeatherBake: DiscreteWeatherYearBake | null = null;
 /** Pre-baked water table, coast masks, cloud spawn table, river strengths (`globe-runtime-bake-*.bin`). */
 let prebuiltGlobeRuntimeBake: GlobeRuntimeBakeDecoded | null = null;
@@ -2265,9 +2256,9 @@ let prebuiltGlobeRuntimeBake: GlobeRuntimeBakeDecoded | null = null;
 let lastAppliedDiscreteDayIdx = -1;
 /** Last UTC minute index used for wind/flow/cloud sync (expensive; skip within the same minute). */
 let lastWindUtcMinute: number | null = null;
-/** Wall time of last wind/flow/precip overlay refresh; used to coalesce when play speed is high. */
+/** Wall time of last wind/flow refresh; used to coalesce when play speed is high. */
 let lastWindFlowPrecipRefreshWallMs = 0;
-/** Wall time of last live {@link catchUpCloudPhysicsBudgeted} pass (discrete-bake mode does not use this). */
+/** Wall time of last live {@link catchUpCloudPhysicsBudgeted} pass. */
 let lastCloudPhysicsCatchUpWallMs = 0;
 /** UTC ms anchor for time playback (advanced while {@link DemoState.timePlaying}). */
 let playbackEpochMs = 0;
@@ -2968,6 +2959,42 @@ function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
       cloudClipField.markPrecipOverlayExternallyMutated();
       lastAppliedDiscreteDayIdx = dayIdx;
     }
+    const g = globe;
+    const moisture = globalMoistureByTile;
+    const getPS: PrecipSubsolarForMinute = (utcMin) => {
+      const dd = new Date(utcMin * 60000);
+      const subsolar = dateToSubsolarPoint(dd);
+      if (annualTileWeather) {
+        fillPrecipMapFromAnnual(
+          annualTileWeather,
+          annualDayIndexFromDate(dd),
+          annualPrecipReuseMap,
+        );
+        return {
+          precipByTile: annualPrecipReuseMap,
+          subsolarLatDeg: subsolar.latDeg,
+        };
+      }
+      return {
+        precipByTile: getPrecipitationByTileWithMoisture(
+          g.tiles,
+          subsolar.latDeg,
+          moisture,
+        ),
+        subsolarLatDeg: subsolar.latDeg,
+      };
+    };
+    const nowDate = datetimeLocalUTCToDate(
+      state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+    );
+    const reinitPayload = { moisture, nowDate };
+    const budgetUntil = performance.now() + budgetMs;
+    do {
+      cloudClipField.syncToTargetMinute(targetMin, g, getPS, reinitPayload, {
+        kinematicsOnly: true,
+      });
+      if (cloudClipField.getLastPhysicsUtcMinute() >= targetMin) break;
+    } while (performance.now() < budgetUntil);
     return;
   }
 
@@ -3011,30 +3038,14 @@ function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
   } while (performance.now() < budgetUntil);
 }
 
-function refreshPrecipitationOverlayGroup(state: DemoState): void {
-  if (!globe || !cloudClipField || !precipitationOverlayGroup) return;
-  updatePrecipitationOverlay(
-    precipitationOverlayGroup,
-    globe,
-    cloudClipField.getPrecipOverlayMap(),
-    {
-      heightOffset: 0.06,
-      quadSize: 0.08,
-      opacity: 0.55,
-      minPrecip: 0.03,
-    },
-  );
-  precipitationOverlayGroup.visible = state.showPrecipitation;
-}
-
-/** After user changes date/time: catch up physics + refresh rain overlay (larger budget than per-frame). */
-function syncPrecipitationCloudPhysicsAfterClockJump(
+/** After user changes date/time: catch up cloud physics so terrain wet/snow matches the new instant. */
+function syncCloudPhysicsAfterClockJump(
   state: DemoState,
   budgetMs: number,
 ): void {
   catchUpCloudPhysicsBudgeted(state, budgetMs);
   lastCloudPhysicsCatchUpWallMs = performance.now();
-  refreshPrecipitationOverlayGroup(state);
+  markLandWeatherColorsDirty();
 }
 
 /** Bumped at each globe rebuild so in-flight cloud bootstrap aborts before touching stale globals. */
@@ -3045,23 +3056,20 @@ let vegetationLoadGeneration = 0;
 let cloudPrecipBootstrapPromise: Promise<void> | null = null;
 
 /**
- * Clip-based cumulus field (lifecycle templates + wind advection). Skipped when both clouds and
- * precip are off; toggles call `requestCloudPrecipBootstrap`.
+ * Clip-based cumulus field (lifecycle templates + wind advection). Skipped when clouds are off;
+ * {@link requestCloudWeatherBootstrap} runs when the user enables clouds.
  */
-async function ensureCloudWeatherAndPrecipMeshes(
+async function ensureCloudWeatherAndMeshes(
   state: DemoState,
   buildPerf?: ReturnType<typeof createBuildPerfMarker> | null,
 ): Promise<void> {
   if (!globe || !globalMoistureByTile) return;
-  if (cloudClipField && precipitationOverlayGroup && cloudGroup) {
+  if (cloudClipField && cloudGroup) {
     cloudGroup.visible = state.showClouds;
-    precipitationOverlayGroup.visible = state.showPrecipitation;
-    if (precipFxGroup) precipFxGroup.visible = state.showPrecipitation;
     return;
   }
   const gen = cloudPrecipBuildGeneration;
   const targetUtcMin = getCloudSimTargetUtcMinute(state);
-  const hugeGlobe = globe.tileCount > 85_000;
   const getPrecipSubsolar: PrecipSubsolarForMinute = (utcMin) => {
     const d = new Date(utcMin * 60000);
     const subsolar = dateToSubsolarPoint(d);
@@ -3181,25 +3189,6 @@ async function ensureCloudWeatherAndPrecipMeshes(
     lastAppliedDiscreteDayIdx = di;
   }
 
-  if (!precipitationOverlayGroup) {
-    const precipGrp = createPrecipitationOverlay(
-      globe,
-      field.getPrecipOverlayMap(),
-      {
-        heightOffset: 0.06,
-        quadSize: 0.08,
-        opacity: 0.55,
-        minPrecip: 0.03,
-      }
-    );
-    precipitationOverlayGroup = precipGrp;
-    precipGrp.visible = state.showPrecipitation;
-    precipGrp.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.receiveShadow = true;
-    });
-    scene.add(precipGrp);
-  }
-
   const cloudBootstrapDate = datetimeLocalUTCToDate(
     state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
   );
@@ -3227,32 +3216,22 @@ async function ensureCloudWeatherAndPrecipMeshes(
     cloudGroup.visible = state.showClouds;
   }
 
-  if (!precipFxGroup) {
-    precipFxGroup = createPrecipitationParticlesGroup({
-      maxStreaks: hugeGlobe ? 240 : 440,
-    });
-    scene.add(precipFxGroup);
-  }
-  precipFxGroup.visible = state.showPrecipitation;
-
   markLandWeatherColorsDirty();
-  buildPerf?.mark("cloudClipFieldPrecipMesh");
+  buildPerf?.mark("cloudClipFieldMesh");
 }
 
-function requestCloudPrecipBootstrap(state: DemoState): void {
+function requestCloudWeatherBootstrap(state: DemoState): void {
   if (!globe || !globalMoistureByTile) return;
-  if (cloudClipField && precipitationOverlayGroup && cloudGroup) {
+  if (cloudClipField && cloudGroup) {
     cloudGroup.visible = state.showClouds;
-    precipitationOverlayGroup.visible = state.showPrecipitation;
-    if (precipFxGroup) precipFxGroup.visible = state.showPrecipitation;
     return;
   }
   if (cloudPrecipBootstrapPromise) return;
   cloudPrecipBootstrapPromise = (async () => {
     try {
-      await ensureCloudWeatherAndPrecipMeshes(state, null);
+      await ensureCloudWeatherAndMeshes(state, null);
     } catch (e) {
-      console.error(BUILD_LOG, "cloud/precip bootstrap failed", e);
+      console.error(BUILD_LOG, "cloud weather bootstrap failed", e);
     } finally {
       cloudPrecipBootstrapPromise = null;
     }
@@ -3429,17 +3408,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       });
       currentArrowsGroup = null;
     }
-    if (precipitationOverlayGroup) {
-      scene.remove(precipitationOverlayGroup);
-      precipitationOverlayGroup.traverse((c) => {
-        if (c instanceof THREE.InstancedMesh) {
-          c.geometry.dispose();
-          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
-          else c.material.dispose();
-        }
-      });
-      precipitationOverlayGroup = null;
-    }
     if (cloudGroup) {
       scene.remove(cloudGroup);
       cloudGroup.traverse((c) => {
@@ -3449,11 +3417,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         }
       });
       cloudGroup = null;
-    }
-    if (precipFxGroup) {
-      scene.remove(precipFxGroup);
-      disposePrecipitationParticlesGroup(precipFxGroup);
-      precipFxGroup = null;
     }
     cloudClipField?.dispose();
     cloudClipField = null;
@@ -3484,8 +3447,11 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     (globe.mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       flatShading: true,
-      /** FrontSide lets the GPU cull back-facing land triangles (~half the globe from orbit). */
-      side: THREE.FrontSide,
+      /**
+       * Hill / peak skirt extrusions still produce occasional inverted tris; FrontSide culls them →
+       * see-through rims. DoubleSide is a pragmatic fix (modest fill cost vs. perfect winding).
+       */
+      side: THREE.DoubleSide,
     });
     disposeLandWeatherGpuState(landWeatherGpu);
     landWeatherGpu = createLandWeatherGpuState(globe.tileCount);
@@ -4249,14 +4215,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     scene.add(currentArrowsGroup!);
     buildPerf?.mark("windFlowArrows");
 
-    if (state.showClouds || state.showPrecipitation) {
-      await ensureCloudWeatherAndPrecipMeshes(state, buildPerf);
+    if (state.showClouds) {
+      await ensureCloudWeatherAndMeshes(state, buildPerf);
     } else {
-      if (precipFxGroup) {
-        scene.remove(precipFxGroup);
-        disposePrecipitationParticlesGroup(precipFxGroup);
-        precipFxGroup = null;
-      }
       cloudClipField?.dispose();
       cloudClipField = null;
     }
@@ -4932,6 +4893,8 @@ function scheduleRebuild(state: DemoState) {
 
 function createPanel(state: DemoState, onRebuild: () => void) {
   const panel = document.getElementById("panel")!;
+  panel.title =
+    "Press ` (backtick, key above Tab) to hide or show all demo UI overlays";
   panel.innerHTML = "";
 
   const h3 = document.createElement("h3");
@@ -5039,8 +5002,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     lastWindUtcMinute = Math.floor(playbackEpochMs / 60000);
     updateWindFromState(state, dateTimeInput.value);
     if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
-    if (precipitationOverlayGroup || cloudGroup)
-      syncPrecipitationCloudPhysicsAfterClockJump(state, 48);
+    if (cloudGroup) syncCloudPhysicsAfterClockJump(state, 48);
   }
   dateTimeInput.addEventListener("change", applyDateTimeAndWinds);
   dateTimeInput.addEventListener("input", applyDateTimeAndWinds);
@@ -5101,8 +5063,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     lastWindUtcMinute = Math.floor(playbackEpochMs / 60000);
     updateWindFromState(state, state.dateTimeStr);
     if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
-    if (precipitationOverlayGroup || cloudGroup)
-      syncPrecipitationCloudPhysicsAfterClockJump(state, 48);
+    if (cloudGroup) syncCloudPhysicsAfterClockJump(state, 48);
   });
 
   playRow.appendChild(playBtn);
@@ -5171,23 +5132,6 @@ function createPanel(state: DemoState, onRebuild: () => void) {
       "Regional rivers/currents; in focus mode, current data near the focus updates each sim minute even if this is unchecked.";
   }
 
-  const precipRow = document.createElement("div");
-  precipRow.className = "row";
-  const precipCheck = document.createElement("input");
-  precipCheck.type = "checkbox";
-  precipCheck.checked = state.showPrecipitation;
-  precipCheck.addEventListener("change", () => {
-    state.showPrecipitation = precipCheck.checked;
-    if (state.showPrecipitation) requestCloudPrecipBootstrap(state);
-    if (precipitationOverlayGroup)
-      precipitationOverlayGroup.visible = state.showPrecipitation;
-  });
-  const precipLabel = document.createElement("label");
-  precipLabel.textContent = "Show precipitation";
-  precipRow.appendChild(precipCheck);
-  precipRow.appendChild(precipLabel);
-  sec.appendChild(precipRow);
-
   const cloudsRow = document.createElement("div");
   cloudsRow.className = "row";
   const cloudsCheck = document.createElement("input");
@@ -5195,7 +5139,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   cloudsCheck.checked = state.showClouds;
   cloudsCheck.addEventListener("change", () => {
     state.showClouds = cloudsCheck.checked;
-    if (state.showClouds) requestCloudPrecipBootstrap(state);
+    if (state.showClouds) requestCloudWeatherBootstrap(state);
     if (cloudGroup) {
       cloudGroup.visible = state.showClouds;
       cloudGroup.updateMatrixWorld(true);
@@ -5205,7 +5149,8 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     }
   });
   const cloudsLabel = document.createElement("label");
-  cloudsLabel.textContent = "Show clouds";
+  cloudsLabel.textContent =
+    "Show clouds (terrain wet/snow uses sim when clouds are on)";
   cloudsRow.appendChild(cloudsCheck);
   cloudsRow.appendChild(cloudsLabel);
   sec.appendChild(cloudsRow);
@@ -5592,9 +5537,17 @@ async function init() {
     }
     framePerf.slice("timePlayback");
 
-    let date = datetimeLocalUTCToDate(
-      state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
-    );
+    /**
+     * While time is playing, use the high-resolution playback clock. The panel string is only
+     * second-precision; parsing it back would zero milliseconds and make sun/moon/planets jump once
+     * per sim second. No added latency — same instant the controls already integrate.
+     */
+    let date =
+      state.timePlaying
+        ? new Date(playbackEpochMs)
+        : datetimeLocalUTCToDate(
+            state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+          );
     if (Number.isNaN(date.getTime())) {
       date = new Date();
       state.dateTimeStr = dateToDatetimeLocalUTC(date);
@@ -5674,8 +5627,6 @@ async function init() {
           updateFlowFromState(state, {
             skipHeavyWorkWhenFlowHidden: true,
           });
-        if (precipitationOverlayGroup && state.showPrecipitation)
-          refreshPrecipitationOverlayGroup(state);
         framePerf.addMinuteTickCpuMs(performance.now() - tMinute0);
       }
     }
@@ -5704,10 +5655,6 @@ async function init() {
       }
     }
     framePerf.slice("windFlowPrecipCloudMinute");
-    /** Visual-only cloud sync; discrete-bake mode skips minute physics (see {@link globalDiscreteWeatherBake}). */
-    if (globe && cloudClipField && globalDiscreteWeatherBake) {
-      cloudClipField.alignVisualPhysicsClock(getCloudVisualUtcMinutes(state, date));
-    }
     if (globe && cloudClipField && cloudGroup && state.showClouds) {
       const visUtc = getCloudVisualUtcMinutes(state, date);
       cloudClipField.syncThreeGroup(
@@ -5719,28 +5666,6 @@ async function init() {
       );
     }
     framePerf.slice("cloudClipMeshSync");
-    if (
-      globe &&
-      precipFxGroup &&
-      cloudClipField &&
-      state.showPrecipitation
-    ) {
-      const subsolar = dateToSubsolarPoint(date);
-      updatePrecipitationParticles(
-        precipFxGroup,
-        globe,
-        cloudClipField.getPrecipOverlayMap(),
-        subsolar.latDeg,
-        getCloudVisualUtcMinutes(state, date),
-        performance.now() * 0.001,
-        (id) => globalTileTerrain?.get(id)?.type,
-        (id) => globalTileTerrain?.get(id)?.monthlyMeanTempC,
-        cloudClipField.getPrecipParticleCandidateTileIds(),
-      );
-      precipFxGroup.visible = true;
-    } else if (precipFxGroup) {
-      precipFxGroup.visible = false;
-    }
     if (cloudGroup && (!veryDenseAnim || animTick % 4 === 0)) {
       sortLowPolyCloudsByCamera(cloudGroup, camera);
     }
@@ -5972,6 +5897,7 @@ async function init() {
 
   // Create debug panel UI
   const debugPanel = document.createElement("div");
+  debugPanel.id = "hexDebugPanel";
   debugPanel.style.cssText = `
     position: fixed;
     bottom: 10px;
@@ -6076,6 +6002,29 @@ async function init() {
     }
   });
   // ========== END DEBUG PANEL ==========
+
+  /** `` ` `` (backtick): hide/show all HTML chrome (main panel, viewer links, hex debug). */
+  let demoUiChromeVisible = true;
+  const applyDemoUiChromeVisibility = (visible: boolean) => {
+    demoUiChromeVisible = visible;
+    const disp = visible ? "" : "none";
+    document.getElementById("panel")?.style.setProperty("display", disp);
+    document.getElementById("viewer-links")?.style.setProperty("display", disp);
+    document.getElementById("hexDebugPanel")?.style.setProperty("display", disp);
+  };
+  window.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.repeat) return;
+    if (e.code !== "Backquote" || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (
+      t instanceof HTMLElement &&
+      t.closest("input, textarea, select, [contenteditable=true]")
+    ) {
+      return;
+    }
+    e.preventDefault();
+    applyDemoUiChromeVisibility(!demoUiChromeVisible);
+  });
 
   window.addEventListener("resize", () => {
     const w = innerWidth;

@@ -167,6 +167,7 @@ export function installLandWeatherOnMeshStandardMaterial(
   material.onBeforeCompile = (shader) => {
     shader.uniforms.landWeatherMap = { value: gpu.texture };
     shader.uniforms.landWeatherTexWidth = { value: gpu.texWidth };
+    shader.uniforms.landWeatherTexHeight = { value: gpu.texHeight };
     shader.uniforms.landWeatherSnowTint = { value: snowTint };
     shader.uniforms.landWeatherWetTint = { value: wetTint };
 
@@ -192,6 +193,7 @@ vLandWeatherTileId = tileId;
 varying float vLandWeatherTileId;
 uniform sampler2D landWeatherMap;
 uniform float landWeatherTexWidth;
+uniform float landWeatherTexHeight;
 uniform vec3 landWeatherSnowTint;
 uniform vec3 landWeatherWetTint;
 `,
