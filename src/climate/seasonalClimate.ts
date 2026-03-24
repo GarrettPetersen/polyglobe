@@ -84,13 +84,33 @@ export function getTemperatureForTerrain(
 
 /**
  * Map climatological monthly mean (°C) into the same 0–1 band as {@link getTemperature}.
- * Tunable anchors for land-focused gameplay (polar cold / hot lowlands).
+ * Cold anchor −28 °C (not −38) so **0 °C monthly mean ≈ 0.40**, i.e. near‑freezing climates read
+ * cold enough for snow when blended with the seasonal model (see {@link getTileTemperature01}).
  */
+const MONTHLY_MEAN_TEMP_C_ANCHOR_COLD = -28;
+const MONTHLY_MEAN_TEMP_C_ANCHOR_HOT = 42;
+
 export function meanMonthlyTempCToTemperature01(tempC: number): number {
-  const tCold = -38;
-  const tHot = 42;
-  return Math.max(0, Math.min(1, (tempC - tCold) / (tHot - tCold)));
+  const span = MONTHLY_MEAN_TEMP_C_ANCHOR_HOT - MONTHLY_MEAN_TEMP_C_ANCHOR_COLD;
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      (tempC - MONTHLY_MEAN_TEMP_C_ANCHOR_COLD) / span,
+    ),
+  );
 }
+
+/**
+ * Snow / rain from clouds and precip particles: {@link getTileTemperature01} must be **below** this (0–1).
+ * Slightly above old 0.44 so marginal cold months still produce snow with real monthly climatology.
+ */
+export const SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01 = 0.48;
+
+/**
+ * Ground freeze / snowpack preservation: same 0–1 scale as {@link getTileTemperature01}.
+ */
+export const GROUND_FREEZE_TEMPERATURE_THRESHOLD_01 = 0.44;
 
 /**
  * Smooth climatological temperature (°C) from twelve monthly means.
@@ -142,10 +162,13 @@ export function interpolateMonthlyClimatologyC(
   return Number.isFinite(fallback) ? fallback : NaN;
 }
 
+/** Weight on WorldClim-style monthly means vs latitude/subsolar model (remainder). */
+const TILE_TEMP_CLIMATOLOGY_WEIGHT = 0.85;
+
 /**
  * Effective 0–1 temperature for a tile: blends **regional monthly climatology °C** (per lon/lat cell,
  * smoothed day-to-day via {@link interpolateMonthlyClimatologyC}) with the subsolar + Köppen model so
- * playback still responds to sun geometry.
+ * playback still responds to sun geometry. Monthly data dominates so mid‑latitude winters match Earth.
  */
 export function getTileTemperature01(
   latDeg: number,
@@ -166,7 +189,8 @@ export function getTileTemperature01(
   const tc = interpolateMonthlyClimatologyC(monthlyMeanTempC, calendarUtc);
   if (!Number.isFinite(tc)) return model;
   const clim = meanMonthlyTempCToTemperature01(tc);
-  return Math.max(0, Math.min(1, 0.62 * clim + 0.38 * model));
+  const w = TILE_TEMP_CLIMATOLOGY_WEIGHT;
+  return Math.max(0, Math.min(1, w * clim + (1 - w) * model));
 }
 
 /**
@@ -201,7 +225,7 @@ export function climateSurfaceSnowVisualForTerrain(
     monthlyMeanTempC ?? null,
     calendarUtc ?? null
   );
-  const cold = Math.max(0, Math.min(1, (0.38 - temp) / 0.26));
-  const polar = Math.max(0, Math.min(1, (Math.abs(latDeg) - 44) / 38));
-  return Math.max(0, Math.min(1, cold * (0.22 + 0.78 * polar)));
+  const cold = Math.max(0, Math.min(1, (0.47 - temp) / 0.28));
+  const polar = Math.max(0, Math.min(1, (Math.abs(latDeg) - 35) / 45));
+  return Math.max(0, Math.min(1, cold * (0.15 + 0.85 * polar)));
 }

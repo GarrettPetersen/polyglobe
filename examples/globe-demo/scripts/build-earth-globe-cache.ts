@@ -36,6 +36,7 @@ import {
   connectIsolatedRiverTiles,
   fillRiverGaps,
   forceRiverReciprocity,
+  mergeManualRiverHexChainsIntoEdgesWithStabilize,
   symmetrizeRiverNeighborEdgesUntilStable,
   buildMoistureByTileFromTerrain,
   buildAnnualTileWeatherTables,
@@ -60,6 +61,7 @@ import {
   EARTH_STRAIT_TILE_IDS_SUBDIVISION_6,
   MAX_EARTH_GLOBE_SUBDIVISIONS,
 } from "../earthGlobeCacheVersion.js";
+import { MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "../manualRiverHexChains.js";
 
 const KNOWN_STRAIT_TILE_IDS_SUB6 = new Set(EARTH_STRAIT_TILE_IDS_SUBDIVISION_6);
 
@@ -257,6 +259,19 @@ async function buildCacheForSubdivisions(
       // Run symmetrize again after forcing reciprocity
       sym += symmetrizeRiverNeighborEdgesUntilStable(raw, globe.tiles, (id) => tileTerrain.get(id)?.type === "water");
       if (sym > 0) console.log("symmetrized", sym, "river neighbor edges");
+      const manualMerged = mergeManualRiverHexChainsIntoEdgesWithStabilize(
+        raw,
+        globe.tiles,
+        MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[subdivisions] ?? [],
+        (id) => tileTerrain.get(id)?.type === "water",
+      );
+      if (manualMerged > 0) {
+        console.log(
+          "manual river hex chains: added",
+          manualMerged,
+          "half-edges (then stabilized)",
+        );
+      }
       const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
       const isWaterNeighbor = (id: number) => {
         const t = tileTerrain.get(id)?.type;

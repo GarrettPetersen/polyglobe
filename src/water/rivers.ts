@@ -470,6 +470,74 @@ function edgeIndexTowardNeighbor(
   return undefined;
 }
 
+/**
+ * Add bidirectional river boundary edges along ordered hex chains (manual gap-fill).
+ * Each chain is adjacent tile IDs in path order; consecutive tiles must share an edge.
+ * @returns Count of half-edge additions (incremented when a tile gained a new edge index).
+ */
+export function mergeManualRiverHexChainsIntoEdges(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  chains: ReadonlyArray<ReadonlyArray<number>>
+): number {
+  const tileById = new Map(tiles.map((t) => [t.id, t]));
+  let added = 0;
+  for (const chain of chains) {
+    if (chain.length < 2) continue;
+    for (let i = 0; i < chain.length - 1; i++) {
+      const a = chain[i]!;
+      const b = chain[i + 1]!;
+      const tileA = tileById.get(a);
+      const tileB = tileById.get(b);
+      if (!tileA || !tileB) continue;
+      const e = edgeIndexTowardNeighbor(tileA, b, tiles);
+      const k = edgeIndexTowardNeighbor(tileB, a, tiles);
+      if (e === undefined || k === undefined) {
+        console.warn(
+          `[rivers] manual river chain: tiles ${a} and ${b} are not adjacent; skipped`
+        );
+        continue;
+      }
+      let setA = byTile.get(a);
+      if (!setA) {
+        setA = new Set<number>();
+        byTile.set(a, setA);
+      }
+      let setB = byTile.get(b);
+      if (!setB) {
+        setB = new Set<number>();
+        byTile.set(b, setB);
+      }
+      if (!setA.has(e)) {
+        setA.add(e);
+        added++;
+      }
+      if (!setB.has(k)) {
+        setB.add(k);
+        added++;
+      }
+    }
+  }
+  return added;
+}
+
+/**
+ * {@link mergeManualRiverHexChainsIntoEdges} then symmetrize, force reciprocity, symmetrize again.
+ */
+export function mergeManualRiverHexChainsIntoEdgesWithStabilize(
+  byTile: Map<number, Set<number>>,
+  tiles: GeodesicTile[],
+  chains: ReadonlyArray<ReadonlyArray<number>>,
+  isWater: (tileId: number) => boolean
+): number {
+  const n = mergeManualRiverHexChainsIntoEdges(byTile, tiles, chains);
+  if (n === 0) return 0;
+  symmetrizeRiverNeighborEdgesUntilStable(byTile, tiles, isWater);
+  forceRiverReciprocity(byTile, tiles, isWater);
+  symmetrizeRiverNeighborEdgesUntilStable(byTile, tiles, isWater);
+  return n;
+}
+
 /** True if this tile shares at least one river edge with a reciprocal edge on an adjacent river tile (land). */
 function riverTileTouchesAnotherRiverTile(
   tileId: number,

@@ -679,7 +679,8 @@ export function setLowPolyCloudGroupShellPose(
   group.quaternion.setFromUnitVectors(worldUp, up);
   if (Math.abs(radialTwistRad) > 1e-8) {
     _shellTwistQuat.setFromAxisAngle(up, radialTwistRad);
-    group.quaternion.multiply(_shellTwistQuat);
+    // Parent/world order: spin about radial through anchor (matches {@link getPlacementMatrix} bearing).
+    group.quaternion.premultiply(_shellTwistQuat);
   }
 }
 

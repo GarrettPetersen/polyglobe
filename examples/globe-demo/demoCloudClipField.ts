@@ -18,9 +18,12 @@ export function createEarthDemoCloudClipField(
     if (t.type === "water") waterTileIds.add(id);
   }
   const hugeGlobe = globe.tileCount > 85_000;
+  /** Library default is 1.875e-3; lower = slower birth-wind drift without longer template life. */
+  const windStepScale = 9.375e-4;
   return new CloudClipField({
     maxClouds: hugeGlobe ? 72 : 96,
     cloudScale: hugeGlobe ? 0.042 : 0.046,
+    windStepScale,
     cloudCastShadows: false,
     cloudHemisphereShading: true,
     cloudMarchingCubesGrid: hugeGlobe ? 14 : 16,

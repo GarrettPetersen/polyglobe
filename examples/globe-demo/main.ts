@@ -59,6 +59,7 @@ import {
   connectIsolatedRiverTiles,
   fillRiverGaps,
   forceRiverReciprocity,
+  mergeManualRiverHexChainsIntoEdgesWithStabilize,
   symmetrizeRiverNeighborEdgesUntilStable,
   createRiverTerrainMeshes,
   TERRAIN_STYLES,
@@ -108,6 +109,7 @@ import {
   isEarthGlobeCacheVersionOk,
 } from "./earthGlobeCacheVersion";
 import { createEarthDemoCloudClipField } from "./demoCloudClipField.js";
+import { MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
 import type { GlobeRuntimeBakeDecoded } from "polyglobe";
 
 /** Load `public/discrete-weather-bake-{subdivisions}.bin` when Earth cache version and tile order match. */
@@ -3531,19 +3533,59 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           );
         }
         peakTiles = new Map(cache.peaks);
-        riverEdgesByTile = new Map();
+        const rawRiverFromCache = new Map<number, Set<number>>();
         for (const [k, arr] of Object.entries(cache.riverEdges)) {
-          riverEdgesByTile.set(Number(k), new Set(arr));
+          rawRiverFromCache.set(Number(k), new Set(arr));
         }
-        // Cache already has processed river data - skip re-processing
+        const manualRiverMergedCache =
+          mergeManualRiverHexChainsIntoEdgesWithStabilize(
+            rawRiverFromCache,
+            globe.tiles,
+            MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[state.subdivisions] ?? [],
+            (id) => tileTerrain.get(id)?.type === "water",
+          );
+        if (manualRiverMergedCache > 0) {
+          console.log(
+            BUILD_LOG,
+            "manual river hex chains on cache load: added",
+            manualRiverMergedCache,
+            "new half-edges (then stabilized)",
+          );
+        }
+        riverEdgesByTile = new Map<number, Set<number>>();
+        for (const [tid, set] of rawRiverFromCache) {
+          const type = tileTerrain.get(tid)?.type;
+          if (type === "water" || type === "beach") continue;
+          riverEdgesByTile.set(tid, set);
+        }
         console.log(
           BUILD_LOG,
           "river edges loaded from cache:",
           riverEdgesByTile.size,
-          "tiles",
+          "land tiles",
         );
         if (riverEdgesByTile.size === 0) {
           riverEdgesByTile = undefined;
+          riverEdgeToWaterByTile = undefined;
+        } else if (manualRiverMergedCache > 0) {
+          riverEdgeToWaterByTile = new Map<number, Set<number>>();
+          const tileByIdRiver = new Map(globe.tiles.map((t) => [t.id, t]));
+          const isWaterNeighbor = (id: number) => {
+            const t = tileTerrain.get(id)?.type;
+            return t === "water" || t === "beach";
+          };
+          for (const [tid, set] of riverEdgesByTile) {
+            const tile = tileByIdRiver.get(tid);
+            if (!tile) continue;
+            const toWater = new Set<number>();
+            for (const e of set) {
+              const nid = getEdgeNeighbor(tile, e, globe.tiles);
+              if (nid !== undefined && isWaterNeighbor(nid)) toWater.add(e);
+            }
+            if (toWater.size > 0) riverEdgeToWaterByTile.set(tid, toWater);
+          }
+          if (riverEdgeToWaterByTile.size === 0)
+            riverEdgeToWaterByTile = undefined;
         } else {
           riverEdgeToWaterByTile = new Map();
           for (const [k, arr] of Object.entries(cache.riverEdgeToWater)) {
@@ -3739,6 +3781,20 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
                 symR,
                 "river neighbor edges",
               );
+            const manualRiverMerged = mergeManualRiverHexChainsIntoEdgesWithStabilize(
+              raw,
+              globe.tiles,
+              MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[state.subdivisions] ?? [],
+              (id) => tileTerrain.get(id)?.type === "water",
+            );
+            if (manualRiverMerged > 0) {
+              console.log(
+                BUILD_LOG,
+                "manual river hex chains: added",
+                manualRiverMerged,
+                "new half-edges (then stabilized)",
+              );
+            }
             riverEdgesByTile = new Map<number, Set<number>>();
             for (const [tid, set] of raw) {
               const type = tileTerrain.get(tid)?.type;
@@ -4319,6 +4375,21 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         );
         if (sym3 > 0)
           console.log(BUILD_LOG, "symmetrized", sym3, "river neighbor edges");
+        const manualRiverMerged3 =
+          mergeManualRiverHexChainsIntoEdgesWithStabilize(
+            raw,
+            globe.tiles,
+            MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[state.subdivisions] ?? [],
+            (id) => tileTerrain.get(id)?.type === "water",
+          );
+        if (manualRiverMerged3 > 0) {
+          console.log(
+            BUILD_LOG,
+            "manual river hex chains: added",
+            manualRiverMerged3,
+            "new half-edges (then stabilized)",
+          );
+        }
         riverEdgesByTile = new Map<number, Set<number>>();
         const DEBUG_TILES = [17543];
         for (const [tid, set] of raw) {
@@ -5737,71 +5808,36 @@ async function init() {
     return targets;
   }
 
-  renderer.domElement.addEventListener("click", (event: MouseEvent) => {
-    if (!globe?.mesh) return;
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-
-    // Raycast against all relevant meshes and take the nearest hit
-    const targets = getClickTargets();
-    const allIntersects: THREE.Intersection[] = [];
-    for (const target of targets) {
-      const hits = raycaster.intersectObject(target, true);
-      allIntersects.push(...hits);
-    }
-    // Sort by distance to get nearest
-    allIntersects.sort((a, b) => a.distance - b.distance);
-
-    if (allIntersects.length > 0) {
-      const dir = allIntersects[0].point.clone().normalize();
-      const tileId = globe.getTileIdAtDirection(dir);
-      const scale = globe.subdivisions;
-      // Convert direction to lat/lon for verification
-      const latRad = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
-      const lonRad = Math.atan2(dir.z, dir.x);
-      const latDeg = (latRad * 180) / Math.PI;
-      const lonDeg = (lonRad * 180) / Math.PI;
-      const tileType = globalTileTerrain?.get(tileId)?.type ?? "unknown";
-      const inRiverData = globalRiverEdgesByTile?.has(tileId) ?? false;
-      console.log(
-        "[globe-build] Hex clicked: tileId =",
-        tileId,
-        ", lat/lon =",
-        latDeg.toFixed(2) + "°," + lonDeg.toFixed(2) + "°",
-        ", type =",
-        tileType,
-        ", inRiverData =",
-        inRiverData,
-        ", scale =",
-        scale,
-      );
-    }
-  });
-
   // ========== DEBUG: Hex ID lookup panel ==========
   let highlightMesh: THREE.Mesh | null = null;
   let highlightedTileId: number | null = null;
 
-  function createHighlightMesh(tile: GeodesicTile): THREE.Mesh {
+  const HEX_CHAIN_LIFT_TIP = 1.008;
+  const HEX_CHAIN_LIFT_NEIGHBOR = 1.006;
+  const HEX_CHAIN_LIFT_LINE = 1.014;
+
+  function createHighlightMesh(
+    tile: GeodesicTile,
+    color: number,
+    opacity: number,
+    lift: number,
+  ): THREE.Mesh {
     const n = tile.vertices.length;
     const center = tile.center.clone().normalize();
     const positions: number[] = [];
     const indices: number[] = [];
 
-    // Lift slightly above the tile surface
-    const lift = 1.008;
+    positions.push(
+      center.x * lift,
+      center.y * lift,
+      center.z * lift,
+    );
 
-    // Center vertex
-    positions.push(center.x * lift, center.y * lift, center.z * lift);
-
-    // Edge vertices
     for (let i = 0; i < n; i++) {
       const v = tile.vertices[i].clone().normalize().multiplyScalar(lift);
       positions.push(v.x, v.y, v.z);
     }
 
-    // Triangles (fan from center)
     for (let i = 0; i < n; i++) {
       indices.push(0, i + 1, ((i + 1) % n) + 1);
     }
@@ -5815,15 +5851,171 @@ async function init() {
     geo.computeVertexNormals();
 
     const mat = new THREE.MeshBasicMaterial({
-      color: 0xff00ff,
+      color,
       transparent: true,
-      opacity: 0.5,
+      opacity,
       side: THREE.DoubleSide,
       depthTest: true,
       depthWrite: false,
     });
 
     return new THREE.Mesh(geo, mat);
+  }
+
+  /** Magenta tip highlight (legacy default). */
+  function createTipHighlightMesh(tile: GeodesicTile): THREE.Mesh {
+    return createHighlightMesh(tile, 0xff00ff, 0.5, HEX_CHAIN_LIFT_TIP);
+  }
+
+  function createNeighborPickHighlightMesh(tile: GeodesicTile): THREE.Mesh {
+    return createHighlightMesh(tile, 0x22ddff, 0.42, HEX_CHAIN_LIFT_NEIGHBOR);
+  }
+
+  let hexChainMode = false;
+  const hexChainIds: number[] = [];
+  const hexChainIdSet = new Set<number>();
+  let neighborPickMeshes: THREE.Mesh[] = [];
+  let chainPolyline: THREE.Line | null = null;
+  const hexChainStatusElRef: { el: HTMLDivElement | null } = { el: null };
+
+  function clearNeighborPickHighlights(): void {
+    for (const m of neighborPickMeshes) {
+      scene.remove(m);
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    neighborPickMeshes = [];
+  }
+
+  function clearChainPolyline(): void {
+    if (chainPolyline) {
+      scene.remove(chainPolyline);
+      chainPolyline.geometry.dispose();
+      (chainPolyline.material as THREE.Material).dispose();
+      chainPolyline = null;
+    }
+  }
+
+  function updateChainPolyline(): void {
+    clearChainPolyline();
+    if (hexChainIds.length < 2) return;
+    const pts: THREE.Vector3[] = [];
+    for (const id of hexChainIds) {
+      const t = globe.getTile(id);
+      if (!t) continue;
+      pts.push(
+        t.center
+          .clone()
+          .normalize()
+          .multiplyScalar(globe.radius * HEX_CHAIN_LIFT_LINE),
+      );
+    }
+    if (pts.length < 2) return;
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x00ffcc,
+      depthTest: true,
+      transparent: true,
+      opacity: 0.95,
+    });
+    chainPolyline = new THREE.Line(geo, mat);
+    chainPolyline.renderOrder = 6;
+    scene.add(chainPolyline);
+  }
+
+  function pickableNeighborIdsFromLast(): Set<number> {
+    const out = new Set<number>();
+    if (hexChainIds.length === 0) return out;
+    const lastId = hexChainIds[hexChainIds.length - 1]!;
+    const lastTile = globe.getTile(lastId);
+    if (!lastTile) return out;
+    for (const nid of lastTile.neighbors) {
+      if (!hexChainIdSet.has(nid)) {
+        out.add(nid);
+      }
+    }
+    return out;
+  }
+
+  function refreshNeighborPickHighlights(): void {
+    clearNeighborPickHighlights();
+    if (!hexChainMode || hexChainIds.length === 0) return;
+    for (const nid of pickableNeighborIdsFromLast()) {
+      const nt = globe.getTile(nid);
+      if (!nt) continue;
+      const m = createNeighborPickHighlightMesh(nt);
+      scene.add(m);
+      neighborPickMeshes.push(m);
+    }
+  }
+
+  function applyTipHighlightMesh(tileId: number): void {
+    const tile = globe.getTile(tileId);
+    if (!tile) return;
+    if (highlightMesh) {
+      scene.remove(highlightMesh);
+      highlightMesh.geometry.dispose();
+      (highlightMesh.material as THREE.Material).dispose();
+    }
+    highlightMesh = createTipHighlightMesh(tile);
+    scene.add(highlightMesh);
+    highlightedTileId = tileId;
+  }
+
+  function setHexChainUiButtons(
+    startBtn: HTMLButtonElement,
+    undoBtn: HTMLButtonElement,
+    copyBtn: HTMLButtonElement,
+    cancelBtn: HTMLButtonElement,
+  ): void {
+    startBtn.disabled = false;
+    undoBtn.disabled = !hexChainMode || hexChainIds.length < 2;
+    copyBtn.disabled = !hexChainMode || hexChainIds.length === 0;
+    cancelBtn.disabled = !hexChainMode;
+  }
+
+  function endHexChainMode(
+    startBtn: HTMLButtonElement,
+    undoBtn: HTMLButtonElement,
+    copyBtn: HTMLButtonElement,
+    cancelBtn: HTMLButtonElement,
+  ): void {
+    hexChainMode = false;
+    hexChainIds.length = 0;
+    hexChainIdSet.clear();
+    clearNeighborPickHighlights();
+    clearChainPolyline();
+    setHexChainUiButtons(startBtn, undoBtn, copyBtn, cancelBtn);
+    if (hexChainStatusElRef.el) {
+      hexChainStatusElRef.el.textContent = "";
+    }
+  }
+
+  function startHexChainFromSelection(
+    startBtn: HTMLButtonElement,
+    undoBtn: HTMLButtonElement,
+    copyBtn: HTMLButtonElement,
+    cancelBtn: HTMLButtonElement,
+  ): void {
+    if (highlightedTileId == null || highlightedTileId < 0) {
+      if (hexChainStatusElRef.el) {
+        hexChainStatusElRef.el.textContent =
+          "Select a hex first (Go or click globe).";
+      }
+      return;
+    }
+    hexChainMode = true;
+    hexChainIds.length = 0;
+    hexChainIdSet.clear();
+    hexChainIds.push(highlightedTileId);
+    hexChainIdSet.add(highlightedTileId);
+    applyTipHighlightMesh(highlightedTileId);
+    refreshNeighborPickHighlights();
+    updateChainPolyline();
+    setHexChainUiButtons(startBtn, undoBtn, copyBtn, cancelBtn);
+    if (hexChainStatusElRef.el) {
+      hexChainStatusElRef.el.textContent = `Chain: ${hexChainIds.length} hex — click cyan neighbor`;
+    }
   }
 
   function zoomToTile(tileId: number) {
@@ -5840,8 +6032,7 @@ async function init() {
       (highlightMesh.material as THREE.Material).dispose();
     }
 
-    // Add new highlight
-    highlightMesh = createHighlightMesh(tile);
+    highlightMesh = createTipHighlightMesh(tile);
     scene.add(highlightMesh);
     highlightedTileId = tileId;
 
@@ -5918,12 +6109,45 @@ async function init() {
       Go
     </button>
     <div id="hexInfo" style="margin-top: 8px; font-size: 12px; color: #aaa;"></div>
+    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #444; font-size: 11px; color: #8cf;">
+      Hex chain (river gaps)
+    </div>
+    <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
+      <button id="hexChainStartBtn" type="button" style="padding: 4px 8px; border: none; border-radius: 4px; background: #0a7; color: white; cursor: pointer; font-size: 11px;">
+        Start chain
+      </button>
+      <button id="hexChainUndoBtn" type="button" disabled style="padding: 4px 8px; border: none; border-radius: 4px; background: #555; color: #ccc; cursor: pointer; font-size: 11px;">
+        Undo
+      </button>
+      <button id="hexChainCopyBtn" type="button" disabled style="padding: 4px 8px; border: none; border-radius: 4px; background: #38a; color: white; cursor: pointer; font-size: 11px;">
+        Copy CSV
+      </button>
+      <button id="hexChainCancelBtn" type="button" disabled style="padding: 4px 8px; border: none; border-radius: 4px; background: #822; color: white; cursor: pointer; font-size: 11px;">
+        Cancel
+      </button>
+    </div>
+    <div id="hexChainStatus" style="margin-top: 6px; font-size: 11px; color: #9ad; line-height: 1.35;"></div>
   `;
   document.body.appendChild(debugPanel);
 
   const hexIdInput = document.getElementById("hexIdInput") as HTMLInputElement;
   const hexGoBtn = document.getElementById("hexGoBtn") as HTMLButtonElement;
   const hexInfo = document.getElementById("hexInfo") as HTMLDivElement;
+  const hexChainStartBtn = document.getElementById(
+    "hexChainStartBtn",
+  ) as HTMLButtonElement;
+  const hexChainUndoBtn = document.getElementById(
+    "hexChainUndoBtn",
+  ) as HTMLButtonElement;
+  const hexChainCopyBtn = document.getElementById(
+    "hexChainCopyBtn",
+  ) as HTMLButtonElement;
+  const hexChainCancelBtn = document.getElementById(
+    "hexChainCancelBtn",
+  ) as HTMLButtonElement;
+  hexChainStatusElRef.el = document.getElementById(
+    "hexChainStatus",
+  ) as HTMLDivElement;
 
   /** Format hex debug line: elevation, wind, river flow (when in river). */
   function formatHexInfo(tileId: number): string {
@@ -5957,6 +6181,14 @@ async function init() {
       hexInfo.textContent = `Tile ${id} not found (max: ${globe.tiles.length - 1})`;
       return;
     }
+    if (hexChainMode) {
+      endHexChainMode(
+        hexChainStartBtn,
+        hexChainUndoBtn,
+        hexChainCopyBtn,
+        hexChainCancelBtn,
+      );
+    }
     zoomToTile(id);
     hexInfo.innerHTML = formatHexInfo(id);
   }
@@ -5966,14 +6198,69 @@ async function init() {
     if (e.key === "Enter") goToHex();
   });
 
-  // Also update highlight when clicking on a tile
+  hexChainStartBtn.addEventListener("click", () => {
+    startHexChainFromSelection(
+      hexChainStartBtn,
+      hexChainUndoBtn,
+      hexChainCopyBtn,
+      hexChainCancelBtn,
+    );
+  });
+
+  hexChainUndoBtn.addEventListener("click", () => {
+    if (!hexChainMode || hexChainIds.length < 2) return;
+    const removed = hexChainIds.pop()!;
+    hexChainIdSet.delete(removed);
+    const tip = hexChainIds[hexChainIds.length - 1]!;
+    applyTipHighlightMesh(tip);
+    refreshNeighborPickHighlights();
+    updateChainPolyline();
+    setHexChainUiButtons(
+      hexChainStartBtn,
+      hexChainUndoBtn,
+      hexChainCopyBtn,
+      hexChainCancelBtn,
+    );
+    hexIdInput.value = String(tip);
+    hexInfo.innerHTML = formatHexInfo(tip);
+    if (hexChainStatusElRef.el) {
+      hexChainStatusElRef.el.textContent = `Chain: ${hexChainIds.length} hex${hexChainIds.length === 1 ? "" : "es"} — click cyan neighbor`;
+    }
+  });
+
+  hexChainCopyBtn.addEventListener("click", () => {
+    if (!hexChainMode || hexChainIds.length === 0) return;
+    const csv = hexChainIds.join(",");
+    void navigator.clipboard.writeText(csv).then(
+      () => {
+        if (hexChainStatusElRef.el) {
+          hexChainStatusElRef.el.textContent = `Copied ${hexChainIds.length} IDs to clipboard.`;
+        }
+      },
+      () => {
+        if (hexChainStatusElRef.el) {
+          hexChainStatusElRef.el.textContent =
+            "Clipboard failed (needs a secure context). CSV: " + csv;
+        }
+      },
+    );
+  });
+
+  hexChainCancelBtn.addEventListener("click", () => {
+    endHexChainMode(
+      hexChainStartBtn,
+      hexChainUndoBtn,
+      hexChainCopyBtn,
+      hexChainCancelBtn,
+    );
+  });
+
   renderer.domElement.addEventListener("click", (event: MouseEvent) => {
     if (!globe?.mesh) return;
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
 
-    // Raycast against all relevant meshes
     const targets = getClickTargets();
     const allIntersects: THREE.Intersection[] = [];
     for (const target of targets) {
@@ -5982,24 +6269,67 @@ async function init() {
     }
     allIntersects.sort((a, b) => a.distance - b.distance);
 
-    if (allIntersects.length > 0) {
-      const dir = allIntersects[0].point.clone().normalize();
-      const tileId = globe.getTileIdAtDirection(dir);
-      // Update input and highlight
-      hexIdInput.value = String(tileId);
-      const tile = globe.tiles.find((t) => t.id === tileId);
-      if (tile && highlightedTileId !== tileId) {
-        if (highlightMesh) {
-          scene.remove(highlightMesh);
-          highlightMesh.geometry.dispose();
-          (highlightMesh.material as THREE.Material).dispose();
+    if (allIntersects.length === 0) return;
+
+    const dir = allIntersects[0].point.clone().normalize();
+    const tileId = globe.getTileIdAtDirection(dir);
+
+    if (hexChainMode) {
+      const pickable = pickableNeighborIdsFromLast();
+      if (pickable.has(tileId)) {
+        hexChainIds.push(tileId);
+        hexChainIdSet.add(tileId);
+        applyTipHighlightMesh(tileId);
+        refreshNeighborPickHighlights();
+        updateChainPolyline();
+        setHexChainUiButtons(
+          hexChainStartBtn,
+          hexChainUndoBtn,
+          hexChainCopyBtn,
+          hexChainCancelBtn,
+        );
+        hexIdInput.value = String(tileId);
+        hexInfo.innerHTML = formatHexInfo(tileId);
+        if (hexChainStatusElRef.el) {
+          hexChainStatusElRef.el.textContent = `Chain: ${hexChainIds.length} hex${hexChainIds.length === 1 ? "" : "es"} — click cyan neighbor`;
         }
-        highlightMesh = createHighlightMesh(tile);
-        scene.add(highlightMesh);
-        highlightedTileId = tileId;
       }
-      hexInfo.innerHTML = formatHexInfo(tileId);
+      return;
     }
+
+    const scale = globe.subdivisions;
+    const latRad = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+    const lonRad = Math.atan2(dir.z, dir.x);
+    const latDeg = (latRad * 180) / Math.PI;
+    const lonDeg = (lonRad * 180) / Math.PI;
+    const tileType = globalTileTerrain?.get(tileId)?.type ?? "unknown";
+    const inRiverData = globalRiverEdgesByTile?.has(tileId) ?? false;
+    console.log(
+      "[globe-build] Hex clicked: tileId =",
+      tileId,
+      ", lat/lon =",
+      latDeg.toFixed(2) + "°," + lonDeg.toFixed(2) + "°",
+      ", type =",
+      tileType,
+      ", inRiverData =",
+      inRiverData,
+      ", scale =",
+      scale,
+    );
+
+    hexIdInput.value = String(tileId);
+    const tile = globe.tiles.find((t) => t.id === tileId);
+    if (tile && highlightedTileId !== tileId) {
+      if (highlightMesh) {
+        scene.remove(highlightMesh);
+        highlightMesh.geometry.dispose();
+        (highlightMesh.material as THREE.Material).dispose();
+      }
+      highlightMesh = createTipHighlightMesh(tile);
+      scene.add(highlightMesh);
+      highlightedTileId = tileId;
+    }
+    hexInfo.innerHTML = formatHexInfo(tileId);
   });
   // ========== END DEBUG PANEL ==========
 

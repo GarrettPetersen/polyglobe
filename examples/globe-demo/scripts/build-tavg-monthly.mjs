@@ -4,8 +4,8 @@
  * Full equirectangular grid (−180…180° lon, −90…90° lat): **each pixel has its own value**
  * (longitude enters explicitly — not a latitude-only profile).
  *
- * This default is a coarse analytic stand-in for testing the pipeline. Replace with
- * WorldClim/CHELSA mean monthly rasters reprojected to the same layout for real climates.
+ * This default is a coarse analytic stand-in. For real climates use WorldClim via
+ * `npm run build-tavg-worldclim` (after `wc2.1_10m_tavg.zip` is in public/, e.g. from `npm run download-data`).
  *
  * Run from examples/globe-demo: node scripts/build-tavg-monthly.mjs
  */

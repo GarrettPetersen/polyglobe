@@ -6,7 +6,10 @@ import * as THREE from "three";
 import type { Globe } from "../core/Globe.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import type { TerrainType } from "../terrain/types.js";
-import { getTileTemperature01 } from "./seasonalClimate.js";
+import {
+  getTileTemperature01,
+  SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01,
+} from "./seasonalClimate.js";
 
 function mixHash(a: number, b: number): number {
   let h = (2166136261 ^ a) >>> 0;
@@ -120,7 +123,7 @@ export function updatePrecipitationParticles(
       monthly,
       cal
     );
-    const isSnow = temp < 0.44;
+    const isSnow = temp < SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01;
 
     const h = mixHash(pick, tid);
     const phase = ((timeSec * (isSnow ? 0.9 : 3.4) + (h >>> 8) * 1e-4) % 1 + 1) % 1;

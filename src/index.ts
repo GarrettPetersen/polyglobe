@@ -126,6 +126,8 @@ export {
   connectIsolatedRiverTiles,
   fillRiverGaps,
   forceRiverReciprocity,
+  mergeManualRiverHexChainsIntoEdges,
+  mergeManualRiverHexChainsIntoEdgesWithStabilize,
   symmetrizeRiverNeighborEdgesUntilStable,
   lonLatToDirection,
   updateRiverMaterialTime,
@@ -189,6 +191,8 @@ export {
   getTileTemperature01,
   climateSurfaceSnowVisual,
   climateSurfaceSnowVisualForTerrain,
+  SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01,
+  GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
 } from "./climate/seasonalClimate.js";
 export {
   coldSeasonWeight,

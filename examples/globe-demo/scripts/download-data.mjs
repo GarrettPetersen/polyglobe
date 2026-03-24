@@ -9,7 +9,8 @@
  *   land-50m.json, ne_110m_lakes.json, ne_110m_geography_marine_polys.json,
  *   koppen_ascii.zip, ne_10m_geography_regions_elevation_points.json,
  *   ne_50m_geography_regions_elevation_points.json, ne_10m_rivers_lake_centerlines.json,
- *   lroc_color_2k.jpg (NASA moon texture)
+ *   lroc_color_2k.jpg (NASA moon texture),
+ *   wc2.1_10m_tavg.zip (~37 MB, WorldClim 2.1 mean monthly °C — run npm run build-tavg-worldclim after)
  */
 
 import fs from "fs";
@@ -29,6 +30,10 @@ const ASSETS = [
   { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_geography_regions_elevation_points.json", file: "ne_50m_geography_regions_elevation_points.json" },
   { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/10m/physical/ne_10m_rivers_lake_centerlines.json", file: "ne_10m_rivers_lake_centerlines.json" },
   { url: "https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_2k.jpg", file: "lroc_color_2k.jpg" },
+  {
+    url: "https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_10m_tavg.zip",
+    file: "wc2.1_10m_tavg.zip",
+  },
 ];
 
 async function fetchUrl(url) {

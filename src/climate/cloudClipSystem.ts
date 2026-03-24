@@ -18,7 +18,11 @@ import {
   type SimCloudVisualSpec,
 } from "./cloudLayer.js";
 import type { PrecipSubsolarForMinute } from "./cloudSimulation.js";
-import { getTileTemperature01 } from "./seasonalClimate.js";
+import {
+  getTileTemperature01,
+  SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01,
+  GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
+} from "./seasonalClimate.js";
 import {
   TileSurfaceState,
   type GroundSurfaceClimateParams,
@@ -217,10 +221,10 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   sizePowerExponent: 2.05,
   cloudPrecipHitChance: 0.88,
   cloudPrecipBurstScale: 2.1,
-  snowTemperatureThreshold: 0.44,
+  snowTemperatureThreshold: SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01,
   wetGroundDecayPerMinute: 0.987,
   wetGroundDecayPerMinuteCold: 0.9972,
-  groundFreezeTemperatureThreshold: 0.41,
+  groundFreezeTemperatureThreshold: GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
   snowMeltPerMinuteWhenThawed: 0.991,
   cloudBackfaceCullDot: -0.11,
   useInstancedCloudMeshes: true,
@@ -1700,7 +1704,7 @@ export class CloudClipField {
       const twistR = cloudInstanceRadialTwistRad(cfg, inst);
       if (Math.abs(twistR) > 1e-8) {
         _instTwistQuat.setFromAxisAngle(_anchor, twistR);
-        _instQuat.multiply(_instTwistQuat);
+        _instQuat.premultiply(_instTwistQuat);
       }
       _instScale.setScalar(sVis);
       _instMat.compose(_instPos, _instQuat, _instScale);

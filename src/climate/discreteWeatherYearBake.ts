@@ -13,7 +13,10 @@ import type { Globe } from "../core/Globe.js";
 import type { GeodesicTile } from "../core/geodesic.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import type { TerrainType } from "../terrain/types.js";
-import { getTileTemperature01 } from "./seasonalClimate.js";
+import {
+  getTileTemperature01,
+  GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
+} from "./seasonalClimate.js";
 import type { AnnualTileWeatherTables } from "./annualWeatherTables.js";
 import type { TileSurfaceState } from "./tileSurfaceState.js";
 
@@ -173,7 +176,8 @@ export function buildDiscreteWeatherYearBake(
   options: BuildDiscreteWeatherYearOptions = {},
 ): DiscreteWeatherYearBake {
   const seed = options.seed ?? 0x57a7e;
-  const freezeTh = options.freezeTemperatureThreshold ?? 0.41;
+  const freezeTh =
+    options.freezeTemperatureThreshold ?? GROUND_FREEZE_TEMPERATURE_THRESHOLD_01;
   const chanceScale = options.precipChanceScale ?? 0.52;
   const maxRing = Math.max(1, options.circularCarryMaxIterations ?? 16);
   const tol = options.circularCarryTolerance ?? 0.004;

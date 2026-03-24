@@ -12,6 +12,9 @@
     "build-koppen": "node scripts/build-koppen.mjs",
     "build-elevation": "node scripts/build-elevation.mjs",
     "build-tavg-monthly": "node scripts/build-tavg-monthly.mjs",
+    "build-tavg-worldclim": "node scripts/build-tavg-worldclim.mjs",
+    "analyze-tavg-frozen-land": "npx tsx scripts/analyze-tavg-monthly-land-freeze.ts",
+    "report-jan1-temp": "npx tsx scripts/report-jan1-temp-model.ts",
     "build-mountains": "node scripts/build-mountains.mjs",
     "build-land-raster-png": "node scripts/build-land-raster-png.mjs",
     "setup-data": "npm run download-data && npm run build-koppen && npm run build-mountains && npm run build-land-raster-png && npm run build-elevation && npm run build-tavg-monthly",
@@ -32,6 +35,7 @@
   "devDependencies": {
     "@types/earcut": "^3.0.0",
     "canvas": "^3.2.1",
+    "geotiff": "^2.1.3",
     "playwright": "^1.58.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
