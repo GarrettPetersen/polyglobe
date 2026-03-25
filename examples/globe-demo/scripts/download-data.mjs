@@ -21,6 +21,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(DEMO_ROOT, "public");
 
+/** WAFs (e.g. Imperva on university hosts) often block default `fetch` — send a browser-like UA. */
+const FETCH_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  Accept: "*/*",
+};
+
 const ASSETS = [
   { url: "https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json", file: "land-50m.json" },
   { url: "https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json", file: "ne_110m_lakes.json" },
@@ -37,9 +44,17 @@ const ASSETS = [
 ];
 
 async function fetchUrl(url) {
-  const res = await fetch(url, { redirect: "follow" });
+  const res = await fetch(url, { redirect: "follow", headers: FETCH_HEADERS });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return Buffer.from(await res.arrayBuffer());
+}
+
+function assertLooksLikeZip(buf, fileLabel) {
+  if (buf.length >= 2 && buf[0] === 0x50 && buf[1] === 0x4b) return;
+  const head = buf.slice(0, 120).toString("utf8").replace(/\s+/g, " ");
+  throw new Error(
+    `${fileLabel}: not a ZIP (expected PK header); got: ${head.slice(0, 200)}`,
+  );
 }
 
 async function main() {
@@ -50,6 +65,7 @@ async function main() {
     console.log("[download-data]", file, "...");
     try {
       const data = await fetchUrl(url);
+      if (file.endsWith(".zip")) assertLooksLikeZip(data, file);
       fs.writeFileSync(dest, data);
       console.log("[download-data] Wrote", file);
     } catch (e) {

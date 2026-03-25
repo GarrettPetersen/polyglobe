@@ -1,7 +1,7 @@
 /**
  * Load the demo with ?perf=1 and print [globe-perf] console lines (full object serialization).
  * Usage: VITE_URL=http://127.0.0.1:5199 node scripts/capture-perf-console.mjs
- * Optional: PERF_EXTRA_QUERY=autoTimeSpeed=3600  (appended after perf=1)
+ * Optional: PERF_EXTRA_QUERY=dayLengthSec=15&cloudTick=10&cloudCoarseDriftMul=0.55  (after perf=1)
  * Optional: PERF_FRAME_REPORTS=3  (default 2) — wait for more averaged windows before exit.
  */
 import { chromium } from "playwright";

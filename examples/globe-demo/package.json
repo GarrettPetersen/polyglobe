@@ -22,7 +22,9 @@
     "build-earth-globe-cache-all": "npx tsx scripts/build-earth-globe-cache.ts 7",
     "bake-discrete-weather": "npx tsx scripts/bake-discrete-weather-from-globe-cache.ts",
     "list-assets": "node scripts/list-assets.mjs",
-    "rename-assets": "node scripts/rename-assets.mjs"
+    "rename-assets": "node scripts/rename-assets.mjs",
+    "perf:capture-long-cloud-tick": "env PERF_EXTRA_QUERY='dayLengthSec=15&cloudTick=120' PERF_FRAME_REPORTS=6 node scripts/capture-perf-console.mjs",
+    "perf:capture-low-latency-preset": "env PERF_EXTRA_QUERY='dayLengthSec=15&lowLatencyClouds=1' PERF_FRAME_REPORTS=6 node scripts/capture-perf-console.mjs"
   },
   "dependencies": {
     "astronomy-engine": "^2.1.19",

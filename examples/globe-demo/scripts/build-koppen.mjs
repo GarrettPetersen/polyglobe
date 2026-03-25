@@ -19,9 +19,15 @@ const ZIP_LOCAL = path.join(PUBLIC_DIR, "koppen_ascii.zip");
 const KOPPEN_ZIP_URL =
   "https://people.eng.unimelb.edu.au/mpeel/Koppen/koppen_ascii.zip";
 
+const FETCH_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  Accept: "*/*",
+};
+
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    https.get(url, { headers: FETCH_HEADERS }, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => resolve(Buffer.concat(chunks)));
@@ -92,14 +98,35 @@ function downsampleTo360x180(grid) {
   return out;
 }
 
+function isZipBuffer(buf) {
+  return buf.length >= 2 && buf[0] === 0x50 && buf[1] === 0x4b;
+}
+
 async function main() {
   let zipBuf;
   if (fs.existsSync(ZIP_LOCAL)) {
     console.log("Reading", ZIP_LOCAL, "...");
     zipBuf = fs.readFileSync(ZIP_LOCAL);
+    if (!isZipBuffer(zipBuf)) {
+      console.warn(
+        "Local file is not a ZIP (often an HTML bot wall). Re-fetching with browser User-Agent…",
+      );
+      zipBuf = await fetchUrl(KOPPEN_ZIP_URL);
+      if (!isZipBuffer(zipBuf)) {
+        console.error(
+          "Download still not a ZIP. Try: npm run download-data (fixed UA) then npm run build-koppen",
+        );
+        process.exit(1);
+      }
+      fs.writeFileSync(ZIP_LOCAL, zipBuf);
+    }
   } else {
     console.log("Fetching", KOPPEN_ZIP_URL, "...");
     zipBuf = await fetchUrl(KOPPEN_ZIP_URL);
+    if (!isZipBuffer(zipBuf)) {
+      console.error("Download is not a ZIP (WAF?). Run npm run download-data then retry.");
+      process.exit(1);
+    }
     if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
     fs.writeFileSync(ZIP_LOCAL, zipBuf);
     console.log("Saved", ZIP_LOCAL, "for next time.");

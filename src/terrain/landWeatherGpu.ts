@@ -60,9 +60,10 @@ export function disposeLandWeatherGpuState(state: LandWeatherGpuState | null): v
  * **Full pass** (omit `paintOpts` or fraction ≥ 1): clears the whole texture, then writes every tile
  * (required after globe build).
  *
- * **Stochastic pass** (`stochasticLandTileFraction` in (0,1)): always refreshes **water** texels; for
- * **land**, only updates tiles that pass {@link landWeatherStochasticPickLandTile} so other land texels
- * keep their previous values (same idea as the old vertex-color path).
+ * **Stochastic pass** (`stochasticLandTileFraction` in (0,1)): does **not** clear the texture; only
+ * overwrites selected **land** texels (water stays as set by the last full pass — ocean texels are
+ * static). Pass {@link landTileIdsForStochasticLandPass} to iterate land ids only (skip scanning
+ * every ocean hex).
  */
 export function uploadLandWeatherTextureTiles(
   gpu: LandWeatherGpuState,
@@ -73,6 +74,8 @@ export function uploadLandWeatherTextureTiles(
   snowCover: ReadonlyMap<number, number>,
   climateOpts?: LandSurfaceWeatherVertexOptions,
   paintOpts?: ApplyLandSurfaceWeatherPaintOptions,
+  /** When stochastic sampling is on, optional list of land tile ids — avoids O(tileCount) ocean scans. */
+  landTileIdsForStochasticLandPass?: readonly number[],
 ): void {
   const { data, texWidth, texHeight, tileCount } = gpu;
   const stFrac = paintOpts?.stochasticLandTileFraction;
@@ -114,6 +117,37 @@ export function uploadLandWeatherTextureTiles(
     }
   }
 
+  const writeLandTexel = (tid: number): void => {
+    const o = texelByteOffset(tid, texWidth);
+    const row = tileTerrain.get(tid) ?? {
+      tileId: tid,
+      type: "water" as const,
+      elevation: 0,
+    };
+    if (waterTileIds.has(tid) || row.type === "water") return;
+    const w = wetness.get(tid) ?? 0;
+    const snSim = snowCover.get(tid) ?? 0;
+    const snClim = climateSnowForTile(tid);
+    data[o] = w;
+    data[o + 1] = snSim;
+    data[o + 2] = snClim;
+    data[o + 3] = 1;
+  };
+
+  if (
+    useStochasticLand &&
+    landTileIdsForStochasticLandPass &&
+    landTileIdsForStochasticLandPass.length > 0
+  ) {
+    for (let i = 0; i < landTileIdsForStochasticLandPass.length; i++) {
+      const tid = landTileIdsForStochasticLandPass[i]!;
+      if (!landWeatherStochasticPickLandTile(tid, stSalt, stFrac)) continue;
+      writeLandTexel(tid);
+    }
+    gpu.texture.needsUpdate = true;
+    return;
+  }
+
   for (let tid = 0; tid < tileCount; tid++) {
     const o = texelByteOffset(tid, texWidth);
     const row = tileTerrain.get(tid) ?? {
@@ -122,10 +156,12 @@ export function uploadLandWeatherTextureTiles(
       elevation: 0,
     };
     if (waterTileIds.has(tid) || row.type === "water") {
-      data[o] = 0;
-      data[o + 1] = 0;
-      data[o + 2] = 0;
-      data[o + 3] = 0;
+      if (!useStochasticLand) {
+        data[o] = 0;
+        data[o + 1] = 0;
+        data[o + 2] = 0;
+        data[o + 3] = 0;
+      }
       continue;
     }
     if (
@@ -134,13 +170,7 @@ export function uploadLandWeatherTextureTiles(
     ) {
       continue;
     }
-    const w = wetness.get(tid) ?? 0;
-    const snSim = snowCover.get(tid) ?? 0;
-    const snClim = climateSnowForTile(tid);
-    data[o] = w;
-    data[o + 1] = snSim;
-    data[o + 2] = snClim;
-    data[o + 3] = 1;
+    writeLandTexel(tid);
   }
   gpu.texture.needsUpdate = true;
 }

@@ -3,7 +3,7 @@
  * match runtime.
  */
 
-import { CloudClipField, type Globe } from "polyglobe";
+import { CloudClipField, type Globe } from "../../src/index.js";
 import { dateToSubsolarPoint } from "./astronomy.js";
 
 export function createEarthDemoCloudClipField(
@@ -12,6 +12,7 @@ export function createEarthDemoCloudClipField(
     number,
     { type: string; monthlyMeanTempC?: Float32Array | undefined }
   >,
+  options?: { windDriftMul?: number },
 ): CloudClipField {
   const waterTileIds = new Set<number>();
   for (const [id, t] of tileTerrain) {
@@ -19,7 +20,8 @@ export function createEarthDemoCloudClipField(
   }
   const hugeGlobe = globe.tileCount > 85_000;
   /** Library default is 1.875e-3; lower = slower birth-wind drift without longer template life. */
-  const windStepScale = 9.375e-4;
+  const driftMul = Math.max(0.05, Math.min(3, options?.windDriftMul ?? 1));
+  const windStepScale = 9.375e-4 * driftMul;
   return new CloudClipField({
     maxClouds: hugeGlobe ? 72 : 96,
     cloudScale: hugeGlobe ? 0.042 : 0.046,

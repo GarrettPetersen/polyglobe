@@ -51,9 +51,10 @@ export function logPerfDiagHelp(): void {
       "Slice times are main-thread CPU; Three.js line is draw calls + triangles (not real GPU ms). " +
       "Frame line is JSON sorted by cost; _unattributedMs is wall time minus summed slices (browser/GC). " +
       "Vegetation GLTF loads after the globe is ready (deferred); perf logs `deferred vegetation GLTF+instancing (ms)` when ?perf=1. Vegetation tree logs: ?treeDebug=1. " +
+      "15s sim day: ?dayLengthSec=15 (same as autoTimeSpeed=5760). Coarse cloud/wind quantum: ?cloudTick=60|120 — large values skip most per-frame cloud sync; omit ?cloudCoarseDriftMul for auto 0.5 when tick≥60. Preset ?lowLatencyClouds=1 → 120 min + drift 0.5 (unless tick/drift explicit). " +
       "Auto-run sim clock after build: ?autoTimeSpeed=3600 (omit or 0 = paused until Play). " +
-      "Land wet/snow: GPU data texture; ?landWeatherSample=0.12 stochastic land updates per flush (1 = full). " +
-      "Wind/flow/precip: ?hydroField=off skips hydro; focus/sailing recomputes a tile ring only; minute tick skips full wind/river when overlays off (except focus mode); precip overlay updates reuse InstancedMesh (no geometry churn); wall-time coalesce ≥60×.",
+      "Land wet/snow: GPU data texture; ?landWeatherSample=0.01 default (stochastic land tiles per flush; 1 = full). " +
+      "Wind/flow/precip: default ?hydroField=game (no global wind/current minute refresh; sample via __polyglobeSampleHydroForTiles). ?hydroField=full for global overlays; focus/sailing = regional ring; off/train = no hydro. `cloudPhysicsCatchUp` = discrete day apply + sync toward quantized `cloudTick` target; with long ticks most frames skip sync when caught up. Spikes: sim-day boundary (applyDiscreteWeatherDayToClipField) and multi-minute catch-up bursts. Frame slices: `windFlowMinuteTick` vs `cloudPhysicsCatchUp`.",
   );
 }
 
