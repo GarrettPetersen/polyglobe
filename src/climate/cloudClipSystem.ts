@@ -20,8 +20,10 @@ import {
 import type { PrecipSubsolarForMinute } from "./cloudSimulation.js";
 import {
   getTileTemperature01,
+  resolveMonthlyClimatologySampleContextForUtcMinute,
   SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01,
   GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
+  type MonthlyClimatologySampleContext,
 } from "./seasonalClimate.js";
 import {
   TileSurfaceState,
@@ -30,6 +32,40 @@ import {
 import type { TerrainType } from "../terrain/types.js";
 
 const POLAR_LAT = 62;
+
+/** Matches {@link CloudClipField.getPrecipParticleCandidateTileIds} threshold. */
+const PRECIP_PARTICLE_CANDIDATE_MIN = 0.055;
+const PRECIP_OVERLAY_DELETE_BELOW = 0.02;
+
+/**
+ * In-place decay of precip overlay intensities. Returns whether particle-candidate membership or
+ * stored values may have changed (skips {@link CloudClipField.precipOverlayMutationGen} when a no-op).
+ */
+function decayPrecipOverlayInPlace(
+  map: Map<number, number>,
+  factor: number
+): boolean {
+  let changed = false;
+  const toDel: number[] = [];
+  for (const [tid, v] of map) {
+    const nv = v * factor;
+    if (nv < PRECIP_OVERLAY_DELETE_BELOW) {
+      toDel.push(tid);
+      changed = true;
+    } else {
+      if (Math.abs(nv - v) > 1e-7) changed = true;
+      if (
+        (v > PRECIP_PARTICLE_CANDIDATE_MIN) !==
+        (nv > PRECIP_PARTICLE_CANDIDATE_MIN)
+      ) {
+        changed = true;
+      }
+      map.set(tid, nv);
+    }
+  }
+  for (const tid of toDel) map.delete(tid);
+  return changed;
+}
 
 function u32Hash(parts: readonly number[]): number {
   let h = 2166136261 >>> 0;
@@ -209,7 +245,7 @@ const DEFAULT_CLIP_CONFIG: CloudClipFieldConfig = {
   cloudHemisphereShading: true,
   cloudMarchingCubesGrid: DEFAULT_CLOUD_SDF_GRID_RES,
   maxCloudMeshOpsPerSync: 72,
-  maxPhysicsMinutesPerSync: 24,
+  maxPhysicsMinutesPerSync: 16,
   maxCatchUpMinutes: 720,
   seed: 0x4b4c4452,
   windSeed: 90210,
@@ -407,14 +443,15 @@ function applyCloudPrecipToOverlayAndSurface(
   subsolarLatDeg: number,
   precipOverlay: Map<number, number>,
   surface: TileSurfaceState,
+  monthlySampleCtx: MonthlyClimatologySampleContext | null,
   /** Split one cloud’s burst across multiple tiles (footprint); default 1. */
   areaShare: number = 1
-): void {
-  if (cfg.waterTileIds?.has(foot)) return;
+): boolean {
+  if (cfg.waterTileIds?.has(foot)) return false;
   const gate = unitFloat(
     u32Hash([cfg.seed, foot, utcMinute, instId, frameIndex, 0x504e47])
   );
-  if (gate >= cfg.cloudPrecipHitChance) return;
+  if (gate >= cfg.cloudPrecipHitChance) return false;
   const burst =
     cfg.cloudPrecipBurstScale *
     framePrecipWeight *
@@ -423,10 +460,12 @@ function applyCloudPrecipToOverlayAndSurface(
     42 *
     areaShare;
   const cur = precipOverlay.get(foot) ?? 0;
-  precipOverlay.set(foot, Math.min(1, cur + burst * 0.018));
+  const nextOverlay = Math.min(1, cur + burst * 0.018);
+  if (Math.abs(nextOverlay - cur) < 1e-10) return false;
+  precipOverlay.set(foot, nextOverlay);
 
   const tc = globe.getTileCenter(foot);
-  if (!tc) return;
+  if (!tc) return true;
   const { lat } = tileCenterToLatLon(tc);
   const latDeg = (lat * 180) / Math.PI;
   const terrain = cfg.getTerrainTypeForTile?.(foot);
@@ -437,10 +476,12 @@ function applyCloudPrecipToOverlayAndSurface(
     subsolarLatDeg,
     terrain,
     monthly,
-    cal
+    cal,
+    monthlySampleCtx
   );
   const asSnow = temp < cfg.snowTemperatureThreshold;
   surface.addPrecip(foot, burst * 0.015, asSnow);
+  return true;
 }
 
 function groundClimateParamsFromCfg(
@@ -878,8 +919,8 @@ export class CloudClipField {
     utcMinute: number,
     subsolarLatDeg: number,
     precipByTile: Map<number, number>,
-  ): void {
-    if (frame.precipWeight <= 0.008) return;
+  ): boolean {
+    if (frame.precipWeight <= 0.008) return false;
     const halfAng = estimateCloudPrecipHalfAngleRad(
       globe,
       inst.baseScale,
@@ -888,25 +929,31 @@ export class CloudClipField {
     const feet = this.collectPrecipFootprintTileIds(globe, inst, halfAng);
     const n = feet.length;
     const share = n > 0 ? 1 / n : 1;
+    const monthlyCtx =
+      resolveMonthlyClimatologySampleContextForUtcMinute(utcMinute);
+    let overlayHit = false;
     for (let i = 0; i < n; i++) {
       const foot = feet[i]!;
       const col = precipByTile.get(foot) ?? 0;
-      applyCloudPrecipToOverlayAndSurface(
-        globe,
-        cfg,
-        foot,
-        frame.precipWeight,
-        col,
-        inst.baseScale,
-        utcMinute,
-        inst.id,
-        frameIndex,
-        subsolarLatDeg,
-        this.precipOverlay,
-        this.tileSurface,
-        share,
-      );
+      overlayHit =
+        applyCloudPrecipToOverlayAndSurface(
+          globe,
+          cfg,
+          foot,
+          frame.precipWeight,
+          col,
+          inst.baseScale,
+          utcMinute,
+          inst.id,
+          frameIndex,
+          subsolarLatDeg,
+          this.precipOverlay,
+          this.tileSurface,
+          monthlyCtx,
+          share,
+        ) || overlayHit;
     }
+    return overlayHit;
   }
 
   /**
@@ -918,7 +965,7 @@ export class CloudClipField {
       const out = this.precipParticleCandidateTiles;
       out.length = 0;
       for (const [tid, v] of this.precipOverlay) {
-        if (v > 0.055) out.push(tid);
+        if (v > PRECIP_PARTICLE_CANDIDATE_MIN) out.push(tid);
       }
       this.precipParticleCandidatesGen = this.precipOverlayMutationGen;
     }
@@ -1138,21 +1185,19 @@ export class CloudClipField {
     const delta = advanceTarget - this.lastPhysicsMinute;
     const kinematicsOnly = physicsOpts?.kinematicsOnly === true;
 
+    let overlayDirty = false;
+
     if (delta > 1) {
       if (!kinematicsOnly) {
         const decayPow = Math.pow(cfg.precipOverlayDecay, delta);
-        for (const [tid, v] of this.precipOverlay) {
-          const nv = v * decayPow;
-          if (nv < 0.02) this.precipOverlay.delete(tid);
-          else this.precipOverlay.set(tid, nv);
-        }
+        overlayDirty =
+          decayPrecipOverlayInPlace(this.precipOverlay, decayPow) || overlayDirty;
+        const getSub = cfg.getSubsolarLatDegForUtcMinute;
         for (let u = this.lastPhysicsMinute + 1; u <= advanceTarget; u++) {
-          this.tileSurface.stepClimateMinute(
-            globe,
-            subsolarLatForClimateMinute(cfg, u, getPrecipSubsolar),
-            gClimate,
-            u
-          );
+          const subU = getSub
+            ? getSub(u)
+            : subsolarLatForClimateMinute(cfg, u, getPrecipSubsolar);
+          this.tileSurface.stepClimateMinute(globe, subU, gClimate, u);
         }
       }
 
@@ -1203,32 +1248,36 @@ export class CloudClipField {
           const fi = Math.max(0, Math.min(dur - 1, ageFrames));
           const frame = tpl.frames[fi]!;
           if (frame.precipWeight > 0.008) {
-            this.applyInstanceCloudPrecipAtFrame(
-              globe,
-              cfg,
-              inst,
-              frame,
-              fi,
-              advanceTarget,
-              subsolarLatDeg,
-              precipByTile,
-            );
+            overlayDirty =
+              this.applyInstanceCloudPrecipAtFrame(
+                globe,
+                cfg,
+                inst,
+                frame,
+                fi,
+                advanceTarget,
+                subsolarLatDeg,
+                precipByTile,
+              ) || overlayDirty;
           }
         }
       }
     } else {
       for (let m = this.lastPhysicsMinute; m < advanceTarget; m++) {
         const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(m);
+        const climateSubsolarNext =
+          cfg.getSubsolarLatDegForUtcMinute?.(m + 1) ??
+          getPrecipSubsolar(m + 1).subsolarLatDeg;
 
         if (!kinematicsOnly) {
-          for (const [tid, v] of this.precipOverlay) {
-            const nv = v * cfg.precipOverlayDecay;
-            if (nv < 0.02) this.precipOverlay.delete(tid);
-            else this.precipOverlay.set(tid, nv);
-          }
+          overlayDirty =
+            decayPrecipOverlayInPlace(
+              this.precipOverlay,
+              cfg.precipOverlayDecay,
+            ) || overlayDirty;
           this.tileSurface.stepClimateMinute(
             globe,
-            subsolarLatForClimateMinute(cfg, m + 1, getPrecipSubsolar),
+            climateSubsolarNext,
             gClimate,
             m + 1
           );
@@ -1277,24 +1326,24 @@ export class CloudClipField {
             const fi = Math.max(0, Math.min(dur - 1, ageFrames));
             const frame = tpl.frames[fi]!;
             if (frame.precipWeight > 0.008) {
-              this.applyInstanceCloudPrecipAtFrame(
-                globe,
-                cfg,
-                inst,
-                frame,
-                fi,
-                m + 1,
-                subsolarLatDeg,
-                precipByTile,
-              );
+              overlayDirty =
+                this.applyInstanceCloudPrecipAtFrame(
+                  globe,
+                  cfg,
+                  inst,
+                  frame,
+                  fi,
+                  m + 1,
+                  subsolarLatDeg,
+                  precipByTile,
+                ) || overlayDirty;
             }
           }
         }
       }
     }
 
-    if (!kinematicsOnly) {
-      this.tileSurface.revision++;
+    if (!kinematicsOnly && overlayDirty) {
       this.precipOverlayMutationGen++;
     }
     this.lastPhysicsMinute = advanceTarget;

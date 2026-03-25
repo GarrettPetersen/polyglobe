@@ -188,11 +188,15 @@ export {
   getTemperatureForTerrain,
   meanMonthlyTempCToTemperature01,
   interpolateMonthlyClimatologyC,
+  resolveMonthlyClimatologySampleContext,
+  resolveMonthlyClimatologySampleContextForUtcMinute,
+  sampleMonthlyClimatologyC,
   getTileTemperature01,
   climateSurfaceSnowVisual,
   climateSurfaceSnowVisualForTerrain,
   SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01,
   GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
+  type MonthlyClimatologySampleContext,
 } from "./climate/seasonalClimate.js";
 export {
   coldSeasonWeight,

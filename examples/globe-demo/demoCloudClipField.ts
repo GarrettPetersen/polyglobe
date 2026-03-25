@@ -28,7 +28,7 @@ export function createEarthDemoCloudClipField(
     cloudHemisphereShading: true,
     cloudMarchingCubesGrid: hugeGlobe ? 14 : 16,
     maxCloudMeshOpsPerSync: hugeGlobe ? 56 : 80,
-    maxPhysicsMinutesPerSync: hugeGlobe ? 16 : 24,
+    maxPhysicsMinutesPerSync: hugeGlobe ? 10 : 14,
     maxCatchUpMinutes: 720,
     waterTileIds,
     getTerrainTypeForTile: (id) => tileTerrain.get(id)?.type,

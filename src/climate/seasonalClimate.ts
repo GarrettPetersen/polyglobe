@@ -113,26 +113,29 @@ export const SNOW_PRECIPITATION_TEMPERATURE_THRESHOLD_01 = 0.48;
 export const GROUND_FREEZE_TEMPERATURE_THRESHOLD_01 = 0.44;
 
 /**
- * Smooth climatological temperature (°C) from twelve monthly means.
- *
- * Uses **piecewise linear** interpolation between **mid-month anchors** (UTC 15th 12:00 of each month).
- * At each anchor, the value equals that month’s tabulated mean; between anchors it ramps toward the
- * next month, so there is no step on the 1st.
+ * Piecewise-linear mid-month segment for {@link sampleMonthlyClimatologyC}. Built once per calendar
+ * instant and reused for every tile in that minute (cloud catch-up was O(tiles × anchor scan)).
  */
-export function interpolateMonthlyClimatologyC(
-  monthlyMeanC: Float32Array,
+export interface MonthlyClimatologySampleContext {
+  mon0: number;
+  mon1: number;
+  a: number;
+}
+
+function midMonthUtcMs(year: number, monthIndex: number): number {
+  return Date.UTC(year, monthIndex, 15, 12, 0, 0);
+}
+
+/**
+ * Resolve which monthly segment `calendarUtc` falls in and the lerp factor within it.
+ */
+export function resolveMonthlyClimatologySampleContext(
   calendarUtc: Date
-): number {
-  if (!monthlyMeanC || monthlyMeanC.length !== 12) return NaN;
-
-  const midMonthUtcMs = (year: number, monthIndex: number): number =>
-    Date.UTC(year, monthIndex, 15, 12, 0, 0);
-
+): MonthlyClimatologySampleContext | null {
   const t = calendarUtc.getTime();
-  if (Number.isNaN(t)) return NaN;
+  if (Number.isNaN(t)) return null;
   const y = calendarUtc.getUTCFullYear();
 
-  /** Ordered mid-month times surrounding calendar year `y`, each tied to a month index 0–11. */
   const anchors: { ms: number; mon: number }[] = [
     { ms: midMonthUtcMs(y - 1, 11), mon: 11 },
   ];
@@ -149,17 +152,65 @@ export function interpolateMonthlyClimatologyC(
     const t1 = anchors[i + 1]!.ms;
     const lastSeg = i === anchors.length - 2;
     if (t >= t0 && (lastSeg ? t <= t1 : t < t1)) {
-      const v0 = monthlyMeanC[anchors[i]!.mon];
-      const v1 = monthlyMeanC[anchors[i + 1]!.mon];
-      if (!Number.isFinite(v0) || !Number.isFinite(v1)) return NaN;
       const span = t1 - t0;
       const a = span <= 0 ? 0 : (t - t0) / span;
-      return v0 + a * (v1 - v0);
+      return { mon0: anchors[i]!.mon, mon1: anchors[i + 1]!.mon, a };
     }
   }
 
-  const fallback = monthlyMeanC[calendarUtc.getUTCMonth()];
-  return Number.isFinite(fallback) ? fallback : NaN;
+  const mon = calendarUtc.getUTCMonth();
+  return { mon0: mon, mon1: mon, a: 0 };
+}
+
+let _cachedClimCtxUtcMin = Number.NaN;
+let _cachedClimCtx: MonthlyClimatologySampleContext | null = null;
+
+/**
+ * Same as {@link resolveMonthlyClimatologySampleContext} but keyed by simulated UTC minute index
+ * so cloud physics can reuse context across many tiles without reallocating {@link Date} or rescanning
+ * anchors.
+ */
+export function resolveMonthlyClimatologySampleContextForUtcMinute(
+  utcMinute: number
+): MonthlyClimatologySampleContext | null {
+  if (utcMinute === _cachedClimCtxUtcMin) {
+    return _cachedClimCtx;
+  }
+  const ctx = resolveMonthlyClimatologySampleContext(
+    new Date(utcMinute * 60000)
+  );
+  _cachedClimCtxUtcMin = utcMinute;
+  _cachedClimCtx = ctx;
+  return ctx;
+}
+
+/** °C from twelve monthly means using a pre-resolved segment (see {@link resolveMonthlyClimatologySampleContext}). */
+export function sampleMonthlyClimatologyC(
+  monthlyMeanC: Float32Array,
+  ctx: MonthlyClimatologySampleContext
+): number {
+  if (!monthlyMeanC || monthlyMeanC.length !== 12) return NaN;
+  const v0 = monthlyMeanC[ctx.mon0]!;
+  const v1 = monthlyMeanC[ctx.mon1]!;
+  if (!Number.isFinite(v0) || !Number.isFinite(v1)) return NaN;
+  return v0 + ctx.a * (v1 - v0);
+}
+
+/**
+ * Smooth climatological temperature (°C) from twelve monthly means.
+ *
+ * Uses **piecewise linear** interpolation between **mid-month anchors** (UTC 15th 12:00 of each month).
+ * At each anchor, the value equals that month’s tabulated mean; between anchors it ramps toward the
+ * next month, so there is no step on the 1st.
+ */
+export function interpolateMonthlyClimatologyC(
+  monthlyMeanC: Float32Array,
+  calendarUtc: Date
+): number {
+  if (!monthlyMeanC || monthlyMeanC.length !== 12) return NaN;
+  const ctx = resolveMonthlyClimatologySampleContext(calendarUtc);
+  if (!ctx) return NaN;
+  return sampleMonthlyClimatologyC(monthlyMeanC, ctx);
 }
 
 /** Weight on WorldClim-style monthly means vs latitude/subsolar model (remainder). */
@@ -175,7 +226,9 @@ export function getTileTemperature01(
   subsolarLatDeg: number,
   terrainType: TerrainType | null | undefined,
   monthlyMeanTempC: Float32Array | null | undefined,
-  calendarUtc: Date | null | undefined
+  calendarUtc: Date | null | undefined,
+  /** When set, skips per-call anchor scan (use for many tiles in the same sim minute). */
+  monthlySampleCtx?: MonthlyClimatologySampleContext | null
 ): number {
   const model = getTemperatureForTerrain(latDeg, subsolarLatDeg, terrainType);
   if (
@@ -186,7 +239,12 @@ export function getTileTemperature01(
   ) {
     return model;
   }
-  const tc = interpolateMonthlyClimatologyC(monthlyMeanTempC, calendarUtc);
+  let tc: number;
+  if (monthlySampleCtx != null) {
+    tc = sampleMonthlyClimatologyC(monthlyMeanTempC, monthlySampleCtx);
+  } else {
+    tc = interpolateMonthlyClimatologyC(monthlyMeanTempC, calendarUtc);
+  }
   if (!Number.isFinite(tc)) return model;
   const clim = meanMonthlyTempCToTemperature01(tc);
   const w = TILE_TEMP_CLIMATOLOGY_WEIGHT;

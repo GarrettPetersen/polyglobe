@@ -2939,7 +2939,7 @@ function maybeLogSnowSurfaceDiagnostic(date: Date): void {
 }
 
 /** Real-time budget so multi-minute sim jumps don't stall one rAF (see `maxPhysicsMinutesPerSync`). */
-const CLOUD_PHYSICS_CATCH_UP_BUDGET_MS = 12;
+const CLOUD_PHYSICS_CATCH_UP_BUDGET_MS = 8;
 
 /**
  * Advance cloud precip physics toward sim clock, at most a few minutes per inner call; repeat until
@@ -5716,7 +5716,7 @@ async function init() {
             state.timePlaySpeed >= WIND_FLOW_PRECIP_REFRESH_SPEED_THRESHOLD &&
             throttleBase > 0 &&
             gap >= throttleBase
-              ? Math.min(44, Math.floor((gap - throttleBase * 0.5) / 10))
+              ? Math.min(22, Math.floor((gap - throttleBase * 0.5) / 10))
               : 0;
           catchUpCloudPhysicsBudgeted(
             state,
