@@ -55,8 +55,10 @@ export {
   createLandWeatherGpuState,
   disposeLandWeatherGpuState,
   uploadLandWeatherTextureTiles,
+  commitLandWeatherGpuTextureUpload,
   installLandWeatherOnMeshStandardMaterial,
   type LandWeatherGpuState,
+  type LandWeatherTextureUploadPending,
 } from "./terrain/landWeatherGpu.js";
 
 // Earth (real geography from rasters or custom samplers)

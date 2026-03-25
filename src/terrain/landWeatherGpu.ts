@@ -16,12 +16,23 @@ import {
 /** Fixed row width so tile `id` maps to texel `(id % width, floor(id / width))`. */
 export const LAND_WEATHER_DATA_TEX_WIDTH = 2048;
 
+/** How {@link uploadLandWeatherTextureTiles} wants the GPU buffer updated; consumed by {@link commitLandWeatherGpuTextureUpload}. */
+export type LandWeatherTextureUploadPending =
+  | { kind: "none" }
+  | { kind: "full" }
+  | { kind: "bbox"; minX: number; minY: number; maxX: number; maxY: number }
+  /** Per-texel path when a tight bbox would still upload too many unchanged pixels. */
+  | { kind: "tiles"; tileIds: readonly number[] };
+
 export interface LandWeatherGpuState {
   readonly texture: THREE.DataTexture;
   readonly data: Float32Array;
   readonly texWidth: number;
   readonly texHeight: number;
   readonly tileCount: number;
+  /** Scratch list of land tile ids written in the last stochastic upload (do not mutate outside upload). */
+  readonly landWeatherWrittenTileScratch: number[];
+  landWeatherUploadPending: LandWeatherTextureUploadPending;
 }
 
 function texelByteOffset(tileId: number, texWidth: number): number {
@@ -46,7 +57,15 @@ export function createLandWeatherGpuState(tileCount: number): LandWeatherGpuStat
   texture.generateMipmaps = false;
   texture.needsUpdate = true;
   texture.colorSpace = THREE.NoColorSpace;
-  return { texture, data, texWidth, texHeight, tileCount };
+  return {
+    texture,
+    data,
+    texWidth,
+    texHeight,
+    tileCount,
+    landWeatherWrittenTileScratch: [],
+    landWeatherUploadPending: { kind: "none" },
+  };
 }
 
 export function disposeLandWeatherGpuState(state: LandWeatherGpuState | null): void {
@@ -82,6 +101,54 @@ export function uploadLandWeatherTextureTiles(
   const stSalt = paintOpts?.stochasticSalt ?? 0;
   const useStochasticLand =
     stFrac != null && stFrac > 0 && stFrac < 1 && Number.isFinite(stFrac);
+
+  gpu.landWeatherUploadPending = { kind: "none" };
+  const scratch = gpu.landWeatherWrittenTileScratch;
+  scratch.length = 0;
+  let dminX = 0;
+  let dminY = 0;
+  let dmaxX = -1;
+  let dmaxY = -1;
+
+  const recordStochasticWrite = (tid: number): void => {
+    const x = tid % texWidth;
+    const y = Math.floor(tid / texWidth);
+    if (dmaxX < 0) {
+      dminX = dmaxX = x;
+      dminY = dmaxY = y;
+    } else {
+      if (x < dminX) dminX = x;
+      if (x > dmaxX) dmaxX = x;
+      if (y < dminY) dminY = y;
+      if (y > dmaxY) dmaxY = y;
+    }
+    scratch.push(tid);
+  };
+
+  const finalizeStochasticPending = (): void => {
+    const n = scratch.length;
+    if (n === 0) {
+      gpu.landWeatherUploadPending = { kind: "none" };
+      return;
+    }
+    const bw = dmaxX - dminX + 1;
+    const bh = dmaxY - dminY + 1;
+    const bArea = bw * bh;
+    const texPixels = texWidth * texHeight;
+    if (n <= 512 && bArea > n * 32) {
+      gpu.landWeatherUploadPending = { kind: "tiles", tileIds: scratch };
+    } else if (bArea > texPixels * 0.42) {
+      gpu.landWeatherUploadPending = { kind: "full" };
+    } else {
+      gpu.landWeatherUploadPending = {
+        kind: "bbox",
+        minX: dminX,
+        minY: dminY,
+        maxX: dmaxX,
+        maxY: dmaxY,
+      };
+    }
+  };
 
   const climateSnowByTile =
     climateOpts != null ? new Map<number, number>() : null;
@@ -132,6 +199,7 @@ export function uploadLandWeatherTextureTiles(
     data[o + 1] = snSim;
     data[o + 2] = snClim;
     data[o + 3] = 1;
+    if (useStochasticLand) recordStochasticWrite(tid);
   };
 
   if (
@@ -144,7 +212,7 @@ export function uploadLandWeatherTextureTiles(
       if (!landWeatherStochasticPickLandTile(tid, stSalt, stFrac)) continue;
       writeLandTexel(tid);
     }
-    gpu.texture.needsUpdate = true;
+    finalizeStochasticPending();
     return;
   }
 
@@ -172,7 +240,106 @@ export function uploadLandWeatherTextureTiles(
     }
     writeLandTexel(tid);
   }
-  gpu.texture.needsUpdate = true;
+  if (useStochasticLand) finalizeStochasticPending();
+  else gpu.landWeatherUploadPending = { kind: "full" };
+}
+
+type WebGLRendererProperties = { get(t: THREE.Texture): { __webglTexture?: WebGLTexture } };
+
+/**
+ * Applies CPU writes from {@link uploadLandWeatherTextureTiles} to the GPU.
+ * Stochastic updates use WebGL2 `texSubImage2D` (bbox or per-tile) when possible so the driver does not
+ * re-upload the whole float texture. Full passes use `texture.needsUpdate` (Three.js full upload).
+ */
+export function commitLandWeatherGpuTextureUpload(
+  renderer: THREE.WebGLRenderer,
+  gpu: LandWeatherGpuState,
+): void {
+  const pending = gpu.landWeatherUploadPending;
+  const tex = gpu.texture;
+  if (pending.kind === "none") return;
+
+  if (pending.kind === "full") {
+    tex.needsUpdate = true;
+    gpu.landWeatherUploadPending = { kind: "none" };
+    return;
+  }
+
+  if (!renderer.capabilities.isWebGL2) {
+    tex.needsUpdate = true;
+    gpu.landWeatherUploadPending = { kind: "none" };
+    return;
+  }
+
+  renderer.initTexture(tex);
+  const gl = renderer.getContext() as WebGL2RenderingContext;
+  const webglTexture = (renderer as unknown as { properties: WebGLRendererProperties })
+    .properties.get(tex).__webglTexture;
+  if (!webglTexture) {
+    tex.needsUpdate = true;
+    gpu.landWeatherUploadPending = { kind: "none" };
+    return;
+  }
+
+  tex.needsUpdate = false;
+
+  const tw = gpu.texWidth;
+  const unpackRowLen = gl.UNPACK_ROW_LENGTH;
+  const unpackSkipPx = gl.UNPACK_SKIP_PIXELS;
+  const unpackSkipRow = gl.UNPACK_SKIP_ROWS;
+
+  const prevActive = gl.getParameter(gl.ACTIVE_TEXTURE) as number;
+  const prevTex2d = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null;
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, webglTexture);
+
+  const subRect = (minX: number, minY: number, maxX: number, maxY: number): void => {
+    const rw = maxX - minX + 1;
+    const rh = maxY - minY + 1;
+    gl.pixelStorei(unpackRowLen, tw);
+    gl.pixelStorei(unpackSkipPx, minX);
+    gl.pixelStorei(unpackSkipRow, minY);
+    gl.texSubImage2D(
+      gl.TEXTURE_2D,
+      0,
+      minX,
+      minY,
+      rw,
+      rh,
+      gl.RGBA,
+      gl.FLOAT,
+      gpu.data,
+    );
+  };
+
+  const subTile = (tid: number): void => {
+    const x = tid % tw;
+    const y = Math.floor(tid / tw);
+    gl.pixelStorei(unpackRowLen, tw);
+    gl.pixelStorei(unpackSkipPx, x);
+    gl.pixelStorei(unpackSkipRow, y);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, 1, 1, gl.RGBA, gl.FLOAT, gpu.data);
+  };
+
+  try {
+    if (pending.kind === "bbox") {
+      subRect(pending.minX, pending.minY, pending.maxX, pending.maxY);
+    } else {
+      for (let i = 0; i < pending.tileIds.length; i++) {
+        subTile(pending.tileIds[i]!);
+      }
+    }
+  } finally {
+    gl.pixelStorei(unpackRowLen, 0);
+    gl.pixelStorei(unpackSkipPx, 0);
+    gl.pixelStorei(unpackSkipRow, 0);
+    gl.bindTexture(gl.TEXTURE_2D, prevTex2d);
+    gl.activeTexture(prevActive);
+    renderer.resetState();
+  }
+
+  gpu.landWeatherUploadPending = { kind: "none" };
 }
 
 const _snowTint = new THREE.Color(0xf6faff);

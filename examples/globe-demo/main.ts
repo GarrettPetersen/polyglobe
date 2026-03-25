@@ -22,6 +22,7 @@ import {
   createLandWeatherGpuState,
   disposeLandWeatherGpuState,
   uploadLandWeatherTextureTiles,
+  commitLandWeatherGpuTextureUpload,
   installLandWeatherOnMeshStandardMaterial,
   type LandWeatherGpuState,
   type ApplyLandSurfaceWeatherPaintOptions,
@@ -3225,6 +3226,7 @@ function flushLandWeatherVertexColorsIfDirty(state: DemoState): void {
   const ctx = getLandWeatherVertexPaintContext(state);
   if (!ctx) return;
   if (!syncLandWeatherGpuTexture(ctx)) return;
+  commitLandWeatherGpuTextureUpload(renderer, landWeatherGpu);
   landWeatherColorsDirty = false;
   if (landWeatherPrimeFullPaint) {
     landWeatherPrimeFullPaint = false;
