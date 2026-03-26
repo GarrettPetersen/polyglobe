@@ -166,10 +166,13 @@ export function attachMonthlyTemperatureToTerrainFromRaster(
   tiles: readonly GeodesicTile[],
   terrain: Map<number, TileTerrainData>,
   layer: TemperatureMonthlyLayer,
+  options?: { includeWaterTiles?: boolean },
 ): void {
+  const includeWater = options?.includeWaterTiles === true;
   for (const tile of tiles) {
     const d = terrain.get(tile.id);
-    if (!d || d.type === "water" || d.type === "beach") continue;
+    if (!d) continue;
+    if (!includeWater && (d.type === "water" || d.type === "beach")) continue;
     const { lat, lon } = tileCenterToLatLon(tile.center);
     const latDeg = (lat * 180) / Math.PI;
     const lonDeg = (lon * 180) / Math.PI;
@@ -736,9 +739,13 @@ function terrainFromSample(
       ? maxAbsLatDeg >= opts.polarCapLat
       : latDeg >= opts.polarCapLat;
 
-  // Tiles in the polar cap are always ice (solid ice caps, no holes in Antarctica/Arctic)
+  // Tiles in the polar cap are always frozen to avoid polar ocean holes.
+  // Land should use ice_cap styling; ocean keeps ice at water elevation.
   if (inPolarCap) {
-    return { type: "ice", elevation: opts.landElevation };
+    if (result.land) {
+      return { type: "ice_cap", elevation: opts.landElevation };
+    }
+    return { type: "ice", elevation: opts.waterElevation };
   }
 
   if (!result.land) {

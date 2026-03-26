@@ -48,6 +48,8 @@ import {
   globeRuntimeBakeWaterTableFingerprint,
   buildAnnualCloudSpawnTable,
   buildAnnualRiverFlowStrength,
+  buildAnnualSeaIceCycle,
+  buildAnnualFreshwaterIceCycle,
   createCoastMaskTexture,
   createCoastLandMaskTexture,
   parseTemperatureMonthlyBin,
@@ -361,6 +363,7 @@ async function buildCacheForSubdivisions(
         globe.tiles,
         tileTerrain,
         layer,
+        { includeWaterTiles: true },
       );
       console.log("Attached tavg_monthly.bin to terrain (discrete weather bake)");
     }
@@ -511,6 +514,21 @@ async function buildCacheForSubdivisions(
       globalRiverFlow && globalRiverFlow.size > 0
         ? buildAnnualRiverFlowStrength(globe, globalRiverFlow, getSubRt)
         : null;
+    const seaIceCycle = buildAnnualSeaIceCycle(globe, tileTerrain);
+    const freshwaterIceCandidateTileIds = new Set<number>();
+    for (const [id, t] of tileTerrain) {
+      if (t.lakeId != null) freshwaterIceCandidateTileIds.add(id);
+    }
+    if (globalRiverFlow && globalRiverFlow.size > 0) {
+      for (const id of globalRiverFlow.keys()) {
+        freshwaterIceCandidateTileIds.add(id);
+      }
+    }
+    const freshwaterIceCycle = buildAnnualFreshwaterIceCycle(
+      globe,
+      tileTerrain,
+      freshwaterIceCandidateTileIds,
+    );
 
     const grb = encodeGlobeRuntimeBakeFile({
       earthGlobeCacheVersionKey: EARTH_GLOBE_CACHE_VERSION,
@@ -530,6 +548,8 @@ async function buildCacheForSubdivisions(
       coastLandMask: coastLand,
       annualSpawnTable,
       river: annualRiverFlowStrength,
+      seaIceCycle,
+      freshwaterIceCycle,
     });
     const grbPath = join(PUBLIC, `globe-runtime-bake-${subdivisions}.bin`);
     writeFileSync(grbPath, grb);

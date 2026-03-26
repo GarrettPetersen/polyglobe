@@ -140,6 +140,7 @@ export {
   type GetRiverFlowOptions,
 } from "./water/rivers.js";
 export { CoastFoamOverlay } from "./water/coastFoamOverlay.js";
+export { SeaIceOverlay, type SeaIceOverlayOptions } from "./water/SeaIceOverlay.js";
 export {
   createRiverTerrainMeshes,
   buildRiverLandAndVoidMultipolygon,
@@ -201,6 +202,17 @@ export {
   GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
   type MonthlyClimatologySampleContext,
 } from "./climate/seasonalClimate.js";
+export {
+  buildAnnualSeaIceCycle,
+  fillSeaIceMaskForDay,
+  isSeaIceActiveOnDay,
+  type SeaIceAnnualCycle,
+  type SeaIceCycleBuildOptions,
+} from "./climate/seaIceCycle.js";
+export {
+  buildAnnualFreshwaterIceCycle,
+  type FreshwaterIceCycleBuildOptions,
+} from "./climate/freshwaterIceCycle.js";
 export {
   coldSeasonWeight,
   koppenTerrainTemperatureTraits,

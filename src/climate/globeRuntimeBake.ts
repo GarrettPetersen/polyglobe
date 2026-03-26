@@ -9,12 +9,13 @@ import type {
   CloudClipFieldConfig,
 } from "./cloudClipSystem.js";
 import type { AnnualRiverFlowStrength } from "./annualWeatherTables.js";
+import type { SeaIceAnnualCycle } from "./seaIceCycle.js";
 import { discreteWeatherBakeEarthCacheVersionU32 } from "./discreteWeatherYearBake.js";
 
 /** ASCII `PGRB` — polyglobe **r**untime **b**ake. */
 const FILE_MAGIC = new Uint8Array([0x50, 0x47, 0x52, 0x42]);
 
-export const GLOBE_RUNTIME_BAKE_FILE_VERSION = 1;
+export const GLOBE_RUNTIME_BAKE_FILE_VERSION = 3;
 
 const HEADER_BYTE_LENGTH = 64;
 const SPAWN_RECORD_BYTES = 24;
@@ -106,6 +107,8 @@ export interface GlobeRuntimeBakeEncodeInput {
   coastLandMask: Uint8Array;
   annualSpawnTable: AnnualSpawnSpec[][];
   river: AnnualRiverFlowStrength | null;
+  seaIceCycle: SeaIceAnnualCycle | null;
+  freshwaterIceCycle: SeaIceAnnualCycle | null;
 }
 
 export interface GlobeRuntimeBakeDecoded {
@@ -118,6 +121,8 @@ export interface GlobeRuntimeBakeDecoded {
   readonly coastH: number;
   readonly annualSpawnTable: AnnualSpawnSpec[][];
   readonly riverFlowStrength: AnnualRiverFlowStrength | null;
+  readonly seaIceCycle: SeaIceAnnualCycle | null;
+  readonly freshwaterIceCycle: SeaIceAnnualCycle | null;
 }
 
 function readHeaderMagic(buf: Uint8Array): boolean {
@@ -148,6 +153,8 @@ export function encodeGlobeRuntimeBakeFile(
     coastLandMask,
     annualSpawnTable,
     river,
+    seaIceCycle,
+    freshwaterIceCycle,
   } = input;
 
   if (coastWaterMask.length !== coastW * coastH || coastLandMask.length !== coastW * coastH) {
@@ -177,6 +184,27 @@ export function encodeGlobeRuntimeBakeFile(
   const riverPackedFloats = riverTileCount * DAYS;
   const riverPackedBytes = riverPackedFloats * 4;
 
+  const seaNorthAlwaysCount = seaIceCycle?.northAlwaysTileIds.length ?? 0;
+  const seaNorthSeasonalCount = seaIceCycle?.northSeasonalTileIds.length ?? 0;
+  const seaSouthAlwaysCount = seaIceCycle?.southAlwaysTileIds.length ?? 0;
+  const seaSouthSeasonalCount = seaIceCycle?.southSeasonalTileIds.length ?? 0;
+  const seaIceBodyBytes =
+    16 + // section counts
+    seaNorthAlwaysCount * 4 +
+    seaNorthSeasonalCount * (4 + 2 + 2) +
+    seaSouthAlwaysCount * 4 +
+    seaSouthSeasonalCount * (4 + 2 + 2);
+  const freshNorthAlwaysCount = freshwaterIceCycle?.northAlwaysTileIds.length ?? 0;
+  const freshNorthSeasonalCount = freshwaterIceCycle?.northSeasonalTileIds.length ?? 0;
+  const freshSouthAlwaysCount = freshwaterIceCycle?.southAlwaysTileIds.length ?? 0;
+  const freshSouthSeasonalCount = freshwaterIceCycle?.southSeasonalTileIds.length ?? 0;
+  const freshwaterIceBodyBytes =
+    16 + // section counts
+    freshNorthAlwaysCount * 4 +
+    freshNorthSeasonalCount * (4 + 2 + 2) +
+    freshSouthAlwaysCount * 4 +
+    freshSouthSeasonalCount * (4 + 2 + 2);
+
   const waterBodyBytes =
     4 + // vertCount
     4 + // indexCount
@@ -193,7 +221,9 @@ export function encodeGlobeRuntimeBakeFile(
     waterBodyBytes +
     coastBodyBytes +
     cloudBodyBytes +
-    riverBodyBytes;
+    riverBodyBytes +
+    seaIceBodyBytes +
+    freshwaterIceBodyBytes;
 
   const out = new Uint8Array(total);
   out.set(FILE_MAGIC, 0);
@@ -277,6 +307,92 @@ export function encodeGlobeRuntimeBakeFile(
     o += riverPackedBytes;
   }
 
+  dv.setUint32(o, seaNorthAlwaysCount >>> 0, true);
+  o += 4;
+  dv.setUint32(o, seaNorthSeasonalCount >>> 0, true);
+  o += 4;
+  dv.setUint32(o, seaSouthAlwaysCount >>> 0, true);
+  o += 4;
+  dv.setUint32(o, seaSouthSeasonalCount >>> 0, true);
+  o += 4;
+  if (seaIceCycle) {
+    for (let i = 0; i < seaNorthAlwaysCount; i++) {
+      dv.setUint32(o, seaIceCycle.northAlwaysTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < seaNorthSeasonalCount; i++) {
+      dv.setUint32(o, seaIceCycle.northSeasonalTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < seaNorthSeasonalCount; i++) {
+      dv.setUint16(o, seaIceCycle.northFreezeDayOfYear[i]!, true);
+      o += 2;
+    }
+    for (let i = 0; i < seaNorthSeasonalCount; i++) {
+      dv.setUint16(o, seaIceCycle.northThawDayOfYear[i]!, true);
+      o += 2;
+    }
+    for (let i = 0; i < seaSouthAlwaysCount; i++) {
+      dv.setUint32(o, seaIceCycle.southAlwaysTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < seaSouthSeasonalCount; i++) {
+      dv.setUint32(o, seaIceCycle.southSeasonalTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < seaSouthSeasonalCount; i++) {
+      dv.setUint16(o, seaIceCycle.southFreezeDayOfYear[i]!, true);
+      o += 2;
+    }
+    for (let i = 0; i < seaSouthSeasonalCount; i++) {
+      dv.setUint16(o, seaIceCycle.southThawDayOfYear[i]!, true);
+      o += 2;
+    }
+  }
+
+  dv.setUint32(o, freshNorthAlwaysCount >>> 0, true);
+  o += 4;
+  dv.setUint32(o, freshNorthSeasonalCount >>> 0, true);
+  o += 4;
+  dv.setUint32(o, freshSouthAlwaysCount >>> 0, true);
+  o += 4;
+  dv.setUint32(o, freshSouthSeasonalCount >>> 0, true);
+  o += 4;
+  if (freshwaterIceCycle) {
+    for (let i = 0; i < freshNorthAlwaysCount; i++) {
+      dv.setUint32(o, freshwaterIceCycle.northAlwaysTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < freshNorthSeasonalCount; i++) {
+      dv.setUint32(o, freshwaterIceCycle.northSeasonalTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < freshNorthSeasonalCount; i++) {
+      dv.setUint16(o, freshwaterIceCycle.northFreezeDayOfYear[i]!, true);
+      o += 2;
+    }
+    for (let i = 0; i < freshNorthSeasonalCount; i++) {
+      dv.setUint16(o, freshwaterIceCycle.northThawDayOfYear[i]!, true);
+      o += 2;
+    }
+    for (let i = 0; i < freshSouthAlwaysCount; i++) {
+      dv.setUint32(o, freshwaterIceCycle.southAlwaysTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < freshSouthSeasonalCount; i++) {
+      dv.setUint32(o, freshwaterIceCycle.southSeasonalTileIds[i]! >>> 0, true);
+      o += 4;
+    }
+    for (let i = 0; i < freshSouthSeasonalCount; i++) {
+      dv.setUint16(o, freshwaterIceCycle.southFreezeDayOfYear[i]!, true);
+      o += 2;
+    }
+    for (let i = 0; i < freshSouthSeasonalCount; i++) {
+      dv.setUint16(o, freshwaterIceCycle.southThawDayOfYear[i]!, true);
+      o += 2;
+    }
+  }
+
   if (o !== total) {
     throw new Error(`[globeRuntimeBake] size mismatch o=${o} total=${total}`);
   }
@@ -304,7 +420,7 @@ export function decodeGlobeRuntimeBakeFile(
   let p = 4;
   const fileVersion = dv.getUint32(p, true);
   p += 4;
-  if (fileVersion !== GLOBE_RUNTIME_BAKE_FILE_VERSION) return null;
+  if (fileVersion !== 1 && fileVersion !== 2 && fileVersion !== 3) return null;
 
   const cacheVer = dv.getUint32(p, true);
   p += 4;
@@ -424,6 +540,150 @@ export function decodeGlobeRuntimeBakeFile(
     return null;
   }
 
+  let seaIceCycle: SeaIceAnnualCycle | null = null;
+  let freshwaterIceCycle: SeaIceAnnualCycle | null = null;
+  if (fileVersion >= 2) {
+    if (o + 16 > u8.byteLength) return null;
+    const seaNorthAlwaysCount = dv.getUint32(o, true);
+    o += 4;
+    const seaNorthSeasonalCount = dv.getUint32(o, true);
+    o += 4;
+    const seaSouthAlwaysCount = dv.getUint32(o, true);
+    o += 4;
+    const seaSouthSeasonalCount = dv.getUint32(o, true);
+    o += 4;
+
+    const needBytes =
+      seaNorthAlwaysCount * 4 +
+      seaNorthSeasonalCount * (4 + 2 + 2) +
+      seaSouthAlwaysCount * 4 +
+      seaSouthSeasonalCount * (4 + 2 + 2);
+    if (o + needBytes > u8.byteLength) return null;
+
+    const northAlways = new Uint32Array(seaNorthAlwaysCount);
+    for (let i = 0; i < seaNorthAlwaysCount; i++) {
+      northAlways[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const northSeasonal = new Uint32Array(seaNorthSeasonalCount);
+    for (let i = 0; i < seaNorthSeasonalCount; i++) {
+      northSeasonal[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const northFreeze = new Uint16Array(seaNorthSeasonalCount);
+    for (let i = 0; i < seaNorthSeasonalCount; i++) {
+      northFreeze[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    const northThaw = new Uint16Array(seaNorthSeasonalCount);
+    for (let i = 0; i < seaNorthSeasonalCount; i++) {
+      northThaw[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    const southAlways = new Uint32Array(seaSouthAlwaysCount);
+    for (let i = 0; i < seaSouthAlwaysCount; i++) {
+      southAlways[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const southSeasonal = new Uint32Array(seaSouthSeasonalCount);
+    for (let i = 0; i < seaSouthSeasonalCount; i++) {
+      southSeasonal[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const southFreeze = new Uint16Array(seaSouthSeasonalCount);
+    for (let i = 0; i < seaSouthSeasonalCount; i++) {
+      southFreeze[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    const southThaw = new Uint16Array(seaSouthSeasonalCount);
+    for (let i = 0; i < seaSouthSeasonalCount; i++) {
+      southThaw[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    seaIceCycle = {
+      tileCount,
+      northAlwaysTileIds: northAlways,
+      northSeasonalTileIds: northSeasonal,
+      northFreezeDayOfYear: northFreeze,
+      northThawDayOfYear: northThaw,
+      southAlwaysTileIds: southAlways,
+      southSeasonalTileIds: southSeasonal,
+      southFreezeDayOfYear: southFreeze,
+      southThawDayOfYear: southThaw,
+    };
+  }
+
+  if (fileVersion >= 3) {
+    if (o + 16 > u8.byteLength) return null;
+    const freshNorthAlwaysCount = dv.getUint32(o, true);
+    o += 4;
+    const freshNorthSeasonalCount = dv.getUint32(o, true);
+    o += 4;
+    const freshSouthAlwaysCount = dv.getUint32(o, true);
+    o += 4;
+    const freshSouthSeasonalCount = dv.getUint32(o, true);
+    o += 4;
+
+    const needBytes =
+      freshNorthAlwaysCount * 4 +
+      freshNorthSeasonalCount * (4 + 2 + 2) +
+      freshSouthAlwaysCount * 4 +
+      freshSouthSeasonalCount * (4 + 2 + 2);
+    if (o + needBytes > u8.byteLength) return null;
+
+    const northAlways = new Uint32Array(freshNorthAlwaysCount);
+    for (let i = 0; i < freshNorthAlwaysCount; i++) {
+      northAlways[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const northSeasonal = new Uint32Array(freshNorthSeasonalCount);
+    for (let i = 0; i < freshNorthSeasonalCount; i++) {
+      northSeasonal[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const northFreeze = new Uint16Array(freshNorthSeasonalCount);
+    for (let i = 0; i < freshNorthSeasonalCount; i++) {
+      northFreeze[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    const northThaw = new Uint16Array(freshNorthSeasonalCount);
+    for (let i = 0; i < freshNorthSeasonalCount; i++) {
+      northThaw[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    const southAlways = new Uint32Array(freshSouthAlwaysCount);
+    for (let i = 0; i < freshSouthAlwaysCount; i++) {
+      southAlways[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const southSeasonal = new Uint32Array(freshSouthSeasonalCount);
+    for (let i = 0; i < freshSouthSeasonalCount; i++) {
+      southSeasonal[i] = dv.getUint32(o, true);
+      o += 4;
+    }
+    const southFreeze = new Uint16Array(freshSouthSeasonalCount);
+    for (let i = 0; i < freshSouthSeasonalCount; i++) {
+      southFreeze[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    const southThaw = new Uint16Array(freshSouthSeasonalCount);
+    for (let i = 0; i < freshSouthSeasonalCount; i++) {
+      southThaw[i] = dv.getUint16(o, true);
+      o += 2;
+    }
+    freshwaterIceCycle = {
+      tileCount,
+      northAlwaysTileIds: northAlways,
+      northSeasonalTileIds: northSeasonal,
+      northFreezeDayOfYear: northFreeze,
+      northThawDayOfYear: northThaw,
+      southAlwaysTileIds: southAlways,
+      southSeasonalTileIds: southSeasonal,
+      southFreezeDayOfYear: southFreeze,
+      southThawDayOfYear: southThaw,
+    };
+  }
+
   if (o !== u8.byteLength) return null;
 
   return {
@@ -438,5 +698,7 @@ export function decodeGlobeRuntimeBakeFile(
     coastH,
     annualSpawnTable,
     riverFlowStrength,
+    seaIceCycle,
+    freshwaterIceCycle,
   };
 }

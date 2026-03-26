@@ -97,6 +97,30 @@ function sampleTemp(data, sw, sh, lonDeg, latDeg) {
   return t;
 }
 
+function fallbackOceanLikeTempC(month, latDeg, lonDeg) {
+  // Ocean-focused analytic fallback used only for unresolved nodata cells.
+  // Goal: plausible open-water climatology without polar longitude striping.
+  const monthAngle = (((month - 1) + 0.5) / 12) * Math.PI * 2;
+  const lr = (latDeg * Math.PI) / 180;
+  const cosLat = Math.cos(lr);
+  const absLat = Math.abs(latDeg);
+  const lor = (lonDeg * Math.PI) / 180;
+
+  // Ocean has smaller annual cycle than continental interiors.
+  const seasonal = 8.5 * Math.sin(monthAngle - lr);
+  // Large-scale latitudinal gradient (baseline ocean climate).
+  const zonal = 22 * cosLat - 1.5;
+  // Very mild basin-scale longitude structure; fades out strongly toward poles
+  // to prevent warm/cold vertical spokes converging at the pole.
+  const lonFade = Math.pow(Math.max(0, cosLat), 2.5);
+  const basin = lonFade * (1.8 * Math.sin(lor + 0.35) + 1.1 * Math.cos(lor * 2 - 0.25));
+  // Gentle extra cooling only at very high latitudes.
+  const polar =
+    absLat > 66 ? (-0.18 * (absLat - 66) * (absLat - 66)) / 28 : 0;
+
+  return zonal + seasonal + basin + polar;
+}
+
 async function loadZipBuffer() {
   for (const p of ZIP_CANDIDATES) {
     if (p && fs.existsSync(p)) {
@@ -141,7 +165,7 @@ async function main() {
         const t = sampleTemp(src, sw, sh, lonDeg, latDeg);
         const oi = (month - 1) * OUT_CELLS + j * OUT_W + i;
         if (!Number.isFinite(t)) {
-          out[oi] = 0;
+          out[oi] = fallbackOceanLikeTempC(month, latDeg, lonDeg);
           missing++;
         } else {
           out[oi] = t;
@@ -150,7 +174,7 @@ async function main() {
     }
     if (missing > 0) {
       console.warn(
-        `[build-tavg-worldclim] Month ${month}: ${missing} cells had no valid sample (filled 0)`,
+        `[build-tavg-worldclim] Month ${month}: ${missing} cells had no valid sample (filled with analytic fallback)`,
       );
     }
     console.log("[build-tavg-worldclim] Layer", month, "/", 12, "←", sw, "×", sh);

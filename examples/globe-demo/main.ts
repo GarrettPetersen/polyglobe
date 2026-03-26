@@ -37,6 +37,7 @@ import {
   globeRuntimeBakeCoastResolution,
   globeRuntimeBakeWaterTableFingerprint,
   CoastFoamOverlay,
+  SeaIceOverlay,
   buildTerrainFromEarthRaster,
   earthRasterFromImageData,
   applyCoastalBeach,
@@ -102,8 +103,12 @@ import {
   CloudClipField,
   buildAnnualCloudSpawnTable,
   analyzePrecipClimatologyGap,
+  buildAnnualSeaIceCycle,
+  buildAnnualFreshwaterIceCycle,
+  isSeaIceActiveOnDay,
   utcMinuteFromDate,
   type PrecipSubsolarForMinute,
+  type SeaIceAnnualCycle,
 } from "polyglobe";
 import {
   EARTH_GLOBE_CACHE_VERSION,
@@ -701,6 +706,25 @@ function readCoastFoamEnabledFromUrl(): boolean {
   if (raw == null) return true;
   const v = raw.toLowerCase().trim();
   return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/** `?seaIceOpacity=0..1` overrides translucent sea-ice alpha (default 0.99). */
+function readSeaIceOpacityFromUrl(): number {
+  if (typeof window === "undefined") return 0.99;
+  const raw = new URLSearchParams(window.location.search).get("seaIceOpacity");
+  if (raw == null || raw === "") return 0.99;
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n)) return 0.99;
+  return Math.max(0, Math.min(1, n));
+}
+
+/** `?seaIceLive=1` forces live sea-ice build (ignores runtime-bake seaIceCycle for diagnostics). */
+function readSeaIceLiveFromUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  const raw = new URLSearchParams(window.location.search).get("seaIceLive");
+  if (raw == null) return false;
+  const v = raw.toLowerCase().trim();
+  return v === "1" || v === "true" || v === "on" || v === "yes";
 }
 
 /**
@@ -2454,6 +2478,11 @@ function applyGlobeRenderingPerf(tileCount: number): void {
 let globe: Globe | undefined = undefined;
 let water: WaterSphere | undefined = undefined;
 let coastFoamOverlay: CoastFoamOverlay | undefined = undefined;
+let seaIceOverlay: SeaIceOverlay | undefined = undefined;
+let freshwaterIceOverlay: SeaIceOverlay | undefined = undefined;
+let seaIceCycleActive: SeaIceAnnualCycle | null = null;
+const seaIceAlwaysTileIds = new Set<number>();
+const seaIceSeasonalByTile = new Map<number, { freeze: number; thaw: number }>();
 let coastMaskTexture: THREE.DataTexture | undefined = undefined;
 let coastLandMaskTexture: THREE.DataTexture | undefined = undefined;
 let controls: OrbitControls;
@@ -2533,6 +2562,325 @@ function getCloudVisualUtcMinutes(state: DemoState, date: Date): number {
     return state.gameClockUtcMinute;
   }
   return date.getTime() / 60000;
+}
+
+function countActiveSeaIceTilesForDay(
+  cycle: SeaIceAnnualCycle,
+  dayOfYear: number,
+): number {
+  let n = cycle.northAlwaysTileIds.length + cycle.southAlwaysTileIds.length;
+  for (let i = 0; i < cycle.northSeasonalTileIds.length; i++) {
+    if (
+      isSeaIceActiveOnDay(
+        cycle.northFreezeDayOfYear[i]!,
+        cycle.northThawDayOfYear[i]!,
+        dayOfYear,
+      )
+    ) {
+      n++;
+    }
+  }
+  for (let i = 0; i < cycle.southSeasonalTileIds.length; i++) {
+    if (
+      isSeaIceActiveOnDay(
+        cycle.southFreezeDayOfYear[i]!,
+        cycle.southThawDayOfYear[i]!,
+        dayOfYear,
+      )
+    ) {
+      n++;
+    }
+  }
+  return n;
+}
+
+function countActiveSeaIceTilesByHemisphereForDay(
+  cycle: SeaIceAnnualCycle,
+  dayOfYear: number,
+): { north: number; south: number } {
+  let north = cycle.northAlwaysTileIds.length;
+  let south = cycle.southAlwaysTileIds.length;
+  for (let i = 0; i < cycle.northSeasonalTileIds.length; i++) {
+    if (
+      isSeaIceActiveOnDay(
+        cycle.northFreezeDayOfYear[i]!,
+        cycle.northThawDayOfYear[i]!,
+        dayOfYear,
+      )
+    ) {
+      north++;
+    }
+  }
+  for (let i = 0; i < cycle.southSeasonalTileIds.length; i++) {
+    if (
+      isSeaIceActiveOnDay(
+        cycle.southFreezeDayOfYear[i]!,
+        cycle.southThawDayOfYear[i]!,
+        dayOfYear,
+      )
+    ) {
+      south++;
+    }
+  }
+  return { north, south };
+}
+
+function countSeaIceCycleTerrainBreakdown(
+  cycle: SeaIceAnnualCycle,
+  tileTerrain: Map<number, TileTerrainData>,
+): { ocean: number; land: number; missing: number } {
+  const ids = new Set<number>();
+  for (let i = 0; i < cycle.northAlwaysTileIds.length; i++) {
+    ids.add(cycle.northAlwaysTileIds[i]!);
+  }
+  for (let i = 0; i < cycle.northSeasonalTileIds.length; i++) {
+    ids.add(cycle.northSeasonalTileIds[i]!);
+  }
+  for (let i = 0; i < cycle.southAlwaysTileIds.length; i++) {
+    ids.add(cycle.southAlwaysTileIds[i]!);
+  }
+  for (let i = 0; i < cycle.southSeasonalTileIds.length; i++) {
+    ids.add(cycle.southSeasonalTileIds[i]!);
+  }
+  let ocean = 0;
+  let land = 0;
+  let missing = 0;
+  for (const id of ids) {
+    const row = tileTerrain.get(id);
+    if (!row) {
+      missing++;
+      continue;
+    }
+    if (isOceanLikeSeaIceCandidateTerrain(row)) ocean++;
+    else land++;
+  }
+  return { ocean, land, missing };
+}
+
+function countActiveSeaIceTerrainBreakdownForDay(
+  cycle: SeaIceAnnualCycle,
+  tileTerrain: Map<number, TileTerrainData>,
+  dayOfYear: number,
+): { ocean: number; land: number; missing: number } {
+  let ocean = 0;
+  let land = 0;
+  let missing = 0;
+  const bump = (tileId: number): void => {
+    const row = tileTerrain.get(tileId);
+    if (!row) {
+      missing++;
+      return;
+    }
+    if (isOceanLikeSeaIceCandidateTerrain(row)) ocean++;
+    else land++;
+  };
+  for (let i = 0; i < cycle.northAlwaysTileIds.length; i++) {
+    bump(cycle.northAlwaysTileIds[i]!);
+  }
+  for (let i = 0; i < cycle.southAlwaysTileIds.length; i++) {
+    bump(cycle.southAlwaysTileIds[i]!);
+  }
+  for (let i = 0; i < cycle.northSeasonalTileIds.length; i++) {
+    if (
+      isSeaIceActiveOnDay(
+        cycle.northFreezeDayOfYear[i]!,
+        cycle.northThawDayOfYear[i]!,
+        dayOfYear,
+      )
+    ) {
+      bump(cycle.northSeasonalTileIds[i]!);
+    }
+  }
+  for (let i = 0; i < cycle.southSeasonalTileIds.length; i++) {
+    if (
+      isSeaIceActiveOnDay(
+        cycle.southFreezeDayOfYear[i]!,
+        cycle.southThawDayOfYear[i]!,
+        dayOfYear,
+      )
+    ) {
+      bump(cycle.southSeasonalTileIds[i]!);
+    }
+  }
+  return { ocean, land, missing };
+}
+
+function isOceanLikeSeaIceCandidateTerrain(
+  row: TileTerrainData | undefined,
+): boolean {
+  if (!row) return false;
+  if (row.type === "water" || row.type === "beach") return true;
+  // Backward-compat for old caches that used `ice` for polar land/ocean.
+  return row.type === "ice" && row.elevation <= -0.005;
+}
+
+function sanitizeSeaIceCycleForTerrain(
+  cycle: SeaIceAnnualCycle,
+  tileTerrain: Map<number, TileTerrainData>,
+): SeaIceAnnualCycle {
+  const filterIds = (ids: Uint32Array): Uint32Array => {
+    const out: number[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]!;
+      if (isOceanLikeSeaIceCandidateTerrain(tileTerrain.get(id))) out.push(id);
+    }
+    return Uint32Array.from(out);
+  };
+  const filterSeasonal = (
+    ids: Uint32Array,
+    freeze: Uint16Array,
+    thaw: Uint16Array,
+  ): {
+    ids: Uint32Array;
+    freeze: Uint16Array;
+    thaw: Uint16Array;
+  } => {
+    const outIds: number[] = [];
+    const outFreeze: number[] = [];
+    const outThaw: number[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]!;
+      if (!isOceanLikeSeaIceCandidateTerrain(tileTerrain.get(id))) continue;
+      outIds.push(id);
+      outFreeze.push(freeze[i]!);
+      outThaw.push(thaw[i]!);
+    }
+    return {
+      ids: Uint32Array.from(outIds),
+      freeze: Uint16Array.from(outFreeze),
+      thaw: Uint16Array.from(outThaw),
+    };
+  };
+  const n = filterSeasonal(
+    cycle.northSeasonalTileIds,
+    cycle.northFreezeDayOfYear,
+    cycle.northThawDayOfYear,
+  );
+  const s = filterSeasonal(
+    cycle.southSeasonalTileIds,
+    cycle.southFreezeDayOfYear,
+    cycle.southThawDayOfYear,
+  );
+  return {
+    tileCount: cycle.tileCount,
+    northAlwaysTileIds: filterIds(cycle.northAlwaysTileIds),
+    northSeasonalTileIds: n.ids,
+    northFreezeDayOfYear: n.freeze,
+    northThawDayOfYear: n.thaw,
+    southAlwaysTileIds: filterIds(cycle.southAlwaysTileIds),
+    southSeasonalTileIds: s.ids,
+    southFreezeDayOfYear: s.freeze,
+    southThawDayOfYear: s.thaw,
+  };
+}
+
+function sanitizeCycleForAllowedTileIds(
+  cycle: SeaIceAnnualCycle,
+  allowedTileIds: ReadonlySet<number>,
+): SeaIceAnnualCycle {
+  const filterIds = (ids: Uint32Array): Uint32Array => {
+    const out: number[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]!;
+      if (allowedTileIds.has(id)) out.push(id);
+    }
+    return Uint32Array.from(out);
+  };
+  const filterSeasonal = (
+    ids: Uint32Array,
+    freeze: Uint16Array,
+    thaw: Uint16Array,
+  ): {
+    ids: Uint32Array;
+    freeze: Uint16Array;
+    thaw: Uint16Array;
+  } => {
+    const outIds: number[] = [];
+    const outFreeze: number[] = [];
+    const outThaw: number[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]!;
+      if (!allowedTileIds.has(id)) continue;
+      outIds.push(id);
+      outFreeze.push(freeze[i]!);
+      outThaw.push(thaw[i]!);
+    }
+    return {
+      ids: Uint32Array.from(outIds),
+      freeze: Uint16Array.from(outFreeze),
+      thaw: Uint16Array.from(outThaw),
+    };
+  };
+  const n = filterSeasonal(
+    cycle.northSeasonalTileIds,
+    cycle.northFreezeDayOfYear,
+    cycle.northThawDayOfYear,
+  );
+  const s = filterSeasonal(
+    cycle.southSeasonalTileIds,
+    cycle.southFreezeDayOfYear,
+    cycle.southThawDayOfYear,
+  );
+  return {
+    tileCount: cycle.tileCount,
+    northAlwaysTileIds: filterIds(cycle.northAlwaysTileIds),
+    northSeasonalTileIds: n.ids,
+    northFreezeDayOfYear: n.freeze,
+    northThawDayOfYear: n.thaw,
+    southAlwaysTileIds: filterIds(cycle.southAlwaysTileIds),
+    southSeasonalTileIds: s.ids,
+    southFreezeDayOfYear: s.freeze,
+    southThawDayOfYear: s.thaw,
+  };
+}
+
+function collectFreshwaterIceCandidateTileIds(
+  tileTerrain: Map<number, TileTerrainData>,
+  riverFlowByTile:
+    | Map<number, { exitEdge: number; directionRad: number }>
+    | null,
+): Set<number> {
+  const out = new Set<number>();
+  for (const [id, row] of tileTerrain) {
+    if (row.lakeId != null) out.add(id);
+  }
+  if (riverFlowByTile) {
+    for (const id of riverFlowByTile.keys()) out.add(id);
+  }
+  return out;
+}
+
+function setActiveSeaIceCycle(cycle: SeaIceAnnualCycle | null): void {
+  seaIceCycleActive = cycle;
+  seaIceAlwaysTileIds.clear();
+  seaIceSeasonalByTile.clear();
+  if (!cycle) return;
+  for (let i = 0; i < cycle.northAlwaysTileIds.length; i++) {
+    seaIceAlwaysTileIds.add(cycle.northAlwaysTileIds[i]!);
+  }
+  for (let i = 0; i < cycle.southAlwaysTileIds.length; i++) {
+    seaIceAlwaysTileIds.add(cycle.southAlwaysTileIds[i]!);
+  }
+  for (let i = 0; i < cycle.northSeasonalTileIds.length; i++) {
+    seaIceSeasonalByTile.set(cycle.northSeasonalTileIds[i]!, {
+      freeze: cycle.northFreezeDayOfYear[i]!,
+      thaw: cycle.northThawDayOfYear[i]!,
+    });
+  }
+  for (let i = 0; i < cycle.southSeasonalTileIds.length; i++) {
+    seaIceSeasonalByTile.set(cycle.southSeasonalTileIds[i]!, {
+      freeze: cycle.southFreezeDayOfYear[i]!,
+      thaw: cycle.southThawDayOfYear[i]!,
+    });
+  }
+}
+
+function isSeaIceActiveAtTileId(tileId: number, dayOfYear: number): boolean {
+  if (!seaIceCycleActive) return false;
+  if (seaIceAlwaysTileIds.has(tileId)) return true;
+  const s = seaIceSeasonalByTile.get(tileId);
+  if (!s) return false;
+  return isSeaIceActiveOnDay(s.freeze, s.thaw, dayOfYear);
 }
 
 /**
@@ -2691,6 +3039,9 @@ let annualWindTileIndexById: Map<number, number> | null = null;
 let annualRiverFlowStrength: AnnualRiverFlowStrength | null = null;
 /** Index into {@link annualRiverFlowStrength.strengthPacked} rows per river tile id. */
 let annualRiverStrengthIndexById: Map<number, number> | null = null;
+const seaIceOpacityFromUrl = readSeaIceOpacityFromUrl();
+const freshwaterIceOpacity = 0.92;
+const forceLiveSeaIceFromUrl = readSeaIceLiveFromUrl();
 /** Reused for cloud physics when reading from {@link annualTileWeather}. */
 const annualPrecipReuseMap = new Map<number, number>();
 /** Skip {@link fillPrecipMapFromAnnual} when UTC calendar day index unchanged (catch-up calls getPS many times per frame). */
@@ -4051,6 +4402,17 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       scene.remove(coastFoamOverlay.mesh);
       coastFoamOverlay.dispose();
     }
+    if (seaIceOverlay) {
+      scene.remove(seaIceOverlay.group);
+      seaIceOverlay.dispose();
+      seaIceOverlay = undefined;
+    }
+    if (freshwaterIceOverlay) {
+      scene.remove(freshwaterIceOverlay.group);
+      freshwaterIceOverlay.dispose();
+      freshwaterIceOverlay = undefined;
+    }
+    setActiveSeaIceCycle(null);
     // River water now provided by water table (no separate river mesh to clean up)
     if (riverTerrainGroup) {
       scene.remove(riverTerrainGroup);
@@ -4209,6 +4571,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             globe.tiles,
             tileTerrain,
             earthRaster.temperatureMonthly,
+            { includeWaterTiles: true },
           );
           console.log(
             BUILD_LOG,
@@ -5003,6 +5366,153 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       if (!coastFoamEnabledFromUrl) {
         console.log(BUILD_LOG, "coast foam disabled via URL param");
       }
+    }
+
+    if (state.useEarth && waterEnabledFromUrl && water) {
+      const rawIceCycle: SeaIceAnnualCycle =
+        !forceLiveSeaIceFromUrl && prebuiltGlobeRuntimeBake?.seaIceCycle
+          ? prebuiltGlobeRuntimeBake.seaIceCycle
+          : buildAnnualSeaIceCycle(globe, tileTerrain);
+      const iceCycle = sanitizeSeaIceCycleForTerrain(rawIceCycle, tileTerrain);
+      const hasIce =
+        iceCycle.northAlwaysTileIds.length +
+          iceCycle.northSeasonalTileIds.length +
+          iceCycle.southAlwaysTileIds.length +
+          iceCycle.southSeasonalTileIds.length >
+        0;
+      if (hasIce) {
+        const seaIceDay = annualDayIndexFromDate(
+          datetimeLocalUTCToDate(
+            state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+          ),
+        );
+        const activeNow = countActiveSeaIceTilesForDay(iceCycle, seaIceDay);
+        const activeByHemisphere = countActiveSeaIceTilesByHemisphereForDay(
+          iceCycle,
+          seaIceDay,
+        );
+        const alwaysNow =
+          iceCycle.northAlwaysTileIds.length + iceCycle.southAlwaysTileIds.length;
+        const seasonalNow = Math.max(0, activeNow - alwaysNow);
+        const cycleTerrain = countSeaIceCycleTerrainBreakdown(
+          iceCycle,
+          tileTerrain,
+        );
+        const activeTerrain = countActiveSeaIceTerrainBreakdownForDay(
+          iceCycle,
+          tileTerrain,
+          seaIceDay,
+        );
+        console.log(BUILD_LOG, "sea ice cycle ready", {
+          northAlways: iceCycle.northAlwaysTileIds.length,
+          northSeasonal: iceCycle.northSeasonalTileIds.length,
+          southAlways: iceCycle.southAlwaysTileIds.length,
+          southSeasonal: iceCycle.southSeasonalTileIds.length,
+          activeToday: activeNow,
+          activeAlwaysToday: alwaysNow,
+          activeSeasonalToday: seasonalNow,
+          activeNorthToday: activeByHemisphere.north,
+          activeSouthToday: activeByHemisphere.south,
+          cycleOceanTiles: cycleTerrain.ocean,
+          cycleLandTiles: cycleTerrain.land,
+          cycleMissingTiles: cycleTerrain.missing,
+          activeOceanToday: activeTerrain.ocean,
+          activeLandToday: activeTerrain.land,
+          activeMissingToday: activeTerrain.missing,
+          day: seaIceDay,
+          opacity: seaIceOpacityFromUrl,
+          source: forceLiveSeaIceFromUrl
+            ? "live-build-forced-url"
+            : prebuiltGlobeRuntimeBake?.seaIceCycle
+              ? "runtime-bake"
+              : "live-build",
+          hint:
+            activeByHemisphere.south > activeByHemisphere.north
+              ? "Most visible near Antarctica (south pole)"
+              : "Most visible near Arctic (north pole)",
+        });
+        if (
+          !forceLiveSeaIceFromUrl &&
+          prebuiltGlobeRuntimeBake?.seaIceCycle &&
+          cycleTerrain.ocean < 400
+        ) {
+          console.warn(
+            BUILD_LOG,
+            "sea ice cycle appears sparse from runtime-bake; try `?seaIceLive=1` to compare live generation, then re-run `npm run build-earth-globe-cache` if live looks correct.",
+          );
+        }
+        seaIceOverlay = new SeaIceOverlay(globe, iceCycle, {
+          // Keep clearly above water crests so the sheet is visibly distinct.
+          surfaceRadius: 0.9976,
+          opacity: seaIceOpacityFromUrl,
+          namePrefix: "SeaIce",
+        });
+        scene.add(seaIceOverlay.group);
+        setActiveSeaIceCycle(iceCycle);
+      } else {
+        console.log(BUILD_LOG, "sea ice cycle has zero active tiles");
+        seaIceOverlay = undefined;
+        setActiveSeaIceCycle(null);
+      }
+
+      const freshwaterCandidates = collectFreshwaterIceCandidateTileIds(
+        tileTerrain,
+        globalRiverFlowByTile,
+      );
+      const rawFreshwaterCycle: SeaIceAnnualCycle =
+        prebuiltGlobeRuntimeBake?.freshwaterIceCycle ??
+        buildAnnualFreshwaterIceCycle(
+          globe,
+          tileTerrain,
+          freshwaterCandidates,
+        );
+      const freshwaterCycle = sanitizeCycleForAllowedTileIds(
+        rawFreshwaterCycle,
+        freshwaterCandidates,
+      );
+      const hasFreshwaterIce =
+        freshwaterCycle.northAlwaysTileIds.length +
+          freshwaterCycle.northSeasonalTileIds.length +
+          freshwaterCycle.southAlwaysTileIds.length +
+          freshwaterCycle.southSeasonalTileIds.length >
+        0;
+      if (hasFreshwaterIce) {
+        const freshwaterDay = annualDayIndexFromDate(
+          datetimeLocalUTCToDate(
+            state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+          ),
+        );
+        const freshwaterActive = countActiveSeaIceTilesForDay(
+          freshwaterCycle,
+          freshwaterDay,
+        );
+        console.log(BUILD_LOG, "freshwater ice cycle ready", {
+          always:
+            freshwaterCycle.northAlwaysTileIds.length +
+            freshwaterCycle.southAlwaysTileIds.length,
+          seasonal:
+            freshwaterCycle.northSeasonalTileIds.length +
+            freshwaterCycle.southSeasonalTileIds.length,
+          activeToday: freshwaterActive,
+          day: freshwaterDay,
+          source: prebuiltGlobeRuntimeBake?.freshwaterIceCycle
+            ? "runtime-bake"
+            : "live-build",
+        });
+        freshwaterIceOverlay = new SeaIceOverlay(globe, freshwaterCycle, {
+          surfaceRadius: 0.99745,
+          opacity: freshwaterIceOpacity,
+          color: 0xeaf4ff,
+          namePrefix: "FreshwaterIce",
+        });
+        scene.add(freshwaterIceOverlay.group);
+      } else {
+        freshwaterIceOverlay = undefined;
+      }
+    } else {
+      seaIceOverlay = undefined;
+      freshwaterIceOverlay = undefined;
+      setActiveSeaIceCycle(null);
     }
 
     // Skip river re-processing if already loaded from cache
@@ -6525,6 +7035,18 @@ async function init() {
       water.setSunDirection(sunDir);
       if (!veryDenseAnim || animTick % 2 === 0) water.update();
     }
+    if (seaIceOverlay) {
+      const seaIceDay = annualDayIndexFromDate(date);
+      seaIceOverlay.updateForDay(seaIceDay, camera.position, sunDir);
+    }
+    if (freshwaterIceOverlay) {
+      const freshwaterDay = annualDayIndexFromDate(date);
+      freshwaterIceOverlay.updateForDay(
+        freshwaterDay,
+        camera.position,
+        sunDir,
+      );
+    }
     framePerf.slice("water");
     vegetationLayer?.update(camera);
     framePerf.slice("vegetation");
@@ -7060,7 +7582,12 @@ async function init() {
     const flowStr = flow
       ? `${((flow.directionRad * 180) / Math.PI).toFixed(0)}°, str ${flow.strength.toFixed(2)}`
       : "—";
-    return `ID: ${tileId}<br>Type: ${tileType}<br>River: ${inRiver}<br>Flow: ${flowStr}<br>Elevation: ${elevStr}<br>Wind: ${windStr}`;
+    const infoDate = datetimeLocalUTCToDate(
+      state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+    );
+    const day = annualDayIndexFromDate(infoDate);
+    const seaIce = isSeaIceActiveAtTileId(tileId, day);
+    return `ID: ${tileId}<br>Type: ${tileType}<br>Sea ice: ${seaIce}<br>River: ${inRiver}<br>Flow: ${flowStr}<br>Elevation: ${elevStr}<br>Wind: ${windStr}`;
   }
 
   function goToHex() {
