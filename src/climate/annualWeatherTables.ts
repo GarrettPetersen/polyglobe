@@ -140,9 +140,15 @@ export function fillPrecipMapFromAnnual(
   dayIndex: number,
   out: Map<number, number>,
 ): void {
-  out.clear();
   const di = Math.max(0, Math.min(DAYS - 1, dayIndex));
   const base = di * t.tileCount;
+  /**
+   * Avoid `clear()` when the map already holds exactly one entry per tile — clearing ~160k keys is very
+   * expensive; overwriting the same keys is enough when the tile set matches {@link t.tileIds}.
+   */
+  if (out.size !== t.tileCount) {
+    out.clear();
+  }
   for (let i = 0; i < t.tileCount; i++) {
     out.set(t.tileIds[i]!, t.precipPacked[base + i]!);
   }

@@ -186,6 +186,7 @@ export {
 // Climate (seasonal precip/temp for rivers, future snow)
 export {
   getPrecipitation,
+  getPrecipitationItczOnly,
   getTemperature,
   getTemperatureForTerrain,
   meanMonthlyTempCToTemperature01,
@@ -211,7 +212,10 @@ export {
   updatePrecipitationOverlay,
   getPrecipitationByTile,
   getPrecipitationByTileWithMoisture,
+  fillPrecipitationByTileWithMoistureIntoMap,
+  fillPrecipitationForGlobeTilesIntoMap,
   type PrecipitationOverlayOptions,
+  type GlobePrecipFillMode,
 } from "./climate/precipitationOverlay.js";
 export {
   annualDayIndexFromDate,
@@ -310,6 +314,7 @@ export {
   type CloudClipTemplate,
   type CloudClipFrame,
   type AnnualSpawnSpec,
+  type CloudClipPhysicsSyncOpts,
 } from "./climate/cloudClipSystem.js";
 export {
   buildSeasonalTargetPrecipByTile365,

@@ -33,6 +33,13 @@ export interface LandWeatherGpuState {
   /** Scratch list of land tile ids written in the last stochastic upload (do not mutate outside upload). */
   readonly landWeatherWrittenTileScratch: number[];
   landWeatherUploadPending: LandWeatherTextureUploadPending;
+  /**
+   * Simulated UTC minute index (`floor(calendarUtc / 60s)`) for {@link climateSnowTexelCache}.
+   * Cleared when the minute changes so climate snow values stay correct across the day boundary.
+   */
+  climateSnowTexelCacheUtcMin: number;
+  /** Reused across stochastic flushes within the same sim UTC minute to avoid repeat Köppen/snow work. */
+  climateSnowTexelCache: Map<number, number>;
 }
 
 function texelByteOffset(tileId: number, texWidth: number): number {
@@ -65,6 +72,8 @@ export function createLandWeatherGpuState(tileCount: number): LandWeatherGpuStat
     tileCount,
     landWeatherWrittenTileScratch: [],
     landWeatherUploadPending: { kind: "none" },
+    climateSnowTexelCacheUtcMin: Number.NaN,
+    climateSnowTexelCache: new Map(),
   };
 }
 
@@ -150,8 +159,15 @@ export function uploadLandWeatherTextureTiles(
     }
   };
 
-  const climateSnowByTile =
-    climateOpts != null ? new Map<number, number>() : null;
+  let climateSnowByTile: Map<number, number> | null = null;
+  if (climateOpts != null) {
+    const m = Math.floor(climateOpts.calendarUtc.getTime() / 60_000);
+    if (m !== gpu.climateSnowTexelCacheUtcMin) {
+      gpu.climateSnowTexelCacheUtcMin = m;
+      gpu.climateSnowTexelCache.clear();
+    }
+    climateSnowByTile = gpu.climateSnowTexelCache;
+  }
   const climateSnowForTile = (tid: number): number => {
     if (!climateOpts || climateSnowByTile == null) return 0;
     const cached = climateSnowByTile.get(tid);
@@ -313,22 +329,59 @@ export function commitLandWeatherGpuTextureUpload(
     );
   };
 
-  const subTile = (tid: number): void => {
-    const x = tid % tw;
-    const y = Math.floor(tid / tw);
-    gl.pixelStorei(unpackRowLen, tw);
-    gl.pixelStorei(unpackSkipPx, x);
-    gl.pixelStorei(unpackSkipRow, y);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, 1, 1, gl.RGBA, gl.FLOAT, gpu.data);
+  /** Merge `texSubImage2D(1×1)` into horizontal row spans (same `y`, consecutive `x`). */
+  const subTilesBatched = (tileIds: readonly number[]): void => {
+    if (tileIds.length === 0) return;
+    const byRow = new Map<number, number[]>();
+    for (let i = 0; i < tileIds.length; i++) {
+      const tid = tileIds[i]!;
+      const x = tid % tw;
+      const y = Math.floor(tid / tw);
+      let row = byRow.get(y);
+      if (!row) {
+        row = [];
+        byRow.set(y, row);
+      }
+      row.push(x);
+    }
+    const yList = Array.from(byRow.keys());
+    yList.sort((a, b) => a - b);
+    for (let yi = 0; yi < yList.length; yi++) {
+      const y = yList[yi]!;
+      const xs = [...new Set(byRow.get(y)!)].sort((a, b) => a - b);
+      let i = 0;
+      while (i < xs.length) {
+        const x0 = xs[i]!;
+        let x1 = x0;
+        i++;
+        while (i < xs.length && xs[i] === x1 + 1) {
+          x1 = xs[i]!;
+          i++;
+        }
+        const rw = x1 - x0 + 1;
+        gl.pixelStorei(unpackRowLen, tw);
+        gl.pixelStorei(unpackSkipPx, x0);
+        gl.pixelStorei(unpackSkipRow, y);
+        gl.texSubImage2D(
+          gl.TEXTURE_2D,
+          0,
+          x0,
+          y,
+          rw,
+          1,
+          gl.RGBA,
+          gl.FLOAT,
+          gpu.data,
+        );
+      }
+    }
   };
 
   try {
     if (pending.kind === "bbox") {
       subRect(pending.minX, pending.minY, pending.maxX, pending.maxY);
     } else {
-      for (let i = 0; i < pending.tileIds.length; i++) {
-        subTile(pending.tileIds[i]!);
-      }
+      subTilesBatched(pending.tileIds);
     }
   } finally {
     gl.pixelStorei(unpackRowLen, 0);

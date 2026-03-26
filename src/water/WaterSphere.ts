@@ -245,7 +245,8 @@ export class WaterSphere {
     const fadeFar = options.waveFadeFar ?? radius * 3.8;
 
     const geometry = new THREE.SphereGeometry(radius, segments, segments);
-    const sunDir = options.sunDirection ?? new THREE.Vector3(0.5, 0.6, 0.4).normalize();
+    const sunDir =
+      options.sunDirection ?? new THREE.Vector3(0.5, 0.6, 0.4).normalize();
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
@@ -257,7 +258,9 @@ export class WaterSphere {
         uSunDirection: { value: sunDir.clone() },
         uSunColor: { value: new THREE.Color(options.sunColor ?? 0xffffff) },
         uWaterColor: { value: new THREE.Color(options.color ?? 0x1a5a6a) },
-        uWaterColorPole: { value: new THREE.Color(options.colorPole ?? 0x2a3548) },
+        uWaterColorPole: {
+          value: new THREE.Color(options.colorPole ?? 0x2a3548),
+        },
         uNormalMap: { value: null as THREE.Texture | null },
         uGerstnerAmps: { value: new THREE.Vector3(amp, amp * 0.85, amp * 0.6) },
         uGerstnerWL: { value: new THREE.Vector3(wl, wl * 0.8, wl * 0.65) },
@@ -287,14 +290,15 @@ export class WaterSphere {
 
   /** Call each frame to animate waves. */
   update(): void {
-    this.material.uniforms.uTime.value = this.clock.getElapsedTime() * this._timeScale;
+    this.material.uniforms.uTime.value =
+      this.clock.getElapsedTime() * this._timeScale;
   }
 
   /** World-space camera position; enables distance-based wave fade when `waveDistanceFade` is on. */
   setCameraWorldPosition(position: THREE.Vector3): void {
-    (this.material.uniforms.uCameraWorld as THREE.IUniform<THREE.Vector3>).value.copy(
-      position,
-    );
+    (
+      this.material.uniforms.uCameraWorld as THREE.IUniform<THREE.Vector3>
+    ).value.copy(position);
   }
 
   setSunDirection(direction: THREE.Vector3): void {
@@ -311,7 +315,7 @@ export class WaterSphere {
    * Replace the sphere geometry with a "water table" geometry that follows terrain elevation.
    * Water sits just below each tile's elevation, naturally filling river cutouts while
    * staying invisible under solid land hexes.
-   * 
+   *
    * For river tiles, corner vertices are smoothly interpolated between neighboring tile
    * water levels to create gradual river slopes. Open-ocean tiles use a fixed level; lakes
    * use elevation-based depth (caller should make `isOcean` false for lakes).
@@ -325,7 +329,11 @@ export class WaterSphere {
    * Open ocean / beach fans stay spherical to match radial water-tile terrain vertices.
    */
   setWaterTableGeometry(
-    tiles: Array<{ id: number; center: THREE.Vector3; vertices: THREE.Vector3[] }>,
+    tiles: Array<{
+      id: number;
+      center: THREE.Vector3;
+      vertices: THREE.Vector3[];
+    }>,
     getElevation: (tileId: number) => number,
     options: {
       baseRadius: number;
@@ -341,7 +349,10 @@ export class WaterSphere {
       /** River channel (smooth corner blending with neighbors). */
       isRiver?: (tileId: number) => boolean;
       /** Get neighbor tile IDs for a given edge (0-5). Returns undefined if no neighbor. */
-      getEdgeNeighbor?: (tileId: number, edgeIndex: number) => number | undefined;
+      getEdgeNeighbor?: (
+        tileId: number,
+        edgeIndex: number,
+      ) => number | undefined;
       /**
        * If set, tiles that are open ocean on all sides (no land, river, or lake neighbors)
        * skip per-hex fans and are covered by one low-poly sphere at `oceanLevel` instead.
@@ -349,9 +360,13 @@ export class WaterSphere {
       interiorOceanSphere?: { widthSegments: number; heightSegments: number };
       /** Log tile/triangle counts (default false — avoid string work on huge builds). */
       verbose?: boolean;
-    }
+    },
   ): void {
-    const { baseRadius, elevationScale = 1, depthBelowSurface = -0.008 } = options;
+    const {
+      baseRadius,
+      elevationScale = 1,
+      depthBelowSurface = -0.008,
+    } = options;
     const oceanLevel = options.oceanLevel ?? baseRadius * 0.995;
     const isOcean = options.isOcean ?? (() => false);
     const isLake = options.isLake ?? (() => false);
@@ -389,7 +404,12 @@ export class WaterSphere {
         let surroundedByOpenOcean = true;
         for (let e = 0; e < n; e++) {
           const nid = getEdgeNeighbor(tid, e);
-          if (nid === undefined || !isOcean(nid) || isRiver(nid) || isLake(nid)) {
+          if (
+            nid === undefined ||
+            !isOcean(nid) ||
+            isRiver(nid) ||
+            isLake(nid)
+          ) {
             surroundedByOpenOcean = false;
             break;
           }
@@ -529,7 +549,7 @@ export class WaterSphere {
 
       for (let v = 0; v < n; v++) {
         const i0 = cornerBase + v;
-        const i1 = cornerBase + (v + 1) % n;
+        const i1 = cornerBase + ((v + 1) % n);
         indices[ip++] = centerIdx;
         indices[ip++] = i1;
         indices[ip++] = i0;
@@ -552,9 +572,13 @@ export class WaterSphere {
       new THREE.Float32BufferAttribute(normals, 3),
     );
     if (use32BitIndex) {
-      fanGeometry.setIndex(new THREE.Uint32BufferAttribute(indices as Uint32Array, 1));
+      fanGeometry.setIndex(
+        new THREE.Uint32BufferAttribute(indices as Uint32Array, 1),
+      );
     } else {
-      fanGeometry.setIndex(new THREE.Uint16BufferAttribute(indices as Uint16Array, 1));
+      fanGeometry.setIndex(
+        new THREE.Uint16BufferAttribute(indices as Uint16Array, 1),
+      );
     }
     if (vertCount > 0) {
       fanGeometry.computeVertexNormals();
@@ -568,8 +592,7 @@ export class WaterSphere {
         interiorSphereCfg.heightSegments,
       );
       sphereGeom.deleteAttribute("uv");
-      const parts =
-        vertCount > 0 ? [sphereGeom, fanGeometry] : [sphereGeom];
+      const parts = vertCount > 0 ? [sphereGeom, fanGeometry] : [sphereGeom];
       const merged = mergeGeometries(parts, false);
       if (merged == null) {
         sphereGeom.dispose();
@@ -605,7 +628,8 @@ export class WaterSphere {
   setCoastMask(texture: THREE.Texture | null): void {
     (this.material.uniforms.uCoastMask as THREE.IUniform<THREE.Texture>).value =
       texture ?? DUMMY_COAST_MASK;
-    (this.material.uniforms.uUseCoastMask as THREE.IUniform<number>).value = texture ? 1 : 0;
+    (this.material.uniforms.uUseCoastMask as THREE.IUniform<number>).value =
+      texture ? 1 : 0;
   }
 
   get radius(): number {

@@ -709,6 +709,16 @@ function koppenToTerrainType(code: number): TerrainType {
   }
 }
 
+/** ~60% ice vs snow, stable across clients (replaces `Math.random` for multiplayer-safe builds). */
+function polarIceSnowFromLatitudeFallback(latDeg: number, deterministicSalt: number): TerrainType {
+  let h = Math.imul((Math.round(latDeg * 1000) ^ deterministicSalt) | 0, 0x9e3779b1 | 0);
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x7feb352d | 0);
+  h ^= h >>> 15;
+  const u = (h >>> 0) / 0x1_0000_0000;
+  return u < 0.6 ? "ice" : "snow";
+}
+
 function terrainFromSample(
   result: SampleResult,
   latRad: number,
@@ -716,6 +726,8 @@ function terrainFromSample(
   _neighborMaxElevM?: number, // Kept for API compatibility; mountains now come from peak dataset only
   /** If set, max absolute latitude (deg) over the tile; used so water tiles that extend into the polar cap become ice and avoid an ocean donut. */
   maxAbsLatDeg?: number,
+  /** Tile id (or other stable int) so latitude-only terrain fallback is identical on every client. */
+  deterministicTerrainSalt?: number,
 ): Pick<TileTerrainData, "type" | "elevation" | "isHilly"> {
   const absLat = Math.abs(latRad);
   const latDeg = (absLat * 180) / Math.PI;
@@ -768,7 +780,10 @@ function terrainFromSample(
   } else if (opts.latitudeTerrain) {
     // Fallback when no climate data: subtropical bands = desert, tropics = land
     if (latDeg > 70) {
-      type = Math.random() < 0.6 ? "ice" : "snow";
+      type = polarIceSnowFromLatitudeFallback(
+        latDeg,
+        deterministicTerrainSalt ?? 0,
+      );
       elevation = 0.06;
     } else if (latDeg > 55) {
       type = "snow";
@@ -2375,6 +2390,7 @@ export async function buildTerrainFromEarthRaster(
       opts,
       neighborMaxElevM,
       result.maxAbsLatDeg,
+      tile.id,
     );
     let elev = elevation;
     if (land && result.elevationM != null && result.elevationM > 0) {
@@ -2601,6 +2617,9 @@ export function buildTerrainFromSampler(
       },
       lat,
       opts,
+      undefined,
+      undefined,
+      tile.id,
     );
     let elev = elevation;
     if (result.land && result.elevationM != null && result.elevationM > 0) {

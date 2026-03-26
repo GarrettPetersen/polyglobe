@@ -33,6 +33,38 @@ import type { TerrainType } from "../terrain/types.js";
 
 const POLAR_LAT = 62;
 
+/** Optional perf breakdown for {@link CloudClipField.syncToTargetMinute} (demo `?perf=1`). */
+export interface CloudClipPhysicsSyncOpts {
+  kinematicsOnly?: boolean;
+  /**
+   * Receives exclusive section times in ms for this sync invocation (sum over several calls per frame
+   * when catch-up loops). Sections: `cloudPhys_overlayDecay`, `cloudPhys_tileSurfaceSteps`,
+   * `cloudPhys_precipMapBuild`, `cloudPhys_advect`, `cloudPhys_respawn`, `cloudPhys_cloudPrecipApply`.
+   */
+  recordSectionMs?: (section: string, ms: number) => void;
+}
+
+type CloudSyncPerfBuckets = {
+  overlay: number;
+  surface: number;
+  precipMap: number;
+  advect: number;
+  respawn: number;
+  precipApply: number;
+};
+
+function flushCloudSyncPerfBuckets(
+  rec: (section: string, ms: number) => void,
+  b: CloudSyncPerfBuckets,
+): void {
+  rec("cloudPhys_overlayDecay", b.overlay);
+  rec("cloudPhys_tileSurfaceSteps", b.surface);
+  rec("cloudPhys_precipMapBuild", b.precipMap);
+  rec("cloudPhys_advect", b.advect);
+  rec("cloudPhys_respawn", b.respawn);
+  rec("cloudPhys_cloudPrecipApply", b.precipApply);
+}
+
 /** Matches {@link CloudClipField.getPrecipParticleCandidateTileIds} threshold. */
 const PRECIP_PARTICLE_CANDIDATE_MIN = 0.055;
 const PRECIP_OVERLAY_DELETE_BELOW = 0.02;
@@ -805,6 +837,11 @@ export class CloudClipField {
   private instancedMeshesInitKey = "";
   /** Reused in {@link CloudClipField.syncThreeGroup} to avoid per-frame Set allocation. */
   private readonly _syncSeenInstanceIds = new Set<number>();
+  /**
+   * {@link syncInstancedClipClouds}: slot → clip template index (or −1). Avoids zeroing every instance
+   * slot on every template mesh each frame (~cap×templates matrix writes → mostly cap×(templates−1)).
+   */
+  private _instSyncSlotTpl: Int8Array | null = null;
   /** Tiles under a cloud’s spherical footprint for precip (reused each burst). */
   private readonly _precipFootprintTiles: number[] = [];
   private readonly _precipFootprintVisited = new Set<number>();
@@ -1146,7 +1183,7 @@ export class CloudClipField {
     globe: Globe,
     getPrecipSubsolar: PrecipSubsolarForMinute,
     reinit?: { moisture: Map<number, number>; nowDate: Date },
-    physicsOpts?: { kinematicsOnly?: boolean }
+    physicsOpts?: CloudClipPhysicsSyncOpts,
   ): void {
     if (targetUtc < this.lastPhysicsMinute) {
       return;
@@ -1184,14 +1221,30 @@ export class CloudClipField {
     const minPer = cfg.lifecycleMinutesPerFrame;
     const delta = advanceTarget - this.lastPhysicsMinute;
     const kinematicsOnly = physicsOpts?.kinematicsOnly === true;
+    const rec = physicsOpts?.recordSectionMs;
+    const perf: CloudSyncPerfBuckets | null = rec
+      ? {
+          overlay: 0,
+          surface: 0,
+          precipMap: 0,
+          advect: 0,
+          respawn: 0,
+          precipApply: 0,
+        }
+      : null;
 
     let overlayDirty = false;
 
     if (delta > 1) {
       if (!kinematicsOnly) {
+        let t0 = 0;
+        if (perf) t0 = performance.now();
         const decayPow = Math.pow(cfg.precipOverlayDecay, delta);
         overlayDirty =
           decayPrecipOverlayInPlace(this.precipOverlay, decayPow) || overlayDirty;
+        if (perf) perf.overlay += performance.now() - t0;
+
+        if (perf) t0 = performance.now();
         const getSub = cfg.getSubsolarLatDegForUtcMinute;
         for (let u = this.lastPhysicsMinute + 1; u <= advanceTarget; u++) {
           const subU = getSub
@@ -1199,12 +1252,22 @@ export class CloudClipField {
             : subsolarLatForClimateMinute(cfg, u, getPrecipSubsolar);
           this.tileSurface.stepClimateMinute(globe, subU, gClimate, u);
         }
+        if (perf) perf.surface += performance.now() - t0;
       }
 
+      let tMap = 0;
+      if (perf) tMap = performance.now();
       const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(advanceTarget);
-      for (const inst of this.instances) {
-        advectInstanceFixed(globe, inst, delta, cfg);
+      if (perf) perf.precipMap += performance.now() - tMap;
 
+      for (const inst of this.instances) {
+        let ta = 0;
+        if (perf) ta = performance.now();
+        advectInstanceFixed(globe, inst, delta, cfg);
+        if (perf) perf.advect += performance.now() - ta;
+
+        let tr = 0;
+        if (perf) tr = performance.now();
         let tpl = CLIP_TEMPLATES[inst.templateIndex]!;
         let dur = tpl.frames.length;
         while (Math.floor((advanceTarget - inst.birthUtcMinute) / minPer) >= dur) {
@@ -1242,12 +1305,15 @@ export class CloudClipField {
           tpl = CLIP_TEMPLATES[inst.templateIndex]!;
           dur = tpl.frames.length;
         }
+        if (perf) perf.respawn += performance.now() - tr;
 
         if (!kinematicsOnly) {
           const ageFrames = Math.floor((advanceTarget - inst.birthUtcMinute) / minPer);
           const fi = Math.max(0, Math.min(dur - 1, ageFrames));
           const frame = tpl.frames[fi]!;
           if (frame.precipWeight > 0.008) {
+            let tp = 0;
+            if (perf) tp = performance.now();
             overlayDirty =
               this.applyInstanceCloudPrecipAtFrame(
                 globe,
@@ -1259,33 +1325,50 @@ export class CloudClipField {
                 subsolarLatDeg,
                 precipByTile,
               ) || overlayDirty;
+            if (perf) perf.precipApply += performance.now() - tp;
           }
         }
       }
     } else {
       for (let m = this.lastPhysicsMinute; m < advanceTarget; m++) {
+        let tMap = 0;
+        if (perf) tMap = performance.now();
         const { precipByTile, subsolarLatDeg } = getPrecipSubsolar(m);
+        if (perf) perf.precipMap += performance.now() - tMap;
+
         const climateSubsolarNext =
           cfg.getSubsolarLatDegForUtcMinute?.(m + 1) ??
           getPrecipSubsolar(m + 1).subsolarLatDeg;
 
         if (!kinematicsOnly) {
+          let tOv = 0;
+          if (perf) tOv = performance.now();
           overlayDirty =
             decayPrecipOverlayInPlace(
               this.precipOverlay,
               cfg.precipOverlayDecay,
             ) || overlayDirty;
+          if (perf) perf.overlay += performance.now() - tOv;
+
+          let tSf = 0;
+          if (perf) tSf = performance.now();
           this.tileSurface.stepClimateMinute(
             globe,
             climateSubsolarNext,
             gClimate,
             m + 1
           );
+          if (perf) perf.surface += performance.now() - tSf;
         }
 
         for (const inst of this.instances) {
+          let ta = 0;
+          if (perf) ta = performance.now();
           advectInstanceFixed(globe, inst, 1, cfg);
+          if (perf) perf.advect += performance.now() - ta;
 
+          let tr = 0;
+          if (perf) tr = performance.now();
           let tpl = CLIP_TEMPLATES[inst.templateIndex]!;
           let dur = tpl.frames.length;
           let ageFrames = Math.floor((m + 1 - inst.birthUtcMinute) / minPer);
@@ -1321,11 +1404,14 @@ export class CloudClipField {
             dur = tpl.frames.length;
             ageFrames = Math.floor((m + 1 - inst.birthUtcMinute) / minPer);
           }
+          if (perf) perf.respawn += performance.now() - tr;
 
           if (!kinematicsOnly) {
             const fi = Math.max(0, Math.min(dur - 1, ageFrames));
             const frame = tpl.frames[fi]!;
             if (frame.precipWeight > 0.008) {
+              let tp = 0;
+              if (perf) tp = performance.now();
               overlayDirty =
                 this.applyInstanceCloudPrecipAtFrame(
                   globe,
@@ -1337,10 +1423,15 @@ export class CloudClipField {
                   subsolarLatDeg,
                   precipByTile,
                 ) || overlayDirty;
+              if (perf) perf.precipApply += performance.now() - tp;
             }
           }
         }
       }
+    }
+
+    if (rec && perf) {
+      flushCloudSyncPerfBuckets(rec, perf);
     }
 
     if (!kinematicsOnly && overlayDirty) {
@@ -1619,6 +1710,7 @@ export class CloudClipField {
     this.instancedCloudMeshes = null;
     this.protoBuiltRefs = null;
     this.instancedMeshesInitKey = "";
+    this._instSyncSlotTpl = null;
   }
 
   private ensureInstancedCloudMeshes(root: THREE.Group, globe: Globe): void {
@@ -1714,10 +1806,24 @@ export class CloudClipField {
       sunDirectionTowardSun != null &&
       sunDirectionTowardSun.lengthSq() > 1e-12;
 
+    const nTpl = CLIP_TEMPLATES.length;
+    let slotTpl = this._instSyncSlotTpl;
+    if (!slotTpl || slotTpl.length < cap) {
+      slotTpl = new Int8Array(cap);
+      this._instSyncSlotTpl = slotTpl;
+    }
+    slotTpl.fill(-1);
+    for (const inst of this.instances) {
+      const s = inst.annualSlot;
+      if (s < 0 || s >= cap) continue;
+      slotTpl[s] = inst.templateIndex % nTpl;
+    }
+
     const z = _zeroInstanceMat.elements;
-    for (const mesh of meshes) {
-      const a = mesh.instanceMatrix.array as Float32Array;
+    for (let ti = 0; ti < nTpl; ti++) {
+      const a = meshes[ti]!.instanceMatrix.array as Float32Array;
       for (let s = 0, o = 0; s < cap; s++, o += 16) {
+        if (slotTpl[s] === ti) continue;
         a.set(z, o);
       }
     }
@@ -1736,13 +1842,14 @@ export class CloudClipField {
       );
       const { scaleMul, opacity } = lifecycleEnvelopeScaleOpacity(uLife);
       const displayScale = inst.baseScale * scaleMul;
-      const t = inst.templateIndex % CLIP_TEMPLATES.length;
+      const t = inst.templateIndex % nTpl;
       const protoRef = protoRefs[t]!;
       const sVis = protoRef > 1e-12 ? displayScale / protoRef : 1;
 
       extrapolateRenderAnchor(globe, inst, extraMin, cfg, _renderAnchor);
       if (doCull && cullDot != null) {
         if (_renderAnchor.dot(_camWorld) <= cullDot) {
+          (meshes[t]!.instanceMatrix.array as Float32Array).set(z, s * 16);
           continue;
         }
       }

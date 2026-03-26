@@ -1,6 +1,10 @@
 /**
  * Simple seasonal climate: precipitation (ITCZ band) and temperature.
  * Used to scale river flow by "rainy season" and to support future snow/ice.
+ *
+ * **Determinism:** this module uses only pure math from inputs (lat, subsolar, calendar, optional lon).
+ * Procedural clouds in {@link ./cloudClipSystem.js} use `u32Hash` (no `Math.random`).
+ * For lockstep multiplayer, keep an authoritative **simulated calendar** and fixed **cloud seed** in sync.
  */
 
 import type { TerrainType } from "../terrain/types.js";
@@ -20,6 +24,20 @@ function latLonNoise(latDeg: number, lonDeg: number): number {
 }
 
 /**
+ * ITCZ Gaussian only (no polar band / noise). Cheaper than {@link getPrecipitation} for game-scale
+ * cloud spawn weights when polar detail is unnecessary.
+ */
+export function getPrecipitationItczOnly(
+  latDeg: number,
+  subsolarLatDeg: number,
+): number {
+  const dist = Math.abs(latDeg - subsolarLatDeg);
+  const halfWidth = 18;
+  const itcz = Math.exp(-(dist * dist) / (2 * halfWidth * halfWidth));
+  return Math.max(0, Math.min(1, itcz * 1.2));
+}
+
+/**
  * Precipitation factor 0–1: ITCZ band (high near subsolar) plus extended
  * precipitation toward the poles with deterministic randomization so high
  * latitudes still get clouds and precip overlay.
@@ -30,11 +48,7 @@ export function getPrecipitation(
   subsolarLatDeg: number,
   lonDeg?: number
 ): number {
-  const dist = Math.abs(latDeg - subsolarLatDeg);
-  const halfWidth = 18;
-  const itcz = Math.exp(-(dist * dist) / (2 * halfWidth * halfWidth));
-  let precip = Math.max(0, Math.min(1, itcz * 1.2));
-
+  let precip = getPrecipitationItczOnly(latDeg, subsolarLatDeg);
   const absLat = Math.abs(latDeg);
   if (absLat > POLAR_PRECIP_LAT) {
     const t = (absLat - POLAR_PRECIP_LAT) / (90 - POLAR_PRECIP_LAT);

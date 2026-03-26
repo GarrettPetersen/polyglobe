@@ -22,18 +22,11 @@ const deadlineMs = Math.max(
 const lines = [];
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
-page.on("console", async (msg) => {
-  if (!msg.text().includes("[globe-perf]")) return;
-  try {
-    const parts = [];
-    for (const a of msg.args()) {
-      const j = await a.jsonValue().catch(() => null);
-      parts.push(j !== undefined && j !== null ? JSON.stringify(j) : String(a));
-    }
-    lines.push(parts.join(" "));
-  } catch {
-    lines.push(msg.text());
-  }
+/** Sync handler only: awaiting `arg.jsonValue()` on console messages can stall headless Chromium. */
+page.on("console", (msg) => {
+  const t = msg.text();
+  if (!t.includes("[globe-perf]")) return;
+  lines.push(t);
 });
 console.error("Opening", url, "…");
 await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });

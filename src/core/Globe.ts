@@ -38,6 +38,8 @@ export class Globe {
   readonly mesh: THREE.Mesh;
   /** Tile-center latitude in degrees (geodesic center, same convention as {@link tileCenterToLatLon} on unit sphere). */
   readonly tileCenterLatDeg: Float32Array;
+  /** Tile-center longitude in degrees (same convention as {@link tileCenterToLatLon}: equirectangular-style °E). */
+  readonly tileCenterLonDeg: Float32Array;
   private tileById: Map<number, GeodesicTile>;
   /** Spatial index: cell index -> tile IDs to test. Makes getTileIdAtDirection O(1) in tile count. */
   private directionGrid: number[][];
@@ -50,9 +52,12 @@ export class Globe {
     this.tileById = new Map(this.tiles.map((t) => [t.id, t]));
     const n = this.tiles.length;
     this.tileCenterLatDeg = new Float32Array(n);
+    this.tileCenterLonDeg = new Float32Array(n);
     for (let i = 0; i < n; i++) {
-      const y = THREE.MathUtils.clamp(this.tiles[i]!.center.y, -1, 1);
+      const c = this.tiles[i]!.center;
+      const y = THREE.MathUtils.clamp(c.y, -1, 1);
       this.tileCenterLatDeg[i] = (Math.asin(y) * 180) / Math.PI;
+      this.tileCenterLonDeg[i] = (-Math.atan2(c.z, c.x) * 180) / Math.PI;
     }
     this.directionGrid = this.buildDirectionGrid();
 

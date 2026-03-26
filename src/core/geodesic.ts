@@ -525,7 +525,9 @@ export function buildFlatGeometryData(
       const snowApexIdx = vertexOffset;
       positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
       normals.push(cn.x, cn.y, cn.z);
-      tileIds.push(-1);
+      /** Negative id encodes parent tile for GPU land-weather sampling: decode as `-(id+1)` → `tile.id`. */
+      const snowCapTileIdEnc = -(tile.id + 1);
+      tileIds.push(snowCapTileIdEnc);
       vertexOffset++;
       const capBase = vertexOffset;
       for (let i = 0; i < n; i++) {
@@ -538,7 +540,7 @@ export function buildFlatGeometryData(
         topPosScratch.copy(cn).multiplyScalar(rCap).add(inPlaneScratch);
         positions.push(topPosScratch.x, topPosScratch.y, topPosScratch.z);
         normals.push(cn.x, cn.y, cn.z);
-        tileIds.push(-1);
+        tileIds.push(snowCapTileIdEnc);
         vertexOffset++;
       }
       for (let i = 0; i < n; i++) {

@@ -51,10 +51,12 @@ export function logPerfDiagHelp(): void {
       "Slice times are main-thread CPU; Three.js line is draw calls + triangles (not real GPU ms). " +
       "Frame line is JSON sorted by cost; _unattributedMs is wall time minus summed slices (browser/GC). " +
       "Vegetation GLTF loads after the globe is ready (deferred); perf logs `deferred vegetation GLTF+instancing (ms)` when ?perf=1. Vegetation tree logs: ?treeDebug=1. " +
-      "15s sim day: ?dayLengthSec=15 (same as autoTimeSpeed=5760). Coarse cloud/wind quantum: ?cloudTick=60|120 — large values skip most per-frame cloud sync; omit ?cloudCoarseDriftMul for auto 0.5 when tick≥60. Preset ?lowLatencyClouds=1 → 120 min + drift 0.5 (unless tick/drift explicit). " +
+      "15s sim day: ?dayLengthSec=15 (same as autoTimeSpeed=5760). Coarse cloud/wind quantum: ?cloudTick=60|120 — large values skip most per-frame cloud sync; omit ?cloudCoarseDriftMul for auto 0.5 when tick≥60. Preset ?lowLatencyClouds=1 → 120 min + drift 0.5 + simple ITCZ-only clip precip (override ?simpleClipPrecip=0|1). " +
       "Auto-run sim clock after build: ?autoTimeSpeed=3600 (omit or 0 = paused until Play). " +
-      "Land wet/snow: GPU data texture; ?landWeatherSample=0.01 default (stochastic land tiles per flush; 1 = full). " +
-      "Wind/flow/precip: default ?hydroField=game (no global wind/current minute refresh; sample via __polyglobeSampleHydroForTiles). ?hydroField=full for global overlays; focus/sailing = regional ring; off/train = no hydro. `cloudPhysicsCatchUp` = discrete day apply + sync toward quantized `cloudTick` target; with long ticks most frames skip sync when caught up. Spikes: sim-day boundary (applyDiscreteWeatherDayToClipField) and multi-minute catch-up bursts. Frame slices: `windFlowMinuteTick` vs `cloudPhysicsCatchUp`.",
+      "Land wet/snow: GPU data texture; ?landWeatherSample=0.01 default (stochastic land tiles per flush; 1 = full). ?landWeatherCloudStride=N (default 4 when sampling) throttles dirty from cloud-surface rev bumps. " +
+      "Wind/flow/precip: default ?hydroField=game (no global wind/current minute refresh; sample via __polyglobeSampleHydroForTiles). ?hydroField=full for global overlays; focus/sailing = regional ring; off/train = no hydro. `cloudPhysicsCatchUp` = discrete day apply + sync toward quantized `cloudTick` target; with long ticks most frames skip sync when caught up. Spikes: sim-day boundary (applyDiscreteWeatherDayToClipField) and multi-minute catch-up bursts. Frame slices: `windFlowMinuteTick` vs `cloudPhysicsCatchUp`. " +
+      "Live precip map refill: default `?clipPrecipHoldMin` (minutes) = max(360, 8×`cloudTick`) capped 1440; subsolar for wind/spawn stays exact per minute. " +
+      "Cloud sync sub-slices (avg ms, summed inside catch-up): `cloudPhys_discreteDayApply`, `cloudPhys_overlayDecay`, `cloudPhys_tileSurfaceSteps`, `cloudPhys_precipMapBuild`, `cloudPhys_advect`, `cloudPhys_respawn`, `cloudPhys_cloudPrecipApply`.",
   );
 }
 
@@ -93,6 +95,8 @@ export function createBuildPerfMarker():
 export interface FramePerfSampler {
   startFrame: () => void;
   slice: (label: string) => void;
+  /** Add CPU ms to a slice without advancing the sequential `slice` cursor (for nested timers). */
+  addAccumulatedMs: (label: string, ms: number) => void;
   addMinuteTickCpuMs: (ms: number) => void;
   endFrame: (renderer: THREE.WebGLRenderer, frameIndex: number) => void;
 }
@@ -107,6 +111,7 @@ export function createFramePerfSamplerOrNoop(logEvery: number): FramePerfSampler
     return {
       startFrame: () => {},
       slice: () => {},
+      addAccumulatedMs: () => {},
       addMinuteTickCpuMs: () => {},
       endFrame: () => {},
     };
@@ -114,8 +119,12 @@ export function createFramePerfSamplerOrNoop(logEvery: number): FramePerfSampler
   return createFramePerfSampler(logEvery);
 }
 
+/** Nested timers inside `cloudPhysicsCatchUp` — not added to top-level slice sum (avoids double count). */
+const CLOUD_PHYS_SUB_PREFIX = "cloudPhys_";
+
 export function createFramePerfSampler(logEvery: number): FramePerfSampler {
   const sums: Record<string, number> = {};
+  const cloudPhysSubs: Record<string, number> = {};
   let last = 0;
   let frameT0 = 0;
   let minuteTickCount = 0;
@@ -132,6 +141,14 @@ export function createFramePerfSampler(logEvery: number): FramePerfSampler {
       const t = performance.now();
       sums[label] = (sums[label] ?? 0) + (t - last);
       last = t;
+    },
+    addAccumulatedMs(label: string, ms: number) {
+      if (!(ms > 0) || !Number.isFinite(ms)) return;
+      if (label.startsWith(CLOUD_PHYS_SUB_PREFIX)) {
+        cloudPhysSubs[label] = (cloudPhysSubs[label] ?? 0) + ms;
+        return;
+      }
+      sums[label] = (sums[label] ?? 0) + ms;
     },
     addMinuteTickCpuMs(ms: number) {
       minuteTickCount += 1;
@@ -194,6 +211,24 @@ export function createFramePerfSampler(logEvery: number): FramePerfSampler {
         `frame CPU avg ms (last ${n} frames, sorted high→low)`,
         JSON.stringify(Object.fromEntries(sorted)),
       );
+
+      const subKeys = Object.keys(cloudPhysSubs);
+      if (subKeys.length > 0) {
+        const subAvg: Record<string, string> = {};
+        for (const k of subKeys) {
+          subAvg[k] = (cloudPhysSubs[k]! / n).toFixed(2);
+        }
+        const subSorted = Object.entries(subAvg).sort(
+          (a, b) => parseFloat(b[1]) - parseFloat(a[1]),
+        );
+        console.log(
+          PERF_LOG,
+          `cloud physics sub-avg ms (inside cloudPhysicsCatchUp, last ${n} frames)`,
+          JSON.stringify(Object.fromEntries(subSorted)),
+        );
+        for (const k of subKeys) delete cloudPhysSubs[k];
+      }
+
       console.log(PERF_LOG, "Three.js render info (last frame before reset)", gpuHint);
 
       for (const k of Object.keys(sums)) delete sums[k];

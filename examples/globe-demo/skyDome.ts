@@ -34,8 +34,9 @@ const FRAGMENT = `
     float viewAltitude = dot(viewDir, upFromCamera);
 
     // Gradual day -> twilight -> night over a wide band (red right on the cusp)
-    // night: 1 when sun well below horizon, 0 when sun above ~-0.15
-    float night = smoothstep(0.12, -0.35, sunAltitude);
+    // night: 1 when sun well below horizon, 0 when sun above ~0.12.
+    // Use canonical smoothstep ordering; reversed edges are undefined in GLSL.
+    float night = 1.0 - smoothstep(-0.35, 0.12, sunAltitude);
     // day: 1 when sun well above horizon, 0 when sun below ~0.1
     float day = smoothstep(-0.25, 0.35, sunAltitude);
     // twilight: dominant when sunAltitude in [-0.35, 0.35], peaks near 0
@@ -101,7 +102,8 @@ export function createSkyDome(options: SkyDomeOptions = {}): {
       uCameraPosition: { value: new THREE.Vector3(0, 0, 0) },
     },
     side: THREE.BackSide,
-    depthWrite: true,
+    /** Opaque sky but do not write depth — avoids z-fighting / limb artifacts vs the ~1-unit globe. */
+    depthWrite: false,
     depthTest: true,
   });
 

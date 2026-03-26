@@ -5,7 +5,13 @@
 import * as THREE from "three";
 import type { Globe } from "../core/Globe.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
-import { getPrecipitation } from "./seasonalClimate.js";
+import {
+  getPrecipitation,
+  getPrecipitationItczOnly,
+} from "./seasonalClimate.js";
+
+/** How {@link fillPrecipitationForGlobeTilesIntoMap} evaluates rain potential per tile. */
+export type GlobePrecipFillMode = "full" | "itcz";
 
 export interface PrecipitationOverlayOptions {
   /** Height above tile center in globe units. Default 0.06 */
@@ -53,6 +59,96 @@ export function getPrecipitationByTileWithMoisture(
     out.set(tile.id, Math.max(0, Math.min(1, p * mul)));
   }
   return out;
+}
+
+/**
+ * Same result as {@link getPrecipitationByTileWithMoisture} but writes into `out` (reuse one Map).
+ * Skips {@link Map.clear} when `out.size === tiles.length` so keys are overwritten in place.
+ */
+export function fillPrecipitationByTileWithMoistureIntoMap(
+  tiles: { id: number; center: THREE.Vector3 }[],
+  subsolarLatDeg: number,
+  moistureByTile: Map<number, number> | null | undefined,
+  out: Map<number, number>,
+): void {
+  const n = tiles.length;
+  if (out.size !== n) {
+    out.clear();
+  }
+  if (!moistureByTile || moistureByTile.size === 0) {
+    for (const tile of tiles) {
+      const { lat, lon } = tileCenterToLatLon(tile.center);
+      const latDeg = (lat * 180) / Math.PI;
+      const lonDeg = (lon * 180) / Math.PI;
+      out.set(
+        tile.id,
+        getPrecipitation(latDeg, subsolarLatDeg, lonDeg),
+      );
+    }
+    return;
+  }
+  for (const tile of tiles) {
+    const { lat, lon } = tileCenterToLatLon(tile.center);
+    const latDeg = (lat * 180) / Math.PI;
+    const lonDeg = (lon * 180) / Math.PI;
+    const p = getPrecipitation(latDeg, subsolarLatDeg, lonDeg);
+    const mul = moistureByTile.get(tile.id) ?? 0.65;
+    out.set(tile.id, Math.max(0, Math.min(1, p * mul)));
+  }
+}
+
+/**
+ * Same as {@link fillPrecipitationByTileWithMoistureIntoMap} but uses {@link Globe.tileCenterLatDeg} /
+ * {@link Globe.tileCenterLonDeg} (no per-tile {@link tileCenterToLatLon}). `itcz` skips polar band and
+ * longitude noise for a large CPU win on high subdivisions.
+ */
+export function fillPrecipitationForGlobeTilesIntoMap(
+  globe: Globe,
+  subsolarLatDeg: number,
+  moistureByTile: Map<number, number> | null | undefined,
+  out: Map<number, number>,
+  mode: GlobePrecipFillMode,
+): void {
+  const n = globe.tileCount;
+  if (out.size !== n) {
+    out.clear();
+  }
+  const latArr = globe.tileCenterLatDeg;
+  const lonArr = globe.tileCenterLonDeg;
+  const hasMoisture = moistureByTile && moistureByTile.size > 0;
+
+  if (mode === "itcz") {
+    if (!hasMoisture) {
+      for (let i = 0; i < n; i++) {
+        out.set(
+          i,
+          getPrecipitationItczOnly(latArr[i]!, subsolarLatDeg),
+        );
+      }
+      return;
+    }
+    for (let i = 0; i < n; i++) {
+      const p = getPrecipitationItczOnly(latArr[i]!, subsolarLatDeg);
+      const mul = moistureByTile!.get(i) ?? 0.65;
+      out.set(i, Math.max(0, Math.min(1, p * mul)));
+    }
+    return;
+  }
+
+  if (!hasMoisture) {
+    for (let i = 0; i < n; i++) {
+      out.set(
+        i,
+        getPrecipitation(latArr[i]!, subsolarLatDeg, lonArr[i]!),
+      );
+    }
+    return;
+  }
+  for (let i = 0; i < n; i++) {
+    const p = getPrecipitation(latArr[i]!, subsolarLatDeg, lonArr[i]!);
+    const mul = moistureByTile!.get(i) ?? 0.65;
+    out.set(i, Math.max(0, Math.min(1, p * mul)));
+  }
 }
 
 function instancedMatrixCapacity(mesh: THREE.InstancedMesh): number {

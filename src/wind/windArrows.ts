@@ -48,7 +48,7 @@ function disposeInstancedConeChildren(group: THREE.Group): void {
 function ensureConeInstancedMesh(
   group: THREE.Group,
   globe: Globe,
-  color: THREE.ColorRepresentation
+  color: THREE.ColorRepresentation,
 ): THREE.InstancedMesh {
   const cap = Math.max(1, globe.tileCount);
   const first = group.children[0];
@@ -80,7 +80,7 @@ function ensureConeInstancedMesh(
 export function createWindArrows(
   globe: Globe,
   windByTile: Map<number, TileWind>,
-  options: WindArrowsOptions = {}
+  options: WindArrowsOptions = {},
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = "WindArrows";
@@ -96,7 +96,7 @@ export function updateWindArrows(
   group: THREE.Group,
   globe: Globe,
   windByTile: Map<number, TileWind>,
-  options: WindArrowsOptions = {}
+  options: WindArrowsOptions = {},
 ): void {
   const {
     heightOffset = 0.08,
@@ -170,7 +170,7 @@ export interface FlowArrowsOptions extends WindArrowsOptions {}
 export function createFlowArrows(
   globe: Globe,
   flowByTile: Map<number, HexFlow>,
-  options: FlowArrowsOptions = {}
+  options: FlowArrowsOptions = {},
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = "FlowArrows";
@@ -185,7 +185,7 @@ export function updateFlowArrows(
   group: THREE.Group,
   globe: Globe,
   flowByTile: Map<number, HexFlow>,
-  options: FlowArrowsOptions = {}
+  options: FlowArrowsOptions = {},
 ): void {
   const {
     heightOffset = 0.08,

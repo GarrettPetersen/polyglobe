@@ -66,7 +66,10 @@ export interface VegetationOptions {
     /** Multiple geometries per type: one InstancedMesh per variant. Use with getXxxVariantIndex. */
     trees?: THREE.BufferGeometry[];
     /** When set, trees are drawn as trunk (brown) + foliage (tinted) per variant. Overrides trees for tree type. */
-    treeTrunkFoliage?: ({ trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | undefined)[];
+    treeTrunkFoliage?: (
+      | { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry }
+      | undefined
+    )[];
     bushes?: THREE.BufferGeometry[];
     rocks?: THREE.BufferGeometry[];
   };
@@ -76,10 +79,30 @@ export interface VegetationOptions {
    */
   getTreeVariantScale?: (variantIndex: number) => number;
   /** Pick tree variant index (0..trees.length-1) from biome and lon/lat (degrees). For region-specific e.g. bamboo. */
-  getTreeVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
-  getBushVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
-  getGrassVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
-  getRockVariantIndex?: (biome: string, latDeg: number, lonDeg: number, rnd: () => number) => number;
+  getTreeVariantIndex?: (
+    biome: string,
+    latDeg: number,
+    lonDeg: number,
+    rnd: () => number,
+  ) => number;
+  getBushVariantIndex?: (
+    biome: string,
+    latDeg: number,
+    lonDeg: number,
+    rnd: () => number,
+  ) => number;
+  getGrassVariantIndex?: (
+    biome: string,
+    latDeg: number,
+    lonDeg: number,
+    rnd: () => number,
+  ) => number;
+  getRockVariantIndex?: (
+    biome: string,
+    latDeg: number,
+    lonDeg: number,
+    rnd: () => number,
+  ) => number;
   /** Current date for seasonal foliage (deciduous fall/winter). When set, deciduous trees use fall colors and drop leaves in winter; Southern hemisphere and tropics (dry/wet) are handled. */
   getDate?: () => Date;
   /**
@@ -154,7 +177,7 @@ function radiusAtPoint(
   isHilly: boolean,
   hillyBumpHeight: number,
   peakApexM: number | undefined,
-  peakElevationScale: number
+  peakElevationScale: number,
 ): number {
   let baseRadius2d = 0;
   for (const c of frame.corners2d) {
@@ -199,7 +222,12 @@ interface Placement {
 export function getSeasonPhase(
   date: Date,
   latDeg: number,
-): { fallProgress: number; isWinter: boolean; isTropical: boolean; dryFactor: number } {
+): {
+  fallProgress: number;
+  isWinter: boolean;
+  isTropical: boolean;
+  dryFactor: number;
+} {
   const month = date.getUTCMonth();
   const dayOfYear =
     (Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
@@ -235,7 +263,7 @@ export function getSeasonPhase(
         : 0;
   const isWinter =
     (northern && (month === 11 || month === 0 || month === 1)) ||
-    (!northern && (month >= 5 && month <= 7));
+    (!northern && month >= 5 && month <= 7);
   return { fallProgress, isWinter, isTropical: false, dryFactor: 0 };
 }
 
@@ -280,7 +308,11 @@ const LAND_BIOMES = new Set<string>([
 const SKIP_BIOMES = new Set<string>(["water", "beach", "ice", "ice_cap"]);
 
 /** Returns number of plants for this hex (0–max). Rainforest dense, savanna sparse, desert very few. */
-function getPlantCount(biome: string, maxPerHex: number, rnd: () => number): number {
+function getPlantCount(
+  biome: string,
+  maxPerHex: number,
+  rnd: () => number,
+): number {
   const cap = Math.max(0, Math.min(20, maxPerHex));
   if (biome === "tropical_rainforest" || biome === "tropical_monsoon") {
     return Math.floor(8 + rnd() * (cap - 7)); // 8–12 dense
@@ -346,7 +378,7 @@ function getPlantType(biome: string, rnd: () => number): PlantType {
   }
   if (biome === "tropical_savanna") {
     /** ~12% trees (was ~7%) — enough instances for palm/acacia; still grass + bush dominant. */
-    return t < 0.60 ? "grass" : t < 0.88 ? "bush" : "tree";
+    return t < 0.6 ? "grass" : t < 0.88 ? "bush" : "tree";
   }
   if (
     biome === "grassland" ||
@@ -408,7 +440,11 @@ function getPlantType(biome: string, rnd: () => number): PlantType {
 }
 
 /** Per-biome palette: rainforest deep green, savanna tan/yellow, desert grey/tan, temperate greens, boreal darker, tundra muted. */
-function getBiomeColor(biome: string, plantType: PlantType, _rnd: () => number): THREE.Color {
+function getBiomeColor(
+  biome: string,
+  plantType: PlantType,
+  _rnd: () => number,
+): THREE.Color {
   const c = new THREE.Color();
   if (plantType === "rock") {
     if (biome === "hot_desert" || biome === "desert") return c.setHex(0xc9b896);
@@ -416,29 +452,62 @@ function getBiomeColor(biome: string, plantType: PlantType, _rnd: () => number):
     return c.setHex(0x6a6a62); // grey
   }
   if (plantType === "grass") {
-    if (biome === "tropical_rainforest" || biome === "tropical_monsoon") return c.setHex(0x2d5016); // shade green
+    if (biome === "tropical_rainforest" || biome === "tropical_monsoon")
+      return c.setHex(0x2d5016); // shade green
     if (biome === "tropical_savanna") return c.setHex(0xb8a050); // dry yellow-tan
-    if (biome === "hot_steppe" || biome === "cold_steppe") return c.setHex(0x9a8c40);
-    if (biome === "hot_desert" || biome === "cold_desert" || biome === "desert") return c.setHex(0x8b7a35);
+    if (biome === "hot_steppe" || biome === "cold_steppe")
+      return c.setHex(0x9a8c40);
+    if (biome === "hot_desert" || biome === "cold_desert" || biome === "desert")
+      return c.setHex(0x8b7a35);
     if (biome === "tundra" || biome === "snow") return c.setHex(0x6b6b50); // muted
-    if (biome === "mediterranean_hot" || biome === "mediterranean_warm" || biome === "mediterranean_cold") return c.setHex(0x7a9a48);
-    if (biome.startsWith("subarctic") || biome === "tundra") return c.setHex(0x5a6b40);
+    if (
+      biome === "mediterranean_hot" ||
+      biome === "mediterranean_warm" ||
+      biome === "mediterranean_cold"
+    )
+      return c.setHex(0x7a9a48);
+    if (biome.startsWith("subarctic") || biome === "tundra")
+      return c.setHex(0x5a6b40);
     return c.setHex(0x4a7c23); // default green
   }
   if (plantType === "bush") {
-    if (biome === "tropical_rainforest" || biome === "tropical_monsoon") return c.setHex(0x1e4a1e);
+    if (biome === "tropical_rainforest" || biome === "tropical_monsoon")
+      return c.setHex(0x1e4a1e);
     if (biome === "tropical_savanna") return c.setHex(0x6b8035); // olive / acacia understory
-    if (biome === "hot_desert" || biome === "cold_desert" || biome === "desert") return c.setHex(0x7a6b40);
-    if (biome === "mediterranean_hot" || biome === "mediterranean_warm" || biome === "mediterranean_cold") return c.setHex(0x5a7a38);
-    if (biome.startsWith("subarctic") || biome === "tundra") return c.setHex(0x3d5030);
+    if (biome === "hot_desert" || biome === "cold_desert" || biome === "desert")
+      return c.setHex(0x7a6b40);
+    if (
+      biome === "mediterranean_hot" ||
+      biome === "mediterranean_warm" ||
+      biome === "mediterranean_cold"
+    )
+      return c.setHex(0x5a7a38);
+    if (biome.startsWith("subarctic") || biome === "tundra")
+      return c.setHex(0x3d5030);
     return c.setHex(0x3d6b1a);
   }
   if (plantType === "tree") {
-    if (biome === "tropical_rainforest" || biome === "tropical_monsoon") return c.setHex(0x1a4a1a); // deep jungle
+    if (biome === "tropical_rainforest" || biome === "tropical_monsoon")
+      return c.setHex(0x1a4a1a); // deep jungle
     if (biome === "tropical_savanna") return c.setHex(0x5a7030); // acacia / sparse green
-    if (biome === "mediterranean_hot" || biome === "mediterranean_warm" || biome === "mediterranean_cold") return c.setHex(0x4a6a28);
-    if (biome === "humid_continental" || biome === "warm_summer_humid" || biome === "oceanic") return c.setHex(0x3d6020); // temperate green
-    if (biome.startsWith("subarctic") || biome === "humid_continental_hot" || biome === "humid_continental_warm") return c.setHex(0x2d4520); // boreal darker
+    if (
+      biome === "mediterranean_hot" ||
+      biome === "mediterranean_warm" ||
+      biome === "mediterranean_cold"
+    )
+      return c.setHex(0x4a6a28);
+    if (
+      biome === "humid_continental" ||
+      biome === "warm_summer_humid" ||
+      biome === "oceanic"
+    )
+      return c.setHex(0x3d6020); // temperate green
+    if (
+      biome.startsWith("subarctic") ||
+      biome === "humid_continental_hot" ||
+      biome === "humid_continental_warm"
+    )
+      return c.setHex(0x2d4520); // boreal darker
     if (biome === "tundra" || biome === "snow") return c.setHex(0x3a4030); // stunted
     return c.setHex(0x2d5016);
   }
@@ -525,7 +594,7 @@ const _treeUp = new THREE.Vector3(0, 1, 0);
 export function createVegetationLayer(
   globe: Globe,
   tileTerrain: Map<number, TileTerrainData>,
-  options: VegetationOptions = {}
+  options: VegetationOptions = {},
 ): {
   group: THREE.Group;
   update: (camera: THREE.Camera) => void;
@@ -533,7 +602,10 @@ export function createVegetationLayer(
 } {
   const maxDrawDistance = options.maxDrawDistance ?? 5.5;
   const elevationScale = options.elevationScale ?? 0.08;
-  const maxPlantsPerHex = Math.max(0, Math.min(20, options.maxPlantsPerHex ?? 12));
+  const maxPlantsPerHex = Math.max(
+    0,
+    Math.min(20, options.maxPlantsPerHex ?? 12),
+  );
   const baseScale = options.baseScale ?? 0.006;
   const maxInstances = options.maxInstancesPerType ?? 2048;
   const hillyBumpHeight = options.hillyBumpHeight ?? 0.003;
@@ -542,14 +614,16 @@ export function createVegetationLayer(
   const peakElevationScale = options.peakElevationScale ?? 0.00002;
   const getTreeVariantScale = options.getTreeVariantScale;
   const getDate = options.getDate;
-  const updateEveryNFrames = Math.max(1, Math.floor(options.updateEveryNFrames ?? 1));
+  const updateEveryNFrames = Math.max(
+    1,
+    Math.floor(options.updateEveryNFrames ?? 1),
+  );
   const hemisphereCull = options.hemisphereCull !== false;
   const hemisphereCullDot = options.hemisphereCullDot ?? -0.22;
   const radius = globe.radius;
   const heapCullMinList = options.heapCullMinPlacements ?? 38_000;
   const orbitCamDist = options.orbitViewCameraDistance;
-  const orbitMaxDraw =
-    options.orbitViewMaxDrawDistance ?? 0.2;
+  const orbitMaxDraw = options.orbitViewMaxDrawDistance ?? 0.2;
   const skipCullWhenCameraStable = options.skipCullWhenCameraStable !== false;
   const cameraStablePosEpsSq = options.cameraStablePosEpsSq ?? 4e-6;
   const cameraStableQuatEps = options.cameraStableQuatEps ?? 8e-5;
@@ -559,7 +633,10 @@ export function createVegetationLayer(
   let hasStableCullSample = false;
 
   function isDeciduousVariant(variantIndex: number): boolean {
-    return (variantIndex >= 0 && variantIndex <= 2) || (variantIndex >= 10 && variantIndex <= 12);
+    return (
+      (variantIndex >= 0 && variantIndex <= 2) ||
+      (variantIndex >= 10 && variantIndex <= 12)
+    );
   }
 
   const fallYellow = new THREE.Color(0xddbb44);
@@ -624,7 +701,7 @@ export function createVegetationLayer(
         isHilly,
         hillyBumpHeight,
         peakApexM,
-        peakElevationScale
+        peakElevationScale,
       );
       tilePlanePoint(frame, lx, ly, rPoint, _positionOut);
       const position = _positionOut.clone();
@@ -632,7 +709,13 @@ export function createVegetationLayer(
       const scale = baseScale * (0.85 + rnd() * 0.3);
       const plantType = getPlantType(typeStr, rnd);
       const color = getBiomeColor(typeStr, plantType, rnd);
-      const variantIndex = getVariantIndex(plantType, typeStr, latDeg, lonDeg, rnd);
+      const variantIndex = getVariantIndex(
+        plantType,
+        typeStr,
+        latDeg,
+        lonDeg,
+        rnd,
+      );
       placements.push({
         position,
         normal,
@@ -652,7 +735,7 @@ export function createVegetationLayer(
     biome: string,
     latDeg: number,
     lonDeg: number,
-    rnd: () => number
+    rnd: () => number,
   ): number {
     const nT =
       options.geometries?.trees?.length ??
@@ -684,7 +767,12 @@ export function createVegetationLayer(
   const group = new THREE.Group();
   group.name = "Vegetation";
 
-  const byType: Record<PlantType, Placement[]> = { tree: [], bush: [], grass: [], rock: [] };
+  const byType: Record<PlantType, Placement[]> = {
+    tree: [],
+    bush: [],
+    grass: [],
+    rock: [],
+  };
   for (const p of placements) {
     byType[p.type].push(p);
   }
@@ -722,7 +810,13 @@ export function createVegetationLayer(
     }
   }
 
-  type MeshEntry = { type: PlantType; list: Placement[]; geometry: THREE.BufferGeometry; name: string; isTrunk?: boolean };
+  type MeshEntry = {
+    type: PlantType;
+    list: Placement[];
+    geometry: THREE.BufferGeometry;
+    name: string;
+    isTrunk?: boolean;
+  };
   const entries: MeshEntry[] = [];
 
   function addEntriesForType(type: PlantType): void {
@@ -735,12 +829,21 @@ export function createVegetationLayer(
     const grassArr = options.geometries?.grass;
     const rocksArr = options.geometries?.rocks;
 
-    if (type === "tree" && treeTrunkFoliageArr && treeTrunkFoliageArr.length > 0) {
+    if (
+      type === "tree" &&
+      treeTrunkFoliageArr &&
+      treeTrunkFoliageArr.length > 0
+    ) {
       const firstLoadedTree = treeTrunkFoliageArr.find(
-        (p): p is { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } =>
+        (
+          p,
+        ): p is {
+          trunk: THREE.BufferGeometry;
+          foliage: THREE.BufferGeometry;
+        } =>
           p != null &&
           !!p.trunk.getAttribute("position") &&
-          !!p.foliage.getAttribute("position")
+          !!p.foliage.getAttribute("position"),
       );
       const byVariant = new Map<number, Placement[]>();
       for (const p of list) {
@@ -751,8 +854,9 @@ export function createVegetationLayer(
       let addedAnyTree = false;
       for (const [variantIndex, variantList] of byVariant) {
         /** Prefer exact treeUrls slot; if missing or empty verts, reuse first OK tree so placements aren't invisible. */
-        let pair: { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry } | undefined =
-          treeTrunkFoliageArr[variantIndex];
+        let pair:
+          | { trunk: THREE.BufferGeometry; foliage: THREE.BufferGeometry }
+          | undefined = treeTrunkFoliageArr[variantIndex];
         const ok =
           pair &&
           pair.trunk.getAttribute("position") &&
@@ -760,17 +864,35 @@ export function createVegetationLayer(
         if (!ok) pair = firstLoadedTree;
         if (!pair || variantList.length === 0) continue;
         const { trunk, foliage } = pair;
-        if (trunk.getAttribute("position") && foliage.getAttribute("position")) {
-          entries.push({ type: "tree", list: variantList, geometry: trunk, name: `Vegetation-tree-v${variantIndex}-trunk`, isTrunk: true });
-          entries.push({ type: "tree", list: variantList, geometry: foliage, name: `Vegetation-tree-v${variantIndex}-foliage` });
+        if (
+          trunk.getAttribute("position") &&
+          foliage.getAttribute("position")
+        ) {
+          entries.push({
+            type: "tree",
+            list: variantList,
+            geometry: trunk,
+            name: `Vegetation-tree-v${variantIndex}-trunk`,
+            isTrunk: true,
+          });
+          entries.push({
+            type: "tree",
+            list: variantList,
+            geometry: foliage,
+            name: `Vegetation-tree-v${variantIndex}-foliage`,
+          });
           addedAnyTree = true;
         }
       }
       if (addedAnyTree) return;
-      console.warn(TREE_LOG, "tree trunk/foliage: no variant had geometry; falling back to placeholder cones", {
-        placements: list.length,
-        slots: treeTrunkFoliageArr.length,
-      });
+      console.warn(
+        TREE_LOG,
+        "tree trunk/foliage: no variant had geometry; falling back to placeholder cones",
+        {
+          placements: list.length,
+          slots: treeTrunkFoliageArr.length,
+        },
+      );
       /** fall through — same as no GLTF trees */
     }
     if (type === "tree" && treesArr && treesArr.length > 0) {
@@ -781,9 +903,15 @@ export function createVegetationLayer(
         byVariant.get(v)!.push(p);
       }
       for (const [variantIndex, variantList] of byVariant) {
-        const geom = treesArr[variantIndex] ?? treesArr[variantIndex % treesArr.length];
+        const geom =
+          treesArr[variantIndex] ?? treesArr[variantIndex % treesArr.length];
         if (geom && variantList.length > 0)
-          entries.push({ type: "tree", list: variantList, geometry: geom, name: `Vegetation-tree-v${variantIndex}` });
+          entries.push({
+            type: "tree",
+            list: variantList,
+            geometry: geom,
+            name: `Vegetation-tree-v${variantIndex}`,
+          });
       }
       return;
     }
@@ -795,9 +923,15 @@ export function createVegetationLayer(
         byVariant.get(v)!.push(p);
       }
       for (const [variantIndex, variantList] of byVariant) {
-        const geom = bushesArr[variantIndex] ?? bushesArr[variantIndex % bushesArr.length];
+        const geom =
+          bushesArr[variantIndex] ?? bushesArr[variantIndex % bushesArr.length];
         if (geom && variantList.length > 0)
-          entries.push({ type: "bush", list: variantList, geometry: geom, name: `Vegetation-bush-v${variantIndex}` });
+          entries.push({
+            type: "bush",
+            list: variantList,
+            geometry: geom,
+            name: `Vegetation-bush-v${variantIndex}`,
+          });
       }
       return;
     }
@@ -809,9 +943,15 @@ export function createVegetationLayer(
         byVariant.get(v)!.push(p);
       }
       for (const [variantIndex, variantList] of byVariant) {
-        const geom = grassArr[variantIndex] ?? grassArr[variantIndex % grassArr.length];
+        const geom =
+          grassArr[variantIndex] ?? grassArr[variantIndex % grassArr.length];
         if (geom && variantList.length > 0)
-          entries.push({ type: "grass", list: variantList, geometry: geom, name: `Vegetation-grass-v${variantIndex}` });
+          entries.push({
+            type: "grass",
+            list: variantList,
+            geometry: geom,
+            name: `Vegetation-grass-v${variantIndex}`,
+          });
       }
       return;
     }
@@ -823,9 +963,15 @@ export function createVegetationLayer(
         byVariant.get(v)!.push(p);
       }
       for (const [variantIndex, variantList] of byVariant) {
-        const geom = rocksArr[variantIndex] ?? rocksArr[variantIndex % rocksArr.length];
+        const geom =
+          rocksArr[variantIndex] ?? rocksArr[variantIndex % rocksArr.length];
         if (geom && variantList.length > 0)
-          entries.push({ type: "rock", list: variantList, geometry: geom, name: `Vegetation-rock-v${variantIndex}` });
+          entries.push({
+            type: "rock",
+            list: variantList,
+            geometry: geom,
+            name: `Vegetation-rock-v${variantIndex}`,
+          });
       }
       return;
     }
@@ -836,17 +982,33 @@ export function createVegetationLayer(
       options.geometries?.treeFoliage != null;
 
     if (useSplitTree) {
-      entries.push({ type: "tree", list, geometry: options.geometries!.treeTrunk!, name: "Vegetation-tree-trunk", isTrunk: true });
-      entries.push({ type: "tree", list, geometry: options.geometries!.treeFoliage!, name: "Vegetation-tree-foliage" });
+      entries.push({
+        type: "tree",
+        list,
+        geometry: options.geometries!.treeTrunk!,
+        name: "Vegetation-tree-trunk",
+        isTrunk: true,
+      });
+      entries.push({
+        type: "tree",
+        list,
+        geometry: options.geometries!.treeFoliage!,
+        name: "Vegetation-tree-foliage",
+      });
       return;
     }
 
     const geom = options.geometries?.[type] ?? makePlaceholderGeometry(type);
     if (type === "tree" && vegetationTreeDebug()) {
-      console.log(TREE_LOG, "tree geometry source", options.geometries?.tree == null ? "PLACEHOLDER (cone)" : "loaded GLTF", {
-        positionCount: geom.getAttribute("position")?.count ?? 0,
-        indexCount: geom.index?.count ?? 0,
-      });
+      console.log(
+        TREE_LOG,
+        "tree geometry source",
+        options.geometries?.tree == null ? "PLACEHOLDER (cone)" : "loaded GLTF",
+        {
+          positionCount: geom.getAttribute("position")?.count ?? 0,
+          indexCount: geom.index?.count ?? 0,
+        },
+      );
     }
     entries.push({ type, list, geometry: geom, name: `Vegetation-${type}` });
   }
@@ -867,7 +1029,11 @@ export function createVegetationLayer(
       const p0 = treeEntries[0]!.list[0]!;
       console.log(TREE_LOG, "first tree placement", {
         scale: p0.scale,
-        position: [p0.position.x.toFixed(4), p0.position.y.toFixed(4), p0.position.z.toFixed(4)],
+        position: [
+          p0.position.x.toFixed(4),
+          p0.position.y.toFixed(4),
+          p0.position.z.toFixed(4),
+        ],
       });
     }
   }
@@ -880,13 +1046,20 @@ export function createVegetationLayer(
       color: isTrunk ? trunkBrown : 0xffffff,
       flatShading: true,
     });
-    const mesh = new THREE.InstancedMesh(geom, material, Math.min(list.length, maxInstances));
+    const mesh = new THREE.InstancedMesh(
+      geom,
+      material,
+      Math.min(list.length, maxInstances),
+    );
     mesh.count = 0;
     mesh.frustumCulled = false;
     mesh.name = name;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     if (!isTrunk) {
-      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(maxInstances * 3), 3);
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(
+        new Float32Array(maxInstances * 3),
+        3,
+      );
       mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
     }
     meshes.push({ mesh, placements: list });
@@ -894,18 +1067,14 @@ export function createVegetationLayer(
   }
 
   const sortedIndices: number[] = [];
-  const distSq = (a: THREE.Vector3, b: THREE.Vector3) =>
-    a.distanceToSquared(b);
+  const distSq = (a: THREE.Vector3, b: THREE.Vector3) => a.distanceToSquared(b);
 
   let treeDrawLogFrames = 0;
   /** -1 so first increment → 0 and throttle (N=2) still runs on first frame. */
   let vegetationFrame = -1;
   function update(camera: THREE.Camera): void {
     vegetationFrame++;
-    if (
-      updateEveryNFrames > 1 &&
-      vegetationFrame % updateEveryNFrames !== 0
-    ) {
+    if (updateEveryNFrames > 1 && vegetationFrame % updateEveryNFrames !== 0) {
       return;
     }
 
@@ -916,7 +1085,8 @@ export function createVegetationLayer(
       if (
         timeKey === lastStableTimeKey &&
         _camPos.distanceToSquared(_lastStableCullPos) < cameraStablePosEpsSq &&
-        Math.abs(_camQuatWorld.dot(_lastStableCullQuat)) > 1 - cameraStableQuatEps
+        Math.abs(_camQuatWorld.dot(_lastStableCullQuat)) >
+          1 - cameraStableQuatEps
       ) {
         return;
       }
@@ -946,7 +1116,11 @@ export function createVegetationLayer(
       return;
     }
 
-    const treeDrawCounts: { name: string; inRange: number; drawCount: number }[] = [];
+    const treeDrawCounts: {
+      name: string;
+      inRange: number;
+      drawCount: number;
+    }[] = [];
     const wetCache = getTileWetness ? new Map<number, number>() : null;
     const snowCache = getTileSnowCover ? new Map<number, number>() : null;
 
@@ -1100,8 +1274,18 @@ export function createVegetationLayer(
           count: mesh.count,
           frustumCulled: mesh.frustumCulled,
           geometryVertices: mesh.geometry.getAttribute("position")?.count ?? 0,
-          firstPlacementPosition: firstPos ? [firstPos.x.toFixed(4), firstPos.y.toFixed(4), firstPos.z.toFixed(4)] : null,
-          cameraPosition: [_camPos.x.toFixed(4), _camPos.y.toFixed(4), _camPos.z.toFixed(4)],
+          firstPlacementPosition: firstPos
+            ? [
+                firstPos.x.toFixed(4),
+                firstPos.y.toFixed(4),
+                firstPos.z.toFixed(4),
+              ]
+            : null,
+          cameraPosition: [
+            _camPos.x.toFixed(4),
+            _camPos.y.toFixed(4),
+            _camPos.z.toFixed(4),
+          ],
           parentName: mesh.parent?.name ?? mesh.parent?.type ?? null,
           groupParent: (mesh.parent as THREE.Object3D)?.parent?.type ?? null,
         });

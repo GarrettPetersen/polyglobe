@@ -77,6 +77,8 @@ import {
   climateSurfaceSnowVisualForTerrain,
   getPrecipitationByTile,
   getPrecipitationByTileWithMoisture,
+  fillPrecipitationByTileWithMoistureIntoMap,
+  fillPrecipitationForGlobeTilesIntoMap,
   buildMoistureByTileFromTerrain,
   annualDayIndexFromDate,
   buildAnnualTileWeatherTables,
@@ -241,7 +243,6 @@ import {
   dateToGreenwichMeanSiderealTimeRad,
 } from "./astronomy.js";
 import { createPlanetsMesh } from "./planets.js";
-import { createSkyDome } from "./skyDome.js";
 import {
   logPerfDiagUrlHint,
   logPerfDiagHelp,
@@ -249,6 +250,7 @@ import {
   createFramePerfSamplerOrNoop,
   isPerfDiagEnabled,
   PERF_LOG,
+  type FramePerfSampler,
 } from "./perfDiag.js";
 
 /** Plant assets live in public/plant-models/ so Vite serves them at /plant-models/. Run dev from examples/globe-demo. */
@@ -590,6 +592,118 @@ function readTimePlaySpeedFromUrl(): number {
 }
 
 /**
+ * `?shadows=0` disables directional shadow-map rendering (fast culprit isolation for limb flashes).
+ * Omitted or truthy keeps shadows on.
+ */
+function readShadowsEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  if (!q.has("shadows")) return true;
+  const v = (q.get("shadows") ?? "").toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?lensflare=0` disables sun lensflare quads (common source of one-frame giant polygons).
+ * Omitted or truthy keeps flare enabled.
+ */
+function readLensflareEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  if (!q.has("lensflare")) return true;
+  const v = (q.get("lensflare") ?? "").toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?vegetation=0` or `?plants=0` disables plant instancing for artifact isolation.
+ * Omitted or truthy keeps vegetation on.
+ */
+function readVegetationEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  const raw = q.get("vegetation") ?? q.get("plants");
+  if (raw == null) return true;
+  const v = raw.toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?riverHex=0` or `?rivers=0` disables river bed/bank hex meshes for artifact isolation.
+ * Omitted or truthy keeps river hex meshes on.
+ */
+function readRiverHexEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  const raw = q.get("riverHex") ?? q.get("rivers");
+  if (raw == null) return true;
+  const v = raw.toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?moon=0` disables the moon mesh/light for artifact isolation.
+ * Omitted or truthy keeps moon enabled.
+ */
+function readMoonEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  if (!q.has("moon")) return true;
+  const v = (q.get("moon") ?? "").toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?stars=0` or `?starfield=0` disables the star layer for artifact isolation.
+ * Omitted or truthy keeps stars enabled.
+ */
+function readStarsEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  const raw = q.get("stars") ?? q.get("starfield");
+  if (raw == null) return true;
+  const v = raw.toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?planets=0` disables moving planet points for artifact isolation.
+ * Omitted or truthy keeps planets enabled.
+ */
+function readPlanetsEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  if (!q.has("planets")) return true;
+  const v = (q.get("planets") ?? "").toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?water=0` disables water mesh rendering for artifact isolation.
+ * Omitted or truthy keeps water enabled.
+ */
+function readWaterEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  if (!q.has("water")) return true;
+  const v = (q.get("water") ?? "").toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
+ * `?coastFoam=0` or `?foam=0` disables animated coast foam overlay for artifact isolation.
+ * Omitted or truthy keeps coast foam enabled.
+ */
+function readCoastFoamEnabledFromUrl(): boolean {
+  if (typeof window === "undefined") return true;
+  const q = new URLSearchParams(window.location.search);
+  const raw = q.get("coastFoam") ?? q.get("foam");
+  if (raw == null) return true;
+  const v = raw.toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+/**
  * `?landWeatherSample=f` — stochastic fraction of **land** tiles updated per land-weather texture flush
  * (default ~1%: sparse updates, lower CPU; salt mixes calendar year/day so snow/wet drifts differ by year).
  * `1` = full pass.
@@ -603,6 +717,28 @@ function readLandWeatherSampleFractionFromUrl(): number {
   const n = Number.parseFloat(raw);
   if (!Number.isFinite(n) || n <= 0) return LAND_WEATHER_STOCHASTIC_DEFAULT;
   return Math.min(n, 1);
+}
+
+/**
+ * `?landWeatherCloudStride=N` — mark land-weather dirty only when `floor(cloudSurfaceRev / N)` advances
+ * (default **N=4** if `landWeatherSample` &lt; 1, else **1**). Cuts CPU from tight cloud↔GPU coupling;
+ * wet/snow tint can lag by a few cloud sim steps.
+ */
+function readLandWeatherCloudRevStrideFromUrl(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get(
+    "landWeatherCloudStride",
+  );
+  if (raw == null || raw === "") return null;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(n, 256);
+}
+
+function effectiveLandWeatherCloudRevStride(): number {
+  const url = readLandWeatherCloudRevStrideFromUrl();
+  if (url != null) return url;
+  return readLandWeatherSampleFractionFromUrl() >= 1 ? 1 : 4;
 }
 
 /**
@@ -667,6 +803,24 @@ function lowLatencyCloudsPresetFromUrl(): boolean {
   return true;
 }
 
+/**
+ * `?simpleClipPrecip=1` — ITCZ-only precip map for cloud clip spawn (no polar band / lon noise) + fast lat/lon arrays.
+ * Omitted: on when `?lowLatencyClouds=1`, off when `?simpleClipPrecip=0`.
+ */
+function readSimpleClipPrecipFromUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  if (q.has("simpleClipPrecip")) {
+    const v = (q.get("simpleClipPrecip") ?? "").toLowerCase().trim();
+    if (v === "0" || v === "false" || v === "off" || v === "no") return false;
+    return true;
+  }
+  return lowLatencyCloudsPresetFromUrl();
+}
+
+/** Live precip fill for cloud physics: set from URL in {@link applyCloudTickAndDriftFromUrl}. */
+let clipPrecipSimpleItczFill = false;
+
 function applyCloudTickAndDriftFromUrl(state: DemoState): void {
   let tick = readCloudPhysicsQuantumMinutesFromUrl();
   if (lowLatencyCloudsPresetFromUrl() && !urlHasExplicitCloudTickParam()) {
@@ -684,6 +838,7 @@ function applyCloudTickAndDriftFromUrl(state: DemoState): void {
       state.cloudPhysicsQuantumMinutes,
     );
   }
+  clipPrecipSimpleItczFill = readSimpleClipPrecipFromUrl();
 }
 
 /**
@@ -2161,7 +2316,7 @@ async function loadTemperatureMonthlyBin() {
 }
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x030508);
+scene.background = null;
 
 const camera = new THREE.PerspectiveCamera(
   60,
@@ -2170,24 +2325,33 @@ const camera = new THREE.PerspectiveCamera(
   4000,
 );
 camera.layers.set(0);
-let starfield: InstanceType<typeof Starfield> = new Starfield({
+const starsEnabledFromUrl = readStarsEnabledFromUrl();
+const planetsEnabledFromUrl = readPlanetsEnabledFromUrl();
+let starfield: InstanceType<typeof Starfield> | null = starsEnabledFromUrl
+  ? new Starfield({
   density: 70,
   sparsity: 0.12,
   twinkleSpeed: 0.5,
   twinkleAmount: 0.5,
   color: 0xf0f4ff,
-});
-starfield.attachToCamera(camera);
+  })
+  : null;
+if (starfield) starfield.attachToCamera(camera);
 /** When using catalog starfield, updates planet positions each frame. */
 let planetsUpdate: ((date: Date) => void) | null = null;
-const skyDome = createSkyDome({ radius: 4000 });
-scene.add(skyDome.mesh);
 scene.add(camera);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setClearColor(0x030508, 1);
-renderer.shadowMap.enabled = true;
+renderer.setClearColor(0x000000, 0);
+const shadowsEnabledFromUrl = readShadowsEnabledFromUrl();
+const lensflareEnabledFromUrl = readLensflareEnabledFromUrl();
+const vegetationEnabledFromUrl = readVegetationEnabledFromUrl();
+const riverHexEnabledFromUrl = readRiverHexEnabledFromUrl();
+const moonEnabledFromUrl = readMoonEnabledFromUrl();
+const waterEnabledFromUrl = readWaterEnabledFromUrl();
+const coastFoamEnabledFromUrl = readCoastFoamEnabledFromUrl();
+renderer.shadowMap.enabled = shadowsEnabledFromUrl;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
@@ -2214,6 +2378,21 @@ const _sunSphereTintA = new THREE.Color(0xfff5e0);
 const _sunSphereTintB = new THREE.Color(0xff8844);
 /** Sun direction for cloud sync paths outside the main `sunDir` scratch timing. */
 const _cloudSyncSunDir = new THREE.Vector3();
+const _bgNightTop = new THREE.Color(0x03060d);
+const _bgNightHorizon = new THREE.Color(0x0b1324);
+const _bgDayTop = new THREE.Color(0x63a2ff);
+const _bgDayHorizon = new THREE.Color(0xd6ebff);
+const _bgTwilightHorizon = new THREE.Color(0xff6a2f);
+const _bgSunsetRed = new THREE.Color(0xff3a12);
+const _bgSunGlow = new THREE.Color(0xffa45a);
+const _bgSunCore = new THREE.Color(0xfff2c9);
+const _bgTop = new THREE.Color();
+const _bgBottom = new THREE.Color();
+const _bgMid = new THREE.Color();
+const _bgSunProj = new THREE.Vector3();
+const _lensflareSunPos = new THREE.Vector3();
+const _lensflareRay = new THREE.Vector3();
+const _lensflareClosest = new THREE.Vector3();
 
 function invalidateShadowMapGate(): void {
   _shadowSunGateValid = false;
@@ -2300,8 +2479,6 @@ let riverTerrainGroup: THREE.Group | null = null;
 let landWeatherColorsDirty = true;
 /** First flush after a globe build must paint all land vertices (new color buffer / base tints). */
 let landWeatherPrimeFullPaint = true;
-/** Bumped after each stochastic texture flush so different land tiles are chosen. */
-let landWeatherStochasticSalt = 0;
 /** {@link climateSurfaceSnowVisualForTerrain} uses full date/subsolar — repaint land at least once per sim second while time is playing. */
 /** Last sim UTC minute we flushed land-weather for climate/subsolar (chunky updates; not every sim second). */
 let lastLandWeatherPaintSimUtcMin = Number.NaN;
@@ -2358,6 +2535,76 @@ function getCloudVisualUtcMinutes(state: DemoState, date: Date): number {
   return date.getTime() / 60000;
 }
 
+/**
+ * True when the Earth sphere blocks the line segment from camera to sun.
+ * Used to suppress lensflare when the sun is behind the planet (prevents large behind-globe quad flashes).
+ */
+function isSunOccludedByEarth(
+  cameraPosition: THREE.Vector3,
+  sunDirection: THREE.Vector3,
+  earthRadius: number,
+): boolean {
+  _lensflareSunPos.copy(sunDirection).multiplyScalar(3500);
+  _lensflareRay.copy(_lensflareSunPos).sub(cameraPosition);
+  const rayLenSq = _lensflareRay.lengthSq();
+  if (rayLenSq < 1e-12) return false;
+  const t = Math.max(
+    0,
+    Math.min(1, -cameraPosition.dot(_lensflareRay) / rayLenSq),
+  );
+  _lensflareClosest
+    .copy(cameraPosition)
+    .addScaledVector(_lensflareRay, t);
+  const r = Math.max(1e-6, earthRadius * 1.002);
+  return _lensflareClosest.lengthSq() <= r * r;
+}
+
+function colorToRgbaCss(c: THREE.Color, a: number): string {
+  const r = Math.round(THREE.MathUtils.clamp(c.r, 0, 1) * 255);
+  const g = Math.round(THREE.MathUtils.clamp(c.g, 0, 1) * 255);
+  const b = Math.round(THREE.MathUtils.clamp(c.b, 0, 1) * 255);
+  return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+}
+
+/**
+ * 2D CSS backdrop with strong sunset reds, driven by sun altitude + projected sun screen position.
+ * No giant sky mesh, so we keep the artifact-free path while getting vivid twilight color.
+ */
+function updateBackdropColor(
+  sunAltitudeFromCamera: number,
+  sunDirection: THREE.Vector3,
+  camera: THREE.Camera,
+): void {
+  const dayT = THREE.MathUtils.smoothstep(sunAltitudeFromCamera, -0.22, 0.34);
+  const nightT = 1 - THREE.MathUtils.smoothstep(sunAltitudeFromCamera, -0.34, 0.08);
+  const twilight = Math.max(0, Math.min(1, 1 - dayT - nightT));
+  const sunset =
+    THREE.MathUtils.smoothstep(sunAltitudeFromCamera, -0.30, 0.05) *
+    (1 - THREE.MathUtils.smoothstep(sunAltitudeFromCamera, 0.06, 0.30));
+
+  _bgTop.lerpColors(_bgNightTop, _bgDayTop, dayT);
+  _bgBottom.lerpColors(_bgNightHorizon, _bgDayHorizon, dayT);
+  _bgBottom.lerp(_bgTwilightHorizon, twilight * 0.92);
+  _bgBottom.lerp(_bgSunsetRed, Math.min(1, sunset * 0.92));
+  _bgMid.copy(_bgTop).lerp(_bgBottom, 0.55);
+
+  _bgSunProj.copy(sunDirection).multiplyScalar(3500).project(camera);
+  const sunX = THREE.MathUtils.clamp((_bgSunProj.x * 0.5 + 0.5) * 100, 0, 100);
+  const sunY = THREE.MathUtils.clamp((1 - (_bgSunProj.y * 0.5 + 0.5)) * 100, 0, 100);
+  const sunBandY = THREE.MathUtils.clamp(sunY + 7, 0, 100);
+
+  const sunCoreA = 0.20 + 0.45 * sunset;
+  const sunGlowA = 0.10 + 0.34 * sunset;
+  const warmBandA = 0.08 + 0.38 * sunset;
+  const gradientCss = [
+    `radial-gradient(circle at ${sunX.toFixed(2)}% ${sunY.toFixed(2)}%, ${colorToRgbaCss(_bgSunCore, sunCoreA)} 0%, ${colorToRgbaCss(_bgSunGlow, sunGlowA)} 11%, rgba(0,0,0,0) 30%)`,
+    `radial-gradient(ellipse at ${sunX.toFixed(2)}% ${sunBandY.toFixed(2)}%, ${colorToRgbaCss(_bgSunsetRed, warmBandA)} 0%, rgba(0,0,0,0) 42%)`,
+    `linear-gradient(to bottom, ${colorToRgbaCss(_bgTop, 1)} 0%, ${colorToRgbaCss(_bgMid, 1)} 48%, ${colorToRgbaCss(_bgBottom, 1)} 100%)`,
+  ].join(", ");
+  renderer.domElement.style.background = gradientCss;
+  scene.background = null;
+}
+
 /** Clip-based cloud field; tile-surface wet/snow feeds {@link landWeatherGpu} (no rain mesh in demo). */
 let cloudClipField: CloudClipField | null = null;
 /** Sun light (module-level so panel can force shadow update on cloud toggle). */
@@ -2373,9 +2620,12 @@ let landWeatherGpu: LandWeatherGpuState | null = null;
 /** Land-only id list for stochastic texture uploads (invalid when {@link globalTileTerrain} is replaced). */
 let landWeatherLandTileIdsForStochastic: number[] | null = null;
 /** Real-time throttle for land-weather texture upload when sim clock runs fast (see flush). */
-let lastLandWeatherFullPaintRealMs = 0;
+/** With fast sim play, coalesce GPU uploads by sim clock bucket (deterministic for multiplayer). */
+let lastLandWeatherFlushSimCoalesceBucket = Number.NaN;
 /** Last applied cloud sim ground-state revision after a successful land-weather paint (see animate). */
 let lastLandWeatherTileSurfaceRev = -1;
+/** Last `floor(cloudRev / stride)` that triggered a land-weather dirty (stochastic sampling). */
+let lastLandWeatherCloudRevStrideBucket = -1;
 
 function waterTileIdsForGlobalTerrain(): ReadonlySet<number> {
   if (!globalTileTerrain) return new Set();
@@ -2443,6 +2693,23 @@ let annualRiverFlowStrength: AnnualRiverFlowStrength | null = null;
 let annualRiverStrengthIndexById: Map<number, number> | null = null;
 /** Reused for cloud physics when reading from {@link annualTileWeather}. */
 const annualPrecipReuseMap = new Map<number, number>();
+/** Skip {@link fillPrecipMapFromAnnual} when UTC calendar day index unchanged (catch-up calls getPS many times per frame). */
+let annualPrecipMapCachedDayIdx = -1;
+/** Skip live precip fill when the same sim UTC minute is requested again (e.g. duplicate getPrecip calls). */
+let liveClipPrecipCachedUtcMinuteKey = NaN;
+/**
+ * Cloud physics quantum (sim minutes); drives wind/catch-up cadence. Precip **map** refill uses
+ * {@link clipPrecipMapHoldSimMinutes} (often much larger) to cut CPU while subsolar for wind/spawn stays
+ * per-minute accurate.
+ */
+let clipPrecipMapFillQuantumMinutes = 1;
+let clipPrecipMapFillQuantumMinutesPrev = NaN;
+/**
+ * Live precip map refills at most once per this many **simulated** UTC minutes (bucket start subsolar).
+ * Default scales with cloud quantum; override `?clipPrecipHoldMin=N` (1–1440).
+ */
+let clipPrecipMapHoldSimMinutes = 360;
+let clipPrecipMapHoldSimMinutesPrev = NaN;
 /**
  * Discrete 365×tile bake: tile wet/snow comes from the bake, not per-minute climate sim. Clouds still
  * advance via {@link catchUpCloudPhysicsBudgeted} with `kinematicsOnly` (drift + respawn).
@@ -3134,42 +3401,61 @@ function markLandWeatherColorsDirty(): void {
 
 type LandWeatherPaintCtx = NonNullable<ReturnType<typeof getLandWeatherVertexPaintContext>>;
 
-/** Mix sim date into the land-weather stochastic hash so tile picks differ by year (and drift by day). */
-function landWeatherStochasticSaltForCalendar(
-  baseSalt: number,
+/**
+ * Stochastic land-weather tile picks: same sim calendar + same coalesce bucket ⇒ same salt on every
+ * client (no wall clock, no flush counter).
+ */
+function landWeatherStochasticSaltForSimBucket(
   calendarUtc: Date,
+  simCoalesceMs: number,
 ): number {
+  const t = calendarUtc.getTime();
   const y = calendarUtc.getUTCFullYear();
   const y0 = Date.UTC(y, 0, 1);
-  const doy = Math.floor((calendarUtc.getTime() - y0) / 86_400_000);
+  const doy = Math.floor((t - y0) / 86_400_000);
+  const bucket =
+    simCoalesceMs > 0
+      ? Math.floor(t / simCoalesceMs)
+      : Math.floor(t / 60_000);
   return (
-    (baseSalt ^
+    (Math.imul(bucket | 0, 0x85ebca6b) ^
       Math.imul(y ^ (y << 13), 0x7feb352d) ^
       Math.imul((doy + 1) | 0, 0x9e3779b1)) |
     0
   );
 }
 
+/** Sim-time coalesce interval (ms of game clock), 0 = flush every time dirty. Mirrors old wall-ms tiers. */
+function landWeatherFlushSimCoalesceMs(state: DemoState): number {
+  if (!state.timePlaying || state.timePlaySpeed < 120) return 0;
+  if (state.timePlaySpeed >= 3600) return 200;
+  if (state.timePlaySpeed >= 900) return 120;
+  if (state.timePlaySpeed >= 300) return 80;
+  return 60;
+}
+
 function landWeatherPaintOptsForFlush(
   calendarUtc: Date,
+  state: DemoState,
 ): ApplyLandSurfaceWeatherPaintOptions | undefined {
   const f = readLandWeatherSampleFractionFromUrl();
   if (landWeatherPrimeFullPaint || f >= 1) return undefined;
+  const coalesce = landWeatherFlushSimCoalesceMs(state);
   return {
     stochasticLandTileFraction: f,
-    stochasticSalt: landWeatherStochasticSaltForCalendar(
-      landWeatherStochasticSalt,
-      calendarUtc,
-    ),
+    stochasticSalt: landWeatherStochasticSaltForSimBucket(calendarUtc, coalesce),
   };
 }
 
 /**
  * Upload per-tile wet/snow/climate data for {@link landWeatherGpu}; globe + river materials sample it in the fragment shader.
  */
-function syncLandWeatherGpuTexture(ctx: LandWeatherPaintCtx): boolean {
+function syncLandWeatherGpuTexture(
+  ctx: LandWeatherPaintCtx,
+  state: DemoState,
+): boolean {
   if (!globe || !globalTileTerrain || !landWeatherGpu) return false;
-  const paintOpts = landWeatherPaintOptsForFlush(ctx.calendarUtc);
+  const paintOpts = landWeatherPaintOptsForFlush(ctx.calendarUtc, state);
   const landIdsOnly =
     paintOpts != null ? landWeatherLandTileIdsForStochasticPass() : undefined;
   uploadLandWeatherTextureTiles(
@@ -3205,39 +3491,32 @@ function patchRiverMeshesLandWeatherGpu(): void {
 function flushLandWeatherVertexColorsIfDirty(state: DemoState): void {
   if (!landWeatherColorsDirty) return;
   if (!globe || !globalTileTerrain) return;
-  /**
-   * Throttle texture uploads when time plays fast (O(tiles) with climate snow per tile — much cheaper
-   * than the old O(vertices) pass, but still worth coalescing at extreme fast-forward).
-   */
-  const throttleMs =
-    state.timePlaying && state.timePlaySpeed >= 120
-      ? state.timePlaySpeed >= 3600
-        ? 200
-        : state.timePlaySpeed >= 900
-          ? 120
-          : state.timePlaySpeed >= 300
-            ? 80
-            : 60
-      : 0;
-  if (throttleMs > 0) {
-    const now = performance.now();
-    if (now - lastLandWeatherFullPaintRealMs < throttleMs) return;
-  }
   const ctx = getLandWeatherVertexPaintContext(state);
   if (!ctx) return;
-  if (!syncLandWeatherGpuTexture(ctx)) return;
+  const coalesceMs = landWeatherFlushSimCoalesceMs(state);
+  if (coalesceMs > 0) {
+    const bucket = Math.floor(ctx.calendarUtc.getTime() / coalesceMs);
+    if (bucket === lastLandWeatherFlushSimCoalesceBucket) return;
+  }
+  if (!syncLandWeatherGpuTexture(ctx, state)) {
+    lastLandWeatherFlushSimCoalesceBucket = Number.NaN;
+    return;
+  }
   commitLandWeatherGpuTextureUpload(renderer, landWeatherGpu);
   landWeatherColorsDirty = false;
   if (landWeatherPrimeFullPaint) {
     landWeatherPrimeFullPaint = false;
-  } else if (readLandWeatherSampleFractionFromUrl() < 1) {
-    landWeatherStochasticSalt++;
   }
   if (cloudClipField) {
-    lastLandWeatherTileSurfaceRev = cloudClipField.getTileSurfaceState().revision;
+    const r = cloudClipField.getTileSurfaceState().revision;
+    lastLandWeatherTileSurfaceRev = r;
+    const s = effectiveLandWeatherCloudRevStride();
+    lastLandWeatherCloudRevStrideBucket = Math.floor(r / s);
   }
-  if (throttleMs > 0) {
-    lastLandWeatherFullPaintRealMs = performance.now();
+  if (coalesceMs > 0) {
+    lastLandWeatherFlushSimCoalesceBucket = Math.floor(
+      ctx.calendarUtc.getTime() / coalesceMs,
+    );
   }
 }
 
@@ -3300,22 +3579,111 @@ function maybeLogSnowSurfaceDiagnostic(date: Date): void {
 /** Real-time budget so multi-minute sim jumps don't stall one rAF (see `maxPhysicsMinutesPerSync`). */
 const CLOUD_PHYSICS_CATCH_UP_BUDGET_MS = 8;
 
+function invalidateClipPrecipMapCaches(): void {
+  annualPrecipMapCachedDayIdx = -1;
+  liveClipPrecipCachedUtcMinuteKey = NaN;
+  clipPrecipMapFillQuantumMinutesPrev = NaN;
+  clipPrecipMapHoldSimMinutesPrev = NaN;
+}
+
+/** Default sim minutes between live precip **map** refills (spawn weights); ITCZ band moves in steps. */
+function defaultClipPrecipMapHoldSimMinutes(cloudPhysicsQuantumMinutes: number): number {
+  const q = Math.min(1440, Math.max(1, Math.floor(cloudPhysicsQuantumMinutes)));
+  return Math.min(1440, Math.max(360, q * 8));
+}
+
+/**
+ * `?clipPrecipHoldMin=N` — refill live precip-by-tile map at most every **N** sim minutes (1–1440).
+ * Larger N ⇒ fewer `fillPrecipitation*` passes; subsolar for wind/spawn still uses the real `utcMin`.
+ */
+function readClipPrecipMapHoldSimMinutesFromUrl(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get(
+    "clipPrecipHoldMin",
+  );
+  if (raw == null || raw === "") return null;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(1440, n);
+}
+
+/**
+ * Precip map for cloud spawn / clip physics. When {@link annualTileWeather} exists, reuses
+ * {@link annualPrecipReuseMap} and only refills when the **UTC calendar day index** changes — catch-up
+ * can call this many times per frame for the same day.
+ */
+function precipSubsolarForCloudClipUtcMinute(utcMin: number): {
+  precipByTile: Map<number, number>;
+  subsolarLatDeg: number;
+} {
+  const d = new Date(utcMin * 60000);
+  const subsolar = dateToSubsolarPoint(d);
+  const g = globe;
+  if (!g) {
+    return { precipByTile: annualPrecipReuseMap, subsolarLatDeg: subsolar.latDeg };
+  }
+  if (annualTileWeather) {
+    const di = annualDayIndexFromDate(d);
+    if (di !== annualPrecipMapCachedDayIdx) {
+      annualPrecipMapCachedDayIdx = di;
+      fillPrecipMapFromAnnual(annualTileWeather, di, annualPrecipReuseMap);
+    }
+    return {
+      precipByTile: annualPrecipReuseMap,
+      subsolarLatDeg: subsolar.latDeg,
+    };
+  }
+  const moisture = globalMoistureByTile ?? new Map<number, number>();
+  const holdM = Math.min(
+    1440,
+    Math.max(1, Math.floor(clipPrecipMapHoldSimMinutes)),
+  );
+  const fillKey = Math.floor(utcMin / holdM) * holdM;
+  if (fillKey !== liveClipPrecipCachedUtcMinuteKey) {
+    liveClipPrecipCachedUtcMinuteKey = fillKey;
+    const subFill = dateToSubsolarPoint(new Date(fillKey * 60000));
+    fillPrecipitationForGlobeTilesIntoMap(
+      g,
+      subFill.latDeg,
+      moisture,
+      annualPrecipReuseMap,
+      clipPrecipSimpleItczFill ? "itcz" : "full",
+    );
+  }
+  return {
+    precipByTile: annualPrecipReuseMap,
+    subsolarLatDeg: subsolar.latDeg,
+  };
+}
+
 /**
  * Advance cloud precip physics toward sim clock, at most a few minutes per inner call; repeat until
  * caught up or `budgetMs` elapses. Does not touch Three.js meshes (those sync every frame elsewhere).
  */
-function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
+function catchUpCloudPhysicsBudgeted(
+  state: DemoState,
+  budgetMs: number,
+  perf?: FramePerfSampler,
+): void {
   if (!globe || !cloudClipField || !globalMoistureByTile) return;
+  const recordCloudPhys = perf
+    ? (section: string, ms: number) => perf.addAccumulatedMs(section, ms)
+    : undefined;
   if (globalDiscreteWeatherBake) {
     const targetMin = getCloudPhysicsTargetUtcMinute(state);
     const d = new Date(getCloudSimTargetUtcMinute(state) * 60000);
     const dayIdx = annualDayIndexFromDate(d);
     if (dayIdx !== lastAppliedDiscreteDayIdx) {
+      const tDisc = performance.now();
       applyDiscreteWeatherDayToClipField(
         globalDiscreteWeatherBake,
         dayIdx,
         waterTileIdsForGlobalTerrain(),
         cloudClipField,
+      );
+      perf?.addAccumulatedMs(
+        "cloudPhys_discreteDayApply",
+        performance.now() - tDisc,
       );
       cloudClipField.markPrecipOverlayExternallyMutated();
       lastAppliedDiscreteDayIdx = dayIdx;
@@ -3326,29 +3694,8 @@ function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
     }
     const g = globe;
     const moisture = globalMoistureByTile;
-    const getPS: PrecipSubsolarForMinute = (utcMin) => {
-      const dd = new Date(utcMin * 60000);
-      const subsolar = dateToSubsolarPoint(dd);
-      if (annualTileWeather) {
-        fillPrecipMapFromAnnual(
-          annualTileWeather,
-          annualDayIndexFromDate(dd),
-          annualPrecipReuseMap,
-        );
-        return {
-          precipByTile: annualPrecipReuseMap,
-          subsolarLatDeg: subsolar.latDeg,
-        };
-      }
-      return {
-        precipByTile: getPrecipitationByTileWithMoisture(
-          g.tiles,
-          subsolar.latDeg,
-          moisture,
-        ),
-        subsolarLatDeg: subsolar.latDeg,
-      };
-    };
+    const getPS: PrecipSubsolarForMinute = (utcMin) =>
+      precipSubsolarForCloudClipUtcMinute(utcMin);
     const nowDate = datetimeLocalUTCToDate(
       state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
     );
@@ -3357,6 +3704,7 @@ function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
     do {
       cloudClipField.syncToTargetMinute(targetMin, g, getPS, reinitPayload, {
         kinematicsOnly: true,
+        recordSectionMs: recordCloudPhys,
       });
       if (cloudClipField.getLastPhysicsUtcMinute() >= targetMin) break;
     } while (performance.now() < budgetUntil);
@@ -3369,29 +3717,8 @@ function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
   if (cloudClipField.getLastPhysicsUtcMinute() >= targetMin) {
     return;
   }
-  const getPS: PrecipSubsolarForMinute = (utcMin) => {
-    const d = new Date(utcMin * 60000);
-    const subsolar = dateToSubsolarPoint(d);
-    if (annualTileWeather) {
-      fillPrecipMapFromAnnual(
-        annualTileWeather,
-        annualDayIndexFromDate(d),
-        annualPrecipReuseMap,
-      );
-      return {
-        precipByTile: annualPrecipReuseMap,
-        subsolarLatDeg: subsolar.latDeg,
-      };
-    }
-    return {
-      precipByTile: getPrecipitationByTileWithMoisture(
-        g.tiles,
-        subsolar.latDeg,
-        moisture,
-      ),
-      subsolarLatDeg: subsolar.latDeg,
-    };
-  };
+  const getPS: PrecipSubsolarForMinute = (utcMin) =>
+    precipSubsolarForCloudClipUtcMinute(utcMin);
   const nowDate = datetimeLocalUTCToDate(
     state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
   );
@@ -3401,7 +3728,9 @@ function catchUpCloudPhysicsBudgeted(state: DemoState, budgetMs: number): void {
   };
   const budgetUntil = performance.now() + budgetMs;
   do {
-    cloudClipField.syncToTargetMinute(targetMin, g, getPS, reinitPayload);
+    cloudClipField.syncToTargetMinute(targetMin, g, getPS, reinitPayload, {
+      recordSectionMs: recordCloudPhys,
+    });
     if (cloudClipField.getLastPhysicsUtcMinute() >= targetMin) break;
   } while (performance.now() < budgetUntil);
 }
@@ -3438,29 +3767,8 @@ async function ensureCloudWeatherAndMeshes(
   }
   const gen = cloudPrecipBuildGeneration;
   const physicsUtcMin = getCloudPhysicsTargetUtcMinute(state);
-  const getPrecipSubsolar: PrecipSubsolarForMinute = (utcMin) => {
-    const d = new Date(utcMin * 60000);
-    const subsolar = dateToSubsolarPoint(d);
-    if (annualTileWeather) {
-      fillPrecipMapFromAnnual(
-        annualTileWeather,
-        annualDayIndexFromDate(d),
-        annualPrecipReuseMap,
-      );
-      return {
-        precipByTile: annualPrecipReuseMap,
-        subsolarLatDeg: subsolar.latDeg,
-      };
-    }
-    return {
-      precipByTile: getPrecipitationByTileWithMoisture(
-        globe!.tiles,
-        subsolar.latDeg,
-        globalMoistureByTile!
-      ),
-      subsolarLatDeg: subsolar.latDeg,
-    };
-  };
+  const getPrecipSubsolar: PrecipSubsolarForMinute = (utcMin) =>
+    precipSubsolarForCloudClipUtcMinute(utcMin);
   const field = createEarthDemoCloudClipField(globe, globalTileTerrain!, {
     windDriftMul: state.cloudCoarseWindDriftMul,
   });
@@ -3719,10 +4027,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     vegetationLoadGeneration++;
     landWeatherColorsDirty = true;
     landWeatherPrimeFullPaint = true;
-    landWeatherStochasticSalt = 0;
     invalidateShadowMapGate();
-    lastLandWeatherFullPaintRealMs = 0;
+    lastLandWeatherFlushSimCoalesceBucket = Number.NaN;
     lastLandWeatherTileSurfaceRev = -1;
+    lastLandWeatherCloudRevStrideBucket = -1;
     lastLandWeatherPaintSimUtcMin = Number.NaN;
     landWeatherLandTileIdsForStochastic = null;
     lastWindFlowPrecipRefreshWallMs = 0;
@@ -3798,6 +4106,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     cloudClipField = null;
     globalMoistureByTile = null;
     annualTileWeather = null;
+    invalidateClipPrecipMapCaches();
     annualWindTileIndexById = null;
     annualRiverFlowStrength = null;
     annualRiverStrengthIndexById = null;
@@ -4300,6 +4609,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     globalMoistureByTile = buildMoistureByTileFromTerrain(tileTerrain);
 
     annualTileWeather = null;
+    invalidateClipPrecipMapCaches();
     annualWindTileIndexById = null;
     annualRiverFlowStrength = null;
     annualRiverStrengthIndexById = null;
@@ -4362,6 +4672,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       if (discreteBakeFromDisk) {
         globalDiscreteWeatherBake = discreteBakeFromDisk;
         annualTileWeather = null;
+        invalidateClipPrecipMapCaches();
         annualWindTileIndexById = null;
         console.log(
           BUILD_LOG,
@@ -4390,6 +4701,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             },
           },
         );
+        invalidateClipPrecipMapCaches();
         annualWindTileIndexById = createAnnualWindTileIndexById(annualTileWeather);
         applyRiverStrengthFromBakeOrLive();
         const mb = ((365 * n * 12) / (1024 * 1024)).toFixed(1);
@@ -4426,6 +4738,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     } catch (e) {
       console.warn(BUILD_LOG, "annual weather tables failed, using live samples:", e);
       annualTileWeather = null;
+      invalidateClipPrecipMapCaches();
       annualWindTileIndexById = null;
       annualRiverFlowStrength = null;
       annualRiverStrengthIndexById = null;
@@ -4435,102 +4748,112 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     await yieldToMain();
 
-    console.log(BUILD_LOG, "create coast masks");
-    const coastMaskRes =
-      globe.tileCount > 100_000
-        ? { w: 192, h: 96 }
-        : globe.tileCount > 70_000
-          ? { w: 224, h: 112 }
-          : { w: 256, h: 128 };
-    if (prebuiltGlobeRuntimeBake) {
-      coastMaskTexture = createCoastDataTextureFromR8Buffer(
-        prebuiltGlobeRuntimeBake.coastWaterMask,
-        prebuiltGlobeRuntimeBake.coastW,
-        prebuiltGlobeRuntimeBake.coastH,
+    if (waterEnabledFromUrl || coastFoamEnabledFromUrl) {
+      console.log(BUILD_LOG, "create coast masks");
+      const coastMaskRes =
+        globe.tileCount > 100_000
+          ? { w: 192, h: 96 }
+          : globe.tileCount > 70_000
+            ? { w: 224, h: 112 }
+            : { w: 256, h: 128 };
+      if (prebuiltGlobeRuntimeBake) {
+        coastMaskTexture = createCoastDataTextureFromR8Buffer(
+          prebuiltGlobeRuntimeBake.coastWaterMask,
+          prebuiltGlobeRuntimeBake.coastW,
+          prebuiltGlobeRuntimeBake.coastH,
+        );
+        coastLandMaskTexture = createCoastDataTextureFromR8Buffer(
+          prebuiltGlobeRuntimeBake.coastLandMask,
+          prebuiltGlobeRuntimeBake.coastW,
+          prebuiltGlobeRuntimeBake.coastH,
+        );
+      } else {
+        coastMaskTexture = createCoastMaskTexture(
+          globe,
+          tileTerrain,
+          coastMaskRes.w,
+          coastMaskRes.h,
+        );
+        coastLandMaskTexture = createCoastLandMaskTexture(
+          globe,
+          tileTerrain,
+          coastMaskRes.w,
+          coastMaskRes.h,
+        );
+      }
+      await yieldToMain();
+    } else {
+      coastMaskTexture = undefined;
+      coastLandMaskTexture = undefined;
+    }
+
+    if (waterEnabledFromUrl && coastMaskTexture) {
+      console.log(
+        BUILD_LOG,
+        "create WaterSphere with terrain-following water table",
       );
-      coastLandMaskTexture = createCoastDataTextureFromR8Buffer(
-        prebuiltGlobeRuntimeBake.coastLandMask,
-        prebuiltGlobeRuntimeBake.coastW,
-        prebuiltGlobeRuntimeBake.coastH,
+      water = new WaterSphere({
+        radius: 0.995,
+        color: 0x1a5a6a,
+        colorPole: 0x2a3548,
+        sunDirection: sunDirectionFromState(state),
+        sunColor: 0xffffff,
+        coastMask: coastMaskTexture,
+        shorelineRadius: 1.0,
+        size: 1.5,
+        timeScale: 0.4,
+        waveAmplitude: 0.0007,
+      });
+      // Replace sphere with terrain-following water table:
+      // Water sits just below each tile's elevation, filling rivers/lakes through cutouts
+      // while staying invisible under solid land hexes.
+      const waterTableElevationScale = 0.08;
+      // Build tile lookup for getEdgeNeighbor
+      const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
+
+      const waterInteriorOceanSeg =
+        globe.tileCount > 100_000
+          ? { widthSegments: 28, heightSegments: 20 }
+          : { widthSegments: 44, heightSegments: 30 };
+
+      if (prebuiltGlobeRuntimeBake) {
+        applyWaterTableGeometryFromDecodedBake(water, prebuiltGlobeRuntimeBake);
+      } else {
+        water.setWaterTableGeometry(
+          globe.tiles,
+          (id) => tileTerrain.get(id)?.elevation ?? 0,
+          {
+            baseRadius: globe.radius,
+            elevationScale: waterTableElevationScale,
+            depthBelowSurface: -0.006, // Slightly below land surface
+            oceanLevel: 0.995,
+            // Lakes use terrain elevation for the water surface; only open ocean / beach use fixed level.
+            isOcean: (id) => {
+              const d = tileTerrain.get(id);
+              if (!d) return false;
+              if (d.lakeId != null) return false;
+              return d.type === "water" || d.type === "beach";
+            },
+            isLake: (id) => tileTerrain.get(id)?.lakeId != null,
+            isRiver: (id) => riverEdgesByTile?.has(id) ?? false,
+            getEdgeNeighbor: (id, edge) => {
+              const tile = tileById.get(id);
+              return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
+            },
+            interiorOceanSphere: waterInteriorOceanSeg,
+          },
+        );
+      }
+      scene.add(water.mesh);
+      console.log(
+        BUILD_LOG,
+        "water table geometry applied, vertices:",
+        water.mesh.geometry.getAttribute("position")?.count ?? 0,
       );
     } else {
-      coastMaskTexture = createCoastMaskTexture(
-        globe,
-        tileTerrain,
-        coastMaskRes.w,
-        coastMaskRes.h,
-      );
-      coastLandMaskTexture = createCoastLandMaskTexture(
-        globe,
-        tileTerrain,
-        coastMaskRes.w,
-        coastMaskRes.h,
-      );
+      water = undefined;
+      console.log(BUILD_LOG, "water disabled via URL param");
     }
-    await yieldToMain();
-
-    console.log(
-      BUILD_LOG,
-      "create WaterSphere with terrain-following water table",
-    );
-    water = new WaterSphere({
-      radius: 0.995,
-      color: 0x1a5a6a,
-      colorPole: 0x2a3548,
-      sunDirection: sunDirectionFromState(state),
-      sunColor: 0xffffff,
-      coastMask: coastMaskTexture,
-      shorelineRadius: 1.0,
-      size: 1.5,
-      timeScale: 0.4,
-      waveAmplitude: 0.0007,
-    });
-    // Replace sphere with terrain-following water table:
-    // Water sits just below each tile's elevation, filling rivers/lakes through cutouts
-    // while staying invisible under solid land hexes.
-    const waterTableElevationScale = 0.08;
-    // Build tile lookup for getEdgeNeighbor
-    const tileById = new Map(globe.tiles.map((t) => [t.id, t]));
-
-    const waterInteriorOceanSeg =
-      globe.tileCount > 100_000
-        ? { widthSegments: 28, heightSegments: 20 }
-        : { widthSegments: 44, heightSegments: 30 };
-
-    if (prebuiltGlobeRuntimeBake) {
-      applyWaterTableGeometryFromDecodedBake(water, prebuiltGlobeRuntimeBake);
-    } else {
-      water.setWaterTableGeometry(
-        globe.tiles,
-        (id) => tileTerrain.get(id)?.elevation ?? 0,
-        {
-          baseRadius: globe.radius,
-          elevationScale: waterTableElevationScale,
-          depthBelowSurface: -0.006, // Slightly below land surface
-          oceanLevel: 0.995,
-          // Lakes use terrain elevation for the water surface; only open ocean / beach use fixed level.
-          isOcean: (id) => {
-            const d = tileTerrain.get(id);
-            if (!d) return false;
-            if (d.lakeId != null) return false;
-            return d.type === "water" || d.type === "beach";
-          },
-          isLake: (id) => tileTerrain.get(id)?.lakeId != null,
-          isRiver: (id) => riverEdgesByTile?.has(id) ?? false,
-          getEdgeNeighbor: (id, edge) => {
-            const tile = tileById.get(id);
-            return tile ? getEdgeNeighbor(tile, edge, globe.tiles) : undefined;
-          },
-          interiorOceanSphere: waterInteriorOceanSeg,
-        },
-      );
-    }
-    scene.add(water.mesh);
-    console.log(
-      BUILD_LOG,
-      "water table geometry applied, vertices:",
-      water.mesh.geometry.getAttribute("position")?.count ?? 0,
-    );
 
     buildPerf?.mark("terrainWaterRiversCoast");
 
@@ -4663,17 +4986,24 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       cloudClipField = null;
     }
 
-    coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
-      radius: 0.995,
-      speed: 0.073,
-      timeScale: 0.4,
-      ...(globe.tileCount > 100_000
-        ? { widthSegments: 24, heightSegments: 24 }
-        : globe.tileCount > 70_000
-          ? { widthSegments: 28, heightSegments: 28 }
-          : {}),
-    });
-    scene.add(coastFoamOverlay.mesh);
+    if (coastFoamEnabledFromUrl && coastLandMaskTexture) {
+      coastFoamOverlay = new CoastFoamOverlay(coastLandMaskTexture, {
+        radius: 0.995,
+        speed: 0.073,
+        timeScale: 0.4,
+        ...(globe.tileCount > 100_000
+          ? { widthSegments: 24, heightSegments: 24 }
+          : globe.tileCount > 70_000
+            ? { widthSegments: 28, heightSegments: 28 }
+            : {}),
+      });
+      scene.add(coastFoamOverlay.mesh);
+    } else {
+      coastFoamOverlay = undefined;
+      if (!coastFoamEnabledFromUrl) {
+        console.log(BUILD_LOG, "coast foam disabled via URL param");
+      }
+    }
 
     // Skip river re-processing if already loaded from cache
     if (
@@ -4794,7 +5124,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           riverEdgesByTile.size,
           "tiles (land only)",
         );
-        if (riverEdgesByTile.size > 0) {
+        if (riverHexEnabledFromUrl && riverEdgesByTile.size > 0) {
           // River water now provided by terrain-following water table
           const { banks, bed } = createRiverTerrainMeshes(
             globe,
@@ -4842,7 +5172,12 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
 
     // Create river terrain from cached data (water provided by water table)
     const elevationScaleRiver = 0.08;
-    if (riverEdgesByTile && riverEdgesByTile.size > 0 && !riverTerrainGroup) {
+    if (
+      riverHexEnabledFromUrl &&
+      riverEdgesByTile &&
+      riverEdgesByTile.size > 0 &&
+      !riverTerrainGroup
+    ) {
       const { banks, bed } = createRiverTerrainMeshes(globe, riverEdgesByTile, {
         radius: globe.radius,
         getElevation: (id) => tileTerrain.get(id)?.elevation ?? 0,
@@ -4885,6 +5220,10 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     const vegBuildToken = vegetationLoadGeneration;
     const vegetationDeferredT0 = performance.now();
     const runVegetationDeferred = async (): Promise<void> => {
+      if (!vegetationEnabledFromUrl) {
+        console.log(BUILD_LOG, "vegetation disabled via URL param");
+        return;
+      }
       if (vegBuildToken !== vegetationLoadGeneration) return;
       const { createVegetationLayer } = await import("./vegetation.js");
       if (vegBuildToken !== vegetationLoadGeneration) return;
@@ -5706,24 +6045,46 @@ function createPanel(state: DemoState, onRebuild: () => void) {
 
 async function init() {
   console.log(BUILD_LOG, "init start");
-  try {
-    const starsRes = await fetch("/stars.json");
-    if (starsRes.ok) {
-      const catalog = (await starsRes.json()) as Array<{ ra: number; dec: number; mag: number }>;
-      if (Array.isArray(catalog) && catalog.length > 0) {
-        camera.remove(starfield.mesh);
-        starfield.dispose();
-        starfield = new Starfield({ catalog, color: 0xf0f4ff });
-        scene.add(starfield.catalogGroup!);
-        const catalogRadius = 800;
-        const { points, update } = createPlanetsMesh(catalogRadius);
-        starfield.catalogGroup!.add(points);
-        planetsUpdate = update;
-        console.log(BUILD_LOG, "starfield: using real star catalog,", catalog.length, "stars; planets added");
+  if (starsEnabledFromUrl || planetsEnabledFromUrl) {
+    try {
+      const starsRes = await fetch("/stars.json");
+      if (starsRes.ok) {
+        const catalog = (await starsRes.json()) as Array<{ ra: number; dec: number; mag: number }>;
+        if (Array.isArray(catalog) && catalog.length > 0) {
+          if (starfield) {
+            camera.remove(starfield.mesh);
+            starfield.dispose();
+          }
+          if (starsEnabledFromUrl) {
+            starfield = new Starfield({ catalog, color: 0xf0f4ff });
+            scene.add(starfield.catalogGroup!);
+          } else {
+            starfield = null;
+          }
+          if (planetsEnabledFromUrl) {
+            const catalogRadius = 800;
+            const { points, update } = createPlanetsMesh(catalogRadius);
+            if (starfield?.catalogGroup) starfield.catalogGroup.add(points);
+            else scene.add(points);
+            planetsUpdate = update;
+          } else {
+            planetsUpdate = null;
+          }
+          console.log(
+            BUILD_LOG,
+            "starfield catalog loaded:",
+            catalog.length,
+            "stars;",
+            planetsEnabledFromUrl ? "planets on" : "planets off",
+          );
+        }
       }
+    } catch {
+      // keep procedural starfield
     }
-  } catch {
-    // keep procedural starfield
+  } else {
+    starfield = null;
+    planetsUpdate = null;
   }
   console.log(BUILD_LOG, "init: loading Earth land raster…");
   const landResult = await loadEarthLandRaster();
@@ -5899,43 +6260,47 @@ async function init() {
     ambientColor: 0x1a2230,
     sphereRadius: 90,
     sphereColor: 0xfff5e0,
-    castShadow: true,
+    castShadow: shadowsEnabledFromUrl,
     shadowIntensity: 0.82,
   });
   sun.addTo(scene);
-  const lensflare = new Lensflare();
-  lensflare.addElement(
-    new LensflareElement(
-      createFlareTexture(64, true),
-      120,
-      0,
-      new THREE.Color(0xffffee),
-    ),
-  );
-  lensflare.addElement(
-    new LensflareElement(
-      createFlareTexture(32, true),
-      80,
-      0.4,
-      new THREE.Color(0xffffee),
-    ),
-  );
-  lensflare.addElement(
-    new LensflareElement(
-      createFlareTexture(128, false),
-      200,
-      0.6,
-      new THREE.Color(0xffffff),
-    ),
-  );
-  sun.directional.add(lensflare);
-  sunLensflareRef = lensflare;
+  if (lensflareEnabledFromUrl) {
+    const lensflare = new Lensflare();
+    lensflare.addElement(
+      new LensflareElement(
+        createFlareTexture(64, true),
+        120,
+        0,
+        new THREE.Color(0xffffee),
+      ),
+    );
+    lensflare.addElement(
+      new LensflareElement(
+        createFlareTexture(32, true),
+        80,
+        0.4,
+        new THREE.Color(0xffffee),
+      ),
+    );
+    lensflare.addElement(
+      new LensflareElement(
+        createFlareTexture(128, false),
+        200,
+        0.6,
+        new THREE.Color(0xffffff),
+      ),
+    );
+    sun.directional.add(lensflare);
+    sunLensflareRef = lensflare;
+  } else {
+    sunLensflareRef = null;
+  }
   if (sun.directional.shadow) {
     sun.directional.shadow.autoUpdate = false;
   }
 
   const atmosphere = new Atmosphere(scene, { timeOfDay: 0.5 });
-  scene.background = new THREE.Color(0x030508);
+  scene.background = null;
 
   /** Earth colors by terrain type (TERRAIN_STYLES), not by sampling a color image. Moon uses a single equirectangular texture sampled at each tile center, then the same vertex-color-by-tileId path (applyVertexColorsByTileId). Prefer local public/ so we are not always fetching from the web (npm run download-data writes public/lroc_color_2k.jpg); fallback to NASA URL if local file is missing. */
   const MOON_TEXTURE_LOCAL = "/lroc_color_2k.jpg";
@@ -6008,38 +6373,45 @@ async function init() {
     applyVertexColorsByTileId(moon.mesh.geometry, getColor);
   }
 
-  const moonRadius = 0.14;
   const moonDistance = 2.6;
-  /** Same hex scale as Earth: linear hex size ∝ R/√(tile count). Earth subdiv 6 → ~40k tiles; moon needs ~800 tiles so 0.14/√N ≈ 1/√40k → N ≈ 800. Subdiv 3 = 642 tiles (hexes ~same size). */
-  const moonSubdivisions = 3;
-  const moon = new Globe({ radius: moonRadius, subdivisions: moonSubdivisions });
-  const moonTerrain = new Map<number, TileTerrainData>();
-  for (let i = 0; i < moon.tileCount; i++) {
-    moonTerrain.set(i, {
-      tileId: i,
-      type: i % 2 === 0 ? "snow" : "mountain",
-      elevation: 0.02,
+  let moon: Globe | null = null;
+  let moonLight: THREE.PointLight | null = null;
+  if (moonEnabledFromUrl) {
+    const moonRadius = 0.14;
+    /** Same hex scale as Earth: linear hex size ∝ R/√(tile count). Earth subdiv 6 → ~40k tiles; moon needs ~800 tiles so 0.14/√N ≈ 1/√40k → N ≈ 800. Subdiv 3 = 642 tiles (hexes ~same size). */
+    const moonSubdivisions = 3;
+    moon = new Globe({ radius: moonRadius, subdivisions: moonSubdivisions });
+    const moonTerrain = new Map<number, TileTerrainData>();
+    for (let i = 0; i < moon.tileCount; i++) {
+      moonTerrain.set(i, {
+        tileId: i,
+        type: i % 2 === 0 ? "snow" : "mountain",
+        elevation: 0.02,
+      });
+    }
+    applyTerrainToGeometry(moon.mesh.geometry, moonTerrain, 0.04);
+    (moon.mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      flatShading: true,
+      side: THREE.FrontSide,
+      /** Tiny emissive so the night hemisphere is not pitch black (read as a “polygon” behind Earth). */
+      emissive: new THREE.Color(0x1a1c22),
+      emissiveIntensity: 0.12,
     });
+    scene.add(moon.mesh);
+    void loadImageAsImageData(MOON_TEXTURE_LOCAL)
+      .then((img) => (img ? img : loadImageAsImageData(MOON_TEXTURE_FALLBACK)))
+      .then((img) => {
+        if (img && moon) applyMoonTextureFromImageData(moon, img);
+      });
+    moonLight = new THREE.PointLight(
+      0xb0b8c8,
+      0.5,
+      moonDistance * 2.5,
+      1.5,
+    );
+    scene.add(moonLight);
   }
-  applyTerrainToGeometry(moon.mesh.geometry, moonTerrain, 0.04);
-  (moon.mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    flatShading: true,
-    side: THREE.FrontSide,
-  });
-  scene.add(moon.mesh);
-  void loadImageAsImageData(MOON_TEXTURE_LOCAL)
-    .then((img) => (img ? img : loadImageAsImageData(MOON_TEXTURE_FALLBACK)))
-    .then((img) => {
-      if (img) applyMoonTextureFromImageData(moon, img);
-    });
-  const moonLight = new THREE.PointLight(
-    0xb0b8c8,
-    0.5,
-    moonDistance * 2.5,
-    1.5,
-  );
-  scene.add(moonLight);
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -6096,11 +6468,10 @@ async function init() {
       if (panelDateTimeInput) panelDateTimeInput.value = state.dateTimeStr;
     }
     const gmstRad = dateToGreenwichMeanSiderealTimeRad(date);
-    starfield.update(camera, gmstRad);
-    if (planetsUpdate) planetsUpdate(date);
+    if (starfield) starfield.update(camera, gmstRad);
+    if (planetsEnabledFromUrl && planetsUpdate) planetsUpdate(date);
     framePerf.slice("starfieldPlanets");
     const sunDir = sunDirectionFromDateInto(date, _animSunDir);
-    skyDome.update(sunDir, camera.position);
     sun.directional.position.copy(sunDir).multiplyScalar(3500);
     sun.directional.target.position.set(0, 0, 0);
     const camUp =
@@ -6108,6 +6479,7 @@ async function init() {
         ? _VEC3_UNIT_Y
         : _animCamUp.copy(camera.position).normalize();
     const sunAltitudeFromCamera = sunDir.dot(camUp);
+    updateBackdropColor(sunAltitudeFromCamera, sunDir, camera);
     const sunriseRed = 1 - Math.max(0, Math.min(1, (sunAltitudeFromCamera + 0.1) / 0.5));
     sun.directional.color.lerpColors(
       _sunDirLightTintA,
@@ -6122,6 +6494,16 @@ async function init() {
         sunriseRed,
       );
     }
+    if (sunLensflareRef) {
+      const perfAllows = lastGlobePerfBucket !== "veryDense";
+      const earthRadius = globe?.radius ?? 1;
+      const sunOccluded = isSunOccludedByEarth(
+        camera.position,
+        sunDir,
+        earthRadius,
+      );
+      sunLensflareRef.visible = perfAllows && !sunOccluded;
+    }
     if (sun.directional.castShadow && sun.directional.shadow) {
       const sc = sun.directional.shadow.camera;
       sc.position.copy(sun.directional.position);
@@ -6129,11 +6511,14 @@ async function init() {
       const sunDist = sun.directional.position.length();
       sc.near = 1;
       sc.far = sunDist + 10;
+      sc.updateProjectionMatrix();
       sc.updateMatrixWorld(true);
     }
-    moonPositionFromDateInto(date, moonDistance, _animMoonPos);
-    moon.mesh.position.copy(_animMoonPos);
-    moonLight.position.copy(_animMoonPos);
+    if (moon && moonLight) {
+      moonPositionFromDateInto(date, moonDistance, _animMoonPos);
+      moon.mesh.position.copy(_animMoonPos);
+      moonLight.position.copy(_animMoonPos);
+    }
     framePerf.slice("sunSkyMoonShadowCam");
     if (water) {
       water.setCameraWorldPosition(camera.position);
@@ -6179,8 +6564,31 @@ async function init() {
     }
     framePerf.slice("windFlowMinuteTick");
     if (globe && cloudClipField && globalMoistureByTile) {
+      const qPhys = Math.min(
+        1440,
+        Math.max(1, Math.floor(state.cloudPhysicsQuantumMinutes)),
+      );
+      if (qPhys !== clipPrecipMapFillQuantumMinutesPrev) {
+        clipPrecipMapFillQuantumMinutesPrev = qPhys;
+        liveClipPrecipCachedUtcMinuteKey = NaN;
+      }
+      clipPrecipMapFillQuantumMinutes = qPhys;
+      const holdFromUrl = readClipPrecipMapHoldSimMinutesFromUrl();
+      const holdM =
+        holdFromUrl != null
+          ? holdFromUrl
+          : defaultClipPrecipMapHoldSimMinutes(qPhys);
+      if (holdM !== clipPrecipMapHoldSimMinutesPrev) {
+        clipPrecipMapHoldSimMinutesPrev = holdM;
+        liveClipPrecipCachedUtcMinuteKey = NaN;
+      }
+      clipPrecipMapHoldSimMinutes = holdM;
       if (globalDiscreteWeatherBake) {
-        catchUpCloudPhysicsBudgeted(state, CLOUD_PHYSICS_CATCH_UP_BUDGET_MS);
+        catchUpCloudPhysicsBudgeted(
+          state,
+          CLOUD_PHYSICS_CATCH_UP_BUDGET_MS,
+          framePerf,
+        );
       } else {
         const wallNowCloud = performance.now();
         if (!shouldSkipCloudPhysicsCatchUpWallThrottle(state, wallNowCloud)) {
@@ -6198,6 +6606,7 @@ async function init() {
           catchUpCloudPhysicsBudgeted(
             state,
             CLOUD_PHYSICS_CATCH_UP_BUDGET_MS + extraBudget,
+            framePerf,
           );
         }
       }
@@ -6251,7 +6660,12 @@ async function init() {
       if (cloudClipField) {
         const rev = cloudClipField.getTileSurfaceState().revision;
         if (rev !== lastLandWeatherTileSurfaceRev) {
-          markLandWeatherColorsDirty();
+          const stride = effectiveLandWeatherCloudRevStride();
+          const bucket = Math.floor(rev / stride);
+          if (bucket !== lastLandWeatherCloudRevStrideBucket) {
+            lastLandWeatherCloudRevStrideBucket = bucket;
+            markLandWeatherColorsDirty();
+          }
         }
       }
       if (state.timePlaying) {
@@ -6264,13 +6678,14 @@ async function init() {
         lastLandWeatherPaintSimUtcMin = Math.floor(date.getTime() / 60_000);
       }
     }
-    flushLandWeatherVertexColorsIfDirty(state);
-    framePerf.slice("landWeatherVertexColors");
     // Render directly to screen so shadow maps are applied (EffectComposer path can skip shadows).
     renderer.setRenderTarget(null);
     renderer.clear();
     renderer.render(scene, camera);
     framePerf.slice("render");
+    /** After present: raw GL in land-weather upload + renderer.resetState() must not run between clear() and render() (one-frame fullscreen/hemisphere artifacts on some drivers). */
+    flushLandWeatherVertexColorsIfDirty(state);
+    framePerf.slice("landWeatherVertexColors");
     framePerf.endFrame(renderer, animTick);
   }
 
