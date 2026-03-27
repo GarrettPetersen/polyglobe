@@ -146,6 +146,8 @@ export interface VegetationOptions {
   cameraStablePosEpsSq?: number;
   /** Max deviation of |quat dot| from 1 to still treat rotation as unchanged. Default 8e-5. */
   cameraStableQuatEps?: number;
+  /** Optional tile IDs where vegetation/rocks are fully suppressed (e.g. city footprints). */
+  excludeTileIds?: ReadonlySet<number>;
 }
 
 /**
@@ -629,6 +631,7 @@ export function createVegetationLayer(
   const cameraStableQuatEps = options.cameraStableQuatEps ?? 8e-5;
   const getTileWetness = options.getTileWetness;
   const getTileSnowCover = options.getTileSnowCover;
+  const excludeTileIds = options.excludeTileIds;
   let lastStableTimeKey = 0;
   let hasStableCullSample = false;
 
@@ -651,6 +654,7 @@ export function createVegetationLayer(
   const rnd = seededRandom(42);
 
   for (const tile of globe.tiles) {
+    if (excludeTileIds?.has(tile.id)) continue;
     const data = tileTerrain.get(tile.id);
     if (!data) continue;
     const typeStr = data.type;

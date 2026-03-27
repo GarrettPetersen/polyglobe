@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Asset viewer — Polyglobe Demo</title>
+    <title>Building viewer — Polyglobe Demo</title>
     <style>
       * { box-sizing: border-box; }
       body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; background: #0f1216; color: #d8e0e8; }
@@ -12,7 +12,7 @@
       #ui {
         position: fixed; left: 12px; top: 12px; z-index: 10;
         background: rgba(12, 14, 20, 0.92); padding: 14px 16px; border-radius: 10px;
-        min-width: 280px; font-size: 13px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        min-width: 300px; font-size: 13px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       }
       #ui h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
       #ui .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -28,9 +28,9 @@
       }
       #ui button:hover { background: #354055; color: #fff; }
       #ui .nav { display: flex; gap: 6px; }
-      #ui .asset-path { margin-top: 8px; font-size: 11px; color: #6a7888; word-break: break-all; }
-      #ui .error { color: #e87070; font-size: 12px; margin-top: 8px; }
-      #ui .hint { color: #6a7888; font-size: 11px; margin-top: 6px; }
+      #ui .name { margin-top: 8px; font-weight: 600; color: #dbe7f3; }
+      #ui .desc { margin-top: 6px; color: #8da2b9; font-size: 12px; line-height: 1.4; }
+      #ui .hint { color: #6a7888; font-size: 11px; margin-top: 8px; }
       .viewer-links {
         position: fixed; top: 12px; right: 12px; z-index: 11;
         display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
@@ -47,25 +47,26 @@
   <body>
     <div class="viewer-links">
       <a href="/">← Globe</a>
-      <a href="/building-viewer.html">Building viewer</a>
+      <a href="/asset-viewer.html">Asset viewer</a>
       <a href="/river-hex-viewer.html">River hex</a>
       <a href="/river-bank-hex-viewer.html">River bank 3D</a>
     </div>
     <div id="ui">
-      <h2>Asset viewer</h2>
+      <h2>Building viewer</h2>
       <div class="row">
-        <label for="asset-select">Asset</label>
-        <select id="asset-select"></select>
+        <label for="building-select">Building</label>
+        <select id="building-select"></select>
       </div>
       <div class="row nav">
         <button type="button" id="btn-prev">← Prev</button>
         <button type="button" id="btn-next">Next →</button>
       </div>
-      <div class="asset-path" id="asset-path"></div>
-      <div class="error" id="error"></div>
+      <div class="name" id="building-name"></div>
+      <div class="desc" id="building-desc"></div>
       <div class="hint" id="hint"></div>
     </div>
     <div id="canvas-wrap"></div>
-    <script type="module" src="/asset-viewer.ts"></script>
+    <script type="module" src="/building-viewer.ts"></script>
   </body>
 </html>
+

@@ -118,6 +118,14 @@ import {
 } from "./earthGlobeCacheVersion";
 import { createEarthDemoCloudClipField } from "./demoCloudClipField.js";
 import { MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
+import {
+  loadUrbanizationDataset,
+  type UrbanDataset,
+} from "./urbanization.js";
+import {
+  buildUrbanSettlementVisuals,
+  type UrbanSettlementRuntime,
+} from "./urbanSettlements.js";
 import type { GlobeRuntimeBakeDecoded } from "polyglobe";
 
 /** Load `public/discrete-weather-bake-{subdivisions}.bin` when Earth cache version and tile order match. */
@@ -763,6 +771,21 @@ function effectiveLandWeatherCloudRevStride(): number {
   const url = readLandWeatherCloudRevStrideFromUrl();
   if (url != null) return url;
   return readLandWeatherSampleFractionFromUrl() >= 1 ? 1 : 4;
+}
+
+/**
+ * `?landWeatherDirtyWallMs=N` throttles runtime land-weather dirty marks to at most once every N wall-ms
+ * (default 1500ms). Higher values reduce repaint CPU with acceptable visual lag.
+ */
+function readLandWeatherDirtyWallMsFromUrl(): number {
+  if (typeof window === "undefined") return 1500;
+  const raw = new URLSearchParams(window.location.search).get(
+    "landWeatherDirtyWallMs",
+  );
+  if (raw == null || raw === "") return 1500;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return 1500;
+  return Math.min(n, 120_000);
 }
 
 /**
@@ -2480,6 +2503,11 @@ let water: WaterSphere | undefined = undefined;
 let coastFoamOverlay: CoastFoamOverlay | undefined = undefined;
 let seaIceOverlay: SeaIceOverlay | undefined = undefined;
 let freshwaterIceOverlay: SeaIceOverlay | undefined = undefined;
+let urbanDatasetLoaded: UrbanDataset | null = null;
+let urbanSettlementsRuntime: UrbanSettlementRuntime | null = null;
+let urbanClearedTileIds: ReadonlySet<number> | null = null;
+let lastUrbanPopulationYearApplied: number | null = null;
+let cameraZoomFloorRadius = 1.02;
 let seaIceCycleActive: SeaIceAnnualCycle | null = null;
 const seaIceAlwaysTileIds = new Set<number>();
 const seaIceSeasonalByTile = new Map<number, { freeze: number; thaw: number }>();
@@ -2506,6 +2534,13 @@ let riverTerrainGroup: THREE.Group | null = null;
 
 /** Re-upload land-weather GPU texture (wet/snow/climate) when true. */
 let landWeatherColorsDirty = true;
+type LandWeatherDirtyReason = "cloud-rev" | "sim-minute" | "other";
+const landWeatherDirtyReasonCounts: Record<LandWeatherDirtyReason, number> = {
+  "cloud-rev": 0,
+  "sim-minute": 0,
+  other: 0,
+};
+let lastLandWeatherDirtyMarkWallMs = 0;
 /** First flush after a globe build must paint all land vertices (new color buffer / base tints). */
 let landWeatherPrimeFullPaint = true;
 /** {@link climateSurfaceSnowVisualForTerrain} uses full date/subsolar — repaint land at least once per sim second while time is playing. */
@@ -2881,6 +2916,102 @@ function isSeaIceActiveAtTileId(tileId: number, dayOfYear: number): boolean {
   const s = seaIceSeasonalByTile.get(tileId);
   if (!s) return false;
   return isSeaIceActiveOnDay(s.freeze, s.thaw, dayOfYear);
+}
+
+function clearUrbanSettlements(): void {
+  if (urbanSettlementsRuntime) {
+    scene.remove(
+      urbanSettlementsRuntime.buildingsGroup,
+      urbanSettlementsRuntime.labelsGroup,
+    );
+    urbanSettlementsRuntime.dispose();
+    urbanSettlementsRuntime = null;
+  }
+  urbanClearedTileIds = null;
+  lastUrbanPopulationYearApplied = null;
+}
+
+function currentSimUtcYear(state: DemoState): number {
+  const d = datetimeLocalUTCToDate(
+    state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
+  );
+  return d.getUTCFullYear();
+}
+
+function computeGlobeSurfaceMaxRadius(g: Globe | undefined): number {
+  if (!g) return 1;
+  const mesh = g.mesh as THREE.Mesh;
+  const geom = mesh.geometry as THREE.BufferGeometry;
+  const pos = geom.getAttribute("position");
+  if (!pos) return g.radius;
+  let maxR2 = 0;
+  const p = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i);
+    const r2 = p.lengthSq();
+    if (r2 > maxR2) maxR2 = r2;
+  }
+  return maxR2 > 0 ? Math.sqrt(maxR2) : g.radius;
+}
+
+function updateCameraZoomFloorFromWorld(): void {
+  const terrainMaxRadius = computeGlobeSurfaceMaxRadius(globe);
+  // Buildings are tiny; this captures a worst-case top above sphere radius.
+  const buildingTopRadiusEstimate = (globe?.radius ?? 1) + 0.012;
+  cameraZoomFloorRadius = Math.max(terrainMaxRadius, buildingTopRadiusEstimate);
+  if (controls) controls.minDistance = cameraZoomFloorRadius;
+  const camLen = camera.position.length();
+  if (camLen < cameraZoomFloorRadius) {
+    if (camLen < 1e-9) camera.position.set(0, 0, cameraZoomFloorRadius);
+    else camera.position.normalize().multiplyScalar(cameraZoomFloorRadius);
+    controls?.update();
+  }
+}
+
+function updateControlsInteractionSpeed(): void {
+  if (!controls) return;
+  const minD = Math.max(1e-6, controls.minDistance);
+  const maxD = Math.max(minD + 1e-6, controls.maxDistance);
+  const d = camera.position.length();
+  const tRaw = (d - minD) / (maxD - minD);
+  const t = Math.max(0, Math.min(1, tRaw));
+  // Strong slowdown close to surface; full speed in orbital view.
+  controls.rotateSpeed = 0.12 + 0.88 * t * t;
+  controls.zoomSpeed = 0.2 + 0.8 * t * t;
+}
+
+function rebuildUrbanSettlementsForYear(
+  year: number,
+  tileTerrain: Map<number, TileTerrainData>,
+  riverFlowByTile:
+    | Map<number, { exitEdge: number; directionRad: number }>
+    | null,
+  useEarth: boolean,
+): void {
+  if (!useEarth || !urbanDatasetLoaded) {
+    clearUrbanSettlements();
+    return;
+  }
+  clearUrbanSettlements();
+  urbanSettlementsRuntime = buildUrbanSettlementVisuals(
+    urbanDatasetLoaded,
+    globe,
+    tileTerrain,
+    year,
+    riverFlowByTile,
+    isBambooRegion,
+  );
+  urbanClearedTileIds = urbanSettlementsRuntime.clearedTileIds;
+  scene.add(
+    urbanSettlementsRuntime.buildingsGroup,
+    urbanSettlementsRuntime.labelsGroup,
+  );
+  lastUrbanPopulationYearApplied = year;
+  console.log(BUILD_LOG, "urban settlements ready", {
+    year,
+    cityTiles: urbanSettlementsRuntime.cityCount,
+    clearedTiles: urbanClearedTileIds.size,
+  });
 }
 
 /**
@@ -3746,8 +3877,23 @@ function getLandWeatherVertexPaintContext(state: DemoState): {
   };
 }
 
-function markLandWeatherColorsDirty(): void {
+function markLandWeatherColorsDirty(reason: LandWeatherDirtyReason = "other"): void {
   landWeatherColorsDirty = true;
+  landWeatherDirtyReasonCounts[reason]++;
+}
+
+function maybeMarkLandWeatherColorsDirtyThrottled(
+  reason: LandWeatherDirtyReason,
+): void {
+  const minGapMs = readLandWeatherDirtyWallMsFromUrl();
+  if (minGapMs <= 0) {
+    markLandWeatherColorsDirty(reason);
+    return;
+  }
+  const now = performance.now();
+  if (now - lastLandWeatherDirtyMarkWallMs < minGapMs) return;
+  lastLandWeatherDirtyMarkWallMs = now;
+  markLandWeatherColorsDirty(reason);
 }
 
 type LandWeatherPaintCtx = NonNullable<ReturnType<typeof getLandWeatherVertexPaintContext>>;
@@ -4377,6 +4523,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     cloudPrecipBuildGeneration++;
     vegetationLoadGeneration++;
     landWeatherColorsDirty = true;
+    lastLandWeatherDirtyMarkWallMs = 0;
     landWeatherPrimeFullPaint = true;
     invalidateShadowMapGate();
     lastLandWeatherFlushSimCoalesceBucket = Number.NaN;
@@ -4412,6 +4559,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       freshwaterIceOverlay.dispose();
       freshwaterIceOverlay = undefined;
     }
+    clearUrbanSettlements();
     setActiveSeaIceCycle(null);
     // River water now provided by water table (no separate river mesh to clean up)
     if (riverTerrainGroup) {
@@ -4998,6 +5146,19 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           globalRiverFlowByTile,
         ),
       ]);
+      if (!urbanDatasetLoaded) {
+        try {
+          urbanDatasetLoaded = await loadUrbanizationDataset();
+          console.log(BUILD_LOG, "urbanization dataset loaded", {
+            cities: urbanDatasetLoaded.cities.length,
+            minPopulation: urbanDatasetLoaded.minPopulationPositive,
+            maxModernPopulation: urbanDatasetLoaded.maxPopulationModern,
+          });
+        } catch (err) {
+          console.warn(BUILD_LOG, "urbanization dataset load failed", err);
+          urbanDatasetLoaded = null;
+        }
+      }
       if (prebuiltGlobeRuntimeBake) {
         console.log(
           BUILD_LOG,
@@ -5514,6 +5675,18 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       freshwaterIceOverlay = undefined;
       setActiveSeaIceCycle(null);
     }
+
+    if (state.useEarth && urbanDatasetLoaded) {
+      rebuildUrbanSettlementsForYear(
+        currentSimUtcYear(state),
+        tileTerrain,
+        globalRiverFlowByTile,
+        state.useEarth,
+      );
+    } else {
+      clearUrbanSettlements();
+    }
+    updateCameraZoomFloorFromWorld();
 
     // Skip river re-processing if already loaded from cache
     if (
@@ -6115,6 +6288,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
         );
         return combinedLandSnowCover(snSim, snClim);
       },
+      excludeTileIds: urbanClearedTileIds ?? undefined,
     });
     vegetationLayer.group.traverse((o) => {
       if (o instanceof THREE.Mesh) {
@@ -6926,7 +7100,7 @@ async function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
-  controls.minDistance = 0.2;
+  controls.minDistance = cameraZoomFloorRadius;
   controls.maxDistance = 6;
   controls.enableRotate = true;
   controls.minPolarAngle = 0;
@@ -6945,6 +7119,7 @@ async function init() {
     animTick++;
     const veryDenseAnim = lastGlobePerfBucket === "veryDense";
     framePerf.startFrame();
+    updateControlsInteractionSpeed();
     controls.update();
     framePerf.slice("controls");
 
@@ -6977,6 +7152,18 @@ async function init() {
       state.dateTimeStr = dateToDatetimeLocalUTC(date);
       if (panelDateTimeInput) panelDateTimeInput.value = state.dateTimeStr;
     }
+    if (state.useEarth && urbanDatasetLoaded && globalTileTerrain) {
+      const simYear = date.getUTCFullYear();
+      if (lastUrbanPopulationYearApplied !== simYear) {
+        rebuildUrbanSettlementsForYear(
+          simYear,
+          globalTileTerrain,
+          globalRiverFlowByTile,
+          state.useEarth,
+        );
+      }
+    }
+    urbanSettlementsRuntime?.update(camera);
     const gmstRad = dateToGreenwichMeanSiderealTimeRad(date);
     if (starfield) starfield.update(camera, gmstRad);
     if (planetsEnabledFromUrl && planetsUpdate) planetsUpdate(date);
@@ -7186,7 +7373,7 @@ async function init() {
           const bucket = Math.floor(rev / stride);
           if (bucket !== lastLandWeatherCloudRevStrideBucket) {
             lastLandWeatherCloudRevStrideBucket = bucket;
-            markLandWeatherColorsDirty();
+            maybeMarkLandWeatherColorsDirtyThrottled("cloud-rev");
           }
         }
       }
@@ -7194,7 +7381,7 @@ async function init() {
         const simUtcMin = Math.floor(date.getTime() / 60_000);
         if (simUtcMin !== lastLandWeatherPaintSimUtcMin) {
           lastLandWeatherPaintSimUtcMin = simUtcMin;
-          markLandWeatherColorsDirty();
+          maybeMarkLandWeatherColorsDirtyThrottled("sim-minute");
         }
       } else {
         lastLandWeatherPaintSimUtcMin = Math.floor(date.getTime() / 60_000);
@@ -7208,6 +7395,23 @@ async function init() {
     /** After present: raw GL in land-weather upload + renderer.resetState() must not run between clear() and render() (one-frame fullscreen/hemisphere artifacts on some drivers). */
     flushLandWeatherVertexColorsIfDirty(state);
     framePerf.slice("landWeatherVertexColors");
+    if (isPerfDiagEnabled() && animTick % 60 === 0) {
+      const cloudRev = landWeatherDirtyReasonCounts["cloud-rev"];
+      const simMinute = landWeatherDirtyReasonCounts["sim-minute"];
+      const other = landWeatherDirtyReasonCounts.other;
+      const total = cloudRev + simMinute + other;
+      if (total > 0) {
+        console.log(PERF_LOG, "land-weather dirty reasons (last 60 frames)", {
+          "cloud-rev": cloudRev,
+          "sim-minute": simMinute,
+          other,
+          total,
+        });
+      }
+      landWeatherDirtyReasonCounts["cloud-rev"] = 0;
+      landWeatherDirtyReasonCounts["sim-minute"] = 0;
+      landWeatherDirtyReasonCounts.other = 0;
+    }
     framePerf.endFrame(renderer, animTick);
   }
 

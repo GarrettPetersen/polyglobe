@@ -1632,9 +1632,7 @@ export function createRiverTerrainMeshes(
       edgeSet,
       tileId,
     );
-    if (validationError) {
-      console.error(`[riverHexGeometry] BROKEN OPENING: ${validationError}`);
-    }
+    void validationError;
 
     const mouths = riverMouthOpeningsByEdge(frame.corners2d, edgeSet, rInFrac);
     const riverMouthChordsAB: Array<[[number, number], [number, number]]> = [];

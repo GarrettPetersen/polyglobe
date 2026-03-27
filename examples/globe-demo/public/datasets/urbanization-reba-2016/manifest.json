@@ -1,0 +1,56 @@
+{
+  "source": "Reba/Reitsma/Seto Spatializing 6000 years",
+  "records": [
+    {
+      "article_id": 2059494,
+      "title": "Chandler Population Data",
+      "doi": "10.6084/m9.figshare.2059494.v3",
+      "files": [
+        {
+          "name": "chandler.csv",
+          "download_url": "https://ndownloader.figshare.com/files/5290366",
+          "size": 1418429
+        },
+        {
+          "name": "chandlerV2.csv",
+          "download_url": "https://ndownloader.figshare.com/files/5407640",
+          "size": 1416656
+        }
+      ]
+    },
+    {
+      "article_id": 2059497,
+      "title": "Modelski Ancient Period Data",
+      "doi": "10.6084/m9.figshare.2059497.v2",
+      "files": [
+        {
+          "name": "modelskiAncient.csv",
+          "download_url": "https://ndownloader.figshare.com/files/4857010",
+          "size": 16769
+        },
+        {
+          "name": "modelskiAncientV2.csv",
+          "download_url": "https://ndownloader.figshare.com/files/5356132",
+          "size": 16764
+        }
+      ]
+    },
+    {
+      "article_id": 2059500,
+      "title": "Modelski Modern Period Data",
+      "doi": "10.6084/m9.figshare.2059500.v3",
+      "files": [
+        {
+          "name": "modelskiModern.csv",
+          "download_url": "https://ndownloader.figshare.com/files/4857007",
+          "size": 15073
+        },
+        {
+          "name": "modelskiModernV2.csv",
+          "download_url": "https://ndownloader.figshare.com/files/5407637",
+          "size": 15054
+        }
+      ]
+    }
+  ]
+}

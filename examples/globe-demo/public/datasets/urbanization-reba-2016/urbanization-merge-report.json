@@ -1,0 +1,601 @@
+{
+  "generatedAtUtc": "2026-03-27T05:03:20.334Z",
+  "inputs": [
+    "/Users/garrettpetersen/polyglobe/examples/globe-demo/public/datasets/urbanization-reba-2016/chandlerV2.csv",
+    "/Users/garrettpetersen/polyglobe/examples/globe-demo/public/datasets/urbanization-reba-2016/modelskiAncientV2.csv",
+    "/Users/garrettpetersen/polyglobe/examples/globe-demo/public/datasets/urbanization-reba-2016/modelskiModernV2.csv"
+  ],
+  "outputCsv": "/Users/garrettpetersen/polyglobe/examples/globe-demo/public/datasets/urbanization-reba-2016/urbanization-merged.csv",
+  "mergePolicy": {
+    "description": "Prefer Modelski Ancient for <=AD1000; Chandler for AD1001..1975; Modelski Modern for AD2000; fallback when preferred missing.",
+    "note": "Matches paper-era preference for ancient overlap while preserving Chandler later coverage."
+  },
+  "inputCoverage": {
+    "chandler": {
+      "rows": 1597,
+      "yearColumns": 806,
+      "minYear": -2250,
+      "maxYear": 1975
+    },
+    "modelski_ancient": {
+      "rows": 154,
+      "yearColumns": 41,
+      "minYear": -3700,
+      "maxYear": 1000
+    },
+    "modelski_modern": {
+      "rows": 293,
+      "yearColumns": 1,
+      "minYear": 2000,
+      "maxYear": 2000
+    }
+  },
+  "totals": {
+    "mergedRows": 10262,
+    "uniqueCities": 1737,
+    "minYear": -3700,
+    "maxYear": 2000
+  },
+  "sourceUsage": {
+    "chandler": 9348,
+    "modelski_ancient": 621,
+    "modelski_modern": 293
+  },
+  "overlap": {
+    "overlapRows": 89,
+    "overlapAgreeRows": 23,
+    "overlapDisagreeRows": 66
+  },
+  "topDisagreementsByPopulationSpread": [
+    {
+      "city": "Baghdad",
+      "country": "Iraq",
+      "year": 1000,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 1500000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 125000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 1500000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 125000,
+      "maxPopulation": 1500000,
+      "spread": 1375000
+    },
+    {
+      "city": "Rome",
+      "country": "Italy",
+      "year": 100,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 1000000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 450000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 1000000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 450000,
+      "maxPopulation": 1000000,
+      "spread": 550000
+    },
+    {
+      "city": "Xian",
+      "country": "China",
+      "year": 900,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 100000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 500000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 100000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 100000,
+      "maxPopulation": 500000,
+      "spread": 400000
+    },
+    {
+      "city": "Nanjing",
+      "country": "China",
+      "year": 500,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 500000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 150000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 500000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 150000,
+      "maxPopulation": 500000,
+      "spread": 350000
+    },
+    {
+      "city": "Alexandria",
+      "country": "Egypt",
+      "year": -200,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 600000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 300000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 600000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 300000,
+      "maxPopulation": 600000,
+      "spread": 300000
+    },
+    {
+      "city": "Istanbul",
+      "country": "Turkey",
+      "year": 1000,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 600000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 300000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 600000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 300000,
+      "maxPopulation": 600000,
+      "spread": 300000
+    },
+    {
+      "city": "Luoyang",
+      "country": "China",
+      "year": 500,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 500000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 200000,
+          "certainty": 2
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 500000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 200000,
+      "maxPopulation": 500000,
+      "spread": 300000
+    },
+    {
+      "city": "Xian",
+      "country": "China",
+      "year": -200,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 100000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 400000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 100000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 100000,
+      "maxPopulation": 400000,
+      "spread": 300000
+    },
+    {
+      "city": "Istanbul",
+      "country": "Turkey",
+      "year": 900,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 500000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 300000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 500000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 300000,
+      "maxPopulation": 500000,
+      "spread": 200000
+    },
+    {
+      "city": "Xian",
+      "country": "China",
+      "year": 800,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 800000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 600000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 800000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 600000,
+      "maxPopulation": 800000,
+      "spread": 200000
+    },
+    {
+      "city": "Cordoba",
+      "country": "Spain",
+      "year": 900,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 200000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 20000,
+          "certainty": 2
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 200000,
+          "certainty": 2
+        }
+      ],
+      "minPopulation": 20000,
+      "maxPopulation": 200000,
+      "spread": 180000
+    },
+    {
+      "city": "Pergamum",
+      "country": "Turkey",
+      "year": -200,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 200000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 35000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 200000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 35000,
+      "maxPopulation": 200000,
+      "spread": 165000
+    },
+    {
+      "city": "Istanbul",
+      "country": "Turkey",
+      "year": 800,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 400000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 250000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 400000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 250000,
+      "maxPopulation": 400000,
+      "spread": 150000
+    },
+    {
+      "city": "Luoyang",
+      "country": "China",
+      "year": -200,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 200000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 60000,
+          "certainty": 2
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 200000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 60000,
+      "maxPopulation": 200000,
+      "spread": 140000
+    },
+    {
+      "city": "Samarkand",
+      "country": "Uzbekistan",
+      "year": 1000,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 200000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 75000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 200000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 75000,
+      "maxPopulation": 200000,
+      "spread": 125000
+    },
+    {
+      "city": "Alexandria",
+      "country": "Egypt",
+      "year": 500,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 200000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 100000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 200000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 100000,
+      "maxPopulation": 200000,
+      "spread": 100000
+    },
+    {
+      "city": "Istanbul",
+      "country": "Turkey",
+      "year": 500,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 500000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 400000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 500000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 400000,
+      "maxPopulation": 500000,
+      "spread": 100000
+    },
+    {
+      "city": "Kyoto",
+      "country": "Japan",
+      "year": 800,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 100000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 200000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 100000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 100000,
+      "maxPopulation": 200000,
+      "spread": 100000
+    },
+    {
+      "city": "Luoyang",
+      "country": "China",
+      "year": 800,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 400000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 300000,
+          "certainty": 2
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 400000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 300000,
+      "maxPopulation": 400000,
+      "spread": 100000
+    },
+    {
+      "city": "Rayy",
+      "country": "Iran",
+      "year": 800,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 200000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 100000,
+          "certainty": 2
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 200000,
+          "certainty": 2
+        }
+      ],
+      "minPopulation": 100000,
+      "maxPopulation": 200000,
+      "spread": 100000
+    },
+    {
+      "city": "Taxilla",
+      "country": "Pakistan",
+      "year": -200,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 150000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 60000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 150000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 60000,
+      "maxPopulation": 150000,
+      "spread": 90000
+    },
+    {
+      "city": "Tiahuanaco",
+      "country": "Bolivia",
+      "year": 800,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 100000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 20000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 100000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 20000,
+      "maxPopulation": 100000,
+      "spread": 80000
+    },
+    {
+      "city": "Alexandria",
+      "country": "Egypt",
+      "year": 900,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 100000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 175000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 100000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 100000,
+      "maxPopulation": 175000,
+      "spread": 75000
+    },
+    {
+      "city": "Cairo",
+      "country": "Egypt",
+      "year": 1000,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 200000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 135000,
+          "certainty": 1
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 200000,
+          "certainty": 1
+        }
+      ],
+      "minPopulation": 135000,
+      "maxPopulation": 200000,
+      "spread": 65000
+    },
+    {
+      "city": "Apamea",
+      "country": "Turkey",
+      "year": -100,
+      "chosenSource": "modelski_ancient",
+      "chosenPopulation": 100000,
+      "alternatives": [
+        {
+          "source": "chandler",
+          "population": 37000,
+          "certainty": 3
+        },
+        {
+          "source": "modelski_ancient",
+          "population": 100000,
+          "certainty": 3
+        }
+      ],
+      "minPopulation": 37000,
+      "maxPopulation": 100000,
+      "spread": 63000
+    }
+  ]
+}

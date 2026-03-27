@@ -12,6 +12,7 @@ export default defineConfig({
         riverHex: path.resolve(__dirname, "river-hex-viewer.html"),
         riverBankHex: path.resolve(__dirname, "river-bank-hex-viewer.html"),
         assetViewer: path.resolve(__dirname, "asset-viewer.html"),
+        buildingViewer: path.resolve(__dirname, "building-viewer.html"),
       },
     },
   },
