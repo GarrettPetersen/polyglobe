@@ -171,7 +171,9 @@ function interpolatePopulationAtYear(
   year: number,
 ): number {
   if (ys.length === 0) return 0;
-  if (year <= ys[0]!.year) return ys[0]!.population;
+  // Do not backfill cities before their first observed year.
+  if (year < ys[0]!.year) return 0;
+  if (year === ys[0]!.year) return ys[0]!.population;
   if (year >= ys[ys.length - 1]!.year) return ys[ys.length - 1]!.population;
   for (let i = 0; i < ys.length - 1; i++) {
     const a = ys[i]!;
