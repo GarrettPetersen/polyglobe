@@ -72,11 +72,18 @@ function sampleBilinear(data, sw, sh, lonDeg, latDeg) {
   return vSum / wSum;
 }
 
-/** Nearest valid sample (expanding box) for ocean / nodata holes. */
-function sampleNearest(data, sw, sh, lonDeg, latDeg) {
+/**
+ * Inverse-distance weighted local fill over expanding rings.
+ * Uses many nearby valid samples (not just one nearest point) to avoid stripes.
+ */
+function sampleLocalIdw(data, sw, sh, lonDeg, latDeg) {
   const px = Math.round(((lonDeg + 180) / 360) * sw - 0.5);
   const py = Math.round(((90 - latDeg) / 180) * sh - 0.5);
-  const maxR = Math.min(80, Math.max(sw, sh));
+  const maxR = Math.min(96, Math.max(sw, sh));
+  let wSum = 0;
+  let vSum = 0;
+  let found = 0;
+  const targetSamples = 24;
   for (let r = 0; r <= maxR; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -84,17 +91,37 @@ function sampleNearest(data, sw, sh, lonDeg, latDeg) {
         const xi = Math.max(0, Math.min(sw - 1, px + dx));
         const yi = Math.max(0, Math.min(sh - 1, py + dy));
         const v = data[yi * sw + xi];
-        if (isValidT(v)) return v;
+        if (!isValidT(v)) continue;
+        const d2 = dx * dx + dy * dy;
+        const w = 1 / Math.max(1, d2);
+        wSum += w;
+        vSum += w * v;
+        found++;
       }
     }
+    if (found >= targetSamples && wSum > 0) break;
   }
-  return Number.NaN;
+  if (wSum < 1e-6) return Number.NaN;
+  return vSum / wSum;
 }
 
 function sampleTemp(data, sw, sh, lonDeg, latDeg) {
   let t = sampleBilinear(data, sw, sh, lonDeg, latDeg);
-  if (!Number.isFinite(t)) t = sampleNearest(data, sw, sh, lonDeg, latDeg);
+  if (!Number.isFinite(t)) t = sampleLocalIdw(data, sw, sh, lonDeg, latDeg);
   return t;
+}
+
+function applyMechanicalPolarCooling(tempC, latDeg) {
+  const absLat = Math.abs(latDeg);
+  // By construction, the pole itself should always be at/below freezing.
+  if (absLat >= 89.5) return Math.min(tempC, -2.2);
+  // Ramp to strong cooling near the pole to suppress unrealistic warm spikes.
+  if (absLat >= 84) {
+    const t = (absLat - 84) / (89.5 - 84); // 0..1
+    const cap = -0.8 - t * 1.4; // -0.8C .. -2.2C
+    return Math.min(tempC, cap);
+  }
+  return tempC;
 }
 
 function fallbackOceanLikeTempC(month, latDeg, lonDeg) {
@@ -165,10 +192,13 @@ async function main() {
         const t = sampleTemp(src, sw, sh, lonDeg, latDeg);
         const oi = (month - 1) * OUT_CELLS + j * OUT_W + i;
         if (!Number.isFinite(t)) {
-          out[oi] = fallbackOceanLikeTempC(month, latDeg, lonDeg);
+          out[oi] = applyMechanicalPolarCooling(
+            fallbackOceanLikeTempC(month, latDeg, lonDeg),
+            latDeg,
+          );
           missing++;
         } else {
-          out[oi] = t;
+          out[oi] = applyMechanicalPolarCooling(t, latDeg);
         }
       }
     }
