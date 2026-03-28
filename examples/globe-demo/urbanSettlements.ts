@@ -85,8 +85,8 @@ const _basisAlt = new THREE.Vector3(1, 0, 0);
 const templateCache = new Map<string, THREE.Group>();
 const footprintRadiusCache = new Map<string, number>();
 
-const MAX_VISIBLE_SETTLEMENTS = 42;
-const MAX_VISIBLE_BUILDINGS = 640;
+const MAX_VISIBLE_SETTLEMENTS = 24;
+const MAX_VISIBLE_BUILDINGS = 280;
 const MAX_VISIBLE_DISTANCE = 1.05;
 const LABEL_VISIBLE_DISTANCE = 0.78;
 const LABEL_MAX_SCREEN_PX = 24;
@@ -99,6 +99,8 @@ const CORNER_SLOT_BLEND = 0.68;
 const ADJACENT_CORNER_RADIUS_FRAC = 0.42;
 const URBAN_TERRAIN_ELEVATION_SCALE = 0.08;
 const URBAN_SURFACE_LIFT = 0.00055;
+const URBAN_ENABLE_LABELS = false;
+const VISIBILITY_UPDATE_FRAME_STRIDE = 6;
 
 function buildingScaleBase(id: string): number {
   if (id === "small-house") return 0.00325 * BUILDING_SIZE_SCALE;
@@ -791,10 +793,14 @@ function ensureSettlementBuilt(
     _quatYaw.setFromAxisAngle(normal, r() * Math.PI * 2);
     mesh.quaternion.copy(_quatUp).premultiply(_quatYaw);
     mesh.scale.setScalar(bld.scale * scaleFit);
+    mesh.updateMatrix();
+    mesh.matrixAutoUpdate = false;
     placed.push({ pos: _pos.clone(), radius: effRadius });
     group.add(mesh);
     clampStats.drawn++;
   }
+  group.updateMatrix();
+  group.matrixAutoUpdate = false;
   group.visible = false;
   entry.group = group;
   return { overlapDetected };
@@ -1004,7 +1010,7 @@ export function buildUrbanSettlementVisuals(
   function update(camera: THREE.Camera): void {
     frameCounter++;
     const camPos = camera.position;
-    if (frameCounter % 3 !== 0) return;
+    if (frameCounter % VISIBILITY_UPDATE_FRAME_STRIDE !== 0) return;
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i]!;
       ranked[i]!.distSq = camPos.distanceToSquared(e.normal);
@@ -1042,12 +1048,16 @@ export function buildUrbanSettlementVisuals(
         }
         if (!e.group!.parent) buildingsGroup.add(e.group!);
         e.group!.visible = true;
-        const distSq = camPos.distanceToSquared(e.normal);
-        if (distSq <= LABEL_VISIBLE_DISTANCE * LABEL_VISIBLE_DISTANCE) {
-          ensureLabelBuilt(e);
-          if (!e.label!.parent) labelsGroup.add(e.label!);
-          updateLabelScaleForCamera(e.label!, camera);
-          e.label!.visible = true;
+        if (URBAN_ENABLE_LABELS) {
+          const distSq = camPos.distanceToSquared(e.normal);
+          if (distSq <= LABEL_VISIBLE_DISTANCE * LABEL_VISIBLE_DISTANCE) {
+            ensureLabelBuilt(e);
+            if (!e.label!.parent) labelsGroup.add(e.label!);
+            updateLabelScaleForCamera(e.label!, camera);
+            e.label!.visible = true;
+          } else if (e.label) {
+            e.label.visible = false;
+          }
         } else if (e.label) {
           e.label.visible = false;
         }
