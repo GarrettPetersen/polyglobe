@@ -419,7 +419,7 @@ type EarthGlobeCacheFile = {
   version: string;
   subdivisions: number;
   tileCount: number;
-  tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1 }>;
+  tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1; m?: number }>;
   peaks: [number, number][];
   riverEdges: Record<string, number[]>;
   riverEdgeToWater: Record<string, number[]>;
@@ -3000,6 +3000,7 @@ function rebuildUrbanSettlementsForYear(
     year,
     riverFlowByTile,
     isBambooRegion,
+    mountainsList,
   );
   urbanClearedTileIds = urbanSettlementsRuntime.clearedTileIds;
   scene.add(
@@ -3213,6 +3214,8 @@ let lastCloudPhysicsCatchUpWallMs = 0;
 let playbackEpochMs = 0;
 /** Panel datetime input; updated while time is playing. */
 let panelDateTimeInput: HTMLInputElement | null = null;
+/** Panel era select (BC/AD); kept in sync with {@link panelDateTimeInput}. */
+let panelEraSelect: HTMLSelectElement | null = null;
 /** Parsed once at load from `?autoTimeSpeed=` (see `readAutoTimeSpeedFromUrl`). */
 let urlAutoTimePlaySpeed = 0;
 let panelPlayBtn: HTMLButtonElement | null = null;
@@ -3287,6 +3290,7 @@ function applyAutoTimePlayAfterGlobeBuilt(state: DemoState): void {
   ).getTime();
   if (panelPlayBtn) panelPlayBtn.textContent = "Pause";
   if (panelDateTimeInput) panelDateTimeInput.disabled = true;
+  if (panelEraSelect) panelEraSelect.disabled = true;
   if (panelSpeedSelect) {
     const v = String(state.timePlaySpeed);
     let found = false;
@@ -4711,6 +4715,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             elevation: row.e,
             ...(row.l != null ? { lakeId: row.l } : {}),
             ...(row.h ? { isHilly: true } : {}),
+            ...(row.m != null ? { landmassId: row.m } : {}),
           });
         }
         /** Cache JSON has no per-tile monthly temps; sample tavg stack here so snow/rain matches gridded climate. */
@@ -4822,7 +4827,6 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
                 await yieldForRender(20);
               },
               resolveOptions: {
-                useGreedyLandmassPlacement: true,
                 getRasterWindow: earthGetRasterWindow ?? undefined,
                 knownStraitTileIds:
                   globe.subdivisions === 6
@@ -6370,6 +6374,83 @@ function scheduleRebuild(state: DemoState) {
     });
 }
 
+type CalendarEra = "BC" | "AD";
+
+function parseIsoDateTimeParts(value: string): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} | null {
+  const m = value
+    .trim()
+    .match(/^([+-]?\d+)-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = m[6] == null ? 0 : Number(m[6]);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute) ||
+    !Number.isFinite(second)
+  ) {
+    return null;
+  }
+  return { year, month, day, hour, minute, second };
+}
+
+function astronomicalToEraInput(dateTimeStr: string): {
+  era: CalendarEra;
+  local: string;
+} {
+  const parts = parseIsoDateTimeParts(dateTimeStr);
+  if (!parts) return { era: "AD", local: dateToDatetimeLocalUTC(new Date()) };
+  const era: CalendarEra = parts.year <= 0 ? "BC" : "AD";
+  const yearOfEra = era === "BC" ? 1 - parts.year : parts.year;
+  const yyyy = String(Math.max(1, yearOfEra)).padStart(4, "0");
+  const mm = String(parts.month).padStart(2, "0");
+  const dd = String(parts.day).padStart(2, "0");
+  const hh = String(parts.hour).padStart(2, "0");
+  const mi = String(parts.minute).padStart(2, "0");
+  const ss = String(parts.second).padStart(2, "0");
+  return { era, local: `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}` };
+}
+
+function eraInputToAstronomical(localDateTime: string, era: CalendarEra): string {
+  const parts = parseIsoDateTimeParts(localDateTime);
+  if (!parts) return dateToDatetimeLocalUTC(new Date());
+  const astronomicalYear =
+    era === "BC" ? 1 - Math.max(1, parts.year) : Math.max(1, parts.year);
+  const yearStr =
+    astronomicalYear >= 0
+      ? String(astronomicalYear).padStart(4, "0")
+      : `-${String(Math.abs(astronomicalYear)).padStart(4, "0")}`;
+  const mm = String(parts.month).padStart(2, "0");
+  const dd = String(parts.day).padStart(2, "0");
+  const hh = String(parts.hour).padStart(2, "0");
+  const mi = String(parts.minute).padStart(2, "0");
+  const ss = String(parts.second).padStart(2, "0");
+  return `${yearStr}-${mm}-${dd}T${hh}:${mi}:${ss}`;
+}
+
+function syncDateTimeControls(
+  dateTimeInput: HTMLInputElement,
+  eraSelect: HTMLSelectElement,
+  dateTimeStr: string,
+): void {
+  const v = astronomicalToEraInput(dateTimeStr);
+  dateTimeInput.value = v.local;
+  eraSelect.value = v.era;
+}
+
 function createPanel(state: DemoState, onRebuild: () => void) {
   const panel = document.getElementById("panel")!;
   panel.title =
@@ -6469,25 +6550,38 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   const dateTimeInput = document.createElement("input");
   dateTimeInput.type = "datetime-local";
   dateTimeInput.step = "1";
-  dateTimeInput.value =
-    state.dateTimeStr || dateToDatetimeLocalUTC(new Date());
-  if (!state.dateTimeStr) state.dateTimeStr = dateTimeInput.value;
+  const eraSelect = document.createElement("select");
+  eraSelect.setAttribute("aria-label", "Calendar era");
+  const eraAd = document.createElement("option");
+  eraAd.value = "AD";
+  eraAd.textContent = "AD";
+  const eraBc = document.createElement("option");
+  eraBc.value = "BC";
+  eraBc.textContent = "BC";
+  eraSelect.appendChild(eraAd);
+  eraSelect.appendChild(eraBc);
+  if (!state.dateTimeStr) state.dateTimeStr = dateToDatetimeLocalUTC(new Date());
+  syncDateTimeControls(dateTimeInput, eraSelect, state.dateTimeStr);
   panelDateTimeInput = dateTimeInput;
+  panelEraSelect = eraSelect;
   playbackEpochMs = datetimeLocalUTCToDate(state.dateTimeStr).getTime();
 
   function applyDateTimeAndWinds() {
-    state.dateTimeStr = dateTimeInput.value;
+    const era = eraSelect.value === "BC" ? "BC" : "AD";
+    state.dateTimeStr = eraInputToAstronomical(dateTimeInput.value, era);
     playbackEpochMs = datetimeLocalUTCToDate(state.dateTimeStr).getTime();
     lastWindUtcMinute = quantizeSimUtcMinuteForCloudPhysics(
       Math.floor(playbackEpochMs / 60000),
       state.cloudPhysicsQuantumMinutes,
     );
-    updateWindFromState(state, dateTimeInput.value);
+    updateWindFromState(state, state.dateTimeStr);
     if (riverFlowArrowsGroup || currentArrowsGroup) updateFlowFromState(state);
     if (cloudGroup) syncCloudPhysicsAfterClockJump(state, 48);
+    syncDateTimeControls(dateTimeInput, eraSelect, state.dateTimeStr);
   }
   dateTimeInput.addEventListener("change", applyDateTimeAndWinds);
   dateTimeInput.addEventListener("input", applyDateTimeAndWinds);
+  eraSelect.addEventListener("change", applyDateTimeAndWinds);
 
   const playRow = document.createElement("div");
   playRow.className = "row";
@@ -6498,6 +6592,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     state.timePlaying = !state.timePlaying;
     playBtn.textContent = state.timePlaying ? "Pause" : "Play";
     dateTimeInput.disabled = state.timePlaying;
+    eraSelect.disabled = state.timePlaying;
     if (state.timePlaying) {
       playbackEpochMs = datetimeLocalUTCToDate(
         state.dateTimeStr || dateToDatetimeLocalUTC(new Date()),
@@ -6541,7 +6636,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   nowBtn.addEventListener("click", () => {
     const d = new Date();
     state.dateTimeStr = dateToDatetimeLocalUTC(d);
-    dateTimeInput.value = state.dateTimeStr;
+    syncDateTimeControls(dateTimeInput, eraSelect, state.dateTimeStr);
     playbackEpochMs = d.getTime();
     lastWindUtcMinute = quantizeSimUtcMinuteForCloudPhysics(
       Math.floor(playbackEpochMs / 60000),
@@ -6616,9 +6711,10 @@ function createPanel(state: DemoState, onRebuild: () => void) {
   sec.appendChild(cloudTickRow);
 
   const dateTimeLabel = document.createElement("label");
-  dateTimeLabel.textContent = "Sun & moon position:";
+  dateTimeLabel.textContent = "Sky simulation time:";
   dateTimeRow.appendChild(dateTimeLabel);
   dateTimeRow.appendChild(dateTimeInput);
+  dateTimeRow.appendChild(eraSelect);
   sec.appendChild(dateTimeRow);
 
   const windRow = document.createElement("div");
@@ -7132,7 +7228,9 @@ async function init() {
       playbackEpochMs += dtRealSec * state.timePlaySpeed * 1000;
       const wd = new Date(playbackEpochMs);
       state.dateTimeStr = dateToDatetimeLocalUTC(wd);
-      if (panelDateTimeInput) panelDateTimeInput.value = state.dateTimeStr;
+      if (panelDateTimeInput && panelEraSelect) {
+        syncDateTimeControls(panelDateTimeInput, panelEraSelect, state.dateTimeStr);
+      }
     }
     framePerf.slice("timePlayback");
 
@@ -7150,7 +7248,9 @@ async function init() {
     if (Number.isNaN(date.getTime())) {
       date = new Date();
       state.dateTimeStr = dateToDatetimeLocalUTC(date);
-      if (panelDateTimeInput) panelDateTimeInput.value = state.dateTimeStr;
+      if (panelDateTimeInput && panelEraSelect) {
+        syncDateTimeControls(panelDateTimeInput, panelEraSelect, state.dateTimeStr);
+      }
     }
     if (state.useEarth && urbanDatasetLoaded && globalTileTerrain) {
       const simYear = date.getUTCFullYear();
@@ -7791,7 +7891,11 @@ async function init() {
     );
     const day = annualDayIndexFromDate(infoDate);
     const seaIce = isSeaIceActiveAtTileId(tileId, day);
-    return `ID: ${tileId}<br>Type: ${tileType}<br>Sea ice: ${seaIce}<br>River: ${inRiver}<br>Flow: ${flowStr}<br>Elevation: ${elevStr}<br>Wind: ${windStr}`;
+    const city = urbanSettlementsRuntime?.cityInfoByTileId.get(tileId);
+    const cityLabel = city?.cityLabel ?? "—";
+    const cityPopulation =
+      city != null ? Math.round(city.population).toLocaleString() : "—";
+    return `ID: ${tileId}<br>Type: ${tileType}<br>Sea ice: ${seaIce}<br>River: ${inRiver}<br>Flow: ${flowStr}<br>Elevation: ${elevStr}<br>Wind: ${windStr}<br>City: ${cityLabel}<br>Population: ${cityPopulation}`;
   }
 
   function goToHex() {

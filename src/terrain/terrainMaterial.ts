@@ -74,6 +74,8 @@ export interface TileTerrainData {
   tileId: number;
   type: TerrainType;
   elevation: number;
+  /** Contiguous raster landmass id (when region-based resolver is used). */
+  landmassId?: number;
   /** Linear RGB 0–1 from {@link TERRAIN_STYLES}[type]; filled by {@link precomputeTileTerrainWeatherFields}. */
   baseR?: number;
   baseG?: number;

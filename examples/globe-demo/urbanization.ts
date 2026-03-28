@@ -22,6 +22,21 @@ export interface UrbanCityAtYear {
   population: number;
 }
 
+interface ParsedUrbanRow {
+  city: string;
+  country: string;
+  lat: number;
+  lon: number;
+  year: number;
+  population: number;
+}
+
+const DEFAULT_DOMINANCE_PREBAKED_URL =
+  "/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
+const LOW_PERCENTILE_PRUNE = 0.1;
+const LOW_PERCENTILE_MAX_POP_CAP = 120_000;
+const LOW_PERCENTILE_MIN_OBSERVATIONS = 3;
+
 function normalizeToken(s: string): string {
   return (s ?? "")
     .normalize("NFD")
@@ -91,16 +106,19 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
-export async function loadUrbanizationDataset(
-  url = "/datasets/urbanization-reba-2016/urbanization-merged.csv",
-): Promise<UrbanDataset> {
+async function tryLoadRowsFromCsv(
+  url: string,
+  sourceName: string,
+): Promise<ParsedUrbanRow[]> {
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`Failed to load urbanization dataset: ${res.status}`);
+    throw new Error(
+      `Failed to load ${sourceName} urbanization dataset (${url}): ${res.status}`,
+    );
   }
   const text = await res.text();
   const rows = parseCsv(text);
-  if (rows.length < 2) throw new Error("Urbanization dataset is empty");
+  if (rows.length < 2) throw new Error(`${sourceName} dataset is empty`);
   const header = rows[0]!;
   const idxCity = header.indexOf("city");
   const idxCountry = header.indexOf("country");
@@ -116,12 +134,11 @@ export async function loadUrbanizationDataset(
     idxYear < 0 ||
     idxPop < 0
   ) {
-    throw new Error("Urbanization dataset missing required columns");
+    throw new Error(
+      `${sourceName} dataset missing required columns (city,country,latitude,longitude,year,population)`,
+    );
   }
-
-  const cityMap = new Map<string, UrbanCitySeries>();
-  let minPopulationPositive = Number.POSITIVE_INFINITY;
-  let maxPopulationModern = 0;
+  const out: ParsedUrbanRow[] = [];
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r]!;
     if (!row || row.length === 0) continue;
@@ -135,35 +152,152 @@ export async function loadUrbanizationDataset(
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     if (!Number.isFinite(year) || !Number.isFinite(pop)) continue;
     if (pop <= 0) continue;
-    if (pop < minPopulationPositive) minPopulationPositive = pop;
-    if (year >= 1900 && pop > maxPopulationModern) maxPopulationModern = pop;
-    const key = cityKey(city, country);
+    out.push({ city, country, lat, lon, year, population: pop });
+  }
+  return out;
+}
+
+function buildDatasetFromRows(rows: ParsedUrbanRow[]): UrbanDataset {
+  const cityMap = new Map<string, UrbanCitySeries>();
+
+  for (const row of rows) {
+    const key = cityKey(row.city, row.country);
     let c = cityMap.get(key);
     if (!c) {
       c = {
         id: key,
-        city,
-        country,
-        lat,
-        lon,
+        city: row.city,
+        country: row.country,
+        lat: row.lat,
+        lon: row.lon,
         yearlyPopulation: [],
       };
       cityMap.set(key, c);
     }
-    c.yearlyPopulation.push({ year, population: pop });
+    c.yearlyPopulation.push({ year: row.year, population: row.population });
   }
   const cities = [...cityMap.values()];
   for (const c of cities) {
     c.yearlyPopulation.sort((a, b) => a.year - b.year);
+    const deduped: Array<{ year: number; population: number }> = [];
+    for (const yp of c.yearlyPopulation) {
+      const prev = deduped[deduped.length - 1];
+      if (prev && prev.year === yp.year) {
+        if (yp.population > prev.population) prev.population = yp.population;
+      } else {
+        deduped.push({ year: yp.year, population: yp.population });
+      }
+    }
+    c.yearlyPopulation = deduped;
+  }
+  const prunedCities = prunePersistentLowPercentileCities(cities);
+  let minPopKept = Number.POSITIVE_INFINITY;
+  let maxModernKept = 0;
+  for (const c of prunedCities) {
+    for (const yp of c.yearlyPopulation) {
+      if (yp.population < minPopKept) minPopKept = yp.population;
+      if (yp.year >= 1900 && yp.population > maxModernKept) maxModernKept = yp.population;
+    }
   }
   return {
-    cities,
-    minPopulationPositive: Number.isFinite(minPopulationPositive)
-      ? minPopulationPositive
+    cities: prunedCities,
+    minPopulationPositive: Number.isFinite(minPopKept)
+      ? minPopKept
       : 1,
     maxPopulationModern:
-      maxPopulationModern > 0 ? maxPopulationModern : minPopulationPositive,
+      maxModernKept > 0
+        ? maxModernKept
+        : Number.isFinite(minPopKept)
+          ? minPopKept
+          : 1,
   };
+}
+
+function quantileFromSorted(values: number[], q: number): number {
+  if (values.length === 0) return 0;
+  if (values.length === 1) return values[0]!;
+  const qq = Math.max(0, Math.min(1, q));
+  const idx = qq * (values.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  const t = idx - lo;
+  const a = values[lo]!;
+  const b = values[hi]!;
+  return a + (b - a) * t;
+}
+
+function prunePersistentLowPercentileCities(
+  cities: UrbanCitySeries[],
+): UrbanCitySeries[] {
+  const popsByYear = new Map<number, number[]>();
+  for (const c of cities) {
+    for (const yp of c.yearlyPopulation) {
+      let arr = popsByYear.get(yp.year);
+      if (!arr) {
+        arr = [];
+        popsByYear.set(yp.year, arr);
+      }
+      arr.push(yp.population);
+    }
+  }
+  const thresholdByYear = new Map<number, number>();
+  for (const [year, arr] of popsByYear) {
+    arr.sort((a, b) => a - b);
+    thresholdByYear.set(year, quantileFromSorted(arr, LOW_PERCENTILE_PRUNE));
+  }
+  const kept: UrbanCitySeries[] = [];
+  let pruned = 0;
+  for (const c of cities) {
+    let seen = 0;
+    let maxPop = 0;
+    let alwaysLow = true;
+    for (const yp of c.yearlyPopulation) {
+      seen++;
+      if (yp.population > maxPop) maxPop = yp.population;
+      const thr = thresholdByYear.get(yp.year);
+      if (thr == null || yp.population > thr) {
+        alwaysLow = false;
+        break;
+      }
+    }
+    if (
+      alwaysLow &&
+      seen >= LOW_PERCENTILE_MIN_OBSERVATIONS &&
+      maxPop <= LOW_PERCENTILE_MAX_POP_CAP
+    ) {
+      pruned++;
+      continue;
+    }
+    kept.push(c);
+  }
+  if (pruned > 0) {
+    console.log("[urbanization] pruned persistent low-percentile city series", {
+      percentile: LOW_PERCENTILE_PRUNE,
+      maxPopulationCap: LOW_PERCENTILE_MAX_POP_CAP,
+      minObservations: LOW_PERCENTILE_MIN_OBSERVATIONS,
+      pruned,
+      kept: kept.length,
+    });
+  }
+  return kept;
+}
+
+export async function loadUrbanizationDataset(
+): Promise<UrbanDataset> {
+  const prebakedRows = await tryLoadRowsFromCsv(
+    DEFAULT_DOMINANCE_PREBAKED_URL,
+    "dominance-prebaked",
+  );
+  if (prebakedRows.length === 0) {
+    throw new Error(
+      `[urbanization] Dominance-prebaked dataset is empty (${DEFAULT_DOMINANCE_PREBAKED_URL})`,
+    );
+  }
+  console.log("[urbanization] using dominance-prebaked dataset", {
+    url: DEFAULT_DOMINANCE_PREBAKED_URL,
+    rows: prebakedRows.length,
+  });
+  return buildDatasetFromRows(prebakedRows);
 }
 
 function interpolatePopulationAtYear(

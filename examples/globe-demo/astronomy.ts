@@ -94,7 +94,11 @@ export function dateToDatetimeLocalUTC(date: Date): string {
   const h = String(date.getUTCHours()).padStart(2, "0");
   const min = String(date.getUTCMinutes()).padStart(2, "0");
   const sec = String(date.getUTCSeconds()).padStart(2, "0");
-  return `${y}-${mo}-${d}T${h}:${min}:${sec}`;
+  const yearStr =
+    y >= 0
+      ? String(y).padStart(4, "0")
+      : `-${String(Math.abs(y)).padStart(4, "0")}`;
+  return `${yearStr}-${mo}-${d}T${h}:${min}:${sec}`;
 }
 
 /**
@@ -103,13 +107,27 @@ export function dateToDatetimeLocalUTC(date: Date): string {
  */
 export function datetimeLocalUTCToDate(s: string): Date {
   if (!s) return new Date();
-  const [datePart, timePart] = s.split("T");
-  const [y, m, d] = datePart.split("-").map(Number);
-  const parts = (timePart || "00:00").split(":");
-  const h = Number(parts[0]) || 0;
-  const min = Number(parts[1]) || 0;
-  const sec = parts[2] != null ? Number(parts[2]) || 0 : 0;
-  return new Date(Date.UTC(y, m - 1, d, h, min, sec, 0));
+  const m = s
+    .trim()
+    .match(/^([+-]?\d+)-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return new Date();
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const h = Number(m[4]);
+  const min = Number(m[5]);
+  const sec = m[6] != null ? Number(m[6]) : 0;
+  if (
+    !Number.isFinite(y) ||
+    !Number.isFinite(mo) ||
+    !Number.isFinite(d) ||
+    !Number.isFinite(h) ||
+    !Number.isFinite(min) ||
+    !Number.isFinite(sec)
+  ) {
+    return new Date();
+  }
+  return new Date(Date.UTC(y, mo - 1, d, h, min, sec, 0));
 }
 
 /** Modified Julian Date at 0h UT for a given UTC date (integer day). */

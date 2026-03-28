@@ -3,6 +3,7 @@ import type { Globe, GeodesicTile, TileTerrainData } from "polyglobe";
 import { BUILDING_DEFS } from "./buildings.js";
 import {
   type UrbanDataset,
+  type UrbanCityAtYear,
   interpolateUrbanCitiesAtYear,
 } from "./urbanization.js";
 
@@ -157,11 +158,30 @@ interface PlacementFootprint {
   radius: number;
 }
 
+interface CandidateCityPlacement {
+  id: string;
+  city: string;
+  population: number;
+  lat: number;
+  lon: number;
+  tileId: number;
+  originalTileId: number;
+  landmassId?: number;
+}
+
+interface MountainLatLonEntry {
+  lat: number;
+  lon: number;
+}
+
 export interface UrbanSettlementRuntime {
   buildingsGroup: THREE.Group;
   labelsGroup: THREE.Group;
   cityCount: number;
   clearedTileIds: Set<number>;
+  cityInfoByTileId: ReadonlyMap<number, { cityLabel: string; population: number }>;
+  cityExpectedLandmassByCityId: ReadonlyMap<string, number>;
+  cityPlacedLandmassByCityId: ReadonlyMap<string, number>;
   update: (camera: THREE.Camera) => void;
   dispose: () => void;
 }
@@ -379,10 +399,18 @@ function findNearestBuildableTileId(
   globe: Globe,
   startTileId: number,
   terrain: Map<number, TileTerrainData>,
+  desiredLandmassId?: number,
 ): number {
-  if (isBuildableLandType(terrain.get(startTileId)?.type)) return startTileId;
+  const startTerrain = terrain.get(startTileId);
+  if (
+    isBuildableLandType(startTerrain?.type) &&
+    (desiredLandmassId == null || startTerrain?.landmassId === desiredLandmassId)
+  ) {
+    return startTileId;
+  }
   const q: number[] = [startTileId];
   const seen = new Set<number>([startTileId]);
+  let bestAnyBuildable: number | null = null;
   let qi = 0;
   while (qi < q.length) {
     const id = q[qi++]!;
@@ -392,12 +420,261 @@ function findNearestBuildableTileId(
       const nId = tile.neighbors[i]!;
       if (seen.has(nId)) continue;
       seen.add(nId);
-      if (isBuildableLandType(terrain.get(nId)?.type)) return nId;
+      const nTerrain = terrain.get(nId);
+      if (isBuildableLandType(nTerrain?.type)) {
+        if (bestAnyBuildable == null) bestAnyBuildable = nId;
+        if (desiredLandmassId == null || nTerrain?.landmassId === desiredLandmassId) {
+          return nId;
+        }
+      }
       q.push(nId);
     }
     if (q.length > 1500) break;
   }
-  return startTileId;
+  return bestAnyBuildable ?? startTileId;
+}
+
+function areOnDifferentKnownLandmasses(
+  a: number | undefined,
+  b: number | undefined,
+): boolean {
+  return a != null && b != null && a !== b;
+}
+
+function collectSameOrNeighborTileIds(globe: Globe, tileId: number): number[] {
+  const out = [tileId];
+  const tile = globe.getTile(tileId);
+  if (!tile) return out;
+  for (const n of tile.neighbors) out.push(n);
+  return out;
+}
+
+function buildMountainDirsByTile(
+  globe: Globe,
+  mountainEntries: readonly MountainLatLonEntry[] | null | undefined,
+): Map<number, THREE.Vector3[]> {
+  const out = new Map<number, THREE.Vector3[]>();
+  if (!mountainEntries || mountainEntries.length === 0) return out;
+  for (const m of mountainEntries) {
+    const dir = latLonDegToDirection(m.lat, m.lon).clone();
+    const tileId = globe.getTileIdAtDirection(dir);
+    let arr = out.get(tileId);
+    if (!arr) {
+      arr = [];
+      out.set(tileId, arr);
+    }
+    arr.push(dir);
+  }
+  return out;
+}
+
+function findNearestBuildableNonMountainTileId(
+  globe: Globe,
+  startTileId: number,
+  terrain: Map<number, TileTerrainData>,
+  mountainDirsByTile: ReadonlyMap<number, THREE.Vector3[]>,
+  desiredLandmassId?: number,
+  maxRings = 3,
+): number | null {
+  const q: Array<{ id: number; d: number }> = [{ id: startTileId, d: 0 }];
+  const seen = new Set<number>([startTileId]);
+  let qi = 0;
+  while (qi < q.length) {
+    const cur = q[qi++]!;
+    if (cur.d > maxRings) continue;
+    const data = terrain.get(cur.id);
+    if (
+      cur.d > 0 &&
+      isBuildableLandType(data?.type) &&
+      (desiredLandmassId == null || data?.landmassId === desiredLandmassId) &&
+      !mountainDirsByTile.has(cur.id)
+    ) {
+      return cur.id;
+    }
+    const tile = globe.getTile(cur.id);
+    if (!tile || cur.d >= maxRings) continue;
+    for (const nid of tile.neighbors) {
+      if (seen.has(nid)) continue;
+      seen.add(nid);
+      q.push({ id: nid, d: cur.d + 1 });
+    }
+  }
+  return null;
+}
+
+function deconflictCityMountainTileId(
+  globe: Globe,
+  tileId: number,
+  cityDir: THREE.Vector3,
+  terrain: Map<number, TileTerrainData>,
+  mountainDirsByTile: ReadonlyMap<number, THREE.Vector3[]>,
+  desiredLandmassId?: number,
+): number {
+  const mountains = mountainDirsByTile.get(tileId);
+  if (!mountains || mountains.length === 0) return tileId;
+  // Mountains are static terrain features; move city to preserve separation.
+  let nearestMountainDir = mountains[0]!;
+  let bestDot = -Infinity;
+  for (const md of mountains) {
+    const dot = cityDir.dot(md);
+    if (dot > bestDot) {
+      bestDot = dot;
+      nearestMountainDir = md;
+    }
+  }
+  const away = cityDir.clone().sub(nearestMountainDir);
+  if (away.lengthSq() < 1e-10) {
+    const center = globe.getTile(tileId)?.center.clone().normalize();
+    if (center) away.copy(cityDir).sub(center);
+  }
+  if (away.lengthSq() < 1e-10) away.copy(cityDir);
+  away.normalize();
+  let bestTileId: number | null = null;
+  let bestScore = -Infinity;
+  const q: Array<{ id: number; d: number }> = [{ id: tileId, d: 0 }];
+  const seen = new Set<number>([tileId]);
+  let qi = 0;
+  const maxRings = 3;
+  while (qi < q.length) {
+    const cur = q[qi++]!;
+    const data = terrain.get(cur.id);
+    if (
+      cur.d > 0 &&
+      isBuildableLandType(data?.type) &&
+      (desiredLandmassId == null || data?.landmassId === desiredLandmassId) &&
+      !mountainDirsByTile.has(cur.id)
+    ) {
+      const t = globe.getTile(cur.id);
+      if (t) {
+        const dir = t.center.clone().normalize();
+        const score =
+          away.dot(dir) * 3.0 - cur.d * 0.7 - cityDir.angleTo(dir) * 0.6;
+        if (score > bestScore) {
+          bestScore = score;
+          bestTileId = cur.id;
+        }
+      }
+    }
+    if (cur.d >= maxRings) continue;
+    const tile = globe.getTile(cur.id);
+    if (!tile) continue;
+    for (const nid of tile.neighbors) {
+      if (seen.has(nid)) continue;
+      seen.add(nid);
+      q.push({ id: nid, d: cur.d + 1 });
+    }
+  }
+  if (bestTileId != null) return bestTileId;
+  return (
+    findNearestBuildableNonMountainTileId(
+      globe,
+      tileId,
+      terrain,
+      mountainDirsByTile,
+      desiredLandmassId,
+      4,
+    ) ?? tileId
+  );
+}
+
+
+function mapCitiesToCandidatePlacements(
+  cities: UrbanCityAtYear[],
+  globe: Globe,
+  tileTerrain: Map<number, TileTerrainData>,
+  mountainEntries: readonly MountainLatLonEntry[] | null | undefined,
+): CandidateCityPlacement[] {
+  const mountainDirsByTile = buildMountainDirsByTile(globe, mountainEntries);
+  const candidates: CandidateCityPlacement[] = [];
+  for (const c of cities) {
+    const cityDir = latLonDegToDirection(c.lat, c.lon).clone();
+    const rawTileId = globe.getTileIdAtDirection(cityDir);
+    const desiredLandmassId = tileTerrain.get(rawTileId)?.landmassId;
+    const initialTileId = findNearestBuildableTileId(
+      globe,
+      rawTileId,
+      tileTerrain,
+      desiredLandmassId,
+    );
+    const tileId = deconflictCityMountainTileId(
+      globe,
+      initialTileId,
+      cityDir,
+      tileTerrain,
+      mountainDirsByTile,
+      desiredLandmassId,
+    );
+    candidates.push({
+      id: c.id,
+      city: c.city,
+      population: c.population,
+      lat: c.lat,
+      lon: c.lon,
+      tileId,
+      originalTileId: tileId,
+      landmassId: desiredLandmassId,
+    });
+  }
+  return candidates;
+}
+
+function resolveCrossLandmassAdjacencyConflicts(
+  candidates: CandidateCityPlacement[],
+  globe: Globe,
+  tileTerrain: Map<number, TileTerrainData>,
+): CandidateCityPlacement[] {
+  candidates.sort((a, b) => b.population - a.population);
+  const accepted: CandidateCityPlacement[] = [];
+  const acceptedByTile = new Map<number, CandidateCityPlacement[]>();
+  const excludedCrossLandmass: CandidateCityPlacement[] = [];
+  const hasCrossLandmassConflict = (tileId: number, landmassId?: number): boolean => {
+    const local = collectSameOrNeighborTileIds(globe, tileId);
+    for (const tid of local) {
+      const onTile = acceptedByTile.get(tid);
+      if (!onTile) continue;
+      for (const c of onTile) {
+        if (areOnDifferentKnownLandmasses(landmassId, c.landmassId)) return true;
+      }
+    }
+    return false;
+  };
+  const acceptCandidate = (c: CandidateCityPlacement, targetTileId: number): void => {
+    c.tileId = targetTileId;
+    accepted.push(c);
+    let bucket = acceptedByTile.get(targetTileId);
+    if (!bucket) {
+      bucket = [];
+      acceptedByTile.set(targetTileId, bucket);
+    }
+    bucket.push(c);
+  };
+  for (const c of candidates) {
+    if (hasCrossLandmassConflict(c.tileId, c.landmassId)) {
+      excludedCrossLandmass.push(c);
+      continue;
+    }
+    acceptCandidate(c, c.tileId);
+  }
+  for (const c of excludedCrossLandmass) {
+    if (c.landmassId == null) continue;
+    let bestTileId: number | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const tid of collectSameOrNeighborTileIds(globe, c.originalTileId)) {
+      const t = tileTerrain.get(tid);
+      if (!isBuildableLandType(t?.type)) continue;
+      if (t?.landmassId !== c.landmassId) continue;
+      if (hasCrossLandmassConflict(tid, c.landmassId)) continue;
+      const hasSameTileCity = (acceptedByTile.get(tid)?.length ?? 0) > 0;
+      const score =
+        (tid === c.originalTileId ? 0 : 1) + (hasSameTileCity ? -0.25 : 0);
+      if (score < bestScore) {
+        bestScore = score;
+        bestTileId = tid;
+      }
+    }
+    if (bestTileId != null) acceptCandidate(c, bestTileId);
+  }
+  return accepted;
 }
 
 function collectTilesWithinRings(
@@ -567,33 +844,96 @@ export function buildUrbanSettlementVisuals(
   year: number,
   riverFlowByTile: Map<number, { exitEdge: number; directionRad: number }> | null,
   isBambooRegionFn: (latDeg: number, lonDeg: number) => boolean,
+  mountainEntries?: readonly MountainLatLonEntry[] | null,
 ): UrbanSettlementRuntime {
   const cities = interpolateUrbanCitiesAtYear(dataset, year);
-  const byTile = new Map<number, TileSettlement>();
+  const candidates = mapCitiesToCandidatePlacements(
+    cities,
+    globe,
+    tileTerrain,
+    mountainEntries,
+  );
+  const accepted = resolveCrossLandmassAdjacencyConflicts(
+    candidates,
+    globe,
+    tileTerrain,
+  );
+  const acceptedSelected = accepted;
 
-  for (const c of cities) {
-    const rawTileId = globe.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
-    const tileId = findNearestBuildableTileId(globe, rawTileId, tileTerrain);
-    const existing = byTile.get(tileId);
+  const cityExpectedLandmassByCityId = new Map<string, number>();
+  const cityPlacedLandmassByCityId = new Map<string, number>();
+  const wrongLandmassCities: Array<{
+    city: string;
+    population: number;
+    expectedLandmassId: number;
+    placedLandmassId: number;
+    tileId: number;
+  }> = [];
+  for (const c of acceptedSelected) {
+    if (c.landmassId != null) cityExpectedLandmassByCityId.set(c.id, c.landmassId);
+    const placedLandmassId = tileTerrain.get(c.tileId)?.landmassId;
+    if (placedLandmassId == null) continue;
+    cityPlacedLandmassByCityId.set(c.id, placedLandmassId);
+    if (c.landmassId != null && c.landmassId !== placedLandmassId) {
+      wrongLandmassCities.push({
+        city: c.city,
+        population: c.population,
+        expectedLandmassId: c.landmassId,
+        placedLandmassId,
+        tileId: c.tileId,
+      });
+    }
+  }
+  if (wrongLandmassCities.length > 0) {
+    wrongLandmassCities.sort((a, b) => b.population - a.population);
+    const top = wrongLandmassCities.slice(0, 80);
+    console.log(
+      `[urban-settlements] Cities on wrong landmass (year ${year}): ${wrongLandmassCities.length}`,
+      top.map((c) => ({
+        city: c.city,
+        pop: Math.round(c.population),
+        expectedLandmassId: c.expectedLandmassId,
+        placedLandmassId: c.placedLandmassId,
+        tileId: c.tileId,
+      })),
+    );
+    if (wrongLandmassCities.length > top.length) {
+      console.log(
+        `[urban-settlements] ...and ${wrongLandmassCities.length - top.length} more wrong-landmass cities.`,
+      );
+    }
+  } else {
+    console.log(`[urban-settlements] Wrong-landmass city check (year ${year}): none.`);
+  }
+  const byTile = new Map<number, TileSettlement>();
+  for (const c of acceptedSelected) {
+    const existing = byTile.get(c.tileId);
     if (!existing) {
-      byTile.set(tileId, {
-        tileId,
+      byTile.set(c.tileId, {
+        tileId: c.tileId,
         population: c.population,
         cityLabel: c.city,
         lat: c.lat,
         lon: c.lon,
         leadingPopulation: c.population,
       });
-    } else {
-      existing.population += c.population;
-      if (c.population > existing.leadingPopulation) {
-        existing.leadingPopulation = c.population;
-        existing.cityLabel = c.city;
-      }
+      continue;
+    }
+    existing.population += c.population;
+    if (c.population > existing.leadingPopulation) {
+      existing.leadingPopulation = c.population;
+      existing.cityLabel = c.city;
     }
   }
 
   const settlements = [...byTile.values()].sort((a, b) => b.population - a.population);
+  const cityInfoByTileId = new Map<number, { cityLabel: string; population: number }>();
+  for (const s of settlements) {
+    cityInfoByTileId.set(s.tileId, {
+      cityLabel: s.cityLabel,
+      population: s.population,
+    });
+  }
   const entries: SettlementRenderEntry[] = [];
   const clearedTileIds = new Set<number>();
 
@@ -761,6 +1101,9 @@ export function buildUrbanSettlementVisuals(
     labelsGroup,
     cityCount: entries.length,
     clearedTileIds,
+    cityInfoByTileId,
+    cityExpectedLandmassByCityId,
+    cityPlacedLandmassByCityId,
     update,
     dispose,
   };

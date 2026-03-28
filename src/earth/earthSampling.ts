@@ -350,8 +350,16 @@ export interface BuildTerrainFromRasterOptions {
   hillsVarianceScale?: number;
   /** Elevation scale for combined hills score: elevation / hillsElevationScale. Default 1500. */
   hillsElevationScale?: number;
-  /** Combined score threshold for hills: (elev/elevScale + variance/varianceScale) >= threshold. Default 1.0. */
+  /**
+   * Combined score threshold for hills: (elev/elevScale + variance/varianceScale) >= threshold.
+   * Used as fallback when dynamic fraction targeting is disabled. Default 1.6.
+   */
   hillsScoreThreshold?: number;
+  /**
+   * Target fraction of land tiles to classify as hilly using score percentile (0..1).
+   * Default 0.18 (18% of land). Set <=0 or >=1 to disable dynamic targeting and use hillsScoreThreshold directly.
+   */
+  hillsTargetLandFraction?: number;
   /** Use latitude for ice/snow near poles and desert near equator. Default true. */
   latitudeTerrain?: boolean;
   /** Water tile elevation (globe units, below surface). Default -0.18. */
@@ -548,6 +556,7 @@ export interface RegionScores {
 /** Result of land/water resolution for one tile. Lakes have lakeId; ocean tiles have oceanRegionId. */
 export interface LandWaterAssignment {
   isLand: boolean;
+  landmassId?: number;
   lakeId?: number;
   oceanRegionId?: number;
 }
@@ -558,7 +567,8 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   mountainReliefM: 400,
   hillsVarianceScale: 400, // Variance contribution: variance / hillsVarianceScale
   hillsElevationScale: 1500, // Elevation contribution: elevation / hillsElevationScale
-  hillsScoreThreshold: 2.0, // Combined score threshold: (elev/elevScale + variance/varianceScale) >= threshold
+  hillsScoreThreshold: 1.6, // Combined score threshold: (elev/elevScale + variance/varianceScale) >= threshold
+  hillsTargetLandFraction: 0.18, // Dynamic percentile target over land tiles (18%).
   latitudeTerrain: true,
   waterElevation: -0.18,
   lakeElevation: -0.04,
@@ -731,6 +741,8 @@ function terrainFromSample(
   maxAbsLatDeg?: number,
   /** Tile id (or other stable int) so latitude-only terrain fallback is identical on every client. */
   deterministicTerrainSalt?: number,
+  /** Optional override for hills threshold (e.g., dynamic land-percentile threshold). */
+  hillsThresholdOverride?: number,
 ): Pick<TileTerrainData, "type" | "elevation" | "isHilly"> {
   const absLat = Math.abs(latRad);
   const latDeg = (absLat * 180) / Math.PI;
@@ -828,7 +840,8 @@ function terrainFromSample(
       Math.max(0, result.elevationM) / opts.hillsElevationScale;
     const varContrib = result.elevationStdDevM / opts.hillsVarianceScale;
     const hillScore = elevContrib + varContrib;
-    isHilly = hillScore >= opts.hillsScoreThreshold;
+    const threshold = hillsThresholdOverride ?? opts.hillsScoreThreshold;
+    isHilly = hillScore >= threshold;
   }
 
   if (isHilly) {
@@ -838,6 +851,22 @@ function terrainFromSample(
   // Note: isMountain is NOT set here - it comes from the peak dataset (mountainsList)
   // which contains actual named mountain peaks, not just high-elevation tiles
   return { type, elevation, isHilly };
+}
+
+function hillScoreFromSample(
+  result: Pick<SampleResult, "elevationM" | "elevationStdDevM">,
+  opts: Pick<
+    Required<BuildTerrainFromRasterOptions>,
+    "hillsElevationScale" | "hillsVarianceScale"
+  >,
+): number | null {
+  if (result.elevationM == null || result.elevationStdDevM == null) return null;
+  if (!Number.isFinite(result.elevationM) || !Number.isFinite(result.elevationStdDevM)) {
+    return null;
+  }
+  const elevContrib = Math.max(0, result.elevationM) / opts.hillsElevationScale;
+  const varContrib = result.elevationStdDevM / opts.hillsVarianceScale;
+  return elevContrib + varContrib;
 }
 
 function sampleTile(
@@ -1499,8 +1528,18 @@ export interface ResolveLandWaterByRegionsOptions {
     iteration: number,
     landByTile: Map<number, LandWaterAssignment>,
   ) => void | Promise<void>;
-  /** If true, place landmasses greedily by size (largest first); new land cannot touch already-placed land, so islands never link to continents. */
-  useGreedyLandmassPlacement?: boolean;
+  /**
+   * Optional tile claims by landmass id (typically derived from city anchors).
+   * During greedy placement, a later-processed landmass may "carve" these tiles
+   * away from earlier landmasses so each landmass can claim its anchor cities.
+   */
+  cityClaimTileIdsByLandmass?: Map<number, ReadonlySet<number>>;
+  /**
+   * Optional forbidden tiles by landmass id.
+   * If provided, this landmass will not claim these tiles (use this for
+   * "other landmass city" exclusion and 1-hex adjacency buffers).
+   */
+  cityForbiddenTileIdsByLandmass?: Map<number, ReadonlySet<number>>;
   /** Optional: return a small raster cutout (land/water) around the tile to test isthmus vs strait by flood fill. If land crosses cutout but sea doesn't → isthmus; if sea crosses but land doesn't → strait. */
   getRasterWindow?: (tile: GeodesicTile) => RasterWindow | null;
   /** Hardcoded tile IDs that must be water (straits). Tile IDs depend on geodesic subdivision — only pass for the scale they were authored for (e.g. subdivision 6 in globe-demo). Omit at other scales. */
@@ -1530,8 +1569,6 @@ export async function resolveLandWaterByRegions(
   const oceanConnectThreshold = options.oceanConnectThreshold ?? 0.12;
   const maxIterations = options.maxIterations ?? 3;
   const onIteration = options.onIteration;
-  const useGreedyLandmassPlacement =
-    options.useGreedyLandmassPlacement === true;
   const localStraitDepthLimit = options.localStraitDepthLimit ?? 150;
   const _minIslandSize = options.minIslandSize ?? 3;
   const _minLakeSize = options.minLakeSize ?? 2;
@@ -1541,6 +1578,9 @@ export async function resolveLandWaterByRegions(
   const largeLandmassSize = options.largeLandmassSize ?? 8000;
   const getRasterWindow = options.getRasterWindow;
   const knownStraitTileIds = options.knownStraitTileIds;
+  const cityForbiddenTileIdsByLandmass = options.cityForbiddenTileIdsByLandmass;
+  const isForbiddenTileForLandmass = (tileId: number, landmassId: number) =>
+    cityForbiddenTileIdsByLandmass?.get(landmassId)?.has(tileId) ?? false;
 
   /** True if water hex `nid` is adjacent to `comp` or reachable from `nid` by a path of only water hexes of length <= bridgeMaxGap. */
   function waterReachesComponent(nid: number, comp: Set<number>): boolean {
@@ -1578,9 +1618,10 @@ export async function resolveLandWaterByRegions(
     return s;
   }
 
-  if (useGreedyLandmassPlacement) {
+  {
+    const cityClaimTileIdsByLandmass = options.cityClaimTileIdsByLandmass;
     console.log(
-      "[polyglobe] resolveLandWaterByRegions: using greedy landmass placement (largest first, no touching already-placed)",
+      `[polyglobe] resolveLandWaterByRegions: using greedy landmass placement (largest first, city-claim carve=${cityClaimTileIdsByLandmass ? "on" : "off"})`,
     );
     // Pixel-based allocation: each landmass gets a number of hexes proportional to its raster pixel count.
     // Small islands that would otherwise disappear get at least 1 hex.
@@ -1594,7 +1635,7 @@ export async function resolveLandWaterByRegions(
       }
     }
 
-    // Process landmasses largest first (to reserve space before small islands)
+    // Process landmasses in configured order (default largest-first).
     const landmassIdsBySize = [...landmassSizes.entries()]
       .filter(([, size]) => size > 0)
       .sort((a, b) => b[1] - a[1])
@@ -1605,6 +1646,7 @@ export async function resolveLandWaterByRegions(
     let smallIslandCount = 0;
     let smallIslandHexes = 0;
 
+    let carvedClaims = 0;
     for (const landmassId of landmassIdsBySize) {
       // Target hex count based on pixel weight (minimum 1)
       const pixelWeight = landmassSizes.get(landmassId) ?? 0;
@@ -1626,8 +1668,37 @@ export async function resolveLandWaterByRegions(
       let candidates = new Set<number>();
       for (const { tile } of tilesWithFraction) {
         if (candidates.size >= targetHexes) break;
+        if (isForbiddenTileForLandmass(tile.id, landmassId)) continue;
         if (tile.neighbors.some((n) => placedLand.has(n))) continue;
         candidates.add(tile.id);
+      }
+
+      // Force-include city claim tiles for this landmass. If already occupied by another
+      // landmass, allow this landmass to carve the tile and claim it.
+      const claimTileIds = cityClaimTileIdsByLandmass?.get(landmassId);
+      if (claimTileIds) {
+        for (const claimTid of claimTileIds) {
+          const claimTile = tileById.get(claimTid);
+          if (!claimTile) continue;
+          if (isForbiddenTileForLandmass(claimTid, landmassId)) continue;
+          const frac = scores(claimTile).landmassFractions.get(landmassId) ?? 0;
+          if (frac <= 0) continue;
+          const prev = assign.get(claimTid);
+          if (prev?.isLand && prev.landmassId != null && prev.landmassId !== landmassId) {
+            // Never carve a tile that would split the currently owning landmass.
+            const fromTileSet = new Set<number>();
+            for (const [tid, a] of assign) {
+              if (a.isLand && a.landmassId === prev.landmassId) fromTileSet.add(tid);
+            }
+            if (fromTileSet.size > 2) {
+              const cuts = getArticulationPoints(fromTileSet, tileById);
+              if (cuts.has(claimTid)) continue;
+            }
+            carvedClaims++;
+            placedLand.delete(claimTid);
+          }
+          candidates.add(claimTid);
+        }
       }
 
       if (candidates.size === 0) continue;
@@ -1658,6 +1729,7 @@ export async function resolveLandWaterByRegions(
           // BFS from main to other through allowed hexes: raster says this landmass (fraction >= threshold) and no neighbor in placedLand
           const allowed = new Set<number>();
           for (const tile of tiles) {
+            if (isForbiddenTileForLandmass(tile.id, landmassId)) continue;
             if (tile.neighbors.some((n) => placedLand.has(n))) continue;
             const f = scores(tile).landmassFractions.get(landmassId) ?? 0;
             if (f >= landmassBridgeFraction || candidates.has(tile.id))
@@ -1699,6 +1771,7 @@ export async function resolveLandWaterByRegions(
       // At this point, candidates is either fully connected or reduced to largest component
       const toAssign = new Set<number>(candidates);
       for (const tid of toAssign) {
+        if (isForbiddenTileForLandmass(tid, landmassId)) continue;
         assign.set(tid, { isLand: true, landmassId });
         placedLand.add(tid);
       }
@@ -1713,6 +1786,11 @@ export async function resolveLandWaterByRegions(
     console.log(
       `[polyglobe] Landmass allocation: ${landmassIdsBySize.length} landmasses, ${smallIslandCount} small islands (≤5 target hexes) got ${smallIslandHexes} total hexes`,
     );
+    if (carvedClaims > 0) {
+      console.log(
+        `[polyglobe] Landmass allocation: carved ${carvedClaims} claimed city-anchor tiles from previously placed landmasses`,
+      );
+    }
 
     for (const tile of tiles) {
       if (assign.has(tile.id)) continue;
@@ -1746,55 +1824,6 @@ export async function resolveLandWaterByRegions(
         });
       }
     }
-  } else {
-    // Initial assignment: majority rule
-    for (const tile of tiles) {
-      const s = scores(tile);
-      const landFraction = s.landFraction;
-      if (landFraction > 0.5) {
-        let bestLandmass = 0;
-        let bestF = 0;
-        for (const [id, f] of s.landmassFractions) {
-          if (f > bestF) {
-            bestF = f;
-            bestLandmass = id;
-          }
-        }
-        assign.set(tile.id, {
-          isLand: true,
-          landmassId: bestLandmass || undefined,
-        });
-      } else {
-        let oceanSum = 0;
-        let lakeSum = 0;
-        for (const f of s.oceanFractions.values()) oceanSum += f;
-        for (const f of s.lakeFractions.values()) lakeSum += f;
-        if (lakeSum > oceanSum) {
-          let bestLake = 0;
-          let bestF = 0;
-          for (const [id, f] of s.lakeFractions) {
-            if (f > bestF) {
-              bestF = f;
-              bestLake = id;
-            }
-          }
-          assign.set(tile.id, { isLand: false, lakeId: bestLake || undefined });
-        } else {
-          let bestOcean = 0;
-          let bestF = 0;
-          for (const [id, f] of s.oceanFractions) {
-            if (f > bestF) {
-              bestF = f;
-              bestOcean = id;
-            }
-          }
-          assign.set(tile.id, {
-            isLand: false,
-            oceanRegionId: bestOcean || undefined,
-          });
-        }
-      }
-    }
   }
 
   const isLandFn = (tid: number) => assign.get(tid)?.isLand ?? false;
@@ -1813,6 +1842,23 @@ export async function resolveLandWaterByRegions(
       if (hasLand && hasWater) out.add(tile.id);
     }
     return out;
+  };
+  const findTouchingLandmasses = ():
+    | { tid: number; nid: number; a: number; b: number }
+    | null => {
+    for (const [tid, a] of assign) {
+      if (!a.isLand || a.landmassId == null) continue;
+      const t = tileById.get(tid);
+      if (!t) continue;
+      for (const nid of t.neighbors) {
+        const b = assign.get(nid);
+        if (!b?.isLand || b.landmassId == null) continue;
+        if (b.landmassId !== a.landmassId) {
+          return { tid, nid, a: a.landmassId, b: b.landmassId };
+        }
+      }
+    }
+    return null;
   };
 
   // Do not remove small islands (keep Hawaii, etc.) or fill small lakes (keep all Great Lakes).
@@ -1858,21 +1904,7 @@ export async function resolveLandWaterByRegions(
     }
 
     // Disconnected landmasses are allowed (e.g. after opening straits so one landmass becomes two islands).
-    // Skip strict one-component validation that would throw here.
-    for (const [tid, a] of assign) {
-      if (!a.isLand || a.landmassId == null) continue;
-      const t = tileById.get(tid);
-      if (!t) continue;
-      for (const nid of t.neighbors) {
-        const b = assign.get(nid);
-        if (!b?.isLand || b.landmassId == null) continue;
-        if (b.landmassId !== a.landmassId) {
-          throw new Error(
-            `[resolveLandWaterByRegions] Landmasses ${a.landmassId} and ${b.landmassId} connected (tiles ${tid}, ${nid}) at iteration ${iterations}`,
-          );
-        }
-      }
-    }
+    // We do enforce that distinct landmasses never touch; that invariant is checked after the no-touch pass below.
 
     // (0a) Force hardcoded strait tile IDs to water (they may not be on boundary if raster has land on both sides).
     if (knownStraitTileIds?.size) {
@@ -1978,46 +2010,10 @@ export async function resolveLandWaterByRegions(
       );
       if (another == null) continue;
       const landmassId = assign.get(landNeighbors[0])?.landmassId ?? 0;
+      if (landmassId > 0 && isForbiddenTileForLandmass(tid, landmassId)) continue;
       assign.set(tid, { isLand: true, landmassId });
       changed = true;
       break;
-    }
-    if (changed) continue;
-
-    // (1a) Isthmus between different landmasses: water hex between two landmasses (e.g. Panama) → land
-    for (const tile of tiles) {
-      const a = assign.get(tile.id);
-      if (a?.isLand) continue;
-      if (knownStraitTileIds?.has(tile.id)) continue;
-      const neighborLandmassIds = new Set<number>();
-      for (const nid of tile.neighbors) {
-        const na = assign.get(nid);
-        if (na?.isLand && na.landmassId != null)
-          neighborLandmassIds.add(na.landmassId);
-      }
-      for (const idA of neighborLandmassIds) {
-        if (changed) break;
-        const setA = byLandmass.get(idA)!;
-        if (!tile.neighbors.some((n) => setA.has(n))) continue;
-        for (const [idB, setB] of byLandmass) {
-          if (idB === idA) continue;
-          if (!waterReachesComponent(tile.id, setB)) continue;
-          const s = scores(tile);
-          if (s.landFraction < bridgeThreshold) continue;
-          const fA = s.landmassFractions.get(idA) ?? 0;
-          const fB = s.landmassFractions.get(idB) ?? 0;
-          if (fA + fB < bridgeThreshold) continue;
-          const assignTo = fA >= fB ? idA : idB;
-          const mergeFrom = assignTo === idA ? idB : idA;
-          assign.set(tile.id, { isLand: true, landmassId: assignTo });
-          for (const [tid, aa] of assign) {
-            if (aa.isLand && aa.landmassId === mergeFrom)
-              assign.set(tid, { ...aa, landmassId: assignTo });
-          }
-          changed = true;
-          break;
-        }
-      }
     }
     if (changed) continue;
 
@@ -2068,9 +2064,12 @@ export async function resolveLandWaterByRegions(
                 bestLm = id;
               }
             }
+            const targetLm = bestLm || landmassId;
+            if (targetLm != null && isForbiddenTileForLandmass(best.tid, targetLm))
+              continue;
             assign.set(best.tid, {
               isLand: true,
-              landmassId: bestLm || landmassId,
+              landmassId: targetLm,
             });
             changed = true;
             break;
@@ -2285,6 +2284,7 @@ export async function resolveLandWaterByRegions(
         if (inOther != null) continue;
         const landmassId = assign.get(landNeighbors[0])?.landmassId;
         if (landmassId == null) continue;
+        if (isForbiddenTileForLandmass(tid, landmassId)) continue;
         const tileSet = byLandmass.get(landmassId);
         if (!tileSet || tileSet.size >= smallLandmassSize) continue;
         assign.set(tid, { isLand: true, landmassId });
@@ -2293,6 +2293,12 @@ export async function resolveLandWaterByRegions(
       }
     }
 
+    const touching = findTouchingLandmasses();
+    if (touching && !changed) {
+      throw new Error(
+        `[resolveLandWaterByRegions] Landmasses ${touching.a} and ${touching.b} connected (tiles ${touching.tid}, ${touching.nid}) at iteration ${iterations}`,
+      );
+    }
     if (!changed) break;
   }
   console.log(
@@ -2304,6 +2310,7 @@ export async function resolveLandWaterByRegions(
   for (const [tid, a] of assign)
     out.set(tid, {
       isLand: a.isLand,
+      landmassId: a.landmassId,
       lakeId: a.lakeId,
       oceanRegionId: a.oceanRegionId,
     });
@@ -2371,11 +2378,54 @@ export async function buildTerrainFromEarthRaster(
   let maxVariance = 0;
   let varianceSum = 0;
   let varianceCount = 0;
+  let landTileCount = 0;
+
+  let effectiveHillThreshold = opts.hillsScoreThreshold;
+  const dynamicHillTarget = opts.hillsTargetLandFraction;
+  const useDynamicHillTarget =
+    Number.isFinite(dynamicHillTarget) &&
+    dynamicHillTarget > 0 &&
+    dynamicHillTarget < 1;
+  if (useDynamicHillTarget) {
+    const landScores: number[] = [];
+    for (const tile of tiles) {
+      const result = resultsByTile.get(tile.id);
+      if (!result) continue;
+      const lw = landByTile?.get(tile.id);
+      const isLand = lw ? lw.isLand : result.land;
+      if (!isLand) continue;
+      const score = hillScoreFromSample(result, opts);
+      if (score != null) landScores.push(score);
+    }
+    if (landScores.length > 0) {
+      landScores.sort((a, b) => a - b);
+      const keepFrac = 1 - dynamicHillTarget;
+      const idx = Math.max(
+        0,
+        Math.min(
+          landScores.length - 1,
+          Math.floor(keepFrac * landScores.length),
+        ),
+      );
+      effectiveHillThreshold = landScores[idx]!;
+      console.log("[polyglobe] Hills dynamic threshold", {
+        targetLandFraction: Number(dynamicHillTarget.toFixed(4)),
+        threshold: Number(effectiveHillThreshold.toFixed(4)),
+        scoredLandTiles: landScores.length,
+      });
+    } else {
+      console.log(
+        "[polyglobe] Hills dynamic threshold skipped (no scored land tiles); using fixed threshold",
+        { threshold: opts.hillsScoreThreshold },
+      );
+    }
+  }
 
   for (const tile of tiles) {
     const result = resultsByTile.get(tile.id)!;
     const lw = landByTile?.get(tile.id);
     const land = lw ? lw.isLand : result.land;
+    if (land) landTileCount++;
     const lakeId = lw?.lakeId;
     const effectiveResult = { ...result, land };
 
@@ -2398,6 +2448,7 @@ export async function buildTerrainFromEarthRaster(
       neighborMaxElevM,
       result.maxAbsLatDeg,
       tile.id,
+      effectiveHillThreshold,
     );
     let elev = elevation;
     if (land && result.elevationM != null && result.elevationM > 0) {
@@ -2413,6 +2464,7 @@ export async function buildTerrainFromEarthRaster(
       tileId: tile.id,
       type,
       elevation: elev,
+      landmassId: lw?.landmassId,
       lakeId: lakeId ?? undefined,
       isHilly: isHilly || undefined,
     };
@@ -2426,8 +2478,9 @@ export async function buildTerrainFromEarthRaster(
   }
 
   // Debug: print variance stats
+  const actualHillLandFraction = landTileCount > 0 ? hillsCount / landTileCount : 0;
   console.log(
-    `[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsScore=(elev/${opts.hillsElevationScale}+var/${opts.hillsVarianceScale})>=${opts.hillsScoreThreshold}`,
+    `[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsScore=(elev/${opts.hillsElevationScale}+var/${opts.hillsVarianceScale})>=${effectiveHillThreshold.toFixed(4)} (target=${opts.hillsTargetLandFraction.toFixed(2)}, actual=${actualHillLandFraction.toFixed(4)})`,
   );
   console.log(`[polyglobe] Hills tiles detected: ${hillsCount}`);
 

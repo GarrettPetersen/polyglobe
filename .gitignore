@@ -9,3 +9,12 @@ dist/
 # ~198MB precomputed land/ocean region grid (GitHub limit 100MB). Generate locally:
 #   cd examples/globe-demo && npm run download-data && npm run build-land-raster-png
 examples/globe-demo/public/earth-region-grid.bin
+
+# Large optional urbanization source artifacts (rebuildable locally)
+examples/globe-demo/public/datasets/urbanization-stadester-1/
+examples/globe-demo/public/datasets/urbanization-reba-2016/urbanization-merged.reba-only.csv
+
+# Large generated runtime prebakes (rebuildable locally)
+examples/globe-demo/public/discrete-weather-bake-*.bin
+examples/globe-demo/public/globe-runtime-bake-*.bin
+examples/globe-demo/public/earth-globe-cache-*.json

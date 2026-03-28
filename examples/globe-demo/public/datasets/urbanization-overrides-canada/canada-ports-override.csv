@@ -1,0 +1,25 @@
+city,country,latitude,longitude,year,population,source
+Halifax,Canada,44.6488,-63.5752,1749,2500,manual_override_canada_ports
+Halifax,Canada,44.6488,-63.5752,1800,10000,manual_override_canada_ports
+Halifax,Canada,44.6488,-63.5752,1850,20000,manual_override_canada_ports
+Halifax,Canada,44.6488,-63.5752,1900,40000,manual_override_canada_ports
+Halifax,Canada,44.6488,-63.5752,1950,85000,manual_override_canada_ports
+Halifax,Canada,44.6488,-63.5752,2000,360000,manual_override_canada_ports
+Saint John,Canada,45.2733,-66.0633,1785,3000,manual_override_canada_ports
+Saint John,Canada,45.2733,-66.0633,1800,7000,manual_override_canada_ports
+Saint John,Canada,45.2733,-66.0633,1850,22000,manual_override_canada_ports
+Saint John,Canada,45.2733,-66.0633,1900,40000,manual_override_canada_ports
+Saint John,Canada,45.2733,-66.0633,1950,50000,manual_override_canada_ports
+Saint John,Canada,45.2733,-66.0633,2000,70000,manual_override_canada_ports
+Charlottetown,Canada,46.2382,-63.1311,1764,1200,manual_override_canada_ports
+Charlottetown,Canada,46.2382,-63.1311,1800,2000,manual_override_canada_ports
+Charlottetown,Canada,46.2382,-63.1311,1850,6500,manual_override_canada_ports
+Charlottetown,Canada,46.2382,-63.1311,1900,12000,manual_override_canada_ports
+Charlottetown,Canada,46.2382,-63.1311,1950,20000,manual_override_canada_ports
+Charlottetown,Canada,46.2382,-63.1311,2000,32000,manual_override_canada_ports
+St. John's,Canada,47.5615,-52.7126,1583,2000,manual_override_canada_ports
+St. John's,Canada,47.5615,-52.7126,1800,9000,manual_override_canada_ports
+St. John's,Canada,47.5615,-52.7126,1850,20000,manual_override_canada_ports
+St. John's,Canada,47.5615,-52.7126,1900,30000,manual_override_canada_ports
+St. John's,Canada,47.5615,-52.7126,1950,52000,manual_override_canada_ports
+St. John's,Canada,47.5615,-52.7126,2000,100000,manual_override_canada_ports

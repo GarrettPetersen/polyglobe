@@ -72,6 +72,234 @@ const PUBLIC = join(__dirname, "..", "public");
 
 const SEA_LEVEL_LAND_ELEVATION = -0.042;
 const LAKE_ELEVATION = -0.04;
+const CITY_CLAIM_MAX_POP_FLOOR = 120_000;
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let i = 0;
+  let inQuotes = false;
+  while (i < text.length) {
+    const ch = text[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      field += ch;
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (ch === ",") {
+      row.push(field);
+      field = "";
+      i++;
+      continue;
+    }
+    if (ch === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      i++;
+      continue;
+    }
+    if (ch === "\r") {
+      i++;
+      continue;
+    }
+    field += ch;
+    i++;
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function normalizeToken(s: string): string {
+  return (s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function cityKey(city: string, country: string): string {
+  return `${normalizeToken(city)}|${normalizeToken(country)}`;
+}
+
+function dominantLandmassId(tileId: number, globe: Globe, getRegionScores: (tile: (typeof globe.tiles)[number]) => { landmassFractions: Map<number, number> }): number | null {
+  const tile = globe.getTile(tileId);
+  if (!tile) return null;
+  let bestId = 0;
+  let bestF = 0;
+  for (const [id, f] of getRegionScores(tile).landmassFractions) {
+    if (id > 0 && f > bestF) {
+      bestId = id;
+      bestF = f;
+    }
+  }
+  return bestId > 0 ? bestId : null;
+}
+
+function findNearestTileWithLandmass(
+  startTileId: number,
+  globe: Globe,
+  getRegionScores: (tile: (typeof globe.tiles)[number]) => { landmassFractions: Map<number, number> },
+): { tileId: number; landmassId: number } | null {
+  const direct = dominantLandmassId(startTileId, globe, getRegionScores);
+  if (direct != null) return { tileId: startTileId, landmassId: direct };
+  const q: number[] = [startTileId];
+  const seen = new Set<number>([startTileId]);
+  let qi = 0;
+  while (qi < q.length && q.length <= 1800) {
+    const id = q[qi++]!;
+    const tile = globe.getTile(id);
+    if (!tile) continue;
+    for (const nId of tile.neighbors) {
+      if (seen.has(nId)) continue;
+      seen.add(nId);
+      const lm = dominantLandmassId(nId, globe, getRegionScores);
+      if (lm != null) return { tileId: nId, landmassId: lm };
+      q.push(nId);
+    }
+  }
+  return null;
+}
+
+function buildCityAnchorConstraintsByLandmass(
+  globe: Globe,
+  getRegionScores: (tile: (typeof globe.tiles)[number]) => { landmassFractions: Map<number, number> },
+): {
+  requiredTileIdsByLandmass: Map<number, Set<number>>;
+  forbiddenTileIdsByLandmass: Map<number, Set<number>>;
+} {
+  const path = join(PUBLIC, "datasets", "urbanization-reba-2016", "urbanization-merged.csv");
+  let text = "";
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (err) {
+    console.warn("[cache] city anchor constraints disabled (urbanization CSV unavailable):", err);
+    return {
+      requiredTileIdsByLandmass: new Map(),
+      forbiddenTileIdsByLandmass: new Map(),
+    };
+  }
+  const rows = parseCsv(text);
+  if (rows.length < 2) {
+    return {
+      requiredTileIdsByLandmass: new Map(),
+      forbiddenTileIdsByLandmass: new Map(),
+    };
+  }
+  const h = rows[0]!;
+  const idxCity = h.indexOf("city");
+  const idxCountry = h.indexOf("country");
+  const idxLat = h.indexOf("latitude");
+  const idxLon = h.indexOf("longitude");
+  const idxPop = h.indexOf("population");
+  if (idxCity < 0 || idxCountry < 0 || idxLat < 0 || idxLon < 0 || idxPop < 0) {
+    return {
+      requiredTileIdsByLandmass: new Map(),
+      forbiddenTileIdsByLandmass: new Map(),
+    };
+  }
+  const cityBest = new Map<string, { lat: number; lon: number; maxPop: number }>();
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]!;
+    const city = r[idxCity] ?? "";
+    const country = r[idxCountry] ?? "";
+    const lat = Number.parseFloat(r[idxLat] ?? "");
+    const lon = Number.parseFloat(r[idxLon] ?? "");
+    const pop = Number.parseFloat(r[idxPop] ?? "");
+    if (!city || !country) continue;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(pop)) continue;
+    const key = cityKey(city, country);
+    const prev = cityBest.get(key);
+    if (!prev || pop > prev.maxPop) cityBest.set(key, { lat, lon, maxPop: pop });
+  }
+  const placedCandidates: Array<{
+    tileId: number;
+    landmassId: number;
+    maxPop: number;
+  }> = [];
+  let considered = 0;
+  for (const c of cityBest.values()) {
+    if (c.maxPop < CITY_CLAIM_MAX_POP_FLOOR) continue;
+    considered++;
+    const rawTid = globe.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
+    const claim = findNearestTileWithLandmass(rawTid, globe, getRegionScores);
+    if (!claim) continue;
+    placedCandidates.push({
+      tileId: claim.tileId,
+      landmassId: claim.landmassId,
+      maxPop: c.maxPop,
+    });
+  }
+  placedCandidates.sort((a, b) => b.maxPop - a.maxPop);
+  const tileById = new Map<number, (typeof globe.tiles)[number]>();
+  for (const t of globe.tiles) tileById.set(t.id, t);
+  const accepted: Array<{ tileId: number; landmassId: number; maxPop: number }> = [];
+  let excludedCrossLandmassAdjacency = 0;
+  for (const c of placedCandidates) {
+    const conflict = accepted.some((a) => {
+      if (a.landmassId === c.landmassId) return false;
+      if (a.tileId === c.tileId) return true;
+      const at = tileById.get(a.tileId);
+      return at?.neighbors.includes(c.tileId) ?? false;
+    });
+    if (conflict) {
+      excludedCrossLandmassAdjacency++;
+      continue;
+    }
+    accepted.push(c);
+  }
+  const requiredTileIdsByLandmass = new Map<number, Set<number>>();
+  for (const c of accepted) {
+    let set = requiredTileIdsByLandmass.get(c.landmassId);
+    if (!set) {
+      set = new Set<number>();
+      requiredTileIdsByLandmass.set(c.landmassId, set);
+    }
+    set.add(c.tileId);
+  }
+  const forbiddenTileIdsByLandmass = new Map<number, Set<number>>();
+  for (const lm of requiredTileIdsByLandmass.keys()) {
+    const forbidden = new Set<number>();
+    for (const c of accepted) {
+      if (c.landmassId === lm) continue;
+      forbidden.add(c.tileId);
+      const t = tileById.get(c.tileId);
+      if (!t) continue;
+      for (const n of t.neighbors) forbidden.add(n);
+    }
+    forbiddenTileIdsByLandmass.set(lm, forbidden);
+  }
+  console.log("[cache] city anchor constraints", {
+    floor: CITY_CLAIM_MAX_POP_FLOOR,
+    consideredCities: considered,
+    placedCandidates: placedCandidates.length,
+    acceptedCities: accepted.length,
+    excludedCrossLandmassAdjacency,
+    constrainedLandmasses: requiredTileIdsByLandmass.size,
+  });
+  return { requiredTileIdsByLandmass, forbiddenTileIdsByLandmass };
+}
 
 function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
   const latRad = (latDeg * Math.PI) / 180;
@@ -199,6 +427,10 @@ async function buildCacheForSubdivisions(
   const { raster, getRegionScores, getRasterWindow } = loaded;
   console.log(`\n=== Earth globe cache: subdivisions=${subdivisions} ===`);
   const globe = new Globe({ radius: 1, subdivisions });
+  const cityAnchors = buildCityAnchorConstraintsByLandmass(
+    globe,
+    getRegionScores,
+  );
   console.log("buildTerrainFromEarthRaster…", globe.tileCount, "tiles");
   const tileTerrain = await buildTerrainFromEarthRaster(globe.tiles, raster, {
     waterElevation: -0.18,
@@ -208,7 +440,8 @@ async function buildCacheForSubdivisions(
     latitudeTerrain: true,
     getRegionScores,
     resolveOptions: {
-      useGreedyLandmassPlacement: true,
+      cityClaimTileIdsByLandmass: cityAnchors.requiredTileIdsByLandmass,
+      cityForbiddenTileIdsByLandmass: cityAnchors.forbiddenTileIdsByLandmass,
       getRasterWindow,
       knownStraitTileIds:
         subdivisions === 6 ? KNOWN_STRAIT_TILE_IDS_SUB6 : undefined,
@@ -562,16 +795,17 @@ async function buildCacheForSubdivisions(
     console.warn("globe-runtime-bake write failed:", e);
   }
 
-  const tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1 }> = [];
+  const tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1; m?: number }> = [];
   for (let i = 0; i < globe.tileCount; i++) {
     const d = tileTerrain.get(i)!;
-    const o: { id: number; t: string; e: number; l?: number; h?: 1 } = {
+    const o: { id: number; t: string; e: number; l?: number; h?: 1; m?: number } = {
       id: i,
       t: d.type,
       e: d.elevation,
     };
     if (d.lakeId != null) o.l = d.lakeId;
     if (d.isHilly) o.h = 1;
+    if (d.landmassId != null) o.m = d.landmassId;
     tiles.push(o);
   }
 
