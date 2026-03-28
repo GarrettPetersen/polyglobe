@@ -83,6 +83,7 @@ const _basisUp = new THREE.Vector3(0, 1, 0);
 const _basisAlt = new THREE.Vector3(1, 0, 0);
 
 const templateCache = new Map<string, THREE.Group>();
+const templatePartsCache = new Map<string, TemplatePart[]>();
 const footprintRadiusCache = new Map<string, number>();
 
 const MAX_VISIBLE_SETTLEMENTS = 24;
@@ -101,6 +102,17 @@ const URBAN_TERRAIN_ELEVATION_SCALE = 0.08;
 const URBAN_SURFACE_LIFT = 0.00055;
 const URBAN_ENABLE_LABELS = false;
 const VISIBILITY_UPDATE_FRAME_STRIDE = 6;
+
+interface TemplatePart {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  localMatrix: THREE.Matrix4;
+}
+
+interface InstancedBucket {
+  meshes: THREE.InstancedMesh[];
+  next: number;
+}
 
 function buildingScaleBase(id: string): number {
   if (id === "small-house") return 0.00325 * BUILDING_SIZE_SCALE;
@@ -144,7 +156,7 @@ interface SettlementRenderEntry {
   style: SettlementStyle;
   buildingIds: string[];
   baseSurfaceRadius: number;
-  group: THREE.Group | null;
+  placementMatrices: Array<{ templateKey: string; matrix: THREE.Matrix4 }> | null;
   label: THREE.Sprite | null;
 }
 
@@ -280,6 +292,33 @@ function getTemplate(buildingId: string, style: SettlementStyle): THREE.Group {
   const tpl = applyStyleToTemplate(def.create(), style, buildingId);
   templateCache.set(key, tpl);
   return tpl;
+}
+
+function getTemplateParts(buildingId: string, style: SettlementStyle): {
+  key: string;
+  parts: TemplatePart[];
+} {
+  const key = `${buildingId}|${style.key}`;
+  const cached = templatePartsCache.get(key);
+  if (cached) return { key, parts: cached };
+  const tpl = getTemplate(buildingId, style);
+  const parts: TemplatePart[] = [];
+  tpl.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const mat = child.material;
+    if (!mat || Array.isArray(mat)) return;
+    child.updateMatrix();
+    // Keep one immutable geometry/material pair per template part; instance transforms provide placement.
+    const geom = child.geometry.clone();
+    const m = mat.clone();
+    parts.push({
+      geometry: geom,
+      material: m,
+      localMatrix: child.matrix.clone(),
+    });
+  });
+  templatePartsCache.set(key, parts);
+  return { key, parts };
 }
 
 function createLabelSprite(text: string): THREE.Sprite {
@@ -709,9 +748,7 @@ function ensureSettlementBuilt(
   entry: SettlementRenderEntry,
   clampStats: PlacementClampStats,
 ): { overlapDetected: boolean } {
-  if (entry.group) return { overlapDetected: false };
-  const group = new THREE.Group();
-  group.name = `Settlement-${entry.tileId}-${entry.cityLabel}`;
+  if (entry.placementMatrices) return { overlapDetected: false };
   const normal = entry.normal;
   makeBasis(normal);
   _quatUp.setFromUnitVectors(_up, normal);
@@ -719,6 +756,7 @@ function ensureSettlementBuilt(
   const ids = entry.buildingIds;
   const baseRadius = entry.baseSurfaceRadius;
   const placed: PlacementFootprint[] = [];
+  const placements: Array<{ templateKey: string; matrix: THREE.Matrix4 }> = [];
   let overlapDetected = false;
   const buildingPlan = ids
     .map((id) => {
@@ -787,22 +825,16 @@ function ensureSettlementBuilt(
       clampStats.overlapSkipped++;
       continue;
     }
-    const template = getTemplate(id, entry.style);
-    const mesh = template.clone(true);
-    mesh.position.copy(_pos);
+    const template = getTemplateParts(id, entry.style);
     _quatYaw.setFromAxisAngle(normal, r() * Math.PI * 2);
-    mesh.quaternion.copy(_quatUp).premultiply(_quatYaw);
-    mesh.scale.setScalar(bld.scale * scaleFit);
-    mesh.updateMatrix();
-    mesh.matrixAutoUpdate = false;
+    const q = new THREE.Quaternion().copy(_quatUp).premultiply(_quatYaw);
+    const s = new THREE.Vector3().setScalar(bld.scale * scaleFit);
+    const m = new THREE.Matrix4().compose(_pos.clone(), q, s);
+    placements.push({ templateKey: template.key, matrix: m });
     placed.push({ pos: _pos.clone(), radius: effRadius });
-    group.add(mesh);
     clampStats.drawn++;
   }
-  group.updateMatrix();
-  group.matrixAutoUpdate = false;
-  group.visible = false;
-  entry.group = group;
+  entry.placementMatrices = placements;
   return { overlapDetected };
 }
 
@@ -828,19 +860,6 @@ function updateLabelScaleForCamera(
   const minWorldY = LABEL_MIN_SCREEN_PX * worldPerPixel;
   const y = Math.max(minWorldY, Math.min(LABEL_BASE_WORLD_Y, maxWorldY));
   label.scale.set(y * LABEL_ASPECT, y, 1);
-}
-
-function disposeGroupMaterials(group: THREE.Group): void {
-  group.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    const mat = child.material;
-    if (!mat) return;
-    if (Array.isArray(mat)) {
-      for (const m of mat) m.dispose();
-    } else {
-      mat.dispose();
-    }
-  });
 }
 
 export function buildUrbanSettlementVisuals(
@@ -986,7 +1005,7 @@ export function buildUrbanSettlementVisuals(
         (tileTerrain.get(s.tileId)?.elevation ?? 0) * URBAN_TERRAIN_ELEVATION_SCALE +
         ((tileTerrain.get(s.tileId)?.isHilly ?? false) ? 0.001 : 0) +
         URBAN_SURFACE_LIFT,
-      group: null,
+      placementMatrices: null,
       label: null,
     });
   }
@@ -995,6 +1014,42 @@ export function buildUrbanSettlementVisuals(
   buildingsGroup.name = "UrbanSettlements";
   const labelsGroup = new THREE.Group();
   labelsGroup.name = "UrbanSettlementLabels";
+  const instancedBuckets = new Map<string, InstancedBucket>();
+
+  function ensureInstancedBucket(templateKey: string): InstancedBucket {
+    const cached = instancedBuckets.get(templateKey);
+    if (cached) return cached;
+    const [buildingId, styleKey] = templateKey.split("|");
+    const style =
+      [
+        STYLE_DEFAULT,
+        STYLE_MEDITERRANEAN,
+        STYLE_DESERT,
+        STYLE_FOREST,
+        STYLE_BAMBOO,
+        STYLE_POLAR,
+        STYLE_CONCRETE,
+      ].find((s) => s.key === styleKey) ?? STYLE_DEFAULT;
+    const { parts } = getTemplateParts(buildingId, style);
+    const meshes: THREE.InstancedMesh[] = [];
+    for (const part of parts) {
+      const geom = part.geometry.clone();
+      const mat = part.material.clone();
+      const im = new THREE.InstancedMesh(
+        geom,
+        mat,
+        MAX_VISIBLE_BUILDINGS,
+      );
+      im.count = 0;
+      im.frustumCulled = false;
+      im.matrixAutoUpdate = false;
+      buildingsGroup.add(im);
+      meshes.push(im);
+    }
+    const bucket: InstancedBucket = { meshes, next: 0 };
+    instancedBuckets.set(templateKey, bucket);
+    return bucket;
+  }
 
   const ranked = entries.map((e, idx) => ({ idx, distSq: Infinity }));
   let frameCounter = 0;
@@ -1033,6 +1088,10 @@ export function buildUrbanSettlementVisuals(
       selectedCount++;
     }
 
+    for (const bucket of instancedBuckets.values()) {
+      bucket.next = 0;
+    }
+
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i]!;
       const isVisible = visible.has(i);
@@ -1046,8 +1105,38 @@ export function buildUrbanSettlementVisuals(
             );
           }
         }
-        if (!e.group!.parent) buildingsGroup.add(e.group!);
-        e.group!.visible = true;
+        if (e.placementMatrices) {
+          for (const p of e.placementMatrices) {
+            const bucket = ensureInstancedBucket(p.templateKey);
+            if (bucket.next >= MAX_VISIBLE_BUILDINGS) continue;
+            const [buildingId, styleKey] = p.templateKey.split("|");
+            const style =
+              [
+                STYLE_DEFAULT,
+                STYLE_MEDITERRANEAN,
+                STYLE_DESERT,
+                STYLE_FOREST,
+                STYLE_BAMBOO,
+                STYLE_POLAR,
+                STYLE_CONCRETE,
+              ].find((s) => s.key === styleKey) ?? STYLE_DEFAULT;
+            const { parts } = getTemplateParts(buildingId, style);
+            for (let partIdx = 0; partIdx < bucket.meshes.length; partIdx++) {
+              const im = bucket.meshes[partIdx]!;
+              const local = parts[partIdx]?.localMatrix;
+              if (local) {
+                const world = new THREE.Matrix4().multiplyMatrices(
+                  p.matrix,
+                  local,
+                );
+                im.setMatrixAt(bucket.next, world);
+              } else {
+                im.setMatrixAt(bucket.next, p.matrix);
+              }
+            }
+            bucket.next++;
+          }
+        }
         if (URBAN_ENABLE_LABELS) {
           const distSq = camPos.distanceToSquared(e.normal);
           if (distSq <= LABEL_VISIBLE_DISTANCE * LABEL_VISIBLE_DISTANCE) {
@@ -1061,9 +1150,15 @@ export function buildUrbanSettlementVisuals(
         } else if (e.label) {
           e.label.visible = false;
         }
-      } else {
-        if (e.group) e.group.visible = false;
-        if (e.label) e.label.visible = false;
+      } else if (e.label) {
+        e.label.visible = false;
+      }
+    }
+
+    for (const bucket of instancedBuckets.values()) {
+      for (const im of bucket.meshes) {
+        im.count = bucket.next;
+        im.instanceMatrix.needsUpdate = true;
       }
     }
     if (
@@ -1089,8 +1184,18 @@ export function buildUrbanSettlementVisuals(
   }
 
   function dispose(): void {
+    for (const bucket of instancedBuckets.values()) {
+      for (const im of bucket.meshes) {
+        im.geometry.dispose();
+        const mat = im.material;
+        if (Array.isArray(mat)) {
+          for (const m of mat) m.dispose();
+        } else {
+          mat.dispose();
+        }
+      }
+    }
     for (const e of entries) {
-      if (e.group) disposeGroupMaterials(e.group);
       if (e.label) {
         const mat = e.label.material;
         if (!Array.isArray(mat)) {
