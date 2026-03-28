@@ -3,9 +3,8 @@
  * Build public/elevation.bin (360×180 float32, meters). Same-origin so demo can load it.
  * Run from examples/globe-demo: node scripts/build-elevation.mjs
  *
- * 1) Tries to download ETOPO1 global elevation from NOAA, then run scripts/etopo1_to_bin.py
- *    (requires Python 3 + netCDF4: pip install netCDF4) to produce 360×180 float32.
- * 2) If download or Python step fails, writes synthetic peaks (Himalayas, Rockies, etc.).
+ * Downloads ETOPO1 global elevation from NOAA, then runs scripts/etopo1_to_bin.py
+ * (requires Python 3 + netCDF4: pip install netCDF4) to produce PGEL float32.
  *
  * Output: row 0 = north (90°N), longitude -180..180. Negative = bathymetry.
  */
@@ -29,52 +28,7 @@ const EH = 2160;
 
 const ETOPO1_GZ_URL =
   "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/bedrock/grid_registered/netcdf/ETOPO1_Bed_g_gmt4.grd.gz";
-// Set to true to skip download and use synthetic (e.g. in CI or when offline)
 const SKIP_ETOPO1_DOWNLOAD = process.env.SKIP_ETOPO1_DOWNLOAD === "1";
-
-// Synthetic peaks (lat_deg, lon_deg, amplitude_m, sigma_deg) when ETOPO1 unavailable
-const PEAKS = [
-  [28, 87, 6000, 8], [30, 81, 5500, 8], [35, 76, 5500, 8], [27, 88, 5800, 8],
-  [53, -118, 3500, 6], [51, -115, 3600, 6], [45, -110, 3200, 6], [43, -109, 3800, 6],
-  [40, -105, 4000, 6], [38, -106, 4200, 6], [35, -106, 3200, 6], [32, -107, 2800, 6],
-  [-15, -72, 5000, 8], [-2, -78, 5800, 8], [-33, -70, 5500, 8], [-35, -70, 4000, 6],
-  [46, 10, 3500, 6], [45, 7, 3800, 6], [43, 12, 2800, 6], [42, 44, 4500, 8], [35, 65, 2500, 8],
-  [-35, 148, 2000, 8], [60, -140, 4500, 6], [63, -150, 3500, 6],
-];
-
-function bump(latDeg, lonDeg, lat0, lon0, amp, sigma) {
-  let dlon = lonDeg - lon0;
-  while (dlon > 180) dlon -= 360;
-  while (dlon < -180) dlon += 360;
-  const d2 = (latDeg - lat0) ** 2 + dlon ** 2;
-  return amp * Math.exp(-d2 / (2 * sigma * sigma));
-}
-
-function writePgElBuffer(float32) {
-  const header = Buffer.alloc(12);
-  header.write("PGEL", 0, 4, "ascii");
-  header.writeUInt32LE(EW, 4);
-  header.writeUInt32LE(EH, 8);
-  return Buffer.concat([header, Buffer.from(float32.buffer, float32.byteOffset, float32.byteLength)]);
-}
-
-function writeSynthetic() {
-  if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-  const view = new Float32Array(EW * EH);
-  for (let j = 0; j < EH; j++) {
-    const latDeg = 90 - (j / (EH - 1)) * 180;
-    for (let i = 0; i < EW; i++) {
-      const lonDeg = (i / (EW - 1)) * 360 - 180;
-      let elev = 0;
-      for (const [lat0, lon0, amp, sigma] of PEAKS) {
-        elev += bump(latDeg, lonDeg, lat0, lon0, amp, sigma);
-      }
-      view[j * EW + i] = Math.max(0, elev);
-    }
-  }
-  fs.writeFileSync(OUT_PATH, writePgElBuffer(view));
-  console.log("[build-elevation] Wrote", OUT_PATH, "(synthetic PGEL", EW, "×", EH, ").");
-}
 
 import { Readable } from "stream";
 
@@ -106,14 +60,36 @@ function gunzipFile(srcPath, destPath) {
   });
 }
 
-function runPython(scriptPath, args) {
+function runOnePython(python, scriptPath, args) {
   return new Promise((resolve, reject) => {
-    // Use full path to python3 to ensure we get the right version with netCDF4
-    const python = process.env.PYTHON3_PATH || "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3";
     const proc = spawn(python, [scriptPath, ...args], { stdio: "inherit" });
-    proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error("Python exited " + code))));
+    proc.on("close", (code) =>
+      code === 0
+        ? resolve()
+        : reject(new Error(`${python} exited ${code}`)),
+    );
     proc.on("error", reject);
   });
+}
+
+async function runPython(scriptPath, args) {
+  const candidates = [
+    process.env.PYTHON3_PATH,
+    "python3",
+    "python",
+    "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+  ].filter(Boolean);
+  let lastErr = null;
+  for (const py of candidates) {
+    try {
+      console.log("[build-elevation] Trying Python:", py);
+      await runOnePython(py, scriptPath, args);
+      return;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr ?? new Error("No working Python interpreter found");
 }
 
 async function main() {
@@ -140,8 +116,7 @@ async function main() {
     console.log("[build-elevation] Wrote", OUT_PATH, `(ETOPO1 PGEL ${EW}×${EH} m).`);
   } catch (e) {
     console.warn("[build-elevation] ETOPO1 failed:", e.message);
-    console.log("[build-elevation] Using synthetic elevation.");
-    writeSynthetic();
+    process.exit(1);
   }
 }
 

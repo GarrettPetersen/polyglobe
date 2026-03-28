@@ -18,3 +18,4 @@ examples/globe-demo/public/datasets/urbanization-reba-2016/urbanization-merged.r
 examples/globe-demo/public/discrete-weather-bake-*.bin
 examples/globe-demo/public/globe-runtime-bake-*.bin
 examples/globe-demo/public/earth-globe-cache-*.json
+examples/globe-demo/.venv-elevation/
