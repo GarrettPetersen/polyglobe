@@ -19,7 +19,10 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "railways:dev": "npm --prefix apps/railways run dev",
+    "railways:build": "npm --prefix apps/railways run build",
+    "railways:preview": "npm --prefix apps/railways run preview"
   },
   "keywords": [
     "three",

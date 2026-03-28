@@ -604,6 +604,38 @@ function readTimePlaySpeedFromUrl(): number {
   return readAutoTimeSpeedFromUrl();
 }
 
+function readRailwaysModeFromUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  const app = (q.get("app") ?? "").toLowerCase().trim();
+  if (app === "railways" || app === "rop") return true;
+  if (!q.has("railways")) return false;
+  const v = (q.get("railways") ?? "").toLowerCase().trim();
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
+}
+
+function readInitialDateTimeFromUrl(railwaysMode: boolean): string | null {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search);
+  const raw =
+    q.get("startDateTime") ??
+    q.get("startDate") ??
+    q.get("simStart") ??
+    q.get("date");
+  const normalize = (v: string): string | null => {
+    const s = v.trim();
+    if (!s) return null;
+    if (/^[+-]?\d{1,6}-\d{2}-\d{2}$/.test(s)) return `${s}T00:00:00`;
+    if (/^[+-]?\d{1,6}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return `${s}:00`;
+    if (/^[+-]?\d{1,6}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+    return null;
+  };
+  const fromUrl = raw ? normalize(raw) : null;
+  if (fromUrl) return fromUrl;
+  if (railwaysMode) return "1825-01-01T00:00:00";
+  return null;
+}
+
 /**
  * `?shadows=0` disables directional shadow-map rendering (fast culprit isolation for limb flashes).
  * Omitted or truthy keeps shadows on.
@@ -2395,6 +2427,7 @@ const shadowsEnabledFromUrl = readShadowsEnabledFromUrl();
 const lensflareEnabledFromUrl = readLensflareEnabledFromUrl();
 const vegetationEnabledFromUrl = readVegetationEnabledFromUrl();
 const riverHexEnabledFromUrl = readRiverHexEnabledFromUrl();
+const railwaysModeFromUrl = readRailwaysModeFromUrl();
 const moonEnabledFromUrl = readMoonEnabledFromUrl();
 const waterEnabledFromUrl = readWaterEnabledFromUrl();
 const coastFoamEnabledFromUrl = readCoastFoamEnabledFromUrl();
@@ -7006,6 +7039,8 @@ async function init() {
   );
 
   const state: DemoState = { ...DEFAULT_STATE };
+  const initialDateTimeStr = readInitialDateTimeFromUrl(railwaysModeFromUrl);
+  if (initialDateTimeStr) state.dateTimeStr = initialDateTimeStr;
   const hydroFromUrl = readHydroFieldFromUrl();
   state.hydroFieldMode = hydroFromUrl.mode;
   state.hydroFocusRing = hydroFromUrl.focusRing;
@@ -7528,6 +7563,7 @@ async function init() {
   }
 
   // ========== DEBUG: Hex ID lookup panel ==========
+  if (!railwaysModeFromUrl) {
   let highlightMesh: THREE.Mesh | null = null;
   let highlightedTileId: number | null = null;
 
@@ -8060,6 +8096,7 @@ async function init() {
     hexInfo.innerHTML = formatHexInfo(tileId);
   });
   // ========== END DEBUG PANEL ==========
+  }
 
   /** `` ` `` (backtick): hide/show all HTML chrome (main panel, viewer links, hex debug). */
   let demoUiChromeVisible = true;

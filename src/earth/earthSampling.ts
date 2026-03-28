@@ -351,7 +351,9 @@ export interface BuildTerrainFromRasterOptions {
   /** Elevation scale for combined hills score: elevation / hillsElevationScale. Default 1500. */
   hillsElevationScale?: number;
   /**
-   * Combined score threshold for hills: (elev/elevScale + variance/varianceScale) >= threshold.
+   * Combined score threshold for hills.
+   * Score is elevation-dominant with local + neighborhood roughness:
+   *   0.8*(elev/elevScale) + 0.05*(localVariance/varScale) + 0.15*(neighborVariance/varScale)
    * Used as fallback when dynamic fraction targeting is disabled. Default 1.6.
    */
   hillsScoreThreshold?: number;
@@ -592,6 +594,10 @@ const DEFAULT_OPTS: Required<BuildTerrainFromRasterOptions> = {
   mountainPeakExtraGlobe: 0.1,
 };
 
+const HILLS_ELEVATION_WEIGHT = 0.8;
+const HILLS_LOCAL_VARIANCE_WEIGHT = 0.05;
+const HILLS_NEIGHBOR_VARIANCE_WEIGHT = 0.15;
+
 /** Barycentric coords (u, v) with u,v >= 0 and u+v <= 1 for sampling inside a triangle. */
 const BARY_SAMPLES: [number, number][] = [
   [1 / 3, 1 / 3],
@@ -741,6 +747,8 @@ function terrainFromSample(
   maxAbsLatDeg?: number,
   /** Tile id (or other stable int) so latitude-only terrain fallback is identical on every client. */
   deterministicTerrainSalt?: number,
+  /** Optional neighborhood roughness proxy (meters std-dev over nearby tiles). */
+  neighborhoodVarianceM?: number,
   /** Optional override for hills threshold (e.g., dynamic land-percentile threshold). */
   hillsThresholdOverride?: number,
 ): Pick<TileTerrainData, "type" | "elevation" | "isHilly"> {
@@ -831,17 +839,14 @@ function terrainFromSample(
     elevation += lift;
   }
 
-  // Hills: combined score of elevation and variance
-  // hillScore = (elevation / elevScale) + (variance / varianceScale)
-  // This allows high mountains with moderate variance OR moderate elevation with high variance
+  // Hills: elevation-dominant score plus local and neighborhood roughness.
   let isHilly = false;
-  if (result.elevationM != null && result.elevationStdDevM != null) {
-    const elevContrib =
-      Math.max(0, result.elevationM) / opts.hillsElevationScale;
-    const varContrib = result.elevationStdDevM / opts.hillsVarianceScale;
-    const hillScore = elevContrib + varContrib;
-    const threshold = hillsThresholdOverride ?? opts.hillsScoreThreshold;
-    isHilly = hillScore >= threshold;
+  {
+    const hillScore = hillScoreFromSample(result, opts, neighborhoodVarianceM);
+    if (hillScore != null) {
+      const threshold = hillsThresholdOverride ?? opts.hillsScoreThreshold;
+      isHilly = hillScore >= threshold;
+    }
   }
 
   if (isHilly) {
@@ -859,14 +864,26 @@ function hillScoreFromSample(
     Required<BuildTerrainFromRasterOptions>,
     "hillsElevationScale" | "hillsVarianceScale"
   >,
+  neighborhoodVarianceM?: number,
 ): number | null {
   if (result.elevationM == null || result.elevationStdDevM == null) return null;
   if (!Number.isFinite(result.elevationM) || !Number.isFinite(result.elevationStdDevM)) {
     return null;
   }
   const elevContrib = Math.max(0, result.elevationM) / opts.hillsElevationScale;
-  const varContrib = result.elevationStdDevM / opts.hillsVarianceScale;
-  return elevContrib + varContrib;
+  const localVarContrib = result.elevationStdDevM / opts.hillsVarianceScale;
+  const neighborVar =
+    neighborhoodVarianceM != null &&
+    Number.isFinite(neighborhoodVarianceM) &&
+    neighborhoodVarianceM >= 0
+      ? neighborhoodVarianceM
+      : result.elevationStdDevM;
+  const neighborVarContrib = neighborVar / opts.hillsVarianceScale;
+  return (
+    elevContrib * HILLS_ELEVATION_WEIGHT +
+    localVarContrib * HILLS_LOCAL_VARIANCE_WEIGHT +
+    neighborVarContrib * HILLS_NEIGHBOR_VARIANCE_WEIGHT
+  );
 }
 
 function sampleTile(
@@ -2381,6 +2398,20 @@ export async function buildTerrainFromEarthRaster(
   let landTileCount = 0;
 
   let effectiveHillThreshold = opts.hillsScoreThreshold;
+  const neighborhoodVarianceByTile = new Map<number, number>();
+  for (const tile of tiles) {
+    const own = resultsByTile.get(tile.id)?.elevationStdDevM;
+    if (own == null || !Number.isFinite(own)) continue;
+    let sum = own;
+    let count = 1;
+    for (const nId of tile.neighbors) {
+      const nVar = resultsByTile.get(nId)?.elevationStdDevM;
+      if (nVar == null || !Number.isFinite(nVar)) continue;
+      sum += nVar;
+      count++;
+    }
+    neighborhoodVarianceByTile.set(tile.id, sum / count);
+  }
   const dynamicHillTarget = opts.hillsTargetLandFraction;
   const useDynamicHillTarget =
     Number.isFinite(dynamicHillTarget) &&
@@ -2394,7 +2425,11 @@ export async function buildTerrainFromEarthRaster(
       const lw = landByTile?.get(tile.id);
       const isLand = lw ? lw.isLand : result.land;
       if (!isLand) continue;
-      const score = hillScoreFromSample(result, opts);
+      const score = hillScoreFromSample(
+        result,
+        opts,
+        neighborhoodVarianceByTile.get(tile.id),
+      );
       if (score != null) landScores.push(score);
     }
     if (landScores.length > 0) {
@@ -2448,6 +2483,7 @@ export async function buildTerrainFromEarthRaster(
       neighborMaxElevM,
       result.maxAbsLatDeg,
       tile.id,
+      neighborhoodVarianceByTile.get(tile.id),
       effectiveHillThreshold,
     );
     let elev = elevation;
@@ -2480,7 +2516,7 @@ export async function buildTerrainFromEarthRaster(
   // Debug: print variance stats
   const actualHillLandFraction = landTileCount > 0 ? hillsCount / landTileCount : 0;
   console.log(
-    `[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsScore=(elev/${opts.hillsElevationScale}+var/${opts.hillsVarianceScale})>=${effectiveHillThreshold.toFixed(4)} (target=${opts.hillsTargetLandFraction.toFixed(2)}, actual=${actualHillLandFraction.toFixed(4)})`,
+    `[polyglobe] Elevation variance stats: max=${maxVariance.toFixed(1)}m, avg=${(varianceSum / varianceCount).toFixed(1)}m, hillsScore=(0.8*elev/${opts.hillsElevationScale}+0.05*varLocal/${opts.hillsVarianceScale}+0.15*varNbh/${opts.hillsVarianceScale})>=${effectiveHillThreshold.toFixed(4)} (target=${opts.hillsTargetLandFraction.toFixed(2)}, actual=${actualHillLandFraction.toFixed(4)})`,
   );
   console.log(`[polyglobe] Hills tiles detected: ${hillsCount}`);
 

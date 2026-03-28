@@ -12,12 +12,19 @@ const INPUT_CSV = join(
   "urbanization-reba-2016",
   "urbanization-merged.csv",
 );
+const STADESTER_INPUT_CSV = join(
+  PUBLIC,
+  "datasets",
+  "urbanization-stadester-1",
+  "urbanization-stadester-merged.csv",
+);
 const CANADA_OVERRIDE_CSV = join(
   PUBLIC,
   "datasets",
   "urbanization-overrides-canada",
   "canada-ports-override.csv",
 );
+const REPLACE_FROM_YEAR = 1800;
 const OUTPUT_DIR = join(PUBLIC, "datasets", "urbanization-dominance-pruned");
 const OUTPUT_CSV = join(OUTPUT_DIR, "urbanization-dominance-pruned.csv");
 const OUTPUT_README = join(OUTPUT_DIR, "README.md");
@@ -190,7 +197,7 @@ function canDominanceCompareLandmass(
   a: number | undefined,
   b: number | undefined,
 ): boolean {
-  if (a == null || b == null) return true;
+  if (a == null || b == null) return false;
   return a === b;
 }
 
@@ -251,6 +258,32 @@ function findNearestBuildableTileId(
     if (q.length > 1500) break;
   }
   return bestAnyBuildable ?? startTileId;
+}
+
+function findNearestLandmassId(
+  globe: Globe,
+  startTileId: number,
+  terrain: Map<number, TileTerrainData>,
+): number | undefined {
+  const direct = terrain.get(startTileId)?.landmassId;
+  if (direct != null) return direct;
+  const q: number[] = [startTileId];
+  const seen = new Set<number>([startTileId]);
+  let qi = 0;
+  while (qi < q.length) {
+    const id = q[qi++]!;
+    const t = terrain.get(id);
+    if (t?.landmassId != null) return t.landmassId;
+    const tile = globe.getTile(id);
+    if (!tile) continue;
+    for (const nId of tile.neighbors) {
+      if (seen.has(nId)) continue;
+      seen.add(nId);
+      q.push(nId);
+    }
+    if (q.length > 1800) break;
+  }
+  return undefined;
 }
 
 function resolveCrossLandmassAdjacencyConflicts(
@@ -406,7 +439,7 @@ function main(): void {
       "Input CSV missing required columns: city,country,latitude,longitude,year,population",
     );
   }
-  const allRows: CsvRow[] = [];
+  let allRows: CsvRow[] = [];
   let minYear = Number.POSITIVE_INFINITY;
   let maxYear = Number.NEGATIVE_INFINITY;
   let ignoredUnreasonableYears = 0;
@@ -429,6 +462,33 @@ function main(): void {
     allRows.push({ city, country, latitude, longitude, year, population, source });
     if (year < minYear) minYear = year;
     if (year > maxYear) maxYear = year;
+  }
+  const stadesterRows = loadOptionalOverrideRows(STADESTER_INPUT_CSV);
+  if (stadesterRows.length > 0) {
+    const keptPreCutoff = allRows.filter((r) => r.year < REPLACE_FROM_YEAR);
+    allRows = [...keptPreCutoff, ...stadesterRows];
+    minYear = Number.POSITIVE_INFINITY;
+    maxYear = Number.NEGATIVE_INFINITY;
+    for (const r of allRows) {
+      if (r.year < minYear) minYear = r.year;
+      if (r.year > maxYear) maxYear = r.year;
+    }
+    console.log("[urbanization-prune] replaced >= cutoff with Stadester rows", {
+      cutoffYear: REPLACE_FROM_YEAR,
+      baseInput: INPUT_CSV,
+      stadesterInput: STADESTER_INPUT_CSV,
+      keptPreCutoffRows: keptPreCutoff.length,
+      stadesterRows: stadesterRows.length,
+      mergedRows: allRows.length,
+    });
+  } else {
+    console.warn(
+      "[urbanization-prune] Stadester input missing/unreadable; using input CSV as-is",
+      {
+        input: INPUT_CSV,
+        expectedStadester: STADESTER_INPUT_CSV,
+      },
+    );
   }
   const canadaOverrideRows = loadOptionalOverrideRows(CANADA_OVERRIDE_CSV);
   if (canadaOverrideRows.length > 0) {
@@ -481,17 +541,23 @@ function main(): void {
   for (const s of series) {
     const dir = latLonDegToDirection(s.lat, s.lon);
     const rawTileId = globe.getTileIdAtDirection(dir);
-    const desiredLandmassId = tileTerrain.get(rawTileId)?.landmassId;
+    const desiredLandmassId = findNearestLandmassId(
+      globe,
+      rawTileId,
+      tileTerrain,
+    );
     const tileId = findNearestBuildableTileId(
       globe,
       rawTileId,
       tileTerrain,
       desiredLandmassId,
     );
+    const mappedLandmassId =
+      tileTerrain.get(tileId)?.landmassId ?? desiredLandmassId;
     mappedByCityId.set(s.id, {
       tileId,
       originalTileId: tileId,
-      landmassId: desiredLandmassId,
+      landmassId: mappedLandmassId,
     });
   }
 
@@ -681,7 +747,8 @@ function main(): void {
   const readme = [
     "# Dominance-Pruned Urbanization Dataset",
     "",
-    "- Source: `datasets/urbanization-reba-2016/urbanization-merged.csv`",
+    `- Source (< ${REPLACE_FROM_YEAR}): \`datasets/urbanization-reba-2016/urbanization-merged.csv\``,
+    `- Source (>= ${REPLACE_FROM_YEAR}): \`datasets/urbanization-stadester-1/urbanization-stadester-merged.csv\` (when available)`,
     `- Tile map: \`earth-globe-cache-${subdivisions}.json\` landmass IDs`,
     "- Method: year-by-year city selection with carry-forward inclusion and local dominance pruning.",
     "",

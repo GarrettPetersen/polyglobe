@@ -1,6 +1,7 @@
 # Dominance-Pruned Urbanization Dataset
 
-- Source: `datasets/urbanization-reba-2016/urbanization-merged.csv`
+- Source (< 1800): `datasets/urbanization-reba-2016/urbanization-merged.csv`
+- Source (>= 1800): `datasets/urbanization-stadester-1/urbanization-stadester-merged.csv` (when available)
 - Tile map: `earth-globe-cache-7.json` landmass IDs
 - Method: year-by-year city selection with carry-forward inclusion and local dominance pruning.
 
