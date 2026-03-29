@@ -78,6 +78,7 @@ const _footBox = new THREE.Box3();
 const _footSize = new THREE.Vector3();
 const _quatUp = new THREE.Quaternion();
 const _quatYaw = new THREE.Quaternion();
+const _instanceWorld = new THREE.Matrix4();
 const _up = new THREE.Vector3(0, 1, 0);
 const _basisUp = new THREE.Vector3(0, 1, 0);
 const _basisAlt = new THREE.Vector3(1, 0, 0);
@@ -89,19 +90,22 @@ const footprintRadiusCache = new Map<string, number>();
 const MAX_VISIBLE_SETTLEMENTS = 24;
 const MAX_VISIBLE_BUILDINGS = 280;
 const MAX_VISIBLE_DISTANCE = 1.05;
-const LABEL_VISIBLE_DISTANCE = 0.78;
-const LABEL_MAX_SCREEN_PX = 24;
-const LABEL_MIN_SCREEN_PX = 12;
-const LABEL_BASE_WORLD_Y = 0.03;
-const LABEL_ASPECT = 0.115 / 0.03;
+const LABEL_FADE_IN_DISTANCE = 0.56;
+const LABEL_FADE_OUT_DISTANCE = 0.66;
+const LABEL_WORLD_LIFT = 1.016;
+const LABEL_PROJECTION_RECALC_FRAME_STRIDE = 4;
+const CAMERA_VISIBILITY_RECOMPUTE_POS_EPS_SQ = 4e-6;
+const CAMERA_VISIBILITY_RECOMPUTE_ROT_EPS = 3e-5;
+const NEAREST_SETTLEMENT_CANDIDATE_MULTIPLIER = 5;
 const BUILDING_SIZE_SCALE = 0.9;
 const MAX_BUILDINGS_PER_CITY = 6;
 const CORNER_SLOT_BLEND = 0.68;
 const ADJACENT_CORNER_RADIUS_FRAC = 0.42;
 const URBAN_TERRAIN_ELEVATION_SCALE = 0.08;
 const URBAN_SURFACE_LIFT = 0.00055;
-const URBAN_ENABLE_LABELS = false;
-const VISIBILITY_UPDATE_FRAME_STRIDE = 6;
+const URBAN_ENABLE_LABELS = true;
+const MAX_VISIBLE_LABELS = 14;
+const VISIBILITY_UPDATE_FRAME_STRIDE = 8;
 
 interface TemplatePart {
   geometry: THREE.BufferGeometry;
@@ -112,6 +116,18 @@ interface TemplatePart {
 interface InstancedBucket {
   meshes: THREE.InstancedMesh[];
   next: number;
+}
+
+interface CachedScreenLabel {
+  x: number;
+  y: number;
+  alpha: number;
+  text: string;
+}
+
+interface RankedIndex {
+  idx: number;
+  distSq: number;
 }
 
 function buildingScaleBase(id: string): number {
@@ -156,8 +172,13 @@ interface SettlementRenderEntry {
   style: SettlementStyle;
   buildingIds: string[];
   baseSurfaceRadius: number;
-  placementMatrices: Array<{ templateKey: string; matrix: THREE.Matrix4 }> | null;
-  label: THREE.Sprite | null;
+  placementMatrices: Array<{
+    templateKey: string;
+    templateParts: TemplatePart[];
+    matrix: THREE.Matrix4;
+  }> | null;
+  labelOpacity: number;
+  labelVisible: boolean;
 }
 
 interface PlacementClampStats {
@@ -197,6 +218,12 @@ export interface UrbanSettlementRuntime {
   cityExpectedLandmassByCityId: ReadonlyMap<string, number>;
   cityPlacedLandmassByCityId: ReadonlyMap<string, number>;
   update: (camera: THREE.Camera) => void;
+  drawLabels2D: (
+    ctx: CanvasRenderingContext2D,
+    camera: THREE.Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ) => void;
   dispose: () => void;
 }
 
@@ -270,11 +297,27 @@ function applyStyleToTemplate(
     const role = (child.userData.role as string | undefined) ?? "wall";
     const src = child.material;
     if (!src || Array.isArray(src)) return;
-    const mat = src.clone() as
+    let mat = src.clone() as
       | THREE.MeshStandardMaterial
       | THREE.MeshBasicMaterial;
     const effective = buildingId === "large-apartment" ? STYLE_CONCRETE : style;
-    if (role === "window") mat.color.setHex(effective.window);
+    if (role === "window") {
+      // Windows are visual self-illumination only; never scene-lighting contributors.
+      if (!(mat instanceof THREE.MeshBasicMaterial)) {
+        mat.dispose();
+        mat = new THREE.MeshBasicMaterial({
+          color: effective.window,
+          transparent: true,
+          opacity: 0.98,
+          toneMapped: false,
+        });
+      } else {
+        mat.color.setHex(effective.window);
+        mat.toneMapped = false;
+      }
+      child.castShadow = false;
+      child.receiveShadow = false;
+    }
     else if (role === "roof") mat.color.setHex(effective.roof);
     else if (role === "detail") mat.color.setHex(effective.detail);
     else mat.color.setHex(effective.wall);
@@ -321,37 +364,38 @@ function getTemplateParts(buildingId: string, style: SettlementStyle): {
   return { key, parts };
 }
 
-function createLabelSprite(text: string): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  const w = 300;
-  const h = 80;
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d")!;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "rgba(8, 12, 18, 0.7)";
-  ctx.fillRect(0, 16, w, 48);
-  ctx.strokeStyle = "rgba(164, 208, 232, 0.75)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 17, w - 2, 46);
-  ctx.fillStyle = "#e8f6ff";
-  ctx.font = "600 30px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, w * 0.5, h * 0.5 + 1);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({
-    map: tex,
-    transparent: true,
-    depthWrite: false,
-    depthTest: false,
-    sizeAttenuation: true,
-  });
-  const s = new THREE.Sprite(mat);
-  s.scale.set(0.115, 0.03, 1);
-  s.renderOrder = 50;
-  return s;
+function computeLabelOpacity(distance: number): number {
+  if (distance <= LABEL_FADE_IN_DISTANCE) return 1;
+  if (distance >= LABEL_FADE_OUT_DISTANCE) return 0;
+  const t = THREE.MathUtils.smoothstep(
+    distance,
+    LABEL_FADE_IN_DISTANCE,
+    LABEL_FADE_OUT_DISTANCE,
+  );
+  return 1 - t;
+}
+
+function pushNearestCapped(
+  arr: RankedIndex[],
+  idx: number,
+  distSq: number,
+  maxCount: number,
+): void {
+  if (arr.length === 0) {
+    arr.push({ idx, distSq });
+    return;
+  }
+  if (arr.length >= maxCount && distSq >= arr[arr.length - 1]!.distSq) return;
+  let insertAt = arr.length;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (distSq >= arr[i]!.distSq) {
+      insertAt = i + 1;
+      break;
+    }
+    if (i === 0) insertAt = 0;
+  }
+  arr.splice(insertAt, 0, { idx, distSq });
+  if (arr.length > maxCount) arr.length = maxCount;
 }
 
 function normalizedPopulation(pop: number, pMin: number, pMax: number): number {
@@ -473,6 +517,33 @@ function findNearestBuildableTileId(
     if (q.length > 1500) break;
   }
   return bestAnyBuildable ?? startTileId;
+}
+
+function findNearestLandmassId(
+  globe: Globe,
+  startTileId: number,
+  terrain: Map<number, TileTerrainData>,
+): number | undefined {
+  const direct = terrain.get(startTileId)?.landmassId;
+  if (direct != null) return direct;
+  const q: number[] = [startTileId];
+  const seen = new Set<number>([startTileId]);
+  let qi = 0;
+  while (qi < q.length) {
+    const id = q[qi++]!;
+    const lm = terrain.get(id)?.landmassId;
+    if (lm != null) return lm;
+    const tile = globe.getTile(id);
+    if (!tile) continue;
+    for (let i = 0; i < tile.neighbors.length; i++) {
+      const nId = tile.neighbors[i]!;
+      if (seen.has(nId)) continue;
+      seen.add(nId);
+      q.push(nId);
+    }
+    if (q.length > 1800) break;
+  }
+  return undefined;
 }
 
 function areOnDifferentKnownLandmasses(
@@ -630,7 +701,11 @@ function mapCitiesToCandidatePlacements(
   for (const c of cities) {
     const cityDir = latLonDegToDirection(c.lat, c.lon).clone();
     const rawTileId = globe.getTileIdAtDirection(cityDir);
-    const desiredLandmassId = tileTerrain.get(rawTileId)?.landmassId;
+    const desiredLandmassId = findNearestLandmassId(
+      globe,
+      rawTileId,
+      tileTerrain,
+    );
     const initialTileId = findNearestBuildableTileId(
       globe,
       rawTileId,
@@ -756,7 +831,11 @@ function ensureSettlementBuilt(
   const ids = entry.buildingIds;
   const baseRadius = entry.baseSurfaceRadius;
   const placed: PlacementFootprint[] = [];
-  const placements: Array<{ templateKey: string; matrix: THREE.Matrix4 }> = [];
+  const placements: Array<{
+    templateKey: string;
+    templateParts: TemplatePart[];
+    matrix: THREE.Matrix4;
+  }> = [];
   let overlapDetected = false;
   const buildingPlan = ids
     .map((id) => {
@@ -830,36 +909,16 @@ function ensureSettlementBuilt(
     const q = new THREE.Quaternion().copy(_quatUp).premultiply(_quatYaw);
     const s = new THREE.Vector3().setScalar(bld.scale * scaleFit);
     const m = new THREE.Matrix4().compose(_pos.clone(), q, s);
-    placements.push({ templateKey: template.key, matrix: m });
+    placements.push({
+      templateKey: template.key,
+      templateParts: template.parts,
+      matrix: m,
+    });
     placed.push({ pos: _pos.clone(), radius: effRadius });
     clampStats.drawn++;
   }
   entry.placementMatrices = placements;
   return { overlapDetected };
-}
-
-function ensureLabelBuilt(entry: SettlementRenderEntry): void {
-  if (entry.label) return;
-  const label = createLabelSprite(entry.cityLabel);
-  label.position.copy(entry.normal).multiplyScalar(1.016);
-  label.scale.set(LABEL_BASE_WORLD_Y * LABEL_ASPECT, LABEL_BASE_WORLD_Y, 1);
-  label.visible = false;
-  entry.label = label;
-}
-
-function updateLabelScaleForCamera(
-  label: THREE.Sprite,
-  camera: THREE.Camera,
-): void {
-  if (!(camera instanceof THREE.PerspectiveCamera)) return;
-  const viewportH = Math.max(1, window.innerHeight || 1);
-  const d = Math.max(1e-6, label.position.distanceTo(camera.position));
-  const fovRad = (camera.fov * Math.PI) / 180;
-  const worldPerPixel = (2 * d * Math.tan(fovRad * 0.5)) / viewportH;
-  const maxWorldY = LABEL_MAX_SCREEN_PX * worldPerPixel;
-  const minWorldY = LABEL_MIN_SCREEN_PX * worldPerPixel;
-  const y = Math.max(minWorldY, Math.min(LABEL_BASE_WORLD_Y, maxWorldY));
-  label.scale.set(y * LABEL_ASPECT, y, 1);
 }
 
 export function buildUrbanSettlementVisuals(
@@ -1006,7 +1065,8 @@ export function buildUrbanSettlementVisuals(
         ((tileTerrain.get(s.tileId)?.isHilly ?? false) ? 0.001 : 0) +
         URBAN_SURFACE_LIFT,
       placementMatrices: null,
-      label: null,
+      labelOpacity: 0,
+      labelVisible: false,
     });
   }
 
@@ -1016,23 +1076,14 @@ export function buildUrbanSettlementVisuals(
   labelsGroup.name = "UrbanSettlementLabels";
   const instancedBuckets = new Map<string, InstancedBucket>();
 
-  function ensureInstancedBucket(templateKey: string): InstancedBucket {
+  function ensureInstancedBucket(
+    templateKey: string,
+    templateParts: TemplatePart[],
+  ): InstancedBucket {
     const cached = instancedBuckets.get(templateKey);
     if (cached) return cached;
-    const [buildingId, styleKey] = templateKey.split("|");
-    const style =
-      [
-        STYLE_DEFAULT,
-        STYLE_MEDITERRANEAN,
-        STYLE_DESERT,
-        STYLE_FOREST,
-        STYLE_BAMBOO,
-        STYLE_POLAR,
-        STYLE_CONCRETE,
-      ].find((s) => s.key === styleKey) ?? STYLE_DEFAULT;
-    const { parts } = getTemplateParts(buildingId, style);
     const meshes: THREE.InstancedMesh[] = [];
-    for (const part of parts) {
+    for (const part of templateParts) {
       const geom = part.geometry.clone();
       const mat = part.material.clone();
       const im = new THREE.InstancedMesh(
@@ -1051,8 +1102,14 @@ export function buildUrbanSettlementVisuals(
     return bucket;
   }
 
-  const ranked = entries.map((e, idx) => ({ idx, distSq: Infinity }));
   let frameCounter = 0;
+  const lastVisibilityCameraPos = new THREE.Vector3();
+  const lastVisibilityCameraQuat = new THREE.Quaternion();
+  let hasVisibilityCameraSnapshot = false;
+  let labelProjectionFrameCounter = 0;
+  let lastLabelViewportW = 0;
+  let lastLabelViewportH = 0;
+  const cachedScreenLabels: CachedScreenLabel[] = [];
   const clampStats: PlacementClampStats = {
     attempted: 0,
     clampSkipped: 0,
@@ -1065,21 +1122,35 @@ export function buildUrbanSettlementVisuals(
   function update(camera: THREE.Camera): void {
     frameCounter++;
     const camPos = camera.position;
-    if (frameCounter % VISIBILITY_UPDATE_FRAME_STRIDE !== 0) return;
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i]!;
-      ranked[i]!.distSq = camPos.distanceToSquared(e.normal);
-      ranked[i]!.idx = i;
-    }
-    ranked.sort((a, b) => a.distSq - b.distSq);
+    const cadenceDue = frameCounter % VISIBILITY_UPDATE_FRAME_STRIDE === 0;
+    const absQuatDot = Math.abs(camera.quaternion.dot(lastVisibilityCameraQuat));
+    const cameraMovedEnough =
+      !hasVisibilityCameraSnapshot ||
+      camPos.distanceToSquared(lastVisibilityCameraPos) >
+        CAMERA_VISIBILITY_RECOMPUTE_POS_EPS_SQ ||
+      absQuatDot < 1 - CAMERA_VISIBILITY_RECOMPUTE_ROT_EPS;
+    if (!cadenceDue && !cameraMovedEnough) return;
+    lastVisibilityCameraPos.copy(camPos);
+    lastVisibilityCameraQuat.copy(camera.quaternion);
+    hasVisibilityCameraSnapshot = true;
 
     const visible = new Set<number>();
     let buildingBudget = MAX_VISIBLE_BUILDINGS;
     let selectedCount = 0;
-    for (let i = 0; i < ranked.length; i++) {
+    const nearestCandidates: RankedIndex[] = [];
+    const nearestCap = Math.max(
+      MAX_VISIBLE_SETTLEMENTS,
+      MAX_VISIBLE_SETTLEMENTS * NEAREST_SETTLEMENT_CANDIDATE_MULTIPLIER,
+    );
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]!;
+      const distSq = camPos.distanceToSquared(e.normal);
+      if (distSq > MAX_VISIBLE_DISTANCE * MAX_VISIBLE_DISTANCE) continue;
+      pushNearestCapped(nearestCandidates, i, distSq, nearestCap);
+    }
+    for (let i = 0; i < nearestCandidates.length; i++) {
       if (selectedCount >= MAX_VISIBLE_SETTLEMENTS) break;
-      const r = ranked[i]!;
-      if (r.distSq > MAX_VISIBLE_DISTANCE * MAX_VISIBLE_DISTANCE) break;
+      const r = nearestCandidates[i]!;
       const e = entries[r.idx]!;
       const cost = Math.max(1, e.buildingIds.length);
       if (buildingBudget - cost < 0) continue;
@@ -1092,6 +1163,7 @@ export function buildUrbanSettlementVisuals(
       bucket.next = 0;
     }
 
+    const labelNearest: RankedIndex[] = [];
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i]!;
       const isVisible = visible.has(i);
@@ -1107,29 +1179,14 @@ export function buildUrbanSettlementVisuals(
         }
         if (e.placementMatrices) {
           for (const p of e.placementMatrices) {
-            const bucket = ensureInstancedBucket(p.templateKey);
+            const bucket = ensureInstancedBucket(p.templateKey, p.templateParts);
             if (bucket.next >= MAX_VISIBLE_BUILDINGS) continue;
-            const [buildingId, styleKey] = p.templateKey.split("|");
-            const style =
-              [
-                STYLE_DEFAULT,
-                STYLE_MEDITERRANEAN,
-                STYLE_DESERT,
-                STYLE_FOREST,
-                STYLE_BAMBOO,
-                STYLE_POLAR,
-                STYLE_CONCRETE,
-              ].find((s) => s.key === styleKey) ?? STYLE_DEFAULT;
-            const { parts } = getTemplateParts(buildingId, style);
             for (let partIdx = 0; partIdx < bucket.meshes.length; partIdx++) {
               const im = bucket.meshes[partIdx]!;
-              const local = parts[partIdx]?.localMatrix;
+              const local = p.templateParts[partIdx]?.localMatrix;
               if (local) {
-                const world = new THREE.Matrix4().multiplyMatrices(
-                  p.matrix,
-                  local,
-                );
-                im.setMatrixAt(bucket.next, world);
+                _instanceWorld.multiplyMatrices(p.matrix, local);
+                im.setMatrixAt(bucket.next, _instanceWorld);
               } else {
                 im.setMatrixAt(bucket.next, p.matrix);
               }
@@ -1139,19 +1196,28 @@ export function buildUrbanSettlementVisuals(
         }
         if (URBAN_ENABLE_LABELS) {
           const distSq = camPos.distanceToSquared(e.normal);
-          if (distSq <= LABEL_VISIBLE_DISTANCE * LABEL_VISIBLE_DISTANCE) {
-            ensureLabelBuilt(e);
-            if (!e.label!.parent) labelsGroup.add(e.label!);
-            updateLabelScaleForCamera(e.label!, camera);
-            e.label!.visible = true;
-          } else if (e.label) {
-            e.label.visible = false;
+          const dist = Math.sqrt(distSq);
+          const alpha = computeLabelOpacity(dist);
+          if (alpha > 0) {
+            e.labelOpacity = alpha;
+            e.labelVisible = false;
+            pushNearestCapped(labelNearest, i, distSq, MAX_VISIBLE_LABELS);
+          } else {
+            e.labelVisible = false;
+            e.labelOpacity = 0;
           }
-        } else if (e.label) {
-          e.label.visible = false;
+        } else {
+          e.labelVisible = false;
+          e.labelOpacity = 0;
         }
-      } else if (e.label) {
-        e.label.visible = false;
+      } else {
+        e.labelVisible = false;
+        e.labelOpacity = 0;
+      }
+    }
+    if (URBAN_ENABLE_LABELS) {
+      for (let i = 0; i < labelNearest.length; i++) {
+        entries[labelNearest[i]!.idx]!.labelVisible = true;
       }
     }
 
@@ -1183,6 +1249,53 @@ export function buildUrbanSettlementVisuals(
     }
   }
 
+  function drawLabels2D(
+    ctx: CanvasRenderingContext2D,
+    camera: THREE.Camera,
+    viewportWidth: number,
+    viewportHeight: number,
+  ): void {
+    if (!URBAN_ENABLE_LABELS) return;
+    const w = Math.max(1, viewportWidth);
+    const h = Math.max(1, viewportHeight);
+    labelProjectionFrameCounter++;
+    const needsReproject =
+      w !== lastLabelViewportW ||
+      h !== lastLabelViewportH ||
+      labelProjectionFrameCounter % LABEL_PROJECTION_RECALC_FRAME_STRIDE === 0;
+    if (needsReproject) {
+      lastLabelViewportW = w;
+      lastLabelViewportH = h;
+      cachedScreenLabels.length = 0;
+      for (let i = 0; i < entries.length; i++) {
+        const e = entries[i]!;
+        if (!e.labelVisible || e.labelOpacity <= 0) continue;
+        _tmp.copy(e.normal).multiplyScalar(LABEL_WORLD_LIFT).project(camera);
+        if (_tmp.z < -1 || _tmp.z > 1) continue;
+        const sx = (_tmp.x * 0.5 + 0.5) * w;
+        const sy = (1 - (_tmp.y * 0.5 + 0.5)) * h;
+        if (sx < -60 || sx > w + 60 || sy < -20 || sy > h + 20) continue;
+        cachedScreenLabels.push({
+          x: sx,
+          y: sy,
+          alpha: e.labelOpacity,
+          text: e.cityLabel,
+        });
+      }
+    }
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillStyle = "#ffffff";
+    for (let i = 0; i < cachedScreenLabels.length; i++) {
+      const label = cachedScreenLabels[i]!;
+      ctx.globalAlpha = label.alpha;
+      ctx.fillText(label.text, label.x, label.y);
+    }
+    ctx.restore();
+  }
+
   function dispose(): void {
     for (const bucket of instancedBuckets.values()) {
       for (const im of bucket.meshes) {
@@ -1192,20 +1305,6 @@ export function buildUrbanSettlementVisuals(
           for (const m of mat) m.dispose();
         } else {
           mat.dispose();
-        }
-      }
-    }
-    for (const e of entries) {
-      if (e.label) {
-        const mat = e.label.material;
-        if (!Array.isArray(mat)) {
-          mat.map?.dispose();
-          mat.dispose();
-        } else {
-          for (const m of mat) {
-            (m as THREE.SpriteMaterial).map?.dispose();
-            m.dispose();
-          }
         }
       }
     }
@@ -1220,6 +1319,7 @@ export function buildUrbanSettlementVisuals(
     cityExpectedLandmassByCityId,
     cityPlacedLandmassByCityId,
     update,
+    drawLabels2D,
     dispose,
   };
 }

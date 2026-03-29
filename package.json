@@ -21,6 +21,9 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
     "railways:dev": "npm --prefix apps/railways run dev",
+    "railways:dev:host": "npm --prefix apps/railways run dev:host",
+    "railways:dev:join": "npm --prefix apps/railways run dev:join",
+    "railways:server": "npm --prefix apps/railways run server",
     "railways:build": "npm --prefix apps/railways run build",
     "railways:preview": "npm --prefix apps/railways run preview"
   },

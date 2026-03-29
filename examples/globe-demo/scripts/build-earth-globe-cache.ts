@@ -16,7 +16,7 @@
  *
  * Writes public/globe-runtime-bake-{n}.bin: water-table geometry, coast masks, annual cloud spawn
  * table, and river seasonal strengths (must match `examples/globe-demo/main.ts` + `demoCloudClipField.ts`).
- * Optional public/tavg_monthly.bin is attached first so the bake matches runtime snow/rain with monthly climatology.
+ * Optional public/tavg_monthly.bin is attached first so the bake matches runtime snow/rain with monthly climatology. 
  */
 import { readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
@@ -189,7 +189,12 @@ function buildCityAnchorConstraintsByLandmass(
   requiredTileIdsByLandmass: Map<number, Set<number>>;
   forbiddenTileIdsByLandmass: Map<number, Set<number>>;
 } {
-  const path = join(PUBLIC, "datasets", "urbanization-reba-2016", "urbanization-merged.csv");
+  const path = join(
+    PUBLIC,
+    "datasets",
+    "urbanization-dominance-pruned",
+    "urbanization-dominance-pruned.csv",
+  );
   let text = "";
   try {
     text = readFileSync(path, "utf8");
@@ -234,19 +239,26 @@ function buildCityAnchorConstraintsByLandmass(
     if (!prev || pop > prev.maxPop) cityBest.set(key, { lat, lon, maxPop: pop });
   }
   const placedCandidates: Array<{
+    city: string;
+    country: string;
     tileId: number;
+    originalTileId: number;
     landmassId: number;
     maxPop: number;
   }> = [];
   let considered = 0;
-  for (const c of cityBest.values()) {
+  for (const [key, c] of cityBest.entries()) {
     if (c.maxPop < CITY_CLAIM_MAX_POP_FLOOR) continue;
     considered++;
     const rawTid = globe.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
     const claim = findNearestTileWithLandmass(rawTid, globe, getRegionScores);
     if (!claim) continue;
+    const [cityTok, countryTok] = key.split("|");
     placedCandidates.push({
+      city: cityTok,
+      country: countryTok,
       tileId: claim.tileId,
+      originalTileId: claim.tileId,
       landmassId: claim.landmassId,
       maxPop: c.maxPop,
     });
@@ -254,20 +266,74 @@ function buildCityAnchorConstraintsByLandmass(
   placedCandidates.sort((a, b) => b.maxPop - a.maxPop);
   const tileById = new Map<number, (typeof globe.tiles)[number]>();
   for (const t of globe.tiles) tileById.set(t.id, t);
-  const accepted: Array<{ tileId: number; landmassId: number; maxPop: number }> = [];
+  const accepted: Array<{
+    city: string;
+    country: string;
+    tileId: number;
+    originalTileId: number;
+    landmassId: number;
+    maxPop: number;
+  }> = [];
+  const acceptedByTile = new Map<number, typeof accepted>();
+  const hasCrossLandmassConflict = (tileId: number, landmassId: number): boolean => {
+    const local = new Set<number>([tileId]);
+    const tile = tileById.get(tileId);
+    if (tile) {
+      for (const n of tile.neighbors) local.add(n);
+    }
+    for (const tid of local) {
+      const onTile = acceptedByTile.get(tid);
+      if (!onTile) continue;
+      for (const a of onTile) {
+        if (a.landmassId !== landmassId) return true;
+      }
+    }
+    return false;
+  };
+  const acceptCandidate = (c: (typeof placedCandidates)[number], targetTileId: number): void => {
+    c.tileId = targetTileId;
+    accepted.push(c);
+    let bucket = acceptedByTile.get(targetTileId);
+    if (!bucket) {
+      bucket = [];
+      acceptedByTile.set(targetTileId, bucket);
+    }
+    bucket.push(c);
+  };
+  const excludedCrossLandmass: typeof placedCandidates = [];
   let excludedCrossLandmassAdjacency = 0;
   for (const c of placedCandidates) {
-    const conflict = accepted.some((a) => {
-      if (a.landmassId === c.landmassId) return false;
-      if (a.tileId === c.tileId) return true;
-      const at = tileById.get(a.tileId);
-      return at?.neighbors.includes(c.tileId) ?? false;
-    });
-    if (conflict) {
+    if (hasCrossLandmassConflict(c.tileId, c.landmassId)) {
       excludedCrossLandmassAdjacency++;
+      excludedCrossLandmass.push(c);
       continue;
     }
-    accepted.push(c);
+    acceptCandidate(c, c.tileId);
+  }
+  let relocatedExcluded = 0;
+  for (const c of excludedCrossLandmass) {
+    const local = new Set<number>([c.originalTileId]);
+    const tile = tileById.get(c.originalTileId);
+    if (tile) {
+      for (const n of tile.neighbors) local.add(n);
+    }
+    let bestTileId: number | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const tid of local) {
+      const candidateLm = dominantLandmassId(tid, globe, getRegionScores);
+      if (candidateLm == null || candidateLm !== c.landmassId) continue;
+      if (hasCrossLandmassConflict(tid, c.landmassId)) continue;
+      const occupied = (acceptedByTile.get(tid)?.length ?? 0) > 0;
+      const score = (tid === c.originalTileId ? 0 : 1) + (occupied ? 0.2 : 0);
+      if (score < bestScore) {
+        bestScore = score;
+        bestTileId = tid;
+      }
+    }
+    if (bestTileId != null) {
+      acceptCandidate(c, bestTileId);
+      relocatedExcluded++;
+    }
   }
   const requiredTileIdsByLandmass = new Map<number, Set<number>>();
   for (const c of accepted) {
@@ -292,10 +358,12 @@ function buildCityAnchorConstraintsByLandmass(
   }
   console.log("[cache] city anchor constraints", {
     floor: CITY_CLAIM_MAX_POP_FLOOR,
+    sourceCsv: path,
     consideredCities: considered,
     placedCandidates: placedCandidates.length,
     acceptedCities: accepted.length,
     excludedCrossLandmassAdjacency,
+    relocatedExcluded,
     constrainedLandmasses: requiredTileIdsByLandmass.size,
   });
   return { requiredTileIdsByLandmass, forbiddenTileIdsByLandmass };

@@ -637,15 +637,14 @@ function readInitialDateTimeFromUrl(railwaysMode: boolean): string | null {
 }
 
 /**
- * `?shadows=0` disables directional shadow-map rendering (fast culprit isolation for limb flashes).
- * Omitted or truthy keeps shadows on.
+ * Shadows are off by default for performance. Enable only with explicit truthy `?shadows=1`.
  */
 function readShadowsEnabledFromUrl(): boolean {
-  if (typeof window === "undefined") return true;
+  if (typeof window === "undefined") return false;
   const q = new URLSearchParams(window.location.search);
-  if (!q.has("shadows")) return true;
+  if (!q.has("shadows")) return false;
   const v = (q.get("shadows") ?? "").toLowerCase().trim();
-  return !(v === "0" || v === "false" || v === "off" || v === "no");
+  return v === "1" || v === "true" || v === "on" || v === "yes";
 }
 
 /**
@@ -2432,8 +2431,30 @@ const moonEnabledFromUrl = readMoonEnabledFromUrl();
 const waterEnabledFromUrl = readWaterEnabledFromUrl();
 const coastFoamEnabledFromUrl = readCoastFoamEnabledFromUrl();
 renderer.shadowMap.enabled = shadowsEnabledFromUrl;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = shadowsEnabledFromUrl;
+renderer.shadowMap.type = THREE.BasicShadowMap;
 document.body.appendChild(renderer.domElement);
+const cityLabelsCanvas = document.createElement("canvas");
+cityLabelsCanvas.style.position = "fixed";
+cityLabelsCanvas.style.left = "0";
+cityLabelsCanvas.style.top = "0";
+cityLabelsCanvas.style.width = "100vw";
+cityLabelsCanvas.style.height = "100vh";
+cityLabelsCanvas.style.pointerEvents = "none";
+cityLabelsCanvas.style.zIndex = "2";
+document.body.appendChild(cityLabelsCanvas);
+const cityLabelsCtx = cityLabelsCanvas.getContext("2d");
+
+function resizeCityLabelsCanvas(): void {
+  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  const w = Math.max(1, Math.floor(innerWidth));
+  const h = Math.max(1, Math.floor(innerHeight));
+  cityLabelsCanvas.width = Math.max(1, Math.floor(w * dpr));
+  cityLabelsCanvas.height = Math.max(1, Math.floor(h * dpr));
+  if (cityLabelsCtx) cityLabelsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+resizeCityLabelsCanvas();
 
 /**
  * Above this tile count, skip terrain casting shadows (main fill-rate killer on subdiv 7).
@@ -2473,12 +2494,23 @@ const _bgSunProj = new THREE.Vector3();
 const _lensflareSunPos = new THREE.Vector3();
 const _lensflareRay = new THREE.Vector3();
 const _lensflareClosest = new THREE.Vector3();
+const BACKDROP_UPDATE_MIN_INTERVAL_MS = 80;
+const BACKDROP_SUN_ALT_EPS = 0.002;
+const BACKDROP_SUN_SCREEN_EPS = 0.003;
+let _lastBackdropUpdateMs = -1;
+let _lastBackdropSunAlt = Number.NaN;
+const _lastBackdropSunDir = new THREE.Vector3();
 
 function invalidateShadowMapGate(): void {
   _shadowSunGateValid = false;
 }
 
 function applyGlobeTerrainShadowFlags(globe: Globe): void {
+  if (!shadowsEnabledFromUrl) {
+    (globe.mesh as THREE.Mesh).receiveShadow = false;
+    (globe.mesh as THREE.Mesh).castShadow = false;
+    return;
+  }
   const cast =
     globe.tileCount <= GLOBE_TERRAIN_CAST_SHADOW_TILE_THRESHOLD;
   (globe.mesh as THREE.Mesh).receiveShadow = true;
@@ -2509,12 +2541,14 @@ function applyGlobeRenderingPerf(tileCount: number): void {
           ? 1.35
           : 2;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
-    renderer.shadowMap.type =
-      bucket === "veryDense"
-        ? THREE.BasicShadowMap
-        : THREE.PCFSoftShadowMap;
+    if (shadowsEnabledFromUrl) {
+      renderer.shadowMap.type =
+        bucket === "veryDense"
+          ? THREE.BasicShadowMap
+          : THREE.PCFSoftShadowMap;
+    }
   }
-  const dir = sun?.directional;
+  const dir = shadowsEnabledFromUrl ? sun?.directional : null;
   if (dir?.castShadow && dir.shadow) {
     const mapSz =
       bucket === "veryDense" ? 512 : bucket === "dense" ? 2048 : 4096;
@@ -3088,6 +3122,27 @@ function updateBackdropColor(
   sunDirection: THREE.Vector3,
   camera: THREE.Camera,
 ): void {
+  const now = performance.now();
+  const dot =
+    _lastBackdropUpdateMs < 0
+      ? 1
+      : THREE.MathUtils.clamp(_lastBackdropSunDir.dot(sunDirection), -1, 1);
+  const dirDelta = 1 - dot;
+  const altDelta = Number.isFinite(_lastBackdropSunAlt)
+    ? Math.abs(sunAltitudeFromCamera - _lastBackdropSunAlt)
+    : Number.POSITIVE_INFINITY;
+  if (
+    _lastBackdropUpdateMs >= 0 &&
+    now - _lastBackdropUpdateMs < BACKDROP_UPDATE_MIN_INTERVAL_MS &&
+    altDelta < BACKDROP_SUN_ALT_EPS &&
+    dirDelta < BACKDROP_SUN_SCREEN_EPS
+  ) {
+    return;
+  }
+  _lastBackdropUpdateMs = now;
+  _lastBackdropSunAlt = sunAltitudeFromCamera;
+  _lastBackdropSunDir.copy(sunDirection);
+
   const dayT = THREE.MathUtils.smoothstep(sunAltitudeFromCamera, -0.22, 0.34);
   const nightT = 1 - THREE.MathUtils.smoothstep(sunAltitudeFromCamera, -0.34, 0.08);
   const twilight = Math.max(0, Math.min(1, 1 - dayT - nightT));
@@ -3231,6 +3286,33 @@ let clipPrecipMapHoldSimMinutesPrev = NaN;
  * advance via {@link catchUpCloudPhysicsBudgeted} with `kinematicsOnly` (drift + respawn).
  */
 let globalDiscreteWeatherBake: DiscreteWeatherYearBake | null = null;
+
+declare global {
+  interface Window {
+    __railwaysWorldBridge?: {
+      getGlobe: () => Globe | undefined;
+      getGlobeMesh: () => THREE.Object3D | null;
+      getScene: () => THREE.Scene;
+      getCamera: () => THREE.PerspectiveCamera;
+      getRendererDomElement: () => HTMLCanvasElement;
+      getTileTerrain: () => Map<number, TileTerrainData> | null;
+      getRiverFlowByTile: () => Map<number, { exitEdge: number; directionRad: number }> | null;
+    };
+  }
+}
+
+function publishRailwaysWorldBridge(): void {
+  if (typeof window === "undefined") return;
+  window.__railwaysWorldBridge = {
+    getGlobe: () => globe,
+    getGlobeMesh: () => (globe?.mesh as THREE.Object3D | undefined) ?? null,
+    getScene: () => scene,
+    getCamera: () => camera,
+    getRendererDomElement: () => renderer.domElement,
+    getTileTerrain: () => globalTileTerrain,
+    getRiverFlowByTile: () => globalRiverFlowByTile,
+  };
+}
 /** Pre-baked water table, coast masks, cloud spawn table, river strengths (`globe-runtime-bake-*.bin`). */
 let prebuiltGlobeRuntimeBake: GlobeRuntimeBakeDecoded | null = null;
 /** Last applied {@link annualDayIndexFromDate} for {@link globalDiscreteWeatherBake}. */
@@ -4141,6 +4223,22 @@ function readClipPrecipMapHoldSimMinutesFromUrl(): number | null {
   return Math.min(1440, n);
 }
 
+const CLIP_PRECIP_HOLD_MIN_URL_CACHE_MS = 1000;
+let clipPrecipHoldMinUrlCached: number | null = null;
+let clipPrecipHoldMinUrlCachedAtMs = -1;
+
+function readClipPrecipMapHoldSimMinutesCached(): number | null {
+  const now = performance.now();
+  if (
+    clipPrecipHoldMinUrlCachedAtMs < 0 ||
+    now - clipPrecipHoldMinUrlCachedAtMs >= CLIP_PRECIP_HOLD_MIN_URL_CACHE_MS
+  ) {
+    clipPrecipHoldMinUrlCached = readClipPrecipMapHoldSimMinutesFromUrl();
+    clipPrecipHoldMinUrlCachedAtMs = now;
+  }
+  return clipPrecipHoldMinUrlCached;
+}
+
 /**
  * Precip map for cloud spawn / clip physics. When {@link annualTileWeather} exists, reuses
  * {@link annualPrecipReuseMap} and only refills when the **UTC calendar day index** changes — catch-up
@@ -4562,7 +4660,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     landWeatherColorsDirty = true;
     lastLandWeatherDirtyMarkWallMs = 0;
     landWeatherPrimeFullPaint = true;
-    invalidateShadowMapGate();
+    if (shadowsEnabledFromUrl) invalidateShadowMapGate();
     lastLandWeatherFlushSimCoalesceBucket = Number.NaN;
     lastLandWeatherTileSurfaceRev = -1;
     lastLandWeatherCloudRevStrideBucket = -1;
@@ -5870,7 +5968,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           riverTerrainGroup.name = "RiverTerrain";
           riverTerrainGroup.add(bed, banks);
           riverTerrainGroup.traverse((o) => {
-            if (o instanceof THREE.Mesh) o.receiveShadow = true;
+            if (o instanceof THREE.Mesh) o.receiveShadow = shadowsEnabledFromUrl;
           });
           scene.add(riverTerrainGroup);
           patchRiverMeshesLandWeatherGpu();
@@ -5917,7 +6015,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       riverTerrainGroup.name = "RiverTerrain";
       riverTerrainGroup.add(bed, banks);
       riverTerrainGroup.traverse((o) => {
-        if (o instanceof THREE.Mesh) o.receiveShadow = true;
+        if (o instanceof THREE.Mesh) o.receiveShadow = shadowsEnabledFromUrl;
       });
       scene.add(riverTerrainGroup);
       patchRiverMeshesLandWeatherGpu();
@@ -6276,7 +6374,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       maxPlantsPerHex: veryDenseGlobe ? 3 : denseGlobe ? 8 : 16,
       baseScale: VEG_BASE_SCALE,
       maxInstancesPerType: veryDenseGlobe ? 896 : denseGlobe ? 3072 : 4096,
-      updateEveryNFrames: veryDenseGlobe ? 12 : denseGlobe ? 2 : 1,
+      updateEveryNFrames: veryDenseGlobe ? 14 : denseGlobe ? 4 : 2,
       hemisphereCullDot: veryDenseGlobe ? -0.02 : denseGlobe ? -0.15 : -0.22,
       hillyBumpHeight: 0.003,
       getPeak: peakTiles
@@ -6329,9 +6427,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     });
     vegetationLayer.group.traverse((o) => {
       if (o instanceof THREE.Mesh) {
-        o.receiveShadow = true;
-        /** Plant shadows are expensive with many instances; skip on dense globes. */
-        o.castShadow = !denseGlobe;
+        o.receiveShadow = shadowsEnabledFromUrl;
+        /** Plant shadows are disabled by default with no-shadow mode. */
+        o.castShadow = shadowsEnabledFromUrl && !denseGlobe;
       }
     });
     scene.add(vegetationLayer.group);
@@ -6826,7 +6924,7 @@ function createPanel(state: DemoState, onRebuild: () => void) {
     if (cloudGroup) {
       cloudGroup.visible = state.showClouds;
       cloudGroup.updateMatrixWorld(true);
-      if (sun?.directional?.castShadow && sun.directional.shadow) {
+      if (shadowsEnabledFromUrl && sun?.directional?.castShadow && sun.directional.shadow) {
         sun.directional.shadow.needsUpdate = true;
       }
     }
@@ -7060,6 +7158,7 @@ async function init() {
     };
     wPoly.__polyglobeSampleHydroForTiles = (tileIds, opts) =>
       Object.fromEntries(sampleHydroForTileIds(state, tileIds, opts));
+    publishRailwaysWorldBridge();
   }
   scheduleRebuild(state);
 
@@ -7110,7 +7209,7 @@ async function init() {
   } else {
     sunLensflareRef = null;
   }
-  if (sun.directional.shadow) {
+  if (shadowsEnabledFromUrl && sun.directional.shadow) {
     sun.directional.shadow.autoUpdate = false;
   }
 
@@ -7336,7 +7435,7 @@ async function init() {
       );
       sunLensflareRef.visible = perfAllows && !sunOccluded;
     }
-    if (sun.directional.castShadow && sun.directional.shadow) {
+    if (shadowsEnabledFromUrl && sun.directional.castShadow && sun.directional.shadow) {
       const sc = sun.directional.shadow.camera;
       sc.position.copy(sun.directional.position);
       sc.lookAt(0, 0, 0);
@@ -7417,7 +7516,7 @@ async function init() {
         liveClipPrecipCachedUtcMinuteKey = NaN;
       }
       clipPrecipMapFillQuantumMinutes = qPhys;
-      const holdFromUrl = readClipPrecipMapHoldSimMinutesFromUrl();
+      const holdFromUrl = readClipPrecipMapHoldSimMinutesCached();
       const holdM =
         holdFromUrl != null
           ? holdFromUrl
@@ -7467,11 +7566,12 @@ async function init() {
       );
     }
     framePerf.slice("cloudClipMeshSync");
-    if (cloudGroup && (!veryDenseAnim || animTick % 4 === 0)) {
+    const cloudSortStride = veryDenseAnim ? 8 : lastGlobePerfBucket === "dense" ? 4 : 2;
+    if (cloudGroup && animTick % cloudSortStride === 0) {
       sortLowPolyCloudsByCamera(cloudGroup, camera);
     }
     framePerf.slice("cloudDepthSort");
-    if (sun.directional.castShadow && sun.directional.shadow) {
+    if (shadowsEnabledFromUrl && sun.directional.castShadow && sun.directional.shadow) {
       const sh = sun.directional.shadow;
       sh.camera.layers.enable(0);
       const mapMissing = sh.map === null;
@@ -7526,6 +7626,15 @@ async function init() {
     renderer.setRenderTarget(null);
     renderer.clear();
     renderer.render(scene, camera);
+    if (cityLabelsCtx) {
+      cityLabelsCtx.clearRect(0, 0, innerWidth, innerHeight);
+      urbanSettlementsRuntime?.drawLabels2D(
+        cityLabelsCtx,
+        camera,
+        innerWidth,
+        innerHeight,
+      );
+    }
     framePerf.slice("render");
     /** After present: raw GL in land-weather upload + renderer.resetState() must not run between clear() and render() (one-frame fullscreen/hemisphere artifacts on some drivers). */
     flushLandWeatherVertexColorsIfDirty(state);
@@ -8134,6 +8243,7 @@ async function init() {
           : 2;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
     renderer.setSize(w, h);
+    resizeCityLabelsCanvas();
   });
   animate();
 }

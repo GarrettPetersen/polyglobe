@@ -46,6 +46,10 @@ function addBox(
   );
   mesh.position.set(pos[0], pos[1], pos[2]);
   mesh.userData.role = role;
+  if (role === "window") {
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+  }
   group.add(mesh);
   return mesh;
 }
@@ -187,6 +191,8 @@ function createTrainStation(): THREE.Group {
     litWindow(0xfaf5d0),
   );
   face.userData.role = "window";
+  face.castShadow = false;
+  face.receiveShadow = false;
   face.position.set(0, 0.98, 0.12);
   face.rotation.x = Math.PI * 0.5;
   g.add(face);
