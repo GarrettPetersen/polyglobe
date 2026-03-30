@@ -27,5 +27,6 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS: Record<
       25502, 101645, 101916, 101905, 101923, 101922, 101909, 101910,
     ], // Nile delta widener
     [3710, 58698, 58714, 58713], // Ob river connector
+    [161138, 161175, 161176], // Thames connector (keeps London water-connected)
   ],
 };

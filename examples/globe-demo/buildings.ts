@@ -286,6 +286,27 @@ function createTrackSection(): THREE.Group {
   return g;
 }
 
+function createPassenger(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = "ResourcePassenger";
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 10, 10),
+    standard(0x6ea6d8),
+  );
+  body.scale.set(0.72, 1.18, 0.66); // egg-like abstract torso
+  body.position.set(0, 0.2, 0);
+  body.userData.role = "detail";
+  g.add(body);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.095, 10, 10),
+    standard(0xf3d2b4),
+  );
+  head.position.set(0, 0.45, 0);
+  head.userData.role = "detail";
+  g.add(head);
+  return g;
+}
+
 export const BUILDING_DEFS: readonly BuildingDefinition[] = [
   {
     id: "small-house",
@@ -334,6 +355,12 @@ export const BUILDING_DEFS: readonly BuildingDefinition[] = [
     name: "Track section",
     description: "Straight double-track segment for rail silhouette tuning.",
     create: createTrackSection,
+  },
+  {
+    id: "resource-passenger",
+    name: "Passenger",
+    description: "Abstract passenger token with sphere head and egg body.",
+    create: createPassenger,
   },
 ];
 

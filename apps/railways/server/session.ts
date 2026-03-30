@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import * as THREE from "three";
 import { Globe } from "../../../src/index.js";
 import type {
+  AssignCarsToLocomotiveCommand,
   AssignVehiclesToRouteCommand,
   CityEconomyState,
   CitySummary,
@@ -13,7 +14,6 @@ import type {
   GoodId,
   PlayerRouteState,
   PlayerVehicleState,
-  PurchaseVehicleCommand,
   ProductionBuildingType,
   RailwaysAuthoritativeState,
   RailwaysCommand,
@@ -89,20 +89,11 @@ const PLAYER_COLORS = [
   "#577590",
   "#90be6d",
 ];
-const TRAIN_CORE_CAP = 5;
-const SHIP_CAP = 5;
 const VEHICLE_MOVE_INTERVAL_SIM_HOURS: Record<VehicleKind, number> = {
   locomotive_front: 8,
   passenger_carriage: 8,
   wagon: 8,
   sail_ship: 18,
-};
-
-const VEHICLE_BASE_PRICE: Record<VehicleKind, number> = {
-  locomotive_front: 260,
-  passenger_carriage: 110,
-  wagon: 85,
-  sail_ship: 320,
 };
 
 interface VehicleRuntimeState {
@@ -373,6 +364,7 @@ export class RailwaysSessionState {
     };
     this.playerByClientId.set(clientId, playerState);
     this.state.players.push(playerState);
+    this.seedStartingInventory(clientId);
     this.state.stateVersion++;
   }
 
@@ -391,6 +383,7 @@ export class RailwaysSessionState {
       };
       this.playerByClientId.set(clientId, p);
       this.state.players.push(p);
+      this.seedStartingInventory(clientId);
       this.state.stateVersion++;
     }
   }
@@ -520,11 +513,14 @@ export class RailwaysSessionState {
       case "createRoute": {
         return this.createRoute(ctx.clientId, command);
       }
-      case "purchaseVehicle": {
-        return this.purchaseVehicle(ctx.clientId, command);
-      }
       case "assignVehiclesToRoute": {
         return this.assignVehiclesToRoute(ctx.clientId, command);
+      }
+      case "assignCarsToLocomotive": {
+        return this.assignCarsToLocomotive(ctx.clientId, command);
+      }
+      case "requestVehicleUnassign": {
+        return this.requestVehicleUnassign(ctx.clientId, command.vehicleId);
       }
       case "buildProductionBuilding": {
         if (ctx.role !== "host") return { ok: false, reason: "host_only_command" };
@@ -742,7 +738,10 @@ export class RailwaysSessionState {
       originCityId: originCity.cityId,
       destinationCityId: destinationCity.cityId,
       units: 1,
-      baseValue: Math.max(1, Math.round(GOOD_BASE_VALUE[goodId] * (1 + distKm / 3000))),
+      baseValue:
+        goodId === "passengers"
+          ? 1
+          : Math.max(1, Math.round(GOOD_BASE_VALUE[goodId] * (1 + distKm / 3000))),
       createdAtMs: simMs,
       sourceNodeId: sourceNode?.id,
       demandNodeId: demandNode?.id,
@@ -807,6 +806,18 @@ export class RailwaysSessionState {
     const cities = this.state.economy.cities.filter((c) => c.cityId !== origin.cityId);
     if (cities.length === 0) return null;
     if (opts.preferPopulationDemand) {
+      if (goodId === "passengers") {
+        return weightedPick(
+          cities,
+          (c) => {
+            const d = haversineKm(origin.lat, origin.lon, c.lat, c.lon);
+            const nearBias = 1 / Math.pow(1 + d / 420, 1.35);
+            const sameCountryBias = c.country === origin.country ? 1.8 : 1.0;
+            return Math.pow(c.population, 1.03) * nearBias * sameCountryBias;
+          },
+          this.rnd,
+        );
+      }
       return weightedPick(
         cities,
         (c) => {
@@ -1071,6 +1082,7 @@ export class RailwaysSessionState {
 
     for (const vehicle of this.state.playerVehicles) {
       if (!vehicle.assignedRouteId) continue;
+      if (vehicle.attachedToVehicleId) continue;
       const route = this.routeById.get(vehicle.assignedRouteId);
       if (!route || route.tileIds.length < 2) continue;
       const runtime = this.ensureVehicleRuntime(vehicle, route);
@@ -1086,9 +1098,48 @@ export class RailwaysSessionState {
       vehicle.direction = runtime.direction;
       vehicle.lastMoveAtMs = runtime.lastMoveAtMs;
       vehicle.nextMoveAtMs = runtime.nextMoveAtMs;
+      for (const car of this.state.playerVehicles) {
+        if (car.attachedToVehicleId !== vehicle.vehicleId) continue;
+        car.assignedRouteId = vehicle.assignedRouteId;
+        car.currentTileId = vehicle.currentTileId;
+        car.nextTileId = vehicle.nextTileId;
+        car.direction = vehicle.direction;
+        car.lastMoveAtMs = vehicle.lastMoveAtMs;
+        car.nextMoveAtMs = vehicle.nextMoveAtMs;
+        if (car.pendingUnassignAtCity && this.isCityTile(car.currentTileId)) {
+          car.pendingUnassignAtCity = false;
+          car.attachedToVehicleId = null;
+          car.assignedRouteId = null;
+          this.vehicleRuntimeById.delete(car.vehicleId);
+          this.state.stateVersion++;
+        }
+      }
+      if (vehicle.pendingUnassignAtCity && this.isCityTile(vehicle.currentTileId)) {
+        vehicle.pendingUnassignAtCity = false;
+        if (vehicle.assignedRouteId) {
+          const r = this.routeById.get(vehicle.assignedRouteId);
+          if (r) r.vehicleIds = r.vehicleIds.filter((id) => id !== vehicle.vehicleId);
+        }
+        for (const car of this.state.playerVehicles) {
+          if (car.attachedToVehicleId !== vehicle.vehicleId) continue;
+          car.attachedToVehicleId = null;
+          car.assignedRouteId = null;
+          car.pendingUnassignAtCity = false;
+          this.vehicleRuntimeById.delete(car.vehicleId);
+        }
+        vehicle.assignedRouteId = null;
+        this.vehicleRuntimeById.delete(vehicle.vehicleId);
+        this.state.stateVersion++;
+        continue;
+      }
       const from = move.fromTileId;
       const to = move.toTileId;
       const edgeKey = this.trackEdgeKey(from, to);
+      const attachedCars = this.state.playerVehicles.filter(
+        (car) => car.attachedToVehicleId === vehicle.vehicleId,
+      );
+      const hasPassengerCar = attachedCars.some((car) => car.kind === "passenger_carriage");
+      const carrierVehicleIds = [vehicle.vehicleId, ...attachedCars.map((c) => c.vehicleId)];
 
       for (const shipment of this.state.economy.shipments) {
         if (shipment.status === "delivered") continue;
@@ -1100,6 +1151,10 @@ export class RailwaysSessionState {
         if (cursor < 0 || cursor + 1 >= shipment.plannedTilePath.length) continue;
         const nextReq = shipment.plannedTilePath[cursor + 1]!;
         if (nextReq !== to) continue;
+        if (shipment.goodId === "passengers") {
+          const onShip = vehicle.kind === "sail_ship";
+          if (!onShip && !hasPassengerCar) continue;
+        }
 
         shipment.status = "in_transit";
         shipment.onboardVehicleId = vehicle.vehicleId;
@@ -1107,7 +1162,7 @@ export class RailwaysSessionState {
         shipment.plannedPathCursor = cursor + 1;
         if (!shipment.journeyVehicleIds) shipment.journeyVehicleIds = [];
         if (!shipment.journeyRailEdgeKeys) shipment.journeyRailEdgeKeys = [];
-        shipment.journeyVehicleIds.push(vehicle.vehicleId);
+        shipment.journeyVehicleIds.push(...carrierVehicleIds);
         shipment.journeyRailEdgeKeys.push(edgeKey);
         shipment.onboardVehicleId = null;
 
@@ -1233,44 +1288,38 @@ export class RailwaysSessionState {
     return { ok: true };
   }
 
-  private capForVehicleKind(kind: VehicleKind): number {
-    if (kind === "sail_ship") return SHIP_CAP;
-    if (kind === "locomotive_front") return TRAIN_CORE_CAP;
-    return 20;
-  }
-
-  private purchaseVehicle(clientId: string, cmd: PurchaseVehicleCommand): CommandApplyResult {
-    const player = this.playerByClientId.get(clientId);
-    if (!player) return { ok: false, reason: "unknown_player" };
-    const qty = Math.max(1, Math.min(10, Math.floor(cmd.quantity ?? 1)));
-    let ownedKind = this.state.playerVehicles.filter(
-      (v) => v.ownerClientId === clientId && v.kind === cmd.vehicleKind,
-    ).length;
-    const cap = this.capForVehicleKind(cmd.vehicleKind);
-    if (ownedKind >= cap) return { ok: false, reason: "vehicle_cap_reached" };
-    let bought = 0;
+  private seedStartingInventory(clientId: string): void {
+    const existing = this.state.playerVehicles.filter((v) => v.ownerClientId === clientId).length;
+    if (existing > 0) return;
     const simNow = this.currentSimMs();
-    for (let i = 0; i < qty; i++) {
-      if (ownedKind >= cap) break;
-      const price = Math.round(VEHICLE_BASE_PRICE[cmd.vehicleKind] * (1 + ownedKind * 0.08));
-      if (player.fundsPounds < price) break;
-      player.fundsPounds -= price;
+    const spawnKinds: VehicleKind[] = [
+      "locomotive_front",
+      "locomotive_front",
+      "passenger_carriage",
+      "passenger_carriage",
+      "passenger_carriage",
+      "passenger_carriage",
+      "wagon",
+      "wagon",
+      "wagon",
+      "wagon",
+      "sail_ship",
+      "sail_ship",
+      "sail_ship",
+    ];
+    for (const kind of spawnKinds) {
       const vehicleId = `v-${++this.vehicleSeq}`;
       const v: PlayerVehicleState = {
         vehicleId,
         ownerClientId: clientId,
-        kind: cmd.vehicleKind,
+        kind,
         purchasedAtMs: simNow,
         assignedRouteId: null,
+        attachedToVehicleId: null,
       };
       this.vehicleById.set(vehicleId, v);
       this.state.playerVehicles.push(v);
-      ownedKind++;
-      bought++;
     }
-    if (bought <= 0) return { ok: false, reason: "insufficient_funds_or_cap" };
-    this.state.stateVersion++;
-    return { ok: true };
   }
 
   private assignVehiclesToRoute(
@@ -1286,6 +1335,9 @@ export class RailwaysSessionState {
       const v = this.vehicleById.get(vid);
       if (!v) return { ok: false, reason: "unknown_vehicle" };
       if (v.ownerClientId !== clientId) return { ok: false, reason: "not_vehicle_owner" };
+      if (v.kind === "passenger_carriage" || v.kind === "wagon") {
+        return { ok: false, reason: "cars_must_attach_to_locomotive" };
+      }
       vehicles.push(v);
     }
     if (route.mode === "water") {
@@ -1307,11 +1359,78 @@ export class RailwaysSessionState {
     route.vehicleIds = [];
     for (const v of vehicles) {
       v.assignedRouteId = route.routeId;
+      v.attachedToVehicleId = null;
+      v.pendingUnassignAtCity = false;
       route.vehicleIds.push(v.vehicleId);
       this.vehicleRuntimeById.delete(v.vehicleId);
+      if (v.kind === "locomotive_front") {
+        for (const car of this.state.playerVehicles) {
+          if (car.ownerClientId !== clientId) continue;
+          if (car.attachedToVehicleId !== v.vehicleId) continue;
+          car.assignedRouteId = route.routeId;
+          car.pendingUnassignAtCity = false;
+          this.vehicleRuntimeById.delete(car.vehicleId);
+        }
+      }
     }
     this.state.stateVersion++;
     return { ok: true };
+  }
+
+  private assignCarsToLocomotive(
+    clientId: string,
+    cmd: AssignCarsToLocomotiveCommand,
+  ): CommandApplyResult {
+    const loco = this.vehicleById.get(cmd.locomotiveId);
+    if (!loco) return { ok: false, reason: "unknown_locomotive" };
+    if (loco.ownerClientId !== clientId) return { ok: false, reason: "not_vehicle_owner" };
+    if (loco.kind !== "locomotive_front") return { ok: false, reason: "target_must_be_locomotive" };
+    const uniqueCarIds = [...new Set(cmd.carIds)].slice(0, 10);
+    const cars: PlayerVehicleState[] = [];
+    for (const id of uniqueCarIds) {
+      const car = this.vehicleById.get(id);
+      if (!car) return { ok: false, reason: "unknown_vehicle" };
+      if (car.ownerClientId !== clientId) return { ok: false, reason: "not_vehicle_owner" };
+      if (car.kind !== "passenger_carriage" && car.kind !== "wagon") {
+        return { ok: false, reason: "only_cars_can_attach_to_locomotive" };
+      }
+      cars.push(car);
+    }
+    for (const car of this.state.playerVehicles) {
+      if (car.ownerClientId !== clientId) continue;
+      if (car.kind !== "passenger_carriage" && car.kind !== "wagon") continue;
+      if (car.attachedToVehicleId === loco.vehicleId) {
+        car.attachedToVehicleId = null;
+        if (!car.pendingUnassignAtCity) car.assignedRouteId = null;
+        this.vehicleRuntimeById.delete(car.vehicleId);
+      }
+    }
+    for (const car of cars) {
+      car.attachedToVehicleId = loco.vehicleId;
+      car.assignedRouteId = loco.assignedRouteId ?? null;
+      car.pendingUnassignAtCity = false;
+      this.vehicleRuntimeById.delete(car.vehicleId);
+    }
+    this.state.stateVersion++;
+    return { ok: true };
+  }
+
+  private requestVehicleUnassign(clientId: string, vehicleId: string): CommandApplyResult {
+    const vehicle = this.vehicleById.get(vehicleId);
+    if (!vehicle) return { ok: false, reason: "unknown_vehicle" };
+    if (vehicle.ownerClientId !== clientId) return { ok: false, reason: "not_vehicle_owner" };
+    if (!vehicle.assignedRouteId) return { ok: false, reason: "vehicle_not_assigned" };
+    vehicle.pendingUnassignAtCity = true;
+    this.state.stateVersion++;
+    return { ok: true };
+  }
+
+  private isCityTile(tileId: number | undefined): boolean {
+    if (tileId == null) return false;
+    for (const id of this.cityTileIdByCityId.values()) {
+      if (id === tileId) return true;
+    }
+    return false;
   }
 
   private currentSimMs(): number {

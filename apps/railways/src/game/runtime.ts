@@ -1,11 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type {
-  AssignVehiclesToRouteCommand,
   CreateRouteCommand,
   PlayerRouteState,
   PlayerVehicleState,
-  PurchaseVehicleCommand,
   RailwaysCommand,
   QueueTrackBuildCommand,
   RailwaysAuthoritativeState,
@@ -35,6 +33,17 @@ interface WorldBridge {
 interface SessionSetup {
   startCityId: string;
   colorHex: string;
+}
+
+function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
+  const latRad = (latDeg * Math.PI) / 180;
+  const lonRad = (lonDeg * Math.PI) / 180;
+  const cosLat = Math.cos(latRad);
+  return new THREE.Vector3(
+    cosLat * Math.cos(lonRad),
+    Math.sin(latRad),
+    -cosLat * Math.sin(lonRad),
+  ).normalize();
 }
 
 declare global {
@@ -83,6 +92,8 @@ const _tmpModel = new THREE.Matrix4();
 const _tmpScaleM = new THREE.Matrix4();
 const _tmpColor = new THREE.Color();
 const _up = new THREE.Vector3(0, 1, 0);
+const _pickSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
+const _pickPoint = new THREE.Vector3();
 
 function hexCostCategory(
   tileA: { type: string; elevation: number; isHilly?: boolean } | undefined,
@@ -107,6 +118,7 @@ class TrackVisualLayer {
   private railRight: THREE.InstancedMesh | null = null;
   private sleepers: THREE.InstancedMesh | null = null;
   private supports: THREE.InstancedMesh | null = null;
+  private readonly queuedPreviewLines: THREE.Line[] = [];
   private buildMarkers: Array<{
     cloud: THREE.Sprite;
     worldPos: THREE.Vector3;
@@ -130,12 +142,14 @@ class TrackVisualLayer {
     const key = tracks
       .map(
         (t) =>
-          `${t.fromTileId}:${t.toTileId}:${t.status}:${t.ownerColorHex}:${t.buildStartedAtMs}:${t.buildCompleteAtMs}`,
+          `${t.fromTileId}:${t.toTileId}:${
+            t.status === "active" ? "active" : simNowMs < t.buildStartedAtMs ? "queued" : "building"
+          }:${t.ownerColorHex}:${t.buildStartedAtMs}:${t.buildCompleteAtMs}`,
       )
       .join("|");
     if (key !== this.currentTracksKey) {
       this.currentTracksKey = key;
-      this.rebuild(bridge, tracks);
+      this.rebuild(bridge, tracks, simNowMs);
     }
     for (let i = 0; i < this.buildMarkers.length; i++) {
       const marker = this.buildMarkers[i]!;
@@ -181,6 +195,17 @@ class TrackVisualLayer {
     this.railRight = null;
     this.sleepers = null;
     this.supports = null;
+    for (const line of this.queuedPreviewLines) {
+      this.group.remove(line);
+      line.geometry.dispose();
+      const mat = line.material;
+      if (Array.isArray(mat)) {
+        for (const mm of mat) mm.dispose();
+      } else {
+        mat.dispose();
+      }
+    }
+    this.queuedPreviewLines.length = 0;
     for (const marker of this.buildMarkers) {
       const s = marker.cloud;
       this.group.remove(s);
@@ -191,7 +216,7 @@ class TrackVisualLayer {
     this.buildMarkers = [];
   }
 
-  private rebuild(bridge: WorldBridge, tracks: TrackSegmentState[]): void {
+  private rebuild(bridge: WorldBridge, tracks: TrackSegmentState[], simNowMs: number): void {
     this.clearMeshes();
     if (tracks.length === 0) return;
     const globe = bridge.getGlobe();
@@ -276,6 +301,8 @@ class TrackVisualLayer {
       const a = globe.getTile(tr.fromTileId);
       const b = globe.getTile(tr.toTileId);
       if (!a || !b) continue;
+      const stage =
+        tr.status === "active" ? "active" : simNowMs < tr.buildStartedAtMs ? "queued" : "building";
       const elevA = terrain.get(tr.fromTileId)?.elevation ?? 0;
       const elevB = terrain.get(tr.toTileId)?.elevation ?? 0;
       _tmpA.copy(a.center).normalize().multiplyScalar(globe.radius + elevA * 0.08 + 0.0018);
@@ -288,15 +315,32 @@ class TrackVisualLayer {
         .add(_tmpB)
         .normalize()
         .multiplyScalar(globe.radius + ((elevA + elevB) * 0.5) * 0.08 + 0.0018);
-      pushConn(tr.fromTileId, _tmpA.clone(), edgePos.clone(), tr.ownerColorHex);
-      pushConn(tr.toTileId, _tmpB.clone(), edgePos, tr.ownerColorHex);
+      if (stage === "queued") {
+        const p0 = _tmpA.clone().addScaledVector(_tmpA.clone().normalize(), 0.0009);
+        const p1 = _tmpB.clone().addScaledVector(_tmpB.clone().normalize(), 0.0009);
+        const qGeom = new THREE.BufferGeometry().setFromPoints([p0, p1]);
+        const qMat = new THREE.LineBasicMaterial({
+          color: new THREE.Color(tr.ownerColorHex),
+          transparent: true,
+          opacity: 0.35,
+          depthWrite: false,
+        });
+        const qLine = new THREE.Line(qGeom, qMat);
+        qLine.renderOrder = 84;
+        this.group.add(qLine);
+        this.queuedPreviewLines.push(qLine);
+      }
+      if (stage === "active") {
+        pushConn(tr.fromTileId, _tmpA.clone(), edgePos.clone(), tr.ownerColorHex);
+        pushConn(tr.toTileId, _tmpB.clone(), edgePos, tr.ownerColorHex);
+      }
 
       const supportNeeded =
-        tr.status === "building" ||
+        stage === "building" ||
         Math.abs(elevA - elevB) > 0.01 ||
         (terrain.get(tr.fromTileId)?.isHilly ?? false) ||
         (terrain.get(tr.toTileId)?.isHilly ?? false);
-      if (supportNeeded) {
+      if (supportNeeded && stage === "active") {
         const supportLen = Math.max(0.01, fullMid.length() - (globe.radius - 0.01));
         const supportPos = fullMid
           .clone()
@@ -313,7 +357,7 @@ class TrackVisualLayer {
         );
       }
 
-      if (tr.status === "building") {
+      if (stage === "building") {
         const sp = new THREE.Sprite(
           new THREE.SpriteMaterial({
             map: tex,
@@ -525,9 +569,67 @@ class BuildProgressOverlay2D {
   }
 }
 
+class TrackPlanCostOverlay2D {
+  private readonly canvas: HTMLCanvasElement;
+  private readonly ctx: CanvasRenderingContext2D;
+
+  constructor() {
+    this.canvas = document.createElement("canvas");
+    this.canvas.style.cssText =
+      "position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:10016;pointer-events:none;";
+    document.body.appendChild(this.canvas);
+    this.ctx = this.canvas.getContext("2d")!;
+  }
+
+  private ensureSize(): void {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const w = Math.max(1, Math.floor(window.innerWidth * dpr));
+    const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+    if (this.canvas.width === w && this.canvas.height === h) return;
+    this.canvas.width = w;
+    this.canvas.height = h;
+  }
+
+  update(
+    bridge: WorldBridge,
+    points: Array<{ worldPos: THREE.Vector3; cost: number }>,
+    visible: boolean,
+  ): void {
+    this.ensureSize();
+    const ctx = this.ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!visible || points.length === 0) return;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const cam = bridge.getCamera();
+    ctx.font = `${10 * dpr}px system-ui,-apple-system,Segoe UI,Roboto,sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const p of points) {
+      const ndc = p.worldPos.clone().project(cam);
+      if (ndc.z < -1 || ndc.z > 1) continue;
+      const x = (ndc.x * 0.5 + 0.5) * this.canvas.width;
+      const y = (1 - (ndc.y * 0.5 + 0.5)) * this.canvas.height;
+      const label = `£${p.cost}`;
+      const padX = 5 * dpr;
+      const padY = 3 * dpr;
+      const w = ctx.measureText(label).width + padX * 2;
+      const h = 14 * dpr;
+      const rx = x - w * 0.5;
+      const ry = y - 14 * dpr;
+      ctx.fillStyle = "rgba(10,20,34,0.88)";
+      ctx.fillRect(rx, ry, w, h);
+      ctx.fillStyle = "rgba(255,255,255,0.94)";
+      ctx.fillText(label, x, ry + h * 0.52);
+    }
+  }
+}
+
 class RouteVisualLayer {
   private readonly group = new THREE.Group();
   private readonly routeObjects = new Map<string, THREE.Object3D>();
+  private readonly routeBaseOpacity = new Map<string, number>();
+  private readonly highlightedRouteIds = new Set<string>();
   private currentKey = "";
 
   attach(scene: THREE.Scene): void {
@@ -566,6 +668,7 @@ class RouteVisualLayer {
       });
     }
     this.routeObjects.clear();
+    this.routeBaseOpacity.clear();
   }
 
   private rebuild(
@@ -604,8 +707,46 @@ class RouteVisualLayer {
       });
       const line = new THREE.Line(geom, mat);
       line.renderOrder = 90;
+      line.userData.routeId = route.routeId;
       this.group.add(line);
       this.routeObjects.set(route.routeId, line);
+      this.routeBaseOpacity.set(route.routeId, mat.opacity);
+    }
+    this.applyHighlightStyling();
+  }
+
+  setHighlightedRoutes(routeIds: Iterable<string>): void {
+    this.highlightedRouteIds.clear();
+    for (const id of routeIds) this.highlightedRouteIds.add(id);
+    this.applyHighlightStyling();
+  }
+
+  getInteractiveObjects(): THREE.Object3D[] {
+    return [...this.routeObjects.values()];
+  }
+
+  getRouteIdForObject(obj: THREE.Object3D | null): string | null {
+    let cur: THREE.Object3D | null = obj;
+    while (cur) {
+      if (typeof cur.userData?.routeId === "string") return cur.userData.routeId as string;
+      cur = cur.parent;
+    }
+    return null;
+  }
+
+  private applyHighlightStyling(): void {
+    for (const [routeId, obj] of this.routeObjects) {
+      if (!(obj instanceof THREE.Line)) continue;
+      const mat = obj.material;
+      if (!(mat instanceof THREE.LineBasicMaterial)) continue;
+      const base = this.routeBaseOpacity.get(routeId) ?? 0.7;
+      if (this.highlightedRouteIds.size > 0) {
+        const on = this.highlightedRouteIds.has(routeId);
+        mat.opacity = on ? 1 : Math.max(0.18, base * 0.25);
+      } else {
+        mat.opacity = base;
+      }
+      mat.needsUpdate = true;
     }
   }
 }
@@ -614,6 +755,7 @@ class VehicleVisualLayer {
   private readonly group = new THREE.Group();
   private readonly loader = new GLTFLoader();
   private readonly templateByKind = new Map<VehicleKind, THREE.Object3D>();
+  private readonly correctionByKind = new Map<VehicleKind, THREE.Quaternion>();
   private readonly objectByVehicleId = new Map<string, THREE.Object3D>();
   private readonly loadingKind = new Set<VehicleKind>();
   private readonly missingKinds = new Set<VehicleKind>();
@@ -625,6 +767,16 @@ class VehicleVisualLayer {
 
   update(bridge: WorldBridge, snap: RailwaysAuthoritativeState): void {
     const vehicles = snap.playerVehicles.filter((v) => v.assignedRouteId);
+    const attachedByParent = new Map<string, PlayerVehicleState[]>();
+    for (const v of vehicles) {
+      if (!v.attachedToVehicleId) continue;
+      const list = attachedByParent.get(v.attachedToVehicleId) ?? [];
+      list.push(v);
+      attachedByParent.set(v.attachedToVehicleId, list);
+    }
+    for (const list of attachedByParent.values()) {
+      list.sort((a, b) => a.vehicleId.localeCompare(b.vehicleId));
+    }
     const keep = new Set(vehicles.map((v) => v.vehicleId));
     for (const [vehicleId, obj] of this.objectByVehicleId) {
       if (keep.has(vehicleId)) continue;
@@ -642,6 +794,7 @@ class VehicleVisualLayer {
       if (!obj) {
         obj = this.instantiateVehicle(v.kind);
         if (!obj) continue;
+        obj.userData.vehicleId = v.vehicleId;
         this.objectByVehicleId.set(v.vehicleId, obj);
         this.group.add(obj);
       }
@@ -659,12 +812,40 @@ class VehicleVisualLayer {
       const next = v.nextMoveAtMs ?? nowSim + 1;
       const t = THREE.MathUtils.clamp((nowSim - last) / Math.max(1, next - last), 0, 1);
       const pos = _tmpMid.copy(pa).lerp(pb, t);
-      obj.position.copy(pos);
       const dir = pb.clone().sub(pa).normalize();
-      _tmpQ.setFromUnitVectors(_up, dir);
+      if (v.attachedToVehicleId) {
+        const group = attachedByParent.get(v.attachedToVehicleId) ?? [];
+        const idx = Math.max(0, group.findIndex((c) => c.vehicleId === v.vehicleId));
+        const gap = 0.00155;
+        pos.addScaledVector(dir, -(idx + 1) * gap);
+      }
+      obj.position.copy(pos);
+      const up = pos.clone().normalize();
+      const fwd = dir.clone().addScaledVector(up, -dir.dot(up));
+      if (fwd.lengthSq() < 1e-10) continue;
+      fwd.normalize();
+      const right = new THREE.Vector3().crossVectors(fwd, up);
+      if (right.lengthSq() < 1e-10) continue;
+      right.normalize();
+      const worldBasis = new THREE.Matrix4().makeBasis(right, up, fwd);
+      _tmpQ.setFromRotationMatrix(worldBasis);
       obj.quaternion.copy(_tmpQ);
-      obj.scale.setScalar(v.kind === "sail_ship" ? 0.02 : 0.016);
+      const corr = this.correctionByKind.get(v.kind);
+      if (corr) obj.quaternion.multiply(corr);
     }
+  }
+
+  getInteractiveObjects(): THREE.Object3D[] {
+    return [...this.objectByVehicleId.values()];
+  }
+
+  getVehicleIdForObject(obj: THREE.Object3D | null): string | null {
+    let cur: THREE.Object3D | null = obj;
+    while (cur) {
+      if (typeof cur.userData?.vehicleId === "string") return cur.userData.vehicleId as string;
+      cur = cur.parent;
+    }
+    return null;
   }
 
   private instantiateVehicle(kind: VehicleKind): THREE.Object3D | null {
@@ -700,14 +881,40 @@ class VehicleVisualLayer {
       this.loader.load(
         candidates[idx]!,
         (gltf) => {
-          const scene = gltf.scene;
+          const scene = gltf.scene.clone(true);
           scene.traverse((o) => {
             if (o instanceof THREE.Mesh) {
               o.castShadow = false;
               o.receiveShadow = false;
             }
           });
-          this.templateByKind.set(kind, scene);
+          const box = new THREE.Box3().setFromObject(scene);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (!Number.isFinite(maxDim) || maxDim <= 1e-6) {
+            this.loadingKind.delete(kind);
+            this.missingKinds.add(kind);
+            return;
+          }
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          scene.position.x -= center.x;
+          scene.position.z -= center.z;
+          scene.position.y -= box.min.y;
+          const targetMaxDim =
+            kind === "sail_ship" ? 0.0052 : kind === "locomotive_front" ? 0.0042 : 0.0038;
+          const normalizedScale = targetMaxDim / maxDim;
+          scene.scale.setScalar(normalizedScale);
+          const root = new THREE.Group();
+          root.add(scene);
+          this.templateByKind.set(kind, root);
+          const correction = new THREE.Quaternion();
+          correction.setFromAxisAngle(
+            _up,
+            kind === "sail_ship" ? -Math.PI * 0.5 : -Math.PI * 0.5,
+          );
+          this.correctionByKind.set(kind, correction);
           this.loadingKind.delete(kind);
         },
         undefined,
@@ -715,6 +922,99 @@ class VehicleVisualLayer {
       );
     };
     tryLoad(0);
+  }
+}
+
+class PassengerVisualLayer {
+  private readonly group = new THREE.Group();
+  private head: THREE.InstancedMesh | null = null;
+  private body: THREE.InstancedMesh | null = null;
+  private key = "";
+
+  attach(scene: THREE.Scene): void {
+    this.group.name = "RailwaysPassengerLayer";
+    scene.add(this.group);
+  }
+
+  update(bridge: WorldBridge, snap: RailwaysAuthoritativeState): void {
+    const passengers = snap.economy.shipments.filter((s) => s.goodId === "passengers");
+    const key = passengers.map((p) => `${p.shipmentId}:${p.currentTileId}:${p.status}`).join("|");
+    if (key === this.key) return;
+    this.key = key;
+    this.rebuild(bridge, passengers);
+  }
+
+  private clear(): void {
+    const meshes = [this.head, this.body];
+    for (const m of meshes) {
+      if (!m) continue;
+      this.group.remove(m);
+      m.geometry.dispose();
+      const mat = m.material;
+      if (Array.isArray(mat)) mat.forEach((mm) => mm.dispose());
+      else mat.dispose();
+    }
+    this.head = null;
+    this.body = null;
+  }
+
+  private rebuild(
+    bridge: WorldBridge,
+    passengers: Array<RailwaysAuthoritativeState["economy"]["shipments"][number]>,
+  ): void {
+    this.clear();
+    if (passengers.length === 0) return;
+    const globe = bridge.getGlobe();
+    const terrain = bridge.getTileTerrain();
+    if (!globe || !terrain) return;
+    this.head = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.00042, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xf3d2b4, roughness: 0.75, metalness: 0.02 }),
+      Math.max(1, passengers.length),
+    );
+    this.body = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.00062, 10, 10),
+      new THREE.MeshStandardMaterial({ color: 0x6ea6d8, roughness: 0.82, metalness: 0.04 }),
+      Math.max(1, passengers.length),
+    );
+    this.head.frustumCulled = false;
+    this.body.frustumCulled = false;
+    this.group.add(this.body, this.head);
+    let idx = 0;
+    const pos = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const fwd = new THREE.Vector3();
+    const basis = new THREE.Matrix4();
+    const model = new THREE.Matrix4();
+    const scale = new THREE.Matrix4();
+    for (const s of passengers) {
+      const tid = s.currentTileId ?? s.originTileId;
+      if (tid == null) continue;
+      const tile = globe.getTile(tid);
+      if (!tile) continue;
+      const elev = terrain.get(tid)?.elevation ?? 0;
+      up.copy(tile.center).normalize();
+      right.crossVectors(up, _up);
+      if (right.lengthSq() < 1e-8) right.set(1, 0, 0);
+      right.normalize();
+      fwd.crossVectors(right, up).normalize();
+      const jitter = ((idx % 5) - 2) * 0.00035;
+      pos.copy(up).multiplyScalar(globe.radius + elev * 0.08 + 0.0052).addScaledVector(right, jitter);
+      basis.makeBasis(right, up, fwd);
+      scale.makeScale(1, 1.35, 1);
+      model.copy(basis).multiply(scale);
+      model.setPosition(pos.clone().addScaledVector(up, 0.00042));
+      this.body.setMatrixAt(idx, model);
+      model.copy(basis);
+      model.setPosition(pos.clone().addScaledVector(up, 0.00126));
+      this.head.setMatrixAt(idx, model);
+      idx++;
+    }
+    this.head.count = idx;
+    this.body.count = idx;
+    this.head.instanceMatrix.needsUpdate = true;
+    this.body.instanceMatrix.needsUpdate = true;
   }
 }
 
@@ -833,6 +1133,292 @@ function waterPathAStar(
   return null;
 }
 
+class HudButtonIcons3D {
+  private readonly loader = new GLTFLoader();
+  private readonly rigs: Array<{
+    container: HTMLElement;
+    renderer: THREE.WebGLRenderer;
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    root: THREE.Group;
+    spinSpeed: number;
+  }> = [];
+  private readonly templateByPath = new Map<string, THREE.Object3D>();
+
+  constructor(trackHost: HTMLElement, routeHost: HTMLElement, vehicleHost: HTMLElement) {
+    const trackRig = this.makeRig(trackHost, 0.11);
+    trackRig.root.add(this.buildTrackSectionModel());
+    this.rigs.push(trackRig);
+
+    const routeRig = this.makeRig(routeHost, 0.08);
+    const routeGroup = new THREE.Group();
+    const rail = this.buildTrackSectionModel();
+    rail.position.z = -0.0016;
+    routeGroup.add(rail);
+    const buoyGeom = new THREE.SphereGeometry(0.00095, 8, 8);
+    const buoyMat = new THREE.MeshStandardMaterial({ color: 0x6ad5ff, roughness: 0.6, metalness: 0.12 });
+    const b0 = new THREE.Mesh(buoyGeom, buoyMat);
+    b0.position.set(-0.0021, 0.0009, 0.0015);
+    const b1 = new THREE.Mesh(buoyGeom, buoyMat.clone());
+    b1.position.set(0.0021, 0.0009, 0.0015);
+    routeGroup.add(b0, b1);
+    routeRig.root.add(routeGroup);
+    this.rigs.push(routeRig);
+
+    const vehicleRig = this.makeRig(vehicleHost, 0.06);
+    this.rigs.push(vehicleRig);
+    this.loadAssetIntoRig(
+      "/assets/vehicles/Locomotive Front.glb",
+      vehicleRig,
+      new THREE.Vector3(-0.0018, 0, 0.0004),
+      0.004,
+      -Math.PI * 0.5,
+    );
+    this.loadAssetIntoRig(
+      "/assets/vehicles/Sail Ship.glb",
+      vehicleRig,
+      new THREE.Vector3(0.0018, -0.0001, -0.0007),
+      0.0042,
+      -Math.PI * 0.35,
+    );
+  }
+
+  private makeRig(container: HTMLElement, spinSpeed: number): {
+    container: HTMLElement;
+    renderer: THREE.WebGLRenderer;
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    root: THREE.Group;
+    spinSpeed: number;
+  } {
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setSize(42, 42);
+    renderer.domElement.style.width = "42px";
+    renderer.domElement.style.height = "42px";
+    renderer.domElement.style.display = "block";
+    container.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.001, 10);
+    camera.position.set(0.012, 0.0085, 0.012);
+    camera.lookAt(0, 0, 0);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x253348, 0.95);
+    const key = new THREE.DirectionalLight(0xffffff, 0.75);
+    key.position.set(1, 2, 1.2);
+    scene.add(hemi, key);
+    const root = new THREE.Group();
+    scene.add(root);
+    return { container, renderer, scene, camera, root, spinSpeed };
+  }
+
+  private buildTrackSectionModel(): THREE.Object3D {
+    const g = new THREE.Group();
+    const bed = new THREE.Mesh(
+      new THREE.BoxGeometry(0.009, 0.00095, 0.0026),
+      new THREE.MeshStandardMaterial({ color: 0x7f8894, roughness: 0.86, metalness: 0.05 }),
+    );
+    g.add(bed);
+    const railGeom = new THREE.BoxGeometry(0.0091, 0.00034, 0.00024);
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xc9cfda, roughness: 0.58, metalness: 0.42 });
+    const railL = new THREE.Mesh(railGeom, railMat);
+    railL.position.set(0, 0.00056, 0.0007);
+    const railR = new THREE.Mesh(railGeom, railMat.clone());
+    railR.position.set(0, 0.00056, -0.0007);
+    g.add(railL, railR);
+    const sleeperGeom = new THREE.BoxGeometry(0.00022, 0.0002, 0.0022);
+    const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x8b6a4a, roughness: 0.9, metalness: 0.05 });
+    for (let i = 0; i < 7; i++) {
+      const t = (i - 3) / 3;
+      const s = new THREE.Mesh(sleeperGeom, sleeperMat.clone());
+      s.position.set(t * 0.0013, 0.00035, 0);
+      g.add(s);
+    }
+    g.rotation.y = Math.PI * 0.18;
+    g.rotation.x = -Math.PI * 0.05;
+    return g;
+  }
+
+  private loadAssetIntoRig(
+    path: string,
+    rig: { root: THREE.Group },
+    pos: THREE.Vector3,
+    targetMaxDim: number,
+    yawRad: number,
+  ): void {
+    const addTemplate = (template: THREE.Object3D): void => {
+      const clone = template.clone(true);
+      clone.position.copy(pos);
+      clone.rotation.y = yawRad;
+      rig.root.add(clone);
+    };
+    const cached = this.templateByPath.get(path);
+    if (cached) {
+      addTemplate(cached);
+      return;
+    }
+    this.loader.load(
+      path,
+      (gltf) => {
+        const scene = gltf.scene.clone(true);
+        const box = new THREE.Box3().setFromObject(scene);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if (!Number.isFinite(maxDim) || maxDim < 1e-6) return;
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        scene.position.sub(center);
+        const scale = targetMaxDim / maxDim;
+        scene.scale.setScalar(scale);
+        scene.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            o.castShadow = false;
+            o.receiveShadow = false;
+          }
+        });
+        this.templateByPath.set(path, scene);
+        addTemplate(scene);
+      },
+      undefined,
+      () => {
+        // Ignore icon-only asset load failures; gameplay asset loading has own diagnostics.
+      },
+    );
+  }
+
+  update(nowMs: number): void {
+    for (const rig of this.rigs) {
+      if (rig.container.clientWidth <= 0 || rig.container.clientHeight <= 0) continue;
+      rig.root.rotation.y = nowMs * 0.001 * rig.spinSpeed;
+      rig.renderer.render(rig.scene, rig.camera);
+    }
+  }
+}
+
+class VehicleSpriteStrip3D {
+  private readonly loader = new GLTFLoader();
+  private readonly templateByKind = new Map<VehicleKind, THREE.Object3D>();
+  private readonly loadingKind = new Set<VehicleKind>();
+  private readonly rigs = new Map<
+    string,
+    {
+      vehicleId: string;
+      kind: VehicleKind;
+      renderer: THREE.WebGLRenderer;
+      scene: THREE.Scene;
+      camera: THREE.PerspectiveCamera;
+      root: THREE.Group;
+      host: HTMLElement;
+    }
+  >();
+
+  sync(items: Array<{ vehicleId: string; kind: VehicleKind; host: HTMLElement }>): void {
+    const keep = new Set(items.map((i) => i.vehicleId));
+    for (const [id, rig] of this.rigs) {
+      if (keep.has(id)) continue;
+      rig.renderer.dispose();
+      rig.host.innerHTML = "";
+      this.rigs.delete(id);
+    }
+    for (const item of items) {
+      let rig = this.rigs.get(item.vehicleId);
+      if (!rig) {
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+        renderer.setSize(56, 38);
+        renderer.domElement.style.width = "56px";
+        renderer.domElement.style.height = "38px";
+        renderer.domElement.style.display = "block";
+        item.host.innerHTML = "";
+        item.host.appendChild(renderer.domElement);
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(30, 56 / 38, 0.001, 10);
+        camera.position.set(0.012, 0.008, 0.012);
+        camera.lookAt(0, 0, 0);
+        scene.add(
+          new THREE.HemisphereLight(0xffffff, 0x233248, 0.95),
+          Object.assign(new THREE.DirectionalLight(0xffffff, 0.75), {
+            position: new THREE.Vector3(1.2, 1.9, 0.9),
+          }),
+        );
+        const root = new THREE.Group();
+        scene.add(root);
+        rig = { vehicleId: item.vehicleId, kind: item.kind, renderer, scene, camera, root, host: item.host };
+        this.rigs.set(item.vehicleId, rig);
+      } else {
+        rig.kind = item.kind;
+        rig.host = item.host;
+      }
+      if (rig.root.children.length === 0) {
+        const tpl = this.templateByKind.get(item.kind);
+        if (tpl) rig.root.add(tpl.clone(true));
+        else this.loadKindTemplate(item.kind);
+      }
+    }
+  }
+
+  update(nowMs: number): void {
+    for (const rig of this.rigs.values()) {
+      rig.root.rotation.y = nowMs * 0.00055;
+      rig.renderer.render(rig.scene, rig.camera);
+    }
+  }
+
+  private kindAssetCandidates(kind: VehicleKind): string[] {
+    if (kind === "sail_ship") return ["/assets/vehicles/Sail Ship.glb"];
+    if (kind === "locomotive_front") return ["/assets/vehicles/Locomotive Front.glb"];
+    if (kind === "passenger_carriage") return ["/assets/vehicles/Locomotive Passenger Carriage.glb"];
+    return ["/assets/vehicles/Locomotive Wagon.glb"];
+  }
+
+  private loadKindTemplate(kind: VehicleKind): void {
+    if (this.loadingKind.has(kind) || this.templateByKind.has(kind)) return;
+    this.loadingKind.add(kind);
+    const candidates = this.kindAssetCandidates(kind);
+    const tryLoad = (idx: number): void => {
+      if (idx >= candidates.length) {
+        this.loadingKind.delete(kind);
+        return;
+      }
+      this.loader.load(
+        candidates[idx]!,
+        (gltf) => {
+          const model = gltf.scene.clone(true);
+          const box = new THREE.Box3().setFromObject(model);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (!Number.isFinite(maxDim) || maxDim <= 1e-6) {
+            this.loadingKind.delete(kind);
+            return;
+          }
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          model.position.sub(center);
+          model.position.y -= box.min.y;
+          model.scale.setScalar((kind === "sail_ship" ? 0.0053 : 0.0042) / maxDim);
+          model.rotation.y = -Math.PI * 0.5;
+          model.traverse((o) => {
+            if (o instanceof THREE.Mesh) {
+              o.castShadow = false;
+              o.receiveShadow = false;
+            }
+          });
+          this.templateByKind.set(kind, model);
+          this.loadingKind.delete(kind);
+          for (const rig of this.rigs.values()) {
+            if (rig.kind !== kind || rig.root.children.length > 0) continue;
+            rig.root.add(model.clone(true));
+          }
+        },
+        undefined,
+        () => tryLoad(idx + 1),
+      );
+    };
+    tryLoad(0);
+  }
+}
+
 export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const hideDemoUi = (): void => {
     const ids = ["panel", "hexDebugPanel"];
@@ -844,6 +1430,37 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     }
   };
   hideDemoUi();
+  if (!document.getElementById("rwHudUiStyle")) {
+    const st = document.createElement("style");
+    st.id = "rwHudUiStyle";
+    st.textContent = `
+      .rw-main-actions{display:flex;gap:10px;flex-wrap:wrap}
+      .rw-main-btn{min-width:182px;min-height:62px;border:1px solid rgba(200,220,255,.35);background:rgba(20,34,50,.78);color:#eaf2ff;border-radius:10px;padding:6px 10px;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;cursor:pointer}
+      .rw-main-btn:hover{background:rgba(33,52,74,.9)}
+      .rw-main-icon3d{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none}
+      .rw-submenu{display:none;gap:8px;flex-wrap:wrap;align-items:center}
+      .rw-submenu.active{display:flex}
+      .rw-time-btn{width:34px;height:30px;border-radius:8px}
+      .rw-modal-backdrop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(6,10,18,.48);z-index:10040;backdrop-filter:blur(2px)}
+      .rw-modal-backdrop.active{display:flex}
+      .rw-modal{min-width:320px;max-width:520px;background:rgba(9,16,28,.96);border:1px solid rgba(200,220,255,.28);border-radius:12px;box-shadow:0 18px 42px rgba(0,0,0,.45);padding:14px;color:#eaf2ff}
+      .rw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+      .rw-modal-actions button{min-width:90px}
+      .rw-actions{display:flex;gap:8px;flex-wrap:wrap}
+      .rw-chunky-btn{min-height:38px;padding:8px 12px;border:1px solid rgba(200,220,255,.35);border-radius:10px;background:rgba(28,44,66,.92);color:#eaf2ff;font-weight:700;cursor:pointer}
+      .rw-chunky-btn:disabled{opacity:.5;cursor:default}
+      .rw-assign-hint{opacity:.92;font-weight:600}
+      .rw-inventory-strip{display:flex;gap:8px;overflow-x:auto;max-width:min(1100px,92vw);padding:3px 1px 5px 1px}
+      .rw-card{min-height:78px;min-width:110px;max-width:110px;border:1px solid rgba(190,210,240,.28);border-radius:10px;background:rgba(18,30,46,.92);color:#eaf2ff;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:4px;padding:4px 4px 6px 4px;cursor:pointer;flex:0 0 auto}
+      .rw-card:hover{border-color:rgba(150,220,255,.55)}
+      .rw-card.selected{outline:2px solid rgba(110,220,255,.95);background:rgba(22,52,76,.96)}
+      .rw-card.glow{box-shadow:0 0 0 2px rgba(126,203,255,.55),0 0 18px rgba(126,203,255,.45)}
+      .rw-sprite-host{width:56px;height:38px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+      .rw-card .k{font-size:11px;opacity:.85}
+      .rw-card .id{font-size:11px;font-weight:700}
+    `;
+    document.head.appendChild(st);
+  }
 
   const panel = document.createElement("div");
   panel.style.cssText =
@@ -855,19 +1472,27 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     <div id="rwHudTrackCost" style="white-space:nowrap">Planned cost: £0</div>
     <div id="rwHudRouteInfo" style="white-space:nowrap">Route plan: none</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
-      <button data-time="pause" type="button">Pause</button>
-      <button data-time="play" type="button">Play</button>
-      <button data-time="fast" type="button">Fast</button>
-      <button data-time="super" type="button">Superfast</button>
+      <button class="rw-time-btn" data-time="pause" type="button" title="Pause">⏸</button>
+      <button class="rw-time-btn" data-time="play1" type="button" title="1:1">▶</button>
+      <button class="rw-time-btn" data-time="play2" type="button" title="Speed 2">▶▶</button>
+      <button class="rw-time-btn" data-time="play3" type="button" title="Speed 3">▶▶▶</button>
+      <button class="rw-time-btn" data-time="play4" type="button" title="Speed 4">▶▶▶▶</button>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
-      <button id="rwTrackModeBtn" type="button">Place Track</button>
+    <div id="rwMainMenu" class="rw-main-actions" style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button id="rwMainTrackBtn" class="rw-main-btn" type="button"><span id="rwMainTrackIcon" class="rw-main-icon3d"></span><span>Lay Track</span></button>
+      <button id="rwMainRouteBtn" class="rw-main-btn" type="button"><span id="rwMainRouteIcon" class="rw-main-icon3d"></span><span>Plan Route</span></button>
+      <button id="rwMainVehicleBtn" class="rw-main-btn" type="button"><span id="rwMainVehicleIcon" class="rw-main-icon3d"></span><span>Assign Vehicle</span></button>
+    </div>
+    <div id="rwTrackMenu" class="rw-submenu" style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button id="rwTrackBackBtn" type="button">← Back</button>
+      <button id="rwTrackModeBtn" type="button">Track Mode</button>
       <button id="rwTrackUndoBtn" type="button" disabled>Undo</button>
       <button id="rwTrackConfirmBtn" type="button" disabled>Confirm</button>
       <button id="rwTrackCancelBtn" type="button" disabled>Cancel</button>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
-      <button id="rwRouteModeBtn" type="button">Plan Route</button>
+    <div id="rwRouteMenu" class="rw-submenu" style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button id="rwRouteBackBtn" type="button">← Back</button>
+      <button id="rwRouteModeBtn" type="button">Route Mode</button>
       <button id="rwRouteConfirmBtn" type="button" disabled>Confirm Route</button>
       <button id="rwRouteCancelBtn" type="button" disabled>Cancel Route</button>
       <select id="rwRouteTypeSel">
@@ -875,23 +1500,36 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         <option value="water">Water</option>
       </select>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
-      <button id="rwBuyLocoBtn" type="button">Buy Loco £260+</button>
-      <button id="rwBuyPassengerBtn" type="button">Buy Carriage £110+</button>
-      <button id="rwBuyWagonBtn" type="button">Buy Wagon £85+</button>
-      <button id="rwBuyShipBtn" type="button">Buy Sail Ship £320+</button>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
-      <label for="rwAssignRouteSel" style="opacity:0.85;align-self:center">Assign</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <select id="rwAssignRouteSel"></select>
-        <input id="rwAssignVehicleIds" placeholder="vehicle ids e.g. v-1,v-2" style="min-width:220px" />
-        <button id="rwAssignBtn" type="button">Assign</button>
+    <div id="rwVehicleMenu" class="rw-submenu" style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button id="rwVehicleBackBtn" type="button">← Back</button>
+      <div class="rw-actions">
+        <button id="rwAssignSelectedBtn" class="rw-chunky-btn" type="button" disabled>Assign Selected</button>
+        <button id="rwUnassignSelectedBtn" class="rw-chunky-btn" type="button" disabled>Unassign Selected At City</button>
+        <button id="rwClearSelectionBtn" class="rw-chunky-btn" type="button">Clear Selection</button>
+      </div>
+      <div id="rwAssignHint" class="rw-assign-hint">Select inventory items to begin assignment.</div>
+      <div id="rwInventoryGrid" class="rw-inventory-strip"></div>
+      <div id="rwSelectedVehiclePanel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="rwSelectedVehicleInfo" style="opacity:0.9">Selected vehicle: none</span>
+        <button id="rwUnassignAtCityBtn" type="button" disabled>Unassign at next city</button>
       </div>
     </div>
     <div id="rwInventorySummary" style="opacity:0.9;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)"></div>
   `;
   document.body.appendChild(panel);
+  const modalBackdrop = document.createElement("div");
+  modalBackdrop.id = "rwModalBackdrop";
+  modalBackdrop.className = "rw-modal-backdrop";
+  modalBackdrop.innerHTML = `
+    <div class="rw-modal" role="dialog" aria-modal="true" aria-live="polite">
+      <div id="rwModalMessage"></div>
+      <div class="rw-modal-actions">
+        <button id="rwModalNoBtn" type="button">No</button>
+        <button id="rwModalYesBtn" type="button">Yes</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modalBackdrop);
   const trackUndoHotspot = document.createElement("button");
   trackUndoHotspot.type = "button";
   trackUndoHotspot.textContent = "x";
@@ -904,6 +1542,19 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const clockEl = panel.querySelector("#rwHudClock") as HTMLDivElement;
   const costEl = panel.querySelector("#rwHudTrackCost") as HTMLDivElement;
   const routeInfoEl = panel.querySelector("#rwHudRouteInfo") as HTMLDivElement;
+  const mainMenuEl = panel.querySelector("#rwMainMenu") as HTMLDivElement;
+  const trackMenuEl = panel.querySelector("#rwTrackMenu") as HTMLDivElement;
+  const routeMenuEl = panel.querySelector("#rwRouteMenu") as HTMLDivElement;
+  const vehicleMenuEl = panel.querySelector("#rwVehicleMenu") as HTMLDivElement;
+  const mainTrackBtn = panel.querySelector("#rwMainTrackBtn") as HTMLButtonElement;
+  const mainRouteBtn = panel.querySelector("#rwMainRouteBtn") as HTMLButtonElement;
+  const mainVehicleBtn = panel.querySelector("#rwMainVehicleBtn") as HTMLButtonElement;
+  const mainTrackIconHost = panel.querySelector("#rwMainTrackIcon") as HTMLSpanElement;
+  const mainRouteIconHost = panel.querySelector("#rwMainRouteIcon") as HTMLSpanElement;
+  const mainVehicleIconHost = panel.querySelector("#rwMainVehicleIcon") as HTMLSpanElement;
+  const trackBackBtn = panel.querySelector("#rwTrackBackBtn") as HTMLButtonElement;
+  const routeBackBtn = panel.querySelector("#rwRouteBackBtn") as HTMLButtonElement;
+  const vehicleBackBtn = panel.querySelector("#rwVehicleBackBtn") as HTMLButtonElement;
   const trackModeBtn = panel.querySelector("#rwTrackModeBtn") as HTMLButtonElement;
   const trackUndoBtn = panel.querySelector("#rwTrackUndoBtn") as HTMLButtonElement;
   const trackConfirmBtn = panel.querySelector("#rwTrackConfirmBtn") as HTMLButtonElement;
@@ -912,20 +1563,31 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const routeConfirmBtn = panel.querySelector("#rwRouteConfirmBtn") as HTMLButtonElement;
   const routeCancelBtn = panel.querySelector("#rwRouteCancelBtn") as HTMLButtonElement;
   const routeTypeSel = panel.querySelector("#rwRouteTypeSel") as HTMLSelectElement;
-  const buyLocoBtn = panel.querySelector("#rwBuyLocoBtn") as HTMLButtonElement;
-  const buyPassengerBtn = panel.querySelector("#rwBuyPassengerBtn") as HTMLButtonElement;
-  const buyWagonBtn = panel.querySelector("#rwBuyWagonBtn") as HTMLButtonElement;
-  const buyShipBtn = panel.querySelector("#rwBuyShipBtn") as HTMLButtonElement;
-  const assignRouteSel = panel.querySelector("#rwAssignRouteSel") as HTMLSelectElement;
-  const assignVehicleIdsInput = panel.querySelector("#rwAssignVehicleIds") as HTMLInputElement;
-  const assignBtn = panel.querySelector("#rwAssignBtn") as HTMLButtonElement;
+  const assignSelectedBtn = panel.querySelector("#rwAssignSelectedBtn") as HTMLButtonElement;
+  const unassignSelectedBtn = panel.querySelector("#rwUnassignSelectedBtn") as HTMLButtonElement;
+  const clearSelectionBtn = panel.querySelector("#rwClearSelectionBtn") as HTMLButtonElement;
+  const assignHintEl = panel.querySelector("#rwAssignHint") as HTMLDivElement;
+  const inventoryGridEl = panel.querySelector("#rwInventoryGrid") as HTMLDivElement;
+  const selectedVehicleInfoEl = panel.querySelector("#rwSelectedVehicleInfo") as HTMLSpanElement;
+  const unassignAtCityBtn = panel.querySelector("#rwUnassignAtCityBtn") as HTMLButtonElement;
   const inventorySummaryEl = panel.querySelector("#rwInventorySummary") as HTMLDivElement;
+  const modalMessageEl = modalBackdrop.querySelector("#rwModalMessage") as HTMLDivElement;
+  const modalYesBtn = modalBackdrop.querySelector("#rwModalYesBtn") as HTMLButtonElement;
+  const modalNoBtn = modalBackdrop.querySelector("#rwModalNoBtn") as HTMLButtonElement;
   const timeBtns = [...panel.querySelectorAll("button[data-time]")] as HTMLButtonElement[];
 
   const visuals = new TrackVisualLayer();
   const buildProgressOverlay = new BuildProgressOverlay2D();
+  const trackPlanCostOverlay = new TrackPlanCostOverlay2D();
   const routeVisuals = new RouteVisualLayer();
   const vehicleVisuals = new VehicleVisualLayer();
+  const passengerVisuals = new PassengerVisualLayer();
+  const inventorySprites = new VehicleSpriteStrip3D();
+  const hudIcons = new HudButtonIcons3D(
+    mainTrackIconHost,
+    mainRouteIconHost,
+    mainVehicleIconHost,
+  );
   const pendingPath: number[] = [];
   const pendingRoutePath: number[] = [];
   let placingTrack = false;
@@ -935,10 +1597,29 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   let previewGroup: THREE.Group | null = null;
   let legalNextGroup: THREE.Group | null = null;
   let routePreviewGroup: THREE.Group | null = null;
+  let waterCityCandidateGroup: THREE.Group | null = null;
+  const cityTileToCityId = new Map<number, string>();
+  const reachableWaterCityTiles = new Set<number>();
+  const pendingRouteCityStops: number[] = [];
   let clockAnchorSimMs = Number.NaN;
   let clockAnchorWallMs = 0;
   let clockAnchorPaused = true;
   let clockAnchorSpeed = 1;
+  let selectedVehicleId: string | null = null;
+  const selectedInventoryVehicleIds = new Set<string>();
+  let pendingAutoRoute: { path: number[]; isLoop: boolean } | null = null;
+  let pendingModal:
+    | {
+        message: string;
+        yesLabel?: string;
+        noLabel?: string;
+        onYes: () => void;
+        onNo?: () => void;
+      }
+    | null = null;
+
+  type HudMenu = "main" | "track" | "route" | "vehicle";
+  let activeHudMenu: HudMenu = "main";
 
   function isWaterTerrainType(type: string | undefined): boolean {
     if (!type) return false;
@@ -952,6 +1633,29 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     );
   }
 
+  function openDecisionModal(
+    message: string,
+    onYes: () => void,
+    onNo?: () => void,
+    yesLabel = "Yes",
+    noLabel = "No",
+  ): void {
+    pendingModal = { message, yesLabel, noLabel, onYes, onNo };
+    modalMessageEl.textContent = message;
+    modalYesBtn.textContent = yesLabel;
+    modalNoBtn.textContent = noLabel;
+    modalBackdrop.classList.add("active");
+  }
+
+  function closeDecisionModal(accepted: boolean): void {
+    const active = pendingModal;
+    if (!active) return;
+    pendingModal = null;
+    modalBackdrop.classList.remove("active");
+    if (accepted) active.onYes();
+    else active.onNo?.();
+  }
+
   function hasExistingTrackEdge(a: number, b: number): boolean {
     const snap = lastSnapshot;
     if (!snap) return false;
@@ -962,8 +1666,14 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
 
   function isRailBuildableTile(tileId: number): boolean {
     const terrain = bridge?.getTileTerrain();
+    const rivers = bridge?.getRiverFlowByTile();
     if (!terrain) return false;
-    return !isWaterTerrainType(terrain.get(tileId)?.type);
+    // City tiles are always buildable (e.g., port/river city centers like London).
+    if (cityTileToCityId.has(tileId)) return true;
+    const water = isWaterTerrainType(terrain.get(tileId)?.type);
+    if (!water) return true;
+    // Allow rail on river-channel hexes (bridges), but keep open water blocked.
+    return !!rivers?.has(tileId);
   }
 
   function updateTrackButtons(): void {
@@ -981,6 +1691,15 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       pendingRoutePath.length >= 2
         ? `Route plan: ${routeTypeSel.value}, ${pendingRoutePath.length} hexes`
         : "Route plan: none";
+  }
+
+  function setHudMenu(menu: HudMenu): void {
+    activeHudMenu = menu;
+    mainMenuEl.style.display = menu === "main" ? "flex" : "none";
+    trackMenuEl.classList.toggle("active", menu === "track");
+    routeMenuEl.classList.toggle("active", menu === "route");
+    vehicleMenuEl.classList.toggle("active", menu === "vehicle");
+    if (lastSnapshot) refreshInventoryUi(lastSnapshot);
   }
 
   function clearPreview(): void {
@@ -1023,6 +1742,21 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       }
     });
     routePreviewGroup = null;
+  }
+
+  function clearWaterCityCandidates(): void {
+    reachableWaterCityTiles.clear();
+    if (!waterCityCandidateGroup) return;
+    waterCityCandidateGroup.parent?.remove(waterCityCandidateGroup);
+    waterCityCandidateGroup.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.geometry.dispose();
+        const m = o.material;
+        if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+        else m.dispose();
+      }
+    });
+    waterCityCandidateGroup = null;
   }
 
   function rebuildPreview(): void {
@@ -1068,7 +1802,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   }
 
   function updateTrackUndoHotspot(): void {
-    if (!placingTrack || pendingPath.length === 0 || !bridge) {
+    if (!placingTrack || activeHudMenu !== "track" || pendingPath.length === 0 || !bridge) {
       trackUndoHotspot.style.display = "none";
       return;
     }
@@ -1140,6 +1874,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         .multiplyScalar(g.radius + elev * 0.08 + 0.0034);
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.0048, 8, 8), mat.clone());
       m.position.copy(p);
+      m.userData.legalTileId = tileId;
       legalNextGroup.add(m);
     }
     scene.add(legalNextGroup);
@@ -1202,9 +1937,115 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     return { costs, flags, total };
   }
 
+  function rebuildCityTileIndexFromSnapshot(snap: RailwaysAuthoritativeState): void {
+    if (!bridge) return;
+    const g = bridge.getGlobe();
+    if (!g) return;
+    cityTileToCityId.clear();
+    for (const c of snap.economy.cities) {
+      const tid = g.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
+      if (!cityTileToCityId.has(tid)) cityTileToCityId.set(tid, c.cityId);
+    }
+  }
+
+  function isWaterPassableTile(tileId: number): boolean {
+    if (!bridge) return false;
+    const terrain = bridge.getTileTerrain();
+    const rivers = bridge.getRiverFlowByTile();
+    const t = terrain?.get(tileId)?.type?.toLowerCase();
+    if (t === "water" || t === "beach" || t === "ocean" || t === "sea" || t === "lake") return true;
+    return !!rivers?.has(tileId);
+  }
+
+  function cityWaterAccessTiles(tileId: number): number[] {
+    if (!bridge) return [];
+    const g = bridge.getGlobe();
+    if (!g) return [];
+    const out: number[] = [];
+    if (isWaterPassableTile(tileId)) out.push(tileId);
+    for (const n of g.getTile(tileId)?.neighbors ?? []) {
+      if (isWaterPassableTile(n)) out.push(n);
+    }
+    return [...new Set(out)];
+  }
+
+  function rebuildWaterCityCandidates(fromCityTileId: number): void {
+    clearWaterCityCandidates();
+    if (!bridge) return;
+    const g = bridge.getGlobe();
+    const terrain = bridge.getTileTerrain();
+    const scene = bridge.getScene();
+    if (!g || !terrain) return;
+    const seeds = cityWaterAccessTiles(fromCityTileId);
+    if (seeds.length === 0) return;
+    const q = [...seeds];
+    const visited = new Set<number>(seeds);
+    let qi = 0;
+    while (qi < q.length && q.length < 220000) {
+      const cur = q[qi++]!;
+      for (const n of g.getTile(cur)?.neighbors ?? []) {
+        if (visited.has(n) || !isWaterPassableTile(n)) continue;
+        visited.add(n);
+        q.push(n);
+      }
+    }
+    for (const cityTile of cityTileToCityId.keys()) {
+      if (cityTile === fromCityTileId) continue;
+      const access = cityWaterAccessTiles(cityTile);
+      if (access.some((a) => visited.has(a))) reachableWaterCityTiles.add(cityTile);
+    }
+    if (reachableWaterCityTiles.size === 0) return;
+    waterCityCandidateGroup = new THREE.Group();
+    waterCityCandidateGroup.name = "WaterRouteCityCandidates";
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x6ad5ff,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+    });
+    for (const tileId of reachableWaterCityTiles) {
+      const tile = g.getTile(tileId);
+      if (!tile) continue;
+      const elev = terrain.get(tileId)?.elevation ?? 0;
+      const p = tile.center
+        .clone()
+        .normalize()
+        .multiplyScalar(g.radius + elev * 0.08 + 0.0052);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.0052, 8, 8), mat.clone());
+      m.position.copy(p);
+      waterCityCandidateGroup.add(m);
+    }
+    scene.add(waterCityCandidateGroup);
+  }
+
   function updatePlanCostText(): void {
     const plan = computePlanCosts(pendingPath);
     costEl.textContent = `Planned cost: £${plan.total}`;
+  }
+
+  function buildTrackPlanCostPoints(): Array<{ worldPos: THREE.Vector3; cost: number }> {
+    if (!bridge || pendingPath.length < 2) return [];
+    const g = bridge.getGlobe();
+    const terrain = bridge.getTileTerrain();
+    if (!g || !terrain) return [];
+    const plan = computePlanCosts(pendingPath);
+    const out: Array<{ worldPos: THREE.Vector3; cost: number }> = [];
+    for (let i = 1; i < pendingPath.length; i++) {
+      const a = pendingPath[i - 1]!;
+      const b = pendingPath[i]!;
+      const ta = g.getTile(a);
+      const tb = g.getTile(b);
+      if (!ta || !tb) continue;
+      const ea = terrain.get(a)?.elevation ?? 0;
+      const eb = terrain.get(b)?.elevation ?? 0;
+      const pa = ta.center.clone().normalize().multiplyScalar(g.radius + ea * 0.08 + 0.005);
+      const pb = tb.center.clone().normalize().multiplyScalar(g.radius + eb * 0.08 + 0.005);
+      out.push({
+        worldPos: pa.lerp(pb, 0.5),
+        cost: plan.costs[i - 1] ?? 10,
+      });
+    }
+    return out;
   }
 
   function sendChooseStartingCityWhenConnected(): void {
@@ -1274,24 +2115,257 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     }
   }
 
+  function resolveClickedCityTile(tileId: number): number | null {
+    if (cityTileToCityId.has(tileId)) return tileId;
+    if (!bridge) return null;
+    const g = bridge.getGlobe();
+    if (!g) return null;
+    for (const n of g.getTile(tileId)?.neighbors ?? []) {
+      if (cityTileToCityId.has(n)) return n;
+    }
+    return null;
+  }
+
+  function resolveTrackStartTile(tileId: number): number | null {
+    if (!bridge) return null;
+    const g = bridge.getGlobe();
+    if (!g) return null;
+    if (isRailBuildableTile(tileId)) return tileId;
+    const cityTile = resolveClickedCityTile(tileId);
+    if (cityTile != null && isRailBuildableTile(cityTile)) return cityTile;
+    // Near water/river overlays, click often lands one tile off; allow 1-ring snap.
+    for (const n of g.getTile(tileId)?.neighbors ?? []) {
+      if (isRailBuildableTile(n)) return n;
+      const cityN = resolveClickedCityTile(n);
+      if (cityN != null && isRailBuildableTile(cityN)) return cityN;
+    }
+    return null;
+  }
+
+  type AssignIntentMode = "none" | "routeRail" | "routeWater" | "attachCars" | "invalid";
+  interface AssignIntent {
+    mode: AssignIntentMode;
+    selected: PlayerVehicleState[];
+    validRouteIds: string[];
+    validLocomotiveIds: string[];
+    reason: string;
+  }
+
+  function vehicleKindLabel(kind: VehicleKind): string {
+    if (kind === "locomotive_front") return "Locomotive";
+    if (kind === "passenger_carriage") return "Passenger Car";
+    if (kind === "wagon") return "Cargo Car";
+    return "Ship";
+  }
+
+  function computeAssignIntent(
+    myVehicles: PlayerVehicleState[],
+    myRoutes: PlayerRouteState[],
+  ): AssignIntent {
+    const selected = myVehicles.filter((v) => selectedInventoryVehicleIds.has(v.vehicleId));
+    if (selected.length === 0) {
+      return { mode: "none", selected, validRouteIds: [], validLocomotiveIds: [], reason: "Select inventory items to begin assignment." };
+    }
+    const hasShip = selected.some((v) => v.kind === "sail_ship");
+    const hasNonShip = selected.some((v) => v.kind !== "sail_ship");
+    if (hasShip && hasNonShip) {
+      return { mode: "invalid", selected, validRouteIds: [], validLocomotiveIds: [], reason: "Ships cannot be assigned with rail vehicles in one batch." };
+    }
+    if (hasShip) {
+      const validRouteIds = myRoutes.filter((r) => r.mode === "water").map((r) => r.routeId);
+      return {
+        mode: "routeWater",
+        selected,
+        validRouteIds,
+        validLocomotiveIds: [],
+        reason:
+          validRouteIds.length > 0
+            ? "Water routes are glowing. Click one to assign selected ships."
+            : "Create a water route first.",
+      };
+    }
+    const hasLoco = selected.some((v) => v.kind === "locomotive_front");
+    const carsOnly = selected.every(
+      (v) => v.kind === "passenger_carriage" || v.kind === "wagon",
+    );
+    if (hasLoco) {
+      if (selected.some((v) => v.kind === "sail_ship")) {
+        return { mode: "invalid", selected, validRouteIds: [], validLocomotiveIds: [], reason: "Locomotives cannot be assigned with ships." };
+      }
+      const validRouteIds = myRoutes.filter((r) => r.mode === "rail").map((r) => r.routeId);
+      return {
+        mode: "routeRail",
+        selected,
+        validRouteIds,
+        validLocomotiveIds: [],
+        reason:
+          validRouteIds.length > 0
+            ? "Rail routes are glowing. Click one to assign selected locomotives (and attached selected cars)."
+            : "Create a rail route first.",
+      };
+    }
+    if (carsOnly) {
+      const validLocomotiveIds = myVehicles
+        .filter((v) => v.kind === "locomotive_front")
+        .map((v) => v.vehicleId);
+      return {
+        mode: "attachCars",
+        selected,
+        validRouteIds: [],
+        validLocomotiveIds,
+        reason:
+          validLocomotiveIds.length > 0
+            ? "Locomotives are glowing. Click one to attach selected cars."
+            : "No locomotives available to attach cars.",
+      };
+    }
+    return { mode: "invalid", selected, validRouteIds: [], validLocomotiveIds: [], reason: "Selection cannot be assigned together." };
+  }
+
+  function sendAssignSelectionToRoute(
+    routeId: string,
+    snap: RailwaysAuthoritativeState,
+    selected: PlayerVehicleState[],
+  ): void {
+    const route = snap.playerRoutes.find((r) => r.routeId === routeId);
+    if (!route) return;
+    if (route.mode === "water") {
+      const shipIds = selected.filter((v) => v.kind === "sail_ship").map((v) => v.vehicleId);
+      sendNetCommand({ kind: "assignVehiclesToRoute", routeId, vehicleIds: shipIds });
+      requestNetSnapshot();
+      return;
+    }
+    const locoIds = selected.filter((v) => v.kind === "locomotive_front").map((v) => v.vehicleId);
+    const carIds = selected
+      .filter((v) => v.kind === "passenger_carriage" || v.kind === "wagon")
+      .map((v) => v.vehicleId);
+    sendNetCommand({ kind: "assignVehiclesToRoute", routeId, vehicleIds: locoIds });
+    if (locoIds.length > 0 && carIds.length > 0) {
+      const byLoco = new Map<string, string[]>();
+      for (const locoId of locoIds) byLoco.set(locoId, []);
+      for (let i = 0; i < carIds.length; i++) {
+        const locoId = locoIds[i % locoIds.length]!;
+        byLoco.get(locoId)!.push(carIds[i]!);
+      }
+      for (const locoId of locoIds) {
+        const existingAttached = snap.playerVehicles
+          .filter((v) => v.attachedToVehicleId === locoId)
+          .map((v) => v.vehicleId);
+        const merged = [...new Set([...existingAttached, ...(byLoco.get(locoId) ?? [])])];
+        sendNetCommand({
+          kind: "assignCarsToLocomotive",
+          locomotiveId: locoId,
+          carIds: merged,
+        });
+      }
+    }
+    requestNetSnapshot();
+  }
+
+  function sendAttachSelectedCarsToLocomotive(
+    locomotiveId: string,
+    snap: RailwaysAuthoritativeState,
+    selected: PlayerVehicleState[],
+  ): void {
+    const selectedCarIds = selected
+      .filter((v) => v.kind === "passenger_carriage" || v.kind === "wagon")
+      .map((v) => v.vehicleId);
+    if (selectedCarIds.length === 0) return;
+    const existingAttached = snap.playerVehicles
+      .filter((v) => v.attachedToVehicleId === locomotiveId)
+      .map((v) => v.vehicleId);
+    sendNetCommand({
+      kind: "assignCarsToLocomotive",
+      locomotiveId,
+      carIds: [...new Set([...existingAttached, ...selectedCarIds])],
+    });
+    requestNetSnapshot();
+  }
+
   function refreshInventoryUi(snap: RailwaysAuthoritativeState): void {
     const meId = getNetState()?.clientId;
     const myRoutes = snap.playerRoutes.filter((r) => r.ownerClientId === meId);
     const myVehicles = snap.playerVehicles.filter((v) => v.ownerClientId === meId);
+    const intent = computeAssignIntent(myVehicles, myRoutes);
     const counts = new Map<VehicleKind, number>();
     for (const v of myVehicles) {
       counts.set(v.kind, (counts.get(v.kind) ?? 0) + 1);
     }
-    assignRouteSel.innerHTML = "";
-    for (const r of myRoutes) {
-      const opt = document.createElement("option");
-      opt.value = r.routeId;
-      opt.textContent = `${r.name} (${r.mode}, ${r.tileIds.length} hexes)`;
-      assignRouteSel.appendChild(opt);
+    assignHintEl.textContent = intent.reason;
+    assignSelectedBtn.disabled =
+      intent.mode === "none" ||
+      intent.mode === "invalid" ||
+      (intent.mode === "routeRail" && intent.validRouteIds.length === 0) ||
+      (intent.mode === "routeWater" && intent.validRouteIds.length === 0) ||
+      (intent.mode === "attachCars" && intent.validLocomotiveIds.length === 0);
+    unassignSelectedBtn.disabled = !intent.selected.some(
+      (v) => (v.assignedRouteId || v.attachedToVehicleId) && !v.pendingUnassignAtCity,
+    );
+    clearSelectionBtn.disabled = selectedInventoryVehicleIds.size === 0;
+    const sorted = [...myVehicles].sort((a, b) =>
+      `${a.kind}:${a.vehicleId}`.localeCompare(`${b.kind}:${b.vehicleId}`),
+    );
+    inventoryGridEl.innerHTML = "";
+    const spriteItems: Array<{ vehicleId: string; kind: VehicleKind; host: HTMLElement }> = [];
+    for (const v of sorted) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "rw-card";
+      if (selectedInventoryVehicleIds.has(v.vehicleId)) card.classList.add("selected");
+      if (intent.mode === "attachCars" && intent.validLocomotiveIds.includes(v.vehicleId)) {
+        card.classList.add("glow");
+      }
+      const status = v.pendingUnassignAtCity
+        ? "pending city"
+        : v.attachedToVehicleId
+          ? `attached ${v.attachedToVehicleId}`
+          : v.assignedRouteId
+            ? `route ${v.assignedRouteId}`
+            : "inventory";
+      const spriteHost = document.createElement("span");
+      spriteHost.className = "rw-sprite-host";
+      const title = document.createElement("div");
+      title.textContent = vehicleKindLabel(v.kind);
+      const id = document.createElement("div");
+      id.className = "id";
+      id.textContent = v.vehicleId;
+      const st = document.createElement("div");
+      st.className = "k";
+      st.textContent = status;
+      card.append(spriteHost, title, id, st);
+      card.addEventListener("click", () => {
+        if (selectedInventoryVehicleIds.has(v.vehicleId)) selectedInventoryVehicleIds.delete(v.vehicleId);
+        else selectedInventoryVehicleIds.add(v.vehicleId);
+        refreshInventoryUi(snap);
+      });
+      inventoryGridEl.appendChild(card);
+      spriteItems.push({ vehicleId: v.vehicleId, kind: v.kind, host: spriteHost });
     }
-    inventorySummaryEl.textContent = `Loco: ${counts.get("locomotive_front") ?? 0}/5, Carriage: ${
+    inventorySprites.sync(spriteItems);
+    routeVisuals.setHighlightedRoutes(activeHudMenu === "vehicle" ? intent.validRouteIds : []);
+    if (selectedVehicleId) {
+      const sv = myVehicles.find((v) => v.vehicleId === selectedVehicleId);
+      if (sv) {
+        selectedVehicleInfoEl.textContent = `Selected vehicle: ${sv.vehicleId} · ${sv.kind} · ${
+          sv.attachedToVehicleId
+            ? `attached to ${sv.attachedToVehicleId}`
+            : sv.assignedRouteId
+              ? `on ${sv.assignedRouteId}`
+              : "in inventory"
+        }`;
+        unassignAtCityBtn.disabled =
+          (!sv.assignedRouteId && !sv.attachedToVehicleId) || !!sv.pendingUnassignAtCity;
+      } else {
+        selectedVehicleId = null;
+      }
+    }
+    if (!selectedVehicleId) {
+      selectedVehicleInfoEl.textContent = "Selected vehicle: none";
+      unassignAtCityBtn.disabled = true;
+    }
+    inventorySummaryEl.textContent = `Inventory - Loco: ${counts.get("locomotive_front") ?? 0}/2, Carriage: ${
       counts.get("passenger_carriage") ?? 0
-    }, Wagon: ${counts.get("wagon") ?? 0}, Ships: ${counts.get("sail_ship") ?? 0}/5`;
+    }/4, Cargo: ${counts.get("wagon") ?? 0}/4, Ships: ${counts.get("sail_ship") ?? 0}/3`;
   }
 
   function undoLastTrackStep(): void {
@@ -1314,28 +2388,127 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     return clockAnchorSimMs + Math.max(0, nowWallMs - clockAnchorWallMs) * clockAnchorSpeed;
   }
 
+  function maybeAutoCreateRouteFromBuiltTrack(snap: RailwaysAuthoritativeState): void {
+    if (!pendingAutoRoute) return;
+    const meId = getNetState()?.clientId;
+    if (!meId) return;
+    for (let i = 1; i < pendingAutoRoute.path.length; i++) {
+      const a = Math.min(pendingAutoRoute.path[i - 1]!, pendingAutoRoute.path[i]!);
+      const b = Math.max(pendingAutoRoute.path[i - 1]!, pendingAutoRoute.path[i]!);
+      const tr = snap.tracks.find((t) => t.fromTileId === a && t.toTileId === b && t.ownerClientId === meId);
+      if (!tr || tr.status !== "active") return;
+    }
+    sendNetCommand({
+      kind: "createRoute",
+      mode: "rail",
+      tileIds: [...pendingAutoRoute.path],
+      isLoop: pendingAutoRoute.isLoop,
+      name: "Auto Route",
+    });
+    pendingAutoRoute = null;
+  }
+
   function onWorldClick(ev: MouseEvent): void {
-    if ((!placingTrack && !planningRoute) || !bridge) return;
+    if (!bridge) return;
+    const snapNow = getNetState()?.lastSnapshot ?? lastSnapshot;
     const globe = bridge.getGlobe();
     const camera = bridge.getCamera();
     const rendererEl = bridge.getRendererDomElement();
     const globeMesh = bridge.getGlobeMesh();
-    if (!globe) return;
     const rect = rendererEl.getBoundingClientRect();
     const x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(x, y), camera);
-    const intersects = globeMesh ? ray.intersectObject(globeMesh, true) : [];
-    if (intersects.length === 0) return;
-    const hit = intersects[0]!;
-    const dir = hit.point.clone().normalize();
-    const tileId = globe.getTileIdAtDirection(dir);
-    if (!Number.isInteger(tileId) || tileId < 0) return;
+    let forcedTileId: number | null = null;
+    if (placingTrack && legalNextGroup) {
+      const legalHits = ray.intersectObjects(legalNextGroup.children, true);
+      if (legalHits.length > 0) {
+        const raw = legalHits[0]!.object.userData?.legalTileId;
+        if (Number.isInteger(raw) && raw >= 0) forcedTileId = raw as number;
+      }
+    }
+    const vehHit = ray.intersectObjects(vehicleVisuals.getInteractiveObjects(), true);
+    if (vehHit.length > 0) {
+      const id = vehicleVisuals.getVehicleIdForObject(vehHit[0]!.object);
+      if (id) {
+        if (activeHudMenu === "vehicle" && snapNow) {
+          const meId = getNetState()?.clientId;
+          const myRoutes = snapNow.playerRoutes.filter((r) => r.ownerClientId === meId);
+          const myVehicles = snapNow.playerVehicles.filter((v) => v.ownerClientId === meId);
+          const intent = computeAssignIntent(myVehicles, myRoutes);
+          if (intent.mode === "attachCars" && intent.validLocomotiveIds.includes(id)) {
+            sendAttachSelectedCarsToLocomotive(id, snapNow, intent.selected);
+            return;
+          }
+        }
+        selectedVehicleId = id;
+        if (snapNow) refreshInventoryUi(snapNow);
+      }
+      if (!placingTrack && !planningRoute) return;
+    }
+    if (activeHudMenu === "vehicle" && snapNow) {
+      const routeHit = ray.intersectObjects(routeVisuals.getInteractiveObjects(), true);
+      if (routeHit.length > 0) {
+        const routeId = routeVisuals.getRouteIdForObject(routeHit[0]!.object);
+        if (routeId) {
+          const meId = getNetState()?.clientId;
+          const myRoutes = snapNow.playerRoutes.filter((r) => r.ownerClientId === meId);
+          const myVehicles = snapNow.playerVehicles.filter((v) => v.ownerClientId === meId);
+          const intent = computeAssignIntent(myVehicles, myRoutes);
+          if (
+            (intent.mode === "routeRail" || intent.mode === "routeWater") &&
+            intent.validRouteIds.includes(routeId)
+          ) {
+            sendAssignSelectionToRoute(routeId, snapNow, intent.selected);
+            return;
+          }
+        }
+      }
+    }
+    if ((!placingTrack && !planningRoute) || !globe) return;
+    let hit: THREE.Intersection<THREE.Object3D> | null = null;
+    let fallbackPoint: THREE.Vector3 | null = null;
+    const globeHits = globeMesh ? ray.intersectObject(globeMesh, true) : [];
+    if (globeHits.length > 0) {
+      hit = globeHits[0]!;
+    } else {
+      // Mesh-independent fallback: intersect the ideal globe sphere.
+      // This keeps clicks working over river cutouts/overlay meshes.
+      _pickSphere.radius = globe.radius;
+      const p = ray.ray.intersectSphere(_pickSphere, _pickPoint);
+      if (p) fallbackPoint = p.clone();
+      // River/lake surface meshes can sit above cutouts in the globe mesh.
+      // Fallback to scene-wide raycast and accept hits close to globe radius.
+      const sceneHits = ray.intersectObjects(bridge.getScene().children, true);
+      const minR = globe.radius * 0.88;
+      const maxR = globe.radius * 1.22;
+      hit =
+        sceneHits.find((h) => {
+          const r = h.point.length();
+          return Number.isFinite(r) && r >= minR && r <= maxR;
+        }) ?? null;
+    }
+    if (!hit && !fallbackPoint) return;
+    const dir = (hit?.point ?? fallbackPoint!).clone().normalize();
+    const rawTileId = forcedTileId ?? globe.getTileIdAtDirection(dir);
+    if (!Number.isInteger(rawTileId) || rawTileId < 0) return;
+    let tileId = rawTileId;
+    const snappedCityTile = resolveClickedCityTile(rawTileId);
+    // Only snap to city if the direct clicked tile is not rail-buildable.
+    // This prevents adjacent city clicks (e.g. around London) from being hijacked.
+    if (
+      snappedCityTile != null &&
+      !isRailBuildableTile(rawTileId) &&
+      isRailBuildableTile(snappedCityTile)
+    ) {
+      tileId = snappedCityTile;
+    }
     if (placingTrack) {
       if (pendingPath.length === 0) {
-        if (!isRailBuildableTile(tileId)) return;
-        pendingPath.push(tileId);
+        const startTile = resolveTrackStartTile(tileId);
+        if (startTile == null) return;
+        pendingPath.push(startTile);
       } else {
         const last = pendingPath[pendingPath.length - 1]!;
         const start = pendingPath[0]!;
@@ -1358,29 +2531,93 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       updatePlanCostText();
       updateTrackUndoHotspot();
     } else if (planningRoute) {
-      appendRouteTile(tileId);
+      if (routeTypeSel.value === "water") {
+        const cityTile = resolveClickedCityTile(tileId);
+        if (cityTile == null) return;
+        if (pendingRouteCityStops.length === 0) {
+          pendingRouteCityStops.push(cityTile);
+          pendingRoutePath.length = 0;
+          pendingRoutePath.push(cityTile);
+          rebuildWaterCityCandidates(cityTile);
+        } else {
+          const lastCity = pendingRouteCityStops[pendingRouteCityStops.length - 1]!;
+          if (cityTile === lastCity) return;
+          if (!reachableWaterCityTiles.has(cityTile)) return;
+          const segment = planWaterSegment(lastCity, cityTile);
+          if (!segment || segment.length < 2) return;
+          for (let i = 1; i < segment.length; i++) {
+            pendingRoutePath.push(segment[i]!);
+          }
+          pendingRouteCityStops.push(cityTile);
+          rebuildWaterCityCandidates(cityTile);
+        }
+      } else {
+        appendRouteTile(tileId);
+      }
       rebuildRoutePreview();
       updateRouteButtons();
     }
   }
 
+  function exitTrackPlanning(): void {
+    placingTrack = false;
+    pendingPath.length = 0;
+    clearPreview();
+    clearLegalNextPreview();
+    updateTrackButtons();
+    updatePlanCostText();
+    updateTrackUndoHotspot();
+  }
+
+  function exitRoutePlanning(): void {
+    planningRoute = false;
+    pendingRoutePath.length = 0;
+    pendingRouteCityStops.length = 0;
+    clearRoutePreview();
+    clearWaterCityCandidates();
+    updateRouteButtons();
+  }
+
+  mainTrackBtn.addEventListener("click", () => {
+    exitRoutePlanning();
+    placingTrack = true;
+    updateTrackButtons();
+    rebuildLegalNextPreview();
+    updateTrackUndoHotspot();
+    setHudMenu("track");
+  });
+  mainRouteBtn.addEventListener("click", () => {
+    exitTrackPlanning();
+    planningRoute = true;
+    updateRouteButtons();
+    setHudMenu("route");
+  });
+  mainVehicleBtn.addEventListener("click", () => {
+    setHudMenu("vehicle");
+  });
+  trackBackBtn.addEventListener("click", () => {
+    exitTrackPlanning();
+    setHudMenu("main");
+  });
+  routeBackBtn.addEventListener("click", () => {
+    exitRoutePlanning();
+    setHudMenu("main");
+  });
+  vehicleBackBtn.addEventListener("click", () => {
+    setHudMenu("main");
+  });
+
   trackModeBtn.addEventListener("click", () => {
     if (planningRoute) {
-      planningRoute = false;
-      pendingRoutePath.length = 0;
-      clearRoutePreview();
-      updateRouteButtons();
+      exitRoutePlanning();
     }
     placingTrack = !placingTrack;
     if (!placingTrack) {
-      pendingPath.length = 0;
-      clearPreview();
-      clearLegalNextPreview();
-      updatePlanCostText();
-      updateTrackUndoHotspot();
+      exitTrackPlanning();
     } else {
       rebuildLegalNextPreview();
       updateTrackUndoHotspot();
+      setHudMenu("track");
     }
     updateTrackButtons();
   });
@@ -1400,6 +2637,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   });
   trackConfirmBtn.addEventListener("click", () => {
     if (pendingPath.length < 2) return;
+    const plannedPath = [...pendingPath];
     const plan = computePlanCosts(pendingPath);
     const cmd: QueueTrackBuildCommand = {
       kind: "queueTrackBuild",
@@ -1415,34 +2653,43 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     updatePlanCostText();
     updateTrackUndoHotspot();
     requestNetSnapshot();
+    openDecisionModal(
+      "Auto-create a route from this new rail line when construction completes?",
+      () => {
+        pendingAutoRoute = {
+          path: plannedPath,
+          isLoop:
+            plannedPath.length >= 3 &&
+            plannedPath[0] === plannedPath[plannedPath.length - 1],
+        };
+      },
+    );
   });
   routeModeBtn.addEventListener("click", () => {
     if (placingTrack) {
-      placingTrack = false;
-      pendingPath.length = 0;
-      clearPreview();
-      clearLegalNextPreview();
-      updateTrackButtons();
-      updatePlanCostText();
-      updateTrackUndoHotspot();
+      exitTrackPlanning();
     }
     planningRoute = !planningRoute;
     if (!planningRoute) {
-      pendingRoutePath.length = 0;
-      clearRoutePreview();
+      exitRoutePlanning();
+    } else {
+      setHudMenu("route");
     }
     updateRouteButtons();
   });
   routeCancelBtn.addEventListener("click", () => {
     pendingRoutePath.length = 0;
+    pendingRouteCityStops.length = 0;
     clearRoutePreview();
+    clearWaterCityCandidates();
     updateRouteButtons();
   });
   routeConfirmBtn.addEventListener("click", () => {
     if (pendingRoutePath.length < 2) return;
+    const mode = routeTypeSel.value === "water" ? "water" : "rail";
     const cmd: CreateRouteCommand = {
       kind: "createRoute",
-      mode: routeTypeSel.value === "water" ? "water" : "rail",
+      mode,
       tileIds: [...pendingRoutePath],
       isLoop:
         pendingRoutePath.length >= 3 &&
@@ -1450,7 +2697,9 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     };
     sendNetCommand(cmd);
     pendingRoutePath.length = 0;
+    pendingRouteCityStops.length = 0;
     clearRoutePreview();
+    clearWaterCityCandidates();
     planningRoute = false;
     updateRouteButtons();
     requestNetSnapshot();
@@ -1458,38 +2707,62 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   routeTypeSel.addEventListener("change", () => {
     if (pendingRoutePath.length > 0) {
       pendingRoutePath.length = 0;
+      pendingRouteCityStops.length = 0;
       clearRoutePreview();
+      clearWaterCityCandidates();
     }
     updateRouteButtons();
   });
 
-  function purchaseVehicle(kind: VehicleKind): void {
-    const cmd: PurchaseVehicleCommand = {
-      kind: "purchaseVehicle",
-      vehicleKind: kind,
-      quantity: 1,
-    };
-    sendNetCommand(cmd);
+  assignSelectedBtn.addEventListener("click", () => {
+    const snap = getNetState()?.lastSnapshot ?? lastSnapshot;
+    if (!snap) return;
+    const meId = getNetState()?.clientId;
+    const myRoutes = snap.playerRoutes.filter((r) => r.ownerClientId === meId);
+    const myVehicles = snap.playerVehicles.filter((v) => v.ownerClientId === meId);
+    const intent = computeAssignIntent(myVehicles, myRoutes);
+    if (intent.mode === "routeRail" || intent.mode === "routeWater") {
+      if (intent.validRouteIds.length === 1) {
+        sendAssignSelectionToRoute(intent.validRouteIds[0]!, snap, intent.selected);
+      } else {
+        assignHintEl.textContent = "Click one of the glowing routes to assign.";
+      }
+      return;
+    }
+    if (intent.mode === "attachCars") {
+      if (intent.validLocomotiveIds.length === 1) {
+        sendAttachSelectedCarsToLocomotive(intent.validLocomotiveIds[0]!, snap, intent.selected);
+      } else {
+        assignHintEl.textContent = "Click a glowing locomotive to attach selected cars.";
+      }
+    }
+  });
+  clearSelectionBtn.addEventListener("click", () => {
+    selectedInventoryVehicleIds.clear();
+    if (lastSnapshot) refreshInventoryUi(lastSnapshot);
+  });
+  unassignSelectedBtn.addEventListener("click", () => {
+    const snap = getNetState()?.lastSnapshot ?? lastSnapshot;
+    if (!snap) return;
+    const meId = getNetState()?.clientId;
+    const selected = snap.playerVehicles.filter(
+      (v) => v.ownerClientId === meId && selectedInventoryVehicleIds.has(v.vehicleId),
+    );
+    for (const v of selected) {
+      if ((!v.assignedRouteId && !v.attachedToVehicleId) || v.pendingUnassignAtCity) continue;
+      sendNetCommand({ kind: "requestVehicleUnassign", vehicleId: v.vehicleId });
+    }
     requestNetSnapshot();
-  }
-  buyLocoBtn.addEventListener("click", () => purchaseVehicle("locomotive_front"));
-  buyPassengerBtn.addEventListener("click", () => purchaseVehicle("passenger_carriage"));
-  buyWagonBtn.addEventListener("click", () => purchaseVehicle("wagon"));
-  buyShipBtn.addEventListener("click", () => purchaseVehicle("sail_ship"));
-  assignBtn.addEventListener("click", () => {
-    const routeId = assignRouteSel.value;
-    if (!routeId) return;
-    const vehicleIds = assignVehicleIdsInput.value
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const cmd: AssignVehiclesToRouteCommand = {
-      kind: "assignVehiclesToRoute",
-      routeId,
-      vehicleIds,
-    };
-    sendNetCommand(cmd);
+  });
+  unassignAtCityBtn.addEventListener("click", () => {
+    if (!selectedVehicleId) return;
+    sendNetCommand({ kind: "requestVehicleUnassign", vehicleId: selectedVehicleId });
     requestNetSnapshot();
+  });
+  modalYesBtn.addEventListener("click", () => closeDecisionModal(true));
+  modalNoBtn.addEventListener("click", () => closeDecisionModal(false));
+  modalBackdrop.addEventListener("click", (ev) => {
+    if (ev.target === modalBackdrop) closeDecisionModal(false);
   });
   for (const b of timeBtns) {
     b.addEventListener("click", () => {
@@ -1497,11 +2770,13 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       const map =
         key === "pause"
           ? { simSpeed: 1, paused: true }
-          : key === "play"
-            ? { simSpeed: 3600, paused: false }
-            : key === "fast"
-              ? { simSpeed: 5760, paused: false }
-              : { simSpeed: 17280, paused: false };
+          : key === "play1"
+            ? { simSpeed: 1, paused: false }
+            : key === "play2"
+              ? { simSpeed: 3600, paused: false }
+              : key === "play3"
+                ? { simSpeed: 5760, paused: false }
+                : { simSpeed: 17280, paused: false };
       sendNetCommand({
         kind: "setSimSpeed",
         simSpeed: map.simSpeed,
@@ -1516,6 +2791,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     visuals.attach(bridge.getScene());
     routeVisuals.attach(bridge.getScene());
     vehicleVisuals.attach(bridge.getScene());
+    passengerVisuals.attach(bridge.getScene());
     bridge.getRendererDomElement().addEventListener("click", onWorldClick);
     return true;
   };
@@ -1525,6 +2801,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     }, 200);
   }
   sendChooseStartingCityWhenConnected();
+  setHudMenu("main");
   updateTrackButtons();
   updateRouteButtons();
   updatePlanCostText();
@@ -1532,9 +2809,12 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
 
   const tick = () => {
     const now = Date.now();
+    hudIcons.update(now);
+    inventorySprites.update(now);
     const snap = getNetState()?.lastSnapshot ?? null;
     if (snap && snap !== lastSnapshot) {
       lastSnapshot = snap;
+      rebuildCityTileIndexFromSnapshot(snap);
       clockAnchorSimMs = Date.parse(snap.clock.dateTimeUtc);
       clockAnchorWallMs = now;
       clockAnchorPaused = !!snap.clock.paused;
@@ -1552,10 +2832,16 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         bridge.setPaused?.(snap.clock.paused);
         visuals.update(bridge, snap.tracks, now, Number.isFinite(simNow) ? simNow : now);
         buildProgressOverlay.update(bridge, visuals.getBuildMarkers(), simNow);
+        trackPlanCostOverlay.update(bridge, buildTrackPlanCostPoints(), placingTrack);
         routeVisuals.update(bridge, snap, getNetState()?.clientId ?? null);
         vehicleVisuals.update(bridge, snap);
+        passengerVisuals.update(bridge, snap);
         if (placingTrack) rebuildLegalNextPreview();
+        if (planningRoute && routeTypeSel.value === "water" && pendingRouteCityStops.length > 0) {
+          rebuildWaterCityCandidates(pendingRouteCityStops[pendingRouteCityStops.length - 1]!);
+        }
       }
+      maybeAutoCreateRouteFromBuiltTrack(snap);
       refreshInventoryUi(snap);
     } else if (bridge && lastSnapshot) {
       const simNow = estimatedSimNowMs(now);
@@ -1568,8 +2854,10 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         Number.isFinite(simNow) ? simNow : now,
       );
       buildProgressOverlay.update(bridge, visuals.getBuildMarkers(), simNow);
+      trackPlanCostOverlay.update(bridge, buildTrackPlanCostPoints(), placingTrack);
       routeVisuals.update(bridge, lastSnapshot, getNetState()?.clientId ?? null);
       vehicleVisuals.update(bridge, lastSnapshot);
+      passengerVisuals.update(bridge, lastSnapshot);
     }
     updateTrackUndoHotspot();
     window.requestAnimationFrame(tick);

@@ -3042,9 +3042,10 @@ function updateControlsInteractionSpeed(): void {
   const d = camera.position.length();
   const tRaw = (d - minD) / (maxD - minD);
   const t = Math.max(0, Math.min(1, tRaw));
-  // Strong slowdown close to surface; full speed in orbital view.
-  controls.rotateSpeed = 0.12 + 0.88 * t * t;
-  controls.zoomSpeed = 0.2 + 0.8 * t * t;
+  // Close to terrain: slower zoom for precision.
+  // Far away: faster zoom so orbital in/out stays practical.
+  controls.rotateSpeed = 0.4 + 1.9 * Math.pow(t, 1.35);
+  controls.zoomSpeed = 0.14 + 2.6 * Math.pow(t, 2.15);
 }
 
 function rebuildUrbanSettlementsForYear(
@@ -7335,7 +7336,7 @@ async function init() {
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
+  controls.dampingFactor = 0.035;
   controls.minDistance = cameraZoomFloorRadius;
   controls.maxDistance = 6;
   controls.enableRotate = true;

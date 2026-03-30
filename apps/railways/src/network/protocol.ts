@@ -78,16 +78,21 @@ export interface CreateRouteCommand {
   name?: string;
 }
 
-export interface PurchaseVehicleCommand {
-  kind: "purchaseVehicle";
-  vehicleKind: VehicleKind;
-  quantity?: number;
-}
-
 export interface AssignVehiclesToRouteCommand {
   kind: "assignVehiclesToRoute";
   routeId: string;
   vehicleIds: string[];
+}
+
+export interface AssignCarsToLocomotiveCommand {
+  kind: "assignCarsToLocomotive";
+  locomotiveId: string;
+  carIds: string[];
+}
+
+export interface RequestVehicleUnassignCommand {
+  kind: "requestVehicleUnassign";
+  vehicleId: string;
 }
 
 export interface AdvanceTimeCommand {
@@ -105,8 +110,9 @@ export type RailwaysCommand =
   | BuildProductionBuildingCommand
   | ResolveShipmentDeliveryCommand
   | CreateRouteCommand
-  | PurchaseVehicleCommand
-  | AssignVehiclesToRouteCommand;
+  | AssignVehiclesToRouteCommand
+  | AssignCarsToLocomotiveCommand
+  | RequestVehicleUnassignCommand;
 
 export type GoodId =
   | "wool"
@@ -205,6 +211,8 @@ export interface PlayerVehicleState {
   direction?: 1 | -1;
   lastMoveAtMs?: number;
   nextMoveAtMs?: number;
+  pendingUnassignAtCity?: boolean;
+  attachedToVehicleId?: string | null;
 }
 
 export interface CitySummary {
