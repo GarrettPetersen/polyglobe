@@ -1,6 +1,7 @@
 DEMO_DIR := examples/globe-demo
+RAILWAYS_DIR := apps/railways
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview
 
 help:
 	@echo "Targets:"
@@ -13,6 +14,11 @@ help:
 	@echo "  make demo-build-cache     Build earth-globe-cache (default: subdiv 6 + legacy .json)"
 	@echo "  make demo-build-cache-all Build caches for subdivisions 6 and 7"
 	@echo "  make demo-clean         Remove demo build output"
+	@echo "  make railways-dev       Run Railways host+client locally"
+	@echo "  make railways-join      Run Railways join-client locally"
+	@echo "  make railways-server    Run Railways server locally"
+	@echo "  make railways-build     Build Railways app"
+	@echo "  make railways-preview   Preview built Railways app"
 
 demo-dev:
 	cd $(DEMO_DIR) && npm run dev
@@ -40,3 +46,18 @@ demo-build-cache-all:
 
 demo-clean:
 	rm -rf $(DEMO_DIR)/dist
+
+railways-dev:
+	cd $(RAILWAYS_DIR) && npm run dev:host
+
+railways-join:
+	cd $(RAILWAYS_DIR) && npm run dev:join
+
+railways-server:
+	cd $(RAILWAYS_DIR) && npm run server
+
+railways-build:
+	cd $(RAILWAYS_DIR) && npm run build
+
+railways-preview:
+	cd $(RAILWAYS_DIR) && npm run preview

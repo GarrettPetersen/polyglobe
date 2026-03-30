@@ -28,6 +28,8 @@ interface WorldBridge {
     { tileId: number; type: string; elevation: number; isHilly?: boolean }
   > | null;
   getRiverFlowByTile: () => Map<number, { exitEdge: number; directionRad: number }> | null;
+  setDateTimeUtc?: (dateTimeUtc: string) => void;
+  setPaused?: (paused: boolean) => void;
 }
 
 interface SessionSetup {
@@ -181,9 +183,10 @@ class TrackVisualLayer {
     const terrain = bridge.getTileTerrain();
     if (!globe || !terrain) return;
 
-    const railGeom = new THREE.BoxGeometry(0.0038, 0.0022, 1);
-    const sleeperGeom = new THREE.BoxGeometry(0.03, 0.0025, 0.004);
-    const supportGeom = new THREE.CylinderGeometry(0.0018, 0.0024, 1, 6);
+    // Keep rail geometry visibly narrower than a tile and close to building-scale proportions.
+    const railGeom = new THREE.BoxGeometry(0.0011, 0.0007, 1);
+    const sleeperGeom = new THREE.BoxGeometry(0.0085, 0.00075, 0.0012);
+    const supportGeom = new THREE.CylinderGeometry(0.00055, 0.0007, 1, 6);
     const railMat = new THREE.MeshStandardMaterial({ color: 0xc0c6d2, roughness: 0.65, metalness: 0.35 });
     const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x6f5a42, roughness: 0.92, metalness: 0.05 });
     const supportMat = new THREE.MeshStandardMaterial({ color: 0x4b4f57, roughness: 0.84, metalness: 0.18 });
@@ -214,7 +217,7 @@ class TrackVisualLayer {
       _tmpMid.copy(_tmpA).add(_tmpB).multiplyScalar(0.5);
       _tmpQ.setFromUnitVectors(_up, _tmpB.clone().sub(_tmpA).normalize());
 
-      const trackGap = 0.0055;
+      const trackGap = 0.0019;
       const side = _tmpB.clone().sub(_tmpA).cross(_tmpMid).normalize().multiplyScalar(trackGap);
 
       const leftPos = _tmpMid.clone().add(side);
@@ -431,6 +434,7 @@ class VehicleVisualLayer {
   private readonly templateByKind = new Map<VehicleKind, THREE.Object3D>();
   private readonly objectByVehicleId = new Map<string, THREE.Object3D>();
   private readonly loadingKind = new Set<VehicleKind>();
+  private readonly missingKinds = new Set<VehicleKind>();
 
   attach(scene: THREE.Scene): void {
     this.group.name = "RailwaysVehicleLayer";
@@ -455,6 +459,7 @@ class VehicleVisualLayer {
       let obj = this.objectByVehicleId.get(v.vehicleId);
       if (!obj) {
         obj = this.instantiateVehicle(v.kind);
+        if (!obj) continue;
         this.objectByVehicleId.set(v.vehicleId, obj);
         this.group.add(obj);
       }
@@ -480,29 +485,34 @@ class VehicleVisualLayer {
     }
   }
 
-  private instantiateVehicle(kind: VehicleKind): THREE.Object3D {
+  private instantiateVehicle(kind: VehicleKind): THREE.Object3D | null {
     const cached = this.templateByKind.get(kind);
     if (cached) return cached.clone(true);
-    const placeholder = this.makePlaceholder(kind);
-    this.templateByKind.set(kind, placeholder);
+    if (this.missingKinds.has(kind)) return null;
     this.loadKindTemplate(kind);
-    return placeholder.clone(true);
+    return null;
   }
 
   private kindAssetCandidates(kind: VehicleKind): string[] {
-    if (kind === "sail_ship") return ["/assets/vehicles/Sail Ship.glb", "/assets/vehicles/sail_ship.glb"];
-    if (kind === "locomotive_front") return ["/assets/vehicles/Locomotive Front.glb", "/assets/vehicles/locomotive_front.glb"];
-    if (kind === "passenger_carriage") return ["/assets/vehicles/Locomotive Passenger Carriage.glb", "/assets/vehicles/passenger_carriage.glb"];
-    return ["/assets/vehicles/Locomotive Wagon.glb", "/assets/vehicles/locomotive_wagon.glb"];
+    if (kind === "sail_ship") return ["/assets/vehicles/Sail Ship.glb"];
+    if (kind === "locomotive_front") return ["/assets/vehicles/Locomotive Front.glb"];
+    if (kind === "passenger_carriage")
+      return ["/assets/vehicles/Locomotive Passenger Carriage.glb"];
+    return ["/assets/vehicles/Locomotive Wagon.glb"];
   }
 
   private loadKindTemplate(kind: VehicleKind): void {
-    if (this.loadingKind.has(kind)) return;
+    if (this.loadingKind.has(kind) || this.templateByKind.has(kind)) return;
     this.loadingKind.add(kind);
     const candidates = this.kindAssetCandidates(kind);
     const tryLoad = (idx: number) => {
       if (idx >= candidates.length) {
         this.loadingKind.delete(kind);
+        this.missingKinds.add(kind);
+        console.error(
+          `[railways] Missing required vehicle asset for ${kind}. Tried:`,
+          candidates,
+        );
         return;
       }
       this.loader.load(
@@ -523,25 +533,6 @@ class VehicleVisualLayer {
       );
     };
     tryLoad(0);
-  }
-
-  private makePlaceholder(kind: VehicleKind): THREE.Object3D {
-    const g = new THREE.Group();
-    const color =
-      kind === "sail_ship"
-        ? 0x7bc8ff
-        : kind === "locomotive_front"
-          ? 0xc84f4f
-          : kind === "passenger_carriage"
-            ? 0xc9b16a
-            : 0x9b9b9b;
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.6, 0.35, 1.2),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.2 }),
-    );
-    mesh.position.set(0, 0.2, 0);
-    g.add(mesh);
-    return g;
   }
 }
 
@@ -661,58 +652,78 @@ function waterPathAStar(
 }
 
 export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
+  const hideDemoUi = (): void => {
+    const ids = ["panel", "hexDebugPanel"];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.style.display = "none";
+      el.setAttribute("aria-hidden", "true");
+    }
+  };
+  hideDemoUi();
+
   const panel = document.createElement("div");
   panel.style.cssText =
-    "position:fixed;left:12px;top:12px;z-index:10020;background:rgba(8,14,24,0.82);border:1px solid rgba(200,220,255,0.25);padding:10px;border-radius:10px;color:#eaf2ff;font:12px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-width:260px";
+    "position:fixed;left:0;right:0;bottom:0;z-index:10020;background:rgba(8,14,24,0.9);border-top:1px solid rgba(200,220,255,0.25);padding:8px 10px;color:#eaf2ff;font:12px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(6px)";
   panel.innerHTML = `
-    <div style="font-weight:700;margin-bottom:6px">Railways HUD</div>
-    <div id="rwHudMoney">Funds: £1000</div>
-    <div id="rwHudClock">Time: --</div>
-    <div id="rwHudTrackCost">Planned cost: £0</div>
-    <div id="rwHudRouteInfo">Route plan: none</div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button data-time="pause">Pause</button>
-      <button data-time="play">Play</button>
-      <button data-time="fast">Fast</button>
-      <button data-time="super">Superfast</button>
+    <div style="font-weight:700;white-space:nowrap;margin-right:2px">Railways</div>
+    <div id="rwHudMoney" style="white-space:nowrap">Funds: £1000</div>
+    <div id="rwHudClock" style="white-space:nowrap">Time: --</div>
+    <div id="rwHudTrackCost" style="white-space:nowrap">Planned cost: £0</div>
+    <div id="rwHudRouteInfo" style="white-space:nowrap">Route plan: none</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button data-time="pause" type="button">Pause</button>
+      <button data-time="play" type="button">Play</button>
+      <button data-time="fast" type="button">Fast</button>
+      <button data-time="super" type="button">Superfast</button>
     </div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button id="rwTrackModeBtn">Place Track</button>
-      <button id="rwTrackConfirmBtn" disabled>Confirm</button>
-      <button id="rwTrackCancelBtn" disabled>Cancel</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button id="rwTrackModeBtn" type="button">Place Track</button>
+      <button id="rwTrackUndoBtn" type="button" disabled>Undo</button>
+      <button id="rwTrackConfirmBtn" type="button" disabled>Confirm</button>
+      <button id="rwTrackCancelBtn" type="button" disabled>Cancel</button>
     </div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button id="rwRouteModeBtn">Plan Route</button>
-      <button id="rwRouteConfirmBtn" disabled>Confirm Route</button>
-      <button id="rwRouteCancelBtn" disabled>Cancel Route</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button id="rwRouteModeBtn" type="button">Plan Route</button>
+      <button id="rwRouteConfirmBtn" type="button" disabled>Confirm Route</button>
+      <button id="rwRouteCancelBtn" type="button" disabled>Cancel Route</button>
       <select id="rwRouteTypeSel">
         <option value="rail">Rail</option>
         <option value="water">Water</option>
       </select>
     </div>
-    <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.15);padding-top:8px">
-      <div style="font-weight:700;margin-bottom:6px">Vehicle Inventory</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button id="rwBuyLocoBtn">Buy Loco £260+</button>
-        <button id="rwBuyPassengerBtn">Buy Carriage £110+</button>
-        <button id="rwBuyWagonBtn">Buy Wagon £85+</button>
-        <button id="rwBuyShipBtn">Buy Sail Ship £320+</button>
-      </div>
-      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-        <select id="rwAssignRouteSel"></select>
-        <input id="rwAssignVehicleIds" placeholder="vehicle ids e.g. v-1,v-2" style="min-width:150px" />
-        <button id="rwAssignBtn">Assign</button>
-      </div>
-      <div id="rwInventorySummary" style="margin-top:6px;opacity:0.9"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <button id="rwBuyLocoBtn" type="button">Buy Loco £260+</button>
+      <button id="rwBuyPassengerBtn" type="button">Buy Carriage £110+</button>
+      <button id="rwBuyWagonBtn" type="button">Buy Wagon £85+</button>
+      <button id="rwBuyShipBtn" type="button">Buy Sail Ship £320+</button>
     </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
+      <label for="rwAssignRouteSel" style="opacity:0.85;align-self:center">Assign</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="rwAssignRouteSel"></select>
+        <input id="rwAssignVehicleIds" placeholder="vehicle ids e.g. v-1,v-2" style="min-width:220px" />
+        <button id="rwAssignBtn" type="button">Assign</button>
+      </div>
+    </div>
+    <div id="rwInventorySummary" style="opacity:0.9;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)"></div>
   `;
   document.body.appendChild(panel);
+  const trackUndoHotspot = document.createElement("button");
+  trackUndoHotspot.type = "button";
+  trackUndoHotspot.textContent = "x";
+  trackUndoHotspot.title = "Undo last track segment";
+  trackUndoHotspot.style.cssText =
+    "position:fixed;z-index:10030;width:18px;height:18px;border-radius:9px;border:1px solid rgba(255,255,255,0.85);background:rgba(17,24,39,0.92);color:#fff;font:700 12px/16px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:0;display:none;cursor:pointer;transform:translate(-50%,-50%)";
+  document.body.appendChild(trackUndoHotspot);
 
   const moneyEl = panel.querySelector("#rwHudMoney") as HTMLDivElement;
   const clockEl = panel.querySelector("#rwHudClock") as HTMLDivElement;
   const costEl = panel.querySelector("#rwHudTrackCost") as HTMLDivElement;
   const routeInfoEl = panel.querySelector("#rwHudRouteInfo") as HTMLDivElement;
   const trackModeBtn = panel.querySelector("#rwTrackModeBtn") as HTMLButtonElement;
+  const trackUndoBtn = panel.querySelector("#rwTrackUndoBtn") as HTMLButtonElement;
   const trackConfirmBtn = panel.querySelector("#rwTrackConfirmBtn") as HTMLButtonElement;
   const trackCancelBtn = panel.querySelector("#rwTrackCancelBtn") as HTMLButtonElement;
   const routeModeBtn = panel.querySelector("#rwRouteModeBtn") as HTMLButtonElement;
@@ -739,10 +750,42 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   let lastSnapshot: RailwaysAuthoritativeState | null = null;
   let bridge: WorldBridge | undefined;
   let previewGroup: THREE.Group | null = null;
+  let legalNextGroup: THREE.Group | null = null;
   let routePreviewGroup: THREE.Group | null = null;
+  let clockAnchorSimMs = Number.NaN;
+  let clockAnchorWallMs = 0;
+  let clockAnchorPaused = true;
+  let clockAnchorSpeed = 1;
+
+  function isWaterTerrainType(type: string | undefined): boolean {
+    if (!type) return false;
+    const t = type.toLowerCase();
+    return (
+      t === "water" ||
+      t === "beach" ||
+      t === "ocean" ||
+      t === "sea" ||
+      t === "lake"
+    );
+  }
+
+  function hasExistingTrackEdge(a: number, b: number): boolean {
+    const snap = lastSnapshot;
+    if (!snap) return false;
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    return snap.tracks.some((t) => t.fromTileId === lo && t.toTileId === hi);
+  }
+
+  function isRailBuildableTile(tileId: number): boolean {
+    const terrain = bridge?.getTileTerrain();
+    if (!terrain) return false;
+    return !isWaterTerrainType(terrain.get(tileId)?.type);
+  }
 
   function updateTrackButtons(): void {
     trackConfirmBtn.disabled = pendingPath.length < 2 || !placingTrack;
+    trackUndoBtn.disabled = pendingPath.length === 0 || !placingTrack;
     trackCancelBtn.disabled = pendingPath.length === 0;
     trackModeBtn.textContent = placingTrack ? "Exit Track Mode" : "Place Track";
   }
@@ -761,7 +804,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     if (!previewGroup) return;
     previewGroup.parent?.remove(previewGroup);
     previewGroup.traverse((o) => {
-      if (o instanceof THREE.Mesh) {
+      if (o instanceof THREE.Mesh || o instanceof THREE.Line) {
         o.geometry.dispose();
         const m = o.material;
         if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
@@ -769,6 +812,20 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       }
     });
     previewGroup = null;
+  }
+
+  function clearLegalNextPreview(): void {
+    if (!legalNextGroup) return;
+    legalNextGroup.parent?.remove(legalNextGroup);
+    legalNextGroup.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.geometry.dispose();
+        const m = o.material;
+        if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+        else m.dispose();
+      }
+    });
+    legalNextGroup = null;
   }
 
   function clearRoutePreview(): void {
@@ -794,17 +851,115 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     if (!g || !terrain) return;
     previewGroup = new THREE.Group();
     previewGroup.name = "RailTrackPreview";
-    const mat = new THREE.MeshBasicMaterial({ color: 0x7ecbff, transparent: true, opacity: 0.75 });
+    const markerMat = new THREE.MeshBasicMaterial({
+      color: 0x7ecbff,
+      transparent: true,
+      opacity: 0.7,
+    });
+    const points: THREE.Vector3[] = [];
     for (const tileId of pendingPath) {
       const tile = g.getTile(tileId);
       if (!tile) continue;
       const elev = terrain.get(tileId)?.elevation ?? 0;
-      const p = tile.center.clone().normalize().multiplyScalar(g.radius + elev * 0.08 + 0.003);
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 8), mat.clone());
+      const p = tile.center
+        .clone()
+        .normalize()
+        .multiplyScalar(g.radius + elev * 0.08 + 0.0045);
+      points.push(p.clone());
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.0033, 8, 8), markerMat.clone());
       m.position.copy(p);
       previewGroup.add(m);
     }
+    if (points.length >= 2) {
+      const lineGeom = new THREE.BufferGeometry().setFromPoints(points);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: 0x9fd9ff,
+        transparent: true,
+        opacity: 0.85,
+      });
+      const line = new THREE.Line(lineGeom, lineMat);
+      line.renderOrder = 95;
+      previewGroup.add(line);
+    }
     scene.add(previewGroup);
+  }
+
+  function updateTrackUndoHotspot(): void {
+    if (!placingTrack || pendingPath.length === 0 || !bridge) {
+      trackUndoHotspot.style.display = "none";
+      return;
+    }
+    const g = bridge.getGlobe();
+    const camera = bridge.getCamera();
+    const terrain = bridge.getTileTerrain();
+    const rendererEl = bridge.getRendererDomElement();
+    if (!g || !terrain) {
+      trackUndoHotspot.style.display = "none";
+      return;
+    }
+    const lastTileId = pendingPath[pendingPath.length - 1]!;
+    const tile = g.getTile(lastTileId);
+    if (!tile) {
+      trackUndoHotspot.style.display = "none";
+      return;
+    }
+    const elev = terrain.get(lastTileId)?.elevation ?? 0;
+    const worldPos = tile.center
+      .clone()
+      .normalize()
+      .multiplyScalar(g.radius + elev * 0.08 + 0.0054);
+    const ndc = worldPos.project(camera);
+    if (ndc.z < -1 || ndc.z > 1) {
+      trackUndoHotspot.style.display = "none";
+      return;
+    }
+    const rect = rendererEl.getBoundingClientRect();
+    const x = rect.left + (ndc.x * 0.5 + 0.5) * rect.width;
+    const y = rect.top + (1 - (ndc.y * 0.5 + 0.5)) * rect.height;
+    trackUndoHotspot.style.left = `${Math.round(x + 12)}px`;
+    trackUndoHotspot.style.top = `${Math.round(y - 12)}px`;
+    trackUndoHotspot.style.display = "block";
+  }
+
+  function rebuildLegalNextPreview(): void {
+    clearLegalNextPreview();
+    if (!bridge || !placingTrack || pendingPath.length === 0) return;
+    const g = bridge.getGlobe();
+    const scene = bridge.getScene();
+    const terrain = bridge.getTileTerrain();
+    if (!g || !terrain) return;
+    const last = pendingPath[pendingPath.length - 1]!;
+    const start = pendingPath[0]!;
+    const prev = pendingPath.length >= 2 ? pendingPath[pendingPath.length - 2]! : null;
+    const legalNeighbors = (g.getTile(last)?.neighbors ?? []).filter((n) => {
+      if (!isRailBuildableTile(n)) return false;
+      if (prev != null && n === prev) return true;
+      const closesLoop = n === start && pendingPath.length >= 3;
+      if (!closesLoop && pendingPath.includes(n)) return false;
+      return !hasExistingTrackEdge(last, n);
+    });
+    if (legalNeighbors.length === 0) return;
+    legalNextGroup = new THREE.Group();
+    legalNextGroup.name = "RailLegalNextPreview";
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x56f0b8,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    });
+    for (const tileId of legalNeighbors) {
+      const tile = g.getTile(tileId);
+      if (!tile) continue;
+      const elev = terrain.get(tileId)?.elevation ?? 0;
+      const p = tile.center
+        .clone()
+        .normalize()
+        .multiplyScalar(g.radius + elev * 0.08 + 0.0034);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.0048, 8, 8), mat.clone());
+      m.position.copy(p);
+      legalNextGroup.add(m);
+    }
+    scene.add(legalNextGroup);
   }
 
   function rebuildRoutePreview(): void {
@@ -956,6 +1111,26 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     }, Wagon: ${counts.get("wagon") ?? 0}, Ships: ${counts.get("sail_ship") ?? 0}/5`;
   }
 
+  function undoLastTrackStep(): void {
+    if (!placingTrack || pendingPath.length === 0) return;
+    pendingPath.pop();
+    clearPreview();
+    clearLegalNextPreview();
+    if (pendingPath.length > 0) {
+      rebuildPreview();
+      rebuildLegalNextPreview();
+    }
+    updateTrackButtons();
+    updatePlanCostText();
+    updateTrackUndoHotspot();
+  }
+
+  function estimatedSimNowMs(nowWallMs: number): number {
+    if (!Number.isFinite(clockAnchorSimMs)) return nowWallMs;
+    if (clockAnchorPaused || clockAnchorSpeed <= 0) return clockAnchorSimMs;
+    return clockAnchorSimMs + Math.max(0, nowWallMs - clockAnchorWallMs) * clockAnchorSpeed;
+  }
+
   function onWorldClick(ev: MouseEvent): void {
     if ((!placingTrack && !planningRoute) || !bridge) return;
     const globe = bridge.getGlobe();
@@ -976,21 +1151,29 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     if (!Number.isInteger(tileId) || tileId < 0) return;
     if (placingTrack) {
       if (pendingPath.length === 0) {
+        if (!isRailBuildableTile(tileId)) return;
         pendingPath.push(tileId);
       } else {
         const last = pendingPath[pendingPath.length - 1]!;
+        const start = pendingPath[0]!;
         if (tileId === last) return;
         if (pendingPath.length >= 2 && tileId === pendingPath[pendingPath.length - 2]) {
           pendingPath.pop();
         } else {
+          if (!isRailBuildableTile(tileId)) return;
           const neighbors = globe.getTile(last)?.neighbors ?? [];
           if (!neighbors.includes(tileId)) return;
+          const closesLoop = tileId === start && pendingPath.length >= 3;
+          if (!closesLoop && pendingPath.includes(tileId)) return;
+          if (hasExistingTrackEdge(last, tileId)) return;
           pendingPath.push(tileId);
         }
       }
       rebuildPreview();
+      rebuildLegalNextPreview();
       updateTrackButtons();
       updatePlanCostText();
+      updateTrackUndoHotspot();
     } else if (planningRoute) {
       appendRouteTile(tileId);
       rebuildRoutePreview();
@@ -1009,15 +1192,28 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     if (!placingTrack) {
       pendingPath.length = 0;
       clearPreview();
+      clearLegalNextPreview();
       updatePlanCostText();
+      updateTrackUndoHotspot();
+    } else {
+      rebuildLegalNextPreview();
+      updateTrackUndoHotspot();
     }
     updateTrackButtons();
   });
   trackCancelBtn.addEventListener("click", () => {
     pendingPath.length = 0;
     clearPreview();
+    clearLegalNextPreview();
     updateTrackButtons();
     updatePlanCostText();
+    updateTrackUndoHotspot();
+  });
+  trackUndoBtn.addEventListener("click", () => undoLastTrackStep());
+  trackUndoHotspot.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    undoLastTrackStep();
   });
   trackConfirmBtn.addEventListener("click", () => {
     if (pendingPath.length < 2) return;
@@ -1031,8 +1227,10 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     sendNetCommand(cmd);
     pendingPath.length = 0;
     clearPreview();
+    clearLegalNextPreview();
     updateTrackButtons();
     updatePlanCostText();
+    updateTrackUndoHotspot();
     requestNetSnapshot();
   });
   routeModeBtn.addEventListener("click", () => {
@@ -1040,8 +1238,10 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       placingTrack = false;
       pendingPath.length = 0;
       clearPreview();
+      clearLegalNextPreview();
       updateTrackButtons();
       updatePlanCostText();
+      updateTrackUndoHotspot();
     }
     planningRoute = !planningRoute;
     if (!planningRoute) {
@@ -1115,10 +1315,10 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         key === "pause"
           ? { simSpeed: 1, paused: true }
           : key === "play"
-            ? { simSpeed: 1, paused: false }
+            ? { simSpeed: 3600, paused: false }
             : key === "fast"
-              ? { simSpeed: 20, paused: false }
-              : { simSpeed: 120, paused: false };
+              ? { simSpeed: 5760, paused: false }
+              : { simSpeed: 17280, paused: false };
       sendNetCommand({
         kind: "setSimSpeed",
         simSpeed: map.simSpeed,
@@ -1145,12 +1345,17 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   updateTrackButtons();
   updateRouteButtons();
   updatePlanCostText();
+  updateTrackUndoHotspot();
 
   const tick = () => {
     const now = Date.now();
     const snap = getNetState()?.lastSnapshot ?? null;
     if (snap && snap !== lastSnapshot) {
       lastSnapshot = snap;
+      clockAnchorSimMs = Date.parse(snap.clock.dateTimeUtc);
+      clockAnchorWallMs = now;
+      clockAnchorPaused = !!snap.clock.paused;
+      clockAnchorSpeed = Number.isFinite(snap.clock.simSpeed) ? snap.clock.simSpeed : 1;
       const me = snap.players.find((p) => p.clientId === getNetState()?.clientId);
       if (me) {
         moneyEl.textContent = `Funds: £${Math.round(me.fundsPounds)}`;
@@ -1158,15 +1363,20 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       clockEl.textContent = `Time: ${snap.clock.dateTimeUtc.replace("T", " ").slice(0, 16)}${
         snap.clock.paused ? " (paused)" : ""
       }`;
-      const simNow = Date.parse(snap.clock.dateTimeUtc);
+      const simNow = estimatedSimNowMs(now);
       if (bridge) {
+        bridge.setDateTimeUtc?.(new Date(simNow).toISOString());
+        bridge.setPaused?.(snap.clock.paused);
         visuals.update(bridge, snap.tracks, now, Number.isFinite(simNow) ? simNow : now);
         routeVisuals.update(bridge, snap, getNetState()?.clientId ?? null);
         vehicleVisuals.update(bridge, snap);
+        if (placingTrack) rebuildLegalNextPreview();
       }
       refreshInventoryUi(snap);
     } else if (bridge && lastSnapshot) {
-      const simNow = Date.parse(lastSnapshot.clock.dateTimeUtc);
+      const simNow = estimatedSimNowMs(now);
+      bridge.setDateTimeUtc?.(new Date(simNow).toISOString());
+      bridge.setPaused?.(lastSnapshot.clock.paused);
       visuals.update(
         bridge,
         lastSnapshot.tracks,
@@ -1176,6 +1386,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       routeVisuals.update(bridge, lastSnapshot, getNetState()?.clientId ?? null);
       vehicleVisuals.update(bridge, lastSnapshot);
     }
+    updateTrackUndoHotspot();
     window.requestAnimationFrame(tick);
   };
   window.requestAnimationFrame(tick);

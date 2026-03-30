@@ -3287,23 +3287,13 @@ let clipPrecipMapHoldSimMinutesPrev = NaN;
  */
 let globalDiscreteWeatherBake: DiscreteWeatherYearBake | null = null;
 
-declare global {
-  interface Window {
-    __railwaysWorldBridge?: {
-      getGlobe: () => Globe | undefined;
-      getGlobeMesh: () => THREE.Object3D | null;
-      getScene: () => THREE.Scene;
-      getCamera: () => THREE.PerspectiveCamera;
-      getRendererDomElement: () => HTMLCanvasElement;
-      getTileTerrain: () => Map<number, TileTerrainData> | null;
-      getRiverFlowByTile: () => Map<number, { exitEdge: number; directionRad: number }> | null;
-    };
-  }
-}
+let railwaysSetDateTimeUtc: ((dateTimeUtc: string) => void) | null = null;
+let railwaysSetPaused: ((paused: boolean) => void) | null = null;
 
 function publishRailwaysWorldBridge(): void {
   if (typeof window === "undefined") return;
-  window.__railwaysWorldBridge = {
+  const w = window as unknown as { __railwaysWorldBridge?: unknown };
+  w.__railwaysWorldBridge = {
     getGlobe: () => globe,
     getGlobeMesh: () => (globe?.mesh as THREE.Object3D | undefined) ?? null,
     getScene: () => scene,
@@ -3311,6 +3301,8 @@ function publishRailwaysWorldBridge(): void {
     getRendererDomElement: () => renderer.domElement,
     getTileTerrain: () => globalTileTerrain,
     getRiverFlowByTile: () => globalRiverFlowByTile,
+    setDateTimeUtc: (dateTimeUtc: string) => railwaysSetDateTimeUtc?.(dateTimeUtc),
+    setPaused: (paused: boolean) => railwaysSetPaused?.(paused),
   };
 }
 /** Pre-baked water table, coast masks, cloud spawn table, river strengths (`globe-runtime-bake-*.bin`). */
@@ -7149,6 +7141,20 @@ async function init() {
     state.timePlaySpeed = urlAutoTimePlaySpeed;
   }
   createPanel(state, () => scheduleRebuild(state));
+  railwaysSetDateTimeUtc = (dateTimeUtc: string) => {
+    if (!dateTimeUtc) return;
+    const parsed = Date.parse(dateTimeUtc);
+    if (!Number.isFinite(parsed)) return;
+    state.dateTimeStr = dateToDatetimeLocalUTC(new Date(parsed));
+    playbackEpochMs = parsed;
+    if (panelDateTimeInput && panelEraSelect) {
+      syncDateTimeControls(panelDateTimeInput, panelEraSelect, state.dateTimeStr);
+    }
+  };
+  railwaysSetPaused = (_paused: boolean) => {
+    // Railways provides an authoritative clock; keep demo-side playback disabled.
+    state.timePlaying = false;
+  };
   if (typeof window !== "undefined") {
     const wPoly = window as unknown as {
       __polyglobeSampleHydroForTiles?: (

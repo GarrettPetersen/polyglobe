@@ -56,7 +56,8 @@ export interface CommandApplyResult {
 
 function clampSimSpeed(v: number): number {
   if (!Number.isFinite(v)) return 1;
-  return Math.max(0, Math.min(2048, v));
+  // Support high-speed single-player fast-forward (e.g. 5760x ~= 15s per sim day).
+  return Math.max(0, Math.min(200000, v));
 }
 
 function normalizedSegment(
@@ -337,8 +338,8 @@ export class RailwaysSessionState {
       stateVersion: 1,
       clock: {
         dateTimeUtc: "1825-01-01T00:00:00.000Z",
-        simSpeed: 1,
-        paused: false,
+        simSpeed: 3600,
+        paused: true,
       },
       players: [],
       tracks: [],
