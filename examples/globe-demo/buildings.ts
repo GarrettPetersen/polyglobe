@@ -217,6 +217,75 @@ function createDock(): THREE.Group {
   return g;
 }
 
+function createFactory(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = "BuildingFactory";
+  // Main industrial massing.
+  addBox(g, [1.22, 0.42, 0.78], standard(WALL_DARK), [0, 0.21, 0], "wall");
+  addBox(g, [1.22, 0.16, 0.78], standard(WALL_LIGHT), [0, 0.5, 0], "wall");
+
+  // Sawtooth roof silhouette (three slanted sections).
+  const roofMat = standard(ROOF_DARK);
+  const roofPieces = [-0.26, 0.0, 0.26];
+  for (const z of roofPieces) {
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 0.2), roofMat);
+    roof.position.set(0, 0.62, z);
+    roof.rotation.x = -0.32;
+    roof.userData.role = "roof";
+    g.add(roof);
+  }
+
+  // Clerestory strips under each sawtooth section.
+  for (const z of roofPieces) {
+    addBox(g, [1.1, 0.05, 0.03], litWindow(0xf7e2a1), [0, 0.57, z + 0.08], "window");
+  }
+
+  // Front and back factory windows.
+  const xCols = [-0.42, -0.2, 0, 0.2, 0.42];
+  const yRows = [0.2, 0.34, 0.48];
+  for (const x of xCols) {
+    for (const y of yRows) {
+      addFrontWindow(g, [0.1, 0.08, 0.02], y, x, 0.401);
+      addBackWindow(g, [0.1, 0.08, 0.02], y, x, -0.401);
+    }
+  }
+
+  // Single smokestack near one end.
+  const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.95, 10), standard(0x5a6069));
+  stack.position.set(0.46, 0.9, -0.15);
+  stack.userData.role = "detail";
+  g.add(stack);
+  const stackCap = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.08, 0.06, 10), standard(0x3f444c));
+  stackCap.position.set(0.46, 1.39, -0.15);
+  stackCap.userData.role = "detail";
+  g.add(stackCap);
+  return g;
+}
+
+function createTrackSection(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = "BuildingTrackSection";
+
+  // Small ballast/ground pad so the track reads clearly in the viewer.
+  addBox(g, [1.35, 0.03, 0.22], standard(0x4f5a63), [0, 0.015, 0], "detail");
+
+  // Straight double-track rails.
+  addBox(g, [1.3, 0.012, 0.018], standard(0xc0c8d4), [0, 0.036, 0.042], "detail");
+  addBox(g, [1.3, 0.012, 0.018], standard(0xc0c8d4), [0, 0.036, -0.042], "detail");
+
+  // Sleepers.
+  const sleeperXs = [-0.56, -0.37, -0.18, 0.01, 0.2, 0.39, 0.58];
+  for (const x of sleeperXs) {
+    addBox(g, [0.048, 0.01, 0.14], standard(WOOD), [x, 0.026, 0], "detail");
+  }
+
+  // Minimal support posts, useful when evaluating small elevated sections.
+  addBox(g, [0.03, 0.08, 0.03], standard(0x5f6670), [-0.45, -0.01, 0], "detail");
+  addBox(g, [0.03, 0.08, 0.03], standard(0x5f6670), [0, -0.01, 0], "detail");
+  addBox(g, [0.03, 0.08, 0.03], standard(0x5f6670), [0.45, -0.01, 0], "detail");
+  return g;
+}
+
 export const BUILDING_DEFS: readonly BuildingDefinition[] = [
   {
     id: "small-house",
@@ -253,6 +322,18 @@ export const BUILDING_DEFS: readonly BuildingDefinition[] = [
     name: "Dock",
     description: "Low wooden dock with long planks and posts.",
     create: createDock,
+  },
+  {
+    id: "factory",
+    name: "Factory",
+    description: "Industrial hall with sawtooth roof and a single smokestack.",
+    create: createFactory,
+  },
+  {
+    id: "track-section",
+    name: "Track section",
+    description: "Straight double-track segment for rail silhouette tuning.",
+    create: createTrackSection,
   },
 ];
 

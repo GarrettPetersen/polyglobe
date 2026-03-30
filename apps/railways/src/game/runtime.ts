@@ -75,6 +75,13 @@ const _tmpB = new THREE.Vector3();
 const _tmpMid = new THREE.Vector3();
 const _tmpQ = new THREE.Quaternion();
 const _tmpScale = new THREE.Vector3();
+const _tmpDir = new THREE.Vector3();
+const _tmpNormal = new THREE.Vector3();
+const _tmpSide = new THREE.Vector3();
+const _tmpBasis = new THREE.Matrix4();
+const _tmpModel = new THREE.Matrix4();
+const _tmpScaleM = new THREE.Matrix4();
+const _tmpColor = new THREE.Color();
 const _up = new THREE.Vector3(0, 1, 0);
 
 function hexCostCategory(
@@ -94,17 +101,18 @@ function hexCostCategory(
 
 class TrackVisualLayer {
   private readonly group = new THREE.Group();
+  private bed: THREE.InstancedMesh | null = null;
+  private ownerStripe: THREE.InstancedMesh | null = null;
   private railLeft: THREE.InstancedMesh | null = null;
   private railRight: THREE.InstancedMesh | null = null;
   private sleepers: THREE.InstancedMesh | null = null;
   private supports: THREE.InstancedMesh | null = null;
   private buildMarkers: Array<{
     cloud: THREE.Sprite;
-    barBg: THREE.Sprite;
-    barFill: THREE.Sprite;
+    worldPos: THREE.Vector3;
+    ownerColorHex: string;
     buildStartedAtMs: number;
     buildCompleteAtMs: number;
-    baseBarWidth: number;
   }> = [];
   private currentTracksKey = "";
 
@@ -133,22 +141,29 @@ class TrackVisualLayer {
       const marker = this.buildMarkers[i]!;
       const s = marker.cloud;
       const pulse = 0.55 + 0.45 * Math.sin(nowMs * 0.006 + i * 0.7);
-      s.scale.setScalar(0.012 + pulse * 0.006);
+      s.scale.setScalar(0.006 + pulse * 0.0025);
       (s.material as THREE.SpriteMaterial).opacity = 0.35 + pulse * 0.45;
-      const total = Math.max(1, marker.buildCompleteAtMs - marker.buildStartedAtMs);
-      const progress = THREE.MathUtils.clamp(
-        (simNowMs - marker.buildStartedAtMs) / total,
-        0,
-        1,
-      );
-      marker.barFill.scale.set(marker.baseBarWidth * progress, 0.0038, 1);
-      marker.barFill.center.set(0, 0.5);
-      (marker.barFill.material as THREE.SpriteMaterial).opacity = 0.92;
     }
   }
 
+  getBuildMarkers(): readonly {
+    worldPos: THREE.Vector3;
+    ownerColorHex: string;
+    buildStartedAtMs: number;
+    buildCompleteAtMs: number;
+  }[] {
+    return this.buildMarkers;
+  }
+
   private clearMeshes(): void {
-    const meshes = [this.railLeft, this.railRight, this.sleepers, this.supports];
+    const meshes = [
+      this.bed,
+      this.ownerStripe,
+      this.railLeft,
+      this.railRight,
+      this.sleepers,
+      this.supports,
+    ];
     for (const m of meshes) {
       if (!m) continue;
       this.group.remove(m);
@@ -160,18 +175,18 @@ class TrackVisualLayer {
         mat.dispose();
       }
     }
+    this.bed = null;
+    this.ownerStripe = null;
     this.railLeft = null;
     this.railRight = null;
     this.sleepers = null;
     this.supports = null;
     for (const marker of this.buildMarkers) {
-      const sprites = [marker.cloud, marker.barBg, marker.barFill];
-      for (const s of sprites) {
-        this.group.remove(s);
-        const mat = s.material as THREE.SpriteMaterial;
-        mat.map?.dispose();
-        mat.dispose();
-      }
+      const s = marker.cloud;
+      this.group.remove(s);
+      const mat = s.material as THREE.SpriteMaterial;
+      mat.map?.dispose();
+      mat.dispose();
     }
     this.buildMarkers = [];
   }
@@ -183,27 +198,80 @@ class TrackVisualLayer {
     const terrain = bridge.getTileTerrain();
     if (!globe || !terrain) return;
 
-    // Keep rail geometry visibly narrower than a tile and close to building-scale proportions.
-    const railGeom = new THREE.BoxGeometry(0.0011, 0.0007, 1);
-    const sleeperGeom = new THREE.BoxGeometry(0.0085, 0.00075, 0.0012);
-    const supportGeom = new THREE.CylinderGeometry(0.00055, 0.0007, 1, 6);
-    const railMat = new THREE.MeshStandardMaterial({ color: 0xc0c6d2, roughness: 0.65, metalness: 0.35 });
-    const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x6f5a42, roughness: 0.92, metalness: 0.05 });
+    // Keep rail geometry as a narrow strip through hex centers.
+    const bedGeom = new THREE.BoxGeometry(0.0024, 1, 0.00048);
+    const stripeGeom = new THREE.BoxGeometry(0.00045, 1, 0.00016);
+    const railGeom = new THREE.BoxGeometry(0.0002, 1, 0.00028);
+    const sleeperGeom = new THREE.BoxGeometry(0.0018, 0.00016, 0.0002);
+    const supportGeom = new THREE.CylinderGeometry(0.00045, 0.00062, 1, 6);
+    const bedMat = new THREE.MeshStandardMaterial({
+      color: 0x77808b,
+      roughness: 0.88,
+      metalness: 0.04,
+    });
+    const stripeMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.5,
+      metalness: 0.15,
+    });
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0xc0c6d2,
+      roughness: 0.65,
+      metalness: 0.35,
+    });
+    const sleeperMat = new THREE.MeshStandardMaterial({
+      color: 0x8b6a4a,
+      roughness: 0.9,
+      metalness: 0.04,
+    });
     const supportMat = new THREE.MeshStandardMaterial({ color: 0x4b4f57, roughness: 0.84, metalness: 0.18 });
-    this.railLeft = new THREE.InstancedMesh(railGeom, railMat, Math.max(1, tracks.length));
-    this.railRight = new THREE.InstancedMesh(railGeom, railMat.clone(), Math.max(1, tracks.length));
-    this.sleepers = new THREE.InstancedMesh(sleeperGeom, sleeperMat, Math.max(4, tracks.length * 4));
+    const segmentBudget = Math.max(1, tracks.length * 40);
+    this.bed = new THREE.InstancedMesh(bedGeom, bedMat, segmentBudget);
+    this.ownerStripe = new THREE.InstancedMesh(stripeGeom, stripeMat, segmentBudget);
+    this.railLeft = new THREE.InstancedMesh(railGeom, railMat, segmentBudget);
+    this.railRight = new THREE.InstancedMesh(railGeom, railMat.clone(), segmentBudget);
+    this.sleepers = new THREE.InstancedMesh(
+      sleeperGeom,
+      sleeperMat,
+      Math.max(4, tracks.length * 220),
+    );
     this.supports = new THREE.InstancedMesh(supportGeom, supportMat, Math.max(1, tracks.length));
+    this.bed.frustumCulled = false;
+    this.ownerStripe.frustumCulled = false;
     this.railLeft.frustumCulled = false;
     this.railRight.frustumCulled = false;
     this.sleepers.frustumCulled = false;
     this.supports.frustumCulled = false;
-    this.group.add(this.railLeft, this.railRight, this.sleepers, this.supports);
+    this.group.add(
+      this.bed,
+      this.ownerStripe,
+      this.railLeft,
+      this.railRight,
+      this.sleepers,
+      this.supports,
+    );
 
     let railIdx = 0;
     let sleeperIdx = 0;
     let supportIdx = 0;
     const tex = this.makeBuildSpriteTexture();
+    const tileConn = new Map<
+      number,
+      Array<{ edgePos: THREE.Vector3; centerPos: THREE.Vector3; ownerColorHex: string }>
+    >();
+    const pushConn = (
+      tileId: number,
+      centerPos: THREE.Vector3,
+      edgePos: THREE.Vector3,
+      ownerColorHex: string,
+    ): void => {
+      let list = tileConn.get(tileId);
+      if (!list) {
+        list = [];
+        tileConn.set(tileId, list);
+      }
+      list.push({ edgePos, centerPos, ownerColorHex });
+    };
     for (const tr of tracks) {
       const a = globe.getTile(tr.fromTileId);
       const b = globe.getTile(tr.toTileId);
@@ -214,37 +282,14 @@ class TrackVisualLayer {
       _tmpB.copy(b.center).normalize().multiplyScalar(globe.radius + elevB * 0.08 + 0.0018);
       const len = _tmpA.distanceTo(_tmpB);
       if (len < 1e-6) continue;
-      _tmpMid.copy(_tmpA).add(_tmpB).multiplyScalar(0.5);
-      _tmpQ.setFromUnitVectors(_up, _tmpB.clone().sub(_tmpA).normalize());
-
-      const trackGap = 0.0019;
-      const side = _tmpB.clone().sub(_tmpA).cross(_tmpMid).normalize().multiplyScalar(trackGap);
-
-      const leftPos = _tmpMid.clone().add(side);
-      const rightPos = _tmpMid.clone().sub(side);
-      _tmpScale.set(1, 1, len);
-      this.railLeft!.setMatrixAt(
-        railIdx,
-        new THREE.Matrix4().compose(leftPos, _tmpQ, _tmpScale),
-      );
-      this.railRight!.setMatrixAt(
-        railIdx,
-        new THREE.Matrix4().compose(rightPos, _tmpQ, _tmpScale),
-      );
-
-      const sleeperCount = 4;
-      for (let i = 0; i < sleeperCount; i++) {
-        const t = (i + 1) / (sleeperCount + 1);
-        const p = _tmpA.clone().lerp(_tmpB, t);
-        const q = new THREE.Quaternion().setFromUnitVectors(
-          _up,
-          side.clone().normalize(),
-        );
-        this.sleepers!.setMatrixAt(
-          sleeperIdx++,
-          new THREE.Matrix4().compose(p, q, new THREE.Vector3(1, 1, 1)),
-        );
-      }
+      const fullMid = _tmpA.clone().add(_tmpB).multiplyScalar(0.5);
+      const edgePos = _tmpA
+        .clone()
+        .add(_tmpB)
+        .normalize()
+        .multiplyScalar(globe.radius + ((elevA + elevB) * 0.5) * 0.08 + 0.0018);
+      pushConn(tr.fromTileId, _tmpA.clone(), edgePos.clone(), tr.ownerColorHex);
+      pushConn(tr.toTileId, _tmpB.clone(), edgePos, tr.ownerColorHex);
 
       const supportNeeded =
         tr.status === "building" ||
@@ -252,8 +297,11 @@ class TrackVisualLayer {
         (terrain.get(tr.fromTileId)?.isHilly ?? false) ||
         (terrain.get(tr.toTileId)?.isHilly ?? false);
       if (supportNeeded) {
-        const supportLen = Math.max(0.01, _tmpMid.length() - (globe.radius - 0.01));
-        const supportPos = _tmpMid.clone().normalize().multiplyScalar(_tmpMid.length() - supportLen * 0.5);
+        const supportLen = Math.max(0.01, fullMid.length() - (globe.radius - 0.01));
+        const supportPos = fullMid
+          .clone()
+          .normalize()
+          .multiplyScalar(fullMid.length() - supportLen * 0.5);
         const supportQ = new THREE.Quaternion().setFromUnitVectors(_up, supportPos.clone().normalize());
         this.supports!.setMatrixAt(
           supportIdx++,
@@ -276,51 +324,130 @@ class TrackVisualLayer {
             color: new THREE.Color(tr.ownerColorHex),
           }),
         );
-        sp.position.copy(_tmpMid);
-        sp.scale.setScalar(0.015);
-        const barOffset = _tmpMid.clone().normalize().multiplyScalar(0.008);
-        const barPos = _tmpMid.clone().add(barOffset);
-        const barBg = new THREE.Sprite(
-          new THREE.SpriteMaterial({
-            color: 0x142235,
-            transparent: true,
-            depthWrite: false,
-            depthTest: false,
-            opacity: 0.7,
-          }),
-        );
-        barBg.position.copy(barPos);
-        barBg.scale.set(0.026, 0.0038, 1);
-        const barFill = new THREE.Sprite(
-          new THREE.SpriteMaterial({
-            color: new THREE.Color(tr.ownerColorHex),
-            transparent: true,
-            depthWrite: false,
-            depthTest: false,
-            opacity: 0.92,
-          }),
-        );
-        barFill.position.copy(barPos);
-        barFill.center.set(0, 0.5);
-        barFill.scale.set(0.001, 0.0038, 1);
+        sp.position.copy(fullMid);
+        sp.scale.setScalar(0.008);
         this.group.add(sp);
-        this.group.add(barBg);
-        this.group.add(barFill);
         this.buildMarkers.push({
           cloud: sp,
-          barBg,
-          barFill,
+          worldPos: fullMid.clone(),
+          ownerColorHex: tr.ownerColorHex,
           buildStartedAtMs: tr.buildStartedAtMs,
           buildCompleteAtMs: tr.buildCompleteAtMs,
-          baseBarWidth: 0.026,
         });
       }
-      railIdx++;
     }
+
+    const setMatrix = (
+      mesh: THREE.InstancedMesh,
+      idx: number,
+      center: THREE.Vector3,
+      sx: number,
+      sy: number,
+      sz: number,
+    ): void => {
+      _tmpScaleM.makeScale(sx, sy, sz);
+      _tmpModel.copy(_tmpBasis).multiply(_tmpScaleM);
+      _tmpModel.setPosition(center);
+      mesh.setMatrixAt(idx, _tmpModel);
+    };
+    const trackGap = 0.00078;
+    const addChunk = (segStart: THREE.Vector3, segEnd: THREE.Vector3, ownerColorHex: string): void => {
+      _tmpDir.copy(segEnd).sub(segStart);
+      const segLen = _tmpDir.length();
+      if (segLen < 1e-6) return;
+      _tmpDir.divideScalar(segLen);
+      _tmpMid.copy(segStart).add(segEnd).multiplyScalar(0.5);
+      _tmpNormal.copy(_tmpMid).normalize();
+      _tmpSide.crossVectors(_tmpDir, _tmpNormal);
+      if (_tmpSide.lengthSq() < 1e-8) return;
+      _tmpSide.normalize();
+      _tmpBasis.makeBasis(_tmpSide, _tmpDir, _tmpNormal);
+
+      const bedPos = _tmpMid.clone().addScaledVector(_tmpNormal, 0.00026);
+      setMatrix(this.bed!, railIdx, bedPos, 1, segLen, 1);
+      this.bed!.setColorAt(railIdx, _tmpColor.set(0x5f6671));
+
+      const stripePos = _tmpMid.clone().addScaledVector(_tmpNormal, 0.00062);
+      setMatrix(this.ownerStripe!, railIdx, stripePos, 1, segLen, 1);
+      this.ownerStripe!.setColorAt(railIdx, _tmpColor.set(ownerColorHex));
+
+      const leftPos = _tmpMid
+        .clone()
+        .addScaledVector(_tmpSide, trackGap * 0.5)
+        .addScaledVector(_tmpNormal, 0.00052);
+      const rightPos = _tmpMid
+        .clone()
+        .addScaledVector(_tmpSide, -trackGap * 0.5)
+        .addScaledVector(_tmpNormal, 0.00052);
+      setMatrix(this.railLeft!, railIdx, leftPos, 1, segLen, 1);
+      setMatrix(this.railRight!, railIdx, rightPos, 1, segLen, 1);
+
+        const sleeperCount = Math.max(1, Math.floor(segLen / 0.0025));
+      for (let i = 0; i < sleeperCount; i++) {
+        const t = (i + 1) / (sleeperCount + 1);
+          const p = segStart.clone().lerp(segEnd, t).addScaledVector(_tmpNormal, 0.00058);
+        _tmpModel.makeBasis(_tmpSide, _tmpNormal, _tmpDir);
+        _tmpModel.setPosition(p);
+        this.sleepers!.setMatrixAt(sleeperIdx++, _tmpModel);
+      }
+      railIdx++;
+    };
+    const addCurve = (
+      p0: THREE.Vector3,
+      p1: THREE.Vector3,
+      ctrl: THREE.Vector3,
+      ownerColorHex: string,
+      steps = 6,
+    ): void => {
+      let prev = p0.clone();
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const a = p0.clone().lerp(ctrl, t);
+        const b = ctrl.clone().lerp(p1, t);
+        const cur = a.lerp(b, t);
+        addChunk(prev, cur, ownerColorHex);
+        prev = cur;
+      }
+    };
+
+    for (const conns of tileConn.values()) {
+      if (conns.length === 0) continue;
+      if (conns.length === 1) {
+        addChunk(conns[0]!.edgePos, conns[0]!.centerPos, conns[0]!.ownerColorHex);
+        continue;
+      }
+      if (conns.length === 2) {
+        const c0 = conns[0]!;
+        const c1 = conns[1]!;
+        const d0 = c0.edgePos.clone().sub(c0.centerPos).normalize();
+        const d1 = c1.edgePos.clone().sub(c1.centerPos).normalize();
+        const dot = THREE.MathUtils.clamp(d0.dot(d1), -1, 1);
+        const angle = Math.acos(dot);
+        if (angle >= 2.6) {
+          addChunk(c0.edgePos, c1.edgePos, c0.ownerColorHex);
+        } else if (c0.ownerColorHex === c1.ownerColorHex) {
+          addCurve(c0.edgePos, c1.edgePos, c0.centerPos, c0.ownerColorHex);
+        } else {
+          addCurve(c0.edgePos, c0.centerPos, c0.centerPos, c0.ownerColorHex, 3);
+          addCurve(c0.centerPos, c1.edgePos, c1.centerPos, c1.ownerColorHex, 3);
+        }
+        continue;
+      }
+      // Junction fallback: draw stubs into center for each connected edge.
+      for (const c of conns) {
+        addChunk(c.edgePos, c.centerPos, c.ownerColorHex);
+      }
+    }
+    this.bed.count = railIdx;
+    this.ownerStripe.count = railIdx;
     this.railLeft.count = railIdx;
     this.railRight.count = railIdx;
     this.sleepers.count = sleeperIdx;
     this.supports.count = supportIdx;
+    this.bed.instanceMatrix.needsUpdate = true;
+    this.ownerStripe.instanceMatrix.needsUpdate = true;
+    if (this.bed.instanceColor) this.bed.instanceColor.needsUpdate = true;
+    if (this.ownerStripe.instanceColor) this.ownerStripe.instanceColor.needsUpdate = true;
     this.railLeft.instanceMatrix.needsUpdate = true;
     this.railRight.instanceMatrix.needsUpdate = true;
     this.sleepers.instanceMatrix.needsUpdate = true;
@@ -340,6 +467,61 @@ class TrackVisualLayer {
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
+  }
+}
+
+class BuildProgressOverlay2D {
+  private readonly canvas: HTMLCanvasElement;
+  private readonly ctx: CanvasRenderingContext2D;
+
+  constructor() {
+    this.canvas = document.createElement("canvas");
+    this.canvas.style.cssText =
+      "position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:10015;pointer-events:none;";
+    document.body.appendChild(this.canvas);
+    this.ctx = this.canvas.getContext("2d")!;
+  }
+
+  private ensureSize(): void {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const w = Math.max(1, Math.floor(window.innerWidth * dpr));
+    const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+    if (this.canvas.width === w && this.canvas.height === h) return;
+    this.canvas.width = w;
+    this.canvas.height = h;
+  }
+
+  update(
+    bridge: WorldBridge,
+    markers: readonly {
+      worldPos: THREE.Vector3;
+      ownerColorHex: string;
+      buildStartedAtMs: number;
+      buildCompleteAtMs: number;
+    }[],
+    simNowMs: number,
+  ): void {
+    this.ensureSize();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const ctx = this.ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (markers.length === 0) return;
+    const camera = bridge.getCamera();
+    const barW = 22 * dpr;
+    const barH = 4 * dpr;
+    for (const m of markers) {
+      const total = Math.max(1, m.buildCompleteAtMs - m.buildStartedAtMs);
+      const progress = THREE.MathUtils.clamp((simNowMs - m.buildStartedAtMs) / total, 0, 1);
+      const p = m.worldPos.clone().project(camera);
+      if (p.z < -1 || p.z > 1) continue;
+      const x = (p.x * 0.5 + 0.5) * this.canvas.width;
+      const y = (1 - (p.y * 0.5 + 0.5)) * this.canvas.height - 10 * dpr;
+      ctx.fillStyle = "rgba(20,34,53,0.85)";
+      ctx.fillRect(x - barW * 0.5, y - barH * 0.5, barW, barH);
+      ctx.fillStyle = m.ownerColorHex;
+      ctx.fillRect(x - barW * 0.5 + 1 * dpr, y - barH * 0.5 + 1 * dpr, (barW - 2 * dpr) * progress, barH - 2 * dpr);
+    }
   }
 }
 
@@ -741,6 +923,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const timeBtns = [...panel.querySelectorAll("button[data-time]")] as HTMLButtonElement[];
 
   const visuals = new TrackVisualLayer();
+  const buildProgressOverlay = new BuildProgressOverlay2D();
   const routeVisuals = new RouteVisualLayer();
   const vehicleVisuals = new VehicleVisualLayer();
   const pendingPath: number[] = [];
@@ -1368,6 +1551,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         bridge.setDateTimeUtc?.(new Date(simNow).toISOString());
         bridge.setPaused?.(snap.clock.paused);
         visuals.update(bridge, snap.tracks, now, Number.isFinite(simNow) ? simNow : now);
+        buildProgressOverlay.update(bridge, visuals.getBuildMarkers(), simNow);
         routeVisuals.update(bridge, snap, getNetState()?.clientId ?? null);
         vehicleVisuals.update(bridge, snap);
         if (placingTrack) rebuildLegalNextPreview();
@@ -1383,6 +1567,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         now,
         Number.isFinite(simNow) ? simNow : now,
       );
+      buildProgressOverlay.update(bridge, visuals.getBuildMarkers(), simNow);
       routeVisuals.update(bridge, lastSnapshot, getNetState()?.clientId ?? null);
       vehicleVisuals.update(bridge, lastSnapshot);
     }

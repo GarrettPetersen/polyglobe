@@ -119,10 +119,23 @@ interface InstancedBucket {
 }
 
 interface CachedScreenLabel {
+  id: string;
   x: number;
   y: number;
   alpha: number;
   text: string;
+}
+
+interface SmoothedScreenLabel {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  alpha: number;
+  targetX: number;
+  targetY: number;
+  targetAlpha: number;
+  lastSeenFrame: number;
 }
 
 interface RankedIndex {
@@ -1107,9 +1120,11 @@ export function buildUrbanSettlementVisuals(
   const lastVisibilityCameraQuat = new THREE.Quaternion();
   let hasVisibilityCameraSnapshot = false;
   let labelProjectionFrameCounter = 0;
+  let labelDrawFrameCounter = 0;
   let lastLabelViewportW = 0;
   let lastLabelViewportH = 0;
   const cachedScreenLabels: CachedScreenLabel[] = [];
+  const smoothedScreenLabels = new Map<string, SmoothedScreenLabel>();
   const clampStats: PlacementClampStats = {
     attempted: 0,
     clampSkipped: 0,
@@ -1256,6 +1271,7 @@ export function buildUrbanSettlementVisuals(
     viewportHeight: number,
   ): void {
     if (!URBAN_ENABLE_LABELS) return;
+    labelDrawFrameCounter++;
     const w = Math.max(1, viewportWidth);
     const h = Math.max(1, viewportHeight);
     labelProjectionFrameCounter++;
@@ -1276,11 +1292,41 @@ export function buildUrbanSettlementVisuals(
         const sy = (1 - (_tmp.y * 0.5 + 0.5)) * h;
         if (sx < -60 || sx > w + 60 || sy < -20 || sy > h + 20) continue;
         cachedScreenLabels.push({
+          id: `${e.tileId}|${e.cityLabel}`,
           x: sx,
           y: sy,
           alpha: e.labelOpacity,
           text: e.cityLabel,
         });
+      }
+      const seen = new Set<string>();
+      for (let i = 0; i < cachedScreenLabels.length; i++) {
+        const label = cachedScreenLabels[i]!;
+        seen.add(label.id);
+        const existing = smoothedScreenLabels.get(label.id);
+        if (existing) {
+          existing.targetX = label.x;
+          existing.targetY = label.y;
+          existing.targetAlpha = label.alpha;
+          existing.text = label.text;
+          existing.lastSeenFrame = labelDrawFrameCounter;
+        } else {
+          smoothedScreenLabels.set(label.id, {
+            id: label.id,
+            text: label.text,
+            x: label.x,
+            y: label.y,
+            alpha: 0,
+            targetX: label.x,
+            targetY: label.y,
+            targetAlpha: label.alpha,
+            lastSeenFrame: labelDrawFrameCounter,
+          });
+        }
+      }
+      for (const [id, s] of smoothedScreenLabels) {
+        if (seen.has(id)) continue;
+        s.targetAlpha = 0;
       }
     }
     ctx.save();
@@ -1288,10 +1334,17 @@ export function buildUrbanSettlementVisuals(
     ctx.textBaseline = "middle";
     ctx.font = "600 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
     ctx.fillStyle = "#ffffff";
-    for (let i = 0; i < cachedScreenLabels.length; i++) {
-      const label = cachedScreenLabels[i]!;
-      ctx.globalAlpha = label.alpha;
-      ctx.fillText(label.text, label.x, label.y);
+    for (const [id, s] of smoothedScreenLabels) {
+      s.x += (s.targetX - s.x) * 0.36;
+      s.y += (s.targetY - s.y) * 0.36;
+      s.alpha += (s.targetAlpha - s.alpha) * 0.42;
+      if (s.alpha < 0.01 && labelDrawFrameCounter - s.lastSeenFrame > 12) {
+        smoothedScreenLabels.delete(id);
+        continue;
+      }
+      if (s.alpha <= 0.001) continue;
+      ctx.globalAlpha = Math.max(0, Math.min(1, s.alpha));
+      ctx.fillText(s.text, s.x, s.y);
     }
     ctx.restore();
   }

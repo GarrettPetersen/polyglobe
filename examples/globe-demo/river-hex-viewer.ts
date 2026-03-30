@@ -11,6 +11,7 @@ const R_IN = 0.38;
 const COL_SPACING = 3.25;
 const Z_TOP = 0;
 const Z_PIT = -0.14;
+const TRACK_Z = Z_TOP + 0.03;
 
 type Ring2 = [number, number][];
 
@@ -28,6 +29,67 @@ function hexRing2d(r: number, ccw: boolean): Ring2 {
 function ringVertex(i: number, r: number, z: number): THREE.Vector3 {
   const ang = (Math.PI / 3) * i - Math.PI / 6;
   return new THREE.Vector3(Math.cos(ang) * r, Math.sin(ang) * r, z);
+}
+
+function edgeMidpoint(i: number, r: number, z: number): THREE.Vector3 {
+  const a = ringVertex(i, r, z);
+  const b = ringVertex((i + 1) % 6, r, z);
+  return a.add(b).multiplyScalar(0.5);
+}
+
+function addTrackSegmentForEdge(parent: THREE.Group, edgeIndex: number): void {
+  const start = edgeMidpoint(edgeIndex, R_OUT * 0.93, TRACK_Z);
+  const end = new THREE.Vector3(0, 0, TRACK_Z);
+  const dir = end.clone().sub(start);
+  const len = dir.length();
+  if (len < 1e-6) return;
+  dir.divideScalar(len);
+  const perp = new THREE.Vector3(-dir.y, dir.x, 0).normalize();
+  const gap = 0.034;
+
+  const railGeom = new THREE.BoxGeometry(0.008, len, 0.008);
+  const railMat = new THREE.MeshStandardMaterial({
+    color: 0xbfc8d6,
+    roughness: 0.6,
+    metalness: 0.25,
+  });
+  const sleeperGeom = new THREE.BoxGeometry(0.072, 0.008, 0.01);
+  const sleeperMat = new THREE.MeshStandardMaterial({
+    color: 0x70573f,
+    roughness: 0.9,
+    metalness: 0.05,
+  });
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const mid = start.clone().add(end).multiplyScalar(0.5);
+
+  const left = new THREE.Mesh(railGeom, railMat);
+  left.position.copy(mid).addScaledVector(perp, gap * 0.5);
+  left.quaternion.copy(q);
+  parent.add(left);
+
+  const right = new THREE.Mesh(railGeom, railMat.clone());
+  right.position.copy(mid).addScaledVector(perp, -gap * 0.5);
+  right.quaternion.copy(q);
+  parent.add(right);
+
+  const sleepers = 4;
+  for (let i = 1; i <= sleepers; i++) {
+    const t = i / (sleepers + 1);
+    const p = start.clone().lerp(end, t);
+    const s = new THREE.Mesh(sleeperGeom, sleeperMat);
+    s.position.copy(p);
+    s.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), perp);
+    parent.add(s);
+  }
+}
+
+function makeTrackOverlayGroup(trackEdgeIndices: number[]): THREE.Group {
+  const g = new THREE.Group();
+  g.name = "TrackOverlay";
+  for (const edge of trackEdgeIndices) {
+    addTrackSegmentForEdge(g, edge);
+  }
+  return g;
 }
 
 function makePatternGroup(riverEdgeIndices: number[]): THREE.Group {
@@ -189,14 +251,36 @@ function main() {
   scene.background = new THREE.Color(0x0a0d12);
 
   const row = new THREE.Group();
+  const cells: THREE.Group[] = [];
+  const selectedTrackEdges = new Set<number>();
   const n = PATTERNS.length;
   const x0 = ((-n + 1) * COL_SPACING) / 2;
   for (let i = 0; i < n; i++) {
-    const g = makePatternGroup(PATTERNS[i].edges);
-    g.position.x = x0 + i * COL_SPACING;
-    row.add(g);
+    const cell = new THREE.Group();
+    cell.position.x = x0 + i * COL_SPACING;
+    cell.add(makePatternGroup(PATTERNS[i].edges));
+    row.add(cell);
+    cells.push(cell);
   }
   scene.add(row);
+
+  function refreshTrackOverlays(): void {
+    for (const cell of cells) {
+      const old = cell.getObjectByName("TrackOverlay");
+      if (old) {
+        cell.remove(old);
+        old.traverse((o) => {
+          if (!(o instanceof THREE.Mesh)) return;
+          o.geometry.dispose();
+          if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+          else o.material.dispose();
+        });
+      }
+      if (selectedTrackEdges.size > 0) {
+        cell.add(makeTrackOverlayGroup([...selectedTrackEdges.values()]));
+      }
+    }
+  }
 
   scene.add(new THREE.AmbientLight(0x6a7a88, 1));
   const d = new THREE.DirectionalLight(0xffffff, 0.55);
@@ -227,6 +311,26 @@ function main() {
       `<div class="leg-item"><span class="leg-num">${i + 1}</span><span class="leg-title">${escapeHtml(p.title)}</span></div>`
   ).join("");
 
+  const togglesRoot = document.getElementById("track-toggles");
+  if (togglesRoot) {
+    for (let e = 0; e < 6; e++) {
+      const label = document.createElement("label");
+      label.className = "track-toggle";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.addEventListener("change", () => {
+        if (cb.checked) selectedTrackEdges.add(e);
+        else selectedTrackEdges.delete(e);
+        refreshTrackOverlays();
+      });
+      const text = document.createElement("span");
+      text.textContent = `Edge ${e}`;
+      label.append(cb, text);
+      togglesRoot.appendChild(label);
+    }
+  }
+  refreshTrackOverlays();
+
   window.addEventListener("resize", () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
@@ -247,7 +351,7 @@ function main() {
   tick();
 
   const status = document.getElementById("status");
-  if (status) status.textContent = "";
+  if (status) status.textContent = "Use Track overlays toggles to test 6 edge directions.";
 }
 
 main();
