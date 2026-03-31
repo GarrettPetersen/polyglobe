@@ -31,19 +31,7 @@ interface WorldBridge {
 }
 
 interface SessionSetup {
-  startCityId: string;
   colorHex: string;
-}
-
-function latLonDegToDirection(latDeg: number, lonDeg: number): THREE.Vector3 {
-  const latRad = (latDeg * Math.PI) / 180;
-  const lonRad = (lonDeg * Math.PI) / 180;
-  const cosLat = Math.cos(latRad);
-  return new THREE.Vector3(
-    cosLat * Math.cos(lonRad),
-    Math.sin(latRad),
-    -cosLat * Math.sin(lonRad),
-  ).normalize();
 }
 
 declare global {
@@ -761,6 +749,179 @@ class RouteVisualLayer {
   }
 }
 
+class RouteCityArrowLayer {
+  private readonly group = new THREE.Group();
+  private arrows: THREE.InstancedMesh | null = null;
+  private routeIdByInstance: string[] = [];
+  private startTileIdByInstance: number[] = [];
+  private nextTileIdByInstance: number[] = [];
+  private currentKey = "";
+
+  attach(scene: THREE.Scene): void {
+    this.group.name = "RailwaysRouteCityArrows";
+    scene.add(this.group);
+  }
+
+  getInteractiveObjects(): THREE.Object3D[] {
+    return this.arrows ? [this.arrows] : [];
+  }
+
+  getRouteIdForIntersection(hit: THREE.Intersection<THREE.Object3D>): string | null {
+    const idx = hit.instanceId;
+    if (idx == null) return null;
+    return this.routeIdByInstance[idx] ?? null;
+  }
+
+  getSpawnForIntersection(
+    hit: THREE.Intersection<THREE.Object3D>,
+  ): { startTileId: number; nextTileId: number } | null {
+    const idx = hit.instanceId;
+    if (idx == null) return null;
+    const start = this.startTileIdByInstance[idx];
+    const next = this.nextTileIdByInstance[idx];
+    if (!Number.isInteger(start) || !Number.isInteger(next)) return null;
+    return { startTileId: start!, nextTileId: next! };
+  }
+
+  update(
+    bridge: WorldBridge,
+    snap: RailwaysAuthoritativeState,
+    localClientId: string | null,
+    visibleRouteIds: readonly string[],
+    cityTileToCityId: ReadonlyMap<number, string>,
+  ): void {
+    const key =
+      visibleRouteIds.join(",") +
+      "|" +
+      snap.playerRoutes.map((r) => `${r.routeId}:${r.tileIds.length}:${r.ownerClientId}`).join(",") +
+      "|" +
+      cityTileToCityId.size;
+    if (key === this.currentKey) return;
+    this.currentKey = key;
+    this.rebuild(bridge, snap, localClientId, visibleRouteIds, cityTileToCityId);
+  }
+
+  private clear(): void {
+    if (!this.arrows) return;
+    this.group.remove(this.arrows);
+    this.arrows.geometry.dispose();
+    const mat = this.arrows.material;
+    if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+    else mat.dispose();
+    this.arrows = null;
+    this.routeIdByInstance = [];
+    this.startTileIdByInstance = [];
+    this.nextTileIdByInstance = [];
+  }
+
+  private isCityTile(tileId: number, cityTileToCityId: ReadonlyMap<number, string>): boolean {
+    return cityTileToCityId.has(tileId);
+  }
+
+  private rebuild(
+    bridge: WorldBridge,
+    snap: RailwaysAuthoritativeState,
+    localClientId: string | null,
+    visibleRouteIds: readonly string[],
+    cityTileToCityId: ReadonlyMap<number, string>,
+  ): void {
+    this.clear();
+    if (visibleRouteIds.length === 0) return;
+    const globe = bridge.getGlobe();
+    const terrain = bridge.getTileTerrain();
+    if (!globe || !terrain) return;
+
+    const visibleSet = new Set(visibleRouteIds);
+    const playerColor = new Map<string, string>();
+    for (const p of snap.players) playerColor.set(p.clientId, p.colorHex);
+
+    type ArrowSpec = { routeId: string; fromTileId: number; toTileId: number; color: THREE.Color };
+    const specs: ArrowSpec[] = [];
+
+    for (const route of snap.playerRoutes) {
+      if (!visibleSet.has(route.routeId)) continue;
+      if (route.tileIds.length < 2) continue;
+      const colorHex =
+        playerColor.get(route.ownerClientId) ??
+        (route.ownerClientId === localClientId ? "#7ecbff" : "#cfd8e6");
+      const routeColor = new THREE.Color(colorHex);
+
+      // Only generate arrows when the route actually includes the city tile itself.
+      const tileIds = route.isLoop ? [...route.tileIds, route.tileIds[0]!] : route.tileIds;
+      for (let i = 0; i < tileIds.length - 1; i++) {
+        const a = tileIds[i]!;
+        const b = tileIds[i + 1]!;
+        if (this.isCityTile(a, cityTileToCityId)) {
+          // Arrow at city exit pointing along the route away from city.
+          specs.push({ routeId: route.routeId, fromTileId: a, toTileId: b, color: routeColor.clone() });
+        }
+        if (this.isCityTile(b, cityTileToCityId)) {
+          specs.push({ routeId: route.routeId, fromTileId: b, toTileId: a, color: routeColor.clone() });
+        }
+      }
+    }
+
+    if (specs.length === 0) return;
+
+    const geom = new THREE.ConeGeometry(0.0014, 0.0048, 10, 1);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.arrows = new THREE.InstancedMesh(geom, mat, Math.max(1, specs.length));
+    this.arrows.frustumCulled = false;
+    this.arrows.renderOrder = 95;
+    this.arrows.name = "RouteCityArrows";
+    this.group.add(this.arrows);
+
+    const posA = new THREE.Vector3();
+    const posB = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    const dirTangent = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const fwd = new THREE.Vector3();
+    const basis = new THREE.Matrix4();
+    const model = new THREE.Matrix4();
+    let idx = 0;
+    for (const s of specs) {
+      const ta = globe.getTile(s.fromTileId);
+      const tb = globe.getTile(s.toTileId);
+      if (!ta || !tb) continue;
+      const ea = terrain.get(s.fromTileId)?.elevation ?? 0;
+      const eb = terrain.get(s.toTileId)?.elevation ?? 0;
+      up.copy(ta.center).normalize();
+      posA.copy(up).multiplyScalar(globe.radius + ea * 0.08 + 0.0076);
+      posB.copy(tb.center).normalize().multiplyScalar(globe.radius + eb * 0.08 + 0.0076);
+      dir.copy(posB).sub(posA).normalize();
+
+      // Cone geometry points along local +Y by default.
+      // We want the arrow to point along the route direction on the tangent plane at the city.
+      dirTangent.copy(dir).addScaledVector(up, -dir.dot(up));
+      if (dirTangent.lengthSq() < 1e-12) continue;
+      fwd.copy(dirTangent).normalize();              // local +Y
+      right.crossVectors(fwd, up);                   // local +X (right-handed)
+      if (right.lengthSq() < 1e-12) continue;
+      right.normalize();
+      basis.makeBasis(right, fwd, up);               // X=right, Y=forward, Z=up
+      model.copy(basis);
+      model.setPosition(posA.clone().addScaledVector(up, 0.0012));
+      this.arrows.setMatrixAt(idx, model);
+      this.arrows.setColorAt(idx, s.color);
+      this.routeIdByInstance[idx] = s.routeId;
+      this.startTileIdByInstance[idx] = s.fromTileId;
+      this.nextTileIdByInstance[idx] = s.toTileId;
+      idx++;
+    }
+    this.arrows.count = idx;
+    this.arrows.instanceMatrix.needsUpdate = true;
+    if (this.arrows.instanceColor) this.arrows.instanceColor.needsUpdate = true;
+  }
+}
+
 class VehicleVisualLayer {
   private readonly group = new THREE.Group();
   private readonly loader = new GLTFLoader();
@@ -948,7 +1109,9 @@ class PassengerVisualLayer {
 
   update(bridge: WorldBridge, snap: RailwaysAuthoritativeState): void {
     const passengers = snap.economy.shipments.filter((s) => s.goodId === "passengers");
-    const key = passengers.map((p) => `${p.shipmentId}:${p.currentTileId}:${p.status}`).join("|");
+    const key = passengers
+      .map((p) => `${p.shipmentId}:${p.currentTileId}:${p.status}:${p.destinationCityId}`)
+      .join("|");
     if (key === this.key) return;
     this.key = key;
     this.rebuild(bridge, passengers);
@@ -968,6 +1131,19 @@ class PassengerVisualLayer {
     this.body = null;
   }
 
+  private colorForDestination(cityId: string): THREE.Color {
+    // Deterministic, visually distinct color from cityId. (Small, fast hash.)
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < cityId.length; i++) {
+      h ^= cityId.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    const hue = (h % 360) / 360;
+    const sat = 0.72;
+    const lit = 0.56;
+    return new THREE.Color().setHSL(hue, sat, lit);
+  }
+
   private rebuild(
     bridge: WorldBridge,
     passengers: Array<RailwaysAuthoritativeState["economy"]["shipments"][number]>,
@@ -984,9 +1160,15 @@ class PassengerVisualLayer {
     );
     this.body = new THREE.InstancedMesh(
       new THREE.SphereGeometry(0.00062, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0x6ea6d8, roughness: 0.82, metalness: 0.04 }),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.82,
+        metalness: 0.04,
+        vertexColors: true,
+      }),
       Math.max(1, passengers.length),
     );
+
     this.head.frustumCulled = false;
     this.body.frustumCulled = false;
     this.group.add(this.body, this.head);
@@ -998,6 +1180,8 @@ class PassengerVisualLayer {
     const basis = new THREE.Matrix4();
     const model = new THREE.Matrix4();
     const scale = new THREE.Matrix4();
+    const color = new THREE.Color();
+
     for (const s of passengers) {
       const tid = s.currentTileId ?? s.originTileId;
       if (tid == null) continue;
@@ -1016,6 +1200,8 @@ class PassengerVisualLayer {
       model.copy(basis).multiply(scale);
       model.setPosition(pos.clone().addScaledVector(up, 0.00042));
       this.body.setMatrixAt(idx, model);
+      color.copy(this.colorForDestination(s.destinationCityId));
+      this.body.setColorAt(idx, color);
       model.copy(basis);
       model.setPosition(pos.clone().addScaledVector(up, 0.00126));
       this.head.setMatrixAt(idx, model);
@@ -1025,6 +1211,7 @@ class PassengerVisualLayer {
     this.body.count = idx;
     this.head.instanceMatrix.needsUpdate = true;
     this.body.instanceMatrix.needsUpdate = true;
+    if (this.body.instanceColor) this.body.instanceColor.needsUpdate = true;
   }
 }
 
@@ -1494,6 +1681,8 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     <div id="rwHudClock" style="white-space:nowrap">Time: --</div>
     <div id="rwHudTrackCost" style="white-space:nowrap">Planned cost: £0</div>
     <div id="rwHudRouteInfo" style="white-space:nowrap">Route plan: none</div>
+    <div id="rwHudCityInfo" style="white-space:nowrap;opacity:0.95">City: none</div>
+    <div id="rwHudCityDemand" style="white-space:nowrap;opacity:0.88"> </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
       <button class="rw-time-btn" data-time="pause" type="button" title="Pause">⏸</button>
       <button class="rw-time-btn" data-time="play1" type="button" title="1:1">▶</button>
@@ -1515,13 +1704,10 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     </div>
     <div id="rwRouteMenu" class="rw-submenu" style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
       <button id="rwRouteBackBtn" type="button">← Back</button>
-      <button id="rwRouteModeBtn" type="button">Route Mode</button>
+      <button id="rwPlaceSeaRouteBtn" class="rw-chunky-btn" type="button">Place sea route</button>
+      <button id="rwPlaceRailRouteBtn" class="rw-chunky-btn" type="button">Place rail route</button>
       <button id="rwRouteConfirmBtn" type="button" disabled>Confirm Route</button>
       <button id="rwRouteCancelBtn" type="button" disabled>Cancel Route</button>
-      <select id="rwRouteTypeSel">
-        <option value="rail">Rail</option>
-        <option value="water">Water</option>
-      </select>
     </div>
     <div id="rwVehicleMenu" class="rw-submenu" style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.18)">
       <button id="rwVehicleBackBtn" type="button">← Back</button>
@@ -1566,6 +1752,8 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const clockEl = panel.querySelector("#rwHudClock") as HTMLDivElement;
   const costEl = panel.querySelector("#rwHudTrackCost") as HTMLDivElement;
   const routeInfoEl = panel.querySelector("#rwHudRouteInfo") as HTMLDivElement;
+  const cityInfoEl = panel.querySelector("#rwHudCityInfo") as HTMLDivElement;
+  const cityDemandEl = panel.querySelector("#rwHudCityDemand") as HTMLDivElement;
   const mainMenuEl = panel.querySelector("#rwMainMenu") as HTMLDivElement;
   const trackMenuEl = panel.querySelector("#rwTrackMenu") as HTMLDivElement;
   const routeMenuEl = panel.querySelector("#rwRouteMenu") as HTMLDivElement;
@@ -1583,10 +1771,10 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const trackUndoBtn = panel.querySelector("#rwTrackUndoBtn") as HTMLButtonElement;
   const trackConfirmBtn = panel.querySelector("#rwTrackConfirmBtn") as HTMLButtonElement;
   const trackCancelBtn = panel.querySelector("#rwTrackCancelBtn") as HTMLButtonElement;
-  const routeModeBtn = panel.querySelector("#rwRouteModeBtn") as HTMLButtonElement;
   const routeConfirmBtn = panel.querySelector("#rwRouteConfirmBtn") as HTMLButtonElement;
   const routeCancelBtn = panel.querySelector("#rwRouteCancelBtn") as HTMLButtonElement;
-  const routeTypeSel = panel.querySelector("#rwRouteTypeSel") as HTMLSelectElement;
+  const placeSeaRouteBtn = panel.querySelector("#rwPlaceSeaRouteBtn") as HTMLButtonElement;
+  const placeRailRouteBtn = panel.querySelector("#rwPlaceRailRouteBtn") as HTMLButtonElement;
   const assignSelectedBtn = panel.querySelector("#rwAssignSelectedBtn") as HTMLButtonElement;
   const unassignSelectedBtn = panel.querySelector("#rwUnassignSelectedBtn") as HTMLButtonElement;
   const clearSelectionBtn = panel.querySelector("#rwClearSelectionBtn") as HTMLButtonElement;
@@ -1609,18 +1797,21 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const buildProgressOverlay = new BuildProgressOverlay2D();
   const trackPlanCostOverlay = new TrackPlanCostOverlay2D();
   const routeVisuals = new RouteVisualLayer();
+  const routeCityArrows = new RouteCityArrowLayer();
   const vehicleVisuals = new VehicleVisualLayer();
   const passengerVisuals = new PassengerVisualLayer();
   const pendingPath: number[] = [];
   const pendingRoutePath: number[] = [];
   let placingTrack = false;
   let planningRoute = false;
+  let planningRouteMode: "rail" | "water" | null = null;
   let lastSnapshot: RailwaysAuthoritativeState | null = null;
   let bridge: WorldBridge | undefined;
   let previewGroup: THREE.Group | null = null;
   let legalNextGroup: THREE.Group | null = null;
   let routePreviewGroup: THREE.Group | null = null;
   let waterCityCandidateGroup: THREE.Group | null = null;
+  let seaStartCityCandidateGroup: THREE.Group | null = null;
   const cityTileToCityId = new Map<number, string>();
   const reachableWaterCityTiles = new Set<number>();
   const pendingRouteCityStops: number[] = [];
@@ -1635,7 +1826,8 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     | null = null;
   let selectedVehicleId: string | null = null;
   const selectedInventoryVehicleIds = new Set<string>();
-  let pendingAutoRoute: { path: number[]; isLoop: boolean } | null = null;
+  let selectedCityTileId: number | null = null;
+  // Auto-route-from-track was removed; routes are created manually.
   let pendingModal:
     | {
         message: string;
@@ -1661,20 +1853,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     );
   }
 
-  function openDecisionModal(
-    message: string,
-    onYes: () => void,
-    onNo?: () => void,
-    yesLabel = "Yes",
-    noLabel = "No",
-  ): void {
-    pendingModal = { message, yesLabel, noLabel, onYes, onNo };
-    modalMessageEl.textContent = message;
-    modalYesBtn.textContent = yesLabel;
-    modalNoBtn.textContent = noLabel;
-    modalBackdrop.classList.add("active");
-  }
-
+  // Decision modal is no longer used (auto-route removed). Keep close handler for safety.
   function closeDecisionModal(accepted: boolean): void {
     const active = pendingModal;
     if (!active) return;
@@ -1704,6 +1883,23 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     return !!rivers?.has(tileId);
   }
 
+  function computeMyNetworkTiles(snap: RailwaysAuthoritativeState): Set<number> {
+    const meId = getNetState()?.clientId;
+    const out = new Set<number>();
+    if (!meId) return out;
+    for (const t of snap.tracks) {
+      if (t.ownerClientId !== meId) continue;
+      if (t.status !== "active") continue;
+      out.add(t.fromTileId);
+      out.add(t.toTileId);
+    }
+    for (const r of snap.playerRoutes) {
+      if (r.ownerClientId !== meId) continue;
+      for (const tid of r.tileIds) out.add(tid);
+    }
+    return out;
+  }
+
   function updateTrackButtons(): void {
     trackConfirmBtn.disabled = pendingPath.length < 2 || !placingTrack;
     trackUndoBtn.disabled = pendingPath.length === 0 || !placingTrack;
@@ -1714,10 +1910,9 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   function updateRouteButtons(): void {
     routeConfirmBtn.disabled = pendingRoutePath.length < 2 || !planningRoute;
     routeCancelBtn.disabled = pendingRoutePath.length === 0;
-    routeModeBtn.textContent = planningRoute ? "Exit Route Mode" : "Plan Route";
     routeInfoEl.textContent =
       pendingRoutePath.length >= 2
-        ? `Route plan: ${routeTypeSel.value}, ${pendingRoutePath.length} hexes`
+        ? `Route plan: ${planningRouteMode ?? "?"}, ${pendingRoutePath.length} hexes`
         : "Route plan: none";
   }
 
@@ -1928,7 +2123,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     routePreviewGroup = new THREE.Group();
     const geom = new THREE.BufferGeometry().setFromPoints(points);
     const mat = new THREE.LineDashedMaterial({
-      color: routeTypeSel.value === "water" ? 0x6ad5ff : 0xffc87a,
+      color: planningRouteMode === "water" ? 0x6ad5ff : 0xffc87a,
       dashSize: 0.008,
       gapSize: 0.005,
       transparent: true,
@@ -1966,13 +2161,12 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   }
 
   function rebuildCityTileIndexFromSnapshot(snap: RailwaysAuthoritativeState): void {
-    if (!bridge) return;
-    const g = bridge.getGlobe();
-    if (!g) return;
     cityTileToCityId.clear();
     for (const c of snap.economy.cities) {
-      const tid = g.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
-      if (!cityTileToCityId.has(tid)) cityTileToCityId.set(tid, c.cityId);
+      const tid = c.tileId;
+      if (Number.isInteger(tid) && tid >= 0 && !cityTileToCityId.has(tid)) {
+        cityTileToCityId.set(tid, c.cityId);
+      }
     }
   }
 
@@ -2076,23 +2270,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     return out;
   }
 
-  function sendChooseStartingCityWhenConnected(): void {
-    const attempt = () => {
-      const st = getNetState();
-      if (!st?.connected) return false;
-      sendNetCommand({
-        kind: "chooseStartingCity",
-        cityId: sessionSetup.startCityId,
-        colorHex: sessionSetup.colorHex,
-      });
-      requestNetSnapshot();
-      return true;
-    };
-    if (attempt()) return;
-    const id = window.setInterval(() => {
-      if (attempt()) window.clearInterval(id);
-    }, 250);
-  }
+  // Starting city removed.
 
   function planRailSegment(fromTileId: number, toTileId: number): number[] | null {
     const snap = lastSnapshot;
@@ -2118,6 +2296,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
 
   function appendRouteTile(tileId: number): void {
     if (!bridge) return;
+    if (!planningRouteMode) return;
     if (pendingRoutePath.length === 0) {
       pendingRoutePath.push(tileId);
       return;
@@ -2132,7 +2311,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       return;
     }
     let segment: number[] | null = null;
-    if (routeTypeSel.value === "water") {
+    if (planningRouteMode === "water") {
       segment = planWaterSegment(last, tileId);
     } else {
       segment = planRailSegment(last, tileId);
@@ -2276,12 +2455,19 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     routeId: string,
     snap: RailwaysAuthoritativeState,
     selected: PlayerVehicleState[],
+    spawn?: { startTileId: number; nextTileId: number },
   ): void {
     const route = snap.playerRoutes.find((r) => r.routeId === routeId);
     if (!route) return;
     if (route.mode === "water") {
       const shipIds = selected.filter((v) => v.kind === "sail_ship").map((v) => v.vehicleId);
-      sendNetCommand({ kind: "assignVehiclesToRoute", routeId, vehicleIds: shipIds });
+      sendNetCommand({
+        kind: "assignVehiclesToRoute",
+        routeId,
+        vehicleIds: shipIds,
+        startTileId: spawn?.startTileId,
+        nextTileId: spawn?.nextTileId,
+      });
       requestNetSnapshot();
       return;
     }
@@ -2289,7 +2475,13 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     const carIds = selected
       .filter((v) => v.kind === "passenger_carriage" || v.kind === "wagon")
       .map((v) => v.vehicleId);
-    sendNetCommand({ kind: "assignVehiclesToRoute", routeId, vehicleIds: locoIds });
+    sendNetCommand({
+      kind: "assignVehiclesToRoute",
+      routeId,
+      vehicleIds: locoIds,
+      startTileId: spawn?.startTileId,
+      nextTileId: spawn?.nextTileId,
+    });
     if (locoIds.length > 0 && carIds.length > 0) {
       const byLoco = new Map<string, string[]>();
       for (const locoId of locoIds) byLoco.set(locoId, []);
@@ -2399,6 +2591,17 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       inventoryGridEl.appendChild(card);
     }
     routeVisuals.setHighlightedRoutes(activeHudMenu === "vehicle" ? intent.validRouteIds : []);
+    if (bridge) {
+      routeCityArrows.update(
+        bridge,
+        snap,
+        meId ?? null,
+        activeHudMenu === "vehicle" && (intent.mode === "routeRail" || intent.mode === "routeWater")
+          ? intent.validRouteIds
+          : [],
+        cityTileToCityId,
+      );
+    }
     if (selectedVehicleId) {
       const sv = myVehicles.find((v) => v.vehicleId === selectedVehicleId);
       if (sv) {
@@ -2419,9 +2622,41 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       selectedVehicleInfoEl.textContent = "Selected vehicle: none";
       unassignAtCityBtn.disabled = true;
     }
+    // City demand info (passengers) shown under the city name.
+    if (selectedCityTileId != null) {
+      const cityId = cityTileToCityId.get(selectedCityTileId) ?? null;
+      const city = cityId ? snap.economy.cities.find((c) => c.cityId === cityId) ?? null : null;
+      cityInfoEl.textContent = city ? `City: ${city.city}` : `City: ${String(cityId ?? "unknown")}`;
+      const herePassengers = snap.economy.shipments.filter(
+        (s) =>
+          s.goodId === "passengers" &&
+          s.status === "pending" &&
+          (s.currentTileId ?? s.originTileId) === selectedCityTileId,
+      );
+      if (herePassengers.length === 0) {
+        cityDemandEl.textContent = " ";
+      } else {
+        const counts = new Map<string, number>();
+        for (const s of herePassengers) {
+          counts.set(s.destinationCityId, (counts.get(s.destinationCityId) ?? 0) + (s.units ?? 1));
+        }
+        const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]!;
+        const destCity = snap.economy.cities.find((c) => c.cityId === top[0]) ?? null;
+        const label = destCity ? destCity.city : top[0];
+        cityDemandEl.textContent = `Passengers for ${label}${top[1] > 1 ? ` (${top[1]})` : ""}`;
+      }
+    } else {
+      cityInfoEl.textContent = "City: none";
+      cityDemandEl.textContent = " ";
+    }
     inventorySummaryEl.textContent = `Inventory - Loco: ${counts.get("locomotive_front") ?? 0}/2, Carriage: ${
       counts.get("passenger_carriage") ?? 0
     }/4, Cargo: ${counts.get("wagon") ?? 0}/4, Ships: ${counts.get("sail_ship") ?? 0}/3`;
+  }
+
+  function explainNetworkConstraint(): void {
+    assignHintEl.textContent =
+      "Must connect to your existing network. Create a sea route to connect new islands/continents before building rails there.";
   }
 
   function undoLastTrackStep(): void {
@@ -2444,25 +2679,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     return clockAnchorSimMs + Math.max(0, nowWallMs - clockAnchorWallMs) * clockAnchorSpeed;
   }
 
-  function maybeAutoCreateRouteFromBuiltTrack(snap: RailwaysAuthoritativeState): void {
-    if (!pendingAutoRoute) return;
-    const meId = getNetState()?.clientId;
-    if (!meId) return;
-    for (let i = 1; i < pendingAutoRoute.path.length; i++) {
-      const a = Math.min(pendingAutoRoute.path[i - 1]!, pendingAutoRoute.path[i]!);
-      const b = Math.max(pendingAutoRoute.path[i - 1]!, pendingAutoRoute.path[i]!);
-      const tr = snap.tracks.find((t) => t.fromTileId === a && t.toTileId === b && t.ownerClientId === meId);
-      if (!tr || tr.status !== "active") return;
-    }
-    sendNetCommand({
-      kind: "createRoute",
-      mode: "rail",
-      tileIds: [...pendingAutoRoute.path],
-      isLoop: pendingAutoRoute.isLoop,
-      name: "Auto Route",
-    });
-    pendingAutoRoute = null;
-  }
+  // maybeAutoCreateRouteFromBuiltTrack removed.
 
   function onWorldClick(ev: MouseEvent | PointerEvent): void {
     if (!bridge) return;
@@ -2521,6 +2738,25 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
           }
         }
       }
+      const arrowHit = ray.intersectObjects(routeCityArrows.getInteractiveObjects(), true);
+      if (arrowHit.length > 0) {
+        const routeId = routeCityArrows.getRouteIdForIntersection(arrowHit[0]!);
+        const spawn = routeCityArrows.getSpawnForIntersection(arrowHit[0]!);
+        if (routeId) {
+          const meId = getNetState()?.clientId;
+          const myRoutes = snapNow.playerRoutes.filter((r) => r.ownerClientId === meId);
+          const myVehicles = snapNow.playerVehicles.filter((v) => v.ownerClientId === meId);
+          const intent = computeAssignIntent(myVehicles, myRoutes);
+          if (
+            (intent.mode === "routeRail" || intent.mode === "routeWater") &&
+            intent.validRouteIds.includes(routeId)
+          ) {
+            if (spawn) sendAssignSelectionToRoute(routeId, snapNow, intent.selected, spawn);
+            else sendAssignSelectionToRoute(routeId, snapNow, intent.selected);
+            return;
+          }
+        }
+      }
     }
     if ((!placingTrack && !planningRoute) || !globe) return;
     let hit: THREE.Intersection<THREE.Object3D> | null = null;
@@ -2574,10 +2810,22 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     ) {
       tileId = snappedCityTile;
     }
+    // Record selected city tile (for HUD), if any.
+    if (snappedCityTile != null) {
+      selectedCityTileId = snappedCityTile;
+      if (snapNow) refreshInventoryUi(snapNow);
+    }
     if (placingTrack) {
       if (pendingPath.length === 0) {
         const startTile = resolveTrackStartTile(tileId, dir);
         if (startTile == null) return;
+        if (snapNow) {
+          const net = computeMyNetworkTiles(snapNow);
+          if (net.size > 0 && !net.has(startTile)) {
+            explainNetworkConstraint();
+            return;
+          }
+        }
         pendingPath.push(startTile);
       } else {
         const last = pendingPath[pendingPath.length - 1]!;
@@ -2601,13 +2849,21 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       updatePlanCostText();
       updateTrackUndoHotspot();
     } else if (planningRoute) {
-      if (routeTypeSel.value === "water") {
+      if (planningRouteMode === "water") {
         const cityTile = resolveClickedCityTile(tileId);
         if (cityTile == null) return;
         if (pendingRouteCityStops.length === 0) {
+          if (snapNow) {
+            const net = computeMyNetworkTiles(snapNow);
+            if (net.size > 0 && !net.has(cityTile)) {
+              explainNetworkConstraint();
+              return;
+            }
+          }
           pendingRouteCityStops.push(cityTile);
           pendingRoutePath.length = 0;
           pendingRoutePath.push(cityTile);
+          clearSeaStartCityCandidates();
           rebuildWaterCityCandidates(cityTile);
         } else {
           const lastCity = pendingRouteCityStops[pendingRouteCityStops.length - 1]!;
@@ -2658,7 +2914,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   });
   mainRouteBtn.addEventListener("click", () => {
     exitTrackPlanning();
-    planningRoute = true;
+    exitRoutePlanning();
     updateRouteButtons();
     setHudMenu("route");
   });
@@ -2707,7 +2963,6 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   });
   trackConfirmBtn.addEventListener("click", () => {
     if (pendingPath.length < 2) return;
-    const plannedPath = [...pendingPath];
     const plan = computePlanCosts(pendingPath);
     const cmd: QueueTrackBuildCommand = {
       kind: "queueTrackBuild",
@@ -2716,47 +2971,90 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       terrainFlagsByStep: plan.flags,
     };
     sendNetCommand(cmd);
-    pendingPath.length = 0;
-    clearPreview();
-    clearLegalNextPreview();
-    updateTrackButtons();
-    updatePlanCostText();
-    updateTrackUndoHotspot();
+    // After confirming, exit track mode and return to main menu.
+    exitTrackPlanning();
+    setHudMenu("main");
     requestNetSnapshot();
-    openDecisionModal(
-      "Auto-create a route from this new rail line when construction completes?",
-      () => {
-        pendingAutoRoute = {
-          path: plannedPath,
-          isLoop:
-            plannedPath.length >= 3 &&
-            plannedPath[0] === plannedPath[plannedPath.length - 1],
-        };
-      },
-    );
   });
-  routeModeBtn.addEventListener("click", () => {
-    if (placingTrack) {
-      exitTrackPlanning();
+  const clearSeaStartCityCandidates = (): void => {
+    if (!seaStartCityCandidateGroup) return;
+    seaStartCityCandidateGroup.parent?.remove(seaStartCityCandidateGroup);
+    seaStartCityCandidateGroup.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.geometry.dispose();
+        const m = o.material;
+        if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+        else m.dispose();
+      }
+    });
+    seaStartCityCandidateGroup = null;
+  };
+
+  const rebuildSeaStartCityCandidates = (): void => {
+    clearSeaStartCityCandidates();
+    if (!bridge) return;
+    const g = bridge.getGlobe();
+    const terrain = bridge.getTileTerrain();
+    const scene = bridge.getScene();
+    if (!g || !terrain) return;
+    const snap = getNetState()?.lastSnapshot ?? lastSnapshot;
+    const net = snap ? computeMyNetworkTiles(snap) : new Set<number>();
+    seaStartCityCandidateGroup = new THREE.Group();
+    seaStartCityCandidateGroup.name = "SeaRouteStartCityCandidates";
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x6ad5ff,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
+    // Start city is valid if it has any water access tiles (city tile or neighbor passable by water).
+    for (const cityTile of cityTileToCityId.keys()) {
+      if (net.size > 0 && !net.has(cityTile)) continue;
+      const access = cityWaterAccessTiles(cityTile);
+      if (access.length === 0) continue;
+      const tile = g.getTile(cityTile);
+      if (!tile) continue;
+      const elev = terrain.get(cityTile)?.elevation ?? 0;
+      const p = tile.center.clone().normalize().multiplyScalar(g.radius + elev * 0.08 + 0.0058);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 10, 10), mat.clone());
+      m.position.copy(p);
+      seaStartCityCandidateGroup.add(m);
     }
-    planningRoute = !planningRoute;
-    if (!planningRoute) {
-      exitRoutePlanning();
-    } else {
-      setHudMenu("route");
+    scene.add(seaStartCityCandidateGroup);
+  };
+
+  const startRoutePlanning = (mode: "rail" | "water"): void => {
+    if (placingTrack) exitTrackPlanning();
+    // Network rule: if you already have a network, you must start new routes from it.
+    const snap = getNetState()?.lastSnapshot ?? lastSnapshot;
+    if (snap && mode === "water") {
+      // We'll enforce at the moment of picking the first city; this just refreshes candidate indicators.
     }
+    planningRouteMode = mode;
+    planningRoute = true;
+    pendingRoutePath.length = 0;
+    pendingRouteCityStops.length = 0;
+    clearRoutePreview();
+    clearWaterCityCandidates();
+    clearSeaStartCityCandidates();
+    setHudMenu("route");
+    if (planningRouteMode === "water") rebuildSeaStartCityCandidates();
     updateRouteButtons();
-  });
+  };
+
+  placeSeaRouteBtn.addEventListener("click", () => startRoutePlanning("water"));
+  placeRailRouteBtn.addEventListener("click", () => startRoutePlanning("rail"));
   routeCancelBtn.addEventListener("click", () => {
     pendingRoutePath.length = 0;
     pendingRouteCityStops.length = 0;
     clearRoutePreview();
     clearWaterCityCandidates();
+    clearSeaStartCityCandidates();
     updateRouteButtons();
   });
   routeConfirmBtn.addEventListener("click", () => {
     if (pendingRoutePath.length < 2) return;
-    const mode = routeTypeSel.value === "water" ? "water" : "rail";
+    const mode = planningRouteMode === "water" ? "water" : "rail";
     const cmd: CreateRouteCommand = {
       kind: "createRoute",
       mode,
@@ -2770,18 +3068,11 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     pendingRouteCityStops.length = 0;
     clearRoutePreview();
     clearWaterCityCandidates();
+    clearSeaStartCityCandidates();
     planningRoute = false;
+    planningRouteMode = null;
     updateRouteButtons();
     requestNetSnapshot();
-  });
-  routeTypeSel.addEventListener("change", () => {
-    if (pendingRoutePath.length > 0) {
-      pendingRoutePath.length = 0;
-      pendingRouteCityStops.length = 0;
-      clearRoutePreview();
-      clearWaterCityCandidates();
-    }
-    updateRouteButtons();
   });
 
   assignSelectedBtn.addEventListener("click", () => {
@@ -2951,6 +3242,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     if (!bridge) return false;
     visuals.attach(bridge.getScene());
     routeVisuals.attach(bridge.getScene());
+    routeCityArrows.attach(bridge.getScene());
     vehicleVisuals.attach(bridge.getScene());
     passengerVisuals.attach(bridge.getScene());
     const canvas = bridge.getRendererDomElement();
@@ -2962,7 +3254,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       if (tryAttach()) window.clearInterval(i);
     }, 200);
   }
-  sendChooseStartingCityWhenConnected();
+  // starting city removed
   setHudMenu("main");
   updateTrackButtons();
   updateRouteButtons();
@@ -3018,11 +3310,11 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         vehicleVisuals.update(bridge, snap);
         passengerVisuals.update(bridge, snap);
         if (placingTrack) rebuildLegalNextPreview();
-        if (planningRoute && routeTypeSel.value === "water" && pendingRouteCityStops.length > 0) {
+        if (planningRoute && planningRouteMode === "water" && pendingRouteCityStops.length > 0) {
           rebuildWaterCityCandidates(pendingRouteCityStops[pendingRouteCityStops.length - 1]!);
         }
       }
-      maybeAutoCreateRouteFromBuiltTrack(snap);
+      // auto-route removed
       refreshInventoryUi(snap);
     } else if (bridge && lastSnapshot) {
       const simNow = estimatedSimNowMs(now);

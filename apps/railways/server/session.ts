@@ -309,18 +309,38 @@ export class RailwaysSessionState {
   readonly state: RailwaysAuthoritativeState;
   private lastAdvanceAtMs: number;
 
+  private playerNetworkTiles(clientId: string): Set<number> {
+    const out = new Set<number>();
+    // Any owned active track endpoints.
+    for (const t of this.state.tracks) {
+      if (t.ownerClientId !== clientId) continue;
+      if (t.status !== "active") continue;
+      out.add(t.fromTileId);
+      out.add(t.toTileId);
+    }
+    // Any owned route tiles.
+    for (const r of this.state.playerRoutes) {
+      if (r.ownerClientId !== clientId) continue;
+      for (const tid of r.tileIds) out.add(tid);
+    }
+    return out;
+  }
+
   constructor(sessionId: string, config: SessionDeterminismConfig) {
     this.sessionId = sessionId;
     this.config = config;
     this.rnd = mulberry32(hashString(`${config.worldSeed}|${sessionId}`));
     const startYear = 1825;
-    const cities = loadCityCatalogForYear(startYear);
-    for (const c of cities) {
-      this.cityById.set(c.cityId, c);
+    const citiesRaw = loadCityCatalogForYear(startYear);
+    const cities: CitySummary[] = [];
+    for (const c of citiesRaw) {
       const tid = this.globe.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
-      this.cityTileIdByCityId.set(c.cityId, tid);
-      this.cityProgressById.set(c.cityId, {
-        cityId: c.cityId,
+      const city: CitySummary = { ...c, tileId: tid };
+      this.cityById.set(city.cityId, city);
+      this.cityTileIdByCityId.set(city.cityId, tid);
+      cities.push(city);
+      this.cityProgressById.set(city.cityId, {
+        cityId: city.cityId,
         xp: 0,
         level: 1,
         buildings: [],
@@ -359,7 +379,6 @@ export class RailwaysSessionState {
       role,
       colorHex:
         PLAYER_COLORS[(this.state.players.length + hashString(clientId)) % PLAYER_COLORS.length]!,
-      startCityId: null,
       fundsPounds: DEFAULT_STARTING_FUNDS_POUNDS,
     };
     this.playerByClientId.set(clientId, playerState);
@@ -378,7 +397,6 @@ export class RailwaysSessionState {
         playerName: `Bot ${i + 1}`,
         role: "client",
         colorHex: PLAYER_COLORS[(this.state.players.length + i) % PLAYER_COLORS.length]!,
-        startCityId: null,
         fundsPounds: DEFAULT_STARTING_FUNDS_POUNDS,
       };
       this.playerByClientId.set(clientId, p);
@@ -491,21 +509,6 @@ export class RailwaysSessionState {
       case "setSimSpeed": {
         this.state.clock.paused = !!command.paused;
         this.state.clock.simSpeed = clampSimSpeed(command.simSpeed);
-        this.state.stateVersion++;
-        return { ok: true };
-      }
-      case "chooseStartingCity": {
-        const player = this.playerByClientId.get(ctx.clientId);
-        if (!player) return { ok: false, reason: "unknown_player" };
-        if (!this.cityById.has(command.cityId)) return { ok: false, reason: "unknown_city" };
-        const taken = this.state.players.some(
-          (p) => p.clientId !== ctx.clientId && p.startCityId === command.cityId,
-        );
-        if (taken) return { ok: false, reason: "city_already_taken" };
-        player.startCityId = command.cityId;
-        if (/^#[0-9a-fA-F]{6}$/.test(command.colorHex)) {
-          player.colorHex = command.colorHex;
-        }
         this.state.stateVersion++;
         return { ok: true };
       }
@@ -1221,6 +1224,12 @@ export class RailwaysSessionState {
       const key = this.trackEdgeKey(e.a, e.b);
       if (this.trackKeys.has(key)) return { ok: false, reason: "path_contains_existing_track" };
     }
+    // Network rule: after you have any network, new builds must connect to it.
+    const network = this.playerNetworkTiles(clientId);
+    if (network.size > 0) {
+      const startTile = pathTileIds[0]!;
+      if (!network.has(startTile)) return { ok: false, reason: "must_connect_to_existing_network" };
+    }
     const perStepCosts = edgePairs.map((_, idx) =>
       this.perStepBuildCost(estimatedStepCosts?.[idx], terrainFlagsByStep?.[idx]),
     );
@@ -1269,6 +1278,12 @@ export class RailwaysSessionState {
           return { ok: false, reason: "rail_route_requires_active_track_edges" };
         }
       }
+    }
+    // Network rule: after you have any network, new routes must start on it.
+    const network = this.playerNetworkTiles(clientId);
+    if (network.size > 0) {
+      const startTile = cmd.tileIds[0]!;
+      if (!network.has(startTile)) return { ok: false, reason: "must_connect_to_existing_network" };
     }
     const routeId = `r-${++this.routeSeq}`;
     const route: PlayerRouteState = {
@@ -1368,6 +1383,56 @@ export class RailwaysSessionState {
           car.assignedRouteId = route.routeId;
           car.pendingUnassignAtCity = false;
           this.vehicleRuntimeById.delete(car.vehicleId);
+        }
+      }
+    }
+    // Optional: start at a chosen city tile and depart toward a chosen neighbor on the route.
+    if (Number.isInteger(cmd.startTileId) && Number.isInteger(cmd.nextTileId)) {
+      const start = cmd.startTileId as number;
+      const next = cmd.nextTileId as number;
+      const n = route.tileIds.length;
+      const startIdx = route.tileIds.indexOf(start);
+      if (startIdx >= 0) {
+        const nextIdx =
+          route.isLoop && startIdx === n - 1 && route.tileIds[0] === next
+            ? 0
+            : route.isLoop && startIdx === 0 && route.tileIds[n - 1] === next
+              ? n - 1
+              : route.tileIds[startIdx + 1] === next
+                ? startIdx + 1
+                : route.tileIds[startIdx - 1] === next
+                  ? startIdx - 1
+                  : -1;
+        if (nextIdx >= 0) {
+          const dir: 1 | -1 = nextIdx > startIdx || (route.isLoop && startIdx === n - 1 && nextIdx === 0) ? 1 : -1;
+          const now = this.currentSimMs();
+          for (const v of vehicles) {
+            const runtime: VehicleRuntimeState = {
+              routeIndex: startIdx,
+              direction: dir,
+              currentTileId: start,
+              nextTileId: next,
+              lastMoveAtMs: now,
+              nextMoveAtMs: now + this.serviceVehicleMoveIntervalMs(v.kind),
+            };
+            this.vehicleRuntimeById.set(v.vehicleId, runtime);
+            v.currentTileId = start;
+            v.nextTileId = next;
+            v.direction = dir;
+            v.lastMoveAtMs = runtime.lastMoveAtMs;
+            v.nextMoveAtMs = runtime.nextMoveAtMs;
+            if (v.kind === "locomotive_front") {
+              for (const car of this.state.playerVehicles) {
+                if (car.ownerClientId !== clientId) continue;
+                if (car.attachedToVehicleId !== v.vehicleId) continue;
+                car.currentTileId = start;
+                car.nextTileId = next;
+                car.direction = dir;
+                car.lastMoveAtMs = runtime.lastMoveAtMs;
+                car.nextMoveAtMs = runtime.nextMoveAtMs;
+              }
+            }
+          }
         }
       }
     }

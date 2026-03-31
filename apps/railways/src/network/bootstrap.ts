@@ -26,7 +26,6 @@ declare global {
       totalPlayers: number;
       botPlayers: number;
       botAuthority: "server";
-      startCityId: string;
       colorHex: string;
     };
   }

@@ -82,6 +82,10 @@ export interface AssignVehiclesToRouteCommand {
   kind: "assignVehiclesToRoute";
   routeId: string;
   vehicleIds: string[];
+  /** Optional: spawn vehicle at this tile on the route (typically a city tile). */
+  startTileId?: number;
+  /** Optional: next tile to depart toward (must be adjacent on the route). */
+  nextTileId?: number;
 }
 
 export interface AssignCarsToLocomotiveCommand {
@@ -106,7 +110,6 @@ export type RailwaysCommand =
   | QueueTrackBuildCommand
   | SetTrainRouteCommand
   | AdvanceTimeCommand
-  | ChooseStartingCityCommand
   | BuildProductionBuildingCommand
   | ResolveShipmentDeliveryCommand
   | CreateRouteCommand
@@ -146,12 +149,6 @@ export interface BuildProductionBuildingCommand {
   buildingType: ProductionBuildingType;
 }
 
-export interface ChooseStartingCityCommand {
-  kind: "chooseStartingCity";
-  cityId: string;
-  colorHex: string;
-}
-
 export interface ResolveShipmentDeliveryCommand {
   kind: "resolveShipmentDelivery";
   shipmentId: string;
@@ -181,7 +178,6 @@ export interface RailwaysPlayerState {
   playerName: string;
   role: ClientRole;
   colorHex: string;
-  startCityId: string | null;
   fundsPounds: number;
 }
 
@@ -219,6 +215,8 @@ export interface CitySummary {
   cityId: string;
   city: string;
   country: string;
+  /** Canonical city hex tile id (authoritative). */
+  tileId: number;
   lat: number;
   lon: number;
   population: number;

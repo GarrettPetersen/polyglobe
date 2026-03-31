@@ -10,7 +10,6 @@ declare global {
       totalPlayers: number;
       botPlayers: number;
       botAuthority: "server";
-      startCityId: string;
       colorHex: string;
     };
     __railwaysTimeHotkeysInstalled?: boolean;
@@ -201,19 +200,6 @@ function buildMenu(worldLoadPromise: Promise<unknown>): void {
         </select>
       </div>
       <div class="row">
-        <label for="rwStartCity">Starting City</label>
-        <select id="rwStartCity">
-          <option value="london|united kingdom" selected>London</option>
-          <option value="new york|united states">New York</option>
-          <option value="paris|france">Paris</option>
-          <option value="berlin|germany">Berlin</option>
-          <option value="mumbai|india">Bombay / Mumbai</option>
-          <option value="cairo|egypt">Cairo</option>
-          <option value="tokyo|japan">Tokyo</option>
-          <option value="buenos aires|argentina">Buenos Aires</option>
-        </select>
-      </div>
-      <div class="row">
         <label for="rwColor">Player Color</label>
         <input id="rwColor" type="color" value="#f94144" />
       </div>
@@ -236,7 +222,6 @@ function buildMenu(worldLoadPromise: Promise<unknown>): void {
   const statusEl = overlay.querySelector("#rwStatus") as HTMLDivElement;
   const playerNameInput = overlay.querySelector("#rwPlayerName") as HTMLInputElement;
   const totalPlayersSelect = overlay.querySelector("#rwTotalPlayers") as HTMLSelectElement;
-  const startCitySelect = overlay.querySelector("#rwStartCity") as HTMLSelectElement;
   const colorInput = overlay.querySelector("#rwColor") as HTMLInputElement;
   const serverUrlInput = overlay.querySelector("#rwServerUrl") as HTMLInputElement;
   const serverRow = overlay.querySelector("#rwServerRow") as HTMLDivElement;
@@ -288,7 +273,6 @@ function buildMenu(worldLoadPromise: Promise<unknown>): void {
         totalPlayers,
         botPlayers,
         botAuthority: "server",
-        startCityId: startCitySelect.value,
         colorHex: colorInput.value,
       };
 
@@ -307,7 +291,6 @@ function buildMenu(worldLoadPromise: Promise<unknown>): void {
       bootstrapRailwaysNetworkingFromUrl(new URL(window.location.href));
       installGlobalRailwaysTimeHotkeys();
       startRailwaysGameRuntime({
-        startCityId: startCitySelect.value,
         colorHex: colorInput.value,
       });
       overlay.classList.add("hidden");
