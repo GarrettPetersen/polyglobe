@@ -489,7 +489,6 @@ export class RailwaysSessionState {
         return { ok: true };
       }
       case "setSimSpeed": {
-        if (ctx.role !== "host") return { ok: false, reason: "host_only_command" };
         this.state.clock.paused = !!command.paused;
         this.state.clock.simSpeed = clampSimSpeed(command.simSpeed);
         this.state.stateVersion++;
@@ -1208,7 +1207,6 @@ export class RailwaysSessionState {
   ): CommandApplyResult {
     const player = this.playerByClientId.get(clientId);
     if (!player) return { ok: false, reason: "unknown_player" };
-    if (!player.startCityId) return { ok: false, reason: "must_pick_start_city_first" };
     if (pathTileIds.length < 2) return { ok: false, reason: "path_requires_two_or_more_tiles" };
     const edgePairs: Array<{ a: number; b: number }> = [];
     for (let i = 1; i < pathTileIds.length; i++) {

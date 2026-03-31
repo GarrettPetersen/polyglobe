@@ -73,7 +73,13 @@ export function connectRailwaysServer(
 
   return {
     sendCommand(command: RailwaysCommand): void {
-      if (socket.readyState !== WebSocket.OPEN) return;
+      if (socket.readyState !== WebSocket.OPEN) {
+        console.warn("[railways-net] sendCommand dropped (socket not open)", {
+          readyState: socket.readyState,
+          command,
+        });
+        return;
+      }
       commandSeq++;
       const msg: ClientToServerMessage = {
         type: "command",
@@ -84,7 +90,12 @@ export function connectRailwaysServer(
       socket.send(JSON.stringify(msg));
     },
     requestSnapshot(): void {
-      if (socket.readyState !== WebSocket.OPEN) return;
+      if (socket.readyState !== WebSocket.OPEN) {
+        console.warn("[railways-net] requestSnapshot dropped (socket not open)", {
+          readyState: socket.readyState,
+        });
+        return;
+      }
       const msg: ClientToServerMessage = {
         type: "requestSnapshot",
       };

@@ -71,12 +71,20 @@ function getNetState():
 
 function sendNetCommand(command: RailwaysCommand): void {
   const w = window as unknown as { __railwaysNetSendCommand?: (command: RailwaysCommand) => void };
-  w.__railwaysNetSendCommand?.(command);
+  if (!w.__railwaysNetSendCommand) {
+    console.warn("[railways-ui] net send unavailable; command dropped", command);
+    return;
+  }
+  w.__railwaysNetSendCommand(command);
 }
 
 function requestNetSnapshot(): void {
   const w = window as unknown as { __railwaysNetRequestSnapshot?: () => void };
-  w.__railwaysNetRequestSnapshot?.();
+  if (!w.__railwaysNetRequestSnapshot) {
+    console.warn("[railways-ui] net snapshot hook unavailable");
+    return;
+  }
+  w.__railwaysNetRequestSnapshot();
 }
 
 const _tmpA = new THREE.Vector3();
@@ -520,6 +528,7 @@ class BuildProgressOverlay2D {
 
   constructor() {
     this.canvas = document.createElement("canvas");
+    this.canvas.id = "rwBuildProgressOverlay2d";
     this.canvas.style.cssText =
       "position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:10015;pointer-events:none;";
     document.body.appendChild(this.canvas);
@@ -575,6 +584,7 @@ class TrackPlanCostOverlay2D {
 
   constructor() {
     this.canvas = document.createElement("canvas");
+    this.canvas.id = "rwTrackPlanCostOverlay2d";
     this.canvas.style.cssText =
       "position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:10016;pointer-events:none;";
     document.body.appendChild(this.canvas);
@@ -1335,11 +1345,12 @@ class VehicleSpriteStrip3D {
         const camera = new THREE.PerspectiveCamera(30, 56 / 38, 0.001, 10);
         camera.position.set(0.012, 0.008, 0.012);
         camera.lookAt(0, 0, 0);
+        const hemi = new THREE.HemisphereLight(0xffffff, 0x233248, 0.95);
+        const key = new THREE.DirectionalLight(0xffffff, 0.75);
+        key.position.set(1.2, 1.9, 0.9);
         scene.add(
-          new THREE.HemisphereLight(0xffffff, 0x233248, 0.95),
-          Object.assign(new THREE.DirectionalLight(0xffffff, 0.75), {
-            position: new THREE.Vector3(1.2, 1.9, 0.9),
-          }),
+          hemi,
+          key,
         );
         const root = new THREE.Group();
         scene.add(root);
@@ -1420,6 +1431,7 @@ class VehicleSpriteStrip3D {
 }
 
 export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
+  console.log("[railways-ui] startRailwaysGameRuntime boot");
   const hideDemoUi = (): void => {
     const ids = ["panel", "hexDebugPanel"];
     for (const id of ids) {
@@ -1430,6 +1442,16 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     }
   };
   hideDemoUi();
+  const removeIfExists = (id: string): void => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  };
+  // Prevent stale duplicated HUD/input layers from previous runtime boots.
+  removeIfExists("rwHudPanel");
+  removeIfExists("rwModalBackdrop");
+  removeIfExists("rwTrackUndoHotspot");
+  removeIfExists("rwBuildProgressOverlay2d");
+  removeIfExists("rwTrackPlanCostOverlay2d");
   if (!document.getElementById("rwHudUiStyle")) {
     const st = document.createElement("style");
     st.id = "rwHudUiStyle";
@@ -1437,7 +1459,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       .rw-main-actions{display:flex;gap:10px;flex-wrap:wrap}
       .rw-main-btn{min-width:182px;min-height:62px;border:1px solid rgba(200,220,255,.35);background:rgba(20,34,50,.78);color:#eaf2ff;border-radius:10px;padding:6px 10px;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;cursor:pointer}
       .rw-main-btn:hover{background:rgba(33,52,74,.9)}
-      .rw-main-icon3d{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none}
+      .rw-main-icon3d{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none;font-size:22px;line-height:1}
       .rw-submenu{display:none;gap:8px;flex-wrap:wrap;align-items:center}
       .rw-submenu.active{display:flex}
       .rw-time-btn{width:34px;height:30px;border-radius:8px}
@@ -1455,7 +1477,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       .rw-card:hover{border-color:rgba(150,220,255,.55)}
       .rw-card.selected{outline:2px solid rgba(110,220,255,.95);background:rgba(22,52,76,.96)}
       .rw-card.glow{box-shadow:0 0 0 2px rgba(126,203,255,.55),0 0 18px rgba(126,203,255,.45)}
-      .rw-sprite-host{width:56px;height:38px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+      .rw-sprite-host{width:56px;height:38px;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:20px}
       .rw-card .k{font-size:11px;opacity:.85}
       .rw-card .id{font-size:11px;font-weight:700}
     `;
@@ -1463,6 +1485,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   }
 
   const panel = document.createElement("div");
+  panel.id = "rwHudPanel";
   panel.style.cssText =
     "position:fixed;left:0;right:0;bottom:0;z-index:10020;background:rgba(8,14,24,0.9);border-top:1px solid rgba(200,220,255,0.25);padding:8px 10px;color:#eaf2ff;font:12px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(6px)";
   panel.innerHTML = `
@@ -1531,6 +1554,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   `;
   document.body.appendChild(modalBackdrop);
   const trackUndoHotspot = document.createElement("button");
+  trackUndoHotspot.id = "rwTrackUndoHotspot";
   trackUndoHotspot.type = "button";
   trackUndoHotspot.textContent = "x";
   trackUndoHotspot.title = "Undo last track segment";
@@ -1576,18 +1600,17 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   const modalNoBtn = modalBackdrop.querySelector("#rwModalNoBtn") as HTMLButtonElement;
   const timeBtns = [...panel.querySelectorAll("button[data-time]")] as HTMLButtonElement[];
 
+  mainTrackIconHost.textContent = "🛤";
+  mainRouteIconHost.textContent = "⇄";
+  mainVehicleIconHost.textContent = "🚂⛵";
+  console.log("[railways-ui] ui webgl icons disabled (single renderer mode)");
+
   const visuals = new TrackVisualLayer();
   const buildProgressOverlay = new BuildProgressOverlay2D();
   const trackPlanCostOverlay = new TrackPlanCostOverlay2D();
   const routeVisuals = new RouteVisualLayer();
   const vehicleVisuals = new VehicleVisualLayer();
   const passengerVisuals = new PassengerVisualLayer();
-  const inventorySprites = new VehicleSpriteStrip3D();
-  const hudIcons = new HudButtonIcons3D(
-    mainTrackIconHost,
-    mainRouteIconHost,
-    mainVehicleIconHost,
-  );
   const pendingPath: number[] = [];
   const pendingRoutePath: number[] = [];
   let placingTrack = false;
@@ -1605,6 +1628,11 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   let clockAnchorWallMs = 0;
   let clockAnchorPaused = true;
   let clockAnchorSpeed = 1;
+  let lastTimeTriggerAtMs = 0;
+  let lastTimeTriggerKey = "";
+  let pendingTimeCommand:
+    | { simSpeed: number; paused: boolean; clickedAtMs: number; buttonKey: string }
+    | null = null;
   let selectedVehicleId: string | null = null;
   const selectedInventoryVehicleIds = new Set<string>();
   let pendingAutoRoute: { path: number[]; isLoop: boolean } | null = null;
@@ -2126,19 +2154,41 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     return null;
   }
 
-  function resolveTrackStartTile(tileId: number): number | null {
+  function resolveTrackStartTile(tileId: number, clickDir?: THREE.Vector3): number | null {
     if (!bridge) return null;
     const g = bridge.getGlobe();
     if (!g) return null;
     if (isRailBuildableTile(tileId)) return tileId;
     const cityTile = resolveClickedCityTile(tileId);
     if (cityTile != null && isRailBuildableTile(cityTile)) return cityTile;
-    // Near water/river overlays, click often lands one tile off; allow 1-ring snap.
-    for (const n of g.getTile(tileId)?.neighbors ?? []) {
-      if (isRailBuildableTile(n)) return n;
-      const cityN = resolveClickedCityTile(n);
-      if (cityN != null && isRailBuildableTile(cityN)) return cityN;
+    // Near water/river overlays, click can land between tiny channels. Search 2 rings and pick
+    // the candidate tile whose center best matches click direction.
+    const candidates = new Set<number>([tileId]);
+    const ring1 = g.getTile(tileId)?.neighbors ?? [];
+    for (const n of ring1) candidates.add(n);
+    for (const n of ring1) {
+      for (const n2 of g.getTile(n)?.neighbors ?? []) candidates.add(n2);
     }
+    let best: number | null = null;
+    let bestScore = -Infinity;
+    for (const c of candidates) {
+      const buildableDirect = isRailBuildableTile(c);
+      const snapped = !buildableDirect ? resolveClickedCityTile(c) : null;
+      const chosen = buildableDirect ? c : snapped != null && isRailBuildableTile(snapped) ? snapped : null;
+      if (chosen == null) continue;
+      let score = 0;
+      if (clickDir) {
+        const tc = g.getTile(chosen)?.center;
+        if (tc) score = tc.clone().normalize().dot(clickDir);
+      }
+      // Prefer direct river/city hits over snapped alternatives at equal angle.
+      if (buildableDirect) score += 0.0005;
+      if (score > bestScore) {
+        bestScore = score;
+        best = chosen;
+      }
+    }
+    if (best != null) return best;
     return null;
   }
 
@@ -2302,11 +2352,18 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       (v) => (v.assignedRouteId || v.attachedToVehicleId) && !v.pendingUnassignAtCity,
     );
     clearSelectionBtn.disabled = selectedInventoryVehicleIds.size === 0;
+    const glyphForKind = (kind: VehicleKind): string =>
+      kind === "locomotive_front"
+        ? "🚂"
+        : kind === "passenger_carriage"
+          ? "🧑"
+          : kind === "wagon"
+            ? "📦"
+            : "⛵";
     const sorted = [...myVehicles].sort((a, b) =>
       `${a.kind}:${a.vehicleId}`.localeCompare(`${b.kind}:${b.vehicleId}`),
     );
     inventoryGridEl.innerHTML = "";
-    const spriteItems: Array<{ vehicleId: string; kind: VehicleKind; host: HTMLElement }> = [];
     for (const v of sorted) {
       const card = document.createElement("button");
       card.type = "button";
@@ -2324,6 +2381,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
             : "inventory";
       const spriteHost = document.createElement("span");
       spriteHost.className = "rw-sprite-host";
+      spriteHost.textContent = glyphForKind(v.kind);
       const title = document.createElement("div");
       title.textContent = vehicleKindLabel(v.kind);
       const id = document.createElement("div");
@@ -2339,9 +2397,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
         refreshInventoryUi(snap);
       });
       inventoryGridEl.appendChild(card);
-      spriteItems.push({ vehicleId: v.vehicleId, kind: v.kind, host: spriteHost });
     }
-    inventorySprites.sync(spriteItems);
     routeVisuals.setHighlightedRoutes(activeHudMenu === "vehicle" ? intent.validRouteIds : []);
     if (selectedVehicleId) {
       const sv = myVehicles.find((v) => v.vehicleId === selectedVehicleId);
@@ -2408,7 +2464,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     pendingAutoRoute = null;
   }
 
-  function onWorldClick(ev: MouseEvent): void {
+  function onWorldClick(ev: MouseEvent | PointerEvent): void {
     if (!bridge) return;
     const snapNow = getNetState()?.lastSnapshot ?? lastSnapshot;
     const globe = bridge.getGlobe();
@@ -2469,8 +2525,23 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     if ((!placingTrack && !planningRoute) || !globe) return;
     let hit: THREE.Intersection<THREE.Object3D> | null = null;
     let fallbackPoint: THREE.Vector3 | null = null;
+    let riverHitPoint: THREE.Vector3 | null = null;
+    const sceneHitsAll = ray.intersectObjects(bridge.getScene().children, true);
+    const hasAncestorNamed = (obj: THREE.Object3D | null, name: string): boolean => {
+      let cur: THREE.Object3D | null = obj;
+      while (cur) {
+        if (cur.name === name) return true;
+        cur = cur.parent;
+      }
+      return false;
+    };
+    const riverHit = sceneHitsAll.find((h) => hasAncestorNamed(h.object, "RiverTerrain"));
+    if (riverHit) riverHitPoint = riverHit.point.clone();
     const globeHits = globeMesh ? ray.intersectObject(globeMesh, true) : [];
-    if (globeHits.length > 0) {
+    if (riverHitPoint) {
+      // Explicitly honor clicks on river-bank meshes.
+      fallbackPoint = riverHitPoint;
+    } else if (globeHits.length > 0) {
       hit = globeHits[0]!;
     } else {
       // Mesh-independent fallback: intersect the ideal globe sphere.
@@ -2480,11 +2551,10 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       if (p) fallbackPoint = p.clone();
       // River/lake surface meshes can sit above cutouts in the globe mesh.
       // Fallback to scene-wide raycast and accept hits close to globe radius.
-      const sceneHits = ray.intersectObjects(bridge.getScene().children, true);
       const minR = globe.radius * 0.88;
       const maxR = globe.radius * 1.22;
       hit =
-        sceneHits.find((h) => {
+        sceneHitsAll.find((h) => {
           const r = h.point.length();
           return Number.isFinite(r) && r >= minR && r <= maxR;
         }) ?? null;
@@ -2506,7 +2576,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     }
     if (placingTrack) {
       if (pendingPath.length === 0) {
-        const startTile = resolveTrackStartTile(tileId);
+        const startTile = resolveTrackStartTile(tileId, dir);
         if (startTile == null) return;
         pendingPath.push(startTile);
       } else {
@@ -2764,9 +2834,12 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
   modalBackdrop.addEventListener("click", (ev) => {
     if (ev.target === modalBackdrop) closeDecisionModal(false);
   });
-  for (const b of timeBtns) {
-    b.addEventListener("click", () => {
-      const key = b.dataset.time;
+  const triggerTimeButton = (keyRaw: string | undefined): void => {
+      const key = keyRaw ?? "unknown";
+      const now = performance.now();
+      if (key === lastTimeTriggerKey && now - lastTimeTriggerAtMs < 180) return;
+      lastTimeTriggerKey = key;
+      lastTimeTriggerAtMs = now;
       const map =
         key === "pause"
           ? { simSpeed: 1, paused: true }
@@ -2777,13 +2850,101 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
               : key === "play3"
                 ? { simSpeed: 5760, paused: false }
                 : { simSpeed: 17280, paused: false };
+      console.log("[railways-ui] time button clicked", {
+        button: key,
+        requested: map,
+      });
+      const ns = getNetState();
+      console.log("[railways-ui] time command net state", {
+        connected: ns?.connected ?? false,
+        clientId: ns?.clientId ?? null,
+        hasSnapshot: !!ns?.lastSnapshot,
+      });
+      pendingTimeCommand = {
+        simSpeed: map.simSpeed,
+        paused: map.paused,
+        clickedAtMs: Date.now(),
+        buttonKey: key,
+      };
       sendNetCommand({
         kind: "setSimSpeed",
         simSpeed: map.simSpeed,
         paused: map.paused,
       });
+      requestNetSnapshot();
+  };
+  console.log("[railways-ui] binding time buttons", { count: timeBtns.length });
+  for (const b of timeBtns) {
+    b.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      triggerTimeButton(b.dataset.time);
+    });
+    b.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      triggerTimeButton(b.dataset.time);
     });
   }
+  window.addEventListener("keydown", (ev) => {
+    if (ev.repeat) return;
+    const target = ev.target as HTMLElement | null;
+    const tag = target?.tagName?.toLowerCase();
+    const editing =
+      tag === "input" || tag === "textarea" || (target?.isContentEditable ?? false);
+    if (editing) return;
+    const k = ev.key;
+    if (k === "1") {
+      ev.preventDefault();
+      triggerTimeButton("play1");
+      console.log("[railways-ui] hotkey", { key: k, mappedTo: "play1" });
+      return;
+    }
+    if (k === "2") {
+      ev.preventDefault();
+      triggerTimeButton("play2");
+      console.log("[railways-ui] hotkey", { key: k, mappedTo: "play2" });
+      return;
+    }
+    if (k === "3") {
+      ev.preventDefault();
+      triggerTimeButton("play3");
+      console.log("[railways-ui] hotkey", { key: k, mappedTo: "play3" });
+      return;
+    }
+    if (k === "4") {
+      ev.preventDefault();
+      triggerTimeButton("play4");
+      console.log("[railways-ui] hotkey", { key: k, mappedTo: "play4" });
+      return;
+    }
+    if (k === "0") {
+      ev.preventDefault();
+      triggerTimeButton("pause");
+      console.log("[railways-ui] hotkey", { key: k, mappedTo: "pause" });
+      return;
+    }
+    if (k === " ") {
+      ev.preventDefault();
+      const snap = getNetState()?.lastSnapshot ?? lastSnapshot;
+      const next = snap?.clock.paused ? "play1" : "pause";
+      triggerTimeButton(next);
+      console.log("[railways-ui] hotkey", { key: "Space", mappedTo: next });
+    }
+  });
+  // Fallback: delegate from panel so time commands still fire even if direct listeners get lost.
+  panel.addEventListener(
+    "pointerdown",
+    (ev) => {
+      const target = ev.target as HTMLElement | null;
+      const btn = target?.closest?.("button[data-time]") as HTMLButtonElement | null;
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      triggerTimeButton(btn.dataset.time);
+    },
+    true,
+  );
 
   const tryAttach = () => {
     bridge = window.__railwaysWorldBridge;
@@ -2792,7 +2953,8 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     routeVisuals.attach(bridge.getScene());
     vehicleVisuals.attach(bridge.getScene());
     passengerVisuals.attach(bridge.getScene());
-    bridge.getRendererDomElement().addEventListener("click", onWorldClick);
+    const canvas = bridge.getRendererDomElement();
+    canvas.addEventListener("click", onWorldClick);
     return true;
   };
   if (!tryAttach()) {
@@ -2809,8 +2971,6 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
 
   const tick = () => {
     const now = Date.now();
-    hudIcons.update(now);
-    inventorySprites.update(now);
     const snap = getNetState()?.lastSnapshot ?? null;
     if (snap && snap !== lastSnapshot) {
       lastSnapshot = snap;
@@ -2819,6 +2979,27 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       clockAnchorWallMs = now;
       clockAnchorPaused = !!snap.clock.paused;
       clockAnchorSpeed = Number.isFinite(snap.clock.simSpeed) ? snap.clock.simSpeed : 1;
+      if (pendingTimeCommand) {
+        if (
+          snap.clock.simSpeed === pendingTimeCommand.simSpeed &&
+          snap.clock.paused === pendingTimeCommand.paused
+        ) {
+          console.log("[railways-ui] time command confirmed", {
+            button: pendingTimeCommand.buttonKey,
+            requested: {
+              simSpeed: pendingTimeCommand.simSpeed,
+              paused: pendingTimeCommand.paused,
+            },
+            applied: {
+              simSpeed: snap.clock.simSpeed,
+              paused: snap.clock.paused,
+              dateTimeUtc: snap.clock.dateTimeUtc,
+            },
+            roundTripMs: Date.now() - pendingTimeCommand.clickedAtMs,
+          });
+          pendingTimeCommand = null;
+        }
+      }
       const me = snap.players.find((p) => p.clientId === getNetState()?.clientId);
       if (me) {
         moneyEl.textContent = `Funds: £${Math.round(me.fundsPounds)}`;

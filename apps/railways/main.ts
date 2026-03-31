@@ -13,7 +13,51 @@ declare global {
       startCityId: string;
       colorHex: string;
     };
+    __railwaysTimeHotkeysInstalled?: boolean;
   }
+}
+
+function installGlobalRailwaysTimeHotkeys(): void {
+  if (window.__railwaysTimeHotkeysInstalled) return;
+  window.__railwaysTimeHotkeysInstalled = true;
+  window.addEventListener("keydown", (ev) => {
+    if (ev.repeat) return;
+    const target = ev.target as HTMLElement | null;
+    const tag = target?.tagName?.toLowerCase();
+    const editing =
+      tag === "input" || tag === "textarea" || (target?.isContentEditable ?? false);
+    if (editing) return;
+    const map =
+      ev.key === "0"
+        ? { simSpeed: 1, paused: true, key: "0" }
+        : ev.key === "1"
+          ? { simSpeed: 1, paused: false, key: "1" }
+          : ev.key === "2"
+            ? { simSpeed: 3600, paused: false, key: "2" }
+            : ev.key === "3"
+              ? { simSpeed: 5760, paused: false, key: "3" }
+              : ev.key === "4"
+                ? { simSpeed: 17280, paused: false, key: "4" }
+                : null;
+    if (!map) return;
+    ev.preventDefault();
+    const send = (window as unknown as { __railwaysNetSendCommand?: (c: unknown) => void })
+      .__railwaysNetSendCommand;
+    const req = (window as unknown as { __railwaysNetRequestSnapshot?: () => void })
+      .__railwaysNetRequestSnapshot;
+    if (!send) {
+      console.warn("[railways-main] hotkey pressed but net send hook unavailable", map);
+      return;
+    }
+    console.log("[railways-main] global time hotkey", map);
+    send({
+      kind: "setSimSpeed",
+      simSpeed: map.simSpeed,
+      paused: map.paused,
+    });
+    req?.();
+  });
+  console.log("[railways-main] global time hotkeys installed");
 }
 
 function ensureBaseRailwaysUrlState(): void {
@@ -35,6 +79,9 @@ function ensureBaseRailwaysUrlState(): void {
 function injectMenuCss(): void {
   const style = document.createElement("style");
   style.textContent = `
+    #panel, #hexDebugPanel {
+      display: none !important;
+    }
     #railwaysMenuOverlay {
       position: fixed;
       inset: 0;
@@ -258,6 +305,7 @@ function buildMenu(worldLoadPromise: Promise<unknown>): void {
       }
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
       bootstrapRailwaysNetworkingFromUrl(new URL(window.location.href));
+      installGlobalRailwaysTimeHotkeys();
       startRailwaysGameRuntime({
         startCityId: startCitySelect.value,
         colorHex: colorInput.value,
@@ -271,6 +319,8 @@ function buildMenu(worldLoadPromise: Promise<unknown>): void {
   });
 }
 
+console.log("[railways-main] module loaded", { href: window.location.href });
+installGlobalRailwaysTimeHotkeys();
 ensureBaseRailwaysUrlState();
 const worldLoadPromise = import("../../examples/globe-demo/main.ts");
 buildMenu(worldLoadPromise);
