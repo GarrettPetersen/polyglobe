@@ -741,7 +741,9 @@ function mapCitiesToCandidatePlacements(
     for (const nid of tile.neighbors) {
       const terr = tileTerrain.get(nid);
       if (terr?.lakeId != null) continue;
+      // Beach tiles are underwater ocean tiles in this project; treat them as ocean adjacency.
       if (terr?.oceanRegionId != null) return true;
+      if (terr?.type === "beach") return true;
     }
     return false;
   };
@@ -801,16 +803,11 @@ function mapCitiesToCandidatePlacements(
       tileTerrain,
       desiredLandmassId,
     );
-    let tileId = deconflictCityMountainTileId(
-      globe,
-      initialTileId,
-      cityDir,
-      tileTerrain,
-      mountainDirsByTile,
-      desiredLandmassId,
-    );
     const wantsOcean = !!c.coastalIntent;
     const wantsLake = !!c.lakeIntent;
+    // Coastal intent should win over mountain avoidance. We'll pick the best coastal candidate first,
+    // then apply mountain deconflict only if it doesn't break the intended coastal adjacency.
+    let tileId = initialTileId;
     if (debugThisCity) {
       console.log("[urban-settlements][city-place] start", {
         city: c.city,
@@ -823,13 +820,10 @@ function mapCitiesToCandidatePlacements(
         initialTileId,
         initialType: tileTerrain.get(initialTileId)?.type,
         initialInfo: coastalNeighborInfo(initialTileId),
-        afterMountainTileId: tileId,
-        afterMountainType: tileTerrain.get(tileId)?.type,
-        afterMountainInfo: coastalNeighborInfo(tileId),
         wantsOcean,
         wantsLake,
-        isOceanCoastal: isTileOceanCoastal(tileId),
-        isLakeCoastal: isTileLakeCoastal(tileId),
+        isOceanCoastal: isTileOceanCoastal(initialTileId),
+        isLakeCoastal: isTileLakeCoastal(initialTileId),
       });
     }
     const isOceanCoastalNow = isTileOceanCoastal(tileId);
@@ -875,14 +869,7 @@ function mapCitiesToCandidatePlacements(
         });
       }
       if (target != null) {
-        tileId = deconflictCityMountainTileId(
-          globe,
-          target,
-          cityDir,
-          tileTerrain,
-          mountainDirsByTile,
-          desiredLandmassId,
-        );
+        tileId = target;
         if (debugThisCity) {
           console.log("[urban-settlements][city-place] bumped", {
             finalTileId: tileId,
@@ -892,6 +879,44 @@ function mapCitiesToCandidatePlacements(
             finalIsLakeCoastal: isTileLakeCoastal(tileId),
           });
         }
+      }
+    }
+
+    const coastalPreferredTileId = tileId;
+    const mountainAdjustedTileId = deconflictCityMountainTileId(
+      globe,
+      coastalPreferredTileId,
+      cityDir,
+      tileTerrain,
+      mountainDirsByTile,
+      desiredLandmassId,
+    );
+    const mountainBreaksOcean = wantsOcean && !isTileOceanCoastal(mountainAdjustedTileId);
+    const mountainBreaksLake = wantsLake && !isTileLakeCoastal(mountainAdjustedTileId);
+    if (mountainBreaksOcean || mountainBreaksLake) {
+      if (debugThisCity) {
+        console.log("[urban-settlements][city-place] mountain-bump-skipped", {
+          coastalPreferredTileId,
+          coastalPreferredType: tileTerrain.get(coastalPreferredTileId)?.type,
+          coastalPreferredInfo: coastalNeighborInfo(coastalPreferredTileId),
+          mountainAdjustedTileId,
+          mountainAdjustedType: tileTerrain.get(mountainAdjustedTileId)?.type,
+          mountainAdjustedInfo: coastalNeighborInfo(mountainAdjustedTileId),
+          reason: mountainBreaksOcean
+            ? "would break ocean coastal intent"
+            : "would break lake coastal intent",
+        });
+      }
+      tileId = coastalPreferredTileId;
+    } else {
+      tileId = mountainAdjustedTileId;
+      if (debugThisCity && mountainAdjustedTileId !== coastalPreferredTileId) {
+        console.log("[urban-settlements][city-place] mountain-bumped", {
+          from: coastalPreferredTileId,
+          to: mountainAdjustedTileId,
+          toType: tileTerrain.get(mountainAdjustedTileId)?.type,
+          toInfo: coastalNeighborInfo(mountainAdjustedTileId),
+        });
       }
     }
     candidates.push({
