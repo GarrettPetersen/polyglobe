@@ -1816,28 +1816,45 @@ export async function resolveLandWaterByRegions(
       let lakeSum = 0;
       for (const f of s.oceanFractions.values()) oceanSum += f;
       for (const f of s.lakeFractions.values()) lakeSum += f;
-      if (lakeSum > oceanSum) {
-        let bestLake = 0;
-        let bestF = 0;
-        for (const [id, f] of s.lakeFractions) {
-          if (f > bestF) {
-            bestF = f;
-            bestLake = id;
-          }
+      let bestLake = 0;
+      let bestLakeF = 0;
+      for (const [id, f] of s.lakeFractions) {
+        if (f > bestLakeF) {
+          bestLakeF = f;
+          bestLake = id;
         }
-        assign.set(tile.id, { isLand: false, lakeId: bestLake || undefined });
+      }
+      let bestOcean = 0;
+      let bestOceanF = 0;
+      for (const [id, f] of s.oceanFractions) {
+        if (f > bestOceanF) {
+          bestOceanF = f;
+          bestOcean = id;
+        }
+      }
+
+      /**
+       * Lake bias: large lakes often get under-counted at coarse hex resolution because we sample
+       * only a handful of points per tile. If *any* lake polygon touches the tile (bestLakeF > 0),
+       * prefer classifying it as a lake unless ocean coverage clearly dominates.
+       *
+       * This prevents major inland lakes from being treated as ocean water and beachified.
+       */
+      const hasAnyLake = bestLake > 0 && bestLakeF > 0;
+      const oceanClearlyDominates =
+        oceanSum > 0 &&
+        (bestOceanF >= 0.45 || oceanSum >= lakeSum * 3.5) &&
+        bestLakeF < 0.18;
+      const chooseLake =
+        hasAnyLake && !oceanClearlyDominates && (bestLakeF >= 0.06 || lakeSum >= 0.12);
+
+      if (chooseLake) {
+        assign.set(tile.id, { isLand: false, lakeId: bestLake });
       } else {
-        let bestOcean = 0;
-        let bestF = 0;
-        for (const [id, f] of s.oceanFractions) {
-          if (f > bestF) {
-            bestF = f;
-            bestOcean = id;
-          }
-        }
         assign.set(tile.id, {
           isLand: false,
-          oceanRegionId: bestOcean || undefined,
+          // Persist an explicit "ocean" id even if we don't have multiple ocean components yet.
+          oceanRegionId: bestOcean || 1,
         });
       }
     }
@@ -1938,7 +1955,7 @@ export async function resolveLandWaterByRegions(
             break;
           }
         }
-        assign.set(tid, { isLand: false, oceanRegionId: oceanId });
+        assign.set(tid, { isLand: false, oceanRegionId: oceanId ?? 1 });
         changed = true;
       }
     }
@@ -1998,7 +2015,7 @@ export async function resolveLandWaterByRegions(
       const sizeA = reachableA.size;
       const sizeB = reachableB.size;
       const oceanId = sizeA >= sizeB ? oceanIdA : oceanIdB;
-      assign.set(tid, { isLand: false, oceanRegionId: oceanId });
+      assign.set(tid, { isLand: false, oceanRegionId: oceanId ?? 1 });
       changed = true;
       break;
     }
@@ -2249,7 +2266,7 @@ export async function resolveLandWaterByRegions(
         else if (!neighborCut) flipId = nid;
         else continue;
         const oceanId = 1;
-        assign.set(flipId, { isLand: false, oceanRegionId: oceanId });
+        assign.set(flipId, { isLand: false, oceanRegionId: oceanId ?? 1 });
         changed = true;
         break;
       }
@@ -2279,7 +2296,7 @@ export async function resolveLandWaterByRegions(
           const waterNeighbor = t.neighbors.find((n) => !assign.get(n)?.isLand);
           if (waterNeighbor != null) {
             const oceanId = assign.get(waterNeighbor)?.oceanRegionId ?? 1;
-            assign.set(tid, { isLand: false, oceanRegionId: oceanId });
+            assign.set(tid, { isLand: false, oceanRegionId: oceanId ?? 1 });
             changed = true;
             break;
           }
@@ -2462,6 +2479,7 @@ export async function buildTerrainFromEarthRaster(
     const land = lw ? lw.isLand : result.land;
     if (land) landTileCount++;
     const lakeId = lw?.lakeId;
+    const oceanRegionId = lw?.oceanRegionId;
     const effectiveResult = { ...result, land };
 
     // Track variance stats
@@ -2501,6 +2519,7 @@ export async function buildTerrainFromEarthRaster(
       type,
       elevation: elev,
       landmassId: lw?.landmassId,
+      oceanRegionId: oceanRegionId ?? undefined,
       lakeId: lakeId ?? undefined,
       isHilly: isHilly || undefined,
     };

@@ -87,9 +87,12 @@ const templateCache = new Map<string, THREE.Group>();
 const templatePartsCache = new Map<string, TemplatePart[]>();
 const footprintRadiusCache = new Map<string, number>();
 
-const MAX_VISIBLE_SETTLEMENTS = 24;
-const MAX_VISIBLE_BUILDINGS = 280;
-const MAX_VISIBLE_DISTANCE = 1.05;
+// Visibility budgets: tuned for interactive railways play.
+// When zoomed in (e.g., London), we still want to see nearby cross-border cities (e.g., NL/BE),
+// so keep a larger nearest-settlement budget within the local distance window.
+const MAX_VISIBLE_SETTLEMENTS = 60;
+const MAX_VISIBLE_BUILDINGS = 520;
+const MAX_VISIBLE_DISTANCE = 1.18;
 const LABEL_FADE_IN_DISTANCE = 0.56;
 const LABEL_FADE_OUT_DISTANCE = 0.66;
 const LABEL_WORLD_LIFT = 1.016;
@@ -104,7 +107,7 @@ const ADJACENT_CORNER_RADIUS_FRAC = 0.42;
 const URBAN_TERRAIN_ELEVATION_SCALE = 0.08;
 const URBAN_SURFACE_LIFT = 0.00055;
 const URBAN_ENABLE_LABELS = true;
-const MAX_VISIBLE_LABELS = 14;
+const MAX_VISIBLE_LABELS = 22;
 const VISIBILITY_UPDATE_FRAME_STRIDE = 8;
 
 interface TemplatePart {
@@ -179,6 +182,7 @@ interface SettlementRenderEntry {
   population: number;
   lat: number;
   lon: number;
+  coastalIntent: boolean;
   normal: THREE.Vector3;
   bankVertexDirs: THREE.Vector3[];
   hasRiver: boolean;
@@ -215,6 +219,8 @@ interface CandidateCityPlacement {
   tileId: number;
   originalTileId: number;
   landmassId?: number;
+  coastalIntent: boolean;
+  lakeIntent: boolean;
 }
 
 interface MountainLatLonEntry {
@@ -710,6 +716,59 @@ function mapCitiesToCandidatePlacements(
   mountainEntries: readonly MountainLatLonEntry[] | null | undefined,
 ): CandidateCityPlacement[] {
   const mountainDirsByTile = buildMountainDirsByTile(globe, mountainEntries);
+  const isOceanWaterType = (type: string | undefined, lakeId?: number): boolean => {
+    if (lakeId != null) return false;
+    if (!type) return false;
+    const t = type.toLowerCase();
+    return t === "water" || t === "beach" || t === "ocean" || t === "sea";
+  };
+  const isTileOceanCoastal = (tileId: number): boolean => {
+    const tile = globe.getTile(tileId);
+    if (!tile) return false;
+    for (const nid of tile.neighbors) {
+      const terr = tileTerrain.get(nid);
+      if (isOceanWaterType(terr?.type, terr?.lakeId)) return true;
+    }
+    return false;
+  };
+  const isTileLakeCoastal = (tileId: number): boolean => {
+    const tile = globe.getTile(tileId);
+    if (!tile) return false;
+    for (const nid of tile.neighbors) {
+      if (tileTerrain.get(nid)?.lakeId != null) return true;
+    }
+    return false;
+  };
+  const findNearestCoastalBuildableTileId = (
+    startTileId: number,
+    desiredLandmassId: number | undefined,
+    wantOcean: boolean,
+    wantLake: boolean,
+  ): number | null => {
+    const q: Array<{ id: number; d: number }> = [{ id: startTileId, d: 0 }];
+    const seen = new Set<number>([startTileId]);
+    let qi = 0;
+    while (qi < q.length) {
+      const cur = q[qi++]!;
+      const tt = tileTerrain.get(cur.id);
+      const landOk =
+        isBuildableLandType(tt?.type) && (desiredLandmassId == null || tt?.landmassId === desiredLandmassId);
+      if (landOk) {
+        const okOcean = !wantOcean || isTileOceanCoastal(cur.id);
+        const okLake = !wantLake || isTileLakeCoastal(cur.id);
+        if (okOcean && okLake) return cur.id;
+      }
+      if (cur.d >= 5) continue;
+      const tile = globe.getTile(cur.id);
+      if (!tile) continue;
+      for (const nId of tile.neighbors) {
+        if (seen.has(nId)) continue;
+        seen.add(nId);
+        q.push({ id: nId, d: cur.d + 1 });
+      }
+    }
+    return null;
+  };
   const candidates: CandidateCityPlacement[] = [];
   for (const c of cities) {
     const cityDir = latLonDegToDirection(c.lat, c.lon).clone();
@@ -725,7 +784,7 @@ function mapCitiesToCandidatePlacements(
       tileTerrain,
       desiredLandmassId,
     );
-    const tileId = deconflictCityMountainTileId(
+    let tileId = deconflictCityMountainTileId(
       globe,
       initialTileId,
       cityDir,
@@ -733,6 +792,32 @@ function mapCitiesToCandidatePlacements(
       mountainDirsByTile,
       desiredLandmassId,
     );
+    const wantsOcean = !!c.coastalIntent;
+    const wantsLake = !!c.lakeIntent;
+    if ((wantsOcean || wantsLake) && !isTileOceanCoastal(tileId) && !isTileLakeCoastal(tileId)) {
+      // Priority rules for cities that are between lake and ocean:
+      // 1) try a tile touching both, 2) ocean coast, 3) lake coast.
+      const tryBoth = wantsOcean && wantsLake
+        ? findNearestCoastalBuildableTileId(tileId, desiredLandmassId, true, true)
+        : null;
+      const tryOcean = wantsOcean
+        ? findNearestCoastalBuildableTileId(tileId, desiredLandmassId, true, false)
+        : null;
+      const tryLake = wantsLake
+        ? findNearestCoastalBuildableTileId(tileId, desiredLandmassId, false, true)
+        : null;
+      const target = tryBoth ?? tryOcean ?? tryLake;
+      if (target != null) {
+        tileId = deconflictCityMountainTileId(
+          globe,
+          target,
+          cityDir,
+          tileTerrain,
+          mountainDirsByTile,
+          desiredLandmassId,
+        );
+      }
+    }
     candidates.push({
       id: c.id,
       city: c.city,
@@ -740,8 +825,10 @@ function mapCitiesToCandidatePlacements(
       lat: c.lat,
       lon: c.lon,
       tileId,
-      originalTileId: tileId,
+      originalTileId: rawTileId,
       landmassId: desiredLandmassId,
+      coastalIntent: c.coastalIntent,
+      lakeIntent: c.lakeIntent,
     });
   }
   return candidates;
@@ -957,6 +1044,66 @@ export function buildUrbanSettlementVisuals(
   );
   const acceptedSelected = accepted;
 
+  const isCoastWaterType = (type: string | undefined): boolean => {
+    if (!type) return false;
+    const t = type.toLowerCase();
+    return t === "water" || t === "beach" || t === "ocean" || t === "sea";
+  };
+  const isTileCoastal = (tileId: number): boolean => {
+    const tile = globe.getTile(tileId);
+    if (!tile) return false;
+    for (const nid of tile.neighbors) {
+      const terr = tileTerrain.get(nid);
+      if (isCoastWaterType(terr?.type, terr?.lakeId)) return true;
+    }
+    return false;
+  };
+  const coastalIntentCount = acceptedSelected.reduce(
+    (s, c) => s + (c.coastalIntent ? 1 : 0),
+    0,
+  );
+  const coastalIntentButInland = acceptedSelected
+    .filter((c) => c.coastalIntent && !isTileCoastal(c.tileId))
+    .map((c) => ({
+      tileId: c.tileId,
+      city: c.city,
+      population: Math.round(c.population),
+      lat: Number(c.lat.toFixed(5)),
+      lon: Number(c.lon.toFixed(5)),
+    }));
+  console.log("[urban-settlements] worldwide placement stats", {
+    year,
+    inputCities: cities.length,
+    candidates: candidates.length,
+    accepted: acceptedSelected.length,
+    coastalIntent: coastalIntentCount,
+    coastalIntentButInland: coastalIntentButInland.length,
+  });
+  if (coastalIntentButInland.length > 0) {
+    console.warn(
+      "[urban-settlements] coastal-intent but not coastal tiles",
+      coastalIntentButInland.slice(0, 120),
+    );
+  }
+
+  // Always print a small targeted diagnostic for a couple known-problem ports.
+  // This helps even when they aren't flagged coastalIntent by our heuristic.
+  const KNOWN_CITY_TOKENS = new Set(["riga", "saint petersburg", "st petersburg"]);
+  const known = acceptedSelected
+    .filter((c) => KNOWN_CITY_TOKENS.has(c.city.trim().toLowerCase()))
+    .map((c) => ({
+      city: c.city,
+      population: Math.round(c.population),
+      tileId: c.tileId,
+      isTileCoastal: isTileCoastal(c.tileId),
+      coastalIntent: c.coastalIntent,
+      lat: Number(c.lat.toFixed(5)),
+      lon: Number(c.lon.toFixed(5)),
+    }));
+  if (known.length > 0) {
+    console.warn("[urban-settlements] known port diagnostics", known);
+  }
+
   const cityExpectedLandmassByCityId = new Map<string, number>();
   const cityPlacedLandmassByCityId = new Map<string, number>();
   const wrongLandmassCities: Array<{
@@ -1067,6 +1214,7 @@ export function buildUrbanSettlementVisuals(
       population: s.population,
       lat: s.lat,
       lon: s.lon,
+      coastalIntent: (s as unknown as { coastalIntent?: boolean }).coastalIntent ?? false,
       normal: tileToNormal(tile).clone(),
       bankVertexDirs: tile.vertices.map((v) => v.clone().normalize()),
       hasRiver: riverFlowByTile?.has(s.tileId) ?? false,
@@ -1131,7 +1279,6 @@ export function buildUrbanSettlementVisuals(
     overlapSkipped: 0,
     drawn: 0,
   };
-  let lastClampStatsLoggedAttempted = -1;
   let hasShownOverlapAlert = false;
 
   function update(camera: THREE.Camera): void {
@@ -1242,26 +1389,7 @@ export function buildUrbanSettlementVisuals(
         im.instanceMatrix.needsUpdate = true;
       }
     }
-    if (
-      clampStats.attempted > 0 &&
-      clampStats.attempted !== lastClampStatsLoggedAttempted
-    ) {
-      lastClampStatsLoggedAttempted = clampStats.attempted;
-      const clampFrac = clampStats.clampSkipped / clampStats.attempted;
-      const overlapFrac = clampStats.overlapSkipped / clampStats.attempted;
-      const totalSkip = clampStats.clampSkipped + clampStats.overlapSkipped;
-      const totalSkipFrac = totalSkip / clampStats.attempted;
-      console.log("[urban-settlements] placement stats", {
-        attempted: clampStats.attempted,
-        drawn: clampStats.drawn,
-        clampSkipped: clampStats.clampSkipped,
-        overlapSkipped: clampStats.overlapSkipped,
-        totalSkipped: totalSkip,
-        clampFraction: Number(clampFrac.toFixed(4)),
-        overlapFraction: Number(overlapFrac.toFixed(4)),
-        totalSkipFraction: Number(totalSkipFrac.toFixed(4)),
-      });
-    }
+    // Per-frame stats logging removed; use the worldwide placement log above.
   }
 
   function drawLabels2D(

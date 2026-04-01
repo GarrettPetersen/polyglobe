@@ -9,6 +9,7 @@
 export type TerrainType =
   // Water / special
   | "water"
+  | "lake"
   | "beach"
   | "mountain"
   

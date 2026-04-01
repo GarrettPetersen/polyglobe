@@ -863,15 +863,20 @@ async function buildCacheForSubdivisions(
     console.warn("globe-runtime-bake write failed:", e);
   }
 
-  const tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1; m?: number }> = [];
+  const tiles: Array<{ id: number; t: string; e: number; l?: number; o?: number; h?: 1; m?: number }> = [];
   for (let i = 0; i < globe.tileCount; i++) {
     const d = tileTerrain.get(i)!;
-    const o: { id: number; t: string; e: number; l?: number; h?: 1; m?: number } = {
+    const type = d.lakeId != null && d.type === "water" ? "lake" : d.type;
+    const o: { id: number; t: string; e: number; l?: number; o?: number; h?: 1; m?: number } = {
       id: i,
-      t: d.type,
+      t: type,
       e: d.elevation,
     };
     if (d.lakeId != null) o.l = d.lakeId;
+    // Persist explicit ocean-vs-lake classification so runtime never infers from terrain type.
+    // If oceanRegionId isn't computed, default to ocean id=1 for any non-lake water-ish tile.
+    if (d.oceanRegionId != null) o.o = d.oceanRegionId;
+    else if (d.lakeId == null && (type === "water" || type === "beach" || type === "ice")) o.o = 1;
     if (d.isHilly) o.h = 1;
     if (d.landmassId != null) o.m = d.landmassId;
     tiles.push(o);

@@ -17,6 +17,7 @@ export interface TerrainStyle {
 export const TERRAIN_STYLES: Record<TerrainType, TerrainStyle> = {
   // Water / special
   water: { color: 0x2a5a8a, roughness: 0.2, metalness: 0.1 },
+  lake: { color: 0x234f7a, roughness: 0.25, metalness: 0.05 },
   beach: { color: 0xe8d8a8, roughness: 0.9, metalness: 0 },
   mountain: { color: 0x8b8b8b, roughness: 0.95, metalness: 0 },
   
@@ -76,6 +77,8 @@ export interface TileTerrainData {
   elevation: number;
   /** Contiguous raster landmass id (when region-based resolver is used). */
   landmassId?: number;
+  /** Ocean component id when this tile is ocean water (not a lake). */
+  oceanRegionId?: number;
   /** Linear RGB 0–1 from {@link TERRAIN_STYLES}[type]; filled by {@link precomputeTileTerrainWeatherFields}. */
   baseR?: number;
   baseG?: number;

@@ -6,6 +6,7 @@ import { Globe, type TileTerrainData } from "../../../src/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, "..", "public");
+const EARTH_REGION_GRID_BIN = join(PUBLIC, "earth-region-grid.bin");
 const INPUT_CSV = join(
   PUBLIC,
   "datasets",
@@ -29,10 +30,12 @@ const OUTPUT_DIR = join(PUBLIC, "datasets", "urbanization-dominance-pruned");
 const OUTPUT_CSV = join(OUTPUT_DIR, "urbanization-dominance-pruned.csv");
 const OUTPUT_README = join(OUTPUT_DIR, "README.md");
 const DEFAULT_SUBDIVISIONS = 7;
-const DOMINANCE_MAX_RINGS = 6;
-const DOMINANCE_MIN_RINGS = 1;
-const ISOLATION_KEEP_RINGS = 4;
-const COASTAL_PORT_KEEP_RINGS = 10;
+// Aggressive pruning to reduce dense micro-clusters (Benelux/Ruhr/UK etc.)
+// while still preserving isolated/costal “port” anchors for gameplay.
+const DOMINANCE_MAX_RINGS = 10;
+const DOMINANCE_MIN_RINGS = 2;
+const ISOLATION_KEEP_RINGS = 3;
+const COASTAL_PORT_KEEP_RINGS = 8;
 
 type CsvRow = {
   city: string;
@@ -209,6 +212,73 @@ function collectSameOrNeighborTileIds(globe: Globe, tileId: number): number[] {
   return out;
 }
 
+function isCoastWaterType(type: string | undefined, lakeId?: number): boolean {
+  if (lakeId != null) return false;
+  if (!type) return false;
+  const t = type.toLowerCase();
+  return t === "water" || t === "beach" || t === "ocean" || t === "sea";
+}
+
+function rasterIJFromLatLon(
+  latDeg: number,
+  lonDeg: number,
+  width: number,
+  height: number,
+): { i: number; j: number } {
+  const i = Math.max(0, Math.min(width - 1, Math.round(((lonDeg + 180) / 360) * (width - 1))));
+  const j = Math.max(0, Math.min(height - 1, Math.round(((90 - latDeg) / 180) * (height - 1))));
+  return { i, j };
+}
+
+function wrapI(i: number, width: number): number {
+  const w = width;
+  return ((i % w) + w) % w;
+}
+
+function isLandmassEdgePixel(
+  landmassId: Uint32Array,
+  width: number,
+  height: number,
+  i: number,
+  j: number,
+  lm: number,
+): boolean {
+  const idx = j * width + i;
+  if (landmassId[idx] !== lm) return false;
+  const iL = wrapI(i - 1, width);
+  const iR = wrapI(i + 1, width);
+  const jU = Math.max(0, j - 1);
+  const jD = Math.min(height - 1, j + 1);
+  const n0 = landmassId[j * width + iL];
+  const n1 = landmassId[j * width + iR];
+  const n2 = landmassId[jU * width + i];
+  const n3 = landmassId[jD * width + i];
+  return n0 !== lm || n1 !== lm || n2 !== lm || n3 !== lm;
+}
+
+function distanceToLandmassEdgePx(
+  landmassId: Uint32Array,
+  width: number,
+  height: number,
+  i0: number,
+  j0: number,
+  lm: number,
+  maxDist: number,
+): number | null {
+  for (let d = 0; d <= maxDist; d++) {
+    for (let dj = -d; dj <= d; dj++) {
+      const j = j0 + dj;
+      if (j < 0 || j >= height) continue;
+      const di = d - Math.abs(dj);
+      const iA = wrapI(i0 - di, width);
+      const iB = wrapI(i0 + di, width);
+      if (isLandmassEdgePixel(landmassId, width, height, iA, j, lm)) return d;
+      if (di !== 0 && isLandmassEdgePixel(landmassId, width, height, iB, j, lm)) return d;
+    }
+  }
+  return null;
+}
+
 function dominanceInfluenceRings(population: number): number {
   const raw = 0.8 + 1.25 * Math.log10(Math.max(1, population));
   return Math.max(
@@ -219,7 +289,8 @@ function dominanceInfluenceRings(population: number): number {
 
 function dominanceRatioThreshold(distance: number, radius: number): number {
   const t = Math.max(0, Math.min(1, distance / Math.max(1, radius)));
-  return 0.35 + (0.15 - 0.35) * t;
+  // More aggressive: smaller cities get dominated more easily, especially close-in.
+  return 0.5 + (0.22 - 0.5) * t;
 }
 
 function findNearestBuildableTileId(
@@ -258,6 +329,36 @@ function findNearestBuildableTileId(
     if (q.length > 1500) break;
   }
   return bestAnyBuildable ?? startTileId;
+}
+
+function findNearestCoastalBuildableTileId(
+  globe: Globe,
+  startTileId: number,
+  terrain: Map<number, TileTerrainData>,
+  desiredLandmassId: number | undefined,
+  isCoastalTile: (tileId: number) => boolean,
+  maxRings: number,
+): number | null {
+  const q: Array<{ id: number; d: number }> = [{ id: startTileId, d: 0 }];
+  const seen = new Set<number>([startTileId]);
+  let qi = 0;
+  while (qi < q.length) {
+    const cur = q[qi++]!;
+    const tt = terrain.get(cur.id);
+    const landOk =
+      isBuildableLandType(tt?.type) && (desiredLandmassId == null || tt?.landmassId === desiredLandmassId);
+    if (landOk && isCoastalTile(cur.id)) return cur.id;
+    if (cur.d >= maxRings) continue;
+    const tile = globe.getTile(cur.id);
+    if (!tile) continue;
+    for (const n of tile.neighbors) {
+      if (seen.has(n)) continue;
+      seen.add(n);
+      q.push({ id: n, d: cur.d + 1 });
+    }
+    if (q.length > 6000) break;
+  }
+  return null;
 }
 
 function findNearestLandmassId(
@@ -399,7 +500,7 @@ function main(): void {
   const cachePath = join(PUBLIC, `earth-globe-cache-${subdivisions}.json`);
   const cache = JSON.parse(readFileSync(cachePath, "utf8")) as {
     tileCount: number;
-    tiles: Array<{ id: number; t: string; m?: number }>;
+    tiles: Array<{ id: number; t: string; m?: number; l?: number; o?: number }>;
   };
   const globe = new Globe({ radius: 1, subdivisions });
   if (cache.tileCount !== globe.tileCount) {
@@ -414,7 +515,24 @@ function main(): void {
       type: row.t as TileTerrainData["type"],
       elevation: 0,
       landmassId: row.m,
+      lakeId: row.l,
     });
+  }
+
+  // Landmass outline raster (used to identify "coastal intent" from source landmass geometry).
+  let rasterWidth = 0;
+  let rasterHeight = 0;
+  let landmassIdRaster: Uint32Array | null = null;
+  try {
+    const buf = readFileSync(EARTH_REGION_GRID_BIN);
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    rasterWidth = dv.getUint32(0, true);
+    rasterHeight = dv.getUint32(4, true);
+    const n = rasterWidth * rasterHeight;
+    const off = buf.byteOffset + 8;
+    landmassIdRaster = new Uint32Array(buf.buffer, off, n);
+  } catch {
+    landmassIdRaster = null;
   }
 
   const rows = parseCsv(readFileSync(INPUT_CSV, "utf8"));
@@ -534,10 +652,121 @@ function main(): void {
     s.yearlyPopulation = deduped;
   }
 
+  const coastalIntentByCityId = new Map<string, boolean>();
+  const lakeIntentByCityId = new Map<string, boolean>();
+
+  // Diagnostics: report coastal-intent distance (pixels) for a few known cities.
+  // Note: city/country must match the normalized key in the input dataset.
+  const DIAG_CITY_TOKENS = [
+    normalizeToken("Riga"),
+    normalizeToken("St. Petersburg"),
+    normalizeToken("Saint Petersburg"),
+    normalizeToken("Seattle"),
+    normalizeToken("San Francisco"),
+    // Other known coastal cities
+    normalizeToken("Stockholm"),
+    normalizeToken("Helsinki"),
+    normalizeToken("Tallinn"),
+    normalizeToken("Copenhagen"),
+    normalizeToken("Amsterdam"),
+    normalizeToken("Rotterdam"),
+    normalizeToken("Hamburg"),
+    normalizeToken("Lisbon"),
+    normalizeToken("Venice"),
+    normalizeToken("Naples"),
+    normalizeToken("Athens"),
+    normalizeToken("Istanbul"),
+    normalizeToken("Tokyo"),
+    normalizeToken("Osaka"),
+    normalizeToken("Shanghai"),
+    normalizeToken("Hong Kong"),
+    normalizeToken("Sydney"),
+    normalizeToken("Melbourne"),
+    normalizeToken("Vancouver"),
+    normalizeToken("Miami"),
+    normalizeToken("New Orleans"),
+    // Known non-coastal cities (should stay ruled out)
+    normalizeToken("Paris"),
+    normalizeToken("Berlin"),
+    normalizeToken("Vienna"),
+    normalizeToken("Prague"),
+    normalizeToken("Madrid"),
+    normalizeToken("Moscow"),
+    normalizeToken("Riyadh"),
+    normalizeToken("Denver"),
+  ];
+  const diagById = new Map<string, { city: string; country: string; lat: number; lon: number }>();
+  for (const s of series) {
+    if (DIAG_CITY_TOKENS.includes(normalizeToken(s.city))) {
+      diagById.set(s.id, { city: s.city, country: s.country, lat: s.lat, lon: s.lon });
+    }
+  }
+  if (diagById.size > 0 || DIAG_CITY_TOKENS.length > 0) {
+    console.log("[urbanization-prune] coastal-intent diagnostics", {
+      subdivisions,
+      rasterAvailable: !!landmassIdRaster,
+      rasterW: rasterWidth,
+      rasterH: rasterHeight,
+      matchedCities: diagById.size,
+    });
+    if (diagById.size === 0) {
+      console.log("[urbanization-prune] coastal-intent diagnostics: no exact city token matches found");
+    }
+    for (const [id, info] of diagById) {
+      let lm = 0;
+      let distPx: number | null = null;
+      let coastalIntent = false;
+      if (landmassIdRaster && rasterWidth > 0 && rasterHeight > 0) {
+        const { i, j } = rasterIJFromLatLon(info.lat, info.lon, rasterWidth, rasterHeight);
+        lm = landmassIdRaster[j * rasterWidth + i] ?? 0;
+        if (lm !== 0) {
+          distPx = distanceToLandmassEdgePx(
+            landmassIdRaster,
+            rasterWidth,
+            rasterHeight,
+            i,
+            j,
+            lm,
+            10,
+          );
+          coastalIntent = distPx != null && distPx <= 3;
+        }
+      }
+      console.log("[urbanization-prune] coastal-intent city", {
+        id,
+        city: info.city,
+        country: info.country,
+        lat: info.lat,
+        lon: info.lon,
+        landmassId: lm,
+        distPx,
+        coastalIntent,
+      });
+    }
+  }
+
   const mappedByCityId = new Map<
     string,
     { tileId: number; originalTileId: number; landmassId?: number }
   >();
+  const coastalTileCache = new Map<number, boolean>();
+  const isCoastalTile = (tileId: number): boolean => {
+    const cached = coastalTileCache.get(tileId);
+    if (cached != null) return cached;
+    const tile = globe.getTile(tileId);
+    if (!tile) return false;
+    let coastal = false;
+    for (const nid of tile.neighbors) {
+      const terr = tileTerrain.get(nid);
+      if (isCoastWaterType(terr?.type, terr?.lakeId)) {
+        coastal = true;
+        break;
+      }
+    }
+    coastalTileCache.set(tileId, coastal);
+    return coastal;
+  };
+
   for (const s of series) {
     const dir = latLonDegToDirection(s.lat, s.lon);
     const rawTileId = globe.getTileIdAtDirection(dir);
@@ -546,23 +775,67 @@ function main(): void {
       rawTileId,
       tileTerrain,
     );
-    const tileId = findNearestBuildableTileId(
+    let tileId = findNearestBuildableTileId(
       globe,
       rawTileId,
       tileTerrain,
       desiredLandmassId,
     );
+    // Coastal intent: derived from the landmass outline in `earth-region-grid.bin`.
+    // Only cities that are genuinely near the source coastline get bumped back to a coastal tile.
+    let coastalIntent = false;
+    if (landmassIdRaster && rasterWidth > 0 && rasterHeight > 0) {
+      const { i, j } = rasterIJFromLatLon(s.lat, s.lon, rasterWidth, rasterHeight);
+      const lm = landmassIdRaster[j * rasterWidth + i] ?? 0;
+      if (lm !== 0) {
+        const dist = distanceToLandmassEdgePx(
+          landmassIdRaster,
+          rasterWidth,
+          rasterHeight,
+          i,
+          j,
+          lm,
+          10,
+        );
+        coastalIntent = dist != null && dist <= 3;
+      }
+    }
+    coastalIntentByCityId.set(s.id, coastalIntent);
+
+    // Lake / inland-sea intent: if the raw tile is near a lake tile (lakeId set), mark it.
+    // This includes Caspian, Onega, etc (which are represented as lakes via lakeId).
+    let lakeIntent = false;
+    const rawTile = globe.getTile(rawTileId);
+    const ring1 = rawTile ? [rawTileId, ...rawTile.neighbors] : [rawTileId];
+    for (const tid of ring1) {
+      const terr = tileTerrain.get(tid);
+      if (terr?.lakeId != null) {
+        lakeIntent = true;
+        break;
+      }
+    }
+    lakeIntentByCityId.set(s.id, lakeIntent);
+    if (coastalIntent && !isCoastalTile(tileId)) {
+      const bumped = findNearestCoastalBuildableTileId(
+        globe,
+        tileId,
+        tileTerrain,
+        desiredLandmassId,
+        isCoastalTile,
+        5,
+      );
+      if (bumped != null) tileId = bumped;
+    }
     const mappedLandmassId =
       tileTerrain.get(tileId)?.landmassId ?? desiredLandmassId;
     mappedByCityId.set(s.id, {
       tileId,
-      originalTileId: tileId,
+      originalTileId: rawTileId,
       landmassId: mappedLandmassId,
     });
   }
 
   const neighborhoodCache = new Map<number, Map<number, number>>();
-  const coastalTileCache = new Map<number, boolean>();
   const getNeighborhood = (tileId: number): Map<number, number> => {
     const cached = neighborhoodCache.get(tileId);
     if (cached) return cached;
@@ -585,22 +858,7 @@ function main(): void {
     neighborhoodCache.set(tileId, out);
     return out;
   };
-  const isCoastalTile = (tileId: number): boolean => {
-    const cached = coastalTileCache.get(tileId);
-    if (cached != null) return cached;
-    const tile = globe.getTile(tileId);
-    if (!tile) return false;
-    let coastal = false;
-    for (const nid of tile.neighbors) {
-      const t = tileTerrain.get(nid)?.type;
-      if (t === "water" || t === "beach") {
-        coastal = true;
-        break;
-      }
-    }
-    coastalTileCache.set(tileId, coastal);
-    return coastal;
-  };
+  // isCoastalTile defined above (and cached) for both mapping + pruning decisions.
 
   let prevIncluded = new Set<string>();
   const firstIncludedYearByCity = new Map<string, number>();
@@ -730,7 +988,7 @@ function main(): void {
 
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const lines = [
-    "city,country,latitude,longitude,year,population,source",
+    "city,country,latitude,longitude,year,population,source,coastal_intent,lake_intent",
     ...outRows.map((r) =>
       [
         csvEscape(r.city),
@@ -740,6 +998,8 @@ function main(): void {
         csvEscape(r.year),
         csvEscape(r.population),
         csvEscape(r.source),
+        csvEscape(coastalIntentByCityId.get(cityKey(r.city, r.country)) ? 1 : 0),
+        csvEscape(lakeIntentByCityId.get(cityKey(r.city, r.country)) ? 1 : 0),
       ].join(","),
     ),
   ];

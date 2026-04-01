@@ -4,6 +4,8 @@ export interface UrbanCitySeries {
   country: string;
   lat: number;
   lon: number;
+  coastalIntent: boolean;
+  lakeIntent: boolean;
   yearlyPopulation: Array<{ year: number; population: number }>;
 }
 
@@ -20,6 +22,8 @@ export interface UrbanCityAtYear {
   lat: number;
   lon: number;
   population: number;
+  coastalIntent: boolean;
+  lakeIntent: boolean;
 }
 
 interface ParsedUrbanRow {
@@ -29,6 +33,8 @@ interface ParsedUrbanRow {
   lon: number;
   year: number;
   population: number;
+  coastalIntent: boolean;
+  lakeIntent: boolean;
 }
 
 const DEFAULT_DOMINANCE_PREBAKED_URL =
@@ -126,6 +132,8 @@ async function tryLoadRowsFromCsv(
   const idxLon = header.indexOf("longitude");
   const idxYear = header.indexOf("year");
   const idxPop = header.indexOf("population");
+  const idxCoastalIntent = header.indexOf("coastal_intent");
+  const idxLakeIntent = header.indexOf("lake_intent");
   if (
     idxCity < 0 ||
     idxCountry < 0 ||
@@ -152,7 +160,11 @@ async function tryLoadRowsFromCsv(
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     if (!Number.isFinite(year) || !Number.isFinite(pop)) continue;
     if (pop <= 0) continue;
-    out.push({ city, country, lat, lon, year, population: pop });
+    const coastalIntent =
+      idxCoastalIntent >= 0 ? Number.parseInt(row[idxCoastalIntent] ?? "0", 10) === 1 : false;
+    const lakeIntent =
+      idxLakeIntent >= 0 ? Number.parseInt(row[idxLakeIntent] ?? "0", 10) === 1 : false;
+    out.push({ city, country, lat, lon, year, population: pop, coastalIntent, lakeIntent });
   }
   return out;
 }
@@ -170,6 +182,8 @@ function buildDatasetFromRows(rows: ParsedUrbanRow[]): UrbanDataset {
         country: row.country,
         lat: row.lat,
         lon: row.lon,
+        coastalIntent: row.coastalIntent,
+        lakeIntent: row.lakeIntent,
         yearlyPopulation: [],
       };
       cityMap.set(key, c);
@@ -337,6 +351,8 @@ export function interpolateUrbanCitiesAtYear(
       lat: c.lat,
       lon: c.lon,
       population: pop,
+      coastalIntent: c.coastalIntent,
+      lakeIntent: c.lakeIntent,
     });
   }
   return out;

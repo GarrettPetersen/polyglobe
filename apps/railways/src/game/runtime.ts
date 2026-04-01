@@ -2998,6 +2998,13 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
     const scene = bridge.getScene();
     if (!g || !terrain) return;
     const snap = getNetState()?.lastSnapshot ?? lastSnapshot;
+    if (!snap) {
+      requestNetSnapshot();
+      return;
+    }
+    if (cityTileToCityId.size === 0) {
+      rebuildCityTileIndexFromSnapshot(snap);
+    }
     const net = snap ? computeMyNetworkTiles(snap) : new Set<number>();
     seaStartCityCandidateGroup = new THREE.Group();
     seaStartCityCandidateGroup.name = "SeaRouteStartCityCandidates";

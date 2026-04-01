@@ -332,9 +332,154 @@ export class RailwaysSessionState {
     this.rnd = mulberry32(hashString(`${config.worldSeed}|${sessionId}`));
     const startYear = 1825;
     const citiesRaw = loadCityCatalogForYear(startYear);
+
+    // City placement: snap lat/lon to nearest buildable land tile, then (for true coastal-intent cities)
+    // bump back to a coastal tile if snapping landed inland. This keeps ports usable in gameplay.
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const earthCachePath = path.resolve(
+      here,
+      "../../../examples/globe-demo/public/earth-globe-cache-7.json",
+    );
+    const earthRegionGridPath = path.resolve(
+      here,
+      "../../../examples/globe-demo/public/earth-region-grid.bin",
+    );
+    const cache = JSON.parse(fs.readFileSync(earthCachePath, "utf8")) as {
+      tileCount: number;
+      tiles: Array<{ id: number; t: string; m?: number; l?: number; o?: number }>;
+    };
+    const tileTypeById = new Map<number, string>();
+    const lakeIdByTileId = new Map<number, number>();
+    for (const row of cache.tiles) {
+      tileTypeById.set(row.id, row.t);
+      if (row.l != null) lakeIdByTileId.set(row.id, row.l);
+    }
+
+    let rasterW = 0;
+    let rasterH = 0;
+    let landmassIdRaster: Uint32Array | null = null;
+    try {
+      const buf = fs.readFileSync(earthRegionGridPath);
+      const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      rasterW = dv.getUint32(0, true);
+      rasterH = dv.getUint32(4, true);
+      const n = rasterW * rasterH;
+      const off = buf.byteOffset + 8;
+      landmassIdRaster = new Uint32Array(buf.buffer, off, n);
+    } catch {
+      landmassIdRaster = null;
+    }
+
+    const isWaterish = (type: string | undefined): boolean => {
+      if (!type) return false;
+      const t = type.toLowerCase();
+      return t === "water" || t === "ocean" || t === "sea" || t === "lake";
+    };
+    const isBuildableLand = (type: string | undefined): boolean => {
+      if (!type) return true;
+      const t = type.toLowerCase();
+      return !isWaterish(t);
+    };
+    const isCoastalTile = (tileId: number): boolean => {
+      const tile = this.globe.getTile(tileId);
+      if (!tile) return false;
+      for (const nid of tile.neighbors) {
+        if (lakeIdByTileId.has(nid)) continue; // Don't treat lake shores as "coast".
+        const t = tileTypeById.get(nid);
+        if (!t) continue;
+        const tt = t.toLowerCase();
+        if (tt === "water" || tt === "ocean" || tt === "sea" || tt === "beach") return true;
+      }
+      return false;
+    };
+    const nearestBuildableTile = (startTileId: number): number => {
+      const directType = tileTypeById.get(startTileId);
+      if (isBuildableLand(directType)) return startTileId;
+      const q: number[] = [startTileId];
+      const seen = new Set<number>([startTileId]);
+      let qi = 0;
+      while (qi < q.length) {
+        const id = q[qi++]!;
+        const tile = this.globe.getTile(id);
+        if (!tile) continue;
+        for (const nId of tile.neighbors) {
+          if (seen.has(nId)) continue;
+          seen.add(nId);
+          const nt = tileTypeById.get(nId);
+          if (isBuildableLand(nt)) return nId;
+          q.push(nId);
+        }
+        if (seen.size > 3000) break;
+      }
+      return startTileId;
+    };
+    const nearestCoastalBuildableTile = (startTileId: number): number | null => {
+      const q: Array<{ id: number; d: number }> = [{ id: startTileId, d: 0 }];
+      const seen = new Set<number>([startTileId]);
+      let qi = 0;
+      while (qi < q.length) {
+        const cur = q[qi++]!;
+        const tt = tileTypeById.get(cur.id);
+        if (isBuildableLand(tt) && isCoastalTile(cur.id)) return cur.id;
+        if (cur.d >= 5) continue;
+        const tile = this.globe.getTile(cur.id);
+        if (!tile) continue;
+        for (const nId of tile.neighbors) {
+          if (seen.has(nId)) continue;
+          seen.add(nId);
+          q.push({ id: nId, d: cur.d + 1 });
+        }
+      }
+      return null;
+    };
+    const coastalIntentFromRaster = (latDeg: number, lonDeg: number): boolean => {
+      if (!landmassIdRaster || rasterW <= 0 || rasterH <= 0) return false;
+      const i = Math.max(
+        0,
+        Math.min(rasterW - 1, Math.round(((lonDeg + 180) / 360) * (rasterW - 1))),
+      );
+      const j = Math.max(
+        0,
+        Math.min(rasterH - 1, Math.round(((90 - latDeg) / 180) * (rasterH - 1))),
+      );
+      const lm = landmassIdRaster[j * rasterW + i] ?? 0;
+      if (lm === 0) return false;
+      const wrapI = (x: number): number => ((x % rasterW) + rasterW) % rasterW;
+      const isEdge = (ii: number, jj: number): boolean => {
+        const idx = jj * rasterW + ii;
+        if (landmassIdRaster![idx] !== lm) return false;
+        const iL = wrapI(ii - 1);
+        const iR = wrapI(ii + 1);
+        const jU = Math.max(0, jj - 1);
+        const jD = Math.min(rasterH - 1, jj + 1);
+        const n0 = landmassIdRaster![jj * rasterW + iL];
+        const n1 = landmassIdRaster![jj * rasterW + iR];
+        const n2 = landmassIdRaster![jU * rasterW + ii];
+        const n3 = landmassIdRaster![jD * rasterW + ii];
+        return n0 !== lm || n1 !== lm || n2 !== lm || n3 !== lm;
+      };
+      const maxDist = 10;
+      for (let d = 0; d <= maxDist; d++) {
+        for (let dj = -d; dj <= d; dj++) {
+          const jj = j + dj;
+          if (jj < 0 || jj >= rasterH) continue;
+          const di = d - Math.abs(dj);
+          const iA = wrapI(i - di);
+          const iB = wrapI(i + di);
+          if (isEdge(iA, jj)) return d <= 3;
+          if (di !== 0 && isEdge(iB, jj)) return d <= 3;
+        }
+      }
+      return false;
+    };
     const cities: CitySummary[] = [];
     for (const c of citiesRaw) {
-      const tid = this.globe.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
+      const rawTid = this.globe.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
+      let tid = nearestBuildableTile(rawTid);
+      if (coastalIntentFromRaster(c.lat, c.lon) && !isCoastalTile(tid)) {
+        const bumped = nearestCoastalBuildableTile(tid);
+        if (bumped != null) tid = bumped;
+      }
       const city: CitySummary = { ...c, tileId: tid };
       this.cityById.set(city.cityId, city);
       this.cityTileIdByCityId.set(city.cityId, tid);
