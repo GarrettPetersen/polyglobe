@@ -419,7 +419,7 @@ type EarthGlobeCacheFile = {
   version: string;
   subdivisions: number;
   tileCount: number;
-  tiles: Array<{ id: number; t: string; e: number; l?: number; h?: 1; m?: number }>;
+  tiles: Array<{ id: number; t: string; e: number; l?: number; o?: number; h?: 1; m?: number }>;
   peaks: [number, number][];
   riverEdges: Record<string, number[]>;
   riverEdgeToWater: Record<string, number[]>;
@@ -4838,6 +4838,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
             type: row.t as TileTerrainData["type"],
             elevation: row.e,
             ...(row.l != null ? { lakeId: row.l } : {}),
+            ...(row.o != null ? { oceanRegionId: row.o } : {}),
             ...(row.h ? { isHilly: true } : {}),
             ...(row.m != null ? { landmassId: row.m } : {}),
           });

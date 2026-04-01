@@ -716,18 +716,32 @@ function mapCitiesToCandidatePlacements(
   mountainEntries: readonly MountainLatLonEntry[] | null | undefined,
 ): CandidateCityPlacement[] {
   const mountainDirsByTile = buildMountainDirsByTile(globe, mountainEntries);
-  const isOceanWaterType = (type: string | undefined, lakeId?: number): boolean => {
-    if (lakeId != null) return false;
-    if (!type) return false;
-    const t = type.toLowerCase();
-    return t === "water" || t === "beach" || t === "ocean" || t === "sea";
+  const coastalNeighborInfo = (
+    tileId: number,
+  ): { oceanNeighbors: number; lakeNeighbors: number; oceanNeighborIds: number[]; lakeNeighborIds: number[] } => {
+    const tile = globe.getTile(tileId);
+    if (!tile) return { oceanNeighbors: 0, lakeNeighbors: 0, oceanNeighborIds: [], lakeNeighborIds: [] };
+    const oceanNeighborIds: number[] = [];
+    const lakeNeighborIds: number[] = [];
+    for (const nid of tile.neighbors) {
+      const terr = tileTerrain.get(nid);
+      if (terr?.lakeId != null) lakeNeighborIds.push(nid);
+      else if (terr?.oceanRegionId != null) oceanNeighborIds.push(nid);
+    }
+    return {
+      oceanNeighbors: oceanNeighborIds.length,
+      lakeNeighbors: lakeNeighborIds.length,
+      oceanNeighborIds,
+      lakeNeighborIds,
+    };
   };
   const isTileOceanCoastal = (tileId: number): boolean => {
     const tile = globe.getTile(tileId);
     if (!tile) return false;
     for (const nid of tile.neighbors) {
       const terr = tileTerrain.get(nid);
-      if (isOceanWaterType(terr?.type, terr?.lakeId)) return true;
+      if (terr?.lakeId != null) continue;
+      if (terr?.oceanRegionId != null) return true;
     }
     return false;
   };
@@ -771,6 +785,9 @@ function mapCitiesToCandidatePlacements(
   };
   const candidates: CandidateCityPlacement[] = [];
   for (const c of cities) {
+    const debugThisCity =
+      c.city.trim().toLowerCase() === "st. petersburg" ||
+      c.city.trim().toLowerCase() === "saint petersburg";
     const cityDir = latLonDegToDirection(c.lat, c.lon).clone();
     const rawTileId = globe.getTileIdAtDirection(cityDir);
     const desiredLandmassId = findNearestLandmassId(
@@ -794,19 +811,69 @@ function mapCitiesToCandidatePlacements(
     );
     const wantsOcean = !!c.coastalIntent;
     const wantsLake = !!c.lakeIntent;
-    if ((wantsOcean || wantsLake) && !isTileOceanCoastal(tileId) && !isTileLakeCoastal(tileId)) {
+    if (debugThisCity) {
+      console.log("[urban-settlements][city-place] start", {
+        city: c.city,
+        lat: c.lat,
+        lon: c.lon,
+        rawTileId,
+        rawType: tileTerrain.get(rawTileId)?.type,
+        rawInfo: coastalNeighborInfo(rawTileId),
+        desiredLandmassId,
+        initialTileId,
+        initialType: tileTerrain.get(initialTileId)?.type,
+        initialInfo: coastalNeighborInfo(initialTileId),
+        afterMountainTileId: tileId,
+        afterMountainType: tileTerrain.get(tileId)?.type,
+        afterMountainInfo: coastalNeighborInfo(tileId),
+        wantsOcean,
+        wantsLake,
+        isOceanCoastal: isTileOceanCoastal(tileId),
+        isLakeCoastal: isTileLakeCoastal(tileId),
+      });
+    }
+    const isOceanCoastalNow = isTileOceanCoastal(tileId);
+    const isLakeCoastalNow = isTileLakeCoastal(tileId);
+    // If a city wants ocean (or lake) adjacency, we should still search even if it's already coastal
+    // to the *other* water type (e.g., St. Petersburg landing lake-coastal while wanting ocean).
+    const shouldSearch =
+      (wantsOcean && !isOceanCoastalNow) || (wantsLake && !isLakeCoastalNow);
+    if (shouldSearch) {
       // Priority rules for cities that are between lake and ocean:
       // 1) try a tile touching both, 2) ocean coast, 3) lake coast.
-      const tryBoth = wantsOcean && wantsLake
-        ? findNearestCoastalBuildableTileId(tileId, desiredLandmassId, true, true)
-        : null;
+      const tryBoth =
+        wantsOcean && wantsLake
+          ? findNearestCoastalBuildableTileId(tileId, desiredLandmassId, true, true)
+          : null;
       const tryOcean = wantsOcean
         ? findNearestCoastalBuildableTileId(tileId, desiredLandmassId, true, false)
         : null;
       const tryLake = wantsLake
         ? findNearestCoastalBuildableTileId(tileId, desiredLandmassId, false, true)
         : null;
-      const target = tryBoth ?? tryOcean ?? tryLake;
+      const target =
+        wantsOcean && wantsLake
+          ? tryBoth ?? tryOcean ?? tryLake
+          : wantsOcean
+            ? tryOcean
+            : wantsLake
+              ? tryLake
+              : null;
+      if (debugThisCity) {
+        console.log("[urban-settlements][city-place] bump-search", {
+          fromTileId: tileId,
+          fromType: tileTerrain.get(tileId)?.type,
+          fromInfo: coastalNeighborInfo(tileId),
+          tryBoth,
+          tryBothInfo: tryBoth != null ? coastalNeighborInfo(tryBoth) : null,
+          tryOcean,
+          tryOceanInfo: tryOcean != null ? coastalNeighborInfo(tryOcean) : null,
+          tryLake,
+          tryLakeInfo: tryLake != null ? coastalNeighborInfo(tryLake) : null,
+          chosen: target,
+          chosenInfo: target != null ? coastalNeighborInfo(target) : null,
+        });
+      }
       if (target != null) {
         tileId = deconflictCityMountainTileId(
           globe,
@@ -816,6 +883,15 @@ function mapCitiesToCandidatePlacements(
           mountainDirsByTile,
           desiredLandmassId,
         );
+        if (debugThisCity) {
+          console.log("[urban-settlements][city-place] bumped", {
+            finalTileId: tileId,
+            finalType: tileTerrain.get(tileId)?.type,
+            finalInfo: coastalNeighborInfo(tileId),
+            finalIsOceanCoastal: isTileOceanCoastal(tileId),
+            finalIsLakeCoastal: isTileLakeCoastal(tileId),
+          });
+        }
       }
     }
     candidates.push({

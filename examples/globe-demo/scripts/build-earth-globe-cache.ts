@@ -867,19 +867,43 @@ async function buildCacheForSubdivisions(
   for (let i = 0; i < globe.tileCount; i++) {
     const d = tileTerrain.get(i)!;
     const type = d.lakeId != null && d.type === "water" ? "lake" : d.type;
-    const o: { id: number; t: string; e: number; l?: number; o?: number; h?: 1; m?: number } = {
+    const row: { id: number; t: string; e: number; l?: number; o?: number; h?: 1; m?: number } = {
       id: i,
       t: type,
       e: d.elevation,
     };
-    if (d.lakeId != null) o.l = d.lakeId;
+    if (d.lakeId != null) row.l = d.lakeId;
     // Persist explicit ocean-vs-lake classification so runtime never infers from terrain type.
-    // If oceanRegionId isn't computed, default to ocean id=1 for any non-lake water-ish tile.
-    if (d.oceanRegionId != null) o.o = d.oceanRegionId;
-    else if (d.lakeId == null && (type === "water" || type === "beach" || type === "ice")) o.o = 1;
-    if (d.isHilly) o.h = 1;
-    if (d.landmassId != null) o.m = d.landmassId;
-    tiles.push(o);
+    // For now we default all non-lake ocean water to ocean id=1 (enough to distinguish from lakes).
+    if (d.oceanRegionId != null) row.o = d.oceanRegionId;
+    else if (d.lakeId == null && (type === "water" || type === "ice")) row.o = 1;
+    if (d.isHilly) row.h = 1;
+    if (d.landmassId != null) row.m = d.landmassId;
+    tiles.push(row);
+  }
+
+  // Propagate lake/ocean identity onto underwater beaches so "adjacent to beach" can still
+  // distinguish lake shores from ocean coasts.
+  const byId = new Map<number, (typeof tiles)[number]>();
+  for (const r of tiles) byId.set(r.id, r);
+  for (const r of tiles) {
+    if (r.t !== "beach") continue;
+    const tile = globe.getTile(r.id);
+    if (!tile) continue;
+    let neighborLake: number | null = null;
+    let hasOceanNeighbor = false;
+    for (const nid of tile.neighbors) {
+      const n = byId.get(nid);
+      if (!n) continue;
+      if (n.l != null) neighborLake = n.l;
+      if (n.o != null && n.l == null) hasOceanNeighbor = true;
+    }
+    if (neighborLake != null) {
+      r.l = neighborLake;
+      delete r.o; // lake beach is not ocean
+    } else if (hasOceanNeighbor) {
+      r.o = r.o ?? 1;
+    }
   }
 
   const out = {

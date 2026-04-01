@@ -350,9 +350,11 @@ export class RailwaysSessionState {
     };
     const tileTypeById = new Map<number, string>();
     const lakeIdByTileId = new Map<number, number>();
+    const oceanByTileId = new Set<number>();
     for (const row of cache.tiles) {
       tileTypeById.set(row.id, row.t);
       if (row.l != null) lakeIdByTileId.set(row.id, row.l);
+      if (row.o != null) oceanByTileId.add(row.id);
     }
 
     let rasterW = 0;
@@ -373,22 +375,50 @@ export class RailwaysSessionState {
     const isWaterish = (type: string | undefined): boolean => {
       if (!type) return false;
       const t = type.toLowerCase();
-      return t === "water" || t === "ocean" || t === "sea" || t === "lake";
+      // "beach" is underwater (shallow water), not buildable land.
+      return (
+        t === "water" ||
+        t === "ocean" ||
+        t === "sea" ||
+        t === "lake" ||
+        t === "beach" ||
+        t === "ice"
+      );
     };
     const isBuildableLand = (type: string | undefined): boolean => {
       if (!type) return true;
       const t = type.toLowerCase();
       return !isWaterish(t);
     };
+    const coastalNeighborInfo = (
+      tileId: number,
+    ): { oceanNeighbors: number; lakeNeighbors: number; oceanNeighborIds: number[]; lakeNeighborIds: number[] } => {
+      const tile = this.globe.getTile(tileId);
+      if (!tile) return { oceanNeighbors: 0, lakeNeighbors: 0, oceanNeighborIds: [], lakeNeighborIds: [] };
+      const oceanNeighborIds: number[] = [];
+      const lakeNeighborIds: number[] = [];
+      for (const nid of tile.neighbors) {
+        if (lakeIdByTileId.has(nid)) lakeNeighborIds.push(nid);
+        else if (oceanByTileId.has(nid)) oceanNeighborIds.push(nid);
+      }
+      return {
+        oceanNeighbors: oceanNeighborIds.length,
+        lakeNeighbors: lakeNeighborIds.length,
+        oceanNeighborIds,
+        lakeNeighborIds,
+      };
+    };
     const isCoastalTile = (tileId: number): boolean => {
       const tile = this.globe.getTile(tileId);
       if (!tile) return false;
       for (const nid of tile.neighbors) {
-        if (lakeIdByTileId.has(nid)) continue; // Don't treat lake shores as "coast".
+        // Coastal means adjacent to *ocean water*. Lake shores do not count.
+        if (lakeIdByTileId.has(nid)) continue;
+        if (!oceanByTileId.has(nid)) continue;
         const t = tileTypeById.get(nid);
         if (!t) continue;
         const tt = t.toLowerCase();
-        if (tt === "water" || tt === "ocean" || tt === "sea" || tt === "beach") return true;
+        if (tt === "water" || tt === "ocean" || tt === "sea" || tt === "ice") return true;
       }
       return false;
     };
@@ -474,11 +504,49 @@ export class RailwaysSessionState {
     };
     const cities: CitySummary[] = [];
     for (const c of citiesRaw) {
+      const debugThisCity =
+        c.city.trim().toLowerCase() === "st. petersburg" ||
+        c.city.trim().toLowerCase() === "saint petersburg";
       const rawTid = this.globe.getTileIdAtDirection(latLonDegToDirection(c.lat, c.lon));
       let tid = nearestBuildableTile(rawTid);
-      if (coastalIntentFromRaster(c.lat, c.lon) && !isCoastalTile(tid)) {
+      const wantsCoast = coastalIntentFromRaster(c.lat, c.lon);
+      if (debugThisCity) {
+        console.log("[railways][city-place] start", {
+          city: c.city,
+          country: c.country,
+          lat: c.lat,
+          lon: c.lon,
+          rawTid,
+          rawType: tileTypeById.get(rawTid),
+          rawInfo: coastalNeighborInfo(rawTid),
+          nearestBuildableTid: tid,
+          nearestBuildableType: tileTypeById.get(tid),
+          nearestBuildableInfo: coastalNeighborInfo(tid),
+          wantsCoast,
+          isCoastal: isCoastalTile(tid),
+        });
+      }
+      if (wantsCoast && !isCoastalTile(tid)) {
         const bumped = nearestCoastalBuildableTile(tid);
+        if (debugThisCity) {
+          console.log("[railways][city-place] bump-to-coast", {
+            from: tid,
+            fromType: tileTypeById.get(tid),
+            fromInfo: coastalNeighborInfo(tid),
+            bumped,
+            bumpedType: bumped != null ? tileTypeById.get(bumped) : null,
+            bumpedInfo: bumped != null ? coastalNeighborInfo(bumped) : null,
+            reason: bumped == null ? "no coastal buildable tile found within radius" : "coastalIntent && inland",
+          });
+        }
         if (bumped != null) tid = bumped;
+      } else if (debugThisCity) {
+        console.log("[railways][city-place] no-bump", {
+          tid,
+          type: tileTypeById.get(tid),
+          info: coastalNeighborInfo(tid),
+          reason: !wantsCoast ? "no coastalIntent" : "already coastal",
+        });
       }
       const city: CitySummary = { ...c, tileId: tid };
       this.cityById.set(city.cityId, city);
