@@ -1649,7 +1649,7 @@ export function startRailwaysGameRuntime(sessionSetup: SessionSetup): void {
       .rw-main-icon3d{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none;font-size:22px;line-height:1}
       .rw-submenu{display:none;gap:8px;flex-wrap:wrap;align-items:center}
       .rw-submenu.active{display:flex}
-      .rw-time-btn{width:34px;height:30px;border-radius:8px}
+      .rw-time-btn{min-width:34px;height:30px;padding:0 6px;border-radius:8px;white-space:nowrap}
       .rw-modal-backdrop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(6,10,18,.48);z-index:10040;backdrop-filter:blur(2px)}
       .rw-modal-backdrop.active{display:flex}
       .rw-modal{min-width:320px;max-width:520px;background:rgba(9,16,28,.96);border:1px solid rgba(200,220,255,.28);border-radius:12px;box-shadow:0 18px 42px rgba(0,0,0,.45);padding:14px;color:#eaf2ff}
