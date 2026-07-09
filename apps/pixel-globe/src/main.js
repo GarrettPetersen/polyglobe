@@ -40,6 +40,7 @@ const FACE_HALF_WIDTH = 7;
 const BEACH_SPECKLE_COUNT = 5;
 const BEACH_LIGHT_SPECKLE_COLOR = "rgba(255, 236, 151, 0.46)";
 const BEACH_DARK_SPECKLE_COLOR = "rgba(218, 184, 92, 0.26)";
+const BEACH_LAND_EDGE_JAG_COUNT = 4;
 const BEACH_WAVE_PERIOD_MS = 3600;
 const BEACH_WAVE_ADVANCE_RATIO = 0.44;
 const BEACH_WAVE_RECEDE_RATIO = 0.38;
@@ -59,8 +60,9 @@ const RIVER_JOIN_MIN_LENGTH_PX = 5;
 const RIVER_SPRITE_CACHE_LIMIT = 4096;
 const VIEW_MARGIN = 58;
 const CHART_REBUILD_RADIUS_PX = 28;
-const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE;
-const MAX_CHART_TILES = 4200;
+const CHART_LOOKAHEAD_MARGIN = 96;
+const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE + CHART_LOOKAHEAD_MARGIN;
+const MAX_CHART_TILES = 5200;
 const START_LAT_DEG = 25.0;
 const START_LON_DEG = -80.0;
 const SHIP_SHEET_FRAME_SIZE = 36;
@@ -79,8 +81,15 @@ const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
 const SAIL_NO_GO_ANGLE_RAD = Math.PI / 4;
 const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
 const SHIP_WAKE_MIN_SPEED_PX = 2.5;
-const SHIP_WAKE_MIN_LENGTH_PX = 7;
-const SHIP_WAKE_MAX_LENGTH_PX = 22;
+const SHIP_WAKE_STERN_OFFSET_PX = 7;
+const SHIP_WAKE_EMIT_DISTANCE_PX = 2.25;
+const SHIP_WAKE_RESET_DISTANCE_PX = 26;
+const SHIP_WAKE_TTL_SECONDS = 3.8;
+const SHIP_WAKE_DRIFT_PX_PER_SECOND = 8;
+const SHIP_WAKE_MAX_PARTICLES = 260;
+const WAKE_WATER_BUCKET_PX = 24;
+const WAKE_WATER_SEARCH_RADIUS_PX = 26;
+const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
 const WIND_INDICATOR_RADIUS_PX = 20;
 const WATER_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
@@ -94,6 +103,13 @@ const SNOW_PARTICLES_PER_TILE = 2;
 const PRECIP_PARTICLE_VIEW_MARGIN = 30;
 const WEATHER_DEFAULT_TIME_SCALE = 3600;
 const WEATHER_WIND_SEED = 90210;
+const DAY_NIGHT_DAY_ALT = 0.34;
+const DAY_NIGHT_NIGHT_ALT = -0.34;
+const DAY_NIGHT_SUNSET_START_ALT = -0.3;
+const DAY_NIGHT_SUNSET_END_ALT = 0.3;
+const DAY_NIGHT_MAX_SUNSET_ALPHA = 0.38;
+const DAY_NIGHT_MAX_NIGHT_MULTIPLY_ALPHA = 0.62;
+const DAY_NIGHT_MAX_NIGHT_BLUE_ALPHA = 0.34;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 24;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
@@ -448,7 +464,7 @@ function markRiverEdgesOpeningToWater(masks, toWaterMasks) {
   let added = 0;
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
     const mask = masks[tileId];
-    if (mask === 0 || isWaterLikeRow(earthById[tileId])) continue;
+    if (mask === 0 || isWaterSurfaceRow(earthById[tileId])) continue;
     const edgeCount = graph.edgeCount[tileId];
     for (let edge = 0; edge < edgeCount; edge++) {
       if ((mask & (1 << edge)) === 0) continue;
@@ -456,7 +472,7 @@ function markRiverEdgesOpeningToWater(masks, toWaterMasks) {
       if (neighborId === undefined) {
         throw new Error(`River edge ${edge} on tile ${tileId} has no edge neighbor`);
       }
-      if (isWaterLikeRow(earthById[neighborId])) {
+      if (isWaterSurfaceRow(earthById[neighborId])) {
         added += addRiverEdgeMask(toWaterMasks, tileId, edge, `derived river-to-water tile ${tileId}`);
       }
     }
@@ -484,7 +500,7 @@ function mergeManualRiverMouthEdgesIntoMasks(masks, toWaterMasks) {
     if (neighborId === undefined) {
       throw new Error(`manual river mouth: tile ${tile} has no edge ${edge}`);
     }
-    if (!isWaterLikeRow(earthById[neighborId])) {
+    if (!isWaterSurfaceRow(earthById[neighborId])) {
       throw new Error(`manual river mouth: tile ${tile} edge ${edge} does not touch water`);
     }
     added += addRiverEdgeMask(masks, tile, edge, `manual river mouth tile ${tile}`);
@@ -656,7 +672,9 @@ function createShip(latDeg, lonDeg) {
     tileId,
     heading,
     targetHeading: heading.slice(),
-    velocity: [0, 0, 0]
+    velocity: [0, 0, 0],
+    wakeParticles: [],
+    lastWakeEmit: null
   };
 }
 
@@ -711,8 +729,9 @@ function updateSailing(dt) {
 
   applyWindAcceleration(dt);
   const moveResult = moveShipWithCollision(dt);
+  const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
-  return moveResult.moved || moveResult.collided || headingChanged || vectorLength(ship.velocity) > 0.0001;
+  return moveResult.moved || moveResult.collided || headingChanged || wakeChanged || vectorLength(ship.velocity) > 0.0001;
 }
 
 function inputHeadingForShip() {
@@ -850,12 +869,38 @@ function shipOccupancyAtPosition(position, tileId) {
 
   for (const sampleVector of sampleVectors) {
     const samplePosition = offsetSurfacePosition(position, sampleVector, radius);
-    const sampleTileId = findNearestTileId(graph, directionIndex, samplePosition);
+    const sampleTileId = renderedShipSampleTileId(tileId, sampleVector, radius * PIXELS_PER_RADIAN) ??
+      findNearestTileId(graph, directionIndex, samplePosition);
     if (sampleTileId === tileId) continue;
     if (canShipMoveBetween(tileId, sampleTileId)) continue;
     return { ok: false, blockedTileId: sampleTileId };
   }
   return { ok: true };
+}
+
+function renderedShipSampleTileId(anchorTileId, sampleVector, distancePx) {
+  if (!localLayout || !camera) return undefined;
+  const sampleX = localLayout.viewX + dot3(sampleVector, camera.right) * distancePx;
+  const sampleY = localLayout.viewY - dot3(sampleVector, camera.up) * distancePx;
+  let bestId;
+  let bestD2 = Infinity;
+
+  for (const candidateId of localCollisionCandidateIds(anchorTileId)) {
+    const layout = localLayout.positions.get(candidateId);
+    if (!layout) continue;
+    const dx = layout.x - sampleX;
+    const dy = layout.y - sampleY;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= bestD2) continue;
+    bestD2 = d2;
+    bestId = candidateId;
+  }
+
+  return bestId;
+}
+
+function localCollisionCandidateIds(tileId) {
+  return [tileId, ...graph.neighbors[tileId]];
 }
 
 function offsetSurfacePosition(position, tangent, distanceRad) {
@@ -884,6 +929,7 @@ function applyShipMove(position, tileId) {
   moveLocalView(dx, dy);
   camera = northUpCamera(ship.position, camera.right);
   centerTileId = ship.tileId;
+  syncLocalViewToShip();
 }
 
 function shipCollisionNormal(position, blockedTileId, fallbackStep) {
@@ -927,7 +973,7 @@ function isShipNavigableTile(tileId) {
 }
 
 function isShipOpenWaterTile(tileId) {
-  return isWaterLikeRow(earthById[tileId]);
+  return isWaterSurfaceRow(earthById[tileId]);
 }
 
 function isShipOceanTile(tileId) {
@@ -941,6 +987,115 @@ function shipTileHasRiver(tileId) {
 function moveLocalView(dx, dy) {
   localLayout.viewX += dx * PIXELS_PER_RADIAN;
   localLayout.viewY -= dy * PIXELS_PER_RADIAN;
+}
+
+function syncLocalViewToShip() {
+  if (!ship || !camera || !localLayout) return false;
+  const tileLayout = localLayout.positions.get(ship.tileId);
+  if (!tileLayout) return false;
+
+  const tileCenter = tileCenterVector(ship.tileId);
+  const delta = [
+    ship.position[0] - tileCenter[0],
+    ship.position[1] - tileCenter[1],
+    ship.position[2] - tileCenter[2]
+  ];
+  const nextX = tileLayout.x + dot3(delta, camera.right) * PIXELS_PER_RADIAN;
+  const nextY = tileLayout.y - dot3(delta, camera.up) * PIXELS_PER_RADIAN;
+  const changed = Math.hypot(localLayout.viewX - nextX, localLayout.viewY - nextY) > 0.01;
+  localLayout.viewX = nextX;
+  localLayout.viewY = nextY;
+  return changed;
+}
+
+function updateShipWake(dt) {
+  if (!ship) return false;
+  let changed = false;
+  if (ship.wakeParticles.length > 0) {
+    const kept = [];
+    for (const particle of ship.wakeParticles) {
+      particle.age += dt;
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      if (particle.age < particle.ttl) kept.push(particle);
+    }
+    changed = kept.length !== ship.wakeParticles.length;
+    ship.wakeParticles = kept;
+    changed = true;
+  }
+
+  const speedPx = vectorLength(ship.velocity) * PIXELS_PER_RADIAN;
+  if (speedPx < SHIP_WAKE_MIN_SPEED_PX) {
+    ship.lastWakeEmit = null;
+    return changed;
+  }
+
+  const stern = shipWakeSternPoint();
+  const last = ship.lastWakeEmit;
+  if (!last || Math.hypot(stern.x - last.x, stern.y - last.y) > SHIP_WAKE_RESET_DISTANCE_PX) {
+    emitShipWake(stern, speedPx);
+    ship.lastWakeEmit = stern;
+    return true;
+  }
+
+  const distance = Math.hypot(stern.x - last.x, stern.y - last.y);
+  if (distance < SHIP_WAKE_EMIT_DISTANCE_PX) return changed;
+
+  const steps = Math.max(1, Math.floor(distance / SHIP_WAKE_EMIT_DISTANCE_PX));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    emitShipWake({
+      x: last.x + (stern.x - last.x) * t,
+      y: last.y + (stern.y - last.y) * t
+    }, speedPx);
+  }
+  ship.lastWakeEmit = stern;
+  return true;
+}
+
+function shipWakeSternPoint() {
+  const heading = shipScreenHeading();
+  return {
+    x: localLayout.viewX - heading.x * SHIP_WAKE_STERN_OFFSET_PX,
+    y: localLayout.viewY - heading.y * SHIP_WAKE_STERN_OFFSET_PX
+  };
+}
+
+function emitShipWake(stern, speedPx) {
+  const heading = shipScreenHeading();
+  const back = { x: -heading.x, y: -heading.y };
+  const spread = clamp(0.75 + speedPx / 18, 0.75, 1.45);
+  emitWakeParticle(stern, rotate2(back.x, back.y, KELVIN_WAKE_HALF_ANGLE_RAD), speedPx, spread, "arm");
+  emitWakeParticle(stern, rotate2(back.x, back.y, -KELVIN_WAKE_HALF_ANGLE_RAD), speedPx, spread, "arm");
+  if (speedPx > SHIP_WAKE_MIN_SPEED_PX * 1.5) {
+    emitWakeParticle(stern, back, speedPx, 0.55, "center");
+  }
+
+  if (ship.wakeParticles.length > SHIP_WAKE_MAX_PARTICLES) {
+    ship.wakeParticles.splice(0, ship.wakeParticles.length - SHIP_WAKE_MAX_PARTICLES);
+  }
+}
+
+function emitWakeParticle(stern, direction, speedPx, speedScale, kind) {
+  const drift = SHIP_WAKE_DRIFT_PX_PER_SECOND * speedScale + speedPx * 0.1;
+  ship.wakeParticles.push({
+    x: stern.x,
+    y: stern.y,
+    vx: direction.x * drift,
+    vy: direction.y * drift,
+    age: 0,
+    ttl: kind === "center" ? SHIP_WAKE_TTL_SECONDS * 0.48 : SHIP_WAKE_TTL_SECONDS,
+    kind
+  });
+}
+
+function rotate2(x, y, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: x * cos - y * sin,
+    y: x * sin + y * cos
+  };
 }
 
 function updateWaterAnimation(nowMs) {
@@ -1066,11 +1221,82 @@ function normalizeOrNull(v) {
   return [v[0] / length, v[1] / length, v[2] / length];
 }
 
+function drawDayNightTint() {
+  if (!ship) return;
+  const light = localDayNightLight();
+  if (light.sunset <= 0.01 && light.night <= 0.01) return;
+
+  ctx.save();
+  if (light.sunset > 0.01) {
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = `rgba(255, 132, 48, ${(DAY_NIGHT_MAX_SUNSET_ALPHA * light.sunset).toFixed(3)})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = `rgba(192, 56, 26, ${(0.12 * light.sunset).toFixed(3)})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  }
+
+  if (light.night > 0.01) {
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = `rgba(65, 58, 138, ${(DAY_NIGHT_MAX_NIGHT_MULTIPLY_ALPHA * light.night).toFixed(3)})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = `rgba(22, 18, 68, ${(DAY_NIGHT_MAX_NIGHT_BLUE_ALPHA * light.night).toFixed(3)})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  }
+  ctx.restore();
+}
+
+function localDayNightLight() {
+  const subsolar = dateToSubsolarPoint(weatherParts.date);
+  const sunDirection = latLonToDirection(subsolar.latDeg, subsolar.lonDeg);
+  const sunAltitude = dot3(ship.position, sunDirection);
+  const day = smoothstep(DAY_NIGHT_NIGHT_ALT * 0.65, DAY_NIGHT_DAY_ALT, sunAltitude);
+  const night = 1 - smoothstep(DAY_NIGHT_NIGHT_ALT, 0.08, sunAltitude);
+  const twilight = clamp(1 - day - night, 0, 1);
+  const sunset = smoothstep(DAY_NIGHT_SUNSET_START_ALT, 0.05, sunAltitude) *
+    (1 - smoothstep(0.06, DAY_NIGHT_SUNSET_END_ALT, sunAltitude));
+  return {
+    sunAltitude,
+    night: easeInOut(night),
+    sunset: easeInOut(Math.max(twilight * 0.85, sunset))
+  };
+}
+
+function dateToSubsolarPoint(date) {
+  const utcMs = date.getTime();
+  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 0, 0, 0, 0, 0);
+  const dayOfYear = (utcMs - yearStart) / 86400000;
+  const utcHours = date.getUTCHours() +
+    date.getUTCMinutes() / 60 +
+    date.getUTCSeconds() / 3600 +
+    date.getUTCMilliseconds() / 3600000;
+  const b = (2 * Math.PI / 365.25) * (dayOfYear - 81);
+  const eotMinutes = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+  return {
+    latDeg: dateToSubsolarLatDeg(date),
+    lonDeg: normalizeLonDeg(-15 * (utcHours - 12 + eotMinutes / 60))
+  };
+}
+
+function normalizeLonDeg(lonDeg) {
+  return ((((lonDeg + 180) % 360) + 360) % 360) - 180;
+}
+
+function smoothstep(edge0, edge1, x) {
+  if (edge0 === edge1) return x < edge0 ? 0 : 1;
+  return easeInOut((x - edge0) / (edge1 - edge0));
+}
+
 function render(nowMs) {
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
+  syncLocalViewToShip();
   ensureChart();
+  if (syncLocalViewToShip()) {
+    chart = buildChart(camera);
+  }
   const offset = chartOffsetPixels(chart);
 
   ctx.save();
@@ -1090,11 +1316,12 @@ function render(nowMs) {
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart, nowMs);
-  drawShipWake();
+  drawShipWake(chart);
   drawShip();
   drawWindIndicator();
   ctx.restore();
 
+  drawDayNightTint();
   drawMinimap(nowMs);
   drawTinyStatus(nowMs);
 }
@@ -1308,17 +1535,72 @@ function buildChart(anchorCamera) {
   riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
   tileCalls.sort((a, b) => a.sortY - b.sortY || a.id - b.id);
   for (const frontFaces of frontFacesByTile.values()) frontFaces.sort((a, b) => a.sortY - b.sortY);
+  const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, { tileById });
 
   return {
     ...chartCamera,
     centerTileId: chartCenterTileId,
     visibleSet,
     tileById,
+    waterIndex,
     baseFaceCalls,
     riverConnectorCalls,
     tileCalls,
     frontFacesByTile
   };
+}
+
+function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
+  const buckets = new Map();
+  for (const call of tileCalls) {
+    addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
+      kind: "tile",
+      call
+    });
+  }
+
+  for (const call of riverConnectorCalls) {
+    const path = riverConnectorPath(call, activeChart);
+    if (!path) continue;
+    addWakeWaterIndexBox(buckets, {
+      minX: Math.min(path.x0, path.cx, path.x1) - WAKE_RIVER_RADIUS_PX,
+      maxX: Math.max(path.x0, path.cx, path.x1) + WAKE_RIVER_RADIUS_PX,
+      minY: Math.min(path.y0, path.cy, path.y1) - WAKE_RIVER_RADIUS_PX,
+      maxY: Math.max(path.y0, path.cy, path.y1) + WAKE_RIVER_RADIUS_PX
+    }, {
+      kind: "riverConnector",
+      path
+    });
+  }
+  return { buckets };
+}
+
+function addWakeWaterIndexEntry(buckets, x, y, entry) {
+  const bx = Math.floor(x / WAKE_WATER_BUCKET_PX);
+  const by = Math.floor(y / WAKE_WATER_BUCKET_PX);
+  const key = wakeWaterBucketKey(bx, by);
+  const bucket = buckets.get(key);
+  if (bucket) bucket.push(entry);
+  else buckets.set(key, [entry]);
+}
+
+function addWakeWaterIndexBox(buckets, box, entry) {
+  const minBx = Math.floor(box.minX / WAKE_WATER_BUCKET_PX);
+  const maxBx = Math.floor(box.maxX / WAKE_WATER_BUCKET_PX);
+  const minBy = Math.floor(box.minY / WAKE_WATER_BUCKET_PX);
+  const maxBy = Math.floor(box.maxY / WAKE_WATER_BUCKET_PX);
+  for (let by = minBy; by <= maxBy; by++) {
+    for (let bx = minBx; bx <= maxBx; bx++) {
+      const key = wakeWaterBucketKey(bx, by);
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(entry);
+      else buckets.set(key, [entry]);
+    }
+  }
+}
+
+function wakeWaterBucketKey(x, y) {
+  return `${x},${y}`;
 }
 
 function makeFaceCall(call) {
@@ -1351,8 +1633,8 @@ function makeRiverConnectorCall(call) {
   const edgeB = edgeIndexTowardNeighbor(call.b, call.a);
   if (edgeA === undefined || edgeB === undefined) return null;
 
-  const aWater = isWaterLikeRow(call.row);
-  const bWater = isWaterLikeRow(call.nrow);
+  const aWater = isWaterSurfaceRow(call.row);
+  const bWater = isWaterSurfaceRow(call.nrow);
   const aRiver = !aWater && riverEdgeSet(riverMasks, call.a, edgeA);
   const bRiver = !bWater && riverEdgeSet(riverMasks, call.b, edgeB);
   const aHasRiver = !aWater && (riverMasks[call.a] || 0) !== 0;
@@ -1440,9 +1722,14 @@ function minimapLandWeight(row) {
   return 1;
 }
 
-function isWaterLikeRow(row) {
+function isCoastalWaterRow(row) {
+  return (row?.t || "") === "beach";
+}
+
+function isWaterSurfaceRow(row) {
+  // The shared globe cache uses "beach" for underwater coastal waters.
   const t = row?.t || "";
-  return t === "water" || t === "lake" || t === "beach";
+  return t === "water" || t === "lake" || isCoastalWaterRow(row);
 }
 
 function minimapColor(fraction) {
@@ -1570,6 +1857,7 @@ function drawFace(call, activeChart, options = {}) {
 
 function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width) {
   const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
+  drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed);
   for (let i = 0; i < BEACH_SPECKLE_COUNT; i++) {
     const h = hashInt(seed ^ Math.imul(i + 1, 0x85ebca6b));
     const along = 0.24 + ((h & 0xff) / 255) * 0.52;
@@ -1583,8 +1871,59 @@ function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width) {
   drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width);
 }
 
+function drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed) {
+  const waterIsA = isWaterSurfaceRow(call.row);
+  const landRow = waterIsA ? call.nrow : call.row;
+  const landId = waterIsA ? call.b : call.a;
+  const landColor = spriteColors.get(spriteForTerrain(landRow, landId));
+  if (!landColor) throw new Error(`Missing dominant terrain color for beach land edge: ${landId}`);
+
+  const edgeX = waterIsA ? bx : ax;
+  const edgeY = waterIsA ? by : ay;
+  const intoLandX = waterIsA ? (bx - ax) : (ax - bx);
+  const intoLandY = waterIsA ? (by - ay) : (ay - by);
+  const intoLen = Math.hypot(intoLandX, intoLandY);
+  if (intoLen < 1e-6) return;
+
+  const ux = intoLandX / intoLen;
+  const uy = intoLandY / intoLen;
+  const beachColor = beachFaceColor(call);
+  const landEdgeColor = shadeHex(landColor, 6);
+
+  for (let i = 0; i < BEACH_LAND_EDGE_JAG_COUNT; i++) {
+    const h = hashInt(seed ^ Math.imul(i + 1, 0xc2b2ae35));
+    const side = (((h & 0xff) / 255) * 2 - 1) * (width - 1);
+    const depth = 1 + ((h >>> 8) & 1);
+    const length = 1 + ((h >>> 10) & 1);
+    const x = edgeX + nx * side;
+    const y = edgeY + ny * side;
+
+    if ((h & 0x1000) === 0) {
+      drawBeachJagPixelRun(x, y, ux, uy, depth, length, beachColor);
+    } else {
+      drawBeachJagPixelRun(x, y, -ux, -uy, depth, length, landEdgeColor);
+    }
+  }
+}
+
+function drawBeachJagPixelRun(x, y, dx, dy, depth, length, color) {
+  ctx.fillStyle = color;
+  const sideX = -dy;
+  const sideY = dx;
+  for (let d = 0; d < depth; d++) {
+    for (let l = 0; l < length; l++) {
+      ctx.fillRect(
+        Math.round(x + dx * d + sideX * l),
+        Math.round(y + dy * d + sideY * l),
+        1,
+        1
+      );
+    }
+  }
+}
+
 function drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width) {
-  const waterIsA = isWaterLikeRow(call.row);
+  const waterIsA = isWaterSurfaceRow(call.row);
   const wave = beachWaveState(call);
   const fromT = waterIsA ? 0 : 1;
   const toT = waterIsA ? wave.reach : 1 - wave.reach;
@@ -1674,6 +2013,24 @@ function beachCenterPoint(ax, ay, mx, my, bx, by, t) {
 }
 
 function drawRiverConnector(call, activeChart) {
+  const geometry = riverConnectorGeometry(call, activeChart);
+  if (!geometry) return;
+  const { path, a, b } = geometry;
+  const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
+  const frameId = call.aWater ? call.b : call.a;
+  const frame = waterFrameFor(frameId);
+  const colors = riverColors.frames[frame - 1] || riverColors.frames[0];
+  const mainColor = riverColors.base;
+
+  drawPixelBezierStroke(ctx, path, mainColor, RIVER_CONNECTOR_RADIUS_PX);
+  drawPixelBrush(ctx, a.x, a.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
+  drawPixelBrush(ctx, b.x, b.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
+  if (call.aMouth && call.bWater) drawPixelBrush(ctx, b.x, b.y, RIVER_MOUTH_RADIUS_PX, mainColor);
+  if (call.bMouth && call.aWater) drawPixelBrush(ctx, a.x, a.y, RIVER_MOUTH_RADIUS_PX, mainColor);
+  drawRiverSparkles(ctx, path, frame, seed, colors.light);
+}
+
+function riverConnectorGeometry(call, activeChart) {
   const aTile = activeChart.tileById.get(call.a);
   const bTile = activeChart.tileById.get(call.b);
   const sourceAx = aTile ? aTile.drawSurfaceX : call.ax;
@@ -1683,7 +2040,7 @@ function drawRiverConnector(call, activeChart) {
   const dx = sourceBx - sourceAx;
   const dy = sourceBy - sourceAy;
   const len = Math.hypot(dx, dy);
-  if (len < 4) return;
+  if (len < 4) return null;
 
   const ux = dx / len;
   const uy = dy / len;
@@ -1698,11 +2055,6 @@ function drawRiverConnector(call, activeChart) {
     b = { x: midX + ux * half, y: midY + uy * half };
   }
 
-  const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
-  const frameId = call.aWater ? call.b : call.a;
-  const frame = waterFrameFor(frameId);
-  const colors = riverColors.frames[frame - 1] || riverColors.frames[0];
-  const mainColor = riverColors.base;
   const path = {
     x0: a.x,
     y0: a.y,
@@ -1711,13 +2063,11 @@ function drawRiverConnector(call, activeChart) {
     x1: b.x,
     y1: b.y
   };
+  return { path, a, b };
+}
 
-  drawPixelBezierStroke(ctx, path, mainColor, RIVER_CONNECTOR_RADIUS_PX);
-  drawPixelBrush(ctx, a.x, a.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
-  drawPixelBrush(ctx, b.x, b.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
-  if (call.aMouth && call.bWater) drawPixelBrush(ctx, b.x, b.y, RIVER_MOUTH_RADIUS_PX, mainColor);
-  if (call.bMouth && call.aWater) drawPixelBrush(ctx, a.x, a.y, RIVER_MOUTH_RADIUS_PX, mainColor);
-  drawRiverSparkles(ctx, path, frame, seed, colors.light);
+function riverConnectorPath(call, activeChart) {
+  return riverConnectorGeometry(call, activeChart)?.path || null;
 }
 
 function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
@@ -1747,10 +2097,10 @@ function drawTile(call, activeChart) {
 
 function drawWeatherSurface(call) {
   if (seaIceMask?.[call.id] || freshwaterIceMask?.[call.id]) {
-    if (isWaterLikeRow(call.row)) drawIceOverlay(call, freshwaterIceMask?.[call.id] ? 0.72 : 0.6);
+    if (isWaterSurfaceRow(call.row)) drawIceOverlay(call, freshwaterIceMask?.[call.id] ? 0.72 : 0.6);
   }
 
-  if (isWaterLikeRow(call.row)) return;
+  if (isWaterSurfaceRow(call.row)) return;
   const flags = weatherFlagsForTile(call.id);
   if ((flags & TILE_DAY_WET_SOIL) !== 0) {
     drawWeatherSpeckles(call, "rgba(53, 64, 75, 0.42)", 14, 0x57544554, 9, 6);
@@ -1787,7 +2137,7 @@ function drawWeatherSpeckles(call, color, count, salt, radiusX, radiusY) {
 function drawRiver(call, activeChart) {
   if (!riverMasks) return;
   const mask = riverMasks[call.id] || 0;
-  if (mask === 0 || isWaterLikeRow(call.row)) return;
+  if (mask === 0 || isWaterSurfaceRow(call.row)) return;
   const sprite = riverSpriteForTile(call, activeChart, mask);
   if (!sprite) return;
   const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
@@ -2285,35 +2635,160 @@ function terrainImage(key) {
   return img;
 }
 
-function drawShipWake() {
-  if (!ship) return;
-  const speedPx = vectorLength(ship.velocity) * PIXELS_PER_RADIAN;
-  if (speedPx < SHIP_WAKE_MIN_SPEED_PX) return;
+function drawShipWake(activeChart) {
+  if (!ship?.wakeParticles?.length) return;
+  for (const particle of ship.wakeParticles) {
+    const life = clamp(particle.age / particle.ttl, 0, 1);
+    const alphaBase = particle.kind === "center" ? 0.26 : 0.5;
+    const alpha = (alphaBase * Math.pow(1 - life, 1.35)).toFixed(3);
+    const color = `rgba(255, 253, 231, ${alpha})`;
+    const x = Math.round(particle.x);
+    const y = Math.round(particle.y);
+    const len = Math.hypot(particle.vx, particle.vy);
+    if (!wakeMapPointIsWater(x, y, activeChart)) continue;
 
-  const heading = shipScreenHeading();
-  const cx = Math.round(localLayout.viewX);
-  const cy = Math.round(localLayout.viewY);
-  const sternX = Math.round(cx - heading.x * 7);
-  const sternY = Math.round(cy - heading.y * 7);
-  const backAngle = Math.atan2(-heading.y, -heading.x);
-  const wakeLength = clamp(Math.round(SHIP_WAKE_MIN_LENGTH_PX + speedPx * 0.65), SHIP_WAKE_MIN_LENGTH_PX, SHIP_WAKE_MAX_LENGTH_PX);
-  const alpha = clamp(0.22 + speedPx / 48, 0.22, 0.58).toFixed(3);
-  const color = `rgba(255, 253, 231, ${alpha})`;
+    if (particle.kind === "center" || len <= 0.001) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+      continue;
+    }
 
-  drawPixelLine(
-    sternX,
-    sternY,
-    Math.round(sternX + Math.cos(backAngle + KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
-    Math.round(sternY + Math.sin(backAngle + KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
-    color
-  );
-  drawPixelLine(
-    sternX,
-    sternY,
-    Math.round(sternX + Math.cos(backAngle - KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
-    Math.round(sternY + Math.sin(backAngle - KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
-    color
-  );
+    const ux = particle.vx / len;
+    const uy = particle.vy / len;
+    const markLength = clamp(Math.round(1 + life * 3), 1, 4);
+    drawWakePixelLine(
+      Math.round(particle.x - ux * markLength),
+      Math.round(particle.y - uy * markLength),
+      Math.round(particle.x + ux),
+      Math.round(particle.y + uy),
+      color,
+      activeChart
+    );
+  }
+}
+
+function drawWakePixelLine(x0, y0, x1, y1, color, activeChart) {
+  let x = x0;
+  let y = y0;
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  ctx.fillStyle = color;
+  while (true) {
+    if (wakeMapPointIsWater(x, y, activeChart)) {
+      ctx.fillRect(x, y, 1, 1);
+    }
+    if (x === x1 && y === y1) break;
+    const e2 = err * 2;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+}
+
+function wakeMapPointIsWater(x, y, activeChart) {
+  if (!activeChart?.waterIndex) return false;
+  const candidates = wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex);
+  for (const entry of candidates) {
+    if (entry.kind === "riverConnector" && pointDistanceToBezierPath(x, y, entry.path) <= WAKE_RIVER_RADIUS_PX) {
+      return true;
+    }
+  }
+
+  let nearestTile = null;
+  let nearestD2 = WAKE_WATER_SEARCH_RADIUS_PX * WAKE_WATER_SEARCH_RADIUS_PX;
+  for (const entry of candidates) {
+    if (entry.kind !== "tile") continue;
+    const dx = entry.call.drawSurfaceX - x;
+    const dy = entry.call.drawSurfaceY - y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= nearestD2) continue;
+    nearestD2 = d2;
+    nearestTile = entry.call;
+  }
+
+  if (!nearestTile) return false;
+  if (isWaterSurfaceRow(nearestTile.row)) return true;
+  return wakePointIsOnRiverTile(x, y, nearestTile, activeChart);
+}
+
+function wakeWaterCandidatesForPoint(x, y, waterIndex) {
+  const bx = Math.floor(x / WAKE_WATER_BUCKET_PX);
+  const by = Math.floor(y / WAKE_WATER_BUCKET_PX);
+  const range = Math.ceil(WAKE_WATER_SEARCH_RADIUS_PX / WAKE_WATER_BUCKET_PX);
+  const candidates = [];
+  const seen = new Set();
+
+  for (let yy = by - range; yy <= by + range; yy++) {
+    for (let xx = bx - range; xx <= bx + range; xx++) {
+      const bucket = waterIndex.buckets.get(wakeWaterBucketKey(xx, yy));
+      if (!bucket) continue;
+      for (const entry of bucket) {
+        if (seen.has(entry)) continue;
+        seen.add(entry);
+        candidates.push(entry);
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function wakePointIsOnRiverTile(x, y, call, activeChart) {
+  const mask = riverMasks?.[call.id] || 0;
+  if (mask === 0) return false;
+  const px = x - (call.drawSurfaceX - TILE_ART_HALF);
+  const py = y - (call.drawSurfaceY - TILE_ART_HALF);
+  const margin = WAKE_RIVER_RADIUS_PX + 1;
+  if (px < -margin || px > TILE_ART_SIZE + margin || py < -margin || py > TILE_ART_SIZE + margin) return false;
+
+  const endpoints = riverEndpointsForTile(call, activeChart, mask);
+  if (endpoints.length === 0) return false;
+  const variant = hashInt(call.id) & 15;
+  for (const path of riverBezierPaths(endpoints, variant)) {
+    if (pointDistanceToBezierPath(px, py, path) <= WAKE_RIVER_RADIUS_PX) return true;
+  }
+  if (endpoints.length !== 2 && Math.hypot(px - TILE_ART_HALF, py - TILE_ART_HALF) <= WAKE_RIVER_RADIUS_PX) {
+    return true;
+  }
+  for (const endpoint of endpoints) {
+    const radius = endpoint.mouth ? RIVER_MOUTH_RADIUS_PX + 1 : RIVER_CONNECTOR_RADIUS_PX + 1;
+    if (Math.hypot(px - endpoint.x, py - endpoint.y) <= radius) return true;
+  }
+  return false;
+}
+
+function pointDistanceToBezierPath(px, py, path) {
+  let best = Infinity;
+  let prev = { x: path.x0, y: path.y0 };
+  for (let i = 1; i <= 14; i++) {
+    const t = i / 14;
+    const omt = 1 - t;
+    const point = {
+      x: omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1,
+      y: omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1
+    };
+    best = Math.min(best, pointDistanceToSegment(px, py, prev.x, prev.y, point.x, point.y));
+    prev = point;
+  }
+  return best;
+}
+
+function pointDistanceToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 <= 1e-9) return Math.hypot(px - ax, py - ay);
+  const t = clamp(((px - ax) * dx + (py - ay) * dy) / len2, 0, 1);
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
 }
 
 function drawShip() {
@@ -2407,7 +2882,7 @@ function drawTinyStatus(nowMs) {
   const flowDir = wind.directionRad + Math.PI;
   const iced = Boolean(seaIceMask?.[centerTileId] || freshwaterIceMask?.[centerTileId]);
   const shipSpeed = ship ? vectorLength(ship.velocity) * PIXELS_PER_RADIAN : 0;
-  const line1 = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${row.t} ${lat},${lon}`;
+  const line1 = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${terrainStatusLabel(row)} ${lat},${lon}`;
   const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)} spd ${shipSpeed.toFixed(0)}`;
   const width = Math.min(SCREEN_W - 8, Math.max(line1.length, line2.length) * 5 + 8);
   ctx.fillStyle = "rgba(15, 18, 14, 0.62)";
@@ -2422,6 +2897,11 @@ function drawTinyStatus(nowMs) {
 
 function weatherFlagsForTile(tileId) {
   return discreteWeatherFlagsForTile(weatherBake, tileId, weatherParts.dayIndex);
+}
+
+function terrainStatusLabel(row) {
+  if (isCoastalWaterRow(row)) return "coastal waters";
+  return row?.t || "unknown";
 }
 
 function windForTile(tileId) {
@@ -2470,7 +2950,7 @@ function faceColorFor(call) {
 }
 
 function isCoastFace(call) {
-  return isWaterLikeRow(call.row) !== isWaterLikeRow(call.nrow);
+  return isWaterSurfaceRow(call.row) !== isWaterSurfaceRow(call.nrow);
 }
 
 function beachFaceColor(call) {
@@ -2481,7 +2961,7 @@ function beachFaceColor(call) {
 }
 
 function beachWaterColor(call) {
-  const waterIsA = isWaterLikeRow(call.row);
+  const waterIsA = isWaterSurfaceRow(call.row);
   const waterRow = waterIsA ? call.row : call.nrow;
   const waterId = waterIsA ? call.a : call.b;
   const key = spriteForTerrain(waterRow, waterId);
