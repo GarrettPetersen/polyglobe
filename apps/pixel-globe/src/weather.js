@@ -1,0 +1,435 @@
+export const WEATHER_DAYS = 365;
+export const WEATHER_MINUTES_PER_DAY = 1440;
+export const WEATHER_REF_YEAR = 2023;
+
+export const TILE_DAY_CLEAR = 0;
+export const TILE_DAY_RAIN = 1;
+export const TILE_DAY_SNOW_FALL = 2;
+export const TILE_DAY_WET_SOIL = 4;
+export const TILE_DAY_SNOW_GROUND = 8;
+
+const DISCRETE_MAGIC = "PLYW";
+const DISCRETE_FILE_VERSION = 2;
+const DISCRETE_HEADER_BYTES = 20;
+
+const RUNTIME_MAGIC = "PGRB";
+const RUNTIME_FILE_VERSION = 3;
+const RUNTIME_HEADER_BYTES = 64;
+const CLOUD_SPAWN_RECORD_BYTES = 24;
+
+export function discreteWeatherBakeEarthCacheVersionU32(key) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+export function decodeDiscreteWeatherYearBakeFile(buffer, globeTileIds, expectedVersionKey, expectedSubdivisions) {
+  const u8 = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+  if (u8.byteLength < DISCRETE_HEADER_BYTES) {
+    throw new Error(`Discrete weather bake is too small: ${u8.byteLength} bytes`);
+  }
+  requireMagic(u8, DISCRETE_MAGIC, "discrete weather bake");
+
+  let o = 4;
+  const fileVersion = dv.getUint32(o, true);
+  o += 4;
+  if (fileVersion !== DISCRETE_FILE_VERSION) {
+    throw new Error(`Unsupported discrete weather bake version ${fileVersion}; expected ${DISCRETE_FILE_VERSION}`);
+  }
+
+  const cacheVersion = dv.getUint32(o, true);
+  o += 4;
+  const expectedCacheVersion = discreteWeatherBakeEarthCacheVersionU32(expectedVersionKey);
+  if (cacheVersion !== expectedCacheVersion) {
+    throw new Error(`Discrete weather bake cache version ${cacheVersion} does not match Earth cache ${expectedVersionKey}`);
+  }
+
+  const subdivisions = dv.getUint32(o, true);
+  o += 4;
+  if (subdivisions !== expectedSubdivisions) {
+    throw new Error(`Discrete weather bake subdivision ${subdivisions}; expected ${expectedSubdivisions}`);
+  }
+
+  const tileCount = dv.getUint32(o, true);
+  o += 4;
+  if (tileCount !== globeTileIds.length) {
+    throw new Error(`Discrete weather bake tile count ${tileCount}; expected ${globeTileIds.length}`);
+  }
+
+  const idsEnd = o + tileCount * 4;
+  const payloadBytes = WEATHER_DAYS * tileCount;
+  if (u8.byteLength !== idsEnd + payloadBytes) {
+    throw new Error(`Discrete weather bake has ${u8.byteLength} bytes; expected ${idsEnd + payloadBytes}`);
+  }
+
+  const ordinalByTileId = new Int32Array(tileCount);
+  ordinalByTileId.fill(-1);
+  for (let i = 0; i < tileCount; i++) {
+    const tileId = dv.getInt32(o + i * 4, true);
+    if (tileId !== globeTileIds[i]) {
+      throw new Error(`Discrete weather bake tile order mismatch at ordinal ${i}: got ${tileId}, expected ${globeTileIds[i]}`);
+    }
+    if (tileId < 0 || tileId >= tileCount) {
+      throw new Error(`Discrete weather bake tile id out of range at ordinal ${i}: ${tileId}`);
+    }
+    ordinalByTileId[tileId] = i;
+  }
+
+  return {
+    tileCount,
+    ordinalByTileId,
+    packed: new Uint8Array(buffer, idsEnd, payloadBytes)
+  };
+}
+
+export function decodePixelRuntimeWeatherBakeFile(buffer, expectedVersionKey, expectedSubdivisions, expectedTileCount) {
+  const u8 = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+  if (u8.byteLength < RUNTIME_HEADER_BYTES) {
+    throw new Error(`Globe runtime bake is too small: ${u8.byteLength} bytes`);
+  }
+  requireMagic(u8, RUNTIME_MAGIC, "globe runtime bake");
+
+  let p = 4;
+  const fileVersion = dv.getUint32(p, true);
+  p += 4;
+  if (fileVersion !== RUNTIME_FILE_VERSION) {
+    throw new Error(`Unsupported globe runtime bake version ${fileVersion}; expected ${RUNTIME_FILE_VERSION}`);
+  }
+
+  const cacheVersion = dv.getUint32(p, true);
+  p += 4;
+  const expectedCacheVersion = discreteWeatherBakeEarthCacheVersionU32(expectedVersionKey);
+  if (cacheVersion !== expectedCacheVersion) {
+    throw new Error(`Globe runtime bake cache version ${cacheVersion} does not match Earth cache ${expectedVersionKey}`);
+  }
+
+  const subdivisions = dv.getUint32(p, true);
+  p += 4;
+  if (subdivisions !== expectedSubdivisions) {
+    throw new Error(`Globe runtime bake subdivision ${subdivisions}; expected ${expectedSubdivisions}`);
+  }
+
+  const tileCount = dv.getUint32(p, true);
+  p += 4;
+  if (tileCount !== expectedTileCount) {
+    throw new Error(`Globe runtime bake tile count ${tileCount}; expected ${expectedTileCount}`);
+  }
+
+  const coastW = dv.getUint32(p, true);
+  p += 4;
+  const coastH = dv.getUint32(p, true);
+  p += 4;
+  const headerMaxCloudSlots = dv.getUint32(p, true);
+  p += 4;
+  p += 4; // cloud spawn config hash, validated by the 3D demo; the pixel app only consumes layout.
+  p += 4; // water table fingerprint.
+  const riverTileCount = dv.getUint32(p, true);
+  p = RUNTIME_HEADER_BYTES;
+
+  let o = p;
+  requireBytes(o, 12, u8.byteLength, "runtime water section header");
+  const vertCount = dv.getUint32(o, true);
+  o += 4;
+  const indexCount = dv.getUint32(o, true);
+  o += 4;
+  const indexType = dv.getUint32(o, true);
+  o += 4;
+  if (indexType !== 0 && indexType !== 1) {
+    throw new Error(`Globe runtime bake index type ${indexType} is invalid`);
+  }
+
+  o = skipBytes(o, vertCount * 12, u8.byteLength, "runtime water positions");
+  o = skipBytes(o, vertCount * 12, u8.byteLength, "runtime water normals");
+  o = skipBytes(o, indexCount * (indexType === 1 ? 4 : 2), u8.byteLength, "runtime water indices");
+  o = skipBytes(o, coastW * coastH, u8.byteLength, "runtime coast water mask");
+  o = skipBytes(o, coastW * coastH, u8.byteLength, "runtime coast land mask");
+
+  requireBytes(o, 4, u8.byteLength, "runtime cloud slot count");
+  const maxCloudSlots = dv.getUint32(o, true);
+  o += 4;
+  if (maxCloudSlots !== headerMaxCloudSlots) {
+    throw new Error(`Runtime cloud slot count mismatch: header=${headerMaxCloudSlots}, section=${maxCloudSlots}`);
+  }
+
+  const recordCount = maxCloudSlots * WEATHER_DAYS;
+  const cloudSpawnTileIds = new Uint32Array(recordCount);
+  const cloudTemplateIndices = new Uint32Array(recordCount);
+  const cloudBaseScales = new Float32Array(recordCount);
+  const cloudWindDirections = new Float32Array(recordCount);
+  const cloudWindStrengths = new Float32Array(recordCount);
+  const cloudLifecyclePhases = new Float32Array(recordCount);
+  requireBytes(o, recordCount * CLOUD_SPAWN_RECORD_BYTES, u8.byteLength, "runtime cloud spawn table");
+  for (let i = 0; i < recordCount; i++) {
+    const rec = o + i * CLOUD_SPAWN_RECORD_BYTES;
+    const tileId = dv.getUint32(rec, true);
+    if (tileId >= tileCount) {
+      throw new Error(`Runtime cloud spawn table tile id ${tileId} is out of range at record ${i}`);
+    }
+    cloudSpawnTileIds[i] = tileId;
+    cloudTemplateIndices[i] = dv.getUint32(rec + 4, true);
+    cloudBaseScales[i] = dv.getFloat32(rec + 8, true);
+    cloudWindDirections[i] = dv.getFloat32(rec + 12, true);
+    cloudWindStrengths[i] = dv.getFloat32(rec + 16, true);
+    cloudLifecyclePhases[i] = dv.getFloat32(rec + 20, true);
+  }
+  o += recordCount * CLOUD_SPAWN_RECORD_BYTES;
+
+  o = skipBytes(o, riverTileCount * 4, u8.byteLength, "runtime river flow tile ids");
+  o = skipBytes(o, riverTileCount * WEATHER_DAYS * 4, u8.byteLength, "runtime river flow strengths");
+
+  const seaDecoded = decodeIceCycleSection(dv, o, u8.byteLength, tileCount, "sea ice");
+  o = seaDecoded.offset;
+  const freshwaterDecoded = decodeIceCycleSection(dv, o, u8.byteLength, tileCount, "freshwater ice");
+  o = freshwaterDecoded.offset;
+
+  if (o !== u8.byteLength) {
+    throw new Error(`Globe runtime bake has ${u8.byteLength - o} trailing bytes`);
+  }
+
+  return {
+    maxCloudSlots,
+    cloudSpawnTileIds,
+    cloudTemplateIndices,
+    cloudBaseScales,
+    cloudWindDirections,
+    cloudWindStrengths,
+    cloudLifecyclePhases,
+    seaIceCycle: seaDecoded.cycle,
+    freshwaterIceCycle: freshwaterDecoded.cycle
+  };
+}
+
+export function discreteWeatherFlagsForTile(bake, tileId, dayIndex) {
+  if (!bake) return TILE_DAY_CLEAR;
+  const ord = bake.ordinalByTileId[tileId];
+  if (ord == null || ord < 0) return TILE_DAY_CLEAR;
+  const day = normalizeDayIndex(dayIndex);
+  return bake.packed[day * bake.tileCount + ord] || TILE_DAY_CLEAR;
+}
+
+export function fillIceMaskForDay(cycle, dayOfYear, outMask) {
+  if (!cycle) {
+    outMask.fill(0);
+    return;
+  }
+  if (outMask.length < cycle.tileCount) {
+    throw new Error(`Ice mask length ${outMask.length}; expected at least ${cycle.tileCount}`);
+  }
+
+  outMask.fill(0);
+  const day = normalizeDayIndex(dayOfYear);
+  fillAlwaysIce(cycle.northAlwaysTileIds, outMask);
+  fillAlwaysIce(cycle.southAlwaysTileIds, outMask);
+  fillSeasonalIce(cycle.northSeasonalTileIds, cycle.northFreezeDayOfYear, cycle.northThawDayOfYear, day, outMask);
+  fillSeasonalIce(cycle.southSeasonalTileIds, cycle.southFreezeDayOfYear, cycle.southThawDayOfYear, day, outMask);
+}
+
+export function isSeaIceActiveOnDay(freezeDay, thawDay, dayOfYear) {
+  const day = normalizeDayIndex(dayOfYear);
+  if (freezeDay === thawDay) return false;
+  if (freezeDay < thawDay) return day >= freezeDay && day < thawDay;
+  return day >= freezeDay || day < thawDay;
+}
+
+export function weatherClockParts(clockMinutes) {
+  const cycleMinutes = WEATHER_DAYS * WEATHER_MINUTES_PER_DAY;
+  const minute = positiveModulo(Math.floor(clockMinutes), cycleMinutes);
+  const dayIndex = Math.floor(minute / WEATHER_MINUTES_PER_DAY);
+  const minuteOfDay = minute - dayIndex * WEATHER_MINUTES_PER_DAY;
+  return {
+    dayIndex,
+    minuteOfDay,
+    date: new Date(Date.UTC(
+      WEATHER_REF_YEAR,
+      0,
+      1 + dayIndex,
+      Math.floor(minuteOfDay / 60),
+      minuteOfDay % 60,
+      0,
+      0
+    ))
+  };
+}
+
+export function dateToSubsolarLatDeg(date) {
+  const utcMs = date.getTime();
+  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 0, 0, 0, 0, 0);
+  const dayOfYear = (utcMs - yearStart) / 86400000;
+  return 23.4397 * Math.sin((2 * Math.PI / 365.25) * (dayOfYear - 81));
+}
+
+export function windAtLatLonDeg(latDeg, lonDeg, subsolarLatDeg, options = {}) {
+  const baseStrength = options.baseStrength ?? 1;
+  const seed = options.seed ?? 12345;
+  const simMinute = options.simMinute ?? 0;
+  const effLat = effectiveLatForSeason(latDeg, subsolarLatDeg);
+  let { directionRad, strength } = baseWindAtLat(effLat);
+  const la = Math.round(latDeg * 500);
+  const lo = Math.round(lonDeg * 500);
+  const h1 = u32Hash([seed, la, lo, simMinute, 0x7e3779b9]);
+  const h2 = u32Hash([seed, la, lo, simMinute, 0x9e3779b1]);
+  directionRad += (((h1 & 0xffff) / 0xffff) - 0.5) * 0.24;
+  strength = Math.max(0.05, Math.min(1, strength * (0.85 + ((h2 & 0xffff) / 0xffff) * 0.3) * baseStrength));
+  return { directionRad, strength };
+}
+
+export function cloudLifecycleScaleOpacity(lifecycleU) {
+  const x = Math.min(1, Math.max(0, lifecycleU));
+  let envelope;
+  if (x < 1 / 3) {
+    const g = x * 3;
+    envelope = 0.5 - 0.5 * Math.cos(Math.PI * g);
+  } else if (x < 2 / 3) {
+    envelope = 1;
+  } else {
+    const s = (x - 2 / 3) * 3;
+    envelope = 0.5 + 0.5 * Math.cos(Math.PI * s * s);
+  }
+  return {
+    scaleMul: 0.1 + envelope * 1.12,
+    opacity: 0.26 + envelope * 0.7
+  };
+}
+
+function decodeIceCycleSection(dv, offset, totalBytes, tileCount, label) {
+  let o = offset;
+  requireBytes(o, 16, totalBytes, `${label} counts`);
+  const northAlwaysCount = dv.getUint32(o, true);
+  o += 4;
+  const northSeasonalCount = dv.getUint32(o, true);
+  o += 4;
+  const southAlwaysCount = dv.getUint32(o, true);
+  o += 4;
+  const southSeasonalCount = dv.getUint32(o, true);
+  o += 4;
+
+  const northAlways = readTileIdArray(dv, o, northAlwaysCount, totalBytes, tileCount, `${label} north always`);
+  o = northAlways.offset;
+  const northSeasonal = readTileIdArray(dv, o, northSeasonalCount, totalBytes, tileCount, `${label} north seasonal`);
+  o = northSeasonal.offset;
+  const northFreeze = readDayArray(dv, o, northSeasonalCount, totalBytes, `${label} north freeze`);
+  o = northFreeze.offset;
+  const northThaw = readDayArray(dv, o, northSeasonalCount, totalBytes, `${label} north thaw`);
+  o = northThaw.offset;
+  const southAlways = readTileIdArray(dv, o, southAlwaysCount, totalBytes, tileCount, `${label} south always`);
+  o = southAlways.offset;
+  const southSeasonal = readTileIdArray(dv, o, southSeasonalCount, totalBytes, tileCount, `${label} south seasonal`);
+  o = southSeasonal.offset;
+  const southFreeze = readDayArray(dv, o, southSeasonalCount, totalBytes, `${label} south freeze`);
+  o = southFreeze.offset;
+  const southThaw = readDayArray(dv, o, southSeasonalCount, totalBytes, `${label} south thaw`);
+  o = southThaw.offset;
+
+  return {
+    offset: o,
+    cycle: {
+      tileCount,
+      northAlwaysTileIds: northAlways.values,
+      northSeasonalTileIds: northSeasonal.values,
+      northFreezeDayOfYear: northFreeze.values,
+      northThawDayOfYear: northThaw.values,
+      southAlwaysTileIds: southAlways.values,
+      southSeasonalTileIds: southSeasonal.values,
+      southFreezeDayOfYear: southFreeze.values,
+      southThawDayOfYear: southThaw.values
+    }
+  };
+}
+
+function readTileIdArray(dv, offset, count, totalBytes, tileCount, label) {
+  requireBytes(offset, count * 4, totalBytes, label);
+  const values = new Uint32Array(count);
+  for (let i = 0; i < count; i++) {
+    const tileId = dv.getUint32(offset + i * 4, true);
+    if (tileId >= tileCount) throw new Error(`${label} tile id ${tileId} is out of range`);
+    values[i] = tileId;
+  }
+  return { values, offset: offset + count * 4 };
+}
+
+function readDayArray(dv, offset, count, totalBytes, label) {
+  requireBytes(offset, count * 2, totalBytes, label);
+  const values = new Uint16Array(count);
+  for (let i = 0; i < count; i++) {
+    const day = dv.getUint16(offset + i * 2, true);
+    if (day > WEATHER_DAYS) throw new Error(`${label} day ${day} is outside 0..${WEATHER_DAYS}`);
+    values[i] = day;
+  }
+  return { values, offset: offset + count * 2 };
+}
+
+function fillAlwaysIce(tileIds, outMask) {
+  for (let i = 0; i < tileIds.length; i++) outMask[tileIds[i]] = 255;
+}
+
+function fillSeasonalIce(tileIds, freezeDays, thawDays, day, outMask) {
+  for (let i = 0; i < tileIds.length; i++) {
+    if (isSeaIceActiveOnDay(freezeDays[i], thawDays[i], day)) outMask[tileIds[i]] = 255;
+  }
+}
+
+function normalizeDayIndex(day) {
+  return positiveModulo(Math.floor(day), WEATHER_DAYS);
+}
+
+function positiveModulo(value, divisor) {
+  const m = value % divisor;
+  return m < 0 ? m + divisor : m;
+}
+
+function requireMagic(u8, magic, label) {
+  for (let i = 0; i < magic.length; i++) {
+    if (u8[i] !== magic.charCodeAt(i)) {
+      throw new Error(`Invalid ${label} magic; expected ${magic}`);
+    }
+  }
+}
+
+function requireBytes(offset, byteLength, totalBytes, label) {
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || offset + byteLength > totalBytes) {
+    throw new Error(`Malformed ${label}: need ${byteLength} bytes at ${offset}, file has ${totalBytes}`);
+  }
+}
+
+function skipBytes(offset, byteLength, totalBytes, label) {
+  requireBytes(offset, byteLength, totalBytes, label);
+  return offset + byteLength;
+}
+
+function baseWindAtLat(latDeg) {
+  const absLat = Math.abs(latDeg);
+  if (absLat <= 25) {
+    return {
+      directionRad: 0,
+      strength: 0.5 + 0.4 * (1 - absLat / 25)
+    };
+  }
+  if (absLat <= 55) {
+    return {
+      directionRad: Math.PI,
+      strength: 0.6 + 0.35 * Math.exp(-Math.pow((absLat - 40) / 20, 2))
+    };
+  }
+  return {
+    directionRad: 0,
+    strength: 0.3 + 0.2 * (1 - (absLat - 55) / 35)
+  };
+}
+
+function effectiveLatForSeason(latDeg, subsolarLatDeg) {
+  return latDeg - subsolarLatDeg * 0.4;
+}
+
+function u32Hash(parts) {
+  let h = 2166136261 >>> 0;
+  for (const p of parts) {
+    h ^= p >>> 0;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}

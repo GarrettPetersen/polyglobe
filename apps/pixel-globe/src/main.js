@@ -12,6 +12,22 @@ import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
+import {
+  TILE_DAY_RAIN,
+  TILE_DAY_SNOW_FALL,
+  TILE_DAY_SNOW_GROUND,
+  TILE_DAY_WET_SOIL,
+  WEATHER_DAYS,
+  WEATHER_MINUTES_PER_DAY,
+  cloudLifecycleScaleOpacity,
+  dateToSubsolarLatDeg,
+  decodeDiscreteWeatherYearBakeFile,
+  decodePixelRuntimeWeatherBakeFile,
+  discreteWeatherFlagsForTile,
+  fillIceMaskForDay,
+  weatherClockParts,
+  windAtLatLonDeg
+} from "./weather.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -43,6 +59,12 @@ const FAST_MOVE_RAD = 0.0028;
 const MOVE_PIXEL_STEP_RAD = 1 / PIXELS_PER_RADIAN;
 const WATER_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
+const WEATHER_REDRAW_MS = 250;
+const WEATHER_DEFAULT_TIME_SCALE = 3600;
+const WEATHER_WIND_SEED = 90210;
+const CLOUD_LIFESPAN_MINUTES = 14 * 60;
+const CLOUD_DRIFT_PX = 24;
+const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "resurrect-gold-sand-1";
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
@@ -53,6 +75,7 @@ const MINIMAP_MAX_LAT_DEG = 82.5;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
+const START_WEATHER = startWeatherFromLocation();
 
 const terrainAssets = [
   "water_deep_01_01", "water_deep_01_02", "water_shallow_01", "water_shallow_02",
@@ -84,6 +107,17 @@ let riverColors;
 let riverMasks;
 let riverToWaterMasks;
 let riverSpriteCache = new Map();
+let weatherBake;
+let runtimeWeather;
+let seaIceMask;
+let freshwaterIceMask;
+let cloudSprites;
+let weatherClockMinutes = START_WEATHER.clockMinutes;
+let weatherTimeScale = START_WEATHER.timeScale;
+let pausedWeatherTimeScale = START_WEATHER.timeScale || WEATHER_DEFAULT_TIME_SCALE;
+let weatherParts = weatherClockParts(weatherClockMinutes);
+let weatherMaskDayIndex = -1;
+let weatherDrawTick = -1;
 let camera;
 let chart;
 let localLayout;
@@ -102,6 +136,11 @@ fitCanvasToIntegerScale();
 window.addEventListener("resize", fitCanvasToIntegerScale);
 
 window.addEventListener("keydown", (event) => {
+  if (isWeatherControlKey(event.key)) {
+    event.preventDefault();
+    handleWeatherControlKey(event.key);
+    return;
+  }
   if (isControlKey(event.key)) {
     event.preventDefault();
     keys.add(event.key);
@@ -122,9 +161,11 @@ main().catch((err) => {
 
 async function main() {
   drawLoading();
-  const [loadedImages, earth] = await Promise.all([
+  const [loadedImages, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
     loadTerrainImages(),
-    fetchEarthCache()
+    fetchEarthCache(),
+    fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
+    fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
   images = loadedImages;
   earthRows = earth.tiles;
@@ -136,6 +177,19 @@ async function main() {
   if (graph.tileCount !== earth.tileCount || graph.tileCount !== earthRows.length) {
     throw new Error(`Tile count mismatch: graph=${graph.tileCount}, cache=${earth.tileCount}, rows=${earthRows.length}`);
   }
+  const globeTileIds = earthRows.map((row) => row.id);
+  weatherBake = decodeDiscreteWeatherYearBakeFile(
+    discreteWeatherBuffer,
+    globeTileIds,
+    earth.version,
+    SUBDIVISIONS
+  );
+  runtimeWeather = decodePixelRuntimeWeatherBakeFile(
+    runtimeWeatherBuffer,
+    earth.version,
+    SUBDIVISIONS,
+    graph.tileCount
+  );
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
   spriteColors = buildSpriteDominantColors(images);
@@ -143,6 +197,10 @@ async function main() {
   const riverData = buildRiverMasksFromCache(earth);
   riverMasks = riverData.masks;
   riverToWaterMasks = riverData.toWaterMasks;
+  seaIceMask = new Uint8Array(graph.tileCount);
+  freshwaterIceMask = new Uint8Array(graph.tileCount);
+  cloudSprites = buildCloudSprites();
+  refreshWeatherState(true);
   minimap = buildMinimap();
   camera = createCamera(START_POSITION.lat, START_POSITION.lon);
   syncVisibleCenterTile();
@@ -155,6 +213,12 @@ async function fetchEarthCache() {
   const res = await fetch("/shared/earth-globe-cache-7.json");
   if (!res.ok) throw new Error(`Failed to load Earth cache: HTTP ${res.status}`);
   return res.json();
+}
+
+async function fetchBinary(path, label) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`Failed to load ${label}: HTTP ${res.status}`);
+  return res.arrayBuffer();
 }
 
 function loadTerrainImages() {
@@ -189,6 +253,22 @@ function startPositionFromLocation() {
   return {
     lat: numericQueryParam(params, "lat", START_LAT_DEG, -89.999, 89.999),
     lon: numericQueryParam(params, "lon", START_LON_DEG, -180, 180)
+  };
+}
+
+function startWeatherFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  const dayParam = params.has("doy") ? "doy" : "day";
+  const dayNumber = numericQueryParam(params, dayParam, 80, 1, WEATHER_DAYS);
+  const hour = numericQueryParam(params, "hour", 12, 0, 23);
+  const minute = numericQueryParam(params, "minute", 0, 0, 59);
+  const speedParam = params.has("timeScale") ? "timeScale" : "autoTimeSpeed";
+  const timeScale = numericQueryParam(params, speedParam, WEATHER_DEFAULT_TIME_SCALE, 0, 86400);
+  return {
+    clockMinutes: (Math.floor(dayNumber) - 1) * WEATHER_MINUTES_PER_DAY +
+      Math.floor(hour) * 60 +
+      Math.floor(minute),
+    timeScale
   };
 }
 
@@ -433,6 +513,7 @@ function loop(nowMs) {
   lastFrameMs = nowMs;
   if (updateCamera(dt)) dirty = true;
   if (updateWaterAnimation(nowMs)) dirty = true;
+  if (updateWeather(dt, nowMs)) dirty = true;
   if (dirty || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
@@ -523,6 +604,31 @@ function updateWaterAnimation(nowMs) {
   return true;
 }
 
+function updateWeather(dt, nowMs) {
+  if (!runtimeWeather || !weatherBake) return false;
+  if (weatherTimeScale > 0) {
+    weatherClockMinutes += dt * weatherTimeScale / 60;
+  }
+
+  const dayChanged = refreshWeatherState(false);
+  const tick = Math.floor(nowMs / WEATHER_REDRAW_MS);
+  if (tick !== weatherDrawTick) {
+    weatherDrawTick = tick;
+    return weatherTimeScale > 0 || dayChanged;
+  }
+  return dayChanged;
+}
+
+function refreshWeatherState(force) {
+  weatherParts = weatherClockParts(weatherClockMinutes);
+  if (!runtimeWeather || !seaIceMask || !freshwaterIceMask) return false;
+  if (!force && weatherParts.dayIndex === weatherMaskDayIndex) return false;
+  weatherMaskDayIndex = weatherParts.dayIndex;
+  fillIceMaskForDay(runtimeWeather.seaIceCycle, weatherParts.dayIndex, seaIceMask);
+  fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, weatherParts.dayIndex, freshwaterIceMask);
+  return true;
+}
+
 function fitCanvasToIntegerScale() {
   const scale = Math.max(1, Math.floor(Math.min(
     window.innerWidth / SCREEN_W,
@@ -591,9 +697,13 @@ function render(nowMs) {
     }
   }
 
-  drawCursorConnections(chart);
+  for (const call of chart.tileCalls) drawWeatherSurface(call);
   for (const call of chart.tileCalls) drawRiver(call, chart);
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
+  drawPrecipitation(chart, nowMs);
+  drawCloudLayer(chart, nowMs);
+  drawCursorConnections(chart);
+  drawSelectedWind(chart);
   drawCursorDot(chart);
   ctx.restore();
 
@@ -1135,6 +1245,45 @@ function drawTile(call, activeChart) {
   }
 }
 
+function drawWeatherSurface(call) {
+  if (seaIceMask?.[call.id] || freshwaterIceMask?.[call.id]) {
+    if (isWaterLikeRow(call.row)) drawIceOverlay(call, freshwaterIceMask?.[call.id] ? 0.72 : 0.6);
+  }
+
+  if (isWaterLikeRow(call.row)) return;
+  const flags = weatherFlagsForTile(call.id);
+  if ((flags & TILE_DAY_WET_SOIL) !== 0) {
+    drawWeatherSpeckles(call, "rgba(53, 64, 75, 0.42)", 14, 0x57544554, 9, 6);
+  }
+  if ((flags & TILE_DAY_SNOW_GROUND) !== 0) {
+    drawWeatherSpeckles(call, "rgba(220, 231, 228, 0.72)", 18, 0x534e4f57, 10, 7);
+  }
+}
+
+function drawIceOverlay(call, alpha) {
+  const img = terrainImage("ice_01");
+  const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
+  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(img, x, y);
+  ctx.restore();
+  drawWeatherSpeckles(call, "rgba(229, 242, 235, 0.58)", 8, 0x494345, 10, 6);
+}
+
+function drawWeatherSpeckles(call, color, count, salt, radiusX, radiusY) {
+  ctx.fillStyle = color;
+  for (let i = 0; i < count; i++) {
+    const h = hashInt(call.id ^ salt ^ Math.imul(i + 1, 0x9e3779b1));
+    const dx = (((h & 0xff) / 255) * 2 - 1) * radiusX;
+    const dy = ((((h >>> 8) & 0xff) / 255) * 2 - 1) * radiusY;
+    if ((dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY) > 1) continue;
+    const x = Math.round(call.drawSurfaceX + dx);
+    const y = Math.round(call.drawSurfaceY + dy);
+    ctx.fillRect(x, y, (h >>> 20) & 1 ? 2 : 1, 1);
+  }
+}
+
 function drawRiver(call, activeChart) {
   if (!riverMasks) return;
   const mask = riverMasks[call.id] || 0;
@@ -1144,6 +1293,174 @@ function drawRiver(call, activeChart) {
   const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const spriteY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   ctx.drawImage(sprite, spriteX, spriteY);
+}
+
+function drawPrecipitation(activeChart, nowMs) {
+  const phase = Math.floor(nowMs / 130);
+  for (const call of activeChart.tileCalls) {
+    const flags = weatherFlagsForTile(call.id);
+    if ((flags & TILE_DAY_RAIN) !== 0) drawRainFall(call, phase);
+    if ((flags & TILE_DAY_SNOW_FALL) !== 0) drawSnowFall(call, phase);
+  }
+}
+
+function drawRainFall(call, phase) {
+  const wind = windForTile(call.id);
+  const flowDir = wind.directionRad + Math.PI;
+  const slantX = Math.round(Math.cos(flowDir));
+  const count = 4 + (hashInt(call.id) & 3);
+  const color = "rgba(137, 184, 205, 0.58)";
+  for (let i = 0; i < count; i++) {
+    const h = hashInt(call.id ^ Math.imul(i + 1, 0x85ebca6b) ^ Math.imul(phase, 0x27d4eb2d));
+    const x = Math.round(call.drawSurfaceX + (((h & 0xff) / 255) * 20 - 10));
+    const y = Math.round(call.drawSurfaceY + ((((h >>> 8) & 0xff) / 255) * 16 - 9));
+    drawPixelLine(x, y, x + slantX, y + 2, color);
+  }
+}
+
+function drawSnowFall(call, phase) {
+  const count = 4 + (hashInt(call.id ^ 0x53534e4f) & 3);
+  ctx.fillStyle = "rgba(235, 241, 232, 0.78)";
+  for (let i = 0; i < count; i++) {
+    const h = hashInt(call.id ^ Math.imul(i + 1, 0xc2b2ae35) ^ Math.imul(phase, 0x165667b1));
+    const x = Math.round(call.drawSurfaceX + (((h & 0xff) / 255) * 20 - 10));
+    const y = Math.round(call.drawSurfaceY + ((((h >>> 8) & 0xff) / 255) * 16 - 9));
+    ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+function drawCloudLayer(activeChart, nowMs) {
+  if (!runtimeWeather || !cloudSprites) return;
+  drawAnnualCloudSystems(activeChart);
+  drawLocalWeatherClouds(activeChart, nowMs);
+}
+
+function drawAnnualCloudSystems(activeChart) {
+  for (let slot = 0; slot < runtimeWeather.maxCloudSlots; slot++) {
+    const rec = slot * WEATHER_DAYS + weatherParts.dayIndex;
+    const tileId = runtimeWeather.cloudSpawnTileIds[rec];
+    const call = activeChart.tileById.get(tileId);
+    if (!call) continue;
+    drawCloudAt(call, {
+      seed: hashInt(tileId ^ Math.imul(slot + 1, 0x9e3779b1)),
+      templateIndex: runtimeWeather.cloudTemplateIndices[rec],
+      baseScale: runtimeWeather.cloudBaseScales[rec],
+      windDirectionRad: runtimeWeather.cloudWindDirections[rec],
+      windStrength: runtimeWeather.cloudWindStrengths[rec],
+      opacityMul: 0.64
+    });
+  }
+}
+
+function drawLocalWeatherClouds(activeChart, nowMs) {
+  let drawn = 0;
+  const hourPhase = Math.floor((weatherParts.minuteOfDay + nowMs / 1000) / 60);
+  for (const call of activeChart.tileCalls) {
+    if (drawn >= MAX_LOCAL_WEATHER_CLOUDS) break;
+    const flags = weatherFlagsForTile(call.id);
+    const precip = (flags & (TILE_DAY_RAIN | TILE_DAY_SNOW_FALL)) !== 0;
+    const ground = (flags & (TILE_DAY_WET_SOIL | TILE_DAY_SNOW_GROUND)) !== 0;
+    if (!precip && !ground) continue;
+    const h = hashInt(call.id ^ Math.imul(weatherParts.dayIndex + 1, 0x7f4a7c15));
+    if (!precip && ((h + hourPhase) & 7) !== 0) continue;
+    if (precip && ((h + hourPhase) & 3) === 0) continue;
+    const wind = windForTile(call.id);
+    drawCloudAt(call, {
+      seed: h,
+      templateIndex: h % 3,
+      baseScale: precip ? 0.045 : 0.026,
+      windDirectionRad: wind.directionRad,
+      windStrength: wind.strength,
+      opacityMul: precip ? 0.58 : 0.34
+    });
+    drawn++;
+  }
+}
+
+function drawCloudAt(call, spec) {
+  const lifeOffset = hashInt(spec.seed ^ Math.imul(weatherParts.dayIndex + 1, 0x27d4eb2d)) % CLOUD_LIFESPAN_MINUTES;
+  const age = (weatherParts.minuteOfDay + lifeOffset) % CLOUD_LIFESPAN_MINUTES;
+  const lifeU = age / CLOUD_LIFESPAN_MINUTES;
+  const envelope = cloudLifecycleScaleOpacity(lifeU);
+  const displayScale = spec.baseScale * envelope.scaleMul;
+  const sprite = cloudSpriteFor(spec.templateIndex, displayScale);
+  const drift = (lifeU - 0.5) * CLOUD_DRIFT_PX * clamp(spec.windStrength, 0.2, 1.2);
+  const flowDir = spec.windDirectionRad + Math.PI;
+  const x = Math.round(call.drawSurfaceX + Math.cos(flowDir) * drift - sprite.width / 2);
+  const y = Math.round(call.drawSurfaceY - sprite.height * 0.72 - Math.sin(flowDir) * drift);
+  ctx.save();
+  ctx.globalAlpha = clamp(envelope.opacity * spec.opacityMul, 0.08, 0.56);
+  ctx.drawImage(sprite, x, y);
+  ctx.restore();
+}
+
+function cloudSpriteFor(templateIndex, displayScale) {
+  const templateSprites = cloudSprites[templateIndex % cloudSprites.length];
+  const scaleRatio = Math.sqrt(Math.max(0.08, displayScale) / 0.038);
+  const sizeIndex = clamp(Math.round(scaleRatio * 1.7), 0, templateSprites.length - 1);
+  return templateSprites[sizeIndex];
+}
+
+function buildCloudSprites() {
+  const sizes = [
+    { w: 16, h: 10 },
+    { w: 22, h: 13 },
+    { w: 28, h: 17 },
+    { w: 34, h: 20 },
+    { w: 42, h: 24 }
+  ];
+  const sprites = [];
+  for (let variant = 0; variant < 3; variant++) {
+    sprites.push(sizes.map((size, sizeIndex) => createCloudSprite(size.w, size.h, variant, sizeIndex)));
+  }
+  return sprites;
+}
+
+function createCloudSprite(width, height, variant, sizeIndex) {
+  const sprite = document.createElement("canvas");
+  sprite.width = width;
+  sprite.height = height;
+  const spriteCtx = sprite.getContext("2d", { willReadFrequently: true });
+  if (!spriteCtx) throw new Error("Could not create cloud sprite canvas");
+  spriteCtx.imageSmoothingEnabled = false;
+  const image = spriteCtx.createImageData(width, height);
+  const puffs = cloudPuffsFor(variant, sizeIndex);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const nx = (x + 0.5 - width / 2) / (width / 2);
+      const ny = (y + 0.5 - height / 2) / (height / 2);
+      let density = -Infinity;
+      for (const puff of puffs) {
+        const dx = (nx - puff.x) / puff.rx;
+        const dy = (ny - puff.y) / puff.ry;
+        density = Math.max(density, 1 - Math.sqrt(dx * dx + dy * dy));
+      }
+      if (density <= 0) continue;
+      const shade = clamp(Math.round(226 - Math.max(0, ny) * 38 + density * 18), 166, 242);
+      const alpha = clamp(Math.round(45 + density * 135), 0, 190);
+      const p = (x + y * width) * 4;
+      image.data[p] = shade;
+      image.data[p + 1] = clamp(shade + 2, 0, 255);
+      image.data[p + 2] = clamp(shade + 4, 0, 255);
+      image.data[p + 3] = alpha;
+    }
+  }
+
+  spriteCtx.putImageData(image, 0, 0);
+  return sprite;
+}
+
+function cloudPuffsFor(variant, sizeIndex) {
+  const lift = (variant - 1) * 0.04;
+  const grow = sizeIndex * 0.015;
+  return [
+    { x: -0.48, y: 0.12 + lift, rx: 0.34 + grow, ry: 0.42 },
+    { x: -0.18, y: -0.12 - lift, rx: 0.42 + grow, ry: 0.54 },
+    { x: 0.17, y: -0.18 + lift, rx: 0.38 + grow, ry: 0.52 },
+    { x: 0.48, y: 0.06 - lift, rx: 0.33 + grow, ry: 0.4 },
+    { x: 0.0, y: 0.22, rx: 0.62 + grow, ry: 0.38 }
+  ];
 }
 
 function riverSpriteForTile(call, activeChart, mask) {
@@ -1364,6 +1681,24 @@ function drawCursorDot(activeChart) {
   ctx.fillRect(x - dotOffset, y - dotOffset, SELECTED_DOT_SIZE, SELECTED_DOT_SIZE);
 }
 
+function drawSelectedWind(activeChart) {
+  const focused = activeChart.tileById.get(centerTileId);
+  if (!focused) return;
+  const wind = windForTile(centerTileId);
+  const flowDir = wind.directionRad + Math.PI;
+  const x0 = Math.round(focused.x);
+  const y0 = Math.round(focused.y);
+  const length = Math.round(7 + wind.strength * 9);
+  const x1 = Math.round(x0 + Math.cos(flowDir) * length);
+  const y1 = Math.round(y0 - Math.sin(flowDir) * length);
+  const color = "rgba(169, 225, 235, 0.72)";
+  drawPixelLine(x0, y0, x1, y1, color);
+  const left = flowDir + Math.PI * 0.78;
+  const right = flowDir - Math.PI * 0.78;
+  drawPixelLine(x1, y1, Math.round(x1 + Math.cos(left) * 3), Math.round(y1 - Math.sin(left) * 3), color);
+  drawPixelLine(x1, y1, Math.round(x1 + Math.cos(right) * 3), Math.round(y1 - Math.sin(right) * 3), color);
+}
+
 function drawPixelLine(x0, y0, x1, y1, color) {
   let x = x0;
   let y = y0;
@@ -1391,17 +1726,63 @@ function drawPixelLine(x0, y0, x1, y1, color) {
 
 function drawTinyStatus(nowMs) {
   const row = earthById[centerTileId];
-  const k = centerTileId * 3;
   const lat = graph.latDeg[centerTileId].toFixed(2);
   const lon = graph.lonDeg[centerTileId].toFixed(2);
-  const text = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${row.t} ${lat},${lon}`;
+  const flags = weatherFlagsForTile(centerTileId);
+  const wind = windForTile(centerTileId);
+  const flowDir = wind.directionRad + Math.PI;
+  const iced = Boolean(seaIceMask?.[centerTileId] || freshwaterIceMask?.[centerTileId]);
+  const line1 = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${row.t} ${lat},${lon}`;
+  const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)}`;
+  const width = Math.min(SCREEN_W - 8, Math.max(line1.length, line2.length) * 5 + 8);
   ctx.fillStyle = "rgba(15, 18, 14, 0.62)";
-  ctx.fillRect(4, SCREEN_H - 14, Math.min(SCREEN_W - 8, text.length * 4 + 8), 10);
+  ctx.fillRect(4, SCREEN_H - 24, width, 20);
   ctx.fillStyle = "#d7d9bf";
   ctx.font = "8px monospace";
-  ctx.fillText(text, 8, SCREEN_H - 6);
+  ctx.fillText(line1, 8, SCREEN_H - 16);
+  ctx.fillText(line2, 8, SCREEN_H - 6);
 
-  void k;
+  void nowMs;
+}
+
+function weatherFlagsForTile(tileId) {
+  return discreteWeatherFlagsForTile(weatherBake, tileId, weatherParts.dayIndex);
+}
+
+function windForTile(tileId) {
+  return windAtLatLonDeg(
+    graph.latDeg[tileId],
+    graph.lonDeg[tileId],
+    dateToSubsolarLatDeg(weatherParts.date),
+    {
+      seed: WEATHER_WIND_SEED,
+      simMinute: Math.floor(weatherClockMinutes)
+    }
+  );
+}
+
+function weatherDateLabel() {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const d = weatherParts.date;
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const hour = String(d.getUTCHours()).padStart(2, "0");
+  const minute = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${months[d.getUTCMonth()]} ${day} ${hour}:${minute}`;
+}
+
+function weatherLabelFor(flags, iced) {
+  if (iced) return "ice";
+  if ((flags & TILE_DAY_SNOW_FALL) !== 0) return "snowfall";
+  if ((flags & TILE_DAY_RAIN) !== 0) return "rain";
+  if ((flags & TILE_DAY_SNOW_GROUND) !== 0) return "snow";
+  if ((flags & TILE_DAY_WET_SOIL) !== 0) return "wet";
+  return "clear";
+}
+
+function windDirectionName(directionRad) {
+  const deg = ((directionRad * 180 / Math.PI) % 360 + 360) % 360;
+  const names = ["E", "NE", "N", "NW", "W", "SW", "S", "SE"];
+  return names[Math.round(deg / 45) % names.length];
 }
 
 function faceColorFor(call) {
@@ -1490,6 +1871,38 @@ function isControlKey(key) {
     key === "S" ||
     key === "d" ||
     key === "D";
+}
+
+function isWeatherControlKey(key) {
+  return key === "[" ||
+    key === "]" ||
+    key === "," ||
+    key === "." ||
+    key === " ";
+}
+
+function handleWeatherControlKey(key) {
+  if (key === "[") adjustWeatherClock(-WEATHER_MINUTES_PER_DAY);
+  if (key === "]") adjustWeatherClock(WEATHER_MINUTES_PER_DAY);
+  if (key === ",") adjustWeatherClock(-60);
+  if (key === ".") adjustWeatherClock(60);
+  if (key === " ") toggleWeatherClock();
+}
+
+function adjustWeatherClock(deltaMinutes) {
+  weatherClockMinutes += deltaMinutes;
+  refreshWeatherState(true);
+  dirty = true;
+}
+
+function toggleWeatherClock() {
+  if (weatherTimeScale > 0) {
+    pausedWeatherTimeScale = weatherTimeScale;
+    weatherTimeScale = 0;
+  } else {
+    weatherTimeScale = pausedWeatherTimeScale || WEATHER_DEFAULT_TIME_SCALE;
+  }
+  dirty = true;
 }
 
 function drawLoading() {

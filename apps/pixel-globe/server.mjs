@@ -14,6 +14,7 @@ const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
+  [".bin", "application/octet-stream"],
   [".png", "image/png"],
   [".ico", "image/x-icon"]
 ]);
@@ -24,6 +25,12 @@ function resolveStaticPath(urlPath) {
   if (urlPath.startsWith("/assets/")) return join(publicRoot, urlPath.slice(1));
   if (urlPath === "/earth-globe-cache-7.json" || urlPath === "/shared/earth-globe-cache-7.json") {
     return join(sharedDataRoot, "earth-globe-cache-7.json");
+  }
+  if (urlPath === "/shared/discrete-weather-bake-7.bin") {
+    return join(sharedDataRoot, "discrete-weather-bake-7.bin");
+  }
+  if (urlPath === "/shared/globe-runtime-bake-7.bin") {
+    return join(sharedDataRoot, "globe-runtime-bake-7.bin");
   }
   return null;
 }
