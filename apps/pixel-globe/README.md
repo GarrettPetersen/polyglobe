@@ -8,6 +8,7 @@ It deliberately does not render the 3D globe. The app:
 - loads the shared `examples/globe-demo/public/earth-globe-cache-7.json`,
 - stamps copied Three Kingdoms terrain sprites as detached tile blobs,
 - animates water with staggered two-frame Three Kingdoms shallow/deep sprites,
+- blends generated intermediate water sprites across coast-distance bands for smoother dropoff,
 - loads the shared annual weather/runtime bakes for clouds, rain, snow, sea ice, freshwater ice, and selected-hex wind,
 - generates between-tile face polygons at runtime, including pentagon neighborhoods,
 - moves a local tangent-plane camera over the spherical tile graph,

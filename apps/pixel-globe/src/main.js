@@ -59,13 +59,14 @@ const FAST_MOVE_RAD = 0.0028;
 const MOVE_PIXEL_STEP_RAD = 1 / PIXELS_PER_RADIAN;
 const WATER_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
+const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 250;
 const WEATHER_DEFAULT_TIME_SCALE = 3600;
 const WEATHER_WIND_SEED = 90210;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 24;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
-const TERRAIN_ASSET_VERSION = "resurrect-gold-sand-1";
+const TERRAIN_ASSET_VERSION = "water-depth-gradations-1";
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 40;
@@ -79,6 +80,8 @@ const START_WEATHER = startWeatherFromLocation();
 
 const terrainAssets = [
   "water_deep_01_01", "water_deep_01_02", "water_shallow_01", "water_shallow_02",
+  "water_depth_01_01", "water_depth_01_02", "water_depth_02_01", "water_depth_02_02",
+  "water_depth_03_01", "water_depth_03_02", "water_depth_04_01", "water_depth_04_02",
   "sand_01", "sand_02", "sand_03", "sand_04", "sand_05",
   "grass_01", "grass_02", "grass_03", "grass_04", "grass_flowers",
   "forest_broadleaf_01", "forest_broadleaf_02", "forest_broadleaf_03",
@@ -107,6 +110,7 @@ let riverColors;
 let riverMasks;
 let riverToWaterMasks;
 let riverSpriteCache = new Map();
+let waterDepthBands;
 let weatherBake;
 let runtimeWeather;
 let seaIceMask;
@@ -192,6 +196,7 @@ async function main() {
   );
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
+  waterDepthBands = buildWaterDepthBands();
   spriteColors = buildSpriteDominantColors(images);
   riverColors = buildRiverColors(images);
   const riverData = buildRiverMasksFromCache(earth);
@@ -476,6 +481,43 @@ function countRiverTiles(masks) {
     if (mask !== 0) count++;
   }
   return count;
+}
+
+function buildWaterDepthBands() {
+  const deepBand = WATER_DEPTH_GRADATION_COUNT + 1;
+  const bands = new Uint8Array(graph.tileCount);
+  bands.fill(deepBand);
+
+  const queue = [];
+  for (let id = 0; id < graph.tileCount; id++) {
+    if (!isOceanWaterRow(earthById[id])) continue;
+    for (const neighborId of graph.neighbors[id]) {
+      if (isOceanWaterRow(earthById[neighborId])) continue;
+      bands[id] = 1;
+      queue.push(id);
+      break;
+    }
+  }
+
+  let head = 0;
+  while (head < queue.length) {
+    const id = queue[head++];
+    const nextBand = bands[id] + 1;
+    if (nextBand > WATER_DEPTH_GRADATION_COUNT) continue;
+    for (const neighborId of graph.neighbors[id]) {
+      if (!isOceanWaterRow(earthById[neighborId])) continue;
+      if (bands[neighborId] <= nextBand) continue;
+      bands[neighborId] = nextBand;
+      queue.push(neighborId);
+    }
+  }
+
+  console.info(`[pixel-globe] water depth bands: ${queue.length} coastal/intermediate ocean tiles`);
+  return bands;
+}
+
+function isOceanWaterRow(row) {
+  return row?.t === "water";
 }
 
 function mostCommonOpaqueColor(key, imageData) {
@@ -1798,7 +1840,7 @@ function spriteForTerrain(row, id) {
   const variant = hashInt(id) % 4;
   const latAbs = Math.abs(graph.latDeg[id]);
 
-  if (t === "water") return `water_deep_01_0${waterFrameFor(id)}`;
+  if (t === "water") return waterSpriteForTile(id);
   if (t === "lake" || t === "beach") return `water_shallow_0${waterFrameFor(id)}`;
   if (t.includes("ice_cap")) return "snow_01";
   if (t === "ice") return "ice_01";
@@ -1812,6 +1854,15 @@ function spriteForTerrain(row, id) {
   if (t === "forest") return variant % 2 === 0 ? "forest_broadleaf_01" : "forest_broadleaf_02";
   if (t === "desert") return sandVariant(id);
   return `grass_0${1 + variant}`;
+}
+
+function waterSpriteForTile(id) {
+  const frame = waterFrameFor(id);
+  const band = waterDepthBands?.[id] ?? (WATER_DEPTH_GRADATION_COUNT + 1);
+  if (band >= 1 && band <= WATER_DEPTH_GRADATION_COUNT) {
+    return `water_depth_0${band}_0${frame}`;
+  }
+  return `water_deep_01_0${frame}`;
 }
 
 function waterFrameFor(id) {
