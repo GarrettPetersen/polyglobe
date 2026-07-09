@@ -1001,6 +1001,26 @@ function localCollisionTileIdAtPoint(x, y, label) {
   return bestId;
 }
 
+function globePositionForLocalPoint(tileId, x, y) {
+  if (!localLayout || !camera) throw new Error("Cannot resolve a globe position without a local layout and camera");
+  const layout = localLayout.positions.get(tileId);
+  if (!layout) throw new Error(`Cannot resolve globe position for missing local tile: ${tileId}`);
+
+  const center = tileCenterVector(tileId);
+  const dx = (x - layout.x) / PIXELS_PER_RADIAN;
+  const dy = -(y - layout.y) / PIXELS_PER_RADIAN;
+  const tangentOffset = [
+    camera.right[0] * dx + camera.up[0] * dy,
+    camera.right[1] * dx + camera.up[1] * dy,
+    camera.right[2] * dx + camera.up[2] * dy
+  ];
+  return normalize3([
+    center[0] + tangentOffset[0],
+    center[1] + tangentOffset[1],
+    center[2] + tangentOffset[2]
+  ]);
+}
+
 function applyShipMove(position, tileId) {
   const previousPosition = ship.position;
   const delta = [
@@ -1011,12 +1031,17 @@ function applyShipMove(position, tileId) {
   const dx = dot3(delta, camera.right);
   const dy = dot3(delta, camera.up);
 
-  ship.position = position;
-  ship.tileId = tileId;
+  moveLocalView(dx, dy);
+  const drawnTileId = localCollisionTileIdAtPoint(localLayout.viewX, localLayout.viewY, "ship center after move");
+  if (drawnTileId !== tileId && !canShipMoveBetween(tileId, drawnTileId, ship.heading)) {
+    throw new Error(`Ship local movement resolved to an unexpected tile: ${tileId} -> ${drawnTileId}`);
+  }
+
+  ship.tileId = drawnTileId;
+  ship.position = globePositionForLocalPoint(ship.tileId, localLayout.viewX, localLayout.viewY);
   ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
   ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
-  moveLocalView(dx, dy);
   camera = northUpCamera(ship.position, camera.right);
   centerTileId = ship.tileId;
 }
