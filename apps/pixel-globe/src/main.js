@@ -90,6 +90,7 @@ const SHIP_COLLISION_DAMPING = 0.82;
 const SHIP_STOP_DAMPING = 0.15;
 const SHIP_COLLISION_RADIUS_PX = 5;
 const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
+const SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX = 48;
 const SHIP_RIVER_HEADING_ALIGN_DOT = Math.cos(Math.PI / 3);
 const SHIP_RIVER_TARGET_ALIGN_DOT = Math.cos(80 * Math.PI / 180);
 const SAIL_NO_GO_ANGLE_RAD = Math.PI / 6;
@@ -928,9 +929,10 @@ function attemptShipStep(fromPosition, fromTileId, step) {
       fromPosition[1] + step[1] * (i / segments),
       fromPosition[2] + step[2] * (i / segments)
     ]);
-    const tileId = findNearestTileId(graph, directionIndex, position);
+    const localPoint = localCollisionPointForPosition(fromPosition, position);
+    const tileId = localCollisionTileIdAtPoint(localPoint.x, localPoint.y, "ship center");
     if (!canShipMoveBetween(previousTileId, tileId, movementDirection)) return { ok: false, blockedTileId: tileId };
-    const occupancy = shipOccupancyAtPosition(position, tileId);
+    const occupancy = shipOccupancyAtPosition(position, tileId, localPoint);
     if (!occupancy.ok) return { ok: false, blockedTileId: occupancy.blockedTileId };
     previousTileId = tileId;
   }
@@ -938,7 +940,7 @@ function attemptShipStep(fromPosition, fromTileId, step) {
   return { ok: true, position, tileId: previousTileId };
 }
 
-function shipOccupancyAtPosition(position, tileId) {
+function shipOccupancyAtPosition(position, tileId, localPoint) {
   if (riverTraversalHeadingMatches(tileId, ship.heading, position)) return { ok: true };
 
   const radius = SHIP_COLLISION_RADIUS_PX / PIXELS_PER_RADIAN;
@@ -949,9 +951,7 @@ function shipOccupancyAtPosition(position, tileId) {
     : [forward];
 
   for (const sampleVector of sampleVectors) {
-    const samplePosition = offsetSurfacePosition(position, sampleVector, radius);
-    const sampleTileId = renderedShipSampleTileId(tileId, sampleVector, radius * PIXELS_PER_RADIAN) ??
-      findNearestTileId(graph, directionIndex, samplePosition);
+    const sampleTileId = localShipCollisionSampleTileId(sampleVector, radius * PIXELS_PER_RADIAN, localPoint);
     if (sampleTileId === tileId) continue;
     if (canShipMoveBetween(tileId, sampleTileId, ship.heading)) continue;
     return { ok: false, blockedTileId: sampleTileId };
@@ -959,37 +959,46 @@ function shipOccupancyAtPosition(position, tileId) {
   return { ok: true };
 }
 
-function renderedShipSampleTileId(anchorTileId, sampleVector, distancePx) {
-  if (!localLayout || !camera) return undefined;
-  const sampleX = localLayout.viewX + dot3(sampleVector, camera.right) * distancePx;
-  const sampleY = localLayout.viewY - dot3(sampleVector, camera.up) * distancePx;
+function localCollisionPointForPosition(fromPosition, position) {
+  if (!localLayout || !camera) throw new Error("Cannot compute local ship collision without a local layout and camera");
+  const delta = [
+    position[0] - fromPosition[0],
+    position[1] - fromPosition[1],
+    position[2] - fromPosition[2]
+  ];
+  return {
+    x: localLayout.viewX + dot3(delta, camera.right) * PIXELS_PER_RADIAN,
+    y: localLayout.viewY - dot3(delta, camera.up) * PIXELS_PER_RADIAN
+  };
+}
+
+function localShipCollisionSampleTileId(sampleVector, distancePx, localPoint) {
+  if (!localLayout || !camera) throw new Error("Cannot sample rendered ship collision without a local layout and camera");
+  const sampleX = localPoint.x + dot3(sampleVector, camera.right) * distancePx;
+  const sampleY = localPoint.y - dot3(sampleVector, camera.up) * distancePx;
+  return localCollisionTileIdAtPoint(sampleX, sampleY, "ship collision sample");
+}
+
+function localCollisionTileIdAtPoint(x, y, label) {
+  if (!localLayout) throw new Error(`Cannot resolve ${label} without a local layout`);
   let bestId;
   let bestD2 = Infinity;
 
-  for (const candidateId of localCollisionCandidateIds(anchorTileId)) {
-    const layout = localLayout.positions.get(candidateId);
-    if (!layout) continue;
-    const dx = layout.x - sampleX;
-    const dy = layout.y - sampleY;
+  for (const [candidateId, layout] of localLayout.positions.entries()) {
+    const dx = layout.x - x;
+    const dy = layout.y - y;
     const d2 = dx * dx + dy * dy;
     if (d2 >= bestD2) continue;
     bestD2 = d2;
     bestId = candidateId;
   }
 
+  if (bestId === undefined) throw new Error(`Could not resolve ${label}; local layout has no tile positions`);
+  const maxD2 = SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX * SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX;
+  if (bestD2 > maxD2) {
+    throw new Error(`Could not resolve ${label}; nearest drawn tile was ${Math.sqrt(bestD2).toFixed(1)}px away`);
+  }
   return bestId;
-}
-
-function localCollisionCandidateIds(tileId) {
-  return [tileId, ...graph.neighbors[tileId]];
-}
-
-function offsetSurfacePosition(position, tangent, distanceRad) {
-  return normalize3([
-    position[0] + tangent[0] * distanceRad,
-    position[1] + tangent[1] * distanceRad,
-    position[2] + tangent[2] * distanceRad
-  ]);
 }
 
 function applyShipMove(position, tileId) {
@@ -1014,12 +1023,27 @@ function applyShipMove(position, tileId) {
 
 function shipCollisionNormal(position, blockedTileId, fallbackStep) {
   if (blockedTileId !== undefined) {
+    const localNormal = localCollisionNormalForTile(blockedTileId, position);
+    if (localNormal) return localNormal;
     const towardTile = projectTangentVector(tileCenterVector(blockedTileId), position);
     const normal = normalizeOrNull(towardTile);
     if (normal) return normal;
   }
   const fallback = normalizeOrNull(projectTangentVector(fallbackStep, position));
   return fallback || ship.heading;
+}
+
+function localCollisionNormalForTile(tileId, position) {
+  const layout = localLayout?.positions.get(tileId);
+  if (!layout || !camera) return null;
+  const dx = layout.x - localLayout.viewX;
+  const dy = layout.y - localLayout.viewY;
+  if (Math.hypot(dx, dy) < 1e-6) return null;
+  return normalizeOrNull(projectTangentVector([
+    camera.right[0] * dx - camera.up[0] * dy,
+    camera.right[1] * dx - camera.up[1] * dy,
+    camera.right[2] * dx - camera.up[2] * dy
+  ], position));
 }
 
 function canShipMoveBetween(fromTileId, toTileId, movementDirection = null) {
