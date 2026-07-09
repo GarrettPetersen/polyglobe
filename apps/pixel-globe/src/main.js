@@ -38,6 +38,14 @@ const TILE_ART_SIZE = 36;
 const TILE_ART_HALF = TILE_ART_SIZE / 2;
 const FACE_HALF_WIDTH = 7;
 const BEACH_SPECKLE_COUNT = 5;
+const BEACH_LIGHT_SPECKLE_COLOR = "rgba(255, 236, 151, 0.46)";
+const BEACH_DARK_SPECKLE_COLOR = "rgba(218, 184, 92, 0.26)";
+const BEACH_WAVE_PERIOD_MS = 3600;
+const BEACH_WAVE_ADVANCE_RATIO = 0.44;
+const BEACH_WAVE_RECEDE_RATIO = 0.38;
+const BEACH_WAVE_MIN_REACH = 0.16;
+const BEACH_WAVE_MAX_REACH = 0.78;
+const BEACH_WAVE_WATER_ALPHA = 0.58;
 const FRONT_FACE_OVERLAP_PX = 4;
 const FRONT_FACE_MIN_DY = 2;
 const RIVER_ARM_LENGTH_PX = 15;
@@ -578,6 +586,27 @@ function rankOpaqueColors(imageData, limit) {
 function rgbToHex(r, g, b) {
   const parts = [r, g, b].map((v) => clamp(v, 0, 255).toString(16).padStart(2, "0"));
   return `#${parts.join("")}`;
+}
+
+function parseHexColor(hex) {
+  const clean = hex.startsWith("#") ? hex.slice(1) : hex;
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) throw new Error(`Expected 6-digit hex color, got: ${hex}`);
+  const n = Number.parseInt(clean, 16);
+  return {
+    r: (n >> 16) & 255,
+    g: (n >> 8) & 255,
+    b: n & 255
+  };
+}
+
+function rgbaFromHex(hex, alpha) {
+  const { r, g, b } = parseHexColor(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function easeInOut(t) {
+  const x = clamp(t, 0, 1);
+  return x * x * (3 - 2 * x);
 }
 
 function loop(nowMs) {
@@ -1450,7 +1479,7 @@ function drawFace(call, activeChart, options = {}) {
   ctx.fill();
 
   if (isCoastFace(call)) {
-    drawBeachFaceDetails(call, ax, ay, bx, by, ux, uy, nx, ny, width);
+    drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width);
   } else if (Math.abs(call.level - call.nlevel) >= 2) {
     ctx.strokeStyle = call.nlevel > call.level ? "#28261f" : "#d3cab0";
     ctx.lineWidth = 1;
@@ -1462,22 +1491,7 @@ function drawFace(call, activeChart, options = {}) {
   }
 }
 
-function drawBeachFaceDetails(call, ax, ay, bx, by, ux, uy, nx, ny, width) {
-  const waterIsA = isWaterLikeRow(call.row);
-  const waterX = waterIsA ? ax : bx;
-  const waterY = waterIsA ? ay : by;
-  const landSign = waterIsA ? 1 : -1;
-  const foamX = waterX + ux * landSign * 2;
-  const foamY = waterY + uy * landSign * 2;
-  const foamHalfWidth = Math.max(2, width - 2);
-  drawPixelLine(
-    Math.round(foamX + nx * foamHalfWidth),
-    Math.round(foamY + ny * foamHalfWidth),
-    Math.round(foamX - nx * foamHalfWidth),
-    Math.round(foamY - ny * foamHalfWidth),
-    "rgba(231, 220, 171, 0.34)"
-  );
-
+function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width) {
   const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
   for (let i = 0; i < BEACH_SPECKLE_COUNT; i++) {
     const h = hashInt(seed ^ Math.imul(i + 1, 0x85ebca6b));
@@ -1485,9 +1499,84 @@ function drawBeachFaceDetails(call, ax, ay, bx, by, ux, uy, nx, ny, width) {
     const side = (((h >>> 8) & 0xff) / 255 - 0.5) * (width * 1.35);
     const x = ax + (bx - ax) * along + nx * side;
     const y = ay + (by - ay) * along + ny * side;
-    ctx.fillStyle = (h & 1) === 0 ? "rgba(206, 179, 104, 0.38)" : "rgba(103, 76, 44, 0.28)";
+    ctx.fillStyle = (h & 1) === 0 ? BEACH_LIGHT_SPECKLE_COLOR : BEACH_DARK_SPECKLE_COLOR;
     ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
+
+  drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width);
+}
+
+function drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width) {
+  const waterIsA = isWaterLikeRow(call.row);
+  const wave = beachWaveState(call);
+  const fromT = waterIsA ? 0 : 1;
+  const toT = waterIsA ? wave.reach : 1 - wave.reach;
+  const foamT = waterIsA ? wave.foamReach : 1 - wave.foamReach;
+  drawBeachWaveWater(ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, beachWaterColor(call));
+  drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, foamT, wave.foamAlpha);
+}
+
+function beachWaveState(call) {
+  const offsetMs = hashInt(call.a ^ Math.imul(call.b, 0x632be59b)) % BEACH_WAVE_PERIOD_MS;
+  const phase = ((waterAnimationClockMs + offsetMs) % BEACH_WAVE_PERIOD_MS) / BEACH_WAVE_PERIOD_MS;
+  const reachSpan = BEACH_WAVE_MAX_REACH - BEACH_WAVE_MIN_REACH;
+  if (phase < BEACH_WAVE_ADVANCE_RATIO) {
+    const p = easeInOut(phase / BEACH_WAVE_ADVANCE_RATIO);
+    const reach = BEACH_WAVE_MIN_REACH + reachSpan * p;
+    return { reach, foamReach: reach, foamAlpha: 0.92 };
+  }
+
+  const fadePhase = (phase - BEACH_WAVE_ADVANCE_RATIO) / (1 - BEACH_WAVE_ADVANCE_RATIO);
+  const foamAlpha = 0.92 * (1 - easeInOut(fadePhase));
+  const recedeEnd = BEACH_WAVE_ADVANCE_RATIO + BEACH_WAVE_RECEDE_RATIO;
+  if (phase < recedeEnd) {
+    const p = easeInOut((phase - BEACH_WAVE_ADVANCE_RATIO) / BEACH_WAVE_RECEDE_RATIO);
+    return {
+      reach: BEACH_WAVE_MAX_REACH - reachSpan * p,
+      foamReach: BEACH_WAVE_MAX_REACH,
+      foamAlpha
+    };
+  }
+
+  return {
+    reach: BEACH_WAVE_MIN_REACH,
+    foamReach: BEACH_WAVE_MAX_REACH,
+    foamAlpha
+  };
+}
+
+function drawBeachWaveWater(ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, color) {
+  const a = beachCenterPoint(ax, ay, mx, my, bx, by, fromT);
+  const b = beachCenterPoint(ax, ay, mx, my, bx, by, toT);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(Math.round(a.x + nx * width), Math.round(a.y + ny * width));
+  ctx.lineTo(Math.round(b.x + nx * width), Math.round(b.y + ny * width));
+  ctx.lineTo(Math.round(b.x - nx * width), Math.round(b.y - ny * width));
+  ctx.lineTo(Math.round(a.x - nx * width), Math.round(a.y - ny * width));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, t, alpha) {
+  if (alpha <= 0.01) return;
+  const p = beachCenterPoint(ax, ay, mx, my, bx, by, t);
+  const lineHalfWidth = Math.max(2, width - 1);
+  drawPixelLine(
+    Math.round(p.x + nx * lineHalfWidth),
+    Math.round(p.y + ny * lineHalfWidth),
+    Math.round(p.x - nx * lineHalfWidth),
+    Math.round(p.y - ny * lineHalfWidth),
+    `rgba(255, 253, 231, ${alpha.toFixed(3)})`
+  );
+}
+
+function beachCenterPoint(ax, ay, mx, my, bx, by, t) {
+  const inv = 1 - t;
+  return {
+    x: inv * inv * ax + 2 * inv * t * mx + t * t * bx,
+    y: inv * inv * ay + 2 * inv * t * my + t * t * by
+  };
 }
 
 function drawRiverConnector(call, activeChart) {
@@ -2264,20 +2353,26 @@ function beachFaceColor(call) {
   const key = `sand_0${1 + (hashInt(call.a ^ Math.imul(call.b, 0x27d4eb2d)) % 5)}`;
   const color = spriteColors.get(key);
   if (!color) throw new Error(`Missing dominant terrain color for beach transition sprite: ${key}`);
-  return mutedBeachColor(color);
+  return paleBeachColor(color);
 }
 
-function mutedBeachColor(hex) {
-  const clean = hex.startsWith("#") ? hex.slice(1) : hex;
-  const n = Number.parseInt(clean, 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  const target = { r: 168, g: 139, b: 76 };
+function beachWaterColor(call) {
+  const waterIsA = isWaterLikeRow(call.row);
+  const waterRow = waterIsA ? call.row : call.nrow;
+  const waterId = waterIsA ? call.a : call.b;
+  const key = spriteForTerrain(waterRow, waterId);
+  const color = spriteColors.get(key);
+  if (!color) throw new Error(`Missing dominant terrain color for beach wave sprite: ${key}`);
+  return rgbaFromHex(color, BEACH_WAVE_WATER_ALPHA);
+}
+
+function paleBeachColor(hex) {
+  const { r, g, b } = parseHexColor(hex);
+  const target = { r: 244, g: 226, b: 142 };
   return rgbToHex(
-    Math.round(r * 0.46 + target.r * 0.54),
-    Math.round(g * 0.46 + target.g * 0.54),
-    Math.round(b * 0.46 + target.b * 0.54)
+    Math.round(r * 0.22 + target.r * 0.78),
+    Math.round(g * 0.22 + target.g * 0.78),
+    Math.round(b * 0.22 + target.b * 0.78)
   );
 }
 
