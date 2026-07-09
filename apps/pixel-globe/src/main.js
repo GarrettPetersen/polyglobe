@@ -36,7 +36,6 @@ const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
 const TILE_ART_HALF = TILE_ART_SIZE / 2;
-const SELECTED_DOT_SIZE = 4;
 const FACE_HALF_WIDTH = 7;
 const FRONT_FACE_OVERLAP_PX = 4;
 const FRONT_FACE_MIN_DY = 2;
@@ -52,15 +51,29 @@ const VIEW_MARGIN = 58;
 const CHART_REBUILD_RADIUS_PX = 28;
 const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE;
 const MAX_CHART_TILES = 4200;
-const START_LAT_DEG = 31.2;
-const START_LON_DEG = 121.5;
-const BASE_MOVE_RAD = 0.00075;
-const FAST_MOVE_RAD = 0.0028;
-const MOVE_PIXEL_STEP_RAD = 1 / PIXELS_PER_RADIAN;
+const START_LAT_DEG = 25.0;
+const START_LON_DEG = -80.0;
+const SHIP_SHEET_FRAME_SIZE = 36;
+const SHIP_SHEET_COLS = 4;
+const SHIP_HEADING_COUNT = 16;
+const SHIP_TURN_RATE_RAD = 2.35;
+const SHIP_SAIL_ACCEL_RAD = 0.018;
+const SHIP_WIND_DRIFT_ACCEL_RAD = 0.0035;
+const SHIP_DRAG_PER_SECOND = 0.62;
+const SHIP_MAX_SPEED_RAD = 0.035;
+const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
+const SHIP_COLLISION_DAMPING = 0.82;
+const SHIP_STOP_DAMPING = 0.15;
 const WATER_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
 const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 250;
+const PRECIP_PARTICLE_REDRAW_MS = 80;
+const RAIN_PARTICLE_LIMIT = 340;
+const SNOW_PARTICLE_LIMIT = 240;
+const RAIN_PARTICLES_PER_TILE = 3;
+const SNOW_PARTICLES_PER_TILE = 2;
+const PRECIP_PARTICLE_VIEW_MARGIN = 30;
 const WEATHER_DEFAULT_TIME_SCALE = 3600;
 const WEATHER_WIND_SEED = 90210;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
@@ -72,7 +85,7 @@ const MINIMAP_W = 80;
 const MINIMAP_H = 40;
 const MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 const MINIMAP_Y = 5;
-const MINIMAP_MAX_LAT_DEG = 82.5;
+const MINIMAP_MAX_LAT_DEG = 72;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
@@ -105,6 +118,7 @@ let directionIndex;
 let earthRows;
 let earthById;
 let images;
+let shipImage;
 let spriteColors;
 let riverColors;
 let riverMasks;
@@ -122,6 +136,7 @@ let pausedWeatherTimeScale = START_WEATHER.timeScale || WEATHER_DEFAULT_TIME_SCA
 let weatherParts = weatherClockParts(weatherClockMinutes);
 let weatherMaskDayIndex = -1;
 let weatherDrawTick = -1;
+let ship;
 let camera;
 let chart;
 let localLayout;
@@ -131,10 +146,12 @@ let dirty = true;
 let lastFrameMs = performance.now();
 let lastStatusMs = 0;
 let lastOverlayMs = 0;
-let moveResidualX = 0;
-let moveResidualY = 0;
 let waterAnimationClockMs = 0;
 let waterAnimationDrawTick = -1;
+let precipParticleDrawTick = -1;
+let precipParticles = [];
+let precipParticleSerial = 1;
+let visiblePrecipitationLastRender = false;
 
 fitCanvasToIntegerScale();
 window.addEventListener("resize", fitCanvasToIntegerScale);
@@ -165,13 +182,15 @@ main().catch((err) => {
 
 async function main() {
   drawLoading();
-  const [loadedImages, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
+  const [loadedImages, loadedShipImage, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
     loadTerrainImages(),
+    loadVehicleImage("sail-ship-16-headings"),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
   images = loadedImages;
+  shipImage = loadedShipImage;
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -207,8 +226,9 @@ async function main() {
   cloudSprites = buildCloudSprites();
   refreshWeatherState(true);
   minimap = buildMinimap();
-  camera = createCamera(START_POSITION.lat, START_POSITION.lon);
-  syncVisibleCenterTile();
+  ship = createShip(START_POSITION.lat, START_POSITION.lon);
+  camera = northUpCamera(ship.position);
+  centerTileId = ship.tileId;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   requestAnimationFrame(loop);
@@ -242,6 +262,15 @@ function loadImage(key) {
     img.onload = () => resolve([key, img]);
     img.onerror = () => reject(new Error(`Failed to load ${TERRAIN_VARIANT} terrain image: ${key}`));
     img.src = `/assets/terrain/${TERRAIN_VARIANT}/${key}.png?v=${TERRAIN_ASSET_VERSION}`;
+  });
+}
+
+function loadVehicleImage(key) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load vehicle image: ${key}`));
+    img.src = `/assets/vehicles/${key}.png?v=${TERRAIN_ASSET_VERSION}`;
   });
 }
 
@@ -553,9 +582,10 @@ function rgbToHex(r, g, b) {
 function loop(nowMs) {
   const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
   lastFrameMs = nowMs;
-  if (updateCamera(dt)) dirty = true;
+  if (updateSailing(dt)) dirty = true;
   if (updateWaterAnimation(nowMs)) dirty = true;
   if (updateWeather(dt, nowMs)) dirty = true;
+  if (updatePrecipitationAnimation(nowMs)) dirty = true;
   if (dirty || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
@@ -568,17 +598,6 @@ function loop(nowMs) {
   requestAnimationFrame(loop);
 }
 
-function updateCamera(dt) {
-  if (!hasMoveInput()) return false;
-
-  const speed = (keys.has("Shift") ? FAST_MOVE_RAD : BASE_MOVE_RAD) * dt * 60;
-  return applyInputStep(speed);
-}
-
-function syncVisibleCenterTile() {
-  centerTileId = findNearestTileId(graph, directionIndex, camera.center);
-}
-
 function createLocalLayout(centerId) {
   return {
     viewX: 0,
@@ -587,55 +606,238 @@ function createLocalLayout(centerId) {
   };
 }
 
-function hasMoveInput() {
-  return keys.has("ArrowLeft") ||
-    keys.has("a") ||
-    keys.has("A") ||
-    keys.has("ArrowRight") ||
-    keys.has("d") ||
-    keys.has("D") ||
-    keys.has("ArrowUp") ||
-    keys.has("w") ||
-    keys.has("W") ||
-    keys.has("ArrowDown") ||
-    keys.has("s") ||
-    keys.has("S");
+function createShip(latDeg, lonDeg) {
+  const requested = latLonToDirection(latDeg, lonDeg);
+  const tileId = nearestShipStartTile(requested);
+  const position = tileCenterVector(tileId);
+  const heading = initialShipHeading(position);
+  return {
+    position,
+    tileId,
+    heading,
+    targetHeading: heading.slice(),
+    velocity: [0, 0, 0]
+  };
 }
 
-function applyInputStep(speed) {
-  if (!graph || !camera || !directionIndex) return false;
+function nearestShipStartTile(direction) {
+  const startId = findNearestTileId(graph, directionIndex, direction);
+  if (isShipNavigableTile(startId)) return startId;
+  const oceanId = nearestTileMatching(startId, isShipOceanTile);
+  if (oceanId !== undefined) return oceanId;
+  const openWaterId = nearestTileMatching(startId, isShipOpenWaterTile);
+  if (openWaterId !== undefined) return openWaterId;
+  const navigableId = nearestTileMatching(startId, isShipNavigableTile);
+  if (navigableId !== undefined) return navigableId;
+  throw new Error("Could not find a navigable start tile for the ship");
+}
+
+function nearestTileMatching(startId, predicate) {
+  const seen = new Set([startId]);
+  const q = [startId];
+  let qi = 0;
+  while (qi < q.length) {
+    const id = q[qi++];
+    if (predicate(id)) return id;
+    for (const nid of graph.neighbors[id]) {
+      if (seen.has(nid)) continue;
+      seen.add(nid);
+      q.push(nid);
+    }
+  }
+  return undefined;
+}
+
+function initialShipHeading(position) {
+  return normalizeTangentOrFallback(WORLD_NORTH, position, [1, 0, 0]);
+}
+
+function updateSailing(dt) {
+  if (!ship || !camera) return false;
+  const inputHeading = inputHeadingForShip();
+  if (inputHeading) ship.targetHeading = inputHeading;
+
+  const previousHeading = ship.heading;
+  ship.heading = rotateTangentToward(
+    ship.heading,
+    ship.targetHeading,
+    ship.position,
+    SHIP_TURN_RATE_RAD * dt
+  );
+
+  applyWindAcceleration(dt);
+  const moveResult = moveShipWithCollision(dt);
+  const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
+  return moveResult.moved || moveResult.collided || headingChanged || vectorLength(ship.velocity) > 0.0001;
+}
+
+function inputHeadingForShip() {
   let dx = 0;
   let dy = 0;
   if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) dx -= 1;
   if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) dx += 1;
   if (keys.has("ArrowUp") || keys.has("w") || keys.has("W")) dy += 1;
   if (keys.has("ArrowDown") || keys.has("s") || keys.has("S")) dy -= 1;
+  if (dx === 0 && dy === 0) return null;
 
-  const mag = Math.hypot(dx, dy);
-  if (mag === 0) return false;
-  moveResidualX += (dx / mag) * speed;
-  moveResidualY += (dy / mag) * speed;
+  return normalizeTangentOrFallback([
+    camera.right[0] * dx + camera.up[0] * dy,
+    camera.right[1] * dx + camera.up[1] * dy,
+    camera.right[2] * dx + camera.up[2] * dy
+  ], ship.position, ship.heading);
+}
 
-  dx = quantizeMoveDelta(moveResidualX);
-  dy = quantizeMoveDelta(moveResidualY);
-  if (dx === 0 && dy === 0) return false;
-  moveResidualX -= dx;
-  moveResidualY -= dy;
+function applyWindAcceleration(dt) {
+  const wind = windForTile(ship.tileId);
+  const windFlow = windFlowVectorAtShip(wind);
+  const alignment = dot3(ship.heading, windFlow);
+  const sailPower = clamp((alignment + 0.32) / 1.32, 0.04, 1);
+  const sailAccel = SHIP_SAIL_ACCEL_RAD * wind.strength * sailPower;
+  const driftAccel = SHIP_WIND_DRIFT_ACCEL_RAD * wind.strength;
 
-  moveCamera(dx, dy);
+  ship.velocity = [
+    ship.velocity[0] + (ship.heading[0] * sailAccel + windFlow[0] * driftAccel) * dt,
+    ship.velocity[1] + (ship.heading[1] * sailAccel + windFlow[1] * driftAccel) * dt,
+    ship.velocity[2] + (ship.heading[2] * sailAccel + windFlow[2] * driftAccel) * dt
+  ];
+  ship.velocity = projectTangentVector(ship.velocity, ship.position);
+  ship.velocity = scaleVector(ship.velocity, Math.exp(-SHIP_DRAG_PER_SECOND * dt));
+  limitShipSpeed();
+}
+
+function windFlowVectorAtShip(wind) {
+  const flowDir = wind.directionRad + Math.PI;
+  return normalizeTangentOrFallback([
+    camera.right[0] * Math.cos(flowDir) + camera.up[0] * Math.sin(flowDir),
+    camera.right[1] * Math.cos(flowDir) + camera.up[1] * Math.sin(flowDir),
+    camera.right[2] * Math.cos(flowDir) + camera.up[2] * Math.sin(flowDir)
+  ], ship.position, ship.heading);
+}
+
+function limitShipSpeed() {
+  const speed = vectorLength(ship.velocity);
+  if (speed <= SHIP_MAX_SPEED_RAD) return;
+  ship.velocity = scaleVector(ship.velocity, SHIP_MAX_SPEED_RAD / speed);
+}
+
+function moveShipWithCollision(dt) {
+  const step = scaleVector(ship.velocity, dt);
+  if (vectorLength(step) < 1e-8) return { moved: false, collided: false };
+
+  const direct = attemptShipStep(ship.position, ship.tileId, step);
+  if (direct.ok) {
+    applyShipMove(direct.position, direct.tileId);
+    return { moved: true, collided: false };
+  }
+
+  const normal = shipCollisionNormal(ship.position, direct.blockedTileId, step);
+  const into = Math.max(0, dot3(ship.velocity, normal));
+  const slideVelocity = projectTangentVector([
+    ship.velocity[0] - normal[0] * into,
+    ship.velocity[1] - normal[1] * into,
+    ship.velocity[2] - normal[2] * into
+  ], ship.position);
+
+  if (vectorLength(slideVelocity) >= SHIP_MIN_SLIDE_SPEED_RAD) {
+    const slide = attemptShipStep(ship.position, ship.tileId, scaleVector(slideVelocity, dt));
+    if (slide.ok) {
+      ship.velocity = projectTangentVector(scaleVector(slideVelocity, SHIP_COLLISION_DAMPING), slide.position);
+      applyShipMove(slide.position, slide.tileId);
+      return { moved: true, collided: true };
+    }
+  }
+
+  ship.velocity = scaleVector(projectTangentVector(ship.velocity, ship.position), SHIP_STOP_DAMPING);
+  if (vectorLength(ship.velocity) < SHIP_MIN_SLIDE_SPEED_RAD) ship.velocity = [0, 0, 0];
+  return { moved: false, collided: true };
+}
+
+function attemptShipStep(fromPosition, fromTileId, step) {
+  const position = normalize3([
+    fromPosition[0] + step[0],
+    fromPosition[1] + step[1],
+    fromPosition[2] + step[2]
+  ]);
+  const tileId = findNearestTileId(graph, directionIndex, position);
+  if (canShipMoveBetween(fromTileId, tileId)) return { ok: true, position, tileId };
+  return { ok: false, blockedTileId: tileId };
+}
+
+function applyShipMove(position, tileId) {
+  const previousPosition = ship.position;
+  const delta = [
+    position[0] - previousPosition[0],
+    position[1] - previousPosition[1],
+    position[2] - previousPosition[2]
+  ];
+  const dx = dot3(delta, camera.right);
+  const dy = dot3(delta, camera.up);
+
+  ship.position = position;
+  ship.tileId = tileId;
+  ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
+  ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
+  ship.velocity = projectTangentVector(ship.velocity, ship.position);
   moveLocalView(dx, dy);
-  syncVisibleCenterTile();
-  return true;
+  camera = northUpCamera(ship.position, camera.right);
+  centerTileId = ship.tileId;
+}
+
+function shipCollisionNormal(position, blockedTileId, fallbackStep) {
+  if (blockedTileId !== undefined) {
+    const towardTile = projectTangentVector(tileCenterVector(blockedTileId), position);
+    const normal = normalizeOrNull(towardTile);
+    if (normal) return normal;
+  }
+  const fallback = normalizeOrNull(projectTangentVector(fallbackStep, position));
+  return fallback || ship.heading;
+}
+
+function canShipMoveBetween(fromTileId, toTileId) {
+  if (!isShipNavigableTile(toTileId)) return false;
+  if (fromTileId === toTileId) return true;
+
+  const edgeA = edgeIndexTowardNeighbor(fromTileId, toTileId);
+  const edgeB = edgeIndexTowardNeighbor(toTileId, fromTileId);
+  if (edgeA === undefined || edgeB === undefined) return false;
+
+  const fromWater = isShipOpenWaterTile(fromTileId);
+  const toWater = isShipOpenWaterTile(toTileId);
+  if (fromWater && toWater) return true;
+
+  const fromRiver = shipTileHasRiver(fromTileId);
+  const toRiver = shipTileHasRiver(toTileId);
+  if (fromWater && toRiver) {
+    return riverEdgeSet(riverMasks, toTileId, edgeB) || riverEdgeSet(riverToWaterMasks, toTileId, edgeB);
+  }
+  if (fromRiver && toWater) {
+    return riverEdgeSet(riverMasks, fromTileId, edgeA) || riverEdgeSet(riverToWaterMasks, fromTileId, edgeA);
+  }
+  if (fromRiver && toRiver) {
+    return riverEdgeSet(riverMasks, fromTileId, edgeA) && riverEdgeSet(riverMasks, toTileId, edgeB);
+  }
+  return false;
+}
+
+function isShipNavigableTile(tileId) {
+  return isShipOpenWaterTile(tileId) || shipTileHasRiver(tileId);
+}
+
+function isShipOpenWaterTile(tileId) {
+  return isWaterLikeRow(earthById[tileId]);
+}
+
+function isShipOceanTile(tileId) {
+  return earthById[tileId]?.t === "water";
+}
+
+function shipTileHasRiver(tileId) {
+  return (riverMasks?.[tileId] || 0) !== 0;
 }
 
 function moveLocalView(dx, dy) {
   localLayout.viewX += dx * PIXELS_PER_RADIAN;
   localLayout.viewY -= dy * PIXELS_PER_RADIAN;
-}
-
-function quantizeMoveDelta(value) {
-  if (Math.abs(value) < MOVE_PIXEL_STEP_RAD) return 0;
-  return Math.trunc(value / MOVE_PIXEL_STEP_RAD) * MOVE_PIXEL_STEP_RAD;
 }
 
 function updateWaterAnimation(nowMs) {
@@ -661,6 +863,13 @@ function updateWeather(dt, nowMs) {
   return dayChanged;
 }
 
+function updatePrecipitationAnimation(nowMs) {
+  const tick = Math.floor(nowMs / PRECIP_PARTICLE_REDRAW_MS);
+  if (tick === precipParticleDrawTick) return false;
+  precipParticleDrawTick = tick;
+  return precipParticles.length > 0 || visiblePrecipitationLastRender;
+}
+
 function refreshWeatherState(force) {
   weatherParts = weatherClockParts(weatherClockMinutes);
   if (!runtimeWeather || !seaIceMask || !freshwaterIceMask) return false;
@@ -678,21 +887,6 @@ function fitCanvasToIntegerScale() {
   )));
   canvas.style.width = `${SCREEN_W * scale}px`;
   canvas.style.height = `${SCREEN_H * scale}px`;
-}
-
-function createCamera(latDeg, lonDeg) {
-  const center = latLonToDirection(latDeg, lonDeg);
-  return northUpCamera(center);
-}
-
-function moveCamera(dx, dy) {
-  const nextCenter = normalize3([
-    camera.center[0] + camera.right[0] * dx + camera.up[0] * dy,
-    camera.center[1] + camera.right[1] * dx + camera.up[1] * dy,
-    camera.center[2] + camera.right[2] * dx + camera.up[2] * dy
-  ]);
-
-  camera = northUpCamera(nextCenter, camera.right);
 }
 
 function northUpCamera(center, fallbackRight = [1, 0, 0]) {
@@ -720,6 +914,55 @@ function projectToTangent(v, normal) {
   return [v[0] - normal[0] * d, v[1] - normal[1] * d, v[2] - normal[2] * d];
 }
 
+function projectTangentVector(v, normal) {
+  return projectToTangent(v, normal);
+}
+
+function normalizeTangentOrFallback(v, normal, fallback) {
+  const projected = projectTangentVector(v, normal);
+  const normalized = normalizeOrNull(projected);
+  if (normalized) return normalized;
+  const fallbackProjected = projectTangentVector(fallback, normal);
+  const fallbackNormalized = normalizeOrNull(fallbackProjected);
+  if (fallbackNormalized) return fallbackNormalized;
+  return northUpCamera(normal).right;
+}
+
+function rotateTangentToward(current, target, normal, maxStepRad) {
+  const from = normalizeTangentOrFallback(current, normal, WORLD_NORTH);
+  const to = normalizeTangentOrFallback(target, normal, from);
+  const sin = dot3(cross3(from, to), normal);
+  const cos = clamp(dot3(from, to), -1, 1);
+  const signed = Math.atan2(sin, cos);
+  const step = clamp(signed, -maxStepRad, maxStepRad);
+  if (Math.abs(step) < 1e-6) return to;
+  const quarterTurn = cross3(normal, from);
+  return normalizeTangentOrFallback([
+    from[0] * Math.cos(step) + quarterTurn[0] * Math.sin(step),
+    from[1] * Math.cos(step) + quarterTurn[1] * Math.sin(step),
+    from[2] * Math.cos(step) + quarterTurn[2] * Math.sin(step)
+  ], normal, to);
+}
+
+function tileCenterVector(tileId) {
+  const k = tileId * 3;
+  return [graph.centers[k], graph.centers[k + 1], graph.centers[k + 2]];
+}
+
+function scaleVector(v, scale) {
+  return [v[0] * scale, v[1] * scale, v[2] * scale];
+}
+
+function vectorLength(v) {
+  return Math.hypot(v[0], v[1], v[2]);
+}
+
+function normalizeOrNull(v) {
+  const length = vectorLength(v);
+  if (length <= 1e-9) return null;
+  return [v[0] / length, v[1] / length, v[2] / length];
+}
+
 function render(nowMs) {
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
@@ -742,11 +985,11 @@ function render(nowMs) {
   for (const call of chart.tileCalls) drawWeatherSurface(call);
   for (const call of chart.tileCalls) drawRiver(call, chart);
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
-  drawPrecipitation(chart, nowMs);
+  drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart, nowMs);
   drawCursorConnections(chart);
-  drawSelectedWind(chart);
-  drawCursorDot(chart);
+  drawShip();
+  drawSelectedWind();
   ctx.restore();
 
   drawMinimap(nowMs);
@@ -1039,6 +1282,7 @@ function buildMinimap() {
   const land = new Float32Array(MINIMAP_W * MINIMAP_H);
   const total = new Float32Array(MINIMAP_W * MINIMAP_H);
   for (let id = 0; id < graph.tileCount; id++) {
+    if (Math.abs(graph.latDeg[id]) > MINIMAP_MAX_LAT_DEG) continue;
     const row = earthById[id];
     const x = minimapX(graph.lonDeg[id]);
     const y = minimapY(graph.latDeg[id]);
@@ -1057,8 +1301,9 @@ function buildMinimap() {
   for (let y = 0; y < MINIMAP_H; y++) {
     for (let x = 0; x < MINIMAP_W; x++) {
       const k = x + y * MINIMAP_W;
-      const fraction = total[k] > 0 ? land[k] / total[k] : 0;
-      const color = minimapColor(fraction, y);
+      const color = total[k] > 0
+        ? minimapColor(land[k] / total[k])
+        : minimapColor(0);
       const p = k * 4;
       image.data[p] = color[0];
       image.data[p + 1] = color[1];
@@ -1073,7 +1318,7 @@ function buildMinimap() {
 
 function drawMinimap(nowMs) {
   if (!minimap) return;
-  ctx.fillStyle = "#0d1210";
+  ctx.fillStyle = "#2a1c11";
   ctx.fillRect(MINIMAP_X - 1, MINIMAP_Y - 1, MINIMAP_W + 2, MINIMAP_H + 2);
   ctx.drawImage(minimap.canvas, MINIMAP_X, MINIMAP_Y);
 
@@ -1097,11 +1342,10 @@ function isWaterLikeRow(row) {
   return t === "water" || t === "lake" || t === "beach";
 }
 
-function minimapColor(fraction, y) {
-  const polar = y < 4 || y >= MINIMAP_H - 4;
-  if (fraction >= 0.62) return polar ? [185, 190, 180] : [73, 101, 57];
-  if (fraction >= 0.42) return [151, 133, 78];
-  return polar ? [62, 91, 107] : [31, 63, 88];
+function minimapColor(fraction) {
+  if (fraction >= 0.62) return [108, 73, 36];
+  if (fraction >= 0.42) return [157, 113, 58];
+  return [186, 148, 87];
 }
 
 function minimapX(lonDeg) {
@@ -1337,38 +1581,166 @@ function drawRiver(call, activeChart) {
   ctx.drawImage(sprite, spriteX, spriteY);
 }
 
-function drawPrecipitation(activeChart, nowMs) {
-  const phase = Math.floor(nowMs / 130);
-  for (const call of activeChart.tileCalls) {
-    const flags = weatherFlagsForTile(call.id);
-    if ((flags & TILE_DAY_RAIN) !== 0) drawRainFall(call, phase);
-    if ((flags & TILE_DAY_SNOW_FALL) !== 0) drawSnowFall(call, phase);
+function drawPrecipitation(activeChart, nowMs, offset) {
+  const weatherTiles = collectPrecipitationTileCalls(activeChart, offset);
+  visiblePrecipitationLastRender = weatherTiles.rain.length > 0 || weatherTiles.snow.length > 0;
+  syncPrecipitationParticles(weatherTiles);
+
+  for (const particle of precipParticles) {
+    const call = weatherTiles.callsByParticleKey.get(precipParticleKey(particle.kind, particle.tileId));
+    if (!call) continue;
+    if (particle.kind === "rain") drawRainParticle(particle, call, nowMs);
+    else drawSnowParticle(particle, call, nowMs);
   }
 }
 
-function drawRainFall(call, phase) {
+function collectPrecipitationTileCalls(activeChart, offset) {
+  const rain = [];
+  const snow = [];
+  const callsByParticleKey = new Map();
+  for (const call of activeChart.tileCalls) {
+    if (!tileCallNearViewport(call, offset, PRECIP_PARTICLE_VIEW_MARGIN)) continue;
+    const flags = weatherFlagsForTile(call.id);
+    if ((flags & TILE_DAY_RAIN) !== 0) {
+      rain.push(call);
+      callsByParticleKey.set(precipParticleKey("rain", call.id), call);
+    }
+    if ((flags & TILE_DAY_SNOW_FALL) !== 0) {
+      snow.push(call);
+      callsByParticleKey.set(precipParticleKey("snow", call.id), call);
+    }
+  }
+  return { rain, snow, callsByParticleKey };
+}
+
+function tileCallNearViewport(call, offset, margin) {
+  const x = call.drawSurfaceX + offset.x;
+  const y = call.drawSurfaceY + offset.y;
+  return x >= -margin &&
+    x <= SCREEN_W + margin &&
+    y >= -margin &&
+    y <= SCREEN_H + margin;
+}
+
+function syncPrecipitationParticles(weatherTiles) {
+  if (weatherTiles.rain.length === 0 && weatherTiles.snow.length === 0) {
+    precipParticles = [];
+    return;
+  }
+
+  const activeKeys = new Set(weatherTiles.callsByParticleKey.keys());
+  precipParticles = precipParticles.filter((particle) => (
+    activeKeys.has(precipParticleKey(particle.kind, particle.tileId))
+  ));
+  syncPrecipitationKind("rain", weatherTiles.rain, RAIN_PARTICLE_LIMIT, RAIN_PARTICLES_PER_TILE);
+  syncPrecipitationKind("snow", weatherTiles.snow, SNOW_PARTICLE_LIMIT, SNOW_PARTICLES_PER_TILE);
+}
+
+function syncPrecipitationKind(kind, calls, limit, perTile) {
+  const target = Math.min(limit, calls.length * perTile);
+  let count = 0;
+  for (const particle of precipParticles) {
+    if (particle.kind === kind) count++;
+  }
+
+  while (count > target) {
+    let index = -1;
+    for (let i = precipParticles.length - 1; i >= 0; i--) {
+      if (precipParticles[i].kind === kind) {
+        index = i;
+        break;
+      }
+    }
+    if (index < 0) break;
+    precipParticles.splice(index, 1);
+    count--;
+  }
+
+  while (count < target && calls.length > 0) {
+    const serial = precipParticleSerial++;
+    const pick = hashInt(serial ^ (kind === "rain" ? 0x5241494e : 0x534e4f57)) % calls.length;
+    precipParticles.push(makePrecipitationParticle(kind, calls[pick], serial));
+    count++;
+  }
+}
+
+function makePrecipitationParticle(kind, call, serial) {
+  const salt = kind === "rain" ? 0x85ebca6b : 0xc2b2ae35;
+  const seed = hashInt(call.id ^ Math.imul(serial, salt));
+  const lifeMs = kind === "rain"
+    ? 460 + (seed & 0xff)
+    : 1700 + ((seed >>> 8) & 0x3ff);
+  return {
+    kind,
+    tileId: call.id,
+    seed,
+    lifeMs,
+    phaseMs: hashInt(seed ^ 0x27d4eb2d) % lifeMs,
+    offsetX: particleRange(seed, 0, -12, 12),
+    offsetY: particleRange(seed, 8, -4, 4),
+    alpha: kind === "rain"
+      ? particleRange(seed, 16, 0.46, 0.72)
+      : particleRange(seed, 16, 0.58, 0.86),
+    driftAmp: kind === "snow" ? particleRange(seed, 24, 1, 4) : 0
+  };
+}
+
+function drawRainParticle(particle, call, nowMs) {
+  const progress = precipitationProgress(particle, nowMs);
   const wind = windForTile(call.id);
   const flowDir = wind.directionRad + Math.PI;
-  const slantX = Math.round(Math.cos(flowDir));
-  const count = 4 + (hashInt(call.id) & 3);
-  const color = "rgba(137, 184, 205, 0.58)";
-  for (let i = 0; i < count; i++) {
-    const h = hashInt(call.id ^ Math.imul(i + 1, 0x85ebca6b) ^ Math.imul(phase, 0x27d4eb2d));
-    const x = Math.round(call.drawSurfaceX + (((h & 0xff) / 255) * 20 - 10));
-    const y = Math.round(call.drawSurfaceY + ((((h >>> 8) & 0xff) / 255) * 16 - 9));
-    drawPixelLine(x, y, x + slantX, y + 2, color);
+  const windX = Math.cos(flowDir) * clamp(wind.strength, 0.35, 1.35);
+  const x = Math.round(call.drawSurfaceX + particle.offsetX + windX * progress * 8);
+  const y = Math.round(call.drawSurfaceY - 15 + particle.offsetY * 0.35 + progress * 30);
+  const color = `rgba(137, 184, 205, ${particle.alpha.toFixed(3)})`;
+
+  if (progress > 0.88) {
+    drawRainSplash(x, y, progress, color);
+    return;
+  }
+
+  const tailX = Math.round(x - windX * 2);
+  drawPixelLine(tailX, y - 3, x, y + 1, color);
+}
+
+function drawRainSplash(x, y, progress, color) {
+  const stage = Math.floor((progress - 0.88) / 0.12 * 3);
+  ctx.fillStyle = color;
+  if (stage <= 0) {
+    ctx.fillRect(x - 1, y, 3, 1);
+  } else if (stage === 1) {
+    ctx.fillRect(x - 2, y - 1, 1, 1);
+    ctx.fillRect(x + 2, y - 1, 1, 1);
   }
 }
 
-function drawSnowFall(call, phase) {
-  const count = 4 + (hashInt(call.id ^ 0x53534e4f) & 3);
-  ctx.fillStyle = "rgba(235, 241, 232, 0.78)";
-  for (let i = 0; i < count; i++) {
-    const h = hashInt(call.id ^ Math.imul(i + 1, 0xc2b2ae35) ^ Math.imul(phase, 0x165667b1));
-    const x = Math.round(call.drawSurfaceX + (((h & 0xff) / 255) * 20 - 10));
-    const y = Math.round(call.drawSurfaceY + ((((h >>> 8) & 0xff) / 255) * 16 - 9));
-    ctx.fillRect(x, y, 1, 1);
+function drawSnowParticle(particle, call, nowMs) {
+  const progress = precipitationProgress(particle, nowMs);
+  const wind = windForTile(call.id);
+  const flowDir = wind.directionRad + Math.PI;
+  const windX = Math.cos(flowDir) * clamp(wind.strength, 0.15, 1.1);
+  const wobble = Math.sin((nowMs + particle.phaseMs) * 0.004 + particle.seed) * particle.driftAmp;
+  const x = Math.round(call.drawSurfaceX + particle.offsetX + windX * progress * 5 + wobble);
+  const y = Math.round(call.drawSurfaceY - 14 + particle.offsetY + progress * 28);
+
+  ctx.fillStyle = `rgba(235, 241, 232, ${particle.alpha.toFixed(3)})`;
+  ctx.fillRect(x, y, 1, 1);
+  if (((particle.seed + Math.floor(nowMs / 240)) & 15) === 0) {
+    ctx.fillRect(x + 1, y, 1, 1);
   }
+}
+
+function precipitationProgress(particle, nowMs) {
+  return ((nowMs + particle.phaseMs) % particle.lifeMs) / particle.lifeMs;
+}
+
+function particleRange(seed, shift, min, max) {
+  const u = ((seed >>> shift) & 0xff) / 255;
+  return min + (max - min) * u;
+}
+
+function precipParticleKey(kind, tileId) {
+  return `${kind}:${tileId}`;
 }
 
 function drawCloudLayer(activeChart, nowMs) {
@@ -1708,28 +2080,44 @@ function drawCursorConnections(activeChart) {
   for (const neighborId of graph.neighbors[centerTileId]) {
     const neighbor = activeChart.tileById.get(neighborId);
     if (!neighbor) continue;
-    drawPixelLine(x, y, Math.round(neighbor.x), Math.round(neighbor.y), "rgba(244, 228, 160, 0.72)");
+    drawPixelLine(x, y, Math.round(neighbor.x), Math.round(neighbor.y), "rgba(244, 228, 160, 0.42)");
   }
 }
 
-function drawCursorDot(activeChart) {
-  const focused = activeChart.tileById.get(centerTileId);
-  if (!focused) return;
-  const x = Math.round(focused.x);
-  const y = Math.round(focused.y);
-
-  ctx.fillStyle = "#fff4a8";
-  const dotOffset = Math.floor(SELECTED_DOT_SIZE / 2);
-  ctx.fillRect(x - dotOffset, y - dotOffset, SELECTED_DOT_SIZE, SELECTED_DOT_SIZE);
+function drawShip() {
+  if (!ship || !shipImage) return;
+  const frame = shipHeadingFrame();
+  const sx = (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const sy = Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const x = Math.round(localLayout.viewX - SHIP_SHEET_FRAME_SIZE / 2);
+  const y = Math.round(localLayout.viewY - SHIP_SHEET_FRAME_SIZE / 2);
+  ctx.drawImage(
+    shipImage,
+    sx,
+    sy,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE,
+    x,
+    y,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
 }
 
-function drawSelectedWind(activeChart) {
-  const focused = activeChart.tileById.get(centerTileId);
-  if (!focused) return;
+function shipHeadingFrame() {
+  const hx = dot3(ship.heading, camera.right);
+  const hy = dot3(ship.heading, camera.up);
+  const angle = Math.atan2(hy, hx);
+  const raw = Math.round(angle / (Math.PI * 2) * SHIP_HEADING_COUNT);
+  return ((raw % SHIP_HEADING_COUNT) + SHIP_HEADING_COUNT) % SHIP_HEADING_COUNT;
+}
+
+function drawSelectedWind() {
+  if (!ship) return;
   const wind = windForTile(centerTileId);
   const flowDir = wind.directionRad + Math.PI;
-  const x0 = Math.round(focused.x);
-  const y0 = Math.round(focused.y);
+  const x0 = Math.round(localLayout.viewX);
+  const y0 = Math.round(localLayout.viewY);
   const length = Math.round(7 + wind.strength * 9);
   const x1 = Math.round(x0 + Math.cos(flowDir) * length);
   const y1 = Math.round(y0 - Math.sin(flowDir) * length);
@@ -1774,8 +2162,9 @@ function drawTinyStatus(nowMs) {
   const wind = windForTile(centerTileId);
   const flowDir = wind.directionRad + Math.PI;
   const iced = Boolean(seaIceMask?.[centerTileId] || freshwaterIceMask?.[centerTileId]);
+  const shipSpeed = ship ? vectorLength(ship.velocity) * PIXELS_PER_RADIAN : 0;
   const line1 = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${row.t} ${lat},${lon}`;
-  const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)}`;
+  const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)} spd ${shipSpeed.toFixed(0)}`;
   const width = Math.min(SCREEN_W - 8, Math.max(line1.length, line2.length) * 5 + 8);
   ctx.fillStyle = "rgba(15, 18, 14, 0.62)";
   ctx.fillRect(4, SCREEN_H - 24, width, 20);
@@ -1913,7 +2302,6 @@ function isControlKey(key) {
     key === "ArrowRight" ||
     key === "ArrowUp" ||
     key === "ArrowDown" ||
-    key === "Shift" ||
     key === "w" ||
     key === "W" ||
     key === "a" ||
