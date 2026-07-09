@@ -138,6 +138,15 @@ const MINIMAP_MAX_LAT_DEG = 72;
 const MINIMAP_MAX_MERCATOR = mercatorYForLatDeg(MINIMAP_MAX_LAT_DEG);
 const MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 const MINIMAP_Y = 5;
+const OPTIONS_BUTTON_SIZE = 13;
+const OPTIONS_PANEL_W = 196;
+const OPTIONS_PANEL_H = 94;
+const OPTIONS_ROW_H = 22;
+const UI_ASSET_VERSION = "options-menu-1";
+const MUSIC_ASSET_VERSION = "ship-theme-1";
+const MUSIC_DEFAULT_VOLUME = 0.5;
+const MUSIC_VOLUME_STORAGE_KEY = "pixel_globe_music_volume";
+const MUSIC_MUTED_STORAGE_KEY = "pixel_globe_music_muted";
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
@@ -172,6 +181,7 @@ let earthById;
 let images;
 let shipImage;
 let shipLighting;
+let settingsMenuIcon;
 let spriteColors;
 let riverColors;
 let riverMasks;
@@ -194,6 +204,7 @@ let camera;
 let chart;
 let localLayout;
 let minimap;
+let themeMusic = null;
 let centerTileId = 0;
 let dirty = true;
 let lastFrameMs = performance.now();
@@ -205,11 +216,22 @@ let precipParticleDrawTick = -1;
 let precipParticles = [];
 let precipParticleSerial = 1;
 let visiblePrecipitationLastRender = false;
+const optionsMenu = createOptionsMenuState();
 
 fitCanvasToIntegerScale();
 window.addEventListener("resize", fitCanvasToIntegerScale);
 
 window.addEventListener("keydown", (event) => {
+  ensureThemeMusicStarted();
+  if (optionsMenu.isOpen) {
+    handleOptionsKeyDown(event);
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    openOptionsMenu();
+    return;
+  }
   if (isWeatherControlKey(event.key)) {
     event.preventDefault();
     handleWeatherControlKey(event.key);
@@ -228,6 +250,11 @@ window.addEventListener("keyup", (event) => {
   }
 });
 
+canvas.addEventListener("pointerdown", handlePointerDown);
+canvas.addEventListener("pointermove", handlePointerMove);
+window.addEventListener("pointerup", handlePointerUp);
+window.addEventListener("pointercancel", handlePointerUp);
+
 main().catch((err) => {
   console.error(err);
   drawFatalError(err);
@@ -235,10 +262,11 @@ main().catch((err) => {
 
 async function main() {
   drawLoading();
-  const [loadedImages, loadedShipImage, loadedShipLighting, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
+  const [loadedImages, loadedShipImage, loadedShipLighting, loadedSettingsMenuIcon, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
     loadTerrainImages(),
     loadVehicleImage("sail-ship-16-headings"),
     loadShipLightingBake(),
+    loadUiImage("settings_menu_icon"),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
@@ -246,6 +274,7 @@ async function main() {
   images = loadedImages;
   shipImage = loadedShipImage;
   shipLighting = loadedShipLighting;
+  settingsMenuIcon = loadedSettingsMenuIcon;
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -286,7 +315,9 @@ async function main() {
   centerTileId = ship.tileId;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
+  setupThemeMusic();
   requestAnimationFrame(loop);
+  ensureThemeMusicStarted();
 }
 
 async function fetchEarthCache() {
@@ -326,6 +357,15 @@ function loadVehicleImage(key) {
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`Failed to load vehicle image: ${key}`));
     img.src = `/assets/vehicles/${key}.png?v=${TERRAIN_ASSET_VERSION}`;
+  });
+}
+
+function loadUiImage(key) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load UI image: ${key}`));
+    img.src = `/assets/ui/${key}.png?v=${UI_ASSET_VERSION}`;
   });
 }
 
@@ -712,20 +752,290 @@ function easeInOut(t) {
 function loop(nowMs) {
   const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
   lastFrameMs = nowMs;
-  if (updateSailing(dt)) dirty = true;
-  if (updateWaterAnimation(nowMs)) dirty = true;
-  if (updateWeather(dt, nowMs)) dirty = true;
-  if (updatePrecipitationAnimation(nowMs)) dirty = true;
-  if (dirty || nowMs - lastStatusMs > 1000) {
+  if (!optionsMenu.isOpen) {
+    if (updateSailing(dt)) dirty = true;
+    if (updateWaterAnimation(nowMs)) dirty = true;
+    if (updateWeather(dt, nowMs)) dirty = true;
+    if (updatePrecipitationAnimation(nowMs)) dirty = true;
+  }
+  if (dirty || optionsMenu.isOpen || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
   } else if (nowMs - lastOverlayMs > 250) {
     drawMinimap(nowMs);
+    drawOptionsButton();
     lastOverlayMs = nowMs;
   }
   requestAnimationFrame(loop);
+}
+
+function createOptionsMenuState() {
+  return {
+    isOpen: false,
+    volume: loadStoredMusicVolume(),
+    muted: loadStoredMusicMuted(),
+    selectedIndex: 0,
+    activeSliderKey: null,
+    hoverPoint: null,
+    buttonRect: null,
+    panelRect: null,
+    closeButtonRect: null,
+    rowRects: [],
+    sliderRect: null,
+    sliderHitRect: null,
+    muteRect: null
+  };
+}
+
+function setupThemeMusic() {
+  if (themeMusic) return;
+  const intro = new Audio(`/assets/music/ship-theme-intro.ogg?v=${MUSIC_ASSET_VERSION}`);
+  const loopAudio = new Audio(`/assets/music/ship-theme-loop.ogg?v=${MUSIC_ASSET_VERSION}`);
+  intro.preload = "auto";
+  loopAudio.preload = "auto";
+  loopAudio.loop = true;
+  themeMusic = {
+    intro,
+    loop: loopAudio,
+    started: false,
+    startAttempting: false
+  };
+  intro.addEventListener("ended", startThemeLoop);
+  intro.addEventListener("error", () => console.warn("[pixel-globe] ship theme intro failed to load"));
+  loopAudio.addEventListener("error", () => console.warn("[pixel-globe] ship theme loop failed to load"));
+  applyThemeAudioSettings();
+}
+
+function ensureThemeMusicStarted() {
+  if (!themeMusic || themeMusic.started || themeMusic.startAttempting) return;
+  themeMusic.started = true;
+  themeMusic.startAttempting = true;
+  themeMusic.loop.pause();
+  themeMusic.loop.currentTime = 0;
+  themeMusic.intro.currentTime = 0;
+  applyThemeAudioSettings();
+  const playPromise = themeMusic.intro.play();
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise
+      .catch(() => {
+        themeMusic.started = false;
+      })
+      .finally(() => {
+        themeMusic.startAttempting = false;
+      });
+  } else {
+    themeMusic.startAttempting = false;
+  }
+}
+
+function startThemeLoop() {
+  if (!themeMusic || !themeMusic.started) return;
+  themeMusic.loop.currentTime = 0;
+  applyThemeAudioSettings();
+  const playPromise = themeMusic.loop.play();
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise.catch(() => {
+      themeMusic.started = false;
+    });
+  }
+}
+
+function applyThemeAudioSettings() {
+  if (!themeMusic) return;
+  const volume = clamp(optionsMenu.volume, 0, 1);
+  for (const audio of [themeMusic.intro, themeMusic.loop]) {
+    audio.volume = volume;
+    audio.muted = optionsMenu.muted;
+  }
+}
+
+function loadStoredMusicVolume() {
+  const raw = readLocalStorage(MUSIC_VOLUME_STORAGE_KEY);
+  if (raw === null) return MUSIC_DEFAULT_VOLUME;
+  const value = Number(raw);
+  return Number.isFinite(value) ? clamp(value, 0, 1) : MUSIC_DEFAULT_VOLUME;
+}
+
+function loadStoredMusicMuted() {
+  return readLocalStorage(MUSIC_MUTED_STORAGE_KEY) === "true";
+}
+
+function readLocalStorage(key) {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage.getItem(key);
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeLocalStorage(key, value) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
+  } catch (_) {
+    // Storage can be disabled in private or embedded browsing contexts.
+  }
+}
+
+function setMusicVolume(value) {
+  optionsMenu.volume = Math.round(clamp(value, 0, 1) * 100) / 100;
+  writeLocalStorage(MUSIC_VOLUME_STORAGE_KEY, String(optionsMenu.volume));
+  applyThemeAudioSettings();
+  ensureThemeMusicStarted();
+  dirty = true;
+}
+
+function setMusicMuted(muted) {
+  optionsMenu.muted = !!muted;
+  writeLocalStorage(MUSIC_MUTED_STORAGE_KEY, String(optionsMenu.muted));
+  applyThemeAudioSettings();
+  ensureThemeMusicStarted();
+  dirty = true;
+}
+
+function toggleMusicMuted() {
+  setMusicMuted(!optionsMenu.muted);
+}
+
+function openOptionsMenu() {
+  optionsMenu.isOpen = true;
+  optionsMenu.selectedIndex = 0;
+  optionsMenu.activeSliderKey = null;
+  keys.clear();
+  dirty = true;
+}
+
+function closeOptionsMenu() {
+  optionsMenu.isOpen = false;
+  optionsMenu.activeSliderKey = null;
+  optionsMenu.panelRect = null;
+  optionsMenu.closeButtonRect = null;
+  optionsMenu.rowRects = [];
+  optionsMenu.sliderRect = null;
+  optionsMenu.sliderHitRect = null;
+  optionsMenu.muteRect = null;
+  dirty = true;
+}
+
+function handleOptionsKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closeOptionsMenu();
+    return;
+  }
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    optionsMenu.selectedIndex = (optionsMenu.selectedIndex + direction + 2) % 2;
+    dirty = true;
+    return;
+  }
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    setMusicVolume(optionsMenu.volume + direction * 0.05);
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    if (optionsMenu.selectedIndex === 1) toggleMusicMuted();
+    return;
+  }
+  if (event.key === "m" || event.key === "M") {
+    toggleMusicMuted();
+  }
+}
+
+function handlePointerDown(event) {
+  const point = canvasPointFromEvent(event);
+  optionsMenu.hoverPoint = point;
+  ensureThemeMusicStarted();
+  if (optionsMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleOptionsPointerDown(point);
+    return;
+  }
+  if (pointInRect(point, getOptionsButtonRect())) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openOptionsMenu();
+  }
+}
+
+function handlePointerMove(event) {
+  const point = canvasPointFromEvent(event);
+  optionsMenu.hoverPoint = point;
+  if (!optionsMenu.isOpen) {
+    dirty = true;
+    return;
+  }
+  updateOptionsSelectionFromPoint(point);
+  if (optionsMenu.activeSliderKey === "music") {
+    setMusicVolumeFromPoint(point);
+  } else {
+    dirty = true;
+  }
+}
+
+function handlePointerUp(event) {
+  if (typeof canvas.releasePointerCapture === "function" && event?.pointerId !== undefined) {
+    try {
+      canvas.releasePointerCapture(event.pointerId);
+    } catch (_) {
+      // Ignore pointer capture releases from other targets.
+    }
+  }
+  if (optionsMenu.activeSliderKey) {
+    optionsMenu.activeSliderKey = null;
+    dirty = true;
+  }
+}
+
+function handleOptionsPointerDown(point) {
+  updateOptionsSelectionFromPoint(point);
+  if (pointInRect(point, optionsMenu.closeButtonRect)) {
+    closeOptionsMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.sliderHitRect)) {
+    optionsMenu.activeSliderKey = "music";
+    setMusicVolumeFromPoint(point);
+    return;
+  }
+  if (pointInRect(point, optionsMenu.muteRect) || pointInRect(point, optionsMenu.rowRects[1])) {
+    optionsMenu.selectedIndex = 1;
+    toggleMusicMuted();
+  }
+}
+
+function updateOptionsSelectionFromPoint(point) {
+  for (let i = 0; i < optionsMenu.rowRects.length; i++) {
+    if (pointInRect(point, optionsMenu.rowRects[i])) {
+      optionsMenu.selectedIndex = i;
+      return;
+    }
+  }
+}
+
+function setMusicVolumeFromPoint(point) {
+  const rect = optionsMenu.sliderRect;
+  if (!rect) return;
+  setMusicVolume((point.x - rect.x) / rect.w);
+}
+
+function canvasPointFromEvent(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: clamp((event.clientX - rect.left) * (SCREEN_W / rect.width), 0, SCREEN_W),
+    y: clamp((event.clientY - rect.top) * (SCREEN_H / rect.height), 0, SCREEN_H)
+  };
+}
+
+function pointInRect(point, rect) {
+  return !!point && !!rect &&
+    point.x >= rect.x &&
+    point.x <= rect.x + rect.w &&
+    point.y >= rect.y &&
+    point.y <= rect.y + rect.h;
 }
 
 function createLocalLayout(centerId) {
@@ -1502,7 +1812,9 @@ function render(nowMs) {
   drawWindIndicator();
   drawDayNightTint();
   drawMinimap(nowMs);
+  drawOptionsButton();
   drawTinyStatus(nowMs);
+  if (optionsMenu.isOpen) drawOptionsMenu();
 }
 
 function ensureChart() {
@@ -1891,6 +2203,163 @@ function drawMinimap(nowMs) {
   const blinkOn = Math.floor(nowMs / 320) % 2 === 0;
   ctx.fillStyle = blinkOn ? "#fff4a8" : "#151713";
   ctx.fillRect(mx, my, 1, 1);
+}
+
+function getOptionsButtonRect() {
+  return {
+    x: MINIMAP_X + MINIMAP_W - OPTIONS_BUTTON_SIZE,
+    y: MINIMAP_Y,
+    w: OPTIONS_BUTTON_SIZE,
+    h: OPTIONS_BUTTON_SIZE
+  };
+}
+
+function drawOptionsButton() {
+  const rect = getOptionsButtonRect();
+  optionsMenu.buttonRect = rect;
+  const hovered = !optionsMenu.isOpen && pointInRect(optionsMenu.hoverPoint, rect);
+
+  ctx.save();
+  ctx.fillStyle = hovered ? "rgba(255, 244, 168, 0.24)" : "rgba(15, 18, 14, 0.78)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  if (settingsMenuIcon) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(settingsMenuIcon, rect.x, rect.y);
+  } else {
+    ctx.fillStyle = "#d7d9bf";
+    ctx.fillRect(rect.x + 3, rect.y + 3, 7, 1);
+    ctx.fillRect(rect.x + 2, rect.y + 6, 9, 1);
+    ctx.fillRect(rect.x + 3, rect.y + 9, 7, 1);
+  }
+  ctx.restore();
+}
+
+function drawOptionsMenu() {
+  const panelX = Math.floor((SCREEN_W - OPTIONS_PANEL_W) / 2);
+  const panelY = Math.floor((SCREEN_H - OPTIONS_PANEL_H) / 2);
+  optionsMenu.panelRect = { x: panelX, y: panelY, w: OPTIONS_PANEL_W, h: OPTIONS_PANEL_H };
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#101010";
+  ctx.fillRect(panelX, panelY, OPTIONS_PANEL_W, OPTIONS_PANEL_H);
+  ctx.strokeStyle = "#8b0000";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(panelX + 1, panelY + 1, OPTIONS_PANEL_W - 2, OPTIONS_PANEL_H - 2);
+
+  const closeSize = 14;
+  const closeX = panelX + OPTIONS_PANEL_W - closeSize - 6;
+  const closeY = panelY + 6;
+  optionsMenu.closeButtonRect = { x: closeX, y: closeY, w: closeSize, h: closeSize };
+  drawOptionsCloseButton(optionsMenu.closeButtonRect, pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect));
+
+  drawOptionsText("OPTIONS", panelX + OPTIONS_PANEL_W / 2, panelY + 9, {
+    align: "center",
+    color: "#ffd700"
+  });
+
+  const rowX = panelX + 10;
+  const rowW = OPTIONS_PANEL_W - 20;
+  const volumeRow = { x: rowX, y: panelY + 31, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const muteRow = { x: rowX, y: panelY + 55, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [volumeRow, muteRow];
+
+  drawOptionsVolumeRow(volumeRow, optionsMenu.selectedIndex === 0);
+  drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === 1);
+  ctx.restore();
+}
+
+function drawOptionsCloseButton(rect, hovered) {
+  ctx.fillStyle = hovered ? "#3a3a3a" : "#222222";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#ffffff" : "#666666";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawOptionsText("X", rect.x + rect.w / 2, rect.y + 3, {
+    align: "center",
+    color: hovered ? "#ffffff" : "#cccccc"
+  });
+}
+
+function drawOptionsVolumeRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  drawOptionsText("VOLUME", rowRect.x + 8, rowRect.y + 6, {
+    color: highlighted ? "#ffffff" : "#ffd700"
+  });
+
+  const sliderW = 70;
+  const sliderH = 8;
+  const sliderX = rowRect.x + 66;
+  const sliderY = rowRect.y + 6;
+  optionsMenu.sliderRect = { x: sliderX, y: sliderY, w: sliderW, h: sliderH };
+  optionsMenu.sliderHitRect = { x: sliderX - 3, y: rowRect.y, w: sliderW + 6, h: rowRect.h };
+
+  const percent = Math.round(optionsMenu.volume * 100);
+  ctx.fillStyle = "#202020";
+  ctx.fillRect(sliderX, sliderY, sliderW, sliderH);
+  ctx.strokeStyle = highlighted ? "#ffffff" : "#777777";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(sliderX + 0.5, sliderY + 0.5, sliderW - 1, sliderH - 1);
+  const fillW = Math.max(0, Math.min(sliderW - 2, Math.round((sliderW - 2) * optionsMenu.volume)));
+  if (fillW > 0) {
+    ctx.fillStyle = "#66ccff";
+    ctx.fillRect(sliderX + 1, sliderY + 1, fillW, sliderH - 2);
+  }
+  const knobX = sliderX + clamp(Math.round((sliderW - 2) * optionsMenu.volume), 0, sliderW - 2);
+  ctx.fillStyle = "#fff4a8";
+  ctx.fillRect(knobX, sliderY - 1, 2, sliderH + 2);
+
+  drawOptionsText(`${percent}%`, rowRect.x + rowRect.w - 8, rowRect.y + 6, {
+    align: "right",
+    color: "#eeeeee"
+  });
+}
+
+function drawOptionsMuteRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  drawOptionsText("MUTE", rowRect.x + 8, rowRect.y + 6, {
+    color: highlighted ? "#ffffff" : "#ffd700"
+  });
+
+  const boxSize = 10;
+  const boxX = rowRect.x + rowRect.w - boxSize - 12;
+  const boxY = rowRect.y + Math.floor((rowRect.h - boxSize) / 2);
+  optionsMenu.muteRect = { x: boxX - 10, y: rowRect.y, w: boxSize + 20, h: rowRect.h };
+
+  ctx.fillStyle = optionsMenu.muted ? "#66ccff" : "#202020";
+  ctx.fillRect(boxX, boxY, boxSize, boxSize);
+  ctx.strokeStyle = highlighted ? "#ffffff" : "#777777";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxSize - 1, boxSize - 1);
+  if (optionsMenu.muted) {
+    ctx.strokeStyle = "#001018";
+    ctx.beginPath();
+    ctx.moveTo(boxX + 2, boxY + 5);
+    ctx.lineTo(boxX + 4, boxY + 8);
+    ctx.lineTo(boxX + 8, boxY + 2);
+    ctx.stroke();
+  }
+}
+
+function drawOptionsRowFrame(rect, highlighted) {
+  ctx.fillStyle = highlighted ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.04)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = highlighted ? "#eeeeee" : "#444444";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+}
+
+function drawOptionsText(text, x, y, options = {}) {
+  ctx.fillStyle = options.color || "#d7d9bf";
+  ctx.font = "8px monospace";
+  ctx.textAlign = options.align || "left";
+  ctx.textBaseline = "top";
+  ctx.fillText(text, Math.round(x), Math.round(y));
+  ctx.textAlign = "left";
 }
 
 function minimapLandWeight(row) {

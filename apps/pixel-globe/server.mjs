@@ -16,6 +16,7 @@ const contentTypes = new Map([
   [".json", "application/json; charset=utf-8"],
   [".bin", "application/octet-stream"],
   [".png", "image/png"],
+  [".ogg", "audio/ogg"],
   [".ico", "image/x-icon"]
 ]);
 

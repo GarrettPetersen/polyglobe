@@ -24,4 +24,5 @@ canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #172437;
+  touch-action: none;
 }
