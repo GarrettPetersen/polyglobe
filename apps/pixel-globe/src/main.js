@@ -104,9 +104,11 @@ const SAIL_CLOSE_HAULED_ANGLE_RAD = Math.PI / 4;
 const SAIL_CLOSE_HAULED_EFFICIENCY = 0.34;
 const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
 const SHIP_WAKE_MIN_SPEED_PX = 2.5;
-const SHIP_WAKE_STERN_BAND_PX = 4;
-const SHIP_WAKE_STERN_CLEARANCE_PX = 2;
-const SHIP_WAKE_SIDE_OFFSET_PX = 2;
+const SHIP_WAKE_AFT_BAND_PX = 4;
+const SHIP_WAKE_STERN_CLEARANCE_PX = 1.5;
+const SHIP_WAKE_BOW_MIN_FORWARD_RATIO = 0.42;
+const SHIP_WAKE_BOW_SHOULDER_OUTSET_PX = 1.25;
+const SHIP_WAKE_STERN_BUBBLE_SPEED_RATIO = 1.45;
 const SHIP_WAKE_EMIT_DISTANCE_PX = 2.25;
 const SHIP_WAKE_RESET_DISTANCE_PX = 26;
 const SHIP_WAKE_TTL_SECONDS = 3.8;
@@ -152,7 +154,7 @@ const CLOUD_FADE_RATIO = 0.22;
 const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "ship-lighting-bake-1";
-const CITY_ASSET_VERSION = "city-house-1";
+const CITY_ASSET_VERSION = "city-types-1";
 const CITY_DATA_YEAR = 1522;
 const CITY_MAX_COUNT = 420;
 const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
@@ -162,8 +164,116 @@ const CITY_DISPLAY_NAME_OVERRIDES = new Map([
   ["merida|mexico", [{ throughYear: 1541, displayCity: "Tiho" }]],
   ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]]
 ]);
-const CITY_SPRITE_W = 32;
-const CITY_SPRITE_H = 32;
+const CITY_TYPE_KEYS = Object.freeze([
+  "northern-european",
+  "mediterranean",
+  "islamic-desert",
+  "east-asian",
+  "south-asian",
+  "southeast-asian",
+  "mesoamerican",
+  "andean",
+  "sub-saharan"
+]);
+const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
+const CITY_TYPE_EAST_ASIAN_COUNTRIES = new Set([
+  "China",
+  "Dem. People's Republic of Korea",
+  "Japan",
+  "Republic of Korea"
+]);
+const CITY_TYPE_SOUTH_ASIAN_COUNTRIES = new Set([
+  "India",
+  "Nepal",
+  "Pakistan",
+  "Sri Lanka"
+]);
+const CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES = new Set([
+  "Brunei",
+  "Cambodia",
+  "Indonesia",
+  "Lao People's Democratic Republic",
+  "Myanmar",
+  "Thailand",
+  "Vietnam"
+]);
+const CITY_TYPE_ANDEAN_COUNTRIES = new Set([
+  "Bolivia",
+  "Columbia",
+  "Ecuador",
+  "Peru"
+]);
+const CITY_TYPE_MESOAMERICAN_COUNTRIES = new Set([
+  "Guatemala",
+  "Mexico",
+  "United States of America"
+]);
+const CITY_TYPE_MEDITERRANEAN_COUNTRIES = new Set([
+  "Albania",
+  "Bulgaria",
+  "Cyprus",
+  "Greece",
+  "Italy",
+  "Portugal",
+  "Romania",
+  "Serbia",
+  "Spain"
+]);
+const CITY_TYPE_NORTHERN_EUROPEAN_COUNTRIES = new Set([
+  "Austria",
+  "Belgium",
+  "Denmark",
+  "France",
+  "Germany",
+  "Hungary",
+  "Ireland",
+  "Lithuania",
+  "Netherlands",
+  "Norway",
+  "Poland",
+  "Russian Federation",
+  "Sweden",
+  "Ukraine",
+  "United Kingdom"
+]);
+const CITY_TYPE_ISLAMIC_DESERT_COUNTRIES = new Set([
+  "Afghanistan",
+  "Algeria",
+  "Armenia",
+  "Egypt",
+  "Georgia",
+  "Iran",
+  "Iraq",
+  "Israel",
+  "Kyrgyzstan",
+  "Lebanon",
+  "Libya",
+  "Mauritania",
+  "Morocco",
+  "Saudi Arabia",
+  "Sudan",
+  "Sumer",
+  "Syria",
+  "Syria/Turkey",
+  "Tunisia",
+  "Turkey",
+  "Turkey/Syria",
+  "Turkmenistan",
+  "Uzbekistan",
+  "Yemen"
+]);
+const CITY_TYPE_SUB_SAHARAN_COUNTRIES = new Set([
+  "Angola",
+  "Ethiopia",
+  "Guinea",
+  "Mali",
+  "Nigeria",
+  "Senegal",
+  "Tanzania",
+  "Zimbabwe"
+]);
+const CITY_SPRITE_W = TILE_ART_SIZE;
+const CITY_SPRITE_H = TILE_ART_SIZE;
 const CITY_LABEL_H = 8;
 const CITY_LABEL_PAD_X = 2;
 const CITY_LABEL_PAD_Y = 1;
@@ -258,7 +368,7 @@ let shipImage;
 let shipWakeAnchors;
 let shipLighting;
 let settingsMenuIcon;
-let cityImage;
+let cityImages;
 let cityCatalog;
 let cityByTileId;
 const terrainAlphaMasks = new WeakMap();
@@ -352,7 +462,7 @@ async function main() {
     loadedShipImage,
     loadedShipLighting,
     loadedSettingsMenuIcon,
-    loadedCityImage,
+    loadedCityImages,
     loadedCityCatalog,
     earth,
     discreteWeatherBuffer,
@@ -362,7 +472,7 @@ async function main() {
     loadVehicleImage("sail-ship-16-headings"),
     loadShipLightingBake(),
     loadUiImage("settings_menu_icon"),
-    loadCityImage(),
+    loadCityImages(),
     loadCityCatalog(CITY_DATA_YEAR),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
@@ -373,7 +483,7 @@ async function main() {
   shipWakeAnchors = decodeShipWakeAnchors(shipImage);
   shipLighting = loadedShipLighting;
   settingsMenuIcon = loadedSettingsMenuIcon;
-  cityImage = loadedCityImage;
+  cityImages = loadedCityImages;
   cityCatalog = loadedCityCatalog;
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
@@ -490,8 +600,20 @@ function loadUiImage(key) {
   return loadAssetImage(`/assets/ui/${key}.png?v=${UI_ASSET_VERSION}`, `UI image: ${key}`);
 }
 
-function loadCityImage() {
-  return loadAssetImage(`/assets/buildings/city-house.png?v=${CITY_ASSET_VERSION}`, "city house image");
+async function loadCityImages() {
+  const entries = await Promise.all(CITY_TYPE_KEYS.map(loadCityTypeImage));
+  return new Map(entries);
+}
+
+async function loadCityTypeImage(cityType) {
+  const img = await loadAssetImage(
+    `/assets/buildings/city-types/city-${cityType}.png?v=${CITY_ASSET_VERSION}`,
+    `city type image: ${cityType}`
+  );
+  if (img.width !== CITY_SPRITE_W || img.height !== CITY_SPRITE_H) {
+    throw new Error(`City type image ${cityType} must be ${CITY_SPRITE_W}x${CITY_SPRITE_H}, got ${img.width}x${img.height}`);
+  }
+  return [cityType, img];
 }
 
 function loadAssetImage(src, label) {
@@ -538,6 +660,7 @@ async function loadCityCatalog(targetYear) {
         country,
         lat,
         lon,
+        cityType: cityTypeForCity(country, lat, lon),
         year,
         population: Math.round(population)
       });
@@ -638,6 +761,27 @@ function cityDisplayName(city, country, targetYear) {
   return rule?.displayCity || city;
 }
 
+function cityTypeForCity(country, lat, lon) {
+  if (CITY_TYPE_EAST_ASIAN_COUNTRIES.has(country)) return "east-asian";
+  if (CITY_TYPE_SOUTH_ASIAN_COUNTRIES.has(country)) return "south-asian";
+  if (CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES.has(country)) return "southeast-asian";
+  if (CITY_TYPE_ANDEAN_COUNTRIES.has(country)) return "andean";
+  if (CITY_TYPE_MESOAMERICAN_COUNTRIES.has(country)) return "mesoamerican";
+  if (country === "France" && isMediterraneanFrance(lat, lon)) return "mediterranean";
+  if (country === "Mali" && lat < 14) return "sub-saharan";
+  if (country === "Russian Federation" && lat < 47 && lon > 30) return "mediterranean";
+  if (country === "Ukraine" && lat < 46 && lon > 30) return "mediterranean";
+  if (CITY_TYPE_MEDITERRANEAN_COUNTRIES.has(country)) return "mediterranean";
+  if (CITY_TYPE_NORTHERN_EUROPEAN_COUNTRIES.has(country)) return "northern-european";
+  if (CITY_TYPE_ISLAMIC_DESERT_COUNTRIES.has(country)) return "islamic-desert";
+  if (CITY_TYPE_SUB_SAHARAN_COUNTRIES.has(country)) return "sub-saharan";
+  throw new Error(`No city type art bucket for city country: ${country}`);
+}
+
+function isMediterraneanFrance(lat, lon) {
+  return lat < 45.5 && lon > 2;
+}
+
 function cityLabelText(city) {
   return city.displayCity || city.city;
 }
@@ -720,6 +864,7 @@ function decodeShipWakeAnchors(img) {
     const direction = shipFrameScreenHeading(frame);
     const side = { x: -direction.y, y: direction.x };
     let aftProjection = Infinity;
+    let bowProjection = -Infinity;
     const points = [];
 
     for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y++) {
@@ -732,6 +877,7 @@ function decodeShipWakeAnchors(img) {
         const projection = ox * direction.x + oy * direction.y;
         const lateral = ox * side.x + oy * side.y;
         aftProjection = Math.min(aftProjection, projection);
+        bowProjection = Math.max(bowProjection, projection);
         points.push({ projection, lateral, alpha });
       }
     }
@@ -740,24 +886,61 @@ function decodeShipWakeAnchors(img) {
       throw new Error(`Ship frame ${frame} has no opaque pixels for wake anchor extraction`);
     }
 
-    let lateralWeighted = 0;
-    let weightSum = 0;
-    for (const point of points) {
-      if (point.projection > aftProjection + SHIP_WAKE_STERN_BAND_PX) continue;
-      lateralWeighted += point.lateral * point.alpha;
-      weightSum += point.alpha;
-    }
-    if (weightSum <= 0) throw new Error(`Ship frame ${frame} has no aft pixels for wake anchor extraction`);
+    const length = Math.max(1, bowProjection - aftProjection);
+    const stern = shipWakeWeightedAnchor(points, (point) => {
+      if (point.projection > aftProjection + SHIP_WAKE_AFT_BAND_PX) return 0;
+      return point.alpha;
+    });
+    if (!stern) throw new Error(`Ship frame ${frame} has no aft pixels for wake anchor extraction`);
 
-    const projection = aftProjection - SHIP_WAKE_STERN_CLEARANCE_PX;
-    const lateral = lateralWeighted / weightSum;
+    const positiveShoulder = shipWakeShoulderAnchor(points, aftProjection, length, direction, side, 1);
+    const negativeShoulder = shipWakeShoulderAnchor(points, aftProjection, length, direction, side, -1);
+    const sternProjection = aftProjection - SHIP_WAKE_STERN_CLEARANCE_PX;
     anchors.push({
-      x: Math.round(direction.x * projection + side.x * lateral),
-      y: Math.round(direction.y * projection + side.y * lateral)
+      stern: {
+        x: Math.round(direction.x * sternProjection + side.x * stern.lateral),
+        y: Math.round(direction.y * sternProjection + side.y * stern.lateral)
+      },
+      positiveShoulder,
+      negativeShoulder
     });
   }
 
   return anchors;
+}
+
+function shipWakeShoulderAnchor(points, aftProjection, length, direction, side, sideSign) {
+  const minProjection = aftProjection + length * SHIP_WAKE_BOW_MIN_FORWARD_RATIO;
+  const anchor = shipWakeWeightedAnchor(points, (point) => {
+    const sideDistance = point.lateral * sideSign;
+    if (point.projection < minProjection || sideDistance <= 0) return 0;
+    const forward = (point.projection - minProjection) / Math.max(1, aftProjection + length - minProjection);
+    return point.alpha * (0.35 + forward) * (0.5 + sideDistance);
+  });
+  if (!anchor) throw new Error("Ship frame has no bow shoulder pixels for wake anchor extraction");
+
+  return {
+    x: Math.round(direction.x * anchor.projection + side.x * (anchor.lateral + SHIP_WAKE_BOW_SHOULDER_OUTSET_PX * sideSign)),
+    y: Math.round(direction.y * anchor.projection + side.y * (anchor.lateral + SHIP_WAKE_BOW_SHOULDER_OUTSET_PX * sideSign))
+  };
+}
+
+function shipWakeWeightedAnchor(points, weightForPoint) {
+  let projectionWeighted = 0;
+  let lateralWeighted = 0;
+  let weightSum = 0;
+  for (const point of points) {
+    const weight = weightForPoint(point);
+    if (weight <= 0) continue;
+    projectionWeighted += point.projection * weight;
+    lateralWeighted += point.lateral * weight;
+    weightSum += weight;
+  }
+  if (weightSum <= 0) return null;
+  return {
+    projection: projectionWeighted / weightSum,
+    lateral: lateralWeighted / weightSum
+  };
 }
 
 function terrainVariantFromLocation() {
@@ -2064,51 +2247,78 @@ function updateShipWake(dt) {
     return changed;
   }
 
-  const stern = shipWakeSternPoint();
+  const source = shipWakeSourcePoint();
   const last = ship.lastWakeEmit;
-  if (!last || Math.hypot(stern.x - last.x, stern.y - last.y) > SHIP_WAKE_RESET_DISTANCE_PX) {
-    emitShipWake(stern, speedPx);
-    ship.lastWakeEmit = stern;
+  if (!last || Math.hypot(source.x - last.x, source.y - last.y) > SHIP_WAKE_RESET_DISTANCE_PX) {
+    emitShipWake(source, speedPx);
+    ship.lastWakeEmit = source;
     return true;
   }
 
-  const distance = Math.hypot(stern.x - last.x, stern.y - last.y);
+  const distance = Math.hypot(source.x - last.x, source.y - last.y);
   if (distance < SHIP_WAKE_EMIT_DISTANCE_PX) return changed;
 
   const steps = Math.max(1, Math.floor(distance / SHIP_WAKE_EMIT_DISTANCE_PX));
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    emitShipWake({
-      x: last.x + (stern.x - last.x) * t,
-      y: last.y + (stern.y - last.y) * t,
-      heading: stern.heading
-    }, speedPx);
+    emitShipWake(interpolateShipWakeSource(last, source, t), speedPx);
   }
-  ship.lastWakeEmit = stern;
+  ship.lastWakeEmit = source;
   return true;
 }
 
-function shipWakeSternPoint() {
+function shipWakeSourcePoint() {
   const frame = shipHeadingFrame();
   const anchor = shipWakeAnchors?.[frame];
   if (!anchor) throw new Error(`Missing ship wake anchor for frame ${frame}`);
+  const positiveShoulder = translateWakeAnchor(anchor.positiveShoulder);
+  const negativeShoulder = translateWakeAnchor(anchor.negativeShoulder);
+  const stern = translateWakeAnchor(anchor.stern);
   return {
-    x: localLayout.viewX + anchor.x,
-    y: localLayout.viewY + anchor.y,
+    x: (positiveShoulder.x + negativeShoulder.x) / 2,
+    y: (positiveShoulder.y + negativeShoulder.y) / 2,
+    positiveShoulder,
+    negativeShoulder,
+    stern,
     heading: shipFrameScreenHeading(frame)
   };
 }
 
-function emitShipWake(stern, speedPx) {
-  if (!stern.heading) throw new Error("Cannot emit ship wake without a frame heading");
-  const heading = stern.heading;
+function translateWakeAnchor(point) {
+  return {
+    x: localLayout.viewX + point.x,
+    y: localLayout.viewY + point.y
+  };
+}
+
+function interpolateShipWakeSource(a, b, t) {
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+    positiveShoulder: interpolateWakePoint(a.positiveShoulder, b.positiveShoulder, t),
+    negativeShoulder: interpolateWakePoint(a.negativeShoulder, b.negativeShoulder, t),
+    stern: interpolateWakePoint(a.stern, b.stern, t),
+    heading: b.heading
+  };
+}
+
+function interpolateWakePoint(a, b, t) {
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t
+  };
+}
+
+function emitShipWake(source, speedPx) {
+  if (!source.heading) throw new Error("Cannot emit ship wake without a frame heading");
+  const heading = source.heading;
   const side = { x: -heading.y, y: heading.x };
-  // Ripples propagate sideways in map space; the moving ship leaves the V behind.
   const sideDriftPx = speedPx * SHIP_WAKE_SIDE_SPEED_RATIO;
-  emitWakeParticle(offsetWakePoint(stern, side, SHIP_WAKE_SIDE_OFFSET_PX), side, sideDriftPx, "arm");
-  emitWakeParticle(offsetWakePoint(stern, side, -SHIP_WAKE_SIDE_OFFSET_PX), scale2(side, -1), sideDriftPx, "arm");
-  if (speedPx > SHIP_WAKE_MIN_SPEED_PX * 1.5) {
-    emitWakeParticle(stern, { x: 0, y: 0 }, 0, "center");
+
+  emitWakeParticle(source.positiveShoulder, side, sideDriftPx, "bow");
+  emitWakeParticle(source.negativeShoulder, scale2(side, -1), sideDriftPx, "bow");
+  if (speedPx > SHIP_WAKE_MIN_SPEED_PX * SHIP_WAKE_STERN_BUBBLE_SPEED_RATIO) {
+    emitWakeParticle(source.stern, { x: 0, y: 0 }, 0, "stern");
   }
 
   if (ship.wakeParticles.length > SHIP_WAKE_MAX_PARTICLES) {
@@ -2116,33 +2326,38 @@ function emitShipWake(stern, speedPx) {
   }
 }
 
-function emitWakeParticle(stern, direction, driftPxPerSecond, kind) {
+function emitWakeParticle(sourcePoint, direction, driftPxPerSecond, kind) {
   const sequence = ship.wakeSeedCounter;
   ship.wakeSeedCounter = (ship.wakeSeedCounter + 1) >>> 0;
   ship.wakeParticles.push({
-    x: stern.x,
-    y: stern.y,
+    x: sourcePoint.x,
+    y: sourcePoint.y,
     vx: direction.x * driftPxPerSecond,
     vy: direction.y * driftPxPerSecond,
     age: 0,
-    ttl: kind === "center" ? SHIP_WAKE_TTL_SECONDS * 0.48 : SHIP_WAKE_TTL_SECONDS,
+    ttl: wakeParticleTtl(kind),
     kind,
-    seed: wakeParticleSeed(stern, sequence, kind)
+    seed: wakeParticleSeed(sourcePoint, sequence, kind)
   });
 }
 
-function wakeParticleSeed(stern, sequence, kind) {
-  const x = Math.round(stern.x * 4);
-  const y = Math.round(stern.y * 4);
-  const kindSalt = kind === "center" ? 0x4f1bbcdc : 0x8d701f53;
+function wakeParticleTtl(kind) {
+  if (kind === "stern") return SHIP_WAKE_TTL_SECONDS * 0.42;
+  if (kind === "bow") return SHIP_WAKE_TTL_SECONDS;
+  throw new Error(`Unknown wake particle kind: ${kind}`);
+}
+
+function wakeParticleSeed(sourcePoint, sequence, kind) {
+  const x = Math.round(sourcePoint.x * 4);
+  const y = Math.round(sourcePoint.y * 4);
+  const kindSalt = wakeParticleKindSalt(kind);
   return hashInt(x ^ Math.imul(y, 0x45d9f3b) ^ Math.imul(sequence, 0x9e3779b1) ^ kindSalt);
 }
 
-function offsetWakePoint(point, direction, distance) {
-  return {
-    x: point.x + direction.x * distance,
-    y: point.y + direction.y * distance
-  };
+function wakeParticleKindSalt(kind) {
+  if (kind === "bow") return 0x8d701f53;
+  if (kind === "stern") return 0x4f1bbcdc;
+  throw new Error(`Unknown wake particle kind: ${kind}`);
 }
 
 function scale2(direction, scale) {
@@ -2410,15 +2625,20 @@ function render(nowMs) {
   for (const call of chart.tileCalls) drawWeatherSurface(call);
   for (const call of chart.tileCalls) drawRiver(call, chart);
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
-  drawCities(chart);
   const shipLight = shipSunLightState();
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart);
   drawShipWake(chart);
+  drawCitySprites(chart);
   ctx.restore();
 
   drawShipShadow(chart, shipLight, offset);
   drawShip(shipLight);
+  ctx.save();
+  ctx.translate(offset.x, offset.y);
+  drawCitySpritesAboveShip(chart, offset);
+  drawCityLabels(chart.cityCalls, chart);
+  ctx.restore();
   drawDayNightTint();
   drawWindIndicator();
   drawMinimap(nowMs);
@@ -2658,15 +2878,20 @@ function buildChart(anchorCamera) {
 
 function makeCityCall(city, tileCall) {
   const x = Math.round(tileCall.drawSurfaceX);
-  const groundY = Math.round(tileCall.drawSurfaceY + TILE_RADIUS_PX - 1);
+  const y = Math.round(tileCall.drawSurfaceY);
+  const spriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF);
+  const spriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF);
+  const labelH = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
   return {
     ...city,
     x,
-    y: groundY,
-    spriteX: x - Math.floor(CITY_SPRITE_W / 2),
-    spriteY: groundY - CITY_SPRITE_H,
-    labelY: groundY - CITY_SPRITE_H - CITY_LABEL_H - 2,
-    sortY: groundY + 2
+    y,
+    spriteX,
+    spriteY,
+    spriteW: CITY_SPRITE_W,
+    spriteH: CITY_SPRITE_H,
+    labelY: spriteY - labelH - CITY_LABEL_GAP_PX,
+    sortY: spriteY + CITY_SPRITE_H + 2
   };
 }
 
@@ -3470,6 +3695,13 @@ function drawTile(call, activeChart) {
   }
 }
 
+function cityImageForType(cityType) {
+  if (!CITY_TYPE_KEY_SET.has(cityType)) throw new Error(`Unknown city type: ${cityType}`);
+  const img = cityImages?.get(cityType);
+  if (!img) throw new Error(`Missing loaded city type image: ${cityType}`);
+  return img;
+}
+
 function drawWeatherSurface(call) {
   if (isWaterSurfaceRow(call.row)) return;
   const flags = weatherFlagsForTile(call.id);
@@ -4163,7 +4395,7 @@ function drawShipWake(activeChart) {
   if (!ship?.wakeParticles?.length) return;
   for (const particle of ship.wakeParticles) {
     const life = clamp(particle.age / particle.ttl, 0, 1);
-    const alphaBase = particle.kind === "center" ? 0.26 : 0.5;
+    const alphaBase = wakeParticleAlphaBase(particle.kind);
     const alpha = (alphaBase * Math.pow(1 - life, 1.35)).toFixed(3);
     const color = `rgba(255, 253, 231, ${alpha})`;
     const x = Math.round(particle.x);
@@ -4171,7 +4403,7 @@ function drawShipWake(activeChart) {
     const len = Math.hypot(particle.vx, particle.vy);
     if (!wakeMapPointIsWater(x, y, activeChart)) continue;
 
-    if (particle.kind === "center" || len <= 0.001) {
+    if (particle.kind === "stern" || len <= 0.001) {
       drawWakeFoamDot(particle, x, y, color, activeChart);
       continue;
     }
@@ -4181,6 +4413,12 @@ function drawShipWake(activeChart) {
     const markLength = clamp(Math.round(2 + life * 4), 2, 5);
     drawWakeFoamMark(particle, ux, uy, markLength, color, activeChart, life);
   }
+}
+
+function wakeParticleAlphaBase(kind) {
+  if (kind === "bow") return 0.5;
+  if (kind === "stern") return 0.28;
+  throw new Error(`Unknown wake particle kind: ${kind}`);
 }
 
 function drawWakeFoamDot(particle, x, y, color, activeChart) {
@@ -4765,16 +5003,52 @@ function drawPixelLine(x0, y0, x1, y1, color) {
   }
 }
 
-function drawCities(activeChart) {
-  if (!cityImage || !activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
-  for (const call of activeChart.cityCalls) drawCityHouse(call);
-  drawCityLabels(activeChart.cityCalls, activeChart);
+function drawCitySprites(activeChart) {
+  if (!activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
+  for (const call of activeChart.cityCalls) drawCitySprite(call);
 }
 
-function drawCityHouse(call) {
-  ctx.fillStyle = "rgba(18, 14, 10, 0.28)";
-  ctx.fillRect(call.x - 11, call.y - 4, 22, 5);
-  ctx.drawImage(cityImage, call.spriteX, call.spriteY);
+function drawCitySpritesAboveShip(activeChart, offset) {
+  if (!activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
+  for (const call of activeChart.cityCalls) {
+    if (citySpriteShouldDrawAboveShip(call, offset)) drawCitySprite(call);
+  }
+}
+
+function drawCitySprite(call) {
+  const img = cityImageForType(call.cityType);
+  ctx.drawImage(img, call.spriteX, call.spriteY);
+}
+
+function citySpriteShouldDrawAboveShip(call, offset) {
+  if (!ship || !shipImage) return false;
+  const cityRect = cityScreenRect(call, offset);
+  const shipRect = shipScreenRect(SHIP_SHEET_FRAME_SIZE);
+  if (!rectsOverlap(cityRect, shipRect)) return false;
+  return cityRect.y + cityRect.h > shipScreenSortY();
+}
+
+function cityScreenRect(call, offset) {
+  return {
+    x: call.spriteX + offset.x,
+    y: call.spriteY + offset.y,
+    w: call.spriteW,
+    h: call.spriteH
+  };
+}
+
+function shipScreenRect(frameSize) {
+  const origin = shipScreenOrigin(frameSize);
+  return {
+    x: origin.x,
+    y: origin.y,
+    w: frameSize,
+    h: frameSize
+  };
+}
+
+function shipScreenSortY() {
+  return Math.round(SCREEN_H / 2 + SHIP_SHEET_FRAME_SIZE / 2);
 }
 
 function drawCityLabels(cityCalls, activeChart) {
@@ -4828,8 +5102,8 @@ function cityCallIsOnScreen(call, bounds) {
   return rectsOverlap({
     x: call.spriteX,
     y: call.spriteY,
-    w: CITY_SPRITE_W,
-    h: CITY_SPRITE_H
+    w: call.spriteW,
+    h: call.spriteH
   }, {
     x: bounds.minX,
     y: bounds.minY,
@@ -4841,16 +5115,17 @@ function cityCallIsOnScreen(call, bounds) {
 function placeCityLabel(call, textW, occupied, bounds) {
   const w = textW + CITY_LABEL_PAD_X * 2;
   const h = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
-  const midY = call.y - CITY_SPRITE_H / 2 - h / 2;
+  const midY = call.spriteY + call.spriteH / 2 - h / 2;
+  const bottomY = call.spriteY + call.spriteH + CITY_LABEL_GAP_PX;
   const candidates = [
     cityLabelBox(call.x - w / 2, call.labelY, w, h),
-    cityLabelBox(call.x - w / 2, call.y + CITY_LABEL_GAP_PX, w, h),
-    cityLabelBox(call.x + CITY_SPRITE_W / 2 - 2, midY, w, h),
-    cityLabelBox(call.x - CITY_SPRITE_W / 2 - w + 2, midY, w, h),
+    cityLabelBox(call.x - w / 2, bottomY, w, h),
+    cityLabelBox(call.x + call.spriteW / 2 - 2, midY, w, h),
+    cityLabelBox(call.x - call.spriteW / 2 - w + 2, midY, w, h),
     cityLabelBox(call.x - w - CITY_LABEL_GAP_PX, call.labelY, w, h),
     cityLabelBox(call.x + CITY_LABEL_GAP_PX, call.labelY, w, h),
-    cityLabelBox(call.x - w - CITY_LABEL_GAP_PX, call.y + CITY_LABEL_GAP_PX, w, h),
-    cityLabelBox(call.x + CITY_LABEL_GAP_PX, call.y + CITY_LABEL_GAP_PX, w, h)
+    cityLabelBox(call.x - w - CITY_LABEL_GAP_PX, bottomY, w, h),
+    cityLabelBox(call.x + CITY_LABEL_GAP_PX, bottomY, w, h)
   ];
   const preferred = candidates[0];
   let best = null;
