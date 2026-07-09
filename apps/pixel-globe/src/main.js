@@ -68,9 +68,21 @@ const START_LON_DEG = -80.0;
 const SHIP_SHEET_FRAME_SIZE = 36;
 const SHIP_SHEET_COLS = 4;
 const SHIP_HEADING_COUNT = 16;
+const SHIP_LIGHT_AZIMUTH_BINS = 16;
+const SHIP_LIGHT_ELEVATION_BINS = 2;
+const SHIP_LIGHT_BIN_COUNT = SHIP_LIGHT_AZIMUTH_BINS * SHIP_LIGHT_ELEVATION_BINS;
+const SHIP_LIGHT_HIGH_ALTITUDE = 0.5;
+const SHIP_LIGHT_DIRECT_START_ALT = 0.02;
+const SHIP_LIGHT_DIRECT_FULL_ALT = 0.18;
+const SHIP_LIGHT_HIGHLIGHT_ALPHA = 0.3;
+const SHIP_LIGHT_SHADE_ALPHA = 0.28;
+const SHIP_LIGHT_SHADOW_ALPHA = 0.22;
+const SHIP_SHADOW_FRAME_SIZE = 72;
+const SHIP_SHADOW_HALF = SHIP_SHADOW_FRAME_SIZE / 2;
 const SHIP_TURN_RATE_RAD = 2.35;
 const SHIP_SAIL_ACCEL_RAD = 0.018;
 const SHIP_DRAG_PER_SECOND = 0.62;
+const SHIP_NO_GO_DRAG_MULTIPLIER = 1.35;
 const SHIP_MAX_SPEED_RAD = 0.035;
 const SHIP_MIN_POWERED_SPEED_RAD = 0.006;
 const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
@@ -78,7 +90,11 @@ const SHIP_COLLISION_DAMPING = 0.82;
 const SHIP_STOP_DAMPING = 0.15;
 const SHIP_COLLISION_RADIUS_PX = 5;
 const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
-const SAIL_NO_GO_ANGLE_RAD = Math.PI / 4;
+const SHIP_RIVER_HEADING_ALIGN_DOT = Math.cos(Math.PI / 3);
+const SHIP_RIVER_TARGET_ALIGN_DOT = Math.cos(80 * Math.PI / 180);
+const SAIL_NO_GO_ANGLE_RAD = Math.PI / 6;
+const SAIL_CLOSE_HAULED_ANGLE_RAD = Math.PI / 4;
+const SAIL_CLOSE_HAULED_EFFICIENCY = 0.34;
 const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
 const SHIP_WAKE_MIN_SPEED_PX = 2.5;
 const SHIP_WAKE_STERN_OFFSET_PX = 7;
@@ -113,7 +129,7 @@ const DAY_NIGHT_MAX_NIGHT_BLUE_ALPHA = 0.34;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 24;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
-const TERRAIN_ASSET_VERSION = "water-depth-gradations-1";
+const TERRAIN_ASSET_VERSION = "ship-lighting-bake-1";
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
@@ -154,6 +170,7 @@ let earthRows;
 let earthById;
 let images;
 let shipImage;
+let shipLighting;
 let spriteColors;
 let riverColors;
 let riverMasks;
@@ -217,15 +234,17 @@ main().catch((err) => {
 
 async function main() {
   drawLoading();
-  const [loadedImages, loadedShipImage, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
+  const [loadedImages, loadedShipImage, loadedShipLighting, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
     loadTerrainImages(),
     loadVehicleImage("sail-ship-16-headings"),
+    loadShipLightingBake(),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
   images = loadedImages;
   shipImage = loadedShipImage;
+  shipLighting = loadedShipLighting;
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -307,6 +326,60 @@ function loadVehicleImage(key) {
     img.onerror = () => reject(new Error(`Failed to load vehicle image: ${key}`));
     img.src = `/assets/vehicles/${key}.png?v=${TERRAIN_ASSET_VERSION}`;
   });
+}
+
+async function loadShipLightingBake() {
+  const [lightImage, shadeImage, shadowImage] = await Promise.all([
+    loadVehicleImage("sail-ship-16-headings-light"),
+    loadVehicleImage("sail-ship-16-headings-shade"),
+    loadVehicleImage("sail-ship-16-headings-shadow")
+  ]);
+  return {
+    light: decodeShipLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, "ship light mask"),
+    shade: decodeShipLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, "ship shade mask"),
+    shadow: decodeShipLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, "ship water shadow mask")
+  };
+}
+
+function decodeShipLightingMask(img, frameSize, label) {
+  const rows = Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS);
+  const expectedWidth = frameSize * SHIP_SHEET_COLS;
+  const expectedHeight = frameSize * rows * SHIP_LIGHT_ELEVATION_BINS;
+  if (img.width !== expectedWidth || img.height !== expectedHeight) {
+    throw new Error(`${label} has ${img.width}x${img.height}; expected ${expectedWidth}x${expectedHeight}`);
+  }
+
+  const sampleCanvas = document.createElement("canvas");
+  sampleCanvas.width = img.width;
+  sampleCanvas.height = img.height;
+  const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sampleCtx) throw new Error(`Could not create canvas for ${label}`);
+  sampleCtx.imageSmoothingEnabled = false;
+  sampleCtx.drawImage(img, 0, 0);
+  const data = sampleCtx.getImageData(0, 0, img.width, img.height).data;
+  const masks = Array.from({ length: SHIP_HEADING_COUNT }, () => (
+    Array.from({ length: SHIP_LIGHT_BIN_COUNT }, () => [])
+  ));
+
+  for (let elevation = 0; elevation < SHIP_LIGHT_ELEVATION_BINS; elevation++) {
+    const elevationY = elevation * rows * frameSize;
+    for (let frame = 0; frame < SHIP_HEADING_COUNT; frame++) {
+      const cellX = (frame % SHIP_SHEET_COLS) * frameSize;
+      const cellY = elevationY + Math.floor(frame / SHIP_SHEET_COLS) * frameSize;
+      for (let y = 0; y < frameSize; y++) {
+        for (let x = 0; x < frameSize; x++) {
+          const offset = (cellX + x + (cellY + y) * img.width) * 4;
+          for (let azimuth = 0; azimuth < SHIP_LIGHT_AZIMUTH_BINS; azimuth++) {
+            const channel = azimuth < 8 ? 0 : 1;
+            if ((data[offset + channel] & (1 << (azimuth & 7))) === 0) continue;
+            masks[frame][elevation * SHIP_LIGHT_AZIMUTH_BINS + azimuth].push(x | (y << 8));
+          }
+        }
+      }
+    }
+  }
+
+  return masks;
 }
 
 function terrainVariantFromLocation() {
@@ -762,7 +835,7 @@ function applyWindAcceleration(dt) {
     ship.velocity[2] + ship.heading[2] * sailAccel * dt
   ];
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
-  const drag = SHIP_DRAG_PER_SECOND * (efficiency > 0 ? 1 : 1.9);
+  const drag = SHIP_DRAG_PER_SECOND * (efficiency > 0 ? 1 : SHIP_NO_GO_DRAG_MULTIPLIER);
   ship.velocity = scaleVector(ship.velocity, Math.exp(-drag * dt));
   limitShipSpeed(poweredShipMaxSpeed(wind.strength, efficiency));
 }
@@ -772,8 +845,13 @@ function sailingEfficiency(heading, windFlow) {
   const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
   if (angleFromWind <= SAIL_NO_GO_ANGLE_RAD) return 0;
 
+  if (angleFromWind <= SAIL_CLOSE_HAULED_ANGLE_RAD) {
+    const t = easeInOut((angleFromWind - SAIL_NO_GO_ANGLE_RAD) / (SAIL_CLOSE_HAULED_ANGLE_RAD - SAIL_NO_GO_ANGLE_RAD));
+    return SAIL_CLOSE_HAULED_EFFICIENCY * t;
+  }
   if (angleFromWind <= Math.PI / 2) {
-    return easeInOut((angleFromWind - SAIL_NO_GO_ANGLE_RAD) / (Math.PI / 2 - SAIL_NO_GO_ANGLE_RAD));
+    const t = easeInOut((angleFromWind - SAIL_CLOSE_HAULED_ANGLE_RAD) / (Math.PI / 2 - SAIL_CLOSE_HAULED_ANGLE_RAD));
+    return SAIL_CLOSE_HAULED_EFFICIENCY + (1 - SAIL_CLOSE_HAULED_EFFICIENCY) * t;
   }
   if (angleFromWind <= Math.PI * 0.75) {
     const t = (angleFromWind - Math.PI / 2) / (Math.PI * 0.25);
@@ -840,6 +918,7 @@ function moveShipWithCollision(dt) {
 
 function attemptShipStep(fromPosition, fromTileId, step) {
   const segments = Math.max(1, Math.ceil(vectorLength(step) * PIXELS_PER_RADIAN / SHIP_COLLISION_SAMPLE_STEP_PX));
+  const movementDirection = normalizeOrNull(step);
   let previousTileId = fromTileId;
   let position = fromPosition;
 
@@ -850,7 +929,7 @@ function attemptShipStep(fromPosition, fromTileId, step) {
       fromPosition[2] + step[2] * (i / segments)
     ]);
     const tileId = findNearestTileId(graph, directionIndex, position);
-    if (!canShipMoveBetween(previousTileId, tileId)) return { ok: false, blockedTileId: tileId };
+    if (!canShipMoveBetween(previousTileId, tileId, movementDirection)) return { ok: false, blockedTileId: tileId };
     const occupancy = shipOccupancyAtPosition(position, tileId);
     if (!occupancy.ok) return { ok: false, blockedTileId: occupancy.blockedTileId };
     previousTileId = tileId;
@@ -860,6 +939,8 @@ function attemptShipStep(fromPosition, fromTileId, step) {
 }
 
 function shipOccupancyAtPosition(position, tileId) {
+  if (riverTraversalHeadingMatches(tileId, ship.heading, position)) return { ok: true };
+
   const radius = SHIP_COLLISION_RADIUS_PX / PIXELS_PER_RADIAN;
   const forward = normalizeTangentOrFallback(ship.heading, position, WORLD_NORTH);
   const side = normalizeOrNull(cross3(position, forward));
@@ -872,7 +953,7 @@ function shipOccupancyAtPosition(position, tileId) {
     const sampleTileId = renderedShipSampleTileId(tileId, sampleVector, radius * PIXELS_PER_RADIAN) ??
       findNearestTileId(graph, directionIndex, samplePosition);
     if (sampleTileId === tileId) continue;
-    if (canShipMoveBetween(tileId, sampleTileId)) continue;
+    if (canShipMoveBetween(tileId, sampleTileId, ship.heading)) continue;
     return { ok: false, blockedTileId: sampleTileId };
   }
   return { ok: true };
@@ -929,7 +1010,6 @@ function applyShipMove(position, tileId) {
   moveLocalView(dx, dy);
   camera = northUpCamera(ship.position, camera.right);
   centerTileId = ship.tileId;
-  syncLocalViewToShip();
 }
 
 function shipCollisionNormal(position, blockedTileId, fallbackStep) {
@@ -942,7 +1022,7 @@ function shipCollisionNormal(position, blockedTileId, fallbackStep) {
   return fallback || ship.heading;
 }
 
-function canShipMoveBetween(fromTileId, toTileId) {
+function canShipMoveBetween(fromTileId, toTileId, movementDirection = null) {
   if (!isShipNavigableTile(toTileId)) return false;
   if (fromTileId === toTileId) return true;
 
@@ -957,15 +1037,61 @@ function canShipMoveBetween(fromTileId, toTileId) {
   const fromRiver = shipTileHasRiver(fromTileId);
   const toRiver = shipTileHasRiver(toTileId);
   if (fromWater && toRiver) {
-    return riverEdgeSet(riverMasks, toTileId, edgeB) || riverEdgeSet(riverToWaterMasks, toTileId, edgeB);
+    if (riverEdgeSet(riverMasks, toTileId, edgeB) || riverEdgeSet(riverToWaterMasks, toTileId, edgeB)) return true;
+    return canFollowRiverGenerously(fromTileId, toTileId, movementDirection);
   }
   if (fromRiver && toWater) {
-    return riverEdgeSet(riverMasks, fromTileId, edgeA) || riverEdgeSet(riverToWaterMasks, fromTileId, edgeA);
+    if (riverEdgeSet(riverMasks, fromTileId, edgeA) || riverEdgeSet(riverToWaterMasks, fromTileId, edgeA)) return true;
+    return canFollowRiverGenerously(fromTileId, toTileId, movementDirection);
   }
   if (fromRiver && toRiver) {
-    return riverEdgeSet(riverMasks, fromTileId, edgeA) && riverEdgeSet(riverMasks, toTileId, edgeB);
+    if (riverEdgeSet(riverMasks, fromTileId, edgeA) && riverEdgeSet(riverMasks, toTileId, edgeB)) return true;
+    return canFollowRiverGenerously(fromTileId, toTileId, movementDirection);
   }
   return false;
+}
+
+function canFollowRiverGenerously(fromTileId, toTileId, movementDirection) {
+  if (!movementDirection) return false;
+  const fromRiver = shipTileHasRiver(fromTileId);
+  const toRiver = shipTileHasRiver(toTileId);
+  if (!fromRiver && !toRiver) return false;
+
+  const fromCenter = tileCenterVector(fromTileId);
+  const movement = normalizeOrNull(projectTangentVector(movementDirection, fromCenter));
+  const targetDirection = riverNeighborDirection(fromTileId, toTileId, fromCenter);
+  if (!movement || !targetDirection || dot3(movement, targetDirection) < SHIP_RIVER_TARGET_ALIGN_DOT) return false;
+
+  if (fromRiver && riverTraversalHeadingMatches(fromTileId, movement, fromCenter)) return true;
+  if (toRiver && riverTraversalHeadingMatches(toTileId, movementDirection, tileCenterVector(toTileId))) return true;
+  return false;
+}
+
+function riverTraversalHeadingMatches(tileId, direction, atPosition) {
+  if (!shipTileHasRiver(tileId)) return false;
+  const movement = normalizeOrNull(projectTangentVector(direction, atPosition));
+  if (!movement) return false;
+
+  const mask = (riverMasks?.[tileId] || 0) | (riverToWaterMasks?.[tileId] || 0);
+  const edgeCount = graph.edgeCount[tileId];
+  for (let edge = 0; edge < edgeCount; edge++) {
+    if ((mask & (1 << edge)) === 0) continue;
+    const axis = riverEdgeTangent(tileId, edge, atPosition);
+    if (axis && Math.abs(dot3(movement, axis)) >= SHIP_RIVER_HEADING_ALIGN_DOT) return true;
+  }
+  return false;
+}
+
+function riverNeighborDirection(tileId, neighborId, atPosition) {
+  const edge = edgeIndexTowardNeighbor(tileId, neighborId);
+  if (edge === undefined) return null;
+  return riverEdgeTangent(tileId, edge, atPosition);
+}
+
+function riverEdgeTangent(tileId, edge, atPosition) {
+  const neighborId = graph.edgeNeighbors[tileId]?.[edge];
+  if (neighborId === undefined) return null;
+  return normalizeOrNull(projectTangentVector(tileCenterVector(neighborId), atPosition));
 }
 
 function isShipNavigableTile(tileId) {
@@ -987,25 +1113,6 @@ function shipTileHasRiver(tileId) {
 function moveLocalView(dx, dy) {
   localLayout.viewX += dx * PIXELS_PER_RADIAN;
   localLayout.viewY -= dy * PIXELS_PER_RADIAN;
-}
-
-function syncLocalViewToShip() {
-  if (!ship || !camera || !localLayout) return false;
-  const tileLayout = localLayout.positions.get(ship.tileId);
-  if (!tileLayout) return false;
-
-  const tileCenter = tileCenterVector(ship.tileId);
-  const delta = [
-    ship.position[0] - tileCenter[0],
-    ship.position[1] - tileCenter[1],
-    ship.position[2] - tileCenter[2]
-  ];
-  const nextX = tileLayout.x + dot3(delta, camera.right) * PIXELS_PER_RADIAN;
-  const nextY = tileLayout.y - dot3(delta, camera.up) * PIXELS_PER_RADIAN;
-  const changed = Math.hypot(localLayout.viewX - nextX, localLayout.viewY - nextY) > 0.01;
-  localLayout.viewX = nextX;
-  localLayout.viewY = nextY;
-  return changed;
 }
 
 function updateShipWake(dt) {
@@ -1248,8 +1355,7 @@ function drawDayNightTint() {
 }
 
 function localDayNightLight() {
-  const subsolar = dateToSubsolarPoint(weatherParts.date);
-  const sunDirection = latLonToDirection(subsolar.latDeg, subsolar.lonDeg);
+  const sunDirection = currentSunDirection();
   const sunAltitude = dot3(ship.position, sunDirection);
   const day = smoothstep(DAY_NIGHT_NIGHT_ALT * 0.65, DAY_NIGHT_DAY_ALT, sunAltitude);
   const night = 1 - smoothstep(DAY_NIGHT_NIGHT_ALT, 0.08, sunAltitude);
@@ -1260,6 +1366,32 @@ function localDayNightLight() {
     sunAltitude,
     night: easeInOut(night),
     sunset: easeInOut(Math.max(twilight * 0.85, sunset))
+  };
+}
+
+function currentSunDirection() {
+  const subsolar = dateToSubsolarPoint(weatherParts.date);
+  return latLonToDirection(subsolar.latDeg, subsolar.lonDeg);
+}
+
+function shipSunLightState() {
+  if (!ship || !camera) return { bin: 0, direct: 0, sunAltitude: -1 };
+  const sunDirection = currentSunDirection();
+  const sunAltitude = dot3(ship.position, sunDirection);
+  const direct = smoothstep(SHIP_LIGHT_DIRECT_START_ALT, SHIP_LIGHT_DIRECT_FULL_ALT, sunAltitude);
+  if (direct <= 0.01) return { bin: 0, direct: 0, sunAltitude };
+
+  const tangent = normalizeOrNull(projectTangentVector(sunDirection, ship.position));
+  const screenX = tangent ? dot3(tangent, camera.right) : 0;
+  const screenY = tangent ? -dot3(tangent, camera.up) : -1;
+  const azimuth = Math.atan2(screenY, screenX);
+  const rawAzimuth = Math.round(azimuth / (Math.PI * 2) * SHIP_LIGHT_AZIMUTH_BINS);
+  const azimuthIndex = ((rawAzimuth % SHIP_LIGHT_AZIMUTH_BINS) + SHIP_LIGHT_AZIMUTH_BINS) % SHIP_LIGHT_AZIMUTH_BINS;
+  const elevationIndex = sunAltitude > SHIP_LIGHT_HIGH_ALTITUDE ? 1 : 0;
+  return {
+    bin: elevationIndex * SHIP_LIGHT_AZIMUTH_BINS + azimuthIndex,
+    direct,
+    sunAltitude
   };
 }
 
@@ -1292,11 +1424,7 @@ function render(nowMs) {
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
-  syncLocalViewToShip();
   ensureChart();
-  if (syncLocalViewToShip()) {
-    chart = buildChart(camera);
-  }
   const offset = chartOffsetPixels(chart);
 
   ctx.save();
@@ -1314,13 +1442,15 @@ function render(nowMs) {
   for (const call of chart.tileCalls) drawWeatherSurface(call);
   for (const call of chart.tileCalls) drawRiver(call, chart);
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
+  const shipLight = shipSunLightState();
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart, nowMs);
   drawShipWake(chart);
-  drawShip();
-  drawWindIndicator();
   ctx.restore();
 
+  drawShipShadow(chart, shipLight, offset);
+  drawShip(shipLight);
+  drawWindIndicator();
   drawDayNightTint();
   drawMinimap(nowMs);
   drawTinyStatus(nowMs);
@@ -2791,13 +2921,31 @@ function pointDistanceToSegment(px, py, ax, ay, bx, by) {
   return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
 }
 
-function drawShip() {
+function drawShipShadow(activeChart, light, offset) {
+  if (!ship || !shipLighting || !light || light.direct <= 0.01) return;
+  const frame = shipHeadingFrame();
+  const points = shipLightingPoints("shadow", frame, light.bin);
+  if (points.length === 0) return;
+  const localX = Math.round(localLayout.viewX - SHIP_SHADOW_HALF);
+  const localY = Math.round(localLayout.viewY - SHIP_SHADOW_HALF);
+  const screenX = Math.round(localX + offset.x);
+  const screenY = Math.round(localY + offset.y);
+  ctx.fillStyle = `rgba(12, 9, 24, ${(SHIP_LIGHT_SHADOW_ALPHA * light.direct).toFixed(3)})`;
+  for (const point of points) {
+    const localPx = localX + (point & 0xff);
+    const localPy = localY + (point >> 8);
+    if (!wakeMapPointIsWater(localPx, localPy, activeChart)) continue;
+    ctx.fillRect(screenX + (point & 0xff), screenY + (point >> 8), 1, 1);
+  }
+}
+
+function drawShip(light) {
   if (!ship || !shipImage) return;
   const frame = shipHeadingFrame();
   const sx = (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
   const sy = Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
-  const x = Math.round(localLayout.viewX - SHIP_SHEET_FRAME_SIZE / 2);
-  const y = Math.round(localLayout.viewY - SHIP_SHEET_FRAME_SIZE / 2);
+  const x = Math.round(SCREEN_W / 2 - SHIP_SHEET_FRAME_SIZE / 2);
+  const y = Math.round(SCREEN_H / 2 - SHIP_SHEET_FRAME_SIZE / 2);
   ctx.drawImage(
     shipImage,
     sx,
@@ -2809,6 +2957,37 @@ function drawShip() {
     SHIP_SHEET_FRAME_SIZE,
     SHIP_SHEET_FRAME_SIZE
   );
+  drawShipLighting(frame, x, y, light);
+}
+
+function drawShipLighting(frame, x, y, light) {
+  if (!shipLighting || !light || light.direct <= 0.01) return;
+  drawShipMaskPoints(
+    shipLightingPoints("shade", frame, light.bin),
+    x,
+    y,
+    `rgba(26, 18, 44, ${(SHIP_LIGHT_SHADE_ALPHA * light.direct).toFixed(3)})`
+  );
+  drawShipMaskPoints(
+    shipLightingPoints("light", frame, light.bin),
+    x,
+    y,
+    `rgba(255, 240, 188, ${(SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct).toFixed(3)})`
+  );
+}
+
+function shipLightingPoints(kind, frame, bin) {
+  const points = shipLighting?.[kind]?.[frame]?.[bin];
+  if (!points) throw new Error(`Missing ship ${kind} lighting mask for frame ${frame}, bin ${bin}`);
+  return points;
+}
+
+function drawShipMaskPoints(points, x, y, color) {
+  if (points.length === 0) return;
+  ctx.fillStyle = color;
+  for (const point of points) {
+    ctx.fillRect(x + (point & 0xff), y + (point >> 8), 1, 1);
+  }
 }
 
 function shipHeadingFrame() {
@@ -2830,8 +3009,8 @@ function drawWindIndicator() {
   if (!ship) return;
   const wind = windForTile(centerTileId);
   const flowDir = wind.directionRad + Math.PI;
-  const cx = Math.round(localLayout.viewX + Math.cos(flowDir) * WIND_INDICATOR_RADIUS_PX);
-  const cy = Math.round(localLayout.viewY - Math.sin(flowDir) * WIND_INDICATOR_RADIUS_PX);
+  const cx = Math.round(SCREEN_W / 2 + Math.cos(flowDir) * WIND_INDICATOR_RADIUS_PX);
+  const cy = Math.round(SCREEN_H / 2 - Math.sin(flowDir) * WIND_INDICATOR_RADIUS_PX);
   const tipX = Math.round(cx + Math.cos(flowDir) * 3);
   const tipY = Math.round(cy - Math.sin(flowDir) * 3);
   const baseX = Math.round(cx - Math.cos(flowDir) * 2);
