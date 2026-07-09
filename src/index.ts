@@ -169,6 +169,7 @@ export {
 
 // Wind (seasonal patterns + arrow overlay)
 export {
+  WIND_FIELD_MODEL_VERSION,
   computeWindForTiles,
   computeWindForGlobeTileIds,
   type TileWind,

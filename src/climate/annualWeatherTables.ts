@@ -66,6 +66,7 @@ export function buildAnnualTileWeatherTables(
     const wind = computeWindForTiles(tiles, {
       ...windOptions,
       subsolarLatDeg: sub,
+      simMinute: utcMin,
     });
     const precip = getPrecipitationByTileWithMoisture(tiles, sub, moisture);
     const di = doy - 1;

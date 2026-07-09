@@ -3336,6 +3336,12 @@ let vegetationLayer: {
 } | null = null;
 
 const BUILD_LOG = "[globe-build]";
+const EARTH_WIND_FIELD_OPTIONS = Object.freeze({
+  baseStrength: 1,
+  noiseDirectionRad: 0.22,
+  noiseStrength: 0.32,
+  seed: 45678,
+});
 
 /** Below this play speed, wind/flow/precip refresh every sim minute (when it changes). */
 const WIND_FLOW_PRECIP_REFRESH_SPEED_THRESHOLD = 60;
@@ -3597,11 +3603,9 @@ function updateWindFromState(
     } else {
       const subsolar = dateToSubsolarPoint(date);
       globalWindByTile = computeWindForGlobeTileIds(globe, relevant, {
+        ...EARTH_WIND_FIELD_OPTIONS,
         subsolarLatDeg: subsolar.latDeg,
-        baseStrength: 1,
-        noiseDirectionRad: 0.12,
-        noiseStrength: 0.08,
-        seed: 45678,
+        simMinute: utcMinuteFromDate(date),
         getTerrain,
       });
     }
@@ -3615,11 +3619,9 @@ function updateWindFromState(
   } else {
     const subsolar = dateToSubsolarPoint(date);
     globalWindByTile = computeWindForTiles(globe.tiles, {
+      ...EARTH_WIND_FIELD_OPTIONS,
       subsolarLatDeg: subsolar.latDeg,
-      baseStrength: 1,
-      noiseDirectionRad: 0.12,
-      noiseStrength: 0.08,
-      seed: 45678,
+      simMinute: utcMinuteFromDate(date),
       getTerrain,
     });
   }
@@ -3800,11 +3802,9 @@ function sampleHydroForTileIds(
       );
     } else {
       const partial = computeWindForGlobeTileIds(globe, idSet, {
+        ...EARTH_WIND_FIELD_OPTIONS,
         subsolarLatDeg: subsolar.latDeg,
-        baseStrength: 1,
-        noiseDirectionRad: 0.12,
-        noiseStrength: 0.08,
-        seed: 45678,
+        simMinute: utcMinuteFromDate(date),
         getTerrain: (id) => {
           const t = globalTileTerrain?.get(id);
           if (!t) return undefined;
@@ -5342,10 +5342,7 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
           globalMoistureByTile,
           getSub,
           {
-            baseStrength: 1,
-            noiseDirectionRad: 0.12,
-            noiseStrength: 0.08,
-            seed: 45678,
+            ...EARTH_WIND_FIELD_OPTIONS,
             getTerrain: (id) => {
               const t = tileTerrain.get(id);
               if (!t) return undefined;
@@ -5534,11 +5531,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
       } else {
         const subsolar = dateToSubsolarPoint(dateForWind);
         windByTile = computeWindForGlobeTileIds(globe, relevantBuild, {
+          ...EARTH_WIND_FIELD_OPTIONS,
           subsolarLatDeg: subsolar.latDeg,
-          baseStrength: 1,
-          noiseDirectionRad: 0.12,
-          noiseStrength: 0.08,
-          seed: 45678,
+          simMinute: utcMinuteFromDate(dateForWind),
           getTerrain: (id) => {
             const t = tileTerrain.get(id);
             if (!t) return undefined;
@@ -5559,11 +5554,9 @@ async function buildWorldAsync(state: DemoState): Promise<void> {
     } else {
       const subsolar = dateToSubsolarPoint(dateForWind);
       windByTile = computeWindForTiles(globe.tiles, {
+        ...EARTH_WIND_FIELD_OPTIONS,
         subsolarLatDeg: subsolar.latDeg,
-        baseStrength: 1,
-        noiseDirectionRad: 0.12,
-        noiseStrength: 0.08,
-        seed: 45678,
+        simMinute: utcMinuteFromDate(dateForWind),
         getTerrain: (id) => {
           const t = tileTerrain.get(id);
           if (!t) return undefined;

@@ -678,8 +678,8 @@ async function buildCacheForSubdivisions(
       dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
     const annual = buildAnnualTileWeatherTables(globe, moisture, getSub, {
       baseStrength: 1,
-      noiseDirectionRad: 0.12,
-      noiseStrength: 0.08,
+      noiseDirectionRad: 0.22,
+      noiseStrength: 0.32,
       seed: 45678,
       getTerrain: (id) => {
         const t = tileTerrain.get(id);

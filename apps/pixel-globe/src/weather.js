@@ -16,6 +16,15 @@ const RUNTIME_MAGIC = "PGRB";
 const RUNTIME_FILE_VERSION = 3;
 const RUNTIME_HEADER_BYTES = 64;
 const CLOUD_SPAWN_RECORD_BYTES = 24;
+const WIND_YEAR_MINUTES = WEATHER_DAYS * WEATHER_MINUTES_PER_DAY;
+const WIND_TIME_CELL_MINUTES = 5 * WEATHER_MINUTES_PER_DAY;
+const WIND_TIME_CELLS = WIND_YEAR_MINUTES / WIND_TIME_CELL_MINUTES;
+const WIND_LAT_CELL_DEG = 12;
+const WIND_LON_CELL_DEG = 20;
+const WIND_LAT_CELLS = 180 / WIND_LAT_CELL_DEG;
+const WIND_LON_CELLS = 360 / WIND_LON_CELL_DEG;
+const MIN_WIND_STRENGTH = 0.025;
+const MAX_BASE_WIND_STRENGTH = 0.78;
 
 export function discreteWeatherBakeEarthCacheVersionU32(key) {
   let h = 2166136261 >>> 0;
@@ -160,8 +169,6 @@ export function decodePixelRuntimeWeatherBakeFile(buffer, expectedVersionKey, ex
   const cloudSpawnTileIds = new Uint32Array(recordCount);
   const cloudTemplateIndices = new Uint32Array(recordCount);
   const cloudBaseScales = new Float32Array(recordCount);
-  const cloudWindDirections = new Float32Array(recordCount);
-  const cloudWindStrengths = new Float32Array(recordCount);
   const cloudLifecyclePhases = new Float32Array(recordCount);
   requireBytes(o, recordCount * CLOUD_SPAWN_RECORD_BYTES, u8.byteLength, "runtime cloud spawn table");
   for (let i = 0; i < recordCount; i++) {
@@ -173,8 +180,6 @@ export function decodePixelRuntimeWeatherBakeFile(buffer, expectedVersionKey, ex
     cloudSpawnTileIds[i] = tileId;
     cloudTemplateIndices[i] = dv.getUint32(rec + 4, true);
     cloudBaseScales[i] = dv.getFloat32(rec + 8, true);
-    cloudWindDirections[i] = dv.getFloat32(rec + 12, true);
-    cloudWindStrengths[i] = dv.getFloat32(rec + 16, true);
     cloudLifecyclePhases[i] = dv.getFloat32(rec + 20, true);
   }
   o += recordCount * CLOUD_SPAWN_RECORD_BYTES;
@@ -196,8 +201,6 @@ export function decodePixelRuntimeWeatherBakeFile(buffer, expectedVersionKey, ex
     cloudSpawnTileIds,
     cloudTemplateIndices,
     cloudBaseScales,
-    cloudWindDirections,
-    cloudWindStrengths,
     cloudLifecyclePhases,
     seaIceCycle: seaDecoded.cycle,
     freshwaterIceCycle: freshwaterDecoded.cycle
@@ -267,14 +270,24 @@ export function windAtLatLonDeg(latDeg, lonDeg, subsolarLatDeg, options = {}) {
   const baseStrength = options.baseStrength ?? 1;
   const seed = options.seed ?? 12345;
   const simMinute = options.simMinute ?? 0;
+  const noiseDirectionRad = options.noiseDirectionRad ?? 0.22;
+  const noiseStrength = options.noiseStrength ?? 0.32;
   const effLat = effectiveLatForSeason(latDeg, subsolarLatDeg);
   let { directionRad, strength } = baseWindAtLat(effLat);
-  const la = Math.round(latDeg * 500);
-  const lo = Math.round(lonDeg * 500);
-  const h1 = u32Hash([seed, la, lo, simMinute, 0x7e3779b9]);
-  const h2 = u32Hash([seed, la, lo, simMinute, 0x9e3779b1]);
-  directionRad += (((h1 & 0xffff) / 0xffff) - 0.5) * 0.24;
-  strength = Math.max(0.05, Math.min(1, strength * (0.85 + ((h2 & 0xffff) / 0xffff) * 0.3) * baseStrength));
+  const directionJitter = coherentSignedWindNoise(
+    seed,
+    latDeg,
+    lonDeg,
+    simMinute,
+    0x7e3779b9
+  ) * noiseDirectionRad;
+  const gust = coherentSignedWindNoise(seed, latDeg, lonDeg, simMinute, 0x9e3779b1);
+  const lull = coherentWindNoise(seed, latDeg + 19.7, lonDeg - 73.3, simMinute + 997, 0x85ebca6b);
+  const strengthMul = Math.max(0.18, 1 + gust * noiseStrength * 1.8);
+  const lullCut = smoothstep(0.55, 1, lull) * noiseStrength * 1.25;
+
+  directionRad += directionJitter;
+  strength = clamp(strength * Math.max(0.14, strengthMul - lullCut) * baseStrength, MIN_WIND_STRENGTH, 1);
   return { directionRad, strength };
 }
 
@@ -402,27 +415,57 @@ function skipBytes(offset, byteLength, totalBytes, label) {
 }
 
 function baseWindAtLat(latDeg) {
-  const absLat = Math.abs(latDeg);
-  if (absLat <= 25) {
-    return {
-      directionRad: 0,
-      strength: 0.5 + 0.4 * (1 - absLat / 25)
-    };
+  const absLat = Math.min(90, Math.abs(latDeg));
+  const hemisphere = latDeg >= 0 ? 1 : -1;
+
+  const tradeWeight = 1 - smoothstep(18, 34, absLat);
+  const westerlyWeight = smoothstep(18, 34, absLat) * (1 - smoothstep(52, 68, absLat));
+  const polarWeight = smoothstep(52, 68, absLat);
+
+  const tradeDir = hemisphere > 0 ? Math.PI * 0.25 : -Math.PI * 0.25;
+  const westerlyDir = hemisphere > 0 ? -Math.PI * 0.75 : Math.PI * 0.75;
+  const polarDir = hemisphere > 0 ? Math.PI * 0.12 : -Math.PI * 0.12;
+
+  const tradeStrength = 0.34 + 0.22 * (1 - smoothstep(0, 22, absLat));
+  const westerlyStrength = 0.4 + 0.22 * Math.exp(-Math.pow((absLat - 42) / 15, 2));
+  const polarStrength = 0.2 + 0.13 * smoothstep(60, 85, absLat);
+
+  let x = 0;
+  let y = 0;
+  x += Math.cos(tradeDir) * tradeWeight * tradeStrength;
+  y += Math.sin(tradeDir) * tradeWeight * tradeStrength;
+  x += Math.cos(westerlyDir) * westerlyWeight * westerlyStrength;
+  y += Math.sin(westerlyDir) * westerlyWeight * westerlyStrength;
+  x += Math.cos(polarDir) * polarWeight * polarStrength;
+  y += Math.sin(polarDir) * polarWeight * polarStrength;
+
+  const strength = Math.hypot(x, y);
+  if (strength < 1e-6) {
+    return { directionRad: hemisphere > 0 ? Math.PI * 0.25 : -Math.PI * 0.25, strength: MIN_WIND_STRENGTH };
   }
-  if (absLat <= 55) {
-    return {
-      directionRad: Math.PI,
-      strength: 0.6 + 0.35 * Math.exp(-Math.pow((absLat - 40) / 20, 2))
-    };
-  }
+
   return {
-    directionRad: 0,
-    strength: 0.3 + 0.2 * (1 - (absLat - 55) / 35)
+    directionRad: Math.atan2(y, x),
+    strength: clamp(strength, MIN_WIND_STRENGTH, MAX_BASE_WIND_STRENGTH)
   };
 }
 
 function effectiveLatForSeason(latDeg, subsolarLatDeg) {
   return latDeg - subsolarLatDeg * 0.4;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function smoothstep(edge0, edge1, value) {
+  if (edge0 === edge1) return value < edge0 ? 0 : 1;
+  const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
 }
 
 function u32Hash(parts) {
@@ -432,4 +475,48 @@ function u32Hash(parts) {
     h = Math.imul(h, 16777619) >>> 0;
   }
   return h >>> 0;
+}
+
+function unitFromHash(parts) {
+  return u32Hash(parts) / 0xffffffff;
+}
+
+function windLatticeNoise(seed, latCell, lonCell, timeCell, salt) {
+  return unitFromHash([seed, latCell, lonCell, timeCell, salt]);
+}
+
+function coherentWindNoise(seed, latDeg, lonDeg, simMinute, salt) {
+  const latPos = clamp(latDeg + 90, 0, 180) / WIND_LAT_CELL_DEG;
+  const lat0 = Math.min(WIND_LAT_CELLS, Math.floor(latPos));
+  const lat1 = Math.min(WIND_LAT_CELLS, lat0 + 1);
+  const latU = smoothstep(0, 1, latPos - lat0);
+
+  const lonWrapped = positiveModulo(lonDeg + 180, 360);
+  const lonPos = lonWrapped / WIND_LON_CELL_DEG;
+  const lon0 = Math.floor(lonPos) % WIND_LON_CELLS;
+  const lon1 = (lon0 + 1) % WIND_LON_CELLS;
+  const lonU = smoothstep(0, 1, lonPos - Math.floor(lonPos));
+
+  const minute = positiveModulo(Math.floor(simMinute), WIND_YEAR_MINUTES);
+  const timePos = minute / WIND_TIME_CELL_MINUTES;
+  const time0 = Math.floor(timePos) % WIND_TIME_CELLS;
+  const time1 = (time0 + 1) % WIND_TIME_CELLS;
+  const timeU = smoothstep(0, 1, timePos - Math.floor(timePos));
+
+  const n000 = windLatticeNoise(seed, lat0, lon0, time0, salt);
+  const n010 = windLatticeNoise(seed, lat1, lon0, time0, salt);
+  const n100 = windLatticeNoise(seed, lat0, lon1, time0, salt);
+  const n110 = windLatticeNoise(seed, lat1, lon1, time0, salt);
+  const n001 = windLatticeNoise(seed, lat0, lon0, time1, salt);
+  const n011 = windLatticeNoise(seed, lat1, lon0, time1, salt);
+  const n101 = windLatticeNoise(seed, lat0, lon1, time1, salt);
+  const n111 = windLatticeNoise(seed, lat1, lon1, time1, salt);
+
+  const a0 = lerp(lerp(n000, n100, lonU), lerp(n010, n110, lonU), latU);
+  const a1 = lerp(lerp(n001, n101, lonU), lerp(n011, n111, lonU), latU);
+  return lerp(a0, a1, timeU);
+}
+
+function coherentSignedWindNoise(seed, latDeg, lonDeg, simMinute, salt) {
+  return coherentWindNoise(seed, latDeg, lonDeg, simMinute, salt) * 2 - 1;
 }

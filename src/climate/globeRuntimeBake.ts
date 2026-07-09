@@ -11,6 +11,7 @@ import type {
 import type { AnnualRiverFlowStrength } from "./annualWeatherTables.js";
 import type { SeaIceAnnualCycle } from "./seaIceCycle.js";
 import { discreteWeatherBakeEarthCacheVersionU32 } from "./discreteWeatherYearBake.js";
+import { WIND_FIELD_MODEL_VERSION } from "../wind/windPatterns.js";
 
 /** ASCII `PGRB` — polyglobe **r**untime **b**ake. */
 const FILE_MAGIC = new Uint8Array([0x50, 0x47, 0x52, 0x42]);
@@ -63,13 +64,15 @@ export function globeRuntimeBakeInteriorOceanSegments(tileCount: number): {
 }
 
 /**
- * Fingerprint for params that affect {@link import("./cloudClipSystem.js").buildAnnualCloudSpawnTable}.
+ * Fingerprint for params and deterministic model versions that affect
+ * {@link import("./cloudClipSystem.js").buildAnnualCloudSpawnTable}.
  * Bump {@link GLOBE_RUNTIME_BAKE_FILE_VERSION} if spawn logic uses more of `cfg`.
  */
 export function globeRuntimeBakeCloudSpawnConfigHash(
   cfg: CloudClipFieldConfig,
 ): number {
   return u32Hash([
+    WIND_FIELD_MODEL_VERSION,
     cfg.seed >>> 0,
     cfg.windSeed >>> 0,
     floatBits(cfg.cloudScale),

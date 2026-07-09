@@ -3984,12 +3984,14 @@ function drawAnnualCloudSystems(activeChart) {
     const tileId = runtimeWeather.cloudSpawnTileIds[rec];
     const call = activeChart.tileById.get(tileId);
     if (!call) continue;
+    const seed = hashInt(tileId ^ Math.imul(slot + 1, 0x9e3779b1));
+    const wind = cloudWindForTile(tileId, seed);
     drawCloudAt(call, {
-      seed: hashInt(tileId ^ Math.imul(slot + 1, 0x9e3779b1)),
+      seed,
       templateIndex: runtimeWeather.cloudTemplateIndices[rec],
       baseScale: runtimeWeather.cloudBaseScales[rec],
-      windDirectionRad: runtimeWeather.cloudWindDirections[rec],
-      windStrength: runtimeWeather.cloudWindStrengths[rec],
+      windDirectionRad: wind.directionRad,
+      windStrength: wind.strength,
       opacityMul: 0.78
     });
   }
