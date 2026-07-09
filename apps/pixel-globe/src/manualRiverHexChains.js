@@ -16,3 +16,9 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     [161138, 161175, 161176],
   ],
 };
+
+export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
+  7: [
+    { tile: 25502, edge: 0 },
+  ],
+};

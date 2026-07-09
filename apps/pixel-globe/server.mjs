@@ -59,7 +59,7 @@ const server = createServer((req, res) => {
     res.writeHead(200, {
       "content-type": type,
       "content-length": st.size,
-      "cache-control": type.startsWith("image/") ? "public, max-age=3600" : "no-cache"
+      "cache-control": "no-cache"
     });
     createReadStream(filePath).pipe(res);
   } catch {
