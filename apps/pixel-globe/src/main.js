@@ -547,9 +547,56 @@ async function fetchEarthCache() {
 }
 
 async function fetchBinary(path, label) {
+  const chunked = await fetchChunkedBinary(path, label);
+  if (chunked) return chunked;
+
   const res = await fetch(path);
   if (!res.ok) throw new Error(`Failed to load ${label}: HTTP ${res.status}`);
   return res.arrayBuffer();
+}
+
+async function fetchChunkedBinary(path, label) {
+  const manifestPath = `${path}.chunks.json`;
+  const manifestRes = await fetch(manifestPath);
+  if (manifestRes.status === 404) return null;
+  if (!manifestRes.ok) {
+    throw new Error(`Failed to load ${label} chunk manifest: HTTP ${manifestRes.status}`);
+  }
+  const manifestContentType = manifestRes.headers.get("content-type") || "";
+  if (!manifestContentType.toLowerCase().includes("json")) return null;
+
+  const manifest = await manifestRes.json();
+  if (!Number.isSafeInteger(manifest.byteLength) || manifest.byteLength < 0) {
+    throw new Error(`Malformed ${label} chunk manifest: invalid byteLength`);
+  }
+  if (!Array.isArray(manifest.chunks) || manifest.chunks.length === 0) {
+    throw new Error(`Malformed ${label} chunk manifest: missing chunks`);
+  }
+
+  const out = new Uint8Array(manifest.byteLength);
+  let offset = 0;
+  for (let i = 0; i < manifest.chunks.length; i++) {
+    const chunkSpec = manifest.chunks[i];
+    if (!chunkSpec || typeof chunkSpec.path !== "string" || !Number.isSafeInteger(chunkSpec.byteLength)) {
+      throw new Error(`Malformed ${label} chunk manifest entry ${i}`);
+    }
+    const chunkUrl = new URL(chunkSpec.path, new URL(manifestPath, window.location.href)).toString();
+    const chunkRes = await fetch(chunkUrl);
+    if (!chunkRes.ok) throw new Error(`Failed to load ${label} chunk ${i}: HTTP ${chunkRes.status}`);
+    const chunk = new Uint8Array(await chunkRes.arrayBuffer());
+    if (chunk.byteLength !== chunkSpec.byteLength) {
+      throw new Error(`Malformed ${label} chunk ${i}: expected ${chunkSpec.byteLength} bytes, got ${chunk.byteLength}`);
+    }
+    if (offset + chunk.byteLength > out.byteLength) {
+      throw new Error(`Malformed ${label} chunks: total bytes exceed manifest byteLength`);
+    }
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  if (offset !== out.byteLength) {
+    throw new Error(`Malformed ${label} chunks: expected ${out.byteLength} bytes, got ${offset}`);
+  }
+  return out.buffer;
 }
 
 async function fetchText(path, label) {
