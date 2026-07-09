@@ -131,6 +131,20 @@ const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 24;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "ship-lighting-bake-1";
+const CITY_ASSET_VERSION = "city-house-1";
+const CITY_DATA_YEAR = 1522;
+const CITY_MAX_COUNT = 420;
+const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
+const CITY_SPRITE_W = 32;
+const CITY_SPRITE_H = 32;
+const CITY_LABEL_LIMIT = 28;
+const CITY_LABEL_H = 8;
+const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
+const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
+const PIXEL_FONT_MONO = "\"Dogica\", \"zpix\", monospace";
+const PIXEL_FONT_BODY_8 = `8px ${PIXEL_FONT_BODY}`;
+const PIXEL_FONT_UI_8 = `8px ${PIXEL_FONT_UI}`;
+const PIXEL_FONT_MONO_8 = `8px ${PIXEL_FONT_MONO}`;
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
@@ -182,6 +196,9 @@ let images;
 let shipImage;
 let shipLighting;
 let settingsMenuIcon;
+let cityImage;
+let cityCatalog;
+let cityByTileId;
 let spriteColors;
 let riverColors;
 let riverMasks;
@@ -262,19 +279,36 @@ main().catch((err) => {
 
 async function main() {
   drawLoading();
-  const [loadedImages, loadedShipImage, loadedShipLighting, loadedSettingsMenuIcon, earth, discreteWeatherBuffer, runtimeWeatherBuffer] = await Promise.all([
+  const [
+    loadedFonts,
+    loadedImages,
+    loadedShipImage,
+    loadedShipLighting,
+    loadedSettingsMenuIcon,
+    loadedCityImage,
+    loadedCityCatalog,
+    earth,
+    discreteWeatherBuffer,
+    runtimeWeatherBuffer
+  ] = await Promise.all([
+    loadPixelFonts(),
     loadTerrainImages(),
     loadVehicleImage("sail-ship-16-headings"),
     loadShipLightingBake(),
     loadUiImage("settings_menu_icon"),
+    loadCityImage(),
+    loadCityCatalog(CITY_DATA_YEAR),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
+  void loadedFonts;
   images = loadedImages;
   shipImage = loadedShipImage;
   shipLighting = loadedShipLighting;
   settingsMenuIcon = loadedSettingsMenuIcon;
+  cityImage = loadedCityImage;
+  cityCatalog = loadedCityCatalog;
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -299,6 +333,7 @@ async function main() {
   );
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
+  cityByTileId = placeCityCatalog(cityCatalog);
   waterDepthBands = buildWaterDepthBands();
   spriteColors = buildSpriteDominantColors(images);
   riverColors = buildRiverColors(images);
@@ -332,6 +367,22 @@ async function fetchBinary(path, label) {
   return res.arrayBuffer();
 }
 
+async function fetchText(path, label) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`Failed to load ${label}: HTTP ${res.status}`);
+  return res.text();
+}
+
+function loadPixelFonts() {
+  if (!document.fonts) return Promise.resolve();
+  return Promise.all([
+    document.fonts.load(PIXEL_FONT_BODY_8),
+    document.fonts.load(PIXEL_FONT_UI_8),
+    document.fonts.load(PIXEL_FONT_MONO_8),
+    document.fonts.load(`12px "zpix", monospace`)
+  ]).then(() => document.fonts.ready);
+}
+
 function loadTerrainImages() {
   return Promise.all(terrainAssets.map((key) => loadImage(key))).then((entries) => {
     const map = new Map(entries);
@@ -352,21 +403,151 @@ function loadImage(key) {
 }
 
 function loadVehicleImage(key) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load vehicle image: ${key}`));
-    img.src = `/assets/vehicles/${key}.png?v=${TERRAIN_ASSET_VERSION}`;
-  });
+  return loadAssetImage(`/assets/vehicles/${key}.png?v=${TERRAIN_ASSET_VERSION}`, `vehicle image: ${key}`);
 }
 
 function loadUiImage(key) {
+  return loadAssetImage(`/assets/ui/${key}.png?v=${UI_ASSET_VERSION}`, `UI image: ${key}`);
+}
+
+function loadCityImage() {
+  return loadAssetImage(`/assets/buildings/city-house.png?v=${CITY_ASSET_VERSION}`, "city house image");
+}
+
+function loadAssetImage(src, label) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load UI image: ${key}`));
-    img.src = `/assets/ui/${key}.png?v=${UI_ASSET_VERSION}`;
+    img.onerror = () => reject(new Error(`Failed to load ${label}`));
+    img.src = src;
   });
+}
+
+async function loadCityCatalog(targetYear) {
+  const csv = await fetchText(CITY_DATA_URL, `${targetYear} city dataset`);
+  const rows = parseCsvRows(csv);
+  if (rows.length < 2) throw new Error(`City dataset has no city rows: ${CITY_DATA_URL}`);
+
+  const header = rows[0];
+  const cityIndex = requiredCsvIndex(header, "city");
+  const countryIndex = requiredCsvIndex(header, "country");
+  const latIndex = requiredCsvIndex(header, "latitude");
+  const lonIndex = requiredCsvIndex(header, "longitude");
+  const yearIndex = requiredCsvIndex(header, "year");
+  const populationIndex = requiredCsvIndex(header, "population");
+  const bestByCity = new Map();
+
+  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex];
+    if (row.length === 1 && row[0] === "") continue;
+    const city = requiredCsvCell(row, cityIndex, rowIndex, "city").trim();
+    const country = requiredCsvCell(row, countryIndex, rowIndex, "country").trim();
+    const lat = requiredCsvNumber(row, latIndex, rowIndex, "latitude");
+    const lon = requiredCsvNumber(row, lonIndex, rowIndex, "longitude");
+    const year = requiredCsvInteger(row, yearIndex, rowIndex, "year");
+    const population = requiredCsvNumber(row, populationIndex, rowIndex, "population");
+    if (population <= 0 || year > targetYear) continue;
+
+    const cityId = normalizeCityKey(city, country);
+    const prev = bestByCity.get(cityId);
+    if (!prev || year > prev.year || (year === prev.year && population > prev.population)) {
+      bestByCity.set(cityId, {
+        cityId,
+        city,
+        country,
+        lat,
+        lon,
+        year,
+        population: Math.round(population)
+      });
+    }
+  }
+
+  const cities = [...bestByCity.values()]
+    .sort((a, b) => b.population - a.population || a.city.localeCompare(b.city))
+    .slice(0, CITY_MAX_COUNT);
+  if (cities.length === 0) throw new Error(`City dataset produced no cities for year ${targetYear}`);
+  return cities;
+}
+
+function parseCsvRows(csv) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let i = 0; i < csv.length; i++) {
+    const ch = csv[i];
+    if (quoted) {
+      if (ch === "\"") {
+        if (csv[i + 1] === "\"") {
+          cell += "\"";
+          i++;
+        } else {
+          quoted = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+
+    if (ch === "\"") {
+      if (cell.length !== 0) throw new Error("Malformed city CSV: quote inside unquoted cell");
+      quoted = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (ch !== "\r") {
+      cell += ch;
+    }
+  }
+
+  if (quoted) throw new Error("Malformed city CSV: unterminated quoted cell");
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function requiredCsvIndex(header, name) {
+  const index = header.indexOf(name);
+  if (index < 0) throw new Error(`City dataset is missing required column: ${name}`);
+  return index;
+}
+
+function requiredCsvCell(row, index, rowIndex, name) {
+  const value = row[index];
+  if (value == null || value.trim() === "") {
+    throw new Error(`City dataset row ${rowIndex + 1} is missing ${name}`);
+  }
+  return value;
+}
+
+function requiredCsvNumber(row, index, rowIndex, name) {
+  const value = Number(requiredCsvCell(row, index, rowIndex, name));
+  if (!Number.isFinite(value)) {
+    throw new Error(`City dataset row ${rowIndex + 1} has invalid ${name}`);
+  }
+  return value;
+}
+
+function requiredCsvInteger(row, index, rowIndex, name) {
+  const value = Number(requiredCsvCell(row, index, rowIndex, name));
+  if (!Number.isInteger(value)) {
+    throw new Error(`City dataset row ${rowIndex + 1} has invalid ${name}`);
+  }
+  return value;
+}
+
+function normalizeCityKey(city, country) {
+  return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
 }
 
 async function loadShipLightingBake() {
@@ -1044,6 +1225,24 @@ function createLocalLayout(centerId) {
     viewY: 0,
     positions: new Map([[centerId, { x: 0, y: 0 }]])
   };
+}
+
+function placeCityCatalog(cities) {
+  const placed = new Map();
+  for (const city of cities) {
+    const startId = findNearestTileId(graph, directionIndex, latLonToDirection(city.lat, city.lon));
+    const tileId = isCityDrawableTile(startId) ? startId : nearestTileMatching(startId, isCityDrawableTile);
+    if (tileId === undefined) {
+      throw new Error(`Could not place city on drawable land tile: ${city.city}, ${city.country}`);
+    }
+    if (placed.has(tileId)) continue;
+    placed.set(tileId, { ...city, tileId });
+  }
+  return placed;
+}
+
+function isCityDrawableTile(tileId) {
+  return !isWaterSurfaceRow(earthById[tileId]);
 }
 
 function createShip(latDeg, lonDeg) {
@@ -1801,6 +2000,7 @@ function render(nowMs) {
   for (const call of chart.tileCalls) drawWeatherSurface(call);
   for (const call of chart.tileCalls) drawRiver(call, chart);
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
+  drawCities(chart);
   const shipLight = shipSunLightState();
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart, nowMs);
@@ -1946,6 +2146,7 @@ function buildChart(anchorCamera) {
   const faceCalls = [];
   const riverConnectorCalls = [];
   const tileCalls = [];
+  const cityCalls = [];
   const baseFaceCalls = [];
   const frontFacesByTile = new Map();
   const tileById = new Map();
@@ -1971,6 +2172,8 @@ function buildChart(anchorCamera) {
     };
     tileCalls.push(tileCall);
     tileById.set(item.id, tileCall);
+    const city = cityByTileId.get(item.id);
+    if (city) cityCalls.push(makeCityCall(city, tileCall));
 
     const neighbors = graph.neighbors[item.id];
     for (const nid of neighbors) {
@@ -2025,6 +2228,7 @@ function buildChart(anchorCamera) {
   baseFaceCalls.sort((a, b) => a.sortY - b.sortY);
   riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
   tileCalls.sort((a, b) => a.sortY - b.sortY || a.id - b.id);
+  cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
   for (const frontFaces of frontFacesByTile.values()) frontFaces.sort((a, b) => a.sortY - b.sortY);
   const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, { tileById });
 
@@ -2037,7 +2241,22 @@ function buildChart(anchorCamera) {
     baseFaceCalls,
     riverConnectorCalls,
     tileCalls,
+    cityCalls,
     frontFacesByTile
+  };
+}
+
+function makeCityCall(city, tileCall) {
+  const x = Math.round(tileCall.drawSurfaceX);
+  const groundY = Math.round(tileCall.drawSurfaceY + TILE_RADIUS_PX - 1);
+  return {
+    ...city,
+    x,
+    y: groundY,
+    spriteX: x - Math.floor(CITY_SPRITE_W / 2),
+    spriteY: groundY - CITY_SPRITE_H,
+    labelY: groundY - CITY_SPRITE_H - CITY_LABEL_H - 2,
+    sortY: groundY + 2
   };
 }
 
@@ -2355,7 +2574,7 @@ function drawOptionsRowFrame(rect, highlighted) {
 
 function drawOptionsText(text, x, y, options = {}) {
   ctx.fillStyle = options.color || "#d7d9bf";
-  ctx.font = "8px monospace";
+  ctx.font = PIXEL_FONT_UI_8;
   ctx.textAlign = options.align || "left";
   ctx.textBaseline = "top";
   ctx.fillText(text, Math.round(x), Math.round(y));
@@ -3570,6 +3789,55 @@ function drawPixelLine(x0, y0, x1, y1, color) {
   }
 }
 
+function drawCities(activeChart) {
+  if (!cityImage || !activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
+  for (const call of activeChart.cityCalls) drawCityHouse(call);
+  drawCityLabels(activeChart.cityCalls);
+}
+
+function drawCityHouse(call) {
+  ctx.fillStyle = "rgba(18, 14, 10, 0.28)";
+  ctx.fillRect(call.x - 11, call.y - 4, 22, 5);
+  ctx.drawImage(cityImage, call.spriteX, call.spriteY);
+}
+
+function drawCityLabels(cityCalls) {
+  const sorted = [...cityCalls].sort((a, b) => b.population - a.population || a.city.localeCompare(b.city));
+  const occupied = [];
+  let drawn = 0;
+
+  ctx.font = PIXEL_FONT_BODY_8;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (const call of sorted) {
+    if (drawn >= CITY_LABEL_LIMIT) break;
+    const label = call.city;
+    const textW = Math.ceil(ctx.measureText(label).width);
+    const box = {
+      x: Math.round(call.x - textW / 2) - 2,
+      y: Math.round(call.labelY),
+      w: textW + 4,
+      h: CITY_LABEL_H + 2
+    };
+    if (occupied.some((other) => rectsOverlap(box, other))) continue;
+    occupied.push(box);
+    drawn++;
+
+    ctx.fillStyle = "rgba(19, 15, 12, 0.72)";
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.fillStyle = "#f3dfb0";
+    ctx.fillText(label, Math.round(call.x), box.y + 1);
+  }
+  ctx.textAlign = "left";
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y;
+}
+
 function drawTinyStatus(nowMs) {
   const row = earthById[centerTileId];
   const lat = graph.latDeg[centerTileId].toFixed(2);
@@ -3581,11 +3849,11 @@ function drawTinyStatus(nowMs) {
   const shipSpeed = ship ? vectorLength(ship.velocity) * PIXELS_PER_RADIAN : 0;
   const line1 = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${terrainStatusLabel(row)} ${lat},${lon}`;
   const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)} spd ${shipSpeed.toFixed(0)}`;
-  const width = Math.min(SCREEN_W - 8, Math.max(line1.length, line2.length) * 5 + 8);
+  ctx.font = PIXEL_FONT_MONO_8;
+  const width = Math.min(SCREEN_W - 8, Math.ceil(Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width)) + 8);
   ctx.fillStyle = "rgba(15, 18, 14, 0.62)";
   ctx.fillRect(4, SCREEN_H - 24, width, 20);
   ctx.fillStyle = "#d7d9bf";
-  ctx.font = "8px monospace";
   ctx.fillText(line1, 8, SCREEN_H - 16);
   ctx.fillText(line2, 8, SCREEN_H - 6);
 
@@ -3801,7 +4069,7 @@ function drawLoading() {
   ctx.fillStyle = "#172437";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#d7d9bf";
-  ctx.font = "8px monospace";
+  ctx.font = PIXEL_FONT_BODY_8;
   ctx.fillText("Loading pixel globe...", 8, 14);
 }
 
@@ -3809,7 +4077,7 @@ function drawFatalError(err) {
   ctx.fillStyle = "#1d1513";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#f0d2be";
-  ctx.font = "8px monospace";
+  ctx.font = PIXEL_FONT_BODY_8;
   const lines = String(err?.message || err).match(/.{1,70}/g) || ["Unknown error"];
   ctx.fillText("Prototype failed to start", 8, 14);
   for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], 8, 28 + i * 10);

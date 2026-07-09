@@ -17,6 +17,7 @@ const contentTypes = new Map([
   [".bin", "application/octet-stream"],
   [".png", "image/png"],
   [".ogg", "audio/ogg"],
+  [".ttf", "font/ttf"],
   [".ico", "image/x-icon"]
 ]);
 
@@ -32,6 +33,9 @@ function resolveStaticPath(urlPath) {
   }
   if (urlPath === "/shared/globe-runtime-bake-7.bin") {
     return join(sharedDataRoot, "globe-runtime-bake-7.bin");
+  }
+  if (urlPath.startsWith("/shared/datasets/")) {
+    return join(sharedDataRoot, urlPath.slice("/shared/".length));
   }
   return null;
 }
