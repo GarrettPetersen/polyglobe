@@ -98,7 +98,8 @@ const SAIL_CLOSE_HAULED_ANGLE_RAD = Math.PI / 4;
 const SAIL_CLOSE_HAULED_EFFICIENCY = 0.34;
 const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
 const SHIP_WAKE_MIN_SPEED_PX = 2.5;
-const SHIP_WAKE_STERN_OFFSET_PX = 7;
+const SHIP_WAKE_STERN_BAND_PX = 4;
+const SHIP_WAKE_STERN_CLEARANCE_PX = 2;
 const SHIP_WAKE_EMIT_DISTANCE_PX = 2.25;
 const SHIP_WAKE_RESET_DISTANCE_PX = 26;
 const SHIP_WAKE_TTL_SECONDS = 3.8;
@@ -194,6 +195,7 @@ let earthRows;
 let earthById;
 let images;
 let shipImage;
+let shipWakeAnchors;
 let shipLighting;
 let settingsMenuIcon;
 let cityImage;
@@ -305,6 +307,7 @@ async function main() {
   void loadedFonts;
   images = loadedImages;
   shipImage = loadedShipImage;
+  shipWakeAnchors = decodeShipWakeAnchors(shipImage);
   shipLighting = loadedShipLighting;
   settingsMenuIcon = loadedSettingsMenuIcon;
   cityImage = loadedCityImage;
@@ -602,6 +605,70 @@ function decodeShipLightingMask(img, frameSize, label) {
   }
 
   return masks;
+}
+
+function decodeShipWakeAnchors(img) {
+  const rows = Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS);
+  const expectedWidth = SHIP_SHEET_FRAME_SIZE * SHIP_SHEET_COLS;
+  const expectedHeight = SHIP_SHEET_FRAME_SIZE * rows;
+  if (img.width !== expectedWidth || img.height !== expectedHeight) {
+    throw new Error(`ship wake anchor image has ${img.width}x${img.height}; expected ${expectedWidth}x${expectedHeight}`);
+  }
+
+  const sampleCanvas = document.createElement("canvas");
+  sampleCanvas.width = img.width;
+  sampleCanvas.height = img.height;
+  const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sampleCtx) throw new Error("Could not create canvas for ship wake anchors");
+  sampleCtx.imageSmoothingEnabled = false;
+  sampleCtx.drawImage(img, 0, 0);
+  const data = sampleCtx.getImageData(0, 0, img.width, img.height).data;
+  const anchors = [];
+
+  for (let frame = 0; frame < SHIP_HEADING_COUNT; frame++) {
+    const cellX = (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+    const cellY = Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+    const direction = shipFrameScreenHeading(frame);
+    const side = { x: -direction.y, y: direction.x };
+    let aftProjection = Infinity;
+    const points = [];
+
+    for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y++) {
+      for (let x = 0; x < SHIP_SHEET_FRAME_SIZE; x++) {
+        const offset = (cellX + x + (cellY + y) * img.width) * 4;
+        const alpha = data[offset + 3];
+        if (alpha <= 8) continue;
+        const ox = x + 0.5 - SHIP_SHEET_FRAME_SIZE / 2;
+        const oy = y + 0.5 - SHIP_SHEET_FRAME_SIZE / 2;
+        const projection = ox * direction.x + oy * direction.y;
+        const lateral = ox * side.x + oy * side.y;
+        aftProjection = Math.min(aftProjection, projection);
+        points.push({ projection, lateral, alpha });
+      }
+    }
+
+    if (!Number.isFinite(aftProjection) || points.length === 0) {
+      throw new Error(`Ship frame ${frame} has no opaque pixels for wake anchor extraction`);
+    }
+
+    let lateralWeighted = 0;
+    let weightSum = 0;
+    for (const point of points) {
+      if (point.projection > aftProjection + SHIP_WAKE_STERN_BAND_PX) continue;
+      lateralWeighted += point.lateral * point.alpha;
+      weightSum += point.alpha;
+    }
+    if (weightSum <= 0) throw new Error(`Ship frame ${frame} has no aft pixels for wake anchor extraction`);
+
+    const projection = aftProjection - SHIP_WAKE_STERN_CLEARANCE_PX;
+    const lateral = lateralWeighted / weightSum;
+    anchors.push({
+      x: Math.round(direction.x * projection + side.x * lateral),
+      y: Math.round(direction.y * projection + side.y * lateral)
+    });
+  }
+
+  return anchors;
 }
 
 function terrainVariantFromLocation() {
@@ -1711,7 +1778,8 @@ function updateShipWake(dt) {
     const t = i / steps;
     emitShipWake({
       x: last.x + (stern.x - last.x) * t,
-      y: last.y + (stern.y - last.y) * t
+      y: last.y + (stern.y - last.y) * t,
+      heading: stern.heading
     }, speedPx);
   }
   ship.lastWakeEmit = stern;
@@ -1719,15 +1787,19 @@ function updateShipWake(dt) {
 }
 
 function shipWakeSternPoint() {
-  const heading = shipScreenHeading();
+  const frame = shipHeadingFrame();
+  const anchor = shipWakeAnchors?.[frame];
+  if (!anchor) throw new Error(`Missing ship wake anchor for frame ${frame}`);
   return {
-    x: localLayout.viewX - heading.x * SHIP_WAKE_STERN_OFFSET_PX,
-    y: localLayout.viewY - heading.y * SHIP_WAKE_STERN_OFFSET_PX
+    x: localLayout.viewX + anchor.x,
+    y: localLayout.viewY + anchor.y,
+    heading: shipFrameScreenHeading(frame)
   };
 }
 
 function emitShipWake(stern, speedPx) {
-  const heading = shipScreenHeading();
+  if (!stern.heading) throw new Error("Cannot emit ship wake without a frame heading");
+  const heading = stern.heading;
   const back = { x: -heading.x, y: -heading.y };
   const spread = clamp(0.75 + speedPx / 18, 0.75, 1.45);
   emitWakeParticle(stern, rotate2(back.x, back.y, KELVIN_WAKE_HALF_ANGLE_RAD), speedPx, spread, "arm");
@@ -3732,6 +3804,14 @@ function shipHeadingFrame() {
   const angle = Math.atan2(-heading.y, heading.x);
   const raw = Math.round(angle / (Math.PI * 2) * SHIP_HEADING_COUNT);
   return ((raw % SHIP_HEADING_COUNT) + SHIP_HEADING_COUNT) % SHIP_HEADING_COUNT;
+}
+
+function shipFrameScreenHeading(frame) {
+  const angle = frame / SHIP_HEADING_COUNT * Math.PI * 2;
+  return {
+    x: Math.cos(angle),
+    y: -Math.sin(angle)
+  };
 }
 
 function shipScreenHeading() {

@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { createReadStream, statSync } from "node:fs";
-import { dirname, extname, join, normalize, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const appRoot = dirname(fileURLToPath(import.meta.url));
@@ -12,6 +12,7 @@ const port = Number.parseInt(process.env.PORT || "5177", 10);
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
   [".css", "text/css; charset=utf-8"],
+  [".csv", "text/csv; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
   [".bin", "application/octet-stream"],
@@ -41,8 +42,8 @@ function resolveStaticPath(urlPath) {
 }
 
 function isInside(path, root) {
-  const rel = normalize(path).slice(normalize(root).length);
-  return rel === "" || (!rel.startsWith("..") && !rel.startsWith("/"));
+  const rel = relative(root, path);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
 const server = createServer((req, res) => {
