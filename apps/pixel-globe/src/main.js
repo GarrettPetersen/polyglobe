@@ -87,6 +87,8 @@ const SHIP_MIN_POWERED_SPEED_RAD = 0.006;
 const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
 const SHIP_COLLISION_SLIDE_SPEED_KEEP = 0.96;
 const SHIP_COLLISION_MIN_TANGENT_RATIO = 0.05;
+const SHIP_COLLISION_SLIDE_SEARCH_MIN_ALIGN = -0.08;
+const SHIP_COLLISION_SLIDE_SEARCH_SIDE_KEEP = 0.9;
 const SHIP_STOP_DAMPING = 0.15;
 const SHIP_COLLISION_RADIUS_PX = 5;
 const SHIP_RIVER_COLLISION_RADIUS_PX = 1.5;
@@ -111,6 +113,10 @@ const SHIP_WAKE_MAX_PARTICLES = 260;
 const SHIP_WAKE_FOAM_KEEP_YOUNG = 0.78;
 const SHIP_WAKE_FOAM_KEEP_OLD = 0.42;
 const SHIP_WAKE_FOAM_EXTRA_CHANCE = 0.18;
+const SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD = [
+  0, 10, -10, 20, -20, 35, -35, 50, -50, 70, -70, 90, -90
+].map((degrees) => degrees * Math.PI / 180);
+const SHIP_COLLISION_SLIDE_OUTWARD_BIASES = [0.18, 0.36, 0.58];
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
@@ -1535,15 +1541,11 @@ function moveShipWithCollision(dt) {
   }
 
   const normal = direct.normal || shipCollisionNormal(ship.position, direct.blockedTileId, step);
-  const slideVelocity = shipBoundarySlideVelocity(normal);
-
-  if (vectorLength(slideVelocity) >= SHIP_MIN_SLIDE_SPEED_RAD) {
-    const slide = attemptShipStep(ship.position, ship.tileId, scaleVector(slideVelocity, dt));
-    if (slide.ok) {
-      ship.velocity = projectTangentVector(slideVelocity, slide.position);
-      applyShipMove(slide.position, slide.tileId);
-      return { moved: true, collided: true };
-    }
+  const slide = findShipSlideMove(normal, dt);
+  if (slide) {
+    ship.velocity = projectTangentVector(slide.velocity, slide.position);
+    applyShipMove(slide.position, slide.tileId);
+    return { moved: true, collided: true };
   }
 
   ship.velocity = scaleVector(projectTangentVector(ship.velocity, ship.position), SHIP_STOP_DAMPING);
@@ -1551,18 +1553,128 @@ function moveShipWithCollision(dt) {
   return { moved: false, collided: true };
 }
 
+function findShipSlideMove(normal, dt) {
+  for (const velocity of shipSlideVelocityCandidates(normal)) {
+    if (vectorLength(velocity) < SHIP_MIN_SLIDE_SPEED_RAD) continue;
+    const slide = attemptShipStep(ship.position, ship.tileId, scaleVector(velocity, dt));
+    if (!slide.ok) continue;
+    return {
+      velocity,
+      position: slide.position,
+      tileId: slide.tileId
+    };
+  }
+  return null;
+}
+
+function shipSlideVelocityCandidates(normal) {
+  const speed = vectorLength(ship.velocity);
+  if (speed <= 1e-9) return [];
+
+  const originalDirection = normalizeOrNull(projectTangentVector(ship.velocity, ship.position));
+  if (!originalDirection) return [];
+
+  const candidates = [];
+  addShipSlideVelocityCandidate(candidates, shipBoundarySlideVelocity(normal), originalDirection, speed);
+
+  const tangent = shipBoundarySlideDirection(normal, originalDirection);
+  if (tangent) {
+    addShipSlideVelocityCandidate(
+      candidates,
+      scaleVector(tangent, speed * SHIP_COLLISION_SLIDE_SPEED_KEEP),
+      originalDirection,
+      speed
+    );
+    for (const bias of SHIP_COLLISION_SLIDE_OUTWARD_BIASES) {
+      addBiasedShipSlideVelocityCandidates(candidates, tangent, normal, originalDirection, speed, bias);
+    }
+  }
+
+  for (const angle of SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD) {
+    const direction = rotateTangentDirection(originalDirection, ship.position, angle);
+    if (Math.abs(angle) > 1e-6) {
+      addShipSlideVelocityCandidate(
+        candidates,
+        scaleVector(direction, speed * SHIP_COLLISION_SLIDE_SEARCH_SIDE_KEEP),
+        originalDirection,
+        speed
+      );
+    }
+    for (const bias of SHIP_COLLISION_SLIDE_OUTWARD_BIASES) {
+      addBiasedShipSlideVelocityCandidates(candidates, direction, normal, originalDirection, speed, bias);
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.map((candidate) => candidate.velocity);
+}
+
+function addBiasedShipSlideVelocityCandidates(candidates, direction, normal, originalDirection, speed, bias) {
+  if (!normal) return;
+  const away = scaleVector(normal, -1);
+  const biased = normalizeOrNull(projectTangentVector([
+    direction[0] + away[0] * bias,
+    direction[1] + away[1] * bias,
+    direction[2] + away[2] * bias
+  ], ship.position));
+  if (!biased) return;
+  addShipSlideVelocityCandidate(
+    candidates,
+    scaleVector(biased, speed * SHIP_COLLISION_SLIDE_SEARCH_SIDE_KEEP),
+    originalDirection,
+    speed
+  );
+}
+
+function addShipSlideVelocityCandidate(candidates, velocity, originalDirection, speed) {
+  const direction = normalizeOrNull(projectTangentVector(velocity, ship.position));
+  if (!direction) return;
+  const align = dot3(direction, originalDirection);
+  if (align < SHIP_COLLISION_SLIDE_SEARCH_MIN_ALIGN) return;
+  const candidateSpeed = vectorLength(velocity);
+  if (candidateSpeed < SHIP_MIN_SLIDE_SPEED_RAD) return;
+  const key = `${Math.round(direction[0] * 1000)},${Math.round(direction[1] * 1000)},${Math.round(direction[2] * 1000)}`;
+  if (candidates.some((candidate) => candidate.key === key)) return;
+  const speedScore = Math.min(candidateSpeed / Math.max(speed, 1e-9), 1);
+  candidates.push({
+    key,
+    velocity,
+    score: align * 2 + speedScore
+  });
+}
+
 function shipBoundarySlideVelocity(normal) {
   const speed = vectorLength(ship.velocity);
   if (speed <= 1e-9) return [0, 0, 0];
-  const into = Math.max(0, dot3(ship.velocity, normal));
+  const direction = shipBoundarySlideDirection(normal, ship.velocity);
+  if (!direction) return [0, 0, 0];
+  return scaleVector(direction, speed * SHIP_COLLISION_SLIDE_SPEED_KEEP);
+}
+
+function shipBoundarySlideDirection(normal, direction) {
+  if (!normal) return null;
+  const speed = vectorLength(direction);
+  if (speed <= 1e-9) return null;
+  const into = Math.max(0, dot3(direction, normal));
   const tangent = projectTangentVector([
-    ship.velocity[0] - normal[0] * into,
-    ship.velocity[1] - normal[1] * into,
-    ship.velocity[2] - normal[2] * into
+    direction[0] - normal[0] * into,
+    direction[1] - normal[1] * into,
+    direction[2] - normal[2] * into
   ], ship.position);
   const tangentSpeed = vectorLength(tangent);
-  if (tangentSpeed / speed < SHIP_COLLISION_MIN_TANGENT_RATIO) return [0, 0, 0];
-  return scaleVector(tangent, speed * SHIP_COLLISION_SLIDE_SPEED_KEEP / tangentSpeed);
+  if (tangentSpeed / speed < SHIP_COLLISION_MIN_TANGENT_RATIO) return null;
+  return scaleVector(tangent, 1 / tangentSpeed);
+}
+
+function rotateTangentDirection(direction, axis, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const cross = cross3(axis, direction);
+  return normalizeOrNull(projectTangentVector([
+    direction[0] * cos + cross[0] * sin,
+    direction[1] * cos + cross[1] * sin,
+    direction[2] * cos + cross[2] * sin
+  ], axis)) || direction;
 }
 
 function attemptShipStep(fromPosition, fromTileId, step) {
