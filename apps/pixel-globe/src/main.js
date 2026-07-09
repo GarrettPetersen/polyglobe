@@ -19,7 +19,6 @@ import {
   TILE_DAY_WET_SOIL,
   WEATHER_DAYS,
   WEATHER_MINUTES_PER_DAY,
-  cloudLifecycleScaleOpacity,
   dateToSubsolarLatDeg,
   decodeDiscreteWeatherYearBakeFile,
   decodePixelRuntimeWeatherBakeFile,
@@ -100,15 +99,18 @@ const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
 const SHIP_WAKE_MIN_SPEED_PX = 2.5;
 const SHIP_WAKE_STERN_BAND_PX = 4;
 const SHIP_WAKE_STERN_CLEARANCE_PX = 2;
+const SHIP_WAKE_SIDE_OFFSET_PX = 2;
 const SHIP_WAKE_EMIT_DISTANCE_PX = 2.25;
 const SHIP_WAKE_RESET_DISTANCE_PX = 26;
 const SHIP_WAKE_TTL_SECONDS = 3.8;
-const SHIP_WAKE_DRIFT_PX_PER_SECOND = 8;
+const SHIP_WAKE_SIDE_SPEED_RATIO = Math.tan(KELVIN_WAKE_HALF_ANGLE_RAD);
 const SHIP_WAKE_MAX_PARTICLES = 260;
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
 const WIND_INDICATOR_RADIUS_PX = 20;
+const WIND_INDICATOR_TURN_RATE_RAD = Math.PI * 1.35;
+const WIND_INDICATOR_STRENGTH_LERP_PER_SECOND = 2.4;
 const WATER_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
 const WATER_DEPTH_GRADATION_COUNT = 4;
@@ -129,7 +131,9 @@ const DAY_NIGHT_MAX_SUNSET_ALPHA = 0.38;
 const DAY_NIGHT_MAX_NIGHT_MULTIPLY_ALPHA = 0.62;
 const DAY_NIGHT_MAX_NIGHT_BLUE_ALPHA = 0.34;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
-const CLOUD_DRIFT_PX = 24;
+const CLOUD_DRIFT_PX = 30;
+const CLOUD_FADE_RATIO = 0.22;
+const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "ship-lighting-bake-1";
 const CITY_ASSET_VERSION = "city-house-1";
@@ -138,8 +142,10 @@ const CITY_MAX_COUNT = 420;
 const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
 const CITY_SPRITE_W = 32;
 const CITY_SPRITE_H = 32;
-const CITY_LABEL_LIMIT = 28;
 const CITY_LABEL_H = 8;
+const CITY_LABEL_PAD_X = 2;
+const CITY_LABEL_PAD_Y = 1;
+const CITY_LABEL_GAP_PX = 2;
 const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_MONO = "\"Dogica\", \"zpix\", monospace";
@@ -149,10 +155,13 @@ const PIXEL_FONT_MONO_8 = `8px ${PIXEL_FONT_MONO}`;
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
+const MINIMAP_CENTER_X = Math.floor(MINIMAP_W / 2);
 const MINIMAP_MAX_LAT_DEG = 72;
 const MINIMAP_MAX_MERCATOR = mercatorYForLatDeg(MINIMAP_MAX_LAT_DEG);
 const MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 const MINIMAP_Y = 5;
+const MINIMAP_TILE_OUT_OF_RANGE = 0xffff;
+const MINIMAP_UNKNOWN_COLOR = [74, 66, 55];
 const OPTIONS_BUTTON_SIZE = 13;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 94;
@@ -184,6 +193,29 @@ const terrainAssets = [
   "snow_01", "ice_01"
 ];
 
+const SNOWY_TERRAIN_REPLACEMENTS = new Map([
+  ["grass_01", "snow_01"],
+  ["grass_02", "snow_01"],
+  ["grass_03", "snow_01"],
+  ["grass_04", "snow_01"],
+  ["grass_flowers", "snow_01"],
+  ["pine_forest_01", "pine_forest_snow_01"],
+  ["pine_forest_snow_01", "pine_forest_snow_01"],
+  ["mountain_stone_01", "mountain_snowy_01"],
+  ["mountain_stone_02", "mountain_snowy_02"],
+  ["mountain_stone_03", "mountain_snowy_01"],
+  ["mountain_snowy_01", "mountain_snowy_01"],
+  ["mountain_snowy_02", "mountain_snowy_02"],
+  ["snow_01", "snow_01"],
+  ["ice_01", "ice_01"]
+]);
+const SNOW_GENERATED_COLORS = [
+  { r: 248, g: 255, b: 247 },
+  { r: 229, g: 239, b: 233 },
+  { r: 209, g: 224, b: 219 }
+];
+const SNOW_GENERATED_SALT = 0x534e4f57;
+
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d", { alpha: false });
 ctx.imageSmoothingEnabled = false;
@@ -202,6 +234,8 @@ let cityImage;
 let cityCatalog;
 let cityByTileId;
 let spriteColors;
+let snowyTerrainImages;
+let snowySpriteColors;
 let riverColors;
 let riverMasks;
 let riverToWaterMasks;
@@ -211,6 +245,7 @@ let weatherBake;
 let runtimeWeather;
 let seaIceMask;
 let freshwaterIceMask;
+let snowGroundMask;
 let cloudSprites;
 let weatherClockMinutes = START_WEATHER.clockMinutes;
 let weatherTimeScale = START_WEATHER.timeScale;
@@ -225,6 +260,7 @@ let localLayout;
 let minimap;
 let themeMusic = null;
 let centerTileId = 0;
+let windIndicatorState = null;
 let dirty = true;
 let lastFrameMs = performance.now();
 let lastStatusMs = 0;
@@ -280,9 +316,9 @@ main().catch((err) => {
 });
 
 async function main() {
+  await loadPixelFonts();
   drawLoading();
   const [
-    loadedFonts,
     loadedImages,
     loadedShipImage,
     loadedShipLighting,
@@ -293,7 +329,6 @@ async function main() {
     discreteWeatherBuffer,
     runtimeWeatherBuffer
   ] = await Promise.all([
-    loadPixelFonts(),
     loadTerrainImages(),
     loadVehicleImage("sail-ship-16-headings"),
     loadShipLightingBake(),
@@ -304,7 +339,6 @@ async function main() {
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
-  void loadedFonts;
   images = loadedImages;
   shipImage = loadedShipImage;
   shipWakeAnchors = decodeShipWakeAnchors(shipImage);
@@ -339,12 +373,15 @@ async function main() {
   cityByTileId = placeCityCatalog(cityCatalog);
   waterDepthBands = buildWaterDepthBands();
   spriteColors = buildSpriteDominantColors(images);
+  snowyTerrainImages = new Map();
+  snowySpriteColors = new Map();
   riverColors = buildRiverColors(images);
   const riverData = buildRiverMasksFromCache(earth);
   riverMasks = riverData.masks;
   riverToWaterMasks = riverData.toWaterMasks;
   seaIceMask = new Uint8Array(graph.tileCount);
   freshwaterIceMask = new Uint8Array(graph.tileCount);
+  snowGroundMask = new Uint8Array(graph.tileCount);
   cloudSprites = buildCloudSprites();
   refreshWeatherState(true);
   minimap = buildMinimap();
@@ -376,14 +413,25 @@ async function fetchText(path, label) {
   return res.text();
 }
 
-function loadPixelFonts() {
-  if (!document.fonts) return Promise.resolve();
-  return Promise.all([
-    document.fonts.load(PIXEL_FONT_BODY_8),
-    document.fonts.load(PIXEL_FONT_UI_8),
-    document.fonts.load(PIXEL_FONT_MONO_8),
-    document.fonts.load(`12px "zpix", monospace`)
-  ]).then(() => document.fonts.ready);
+async function loadPixelFonts() {
+  if (!document.fonts) {
+    throw new Error("Cannot guarantee pixel font rendering: FontFaceSet API is unavailable");
+  }
+
+  const requiredFonts = [
+    { label: "Tiny5", font: "8px \"Tiny5\"" },
+    { label: "Silkscreen", font: "8px \"Silkscreen\"" },
+    { label: "Dogica", font: "8px \"Dogica\"" },
+    { label: "zpix", font: "12px \"zpix\"" }
+  ];
+  await Promise.all(requiredFonts.map(({ font }) => document.fonts.load(font)));
+  await document.fonts.ready;
+
+  for (const { label, font } of requiredFonts) {
+    if (!document.fonts.check(font)) {
+      throw new Error(`Pixel font failed to load: ${label}`);
+    }
+  }
 }
 
 function loadTerrainImages() {
@@ -1004,6 +1052,7 @@ function loop(nowMs) {
     if (updateSailing(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
+    if (updateWindIndicator(dt)) dirty = true;
     if (updatePrecipitationAnimation(nowMs)) dirty = true;
   }
   if (dirty || optionsMenu.isOpen || nowMs - lastStatusMs > 1000) {
@@ -1800,12 +1849,13 @@ function shipWakeSternPoint() {
 function emitShipWake(stern, speedPx) {
   if (!stern.heading) throw new Error("Cannot emit ship wake without a frame heading");
   const heading = stern.heading;
-  const back = { x: -heading.x, y: -heading.y };
-  const spread = clamp(0.75 + speedPx / 18, 0.75, 1.45);
-  emitWakeParticle(stern, rotate2(back.x, back.y, KELVIN_WAKE_HALF_ANGLE_RAD), speedPx, spread, "arm");
-  emitWakeParticle(stern, rotate2(back.x, back.y, -KELVIN_WAKE_HALF_ANGLE_RAD), speedPx, spread, "arm");
+  const side = { x: -heading.y, y: heading.x };
+  // Ripples propagate sideways in map space; the moving ship leaves the V behind.
+  const sideDriftPx = speedPx * SHIP_WAKE_SIDE_SPEED_RATIO;
+  emitWakeParticle(offsetWakePoint(stern, side, SHIP_WAKE_SIDE_OFFSET_PX), side, sideDriftPx, "arm");
+  emitWakeParticle(offsetWakePoint(stern, side, -SHIP_WAKE_SIDE_OFFSET_PX), scale2(side, -1), sideDriftPx, "arm");
   if (speedPx > SHIP_WAKE_MIN_SPEED_PX * 1.5) {
-    emitWakeParticle(stern, back, speedPx, 0.55, "center");
+    emitWakeParticle(stern, { x: 0, y: 0 }, 0, "center");
   }
 
   if (ship.wakeParticles.length > SHIP_WAKE_MAX_PARTICLES) {
@@ -1813,25 +1863,29 @@ function emitShipWake(stern, speedPx) {
   }
 }
 
-function emitWakeParticle(stern, direction, speedPx, speedScale, kind) {
-  const drift = SHIP_WAKE_DRIFT_PX_PER_SECOND * speedScale + speedPx * 0.1;
+function emitWakeParticle(stern, direction, driftPxPerSecond, kind) {
   ship.wakeParticles.push({
     x: stern.x,
     y: stern.y,
-    vx: direction.x * drift,
-    vy: direction.y * drift,
+    vx: direction.x * driftPxPerSecond,
+    vy: direction.y * driftPxPerSecond,
     age: 0,
     ttl: kind === "center" ? SHIP_WAKE_TTL_SECONDS * 0.48 : SHIP_WAKE_TTL_SECONDS,
     kind
   });
 }
 
-function rotate2(x, y, angle) {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
+function offsetWakePoint(point, direction, distance) {
   return {
-    x: x * cos - y * sin,
-    y: x * sin + y * cos
+    x: point.x + direction.x * distance,
+    y: point.y + direction.y * distance
+  };
+}
+
+function scale2(direction, scale) {
+  return {
+    x: direction.x * scale,
+    y: direction.y * scale
   };
 }
 
@@ -1867,12 +1921,31 @@ function updatePrecipitationAnimation(nowMs) {
 
 function refreshWeatherState(force) {
   weatherParts = weatherClockParts(weatherClockMinutes);
-  if (!runtimeWeather || !seaIceMask || !freshwaterIceMask) return false;
+  if (!runtimeWeather || !seaIceMask || !freshwaterIceMask || !snowGroundMask) return false;
   if (!force && weatherParts.dayIndex === weatherMaskDayIndex) return false;
   weatherMaskDayIndex = weatherParts.dayIndex;
   fillIceMaskForDay(runtimeWeather.seaIceCycle, weatherParts.dayIndex, seaIceMask);
   fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, weatherParts.dayIndex, freshwaterIceMask);
+  fillSnowGroundMaskForDay(weatherParts.dayIndex, snowGroundMask);
   return true;
+}
+
+function fillSnowGroundMaskForDay(dayIndex, outMask) {
+  if (!weatherBake) throw new Error("Cannot build snow ground mask before discrete weather bake is loaded");
+  if (outMask.length < weatherBake.tileCount) {
+    throw new Error(`Snow ground mask length ${outMask.length} is smaller than tile count ${weatherBake.tileCount}`);
+  }
+
+  const day = ((dayIndex % WEATHER_DAYS) + WEATHER_DAYS) % WEATHER_DAYS;
+  const dayOffset = day * weatherBake.tileCount;
+  for (let tileId = 0; tileId < weatherBake.tileCount; tileId++) {
+    const ord = weatherBake.ordinalByTileId[tileId];
+    if (ord == null || ord < 0) {
+      outMask[tileId] = 0;
+      continue;
+    }
+    outMask[tileId] = (weatherBake.packed[dayOffset + ord] & TILE_DAY_SNOW_GROUND) !== 0 ? 1 : 0;
+  }
 }
 
 function fitCanvasToIntegerScale() {
@@ -2056,6 +2129,7 @@ function render(nowMs) {
 
   ensureChart();
   const offset = chartOffsetPixels(chart);
+  revealMinimapFromChart(chart, offset);
 
   ctx.save();
   ctx.translate(offset.x, offset.y);
@@ -2075,14 +2149,14 @@ function render(nowMs) {
   drawCities(chart);
   const shipLight = shipSunLightState();
   drawPrecipitation(chart, nowMs, offset);
-  drawCloudLayer(chart, nowMs);
+  drawCloudLayer(chart);
   drawShipWake(chart);
   ctx.restore();
 
   drawShipShadow(chart, shipLight, offset);
   drawShip(shipLight);
-  drawWindIndicator();
   drawDayNightTint();
+  drawWindIndicator();
   drawMinimap(nowMs);
   drawOptionsButton();
   drawTinyStatus(nowMs);
@@ -2446,16 +2520,16 @@ function riverEdgeSet(masks, tileId, edge) {
 }
 
 function buildMinimap() {
-  const land = new Float32Array(MINIMAP_W * MINIMAP_H);
-  const total = new Float32Array(MINIMAP_W * MINIMAP_H);
+  const tilePixels = new Uint16Array(graph.tileCount);
+  const tileLandWeights = new Float32Array(graph.tileCount);
+  tilePixels.fill(MINIMAP_TILE_OUT_OF_RANGE);
   for (let id = 0; id < graph.tileCount; id++) {
     if (Math.abs(graph.latDeg[id]) > MINIMAP_MAX_LAT_DEG) continue;
     const row = earthById[id];
     const x = minimapX(graph.lonDeg[id]);
     const y = minimapY(graph.latDeg[id]);
-    const k = x + y * MINIMAP_W;
-    land[k] += minimapLandWeight(row);
-    total[k] += 1;
+    tilePixels[id] = x + y * MINIMAP_W;
+    tileLandWeights[id] = minimapLandWeight(row);
   }
 
   const canvas = document.createElement("canvas");
@@ -2463,37 +2537,84 @@ function buildMinimap() {
   canvas.height = MINIMAP_H;
   const mapCtx = canvas.getContext("2d", { alpha: false });
   mapCtx.imageSmoothingEnabled = false;
-  const image = mapCtx.createImageData(MINIMAP_W, MINIMAP_H);
-
-  for (let y = 0; y < MINIMAP_H; y++) {
-    for (let x = 0; x < MINIMAP_W; x++) {
-      const k = x + y * MINIMAP_W;
-      const color = total[k] > 0
-        ? minimapColor(land[k] / total[k])
-        : minimapColor(0);
-      const p = k * 4;
-      image.data[p] = color[0];
-      image.data[p + 1] = color[1];
-      image.data[p + 2] = color[2];
-      image.data[p + 3] = 255;
-    }
-  }
-
-  mapCtx.putImageData(image, 0, 0);
-  return { canvas };
+  fillMinimapCanvas(mapCtx, MINIMAP_UNKNOWN_COLOR);
+  return {
+    canvas,
+    ctx: mapCtx,
+    seenTiles: new Uint8Array(graph.tileCount),
+    knownLand: new Float32Array(MINIMAP_W * MINIMAP_H),
+    knownTotal: new Float32Array(MINIMAP_W * MINIMAP_H),
+    tilePixels,
+    tileLandWeights
+  };
 }
 
 function drawMinimap(nowMs) {
   if (!minimap) return;
   ctx.fillStyle = "#2a1c11";
   ctx.fillRect(MINIMAP_X - 1, MINIMAP_Y - 1, MINIMAP_W + 2, MINIMAP_H + 2);
-  ctx.drawImage(minimap.canvas, MINIMAP_X, MINIMAP_Y);
+  drawCenteredMinimapCanvas();
 
-  const mx = MINIMAP_X + minimapX(graph.lonDeg[centerTileId]);
+  const mx = MINIMAP_X + MINIMAP_CENTER_X;
   const my = MINIMAP_Y + minimapY(graph.latDeg[centerTileId]);
   const blinkOn = Math.floor(nowMs / 320) % 2 === 0;
   ctx.fillStyle = blinkOn ? "#fff4a8" : "#151713";
   ctx.fillRect(mx, my, 1, 1);
+}
+
+function fillMinimapCanvas(mapCtx, color) {
+  mapCtx.fillStyle = rgbColor(color);
+  mapCtx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
+}
+
+function revealMinimapFromChart(activeChart, offset) {
+  if (!minimap) return;
+  for (const call of activeChart.tileCalls) {
+    if (!tileCallNearViewport(call, offset, TILE_ART_HALF)) continue;
+    revealMinimapTile(call.id);
+  }
+}
+
+function revealMinimapTile(tileId) {
+  if (minimap.seenTiles[tileId] !== 0) return;
+  minimap.seenTiles[tileId] = 1;
+
+  const pixel = minimap.tilePixels[tileId];
+  if (pixel === MINIMAP_TILE_OUT_OF_RANGE) return;
+  minimap.knownLand[pixel] += minimap.tileLandWeights[tileId];
+  minimap.knownTotal[pixel] += 1;
+  paintMinimapPixel(pixel);
+}
+
+function paintMinimapPixel(pixel) {
+  const color = minimap.knownTotal[pixel] > 0
+    ? minimapColor(minimap.knownLand[pixel] / minimap.knownTotal[pixel])
+    : MINIMAP_UNKNOWN_COLOR;
+  const x = pixel % MINIMAP_W;
+  const y = Math.floor(pixel / MINIMAP_W);
+  minimap.ctx.fillStyle = rgbColor(color);
+  minimap.ctx.fillRect(x, y, 1, 1);
+}
+
+function drawCenteredMinimapCanvas() {
+  const startX = wrapMinimapX(minimapX(graph.lonDeg[centerTileId]) - MINIMAP_CENTER_X);
+  const firstW = MINIMAP_W - startX;
+  ctx.drawImage(
+    minimap.canvas,
+    startX, 0, firstW, MINIMAP_H,
+    MINIMAP_X, MINIMAP_Y, firstW, MINIMAP_H
+  );
+  if (startX > 0) {
+    ctx.drawImage(
+      minimap.canvas,
+      0, 0, startX, MINIMAP_H,
+      MINIMAP_X + firstW, MINIMAP_Y, startX, MINIMAP_H
+    );
+  }
+}
+
+function rgbColor(color) {
+  return `rgb(${color[0]},${color[1]},${color[2]})`;
 }
 
 function getOptionsButtonRect() {
@@ -2646,11 +2767,32 @@ function drawOptionsRowFrame(rect, highlighted) {
 
 function drawOptionsText(text, x, y, options = {}) {
   ctx.fillStyle = options.color || "#d7d9bf";
-  ctx.font = PIXEL_FONT_UI_8;
-  ctx.textAlign = options.align || "left";
-  ctx.textBaseline = "top";
-  ctx.fillText(text, Math.round(x), Math.round(y));
+  drawPixelText(text, x, y, {
+    font: PIXEL_FONT_UI_8,
+    align: options.align || "left"
+  });
+}
+
+function drawPixelText(text, x, y, options = {}) {
+  const font = options.font || PIXEL_FONT_BODY_8;
+  const align = options.align || "left";
+  ctx.font = font;
   ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  const textW = measurePixelTextWidth(text, font);
+  let drawX = Math.round(x);
+  if (align === "center") drawX = Math.round(x - textW / 2);
+  if (align === "right") drawX = Math.round(x - textW);
+  const drawY = Math.round(y);
+  ctx.fillText(text, drawX, drawY);
+  return { x: drawX, y: drawY, w: textW, h: CITY_LABEL_H };
+}
+
+function measurePixelTextWidth(text, font = PIXEL_FONT_BODY_8) {
+  ctx.font = font;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  return Math.ceil(ctx.measureText(text).width);
 }
 
 function minimapLandWeight(row) {
@@ -2680,6 +2822,10 @@ function minimapColor(fraction) {
 function minimapX(lonDeg) {
   const lon = ((((lonDeg + 180) % 360) + 360) % 360) - 180;
   return clamp(Math.floor(((lon + 180) / 360) * MINIMAP_W), 0, MINIMAP_W - 1);
+}
+
+function wrapMinimapX(x) {
+  return ((x % MINIMAP_W) + MINIMAP_W) % MINIMAP_W;
 }
 
 function minimapY(latDeg) {
@@ -2814,8 +2960,7 @@ function drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed) {
   const waterIsA = isWaterSurfaceRow(call.row);
   const landRow = waterIsA ? call.nrow : call.row;
   const landId = waterIsA ? call.b : call.a;
-  const landColor = spriteColors.get(spriteForTerrain(landRow, landId));
-  if (!landColor) throw new Error(`Missing dominant terrain color for beach land edge: ${landId}`);
+  const landColor = terrainColorForTile(landRow, landId);
 
   const edgeX = waterIsA ? bx : ax;
   const edgeY = waterIsA ? by : ay;
@@ -3022,8 +3167,7 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
 }
 
 function drawTile(call, activeChart) {
-  const key = spriteForTerrain(call.row, call.id);
-  const img = terrainImage(key);
+  const img = terrainImageForTile(call.row, call.id);
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   ctx.drawImage(img, x, y);
@@ -3043,9 +3187,6 @@ function drawWeatherSurface(call) {
   const flags = weatherFlagsForTile(call.id);
   if ((flags & TILE_DAY_WET_SOIL) !== 0) {
     drawWeatherSpeckles(call, "rgba(53, 64, 75, 0.42)", 14, 0x57544554, 9, 6);
-  }
-  if ((flags & TILE_DAY_SNOW_GROUND) !== 0) {
-    drawWeatherSpeckles(call, "rgba(220, 231, 228, 0.72)", 18, 0x534e4f57, 10, 7);
   }
 }
 
@@ -3246,10 +3387,10 @@ function precipParticleKey(kind, tileId) {
   return `${kind}:${tileId}`;
 }
 
-function drawCloudLayer(activeChart, nowMs) {
+function drawCloudLayer(activeChart) {
   if (!runtimeWeather || !cloudSprites) return;
   drawAnnualCloudSystems(activeChart);
-  drawLocalWeatherClouds(activeChart, nowMs);
+  drawLocalWeatherClouds(activeChart);
 }
 
 function drawAnnualCloudSystems(activeChart) {
@@ -3264,14 +3405,13 @@ function drawAnnualCloudSystems(activeChart) {
       baseScale: runtimeWeather.cloudBaseScales[rec],
       windDirectionRad: runtimeWeather.cloudWindDirections[rec],
       windStrength: runtimeWeather.cloudWindStrengths[rec],
-      opacityMul: 0.64
+      opacityMul: 0.78
     });
   }
 }
 
-function drawLocalWeatherClouds(activeChart, nowMs) {
+function drawLocalWeatherClouds(activeChart) {
   let drawn = 0;
-  const hourPhase = Math.floor((weatherParts.minuteOfDay + nowMs / 1000) / 60);
   for (const call of activeChart.tileCalls) {
     if (drawn >= MAX_LOCAL_WEATHER_CLOUDS) break;
     const flags = weatherFlagsForTile(call.id);
@@ -3279,36 +3419,70 @@ function drawLocalWeatherClouds(activeChart, nowMs) {
     const ground = (flags & (TILE_DAY_WET_SOIL | TILE_DAY_SNOW_GROUND)) !== 0;
     if (!precip && !ground) continue;
     const h = hashInt(call.id ^ Math.imul(weatherParts.dayIndex + 1, 0x7f4a7c15));
-    if (!precip && ((h + hourPhase) & 7) !== 0) continue;
-    if (precip && ((h + hourPhase) & 3) === 0) continue;
-    const wind = windForTile(call.id);
+    if (!precip && (h & 7) !== 0) continue;
+    if (precip && (h & 3) === 0) continue;
+    const wind = cloudWindForTile(call.id, h);
     drawCloudAt(call, {
       seed: h,
       templateIndex: h % 3,
       baseScale: precip ? 0.045 : 0.026,
       windDirectionRad: wind.directionRad,
       windStrength: wind.strength,
-      opacityMul: precip ? 0.58 : 0.34
+      opacityMul: precip ? 0.72 : 0.46
     });
     drawn++;
   }
+}
+
+function cloudWindForTile(tileId, seed) {
+  return windAtLatLonDeg(
+    graph.latDeg[tileId],
+    graph.lonDeg[tileId],
+    dateToSubsolarLatDeg(weatherParts.date),
+    {
+      seed: WEATHER_WIND_SEED,
+      simMinute: weatherParts.dayIndex * WEATHER_MINUTES_PER_DAY +
+        (hashInt(seed ^ 0x57494e44) % WEATHER_MINUTES_PER_DAY)
+    }
+  );
 }
 
 function drawCloudAt(call, spec) {
   const lifeOffset = hashInt(spec.seed ^ Math.imul(weatherParts.dayIndex + 1, 0x27d4eb2d)) % CLOUD_LIFESPAN_MINUTES;
   const age = (weatherParts.minuteOfDay + lifeOffset) % CLOUD_LIFESPAN_MINUTES;
   const lifeU = age / CLOUD_LIFESPAN_MINUTES;
-  const envelope = cloudLifecycleScaleOpacity(lifeU);
-  const displayScale = spec.baseScale * envelope.scaleMul;
-  const sprite = cloudSpriteFor(spec.templateIndex, displayScale);
-  const drift = (lifeU - 0.5) * CLOUD_DRIFT_PX * clamp(spec.windStrength, 0.2, 1.2);
+  const alpha = cloudLifecycleAlpha(lifeU);
+  if (alpha <= 0.01) return;
+
+  const sprite = cloudSpriteFor(spec.templateIndex, spec.baseScale);
+  const drift = cloudLifecycleDrift(lifeU) * CLOUD_DRIFT_PX * clamp(spec.windStrength, 0.2, 1.2);
   const flowDir = spec.windDirectionRad + Math.PI;
-  const x = Math.round(call.drawSurfaceX + Math.cos(flowDir) * drift - sprite.width / 2);
-  const y = Math.round(call.drawSurfaceY - sprite.height * 0.72 - Math.sin(flowDir) * drift);
+  const anchor = cloudAnchorOffset(spec.seed);
+  const x = Math.round(call.drawSurfaceX + anchor.x + Math.cos(flowDir) * drift - sprite.width / 2);
+  const y = Math.round(call.drawSurfaceY + anchor.y - sprite.height * 0.72 - Math.sin(flowDir) * drift);
   ctx.save();
-  ctx.globalAlpha = clamp(envelope.opacity * spec.opacityMul, 0.08, 0.56);
+  ctx.globalAlpha = clamp(alpha * spec.opacityMul, 0, 0.74);
   ctx.drawImage(sprite, x, y);
   ctx.restore();
+}
+
+function cloudLifecycleAlpha(lifeU) {
+  const x = clamp(lifeU, 0, 1);
+  if (x < CLOUD_FADE_RATIO) return smoothstep(0, CLOUD_FADE_RATIO, x);
+  if (x > 1 - CLOUD_FADE_RATIO) return 1 - smoothstep(1 - CLOUD_FADE_RATIO, 1, x);
+  return 1;
+}
+
+function cloudLifecycleDrift(lifeU) {
+  return smoothstep(0, 1, clamp(lifeU, 0, 1));
+}
+
+function cloudAnchorOffset(seed) {
+  const h = hashInt(seed ^ 0x434c4f55);
+  return {
+    x: (((h & 0xff) / 255) * 2 - 1) * CLOUD_ANCHOR_JITTER_PX,
+    y: ((((h >>> 8) & 0xff) / 255) * 2 - 1) * CLOUD_ANCHOR_JITTER_PX
+  };
 }
 
 function cloudSpriteFor(templateIndex, displayScale) {
@@ -3355,7 +3529,7 @@ function createCloudSprite(width, height, variant, sizeIndex) {
       }
       if (density <= 0) continue;
       const shade = clamp(Math.round(226 - Math.max(0, ny) * 38 + density * 18), 166, 242);
-      const alpha = clamp(Math.round(45 + density * 135), 0, 190);
+      const alpha = clamp(Math.round(58 + density * 150), 0, 208);
       const p = (x + y * width) * 4;
       image.data[p] = shade;
       image.data[p + 1] = clamp(shade + 2, 0, 255);
@@ -3572,6 +3746,123 @@ function terrainImage(key) {
   const img = images.get(key);
   if (!img) throw new Error(`Missing terrain image for sprite key: ${key}`);
   return img;
+}
+
+function terrainImageForTile(row, id) {
+  const key = spriteForTerrain(row, id);
+  return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainImage(key) : terrainImage(key);
+}
+
+function terrainColorForTile(row, id) {
+  const key = spriteForTerrain(row, id);
+  return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainColor(key) : terrainSpriteColor(key);
+}
+
+function terrainSpriteColor(key) {
+  const color = spriteColors.get(key);
+  if (!color) throw new Error(`Missing dominant terrain color for sprite: ${key}`);
+  return color;
+}
+
+function tileHasSeasonalSnowTerrain(row, id) {
+  if (!row || isWaterSurfaceRow(row)) return false;
+  if (!snowGroundMask) throw new Error("Snow ground mask is not initialized");
+  return snowGroundMask[id] === 1;
+}
+
+function snowCoveredTerrainImage(key) {
+  const replacement = snowCoveredTerrainReplacementKey(key);
+  if (replacement) return terrainImage(replacement);
+  if (!snowyTerrainImages) throw new Error("Snowy terrain image cache is not initialized");
+
+  const cached = snowyTerrainImages.get(key);
+  if (cached) return cached;
+
+  const img = terrainImage(key);
+  const spriteCanvas = document.createElement("canvas");
+  const spriteCtx = spriteCanvas.getContext("2d", { willReadFrequently: true });
+  if (!spriteCtx) throw new Error(`Could not create snowy terrain sprite canvas for ${key}`);
+  spriteCanvas.width = img.width;
+  spriteCanvas.height = img.height;
+  spriteCtx.imageSmoothingEnabled = false;
+  spriteCtx.clearRect(0, 0, img.width, img.height);
+  spriteCtx.drawImage(img, 0, 0);
+
+  const imageData = spriteCtx.getImageData(0, 0, img.width, img.height);
+  applyGeneratedSnowPixels(key, imageData);
+  spriteCtx.putImageData(imageData, 0, 0);
+  snowyTerrainImages.set(key, spriteCanvas);
+  snowySpriteColors.set(key, generatedSnowTerrainColor(key));
+  return spriteCanvas;
+}
+
+function snowCoveredTerrainColor(key) {
+  const replacement = snowCoveredTerrainReplacementKey(key);
+  if (replacement) return terrainSpriteColor(replacement);
+  if (!snowySpriteColors) throw new Error("Snowy terrain color cache is not initialized");
+  if (!snowySpriteColors.has(key)) snowCoveredTerrainImage(key);
+  const color = snowySpriteColors.get(key);
+  if (!color) throw new Error(`Missing generated snowy terrain color for sprite: ${key}`);
+  return color;
+}
+
+function snowCoveredTerrainReplacementKey(key) {
+  if (key.startsWith("water_")) return key;
+  return SNOWY_TERRAIN_REPLACEMENTS.get(key) || null;
+}
+
+function applyGeneratedSnowPixels(key, imageData) {
+  const data = imageData.data;
+  const salt = spriteKeyHash(key) ^ SNOW_GENERATED_SALT;
+  const w = imageData.width;
+  const h = imageData.height;
+  const hMax = Math.max(1, h - 1);
+
+  for (let y = 0; y < h; y++) {
+    const topBias = 1 - y / hMax;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const alpha = data[i + 3];
+      if (alpha <= 50) continue;
+      const brightness = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      if (brightness < 28) continue;
+
+      const hsh = hashInt(salt ^ Math.imul(x + 1, 0x1f123bb5) ^ Math.imul(y + 1, 0x9e3779b1));
+      const noise = (hsh & 0xff) / 255;
+      const brightBias = clamp((brightness - 40) / 155, 0, 1);
+      const snowChance = 0.2 + topBias * 0.28 + brightBias * 0.26;
+      if (noise > snowChance) continue;
+
+      const snow = SNOW_GENERATED_COLORS[(hsh >>> 9) % SNOW_GENERATED_COLORS.length];
+      const amount = 0.62 + (((hsh >>> 16) & 0xf) / 15) * 0.28;
+      data[i] = blendChannel(data[i], snow.r, amount);
+      data[i + 1] = blendChannel(data[i + 1], snow.g, amount);
+      data[i + 2] = blendChannel(data[i + 2], snow.b, amount);
+    }
+  }
+}
+
+function generatedSnowTerrainColor(key) {
+  const base = parseHexColor(terrainSpriteColor(key));
+  const snow = SNOW_GENERATED_COLORS[1];
+  return rgbToHex(
+    Math.round(base.r * 0.26 + snow.r * 0.74),
+    Math.round(base.g * 0.26 + snow.g * 0.74),
+    Math.round(base.b * 0.26 + snow.b * 0.74)
+  );
+}
+
+function blendChannel(base, target, amount) {
+  return Math.round(base * (1 - amount) + target * amount);
+}
+
+function spriteKeyHash(key) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
 }
 
 function drawShipWake(activeChart) {
@@ -3824,24 +4115,105 @@ function shipScreenHeading() {
 
 function drawWindIndicator() {
   if (!ship) return;
+  const state = windIndicatorState || windIndicatorTarget();
+  const flowDir = state.flowDirectionRad;
+  const strength = clamp(state.strength, 0.05, 1.25);
+  const dx = Math.cos(flowDir);
+  const dy = -Math.sin(flowDir);
+  const px = -dy;
+  const py = dx;
+  const radius = WIND_INDICATOR_RADIUS_PX + Math.round(strength * 3);
+  const length = 6 + Math.round(strength * 8);
+  const halfWidth = 2 + Math.round(strength * 3);
+  const baseLen = Math.max(2, Math.round(length * 0.42));
+  const cx = Math.round(SCREEN_W / 2 + dx * radius);
+  const cy = Math.round(SCREEN_H / 2 + dy * radius);
+  const tip = {
+    x: Math.round(cx + dx * length),
+    y: Math.round(cy + dy * length)
+  };
+  const base = {
+    x: Math.round(cx - dx * baseLen),
+    y: Math.round(cy - dy * baseLen)
+  };
+  const left = {
+    x: Math.round(base.x + px * halfWidth),
+    y: Math.round(base.y + py * halfWidth)
+  };
+  const right = {
+    x: Math.round(base.x - px * halfWidth),
+    y: Math.round(base.y - py * halfWidth)
+  };
+  const fillAlpha = (0.46 + strength * 0.24).toFixed(3);
+  const edgeAlpha = (0.62 + strength * 0.24).toFixed(3);
+  drawPixelTriangle(tip, left, right, `rgba(16, 35, 33, ${fillAlpha})`);
+  drawPixelLine(tip.x, tip.y, left.x, left.y, `rgba(135, 204, 194, ${edgeAlpha})`);
+  drawPixelLine(left.x, left.y, right.x, right.y, `rgba(28, 58, 53, ${edgeAlpha})`);
+  drawPixelLine(right.x, right.y, tip.x, tip.y, `rgba(135, 204, 194, ${edgeAlpha})`);
+}
+
+function updateWindIndicator(dt) {
+  if (!ship || !graph) return false;
+  const target = windIndicatorTarget();
+  if (!windIndicatorState) {
+    windIndicatorState = target;
+    return true;
+  }
+
+  const directionDelta = shortestAngleDelta(windIndicatorState.flowDirectionRad, target.flowDirectionRad);
+  const maxStep = WIND_INDICATOR_TURN_RATE_RAD * dt;
+  const directionStep = clamp(directionDelta, -maxStep, maxStep);
+  const strengthStep = 1 - Math.exp(-WIND_INDICATOR_STRENGTH_LERP_PER_SECOND * dt);
+  const nextStrength = windIndicatorState.strength + (target.strength - windIndicatorState.strength) * strengthStep;
+  const changed = Math.abs(directionStep) > 0.0004 || Math.abs(nextStrength - windIndicatorState.strength) > 0.002;
+
+  windIndicatorState = {
+    flowDirectionRad: normalizeAngleRad(windIndicatorState.flowDirectionRad + directionStep),
+    strength: nextStrength
+  };
+  return changed;
+}
+
+function windIndicatorTarget() {
   const wind = windForTile(centerTileId);
-  const flowDir = wind.directionRad + Math.PI;
-  const cx = Math.round(SCREEN_W / 2 + Math.cos(flowDir) * WIND_INDICATOR_RADIUS_PX);
-  const cy = Math.round(SCREEN_H / 2 - Math.sin(flowDir) * WIND_INDICATOR_RADIUS_PX);
-  const tipX = Math.round(cx + Math.cos(flowDir) * 3);
-  const tipY = Math.round(cy - Math.sin(flowDir) * 3);
-  const baseX = Math.round(cx - Math.cos(flowDir) * 2);
-  const baseY = Math.round(cy + Math.sin(flowDir) * 2);
-  const sideX = -Math.sin(flowDir);
-  const sideY = -Math.cos(flowDir);
-  const leftX = Math.round(baseX + sideX * 3);
-  const leftY = Math.round(baseY + sideY * 3);
-  const rightX = Math.round(baseX - sideX * 3);
-  const rightY = Math.round(baseY - sideY * 3);
-  const color = "rgba(177, 229, 236, 0.46)";
-  drawPixelLine(tipX, tipY, leftX, leftY, color);
-  drawPixelLine(leftX, leftY, rightX, rightY, color);
-  drawPixelLine(rightX, rightY, tipX, tipY, color);
+  return {
+    flowDirectionRad: normalizeAngleRad(wind.directionRad + Math.PI),
+    strength: wind.strength
+  };
+}
+
+function shortestAngleDelta(from, to) {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+
+function normalizeAngleRad(angle) {
+  const twoPi = Math.PI * 2;
+  return ((angle % twoPi) + twoPi) % twoPi;
+}
+
+function drawPixelTriangle(a, b, c, color) {
+  const minX = Math.floor(Math.min(a.x, b.x, c.x));
+  const maxX = Math.ceil(Math.max(a.x, b.x, c.x));
+  const minY = Math.floor(Math.min(a.y, b.y, c.y));
+  const maxY = Math.ceil(Math.max(a.y, b.y, c.y));
+  const area = triangleEdge(a, b, c);
+  if (Math.abs(area) <= 1e-6) return;
+  ctx.fillStyle = color;
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const p = { x, y };
+      const e0 = triangleEdge(a, b, p);
+      const e1 = triangleEdge(b, c, p);
+      const e2 = triangleEdge(c, a, p);
+      if (area > 0 ? (e0 >= 0 && e1 >= 0 && e2 >= 0) : (e0 <= 0 && e1 <= 0 && e2 <= 0)) {
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+}
+
+function triangleEdge(a, b, c) {
+  return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
 }
 
 function drawPixelLine(x0, y0, x1, y1, color) {
@@ -3872,7 +4244,7 @@ function drawPixelLine(x0, y0, x1, y1, color) {
 function drawCities(activeChart) {
   if (!cityImage || !activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
   for (const call of activeChart.cityCalls) drawCityHouse(call);
-  drawCityLabels(activeChart.cityCalls);
+  drawCityLabels(activeChart.cityCalls, activeChart);
 }
 
 function drawCityHouse(call) {
@@ -3881,34 +4253,129 @@ function drawCityHouse(call) {
   ctx.drawImage(cityImage, call.spriteX, call.spriteY);
 }
 
-function drawCityLabels(cityCalls) {
-  const sorted = [...cityCalls].sort((a, b) => b.population - a.population || a.city.localeCompare(b.city));
-  const occupied = [];
-  let drawn = 0;
+function drawCityLabels(cityCalls, activeChart) {
+  const { labelBounds, visibleBounds, blockers } = cityLabelScreenLayout(activeChart);
+  const sorted = [...cityCalls]
+    .filter((call) => cityCallIsOnScreen(call, visibleBounds))
+    .sort((a, b) => b.population - a.population || a.city.localeCompare(b.city));
+  const occupied = blockers.slice();
 
-  ctx.font = PIXEL_FONT_BODY_8;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
   for (const call of sorted) {
-    if (drawn >= CITY_LABEL_LIMIT) break;
     const label = call.city;
-    const textW = Math.ceil(ctx.measureText(label).width);
-    const box = {
-      x: Math.round(call.x - textW / 2) - 2,
-      y: Math.round(call.labelY),
-      w: textW + 4,
-      h: CITY_LABEL_H + 2
-    };
-    if (occupied.some((other) => rectsOverlap(box, other))) continue;
+    const textW = measurePixelTextWidth(label, PIXEL_FONT_BODY_8);
+    const box = placeCityLabel(call, textW, occupied, labelBounds);
     occupied.push(box);
-    drawn++;
 
     ctx.fillStyle = "rgba(19, 15, 12, 0.72)";
     ctx.fillRect(box.x, box.y, box.w, box.h);
     ctx.fillStyle = "#f3dfb0";
-    ctx.fillText(label, Math.round(call.x), box.y + 1);
+    drawPixelText(label, box.x + CITY_LABEL_PAD_X, box.y + CITY_LABEL_PAD_Y, {
+      font: PIXEL_FONT_BODY_8
+    });
   }
-  ctx.textAlign = "left";
+}
+
+function cityLabelScreenLayout(activeChart) {
+  const offset = chartOffsetPixels(activeChart);
+  const visibleBounds = {
+    minX: -offset.x,
+    minY: -offset.y,
+    maxX: SCREEN_W - offset.x,
+    maxY: SCREEN_H - offset.y
+  };
+  const labelBounds = {
+    minX: -offset.x + 1,
+    minY: -offset.y + 1,
+    maxX: SCREEN_W - offset.x - 1,
+    maxY: SCREEN_H - offset.y - 27
+  };
+  const blockers = [
+    {
+      x: MINIMAP_X - offset.x - 2,
+      y: MINIMAP_Y - offset.y - 2,
+      w: MINIMAP_W + 4,
+      h: MINIMAP_H + 4
+    }
+  ];
+  return { labelBounds, visibleBounds, blockers };
+}
+
+function cityCallIsOnScreen(call, bounds) {
+  return rectsOverlap({
+    x: call.spriteX,
+    y: call.spriteY,
+    w: CITY_SPRITE_W,
+    h: CITY_SPRITE_H
+  }, {
+    x: bounds.minX,
+    y: bounds.minY,
+    w: bounds.maxX - bounds.minX,
+    h: bounds.maxY - bounds.minY
+  });
+}
+
+function placeCityLabel(call, textW, occupied, bounds) {
+  const w = textW + CITY_LABEL_PAD_X * 2;
+  const h = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
+  const midY = call.y - CITY_SPRITE_H / 2 - h / 2;
+  const candidates = [
+    cityLabelBox(call.x - w / 2, call.labelY, w, h),
+    cityLabelBox(call.x - w / 2, call.y + CITY_LABEL_GAP_PX, w, h),
+    cityLabelBox(call.x + CITY_SPRITE_W / 2 - 2, midY, w, h),
+    cityLabelBox(call.x - CITY_SPRITE_W / 2 - w + 2, midY, w, h),
+    cityLabelBox(call.x - w - CITY_LABEL_GAP_PX, call.labelY, w, h),
+    cityLabelBox(call.x + CITY_LABEL_GAP_PX, call.labelY, w, h),
+    cityLabelBox(call.x - w - CITY_LABEL_GAP_PX, call.y + CITY_LABEL_GAP_PX, w, h),
+    cityLabelBox(call.x + CITY_LABEL_GAP_PX, call.y + CITY_LABEL_GAP_PX, w, h)
+  ];
+  const preferred = candidates[0];
+  let best = null;
+  let bestScore = Infinity;
+
+  for (const candidate of candidates) {
+    const box = clampCityLabelBox(candidate, bounds);
+    const score = cityLabelPlacementScore(box, occupied, preferred);
+    if (score >= bestScore) continue;
+    best = box;
+    bestScore = score;
+  }
+  if (!best) throw new Error(`Could not place city label: ${call.city}`);
+  return best;
+}
+
+function cityLabelBox(x, y, w, h) {
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: Math.round(w),
+    h: Math.round(h)
+  };
+}
+
+function clampCityLabelBox(box, bounds) {
+  const minX = bounds.minX;
+  const minY = bounds.minY;
+  const maxX = Math.max(minX, bounds.maxX - box.w);
+  const maxY = Math.max(minY, bounds.maxY - box.h);
+  return {
+    ...box,
+    x: Math.round(clamp(box.x, minX, maxX)),
+    y: Math.round(clamp(box.y, minY, maxY))
+  };
+}
+
+function cityLabelPlacementScore(box, occupied, preferred) {
+  let score = Math.abs(box.x - preferred.x) + Math.abs(box.y - preferred.y);
+  for (const other of occupied) {
+    score += rectOverlapArea(box, other) * 1000;
+  }
+  return score;
+}
+
+function rectOverlapArea(a, b) {
+  const w = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const h = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  return w * h;
 }
 
 function rectsOverlap(a, b) {
@@ -3929,13 +4396,15 @@ function drawTinyStatus(nowMs) {
   const shipSpeed = ship ? vectorLength(ship.velocity) * PIXELS_PER_RADIAN : 0;
   const line1 = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${terrainStatusLabel(row)} ${lat},${lon}`;
   const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)} spd ${shipSpeed.toFixed(0)}`;
-  ctx.font = PIXEL_FONT_MONO_8;
-  const width = Math.min(SCREEN_W - 8, Math.ceil(Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width)) + 8);
+  const width = Math.min(
+    SCREEN_W - 8,
+    Math.max(measurePixelTextWidth(line1, PIXEL_FONT_MONO_8), measurePixelTextWidth(line2, PIXEL_FONT_MONO_8)) + 8
+  );
   ctx.fillStyle = "rgba(15, 18, 14, 0.62)";
   ctx.fillRect(4, SCREEN_H - 24, width, 20);
   ctx.fillStyle = "#d7d9bf";
-  ctx.fillText(line1, 8, SCREEN_H - 16);
-  ctx.fillText(line2, 8, SCREEN_H - 6);
+  drawPixelText(line1, 8, SCREEN_H - 16, { font: PIXEL_FONT_MONO_8 });
+  drawPixelText(line2, 8, SCREEN_H - 6, { font: PIXEL_FONT_MONO_8 });
 
   void nowMs;
 }
@@ -3987,9 +4456,7 @@ function windDirectionName(directionRad) {
 
 function faceColorFor(call) {
   if (isCoastFace(call)) return beachFaceColor(call);
-  const key = spriteForTerrain(call.ownerRow, call.ownerId);
-  const color = spriteColors.get(key);
-  if (!color) throw new Error(`Missing dominant terrain color for sprite: ${key}`);
+  const color = terrainColorForTile(call.ownerRow, call.ownerId);
   if (Math.abs(call.ownerLevel - call.otherLevel) < 2) return color;
   return call.ownerLevel > call.otherLevel ? shadeHex(color, -18) : shadeHex(color, 14);
 }
@@ -4009,9 +4476,7 @@ function beachWaterColor(call) {
   const waterIsA = isWaterSurfaceRow(call.row);
   const waterRow = waterIsA ? call.row : call.nrow;
   const waterId = waterIsA ? call.a : call.b;
-  const key = spriteForTerrain(waterRow, waterId);
-  const color = spriteColors.get(key);
-  if (!color) throw new Error(`Missing dominant terrain color for beach wave sprite: ${key}`);
+  const color = terrainColorForTile(waterRow, waterId);
   return rgbaFromHex(color, BEACH_WAVE_WATER_ALPHA);
 }
 
@@ -4149,18 +4614,16 @@ function drawLoading() {
   ctx.fillStyle = "#172437";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#d7d9bf";
-  ctx.font = PIXEL_FONT_BODY_8;
-  ctx.fillText("Loading pixel globe...", 8, 14);
+  drawPixelText("Loading pixel globe...", 8, 14, { font: PIXEL_FONT_BODY_8 });
 }
 
 function drawFatalError(err) {
   ctx.fillStyle = "#1d1513";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#f0d2be";
-  ctx.font = PIXEL_FONT_BODY_8;
   const lines = String(err?.message || err).match(/.{1,70}/g) || ["Unknown error"];
-  ctx.fillText("Prototype failed to start", 8, 14);
-  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], 8, 28 + i * 10);
+  drawPixelText("Prototype failed to start", 8, 14, { font: PIXEL_FONT_BODY_8 });
+  for (let i = 0; i < lines.length; i++) drawPixelText(lines[i], 8, 28 + i * 10, { font: PIXEL_FONT_BODY_8 });
 }
 
 function hashInt(n) {
