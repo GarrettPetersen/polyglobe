@@ -278,6 +278,7 @@ const CITY_LABEL_H = 8;
 const CITY_LABEL_PAD_X = 2;
 const CITY_LABEL_PAD_Y = 1;
 const CITY_LABEL_GAP_PX = 2;
+const POINTER_STEERING_DEADZONE_PX = 6;
 const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_MONO = "\"Dogica\", \"zpix\", monospace";
@@ -359,6 +360,11 @@ const ctx = canvas.getContext("2d", { alpha: false });
 ctx.imageSmoothingEnabled = false;
 
 const keys = new Set();
+const pointerSteering = {
+  active: false,
+  pointerId: null,
+  point: null
+};
 let graph;
 let directionIndex;
 let earthRows;
@@ -1438,6 +1444,7 @@ function openOptionsMenu() {
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
   keys.clear();
+  clearPointerSteering();
   dirty = true;
 }
 
@@ -1493,13 +1500,21 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     openOptionsMenu();
+    return;
   }
+  event.preventDefault();
+  beginPointerSteering(event.pointerId, point);
 }
 
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
   if (!optionsMenu.isOpen) {
+    if (pointerSteering.active && pointerSteering.pointerId === event.pointerId) {
+      event.preventDefault();
+      updatePointerSteering(point);
+      return;
+    }
     dirty = true;
     return;
   }
@@ -1519,10 +1534,37 @@ function handlePointerUp(event) {
       // Ignore pointer capture releases from other targets.
     }
   }
+  endPointerSteering(event?.pointerId);
   if (optionsMenu.activeSliderKey) {
     optionsMenu.activeSliderKey = null;
     dirty = true;
   }
+}
+
+function beginPointerSteering(pointerId, point) {
+  pointerSteering.active = true;
+  pointerSteering.pointerId = pointerId;
+  pointerSteering.point = point;
+  if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(pointerId);
+  dirty = true;
+}
+
+function updatePointerSteering(point) {
+  pointerSteering.point = point;
+  dirty = true;
+}
+
+function endPointerSteering(pointerId) {
+  if (!pointerSteering.active) return;
+  if (pointerId !== undefined && pointerSteering.pointerId !== pointerId) return;
+  clearPointerSteering();
+}
+
+function clearPointerSteering() {
+  pointerSteering.active = false;
+  pointerSteering.pointerId = null;
+  pointerSteering.point = null;
+  dirty = true;
 }
 
 function handleOptionsPointerDown(point) {
@@ -1680,6 +1722,11 @@ function inputHeadingForShip() {
   if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) dx += 1;
   if (keys.has("ArrowUp") || keys.has("w") || keys.has("W")) dy += 1;
   if (keys.has("ArrowDown") || keys.has("s") || keys.has("S")) dy -= 1;
+  const pointerVector = pointerSteeringInputVector();
+  if (pointerVector) {
+    dx += pointerVector.dx;
+    dy += pointerVector.dy;
+  }
   if (dx === 0 && dy === 0) return null;
 
   return normalizeTangentOrFallback([
@@ -1687,6 +1734,18 @@ function inputHeadingForShip() {
     camera.right[1] * dx + camera.up[1] * dy,
     camera.right[2] * dx + camera.up[2] * dy
   ], ship.position, ship.heading);
+}
+
+function pointerSteeringInputVector() {
+  if (!pointerSteering.active || !pointerSteering.point) return null;
+  const dx = pointerSteering.point.x - SCREEN_W / 2;
+  const dy = SCREEN_H / 2 - pointerSteering.point.y;
+  const length = Math.hypot(dx, dy);
+  if (length < POINTER_STEERING_DEADZONE_PX) return null;
+  return {
+    dx: dx / length,
+    dy: dy / length
+  };
 }
 
 function applyWindAcceleration(dt) {
