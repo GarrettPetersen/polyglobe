@@ -14,6 +14,10 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     [25502, 101645, 101916, 101905, 101923, 101922, 101909, 101910],
     [3710, 58698, 58714, 58713],
     [161138, 161175, 161176],
+    // Dardanelles passage from the Aegean side into the Sea of Marmara.
+    [98820, 98676, 98678, 24757],
+    // Bosporus passage from the Sea of Marmara into the Black Sea.
+    [98682, 6233, 98694, 98704],
   ],
 };
 
