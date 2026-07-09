@@ -23,6 +23,14 @@ npm run pixel-globe:dev
 
 Then open `http://127.0.0.1:5177/`.
 
+Build the static Cloudflare Pages bundle from the repo root:
+
+```sh
+npm run pixel-globe:build
+```
+
+The build output is `apps/pixel-globe/dist`.
+
 Controls: arrow keys or WASD move north/south/east/west. Shift moves faster.
 `[` / `]` step the annual weather day, `,` / `.` step the hour, and Space pauses/resumes the weather clock.
 
