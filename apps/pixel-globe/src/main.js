@@ -22,6 +22,9 @@ const FACE_HALF_WIDTH = 7;
 const FRONT_FACE_OVERLAP_PX = 4;
 const FRONT_FACE_MIN_DY = 2;
 const RIVER_ARM_LENGTH_PX = 15;
+const RIVER_CURVE_BEND_PX = 4;
+const RIVER_OUTLINE_RADIUS_PX = 3;
+const RIVER_BODY_RADIUS_PX = 2;
 const RIVER_SPRITE_CACHE_LIMIT = 4096;
 const VIEW_MARGIN = 58;
 const CHART_REBUILD_RADIUS_PX = 28;
@@ -965,13 +968,14 @@ function riverSpriteForTile(call, activeChart, mask) {
   const endpoints = riverEndpointsForTile(call, activeChart, mask);
   if (endpoints.length === 0) return null;
   const frame = waterFrameFor(call.id);
+  const variant = hashInt(call.id) & 15;
   const endpointKey = endpoints.map((p) => `${p.x},${p.y}`).join(";");
-  const key = `${frame}|${endpointKey}`;
+  const key = `${frame}|${variant}|${endpointKey}`;
   const cached = riverSpriteCache.get(key);
   if (cached) return cached;
   if (riverSpriteCache.size > RIVER_SPRITE_CACHE_LIMIT) riverSpriteCache = new Map();
 
-  const sprite = generateRiverSprite(endpoints, frame, call.id);
+  const sprite = generateRiverSprite(endpoints, frame, variant);
   riverSpriteCache.set(key, sprite);
   return sprite;
 }
@@ -1018,7 +1022,7 @@ function riverEdgeScreenDirection(call, activeChart, edge) {
   return { x: dx / len, y: dy / len };
 }
 
-function generateRiverSprite(endpoints, frame, seed) {
+function generateRiverSprite(endpoints, frame, variant) {
   const sprite = document.createElement("canvas");
   sprite.width = TILE_ART_SIZE;
   sprite.height = TILE_ART_SIZE;
@@ -1028,33 +1032,75 @@ function generateRiverSprite(endpoints, frame, seed) {
   const colors = riverColors.frames[frame - 1] || riverColors.frames[0];
   const cx = TILE_ART_HALF;
   const cy = TILE_ART_HALF;
+  const paths = riverBezierPaths(endpoints, variant);
 
-  for (const end of endpoints) {
-    drawPixelStroke(spriteCtx, cx, cy, end.x, end.y, riverColors.outline, 2);
+  for (const path of paths) {
+    drawPixelBezierStroke(spriteCtx, path, riverColors.outline, RIVER_OUTLINE_RADIUS_PX);
   }
-  drawPixelBrush(spriteCtx, cx, cy, 3, riverColors.outline);
+  if (endpoints.length !== 2) drawPixelBrush(spriteCtx, cx, cy, RIVER_OUTLINE_RADIUS_PX + 1, riverColors.outline);
 
-  for (const end of endpoints) {
-    drawPixelStroke(spriteCtx, cx, cy, end.x, end.y, colors.main, 1);
+  for (const path of paths) {
+    drawPixelBezierStroke(spriteCtx, path, colors.main, RIVER_BODY_RADIUS_PX);
   }
-  drawPixelBrush(spriteCtx, cx, cy, 2, colors.main);
+  if (endpoints.length !== 2) drawPixelBrush(spriteCtx, cx, cy, RIVER_BODY_RADIUS_PX + 1, colors.main);
 
-  for (const end of endpoints) {
-    drawRiverSparkles(spriteCtx, cx, cy, end.x, end.y, frame, seed, colors.light);
+  for (const path of paths) {
+    drawRiverSparkles(spriteCtx, path, frame, variant, colors.light);
   }
   return sprite;
 }
 
-function drawPixelStroke(targetCtx, x0, y0, x1, y1, color, radius) {
+function riverBezierPaths(endpoints, seed) {
+  const center = { x: TILE_ART_HALF, y: TILE_ART_HALF };
+  if (endpoints.length === 2) {
+    return [curvedRiverPath(endpoints[0], endpoints[1], center, seed, 0)];
+  }
+  return endpoints.map((end, index) => {
+    const control = {
+      x: (center.x + end.x) * 0.5,
+      y: (center.y + end.y) * 0.5
+    };
+    return curvedRiverPath(center, end, control, seed, index);
+  });
+}
+
+function curvedRiverPath(start, end, controlBase, seed, index) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) {
+    throw new Error("Cannot build a curved river path with identical endpoints");
+  }
+  const nx = -dy / len;
+  const ny = dx / len;
+  const bend = riverCurveBend(seed, index);
+  return {
+    x0: start.x,
+    y0: start.y,
+    cx: controlBase.x + nx * bend,
+    cy: controlBase.y + ny * bend,
+    x1: end.x,
+    y1: end.y
+  };
+}
+
+function riverCurveBend(seed, index) {
+  const raw = hashInt(seed ^ Math.imul(index + 1, 0x9e3779b1));
+  const sign = (raw & 1) === 0 ? -1 : 1;
+  const amount = 2 + ((raw >>> 1) % Math.max(1, RIVER_CURVE_BEND_PX - 1));
+  return sign * amount;
+}
+
+function drawPixelBezierStroke(targetCtx, path, color, radius) {
   targetCtx.fillStyle = color;
-  forEachPixelOnLine(x0, y0, x1, y1, (x, y) => {
+  forEachPixelOnBezier(path, (x, y) => {
     drawPixelBrush(targetCtx, x, y, radius, color);
   });
 }
 
-function drawRiverSparkles(targetCtx, x0, y0, x1, y1, frame, seed, color) {
+function drawRiverSparkles(targetCtx, path, frame, seed, color) {
   const points = [];
-  forEachPixelOnLine(x0, y0, x1, y1, (x, y) => points.push({ x, y }));
+  forEachPixelOnBezier(path, (x, y) => points.push({ x, y }));
   const phase = (frame - 1) * 3 + (hashInt(seed) % 3);
   targetCtx.fillStyle = color;
   for (let i = 3 + phase; i < points.length - 1; i += 7) {
@@ -1063,30 +1109,35 @@ function drawRiverSparkles(targetCtx, x0, y0, x1, y1, frame, seed, color) {
   }
 }
 
-function forEachPixelOnLine(x0, y0, x1, y1, visit) {
-  let x = Math.round(x0);
-  let y = Math.round(y0);
-  x1 = Math.round(x1);
-  y1 = Math.round(y1);
-  const dx = Math.abs(x1 - x);
-  const dy = Math.abs(y1 - y);
-  const sx = x < x1 ? 1 : -1;
-  const sy = y < y1 ? 1 : -1;
-  let err = dx - dy;
-
-  while (true) {
+function forEachPixelOnBezier(path, visit) {
+  const steps = Math.max(10, Math.ceil(bezierPathLength(path) * 1.6));
+  const seen = new Set();
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const omt = 1 - t;
+    const x = Math.round(omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1);
+    const y = Math.round(omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1);
+    const key = `${x},${y}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     visit(x, y);
-    if (x === x1 && y === y1) break;
-    const e2 = err * 2;
-    if (e2 > -dy) {
-      err -= dy;
-      x += sx;
-    }
-    if (e2 < dx) {
-      err += dx;
-      y += sy;
-    }
   }
+}
+
+function bezierPathLength(path) {
+  let length = 0;
+  let px = path.x0;
+  let py = path.y0;
+  for (let i = 1; i <= 12; i++) {
+    const t = i / 12;
+    const omt = 1 - t;
+    const x = omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1;
+    const y = omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1;
+    length += Math.hypot(x - px, y - py);
+    px = x;
+    py = y;
+  }
+  return length;
 }
 
 function drawPixelBrush(targetCtx, x, y, radius, color) {
