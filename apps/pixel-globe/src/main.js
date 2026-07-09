@@ -8,6 +8,7 @@ import {
   graphCenter,
   normalize3
 } from "./geodesic.js";
+import { MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -20,6 +21,8 @@ const SELECTED_DOT_SIZE = 4;
 const FACE_HALF_WIDTH = 7;
 const FRONT_FACE_OVERLAP_PX = 4;
 const FRONT_FACE_MIN_DY = 2;
+const RIVER_ARM_LENGTH_PX = 15;
+const RIVER_SPRITE_CACHE_LIMIT = 4096;
 const VIEW_MARGIN = 58;
 const CHART_REBUILD_RADIUS_PX = 28;
 const CHART_MARGIN = VIEW_MARGIN + CHART_REBUILD_RADIUS_PX + TILE_ART_SIZE;
@@ -67,6 +70,9 @@ let earthRows;
 let earthById;
 let images;
 let spriteColors;
+let riverColors;
+let riverMasks;
+let riverSpriteCache = new Map();
 let camera;
 let chart;
 let localLayout;
@@ -122,6 +128,8 @@ async function main() {
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
   spriteColors = buildSpriteDominantColors(images);
+  riverColors = buildRiverColors(images);
+  riverMasks = buildRiverMasksFromCache(earth);
   minimap = buildMinimap();
   camera = createCamera(START_POSITION.lat, START_POSITION.lon);
   syncVisibleCenterTile();
@@ -199,7 +207,135 @@ function buildSpriteDominantColors(imageMap) {
   return colors;
 }
 
+function buildRiverColors(imageMap) {
+  const frame1 = riverColorFrame("water_shallow_01", imageMap.get("water_shallow_01"));
+  const frame2 = riverColorFrame("water_shallow_02", imageMap.get("water_shallow_02"));
+  if (!frame1.outline || !frame1.main || !frame1.light || !frame2.main || !frame2.light) {
+    throw new Error("Could not derive river colors from loaded terrain sprites");
+  }
+  return {
+    outline: frame1.outline,
+    frames: [frame1, frame2]
+  };
+}
+
+function riverColorFrame(key, img) {
+  const ranked = rankedImageColors(key, img, 10);
+  const main = ranked[0];
+  const mainBrightness = colorBrightness(main);
+  const outline = ranked.find((c) => colorBrightness(c) < mainBrightness - 34) || main;
+  const light = ranked
+    .filter((c) => colorBrightness(c) > mainBrightness + 18)
+    .reduce((best, c) => (colorBrightness(c) > colorBrightness(best) ? c : best), main);
+
+  return {
+    outline: rgbToHex(outline.r, outline.g, outline.b),
+    main: rgbToHex(main.r, main.g, main.b),
+    light: rgbToHex(light.r, light.g, light.b)
+  };
+}
+
+function rankedImageColors(key, img, limit) {
+  if (!img) throw new Error(`Missing terrain image for color sampling: ${key}`);
+  const sampleCanvas = document.createElement("canvas");
+  const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sampleCtx) throw new Error("Could not create river color sampling canvas");
+  sampleCanvas.width = img.width;
+  sampleCanvas.height = img.height;
+  sampleCtx.clearRect(0, 0, img.width, img.height);
+  sampleCtx.drawImage(img, 0, 0);
+  const ranked = rankOpaqueColors(sampleCtx.getImageData(0, 0, img.width, img.height), limit);
+  if (ranked.length === 0) throw new Error(`Terrain sprite has no opaque pixels: ${key}`);
+  return ranked;
+}
+
+function colorBrightness(color) {
+  return color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
+}
+
+function buildRiverMasksFromCache(earth) {
+  if (!earth.riverEdges || typeof earth.riverEdges !== "object") {
+    throw new Error("Earth cache is missing riverEdges; rebuild examples/globe-demo/public/earth-globe-cache-7.json");
+  }
+
+  const masks = new Uint8Array(graph.tileCount);
+  for (const [rawId, edges] of Object.entries(earth.riverEdges)) {
+    const tileId = Number(rawId);
+    if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
+      throw new Error(`Invalid river tile id in Earth cache: ${rawId}`);
+    }
+    if (!Array.isArray(edges)) {
+      throw new Error(`Invalid river edge list for tile ${tileId}`);
+    }
+    for (const edge of edges) {
+      addRiverEdgeMask(masks, tileId, edge, `Earth cache tile ${tileId}`);
+    }
+  }
+
+  const added = mergeManualRiverChainsIntoMasks(masks);
+  console.info(
+    `[pixel-globe] river masks loaded: ${countRiverTiles(masks)} tiles, ${added} manual half-edge additions`
+  );
+  return masks;
+}
+
+function mergeManualRiverChainsIntoMasks(masks) {
+  const chains = MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
+  let added = 0;
+  for (const chain of chains) {
+    for (let i = 0; i < chain.length - 1; i++) {
+      added += addRiverEdgeBetween(masks, chain[i], chain[i + 1], "manual river chain");
+    }
+  }
+  return added;
+}
+
+function addRiverEdgeBetween(masks, a, b, source) {
+  const edgeA = edgeIndexTowardNeighbor(a, b);
+  const edgeB = edgeIndexTowardNeighbor(b, a);
+  if (edgeA === undefined || edgeB === undefined) {
+    throw new Error(`${source}: tiles ${a} and ${b} are not adjacent`);
+  }
+  let added = 0;
+  added += addRiverEdgeMask(masks, a, edgeA, `${source} ${a}->${b}`);
+  added += addRiverEdgeMask(masks, b, edgeB, `${source} ${b}->${a}`);
+  return added;
+}
+
+function addRiverEdgeMask(masks, tileId, edge, source) {
+  const edgeCount = graph.edgeCount[tileId];
+  if (!Number.isInteger(edge) || edge < 0 || edge >= edgeCount) {
+    throw new Error(`${source}: invalid edge ${edge}; tile ${tileId} has ${edgeCount} edges`);
+  }
+  const bit = 1 << edge;
+  if ((masks[tileId] & bit) !== 0) return 0;
+  masks[tileId] |= bit;
+  return 1;
+}
+
+function edgeIndexTowardNeighbor(tileId, neighborId) {
+  const edgeNeighbors = graph.edgeNeighbors[tileId];
+  if (!edgeNeighbors) return undefined;
+  const edge = edgeNeighbors.indexOf(neighborId);
+  return edge >= 0 ? edge : undefined;
+}
+
+function countRiverTiles(masks) {
+  let count = 0;
+  for (const mask of masks) {
+    if (mask !== 0) count++;
+  }
+  return count;
+}
+
 function mostCommonOpaqueColor(key, imageData) {
+  const ranked = rankOpaqueColors(imageData, 1);
+  if (ranked.length === 0) throw new Error(`Terrain sprite has no opaque pixels: ${key}`);
+  const color = ranked[0];
+  return rgbToHex(color.r, color.g, color.b);
+}
+
+function rankOpaqueColors(imageData, limit) {
   const counts = new Map();
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
@@ -208,18 +344,13 @@ function mostCommonOpaqueColor(key, imageData) {
     counts.set(colorKey, (counts.get(colorKey) || 0) + 1);
   }
 
-  let bestKey = null;
-  let bestCount = -1;
-  for (const [colorKey, count] of counts.entries()) {
-    if (count > bestCount) {
-      bestKey = colorKey;
-      bestCount = count;
-    }
-  }
-  if (!bestKey) throw new Error(`Terrain sprite has no opaque pixels: ${key}`);
-
-  const [r, g, b] = bestKey.split(",").map(Number);
-  return rgbToHex(r, g, b);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([colorKey, count]) => {
+      const [r, g, b] = colorKey.split(",").map(Number);
+      return { r, g, b, count };
+    });
 }
 
 function rgbToHex(r, g, b) {
@@ -383,7 +514,7 @@ function render(nowMs) {
   for (const call of chart.baseFaceCalls) drawFace(call, chart);
 
   for (const call of chart.tileCalls) {
-    drawTile(call);
+    drawTile(call, chart);
     const frontFaces = chart.frontFacesByTile.get(call.id);
     if (frontFaces) {
       for (const face of frontFaces) drawFace(face, chart, { coverFront: true });
@@ -683,6 +814,11 @@ function minimapLandWeight(row) {
   return 1;
 }
 
+function isWaterLikeRow(row) {
+  const t = row?.t || "";
+  return t === "water" || t === "lake" || t === "beach";
+}
+
 function minimapColor(fraction, y) {
   const polar = y < 4 || y >= MINIMAP_H - 4;
   if (fraction >= 0.62) return polar ? [185, 190, 180] : [73, 101, 57];
@@ -801,7 +937,7 @@ function drawFace(call, activeChart, options = {}) {
   }
 }
 
-function drawTile(call) {
+function drawTile(call, activeChart) {
   const key = spriteForTerrain(call.row, call.id);
   const img = terrainImage(key);
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
@@ -811,6 +947,155 @@ function drawTile(call) {
   if (graph.isPentagon[call.id]) {
     ctx.fillStyle = "rgba(31, 35, 26, 0.35)";
     ctx.fillRect(Math.round(call.drawSurfaceX) - 1, Math.round(call.drawSurfaceY) - 1, 3, 3);
+  }
+
+  drawRiver(call, activeChart, x, y);
+}
+
+function drawRiver(call, activeChart, spriteX, spriteY) {
+  if (!riverMasks) return;
+  const mask = riverMasks[call.id] || 0;
+  if (mask === 0 || isWaterLikeRow(call.row)) return;
+  const sprite = riverSpriteForTile(call, activeChart, mask);
+  if (!sprite) return;
+  ctx.drawImage(sprite, spriteX, spriteY);
+}
+
+function riverSpriteForTile(call, activeChart, mask) {
+  const endpoints = riverEndpointsForTile(call, activeChart, mask);
+  if (endpoints.length === 0) return null;
+  const frame = waterFrameFor(call.id);
+  const endpointKey = endpoints.map((p) => `${p.x},${p.y}`).join(";");
+  const key = `${frame}|${endpointKey}`;
+  const cached = riverSpriteCache.get(key);
+  if (cached) return cached;
+  if (riverSpriteCache.size > RIVER_SPRITE_CACHE_LIMIT) riverSpriteCache = new Map();
+
+  const sprite = generateRiverSprite(endpoints, frame, call.id);
+  riverSpriteCache.set(key, sprite);
+  return sprite;
+}
+
+function riverEndpointsForTile(call, activeChart, mask) {
+  const endpoints = [];
+  const seen = new Set();
+  const edgeCount = graph.edgeCount[call.id];
+  for (let edge = 0; edge < edgeCount; edge++) {
+    if ((mask & (1 << edge)) === 0) continue;
+    const dir = riverEdgeScreenDirection(call, activeChart, edge);
+    const x = Math.round(TILE_ART_HALF + dir.x * RIVER_ARM_LENGTH_PX);
+    const y = Math.round(TILE_ART_HALF + dir.y * RIVER_ARM_LENGTH_PX);
+    const key = `${x},${y}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    endpoints.push({ x, y });
+  }
+  endpoints.sort((a, b) => a.x - b.x || a.y - b.y);
+  return endpoints;
+}
+
+function riverEdgeScreenDirection(call, activeChart, edge) {
+  const neighborId = graph.edgeNeighbors[call.id]?.[edge];
+  if (neighborId === undefined) {
+    throw new Error(`River edge ${edge} on tile ${call.id} has no edge neighbor`);
+  }
+
+  const neighbor = activeChart.tileById.get(neighborId);
+  let dx;
+  let dy;
+  if (neighbor) {
+    dx = neighbor.drawSurfaceX - call.drawSurfaceX;
+    dy = neighbor.drawSurfaceY - call.drawSurfaceY;
+  } else {
+    dx = dotTile(neighborId, activeChart.right) - dotTile(call.id, activeChart.right);
+    dy = -(dotTile(neighborId, activeChart.up) - dotTile(call.id, activeChart.up));
+  }
+
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) {
+    throw new Error(`Could not project river edge ${edge} on tile ${call.id}`);
+  }
+  return { x: dx / len, y: dy / len };
+}
+
+function generateRiverSprite(endpoints, frame, seed) {
+  const sprite = document.createElement("canvas");
+  sprite.width = TILE_ART_SIZE;
+  sprite.height = TILE_ART_SIZE;
+  const spriteCtx = sprite.getContext("2d");
+  if (!spriteCtx) throw new Error("Could not create river sprite canvas");
+  spriteCtx.imageSmoothingEnabled = false;
+  const colors = riverColors.frames[frame - 1] || riverColors.frames[0];
+  const cx = TILE_ART_HALF;
+  const cy = TILE_ART_HALF;
+
+  for (const end of endpoints) {
+    drawPixelStroke(spriteCtx, cx, cy, end.x, end.y, riverColors.outline, 2);
+  }
+  drawPixelBrush(spriteCtx, cx, cy, 3, riverColors.outline);
+
+  for (const end of endpoints) {
+    drawPixelStroke(spriteCtx, cx, cy, end.x, end.y, colors.main, 1);
+  }
+  drawPixelBrush(spriteCtx, cx, cy, 2, colors.main);
+
+  for (const end of endpoints) {
+    drawRiverSparkles(spriteCtx, cx, cy, end.x, end.y, frame, seed, colors.light);
+  }
+  return sprite;
+}
+
+function drawPixelStroke(targetCtx, x0, y0, x1, y1, color, radius) {
+  targetCtx.fillStyle = color;
+  forEachPixelOnLine(x0, y0, x1, y1, (x, y) => {
+    drawPixelBrush(targetCtx, x, y, radius, color);
+  });
+}
+
+function drawRiverSparkles(targetCtx, x0, y0, x1, y1, frame, seed, color) {
+  const points = [];
+  forEachPixelOnLine(x0, y0, x1, y1, (x, y) => points.push({ x, y }));
+  const phase = (frame - 1) * 3 + (hashInt(seed) % 3);
+  targetCtx.fillStyle = color;
+  for (let i = 3 + phase; i < points.length - 1; i += 7) {
+    const p = points[i];
+    targetCtx.fillRect(p.x, p.y, 1, 1);
+  }
+}
+
+function forEachPixelOnLine(x0, y0, x1, y1, visit) {
+  let x = Math.round(x0);
+  let y = Math.round(y0);
+  x1 = Math.round(x1);
+  y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x);
+  const dy = Math.abs(y1 - y);
+  const sx = x < x1 ? 1 : -1;
+  const sy = y < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  while (true) {
+    visit(x, y);
+    if (x === x1 && y === y1) break;
+    const e2 = err * 2;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+}
+
+function drawPixelBrush(targetCtx, x, y, radius, color) {
+  targetCtx.fillStyle = color;
+  for (let yy = -radius; yy <= radius; yy++) {
+    for (let xx = -radius; xx <= radius; xx++) {
+      if (Math.abs(xx) + Math.abs(yy) > radius + 1) continue;
+      targetCtx.fillRect(Math.round(x + xx), Math.round(y + yy), 1, 1);
+    }
   }
 }
 

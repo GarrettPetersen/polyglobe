@@ -48,6 +48,31 @@ export function buildGeodesicGraph(subdivisions) {
     faces = next;
   }
 
+  const orderedFacesByVertex = orderedFaceIdsAroundVertices(faces, verts.length);
+  const dualEdgeOwners = new Map();
+  const edgeNeighbors = new Array(verts.length);
+
+  for (let id = 0; id < verts.length; id++) {
+    const orderedFaces = orderedFacesByVertex.get(id);
+    if (!orderedFaces) throw new Error(`Missing ordered geodesic faces for tile ${id}`);
+    edgeNeighbors[id] = new Array(orderedFaces.length).fill(undefined);
+    for (let e = 0; e < orderedFaces.length; e++) {
+      const key = dualEdgeKey(orderedFaces[e], orderedFaces[(e + 1) % orderedFaces.length]);
+      let owners = dualEdgeOwners.get(key);
+      if (!owners) {
+        owners = [];
+        dualEdgeOwners.set(key, owners);
+      }
+      owners.push({ id, edge: e });
+    }
+  }
+
+  for (const [key, owners] of dualEdgeOwners.entries()) {
+    if (owners.length !== 2) throw new Error(`Expected 2 owners for dual edge ${key}, got ${owners.length}`);
+    edgeNeighbors[owners[0].id][owners[0].edge] = owners[1].id;
+    edgeNeighbors[owners[1].id][owners[1].edge] = owners[0].id;
+  }
+
   const neighborSets = Array.from({ length: verts.length }, () => new Set());
   for (const [a, b, c] of faces) {
     neighborSets[a].add(b);
@@ -63,6 +88,7 @@ export function buildGeodesicGraph(subdivisions) {
   const lonDeg = new Float32Array(verts.length);
   const neighbors = new Array(verts.length);
   const isPentagon = new Uint8Array(verts.length);
+  const edgeCount = new Uint8Array(verts.length);
 
   for (let i = 0; i < verts.length; i++) {
     const v = verts[i];
@@ -73,9 +99,53 @@ export function buildGeodesicGraph(subdivisions) {
     lonDeg[i] = -Math.atan2(v[2], v[0]) * 180 / Math.PI;
     neighbors[i] = Array.from(neighborSets[i]);
     isPentagon[i] = neighbors[i].length === 5 ? 1 : 0;
+    edgeCount[i] = edgeNeighbors[i].length;
   }
 
-  return { subdivisions, tileCount: verts.length, centers, latDeg, lonDeg, neighbors, isPentagon };
+  return { subdivisions, tileCount: verts.length, centers, latDeg, lonDeg, neighbors, edgeNeighbors, edgeCount, isPentagon };
+}
+
+function orderedFaceIdsAroundVertices(faces, vertexCount) {
+  const faceIdsByVertex = new Map();
+  for (let fi = 0; fi < faces.length; fi++) {
+    for (const vi of faces[fi]) {
+      let list = faceIdsByVertex.get(vi);
+      if (!list) {
+        list = [];
+        faceIdsByVertex.set(vi, list);
+      }
+      list.push(fi);
+    }
+  }
+
+  const ordered = new Map();
+  for (let vi = 0; vi < vertexCount; vi++) {
+    const faceList = faceIdsByVertex.get(vi);
+    if (!faceList || faceList.length === 0) continue;
+    const ring = [];
+    const used = new Set();
+    let current = faceList[0];
+    while (ring.length < faceList.length) {
+      ring.push(current);
+      used.add(current);
+      const face = faces[current];
+      const idx = face.indexOf(vi);
+      if (idx < 0) throw new Error(`Face ${current} does not contain vertex ${vi}`);
+      const nextVert = face[(idx + 1) % 3];
+      const nextFace = faceList.find((f) => !used.has(f) && faces[f].includes(vi) && faces[f].includes(nextVert));
+      if (nextFace === undefined) break;
+      current = nextFace;
+    }
+    if (ring.length !== faceList.length) {
+      throw new Error(`Could not order ${faceList.length} faces around tile ${vi}; ordered ${ring.length}`);
+    }
+    ordered.set(vi, ring);
+  }
+  return ordered;
+}
+
+function dualEdgeKey(a, b) {
+  return a < b ? `${a},${b}` : `${b},${a}`;
 }
 
 export function createDirectionIndex(graph, lonCells = 144, latCells = 72) {
