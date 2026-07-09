@@ -16,6 +16,7 @@ const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
 const TILE_ART_HALF = TILE_ART_SIZE / 2;
+const SELECTED_DOT_SIZE = 4;
 const FACE_HALF_WIDTH = 7;
 const FRONT_FACE_OVERLAP_PX = 4;
 const FRONT_FACE_MIN_DY = 2;
@@ -794,19 +795,43 @@ function terrainImage(key) {
 function drawCursor(activeChart) {
   const focused = activeChart.tileById.get(centerTileId);
   if (!focused) return;
-  ctx.strokeStyle = "#f4e4a0";
-  ctx.lineWidth = 1;
-  const x = Math.round(focused.drawSurfaceX);
-  const y = Math.round(focused.drawSurfaceY);
-  ctx.beginPath();
-  ctx.moveTo(x, y - 12);
-  ctx.lineTo(x + 10, y - 6);
-  ctx.lineTo(x + 10, y + 6);
-  ctx.lineTo(x, y + 12);
-  ctx.lineTo(x - 10, y + 6);
-  ctx.lineTo(x - 10, y - 6);
-  ctx.closePath();
-  ctx.stroke();
+  const x = Math.round(focused.x);
+  const y = Math.round(focused.y);
+
+  for (const neighborId of graph.neighbors[centerTileId]) {
+    const neighbor = activeChart.tileById.get(neighborId);
+    if (!neighbor) continue;
+    drawPixelLine(x, y, Math.round(neighbor.x), Math.round(neighbor.y), "rgba(244, 228, 160, 0.72)");
+  }
+
+  ctx.fillStyle = "#fff4a8";
+  const dotOffset = Math.floor(SELECTED_DOT_SIZE / 2);
+  ctx.fillRect(x - dotOffset, y - dotOffset, SELECTED_DOT_SIZE, SELECTED_DOT_SIZE);
+}
+
+function drawPixelLine(x0, y0, x1, y1, color) {
+  let x = x0;
+  let y = y0;
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  ctx.fillStyle = color;
+  while (true) {
+    ctx.fillRect(x, y, 1, 1);
+    if (x === x1 && y === y1) break;
+    const e2 = err * 2;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+  }
 }
 
 function drawTinyStatus(nowMs) {
