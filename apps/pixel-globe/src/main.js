@@ -93,6 +93,8 @@ const SHIP_STOP_DAMPING = 0.15;
 const SHIP_COLLISION_RADIUS_PX = 5;
 const SHIP_RIVER_COLLISION_RADIUS_PX = 1.5;
 const SHIP_RIVER_CHANNEL_TOLERANCE_PX = 0.75;
+const SHIP_RIVER_HAUL_ACCEL_RAD = 0.0045;
+const SHIP_RIVER_HAUL_MAX_SPEED_RAD = 0.0075;
 const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
 const SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX = 48;
 const SHIP_RIVER_HEADING_ALIGN_DOT = Math.cos(Math.PI / 3);
@@ -259,6 +261,7 @@ let settingsMenuIcon;
 let cityImage;
 let cityCatalog;
 let cityByTileId;
+const terrainAlphaMasks = new WeakMap();
 let spriteColors;
 let snowyTerrainImages;
 let snowySpriteColors;
@@ -1480,6 +1483,7 @@ function updateSailing(dt) {
   }
 
   applyWindAcceleration(dt);
+  applyRiverHaulAcceleration(dt, inputHeading);
   const moveResult = moveShipWithCollision(dt);
   const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
@@ -1517,6 +1521,31 @@ function applyWindAcceleration(dt) {
   const drag = SHIP_DRAG_PER_SECOND * (efficiency > 0 ? 1 : SHIP_NO_GO_DRAG_MULTIPLIER);
   ship.velocity = scaleVector(ship.velocity, Math.exp(-drag * dt));
   limitShipSpeed(poweredShipMaxSpeed(wind.strength, efficiency));
+}
+
+function applyRiverHaulAcceleration(dt, inputHeading) {
+  if (!inputHeading || !shipIsInRiverWater()) return;
+  const direction = normalizeOrNull(projectTangentVector(inputHeading, ship.position));
+  if (!direction) return;
+
+  const currentSpeedTowardInput = dot3(ship.velocity, direction);
+  if (currentSpeedTowardInput >= SHIP_RIVER_HAUL_MAX_SPEED_RAD) return;
+
+  const addSpeed = Math.min(
+    SHIP_RIVER_HAUL_ACCEL_RAD * dt,
+    SHIP_RIVER_HAUL_MAX_SPEED_RAD - currentSpeedTowardInput
+  );
+  ship.velocity = projectTangentVector([
+    ship.velocity[0] + direction[0] * addSpeed,
+    ship.velocity[1] + direction[1] * addSpeed,
+    ship.velocity[2] + direction[2] * addSpeed
+  ], ship.position);
+}
+
+function shipIsInRiverWater() {
+  if (!localLayout || !chart) return false;
+  const nav = shipNavigabilityAtLocalPoint(localLayout.viewX, localLayout.viewY, ship.tileId, ship.position);
+  return nav.ok && nav.kind === "river";
 }
 
 function sailingEfficiency(heading, windFlow) {
@@ -4224,10 +4253,14 @@ function wakeMapPointIsWater(x, y, activeChart) {
     }
   }
 
+  if (wakePointIsOnAnyRiverTile(x, y, candidates, activeChart)) return true;
+  if (wakePointIsBlockedByDryTileSprite(x, y, candidates, activeChart)) return false;
+
   let nearestTile = null;
   let nearestD2 = WAKE_WATER_SEARCH_RADIUS_PX * WAKE_WATER_SEARCH_RADIUS_PX;
   for (const entry of candidates) {
     if (entry.kind !== "tile") continue;
+    if (!isWaterSurfaceRow(entry.call.row)) continue;
     const dx = entry.call.drawSurfaceX - x;
     const dy = entry.call.drawSurfaceY - y;
     const d2 = dx * dx + dy * dy;
@@ -4237,8 +4270,7 @@ function wakeMapPointIsWater(x, y, activeChart) {
   }
 
   if (!nearestTile) return false;
-  if (isWaterSurfaceRow(nearestTile.row)) return true;
-  return wakePointIsOnRiverTile(x, y, nearestTile, activeChart);
+  return true;
 }
 
 function riverWaterInfoAtLocalPoint(x, y, activeChart) {
@@ -4356,6 +4388,56 @@ function wakeWaterCandidatesForPoint(x, y, waterIndex) {
   }
 
   return candidates;
+}
+
+function wakePointIsOnAnyRiverTile(x, y, candidates, activeChart) {
+  for (const entry of candidates) {
+    if (entry.kind !== "tile") continue;
+    if ((riverMasks?.[entry.call.id] || 0) === 0) continue;
+    if (wakePointIsOnRiverTile(x, y, entry.call, activeChart)) return true;
+  }
+  return false;
+}
+
+function wakePointIsBlockedByDryTileSprite(x, y, candidates, activeChart) {
+  for (const entry of candidates) {
+    if (entry.kind !== "tile") continue;
+    if (isWaterSurfaceRow(entry.call.row)) continue;
+    if (!tileTerrainSpriteOpaqueAtMapPoint(entry.call, x, y)) continue;
+    if ((riverMasks?.[entry.call.id] || 0) !== 0 && wakePointIsOnRiverTile(x, y, entry.call, activeChart)) continue;
+    return true;
+  }
+  return false;
+}
+
+function tileTerrainSpriteOpaqueAtMapPoint(call, x, y) {
+  const img = terrainImageForTile(call.row, call.id);
+  const px = Math.round(x - (call.drawSurfaceX - TILE_ART_HALF));
+  const py = Math.round(y - (call.drawSurfaceY - TILE_ART_HALF));
+  if (px < 0 || py < 0 || px >= img.width || py >= img.height) return false;
+  const mask = terrainAlphaMask(img);
+  return mask.alpha[px + py * mask.width] > 0;
+}
+
+function terrainAlphaMask(img) {
+  const cached = terrainAlphaMasks.get(img);
+  if (cached) return cached;
+
+  const sampleCanvas = document.createElement("canvas");
+  sampleCanvas.width = img.width;
+  sampleCanvas.height = img.height;
+  const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sampleCtx) throw new Error("Could not create terrain alpha mask canvas");
+  sampleCtx.imageSmoothingEnabled = false;
+  sampleCtx.drawImage(img, 0, 0);
+
+  const data = sampleCtx.getImageData(0, 0, img.width, img.height).data;
+  const alpha = new Uint8Array(img.width * img.height);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+
+  const mask = { width: img.width, height: img.height, alpha };
+  terrainAlphaMasks.set(img, mask);
+  return mask;
 }
 
 function wakePointIsOnRiverTile(x, y, call, activeChart) {
