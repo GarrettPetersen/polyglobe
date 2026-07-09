@@ -226,14 +226,11 @@ function alphaBounds(canvas) {
   return { minX, minY, width: maxX - minX + 1, height: maxY - minY + 1 };
 }
 
-function copyFrame(sourceCanvas, sheetCtx, frameIndex) {
-  const bounds = alphaBounds(sourceCanvas);
+function copyFrame(sourceCanvas, sheetCtx, frameIndex, bounds, scale) {
   const col = frameIndex % sheetCols;
   const row = Math.floor(frameIndex / sheetCols);
   const cellX = col * frameSize;
   const cellY = row * frameSize;
-  const maxDraw = frameSize - 4;
-  const scale = Math.min(maxDraw / bounds.width, maxDraw / bounds.height);
   const drawW = Math.max(1, Math.round(bounds.width * scale));
   const drawH = Math.max(1, Math.round(bounds.height * scale));
   const drawX = cellX + Math.floor((frameSize - drawW) / 2);
@@ -252,6 +249,13 @@ function copyFrame(sourceCanvas, sheetCtx, frameIndex) {
     drawH
   );
   snapAlpha(sheetCtx, cellX, cellY);
+}
+
+function fixedFrameScale(boundsByHeading) {
+  const maxDraw = frameSize - 4;
+  const maxWidth = Math.max(...boundsByHeading.map((bounds) => bounds.width));
+  const maxHeight = Math.max(...boundsByHeading.map((bounds) => bounds.height));
+  return Math.min(maxDraw / maxWidth, maxDraw / maxHeight);
 }
 
 function snapAlpha(ctx, cellX, cellY) {
@@ -301,8 +305,11 @@ async function main() {
   sheetCtx.clearRect(0, 0, sheet.width, sheet.height);
   sheetCtx.imageSmoothingEnabled = false;
 
+  const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera));
+  const boundsByHeading = renderedHeadings.map((canvas) => alphaBounds(canvas));
+  const frameScale = fixedFrameScale(boundsByHeading);
   for (let i = 0; i < headings; i++) {
-    copyFrame(renderHeading(triangles, i, camera), sheetCtx, i);
+    copyFrame(renderedHeadings[i], sheetCtx, i, boundsByHeading[i], frameScale);
   }
 
   const preview = makePreview(sheet);

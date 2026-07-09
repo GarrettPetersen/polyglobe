@@ -46,6 +46,7 @@ const BEACH_WAVE_RECEDE_RATIO = 0.38;
 const BEACH_WAVE_MIN_REACH = 0.16;
 const BEACH_WAVE_MAX_REACH = 0.78;
 const BEACH_WAVE_WATER_ALPHA = 0.58;
+const BEACH_WAVE_EDGE_RECESS = 0.2;
 const FRONT_FACE_OVERLAP_PX = 4;
 const FRONT_FACE_MIN_DY = 2;
 const RIVER_ARM_LENGTH_PX = 15;
@@ -67,12 +68,20 @@ const SHIP_SHEET_COLS = 4;
 const SHIP_HEADING_COUNT = 16;
 const SHIP_TURN_RATE_RAD = 2.35;
 const SHIP_SAIL_ACCEL_RAD = 0.018;
-const SHIP_WIND_DRIFT_ACCEL_RAD = 0.0035;
 const SHIP_DRAG_PER_SECOND = 0.62;
 const SHIP_MAX_SPEED_RAD = 0.035;
+const SHIP_MIN_POWERED_SPEED_RAD = 0.006;
 const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
 const SHIP_COLLISION_DAMPING = 0.82;
 const SHIP_STOP_DAMPING = 0.15;
+const SHIP_COLLISION_RADIUS_PX = 5;
+const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
+const SAIL_NO_GO_ANGLE_RAD = Math.PI / 4;
+const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
+const SHIP_WAKE_MIN_SPEED_PX = 2.5;
+const SHIP_WAKE_MIN_LENGTH_PX = 7;
+const SHIP_WAKE_MAX_LENGTH_PX = 22;
+const WIND_INDICATOR_RADIUS_PX = 20;
 const WATER_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
 const WATER_DEPTH_GRADATION_COUNT = 4;
@@ -91,10 +100,11 @@ const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "water-depth-gradations-1";
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
-const MINIMAP_H = 40;
+const MINIMAP_H = 26;
+const MINIMAP_MAX_LAT_DEG = 72;
+const MINIMAP_MAX_MERCATOR = mercatorYForLatDeg(MINIMAP_MAX_LAT_DEG);
 const MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 const MINIMAP_Y = 5;
-const MINIMAP_MAX_LAT_DEG = 72;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
@@ -685,15 +695,19 @@ function initialShipHeading(position) {
 function updateSailing(dt) {
   if (!ship || !camera) return false;
   const inputHeading = inputHeadingForShip();
-  if (inputHeading) ship.targetHeading = inputHeading;
 
   const previousHeading = ship.heading;
-  ship.heading = rotateTangentToward(
-    ship.heading,
-    ship.targetHeading,
-    ship.position,
-    SHIP_TURN_RATE_RAD * dt
-  );
+  if (inputHeading) {
+    ship.targetHeading = inputHeading;
+    ship.heading = rotateTangentToward(
+      ship.heading,
+      ship.targetHeading,
+      ship.position,
+      SHIP_TURN_RATE_RAD * dt
+    );
+  } else {
+    ship.targetHeading = ship.heading;
+  }
 
   applyWindAcceleration(dt);
   const moveResult = moveShipWithCollision(dt);
@@ -720,19 +734,41 @@ function inputHeadingForShip() {
 function applyWindAcceleration(dt) {
   const wind = windForTile(ship.tileId);
   const windFlow = windFlowVectorAtShip(wind);
-  const alignment = dot3(ship.heading, windFlow);
-  const sailPower = clamp((alignment + 0.32) / 1.32, 0.04, 1);
-  const sailAccel = SHIP_SAIL_ACCEL_RAD * wind.strength * sailPower;
-  const driftAccel = SHIP_WIND_DRIFT_ACCEL_RAD * wind.strength;
+  const efficiency = sailingEfficiency(ship.heading, windFlow);
+  const sailAccel = SHIP_SAIL_ACCEL_RAD * wind.strength * efficiency;
 
   ship.velocity = [
-    ship.velocity[0] + (ship.heading[0] * sailAccel + windFlow[0] * driftAccel) * dt,
-    ship.velocity[1] + (ship.heading[1] * sailAccel + windFlow[1] * driftAccel) * dt,
-    ship.velocity[2] + (ship.heading[2] * sailAccel + windFlow[2] * driftAccel) * dt
+    ship.velocity[0] + ship.heading[0] * sailAccel * dt,
+    ship.velocity[1] + ship.heading[1] * sailAccel * dt,
+    ship.velocity[2] + ship.heading[2] * sailAccel * dt
   ];
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
-  ship.velocity = scaleVector(ship.velocity, Math.exp(-SHIP_DRAG_PER_SECOND * dt));
-  limitShipSpeed();
+  const drag = SHIP_DRAG_PER_SECOND * (efficiency > 0 ? 1 : 1.9);
+  ship.velocity = scaleVector(ship.velocity, Math.exp(-drag * dt));
+  limitShipSpeed(poweredShipMaxSpeed(wind.strength, efficiency));
+}
+
+function sailingEfficiency(heading, windFlow) {
+  const alignment = clamp(dot3(heading, windFlow), -1, 1);
+  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
+  if (angleFromWind <= SAIL_NO_GO_ANGLE_RAD) return 0;
+
+  if (angleFromWind <= Math.PI / 2) {
+    return easeInOut((angleFromWind - SAIL_NO_GO_ANGLE_RAD) / (Math.PI / 2 - SAIL_NO_GO_ANGLE_RAD));
+  }
+  if (angleFromWind <= Math.PI * 0.75) {
+    const t = (angleFromWind - Math.PI / 2) / (Math.PI * 0.25);
+    return 1 - t * 0.15;
+  }
+
+  const t = (angleFromWind - Math.PI * 0.75) / (Math.PI * 0.25);
+  return 0.85 - t * 0.3;
+}
+
+function poweredShipMaxSpeed(windStrength, efficiency) {
+  if (efficiency <= 0) return Infinity;
+  const windFactor = 0.28 + windStrength * 0.72;
+  return SHIP_MIN_POWERED_SPEED_RAD + (SHIP_MAX_SPEED_RAD - SHIP_MIN_POWERED_SPEED_RAD) * windFactor * efficiency;
 }
 
 function windFlowVectorAtShip(wind) {
@@ -744,10 +780,11 @@ function windFlowVectorAtShip(wind) {
   ], ship.position, ship.heading);
 }
 
-function limitShipSpeed() {
+function limitShipSpeed(maxSpeed) {
+  if (!Number.isFinite(maxSpeed)) return;
   const speed = vectorLength(ship.velocity);
-  if (speed <= SHIP_MAX_SPEED_RAD) return;
-  ship.velocity = scaleVector(ship.velocity, SHIP_MAX_SPEED_RAD / speed);
+  if (speed <= maxSpeed) return;
+  ship.velocity = scaleVector(ship.velocity, maxSpeed / speed);
 }
 
 function moveShipWithCollision(dt) {
@@ -783,14 +820,50 @@ function moveShipWithCollision(dt) {
 }
 
 function attemptShipStep(fromPosition, fromTileId, step) {
-  const position = normalize3([
-    fromPosition[0] + step[0],
-    fromPosition[1] + step[1],
-    fromPosition[2] + step[2]
+  const segments = Math.max(1, Math.ceil(vectorLength(step) * PIXELS_PER_RADIAN / SHIP_COLLISION_SAMPLE_STEP_PX));
+  let previousTileId = fromTileId;
+  let position = fromPosition;
+
+  for (let i = 1; i <= segments; i++) {
+    position = normalize3([
+      fromPosition[0] + step[0] * (i / segments),
+      fromPosition[1] + step[1] * (i / segments),
+      fromPosition[2] + step[2] * (i / segments)
+    ]);
+    const tileId = findNearestTileId(graph, directionIndex, position);
+    if (!canShipMoveBetween(previousTileId, tileId)) return { ok: false, blockedTileId: tileId };
+    const occupancy = shipOccupancyAtPosition(position, tileId);
+    if (!occupancy.ok) return { ok: false, blockedTileId: occupancy.blockedTileId };
+    previousTileId = tileId;
+  }
+
+  return { ok: true, position, tileId: previousTileId };
+}
+
+function shipOccupancyAtPosition(position, tileId) {
+  const radius = SHIP_COLLISION_RADIUS_PX / PIXELS_PER_RADIAN;
+  const forward = normalizeTangentOrFallback(ship.heading, position, WORLD_NORTH);
+  const side = normalizeOrNull(cross3(position, forward));
+  const sampleVectors = side
+    ? [forward, side, scaleVector(side, -1)]
+    : [forward];
+
+  for (const sampleVector of sampleVectors) {
+    const samplePosition = offsetSurfacePosition(position, sampleVector, radius);
+    const sampleTileId = findNearestTileId(graph, directionIndex, samplePosition);
+    if (sampleTileId === tileId) continue;
+    if (canShipMoveBetween(tileId, sampleTileId)) continue;
+    return { ok: false, blockedTileId: sampleTileId };
+  }
+  return { ok: true };
+}
+
+function offsetSurfacePosition(position, tangent, distanceRad) {
+  return normalize3([
+    position[0] + tangent[0] * distanceRad,
+    position[1] + tangent[1] * distanceRad,
+    position[2] + tangent[2] * distanceRad
   ]);
-  const tileId = findNearestTileId(graph, directionIndex, position);
-  if (canShipMoveBetween(fromTileId, tileId)) return { ok: true, position, tileId };
-  return { ok: false, blockedTileId: tileId };
 }
 
 function applyShipMove(position, tileId) {
@@ -1017,9 +1090,9 @@ function render(nowMs) {
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart, nowMs);
-  drawCursorConnections(chart);
+  drawShipWake();
   drawShip();
-  drawSelectedWind();
+  drawWindIndicator();
   ctx.restore();
 
   drawMinimap(nowMs);
@@ -1384,9 +1457,13 @@ function minimapX(lonDeg) {
 }
 
 function minimapY(latDeg) {
-  const lat = clamp(latDeg, -MINIMAP_MAX_LAT_DEG, MINIMAP_MAX_LAT_DEG) * Math.PI / 180;
-  const mercator = Math.log(Math.tan(Math.PI / 4 + lat / 2));
-  return clamp(Math.floor((0.5 - mercator / (2 * Math.PI)) * MINIMAP_H), 0, MINIMAP_H - 1);
+  const mercator = mercatorYForLatDeg(clamp(latDeg, -MINIMAP_MAX_LAT_DEG, MINIMAP_MAX_LAT_DEG));
+  return clamp(Math.floor(((MINIMAP_MAX_MERCATOR - mercator) / (MINIMAP_MAX_MERCATOR * 2)) * MINIMAP_H), 0, MINIMAP_H - 1);
+}
+
+function mercatorYForLatDeg(latDeg) {
+  const lat = latDeg * Math.PI / 180;
+  return Math.log(Math.tan(Math.PI / 4 + lat / 2));
 }
 
 function collectChartTiles(chartCamera, chartCenterTileId) {
@@ -1513,7 +1590,7 @@ function drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width) {
   const toT = waterIsA ? wave.reach : 1 - wave.reach;
   const foamT = waterIsA ? wave.foamReach : 1 - wave.foamReach;
   drawBeachWaveWater(ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, beachWaterColor(call));
-  drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, foamT, wave.foamAlpha);
+  drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, fromT, foamT, wave.foamAlpha);
 }
 
 function beachWaveState(call) {
@@ -1546,29 +1623,46 @@ function beachWaveState(call) {
 }
 
 function drawBeachWaveWater(ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, color) {
-  const a = beachCenterPoint(ax, ay, mx, my, bx, by, fromT);
-  const b = beachCenterPoint(ax, ay, mx, my, bx, by, toT);
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(Math.round(a.x + nx * width), Math.round(a.y + ny * width));
-  ctx.lineTo(Math.round(b.x + nx * width), Math.round(b.y + ny * width));
-  ctx.lineTo(Math.round(b.x - nx * width), Math.round(b.y - ny * width));
-  ctx.lineTo(Math.round(a.x - nx * width), Math.round(a.y - ny * width));
-  ctx.closePath();
-  ctx.fill();
+  const lineHalfWidth = Math.max(2, Math.round(width));
+  for (let side = -lineHalfWidth; side <= lineHalfWidth; side++) {
+    const a = beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, fromT, side);
+    const roundedT = roundedBeachWaveT(fromT, toT, side, lineHalfWidth);
+    const b = beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, roundedT, side);
+    drawPixelLine(Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y), color);
+  }
 }
 
-function drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, t, alpha) {
+function drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, fromT, t, alpha) {
   if (alpha <= 0.01) return;
-  const p = beachCenterPoint(ax, ay, mx, my, bx, by, t);
   const lineHalfWidth = Math.max(2, width - 1);
-  drawPixelLine(
-    Math.round(p.x + nx * lineHalfWidth),
-    Math.round(p.y + ny * lineHalfWidth),
-    Math.round(p.x - nx * lineHalfWidth),
-    Math.round(p.y - ny * lineHalfWidth),
-    `rgba(255, 253, 231, ${alpha.toFixed(3)})`
-  );
+  const color = `rgba(255, 253, 231, ${alpha.toFixed(3)})`;
+  let previous = null;
+  for (let side = -lineHalfWidth; side <= lineHalfWidth; side++) {
+    const roundedT = roundedBeachWaveT(fromT, t, side, lineHalfWidth);
+    const p = beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, roundedT, side);
+    const x = Math.round(p.x);
+    const y = Math.round(p.y);
+    if (previous) drawPixelLine(previous.x, previous.y, x, y, color);
+    else {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+    previous = { x, y };
+  }
+}
+
+function roundedBeachWaveT(fromT, targetT, side, lineHalfWidth) {
+  const edge = Math.abs(side) / Math.max(1, lineHalfWidth);
+  const reachScale = 1 - BEACH_WAVE_EDGE_RECESS * edge * edge;
+  return fromT + (targetT - fromT) * reachScale;
+}
+
+function beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, t, side) {
+  const p = beachCenterPoint(ax, ay, mx, my, bx, by, t);
+  return {
+    x: p.x + nx * side,
+    y: p.y + ny * side
+  };
 }
 
 function beachCenterPoint(ax, ay, mx, my, bx, by, t) {
@@ -2191,17 +2285,35 @@ function terrainImage(key) {
   return img;
 }
 
-function drawCursorConnections(activeChart) {
-  const focused = activeChart.tileById.get(centerTileId);
-  if (!focused) return;
-  const x = Math.round(focused.x);
-  const y = Math.round(focused.y);
+function drawShipWake() {
+  if (!ship) return;
+  const speedPx = vectorLength(ship.velocity) * PIXELS_PER_RADIAN;
+  if (speedPx < SHIP_WAKE_MIN_SPEED_PX) return;
 
-  for (const neighborId of graph.neighbors[centerTileId]) {
-    const neighbor = activeChart.tileById.get(neighborId);
-    if (!neighbor) continue;
-    drawPixelLine(x, y, Math.round(neighbor.x), Math.round(neighbor.y), "rgba(244, 228, 160, 0.42)");
-  }
+  const heading = shipScreenHeading();
+  const cx = Math.round(localLayout.viewX);
+  const cy = Math.round(localLayout.viewY);
+  const sternX = Math.round(cx - heading.x * 7);
+  const sternY = Math.round(cy - heading.y * 7);
+  const backAngle = Math.atan2(-heading.y, -heading.x);
+  const wakeLength = clamp(Math.round(SHIP_WAKE_MIN_LENGTH_PX + speedPx * 0.65), SHIP_WAKE_MIN_LENGTH_PX, SHIP_WAKE_MAX_LENGTH_PX);
+  const alpha = clamp(0.22 + speedPx / 48, 0.22, 0.58).toFixed(3);
+  const color = `rgba(255, 253, 231, ${alpha})`;
+
+  drawPixelLine(
+    sternX,
+    sternY,
+    Math.round(sternX + Math.cos(backAngle + KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
+    Math.round(sternY + Math.sin(backAngle + KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
+    color
+  );
+  drawPixelLine(
+    sternX,
+    sternY,
+    Math.round(sternX + Math.cos(backAngle - KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
+    Math.round(sternY + Math.sin(backAngle - KELVIN_WAKE_HALF_ANGLE_RAD) * wakeLength),
+    color
+  );
 }
 
 function drawShip() {
@@ -2225,28 +2337,40 @@ function drawShip() {
 }
 
 function shipHeadingFrame() {
-  const hx = dot3(ship.heading, camera.right);
-  const hy = dot3(ship.heading, camera.up);
-  const angle = Math.atan2(hy, hx);
+  const heading = shipScreenHeading();
+  const angle = Math.atan2(-heading.y, heading.x);
   const raw = Math.round(angle / (Math.PI * 2) * SHIP_HEADING_COUNT);
   return ((raw % SHIP_HEADING_COUNT) + SHIP_HEADING_COUNT) % SHIP_HEADING_COUNT;
 }
 
-function drawSelectedWind() {
+function shipScreenHeading() {
+  const hx = dot3(ship.heading, camera.right);
+  const hy = dot3(ship.heading, camera.up);
+  const length = Math.hypot(hx, hy);
+  if (length <= 1e-6) return { x: 0, y: -1 };
+  return { x: hx / length, y: -hy / length };
+}
+
+function drawWindIndicator() {
   if (!ship) return;
   const wind = windForTile(centerTileId);
   const flowDir = wind.directionRad + Math.PI;
-  const x0 = Math.round(localLayout.viewX);
-  const y0 = Math.round(localLayout.viewY);
-  const length = Math.round(7 + wind.strength * 9);
-  const x1 = Math.round(x0 + Math.cos(flowDir) * length);
-  const y1 = Math.round(y0 - Math.sin(flowDir) * length);
-  const color = "rgba(169, 225, 235, 0.72)";
-  drawPixelLine(x0, y0, x1, y1, color);
-  const left = flowDir + Math.PI * 0.78;
-  const right = flowDir - Math.PI * 0.78;
-  drawPixelLine(x1, y1, Math.round(x1 + Math.cos(left) * 3), Math.round(y1 - Math.sin(left) * 3), color);
-  drawPixelLine(x1, y1, Math.round(x1 + Math.cos(right) * 3), Math.round(y1 - Math.sin(right) * 3), color);
+  const cx = Math.round(localLayout.viewX + Math.cos(flowDir) * WIND_INDICATOR_RADIUS_PX);
+  const cy = Math.round(localLayout.viewY - Math.sin(flowDir) * WIND_INDICATOR_RADIUS_PX);
+  const tipX = Math.round(cx + Math.cos(flowDir) * 3);
+  const tipY = Math.round(cy - Math.sin(flowDir) * 3);
+  const baseX = Math.round(cx - Math.cos(flowDir) * 2);
+  const baseY = Math.round(cy + Math.sin(flowDir) * 2);
+  const sideX = -Math.sin(flowDir);
+  const sideY = -Math.cos(flowDir);
+  const leftX = Math.round(baseX + sideX * 3);
+  const leftY = Math.round(baseY + sideY * 3);
+  const rightX = Math.round(baseX - sideX * 3);
+  const rightY = Math.round(baseY - sideY * 3);
+  const color = "rgba(177, 229, 236, 0.46)";
+  drawPixelLine(tipX, tipY, leftX, leftY, color);
+  drawPixelLine(leftX, leftY, rightX, rightY, color);
+  drawPixelLine(rightX, rightY, tipX, tipY, color);
 }
 
 function drawPixelLine(x0, y0, x1, y1, color) {
