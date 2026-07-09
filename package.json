@@ -26,7 +26,8 @@
     "railways:server": "npm --prefix apps/railways run server",
     "railways:build": "npm --prefix apps/railways run build",
     "railways:preview": "npm --prefix apps/railways run preview",
-    "pixel-globe:dev": "npm --prefix apps/pixel-globe run dev"
+    "pixel-globe:dev": "npm --prefix apps/pixel-globe run dev",
+    "pixel-globe:build": "npm --prefix apps/pixel-globe run build"
   },
   "keywords": [
     "three",

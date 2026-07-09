@@ -154,6 +154,12 @@ const CITY_ASSET_VERSION = "city-house-1";
 const CITY_DATA_YEAR = 1522;
 const CITY_MAX_COUNT = 420;
 const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
+const CITY_DISPLAY_NAME_OVERRIDES = new Map([
+  ["mexico city|mexico", [{ throughYear: 1522, displayCity: "Tenochtitlan" }]],
+  ["texcoco|mexico", [{ throughYear: 1522, displayCity: "Tezcoco" }]],
+  ["merida|mexico", [{ throughYear: 1541, displayCity: "Tiho" }]],
+  ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]]
+]);
 const CITY_SPRITE_W = 32;
 const CITY_SPRITE_H = 32;
 const CITY_LABEL_H = 8;
@@ -194,6 +200,7 @@ const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
 const START_WEATHER = startWeatherFromLocation();
+const DEBUG_STATUS_ENABLED = debugStatusFromLocation();
 
 const terrainAssets = [
   "water_deep_01_01", "water_deep_01_02", "water_shallow_01", "water_shallow_02",
@@ -524,6 +531,7 @@ async function loadCityCatalog(targetYear) {
       bestByCity.set(cityId, {
         cityId,
         city,
+        displayCity: cityDisplayName(city, country, targetYear),
         country,
         lat,
         lon,
@@ -534,7 +542,7 @@ async function loadCityCatalog(targetYear) {
   }
 
   const cities = [...bestByCity.values()]
-    .sort((a, b) => b.population - a.population || a.city.localeCompare(b.city))
+    .sort((a, b) => b.population - a.population || cityLabelText(a).localeCompare(cityLabelText(b)))
     .slice(0, CITY_MAX_COUNT);
   if (cities.length === 0) throw new Error(`City dataset produced no cities for year ${targetYear}`);
   return cities;
@@ -618,6 +626,17 @@ function requiredCsvInteger(row, index, rowIndex, name) {
 
 function normalizeCityKey(city, country) {
   return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
+}
+
+function cityDisplayName(city, country, targetYear) {
+  const rules = CITY_DISPLAY_NAME_OVERRIDES.get(normalizeCityKey(city, country));
+  if (!rules) return city;
+  const rule = rules.find((item) => targetYear <= item.throughYear);
+  return rule?.displayCity || city;
+}
+
+function cityLabelText(city) {
+  return city.displayCity || city.city;
 }
 
 async function loadShipLightingBake() {
@@ -770,6 +789,11 @@ function startWeatherFromLocation() {
   };
 }
 
+function debugStatusFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  return booleanQueryParam(params, "debugStatus", false);
+}
+
 function numericQueryParam(params, name, fallback, min, max) {
   const raw = params.get(name);
   if (raw === null || raw === "") return fallback;
@@ -778,6 +802,15 @@ function numericQueryParam(params, name, fallback, min, max) {
     throw new Error(`Invalid ${name} query param: ${raw}. Expected ${min}..${max}`);
   }
   return value;
+}
+
+function booleanQueryParam(params, name, fallback) {
+  const raw = params.get(name);
+  if (raw === null || raw === "") return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  throw new Error(`Invalid ${name} query param: ${raw}. Expected true/false`);
 }
 
 function buildSpriteDominantColors(imageMap) {
@@ -2338,6 +2371,7 @@ function render(nowMs) {
 
   for (const call of chart.tileCalls) {
     drawTile(call, chart);
+    drawIceSurface(call);
     const frontFaces = chart.frontFacesByTile.get(call.id);
     if (frontFaces) {
       for (const face of frontFaces) drawFace(face, chart, { coverFront: true });
@@ -2360,7 +2394,7 @@ function render(nowMs) {
   drawWindIndicator();
   drawMinimap(nowMs);
   drawOptionsButton();
-  drawTinyStatus(nowMs);
+  if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (optionsMenu.isOpen) drawOptionsMenu();
 }
 
@@ -3408,15 +3442,17 @@ function drawTile(call, activeChart) {
 }
 
 function drawWeatherSurface(call) {
-  if (seaIceMask?.[call.id] || freshwaterIceMask?.[call.id]) {
-    if (isWaterSurfaceRow(call.row)) drawIceOverlay(call, freshwaterIceMask?.[call.id] ? 0.72 : 0.6);
-  }
-
   if (isWaterSurfaceRow(call.row)) return;
   const flags = weatherFlagsForTile(call.id);
   if ((flags & TILE_DAY_WET_SOIL) !== 0) {
     drawWeatherSpeckles(call, "rgba(53, 64, 75, 0.42)", 14, 0x57544554, 9, 6);
   }
+}
+
+function drawIceSurface(call) {
+  if (!isWaterSurfaceRow(call.row)) return;
+  if (!seaIceMask?.[call.id] && !freshwaterIceMask?.[call.id]) return;
+  drawIceOverlay(call, freshwaterIceMask?.[call.id] ? 0.72 : 0.6);
 }
 
 function drawIceOverlay(call, alpha) {
@@ -4663,11 +4699,11 @@ function drawCityLabels(cityCalls, activeChart) {
   const { labelBounds, visibleBounds, blockers } = cityLabelScreenLayout(activeChart);
   const sorted = [...cityCalls]
     .filter((call) => cityCallIsOnScreen(call, visibleBounds))
-    .sort((a, b) => b.population - a.population || a.city.localeCompare(b.city));
+    .sort((a, b) => b.population - a.population || cityLabelText(a).localeCompare(cityLabelText(b)));
   const occupied = blockers.slice();
 
   for (const call of sorted) {
-    const label = call.city;
+    const label = cityLabelText(call);
     const textW = measurePixelTextWidth(label, PIXEL_FONT_BODY_8);
     const box = placeCityLabel(call, textW, occupied, labelBounds);
     occupied.push(box);
