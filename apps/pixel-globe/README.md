@@ -22,3 +22,14 @@ npm run pixel-globe:dev
 Then open `http://127.0.0.1:5177/`.
 
 Controls: arrow keys or WASD move north/south/east/west. Shift moves faster.
+
+The default terrain variant is `resurrect-64`. Palette and start-location test URLs.
+Available local terrain variants include
+`full-color`, `vinik24`, `fantasy-24`, `resurrect-64`, `lost-century`,
+and `apollo`.
+
+```text
+http://127.0.0.1:5177/?lat=31.2&lon=121.5
+http://127.0.0.1:5177/?terrain=full-color&lat=31.2&lon=121.5
+http://127.0.0.1:5177/?terrain=vinik24&lat=23.5&lon=13
+```

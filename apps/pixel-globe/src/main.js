@@ -38,6 +38,8 @@ const MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 const MINIMAP_Y = 5;
 const MINIMAP_MAX_LAT_DEG = 82.5;
 const WORLD_NORTH = [0, 1, 0];
+const TERRAIN_VARIANT = terrainVariantFromLocation();
+const START_POSITION = startPositionFromLocation();
 
 const terrainAssets = [
   "water_deep_01_01", "water_deep_01_02", "water_shallow_01", "water_shallow_02",
@@ -121,7 +123,7 @@ async function main() {
   earthById = earthRows;
   spriteColors = buildSpriteDominantColors(images);
   minimap = buildMinimap();
-  camera = createCamera(START_LAT_DEG, START_LON_DEG);
+  camera = createCamera(START_POSITION.lat, START_POSITION.lon);
   syncVisibleCenterTile();
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
@@ -148,9 +150,35 @@ function loadImage(key) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve([key, img]);
-    img.onerror = () => reject(new Error(`Failed to load terrain image: ${key}`));
-    img.src = `/assets/terrain/individual/${key}.png`;
+    img.onerror = () => reject(new Error(`Failed to load ${TERRAIN_VARIANT} terrain image: ${key}`));
+    img.src = `/assets/terrain/${TERRAIN_VARIANT}/${key}.png`;
   });
+}
+
+function terrainVariantFromLocation() {
+  const requested = new URLSearchParams(window.location.search).get("terrain") || "resurrect-64";
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(requested)) {
+    throw new Error(`Invalid terrain variant: ${requested}`);
+  }
+  return requested;
+}
+
+function startPositionFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    lat: numericQueryParam(params, "lat", START_LAT_DEG, -89.999, 89.999),
+    lon: numericQueryParam(params, "lon", START_LON_DEG, -180, 180)
+  };
+}
+
+function numericQueryParam(params, name, fallback, min, max) {
+  const raw = params.get(name);
+  if (raw === null || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`Invalid ${name} query param: ${raw}. Expected ${min}..${max}`);
+  }
+  return value;
 }
 
 function buildSpriteDominantColors(imageMap) {
