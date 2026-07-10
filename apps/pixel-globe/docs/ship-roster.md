@@ -4,6 +4,8 @@ The Unity asset pack labels the vessels generically, so this roster assigns game
 
 Generated fleet sprites live in `apps/pixel-globe/public/assets/vehicles/unity-ships/` and use filenames like `{filename slug}-16-headings.png`, with matching `-light`, `-shade`, `-shadow`, `-preview`, and `-lighting-preview` sheets.
 
+High-resolution review rasters live in `apps/pixel-globe/docs/ship-reference/high-res/`. Regenerate them with `PIXEL_GLOBE_SHIP_FRAME_SIZE=160 PIXEL_GLOBE_SHIP_RENDER_SIZE=320 PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE=320 PIXEL_GLOBE_SHIP_PREVIEW_SCALE=1 node tools/render-sail-ship-sprites.mjs --unity-fleet-reference` from `apps/pixel-globe/`.
+
 The fleet bake preserves source-relative ship sizes with a compressed readability curve, so boats remain smaller than large ocean-going ships without disappearing at 36px.
 
 Use `?ship={slug}` in the Pixel Globe URL to start with any ship in this roster.
@@ -11,7 +13,7 @@ Use `?ship={slug}` in the Pixel Globe URL to start with any ship in this roster.
 | Game name | Filename slug | Source asset label | Identification | Confidence | Notes |
 |---|---|---|---|---|---|
 | Fishing Lugger | `fishing-lugger` | Boat 1 | small lugger / fishing boat | Medium | Small single-mast coastal working boat. |
-| Coastal Sloop | `coastal-sloop` | Boat 2 | coastal sloop / cutter | Medium | Small fore-and-aft coastal craft. |
+| Small Dhow | `small-dhow` | Boat 2 | small dhow / coastal lateen boat | Medium | Small open hull with a triangular lateen-like sail reads closer to a dhow than a European sloop. |
 | Small Cog | `small-cog` | Boat 3 | small cog / roundship | Medium | Broad little hull with a simple square-sail profile. |
 | Dhow | `dhow` | Boat 4 | dhow / felucca | High | Lateen sail and narrow hull read strongly as an Indian Ocean or Red Sea craft. |
 | Sampan | `sampan` | Chinese Boat | small junk / sampan | High | Small Chinese-rigged vessel; good for river/coastal Asian traffic. |
@@ -28,7 +30,7 @@ Use `?ship={slug}` in the Pixel Globe URL to start with any ship in this roster.
 | Xebec | `xebec` | Ship Medium 1 | xebec | High | Long, low Mediterranean lateen-rigged profile. |
 | Caravel | `caravel` | Ship Medium 2 | caravel / caravel redonda | Medium | Small explorer/trader silhouette. |
 | Small Carrack | `small-carrack` | Ship Medium 3 | cog / small carrack | Medium | Roundship profile, larger than a cog but less imposing than the carrack. |
-| Ketch | `ketch` | Ship Medium 4 | ketch / small merchant sloop | Low | Stylized enough that this is a functional label more than a firm identification. |
+| Square-Rigged Caravel | `square-rigged-caravel` | Ship Medium 4 | square-rigged caravel / small trader | Medium | Single square sail and compact explorer-trader hull read closer to a small caravel than a ketch. |
 | Brigantine | `brigantine` | Ship Medium 5 | brigantine / brig | Medium | Medium square/fore-and-aft trader or light naval vessel. |
 | Corvette | `corvette` | Ship Medium 6 | corvette / small frigate | Medium | Small naval square-rigger. |
 | Small Junk | `small-junk` | Chinese Ship Small | junk | High | Small battened-sail Chinese vessel. |
@@ -37,7 +39,7 @@ Use `?ship={slug}` in the Pixel Globe URL to start with any ship in this roster.
 | Felucca | `felucca` | Ship Small 2 | dhow / felucca | High | Small single-lateen craft. |
 | Cutter | `cutter` | Ship Small 3 | sloop / cutter | High | Small fore-and-aft European craft. |
 | Lateen Dhow | `lateen-dhow` | Ship Small 4 | dhow / lateen boat | High | Curved lateen silhouette; good Indian Ocean/Arabian Sea craft. |
-| Small Caravel | `small-caravel` | Ship Small 5 | caravel-ish small explorer | Medium | Explorer-sized European sail plan. |
+| Ketch | `ketch` | Ship Small 5 | ketch / small fore-and-aft trader | Medium | Two-mast fore-and-aft rig with a smaller aft sail reads more like a ketch than a caravel. |
 | Square-Sail Trader | `square-sail-trader` | Ship Small 6 | small cog / square-sail trader | Medium | Simple small trader with square-sail read. |
 | Dhow-Felucca | `dhow-felucca` | Ship Small 7 | felucca / dhow | High | Another small lateen craft; distinct source model from Felucca. |
 
@@ -48,7 +50,7 @@ The source of truth for gameplay tuning is `apps/pixel-globe/src/shipStats.js`. 
 | Ship | Slug | Cannons | Accel | Top Speed | Upwind Stall | Turn Rate | HP | Cargo |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | Fishing Lugger | `fishing-lugger` | 0 | 0.021 | 0.028 | 48deg | 2.90 | 35 | 18 |
-| Coastal Sloop | `coastal-sloop` | 2 | 0.025 | 0.034 | 37deg | 3.20 | 45 | 20 |
+| Small Dhow | `small-dhow` | 0 | 0.027 | 0.032 | 34deg | 3.20 | 38 | 28 |
 | Small Cog | `small-cog` | 2 | 0.016 | 0.026 | 58deg | 2.00 | 70 | 70 |
 | Dhow | `dhow` | 4 | 0.022 | 0.033 | 42deg | 2.80 | 55 | 45 |
 | Sampan | `sampan` | 0 | 0.026 | 0.026 | 45deg | 3.40 | 30 | 25 |
@@ -65,7 +67,7 @@ The source of truth for gameplay tuning is `apps/pixel-globe/src/shipStats.js`. 
 | Xebec | `xebec` | 16 | 0.024 | 0.043 | 34deg | 2.80 | 130 | 85 |
 | Caravel | `caravel` | 8 | 0.019 | 0.036 | 44deg | 2.35 | 110 | 120 |
 | Small Carrack | `small-carrack` | 10 | 0.015 | 0.033 | 54deg | 1.90 | 150 | 210 |
-| Ketch | `ketch` | 4 | 0.023 | 0.035 | 36deg | 2.75 | 80 | 75 |
+| Square-Rigged Caravel | `square-rigged-caravel` | 4 | 0.020 | 0.034 | 52deg | 2.30 | 90 | 100 |
 | Brigantine | `brigantine` | 14 | 0.021 | 0.040 | 40deg | 2.45 | 155 | 115 |
 | Corvette | `corvette` | 18 | 0.020 | 0.042 | 42deg | 2.35 | 190 | 90 |
 | Small Junk | `small-junk` | 4 | 0.023 | 0.032 | 43deg | 2.70 | 75 | 80 |
@@ -74,7 +76,7 @@ The source of truth for gameplay tuning is `apps/pixel-globe/src/shipStats.js`. 
 | Felucca | `felucca` | 0 | 0.029 | 0.031 | 30deg | 3.35 | 35 | 20 |
 | Cutter | `cutter` | 4 | 0.028 | 0.035 | 32deg | 3.25 | 60 | 30 |
 | Lateen Dhow | `lateen-dhow` | 2 | 0.027 | 0.032 | 34deg | 3.00 | 45 | 35 |
-| Small Caravel | `small-caravel` | 4 | 0.023 | 0.035 | 40deg | 2.60 | 80 | 80 |
+| Ketch | `ketch` | 4 | 0.024 | 0.035 | 34deg | 2.85 | 75 | 60 |
 | Square-Sail Trader | `square-sail-trader` | 2 | 0.020 | 0.034 | 52deg | 2.30 | 65 | 95 |
 | Dhow-Felucca | `dhow-felucca` | 0 | 0.030 | 0.032 | 30deg | 3.40 | 35 | 18 |
 

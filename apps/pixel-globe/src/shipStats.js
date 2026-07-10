@@ -3,7 +3,7 @@ export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 const DEG_TO_RAD = Math.PI / 180;
 const SHIP_LABELS = Object.freeze({
   "fishing-lugger": "Fishing Lugger",
-  "coastal-sloop": "Coastal Sloop",
+  "small-dhow": "Small Dhow",
   "small-cog": "Small Cog",
   dhow: "Dhow",
   sampan: "Sampan",
@@ -20,7 +20,7 @@ const SHIP_LABELS = Object.freeze({
   xebec: "Xebec",
   caravel: "Caravel",
   "small-carrack": "Small Carrack",
-  ketch: "Ketch",
+  "square-rigged-caravel": "Square-Rigged Caravel",
   brigantine: "Brigantine",
   corvette: "Corvette",
   "small-junk": "Small Junk",
@@ -29,14 +29,14 @@ const SHIP_LABELS = Object.freeze({
   felucca: "Felucca",
   cutter: "Cutter",
   "lateen-dhow": "Lateen Dhow",
-  "small-caravel": "Small Caravel",
+  ketch: "Ketch",
   "square-sail-trader": "Square-Sail Trader",
   "dhow-felucca": "Dhow-Felucca"
 });
 
 const rawShipStats = [
   stats("fishing-lugger", 0, 0.021, 0.028, 48, 2.90, 35, 18),
-  stats("coastal-sloop", 2, 0.025, 0.034, 37, 3.20, 45, 20),
+  stats("small-dhow", 0, 0.027, 0.032, 34, 3.20, 38, 28),
   stats("small-cog", 2, 0.016, 0.026, 58, 2.00, 70, 70),
   stats("dhow", 4, 0.022, 0.033, 42, 2.80, 55, 45),
   stats("sampan", 0, 0.026, 0.026, 45, 3.40, 30, 25),
@@ -53,7 +53,7 @@ const rawShipStats = [
   stats("xebec", 16, 0.024, 0.043, 34, 2.80, 130, 85),
   stats("caravel", 8, 0.019, 0.036, 44, 2.35, 110, 120),
   stats("small-carrack", 10, 0.015, 0.033, 54, 1.90, 150, 210),
-  stats("ketch", 4, 0.023, 0.035, 36, 2.75, 80, 75),
+  stats("square-rigged-caravel", 4, 0.020, 0.034, 52, 2.30, 90, 100),
   stats("brigantine", 14, 0.021, 0.040, 40, 2.45, 155, 115),
   stats("corvette", 18, 0.020, 0.042, 42, 2.35, 190, 90),
   stats("small-junk", 4, 0.023, 0.032, 43, 2.70, 75, 80),
@@ -62,7 +62,7 @@ const rawShipStats = [
   stats("felucca", 0, 0.029, 0.031, 30, 3.35, 35, 20),
   stats("cutter", 4, 0.028, 0.035, 32, 3.25, 60, 30),
   stats("lateen-dhow", 2, 0.027, 0.032, 34, 3.00, 45, 35),
-  stats("small-caravel", 4, 0.023, 0.035, 40, 2.60, 80, 80),
+  stats("ketch", 4, 0.024, 0.035, 34, 2.85, 75, 60),
   stats("square-sail-trader", 2, 0.020, 0.034, 52, 2.30, 65, 95),
   stats("dhow-felucca", 0, 0.030, 0.032, 30, 3.40, 35, 18)
 ];

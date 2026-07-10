@@ -33,14 +33,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "fishing-lugger",
         "cannons": 0,
@@ -51,16 +43,24 @@
         "turnRateRad": 2.9,
         "hitPoints": 35,
         "cargoCapacity": 18
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-lighting-preview.png"
       }
     },
     {
-      "slug": "coastal-sloop",
-      "label": "Coastal Sloop",
+      "slug": "small-dhow",
+      "label": "Small Dhow",
       "category": "boats",
       "assetLabel": "Boat 2",
-      "identifiedType": "coastal sloop / cutter",
+      "identifiedType": "small dhow / coastal lateen boat",
       "identificationConfidence": "medium",
-      "identificationNotes": "Small fore-and-aft coastal craft.",
+      "identificationNotes": "Small open hull with a triangular lateen-like sail reads closer to a dhow than a European sloop.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/boats/boat 2.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -75,24 +75,24 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/coastal-sloop-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/coastal-sloop-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/coastal-sloop-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/coastal-sloop-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/coastal-sloop-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/coastal-sloop-16-headings-lighting-preview.png"
-      },
       "stats": {
-        "slug": "coastal-sloop",
-        "cannons": 2,
-        "accelerationRad": 0.025,
-        "topSpeedRad": 0.034,
-        "upwindStallAngleDeg": 37,
-        "upwindStallAngleRad": 0.6457718232379019,
+        "slug": "small-dhow",
+        "cannons": 0,
+        "accelerationRad": 0.027,
+        "topSpeedRad": 0.032,
+        "upwindStallAngleDeg": 34,
+        "upwindStallAngleRad": 0.5934119456780721,
         "turnRateRad": 3.2,
-        "hitPoints": 45,
-        "cargoCapacity": 20
+        "hitPoints": 38,
+        "cargoCapacity": 28
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-dhow-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-dhow-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-dhow-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-dhow-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-dhow-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-dhow-16-headings-lighting-preview.png"
       }
     },
     {
@@ -117,14 +117,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "small-cog",
         "cannons": 2,
@@ -135,6 +127,14 @@
         "turnRateRad": 2,
         "hitPoints": 70,
         "cargoCapacity": 70
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-cog-16-headings-lighting-preview.png"
       }
     },
     {
@@ -159,14 +159,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "dhow",
         "cannons": 4,
@@ -177,6 +169,14 @@
         "turnRateRad": 2.8,
         "hitPoints": 55,
         "cargoCapacity": 45
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-16-headings-lighting-preview.png"
       }
     },
     {
@@ -201,14 +201,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "sampan",
         "cannons": 0,
@@ -219,6 +211,14 @@
         "turnRateRad": 3.4,
         "hitPoints": 30,
         "cargoCapacity": 25
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/sampan-16-headings-lighting-preview.png"
       }
     },
     {
@@ -243,14 +243,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "large-junk",
         "cannons": 24,
@@ -261,6 +253,14 @@
         "turnRateRad": 1.75,
         "hitPoints": 220,
         "cargoCapacity": 360
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/large-junk-16-headings-lighting-preview.png"
       }
     },
     {
@@ -285,14 +285,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "pirate-brig",
         "cannons": 18,
@@ -303,6 +295,14 @@
         "turnRateRad": 2.35,
         "hitPoints": 190,
         "cargoCapacity": 130
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-lighting-preview.png"
       }
     },
     {
@@ -327,14 +327,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "pirate-frigate",
         "cannons": 36,
@@ -345,6 +337,14 @@
         "turnRateRad": 1.95,
         "hitPoints": 300,
         "cargoCapacity": 190
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-lighting-preview.png"
       }
     },
     {
@@ -369,14 +369,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "galleon",
         "cannons": 32,
@@ -387,6 +379,14 @@
         "turnRateRad": 1.55,
         "hitPoints": 360,
         "cargoCapacity": 420
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/galleon-16-headings-lighting-preview.png"
       }
     },
     {
@@ -411,14 +411,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "frigate",
         "cannons": 40,
@@ -429,6 +421,14 @@
         "turnRateRad": 2.05,
         "hitPoints": 320,
         "cargoCapacity": 180
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-lighting-preview.png"
       }
     },
     {
@@ -453,14 +453,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "fluyt",
         "cannons": 12,
@@ -471,6 +463,14 @@
         "turnRateRad": 1.45,
         "hitPoints": 260,
         "cargoCapacity": 520
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-lighting-preview.png"
       }
     },
     {
@@ -495,14 +495,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "carrack",
         "cannons": 26,
@@ -513,6 +505,14 @@
         "turnRateRad": 1.35,
         "hitPoints": 340,
         "cargoCapacity": 480
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/carrack-16-headings-lighting-preview.png"
       }
     },
     {
@@ -537,14 +537,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "ship-of-the-line",
         "cannons": 74,
@@ -555,6 +547,14 @@
         "turnRateRad": 1.15,
         "hitPoints": 620,
         "cargoCapacity": 260
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-lighting-preview.png"
       }
     },
     {
@@ -579,14 +579,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "medium-junk",
         "cannons": 12,
@@ -597,6 +589,14 @@
         "turnRateRad": 2.1,
         "hitPoints": 135,
         "cargoCapacity": 170
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/medium-junk-16-headings-lighting-preview.png"
       }
     },
     {
@@ -621,14 +621,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "pirate-brigantine",
         "cannons": 12,
@@ -639,6 +631,14 @@
         "turnRateRad": 2.65,
         "hitPoints": 135,
         "cargoCapacity": 80
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-lighting-preview.png"
       }
     },
     {
@@ -663,14 +663,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "xebec",
         "cannons": 16,
@@ -681,6 +673,14 @@
         "turnRateRad": 2.8,
         "hitPoints": 130,
         "cargoCapacity": 85
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/xebec-16-headings-lighting-preview.png"
       }
     },
     {
@@ -705,14 +705,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "caravel",
         "cannons": 8,
@@ -723,6 +715,14 @@
         "turnRateRad": 2.35,
         "hitPoints": 110,
         "cargoCapacity": 120
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/caravel-16-headings-lighting-preview.png"
       }
     },
     {
@@ -747,14 +747,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "small-carrack",
         "cannons": 10,
@@ -765,16 +757,24 @@
         "turnRateRad": 1.9,
         "hitPoints": 150,
         "cargoCapacity": 210
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-carrack-16-headings-lighting-preview.png"
       }
     },
     {
-      "slug": "ketch",
-      "label": "Ketch",
+      "slug": "square-rigged-caravel",
+      "label": "Square-Rigged Caravel",
       "category": "ships medium",
       "assetLabel": "Ship Medium 4",
-      "identifiedType": "ketch / small merchant sloop",
-      "identificationConfidence": "low",
-      "identificationNotes": "Stylized enough that this is a functional label more than a firm identification.",
+      "identifiedType": "square-rigged caravel / small trader",
+      "identificationConfidence": "medium",
+      "identificationNotes": "Single square sail and compact explorer-trader hull read closer to a small caravel than a ketch.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 4.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -789,24 +789,24 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-lighting-preview.png"
-      },
       "stats": {
-        "slug": "ketch",
+        "slug": "square-rigged-caravel",
         "cannons": 4,
-        "accelerationRad": 0.023,
-        "topSpeedRad": 0.035,
-        "upwindStallAngleDeg": 36,
-        "upwindStallAngleRad": 0.6283185307179586,
-        "turnRateRad": 2.75,
-        "hitPoints": 80,
-        "cargoCapacity": 75
+        "accelerationRad": 0.02,
+        "topSpeedRad": 0.034,
+        "upwindStallAngleDeg": 52,
+        "upwindStallAngleRad": 0.9075712110370514,
+        "turnRateRad": 2.3,
+        "hitPoints": 90,
+        "cargoCapacity": 100
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-rigged-caravel-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-rigged-caravel-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-rigged-caravel-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-rigged-caravel-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-rigged-caravel-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-rigged-caravel-16-headings-lighting-preview.png"
       }
     },
     {
@@ -831,14 +831,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "brigantine",
         "cannons": 14,
@@ -849,6 +841,14 @@
         "turnRateRad": 2.45,
         "hitPoints": 155,
         "cargoCapacity": 115
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-lighting-preview.png"
       }
     },
     {
@@ -873,14 +873,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "corvette",
         "cannons": 18,
@@ -891,6 +883,14 @@
         "turnRateRad": 2.35,
         "hitPoints": 190,
         "cargoCapacity": 90
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-lighting-preview.png"
       }
     },
     {
@@ -915,14 +915,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "small-junk",
         "cannons": 4,
@@ -933,6 +925,14 @@
         "turnRateRad": 2.7,
         "hitPoints": 75,
         "cargoCapacity": 80
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-junk-16-headings-lighting-preview.png"
       }
     },
     {
@@ -957,14 +957,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "pirate-sloop",
         "cannons": 6,
@@ -975,6 +967,14 @@
         "turnRateRad": 3.05,
         "hitPoints": 75,
         "cargoCapacity": 35
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-lighting-preview.png"
       }
     },
     {
@@ -999,14 +999,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "lateen-xebec",
         "cannons": 6,
@@ -1017,6 +1009,14 @@
         "turnRateRad": 3,
         "hitPoints": 70,
         "cargoCapacity": 40
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-xebec-16-headings-lighting-preview.png"
       }
     },
     {
@@ -1041,14 +1041,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "felucca",
         "cannons": 0,
@@ -1059,6 +1051,14 @@
         "turnRateRad": 3.35,
         "hitPoints": 35,
         "cargoCapacity": 20
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/felucca-16-headings-lighting-preview.png"
       }
     },
     {
@@ -1083,14 +1083,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "cutter",
         "cannons": 4,
@@ -1101,6 +1093,14 @@
         "turnRateRad": 3.25,
         "hitPoints": 60,
         "cargoCapacity": 30
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-lighting-preview.png"
       }
     },
     {
@@ -1125,14 +1125,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "lateen-dhow",
         "cannons": 2,
@@ -1143,16 +1135,24 @@
         "turnRateRad": 3,
         "hitPoints": 45,
         "cargoCapacity": 35
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/lateen-dhow-16-headings-lighting-preview.png"
       }
     },
     {
-      "slug": "small-caravel",
-      "label": "Small Caravel",
+      "slug": "ketch",
+      "label": "Ketch",
       "category": "ships small",
       "assetLabel": "Ship Small 5",
-      "identifiedType": "caravel-ish small explorer",
+      "identifiedType": "ketch / small fore-and-aft trader",
       "identificationConfidence": "medium",
-      "identificationNotes": "Explorer-sized European sail plan.",
+      "identificationNotes": "Two-mast fore-and-aft rig with a smaller aft sail reads more like a ketch than a caravel.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 5.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -1167,24 +1167,24 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-caravel-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-caravel-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-caravel-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-caravel-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-caravel-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/small-caravel-16-headings-lighting-preview.png"
-      },
       "stats": {
-        "slug": "small-caravel",
+        "slug": "ketch",
         "cannons": 4,
-        "accelerationRad": 0.023,
+        "accelerationRad": 0.024,
         "topSpeedRad": 0.035,
-        "upwindStallAngleDeg": 40,
-        "upwindStallAngleRad": 0.6981317007977318,
-        "turnRateRad": 2.6,
-        "hitPoints": 80,
-        "cargoCapacity": 80
+        "upwindStallAngleDeg": 34,
+        "upwindStallAngleRad": 0.5934119456780721,
+        "turnRateRad": 2.85,
+        "hitPoints": 75,
+        "cargoCapacity": 60
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-lighting-preview.png"
       }
     },
     {
@@ -1209,14 +1209,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "square-sail-trader",
         "cannons": 2,
@@ -1227,6 +1219,14 @@
         "turnRateRad": 2.3,
         "hitPoints": 65,
         "cargoCapacity": 95
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/square-sail-trader-16-headings-lighting-preview.png"
       }
     },
     {
@@ -1251,14 +1251,6 @@
       "sheetCols": 4,
       "lightAzimuthBins": 16,
       "lightElevationBins": 2,
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-lighting-preview.png"
-      },
       "stats": {
         "slug": "dhow-felucca",
         "cannons": 0,
@@ -1269,6 +1261,14 @@
         "turnRateRad": 3.4,
         "hitPoints": 35,
         "cargoCapacity": 18
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/dhow-felucca-16-headings-lighting-preview.png"
       }
     }
   ]

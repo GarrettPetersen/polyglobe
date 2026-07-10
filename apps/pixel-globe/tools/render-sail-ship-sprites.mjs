@@ -15,17 +15,18 @@ const unityShipModelRoot = join(unityShipSourceRoot, "Models");
 const unityShipTexturePath = join(unityShipSourceRoot, "Textures/texture main.png");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
+const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
 
-const frameSize = 36;
+const frameSize = integerEnv("PIXEL_GLOBE_SHIP_FRAME_SIZE", 36);
 const headings = 16;
 const sheetCols = 4;
-const renderSize = 72;
+const renderSize = integerEnv("PIXEL_GLOBE_SHIP_RENDER_SIZE", 72);
 const lightAzimuthBins = 16;
 const lightElevationBins = 2;
 const lightBinCount = lightAzimuthBins * lightElevationBins;
-const shadowFrameSize = 72;
+const shadowFrameSize = integerEnv("PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE", 72);
 const shadowFrameInset = Math.floor((shadowFrameSize - frameSize) / 2);
-const previewScale = 4;
+const previewScale = integerEnv("PIXEL_GLOBE_SHIP_PREVIEW_SCALE", 4);
 const cameraExtent = 1.62;
 const defaultTargetModelMaxDim = 2.3;
 const unityFleetScaleExponent = 0.5;
@@ -37,6 +38,16 @@ const selfShadowLookupRadius = 1;
 const waterlineQuantile = 0.18;
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 
+function integerEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw == null || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer, got: ${raw}`);
+  }
+  return value;
+}
+
 const unityShipRoster = new Map([
   ["boats/boat 1.fbx", {
     label: "Fishing Lugger",
@@ -46,11 +57,11 @@ const unityShipRoster = new Map([
     notes: "Small single-mast coastal working boat."
   }],
   ["boats/boat 2.fbx", {
-    label: "Coastal Sloop",
-    slug: "coastal-sloop",
-    identifiedType: "coastal sloop / cutter",
+    label: "Small Dhow",
+    slug: "small-dhow",
+    identifiedType: "small dhow / coastal lateen boat",
     confidence: "medium",
-    notes: "Small fore-and-aft coastal craft."
+    notes: "Small open hull with a triangular lateen-like sail reads closer to a dhow than a European sloop."
   }],
   ["boats/boat 3.fbx", {
     label: "Small Cog",
@@ -165,11 +176,11 @@ const unityShipRoster = new Map([
     notes: "Roundship profile, larger than a cog but less imposing than the carrack."
   }],
   ["ships medium/ship medium 4.fbx", {
-    label: "Ketch",
-    slug: "ketch",
-    identifiedType: "ketch / small merchant sloop",
-    confidence: "low",
-    notes: "Stylized enough that this is a functional label more than a firm identification."
+    label: "Square-Rigged Caravel",
+    slug: "square-rigged-caravel",
+    identifiedType: "square-rigged caravel / small trader",
+    confidence: "medium",
+    notes: "Single square sail and compact explorer-trader hull read closer to a small caravel than a ketch."
   }],
   ["ships medium/ship medium 5.fbx", {
     label: "Brigantine",
@@ -228,11 +239,11 @@ const unityShipRoster = new Map([
     notes: "Curved lateen silhouette; good Indian Ocean/Arabian Sea craft."
   }],
   ["ships small/ship small 5.fbx", {
-    label: "Small Caravel",
-    slug: "small-caravel",
-    identifiedType: "caravel-ish small explorer",
+    label: "Ketch",
+    slug: "ketch",
+    identifiedType: "ketch / small fore-and-aft trader",
     confidence: "medium",
-    notes: "Explorer-sized European sail plan."
+    notes: "Two-mast fore-and-aft rig with a smaller aft sail reads more like a ketch than a caravel."
   }],
   ["ships small/ship small 6.fbx", {
     label: "Square-Sail Trader",
@@ -1290,6 +1301,15 @@ function resetUnityFleetOutput() {
   mkdirSync(unityFleetOutputRoot, { recursive: true });
 }
 
+function resetUnityFleetReferenceOutput() {
+  const relativeOutput = portablePath(unityFleetReferenceOutputRoot);
+  if (relativeOutput !== "apps/pixel-globe/docs/ship-reference/high-res") {
+    throw new Error(`Refusing to clear unexpected Unity fleet reference output path: ${unityFleetReferenceOutputRoot}`);
+  }
+  rmSync(unityFleetReferenceOutputRoot, { recursive: true, force: true });
+  mkdirSync(unityFleetReferenceOutputRoot, { recursive: true });
+}
+
 function slugify(value) {
   return value
     .toLowerCase()
@@ -1305,11 +1325,12 @@ function titleize(value) {
     .replace(/\b[a-z]/g, (char) => char.toUpperCase());
 }
 
-function makeFleetContactSheet(entries) {
-  const itemScale = 2;
+function makeFleetContactSheet(entries, options = {}) {
+  const itemScale = options.itemScale ?? 2;
   const labelHeight = 18;
-  const itemWidth = frameSize * sheetCols * itemScale;
-  const itemHeight = frameSize * Math.ceil(headings / sheetCols) * itemScale + labelHeight;
+  const itemWidth = Math.round(frameSize * sheetCols * itemScale);
+  const itemSheetHeight = Math.round(frameSize * Math.ceil(headings / sheetCols) * itemScale);
+  const itemHeight = itemSheetHeight + labelHeight;
   const cols = 5;
   const rows = Math.ceil(entries.length / cols);
   const canvas = createCanvas(itemWidth * cols, itemHeight * rows);
@@ -1324,12 +1345,73 @@ function makeFleetContactSheet(entries) {
     const entry = entries[i];
     const x = (i % cols) * itemWidth;
     const y = Math.floor(i / cols) * itemHeight;
-    ctx.drawImage(entry.sheet, x, y, itemWidth, itemWidth);
+    ctx.drawImage(entry.sheet, x, y, itemWidth, itemSheetHeight);
     ctx.fillStyle = "#f4ecd8";
-    ctx.fillText(entry.label.slice(0, 30), x + 4, y + itemWidth + 3);
+    ctx.fillText(entry.label.slice(0, 30), x + 4, y + itemSheetHeight + 3);
   }
 
   return canvas;
+}
+
+async function renderShipReferenceSet(config) {
+  mkdirSync(config.outputDir, { recursive: true });
+  const scene = await loadScene(config.modelPath);
+  const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
+  const model = collectTriangles(scene, {
+    targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim
+  });
+  const triangles = model.triangles;
+  const waterlineY = estimateWaterlineY(triangles);
+  const camera = makeCamera();
+  const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
+  const sheetCtx = sheet.getContext("2d");
+  sheetCtx.clearRect(0, 0, sheet.width, sheet.height);
+  sheetCtx.imageSmoothingEnabled = false;
+
+  const renderOptions = {
+    textureSampler,
+    recolorSails: Boolean(config.recolorSails),
+    waterlineY
+  };
+  const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera, renderOptions));
+  const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
+  const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
+  const frames = renderedHeadings.map((rendered, i) => makeFrame(rendered, boundsByHeading[i], frameScale));
+  for (let i = 0; i < headings; i++) {
+    copyFrameToSheet(frames[i], sheetCtx, i);
+  }
+
+  const preview = makePreview(sheet);
+  const sheetPath = join(config.outputDir, `${config.outputPrefix}.png`);
+  const previewPath = join(config.outputDir, `${config.outputPrefix}-preview.png`);
+  writeFileSync(sheetPath, sheet.toBuffer("image/png"));
+  writeFileSync(previewPath, preview.toBuffer("image/png"));
+  return {
+    slug: config.slug,
+    label: config.label,
+    category: config.category,
+    assetLabel: config.assetLabel,
+    identifiedType: config.identifiedType,
+    identificationConfidence: config.identificationConfidence,
+    identificationNotes: config.identificationNotes,
+    sourceModel: portablePath(config.modelPath),
+    sourceTexture: config.texturePath ? portablePath(config.texturePath) : null,
+    sailRecolor: Boolean(config.recolorSails),
+    sourceMaxDim: Number(model.sourceMaxDim.toFixed(4)),
+    targetModelMaxDim: Number(model.targetMaxDim.toFixed(4)),
+    frameScale: Number(frameScale.toFixed(4)),
+    scaleMode: config.scaleMode || "fit-model",
+    waterlineY,
+    frameSize,
+    renderSize,
+    headings,
+    sheetCols,
+    files: {
+      referenceSheet: portablePath(sheetPath),
+      referencePreview: portablePath(previewPath)
+    },
+    sheet
+  };
 }
 
 async function renderUnityFleet() {
@@ -1391,6 +1473,65 @@ async function renderUnityFleet() {
   console.log(contactSheetPath);
 }
 
+async function renderUnityFleetReferences() {
+  resetUnityFleetReferenceOutput();
+  const models = unityShipModels();
+  if (models.length === 0) {
+    throw new Error(`No Unity ship FBX files found in ${unityShipModelRoot}`);
+  }
+
+  const measuredConfigs = [];
+  for (const modelPath of models) {
+    const config = unityShipConfig(modelPath);
+    config.sourceMaxDim = await measureSourceMaxDim(modelPath);
+    config.outputDir = unityFleetReferenceOutputRoot;
+    config.outputPrefix = `${config.slug}-reference-16-headings`;
+    measuredConfigs.push(config);
+  }
+  const largestSourceMaxDim = Math.max(...measuredConfigs.map((config) => config.sourceMaxDim));
+  for (const config of measuredConfigs) {
+    config.targetModelMaxDim = fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
+  }
+
+  const fleetBounds = [];
+  for (const config of measuredConfigs) {
+    fleetBounds.push(...await measureRenderedBounds(config));
+  }
+  const sharedFrameScale = fixedFrameScale(fleetBounds);
+  for (const config of measuredConfigs) {
+    config.frameScale = sharedFrameScale;
+  }
+  validateShipStatsForSlugs(measuredConfigs.map((config) => config.slug));
+
+  const references = [];
+  for (const config of measuredConfigs) {
+    console.log(`reference ${config.slug}`);
+    const entry = await renderShipReferenceSet(config);
+    references.push(entry);
+    console.log(`  ${entry.files.referenceSheet}`);
+  }
+
+  const manifestForDisk = references.map(({ sheet, ...entry }) => entry);
+  const manifestPath = join(unityFleetReferenceOutputRoot, "reference-manifest.json");
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "PIXEL_GLOBE_SHIP_FRAME_SIZE=160 PIXEL_GLOBE_SHIP_RENDER_SIZE=320 PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE=320 PIXEL_GLOBE_SHIP_PREVIEW_SCALE=1 tools/render-sail-ship-sprites.mjs --unity-fleet-reference",
+    sourceRoot: portablePath(unityShipSourceRoot),
+    scaleMode: "source-relative-fleet",
+    scaleNotes: "High-resolution review rasters use the same source-relative fleet scale as the gameplay bake.",
+    targetMaxDimForLargestShip: defaultTargetModelMaxDim,
+    fleetScaleExponent: unityFleetScaleExponent,
+    sharedFrameScale: Number(sharedFrameScale.toFixed(4)),
+    skipped: ["Models/viking ships/*.fbx", "Models/water.fbx"],
+    ships: manifestForDisk
+  }, null, 2)}\n`);
+
+  const contactSheet = makeFleetContactSheet(references, { itemScale: 0.5 });
+  const contactSheetPath = join(unityFleetReferenceOutputRoot, "unity-ships-reference-contact-sheet.png");
+  writeFileSync(contactSheetPath, contactSheet.toBuffer("image/png"));
+  console.log(manifestPath);
+  console.log(contactSheetPath);
+}
+
 function parseArgs(argv) {
   const flags = new Set();
   const values = new Map();
@@ -1421,6 +1562,10 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("--unity-fleet")) {
     await renderUnityFleet();
+    return;
+  }
+  if (args.has("--unity-fleet-reference")) {
+    await renderUnityFleetReferences();
     return;
   }
 

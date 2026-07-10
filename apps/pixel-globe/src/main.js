@@ -977,14 +977,17 @@ function decodeShipWakeAnchors(img) {
 
     const positiveShoulder = shipWakeShoulderAnchor(points, aftProjection, length, direction, side, 1);
     const negativeShoulder = shipWakeShoulderAnchor(points, aftProjection, length, direction, side, -1);
+    if (!positiveShoulder && !negativeShoulder) {
+      throw new Error(`Ship frame ${frame} has no bow shoulder pixels for wake anchor extraction`);
+    }
     const sternProjection = aftProjection - SHIP_WAKE_STERN_CLEARANCE_PX;
     anchors.push({
       stern: {
         x: Math.round(direction.x * sternProjection + side.x * stern.lateral),
         y: Math.round(direction.y * sternProjection + side.y * stern.lateral)
       },
-      positiveShoulder,
-      negativeShoulder
+      positiveShoulder: positiveShoulder || mirrorShipWakeShoulder(negativeShoulder, direction, side),
+      negativeShoulder: negativeShoulder || mirrorShipWakeShoulder(positiveShoulder, direction, side)
     });
   }
 
@@ -999,11 +1002,20 @@ function shipWakeShoulderAnchor(points, aftProjection, length, direction, side, 
     const forward = (point.projection - minProjection) / Math.max(1, aftProjection + length - minProjection);
     return point.alpha * (0.35 + forward) * (0.5 + sideDistance);
   });
-  if (!anchor) throw new Error("Ship frame has no bow shoulder pixels for wake anchor extraction");
+  if (!anchor) return null;
 
   return {
     x: Math.round(direction.x * anchor.projection + side.x * (anchor.lateral + SHIP_WAKE_BOW_SHOULDER_OUTSET_PX * sideSign)),
     y: Math.round(direction.y * anchor.projection + side.y * (anchor.lateral + SHIP_WAKE_BOW_SHOULDER_OUTSET_PX * sideSign))
+  };
+}
+
+function mirrorShipWakeShoulder(anchor, direction, side) {
+  const projection = anchor.x * direction.x + anchor.y * direction.y;
+  const lateral = anchor.x * side.x + anchor.y * side.y;
+  return {
+    x: Math.round(direction.x * projection - side.x * lateral),
+    y: Math.round(direction.y * projection - side.y * lateral)
   };
 }
 
@@ -1570,10 +1582,11 @@ async function setPlayerShipType(slug) {
     applyPlayerShipType(slug, stats, assets);
   } catch (error) {
     if (requestId !== shipSelectionRequestId) return;
-    console.error(error);
+    const label = shipLabelForSlug(slug);
+    console.error(new Error(`Failed to load ship type ${label} (${slug})`, { cause: error }));
     optionsMenu.shipSlug = ship?.typeSlug || START_SHIP_SLUG;
     optionsMenu.shipLoadingSlug = null;
-    optionsMenu.shipError = "LOAD ERR";
+    optionsMenu.shipError = `ERR ${label}`;
     dirty = true;
   }
 }
