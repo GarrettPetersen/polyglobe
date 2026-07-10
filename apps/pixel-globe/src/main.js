@@ -51,6 +51,12 @@ import {
   portDialogueView,
   selectPortDialogueOption
 } from "./dialogueSystem.js";
+import {
+  NPC_SHIP_SLUGS,
+  createNpcSeaRouteSystem,
+  npcShipSnapshots,
+  updateNpcSeaRouteSystem
+} from "./npcSeaRoutes.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -360,7 +366,8 @@ const OPTIONS_ROW_MUTE = 1;
 const OPTIONS_ROW_SHIP = 2;
 const UI_ASSET_VERSION = "options-menu-1";
 const MUSIC_ASSET_VERSION = "regional-city-combat-1";
-const SFX_ASSET_VERSION = "harbour-cannon-1";
+const SFX_ASSET_VERSION = "seagulls-1";
+const ANIMAL_ASSET_VERSION = "seagulls-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const MUSIC_VOLUME_STORAGE_KEY = "pixel_globe_music_volume";
 const MUSIC_MUTED_STORAGE_KEY = "pixel_globe_music_muted";
@@ -417,14 +424,35 @@ const COMBAT_BIG_BROADSIDE_MIN_CANNONS = 10;
 const SFX_CANNON_URL = "/assets/sfx/universfield-cannon-shot-352459.mp3";
 const SFX_HARBOUR_URL = "/assets/sfx/freesound_community-harboursoundsanno1811-24015.mp3";
 const SFX_IMPACT_URL = "/assets/sfx/dragon-studio-boulder-impact-487673%20%281%29.mp3";
+const SFX_SEAGULLS_URL = "/assets/sfx/dragon-studio-seagull-calls-339723.mp3";
+const SFX_SHORE_GULLS_URL = "/assets/sfx/freesound_community-sea-and-seagull-wave-5932.mp3";
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_IMPACT_POOL_SIZE = 6;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_IMPACT_VOLUME = 0.64;
 const SFX_HARBOUR_MAX_VOLUME = 0.34;
+const SFX_SEAGULLS_MAX_VOLUME = 0.16;
+const SFX_SHORE_GULLS_MAX_VOLUME = 0.24;
 const SFX_HARBOUR_NEAR_PX = 42;
 const SFX_HARBOUR_FAR_PX = 170;
 const SFX_HARBOUR_FADE_PER_SECOND = 1.35;
+const SEAGULL_FLIGHT_URL = "/assets/animals/seagull-Sheet.png";
+const SEAGULL_STANDING_URL = "/assets/animals/seagull_standing.png";
+const SEAGULL_FRAME_SIZE = 9;
+const SEAGULL_FLIGHT_FRAMES = 6;
+const SEAGULL_MAX_FLYING = 14;
+const SEAGULL_MAX_LANDED = 26;
+const SEAGULL_SPAWN_CHECK_MS = 900;
+const SEAGULL_SPAWN_MARGIN_PX = 22;
+const SEAGULL_FLIGHT_MARGIN_PX = 38;
+const SEAGULL_MIN_TTL_MS = 15000;
+const SEAGULL_TTL_SPREAD_MS = 14000;
+const SEAGULL_MIN_SPEED_PX = 6;
+const SEAGULL_SPEED_SPREAD_PX = 8;
+const SEAGULL_GLIDE_MIN_MS = 1800;
+const SEAGULL_GLIDE_SPREAD_MS = 2600;
+const SEAGULL_FLAP_MIN_MS = 330;
+const SEAGULL_FLAP_SPREAD_MS = 260;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
@@ -493,8 +521,11 @@ let shipWakeAnchors;
 let shipLighting;
 let settingsMenuIcon;
 let cityImages;
+let animalImages;
 let cityCatalog;
 let cityByTileId;
+let npcShipImages;
+let npcSeaRoutes;
 let characterPortraitManifest;
 let portCityCharacters;
 let portCitiesByTileId;
@@ -551,6 +582,9 @@ let precipParticleDrawTick = -1;
 let precipParticles = [];
 let precipParticleSerial = 1;
 let visiblePrecipitationLastRender = false;
+let seagulls = [];
+let seagullNextSpawnMs = 0;
+let seagullSerial = 1;
 const optionsMenu = createOptionsMenuState();
 
 fitCanvasToIntegerScale();
@@ -616,8 +650,10 @@ async function main() {
     loadedImages,
     loadedShipImage,
     loadedShipLighting,
+    loadedNpcShipImages,
     loadedSettingsMenuIcon,
     loadedCityImages,
+    loadedAnimalImages,
     loadedCityCatalog,
     loadedCharacterPortraitManifest,
     earth,
@@ -627,8 +663,10 @@ async function main() {
     loadTerrainImages(),
     loadVehicleImage(`${shipSpriteKey}-16-headings`),
     loadShipLightingBake(shipSpriteKey),
+    loadNpcShipImages(),
     loadUiImage("settings_menu_icon"),
     loadCityImages(),
+    loadAnimalImages(),
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
     fetchEarthCache(),
@@ -639,8 +677,10 @@ async function main() {
   shipImage = loadedShipImage;
   shipWakeAnchors = decodeShipWakeAnchors(shipImage);
   shipLighting = loadedShipLighting;
+  npcShipImages = loadedNpcShipImages;
   settingsMenuIcon = loadedSettingsMenuIcon;
   cityImages = loadedCityImages;
+  animalImages = loadedAnimalImages;
   cityCatalog = loadedCityCatalog;
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
@@ -685,6 +725,11 @@ async function main() {
     `${characterPortraitManifest.sourceCharacters.length} source portraits, ` +
     `${characterPortraitManifest.paletteVariants.length} palettes`
   );
+  npcSeaRoutes = createNpcSeaRouteSystem({
+    ports: portCities,
+    startMinute: weatherClockMinutes
+  });
+  console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
   seaIceMask = new Uint8Array(graph.tileCount);
   freshwaterIceMask = new Uint8Array(graph.tileCount);
   snowGroundMask = new Uint8Array(graph.tileCount);
@@ -813,8 +858,46 @@ function loadVehicleImage(key) {
   return loadAssetImage(`/assets/vehicles/${key}.png?v=${TERRAIN_ASSET_VERSION}`, `vehicle image: ${key}`);
 }
 
+async function loadNpcShipImages() {
+  const entries = await Promise.all(NPC_SHIP_SLUGS.map(async (slug) => {
+    const key = `${vehicleSpriteKeyForShipSlug(slug)}-16-headings`;
+    const img = await loadVehicleImage(key);
+    validateShipSpriteSheet(img, `NPC ship image: ${slug}`);
+    return [slug, img];
+  }));
+  return new Map(entries);
+}
+
+function validateShipSpriteSheet(img, label) {
+  const rows = Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS);
+  const expectedWidth = SHIP_SHEET_FRAME_SIZE * SHIP_SHEET_COLS;
+  const expectedHeight = SHIP_SHEET_FRAME_SIZE * rows;
+  validateImageDimensions(img, label, expectedWidth, expectedHeight);
+}
+
 function loadUiImage(key) {
   return loadAssetImage(`/assets/ui/${key}.png?v=${UI_ASSET_VERSION}`, `UI image: ${key}`);
+}
+
+async function loadAnimalImages() {
+  const [seagullFlight, seagullStanding] = await Promise.all([
+    loadAssetImage(`${SEAGULL_FLIGHT_URL}?v=${ANIMAL_ASSET_VERSION}`, "seagull flight sheet"),
+    loadAssetImage(`${SEAGULL_STANDING_URL}?v=${ANIMAL_ASSET_VERSION}`, "standing seagull image")
+  ]);
+  validateImageDimensions(
+    seagullFlight,
+    "seagull flight sheet",
+    SEAGULL_FRAME_SIZE * SEAGULL_FLIGHT_FRAMES,
+    SEAGULL_FRAME_SIZE
+  );
+  validateImageDimensions(seagullStanding, "standing seagull image", SEAGULL_FRAME_SIZE, SEAGULL_FRAME_SIZE);
+  return { seagullFlight, seagullStanding };
+}
+
+function validateImageDimensions(img, label, expectedWidth, expectedHeight) {
+  if (img.width !== expectedWidth || img.height !== expectedHeight) {
+    throw new Error(`${label} has ${img.width}x${img.height}; expected ${expectedWidth}x${expectedHeight}`);
+  }
 }
 
 async function loadCityImages() {
@@ -1596,6 +1679,8 @@ function loop(nowMs) {
     if (updateCannons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
+    if (updateNpcShips()) dirty = true;
+    if (updateSeagulls(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
     if (updatePrecipitationAnimation(nowMs)) dirty = true;
     updateAmbientAudio(dt);
@@ -1680,22 +1765,13 @@ function createMusicAudio(url, label) {
 
 function setupSoundEffects() {
   if (soundEffects) return;
-  const harbour = new Audio(`${SFX_HARBOUR_URL}?v=${SFX_ASSET_VERSION}`);
-  harbour.preload = "auto";
-  harbour.loop = true;
-  harbour.volume = 0;
   soundEffects = {
     cannon: createSoundPool(SFX_CANNON_URL, SFX_CANNON_POOL_SIZE, "cannon shot"),
     impact: createSoundPool(SFX_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "impact thud"),
-    harbour: {
-      audio: harbour,
-      currentVolume: 0,
-      targetVolume: 0,
-      started: false,
-      startAttempting: false
-    }
+    harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
+    seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
+    shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves")
   };
-  harbour.addEventListener("error", () => console.warn("[pixel-globe] harbour ambience failed to load"));
   applyThemeAudioSettings();
 }
 
@@ -1708,11 +1784,27 @@ function createSoundPool(url, count, label) {
   });
 }
 
+function createAmbientLoop(url, label) {
+  const audio = new Audio(`${url}?v=${SFX_ASSET_VERSION}`);
+  audio.preload = "auto";
+  audio.loop = true;
+  audio.volume = 0;
+  audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
+  return {
+    audio,
+    label,
+    currentVolume: 0,
+    targetVolume: 0,
+    started: false,
+    startAttempting: false
+  };
+}
+
 function ensureGameAudioStarted(fromUserGesture = false) {
   if (fromUserGesture) gameAudioActivationAllowed = true;
   if (!gameAudioActivationAllowed) return;
   ensureThemeMusicStarted();
-  ensureHarbourLoopStarted();
+  ensureActiveAmbientLoopsStarted();
 }
 
 function ensureThemeMusicStarted() {
@@ -1834,25 +1926,30 @@ function updateMusicContext(nowMs) {
   }
 }
 
-function ensureHarbourLoopStarted() {
+function ensureActiveAmbientLoopsStarted() {
+  for (const loop of ambientSoundLoops()) {
+    if (loop.targetVolume > 0.001) ensureAmbientLoopStarted(loop);
+  }
+}
+
+function ensureAmbientLoopStarted(loop) {
   if (!gameAudioActivationAllowed) return;
-  const harbour = soundEffects?.harbour;
-  if (!harbour || harbour.started || harbour.startAttempting) return;
-  harbour.started = true;
-  harbour.startAttempting = true;
-  harbour.audio.currentTime = 0;
+  if (!loop || loop.started || loop.startAttempting) return;
+  loop.started = true;
+  loop.startAttempting = true;
+  loop.audio.currentTime = 0;
   applyThemeAudioSettings();
-  const playPromise = harbour.audio.play();
+  const playPromise = loop.audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
       .catch(() => {
-        harbour.started = false;
+        loop.started = false;
       })
       .finally(() => {
-        harbour.startAttempting = false;
+        loop.startAttempting = false;
       });
   } else {
-    harbour.startAttempting = false;
+    loop.startAttempting = false;
   }
 }
 
@@ -1871,9 +1968,10 @@ function applyThemeAudioSettings() {
     for (const audio of [...soundEffects.cannon, ...soundEffects.impact]) {
       audio.muted = optionsMenu.muted;
     }
-    const harbour = soundEffects.harbour;
-    harbour.audio.muted = optionsMenu.muted;
-    harbour.audio.volume = optionsMenu.muted ? 0 : volume * harbour.currentVolume;
+    for (const loop of ambientSoundLoops()) {
+      loop.audio.muted = optionsMenu.muted;
+      loop.audio.volume = optionsMenu.muted ? 0 : volume * loop.currentVolume;
+    }
   }
 }
 
@@ -1900,20 +1998,58 @@ function playCannonImpactSound(distancePx = 0) {
 }
 
 function updateAmbientAudio(dt) {
-  const harbour = soundEffects?.harbour;
-  if (!harbour) return;
-  const targetVolume = harbourProximity() * SFX_HARBOUR_MAX_VOLUME;
-  harbour.targetVolume = targetVolume;
-  if (targetVolume > 0.001) ensureHarbourLoopStarted();
+  if (!soundEffects) return;
+  const shore = harbourProximity();
+  let changed = false;
+  changed = updateAmbientLoop(
+    soundEffects.harbour,
+    shore * SFX_HARBOUR_MAX_VOLUME,
+    SFX_HARBOUR_MAX_VOLUME,
+    dt
+  ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.seagulls,
+    seagullAmbientPresence(shore) * SFX_SEAGULLS_MAX_VOLUME,
+    SFX_SEAGULLS_MAX_VOLUME,
+    dt
+  ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.shoreGulls,
+    shore * SFX_SHORE_GULLS_MAX_VOLUME,
+    SFX_SHORE_GULLS_MAX_VOLUME,
+    dt
+  ) || changed;
+  if (changed) applyThemeAudioSettings();
+}
+
+function updateAmbientLoop(loop, targetVolume, maxVolume, dt) {
+  if (!loop) return false;
+  loop.targetVolume = clamp(targetVolume, 0, maxVolume);
+  if (loop.targetVolume > 0.001) ensureAmbientLoopStarted(loop);
   const maxStep = SFX_HARBOUR_FADE_PER_SECOND * dt;
-  const delta = clamp(targetVolume - harbour.currentVolume, -maxStep, maxStep);
-  if (Math.abs(delta) <= 0.0005) return;
-  harbour.currentVolume = clamp(harbour.currentVolume + delta, 0, SFX_HARBOUR_MAX_VOLUME);
-  applyThemeAudioSettings();
-  if (harbour.currentVolume <= 0.0005 && harbour.started && targetVolume <= 0.0005) {
-    harbour.audio.pause();
-    harbour.started = false;
+  const delta = clamp(loop.targetVolume - loop.currentVolume, -maxStep, maxStep);
+  let changed = false;
+  if (Math.abs(delta) > 0.0005) {
+    loop.currentVolume = clamp(loop.currentVolume + delta, 0, maxVolume);
+    changed = true;
   }
+  if (loop.currentVolume <= 0.0005 && loop.started && loop.targetVolume <= 0.0005) {
+    loop.audio.pause();
+    loop.started = false;
+    changed = true;
+  }
+  return changed;
+}
+
+function ambientSoundLoops() {
+  if (!soundEffects) return [];
+  return [soundEffects.harbour, soundEffects.seagulls, soundEffects.shoreGulls].filter(Boolean);
+}
+
+function seagullAmbientPresence(shore) {
+  const flying = Math.min(1, seagulls.length / Math.max(1, SEAGULL_MAX_FLYING));
+  const landed = chart ? Math.min(1, landedSeagullCalls(chart).length / Math.max(1, SEAGULL_MAX_LANDED)) : 0;
+  return clamp(Math.max(shore * 0.72, flying * 0.5, landed * 0.42), 0, 1);
 }
 
 function harbourProximity() {
@@ -3588,6 +3724,112 @@ function updateWeather(dt, nowMs) {
   return dayChanged;
 }
 
+function updateNpcShips() {
+  if (!npcSeaRoutes) return false;
+  return updateNpcSeaRouteSystem(npcSeaRoutes, weatherClockMinutes);
+}
+
+function updateSeagulls(dt, nowMs) {
+  if (!chart || !animalImages) return false;
+  let changed = false;
+  const kept = [];
+  const offset = chartOffsetPixels(chart);
+  for (const gull of seagulls) {
+    const ageMs = nowMs - gull.bornMs;
+    gull.x += gull.vx * dt;
+    gull.y += gull.vy * dt;
+    gull.vx += (gull.targetVx - gull.vx) * Math.min(1, dt * 0.55);
+    gull.vy += (gull.targetVy - gull.vy) * Math.min(1, dt * 0.55);
+    if (ageMs <= gull.ttlMs && pointNearScreen({ x: gull.x + offset.x, y: gull.y + offset.y }, SEAGULL_FLIGHT_MARGIN_PX)) {
+      kept.push(gull);
+    }
+  }
+  if (kept.length !== seagulls.length) changed = true;
+  seagulls = kept;
+
+  if (nowMs >= seagullNextSpawnMs) {
+    seagullNextSpawnMs = nowMs + SEAGULL_SPAWN_CHECK_MS;
+    if (spawnSeagulls(nowMs)) changed = true;
+  }
+  return changed || seagulls.length > 0;
+}
+
+function spawnSeagulls(nowMs) {
+  if (seagulls.length >= SEAGULL_MAX_FLYING || !chart) return false;
+  const candidates = seagullFlightSpawnCalls(chart);
+  if (candidates.length === 0) return false;
+
+  const tick = Math.floor(nowMs / SEAGULL_SPAWN_CHECK_MS);
+  const seed = hashInt(centerTileId ^ Math.imul(tick + 1, 0x45d9f3b));
+  if ((seed & 7) > 4) return false;
+
+  const call = candidates[seed % candidates.length];
+  const room = SEAGULL_MAX_FLYING - seagulls.length;
+  const count = Math.min(room, 1 + (hashInt(seed ^ 0x67756c6c) % 3));
+  for (let i = 0; i < count; i++) {
+    seagulls.push(createFlyingSeagull(call, hashInt(seed ^ Math.imul(i + 1, 0x9e3779b1)), nowMs));
+  }
+  return true;
+}
+
+function createFlyingSeagull(call, seed, nowMs) {
+  const wind = seagullWindVector();
+  const side = (seed & 1) === 0 ? 1 : -1;
+  const angle = ((seed >>> 5) % 6283) / 1000;
+  const speed = SEAGULL_MIN_SPEED_PX + ((seed >>> 17) % 1000) / 999 * SEAGULL_SPEED_SPREAD_PX;
+  const wander = {
+    x: Math.cos(angle) * 0.34 + wind.x * 0.78 + -wind.y * side * 0.18,
+    y: Math.sin(angle) * 0.34 + wind.y * 0.78 + wind.x * side * 0.18
+  };
+  const direction = normalizeScreenVector(wander) || { x: side, y: 0 };
+  const originJitter = {
+    x: (((seed >>> 9) & 15) - 7.5) * 0.9,
+    y: (((seed >>> 13) & 15) - 7.5) * 0.55
+  };
+  return {
+    id: seagullSerial++,
+    x: Math.round(call.drawSurfaceX + originJitter.x),
+    y: Math.round(call.drawSurfaceY - 7 + originJitter.y),
+    vx: direction.x * speed,
+    vy: direction.y * speed,
+    targetVx: direction.x * speed,
+    targetVy: direction.y * speed,
+    bornMs: nowMs,
+    ttlMs: SEAGULL_MIN_TTL_MS + (hashInt(seed ^ 0x74696d65) % SEAGULL_TTL_SPREAD_MS),
+    phaseMs: seed % 1800,
+    glideMs: SEAGULL_GLIDE_MIN_MS + ((seed >>> 6) % SEAGULL_GLIDE_SPREAD_MS),
+    flapMs: SEAGULL_FLAP_MIN_MS + ((seed >>> 11) % SEAGULL_FLAP_SPREAD_MS)
+  };
+}
+
+function seagullWindVector() {
+  const state = windIndicatorState || (ship && graph ? windIndicatorTarget() : null);
+  if (!state) return { x: 1, y: 0 };
+  return normalizeScreenVector({
+    x: Math.cos(state.flowDirectionRad),
+    y: -Math.sin(state.flowDirectionRad)
+  }) || { x: 1, y: 0 };
+}
+
+function normalizeScreenVector(v) {
+  const length = Math.hypot(v.x, v.y);
+  if (length <= 1e-6) return null;
+  return { x: v.x / length, y: v.y / length };
+}
+
+function seagullFlightSpawnCalls(activeChart) {
+  const offset = chartOffsetPixels(activeChart);
+  return activeChart.tileCalls.filter((call) =>
+    isWaterSurfaceRow(call.row) &&
+    !isShipBlockedByIceTile(call.id) &&
+    tileHasLandNeighbor(call.id) &&
+    pointNearScreen({
+      x: call.drawSurfaceX + offset.x,
+      y: call.drawSurfaceY + offset.y
+    }, SEAGULL_SPAWN_MARGIN_PX)
+  );
+}
+
 function updatePrecipitationAnimation(nowMs) {
   const tick = Math.floor(nowMs / PRECIP_PARTICLE_REDRAW_MS);
   if (tick === precipParticleDrawTick) return false;
@@ -3828,10 +4070,12 @@ function render(nowMs) {
   drawCloudLayer(chart);
   drawShipWake(chart);
   drawCannonEffects(chart);
+  drawSeagulls(chart, nowMs);
   drawCitySprites(chart);
   ctx.restore();
 
   drawShipShadow(chart, shipLight, offset);
+  drawNpcShips(chart);
   drawShip(shipLight);
   ctx.save();
   ctx.translate(offset.x, offset.y);
@@ -6034,6 +6278,201 @@ function drawShipShadow(activeChart, light, offset) {
   }
 }
 
+function drawSeagulls(activeChart, nowMs) {
+  if (!animalImages) return;
+  const calls = [
+    ...landedSeagullCalls(activeChart),
+    ...flyingSeagullCalls(activeChart, nowMs)
+  ].sort((a, b) => a.sortY - b.sortY || a.id - b.id);
+  for (const call of calls) drawSeagullSprite(call);
+}
+
+function landedSeagullCalls(activeChart) {
+  const calls = [];
+  for (const call of activeChart.tileCalls) {
+    if (calls.length >= SEAGULL_MAX_LANDED) break;
+    if (!isSeagullLandingCall(call)) continue;
+    const seed = hashInt(call.id ^ 0x5347554c);
+    if ((seed & 15) > 4) continue;
+    const count = Math.min(SEAGULL_MAX_LANDED - calls.length, 1 + (seed % 3));
+    for (let i = 0; i < count; i++) {
+      const birdSeed = hashInt(seed ^ Math.imul(i + 1, 0x85ebca6b));
+      const x = Math.round(call.drawSurfaceX - 4 + (((birdSeed >>> 4) & 15) - 7));
+      const y = Math.round(call.drawSurfaceY - 9 + (((birdSeed >>> 9) & 7) - 3));
+      calls.push({
+        id: call.id * 8 + i,
+        img: animalImages?.seagullStanding || null,
+        frame: 0,
+        x,
+        y,
+        sortY: y + SEAGULL_FRAME_SIZE,
+        alpha: 1,
+        flip: (birdSeed & 1) === 0
+      });
+    }
+  }
+  return calls;
+}
+
+function flyingSeagullCalls(activeChart, nowMs) {
+  const calls = [];
+  for (const gull of seagulls) {
+    const bob = Math.round(Math.sin((nowMs + gull.phaseMs) / 540) * 1.2);
+    const x = Math.round(gull.x - SEAGULL_FRAME_SIZE / 2);
+    const y = Math.round(gull.y - SEAGULL_FRAME_SIZE / 2 + bob);
+    if (!seagullCanFlyOverLocalPoint(activeChart, gull.x, gull.y)) continue;
+    calls.push({
+      id: 100000 + gull.id,
+      img: animalImages.seagullFlight,
+      frame: seagullFlightFrame(gull, nowMs),
+      x,
+      y,
+      sortY: y + SEAGULL_FRAME_SIZE,
+      alpha: seagullLifeAlpha(gull, nowMs),
+      flip: gull.vx < 0
+    });
+  }
+  return calls;
+}
+
+function seagullFlightFrame(gull, nowMs) {
+  const cycleMs = gull.glideMs + gull.flapMs;
+  const t = (nowMs - gull.bornMs + gull.phaseMs) % cycleMs;
+  if (t < gull.glideMs) return 0;
+  const flapU = (t - gull.glideMs) / gull.flapMs;
+  return 1 + Math.min(SEAGULL_FLIGHT_FRAMES - 2, Math.floor(flapU * (SEAGULL_FLIGHT_FRAMES - 1)));
+}
+
+function seagullLifeAlpha(gull, nowMs) {
+  const ageMs = nowMs - gull.bornMs;
+  const fadeMs = 1200;
+  return clamp(Math.min(ageMs / fadeMs, (gull.ttlMs - ageMs) / fadeMs), 0, 1);
+}
+
+function drawSeagullSprite(call) {
+  if (!call.img || call.alpha <= 0.01) return;
+  const sx = call.frame * SEAGULL_FRAME_SIZE;
+  ctx.save();
+  ctx.globalAlpha = call.alpha;
+  if (call.flip) {
+    ctx.translate(call.x + SEAGULL_FRAME_SIZE, call.y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(call.img, sx, 0, SEAGULL_FRAME_SIZE, SEAGULL_FRAME_SIZE, 0, 0, SEAGULL_FRAME_SIZE, SEAGULL_FRAME_SIZE);
+  } else {
+    ctx.drawImage(
+      call.img,
+      sx,
+      0,
+      SEAGULL_FRAME_SIZE,
+      SEAGULL_FRAME_SIZE,
+      call.x,
+      call.y,
+      SEAGULL_FRAME_SIZE,
+      SEAGULL_FRAME_SIZE
+    );
+  }
+  ctx.restore();
+}
+
+function isSeagullLandingCall(call) {
+  return !isWaterSurfaceRow(call.row) &&
+    terrainLevel(call.row, call.id) <= 1 &&
+    tileHasWaterNeighbor(call.id);
+}
+
+function seagullCanFlyOverLocalPoint(activeChart, x, y) {
+  const nearest = nearestTileCallForLocalPoint(activeChart, x, y);
+  return !!nearest && isWaterSurfaceRow(nearest.row) && !isShipBlockedByIceTile(nearest.id);
+}
+
+function nearestTileCallForLocalPoint(activeChart, x, y) {
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const call of activeChart.tileCalls) {
+    const d = distance2(x, y, call.drawSurfaceX, call.drawSurfaceY);
+    if (d < nearestDistance) {
+      nearestDistance = d;
+      nearest = call;
+    }
+  }
+  return nearestDistance <= TILE_RADIUS_PX * TILE_RADIUS_PX * 9 ? nearest : null;
+}
+
+function tileHasLandNeighbor(tileId) {
+  for (const neighborId of graph.neighbors[tileId] || []) {
+    if (!isWaterSurfaceRow(earthById[neighborId])) return true;
+  }
+  return false;
+}
+
+function tileHasWaterNeighbor(tileId) {
+  for (const neighborId of graph.neighbors[tileId] || []) {
+    if (isWaterSurfaceRow(earthById[neighborId]) && !isShipBlockedByIceTile(neighborId)) return true;
+  }
+  return false;
+}
+
+function drawNpcShips(activeChart) {
+  if (!npcSeaRoutes || !npcShipImages || !camera || !directionIndex) return;
+  const drawCalls = [];
+  for (const snapshot of npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)) {
+    const call = npcShipDrawCall(snapshot, activeChart);
+    if (call) drawCalls.push(call);
+  }
+  drawCalls.sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
+  for (const call of drawCalls) drawNpcShip(call);
+}
+
+function npcShipDrawCall(snapshot, activeChart) {
+  const point = projectDirectionFor(snapshot.vector, activeChart, false);
+  if (!point || !pointNearScreen(point, SHIP_SHEET_FRAME_SIZE)) return null;
+  const tileId = findNearestTileId(graph, directionIndex, snapshot.vector);
+  if (!activeChart.visibleSet.has(tileId)) return null;
+  if (!isShipNavigableTile(tileId)) return null;
+  const heading = npcShipScreenHeading(snapshot.heading);
+  const img = npcShipImages.get(snapshot.slug);
+  if (!img) throw new Error(`Missing NPC ship sprite sheet for ${snapshot.slug}`);
+  return {
+    id: snapshot.id,
+    slug: snapshot.slug,
+    img,
+    frame: headingFrameForScreenHeading(heading),
+    x: Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2),
+    y: Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2)
+  };
+}
+
+function npcShipScreenHeading(headingVector) {
+  const hx = dot3(headingVector, camera.right);
+  const hy = dot3(headingVector, camera.up);
+  const length = Math.hypot(hx, hy);
+  if (length <= 1e-6) return { x: 0, y: -1 };
+  return { x: hx / length, y: -hy / length };
+}
+
+function pointNearScreen(point, margin) {
+  return point.x >= -margin &&
+    point.x <= SCREEN_W + margin &&
+    point.y >= -margin &&
+    point.y <= SCREEN_H + margin;
+}
+
+function drawNpcShip(call) {
+  const sx = (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const sy = Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  ctx.drawImage(
+    call.img,
+    sx,
+    sy,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE,
+    call.x,
+    call.y,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
+}
+
 function drawShip(light) {
   if (!ship || !shipImage) return;
   const frame = shipHeadingFrame();
@@ -6093,6 +6532,10 @@ function drawShipMaskPoints(points, x, y, color) {
 
 function shipHeadingFrame() {
   const heading = shipScreenHeading();
+  return headingFrameForScreenHeading(heading);
+}
+
+function headingFrameForScreenHeading(heading) {
   const angle = Math.atan2(-heading.y, heading.x);
   const raw = Math.round(angle / (Math.PI * 2) * SHIP_HEADING_COUNT);
   return ((raw % SHIP_HEADING_COUNT) + SHIP_HEADING_COUNT) % SHIP_HEADING_COUNT;
