@@ -23,6 +23,27 @@ import type { TileSurfaceState } from "./tileSurfaceState.js";
 const DAYS = 365;
 const REF_YEAR = 2023;
 
+/**
+ * Köppen aridity already lowers annual precipitation potential, but the broad synthetic ITCZ can
+ * still produce implausible summer rain over subtropical deserts. Give hot deserts a small,
+ * cool-season storm window instead of letting them follow the ITCZ north and south.
+ */
+export function precipitationPotentialForTerrain(
+  potential: number,
+  terrain: TerrainType | undefined,
+  latDeg: number,
+  dayIndex: number,
+): number {
+  if (terrain !== "hot_desert" && terrain !== "desert") return potential;
+  if (Math.abs(latDeg) < 20) return potential * 0.06;
+
+  const localWinterPeakDay = latDeg >= 0 ? 14 : 196;
+  const phase = (2 * Math.PI * (dayIndex - localWinterPeakDay)) / DAYS;
+  const winter = 0.5 + 0.5 * Math.cos(phase);
+  const rareWinterStormPotential = 0.012 + 0.03 * Math.pow(winter, 6);
+  return Math.max(potential * 0.03, rareWinterStormPotential);
+}
+
 function u32Hash(parts: readonly number[]): number {
   let h = 2166136261 >>> 0;
   for (const p of parts) {
@@ -73,6 +94,10 @@ export interface BuildDiscreteWeatherYearOptions {
   getMonthlyMeanTempCForTile?: (tileId: number) => Float32Array | undefined;
 }
 
+export function terrainSkipsDiscretePrecipitation(terrain: TerrainType): boolean {
+  return terrain === "water" || terrain === "lake";
+}
+
 function simulateDiscreteYearIntoPacked(
   tileIds: readonly number[],
   tileCount: number,
@@ -111,11 +136,17 @@ function simulateDiscreteYearIntoPacked(
 
       const { lat } = tileCenterToLatLon(tile.center);
       const latDeg = (lat * 180) / Math.PI;
-      const pot = precipPacked[pBase + i] ?? 0;
+      const terrain = options.getTerrainTypeForTile?.(tid);
+      const sourcePotential = precipPacked[pBase + i] ?? 0;
+      const pot = precipitationPotentialForTerrain(
+        sourcePotential,
+        terrain,
+        latDeg,
+        d,
+      );
       const u = unitFloat(u32Hash([seed, tid, d, 0x504443]));
       const precipToday = pot > 0.02 && u < pot * chanceScale;
 
-      const terrain = options.getTerrainTypeForTile?.(tid);
       const monthly = options.getMonthlyMeanTempCForTile?.(tid);
       const temp = getTileTemperature01(
         latDeg,

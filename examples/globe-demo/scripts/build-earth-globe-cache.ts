@@ -41,6 +41,7 @@ import {
   buildMoistureByTileFromTerrain,
   buildAnnualTileWeatherTables,
   buildDiscreteWeatherYearBake,
+  terrainSkipsDiscretePrecipitation,
   encodeDiscreteWeatherYearBakeFile,
   encodeGlobeRuntimeBakeFile,
   globeRuntimeBakeCoastResolution,
@@ -690,7 +691,7 @@ async function buildCacheForSubdivisions(
     });
     const waterTileIds = new Set<number>();
     for (const [id, t] of tileTerrain) {
-      if (t.type === "water") waterTileIds.add(id);
+      if (terrainSkipsDiscretePrecipitation(t.type)) waterTileIds.add(id);
     }
     const bake = buildDiscreteWeatherYearBake(
       globe,

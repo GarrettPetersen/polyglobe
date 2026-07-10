@@ -84,6 +84,83 @@ export function chooseRiverChannelDirection({ x, y, desiredDirection, headingDir
   return best;
 }
 
+export function steerAlongRiverCenterline({
+  desiredDirection,
+  headingDirection,
+  tangent,
+  outwardNormal,
+  centerlineDistance,
+  channelDirection = null
+}) {
+  const desired = normalize2(desiredDirection);
+  const heading = normalize2(headingDirection) || desired;
+  const axis = normalize2(tangent);
+  if (!desired || !axis) return normalize2(channelDirection) || desired;
+
+  const reverseAxis = { x: -axis.x, y: -axis.y };
+  const forwardScore = dot2(axis, desired) * 2 + dot2(axis, heading) * 0.55;
+  const reverseScore = dot2(reverseAxis, desired) * 2 + dot2(reverseAxis, heading) * 0.55;
+  let direction = reverseScore > forwardScore ? reverseAxis : axis;
+
+  const channel = normalize2(channelDirection);
+  if (channel) direction = blendRiverNavigationDirections(direction, channel, 0.38);
+
+  const normal = normalize2(outwardNormal);
+  if (normal && Number.isFinite(centerlineDistance)) {
+    const bankPressure = clamp((centerlineDistance - 0.4) / 2.8, 0, 0.82);
+    if (bankPressure > 0) {
+      direction = blendRiverNavigationDirections(direction, { x: -normal.x, y: -normal.y }, bankPressure);
+    }
+  }
+  return direction;
+}
+
+export function advanceRiverCenterline(path, pathT, distancePx, directionSign) {
+  validateRiverPath(path);
+  if (!Number.isFinite(pathT)) throw new Error(`Invalid river path position: ${pathT}`);
+  if (!Number.isFinite(distancePx) || distancePx < 0) {
+    throw new Error(`Invalid river conveyor distance: ${distancePx}`);
+  }
+  if (directionSign !== 1 && directionSign !== -1) {
+    throw new Error(`Invalid river conveyor direction: ${directionSign}`);
+  }
+
+  const pathLength = approximateRiverPathLength(path);
+  const nextT = clamp(pathT + directionSign * distancePx / pathLength, 0, 1);
+  const point = pointOnRiverPath(path, nextT);
+  return {
+    ...point,
+    pathT: nextT,
+    reachedEnd: directionSign > 0 ? nextT >= 1 : nextT <= 0
+  };
+}
+
+function validateRiverPath(path) {
+  if (!path || !["x0", "y0", "cx", "cy", "x1", "y1"].every((key) => Number.isFinite(path[key]))) {
+    throw new Error("River conveyor requires a finite Bezier path");
+  }
+}
+
+function approximateRiverPathLength(path) {
+  let length = 0;
+  let previous = pointOnRiverPath(path, 0);
+  for (let index = 1; index <= 20; index++) {
+    const point = pointOnRiverPath(path, index / 20);
+    length += Math.hypot(point.x - previous.x, point.y - previous.y);
+    previous = point;
+  }
+  if (length <= 1e-6) throw new Error("River conveyor path has no length");
+  return length;
+}
+
+function pointOnRiverPath(path, t) {
+  const omt = 1 - t;
+  return {
+    x: omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1,
+    y: omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1
+  };
+}
+
 function normalize2(value) {
   if (!value || !Number.isFinite(value.x) || !Number.isFinite(value.y)) return null;
   const length = Math.hypot(value.x, value.y);

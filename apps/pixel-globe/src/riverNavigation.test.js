@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  advanceRiverCenterline,
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
-  findRiverGatewayDirection
+  findRiverGatewayDirection,
+  steerAlongRiverCenterline
 } from "./riverNavigation.js";
 
 test("open-water ships are guided into a nearby river mouth in their forward cone", () => {
@@ -83,4 +85,50 @@ test("NPC river guidance chooses the outgoing arm that advances its route", () =
   assert.ok(direction);
   assert.ok(direction.x > 0);
   assert.ok(direction.y > 0);
+});
+
+test("river centerline steering follows the locally downstream tangent", () => {
+  const direction = steerAlongRiverCenterline({
+    desiredDirection: { x: 0.3, y: 1 },
+    headingDirection: { x: 0, y: 1 },
+    tangent: { x: 0, y: -1 },
+    outwardNormal: null,
+    centerlineDistance: 0
+  });
+
+  assert.ok(direction);
+  assert.ok(direction.y > 0.99);
+});
+
+test("river centerline steering pushes a ship away from the outside bank", () => {
+  const direction = steerAlongRiverCenterline({
+    desiredDirection: { x: 0, y: 1 },
+    headingDirection: { x: 0, y: 1 },
+    tangent: { x: 0, y: 1 },
+    outwardNormal: { x: 1, y: 0 },
+    centerlineDistance: 2.7
+  });
+
+  assert.ok(direction);
+  assert.ok(direction.x < -0.5);
+  assert.ok(direction.y > 0);
+});
+
+test("river conveyor advances along the centerline in either direction", () => {
+  const path = { x0: 0, y0: 0, cx: 5, cy: 3, x1: 10, y1: 0 };
+  const forward = advanceRiverCenterline(path, 0.5, 2, 1);
+  const reverse = advanceRiverCenterline(path, 0.5, 2, -1);
+
+  assert.ok(forward.pathT > 0.5);
+  assert.ok(reverse.pathT < 0.5);
+  assert.ok(forward.x > reverse.x);
+  assert.equal(forward.reachedEnd, false);
+});
+
+test("river conveyor stops at a centerline endpoint", () => {
+  const path = { x0: 0, y0: 0, cx: 5, cy: 0, x1: 10, y1: 0 };
+  const target = advanceRiverCenterline(path, 0.95, 20, 1);
+  assert.equal(target.pathT, 1);
+  assert.equal(target.x, 10);
+  assert.equal(target.reachedEnd, true);
 });

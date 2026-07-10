@@ -28,7 +28,12 @@ export function createGameState({ cargoCapacity }) {
       visitedPorts: {},
       decisions: {},
       flags: {},
-      discoveredLandmarks: {},
+      discoveries: {},
+      discoveryOrder: [],
+      navigation: {
+        lastLongitudeDeg: null,
+        cumulativeLongitudeDeg: 0
+      },
       quests: {
         active: null,
         completed: {}
@@ -37,20 +42,47 @@ export function createGameState({ cargoCapacity }) {
   };
 }
 
-export function discoverLandmark(state, landmark) {
+export function recordDiscovery(state, discovery) {
   assertGameState(state);
-  assertLandmark(landmark);
-  if (state.memory.discoveredLandmarks[landmark.id]) return false;
-  state.memory.discoveredLandmarks[landmark.id] = {
-    name: landmark.displayName,
-    elevationM: landmark.elevationM
+  assertDiscovery(discovery);
+  if (state.memory.discoveries[discovery.id]) return false;
+  state.memory.discoveries[discovery.id] = {
+    id: discovery.id,
+    displayName: discovery.displayName,
+    kind: discovery.kind,
+    detail: discovery.detail || ""
   };
+  state.memory.discoveryOrder.push(discovery.id);
   return true;
 }
 
-export function hasDiscoveredLandmark(state, landmarkId) {
+export function hasDiscovery(state, discoveryId) {
   assertGameState(state);
-  return Boolean(state.memory.discoveredLandmarks[landmarkId]);
+  return Boolean(state.memory.discoveries[discoveryId]);
+}
+
+export function discoveredEntries(state) {
+  assertGameState(state);
+  return state.memory.discoveryOrder.map((id) => {
+    const discovery = state.memory.discoveries[id];
+    if (!discovery) throw new Error(`Discovery order references missing discovery: ${id}`);
+    return discovery;
+  });
+}
+
+export function updateCircumnavigationProgress(state, longitudeDeg) {
+  assertGameState(state);
+  if (!Number.isFinite(longitudeDeg)) throw new Error(`Invalid navigation longitude: ${longitudeDeg}`);
+  const navigation = state.memory.navigation;
+  if (navigation.lastLongitudeDeg === null) {
+    navigation.lastLongitudeDeg = longitudeDeg;
+    return false;
+  }
+
+  const delta = normalizeLongitudeDelta(longitudeDeg - navigation.lastLongitudeDeg);
+  navigation.lastLongitudeDeg = longitudeDeg;
+  navigation.cumulativeLongitudeDeg += delta;
+  return Math.abs(navigation.cumulativeLongitudeDeg) >= 360;
 }
 
 export function setCargoCapacity(state, cargoCapacity) {
@@ -242,21 +274,38 @@ function assertGameState(state) {
   }
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
-  if (!state.memory.discoveredLandmarks || typeof state.memory.discoveredLandmarks !== "object") {
-    throw new Error("Game state discovered landmarks must be an object");
+  if (!state.memory.discoveries || typeof state.memory.discoveries !== "object") {
+    throw new Error("Game state discoveries must be an object");
+  }
+  if (!Array.isArray(state.memory.discoveryOrder)) {
+    throw new Error("Game state discovery order must be an array");
+  }
+  if (!state.memory.navigation || typeof state.memory.navigation !== "object") {
+    throw new Error("Game state navigation memory must be an object");
+  }
+  const { lastLongitudeDeg, cumulativeLongitudeDeg } = state.memory.navigation;
+  if (lastLongitudeDeg !== null && !Number.isFinite(lastLongitudeDeg)) {
+    throw new Error(`Invalid last navigation longitude: ${lastLongitudeDeg}`);
+  }
+  if (!Number.isFinite(cumulativeLongitudeDeg)) {
+    throw new Error(`Invalid cumulative navigation longitude: ${cumulativeLongitudeDeg}`);
   }
 }
 
-function assertLandmark(landmark) {
-  if (!landmark || typeof landmark.id !== "string" || landmark.id === "") {
-    throw new Error("Cannot discover a landmark without an id");
+function assertDiscovery(discovery) {
+  if (!discovery || typeof discovery.id !== "string" || discovery.id === "") {
+    throw new Error("Cannot record a discovery without an id");
   }
-  if (typeof landmark.displayName !== "string" || landmark.displayName === "") {
-    throw new Error(`Landmark ${landmark.id} has no display name`);
+  if (typeof discovery.displayName !== "string" || discovery.displayName === "") {
+    throw new Error(`Discovery ${discovery.id} has no display name`);
   }
-  if (!Number.isFinite(landmark.elevationM)) {
-    throw new Error(`Landmark ${landmark.id} has invalid elevation`);
+  if (!["mountain", "landmark", "achievement"].includes(discovery.kind)) {
+    throw new Error(`Discovery ${discovery.id} has invalid kind: ${discovery.kind}`);
   }
+}
+
+function normalizeLongitudeDelta(deltaDeg) {
+  return ((((deltaDeg + 180) % 360) + 360) % 360) - 180;
 }
 
 function assertCargoCapacity(cargoCapacity) {

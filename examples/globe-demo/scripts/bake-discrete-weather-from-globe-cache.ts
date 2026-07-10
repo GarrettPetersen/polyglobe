@@ -14,6 +14,7 @@ import {
   buildAnnualTileWeatherTables,
   buildDiscreteWeatherYearBake,
   encodeDiscreteWeatherYearBakeFile,
+  terrainSkipsDiscretePrecipitation,
   parseTemperatureMonthlyBin,
   attachMonthlyTemperatureToTerrainFromRaster,
   type TileTerrainData,
@@ -116,6 +117,7 @@ function bakeForSubdivisions(subdivisions: number): void {
         globe.tiles,
         tileTerrain,
         layer,
+        { includeWaterTiles: true },
       );
       console.log("Attached tavg_monthly.bin");
     }
@@ -140,7 +142,7 @@ function bakeForSubdivisions(subdivisions: number): void {
   });
   const waterTileIds = new Set<number>();
   for (const [id, t] of tileTerrain) {
-    if (t.type === "water") waterTileIds.add(id);
+    if (terrainSkipsDiscretePrecipitation(t.type)) waterTileIds.add(id);
   }
   console.log(
     `buildDiscreteWeatherYearBake… ${globe.tileCount} tiles × 365 days`,

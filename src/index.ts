@@ -252,6 +252,7 @@ export {
   TILE_DAY_WET_SOIL,
   TILE_DAY_SNOW_GROUND,
   buildDiscreteWeatherYearBake,
+  terrainSkipsDiscretePrecipitation,
   discreteDayIndexFromPacked,
   discreteTileOrdinalMap,
   queryDiscreteWeatherForTileId,

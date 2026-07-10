@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
-import { createGameState, discoverLandmark, hasDiscoveredLandmark } from "./gameState.js";
+import {
+  createGameState,
+  discoveredEntries,
+  hasDiscovery,
+  recordDiscovery,
+  updateCircumnavigationProgress
+} from "./gameState.js";
 import { buildMountainLandmarks } from "./mountainLandmarks.js";
 
 const repoRoot = new URL("../../../", import.meta.url);
@@ -30,14 +36,26 @@ test("full named mountain data aligns with cached peak tiles", async () => {
 
 test("landmark discoveries are recorded only once", () => {
   const state = createGameState({ cargoCapacity: 20 });
-  const fuji = { id: "mountain-fuji", displayName: "Mount Fuji", elevationM: 3776 };
+  const fuji = {
+    id: "mountain-fuji",
+    kind: "mountain",
+    displayName: "Mount Fuji",
+    detail: "3,776 m"
+  };
 
-  assert.equal(hasDiscoveredLandmark(state, fuji.id), false);
-  assert.equal(discoverLandmark(state, fuji), true);
-  assert.equal(discoverLandmark(state, fuji), false);
-  assert.equal(hasDiscoveredLandmark(state, fuji.id), true);
-  assert.deepEqual(state.memory.discoveredLandmarks[fuji.id], {
-    name: "Mount Fuji",
-    elevationM: 3776
-  });
+  assert.equal(hasDiscovery(state, fuji.id), false);
+  assert.equal(recordDiscovery(state, fuji), true);
+  assert.equal(recordDiscovery(state, fuji), false);
+  assert.equal(hasDiscovery(state, fuji.id), true);
+  assert.deepEqual(discoveredEntries(state), [fuji]);
+});
+
+test("circumnavigation progress unwraps the international date line", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  assert.equal(updateCircumnavigationProgress(state, 170), false);
+  assert.equal(updateCircumnavigationProgress(state, -170), false);
+  assert.equal(state.memory.navigation.cumulativeLongitudeDeg, 20);
+  assert.equal(updateCircumnavigationProgress(state, -10), false);
+  assert.equal(updateCircumnavigationProgress(state, 150), false);
+  assert.equal(updateCircumnavigationProgress(state, -170), true);
 });

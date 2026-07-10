@@ -45,15 +45,23 @@ import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import {
   cargoUsed,
   createGameState,
-  discoverLandmark,
-  hasDiscoveredLandmark,
+  discoveredEntries,
+  hasDiscovery,
+  recordDiscovery,
   setCargoCapacity,
+  updateCircumnavigationProgress,
   visitPort
 } from "./gameState.js";
 import {
   buildMountainLandmarks,
   loadNamedMountains
 } from "./mountainLandmarks.js";
+import {
+  CIRCUMNAVIGATION_DISCOVERY,
+  buildWorldDiscoveries,
+  mountainDiscovery,
+  restrictMountainsToNavigableView
+} from "./discoveries.js";
 import {
   createPortDialogueSession,
   createShipDialogueSession,
@@ -79,9 +87,11 @@ import {
 } from "./sailingAudio.js";
 import {
   RIVER_GATEWAY_SEARCH_RADIUS_PX,
+  advanceRiverCenterline,
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
-  findRiverGatewayDirection
+  findRiverGatewayDirection,
+  steerAlongRiverCenterline
 } from "./riverNavigation.js";
 import { chooseNpcEscapeDirection } from "./npcVisualNavigation.js";
 import {
@@ -110,6 +120,8 @@ const BEACH_WAVE_WATER_ALPHA = 0.58;
 const BEACH_WAVE_EDGE_RECESS = 0.2;
 const FRONT_FACE_OVERLAP_PX = 4;
 const FRONT_FACE_MIN_DY = 2;
+const MOUNTAIN_FOOT_REACH = 0.36;
+const MOUNTAIN_FOOT_TIP_HALF_WIDTH = 1;
 const RIVER_ARM_LENGTH_PX = 15;
 const RIVER_MOUTH_ARM_LENGTH_PX = 17;
 const RIVER_CURVE_BEND_PX = 4;
@@ -184,6 +196,7 @@ const NPC_VISUAL_CATCHUP_SPEED_PX = 4;
 const NPC_VISUAL_TARGET_TOLERANCE_PX = 1;
 const NPC_VISUAL_MAX_STEP_PX = 3;
 const NPC_VISUAL_ESCAPE_COMMIT_PX = 18;
+const NPC_RIVER_CONVEYOR_CENTERING_SPEED_PX = 9;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 18];
 const NPC_VISUAL_ESCAPE_ANGLES_RAD = [
   105, -105, 120, -120, 135, -135, 150, -150, 165, -165, 180
@@ -377,6 +390,10 @@ const MOUNTAIN_DISCOVERY_PANEL_W = 230;
 const MOUNTAIN_DISCOVERY_PANEL_H = 24;
 const MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
 const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
+const DISCOVERIES_BUTTON_SIZE = 13;
+const DISCOVERIES_PANEL_W = 300;
+const DISCOVERIES_PANEL_H = 214;
+const DISCOVERIES_PAGE_SIZE = 9;
 const DIALOGUE_PANEL_X = 6;
 const DIALOGUE_PANEL_Y = 78;
 const DIALOGUE_PANEL_W = SCREEN_W - 12;
@@ -410,6 +427,8 @@ const MINIMAP_PARTIAL_DITHER = 0.08;
 const OPTIONS_BUTTON_SIZE = 13;
 const OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
+const DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
+const DISCOVERIES_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 142;
 const OPTIONS_ROW_H = 22;
@@ -418,7 +437,7 @@ const OPTIONS_ROW_MUSIC = 0;
 const OPTIONS_ROW_SFX = 1;
 const OPTIONS_ROW_MUTE = 2;
 const OPTIONS_ROW_SHIP = 3;
-const UI_ASSET_VERSION = "options-menu-1";
+const UI_ASSET_VERSION = "discoveries-menu-1";
 const MUSIC_ASSET_VERSION = "seamless-webaudio-1";
 const SFX_ASSET_VERSION = "normalized-ogg-1";
 const ANIMAL_ASSET_VERSION = "seagulls-1";
@@ -593,13 +612,18 @@ let directionIndex;
 let earthRows;
 let earthById;
 let mountainLandmarks;
-let mountainDiscoveryNotice = null;
+let worldDiscoveries = [];
+let discoveryCatalog = [];
+let discoveryNotice = null;
+const discoveryNoticeQueue = [];
 let images;
 let shipImage;
 let shipWakeAnchors;
 let shipWakeAnchorsBySlug;
 let shipLighting;
 let settingsMenuIcon;
+let discoveriesMenuIcon;
+let egyptianPyramidImage;
 let cityImages;
 let animalImages;
 let cityCatalog;
@@ -670,12 +694,17 @@ let seagulls = [];
 let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
 const optionsMenu = createOptionsMenuState();
+const discoveriesMenu = createDiscoveriesMenuState();
 
 fitCanvasToIntegerScale();
 window.addEventListener("resize", fitCanvasToIntegerScale);
 
 window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
+  if (discoveriesMenu.isOpen) {
+    handleDiscoveriesKeyDown(event);
+    return;
+  }
   if (optionsMenu.isOpen) {
     handleOptionsKeyDown(event);
     return;
@@ -737,6 +766,8 @@ async function main() {
     loadedShipLighting,
     loadedNpcShipImages,
     loadedSettingsMenuIcon,
+    loadedDiscoveriesMenuIcon,
+    loadedEgyptianPyramidImage,
     loadedCityImages,
     loadedAnimalImages,
     loadedCityCatalog,
@@ -752,6 +783,11 @@ async function main() {
     loadShipLightingBake(shipSpriteKey),
     loadNpcShipImages(),
     loadUiImage("settings_menu_icon"),
+    loadUiImage("discoveries_menu_icon"),
+    loadAssetImage(
+      "/assets/terrain/resurrect-64/egyptian_pyramid.png?v=discoveries-1",
+      "Egyptian pyramid landmark"
+    ),
     loadCityImages(),
     loadAnimalImages(),
     loadCityCatalog(CITY_DATA_YEAR),
@@ -768,6 +804,8 @@ async function main() {
   shipLighting = loadedShipLighting;
   npcShipImages = loadedNpcShipImages;
   settingsMenuIcon = loadedSettingsMenuIcon;
+  discoveriesMenuIcon = loadedDiscoveriesMenuIcon;
+  egyptianPyramidImage = loadedEgyptianPyramidImage;
   cityImages = loadedCityImages;
   animalImages = loadedAnimalImages;
   cityCatalog = loadedCityCatalog;
@@ -796,10 +834,6 @@ async function main() {
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
   mountainLandmarks = buildMountainLandmarks(loadedNamedMountains, graph, directionIndex, earth.peaks);
-  console.info(
-    `[pixel-globe] mountains: ${mountainLandmarks.all.length} named peaks, ` +
-    `${mountainLandmarks.peakTileIds.size} peak tiles, ${mountainLandmarks.famous.length} discoverable landmarks`
-  );
   cityByTileId = placeCityCatalog(cityCatalog);
   waterDepthBands = buildWaterDepthBands();
   spriteColors = buildSpriteDominantColors(images);
@@ -810,6 +844,35 @@ async function main() {
   riverMasks = riverData.masks;
   riverToWaterMasks = riverData.toWaterMasks;
   oceanReachableNavigationMask = buildOceanReachableNavigationMask();
+  mountainLandmarks = restrictMountainsToNavigableView(
+    mountainLandmarks,
+    graph,
+    oceanReachableNavigationMask,
+    MOUNTAIN_DISCOVERY_RADIUS_PX / PIXELS_PER_RADIAN
+  );
+  worldDiscoveries = buildWorldDiscoveries(graph, directionIndex, {
+    landMask: Uint8Array.from(earthRows, (row) => isWaterSurfaceRow(row) ? 0 : 1),
+    cityTileIds: cityByTileId.keys(),
+    riverMasks,
+    riverToWaterMasks
+  });
+  discoveryCatalog = [
+    ...mountainLandmarks.famous.map(mountainDiscovery),
+    ...worldDiscoveries,
+    CIRCUMNAVIGATION_DISCOVERY
+  ];
+  console.info(
+    `[pixel-globe] mountains: ${mountainLandmarks.all.length} named peaks, ` +
+    `${mountainLandmarks.peakTileIds.size} peak tiles, ` +
+    `${mountainLandmarks.famous.length} navigable discoveries, ` +
+    `${mountainLandmarks.inaccessibleFamous.length} inaccessible discoveries removed`
+  );
+  if (mountainLandmarks.inaccessibleFamous.length > 0) {
+    console.info(
+      `[pixel-globe] inaccessible mountain discoveries removed: ` +
+      mountainLandmarks.inaccessibleFamous.map((mountain) => mountain.displayName).join(", ")
+    );
+  }
   characterPortraitManifest = loadedCharacterPortraitManifest;
   portCities = portCitiesForCharacters();
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
@@ -1719,13 +1782,13 @@ function loop(nowMs) {
 function runFrame(nowMs) {
   const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
   lastFrameMs = nowMs;
-  if (!optionsMenu.isOpen && !dialogueState) {
+  if (!menusAreOpen() && !dialogueState) {
     if (updateSailing(dt)) dirty = true;
     if (updateCannons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
     ensureChart();
-    if (updateMountainDiscovery(nowMs)) dirty = true;
+    if (updateDiscoveries(nowMs)) dirty = true;
     if (updateNpcShips(dt)) dirty = true;
     if (updateSeagulls(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
@@ -1733,13 +1796,14 @@ function runFrame(nowMs) {
   }
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
-  if (dirty || optionsMenu.isOpen || dialogueState || nowMs - lastStatusMs > 1000) {
+  if (dirty || menusAreOpen() || dialogueState || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
   } else if (nowMs - lastOverlayMs > 250) {
     drawMinimap(nowMs);
+    drawDiscoveriesButton();
     drawOptionsButton();
     lastOverlayMs = nowMs;
   }
@@ -1768,6 +1832,22 @@ function createOptionsMenuState() {
     shipPrevRect: null,
     shipNextRect: null
   };
+}
+
+function createDiscoveriesMenuState() {
+  return {
+    isOpen: false,
+    page: 0,
+    buttonRect: null,
+    panelRect: null,
+    closeButtonRect: null,
+    previousPageRect: null,
+    nextPageRect: null
+  };
+}
+
+function menusAreOpen() {
+  return optionsMenu.isOpen || discoveriesMenu.isOpen;
 }
 
 function setupThemeMusic() {
@@ -2058,7 +2138,7 @@ function sailingAmbientTargets(dt) {
   const angleFromWindRad = Math.acos(clamp(-alignment, -1, 1));
   return updateSailingAudioState(sailingAudioState, {
     dt,
-    paused: Boolean(dialogueState || optionsMenu.isOpen),
+    paused: Boolean(dialogueState || menusAreOpen()),
     heading: ship.heading,
     speedPx: vectorLength(ship.velocity) * PIXELS_PER_RADIAN,
     isRiver: shipIsInRiverWater(),
@@ -2282,12 +2362,44 @@ function syncShipSlugToLocation(slug) {
 }
 
 function openOptionsMenu() {
+  closeDiscoveriesMenu();
   optionsMenu.isOpen = true;
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
   keys.clear();
   clearPointerSteering();
   dirty = true;
+}
+
+function openDiscoveriesMenu() {
+  closeOptionsMenu();
+  discoveriesMenu.isOpen = true;
+  discoveriesMenu.page = 0;
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeDiscoveriesMenu() {
+  discoveriesMenu.isOpen = false;
+  discoveriesMenu.panelRect = null;
+  discoveriesMenu.closeButtonRect = null;
+  discoveriesMenu.previousPageRect = null;
+  discoveriesMenu.nextPageRect = null;
+  dirty = true;
+}
+
+function handleDiscoveriesKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closeDiscoveriesMenu();
+    return;
+  }
+  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+    stepDiscoveriesPage(-1);
+  } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+    stepDiscoveriesPage(1);
+  }
 }
 
 function closeOptionsMenu() {
@@ -2341,10 +2453,22 @@ function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
   ensureGameAudioStarted(true);
+  if (discoveriesMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleDiscoveriesPointerDown(point);
+    return;
+  }
   if (optionsMenu.isOpen) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     handleOptionsPointerDown(point);
+    return;
+  }
+  if (pointInRect(point, getDiscoveriesButtonRect())) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openDiscoveriesMenu();
     return;
   }
   if (pointInRect(point, getOptionsButtonRect())) {
@@ -2386,6 +2510,10 @@ function handlePointerDown(event) {
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
+  if (discoveriesMenu.isOpen) {
+    dirty = true;
+    return;
+  }
   if (optionsMenu.isOpen) {
     updateOptionsSelectionFromPoint(point);
     if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
@@ -2472,6 +2600,25 @@ function handleOptionsPointerDown(point) {
     optionsMenu.selectedIndex = OPTIONS_ROW_SHIP;
     requestShipMenuStep(1);
   }
+}
+
+function handleDiscoveriesPointerDown(point) {
+  if (pointInRect(point, discoveriesMenu.closeButtonRect)) {
+    closeDiscoveriesMenu();
+    return;
+  }
+  if (pointInRect(point, discoveriesMenu.previousPageRect)) {
+    stepDiscoveriesPage(-1);
+    return;
+  }
+  if (pointInRect(point, discoveriesMenu.nextPageRect)) stepDiscoveriesPage(1);
+}
+
+function stepDiscoveriesPage(direction) {
+  const count = discoveredEntries(gameState).length;
+  const pageCount = Math.max(1, Math.ceil(count / DISCOVERIES_PAGE_SIZE));
+  discoveriesMenu.page = (discoveriesMenu.page + direction + pageCount) % pageCount;
+  dirty = true;
 }
 
 function updateOptionsSelectionFromPoint(point) {
@@ -4115,7 +4262,7 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
     state.vector,
     stats.turnRateRad * dt
   );
-  const move = moveNpcVisualShip(state, direction, stepDistance, collisionHeading);
+  const move = moveNpcVisualShip(state, direction, stepDistance, collisionHeading, dt);
   if (!move) return false;
 
   state.x = move.x;
@@ -4126,9 +4273,16 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
   return true;
 }
 
-function moveNpcVisualShip(state, direction, distance, heading) {
+function moveNpcVisualShip(state, direction, distance, heading, dt) {
   const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
   if (!startNav.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
+  if (startNav.kind === "river") {
+    const conveyorMove = moveNpcAlongRiverConveyor(state, direction, distance, heading, dt);
+    if (conveyorMove) {
+      clearNpcEscapeManeuver(state);
+      return conveyorMove;
+    }
+  }
   if (state.escapeDirection && state.escapeRemainingPx > 0) {
     const escapeMove = attemptNpcVisualStep(state, state.escapeDirection, distance, heading);
     if (escapeMove.ok) {
@@ -4179,6 +4333,64 @@ function moveNpcVisualShip(state, direction, distance, heading) {
   return escapeMove;
 }
 
+function moveNpcAlongRiverConveyor(state, desiredDirection, distance, heading, dt) {
+  const centerline = nearestRiverCenterlineInfoAtLocalPoint(
+    state.x,
+    state.y,
+    chart,
+    desiredDirection
+  );
+  if (!centerline?.path || !Number.isFinite(centerline.pathT)) return null;
+
+  const tangentAlignment = centerline.tangent.x * desiredDirection.x +
+    centerline.tangent.y * desiredDirection.y;
+  const directionSign = tangentAlignment >= 0 ? 1 : -1;
+  const target = advanceRiverCenterline(
+    centerline.path,
+    centerline.pathT,
+    distance,
+    directionSign
+  );
+  const targetX = target.x + centerline.pathOffsetX;
+  const targetY = target.y + centerline.pathOffsetY;
+  const centerDx = centerline.centerlineX - state.x;
+  const centerDy = centerline.centerlineY - state.y;
+  const centerDistance = Math.hypot(centerDx, centerDy);
+  const centerStep = Math.min(centerDistance, NPC_RIVER_CONVEYOR_CENTERING_SPEED_PX * dt);
+  const correctionScale = centerDistance > 1e-6 ? centerStep / centerDistance : 0;
+  const dx = targetX - centerline.centerlineX + centerDx * correctionScale;
+  const dy = targetY - centerline.centerlineY + centerDy * correctionScale;
+  const moveDistance = Math.hypot(dx, dy);
+  if (moveDistance <= 1e-6) return null;
+
+  const direction = { x: dx / moveDistance, y: dy / moveDistance };
+  return npcRiverConveyorPlacement(
+    state,
+    state.x + dx,
+    state.y + dy,
+    direction,
+    heading
+  );
+}
+
+function npcRiverConveyorPlacement(state, x, y, movementDirection, heading) {
+  const nearest = nearestLocalCollisionTileAtPoint(x, y);
+  if (!nearest || nearest.distancePx > SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX) return null;
+  const vector = globePositionForLocalPoint(nearest.tileId, x, y);
+  const nav = shipNavigabilityAtLocalPoint(x, y, nearest.tileId, vector);
+  if (!nav.ok || (nav.kind !== "river" && nav.kind !== "openWater")) return null;
+  const movementHeading = screenDirectionToTangent(movementDirection, state.vector, heading);
+  const localHeading = normalizeTangentOrFallback(heading, vector, movementHeading);
+  return {
+    ok: true,
+    x,
+    y,
+    tileId: nearest.tileId,
+    vector,
+    heading: localHeading
+  };
+}
+
 function npcEscapeClearDistance(state, direction, heading) {
   let clearDistance = 0;
   for (const distance of NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX) {
@@ -4199,21 +4411,33 @@ function npcRiverNavigationDirection(state, desiredDirection, currentKind) {
   if (gateway) return gateway;
   if (currentKind !== "river") return null;
 
-  const call = chart?.tileById.get(state.tileId);
-  if (!call) return null;
-  const mask = (riverMasks?.[state.tileId] || 0) | (riverToWaterMasks?.[state.tileId] || 0);
-  if (mask === 0) return null;
   const headingDirection = tangentToScreenDirection(state.heading) || desiredDirection;
-  const endpoints = riverEndpointsForTile(call, chart, mask).map((endpoint) => ({
-    x: call.drawSurfaceX - TILE_ART_HALF + endpoint.x,
-    y: call.drawSurfaceY - TILE_ART_HALF + endpoint.y
-  }));
-  return chooseRiverChannelDirection({
+  const centerline = nearestRiverCenterlineInfoAtLocalPoint(state.x, state.y, chart, desiredDirection);
+  const call = chart?.tileById.get(state.tileId);
+  const mask = call
+    ? (riverMasks?.[state.tileId] || 0) | (riverToWaterMasks?.[state.tileId] || 0)
+    : 0;
+  const endpoints = call && mask !== 0
+    ? riverEndpointsForTile(call, chart, mask).map((endpoint) => ({
+        x: call.drawSurfaceX - TILE_ART_HALF + endpoint.x,
+        y: call.drawSurfaceY - TILE_ART_HALF + endpoint.y
+      }))
+    : [];
+  const channelDirection = chooseRiverChannelDirection({
     x: state.x,
     y: state.y,
     desiredDirection,
     headingDirection,
     endpoints
+  });
+  if (!centerline) return channelDirection;
+  return steerAlongRiverCenterline({
+    desiredDirection,
+    headingDirection,
+    tangent: centerline.tangent,
+    outwardNormal: centerline.normal,
+    centerlineDistance: centerline.centerlineDistance,
+    channelDirection
   });
 }
 
@@ -4784,6 +5008,7 @@ function render(nowMs) {
   drawShipWake(chart);
   drawCannonEffects(chart);
   drawSeagulls(chart, nowMs);
+  drawWorldDiscoverySprites(chart);
   drawCitySprites(chart);
   ctx.restore();
 
@@ -4799,11 +5024,39 @@ function render(nowMs) {
   drawWindIndicator();
   drawMinimap(nowMs);
   drawInteractionButton();
-  drawMountainDiscoveryNotice(nowMs);
+  drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay();
+  drawDiscoveriesButton();
   drawOptionsButton();
   if (optionsMenu.isOpen) drawOptionsMenu();
+  if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
+}
+
+function drawWorldDiscoverySprites(activeChart) {
+  for (const discovery of worldDiscoveries) {
+    if (!discovery.spriteKey) continue;
+    if (discovery.spriteKey !== "egyptian_pyramid") {
+      throw new Error(`Unknown world discovery sprite: ${discovery.spriteKey}`);
+    }
+    const point = worldDiscoveryLocalPoint(discovery, activeChart);
+    if (!point) continue;
+    ctx.drawImage(
+      egyptianPyramidImage,
+      Math.round(point.x - TILE_ART_HALF),
+      Math.round(point.y - TILE_ART_HALF)
+    );
+  }
+}
+
+function worldDiscoveryLocalPoint(discovery, activeChart) {
+  const tileId = discovery.spriteTileId ?? discovery.tileId;
+  const call = activeChart.tileById.get(tileId);
+  if (!call) return null;
+  return {
+    x: call.drawSurfaceX,
+    y: call.drawSurfaceY
+  };
 }
 
 function ensureChart() {
@@ -4812,36 +5065,59 @@ function ensureChart() {
   }
 }
 
-function updateMountainDiscovery(nowMs) {
-  if (!mountainLandmarks || !gameState || !chart || !localLayout) return false;
-  if (mountainDiscoveryNotice) {
-    if (nowMs < mountainDiscoveryNotice.expiresAtMs) return false;
-    mountainDiscoveryNotice = null;
-    return true;
+function updateDiscoveries(nowMs) {
+  if (!gameState || !ship || !graph) return false;
+  let changed = updateDiscoveryNotice(nowMs);
+  if (updateCircumnavigationProgress(gameState, longitudeDegForDirection(ship.position))) {
+    changed = queueDiscovery(CIRCUMNAVIGATION_DISCOVERY, nowMs) || changed;
   }
 
-  const offset = chartOffsetPixels(chart);
   let nearest = null;
-  let nearestDistance = Infinity;
-  for (const landmark of mountainLandmarks.famous) {
-    if (hasDiscoveredLandmark(gameState, landmark.id)) continue;
-    const call = chart.tileById.get(landmark.tileId);
-    if (!call) continue;
-    const screenX = call.drawSurfaceX + offset.x;
-    const screenY = call.drawSurfaceY + offset.y;
-    if (screenX < -TILE_ART_HALF || screenX > SCREEN_W + TILE_ART_HALF) continue;
-    if (screenY < -TILE_ART_HALF || screenY > SCREEN_H + TILE_ART_HALF) continue;
-    const distance = distance2(SCREEN_W / 2, SCREEN_H / 2, screenX, screenY);
-    if (distance > MOUNTAIN_DISCOVERY_RADIUS_PX * MOUNTAIN_DISCOVERY_RADIUS_PX || distance >= nearestDistance) continue;
-    nearest = landmark;
-    nearestDistance = distance;
+  let nearestDistancePx = Infinity;
+  for (const discovery of discoveryCatalog) {
+    if (discovery.kind === "achievement" || hasDiscovery(gameState, discovery.id)) continue;
+    const direction = discoveryDirection(discovery);
+    const distancePx = vectorArcDistance(ship.position, direction) * PIXELS_PER_RADIAN;
+    if (distancePx > discovery.radiusPx || distancePx >= nearestDistancePx) continue;
+    nearest = discovery;
+    nearestDistancePx = distancePx;
   }
-  if (!nearest || !discoverLandmark(gameState, nearest)) return false;
-  mountainDiscoveryNotice = {
-    landmark: nearest,
-    expiresAtMs: nowMs + MOUNTAIN_DISCOVERY_NOTICE_MS
-  };
+  if (nearest) changed = queueDiscovery(nearest, nowMs) || changed;
+  return changed;
+}
+
+function discoveryDirection(discovery) {
+  if (discovery.direction) return discovery.direction;
+  if (!Number.isInteger(discovery.tileId)) throw new Error(`Discovery ${discovery.id} has no globe position`);
+  const offset = discovery.tileId * 3;
+  return [graph.centers[offset], graph.centers[offset + 1], graph.centers[offset + 2]];
+}
+
+function longitudeDegForDirection(direction) {
+  return normalizeLonDeg(Math.atan2(-direction[2], direction[0]) * 180 / Math.PI);
+}
+
+function queueDiscovery(discovery, nowMs) {
+  if (!recordDiscovery(gameState, discovery)) return false;
+  discoveryNoticeQueue.push(discovery);
+  updateDiscoveryNotice(nowMs);
   return true;
+}
+
+function updateDiscoveryNotice(nowMs) {
+  let changed = false;
+  if (discoveryNotice && nowMs >= discoveryNotice.expiresAtMs) {
+    discoveryNotice = null;
+    changed = true;
+  }
+  if (!discoveryNotice && discoveryNoticeQueue.length > 0) {
+    discoveryNotice = {
+      discovery: discoveryNoticeQueue.shift(),
+      expiresAtMs: nowMs + MOUNTAIN_DISCOVERY_NOTICE_MS
+    };
+    changed = true;
+  }
+  return changed;
 }
 
 function chartOffsetPixels(activeChart) {
@@ -5233,6 +5509,7 @@ function buildMinimap() {
     canvas,
     ctx: mapCtx,
     seenTiles: new Uint8Array(graph.tileCount),
+    seenTileCount: 0,
     revealedPixels: new Uint8Array(MINIMAP_W * MINIMAP_H),
     pixelLandWeights,
     pixelTileCounts,
@@ -5269,6 +5546,7 @@ function revealMinimapFromChart(activeChart, offset) {
 function revealMinimapTile(tileId) {
   if (minimap.seenTiles[tileId] !== 0) return;
   minimap.seenTiles[tileId] = 1;
+  minimap.seenTileCount += 1;
 
   const pixel = minimap.tilePixels[tileId];
   if (pixel === MINIMAP_TILE_OUT_OF_RANGE) return;
@@ -5317,10 +5595,45 @@ function getOptionsButtonRect() {
   };
 }
 
+function getDiscoveriesButtonRect() {
+  return {
+    x: DISCOVERIES_BUTTON_X,
+    y: DISCOVERIES_BUTTON_Y,
+    w: DISCOVERIES_BUTTON_SIZE,
+    h: DISCOVERIES_BUTTON_SIZE
+  };
+}
+
+function drawDiscoveriesButton() {
+  const rect = getDiscoveriesButtonRect();
+  discoveriesMenu.buttonRect = rect;
+  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
+
+  ctx.save();
+  ctx.fillStyle = hovered ? "rgba(255, 244, 168, 0.24)" : "rgba(15, 18, 14, 0.78)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(discoveriesMenuIcon, rect.x, rect.y);
+  if (hovered) {
+    const label = "DISCOVERIES";
+    const width = measurePixelTextWidth(label, PIXEL_FONT_BODY_8) + 6;
+    ctx.fillStyle = "rgba(15, 18, 14, 0.94)";
+    ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
+    ctx.fillStyle = "#fff4a8";
+    drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
+      font: PIXEL_FONT_BODY_8,
+      align: "right"
+    });
+  }
+  ctx.restore();
+}
+
 function drawOptionsButton() {
   const rect = getOptionsButtonRect();
   optionsMenu.buttonRect = rect;
-  const hovered = !optionsMenu.isOpen && pointInRect(optionsMenu.hoverPoint, rect);
+  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
 
   ctx.save();
   ctx.fillStyle = hovered ? "rgba(255, 244, 168, 0.24)" : "rgba(15, 18, 14, 0.78)";
@@ -5338,6 +5651,123 @@ function drawOptionsButton() {
     ctx.fillRect(rect.x + 3, rect.y + 9, 7, 1);
   }
   ctx.restore();
+}
+
+function drawDiscoveriesMenu() {
+  const panelX = Math.floor((SCREEN_W - DISCOVERIES_PANEL_W) / 2);
+  const panelY = Math.floor((SCREEN_H - DISCOVERIES_PANEL_H) / 2);
+  discoveriesMenu.panelRect = { x: panelX, y: panelY, w: DISCOVERIES_PANEL_W, h: DISCOVERIES_PANEL_H };
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#17130e";
+  ctx.fillRect(panelX, panelY, DISCOVERIES_PANEL_W, DISCOVERIES_PANEL_H);
+  ctx.strokeStyle = "#a27a3b";
+  ctx.strokeRect(panelX + 0.5, panelY + 0.5, DISCOVERIES_PANEL_W - 1, DISCOVERIES_PANEL_H - 1);
+
+  const closeSize = 14;
+  discoveriesMenu.closeButtonRect = {
+    x: panelX + DISCOVERIES_PANEL_W - closeSize - 6,
+    y: panelY + 6,
+    w: closeSize,
+    h: closeSize
+  };
+  drawOptionsCloseButton(
+    discoveriesMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, discoveriesMenu.closeButtonRect)
+  );
+  drawOptionsText("DISCOVERIES", panelX + DISCOVERIES_PANEL_W / 2, panelY + 9, {
+    align: "center",
+    color: "#ffd98a"
+  });
+
+  const entries = discoveredEntries(gameState);
+  const total = discoveryCatalog.length;
+  const discoveryFraction = total > 0 ? entries.length / total : 0;
+  const mappedFraction = minimap ? minimap.seenTileCount / graph.tileCount : 0;
+  drawDiscoveryProgressRow(
+    panelX + 12,
+    panelY + 31,
+    "FOUND",
+    `${entries.length}/${total}`,
+    discoveryFraction,
+    "#d6a84f"
+  );
+  drawDiscoveryProgressRow(
+    panelX + 12,
+    panelY + 51,
+    "GLOBE MAPPED",
+    `${(mappedFraction * 100).toFixed(2)}%`,
+    mappedFraction,
+    "#6aa6a1"
+  );
+
+  const pageCount = Math.max(1, Math.ceil(entries.length / DISCOVERIES_PAGE_SIZE));
+  discoveriesMenu.page = clamp(discoveriesMenu.page, 0, pageCount - 1);
+  const pageStart = discoveriesMenu.page * DISCOVERIES_PAGE_SIZE;
+  const pageEntries = entries.slice(pageStart, pageStart + DISCOVERIES_PAGE_SIZE);
+  const listX = panelX + 13;
+  const listY = panelY + 79;
+  if (pageEntries.length === 0) {
+    drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: "#8f8779" });
+  } else {
+    pageEntries.forEach((entry, index) => {
+      const y = listY + index * 12;
+      ctx.fillStyle = discoveryKindColor(entry.kind);
+      ctx.fillRect(listX, y + 2, 3, 3);
+      drawOptionsText(
+        fitPixelText(entry.displayName, PIXEL_FONT_UI_8, DISCOVERIES_PANEL_W - 37),
+        listX + 8,
+        y,
+        { color: "#eee4cf" }
+      );
+    });
+  }
+
+  const pagerY = panelY + DISCOVERIES_PANEL_H - 21;
+  discoveriesMenu.previousPageRect = { x: panelX + 12, y: pagerY, w: 14, h: 13 };
+  discoveriesMenu.nextPageRect = { x: panelX + DISCOVERIES_PANEL_W - 26, y: pagerY, w: 14, h: 13 };
+  drawOptionsArrowButton(
+    discoveriesMenu.previousPageRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, discoveriesMenu.previousPageRect)
+  );
+  drawOptionsArrowButton(
+    discoveriesMenu.nextPageRect,
+    ">",
+    pointInRect(optionsMenu.hoverPoint, discoveriesMenu.nextPageRect)
+  );
+  drawOptionsText(`PAGE ${discoveriesMenu.page + 1}/${pageCount}`, panelX + DISCOVERIES_PANEL_W / 2, pagerY + 3, {
+    align: "center",
+    color: "#a9a08f"
+  });
+  ctx.restore();
+}
+
+function drawDiscoveryProgressRow(x, y, label, value, fraction, color) {
+  drawOptionsText(label, x, y, { color: "#d7d0c2" });
+  drawOptionsText(value, x + 103, y, { align: "right", color: "#fff1bf" });
+  const barX = x + 112;
+  const barY = y + 1;
+  const barW = 160;
+  const barH = 7;
+  ctx.fillStyle = "#28231d";
+  ctx.fillRect(barX, barY, barW, barH);
+  ctx.strokeStyle = "#675a49";
+  ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1);
+  const fillW = Math.round((barW - 2) * clamp(fraction, 0, 1));
+  if (fillW > 0) {
+    ctx.fillStyle = color;
+    ctx.fillRect(barX + 1, barY + 1, fillW, barH - 2);
+  }
+}
+
+function discoveryKindColor(kind) {
+  if (kind === "mountain") return "#aaa3b8";
+  if (kind === "landmark") return "#d6a84f";
+  if (kind === "achievement") return "#6aa6a1";
+  throw new Error(`Unknown discovery kind: ${kind}`);
 }
 
 function drawOptionsMenu() {
@@ -5693,6 +6123,8 @@ function drawFace(call, activeChart, options = {}) {
   ctx.closePath();
   ctx.fill();
 
+  drawMountainFaceFoot(call, ax, ay, mx, my, bx, by, nx, ny, width);
+
   if (isCoastFace(call)) {
     drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width);
   } else if (Math.abs(call.level - call.nlevel) >= 2) {
@@ -5704,6 +6136,47 @@ function drawFace(call, activeChart, options = {}) {
     ctx.lineTo(Math.round(bx + nx * width), Math.round(by + ny * width));
     ctx.stroke();
   }
+}
+
+function drawMountainFaceFoot(call, ax, ay, mx, my, bx, by, nx, ny, width) {
+  if (isCoastFace(call)) return;
+  const info = mountainFaceInfo(call);
+  if (!info || info.bothMountain) return;
+
+  const mountainAtStart = info.mountain.side === "a";
+  const mountainPoint = mountainAtStart ? { x: ax, y: ay } : { x: bx, y: by };
+  const pathT = mountainAtStart ? MOUNTAIN_FOOT_REACH : 1 - MOUNTAIN_FOOT_REACH;
+  const tip = quadraticFacePoint(ax, ay, mx, my, bx, by, pathT);
+  const color = terrainSpriteColor(mountainVariant(info.mountain.id));
+
+  ctx.fillStyle = shadeHex(color, -18);
+  ctx.beginPath();
+  ctx.moveTo(
+    Math.round(mountainPoint.x + nx * width),
+    Math.round(mountainPoint.y + ny * width)
+  );
+  ctx.lineTo(
+    Math.round(tip.x + nx * MOUNTAIN_FOOT_TIP_HALF_WIDTH),
+    Math.round(tip.y + ny * MOUNTAIN_FOOT_TIP_HALF_WIDTH)
+  );
+  ctx.lineTo(
+    Math.round(tip.x - nx * MOUNTAIN_FOOT_TIP_HALF_WIDTH),
+    Math.round(tip.y - ny * MOUNTAIN_FOOT_TIP_HALF_WIDTH)
+  );
+  ctx.lineTo(
+    Math.round(mountainPoint.x - nx * width),
+    Math.round(mountainPoint.y - ny * width)
+  );
+  ctx.closePath();
+  ctx.fill();
+}
+
+function quadraticFacePoint(ax, ay, mx, my, bx, by, t) {
+  const omt = 1 - t;
+  return {
+    x: omt * omt * ax + 2 * omt * t * mx + t * t * bx,
+    y: omt * omt * ay + 2 * omt * t * my + t * t * by
+  };
 }
 
 function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width) {
@@ -6823,6 +7296,68 @@ function wakeMapPointIsWater(x, y, activeChart) {
   return true;
 }
 
+function nearestRiverCenterlineInfoAtLocalPoint(x, y, activeChart, preferredDirection = null) {
+  if (!activeChart?.waterIndex) return null;
+  const candidates = wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex);
+  let best = null;
+
+  for (const entry of candidates) {
+    if (entry.kind === "riverConnector") {
+      best = closerRiverCenterlineProbe(
+        best,
+        riverPathWaterProbe(x, y, entry.path, RIVER_CONNECTOR_RADIUS_PX, entry.call.a),
+        preferredDirection
+      );
+      continue;
+    }
+    if (entry.kind !== "tile") continue;
+    const mask = riverMasks?.[entry.call.id] || 0;
+    if (mask === 0) continue;
+    const px = x - (entry.call.drawSurfaceX - TILE_ART_HALF);
+    const py = y - (entry.call.drawSurfaceY - TILE_ART_HALF);
+    const endpoints = riverEndpointsForTile(entry.call, activeChart, mask);
+    if (endpoints.length === 0) continue;
+    const variant = hashInt(entry.call.id) & 15;
+    const pathOffsetX = entry.call.drawSurfaceX - TILE_ART_HALF;
+    const pathOffsetY = entry.call.drawSurfaceY - TILE_ART_HALF;
+    for (const path of riverBezierPaths(endpoints, variant)) {
+      const probe = riverPathWaterProbe(px, py, path, RIVER_BODY_RADIUS_PX, entry.call.id);
+      probe.pathOffsetX = pathOffsetX;
+      probe.pathOffsetY = pathOffsetY;
+      probe.centerlineX += pathOffsetX;
+      probe.centerlineY += pathOffsetY;
+      best = closerRiverCenterlineProbe(
+        best,
+        probe,
+        preferredDirection
+      );
+    }
+  }
+  return best;
+}
+
+function closerRiverCenterlineProbe(a, b, preferredDirection) {
+  if (!b?.tangent) return a;
+  if (!a) return b;
+  const distanceDifference = b.centerlineDistance - a.centerlineDistance;
+  if (distanceDifference < -0.75) return b;
+  if (distanceDifference > 0.75) return a;
+
+  const preferredLength = preferredDirection
+    ? Math.hypot(preferredDirection.x, preferredDirection.y)
+    : 0;
+  if (preferredLength > 1e-8) {
+    const px = preferredDirection.x / preferredLength;
+    const py = preferredDirection.y / preferredLength;
+    const aAlignment = Math.abs(a.tangent.x * px + a.tangent.y * py);
+    const bAlignment = Math.abs(b.tangent.x * px + b.tangent.y * py);
+    if (bAlignment > aAlignment + 1e-6) return b;
+    if (aAlignment > bAlignment + 1e-6) return a;
+  }
+  if (distanceDifference < 0) return b;
+  return a;
+}
+
 function riverWaterInfoAtLocalPoint(x, y, activeChart) {
   if (!activeChart?.waterIndex) return null;
   const candidates = wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex);
@@ -6902,7 +7437,15 @@ function riverPathWaterProbe(px, py, path, radius, tileId) {
   const closest = closestPointOnBezierPath(px, py, path);
   return {
     clearance: closest.distance - radius,
+    centerlineDistance: closest.distance,
+    centerlineX: closest.x,
+    centerlineY: closest.y,
     normal: localNormalFromClosestPoint(px, py, closest.x, closest.y),
+    tangent: closest.tangent,
+    path,
+    pathT: closest.pathT,
+    pathOffsetX: 0,
+    pathOffsetY: 0,
     tileId
   };
 }
@@ -6911,7 +7454,9 @@ function riverBrushWaterProbe(px, py, cx, cy, radius, tileId) {
   const distance = Math.hypot(px - cx, py - cy);
   return {
     clearance: distance - radius,
+    centerlineDistance: distance,
     normal: localNormalFromClosestPoint(px, py, cx, cy),
+    tangent: null,
     tileId
   };
 }
@@ -7033,6 +7578,8 @@ function pointDistanceToBezierPath(px, py, path) {
 function closestPointOnBezierPath(px, py, path) {
   let best = Infinity;
   let bestPoint = { x: path.x0, y: path.y0 };
+  let bestPathT = 0;
+  let bestTangent = null;
   let prev = { x: path.x0, y: path.y0 };
   for (let i = 1; i <= 14; i++) {
     const t = i / 14;
@@ -7045,13 +7592,20 @@ function closestPointOnBezierPath(px, py, path) {
     if (closest.distance < best) {
       best = closest.distance;
       bestPoint = { x: closest.x, y: closest.y };
+      bestPathT = ((i - 1) + closest.t) / 14;
+      const dx = point.x - prev.x;
+      const dy = point.y - prev.y;
+      const length = Math.hypot(dx, dy);
+      bestTangent = length > 1e-8 ? { x: dx / length, y: dy / length } : bestTangent;
     }
     prev = point;
   }
   return {
     x: bestPoint.x,
     y: bestPoint.y,
-    distance: best
+    distance: best,
+    pathT: bestPathT,
+    tangent: bestTangent
   };
 }
 
@@ -7067,6 +7621,7 @@ function closestPointOnSegment(px, py, ax, ay, bx, by) {
     return {
       x: ax,
       y: ay,
+      t: 0,
       distance: Math.hypot(px - ax, py - ay)
     };
   }
@@ -7076,6 +7631,7 @@ function closestPointOnSegment(px, py, ax, ay, bx, by) {
   return {
     x,
     y,
+    t,
     distance: Math.hypot(px - x, py - y)
   };
 }
@@ -7690,9 +8246,9 @@ function rectsOverlap(a, b) {
     a.y + a.h > b.y;
 }
 
-function drawMountainDiscoveryNotice(nowMs) {
-  if (!mountainDiscoveryNotice || nowMs >= mountainDiscoveryNotice.expiresAtMs) return;
-  const landmark = mountainDiscoveryNotice.landmark;
+function drawDiscoveryNotice(nowMs) {
+  if (!discoveryNotice || nowMs >= discoveryNotice.expiresAtMs) return;
+  const discovery = discoveryNotice.discovery;
   const x = MOUNTAIN_DISCOVERY_PANEL_X;
   const y = MOUNTAIN_DISCOVERY_PANEL_Y;
   const w = MOUNTAIN_DISCOVERY_PANEL_W;
@@ -7702,17 +8258,16 @@ function drawMountainDiscoveryNotice(nowMs) {
   ctx.strokeStyle = "#d6b66b";
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   ctx.fillStyle = "#fff1bf";
-  const headline = fitPixelText(`You've discovered ${landmark.displayName}`, PIXEL_FONT_UI_8, w - 10);
+  const headline = fitPixelText(discovery.notice, PIXEL_FONT_UI_8, w - 10);
   drawPixelText(headline, x + 5, y + 4, { font: PIXEL_FONT_UI_8 });
   ctx.fillStyle = "#cbb88a";
-  const details = `${Math.round(landmark.elevationM).toLocaleString("en-US")} m`;
-  drawPixelText(details, x + 5, y + 14, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText(discovery.detail, x + 5, y + 14, { font: PIXEL_FONT_BODY_8 });
 }
 
 function drawInteractionButton() {
   interactionButtonRect = null;
   interactionButtonTarget = null;
-  if (dialogueState || optionsMenu.isOpen) return;
+  if (dialogueState || menusAreOpen()) return;
   const target = activeInteractionTarget();
   if (!target) return;
   interactionButtonTarget = target;
@@ -7960,25 +8515,45 @@ function windDirectionName(directionRad) {
 
 function faceColorFor(call) {
   if (isCoastFace(call)) return beachFaceColor(call);
-  const mountain = mountainFaceSource(call);
+  const mountain = mountainFaceInfo(call);
+  if (mountain?.bothMountain) {
+    return shadeHex(terrainSpriteColor(mountainVariant(mountain.mountain.id)), -12);
+  }
   if (mountain) {
-    const color = terrainSpriteColor(mountainVariant(mountain.id));
-    if (Math.abs(mountain.level - mountain.otherLevel) < 2) return shadeHex(color, -8);
-    return mountain.level > mountain.otherLevel ? shadeHex(color, -18) : shadeHex(color, 6);
+    return mountainNeighborGroundColor(mountain.neighbor.row, mountain.neighbor.id);
   }
   const color = terrainColorForTile(call.ownerRow, call.ownerId);
   if (Math.abs(call.ownerLevel - call.otherLevel) < 2) return color;
   return call.ownerLevel > call.otherLevel ? shadeHex(color, -18) : shadeHex(color, 14);
 }
 
-function mountainFaceSource(call) {
+function mountainNeighborGroundColor(row, id) {
+  if (tileHasSeasonalSnowTerrain(row, id)) return terrainColorForTile(row, id);
+  const spriteKey = spriteForTerrain(row, id);
+  if (
+    spriteKey.startsWith("forest_") ||
+    spriteKey.startsWith("pine_forest_") ||
+    spriteKey.startsWith("jungle_")
+  ) {
+    return terrainSpriteColor(`grass_0${1 + (hashInt(id) % 4)}`);
+  }
+  return terrainColorForTile(row, id);
+}
+
+function mountainFaceInfo(call) {
   const candidates = [
-    { id: call.a, level: call.level, otherLevel: call.nlevel },
-    { id: call.b, level: call.nlevel, otherLevel: call.level }
+    { side: "a", id: call.a, row: call.row, level: call.level },
+    { side: "b", id: call.b, row: call.nrow, level: call.nlevel }
   ];
   const mountains = candidates.filter((candidate) => candidate.level >= 3);
   if (mountains.length === 0) return null;
-  return mountains.find((candidate) => candidate.id === call.ownerId) || mountains[0];
+  const mountain = mountains.find((candidate) => candidate.id === call.ownerId) || mountains[0];
+  if (mountains.length === 2) return { mountain, neighbor: null, bothMountain: true };
+  return {
+    mountain,
+    neighbor: candidates.find((candidate) => candidate.side !== mountain.side),
+    bothMountain: false
+  };
 }
 
 function isCoastFace(call) {
