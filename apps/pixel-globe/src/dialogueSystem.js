@@ -1,0 +1,234 @@
+import {
+  acceptQuest,
+  buyGood,
+  cargoFree,
+  cargoRows,
+  cargoUsed,
+  cityLabel,
+  completeQuest,
+  portMarket,
+  portMemory,
+  questStateForCity,
+  sellGood
+} from "./gameState.js";
+
+export function createPortDialogueSession(city) {
+  return {
+    kind: "port",
+    cityTileId: city.tileId,
+    nodeId: "root",
+    selectedIndex: 0,
+    feedback: null
+  };
+}
+
+export function portDialogueView(session, city, gameState, portCities) {
+  if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
+  if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
+
+  if (session.nodeId === "root") return rootView(session, city, gameState);
+  if (session.nodeId === "buy") return buyView(session, city, gameState);
+  if (session.nodeId === "sell") return sellView(session, city, gameState);
+  if (session.nodeId === "cargo") return cargoView(session, city, gameState);
+  if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
+  throw new Error(`Unknown dialogue node: ${session.nodeId}`);
+}
+
+export function selectPortDialogueOption(session, city, gameState, portCities, optionIndex = session.selectedIndex) {
+  const view = portDialogueView(session, city, gameState, portCities);
+  const option = view.options[optionIndex];
+  if (!option) throw new Error(`Invalid dialogue option index: ${optionIndex}`);
+  if (option.disabled) {
+    session.feedback = option.disabledReason || "That is not available.";
+    return { closed: false };
+  }
+
+  const action = option.action;
+  if (action.type === "close") return { closed: true };
+  if (action.type === "node") {
+    session.nodeId = action.nodeId;
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "buy") {
+    const result = buyGood(gameState, city, action.goodId);
+    session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
+    return { closed: false };
+  }
+  if (action.type === "sell") {
+    const result = sellGood(gameState, city, action.goodId);
+    session.feedback = `Sold ${result.good.label} for ${result.price} db.`;
+    return { closed: false };
+  }
+  if (action.type === "accept-quest") {
+    acceptQuest(gameState, action.quest);
+    session.feedback = `Accepted delivery to ${action.quest.destinationName}.`;
+    session.nodeId = "quest";
+    session.selectedIndex = 0;
+    return { closed: false };
+  }
+  if (action.type === "complete-quest") {
+    const quest = completeQuest(gameState, city);
+    session.feedback = `Delivered. Earned ${quest.reward} db.`;
+    session.nodeId = "root";
+    session.selectedIndex = 0;
+    return { closed: false };
+  }
+  throw new Error(`Unknown dialogue action: ${action.type}`);
+}
+
+function rootView(session, city, gameState) {
+  const memory = portMemory(gameState, city);
+  const greeting = memory.visits <= 1
+    ? `Welcome to ${cityLabel(city)}. I keep accounts for captains who can keep their word.`
+    : `Back in ${cityLabel(city)}, captain. Your ledger is still open.`;
+  return {
+    speaker: speakerName(city),
+    expressionId: "neutral",
+    text: `${greeting} ${portFlavor(city)}`,
+    feedback: session.feedback,
+    options: [
+      option("Buy goods", { type: "node", nodeId: "buy" }),
+      option("Sell cargo", { type: "node", nodeId: "sell" }),
+      option("Ask about work", { type: "node", nodeId: "quest" }),
+      option("Cargo ledger", { type: "node", nodeId: "cargo" }),
+      option("Leave port", { type: "close" })
+    ]
+  };
+}
+
+function buyView(session, city, gameState) {
+  const rows = portMarket(city).map((row) => {
+    const totalSize = row.good.unitSize;
+    return option(`Buy ${row.good.label}  ${row.buyPrice} db`, { type: "buy", goodId: row.good.id }, {
+      disabled: gameState.doubloons < row.buyPrice || cargoFree(gameState) < totalSize,
+      disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
+    });
+  });
+  rows.push(option("Back", { type: "node", nodeId: "root" }));
+  return {
+    speaker: speakerName(city),
+    expressionId: "neutral",
+    text: `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+    feedback: session.feedback,
+    options: rows
+  };
+}
+
+function sellView(session, city, gameState) {
+  const market = new Map(portMarket(city).map((row) => [row.good.id, row]));
+  const rows = cargoRows(gameState).map((cargo) => {
+    const row = market.get(cargo.good.id);
+    const price = row?.sellPrice || Math.max(1, Math.floor(cargo.good.basePrice * 0.45));
+    return option(`Sell ${cargo.good.label} x${cargo.quantity}  ${price} db`, {
+      type: "sell",
+      goodId: cargo.good.id
+    });
+  });
+  if (rows.length === 0) {
+    rows.push(option("No cargo to sell", { type: "node", nodeId: "sell" }, {
+      disabled: true,
+      disabledReason: "The hold is empty."
+    }));
+  }
+  rows.push(option("Back", { type: "node", nodeId: "root" }));
+  return {
+    speaker: speakerName(city),
+    expressionId: "neutral",
+    text: `Buyers here pay port rates. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+    feedback: session.feedback,
+    options: rows
+  };
+}
+
+function cargoView(session, city, gameState) {
+  const rows = cargoRows(gameState);
+  const cargoText = rows.length > 0
+    ? rows.map((row) => `${row.good.label} x${row.quantity}`).join(", ")
+    : "The hold is empty.";
+  return {
+    speaker: speakerName(city),
+    expressionId: "neutral",
+    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+    feedback: session.feedback,
+    options: [
+      option("Back", { type: "node", nodeId: "root" }),
+      option("Leave port", { type: "close" })
+    ]
+  };
+}
+
+function questView(session, city, gameState, portCities) {
+  const questState = questStateForCity(gameState, city, portCities);
+  if (questState.kind === "ready-to-complete") {
+    return {
+      speaker: speakerName(city),
+      expressionId: "neutral",
+      text: `That packet bears our seal. Hand it over and I will pay ${questState.quest.reward} db.`,
+      feedback: session.feedback,
+      options: [
+        option(`Complete delivery  ${questState.quest.reward} db`, { type: "complete-quest" }),
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
+  if (questState.kind === "available") {
+    return {
+      speaker: speakerName(city),
+      expressionId: "neutral",
+      text: `A sealed packet needs passage to ${questState.quest.destinationName}. Payment is ${questState.quest.reward} db on delivery.`,
+      feedback: session.feedback,
+      options: [
+        option(`Accept delivery to ${questState.quest.destinationName}`, {
+          type: "accept-quest",
+          quest: questState.quest
+        }),
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
+  if (questState.kind === "completed") {
+    return {
+      speaker: speakerName(city),
+      expressionId: "neutral",
+      text: "You already handled my packet. A clean account is rare enough that I remember it.",
+      feedback: session.feedback,
+      options: [
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
+  const quest = questState.quest;
+  return {
+    speaker: speakerName(city),
+    expressionId: "neutral",
+    text: questState.kind === "in-progress-here"
+      ? `The packet is bound for ${quest.destinationName}. Do not let it vanish into another captain's hold.`
+      : `Finish your delivery from ${quest.originName} to ${quest.destinationName}; then I can talk work.`,
+    feedback: session.feedback,
+    options: [
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function option(label, action, details = {}) {
+  return {
+    label,
+    action,
+    disabled: !!details.disabled,
+    disabledReason: details.disabledReason || null
+  };
+}
+
+function speakerName(city) {
+  return `${cityLabel(city)} factor`;
+}
+
+function portFlavor(city) {
+  const population = city.population || 0;
+  if (population >= 150000) return "The quay is crowded enough to hide a dozen fortunes.";
+  if (population >= 60000) return "There is steady trade if your hold has room.";
+  return "Small harbors remember generous captains.";
+}

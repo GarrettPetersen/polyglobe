@@ -1,0 +1,4661 @@
+{
+  "version": 1,
+  "generatedBy": "tools/build-character-portrait-manifest.mjs",
+  "portraitSize": 64,
+  "sourceRoot": "/assets/characters",
+  "sourceCharacters": [
+    {
+      "id": "blacksmith-portrait-pack-by-captainskeleto-blacksmith-portrait",
+      "label": "Blacksmith Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Blacksmith Portrait Pack by Captainskeleto",
+      "expressionCount": 9,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-blacksmith-blacksmith-portrait",
+      "label": "Blacksmith Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Blacksmith",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "blond-villager-portrait-pack-by-captainskeleto-blond-villager-portrait",
+      "label": "Blond Villager Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Blond Villager Portrait Pack by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women",
+      "label": "Blond Villager Women",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Blond Villager Women Portrait Pack by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-herbalist-women-portrait-herbalist-women-portrait",
+      "label": "Herbalist Women Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Herbalist women portrait",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-knight-commander-knight-commander",
+      "label": "Knight Commander",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Knight Commander",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "knight-portrait-pack-by-captainskeleto-knight-portrait",
+      "label": "Knight Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Knight Portrait Pack by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "little-girl-portrait-pack-by-captainskeleto-little-girl-portrait",
+      "label": "Little Girl Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Little Girl Portrait pack by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "lumberjack-portrait-by-captainskeleto-lumberjack-portrait",
+      "label": "Lumberjack Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Lumberjack Portrait by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-man-knight-man-knight-portrait",
+      "label": "Man Knight Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Man Knight",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-1",
+      "label": "Master Chef Portrait 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-10",
+      "label": "Master Chef Portrait 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-11",
+      "label": "Master Chef Portrait 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-12",
+      "label": "Master Chef Portrait 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-2",
+      "label": "Master Chef Portrait 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-3",
+      "label": "Master Chef Portrait 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-4",
+      "label": "Master Chef Portrait 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-5",
+      "label": "Master Chef Portrait 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-6",
+      "label": "Master Chef Portrait 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-7",
+      "label": "Master Chef Portrait 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-8",
+      "label": "Master Chef Portrait 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-9",
+      "label": "Master Chef Portrait 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Master Chef Portrait Pack by Captainskolot",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-monk-monk-portrait",
+      "label": "Monk Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Monk",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-1",
+      "label": "Native American Portrait 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-10",
+      "label": "Native American Portrait 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-11",
+      "label": "Native American Portrait 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-12",
+      "label": "Native American Portrait 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-13",
+      "label": "Native American Portrait 13",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_13.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-14",
+      "label": "Native American Portrait 14",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_14.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-15",
+      "label": "Native American Portrait 15",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_15.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-16",
+      "label": "Native American Portrait 16",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_16.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-2",
+      "label": "Native American Portrait 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-3",
+      "label": "Native American Portrait 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-4",
+      "label": "Native American Portrait 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-5",
+      "label": "Native American Portrait 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-6",
+      "label": "Native American Portrait 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-7",
+      "label": "Native American Portrait 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-8",
+      "label": "Native American Portrait 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "native-americain-portrait-pack-by-captainskeleto-native-american-portrait-9",
+      "label": "Native American Portrait 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Native Americain Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-noblewomen-noblewomen-portrait",
+      "label": "Noblewomen Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Noblewomen",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "old-villager-portrait-by-captainskeleto-old-villager-portrait",
+      "label": "Old Villager Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Old Villager Portrait by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard",
+      "label": "Old Warrior Grey Beard",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Old Warrior Grey Beard by Captainskolot",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "peasant-portrait-pack-by-captainskeleto-peasant-portrait",
+      "label": "Peasant Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Peasant Portrait Pack by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-1",
+      "label": "Pirates Portrait By Captainskeleto 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_1.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-10",
+      "label": "Pirates Portrait By Captainskeleto 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-11",
+      "label": "Pirates Portrait By Captainskeleto 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-12",
+      "label": "Pirates Portrait By Captainskeleto 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-13",
+      "label": "Pirates Portrait By Captainskeleto 13",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_13.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-14",
+      "label": "Pirates Portrait By Captainskeleto 14",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_14.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-15",
+      "label": "Pirates Portrait By Captainskeleto 15",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_15.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-16",
+      "label": "Pirates Portrait By Captainskeleto 16",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_16.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-17",
+      "label": "Pirates Portrait By Captainskeleto 17",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_17.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-18",
+      "label": "Pirates Portrait By Captainskeleto 18",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_18.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-19",
+      "label": "Pirates Portrait By Captainskeleto 19",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_19.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-2",
+      "label": "Pirates Portrait By Captainskeleto 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_2.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-20",
+      "label": "Pirates Portrait By Captainskeleto 20",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_20.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-21",
+      "label": "Pirates Portrait By Captainskeleto 21",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_21.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-22",
+      "label": "Pirates Portrait By Captainskeleto 22",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_22.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-23",
+      "label": "Pirates Portrait By Captainskeleto 23",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_23.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-24",
+      "label": "Pirates Portrait By Captainskeleto 24",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_24.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-25",
+      "label": "Pirates Portrait By Captainskeleto 25",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_25.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-3",
+      "label": "Pirates Portrait By Captainskeleto 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_3.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-4",
+      "label": "Pirates Portrait By Captainskeleto 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_4.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-5",
+      "label": "Pirates Portrait By Captainskeleto 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_5.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-6",
+      "label": "Pirates Portrait By Captainskeleto 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-7",
+      "label": "Pirates Portrait By Captainskeleto 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_7.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-8",
+      "label": "Pirates Portrait By Captainskeleto 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_8.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "pirates-portrait-pack-by-captainskeleto-pirates-portrait-pirates-portrait-by-captainskeleto-9",
+      "label": "Pirates Portrait By Captainskeleto 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Pirates Portrait Pack by Captainskeleto/Pirates Portrait",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_9.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait",
+      "label": "Tavern Keeper Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Tavern Keeper",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-1",
+      "label": "Viking Portrait Male 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_1.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-10",
+      "label": "Viking Portrait Male 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-11",
+      "label": "Viking Portrait Male 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-12",
+      "label": "Viking Portrait Male 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-13",
+      "label": "Viking Portrait Male 13",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_13.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-14",
+      "label": "Viking Portrait Male 14",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_14.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-15",
+      "label": "Viking Portrait Male 15",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_15.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-16",
+      "label": "Viking Portrait Male 16",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_16.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-17",
+      "label": "Viking Portrait Male 17",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_17.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-18",
+      "label": "Viking Portrait Male 18",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_18.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-19",
+      "label": "Viking Portrait Male 19",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_19.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-2",
+      "label": "Viking Portrait Male 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_2.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-20",
+      "label": "Viking Portrait Male 20",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_20.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-21",
+      "label": "Viking Portrait Male 21",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_21.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-22",
+      "label": "Viking Portrait Male 22",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_22.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-23",
+      "label": "Viking Portrait Male 23",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_23.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-24",
+      "label": "Viking Portrait Male 24",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_24.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-25",
+      "label": "Viking Portrait Male 25",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_25.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-3",
+      "label": "Viking Portrait Male 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_3.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-4",
+      "label": "Viking Portrait Male 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_4.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-5",
+      "label": "Viking Portrait Male 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_5.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-6",
+      "label": "Viking Portrait Male 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-7",
+      "label": "Viking Portrait Male 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_7.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-8",
+      "label": "Viking Portrait Male 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_8.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-9",
+      "label": "Viking Portrait Male 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_9.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-village-elder-villager-elder-portrait",
+      "label": "Villager Elder Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Village Elder",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait",
+      "label": "Villager Young Girl Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Young Peasant Girl",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait",
+      "label": "Women Baker Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Women Baker",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait",
+      "label": "Women Knight Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Knight Portrait Pack by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-peasant-pack-by-captainskeleto-women-peasant",
+      "label": "Women Peasant",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Peasant Pack by Captainskeleto",
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-07",
+          "label": "Expression 7",
+          "index": 7,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-08",
+          "label": "Expression 8",
+          "index": 8,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-09",
+          "label": "Expression 9",
+          "index": 9,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-10",
+          "label": "Expression 10",
+          "index": 10,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-11",
+          "label": "Expression 11",
+          "index": 11,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-12",
+          "label": "Expression 12",
+          "index": 12,
+          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-1",
+      "label": "Women Pirates Portrait 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_1.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-10",
+      "label": "Women Pirates Portrait 10",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_10.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-11",
+      "label": "Women Pirates Portrait 11",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_11.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-12",
+      "label": "Women Pirates Portrait 12",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-13",
+      "label": "Women Pirates Portrait 13",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_13.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-14",
+      "label": "Women Pirates Portrait 14",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_14.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-15",
+      "label": "Women Pirates Portrait 15",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_15.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-16",
+      "label": "Women Pirates Portrait 16",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_16.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-17",
+      "label": "Women Pirates Portrait 17",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_17.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-18",
+      "label": "Women Pirates Portrait 18",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_18.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-19",
+      "label": "Women Pirates Portrait 19",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_19.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-2",
+      "label": "Women Pirates Portrait 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_2.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-20",
+      "label": "Women Pirates Portrait 20",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_20.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-21",
+      "label": "Women Pirates Portrait 21",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_21.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-22",
+      "label": "Women Pirates Portrait 22",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_22.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-23",
+      "label": "Women Pirates Portrait 23",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_23.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-24",
+      "label": "Women Pirates Portrait 24",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_24.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-25",
+      "label": "Women Pirates Portrait 25",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_25.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-3",
+      "label": "Women Pirates Portrait 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_3.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-4",
+      "label": "Women Pirates Portrait 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_4.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-5",
+      "label": "Women Pirates Portrait 5",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_5.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-6",
+      "label": "Women Pirates Portrait 6",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-7",
+      "label": "Women Pirates Portrait 7",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_7.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-8",
+      "label": "Women Pirates Portrait 8",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_8.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-pirates-portrait-pack-by-captainskeleto-women-pirates-portrait-9",
+      "label": "Women Pirates Portrait 9",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Women Pirates Portrait Pack by Captainskeleto",
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_9.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-1",
+      "label": "Women Portrait 1",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/00.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 1,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 2,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/20.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 3,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/30.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 4,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/40.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 5,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/50.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-2",
+      "label": "Women Portrait 2",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/01.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 1,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 2,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/21.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 3,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/31.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 4,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/41.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 5,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/51.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-3",
+      "label": "Women Portrait 3",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/02.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 1,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/12.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 2,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/22.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 3,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/32.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 4,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/42.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 5,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/52.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-4",
+      "label": "Women Portrait 4",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/03.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 1,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/13.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 2,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/23.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 3,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/33.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 4,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/43.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 5,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/53.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-5",
+      "label": "Women Portrait 5",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/04.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 1,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/14.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 2,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/24.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 3,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/34.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 4,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/44.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 5,
+          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/54.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-seamstress-women-portrait-women-seamstress-portrait",
+      "label": "Women Seamstress Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Seamstress Women Portrait",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait",
+      "label": "Young Peasant Boy Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Ultimate Portrait Pack V1.0/Young Peasant Boy",
+      "expressionCount": 6,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-02",
+          "label": "Expression 2",
+          "index": 2,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-03",
+          "label": "Expression 3",
+          "index": 3,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-04",
+          "label": "Expression 4",
+          "index": 4,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-05",
+          "label": "Expression 5",
+          "index": 5,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "expression-06",
+          "label": "Expression 6",
+          "index": 6,
+          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    }
+  ],
+  "paletteVariants": [
+    {
+      "id": "harbour-ochre",
+      "label": "Harbour Ochre",
+      "skinRamp": [
+        "#5a2f26",
+        "#a15d45",
+        "#d69b72",
+        "#f0d0aa"
+      ],
+      "hairRamp": [
+        "#241716",
+        "#58372b",
+        "#966345"
+      ],
+      "clothRamp": [
+        "#1e2a33",
+        "#3c5964",
+        "#7e9aa1"
+      ],
+      "accentRamp": [
+        "#7a4b20",
+        "#bf7e36",
+        "#e3b85f"
+      ]
+    },
+    {
+      "id": "atlantic-wool",
+      "label": "Atlantic Wool",
+      "skinRamp": [
+        "#4a2924",
+        "#905740",
+        "#c8885d",
+        "#e5b98c"
+      ],
+      "hairRamp": [
+        "#171a1a",
+        "#3b332d",
+        "#735945"
+      ],
+      "clothRamp": [
+        "#252936",
+        "#4d5368",
+        "#8993a7"
+      ],
+      "accentRamp": [
+        "#6a2f2b",
+        "#a95545",
+        "#d98a68"
+      ]
+    },
+    {
+      "id": "linen-and-tar",
+      "label": "Linen and Tar",
+      "skinRamp": [
+        "#65382b",
+        "#a9684a",
+        "#d59b6d",
+        "#efd0a2"
+      ],
+      "hairRamp": [
+        "#1b1514",
+        "#46312a",
+        "#7a553d"
+      ],
+      "clothRamp": [
+        "#2b2520",
+        "#6b5640",
+        "#bba678"
+      ],
+      "accentRamp": [
+        "#22384a",
+        "#476f89",
+        "#89aebc"
+      ]
+    },
+    {
+      "id": "spice-red",
+      "label": "Spice Red",
+      "skinRamp": [
+        "#633127",
+        "#a45d42",
+        "#d69263",
+        "#efc597"
+      ],
+      "hairRamp": [
+        "#1d1610",
+        "#4c3120",
+        "#87562c"
+      ],
+      "clothRamp": [
+        "#3b2026",
+        "#822f3b",
+        "#c35e54"
+      ],
+      "accentRamp": [
+        "#8b611e",
+        "#c09232",
+        "#e0c15e"
+      ]
+    },
+    {
+      "id": "bay-green",
+      "label": "Bay Green",
+      "skinRamp": [
+        "#583124",
+        "#96593b",
+        "#c9865b",
+        "#e5b88d"
+      ],
+      "hairRamp": [
+        "#151914",
+        "#313d27",
+        "#596e38"
+      ],
+      "clothRamp": [
+        "#1f3a32",
+        "#3f755f",
+        "#78a98b"
+      ],
+      "accentRamp": [
+        "#845d24",
+        "#b98d39",
+        "#d7bf68"
+      ]
+    },
+    {
+      "id": "storm-indigo",
+      "label": "Storm Indigo",
+      "skinRamp": [
+        "#4c2b2b",
+        "#8a5045",
+        "#c38368",
+        "#dfaf8f"
+      ],
+      "hairRamp": [
+        "#181823",
+        "#303045",
+        "#595a70"
+      ],
+      "clothRamp": [
+        "#222542",
+        "#454b7a",
+        "#7980ad"
+      ],
+      "accentRamp": [
+        "#6c4b72",
+        "#9d6fa4",
+        "#c7a0c1"
+      ]
+    },
+    {
+      "id": "sun-bleached",
+      "label": "Sun Bleached",
+      "skinRamp": [
+        "#6b3a2a",
+        "#b16c47",
+        "#d99a62",
+        "#efc38f"
+      ],
+      "hairRamp": [
+        "#44301d",
+        "#80602f",
+        "#b28b45"
+      ],
+      "clothRamp": [
+        "#776342",
+        "#b69b62",
+        "#decf91"
+      ],
+      "accentRamp": [
+        "#3b6573",
+        "#6a9aa3",
+        "#aad0c7"
+      ]
+    },
+    {
+      "id": "copper-sash",
+      "label": "Copper Sash",
+      "skinRamp": [
+        "#5e322a",
+        "#9f5d42",
+        "#d18c5f",
+        "#edbe90"
+      ],
+      "hairRamp": [
+        "#211610",
+        "#55311c",
+        "#97572a"
+      ],
+      "clothRamp": [
+        "#2b3342",
+        "#556277",
+        "#8b9aa8"
+      ],
+      "accentRamp": [
+        "#8a3f25",
+        "#c26b38",
+        "#e5a159"
+      ]
+    },
+    {
+      "id": "pearl-grey",
+      "label": "Pearl Grey",
+      "skinRamp": [
+        "#4e2b2b",
+        "#875345",
+        "#be8064",
+        "#e0ae8d"
+      ],
+      "hairRamp": [
+        "#212022",
+        "#4d4b4b",
+        "#807a72"
+      ],
+      "clothRamp": [
+        "#44413d",
+        "#817b70",
+        "#b9b2a0"
+      ],
+      "accentRamp": [
+        "#2d5360",
+        "#5c8790",
+        "#94bdba"
+      ]
+    },
+    {
+      "id": "dusk-purple",
+      "label": "Dusk Purple",
+      "skinRamp": [
+        "#54302e",
+        "#945349",
+        "#cb8068",
+        "#e6ad8e"
+      ],
+      "hairRamp": [
+        "#17131d",
+        "#3a294b",
+        "#6c4d78"
+      ],
+      "clothRamp": [
+        "#32233c",
+        "#624778",
+        "#9777a6"
+      ],
+      "accentRamp": [
+        "#72512a",
+        "#b6813f",
+        "#deb760"
+      ]
+    },
+    {
+      "id": "olive-canvas",
+      "label": "Olive Canvas",
+      "skinRamp": [
+        "#613528",
+        "#a15d43",
+        "#d08a5e",
+        "#e9b98f"
+      ],
+      "hairRamp": [
+        "#1d1c13",
+        "#45401f",
+        "#766d34"
+      ],
+      "clothRamp": [
+        "#3d4328",
+        "#727a42",
+        "#aeb36d"
+      ],
+      "accentRamp": [
+        "#81462e",
+        "#ba7443",
+        "#e0a35d"
+      ]
+    },
+    {
+      "id": "white-sail",
+      "label": "White Sail",
+      "skinRamp": [
+        "#563029",
+        "#945944",
+        "#c98868",
+        "#e4b494"
+      ],
+      "hairRamp": [
+        "#201815",
+        "#4f3728",
+        "#846142"
+      ],
+      "clothRamp": [
+        "#6e6658",
+        "#b0a78f",
+        "#ded6bd"
+      ],
+      "accentRamp": [
+        "#2e4a63",
+        "#557b9b",
+        "#90b4c2"
+      ]
+    },
+    {
+      "id": "mulberry-coat",
+      "label": "Mulberry Coat",
+      "skinRamp": [
+        "#59302d",
+        "#965349",
+        "#cb7f67",
+        "#e6ac8c"
+      ],
+      "hairRamp": [
+        "#1e151a",
+        "#4b2e36",
+        "#805861"
+      ],
+      "clothRamp": [
+        "#3d2131",
+        "#7b3e58",
+        "#bb6e80"
+      ],
+      "accentRamp": [
+        "#8d6726",
+        "#c1953d",
+        "#e4c763"
+      ]
+    },
+    {
+      "id": "teal-brocade",
+      "label": "Teal Brocade",
+      "skinRamp": [
+        "#5d3428",
+        "#a05f43",
+        "#d18d61",
+        "#e9ba90"
+      ],
+      "hairRamp": [
+        "#151a19",
+        "#31413d",
+        "#5b7067"
+      ],
+      "clothRamp": [
+        "#173943",
+        "#347481",
+        "#72aab0"
+      ],
+      "accentRamp": [
+        "#87512e",
+        "#c07d41",
+        "#dfa75e"
+      ]
+    },
+    {
+      "id": "wine-and-cream",
+      "label": "Wine and Cream",
+      "skinRamp": [
+        "#633729",
+        "#a76546",
+        "#d89766",
+        "#efc192"
+      ],
+      "hairRamp": [
+        "#241512",
+        "#5a3224",
+        "#995a36"
+      ],
+      "clothRamp": [
+        "#572632",
+        "#994550",
+        "#cf7b73"
+      ],
+      "accentRamp": [
+        "#877044",
+        "#bda66c",
+        "#e3d49c"
+      ]
+    },
+    {
+      "id": "night-watch",
+      "label": "Night Watch",
+      "skinRamp": [
+        "#4b2a27",
+        "#895044",
+        "#c17c64",
+        "#dfa98a"
+      ],
+      "hairRamp": [
+        "#11161a",
+        "#283844",
+        "#536676"
+      ],
+      "clothRamp": [
+        "#1b2433",
+        "#344e67",
+        "#6888a0"
+      ],
+      "accentRamp": [
+        "#73592e",
+        "#ad8945",
+        "#d8bc67"
+      ]
+    },
+    {
+      "id": "saffron-port",
+      "label": "Saffron Port",
+      "skinRamp": [
+        "#67392a",
+        "#aa6645",
+        "#d99561",
+        "#f0c18d"
+      ],
+      "hairRamp": [
+        "#2f2117",
+        "#6b4524",
+        "#a87332"
+      ],
+      "clothRamp": [
+        "#6a4521",
+        "#aa7932",
+        "#d9ad4f"
+      ],
+      "accentRamp": [
+        "#364e63",
+        "#667f96",
+        "#a4bac1"
+      ]
+    },
+    {
+      "id": "reef-blue",
+      "label": "Reef Blue",
+      "skinRamp": [
+        "#5a3128",
+        "#9b5942",
+        "#cc865e",
+        "#e7b589"
+      ],
+      "hairRamp": [
+        "#151719",
+        "#2e3a3e",
+        "#5d6c69"
+      ],
+      "clothRamp": [
+        "#1a4658",
+        "#367f9b",
+        "#75b5c5"
+      ],
+      "accentRamp": [
+        "#7e5e2a",
+        "#b99543",
+        "#dec766"
+      ]
+    },
+    {
+      "id": "mahogany-gold",
+      "label": "Mahogany Gold",
+      "skinRamp": [
+        "#603328",
+        "#a05d43",
+        "#d28b60",
+        "#edbc8f"
+      ],
+      "hairRamp": [
+        "#21140e",
+        "#5a2d1a",
+        "#924d25"
+      ],
+      "clothRamp": [
+        "#4b2c22",
+        "#8d5b39",
+        "#c89155"
+      ],
+      "accentRamp": [
+        "#8c6c22",
+        "#c59b34",
+        "#e2c961"
+      ]
+    },
+    {
+      "id": "pilgrim-black",
+      "label": "Pilgrim Black",
+      "skinRamp": [
+        "#54302a",
+        "#935843",
+        "#c98764",
+        "#e5b591"
+      ],
+      "hairRamp": [
+        "#151516",
+        "#363437",
+        "#66616a"
+      ],
+      "clothRamp": [
+        "#1b1c21",
+        "#373b45",
+        "#747985"
+      ],
+      "accentRamp": [
+        "#7a602c",
+        "#b68f3f",
+        "#dcc169"
+      ]
+    },
+    {
+      "id": "moss-and-rust",
+      "label": "Moss and Rust",
+      "skinRamp": [
+        "#613427",
+        "#a25e42",
+        "#d08b60",
+        "#e9ba8f"
+      ],
+      "hairRamp": [
+        "#1e1b13",
+        "#443b21",
+        "#766637"
+      ],
+      "clothRamp": [
+        "#2f482e",
+        "#617c48",
+        "#9dad70"
+      ],
+      "accentRamp": [
+        "#8e3f26",
+        "#c46a38",
+        "#e39e58"
+      ]
+    },
+    {
+      "id": "royal-navy",
+      "label": "Royal Navy",
+      "skinRamp": [
+        "#583126",
+        "#965941",
+        "#ca8860",
+        "#e6b78c"
+      ],
+      "hairRamp": [
+        "#17191d",
+        "#30384b",
+        "#5b667b"
+      ],
+      "clothRamp": [
+        "#202d4c",
+        "#415b90",
+        "#748fc0"
+      ],
+      "accentRamp": [
+        "#8b6425",
+        "#bd9340",
+        "#e1c367"
+      ]
+    },
+    {
+      "id": "rose-market",
+      "label": "Rose Market",
+      "skinRamp": [
+        "#5d3329",
+        "#9d5e45",
+        "#cf8d64",
+        "#e9ba91"
+      ],
+      "hairRamp": [
+        "#201515",
+        "#51312d",
+        "#87584c"
+      ],
+      "clothRamp": [
+        "#5a2c36",
+        "#a35462",
+        "#d9878b"
+      ],
+      "accentRamp": [
+        "#576c35",
+        "#899951",
+        "#bec879"
+      ]
+    },
+    {
+      "id": "smoke-blue",
+      "label": "Smoke Blue",
+      "skinRamp": [
+        "#52302c",
+        "#8f5848",
+        "#c78568",
+        "#e2b293"
+      ],
+      "hairRamp": [
+        "#1b1e21",
+        "#41474d",
+        "#70777c"
+      ],
+      "clothRamp": [
+        "#38485a",
+        "#6a7e92",
+        "#a4b5c0"
+      ],
+      "accentRamp": [
+        "#81602d",
+        "#b88d43",
+        "#dbc067"
+      ]
+    },
+    {
+      "id": "coral-trader",
+      "label": "Coral Trader",
+      "skinRamp": [
+        "#66382b",
+        "#aa6747",
+        "#d99866",
+        "#efc292"
+      ],
+      "hairRamp": [
+        "#2a1a17",
+        "#65372b",
+        "#9e6040"
+      ],
+      "clothRamp": [
+        "#7b332f",
+        "#bc5d52",
+        "#e28f75"
+      ],
+      "accentRamp": [
+        "#2d5961",
+        "#5b8b91",
+        "#99beb8"
+      ]
+    },
+    {
+      "id": "cedar-green",
+      "label": "Cedar Green",
+      "skinRamp": [
+        "#5d3429",
+        "#9b5e45",
+        "#cb8a65",
+        "#e7b893"
+      ],
+      "hairRamp": [
+        "#1a1812",
+        "#3c331e",
+        "#6d5730"
+      ],
+      "clothRamp": [
+        "#253f35",
+        "#52725d",
+        "#86a484"
+      ],
+      "accentRamp": [
+        "#8d5429",
+        "#c27f3d",
+        "#e2ad5e"
+      ]
+    },
+    {
+      "id": "violet-harbour",
+      "label": "Violet Harbour",
+      "skinRamp": [
+        "#56302c",
+        "#935549",
+        "#c87f68",
+        "#e4ad8d"
+      ],
+      "hairRamp": [
+        "#19151d",
+        "#3f314a",
+        "#725d7e"
+      ],
+      "clothRamp": [
+        "#3b2f55",
+        "#6b5d91",
+        "#9d8cbc"
+      ],
+      "accentRamp": [
+        "#775e28",
+        "#b0903f",
+        "#dac369"
+      ]
+    },
+    {
+      "id": "terra-sail",
+      "label": "Terra Sail",
+      "skinRamp": [
+        "#67372a",
+        "#aa6245",
+        "#d58f62",
+        "#efbd8f"
+      ],
+      "hairRamp": [
+        "#271813",
+        "#5e321f",
+        "#9a5930"
+      ],
+      "clothRamp": [
+        "#6c3d2b",
+        "#a96c47",
+        "#d69e66"
+      ],
+      "accentRamp": [
+        "#31556c",
+        "#62839b",
+        "#9fb9c1"
+      ]
+    },
+    {
+      "id": "jade-thread",
+      "label": "Jade Thread",
+      "skinRamp": [
+        "#5e3428",
+        "#9f5e43",
+        "#d08d62",
+        "#eaba91"
+      ],
+      "hairRamp": [
+        "#181814",
+        "#383a24",
+        "#666c3d"
+      ],
+      "clothRamp": [
+        "#23483e",
+        "#4c826e",
+        "#86b59a"
+      ],
+      "accentRamp": [
+        "#95672a",
+        "#c79a3e",
+        "#e5c864"
+      ]
+    },
+    {
+      "id": "ash-and-amber",
+      "label": "Ash and Amber",
+      "skinRamp": [
+        "#57302b",
+        "#955848",
+        "#ca8467",
+        "#e6b28f"
+      ],
+      "hairRamp": [
+        "#1d1b1a",
+        "#48423c",
+        "#7b6f5e"
+      ],
+      "clothRamp": [
+        "#49423d",
+        "#817264",
+        "#b7a68d"
+      ],
+      "accentRamp": [
+        "#925328",
+        "#c5833d",
+        "#e4b05e"
+      ]
+    },
+    {
+      "id": "crimson-bay",
+      "label": "Crimson Bay",
+      "skinRamp": [
+        "#613429",
+        "#a05d44",
+        "#d18b62",
+        "#eaba91"
+      ],
+      "hairRamp": [
+        "#201414",
+        "#503028",
+        "#895341"
+      ],
+      "clothRamp": [
+        "#4d1f27",
+        "#91343e",
+        "#d0625c"
+      ],
+      "accentRamp": [
+        "#7d642b",
+        "#b99743",
+        "#dec566"
+      ]
+    },
+    {
+      "id": "deep-water",
+      "label": "Deep Water",
+      "skinRamp": [
+        "#54302a",
+        "#915744",
+        "#c68265",
+        "#e2b08e"
+      ],
+      "hairRamp": [
+        "#12191d",
+        "#263f4b",
+        "#4c6b79"
+      ],
+      "clothRamp": [
+        "#173247",
+        "#315f80",
+        "#6695ad"
+      ],
+      "accentRamp": [
+        "#7f5a2b",
+        "#b98a42",
+        "#dcc068"
+      ]
+    }
+  ]
+}

@@ -34,6 +34,23 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
+import {
+  assignPortCityCharacters,
+  characterExpression,
+  loadCharacterPortraitManifest,
+  recolorPortraitImage
+} from "./characterPortraits.js";
+import {
+  cargoUsed,
+  createGameState,
+  setCargoCapacity,
+  visitPort
+} from "./gameState.js";
+import {
+  createPortDialogueSession,
+  portDialogueView,
+  selectPortDialogueOption
+} from "./dialogueSystem.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -173,6 +190,7 @@ const TERRAIN_ASSET_VERSION = "ship-lighting-bake-1";
 const CITY_ASSET_VERSION = "city-types-1";
 const CITY_DATA_YEAR = 1522;
 const CITY_MAX_COUNT = 420;
+const CITY_PORT_ACCESS_RING_DISTANCE = 2;
 const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
   ["mexico city|mexico", [{ throughYear: 1522, displayCity: "Tenochtitlan" }]],
@@ -294,6 +312,22 @@ const CITY_LABEL_H = 8;
 const CITY_LABEL_PAD_X = 2;
 const CITY_LABEL_PAD_Y = 1;
 const CITY_LABEL_GAP_PX = 2;
+const PORT_INTERACTION_RADIUS_PX = 34;
+const PORT_CITY_CLICK_PAD_PX = 3;
+const PLAYER_LEDGER_X = 5;
+const PLAYER_LEDGER_Y = 36;
+const DOCK_BUTTON_W = 110;
+const DOCK_BUTTON_H = 13;
+const DOCK_BUTTON_X = Math.floor((SCREEN_W - DOCK_BUTTON_W) / 2);
+const DOCK_BUTTON_Y = SCREEN_H - 18;
+const DIALOGUE_PANEL_X = 6;
+const DIALOGUE_PANEL_Y = 78;
+const DIALOGUE_PANEL_W = SCREEN_W - 12;
+const DIALOGUE_PANEL_H = SCREEN_H - DIALOGUE_PANEL_Y - 7;
+const DIALOGUE_PORTRAIT_SIZE = 64;
+const DIALOGUE_PORTRAIT_X = DIALOGUE_PANEL_X + 16;
+const DIALOGUE_PORTRAIT_Y = DIALOGUE_PANEL_Y - DIALOGUE_PORTRAIT_SIZE + 8;
+const DIALOGUE_OPTION_H = 12;
 const POINTER_STEERING_DEADZONE_PX = 6;
 const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
@@ -326,9 +360,21 @@ const OPTIONS_ROW_MUTE = 1;
 const OPTIONS_ROW_SHIP = 2;
 const UI_ASSET_VERSION = "options-menu-1";
 const MUSIC_ASSET_VERSION = "ship-theme-1";
+const SFX_ASSET_VERSION = "harbour-cannon-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const MUSIC_VOLUME_STORAGE_KEY = "pixel_globe_music_volume";
 const MUSIC_MUTED_STORAGE_KEY = "pixel_globe_music_muted";
+const SFX_CANNON_URL = "/assets/sfx/universfield-cannon-shot-352459.mp3";
+const SFX_HARBOUR_URL = "/assets/sfx/freesound_community-harboursoundsanno1811-24015.mp3";
+const SFX_IMPACT_URL = "/assets/sfx/dragon-studio-boulder-impact-487673%20%281%29.mp3";
+const SFX_CANNON_POOL_SIZE = 8;
+const SFX_IMPACT_POOL_SIZE = 6;
+const SFX_CANNON_VOLUME = 0.76;
+const SFX_IMPACT_VOLUME = 0.64;
+const SFX_HARBOUR_MAX_VOLUME = 0.34;
+const SFX_HARBOUR_NEAR_PX = 42;
+const SFX_HARBOUR_FAR_PX = 170;
+const SFX_HARBOUR_FADE_PER_SECOND = 1.35;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
@@ -399,6 +445,10 @@ let settingsMenuIcon;
 let cityImages;
 let cityCatalog;
 let cityByTileId;
+let characterPortraitManifest;
+let portCityCharacters;
+let portCitiesByTileId;
+let portCities = [];
 const terrainAlphaMasks = new WeakMap();
 let spriteColors;
 let snowyTerrainImages;
@@ -406,6 +456,7 @@ let snowySpriteColors;
 let riverColors;
 let riverMasks;
 let riverToWaterMasks;
+let oceanReachableNavigationMask;
 let riverSpriteCache = new Map();
 let waterDepthBands;
 let weatherBake;
@@ -426,6 +477,15 @@ let chart;
 let localLayout;
 let minimap;
 let themeMusic = null;
+let soundEffects = null;
+let gameAudioActivationAllowed = false;
+let gameState = null;
+let dialogueState = null;
+let dialogueLayout = createDialogueLayoutState();
+let dockButtonRect = null;
+let dockButtonCall = null;
+const portraitCanvasCache = new Map();
+const portraitPromiseCache = new Map();
 let centerTileId = 0;
 let windIndicatorState = null;
 let shipSelectionRequestId = 0;
@@ -445,7 +505,11 @@ fitCanvasToIntegerScale();
 window.addEventListener("resize", fitCanvasToIntegerScale);
 
 window.addEventListener("keydown", (event) => {
-  ensureThemeMusicStarted();
+  ensureGameAudioStarted(true);
+  if (dialogueState) {
+    handleDialogueKeyDown(event);
+    return;
+  }
   if (optionsMenu.isOpen) {
     handleOptionsKeyDown(event);
     return;
@@ -463,6 +527,10 @@ window.addEventListener("keydown", (event) => {
   if (isCannonKey(event.key)) {
     event.preventDefault();
     if (!event.repeat) fireBroadside(cannonSideForKey(event.key));
+    return;
+  }
+  if (isDockKey(event.key)) {
+    if (openActivePortDialogue()) event.preventDefault();
     return;
   }
   if (isControlKey(event.key)) {
@@ -499,6 +567,7 @@ async function main() {
     loadedSettingsMenuIcon,
     loadedCityImages,
     loadedCityCatalog,
+    loadedCharacterPortraitManifest,
     earth,
     discreteWeatherBuffer,
     runtimeWeatherBuffer
@@ -509,6 +578,7 @@ async function main() {
     loadUiImage("settings_menu_icon"),
     loadCityImages(),
     loadCityCatalog(CITY_DATA_YEAR),
+    loadCharacterPortraitManifest(),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
@@ -553,6 +623,16 @@ async function main() {
   const riverData = buildRiverMasksFromCache(earth);
   riverMasks = riverData.masks;
   riverToWaterMasks = riverData.toWaterMasks;
+  oceanReachableNavigationMask = buildOceanReachableNavigationMask();
+  characterPortraitManifest = loadedCharacterPortraitManifest;
+  portCities = portCitiesForCharacters();
+  portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
+  portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest);
+  console.info(
+    `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
+    `${characterPortraitManifest.sourceCharacters.length} source portraits, ` +
+    `${characterPortraitManifest.paletteVariants.length} palettes`
+  );
   seaIceMask = new Uint8Array(graph.tileCount);
   freshwaterIceMask = new Uint8Array(graph.tileCount);
   snowGroundMask = new Uint8Array(graph.tileCount);
@@ -560,13 +640,16 @@ async function main() {
   refreshWeatherState(true);
   minimap = buildMinimap();
   ship = createShip(START_POSITION.lat, START_POSITION.lon);
+  gameState = createGameState({ cargoCapacity: ship.cargoCapacity });
+  syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
   centerTileId = ship.tileId;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   setupThemeMusic();
+  setupSoundEffects();
   requestAnimationFrame(loop);
-  ensureThemeMusicStarted();
+  ensureGameAudioStarted();
 }
 
 async function fetchEarthCache() {
@@ -1218,6 +1301,66 @@ function buildRiverMasksFromCache(earth) {
   return { masks, toWaterMasks };
 }
 
+function buildOceanReachableNavigationMask() {
+  const reachable = new Uint8Array(graph.tileCount);
+  const queue = [];
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if (!isOceanNavigationSeedTile(tileId)) continue;
+    reachable[tileId] = 1;
+    queue.push(tileId);
+  }
+
+  for (let head = 0; head < queue.length; head++) {
+    const tileId = queue[head];
+    for (const neighborId of graph.neighbors[tileId]) {
+      if (reachable[neighborId]) continue;
+      if (!canTraverseOceanReachability(tileId, neighborId)) continue;
+      reachable[neighborId] = 1;
+      queue.push(neighborId);
+    }
+  }
+
+  let navigableCount = 0;
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if (isOceanReachableNavigableTile(reachable, tileId)) navigableCount++;
+  }
+  console.info(`[pixel-globe] ocean-reachable navigation: ${navigableCount} water/river tiles`);
+  return reachable;
+}
+
+function isOceanNavigationSeedTile(tileId) {
+  const t = earthById[tileId]?.t || "";
+  return t === "water" || isCoastalWaterRow(earthById[tileId]);
+}
+
+function canTraverseOceanReachability(fromTileId, toTileId) {
+  const fromWater = isWaterSurfaceRow(earthById[fromTileId]);
+  const toWater = isWaterSurfaceRow(earthById[toTileId]);
+  if (fromWater && toWater) return true;
+
+  const edgeA = edgeIndexTowardNeighbor(fromTileId, toTileId);
+  const edgeB = edgeIndexTowardNeighbor(toTileId, fromTileId);
+  if (edgeA === undefined || edgeB === undefined) return false;
+
+  const fromRiver = (riverMasks?.[fromTileId] || 0) !== 0;
+  const toRiver = (riverMasks?.[toTileId] || 0) !== 0;
+  if (fromWater && toRiver) {
+    return riverEdgeSet(riverMasks, toTileId, edgeB) || riverEdgeSet(riverToWaterMasks, toTileId, edgeB);
+  }
+  if (fromRiver && toWater) {
+    return riverEdgeSet(riverMasks, fromTileId, edgeA) || riverEdgeSet(riverToWaterMasks, fromTileId, edgeA);
+  }
+  if (fromRiver && toRiver) {
+    return riverEdgeSet(riverMasks, fromTileId, edgeA) && riverEdgeSet(riverMasks, toTileId, edgeB);
+  }
+  return false;
+}
+
+function isOceanReachableNavigableTile(reachable, tileId) {
+  if (!reachable?.[tileId]) return false;
+  return isWaterSurfaceRow(earthById[tileId]) || (riverMasks?.[tileId] || 0) !== 0;
+}
+
 function markRiverEdgesOpeningToWater(masks, toWaterMasks) {
   let added = 0;
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
@@ -1396,15 +1539,16 @@ function easeInOut(t) {
 function loop(nowMs) {
   const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
   lastFrameMs = nowMs;
-  if (!optionsMenu.isOpen) {
+  if (!optionsMenu.isOpen && !dialogueState) {
     if (updateSailing(dt)) dirty = true;
     if (updateCannons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
     if (updatePrecipitationAnimation(nowMs)) dirty = true;
+    updateAmbientAudio(dt);
   }
-  if (dirty || optionsMenu.isOpen || nowMs - lastStatusMs > 1000) {
+  if (dirty || optionsMenu.isOpen || dialogueState || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
     lastStatusMs = nowMs;
@@ -1459,7 +1603,45 @@ function setupThemeMusic() {
   applyThemeAudioSettings();
 }
 
+function setupSoundEffects() {
+  if (soundEffects) return;
+  const harbour = new Audio(`${SFX_HARBOUR_URL}?v=${SFX_ASSET_VERSION}`);
+  harbour.preload = "auto";
+  harbour.loop = true;
+  harbour.volume = 0;
+  soundEffects = {
+    cannon: createSoundPool(SFX_CANNON_URL, SFX_CANNON_POOL_SIZE, "cannon shot"),
+    impact: createSoundPool(SFX_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "impact thud"),
+    harbour: {
+      audio: harbour,
+      currentVolume: 0,
+      targetVolume: 0,
+      started: false,
+      startAttempting: false
+    }
+  };
+  harbour.addEventListener("error", () => console.warn("[pixel-globe] harbour ambience failed to load"));
+  applyThemeAudioSettings();
+}
+
+function createSoundPool(url, count, label) {
+  return Array.from({ length: count }, () => {
+    const audio = new Audio(`${url}?v=${SFX_ASSET_VERSION}`);
+    audio.preload = "auto";
+    audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
+    return audio;
+  });
+}
+
+function ensureGameAudioStarted(fromUserGesture = false) {
+  if (fromUserGesture) gameAudioActivationAllowed = true;
+  if (!gameAudioActivationAllowed) return;
+  ensureThemeMusicStarted();
+  ensureHarbourLoopStarted();
+}
+
 function ensureThemeMusicStarted() {
+  if (!gameAudioActivationAllowed) return;
   if (!themeMusic || themeMusic.started || themeMusic.startAttempting) return;
   themeMusic.started = true;
   themeMusic.startAttempting = true;
@@ -1493,13 +1675,110 @@ function startThemeLoop() {
   }
 }
 
-function applyThemeAudioSettings() {
-  if (!themeMusic) return;
-  const volume = clamp(optionsMenu.volume, 0, 1);
-  for (const audio of [themeMusic.intro, themeMusic.loop]) {
-    audio.volume = volume;
-    audio.muted = optionsMenu.muted;
+function ensureHarbourLoopStarted() {
+  if (!gameAudioActivationAllowed) return;
+  const harbour = soundEffects?.harbour;
+  if (!harbour || harbour.started || harbour.startAttempting) return;
+  harbour.started = true;
+  harbour.startAttempting = true;
+  harbour.audio.currentTime = 0;
+  applyThemeAudioSettings();
+  const playPromise = harbour.audio.play();
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise
+      .catch(() => {
+        harbour.started = false;
+      })
+      .finally(() => {
+        harbour.startAttempting = false;
+      });
+  } else {
+    harbour.startAttempting = false;
   }
+}
+
+function applyThemeAudioSettings() {
+  const volume = clamp(optionsMenu.volume, 0, 1);
+  if (themeMusic) {
+    for (const audio of [themeMusic.intro, themeMusic.loop]) {
+      audio.volume = volume;
+      audio.muted = optionsMenu.muted;
+    }
+  }
+  if (soundEffects) {
+    for (const audio of [...soundEffects.cannon, ...soundEffects.impact]) {
+      audio.muted = optionsMenu.muted;
+    }
+    const harbour = soundEffects.harbour;
+    harbour.audio.muted = optionsMenu.muted;
+    harbour.audio.volume = optionsMenu.muted ? 0 : volume * harbour.currentVolume;
+  }
+}
+
+function playSoundEffect(pool, volume, playbackRate = 1) {
+  if (!pool || pool.length === 0 || optionsMenu.muted || optionsMenu.volume <= 0) return;
+  const audio = pool.find((item) => item.paused || item.ended) || pool[0];
+  audio.pause();
+  audio.currentTime = 0;
+  audio.playbackRate = clamp(playbackRate, 0.75, 1.25);
+  audio.volume = clamp(optionsMenu.volume * volume, 0, 1);
+  audio.muted = optionsMenu.muted;
+  const playPromise = audio.play();
+  if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
+}
+
+function playCannonShotSound(broadsideCount) {
+  const countGain = 0.72 + Math.min(0.28, Math.max(0, broadsideCount - 1) * 0.025);
+  playSoundEffect(soundEffects?.cannon, SFX_CANNON_VOLUME * countGain, 0.94 + Math.random() * 0.1);
+}
+
+function playCannonImpactSound(distancePx = 0) {
+  const distanceGain = clamp(1 - distancePx / CANNON_RANGE_PX, 0.35, 1);
+  playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * distanceGain, 0.9 + Math.random() * 0.12);
+}
+
+function updateAmbientAudio(dt) {
+  const harbour = soundEffects?.harbour;
+  if (!harbour) return;
+  const targetVolume = harbourProximity() * SFX_HARBOUR_MAX_VOLUME;
+  harbour.targetVolume = targetVolume;
+  if (targetVolume > 0.001) ensureHarbourLoopStarted();
+  const maxStep = SFX_HARBOUR_FADE_PER_SECOND * dt;
+  const delta = clamp(targetVolume - harbour.currentVolume, -maxStep, maxStep);
+  if (Math.abs(delta) <= 0.0005) return;
+  harbour.currentVolume = clamp(harbour.currentVolume + delta, 0, SFX_HARBOUR_MAX_VOLUME);
+  applyThemeAudioSettings();
+  if (harbour.currentVolume <= 0.0005 && harbour.started && targetVolume <= 0.0005) {
+    harbour.audio.pause();
+    harbour.started = false;
+  }
+}
+
+function harbourProximity() {
+  if (!chart || !localLayout || !ship) return 0;
+  const origin = { x: localLayout.viewX, y: localLayout.viewY };
+  let nearest = Infinity;
+
+  for (const call of chart.tileCalls) {
+    if (isWaterSurfaceRow(call.row)) continue;
+    nearest = Math.min(nearest, distance2(origin.x, origin.y, call.x, call.y));
+  }
+  for (const call of chart.cityCalls || []) {
+    nearest = Math.min(nearest, distance2(origin.x, origin.y, call.x, call.y) * 0.72);
+  }
+
+  if (!Number.isFinite(nearest)) return 0;
+  const distance = Math.sqrt(nearest);
+  if (distance <= SFX_HARBOUR_NEAR_PX) return 1;
+  if (distance >= SFX_HARBOUR_FAR_PX) return 0;
+  const t = (distance - SFX_HARBOUR_NEAR_PX) / (SFX_HARBOUR_FAR_PX - SFX_HARBOUR_NEAR_PX);
+  return 1 - easeInOut(t);
+}
+
+function distance2(ax, ay, bx, by) {
+  const dx = ax - bx;
+  const dy = ay - by;
+  return dx * dx + dy * dy;
 }
 
 function loadStoredMusicVolume() {
@@ -1533,7 +1812,7 @@ function setMusicVolume(value) {
   optionsMenu.volume = Math.round(clamp(value, 0, 1) * 100) / 100;
   writeLocalStorage(MUSIC_VOLUME_STORAGE_KEY, String(optionsMenu.volume));
   applyThemeAudioSettings();
-  ensureThemeMusicStarted();
+  ensureGameAudioStarted();
   dirty = true;
 }
 
@@ -1541,7 +1820,7 @@ function setMusicMuted(muted) {
   optionsMenu.muted = !!muted;
   writeLocalStorage(MUSIC_MUTED_STORAGE_KEY, String(optionsMenu.muted));
   applyThemeAudioSettings();
-  ensureThemeMusicStarted();
+  ensureGameAudioStarted();
   dirty = true;
 }
 
@@ -1608,12 +1887,13 @@ function applyPlayerShipType(slug, stats, assets) {
   shipWakeAnchors = decodeShipWakeAnchors(shipImage);
   shipLighting = assets.lighting;
   if (ship) {
+    if (gameState) setCargoCapacity(gameState, stats.cargoCapacity);
     ship.typeSlug = slug;
     ship.stats = stats;
     ship.hitPoints = stats.hitPoints;
     ship.maxHitPoints = stats.hitPoints;
-    ship.cargoCapacity = stats.cargoCapacity;
-    ship.cargoUsed = Math.min(ship.cargoUsed || 0, stats.cargoCapacity);
+    ship.cargoCapacity = gameState?.cargoCapacity || stats.cargoCapacity;
+    ship.cargoUsed = gameState ? cargoUsed(gameState) : Math.min(ship.cargoUsed || 0, stats.cargoCapacity);
     ship.wakeParticles = [];
     ship.lastWakeEmit = null;
     ship.cannonballs = [];
@@ -1693,7 +1973,13 @@ function handleOptionsKeyDown(event) {
 function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
-  ensureThemeMusicStarted();
+  ensureGameAudioStarted(true);
+  if (dialogueState) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleDialoguePointerDown(point);
+    return;
+  }
   if (optionsMenu.isOpen) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -1706,6 +1992,19 @@ function handlePointerDown(event) {
     openOptionsMenu();
     return;
   }
+  if (pointInRect(point, dockButtonRect)) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openActivePortDialogue();
+    return;
+  }
+  const clickedPort = portCallAtPoint(point);
+  if (clickedPort) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openPortDialogue(clickedPort);
+    return;
+  }
   event.preventDefault();
   beginPointerSteering(event.pointerId, point);
 }
@@ -1713,6 +2012,11 @@ function handlePointerDown(event) {
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
+  if (dialogueState) {
+    updateDialogueSelectionFromPoint(point);
+    dirty = true;
+    return;
+  }
   if (!optionsMenu.isOpen) {
     if (pointerSteering.active && pointerSteering.pointerId === event.pointerId) {
       event.preventDefault();
@@ -1739,6 +2043,7 @@ function handlePointerUp(event) {
     }
   }
   endPointerSteering(event?.pointerId);
+  if (dialogueState) return;
   if (optionsMenu.activeSliderKey) {
     optionsMenu.activeSliderKey = null;
     dirty = true;
@@ -1813,6 +2118,213 @@ function setMusicVolumeFromPoint(point) {
   setMusicVolume((point.x - rect.x) / rect.w);
 }
 
+function createDialogueLayoutState() {
+  return {
+    optionRects: []
+  };
+}
+
+function handleDialogueKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closeDialogue();
+    return;
+  }
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    const view = currentDialogueView();
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    dialogueState.selectedIndex = (dialogueState.selectedIndex + direction + view.options.length) % view.options.length;
+    dirty = true;
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    chooseDialogueOption(dialogueState.selectedIndex);
+    return;
+  }
+  if (event.key === "ArrowLeft") {
+    dialogueState.nodeId = "root";
+    dialogueState.selectedIndex = 0;
+    dialogueState.feedback = null;
+    dirty = true;
+  }
+}
+
+function handleDialoguePointerDown(point) {
+  updateDialogueSelectionFromPoint(point);
+  for (let i = 0; i < dialogueLayout.optionRects.length; i++) {
+    if (!pointInRect(point, dialogueLayout.optionRects[i])) continue;
+    chooseDialogueOption(i);
+    return;
+  }
+}
+
+function updateDialogueSelectionFromPoint(point) {
+  for (let i = 0; i < dialogueLayout.optionRects.length; i++) {
+    if (!pointInRect(point, dialogueLayout.optionRects[i])) continue;
+    dialogueState.selectedIndex = i;
+    return;
+  }
+}
+
+function openActivePortDialogue() {
+  const promptCall = dockButtonCall && portPromptCallIsUsable(dockButtonCall) ? dockButtonCall : null;
+  const call = promptCall || activePortCall();
+  if (!call) return false;
+  openPortDialogue(call);
+  return true;
+}
+
+function openPortDialogue(cityCall) {
+  if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
+  if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
+  dialogueState = createPortDialogueSession(cityCall);
+  dialogueLayout = createDialogueLayoutState();
+  visitPort(gameState, cityCall);
+  stopShipForPort();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+}
+
+function stopShipForPort() {
+  if (!ship) return;
+  ship.velocity = [0, 0, 0];
+  ship.targetHeading = ship.heading.slice();
+  ship.wakeParticles = [];
+  ship.lastWakeEmit = null;
+  clearPointerSteering();
+  keys.clear();
+}
+
+function closeDialogue() {
+  dialogueState = null;
+  dialogueLayout = createDialogueLayoutState();
+  dirty = true;
+}
+
+function chooseDialogueOption(optionIndex) {
+  const city = currentDialogueCity();
+  const result = selectPortDialogueOption(dialogueState, city, gameState, portCities, optionIndex);
+  syncShipCargoFromGameState();
+  if (result.closed) {
+    closeDialogue();
+    return;
+  }
+  clampDialogueSelection();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+}
+
+function clampDialogueSelection() {
+  const view = currentDialogueView();
+  dialogueState.selectedIndex = clamp(dialogueState.selectedIndex, 0, Math.max(0, view.options.length - 1));
+}
+
+function currentDialogueCity() {
+  if (!dialogueState) throw new Error("No active dialogue session");
+  const city = cityByTileId.get(dialogueState.cityTileId);
+  if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
+  const character = portCityCharacters?.get(city.tileId);
+  if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
+  return {
+    ...city,
+    character,
+    portrait: characterExpression(character)
+  };
+}
+
+function currentDialogueView() {
+  return portDialogueView(dialogueState, currentDialogueCity(), gameState, portCities);
+}
+
+function activePortCall() {
+  if (!chart || !localLayout) return null;
+  const currentCity = cityByTileId.get(ship?.tileId ?? centerTileId);
+  const currentCharacter = currentCity ? portCityCharacters?.get(currentCity.tileId) : null;
+  if (currentCity && currentCharacter) {
+    return {
+      ...currentCity,
+      character: currentCharacter,
+      portrait: characterExpression(currentCharacter)
+    };
+  }
+  let best = null;
+  let bestDistance = Infinity;
+  for (const call of chart.cityCalls || []) {
+    if (!portCallInInteractionRange(call)) continue;
+    const distance = distance2(localLayout.viewX, localLayout.viewY, call.x, call.y);
+    if (distance >= bestDistance) continue;
+    best = call;
+    bestDistance = distance;
+  }
+  return best;
+}
+
+function portCallAtPoint(point) {
+  if (!chart || !localLayout || !point) return null;
+  const offset = chartOffsetPixels(chart);
+  let best = null;
+  let bestDistance = Infinity;
+
+  const consider = (call) => {
+    const distance = distance2(point.x, point.y, call.x + offset.x, call.y + offset.y);
+    if (distance >= bestDistance) return;
+    best = call;
+    bestDistance = distance;
+  };
+
+  for (const call of chart.cityCalls || []) {
+    if (!portCallInInteractionRange(call)) continue;
+    if (pointHitsPortCitySprite(point, call, offset)) consider(call);
+  }
+
+  for (const { call, box } of cityLabelBoxes(chart.cityCalls || [], chart)) {
+    if (!portCallInInteractionRange(call)) continue;
+    if (pointInRect(point, chartRectToScreenRect(box, offset))) consider(call);
+  }
+
+  return best;
+}
+
+function portCallInInteractionRange(call) {
+  if (!call?.character || !Number.isFinite(call.x) || !Number.isFinite(call.y)) return false;
+  return distance2(localLayout.viewX, localLayout.viewY, call.x, call.y) <= PORT_INTERACTION_RADIUS_PX * PORT_INTERACTION_RADIUS_PX;
+}
+
+function portPromptCallIsUsable(call) {
+  if (!call?.character) return false;
+  if (!Number.isFinite(call.x) || !Number.isFinite(call.y)) return true;
+  if (!localLayout) return false;
+  return portCallInInteractionRange(call);
+}
+
+function pointHitsPortCitySprite(point, call, offset) {
+  return pointInRect(point, expandedRect(cityScreenRect(call, offset), PORT_CITY_CLICK_PAD_PX));
+}
+
+function chartRectToScreenRect(rect, offset) {
+  return {
+    x: rect.x + offset.x,
+    y: rect.y + offset.y,
+    w: rect.w,
+    h: rect.h
+  };
+}
+
+function expandedRect(rect, amount) {
+  return {
+    x: rect.x - amount,
+    y: rect.y - amount,
+    w: rect.w + amount * 2,
+    h: rect.h + amount * 2
+  };
+}
+
+function syncShipCargoFromGameState() {
+  if (!ship || !gameState) return;
+  ship.cargoCapacity = gameState.cargoCapacity;
+  ship.cargoUsed = cargoUsed(gameState);
+}
+
 function canvasPointFromEvent(event) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -1849,6 +2361,35 @@ function placeCityCatalog(cities) {
     placed.set(tileId, { ...city, tileId });
   }
   return placed;
+}
+
+function portCitiesForCharacters() {
+  const ports = [...cityByTileId.values()].filter((city) => cityHasPortAccess(city.tileId));
+  if (ports.length === 0) throw new Error("No port cities found for character portrait assignments");
+  return ports;
+}
+
+function cityHasPortAccess(tileId) {
+  const visited = new Set([tileId]);
+  const queue = [{ tileId, distance: 0 }];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (isCityPortAccessTile(current.tileId)) return true;
+    if (current.distance >= CITY_PORT_ACCESS_RING_DISTANCE) continue;
+
+    for (const neighborId of graph.neighbors[current.tileId] || []) {
+      if (visited.has(neighborId)) continue;
+      visited.add(neighborId);
+      queue.push({ tileId: neighborId, distance: current.distance + 1 });
+    }
+  }
+  return false;
+}
+
+function isCityPortAccessTile(tileId) {
+  if (!oceanReachableNavigationMask?.[tileId]) return false;
+  return isWaterSurfaceRow(earthById[tileId]) || (riverMasks?.[tileId] || 0) !== 0;
 }
 
 function isCityDrawableTile(tileId) {
@@ -2666,6 +3207,7 @@ function fireBroadside(sideName) {
   if (ship.cannonCooldowns[sideName] > 0) return;
 
   ship.cannonCooldowns[sideName] = CANNON_BROADSIDE_COOLDOWN_SECONDS;
+  playCannonShotSound(broadsideCount);
 
   const heading = shipScreenHeading();
   const starboard = { x: -heading.y, y: heading.x };
@@ -2731,6 +3273,8 @@ function updateCannons(dt) {
       if (ball.age >= ball.duration) {
         if (wakeMapPointIsWater(Math.round(ball.targetX), Math.round(ball.targetY), chart)) {
           addCannonSplash(ball);
+        } else {
+          playCannonImpactSound(Math.hypot(ball.targetX - ball.startX, ball.targetY - ball.startY));
         }
         continue;
       }
@@ -3130,9 +3674,12 @@ function render(nowMs) {
   drawDayNightTint();
   drawWindIndicator();
   drawMinimap(nowMs);
+  drawPlayerLedger();
+  drawDockButton();
   drawOptionsButton();
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (optionsMenu.isOpen) drawOptionsMenu();
+  if (dialogueState) drawDialogueOverlay();
 }
 
 function ensureChart() {
@@ -3370,8 +3917,11 @@ function makeCityCall(city, tileCall) {
   const spriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF);
   const spriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF);
   const labelH = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
+  const character = portCityCharacters?.get(city.tileId) || null;
   return {
     ...city,
+    character,
+    portrait: character ? characterExpression(character) : null,
     x,
     y,
     spriteX,
@@ -5594,18 +6144,7 @@ function shipScreenSortY() {
 }
 
 function drawCityLabels(cityCalls, activeChart) {
-  const { labelBounds, visibleBounds, blockers } = cityLabelScreenLayout(activeChart);
-  const sorted = [...cityCalls]
-    .filter((call) => cityCallIsOnScreen(call, visibleBounds))
-    .sort((a, b) => b.population - a.population || cityLabelText(a).localeCompare(cityLabelText(b)));
-  const occupied = blockers.slice();
-
-  for (const call of sorted) {
-    const label = cityLabelText(call);
-    const textW = measurePixelTextWidth(label, PIXEL_FONT_BODY_8);
-    const box = placeCityLabel(call, textW, occupied, labelBounds);
-    occupied.push(box);
-
+  for (const { label, box } of cityLabelBoxes(cityCalls, activeChart)) {
     ctx.fillStyle = "rgba(19, 15, 12, 0.72)";
     ctx.fillRect(box.x, box.y, box.w, box.h);
     ctx.fillStyle = "#f3dfb0";
@@ -5613,6 +6152,25 @@ function drawCityLabels(cityCalls, activeChart) {
       font: PIXEL_FONT_BODY_8
     });
   }
+}
+
+function cityLabelBoxes(cityCalls, activeChart) {
+  const { labelBounds, visibleBounds, blockers } = cityLabelScreenLayout(activeChart);
+  const sorted = [...cityCalls]
+    .filter((call) => cityCallIsOnScreen(call, visibleBounds))
+    .sort((a, b) => b.population - a.population || cityLabelText(a).localeCompare(cityLabelText(b)));
+  const occupied = blockers.slice();
+  const boxes = [];
+
+  for (const call of sorted) {
+    const label = cityLabelText(call);
+    const textW = measurePixelTextWidth(label, PIXEL_FONT_BODY_8);
+    const box = placeCityLabel(call, textW, occupied, labelBounds);
+    occupied.push(box);
+    boxes.push({ call, label, box });
+  }
+
+  return boxes;
 }
 
 function cityLabelScreenLayout(activeChart) {
@@ -5724,6 +6282,169 @@ function rectsOverlap(a, b) {
     a.x + a.w > b.x &&
     a.y < b.y + b.h &&
     a.y + a.h > b.y;
+}
+
+function drawPlayerLedger() {
+  if (!gameState || dialogueState) return;
+  const text = `${gameState.doubloons} db  Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}`;
+  const w = measurePixelTextWidth(text, PIXEL_FONT_BODY_8) + 6;
+  ctx.fillStyle = "rgba(35, 27, 20, 0.76)";
+  ctx.fillRect(PLAYER_LEDGER_X, PLAYER_LEDGER_Y, w, 11);
+  ctx.fillStyle = "#f3dfb0";
+  drawPixelText(text, PLAYER_LEDGER_X + 3, PLAYER_LEDGER_Y + 2, { font: PIXEL_FONT_BODY_8 });
+}
+
+function drawDockButton() {
+  dockButtonRect = null;
+  dockButtonCall = null;
+  if (dialogueState || optionsMenu.isOpen) return;
+  const call = activePortCall();
+  if (!call) return;
+  dockButtonCall = call;
+  dockButtonRect = {
+    x: DOCK_BUTTON_X,
+    y: DOCK_BUTTON_Y,
+    w: DOCK_BUTTON_W,
+    h: DOCK_BUTTON_H
+  };
+  const hovered = pointInRect(optionsMenu.hoverPoint, dockButtonRect);
+  ctx.fillStyle = hovered ? "#6d4b2f" : "#4a3424";
+  ctx.fillRect(dockButtonRect.x, dockButtonRect.y, dockButtonRect.w, dockButtonRect.h);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(dockButtonRect.x + 0.5, dockButtonRect.y + 0.5, dockButtonRect.w - 1, dockButtonRect.h - 1);
+  ctx.fillStyle = "#f3dfb0";
+  const label = fitPixelText(`Dock: ${cityLabelText(call)}`, PIXEL_FONT_BODY_8, dockButtonRect.w - 8);
+  drawPixelText(label, dockButtonRect.x + 4, dockButtonRect.y + 3, { font: PIXEL_FONT_BODY_8 });
+}
+
+function drawDialogueOverlay() {
+  const city = currentDialogueCity();
+  const view = currentDialogueView();
+  const panel = {
+    x: DIALOGUE_PANEL_X,
+    y: DIALOGUE_PANEL_Y,
+    w: DIALOGUE_PANEL_W,
+    h: DIALOGUE_PANEL_H
+  };
+
+  drawDialoguePortrait(city.character, view.expressionId, DIALOGUE_PORTRAIT_X, DIALOGUE_PORTRAIT_Y);
+
+  ctx.fillStyle = "rgba(28, 20, 15, 0.94)";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = "#715033";
+  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+
+  ctx.fillStyle = "#f3dfb0";
+  drawPixelText(fitPixelText(view.speaker, PIXEL_FONT_UI_8, panel.w - 18), panel.x + 8, panel.y + 8, {
+    font: PIXEL_FONT_UI_8
+  });
+
+  const textX = panel.x + 12;
+  const textY = panel.y + 25;
+  const textW = panel.x + panel.w - textX - 12;
+  let y = textY;
+  ctx.fillStyle = "#ead9b5";
+  for (const line of wrapPixelText(view.text, PIXEL_FONT_BODY_8, textW, 4)) {
+    drawPixelText(line, textX, y, { font: PIXEL_FONT_BODY_8 });
+    y += 10;
+  }
+  if (view.feedback) {
+    ctx.fillStyle = "#c7dd8a";
+    for (const line of wrapPixelText(view.feedback, PIXEL_FONT_BODY_8, textW, 2)) {
+      drawPixelText(line, textX, y, { font: PIXEL_FONT_BODY_8 });
+      y += 10;
+    }
+  }
+
+  const optionX = textX;
+  const optionY = Math.max(panel.y + 82, y + 3);
+  drawDialogueOptions(view, optionX, optionY, textW);
+}
+
+function drawDialoguePortrait(character, expressionId, x, y) {
+  const expression = characterExpression(character, expressionId || "neutral");
+  const image = dialoguePortraitImage(character, expression);
+  if (image) ctx.drawImage(image, x, y);
+}
+
+function drawDialogueOptions(view, x, y, width) {
+  dialogueLayout.optionRects = [];
+  for (let i = 0; i < view.options.length; i++) {
+    const option = view.options[i];
+    const rect = {
+      x,
+      y: y + i * DIALOGUE_OPTION_H,
+      w: width,
+      h: DIALOGUE_OPTION_H
+    };
+    dialogueLayout.optionRects.push(rect);
+    const selected = i === dialogueState.selectedIndex;
+    if (selected) {
+      ctx.fillStyle = option.disabled ? "rgba(90, 67, 55, 0.72)" : "rgba(104, 78, 44, 0.88)";
+      ctx.fillRect(rect.x - 2, rect.y, rect.w + 4, rect.h);
+    }
+    ctx.fillStyle = option.disabled ? "#8d8171" : selected ? "#fff1b8" : "#e6c98e";
+    const prefix = selected ? "> " : "  ";
+    drawPixelText(
+      fitPixelText(`${prefix}${option.label}`, PIXEL_FONT_BODY_8, rect.w - 4),
+      rect.x,
+      rect.y + 2,
+      { font: PIXEL_FONT_BODY_8 }
+    );
+  }
+}
+
+function wrapPixelText(text, font, maxWidth, maxLines) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (measurePixelTextWidth(next, font) <= maxWidth) {
+      line = next;
+      continue;
+    }
+    if (line) lines.push(line);
+    line = word;
+    if (lines.length >= maxLines) break;
+  }
+  if (lines.length < maxLines && line) lines.push(line);
+  if (lines.length > maxLines) lines.length = maxLines;
+  if (lines.length === maxLines && words.length > 0) {
+    lines[maxLines - 1] = fitPixelText(lines[maxLines - 1], font, maxWidth);
+  }
+  return lines;
+}
+
+function ensureDialoguePortraitLoaded() {
+  if (!dialogueState) return;
+  const city = currentDialogueCity();
+  const view = currentDialogueView();
+  const expression = characterExpression(city.character, view.expressionId || "neutral");
+  dialoguePortraitImage(city.character, expression);
+}
+
+function dialoguePortraitImage(character, expression) {
+  if (!character || !expression) return null;
+  const key = `${character.id}|${expression.id}`;
+  const cached = portraitCanvasCache.get(key);
+  if (cached) return cached;
+  if (!portraitPromiseCache.has(key)) {
+    const promise = loadAssetImage(expression.src, `portrait ${character.id}.${expression.id}`)
+      .then((sourceImage) => {
+        const canvas = recolorPortraitImage(sourceImage, character.palette);
+        portraitCanvasCache.set(key, canvas);
+        dirty = true;
+      })
+      .catch((error) => {
+        portraitPromiseCache.delete(key);
+        console.error(error);
+      });
+    portraitPromiseCache.set(key, promise);
+  }
+  return null;
 }
 
 function drawTinyStatus(nowMs) {
@@ -5917,6 +6638,10 @@ function isControlKey(key) {
     key === "S" ||
     key === "d" ||
     key === "D";
+}
+
+function isDockKey(key) {
+  return key === "Enter" || key === " ";
 }
 
 function isCannonKey(key) {
