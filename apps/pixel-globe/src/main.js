@@ -27,6 +27,13 @@ import {
   weatherClockParts,
   windAtLatLonDeg
 } from "./weather.js";
+import {
+  DEFAULT_PLAYER_SHIP_SLUG,
+  SHIP_STATS,
+  SHIP_STATS_BY_SLUG,
+  shipLabelForSlug,
+  shipStatsForSlug
+} from "./shipStats.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -78,11 +85,8 @@ const SHIP_LIGHT_SHADE_ALPHA = 0.28;
 const SHIP_LIGHT_SHADOW_ALPHA = 0.22;
 const SHIP_SHADOW_FRAME_SIZE = 72;
 const SHIP_SHADOW_HALF = SHIP_SHADOW_FRAME_SIZE / 2;
-const SHIP_TURN_RATE_RAD = 2.35;
-const SHIP_SAIL_ACCEL_RAD = 0.018;
 const SHIP_DRAG_PER_SECOND = 0.62;
 const SHIP_NO_GO_DRAG_MULTIPLIER = 1.35;
-const SHIP_MAX_SPEED_RAD = 0.035;
 const SHIP_MIN_POWERED_SPEED_RAD = 0.006;
 const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
 const SHIP_COLLISION_SLIDE_SPEED_KEEP = 0.96;
@@ -99,8 +103,7 @@ const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
 const SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX = 48;
 const SHIP_RIVER_HEADING_ALIGN_DOT = Math.cos(Math.PI / 3);
 const SHIP_RIVER_TARGET_ALIGN_DOT = Math.cos(80 * Math.PI / 180);
-const SAIL_NO_GO_ANGLE_RAD = Math.PI / 6;
-const SAIL_CLOSE_HAULED_ANGLE_RAD = Math.PI / 4;
+const SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD = Math.PI / 12;
 const SAIL_CLOSE_HAULED_EFFICIENCY = 0.34;
 const KELVIN_WAKE_HALF_ANGLE_RAD = Math.asin(1 / 3);
 const SHIP_WAKE_MIN_SPEED_PX = 2.5;
@@ -124,6 +127,19 @@ const SHIP_COLLISION_SLIDE_OUTWARD_BIASES = [0.18, 0.36, 0.58];
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
+const CANNON_BROADSIDE_COOLDOWN_SECONDS = 1.15;
+const CANNON_MUZZLE_SIDE_OFFSET_PX = 8;
+const CANNON_MUZZLE_FORE_AFT_SPAN_PX = 13;
+const CANNON_RANGE_PX = 74;
+const CANNON_RANGE_JITTER_PX = 15;
+const CANNON_SPEED_PX = 88;
+const CANNON_AIM_SPREAD_RAD = 0.18;
+const CANNON_ARC_HEIGHT_PX = 13;
+const CANNON_TRAIL_MAX_PX = 3;
+const CANNON_SPLASH_TTL_SECONDS = 0.46;
+const CANNON_SPLASH_DROP_COUNT = 6;
+const CANNON_MAX_BALLS = 160;
+const CANNON_MAX_SPLASHES = 128;
 const WIND_INDICATOR_RADIUS_PX = 20;
 const WIND_INDICATOR_DIRECTION_COUNT = 16;
 const WIND_INDICATOR_DIRECTION_STABLE_FRAMES = 3;
@@ -302,8 +318,12 @@ const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
 const OPTIONS_BUTTON_SIZE = 13;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 94;
+const OPTIONS_PANEL_H = 118;
 const OPTIONS_ROW_H = 22;
+const OPTIONS_ROW_COUNT = 3;
+const OPTIONS_ROW_VOLUME = 0;
+const OPTIONS_ROW_MUTE = 1;
+const OPTIONS_ROW_SHIP = 2;
 const UI_ASSET_VERSION = "options-menu-1";
 const MUSIC_ASSET_VERSION = "ship-theme-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
@@ -313,6 +333,8 @@ const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const START_POSITION = startPositionFromLocation();
 const START_WEATHER = startWeatherFromLocation();
+const START_SHIP_SLUG = shipSlugFromLocation();
+const SHIP_MENU_SLUGS = SHIP_STATS.map((entry) => entry.slug);
 const DEBUG_STATUS_ENABLED = debugStatusFromLocation();
 
 const terrainAssets = [
@@ -406,6 +428,7 @@ let minimap;
 let themeMusic = null;
 let centerTileId = 0;
 let windIndicatorState = null;
+let shipSelectionRequestId = 0;
 let dirty = true;
 let lastFrameMs = performance.now();
 let lastStatusMs = 0;
@@ -437,6 +460,11 @@ window.addEventListener("keydown", (event) => {
     handleWeatherControlKey(event.key);
     return;
   }
+  if (isCannonKey(event.key)) {
+    event.preventDefault();
+    if (!event.repeat) fireBroadside(cannonSideForKey(event.key));
+    return;
+  }
   if (isControlKey(event.key)) {
     event.preventDefault();
     keys.add(event.key);
@@ -463,6 +491,7 @@ main().catch((err) => {
 async function main() {
   await loadPixelFonts();
   drawLoading();
+  const shipSpriteKey = vehicleSpriteKeyForShipSlug(START_SHIP_SLUG);
   const [
     loadedImages,
     loadedShipImage,
@@ -475,8 +504,8 @@ async function main() {
     runtimeWeatherBuffer
   ] = await Promise.all([
     loadTerrainImages(),
-    loadVehicleImage("sail-ship-16-headings"),
-    loadShipLightingBake(),
+    loadVehicleImage(`${shipSpriteKey}-16-headings`),
+    loadShipLightingBake(shipSpriteKey),
     loadUiImage("settings_menu_icon"),
     loadCityImages(),
     loadCityCatalog(CITY_DATA_YEAR),
@@ -839,11 +868,11 @@ function cityLabelText(city) {
   return city.displayCity || city.city;
 }
 
-async function loadShipLightingBake() {
+async function loadShipLightingBake(shipSpriteKey) {
   const [lightImage, shadeImage, shadowImage] = await Promise.all([
-    loadVehicleImage("sail-ship-16-headings-light"),
-    loadVehicleImage("sail-ship-16-headings-shade"),
-    loadVehicleImage("sail-ship-16-headings-shadow")
+    loadVehicleImage(`${shipSpriteKey}-16-headings-light`),
+    loadVehicleImage(`${shipSpriteKey}-16-headings-shade`),
+    loadVehicleImage(`${shipSpriteKey}-16-headings-shadow`)
   ]);
   return {
     light: decodeShipLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, "ship light mask"),
@@ -1026,6 +1055,22 @@ function startWeatherFromLocation() {
       Math.floor(minute),
     timeScale
   };
+}
+
+function shipSlugFromLocation() {
+  const requested = new URLSearchParams(window.location.search).get("ship") || DEFAULT_PLAYER_SHIP_SLUG;
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(requested)) {
+    throw new Error(`Invalid ship type: ${requested}`);
+  }
+  if (!SHIP_STATS_BY_SLUG.has(requested)) {
+    throw new Error(`Unknown ship type: ${requested}`);
+  }
+  return requested;
+}
+
+function vehicleSpriteKeyForShipSlug(slug) {
+  shipStatsForSlug(slug);
+  return `unity-ships/${slug}`;
 }
 
 function debugStatusFromLocation() {
@@ -1341,6 +1386,7 @@ function loop(nowMs) {
   lastFrameMs = nowMs;
   if (!optionsMenu.isOpen) {
     if (updateSailing(dt)) dirty = true;
+    if (updateCannons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
@@ -1364,6 +1410,9 @@ function createOptionsMenuState() {
     isOpen: false,
     volume: loadStoredMusicVolume(),
     muted: loadStoredMusicMuted(),
+    shipSlug: START_SHIP_SLUG,
+    shipLoadingSlug: null,
+    shipError: null,
     selectedIndex: 0,
     activeSliderKey: null,
     hoverPoint: null,
@@ -1373,7 +1422,9 @@ function createOptionsMenuState() {
     rowRects: [],
     sliderRect: null,
     sliderHitRect: null,
-    muteRect: null
+    muteRect: null,
+    shipPrevRect: null,
+    shipNextRect: null
   };
 }
 
@@ -1486,6 +1537,92 @@ function toggleMusicMuted() {
   setMusicMuted(!optionsMenu.muted);
 }
 
+function requestShipMenuStep(offset) {
+  const currentIndex = shipMenuIndex(optionsMenu.shipSlug);
+  const nextIndex = (currentIndex + offset + SHIP_MENU_SLUGS.length) % SHIP_MENU_SLUGS.length;
+  setPlayerShipType(SHIP_MENU_SLUGS[nextIndex]);
+}
+
+function shipMenuIndex(slug) {
+  const index = SHIP_MENU_SLUGS.indexOf(slug);
+  if (index < 0) throw new Error(`Ship type is not in menu: ${slug}`);
+  return index;
+}
+
+async function setPlayerShipType(slug) {
+  const stats = shipStatsForSlug(slug);
+  if (ship?.typeSlug === slug && !optionsMenu.shipLoadingSlug) {
+    optionsMenu.shipSlug = slug;
+    optionsMenu.shipError = null;
+    dirty = true;
+    return;
+  }
+
+  const requestId = ++shipSelectionRequestId;
+  optionsMenu.shipSlug = slug;
+  optionsMenu.shipLoadingSlug = slug;
+  optionsMenu.shipError = null;
+  dirty = true;
+
+  try {
+    const assets = await loadShipAssetSet(slug);
+    if (requestId !== shipSelectionRequestId) return;
+    applyPlayerShipType(slug, stats, assets);
+  } catch (error) {
+    if (requestId !== shipSelectionRequestId) return;
+    console.error(error);
+    optionsMenu.shipSlug = ship?.typeSlug || START_SHIP_SLUG;
+    optionsMenu.shipLoadingSlug = null;
+    optionsMenu.shipError = "LOAD ERR";
+    dirty = true;
+  }
+}
+
+async function loadShipAssetSet(slug) {
+  const shipSpriteKey = vehicleSpriteKeyForShipSlug(slug);
+  const [loadedShipImage, loadedShipLighting] = await Promise.all([
+    loadVehicleImage(`${shipSpriteKey}-16-headings`),
+    loadShipLightingBake(shipSpriteKey)
+  ]);
+  return {
+    image: loadedShipImage,
+    lighting: loadedShipLighting
+  };
+}
+
+function applyPlayerShipType(slug, stats, assets) {
+  shipImage = assets.image;
+  shipWakeAnchors = decodeShipWakeAnchors(shipImage);
+  shipLighting = assets.lighting;
+  if (ship) {
+    ship.typeSlug = slug;
+    ship.stats = stats;
+    ship.hitPoints = stats.hitPoints;
+    ship.maxHitPoints = stats.hitPoints;
+    ship.cargoCapacity = stats.cargoCapacity;
+    ship.cargoUsed = Math.min(ship.cargoUsed || 0, stats.cargoCapacity);
+    ship.wakeParticles = [];
+    ship.lastWakeEmit = null;
+    ship.cannonballs = [];
+    ship.cannonSplashes = [];
+    ship.cannonCooldowns = {
+      port: 0,
+      starboard: 0
+    };
+  }
+  optionsMenu.shipSlug = slug;
+  optionsMenu.shipLoadingSlug = null;
+  optionsMenu.shipError = null;
+  syncShipSlugToLocation(slug);
+  dirty = true;
+}
+
+function syncShipSlugToLocation(slug) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("ship", slug);
+  window.history.replaceState(null, "", url);
+}
+
 function openOptionsMenu() {
   optionsMenu.isOpen = true;
   optionsMenu.selectedIndex = 0;
@@ -1504,6 +1641,8 @@ function closeOptionsMenu() {
   optionsMenu.sliderRect = null;
   optionsMenu.sliderHitRect = null;
   optionsMenu.muteRect = null;
+  optionsMenu.shipPrevRect = null;
+  optionsMenu.shipNextRect = null;
   dirty = true;
 }
 
@@ -1515,17 +1654,22 @@ function handleOptionsKeyDown(event) {
   }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
     const direction = event.key === "ArrowDown" ? 1 : -1;
-    optionsMenu.selectedIndex = (optionsMenu.selectedIndex + direction + 2) % 2;
+    optionsMenu.selectedIndex = (optionsMenu.selectedIndex + direction + OPTIONS_ROW_COUNT) % OPTIONS_ROW_COUNT;
     dirty = true;
     return;
   }
   if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
     const direction = event.key === "ArrowRight" ? 1 : -1;
-    setMusicVolume(optionsMenu.volume + direction * 0.05);
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_VOLUME) {
+      setMusicVolume(optionsMenu.volume + direction * 0.05);
+    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_SHIP) {
+      requestShipMenuStep(direction);
+    }
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
-    if (optionsMenu.selectedIndex === 1) toggleMusicMuted();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_MUTE) toggleMusicMuted();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_SHIP) requestShipMenuStep(1);
     return;
   }
   if (event.key === "m" || event.key === "M") {
@@ -1626,8 +1770,18 @@ function handleOptionsPointerDown(point) {
     return;
   }
   if (pointInRect(point, optionsMenu.muteRect) || pointInRect(point, optionsMenu.rowRects[1])) {
-    optionsMenu.selectedIndex = 1;
+    optionsMenu.selectedIndex = OPTIONS_ROW_MUTE;
     toggleMusicMuted();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.shipPrevRect)) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_SHIP;
+    requestShipMenuStep(-1);
+    return;
+  }
+  if (pointInRect(point, optionsMenu.shipNextRect)) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_SHIP;
+    requestShipMenuStep(1);
   }
 }
 
@@ -1693,15 +1847,29 @@ function createShip(latDeg, lonDeg) {
   const tileId = nearestShipStartTile(requested);
   const position = tileCenterVector(tileId);
   const heading = initialShipHeading(position);
+  const stats = shipStatsForSlug(START_SHIP_SLUG);
   return {
+    typeSlug: START_SHIP_SLUG,
+    stats,
     position,
     tileId,
     heading,
     targetHeading: heading.slice(),
     velocity: [0, 0, 0],
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints,
+    cargoUsed: 0,
+    cargoCapacity: stats.cargoCapacity,
     wakeParticles: [],
     wakeSeedCounter: 0,
-    lastWakeEmit: null
+    lastWakeEmit: null,
+    cannonballs: [],
+    cannonSplashes: [],
+    cannonSequence: 0,
+    cannonCooldowns: {
+      port: 0,
+      starboard: 0
+    }
   };
 }
 
@@ -1748,7 +1916,7 @@ function updateSailing(dt) {
       ship.heading,
       ship.targetHeading,
       ship.position,
-      SHIP_TURN_RATE_RAD * dt
+      ship.stats.turnRateRad * dt
     );
   } else {
     ship.targetHeading = ship.heading;
@@ -1799,7 +1967,7 @@ function applyWindAcceleration(dt) {
   const wind = windForTile(ship.tileId);
   const windFlow = windFlowVectorAtShip(wind);
   const efficiency = sailingEfficiency(ship.heading, windFlow);
-  const sailAccel = SHIP_SAIL_ACCEL_RAD * wind.strength * efficiency;
+  const sailAccel = ship.stats.accelerationRad * wind.strength * efficiency;
 
   ship.velocity = [
     ship.velocity[0] + ship.heading[0] * sailAccel * dt,
@@ -1840,14 +2008,16 @@ function shipIsInRiverWater() {
 function sailingEfficiency(heading, windFlow) {
   const alignment = clamp(dot3(heading, windFlow), -1, 1);
   const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
-  if (angleFromWind <= SAIL_NO_GO_ANGLE_RAD) return 0;
+  const stallAngle = ship.stats.upwindStallAngleRad;
+  const closeHauledAngle = Math.min(Math.PI / 2 - 0.01, stallAngle + SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD);
+  if (angleFromWind <= stallAngle) return 0;
 
-  if (angleFromWind <= SAIL_CLOSE_HAULED_ANGLE_RAD) {
-    const t = easeInOut((angleFromWind - SAIL_NO_GO_ANGLE_RAD) / (SAIL_CLOSE_HAULED_ANGLE_RAD - SAIL_NO_GO_ANGLE_RAD));
+  if (angleFromWind <= closeHauledAngle) {
+    const t = easeInOut((angleFromWind - stallAngle) / (closeHauledAngle - stallAngle));
     return SAIL_CLOSE_HAULED_EFFICIENCY * t;
   }
   if (angleFromWind <= Math.PI / 2) {
-    const t = easeInOut((angleFromWind - SAIL_CLOSE_HAULED_ANGLE_RAD) / (Math.PI / 2 - SAIL_CLOSE_HAULED_ANGLE_RAD));
+    const t = easeInOut((angleFromWind - closeHauledAngle) / (Math.PI / 2 - closeHauledAngle));
     return SAIL_CLOSE_HAULED_EFFICIENCY + (1 - SAIL_CLOSE_HAULED_EFFICIENCY) * t;
   }
   if (angleFromWind <= Math.PI * 0.75) {
@@ -1862,7 +2032,7 @@ function sailingEfficiency(heading, windFlow) {
 function poweredShipMaxSpeed(windStrength, efficiency) {
   if (efficiency <= 0) return Infinity;
   const windFactor = 0.28 + windStrength * 0.72;
-  return SHIP_MIN_POWERED_SPEED_RAD + (SHIP_MAX_SPEED_RAD - SHIP_MIN_POWERED_SPEED_RAD) * windFactor * efficiency;
+  return SHIP_MIN_POWERED_SPEED_RAD + (ship.stats.topSpeedRad - SHIP_MIN_POWERED_SPEED_RAD) * windFactor * efficiency;
 }
 
 function windFlowVectorAtShip(wind) {
@@ -2473,6 +2643,204 @@ function scale2(direction, scale) {
   };
 }
 
+function fireBroadside(sideName) {
+  if (!ship || !camera || !localLayout) return;
+  if (sideName !== "port" && sideName !== "starboard") {
+    throw new Error(`Unknown cannon broadside: ${sideName}`);
+  }
+  const broadsideCount = shipBroadsideCannonCount();
+  if (broadsideCount <= 0) return;
+  if (ship.cannonCooldowns[sideName] > 0) return;
+
+  ship.cannonCooldowns[sideName] = CANNON_BROADSIDE_COOLDOWN_SECONDS;
+
+  const heading = shipScreenHeading();
+  const starboard = { x: -heading.y, y: heading.x };
+  const side = sideName === "starboard" ? starboard : scale2(starboard, -1);
+  const origin = { x: localLayout.viewX, y: localLayout.viewY };
+  const sequenceBase = ++ship.cannonSequence;
+  const sideSalt = sideName === "starboard" ? 0x51a7b04d : 0x704f1b23;
+  const muzzleSpan = cannonMuzzleForeAftSpan(broadsideCount);
+
+  for (let i = 0; i < broadsideCount; i++) {
+    const lineT = broadsideCount === 1
+      ? 0
+      : i / (broadsideCount - 1) - 0.5;
+    const seed = cannonSeed(sequenceBase, i, sideSalt, origin);
+    const spread = (cannonUnit(seed, 1) * 2 - 1) * CANNON_AIM_SPREAD_RAD;
+    const range = CANNON_RANGE_PX + (cannonUnit(seed, 2) * 2 - 1) * CANNON_RANGE_JITTER_PX;
+    const sideJitter = (cannonUnit(seed, 3) * 2 - 1) * 0.75;
+    const aim = rotate2(side, spread);
+    const startX = origin.x +
+      heading.x * lineT * muzzleSpan +
+      side.x * (CANNON_MUZZLE_SIDE_OFFSET_PX + sideJitter);
+    const startY = origin.y +
+      heading.y * lineT * muzzleSpan +
+      side.y * (CANNON_MUZZLE_SIDE_OFFSET_PX + sideJitter);
+    const targetX = startX + aim.x * range;
+    const targetY = startY + aim.y * range;
+    ship.cannonballs.push({
+      startX,
+      startY,
+      targetX,
+      targetY,
+      age: 0,
+      duration: range / CANNON_SPEED_PX,
+      arcHeight: CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 4) * 4,
+      seed
+    });
+  }
+
+  if (ship.cannonballs.length > CANNON_MAX_BALLS) {
+    ship.cannonballs.splice(0, ship.cannonballs.length - CANNON_MAX_BALLS);
+  }
+  dirty = true;
+}
+
+function shipBroadsideCannonCount() {
+  return Math.ceil(ship.stats.cannons / 2);
+}
+
+function cannonMuzzleForeAftSpan(broadsideCount) {
+  return CANNON_MUZZLE_FORE_AFT_SPAN_PX + Math.min(9, Math.max(0, broadsideCount - 7) * 0.38);
+}
+
+function updateCannons(dt) {
+  if (!ship) return false;
+  ship.cannonCooldowns.port = Math.max(0, ship.cannonCooldowns.port - dt);
+  ship.cannonCooldowns.starboard = Math.max(0, ship.cannonCooldowns.starboard - dt);
+
+  let changed = false;
+  if (ship.cannonballs.length > 0) {
+    const keptBalls = [];
+    for (const ball of ship.cannonballs) {
+      ball.age += dt;
+      if (ball.age >= ball.duration) {
+        if (wakeMapPointIsWater(Math.round(ball.targetX), Math.round(ball.targetY), chart)) {
+          addCannonSplash(ball);
+        }
+        continue;
+      }
+      keptBalls.push(ball);
+    }
+    ship.cannonballs = keptBalls;
+    changed = true;
+  }
+
+  if (ship.cannonSplashes.length > 0) {
+    const keptSplashes = [];
+    for (const splash of ship.cannonSplashes) {
+      splash.age += dt;
+      if (splash.age < splash.ttl) keptSplashes.push(splash);
+    }
+    ship.cannonSplashes = keptSplashes;
+    changed = true;
+  }
+
+  return changed;
+}
+
+function addCannonSplash(ball) {
+  ship.cannonSplashes.push({
+    x: Math.round(ball.targetX),
+    y: Math.round(ball.targetY),
+    age: 0,
+    ttl: CANNON_SPLASH_TTL_SECONDS,
+    seed: ball.seed
+  });
+  if (ship.cannonSplashes.length > CANNON_MAX_SPLASHES) {
+    ship.cannonSplashes.splice(0, ship.cannonSplashes.length - CANNON_MAX_SPLASHES);
+  }
+}
+
+function drawCannonEffects(activeChart) {
+  if (!ship) return;
+  drawCannonSplashes(activeChart);
+  drawCannonBalls();
+}
+
+function drawCannonBalls() {
+  if (!ship.cannonballs.length) return;
+  for (const ball of ship.cannonballs) {
+    const point = cannonBallPoint(ball, ball.age);
+    drawCannonTrail(ball);
+    ctx.fillStyle = "rgba(18, 14, 12, 0.95)";
+    ctx.fillRect(Math.round(point.x), Math.round(point.y - point.z), 1, 1);
+  }
+}
+
+function drawCannonTrail(ball) {
+  const dx = ball.targetX - ball.startX;
+  const dy = ball.targetY - ball.startY;
+  const length = Math.hypot(dx, dy);
+  if (length <= 1e-6) return;
+  const speedPx = length / ball.duration;
+  const trailLength = clamp(Math.round(speedPx / 42), 1, CANNON_TRAIL_MAX_PX);
+  for (let i = trailLength; i >= 1; i--) {
+    const trailAge = Math.max(0, ball.age - i / Math.max(speedPx, 1));
+    const trailPoint = cannonBallPoint(ball, trailAge);
+    const alpha = 0.08 + (trailLength - i) / trailLength * 0.18;
+    ctx.fillStyle = `rgba(18, 14, 12, ${alpha.toFixed(3)})`;
+    ctx.fillRect(Math.round(trailPoint.x), Math.round(trailPoint.y - trailPoint.z), 1, 1);
+  }
+}
+
+function drawCannonSplashes(activeChart) {
+  if (!ship.cannonSplashes.length) return;
+  for (const splash of ship.cannonSplashes) {
+    if (!wakeMapPointIsWater(splash.x, splash.y, activeChart)) continue;
+    const life = clamp(splash.age / splash.ttl, 0, 1);
+    const alpha = Math.pow(1 - life, 1.2);
+    ctx.fillStyle = `rgba(255, 253, 231, ${(0.72 * alpha).toFixed(3)})`;
+    ctx.fillRect(splash.x, splash.y, 1, 1);
+
+    for (let i = 0; i < CANNON_SPLASH_DROP_COUNT; i++) {
+      const hash = hashInt(splash.seed ^ Math.imul(i + 17, 0x9e3779b1));
+      const angle = cannonUnit(hash, 5) * Math.PI * 2;
+      const spread = 1 + cannonUnit(hash, 6) * (1.5 + life * 2.5);
+      const rise = Math.sin(life * Math.PI) * (1 + cannonUnit(hash, 7) * 3);
+      const x = Math.round(splash.x + Math.cos(angle) * spread);
+      const y = Math.round(splash.y + Math.sin(angle) * spread - rise);
+      ctx.fillStyle = `rgba(255, 253, 231, ${(0.54 * alpha).toFixed(3)})`;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+}
+
+function cannonBallPoint(ball, age) {
+  const t = clamp(age / ball.duration, 0, 1);
+  return {
+    x: ball.startX + (ball.targetX - ball.startX) * t,
+    y: ball.startY + (ball.targetY - ball.startY) * t,
+    z: Math.sin(Math.PI * t) * ball.arcHeight
+  };
+}
+
+function cannonSeed(sequence, index, sideSalt, origin) {
+  const ox = Math.round(origin.x * 8);
+  const oy = Math.round(origin.y * 8);
+  return hashInt(
+    Math.imul(sequence, 0x9e3779b1) ^
+    Math.imul(index + 1, 0x85ebca6b) ^
+    Math.imul(ox, 0x45d9f3b) ^
+    Math.imul(oy, 0x27d4eb2d) ^
+    sideSalt
+  );
+}
+
+function cannonUnit(seed, salt) {
+  return (hashInt(seed ^ Math.imul(salt + 1, 0x7f4a7c15)) & 0xffff) / 0xffff;
+}
+
+function rotate2(direction, angle) {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return {
+    x: direction.x * c - direction.y * s,
+    y: direction.x * s + direction.y * c
+  };
+}
+
 function updateWaterAnimation(nowMs) {
   const tick = Math.floor(nowMs / WATER_REDRAW_MS);
   if (tick === waterAnimationDrawTick) return false;
@@ -2735,6 +3103,7 @@ function render(nowMs) {
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart);
   drawShipWake(chart);
+  drawCannonEffects(chart);
   drawCitySprites(chart);
   ctx.restore();
 
@@ -3280,10 +3649,12 @@ function drawOptionsMenu() {
   const rowW = OPTIONS_PANEL_W - 20;
   const volumeRow = { x: rowX, y: panelY + 31, w: rowW, h: OPTIONS_ROW_H - 2 };
   const muteRow = { x: rowX, y: panelY + 55, w: rowW, h: OPTIONS_ROW_H - 2 };
-  optionsMenu.rowRects = [volumeRow, muteRow];
+  const shipRow = { x: rowX, y: panelY + 79, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [volumeRow, muteRow, shipRow];
 
-  drawOptionsVolumeRow(volumeRow, optionsMenu.selectedIndex === 0);
-  drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === 1);
+  drawOptionsVolumeRow(volumeRow, optionsMenu.selectedIndex === OPTIONS_ROW_VOLUME);
+  drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
+  drawOptionsShipRow(shipRow, optionsMenu.selectedIndex === OPTIONS_ROW_SHIP);
   ctx.restore();
 }
 
@@ -3359,6 +3730,44 @@ function drawOptionsMuteRow(rowRect, highlighted) {
   }
 }
 
+function drawOptionsShipRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  drawOptionsText("SHIP", rowRect.x + 8, rowRect.y + 6, {
+    color: highlighted ? "#ffffff" : "#ffd700"
+  });
+
+  const buttonSize = 12;
+  const buttonY = rowRect.y + Math.floor((rowRect.h - buttonSize) / 2);
+  const prevRect = { x: rowRect.x + 51, y: buttonY, w: buttonSize, h: buttonSize };
+  const nextRect = { x: rowRect.x + rowRect.w - buttonSize - 8, y: buttonY, w: buttonSize, h: buttonSize };
+  optionsMenu.shipPrevRect = prevRect;
+  optionsMenu.shipNextRect = nextRect;
+
+  drawOptionsArrowButton(prevRect, "<", highlighted && pointInRect(optionsMenu.hoverPoint, prevRect));
+  drawOptionsArrowButton(nextRect, ">", highlighted && pointInRect(optionsMenu.hoverPoint, nextRect));
+
+  const valueX = prevRect.x + prevRect.w + 5;
+  const valueW = nextRect.x - valueX - 5;
+  const label = optionsMenu.shipError || shipLabelForSlug(optionsMenu.shipSlug);
+  const fittedLabel = fitPixelText(label, PIXEL_FONT_UI_8, valueW);
+  const loading = optionsMenu.shipLoadingSlug === optionsMenu.shipSlug;
+  drawOptionsText(loading ? fitPixelText(`${fittedLabel}...`, PIXEL_FONT_UI_8, valueW) : fittedLabel, valueX, rowRect.y + 6, {
+    color: optionsMenu.shipError ? "#ff8888" : "#eeeeee"
+  });
+}
+
+function drawOptionsArrowButton(rect, label, highlighted) {
+  ctx.fillStyle = highlighted ? "#3a3a3a" : "#202020";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = highlighted ? "#ffffff" : "#777777";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawOptionsText(label, rect.x + rect.w / 2, rect.y + 2, {
+    align: "center",
+    color: highlighted ? "#ffffff" : "#ffd700"
+  });
+}
+
 function drawOptionsRowFrame(rect, highlighted) {
   ctx.fillStyle = highlighted ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.04)";
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
@@ -3373,6 +3782,18 @@ function drawOptionsText(text, x, y, options = {}) {
     font: PIXEL_FONT_UI_8,
     align: options.align || "left"
   });
+}
+
+function fitPixelText(text, font, maxWidth) {
+  if (measurePixelTextWidth(text, font) <= maxWidth) return text;
+  const suffix = "...";
+  const suffixWidth = measurePixelTextWidth(suffix, font);
+  let kept = "";
+  for (const char of text) {
+    if (measurePixelTextWidth(kept + char, font) + suffixWidth > maxWidth) break;
+    kept += char;
+  }
+  return kept.length > 0 ? `${kept}${suffix}` : suffix;
 }
 
 function drawPixelText(text, x, y, options = {}) {
@@ -5483,6 +5904,19 @@ function isControlKey(key) {
     key === "S" ||
     key === "d" ||
     key === "D";
+}
+
+function isCannonKey(key) {
+  return key === "q" ||
+    key === "Q" ||
+    key === "e" ||
+    key === "E";
+}
+
+function cannonSideForKey(key) {
+  if (key === "q" || key === "Q") return "port";
+  if (key === "e" || key === "E") return "starboard";
+  throw new Error(`Unknown cannon key: ${key}`);
 }
 
 function isWeatherControlKey(key) {

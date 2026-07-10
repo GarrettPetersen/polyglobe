@@ -5,6 +5,7 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 import * as THREE from "../../../examples/globe-demo/node_modules/three/build/three.module.js";
 import { FBXLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
+import { shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(appRoot, "../..");
@@ -1182,6 +1183,7 @@ async function renderShipSpriteSet(config) {
     sheetCols,
     lightAzimuthBins,
     lightElevationBins,
+    ...(config.stats ? { stats: config.stats } : {}),
     files: {
       sheet: portablePath(sheetPath),
       light: portablePath(lightPath),
@@ -1240,6 +1242,7 @@ function unityShipConfig(modelPath) {
     identifiedType: rosterEntry.identifiedType,
     identificationConfidence: rosterEntry.confidence,
     identificationNotes: rosterEntry.notes,
+    stats: shipStatsForSlug(rosterEntry.slug),
     modelPath,
     texturePath: unityShipTexturePath,
     recolorSails: true,
@@ -1355,6 +1358,7 @@ async function renderUnityFleet() {
   for (const config of measuredConfigs) {
     config.frameScale = sharedFrameScale;
   }
+  validateShipStatsForSlugs(measuredConfigs.map((config) => config.slug));
 
   const manifest = [];
   for (const config of measuredConfigs) {
