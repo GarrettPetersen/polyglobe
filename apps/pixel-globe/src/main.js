@@ -359,11 +359,61 @@ const OPTIONS_ROW_VOLUME = 0;
 const OPTIONS_ROW_MUTE = 1;
 const OPTIONS_ROW_SHIP = 2;
 const UI_ASSET_VERSION = "options-menu-1";
-const MUSIC_ASSET_VERSION = "ship-theme-1";
+const MUSIC_ASSET_VERSION = "regional-city-combat-1";
 const SFX_ASSET_VERSION = "harbour-cannon-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const MUSIC_VOLUME_STORAGE_KEY = "pixel_globe_music_volume";
 const MUSIC_MUTED_STORAGE_KEY = "pixel_globe_music_muted";
+const MUSIC_TRACK_SPECS = Object.freeze({
+  ship: {
+    intro: "/assets/music/ship-theme-intro.ogg",
+    loop: "/assets/music/ship-theme-loop.ogg"
+  },
+  cityNorthernEuropean: {
+    intro: "/assets/music/city-northern-european-intro.ogg",
+    loop: "/assets/music/city-northern-european-loop.ogg"
+  },
+  cityMediterranean: {
+    intro: "/assets/music/city-mediterranean-intro.ogg",
+    loop: "/assets/music/city-mediterranean-loop.ogg"
+  },
+  cityDesert: {
+    intro: "/assets/music/city-desert-intro.ogg",
+    loop: "/assets/music/city-desert-loop.ogg"
+  },
+  cityEastAsian: {
+    intro: "/assets/music/city-east-asian-intro.ogg",
+    loop: "/assets/music/city-east-asian-loop.ogg"
+  },
+  cityTropical: {
+    loop: "/assets/music/city-tropical-loop.ogg"
+  },
+  cityAndean: {
+    intro: "/assets/music/city-andean-intro.ogg",
+    loop: "/assets/music/city-andean-loop.ogg"
+  },
+  combatSmall: {
+    intro: "/assets/music/combat-small-intro.ogg",
+    loop: "/assets/music/combat-small-loop.ogg"
+  },
+  combatBig: {
+    intro: "/assets/music/combat-big-intro.ogg",
+    loop: "/assets/music/combat-big-loop.ogg"
+  }
+});
+const CITY_TYPE_MUSIC_TRACK_KEYS = Object.freeze({
+  "northern-european": "cityNorthernEuropean",
+  mediterranean: "cityMediterranean",
+  "islamic-desert": "cityDesert",
+  "east-asian": "cityEastAsian",
+  "south-asian": "cityDesert",
+  "southeast-asian": "cityTropical",
+  mesoamerican: "cityTropical",
+  andean: "cityAndean",
+  "sub-saharan": "cityTropical"
+});
+const COMBAT_MUSIC_HOLD_MS = 18000;
+const COMBAT_BIG_BROADSIDE_MIN_CANNONS = 10;
 const SFX_CANNON_URL = "/assets/sfx/universfield-cannon-shot-352459.mp3";
 const SFX_HARBOUR_URL = "/assets/sfx/freesound_community-harboursoundsanno1811-24015.mp3";
 const SFX_IMPACT_URL = "/assets/sfx/dragon-studio-boulder-impact-487673%20%281%29.mp3";
@@ -478,6 +528,8 @@ let localLayout;
 let minimap;
 let themeMusic = null;
 let soundEffects = null;
+let backgroundMusicTrackKey = "ship";
+let combatMusicUntilMs = 0;
 let gameAudioActivationAllowed = false;
 let gameState = null;
 let dialogueState = null;
@@ -1548,6 +1600,7 @@ function loop(nowMs) {
     if (updatePrecipitationAnimation(nowMs)) dirty = true;
     updateAmbientAudio(dt);
   }
+  updateMusicContext(nowMs);
   if (dirty || optionsMenu.isOpen || dialogueState || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
@@ -1586,21 +1639,43 @@ function createOptionsMenuState() {
 
 function setupThemeMusic() {
   if (themeMusic) return;
-  const intro = new Audio(`/assets/music/ship-theme-intro.ogg?v=${MUSIC_ASSET_VERSION}`);
-  const loopAudio = new Audio(`/assets/music/ship-theme-loop.ogg?v=${MUSIC_ASSET_VERSION}`);
-  intro.preload = "auto";
-  loopAudio.preload = "auto";
-  loopAudio.loop = true;
   themeMusic = {
-    intro,
-    loop: loopAudio,
+    tracks: new Map(),
+    currentTrackKey: null,
+    pendingTrackKey: "ship"
+  };
+  preloadMusicTrack("ship");
+  applyThemeAudioSettings();
+}
+
+function preloadMusicTrack(trackKey) {
+  if (!themeMusic) return null;
+  const existing = themeMusic.tracks.get(trackKey);
+  if (existing) return existing;
+
+  const spec = MUSIC_TRACK_SPECS[trackKey];
+  if (!spec?.loop) throw new Error(`Missing music track spec: ${trackKey}`);
+  const track = {
+    key: trackKey,
+    intro: spec.intro ? createMusicAudio(spec.intro, `${trackKey} intro`) : null,
+    loop: createMusicAudio(spec.loop, `${trackKey} loop`),
     started: false,
     startAttempting: false
   };
-  intro.addEventListener("ended", startThemeLoop);
-  intro.addEventListener("error", () => console.warn("[pixel-globe] ship theme intro failed to load"));
-  loopAudio.addEventListener("error", () => console.warn("[pixel-globe] ship theme loop failed to load"));
+  track.loop.loop = true;
+  if (track.intro) {
+    track.intro.addEventListener("ended", () => startMusicTrackLoop(trackKey));
+  }
+  themeMusic.tracks.set(trackKey, track);
   applyThemeAudioSettings();
+  return track;
+}
+
+function createMusicAudio(url, label) {
+  const audio = new Audio(`${url}?v=${MUSIC_ASSET_VERSION}`);
+  audio.preload = "auto";
+  audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
+  return audio;
 }
 
 function setupSoundEffects() {
@@ -1642,36 +1717,120 @@ function ensureGameAudioStarted(fromUserGesture = false) {
 
 function ensureThemeMusicStarted() {
   if (!gameAudioActivationAllowed) return;
-  if (!themeMusic || themeMusic.started || themeMusic.startAttempting) return;
-  themeMusic.started = true;
-  themeMusic.startAttempting = true;
-  themeMusic.loop.pause();
-  themeMusic.loop.currentTime = 0;
-  themeMusic.intro.currentTime = 0;
+  if (!themeMusic) return;
+  playMusicTrack(themeMusic.pendingTrackKey || backgroundMusicTrackKey || "ship");
+}
+
+function playMusicTrack(trackKey, options = {}) {
+  if (!themeMusic) return;
+  const nextTrackKey = MUSIC_TRACK_SPECS[trackKey] ? trackKey : "ship";
+  themeMusic.pendingTrackKey = nextTrackKey;
+  if (!gameAudioActivationAllowed) return;
+  if (themeMusic.currentTrackKey === nextTrackKey && !options.restart) {
+    applyThemeAudioSettings();
+    return;
+  }
+
+  stopCurrentMusicTrack();
+  const track = preloadMusicTrack(nextTrackKey);
+  if (!track) return;
+  themeMusic.currentTrackKey = nextTrackKey;
+  track.started = true;
+  track.startAttempting = true;
+  track.loop.pause();
+  track.loop.currentTime = 0;
+  if (track.intro) {
+    track.intro.pause();
+    track.intro.currentTime = 0;
+  }
   applyThemeAudioSettings();
-  const playPromise = themeMusic.intro.play();
+
+  const activeAudio = track.intro || track.loop;
+  const playPromise = activeAudio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
       .catch(() => {
-        themeMusic.started = false;
+        handleMusicTrackPlayFailure(nextTrackKey);
       })
       .finally(() => {
-        themeMusic.startAttempting = false;
+        track.startAttempting = false;
       });
   } else {
-    themeMusic.startAttempting = false;
+    track.startAttempting = false;
   }
 }
 
-function startThemeLoop() {
-  if (!themeMusic || !themeMusic.started) return;
-  themeMusic.loop.currentTime = 0;
+function stopCurrentMusicTrack() {
+  if (!themeMusic?.currentTrackKey) return;
+  const current = themeMusic.tracks.get(themeMusic.currentTrackKey);
+  if (!current) {
+    themeMusic.currentTrackKey = null;
+    return;
+  }
+  for (const audio of [current.intro, current.loop]) {
+    if (!audio) continue;
+    audio.pause();
+    audio.currentTime = 0;
+  }
+  current.started = false;
+  current.startAttempting = false;
+  themeMusic.currentTrackKey = null;
+}
+
+function handleMusicTrackPlayFailure(trackKey) {
+  if (!themeMusic) return;
+  const track = themeMusic.tracks.get(trackKey);
+  if (track) {
+    track.started = false;
+    track.startAttempting = false;
+  }
+  if (themeMusic.currentTrackKey === trackKey) themeMusic.currentTrackKey = null;
+}
+
+function startMusicTrackLoop(trackKey) {
+  if (!themeMusic || themeMusic.currentTrackKey !== trackKey) return;
+  const track = themeMusic.tracks.get(trackKey);
+  if (!track?.loop || !track.started) return;
+  track.loop.currentTime = 0;
   applyThemeAudioSettings();
-  const playPromise = themeMusic.loop.play();
+  const playPromise = track.loop.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise.catch(() => {
-      themeMusic.started = false;
+      handleMusicTrackPlayFailure(trackKey);
     });
+  }
+}
+
+function setBackgroundMusicTrack(trackKey, options = {}) {
+  const nextTrackKey = MUSIC_TRACK_SPECS[trackKey] ? trackKey : "ship";
+  backgroundMusicTrackKey = nextTrackKey;
+  if (combatMusicIsActive(lastFrameMs) && !options.force) return;
+  playMusicTrack(nextTrackKey, options);
+}
+
+function musicTrackForCity(city) {
+  return CITY_TYPE_MUSIC_TRACK_KEYS[city?.cityType] || "ship";
+}
+
+function startCombatMusicForThreat(threatSize = "small") {
+  const trackKey = threatSize === "big" ? "combatBig" : "combatSmall";
+  combatMusicUntilMs = Math.max(combatMusicUntilMs, lastFrameMs + COMBAT_MUSIC_HOLD_MS);
+  playMusicTrack(trackKey);
+}
+
+function combatMusicIsActive(nowMs) {
+  return nowMs < combatMusicUntilMs;
+}
+
+function isCombatMusicTrack(trackKey) {
+  return trackKey === "combatSmall" || trackKey === "combatBig";
+}
+
+function updateMusicContext(nowMs) {
+  if (!themeMusic) return;
+  if (combatMusicIsActive(nowMs)) return;
+  if (isCombatMusicTrack(themeMusic.currentTrackKey)) {
+    playMusicTrack(backgroundMusicTrackKey || "ship");
   }
 }
 
@@ -1700,9 +1859,12 @@ function ensureHarbourLoopStarted() {
 function applyThemeAudioSettings() {
   const volume = clamp(optionsMenu.volume, 0, 1);
   if (themeMusic) {
-    for (const audio of [themeMusic.intro, themeMusic.loop]) {
-      audio.volume = volume;
-      audio.muted = optionsMenu.muted;
+    for (const track of themeMusic.tracks.values()) {
+      for (const audio of [track.intro, track.loop]) {
+        if (!audio) continue;
+        audio.volume = volume;
+        audio.muted = optionsMenu.muted;
+      }
     }
   }
   if (soundEffects) {
@@ -2177,6 +2339,8 @@ function openActivePortDialogue() {
 function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
+  combatMusicUntilMs = 0;
+  setBackgroundMusicTrack(musicTrackForCity(cityCall), { restart: true, force: true });
   dialogueState = createPortDialogueSession(cityCall);
   dialogueLayout = createDialogueLayoutState();
   visitPort(gameState, cityCall);
@@ -2198,6 +2362,8 @@ function stopShipForPort() {
 function closeDialogue() {
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
+  combatMusicUntilMs = 0;
+  setBackgroundMusicTrack("ship", { force: true });
   dirty = true;
 }
 
@@ -3207,6 +3373,7 @@ function fireBroadside(sideName) {
   if (ship.cannonCooldowns[sideName] > 0) return;
 
   ship.cannonCooldowns[sideName] = CANNON_BROADSIDE_COOLDOWN_SECONDS;
+  startCombatMusicForThreat(broadsideCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   playCannonShotSound(broadsideCount);
 
   const heading = shipScreenHeading();
