@@ -6,6 +6,7 @@
     "build": "node tools/build-static-site.mjs",
     "dev": "node server.mjs",
     "generate:characters": "node tools/build-character-portrait-manifest.mjs",
+    "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
     "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet"
   }

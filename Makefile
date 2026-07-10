@@ -3,7 +3,7 @@ RAILWAYS_DIR := apps/railways
 PIXEL_GLOBE_DIR := apps/pixel-globe
 PIXEL_GLOBE_PORT ?= 5184
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-render-ship pixel-globe-render-unity-ships
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships
 
 help:
 	@echo "Targets:"
@@ -22,6 +22,7 @@ help:
 	@echo "  make railways-build     Build Railways app"
 	@echo "  make railways-preview   Preview built Railways app"
 	@echo "  make pixel-globe-dev    Run Pixel Globe locally on PIXEL_GLOBE_PORT (default: 5184)"
+	@echo "  make pixel-globe-normalize-sfx      Normalize source SFX to runtime OGG files"
 	@echo "  make pixel-globe-render-ship        Rebuild the default ship sprite lighting sheets"
 	@echo "  make pixel-globe-render-unity-ships Rebuild imported Unity ship sprite lighting sheets"
 
@@ -69,6 +70,9 @@ railways-preview:
 
 pixel-globe-dev:
 	PORT=$(PIXEL_GLOBE_PORT) npm --prefix $(PIXEL_GLOBE_DIR) run dev
+
+pixel-globe-normalize-sfx:
+	npm --prefix $(PIXEL_GLOBE_DIR) run normalize:sfx
 
 pixel-globe-render-ship:
 	npm --prefix $(PIXEL_GLOBE_DIR) run render:ship

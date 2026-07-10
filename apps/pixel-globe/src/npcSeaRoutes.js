@@ -143,25 +143,46 @@ export function createNpcSeaRouteSystem({ ports, startMinute }) {
     baseEdges,
     routeCache: new Map(),
     edgeCostCache: new Map(),
-    ships: []
+    ships: [],
+    shipById: new Map()
   };
   system.ships = createNpcFleet(system, startMinute);
   if (system.ships.length === 0) throw new Error("NPC sea routes created no ships");
+  system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
+  if (system.shipById.size !== system.ships.length) throw new Error("NPC sea routes created duplicate ship ids");
   return system;
 }
 
 export function updateNpcSeaRouteSystem(system, clockMinutes) {
   let changed = false;
   for (const ship of system.ships) {
-    if (settleNpcShipToClock(system, ship, clockMinutes, 5)) changed = true;
+    if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 5)) changed = true;
   }
   return changed;
 }
 
 export function npcShipSnapshots(system, clockMinutes) {
   return system.ships
-    .map((ship) => npcShipSnapshot(ship, clockMinutes))
+    .map((ship) => npcShipSnapshot(ship, npcEffectiveClock(ship, clockMinutes)))
     .filter(Boolean);
+}
+
+export function setNpcShipVisualNavigation(system, shipId, vector, heading) {
+  const ship = requiredNpcShip(system, shipId);
+  const position = normalizedVector(vector, `NPC ship ${shipId} visual position`);
+  const tangentHeading = normalizedTangent(heading, position, `NPC ship ${shipId} visual heading`);
+  ship.visualNavigation = {
+    vector: position,
+    heading: tangentHeading
+  };
+}
+
+export function releaseNpcShipVisualNavigation(system, shipId, clockMinutes, vector) {
+  const ship = requiredNpcShip(system, shipId);
+  if (!ship.visualNavigation) return;
+  const position = normalizedVector(vector, `NPC ship ${shipId} released position`);
+  synchronizeNpcRouteClock(ship, clockMinutes, position);
+  ship.visualNavigation = null;
 }
 
 function createNpcFleet(system, startMinute) {
@@ -182,7 +203,9 @@ function createNpcFleet(system, startMinute) {
         seed,
         currentPort: origin,
         finalDestination: null,
-        plan: null
+        plan: null,
+        clockOffsetMinutes: 0,
+        visualNavigation: null
       };
       const phaseDays = (seed >>> 12) % 96;
       assignNpcPlan(system, ship, startMinute - phaseDays * WEATHER_MINUTES_PER_DAY);
@@ -441,19 +464,100 @@ function npcShipSnapshot(ship, clockMinutes) {
   const plan = ship.plan;
   if (!plan) return null;
   const segment = plan.segments.find((item) => clockMinutes >= item.startMinute && clockMinutes < item.endMinute);
-  if (!segment || segment.kind === "wait") return null;
+  if (!segment || segment.kind === "wait") {
+    if (!ship.visualNavigation) return null;
+    const held = vectorToLatLon(ship.visualNavigation.vector);
+    return {
+      id: ship.id,
+      slug: ship.slug,
+      lat: held.lat,
+      lon: held.lon,
+      vector: ship.visualNavigation.vector.slice(),
+      heading: ship.visualNavigation.heading.slice(),
+      routeVector: ship.visualNavigation.vector.slice(),
+      routeHeading: ship.visualNavigation.heading.slice(),
+      routeKey: `held:${segment?.startMinute ?? plan.endMinute}`,
+      profileId: ship.profileId
+    };
+  }
   const t = clamp01((clockMinutes - segment.startMinute) / (segment.endMinute - segment.startMinute));
   const position = slerpPoint(segment.from, segment.to, t);
-  const heading = headingVectorAt(position, segment.from, segment.to);
+  const routeVector = latLonToVector(position.lat, position.lon);
+  const routeHeading = headingVectorAt(position, segment.from, segment.to);
+  const actualVector = ship.visualNavigation?.vector || routeVector;
+  const actualHeading = ship.visualNavigation?.heading || routeHeading;
+  const actual = vectorToLatLon(actualVector);
   return {
     id: ship.id,
     slug: ship.slug,
-    lat: position.lat,
-    lon: position.lon,
-    vector: latLonToVector(position.lat, position.lon),
-    heading,
+    lat: actual.lat,
+    lon: actual.lon,
+    vector: actualVector.slice(),
+    heading: actualHeading.slice(),
+    routeVector,
+    routeHeading,
+    routeKey: `${segment.from.id}->${segment.to.id}@${segment.startMinute}`,
     profileId: ship.profileId
   };
+}
+
+function npcEffectiveClock(ship, clockMinutes) {
+  return clockMinutes + ship.clockOffsetMinutes;
+}
+
+function requiredNpcShip(system, shipId) {
+  const ship = system.shipById?.get(shipId);
+  if (!ship) throw new Error(`Unknown NPC ship: ${shipId}`);
+  return ship;
+}
+
+function synchronizeNpcRouteClock(ship, clockMinutes, vector) {
+  const effectiveClock = npcEffectiveClock(ship, clockMinutes);
+  const segment = ship.plan?.segments.find((item) => (
+    item.kind === "sail" && effectiveClock >= item.startMinute && effectiveClock < item.endMinute
+  ));
+  if (!segment) return;
+  const progress = routeProgressForVector(segment, vector);
+  const reconciledClock = segment.startMinute + (segment.endMinute - segment.startMinute) * progress;
+  ship.clockOffsetMinutes += reconciledClock - effectiveClock;
+}
+
+function routeProgressForVector(segment, vector) {
+  const from = latLonToVector(segment.from.lat, segment.from.lon);
+  const to = latLonToVector(segment.to.lat, segment.to.lon);
+  const endpointDot = clamp(vectorDot(from, to), -1, 1);
+  const arc = Math.acos(endpointDot);
+  if (arc <= 1e-8) return 0;
+  const orthogonal = normalizedVector([
+    to[0] - from[0] * endpointDot,
+    to[1] - from[1] * endpointDot,
+    to[2] - from[2] * endpointDot
+  ], "NPC route progress axis");
+  const alongArc = Math.atan2(vectorDot(vector, orthogonal), vectorDot(vector, from));
+  return clamp01(alongArc / arc);
+}
+
+function normalizedVector(vector, label) {
+  if (!Array.isArray(vector) || vector.length !== 3 || vector.some((value) => !Number.isFinite(value))) {
+    throw new Error(`${label} must be a finite 3D vector`);
+  }
+  const length = Math.hypot(vector[0], vector[1], vector[2]);
+  if (length <= 1e-9) throw new Error(`${label} cannot be zero`);
+  return [vector[0] / length, vector[1] / length, vector[2] / length];
+}
+
+function normalizedTangent(heading, position, label) {
+  const direction = normalizedVector(heading, label);
+  const radial = vectorDot(direction, position);
+  return normalizedVector([
+    direction[0] - position[0] * radial,
+    direction[1] - position[1] * radial,
+    direction[2] - position[2] * radial
+  ], label);
+}
+
+function vectorDot(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
 function routeGraphForPorts(system, origin, destination) {

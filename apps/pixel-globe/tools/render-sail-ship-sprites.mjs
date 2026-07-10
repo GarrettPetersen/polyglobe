@@ -36,6 +36,12 @@ const selfShadowMapSize = 128;
 const selfShadowDepthBias = 0.035;
 const selfShadowLookupRadius = 1;
 const waterlineQuantile = 0.18;
+const wakeWaterlineBand = 0.12;
+const wakeAftBandRatio = 0.2;
+const wakeBowShoulderRatio = 0.68;
+const wakeBowShoulderBandRatio = 0.22;
+const wakeSternClearancePx = 1.5;
+const wakeBowShoulderOutsetPx = 1.25;
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 
 function integerEnv(name, fallback) {
@@ -751,6 +757,135 @@ function sheetCell(frameIndex, size) {
   };
 }
 
+function makeWakeAnchors(frames, waterlineY) {
+  return frames.map((frame, frameIndex) => makeWakeAnchor(frame, frameIndex, waterlineY));
+}
+
+function makeWakeAnchor(frame, frameIndex, waterlineY) {
+  const direction = frameScreenHeading(frameIndex);
+  const side = { x: -direction.y, y: direction.x };
+  const points = [];
+  let aftProjection = Infinity;
+  let bowProjection = -Infinity;
+
+  for (let y = 0; y < frameSize; y++) {
+    for (let x = 0; x < frameSize; x++) {
+      const pixel = x + y * frameSize;
+      if (!frame.alpha[pixel]) continue;
+      const worldY = frame.positions[pixel * 3 + 1];
+      if (Math.abs(worldY - waterlineY) > wakeWaterlineBand) continue;
+      const ox = x + 0.5 - frameSize / 2;
+      const oy = y + 0.5 - frameSize / 2;
+      const projection = ox * direction.x + oy * direction.y;
+      const lateral = ox * side.x + oy * side.y;
+      aftProjection = Math.min(aftProjection, projection);
+      bowProjection = Math.max(bowProjection, projection);
+      points.push({ projection, lateral });
+    }
+  }
+
+  if (points.length < 3 || !Number.isFinite(aftProjection) || !Number.isFinite(bowProjection)) {
+    throw new Error(`Ship frame ${frameIndex} has insufficient visible waterline pixels for wake anchors`);
+  }
+
+  const length = bowProjection - aftProjection;
+  if (length < 2) throw new Error(`Ship frame ${frameIndex} has an invalid waterline length: ${length}`);
+  const stern = weightedWakePoint(points, (point) => {
+    const aftLimit = aftProjection + Math.max(1, length * wakeAftBandRatio);
+    return point.projection <= aftLimit ? 1 : 0;
+  });
+  if (!stern) throw new Error(`Ship frame ${frameIndex} has no stern waterline pixels`);
+
+  const positiveShoulder = wakeShoulderAnchor(points, aftProjection, length, direction, side, 1);
+  const negativeShoulder = wakeShoulderAnchor(points, aftProjection, length, direction, side, -1);
+  if (!positiveShoulder && !negativeShoulder) {
+    throw new Error(`Ship frame ${frameIndex} has no bow shoulder waterline pixels`);
+  }
+
+  const sternProjection = aftProjection - wakeSternClearancePx;
+  return alignHorizontalWakeShoulders({
+    stern: wakeAnchorPoint(sternProjection, stern.lateral, direction, side),
+    positiveShoulder: positiveShoulder || mirrorWakeShoulder(negativeShoulder, direction, side),
+    negativeShoulder: negativeShoulder || mirrorWakeShoulder(positiveShoulder, direction, side)
+  }, direction);
+}
+
+function alignHorizontalWakeShoulders(anchors, direction) {
+  if (Math.abs(direction.y) > 1e-6) return anchors;
+  const shoulderCenterY = (anchors.positiveShoulder.y + anchors.negativeShoulder.y) / 2;
+  const yOffset = Math.round(anchors.stern.y - shoulderCenterY);
+  return {
+    stern: anchors.stern,
+    positiveShoulder: {
+      x: anchors.positiveShoulder.x,
+      y: anchors.positiveShoulder.y + yOffset
+    },
+    negativeShoulder: {
+      x: anchors.negativeShoulder.x,
+      y: anchors.negativeShoulder.y + yOffset
+    }
+  };
+}
+
+function wakeShoulderAnchor(points, aftProjection, length, direction, side, sideSign) {
+  const targetProjection = aftProjection + length * wakeBowShoulderRatio;
+  const projectionBand = Math.max(1, length * wakeBowShoulderBandRatio);
+  const minimumProjection = aftProjection + length * 0.42;
+  const anchor = weightedWakePoint(points, (point) => {
+    const sideDistance = point.lateral * sideSign;
+    if (point.projection < minimumProjection || sideDistance < -0.01) return 0;
+    const normalizedDistance = (point.projection - targetProjection) / projectionBand;
+    const projectionWeight = 1 / (1 + normalizedDistance * normalizedDistance);
+    return projectionWeight * (0.75 + Math.max(0, sideDistance));
+  });
+  if (!anchor) return null;
+  return wakeAnchorPoint(
+    anchor.projection,
+    anchor.lateral + wakeBowShoulderOutsetPx * sideSign,
+    direction,
+    side
+  );
+}
+
+function weightedWakePoint(points, weightForPoint) {
+  let projectionSum = 0;
+  let lateralSum = 0;
+  let weightSum = 0;
+  for (const point of points) {
+    const weight = weightForPoint(point);
+    if (weight <= 0) continue;
+    projectionSum += point.projection * weight;
+    lateralSum += point.lateral * weight;
+    weightSum += weight;
+  }
+  if (weightSum <= 0) return null;
+  return {
+    projection: projectionSum / weightSum,
+    lateral: lateralSum / weightSum
+  };
+}
+
+function wakeAnchorPoint(projection, lateral, direction, side) {
+  return {
+    x: Math.round(direction.x * projection + side.x * lateral),
+    y: Math.round(direction.y * projection + side.y * lateral)
+  };
+}
+
+function mirrorWakeShoulder(anchor, direction, side) {
+  const projection = anchor.x * direction.x + anchor.y * direction.y;
+  const lateral = anchor.x * side.x + anchor.y * side.y;
+  return wakeAnchorPoint(projection, -lateral, direction, side);
+}
+
+function frameScreenHeading(frameIndex) {
+  const angle = frameIndex / headings * Math.PI * 2;
+  return {
+    x: Math.cos(angle),
+    y: -Math.sin(angle)
+  };
+}
+
 function makeLightingDirections() {
   const directions = [];
   for (let elevationIndex = 0; elevationIndex < lightElevationBins; elevationIndex++) {
@@ -1152,6 +1287,7 @@ async function renderShipSpriteSet(config) {
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i);
   }
+  const wakeAnchors = makeWakeAnchors(frames, waterlineY);
 
   const lightDirections = makeLightingDirections();
   const selfShadowMaps = makeSelfShadowMaps(frames, lightDirections, camera);
@@ -1194,6 +1330,7 @@ async function renderShipSpriteSet(config) {
     sheetCols,
     lightAzimuthBins,
     lightElevationBins,
+    wakeAnchors,
     ...(config.stats ? { stats: config.stats } : {}),
     files: {
       sheet: portablePath(sheetPath),
@@ -1452,8 +1589,9 @@ async function renderUnityFleet() {
     console.log(`  ${entry.files.sheet}`);
   }
 
-  const manifestForDisk = manifest.map(({ sheet, ...entry }) => entry);
+  const manifestForDisk = manifest.map(({ sheet, wakeAnchors, ...entry }) => entry);
   const manifestPath = join(unityFleetOutputRoot, "manifest.json");
+  const wakeAnchorsPath = join(unityFleetOutputRoot, "wake-anchors.json");
   writeFileSync(manifestPath, `${JSON.stringify({
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
     sourceRoot: portablePath(unityShipSourceRoot),
@@ -1465,11 +1603,18 @@ async function renderUnityFleet() {
     skipped: ["Models/viking ships/*.fbx", "Models/water.fbx"],
     ships: manifestForDisk
   }, null, 2)}\n`);
+  writeFileSync(wakeAnchorsPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
+    frameSize,
+    headings,
+    ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.wakeAnchors]))
+  })}\n`);
 
   const contactSheet = makeFleetContactSheet(manifest);
   const contactSheetPath = join(unityFleetOutputRoot, "unity-ships-contact-sheet.png");
   writeFileSync(contactSheetPath, contactSheet.toBuffer("image/png"));
   console.log(manifestPath);
+  console.log(wakeAnchorsPath);
   console.log(contactSheetPath);
 }
 
