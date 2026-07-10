@@ -29,6 +29,9 @@ function resolveStaticPath(urlPath) {
   if (urlPath === "/earth-globe-cache-7.json" || urlPath === "/shared/earth-globe-cache-7.json") {
     return join(sharedDataRoot, "earth-globe-cache-7.json");
   }
+  if (urlPath === "/shared/mountains.json") {
+    return join(sharedDataRoot, "mountains.json");
+  }
   if (urlPath === "/shared/discrete-weather-bake-7.bin") {
     return join(sharedDataRoot, "discrete-weather-bake-7.bin");
   }

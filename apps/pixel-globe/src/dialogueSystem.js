@@ -22,6 +22,40 @@ export function createPortDialogueSession(city) {
   };
 }
 
+export function createShipDialogueSession(ship) {
+  return {
+    kind: "ship",
+    npcShipId: ship.id,
+    selectedIndex: 0
+  };
+}
+
+export function shipDialogueView(session, ship) {
+  assertShipDialogueSubject(session, ship);
+  return {
+    speaker: `${ship.label} captain`,
+    expressionId: "neutral",
+    text: "Ahoy matey.",
+    feedback: null,
+    options: [option("Leave", { type: "close" })]
+  };
+}
+
+export function selectShipDialogueOption(session, ship, optionIndex = session.selectedIndex) {
+  const view = shipDialogueView(session, ship);
+  const selected = view.options[optionIndex];
+  if (!selected) throw new Error(`Invalid ship dialogue option index: ${optionIndex}`);
+  if (selected.action.type !== "close") {
+    throw new Error(`Unknown ship dialogue action: ${selected.action.type}`);
+  }
+  return { closed: true };
+}
+
+function assertShipDialogueSubject(session, ship) {
+  if (!session || session.kind !== "ship") throw new Error("Missing ship dialogue session");
+  if (!ship || session.npcShipId !== ship.id) throw new Error("Dialogue ship does not match active session");
+}
+
 export function portDialogueView(session, city, gameState, portCities) {
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");

@@ -21,6 +21,7 @@ const publicEntries = [
 
 const sharedEntries = [
   ["earth-globe-cache-7.json", "shared/earth-globe-cache-7.json"],
+  ["mountains.json", "shared/mountains.json"],
   ["discrete-weather-bake-7.bin", "shared/discrete-weather-bake-7.bin"],
   ["globe-runtime-bake-7.bin", "shared/globe-runtime-bake-7.bin"],
   [

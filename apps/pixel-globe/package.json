@@ -6,8 +6,12 @@
     "build": "node tools/build-static-site.mjs",
     "dev": "node server.mjs",
     "generate:characters": "node tools/build-character-portrait-manifest.mjs",
+    "preview:character-roles": "node tools/render-character-role-review.mjs",
     "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
-    "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet"
+    "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet",
+    "test": "node --test src/*.test.js",
+    "test:characters": "node --test src/characterPortraits.test.js",
+    "test:music": "node --test src/musicPlayer.test.js"
   }
 }

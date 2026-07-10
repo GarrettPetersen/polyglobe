@@ -33,9 +33,19 @@ function extractPeaks(geojson) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     out.push({
       name: f.properties.name || "Peak",
+      nameAlt: f.properties.name_alt || null,
       lat: Number(lat),
       lon: Number(lon),
       elevationM: Math.round(elev),
+      scalerank: Number.isFinite(Number(f.properties.scalerank))
+        ? Number(f.properties.scalerank)
+        : 99,
+      minZoom: Number.isFinite(Number(f.properties.min_zoom))
+        ? Number(f.properties.min_zoom)
+        : null,
+      comment: f.properties.comment || null,
+      region: f.properties.region || null,
+      subregion: f.properties.subregion || null,
     });
   }
   return out;
@@ -69,7 +79,19 @@ async function main() {
     for (const e of entries) byKey.set(key(e), e);
     for (const e of peaks50) {
       const k = key(e);
-      if (!byKey.has(k) || e.elevationM > byKey.get(k).elevationM) byKey.set(k, e);
+      const previous = byKey.get(k);
+      if (!previous || e.elevationM > previous.elevationM) {
+        byKey.set(k, e);
+      } else if (e.scalerank < previous.scalerank) {
+        byKey.set(k, {
+          ...previous,
+          scalerank: e.scalerank,
+          minZoom: e.minZoom,
+          comment: e.comment || previous.comment,
+          region: e.region || previous.region,
+          subregion: e.subregion || previous.subregion,
+        });
+      }
     }
     entries = [...byKey.values()];
   }

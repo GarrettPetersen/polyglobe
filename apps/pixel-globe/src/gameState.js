@@ -28,12 +28,29 @@ export function createGameState({ cargoCapacity }) {
       visitedPorts: {},
       decisions: {},
       flags: {},
+      discoveredLandmarks: {},
       quests: {
         active: null,
         completed: {}
       }
     }
   };
+}
+
+export function discoverLandmark(state, landmark) {
+  assertGameState(state);
+  assertLandmark(landmark);
+  if (state.memory.discoveredLandmarks[landmark.id]) return false;
+  state.memory.discoveredLandmarks[landmark.id] = {
+    name: landmark.displayName,
+    elevationM: landmark.elevationM
+  };
+  return true;
+}
+
+export function hasDiscoveredLandmark(state, landmarkId) {
+  assertGameState(state);
+  return Boolean(state.memory.discoveredLandmarks[landmarkId]);
 }
 
 export function setCargoCapacity(state, cargoCapacity) {
@@ -225,6 +242,21 @@ function assertGameState(state) {
   }
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
+  if (!state.memory.discoveredLandmarks || typeof state.memory.discoveredLandmarks !== "object") {
+    throw new Error("Game state discovered landmarks must be an object");
+  }
+}
+
+function assertLandmark(landmark) {
+  if (!landmark || typeof landmark.id !== "string" || landmark.id === "") {
+    throw new Error("Cannot discover a landmark without an id");
+  }
+  if (typeof landmark.displayName !== "string" || landmark.displayName === "") {
+    throw new Error(`Landmark ${landmark.id} has no display name`);
+  }
+  if (!Number.isFinite(landmark.elevationM)) {
+    throw new Error(`Landmark ${landmark.id} has invalid elevation`);
+  }
 }
 
 function assertCargoCapacity(cargoCapacity) {

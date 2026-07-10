@@ -42,6 +42,7 @@ const wakeBowShoulderRatio = 0.68;
 const wakeBowShoulderBandRatio = 0.22;
 const wakeSternClearancePx = 1.5;
 const wakeBowShoulderOutsetPx = 1.25;
+const shipEdgeShadeScale = 0.76;
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 
 function integerEnv(name, fallback) {
@@ -747,7 +748,37 @@ function makeFrame(rendered, bounds, scale) {
 
 function copyFrameToSheet(frame, sheetCtx, frameIndex) {
   const cell = sheetCell(frameIndex, frameSize);
-  sheetCtx.putImageData(frame.image, cell.x, cell.y);
+  sheetCtx.putImageData(edgeShadedFrameImage(frame, sheetCtx), cell.x, cell.y);
+}
+
+function edgeShadedFrameImage(frame, targetCtx) {
+  const shaded = targetCtx.createImageData(frameSize, frameSize);
+  shaded.data.set(frame.image.data);
+
+  for (let y = 0; y < frameSize; y++) {
+    for (let x = 0; x < frameSize; x++) {
+      const pixel = x + y * frameSize;
+      const offset = pixel * 4;
+      if (frame.image.data[offset + 3] === 0 || !pixelTouchesTransparency(frame.image.data, x, y)) continue;
+      shaded.data[offset] = Math.round(shaded.data[offset] * shipEdgeShadeScale);
+      shaded.data[offset + 1] = Math.round(shaded.data[offset + 1] * shipEdgeShadeScale);
+      shaded.data[offset + 2] = Math.round(shaded.data[offset + 2] * shipEdgeShadeScale);
+    }
+  }
+  return shaded;
+}
+
+function pixelTouchesTransparency(data, x, y) {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || nx >= frameSize || ny < 0 || ny >= frameSize) return true;
+      if (data[(nx + ny * frameSize) * 4 + 3] === 0) return true;
+    }
+  }
+  return false;
 }
 
 function sheetCell(frameIndex, size) {

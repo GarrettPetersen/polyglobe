@@ -1,4 +1,4 @@
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ const inputExtensions = new Set([".aac", ".flac", ".m4a", ".mp3", ".wav"]);
 const loudnessTarget = -18;
 const loudnessRangeTarget = 11;
 const truePeakTarget = -1.5;
+const force = process.argv.includes("--force");
 
 function runFfmpeg(args) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -85,6 +86,8 @@ const sourceFiles = (await readdir(sourceRoot, { withFileTypes: true }))
 if (sourceFiles.length === 0) throw new Error(`No source SFX found in ${sourceRoot}`);
 
 const outputNames = new Set();
+let normalizedCount = 0;
+let skippedCount = 0;
 for (const filename of sourceFiles) {
   const outputName = `${outputBaseName(filename)}.ogg`;
   if (outputNames.has(outputName)) throw new Error(`Duplicate normalized SFX filename: ${outputName}`);
@@ -92,9 +95,28 @@ for (const filename of sourceFiles) {
 
   const inputPath = join(sourceRoot, filename);
   const outputPath = join(outputRoot, outputName);
+  if (!force && await outputIsCurrent(inputPath, outputPath)) {
+    skippedCount += 1;
+    console.log(`${filename} -> ${outputName} (current)`);
+    continue;
+  }
   const measured = await measure(inputPath, filename);
   await normalize(inputPath, outputPath, measured);
+  normalizedCount += 1;
   console.log(`${filename} -> ${outputName} (${measured.input_i} LUFS input)`);
 }
 
-console.log(`Normalized ${sourceFiles.length} SFX files to ${loudnessTarget} LUFS, ${truePeakTarget} dBTP at 48 kHz.`);
+console.log(
+  `Normalized ${normalizedCount} SFX files to ${loudnessTarget} LUFS, ${truePeakTarget} dBTP at 48 kHz; ` +
+  `${skippedCount} already current.`
+);
+
+async function outputIsCurrent(inputPath, outputPath) {
+  try {
+    const [inputStat, outputStat] = await Promise.all([stat(inputPath), stat(outputPath)]);
+    return outputStat.isFile() && outputStat.size > 0 && outputStat.mtimeMs >= inputStat.mtimeMs;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}

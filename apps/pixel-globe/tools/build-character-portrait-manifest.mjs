@@ -1,6 +1,11 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import {
+  classifyPortraitRoles,
+  encodePortraitRoleMap
+} from "../src/characterPortraits.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const characterRoot = join(appRoot, "public/assets/characters");
@@ -20,43 +25,69 @@ const numericGridPacks = new Map([
   ]
 ]);
 
-const paletteVariants = Object.freeze([
-  portraitPalette("harbour-ochre", "Harbour Ochre", ["#5a2f26", "#a15d45", "#d69b72", "#f0d0aa"], ["#241716", "#58372b", "#966345"], ["#1e2a33", "#3c5964", "#7e9aa1"], ["#7a4b20", "#bf7e36", "#e3b85f"]),
-  portraitPalette("atlantic-wool", "Atlantic Wool", ["#4a2924", "#905740", "#c8885d", "#e5b98c"], ["#171a1a", "#3b332d", "#735945"], ["#252936", "#4d5368", "#8993a7"], ["#6a2f2b", "#a95545", "#d98a68"]),
-  portraitPalette("linen-and-tar", "Linen and Tar", ["#65382b", "#a9684a", "#d59b6d", "#efd0a2"], ["#1b1514", "#46312a", "#7a553d"], ["#2b2520", "#6b5640", "#bba678"], ["#22384a", "#476f89", "#89aebc"]),
-  portraitPalette("spice-red", "Spice Red", ["#633127", "#a45d42", "#d69263", "#efc597"], ["#1d1610", "#4c3120", "#87562c"], ["#3b2026", "#822f3b", "#c35e54"], ["#8b611e", "#c09232", "#e0c15e"]),
-  portraitPalette("bay-green", "Bay Green", ["#583124", "#96593b", "#c9865b", "#e5b88d"], ["#151914", "#313d27", "#596e38"], ["#1f3a32", "#3f755f", "#78a98b"], ["#845d24", "#b98d39", "#d7bf68"]),
-  portraitPalette("storm-indigo", "Storm Indigo", ["#4c2b2b", "#8a5045", "#c38368", "#dfaf8f"], ["#181823", "#303045", "#595a70"], ["#222542", "#454b7a", "#7980ad"], ["#6c4b72", "#9d6fa4", "#c7a0c1"]),
-  portraitPalette("sun-bleached", "Sun Bleached", ["#6b3a2a", "#b16c47", "#d99a62", "#efc38f"], ["#44301d", "#80602f", "#b28b45"], ["#776342", "#b69b62", "#decf91"], ["#3b6573", "#6a9aa3", "#aad0c7"]),
-  portraitPalette("copper-sash", "Copper Sash", ["#5e322a", "#9f5d42", "#d18c5f", "#edbe90"], ["#211610", "#55311c", "#97572a"], ["#2b3342", "#556277", "#8b9aa8"], ["#8a3f25", "#c26b38", "#e5a159"]),
-  portraitPalette("pearl-grey", "Pearl Grey", ["#4e2b2b", "#875345", "#be8064", "#e0ae8d"], ["#212022", "#4d4b4b", "#807a72"], ["#44413d", "#817b70", "#b9b2a0"], ["#2d5360", "#5c8790", "#94bdba"]),
-  portraitPalette("dusk-purple", "Dusk Purple", ["#54302e", "#945349", "#cb8068", "#e6ad8e"], ["#17131d", "#3a294b", "#6c4d78"], ["#32233c", "#624778", "#9777a6"], ["#72512a", "#b6813f", "#deb760"]),
-  portraitPalette("olive-canvas", "Olive Canvas", ["#613528", "#a15d43", "#d08a5e", "#e9b98f"], ["#1d1c13", "#45401f", "#766d34"], ["#3d4328", "#727a42", "#aeb36d"], ["#81462e", "#ba7443", "#e0a35d"]),
-  portraitPalette("white-sail", "White Sail", ["#563029", "#945944", "#c98868", "#e4b494"], ["#201815", "#4f3728", "#846142"], ["#6e6658", "#b0a78f", "#ded6bd"], ["#2e4a63", "#557b9b", "#90b4c2"]),
-  portraitPalette("mulberry-coat", "Mulberry Coat", ["#59302d", "#965349", "#cb7f67", "#e6ac8c"], ["#1e151a", "#4b2e36", "#805861"], ["#3d2131", "#7b3e58", "#bb6e80"], ["#8d6726", "#c1953d", "#e4c763"]),
-  portraitPalette("teal-brocade", "Teal Brocade", ["#5d3428", "#a05f43", "#d18d61", "#e9ba90"], ["#151a19", "#31413d", "#5b7067"], ["#173943", "#347481", "#72aab0"], ["#87512e", "#c07d41", "#dfa75e"]),
-  portraitPalette("wine-and-cream", "Wine and Cream", ["#633729", "#a76546", "#d89766", "#efc192"], ["#241512", "#5a3224", "#995a36"], ["#572632", "#994550", "#cf7b73"], ["#877044", "#bda66c", "#e3d49c"]),
-  portraitPalette("night-watch", "Night Watch", ["#4b2a27", "#895044", "#c17c64", "#dfa98a"], ["#11161a", "#283844", "#536676"], ["#1b2433", "#344e67", "#6888a0"], ["#73592e", "#ad8945", "#d8bc67"]),
-  portraitPalette("saffron-port", "Saffron Port", ["#67392a", "#aa6645", "#d99561", "#f0c18d"], ["#2f2117", "#6b4524", "#a87332"], ["#6a4521", "#aa7932", "#d9ad4f"], ["#364e63", "#667f96", "#a4bac1"]),
-  portraitPalette("reef-blue", "Reef Blue", ["#5a3128", "#9b5942", "#cc865e", "#e7b589"], ["#151719", "#2e3a3e", "#5d6c69"], ["#1a4658", "#367f9b", "#75b5c5"], ["#7e5e2a", "#b99543", "#dec766"]),
-  portraitPalette("mahogany-gold", "Mahogany Gold", ["#603328", "#a05d43", "#d28b60", "#edbc8f"], ["#21140e", "#5a2d1a", "#924d25"], ["#4b2c22", "#8d5b39", "#c89155"], ["#8c6c22", "#c59b34", "#e2c961"]),
-  portraitPalette("pilgrim-black", "Pilgrim Black", ["#54302a", "#935843", "#c98764", "#e5b591"], ["#151516", "#363437", "#66616a"], ["#1b1c21", "#373b45", "#747985"], ["#7a602c", "#b68f3f", "#dcc169"]),
-  portraitPalette("moss-and-rust", "Moss and Rust", ["#613427", "#a25e42", "#d08b60", "#e9ba8f"], ["#1e1b13", "#443b21", "#766637"], ["#2f482e", "#617c48", "#9dad70"], ["#8e3f26", "#c46a38", "#e39e58"]),
-  portraitPalette("royal-navy", "Royal Navy", ["#583126", "#965941", "#ca8860", "#e6b78c"], ["#17191d", "#30384b", "#5b667b"], ["#202d4c", "#415b90", "#748fc0"], ["#8b6425", "#bd9340", "#e1c367"]),
-  portraitPalette("rose-market", "Rose Market", ["#5d3329", "#9d5e45", "#cf8d64", "#e9ba91"], ["#201515", "#51312d", "#87584c"], ["#5a2c36", "#a35462", "#d9878b"], ["#576c35", "#899951", "#bec879"]),
-  portraitPalette("smoke-blue", "Smoke Blue", ["#52302c", "#8f5848", "#c78568", "#e2b293"], ["#1b1e21", "#41474d", "#70777c"], ["#38485a", "#6a7e92", "#a4b5c0"], ["#81602d", "#b88d43", "#dbc067"]),
-  portraitPalette("coral-trader", "Coral Trader", ["#66382b", "#aa6747", "#d99866", "#efc292"], ["#2a1a17", "#65372b", "#9e6040"], ["#7b332f", "#bc5d52", "#e28f75"], ["#2d5961", "#5b8b91", "#99beb8"]),
-  portraitPalette("cedar-green", "Cedar Green", ["#5d3429", "#9b5e45", "#cb8a65", "#e7b893"], ["#1a1812", "#3c331e", "#6d5730"], ["#253f35", "#52725d", "#86a484"], ["#8d5429", "#c27f3d", "#e2ad5e"]),
-  portraitPalette("violet-harbour", "Violet Harbour", ["#56302c", "#935549", "#c87f68", "#e4ad8d"], ["#19151d", "#3f314a", "#725d7e"], ["#3b2f55", "#6b5d91", "#9d8cbc"], ["#775e28", "#b0903f", "#dac369"]),
-  portraitPalette("terra-sail", "Terra Sail", ["#67372a", "#aa6245", "#d58f62", "#efbd8f"], ["#271813", "#5e321f", "#9a5930"], ["#6c3d2b", "#a96c47", "#d69e66"], ["#31556c", "#62839b", "#9fb9c1"]),
-  portraitPalette("jade-thread", "Jade Thread", ["#5e3428", "#9f5e43", "#d08d62", "#eaba91"], ["#181814", "#383a24", "#666c3d"], ["#23483e", "#4c826e", "#86b59a"], ["#95672a", "#c79a3e", "#e5c864"]),
-  portraitPalette("ash-and-amber", "Ash and Amber", ["#57302b", "#955848", "#ca8467", "#e6b28f"], ["#1d1b1a", "#48423c", "#7b6f5e"], ["#49423d", "#817264", "#b7a68d"], ["#925328", "#c5833d", "#e4b05e"]),
-  portraitPalette("crimson-bay", "Crimson Bay", ["#613429", "#a05d44", "#d18b62", "#eaba91"], ["#201414", "#503028", "#895341"], ["#4d1f27", "#91343e", "#d0625c"], ["#7d642b", "#b99743", "#dec566"]),
-  portraitPalette("deep-water", "Deep Water", ["#54302a", "#915744", "#c68265", "#e2b08e"], ["#12191d", "#263f4b", "#4c6b79"], ["#173247", "#315f80", "#6695ad"], ["#7f5a2b", "#b98a42", "#dcc068"])
+const skinTones = Object.freeze([
+  tone("porcelain", "Porcelain", ["#4a2d2d", "#92584d", "#d99078", "#ffd6b5"]),
+  tone("fair", "Fair", ["#452923", "#8b4e3d", "#d18462", "#f5bd91"]),
+  tone("golden", "Golden", ["#42281f", "#86513a", "#c47d54", "#eab078"]),
+  tone("olive", "Olive", ["#33271f", "#6d5137", "#a98055", "#d1b080"]),
+  tone("tan", "Tan", ["#2b201b", "#624231", "#9b6748", "#c99168"]),
+  tone("brown", "Brown", ["#211817", "#4b3028", "#79503c", "#a87957"]),
+  tone("deep-brown", "Deep Brown", ["#171315", "#352326", "#593a34", "#805747"]),
+  tone("ebony", "Ebony", ["#101013", "#282026", "#453037", "#6a4846"])
 ]);
 
-function portraitPalette(id, label, skinRamp, hairRamp, clothRamp, accentRamp) {
-  return { id, label, skinRamp, hairRamp, clothRamp, accentRamp };
+const hairTones = Object.freeze([
+  tone("black", "Black", ["#111216", "#292b30", "#4b4d52"]),
+  tone("dark-brown", "Dark Brown", ["#1b1412", "#442b22", "#72503a"]),
+  tone("chestnut", "Chestnut", ["#241511", "#603324", "#9a5c3b"]),
+  tone("auburn", "Auburn", ["#281412", "#713128", "#b25f43"]),
+  tone("copper", "Copper", ["#321810", "#85401f", "#cd7a3d"]),
+  tone("golden-blond", "Golden Blond", ["#403019", "#92703a", "#d8b96a"]),
+  tone("ash-blond", "Ash Blond", ["#37332c", "#777064", "#b8ad93"]),
+  tone("silver", "Silver", ["#292a2d", "#707278", "#c1c3c5"])
+]);
+
+const outfitPalettes = Object.freeze([
+  outfit("harbour-ochre", "Harbour Ochre", ["#1e2a33", "#3c5964", "#7e9aa1"], ["#7a4b20", "#bf7e36", "#e3b85f"]),
+  outfit("atlantic-wool", "Atlantic Wool", ["#252936", "#4d5368", "#8993a7"], ["#6a2f2b", "#a95545", "#d98a68"]),
+  outfit("linen-and-tar", "Linen and Tar", ["#2b2520", "#6b5640", "#bba678"], ["#22384a", "#476f89", "#89aebc"]),
+  outfit("spice-red", "Spice Red", ["#3b2026", "#822f3b", "#c35e54"], ["#8b611e", "#c09232", "#e0c15e"]),
+  outfit("bay-green", "Bay Green", ["#1f3a32", "#3f755f", "#78a98b"], ["#845d24", "#b98d39", "#d7bf68"]),
+  outfit("storm-indigo", "Storm Indigo", ["#222542", "#454b7a", "#7980ad"], ["#6c4b72", "#9d6fa4", "#c7a0c1"]),
+  outfit("sun-bleached", "Sun Bleached", ["#776342", "#b69b62", "#decf91"], ["#3b6573", "#6a9aa3", "#aad0c7"]),
+  outfit("copper-sash", "Copper Sash", ["#2b3342", "#556277", "#8b9aa8"], ["#8a3f25", "#c26b38", "#e5a159"]),
+  outfit("pearl-grey", "Pearl Grey", ["#44413d", "#817b70", "#b9b2a0"], ["#2d5360", "#5c8790", "#94bdba"]),
+  outfit("dusk-purple", "Dusk Purple", ["#32233c", "#624778", "#9777a6"], ["#72512a", "#b6813f", "#deb760"]),
+  outfit("olive-canvas", "Olive Canvas", ["#3d4328", "#727a42", "#aeb36d"], ["#81462e", "#ba7443", "#e0a35d"]),
+  outfit("white-sail", "White Sail", ["#6e6658", "#b0a78f", "#ded6bd"], ["#2e4a63", "#557b9b", "#90b4c2"]),
+  outfit("mulberry-coat", "Mulberry Coat", ["#3d2131", "#7b3e58", "#bb6e80"], ["#8d6726", "#c1953d", "#e4c763"]),
+  outfit("teal-brocade", "Teal Brocade", ["#173943", "#347481", "#72aab0"], ["#87512e", "#c07d41", "#dfa75e"]),
+  outfit("wine-and-cream", "Wine and Cream", ["#572632", "#994550", "#cf7b73"], ["#877044", "#bda66c", "#e3d49c"]),
+  outfit("night-watch", "Night Watch", ["#1b2433", "#344e67", "#6888a0"], ["#73592e", "#ad8945", "#d8bc67"]),
+  outfit("saffron-port", "Saffron Port", ["#6a4521", "#aa7932", "#d9ad4f"], ["#364e63", "#667f96", "#a4bac1"]),
+  outfit("reef-blue", "Reef Blue", ["#1a4658", "#367f9b", "#75b5c5"], ["#7e5e2a", "#b99543", "#dec766"]),
+  outfit("mahogany-gold", "Mahogany Gold", ["#4b2c22", "#8d5b39", "#c89155"], ["#8c6c22", "#c59b34", "#e2c961"]),
+  outfit("pilgrim-black", "Pilgrim Black", ["#1b1c21", "#373b45", "#747985"], ["#7a602c", "#b68f3f", "#dcc169"]),
+  outfit("moss-and-rust", "Moss and Rust", ["#2f482e", "#617c48", "#9dad70"], ["#8e3f26", "#c46a38", "#e39e58"]),
+  outfit("royal-navy", "Royal Navy", ["#202d4c", "#415b90", "#748fc0"], ["#8b6425", "#bd9340", "#e1c367"]),
+  outfit("rose-market", "Rose Market", ["#5a2c36", "#a35462", "#d9878b"], ["#576c35", "#899951", "#bec879"]),
+  outfit("smoke-blue", "Smoke Blue", ["#38485a", "#6a7e92", "#a4b5c0"], ["#81602d", "#b88d43", "#dbc067"]),
+  outfit("coral-trader", "Coral Trader", ["#7b332f", "#bc5d52", "#e28f75"], ["#2d5961", "#5b8b91", "#99beb8"]),
+  outfit("cedar-green", "Cedar Green", ["#253f35", "#52725d", "#86a484"], ["#8d5429", "#c27f3d", "#e2ad5e"]),
+  outfit("violet-harbour", "Violet Harbour", ["#3b2f55", "#6b5d91", "#9d8cbc"], ["#775e28", "#b0903f", "#dac369"]),
+  outfit("terra-sail", "Terra Sail", ["#6c3d2b", "#a96c47", "#d69e66"], ["#31556c", "#62839b", "#9fb9c1"]),
+  outfit("jade-thread", "Jade Thread", ["#23483e", "#4c826e", "#86b59a"], ["#95672a", "#c79a3e", "#e5c864"]),
+  outfit("ash-and-amber", "Ash and Amber", ["#49423d", "#817264", "#b7a68d"], ["#925328", "#c5833d", "#e4b05e"]),
+  outfit("crimson-bay", "Crimson Bay", ["#4d1f27", "#91343e", "#d0625c"], ["#7d642b", "#b99743", "#dec566"]),
+  outfit("deep-water", "Deep Water", ["#173247", "#315f80", "#6695ad"], ["#7f5a2b", "#b98a42", "#dcc068"])
+]);
+
+function tone(id, label, ramp) {
+  return { id, label, ramp };
+}
+
+function outfit(id, label, clothRamp, accentRamp) {
+  return { id, label, clothRamp, accentRamp };
 }
 
 function walkPngFiles(root, files = []) {
@@ -236,13 +267,66 @@ function normalizeExpressionGroup(group) {
       height: portraitSize
     };
   });
+  const metadata = portraitMetadata(group.labelSeed, group.relDir);
   return {
     label: group.labelSeed,
     groupingMode: group.groupingMode,
     sourceDirectory: group.relDir,
+    roles: metadata.roles,
+    regions: metadata.regions,
     expressionCount: expressions.length,
     expressions
   };
+}
+
+function portraitMetadata(label, sourceDirectory) {
+  const text = `${label} ${sourceDirectory}`.toLowerCase();
+  if (text.includes("pirate")) {
+    return { roles: ["captain", "pirate"], regions: ["global"] };
+  }
+  if (text.includes("native american") || text.includes("native americain")) {
+    return { roles: ["captain", "factor", "civilian"], regions: ["americas"] };
+  }
+  if (text.includes("viking")) {
+    return { roles: ["captain", "warrior", "factor"], regions: ["northern-europe"] };
+  }
+  if (text.includes("little girl") || text.includes("young girl") || text.includes("young peasant boy")) {
+    return { roles: ["civilian"], regions: ["global", "europe"] };
+  }
+
+  const roles = ["factor"];
+  if (text.includes("knight") || text.includes("warrior")) roles.push("captain", "warrior");
+  if (text.includes("blacksmith") || text.includes("chef") || text.includes("lumberjack") || text.includes("baker") || text.includes("seamstress")) {
+    roles.push("artisan");
+  }
+  if (text.includes("noble")) roles.push("noble");
+  if (text.includes("monk")) roles.push("clergy");
+  if (roles.length === 1) roles.push("civilian");
+  return {
+    roles,
+    regions: ["global", "europe", "northern-europe", "mediterranean"]
+  };
+}
+
+async function bakeExpressionRoleMaps(sourceCharacters) {
+  const sourcePrefix = "/assets/characters/";
+  for (const character of sourceCharacters) {
+    for (const expression of character.expressions) {
+      if (!expression.src.startsWith(sourcePrefix)) {
+        throw new Error(`Cannot resolve portrait source: ${expression.src}`);
+      }
+      const relPath = decodeURIComponent(expression.src.slice(sourcePrefix.length));
+      const image = await loadImage(join(characterRoot, relPath));
+      const canvas = createCanvas(expression.width, expression.height);
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, 0, 0);
+      const pixels = ctx.getImageData(0, 0, expression.width, expression.height);
+      expression.roleMap = encodePortraitRoleMap(
+        classifyPortraitRoles(pixels.data, expression.width, expression.height)
+      );
+    }
+  }
 }
 
 function uniqueExpressionId(used, id) {
@@ -294,27 +378,36 @@ function slugify(value) {
     .replace(/^-+|-+$/g, "") || "portrait";
 }
 
-function main() {
+async function main() {
   if (!statSync(characterRoot).isDirectory()) {
     throw new Error(`Missing character asset root: ${characterRoot}`);
   }
   const sourceCharacters = withUniqueIds(groupPortraitFiles(walkPngFiles(characterRoot)));
   if (sourceCharacters.length === 0) throw new Error(`No ${portraitSize}x${portraitSize} portrait expressions found in ${characterRoot}`);
+  await bakeExpressionRoleMaps(sourceCharacters);
   const expressionCount = sourceCharacters.reduce((total, character) => total + character.expressions.length, 0);
   const manifest = {
-    version: 1,
+    version: 2,
     generatedBy: "tools/build-character-portrait-manifest.mjs",
     portraitSize,
     sourceRoot: "/assets/characters",
     sourceCharacters,
-    paletteVariants
+    skinTones,
+    hairTones,
+    outfitPalettes
   };
 
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`Wrote ${outputPath}`);
-  console.log(`${sourceCharacters.length} source characters, ${expressionCount} expression frames, ${paletteVariants.length} palette variants`);
-  console.log(`${sourceCharacters.length * paletteVariants.length} deterministic palette-swapped character variants available`);
+  console.log(
+    `${sourceCharacters.length} source characters, ${expressionCount} expression frames, ` +
+    `${skinTones.length} skin tones, ${hairTones.length} hair tones, ${outfitPalettes.length} outfit palettes`
+  );
+  console.log(
+    `${sourceCharacters.length * skinTones.length * hairTones.length * outfitPalettes.length} ` +
+    "deterministic palette-swapped character variants available"
+  );
 }
 
-main();
+await main();

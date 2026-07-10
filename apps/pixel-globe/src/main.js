@@ -35,21 +35,32 @@ import {
   shipStatsForSlug
 } from "./shipStats.js";
 import {
+  assignNpcShipCaptains,
   assignPortCityCharacters,
   characterExpression,
   loadCharacterPortraitManifest,
   recolorPortraitImage
 } from "./characterPortraits.js";
+import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import {
   cargoUsed,
   createGameState,
+  discoverLandmark,
+  hasDiscoveredLandmark,
   setCargoCapacity,
   visitPort
 } from "./gameState.js";
 import {
+  buildMountainLandmarks,
+  loadNamedMountains
+} from "./mountainLandmarks.js";
+import {
   createPortDialogueSession,
+  createShipDialogueSession,
   portDialogueView,
-  selectPortDialogueOption
+  selectPortDialogueOption,
+  selectShipDialogueOption,
+  shipDialogueView
 } from "./dialogueSystem.js";
 import {
   NPC_SHIP_SLUGS,
@@ -59,6 +70,24 @@ import {
   setNpcShipVisualNavigation,
   updateNpcSeaRouteSystem
 } from "./npcSeaRoutes.js";
+import {
+  SAILING_WIND_CONTEXT_DESERT,
+  SAILING_WIND_CONTEXT_GENERAL,
+  SAILING_WIND_CONTEXT_WINTER,
+  createSailingAudioState,
+  updateSailingAudioState
+} from "./sailingAudio.js";
+import {
+  RIVER_GATEWAY_SEARCH_RADIUS_PX,
+  blendRiverNavigationDirections,
+  chooseRiverChannelDirection,
+  findRiverGatewayDirection
+} from "./riverNavigation.js";
+import { chooseNpcEscapeDirection } from "./npcVisualNavigation.js";
+import {
+  compareTerrainDrawCalls,
+  terrainSpriteDrawLayer
+} from "./terrainDrawOrder.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -86,7 +115,8 @@ const RIVER_MOUTH_ARM_LENGTH_PX = 17;
 const RIVER_CURVE_BEND_PX = 4;
 const RIVER_BODY_RADIUS_PX = 2;
 const RIVER_CONNECTOR_RADIUS_PX = 3;
-const RIVER_MOUTH_RADIUS_PX = 5;
+const RIVER_MOUTH_RADIUS_PX = 7;
+const RIVER_MOUTH_FLARE_START = 0.18;
 const RIVER_JOIN_MIN_LENGTH_PX = 5;
 const RIVER_SPRITE_CACHE_LIMIT = 4096;
 const VIEW_MARGIN = 58;
@@ -153,8 +183,15 @@ const NPC_VISUAL_ACTIVATION_ANGLE_COUNT = 16;
 const NPC_VISUAL_CATCHUP_SPEED_PX = 4;
 const NPC_VISUAL_TARGET_TOLERANCE_PX = 1;
 const NPC_VISUAL_MAX_STEP_PX = 3;
+const NPC_VISUAL_ESCAPE_COMMIT_PX = 18;
+const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 18];
+const NPC_VISUAL_ESCAPE_ANGLES_RAD = [
+  105, -105, 120, -120, 135, -135, 150, -150, 165, -165, 180
+].map((degrees) => degrees * Math.PI / 180);
 const NPC_VISUAL_UPDATE_INTERVAL_SECONDS = 1 / 30;
 const NPC_VISUAL_MAX_ACCUMULATED_SECONDS = 0.15;
+const NPC_HAIL_RADIUS_PX = 28;
+const NPC_HAIL_CLICK_PAD_PX = 4;
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
@@ -200,8 +237,8 @@ const CLOUD_DRIFT_PX = 30;
 const CLOUD_FADE_RATIO = 0.22;
 const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
-const TERRAIN_ASSET_VERSION = "ship-lighting-bake-1";
-const VEHICLE_ASSET_VERSION = "ship-wake-anchors-2";
+const TERRAIN_ASSET_VERSION = "grassy-hills-1";
+const VEHICLE_ASSET_VERSION = "ship-edge-shading-1";
 const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const CITY_ASSET_VERSION = "city-types-1";
 const CITY_DATA_YEAR = 1522;
@@ -330,12 +367,16 @@ const CITY_LABEL_PAD_Y = 1;
 const CITY_LABEL_GAP_PX = 2;
 const PORT_INTERACTION_RADIUS_PX = 34;
 const PORT_CITY_CLICK_PAD_PX = 3;
-const PLAYER_LEDGER_X = 5;
-const PLAYER_LEDGER_Y = 36;
-const DOCK_BUTTON_W = 110;
-const DOCK_BUTTON_H = 13;
-const DOCK_BUTTON_X = Math.floor((SCREEN_W - DOCK_BUTTON_W) / 2);
-const DOCK_BUTTON_Y = SCREEN_H - 18;
+const INTERACTION_BUTTON_W = 110;
+const INTERACTION_BUTTON_H = 13;
+const INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
+const INTERACTION_BUTTON_Y = SCREEN_H - 18;
+const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
+const MOUNTAIN_DISCOVERY_NOTICE_MS = 4600;
+const MOUNTAIN_DISCOVERY_PANEL_W = 230;
+const MOUNTAIN_DISCOVERY_PANEL_H = 24;
+const MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
+const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const DIALOGUE_PANEL_X = 6;
 const DIALOGUE_PANEL_Y = 78;
 const DIALOGUE_PANEL_W = SCREEN_W - 12;
@@ -358,7 +399,7 @@ const MINIMAP_CENTER_X = Math.floor(MINIMAP_W / 2);
 const MINIMAP_MAX_LAT_DEG = 72;
 const MINIMAP_MAX_MERCATOR = mercatorYForLatDeg(MINIMAP_MAX_LAT_DEG);
 const MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
-const MINIMAP_Y = 5;
+const MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
 const MINIMAP_TILE_OUT_OF_RANGE = 0xffff;
 const MINIMAP_UNKNOWN_COLOR = [74, 66, 55];
 const MINIMAP_WATER_COLOR = [184, 151, 95];
@@ -367,6 +408,8 @@ const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
 const OPTIONS_BUTTON_SIZE = 13;
+const OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
+const OPTIONS_BUTTON_Y = 5;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 142;
 const OPTIONS_ROW_H = 22;
@@ -376,11 +419,15 @@ const OPTIONS_ROW_SFX = 1;
 const OPTIONS_ROW_MUTE = 2;
 const OPTIONS_ROW_SHIP = 3;
 const UI_ASSET_VERSION = "options-menu-1";
-const MUSIC_ASSET_VERSION = "regional-city-combat-1";
+const MUSIC_ASSET_VERSION = "seamless-webaudio-1";
 const SFX_ASSET_VERSION = "normalized-ogg-1";
 const ANIMAL_ASSET_VERSION = "seagulls-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
+const MUSIC_CROSSFADE_SECONDS = 1.6;
+const MUSIC_COMBAT_CROSSFADE_SECONDS = 0.7;
+const MUSIC_RETURN_CROSSFADE_SECONDS = 1.25;
+const MUSIC_DECODED_TRACK_CACHE_SIZE = 2;
 const MUSIC_VOLUME_STORAGE_KEY = "pixel_globe_music_volume";
 const SFX_VOLUME_STORAGE_KEY = "pixel_globe_sfx_volume";
 const AUDIO_MUTED_STORAGE_KEY = "pixel_globe_audio_muted";
@@ -439,16 +486,33 @@ const SFX_HARBOUR_URL = "/assets/sfx/freesound_community-harboursoundsanno1811-2
 const SFX_IMPACT_URL = "/assets/sfx/dragon-studio-boulder-impact-487673.ogg";
 const SFX_SEAGULLS_URL = "/assets/sfx/dragon-studio-seagull-calls-339723.ogg";
 const SFX_SHORE_GULLS_URL = "/assets/sfx/freesound_community-sea-and-seagull-wave-5932.ogg";
+const SFX_HARSH_WIND_URL = "/assets/sfx/dragon-studio-harsh-wind-515272.ogg";
+const SFX_WINTER_WIND_URL = "/assets/sfx/dragon-studio-winter-wind-402331.ogg";
+const SFX_DESERT_WIND_URL = "/assets/sfx/tanweraman-desert-wind-1-350398.ogg";
+const SFX_FLAG_URL = "/assets/sfx/freesound_community-flag-6367.ogg";
+const SFX_UNDERWAY_URL = "/assets/sfx/freesound_community-sailboat-underway-48728.ogg";
+const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.ogg";
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_IMPACT_POOL_SIZE = 6;
+const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_IMPACT_VOLUME = 0.64;
+const SFX_SAIL_DEPLOY_VOLUME = 0.22;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
 const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
+const SFX_HARSH_WIND_MAX_VOLUME = 0.12;
+const SFX_WINTER_WIND_MAX_VOLUME = 0.11;
+const SFX_DESERT_WIND_MAX_VOLUME = 0.1;
+const SFX_FLAG_MAX_VOLUME = 0.26;
+const SFX_UNDERWAY_MAX_VOLUME = 0.065;
 const SFX_HARBOUR_NEAR_PX = 42;
 const SFX_HARBOUR_FAR_PX = 170;
-const SFX_HARBOUR_FADE_PER_SECOND = 1.35;
+const SFX_AMBIENT_FADE_PER_SECOND = 1.35;
+const SFX_WIND_FADE_PER_SECOND = 0.035;
+const SFX_FLAG_FADE_PER_SECOND = 0.9;
+const SFX_UNDERWAY_FADE_PER_SECOND = 0.018;
+const SFX_WIND_TERRAIN_RADIUS_PX = 150;
 const SEAGULL_FLIGHT_URL = "/assets/animals/seagull-Sheet.png";
 const SEAGULL_STANDING_URL = "/assets/animals/seagull_standing.png";
 const SEAGULL_FRAME_SIZE = 9;
@@ -487,7 +551,8 @@ const terrainAssets = [
   "mud_01", "mud_02", "mud_03", "mud_04",
   "mountain_stone_01", "mountain_stone_02", "mountain_stone_03",
   "mountain_snowy_01", "mountain_snowy_02",
-  "snow_01", "ice_01"
+  "snow_01", "ice_01",
+  ...(TERRAIN_VARIANT === "resurrect-64" ? ["grassy_hill"] : [])
 ];
 
 const SNOWY_TERRAIN_REPLACEMENTS = new Map([
@@ -527,6 +592,8 @@ let graph;
 let directionIndex;
 let earthRows;
 let earthById;
+let mountainLandmarks;
+let mountainDiscoveryNotice = null;
 let images;
 let shipImage;
 let shipWakeAnchors;
@@ -539,6 +606,7 @@ let cityCatalog;
 let cityByTileId;
 let npcShipImages;
 let npcSeaRoutes;
+let npcShipCaptains;
 const npcVisualShips = new Map();
 let npcVisualUpdateAccumulator = 0;
 let characterPortraitManifest;
@@ -574,14 +642,15 @@ let localLayout;
 let minimap;
 let themeMusic = null;
 let soundEffects = null;
+const sailingAudioState = createSailingAudioState();
 let backgroundMusicTrackKey = "ship";
 let combatMusicUntilMs = 0;
 let gameAudioActivationAllowed = false;
 let gameState = null;
 let dialogueState = null;
 let dialogueLayout = createDialogueLayoutState();
-let dockButtonRect = null;
-let dockButtonCall = null;
+let interactionButtonRect = null;
+let interactionButtonTarget = null;
 const portraitCanvasCache = new Map();
 const portraitPromiseCache = new Map();
 let centerTileId = 0;
@@ -630,8 +699,8 @@ window.addEventListener("keydown", (event) => {
     if (!event.repeat) fireBroadside(cannonSideForKey(event.key));
     return;
   }
-  if (isDockKey(event.key)) {
-    if (openActivePortDialogue()) event.preventDefault();
+  if (isInteractionKey(event.key)) {
+    if (openActiveInteractionDialogue()) event.preventDefault();
     return;
   }
   if (isControlKey(event.key)) {
@@ -672,6 +741,7 @@ async function main() {
     loadedAnimalImages,
     loadedCityCatalog,
     loadedCharacterPortraitManifest,
+    loadedNamedMountains,
     earth,
     discreteWeatherBuffer,
     runtimeWeatherBuffer
@@ -686,6 +756,7 @@ async function main() {
     loadAnimalImages(),
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
+    loadNamedMountains(),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
@@ -724,6 +795,11 @@ async function main() {
   );
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
+  mountainLandmarks = buildMountainLandmarks(loadedNamedMountains, graph, directionIndex, earth.peaks);
+  console.info(
+    `[pixel-globe] mountains: ${mountainLandmarks.all.length} named peaks, ` +
+    `${mountainLandmarks.peakTileIds.size} peak tiles, ${mountainLandmarks.famous.length} discoverable landmarks`
+  );
   cityByTileId = placeCityCatalog(cityCatalog);
   waterDepthBands = buildWaterDepthBands();
   spriteColors = buildSpriteDominantColors(images);
@@ -741,13 +817,17 @@ async function main() {
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
     `${characterPortraitManifest.sourceCharacters.length} source portraits, ` +
-    `${characterPortraitManifest.paletteVariants.length} palettes`
+    `${characterPortraitManifest.skinTones.length} skin tones, ` +
+    `${characterPortraitManifest.hairTones.length} hair tones, ` +
+    `${characterPortraitManifest.outfitPalettes.length} outfit palettes`
   );
   npcSeaRoutes = createNpcSeaRouteSystem({
     ports: portCities,
     startMinute: weatherClockMinutes
   });
+  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest);
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
+  console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
   seaIceMask = new Uint8Array(graph.tileCount);
   freshwaterIceMask = new Uint8Array(graph.tileCount);
   snowGroundMask = new Uint8Array(graph.tileCount);
@@ -1645,6 +1725,7 @@ function runFrame(nowMs) {
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
     ensureChart();
+    if (updateMountainDiscovery(nowMs)) dirty = true;
     if (updateNpcShips(dt)) dirty = true;
     if (updateSeagulls(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
@@ -1691,43 +1772,14 @@ function createOptionsMenuState() {
 
 function setupThemeMusic() {
   if (themeMusic) return;
-  themeMusic = {
-    tracks: new Map(),
-    currentTrackKey: null,
-    pendingTrackKey: "ship"
-  };
-  preloadMusicTrack("ship");
+  themeMusic = new SeamlessMusicPlayer({
+    trackSpecs: MUSIC_TRACK_SPECS,
+    assetVersion: MUSIC_ASSET_VERSION,
+    crossfadeSeconds: MUSIC_CROSSFADE_SECONDS,
+    cacheSize: MUSIC_DECODED_TRACK_CACHE_SIZE
+  });
   applyThemeAudioSettings();
-}
-
-function preloadMusicTrack(trackKey) {
-  if (!themeMusic) return null;
-  const existing = themeMusic.tracks.get(trackKey);
-  if (existing) return existing;
-
-  const spec = MUSIC_TRACK_SPECS[trackKey];
-  if (!spec?.loop) throw new Error(`Missing music track spec: ${trackKey}`);
-  const track = {
-    key: trackKey,
-    intro: spec.intro ? createMusicAudio(spec.intro, `${trackKey} intro`) : null,
-    loop: createMusicAudio(spec.loop, `${trackKey} loop`),
-    started: false,
-    startAttempting: false
-  };
-  track.loop.loop = true;
-  if (track.intro) {
-    track.intro.addEventListener("ended", () => startMusicTrackLoop(trackKey));
-  }
-  themeMusic.tracks.set(trackKey, track);
-  applyThemeAudioSettings();
-  return track;
-}
-
-function createMusicAudio(url, label) {
-  const audio = new Audio(`${url}?v=${MUSIC_ASSET_VERSION}`);
-  audio.preload = "auto";
-  audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
-  return audio;
+  themeMusic.request("ship").catch(reportThemeMusicFailure);
 }
 
 function setupSoundEffects() {
@@ -1735,9 +1787,15 @@ function setupSoundEffects() {
   soundEffects = {
     cannon: createSoundPool(SFX_CANNON_URL, SFX_CANNON_POOL_SIZE, "cannon shot"),
     impact: createSoundPool(SFX_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "impact thud"),
+    sailDeploy: createSoundPool(SFX_SAIL_DEPLOY_URL, SFX_SAIL_DEPLOY_POOL_SIZE, "sail deployment"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
-    shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves")
+    shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves"),
+    harshWind: createAmbientLoop(SFX_HARSH_WIND_URL, "open-water wind"),
+    winterWind: createAmbientLoop(SFX_WINTER_WIND_URL, "winter wind"),
+    desertWind: createAmbientLoop(SFX_DESERT_WIND_URL, "desert wind"),
+    flag: createAmbientLoop(SFX_FLAG_URL, "flag flutter"),
+    underway: createAmbientLoop(SFX_UNDERWAY_URL, "ship underway")
   };
   applyThemeAudioSettings();
 }
@@ -1777,87 +1835,17 @@ function ensureGameAudioStarted(fromUserGesture = false) {
 function ensureThemeMusicStarted() {
   if (!gameAudioActivationAllowed) return;
   if (!themeMusic) return;
-  playMusicTrack(themeMusic.pendingTrackKey || backgroundMusicTrackKey || "ship");
+  themeMusic.activate().catch(reportThemeMusicFailure);
 }
 
 function playMusicTrack(trackKey, options = {}) {
   if (!themeMusic) return;
   const nextTrackKey = MUSIC_TRACK_SPECS[trackKey] ? trackKey : "ship";
-  themeMusic.pendingTrackKey = nextTrackKey;
-  if (!gameAudioActivationAllowed) return;
-  if (themeMusic.currentTrackKey === nextTrackKey && !options.restart) {
-    applyThemeAudioSettings();
-    return;
-  }
-
-  stopCurrentMusicTrack();
-  const track = preloadMusicTrack(nextTrackKey);
-  if (!track) return;
-  themeMusic.currentTrackKey = nextTrackKey;
-  track.started = true;
-  track.startAttempting = true;
-  track.loop.pause();
-  track.loop.currentTime = 0;
-  if (track.intro) {
-    track.intro.pause();
-    track.intro.currentTime = 0;
-  }
-  applyThemeAudioSettings();
-
-  const activeAudio = track.intro || track.loop;
-  const playPromise = activeAudio.play();
-  if (playPromise && typeof playPromise.catch === "function") {
-    playPromise
-      .catch(() => {
-        handleMusicTrackPlayFailure(nextTrackKey);
-      })
-      .finally(() => {
-        track.startAttempting = false;
-      });
-  } else {
-    track.startAttempting = false;
-  }
+  themeMusic.request(nextTrackKey, options).catch(reportThemeMusicFailure);
 }
 
-function stopCurrentMusicTrack() {
-  if (!themeMusic?.currentTrackKey) return;
-  const current = themeMusic.tracks.get(themeMusic.currentTrackKey);
-  if (!current) {
-    themeMusic.currentTrackKey = null;
-    return;
-  }
-  for (const audio of [current.intro, current.loop]) {
-    if (!audio) continue;
-    audio.pause();
-    audio.currentTime = 0;
-  }
-  current.started = false;
-  current.startAttempting = false;
-  themeMusic.currentTrackKey = null;
-}
-
-function handleMusicTrackPlayFailure(trackKey) {
-  if (!themeMusic) return;
-  const track = themeMusic.tracks.get(trackKey);
-  if (track) {
-    track.started = false;
-    track.startAttempting = false;
-  }
-  if (themeMusic.currentTrackKey === trackKey) themeMusic.currentTrackKey = null;
-}
-
-function startMusicTrackLoop(trackKey) {
-  if (!themeMusic || themeMusic.currentTrackKey !== trackKey) return;
-  const track = themeMusic.tracks.get(trackKey);
-  if (!track?.loop || !track.started) return;
-  track.loop.currentTime = 0;
-  applyThemeAudioSettings();
-  const playPromise = track.loop.play();
-  if (playPromise && typeof playPromise.catch === "function") {
-    playPromise.catch(() => {
-      handleMusicTrackPlayFailure(trackKey);
-    });
-  }
+function reportThemeMusicFailure(error) {
+  console.error("[pixel-globe] music playback failure", error);
 }
 
 function setBackgroundMusicTrack(trackKey, options = {}) {
@@ -1874,7 +1862,7 @@ function musicTrackForCity(city) {
 function startCombatMusicForThreat(threatSize = "small") {
   const trackKey = threatSize === "big" ? "combatBig" : "combatSmall";
   combatMusicUntilMs = Math.max(combatMusicUntilMs, lastFrameMs + COMBAT_MUSIC_HOLD_MS);
-  playMusicTrack(trackKey);
+  playMusicTrack(trackKey, { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS });
 }
 
 function combatMusicIsActive(nowMs) {
@@ -1888,8 +1876,13 @@ function isCombatMusicTrack(trackKey) {
 function updateMusicContext(nowMs) {
   if (!themeMusic) return;
   if (combatMusicIsActive(nowMs)) return;
-  if (isCombatMusicTrack(themeMusic.currentTrackKey)) {
-    playMusicTrack(backgroundMusicTrackKey || "ship");
+  if (
+    isCombatMusicTrack(themeMusic.currentTrackKey)
+    || isCombatMusicTrack(themeMusic.requestedTrackKey)
+  ) {
+    playMusicTrack(backgroundMusicTrackKey || "ship", {
+      crossfadeSeconds: MUSIC_RETURN_CROSSFADE_SECONDS
+    });
   }
 }
 
@@ -1923,17 +1916,9 @@ function ensureAmbientLoopStarted(loop) {
 function applyThemeAudioSettings() {
   const musicVolume = clamp(optionsMenu.musicVolume, 0, 1);
   const sfxVolume = clamp(optionsMenu.sfxVolume, 0, 1);
-  if (themeMusic) {
-    for (const track of themeMusic.tracks.values()) {
-      for (const audio of [track.intro, track.loop]) {
-        if (!audio) continue;
-        audio.volume = musicVolume;
-        audio.muted = optionsMenu.muted;
-      }
-    }
-  }
+  if (themeMusic) themeMusic.setOutput(musicVolume, optionsMenu.muted);
   if (soundEffects) {
-    for (const audio of [...soundEffects.cannon, ...soundEffects.impact]) {
+    for (const audio of [...soundEffects.cannon, ...soundEffects.impact, ...soundEffects.sailDeploy]) {
       audio.muted = optionsMenu.muted;
     }
     for (const loop of ambientSoundLoops()) {
@@ -1965,9 +1950,14 @@ function playCannonImpactSound(distancePx = 0) {
   playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * distanceGain, 0.9 + Math.random() * 0.12);
 }
 
+function playSailDeploySound() {
+  playSoundEffect(soundEffects?.sailDeploy, SFX_SAIL_DEPLOY_VOLUME, 0.98 + Math.random() * 0.04);
+}
+
 function updateAmbientAudio(dt) {
   if (!soundEffects) return;
   const shore = shoreProximity();
+  const sailing = sailingAmbientTargets(dt);
   let changed = false;
   changed = updateAmbientLoop(
     soundEffects.harbour,
@@ -1987,14 +1977,49 @@ function updateAmbientAudio(dt) {
     SFX_SHORE_GULLS_MAX_VOLUME,
     dt
   ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.harshWind,
+    sailing.harshWind * SFX_HARSH_WIND_MAX_VOLUME,
+    SFX_HARSH_WIND_MAX_VOLUME,
+    dt,
+    SFX_WIND_FADE_PER_SECOND
+  ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.winterWind,
+    sailing.winterWind * SFX_WINTER_WIND_MAX_VOLUME,
+    SFX_WINTER_WIND_MAX_VOLUME,
+    dt,
+    SFX_WIND_FADE_PER_SECOND
+  ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.desertWind,
+    sailing.desertWind * SFX_DESERT_WIND_MAX_VOLUME,
+    SFX_DESERT_WIND_MAX_VOLUME,
+    dt,
+    SFX_WIND_FADE_PER_SECOND
+  ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.flag,
+    sailing.flag * SFX_FLAG_MAX_VOLUME,
+    SFX_FLAG_MAX_VOLUME,
+    dt,
+    SFX_FLAG_FADE_PER_SECOND
+  ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.underway,
+    sailing.underway * SFX_UNDERWAY_MAX_VOLUME,
+    SFX_UNDERWAY_MAX_VOLUME,
+    dt,
+    SFX_UNDERWAY_FADE_PER_SECOND
+  ) || changed;
   if (changed) applyThemeAudioSettings();
 }
 
-function updateAmbientLoop(loop, targetVolume, maxVolume, dt) {
+function updateAmbientLoop(loop, targetVolume, maxVolume, dt, fadePerSecond = SFX_AMBIENT_FADE_PER_SECOND) {
   if (!loop) return false;
   loop.targetVolume = clamp(targetVolume, 0, maxVolume);
   if (loop.targetVolume > 0.001) ensureAmbientLoopStarted(loop);
-  const maxStep = SFX_HARBOUR_FADE_PER_SECOND * dt;
+  const maxStep = fadePerSecond * dt;
   const delta = clamp(loop.targetVolume - loop.currentVolume, -maxStep, maxStep);
   let changed = false;
   if (Math.abs(delta) > 0.0005) {
@@ -2011,7 +2036,73 @@ function updateAmbientLoop(loop, targetVolume, maxVolume, dt) {
 
 function ambientSoundLoops() {
   if (!soundEffects) return [];
-  return [soundEffects.harbour, soundEffects.seagulls, soundEffects.shoreGulls].filter(Boolean);
+  return [
+    soundEffects.harbour,
+    soundEffects.seagulls,
+    soundEffects.shoreGulls,
+    soundEffects.harshWind,
+    soundEffects.winterWind,
+    soundEffects.desertWind,
+    soundEffects.flag,
+    soundEffects.underway
+  ].filter(Boolean);
+}
+
+function sailingAmbientTargets(dt) {
+  if (!ship || !graph) {
+    throw new Error("Cannot update sailing ambience before the ship and globe are initialized");
+  }
+  const wind = windForTile(ship.tileId);
+  const windFlow = windFlowVectorAtShip(wind);
+  const alignment = clamp(dot3(ship.heading, windFlow), -1, 1);
+  const angleFromWindRad = Math.acos(clamp(-alignment, -1, 1));
+  return updateSailingAudioState(sailingAudioState, {
+    dt,
+    paused: Boolean(dialogueState || optionsMenu.isOpen),
+    heading: ship.heading,
+    speedPx: vectorLength(ship.velocity) * PIXELS_PER_RADIAN,
+    isRiver: shipIsInRiverWater(),
+    windStrength: wind.strength,
+    windContext: sailingWindContext(),
+    angleFromWindRad,
+    stallAngleRad: ship.stats.upwindStallAngleRad
+  });
+}
+
+function sailingWindContext() {
+  const tileId = ship.tileId;
+  const flags = weatherFlagsForTile(tileId);
+  if (seaIceMask?.[tileId] || freshwaterIceMask?.[tileId] || (flags & TILE_DAY_SNOW_FALL) !== 0) {
+    return SAILING_WIND_CONTEXT_WINTER;
+  }
+
+  const nearbyLand = nearestLandForWindContext();
+  if (nearbyLand) {
+    const terrain = nearbyLand.row.t || "";
+    if (snowGroundMask?.[nearbyLand.id] || terrain.includes("ice") || terrain.includes("snow") || terrain.includes("tundra") || terrain.includes("cold")) {
+      return SAILING_WIND_CONTEXT_WINTER;
+    }
+    if (terrain.includes("desert") || terrain.includes("steppe")) {
+      return SAILING_WIND_CONTEXT_DESERT;
+    }
+  }
+  if (Math.abs(graph.latDeg[tileId]) >= 58) return SAILING_WIND_CONTEXT_WINTER;
+  return SAILING_WIND_CONTEXT_GENERAL;
+}
+
+function nearestLandForWindContext() {
+  if (!chart || !localLayout) return null;
+  const maxDistance = SFX_WIND_TERRAIN_RADIUS_PX * SFX_WIND_TERRAIN_RADIUS_PX;
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const call of chart.tileCalls) {
+    if (isWaterSurfaceRow(call.row)) continue;
+    const distance = distance2(localLayout.viewX, localLayout.viewY, call.x, call.y);
+    if (distance > maxDistance || distance >= nearestDistance) continue;
+    nearest = call;
+    nearestDistance = distance;
+  }
+  return nearest;
 }
 
 function seagullAmbientPresence(shore) {
@@ -2268,10 +2359,17 @@ function handlePointerDown(event) {
     handleDialoguePointerDown(point);
     return;
   }
-  if (pointInRect(point, dockButtonRect)) {
+  if (pointInRect(point, interactionButtonRect)) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openActivePortDialogue();
+    openActiveInteractionDialogue();
+    return;
+  }
+  const clickedShip = npcShipCallAtPoint(point);
+  if (clickedShip) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openShipDialogue(clickedShip);
     return;
   }
   const clickedPort = portCallAtPoint(point);
@@ -2422,6 +2520,10 @@ function handleDialogueKeyDown(event) {
     return;
   }
   if (event.key === "ArrowLeft") {
+    if (dialogueState.kind === "ship") {
+      closeDialogue();
+      return;
+    }
     dialogueState.nodeId = "root";
     dialogueState.selectedIndex = 0;
     dialogueState.feedback = null;
@@ -2446,11 +2548,12 @@ function updateDialogueSelectionFromPoint(point) {
   }
 }
 
-function openActivePortDialogue() {
-  const promptCall = dockButtonCall && portPromptCallIsUsable(dockButtonCall) ? dockButtonCall : null;
-  const call = promptCall || activePortCall();
-  if (!call) return false;
-  openPortDialogue(call);
+function openActiveInteractionDialogue() {
+  const promptTarget = interactionTargetIsUsable(interactionButtonTarget) ? interactionButtonTarget : null;
+  const target = promptTarget || activeInteractionTarget();
+  if (!target) return false;
+  if (target.kind === "port") openPortDialogue(target.call);
+  else openShipDialogue(target.call);
   return true;
 }
 
@@ -2462,12 +2565,21 @@ function openPortDialogue(cityCall) {
   dialogueState = createPortDialogueSession(cityCall);
   dialogueLayout = createDialogueLayoutState();
   visitPort(gameState, cityCall);
-  stopShipForPort();
+  stopShipForDialogue();
   ensureDialoguePortraitLoaded();
   dirty = true;
 }
 
-function stopShipForPort() {
+function openShipDialogue(shipCall) {
+  if (!shipCall.character) throw new Error(`Cannot hail NPC ship without a captain: ${shipCall.id}`);
+  dialogueState = createShipDialogueSession(shipCall);
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+}
+
+function stopShipForDialogue() {
   if (!ship) return;
   ship.velocity = [0, 0, 0];
   ship.targetHeading = ship.heading.slice();
@@ -2478,17 +2590,27 @@ function stopShipForPort() {
 }
 
 function closeDialogue() {
+  const wasPortDialogue = dialogueState?.kind === "port";
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
-  combatMusicUntilMs = 0;
-  setBackgroundMusicTrack("ship", { force: true });
+  if (wasPortDialogue) {
+    combatMusicUntilMs = 0;
+    setBackgroundMusicTrack("ship", { force: true });
+    playSailDeploySound();
+  }
   dirty = true;
 }
 
 function chooseDialogueOption(optionIndex) {
-  const city = currentDialogueCity();
-  const result = selectPortDialogueOption(dialogueState, city, gameState, portCities, optionIndex);
-  syncShipCargoFromGameState();
+  let result;
+  if (dialogueState.kind === "port") {
+    result = selectPortDialogueOption(dialogueState, currentDialogueCity(), gameState, portCities, optionIndex);
+    syncShipCargoFromGameState();
+  } else if (dialogueState.kind === "ship") {
+    result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
+  } else {
+    throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
+  }
   if (result.closed) {
     closeDialogue();
     return;
@@ -2517,7 +2639,38 @@ function currentDialogueCity() {
 }
 
 function currentDialogueView() {
-  return portDialogueView(dialogueState, currentDialogueCity(), gameState, portCities);
+  if (dialogueState.kind === "port") {
+    return portDialogueView(dialogueState, currentDialogueCity(), gameState, portCities);
+  }
+  if (dialogueState.kind === "ship") {
+    return shipDialogueView(dialogueState, currentDialogueShip());
+  }
+  throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
+}
+
+function currentDialogueShip() {
+  if (!dialogueState || dialogueState.kind !== "ship") throw new Error("No active ship dialogue session");
+  const npcShip = npcSeaRoutes?.shipById?.get(dialogueState.npcShipId);
+  if (!npcShip) throw new Error(`Dialogue NPC ship no longer exists: ${dialogueState.npcShipId}`);
+  const character = npcShipCaptains?.get(npcShip.id);
+  if (!character) throw new Error(`Dialogue NPC ship has no captain: ${npcShip.id}`);
+  return {
+    id: npcShip.id,
+    slug: npcShip.slug,
+    label: shipLabelForSlug(npcShip.slug),
+    character
+  };
+}
+
+function currentDialogueSubject() {
+  return dialogueState?.kind === "ship" ? currentDialogueShip() : currentDialogueCity();
+}
+
+function activeInteractionTarget() {
+  const port = activePortCall();
+  if (port) return { kind: "port", call: port };
+  const npcShip = activeNpcShipCall();
+  return npcShip ? { kind: "ship", call: npcShip } : null;
 }
 
 function activePortCall() {
@@ -2541,6 +2694,61 @@ function activePortCall() {
     bestDistance = distance;
   }
   return best;
+}
+
+function activeNpcShipCall() {
+  if (!localLayout || !npcShipCaptains) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const state of npcVisualShips.values()) {
+    const distance = distance2(localLayout.viewX, localLayout.viewY, state.x, state.y);
+    if (distance > NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX || distance >= bestDistance) continue;
+    best = npcShipInteractionCall(state);
+    bestDistance = distance;
+  }
+  return best;
+}
+
+function npcShipCallAtPoint(point) {
+  if (!point || !chart || !localLayout || !npcShipCaptains) return null;
+  const offset = chartOffsetPixels(chart);
+  let best = null;
+  let bestDistance = Infinity;
+  for (const state of npcVisualShips.values()) {
+    if (!npcShipInHailRange(state)) continue;
+    const screenX = state.x + offset.x;
+    const screenY = state.y + offset.y;
+    const rect = expandedRect({
+      x: screenX - SHIP_SHEET_FRAME_SIZE / 2,
+      y: screenY - SHIP_SHEET_FRAME_SIZE / 2,
+      w: SHIP_SHEET_FRAME_SIZE,
+      h: SHIP_SHEET_FRAME_SIZE
+    }, NPC_HAIL_CLICK_PAD_PX);
+    if (!pointInRect(point, rect)) continue;
+    const distance = distance2(point.x, point.y, screenX, screenY);
+    if (distance >= bestDistance) continue;
+    best = npcShipInteractionCall(state);
+    bestDistance = distance;
+  }
+  return best;
+}
+
+function npcShipInteractionCall(state) {
+  const character = npcShipCaptains?.get(state.id);
+  if (!character) throw new Error(`NPC ship ${state.id} has no assigned captain`);
+  return {
+    id: state.id,
+    slug: state.slug,
+    label: shipLabelForSlug(state.slug),
+    character,
+    x: state.x,
+    y: state.y
+  };
+}
+
+function npcShipInHailRange(state) {
+  if (!state || !localLayout) return false;
+  return distance2(localLayout.viewX, localLayout.viewY, state.x, state.y) <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX;
 }
 
 function portCallAtPoint(point) {
@@ -2574,11 +2782,21 @@ function portCallInInteractionRange(call) {
   return distance2(localLayout.viewX, localLayout.viewY, call.x, call.y) <= PORT_INTERACTION_RADIUS_PX * PORT_INTERACTION_RADIUS_PX;
 }
 
-function portPromptCallIsUsable(call) {
+function portInteractionCallIsUsable(call) {
   if (!call?.character) return false;
   if (!Number.isFinite(call.x) || !Number.isFinite(call.y)) return true;
   if (!localLayout) return false;
   return portCallInInteractionRange(call);
+}
+
+function interactionTargetIsUsable(target) {
+  if (!target) return false;
+  if (target.kind === "port") return portInteractionCallIsUsable(target.call);
+  if (target.kind === "ship") {
+    const state = npcVisualShips.get(target.call?.id);
+    return npcShipInHailRange(state);
+  }
+  throw new Error(`Unknown interaction target kind: ${target.kind}`);
 }
 
 function pointHitsPortCitySprite(point, call, offset) {
@@ -2893,6 +3111,14 @@ function moveShipWithCollision(dt) {
   const step = scaleVector(ship.velocity, dt);
   if (vectorLength(step) < 1e-8) return { moved: false, collided: false };
 
+  for (const assistedVelocity of playerRiverGatewayVelocities()) {
+    const assisted = attemptShipStep(ship.position, ship.tileId, scaleVector(assistedVelocity, dt));
+    if (!assisted.ok) continue;
+    ship.velocity = projectTangentVector(assistedVelocity, assisted.position);
+    applyShipMove(assisted.position, assisted.tileId);
+    return { moved: true, collided: false };
+  }
+
   const direct = attemptShipStep(ship.position, ship.tileId, step);
   if (direct.ok) {
     applyShipMove(direct.position, direct.tileId);
@@ -2910,6 +3136,37 @@ function moveShipWithCollision(dt) {
   ship.velocity = scaleVector(projectTangentVector(ship.velocity, ship.position), SHIP_STOP_DAMPING);
   if (vectorLength(ship.velocity) < SHIP_MIN_SLIDE_SPEED_RAD) ship.velocity = [0, 0, 0];
   return { moved: false, collided: true };
+}
+
+function playerRiverGatewayVelocities() {
+  const speed = vectorLength(ship.velocity);
+  if (speed < SHIP_MIN_SLIDE_SPEED_RAD || !localLayout || !chart || !camera) return [];
+  const travelDirection = tangentToScreenDirection(ship.velocity);
+  const bowDirection = tangentToScreenDirection(ship.heading);
+  if (!travelDirection || !bowDirection) return [];
+  const currentNav = shipNavigabilityAtLocalPoint(
+    localLayout.viewX,
+    localLayout.viewY,
+    ship.tileId,
+    ship.position
+  );
+  if (!currentNav.ok) return [];
+  const gateway = riverGatewayDirectionAtLocalPoint(
+    localLayout.viewX,
+    localLayout.viewY,
+    currentNav.kind,
+    bowDirection
+  );
+  if (!gateway) return [];
+
+  const candidates = [];
+  for (const amount of [0.25, 0.45, 0.7, 1]) {
+    const direction = blendRiverNavigationDirections(travelDirection, gateway, amount);
+    if (!direction) continue;
+    const tangent = screenDirectionToTangent(direction, ship.position, ship.velocity);
+    candidates.push(scaleVector(tangent, speed));
+  }
+  return candidates;
 }
 
 function findShipSlideMove(normal, dt) {
@@ -3142,6 +3399,16 @@ function localShipCollisionSamplePoint(sampleVector, distancePx, localPoint) {
 
 function localCollisionTileIdAtPoint(x, y, label) {
   if (!localLayout || !chart?.waterIndex) throw new Error(`Cannot resolve ${label} without an indexed local chart`);
+  const nearest = nearestLocalCollisionTileAtPoint(x, y);
+  if (!nearest) throw new Error(`Could not resolve ${label}; indexed chart has no nearby tiles`);
+  if (nearest.distancePx > SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX) {
+    throw new Error(`Could not resolve ${label}; nearest drawn tile was ${nearest.distancePx.toFixed(1)}px away`);
+  }
+  return nearest.tileId;
+}
+
+function nearestLocalCollisionTileAtPoint(x, y) {
+  if (!localLayout || !chart?.waterIndex) return null;
   let bestId;
   let bestD2 = Infinity;
 
@@ -3155,12 +3422,8 @@ function localCollisionTileIdAtPoint(x, y, label) {
     bestId = entry.call.id;
   }
 
-  if (bestId === undefined) throw new Error(`Could not resolve ${label}; indexed chart has no nearby tiles`);
-  const maxD2 = SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX * SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX;
-  if (bestD2 > maxD2) {
-    throw new Error(`Could not resolve ${label}; nearest drawn tile was ${Math.sqrt(bestD2).toFixed(1)}px away`);
-  }
-  return bestId;
+  if (bestId === undefined) return null;
+  return { tileId: bestId, distancePx: Math.sqrt(bestD2) };
 }
 
 function globePositionForLocalPoint(tileId, x, y) {
@@ -3801,7 +4064,9 @@ function createNpcVisualState(snapshot, routePoint) {
     vector: initial.vector,
     heading: initial.heading,
     routeKey: snapshot.routeKey,
-    lastRouteVector: snapshot.routeVector.slice()
+    lastRouteVector: snapshot.routeVector.slice(),
+    escapeDirection: null,
+    escapeRemainingPx: 0
   };
   setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   return state;
@@ -3821,11 +4086,13 @@ function applyNpcVisualPlacement(state, placement) {
 }
 
 function advanceNpcVisualState(state, snapshot, routePoint, dt) {
+  const routeChanged = state.routeKey !== snapshot.routeKey;
   const routeAdvancePx = state.routeKey === snapshot.routeKey
     ? vectorArcDistance(state.lastRouteVector, snapshot.routeVector) * PIXELS_PER_RADIAN
     : 0;
   state.routeKey = snapshot.routeKey;
   state.lastRouteVector = snapshot.routeVector.slice();
+  if (routeChanged) clearNpcEscapeManeuver(state);
 
   const dx = routePoint.x - state.x;
   const dy = routePoint.y - state.y;
@@ -3860,14 +4127,94 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
 }
 
 function moveNpcVisualShip(state, direction, distance, heading) {
-  for (const angle of SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD) {
-    const candidateDirection = rotate2(direction, angle);
-    const alignment = direction.x * candidateDirection.x + direction.y * candidateDirection.y;
-    if (alignment < SHIP_COLLISION_SLIDE_SEARCH_MIN_ALIGN) continue;
-    const result = attemptNpcVisualStep(state, candidateDirection, distance, heading);
-    if (result.ok) return result;
+  const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+  if (!startNav.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
+  if (state.escapeDirection && state.escapeRemainingPx > 0) {
+    const escapeMove = attemptNpcVisualStep(state, state.escapeDirection, distance, heading);
+    if (escapeMove.ok) {
+      state.escapeRemainingPx = Math.max(0, state.escapeRemainingPx - distance);
+      if (state.escapeRemainingPx === 0) state.escapeDirection = null;
+      return escapeMove;
+    }
+    clearNpcEscapeManeuver(state);
   }
-  return null;
+
+  const guide = npcRiverNavigationDirection(state, direction, startNav.kind);
+  const baseDirections = guide
+    ? [
+        blendRiverNavigationDirections(direction, guide, 0.5),
+        blendRiverNavigationDirections(direction, guide, 0.78),
+        guide,
+        direction
+      ].filter(Boolean)
+    : [direction];
+  const tried = new Set();
+
+  for (const baseDirection of baseDirections) {
+    for (const angle of SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD) {
+      const candidateDirection = rotate2(baseDirection, angle);
+      const key = `${Math.round(candidateDirection.x * 1000)},${Math.round(candidateDirection.y * 1000)}`;
+      if (tried.has(key)) continue;
+      tried.add(key);
+      const alignment = direction.x * candidateDirection.x + direction.y * candidateDirection.y;
+      const minAlignment = guide ? -0.5 : SHIP_COLLISION_SLIDE_SEARCH_MIN_ALIGN;
+      if (alignment < minAlignment) continue;
+      const result = attemptNpcVisualStep(state, candidateDirection, distance, heading);
+      if (result.ok) return result;
+    }
+  }
+
+  const escape = chooseNpcEscapeDirection({
+    desiredDirection: direction,
+    currentDirection: tangentToScreenDirection(state.heading) || direction,
+    candidateDirections: NPC_VISUAL_ESCAPE_ANGLES_RAD.map((angle) => rotate2(direction, angle)),
+    clearDistanceFor: (candidateDirection) => npcEscapeClearDistance(state, candidateDirection, heading)
+  });
+  if (!escape) return null;
+
+  const escapeMove = attemptNpcVisualStep(state, escape.direction, distance, heading);
+  if (!escapeMove.ok) return null;
+  state.escapeDirection = escape.direction;
+  state.escapeRemainingPx = Math.max(0, NPC_VISUAL_ESCAPE_COMMIT_PX - distance);
+  return escapeMove;
+}
+
+function npcEscapeClearDistance(state, direction, heading) {
+  let clearDistance = 0;
+  for (const distance of NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX) {
+    const probe = attemptNpcVisualStep(state, direction, distance, heading);
+    if (!probe.ok) break;
+    clearDistance = distance;
+  }
+  return clearDistance;
+}
+
+function clearNpcEscapeManeuver(state) {
+  state.escapeDirection = null;
+  state.escapeRemainingPx = 0;
+}
+
+function npcRiverNavigationDirection(state, desiredDirection, currentKind) {
+  const gateway = riverGatewayDirectionAtLocalPoint(state.x, state.y, currentKind, desiredDirection);
+  if (gateway) return gateway;
+  if (currentKind !== "river") return null;
+
+  const call = chart?.tileById.get(state.tileId);
+  if (!call) return null;
+  const mask = (riverMasks?.[state.tileId] || 0) | (riverToWaterMasks?.[state.tileId] || 0);
+  if (mask === 0) return null;
+  const headingDirection = tangentToScreenDirection(state.heading) || desiredDirection;
+  const endpoints = riverEndpointsForTile(call, chart, mask).map((endpoint) => ({
+    x: call.drawSurfaceX - TILE_ART_HALF + endpoint.x,
+    y: call.drawSurfaceY - TILE_ART_HALF + endpoint.y
+  }));
+  return chooseRiverChannelDirection({
+    x: state.x,
+    y: state.y,
+    desiredDirection,
+    headingDirection,
+    endpoints
+  });
 }
 
 function attemptNpcVisualStep(state, direction, distance, heading) {
@@ -3903,6 +4250,13 @@ function nearestNpcNavigableVisualPoint(routePoint, heading, searchRadiusPx = NP
   const direct = npcNavigableVisualPoint(routePoint.x, routePoint.y, heading);
   if (direct) return direct;
 
+  const routeTile = nearestLocalCollisionTileAtPoint(routePoint.x, routePoint.y);
+  if (routeTile && routeTile.distancePx <= SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX &&
+      shipTileHasRiver(routeTile.tileId) && !isShipOpenWaterTile(routeTile.tileId)) {
+    const riverPlacement = nearestNpcVisualPointOfKind(routePoint, heading, "river", searchRadiusPx);
+    if (riverPlacement) return riverPlacement;
+  }
+
   const nearbyWater = wakeWaterCandidatesForPoint(routePoint.x, routePoint.y, chart.waterIndex)
     .filter((entry) => entry.kind === "tile" && isShipOpenWaterTile(entry.call.id))
     .map((entry) => ({
@@ -3931,15 +4285,32 @@ function nearestNpcNavigableVisualPoint(routePoint, heading, searchRadiusPx = NP
   return null;
 }
 
+function nearestNpcVisualPointOfKind(routePoint, heading, kind, searchRadiusPx) {
+  for (let radius = SHIP_COLLISION_SAMPLE_STEP_PX; radius <= searchRadiusPx; radius += SHIP_COLLISION_SAMPLE_STEP_PX) {
+    for (let i = 0; i < NPC_VISUAL_ACTIVATION_ANGLE_COUNT; i++) {
+      const angle = i / NPC_VISUAL_ACTIVATION_ANGLE_COUNT * Math.PI * 2;
+      const candidate = npcNavigableVisualPoint(
+        routePoint.x + Math.cos(angle) * radius,
+        routePoint.y + Math.sin(angle) * radius,
+        heading
+      );
+      if (candidate?.navKind === kind) return candidate;
+    }
+  }
+  return null;
+}
+
 function npcNavigableVisualPoint(x, y, heading) {
-  const tileId = localCollisionTileIdAtPoint(x, y, "NPC visual activation");
+  const nearest = nearestLocalCollisionTileAtPoint(x, y);
+  if (!nearest || nearest.distancePx > SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX) return null;
+  const tileId = nearest.tileId;
   const vector = globePositionForLocalPoint(tileId, x, y);
   const localHeading = normalizeTangentOrFallback(heading, vector, WORLD_NORTH);
   const nav = shipNavigabilityAtLocalPoint(x, y, tileId, vector);
   if (!nav.ok) return null;
   const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
   if (!occupancy.ok) return null;
-  return { x, y, tileId, vector, heading: localHeading };
+  return { x, y, tileId, vector, heading: localHeading, navKind: nav.kind };
 }
 
 function localPointForGlobeVector(vector) {
@@ -3965,6 +4336,59 @@ function screenDirectionToTangent(direction, position, fallback) {
     camera.right[1] * direction.x - camera.up[1] * direction.y,
     camera.right[2] * direction.x - camera.up[2] * direction.y
   ], position)) || normalizeTangentOrFallback(fallback, position, WORLD_NORTH);
+}
+
+function tangentToScreenDirection(direction) {
+  if (!camera) return null;
+  return normalizeScreenVector({
+    x: dot3(direction, camera.right),
+    y: -dot3(direction, camera.up)
+  });
+}
+
+function riverGatewayDirectionAtLocalPoint(x, y, currentKind, desiredDirection) {
+  if (currentKind === "openWater" && !localPointIsNearDrawnRiver(x, y)) return null;
+  if (currentKind === "river" && !localPointIsNearOpenWater(x, y)) return null;
+  return findRiverGatewayDirection({
+    x,
+    y,
+    currentKind,
+    desiredDirection,
+    sampleKindAt: localNavigationKindAtPoint
+  });
+}
+
+function localPointIsNearOpenWater(x, y) {
+  if (!chart?.waterIndex) return false;
+  const reach = RIVER_GATEWAY_SEARCH_RADIUS_PX + TILE_ART_HALF;
+  for (const entry of wakeWaterCandidatesForPoint(x, y, chart.waterIndex)) {
+    if (entry.kind !== "tile" || !isShipOpenWaterTile(entry.call.id)) continue;
+    if (Math.hypot(entry.call.drawSurfaceX - x, entry.call.drawSurfaceY - y) <= reach) return true;
+  }
+  return false;
+}
+
+function localPointIsNearDrawnRiver(x, y) {
+  if (!chart?.waterIndex) return false;
+  const reach = RIVER_GATEWAY_SEARCH_RADIUS_PX + TILE_ART_HALF;
+  for (const entry of wakeWaterCandidatesForPoint(x, y, chart.waterIndex)) {
+    if (entry.kind === "riverConnector") {
+      if (pointDistanceToBezierPath(x, y, entry.path) <= RIVER_GATEWAY_SEARCH_RADIUS_PX + RIVER_MOUTH_RADIUS_PX) {
+        return true;
+      }
+      continue;
+    }
+    if (entry.kind !== "tile" || !shipTileHasRiver(entry.call.id)) continue;
+    if (Math.hypot(entry.call.drawSurfaceX - x, entry.call.drawSurfaceY - y) <= reach) return true;
+  }
+  return false;
+}
+
+function localNavigationKindAtPoint(x, y) {
+  const tileId = localCollisionTileIdAtPoint(x, y, "river gateway sample");
+  const position = globePositionForLocalPoint(tileId, x, y);
+  const nav = shipNavigabilityAtLocalPoint(x, y, tileId, position);
+  return nav.ok ? nav.kind : null;
 }
 
 function vectorArcDistance(a, b) {
@@ -4374,8 +4798,8 @@ function render(nowMs) {
   drawDayNightTint();
   drawWindIndicator();
   drawMinimap(nowMs);
-  drawPlayerLedger();
-  drawDockButton();
+  drawInteractionButton();
+  drawMountainDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay();
   drawOptionsButton();
@@ -4386,6 +4810,38 @@ function ensureChart() {
   if (!chart || !chart.visibleSet.has(centerTileId) || !localLayout.positions.has(centerTileId) || chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX) {
     chart = buildChart(camera);
   }
+}
+
+function updateMountainDiscovery(nowMs) {
+  if (!mountainLandmarks || !gameState || !chart || !localLayout) return false;
+  if (mountainDiscoveryNotice) {
+    if (nowMs < mountainDiscoveryNotice.expiresAtMs) return false;
+    mountainDiscoveryNotice = null;
+    return true;
+  }
+
+  const offset = chartOffsetPixels(chart);
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const landmark of mountainLandmarks.famous) {
+    if (hasDiscoveredLandmark(gameState, landmark.id)) continue;
+    const call = chart.tileById.get(landmark.tileId);
+    if (!call) continue;
+    const screenX = call.drawSurfaceX + offset.x;
+    const screenY = call.drawSurfaceY + offset.y;
+    if (screenX < -TILE_ART_HALF || screenX > SCREEN_W + TILE_ART_HALF) continue;
+    if (screenY < -TILE_ART_HALF || screenY > SCREEN_H + TILE_ART_HALF) continue;
+    const distance = distance2(SCREEN_W / 2, SCREEN_H / 2, screenX, screenY);
+    if (distance > MOUNTAIN_DISCOVERY_RADIUS_PX * MOUNTAIN_DISCOVERY_RADIUS_PX || distance >= nearestDistance) continue;
+    nearest = landmark;
+    nearestDistance = distance;
+  }
+  if (!nearest || !discoverLandmark(gameState, nearest)) return false;
+  mountainDiscoveryNotice = {
+    landmark: nearest,
+    expiresAtMs: nowMs + MOUNTAIN_DISCOVERY_NOTICE_MS
+  };
+  return true;
 }
 
 function chartOffsetPixels(activeChart) {
@@ -4533,6 +4989,7 @@ function buildChart(anchorCamera) {
       surface,
       drawSurfaceX: surface.x,
       drawSurfaceY: surface.y,
+      drawLayer: terrainSpriteDrawLayer(spriteForTerrain(row, item.id)),
       sortY: surface.y + level * 3
     };
     tileCalls.push(tileCall);
@@ -4592,7 +5049,7 @@ function buildChart(anchorCamera) {
 
   baseFaceCalls.sort((a, b) => a.sortY - b.sortY);
   riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
-  tileCalls.sort((a, b) => a.sortY - b.sortY || a.id - b.id);
+  tileCalls.sort(compareTerrainDrawCalls);
   cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
   for (const frontFaces of frontFacesByTile.values()) frontFaces.sort((a, b) => a.sortY - b.sortY);
   const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, { tileById });
@@ -4853,8 +5310,8 @@ function rgbColor(color) {
 
 function getOptionsButtonRect() {
   return {
-    x: MINIMAP_X + MINIMAP_W - OPTIONS_BUTTON_SIZE,
-    y: MINIMAP_Y,
+    x: OPTIONS_BUTTON_X,
+    y: OPTIONS_BUTTON_Y,
     w: OPTIONS_BUTTON_SIZE,
     h: OPTIONS_BUTTON_SIZE
   };
@@ -5416,6 +5873,7 @@ function drawRiverConnector(call, activeChart) {
   const mainColor = riverColors.base;
 
   drawPixelBezierStroke(ctx, path, mainColor, RIVER_CONNECTOR_RADIUS_PX);
+  drawRiverConnectorMouthFlare(ctx, call, path, mainColor);
   drawPixelBrush(ctx, a.x, a.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
   drawPixelBrush(ctx, b.x, b.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
   if (call.aMouth && call.bWater) drawPixelBrush(ctx, b.x, b.y, RIVER_MOUTH_RADIUS_PX, mainColor);
@@ -5950,6 +6408,7 @@ function generateRiverSprite(endpoints, frame, variant) {
   for (const path of paths) {
     drawPixelBezierStroke(spriteCtx, path, mainColor, RIVER_BODY_RADIUS_PX);
   }
+  drawRiverTileMouthFlares(spriteCtx, paths, endpoints, mainColor);
   if (endpoints.length !== 2) drawPixelBrush(spriteCtx, cx, cy, RIVER_CONNECTOR_RADIUS_PX, mainColor);
   for (const endpoint of endpoints) {
     drawPixelBrush(spriteCtx, endpoint.x, endpoint.y, RIVER_CONNECTOR_RADIUS_PX, mainColor);
@@ -6008,6 +6467,65 @@ function drawPixelBezierStroke(targetCtx, path, color, radius) {
   forEachPixelOnBezier(path, (x, y) => {
     drawPixelBrush(targetCtx, x, y, radius, color);
   });
+}
+
+function drawRiverConnectorMouthFlare(targetCtx, call, path, color) {
+  const wideAtStart = riverConnectorMouthWideAtStart(call);
+  if (wideAtStart === null) return;
+  forEachRiverMouthFlareSample(path, wideAtStart, (x, y, radius) => {
+    drawPixelBrush(targetCtx, x, y, Math.round(radius), color);
+  });
+}
+
+function drawRiverTileMouthFlares(targetCtx, paths, endpoints, color) {
+  forEachRiverTileMouthFlare(paths, endpoints, (path, wideAtStart) => {
+    forEachRiverMouthFlareSample(path, wideAtStart, (x, y, radius) => {
+      drawPixelBrush(targetCtx, x, y, Math.round(radius), color);
+    }, RIVER_BODY_RADIUS_PX);
+  });
+}
+
+function riverConnectorMouthWideAtStart(call) {
+  if (call.bMouth && call.aWater) return true;
+  if (call.aMouth && call.bWater) return false;
+  return null;
+}
+
+function forEachRiverTileMouthFlare(paths, endpoints, visit) {
+  for (const endpoint of endpoints) {
+    if (!endpoint.mouth) continue;
+    const path = paths.find((candidate) =>
+      riverPointsMatch(candidate.x0, candidate.y0, endpoint.x, endpoint.y)
+      || riverPointsMatch(candidate.x1, candidate.y1, endpoint.x, endpoint.y)
+    );
+    if (!path) throw new Error(`River mouth endpoint ${endpoint.x},${endpoint.y} has no path`);
+    visit(path, riverPointsMatch(path.x0, path.y0, endpoint.x, endpoint.y));
+  }
+}
+
+function riverPointsMatch(ax, ay, bx, by) {
+  return Math.abs(ax - bx) < 1e-6 && Math.abs(ay - by) < 1e-6;
+}
+
+function forEachRiverMouthFlareSample(path, wideAtStart, visit, narrowRadius = RIVER_CONNECTOR_RADIUS_PX) {
+  const steps = Math.max(10, Math.ceil(bezierPathLength(path) * 1.6));
+  for (let index = 0; index <= steps; index++) {
+    const t = index / steps;
+    const mouthProgress = wideAtStart ? 1 - t : t;
+    if (mouthProgress < RIVER_MOUTH_FLARE_START) continue;
+    const flare = smoothstep(RIVER_MOUTH_FLARE_START, 1, mouthProgress);
+    const point = pointOnRiverBezier(path, t);
+    const radius = narrowRadius + (RIVER_MOUTH_RADIUS_PX - narrowRadius) * flare;
+    visit(point.x, point.y, radius);
+  }
+}
+
+function pointOnRiverBezier(path, t) {
+  const omt = 1 - t;
+  return {
+    x: omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1,
+    y: omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1
+  };
 }
 
 function drawRiverSparkles(targetCtx, path, frame, seed, color) {
@@ -6333,6 +6851,12 @@ function riverWaterInfoAtLocalPoint(x, y, activeChart) {
 function riverConnectorWaterInfoAtLocalPoint(x, y, entry) {
   const { call, geometry, path } = entry;
   let best = riverPathWaterProbe(x, y, path, RIVER_CONNECTOR_RADIUS_PX, call.a);
+  const wideAtStart = riverConnectorMouthWideAtStart(call);
+  if (wideAtStart !== null) {
+    forEachRiverMouthFlareSample(path, wideAtStart, (cx, cy, radius) => {
+      best = closerRiverProbe(best, riverBrushWaterProbe(x, y, cx, cy, radius, call.a));
+    });
+  }
   best = closerRiverProbe(best, riverBrushWaterProbe(x, y, geometry.a.x, geometry.a.y, riverConnectorEndpointCollisionRadius(call, "a"), call.a));
   best = closerRiverProbe(best, riverBrushWaterProbe(x, y, geometry.b.x, geometry.b.y, riverConnectorEndpointCollisionRadius(call, "b"), call.b));
   return best;
@@ -6355,10 +6879,16 @@ function riverTileWaterInfoAtLocalPoint(x, y, call, activeChart) {
   const endpoints = riverEndpointsForTile(call, activeChart, mask);
   if (endpoints.length === 0) return null;
   const variant = hashInt(call.id) & 15;
+  const paths = riverBezierPaths(endpoints, variant);
   let best = null;
-  for (const path of riverBezierPaths(endpoints, variant)) {
+  for (const path of paths) {
     best = closerRiverProbe(best, riverPathWaterProbe(px, py, path, RIVER_BODY_RADIUS_PX, call.id));
   }
+  forEachRiverTileMouthFlare(paths, endpoints, (path, wideAtStart) => {
+    forEachRiverMouthFlareSample(path, wideAtStart, (cx, cy, radius) => {
+      best = closerRiverProbe(best, riverBrushWaterProbe(px, py, cx, cy, radius, call.id));
+    }, RIVER_BODY_RADIUS_PX);
+  });
   if (endpoints.length !== 2) {
     best = closerRiverProbe(best, riverBrushWaterProbe(px, py, TILE_ART_HALF, TILE_ART_HALF, RIVER_CONNECTOR_RADIUS_PX, call.id));
   }
@@ -7160,41 +7690,58 @@ function rectsOverlap(a, b) {
     a.y + a.h > b.y;
 }
 
-function drawPlayerLedger() {
-  if (!gameState || dialogueState) return;
-  const text = `${gameState.doubloons} db  Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}`;
-  const w = measurePixelTextWidth(text, PIXEL_FONT_BODY_8) + 6;
-  ctx.fillStyle = "rgba(35, 27, 20, 0.76)";
-  ctx.fillRect(PLAYER_LEDGER_X, PLAYER_LEDGER_Y, w, 11);
-  ctx.fillStyle = "#f3dfb0";
-  drawPixelText(text, PLAYER_LEDGER_X + 3, PLAYER_LEDGER_Y + 2, { font: PIXEL_FONT_BODY_8 });
+function drawMountainDiscoveryNotice(nowMs) {
+  if (!mountainDiscoveryNotice || nowMs >= mountainDiscoveryNotice.expiresAtMs) return;
+  const landmark = mountainDiscoveryNotice.landmark;
+  const x = MOUNTAIN_DISCOVERY_PANEL_X;
+  const y = MOUNTAIN_DISCOVERY_PANEL_Y;
+  const w = MOUNTAIN_DISCOVERY_PANEL_W;
+  const h = MOUNTAIN_DISCOVERY_PANEL_H;
+  ctx.fillStyle = "rgba(35, 27, 20, 0.92)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.fillStyle = "#fff1bf";
+  const headline = fitPixelText(`You've discovered ${landmark.displayName}`, PIXEL_FONT_UI_8, w - 10);
+  drawPixelText(headline, x + 5, y + 4, { font: PIXEL_FONT_UI_8 });
+  ctx.fillStyle = "#cbb88a";
+  const details = `${Math.round(landmark.elevationM).toLocaleString("en-US")} m`;
+  drawPixelText(details, x + 5, y + 14, { font: PIXEL_FONT_BODY_8 });
 }
 
-function drawDockButton() {
-  dockButtonRect = null;
-  dockButtonCall = null;
+function drawInteractionButton() {
+  interactionButtonRect = null;
+  interactionButtonTarget = null;
   if (dialogueState || optionsMenu.isOpen) return;
-  const call = activePortCall();
-  if (!call) return;
-  dockButtonCall = call;
-  dockButtonRect = {
-    x: DOCK_BUTTON_X,
-    y: DOCK_BUTTON_Y,
-    w: DOCK_BUTTON_W,
-    h: DOCK_BUTTON_H
+  const target = activeInteractionTarget();
+  if (!target) return;
+  interactionButtonTarget = target;
+  interactionButtonRect = {
+    x: INTERACTION_BUTTON_X,
+    y: INTERACTION_BUTTON_Y,
+    w: INTERACTION_BUTTON_W,
+    h: INTERACTION_BUTTON_H
   };
-  const hovered = pointInRect(optionsMenu.hoverPoint, dockButtonRect);
+  const hovered = pointInRect(optionsMenu.hoverPoint, interactionButtonRect);
   ctx.fillStyle = hovered ? "#6d4b2f" : "#4a3424";
-  ctx.fillRect(dockButtonRect.x, dockButtonRect.y, dockButtonRect.w, dockButtonRect.h);
+  ctx.fillRect(interactionButtonRect.x, interactionButtonRect.y, interactionButtonRect.w, interactionButtonRect.h);
   ctx.strokeStyle = "#d6b66b";
-  ctx.strokeRect(dockButtonRect.x + 0.5, dockButtonRect.y + 0.5, dockButtonRect.w - 1, dockButtonRect.h - 1);
+  ctx.strokeRect(
+    interactionButtonRect.x + 0.5,
+    interactionButtonRect.y + 0.5,
+    interactionButtonRect.w - 1,
+    interactionButtonRect.h - 1
+  );
   ctx.fillStyle = "#f3dfb0";
-  const label = fitPixelText(`Dock: ${cityLabelText(call)}`, PIXEL_FONT_BODY_8, dockButtonRect.w - 8);
-  drawPixelText(label, dockButtonRect.x + 4, dockButtonRect.y + 3, { font: PIXEL_FONT_BODY_8 });
+  const actionLabel = target.kind === "port"
+    ? `Dock: ${cityLabelText(target.call)}`
+    : `Hail: ${target.call.label}`;
+  const label = fitPixelText(actionLabel, PIXEL_FONT_BODY_8, interactionButtonRect.w - 8);
+  drawPixelText(label, interactionButtonRect.x + 4, interactionButtonRect.y + 3, { font: PIXEL_FONT_BODY_8 });
 }
 
 function drawDialogueOverlay() {
-  const city = currentDialogueCity();
+  const subject = currentDialogueSubject();
   const view = currentDialogueView();
   const panel = {
     x: DIALOGUE_PANEL_X,
@@ -7203,7 +7750,7 @@ function drawDialogueOverlay() {
     h: DIALOGUE_PANEL_H
   };
 
-  drawDialoguePortrait(city.character, view.expressionId, DIALOGUE_PORTRAIT_X, DIALOGUE_PORTRAIT_Y);
+  drawDialoguePortrait(subject.character, view.expressionId, DIALOGUE_PORTRAIT_X, DIALOGUE_PORTRAIT_Y);
 
   ctx.fillStyle = "rgba(28, 20, 15, 0.94)";
   ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
@@ -7296,10 +7843,10 @@ function wrapPixelText(text, font, maxWidth, maxLines) {
 
 function ensureDialoguePortraitLoaded() {
   if (!dialogueState) return;
-  const city = currentDialogueCity();
+  const subject = currentDialogueSubject();
   const view = currentDialogueView();
-  const expression = characterExpression(city.character, view.expressionId || "neutral");
-  dialoguePortraitImage(city.character, expression);
+  const expression = characterExpression(subject.character, view.expressionId || "neutral");
+  dialoguePortraitImage(subject.character, expression);
 }
 
 function dialoguePortraitImage(character, expression) {
@@ -7310,7 +7857,7 @@ function dialoguePortraitImage(character, expression) {
   if (!portraitPromiseCache.has(key)) {
     const promise = loadAssetImage(expression.src, `portrait ${character.id}.${expression.id}`)
       .then((sourceImage) => {
-        const canvas = recolorPortraitImage(sourceImage, character.palette);
+        const canvas = recolorPortraitImage(sourceImage, character.palette, expression.roleMap);
         portraitCanvasCache.set(key, canvas);
         dirty = true;
       })
@@ -7332,8 +7879,12 @@ function drawTinyStatus(nowMs) {
   const flowDir = wind.directionRad + Math.PI;
   const iced = Boolean(seaIceMask?.[centerTileId] || freshwaterIceMask?.[centerTileId]);
   const shipSpeed = ship ? vectorLength(ship.velocity) * PIXELS_PER_RADIAN : 0;
+  const nearestNpc = nearestNpcVisualOffset();
+  const npcStatus = nearestNpc
+    ? `npc ${npcVisualShips.size} near ${Math.round(nearestNpc.dx)},${Math.round(nearestNpc.dy)}`
+    : `npc ${npcVisualShips.size}`;
   const line1 = `${centerTileId}${graph.isPentagon[centerTileId] ? " P" : ""} ${terrainStatusLabel(row)} ${lat},${lon}`;
-  const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)} spd ${shipSpeed.toFixed(0)} npc ${npcVisualShips.size}`;
+  const line2 = `${weatherDateLabel()} ${weatherLabelFor(flags, iced)} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)} spd ${shipSpeed.toFixed(0)} ${npcStatus}`;
   const width = Math.min(
     SCREEN_W - 8,
     Math.max(measurePixelTextWidth(line1, PIXEL_FONT_MONO_8), measurePixelTextWidth(line2, PIXEL_FONT_MONO_8)) + 8
@@ -7345,6 +7896,21 @@ function drawTinyStatus(nowMs) {
   drawPixelText(line2, 8, SCREEN_H - 6, { font: PIXEL_FONT_MONO_8 });
 
   void nowMs;
+}
+
+function nearestNpcVisualOffset() {
+  if (!localLayout || npcVisualShips.size === 0) return null;
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const state of npcVisualShips.values()) {
+    const dx = state.x - localLayout.viewX;
+    const dy = state.y - localLayout.viewY;
+    const distance = dx * dx + dy * dy;
+    if (distance >= nearestDistance) continue;
+    nearest = { dx, dy };
+    nearestDistance = distance;
+  }
+  return nearest;
 }
 
 function weatherFlagsForTile(tileId) {
@@ -7394,9 +7960,25 @@ function windDirectionName(directionRad) {
 
 function faceColorFor(call) {
   if (isCoastFace(call)) return beachFaceColor(call);
+  const mountain = mountainFaceSource(call);
+  if (mountain) {
+    const color = terrainSpriteColor(mountainVariant(mountain.id));
+    if (Math.abs(mountain.level - mountain.otherLevel) < 2) return shadeHex(color, -8);
+    return mountain.level > mountain.otherLevel ? shadeHex(color, -18) : shadeHex(color, 6);
+  }
   const color = terrainColorForTile(call.ownerRow, call.ownerId);
   if (Math.abs(call.ownerLevel - call.otherLevel) < 2) return color;
   return call.ownerLevel > call.otherLevel ? shadeHex(color, -18) : shadeHex(color, 14);
+}
+
+function mountainFaceSource(call) {
+  const candidates = [
+    { id: call.a, level: call.level, otherLevel: call.nlevel },
+    { id: call.b, level: call.nlevel, otherLevel: call.level }
+  ];
+  const mountains = candidates.filter((candidate) => candidate.level >= 3);
+  if (mountains.length === 0) return null;
+  return mountains.find((candidate) => candidate.id === call.ownerId) || mountains[0];
 }
 
 function isCoastFace(call) {
@@ -7431,15 +8013,17 @@ function paleBeachColor(hex) {
 function spriteForTerrain(row, id) {
   const t = row.t || "";
   const variant = hashInt(id) % 4;
-  const latAbs = Math.abs(graph.latDeg[id]);
 
   if (t === "water") return waterSpriteForTile(id);
   if (t === "lake" || t === "beach") return `water_shallow_0${waterFrameFor(id)}`;
+  if (isMountainPeakTile(id)) return snowyMountainVariant(id);
+  if (t === "mountain") return mountainVariant(id);
   if (t.includes("ice_cap")) return "snow_01";
   if (t === "ice") return "ice_01";
   if (t.includes("tundra") || t === "snow") return "snow_01";
-  if (t === "mountain" || row.e > 0.13) return latAbs > 45 ? "mountain_snowy_01" : mountainVariant(id);
-  if (row.h === 1 || row.e > 0.075) return variant % 2 === 0 ? "earth_rocky" : mountainVariant(id);
+  if (row.e > 0.13) return "earth_stone";
+  if (row.h === 1) return hillSpriteForTerrain(row, id);
+  if (row.e > 0.075) return variant % 2 === 0 ? "earth_rocky" : "earth_stone";
   if (t.includes("desert") || t.includes("steppe")) return t.includes("cold") ? "earth_stone" : sandVariant(id);
   if (t.includes("tropical")) return variant === 0 ? "jungle_palm_01" : `jungle_dense_0${1 + (variant % 3)}`;
   if (t.includes("subarctic") || t.includes("continental")) return variant === 0 ? "pine_forest_01" : `grass_0${1 + variant}`;
@@ -7468,17 +8052,42 @@ function terrainLevel(row, id) {
   if (t === "water") return -2;
   if (t === "lake" || t === "beach") return -1;
   if (t.includes("ice")) return 0;
-  if (t === "mountain" || row.e > 0.13) return 3;
-  if (row.h === 1 || row.e > 0.075) return 1 + (hashInt(id) % 2);
+  if (isMountainPeakTile(id) || t === "mountain") return 3;
+  if (row.e > 0.13) return 2;
+  if (row.h === 1 || row.e > 0.075) return 1;
   return 0;
+}
+
+function isMountainPeakTile(id) {
+  if (!mountainLandmarks) throw new Error("Mountain landmarks are not initialized");
+  return mountainLandmarks.peakTileIds.has(id);
 }
 
 function sandVariant(id) {
   return `sand_0${1 + (hashInt(id) % 5)}`;
 }
 
+function hillSpriteForTerrain(row, id) {
+  const terrain = row.t || "";
+  const grassy = terrain === "land" ||
+    terrain === "forest" ||
+    terrain.includes("savanna") ||
+    terrain.includes("humid") ||
+    terrain.includes("oceanic") ||
+    terrain.includes("mediterranean") ||
+    terrain.includes("continental") ||
+    terrain.includes("subarctic") ||
+    terrain.includes("highland");
+  if (grassy) return images.has("grassy_hill") ? "grassy_hill" : `grass_0${1 + (hashInt(id) % 4)}`;
+  return hashInt(id) % 2 === 0 ? "earth_rocky" : "earth_stone";
+}
+
 function mountainVariant(id) {
   return `mountain_stone_0${1 + (hashInt(id) % 3)}`;
+}
+
+function snowyMountainVariant(id) {
+  return `mountain_snowy_0${1 + (hashInt(id) % 2)}`;
 }
 
 function segmentNearScreen(ax, ay, bx, by, margin = VIEW_MARGIN) {
@@ -7516,7 +8125,7 @@ function isControlKey(key) {
     key === "D";
 }
 
-function isDockKey(key) {
+function isInteractionKey(key) {
   return key === "Enter" || key === " ";
 }
 
