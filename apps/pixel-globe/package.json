@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "node tools/build-static-site.mjs",
-    "dev": "node server.mjs"
+    "dev": "node server.mjs",
+    "render:ship": "node tools/render-sail-ship-sprites.mjs",
+    "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet"
   }
 }

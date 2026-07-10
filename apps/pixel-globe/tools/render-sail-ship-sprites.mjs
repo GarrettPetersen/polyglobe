@@ -1,14 +1,19 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCanvas } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import * as THREE from "../../../examples/globe-demo/node_modules/three/build/three.module.js";
+import { FBXLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(appRoot, "../..");
-const modelPath = join(repoRoot, "examples/globe-demo/public/assets/vehicles/Sail Ship.glb");
+const defaultModelPath = join(repoRoot, "examples/globe-demo/public/assets/vehicles/Sail Ship.glb");
+const unityShipSourceRoot = join(repoRoot, "tmp/unity-assets/low-poly-cartoon-sailing-ships");
+const unityShipModelRoot = join(unityShipSourceRoot, "Models");
+const unityShipTexturePath = join(unityShipSourceRoot, "Textures/texture main.png");
 const outputRoot = join(appRoot, "public/assets/vehicles");
+const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 
 const frameSize = 36;
 const headings = 16;
@@ -21,6 +26,8 @@ const shadowFrameSize = 72;
 const shadowFrameInset = Math.floor((shadowFrameSize - frameSize) / 2);
 const previewScale = 4;
 const cameraExtent = 1.62;
+const defaultTargetModelMaxDim = 2.3;
+const unityFleetScaleExponent = 0.5;
 const highlightDotThreshold = 0.52;
 const shadeDotThreshold = 0.1;
 const selfShadowMapSize = 128;
@@ -29,12 +36,289 @@ const selfShadowLookupRadius = 1;
 const waterlineQuantile = 0.18;
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 
+const unityShipRoster = new Map([
+  ["boats/boat 1.fbx", {
+    label: "Fishing Lugger",
+    slug: "fishing-lugger",
+    identifiedType: "small lugger / fishing boat",
+    confidence: "medium",
+    notes: "Small single-mast coastal working boat."
+  }],
+  ["boats/boat 2.fbx", {
+    label: "Coastal Sloop",
+    slug: "coastal-sloop",
+    identifiedType: "coastal sloop / cutter",
+    confidence: "medium",
+    notes: "Small fore-and-aft coastal craft."
+  }],
+  ["boats/boat 3.fbx", {
+    label: "Small Cog",
+    slug: "small-cog",
+    identifiedType: "small cog / roundship",
+    confidence: "medium",
+    notes: "Broad little hull with a simple square-sail profile."
+  }],
+  ["boats/boat 4.fbx", {
+    label: "Dhow",
+    slug: "dhow",
+    identifiedType: "dhow / felucca",
+    confidence: "high",
+    notes: "Lateen sail and narrow hull read strongly as an Indian Ocean or Red Sea craft."
+  }],
+  ["boats/chinese boat.fbx", {
+    label: "Sampan",
+    slug: "sampan",
+    identifiedType: "small junk / sampan",
+    confidence: "high",
+    notes: "Small Chinese-rigged vessel; good for river/coastal Asian traffic."
+  }],
+  ["ships large/chinese ship large.fbx", {
+    label: "Large Junk",
+    slug: "large-junk",
+    identifiedType: "large junk",
+    confidence: "high",
+    notes: "Multiple battened sails."
+  }],
+  ["ships large/pirate ship large 1.fbx", {
+    label: "Pirate Brig",
+    slug: "pirate-brig",
+    identifiedType: "pirate brig / snow",
+    confidence: "medium",
+    notes: "Black-sailed multi-mast raider; brig is the cleanest game label."
+  }],
+  ["ships large/pirate ship large 2.fbx", {
+    label: "Pirate Frigate",
+    slug: "pirate-frigate",
+    identifiedType: "pirate frigate / raider",
+    confidence: "medium",
+    notes: "Longer, heavier black-sailed raider silhouette."
+  }],
+  ["ships large/ship large 1.fbx", {
+    label: "Galleon",
+    slug: "galleon",
+    identifiedType: "galleon",
+    confidence: "high",
+    notes: "Tall stern and large square-rigged profile."
+  }],
+  ["ships large/ship large 2.fbx", {
+    label: "Frigate",
+    slug: "frigate",
+    identifiedType: "frigate / man-of-war",
+    confidence: "high",
+    notes: "Long square-rigged warship silhouette."
+  }],
+  ["ships large/ship large 3.fbx", {
+    label: "Fluyt",
+    slug: "fluyt",
+    identifiedType: "fluyt / merchantman",
+    confidence: "medium",
+    notes: "Bulky merchant hull, useful as a cargo specialist."
+  }],
+  ["ships large/ship large 4.fbx", {
+    label: "Carrack",
+    slug: "carrack",
+    identifiedType: "carrack / nao",
+    confidence: "medium",
+    notes: "Large early ocean-going merchant/explorer profile."
+  }],
+  ["ships large/ship large 5.fbx", {
+    label: "Ship of the Line",
+    slug: "ship-of-the-line",
+    identifiedType: "ship-of-the-line / heavy frigate",
+    confidence: "medium",
+    notes: "Largest heavy square-rigger in the pack."
+  }],
+  ["ships medium/chinese ship medium.fbx", {
+    label: "Medium Junk",
+    slug: "medium-junk",
+    identifiedType: "junk",
+    confidence: "high",
+    notes: "Medium battened-sail Chinese vessel."
+  }],
+  ["ships medium/pirate ship medium.fbx", {
+    label: "Pirate Brigantine",
+    slug: "pirate-brigantine",
+    identifiedType: "pirate brigantine / brig",
+    confidence: "high",
+    notes: "Compact black-sailed raider."
+  }],
+  ["ships medium/ship medium 1.fbx", {
+    label: "Xebec",
+    slug: "xebec",
+    identifiedType: "xebec",
+    confidence: "high",
+    notes: "Long, low Mediterranean lateen-rigged profile."
+  }],
+  ["ships medium/ship medium 2.fbx", {
+    label: "Caravel",
+    slug: "caravel",
+    identifiedType: "caravel / caravel redonda",
+    confidence: "medium",
+    notes: "Small explorer/trader silhouette."
+  }],
+  ["ships medium/ship medium 3.fbx", {
+    label: "Small Carrack",
+    slug: "small-carrack",
+    identifiedType: "cog / small carrack",
+    confidence: "medium",
+    notes: "Roundship profile, larger than a cog but less imposing than the carrack."
+  }],
+  ["ships medium/ship medium 4.fbx", {
+    label: "Ketch",
+    slug: "ketch",
+    identifiedType: "ketch / small merchant sloop",
+    confidence: "low",
+    notes: "Stylized enough that this is a functional label more than a firm identification."
+  }],
+  ["ships medium/ship medium 5.fbx", {
+    label: "Brigantine",
+    slug: "brigantine",
+    identifiedType: "brigantine / brig",
+    confidence: "medium",
+    notes: "Medium square/fore-and-aft trader or light naval vessel."
+  }],
+  ["ships medium/ship medium 6.fbx", {
+    label: "Corvette",
+    slug: "corvette",
+    identifiedType: "corvette / small frigate",
+    confidence: "medium",
+    notes: "Small naval square-rigger."
+  }],
+  ["ships small/chinese ship small.fbx", {
+    label: "Small Junk",
+    slug: "small-junk",
+    identifiedType: "junk",
+    confidence: "high",
+    notes: "Small battened-sail Chinese vessel."
+  }],
+  ["ships small/pirate ship small.fbx", {
+    label: "Pirate Sloop",
+    slug: "pirate-sloop",
+    identifiedType: "pirate sloop / cutter",
+    confidence: "medium",
+    notes: "Small black-sailed raider."
+  }],
+  ["ships small/ship small 1.fbx", {
+    label: "Lateen Xebec",
+    slug: "lateen-xebec",
+    identifiedType: "xebec / small lateen trader",
+    confidence: "medium",
+    notes: "Small lateen-rigged Mediterranean-style craft."
+  }],
+  ["ships small/ship small 2.fbx", {
+    label: "Felucca",
+    slug: "felucca",
+    identifiedType: "dhow / felucca",
+    confidence: "high",
+    notes: "Small single-lateen craft."
+  }],
+  ["ships small/ship small 3.fbx", {
+    label: "Cutter",
+    slug: "cutter",
+    identifiedType: "sloop / cutter",
+    confidence: "high",
+    notes: "Small fore-and-aft European craft."
+  }],
+  ["ships small/ship small 4.fbx", {
+    label: "Lateen Dhow",
+    slug: "lateen-dhow",
+    identifiedType: "dhow / lateen boat",
+    confidence: "high",
+    notes: "Curved lateen silhouette; good Indian Ocean/Arabian Sea craft."
+  }],
+  ["ships small/ship small 5.fbx", {
+    label: "Small Caravel",
+    slug: "small-caravel",
+    identifiedType: "caravel-ish small explorer",
+    confidence: "medium",
+    notes: "Explorer-sized European sail plan."
+  }],
+  ["ships small/ship small 6.fbx", {
+    label: "Square-Sail Trader",
+    slug: "square-sail-trader",
+    identifiedType: "small cog / square-sail trader",
+    confidence: "medium",
+    notes: "Simple small trader with square-sail read."
+  }],
+  ["ships small/ship small 7.fbx", {
+    label: "Dhow-Felucca",
+    slug: "dhow-felucca",
+    identifiedType: "felucca / dhow",
+    confidence: "high",
+    notes: "Another small lateen craft; distinct source model from Felucca."
+  }]
+]);
+
 async function loadGltf(path) {
   const bytes = readFileSync(path);
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   return new Promise((resolveLoad, rejectLoad) => {
     new GLTFLoader().parse(arrayBuffer, "", resolveLoad, rejectLoad);
   });
+}
+
+function installNodeImageShim() {
+  if (globalThis.document) return;
+  globalThis.document = {
+    createElementNS(_namespace, name) {
+      if (name !== "img") throw new Error(`Unsupported DOM shim element: ${name}`);
+      return {
+        addEventListener() {},
+        removeEventListener() {},
+        set src(value) {
+          this._src = value;
+        },
+        get src() {
+          return this._src;
+        }
+      };
+    }
+  };
+}
+
+function loadFbx(path) {
+  installNodeImageShim();
+  const bytes = readFileSync(path);
+  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return new FBXLoader().parse(arrayBuffer, "");
+}
+
+async function loadScene(path) {
+  const ext = extname(path).toLowerCase();
+  if (ext === ".glb" || ext === ".gltf") {
+    const gltf = await loadGltf(path);
+    return gltf.scene;
+  }
+  if (ext === ".fbx") return loadFbx(path);
+  throw new Error(`Unsupported ship model extension: ${path}`);
+}
+
+async function loadTextureSampler(path) {
+  const image = await loadImage(path);
+  const canvas = createCanvas(image.width, image.height);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, 0, 0);
+  const data = ctx.getImageData(0, 0, image.width, image.height).data;
+  return {
+    width: image.width,
+    height: image.height,
+    sample(u, v) {
+      const x = clamp(Math.floor(wrap01(u) * image.width), 0, image.width - 1);
+      const y = clamp(Math.floor((1 - wrap01(v)) * image.height), 0, image.height - 1);
+      const offset = (x + y * image.width) * 4;
+      return {
+        r: data[offset],
+        g: data[offset + 1],
+        b: data[offset + 2]
+      };
+    }
+  };
+}
+
+function wrap01(value) {
+  const wrapped = value - Math.floor(value);
+  return wrapped < 0 ? wrapped + 1 : wrapped;
 }
 
 function materialColor(material) {
@@ -57,7 +341,7 @@ function triangleMaterial(mesh, geometry, triOffset) {
   return materialColor(mesh.material[0]);
 }
 
-function collectTriangles(scene) {
+function collectTriangles(scene, options = {}) {
   scene.updateMatrixWorld(true);
   const triangles = [];
   const allPoints = [];
@@ -80,32 +364,60 @@ function collectTriangles(scene) {
         positions.getY(id),
         positions.getZ(id)
       ).applyMatrix4(matrix));
+      const uvs = geometry.attributes.uv
+        ? ids.map((id) => new THREE.Vector2(
+          geometry.attributes.uv.getX(id),
+          geometry.attributes.uv.getY(id)
+        ))
+        : null;
 
       for (const point of points) allPoints.push(point);
       triangles.push({
         points,
+        uvs,
         color: triangleMaterial(node, geometry, offset)
       });
     }
   });
 
   if (triangles.length === 0) throw new Error("No mesh triangles found in ship model");
-  normalizeTriangles(triangles, allPoints);
-  return triangles;
+  const sourceBounds = boundsForPoints(allPoints);
+  const targetMaxDim = options.targetMaxDim === undefined
+    ? defaultTargetModelMaxDim
+    : options.targetMaxDim;
+  if (targetMaxDim !== null) {
+    fitTrianglesToMaxDimension(triangles, sourceBounds, targetMaxDim);
+  }
+  return {
+    triangles,
+    sourceBounds,
+    sourceMaxDim: sourceBounds.maxDim,
+    targetMaxDim
+  };
 }
 
-function normalizeTriangles(triangles, points) {
+function boundsForPoints(points) {
   const box = new THREE.Box3();
   for (const point of points) box.expandByPoint(point);
-  const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   if (!Number.isFinite(maxDim) || maxDim <= 0) throw new Error("Ship model has invalid bounds");
+  return {
+    box,
+    center: box.getCenter(new THREE.Vector3()),
+    size,
+    maxDim
+  };
+}
 
-  const scale = 2.3 / maxDim;
+function fitTrianglesToMaxDimension(triangles, bounds, targetMaxDim) {
+  if (!Number.isFinite(targetMaxDim) || targetMaxDim <= 0) {
+    throw new Error(`Invalid target ship model size: ${targetMaxDim}`);
+  }
+  const scale = targetMaxDim / bounds.maxDim;
   for (const tri of triangles) {
     for (const point of tri.points) {
-      point.sub(center).multiplyScalar(scale);
+      point.sub(bounds.center).multiplyScalar(scale);
     }
   }
 }
@@ -153,6 +465,10 @@ function clamp255(v) {
   return Math.max(0, Math.min(255, Math.round(v)));
 }
 
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
 function projectedPoint(point, camera) {
   const ndc = point.clone().project(camera);
   const view = point.clone().applyMatrix4(camera.matrixWorldInverse);
@@ -166,7 +482,7 @@ function projectedPoint(point, camera) {
   };
 }
 
-function renderHeading(baseTriangles, headingIndex, camera) {
+function renderHeading(baseTriangles, headingIndex, camera, renderOptions) {
   const canvas = createCanvas(renderSize, renderSize);
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
@@ -191,7 +507,14 @@ function renderHeading(baseTriangles, headingIndex, camera) {
     if (screen.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) continue;
 
     const screenNormal = normal.clone().transformDirection(camera.matrixWorldInverse);
-    rasterizeTriangle(image.data, depth, normals, positions, screen, baseColor(tri.color, normal), {
+    rasterizeTriangle(image.data, depth, normals, positions, screen, {
+      color: tri.color,
+      normal,
+      uvs: tri.uvs,
+      textureSampler: renderOptions?.textureSampler,
+      recolorSails: renderOptions?.recolorSails,
+      waterlineY: renderOptions?.waterlineY
+    }, {
       x: screenNormal.x,
       y: -screenNormal.y,
       z: screenNormal.z
@@ -211,7 +534,7 @@ function makeCasterTriangle(points) {
   };
 }
 
-function rasterizeTriangle(data, depth, normals, positions, points, color, normal) {
+function rasterizeTriangle(data, depth, normals, positions, points, surface, normal) {
   const [a, b, c] = points;
   const minX = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x)));
   const minY = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y)));
@@ -235,6 +558,10 @@ function rasterizeTriangle(data, depth, normals, positions, points, color, norma
       if (z <= depth[index]) continue;
 
       depth[index] = z;
+      const wx = w0 * a.wx + w1 * b.wx + w2 * c.wx;
+      const wy = w0 * a.wy + w1 * b.wy + w2 * c.wy;
+      const wz = w0 * a.wz + w1 * b.wz + w2 * c.wz;
+      const color = shadeSurfaceColor(surface, { x: wx, y: wy, z: wz }, w0, w1, w2);
       const offset = index * 4;
       data[offset] = color.r;
       data[offset + 1] = color.g;
@@ -244,11 +571,67 @@ function rasterizeTriangle(data, depth, normals, positions, points, color, norma
       normals[normalOffset] = normal.x;
       normals[normalOffset + 1] = normal.y;
       normals[normalOffset + 2] = normal.z;
-      positions[normalOffset] = w0 * a.wx + w1 * b.wx + w2 * c.wx;
-      positions[normalOffset + 1] = w0 * a.wy + w1 * b.wy + w2 * c.wy;
-      positions[normalOffset + 2] = w0 * a.wz + w1 * b.wz + w2 * c.wz;
+      positions[normalOffset] = wx;
+      positions[normalOffset + 1] = wy;
+      positions[normalOffset + 2] = wz;
     }
   }
+}
+
+function shadeSurfaceColor(surface, point, w0, w1, w2) {
+  let color = surface.color;
+  if (surface.textureSampler && surface.uvs) {
+    const u = w0 * surface.uvs[0].x + w1 * surface.uvs[1].x + w2 * surface.uvs[2].x;
+    const v = w0 * surface.uvs[0].y + w1 * surface.uvs[1].y + w2 * surface.uvs[2].y;
+    color = surface.textureSampler.sample(u, v);
+  }
+  if (surface.recolorSails && isLikelySailPixel(color, surface.normal, point, surface.waterlineY)) {
+    color = neutralSailColor(color);
+  }
+  return baseColor(color, surface.normal);
+}
+
+function isLikelySailPixel(color, normal, point, waterlineY) {
+  const height = Number.isFinite(waterlineY) ? point.y - waterlineY : point.y;
+  if (height < 0.08) return false;
+  if (Math.abs(normal.y) > 0.9) return false;
+  const stats = colorStats(color);
+  if (stats.value < 0.34) return false;
+  if (stats.saturation < 0.12 && stats.value < 0.78) return false;
+  return true;
+}
+
+function colorStats(color) {
+  const r = color.r / 255;
+  const g = color.g / 255;
+  const b = color.b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  let hue = 0;
+  if (chroma > 1e-6) {
+    if (max === r) hue = ((g - b) / chroma) % 6;
+    else if (max === g) hue = (b - r) / chroma + 2;
+    else hue = (r - g) / chroma + 4;
+    hue *= 60;
+    if (hue < 0) hue += 360;
+  }
+  return {
+    hue,
+    saturation: max <= 0 ? 0 : chroma / max,
+    value: max,
+    luminance: r * 0.2126 + g * 0.7152 + b * 0.0722
+  };
+}
+
+function neutralSailColor(color) {
+  const stats = colorStats(color);
+  const shade = clamp255(178 + stats.luminance * 72);
+  return {
+    r: clamp255(shade + 8),
+    g: clamp255(shade + 5),
+    b: clamp255(shade - 6)
+  };
 }
 
 function edge(a, b, x, y) {
@@ -730,10 +1113,14 @@ function makePreview(sheet) {
   return preview;
 }
 
-async function main() {
-  mkdirSync(outputRoot, { recursive: true });
-  const gltf = await loadGltf(modelPath);
-  const triangles = collectTriangles(gltf.scene);
+async function renderShipSpriteSet(config) {
+  mkdirSync(config.outputDir, { recursive: true });
+  const scene = await loadScene(config.modelPath);
+  const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
+  const model = collectTriangles(scene, {
+    targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim
+  });
+  const triangles = model.triangles;
   const waterlineY = estimateWaterlineY(triangles);
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
@@ -741,9 +1128,14 @@ async function main() {
   sheetCtx.clearRect(0, 0, sheet.width, sheet.height);
   sheetCtx.imageSmoothingEnabled = false;
 
-  const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera));
+  const renderOptions = {
+    textureSampler,
+    recolorSails: Boolean(config.recolorSails),
+    waterlineY
+  };
+  const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera, renderOptions));
   const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
-  const frameScale = fixedFrameScale(boundsByHeading);
+  const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
   const frames = renderedHeadings.map((rendered, i) => makeFrame(rendered, boundsByHeading[i], frameScale));
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i);
@@ -756,25 +1148,303 @@ async function main() {
   const shadowMask = makeShadowMaskSheet(frames, lightDirections, camera, waterlineY);
   const preview = makePreview(sheet);
   const lightingPreview = makeLightingPreview(sheet, lightMask, shadeMask, shadowMask);
-  const sheetPath = join(outputRoot, "sail-ship-16-headings.png");
-  const lightPath = join(outputRoot, "sail-ship-16-headings-light.png");
-  const shadePath = join(outputRoot, "sail-ship-16-headings-shade.png");
-  const shadowPath = join(outputRoot, "sail-ship-16-headings-shadow.png");
-  const previewPath = join(outputRoot, "sail-ship-16-headings-preview.png");
-  const lightingPreviewPath = join(outputRoot, "sail-ship-16-headings-lighting-preview.png");
+  const sheetPath = join(config.outputDir, `${config.outputPrefix}.png`);
+  const lightPath = join(config.outputDir, `${config.outputPrefix}-light.png`);
+  const shadePath = join(config.outputDir, `${config.outputPrefix}-shade.png`);
+  const shadowPath = join(config.outputDir, `${config.outputPrefix}-shadow.png`);
+  const previewPath = join(config.outputDir, `${config.outputPrefix}-preview.png`);
+  const lightingPreviewPath = join(config.outputDir, `${config.outputPrefix}-lighting-preview.png`);
   writeFileSync(sheetPath, sheet.toBuffer("image/png"));
   writeFileSync(lightPath, lightMask.toBuffer("image/png"));
   writeFileSync(shadePath, shadeMask.toBuffer("image/png"));
   writeFileSync(shadowPath, shadowMask.toBuffer("image/png"));
   writeFileSync(previewPath, preview.toBuffer("image/png"));
   writeFileSync(lightingPreviewPath, lightingPreview.toBuffer("image/png"));
-  console.log(`waterlineY=${waterlineY.toFixed(4)}`);
-  console.log(sheetPath);
-  console.log(lightPath);
-  console.log(shadePath);
-  console.log(shadowPath);
-  console.log(previewPath);
-  console.log(lightingPreviewPath);
+  return {
+    slug: config.slug || config.outputPrefix.replace(/-16-headings$/, ""),
+    label: config.label || config.outputPrefix,
+    category: config.category || "default",
+    assetLabel: config.assetLabel || config.label || config.outputPrefix,
+    identifiedType: config.identifiedType || config.label || config.outputPrefix,
+    identificationConfidence: config.identificationConfidence || "unknown",
+    identificationNotes: config.identificationNotes || "",
+    sourceModel: portablePath(config.modelPath),
+    sourceTexture: config.texturePath ? portablePath(config.texturePath) : null,
+    sailRecolor: Boolean(config.recolorSails),
+    sourceMaxDim: Number(model.sourceMaxDim.toFixed(4)),
+    targetModelMaxDim: Number(model.targetMaxDim.toFixed(4)),
+    frameScale: Number(frameScale.toFixed(4)),
+    scaleMode: config.scaleMode || "fit-model",
+    waterlineY,
+    frameSize,
+    shadowFrameSize,
+    headings,
+    sheetCols,
+    lightAzimuthBins,
+    lightElevationBins,
+    files: {
+      sheet: portablePath(sheetPath),
+      light: portablePath(lightPath),
+      shade: portablePath(shadePath),
+      shadow: portablePath(shadowPath),
+      preview: portablePath(previewPath),
+      lightingPreview: portablePath(lightingPreviewPath)
+    },
+    sheet
+  };
+}
+
+function portablePath(path) {
+  return relative(repoRoot, path).split("/").join("/");
+}
+
+function unityShipModels() {
+  const files = [];
+  walkFiles(unityShipModelRoot, (path) => {
+    if (extname(path).toLowerCase() !== ".fbx") return;
+    const rel = relative(unityShipModelRoot, path).split("/").join("/");
+    if (rel.startsWith("viking ships/")) return;
+    if (basename(path).toLowerCase() === "water.fbx") return;
+    files.push(path);
+  });
+  return files.sort((a, b) => portableUnityModelPath(a).localeCompare(portableUnityModelPath(b)));
+}
+
+function walkFiles(dir, visit) {
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    const stat = statSync(path);
+    if (stat.isDirectory()) walkFiles(path, visit);
+    else visit(path);
+  }
+}
+
+function portableUnityModelPath(path) {
+  return relative(unityShipModelRoot, path).split("/").join("/");
+}
+
+function unityShipConfig(modelPath) {
+  const rel = portableUnityModelPath(modelPath);
+  const sourceCategory = dirname(rel).split("/").join(" ");
+  const bareName = basename(modelPath, extname(modelPath));
+  const assetLabel = titleize(bareName);
+  const rosterEntry = unityShipRoster.get(rel);
+  if (!rosterEntry) {
+    throw new Error(`No ship roster identification for Unity model: ${rel}`);
+  }
+  return {
+    slug: rosterEntry.slug,
+    label: rosterEntry.label,
+    category: sourceCategory,
+    assetLabel,
+    identifiedType: rosterEntry.identifiedType,
+    identificationConfidence: rosterEntry.confidence,
+    identificationNotes: rosterEntry.notes,
+    modelPath,
+    texturePath: unityShipTexturePath,
+    recolorSails: true,
+    scaleMode: "source-relative-fleet",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${rosterEntry.slug}-16-headings`
+  };
+}
+
+async function measureSourceMaxDim(modelPath) {
+  const scene = await loadScene(modelPath);
+  return collectTriangles(scene, { targetMaxDim: null }).sourceMaxDim;
+}
+
+async function measureRenderedBounds(config) {
+  const scene = await loadScene(config.modelPath);
+  const model = collectTriangles(scene, { targetMaxDim: config.targetModelMaxDim });
+  const camera = makeCamera();
+  return Array.from({ length: headings }, (_, i) => (
+    alphaBounds(renderHeading(model.triangles, i, camera, {
+      textureSampler: null,
+      recolorSails: false,
+      waterlineY: estimateWaterlineY(model.triangles)
+    }).canvas)
+  ));
+}
+
+function fleetTargetModelMaxDim(sourceMaxDim, largestSourceMaxDim) {
+  if (!Number.isFinite(sourceMaxDim) || sourceMaxDim <= 0) {
+    throw new Error(`Invalid source ship size: ${sourceMaxDim}`);
+  }
+  if (!Number.isFinite(largestSourceMaxDim) || largestSourceMaxDim <= 0) {
+    throw new Error(`Invalid largest source ship size: ${largestSourceMaxDim}`);
+  }
+  const ratio = sourceMaxDim / largestSourceMaxDim;
+  return defaultTargetModelMaxDim * Math.pow(ratio, unityFleetScaleExponent);
+}
+
+function resetUnityFleetOutput() {
+  const relativeOutput = portablePath(unityFleetOutputRoot);
+  if (relativeOutput !== "apps/pixel-globe/public/assets/vehicles/unity-ships") {
+    throw new Error(`Refusing to clear unexpected Unity fleet output path: ${unityFleetOutputRoot}`);
+  }
+  rmSync(unityFleetOutputRoot, { recursive: true, force: true });
+  mkdirSync(unityFleetOutputRoot, { recursive: true });
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function titleize(value) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
+function makeFleetContactSheet(entries) {
+  const itemScale = 2;
+  const labelHeight = 18;
+  const itemWidth = frameSize * sheetCols * itemScale;
+  const itemHeight = frameSize * Math.ceil(headings / sheetCols) * itemScale + labelHeight;
+  const cols = 5;
+  const rows = Math.ceil(entries.length / cols);
+  const canvas = createCanvas(itemWidth * cols, itemHeight * rows);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#14151f";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "12px monospace";
+  ctx.textBaseline = "top";
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const x = (i % cols) * itemWidth;
+    const y = Math.floor(i / cols) * itemHeight;
+    ctx.drawImage(entry.sheet, x, y, itemWidth, itemWidth);
+    ctx.fillStyle = "#f4ecd8";
+    ctx.fillText(entry.label.slice(0, 30), x + 4, y + itemWidth + 3);
+  }
+
+  return canvas;
+}
+
+async function renderUnityFleet() {
+  resetUnityFleetOutput();
+  const models = unityShipModels();
+  if (models.length === 0) {
+    throw new Error(`No Unity ship FBX files found in ${unityShipModelRoot}`);
+  }
+
+  const measuredConfigs = [];
+  for (const modelPath of models) {
+    const config = unityShipConfig(modelPath);
+    config.sourceMaxDim = await measureSourceMaxDim(modelPath);
+    measuredConfigs.push(config);
+  }
+  const largestSourceMaxDim = Math.max(...measuredConfigs.map((config) => config.sourceMaxDim));
+  for (const config of measuredConfigs) {
+    config.targetModelMaxDim = fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
+  }
+
+  const fleetBounds = [];
+  for (const config of measuredConfigs) {
+    fleetBounds.push(...await measureRenderedBounds(config));
+  }
+  const sharedFrameScale = fixedFrameScale(fleetBounds);
+  for (const config of measuredConfigs) {
+    config.frameScale = sharedFrameScale;
+  }
+
+  const manifest = [];
+  for (const config of measuredConfigs) {
+    console.log(`render ${config.slug}`);
+    const entry = await renderShipSpriteSet(config);
+    manifest.push(entry);
+    console.log(`  sourceMaxDim=${entry.sourceMaxDim.toFixed(1)} targetModelMaxDim=${entry.targetModelMaxDim.toFixed(3)}`);
+    console.log(`  waterlineY=${entry.waterlineY.toFixed(4)}`);
+    console.log(`  ${entry.files.sheet}`);
+  }
+
+  const manifestForDisk = manifest.map(({ sheet, ...entry }) => entry);
+  const manifestPath = join(unityFleetOutputRoot, "manifest.json");
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
+    sourceRoot: portablePath(unityShipSourceRoot),
+    scaleMode: "source-relative-fleet",
+    scaleNotes: "Imported FBX source sizes are preserved through a compressed readability curve so boats stay smaller without becoming illegible at 36px.",
+    targetMaxDimForLargestShip: defaultTargetModelMaxDim,
+    fleetScaleExponent: unityFleetScaleExponent,
+    sharedFrameScale: Number(sharedFrameScale.toFixed(4)),
+    skipped: ["Models/viking ships/*.fbx", "Models/water.fbx"],
+    ships: manifestForDisk
+  }, null, 2)}\n`);
+
+  const contactSheet = makeFleetContactSheet(manifest);
+  const contactSheetPath = join(unityFleetOutputRoot, "unity-ships-contact-sheet.png");
+  writeFileSync(contactSheetPath, contactSheet.toBuffer("image/png"));
+  console.log(manifestPath);
+  console.log(contactSheetPath);
+}
+
+function parseArgs(argv) {
+  const flags = new Set();
+  const values = new Map();
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) continue;
+    const equalsIndex = arg.indexOf("=");
+    if (equalsIndex >= 0) {
+      values.set(arg.slice(0, equalsIndex), arg.slice(equalsIndex + 1));
+    } else if (i + 1 < argv.length && !argv[i + 1].startsWith("--")) {
+      values.set(arg, argv[i + 1]);
+      i++;
+    } else {
+      flags.add(arg);
+    }
+  }
+  return {
+    has(flag) {
+      return flags.has(flag) || values.has(flag);
+    },
+    value(name) {
+      return values.get(name);
+    }
+  };
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.has("--unity-fleet")) {
+    await renderUnityFleet();
+    return;
+  }
+
+  const modelPath = args.value("--model")
+    ? resolve(args.value("--model"))
+    : defaultModelPath;
+  const outputDir = args.value("--output-dir")
+    ? resolve(args.value("--output-dir"))
+    : outputRoot;
+  const outputPrefix = args.value("--output-prefix") || "sail-ship-16-headings";
+  const texturePath = args.value("--texture") ? resolve(args.value("--texture")) : null;
+  const result = await renderShipSpriteSet({
+    slug: outputPrefix.replace(/-16-headings$/, ""),
+    label: outputPrefix,
+    category: "single",
+    modelPath,
+    texturePath,
+    recolorSails: args.has("--sail-recolor"),
+    outputDir,
+    outputPrefix
+  });
+  console.log(`waterlineY=${result.waterlineY.toFixed(4)}`);
+  console.log(result.files.sheet);
+  console.log(result.files.light);
+  console.log(result.files.shade);
+  console.log(result.files.shadow);
+  console.log(result.files.preview);
+  console.log(result.files.lightingPreview);
 }
 
 main().catch((err) => {
