@@ -1,7 +1,18 @@
-import { cargoRows, cargoUsed } from "./gameState.js";
+import {
+  cargoCostBasis,
+  cargoRows,
+  cargoUsed,
+  ledgerEntries,
+  realizedTradePnl
+} from "./gameState.js";
 import { SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
+export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
+
+const LEDGER_START_YEAR = 1522;
+const LEDGER_MONTHS = Object.freeze(["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]);
 
 const RATING_FIELDS = Object.freeze({
   speed: { key: "topSpeedRad", invert: false },
@@ -30,12 +41,17 @@ export function createShipInfoView(ship, gameState) {
       `Ship ${ship.typeSlug} cargo capacity mismatch: state=${gameState.cargoCapacity} stats=${stats.cargoCapacity}`
     );
   }
-  const manifest = cargoRows(gameState).map(({ good, quantity }) => ({
-    id: good.id,
-    label: good.label,
-    quantity,
-    space: good.unitSize * quantity
-  }));
+  const manifest = cargoRows(gameState).map(({ good, quantity }) => {
+    const basis = cargoCostBasis(gameState, good.id);
+    return {
+      id: good.id,
+      label: good.label,
+      quantity,
+      space: good.unitSize * quantity,
+      averageCost: basis.known ? basis.average : null,
+      totalCost: basis.known ? basis.total : null
+    };
+  });
   return {
     slug: ship.typeSlug,
     label: shipLabelForSlug(ship.typeSlug),
@@ -43,6 +59,7 @@ export function createShipInfoView(ship, gameState) {
     maxHull: Math.round(ship.maxHitPoints),
     cannons: stats.cannons,
     doubloons: gameState.doubloons,
+    realizedPnl: realizedTradePnl(gameState),
     cargoUsed: used,
     cargoCapacity: stats.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
@@ -77,4 +94,31 @@ export function shipInfoCargoPage(view, page) {
     pageCount,
     rows: view.cargo.slice(start, start + SHIP_INFO_CARGO_ROWS_PER_PAGE)
   };
+}
+
+export function shipLedgerPage(gameState, page) {
+  const rows = ledgerEntries(gameState).reverse();
+  const pageCount = Math.max(1, Math.ceil(rows.length / SHIP_LEDGER_ROWS_PER_PAGE));
+  if (!Number.isInteger(page)) throw new Error(`Invalid ship ledger page: ${page}`);
+  const normalizedPage = ((page % pageCount) + pageCount) % pageCount;
+  const start = normalizedPage * SHIP_LEDGER_ROWS_PER_PAGE;
+  return {
+    page: normalizedPage,
+    pageCount,
+    rows: rows.slice(start, start + SHIP_LEDGER_ROWS_PER_PAGE)
+  };
+}
+
+export function shipLedgerDateLabel(simMinute) {
+  if (!Number.isFinite(simMinute)) return "--";
+  const wholeMinute = Math.floor(simMinute);
+  const totalDay = Math.floor(wholeMinute / WEATHER_MINUTES_PER_DAY);
+  const year = LEDGER_START_YEAR + Math.floor(totalDay / WEATHER_DAYS);
+  const dayIndex = positiveModulo(totalDay, WEATHER_DAYS);
+  const date = new Date(Date.UTC(2001, 0, 1 + dayIndex));
+  return `${String(date.getUTCDate()).padStart(2, "0")} ${LEDGER_MONTHS[date.getUTCMonth()]} ${year}`;
+}
+
+function positiveModulo(value, modulus) {
+  return ((value % modulus) + modulus) % modulus;
 }

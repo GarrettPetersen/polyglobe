@@ -10,13 +10,33 @@ import {
 
 export const STARTING_DOUBLOONS = 360;
 
-export function createGameState({ cargoCapacity }) {
+export function createGameState({ cargoCapacity, startMinute = 0 }) {
   assertCargoCapacity(cargoCapacity);
+  assertSimulationMinute(startMinute);
   return {
-    version: 1,
+    version: 2,
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
     cargo: {},
+    accounts: {
+      cargoCostBasis: {},
+      realizedPnl: 0,
+      nextEntryId: 2,
+      ledger: [{
+        id: 1,
+        kind: "opening",
+        simMinute: startMinute,
+        location: "Aboard",
+        country: "",
+        description: "Opening balance",
+        goodId: null,
+        quantity: 0,
+        amount: STARTING_DOUBLOONS,
+        balance: STARTING_DOUBLOONS,
+        costBasis: null,
+        pnl: null
+      }]
+    },
     memory: {
       visitedPorts: {},
       decisions: {},
@@ -113,7 +133,31 @@ export function cargoRows(state) {
     .filter((row) => row.quantity > 0);
 }
 
-export function buyGood(state, economy, city, goodId, quantity = 1) {
+export function cargoCostBasis(state, goodId) {
+  assertGameState(state);
+  goodById(goodId);
+  const quantity = state.cargo[goodId] || 0;
+  const known = Object.prototype.hasOwnProperty.call(state.accounts.cargoCostBasis, goodId);
+  const total = known ? state.accounts.cargoCostBasis[goodId] : 0;
+  if (!Number.isFinite(total) || total < 0) throw new Error(`Invalid ${goodId} cargo cost basis: ${total}`);
+  return {
+    known: known && quantity > 0,
+    total,
+    average: quantity > 0 ? total / quantity : 0
+  };
+}
+
+export function ledgerEntries(state) {
+  assertGameState(state);
+  return state.accounts.ledger.slice();
+}
+
+export function realizedTradePnl(state) {
+  assertGameState(state);
+  return state.accounts.realizedPnl;
+}
+
+export function buyGood(state, economy, city, goodId, quantity = 1, context = {}) {
   assertGameState(state);
   assertQuantity(quantity, "buy quantity");
   const row = marketRow(economy, city, goodId);
@@ -128,11 +172,23 @@ export function buyGood(state, economy, city, goodId, quantity = 1) {
   executePortSale(economy, city, goodId, quantity);
   state.doubloons -= total;
   state.cargo[row.good.id] = (state.cargo[row.good.id] || 0) + quantity;
+  state.accounts.cargoCostBasis[row.good.id] = roundLedgerMoney(
+    (state.accounts.cargoCostBasis[row.good.id] || 0) + total
+  );
   recordDecision(state, `trade.buy.${cityKey(city)}.${row.good.id}`, quantity);
-  return { good: row.good, quantity, price: total };
+  recordLedgerEntry(state, city, context, {
+    kind: "buy",
+    description: `Buy ${row.good.label} x${quantity}`,
+    goodId: row.good.id,
+    quantity,
+    amount: -total,
+    costBasis: total,
+    pnl: null
+  });
+  return { good: row.good, quantity, price: total, costBasis: total };
 }
 
-export function sellGood(state, economy, city, goodId, quantity = 1) {
+export function sellGood(state, economy, city, goodId, quantity = 1, context = {}) {
   assertGameState(state);
   assertQuantity(quantity, "sell quantity");
   const row = marketRow(economy, city, goodId);
@@ -140,13 +196,31 @@ export function sellGood(state, economy, city, goodId, quantity = 1) {
   if (held < quantity) throw new Error(`Cannot sell ${quantity} ${row.good.label}; hold has ${held}`);
   const total = quotePortPurchase(economy, city, goodId, quantity);
   if (row.portSpecie < total) throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
+  const basis = cargoCostBasis(state, row.good.id);
+  const soldCost = basis.known ? basis.total * quantity / held : 0;
+  const pnl = basis.known ? total - soldCost : null;
   executePortPurchase(economy, city, goodId, quantity);
   state.doubloons += total;
   const remaining = held - quantity;
-  if (remaining > 0) state.cargo[row.good.id] = remaining;
-  else delete state.cargo[row.good.id];
+  if (remaining > 0) {
+    state.cargo[row.good.id] = remaining;
+    if (basis.known) state.accounts.cargoCostBasis[row.good.id] = roundLedgerMoney(basis.total - soldCost);
+  } else {
+    delete state.cargo[row.good.id];
+    delete state.accounts.cargoCostBasis[row.good.id];
+  }
+  if (pnl !== null) state.accounts.realizedPnl = roundLedgerMoney(state.accounts.realizedPnl + pnl);
   recordDecision(state, `trade.sell.${cityKey(city)}.${row.good.id}`, quantity);
-  return { good: row.good, quantity, price: total };
+  recordLedgerEntry(state, city, context, {
+    kind: "sell",
+    description: `Sell ${row.good.label} x${quantity}`,
+    goodId: row.good.id,
+    quantity,
+    amount: total,
+    costBasis: soldCost,
+    pnl
+  });
+  return { good: row.good, quantity, price: total, costBasis: soldCost, pnl };
 }
 
 export function visitPort(state, city) {
@@ -206,7 +280,7 @@ export function acceptQuest(state, quest) {
   recordDecision(state, `quest.accept.${quest.id}`, 1);
 }
 
-export function completeQuest(state, city) {
+export function completeQuest(state, city, context = {}) {
   assertGameState(state);
   const active = state.memory.quests.active;
   if (!active) throw new Error("No active quest to complete");
@@ -217,6 +291,15 @@ export function completeQuest(state, city) {
   state.memory.quests.completed[active.id] = true;
   state.memory.quests.active = null;
   recordDecision(state, `quest.complete.${active.id}`, 1);
+  recordLedgerEntry(state, city, context, {
+    kind: "income",
+    description: "Delivery reward",
+    goodId: null,
+    quantity: 1,
+    amount: active.reward,
+    costBasis: null,
+    pnl: null
+  });
   return active;
 }
 
@@ -243,6 +326,29 @@ function recordDecision(state, key, amount) {
   state.memory.decisions[key] = (state.memory.decisions[key] || 0) + amount;
 }
 
+function recordLedgerEntry(state, city, context, entry) {
+  const simMinute = context.simMinute ?? null;
+  if (simMinute !== null) assertSimulationMinute(simMinute);
+  state.accounts.ledger.push({
+    id: state.accounts.nextEntryId++,
+    kind: entry.kind,
+    simMinute,
+    location: city ? cityLabel(city) : "Aboard",
+    country: city?.country || "",
+    description: entry.description,
+    goodId: entry.goodId,
+    quantity: entry.quantity,
+    amount: roundLedgerMoney(entry.amount),
+    balance: state.doubloons,
+    costBasis: entry.costBasis === null ? null : roundLedgerMoney(entry.costBasis),
+    pnl: entry.pnl === null ? null : roundLedgerMoney(entry.pnl)
+  });
+}
+
+function roundLedgerMoney(value) {
+  return Math.round(value * 10000) / 10000;
+}
+
 function assertGameState(state) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
   assertCargoCapacity(state.cargoCapacity);
@@ -250,6 +356,15 @@ function assertGameState(state) {
     throw new Error(`Invalid doubloon balance: ${state.doubloons}`);
   }
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
+  if (!state.accounts || typeof state.accounts !== "object") throw new Error("Game state accounts must be an object");
+  if (!state.accounts.cargoCostBasis || typeof state.accounts.cargoCostBasis !== "object") {
+    throw new Error("Game state cargo cost basis must be an object");
+  }
+  if (!Number.isFinite(state.accounts.realizedPnl)) throw new Error("Invalid realized trade P/L");
+  if (!Array.isArray(state.accounts.ledger)) throw new Error("Game state ledger must be an array");
+  if (!Number.isInteger(state.accounts.nextEntryId) || state.accounts.nextEntryId <= 0) {
+    throw new Error(`Invalid next ledger entry id: ${state.accounts.nextEntryId}`);
+  }
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
   if (!state.memory.discoveries || typeof state.memory.discoveries !== "object") {
     throw new Error("Game state discoveries must be an object");
@@ -289,6 +404,10 @@ function assertCargoCapacity(cargoCapacity) {
   if (!Number.isInteger(cargoCapacity) || cargoCapacity < 0) {
     throw new Error(`Invalid cargo capacity: ${cargoCapacity}`);
   }
+}
+
+function assertSimulationMinute(simMinute) {
+  if (!Number.isFinite(simMinute)) throw new Error(`Invalid simulation minute: ${simMinute}`);
 }
 
 function assertQuantity(quantity, label) {

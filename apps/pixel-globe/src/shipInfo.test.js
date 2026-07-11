@@ -6,6 +6,8 @@ import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
   createShipInfoView,
   shipInfoCargoPage,
+  shipLedgerDateLabel,
+  shipLedgerPage,
   shipPerformanceRating
 } from "./shipInfo.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -27,10 +29,26 @@ test("ship information uses live hull, currency, stats, and cargo", () => {
   assert.equal(view.cannons, 14);
   assert.equal(view.cargoUsed, 3);
   assert.equal(view.cargoCapacity, 115);
+  assert.equal(view.realizedPnl, 0);
   assert.deepEqual(view.cargo.map(({ id, quantity }) => [id, quantity]), [
     ["grain", 2],
     ["wine", 1]
   ]);
+});
+
+test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {
+  const gameState = createGameState({ cargoCapacity: 20, startMinute: 79 * 1440 + 12 * 60 });
+  for (let id = 2; id <= 12; id++) {
+    gameState.accounts.ledger.push({ id, simMinute: (79 + id) * 1440 });
+  }
+  gameState.accounts.nextEntryId = 13;
+
+  const firstPage = shipLedgerPage(gameState, 0);
+  const secondPage = shipLedgerPage(gameState, 1);
+  assert.equal(firstPage.rows.length, 10);
+  assert.equal(firstPage.rows[0].id, 12);
+  assert.equal(secondPage.rows.length, 2);
+  assert.equal(shipLedgerDateLabel(79 * 1440 + 12 * 60), "21 MAR 1522");
 });
 
 test("performance ratings preserve the expected fleet ordering", () => {

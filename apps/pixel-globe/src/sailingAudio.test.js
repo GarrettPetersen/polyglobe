@@ -5,6 +5,8 @@ import {
   SAILING_WIND_CONTEXT_GENERAL,
   SAILING_WIND_CONTEXT_WINTER,
   createSailingAudioState,
+  sailingStallFlapStrength,
+  sailingStallWarningStrength,
   updateSailingAudioState
 } from "./sailingAudio.js";
 
@@ -38,7 +40,7 @@ test("only the wind loop matching the local climate is audible", () => {
   }
 });
 
-test("wind and flag volume rise smoothly with current wind speed", () => {
+test("wind and stalled sail volume rise smoothly with current wind speed", () => {
   const calm = updateSailingAudioState(createSailingAudioState(), input({
     windStrength: 0.2,
     angleFromWindRad: Math.PI / 6
@@ -53,29 +55,48 @@ test("wind and flag volume rise smoothly with current wind speed", () => {
   }));
 
   assert.equal(calm.harshWind, 0);
-  assert.ok(calm.flag > 0.5);
+  assert.ok(calm.sailFlap > 0.8);
   assert.ok(moderate.harshWind > calm.harshWind);
   assert.ok(strong.harshWind > moderate.harshWind);
-  assert.ok(moderate.flag > calm.flag);
-  assert.equal(strong.flag, moderate.flag);
+  assert.ok(moderate.sailFlap > calm.sailFlap);
+  assert.equal(strong.sailFlap, moderate.sailFlap);
 });
 
-test("flag remains audible in a light wind that still stalls the ship", () => {
+test("stalled sail remains prominent in a light wind", () => {
   const stalled = updateSailingAudioState(createSailingAudioState(), input({
     windStrength: 0.1,
     angleFromWindRad: Math.PI / 6
   }));
 
   assert.equal(stalled.harshWind, 0);
-  assert.ok(stalled.flag >= 0.55);
+  assert.ok(stalled.sailFlap >= 0.82);
 });
 
-test("flag flutter is strongest inside the no-go angle", () => {
+test("stall warning is full in the no-go angle and fades across the close-wind margin", () => {
+  const stallAngle = Math.PI / 4;
+  assert.equal(sailingStallWarningStrength(stallAngle - 0.1, stallAngle), 1);
+  assert.ok(sailingStallWarningStrength(stallAngle + 0.15, stallAngle) > 0.4);
+  assert.equal(sailingStallWarningStrength(stallAngle + Math.PI / 6, stallAngle), 0);
+});
+
+test("sail flapping is full inside the no-go angle and releases just outside it", () => {
   const state = createSailingAudioState();
   const stalled = updateSailingAudioState(state, input({ angleFromWindRad: Math.PI / 6 }));
+  const justClear = updateSailingAudioState(state, input({ angleFromWindRad: Math.PI / 4 + 0.05 }));
   const reaching = updateSailingAudioState(state, input({ angleFromWindRad: Math.PI / 2 }));
-  assert.ok(stalled.flag > 0.5);
-  assert.equal(reaching.flag, 0);
+  assert.equal(stalled.sailFlap, 1);
+  assert.ok(justClear.sailFlap > 0);
+  assert.ok(justClear.sailFlap < stalled.sailFlap);
+  assert.equal(reaching.sailFlap, 0);
+});
+
+test("sail flapping uses each ship type's stall angle", () => {
+  const courseAngle = 45 * Math.PI / 180;
+  const closeWindedShip = sailingStallFlapStrength(courseAngle, 30 * Math.PI / 180);
+  const squareRigger = sailingStallFlapStrength(courseAngle, 60 * Math.PI / 180);
+
+  assert.equal(closeWindedShip, 0);
+  assert.equal(squareRigger, 1);
 });
 
 test("underway ambience waits for sustained straight open-water sailing", () => {

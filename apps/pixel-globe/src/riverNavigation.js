@@ -1,7 +1,7 @@
 export const RIVER_GATEWAY_SEARCH_RADIUS_PX = 34;
 export const RIVER_GATEWAY_SAMPLE_STEP_PX = 2;
 export const RIVER_GATEWAY_SAMPLE_DIRECTIONS = 32;
-export const RIVER_GATEWAY_MIN_FORWARD_DOT = 0.05;
+export const RIVER_GATEWAY_MIN_FORWARD_DOT = Math.cos(Math.PI / 3);
 
 export function findRiverGatewayDirection({
   x,

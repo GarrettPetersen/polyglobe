@@ -1,8 +1,9 @@
 const WIND_START_STRENGTH = 0.32;
 const WIND_FULL_STRENGTH = 1.05;
-const FLAG_MIN_AUDIBILITY = 0.55;
-const FLAG_FULL_STRENGTH = 0.5;
-const FLAG_ANGLE_MARGIN_RAD = 18 * Math.PI / 180;
+const STALL_FLAP_MIN_AUDIBILITY = 0.82;
+const STALL_FLAP_FULL_STRENGTH = 0.45;
+const STALL_FLAP_RELEASE_MARGIN_RAD = 7 * Math.PI / 180;
+const STALL_WARNING_MARGIN_RAD = 18 * Math.PI / 180;
 const UNDERWAY_MIN_SPEED_PX = 4;
 const UNDERWAY_FULL_SPEED_PX = 15;
 const UNDERWAY_DELAY_SECONDS = 4;
@@ -18,6 +19,24 @@ export function createSailingAudioState() {
     steadySeconds: 0,
     previousHeading: null
   };
+}
+
+export function sailingStallWarningStrength(angleFromWindRad, stallAngleRad) {
+  if (!Number.isFinite(angleFromWindRad) || !Number.isFinite(stallAngleRad)) {
+    throw new Error("Sailing stall warning requires finite angles");
+  }
+  const anglePastStall = angleFromWindRad - stallAngleRad;
+  return 1 - smoothstep(anglePastStall / STALL_WARNING_MARGIN_RAD);
+}
+
+export function sailingStallFlapStrength(angleFromWindRad, stallAngleRad) {
+  if (!Number.isFinite(angleFromWindRad) || !Number.isFinite(stallAngleRad)) {
+    throw new Error("Sailing stall flap requires finite angles");
+  }
+  if (angleFromWindRad <= stallAngleRad) return 1;
+  return 1 - smoothstep(
+    (angleFromWindRad - stallAngleRad) / STALL_FLAP_RELEASE_MARGIN_RAD
+  );
 }
 
 export function updateSailingAudioState(state, input) {
@@ -45,11 +64,10 @@ export function updateSailingAudioState(state, input) {
     winterWind: input.windContext === SAILING_WIND_CONTEXT_WINTER ? windPresence : 0,
     desertWind: input.windContext === SAILING_WIND_CONTEXT_DESERT ? windPresence : 0
   };
-  const anglePastStall = input.angleFromWindRad - input.stallAngleRad;
-  const flagCloseness = 1 - clamp(anglePastStall / FLAG_ANGLE_MARGIN_RAD, 0, 1);
-  const flagWindPresence = FLAG_MIN_AUDIBILITY
-    + (1 - FLAG_MIN_AUDIBILITY) * smoothstep(input.windStrength / FLAG_FULL_STRENGTH);
-  const flag = flagCloseness * flagWindPresence;
+  const stallFlapCloseness = sailingStallFlapStrength(input.angleFromWindRad, input.stallAngleRad);
+  const stallFlapWindPresence = STALL_FLAP_MIN_AUDIBILITY
+    + (1 - STALL_FLAP_MIN_AUDIBILITY) * smoothstep(input.windStrength / STALL_FLAP_FULL_STRENGTH);
+  const sailFlap = stallFlapCloseness * stallFlapWindPresence;
   const underwayTime = smoothstep(
     (state.steadySeconds - UNDERWAY_DELAY_SECONDS) / UNDERWAY_FADE_SECONDS
   );
@@ -59,7 +77,7 @@ export function updateSailingAudioState(state, input) {
 
   return {
     ...windTargets,
-    flag,
+    sailFlap,
     underway: movingOpenWater ? underwayTime * underwaySpeed : 0
   };
 }
@@ -69,7 +87,7 @@ function emptyTargets() {
     harshWind: 0,
     winterWind: 0,
     desertWind: 0,
-    flag: 0,
+    sailFlap: 0,
     underway: 0
   };
 }

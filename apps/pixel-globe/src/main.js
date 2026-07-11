@@ -84,6 +84,7 @@ import {
   SAILING_WIND_CONTEXT_GENERAL,
   SAILING_WIND_CONTEXT_WINTER,
   createSailingAudioState,
+  sailingStallWarningStrength,
   updateSailingAudioState
 } from "./sailingAudio.js";
 import {
@@ -94,7 +95,12 @@ import {
   findRiverGatewayDirection,
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
-import { chooseNpcEscapeDirection } from "./npcVisualNavigation.js";
+import {
+  chooseNpcEscapeDirection,
+  chooseNpcSailingDirection
+} from "./npcVisualNavigation.js";
+import { compareShipDrawCalls } from "./shipDrawOrder.js";
+import { shipLightStrengthsForSunAltitude } from "./shipLighting.js";
 import {
   compareTerrainDrawCalls,
   terrainSpriteDrawLayer
@@ -113,9 +119,12 @@ import {
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "./waterLatitudePalette.js";
+import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
 import {
   createShipInfoView,
-  shipInfoCargoPage
+  shipInfoCargoPage,
+  shipLedgerDateLabel,
+  shipLedgerPage
 } from "./shipInfo.js";
 
 const SCREEN_W = 455;
@@ -164,8 +173,6 @@ const SHIP_LIGHT_AZIMUTH_BINS = 16;
 const SHIP_LIGHT_ELEVATION_BINS = 2;
 const SHIP_LIGHT_BIN_COUNT = SHIP_LIGHT_AZIMUTH_BINS * SHIP_LIGHT_ELEVATION_BINS;
 const SHIP_LIGHT_HIGH_ALTITUDE = 0.5;
-const SHIP_LIGHT_DIRECT_START_ALT = 0.02;
-const SHIP_LIGHT_DIRECT_FULL_ALT = 0.18;
 const SHIP_LIGHT_HIGHLIGHT_ALPHA = 0.3;
 const SHIP_LIGHT_SHADE_ALPHA = 0.28;
 const SHIP_LIGHT_SHADOW_ALPHA = 0.22;
@@ -214,9 +221,12 @@ const NPC_VISUAL_ACTIVATION_ANGLE_COUNT = 16;
 const NPC_VISUAL_CATCHUP_SPEED_PX = 4;
 const NPC_VISUAL_TARGET_TOLERANCE_PX = 1;
 const NPC_VISUAL_MAX_STEP_PX = 3;
-const NPC_VISUAL_ESCAPE_COMMIT_PX = 18;
+const NPC_VISUAL_ESCAPE_COMMIT_PX = 54;
+const NPC_VISUAL_ESCAPE_REJOIN_AFTER_PX = 18;
+const NPC_VISUAL_ESCAPE_REJOIN_CLEAR_PX = 36;
+const NPC_VISUAL_TACK_LEG_PX = 42;
 const NPC_RIVER_CONVEYOR_CENTERING_SPEED_PX = 9;
-const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 18];
+const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
 const NPC_VISUAL_ESCAPE_ANGLES_RAD = [
   105, -105, 120, -120, 135, -135, 150, -150, 165, -165, 180
 ].map((degrees) => degrees * Math.PI / 180);
@@ -245,6 +255,8 @@ const WIND_INDICATOR_DIRECTION_COUNT = 16;
 const WIND_INDICATOR_DIRECTION_STABLE_FRAMES = 3;
 const WIND_INDICATOR_TURN_RATE_RAD = Math.PI * 1.35;
 const WIND_INDICATOR_STRENGTH_LERP_PER_SECOND = 2.4;
+const WIND_INDICATOR_WARNING_LERP_PER_SECOND = 8;
+const WIND_INDICATOR_STALL_PULSE_MS = 900;
 const WATER_FRAME_MS = 2000;
 const WATER_REDRAW_MS = 250;
 const WATER_DEPTH_GRADATION_COUNT = 4;
@@ -261,9 +273,6 @@ const DAY_NIGHT_DAY_ALT = 0.34;
 const DAY_NIGHT_NIGHT_ALT = -0.34;
 const DAY_NIGHT_SUNSET_START_ALT = -0.3;
 const DAY_NIGHT_SUNSET_END_ALT = 0.3;
-const DAY_NIGHT_MAX_SUNSET_ALPHA = 0.38;
-const DAY_NIGHT_MAX_NIGHT_MULTIPLY_ALPHA = 0.62;
-const DAY_NIGHT_MAX_NIGHT_BLUE_ALPHA = 0.34;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 30;
 const CLOUD_FADE_RATIO = 0.22;
@@ -550,7 +559,7 @@ const SFX_SHORE_GULLS_URL = "/assets/sfx/freesound_community-sea-and-seagull-wav
 const SFX_HARSH_WIND_URL = "/assets/sfx/dragon-studio-harsh-wind-515272.ogg";
 const SFX_WINTER_WIND_URL = "/assets/sfx/dragon-studio-winter-wind-402331.ogg";
 const SFX_DESERT_WIND_URL = "/assets/sfx/tanweraman-desert-wind-1-350398.ogg";
-const SFX_FLAG_URL = "/assets/sfx/freesound_community-flag-6367.ogg";
+const SFX_SAIL_FLAP_URL = "/assets/sfx/freesound_community-flag-6367.ogg";
 const SFX_UNDERWAY_URL = "/assets/sfx/freesound_community-sailboat-underway-48728.ogg";
 const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.ogg";
 const SFX_DISCOVERY_SUCCESS_URL = "/assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
@@ -571,13 +580,13 @@ const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
 const SFX_HARSH_WIND_MAX_VOLUME = 0.12;
 const SFX_WINTER_WIND_MAX_VOLUME = 0.11;
 const SFX_DESERT_WIND_MAX_VOLUME = 0.1;
-const SFX_FLAG_MAX_VOLUME = 0.26;
+const SFX_SAIL_FLAP_MAX_VOLUME = 0.52;
 const SFX_UNDERWAY_MAX_VOLUME = 0.065;
 const SFX_HARBOUR_NEAR_PX = 42;
 const SFX_HARBOUR_FAR_PX = 170;
 const SFX_AMBIENT_FADE_PER_SECOND = 1.35;
 const SFX_WIND_FADE_PER_SECOND = 0.035;
-const SFX_FLAG_FADE_PER_SECOND = 0.9;
+const SFX_SAIL_FLAP_FADE_PER_SECOND = 2.4;
 const SFX_UNDERWAY_FADE_PER_SECOND = 0.018;
 const SFX_WIND_TERRAIN_RADIUS_PX = 150;
 const SEAGULL_FLIGHT_URL = "/assets/animals/seagull-Sheet.png";
@@ -650,9 +659,10 @@ const shell = document.querySelector(".shell");
 if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
   throw new Error("Pixel Globe requires its shell and 455x256 canvas");
 }
-const ctx = canvas.getContext("2d", { alpha: false });
+const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
 if (!ctx) throw new Error("Pixel Globe could not create its 2D canvas context");
 ctx.imageSmoothingEnabled = false;
+const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 
 const keys = new Set();
 const pointerSteering = {
@@ -981,7 +991,7 @@ async function main() {
   refreshWeatherState(true);
   minimap = buildMinimap();
   ship = createShip(START_POSITION.lat, START_POSITION.lon);
-  gameState = createGameState({ cargoCapacity: ship.cargoCapacity });
+  gameState = createGameState({ cargoCapacity: ship.cargoCapacity, startMinute: weatherClockMinutes });
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
   centerTileId = ship.tileId;
@@ -1953,11 +1963,15 @@ function createDiscoveriesMenuState() {
 function createShipInfoMenuState() {
   return {
     isOpen: false,
+    view: "vessel",
     cargoPage: 0,
+    ledgerPage: 0,
     loadingSlug: null,
     error: null,
     buttonRect: null,
     closeButtonRect: null,
+    vesselTabRect: null,
+    ledgerTabRect: null,
     previousPageRect: null,
     nextPageRect: null
   };
@@ -1993,7 +2007,7 @@ function setupSoundEffects() {
     harshWind: createAmbientLoop(SFX_HARSH_WIND_URL, "open-water wind"),
     winterWind: createAmbientLoop(SFX_WINTER_WIND_URL, "winter wind"),
     desertWind: createAmbientLoop(SFX_DESERT_WIND_URL, "desert wind"),
-    flag: createAmbientLoop(SFX_FLAG_URL, "flag flutter"),
+    sailFlap: createAmbientLoop(SFX_SAIL_FLAP_URL, "upwind sail flapping"),
     underway: createAmbientLoop(SFX_UNDERWAY_URL, "ship underway")
   };
   applyThemeAudioSettings();
@@ -2212,11 +2226,11 @@ function updateAmbientAudio(dt) {
     SFX_WIND_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
-    soundEffects.flag,
-    sailing.flag * SFX_FLAG_MAX_VOLUME,
-    SFX_FLAG_MAX_VOLUME,
+    soundEffects.sailFlap,
+    sailing.sailFlap * SFX_SAIL_FLAP_MAX_VOLUME,
+    SFX_SAIL_FLAP_MAX_VOLUME,
     dt,
-    SFX_FLAG_FADE_PER_SECOND
+    SFX_SAIL_FLAP_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.underway,
@@ -2256,7 +2270,7 @@ function ambientSoundLoops() {
     soundEffects.harshWind,
     soundEffects.winterWind,
     soundEffects.desertWind,
-    soundEffects.flag,
+    soundEffects.sailFlap,
     soundEffects.underway
   ].filter(Boolean);
 }
@@ -2526,7 +2540,9 @@ function openShipInfoMenu() {
   closeOptionsMenu();
   closeDiscoveriesMenu();
   shipInfoMenu.isOpen = true;
+  shipInfoMenu.view = "vessel";
   shipInfoMenu.cargoPage = 0;
+  shipInfoMenu.ledgerPage = 0;
   shipInfoMenu.error = null;
   keys.clear();
   clearPointerSteering();
@@ -2549,6 +2565,8 @@ function openShipInfoMenu() {
 function closeShipInfoMenu() {
   shipInfoMenu.isOpen = false;
   shipInfoMenu.closeButtonRect = null;
+  shipInfoMenu.vesselTabRect = null;
+  shipInfoMenu.ledgerTabRect = null;
   shipInfoMenu.previousPageRect = null;
   shipInfoMenu.nextPageRect = null;
   dirty = true;
@@ -2560,14 +2578,35 @@ function handleShipInfoKeyDown(event) {
     closeShipInfoMenu();
     return;
   }
+  if (event.key === "Tab") {
+    shipInfoMenu.view = shipInfoMenu.view === "vessel" ? "ledger" : "vessel";
+    dirty = true;
+    return;
+  }
+  if (event.key === "l" || event.key === "L") {
+    shipInfoMenu.view = "ledger";
+    dirty = true;
+    return;
+  }
+  if (event.key === "v" || event.key === "V") {
+    shipInfoMenu.view = "vessel";
+    dirty = true;
+    return;
+  }
   if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
-    stepShipInfoCargoPage(-1);
+    stepShipInfoPage(-1);
   } else if (["ArrowRight", "ArrowDown", "PageDown"].includes(event.key)) {
-    stepShipInfoCargoPage(1);
+    stepShipInfoPage(1);
   }
 }
 
-function stepShipInfoCargoPage(direction) {
+function stepShipInfoPage(direction) {
+  if (shipInfoMenu.view === "ledger") {
+    const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage + direction);
+    shipInfoMenu.ledgerPage = page.page;
+    dirty = true;
+    return;
+  }
   const view = createShipInfoView(ship, gameState);
   const page = shipInfoCargoPage(view, shipInfoMenu.cargoPage + direction);
   shipInfoMenu.cargoPage = page.page;
@@ -2856,11 +2895,21 @@ function handleShipInfoPointerDown(point) {
     closeShipInfoMenu();
     return;
   }
-  if (pointInRect(point, shipInfoMenu.previousPageRect)) {
-    stepShipInfoCargoPage(-1);
+  if (pointInRect(point, shipInfoMenu.vesselTabRect)) {
+    shipInfoMenu.view = "vessel";
+    dirty = true;
     return;
   }
-  if (pointInRect(point, shipInfoMenu.nextPageRect)) stepShipInfoCargoPage(1);
+  if (pointInRect(point, shipInfoMenu.ledgerTabRect)) {
+    shipInfoMenu.view = "ledger";
+    dirty = true;
+    return;
+  }
+  if (pointInRect(point, shipInfoMenu.previousPageRect)) {
+    stepShipInfoPage(-1);
+    return;
+  }
+  if (pointInRect(point, shipInfoMenu.nextPageRect)) stepShipInfoPage(1);
 }
 
 function stepDiscoveriesPage(direction) {
@@ -3007,7 +3056,8 @@ function chooseDialogueOption(optionIndex) {
       gameState,
       worldEconomy,
       portCities,
-      optionIndex
+      optionIndex,
+      { simMinute: Math.floor(weatherClockMinutes) }
     );
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
@@ -4478,7 +4528,10 @@ function createNpcVisualState(snapshot, routePoint) {
     routeKey: snapshot.routeKey,
     lastRouteVector: snapshot.routeVector.slice(),
     escapeDirection: null,
-    escapeRemainingPx: 0
+    escapeRemainingPx: 0,
+    escapeSide: 0,
+    tackSide: 0,
+    tackRemainingPx: 0
   };
   setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   return state;
@@ -4504,7 +4557,10 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
     : 0;
   state.routeKey = snapshot.routeKey;
   state.lastRouteVector = snapshot.routeVector.slice();
-  if (routeChanged) clearNpcEscapeManeuver(state);
+  if (routeChanged) {
+    clearNpcEscapeManeuver(state, true);
+    clearNpcTackManeuver(state);
+  }
 
   const dx = routePoint.x - state.x;
   const dy = routePoint.y - state.y;
@@ -4518,9 +4574,38 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
   const stepDistance = Math.min(distance, NPC_VISUAL_MAX_STEP_PX, routeAdvancePx + catchupPx);
   if (stepDistance <= 1e-4) return false;
 
-  const direction = { x: dx / distance, y: dy / distance };
-  const desiredHeading = screenDirectionToTangent(direction, state.vector, state.heading);
+  const routeDirection = { x: dx / distance, y: dy / distance };
   const stats = shipStatsForSlug(state.slug);
+  const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+  let direction = routeDirection;
+  let tack = null;
+  if (startNav.ok && startNav.kind !== "river") {
+    const wind = windForTile(state.tileId);
+    const flowDir = wind.directionRad + Math.PI;
+    const windFlowDirection = { x: Math.cos(flowDir), y: -Math.sin(flowDir) };
+    let preferredTackSide = state.tackSide;
+    if (state.tackSide !== 0 && state.tackRemainingPx <= 0) {
+      preferredTackSide = -state.tackSide;
+    }
+    tack = chooseNpcSailingDirection({
+      desiredDirection: routeDirection,
+      windFlowDirection,
+      stallAngleRad: stats.upwindStallAngleRad,
+      currentDirection: tangentToScreenDirection(state.heading) || routeDirection,
+      preferredTackSide
+    });
+    direction = tack.direction;
+    if (tack.tacking && (state.tackSide !== tack.tackSide || state.tackRemainingPx <= 0)) {
+      state.tackSide = tack.tackSide;
+      state.tackRemainingPx = NPC_VISUAL_TACK_LEG_PX;
+    } else if (!tack.tacking) {
+      clearNpcTackManeuver(state);
+    }
+  } else {
+    clearNpcTackManeuver(state);
+  }
+
+  const desiredHeading = screenDirectionToTangent(direction, state.vector, state.heading);
   const collisionHeading = rotateTangentToward(
     state.heading,
     desiredHeading,
@@ -4535,6 +4620,9 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
   state.tileId = move.tileId;
   state.vector = move.vector;
   state.heading = move.heading;
+  if (tack?.tacking) {
+    state.tackRemainingPx = Math.max(0, state.tackRemainingPx - stepDistance);
+  }
   return true;
 }
 
@@ -4546,6 +4634,15 @@ function moveNpcVisualShip(state, direction, distance, heading, dt) {
     if (conveyorMove) {
       clearNpcEscapeManeuver(state);
       return conveyorMove;
+    }
+  }
+  if (state.escapeDirection && state.escapeRemainingPx > 0) {
+    const traveledPx = NPC_VISUAL_ESCAPE_COMMIT_PX - state.escapeRemainingPx;
+    const routeClearPx = traveledPx >= NPC_VISUAL_ESCAPE_REJOIN_AFTER_PX
+      ? npcEscapeClearDistance(state, direction, heading)
+      : 0;
+    if (routeClearPx >= NPC_VISUAL_ESCAPE_REJOIN_CLEAR_PX) {
+      clearNpcEscapeManeuver(state);
     }
   }
   if (state.escapeDirection && state.escapeRemainingPx > 0) {
@@ -4570,7 +4667,13 @@ function moveNpcVisualShip(state, direction, distance, heading, dt) {
   const tried = new Set();
 
   for (const baseDirection of baseDirections) {
-    for (const angle of SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD) {
+    const result = attemptNpcVisualStep(state, baseDirection, distance, heading);
+    if (result.ok) return result;
+  }
+
+  const slideDirections = [];
+  for (const baseDirection of baseDirections) {
+    for (const angle of SHIP_COLLISION_SLIDE_SEARCH_ANGLES_RAD.slice(1)) {
       const candidateDirection = rotate2(baseDirection, angle);
       const key = `${Math.round(candidateDirection.x * 1000)},${Math.round(candidateDirection.y * 1000)}`;
       if (tried.has(key)) continue;
@@ -4578,8 +4681,24 @@ function moveNpcVisualShip(state, direction, distance, heading, dt) {
       const alignment = direction.x * candidateDirection.x + direction.y * candidateDirection.y;
       const minAlignment = guide ? -0.5 : SHIP_COLLISION_SLIDE_SEARCH_MIN_ALIGN;
       if (alignment < minAlignment) continue;
-      const result = attemptNpcVisualStep(state, candidateDirection, distance, heading);
-      if (result.ok) return result;
+      slideDirections.push(candidateDirection);
+    }
+  }
+
+  const slide = slideDirections.length > 0
+    ? chooseNpcEscapeDirection({
+        desiredDirection: direction,
+        currentDirection: tangentToScreenDirection(state.heading) || direction,
+        candidateDirections: slideDirections,
+        clearDistanceFor: (candidateDirection) => npcEscapeClearDistance(state, candidateDirection, heading),
+        preferredSide: state.escapeSide
+      })
+    : null;
+  if (slide) {
+    const slideMove = attemptNpcVisualStep(state, slide.direction, distance, heading);
+    if (slideMove.ok) {
+      commitNpcEscapeManeuver(state, slide.direction, slide.side, distance);
+      return slideMove;
     }
   }
 
@@ -4587,14 +4706,14 @@ function moveNpcVisualShip(state, direction, distance, heading, dt) {
     desiredDirection: direction,
     currentDirection: tangentToScreenDirection(state.heading) || direction,
     candidateDirections: NPC_VISUAL_ESCAPE_ANGLES_RAD.map((angle) => rotate2(direction, angle)),
-    clearDistanceFor: (candidateDirection) => npcEscapeClearDistance(state, candidateDirection, heading)
+    clearDistanceFor: (candidateDirection) => npcEscapeClearDistance(state, candidateDirection, heading),
+    preferredSide: state.escapeSide
   });
   if (!escape) return null;
 
   const escapeMove = attemptNpcVisualStep(state, escape.direction, distance, heading);
   if (!escapeMove.ok) return null;
-  state.escapeDirection = escape.direction;
-  state.escapeRemainingPx = Math.max(0, NPC_VISUAL_ESCAPE_COMMIT_PX - distance);
+  commitNpcEscapeManeuver(state, escape.direction, escape.side, distance);
   return escapeMove;
 }
 
@@ -4666,9 +4785,21 @@ function npcEscapeClearDistance(state, direction, heading) {
   return clearDistance;
 }
 
-function clearNpcEscapeManeuver(state) {
+function commitNpcEscapeManeuver(state, direction, side, distance) {
+  state.escapeDirection = direction;
+  state.escapeRemainingPx = Math.max(0, NPC_VISUAL_ESCAPE_COMMIT_PX - distance);
+  if (side !== 0) state.escapeSide = side;
+}
+
+function clearNpcEscapeManeuver(state, resetSide = false) {
   state.escapeDirection = null;
   state.escapeRemainingPx = 0;
+  if (resetSide) state.escapeSide = 0;
+}
+
+function clearNpcTackManeuver(state) {
+  state.tackSide = 0;
+  state.tackRemainingPx = 0;
 }
 
 function npcRiverNavigationDirection(state, desiredDirection, currentKind) {
@@ -5219,30 +5350,13 @@ function normalizeOrNull(v) {
   return [v[0] / length, v[1] / length, v[2] / length];
 }
 
-function drawDayNightTint() {
+function drawDayNightPaletteGrade() {
   if (!ship) return;
   const light = localDayNightLight();
   if (light.sunset <= 0.01 && light.night <= 0.01) return;
-
-  ctx.save();
-  if (light.sunset > 0.01) {
-    ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = `rgba(255, 132, 48, ${(DAY_NIGHT_MAX_SUNSET_ALPHA * light.sunset).toFixed(3)})`;
-    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = `rgba(192, 56, 26, ${(0.12 * light.sunset).toFixed(3)})`;
-    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  }
-
-  if (light.night > 0.01) {
-    ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = `rgba(65, 58, 138, ${(DAY_NIGHT_MAX_NIGHT_MULTIPLY_ALPHA * light.night).toFixed(3)})`;
-    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = `rgba(22, 18, 68, ${(DAY_NIGHT_MAX_NIGHT_BLUE_ALPHA * light.night).toFixed(3)})`;
-    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  }
-  ctx.restore();
+  const imageData = ctx.getImageData(0, 0, SCREEN_W, SCREEN_H);
+  applyDayNightPaletteGrade(imageData.data, SCREEN_W, SCREEN_H, light);
+  ctx.putImageData(imageData, 0, 0);
 }
 
 function localDayNightLight() {
@@ -5266,11 +5380,13 @@ function currentSunDirection() {
 }
 
 function shipSunLightState() {
-  if (!ship || !camera) return { bin: 0, direct: 0, sunAltitude: -1 };
+  if (!ship || !camera) return { bin: 0, direct: 0, shadow: 0, sunAltitude: -1 };
   const sunDirection = currentSunDirection();
   const sunAltitude = dot3(ship.position, sunDirection);
-  const direct = smoothstep(SHIP_LIGHT_DIRECT_START_ALT, SHIP_LIGHT_DIRECT_FULL_ALT, sunAltitude);
-  if (direct <= 0.01) return { bin: 0, direct: 0, sunAltitude };
+  const { direct, shadow } = shipLightStrengthsForSunAltitude(sunAltitude);
+  if (direct <= 0.01 && shadow <= 0.01) {
+    return { bin: 0, direct: 0, shadow: 0, sunAltitude };
+  }
 
   const tangent = normalizeOrNull(projectTangentVector(sunDirection, ship.position));
   const screenX = tangent ? dot3(tangent, camera.right) : 0;
@@ -5282,6 +5398,7 @@ function shipSunLightState() {
   return {
     bin: elevationIndex * SHIP_LIGHT_AZIMUTH_BINS + azimuthIndex,
     direct,
+    shadow,
     sunAltitude
   };
 }
@@ -5346,15 +5463,14 @@ function render(nowMs) {
   ctx.restore();
 
   drawShipShadow(chart, shipLight, offset);
-  drawNpcShips(chart);
-  drawShip(shipLight);
+  drawShips(chart, shipLight);
   ctx.save();
   ctx.translate(offset.x, offset.y);
   drawCitySpritesAboveShip(chart, offset);
   drawCityLabels(chart.cityCalls, chart);
   ctx.restore();
-  drawDayNightTint();
-  drawWindIndicator();
+  drawDayNightPaletteGrade();
+  drawWindIndicator(nowMs);
   drawMinimap(nowMs);
   drawInteractionButton();
   drawDiscoveryNotice(nowMs);
@@ -6053,10 +6169,22 @@ function drawShipInfoMenu() {
     shipInfoMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, shipInfoMenu.closeButtonRect)
   );
-  drawOptionsText(view.label.toUpperCase(), panel.x + panel.w / 2, panel.y + 8, {
-    align: "center",
-    color: "#fbb954"
-  });
+  drawShipInfoTabs(panel);
+  drawOptionsText(
+    shipInfoMenu.view === "ledger" ? "CAPTAIN'S LEDGER" : view.label.toUpperCase(),
+    panel.x + panel.w / 2,
+    panel.y + 8,
+    {
+      align: "center",
+      color: "#fbb954"
+    }
+  );
+
+  if (shipInfoMenu.view === "ledger") {
+    drawShipLedger(panel, view);
+    ctx.restore();
+    return;
+  }
 
   const artX = panel.x + 10;
   const artY = panel.y + 28;
@@ -6117,7 +6245,8 @@ function drawShipInfoMenu() {
         y,
         { color: "#ffffff" }
       );
-      drawOptionsText(`${row.space} SPACE`, x + 194, y, { align: "right", color: "#9babb2" });
+      const basisLabel = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
+      drawOptionsText(basisLabel, x + 194, y, { align: "right", color: "#fbb954" });
     });
   }
 
@@ -6144,6 +6273,123 @@ function drawShipInfoMenu() {
     shipInfoMenu.nextPageRect = null;
   }
   ctx.restore();
+}
+
+function drawShipInfoTabs(panel) {
+  shipInfoMenu.vesselTabRect = { x: panel.x + 8, y: panel.y + 6, w: 48, h: 13 };
+  shipInfoMenu.ledgerTabRect = { x: panel.x + 59, y: panel.y + 6, w: 51, h: 13 };
+  drawShipInfoTab(
+    shipInfoMenu.vesselTabRect,
+    "VESSEL",
+    shipInfoMenu.view === "vessel",
+    pointInRect(optionsMenu.hoverPoint, shipInfoMenu.vesselTabRect)
+  );
+  drawShipInfoTab(
+    shipInfoMenu.ledgerTabRect,
+    "LEDGER",
+    shipInfoMenu.view === "ledger",
+    pointInRect(optionsMenu.hoverPoint, shipInfoMenu.ledgerTabRect)
+  );
+}
+
+function drawShipInfoTab(rect, label, selected, hovered) {
+  ctx.fillStyle = selected ? "#625565" : (hovered ? "#484a77" : "#2e222f");
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = selected || hovered ? "#c7dcd0" : "#7f708a";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawOptionsText(label, rect.x + rect.w / 2, rect.y + 3, {
+    align: "center",
+    color: selected ? "#ffffff" : "#9babb2"
+  });
+}
+
+function drawShipLedger(panel, view) {
+  const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage);
+  shipInfoMenu.ledgerPage = page.page;
+  const summaryY = panel.y + 27;
+  const realized = Math.round(view.realizedPnl);
+  drawOptionsText(`REALIZED P/L ${formatSignedLedgerMoney(realized)} DB`, panel.x + 12, summaryY, {
+    color: ledgerPnlColor(realized)
+  });
+  drawOptionsText(`CASH ${view.doubloons} DB`, panel.x + panel.w - 12, summaryY, {
+    align: "right",
+    color: "#f9c22b"
+  });
+
+  const dateX = panel.x + 12;
+  const portX = panel.x + 86;
+  const entryX = panel.x + 151;
+  const amountX = panel.x + 322;
+  const balanceX = panel.x + 374;
+  const pnlX = panel.x + panel.w - 12;
+  const headerY = panel.y + 43;
+  ctx.fillStyle = "#625565";
+  ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
+  drawOptionsText("DATE", dateX, headerY, { color: "#ab947a" });
+  drawOptionsText("PORT", portX, headerY, { color: "#ab947a" });
+  drawOptionsText("ENTRY", entryX, headerY, { color: "#ab947a" });
+  drawOptionsText("AMOUNT", amountX, headerY, { align: "right", color: "#ab947a" });
+  drawOptionsText("BAL", balanceX, headerY, { align: "right", color: "#ab947a" });
+  drawOptionsText("P/L", pnlX, headerY, { align: "right", color: "#ab947a" });
+
+  page.rows.forEach((entry, index) => {
+    const y = panel.y + 57 + index * 15;
+    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, 13);
+    drawOptionsText(shipLedgerDateLabel(entry.simMinute), dateX, y, { color: "#9babb2" });
+    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_UI_8, 59), portX, y, {
+      color: "#c7dcd0"
+    });
+    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_UI_8, 116), entryX, y, {
+      color: "#ffffff"
+    });
+    drawOptionsText(formatSignedLedgerMoney(entry.amount), amountX, y, {
+      align: "right",
+      color: entry.amount < 0 ? "#f68181" : "#91db69"
+    });
+    drawOptionsText(String(Math.round(entry.balance)), balanceX, y, {
+      align: "right",
+      color: "#f9c22b"
+    });
+    drawOptionsText(entry.pnl === null ? "--" : formatSignedLedgerMoney(entry.pnl), pnlX, y, {
+      align: "right",
+      color: entry.pnl === null ? "#625565" : ledgerPnlColor(entry.pnl)
+    });
+  });
+
+  const pagerY = panel.y + panel.h - 18;
+  if (page.pageCount > 1) {
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    drawShipInfoArrowButton(
+      shipInfoMenu.previousPageRect,
+      "<",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.previousPageRect)
+    );
+    drawShipInfoArrowButton(
+      shipInfoMenu.nextPageRect,
+      ">",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.nextPageRect)
+    );
+  } else {
+    shipInfoMenu.previousPageRect = null;
+    shipInfoMenu.nextPageRect = null;
+  }
+  drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
+    align: "center",
+    color: "#9babb2"
+  });
+}
+
+function formatSignedLedgerMoney(value) {
+  const rounded = Math.round(value);
+  return `${rounded >= 0 ? "+" : ""}${rounded}`;
+}
+
+function ledgerPnlColor(value) {
+  if (value > 0.004) return "#91db69";
+  if (value < -0.004) return "#f68181";
+  return "#fbb954";
 }
 
 function drawShipInfoValueRow(label, value, x, valueX, y) {
@@ -8275,12 +8521,12 @@ function closestPointOnSegment(px, py, ax, ay, bx, by) {
 }
 
 function drawShipShadow(activeChart, light, offset) {
-  if (!ship || !shipLighting || !light || light.direct <= 0.01) return;
+  if (!ship || !shipLighting || !light || light.shadow <= 0.01) return;
   const frame = shipHeadingFrame();
   const points = shipLightingPoints("shadow", frame, light.bin);
   if (points.length === 0) return;
   const origin = shipScreenOrigin(SHIP_SHADOW_FRAME_SIZE);
-  ctx.fillStyle = `rgba(12, 9, 24, ${(SHIP_LIGHT_SHADOW_ALPHA * light.direct).toFixed(3)})`;
+  ctx.fillStyle = `rgba(12, 9, 24, ${(SHIP_LIGHT_SHADOW_ALPHA * light.shadow).toFixed(3)})`;
   for (const point of points) {
     const px = point & 0xff;
     const py = point >> 8;
@@ -8403,15 +8649,34 @@ function tileHasWaterNeighbor(tileId) {
   return false;
 }
 
-function drawNpcShips(activeChart) {
-  if (!npcSeaRoutes || !npcShipImages || !camera || !directionIndex) return;
+function drawShips(activeChart, playerLight) {
   const drawCalls = [];
-  for (const state of npcVisualShips.values()) {
-    const call = npcShipDrawCall(state, activeChart);
-    if (call) drawCalls.push(call);
+  const playerCall = playerShipDrawCall(playerLight);
+  if (playerCall) drawCalls.push(playerCall);
+  if (npcSeaRoutes && npcShipImages && camera && directionIndex) {
+    for (const state of npcVisualShips.values()) {
+      const call = npcShipDrawCall(state, activeChart);
+      if (call) drawCalls.push(call);
+    }
   }
-  drawCalls.sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
-  for (const call of drawCalls) drawNpcShip(call);
+  drawCalls.sort(compareShipDrawCalls);
+  for (const call of drawCalls) drawShipCall(call);
+}
+
+function playerShipDrawCall(light) {
+  if (!ship || !shipImage) return null;
+  const frame = shipHeadingFrame();
+  const origin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
+  return {
+    id: "player",
+    kind: "player",
+    img: shipImage,
+    frame,
+    x: origin.x,
+    y: origin.y,
+    sortY: origin.y + SHIP_SHEET_FRAME_SIZE,
+    light
+  };
 }
 
 function npcShipDrawCall(state, activeChart) {
@@ -8424,11 +8689,13 @@ function npcShipDrawCall(state, activeChart) {
   if (!img) throw new Error(`Missing NPC ship sprite sheet for ${state.slug}`);
   return {
     id: state.id,
+    kind: "npc",
     slug: state.slug,
     img,
     frame: headingFrameForScreenHeading(heading),
     x: Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2),
-    y: Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2)
+    y: Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2),
+    sortY: point.y + SHIP_SHEET_FRAME_SIZE / 2
   };
 }
 
@@ -8447,7 +8714,7 @@ function pointNearScreen(point, margin) {
     point.y <= SCREEN_H + margin;
 }
 
-function drawNpcShip(call) {
+function drawShipCall(call) {
   const sx = (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
   const sy = Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
   ctx.drawImage(
@@ -8461,26 +8728,7 @@ function drawNpcShip(call) {
     SHIP_SHEET_FRAME_SIZE,
     SHIP_SHEET_FRAME_SIZE
   );
-}
-
-function drawShip(light) {
-  if (!ship || !shipImage) return;
-  const frame = shipHeadingFrame();
-  const sx = (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
-  const sy = Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
-  const origin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
-  ctx.drawImage(
-    shipImage,
-    sx,
-    sy,
-    SHIP_SHEET_FRAME_SIZE,
-    SHIP_SHEET_FRAME_SIZE,
-    origin.x,
-    origin.y,
-    SHIP_SHEET_FRAME_SIZE,
-    SHIP_SHEET_FRAME_SIZE
-  );
-  drawShipLighting(frame, origin.x, origin.y, light);
+  if (call.kind === "player") drawShipLighting(call.frame, call.x, call.y, call.light);
 }
 
 function shipScreenOrigin(frameSize) {
@@ -8547,7 +8795,7 @@ function shipScreenHeading() {
   return { x: hx / length, y: -hy / length };
 }
 
-function drawWindIndicator() {
+function drawWindIndicator(nowMs) {
   if (!ship) return;
   const state = windIndicatorState || windIndicatorTarget();
   const flowDir = state.flowDirectionRad;
@@ -8578,8 +8826,22 @@ function drawWindIndicator() {
     x: Math.round(base.x - px * halfWidth),
     y: Math.round(base.y - py * halfWidth)
   };
-  const alpha = (0.42 + strength * 0.44).toFixed(3);
-  const color = `rgba(130, 215, 204, ${alpha})`;
+  const warning = clamp(state.stallWarning || 0, 0, 1);
+  const pulse = reducedMotionPreferred
+    ? 0.72
+    : 0.5 + Math.sin(nowMs / WIND_INDICATOR_STALL_PULSE_MS * Math.PI * 2) * 0.5;
+  const warningHue = easeInOut(warning);
+  const warningColor = {
+    r: Math.round(249 + (240 - 249) * warningHue),
+    g: Math.round(194 + (79 - 194) * warningHue),
+    b: Math.round(43 + (120 - 43) * warningHue)
+  };
+  const warningMix = warning * (0.28 + pulse * 0.72);
+  const alpha = clamp(0.42 + strength * 0.44 + warning * pulse * 0.12, 0, 1);
+  const color = `rgba(${Math.round(130 + (warningColor.r - 130) * warningMix)}, ` +
+    `${Math.round(215 + (warningColor.g - 215) * warningMix)}, ` +
+    `${Math.round(204 + (warningColor.b - 204) * warningMix)}, ` +
+    `${alpha.toFixed(3)})`;
   drawPixelLine(tip.x, tip.y, left.x, left.y, color);
   drawPixelLine(tip.x, tip.y, right.x, right.y, color);
 }
@@ -8599,11 +8861,18 @@ function updateWindIndicator(dt) {
   const directionStep = clamp(directionDelta, -maxStep, maxStep);
   const strengthStep = 1 - Math.exp(-WIND_INDICATOR_STRENGTH_LERP_PER_SECOND * dt);
   const nextStrength = windIndicatorState.strength + (target.strength - windIndicatorState.strength) * strengthStep;
-  const changed = Math.abs(directionStep) > 0.0004 || Math.abs(nextStrength - windIndicatorState.strength) > 0.002;
+  const warningStep = 1 - Math.exp(-WIND_INDICATOR_WARNING_LERP_PER_SECOND * dt);
+  const nextWarning = windIndicatorState.stallWarning +
+    (target.stallWarning - windIndicatorState.stallWarning) * warningStep;
+  const changed = Math.abs(directionStep) > 0.0004 ||
+    Math.abs(nextStrength - windIndicatorState.strength) > 0.002 ||
+    Math.abs(nextWarning - windIndicatorState.stallWarning) > 0.002 ||
+    (!reducedMotionPreferred && nextWarning > 0.01);
 
   windIndicatorState = {
     flowDirectionRad: normalizeAngleRad(windIndicatorState.flowDirectionRad + directionStep),
     strength: nextStrength,
+    stallWarning: nextWarning,
     targetDirectionIndex: windIndicatorState.targetDirectionIndex,
     pendingDirectionIndex: windIndicatorState.pendingDirectionIndex,
     pendingDirectionFrames: windIndicatorState.pendingDirectionFrames
@@ -8615,10 +8884,14 @@ function windIndicatorTarget() {
   const wind = windForTile(centerTileId);
   const flowDirectionRad = normalizeAngleRad(wind.directionRad + Math.PI);
   const directionIndex = windDirectionBucket(flowDirectionRad);
+  const windFlow = windFlowVectorAtShip(wind);
+  const alignment = clamp(dot3(ship.heading, windFlow), -1, 1);
+  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
   return {
     flowDirectionRad: windDirectionForBucket(directionIndex),
     directionIndex,
-    strength: wind.strength
+    strength: wind.strength,
+    stallWarning: sailingStallWarningStrength(angleFromWind, ship.stats.upwindStallAngleRad)
   };
 }
 
@@ -8626,6 +8899,7 @@ function createWindIndicatorState(target) {
   return {
     flowDirectionRad: target.flowDirectionRad,
     strength: target.strength,
+    stallWarning: target.stallWarning,
     targetDirectionIndex: target.directionIndex,
     pendingDirectionIndex: target.directionIndex,
     pendingDirectionFrames: 0

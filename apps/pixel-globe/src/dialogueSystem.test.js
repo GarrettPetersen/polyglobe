@@ -64,4 +64,10 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(market.options.some((option) => /\d+ db  x\d+/.test(option.label)));
+  const buyIndex = market.options.findIndex((option) => option.action.type === "buy" && !option.disabled);
+  assert.ok(buyIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], buyIndex, { simMinute: 115200 });
+  session.nodeId = "sell";
+  const sell = portDialogueView(session, city, gameState, economy, [city]);
+  assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.label)));
 });

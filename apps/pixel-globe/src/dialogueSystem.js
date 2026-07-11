@@ -1,6 +1,7 @@
 import {
   acceptQuest,
   buyGood,
+  cargoCostBasis,
   cargoFree,
   cargoRows,
   cargoUsed,
@@ -71,7 +72,15 @@ export function portDialogueView(session, city, gameState, economy, portCities) 
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
-export function selectPortDialogueOption(session, city, gameState, economy, portCities, optionIndex = session.selectedIndex) {
+export function selectPortDialogueOption(
+  session,
+  city,
+  gameState,
+  economy,
+  portCities,
+  optionIndex = session.selectedIndex,
+  context = {}
+) {
   const view = portDialogueView(session, city, gameState, economy, portCities);
   const option = view.options[optionIndex];
   if (!option) throw new Error(`Invalid dialogue option index: ${optionIndex}`);
@@ -89,13 +98,14 @@ export function selectPortDialogueOption(session, city, gameState, economy, port
     return { closed: false };
   }
   if (action.type === "buy") {
-    const result = buyGood(gameState, economy, city, action.goodId);
+    const result = buyGood(gameState, economy, city, action.goodId, 1, context);
     session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
     return { closed: false };
   }
   if (action.type === "sell") {
-    const result = sellGood(gameState, economy, city, action.goodId);
-    session.feedback = `Sold ${result.good.label} for ${result.price} db.`;
+    const result = sellGood(gameState, economy, city, action.goodId, 1, context);
+    const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
+    session.feedback = `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`;
     return { closed: false };
   }
   if (action.type === "accept-quest") {
@@ -106,7 +116,7 @@ export function selectPortDialogueOption(session, city, gameState, economy, port
     return { closed: false };
   }
   if (action.type === "complete-quest") {
-    const quest = completeQuest(gameState, city);
+    const quest = completeQuest(gameState, city, context);
     session.feedback = `Delivered. Earned ${quest.reward} db.`;
     session.nodeId = "root";
     session.selectedIndex = 0;
@@ -164,7 +174,9 @@ function sellView(session, city, gameState, economy) {
     const row = market.get(cargo.good.id);
     if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${cargo.good.id}`);
     const price = row.sellPrice;
-    return option(`Sell ${cargo.good.label} x${cargo.quantity}  ${price} db`, {
+    const basis = cargoCostBasis(gameState, cargo.good.id);
+    const pnlLabel = basis.known ? signedDoubloons(price - basis.average) : "--";
+    return option(`Sell ${cargo.good.label}  ${price} db  P/L ${pnlLabel}  held ${cargo.quantity}`, {
       type: "sell",
       goodId: cargo.good.id
     }, {
@@ -266,6 +278,11 @@ function option(label, action, details = {}) {
     disabled: !!details.disabled,
     disabledReason: details.disabledReason || null
   };
+}
+
+function signedDoubloons(value) {
+  const rounded = Math.round(value);
+  return `${rounded >= 0 ? "+" : ""}${rounded} db`;
 }
 
 function shipCargoManifest(cargo) {

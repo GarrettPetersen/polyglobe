@@ -23,7 +23,22 @@ test("open-water ships are guided into a nearby river mouth in their forward con
   assert.ok(gateway.y > 0);
 });
 
-test("open-water ships acquire a distant mouth when pointed only vaguely toward it", () => {
+test("open-water ships acquire a distant mouth inside the forward cone", () => {
+  const gateway = findRiverGatewayDirection({
+    x: 0,
+    y: 0,
+    currentKind: "openWater",
+    desiredDirection: { x: 1, y: 0 },
+    sampleKindAt: (x, y) => x >= 16 && x <= 22 && y >= 18 && y <= 24 ? "river" : "openWater"
+  });
+
+  assert.ok(gateway);
+  assert.equal(gateway.targetKind, "river");
+  assert.ok(gateway.distance > 20);
+  assert.ok(gateway.alignment >= 0.5);
+});
+
+test("open-water ships ignore a river mouth broadside to the bow", () => {
   const gateway = findRiverGatewayDirection({
     x: 0,
     y: 0,
@@ -32,10 +47,7 @@ test("open-water ships acquire a distant mouth when pointed only vaguely toward 
     sampleKindAt: (x, y) => x >= 5 && x <= 9 && y >= 24 && y <= 29 ? "river" : "openWater"
   });
 
-  assert.ok(gateway);
-  assert.equal(gateway.targetKind, "river");
-  assert.ok(gateway.distance > 20);
-  assert.ok(gateway.alignment < 0.4);
+  assert.equal(gateway, null);
 });
 
 test("river gateway help does not pull a ship toward water behind it", () => {

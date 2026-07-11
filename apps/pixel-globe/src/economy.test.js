@@ -12,7 +12,14 @@ import {
   portEconomySummary,
   portMarket
 } from "./economy.js";
-import { buyGood, createGameState, sellGood } from "./gameState.js";
+import {
+  buyGood,
+  cargoCostBasis,
+  createGameState,
+  ledgerEntries,
+  realizedTradePnl,
+  sellGood
+} from "./gameState.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000);
 const GOA = port(2, "Goa", "India", "south-asian", 60000);
@@ -50,16 +57,27 @@ test("player trades transfer finite stock and specie between the player and port
   const londonBefore = marketByGood(economy, LONDON).get("wool");
   const londonSpecieBefore = portEconomySummary(economy, LONDON).specie;
 
-  const purchase = buyGood(player, economy, LONDON, "wool", 2);
+  const purchase = buyGood(player, economy, LONDON, "wool", 2, { simMinute: 80 * 1440 });
   assert.equal(player.cargo.wool, 2);
   assert.equal(player.doubloons, 360 - purchase.price);
+  assert.equal(cargoCostBasis(player, "wool").total, purchase.price);
+  assert.equal(cargoCostBasis(player, "wool").average, purchase.price / 2);
   assert.equal(marketByGood(economy, LONDON).get("wool").stock, londonBefore.stock - 2);
   assert.ok(portEconomySummary(economy, LONDON).specie >= londonSpecieBefore + purchase.price - 1);
 
   const goaSpecieBefore = portEconomySummary(economy, GOA).specie;
-  const sale = sellGood(player, economy, GOA, "wool", 1);
+  const sale = sellGood(player, economy, GOA, "wool", 1, { simMinute: 84 * 1440 });
   assert.equal(player.cargo.wool, 1);
   assert.equal(player.doubloons, 360 - purchase.price + sale.price);
+  assert.equal(sale.costBasis, purchase.price / 2);
+  assert.equal(sale.pnl, sale.price - purchase.price / 2);
+  assert.equal(cargoCostBasis(player, "wool").total, purchase.price / 2);
+  assert.equal(realizedTradePnl(player), sale.pnl);
+  assert.deepEqual(ledgerEntries(player).map(({ kind, location }) => [kind, location]), [
+    ["opening", "Aboard"],
+    ["buy", "London"],
+    ["sell", "Goa"]
+  ]);
   assert.ok(portEconomySummary(economy, GOA).specie <= goaSpecieBefore - sale.price + 1);
 });
 
