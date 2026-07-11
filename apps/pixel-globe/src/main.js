@@ -99,6 +99,14 @@ import {
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
+import {
+  PIRATE_FACTION_ID,
+  factionIdForCity1522
+} from "./factions.js";
+import {
+  advanceWorldEconomy,
+  createWorldEconomy
+} from "./economy.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -637,6 +645,7 @@ let cityCatalog;
 let cityByTileId;
 let npcShipImages;
 let npcSeaRoutes;
+let worldEconomy;
 let npcShipCaptains;
 const npcVisualShips = new Map();
 let npcVisualUpdateAccumulator = 0;
@@ -888,6 +897,10 @@ async function main() {
   characterPortraitManifest = loadedCharacterPortraitManifest;
   portCities = portCitiesForCharacters();
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
+  worldEconomy = createWorldEconomy({
+    ports: portCities,
+    startMinute: weatherClockMinutes
+  });
   portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest);
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
@@ -898,7 +911,8 @@ async function main() {
   );
   npcSeaRoutes = createNpcSeaRouteSystem({
     ports: portCities,
-    startMinute: weatherClockMinutes
+    startMinute: weatherClockMinutes,
+    economy: worldEconomy
   });
   npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest);
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
@@ -1152,6 +1166,9 @@ function loadAssetImage(src, label) {
 }
 
 async function loadCityCatalog(targetYear) {
+  if (targetYear !== CITY_DATA_YEAR) {
+    throw new Error(`No city faction map is defined for ${targetYear}; expected ${CITY_DATA_YEAR}`);
+  }
   const csv = await fetchText(CITY_DATA_URL, `${targetYear} city dataset`);
   const rows = parseCsvRows(csv);
   if (rows.length < 2) throw new Error(`City dataset has no city rows: ${CITY_DATA_URL}`);
@@ -1179,7 +1196,7 @@ async function loadCityCatalog(targetYear) {
     const cityId = normalizeCityKey(city, country);
     const prev = bestByCity.get(cityId);
     if (!prev || year > prev.year || (year === prev.year && population > prev.population)) {
-      bestByCity.set(cityId, {
+      const cityRecord = {
         cityId,
         city,
         displayCity: cityDisplayName(city, country, targetYear),
@@ -1189,6 +1206,10 @@ async function loadCityCatalog(targetYear) {
         cityType: cityTypeForCity(country, lat, lon),
         year,
         population: Math.round(population)
+      };
+      bestByCity.set(cityId, {
+        ...cityRecord,
+        factionId: factionIdForCity1522(cityRecord)
       });
     }
   }
@@ -2770,7 +2791,14 @@ function closeDialogue() {
 function chooseDialogueOption(optionIndex) {
   let result;
   if (dialogueState.kind === "port") {
-    result = selectPortDialogueOption(dialogueState, currentDialogueCity(), gameState, portCities, optionIndex);
+    result = selectPortDialogueOption(
+      dialogueState,
+      currentDialogueCity(),
+      gameState,
+      worldEconomy,
+      portCities,
+      optionIndex
+    );
     syncShipCargoFromGameState();
   } else if (dialogueState.kind === "ship") {
     result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
@@ -2806,7 +2834,7 @@ function currentDialogueCity() {
 
 function currentDialogueView() {
   if (dialogueState.kind === "port") {
-    return portDialogueView(dialogueState, currentDialogueCity(), gameState, portCities);
+    return portDialogueView(dialogueState, currentDialogueCity(), gameState, worldEconomy, portCities);
   }
   if (dialogueState.kind === "ship") {
     return shipDialogueView(dialogueState, currentDialogueShip());
@@ -2824,6 +2852,11 @@ function currentDialogueShip() {
     id: npcShip.id,
     slug: npcShip.slug,
     label: shipLabelForSlug(npcShip.slug),
+    cargo: { ...npcShip.cargo },
+    specie: Math.floor(npcShip.specie),
+    destinationName: npcShip.plan?.destination
+      ? cityLabelText(npcShip.plan.destination)
+      : null,
     character
   };
 }
@@ -3071,6 +3104,7 @@ function createShip(latDeg, lonDeg) {
   const heading = initialShipHeading(position);
   const stats = shipStatsForSlug(START_SHIP_SLUG);
   return {
+    factionId: PIRATE_FACTION_ID,
     typeSlug: START_SHIP_SLUG,
     stats,
     position,
@@ -4144,16 +4178,17 @@ function updateWeather(dt, nowMs) {
 
 function updateNpcShips(dt) {
   if (!npcSeaRoutes) return false;
+  const economyChanged = advanceWorldEconomy(worldEconomy, weatherClockMinutes);
   const strategicChanged = updateNpcSeaRouteSystem(npcSeaRoutes, weatherClockMinutes);
   npcVisualUpdateAccumulator = Math.min(
     NPC_VISUAL_MAX_ACCUMULATED_SECONDS,
     npcVisualUpdateAccumulator + dt
   );
-  if (npcVisualUpdateAccumulator < NPC_VISUAL_UPDATE_INTERVAL_SECONDS) return strategicChanged;
+  if (npcVisualUpdateAccumulator < NPC_VISUAL_UPDATE_INTERVAL_SECONDS) return strategicChanged || economyChanged;
   const visualDt = npcVisualUpdateAccumulator;
   npcVisualUpdateAccumulator = 0;
   const visualChanged = updateNpcVisualShips(visualDt);
-  return strategicChanged || visualChanged;
+  return strategicChanged || economyChanged || visualChanged;
 }
 
 function updateNpcVisualShips(dt) {

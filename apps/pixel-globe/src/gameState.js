@@ -1,21 +1,14 @@
+import {
+  TRADE_GOODS,
+  executePortPurchase,
+  executePortSale,
+  portMarket,
+  quotePortPurchase,
+  quotePortSale,
+  tradeGoodById
+} from "./economy.js";
+
 export const STARTING_DOUBLOONS = 360;
-
-export const TRADE_GOODS = Object.freeze([
-  good("grain", "Grain", 8),
-  good("timber", "Timber", 12),
-  good("salt", "Salt", 14),
-  good("copper", "Copper", 28),
-  good("tea", "Tea", 34),
-  good("porcelain", "Porcelain", 42),
-  good("silk", "Silk", 55),
-  good("spices", "Spices", 64)
-]);
-
-const TRADE_GOOD_BY_ID = new Map(TRADE_GOODS.map((item) => [item.id, item]));
-
-function good(id, label, basePrice) {
-  return Object.freeze({ id, label, basePrice, unitSize: 1 });
-}
 
 export function createGameState({ cargoCapacity }) {
   assertCargoCapacity(cargoCapacity);
@@ -120,48 +113,34 @@ export function cargoRows(state) {
     .filter((row) => row.quantity > 0);
 }
 
-export function portMarket(city) {
-  const seed = hashString32(cityKey(city));
-  const market = TRADE_GOODS.map((good, index) => {
-    const priceRoll = hashString32(`${cityKey(city)}|${good.id}|price`);
-    const supplyRoll = hashString32(`${cityKey(city)}|${good.id}|supply`);
-    const multiplier = 0.72 + ((priceRoll & 0xffff) / 0xffff) * 0.74;
-    const buyPrice = Math.max(1, Math.round(good.basePrice * multiplier));
-    const sellPrice = Math.max(1, Math.floor(buyPrice * (0.58 + ((supplyRoll & 0xff) / 255) * 0.2)));
-    return {
-      good,
-      buyPrice,
-      sellPrice,
-      rank: hashString32(`${seed}|${index}|${good.id}`)
-    };
-  }).sort((a, b) => a.rank - b.rank);
-  return market.slice(0, 5).sort((a, b) => a.good.label.localeCompare(b.good.label));
-}
-
-export function buyGood(state, city, goodId, quantity = 1) {
+export function buyGood(state, economy, city, goodId, quantity = 1) {
   assertGameState(state);
   assertQuantity(quantity, "buy quantity");
-  const row = marketRow(city, goodId);
-  const total = row.buyPrice * quantity;
+  const row = marketRow(economy, city, goodId);
+  if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
+  const total = quotePortSale(economy, city, goodId, quantity);
   if (state.doubloons < total) {
     throw new Error(`Not enough doubloons to buy ${quantity} ${row.good.label}`);
   }
   if (cargoFree(state) < row.good.unitSize * quantity) {
     throw new Error(`Not enough cargo space to buy ${quantity} ${row.good.label}`);
   }
+  executePortSale(economy, city, goodId, quantity);
   state.doubloons -= total;
   state.cargo[row.good.id] = (state.cargo[row.good.id] || 0) + quantity;
   recordDecision(state, `trade.buy.${cityKey(city)}.${row.good.id}`, quantity);
   return { good: row.good, quantity, price: total };
 }
 
-export function sellGood(state, city, goodId, quantity = 1) {
+export function sellGood(state, economy, city, goodId, quantity = 1) {
   assertGameState(state);
   assertQuantity(quantity, "sell quantity");
-  const row = marketRow(city, goodId);
+  const row = marketRow(economy, city, goodId);
   const held = state.cargo[row.good.id] || 0;
   if (held < quantity) throw new Error(`Cannot sell ${quantity} ${row.good.label}; hold has ${held}`);
-  const total = row.sellPrice * quantity;
+  const total = quotePortPurchase(economy, city, goodId, quantity);
+  if (row.portSpecie < total) throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
+  executePortPurchase(economy, city, goodId, quantity);
   state.doubloons += total;
   const remaining = held - quantity;
   if (remaining > 0) state.cargo[row.good.id] = remaining;
@@ -249,17 +228,15 @@ export function cityLabel(city) {
   return city.displayCity || city.city;
 }
 
-function marketRow(city, goodId) {
-  goodById(goodId);
-  const row = portMarket(city).find((item) => item.good.id === goodId);
+function marketRow(economy, city, goodId) {
+  tradeGoodById(goodId);
+  const row = portMarket(economy, city).find((item) => item.good.id === goodId);
   if (!row) throw new Error(`${cityLabel(city)} does not trade ${goodId}`);
   return row;
 }
 
 function goodById(goodId) {
-  const good = TRADE_GOOD_BY_ID.get(goodId);
-  if (!good) throw new Error(`Unknown trade good: ${goodId}`);
-  return good;
+  return tradeGoodById(goodId);
 }
 
 function recordDecision(state, key, amount) {

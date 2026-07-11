@@ -6,11 +6,11 @@ import {
   cargoUsed,
   cityLabel,
   completeQuest,
-  portMarket,
   portMemory,
   questStateForCity,
   sellGood
 } from "./gameState.js";
+import { portEconomySummary, portMarket, tradeGoodById } from "./economy.js";
 
 export function createPortDialogueSession(city) {
   return {
@@ -32,10 +32,13 @@ export function createShipDialogueSession(ship) {
 
 export function shipDialogueView(session, ship) {
   assertShipDialogueSubject(session, ship);
+  const manifest = shipCargoManifest(ship.cargo);
+  const voyage = ship.destinationName ? ` Bound for ${ship.destinationName}.` : "";
+  const cargo = manifest ? ` We carry ${manifest}.` : " Running in ballast.";
   return {
     speaker: `${ship.label} captain`,
     expressionId: "neutral",
-    text: "Ahoy matey.",
+    text: `Ahoy matey.${voyage}${cargo}`,
     feedback: null,
     options: [option("Leave", { type: "close" })]
   };
@@ -56,20 +59,20 @@ function assertShipDialogueSubject(session, ship) {
   if (!ship || session.npcShipId !== ship.id) throw new Error("Dialogue ship does not match active session");
 }
 
-export function portDialogueView(session, city, gameState, portCities) {
+export function portDialogueView(session, city, gameState, economy, portCities) {
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
 
-  if (session.nodeId === "root") return rootView(session, city, gameState);
-  if (session.nodeId === "buy") return buyView(session, city, gameState);
-  if (session.nodeId === "sell") return sellView(session, city, gameState);
+  if (session.nodeId === "root") return rootView(session, city, gameState, economy);
+  if (session.nodeId === "buy") return buyView(session, city, gameState, economy);
+  if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
-export function selectPortDialogueOption(session, city, gameState, portCities, optionIndex = session.selectedIndex) {
-  const view = portDialogueView(session, city, gameState, portCities);
+export function selectPortDialogueOption(session, city, gameState, economy, portCities, optionIndex = session.selectedIndex) {
+  const view = portDialogueView(session, city, gameState, economy, portCities);
   const option = view.options[optionIndex];
   if (!option) throw new Error(`Invalid dialogue option index: ${optionIndex}`);
   if (option.disabled) {
@@ -86,12 +89,12 @@ export function selectPortDialogueOption(session, city, gameState, portCities, o
     return { closed: false };
   }
   if (action.type === "buy") {
-    const result = buyGood(gameState, city, action.goodId);
+    const result = buyGood(gameState, economy, city, action.goodId);
     session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
     return { closed: false };
   }
   if (action.type === "sell") {
-    const result = sellGood(gameState, city, action.goodId);
+    const result = sellGood(gameState, economy, city, action.goodId);
     session.feedback = `Sold ${result.good.label} for ${result.price} db.`;
     return { closed: false };
   }
@@ -112,15 +115,16 @@ export function selectPortDialogueOption(session, city, gameState, portCities, o
   throw new Error(`Unknown dialogue action: ${action.type}`);
 }
 
-function rootView(session, city, gameState) {
+function rootView(session, city, gameState, economy) {
   const memory = portMemory(gameState, city);
+  const market = portEconomySummary(economy, city);
   const greeting = memory.visits <= 1
     ? `Welcome to ${cityLabel(city)}. I keep accounts for captains who can keep their word.`
     : `Back in ${cityLabel(city)}, captain. Your ledger is still open.`;
   return {
     speaker: speakerName(city),
     expressionId: "neutral",
-    text: `${greeting} ${portFlavor(city)}`,
+    text: `${greeting} ${portFlavor(city)} Market specie: ${market.specie} db.`,
     feedback: session.feedback,
     options: [
       option("Buy goods", { type: "node", nodeId: "buy" }),
@@ -132,14 +136,18 @@ function rootView(session, city, gameState) {
   };
 }
 
-function buyView(session, city, gameState) {
-  const rows = portMarket(city).map((row) => {
-    const totalSize = row.good.unitSize;
-    return option(`Buy ${row.good.label}  ${row.buyPrice} db`, { type: "buy", goodId: row.good.id }, {
-      disabled: gameState.doubloons < row.buyPrice || cargoFree(gameState) < totalSize,
-      disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
+function buyView(session, city, gameState, economy) {
+  const rows = portMarket(economy, city)
+    .filter((row) => row.listedForSale && row.stock > 0)
+    .sort((a, b) => b.productionPerDay - a.productionPerDay || a.buyPrice - b.buyPrice)
+    .slice(0, 5)
+    .map((row) => {
+      const totalSize = row.good.unitSize;
+      return option(`Buy ${row.good.label}  ${row.buyPrice} db  x${row.stock}`, { type: "buy", goodId: row.good.id }, {
+        disabled: gameState.doubloons < row.buyPrice || cargoFree(gameState) < totalSize,
+        disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
+      });
     });
-  });
   rows.push(option("Back", { type: "node", nodeId: "root" }));
   return {
     speaker: speakerName(city),
@@ -150,14 +158,18 @@ function buyView(session, city, gameState) {
   };
 }
 
-function sellView(session, city, gameState) {
-  const market = new Map(portMarket(city).map((row) => [row.good.id, row]));
+function sellView(session, city, gameState, economy) {
+  const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
   const rows = cargoRows(gameState).map((cargo) => {
     const row = market.get(cargo.good.id);
-    const price = row?.sellPrice || Math.max(1, Math.floor(cargo.good.basePrice * 0.45));
+    if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${cargo.good.id}`);
+    const price = row.sellPrice;
     return option(`Sell ${cargo.good.label} x${cargo.quantity}  ${price} db`, {
       type: "sell",
       goodId: cargo.good.id
+    }, {
+      disabled: row.portSpecie < price,
+      disabledReason: "The market is out of specie."
     });
   });
   if (rows.length === 0) {
@@ -254,6 +266,15 @@ function option(label, action, details = {}) {
     disabled: !!details.disabled,
     disabledReason: details.disabledReason || null
   };
+}
+
+function shipCargoManifest(cargo) {
+  const rows = Object.entries(cargo || {})
+    .filter(([, quantity]) => quantity > 0)
+    .map(([goodId, quantity]) => `${tradeGoodById(goodId).label} x${quantity}`);
+  if (rows.length === 0) return "";
+  if (rows.length <= 2) return rows.join(" and ");
+  return `${rows.slice(0, 2).join(", ")}, and other goods`;
 }
 
 function speakerName(city) {

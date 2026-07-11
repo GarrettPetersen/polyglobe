@@ -5,6 +5,16 @@ import {
   windAtLatLonDeg
 } from "./weather.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { assertFactionId } from "./factions.js";
+import {
+  cargoSaleValue,
+  executePortPurchase,
+  executePortSale,
+  maximumPortPurchaseQuantity,
+  maximumPortSaleQuantity,
+  planNpcTrade,
+  tradeGoodById
+} from "./economy.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -122,11 +132,13 @@ const FLEET_PROFILES = Object.freeze([
   profile("wide-world", 24, ["carrack", "galleon", "fluyt", "brigantine"], isAnyUsablePort, "interregional")
 ]);
 
-export function createNpcSeaRouteSystem({ ports, startMinute }) {
+export function createNpcSeaRouteSystem({ ports, startMinute, economy }) {
+  if (!economy) throw new Error("NPC sea routes require a world economy");
   const usablePorts = ports
     .filter(isAnyUsablePort)
     .map((port) => ({
       ...port,
+      factionId: assertFactionId(port.factionId),
       routeRegion: portRouteRegion(port),
       routeAnchors: anchorIdsForPort(port)
     }))
@@ -139,6 +151,7 @@ export function createNpcSeaRouteSystem({ ports, startMinute }) {
   const baseEdges = buildDirectedLaneEdges(laneNodes);
   const system = {
     ports: usablePorts,
+    economy,
     laneNodes,
     baseEdges,
     routeCache: new Map(),
@@ -194,13 +207,21 @@ function createNpcFleet(system, startMinute) {
     for (let i = 0; i < count; i++) {
       const seed = hashString32(`${profileSpec.id}|${i}|npc`);
       const origin = pool[seed % pool.length];
+      const slug = profileSpec.shipSlugs[(seed >>> 8) % profileSpec.shipSlugs.length];
+      const stats = shipStatsForSlug(slug);
       const ship = {
         id: `${profileSpec.id}-${i}`,
+        factionId: origin.factionId,
         profileId: profileSpec.id,
         mode: profileSpec.mode,
         slugs: profileSpec.shipSlugs,
-        slug: profileSpec.shipSlugs[(seed >>> 8) % profileSpec.shipSlugs.length],
+        slug,
         seed,
+        cargoCapacity: stats.cargoCapacity,
+        cargo: {},
+        cargoCost: {},
+        specie: 900 + stats.cargoCapacity * 18,
+        lifetimeProfit: 0,
         currentPort: origin,
         finalDestination: null,
         plan: null,
@@ -219,6 +240,9 @@ function createNpcFleet(system, startMinute) {
 function assignNpcPlan(system, ship, startMinute) {
   const origin = ship.currentPort;
   const desiredDestination = ship.finalDestination || chooseNpcDestination(system, ship, origin);
+  if (!ship.finalDestination && npcCargoUnits(ship) === 0) {
+    buyNpcCargo(system, ship, origin, desiredDestination);
+  }
   let destination = desiredDestination;
   let route = routeBetweenPorts(system, origin, desiredDestination, ship.slug, startMinute);
 
@@ -241,8 +265,10 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   let guard = 0;
   while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < maxPlans) {
     ship.currentPort = ship.plan.destination;
-    if (ship.finalDestination && samePort(ship.currentPort, ship.finalDestination)) {
+    const reachedTradingDestination = !ship.finalDestination || samePort(ship.currentPort, ship.finalDestination);
+    if (reachedTradingDestination) {
       ship.finalDestination = null;
+      sellNpcCargo(system, ship, ship.currentPort);
     }
     assignNpcPlan(system, ship, ship.plan.endMinute);
     changed = true;
@@ -261,11 +287,88 @@ function chooseNpcDestination(system, ship, origin) {
     .filter((port) => profileSpec.mode === "regional"
       ? profileSpec.portPredicate(port) && distanceKm(origin, port) >= NPC_MIN_TRIP_DISTANCE_KM
       : port.routeRegion !== origin.routeRegion && longRangePairAllowed(origin, port))
-    .sort((a, b) => destinationRank(origin, a, seed) - destinationRank(origin, b, seed));
+    .map((port) => ({
+      port,
+      economicScore: npcDestinationEconomicScore(system, ship, origin, port)
+    }))
+    .sort((a, b) => (
+      b.economicScore - a.economicScore ||
+      destinationRank(origin, a.port, seed) - destinationRank(origin, b.port, seed)
+    ));
   if (candidates.length === 0) {
     throw new Error(`No NPC destination candidates for ${ship.id} from ${portName(origin)}`);
   }
-  return candidates[0];
+  return candidates[0].port;
+}
+
+function npcDestinationEconomicScore(system, ship, origin, destination) {
+  const distancePenalty = 1 + distanceKm(origin, destination) / 1400;
+  if (npcCargoUnits(ship) > 0) {
+    const saleValue = cargoSaleValue(system.economy, destination, ship.cargo);
+    const cargoCost = Object.values(ship.cargoCost).reduce((sum, value) => sum + value, 0);
+    return (saleValue - cargoCost + saleValue * 0.04) / distancePenalty;
+  }
+  const trade = planNpcTrade(system.economy, origin, destination, {
+    cargoCapacity: ship.cargoCapacity,
+    specie: ship.specie
+  });
+  return trade.expectedProfit / distancePenalty;
+}
+
+function buyNpcCargo(system, ship, origin, destination) {
+  const plan = planNpcTrade(system.economy, origin, destination, {
+    cargoCapacity: ship.cargoCapacity,
+    specie: ship.specie
+  });
+  for (const line of plan.lines) {
+    const quantity = maximumPortSaleQuantity(
+      system.economy,
+      origin,
+      line.goodId,
+      line.quantity,
+      ship.specie
+    );
+    if (quantity <= 0) continue;
+    const transaction = executePortSale(system.economy, origin, line.goodId, quantity);
+    ship.specie -= transaction.total;
+    ship.cargo[line.goodId] = (ship.cargo[line.goodId] || 0) + quantity;
+    ship.cargoCost[line.goodId] = (ship.cargoCost[line.goodId] || 0) + transaction.total;
+  }
+}
+
+function sellNpcCargo(system, ship, port) {
+  for (const [goodId, held] of Object.entries(ship.cargo)) {
+    tradeGoodById(goodId);
+    if (!Number.isInteger(held) || held <= 0) throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo: ${held}`);
+    const quantity = maximumPortPurchaseQuantity(system.economy, port, goodId, held);
+    if (quantity <= 0) continue;
+    const transaction = executePortPurchase(system.economy, port, goodId, quantity);
+    const totalCost = ship.cargoCost[goodId] || 0;
+    const soldCost = totalCost * (quantity / held);
+    ship.specie += transaction.total;
+    ship.lifetimeProfit += transaction.total - soldCost;
+    const remaining = held - quantity;
+    if (remaining > 0) {
+      ship.cargo[goodId] = remaining;
+      ship.cargoCost[goodId] = totalCost - soldCost;
+    } else {
+      delete ship.cargo[goodId];
+      delete ship.cargoCost[goodId];
+    }
+  }
+}
+
+function npcCargoUnits(ship) {
+  let units = 0;
+  for (const [goodId, quantity] of Object.entries(ship.cargo)) {
+    const good = tradeGoodById(goodId);
+    if (!Number.isInteger(quantity) || quantity < 0) throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo: ${quantity}`);
+    units += quantity * good.unitSize;
+  }
+  if (units > ship.cargoCapacity) {
+    throw new Error(`NPC ship ${ship.id} exceeds cargo capacity: ${units}/${ship.cargoCapacity}`);
+  }
+  return units;
 }
 
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {
@@ -477,7 +580,10 @@ function npcShipSnapshot(ship, clockMinutes) {
       routeVector: ship.visualNavigation.vector.slice(),
       routeHeading: ship.visualNavigation.heading.slice(),
       routeKey: `held:${segment?.startMinute ?? plan.endMinute}`,
-      profileId: ship.profileId
+      profileId: ship.profileId,
+      factionId: ship.factionId,
+      cargo: { ...ship.cargo },
+      specie: Math.floor(ship.specie)
     };
   }
   const t = clamp01((clockMinutes - segment.startMinute) / (segment.endMinute - segment.startMinute));
@@ -497,7 +603,10 @@ function npcShipSnapshot(ship, clockMinutes) {
     routeVector,
     routeHeading,
     routeKey: `${segment.from.id}->${segment.to.id}@${segment.startMinute}`,
-    profileId: ship.profileId
+    profileId: ship.profileId,
+    factionId: ship.factionId,
+    cargo: { ...ship.cargo },
+    specie: Math.floor(ship.specie)
   };
 }
 
