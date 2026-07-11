@@ -28,6 +28,16 @@ export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
 export const PIRACY_REPUTATION_PENALTY = -3;
 export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
 export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
+export const FISH_CARGO_GOOD_ID = "fish";
+export const SHIP_ITEM_FISHING_NET = "fishing-net";
+
+export const SHIP_ITEM_CATALOG = Object.freeze([
+  Object.freeze({
+    id: SHIP_ITEM_FISHING_NET,
+    label: "Fishing net",
+    detail: "Can harvest nearby fisheries"
+  })
+]);
 
 export function createGameState({ cargoCapacity, startMinute = 0, playerCharacter = null }) {
   assertCargoCapacity(cargoCapacity);
@@ -40,6 +50,11 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
     cargo: {},
+    inventory: {
+      items: {
+        [SHIP_ITEM_FISHING_NET]: 1
+      }
+    },
     accounts: {
       cargoCostBasis: {},
       realizedPnl: 0,
@@ -216,6 +231,22 @@ export function cargoCostBasis(state, goodId) {
     total,
     average: quantity > 0 ? total / quantity : 0
   };
+}
+
+export function shipItemRows(state) {
+  assertGameState(state);
+  return SHIP_ITEM_CATALOG
+    .map((item) => ({
+      ...item,
+      quantity: state.inventory.items[item.id] || 0
+    }))
+    .filter((item) => item.quantity > 0);
+}
+
+export function hasShipItem(state, itemId) {
+  assertGameState(state);
+  if (typeof itemId !== "string" || itemId.trim() === "") throw new Error(`Invalid ship item id: ${itemId}`);
+  return (state.inventory.items[itemId] || 0) > 0;
 }
 
 export function ledgerEntries(state) {
@@ -429,6 +460,33 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   return { good: row.good, quantity, price: total, costBasis: soldCost, pnl };
 }
 
+export function receiveFishCatch(state, catchResult, context = {}) {
+  assertGameState(state);
+  if (!catchResult || typeof catchResult !== "object") throw new Error("Fish catch requires a catch result");
+  const quantity = catchResult.quantity;
+  assertQuantity(quantity, "fish catch quantity");
+  const good = tradeGoodById(FISH_CARGO_GOOD_ID);
+  if (cargoFree(state) < good.unitSize * quantity) {
+    throw new Error(`Not enough cargo space to stow ${quantity} ${good.label}`);
+  }
+  state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
+  state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
+  const speciesLabel = typeof catchResult.speciesLabel === "string" && catchResult.speciesLabel.trim() !== ""
+    ? catchResult.speciesLabel
+    : good.label;
+  recordDecision(state, `fish.catch.${catchResult.stockKey || "unknown"}`, quantity);
+  recordLedgerEntry(state, null, context, {
+    kind: "catch",
+    description: `Catch ${speciesLabel} x${quantity}`,
+    goodId: good.id,
+    quantity,
+    amount: 0,
+    costBasis: 0,
+    pnl: null
+  });
+  return { good, quantity, speciesLabel };
+}
+
 export function visitPort(state, city) {
   assertGameState(state);
   const memory = portMemory(state, city);
@@ -618,6 +676,12 @@ function assertGameState(state) {
     throw new Error(`Invalid doubloon balance: ${state.doubloons}`);
   }
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
+  if (!state.inventory || typeof state.inventory !== "object") {
+    state.inventory = { items: {} };
+  }
+  if (!state.inventory.items || typeof state.inventory.items !== "object") {
+    state.inventory.items = {};
+  }
   if (!state.accounts || typeof state.accounts !== "object") throw new Error("Game state accounts must be an object");
   if (!state.accounts.cargoCostBasis || typeof state.accounts.cargoCostBasis !== "object") {
     throw new Error("Game state cargo cost basis must be an object");

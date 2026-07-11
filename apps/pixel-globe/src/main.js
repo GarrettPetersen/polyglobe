@@ -49,11 +49,16 @@ import {
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import {
+  FISH_CARGO_GOOD_ID,
+  SHIP_ITEM_FISHING_NET,
+  cargoFree,
   cargoUsed,
   createGameState,
   discoveredEntries,
+  hasShipItem,
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
+  receiveFishCatch,
   receiveSurrenderedLoot,
   recordAttackAgainstFaction,
   recordDiscovery,
@@ -85,6 +90,7 @@ import {
   shipDialogueView
 } from "./dialogueSystem.js";
 import {
+  NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP,
@@ -172,7 +178,8 @@ import {
 } from "./politics.js";
 import {
   advanceWorldEconomy,
-  createWorldEconomy
+  createWorldEconomy,
+  tradeGoodById
 } from "./economy.js";
 import {
   waterDepthIndexForSpriteKey,
@@ -195,6 +202,12 @@ import {
   passengerQuestById,
   pendingPassengerOfferForCity
 } from "./passengerMissions.js";
+import {
+  FISH_NPC_HARVEST_COOLDOWN_MINUTES,
+  fishHabitatKind,
+  fisheryForHabitat,
+  harvestFishery
+} from "./fishEcology.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -512,6 +525,7 @@ const CITY_LABEL_PAD_X = 2;
 const CITY_LABEL_PAD_Y = 1;
 const CITY_LABEL_GAP_PX = 2;
 const PORT_INTERACTION_RADIUS_PX = 34;
+const FISH_INTERACTION_RADIUS_PX = 22;
 const PORT_CITY_CLICK_PAD_PX = 3;
 const INTERACTION_BUTTON_W = 110;
 const INTERACTION_BUTTON_H = 13;
@@ -608,7 +622,7 @@ const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
 const SFX_ASSET_VERSION = "normalized-ogg-1";
-const ANIMAL_ASSET_VERSION = "seagulls-1";
+const ANIMAL_ASSET_VERSION = "fish-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
 const MUSIC_CROSSFADE_SECONDS = 1.6;
@@ -698,16 +712,19 @@ const SFX_UNDERWAY_URL = "/assets/sfx/freesound_community-sailboat-underway-4872
 const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.ogg";
 const SFX_DISCOVERY_SUCCESS_URL = "/assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
 const SFX_COIN_CLINK_URL = "/assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3";
+const SFX_FISHING_URL = "/assets/sfx/alex_jauk-water-splash-147014.mp3";
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_IMPACT_POOL_SIZE = 6;
 const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
 const SFX_COIN_CLINK_POOL_SIZE = 4;
+const SFX_FISHING_POOL_SIZE = 3;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_IMPACT_VOLUME = 0.64;
 const SFX_SAIL_DEPLOY_VOLUME = 0.22;
 const SFX_DISCOVERY_SUCCESS_VOLUME = 0.72;
 const SFX_COIN_CLINK_VOLUME = 0.58;
+const SFX_FISHING_VOLUME = 0.42;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
 const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
@@ -730,7 +747,20 @@ const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
 const STORM_DAMAGE_NOTICE_MS = 3600;
 const SEAGULL_FLIGHT_URL = "/assets/animals/seagull-Sheet.png";
 const SEAGULL_STANDING_URL = "/assets/animals/seagull_standing.png";
+const FISH_SPRITE_URL = "/assets/animals/fish.png";
 const SEAGULL_FRAME_SIZE = 9;
+const FISH_SPRITE_SIZE = 9;
+const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
+const FISH_PLAYER_CATCH_MAX = 8;
+const FISH_NPC_HARVEST_MAX = 5;
+const FISH_NPC_HARVEST_RADIUS_PX = 24;
+const FISH_NOTICE_MS = 2400;
+const FISH_SWIM_SEARCH_MARGIN_PX = 18;
+const FISH_SWIM_PERIOD_MIN_MS = 4200;
+const FISH_SWIM_PERIOD_SPREAD_MS = 5200;
+const FISH_SCATTER_RADIUS_PX = 30;
+const FISH_SCATTER_PUSH_PX = 5;
+const FISH_ANIMATION_REDRAW_MS = 120;
 const SEAGULL_FLIGHT_FRAMES = 6;
 const SEAGULL_MAX_FLYING = 14;
 const SEAGULL_LANDED_FULL_PRESENCE = 26;
@@ -825,6 +855,7 @@ let worldDiscoveries = [];
 let discoveryCatalog = [];
 let discoveryNotice = null;
 const discoveryNoticeQueue = [];
+let fishCatchNotice = null;
 let images;
 let shipImage;
 let shipWakeAnchors;
@@ -858,6 +889,7 @@ let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
 const terrainAlphaMasks = new WeakMap();
+const fishSpriteTintCache = new Map();
 let spriteColors;
 let waterLatitudeImages;
 let waterLatitudeSpriteColors;
@@ -919,6 +951,7 @@ let lastOverlayMs = 0;
 let cityFlagAnimationTick = -1;
 let waterAnimationClockMs = 0;
 let waterAnimationDrawTick = -1;
+let fishAnimationDrawTick = -1;
 let precipParticleDrawTick = -1;
 let precipParticles = [];
 let precipParticleSerial = 1;
@@ -1202,7 +1235,8 @@ async function main() {
   npcSeaRoutes = createNpcSeaRouteSystem({
     ports: portCities,
     startMinute: weatherClockMinutes,
-    economy: worldEconomy
+    economy: worldEconomy,
+    fishState: gameState
   });
   npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
@@ -1434,9 +1468,10 @@ function loadUiImage(key) {
 }
 
 async function loadAnimalImages() {
-  const [seagullFlight, seagullStanding] = await Promise.all([
+  const [seagullFlight, seagullStanding, fish] = await Promise.all([
     loadAssetImage(`${SEAGULL_FLIGHT_URL}?v=${ANIMAL_ASSET_VERSION}`, "seagull flight sheet"),
-    loadAssetImage(`${SEAGULL_STANDING_URL}?v=${ANIMAL_ASSET_VERSION}`, "standing seagull image")
+    loadAssetImage(`${SEAGULL_STANDING_URL}?v=${ANIMAL_ASSET_VERSION}`, "standing seagull image"),
+    loadAssetImage(`${FISH_SPRITE_URL}?v=${ANIMAL_ASSET_VERSION}`, "fish image")
   ]);
   validateImageDimensions(
     seagullFlight,
@@ -1445,7 +1480,8 @@ async function loadAnimalImages() {
     SEAGULL_FRAME_SIZE
   );
   validateImageDimensions(seagullStanding, "standing seagull image", SEAGULL_FRAME_SIZE, SEAGULL_FRAME_SIZE);
-  return { seagullFlight, seagullStanding };
+  validateImageDimensions(fish, "fish image", FISH_SPRITE_SIZE, FISH_SPRITE_SIZE);
+  return { seagullFlight, seagullStanding, fish };
 }
 
 function validateImageDimensions(img, label, expectedWidth, expectedHeight) {
@@ -2217,6 +2253,7 @@ function runFrame(nowMs) {
     if (!anchored && !gameOverReason && updateSailing(dt)) dirty = true;
     if (!gameOverReason && updateCannons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
+    if (updateFishAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
     ensureChart();
     if (updateDiscoveries(nowMs)) dirty = true;
@@ -2372,6 +2409,7 @@ function setupSoundEffects() {
     sailDeploy: createSoundPool(SFX_SAIL_DEPLOY_URL, SFX_SAIL_DEPLOY_POOL_SIZE, "sail deployment"),
     discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
     coinClink: createSoundPool(SFX_COIN_CLINK_URL, SFX_COIN_CLINK_POOL_SIZE, "coin clink"),
+    fishing: createSoundPool(SFX_FISHING_URL, SFX_FISHING_POOL_SIZE, "fishing splash"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
     shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves"),
@@ -2523,7 +2561,8 @@ function applyThemeAudioSettings() {
       ...soundEffects.impact,
       ...soundEffects.sailDeploy,
       ...soundEffects.discoverySuccess,
-      ...soundEffects.coinClink
+      ...soundEffects.coinClink,
+      ...soundEffects.fishing
     ]) {
       audio.muted = optionsMenu.muted;
     }
@@ -2566,6 +2605,10 @@ function playDiscoverySuccessSound() {
 
 function playCoinClinkSound() {
   playSoundEffect(soundEffects?.coinClink, SFX_COIN_CLINK_VOLUME, 0.98 + Math.random() * 0.04);
+}
+
+function playFishingSound() {
+  playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME, 0.94 + Math.random() * 0.12);
 }
 
 function updateAmbientAudio(dt) {
@@ -3529,6 +3572,7 @@ function openActiveInteractionDialogue() {
   const target = promptTarget || activeInteractionTarget();
   if (!target) return false;
   if (target.kind === "port") openPortDialogue(target.call);
+  else if (target.kind === "fish") catchFishAtFishery(target.call);
   else openShipDialogue(target.call);
   return true;
 }
@@ -3860,6 +3904,8 @@ function currentDialoguePassenger() {
 function activeInteractionTarget() {
   const port = activePortCall();
   if (port) return { kind: "port", call: port };
+  const fishCall = activeFishCall();
+  if (fishCall) return { kind: "fish", call: fishCall };
   const npcShip = activeNpcShipCall();
   return npcShip ? { kind: "ship", call: npcShip } : null;
 }
@@ -3898,6 +3944,44 @@ function activeNpcShipCall() {
     bestDistance = distance;
   }
   return best;
+}
+
+function activeFishCall() {
+  if (!chart || !localLayout || !gameState || !hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) return null;
+  return nearestFishCallNearPoint(localLayout.viewX, localLayout.viewY, FISH_INTERACTION_RADIUS_PX);
+}
+
+function nearestFishCallNearPoint(x, y, radiusPx) {
+  let best = null;
+  let bestDistance = Infinity;
+  const maxDistance = radiusPx * radiusPx;
+  const tileSearchRadius = radiusPx + FISH_SWIM_SEARCH_MARGIN_PX;
+  const tileSearchDistance = tileSearchRadius * tileSearchRadius;
+  for (const tileCall of chart.tileCalls) {
+    const tileDistance = distance2(x, y, tileCall.drawSurfaceX, tileCall.drawSurfaceY);
+    if (tileDistance > tileSearchDistance) continue;
+    const fishery = fisheryForTileCall(tileCall);
+    if (!fishery) continue;
+    for (const call of fishIndividualCallsForFishery(tileCall, fishery, lastFrameMs)) {
+      const distance = distance2(x, y, call.centerX, call.centerY);
+      if (distance > maxDistance || distance >= bestDistance) continue;
+      best = fishInteractionCall(call);
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function fishInteractionCall(call) {
+  return {
+    id: call.id,
+    label: call.fishery.speciesLabel,
+    tileId: call.tileId,
+    x: call.centerX,
+    y: call.centerY,
+    individualId: call.id,
+    fishery: call.fishery
+  };
 }
 
 function npcShipCallAtPoint(point) {
@@ -3983,11 +4067,20 @@ function portInteractionCallIsUsable(call) {
 function interactionTargetIsUsable(target) {
   if (!target) return false;
   if (target.kind === "port") return portInteractionCallIsUsable(target.call);
+  if (target.kind === "fish") return fishInteractionCallIsUsable(target.call);
   if (target.kind === "ship") {
     const state = npcVisualShips.get(target.call?.id);
     return npcShipInHailRange(state);
   }
   throw new Error(`Unknown interaction target kind: ${target.kind}`);
+}
+
+function fishInteractionCallIsUsable(call) {
+  if (!call || !gameState || !hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) return false;
+  if (!Number.isFinite(call.x) || !Number.isFinite(call.y)) return false;
+  if (!localLayout) return false;
+  return distance2(localLayout.viewX, localLayout.viewY, call.x, call.y) <=
+    FISH_INTERACTION_RADIUS_PX * FISH_INTERACTION_RADIUS_PX;
 }
 
 function pointHitsPortCitySprite(point, call, offset) {
@@ -4010,6 +4103,49 @@ function expandedRect(rect, amount) {
     w: rect.w + amount * 2,
     h: rect.h + amount * 2
   };
+}
+
+function catchFishAtFishery(call) {
+  if (!gameState) throw new Error("Cannot catch fish before game state is ready");
+  if (!hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
+    showFishCatchNotice("NEED FISHING NET", "warn");
+    return false;
+  }
+  const free = cargoFree(gameState);
+  if (free <= 0) {
+    showFishCatchNotice("HOLD FULL", "warn");
+    return false;
+  }
+  const result = harvestFishery(
+    gameState,
+    call.fishery,
+    Math.min(FISH_PLAYER_CATCH_MAX, free),
+    Math.floor(weatherClockMinutes),
+    { actor: "player" }
+  );
+  if (result.quantity <= 0) {
+    showFishCatchNotice(result.reason === "cooldown" ? "FISHERY RESTING" : "FISHERY DEPLETED", "warn");
+    return false;
+  }
+  receiveFishCatch(gameState, result, {
+    simMinute: Math.floor(weatherClockMinutes),
+    location: "Fishing grounds"
+  });
+  syncShipCargoFromGameState();
+  playFishingSound();
+  const depletedText = result.overfished ? " - OVERFISHED" : "";
+  showFishCatchNotice(`CAUGHT ${result.speciesLabel.toUpperCase()} x${result.quantity}${depletedText}`, "good");
+  dirty = true;
+  return true;
+}
+
+function showFishCatchNotice(text, tone) {
+  fishCatchNotice = {
+    text,
+    tone,
+    expiresAtMs: lastFrameMs + FISH_NOTICE_MS
+  };
+  dirty = true;
 }
 
 function syncShipCargoFromGameState() {
@@ -5210,6 +5346,14 @@ function updateWaterAnimation(nowMs) {
   return true;
 }
 
+function updateFishAnimation(nowMs) {
+  if (!chart || !gameState || !animalImages?.fish) return false;
+  const tick = Math.floor(nowMs / FISH_ANIMATION_REDRAW_MS);
+  if (tick === fishAnimationDrawTick) return false;
+  fishAnimationDrawTick = tick;
+  return true;
+}
+
 function updateWeather(dt, nowMs) {
   if (!runtimeWeather || !weatherBake) return false;
   let stormDamageChanged = false;
@@ -5364,6 +5508,7 @@ function updateNpcVisualShips(dt) {
   }
   if (updateCombatShipCollisions(dt)) changed = true;
   if (updateNpcCombatProjectiles(dt)) changed = true;
+  if (updateNpcFishermenHarvest()) changed = true;
   return changed;
 }
 
@@ -5400,7 +5545,8 @@ function createNpcVisualState(snapshot, routePoint) {
     stormMode: null,
     stormShelterTileId: null,
     stormReferenceTileId: null,
-    stormAnchorUntilMinute: 0
+    stormAnchorUntilMinute: 0,
+    fishHarvestUntilMinute: 0
   };
   setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   return state;
@@ -5413,6 +5559,47 @@ function syncNpcVisualStateFromSnapshot(state, snapshot) {
   state.hitPoints = snapshot.hitPoints;
   state.maxHitPoints = snapshot.maxHitPoints;
   state.combatGrace = snapshot.combatGrace;
+}
+
+function updateNpcFishermenHarvest() {
+  if (!gameState || !chart || !npcSeaRoutes) return false;
+  const nowMinute = Math.floor(weatherClockMinutes);
+  let changed = false;
+  for (const state of npcVisualShips.values()) {
+    if (state.role !== NPC_ROLE_FISHERMAN || state.combatMode || state.stormMode) continue;
+    if ((state.fishHarvestUntilMinute || 0) > nowMinute) continue;
+    const npcShip = npcSeaRoutes.shipById.get(state.id);
+    if (!npcShip) continue;
+    const free = npcShip.cargoCapacity - npcCargoUsedUnits(npcShip);
+    if (free <= 0) continue;
+    const call = nearestFishCallNearPoint(state.x, state.y, FISH_NPC_HARVEST_RADIUS_PX);
+    if (!call) continue;
+    const result = harvestFishery(
+      gameState,
+      call.fishery,
+      Math.min(FISH_NPC_HARVEST_MAX, free),
+      nowMinute,
+      { actor: "npc" }
+    );
+    state.fishHarvestUntilMinute = nowMinute + FISH_NPC_HARVEST_COOLDOWN_MINUTES;
+    if (result.quantity <= 0) continue;
+    npcShip.cargo[FISH_CARGO_GOOD_ID] = (npcShip.cargo[FISH_CARGO_GOOD_ID] || 0) + result.quantity;
+    npcShip.cargoCost[FISH_CARGO_GOOD_ID] = npcShip.cargoCost[FISH_CARGO_GOOD_ID] || 0;
+    changed = true;
+  }
+  return changed;
+}
+
+function npcCargoUsedUnits(npcShip) {
+  let used = 0;
+  for (const [goodId, quantity] of Object.entries(npcShip.cargo || {})) {
+    const good = tradeGoodById(goodId);
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      throw new Error(`NPC ship ${npcShip.id} has invalid ${goodId} cargo: ${quantity}`);
+    }
+    used += good.unitSize * quantity;
+  }
+  return used;
 }
 
 function updateNpcCombat(dt) {
@@ -5493,7 +5680,7 @@ function npcCombatAttackReason(state) {
   if (state.role === NPC_ROLE_PIRATE) {
     return "Your cargo and coin are ours. Heave to, or we open fire!";
   }
-  if (state.role === NPC_ROLE_MERCHANT) {
+  if (state.role === NPC_ROLE_MERCHANT || state.role === NPC_ROLE_FISHERMAN) {
     return ship.factionId === PIRATE_FACTION_ID
       ? "You sail under pirate colors. Keep away, or we will defend ourselves!"
       : "Your flag is hostile to ours. Keep away, or we will defend ourselves!";
@@ -6953,6 +7140,7 @@ function render(nowMs) {
   for (const call of chart.tileCalls) drawRiver(call, chart);
   for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
   const shipLight = shipSunLightState();
+  drawFishIndividuals(chart, nowMs);
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart);
   drawShipWake(chart);
@@ -6976,6 +7164,7 @@ function render(nowMs) {
   drawQuestDestinationArrow(nowMs);
   drawStormStatus(nowMs);
   drawCombatNotice(nowMs);
+  drawFishCatchNotice(nowMs);
   drawAnchorButton();
   drawInteractionButton();
   drawDiscoveryNotice(nowMs);
@@ -10366,6 +10555,205 @@ function drawShipShadow(activeChart, light, offset) {
   }
 }
 
+function drawFishIndividuals(activeChart, nowMs) {
+  if (!animalImages?.fish || !gameState) return;
+  const calls = fishIndividualDrawCalls(activeChart, nowMs);
+  for (const call of calls) drawFishSprite(call);
+}
+
+function fishIndividualDrawCalls(activeChart, nowMs) {
+  const calls = [];
+  const offset = chartOffsetPixels(activeChart);
+  for (const tileCall of activeChart.tileCalls) {
+    if (calls.length >= FISH_VISIBLE_MAX_INDIVIDUALS) break;
+    if (!pointNearScreen({
+      x: tileCall.drawSurfaceX + offset.x,
+      y: tileCall.drawSurfaceY + offset.y
+    }, FISH_SPRITE_SIZE + 6)) continue;
+    const fishery = fisheryForTileCall(tileCall);
+    if (!fishery) continue;
+    calls.push(...fishIndividualCallsForFishery(tileCall, fishery, nowMs, FISH_VISIBLE_MAX_INDIVIDUALS - calls.length));
+  }
+  return calls.sort((a, b) => a.sortY - b.sortY || a.sortId - b.sortId);
+}
+
+function fishIndividualCallsForFishery(tileCall, fishery, nowMs, maxCount = Infinity) {
+  const calls = [];
+  const seed = hashInt(tileCall.id ^ 0x46495348);
+  const count = Math.min(maxCount, fishery.visibleIndividualCount);
+  for (let i = 0; i < count; i++) {
+    const fishSeed = hashInt(seed ^ Math.imul(i + 1, 0x9e3779b1));
+    const motion = fishIndividualSwimMotion(tileCall, fishery, fishSeed, i, nowMs);
+    const x = Math.round(motion.x);
+    const y = Math.round(motion.y);
+    calls.push({
+      id: `fish-${fishery.stockKey}-${i}`,
+      sortId: tileCall.id * 8 + i,
+      tileId: tileCall.id,
+      centerX: x,
+      centerY: y,
+      x: x - Math.floor(FISH_SPRITE_SIZE / 2),
+      y: y - Math.floor(FISH_SPRITE_SIZE / 2),
+      sortY: y,
+      fishery,
+      colors: fishery.colors,
+      alpha: fishery.overfished ? 0.26 : 0.42,
+      flip: motion.vx < 0,
+      scale: fishery.schoolScale
+    });
+  }
+  return calls;
+}
+
+function fishIndividualSwimMotion(tileCall, fishery, fishSeed, index, nowMs) {
+  const radius = fisherySwimRadius(fishery);
+  const axis = fisherySwimAxis(tileCall, fishery, fishSeed);
+  const cross = { x: -axis.y, y: axis.x };
+  const periodMs = FISH_SWIM_PERIOD_MIN_MS + ((fishSeed >>> 7) % FISH_SWIM_PERIOD_SPREAD_MS);
+  const phase = ((nowMs + (fishSeed & 0xffff)) % periodMs) / periodMs * Math.PI * 2;
+  const schoolingPhase = phase + index * 0.42;
+  const home = fishIndividualHomeOffset(fishSeed, index, radius);
+  const forward = Math.sin(schoolingPhase) * radius.x + Math.sin(schoolingPhase * 0.47 + fishSeed) * radius.x * 0.22;
+  const side = Math.sin(schoolingPhase * 1.8 + (fishSeed >>> 5)) * radius.y;
+  const tailWag = Math.sin((nowMs + fishSeed) / 180) * 0.55;
+  let x = tileCall.drawSurfaceX + home.x + axis.x * forward + cross.x * (side + tailWag);
+  let y = tileCall.drawSurfaceY + home.y + axis.y * forward + cross.y * (side + tailWag);
+  const scatter = fishScatterOffset(x, y);
+  x += scatter.x;
+  y += scatter.y;
+  const vx = axis.x * Math.cos(schoolingPhase) * radius.x + cross.x * Math.cos(schoolingPhase * 1.8) * radius.y + scatter.x;
+  return { x, y, vx };
+}
+
+function fisherySwimRadius(fishery) {
+  const area = Math.max(4, fishery.areaRadiusPx || 8);
+  if (fishery.habitatKind === "river") return { x: area * 0.86, y: area * 0.3 };
+  if (fishery.habitatKind === "river-mouth") return { x: area * 0.9, y: area * 0.34 };
+  if (fishery.habitatKind === "lake") return { x: area * 0.84, y: area * 0.42 };
+  if (fishery.habitatKind === "coastal") return { x: area * 0.8, y: area * 0.44 };
+  return { x: area * 0.82, y: area * 0.46 };
+}
+
+function fisherySwimAxis(tileCall, fishery, fishSeed) {
+  if (fishery.habitatKind === "river" || fishery.habitatKind === "river-mouth") {
+    const riverAxis = fishRiverAxis(tileCall);
+    if (riverAxis) return riverAxis;
+  }
+  const angle = ((fishSeed >>> 9) % 6283) / 1000;
+  return { x: Math.cos(angle), y: Math.sin(angle) };
+}
+
+function fishRiverAxis(tileCall) {
+  let dx = 0;
+  let dy = 0;
+  for (const neighborId of graph.neighbors[tileCall.id] || []) {
+    if (!shipTileHasRiver(neighborId) && !isShipOpenWaterTile(neighborId)) continue;
+    const neighbor = chart?.tileById.get(neighborId);
+    if (!neighbor) continue;
+    dx += neighbor.drawSurfaceX - tileCall.drawSurfaceX;
+    dy += neighbor.drawSurfaceY - tileCall.drawSurfaceY;
+  }
+  return normalizeScreenVector({ x: dx, y: dy });
+}
+
+function fishIndividualHomeOffset(fishSeed, index, radius) {
+  return {
+    x: ((((fishSeed >>> 4) & 15) - 7.5) / 7.5) * radius.x * 0.42 + (index - 2) * 0.8,
+    y: ((((fishSeed >>> 12) & 15) - 7.5) / 7.5) * radius.y * 0.62
+  };
+}
+
+function fishScatterOffset(x, y) {
+  if (!localLayout || !ship) return { x: 0, y: 0 };
+  const dx = x - localLayout.viewX;
+  const dy = y - localLayout.viewY;
+  const distance = Math.hypot(dx, dy);
+  if (distance <= 1e-3 || distance >= FISH_SCATTER_RADIUS_PX) return { x: 0, y: 0 };
+  const push = (1 - distance / FISH_SCATTER_RADIUS_PX) * FISH_SCATTER_PUSH_PX;
+  return {
+    x: dx / distance * push,
+    y: dy / distance * push
+  };
+}
+
+function fisheryForTileCall(tileCall) {
+  const habitat = fishHabitatForTileCall(tileCall);
+  if (!habitat) return null;
+  return fisheryForHabitat(gameState, habitat, Math.floor(weatherClockMinutes));
+}
+
+function fishHabitatForTileCall(tileCall) {
+  if (!tileCall || seaIceMask?.[tileCall.id] || freshwaterIceMask?.[tileCall.id]) return null;
+  const isRiver = shipTileHasRiver(tileCall.id) && !isWaterSurfaceRow(tileCall.row);
+  const isRiverMouth = shipTileHasRiver(tileCall.id) && isWaterSurfaceRow(tileCall.row);
+  const isLake = tileCall.row?.t === "lake" && isShipOpenWaterTile(tileCall.id);
+  const isWater = isShipOpenWaterTile(tileCall.id);
+  const isCoastal = isCoastalWaterRow(tileCall.row) || (isWater && tileHasLandNeighbor(tileCall.id));
+  const kind = fishHabitatKind({ isWater, isCoastal, isRiver, isRiverMouth, isLake });
+  if (!kind) return null;
+  const center = tileCenterVector(tileCall.id);
+  return {
+    tileId: tileCall.id,
+    kind,
+    lat: latitudeDegForDirection(center),
+    lon: longitudeDegForDirection(center)
+  };
+}
+
+function drawFishSprite(call) {
+  const sprite = tintedFishSprite(call.colors);
+  ctx.save();
+  ctx.globalAlpha = call.alpha;
+  if (call.flip) {
+    ctx.translate(call.x + FISH_SPRITE_SIZE, call.y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(sprite, 0, 0);
+  } else {
+    ctx.drawImage(sprite, call.x, call.y);
+  }
+  ctx.restore();
+}
+
+function tintedFishSprite(colors) {
+  const key = `${colors.body}|${colors.highlight}|${colors.shadow}`;
+  const cached = fishSpriteTintCache.get(key);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = FISH_SPRITE_SIZE;
+  canvas.height = FISH_SPRITE_SIZE;
+  const tintCtx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!tintCtx) throw new Error("Could not create fish tint canvas");
+  tintCtx.imageSmoothingEnabled = false;
+  tintCtx.drawImage(animalImages.fish, 0, 0);
+  const data = tintCtx.getImageData(0, 0, FISH_SPRITE_SIZE, FISH_SPRITE_SIZE);
+  const palette = {
+    body: hexToRgb(colors.body),
+    highlight: hexToRgb(colors.highlight),
+    shadow: hexToRgb(colors.shadow)
+  };
+  for (let i = 0; i < data.data.length; i += 4) {
+    const alpha = data.data[i + 3];
+    if (alpha === 0) continue;
+    const light = (data.data[i] + data.data[i + 1] + data.data[i + 2]) / 765;
+    const color = light > 0.72 ? palette.highlight : light < 0.32 ? palette.shadow : palette.body;
+    data.data[i] = color.r;
+    data.data[i + 1] = color.g;
+    data.data[i + 2] = color.b;
+  }
+  tintCtx.putImageData(data, 0, 0);
+  fishSpriteTintCache.set(key, canvas);
+  return canvas;
+}
+
+function hexToRgb(hex) {
+  const value = hex.startsWith("#") ? hex.slice(1) : hex;
+  return {
+    r: Number.parseInt(value.slice(0, 2), 16),
+    g: Number.parseInt(value.slice(2, 4), 16),
+    b: Number.parseInt(value.slice(4, 6), 16)
+  };
+}
+
 function drawSeagulls(activeChart, nowMs) {
   if (!animalImages) return;
   const calls = [
@@ -11316,7 +11704,9 @@ function drawInteractionButton() {
   ctx.fillStyle = "#f3dfb0";
   const actionLabel = target.kind === "port"
     ? `Dock: ${cityLabelText(target.call)}`
-    : `Hail: ${target.call.label}`;
+    : target.kind === "fish"
+      ? `Cast net: ${target.call.label}`
+      : `Hail: ${target.call.label}`;
   const label = fitPixelText(actionLabel, PIXEL_FONT_BODY_8, interactionButtonRect.w - 8);
   drawPixelText(label, interactionButtonRect.x + 4, interactionButtonRect.y + 3, { font: PIXEL_FONT_BODY_8 });
 }
@@ -11384,6 +11774,23 @@ function drawCombatNotice(nowMs) {
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
   ctx.fillStyle = "#fbff86";
   drawPixelText(fitPixelText(combatNotice.text, PIXEL_FONT_UI_8, width - 10), x + width / 2, y + 3, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+}
+
+function drawFishCatchNotice(nowMs) {
+  if (!fishCatchNotice || nowMs >= fishCatchNotice.expiresAtMs) return;
+  const width = Math.min(240, measurePixelTextWidth(fishCatchNotice.text, PIXEL_FONT_UI_8) + 12);
+  const x = Math.round((SCREEN_W - width) / 2);
+  const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 33;
+  const warn = fishCatchNotice.tone === "warn";
+  ctx.fillStyle = warn ? "rgba(80, 61, 42, 0.94)" : "rgba(31, 67, 70, 0.92)";
+  ctx.fillRect(x, y, width, 13);
+  ctx.strokeStyle = warn ? "#e3a857" : "#8ac0b4";
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
+  ctx.fillStyle = warn ? "#ffe6a6" : "#d6f2e8";
+  drawPixelText(fitPixelText(fishCatchNotice.text, PIXEL_FONT_UI_8, width - 10), x + width / 2, y + 3, {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });

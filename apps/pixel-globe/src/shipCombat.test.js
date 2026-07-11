@@ -69,12 +69,17 @@ test("merchants do not initiate against the player but warships do", () => {
     ship("player", "pirate", "pirate", 0, 0, 30, 14),
     ship("merchant", "merchant", "portugal", 30, 0, 8, 0)
   ]);
+  const fishermanEncounter = updateShipCombatState(createShipCombatState(), [
+    ship("player", "pirate", "pirate", 0, 0, 30, 14),
+    ship("fisherman", "fisherman", "portugal", 30, 0, 8, 0)
+  ]);
   const warshipEncounter = updateShipCombatState(createShipCombatState(), [
     ship("player", "pirate", "pirate", 0, 0, 30, 14),
     ship("warship", "warship", "portugal", 30, 0, 30, 18)
   ]);
 
   assert.equal(merchantEncounter.engagementCount, 0);
+  assert.equal(fishermanEncounter.engagementCount, 0);
   assert.equal(warshipEncounter.engagementCount, 1);
 });
 

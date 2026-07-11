@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { advanceWorldEconomy, createWorldEconomy, tradeGoodById } from "./economy.js";
+import { createGameState } from "./gameState.js";
 import {
+  NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP,
@@ -57,7 +59,7 @@ test("NPC merchants carry finite cargo and realize profits over repeated port ca
 test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
-  const counts = { merchant: 0, warship: 0, pirate: 0 };
+  const counts = { merchant: 0, fisherman: 0, warship: 0, pirate: 0 };
   let cheap = 0;
   let expensive = 0;
 
@@ -72,18 +74,23 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
     } else if (ship.role === NPC_ROLE_WARSHIP) {
       assert.ok(stats.cannons > 0);
       assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
+    } else if (ship.role === NPC_ROLE_FISHERMAN) {
+      assert.equal(stats.cannons <= 4, true);
+      assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
     } else {
       assert.equal(ship.role, NPC_ROLE_MERCHANT);
       assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
     }
   }
 
+  assert.ok(counts.merchant > counts.fisherman, JSON.stringify(counts));
   assert.ok(counts.merchant > counts.warship + counts.pirate, JSON.stringify(counts));
+  assert.ok(counts.fisherman > 0, JSON.stringify(counts));
   assert.ok(counts.warship > counts.pirate, JSON.stringify(counts));
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
 });
 
-test("NPC merchants only plan trade calls at friendly or neutral ports", () => {
+test("NPC traders only plan trade calls at friendly or neutral ports", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
 
@@ -93,7 +100,9 @@ test("NPC merchants only plan trade calls at friendly or neutral ports", () => {
       advanceWorldEconomy(economy, minute);
       updateNpcSeaRouteSystem(routes, minute);
     }
-    for (const ship of routes.ships.filter((item) => item.role === NPC_ROLE_MERCHANT)) {
+    for (const ship of routes.ships.filter((item) => (
+      item.role === NPC_ROLE_MERCHANT || item.role === NPC_ROLE_FISHERMAN
+    ))) {
       const plannedPorts = [ship.plan?.destination, ship.finalDestination].filter(Boolean);
       for (const plannedPort of plannedPorts) {
         assert.notEqual(
@@ -104,6 +113,31 @@ test("NPC merchants only plan trade calls at friendly or neutral ports", () => {
       }
     }
   }
+});
+
+test("NPC fishermen choose generated fishing grounds and deplete them offscreen", () => {
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, fishState });
+
+  assert.ok(routes.fishingGrounds.length > 0);
+  const fisherman = routes.ships.find((ship) => (
+    ship.role === NPC_ROLE_FISHERMAN &&
+    ship.plan?.destination?.isFishingGround
+  ));
+  assert.ok(fisherman, "expected at least one fisherman bound for a generated fishing ground");
+  const ground = fisherman.plan.destination;
+  const stockBefore = Object.values(fishState.memory.fish.stocks)
+    .find((stock) => stock.tileId === ground.habitat.tileId)?.population ?? ground.initialPopulation;
+
+  updateNpcSeaRouteSystem(routes, Math.ceil(fisherman.plan.endMinute + 1));
+
+  assert.equal(fisherman.currentPort.isFishingGround, true);
+  assert.ok((fisherman.cargo.fish || 0) > 0);
+  const stockAfter = Object.values(fishState.memory.fish.stocks)
+    .find((stock) => stock.tileId === ground.habitat.tileId);
+  assert.ok(stockAfter.population < stockBefore);
+  assert.equal(fisherman.plan.destination.isFishingGround, undefined);
 });
 
 test("surrender transfers stores and grants protection until a safe port", () => {

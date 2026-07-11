@@ -3,7 +3,8 @@ import {
   cargoRows,
   cargoUsed,
   ledgerEntries,
-  realizedTradePnl
+  realizedTradePnl,
+  shipItemRows
 } from "./gameState.js";
 import { factionById } from "./factions.js";
 import { SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
@@ -145,8 +146,20 @@ function shipPapers(gameState) {
   const papers = [];
   const activeQuest = gameState.memory.quests.active;
   if (activeQuest) papers.push(activeQuestPaper(activeQuest));
+  papers.push(...shipItemPapers(shipItemRows(gameState)));
   papers.push(...letterOfMarquePapers(gameState.relations.lettersOfMarque));
   return papers;
+}
+
+function shipItemPapers(items) {
+  return items.map((item) => ({
+    kind: "item",
+    title: item.label,
+    issuer: "Ship stores",
+    route: "Equipment",
+    detail: item.quantity > 1 ? `${item.detail} x${item.quantity}` : item.detail,
+    simMinute: null
+  }));
 }
 
 function activeQuestPaper(quest) {

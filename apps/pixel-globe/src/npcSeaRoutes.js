@@ -19,8 +19,13 @@ import {
   maximumPortPurchaseQuantity,
   maximumPortSaleQuantity,
   planNpcTrade,
+  quotePortPurchase,
   tradeGoodById
 } from "./economy.js";
+import {
+  fisheryForHabitat,
+  harvestFishery
+} from "./fishEcology.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -46,12 +51,21 @@ const PIRATE_HIDEOUT_MIN_STAY_MINUTES = 18 * 60;
 const PIRATE_HIDEOUT_STAY_SPREAD_MINUTES = 30 * 60;
 const PIRATE_HIDEOUT_DANGER_RADIUS_KM = 120;
 const PIRATE_HIDEOUT_DANGER_HOLD_MINUTES = 6 * 60;
+const NPC_FISH_GOOD_ID = "fish";
+const FISHING_GROUND_TARGET = 220;
+const FISHING_GROUND_SAMPLE_DISTANCES_KM = Object.freeze([220, 520, 1100, 2100, 3400]);
+const FISHING_GROUND_SAMPLE_BEARINGS_DEG = Object.freeze([0, 45, 90, 135, 180, 225, 270, 315]);
+const FISHING_GROUND_MIN_EXPECTED_CATCH = 5;
+const FISHING_GROUND_TRAVEL_COST_PER_KM = 0.035;
+const FISHING_GROUND_LONG_RANGE_COST_PER_KM = 0.018;
+const FISHING_GROUND_CATCH_RATIO = 0.72;
 
 export const NPC_ROLE_MERCHANT = "merchant";
+export const NPC_ROLE_FISHERMAN = "fisherman";
 export const NPC_ROLE_WARSHIP = "warship";
 export const NPC_ROLE_PIRATE = "pirate";
 
-const NPC_ROLE_SET = new Set([NPC_ROLE_MERCHANT, NPC_ROLE_WARSHIP, NPC_ROLE_PIRATE]);
+const NPC_ROLE_SET = new Set([NPC_ROLE_MERCHANT, NPC_ROLE_FISHERMAN, NPC_ROLE_WARSHIP, NPC_ROLE_PIRATE]);
 const PIRATE_SHIP_SLUGS = Object.freeze([
   "pirate-sloop",
   "pirate-brigantine",
@@ -60,6 +74,7 @@ const PIRATE_SHIP_SLUGS = Object.freeze([
 ]);
 
 export const NPC_SHIP_SLUGS = Object.freeze([
+  "fishing-lugger",
   "small-junk",
   "medium-junk",
   "large-junk",
@@ -157,32 +172,38 @@ const LANE_EDGES = Object.freeze([
 
 const FLEET_PROFILES = Object.freeze([
   profile("east-asia", 34, {
+    fishers: ["sampan", "small-junk"],
     merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
     warships: ["small-junk", "medium-junk", "large-junk"]
   }, isEastAsiaPort, "regional"),
   profile("indian-ocean", 34, {
+    fishers: ["small-dhow", "dhow-felucca", "felucca"],
     merchants: ["small-dhow", "dhow-felucca", "lateen-dhow", "dhow"],
     warships: ["lateen-dhow", "dhow", "xebec"]
   }, isIndianOceanPort, "regional"),
   profile("mediterranean", 28, {
+    fishers: ["fishing-lugger", "felucca", "cutter"],
     merchants: ["felucca", "lateen-xebec", "xebec"],
     warships: ["lateen-xebec", "xebec", "caravel", "galleon"]
   }, isMediterraneanPort, "regional"),
   profile("atlantic-coast", 30, {
+    fishers: ["fishing-lugger", "cutter", "felucca"],
     merchants: ["cutter", "square-sail-trader", "caravel", "small-carrack", "brigantine", "fluyt"],
     warships: ["square-rigged-caravel", "caravel", "brigantine", "corvette", "frigate"]
   }, isAtlanticPort, "regional"),
   profile("cape-trade", 44, {
+    fishers: ["fishing-lugger", "cutter", "small-dhow"],
     merchants: ["square-sail-trader", "caravel", "small-carrack", "brigantine", "carrack", "fluyt", "galleon"],
     warships: ["caravel", "brigantine", "corvette", "galleon", "frigate"]
   }, isLongRangePort, "interregional"),
   profile("wide-world", 24, {
+    fishers: ["fishing-lugger", "cutter", "small-dhow"],
     merchants: ["caravel", "small-carrack", "brigantine", "carrack", "fluyt", "galleon"],
     warships: ["brigantine", "corvette", "galleon", "frigate", "ship-of-the-line"]
   }, isAnyUsablePort, "interregional")
 ]);
 
-export function createNpcSeaRouteSystem({ ports, startMinute, economy }) {
+export function createNpcSeaRouteSystem({ ports, startMinute, economy, fishState = null }) {
   if (!economy) throw new Error("NPC sea routes require a world economy");
   const usablePorts = ports
     .filter(isAnyUsablePort)
@@ -206,6 +227,8 @@ export function createNpcSeaRouteSystem({ ports, startMinute, economy }) {
     baseEdges,
     routeCache: new Map(),
     edgeCostCache: new Map(),
+    fishState,
+    fishingGrounds: fishState ? buildFishingGrounds(usablePorts, fishState, startMinute) : [],
     pirateHideouts: choosePirateHideouts(usablePorts),
     pirateHideoutDangerUntil: new Map(),
     ships: [],
@@ -230,6 +253,75 @@ function choosePirateHideouts(ports) {
       hashString32(`${b.tileId}|${b.city}|pirate-hideout`)
     ))
     .slice(0, count);
+}
+
+function buildFishingGrounds(ports, fishState, startMinute) {
+  const byKey = new Map();
+  for (const port of ports) {
+    for (const distanceKmValue of FISHING_GROUND_SAMPLE_DISTANCES_KM) {
+      for (const bearingDeg of FISHING_GROUND_SAMPLE_BEARINGS_DEG) {
+        const point = destinationPoint(port, bearingDeg * DEG_TO_RAD, distanceKmValue);
+        if (Math.abs(point.lat) > 70) continue;
+        const key = fishingGroundKey(point);
+        if (byKey.has(key)) continue;
+        const habitat = fishingGroundHabitat(point, distanceKmValue);
+        const fishery = fisheryForHabitat(fishState, habitat, startMinute);
+        if (!fishery || fishery.population < FISHING_GROUND_MIN_EXPECTED_CATCH) continue;
+        const ground = {
+          tileId: habitat.tileId,
+          isFishingGround: true,
+          city: `Fishing grounds ${key}`,
+          displayCity: fishingGroundLabel(point, fishery.speciesLabel),
+          country: "Open sea",
+          cityType: "northern-european",
+          population: Math.max(1000, fishery.capacity * 100),
+          factionId: NEUTRAL_FACTION_ID,
+          routeRegion: portRouteRegion(point),
+          routeAnchors: anchorIdsForPort(point),
+          lat: point.lat,
+          lon: point.lon,
+          habitat,
+          speciesLabel: fishery.speciesLabel,
+          initialDensity: fishery.density,
+          initialPopulation: fishery.population
+        };
+        if (ground.routeAnchors.length === 0) continue;
+        byKey.set(key, ground);
+      }
+    }
+  }
+  return [...byKey.values()]
+    .sort((a, b) => (
+      fishingGroundBaseScore(b) - fishingGroundBaseScore(a) ||
+      a.tileId - b.tileId
+    ))
+    .slice(0, FISHING_GROUND_TARGET);
+}
+
+function fishingGroundBaseScore(ground) {
+  const coldWaterBoost = Math.abs(ground.lat) >= 42 ? 1.35 : 1;
+  return ground.initialPopulation * ground.initialDensity * coldWaterBoost;
+}
+
+function fishingGroundHabitat(point, distanceKmValue) {
+  const latBucket = Math.round((point.lat + 90) * 10);
+  const lonBucket = Math.round((normalizeLonDeg(point.lon) + 180) * 10);
+  return {
+    tileId: -1 - (latBucket * 3600 + lonBucket),
+    kind: distanceKmValue <= 620 ? "coastal" : "open-ocean",
+    lat: point.lat,
+    lon: point.lon
+  };
+}
+
+function fishingGroundKey(point) {
+  return `${Math.round(point.lat * 10)},${Math.round(normalizeLonDeg(point.lon) * 10)}`;
+}
+
+function fishingGroundLabel(point, speciesLabel) {
+  const latLabel = `${Math.abs(point.lat).toFixed(1)}${point.lat >= 0 ? "N" : "S"}`;
+  const lonLabel = `${Math.abs(normalizeLonDeg(point.lon)).toFixed(1)}${point.lon >= 0 ? "E" : "W"}`;
+  return `${speciesLabel} grounds ${latLabel} ${lonLabel}`;
 }
 
 export function updateNpcSeaRouteSystem(system, clockMinutes) {
@@ -266,6 +358,7 @@ export function npcShipSnapshots(system, clockMinutes) {
 
 export function npcRoleLabel(role) {
   if (role === NPC_ROLE_MERCHANT) return "Merchant";
+  if (role === NPC_ROLE_FISHERMAN) return "Fisherman";
   if (role === NPC_ROLE_WARSHIP) return "Warship";
   if (role === NPC_ROLE_PIRATE) return "Pirate";
   throw new Error(`Unknown NPC ship role: ${role}`);
@@ -355,7 +448,7 @@ function createNpcFleet(system, startMinute) {
     for (let i = 0; i < count; i++) {
       const seed = hashString32(`${profileSpec.id}|${i}|npc`);
       const origin = pool[seed % pool.length];
-      const role = npcRoleForSeed(seed, origin.factionId);
+      const role = npcRoleForSeed(seed, origin.factionId, profileSpec.mode);
       const slug = npcShipSlugForRole(profileSpec, role, seed);
       const stats = shipStatsForSlug(slug);
       const ship = {
@@ -364,7 +457,7 @@ function createNpcFleet(system, startMinute) {
         role,
         profileId: profileSpec.id,
         mode: profileSpec.mode,
-        slugs: role === NPC_ROLE_MERCHANT ? profileSpec.merchantSlugs : profileSpec.warshipSlugs,
+        slugs: profileSlugsForRole(profileSpec, role),
         slug,
         seed,
         hitPoints: stats.hitPoints,
@@ -372,7 +465,7 @@ function createNpcFleet(system, startMinute) {
         cargoCapacity: stats.cargoCapacity,
         cargo: {},
         cargoCost: {},
-        specie: role === NPC_ROLE_MERCHANT ? 900 + stats.cargoCapacity * 18 : 250 + stats.cannons * 12,
+        specie: npcStartingSpecieForRole(role, stats),
         lifetimeProfit: 0,
         portVisits: 0,
         graceUntilPortVisit: 0,
@@ -396,21 +489,31 @@ function createNpcFleet(system, startMinute) {
   return ships.slice(0, NPC_FLEET_TARGET);
 }
 
-function npcRoleForSeed(seed, originFactionId) {
+function npcRoleForSeed(seed, originFactionId, profileMode) {
   const roll = (seed >>> 5) % 100;
-  if (roll < 70) return NPC_ROLE_MERCHANT;
-  if (roll < 90) return originFactionId === NEUTRAL_FACTION_ID ? NPC_ROLE_MERCHANT : NPC_ROLE_WARSHIP;
+  if (roll < 62) return NPC_ROLE_MERCHANT;
+  if (roll < 76 && profileMode === "regional") return NPC_ROLE_FISHERMAN;
+  if (roll < 91) return originFactionId === NEUTRAL_FACTION_ID ? NPC_ROLE_MERCHANT : NPC_ROLE_WARSHIP;
   return NPC_ROLE_PIRATE;
 }
 
 function npcShipSlugForRole(profileSpec, role, seed) {
   if (!NPC_ROLE_SET.has(role)) throw new Error(`Unknown NPC ship role: ${role}`);
-  const pool = role === NPC_ROLE_PIRATE
-    ? PIRATE_SHIP_SLUGS
-    : role === NPC_ROLE_WARSHIP
-      ? profileSpec.warshipSlugs
-      : profileSpec.merchantSlugs;
+  const pool = profileSlugsForRole(profileSpec, role);
   return weightedCheapShipSlug(pool, hashString32(`${seed}|${role}|hull`));
+}
+
+function profileSlugsForRole(profileSpec, role) {
+  if (role === NPC_ROLE_PIRATE) return PIRATE_SHIP_SLUGS;
+  if (role === NPC_ROLE_WARSHIP) return profileSpec.warshipSlugs;
+  if (role === NPC_ROLE_FISHERMAN) return profileSpec.fisherSlugs;
+  return profileSpec.merchantSlugs;
+}
+
+function npcStartingSpecieForRole(role, stats) {
+  if (role === NPC_ROLE_MERCHANT) return 900 + stats.cargoCapacity * 18;
+  if (role === NPC_ROLE_FISHERMAN) return 120 + stats.cargoCapacity * 4;
+  return 250 + stats.cannons * 12;
 }
 
 function weightedCheapShipSlug(slugs, seed) {
@@ -497,7 +600,11 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     if (!shipHasCombatGrace(ship) || reachedSafePort) ship.hitPoints = ship.maxHitPoints;
     if (reachedSafePort) ship.graceUntilPortVisit = 0;
     const reachedTradingDestination = !ship.finalDestination || samePort(ship.currentPort, ship.finalDestination);
-    if (ship.role === NPC_ROLE_MERCHANT && reachedTradingDestination) {
+    if (ship.role === NPC_ROLE_FISHERMAN && reachedTradingDestination) {
+      ship.finalDestination = null;
+      if (ship.currentPort.isFishingGround) harvestNpcFishingGround(system, ship, ship.currentPort, ship.plan.endMinute);
+      else if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
+    } else if (ship.role === NPC_ROLE_MERCHANT && reachedTradingDestination) {
       ship.finalDestination = null;
       sellNpcCargo(system, ship, ship.currentPort);
     } else if (reachedTradingDestination) {
@@ -513,13 +620,14 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
 }
 
 function chooseNpcDestination(system, ship, origin) {
+  if (ship.role === NPC_ROLE_FISHERMAN) return chooseFishermanDestination(system, ship, origin);
   const profileSpec = FLEET_PROFILES.find((item) => item.id === ship.profileId);
   if (!profileSpec) throw new Error(`Unknown NPC fleet profile: ${ship.profileId}`);
   const seed = hashString32(`${ship.id}|${origin.tileId}|dest`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
     .filter((port) => !shipHasCombatGrace(ship) || npcPortIsSafeForShip(system, ship, port))
-    .filter((port) => ship.role !== NPC_ROLE_MERCHANT || npcMerchantCanTradeAtPort(ship, port))
+    .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(ship, port))
     .filter((port) => profileSpec.mode === "regional"
       ? profileSpec.portPredicate(port) && distanceKm(origin, port) >= NPC_MIN_TRIP_DISTANCE_KM
       : port.routeRegion !== origin.routeRegion && longRangePairAllowed(origin, port))
@@ -537,7 +645,98 @@ function chooseNpcDestination(system, ship, origin) {
   return candidates[0].port;
 }
 
+function chooseFishermanDestination(system, ship, origin) {
+  if (origin.isFishingGround || npcCargoUnits(ship) > 0) {
+    return chooseFishermanSalePort(system, ship, origin, Math.max(1, ship.cargo[NPC_FISH_GOOD_ID] || ship.cargoCapacity));
+  }
+  const ground = chooseFishermanFishingGround(system, ship, origin);
+  if (ground) return ground;
+  return chooseFishermanSalePort(system, ship, origin, Math.max(1, Math.floor(ship.cargoCapacity * 0.5)));
+}
+
+function chooseFishermanFishingGround(system, ship, origin) {
+  if (!system.fishState || system.fishingGrounds.length === 0) return null;
+  const seed = hashString32(`${ship.id}|${origin.tileId}|fishery`);
+  const candidates = system.fishingGrounds
+    .map((ground) => {
+      const forecast = fishermanGroundForecast(system, ship, origin, ground);
+      return forecast ? { ground, ...forecast } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => (
+      b.score - a.score ||
+      destinationRank(origin, a.ground, seed) - destinationRank(origin, b.ground, seed)
+    ));
+  return candidates[0]?.ground || null;
+}
+
+function fishermanGroundForecast(system, ship, origin, ground) {
+  const fishery = fisheryForHabitat(system.fishState, ground.habitat, system.economy.lastMinute);
+  if (!fishery) return null;
+  const expectedCatch = Math.min(
+    ship.cargoCapacity,
+    Math.max(0, Math.floor(fishery.population * FISHING_GROUND_CATCH_RATIO))
+  );
+  if (expectedCatch < FISHING_GROUND_MIN_EXPECTED_CATCH) return null;
+  const salePort = chooseFishermanSalePort(system, ship, ground, expectedCatch);
+  if (!salePort) return null;
+  const saleValue = quotePortPurchase(system.economy, salePort, NPC_FISH_GOOD_ID, expectedCatch);
+  const travelKm = distanceKm(origin, ground) + distanceKm(ground, salePort);
+  const longRangeKm = Math.max(0, distanceKm(origin, ground) - 900);
+  const travelCost = travelKm * FISHING_GROUND_TRAVEL_COST_PER_KM +
+    longRangeKm * FISHING_GROUND_LONG_RANGE_COST_PER_KM;
+  const densityBonus = 1 + Math.max(0, fishery.density - 0.35) * 0.42;
+  return {
+    expectedCatch,
+    salePort,
+    score: saleValue * densityBonus - travelCost
+  };
+}
+
+function chooseFishermanSalePort(system, ship, origin, quantity) {
+  const safeQuantity = Math.max(1, Math.min(ship.cargoCapacity, Math.floor(quantity)));
+  const seed = hashString32(`${ship.id}|${origin.tileId}|fish-sale`);
+  const candidates = system.ports
+    .filter((port) => !samePort(port, origin))
+    .filter((port) => npcMerchantCanTradeAtPort(ship, port))
+    .map((port) => ({
+      port,
+      score: fishermanSalePortScore(system, origin, port, safeQuantity)
+    }))
+    .sort((a, b) => (
+      b.score - a.score ||
+      destinationRank(origin, a.port, seed) - destinationRank(origin, b.port, seed)
+    ));
+  if (candidates.length === 0) {
+    throw new Error(`No fisherman sale port candidates for ${ship.id} from ${portName(origin)}`);
+  }
+  return candidates[0].port;
+}
+
+function fishermanSalePortScore(system, origin, port, quantity) {
+  const saleValue = quotePortPurchase(system.economy, port, NPC_FISH_GOOD_ID, quantity);
+  const travelCost = distanceKm(origin, port) * FISHING_GROUND_TRAVEL_COST_PER_KM;
+  const routePreference = port.routeRegion === "europe" ? 24 : 0;
+  return saleValue + routePreference - travelCost;
+}
+
+function harvestNpcFishingGround(system, ship, ground, clockMinutes) {
+  if (!system.fishState) return null;
+  const fishery = fisheryForHabitat(system.fishState, ground.habitat, clockMinutes);
+  if (!fishery) return null;
+  const requested = Math.max(1, Math.floor(ship.cargoCapacity * FISHING_GROUND_CATCH_RATIO));
+  const result = harvestFishery(system.fishState, fishery, requested, clockMinutes, {
+    actor: "npc",
+    ignoreCooldown: true
+  });
+  if (result.quantity <= 0) return result;
+  ship.cargo[NPC_FISH_GOOD_ID] = (ship.cargo[NPC_FISH_GOOD_ID] || 0) + result.quantity;
+  ship.cargoCost[NPC_FISH_GOOD_ID] = ship.cargoCost[NPC_FISH_GOOD_ID] || 0;
+  return result;
+}
+
 function npcPortIsSafeForShip(system, ship, port) {
+  if (port.isFishingGround) return true;
   if (ship.role === NPC_ROLE_PIRATE && system.pirateHideouts.some((hideout) => hideout.tileId === port.tileId)) {
     return true;
   }
@@ -576,6 +775,10 @@ function enterPirateHideout(ship, arrivalMinute) {
 
 function npcMerchantCanTradeAtPort(ship, port) {
   return diplomacyBetween(ship.factionId, port.factionId) !== DIPLOMACY_WAR;
+}
+
+function npcNeedsFriendlyTradePort(ship) {
+  return ship.role === NPC_ROLE_MERCHANT || ship.role === NPC_ROLE_FISHERMAN;
 }
 
 function shipHasCombatGrace(ship) {
@@ -628,8 +831,8 @@ function buyNpcCargo(system, ship, origin, destination) {
 }
 
 function sellNpcCargo(system, ship, port) {
-  if (ship.role === NPC_ROLE_MERCHANT && !npcMerchantCanTradeAtPort(ship, port)) {
-    throw new Error(`NPC merchant ${ship.id} cannot trade at hostile port ${portName(port)}`);
+  if (npcNeedsFriendlyTradePort(ship) && !npcMerchantCanTradeAtPort(ship, port)) {
+    throw new Error(`NPC ${ship.role} ${ship.id} cannot trade at hostile port ${portName(port)}`);
   }
   for (const [goodId, held] of Object.entries(ship.cargo)) {
     tradeGoodById(goodId);
@@ -681,7 +884,7 @@ function npcCargoUnits(ship) {
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {
   const candidates = system.ports
     .filter((port) => !samePort(port, origin) && !samePort(port, desiredDestination))
-    .filter((port) => ship.role !== NPC_ROLE_MERCHANT || npcMerchantCanTradeAtPort(ship, port))
+    .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(ship, port))
     .filter((port) => port.routeRegion === origin.routeRegion || distanceKm(origin, port) <= NPC_ROUTE_HOP_MAX_KM)
     .map((port) => ({
       port,
@@ -1245,13 +1448,14 @@ function laneEdge(a, b, kind) {
 }
 
 function profile(id, count, shipPools, portPredicate, mode) {
+  const fisherSlugs = Object.freeze([...(shipPools.fishers || shipPools.merchants)]);
   const merchantSlugs = Object.freeze([...shipPools.merchants]);
   const warshipSlugs = Object.freeze([...shipPools.warships]);
-  if (merchantSlugs.length === 0 || warshipSlugs.length === 0) {
-    throw new Error(`NPC fleet profile ${id} needs merchant and warship hulls`);
+  if (fisherSlugs.length === 0 || merchantSlugs.length === 0 || warshipSlugs.length === 0) {
+    throw new Error(`NPC fleet profile ${id} needs fisher, merchant, and warship hulls`);
   }
-  for (const slug of [...merchantSlugs, ...warshipSlugs]) shipStatsForSlug(slug);
-  return Object.freeze({ id, count, merchantSlugs, warshipSlugs, portPredicate, mode });
+  for (const slug of [...fisherSlugs, ...merchantSlugs, ...warshipSlugs]) shipStatsForSlug(slug);
+  return Object.freeze({ id, count, fisherSlugs, merchantSlugs, warshipSlugs, portPredicate, mode });
 }
 
 function portNodeId(port, role) {
@@ -1298,6 +1502,28 @@ function distanceKm(a, b) {
   const s = Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(Math.max(0, 1 - s)));
+}
+
+function destinationPoint(origin, bearingRad, distanceKmValue) {
+  const angularDistance = distanceKmValue / EARTH_RADIUS_KM;
+  const lat1 = origin.lat * DEG_TO_RAD;
+  const lon1 = origin.lon * DEG_TO_RAD;
+  const sinLat1 = Math.sin(lat1);
+  const cosLat1 = Math.cos(lat1);
+  const sinDistance = Math.sin(angularDistance);
+  const cosDistance = Math.cos(angularDistance);
+  const lat2 = Math.asin(
+    sinLat1 * cosDistance +
+    cosLat1 * sinDistance * Math.sin(bearingRad)
+  );
+  const lon2 = lon1 + Math.atan2(
+    Math.cos(bearingRad) * sinDistance * cosLat1,
+    cosDistance - sinLat1 * Math.sin(lat2)
+  );
+  return {
+    lat: lat2 * RAD_TO_DEG,
+    lon: normalizeLonDeg(lon2 * RAD_TO_DEG)
+  };
 }
 
 function bearingEastNorthRad(a, b) {

@@ -106,14 +106,16 @@ test("ship papers include active deliveries and letters of marque", () => {
     maxHitPoints: stats.hitPoints
   }, gameState);
 
-  assert.deepEqual(view.papers.map((paper) => paper.kind), ["delivery", "marque"]);
+  assert.deepEqual(view.papers.map((paper) => paper.kind), ["delivery", "item", "marque"]);
   assert.equal(view.papers[0].issuer, "Kingdom of Portugal");
   assert.equal(view.papers[0].route, "Lisbon -> Porto");
   assert.equal(view.papers[0].detail, "Reward 120 DB");
-  assert.equal(view.papers[1].issuer, "Kingdom of England");
-  assert.equal(view.papers[1].title, "English letter of marque");
-  assert.equal(view.papers[1].simMinute, 1440);
-  assert.equal(shipPapersPage(view, 0).rows.length, 2);
+  assert.equal(view.papers[1].title, "Fishing net");
+  assert.equal(view.papers[1].issuer, "Ship stores");
+  assert.equal(view.papers[2].issuer, "Kingdom of England");
+  assert.equal(view.papers[2].title, "English letter of marque");
+  assert.equal(view.papers[2].simMinute, 1440);
+  assert.equal(shipPapersPage(view, 0).rows.length, 3);
 });
 
 test("ship papers show an active passenger aboard", () => {

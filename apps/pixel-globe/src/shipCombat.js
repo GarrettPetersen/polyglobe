@@ -5,6 +5,7 @@ import {
   diplomacyBetween
 } from "./factions.js";
 import {
+  NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP
@@ -141,7 +142,7 @@ export function npcShouldOfferSurrender(npc, player) {
 }
 
 function combatMode(entity, enemies) {
-  if (entity.role === NPC_ROLE_MERCHANT) return COMBAT_MODE_FLEE;
+  if (entity.role === NPC_ROLE_MERCHANT || entity.role === NPC_ROLE_FISHERMAN) return COMBAT_MODE_FLEE;
   const health = entity.hitPoints / entity.maxHitPoints;
   if (health <= 0.36) return COMBAT_MODE_FLEE;
   const strongestEnemy = Math.max(...enemies.map(combatPower));
@@ -161,7 +162,7 @@ function chooseTarget(entity, enemies) {
 
 function validateEntity(entity) {
   if (!entity || typeof entity.id !== "string" || entity.id === "") throw new Error("Combat ship needs an id");
-  if (![NPC_ROLE_MERCHANT, NPC_ROLE_WARSHIP, NPC_ROLE_PIRATE].includes(entity.role)) {
+  if (![NPC_ROLE_MERCHANT, NPC_ROLE_FISHERMAN, NPC_ROLE_WARSHIP, NPC_ROLE_PIRATE].includes(entity.role)) {
     throw new Error(`Invalid combat role for ${entity.id}: ${entity.role}`);
   }
   if (!Number.isFinite(entity.x) || !Number.isFinite(entity.y)) throw new Error(`Invalid combat position: ${entity.id}`);
