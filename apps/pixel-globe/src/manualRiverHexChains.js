@@ -48,6 +48,12 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     // Yangtze/Han/Min river spurs.
     [61297, 15375, 61299, 3863],
     [62323, 62324, 62326, 62325],
+    // Grand Canal from Beijing/Tianjin through the north China plain to Hangzhou.
+    [
+      15605, 62180, 15603, 62177, 15604, 62429, 15662, 62432, 62465,
+      15671, 62481, 15673, 62476, 62474, 62402, 61616, 61617, 61620,
+      61619, 61699, 61707, 15481, 61709, 3897, 61678,
+    ],
     // Mekong/Tonle Sap approach for Angkor.
     [23399, 93282, 23390, 93245, 92992],
     // Dardanelles passage from the Aegean side into the Sea of Marmara.

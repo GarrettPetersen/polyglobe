@@ -26,6 +26,17 @@ export function createPortDialogueSession(city) {
   };
 }
 
+export function createPassengerDialogueSession(city, quest) {
+  if (!quest || quest.kind !== "passenger") throw new Error("Passenger dialogue requires a passenger quest");
+  return {
+    kind: "passenger",
+    cityTileId: city.tileId,
+    questId: quest.id,
+    selectedIndex: 0,
+    feedback: null
+  };
+}
+
 export function createShipDialogueSession(ship, { attackReason = null } = {}) {
   if (attackReason !== null && (typeof attackReason !== "string" || attackReason.trim() === "")) {
     throw new Error("Ship combat hail requires a reason");
@@ -209,6 +220,9 @@ export function selectPortDialogueOption(
     session.feedback = null;
     return { closed: false };
   }
+  if (action.type === "open-passenger") {
+    return { closed: false, action: { type: "open-passenger", quest: action.quest } };
+  }
   if (action.type === "buy") {
     const result = buyGood(gameState, economy, city, action.goodId, 1, context);
     session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
@@ -222,14 +236,18 @@ export function selectPortDialogueOption(
   }
   if (action.type === "accept-quest") {
     acceptQuest(gameState, action.quest);
-    session.feedback = `Accepted delivery to ${action.quest.destinationName}.`;
+    session.feedback = action.quest.kind === "passenger"
+      ? `Accepted passage to ${action.quest.destinationName}.`
+      : `Accepted delivery to ${action.quest.destinationName}.`;
     session.nodeId = "quest";
     session.selectedIndex = 0;
     return { closed: false };
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
-    session.feedback = `Delivered. Earned ${quest.reward} db. Standing improved.`;
+    session.feedback = quest.kind === "passenger"
+      ? `${passengerName(quest)} went ashore. Earned ${quest.reward} db.`
+      : `Delivered. Earned ${quest.reward} db. Standing improved.`;
     session.nodeId = "root";
     session.selectedIndex = 0;
     return { closed: false };
@@ -247,6 +265,94 @@ export function selectPortDialogueOption(
   throw new Error(`Unknown dialogue action: ${action.type}`);
 }
 
+export function passengerDialogueView(session, city, quest, gameState) {
+  assertPassengerDialogueSubject(session, city, quest);
+  const active = gameState?.memory?.quests?.active || null;
+  const speaker = `${passengerName(quest)}, passenger`;
+  const expressionId = questExpressionId(quest);
+  if (active?.id === quest.id && quest.destinationTileId === city.tileId) {
+    return {
+      speaker,
+      expressionId: "happy",
+      text: quest.dialogue?.arrival || `${cityLabel(city)} at last. Here is the fare I promised.`,
+      feedback: session.feedback,
+      options: [
+        option(`Set passenger ashore  ${quest.reward} db`, { type: "complete-passenger" }),
+        option("Not yet", { type: "close" })
+      ]
+    };
+  }
+  if (active?.id === quest.id) {
+    return {
+      speaker,
+      expressionId: "neutral",
+      text: quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
+      feedback: session.feedback,
+      options: [
+        option("Leave", { type: "close" })
+      ]
+    };
+  }
+  if (active && active.id !== quest.id) {
+    return {
+      speaker,
+      expressionId: "neutral",
+      text: `Your ship is already pledged to ${active.destinationName}. I will wait here if you return.`,
+      feedback: session.feedback,
+      options: [
+        option("Leave", { type: "close" })
+      ]
+    };
+  }
+  return {
+    speaker,
+    expressionId,
+    text: quest.dialogue?.offer || `I need passage to ${quest.destinationName}. I can pay ${quest.reward} db on arrival.`,
+    feedback: session.feedback,
+    options: [
+      option(`Take passenger to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }),
+      option("Talk to factor", { type: "open-port" }),
+      option("Not now", { type: "close" })
+    ]
+  };
+}
+
+export function selectPassengerDialogueOption(
+  session,
+  city,
+  quest,
+  gameState,
+  optionIndex = session.selectedIndex,
+  context = {}
+) {
+  const view = passengerDialogueView(session, city, quest, gameState);
+  const selected = view.options[optionIndex];
+  if (!selected) throw new Error(`Invalid passenger dialogue option index: ${optionIndex}`);
+  const action = selected.action;
+  if (action.type === "close") return { closed: true, action: null };
+  if (action.type === "open-port") return { closed: false, action: { type: "open-port" } };
+  if (action.type === "accept-passenger") {
+    acceptQuest(gameState, quest);
+    return { closed: true, action: null };
+  }
+  if (action.type === "complete-passenger") {
+    completeQuest(gameState, city, context);
+    return { closed: true, action: null };
+  }
+  throw new Error(`Unknown passenger dialogue action: ${action.type}`);
+}
+
+function assertPassengerDialogueSubject(session, city, quest) {
+  if (!session || session.kind !== "passenger") throw new Error("Missing passenger dialogue session");
+  if (!city || session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active passenger session");
+  if (!quest || quest.kind !== "passenger" || session.questId !== quest.id) {
+    throw new Error("Dialogue passenger quest does not match active session");
+  }
+  if (quest.originTileId !== city.tileId && quest.destinationTileId !== city.tileId) {
+    throw new Error(`${cityLabel(city)} is not part of passenger quest ${quest.id}`);
+  }
+}
+
 function rootView(session, city, gameState, economy, context) {
   const memory = portMemory(gameState, city);
   const market = portEconomySummary(economy, city);
@@ -258,6 +364,12 @@ function rootView(session, city, gameState, economy, context) {
     option("Sell cargo", { type: "node", nodeId: "sell" }),
     option("Ask about work", { type: "node", nodeId: "quest" })
   ];
+  if (context.passengerOffer) {
+    options.splice(2, 0, option(`Speak with ${passengerName(context.passengerOffer)}`, {
+      type: "open-passenger",
+      quest: context.passengerOffer
+    }));
+  }
   if (letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
     options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));
   }
@@ -348,6 +460,18 @@ function cargoView(session, city, gameState) {
 function questView(session, city, gameState, portCities) {
   const questState = questStateForCity(gameState, city, portCities);
   if (questState.kind === "ready-to-complete") {
+    if (questState.quest.kind === "passenger") {
+      return {
+        speaker: speakerName(city),
+        expressionId: "neutral",
+        text: `${passengerName(questState.quest)} has reached ${questState.quest.destinationName}. Let them go ashore and settle the fare.`,
+        feedback: session.feedback,
+        options: [
+          option(`Set passenger ashore  ${questState.quest.reward} db`, { type: "complete-quest" }),
+          option("Back", { type: "node", nodeId: "root" })
+        ]
+      };
+    }
     return {
       speaker: speakerName(city),
       expressionId: "neutral",
@@ -397,6 +521,19 @@ function questView(session, city, gameState, portCities) {
     };
   }
   const quest = questState.quest;
+  if (quest.kind === "passenger") {
+    return {
+      speaker: speakerName(city),
+      expressionId: "neutral",
+      text: questState.kind === "in-progress-here"
+        ? `${passengerName(quest)} is waiting aboard for passage to ${quest.destinationName}.`
+        : `You are carrying ${passengerName(quest)} from ${quest.originName} to ${quest.destinationName}; finish that passage first.`,
+      feedback: session.feedback,
+      options: [
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
   return {
     speaker: speakerName(city),
     expressionId: "neutral",
@@ -477,11 +614,21 @@ function speakerName(city) {
   return `${characterName(city.character)}, ${cityLabel(city)} factor`;
 }
 
+function passengerName(quest) {
+  return quest?.passenger?.name || quest?.passengerName || "Passenger";
+}
+
 function characterName(character) {
   if (!character || typeof character.name !== "string" || character.name.trim() === "") {
     throw new Error("Dialogue character has no generated name");
   }
   return character.name;
+}
+
+function questExpressionId(quest) {
+  if (quest?.scenarioId === "shipwrecked-sailor") return "afraid";
+  if (quest?.scenarioId === "return-home" || quest?.scenarioId === "family-letter") return "sad";
+  return "neutral";
 }
 
 function portFlavor(city) {

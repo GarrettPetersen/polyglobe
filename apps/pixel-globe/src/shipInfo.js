@@ -152,6 +152,17 @@ function shipPapers(gameState) {
 function activeQuestPaper(quest) {
   const faction = quest.factionId ? factionById(quest.factionId) : null;
   const reward = Number.isFinite(quest.reward) ? `${Math.round(quest.reward)} DB` : "--";
+  if (quest.kind === "passenger") {
+    const passengerName = quest.passenger?.name || quest.passengerName || "Passenger";
+    return {
+      kind: "passenger",
+      title: `Passenger: ${passengerName}`,
+      issuer: passengerName,
+      route: `${quest.originName || "Unknown port"} -> ${quest.destinationName || "Unknown port"}`,
+      detail: `Fare ${reward}`,
+      simMinute: null
+    };
+  }
   return {
     kind: quest.kind || "quest",
     title: quest.kind === "delivery" ? "Sealed delivery packet" : "Quest document",

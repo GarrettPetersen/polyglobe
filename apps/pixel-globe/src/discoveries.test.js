@@ -4,6 +4,7 @@ import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
 import {
   CIRCUMNAVIGATION_DISCOVERY,
   EL_DORADO_DISCOVERY_ID,
+  GRAND_CANAL_DISCOVERY_ID,
   GREAT_PYRAMID_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_ID,
   WORLD_DISCOVERY_SPECS,
@@ -27,7 +28,7 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
     navigationMask,
     pixelsPerRadian: 2450
   });
-  assert.equal(discoveries.length, 18);
+  assert.equal(discoveries.length, 19);
   assert.equal(discoveries[0].id, GREAT_PYRAMID_DISCOVERY_ID);
   assert.equal(discoveries[1].id, LAKE_VICTORIA_DISCOVERY_ID);
   assert.ok(discoveries.every((item) => Number.isInteger(item.tileId)));
@@ -42,6 +43,12 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.ok(elDorado);
   assert.equal(elDorado.kind, "legend");
   assert.equal(elDorado.historicity, "legendary");
+  const grandCanal = discoveries.find((item) => item.id === GRAND_CANAL_DISCOVERY_ID);
+  assert.ok(grandCanal);
+  assert.equal(grandCanal.displayName, "The Grand Canal");
+  assert.equal(grandCanal.spriteKey, null);
+  assert.equal(grandCanal.historicity, "historical");
+  assert.equal(grandCanal.routeDirections.length, 8);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.kind, "achievement");
 });
 
@@ -55,6 +62,7 @@ test("world discovery registry is unique, complete, and explicit about historici
   assert.ok(WORLD_DISCOVERY_SPECS.every((item) => ["historical", "legendary"].includes(item.historicity)));
   const waterFeatures = new Set([
     LAKE_VICTORIA_DISCOVERY_ID,
+    GRAND_CANAL_DISCOVERY_ID,
     "landmark-niagara-falls",
     "landmark-victoria-falls",
     "landmark-lake-titicaca"

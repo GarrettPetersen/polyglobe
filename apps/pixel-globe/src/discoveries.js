@@ -2,8 +2,20 @@ import { findNearestTileId } from "./geodesic.js";
 
 export const GREAT_PYRAMID_DISCOVERY_ID = "landmark-great-pyramid";
 export const LAKE_VICTORIA_DISCOVERY_ID = "landmark-lake-victoria";
+export const GRAND_CANAL_DISCOVERY_ID = "landmark-grand-canal";
 export const EL_DORADO_DISCOVERY_ID = "legend-el-dorado";
 export const CIRCUMNAVIGATION_DISCOVERY_ID = "achievement-circumnavigation";
+
+const GRAND_CANAL_ROUTE_COORDINATES = Object.freeze([
+  Object.freeze({ lat: 39.92, lon: 116.21 }),
+  Object.freeze({ lat: 39.09, lon: 116.82 }),
+  Object.freeze({ lat: 37.32, lon: 115.87 }),
+  Object.freeze({ lat: 35.30, lon: 116.54 }),
+  Object.freeze({ lat: 34.18, lon: 117.64 }),
+  Object.freeze({ lat: 33.39, lon: 119.19 }),
+  Object.freeze({ lat: 32.00, lon: 119.73 }),
+  Object.freeze({ lat: 30.31, lon: 119.76 })
+]);
 
 export const WORLD_DISCOVERY_SPECS = Object.freeze([
   {
@@ -39,6 +51,19 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
   landmark("sigiriya", "Sigiriya", "The Lion Rock fortress", 7.9570, 80.7603, 165),
   landmark("angkor-wat", "Angkor Wat", "Temple of the Khmer", 13.4125, 103.8670, 200),
   landmark("great-wall", "The Great Wall", "The northern walls of China", 40.4319, 116.5704, 175),
+  {
+    id: GRAND_CANAL_DISCOVERY_ID,
+    kind: "landmark",
+    displayName: "The Grand Canal",
+    notice: "You have discovered the Grand Canal",
+    detail: "Beijing-Hangzhou waterway",
+    lat: 35.30,
+    lon: 116.54,
+    radiusPx: 120,
+    spriteKey: null,
+    routeCoordinates: GRAND_CANAL_ROUTE_COORDINATES,
+    historicity: "historical"
+  },
   landmark("borobudur", "Borobudur", "The mountain of a thousand Buddhas", -7.6079, 110.2038, 205),
   landmark("chichen-itza", "Chichen Itza", "The city at the edge of the well", 20.6843, -88.5678, 155),
   landmark("nazca-lines", "The Nazca Lines", "Figures drawn across the desert", -14.7390, -75.1300, 140),
@@ -76,8 +101,14 @@ export function buildWorldDiscoveries(graph, directionIndex, placement) {
   if (!graph || !directionIndex) throw new Error("Cannot place world discoveries without a geodesic graph");
   const navigationDistances = WORLD_DISCOVERY_SPECS.map((spec) => {
     const direction = latLonToDirection(spec.lat, spec.lon);
-    const navigationDistancePx = nearestNavigableDistancePx(direction, graph, placement);
-    return { spec, direction, navigationDistancePx };
+    const routeDirections = routeDirectionsForSpec(spec);
+    const discoveryDirections = routeDirections.length > 0 ? routeDirections : [direction];
+    const navigationDistancePx = Math.min(
+      ...discoveryDirections.map((discoveryDirection) =>
+        nearestNavigableDistancePx(discoveryDirection, graph, placement)
+      )
+    );
+    return { spec, direction, routeDirections, navigationDistancePx };
   });
   const unreachable = navigationDistances.filter(({ spec, navigationDistancePx }) =>
     navigationDistancePx > spec.radiusPx
@@ -89,7 +120,7 @@ export function buildWorldDiscoveries(graph, directionIndex, placement) {
     throw new Error(`World discoveries are unreachable from navigable water: ${details}`);
   }
 
-  return navigationDistances.map(({ spec, direction, navigationDistancePx }) => {
+  return navigationDistances.map(({ spec, direction, routeDirections, navigationDistancePx }) => {
     const tileId = findNearestTileId(graph, directionIndex, direction);
     const spriteTileId = spec.spriteKey
       ? findDedicatedLandmarkTile(spec, tileId, graph, placement)
@@ -97,11 +128,17 @@ export function buildWorldDiscoveries(graph, directionIndex, placement) {
     return Object.freeze({
       ...spec,
       direction,
+      routeDirections: routeDirections.length > 0 ? Object.freeze(routeDirections) : undefined,
       tileId,
       spriteTileId,
       navigationDistancePx
     });
   });
+}
+
+function routeDirectionsForSpec(spec) {
+  if (!Array.isArray(spec.routeCoordinates)) return [];
+  return spec.routeCoordinates.map(({ lat, lon }) => latLonToDirection(lat, lon));
 }
 
 function findDedicatedLandmarkTile(spec, originTileId, graph, placement) {

@@ -38,6 +38,7 @@ import {
   assignNpcShipCaptains,
   assignPortCityCharacters,
   characterExpression,
+  generatePassengerCharacter,
   loadCharacterPortraitManifest,
   playerCharacterPortraitSummary,
   recolorPortraitImage
@@ -74,8 +75,11 @@ import {
 } from "./discoveries.js";
 import {
   createPortDialogueSession,
+  createPassengerDialogueSession,
   createShipDialogueSession,
+  passengerDialogueView,
   portDialogueView,
+  selectPassengerDialogueOption,
   selectPortDialogueOption,
   selectShipDialogueOption,
   shipDialogueView
@@ -183,6 +187,14 @@ import {
   shipLedgerPage,
   shipPapersPage
 } from "./shipInfo.js";
+import { selectCityCatalogRecords } from "./cityCatalogSelection.js";
+import {
+  activePassengerQuest,
+  markPassengerOfferSeen,
+  passengerOfferForCity,
+  passengerQuestById,
+  pendingPassengerOfferForCity
+} from "./passengerMissions.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -370,7 +382,7 @@ const DIALOGUE_FLAG_W = FACTION_FLAG_SOURCE_W;
 const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_DATA_YEAR = 1522;
-const CITY_MAX_COUNT = 420;
+const CITY_MAX_COUNT = 480;
 const CITY_PORT_ACCESS_RING_DISTANCE = 2;
 const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
@@ -489,6 +501,12 @@ const CITY_TYPE_SUB_SAHARAN_COUNTRIES = new Set([
 ]);
 const CITY_SPRITE_W = TILE_ART_SIZE;
 const CITY_SPRITE_H = TILE_ART_SIZE;
+const CITY_SHADOW_SOURCE_Y = Math.floor(CITY_SPRITE_H / 2);
+const CITY_SHADOW_SOURCE_H = CITY_SPRITE_H - CITY_SHADOW_SOURCE_Y;
+const CITY_SHADOW_WIDTH_SCALE = 0.82;
+const CITY_SHADOW_MIN_STRETCH = 0.6;
+const CITY_SHADOW_MAX_STRETCH = 2.5;
+const CITY_SHADOW_ALPHA = 0.22;
 const CITY_LABEL_H = 8;
 const CITY_LABEL_PAD_X = 2;
 const CITY_LABEL_PAD_Y = 1;
@@ -504,6 +522,9 @@ const ANCHOR_BUTTON_H = INTERACTION_BUTTON_H;
 const ANCHOR_BUTTON_X = INTERACTION_BUTTON_X - ANCHOR_BUTTON_W - 4;
 const ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
 const ANCHOR_SHORE_MAX_PX = 36;
+const QUEST_ARROW_EDGE_MARGIN_PX = 15;
+const QUEST_ARROW_CITY_Y_OFFSET = -18;
+const QUEST_ARROW_SIZE_PX = 7;
 const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
 const MOUNTAIN_DISCOVERY_NOTICE_MS = 4600;
 const MOUNTAIN_DISCOVERY_PANEL_W = 230;
@@ -831,6 +852,7 @@ let npcCombatProjectiles = [];
 let npcCombatSplashes = [];
 let npcVisualUpdateAccumulator = 0;
 let characterPortraitManifest;
+let usedCharacterNames = new Set();
 let portCityCharacters;
 let portCitiesByTileId;
 let portCities = [];
@@ -886,6 +908,7 @@ let combatNotice = null;
 let gameOverReason = null;
 const portraitCanvasCache = new Map();
 const portraitPromiseCache = new Map();
+const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
 let windIndicatorState = null;
 let shipSelectionRequestId = 0;
@@ -1137,7 +1160,7 @@ async function main() {
     ports: portCities,
     startMinute: weatherClockMinutes
   });
-  const usedCharacterNames = new Set();
+  usedCharacterNames = new Set();
   const playerPortraitSummary = playerCharacterPortraitSummary(characterPortraitManifest);
   const playerProfile = generatePlayerStartingProfile({
     identityKey: playerCharacterIdentityKey(),
@@ -1488,6 +1511,8 @@ async function loadCityCatalog(targetYear) {
   const lonIndex = requiredCsvIndex(header, "longitude");
   const yearIndex = requiredCsvIndex(header, "year");
   const populationIndex = requiredCsvIndex(header, "population");
+  const coastalIntentIndex = optionalCsvIndex(header, "coastal_intent");
+  const lakeIntentIndex = optionalCsvIndex(header, "lake_intent");
   const bestByCity = new Map();
 
   for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
@@ -1499,6 +1524,8 @@ async function loadCityCatalog(targetYear) {
     const lon = requiredCsvNumber(row, lonIndex, rowIndex, "longitude");
     const year = requiredCsvInteger(row, yearIndex, rowIndex, "year");
     const population = requiredCsvNumber(row, populationIndex, rowIndex, "population");
+    const coastalIntent = optionalCsvBoolean(row, coastalIntentIndex);
+    const lakeIntent = optionalCsvBoolean(row, lakeIntentIndex);
     if (population <= 0 || year > targetYear) continue;
 
     const cityId = normalizeCityKey(city, country);
@@ -1513,7 +1540,9 @@ async function loadCityCatalog(targetYear) {
         lon,
         cityType: cityTypeForCity(country, lat, lon),
         year,
-        population: Math.round(population)
+        population: Math.round(population),
+        coastalIntent,
+        lakeIntent
       };
       const capitalSpec = factionCapitalForCity(cityRecord);
       bestByCity.set(cityId, {
@@ -1526,9 +1555,7 @@ async function loadCityCatalog(targetYear) {
 
   ensureFactionCapitalCityRecords(bestByCity, targetYear);
 
-  const cities = [...bestByCity.values()]
-    .sort((a, b) => b.population - a.population || cityLabelText(a).localeCompare(cityLabelText(b)))
-    .slice(0, CITY_MAX_COUNT);
+  const cities = selectCityCatalogRecords(bestByCity.values(), CITY_MAX_COUNT);
   ensureFactionCapitalsInCityCatalog(cities, bestByCity);
   if (cities.length === 0) throw new Error(`City dataset produced no cities for year ${targetYear}`);
   return cities;
@@ -1547,7 +1574,9 @@ function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
       lon: capitalSpec.lon,
       cityType: cityTypeForCity(capitalSpec.country, capitalSpec.lat, capitalSpec.lon),
       year: targetYear,
-      population: capitalSpec.population
+      population: capitalSpec.population,
+      coastalIntent: true,
+      lakeIntent: false
     };
     bestByCity.set(cityId, {
       ...cityRecord,
@@ -1629,6 +1658,11 @@ function requiredCsvIndex(header, name) {
   return index;
 }
 
+function optionalCsvIndex(header, name) {
+  const index = header.indexOf(name);
+  return index >= 0 ? index : null;
+}
+
 function requiredCsvCell(row, index, rowIndex, name) {
   const value = row[index];
   if (value == null || value.trim() === "") {
@@ -1651,6 +1685,12 @@ function requiredCsvInteger(row, index, rowIndex, name) {
     throw new Error(`City dataset row ${rowIndex + 1} has invalid ${name}`);
   }
   return value;
+}
+
+function optionalCsvBoolean(row, index) {
+  if (index == null) return false;
+  const value = String(row[index] ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
 }
 
 function normalizeCityKey(city, country) {
@@ -3498,10 +3538,34 @@ function openPortDialogue(cityCall) {
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { restart: true, force: true });
-  dialogueState = createPortDialogueSession(cityCall);
-  dialogueLayout = createDialogueLayoutState();
   visitPort(gameState, cityCall);
+  const passengerQuest = passengerDialogueQuestForCity(cityCall, { createOffer: true });
+  if (passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)) {
+    markPassengerOfferSeen(gameState, passengerQuest);
+    dialogueState = createPassengerDialogueSession(cityCall, passengerQuest);
+  } else {
+    dialogueState = createPortDialogueSession(cityCall);
+  }
+  dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+}
+
+function openPassengerDialogue(cityCall, quest) {
+  if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
+  markPassengerOfferSeen(gameState, quest);
+  dialogueState = createPassengerDialogueSession(cityCall, quest);
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+}
+
+function openPortDialogueFromActivePassenger() {
+  const city = currentDialogueCity();
+  dialogueState = createPortDialogueSession(city);
+  dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   dirty = true;
 }
@@ -3554,7 +3618,7 @@ function canAnchorAtCurrentShore() {
 }
 
 function closeDialogue() {
-  const wasPortDialogue = dialogueState?.kind === "port";
+  const wasPortDialogue = dialogueState?.kind === "port" || dialogueState?.kind === "passenger";
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
   if (wasPortDialogue) {
@@ -3581,6 +3645,26 @@ function chooseDialogueOption(optionIndex) {
     );
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
+    if (result.action?.type === "open-passenger") {
+      openPassengerDialogue(currentDialogueCity(), result.action.quest);
+      return;
+    }
+  } else if (dialogueState.kind === "passenger") {
+    const doubloonsBefore = gameState.doubloons;
+    result = selectPassengerDialogueOption(
+      dialogueState,
+      currentDialogueCity(),
+      currentDialoguePassenger(),
+      gameState,
+      optionIndex,
+      portDialogueContext()
+    );
+    syncShipCargoFromGameState();
+    if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
+    if (result.action?.type === "open-port") {
+      openPortDialogueFromActivePassenger();
+      return;
+    }
   } else if (dialogueState.kind === "ship") {
     dialogueNpcShipId = dialogueState.npcShipId;
     result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
@@ -3659,6 +3743,9 @@ function currentDialogueView() {
   if (dialogueState.kind === "port") {
     return portDialogueView(dialogueState, currentDialogueCity(), gameState, worldEconomy, portCities, portDialogueContext());
   }
+  if (dialogueState.kind === "passenger") {
+    return passengerDialogueView(dialogueState, currentDialogueCity(), currentDialoguePassenger(), gameState);
+  }
   if (dialogueState.kind === "ship") {
     return shipDialogueView(dialogueState, currentDialogueShip());
   }
@@ -3666,10 +3753,44 @@ function currentDialogueView() {
 }
 
 function portDialogueContext() {
+  const city = dialogueState?.cityTileId === undefined ? null : cityByTileId.get(dialogueState.cityTileId);
   return {
     simMinute: Math.floor(weatherClockMinutes),
-    shipPower: playerShipPrivateeringPower()
+    shipPower: playerShipPrivateeringPower(),
+    passengerOffer: city && dialogueState?.kind === "port"
+      ? pendingPassengerOfferForCity(gameState, city)
+      : null
   };
+}
+
+function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
+  const activePassenger = activePassengerQuest(gameState);
+  if (activePassenger) {
+    return activePassenger.destinationTileId === city.tileId ? activePassenger : null;
+  }
+  if (!createOffer) return pendingPassengerOfferForCity(gameState, city);
+  return passengerOfferForCity(gameState, city, portCities, {
+    simMinute: Math.floor(weatherClockMinutes),
+    createCharacter: createPassengerCharacterForQuest
+  });
+}
+
+function shouldAutoOpenPassengerDialogue(city, quest) {
+  if (!quest || quest.kind !== "passenger") return false;
+  if (quest.destinationTileId === city.tileId && activePassengerQuest(gameState)?.id === quest.id) return true;
+  return quest.originTileId === city.tileId && quest.seen !== true;
+}
+
+function createPassengerCharacterForQuest({ quest, origin, destination, scenario }) {
+  return generatePassengerCharacter({
+    identityKey: quest.id,
+    originPort: origin,
+    destinationPort: destination,
+    scenarioId: scenario.id,
+    namePortPreference: scenario.namePort,
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
 }
 
 function playerShipPrivateeringPower() {
@@ -3718,7 +3839,22 @@ function currentDialogueShip() {
 }
 
 function currentDialogueSubject() {
-  return dialogueState?.kind === "ship" ? currentDialogueShip() : currentDialogueCity();
+  if (dialogueState?.kind === "ship") return currentDialogueShip();
+  if (dialogueState?.kind === "passenger") return currentDialoguePassenger();
+  return currentDialogueCity();
+}
+
+function currentDialoguePassenger() {
+  if (!dialogueState || dialogueState.kind !== "passenger") throw new Error("No active passenger dialogue session");
+  const quest = passengerQuestById(gameState, dialogueState.questId);
+  if (!quest) throw new Error(`Dialogue passenger quest is no longer available: ${dialogueState.questId}`);
+  const character = quest.passenger;
+  if (!character) throw new Error(`Passenger quest has no generated character: ${quest.id}`);
+  return {
+    ...quest,
+    character,
+    portrait: characterExpression(character)
+  };
 }
 
 function activeInteractionTarget() {
@@ -6821,6 +6957,7 @@ function render(nowMs) {
   drawCloudLayer(chart);
   drawShipWake(chart);
   drawCannonEffects(chart);
+  drawCityShadows(chart, shipLight);
   drawSeagulls(chart, nowMs);
   drawWorldDiscoverySprites(chart);
   drawCitySprites(chart, nowMs);
@@ -6836,6 +6973,7 @@ function render(nowMs) {
   drawDayNightPaletteGrade();
   drawWindIndicator(nowMs);
   drawMinimap(nowMs);
+  drawQuestDestinationArrow(nowMs);
   drawStormStatus(nowMs);
   drawCombatNotice(nowMs);
   drawAnchorButton();
@@ -6897,14 +7035,23 @@ function updateDiscoveries(nowMs) {
   let nearestDistancePx = Infinity;
   for (const discovery of discoveryCatalog) {
     if (discovery.kind === "achievement" || hasDiscovery(gameState, discovery.id)) continue;
-    const direction = discoveryDirection(discovery);
-    const distancePx = vectorArcDistance(ship.position, direction) * PIXELS_PER_RADIAN;
+    const distancePx = discoveryDistancePx(discovery, ship.position);
     if (distancePx > discovery.radiusPx || distancePx >= nearestDistancePx) continue;
     nearest = discovery;
     nearestDistancePx = distancePx;
   }
   if (nearest) changed = queueDiscovery(nearest, nowMs) || changed;
   return changed;
+}
+
+function discoveryDistancePx(discovery, position) {
+  const routeDirections = Array.isArray(discovery.routeDirections) ? discovery.routeDirections : [];
+  const directions = routeDirections.length > 0 ? routeDirections : [discoveryDirection(discovery)];
+  let nearestDistancePx = Infinity;
+  for (const direction of directions) {
+    nearestDistancePx = Math.min(nearestDistancePx, vectorArcDistance(position, direction) * PIXELS_PER_RADIAN);
+  }
+  return nearestDistancePx;
 }
 
 function discoveryDirection(discovery) {
@@ -10607,6 +10754,104 @@ function drawWindIndicator(nowMs) {
   drawPixelLine(tip.x, tip.y, right.x, right.y, color);
 }
 
+function drawQuestDestinationArrow(nowMs) {
+  const destination = activeQuestDestinationPort();
+  if (!destination || !ship || !chart || !localLayout) return;
+  const destinationVector = latLonToDirection(destination.lat, destination.lon);
+  const localPoint = localPointForGlobeVector(destinationVector);
+  if (localPoint) {
+    const offset = chartOffsetPixels(chart);
+    const cityPoint = {
+      x: Math.round(localPoint.x + offset.x),
+      y: Math.round(localPoint.y + offset.y + QUEST_ARROW_CITY_Y_OFFSET)
+    };
+    if (pointWithinScreen(cityPoint, QUEST_ARROW_EDGE_MARGIN_PX)) {
+      drawQuestArrowGlyph(cityPoint, { x: 0, y: 1 }, nowMs);
+      return;
+    }
+  }
+
+  const tangent = normalizeOrNull(projectTangentVector(destinationVector, ship.position));
+  const direction = tangent ? tangentToScreenDirection(tangent) : null;
+  if (!direction) return;
+  drawQuestArrowGlyph(screenEdgePointForDirection(direction), direction, nowMs);
+}
+
+function activeQuestDestinationPort() {
+  const quest = gameState?.memory?.quests?.active;
+  if (!quest?.destinationTileId) return null;
+  const destination = portCitiesByTileId?.get(quest.destinationTileId) || cityByTileId?.get(quest.destinationTileId);
+  if (!destination || !Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) return null;
+  return destination;
+}
+
+function pointWithinScreen(point, margin = 0) {
+  return point.x >= margin &&
+    point.x <= SCREEN_W - margin &&
+    point.y >= margin &&
+    point.y <= SCREEN_H - margin;
+}
+
+function screenEdgePointForDirection(direction) {
+  const dir = normalizeScreenVector(direction) || { x: 0, y: -1 };
+  const cx = SCREEN_W / 2;
+  const cy = SCREEN_H / 2;
+  const candidates = [];
+  if (Math.abs(dir.x) > 1e-6) {
+    candidates.push(((dir.x > 0 ? SCREEN_W - QUEST_ARROW_EDGE_MARGIN_PX : QUEST_ARROW_EDGE_MARGIN_PX) - cx) / dir.x);
+  }
+  if (Math.abs(dir.y) > 1e-6) {
+    candidates.push(((dir.y > 0 ? SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX : QUEST_ARROW_EDGE_MARGIN_PX) - cy) / dir.y);
+  }
+  const t = Math.min(...candidates.filter((value) => value > 0));
+  return {
+    x: Math.round(cx + dir.x * t),
+    y: Math.round(cy + dir.y * t)
+  };
+}
+
+function drawQuestArrowGlyph(point, direction, nowMs) {
+  const dir = normalizeScreenVector(direction) || { x: 0, y: -1 };
+  const pulse = reducedMotionPreferred ? 0.5 : 0.5 + Math.sin(nowMs / 420 * Math.PI * 2) * 0.5;
+  const size = QUEST_ARROW_SIZE_PX + (pulse > 0.72 ? 1 : 0);
+  const width = 4;
+  const px = -dir.y;
+  const py = dir.x;
+  const tip = {
+    x: Math.round(point.x),
+    y: Math.round(point.y)
+  };
+  const base = {
+    x: Math.round(tip.x - dir.x * size),
+    y: Math.round(tip.y - dir.y * size)
+  };
+  const left = {
+    x: Math.round(base.x + px * width),
+    y: Math.round(base.y + py * width)
+  };
+  const right = {
+    x: Math.round(base.x - px * width),
+    y: Math.round(base.y - py * width)
+  };
+
+  ctx.fillStyle = "rgba(33, 24, 20, 0.72)";
+  ctx.beginPath();
+  ctx.moveTo(tip.x + 1, tip.y + 1);
+  ctx.lineTo(left.x + 1, left.y + 1);
+  ctx.lineTo(right.x + 1, right.y + 1);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#f6c85f";
+  ctx.beginPath();
+  ctx.moveTo(tip.x, tip.y);
+  ctx.lineTo(left.x, left.y);
+  ctx.lineTo(right.x, right.y);
+  ctx.closePath();
+  ctx.fill();
+  drawPixelLine(tip.x, tip.y, base.x, base.y, "#fff1bf");
+}
+
 function updateWindIndicator(dt) {
   if (!ship || !graph) return false;
   const target = windIndicatorTarget();
@@ -10728,6 +10973,77 @@ function drawPixelLine(x0, y0, x1, y1, color) {
       y += sy;
     }
   }
+}
+
+function drawCityShadows(activeChart, light) {
+  if (!activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
+  if (!light || light.shadow <= 0.01) return;
+  const direction = cityShadowDirection();
+  if (!direction) return;
+  const lowSun = 1 - smoothstep(0.04, 0.35, Math.max(-0.04, light.sunAltitude));
+  const stretch = CITY_SHADOW_MIN_STRETCH +
+    (CITY_SHADOW_MAX_STRETCH - CITY_SHADOW_MIN_STRETCH) * easeInOut(lowSun);
+  const alpha = CITY_SHADOW_ALPHA * light.shadow * (0.48 + lowSun * 0.52);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  for (const call of activeChart.cityCalls) drawCityShadow(call, direction, stretch);
+  ctx.restore();
+}
+
+function cityShadowDirection() {
+  if (!ship || !camera) return null;
+  const tangent = normalizeOrNull(projectTangentVector(currentSunDirection(), ship.position));
+  if (!tangent) return null;
+  const towardSun = tangentToScreenDirection(tangent);
+  if (!towardSun) return null;
+  return normalizeScreenVector({ x: -towardSun.x, y: -towardSun.y });
+}
+
+function drawCityShadow(call, direction, stretch) {
+  const img = cityShadowSpriteForType(call.cityType);
+  const px = -direction.y;
+  const py = direction.x;
+  const anchorX = call.spriteX + CITY_SPRITE_W / 2;
+  const anchorY = call.spriteY + CITY_SHADOW_SOURCE_Y;
+  ctx.save();
+  ctx.translate(anchorX, anchorY);
+  ctx.transform(
+    px * CITY_SHADOW_WIDTH_SCALE,
+    py * CITY_SHADOW_WIDTH_SCALE,
+    direction.x * stretch,
+    direction.y * stretch,
+    0,
+    0
+  );
+  ctx.drawImage(img, -CITY_SPRITE_W / 2, 0);
+  ctx.restore();
+}
+
+function cityShadowSpriteForType(cityType) {
+  let canvas = cityShadowSpriteCache.get(cityType);
+  if (canvas) return canvas;
+  const img = cityImageForType(cityType);
+  canvas = document.createElement("canvas");
+  canvas.width = CITY_SPRITE_W;
+  canvas.height = CITY_SHADOW_SOURCE_H;
+  const shadowCtx = canvas.getContext("2d");
+  if (!shadowCtx) throw new Error(`Could not create city shadow sprite: ${cityType}`);
+  shadowCtx.drawImage(
+    img,
+    0,
+    CITY_SHADOW_SOURCE_Y,
+    CITY_SPRITE_W,
+    CITY_SHADOW_SOURCE_H,
+    0,
+    0,
+    CITY_SPRITE_W,
+    CITY_SHADOW_SOURCE_H
+  );
+  shadowCtx.globalCompositeOperation = "source-in";
+  shadowCtx.fillStyle = "#120d18";
+  shadowCtx.fillRect(0, 0, canvas.width, canvas.height);
+  cityShadowSpriteCache.set(cityType, canvas);
+  return canvas;
 }
 
 function drawCitySprites(activeChart, nowMs) {

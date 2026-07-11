@@ -62,7 +62,7 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("venice", "Venice", "Italy"),
   capital("genoa", "Genova", "Italy"),
   capital("papal-states", "Rome", "Italy"),
-  capital("ming", "Nanjing", "China"),
+  capital("ming", "Beijing", "China"),
   capital("aztec", "Zempoala", "Mexico"),
   capital("inca", "Cuzco", "Peru"),
   capital("safavid", "Siraf", "Iran"),

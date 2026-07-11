@@ -13,6 +13,7 @@ import {
   classifyPortraitRoles,
   decodePortraitRoleMap,
   encodePortraitRoleMap,
+  generatePassengerCharacter,
   generatePlayerCharacter,
   playerCharacterPortraitSummary
 } from "./characterPortraits.js";
@@ -134,6 +135,40 @@ test("player generation is deterministic for an identity key", () => {
   });
 
   assert.deepEqual(generate(), generate());
+});
+
+test("return-home passenger generation can use destination culture", () => {
+  const passenger = generatePassengerCharacter({
+    identityKey: "passenger-lisbon-nagasaki",
+    originPort: {
+      tileId: 1,
+      city: "Lisbon",
+      displayCity: "Lisbon",
+      country: "Portugal",
+      cityType: "mediterranean",
+      lat: 38.72,
+      lon: -9.14
+    },
+    destinationPort: {
+      tileId: 2,
+      city: "Nagasaki",
+      displayCity: "Nagasaki",
+      country: "Japan",
+      cityType: "east-asian",
+      lat: 32.75,
+      lon: 129.88
+    },
+    scenarioId: "return-home",
+    namePortPreference: "destination",
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  });
+
+  assert.equal(passenger.role, "passenger");
+  assert.equal(passenger.destinationPortTileId, 2);
+  assert.equal(passenger.nameCulture, "japanese");
+  assert.equal(passenger.region, "east-asia");
+  assert.ok(["fair", "golden", "olive", "tan"].includes(passenger.skinToneId));
 });
 
 test("port assignments use regional portrait and tone pools", () => {

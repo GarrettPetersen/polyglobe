@@ -227,6 +227,48 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
   });
 }
 
+export function generatePassengerCharacter({
+  identityKey,
+  originPort,
+  destinationPort,
+  scenarioId = "",
+  namePortPreference = "origin",
+  manifest,
+  usedNames
+}) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (typeof identityKey !== "string" || identityKey.trim() === "") {
+    throw new Error("Passenger character generation requires an identity key");
+  }
+  if (!originPort || typeof originPort !== "object") {
+    throw new Error("Passenger character generation requires an origin port");
+  }
+  if (!destinationPort || typeof destinationPort !== "object") {
+    throw new Error("Passenger character generation requires a destination port");
+  }
+  const namePort = namePortPreference === "destination" ? destinationPort : originPort;
+  const regionPort = scenarioId === "return-home" ? destinationPort : namePort;
+  const region = portraitRegionForCity(regionPort);
+  const sourcePool = characterSourcesForRole(manifest, "factor", region);
+  const key = `passenger|${identityKey}`;
+  const character = assignCharacterVariant(key, region, sourcePool, manifest, new Set());
+  const name = assignRegionalCharacterName({
+    identityKey: key,
+    city: namePort,
+    sourceId: character.sourceId,
+    sourceLabel: character.sourceLabel,
+    usedNames
+  });
+  return Object.freeze({
+    ...character,
+    ...name,
+    role: "passenger",
+    originPortTileId: originPort.tileId,
+    destinationPortTileId: destinationPort.tileId
+  });
+}
+
 function assertUsedNames(usedNames) {
   if (!(usedNames instanceof Set)) throw new Error("Character assignment requires a shared used-name Set");
 }

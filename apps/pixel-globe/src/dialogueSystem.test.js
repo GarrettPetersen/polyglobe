@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createPassengerDialogueSession,
   createPortDialogueSession,
   createShipDialogueSession,
+  passengerDialogueView,
   portDialogueView,
+  selectPassengerDialogueOption,
   selectPortDialogueOption,
   selectShipDialogueOption,
   shipDialogueView
@@ -229,6 +232,58 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   session.nodeId = "sell";
   const sell = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.label)));
+});
+
+test("passenger dialogue can be declined and accepted later", () => {
+  const origin = {
+    tileId: 1,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const quest = {
+    id: "passenger-1-2-test",
+    kind: "passenger",
+    originKey: "Lisbon|Portugal|1",
+    originTileId: origin.tileId,
+    originName: "Lisbon",
+    destinationTileId: 2,
+    destinationName: "Goa",
+    passenger: { name: "Mateo Costa" },
+    reward: 180,
+    scenarioId: "family-letter",
+    dialogue: {
+      offer: "A letter found me in Lisbon. My family in Goa needs me before the season turns.",
+      arrival: "Goa at last."
+    }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.memory.quests.passengerOffers[quest.originKey] = quest;
+  const session = createPassengerDialogueSession(origin, quest);
+
+  const offer = passengerDialogueView(session, origin, quest, gameState);
+  assert.equal(offer.speaker, "Mateo Costa, passenger");
+  assert.deepEqual(offer.options.map((option) => option.label), [
+    "Take passenger to Goa  180 db",
+    "Talk to factor",
+    "Not now"
+  ]);
+  assert.deepEqual(selectPassengerDialogueOption(session, origin, quest, gameState, 2), {
+    closed: true,
+    action: null
+  });
+  assert.equal(gameState.memory.quests.active, null);
+
+  const acceptSession = createPassengerDialogueSession(origin, quest);
+  assert.deepEqual(selectPassengerDialogueOption(acceptSession, origin, quest, gameState, 0), {
+    closed: true,
+    action: null
+  });
+  assert.equal(gameState.memory.quests.active.id, quest.id);
+  assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
 });
 
 test("capital port dialogue can grant a letter of marque", () => {

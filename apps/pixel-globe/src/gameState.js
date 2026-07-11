@@ -75,7 +75,9 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
       },
       quests: {
         active: null,
-        completed: {}
+        completed: {},
+        passengerOffers: {},
+        passengerRolls: {}
       }
     }
   };
@@ -474,7 +476,8 @@ export function deliveryQuestForCity(city, portCities) {
 
 export function questStateForCity(state, city, portCities) {
   assertGameState(state);
-  const active = state.memory.quests.active;
+  const quests = questMemory(state);
+  const active = quests.active;
   if (active) {
     if (active.destinationTileId === city.tileId) return { kind: "ready-to-complete", quest: active };
     if (active.originTileId === city.tileId) return { kind: "in-progress-here", quest: active };
@@ -482,33 +485,36 @@ export function questStateForCity(state, city, portCities) {
   }
   const quest = deliveryQuestForCity(city, portCities);
   if (!quest) return { kind: "unavailable", quest: null };
-  if (state.memory.quests.completed[quest.id]) return { kind: "completed", quest };
+  if (quests.completed[quest.id]) return { kind: "completed", quest };
   return { kind: "available", quest };
 }
 
 export function acceptQuest(state, quest) {
   assertGameState(state);
-  if (state.memory.quests.active) throw new Error("Cannot accept a quest while another quest is active");
-  if (state.memory.quests.completed[quest.id]) throw new Error(`Quest already completed: ${quest.id}`);
-  state.memory.quests.active = { ...quest };
+  const quests = questMemory(state);
+  if (quests.active) throw new Error("Cannot accept a quest while another quest is active");
+  if (quests.completed[quest.id]) throw new Error(`Quest already completed: ${quest.id}`);
+  quests.active = { ...quest };
+  if (quest.kind === "passenger" && quest.originKey) delete quests.passengerOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
 }
 
 export function completeQuest(state, city, context = {}) {
   assertGameState(state);
-  const active = state.memory.quests.active;
+  const quests = questMemory(state);
+  const active = quests.active;
   if (!active) throw new Error("No active quest to complete");
   if (active.destinationTileId !== city.tileId) {
     throw new Error(`Quest destination is ${active.destinationName}, not ${cityLabel(city)}`);
   }
   state.doubloons += active.reward;
-  state.memory.quests.completed[active.id] = true;
-  state.memory.quests.active = null;
+  quests.completed[active.id] = true;
+  quests.active = null;
   recordDecision(state, `quest.complete.${active.id}`, 1);
-  if (active.factionId) recordDeliveryForFaction(state, active.factionId);
+  if (active.kind === "delivery" && active.factionId) recordDeliveryForFaction(state, active.factionId);
   recordLedgerEntry(state, city, context, {
     kind: "income",
-    description: "Delivery reward",
+    description: active.kind === "passenger" ? "Passenger fare" : "Delivery reward",
     goodId: null,
     quantity: 1,
     amount: active.reward,
@@ -640,6 +646,17 @@ function assertGameState(state) {
   if (!Number.isFinite(cumulativeLongitudeDeg)) {
     throw new Error(`Invalid cumulative navigation longitude: ${cumulativeLongitudeDeg}`);
   }
+}
+
+function questMemory(state) {
+  if (!state.memory.quests || typeof state.memory.quests !== "object") {
+    state.memory.quests = { active: null, completed: {} };
+  }
+  const quests = state.memory.quests;
+  if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
+  if (!quests.passengerOffers || typeof quests.passengerOffers !== "object") quests.passengerOffers = {};
+  if (!quests.passengerRolls || typeof quests.passengerRolls !== "object") quests.passengerRolls = {};
+  return quests;
 }
 
 function assertPlayerCharacter(character) {

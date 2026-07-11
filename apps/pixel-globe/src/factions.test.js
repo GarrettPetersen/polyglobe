@@ -87,6 +87,7 @@ test("every sovereign faction has one declared water-accessible capital", () => 
     assert.equal(factionCapitalForCity(capital), capital);
     assert.equal(factionIdForCity1522(capital), capital.factionId, `${capital.city}, ${capital.country}`);
   }
+  assert.equal(factionCapitalForId("ming").city, "Beijing");
 });
 
 test("required capital port records cover factions missing a suitable catalog city", () => {

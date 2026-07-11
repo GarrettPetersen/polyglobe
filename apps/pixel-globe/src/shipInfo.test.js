@@ -116,6 +116,34 @@ test("ship papers include active deliveries and letters of marque", () => {
   assert.equal(shipPapersPage(view, 0).rows.length, 2);
 });
 
+test("ship papers show an active passenger aboard", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity });
+  acceptQuest(gameState, {
+    id: "passenger-1-2",
+    kind: "passenger",
+    originTileId: 1,
+    originName: "Lisbon",
+    destinationTileId: 2,
+    destinationName: "Goa",
+    passenger: { name: "Mateo Costa" },
+    passengerName: "Mateo Costa",
+    reward: 180
+  });
+
+  const view = createShipInfoView({
+    typeSlug: "brigantine",
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints
+  }, gameState);
+
+  assert.equal(view.papers[0].kind, "passenger");
+  assert.equal(view.papers[0].title, "Passenger: Mateo Costa");
+  assert.equal(view.papers[0].issuer, "Mateo Costa");
+  assert.equal(view.papers[0].route, "Lisbon -> Goa");
+  assert.equal(view.papers[0].detail, "Fare 180 DB");
+});
+
 test("performance ratings preserve the expected fleet ordering", () => {
   assert.ok(
     shipPerformanceRating(shipStatsForSlug("frigate"), "speed") >
