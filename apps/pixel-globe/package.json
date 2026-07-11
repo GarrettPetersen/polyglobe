@@ -10,6 +10,7 @@
     "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
     "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet",
+    "render:unity-ship-side-views": "node tools/render-sail-ship-sprites.mjs --unity-fleet-side-views",
     "test": "node --test src/*.test.js",
     "test:characters": "node --test src/characterPortraits.test.js",
     "test:music": "node --test src/musicPlayer.test.js"

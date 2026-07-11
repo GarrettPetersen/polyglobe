@@ -107,6 +107,15 @@ import {
   advanceWorldEconomy,
   createWorldEconomy
 } from "./economy.js";
+import {
+  waterDepthIndexForSpriteKey,
+  waterLatitudeBand,
+  waterPaletteHexForSourceHex
+} from "./waterLatitudePalette.js";
+import {
+  createShipInfoView,
+  shipInfoCargoPage
+} from "./shipInfo.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -403,6 +412,13 @@ const DISCOVERIES_BUTTON_SIZE = 13;
 const DISCOVERIES_PANEL_W = 300;
 const DISCOVERIES_PANEL_H = 214;
 const DISCOVERIES_PAGE_SIZE = 9;
+const SHIP_INFO_BUTTON_SIZE = 13;
+const SHIP_INFO_PANEL_X = 10;
+const SHIP_INFO_PANEL_Y = 8;
+const SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
+const SHIP_INFO_PANEL_H = SCREEN_H - SHIP_INFO_PANEL_Y * 2;
+const SHIP_INFO_SIDE_VIEW_W = 192;
+const SHIP_INFO_SIDE_VIEW_H = 104;
 const DIALOGUE_PANEL_X = 6;
 const DIALOGUE_PANEL_Y = 78;
 const DIALOGUE_PANEL_W = SCREEN_W - 12;
@@ -438,6 +454,8 @@ const OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
 const DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
 const DISCOVERIES_BUTTON_Y = OPTIONS_BUTTON_Y;
+const SHIP_INFO_BUTTON_X = DISCOVERIES_BUTTON_X - SHIP_INFO_BUTTON_SIZE - 3;
+const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 166;
 const OPTIONS_ROW_H = 22;
@@ -448,6 +466,7 @@ const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_SHIP = 4;
 const UI_ASSET_VERSION = "discoveries-menu-1";
+const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
 const MUSIC_ASSET_VERSION = "seamless-webaudio-1";
 const SFX_ASSET_VERSION = "normalized-ogg-1";
 const ANIMAL_ASSET_VERSION = "seagulls-1";
@@ -636,6 +655,8 @@ let shipImage;
 let shipWakeAnchors;
 let shipWakeAnchorsBySlug;
 let shipLighting;
+const shipInfoImages = new Map();
+const shipInfoImagePromises = new Map();
 let settingsMenuIcon;
 let discoveriesMenuIcon;
 let egyptianPyramidImage;
@@ -655,6 +676,9 @@ let portCitiesByTileId;
 let portCities = [];
 const terrainAlphaMasks = new WeakMap();
 let spriteColors;
+let waterLatitudeImages;
+let waterLatitudeSpriteColors;
+let waterLatitudePixelColors;
 let snowyTerrainImages;
 let snowySpriteColors;
 let riverColors;
@@ -711,6 +735,7 @@ let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
 const optionsMenu = createOptionsMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
+const shipInfoMenu = createShipInfoMenuState();
 
 fitCanvasToDisplay();
 window.addEventListener("resize", fitCanvasToDisplay);
@@ -722,6 +747,10 @@ window.addEventListener("pagehide", unlockOrientationIfPossible);
 
 window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
+  if (shipInfoMenu.isOpen) {
+    handleShipInfoKeyDown(event);
+    return;
+  }
   if (discoveriesMenu.isOpen) {
     handleDiscoveriesKeyDown(event);
     return;
@@ -737,6 +766,11 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     event.preventDefault();
     openOptionsMenu();
+    return;
+  }
+  if (event.key === "i" || event.key === "I") {
+    event.preventDefault();
+    openShipInfoMenu();
     return;
   }
   if (isWeatherControlKey(event.key)) {
@@ -858,6 +892,9 @@ async function main() {
   cityByTileId = placeCityCatalog(cityCatalog);
   waterDepthBands = buildWaterDepthBands();
   spriteColors = buildSpriteDominantColors(images);
+  waterLatitudeImages = new Map();
+  waterLatitudeSpriteColors = new Map();
+  waterLatitudePixelColors = new Map();
   snowyTerrainImages = new Map();
   snowySpriteColors = new Map();
   riverColors = buildRiverColors(images);
@@ -1838,6 +1875,7 @@ function runFrame(nowMs) {
     lastOverlayMs = nowMs;
   } else if (nowMs - lastOverlayMs > 250) {
     drawMinimap(nowMs);
+    drawShipInfoButton();
     drawDiscoveriesButton();
     drawOptionsButton();
     lastOverlayMs = nowMs;
@@ -1882,8 +1920,21 @@ function createDiscoveriesMenuState() {
   };
 }
 
+function createShipInfoMenuState() {
+  return {
+    isOpen: false,
+    cargoPage: 0,
+    loadingSlug: null,
+    error: null,
+    buttonRect: null,
+    closeButtonRect: null,
+    previousPageRect: null,
+    nextPageRect: null
+  };
+}
+
 function menusAreOpen() {
-  return optionsMenu.isOpen || discoveriesMenu.isOpen;
+  return optionsMenu.isOpen || discoveriesMenu.isOpen || shipInfoMenu.isOpen;
 }
 
 function setupThemeMusic() {
@@ -2397,8 +2448,89 @@ function syncShipSlugToLocation(slug) {
   window.history.replaceState(null, "", url);
 }
 
+function loadShipInfoImage(slug) {
+  const cached = shipInfoImages.get(slug);
+  if (cached) return Promise.resolve(cached);
+  const pending = shipInfoImagePromises.get(slug);
+  if (pending) return pending;
+  shipStatsForSlug(slug);
+  const promise = loadAssetImage(
+    `/assets/vehicles/unity-ships/side-views/${slug}.png?v=${SHIP_INFO_ASSET_VERSION}`,
+    `ship side view: ${slug}`
+  ).then((image) => {
+    validateImageDimensions(
+      image,
+      `Ship side view: ${slug}`,
+      SHIP_INFO_SIDE_VIEW_W,
+      SHIP_INFO_SIDE_VIEW_H
+    );
+    shipInfoImages.set(slug, image);
+    shipInfoImagePromises.delete(slug);
+    return image;
+  }).catch((error) => {
+    shipInfoImagePromises.delete(slug);
+    throw error;
+  });
+  shipInfoImagePromises.set(slug, promise);
+  return promise;
+}
+
+function openShipInfoMenu() {
+  if (!ship || !gameState) throw new Error("Cannot open ship information before the game is ready");
+  closeOptionsMenu();
+  closeDiscoveriesMenu();
+  shipInfoMenu.isOpen = true;
+  shipInfoMenu.cargoPage = 0;
+  shipInfoMenu.error = null;
+  keys.clear();
+  clearPointerSteering();
+  const slug = ship.typeSlug;
+  if (!shipInfoImages.has(slug)) {
+    shipInfoMenu.loadingSlug = slug;
+    void loadShipInfoImage(slug).then(() => {
+      if (shipInfoMenu.loadingSlug === slug) shipInfoMenu.loadingSlug = null;
+      dirty = true;
+    }).catch((error) => {
+      console.error(new Error(`Failed to load ${shipLabelForSlug(slug)} side view`, { cause: error }));
+      if (shipInfoMenu.loadingSlug === slug) shipInfoMenu.loadingSlug = null;
+      shipInfoMenu.error = `MISSING SHIP ART: ${shipLabelForSlug(slug)}`;
+      dirty = true;
+    });
+  }
+  dirty = true;
+}
+
+function closeShipInfoMenu() {
+  shipInfoMenu.isOpen = false;
+  shipInfoMenu.closeButtonRect = null;
+  shipInfoMenu.previousPageRect = null;
+  shipInfoMenu.nextPageRect = null;
+  dirty = true;
+}
+
+function handleShipInfoKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape" || event.key === "i" || event.key === "I") {
+    closeShipInfoMenu();
+    return;
+  }
+  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+    stepShipInfoCargoPage(-1);
+  } else if (["ArrowRight", "ArrowDown", "PageDown"].includes(event.key)) {
+    stepShipInfoCargoPage(1);
+  }
+}
+
+function stepShipInfoCargoPage(direction) {
+  const view = createShipInfoView(ship, gameState);
+  const page = shipInfoCargoPage(view, shipInfoMenu.cargoPage + direction);
+  shipInfoMenu.cargoPage = page.page;
+  dirty = true;
+}
+
 function openOptionsMenu() {
   closeDiscoveriesMenu();
+  closeShipInfoMenu();
   optionsMenu.isOpen = true;
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
@@ -2409,6 +2541,7 @@ function openOptionsMenu() {
 
 function openDiscoveriesMenu() {
   closeOptionsMenu();
+  closeShipInfoMenu();
   discoveriesMenu.isOpen = true;
   discoveriesMenu.page = 0;
   keys.clear();
@@ -2490,6 +2623,12 @@ function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
   ensureGameAudioStarted(true);
+  if (shipInfoMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleShipInfoPointerDown(point);
+    return;
+  }
   if (discoveriesMenu.isOpen) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -2500,6 +2639,12 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     handleOptionsPointerDown(point);
+    return;
+  }
+  if (pointInRect(point, getShipInfoButtonRect())) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openShipInfoMenu();
     return;
   }
   if (pointInRect(point, getDiscoveriesButtonRect())) {
@@ -2547,6 +2692,10 @@ function handlePointerDown(event) {
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
+  if (shipInfoMenu.isOpen) {
+    dirty = true;
+    return;
+  }
   if (discoveriesMenu.isOpen) {
     dirty = true;
     return;
@@ -2654,6 +2803,18 @@ function handleDiscoveriesPointerDown(point) {
     return;
   }
   if (pointInRect(point, discoveriesMenu.nextPageRect)) stepDiscoveriesPage(1);
+}
+
+function handleShipInfoPointerDown(point) {
+  if (pointInRect(point, shipInfoMenu.closeButtonRect)) {
+    closeShipInfoMenu();
+    return;
+  }
+  if (pointInRect(point, shipInfoMenu.previousPageRect)) {
+    stepShipInfoCargoPage(-1);
+    return;
+  }
+  if (pointInRect(point, shipInfoMenu.nextPageRect)) stepShipInfoCargoPage(1);
 }
 
 function stepDiscoveriesPage(direction) {
@@ -5151,10 +5312,12 @@ function render(nowMs) {
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay();
+  drawShipInfoButton();
   drawDiscoveriesButton();
   drawOptionsButton();
   if (optionsMenu.isOpen) drawOptionsMenu();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
+  if (shipInfoMenu.isOpen) drawShipInfoMenu();
 }
 
 function drawWorldDiscoverySprites(activeChart) {
@@ -5719,6 +5882,15 @@ function getOptionsButtonRect() {
   };
 }
 
+function getShipInfoButtonRect() {
+  return {
+    x: SHIP_INFO_BUTTON_X,
+    y: SHIP_INFO_BUTTON_Y,
+    w: SHIP_INFO_BUTTON_SIZE,
+    h: SHIP_INFO_BUTTON_SIZE
+  };
+}
+
 function getDiscoveriesButtonRect() {
   return {
     x: DISCOVERIES_BUTTON_X,
@@ -5726,6 +5898,37 @@ function getDiscoveriesButtonRect() {
     w: DISCOVERIES_BUTTON_SIZE,
     h: DISCOVERIES_BUTTON_SIZE
   };
+}
+
+function drawShipInfoButton() {
+  const rect = getShipInfoButtonRect();
+  shipInfoMenu.buttonRect = rect;
+  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
+
+  ctx.save();
+  ctx.fillStyle = hovered ? "#625565" : "#2e222f";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#ffffff" : "#ab947a";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = "#c7dcd0";
+  ctx.fillRect(rect.x + 5, rect.y + 2, 1, 6);
+  ctx.fillRect(rect.x + 6, rect.y + 4, 3, 1);
+  ctx.fillRect(rect.x + 7, rect.y + 5, 2, 1);
+  ctx.fillStyle = "#cd683d";
+  ctx.fillRect(rect.x + 2, rect.y + 8, 9, 2);
+  ctx.fillRect(rect.x + 3, rect.y + 10, 7, 1);
+  if (hovered) {
+    const label = "SHIP";
+    const width = measurePixelTextWidth(label, PIXEL_FONT_BODY_8) + 6;
+    ctx.fillStyle = "#2e222f";
+    ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
+    ctx.fillStyle = "#ffffff";
+    drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
+      font: PIXEL_FONT_BODY_8,
+      align: "right"
+    });
+  }
+  ctx.restore();
 }
 
 function drawDiscoveriesButton() {
@@ -5775,6 +5978,173 @@ function drawOptionsButton() {
     ctx.fillRect(rect.x + 3, rect.y + 9, 7, 1);
   }
   ctx.restore();
+}
+
+function drawShipInfoMenu() {
+  const panel = {
+    x: SHIP_INFO_PANEL_X,
+    y: SHIP_INFO_PANEL_Y,
+    w: SHIP_INFO_PANEL_W,
+    h: SHIP_INFO_PANEL_H
+  };
+  const view = createShipInfoView(ship, gameState);
+  const cargoPage = shipInfoCargoPage(view, shipInfoMenu.cargoPage);
+  shipInfoMenu.cargoPage = cargoPage.page;
+
+  ctx.save();
+  ctx.fillStyle = "#2e222f";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#3e3546";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#ab947a";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+
+  shipInfoMenu.closeButtonRect = { x: panel.x + panel.w - 20, y: panel.y + 6, w: 13, h: 13 };
+  drawShipInfoCloseButton(
+    shipInfoMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, shipInfoMenu.closeButtonRect)
+  );
+  drawOptionsText(view.label.toUpperCase(), panel.x + panel.w / 2, panel.y + 8, {
+    align: "center",
+    color: "#fbb954"
+  });
+
+  const artX = panel.x + 10;
+  const artY = panel.y + 28;
+  ctx.fillStyle = "#323353";
+  ctx.fillRect(artX, artY, SHIP_INFO_SIDE_VIEW_W, SHIP_INFO_SIDE_VIEW_H);
+  ctx.strokeStyle = "#7f708a";
+  ctx.strokeRect(artX + 0.5, artY + 0.5, SHIP_INFO_SIDE_VIEW_W - 1, SHIP_INFO_SIDE_VIEW_H - 1);
+  const sideView = shipInfoImages.get(view.slug);
+  if (sideView) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sideView, artX, artY);
+  } else {
+    const message = shipInfoMenu.error || "LOADING SHIP...";
+    drawOptionsText(message, artX + SHIP_INFO_SIDE_VIEW_W / 2, artY + 48, {
+      align: "center",
+      color: shipInfoMenu.error ? "#f68181" : "#9babb2"
+    });
+  }
+
+  const statsX = panel.x + 218;
+  const valueX = panel.x + panel.w - 12;
+  drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, statsX, valueX, panel.y + 31);
+  drawShipInfoBar(statsX, panel.y + 43, valueX - statsX, view.hull / view.maxHull, "#91db69");
+  drawShipInfoValueRow("CANNONS", String(view.cannons), statsX, valueX, panel.y + 53);
+  drawShipInfoValueRow("UPWIND LIMIT", `${view.upwindStallAngleDeg} DEG`, statsX, valueX, panel.y + 65);
+  drawShipInfoRating("SPEED", view.ratings.speed, statsX, panel.y + 80);
+  drawShipInfoRating("ACCEL", view.ratings.acceleration, statsX, panel.y + 93);
+  drawShipInfoRating("TURNING", view.ratings.turning, statsX, panel.y + 106);
+  drawShipInfoRating("WINDWARD", view.ratings.windward, statsX, panel.y + 119);
+
+  const cargoY = panel.y + 142;
+  ctx.fillStyle = "#625565";
+  ctx.fillRect(panel.x + 10, cargoY - 3, panel.w - 20, 1);
+  drawOptionsText("CARGO HOLD", panel.x + 12, cargoY + 1, { color: "#c7dcd0" });
+  drawOptionsText(`${view.cargoUsed}/${view.cargoCapacity}`, panel.x + 105, cargoY + 1, {
+    align: "right",
+    color: "#ffffff"
+  });
+  drawShipInfoBar(panel.x + 116, cargoY + 2, 150, view.cargoUsed / view.cargoCapacity, "#fbb954");
+  drawOptionsText(`${view.doubloons} DOUBLOONS`, panel.x + panel.w - 12, cargoY + 1, {
+    align: "right",
+    color: "#f9c22b"
+  });
+
+  if (cargoPage.rows.length === 0) {
+    drawOptionsText("THE HOLD IS EMPTY", panel.x + 12, cargoY + 24, { color: "#9babb2" });
+  } else {
+    cargoPage.rows.forEach((row, index) => {
+      const column = Math.floor(index / 4);
+      const rowIndex = index % 4;
+      const x = panel.x + 12 + column * 207;
+      const y = cargoY + 19 + rowIndex * 13;
+      ctx.fillStyle = "#ab947a";
+      ctx.fillRect(x, y + 3, 3, 3);
+      drawOptionsText(
+        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_UI_8, 145),
+        x + 8,
+        y,
+        { color: "#ffffff" }
+      );
+      drawOptionsText(`${row.space} SPACE`, x + 194, y, { align: "right", color: "#9babb2" });
+    });
+  }
+
+  const pagerY = panel.y + panel.h - 18;
+  if (cargoPage.pageCount > 1) {
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    drawShipInfoArrowButton(
+      shipInfoMenu.previousPageRect,
+      "<",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.previousPageRect)
+    );
+    drawShipInfoArrowButton(
+      shipInfoMenu.nextPageRect,
+      ">",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.nextPageRect)
+    );
+    drawOptionsText(`MANIFEST ${cargoPage.page + 1}/${cargoPage.pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
+      align: "center",
+      color: "#9babb2"
+    });
+  } else {
+    shipInfoMenu.previousPageRect = null;
+    shipInfoMenu.nextPageRect = null;
+  }
+  ctx.restore();
+}
+
+function drawShipInfoValueRow(label, value, x, valueX, y) {
+  drawOptionsText(label, x, y, { color: "#c7dcd0" });
+  drawOptionsText(value, valueX, y, { align: "right", color: "#ffffff" });
+}
+
+function drawShipInfoRating(label, rating, x, y) {
+  drawOptionsText(label, x, y, { color: "#c7dcd0" });
+  const meterX = x + 78;
+  for (let index = 0; index < 10; index++) {
+    ctx.fillStyle = index < rating ? "#30e1b9" : "#625565";
+    ctx.fillRect(meterX + index * 8, y + 2, 6, 5);
+  }
+  drawOptionsText(String(rating), meterX + 89, y, { align: "right", color: "#ffffff" });
+}
+
+function drawShipInfoBar(x, y, width, fraction, color) {
+  ctx.fillStyle = "#2e222f";
+  ctx.fillRect(x, y, width, 6);
+  ctx.strokeStyle = "#625565";
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 5);
+  const fillWidth = Math.round((width - 2) * clamp(fraction, 0, 1));
+  if (fillWidth > 0) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x + 1, y + 1, fillWidth, 4);
+  }
+}
+
+function drawShipInfoCloseButton(rect, hovered) {
+  ctx.fillStyle = hovered ? "#625565" : "#2e222f";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#ffffff" : "#7f708a";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawOptionsText("X", rect.x + rect.w / 2, rect.y + 3, {
+    align: "center",
+    color: hovered ? "#ffffff" : "#c7dcd0"
+  });
+}
+
+function drawShipInfoArrowButton(rect, label, hovered) {
+  ctx.fillStyle = hovered ? "#625565" : "#2e222f";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#ffffff" : "#7f708a";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawOptionsText(label, rect.x + rect.w / 2, rect.y + 2, {
+    align: "center",
+    color: hovered ? "#ffffff" : "#fbb954"
+  });
 }
 
 function drawDiscoveriesMenu() {
@@ -6483,8 +6853,8 @@ function drawRiverConnector(call, activeChart) {
   const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
   const frameId = call.aWater ? call.b : call.a;
   const frame = waterFrameFor(frameId);
-  const colors = riverColors.frames[frame - 1] || riverColors.frames[0];
-  const mainColor = riverColors.base;
+  const colors = riverPaletteForTile(frameId, frame);
+  const mainColor = colors.base;
 
   drawPixelBezierStroke(ctx, path, mainColor, RIVER_CONNECTOR_RADIUS_PX);
   drawRiverConnectorMouthFlare(ctx, call, path, mainColor);
@@ -6951,13 +7321,14 @@ function riverSpriteForTile(call, activeChart, mask) {
   if (endpoints.length === 0) return null;
   const frame = waterFrameFor(call.id);
   const variant = hashInt(call.id) & 15;
+  const latitudeBand = waterLatitudeBandForTile(call.id);
   const endpointKey = endpoints.map((p) => `${p.x},${p.y},${p.mouth ? 1 : 0}`).join(";");
-  const key = `${frame}|${variant}|${endpointKey}`;
+  const key = `${latitudeBand}|${frame}|${variant}|${endpointKey}`;
   const cached = riverSpriteCache.get(key);
   if (cached) return cached;
   if (riverSpriteCache.size > RIVER_SPRITE_CACHE_LIMIT) riverSpriteCache = new Map();
 
-  const sprite = generateRiverSprite(endpoints, frame, variant);
+  const sprite = generateRiverSprite(endpoints, frame, variant, latitudeBand);
   riverSpriteCache.set(key, sprite);
   return sprite;
 }
@@ -7006,15 +7377,15 @@ function riverEdgeScreenDirection(call, activeChart, edge) {
   return { x: dx / len, y: dy / len };
 }
 
-function generateRiverSprite(endpoints, frame, variant) {
+function generateRiverSprite(endpoints, frame, variant, latitudeBand) {
   const sprite = document.createElement("canvas");
   sprite.width = TILE_ART_SIZE;
   sprite.height = TILE_ART_SIZE;
   const spriteCtx = sprite.getContext("2d");
   if (!spriteCtx) throw new Error("Could not create river sprite canvas");
   spriteCtx.imageSmoothingEnabled = false;
-  const colors = riverColors.frames[frame - 1] || riverColors.frames[0];
-  const mainColor = riverColors.base;
+  const colors = riverPaletteForBand(latitudeBand, frame);
+  const mainColor = colors.base;
   const cx = TILE_ART_HALF;
   const cy = TILE_ART_HALF;
   const paths = riverBezierPaths(endpoints, variant);
@@ -7202,12 +7573,89 @@ function terrainImage(key) {
 
 function terrainImageForTile(row, id) {
   const key = spriteForTerrain(row, id);
+  if (isWaterSurfaceRow(row)) return waterLatitudeTerrainImage(key, id);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainImage(key) : terrainImage(key);
 }
 
 function terrainColorForTile(row, id) {
   const key = spriteForTerrain(row, id);
+  if (isWaterSurfaceRow(row)) return waterLatitudeTerrainColor(key, id);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainColor(key) : terrainSpriteColor(key);
+}
+
+function waterLatitudeTerrainImage(key, id) {
+  const latitudeBand = waterLatitudeBandForTile(id);
+  const cacheKey = `${key}|${latitudeBand}`;
+  const cached = waterLatitudeImages?.get(cacheKey);
+  if (cached) return cached;
+  if (!waterLatitudeImages || !waterLatitudeSpriteColors || !waterLatitudePixelColors) {
+    throw new Error("Latitude water palette caches are not initialized");
+  }
+
+  const img = terrainImage(key);
+  const spriteCanvas = document.createElement("canvas");
+  spriteCanvas.width = img.width;
+  spriteCanvas.height = img.height;
+  const spriteCtx = spriteCanvas.getContext("2d", { willReadFrequently: true });
+  if (!spriteCtx) throw new Error(`Could not create latitude water sprite canvas for ${cacheKey}`);
+  spriteCtx.imageSmoothingEnabled = false;
+  spriteCtx.drawImage(img, 0, 0);
+
+  const imageData = spriteCtx.getImageData(0, 0, img.width, img.height);
+  const depthIndex = waterDepthIndexForSpriteKey(key);
+  const data = imageData.data;
+  for (let offset = 0; offset < data.length; offset += 4) {
+    if (data[offset + 3] === 0) continue;
+    const sourceHex = rgbToHex(data[offset], data[offset + 1], data[offset + 2]);
+    const mappedHex = waterLatitudePixelHex(sourceHex, latitudeBand, depthIndex);
+    const mapped = parseHexColor(mappedHex);
+    data[offset] = mapped.r;
+    data[offset + 1] = mapped.g;
+    data[offset + 2] = mapped.b;
+  }
+  spriteCtx.putImageData(imageData, 0, 0);
+
+  const baseHex = terrainSpriteColor(key);
+  waterLatitudeSpriteColors.set(cacheKey, waterLatitudePixelHex(baseHex, latitudeBand, depthIndex));
+  waterLatitudeImages.set(cacheKey, spriteCanvas);
+  return spriteCanvas;
+}
+
+function waterLatitudeTerrainColor(key, id) {
+  const latitudeBand = waterLatitudeBandForTile(id);
+  const cacheKey = `${key}|${latitudeBand}`;
+  if (!waterLatitudeSpriteColors?.has(cacheKey)) waterLatitudeTerrainImage(key, id);
+  const color = waterLatitudeSpriteColors?.get(cacheKey);
+  if (!color) throw new Error(`Missing latitude water color for ${cacheKey}`);
+  return color;
+}
+
+function waterLatitudeBandForTile(id) {
+  const latitude = graph?.latDeg?.[id];
+  if (!Number.isFinite(latitude)) throw new Error(`Missing latitude for water tile: ${id}`);
+  return waterLatitudeBand(latitude);
+}
+
+function waterLatitudePixelHex(sourceHex, latitudeBand, depthIndex) {
+  const normalized = sourceHex.startsWith("#") ? sourceHex.slice(1).toLowerCase() : sourceHex.toLowerCase();
+  const key = `${normalized}|${latitudeBand}|${depthIndex}`;
+  const cached = waterLatitudePixelColors.get(key);
+  if (cached) return cached;
+  const mapped = `#${waterPaletteHexForSourceHex(normalized, latitudeBand, depthIndex)}`;
+  waterLatitudePixelColors.set(key, mapped);
+  return mapped;
+}
+
+function riverPaletteForTile(id, frame) {
+  return riverPaletteForBand(waterLatitudeBandForTile(id), frame);
+}
+
+function riverPaletteForBand(latitudeBand, frame) {
+  const source = riverColors.frames[frame - 1] || riverColors.frames[0];
+  return {
+    base: waterLatitudePixelHex(riverColors.base, latitudeBand, 0),
+    light: waterLatitudePixelHex(source.light, latitudeBand, 0)
+  };
 }
 
 function terrainSpriteColor(key) {

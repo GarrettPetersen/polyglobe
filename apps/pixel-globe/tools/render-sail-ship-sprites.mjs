@@ -6,6 +6,7 @@ import * as THREE from "../../../examples/globe-demo/node_modules/three/build/th
 import { FBXLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
 import { shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
+import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(appRoot, "../..");
@@ -15,6 +16,7 @@ const unityShipModelRoot = join(unityShipSourceRoot, "Models");
 const unityShipTexturePath = join(unityShipSourceRoot, "Textures/texture main.png");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
+const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
 
 const frameSize = integerEnv("PIXEL_GLOBE_SHIP_FRAME_SIZE", 36);
@@ -27,6 +29,9 @@ const lightBinCount = lightAzimuthBins * lightElevationBins;
 const shadowFrameSize = integerEnv("PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE", 72);
 const shadowFrameInset = Math.floor((shadowFrameSize - frameSize) / 2);
 const previewScale = integerEnv("PIXEL_GLOBE_SHIP_PREVIEW_SCALE", 4);
+const sideViewWidth = integerEnv("PIXEL_GLOBE_SHIP_SIDE_WIDTH", 192);
+const sideViewHeight = integerEnv("PIXEL_GLOBE_SHIP_SIDE_HEIGHT", 104);
+const sideViewRenderScale = integerEnv("PIXEL_GLOBE_SHIP_SIDE_RENDER_SCALE", 2);
 const cameraExtent = 1.62;
 const defaultTargetModelMaxDim = 2.3;
 const unityFleetScaleExponent = 0.5;
@@ -488,12 +493,12 @@ function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-function projectedPoint(point, camera) {
+function projectedPoint(point, camera, viewport) {
   const ndc = point.clone().project(camera);
   const view = point.clone().applyMatrix4(camera.matrixWorldInverse);
   return {
-    x: (ndc.x * 0.5 + 0.5) * renderSize,
-    y: (-ndc.y * 0.5 + 0.5) * renderSize,
+    x: (ndc.x * 0.5 + 0.5) * viewport.width,
+    y: (-ndc.y * 0.5 + 0.5) * viewport.height,
     z: view.z,
     wx: point.x,
     wy: point.y,
@@ -501,15 +506,16 @@ function projectedPoint(point, camera) {
   };
 }
 
-function renderHeading(baseTriangles, headingIndex, camera, renderOptions) {
-  const canvas = createCanvas(renderSize, renderSize);
+function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewport = null) {
+  const size = viewport || { width: renderSize, height: renderSize };
+  const canvas = createCanvas(size.width, size.height);
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, renderSize, renderSize);
-  const image = ctx.createImageData(renderSize, renderSize);
-  const depth = new Float32Array(renderSize * renderSize);
-  const normals = new Float32Array(renderSize * renderSize * 3);
-  const positions = new Float32Array(renderSize * renderSize * 3);
+  ctx.clearRect(0, 0, size.width, size.height);
+  const image = ctx.createImageData(size.width, size.height);
+  const depth = new Float32Array(size.width * size.height);
+  const normals = new Float32Array(size.width * size.height * 3);
+  const positions = new Float32Array(size.width * size.height * 3);
   const casters = [];
   depth.fill(-Infinity);
 
@@ -522,7 +528,7 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions) {
       .subVectors(points[1], points[0])
       .cross(new THREE.Vector3().subVectors(points[2], points[0]))
       .normalize();
-    const screen = points.map((point) => projectedPoint(point, camera));
+    const screen = points.map((point) => projectedPoint(point, camera, size));
     if (screen.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) continue;
 
     const screenNormal = normal.clone().transformDirection(camera.matrixWorldInverse);
@@ -537,7 +543,7 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions) {
       x: screenNormal.x,
       y: -screenNormal.y,
       z: screenNormal.z
-    });
+    }, size);
   }
 
   ctx.putImageData(image, 0, 0);
@@ -553,12 +559,12 @@ function makeCasterTriangle(points) {
   };
 }
 
-function rasterizeTriangle(data, depth, normals, positions, points, surface, normal) {
+function rasterizeTriangle(data, depth, normals, positions, points, surface, normal, viewport) {
   const [a, b, c] = points;
   const minX = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x)));
   const minY = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y)));
-  const maxX = Math.min(renderSize - 1, Math.ceil(Math.max(a.x, b.x, c.x)));
-  const maxY = Math.min(renderSize - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
+  const maxX = Math.min(viewport.width - 1, Math.ceil(Math.max(a.x, b.x, c.x)));
+  const maxY = Math.min(viewport.height - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
   const area = edge(a, b, c.x, c.y);
 
   if (Math.abs(area) < 0.00001) return;
@@ -573,7 +579,7 @@ function rasterizeTriangle(data, depth, normals, positions, points, surface, nor
       if (w0 < 0 || w1 < 0 || w2 < 0) continue;
 
       const z = w0 * a.z + w1 * b.z + w2 * c.z;
-      const index = x + y * renderSize;
+      const index = x + y * viewport.width;
       if (z <= depth[index]) continue;
 
       depth[index] = z;
@@ -689,7 +695,9 @@ function fixedFrameScale(boundsByHeading) {
 
 function makeFrame(rendered, bounds, scale) {
   const sourceCtx = rendered.canvas.getContext("2d");
-  const source = sourceCtx.getImageData(0, 0, renderSize, renderSize);
+  const sourceWidth = rendered.canvas.width;
+  const sourceHeight = rendered.canvas.height;
+  const source = sourceCtx.getImageData(0, 0, sourceWidth, sourceHeight);
   const canvas = createCanvas(frameSize, frameSize);
   const ctx = canvas.getContext("2d");
   const image = ctx.createImageData(frameSize, frameSize);
@@ -705,7 +713,7 @@ function makeFrame(rendered, bounds, scale) {
     const sy = bounds.minY + Math.min(bounds.height - 1, Math.floor(((dy + 0.5) / drawH) * bounds.height));
     for (let dx = 0; dx < drawW; dx++) {
       const sx = bounds.minX + Math.min(bounds.width - 1, Math.floor(((dx + 0.5) / drawW) * bounds.width));
-      const sourceIndex = sx + sy * renderSize;
+      const sourceIndex = sx + sy * sourceWidth;
       const sourceOffset = sourceIndex * 4;
       if (source.data[sourceOffset + 3] < 128) continue;
 
@@ -768,14 +776,14 @@ function edgeShadedFrameImage(frame, targetCtx) {
   return shaded;
 }
 
-function pixelTouchesTransparency(data, x, y) {
+function pixelTouchesTransparency(data, x, y, width = frameSize, height = frameSize) {
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       if (dx === 0 && dy === 0) continue;
       const nx = x + dx;
       const ny = y + dy;
-      if (nx < 0 || nx >= frameSize || ny < 0 || ny >= frameSize) return true;
-      if (data[(nx + ny * frameSize) * 4 + 3] === 0) return true;
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) return true;
+      if (data[(nx + ny * width) * 4 + 3] === 0) return true;
     }
   }
   return false;
@@ -1478,6 +1486,15 @@ function resetUnityFleetReferenceOutput() {
   mkdirSync(unityFleetReferenceOutputRoot, { recursive: true });
 }
 
+function resetUnityFleetSideViewOutput() {
+  const relativeOutput = portablePath(unityFleetSideViewOutputRoot);
+  if (relativeOutput !== "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views") {
+    throw new Error(`Refusing to clear unexpected Unity fleet side-view path: ${unityFleetSideViewOutputRoot}`);
+  }
+  rmSync(unityFleetSideViewOutputRoot, { recursive: true, force: true });
+  mkdirSync(unityFleetSideViewOutputRoot, { recursive: true });
+}
+
 function slugify(value) {
   return value
     .toLowerCase()
@@ -1580,6 +1597,158 @@ async function renderShipReferenceSet(config) {
     },
     sheet
   };
+}
+
+function makeSideViewCamera() {
+  const extentY = 1.15;
+  const extentX = extentY * sideViewWidth / sideViewHeight;
+  const camera = new THREE.OrthographicCamera(-extentX, extentX, extentY, -extentY, 0.01, 30);
+  camera.position.set(0, 1.15, 7.5);
+  camera.lookAt(0, 0.05, 0);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  return camera;
+}
+
+function resurrectPalette() {
+  return RESURRECT_64_HEX.map((hex) => ({
+    hex,
+    r: Number.parseInt(hex.slice(0, 2), 16),
+    g: Number.parseInt(hex.slice(2, 4), 16),
+    b: Number.parseInt(hex.slice(4, 6), 16)
+  }));
+}
+
+const RESURRECT_64_COLORS = resurrectPalette();
+
+function nearestResurrectColor(r, g, b) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const color of RESURRECT_64_COLORS) {
+    const dr = r - color.r;
+    const dg = g - color.g;
+    const db = b - color.b;
+    const distance = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
+    if (distance < bestDistance) {
+      best = color;
+      bestDistance = distance;
+    }
+  }
+  if (!best) throw new Error("Resurrect palette is empty");
+  return best;
+}
+
+function shadeEdgesAndQuantizeToResurrect(canvas) {
+  const ctx = canvas.getContext("2d");
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const source = new Uint8ClampedArray(image.data);
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const offset = (x + y * canvas.width) * 4;
+      if (source[offset + 3] < 128) {
+        image.data[offset] = 0;
+        image.data[offset + 1] = 0;
+        image.data[offset + 2] = 0;
+        image.data[offset + 3] = 0;
+        continue;
+      }
+      const edgeScale = pixelTouchesTransparency(source, x, y, canvas.width, canvas.height)
+        ? shipEdgeShadeScale
+        : 1;
+      const color = nearestResurrectColor(
+        source[offset] * edgeScale,
+        source[offset + 1] * edgeScale,
+        source[offset + 2] * edgeScale
+      );
+      image.data[offset] = color.r;
+      image.data[offset + 1] = color.g;
+      image.data[offset + 2] = color.b;
+      image.data[offset + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+async function renderShipSideView(config) {
+  const scene = await loadScene(config.modelPath);
+  const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
+  const model = collectTriangles(scene, { targetMaxDim: config.targetModelMaxDim });
+  const waterlineY = estimateWaterlineY(model.triangles);
+  const renderViewport = {
+    width: sideViewWidth * sideViewRenderScale,
+    height: sideViewHeight * sideViewRenderScale
+  };
+  const rendered = renderHeading(model.triangles, 0, makeSideViewCamera(), {
+    textureSampler,
+    recolorSails: Boolean(config.recolorSails),
+    waterlineY
+  }, renderViewport);
+  alphaBounds(rendered.canvas);
+
+  const sideView = createCanvas(sideViewWidth, sideViewHeight);
+  const ctx = sideView.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, sideViewWidth, sideViewHeight);
+  ctx.drawImage(rendered.canvas, 0, 0, sideViewWidth, sideViewHeight);
+  shadeEdgesAndQuantizeToResurrect(sideView);
+  const finalBounds = alphaBounds(sideView);
+  if (
+    finalBounds.minX <= 0 ||
+    finalBounds.minY <= 0 ||
+    finalBounds.minX + finalBounds.width >= sideViewWidth ||
+    finalBounds.minY + finalBounds.height >= sideViewHeight
+  ) {
+    throw new Error(`Ship side view clips its ${sideViewWidth}x${sideViewHeight} frame: ${config.slug}`);
+  }
+  const outputPath = join(unityFleetSideViewOutputRoot, `${config.slug}.png`);
+  writeFileSync(outputPath, sideView.toBuffer("image/png"));
+  return {
+    slug: config.slug,
+    label: config.label,
+    sourceModel: portablePath(config.modelPath),
+    sourceMaxDim: Number(config.sourceMaxDim.toFixed(4)),
+    targetModelMaxDim: Number(config.targetModelMaxDim.toFixed(4)),
+    width: sideViewWidth,
+    height: sideViewHeight,
+    palette: "Resurrect 64",
+    file: portablePath(outputPath)
+  };
+}
+
+async function renderUnityFleetSideViews() {
+  resetUnityFleetSideViewOutput();
+  const models = unityShipModels();
+  if (models.length === 0) throw new Error(`No Unity ship FBX files found in ${unityShipModelRoot}`);
+
+  const configs = [];
+  for (const modelPath of models) {
+    const config = unityShipConfig(modelPath);
+    config.sourceMaxDim = await measureSourceMaxDim(modelPath);
+    configs.push(config);
+  }
+  const largestSourceMaxDim = Math.max(...configs.map((config) => config.sourceMaxDim));
+  for (const config of configs) {
+    config.targetModelMaxDim = fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
+  }
+  validateShipStatsForSlugs(configs.map((config) => config.slug));
+
+  const entries = [];
+  for (const config of configs) {
+    console.log(`side view ${config.slug}`);
+    const entry = await renderShipSideView(config);
+    entries.push(entry);
+    console.log(`  ${entry.file}`);
+  }
+  const manifestPath = join(unityFleetSideViewOutputRoot, "manifest.json");
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet-side-views",
+    scaleMode: "source-relative-fleet",
+    palette: "Resurrect 64",
+    width: sideViewWidth,
+    height: sideViewHeight,
+    ships: entries
+  }, null, 2)}\n`);
+  console.log(manifestPath);
 }
 
 async function renderUnityFleet() {
@@ -1742,6 +1911,10 @@ async function main() {
   }
   if (args.has("--unity-fleet-reference")) {
     await renderUnityFleetReferences();
+    return;
+  }
+  if (args.has("--unity-fleet-side-views")) {
+    await renderUnityFleetSideViews();
     return;
   }
 
