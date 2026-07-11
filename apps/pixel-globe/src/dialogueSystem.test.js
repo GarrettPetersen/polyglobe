@@ -18,10 +18,10 @@ test("hailing an NPC ship identifies the captain by name", () => {
   const view = shipDialogueView(session, ship);
 
   assert.equal(session.kind, "ship");
-  assert.equal(view.speaker, "Marco Doria, Xebec captain");
-  assert.equal(view.text, "Ahoy matey. Running in ballast.");
-  assert.deepEqual(view.options.map((option) => option.label), ["Leave"]);
-  assert.deepEqual(selectShipDialogueOption(session, ship, 0), { closed: true });
+  assert.equal(view.speaker, "Marco Doria, merchant captain");
+  assert.equal(view.text, "Fair winds, captain. Running in ballast.");
+  assert.deepEqual(view.options.map((option) => option.label), ["Demand surrender", "Leave"]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
 });
 
 test("merchant captains report their destination and visible cargo", () => {
@@ -33,7 +33,117 @@ test("merchant captains report their destination and visible cargo", () => {
     cargo: { pepper: 18, cotton: 9 }
   };
   const view = shipDialogueView(createShipDialogueSession(ship), ship);
-  assert.equal(view.text, "Ahoy matey. Bound for Hormuz. We carry Pepper x18 and Cotton x9.");
+  assert.equal(view.text, "Fair winds, captain. Bound for Hormuz. We carry Pepper x18 and Cotton x9.");
+});
+
+test("merchant captains report when they are anchored for a storm", () => {
+  const ship = {
+    id: "atlantic-coast-2",
+    label: "Caravel",
+    character: { name: "Beatriz Lopes" },
+    stormStatus: "We are anchored until the storm passes."
+  };
+  const view = shipDialogueView(createShipDialogueSession(ship), ship);
+  assert.equal(
+    view.text,
+    "Fair winds, captain. We are anchored until the storm passes. Running in ballast."
+  );
+});
+
+test("warship and pirate captains identify their role and allegiance", () => {
+  const warship = {
+    id: "warship",
+    roleLabel: "Warship",
+    faction: { adjective: "Portuguese" },
+    character: { name: "Ines Vaz" }
+  };
+  const warView = shipDialogueView(createShipDialogueSession(warship), warship);
+  assert.equal(warView.speaker, "Ines Vaz, Portuguese warship captain");
+  assert.match(warView.text, /^Keep clear\. We are on patrol\./);
+
+  const pirate = {
+    id: "pirate",
+    roleLabel: "Pirate",
+    faction: { adjective: "Pirate" },
+    character: { name: "Anne Flint" }
+  };
+  const pirateView = shipDialogueView(createShipDialogueSession(pirate), pirate);
+  assert.equal(pirateView.speaker, "Anne Flint, pirate captain");
+  assert.match(pirateView.text, /^Heave to/);
+});
+
+test("an attacking captain hails with a reason before combat", () => {
+  const attacker = {
+    id: "portuguese-warship",
+    roleLabel: "Warship",
+    faction: { adjective: "Portuguese" },
+    character: { name: "Ines Vaz" }
+  };
+  const session = createShipDialogueSession(attacker, {
+    attackReason: "You sail under outlaw colors. Strike them, or we open fire!"
+  });
+  const view = shipDialogueView(session, attacker);
+
+  assert.equal(view.expressionId, "angry");
+  assert.equal(view.text, "You sail under outlaw colors. Strike them, or we open fire!");
+  assert.deepEqual(view.options.map((option) => option.label), ["To arms"]);
+});
+
+test("an outmatched ship offers surrender and the player may refuse it", () => {
+  const ship = {
+    id: "outmatched",
+    roleLabel: "Merchant",
+    faction: { adjective: "Spanish" },
+    character: { name: "Teresa de la Vega" },
+    willOfferSurrender: true
+  };
+  const session = createShipDialogueSession(ship);
+
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), { closed: false, action: null });
+  const offer = shipDialogueView(session, ship);
+  assert.equal(offer.expressionId, "afraid");
+  assert.deepEqual(offer.options.map((option) => option.label), ["Accept surrender", "Refuse and attack"]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 1), {
+    closed: true,
+    action: { type: "attack" }
+  });
+
+  const acceptingSession = createShipDialogueSession(ship);
+  selectShipDialogueOption(acceptingSession, ship, 0);
+  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
+    closed: true,
+    action: { type: "surrender" }
+  });
+});
+
+test("a protected surrendered ship cannot be threatened again", () => {
+  const ship = {
+    id: "protected",
+    character: { name: "Marco Doria" },
+    combatGrace: true
+  };
+  const view = shipDialogueView(createShipDialogueSession(ship), ship);
+  assert.deepEqual(view.options.map((option) => option.label), ["Leave"]);
+});
+
+test("a capable ship defies the threat but can still be attacked", () => {
+  const ship = {
+    id: "capable",
+    roleLabel: "Warship",
+    faction: { adjective: "Portuguese" },
+    character: { name: "Ines Vaz" },
+    willOfferSurrender: false
+  };
+  const session = createShipDialogueSession(ship);
+
+  selectShipDialogueOption(session, ship, 0);
+  const defiance = shipDialogueView(session, ship);
+  assert.equal(defiance.expressionId, "angry");
+  assert.deepEqual(defiance.options.map((option) => option.label), ["Attack", "Back down"]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), {
+    closed: true,
+    action: { type: "attack" }
+  });
 });
 
 test("ship dialogue rejects a different NPC ship", () => {

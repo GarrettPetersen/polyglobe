@@ -2,7 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { advanceWorldEconomy, createWorldEconomy, tradeGoodById } from "./economy.js";
-import { createNpcSeaRouteSystem, updateNpcSeaRouteSystem } from "./npcSeaRoutes.js";
+import {
+  NPC_ROLE_MERCHANT,
+  NPC_ROLE_PIRATE,
+  NPC_ROLE_WARSHIP,
+  createNpcSeaRouteSystem,
+  damageNpcShip,
+  npcShipHasCombatGrace,
+  npcShipSnapshots,
+  surrenderNpcShip,
+  updateNpcPirateHideoutPlayerThreat,
+  updateNpcSeaRouteSystem
+} from "./npcSeaRoutes.js";
+import { DIPLOMACY_WAR, PIRATE_FACTION_ID, diplomacyBetween } from "./factions.js";
+import { shipStatsForSlug } from "./shipStats.js";
 
 const PORTS = Object.freeze([
   port(1, "Lisbon", "Portugal", "mediterranean", 38.72, -9.14, 70000, "portugal"),
@@ -39,6 +52,152 @@ test("NPC merchants carry finite cargo and realize profits over repeated port ca
     assert.ok(ship.specie >= 0);
     assert.ok(cargoUnits(ship) <= ship.cargoCapacity);
   }
+});
+
+test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const counts = { merchant: 0, warship: 0, pirate: 0 };
+  let cheap = 0;
+  let expensive = 0;
+
+  for (const ship of routes.ships) {
+    counts[ship.role] += 1;
+    const stats = shipStatsForSlug(ship.slug);
+    if (stats.mass <= 155) cheap += 1;
+    if (stats.mass >= 260) expensive += 1;
+    if (ship.role === NPC_ROLE_PIRATE) {
+      assert.equal(ship.factionId, PIRATE_FACTION_ID);
+      assert.match(ship.slug, /^pirate-/);
+    } else if (ship.role === NPC_ROLE_WARSHIP) {
+      assert.ok(stats.cannons > 0);
+      assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
+    } else {
+      assert.equal(ship.role, NPC_ROLE_MERCHANT);
+      assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
+    }
+  }
+
+  assert.ok(counts.merchant > counts.warship + counts.pirate, JSON.stringify(counts));
+  assert.ok(counts.warship > counts.pirate, JSON.stringify(counts));
+  assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
+});
+
+test("NPC merchants only plan trade calls at friendly or neutral ports", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+
+  for (let day = 0; day <= 180; day++) {
+    const minute = day * 24 * 60;
+    if (day > 0) {
+      advanceWorldEconomy(economy, minute);
+      updateNpcSeaRouteSystem(routes, minute);
+    }
+    for (const ship of routes.ships.filter((item) => item.role === NPC_ROLE_MERCHANT)) {
+      const plannedPorts = [ship.plan?.destination, ship.finalDestination].filter(Boolean);
+      for (const plannedPort of plannedPorts) {
+        assert.notEqual(
+          diplomacyBetween(ship.factionId, plannedPort.factionId),
+          DIPLOMACY_WAR,
+          `${ship.id} planned a hostile call at ${plannedPort.city}`
+        );
+      }
+    }
+  }
+});
+
+test("surrender transfers stores and grants protection until a safe port", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const loser = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT && cargoUnits(ship) > 0);
+  const winner = routes.ships.find((ship) => ship.id !== loser?.id && ship.role === NPC_ROLE_PIRATE);
+  assert.ok(loser);
+  assert.ok(winner);
+
+  const damage = damageNpcShip(routes, loser.id, loser.maxHitPoints);
+  assert.equal(damage.shouldSurrender, true);
+  const loot = surrenderNpcShip(routes, loser.id, winner.id);
+  assert.ok(loot.specie > 0);
+  assert.ok(Object.keys(loot.cargo).length > 0);
+  assert.equal(loser.specie, 0);
+  assert.deepEqual(loser.cargo, {});
+  assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+
+  for (let day = 1; day <= 120 && npcShipHasCombatGrace(routes, loser.id); day++) {
+    updateNpcSeaRouteSystem(routes, day * 24 * 60);
+  }
+  assert.equal(npcShipHasCombatGrace(routes, loser.id), false);
+  assert.equal(loser.hitPoints, loser.maxHitPoints);
+  assert.ok(loser.currentPort.factionId === loser.factionId || loser.currentPort.factionId === "neutral");
+});
+
+test("voluntary surrender preserves an undamaged hull", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const loser = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT && cargoUnits(ship) > 0);
+  assert.ok(loser);
+  const hullBefore = loser.hitPoints;
+
+  surrenderNpcShip(routes, loser.id, null, { preserveHull: true });
+
+  assert.equal(loser.hitPoints, hullBefore);
+  assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+});
+
+test("pirate hideouts are a deterministic invisible subset of coastal ports", () => {
+  const first = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy: createWorldEconomy({ ports: PORTS, startMinute: 0 })
+  });
+  const second = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy: createWorldEconomy({ ports: PORTS, startMinute: 0 })
+  });
+  const firstIds = first.pirateHideouts.map((port) => port.tileId);
+
+  assert.deepEqual(firstIds, second.pirateHideouts.map((port) => port.tileId));
+  assert.equal(firstIds.length, 2);
+  assert.ok(firstIds.every((tileId) => first.ports.some((port) => port.tileId === tileId)));
+  assert.ok(first.ports.every((port) => !("pirateHideout" in port)));
+});
+
+test("damaged pirates hide, remain concealed near threats, and reappear repaired", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const pirate = routes.ships.find((ship) => ship.role === NPC_ROLE_PIRATE && !ship.hiddenAtHideout);
+  assert.ok(pirate);
+  damageNpcShip(routes, pirate.id, pirate.maxHitPoints);
+
+  let minute = 0;
+  for (let day = 1; day <= 720 && !pirate.hiddenAtHideout; day++) {
+    minute = day * 24 * 60;
+    advanceWorldEconomy(economy, minute);
+    updateNpcSeaRouteSystem(routes, minute);
+  }
+  assert.equal(pirate.hiddenAtHideout, true);
+  assert.ok(routes.pirateHideouts.some((port) => port.tileId === pirate.currentPort.tileId));
+  assert.equal(npcShipSnapshots(routes, minute).find((snapshot) => snapshot.id === pirate.id)?.hidden, true);
+
+  minute = Math.max(minute, Math.ceil(pirate.hiddenUntilMinute + 1));
+  updateNpcPirateHideoutPlayerThreat(routes, {
+    lat: pirate.currentPort.lat,
+    lon: pirate.currentPort.lon,
+    clockMinutes: minute
+  });
+  updateNpcSeaRouteSystem(routes, minute);
+  assert.equal(pirate.hiddenAtHideout, true);
+
+  for (let day = 1; day <= 120 && pirate.hiddenAtHideout; day++) {
+    minute += 24 * 60;
+    advanceWorldEconomy(economy, minute);
+    updateNpcSeaRouteSystem(routes, minute);
+  }
+  assert.equal(pirate.hiddenAtHideout, false);
+  assert.equal(pirate.hitPoints, pirate.maxHitPoints);
+  const emerged = npcShipSnapshots(routes, minute).find((snapshot) => snapshot.id === pirate.id);
+  assert.ok(emerged && !emerged.hidden);
 });
 
 function cargoUnits(ship) {

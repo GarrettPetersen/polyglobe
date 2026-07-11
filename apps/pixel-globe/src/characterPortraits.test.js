@@ -12,7 +12,9 @@ import {
   assignPortCityCharacters,
   classifyPortraitRoles,
   decodePortraitRoleMap,
-  encodePortraitRoleMap
+  encodePortraitRoleMap,
+  generatePlayerCharacter,
+  playerCharacterPortraitSummary
 } from "./characterPortraits.js";
 
 const GENERATED_MANIFEST = JSON.parse(readFileSync(
@@ -82,6 +84,58 @@ test("portrait analysis separates a face, nearby hair, and torso colors", () => 
   assert.notEqual(roles[4 + 12 * width], roles[7 + 12 * width]);
 });
 
+test("player portrait pool contains only multi-expression captain sources", () => {
+  assert.deepEqual(playerCharacterPortraitSummary(GENERATED_MANIFEST), {
+    total: 131,
+    multipleExpressions: 28,
+    eligibleCaptains: 5
+  });
+
+  const usedNames = new Set();
+  const homePort = {
+    tileId: 7,
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    lat: 36.53,
+    lon: -6.29
+  };
+  const character = generatePlayerCharacter({
+    identityKey: "test-player",
+    homePort,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+
+  assert.equal(character.role, "player-captain");
+  assert.equal(character.homePortName, "Cadiz");
+  assert.equal(character.nameCulture, "spanish");
+  assert.ok(character.sourceRoles.includes("captain"));
+  assert.ok(character.expressions.length > 1);
+  assert.ok(character.expressions.every((expression) => expression.src.startsWith("/assets/characters/")));
+});
+
+test("player generation is deterministic for an identity key", () => {
+  const homePort = {
+    tileId: 11,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    lat: 38.72,
+    lon: -9.14
+  };
+  const generate = () => generatePlayerCharacter({
+    identityKey: "persistent-player-seed",
+    homePort,
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  });
+
+  assert.deepEqual(generate(), generate());
+});
+
 test("port assignments use regional portrait and tone pools", () => {
   const usedNames = new Set();
   const assignments = assignPortCityCharacters([
@@ -101,10 +155,11 @@ test("port assignments use regional portrait and tone pools", () => {
   assert.equal(usedNames.size, 2);
 });
 
-test("ship captains mostly use pirate portraits with regional alternatives", () => {
+test("ship captains use pirate portraits only for pirate crews", () => {
   const ships = Array.from({ length: 40 }, (_, index) => ({
     id: `americas-${index}`,
     slug: "caravel",
+    role: index < 10 ? "pirate" : index < 20 ? "warship" : "merchant",
     profileId: "atlantic-coast",
     currentPort: {
       routeRegion: "americas",
@@ -120,8 +175,8 @@ test("ship captains mostly use pirate portraits with regional alternatives", () 
   const values = [...captains.values()];
   const pirates = values.filter((captain) => captain.sourceRoles.includes("pirate")).length;
   const regional = values.filter((captain) => captain.sourceRegions.includes("americas")).length;
-  assert.ok(pirates >= 26, `expected mostly pirates, got ${pirates}/40`);
-  assert.ok(regional > 0, "expected some regionally tagged captains");
+  assert.equal(pirates, 10);
+  assert.equal(regional, 30);
   assert.equal(new Set(values.map((captain) => captain.name)).size, values.length);
   assert.ok(values.every((captain) => captain.nameCulture === "nahua"));
 });

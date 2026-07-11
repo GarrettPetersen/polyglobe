@@ -10,11 +10,13 @@ import {
 
 export const STARTING_DOUBLOONS = 360;
 
-export function createGameState({ cargoCapacity, startMinute = 0 }) {
+export function createGameState({ cargoCapacity, startMinute = 0, playerCharacter = null }) {
   assertCargoCapacity(cargoCapacity);
   assertSimulationMinute(startMinute);
+  if (playerCharacter !== null) assertPlayerCharacter(playerCharacter);
   return {
-    version: 2,
+    version: 3,
+    playerCharacter,
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
     cargo: {},
@@ -117,6 +119,49 @@ export function cargoUsed(state) {
     used += good.unitSize * quantity;
   }
   return used;
+}
+
+export function receiveSurrenderedLoot(state, loot, context = {}) {
+  assertGameState(state);
+  if (!loot || !Number.isInteger(loot.specie) || loot.specie < 0 || !loot.cargo || typeof loot.cargo !== "object") {
+    throw new Error("Invalid surrendered ship loot");
+  }
+
+  state.doubloons += loot.specie;
+  if (loot.specie > 0) {
+    recordLedgerEntry(state, null, context, {
+      kind: "prize",
+      description: "Surrendered prize money",
+      goodId: null,
+      quantity: 0,
+      amount: loot.specie,
+      costBasis: 0,
+      pnl: loot.specie
+    });
+  }
+
+  const receivedCargo = {};
+  let free = state.cargoCapacity - cargoUsed(state);
+  for (const [goodId, available] of Object.entries(loot.cargo)) {
+    const good = goodById(goodId);
+    assertQuantity(available, `loot.${goodId}`);
+    const quantity = Math.min(available, Math.floor(free / good.unitSize));
+    if (quantity <= 0) continue;
+    state.cargo[goodId] = (state.cargo[goodId] || 0) + quantity;
+    state.accounts.cargoCostBasis[goodId] = state.accounts.cargoCostBasis[goodId] || 0;
+    receivedCargo[goodId] = quantity;
+    free -= quantity * good.unitSize;
+    recordLedgerEntry(state, null, context, {
+      kind: "prize",
+      description: `Prize cargo ${good.label} x${quantity}`,
+      goodId,
+      quantity,
+      amount: 0,
+      costBasis: 0,
+      pnl: null
+    });
+  }
+  return { specie: loot.specie, cargo: receivedCargo };
 }
 
 export function cargoFree(state) {
@@ -351,6 +396,7 @@ function roundLedgerMoney(value) {
 
 function assertGameState(state) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
+  if (state.playerCharacter !== null) assertPlayerCharacter(state.playerCharacter);
   assertCargoCapacity(state.cargoCapacity);
   if (!Number.isInteger(state.doubloons) || state.doubloons < 0) {
     throw new Error(`Invalid doubloon balance: ${state.doubloons}`);
@@ -381,6 +427,16 @@ function assertGameState(state) {
   }
   if (!Number.isFinite(cumulativeLongitudeDeg)) {
     throw new Error(`Invalid cumulative navigation longitude: ${cumulativeLongitudeDeg}`);
+  }
+}
+
+function assertPlayerCharacter(character) {
+  if (!character || typeof character !== "object") throw new Error("Invalid player character");
+  if (typeof character.name !== "string" || character.name.trim() === "") {
+    throw new Error("Player character requires a name");
+  }
+  if (!Array.isArray(character.expressions) || character.expressions.length < 2) {
+    throw new Error("Player character requires multiple expressions");
   }
 }
 

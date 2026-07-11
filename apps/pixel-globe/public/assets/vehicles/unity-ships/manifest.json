@@ -13,10 +13,10 @@
   "ships": [
     {
       "slug": "fishing-lugger",
-      "label": "Fishing Lugger",
+      "label": "Fishing Barque",
       "category": "boats",
       "assetLabel": "Boat 1",
-      "identifiedType": "small lugger / fishing boat",
+      "identifiedType": "small fishing barque",
       "identificationConfidence": "medium",
       "identificationNotes": "Small single-mast coastal working boat.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/boats/boat 1.fbx",
@@ -51,7 +51,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fishing-lugger-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "small-dhow",
@@ -265,12 +266,12 @@
     },
     {
       "slug": "pirate-brig",
-      "label": "Pirate Brig",
+      "label": "Heavy Caravel",
       "category": "ships large",
       "assetLabel": "Pirate Ship Large 1",
-      "identifiedType": "pirate brig / snow",
+      "identifiedType": "armed caravel / raider",
       "identificationConfidence": "medium",
-      "identificationNotes": "Black-sailed multi-mast raider; brig is the cleanest game label.",
+      "identificationNotes": "Black-sailed multi-mast hull interpreted as a heavily armed caravel; pirate markings are a faction treatment.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/pirate ship large 1.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -303,16 +304,17 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brig-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "pirate-frigate",
-      "label": "Pirate Frigate",
+      "label": "Armed Galleon",
       "category": "ships large",
       "assetLabel": "Pirate Ship Large 2",
-      "identifiedType": "pirate frigate / raider",
+      "identifiedType": "early galleon / raider",
       "identificationConfidence": "medium",
-      "identificationNotes": "Longer, heavier black-sailed raider silhouette.",
+      "identificationNotes": "Longer, heavier black-sailed hull interpreted as an armed early galleon; pirate markings are a faction treatment.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/pirate ship large 2.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -345,7 +347,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-frigate-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "galleon",
@@ -391,12 +394,12 @@
     },
     {
       "slug": "frigate",
-      "label": "Frigate",
+      "label": "Great Galleon",
       "category": "ships large",
       "assetLabel": "Ship Large 2",
-      "identifiedType": "frigate / man-of-war",
+      "identifiedType": "great galleon",
       "identificationConfidence": "high",
-      "identificationNotes": "Long square-rigged warship silhouette.",
+      "identificationNotes": "Long square-rigged silhouette interpreted as a large early galleon.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 2.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -429,16 +432,17 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/frigate-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "fluyt",
-      "label": "Fluyt",
+      "label": "Urca",
       "category": "ships large",
       "assetLabel": "Ship Large 3",
-      "identifiedType": "fluyt / merchantman",
+      "identifiedType": "urca / merchant roundship",
       "identificationConfidence": "medium",
-      "identificationNotes": "Bulky merchant hull, useful as a cargo specialist.",
+      "identificationNotes": "Bulky merchant hull interpreted as a capacious Iberian urca.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 3.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -471,7 +475,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fluyt-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "carrack",
@@ -517,12 +522,12 @@
     },
     {
       "slug": "ship-of-the-line",
-      "label": "Ship of the Line",
+      "label": "Great Carrack",
       "category": "ships large",
       "assetLabel": "Ship Large 5",
-      "identifiedType": "ship-of-the-line / heavy frigate",
+      "identifiedType": "great carrack / great ship",
       "identificationConfidence": "medium",
-      "identificationNotes": "Largest heavy square-rigger in the pack.",
+      "identificationNotes": "Largest heavy square-rigger, interpreted as an exceptional royal great ship.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 5.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -555,7 +560,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ship-of-the-line-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "medium-junk",
@@ -601,12 +607,12 @@
     },
     {
       "slug": "pirate-brigantine",
-      "label": "Pirate Brigantine",
+      "label": "Light Brigantine",
       "category": "ships medium",
       "assetLabel": "Pirate Ship Medium",
-      "identifiedType": "pirate brigantine / brig",
+      "identifiedType": "Mediterranean brigantine",
       "identificationConfidence": "high",
-      "identificationNotes": "Compact black-sailed raider.",
+      "identificationNotes": "Compact black-sailed hull interpreted in the older Mediterranean sense; pirate markings are a faction treatment.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/pirate ship medium.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -639,7 +645,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-brigantine-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "xebec",
@@ -814,9 +821,9 @@
       "label": "Brigantine",
       "category": "ships medium",
       "assetLabel": "Ship Medium 5",
-      "identifiedType": "brigantine / brig",
+      "identifiedType": "Mediterranean brigantine",
       "identificationConfidence": "medium",
-      "identificationNotes": "Medium square/fore-and-aft trader or light naval vessel.",
+      "identificationNotes": "Light trader or raider interpreted in the older Mediterranean sense.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 5.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -849,16 +856,17 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/brigantine-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "corvette",
-      "label": "Corvette",
+      "label": "Armed Caravel",
       "category": "ships medium",
       "assetLabel": "Ship Medium 6",
-      "identifiedType": "corvette / small frigate",
+      "identifiedType": "armed caravel",
       "identificationConfidence": "medium",
-      "identificationNotes": "Small naval square-rigger.",
+      "identificationNotes": "Small naval silhouette interpreted as a caravel fitted for war.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 6.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -891,7 +899,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/corvette-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "small-junk",
@@ -937,12 +946,12 @@
     },
     {
       "slug": "pirate-sloop",
-      "label": "Pirate Sloop",
+      "label": "Small Pinnace",
       "category": "ships small",
       "assetLabel": "Pirate Ship Small",
-      "identifiedType": "pirate sloop / cutter",
+      "identifiedType": "pinnace",
       "identificationConfidence": "medium",
-      "identificationNotes": "Small black-sailed raider.",
+      "identificationNotes": "Small black-sailed hull interpreted as a light pinnace; pirate markings are a faction treatment.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/pirate ship small.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -975,7 +984,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/pirate-sloop-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "lateen-xebec",
@@ -1063,12 +1073,12 @@
     },
     {
       "slug": "cutter",
-      "label": "Cutter",
+      "label": "Coastal Pinnace",
       "category": "ships small",
       "assetLabel": "Ship Small 3",
-      "identifiedType": "sloop / cutter",
+      "identifiedType": "small pinnace",
       "identificationConfidence": "high",
-      "identificationNotes": "Small fore-and-aft European craft.",
+      "identificationNotes": "Small European fore-and-aft silhouette used as a coastal pinnace.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 3.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -1101,7 +1111,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/cutter-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "lateen-dhow",
@@ -1147,12 +1158,12 @@
     },
     {
       "slug": "ketch",
-      "label": "Ketch",
+      "label": "Lateen Barque",
       "category": "ships small",
       "assetLabel": "Ship Small 5",
-      "identifiedType": "ketch / small fore-and-aft trader",
+      "identifiedType": "two-masted lateen barque",
       "identificationConfidence": "medium",
-      "identificationNotes": "Two-mast fore-and-aft rig with a smaller aft sail reads more like a ketch than a caravel.",
+      "identificationNotes": "Two triangular sails interpreted as a small Mediterranean lateen trader.",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 5.fbx",
       "sourceTexture": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sailRecolor": true,
@@ -1185,7 +1196,8 @@
         "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-shadow.png",
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ketch-16-headings-lighting-preview.png"
-      }
+      },
+      "confidence": "medium"
     },
     {
       "slug": "square-sail-trader",

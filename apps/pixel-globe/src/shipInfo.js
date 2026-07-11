@@ -55,6 +55,7 @@ export function createShipInfoView(ship, gameState) {
   return {
     slug: ship.typeSlug,
     label: shipLabelForSlug(ship.typeSlug),
+    captainName: gameState.playerCharacter?.name || null,
     hull: Math.max(0, Math.round(ship.hitPoints)),
     maxHull: Math.round(ship.maxHitPoints),
     cannons: stats.cannons,
@@ -63,6 +64,7 @@ export function createShipInfoView(ship, gameState) {
     cargoUsed: used,
     cargoCapacity: stats.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
+    seaworthiness: stats.seaworthiness,
     ratings: Object.freeze({
       speed: shipPerformanceRating(stats, "speed"),
       acceleration: shipPerformanceRating(stats, "acceleration"),

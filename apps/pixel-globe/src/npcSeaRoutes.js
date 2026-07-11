@@ -5,7 +5,13 @@ import {
   windAtLatLonDeg
 } from "./weather.js";
 import { shipStatsForSlug } from "./shipStats.js";
-import { assertFactionId } from "./factions.js";
+import {
+  DIPLOMACY_WAR,
+  NEUTRAL_FACTION_ID,
+  PIRATE_FACTION_ID,
+  assertFactionId,
+  diplomacyBetween
+} from "./factions.js";
 import {
   cargoSaleValue,
   executePortPurchase,
@@ -31,6 +37,27 @@ const NPC_ROUTE_HOP_MAX_DAYS = 19;
 const NPC_ROUTE_HOP_MAX_KM = 1650;
 const NPC_MIN_TRIP_DISTANCE_KM = 180;
 const NPC_ROUTE_MIN_DURATION_DAYS = 0.45;
+const PIRATE_HIDEOUT_PORT_FRACTION = 0.06;
+const PIRATE_HIDEOUT_MIN_COUNT = 2;
+const PIRATE_HIDEOUT_MAX_COUNT = 14;
+const PIRATE_HIDEOUT_VISIT_PERCENT = 16;
+const PIRATE_HIDEOUT_RETREAT_HULL_RATIO = 0.5;
+const PIRATE_HIDEOUT_MIN_STAY_MINUTES = 18 * 60;
+const PIRATE_HIDEOUT_STAY_SPREAD_MINUTES = 30 * 60;
+const PIRATE_HIDEOUT_DANGER_RADIUS_KM = 120;
+const PIRATE_HIDEOUT_DANGER_HOLD_MINUTES = 6 * 60;
+
+export const NPC_ROLE_MERCHANT = "merchant";
+export const NPC_ROLE_WARSHIP = "warship";
+export const NPC_ROLE_PIRATE = "pirate";
+
+const NPC_ROLE_SET = new Set([NPC_ROLE_MERCHANT, NPC_ROLE_WARSHIP, NPC_ROLE_PIRATE]);
+const PIRATE_SHIP_SLUGS = Object.freeze([
+  "pirate-sloop",
+  "pirate-brigantine",
+  "pirate-brig",
+  "pirate-frigate"
+]);
 
 export const NPC_SHIP_SLUGS = Object.freeze([
   "small-junk",
@@ -51,7 +78,12 @@ export const NPC_SHIP_SLUGS = Object.freeze([
   "brigantine",
   "galleon",
   "cutter",
-  "square-sail-trader"
+  "square-sail-trader",
+  "square-rigged-caravel",
+  "corvette",
+  "frigate",
+  "ship-of-the-line",
+  ...PIRATE_SHIP_SLUGS
 ]);
 
 const LANE_NODES = Object.freeze([
@@ -124,12 +156,30 @@ const LANE_EDGES = Object.freeze([
 ]);
 
 const FLEET_PROFILES = Object.freeze([
-  profile("east-asia", 34, ["small-junk", "medium-junk", "large-junk", "sampan"], isEastAsiaPort, "regional"),
-  profile("indian-ocean", 34, ["small-dhow", "dhow", "lateen-dhow", "dhow-felucca"], isIndianOceanPort, "regional"),
-  profile("mediterranean", 28, ["felucca", "xebec", "lateen-xebec"], isMediterraneanPort, "regional"),
-  profile("atlantic-coast", 30, ["caravel", "small-carrack", "fluyt", "brigantine", "cutter"], isAtlanticPort, "regional"),
-  profile("cape-trade", 44, ["carrack", "fluyt", "galleon", "brigantine", "square-sail-trader"], isLongRangePort, "interregional"),
-  profile("wide-world", 24, ["carrack", "galleon", "fluyt", "brigantine"], isAnyUsablePort, "interregional")
+  profile("east-asia", 34, {
+    merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
+    warships: ["small-junk", "medium-junk", "large-junk"]
+  }, isEastAsiaPort, "regional"),
+  profile("indian-ocean", 34, {
+    merchants: ["small-dhow", "dhow-felucca", "lateen-dhow", "dhow"],
+    warships: ["lateen-dhow", "dhow", "xebec"]
+  }, isIndianOceanPort, "regional"),
+  profile("mediterranean", 28, {
+    merchants: ["felucca", "lateen-xebec", "xebec"],
+    warships: ["lateen-xebec", "xebec", "caravel", "galleon"]
+  }, isMediterraneanPort, "regional"),
+  profile("atlantic-coast", 30, {
+    merchants: ["cutter", "square-sail-trader", "caravel", "small-carrack", "brigantine", "fluyt"],
+    warships: ["square-rigged-caravel", "caravel", "brigantine", "corvette", "frigate"]
+  }, isAtlanticPort, "regional"),
+  profile("cape-trade", 44, {
+    merchants: ["square-sail-trader", "caravel", "small-carrack", "brigantine", "carrack", "fluyt", "galleon"],
+    warships: ["caravel", "brigantine", "corvette", "galleon", "frigate"]
+  }, isLongRangePort, "interregional"),
+  profile("wide-world", 24, {
+    merchants: ["caravel", "small-carrack", "brigantine", "carrack", "fluyt", "galleon"],
+    warships: ["brigantine", "corvette", "galleon", "frigate", "ship-of-the-line"]
+  }, isAnyUsablePort, "interregional")
 ]);
 
 export function createNpcSeaRouteSystem({ ports, startMinute, economy }) {
@@ -156,6 +206,8 @@ export function createNpcSeaRouteSystem({ ports, startMinute, economy }) {
     baseEdges,
     routeCache: new Map(),
     edgeCostCache: new Map(),
+    pirateHideouts: choosePirateHideouts(usablePorts),
+    pirateHideoutDangerUntil: new Map(),
     ships: [],
     shipById: new Map()
   };
@@ -166,7 +218,22 @@ export function createNpcSeaRouteSystem({ ports, startMinute, economy }) {
   return system;
 }
 
+function choosePirateHideouts(ports) {
+  const count = Math.min(
+    ports.length - 1,
+    PIRATE_HIDEOUT_MAX_COUNT,
+    Math.max(PIRATE_HIDEOUT_MIN_COUNT, Math.round(ports.length * PIRATE_HIDEOUT_PORT_FRACTION))
+  );
+  return [...ports]
+    .sort((a, b) => (
+      hashString32(`${a.tileId}|${a.city}|pirate-hideout`) -
+      hashString32(`${b.tileId}|${b.city}|pirate-hideout`)
+    ))
+    .slice(0, count);
+}
+
 export function updateNpcSeaRouteSystem(system, clockMinutes) {
+  refreshPirateHideoutWarshipDanger(system, clockMinutes);
   let changed = false;
   for (const ship of system.ships) {
     if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 5)) changed = true;
@@ -174,10 +241,91 @@ export function updateNpcSeaRouteSystem(system, clockMinutes) {
   return changed;
 }
 
+function refreshPirateHideoutWarshipDanger(system, clockMinutes) {
+  const warships = system.ships
+    .filter((ship) => ship.role === NPC_ROLE_WARSHIP && !ship.hiddenAtHideout)
+    .map((ship) => npcShipSnapshot(ship, npcEffectiveClock(ship, clockMinutes)))
+    .filter((snapshot) => snapshot && !snapshot.hidden);
+  for (const hideout of system.pirateHideouts) {
+    if (!warships.some((warship) => distanceKm(hideout, warship) <= PIRATE_HIDEOUT_DANGER_RADIUS_KM)) continue;
+    const dangerUntil = clockMinutes + PIRATE_HIDEOUT_DANGER_HOLD_MINUTES;
+    const existingDangerUntil = system.pirateHideoutDangerUntil.get(hideout.tileId) || 0;
+    if (existingDangerUntil >= clockMinutes + PIRATE_HIDEOUT_DANGER_HOLD_MINUTES * 0.75) continue;
+    system.pirateHideoutDangerUntil.set(
+      hideout.tileId,
+      Math.max(existingDangerUntil, dangerUntil)
+    );
+  }
+}
+
 export function npcShipSnapshots(system, clockMinutes) {
   return system.ships
     .map((ship) => npcShipSnapshot(ship, npcEffectiveClock(ship, clockMinutes)))
     .filter(Boolean);
+}
+
+export function npcRoleLabel(role) {
+  if (role === NPC_ROLE_MERCHANT) return "Merchant";
+  if (role === NPC_ROLE_WARSHIP) return "Warship";
+  if (role === NPC_ROLE_PIRATE) return "Pirate";
+  throw new Error(`Unknown NPC ship role: ${role}`);
+}
+
+export function npcShipHasCombatGrace(system, shipId) {
+  const ship = requiredNpcShip(system, shipId);
+  return shipHasCombatGrace(ship);
+}
+
+export function damageNpcShip(system, shipId, amount) {
+  const ship = requiredNpcShip(system, shipId);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error(`Invalid NPC ship damage: ${amount}`);
+  ship.hitPoints = Math.max(1, ship.hitPoints - Math.round(amount));
+  if (ship.role === NPC_ROLE_PIRATE && ship.hitPoints / ship.maxHitPoints <= PIRATE_HIDEOUT_RETREAT_HULL_RATIO) {
+    ship.seekingHideout = true;
+  }
+  const surrenderHitPoints = Math.max(1, Math.floor(ship.maxHitPoints * 0.16));
+  return {
+    hitPoints: ship.hitPoints,
+    maxHitPoints: ship.maxHitPoints,
+    shouldSurrender: ship.hitPoints <= surrenderHitPoints
+  };
+}
+
+export function surrenderNpcShip(system, loserId, winnerId = null, { preserveHull = false } = {}) {
+  const loser = requiredNpcShip(system, loserId);
+  const winner = winnerId ? requiredNpcShip(system, winnerId) : null;
+  if (winner?.id === loser.id) throw new Error("An NPC ship cannot surrender to itself");
+  if (typeof preserveHull !== "boolean") throw new Error(`Invalid preserve-hull option: ${preserveHull}`);
+
+  const loot = {
+    specie: Math.max(0, Math.floor(loser.specie)),
+    cargo: { ...loser.cargo }
+  };
+  if (winner) receiveNpcLoot(winner, loot);
+
+  loser.specie = 0;
+  loser.cargo = {};
+  loser.cargoCost = {};
+  loser.graceUntilPortVisit = Number.MAX_SAFE_INTEGER;
+  if (loser.role === NPC_ROLE_PIRATE) loser.seekingHideout = true;
+  if (!preserveHull) loser.hitPoints = Math.max(1, Math.round(loser.maxHitPoints * 0.18));
+  return loot;
+}
+
+export function updateNpcPirateHideoutPlayerThreat(system, { lat, lon, clockMinutes }) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(clockMinutes)) {
+    throw new Error("Pirate hideout player threat requires a finite position and clock");
+  }
+  let changed = false;
+  for (const hideout of system.pirateHideouts) {
+    if (distanceKm(hideout, { lat, lon }) > PIRATE_HIDEOUT_DANGER_RADIUS_KM) continue;
+    const dangerUntil = clockMinutes + PIRATE_HIDEOUT_DANGER_HOLD_MINUTES;
+    if ((system.pirateHideoutDangerUntil.get(hideout.tileId) || 0) >=
+        clockMinutes + PIRATE_HIDEOUT_DANGER_HOLD_MINUTES * 0.75) continue;
+    system.pirateHideoutDangerUntil.set(hideout.tileId, dangerUntil);
+    changed = true;
+  }
+  return changed;
 }
 
 export function setNpcShipVisualNavigation(system, shipId, vector, heading) {
@@ -207,21 +355,32 @@ function createNpcFleet(system, startMinute) {
     for (let i = 0; i < count; i++) {
       const seed = hashString32(`${profileSpec.id}|${i}|npc`);
       const origin = pool[seed % pool.length];
-      const slug = profileSpec.shipSlugs[(seed >>> 8) % profileSpec.shipSlugs.length];
+      const role = npcRoleForSeed(seed, origin.factionId);
+      const slug = npcShipSlugForRole(profileSpec, role, seed);
       const stats = shipStatsForSlug(slug);
       const ship = {
         id: `${profileSpec.id}-${i}`,
-        factionId: origin.factionId,
+        factionId: role === NPC_ROLE_PIRATE ? PIRATE_FACTION_ID : origin.factionId,
+        role,
         profileId: profileSpec.id,
         mode: profileSpec.mode,
-        slugs: profileSpec.shipSlugs,
+        slugs: role === NPC_ROLE_MERCHANT ? profileSpec.merchantSlugs : profileSpec.warshipSlugs,
         slug,
         seed,
+        hitPoints: stats.hitPoints,
+        maxHitPoints: stats.hitPoints,
         cargoCapacity: stats.cargoCapacity,
         cargo: {},
         cargoCost: {},
-        specie: 900 + stats.cargoCapacity * 18,
+        specie: role === NPC_ROLE_MERCHANT ? 900 + stats.cargoCapacity * 18 : 250 + stats.cannons * 12,
         lifetimeProfit: 0,
+        portVisits: 0,
+        graceUntilPortVisit: 0,
+        seekingHideout: false,
+        hideoutDestinationTileId: null,
+        hiddenAtHideout: false,
+        hiddenUntilMinute: 0,
+        hideoutCooldownUntilPortVisit: 0,
         currentPort: origin,
         finalDestination: null,
         plan: null,
@@ -237,10 +396,52 @@ function createNpcFleet(system, startMinute) {
   return ships.slice(0, NPC_FLEET_TARGET);
 }
 
+function npcRoleForSeed(seed, originFactionId) {
+  const roll = (seed >>> 5) % 100;
+  if (roll < 70) return NPC_ROLE_MERCHANT;
+  if (roll < 90) return originFactionId === NEUTRAL_FACTION_ID ? NPC_ROLE_MERCHANT : NPC_ROLE_WARSHIP;
+  return NPC_ROLE_PIRATE;
+}
+
+function npcShipSlugForRole(profileSpec, role, seed) {
+  if (!NPC_ROLE_SET.has(role)) throw new Error(`Unknown NPC ship role: ${role}`);
+  const pool = role === NPC_ROLE_PIRATE
+    ? PIRATE_SHIP_SLUGS
+    : role === NPC_ROLE_WARSHIP
+      ? profileSpec.warshipSlugs
+      : profileSpec.merchantSlugs;
+  return weightedCheapShipSlug(pool, hashString32(`${seed}|${role}|hull`));
+}
+
+function weightedCheapShipSlug(slugs, seed) {
+  const ranked = [...slugs]
+    .map((slug) => ({ slug, expense: npcShipExpenseScore(shipStatsForSlug(slug)) }))
+    .sort((a, b) => a.expense - b.expense || a.slug.localeCompare(b.slug));
+  const weighted = ranked.map((entry, index) => ({ ...entry, weight: Math.pow(0.56, index) }));
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  let cursor = (seed >>> 0) / 0x100000000 * total;
+  for (const entry of weighted) {
+    cursor -= entry.weight;
+    if (cursor <= 0) return entry.slug;
+  }
+  return weighted[weighted.length - 1].slug;
+}
+
+function npcShipExpenseScore(stats) {
+  return stats.mass + stats.cargoCapacity * 0.35 + stats.cannons * 9 + stats.seaworthiness * 4;
+}
+
 function assignNpcPlan(system, ship, startMinute) {
   const origin = ship.currentPort;
-  const desiredDestination = ship.finalDestination || chooseNpcDestination(system, ship, origin);
-  if (!ship.finalDestination && npcCargoUnits(ship) === 0) {
+  let hideoutDestination = null;
+  if (!ship.finalDestination && pirateShouldVisitHideout(ship)) {
+    hideoutDestination = choosePirateHideoutDestination(system, ship, origin);
+    ship.hideoutDestinationTileId = hideoutDestination.tileId;
+  } else if (!ship.finalDestination) {
+    ship.hideoutDestinationTileId = null;
+  }
+  const desiredDestination = ship.finalDestination || hideoutDestination || chooseNpcDestination(system, ship, origin);
+  if (ship.role === NPC_ROLE_MERCHANT && !ship.finalDestination && npcCargoUnits(ship) === 0) {
     buyNpcCargo(system, ship, origin, desiredDestination);
   }
   let destination = desiredDestination;
@@ -261,14 +462,47 @@ function assignNpcPlan(system, ship, startMinute) {
 }
 
 function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
+  if (ship.hiddenAtHideout) {
+    const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
+    if (clockMinutes < ship.hiddenUntilMinute || clockMinutes < dangerUntil) return false;
+    ship.hiddenAtHideout = false;
+    ship.hiddenUntilMinute = 0;
+    ship.seekingHideout = false;
+    ship.hitPoints = ship.maxHitPoints;
+    ship.graceUntilPortVisit = 0;
+    ship.hideoutCooldownUntilPortVisit = ship.portVisits + 2;
+    assignNpcPlan(system, ship, clockMinutes);
+    ship.visualNavigation = {
+      vector: latLonToVector(ship.currentPort.lat, ship.currentPort.lon),
+      heading: headingVectorAt(ship.currentPort, ship.currentPort, ship.plan.destination)
+    };
+    return true;
+  }
   let changed = false;
   let guard = 0;
   while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < maxPlans) {
     ship.currentPort = ship.plan.destination;
+    ship.portVisits += 1;
+    if (ship.role === NPC_ROLE_PIRATE && ship.seekingHideout) ship.finalDestination = null;
+    const reachedHideout = ship.role === NPC_ROLE_PIRATE &&
+      ship.hideoutDestinationTileId === ship.currentPort.tileId &&
+      (!ship.finalDestination || samePort(ship.currentPort, ship.finalDestination));
+    if (reachedHideout) {
+      enterPirateHideout(ship, ship.plan.endMinute);
+      changed = true;
+      guard++;
+      break;
+    }
+    const reachedSafePort = npcPortIsSafeForShip(system, ship, ship.currentPort);
+    if (!shipHasCombatGrace(ship) || reachedSafePort) ship.hitPoints = ship.maxHitPoints;
+    if (reachedSafePort) ship.graceUntilPortVisit = 0;
     const reachedTradingDestination = !ship.finalDestination || samePort(ship.currentPort, ship.finalDestination);
-    if (reachedTradingDestination) {
+    if (ship.role === NPC_ROLE_MERCHANT && reachedTradingDestination) {
       ship.finalDestination = null;
       sellNpcCargo(system, ship, ship.currentPort);
+    } else if (reachedTradingDestination) {
+      ship.finalDestination = null;
+      if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
     }
     assignNpcPlan(system, ship, ship.plan.endMinute);
     changed = true;
@@ -284,6 +518,8 @@ function chooseNpcDestination(system, ship, origin) {
   const seed = hashString32(`${ship.id}|${origin.tileId}|dest`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
+    .filter((port) => !shipHasCombatGrace(ship) || npcPortIsSafeForShip(system, ship, port))
+    .filter((port) => ship.role !== NPC_ROLE_MERCHANT || npcMerchantCanTradeAtPort(ship, port))
     .filter((port) => profileSpec.mode === "regional"
       ? profileSpec.portPredicate(port) && distanceKm(origin, port) >= NPC_MIN_TRIP_DISTANCE_KM
       : port.routeRegion !== origin.routeRegion && longRangePairAllowed(origin, port))
@@ -301,8 +537,59 @@ function chooseNpcDestination(system, ship, origin) {
   return candidates[0].port;
 }
 
+function npcPortIsSafeForShip(system, ship, port) {
+  if (ship.role === NPC_ROLE_PIRATE && system.pirateHideouts.some((hideout) => hideout.tileId === port.tileId)) {
+    return true;
+  }
+  if (port.factionId === NEUTRAL_FACTION_ID) return true;
+  if (ship.factionId === PIRATE_FACTION_ID) return port.factionId === PIRATE_FACTION_ID;
+  return port.factionId === ship.factionId;
+}
+
+function pirateShouldVisitHideout(ship) {
+  if (ship.role !== NPC_ROLE_PIRATE || ship.hiddenAtHideout) return false;
+  if (ship.seekingHideout) return true;
+  if (ship.portVisits < ship.hideoutCooldownUntilPortVisit) return false;
+  return hashString32(`${ship.id}|${ship.portVisits}|lay-low`) % 100 < PIRATE_HIDEOUT_VISIT_PERCENT;
+}
+
+function choosePirateHideoutDestination(system, ship, origin) {
+  const candidates = system.pirateHideouts
+    .filter((port) => !samePort(port, origin))
+    .sort((a, b) => (
+      distanceKm(origin, a) - distanceKm(origin, b) ||
+      destinationRank(origin, a, ship.seed) - destinationRank(origin, b, ship.seed)
+    ));
+  if (candidates.length === 0) throw new Error(`No pirate hideout destination for ${ship.id}`);
+  return candidates[0];
+}
+
+function enterPirateHideout(ship, arrivalMinute) {
+  const stayJitter = hashString32(`${ship.id}|${ship.portVisits}|hideout-stay`) / 0x100000000;
+  ship.plan = null;
+  ship.finalDestination = null;
+  ship.hideoutDestinationTileId = null;
+  ship.hiddenAtHideout = true;
+  ship.hiddenUntilMinute = arrivalMinute + PIRATE_HIDEOUT_MIN_STAY_MINUTES +
+    stayJitter * PIRATE_HIDEOUT_STAY_SPREAD_MINUTES;
+}
+
+function npcMerchantCanTradeAtPort(ship, port) {
+  return diplomacyBetween(ship.factionId, port.factionId) !== DIPLOMACY_WAR;
+}
+
+function shipHasCombatGrace(ship) {
+  return ship.graceUntilPortVisit > ship.portVisits;
+}
+
 function npcDestinationEconomicScore(system, ship, origin, destination) {
   const distancePenalty = 1 + distanceKm(origin, destination) / 1400;
+  if (ship.role !== NPC_ROLE_MERCHANT) {
+    const targetDistance = ship.role === NPC_ROLE_WARSHIP ? 850 : 1250;
+    const patrolFit = 1 / (1 + Math.abs(distanceKm(origin, destination) - targetDistance));
+    const variation = destinationRank(origin, destination, ship.seed) / 0xffffffff;
+    return patrolFit * 1000 - variation * 0.05;
+  }
   if (npcCargoUnits(ship) > 0) {
     const saleValue = cargoSaleValue(system.economy, destination, ship.cargo);
     const cargoCost = Object.values(ship.cargoCost).reduce((sum, value) => sum + value, 0);
@@ -316,6 +603,10 @@ function npcDestinationEconomicScore(system, ship, origin, destination) {
 }
 
 function buyNpcCargo(system, ship, origin, destination) {
+  if (ship.role !== NPC_ROLE_MERCHANT) throw new Error(`NPC ${ship.id} cannot buy trade cargo as ${ship.role}`);
+  if (!npcMerchantCanTradeAtPort(ship, origin) || !npcMerchantCanTradeAtPort(ship, destination)) {
+    throw new Error(`NPC merchant ${ship.id} cannot trade across a hostile port route`);
+  }
   const plan = planNpcTrade(system.economy, origin, destination, {
     cargoCapacity: ship.cargoCapacity,
     specie: ship.specie
@@ -337,6 +628,9 @@ function buyNpcCargo(system, ship, origin, destination) {
 }
 
 function sellNpcCargo(system, ship, port) {
+  if (ship.role === NPC_ROLE_MERCHANT && !npcMerchantCanTradeAtPort(ship, port)) {
+    throw new Error(`NPC merchant ${ship.id} cannot trade at hostile port ${portName(port)}`);
+  }
   for (const [goodId, held] of Object.entries(ship.cargo)) {
     tradeGoodById(goodId);
     if (!Number.isInteger(held) || held <= 0) throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo: ${held}`);
@@ -358,6 +652,19 @@ function sellNpcCargo(system, ship, port) {
   }
 }
 
+function receiveNpcLoot(ship, loot) {
+  ship.specie += loot.specie;
+  let free = ship.cargoCapacity - npcCargoUnits(ship);
+  for (const [goodId, available] of Object.entries(loot.cargo)) {
+    const good = tradeGoodById(goodId);
+    const quantity = Math.min(available, Math.floor(free / good.unitSize));
+    if (quantity <= 0) continue;
+    ship.cargo[goodId] = (ship.cargo[goodId] || 0) + quantity;
+    ship.cargoCost[goodId] = ship.cargoCost[goodId] || 0;
+    free -= quantity * good.unitSize;
+  }
+}
+
 function npcCargoUnits(ship) {
   let units = 0;
   for (const [goodId, quantity] of Object.entries(ship.cargo)) {
@@ -374,6 +681,7 @@ function npcCargoUnits(ship) {
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {
   const candidates = system.ports
     .filter((port) => !samePort(port, origin) && !samePort(port, desiredDestination))
+    .filter((port) => ship.role !== NPC_ROLE_MERCHANT || npcMerchantCanTradeAtPort(ship, port))
     .filter((port) => port.routeRegion === origin.routeRegion || distanceKm(origin, port) <= NPC_ROUTE_HOP_MAX_KM)
     .map((port) => ({
       port,
@@ -564,6 +872,14 @@ function buildNpcPlan(origin, destination, route, startMinute) {
 }
 
 function npcShipSnapshot(ship, clockMinutes) {
+  if (ship.hiddenAtHideout) {
+    return {
+      id: ship.id,
+      hidden: true,
+      role: ship.role,
+      factionId: ship.factionId
+    };
+  }
   const plan = ship.plan;
   if (!plan) return null;
   const segment = plan.segments.find((item) => clockMinutes >= item.startMinute && clockMinutes < item.endMinute);
@@ -582,6 +898,10 @@ function npcShipSnapshot(ship, clockMinutes) {
       routeKey: `held:${segment?.startMinute ?? plan.endMinute}`,
       profileId: ship.profileId,
       factionId: ship.factionId,
+      role: ship.role,
+      hitPoints: ship.hitPoints,
+      maxHitPoints: ship.maxHitPoints,
+      combatGrace: ship.graceUntilPortVisit > ship.portVisits,
       cargo: { ...ship.cargo },
       specie: Math.floor(ship.specie)
     };
@@ -605,6 +925,10 @@ function npcShipSnapshot(ship, clockMinutes) {
     routeKey: `${segment.from.id}->${segment.to.id}@${segment.startMinute}`,
     profileId: ship.profileId,
     factionId: ship.factionId,
+    role: ship.role,
+    hitPoints: ship.hitPoints,
+    maxHitPoints: ship.maxHitPoints,
+    combatGrace: ship.graceUntilPortVisit > ship.portVisits,
     cargo: { ...ship.cargo },
     specie: Math.floor(ship.specie)
   };
@@ -920,9 +1244,14 @@ function laneEdge(a, b, kind) {
   return Object.freeze({ a, b, kind });
 }
 
-function profile(id, count, shipSlugs, portPredicate, mode) {
-  for (const slug of shipSlugs) shipStatsForSlug(slug);
-  return Object.freeze({ id, count, shipSlugs, portPredicate, mode });
+function profile(id, count, shipPools, portPredicate, mode) {
+  const merchantSlugs = Object.freeze([...shipPools.merchants]);
+  const warshipSlugs = Object.freeze([...shipPools.warships]);
+  if (merchantSlugs.length === 0 || warshipSlugs.length === 0) {
+    throw new Error(`NPC fleet profile ${id} needs merchant and warship hulls`);
+  }
+  for (const slug of [...merchantSlugs, ...warshipSlugs]) shipStatsForSlug(slug);
+  return Object.freeze({ id, count, merchantSlugs, warshipSlugs, portPredicate, mode });
 }
 
 function portNodeId(port, role) {

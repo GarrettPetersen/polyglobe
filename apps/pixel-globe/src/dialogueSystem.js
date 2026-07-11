@@ -23,25 +23,78 @@ export function createPortDialogueSession(city) {
   };
 }
 
-export function createShipDialogueSession(ship) {
+export function createShipDialogueSession(ship, { attackReason = null } = {}) {
+  if (attackReason !== null && (typeof attackReason !== "string" || attackReason.trim() === "")) {
+    throw new Error("Ship combat hail requires a reason");
+  }
   return {
     kind: "ship",
     npcShipId: ship.id,
-    selectedIndex: 0
+    nodeId: "root",
+    selectedIndex: 0,
+    attackReason
   };
 }
 
 export function shipDialogueView(session, ship) {
   assertShipDialogueSubject(session, ship);
   const manifest = shipCargoManifest(ship.cargo);
+  const storm = ship.stormStatus ? ` ${ship.stormStatus}` : "";
   const voyage = ship.destinationName ? ` Bound for ${ship.destinationName}.` : "";
   const cargo = manifest ? ` We carry ${manifest}.` : " Running in ballast.";
+  const role = ship.roleLabel || "Merchant";
+  const faction = role !== "Pirate" && ship.faction?.adjective ? `${ship.faction.adjective} ` : "";
+  const speaker = `${characterName(ship.character)}, ${faction}${role.toLowerCase()} captain`;
+  if (session.attackReason) {
+    return {
+      speaker,
+      expressionId: "angry",
+      text: session.attackReason,
+      feedback: null,
+      options: [option("To arms", { type: "close" })]
+    };
+  }
+  if (session.nodeId === "surrender-offer") {
+    return {
+      speaker,
+      expressionId: "afraid",
+      text: "We cannot outrun or outfight you. Spare the crew, and we will surrender our cargo and coin.",
+      feedback: null,
+      options: [
+        option("Accept surrender", { type: "surrender" }),
+        option("Refuse and attack", { type: "attack" })
+      ]
+    };
+  }
+  if (session.nodeId === "defiance") {
+    return {
+      speaker,
+      expressionId: "angry",
+      text: "You will have no easy prize from us. Stand off.",
+      feedback: null,
+      options: [
+        option("Attack", { type: "attack" }),
+        option("Back down", { type: "close" })
+      ]
+    };
+  }
+  if (session.nodeId !== "root") throw new Error(`Unknown ship dialogue node: ${session.nodeId}`);
+  const greeting = role === "Pirate"
+    ? "Heave to and keep your hands where I can see them."
+    : role === "Warship"
+      ? "Keep clear. We are on patrol."
+      : "Fair winds, captain.";
   return {
-    speaker: `${characterName(ship.character)}, ${ship.label} captain`,
+    speaker,
     expressionId: "neutral",
-    text: `Ahoy matey.${voyage}${cargo}`,
+    text: `${greeting}${storm}${voyage}${cargo}`,
     feedback: null,
-    options: [option("Leave", { type: "close" })]
+    options: [
+      ...(!ship.combatGrace && !ship.inCombatWithPlayer
+        ? [option("Demand surrender", { type: "threaten" })]
+        : []),
+      option("Leave", { type: "close" })
+    ]
   };
 }
 
@@ -49,10 +102,16 @@ export function selectShipDialogueOption(session, ship, optionIndex = session.se
   const view = shipDialogueView(session, ship);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid ship dialogue option index: ${optionIndex}`);
-  if (selected.action.type !== "close") {
-    throw new Error(`Unknown ship dialogue action: ${selected.action.type}`);
+  if (selected.action.type === "close") return { closed: true, action: null };
+  if (selected.action.type === "threaten") {
+    session.nodeId = ship.willOfferSurrender ? "surrender-offer" : "defiance";
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
   }
-  return { closed: true };
+  if (selected.action.type === "surrender" || selected.action.type === "attack") {
+    return { closed: true, action: selected.action };
+  }
+  throw new Error(`Unknown ship dialogue action: ${selected.action.type}`);
 }
 
 function assertShipDialogueSubject(session, ship) {

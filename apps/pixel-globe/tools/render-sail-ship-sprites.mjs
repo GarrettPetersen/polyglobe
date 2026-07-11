@@ -62,9 +62,9 @@ function integerEnv(name, fallback) {
 
 const unityShipRoster = new Map([
   ["boats/boat 1.fbx", {
-    label: "Fishing Lugger",
+    label: "Fishing Barque",
     slug: "fishing-lugger",
-    identifiedType: "small lugger / fishing boat",
+    identifiedType: "small fishing barque",
     confidence: "medium",
     notes: "Small single-mast coastal working boat."
   }],
@@ -104,18 +104,18 @@ const unityShipRoster = new Map([
     notes: "Multiple battened sails."
   }],
   ["ships large/pirate ship large 1.fbx", {
-    label: "Pirate Brig",
+    label: "Heavy Caravel",
     slug: "pirate-brig",
-    identifiedType: "pirate brig / snow",
+    identifiedType: "armed caravel / raider",
     confidence: "medium",
-    notes: "Black-sailed multi-mast raider; brig is the cleanest game label."
+    notes: "Black-sailed multi-mast hull interpreted as a heavily armed caravel; pirate markings are a faction treatment."
   }],
   ["ships large/pirate ship large 2.fbx", {
-    label: "Pirate Frigate",
+    label: "Armed Galleon",
     slug: "pirate-frigate",
-    identifiedType: "pirate frigate / raider",
+    identifiedType: "early galleon / raider",
     confidence: "medium",
-    notes: "Longer, heavier black-sailed raider silhouette."
+    notes: "Longer, heavier black-sailed hull interpreted as an armed early galleon; pirate markings are a faction treatment."
   }],
   ["ships large/ship large 1.fbx", {
     label: "Galleon",
@@ -125,18 +125,18 @@ const unityShipRoster = new Map([
     notes: "Tall stern and large square-rigged profile."
   }],
   ["ships large/ship large 2.fbx", {
-    label: "Frigate",
+    label: "Great Galleon",
     slug: "frigate",
-    identifiedType: "frigate / man-of-war",
-    confidence: "high",
-    notes: "Long square-rigged warship silhouette."
+    identifiedType: "great galleon",
+    confidence: "medium",
+    notes: "Long square-rigged silhouette interpreted as a large early galleon."
   }],
   ["ships large/ship large 3.fbx", {
-    label: "Fluyt",
+    label: "Urca",
     slug: "fluyt",
-    identifiedType: "fluyt / merchantman",
+    identifiedType: "urca / merchant roundship",
     confidence: "medium",
-    notes: "Bulky merchant hull, useful as a cargo specialist."
+    notes: "Bulky merchant hull interpreted as a capacious Iberian urca."
   }],
   ["ships large/ship large 4.fbx", {
     label: "Carrack",
@@ -146,11 +146,11 @@ const unityShipRoster = new Map([
     notes: "Large early ocean-going merchant/explorer profile."
   }],
   ["ships large/ship large 5.fbx", {
-    label: "Ship of the Line",
+    label: "Great Carrack",
     slug: "ship-of-the-line",
-    identifiedType: "ship-of-the-line / heavy frigate",
+    identifiedType: "great carrack / great ship",
     confidence: "medium",
-    notes: "Largest heavy square-rigger in the pack."
+    notes: "Largest heavy square-rigger, interpreted as an exceptional royal great ship."
   }],
   ["ships medium/chinese ship medium.fbx", {
     label: "Medium Junk",
@@ -160,11 +160,11 @@ const unityShipRoster = new Map([
     notes: "Medium battened-sail Chinese vessel."
   }],
   ["ships medium/pirate ship medium.fbx", {
-    label: "Pirate Brigantine",
+    label: "Light Brigantine",
     slug: "pirate-brigantine",
-    identifiedType: "pirate brigantine / brig",
-    confidence: "high",
-    notes: "Compact black-sailed raider."
+    identifiedType: "Mediterranean brigantine",
+    confidence: "medium",
+    notes: "Compact black-sailed hull interpreted in the older Mediterranean sense; pirate markings are a faction treatment."
   }],
   ["ships medium/ship medium 1.fbx", {
     label: "Xebec",
@@ -197,16 +197,16 @@ const unityShipRoster = new Map([
   ["ships medium/ship medium 5.fbx", {
     label: "Brigantine",
     slug: "brigantine",
-    identifiedType: "brigantine / brig",
+    identifiedType: "Mediterranean brigantine",
     confidence: "medium",
-    notes: "Medium square/fore-and-aft trader or light naval vessel."
+    notes: "Light trader or raider interpreted in the older Mediterranean sense."
   }],
   ["ships medium/ship medium 6.fbx", {
-    label: "Corvette",
+    label: "Armed Caravel",
     slug: "corvette",
-    identifiedType: "corvette / small frigate",
+    identifiedType: "armed caravel",
     confidence: "medium",
-    notes: "Small naval square-rigger."
+    notes: "Small naval silhouette interpreted as a caravel fitted for war."
   }],
   ["ships small/chinese ship small.fbx", {
     label: "Small Junk",
@@ -216,11 +216,11 @@ const unityShipRoster = new Map([
     notes: "Small battened-sail Chinese vessel."
   }],
   ["ships small/pirate ship small.fbx", {
-    label: "Pirate Sloop",
+    label: "Small Pinnace",
     slug: "pirate-sloop",
-    identifiedType: "pirate sloop / cutter",
+    identifiedType: "pirate pinnace",
     confidence: "medium",
-    notes: "Small black-sailed raider."
+    notes: "Small black-sailed hull interpreted as a light pinnace; pirate markings are a faction treatment."
   }],
   ["ships small/ship small 1.fbx", {
     label: "Lateen Xebec",
@@ -237,11 +237,11 @@ const unityShipRoster = new Map([
     notes: "Small single-lateen craft."
   }],
   ["ships small/ship small 3.fbx", {
-    label: "Cutter",
+    label: "Coastal Pinnace",
     slug: "cutter",
-    identifiedType: "sloop / cutter",
-    confidence: "high",
-    notes: "Small fore-and-aft European craft."
+    identifiedType: "small pinnace",
+    confidence: "medium",
+    notes: "Small European fore-and-aft silhouette used as a coastal pinnace."
   }],
   ["ships small/ship small 4.fbx", {
     label: "Lateen Dhow",
@@ -251,11 +251,11 @@ const unityShipRoster = new Map([
     notes: "Curved lateen silhouette; good Indian Ocean/Arabian Sea craft."
   }],
   ["ships small/ship small 5.fbx", {
-    label: "Ketch",
+    label: "Lateen Barque",
     slug: "ketch",
-    identifiedType: "ketch / small fore-and-aft trader",
+    identifiedType: "two-masted lateen barque",
     confidence: "medium",
-    notes: "Two-mast fore-and-aft rig with a smaller aft sail reads more like a ketch than a caravel."
+    notes: "Two triangular sails interpreted as a small Mediterranean lateen trader."
   }],
   ["ships small/ship small 6.fbx", {
     label: "Square-Sail Trader",

@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  shipLabelForSlug,
+  shipStatsForSlug
+} from "./shipStats.js";
+
+test("later asset silhouettes use period-appropriate game identities", () => {
+  const periodIdentities = {
+    "fishing-lugger": "Fishing Barque",
+    "pirate-brig": "Heavy Caravel",
+    "pirate-frigate": "Armed Galleon",
+    frigate: "Great Galleon",
+    fluyt: "Urca",
+    "ship-of-the-line": "Great Carrack",
+    "pirate-brigantine": "Light Brigantine",
+    brigantine: "Brigantine",
+    corvette: "Armed Caravel",
+    "pirate-sloop": "Small Pinnace",
+    cutter: "Coastal Pinnace",
+    ketch: "Lateen Barque"
+  };
+
+  for (const [slug, label] of Object.entries(periodIdentities)) {
+    assert.equal(shipStatsForSlug(slug).slug, slug);
+    assert.equal(shipLabelForSlug(slug), label);
+  }
+});
+
+test("hull points count one-point cannonball hits while mass preserves ship scale", () => {
+  const pinnace = shipStatsForSlug("pirate-sloop");
+  const galleon = shipStatsForSlug("galleon");
+  const greatCarrack = shipStatsForSlug("ship-of-the-line");
+
+  assert.deepEqual(
+    [pinnace.mass, pinnace.hitPoints],
+    [75, 8]
+  );
+  assert.deepEqual(
+    [galleon.mass, galleon.hitPoints],
+    [360, 36]
+  );
+  assert.deepEqual(
+    [greatCarrack.mass, greatCarrack.hitPoints],
+    [620, 62]
+  );
+});

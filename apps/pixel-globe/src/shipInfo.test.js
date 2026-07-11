@@ -14,19 +14,27 @@ import { shipStatsForSlug } from "./shipStats.js";
 
 test("ship information uses live hull, currency, stats, and cargo", () => {
   const stats = shipStatsForSlug("brigantine");
-  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity });
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: {
+      name: "Ines Navarro",
+      expressions: [{ id: "neutral" }, { id: "angry" }]
+    }
+  });
   gameState.cargo.grain = 2;
   gameState.cargo.wine = 1;
   const view = createShipInfoView({
     typeSlug: "brigantine",
-    hitPoints: 123,
+    hitPoints: stats.hitPoints - 3,
     maxHitPoints: stats.hitPoints
   }, gameState);
 
   assert.equal(view.label, "Brigantine");
-  assert.equal(view.hull, 123);
-  assert.equal(view.maxHull, 155);
+  assert.equal(view.captainName, "Ines Navarro");
+  assert.equal(view.hull, 13);
+  assert.equal(view.maxHull, 16);
   assert.equal(view.cannons, 14);
+  assert.equal(view.seaworthiness, 7);
   assert.equal(view.cargoUsed, 3);
   assert.equal(view.cargoCapacity, 115);
   assert.equal(view.realizedPnl, 0);

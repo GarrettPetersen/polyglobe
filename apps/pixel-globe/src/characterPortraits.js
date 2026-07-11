@@ -147,14 +147,21 @@ export function assignNpcShipCaptains(npcShips, manifest, usedNames) {
     source.roles.includes("captain") && source.roles.includes("pirate")
   ));
   if (piratePool.length === 0) throw new Error("Character portrait manifest has no pirate captains");
+  const nonPirateCaptainPool = manifest.sourceCharacters.filter((source) => (
+    source.roles.includes("captain") && !source.roles.includes("pirate")
+  ));
+  if (nonPirateCaptainPool.length === 0) throw new Error("Character portrait manifest has no non-pirate captains");
 
   for (const ship of [...npcShips].sort((a, b) => a.id.localeCompare(b.id))) {
     const region = portraitRegionForNpcShip(ship);
     const regionalPool = manifest.sourceCharacters.filter((source) => (
-      source.roles.includes("captain") && source.regions.includes(region)
+      source.roles.includes("captain") && !source.roles.includes("pirate") && source.regions.includes(region)
     ));
-    const useRegional = regionalPool.length > 0 && hashString32(`${ship.id}|regional-captain`) % 4 === 0;
-    const sourcePool = useRegional ? regionalPool : piratePool;
+    const sourcePool = ship.role === "pirate"
+      ? piratePool
+      : regionalPool.length > 0
+        ? regionalPool
+        : nonPirateCaptainPool;
     const identityKey = `captain|${ship.id}`;
     const character = assignCharacterVariant(identityKey, region, sourcePool, manifest, used);
     assignments.set(ship.id, {
@@ -171,6 +178,53 @@ export function assignNpcShipCaptains(npcShips, manifest, usedNames) {
     });
   }
   return assignments;
+}
+
+export function playerCharacterPortraitSummary(manifest) {
+  validateCharacterPortraitManifest(manifest);
+  const multipleExpressions = manifest.sourceCharacters.filter((source) => source.expressions.length > 1);
+  const eligibleCaptains = multipleExpressions.filter((source) => source.roles.includes("captain"));
+  return Object.freeze({
+    total: manifest.sourceCharacters.length,
+    multipleExpressions: multipleExpressions.length,
+    eligibleCaptains: eligibleCaptains.length
+  });
+}
+
+export function generatePlayerCharacter({ identityKey, homePort, manifest, usedNames }) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (typeof identityKey !== "string" || identityKey.trim() === "") {
+    throw new Error("Player character generation requires an identity key");
+  }
+  if (!homePort || typeof homePort !== "object") {
+    throw new Error("Player character generation requires a home port");
+  }
+  const sourcePool = manifest.sourceCharacters.filter((source) => (
+    source.roles.includes("captain") && source.expressions.length > 1
+  ));
+  if (sourcePool.length === 0) {
+    throw new Error("Character portrait manifest has no multi-expression player captains");
+  }
+  const region = portraitRegionForCity(homePort);
+  const character = assignCharacterVariant(`player|${identityKey}`, region, sourcePool, manifest, new Set());
+  const name = assignRegionalCharacterName({
+    identityKey: `player|${identityKey}`,
+    city: homePort,
+    sourceId: character.sourceId,
+    sourceLabel: character.sourceLabel,
+    usedNames
+  });
+  if (character.expressions.length < 2) {
+    throw new Error(`Generated player character ${character.id} does not have multiple expressions`);
+  }
+  return Object.freeze({
+    ...character,
+    ...name,
+    role: "player-captain",
+    homePortTileId: homePort.tileId,
+    homePortName: homePort.displayCity || homePort.city
+  });
 }
 
 function assertUsedNames(usedNames) {
