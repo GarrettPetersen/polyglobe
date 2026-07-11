@@ -98,6 +98,7 @@ import {
   compareTerrainDrawCalls,
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
+import { canvasDisplayLayout } from "./displayScaling.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -430,13 +431,14 @@ const OPTIONS_BUTTON_Y = 5;
 const DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
 const DISCOVERIES_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 142;
+const OPTIONS_PANEL_H = 166;
 const OPTIONS_ROW_H = 22;
-const OPTIONS_ROW_COUNT = 4;
-const OPTIONS_ROW_MUSIC = 0;
-const OPTIONS_ROW_SFX = 1;
-const OPTIONS_ROW_MUTE = 2;
-const OPTIONS_ROW_SHIP = 3;
+const OPTIONS_ROW_COUNT = 5;
+const OPTIONS_ROW_FULLSCREEN = 0;
+const OPTIONS_ROW_MUSIC = 1;
+const OPTIONS_ROW_SFX = 2;
+const OPTIONS_ROW_MUTE = 3;
+const OPTIONS_ROW_SHIP = 4;
 const UI_ASSET_VERSION = "discoveries-menu-1";
 const MUSIC_ASSET_VERSION = "seamless-webaudio-1";
 const SFX_ASSET_VERSION = "normalized-ogg-1";
@@ -598,7 +600,12 @@ const SNOW_GENERATED_COLORS = [
 const SNOW_GENERATED_SALT = 0x534e4f57;
 
 const canvas = document.getElementById("view");
+const shell = document.querySelector(".shell");
+if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
+  throw new Error("Pixel Globe requires its shell and 455x256 canvas");
+}
 const ctx = canvas.getContext("2d", { alpha: false });
+if (!ctx) throw new Error("Pixel Globe could not create its 2D canvas context");
 ctx.imageSmoothingEnabled = false;
 
 const keys = new Set();
@@ -696,8 +703,13 @@ let seagullSerial = 1;
 const optionsMenu = createOptionsMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
 
-fitCanvasToIntegerScale();
-window.addEventListener("resize", fitCanvasToIntegerScale);
+fitCanvasToDisplay();
+window.addEventListener("resize", fitCanvasToDisplay);
+window.visualViewport?.addEventListener("resize", fitCanvasToDisplay);
+document.addEventListener("fullscreenchange", handleFullscreenChange);
+document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
+screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
+window.addEventListener("pagehide", unlockOrientationIfPossible);
 
 window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
@@ -1819,6 +1831,7 @@ function createOptionsMenuState() {
     shipSlug: START_SHIP_SLUG,
     shipLoadingSlug: null,
     shipError: null,
+    fullscreenError: null,
     selectedIndex: 0,
     activeSliderKey: null,
     hoverPoint: null,
@@ -2440,6 +2453,7 @@ function handleOptionsKeyDown(event) {
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN) void toggleFullscreenMode();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_MUTE) toggleAudioMuted();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_SHIP) requestShipMenuStep(1);
     return;
@@ -2578,6 +2592,11 @@ function handleOptionsPointerDown(point) {
   updateOptionsSelectionFromPoint(point);
   if (pointInRect(point, optionsMenu.closeButtonRect)) {
     closeOptionsMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_FULLSCREEN])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_FULLSCREEN;
+    void toggleFullscreenMode();
     return;
   }
   for (const sliderKey of ["music", "sfx"]) {
@@ -4803,13 +4822,81 @@ function fillSnowGroundMaskForDay(dayIndex, outMask) {
   }
 }
 
-function fitCanvasToIntegerScale() {
-  const scale = Math.max(1, Math.floor(Math.min(
-    window.innerWidth / SCREEN_W,
-    window.innerHeight / SCREEN_H
-  )));
-  canvas.style.width = `${SCREEN_W * scale}px`;
-  canvas.style.height = `${SCREEN_H * scale}px`;
+function fitCanvasToDisplay() {
+  const viewport = window.visualViewport;
+  const layout = canvasDisplayLayout({
+    viewportWidth: viewport?.width || window.innerWidth,
+    viewportHeight: viewport?.height || window.innerHeight,
+    canvasWidth: SCREEN_W,
+    canvasHeight: SCREEN_H,
+    devicePixelRatio: safeDevicePixelRatio(),
+    fitScreen: document.fullscreenElement === shell
+  });
+  canvas.style.left = `${layout.left}px`;
+  canvas.style.top = `${layout.top}px`;
+  canvas.style.width = `${layout.width}px`;
+  canvas.style.height = `${layout.height}px`;
+}
+
+function safeDevicePixelRatio() {
+  const ratio = window.devicePixelRatio || 1;
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+}
+
+function fullscreenAvailable() {
+  return !!document.fullscreenEnabled && typeof shell.requestFullscreen === "function";
+}
+
+async function toggleFullscreenMode() {
+  optionsMenu.fullscreenError = null;
+  try {
+    if (document.fullscreenElement === shell) {
+      if (typeof document.exitFullscreen !== "function") {
+        throw new Error("Fullscreen exit is unavailable");
+      }
+      await document.exitFullscreen();
+      return;
+    }
+    if (!fullscreenAvailable()) throw new Error("Fullscreen is unavailable in this browser");
+    await shell.requestFullscreen();
+    await lockLandscapeIfPossible();
+  } catch (error) {
+    optionsMenu.fullscreenError = "FULLSCREEN FAILED";
+    dirty = true;
+    console.warn("[pixel-globe] fullscreen toggle failed", error);
+  }
+}
+
+function handleFullscreenChange() {
+  if (document.fullscreenElement !== shell) unlockOrientationIfPossible();
+  optionsMenu.fullscreenError = null;
+  fitCanvasToDisplay();
+  dirty = true;
+}
+
+function handleFullscreenVisibilityChange() {
+  if (document.hidden) {
+    unlockOrientationIfPossible();
+  } else if (document.fullscreenElement === shell) {
+    void lockLandscapeIfPossible();
+  }
+  fitCanvasToDisplay();
+}
+
+async function lockLandscapeIfPossible() {
+  try {
+    if (screen.orientation?.lock) await screen.orientation.lock("landscape");
+  } catch (_) {
+    // Mobile browsers may reject orientation lock outside installed-app contexts.
+  }
+}
+
+function unlockOrientationIfPossible() {
+  try {
+    screen.orientation?.unlock?.();
+  } catch (_) {
+    // Some browsers expose orientation lock without a usable unlock operation.
+  }
 }
 
 function northUpCamera(center, fallbackRight = [1, 0, 0]) {
@@ -5797,17 +5884,34 @@ function drawOptionsMenu() {
 
   const rowX = panelX + 10;
   const rowW = OPTIONS_PANEL_W - 20;
-  const musicRow = { x: rowX, y: panelY + 31, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const sfxRow = { x: rowX, y: panelY + 55, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const muteRow = { x: rowX, y: panelY + 79, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const shipRow = { x: rowX, y: panelY + 103, w: rowW, h: OPTIONS_ROW_H - 2 };
-  optionsMenu.rowRects = [musicRow, sfxRow, muteRow, shipRow];
+  const fullscreenRow = { x: rowX, y: panelY + 31, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const musicRow = { x: rowX, y: panelY + 55, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const sfxRow = { x: rowX, y: panelY + 79, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const muteRow = { x: rowX, y: panelY + 103, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const shipRow = { x: rowX, y: panelY + 127, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, shipRow];
 
+  drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
   drawOptionsVolumeRow(musicRow, "MUSIC", "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
   drawOptionsVolumeRow(sfxRow, "SFX", "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
   drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
   drawOptionsShipRow(shipRow, optionsMenu.selectedIndex === OPTIONS_ROW_SHIP);
   ctx.restore();
+}
+
+function drawOptionsFullscreenRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  const isFullscreen = document.fullscreenElement === shell;
+  const label = optionsMenu.fullscreenError || (
+    fullscreenAvailable()
+      ? (isFullscreen ? "EXIT FULLSCREEN" : "ENTER FULLSCREEN")
+      : "FULLSCREEN UNAVAILABLE"
+  );
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_UI_8, rowRect.w - 16), rowRect.x + 8, rowRect.y + 6, {
+    color: optionsMenu.fullscreenError
+      ? "#ff8888"
+      : (fullscreenAvailable() ? (highlighted ? "#ffffff" : "#ffd700") : "#777777")
+  });
 }
 
 function drawOptionsCloseButton(rect, hovered) {

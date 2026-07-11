@@ -37,6 +37,7 @@ body {
 }
 
 .shell {
+  position: relative;
   width: 100vw;
   height: 100vh;
   display: grid;
@@ -45,7 +46,16 @@ body {
     linear-gradient(#101810, #172119 58%, #0e1410);
 }
 
+.shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+
 canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #172437;
