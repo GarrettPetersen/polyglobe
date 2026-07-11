@@ -469,7 +469,7 @@ const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_SHIP = 4;
 const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
-const MUSIC_ASSET_VERSION = "seamless-webaudio-1";
+const MUSIC_ASSET_VERSION = "combat-endstate-themes-1";
 const SFX_ASSET_VERSION = "normalized-ogg-1";
 const ANIMAL_ASSET_VERSION = "seagulls-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
@@ -509,6 +509,10 @@ const MUSIC_TRACK_SPECS = Object.freeze({
     intro: "/assets/music/city-andean-intro.ogg",
     loop: "/assets/music/city-andean-loop.ogg"
   },
+  combat: {
+    intro: "/assets/music/combat-theme-intro.ogg",
+    loop: "/assets/music/combat-theme-loop.ogg"
+  },
   combatSmall: {
     intro: "/assets/music/combat-small-intro.ogg",
     loop: "/assets/music/combat-small-loop.ogg"
@@ -516,6 +520,13 @@ const MUSIC_TRACK_SPECS = Object.freeze({
   combatBig: {
     intro: "/assets/music/combat-big-intro.ogg",
     loop: "/assets/music/combat-big-loop.ogg"
+  },
+  gameOverSad: {
+    loop: "/assets/music/game-over-sad-loop.ogg"
+  },
+  victory: {
+    intro: "/assets/music/victory-intro.ogg",
+    loop: "/assets/music/victory-loop.ogg"
   }
 });
 const CITY_TYPE_MUSIC_TRACK_KEYS = Object.freeze({
@@ -542,12 +553,18 @@ const SFX_DESERT_WIND_URL = "/assets/sfx/tanweraman-desert-wind-1-350398.ogg";
 const SFX_FLAG_URL = "/assets/sfx/freesound_community-flag-6367.ogg";
 const SFX_UNDERWAY_URL = "/assets/sfx/freesound_community-sailboat-underway-48728.ogg";
 const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.ogg";
+const SFX_DISCOVERY_SUCCESS_URL = "/assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
+const SFX_COIN_CLINK_URL = "/assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3";
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_IMPACT_POOL_SIZE = 6;
 const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
+const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
+const SFX_COIN_CLINK_POOL_SIZE = 4;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_IMPACT_VOLUME = 0.64;
 const SFX_SAIL_DEPLOY_VOLUME = 0.22;
+const SFX_DISCOVERY_SUCCESS_VOLUME = 0.72;
+const SFX_COIN_CLINK_VOLUME = 0.58;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
 const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
@@ -1968,6 +1985,8 @@ function setupSoundEffects() {
     cannon: createSoundPool(SFX_CANNON_URL, SFX_CANNON_POOL_SIZE, "cannon shot"),
     impact: createSoundPool(SFX_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "impact thud"),
     sailDeploy: createSoundPool(SFX_SAIL_DEPLOY_URL, SFX_SAIL_DEPLOY_POOL_SIZE, "sail deployment"),
+    discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
+    coinClink: createSoundPool(SFX_COIN_CLINK_URL, SFX_COIN_CLINK_POOL_SIZE, "coin clink"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
     shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves"),
@@ -2039,8 +2058,8 @@ function musicTrackForCity(city) {
   return CITY_TYPE_MUSIC_TRACK_KEYS[city?.cityType] || "ship";
 }
 
-function startCombatMusicForThreat(threatSize = "small") {
-  const trackKey = threatSize === "big" ? "combatBig" : "combatSmall";
+function startCombatMusicForThreat() {
+  const trackKey = "combat";
   combatMusicUntilMs = Math.max(combatMusicUntilMs, lastFrameMs + COMBAT_MUSIC_HOLD_MS);
   playMusicTrack(trackKey, { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS });
 }
@@ -2050,7 +2069,7 @@ function combatMusicIsActive(nowMs) {
 }
 
 function isCombatMusicTrack(trackKey) {
-  return trackKey === "combatSmall" || trackKey === "combatBig";
+  return trackKey === "combat" || trackKey === "combatSmall" || trackKey === "combatBig";
 }
 
 function updateMusicContext(nowMs) {
@@ -2098,7 +2117,13 @@ function applyThemeAudioSettings() {
   const sfxVolume = clamp(optionsMenu.sfxVolume, 0, 1);
   if (themeMusic) themeMusic.setOutput(musicVolume, optionsMenu.muted);
   if (soundEffects) {
-    for (const audio of [...soundEffects.cannon, ...soundEffects.impact, ...soundEffects.sailDeploy]) {
+    for (const audio of [
+      ...soundEffects.cannon,
+      ...soundEffects.impact,
+      ...soundEffects.sailDeploy,
+      ...soundEffects.discoverySuccess,
+      ...soundEffects.coinClink
+    ]) {
       audio.muted = optionsMenu.muted;
     }
     for (const loop of ambientSoundLoops()) {
@@ -2132,6 +2157,14 @@ function playCannonImpactSound(distancePx = 0) {
 
 function playSailDeploySound() {
   playSoundEffect(soundEffects?.sailDeploy, SFX_SAIL_DEPLOY_VOLUME, 0.98 + Math.random() * 0.04);
+}
+
+function playDiscoverySuccessSound() {
+  playSoundEffect(soundEffects?.discoverySuccess, SFX_DISCOVERY_SUCCESS_VOLUME, 0.98 + Math.random() * 0.04);
+}
+
+function playCoinClinkSound() {
+  playSoundEffect(soundEffects?.coinClink, SFX_COIN_CLINK_VOLUME, 0.98 + Math.random() * 0.04);
 }
 
 function updateAmbientAudio(dt) {
@@ -2967,6 +3000,7 @@ function closeDialogue() {
 function chooseDialogueOption(optionIndex) {
   let result;
   if (dialogueState.kind === "port") {
+    const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueOption(
       dialogueState,
       currentDialogueCity(),
@@ -2976,6 +3010,7 @@ function chooseDialogueOption(optionIndex) {
       optionIndex
     );
     syncShipCargoFromGameState();
+    if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
   } else if (dialogueState.kind === "ship") {
     result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
   } else {
@@ -5398,6 +5433,7 @@ function longitudeDegForDirection(direction) {
 
 function queueDiscovery(discovery, nowMs) {
   if (!recordDiscovery(gameState, discovery)) return false;
+  playDiscoverySuccessSound();
   discoveryNoticeQueue.push(discovery);
   updateDiscoveryNotice(nowMs);
   return true;
