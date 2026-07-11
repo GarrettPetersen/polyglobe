@@ -151,10 +151,42 @@ const COUNTRY_CULTURES = new Map([
   ["Dominican Republic", "spanish"], ["Panama", "spanish"], ["Puerto Rico", "spanish"]
 ]);
 
+const FACTION_CULTURES = new Map([
+  ["england", "english"],
+  ["scotland", "scottish"],
+  ["france", "french"],
+  ["spain", "spanish"],
+  ["portugal", "portuguese"],
+  ["habsburg", "germanic"],
+  ["hungary", "slavic"],
+  ["ottoman", "ottoman"],
+  ["venice", "italian"],
+  ["genoa", "italian"],
+  ["papal-states", "italian"],
+  ["ming", "chinese"],
+  ["aztec", "nahua"],
+  ["inca", "andean"],
+  ["safavid", "persian"],
+  ["muscovy", "slavic"],
+  ["poland-lithuania", "slavic"],
+  ["denmark-norway", "nordic"],
+  ["songhai", "westAfrican"],
+  ["morocco", "arabic"],
+  ["ethiopia", "eastAfrican"],
+  ["vijayanagara", "southAsian"],
+  ["gujarat", "southAsian"],
+  ["bengal", "southAsian"],
+  ["delhi", "southAsian"],
+  ["ayutthaya", "southeastAsian"],
+  ["japan", "japanese"],
+  ["joseon", "korean"]
+]);
+
 export function assignRegionalCharacterName({ identityKey, city, ship, sourceId, sourceLabel, usedNames }) {
   if (typeof identityKey !== "string" || identityKey === "") throw new Error("Character name requires an identity key");
   if (!(usedNames instanceof Set)) throw new Error("Character name assignment requires a shared used-name Set");
-  const cultureId = nameCultureForSubject(city || shipPort(ship));
+  const subject = city || shipPort(ship);
+  const cultureId = chooseNameCultureForSubject(subject, identityKey);
   const nameCulture = CULTURES[cultureId];
   if (!nameCulture) throw new Error(`Unknown character name culture: ${cultureId}`);
   const gender = characterGenderForSource(sourceId, sourceLabel);
@@ -182,7 +214,25 @@ export function characterGenderForSource(sourceId, sourceLabel) {
 }
 
 export function nameCultureForSubject(subject) {
+  return nameCultureCandidatesForSubject(subject)[0];
+}
+
+export function nameCultureCandidatesForSubject(subject) {
   if (!subject || typeof subject !== "object") throw new Error("Character name requires a city or home port");
+  const localCulture = localNameCultureForSubject(subject);
+  const candidates = [localCulture];
+  const factionCulture = FACTION_CULTURES.get(subject.factionId);
+  if (factionCulture && factionCulture !== localCulture) candidates.push(factionCulture);
+  return Object.freeze(candidates);
+}
+
+function chooseNameCultureForSubject(subject, identityKey) {
+  const candidates = nameCultureCandidatesForSubject(subject);
+  const weighted = candidates.length === 1 ? candidates : [candidates[0], candidates[0], candidates[0], candidates[1]];
+  return weighted[hashString32(`${identityKey}|name-culture`) % weighted.length];
+}
+
+function localNameCultureForSubject(subject) {
   if (subject.country === "United Kingdom") {
     return subject.factionId === "scotland" || normalizeName(subject.city) === "edinburgh" ? "scottish" : "english";
   }

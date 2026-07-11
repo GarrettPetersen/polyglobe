@@ -41,6 +41,7 @@ test("starting profiles are deterministic and internally consistent", () => {
   assert.deepEqual(profile, generate());
   assert.equal(profile.character.sex, profile.character.gender);
   assert.equal(profile.character.nationalityId, profile.homePort.factionId);
+  assert.equal(profile.character.homePortRealmName, profile.nationality.name);
   assert.equal(profile.character.startRegion, profile.startRegion);
   assert.equal(profile.character.starterShipSlug, PLAYER_STARTER_SHIPS[profile.startRegion]);
   assert.equal(profile.character.homePortName, profile.homePort.displayCity);
@@ -85,6 +86,21 @@ test("port classification accepts only the intended cultures", () => {
   assert.equal(playerStartRegionForPort(PORTS[8]), null);
   assert.equal(playerStartRegionForPort(PORTS[9]), null);
   assert.equal(playerStartRegionForPort(PORTS[10]), null);
+});
+
+test("player-facing home labels use the 1522 realm instead of the modern country", () => {
+  const profile = generatePlayerStartingProfile({
+    identityKey: "sudak-profile",
+    ports: [port(12, "Sudak", "Russian Federation", "mediterranean", "ottoman", 44.85, 34.97)],
+    manifest: MANIFEST,
+    usedNames: new Set()
+  });
+
+  assert.equal(profile.character.homePortName, "Sudak");
+  assert.equal(profile.character.homePortCountry, "Russian Federation");
+  assert.equal(profile.character.homePortRealmName, "Ottoman Empire");
+  assert.equal(profile.character.nationalityAdjective, "Ottoman");
+  assert.ok(["slavic", "ottoman"].includes(profile.character.nameCulture));
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {

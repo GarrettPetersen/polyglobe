@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   assignRegionalCharacterName,
   characterGenderForSource,
+  nameCultureCandidatesForSubject,
   nameCultureForSubject
 } from "./characterNames.js";
 
@@ -57,4 +58,28 @@ test("a shared name registry prevents duplicate people", () => {
 test("England and Scotland use distinct naming cultures", () => {
   assert.equal(nameCultureForSubject({ city: "London", country: "United Kingdom", factionId: "england" }), "english");
   assert.equal(nameCultureForSubject({ city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
+});
+
+test("border and colonial cities mix local and ruling name cultures", () => {
+  const sudak = {
+    city: "Sudak",
+    country: "Russian Federation",
+    cityType: "mediterranean",
+    factionId: "ottoman"
+  };
+  assert.equal(nameCultureForSubject(sudak), "slavic");
+  assert.deepEqual(nameCultureCandidatesForSubject(sudak), ["slavic", "ottoman"]);
+
+  const seen = new Set();
+  for (let i = 0; i < 48; i++) {
+    seen.add(assignRegionalCharacterName({
+      identityKey: `sudak-captain-${i}`,
+      city: sudak,
+      sourceId: "captain-portrait",
+      sourceLabel: "Captain Portrait",
+      usedNames: new Set()
+    }).nameCulture);
+  }
+  assert.ok(seen.has("slavic"));
+  assert.ok(seen.has("ottoman"));
 });

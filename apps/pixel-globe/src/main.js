@@ -347,7 +347,7 @@ const FACTION_FLAG_SOURCE_H = 20;
 const CITY_FLAG_W = 14;
 const CITY_FLAG_H = 9;
 const CITY_FLAG_FRAME_MS = 125;
-const CITY_FLAG_WAVE_SPEED_RAD_PER_MS = 0.006;
+const CITY_FLAG_WAVE_SPEED_RAD_PER_MS = 0.002;
 const DIALOGUE_FLAG_W = FACTION_FLAG_SOURCE_W;
 const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
@@ -10582,7 +10582,7 @@ function drawPlayerIntroModal(nowMs) {
   const detailX = panel.x + 104;
   const detailW = panel.w - 122;
   const rows = [
-    ["HOME PORT", `${character.homePortName}, ${character.homePortCountry}`],
+    ["HOME PORT", `${character.homePortName}, ${character.homePortRealmName || character.homePortCountry}`],
     ["NATIONALITY", character.nationalityAdjective],
     ["BORN", `${character.birthDateLabel}  AGE ${character.age}`],
     ["SEX", character.sex.toUpperCase()],

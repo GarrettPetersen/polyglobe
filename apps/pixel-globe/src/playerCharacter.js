@@ -79,6 +79,7 @@ export function generatePlayerStartingProfile({
     nationalityName: nationality.name,
     nationalityAdjective: nationality.adjective,
     homePortCountry: homePort.country,
+    homePortRealmName: nationality.name,
     homePortLat: homePort.lat,
     homePortLon: homePort.lon,
     startRegion,
