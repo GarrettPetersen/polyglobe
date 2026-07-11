@@ -1,3 +1,5 @@
+import { assignRegionalCharacterName } from "./characterNames.js";
+
 export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-2";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 export const PORTRAIT_ROLE_SKIN = 1;
@@ -109,8 +111,9 @@ function validateTagList(tags, label) {
   for (const tag of tags) assertSlug(tag, label);
 }
 
-export function assignPortCityCharacters(portCities, manifest) {
+export function assignPortCityCharacters(portCities, manifest, usedNames) {
   validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
   const cities = [...portCities].sort((a, b) => stableCityKey(a).localeCompare(stableCityKey(b)));
   const assignments = new Map();
   const used = new Set();
@@ -118,8 +121,16 @@ export function assignPortCityCharacters(portCities, manifest) {
     const key = stableCityKey(city);
     const region = portraitRegionForCity(city);
     const sourcePool = characterSourcesForRole(manifest, "factor", region);
+    const character = assignCharacterVariant(key, region, sourcePool, manifest, used);
     assignments.set(city.tileId, {
-      ...assignCharacterVariant(key, region, sourcePool, manifest, used),
+      ...character,
+      ...assignRegionalCharacterName({
+        identityKey: key,
+        city,
+        sourceId: character.sourceId,
+        sourceLabel: character.sourceLabel,
+        usedNames
+      }),
       cityKey: key,
       role: "factor"
     });
@@ -127,8 +138,9 @@ export function assignPortCityCharacters(portCities, manifest) {
   return assignments;
 }
 
-export function assignNpcShipCaptains(npcShips, manifest) {
+export function assignNpcShipCaptains(npcShips, manifest, usedNames) {
   validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
   const assignments = new Map();
   const used = new Set();
   const piratePool = manifest.sourceCharacters.filter((source) => (
@@ -143,13 +155,26 @@ export function assignNpcShipCaptains(npcShips, manifest) {
     ));
     const useRegional = regionalPool.length > 0 && hashString32(`${ship.id}|regional-captain`) % 4 === 0;
     const sourcePool = useRegional ? regionalPool : piratePool;
+    const identityKey = `captain|${ship.id}`;
+    const character = assignCharacterVariant(identityKey, region, sourcePool, manifest, used);
     assignments.set(ship.id, {
-      ...assignCharacterVariant(`captain|${ship.id}`, region, sourcePool, manifest, used),
+      ...character,
+      ...assignRegionalCharacterName({
+        identityKey,
+        ship,
+        sourceId: character.sourceId,
+        sourceLabel: character.sourceLabel,
+        usedNames
+      }),
       npcShipId: ship.id,
       role: "captain"
     });
   }
   return assignments;
+}
+
+function assertUsedNames(usedNames) {
+  if (!(usedNames instanceof Set)) throw new Error("Character assignment requires a shared used-name Set");
 }
 
 function assignCharacterVariant(key, region, sourcePool, manifest, used) {

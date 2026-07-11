@@ -83,17 +83,22 @@ test("portrait analysis separates a face, nearby hair, and torso colors", () => 
 });
 
 test("port assignments use regional portrait and tone pools", () => {
+  const usedNames = new Set();
   const assignments = assignPortCityCharacters([
     { tileId: 1, city: "Tenochtitlan", country: "Mexico", cityType: "meso-american", lat: 19.4, lon: -99.1 },
     { tileId: 2, city: "Kilwa", country: "Tanzania", cityType: "sub-saharan", lat: -8.9, lon: 39.5 }
-  ], GENERATED_MANIFEST);
+  ], GENERATED_MANIFEST, usedNames);
 
   const american = assignments.get(1);
   assert.ok(american.sourceRegions.includes("americas"));
   assert.ok(["golden", "olive", "tan", "brown"].includes(american.skinToneId));
+  assert.equal(american.nameCulture, "nahua");
+  assert.ok(american.name.includes(" "));
   const african = assignments.get(2);
   assert.ok(["tan", "brown", "deep-brown", "ebony"].includes(african.skinToneId));
   assert.ok(["black", "dark-brown"].includes(african.hairToneId));
+  assert.equal(african.nameCulture, "eastAfrican");
+  assert.equal(usedNames.size, 2);
 });
 
 test("ship captains mostly use pirate portraits with regional alternatives", () => {
@@ -101,14 +106,24 @@ test("ship captains mostly use pirate portraits with regional alternatives", () 
     id: `americas-${index}`,
     slug: "caravel",
     profileId: "atlantic-coast",
-    currentPort: { routeRegion: "americas" }
+    currentPort: {
+      routeRegion: "americas",
+      city: "Mexico City",
+      country: "Mexico",
+      cityType: "mesoamerican",
+      lat: 19.4,
+      lon: -99.1
+    }
   }));
-  const captains = assignNpcShipCaptains(ships, GENERATED_MANIFEST);
+  const usedNames = new Set();
+  const captains = assignNpcShipCaptains(ships, GENERATED_MANIFEST, usedNames);
   const values = [...captains.values()];
   const pirates = values.filter((captain) => captain.sourceRoles.includes("pirate")).length;
   const regional = values.filter((captain) => captain.sourceRegions.includes("americas")).length;
   assert.ok(pirates >= 26, `expected mostly pirates, got ${pirates}/40`);
   assert.ok(regional > 0, "expected some regionally tagged captains");
+  assert.equal(new Set(values.map((captain) => captain.name)).size, values.length);
+  assert.ok(values.every((captain) => captain.nameCulture === "nahua"));
 });
 
 function fillRect(data, width, x, y, w, h, color) {

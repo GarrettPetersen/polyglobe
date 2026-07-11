@@ -901,7 +901,8 @@ async function main() {
     ports: portCities,
     startMinute: weatherClockMinutes
   });
-  portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest);
+  const usedCharacterNames = new Set();
+  portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest, usedCharacterNames);
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
     `${characterPortraitManifest.sourceCharacters.length} source portraits, ` +
@@ -914,9 +915,10 @@ async function main() {
     startMinute: weatherClockMinutes,
     economy: worldEconomy
   });
-  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest);
+  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
   console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
+  console.info(`[pixel-globe] named characters: ${usedCharacterNames.size} unique people`);
   seaIceMask = new Uint8Array(graph.tileCount);
   freshwaterIceMask = new Uint8Array(graph.tileCount);
   snowGroundMask = new Uint8Array(graph.tileCount);

@@ -36,7 +36,7 @@ export function shipDialogueView(session, ship) {
   const voyage = ship.destinationName ? ` Bound for ${ship.destinationName}.` : "";
   const cargo = manifest ? ` We carry ${manifest}.` : " Running in ballast.";
   return {
-    speaker: `${ship.label} captain`,
+    speaker: `${characterName(ship.character)}, ${ship.label} captain`,
     expressionId: "neutral",
     text: `Ahoy matey.${voyage}${cargo}`,
     feedback: null,
@@ -278,7 +278,14 @@ function shipCargoManifest(cargo) {
 }
 
 function speakerName(city) {
-  return `${cityLabel(city)} factor`;
+  return `${characterName(city.character)}, ${cityLabel(city)} factor`;
+}
+
+function characterName(character) {
+  if (!character || typeof character.name !== "string" || character.name.trim() === "") {
+    throw new Error("Dialogue character has no generated name");
+  }
+  return character.name;
 }
 
 function portFlavor(city) {

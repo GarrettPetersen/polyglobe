@@ -12,13 +12,13 @@ import {
 import { createWorldEconomy } from "./economy.js";
 import { createGameState } from "./gameState.js";
 
-test("hailing an NPC ship opens a minimal captain dialogue", () => {
-  const ship = { id: "mediterranean-4", label: "Xebec" };
+test("hailing an NPC ship identifies the captain by name", () => {
+  const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
   const session = createShipDialogueSession(ship);
   const view = shipDialogueView(session, ship);
 
   assert.equal(session.kind, "ship");
-  assert.equal(view.speaker, "Xebec captain");
+  assert.equal(view.speaker, "Marco Doria, Xebec captain");
   assert.equal(view.text, "Ahoy matey. Running in ballast.");
   assert.deepEqual(view.options.map((option) => option.label), ["Leave"]);
   assert.deepEqual(selectShipDialogueOption(session, ship, 0), { closed: true });
@@ -28,6 +28,7 @@ test("merchant captains report their destination and visible cargo", () => {
   const ship = {
     id: "indian-ocean-7",
     label: "Dhow",
+    character: { name: "Yusuf al-Masri" },
     destinationName: "Hormuz",
     cargo: { pepper: 18, cotton: 9 }
   };
@@ -50,13 +51,15 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     displayCity: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
-    population: 70000
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
   const session = createPortDialogueSession(city);
 
   const root = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(root.speaker, "Fernao da Cunha, Lisbon factor");
   assert.match(root.text, /Market specie: \d+ db/);
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
