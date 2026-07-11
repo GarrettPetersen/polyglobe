@@ -276,7 +276,7 @@ function assertDiscovery(discovery) {
   if (typeof discovery.displayName !== "string" || discovery.displayName === "") {
     throw new Error(`Discovery ${discovery.id} has no display name`);
   }
-  if (!["mountain", "landmark", "achievement"].includes(discovery.kind)) {
+  if (!["mountain", "landmark", "legend", "achievement"].includes(discovery.kind)) {
     throw new Error(`Discovery ${discovery.id} has invalid kind: ${discovery.kind}`);
   }
 }

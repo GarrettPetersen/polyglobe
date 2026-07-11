@@ -58,6 +58,7 @@ import {
 } from "./mountainLandmarks.js";
 import {
   CIRCUMNAVIGATION_DISCOVERY,
+  WORLD_DISCOVERY_SPRITE_KEYS,
   buildWorldDiscoveries,
   mountainDiscovery,
   restrictMountainsToNavigableView
@@ -269,6 +270,7 @@ const CLOUD_FADE_RATIO = 0.22;
 const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
+const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-1";
 const VEHICLE_ASSET_VERSION = "ship-edge-shading-1";
 const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const CITY_ASSET_VERSION = "city-types-1";
@@ -659,7 +661,7 @@ const shipInfoImages = new Map();
 const shipInfoImagePromises = new Map();
 let settingsMenuIcon;
 let discoveriesMenuIcon;
-let egyptianPyramidImage;
+let worldDiscoveryImages;
 let cityImages;
 let animalImages;
 let cityCatalog;
@@ -822,7 +824,7 @@ async function main() {
     loadedNpcShipImages,
     loadedSettingsMenuIcon,
     loadedDiscoveriesMenuIcon,
-    loadedEgyptianPyramidImage,
+    loadedWorldDiscoveryImages,
     loadedCityImages,
     loadedAnimalImages,
     loadedCityCatalog,
@@ -839,10 +841,7 @@ async function main() {
     loadNpcShipImages(),
     loadUiImage("settings_menu_icon"),
     loadUiImage("discoveries_menu_icon"),
-    loadAssetImage(
-      "/assets/terrain/resurrect-64/egyptian_pyramid.png?v=discoveries-1",
-      "Egyptian pyramid landmark"
-    ),
+    loadWorldDiscoveryImages(),
     loadCityImages(),
     loadAnimalImages(),
     loadCityCatalog(CITY_DATA_YEAR),
@@ -860,7 +859,7 @@ async function main() {
   npcShipImages = loadedNpcShipImages;
   settingsMenuIcon = loadedSettingsMenuIcon;
   discoveriesMenuIcon = loadedDiscoveriesMenuIcon;
-  egyptianPyramidImage = loadedEgyptianPyramidImage;
+  worldDiscoveryImages = loadedWorldDiscoveryImages;
   cityImages = loadedCityImages;
   animalImages = loadedAnimalImages;
   cityCatalog = loadedCityCatalog;
@@ -912,7 +911,9 @@ async function main() {
     landMask: Uint8Array.from(earthRows, (row) => isWaterSurfaceRow(row) ? 0 : 1),
     cityTileIds: cityByTileId.keys(),
     riverMasks,
-    riverToWaterMasks
+    riverToWaterMasks,
+    navigationMask: oceanReachableNavigationMask,
+    pixelsPerRadian: PIXELS_PER_RADIAN
   });
   discoveryCatalog = [
     ...mountainLandmarks.famous.map(mountainDiscovery),
@@ -1069,6 +1070,18 @@ function loadTerrainImages() {
     }
     return map;
   });
+}
+
+async function loadWorldDiscoveryImages() {
+  const entries = await Promise.all(WORLD_DISCOVERY_SPRITE_KEYS.map(async (spriteKey) => {
+    const image = await loadAssetImage(
+      `/assets/terrain/resurrect-64/${spriteKey}.png?v=${WORLD_DISCOVERY_ASSET_VERSION}`,
+      `world discovery image: ${spriteKey}`
+    );
+    validateImageDimensions(image, `World discovery image: ${spriteKey}`, TILE_ART_SIZE, TILE_ART_SIZE);
+    return [spriteKey, image];
+  }));
+  return new Map(entries);
 }
 
 function loadImage(key) {
@@ -5323,13 +5336,12 @@ function render(nowMs) {
 function drawWorldDiscoverySprites(activeChart) {
   for (const discovery of worldDiscoveries) {
     if (!discovery.spriteKey) continue;
-    if (discovery.spriteKey !== "egyptian_pyramid") {
-      throw new Error(`Unknown world discovery sprite: ${discovery.spriteKey}`);
-    }
+    const image = worldDiscoveryImages.get(discovery.spriteKey);
+    if (!image) throw new Error(`Missing world discovery image: ${discovery.spriteKey}`);
     const point = worldDiscoveryLocalPoint(discovery, activeChart);
     if (!point) continue;
     ctx.drawImage(
-      egyptianPyramidImage,
+      image,
       Math.round(point.x - TILE_ART_HALF),
       Math.round(point.y - TILE_ART_HALF)
     );
@@ -6260,6 +6272,7 @@ function drawDiscoveryProgressRow(x, y, label, value, fraction, color) {
 function discoveryKindColor(kind) {
   if (kind === "mountain") return "#aaa3b8";
   if (kind === "landmark") return "#d6a84f";
+  if (kind === "legend") return "#f04f78";
   if (kind === "achievement") return "#6aa6a1";
   throw new Error(`Unknown discovery kind: ${kind}`);
 }
