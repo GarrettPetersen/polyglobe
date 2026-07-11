@@ -42,15 +42,21 @@ import {
   playerCharacterPortraitSummary,
   recolorPortraitImage
 } from "./characterPortraits.js";
-import { generatePlayerStartingProfile } from "./playerCharacter.js";
+import {
+  generatePlayerStartingProfile,
+  resolvePlayerCharacterIdentityKey
+} from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import {
   cargoUsed,
   createGameState,
   discoveredEntries,
+  hasPrivateeringAuthorityAgainst,
   hasDiscovery,
   receiveSurrenderedLoot,
+  recordAttackAgainstFaction,
   recordDiscovery,
+  recordPiracyAgainstFaction,
   setCargoCapacity,
   updateCircumnavigationProgress,
   visitPort
@@ -144,11 +150,22 @@ import {
   shipCollisionRadius
 } from "./shipCollision.js";
 import {
+  DIPLOMACY_ALLY,
+  DIPLOMACY_NEUTRAL,
+  DIPLOMACY_WAR,
+  FACTION_CAPITALS_1522,
   FACTIONS,
   PIRATE_FACTION_ID,
   factionById,
-  factionIdForCity1522
+  factionCapitalCityRecords1522,
+  factionCapitalForCity,
+  factionIdForCity1522,
+  markFactionCapitalsOnPorts
 } from "./factions.js";
+import {
+  createPoliticsView,
+  politicsRowsPage
+} from "./politics.js";
 import {
   advanceWorldEconomy,
   createWorldEconomy
@@ -163,7 +180,8 @@ import {
   createShipInfoView,
   shipInfoCargoPage,
   shipLedgerDateLabel,
-  shipLedgerPage
+  shipLedgerPage,
+  shipPapersPage
 } from "./shipInfo.js";
 
 const SCREEN_W = 455;
@@ -497,10 +515,18 @@ const DISCOVERIES_PANEL_W = 300;
 const DISCOVERIES_PANEL_H = 214;
 const DISCOVERIES_PAGE_SIZE = 9;
 const SHIP_INFO_BUTTON_SIZE = 13;
+const POLITICS_BUTTON_SIZE = 13;
 const SHIP_INFO_PANEL_X = 10;
 const SHIP_INFO_PANEL_Y = 8;
 const SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
 const SHIP_INFO_PANEL_H = SCREEN_H - SHIP_INFO_PANEL_Y * 2;
+const POLITICS_PANEL_X = 8;
+const POLITICS_PANEL_Y = 8;
+const POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
+const POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
+const POLITICS_ROWS_PER_PAGE = 20;
+const POLITICS_MATRIX_CELL_W = 7;
+const POLITICS_MATRIX_ROW_H = 8;
 const SHIP_INFO_SIDE_VIEW_W = 192;
 const SHIP_INFO_SIDE_VIEW_H = 104;
 const DIALOGUE_PANEL_X = 6;
@@ -546,6 +572,8 @@ const DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
 const DISCOVERIES_BUTTON_Y = OPTIONS_BUTTON_Y;
 const SHIP_INFO_BUTTON_X = DISCOVERIES_BUTTON_X - SHIP_INFO_BUTTON_SIZE - 3;
 const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
+const POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
+const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 166;
 const OPTIONS_ROW_H = 22;
@@ -569,7 +597,6 @@ const MUSIC_DECODED_TRACK_CACHE_SIZE = 2;
 const MUSIC_VOLUME_STORAGE_KEY = "pixel_globe_music_volume";
 const SFX_VOLUME_STORAGE_KEY = "pixel_globe_sfx_volume";
 const AUDIO_MUTED_STORAGE_KEY = "pixel_globe_audio_muted";
-const PLAYER_CHARACTER_SEED_STORAGE_KEY = "pixel_globe_player_character_seed";
 const MUSIC_TRACK_SPECS = Object.freeze({
   ship: {
     intro: "/assets/music/ship-theme-intro.ogg",
@@ -807,6 +834,7 @@ let characterPortraitManifest;
 let portCityCharacters;
 let portCitiesByTileId;
 let portCities = [];
+let factionCapitalPorts;
 const terrainAlphaMasks = new WeakMap();
 let spriteColors;
 let waterLatitudeImages;
@@ -878,6 +906,7 @@ let seagullSerial = 1;
 const optionsMenu = createOptionsMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
 const shipInfoMenu = createShipInfoMenuState();
+const politicsMenu = createPoliticsMenuState();
 
 fitCanvasToDisplay();
 window.addEventListener("resize", fitCanvasToDisplay);
@@ -895,6 +924,10 @@ window.addEventListener("keydown", (event) => {
   }
   if (shipInfoMenu.isOpen) {
     handleShipInfoKeyDown(event);
+    return;
+  }
+  if (politicsMenu.isOpen) {
+    handlePoliticsKeyDown(event);
     return;
   }
   if (discoveriesMenu.isOpen) {
@@ -917,6 +950,11 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "i" || event.key === "I") {
     event.preventDefault();
     openShipInfoMenu();
+    return;
+  }
+  if (event.key === "p" || event.key === "P") {
+    event.preventDefault();
+    openPoliticsMenu();
     return;
   }
   if (isWeatherControlKey(event.key)) {
@@ -1039,8 +1077,6 @@ async function main() {
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
   mountainLandmarks = buildMountainLandmarks(loadedNamedMountains, graph, directionIndex, earth.peaks);
-  cityByTileId = placeCityCatalog(cityCatalog);
-  waterDepthBands = buildWaterDepthBands();
   spriteColors = buildSpriteDominantColors(images);
   waterLatitudeImages = new Map();
   waterLatitudeSpriteColors = new Map();
@@ -1052,6 +1088,8 @@ async function main() {
   riverMasks = riverData.masks;
   riverToWaterMasks = riverData.toWaterMasks;
   oceanReachableNavigationMask = buildOceanReachableNavigationMask();
+  cityByTileId = placeCityCatalog(cityCatalog);
+  waterDepthBands = buildWaterDepthBands();
   stormSystem = createStormSystem({
     neighbors: graph.neighbors,
     latDeg: graph.latDeg,
@@ -1093,6 +1131,7 @@ async function main() {
   }
   characterPortraitManifest = loadedCharacterPortraitManifest;
   portCities = portCitiesForCharacters();
+  factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
   worldEconomy = createWorldEconomy({
     ports: portCities,
@@ -1136,6 +1175,7 @@ async function main() {
     `born ${playerCharacter.birthDateLabel}, ${playerCharacter.expressions.length} expressions, ` +
     `home port ${playerCharacter.homePortName}, starter ${shipLabelForSlug(playerShipSlug)}`
   );
+  console.info(`[pixel-globe] faction capitals: ${factionCapitalPorts.size} water-accessible capitals`);
   npcSeaRoutes = createNpcSeaRouteSystem({
     ports: portCities,
     startMinute: weatherClockMinutes,
@@ -1475,18 +1515,66 @@ async function loadCityCatalog(targetYear) {
         year,
         population: Math.round(population)
       };
+      const capitalSpec = factionCapitalForCity(cityRecord);
       bestByCity.set(cityId, {
         ...cityRecord,
-        factionId: factionIdForCity1522(cityRecord)
+        factionId: factionIdForCity1522(cityRecord),
+        declaredCapitalFactionId: capitalSpec?.factionId || null
       });
     }
   }
 
+  ensureFactionCapitalCityRecords(bestByCity, targetYear);
+
   const cities = [...bestByCity.values()]
     .sort((a, b) => b.population - a.population || cityLabelText(a).localeCompare(cityLabelText(b)))
     .slice(0, CITY_MAX_COUNT);
+  ensureFactionCapitalsInCityCatalog(cities, bestByCity);
   if (cities.length === 0) throw new Error(`City dataset produced no cities for year ${targetYear}`);
   return cities;
+}
+
+function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
+  for (const capitalSpec of factionCapitalCityRecords1522()) {
+    const cityId = normalizeCityKey(capitalSpec.city, capitalSpec.country);
+    if (bestByCity.has(cityId)) continue;
+    const cityRecord = {
+      cityId,
+      city: capitalSpec.city,
+      displayCity: cityDisplayName(capitalSpec.city, capitalSpec.country, targetYear),
+      country: capitalSpec.country,
+      lat: capitalSpec.lat,
+      lon: capitalSpec.lon,
+      cityType: cityTypeForCity(capitalSpec.country, capitalSpec.lat, capitalSpec.lon),
+      year: targetYear,
+      population: capitalSpec.population
+    };
+    bestByCity.set(cityId, {
+      ...cityRecord,
+      factionId: factionIdForCity1522(cityRecord),
+      declaredCapitalFactionId: capitalSpec.factionId,
+      requiredFactionCapital: true
+    });
+  }
+}
+
+function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
+  const included = new Set(cities.map((city) => city.cityId));
+  for (const capitalSpec of FACTION_CAPITALS_1522) {
+    const cityId = normalizeCityKey(capitalSpec.city, capitalSpec.country);
+    if (included.has(cityId)) continue;
+    const city = bestByCity.get(cityId);
+    if (!city) {
+      throw new Error(`No city catalog record for faction capital: ${capitalSpec.city}, ${capitalSpec.country}`);
+    }
+    if (city.factionId !== capitalSpec.factionId) {
+      throw new Error(
+        `Faction capital ${capitalSpec.city}, ${capitalSpec.country} belongs to ${city.factionId}, not ${capitalSpec.factionId}`
+      );
+    }
+    cities.push(city);
+    included.add(cityId);
+  }
 }
 
 function parseCsvRows(csv) {
@@ -2108,6 +2196,7 @@ function runFrame(nowMs) {
   } else if (!playerIntroModal && nowMs - lastOverlayMs > 250) {
     drawMinimap(nowMs);
     drawShipInfoButton();
+    drawPoliticsButton();
     drawDiscoveriesButton();
     drawOptionsButton();
     lastOverlayMs = nowMs;
@@ -2194,19 +2283,33 @@ function createShipInfoMenuState() {
     view: "vessel",
     cargoPage: 0,
     ledgerPage: 0,
+    papersPage: 0,
     loadingSlug: null,
     error: null,
     buttonRect: null,
     closeButtonRect: null,
     vesselTabRect: null,
     ledgerTabRect: null,
+    papersTabRect: null,
+    previousPageRect: null,
+    nextPageRect: null
+  };
+}
+
+function createPoliticsMenuState() {
+  return {
+    isOpen: false,
+    page: 0,
+    buttonRect: null,
+    panelRect: null,
+    closeButtonRect: null,
     previousPageRect: null,
     nextPageRect: null
   };
 }
 
 function menusAreOpen() {
-  return optionsMenu.isOpen || discoveriesMenu.isOpen || shipInfoMenu.isOpen;
+  return optionsMenu.isOpen || discoveriesMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen;
 }
 
 function setupThemeMusic() {
@@ -2653,18 +2756,22 @@ function writeLocalStorage(key, value) {
 
 function playerCharacterIdentityKey() {
   const querySeed = new URLSearchParams(window.location.search).get("captainSeed");
-  if (validPlayerCharacterSeed(querySeed)) return querySeed;
-  const storedSeed = readLocalStorage(PLAYER_CHARACTER_SEED_STORAGE_KEY);
-  if (validPlayerCharacterSeed(storedSeed)) return storedSeed;
-  const values = new Uint32Array(2);
-  window.crypto.getRandomValues(values);
-  const generated = `${values[0].toString(36)}-${values[1].toString(36)}`;
-  writeLocalStorage(PLAYER_CHARACTER_SEED_STORAGE_KEY, generated);
-  return generated;
+  return resolvePlayerCharacterIdentityKey({
+    querySeed,
+    generatedSeed: randomPlayerCharacterIdentitySeed()
+  });
 }
 
-function validPlayerCharacterSeed(value) {
-  return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+function randomPlayerCharacterIdentitySeed() {
+  const values = new Uint32Array(3);
+  if (window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(values);
+  } else {
+    for (let i = 0; i < values.length; i++) {
+      values[i] = Math.floor(Math.random() * 0x100000000) >>> 0;
+    }
+  }
+  return Array.from(values, (value) => value.toString(36)).join("-");
 }
 
 function setMusicVolume(value) {
@@ -2814,10 +2921,12 @@ function openShipInfoMenu() {
   if (!ship || !gameState) throw new Error("Cannot open ship information before the game is ready");
   closeOptionsMenu();
   closeDiscoveriesMenu();
+  closePoliticsMenu();
   shipInfoMenu.isOpen = true;
   shipInfoMenu.view = "vessel";
   shipInfoMenu.cargoPage = 0;
   shipInfoMenu.ledgerPage = 0;
+  shipInfoMenu.papersPage = 0;
   shipInfoMenu.error = null;
   keys.clear();
   clearPointerSteering();
@@ -2842,6 +2951,7 @@ function closeShipInfoMenu() {
   shipInfoMenu.closeButtonRect = null;
   shipInfoMenu.vesselTabRect = null;
   shipInfoMenu.ledgerTabRect = null;
+  shipInfoMenu.papersTabRect = null;
   shipInfoMenu.previousPageRect = null;
   shipInfoMenu.nextPageRect = null;
   dirty = true;
@@ -2854,7 +2964,9 @@ function handleShipInfoKeyDown(event) {
     return;
   }
   if (event.key === "Tab") {
-    shipInfoMenu.view = shipInfoMenu.view === "vessel" ? "ledger" : "vessel";
+    const views = ["vessel", "ledger", "papers"];
+    const index = views.indexOf(shipInfoMenu.view);
+    shipInfoMenu.view = views[(index + 1) % views.length];
     dirty = true;
     return;
   }
@@ -2865,6 +2977,11 @@ function handleShipInfoKeyDown(event) {
   }
   if (event.key === "v" || event.key === "V") {
     shipInfoMenu.view = "vessel";
+    dirty = true;
+    return;
+  }
+  if (event.key === "p" || event.key === "P") {
+    shipInfoMenu.view = "papers";
     dirty = true;
     return;
   }
@@ -2883,6 +3000,12 @@ function stepShipInfoPage(direction) {
     return;
   }
   const view = createShipInfoView(ship, gameState);
+  if (shipInfoMenu.view === "papers") {
+    const page = shipPapersPage(view, shipInfoMenu.papersPage + direction);
+    shipInfoMenu.papersPage = page.page;
+    dirty = true;
+    return;
+  }
   const page = shipInfoCargoPage(view, shipInfoMenu.cargoPage + direction);
   shipInfoMenu.cargoPage = page.page;
   dirty = true;
@@ -2891,6 +3014,7 @@ function stepShipInfoPage(direction) {
 function openOptionsMenu() {
   closeDiscoveriesMenu();
   closeShipInfoMenu();
+  closePoliticsMenu();
   optionsMenu.isOpen = true;
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
@@ -2902,6 +3026,7 @@ function openOptionsMenu() {
 function openDiscoveriesMenu() {
   closeOptionsMenu();
   closeShipInfoMenu();
+  closePoliticsMenu();
   discoveriesMenu.isOpen = true;
   discoveriesMenu.page = 0;
   keys.clear();
@@ -2916,6 +3041,40 @@ function closeDiscoveriesMenu() {
   discoveriesMenu.previousPageRect = null;
   discoveriesMenu.nextPageRect = null;
   dirty = true;
+}
+
+function openPoliticsMenu() {
+  if (!gameState) throw new Error("Cannot open politics before the game is ready");
+  closeOptionsMenu();
+  closeDiscoveriesMenu();
+  closeShipInfoMenu();
+  politicsMenu.isOpen = true;
+  politicsMenu.page = 0;
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closePoliticsMenu() {
+  politicsMenu.isOpen = false;
+  politicsMenu.panelRect = null;
+  politicsMenu.closeButtonRect = null;
+  politicsMenu.previousPageRect = null;
+  politicsMenu.nextPageRect = null;
+  dirty = true;
+}
+
+function handlePoliticsKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape" || event.key === "p" || event.key === "P") {
+    closePoliticsMenu();
+    return;
+  }
+  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+    stepPoliticsPage(-1);
+  } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+    stepPoliticsPage(1);
+  }
 }
 
 function handleDiscoveriesKeyDown(event) {
@@ -2995,6 +3154,12 @@ function handlePointerDown(event) {
     handleShipInfoPointerDown(point);
     return;
   }
+  if (politicsMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handlePoliticsPointerDown(point);
+    return;
+  }
   if (discoveriesMenu.isOpen) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -3011,6 +3176,12 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     openShipInfoMenu();
+    return;
+  }
+  if (pointInRect(point, getPoliticsButtonRect())) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    openPoliticsMenu();
     return;
   }
   if (pointInRect(point, getDiscoveriesButtonRect())) {
@@ -3070,6 +3241,10 @@ function handlePointerMove(event) {
     return;
   }
   if (shipInfoMenu.isOpen) {
+    dirty = true;
+    return;
+  }
+  if (politicsMenu.isOpen) {
     dirty = true;
     return;
   }
@@ -3182,6 +3357,18 @@ function handleDiscoveriesPointerDown(point) {
   if (pointInRect(point, discoveriesMenu.nextPageRect)) stepDiscoveriesPage(1);
 }
 
+function handlePoliticsPointerDown(point) {
+  if (pointInRect(point, politicsMenu.closeButtonRect)) {
+    closePoliticsMenu();
+    return;
+  }
+  if (pointInRect(point, politicsMenu.previousPageRect)) {
+    stepPoliticsPage(-1);
+    return;
+  }
+  if (pointInRect(point, politicsMenu.nextPageRect)) stepPoliticsPage(1);
+}
+
 function handleShipInfoPointerDown(point) {
   if (pointInRect(point, shipInfoMenu.closeButtonRect)) {
     closeShipInfoMenu();
@@ -3197,6 +3384,11 @@ function handleShipInfoPointerDown(point) {
     dirty = true;
     return;
   }
+  if (pointInRect(point, shipInfoMenu.papersTabRect)) {
+    shipInfoMenu.view = "papers";
+    dirty = true;
+    return;
+  }
   if (pointInRect(point, shipInfoMenu.previousPageRect)) {
     stepShipInfoPage(-1);
     return;
@@ -3208,6 +3400,13 @@ function stepDiscoveriesPage(direction) {
   const count = discoveredEntries(gameState).length;
   const pageCount = Math.max(1, Math.ceil(count / DISCOVERIES_PAGE_SIZE));
   discoveriesMenu.page = (discoveriesMenu.page + direction + pageCount) % pageCount;
+  dirty = true;
+}
+
+function stepPoliticsPage(direction) {
+  const view = createPoliticsView(gameState);
+  const page = politicsRowsPage(view, politicsMenu.page + direction, POLITICS_ROWS_PER_PAGE);
+  politicsMenu.page = page.page;
   dirty = true;
 }
 
@@ -3378,7 +3577,7 @@ function chooseDialogueOption(optionIndex) {
       worldEconomy,
       portCities,
       optionIndex,
-      { simMinute: Math.floor(weatherClockMinutes) }
+      portDialogueContext()
     );
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
@@ -3415,10 +3614,27 @@ function beginPlayerInitiatedCombat(npcShipId) {
   if (!state) throw new Error(`Cannot attack NPC ship that is no longer visible: ${npcShipId}`);
   if (state.combatGrace) throw new Error(`Cannot attack protected NPC ship: ${npcShipId}`);
   if (!forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, npcShipId)) return;
+  recordPlayerAttackConsequences(npcShipId);
   shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
   shipCombatEntryCollisionGrace.set(npcShipId, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
   const cannons = shipStatsForSlug(state.slug).cannons;
   startCombatMusicForThreat(cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+}
+
+function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
+  if (!gameState) return;
+  const state = npcVisualShips.get(npcShipId);
+  const factionId = state?.factionId || npcSeaRoutes?.shipById?.get(npcShipId)?.factionId || fallbackFactionId;
+  if (!factionId || factionId === PIRATE_FACTION_ID) return;
+  if (!state?.playerAttackRecorded) {
+    recordAttackAgainstFaction(gameState, factionId);
+    if (state) state.playerAttackRecorded = true;
+  }
+  if (hasPrivateeringAuthorityAgainst(gameState, factionId)) return;
+  if (!state?.playerPiracyRecorded) {
+    recordPiracyAgainstFaction(gameState, factionId, { includeVictim: false });
+    if (state) state.playerPiracyRecorded = true;
+  }
 }
 
 function clampDialogueSelection() {
@@ -3441,12 +3657,24 @@ function currentDialogueCity() {
 
 function currentDialogueView() {
   if (dialogueState.kind === "port") {
-    return portDialogueView(dialogueState, currentDialogueCity(), gameState, worldEconomy, portCities);
+    return portDialogueView(dialogueState, currentDialogueCity(), gameState, worldEconomy, portCities, portDialogueContext());
   }
   if (dialogueState.kind === "ship") {
     return shipDialogueView(dialogueState, currentDialogueShip());
   }
   throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
+}
+
+function portDialogueContext() {
+  return {
+    simMinute: Math.floor(weatherClockMinutes),
+    shipPower: playerShipPrivateeringPower()
+  };
+}
+
+function playerShipPrivateeringPower() {
+  if (!ship) return 0;
+  return Math.round((ship.stats?.cannons || 0) + (ship.maxHitPoints || ship.stats?.hitPoints || 0));
 }
 
 function currentDialogueShip() {
@@ -3459,6 +3687,8 @@ function currentDialogueShip() {
   if (!visualState) throw new Error(`Dialogue NPC ship is no longer visible: ${npcShip.id}`);
   const combatGrace = npcShip.graceUntilPortVisit > npcShip.portVisits;
   const inCombatWithPlayer = shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShip.id));
+  const playerAttackIsPiracy = npcShip.factionId !== PIRATE_FACTION_ID &&
+    !hasPrivateeringAuthorityAgainst(gameState, npcShip.factionId);
   const stormStatus = visualState?.stormMode === "anchored"
     ? "We are anchored until the storm passes."
     : visualState?.stormMode === "seeking"
@@ -3481,6 +3711,7 @@ function currentDialogueShip() {
     stormStatus,
     combatGrace,
     inCombatWithPlayer,
+    playerAttackIsPiracy,
     willOfferSurrender: npcShouldOfferSurrender(npcCombatEntity(visualState), playerCombatEntity()),
     character
   };
@@ -3679,14 +3910,27 @@ function placeCityCatalog(cities) {
   const placed = new Map();
   for (const city of cities) {
     const startId = findNearestTileId(graph, directionIndex, latLonToDirection(city.lat, city.lon));
-    const tileId = isCityDrawableTile(startId) ? startId : nearestTileMatching(startId, isCityDrawableTile);
+    const placementPredicate = cityPlacementPredicate(city);
+    let tileId = placementPredicate(startId) ? startId : nearestTileMatching(startId, placementPredicate);
     if (tileId === undefined) {
       throw new Error(`Could not place city on drawable land tile: ${city.city}, ${city.country}`);
     }
-    if (placed.has(tileId)) continue;
+    if (placed.has(tileId)) {
+      if (!city.declaredCapitalFactionId) continue;
+      const alternateTileId = nearestTileMatching(tileId, (id) => placementPredicate(id) && !placed.has(id));
+      if (alternateTileId === undefined) {
+        throw new Error(`Could not place faction capital on an unoccupied land tile: ${city.city}, ${city.country}`);
+      }
+      tileId = alternateTileId;
+    }
     placed.set(tileId, { ...city, tileId });
   }
   return placed;
+}
+
+function cityPlacementPredicate(city) {
+  if (!city.declaredCapitalFactionId) return isCityDrawableTile;
+  return (tileId) => isCityDrawableTile(tileId) && cityHasPortAccess(tileId);
 }
 
 function portCitiesForCharacters() {
@@ -5322,9 +5566,14 @@ function addNpcCombatSplash(ball) {
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
   const npcWinnerId = winnerId === PLAYER_COMBAT_ID ? null : winnerId;
+  const loserFactionId =
+    npcSeaRoutes.shipById.get(loserId)?.factionId ||
+    npcVisualShips.get(loserId)?.factionId ||
+    null;
   const loot = surrenderNpcShip(npcSeaRoutes, loserId, npcWinnerId, options);
   if (winnerId === PLAYER_COMBAT_ID) {
     const received = receiveSurrenderedLoot(gameState, loot, { simMinute: weatherClockMinutes });
+    if (loserFactionId) recordPlayerAttackConsequences(loserId, loserFactionId);
     syncShipCargoFromGameState();
     if (loot.specie > 0) playCoinClinkSound();
     const cargoQuantity = Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0);
@@ -6595,11 +6844,13 @@ function render(nowMs) {
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay(nowMs);
   drawShipInfoButton();
+  drawPoliticsButton();
   drawDiscoveriesButton();
   drawOptionsButton();
   if (optionsMenu.isOpen) drawOptionsMenu();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
+  if (politicsMenu.isOpen) drawPoliticsMenu();
   if (gameOverReason) drawGameOverOverlay();
   if (playerIntroModal) drawPlayerIntroModal(nowMs);
 }
@@ -7179,6 +7430,15 @@ function getShipInfoButtonRect() {
   };
 }
 
+function getPoliticsButtonRect() {
+  return {
+    x: POLITICS_BUTTON_X,
+    y: POLITICS_BUTTON_Y,
+    w: POLITICS_BUTTON_SIZE,
+    h: POLITICS_BUTTON_SIZE
+  };
+}
+
 function getDiscoveriesButtonRect() {
   return {
     x: DISCOVERIES_BUTTON_X,
@@ -7211,6 +7471,39 @@ function drawShipInfoButton() {
     ctx.fillStyle = "#2e222f";
     ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
     ctx.fillStyle = "#ffffff";
+    drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
+      font: PIXEL_FONT_BODY_8,
+      align: "right"
+    });
+  }
+  ctx.restore();
+}
+
+function drawPoliticsButton() {
+  const rect = getPoliticsButtonRect();
+  politicsMenu.buttonRect = rect;
+  const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
+
+  ctx.save();
+  ctx.fillStyle = hovered ? "rgba(255, 244, 168, 0.24)" : "rgba(15, 18, 14, 0.78)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = "#d6b66b";
+  ctx.fillRect(rect.x + 3, rect.y + 8, 7, 1);
+  ctx.fillRect(rect.x + 4, rect.y + 4, 1, 5);
+  ctx.fillRect(rect.x + 8, rect.y + 4, 1, 5);
+  ctx.fillRect(rect.x + 3, rect.y + 3, 7, 1);
+  ctx.fillStyle = "#91db69";
+  ctx.fillRect(rect.x + 2, rect.y + 6, 2, 1);
+  ctx.fillStyle = "#f68181";
+  ctx.fillRect(rect.x + 9, rect.y + 6, 2, 1);
+  if (hovered) {
+    const label = "POLITICS";
+    const width = measurePixelTextWidth(label, PIXEL_FONT_BODY_8) + 6;
+    ctx.fillStyle = "rgba(15, 18, 14, 0.94)";
+    ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
+    ctx.fillStyle = "#fff4a8";
     drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
       font: PIXEL_FONT_BODY_8,
       align: "right"
@@ -7295,10 +7588,13 @@ function drawShipInfoMenu() {
   );
   drawShipInfoTabs(panel);
   const vesselTitle = view.captainName ? `${view.captainName} / ${view.label}` : view.label;
+  const title = shipInfoMenu.view === "ledger"
+    ? "CAPTAIN'S LEDGER"
+    : shipInfoMenu.view === "papers"
+      ? "SHIP'S PAPERS"
+      : fitPixelText(vesselTitle.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 206);
   drawOptionsText(
-    shipInfoMenu.view === "ledger"
-      ? "CAPTAIN'S LEDGER"
-      : fitPixelText(vesselTitle.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 142),
+    title,
     panel.x + panel.w / 2,
     panel.y + 8,
     {
@@ -7309,6 +7605,11 @@ function drawShipInfoMenu() {
 
   if (shipInfoMenu.view === "ledger") {
     drawShipLedger(panel, view);
+    ctx.restore();
+    return;
+  }
+  if (shipInfoMenu.view === "papers") {
+    drawShipPapers(panel, view);
     ctx.restore();
     return;
   }
@@ -7406,6 +7707,7 @@ function drawShipInfoMenu() {
 function drawShipInfoTabs(panel) {
   shipInfoMenu.vesselTabRect = { x: panel.x + 8, y: panel.y + 6, w: 48, h: 13 };
   shipInfoMenu.ledgerTabRect = { x: panel.x + 59, y: panel.y + 6, w: 51, h: 13 };
+  shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 51, h: 13 };
   drawShipInfoTab(
     shipInfoMenu.vesselTabRect,
     "VESSEL",
@@ -7417,6 +7719,12 @@ function drawShipInfoTabs(panel) {
     "LEDGER",
     shipInfoMenu.view === "ledger",
     pointInRect(optionsMenu.hoverPoint, shipInfoMenu.ledgerTabRect)
+  );
+  drawShipInfoTab(
+    shipInfoMenu.papersTabRect,
+    "PAPERS",
+    shipInfoMenu.view === "papers",
+    pointInRect(optionsMenu.hoverPoint, shipInfoMenu.papersTabRect)
   );
 }
 
@@ -7482,6 +7790,85 @@ function drawShipLedger(panel, view) {
     drawOptionsText(entry.pnl === null ? "--" : formatSignedLedgerMoney(entry.pnl), pnlX, y, {
       align: "right",
       color: entry.pnl === null ? "#625565" : ledgerPnlColor(entry.pnl)
+    });
+  });
+
+  const pagerY = panel.y + panel.h - 18;
+  if (page.pageCount > 1) {
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    drawShipInfoArrowButton(
+      shipInfoMenu.previousPageRect,
+      "<",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.previousPageRect)
+    );
+    drawShipInfoArrowButton(
+      shipInfoMenu.nextPageRect,
+      ">",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.nextPageRect)
+    );
+  } else {
+    shipInfoMenu.previousPageRect = null;
+    shipInfoMenu.nextPageRect = null;
+  }
+  drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
+    align: "center",
+    color: "#9babb2"
+  });
+}
+
+function drawShipPapers(panel, view) {
+  const page = shipPapersPage(view, shipInfoMenu.papersPage);
+  shipInfoMenu.papersPage = page.page;
+  const summaryY = panel.y + 27;
+  drawOptionsText("ACTIVE DOCUMENTS", panel.x + 12, summaryY, { color: "#c7dcd0" });
+  drawOptionsText(`${view.papers.length} HELD`, panel.x + panel.w - 12, summaryY, {
+    align: "right",
+    color: view.papers.length > 0 ? "#fbb954" : "#9babb2"
+  });
+
+  const typeX = panel.x + 12;
+  const documentX = panel.x + 78;
+  const detailX = panel.x + 218;
+  const dateX = panel.x + panel.w - 12;
+  const headerY = panel.y + 43;
+  ctx.fillStyle = "#625565";
+  ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
+  drawOptionsText("TYPE", typeX, headerY, { color: "#ab947a" });
+  drawOptionsText("DOCUMENT", documentX, headerY, { color: "#ab947a" });
+  drawOptionsText("DETAIL", detailX, headerY, { color: "#ab947a" });
+  drawOptionsText("DATE", dateX, headerY, { align: "right", color: "#ab947a" });
+
+  if (page.rows.length === 0) {
+    drawOptionsText("NO SHIP PAPERS HELD", panel.x + 12, panel.y + 63, { color: "#9babb2" });
+  }
+  page.rows.forEach((paper, index) => {
+    const y = panel.y + 57 + index * 18;
+    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, 16);
+    const typeColor = paper.kind === "marque"
+      ? "#91db69"
+      : paper.kind === "delivery"
+        ? "#fbb954"
+        : "#c7dcd0";
+    drawOptionsText(fitPixelText(paper.kind.toUpperCase(), PIXEL_FONT_UI_8, 55), typeX, y, {
+      color: typeColor
+    });
+    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_UI_8, 126), documentX, y, {
+      color: "#ffffff"
+    });
+    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_UI_8, 126), documentX, y + 8, {
+      color: "#9babb2"
+    });
+    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_UI_8, 145), detailX, y, {
+      color: "#c7dcd0"
+    });
+    drawOptionsText(fitPixelText(paper.detail.toUpperCase(), PIXEL_FONT_UI_8, 145), detailX, y + 8, {
+      color: "#ab947a"
+    });
+    drawOptionsText(shipLedgerDateLabel(paper.simMinute), dateX, y, {
+      align: "right",
+      color: Number.isFinite(paper.simMinute) ? "#9babb2" : "#625565"
     });
   });
 
@@ -7685,6 +8072,169 @@ function discoveryKindColor(kind) {
   if (kind === "legend") return "#f04f78";
   if (kind === "achievement") return "#6aa6a1";
   throw new Error(`Unknown discovery kind: ${kind}`);
+}
+
+function drawPoliticsMenu() {
+  const panel = {
+    x: POLITICS_PANEL_X,
+    y: POLITICS_PANEL_Y,
+    w: POLITICS_PANEL_W,
+    h: POLITICS_PANEL_H
+  };
+  const view = createPoliticsView(gameState);
+  const page = politicsRowsPage(view, politicsMenu.page, POLITICS_ROWS_PER_PAGE);
+  politicsMenu.page = page.page;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#17130e";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#a27a3b";
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+
+  const closeSize = 14;
+  politicsMenu.closeButtonRect = {
+    x: panel.x + panel.w - closeSize - 6,
+    y: panel.y + 6,
+    w: closeSize,
+    h: closeSize
+  };
+  drawOptionsCloseButton(
+    politicsMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, politicsMenu.closeButtonRect)
+  );
+  drawOptionsText("POLITICAL CHART", panel.x + panel.w / 2, panel.y + 9, {
+    align: "center",
+    color: "#ffd98a"
+  });
+
+  const legendY = panel.y + 27;
+  drawOptionsText("A ALLY", panel.x + 12, legendY, { color: "#91db69" });
+  drawOptionsText("W WAR", panel.x + 62, legendY, { color: "#f68181" });
+  drawOptionsText("- NEUTRAL", panel.x + 108, legendY, { color: "#9babb2" });
+  drawOptionsText("PLAYER STANDING", panel.x + panel.w - 12, legendY, {
+    align: "right",
+    color: "#d6b66b"
+  });
+
+  const rowLabelX = panel.x + 12;
+  const matrixX = panel.x + 124;
+  const headerY = panel.y + 42;
+  const matrixY = panel.y + 58;
+  const statusX = matrixX + view.powers.length * POLITICS_MATRIX_CELL_W + 8;
+  const statusW = panel.x + panel.w - statusX - 12;
+  drawOptionsText("POWER", rowLabelX, headerY + 5, { color: "#ab947a" });
+  drawOptionsText("STANCE TOWARD", matrixX, headerY - 4, { color: "#ab947a" });
+  drawOptionsText("STATUS", statusX, headerY + 5, { color: "#ab947a" });
+
+  view.powers.forEach((power, index) => {
+    const x = matrixX + index * POLITICS_MATRIX_CELL_W;
+    drawPoliticsColumnCode(power.code, x, headerY + 12, politicsFactionColor(power.id));
+  });
+
+  page.rows.forEach((row, rowIndex) => {
+    const y = matrixY + rowIndex * POLITICS_MATRIX_ROW_H;
+    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(46, 34, 47, 0.28)" : "rgba(46, 34, 47, 0.12)";
+    ctx.fillRect(panel.x + 10, y - 1, panel.w - 20, POLITICS_MATRIX_ROW_H);
+    drawOptionsText(
+      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_UI_8, 104),
+      rowLabelX,
+      y,
+      { color: politicsFactionColor(row.faction.id) }
+    );
+    row.stances.forEach((stance, index) => {
+      drawPoliticsMatrixCell(
+        matrixX + index * POLITICS_MATRIX_CELL_W,
+        y,
+        stance.relation,
+        row.faction.id === stance.factionId
+      );
+    });
+    drawPoliticsStanding(row.player, statusX, y, statusW);
+  });
+
+  const pagerY = panel.y + panel.h - 18;
+  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 14, h: 13 };
+  politicsMenu.nextPageRect = { x: panel.x + panel.w - 26, y: pagerY, w: 14, h: 13 };
+  drawOptionsArrowButton(
+    politicsMenu.previousPageRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, politicsMenu.previousPageRect)
+  );
+  drawOptionsArrowButton(
+    politicsMenu.nextPageRect,
+    ">",
+    pointInRect(optionsMenu.hoverPoint, politicsMenu.nextPageRect)
+  );
+  drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 3, {
+    align: "center",
+    color: "#a9a08f"
+  });
+  ctx.restore();
+}
+
+function drawPoliticsColumnCode(code, x, y, color) {
+  ctx.save();
+  ctx.translate(x + 1, y);
+  ctx.rotate(-Math.PI / 2);
+  drawOptionsText(code, 0, 0, { color });
+  ctx.restore();
+}
+
+function drawPoliticsMatrixCell(x, y, relation, self) {
+  const glyph = politicsRelationGlyph(relation);
+  ctx.fillStyle = self ? "#3e3546" : "rgba(0, 0, 0, 0.22)";
+  ctx.fillRect(x, y, POLITICS_MATRIX_CELL_W - 1, POLITICS_MATRIX_ROW_H - 1);
+  drawOptionsText(glyph, x + 1, y, {
+    color: self ? "#fff1bf" : politicsRelationColor(relation)
+  });
+}
+
+function drawPoliticsStanding(player, x, y, width) {
+  const scoreW = 25;
+  drawOptionsText(player.scoreLabel, x, y, {
+    color: politicsStandingColor(player.reputation)
+  });
+  drawOptionsText(
+    fitPixelText(
+      player.hasLetterOfMarque ? `${player.label.toUpperCase()} MARQUE` : player.label.toUpperCase(),
+      PIXEL_FONT_UI_8,
+      Math.max(0, width - scoreW)
+    ),
+    x + scoreW,
+    y,
+    { color: "#eee4cf" }
+  );
+}
+
+function politicsRelationGlyph(relation) {
+  if (relation === DIPLOMACY_ALLY) return "A";
+  if (relation === DIPLOMACY_WAR) return "W";
+  if (relation === DIPLOMACY_NEUTRAL) return "-";
+  throw new Error(`Unknown political relation: ${relation}`);
+}
+
+function politicsRelationColor(relation) {
+  if (relation === DIPLOMACY_ALLY) return "#91db69";
+  if (relation === DIPLOMACY_WAR) return "#f68181";
+  if (relation === DIPLOMACY_NEUTRAL) return "#9babb2";
+  throw new Error(`Unknown political relation: ${relation}`);
+}
+
+function politicsStandingColor(reputation) {
+  if (reputation <= -75) return "#f04f78";
+  if (reputation <= -25) return "#cd683d";
+  if (reputation < 0) return "#7f708a";
+  if (reputation === 0) return "#9babb2";
+  if (reputation < 15) return "#91db69";
+  if (reputation < 50) return "#30e1b9";
+  return "#fff1bf";
+}
+
+function politicsFactionColor(factionId) {
+  if (factionId === PIRATE_FACTION_ID) return "#f04f78";
+  return "#eee4cf";
 }
 
 function drawOptionsMenu() {
@@ -10657,7 +11207,7 @@ function drawDialogueOverlay(nowMs) {
     font: PIXEL_FONT_UI_8
   });
 
-  if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject.tileId);
+  if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject);
 
   const textX = panel.x + 12;
   const textY = panel.y + 25;
@@ -10682,7 +11232,7 @@ function drawDialogueOverlay(nowMs) {
   drawDialogueOptions(view, optionX, optionY, optionW);
 }
 
-function drawDialogueFactionFlag(faction, panel, nowMs, seed) {
+function drawDialogueFactionFlag(faction, panel, nowMs, city) {
   const flagX = panel.x + panel.w - DIALOGUE_FLAG_W - 10;
   const flagY = panel.y + 8;
   ctx.fillStyle = "#4c3e24";
@@ -10693,7 +11243,7 @@ function drawDialogueFactionFlag(faction, panel, nowMs, seed) {
     flagY,
     DIALOGUE_FLAG_W,
     DIALOGUE_FLAG_H,
-    flagWavePhase(nowMs, seed)
+    flagWavePhase(nowMs, city.tileId)
   );
   const label = fitPixelText(faction.name.toUpperCase(), PIXEL_FONT_BODY_8, DIALOGUE_FACTION_BLOCK_W);
   ctx.fillStyle = "#d6b66b";
@@ -10701,6 +11251,13 @@ function drawDialogueFactionFlag(faction, panel, nowMs, seed) {
     font: PIXEL_FONT_BODY_8,
     align: "right"
   });
+  if (city.isFactionCapital) {
+    ctx.fillStyle = "#fbff86";
+    drawPixelText("CAPITAL", panel.x + panel.w - 10, flagY + DIALOGUE_FLAG_H + 13, {
+      font: PIXEL_FONT_BODY_8,
+      align: "right"
+    });
+  }
 }
 
 function drawDialoguePortrait(character, expressionId, x, y) {

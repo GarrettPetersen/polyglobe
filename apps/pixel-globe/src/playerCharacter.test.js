@@ -6,6 +6,7 @@ import {
   PLAYER_STARTER_SHIPS,
   generatePlayerStartingProfile,
   playerStartRegionForPort,
+  resolvePlayerCharacterIdentityKey,
   selectPlayerHomePort
 } from "./playerCharacter.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -48,6 +49,25 @@ test("starting profiles are deterministic and internally consistent", () => {
   assert.ok(profile.character.expressions.length > 1);
   assert.ok(profile.character.age >= 20 && profile.character.age <= 40);
   assert.match(profile.character.birthDateLabel, /^\d{1,2} [A-Z][a-z]+ (?:14|15)\d{2}$/);
+});
+
+test("player identity seeds use explicit query values or fresh generated values", () => {
+  assert.equal(
+    resolvePlayerCharacterIdentityKey({ querySeed: "debug-captain", generatedSeed: "random-captain" }),
+    "debug-captain"
+  );
+  assert.equal(
+    resolvePlayerCharacterIdentityKey({ querySeed: null, generatedSeed: "random-captain" }),
+    "random-captain"
+  );
+  assert.equal(
+    resolvePlayerCharacterIdentityKey({ querySeed: "bad seed", generatedSeed: "fresh_123" }),
+    "fresh_123"
+  );
+  assert.throws(
+    () => resolvePlayerCharacterIdentityKey({ querySeed: null, generatedSeed: "bad seed" }),
+    /valid generated identity seed/
+  );
 });
 
 test("home selection balances the four allowed regions and excludes implausible starts", () => {

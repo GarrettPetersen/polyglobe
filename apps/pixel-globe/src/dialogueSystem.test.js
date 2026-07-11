@@ -10,7 +10,13 @@ import {
   shipDialogueView
 } from "./dialogueSystem.js";
 import { createWorldEconomy } from "./economy.js";
-import { createGameState } from "./gameState.js";
+import {
+  LETTER_OF_MARQUE_POWER_REQUIRED,
+  LETTER_OF_MARQUE_REPUTATION_REQUIRED,
+  adjustFactionReputation,
+  createGameState,
+  hasLetterOfMarqueFrom
+} from "./gameState.js";
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
@@ -126,6 +132,49 @@ test("a protected surrendered ship cannot be threatened again", () => {
   assert.deepEqual(view.options.map((option) => option.label), ["Leave"]);
 });
 
+test("piracy warning lets the player back out before a hostile demand", () => {
+  const ship = {
+    id: "merchant",
+    roleLabel: "Merchant",
+    faction: { adjective: "French" },
+    character: { name: "Claude Martin" },
+    willOfferSurrender: false,
+    playerAttackIsPiracy: true
+  };
+  const backingOutSession = createShipDialogueSession(ship);
+
+  assert.deepEqual(selectShipDialogueOption(backingOutSession, ship, 0), {
+    closed: false,
+    action: null
+  });
+  const warning = shipDialogueView(backingOutSession, ship);
+  assert.equal(warning.expressionId, "angry");
+  assert.equal(warning.text, "Without a letter of marque, this is an act of piracy.");
+  assert.deepEqual(warning.options.map((option) => option.label), [
+    "Back down",
+    "Demand surrender anyway"
+  ]);
+  assert.deepEqual(selectShipDialogueOption(backingOutSession, ship, 0), {
+    closed: true,
+    action: null
+  });
+
+  const confirmingSession = createShipDialogueSession(ship);
+  selectShipDialogueOption(confirmingSession, ship, 0);
+  assert.deepEqual(selectShipDialogueOption(confirmingSession, ship, 1), {
+    closed: false,
+    action: null
+  });
+  assert.deepEqual(shipDialogueView(confirmingSession, ship).options.map((option) => option.label), [
+    "Attack",
+    "Back down"
+  ]);
+  assert.deepEqual(selectShipDialogueOption(confirmingSession, ship, 0), {
+    closed: true,
+    action: { type: "attack" }
+  });
+});
+
 test("a capable ship defies the threat but can still be attacked", () => {
   const ship = {
     id: "capable",
@@ -180,4 +229,42 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   session.nodeId = "sell";
   const sell = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.label)));
+});
+
+test("capital port dialogue can grant a letter of marque", () => {
+  const city = {
+    tileId: 1,
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 90000,
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  adjustFactionReputation(gameState, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  const session = createPortDialogueSession(city);
+  const context = { shipPower: LETTER_OF_MARQUE_POWER_REQUIRED, simMinute: 120 };
+
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const marqueIndex = root.options.findIndex((option) => option.action.nodeId === "marque");
+  assert.ok(marqueIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], marqueIndex, context);
+  const marque = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(marque.options[0].disabled, false);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  assert.equal(hasLetterOfMarqueFrom(gameState, "england"), true);
+  assert.match(session.feedback, /letter of marque granted/i);
 });

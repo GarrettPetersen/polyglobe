@@ -7,11 +7,14 @@ import {
   cargoUsed,
   cityLabel,
   completeQuest,
+  grantLetterOfMarque,
+  letterOfMarqueStatus,
   portMemory,
   questStateForCity,
   sellGood
 } from "./gameState.js";
 import { portEconomySummary, portMarket, tradeGoodById } from "./economy.js";
+import { factionById } from "./factions.js";
 
 export function createPortDialogueSession(city) {
   return {
@@ -32,7 +35,9 @@ export function createShipDialogueSession(ship, { attackReason = null } = {}) {
     npcShipId: ship.id,
     nodeId: "root",
     selectedIndex: 0,
-    attackReason
+    attackReason,
+    piracyWarningAccepted: false,
+    pendingPiracyAction: null
   };
 }
 
@@ -52,6 +57,18 @@ export function shipDialogueView(session, ship) {
       text: session.attackReason,
       feedback: null,
       options: [option("To arms", { type: "close" })]
+    };
+  }
+  if (session.nodeId === "piracy-warning") {
+    return {
+      speaker,
+      expressionId: "angry",
+      text: "Without a letter of marque, this is an act of piracy.",
+      feedback: null,
+      options: [
+        option("Back down", { type: "close" }),
+        option(piracyProceedLabel(session.pendingPiracyAction), { type: "confirm-piracy" })
+      ]
     };
   }
   if (session.nodeId === "surrender-offer") {
@@ -102,16 +119,22 @@ export function selectShipDialogueOption(session, ship, optionIndex = session.se
   const view = shipDialogueView(session, ship);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid ship dialogue option index: ${optionIndex}`);
-  if (selected.action.type === "close") return { closed: true, action: null };
-  if (selected.action.type === "threaten") {
-    session.nodeId = ship.willOfferSurrender ? "surrender-offer" : "defiance";
+  const action = selected.action;
+  if (action.type === "close") return { closed: true, action: null };
+  if (action.type === "confirm-piracy") {
+    const pendingAction = session.pendingPiracyAction;
+    if (!isHostileShipAction(pendingAction)) throw new Error(`Invalid piracy warning action: ${pendingAction}`);
+    session.pendingPiracyAction = null;
+    session.piracyWarningAccepted = true;
+    return applyShipDialogueAction(session, ship, { type: pendingAction });
+  }
+  if (shipHostileActionNeedsPiracyWarning(session, ship, action)) {
+    session.nodeId = "piracy-warning";
+    session.pendingPiracyAction = action.type;
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
-  if (selected.action.type === "surrender" || selected.action.type === "attack") {
-    return { closed: true, action: selected.action };
-  }
-  throw new Error(`Unknown ship dialogue action: ${selected.action.type}`);
+  return applyShipDialogueAction(session, ship, action);
 }
 
 function assertShipDialogueSubject(session, ship) {
@@ -119,15 +142,45 @@ function assertShipDialogueSubject(session, ship) {
   if (!ship || session.npcShipId !== ship.id) throw new Error("Dialogue ship does not match active session");
 }
 
-export function portDialogueView(session, city, gameState, economy, portCities) {
+function applyShipDialogueAction(session, ship, action) {
+  if (action.type === "threaten") {
+    session.nodeId = ship.willOfferSurrender ? "surrender-offer" : "defiance";
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "surrender" || action.type === "attack") {
+    return { closed: true, action: { type: action.type } };
+  }
+  throw new Error(`Unknown ship dialogue action: ${action.type}`);
+}
+
+function shipHostileActionNeedsPiracyWarning(session, ship, action) {
+  return isHostileShipAction(action.type) &&
+    ship.playerAttackIsPiracy === true &&
+    session.piracyWarningAccepted !== true;
+}
+
+function isHostileShipAction(actionType) {
+  return actionType === "threaten" || actionType === "surrender" || actionType === "attack";
+}
+
+function piracyProceedLabel(actionType) {
+  if (actionType === "threaten") return "Demand surrender anyway";
+  if (actionType === "surrender") return "Take prize anyway";
+  if (actionType === "attack") return "Attack anyway";
+  return "Proceed anyway";
+}
+
+export function portDialogueView(session, city, gameState, economy, portCities, context = {}) {
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
 
-  if (session.nodeId === "root") return rootView(session, city, gameState, economy);
+  if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy);
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
+  if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
@@ -140,7 +193,7 @@ export function selectPortDialogueOption(
   optionIndex = session.selectedIndex,
   context = {}
 ) {
-  const view = portDialogueView(session, city, gameState, economy, portCities);
+  const view = portDialogueView(session, city, gameState, economy, portCities, context);
   const option = view.options[optionIndex];
   if (!option) throw new Error(`Invalid dialogue option index: ${optionIndex}`);
   if (option.disabled) {
@@ -176,32 +229,48 @@ export function selectPortDialogueOption(
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
-    session.feedback = `Delivered. Earned ${quest.reward} db.`;
+    session.feedback = `Delivered. Earned ${quest.reward} db. Standing improved.`;
     session.nodeId = "root";
+    session.selectedIndex = 0;
+    return { closed: false };
+  }
+  if (action.type === "request-marque") {
+    const result = grantLetterOfMarque(gameState, city, context.shipPower || 0, context);
+    const faction = factionById(result.factionId);
+    session.feedback = result.grantedNow
+      ? `${faction.adjective} letter of marque granted.`
+      : `${faction.adjective} letter of marque already held.`;
+    session.nodeId = "marque";
     session.selectedIndex = 0;
     return { closed: false };
   }
   throw new Error(`Unknown dialogue action: ${action.type}`);
 }
 
-function rootView(session, city, gameState, economy) {
+function rootView(session, city, gameState, economy, context) {
   const memory = portMemory(gameState, city);
   const market = portEconomySummary(economy, city);
   const greeting = memory.visits <= 1
     ? `Welcome to ${cityLabel(city)}. I keep accounts for captains who can keep their word.`
     : `Back in ${cityLabel(city)}, captain. Your ledger is still open.`;
+  const options = [
+    option("Buy goods", { type: "node", nodeId: "buy" }),
+    option("Sell cargo", { type: "node", nodeId: "sell" }),
+    option("Ask about work", { type: "node", nodeId: "quest" })
+  ];
+  if (letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
+    options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));
+  }
+  options.push(
+    option("Cargo ledger", { type: "node", nodeId: "cargo" }),
+    option("Leave port", { type: "close" })
+  );
   return {
     speaker: speakerName(city),
     expressionId: "neutral",
     text: `${greeting} ${portFlavor(city)} Market specie: ${market.specie} db.`,
     feedback: session.feedback,
-    options: [
-      option("Buy goods", { type: "node", nodeId: "buy" }),
-      option("Sell cargo", { type: "node", nodeId: "sell" }),
-      option("Ask about work", { type: "node", nodeId: "quest" }),
-      option("Cargo ledger", { type: "node", nodeId: "cargo" }),
-      option("Leave port", { type: "close" })
-    ]
+    options
   };
 }
 
@@ -316,6 +385,17 @@ function questView(session, city, gameState, portCities) {
       ]
     };
   }
+  if (questState.kind === "unavailable") {
+    return {
+      speaker: speakerName(city),
+      expressionId: "neutral",
+      text: "No sealed packets are bound for our nearby ports right now.",
+      feedback: session.feedback,
+      options: [
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
   const quest = questState.quest;
   return {
     speaker: speakerName(city),
@@ -325,6 +405,41 @@ function questView(session, city, gameState, portCities) {
       : `Finish your delivery from ${quest.originName} to ${quest.destinationName}; then I can talk work.`,
     feedback: session.feedback,
     options: [
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function marqueView(session, city, gameState, context) {
+  const status = letterOfMarqueStatus(gameState, city, context.shipPower || 0);
+  if (!status.available) {
+    return {
+      speaker: speakerName(city),
+      expressionId: "neutral",
+      text: status.reason,
+      feedback: session.feedback,
+      options: [
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
+  const faction = factionById(status.factionId);
+  const text = status.granted
+    ? `You already carry ${faction.adjective} authority to prize enemy shipping.`
+    : `The ${faction.adjective} court will issue a letter if your standing and fighting ship are sufficient. Standing ${signedReputation(status.reputation)}/${signedReputation(status.reputationRequired)}. Ship strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
+  const disabledReason = status.missing.length > 0
+    ? `Need ${status.missing.join(" and ")}.`
+    : null;
+  return {
+    speaker: speakerName(city),
+    expressionId: "neutral",
+    text,
+    feedback: session.feedback,
+    options: [
+      option("Request letter of marque", { type: "request-marque" }, {
+        disabled: status.granted || !status.eligible,
+        disabledReason: status.granted ? "Already granted." : disabledReason
+      }),
       option("Back", { type: "node", nodeId: "root" })
     ]
   };
@@ -342,6 +457,11 @@ function option(label, action, details = {}) {
 function signedDoubloons(value) {
   const rounded = Math.round(value);
   return `${rounded >= 0 ? "+" : ""}${rounded} db`;
+}
+
+function signedReputation(value) {
+  const rounded = Math.round(value);
+  return `${rounded >= 0 ? "+" : ""}${rounded}`;
 }
 
 function shipCargoManifest(cargo) {

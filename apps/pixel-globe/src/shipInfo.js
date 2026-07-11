@@ -5,11 +5,13 @@ import {
   ledgerEntries,
   realizedTradePnl
 } from "./gameState.js";
+import { factionById } from "./factions.js";
 import { SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
 export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
+export const SHIP_PAPERS_ROWS_PER_PAGE = 8;
 
 const LEDGER_START_YEAR = 1522;
 const LEDGER_MONTHS = Object.freeze(["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]);
@@ -71,7 +73,8 @@ export function createShipInfoView(ship, gameState) {
       turning: shipPerformanceRating(stats, "turning"),
       windward: shipPerformanceRating(stats, "windward")
     }),
-    cargo: manifest
+    cargo: manifest,
+    papers: shipPapers(gameState)
   };
 }
 
@@ -111,6 +114,19 @@ export function shipLedgerPage(gameState, page) {
   };
 }
 
+export function shipPapersPage(view, page) {
+  if (!view || !Array.isArray(view.papers)) throw new Error("Invalid ship papers view");
+  const pageCount = Math.max(1, Math.ceil(view.papers.length / SHIP_PAPERS_ROWS_PER_PAGE));
+  if (!Number.isInteger(page)) throw new Error(`Invalid ship papers page: ${page}`);
+  const normalizedPage = ((page % pageCount) + pageCount) % pageCount;
+  const start = normalizedPage * SHIP_PAPERS_ROWS_PER_PAGE;
+  return {
+    page: normalizedPage,
+    pageCount,
+    rows: view.papers.slice(start, start + SHIP_PAPERS_ROWS_PER_PAGE)
+  };
+}
+
 export function shipLedgerDateLabel(simMinute) {
   if (!Number.isFinite(simMinute)) return "--";
   const wholeMinute = Math.floor(simMinute);
@@ -123,4 +139,41 @@ export function shipLedgerDateLabel(simMinute) {
 
 function positiveModulo(value, modulus) {
   return ((value % modulus) + modulus) % modulus;
+}
+
+function shipPapers(gameState) {
+  const papers = [];
+  const activeQuest = gameState.memory.quests.active;
+  if (activeQuest) papers.push(activeQuestPaper(activeQuest));
+  papers.push(...letterOfMarquePapers(gameState.relations.lettersOfMarque));
+  return papers;
+}
+
+function activeQuestPaper(quest) {
+  const faction = quest.factionId ? factionById(quest.factionId) : null;
+  const reward = Number.isFinite(quest.reward) ? `${Math.round(quest.reward)} DB` : "--";
+  return {
+    kind: quest.kind || "quest",
+    title: quest.kind === "delivery" ? "Sealed delivery packet" : "Quest document",
+    issuer: faction?.name || quest.originName || "Unknown issuer",
+    route: `${quest.originName || "Unknown port"} -> ${quest.destinationName || "Unknown port"}`,
+    detail: `Reward ${reward}`,
+    simMinute: null
+  };
+}
+
+function letterOfMarquePapers(lettersOfMarque) {
+  return Object.entries(lettersOfMarque)
+    .map(([factionId, letter]) => {
+      const faction = factionById(factionId);
+      return {
+        kind: "marque",
+        title: `${faction.adjective} letter of marque`,
+        issuer: faction.name,
+        route: "Privateering authority",
+        detail: "Valid against war enemies",
+        simMinute: Number.isFinite(letter?.simMinute) ? letter.simMinute : null
+      };
+    })
+    .sort((a, b) => a.issuer.localeCompare(b.issuer));
 }

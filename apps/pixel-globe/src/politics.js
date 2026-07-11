@@ -1,0 +1,94 @@
+import {
+  DIPLOMACY_ALLY,
+  DIPLOMACY_NEUTRAL,
+  DIPLOMACY_WAR,
+  FACTIONS,
+  NEUTRAL_FACTION_ID,
+  diplomacyBetween
+} from "./factions.js";
+import { factionReputation, hasLetterOfMarqueFrom } from "./gameState.js";
+
+export const POLITICS_RELATION_LABELS = Object.freeze({
+  [DIPLOMACY_ALLY]: "Ally",
+  [DIPLOMACY_NEUTRAL]: "Neutral",
+  [DIPLOMACY_WAR]: "War"
+});
+
+export function createPoliticsView(gameState) {
+  if (!gameState || typeof gameState !== "object") throw new Error("Politics view requires game state");
+  const powers = politicalPowers();
+  return {
+    powers,
+    rows: powers.map((faction) => ({
+      faction,
+      player: {
+        ...playerStandingForReputation(factionReputation(gameState, faction.id)),
+        hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id)
+      },
+      stances: powers.map((other) => ({
+        factionId: other.id,
+        relation: diplomacyBetween(faction.id, other.id),
+        label: POLITICS_RELATION_LABELS[diplomacyBetween(faction.id, other.id)]
+      }))
+    }))
+  };
+}
+
+export function politicalPowers() {
+  return FACTIONS
+    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID)
+    .map((faction) => ({
+      ...faction,
+      code: factionCode(faction)
+    }));
+}
+
+export function politicsRowsPage(view, page, rowsPerPage) {
+  if (!view || !Array.isArray(view.rows)) throw new Error("Invalid politics view");
+  if (!Number.isInteger(page)) throw new Error(`Invalid politics page: ${page}`);
+  if (!Number.isInteger(rowsPerPage) || rowsPerPage <= 0) throw new Error(`Invalid politics rows per page: ${rowsPerPage}`);
+  const pageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
+  const normalizedPage = ((page % pageCount) + pageCount) % pageCount;
+  const start = normalizedPage * rowsPerPage;
+  return {
+    page: normalizedPage,
+    pageCount,
+    rows: view.rows.slice(start, start + rowsPerPage)
+  };
+}
+
+export function playerStandingForReputation(reputation) {
+  if (!Number.isFinite(reputation)) throw new Error(`Invalid player reputation: ${reputation}`);
+  if (reputation <= -75) return standing(reputation, "Hostile");
+  if (reputation <= -25) return standing(reputation, "Angry");
+  if (reputation < 0) return standing(reputation, "Cold");
+  if (reputation === 0) return standing(reputation, "Neutral");
+  if (reputation < 15) return standing(reputation, "Warm");
+  if (reputation < 50) return standing(reputation, "Favored");
+  return standing(reputation, "Trusted");
+}
+
+function standing(reputation, label) {
+  return {
+    reputation,
+    label,
+    scoreLabel: signedReputation(reputation)
+  };
+}
+
+function signedReputation(value) {
+  const rounded = Math.round(value);
+  if (Math.abs(value - rounded) < 0.001) return `${rounded >= 0 ? "+" : ""}${rounded}`;
+  const fixed = value.toFixed(1);
+  return `${value >= 0 ? "+" : ""}${fixed}`;
+}
+
+function factionCode(faction) {
+  if (faction.id === "poland-lithuania") return "PL";
+  if (faction.id === "denmark-norway") return "DN";
+  if (faction.id === "papal-states") return "PA";
+  if (faction.id === "pirate") return "PX";
+  if (faction.id === "habsburg") return "HB";
+  if (faction.id === "ottoman") return "OT";
+  return faction.id.slice(0, 2).toUpperCase();
+}

@@ -7,10 +7,15 @@ import {
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
+  FACTION_CAPITALS_1522,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   diplomacyBetween,
-  factionIdForCity1522
+  factionCapitalCityRecords1522,
+  factionCapitalForCity,
+  factionCapitalForId,
+  factionIdForCity1522,
+  markFactionCapitalsOnPorts
 } from "./factions.js";
 
 test("1522 diplomacy matrix is complete and symmetric", () => {
@@ -64,4 +69,59 @@ test("overseas possessions and uncertain small powers are handled explicitly", (
   assert.equal(factionIdForCity1522({ city: "Avignon", country: "France" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Chiang Mai", country: "Thailand" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Unknown", country: "Unknown" }), NEUTRAL_FACTION_ID);
+});
+
+test("every sovereign faction has one declared water-accessible capital", () => {
+  const sovereignFactionIds = FACTIONS
+    .filter((faction) => ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(faction.id))
+    .map((faction) => faction.id)
+    .sort();
+
+  assert.deepEqual(
+    FACTION_CAPITALS_1522.map((capital) => capital.factionId).sort(),
+    sovereignFactionIds
+  );
+
+  for (const capital of FACTION_CAPITALS_1522) {
+    assert.equal(factionCapitalForId(capital.factionId), capital);
+    assert.equal(factionCapitalForCity(capital), capital);
+    assert.equal(factionIdForCity1522(capital), capital.factionId, `${capital.city}, ${capital.country}`);
+  }
+});
+
+test("required capital port records cover factions missing a suitable catalog city", () => {
+  assert.deepEqual(
+    factionCapitalCityRecords1522().map((capital) => `${capital.factionId}:${capital.city}`).sort(),
+    ["ethiopia:Massawa", "muscovy:Kholmogory"]
+  );
+});
+
+test("capital resolver annotates only water-accessible ports and fails loudly otherwise", () => {
+  const ports = FACTION_CAPITALS_1522.map((capital, index) => ({
+    ...capital,
+    tileId: index + 1,
+    displayCity: capital.city,
+    factionId: capital.factionId
+  }));
+  const capitalPorts = markFactionCapitalsOnPorts(ports);
+
+  assert.equal(capitalPorts.size, FACTION_CAPITALS_1522.length);
+  for (const capital of FACTION_CAPITALS_1522) {
+    const port = capitalPorts.get(capital.factionId);
+    assert.equal(port.city, capital.city);
+    assert.equal(port.isFactionCapital, true);
+    assert.equal(port.capitalOfFactionId, capital.factionId);
+  }
+
+  assert.throws(
+    () => markFactionCapitalsOnPorts(ports.filter((port) => port.factionId !== "aztec")),
+    /aztec capital Zempoala, Mexico is not water accessible/
+  );
+
+  assert.throws(
+    () => markFactionCapitalsOnPorts(ports.map((port) => (
+      port.factionId === "aztec" ? { ...port, factionId: "neutral" } : port
+    ))),
+    /Zempoala, Mexico belongs to neutral, not aztec/
+  );
 });

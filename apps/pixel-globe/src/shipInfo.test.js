@@ -1,13 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createGameState } from "./gameState.js";
+import {
+  LETTER_OF_MARQUE_POWER_REQUIRED,
+  LETTER_OF_MARQUE_REPUTATION_REQUIRED,
+  acceptQuest,
+  adjustFactionReputation,
+  createGameState,
+  grantLetterOfMarque
+} from "./gameState.js";
 import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
+  SHIP_PAPERS_ROWS_PER_PAGE,
   createShipInfoView,
   shipInfoCargoPage,
   shipLedgerDateLabel,
   shipLedgerPage,
+  shipPapersPage,
   shipPerformanceRating
 } from "./shipInfo.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -59,6 +68,54 @@ test("ship ledger pages newest entries first and uses the 1522 game calendar", (
   assert.equal(shipLedgerDateLabel(79 * 1440 + 12 * 60), "21 MAR 1522");
 });
 
+test("ship papers include active deliveries and letters of marque", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  acceptQuest(gameState, {
+    id: "delivery-1-2",
+    kind: "delivery",
+    originTileId: 1,
+    originName: "Lisbon",
+    factionId: "portugal",
+    regionKey: "mediterranean",
+    destinationTileId: 2,
+    destinationName: "Porto",
+    reward: 120
+  });
+  adjustFactionReputation(gameState, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  grantLetterOfMarque(gameState, {
+    tileId: 3,
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england"
+  }, LETTER_OF_MARQUE_POWER_REQUIRED, { simMinute: 1440 });
+
+  const view = createShipInfoView({
+    typeSlug: "brigantine",
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints
+  }, gameState);
+
+  assert.deepEqual(view.papers.map((paper) => paper.kind), ["delivery", "marque"]);
+  assert.equal(view.papers[0].issuer, "Kingdom of Portugal");
+  assert.equal(view.papers[0].route, "Lisbon -> Porto");
+  assert.equal(view.papers[0].detail, "Reward 120 DB");
+  assert.equal(view.papers[1].issuer, "Kingdom of England");
+  assert.equal(view.papers[1].title, "English letter of marque");
+  assert.equal(view.papers[1].simMinute, 1440);
+  assert.equal(shipPapersPage(view, 0).rows.length, 2);
+});
+
 test("performance ratings preserve the expected fleet ordering", () => {
   assert.ok(
     shipPerformanceRating(shipStatsForSlug("frigate"), "speed") >
@@ -78,6 +135,16 @@ test("cargo manifest pages wrap in both directions", () => {
   assert.equal(shipInfoCargoPage(view, 1).rows.length, 2);
   assert.equal(shipInfoCargoPage(view, -1).page, 1);
   assert.equal(shipInfoCargoPage(view, 2).page, 0);
+});
+
+test("ship papers pages wrap in both directions", () => {
+  const view = {
+    papers: Array.from({ length: SHIP_PAPERS_ROWS_PER_PAGE + 1 }, (_, index) => ({ id: `paper-${index}` }))
+  };
+  assert.equal(shipPapersPage(view, 0).rows.length, SHIP_PAPERS_ROWS_PER_PAGE);
+  assert.equal(shipPapersPage(view, 1).rows.length, 1);
+  assert.equal(shipPapersPage(view, -1).page, 1);
+  assert.equal(shipPapersPage(view, 2).page, 0);
 });
 
 test("cargo capacity disagreement fails loudly", () => {

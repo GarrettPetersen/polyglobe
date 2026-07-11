@@ -89,6 +89,16 @@ export function generatePlayerStartingProfile({
   return Object.freeze({ character, homePort, nationality, startRegion, starterShipSlug });
 }
 
+export function resolvePlayerCharacterIdentityKey({ querySeed = null, generatedSeed }) {
+  if (validPlayerCharacterSeed(querySeed)) return querySeed;
+  if (validPlayerCharacterSeed(generatedSeed)) return generatedSeed;
+  throw new Error("Player profile generation requires a valid generated identity seed");
+}
+
+export function validPlayerCharacterSeed(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+}
+
 export function selectPlayerHomePort(identityKey, ports) {
   if (typeof identityKey !== "string" || identityKey.trim() === "") {
     throw new Error("Player home selection requires an identity key");

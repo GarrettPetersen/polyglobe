@@ -50,6 +50,51 @@ if (FACTIONS_BY_ID.size !== FACTIONS.length) {
   throw new Error("Faction registry contains duplicate ids");
 }
 
+export const FACTION_CAPITALS_1522 = Object.freeze([
+  capital("england", "London", "United Kingdom"),
+  capital("scotland", "Edinburgh", "United Kingdom"),
+  capital("france", "Paris", "France"),
+  capital("spain", "Seville", "Spain"),
+  capital("portugal", "Lisbon", "Portugal"),
+  capital("habsburg", "Gent", "Belgium"),
+  capital("hungary", "Budapest", "Hungary"),
+  capital("ottoman", "Istanbul", "Turkey"),
+  capital("venice", "Venice", "Italy"),
+  capital("genoa", "Genova", "Italy"),
+  capital("papal-states", "Rome", "Italy"),
+  capital("ming", "Nanjing", "China"),
+  capital("aztec", "Zempoala", "Mexico"),
+  capital("inca", "Cuzco", "Peru"),
+  capital("safavid", "Siraf", "Iran"),
+  capital("muscovy", "Kholmogory", "Russian Federation", {
+    lat: 64.225,
+    lon: 41.65,
+    population: 7000
+  }),
+  capital("poland-lithuania", "Krakow", "Poland"),
+  capital("denmark-norway", "Roskilde", "Denmark"),
+  capital("songhai", "Gao", "Mali"),
+  capital("morocco", "Azemmour", "Morocco"),
+  capital("ethiopia", "Massawa", "Ethiopia", {
+    lat: 15.6097,
+    lon: 39.45,
+    population: 8000
+  }),
+  capital("vijayanagara", "Rajahmundry", "India"),
+  capital("gujarat", "Cambay", "India"),
+  capital("bengal", "Gauda", "India"),
+  capital("delhi", "Delhi", "India"),
+  capital("ayutthaya", "Ayutthaya", "Thailand"),
+  capital("japan", "Kyoto", "Japan"),
+  capital("joseon", "Seoul", "Republic of Korea")
+]);
+
+const FACTION_CAPITALS_BY_ID = new Map(FACTION_CAPITALS_1522.map((item) => [item.factionId, item]));
+const FACTION_CAPITALS_BY_CITY_KEY = new Map(FACTION_CAPITALS_1522.map((item) => [
+  cityKey(item.city, item.country),
+  item
+]));
+
 const ALLIANCES_1522 = Object.freeze([
   ["england", "spain"],
   ["england", "habsburg"],
@@ -114,6 +159,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Texcoco", "Mexico", "aztec"),
   cityRule("Tenayuca", "Mexico", "aztec"),
   cityRule("Cholula", "Mexico", "aztec"),
+  cityRule("Zempoala", "Mexico", "aztec"),
 
   cityRule("Baghdad", "Iraq", "safavid"),
 
@@ -184,11 +230,57 @@ const COUNTRY_FACTIONS = uniqueMap([
 ], "country faction assignments");
 
 validateCityFactionRules();
+validateFactionCapitalRules();
 
 export function factionById(factionId) {
   const faction = FACTIONS_BY_ID.get(factionId);
   if (!faction) throw new Error(`Unknown faction: ${factionId}`);
   return faction;
+}
+
+export function factionCapitalForId(factionId) {
+  assertFactionId(factionId);
+  const capitalSpec = FACTION_CAPITALS_BY_ID.get(factionId);
+  if (!capitalSpec) throw new Error(`Faction has no 1522 water-accessible capital: ${factionId}`);
+  return capitalSpec;
+}
+
+export function factionCapitalForCity(city) {
+  if (!city || typeof city !== "object") throw new Error("Capital lookup requires a city");
+  return FACTION_CAPITALS_BY_CITY_KEY.get(cityKey(city.city, city.country)) || null;
+}
+
+export function factionCapitalCityRecords1522() {
+  return FACTION_CAPITALS_1522.filter((capitalSpec) => (
+    Number.isFinite(capitalSpec.lat) &&
+    Number.isFinite(capitalSpec.lon) &&
+    Number.isInteger(capitalSpec.population)
+  ));
+}
+
+export function markFactionCapitalsOnPorts(ports) {
+  if (!Array.isArray(ports)) throw new Error("Faction capitals require a list of water-accessible ports");
+  const portsByCapitalKey = new Map(ports.map((port) => [cityKey(port.city, port.country), port]));
+  const capitalPorts = new Map();
+
+  for (const capitalSpec of FACTION_CAPITALS_1522) {
+    const port = portsByCapitalKey.get(cityKey(capitalSpec.city, capitalSpec.country));
+    if (!port) {
+      throw new Error(
+        `${capitalSpec.factionId} capital ${capitalSpec.city}, ${capitalSpec.country} is not water accessible`
+      );
+    }
+    if (port.factionId !== capitalSpec.factionId) {
+      throw new Error(
+        `${capitalSpec.city}, ${capitalSpec.country} belongs to ${port.factionId}, not ${capitalSpec.factionId}`
+      );
+    }
+    port.isFactionCapital = true;
+    port.capitalOfFactionId = capitalSpec.factionId;
+    capitalPorts.set(capitalSpec.factionId, port);
+  }
+
+  return capitalPorts;
 }
 
 export function assertFactionId(factionId) {
@@ -218,6 +310,17 @@ export function factionIdForCity1522(city) {
 
 function faction(id, name, adjective, kind) {
   return Object.freeze({ id, name, adjective, kind });
+}
+
+function capital(factionId, city, country, details = {}) {
+  return Object.freeze({
+    factionId,
+    city,
+    country,
+    lat: details.lat,
+    lon: details.lon,
+    population: details.population
+  });
 }
 
 function buildDiplomacyMatrix() {
@@ -279,6 +382,36 @@ function uniqueMap(entries, label) {
 function validateCityFactionRules() {
   for (const factionId of CITY_FACTION_OVERRIDES.values()) assertFactionId(factionId);
   for (const factionId of COUNTRY_FACTIONS.values()) assertFactionId(factionId);
+}
+
+function validateFactionCapitalRules() {
+  const expectedFactionIds = FACTIONS
+    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID && faction.id !== PIRATE_FACTION_ID)
+    .map((faction) => faction.id)
+    .sort();
+  const capitalFactionIds = FACTION_CAPITALS_1522.map((capitalSpec) => capitalSpec.factionId).sort();
+  if (JSON.stringify(capitalFactionIds) !== JSON.stringify(expectedFactionIds)) {
+    throw new Error("Faction capital registry must cover every non-special faction exactly once");
+  }
+  if (FACTION_CAPITALS_BY_ID.size !== FACTION_CAPITALS_1522.length) {
+    throw new Error("Faction capital registry contains duplicate faction ids");
+  }
+  if (FACTION_CAPITALS_BY_CITY_KEY.size !== FACTION_CAPITALS_1522.length) {
+    throw new Error("Faction capital registry contains duplicate city keys");
+  }
+  for (const capitalSpec of FACTION_CAPITALS_1522) {
+    assertFactionId(capitalSpec.factionId);
+    if (!nonEmptyString(capitalSpec.city) || !nonEmptyString(capitalSpec.country)) {
+      throw new Error(`Invalid faction capital city for ${capitalSpec.factionId}`);
+    }
+    if (
+      capitalSpec.lat !== undefined &&
+      (!Number.isFinite(capitalSpec.lat) || !Number.isFinite(capitalSpec.lon) ||
+        !Number.isInteger(capitalSpec.population) || capitalSpec.population <= 0)
+    ) {
+      throw new Error(`Invalid required capital city record for ${capitalSpec.factionId}`);
+    }
+  }
 }
 
 function nonEmptyString(value) {
