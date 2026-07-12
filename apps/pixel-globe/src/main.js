@@ -150,6 +150,7 @@ import {
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
+import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import {
   COMBAT_MODE_ATTACK,
@@ -230,9 +231,13 @@ import {
 } from "./fishingAction.js";
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
+import { gamepadControlFrame } from "./controllerInput.js";
+import { broadsideLaneGeometry, pointInBroadsideLane } from "./broadsideControls.js";
 
-const SCREEN_W = 455;
-const SCREEN_H = 256;
+const BASE_SCREEN_W = 455;
+const BASE_SCREEN_H = 256;
+let SCREEN_W = BASE_SCREEN_W;
+let SCREEN_H = BASE_SCREEN_H;
 const SUBDIVISIONS = 7;
 const SALTWATER_PASSAGE_TILE_IDS = MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
 const PIXELS_PER_RADIAN = 2450;
@@ -572,12 +577,12 @@ const FISH_INTERACTION_RADIUS_PX = 22;
 const PORT_CITY_CLICK_PAD_PX = 3;
 const INTERACTION_BUTTON_W = 110;
 const INTERACTION_BUTTON_H = 13;
-const INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
-const INTERACTION_BUTTON_Y = SCREEN_H - 18;
+let INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
+let INTERACTION_BUTTON_Y = SCREEN_H - 18;
 const ANCHOR_BUTTON_W = 76;
 const ANCHOR_BUTTON_H = INTERACTION_BUTTON_H;
-const ANCHOR_BUTTON_X = INTERACTION_BUTTON_X - ANCHOR_BUTTON_W - 4;
-const ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
+let ANCHOR_BUTTON_X = INTERACTION_BUTTON_X - ANCHOR_BUTTON_W - 4;
+let ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
 const ANCHOR_SHORE_MAX_PX = 36;
 const QUEST_ARROW_EDGE_MARGIN_PX = 15;
 const QUEST_ARROW_CITY_Y_OFFSET = -18;
@@ -586,7 +591,7 @@ const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
 const MOUNTAIN_DISCOVERY_NOTICE_MS = 4600;
 const MOUNTAIN_DISCOVERY_PANEL_W = 230;
 const MOUNTAIN_DISCOVERY_PANEL_H = 24;
-const MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
+let MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
 const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
@@ -598,19 +603,19 @@ const SURVIVAL_DAMAGE_INTERVAL_MINUTES = 12 * 60;
 const SURVIVAL_DEHYDRATION_DAMAGE = 1;
 const SURVIVAL_STARVATION_DAMAGE = 1;
 const DISCOVERIES_BUTTON_SIZE = 13;
-const DISCOVERIES_PANEL_W = 300;
-const DISCOVERIES_PANEL_H = 214;
+let DISCOVERIES_PANEL_W = 300;
+let DISCOVERIES_PANEL_H = 214;
 const DISCOVERIES_PAGE_SIZE = 9;
 const SHIP_INFO_BUTTON_SIZE = 13;
 const POLITICS_BUTTON_SIZE = 13;
 const SHIP_INFO_PANEL_X = 10;
 const SHIP_INFO_PANEL_Y = 8;
-const SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
-const SHIP_INFO_PANEL_H = SCREEN_H - SHIP_INFO_PANEL_Y * 2;
+let SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
+let SHIP_INFO_PANEL_H = SCREEN_H - SHIP_INFO_PANEL_Y * 2;
 const POLITICS_PANEL_X = 8;
 const POLITICS_PANEL_Y = 8;
-const POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
-const POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
+let POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
+let POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
 const POLITICS_ROWS_PER_PAGE = 20;
 const POLITICS_MATRIX_CELL_W = 7;
 const POLITICS_MATRIX_ROW_H = 8;
@@ -618,28 +623,28 @@ const SHIP_INFO_SIDE_VIEW_W = 192;
 const SHIP_INFO_SIDE_VIEW_H = 104;
 const DIALOGUE_PANEL_X = 6;
 const DIALOGUE_PANEL_Y = 78;
-const DIALOGUE_PANEL_W = SCREEN_W - 12;
-const DIALOGUE_PANEL_H = SCREEN_H - DIALOGUE_PANEL_Y - 7;
+let DIALOGUE_PANEL_W = SCREEN_W - 12;
+let DIALOGUE_PANEL_H = SCREEN_H - DIALOGUE_PANEL_Y - 7;
 const DIALOGUE_PORTRAIT_SIZE = 64;
 const DIALOGUE_PORTRAIT_X = DIALOGUE_PANEL_X + 16;
 const DIALOGUE_PORTRAIT_Y = DIALOGUE_PANEL_Y - DIALOGUE_PORTRAIT_SIZE + 8;
 const DIALOGUE_OPTION_H = 12;
-const PLAYER_INTRO_PANEL_W = 326;
-const PLAYER_INTRO_PANEL_H = 178;
-const PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
-const PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
+let PLAYER_INTRO_PANEL_W = 326;
+let PLAYER_INTRO_PANEL_H = 178;
+let PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
+let PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
 const PLAYER_INTRO_BUTTON_W = 116;
 const PLAYER_INTRO_BUTTON_H = 16;
-const CAPTAIN_ALERT_PANEL_W = 286;
+let CAPTAIN_ALERT_PANEL_W = 286;
 const CAPTAIN_ALERT_PANEL_H = 96;
-const CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
-const CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
+let CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
+let CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
 const CAPTAIN_ALERT_BUTTON_W = 82;
 const CAPTAIN_ALERT_BUTTON_H = 15;
-const START_MENU_PANEL_W = 244;
+let START_MENU_PANEL_W = 244;
 const START_MENU_PANEL_H = 158;
-const START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
-const START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
+let START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
+let START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
 const START_MENU_BUTTON_W = 142;
 const START_MENU_BUTTON_H = 18;
 const START_MENU_BUTTON_GAP = 10;
@@ -666,17 +671,17 @@ const CREDITS_FALLBACK_MARKDOWN = `# Pirates of the Pixel Globe Credits
 - Universfield
 - u_7hpxkdroz2
 - Dominik Braun`;
-const CREDITS_PANEL_W = 338;
-const CREDITS_PANEL_H = 218;
-const CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
-const CREDITS_PANEL_Y = Math.floor((SCREEN_H - CREDITS_PANEL_H) / 2);
+let CREDITS_PANEL_W = 338;
+let CREDITS_PANEL_H = 218;
+let CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
+let CREDITS_PANEL_Y = Math.floor((SCREEN_H - CREDITS_PANEL_H) / 2);
 const CREDITS_LINES_PER_PAGE = 16;
 const GAME_OVER_MEMORIAL_MS = 8500;
 const GAME_OVER_FADE_MS = 1800;
-const GAME_OVER_PANEL_W = 350;
+let GAME_OVER_PANEL_W = 350;
 const GAME_OVER_PANEL_H = 178;
-const GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
-const GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
+let GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
+let GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
 const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
@@ -690,8 +695,8 @@ const MINIMAP_H = 26;
 const MINIMAP_CENTER_X = Math.floor(MINIMAP_W / 2);
 const MINIMAP_MAX_LAT_DEG = 72;
 const MINIMAP_MAX_MERCATOR = mercatorYForLatDeg(MINIMAP_MAX_LAT_DEG);
-const MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
-const MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
+let MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
+let MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
 const MINIMAP_TILE_OUT_OF_RANGE = 0xffff;
 const MINIMAP_UNKNOWN_COLOR = [74, 66, 55];
 const MINIMAP_WATER_COLOR = [184, 151, 95];
@@ -700,13 +705,13 @@ const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
 const OPTIONS_BUTTON_SIZE = 13;
-const OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
+let OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
-const DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
+let DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
 const DISCOVERIES_BUTTON_Y = OPTIONS_BUTTON_Y;
-const SHIP_INFO_BUTTON_X = DISCOVERIES_BUTTON_X - SHIP_INFO_BUTTON_SIZE - 3;
+let SHIP_INFO_BUTTON_X = DISCOVERIES_BUTTON_X - SHIP_INFO_BUTTON_SIZE - 3;
 const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
-const POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
+let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 166;
@@ -717,6 +722,18 @@ const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_SHIP = 4;
+const CAPTAIN_MENU_LABELS = Object.freeze([
+  "SHIP & LEDGER",
+  "CHART",
+  "POLITICS",
+  "DISCOVERIES",
+  "OPTIONS",
+  "CREDITS"
+]);
+const CAPTAIN_MENU_ROW_H = 24;
+const CAPTAIN_MENU_ROW_GAP = 3;
+const CAPTAIN_MENU_PANEL_W = 224;
+const CAPTAIN_MENU_PANEL_H = 194;
 const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
@@ -930,7 +947,7 @@ const SNOW_GENERATED_SALT = 0x534e4f57;
 const canvas = document.getElementById("view");
 const shell = document.querySelector(".shell");
 if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
-  throw new Error("Pixel Globe requires its shell and 455x256 canvas");
+  throw new Error("Pixel Globe requires its shell and responsive canvas");
 }
 const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
 if (!ctx) throw new Error("Pixel Globe could not create its 2D canvas context");
@@ -949,6 +966,8 @@ const pointerSteering = {
   pointerId: null,
   point: null
 };
+let controllerSteering = null;
+let controllerButtons = [];
 let graph;
 let directionIndex;
 let earthRows;
@@ -1081,6 +1100,7 @@ const creditsMenu = createCreditsMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
 const shipInfoMenu = createShipInfoMenuState();
 const politicsMenu = createPoliticsMenuState();
+const captainMenu = createCaptainMenuState();
 
 fitCanvasToDisplay();
 window.addEventListener("resize", fitCanvasToDisplay);
@@ -1136,9 +1156,13 @@ window.addEventListener("keydown", (event) => {
     handleDialogueKeyDown(event);
     return;
   }
+  if (captainMenu.isOpen) {
+    handleCaptainMenuKeyDown(event);
+    return;
+  }
   if (event.key === "Escape") {
     event.preventDefault();
-    openOptionsMenu();
+    openCaptainMenu();
     return;
   }
   if (event.key === "i" || event.key === "I") {
@@ -2443,6 +2467,7 @@ function loop(nowMs) {
 }
 
 function runFrame(nowMs) {
+  pollGamepadControls();
   const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
   lastFrameMs = nowMs;
   if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
@@ -2469,12 +2494,9 @@ function runFrame(nowMs) {
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
   } else if (!startMenu && !creditsMenu.isOpen && !playerIntroModal && nowMs - lastOverlayMs > 250) {
-    drawMinimap(nowMs);
+    if (minimapShouldBeVisible()) drawMinimap(nowMs);
     drawSurvivalMeters();
-    drawShipInfoButton();
-    drawPoliticsButton();
-    drawDiscoveriesButton();
-    drawOptionsButton();
+    drawCaptainMenuButton();
     lastOverlayMs = nowMs;
   }
   requestAnimationFrame(loop);
@@ -2512,6 +2534,20 @@ function createOptionsMenuState() {
   };
 }
 
+function createCaptainMenuState() {
+  return {
+    isOpen: false,
+    view: "root",
+    selectedIndex: 0,
+    hoverPoint: null,
+    buttonRect: null,
+    panelRect: null,
+    closeButtonRect: null,
+    backButtonRect: null,
+    itemRects: []
+  };
+}
+
 function createStartMenuState() {
   return {
     selectedIndex: START_MENU_ACTION_START,
@@ -2534,12 +2570,16 @@ function createPlayerIntroModal(character) {
   return {
     character,
     hovered: false,
-    buttonRect: {
-      x: Math.floor((SCREEN_W - PLAYER_INTRO_BUTTON_W) / 2),
-      y: PLAYER_INTRO_PANEL_Y + PLAYER_INTRO_PANEL_H - PLAYER_INTRO_BUTTON_H - 9,
-      w: PLAYER_INTRO_BUTTON_W,
-      h: PLAYER_INTRO_BUTTON_H
-    }
+    buttonRect: playerIntroButtonRect()
+  };
+}
+
+function playerIntroButtonRect() {
+  return {
+    x: Math.floor((SCREEN_W - PLAYER_INTRO_BUTTON_W) / 2),
+    y: PLAYER_INTRO_PANEL_Y + PLAYER_INTRO_PANEL_H - PLAYER_INTRO_BUTTON_H - 9,
+    w: PLAYER_INTRO_BUTTON_W,
+    h: PLAYER_INTRO_BUTTON_H
   };
 }
 
@@ -2549,12 +2589,16 @@ function createCaptainAlertModal(message, expressionId = "neutral") {
     message,
     expressionId,
     hovered: false,
-    buttonRect: {
-      x: CAPTAIN_ALERT_PANEL_X + CAPTAIN_ALERT_PANEL_W - CAPTAIN_ALERT_BUTTON_W - 14,
-      y: CAPTAIN_ALERT_PANEL_Y + CAPTAIN_ALERT_PANEL_H - CAPTAIN_ALERT_BUTTON_H - 11,
-      w: CAPTAIN_ALERT_BUTTON_W,
-      h: CAPTAIN_ALERT_BUTTON_H
-    }
+    buttonRect: captainAlertButtonRect()
+  };
+}
+
+function captainAlertButtonRect() {
+  return {
+    x: CAPTAIN_ALERT_PANEL_X + CAPTAIN_ALERT_PANEL_W - CAPTAIN_ALERT_BUTTON_W - 14,
+    y: CAPTAIN_ALERT_PANEL_Y + CAPTAIN_ALERT_PANEL_H - CAPTAIN_ALERT_BUTTON_H - 11,
+    w: CAPTAIN_ALERT_BUTTON_W,
+    h: CAPTAIN_ALERT_BUTTON_H
   };
 }
 
@@ -2650,7 +2694,8 @@ function createPoliticsMenuState() {
 
 function menusAreOpen() {
   return Boolean(startMenu) || creditsMenu.isOpen || optionsMenu.isOpen ||
-    discoveriesMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen || Boolean(captainAlertModal);
+    discoveriesMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen || captainMenu.isOpen ||
+    Boolean(captainAlertModal);
 }
 
 function setupThemeMusic() {
@@ -3500,6 +3545,74 @@ function closeOptionsMenu() {
   dirty = true;
 }
 
+function openCaptainMenu() {
+  if (startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
+  closeOptionsMenu();
+  closeDiscoveriesMenu();
+  closeShipInfoMenu();
+  closePoliticsMenu();
+  closeCreditsMenu();
+  captainMenu.isOpen = true;
+  captainMenu.view = "root";
+  captainMenu.selectedIndex = 0;
+  captainMenu.itemRects = [];
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeCaptainMenu() {
+  captainMenu.isOpen = false;
+  captainMenu.view = "root";
+  captainMenu.panelRect = null;
+  captainMenu.closeButtonRect = null;
+  captainMenu.backButtonRect = null;
+  captainMenu.itemRects = [];
+  dirty = true;
+}
+
+function handleCaptainMenuKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    if (captainMenu.view === "chart") {
+      captainMenu.view = "root";
+      dirty = true;
+    } else {
+      closeCaptainMenu();
+    }
+    return;
+  }
+  if (captainMenu.view === "chart") {
+    if (event.key === "Enter" || event.key === " " || event.key === "ArrowLeft") {
+      captainMenu.view = "root";
+      dirty = true;
+    }
+    return;
+  }
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    captainMenu.selectedIndex =
+      (captainMenu.selectedIndex + direction + CAPTAIN_MENU_LABELS.length) % CAPTAIN_MENU_LABELS.length;
+    dirty = true;
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") activateCaptainMenuSelection(captainMenu.selectedIndex);
+}
+
+function activateCaptainMenuSelection(index) {
+  if (index === 1) {
+    captainMenu.view = "chart";
+    dirty = true;
+    return;
+  }
+  closeCaptainMenu();
+  if (index === 0) openShipInfoMenu();
+  else if (index === 2) openPoliticsMenu();
+  else if (index === 3) openDiscoveriesMenu();
+  else if (index === 4) openOptionsMenu();
+  else if (index === 5) openCreditsMenu();
+}
+
 function handleOptionsKeyDown(event) {
   event.preventDefault();
   if (event.key === "Escape") {
@@ -3583,11 +3696,18 @@ function activateStartMenuSelection() {
 function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
+  captainMenu.hoverPoint = point;
   ensureGameAudioStarted(true);
   if (gameOverReason) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
+    return;
+  }
+  if (captainMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleCaptainMenuPointerDown(point);
     return;
   }
   if (optionsMenu.isOpen) {
@@ -3642,28 +3762,10 @@ function handlePointerDown(event) {
     handleDiscoveriesPointerDown(point);
     return;
   }
-  if (pointInRect(point, getShipInfoButtonRect())) {
+  if (pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openShipInfoMenu();
-    return;
-  }
-  if (pointInRect(point, getPoliticsButtonRect())) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openPoliticsMenu();
-    return;
-  }
-  if (pointInRect(point, getDiscoveriesButtonRect())) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openDiscoveriesMenu();
-    return;
-  }
-  if (pointInRect(point, getOptionsButtonRect())) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openOptionsMenu();
+    openCaptainMenu();
     return;
   }
   if (!dialogueState && pointInRect(point, anchorButtonRect)) {
@@ -3684,11 +3786,25 @@ function handlePointerDown(event) {
     openActiveInteractionDialogue();
     return;
   }
+  const cannonSide = cannonBroadsideSideAtPoint(point);
+  if (cannonSide) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    fireBroadside(cannonSide);
+    return;
+  }
   const clickedShip = npcShipCallAtPoint(point);
   if (clickedShip) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     openShipDialogue(clickedShip);
+    return;
+  }
+  const clickedFish = fishCallAtPoint(point);
+  if (clickedFish) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    catchFishAtFishery(clickedFish);
     return;
   }
   const clickedPort = portCallAtPoint(point);
@@ -3705,6 +3821,12 @@ function handlePointerDown(event) {
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
+  captainMenu.hoverPoint = point;
+  if (captainMenu.isOpen) {
+    updateCaptainMenuSelectionFromPoint(point);
+    dirty = true;
+    return;
+  }
   if (optionsMenu.isOpen) {
     updateOptionsSelectionFromPoint(point);
     if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
@@ -3767,6 +3889,35 @@ function handlePointerUp(event) {
   if (optionsMenu.activeSliderKey) {
     optionsMenu.activeSliderKey = null;
     dirty = true;
+  }
+}
+
+function handleCaptainMenuPointerDown(point) {
+  if (pointInRect(point, captainMenu.closeButtonRect)) {
+    closeCaptainMenu();
+    return;
+  }
+  if (captainMenu.view === "chart") {
+    if (pointInRect(point, captainMenu.backButtonRect)) {
+      captainMenu.view = "root";
+      dirty = true;
+    }
+    return;
+  }
+  updateCaptainMenuSelectionFromPoint(point);
+  for (let index = 0; index < captainMenu.itemRects.length; index++) {
+    if (!pointInRect(point, captainMenu.itemRects[index])) continue;
+    activateCaptainMenuSelection(index);
+    return;
+  }
+}
+
+function updateCaptainMenuSelectionFromPoint(point) {
+  if (captainMenu.view !== "root") return;
+  for (let index = 0; index < captainMenu.itemRects.length; index++) {
+    if (!pointInRect(point, captainMenu.itemRects[index])) continue;
+    captainMenu.selectedIndex = index;
+    return;
   }
 }
 
@@ -3904,13 +4055,23 @@ function handleShipInfoPointerDown(point) {
 
 function stepDiscoveriesPage(direction) {
   const count = discoveredEntries(gameState).length;
-  const pageCount = Math.max(1, Math.ceil(count / DISCOVERIES_PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(count / discoveriesPageSize()));
   discoveriesMenu.page = (discoveriesMenu.page + direction + pageCount) % pageCount;
   dirty = true;
 }
 
+function discoveriesPageSize() {
+  return SCREEN_W < 300 ? 7 : DISCOVERIES_PAGE_SIZE;
+}
+
 function stepPoliticsPage(direction) {
   const view = createPoliticsView(gameState);
+  if (SCREEN_W < 380) {
+    const pagination = compactPoliticsPagination(view);
+    politicsMenu.page = (politicsMenu.page + direction + pagination.pageCount) % pagination.pageCount;
+    dirty = true;
+    return;
+  }
   const page = politicsRowsPage(view, politicsMenu.page + direction, POLITICS_ROWS_PER_PAGE);
   politicsMenu.page = page.page;
   dirty = true;
@@ -4543,6 +4704,31 @@ function fishInteractionCallIsUsable(call) {
     FISH_INTERACTION_RADIUS_PX * FISH_INTERACTION_RADIUS_PX;
 }
 
+function fishCallAtPoint(point) {
+  if (!point || !chart || !localLayout || !gameState || !hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) return null;
+  const offset = chartOffsetPixels(chart);
+  let best = null;
+  let bestDistance = Infinity;
+  for (const call of fishIndividualDrawCalls(chart, lastFrameMs)) {
+    const interaction = fishInteractionCall(call);
+    if (!fishInteractionCallIsUsable(interaction)) continue;
+    const screenX = call.centerX + offset.x;
+    const screenY = call.centerY + offset.y;
+    const rect = {
+      x: screenX - FISH_SPRITE_SIZE / 2 - 5,
+      y: screenY - FISH_SPRITE_SIZE / 2 - 5,
+      w: FISH_SPRITE_SIZE + 10,
+      h: FISH_SPRITE_SIZE + 10
+    };
+    if (!pointInRect(point, rect)) continue;
+    const distance = distance2(point.x, point.y, screenX, screenY);
+    if (distance >= bestDistance) continue;
+    best = interaction;
+    bestDistance = distance;
+  }
+  return best;
+}
+
 function pointHitsPortCitySprite(point, call, offset) {
   return pointInRect(point, expandedRect(cityScreenRect(call, offset), PORT_CITY_CLICK_PAD_PX));
 }
@@ -4879,6 +5065,10 @@ function inputHeadingForShip() {
     dx += pointerVector.dx;
     dy += pointerVector.dy;
   }
+  if (controllerSteering) {
+    dx += controllerSteering.dx * controllerSteering.strength;
+    dy += controllerSteering.dy * controllerSteering.strength;
+  }
   if (dx === 0 && dy === 0) return null;
 
   return normalizeTangentOrFallback([
@@ -4886,6 +5076,91 @@ function inputHeadingForShip() {
     camera.right[1] * dx + camera.up[1] * dy,
     camera.right[2] * dx + camera.up[2] * dy
   ], ship.position, ship.heading);
+}
+
+function pollGamepadControls() {
+  const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
+  const gamepad = Array.from(pads || []).find((pad) => pad?.connected !== false) || null;
+  if (!gamepad) {
+    controllerSteering = null;
+    controllerButtons = [];
+    return;
+  }
+  const frame = gamepadControlFrame(gamepad, controllerButtons);
+  controllerButtons = frame.buttons;
+  controllerSteering = frame.steering;
+  for (const action of frame.actions) handleControllerAction(action);
+}
+
+function handleControllerAction(action) {
+  ensureGameAudioStarted(true);
+  if (action === "firePort" || action === "fireStarboard") {
+    if (shipInfoMenu.isOpen) {
+      stepShipInfoView(action === "firePort" ? -1 : 1);
+      return;
+    }
+    if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
+      fireBroadside(action === "firePort" ? "port" : "starboard");
+    }
+    return;
+  }
+  if (action === "anchor") {
+    if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason &&
+      (anchored || canAnchorAtCurrentShore())) toggleAnchor();
+    return;
+  }
+  if (action === "menu") {
+    if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) openCaptainMenu();
+    else dispatchControllerKey("Escape");
+    return;
+  }
+  if (action === "confirm") {
+    if (controllerUiIsActive()) dispatchControllerKey("Enter");
+    else openActiveInteractionDialogue();
+    return;
+  }
+  if (action === "back") {
+    dispatchControllerKey("Escape");
+    return;
+  }
+  const key = action === "up"
+    ? "ArrowUp"
+    : action === "down"
+      ? "ArrowDown"
+      : action === "left"
+        ? "ArrowLeft"
+        : action === "right"
+          ? "ArrowRight"
+          : null;
+  if (key) dispatchControllerKey(key);
+}
+
+function stepShipInfoView(direction) {
+  const views = ["vessel", "ledger", "papers"];
+  const index = views.indexOf(shipInfoMenu.view);
+  shipInfoMenu.view = views[(index + direction + views.length) % views.length];
+  dirty = true;
+}
+
+function controllerUiIsActive() {
+  return Boolean(gameOverReason || shipInfoMenu.isOpen || politicsMenu.isOpen || discoveriesMenu.isOpen ||
+    optionsMenu.isOpen || creditsMenu.isOpen || captainMenu.isOpen || startMenu || playerIntroModal ||
+    captainAlertModal || dialogueState);
+}
+
+function dispatchControllerKey(key) {
+  const event = { key, preventDefault() {} };
+  if (gameOverReason) handleGameOverKeyDown(event);
+  else if (shipInfoMenu.isOpen) handleShipInfoKeyDown(event);
+  else if (politicsMenu.isOpen) handlePoliticsKeyDown(event);
+  else if (discoveriesMenu.isOpen) handleDiscoveriesKeyDown(event);
+  else if (optionsMenu.isOpen) handleOptionsKeyDown(event);
+  else if (creditsMenu.isOpen) handleCreditsKeyDown(event);
+  else if (captainMenu.isOpen) handleCaptainMenuKeyDown(event);
+  else if (startMenu) handleStartMenuKeyDown(event);
+  else if (playerIntroModal) handlePlayerIntroKeyDown(event);
+  else if (captainAlertModal) handleCaptainAlertKeyDown(event);
+  else if (dialogueState) handleDialogueKeyDown(event);
 }
 
 function pointerSteeringInputVector() {
@@ -5768,6 +6043,76 @@ function fireBroadside(sideName) {
     ship.cannonballs.splice(0, ship.cannonballs.length - CANNON_MAX_BALLS);
   }
   dirty = true;
+}
+
+function drawCombatBroadsideControls() {
+  if (!ship || !localLayout || !playerHasCombatEngagement() || dialogueState || menusAreOpen() || gameOverReason) return;
+  for (const sideName of ["port", "starboard"]) {
+    const lane = cannonBroadsideLane(sideName);
+    const cooldown = ship.cannonCooldowns[sideName] || 0;
+    const ready = cooldown <= 0;
+    const hasTarget = cannonLaneHasEnemy(lane);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(lane.corners[0].x, lane.corners[0].y);
+    for (let index = 1; index < lane.corners.length; index++) {
+      ctx.lineTo(lane.corners[index].x, lane.corners[index].y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = ready
+      ? (hasTarget ? "rgba(249, 194, 43, 0.18)" : "rgba(249, 194, 43, 0.09)")
+      : "rgba(46, 34, 47, 0.28)";
+    ctx.fill();
+    ctx.strokeStyle = ready ? (hasTarget ? "#fff4a8" : "#f9c22b") : "#625565";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    const readyFraction = 1 - clamp(cooldown / CANNON_BROADSIDE_COOLDOWN_SECONDS, 0, 1);
+    const lineStartX = lane.origin.x + lane.direction.x * lane.start;
+    const lineStartY = lane.origin.y + lane.direction.y * lane.start;
+    const lineEndX = lineStartX + lane.direction.x * lane.length * readyFraction;
+    const lineEndY = lineStartY + lane.direction.y * lane.length * readyFraction;
+    ctx.strokeStyle = ready ? "#fff1bf" : "#ab947a";
+    ctx.beginPath();
+    ctx.moveTo(Math.round(lineStartX) + 0.5, Math.round(lineStartY) + 0.5);
+    ctx.lineTo(Math.round(lineEndX) + 0.5, Math.round(lineEndY) + 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function cannonBroadsideLane(sideName) {
+  const heading = shipScreenHeading();
+  const length = Math.min(CANNON_RANGE_PX, Math.max(46, Math.min(SCREEN_W, SCREEN_H) * 0.25));
+  const lane = broadsideLaneGeometry({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    heading,
+    sideName,
+    range: length
+  });
+  return {
+    ...lane,
+    corners: lane.corners.map((point) => ({ x: Math.round(point.x) + 0.5, y: Math.round(point.y) + 0.5 }))
+  };
+}
+
+function cannonBroadsideSideAtPoint(point) {
+  if (!point || !ship || !localLayout || !playerHasCombatEngagement() || dialogueState || menusAreOpen()) return null;
+  for (const sideName of ["port", "starboard"]) {
+    if (pointInBroadsideLane(point, cannonBroadsideLane(sideName), 5)) return sideName;
+  }
+  return null;
+}
+
+function cannonLaneHasEnemy(lane) {
+  const offset = chartOffsetPixels(chart);
+  for (const state of npcVisualShips.values()) {
+    if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, state.id))) continue;
+    const point = { x: state.x + offset.x, y: state.y + offset.y };
+    if (pointInBroadsideLane(point, lane, 7)) return true;
+  }
+  return false;
 }
 
 function shipBroadsideCannonCount() {
@@ -7746,18 +8091,77 @@ function fillSnowGroundMaskForDay(dayIndex, outMask) {
 
 function fitCanvasToDisplay() {
   const viewport = window.visualViewport;
+  const viewportWidth = Math.min(shell.clientWidth || window.innerWidth, viewport?.width || window.innerWidth);
+  const viewportHeight = Math.min(shell.clientHeight || window.innerHeight, viewport?.height || window.innerHeight);
+  const logical = responsiveLogicalViewport({ viewportWidth, viewportHeight });
+  applyResponsiveViewport(logical.width, logical.height);
   const layout = canvasDisplayLayout({
-    viewportWidth: viewport?.width || window.innerWidth,
-    viewportHeight: viewport?.height || window.innerHeight,
+    viewportWidth,
+    viewportHeight,
     canvasWidth: SCREEN_W,
     canvasHeight: SCREEN_H,
     devicePixelRatio: safeDevicePixelRatio(),
-    fitScreen: document.fullscreenElement === shell
+    fitScreen: document.fullscreenElement === shell || coarsePointerIsPrimary()
   });
   canvas.style.left = `${layout.left}px`;
   canvas.style.top = `${layout.top}px`;
   canvas.style.width = `${layout.width}px`;
   canvas.style.height = `${layout.height}px`;
+}
+
+function applyResponsiveViewport(width, height) {
+  if (width === SCREEN_W && height === SCREEN_H) return;
+  SCREEN_W = width;
+  SCREEN_H = height;
+  canvas.width = width;
+  canvas.height = height;
+  canvas.setAttribute("aria-label", `Pixel globe map, ${width} by ${height}`);
+  ctx.imageSmoothingEnabled = false;
+
+  INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
+  INTERACTION_BUTTON_Y = SCREEN_H - 18;
+  ANCHOR_BUTTON_X = INTERACTION_BUTTON_X - ANCHOR_BUTTON_W - 4;
+  ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
+  MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
+  DISCOVERIES_PANEL_W = Math.min(300, SCREEN_W - 12);
+  DISCOVERIES_PANEL_H = Math.min(214, SCREEN_H - 12);
+  SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
+  SHIP_INFO_PANEL_H = SCREEN_H - SHIP_INFO_PANEL_Y * 2;
+  POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
+  POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
+  DIALOGUE_PANEL_W = SCREEN_W - 12;
+  DIALOGUE_PANEL_H = SCREEN_H - DIALOGUE_PANEL_Y - 7;
+  PLAYER_INTRO_PANEL_W = Math.min(326, SCREEN_W - 12);
+  PLAYER_INTRO_PANEL_H = Math.min(SCREEN_W < 400 ? 300 : 178, SCREEN_H - 12);
+  PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
+  PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
+  CAPTAIN_ALERT_PANEL_W = Math.min(286, SCREEN_W - 12);
+  CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
+  CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
+  START_MENU_PANEL_W = Math.min(244, SCREEN_W - 12);
+  START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
+  START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
+  CREDITS_PANEL_W = Math.min(338, SCREEN_W - 12);
+  CREDITS_PANEL_H = Math.min(218, SCREEN_H - 12);
+  CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
+  CREDITS_PANEL_Y = Math.floor((SCREEN_H - CREDITS_PANEL_H) / 2);
+  GAME_OVER_PANEL_W = Math.min(350, SCREEN_W - 12);
+  GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
+  GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
+  MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
+  MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
+  OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
+  DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
+  SHIP_INFO_BUTTON_X = DISCOVERIES_BUTTON_X - SHIP_INFO_BUTTON_SIZE - 3;
+  POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
+
+  if (playerIntroModal) playerIntroModal.buttonRect = playerIntroButtonRect();
+  if (captainAlertModal) captainAlertModal.buttonRect = captainAlertButtonRect();
+  dirty = true;
+}
+
+function coarsePointerIsPrimary() {
+  return window.matchMedia?.("(pointer: coarse)")?.matches === true;
 }
 
 function safeDevicePixelRatio() {
@@ -8020,8 +8424,10 @@ function render(nowMs) {
   ctx.restore();
   drawDayNightPaletteGrade();
   drawStormScreenRain(nowMs);
+  drawCombatBroadsideControls();
+  drawSelectableInteractionOutlines(nowMs);
   drawWindIndicator(nowMs);
-  drawMinimap(nowMs);
+  if (minimapShouldBeVisible()) drawMinimap(nowMs);
   drawSurvivalMeters();
   drawQuestDestinationArrow(nowMs);
   drawStormStatus(nowMs);
@@ -8033,13 +8439,11 @@ function render(nowMs) {
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay(nowMs);
-  drawShipInfoButton();
-  drawPoliticsButton();
-  drawDiscoveriesButton();
-  drawOptionsButton();
+  drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
+  if (captainMenu.isOpen) drawCaptainMenu(nowMs);
   if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
   if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal();
@@ -8061,6 +8465,64 @@ function drawWorldDiscoverySprites(activeChart) {
       Math.round(point.y - TILE_ART_HALF)
     );
   }
+}
+
+function drawSelectableInteractionOutlines(nowMs) {
+  if (!chart || !localLayout || dialogueState || menusAreOpen() || fishingAction || gameOverReason) return;
+  const offset = chartOffsetPixels(chart);
+  const primary = activeInteractionTarget();
+  const primaryId = primary?.call?.id ?? primary?.call?.tileId ?? null;
+  const pulseBright = reducedMotionPreferred || Math.floor(nowMs / 420) % 2 === 0;
+
+  for (const call of chart.cityCalls || []) {
+    if (!portCallInInteractionRange(call)) continue;
+    drawSelectableOutline({
+      x: Math.round(call.spriteX + offset.x),
+      y: Math.round(call.spriteY + offset.y),
+      w: call.spriteW,
+      h: call.spriteH
+    }, primaryId === call.tileId, pulseBright);
+  }
+
+  for (const state of npcVisualShips.values()) {
+    if (!npcShipInHailRange(state)) continue;
+    const x = Math.round(state.x + offset.x);
+    const y = Math.round(state.y + offset.y);
+    drawSelectableOutline({ x: x - 14, y: y - 14, w: 28, h: 28 }, primaryId === state.id, pulseBright);
+  }
+
+  if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
+    for (const call of fishIndividualDrawCalls(chart, nowMs)) {
+      const interaction = fishInteractionCall(call);
+      if (!fishInteractionCallIsUsable(interaction)) continue;
+      const x = Math.round(call.centerX + offset.x);
+      const y = Math.round(call.centerY + offset.y);
+      drawSelectableOutline({ x: x - 7, y: y - 7, w: 14, h: 14 }, primaryId === call.id, pulseBright);
+    }
+  }
+}
+
+function drawSelectableOutline(rect, primary, pulseBright) {
+  const x = Math.round(rect.x);
+  const y = Math.round(rect.y);
+  const w = Math.max(3, Math.round(rect.w));
+  const h = Math.max(3, Math.round(rect.h));
+  ctx.save();
+  ctx.strokeStyle = primary && pulseBright ? "#fff4a8" : "#f9c22b";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  if (primary) {
+    ctx.fillStyle = "#fff4a8";
+    ctx.fillRect(x - 1, y - 1, 3, 1);
+    ctx.fillRect(x - 1, y - 1, 1, 3);
+    ctx.fillRect(x + w - 2, y - 1, 3, 1);
+    ctx.fillRect(x + w, y - 1, 1, 3);
+    ctx.fillRect(x - 1, y + h, 3, 1);
+    ctx.fillRect(x - 1, y + h - 2, 1, 3);
+    ctx.fillRect(x + w - 2, y + h, 3, 1);
+    ctx.fillRect(x + w, y + h - 2, 1, 3);
+  }
+  ctx.restore();
 }
 
 function worldDiscoveryLocalPoint(discovery, activeChart) {
@@ -8614,6 +9076,19 @@ function rgbColor(color) {
   return `rgb(${color[0]},${color[1]},${color[2]})`;
 }
 
+function minimapShouldBeVisible() {
+  return SCREEN_W >= SCREEN_H;
+}
+
+function getCaptainMenuButtonRect() {
+  return {
+    x: OPTIONS_BUTTON_X,
+    y: OPTIONS_BUTTON_Y,
+    w: OPTIONS_BUTTON_SIZE,
+    h: OPTIONS_BUTTON_SIZE
+  };
+}
+
 function getOptionsButtonRect() {
   return {
     x: OPTIONS_BUTTON_X,
@@ -8621,6 +9096,149 @@ function getOptionsButtonRect() {
     w: OPTIONS_BUTTON_SIZE,
     h: OPTIONS_BUTTON_SIZE
   };
+}
+
+function drawCaptainMenuButton() {
+  if (startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
+  const rect = getCaptainMenuButtonRect();
+  captainMenu.buttonRect = rect;
+  const hovered = !menusAreOpen() && pointInRect(captainMenu.hoverPoint, expandedRect(rect, 3));
+  ctx.save();
+  ctx.fillStyle = hovered ? "#5b4627" : "rgba(15, 18, 14, 0.88)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#f9c22b" : "#ab947a";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = hovered ? "#fff1bf" : "#d6b66b";
+  ctx.fillRect(rect.x + 3, rect.y + 3, 7, 1);
+  ctx.fillRect(rect.x + 3, rect.y + 6, 7, 1);
+  ctx.fillRect(rect.x + 3, rect.y + 9, 7, 1);
+  ctx.restore();
+}
+
+function drawCaptainMenu(nowMs) {
+  const panel = {
+    x: Math.floor((SCREEN_W - Math.min(CAPTAIN_MENU_PANEL_W, SCREEN_W - 12)) / 2),
+    y: Math.floor((SCREEN_H - Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12)) / 2),
+    w: Math.min(CAPTAIN_MENU_PANEL_W, SCREEN_W - 12),
+    h: Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12)
+  };
+  captainMenu.panelRect = panel;
+  captainMenu.closeButtonRect = { x: panel.x + panel.w - 20, y: panel.y + 6, w: 13, h: 13 };
+
+  ctx.save();
+  ctx.fillStyle = "rgba(12, 15, 14, 0.86)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#2f241c";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = "#715033";
+  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+  drawOptionsCloseButton(
+    captainMenu.closeButtonRect,
+    pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
+  );
+  drawOptionsText(captainMenu.view === "chart" ? "CAPTAIN'S CHART" : "CAPTAIN'S MENU", panel.x + panel.w / 2, panel.y + 10, {
+    align: "center",
+    color: "#ffd98a"
+  });
+
+  if (captainMenu.view === "chart") drawCaptainChart(panel, nowMs);
+  else drawCaptainMenuItems(panel);
+  ctx.restore();
+}
+
+function drawCaptainMenuItems(panel) {
+  const x = panel.x + 12;
+  const width = panel.w - 24;
+  const startY = panel.y + 29;
+  captainMenu.itemRects = CAPTAIN_MENU_LABELS.map((_, index) => ({
+    x,
+    y: startY + index * (CAPTAIN_MENU_ROW_H + CAPTAIN_MENU_ROW_GAP),
+    w: width,
+    h: CAPTAIN_MENU_ROW_H
+  }));
+  captainMenu.itemRects.forEach((rect, index) => {
+    const selected = index === captainMenu.selectedIndex;
+    const hovered = pointInRect(captainMenu.hoverPoint, rect);
+    ctx.fillStyle = selected || hovered ? "#5b4627" : "#201a16";
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.strokeStyle = selected || hovered ? "#f9c22b" : "#715033";
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    drawCaptainMenuItemIcon(index, rect.x + 9, rect.y + 8, selected || hovered);
+    drawOptionsText(CAPTAIN_MENU_LABELS[index], rect.x + 22, rect.y + 8, {
+      color: selected || hovered ? "#fff1bf" : "#d8c7a2"
+    });
+  });
+}
+
+function drawCaptainMenuItemIcon(index, x, y, active) {
+  const colors = ["#cd683d", "#6aa6a1", "#91db69", "#fbb954", "#9babb2", "#c7dcd0"];
+  ctx.fillStyle = active ? "#fff1bf" : colors[index];
+  ctx.fillRect(x, y, 7, 1);
+  ctx.fillRect(x + 1, y - 2, 5, 1);
+  ctx.fillRect(x + 2, y - 4, 3, 1);
+}
+
+function drawCaptainChart(panel, nowMs) {
+  captainMenu.itemRects = [];
+  const mapW = panel.w - 24;
+  const mapH = Math.min(Math.floor(mapW * MINIMAP_H / MINIMAP_W), panel.h - 82);
+  const mapX = panel.x + 12;
+  const mapY = panel.y + 34;
+  ctx.fillStyle = "#1a1511";
+  ctx.fillRect(mapX - 2, mapY - 2, mapW + 4, mapH + 4);
+  ctx.strokeStyle = "#715033";
+  ctx.strokeRect(mapX - 1.5, mapY - 1.5, mapW + 3, mapH + 3);
+  drawScaledCenteredMinimap(mapX, mapY, mapW, mapH);
+
+  const markerX = Math.round(mapX + mapW / 2);
+  const markerY = Math.round(mapY + minimapY(graph.latDeg[centerTileId]) / MINIMAP_H * mapH);
+  ctx.fillStyle = Math.floor(nowMs / 320) % 2 === 0 ? "#fff4a8" : "#5b4627";
+  ctx.fillRect(markerX - 1, markerY - 1, 3, 3);
+
+  const mapped = minimap ? minimap.seenTileCount / graph.tileCount : 0;
+  drawOptionsText(`MAPPED ${(mapped * 100).toFixed(2)}%`, panel.x + panel.w / 2, mapY + mapH + 12, {
+    align: "center",
+    color: "#c7dcd0"
+  });
+  captainMenu.backButtonRect = {
+    x: panel.x + Math.floor((panel.w - 84) / 2),
+    y: panel.y + panel.h - 27,
+    w: 84,
+    h: 17
+  };
+  const hovered = pointInRect(captainMenu.hoverPoint, captainMenu.backButtonRect);
+  ctx.fillStyle = hovered ? "#5b4627" : "#201a16";
+  ctx.fillRect(
+    captainMenu.backButtonRect.x,
+    captainMenu.backButtonRect.y,
+    captainMenu.backButtonRect.w,
+    captainMenu.backButtonRect.h
+  );
+  ctx.strokeStyle = hovered ? "#f9c22b" : "#715033";
+  ctx.strokeRect(
+    captainMenu.backButtonRect.x + 0.5,
+    captainMenu.backButtonRect.y + 0.5,
+    captainMenu.backButtonRect.w - 1,
+    captainMenu.backButtonRect.h - 1
+  );
+  drawOptionsText("BACK", captainMenu.backButtonRect.x + captainMenu.backButtonRect.w / 2, captainMenu.backButtonRect.y + 5, {
+    align: "center",
+    color: "#fff1bf"
+  });
+}
+
+function drawScaledCenteredMinimap(x, y, width, height) {
+  if (!minimap) return;
+  const startX = wrapMinimapX(minimapX(graph.lonDeg[centerTileId]) - MINIMAP_CENTER_X);
+  const firstW = MINIMAP_W - startX;
+  const firstDisplayW = width * firstW / MINIMAP_W;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(minimap.canvas, startX, 0, firstW, MINIMAP_H, x, y, firstDisplayW, height);
+  if (startX > 0) {
+    ctx.drawImage(minimap.canvas, 0, 0, startX, MINIMAP_H, x + firstDisplayW, y, width - firstDisplayW, height);
+  }
 }
 
 function getShipInfoButtonRect() {
@@ -8790,6 +9408,24 @@ function drawShipInfoMenu() {
   );
   drawShipInfoTabs(panel);
   const vesselTitle = view.captainName ? `${view.captainName} / ${view.label}` : view.label;
+  if (SCREEN_W < 400) {
+    const compactTitle = shipInfoMenu.view === "ledger"
+      ? "CAPTAIN'S LEDGER"
+      : shipInfoMenu.view === "papers"
+        ? "SHIP'S PAPERS"
+        : vesselTitle.toUpperCase();
+    drawOptionsText(
+      fitPixelText(compactTitle, PIXEL_FONT_UI_8, panel.w - 24),
+      panel.x + panel.w / 2,
+      panel.y + 25,
+      { align: "center", color: "#fbb954" }
+    );
+    if (shipInfoMenu.view === "ledger") drawCompactShipLedger(panel, view);
+    else if (shipInfoMenu.view === "papers") drawCompactShipPapers(panel, view);
+    else drawCompactShipVessel(panel, view, cargoPage);
+    ctx.restore();
+    return;
+  }
   const title = shipInfoMenu.view === "ledger"
     ? "CAPTAIN'S LEDGER"
     : shipInfoMenu.view === "papers"
@@ -8911,6 +9547,181 @@ function drawShipInfoMenu() {
     shipInfoMenu.nextPageRect = null;
   }
   ctx.restore();
+}
+
+function drawCompactShipVessel(panel, view, cargoPage) {
+  const artX = panel.x + Math.floor((panel.w - SHIP_INFO_SIDE_VIEW_W) / 2);
+  const artY = panel.y + 38;
+  ctx.fillStyle = "#323353";
+  ctx.fillRect(artX, artY, SHIP_INFO_SIDE_VIEW_W, SHIP_INFO_SIDE_VIEW_H);
+  ctx.strokeStyle = "#7f708a";
+  ctx.strokeRect(artX + 0.5, artY + 0.5, SHIP_INFO_SIDE_VIEW_W - 1, SHIP_INFO_SIDE_VIEW_H - 1);
+  const sideView = shipInfoImages.get(view.slug);
+  if (sideView) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sideView, artX, artY);
+  } else {
+    drawOptionsText(shipInfoMenu.error || "LOADING SHIP...", panel.x + panel.w / 2, artY + 48, {
+      align: "center",
+      color: shipInfoMenu.error ? "#f68181" : "#9babb2"
+    });
+  }
+
+  const labelX = panel.x + 12;
+  const valueX = panel.x + panel.w - 12;
+  let y = artY + SHIP_INFO_SIDE_VIEW_H + 10;
+  drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, labelX, valueX, y);
+  drawShipInfoBar(labelX + 62, y + 1, Math.max(30, panel.w - 112), view.hull / view.maxHull, "#91db69");
+  y += 13;
+  drawShipInfoValueRow("CANNONS", String(view.cannons), labelX, valueX, y);
+  y += 12;
+  drawShipInfoValueRow("UPWIND LIMIT", `${view.upwindStallAngleDeg} DEG`, labelX, valueX, y);
+  y += 13;
+  const ratings = [
+    ["SPEED", view.ratings.speed],
+    ["ACCEL", view.ratings.acceleration],
+    ["TURNING", view.ratings.turning],
+    ["WINDWARD", view.ratings.windward],
+    ["SEAWORTHY", view.seaworthiness]
+  ];
+  for (const [label, rating] of ratings) {
+    drawCompactShipRating(label, rating, labelX, valueX, y);
+    y += 12;
+  }
+  drawOptionsText(`WATER ${Math.ceil(view.survival.freshWaterDays)}D`, labelX, y + 1, {
+    color: view.survival.freshWaterFraction <= 0.16 ? "#f68181" : "#8ac0b4"
+  });
+  drawOptionsText(`FOOD ${Math.floor(view.survival.foodDays)}D`, valueX, y + 1, {
+    align: "right",
+    color: view.survival.foodDays <= 3 ? "#f68181" : "#d6b66b"
+  });
+  y += 17;
+
+  ctx.fillStyle = "#625565";
+  ctx.fillRect(panel.x + 10, y, panel.w - 20, 1);
+  drawOptionsText("CARGO HOLD", labelX, y + 6, { color: "#c7dcd0" });
+  drawOptionsText(`${view.cargoUsed}/${view.cargoCapacity}`, labelX + 89, y + 6, {
+    align: "right",
+    color: "#ffffff"
+  });
+  drawOptionsText(`${view.doubloons} DB`, valueX, y + 6, { align: "right", color: "#f9c22b" });
+  y += 20;
+  if (cargoPage.rows.length === 0) {
+    drawOptionsText("THE HOLD IS EMPTY", labelX, y, { color: "#9babb2" });
+  } else {
+    const maxRows = Math.max(1, Math.floor((panel.y + panel.h - 22 - y) / 13));
+    cargoPage.rows.slice(0, maxRows).forEach((row, index) => {
+      const rowY = y + index * 13;
+      ctx.fillStyle = "#ab947a";
+      ctx.fillRect(labelX, rowY + 3, 3, 3);
+      drawOptionsText(
+        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_UI_8, panel.w - 96),
+        labelX + 8,
+        rowY,
+        { color: "#ffffff" }
+      );
+      const basis = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
+      drawOptionsText(basis, valueX, rowY, { align: "right", color: "#fbb954" });
+    });
+  }
+  drawCompactShipPager(panel, cargoPage.page, cargoPage.pageCount, "MANIFEST");
+}
+
+function drawCompactShipRating(label, rating, x, valueX, y) {
+  drawOptionsText(label, x, y, { color: "#c7dcd0" });
+  const meterX = x + 80;
+  for (let index = 0; index < 10; index++) {
+    ctx.fillStyle = index < rating ? "#30e1b9" : "#625565";
+    ctx.fillRect(meterX + index * 7, y + 2, 5, 5);
+  }
+  drawOptionsText(String(rating), valueX, y, { align: "right", color: "#ffffff" });
+}
+
+function drawCompactShipLedger(panel, view) {
+  const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage);
+  shipInfoMenu.ledgerPage = page.page;
+  const left = panel.x + 12;
+  const right = panel.x + panel.w - 12;
+  const top = panel.y + 43;
+  const realized = Math.round(view.realizedPnl);
+  drawOptionsText(`P/L ${formatSignedLedgerMoney(realized)} DB`, left, top, { color: ledgerPnlColor(realized) });
+  drawOptionsText(`CASH ${view.doubloons} DB`, right, top, { align: "right", color: "#f9c22b" });
+  const availableH = panel.y + panel.h - 24 - (top + 14);
+  const rowH = Math.max(20, Math.floor(availableH / Math.max(1, page.rows.length)));
+  page.rows.forEach((entry, index) => {
+    const y = top + 15 + index * rowH;
+    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowH - 1);
+    drawOptionsText(shipLedgerDateLabel(entry.simMinute), left, y, { color: "#9babb2" });
+    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 125), left + 70, y, {
+      color: "#c7dcd0"
+    });
+    drawOptionsText(formatSignedLedgerMoney(entry.amount), right, y, {
+      align: "right",
+      color: entry.amount < 0 ? "#f68181" : "#91db69"
+    });
+    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 82), left, y + 9, {
+      color: "#ffffff"
+    });
+    const pnl = entry.pnl === null ? `BAL ${Math.round(entry.balance)}` : `P/L ${formatSignedLedgerMoney(entry.pnl)}`;
+    drawOptionsText(pnl, right, y + 9, {
+      align: "right",
+      color: entry.pnl === null ? "#f9c22b" : ledgerPnlColor(entry.pnl)
+    });
+  });
+  drawCompactShipPager(panel, page.page, page.pageCount, "LEDGER");
+}
+
+function drawCompactShipPapers(panel, view) {
+  const page = shipPapersPage(view, shipInfoMenu.papersPage);
+  shipInfoMenu.papersPage = page.page;
+  const left = panel.x + 12;
+  const right = panel.x + panel.w - 12;
+  const top = panel.y + 43;
+  drawOptionsText("ACTIVE DOCUMENTS", left, top, { color: "#c7dcd0" });
+  drawOptionsText(`${view.papers.length} HELD`, right, top, { align: "right", color: "#fbb954" });
+  if (page.rows.length === 0) drawOptionsText("NO SHIP PAPERS HELD", left, top + 21, { color: "#9babb2" });
+  const availableH = panel.y + panel.h - 24 - (top + 14);
+  const rowH = Math.max(26, Math.floor(availableH / Math.max(1, page.rows.length)));
+  page.rows.forEach((paper, index) => {
+    const y = top + 16 + index * rowH;
+    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowH - 1);
+    drawOptionsText(paper.kind.toUpperCase(), left, y, { color: paper.kind === "marque" ? "#91db69" : "#fbb954" });
+    drawOptionsText(shipLedgerDateLabel(paper.simMinute), right, y, { align: "right", color: "#9babb2" });
+    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 24), left, y + 9, {
+      color: "#ffffff"
+    });
+    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 24), left, y + 18, {
+      color: "#c7dcd0"
+    });
+  });
+  drawCompactShipPager(panel, page.page, page.pageCount, "PAPERS");
+}
+
+function drawCompactShipPager(panel, page, pageCount, label) {
+  const pagerY = panel.y + panel.h - 18;
+  if (pageCount > 1) {
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    drawShipInfoArrowButton(
+      shipInfoMenu.previousPageRect,
+      "<",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.previousPageRect)
+    );
+    drawShipInfoArrowButton(
+      shipInfoMenu.nextPageRect,
+      ">",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.nextPageRect)
+    );
+  } else {
+    shipInfoMenu.previousPageRect = null;
+    shipInfoMenu.nextPageRect = null;
+  }
+  drawOptionsText(`${label} ${page + 1}/${pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
+    align: "center",
+    color: "#9babb2"
+  });
 }
 
 function drawShipInfoTabs(panel) {
@@ -9198,29 +10009,36 @@ function drawDiscoveriesMenu() {
   const total = discoveryCatalog.length;
   const discoveryFraction = total > 0 ? entries.length / total : 0;
   const mappedFraction = minimap ? minimap.seenTileCount / graph.tileCount : 0;
+  const compact = DISCOVERIES_PANEL_W < 280;
+  const progressWidth = DISCOVERIES_PANEL_W - 24;
   drawDiscoveryProgressRow(
     panelX + 12,
     panelY + 31,
     "FOUND",
     `${entries.length}/${total}`,
     discoveryFraction,
-    "#d6a84f"
+    "#d6a84f",
+    progressWidth,
+    compact
   );
   drawDiscoveryProgressRow(
     panelX + 12,
-    panelY + 51,
+    panelY + (compact ? 57 : 51),
     "GLOBE MAPPED",
     `${(mappedFraction * 100).toFixed(2)}%`,
     mappedFraction,
-    "#6aa6a1"
+    "#6aa6a1",
+    progressWidth,
+    compact
   );
 
-  const pageCount = Math.max(1, Math.ceil(entries.length / DISCOVERIES_PAGE_SIZE));
+  const pageSize = discoveriesPageSize();
+  const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
   discoveriesMenu.page = clamp(discoveriesMenu.page, 0, pageCount - 1);
-  const pageStart = discoveriesMenu.page * DISCOVERIES_PAGE_SIZE;
-  const pageEntries = entries.slice(pageStart, pageStart + DISCOVERIES_PAGE_SIZE);
+  const pageStart = discoveriesMenu.page * pageSize;
+  const pageEntries = entries.slice(pageStart, pageStart + pageSize);
   const listX = panelX + 13;
-  const listY = panelY + 79;
+  const listY = panelY + (compact ? 91 : 79);
   if (pageEntries.length === 0) {
     drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: "#8f8779" });
   } else {
@@ -9257,12 +10075,12 @@ function drawDiscoveriesMenu() {
   ctx.restore();
 }
 
-function drawDiscoveryProgressRow(x, y, label, value, fraction, color) {
+function drawDiscoveryProgressRow(x, y, label, value, fraction, color, availableWidth, compact) {
   drawOptionsText(label, x, y, { color: "#d7d0c2" });
-  drawOptionsText(value, x + 103, y, { align: "right", color: "#fff1bf" });
-  const barX = x + 112;
-  const barY = y + 1;
-  const barW = 160;
+  drawOptionsText(value, x + (compact ? availableWidth : 103), y, { align: "right", color: "#fff1bf" });
+  const barX = compact ? x : x + 112;
+  const barY = compact ? y + 11 : y + 1;
+  const barW = compact ? availableWidth : Math.max(20, availableWidth - 112);
   const barH = 7;
   ctx.fillStyle = "#28231d";
   ctx.fillRect(barX, barY, barW, barH);
@@ -9284,6 +10102,10 @@ function discoveryKindColor(kind) {
 }
 
 function drawPoliticsMenu() {
+  if (SCREEN_W < 380) {
+    drawCompactPoliticsMenu();
+    return;
+  }
   const panel = {
     x: POLITICS_PANEL_X,
     y: POLITICS_PANEL_Y,
@@ -9384,6 +10206,129 @@ function drawPoliticsMenu() {
     align: "center",
     color: "#a9a08f"
   });
+  ctx.restore();
+}
+
+function compactPoliticsPagination(view) {
+  const panelW = POLITICS_PANEL_W;
+  const panelH = POLITICS_PANEL_H;
+  const columnsPerPage = Math.max(5, Math.floor((panelW - 130) / POLITICS_MATRIX_CELL_W));
+  const rowsPerPage = Math.max(6, Math.min(20, Math.floor((panelH - 92) / POLITICS_MATRIX_ROW_H)));
+  const columnPageCount = Math.max(1, Math.ceil(view.powers.length / columnsPerPage));
+  const rowPageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
+  return {
+    columnsPerPage,
+    rowsPerPage,
+    columnPageCount,
+    rowPageCount,
+    pageCount: columnPageCount * rowPageCount
+  };
+}
+
+function drawCompactPoliticsMenu() {
+  const panel = {
+    x: POLITICS_PANEL_X,
+    y: POLITICS_PANEL_Y,
+    w: POLITICS_PANEL_W,
+    h: POLITICS_PANEL_H
+  };
+  const view = createPoliticsView(gameState);
+  const pagination = compactPoliticsPagination(view);
+  politicsMenu.page = ((politicsMenu.page % pagination.pageCount) + pagination.pageCount) % pagination.pageCount;
+  const rowPage = Math.floor(politicsMenu.page / pagination.columnPageCount);
+  const columnPage = politicsMenu.page % pagination.columnPageCount;
+  const rows = view.rows.slice(
+    rowPage * pagination.rowsPerPage,
+    (rowPage + 1) * pagination.rowsPerPage
+  );
+  const powers = view.powers.slice(
+    columnPage * pagination.columnsPerPage,
+    (columnPage + 1) * pagination.columnsPerPage
+  );
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#17130e";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#a27a3b";
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  politicsMenu.panelRect = panel;
+  politicsMenu.closeButtonRect = { x: panel.x + panel.w - 20, y: panel.y + 6, w: 14, h: 14 };
+  drawOptionsCloseButton(
+    politicsMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, politicsMenu.closeButtonRect)
+  );
+  drawOptionsText("POLITICAL CHART", panel.x + panel.w / 2, panel.y + 9, {
+    align: "center",
+    color: "#ffd98a"
+  });
+  drawOptionsText("A ALLY", panel.x + 10, panel.y + 27, { color: "#91db69" });
+  drawOptionsText("W WAR", panel.x + 58, panel.y + 27, { color: "#f68181" });
+  drawOptionsText("- NEUTRAL", panel.x + 104, panel.y + 27, { color: "#9babb2" });
+
+  const labelX = panel.x + 10;
+  const matrixX = panel.x + 91;
+  const statusX = panel.x + panel.w - 31;
+  const headerY = panel.y + 44;
+  const matrixY = panel.y + 63;
+  drawOptionsText("POWER", labelX, headerY, { color: "#ab947a" });
+  drawOptionsText("YOU", statusX, headerY, { color: "#d6b66b" });
+  powers.forEach((power, index) => {
+    drawPoliticsColumnCode(
+      power.code,
+      matrixX + index * POLITICS_MATRIX_CELL_W,
+      headerY + 13,
+      politicsFactionColor(power.id)
+    );
+  });
+
+  rows.forEach((row, rowIndex) => {
+    const y = matrixY + rowIndex * POLITICS_MATRIX_ROW_H;
+    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(46, 34, 47, 0.3)" : "rgba(46, 34, 47, 0.12)";
+    ctx.fillRect(panel.x + 8, y - 1, panel.w - 16, POLITICS_MATRIX_ROW_H);
+    drawOptionsText(
+      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_UI_8, 76),
+      labelX,
+      y,
+      { color: politicsFactionColor(row.faction.id) }
+    );
+    const stanceByFaction = new Map(row.stances.map((stance) => [stance.factionId, stance]));
+    powers.forEach((power, index) => {
+      const stance = stanceByFaction.get(power.id);
+      if (!stance) return;
+      drawPoliticsMatrixCell(
+        matrixX + index * POLITICS_MATRIX_CELL_W,
+        y,
+        stance.relation,
+        row.faction.id === power.id
+      );
+    });
+    drawOptionsText(row.player.scoreLabel, statusX + 21, y, {
+      align: "right",
+      color: politicsStandingColor(row.player.reputation)
+    });
+  });
+
+  const pagerY = panel.y + panel.h - 18;
+  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 14, h: 13 };
+  politicsMenu.nextPageRect = { x: panel.x + panel.w - 26, y: pagerY, w: 14, h: 13 };
+  drawOptionsArrowButton(
+    politicsMenu.previousPageRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, politicsMenu.previousPageRect)
+  );
+  drawOptionsArrowButton(
+    politicsMenu.nextPageRect,
+    ">",
+    pointInRect(optionsMenu.hoverPoint, politicsMenu.nextPageRect)
+  );
+  drawOptionsText(
+    `PAGE ${politicsMenu.page + 1}/${pagination.pageCount}`,
+    panel.x + panel.w / 2,
+    pagerY + 3,
+    { align: "center", color: "#a9a08f" }
+  );
   ctx.restore();
 }
 
@@ -13129,6 +14074,11 @@ function drawPlayerIntroModal(nowMs) {
   ctx.strokeStyle = "#715033";
   ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
 
+  if (SCREEN_W < 400) {
+    drawCompactPlayerIntroModal(panel, character, modal, nowMs);
+    return;
+  }
+
   ctx.fillStyle = "#d6b66b";
   drawPixelText("CAPTAIN'S PAPERS", SCREEN_W / 2, panel.y + 10, {
     font: PIXEL_FONT_UI_8,
@@ -13183,6 +14133,80 @@ function drawPlayerIntroModal(nowMs) {
       font: PIXEL_FONT_UI_8
     });
   }
+
+  const button = modal.buttonRect;
+  ctx.fillStyle = modal.hovered ? "#6d4b2f" : "#4a3424";
+  ctx.fillRect(button.x, button.y, button.w, button.h);
+  ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
+  ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
+  ctx.fillStyle = "#fff1bf";
+  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, button.y + 4, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+}
+
+function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
+  ctx.fillStyle = "#d6b66b";
+  drawPixelText("CAPTAIN'S PAPERS", SCREEN_W / 2, panel.y + 10, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+  ctx.fillStyle = "#fff1bf";
+  drawPixelText(
+    fitPixelText(character.name.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 32),
+    SCREEN_W / 2,
+    panel.y + 25,
+    { font: PIXEL_FONT_UI_8, align: "center" }
+  );
+
+  const portraitX = panel.x + 18;
+  const portraitY = panel.y + 43;
+  ctx.fillStyle = "#191f24";
+  ctx.fillRect(portraitX - 3, portraitY - 3, DIALOGUE_PORTRAIT_SIZE + 6, DIALOGUE_PORTRAIT_SIZE + 6);
+  ctx.strokeStyle = "#8ac0b4";
+  ctx.strokeRect(portraitX - 2.5, portraitY - 2.5, DIALOGUE_PORTRAIT_SIZE + 5, DIALOGUE_PORTRAIT_SIZE + 5);
+  drawDialoguePortrait(character, null, portraitX, portraitY);
+
+  const flagX = portraitX + DIALOGUE_PORTRAIT_SIZE + 18;
+  const flagY = portraitY + 12;
+  ctx.fillStyle = "#4c3e24";
+  ctx.fillRect(flagX - 2, flagY - 2, 2, DIALOGUE_FLAG_H + 8);
+  drawWavingFactionFlag(
+    character.nationalityId,
+    flagX,
+    flagY,
+    DIALOGUE_FLAG_W,
+    DIALOGUE_FLAG_H,
+    flagWavePhase(nowMs, character.homePortTileId)
+  );
+  ctx.fillStyle = "#bda66f";
+  drawPixelText("NATIONALITY", flagX, flagY + 29, { font: PIXEL_FONT_BODY_8 });
+  ctx.fillStyle = "#f3dfb0";
+  drawPixelText(
+    fitPixelText(character.nationalityAdjective, PIXEL_FONT_UI_8, panel.w - 121),
+    flagX,
+    flagY + 38,
+    { font: PIXEL_FONT_UI_8 }
+  );
+
+  const rows = [
+    ["HOME PORT", `${character.homePortName}, ${character.homePortRealmName || character.homePortCountry}`],
+    ["BORN", `${character.birthDateLabel}  AGE ${character.age}`],
+    ["SEX", character.sex.toUpperCase()],
+    ["VESSEL", shipLabelForSlug(ship?.typeSlug || character.starterShipSlug)]
+  ];
+  const detailX = panel.x + 18;
+  const detailW = panel.w - 36;
+  rows.forEach((row, index) => {
+    const y = panel.y + 122 + index * 31;
+    ctx.fillStyle = "#bda66f";
+    drawPixelText(row[0], detailX, y, { font: PIXEL_FONT_BODY_8 });
+    ctx.fillStyle = "#f3dfb0";
+    drawPixelText(fitPixelText(row[1], PIXEL_FONT_UI_8, detailW), detailX, y + 10, {
+      font: PIXEL_FONT_UI_8
+    });
+  });
 
   const button = modal.buttonRect;
   ctx.fillStyle = modal.hovered ? "#6d4b2f" : "#4a3424";

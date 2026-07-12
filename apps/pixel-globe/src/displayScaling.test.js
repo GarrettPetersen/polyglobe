@@ -34,6 +34,21 @@ test("fullscreen fit scaling snaps the canvas box to physical pixels", () => {
   }
 });
 
+test("a canvas larger than the viewport scales down instead of overflowing", () => {
+  const layout = canvasDisplayLayout({
+    viewportWidth: 390,
+    viewportHeight: 700,
+    canvasWidth: 455,
+    canvasHeight: 256,
+    devicePixelRatio: 3,
+    fitScreen: false
+  });
+
+  assert.ok(layout.scale < 1);
+  assert.ok(layout.width <= 390);
+  assert.ok(layout.height <= 700);
+});
+
 test("canvas display scaling rejects invalid geometry", () => {
   assert.throws(() => canvasDisplayLayout({
     viewportWidth: 0,

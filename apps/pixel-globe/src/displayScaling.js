@@ -19,7 +19,9 @@ export function canvasDisplayLayout({
   }
 
   const maximumScale = Math.min(viewportWidth / canvasWidth, viewportHeight / canvasHeight);
-  const scale = Math.max(1, fitScreen ? maximumScale : Math.floor(maximumScale));
+  const scale = fitScreen || maximumScale < 1
+    ? maximumScale
+    : Math.max(1, Math.floor(maximumScale));
   const width = floorCssPixel(canvasWidth * scale, devicePixelRatio);
   const height = floorCssPixel(canvasHeight * scale, devicePixelRatio);
   return {
