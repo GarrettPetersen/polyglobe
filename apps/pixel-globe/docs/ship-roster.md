@@ -1,4 +1,4 @@
-# Pixel Globe Ship Roster
+# Marque & Reprisal Ship Roster
 
 The Unity asset pack labels the vessels generically, so this roster assigns 16th-century game-facing names from the baked silhouettes. Internal filename slugs remain tied to the source assets and are not historical classifications. These are practical visual interpretations, not museum-catalog claims.
 
@@ -10,7 +10,7 @@ High-resolution review rasters live in `apps/pixel-globe/docs/ship-reference/hig
 
 The fleet bake preserves source-relative ship sizes with a compressed readability curve, so boats remain smaller than large ocean-going ships without disappearing at 36px.
 
-Use `?ship={slug}` in the Pixel Globe URL to start with any ship in this roster.
+Use `?ship={slug}` in the Marque & Reprisal URL to start with any ship in this roster.
 
 | Game name | Filename slug | Source asset label | Identification | Confidence | Notes |
 |---|---|---|---|---|---|

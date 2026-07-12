@@ -651,7 +651,7 @@ const START_MENU_ACTION_START = 0;
 const START_MENU_ACTION_OPTIONS = 1;
 const START_MENU_ACTION_CREDITS = 2;
 const CREDITS_MARKDOWN_URL = "/assets/CREDITS.md";
-const CREDITS_FALLBACK_MARKDOWN = `# Pirates of the Pixel Globe Credits
+const CREDITS_FALLBACK_MARKDOWN = `# Marque & Reprisal Credits
 
 ## Created by
 - Garrett Petersen
@@ -731,8 +731,6 @@ const CAPTAIN_MENU_LABELS = Object.freeze([
   "OPTIONS",
   "CREDITS"
 ]);
-const CAPTAIN_MENU_ROW_H = 26;
-const CAPTAIN_MENU_ROW_GAP = 4;
 const CAPTAIN_MENU_PANEL_W = 224;
 const CAPTAIN_MENU_PANEL_H = 214;
 const UI_ASSET_VERSION = "discoveries-menu-1";
@@ -948,16 +946,16 @@ const SNOW_GENERATED_SALT = 0x534e4f57;
 const canvas = document.getElementById("view");
 const shell = document.querySelector(".shell");
 if (!(canvas instanceof HTMLCanvasElement) || !(shell instanceof HTMLElement)) {
-  throw new Error("Pixel Globe requires its shell and responsive canvas");
+  throw new Error("Marque & Reprisal requires its shell and responsive canvas");
 }
 const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
-if (!ctx) throw new Error("Pixel Globe could not create its 2D canvas context");
+if (!ctx) throw new Error("Marque & Reprisal could not create its 2D canvas context");
 ctx.imageSmoothingEnabled = false;
 const shipOutlineCanvas = document.createElement("canvas");
 shipOutlineCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
 const shipOutlineCtx = shipOutlineCanvas.getContext("2d");
-if (!shipOutlineCtx) throw new Error("Pixel Globe could not create its ship outline context");
+if (!shipOutlineCtx) throw new Error("Marque & Reprisal could not create its ship outline context");
 shipOutlineCtx.imageSmoothingEnabled = false;
 const selectableOutlineCache = new WeakMap();
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
@@ -2539,13 +2537,11 @@ function createOptionsMenuState() {
 function createCaptainMenuState() {
   return {
     isOpen: false,
-    view: "chart",
     selectedIndex: 0,
     hoverPoint: null,
     buttonRect: null,
     panelRect: null,
     closeButtonRect: null,
-    backButtonRect: null,
     itemRects: []
   };
 }
@@ -3560,7 +3556,6 @@ function openCaptainMenu() {
   closePoliticsMenu();
   closeCreditsMenu();
   captainMenu.isOpen = true;
-  captainMenu.view = "chart";
   captainMenu.selectedIndex = 0;
   captainMenu.itemRects = [];
   keys.clear();
@@ -3570,10 +3565,8 @@ function openCaptainMenu() {
 
 function closeCaptainMenu() {
   captainMenu.isOpen = false;
-  captainMenu.view = "chart";
   captainMenu.panelRect = null;
   captainMenu.closeButtonRect = null;
-  captainMenu.backButtonRect = null;
   captainMenu.itemRects = [];
   dirty = true;
 }
@@ -3584,19 +3577,8 @@ function handleCaptainMenuKeyDown(event) {
     closeCaptainMenu();
     return;
   }
-  if (captainMenu.view === "chart") {
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
-      const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-      captainMenu.selectedIndex =
-        (captainMenu.selectedIndex + direction + CAPTAIN_MENU_LABELS.length) % CAPTAIN_MENU_LABELS.length;
-      dirty = true;
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") activateCaptainMenuSelection(captainMenu.selectedIndex);
-    return;
-  }
-  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-    const direction = event.key === "ArrowDown" ? 1 : -1;
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+    const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
     captainMenu.selectedIndex =
       (captainMenu.selectedIndex + direction + CAPTAIN_MENU_LABELS.length) % CAPTAIN_MENU_LABELS.length;
     dirty = true;
@@ -3895,20 +3877,6 @@ function handlePointerUp(event) {
 function handleCaptainMenuPointerDown(point) {
   if (pointInRect(point, captainMenu.closeButtonRect)) {
     closeCaptainMenu();
-    return;
-  }
-  if (captainMenu.view === "chart") {
-    updateCaptainMenuSelectionFromPoint(point);
-    for (let index = 0; index < captainMenu.itemRects.length; index++) {
-      if (!pointInRect(point, captainMenu.itemRects[index])) continue;
-      activateCaptainMenuSelection(index);
-      return;
-    }
-    return;
-  }
-  if (pointInRect(point, captainMenu.backButtonRect)) {
-    captainMenu.view = "chart";
-    dirty = true;
     return;
   }
   updateCaptainMenuSelectionFromPoint(point);
@@ -8174,7 +8142,7 @@ function applyResponsiveViewport(width, height) {
   SCREEN_H = height;
   canvas.width = width;
   canvas.height = height;
-  canvas.setAttribute("aria-label", `Pixel globe map, ${width} by ${height}`);
+  canvas.setAttribute("aria-label", `Marque & Reprisal world map, ${width} by ${height}`);
   ctx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
@@ -9255,39 +9223,13 @@ function drawCaptainMenu(nowMs) {
     captainMenu.closeButtonRect,
     pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
   );
-  drawOptionsText(captainMenu.view === "chart" ? "CAPTAIN'S CHART" : "CAPTAIN'S MENU", panel.x + panel.w / 2, panel.y + 10, {
+  drawOptionsText("CAPTAIN'S CHART", panel.x + panel.w / 2, panel.y + 10, {
     align: "center",
     color: "#ffd98a"
   });
 
-  if (captainMenu.view === "chart") drawCaptainChart(panel, nowMs);
-  else drawCaptainMenuItems(panel);
+  drawCaptainChart(panel, nowMs);
   ctx.restore();
-}
-
-function drawCaptainMenuItems(panel) {
-  const x = panel.x + 12;
-  const width = panel.w - 24;
-  const startY = panel.y + 29;
-  captainMenu.itemRects = CAPTAIN_MENU_LABELS.map((_, index) => ({
-    x,
-    y: startY + index * (CAPTAIN_MENU_ROW_H + CAPTAIN_MENU_ROW_GAP),
-    w: width,
-    h: CAPTAIN_MENU_ROW_H
-  }));
-  captainMenu.itemRects.forEach((rect, index) => {
-    const selected = index === captainMenu.selectedIndex;
-    const hovered = pointInRect(captainMenu.hoverPoint, rect);
-    ctx.fillStyle = selected || hovered ? "#5b4627" : "#201a16";
-    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-    ctx.strokeStyle = selected || hovered ? "#f9c22b" : "#715033";
-    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-    drawCaptainMenuItemIcon(index, rect.x + 6, rect.y + 6, selected || hovered);
-    drawOptionsText(CAPTAIN_MENU_LABELS[index], rect.x + 25, rect.y + 8, {
-      color: selected || hovered ? "#fff1bf" : "#d8c7a2"
-    });
-  });
-  drawCaptainMenuNavigationButton(panel, "BACK TO CHART");
 }
 
 function drawCaptainMenuItemIcon(index, x, y, active) {
@@ -9370,7 +9312,6 @@ function drawCaptainChartNavigation(panel) {
   const totalW = itemW * CAPTAIN_MENU_LABELS.length + gap * (CAPTAIN_MENU_LABELS.length - 1);
   const startX = panel.x + Math.floor((panel.w - totalW) / 2);
   const y = panel.y + panel.h - navH - 8;
-  captainMenu.backButtonRect = null;
   captainMenu.itemRects = CAPTAIN_MENU_LABELS.map((_, index) => ({
     x: startX + index * (itemW + gap),
     y,
@@ -9392,34 +9333,6 @@ function drawCaptainChartNavigation(panel) {
 
   const labelIndex = hoveredIndex >= 0 ? hoveredIndex : captainMenu.selectedIndex;
   drawOptionsText(CAPTAIN_MENU_LABELS[labelIndex], panel.x + panel.w / 2, y - 11, {
-    align: "center",
-    color: "#fff1bf"
-  });
-}
-
-function drawCaptainMenuNavigationButton(panel, label) {
-  captainMenu.backButtonRect = {
-    x: panel.x + Math.floor((panel.w - 112) / 2),
-    y: panel.y + panel.h - 30,
-    w: 112,
-    h: 22
-  };
-  const hovered = pointInRect(captainMenu.hoverPoint, captainMenu.backButtonRect);
-  ctx.fillStyle = hovered ? "#5b4627" : "#201a16";
-  ctx.fillRect(
-    captainMenu.backButtonRect.x,
-    captainMenu.backButtonRect.y,
-    captainMenu.backButtonRect.w,
-    captainMenu.backButtonRect.h
-  );
-  ctx.strokeStyle = hovered ? "#f9c22b" : "#715033";
-  ctx.strokeRect(
-    captainMenu.backButtonRect.x + 0.5,
-    captainMenu.backButtonRect.y + 0.5,
-    captainMenu.backButtonRect.w - 1,
-    captainMenu.backButtonRect.h - 1
-  );
-  drawOptionsText(label, captainMenu.backButtonRect.x + captainMenu.backButtonRect.w / 2, captainMenu.backButtonRect.y + 7, {
     align: "center",
     color: "#fff1bf"
   });
@@ -10637,12 +10550,7 @@ function drawStartMenu(nowMs) {
   ctx.strokeRect(panel.x + 4.5, panel.y + 4.5, panel.w - 9, panel.h - 9);
 
   ctx.fillStyle = "#fff1bf";
-  drawPixelText("PIRATES OF THE", panel.x + panel.w / 2, panel.y + 21, {
-    font: PIXEL_FONT_UI_8,
-    align: "center"
-  });
-  ctx.fillStyle = "#f9c22b";
-  drawPixelText("PIXEL GLOBE", panel.x + panel.w / 2, panel.y + 34, {
+  drawPixelText("MARQUE & REPRISAL", panel.x + panel.w / 2, panel.y + 28, {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
@@ -14669,7 +14577,6 @@ function drawDialogueOverlay(nowMs) {
   const geometry = dialoguePanelGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
-    compact: true,
     contentHeight
   });
   const panel = geometry.panel;
@@ -15256,7 +15163,7 @@ function drawLoading() {
   ctx.fillStyle = "#172437";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#d7d9bf";
-  drawPixelText("Loading pixel globe...", 8, 14, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText("Loading Marque & Reprisal...", 8, 14, { font: PIXEL_FONT_BODY_8 });
 }
 
 function drawFatalError(err, heading = "Prototype failed to start") {

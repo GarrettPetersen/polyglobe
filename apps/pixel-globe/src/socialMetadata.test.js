@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const appRoot = new URL("..", import.meta.url);
+
+test("prototype page uses the Marque & Reprisal title and social metadata", () => {
+  const html = readFileSync(new URL("index.html", appRoot), "utf8");
+  assert.match(html, /<title>Marque &amp; Reprisal \| Online Prototype<\/title>/);
+  assert.match(html, /property="og:title" content="Marque &amp; Reprisal"/);
+  assert.match(html, /property="og:image" content="\/assets\/social\/marque-and-reprisal-og\.png"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
+  assert.match(html, /name="twitter:image" content="\/assets\/social\/marque-and-reprisal-twitter\.png"/);
+  assert.doesNotMatch(html, /Pirates of the Pixel Globe/i);
+});
+
+test("social cards have the declared dimensions", () => {
+  assert.deepEqual(pngDimensions(new URL("public/assets/social/marque-and-reprisal-og.png", appRoot)), {
+    width: 1200,
+    height: 630
+  });
+  assert.deepEqual(pngDimensions(new URL("public/assets/social/marque-and-reprisal-twitter.png", appRoot)), {
+    width: 1200,
+    height: 675
+  });
+});
+
+test("credits contain attribution text without hyperlinks", () => {
+  const credits = readFileSync(new URL("public/assets/CREDITS.md", appRoot), "utf8");
+  assert.match(credits, /^# Marque & Reprisal Credits/m);
+  assert.doesNotMatch(credits, /https?:\/\//);
+  assert.doesNotMatch(credits, /\[[^\]]+\]\([^)]+\)/);
+});
+
+function pngDimensions(url) {
+  const bytes = readFileSync(url);
+  assert.equal(bytes.toString("ascii", 1, 4), "PNG");
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20)
+  };
+}

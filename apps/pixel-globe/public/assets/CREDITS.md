@@ -1,4 +1,4 @@
-# Pirates of the Pixel Globe Credits
+# Marque & Reprisal Credits
 
 ## Created by
 - Garrett Petersen
@@ -15,4 +15,4 @@
 - Tanweraman
 - Universfield
 - u_7hpxkdroz2
-- Dominik Braun - "Failure Sound" from "107 Free Retro Game Sounds" ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/))
+- Dominik Braun - "Failure Sound" from "107 Free Retro Game Sounds" (CC BY 4.0)

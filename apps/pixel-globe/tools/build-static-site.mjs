@@ -80,4 +80,4 @@ for (const entry of appEntries) await copyEntry(appRoot, entry);
 for (const entry of publicEntries) await copyEntry(publicRoot, entry);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 
-console.log(`Built Pirates of the Pixel Globe static site at ${distRoot}`);
+console.log(`Built Marque & Reprisal static site at ${distRoot}`);

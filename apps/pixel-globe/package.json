@@ -1,14 +1,16 @@
 {
-  "name": "pixel-globe-prototype",
+  "name": "marque-and-reprisal",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node tools/build-static-site.mjs",
+    "check": "node --check src/main.js && npm test && npm run build",
     "dev": "node server.mjs",
     "generate:characters": "node tools/build-character-portrait-manifest.mjs",
     "preview:character-roles": "node tools/render-character-role-review.mjs",
     "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
+    "render:social-cards": "node tools/render-social-cards.mjs",
     "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet",
     "render:unity-ship-side-views": "node tools/render-sail-ship-sprites.mjs --unity-fleet-side-views",
     "render:faction-flags": "node tools/render-faction-flags.mjs",

@@ -1,6 +1,6 @@
-# Pixel Globe Prototype
+# Marque & Reprisal Prototype
 
-Standalone Canvas 2D prototype for rendering the subdivision-7 Earth polyglobe as a pixel-art tactics map.
+Standalone Canvas 2D prototype for **Marque & Reprisal**, a pixel-art sailing, trade, and exploration game set in 1522.
 
 It deliberately does not render the 3D globe. The app:
 

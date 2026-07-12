@@ -7,8 +7,7 @@ test("portrait greetings use a compact content-height panel", () => {
   const layout = dialoguePanelGeometry({
     screenWidth: 256,
     screenHeight: 455,
-    compact: true,
-    bodyLineCount: 3
+    contentHeight: 117
   });
 
   assert.deepEqual(layout.panel, { x: 6, y: 96, w: 244, h: 117 });
@@ -20,7 +19,6 @@ test("operational dialogue uses only the height its options need", () => {
   const layout = dialoguePanelGeometry({
     screenWidth: 256,
     screenHeight: 455,
-    compact: true,
     contentHeight: 159
   });
 
@@ -31,7 +29,6 @@ test("long dialogue clamps to the available height for scrolling", () => {
   const layout = dialoguePanelGeometry({
     screenWidth: 256,
     screenHeight: 455,
-    compact: true,
     contentHeight: 500
   });
 
@@ -42,8 +39,7 @@ test("landscape greetings remain compact without moving the portrait down", () =
   const layout = dialoguePanelGeometry({
     screenWidth: 455,
     screenHeight: 256,
-    compact: true,
-    bodyLineCount: 4
+    contentHeight: 127
   });
 
   assert.deepEqual(layout.panel, { x: 6, y: 78, w: 443, h: 127 });

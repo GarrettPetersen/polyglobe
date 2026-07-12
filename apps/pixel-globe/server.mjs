@@ -86,5 +86,5 @@ const server = createServer((req, res) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Pixel Globe prototype: http://127.0.0.1:${port}/`);
+  console.log(`Marque & Reprisal prototype: http://127.0.0.1:${port}/`);
 });
