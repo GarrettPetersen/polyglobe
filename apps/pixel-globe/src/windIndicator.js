@@ -1,0 +1,75 @@
+const MAX_DISPLAY_WIND_STRENGTH = 1.25;
+const MIN_ARM_LENGTH_PX = 6;
+const ARM_LENGTH_PER_WIND_STRENGTH_PX = 12;
+const APEX_ARM_OFFSET_RATIO = 0.7;
+
+export function windVArmLengthPx(windStrength) {
+  if (!Number.isFinite(windStrength) || windStrength < 0) {
+    throw new Error(`Invalid wind strength: ${windStrength}`);
+  }
+  return MIN_ARM_LENGTH_PX + Math.round(
+    Math.min(MAX_DISPLAY_WIND_STRENGTH, windStrength) * ARM_LENGTH_PER_WIND_STRENGTH_PX
+  );
+}
+
+export function windVGeometry({
+  centerX,
+  centerY,
+  flowDirectionRad,
+  deadZoneHalfAngleRad,
+  windStrength,
+  radiusPx
+}) {
+  for (const [label, value] of Object.entries({ centerX, centerY, flowDirectionRad, radiusPx })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid wind V ${label}: ${value}`);
+  }
+  if (!Number.isFinite(deadZoneHalfAngleRad) || deadZoneHalfAngleRad <= 0 || deadZoneHalfAngleRad >= Math.PI / 2) {
+    throw new Error(`Invalid wind V dead-zone angle: ${deadZoneHalfAngleRad}`);
+  }
+  if (radiusPx < 0) throw new Error(`Invalid wind V radius: ${radiusPx}`);
+
+  const armLengthPx = windVArmLengthPx(windStrength);
+  const flow = {
+    x: Math.cos(flowDirectionRad),
+    y: -Math.sin(flowDirectionRad)
+  };
+  const upwind = { x: -flow.x, y: -flow.y };
+  const apexDistance = radiusPx + armLengthPx * APEX_ARM_OFFSET_RATIO;
+  const apex = {
+    x: centerX + flow.x * apexDistance,
+    y: centerY + flow.y * apexDistance
+  };
+  const portBoundary = rotateScreenVector(upwind, -deadZoneHalfAngleRad);
+  const starboardBoundary = rotateScreenVector(upwind, deadZoneHalfAngleRad);
+
+  return {
+    armLengthPx,
+    apex: roundPoint(apex),
+    port: roundPoint({
+      x: apex.x + portBoundary.x * armLengthPx,
+      y: apex.y + portBoundary.y * armLengthPx
+    }),
+    starboard: roundPoint({
+      x: apex.x + starboardBoundary.x * armLengthPx,
+      y: apex.y + starboardBoundary.y * armLengthPx
+    }),
+    portBoundary,
+    starboardBoundary
+  };
+}
+
+function rotateScreenVector(vector, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: vector.x * cos - vector.y * sin,
+    y: vector.x * sin + vector.y * cos
+  };
+}
+
+function roundPoint(point) {
+  return {
+    x: Math.round(point.x),
+    y: Math.round(point.y)
+  };
+}

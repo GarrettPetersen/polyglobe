@@ -158,6 +158,7 @@ import { canvasDisplayLayout } from "./displayScaling.js";
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import { dialoguePanelGeometry } from "./dialoguePanelLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
+import { windVGeometry } from "./windIndicator.js";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
@@ -13499,32 +13500,14 @@ function drawWindIndicator(nowMs) {
   const state = windIndicatorState || windIndicatorTarget();
   const flowDir = state.flowDirectionRad;
   const strength = clamp(state.strength, 0.05, 1.25);
-  const dx = Math.cos(flowDir);
-  const dy = -Math.sin(flowDir);
-  const px = -dy;
-  const py = dx;
-  const radius = WIND_INDICATOR_RADIUS_PX + Math.round(strength * 3);
-  const length = 5 + Math.round(strength * 9);
-  const halfWidth = 2 + Math.round(strength * 5);
-  const baseLen = Math.max(2, Math.round(length * 0.5));
-  const cx = Math.round(SCREEN_W / 2 + dx * radius);
-  const cy = Math.round(SCREEN_H / 2 + dy * radius);
-  const tip = {
-    x: Math.round(cx + dx * length),
-    y: Math.round(cy + dy * length)
-  };
-  const base = {
-    x: Math.round(cx - dx * baseLen),
-    y: Math.round(cy - dy * baseLen)
-  };
-  const left = {
-    x: Math.round(base.x + px * halfWidth),
-    y: Math.round(base.y + py * halfWidth)
-  };
-  const right = {
-    x: Math.round(base.x - px * halfWidth),
-    y: Math.round(base.y - py * halfWidth)
-  };
+  const geometry = windVGeometry({
+    centerX: SCREEN_W / 2,
+    centerY: SCREEN_H / 2,
+    flowDirectionRad: flowDir,
+    deadZoneHalfAngleRad: ship.stats.upwindStallAngleRad,
+    windStrength: strength,
+    radiusPx: WIND_INDICATOR_RADIUS_PX
+  });
   const warning = clamp(state.stallWarning || 0, 0, 1);
   const pulse = reducedMotionPreferred
     ? 0.72
@@ -13541,8 +13524,8 @@ function drawWindIndicator(nowMs) {
     `${Math.round(215 + (warningColor.g - 215) * warningMix)}, ` +
     `${Math.round(204 + (warningColor.b - 204) * warningMix)}, ` +
     `${alpha.toFixed(3)})`;
-  drawPixelLine(tip.x, tip.y, left.x, left.y, color);
-  drawPixelLine(tip.x, tip.y, right.x, right.y, color);
+  drawPixelLine(geometry.apex.x, geometry.apex.y, geometry.port.x, geometry.port.y, color);
+  drawPixelLine(geometry.apex.x, geometry.apex.y, geometry.starboard.x, geometry.starboard.y, color);
 }
 
 function drawQuestDestinationArrow(nowMs) {
