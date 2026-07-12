@@ -1,3 +1,5 @@
+import { advanceWorldShipyards, createWorldShipyards } from "./shipyards.js";
+
 const MINUTES_PER_DAY = 24 * 60;
 const ECONOMY_STEP_MINUTES = 6 * 60;
 const ECONOMY_STEP_DAYS = ECONOMY_STEP_MINUTES / MINUTES_PER_DAY;
@@ -87,6 +89,39 @@ const REGION_DEMAND = Object.freeze({
   "sub-saharan": rates({ "cotton-cloth": 0.5, iron: 0.45, arms: 0.35, salt: 0.35, glassware: 0.3 })
 });
 
+const REGION_IMPORT_PREMIUM = Object.freeze({
+  "northern-european": rates({
+    pepper: 2.05,
+    spices: 2.35,
+    tea: 1.4,
+    coffee: 1.35,
+    cacao: 1.4,
+    sugar: 1.25,
+    silk: 1.5,
+    "silk-cloth": 1.55,
+    porcelain: 1.55,
+    ivory: 1.35
+  }),
+  mediterranean: rates({
+    pepper: 1.75,
+    spices: 2,
+    tea: 1.25,
+    coffee: 1.25,
+    cacao: 1.25,
+    silk: 1.4,
+    "silk-cloth": 1.45,
+    porcelain: 1.35,
+    ivory: 1.25
+  }),
+  "islamic-desert": rates({ tea: 1.2, porcelain: 1.25, silver: 1.2, glassware: 1.15 }),
+  "east-asian": rates({ silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
+  "south-asian": rates({ silver: 1.45, gold: 1.15, arms: 1.2, glassware: 1.25, porcelain: 1.15 }),
+  "southeast-asian": rates({ silver: 1.5, gold: 1.15, arms: 1.25, glassware: 1.25, "cotton-cloth": 1.15 }),
+  mesoamerican: rates({ arms: 1.35, iron: 1.25, glassware: 1.25, "cotton-cloth": 1.2, wine: 1.15 }),
+  andean: rates({ arms: 1.35, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
+  "sub-saharan": rates({ arms: 1.25, iron: 1.2, glassware: 1.2, "cotton-cloth": 1.2, salt: 1.15 })
+});
+
 const CITY_SPECIALTIES = uniqueMap([
   specialty("Lisbon", ["salt"]),
   specialty("London", ["wool", "wool-cloth"]),
@@ -162,7 +197,8 @@ export function createWorldEconomy({ ports, startMinute }) {
   return {
     version: 1,
     lastMinute: startMinute,
-    portStates
+    portStates,
+    shipyards: createWorldShipyards({ ports, startMinute })
   };
 }
 
@@ -179,6 +215,7 @@ export function advanceWorldEconomy(economy, clockMinute) {
     for (const port of economy.portStates.values()) advancePortEconomy(port, ECONOMY_STEP_DAYS);
   }
   economy.lastMinute += steps * ECONOMY_STEP_MINUTES;
+  advanceWorldShipyards(economy.shipyards, economy.lastMinute);
   return true;
 }
 
@@ -387,10 +424,11 @@ function createPortState(port) {
     state.stock = state.targetStock * stockVariance;
   }
 
-  const targetSpecie = Math.round(800 + populationScale * 2400);
+  const targetSpecie = Math.round(1200 + populationScale * 4200);
   return {
     id: requiredPortId(port),
     name: port.displayCity || port.city,
+    cityType: port.cityType,
     populationScale,
     targetSpecie,
     specie: targetSpecie * (0.85 + hashUnit(`${port.tileId}|specie`) * 0.3),
@@ -455,7 +493,12 @@ function marketPrice(port, good, stock) {
   const comparativeAdvantage = Math.exp(balance * 0.52);
   const scarcity = Math.pow((state.targetStock + 3) / (Math.max(0, stock) + 3), 0.72);
   const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
-  const multiplier = clamp(comparativeAdvantage * scarcity * localVariation, MIN_PRICE_MULTIPLIER, MAX_PRICE_MULTIPLIER);
+  const importPremium = REGION_IMPORT_PREMIUM[port.cityType]?.[good.id] || 1;
+  const multiplier = clamp(
+    comparativeAdvantage * scarcity * localVariation * importPremium,
+    MIN_PRICE_MULTIPLIER,
+    MAX_PRICE_MULTIPLIER
+  );
   const midPrice = Math.max(1, good.basePrice * multiplier);
   return {
     midPrice,
@@ -535,7 +578,7 @@ function requiredPortId(port) {
 }
 
 function assertEconomy(economy) {
-  if (!economy || economy.version !== 1 || !(economy.portStates instanceof Map)) {
+  if (!economy || economy.version !== 1 || !(economy.portStates instanceof Map) || !economy.shipyards) {
     throw new Error("Invalid world economy");
   }
 }

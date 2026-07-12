@@ -180,7 +180,8 @@ export function portGreetingPresentationForPersonality({
   nearbyShips = {},
   stormy = false,
   playerStanding = 0,
-  rivalLabel = null
+  rivalLabel = null,
+  shipyardRumor = null
 }) {
   if (!PORT_PERSONALITY_IDS.includes(personalityId)) {
     throw new Error(`Unknown port personality: ${personalityId}`);
@@ -190,15 +191,37 @@ export function portGreetingPresentationForPersonality({
   const baseFactory = choose(BASE_LINES[personalityId][phase], `${seed}|base`);
   const base = baseFactory(cityName);
   const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalLabel, seed });
-  const contextLine = topic
-    ? contextLineFor(topic, personalityId, rivalLabel)
-    : localFlavor;
+  const rumorLine = shouldTellShipyardRumor(personalityId, topic, shipyardRumor, seed)
+    ? shipyardRumorLine(personalityId, shipyardRumor)
+    : null;
+  const contextLine = rumorLine || (topic ? contextLineFor(topic, personalityId, rivalLabel) : localFlavor);
   return Object.freeze({
     text: `${base} ${contextLine}`.trim(),
-    expressionId: topic
+    expressionId: rumorLine
+      ? (personalityId === "gossipy" ? "pleased" : "attentive")
+      : topic
       ? TOPIC_EXPRESSION_IDS[topic]
       : PERSONALITY_EXPRESSION_IDS[personalityId]
   });
+}
+
+function shouldTellShipyardRumor(personalityId, topic, rumor, seed) {
+  if (!rumor || topic === "pirates" || topic === "storm") return false;
+  if (personalityId === "gossipy") return true;
+  return hashString32(`${seed}|shipyard-rumor`) % 3 === 0;
+}
+
+function shipyardRumorLine(personalityId, rumor) {
+  const hull = lowerFirst(rumor.shipLabel);
+  if (personalityId === "austere") return `Shipyard report: a new ${hull} is for sale in ${rumor.portName}.`;
+  if (personalityId === "enterprising") return `There is profit in news: a new ${hull} is for sale in ${rumor.portName}.`;
+  if (personalityId === "reflective") return `Word travels ahead of wakes. A new ${hull} is for sale in ${rumor.portName}.`;
+  return `I hear there is a new ${hull} for sale in ${rumor.portName}.`;
+}
+
+function lowerFirst(value) {
+  const text = String(value || "ship");
+  return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
 function portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalLabel, seed }) {

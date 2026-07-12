@@ -4,6 +4,7 @@ import {
   FISHING_NET_CYCLE_COUNT,
   FISHING_NET_FRAME_COUNT,
   FISHING_NET_FRAME_MS,
+  canStartFishing,
   fishingAnimationState,
   fishingCatchChance,
   fishingCatchSucceeds,
@@ -31,13 +32,14 @@ test("the fishing net plays every frame exactly three times", () => {
   );
 });
 
-test("denser fisheries improve catch odds without guaranteeing a catch", () => {
-  const sparse = fishingCatchChance(0.2, true);
-  const healthy = fishingCatchChance(0.75, false);
+test("each additional visible fish improves catch odds without guaranteeing a catch", () => {
+  const sparse = fishingCatchChance(2);
+  const healthy = fishingCatchChance(6);
   assert.ok(sparse >= 0.2);
   assert.ok(healthy > sparse);
   assert.ok(healthy < 1);
-  assert.equal(fishingCatchChance(5, false), 0.82);
+  assert.equal(fishingCatchChance(8), 0.82);
+  assert.equal(fishingCatchChance(12), 0.82);
 });
 
 test("catch resolution and casting side are deterministic from their inputs", () => {
@@ -45,6 +47,12 @@ test("catch resolution and casting side are deterministic from their inputs", ()
   assert.equal(fishingCatchSucceeds(0.4, 0.4), false);
   assert.equal(fishingSideForTarget(100, 80), -1);
   assert.equal(fishingSideForTarget(100, 120), 1);
+});
+
+test("fishing is disabled when the cargo hold is full", () => {
+  assert.equal(canStartFishing(3), true);
+  assert.equal(canStartFishing(0), false);
+  assert.equal(canStartFishing(-1), false);
 });
 
 function pickAnimation(state) {

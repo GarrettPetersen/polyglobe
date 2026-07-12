@@ -57,3 +57,15 @@ test("friendly port chatter requests a matching positive expression", () => {
   });
   assert.equal(presentation.expressionId, "happy");
 });
+
+test("gossipy factors report nearby new shipyard listings", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "gossipy",
+    cityName: "Porto",
+    localFlavor: "The harbor is busy.",
+    shipyardRumor: { shipLabel: "Brigantine", portName: "Lisbon" }
+  });
+
+  assert.match(presentation.text, /new brigantine for sale in Lisbon/i);
+  assert.equal(presentation.expressionId, "pleased");
+});

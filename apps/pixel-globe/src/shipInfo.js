@@ -56,13 +56,19 @@ export function createShipInfoView(ship, gameState) {
       totalCost: basis.known ? basis.total : null
     };
   });
+  const activeCannons = gameState.ship?.cannons ?? stats.cannons;
+  const activeCrew = gameState.ship?.crew ?? stats.crewCapacity;
   return {
     slug: ship.typeSlug,
     label: shipLabelForSlug(ship.typeSlug),
     captainName: gameState.playerCharacter?.name || null,
     hull: Math.max(0, Math.round(ship.hitPoints)),
     maxHull: Math.round(ship.maxHitPoints),
-    cannons: stats.cannons,
+    cannons: activeCannons,
+    maxCannons: stats.cannons,
+    crew: activeCrew,
+    crewCapacity: stats.crewCapacity,
+    loadoutId: gameState.ship?.loadoutId || null,
     doubloons: gameState.doubloons,
     realizedPnl: realizedTradePnl(gameState),
     cargoUsed: used,
@@ -78,6 +84,30 @@ export function createShipInfoView(ship, gameState) {
     }),
     cargo: manifest,
     papers: shipPapers(gameState)
+  };
+}
+
+export function createShipyardShipView(slug) {
+  const stats = shipStatsForSlug(slug);
+  return {
+    slug,
+    label: shipLabelForSlug(slug),
+    hull: stats.hitPoints,
+    maxHull: stats.hitPoints,
+    cannons: stats.cannons,
+    maxCannons: stats.cannons,
+    crew: stats.crewCapacity,
+    crewCapacity: stats.crewCapacity,
+    cargoUsed: 0,
+    cargoCapacity: stats.cargoCapacity,
+    upwindStallAngleDeg: stats.upwindStallAngleDeg,
+    seaworthiness: stats.seaworthiness,
+    ratings: Object.freeze({
+      speed: shipPerformanceRating(stats, "speed"),
+      acceleration: shipPerformanceRating(stats, "acceleration"),
+      turning: shipPerformanceRating(stats, "turning"),
+      windward: shipPerformanceRating(stats, "windward")
+    })
   };
 }
 

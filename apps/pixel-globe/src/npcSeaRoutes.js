@@ -53,6 +53,9 @@ const PIRATE_HIDEOUT_DANGER_RADIUS_KM = 120;
 const PIRATE_HIDEOUT_DANGER_HOLD_MINUTES = 6 * 60;
 export const MAJOR_PORT_PROTECTION_POPULATION = 80000;
 const NPC_FISH_GOOD_ID = "fish";
+const NPC_REPLACEMENT_MIN_DAYS = 90;
+const NPC_REPLACEMENT_BASE_DAYS = 260;
+const NPC_REPLACEMENT_SPREAD_DAYS = 220;
 const FISHING_GROUND_TARGET = 220;
 const FISHING_GROUND_SAMPLE_DISTANCES_KM = Object.freeze([220, 520, 1100, 2100, 3400]);
 const FISHING_GROUND_SAMPLE_BEARINGS_DEG = Object.freeze([0, 45, 90, 135, 180, 225, 270, 315]);
@@ -237,7 +240,8 @@ export function createNpcSeaRouteSystem({ ports, startMinute, economy, fishState
     pirateHideouts: choosePirateHideouts(usablePorts),
     pirateHideoutDangerUntil: new Map(),
     ships: [],
-    shipById: new Map()
+    shipById: new Map(),
+    replacementQueue: []
   };
   system.ships = createNpcFleet(system, startMinute);
   if (system.ships.length === 0) throw new Error("NPC sea routes created no ships");
@@ -333,7 +337,7 @@ function fishingGroundLabel(point, speciesLabel) {
 
 export function updateNpcSeaRouteSystem(system, clockMinutes) {
   refreshPirateHideoutWarshipDanger(system, clockMinutes);
-  let changed = false;
+  let changed = spawnDueNpcReplacements(system, clockMinutes);
   for (const ship of system.ships) {
     if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 5)) changed = true;
   }
@@ -379,16 +383,48 @@ export function npcShipHasCombatGrace(system, shipId) {
 export function damageNpcShip(system, shipId, amount) {
   const ship = requiredNpcShip(system, shipId);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error(`Invalid NPC ship damage: ${amount}`);
-  ship.hitPoints = Math.max(1, ship.hitPoints - Math.round(amount));
-  if (ship.role === NPC_ROLE_PIRATE && ship.hitPoints / ship.maxHitPoints <= PIRATE_HIDEOUT_RETREAT_HULL_RATIO) {
+  ship.hitPoints = Math.max(0, ship.hitPoints - Math.round(amount));
+  if (ship.role === NPC_ROLE_PIRATE && ship.hitPoints > 0 && ship.hitPoints / ship.maxHitPoints <= PIRATE_HIDEOUT_RETREAT_HULL_RATIO) {
     ship.seekingHideout = true;
   }
   const surrenderHitPoints = Math.max(1, Math.floor(ship.maxHitPoints * 0.16));
   return {
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
-    shouldSurrender: ship.hitPoints <= surrenderHitPoints
+    sunk: ship.hitPoints <= 0,
+    shouldSurrender: ship.hitPoints > 0 && ship.hitPoints <= surrenderHitPoints
   };
+}
+
+export function sinkNpcShip(system, shipId, clockMinutes) {
+  const ship = requiredNpcShip(system, shipId);
+  if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid NPC sinking minute: ${clockMinutes}`);
+  const replacementPort = chooseNpcReplacementPort(system, ship);
+  const yard = system.economy.shipyards?.yards?.get(replacementPort.tileId) || null;
+  const yardSpeed = clamp((yard?.wealthScale || 0.75) + (yard?.famous ? 0.8 : 0), 0.65, 3.4);
+  const delayDays = Math.max(
+    NPC_REPLACEMENT_MIN_DAYS,
+    Math.round(
+      NPC_REPLACEMENT_BASE_DAYS / yardSpeed +
+      hashUnit(`${ship.id}|${ship.portVisits}|replacement-delay`) * NPC_REPLACEMENT_SPREAD_DAYS
+    )
+  );
+  const replacement = {
+    shipId: ship.id,
+    factionId: ship.factionId,
+    role: ship.role,
+    profileId: ship.profileId,
+    mode: ship.mode,
+    slugs: ship.slugs.slice(),
+    seed: hashString32(`${ship.seed}|${ship.portVisits}|replacement`),
+    originPortId: replacementPort.tileId,
+    readyMinute: clockMinutes + delayDays * WEATHER_MINUTES_PER_DAY
+  };
+  system.ships = system.ships.filter((entry) => entry.id !== shipId);
+  system.shipById.delete(shipId);
+  system.replacementQueue.push(replacement);
+  system.replacementQueue.sort((a, b) => a.readyMinute - b.readyMinute || a.shipId.localeCompare(b.shipId));
+  return { ship, replacement, delayDays, port: replacementPort };
 }
 
 export function surrenderNpcShip(system, loserId, winnerId = null, { preserveHull = false } = {}) {
@@ -498,6 +534,89 @@ function createNpcFleet(system, startMinute) {
     }
   }
   return ships.slice(0, NPC_FLEET_TARGET);
+}
+
+function spawnDueNpcReplacements(system, clockMinutes) {
+  let changed = false;
+  while (system.replacementQueue.length > 0 && system.replacementQueue[0].readyMinute <= clockMinutes) {
+    const replacement = system.replacementQueue.shift();
+    if (system.shipById.has(replacement.shipId)) {
+      throw new Error(`NPC replacement id is already active: ${replacement.shipId}`);
+    }
+    const origin = system.ports.find((port) => port.tileId === replacement.originPortId);
+    if (!origin) throw new Error(`NPC replacement port is missing: ${replacement.originPortId}`);
+    const slug = weightedCheapShipSlug(replacement.slugs, replacement.seed);
+    const stats = shipStatsForSlug(slug);
+    const ship = {
+      id: replacement.shipId,
+      factionId: replacement.factionId,
+      role: replacement.role,
+      profileId: replacement.profileId,
+      mode: replacement.mode,
+      slugs: replacement.slugs.slice(),
+      slug,
+      seed: replacement.seed,
+      hitPoints: stats.hitPoints,
+      maxHitPoints: stats.hitPoints,
+      cargoCapacity: stats.cargoCapacity,
+      cargo: {},
+      cargoCost: {},
+      specie: npcStartingSpecieForRole(replacement.role, stats),
+      lifetimeProfit: 0,
+      portVisits: 0,
+      graceUntilPortVisit: 0,
+      seekingHideout: false,
+      hideoutDestinationTileId: null,
+      hiddenAtHideout: false,
+      hiddenUntilMinute: 0,
+      hideoutCooldownUntilPortVisit: 0,
+      currentPort: origin,
+      finalDestination: null,
+      plan: null,
+      clockOffsetMinutes: 0,
+      visualNavigation: null
+    };
+    assignNpcPlan(system, ship, replacement.readyMinute);
+    settleNpcShipToClock(system, ship, clockMinutes, 96);
+    system.ships.push(ship);
+    system.shipById.set(ship.id, ship);
+    changed = true;
+  }
+  return changed;
+}
+
+function chooseNpcReplacementPort(system, ship) {
+  if (ship.role === NPC_ROLE_PIRATE) {
+    const hideouts = [...system.pirateHideouts].sort((a, b) => (
+      distanceKm(ship.currentPort, a) - distanceKm(ship.currentPort, b) || a.tileId - b.tileId
+    ));
+    if (hideouts.length > 0) return hideouts[0];
+  }
+  const profileSpec = FLEET_PROFILES.find((profile) => profile.id === ship.profileId);
+  let candidates = system.ports.filter((port) => (
+    !port.isFishingGround &&
+    port.factionId === ship.factionId &&
+    (!profileSpec || profileSpec.portPredicate(port))
+  ));
+  if (candidates.length === 0) {
+    candidates = system.ports.filter((port) => !port.isFishingGround && port.factionId === ship.factionId);
+  }
+  if (candidates.length === 0) {
+    candidates = system.ports.filter((port) => !port.isFishingGround && port.factionId === NEUTRAL_FACTION_ID);
+  }
+  if (candidates.length === 0) throw new Error(`No replacement shipyard for NPC ship ${ship.id}`);
+  return [...candidates].sort((a, b) => (
+    npcReplacementPortScore(system, b, ship) - npcReplacementPortScore(system, a, ship) ||
+    a.tileId - b.tileId
+  ))[0];
+}
+
+function npcReplacementPortScore(system, port, ship) {
+  const yard = system.economy.shipyards?.yards?.get(port.tileId);
+  const shipbuilding = (yard?.wealthScale || 0.5) + (yard?.famous ? 1.2 : 0);
+  const distancePenalty = distanceKm(ship.currentPort, port) / 5000;
+  const variation = hashUnit(`${ship.id}|${port.tileId}|replacement-port`) * 0.2;
+  return shipbuilding - distancePenalty + variation;
 }
 
 function npcRoleForSeed(seed, originFactionId, profileMode) {
@@ -1646,4 +1765,8 @@ function hashString32(value) {
     hash = Math.imul(hash, 0x01000193);
   }
   return hash >>> 0;
+}
+
+function hashUnit(value) {
+  return hashString32(value) / 0x100000000;
 }

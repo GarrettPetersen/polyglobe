@@ -118,6 +118,7 @@ function stats(
   if (seaworthiness > 10) throw new Error(`Invalid ${slug}.seaworthiness: ${seaworthiness}`);
 
   const hitPoints = Math.max(3, Math.round(mass / SHIP_MASS_PER_HIT_POINT));
+  const crewCapacity = Math.max(2, Math.round(mass / 12 + cannons * 0.75));
   return Object.freeze({
     slug,
     cannons,
@@ -127,6 +128,7 @@ function stats(
     upwindStallAngleRad: upwindStallAngleDeg * DEG_TO_RAD,
     turnRateRad,
     mass,
+    crewCapacity,
     hitPoints,
     cargoCapacity,
     seaworthiness

@@ -13,6 +13,7 @@ import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
   SHIP_PAPERS_ROWS_PER_PAGE,
   createShipInfoView,
+  createShipyardShipView,
   shipInfoCargoPage,
   shipLedgerDateLabel,
   shipLedgerPage,
@@ -51,6 +52,19 @@ test("ship information uses live hull, currency, stats, and cargo", () => {
     ["grain", 2],
     ["wine", 1]
   ]);
+});
+
+test("shipyard previews expose the full vessel specification", () => {
+  const view = createShipyardShipView("galleon");
+
+  assert.equal(view.label, "Galleon");
+  assert.equal(view.hull, view.maxHull);
+  assert.equal(view.cannons, view.maxCannons);
+  assert.equal(view.crew, view.crewCapacity);
+  assert.ok(view.cargoCapacity > 0);
+  assert.ok(view.upwindStallAngleDeg > 0);
+  assert.ok(view.seaworthiness > 0);
+  assert.deepEqual(Object.keys(view.ratings), ["speed", "acceleration", "turning", "windward"]);
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {

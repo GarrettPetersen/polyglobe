@@ -17,6 +17,16 @@ import {
   assertFactionId,
   diplomacyBetween
 } from "./factions.js";
+import {
+  CANNON_RESTOCK_COST,
+  CREW_HIRE_COST,
+  FOOD_PERSON_DAYS_PER_UNIT,
+  WATER_PERSON_DAYS_PER_UNIT,
+  WATER_RESTOCK_COST,
+  crewHoldSpace,
+  shipLoadoutPlan
+} from "./shipLoadouts.js";
+import { shipLabelForSlug } from "./shipStats.js";
 
 export const STARTING_DOUBLOONS = 360;
 export const REPUTATION_MIN = -100;
@@ -50,18 +60,26 @@ export const SHIP_ITEM_CATALOG = Object.freeze([
   })
 ]);
 
-export function createGameState({ cargoCapacity, startMinute = 0, playerCharacter = null }) {
+export function createGameState({ cargoCapacity, startMinute = 0, playerCharacter = null, shipStats = null }) {
   assertCargoCapacity(cargoCapacity);
   assertSimulationMinute(startMinute);
   if (playerCharacter !== null) assertPlayerCharacter(playerCharacter);
+  if (shipStats !== null && shipStats.cargoCapacity !== cargoCapacity) {
+    throw new Error(`Ship cargo capacity mismatch: state=${cargoCapacity} stats=${shipStats.cargoCapacity}`);
+  }
   const playerFactionId = playerCharacter?.nationalityId || null;
   return {
-    version: 4,
+    version: 5,
     playerCharacter,
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
     cargo: {},
-    survival: createSurvivalState(startMinute),
+    ship: shipStats === null ? null : createPlayerShipState(shipStats),
+    survival: createSurvivalState(
+      startMinute,
+      shipStats === null ? FRESH_WATER_CAPACITY : 1,
+      shipStats === null ? FRESH_WATER_CAPACITY : 0
+    ),
     inventory: {
       items: {
         [SHIP_ITEM_FISHING_NET]: 1
@@ -163,6 +181,63 @@ export function setCargoCapacity(state, cargoCapacity) {
   state.cargoCapacity = cargoCapacity;
 }
 
+export function setPlayerShipStats(state, stats) {
+  assertGameState(state);
+  if (!state.ship) throw new Error("Cannot change stats without player ship state");
+  const previous = {
+    cargoCapacity: state.cargoCapacity,
+    ship: { ...state.ship },
+    freshWater: state.survival.freshWater,
+    freshWaterCapacity: state.survival.freshWaterCapacity,
+    hardtack: state.cargo[HARDTACK_GOOD_ID] || 0,
+    hardtackBasis: state.accounts.cargoCostBasis[HARDTACK_GOOD_ID]
+  };
+  const loadoutId = state.ship.loadoutId || "short-haul";
+  const plan = shipLoadoutPlan(stats, loadoutId);
+  state.ship.crewCapacity = stats.crewCapacity;
+  state.ship.cannonCapacity = stats.cannons;
+  state.ship.crew = Math.min(state.ship.crew, plan.crew);
+  state.ship.cannons = Math.min(state.ship.cannons, plan.cannons);
+  state.ship.loadoutTargets = plan;
+  state.survival.freshWaterCapacity = plan.waterUnits;
+  state.survival.freshWater = Math.min(state.survival.freshWater, plan.waterUnits);
+  trimCargoQuantity(state, HARDTACK_GOOD_ID, plan.foodUnits);
+  if (cargoUsed(state) > stats.cargoCapacity) {
+    state.cargoCapacity = previous.cargoCapacity;
+    state.ship = previous.ship;
+    state.survival.freshWater = previous.freshWater;
+    state.survival.freshWaterCapacity = previous.freshWaterCapacity;
+    if (previous.hardtack > 0) state.cargo[HARDTACK_GOOD_ID] = previous.hardtack;
+    else delete state.cargo[HARDTACK_GOOD_ID];
+    if (previous.hardtackBasis === undefined) delete state.accounts.cargoCostBasis[HARDTACK_GOOD_ID];
+    else state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] = previous.hardtackBasis;
+    throw new Error(`Cannot switch to cargo capacity ${stats.cargoCapacity}; current hold will not fit`);
+  }
+  state.cargoCapacity = stats.cargoCapacity;
+  return plan;
+}
+
+export function purchasePlayerShip(state, city, stats, price, context = {}) {
+  assertGameState(state);
+  if (!stats || typeof stats.slug !== "string") throw new Error("Ship purchase requires valid ship stats");
+  if (!Number.isInteger(price) || price <= 0) throw new Error(`Invalid ship purchase price: ${price}`);
+  if (state.doubloons < price) throw new Error(`Not enough doubloons to buy ${shipLabelForSlug(stats.slug)}`);
+  const plan = setPlayerShipStats(state, stats);
+  state.doubloons -= price;
+  const label = shipLabelForSlug(stats.slug);
+  recordDecision(state, `ship.purchase.${cityKey(city)}.${stats.slug}`, 1);
+  recordLedgerEntry(state, city, context, {
+    kind: "ship",
+    description: `Purchase ${label}`,
+    goodId: null,
+    quantity: 1,
+    amount: -price,
+    costBasis: price,
+    pnl: null
+  });
+  return { slug: stats.slug, label, price, plan };
+}
+
 export function cargoUsed(state) {
   assertGameState(state);
   let used = 0;
@@ -170,6 +245,11 @@ export function cargoUsed(state) {
     const good = goodById(goodId);
     assertQuantity(quantity, `cargo.${goodId}`);
     used += good.unitSize * quantity;
+  }
+  if (state.ship) {
+    used += crewHoldSpace(state.ship.crew);
+    used += state.ship.cannons;
+    used += Math.ceil(state.survival.freshWater);
   }
   return used;
 }
@@ -234,11 +314,19 @@ export function cargoRows(state) {
 export function survivalStatus(state) {
   assertGameState(state);
   const foodUnits = edibleCargoRows(state).reduce((total, row) => total + row.quantity, 0);
-  const foodDays = foodUnits / FOOD_UNITS_PER_DAY;
-  const freshWaterCaskDays = state.survival.freshWater / FRESH_WATER_USE_PER_DAY;
-  const freshWaterReserveUnits = state.cargo[FRESH_WATER_GOOD_ID] || 0;
-  const freshWaterReserveDays = freshWaterReserveUnits * FRESH_WATER_CARGO_DAYS;
+  const consumption = shipConsumption(state);
+  const foodDays = state.ship
+    ? foodUnits * FOOD_PERSON_DAYS_PER_UNIT / consumption.foodConsumers
+    : foodUnits / FOOD_UNITS_PER_DAY;
+  const freshWaterCaskDays = state.ship
+    ? state.survival.freshWater * WATER_PERSON_DAYS_PER_UNIT / consumption.waterConsumers
+    : state.survival.freshWater / FRESH_WATER_USE_PER_DAY;
+  const freshWaterReserveUnits = state.ship ? 0 : state.cargo[FRESH_WATER_GOOD_ID] || 0;
+  const freshWaterReserveDays = state.ship ? 0 : freshWaterReserveUnits * FRESH_WATER_CARGO_DAYS;
   const freshWaterDays = freshWaterCaskDays + freshWaterReserveDays;
+  const targetDays = state.ship?.loadoutTargets
+    ? Math.max(1, Math.min(state.ship.loadoutTargets.foodDays, state.ship.loadoutTargets.waterDays))
+    : FOOD_TARGET_DAYS;
   return {
     freshWater: state.survival.freshWater,
     freshWaterCapacity: state.survival.freshWaterCapacity,
@@ -246,13 +334,133 @@ export function survivalStatus(state) {
     freshWaterCaskDays,
     freshWaterReserveUnits,
     freshWaterReserveDays,
-    freshWaterTargetDays: FRESH_WATER_DAYS,
-    freshWaterFraction: clamp01(freshWaterDays / FRESH_WATER_DAYS),
+    freshWaterTargetDays: state.ship?.loadoutTargets?.waterDays || FRESH_WATER_DAYS,
+    freshWaterFraction: clamp01(freshWaterDays / (state.ship?.loadoutTargets?.waterDays || FRESH_WATER_DAYS)),
     foodUnits,
     foodDays,
-    foodFraction: clamp01(foodDays / FOOD_TARGET_DAYS),
+    foodFraction: clamp01(foodDays / targetDays),
     foodDebt: state.survival.foodDebt,
-    foodTargetDays: FOOD_TARGET_DAYS
+    foodTargetDays: state.ship?.loadoutTargets?.foodDays || FOOD_TARGET_DAYS,
+    consumers: consumption
+  };
+}
+
+export function initializeProvisionalShipLoadout(state, stats) {
+  assertGameState(state);
+  requirePlayerShipState(state, stats);
+  const plan = shipLoadoutPlan(stats, "short-haul");
+  state.ship.loadoutId = null;
+  state.ship.loadoutTargets = plan;
+  state.ship.crew = plan.crew;
+  state.ship.cannons = plan.cannons;
+  state.survival.freshWaterCapacity = plan.waterUnits;
+  state.survival.freshWater = plan.waterUnits;
+  state.cargo[HARDTACK_GOOD_ID] = plan.foodUnits;
+  state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] = plan.foodUnits * tradeGoodById(HARDTACK_GOOD_ID).basePrice;
+  recordDecision(state, "loadout.provisional.short-haul", 1);
+  return plan;
+}
+
+export function restockShipLoadoutAtPort(state, city, stats, loadoutId, context = {}) {
+  assertGameState(state);
+  requirePlayerShipState(state, stats);
+  const plan = shipLoadoutPlan(stats, loadoutId);
+  const hardtack = tradeGoodById(HARDTACK_GOOD_ID);
+  const before = shipStoresSnapshot(state);
+
+  state.ship.loadoutId = plan.id;
+  state.ship.loadoutTargets = plan;
+  state.ship.crew = Math.min(state.ship.crew, plan.crew);
+  state.ship.cannons = Math.min(state.ship.cannons, plan.cannons);
+  trimCargoQuantity(state, HARDTACK_GOOD_ID, plan.foodUnits);
+  state.survival.freshWaterCapacity = plan.waterUnits;
+  state.survival.freshWater = Math.min(state.survival.freshWater, plan.waterUnits);
+
+  let spent = 0;
+  const additions = { crew: 0, cannons: 0, food: 0, water: 0 };
+  const priorities = plan.id === "combat"
+    ? ["crew", "cannons", "water", "food"]
+    : ["crew", "water", "food", "cannons"];
+  for (const kind of priorities) {
+    const result = restockLoadoutKind(state, plan, kind, hardtack);
+    spent += result.spent;
+    additions[kind] += result.quantity;
+  }
+
+  if (spent > 0) {
+    recordLedgerEntry(state, city, context, {
+      kind: "provision",
+      description: `${plan.label} loadout restock`,
+      goodId: null,
+      quantity: additions.crew + additions.cannons + additions.food + additions.water,
+      amount: -spent,
+      costBasis: null,
+      pnl: null
+    });
+  }
+  recordDecision(state, `loadout.select.${plan.id}`, 1);
+  const after = shipStoresSnapshot(state);
+  return {
+    plan,
+    spent,
+    additions,
+    removed: {
+      crew: Math.max(0, before.crew - after.crew + additions.crew),
+      cannons: Math.max(0, before.cannons - after.cannons + additions.cannons),
+      food: Math.max(0, before.food - after.food + additions.food),
+      water: Math.max(0, before.water - after.water + additions.water)
+    },
+    shortfalls: loadoutShortfalls(state, plan)
+  };
+}
+
+export function restockSelectedShipLoadoutAtPort(state, city, stats, context = {}) {
+  assertGameState(state);
+  if (!state.ship?.loadoutId) return null;
+  return restockShipLoadoutAtPort(state, city, stats, state.ship.loadoutId, context);
+}
+
+export function loseCrew(state, requestedLoss) {
+  assertGameState(state);
+  if (!Number.isInteger(requestedLoss) || requestedLoss < 0) {
+    throw new Error(`Invalid crew loss: ${requestedLoss}`);
+  }
+  if (!state.ship || requestedLoss === 0) return 0;
+  const lost = Math.min(state.ship.crew, requestedLoss);
+  state.ship.crew -= lost;
+  if (lost > 0) recordDecision(state, "crew.lost", lost);
+  return lost;
+}
+
+export function rollCrewCasualtiesForDamage(state, damage, random = Math.random) {
+  assertGameState(state);
+  if (!Number.isFinite(damage) || damage < 0) throw new Error(`Invalid hull damage: ${damage}`);
+  if (!state.ship || state.ship.crew <= 0 || damage <= 0) return 0;
+  const chance = Math.min(0.65, damage * 0.07);
+  if (random() >= chance) return 0;
+  const maximumLoss = Math.max(1, Math.ceil(damage / 2));
+  return loseCrew(state, 1 + Math.floor(random() * maximumLoss));
+}
+
+export function shipConsumption(state) {
+  assertGameState(state);
+  if (!state.ship) {
+    return { crew: 0, passengers: 0, livestock: 0, foodConsumers: 1, waterConsumers: 1 };
+  }
+  const quest = state.memory.quests?.active || null;
+  const passengers = quest?.kind === "passenger"
+    ? 1
+    : Math.max(0, Number(quest?.passengerCount || quest?.passengers?.length || 0));
+  const livestock = Math.max(0, Number(quest?.livestockCount || quest?.livestock?.count || 0));
+  const baseConsumers = 1 + state.ship.crew + passengers;
+  const questFood = Math.max(0, Number(quest?.consumption?.food || 0));
+  const questWater = Math.max(0, Number(quest?.consumption?.water || 0));
+  return {
+    crew: state.ship.crew,
+    passengers,
+    livestock,
+    foodConsumers: Math.max(1, baseConsumers + livestock * 2 + questFood),
+    waterConsumers: Math.max(1, baseConsumers + livestock * 2 + questWater)
   };
 }
 
@@ -343,8 +551,12 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   }
 
   const elapsedDays = elapsedMinutes / MINUTES_PER_DAY;
+  const consumption = shipConsumption(state);
   if (!options.freshwater) {
-    const water = consumeFreshWater(state, elapsedDays * FRESH_WATER_USE_PER_DAY);
+    const waterUse = state.ship
+      ? elapsedDays * consumption.waterConsumers / WATER_PERSON_DAYS_PER_UNIT
+      : elapsedDays * FRESH_WATER_USE_PER_DAY;
+    const water = consumeFreshWater(state, waterUse, !state.ship);
     result.waterConsumed = water.waterConsumed;
     result.waterCargoConsumed = water.cargoConsumed;
     if (water.changed) {
@@ -353,7 +565,9 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     if (water.dehydrated) result.dehydrated = true;
   }
 
-  state.survival.foodDebt += elapsedDays * FOOD_UNITS_PER_DAY;
+  state.survival.foodDebt += state.ship
+    ? elapsedDays * consumption.foodConsumers / FOOD_PERSON_DAYS_PER_UNIT
+    : elapsedDays * FOOD_UNITS_PER_DAY;
   while (state.survival.foodDebt >= 1) {
     const consumed = consumeCheapestFoodUnit(state);
     if (!consumed) {
@@ -742,13 +956,117 @@ export function cityLabel(city) {
   return city.displayCity || city.city;
 }
 
-function createSurvivalState(startMinute) {
+function createPlayerShipState(stats) {
   return {
-    freshWater: FRESH_WATER_CAPACITY,
-    freshWaterCapacity: FRESH_WATER_CAPACITY,
+    loadoutId: null,
+    loadoutTargets: null,
+    crew: 0,
+    crewCapacity: stats.crewCapacity,
+    cannons: 0,
+    cannonCapacity: stats.cannons
+  };
+}
+
+function createSurvivalState(startMinute, freshWaterCapacity = FRESH_WATER_CAPACITY, freshWater = freshWaterCapacity) {
+  return {
+    freshWater,
+    freshWaterCapacity,
     foodDebt: 0,
     lastMinute: startMinute
   };
+}
+
+function restockLoadoutKind(state, plan, kind, hardtack) {
+  let spent = 0;
+  let quantity = 0;
+  if (kind === "crew") {
+    while (state.ship.crew < plan.crew) {
+      const nextCrew = state.ship.crew + 1;
+      const space = crewHoldSpace(nextCrew) - crewHoldSpace(state.ship.crew);
+      if (state.doubloons < CREW_HIRE_COST || cargoFree(state) < space) break;
+      state.ship.crew = nextCrew;
+      state.doubloons -= CREW_HIRE_COST;
+      spent += CREW_HIRE_COST;
+      quantity += 1;
+    }
+  } else if (kind === "cannons") {
+    while (state.ship.cannons < plan.cannons) {
+      if (state.doubloons < CANNON_RESTOCK_COST || cargoFree(state) < 1) break;
+      state.ship.cannons += 1;
+      state.doubloons -= CANNON_RESTOCK_COST;
+      spent += CANNON_RESTOCK_COST;
+      quantity += 1;
+    }
+  } else if (kind === "food") {
+    while ((state.cargo[HARDTACK_GOOD_ID] || 0) < plan.foodUnits) {
+      if (state.doubloons < hardtack.basePrice || cargoFree(state) < hardtack.unitSize) break;
+      state.cargo[HARDTACK_GOOD_ID] = (state.cargo[HARDTACK_GOOD_ID] || 0) + 1;
+      state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] = roundLedgerMoney(
+        (state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] || 0) + hardtack.basePrice
+      );
+      state.doubloons -= hardtack.basePrice;
+      spent += hardtack.basePrice;
+      quantity += 1;
+    }
+  } else if (kind === "water") {
+    while (state.survival.freshWater < plan.waterUnits) {
+      const added = Math.min(1, plan.waterUnits - state.survival.freshWater);
+      const space = Math.ceil(state.survival.freshWater + added) - Math.ceil(state.survival.freshWater);
+      if (state.doubloons < WATER_RESTOCK_COST || cargoFree(state) < space) break;
+      state.survival.freshWater += added;
+      state.doubloons -= WATER_RESTOCK_COST;
+      spent += WATER_RESTOCK_COST;
+      quantity += added;
+    }
+  } else {
+    throw new Error(`Unknown loadout restock kind: ${kind}`);
+  }
+  return { spent, quantity };
+}
+
+function trimCargoQuantity(state, goodId, maximumQuantity) {
+  const held = state.cargo[goodId] || 0;
+  if (held <= maximumQuantity) return 0;
+  const removed = held - maximumQuantity;
+  const basis = cargoCostBasis(state, goodId);
+  if (maximumQuantity > 0) {
+    state.cargo[goodId] = maximumQuantity;
+    if (basis.known) {
+      state.accounts.cargoCostBasis[goodId] = roundLedgerMoney(basis.total * maximumQuantity / held);
+    }
+  } else {
+    delete state.cargo[goodId];
+    delete state.accounts.cargoCostBasis[goodId];
+  }
+  return removed;
+}
+
+function shipStoresSnapshot(state) {
+  return {
+    crew: state.ship?.crew || 0,
+    cannons: state.ship?.cannons || 0,
+    food: state.cargo[HARDTACK_GOOD_ID] || 0,
+    water: state.survival.freshWater
+  };
+}
+
+function loadoutShortfalls(state, plan) {
+  return {
+    crew: Math.max(0, plan.crew - state.ship.crew),
+    cannons: Math.max(0, plan.cannons - state.ship.cannons),
+    food: Math.max(0, plan.foodUnits - (state.cargo[HARDTACK_GOOD_ID] || 0)),
+    water: Math.max(0, plan.waterUnits - state.survival.freshWater)
+  };
+}
+
+function requirePlayerShipState(state, stats) {
+  if (!state.ship) throw new Error("Ship loadouts require player ship state");
+  if (!stats || stats.cargoCapacity !== state.cargoCapacity) {
+    throw new Error("Ship loadout stats do not match game state");
+  }
+  if (state.ship.crewCapacity !== stats.crewCapacity || state.ship.cannonCapacity !== stats.cannons) {
+    throw new Error("Ship loadout capacities do not match game state");
+  }
 }
 
 function edibleCargoRows(state) {
@@ -799,7 +1117,7 @@ function consumeCheapestFoodUnit(state) {
   };
 }
 
-function consumeFreshWater(state, waterUse) {
+function consumeFreshWater(state, waterUse, allowCargoReserve = true) {
   let remainingUse = Math.max(0, waterUse);
   let waterConsumed = 0;
   let cargoConsumed = 0;
@@ -813,7 +1131,7 @@ function consumeFreshWater(state, waterUse) {
     changed = true;
   }
 
-  while (remainingUse > 1e-8 && (state.cargo[FRESH_WATER_GOOD_ID] || 0) > 0) {
+  while (allowCargoReserve && remainingUse > 1e-8 && (state.cargo[FRESH_WATER_GOOD_ID] || 0) > 0) {
     const unit = consumeCargoUnit(state, FRESH_WATER_GOOD_ID);
     if (!unit) break;
     cargoConsumed += 1;
@@ -942,6 +1260,7 @@ function assertGameState(state) {
   }
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
   ensureSurvivalState(state);
+  if (state.ship !== null && state.ship !== undefined) assertPlayerShipState(state.ship);
   if (!state.inventory || typeof state.inventory !== "object") {
     state.inventory = { items: {} };
   }
@@ -975,6 +1294,18 @@ function assertGameState(state) {
   }
   if (!Number.isFinite(cumulativeLongitudeDeg)) {
     throw new Error(`Invalid cumulative navigation longitude: ${cumulativeLongitudeDeg}`);
+  }
+}
+
+function assertPlayerShipState(ship) {
+  if (!ship || typeof ship !== "object") throw new Error("Invalid player ship state");
+  for (const key of ["crew", "crewCapacity", "cannons", "cannonCapacity"]) {
+    if (!Number.isInteger(ship[key]) || ship[key] < 0) throw new Error(`Invalid ship ${key}: ${ship[key]}`);
+  }
+  if (ship.crew > ship.crewCapacity) throw new Error("Player crew exceeds ship capacity");
+  if (ship.cannons > ship.cannonCapacity) throw new Error("Player cannons exceed ship capacity");
+  if (ship.loadoutId !== null && typeof ship.loadoutId !== "string") {
+    throw new Error(`Invalid ship loadout id: ${ship.loadoutId}`);
   }
 }
 

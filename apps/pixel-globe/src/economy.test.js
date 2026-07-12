@@ -25,6 +25,9 @@ import {
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000);
 const GOA = port(2, "Goa", "India", "south-asian", 60000);
+const TERNATE = port(3, "Ternate", "Spice Islands", "southeast-asian", 45000);
+const GUANGZHOU = port(4, "Guangzhou", "Ming", "east-asian", 100000);
+const VERACRUZ = port(5, "Veracruz", "New Spain", "mesoamerican", 50000);
 
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
@@ -69,6 +72,47 @@ test("regional production creates comparative advantage and profitable merchant 
   assert.ok(plan.expectedProfit > 0);
   assert.ok(plan.lines.some((line) => line.goodId === "wool"));
   assert.ok(plan.cargoUnits <= 100);
+});
+
+test("spice-island cargo commands transformative prices in Europe", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, TERNATE], startMinute: 0 });
+  const london = marketByGood(economy, LONDON);
+  const ternate = marketByGood(economy, TERNATE);
+
+  assert.ok(london.get("spices").sellPrice >= ternate.get("spices").buyPrice * 3);
+  assert.ok(london.get("pepper").sellPrice >= ternate.get("pepper").buyPrice * 3);
+
+  const tradePlan = planNpcTrade(economy, TERNATE, LONDON, { cargoCapacity: 20, specie: 10000 });
+  assert.ok(tradePlan.expectedProfit >= 2000);
+  assert.ok(tradePlan.lines.some((line) => line.goodId === "spices"));
+
+  const quantity = Math.min(10, ternate.get("spices").stock);
+  const purchase = executePortSale(economy, TERNATE, "spices", quantity);
+  const sale = executePortPurchase(economy, LONDON, "spices", quantity);
+  assert.ok(sale.total >= purchase.total * 2.5);
+  assert.ok(sale.total - purchase.total >= 1000);
+});
+
+test("other long-haul prestige goods support profitable world-spanning routes", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, GUANGZHOU, VERACRUZ], startMinute: 0 });
+  const london = marketByGood(economy, LONDON);
+  const guangzhou = marketByGood(economy, GUANGZHOU);
+  const veracruz = marketByGood(economy, VERACRUZ);
+
+  assert.ok(london.get("porcelain").sellPrice >= guangzhou.get("porcelain").buyPrice * 2.5);
+  assert.ok(london.get("silk").sellPrice >= guangzhou.get("silk").buyPrice * 2);
+  assert.ok(veracruz.get("arms").sellPrice >= london.get("arms").buyPrice * 1.5);
+});
+
+test("every market preserves a spread against same-port arbitrage", () => {
+  const ports = [LONDON, GOA, TERNATE, GUANGZHOU, VERACRUZ];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  for (const city of ports) {
+    for (const row of portMarket(economy, city)) {
+      if (!row.sellable) continue;
+      assert.ok(row.sellPrice < row.buyPrice, `${city.city} ${row.good.label}`);
+    }
+  }
 });
 
 test("player trades transfer finite stock and specie between the player and ports", () => {

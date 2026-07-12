@@ -1,16 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { broadsideLaneGeometry, pointInBroadsideLane } from "./broadsideControls.js";
+import {
+  broadsideArcGeometry,
+  hasBroadsideCannons,
+  pointInBroadsideArc
+} from "./broadsideControls.js";
 
-test("broadside lanes extend from the correct side of a northbound ship", () => {
-  const starboard = broadsideLaneGeometry({
+test("broadside arcs extend from the correct side of a northbound ship", () => {
+  const starboard = broadsideArcGeometry({
     screenWidth: 455,
     screenHeight: 256,
     heading: { x: 0, y: -1 },
     sideName: "starboard",
     range: 60
   });
-  const port = broadsideLaneGeometry({
+  const port = broadsideArcGeometry({
     screenWidth: 455,
     screenHeight: 256,
     heading: { x: 0, y: -1 },
@@ -20,20 +24,40 @@ test("broadside lanes extend from the correct side of a northbound ship", () => 
 
   assert.deepEqual(starboard.direction, { x: 1, y: 0 });
   assert.deepEqual(port.direction, { x: -1, y: 0 });
-  assert.equal(pointInBroadsideLane({ x: 270, y: 128 }, starboard), true);
-  assert.equal(pointInBroadsideLane({ x: 185, y: 128 }, starboard), false);
-  assert.equal(pointInBroadsideLane({ x: 185, y: 128 }, port), true);
+  assert.equal(pointInBroadsideArc({ x: 270, y: 128 }, starboard), true);
+  assert.equal(pointInBroadsideArc({ x: 185, y: 128 }, starboard), false);
+  assert.equal(pointInBroadsideArc({ x: 185, y: 128 }, port), true);
 });
 
-test("broadside hit testing includes a touch pad outside the visible lane", () => {
-  const lane = broadsideLaneGeometry({
+test("broadside arcs widen away from the hull and reject bow-on taps", () => {
+  const arc = broadsideArcGeometry({
+    screenWidth: 455,
+    screenHeight: 256,
+    heading: { x: 0, y: -1 },
+    sideName: "starboard",
+    range: 60
+  });
+
+  assert.equal(pointInBroadsideArc({ x: 282, y: 110 }, arc), true);
+  assert.equal(pointInBroadsideArc({ x: 228, y: 70 }, arc), false);
+  assert.equal(pointInBroadsideArc({ x: 282, y: 92 }, arc), false);
+});
+
+test("broadside hit testing includes a touch pad outside the visible arc", () => {
+  const arc = broadsideArcGeometry({
     screenWidth: 256,
     screenHeight: 455,
     heading: { x: 1, y: 0 },
     sideName: "starboard",
     range: 52
   });
-  const nearEdge = { x: 128, y: 239 };
-  assert.equal(pointInBroadsideLane(nearEdge, lane), false);
-  assert.equal(pointInBroadsideLane(nearEdge, lane, 5), true);
+  const nearOuterEdge = { x: 128, y: 295 };
+  assert.equal(pointInBroadsideArc(nearOuterEdge, arc), false);
+  assert.equal(pointInBroadsideArc(nearOuterEdge, arc, 5), true);
+});
+
+test("broadside controls require at least one cannon", () => {
+  assert.equal(hasBroadsideCannons(0), false);
+  assert.equal(hasBroadsideCannons(1), true);
+  assert.equal(hasBroadsideCannons(12), true);
 });

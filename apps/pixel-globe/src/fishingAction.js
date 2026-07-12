@@ -23,11 +23,11 @@ export function fishingAnimationState(startMs, nowMs) {
   };
 }
 
-export function fishingCatchChance(density, overfished = false) {
-  if (!Number.isFinite(density) || density < 0) {
-    throw new Error(`Invalid fishery density: ${density}`);
+export function fishingCatchChance(visibleFishCount) {
+  if (!Number.isInteger(visibleFishCount) || visibleFishCount <= 0) {
+    throw new Error(`Invalid visible fish count: ${visibleFishCount}`);
   }
-  return clamp(0.3 + Math.min(1, density) * 0.52 - (overfished ? 0.1 : 0), 0.2, 0.82);
+  return clamp(0.16 + Math.min(8, visibleFishCount) * 0.0825, 0.24, 0.82);
 }
 
 export function fishingCatchSucceeds(randomValue, chance) {
@@ -38,6 +38,13 @@ export function fishingCatchSucceeds(randomValue, chance) {
     throw new Error(`Invalid fishing catch chance: ${chance}`);
   }
   return randomValue < chance;
+}
+
+export function canStartFishing(freeCargoSpace) {
+  if (!Number.isFinite(freeCargoSpace)) {
+    throw new Error(`Invalid free cargo space: ${freeCargoSpace}`);
+  }
+  return freeCargoSpace > 0;
 }
 
 export function fishingSideForTarget(shipX, targetX) {

@@ -81,7 +81,7 @@ export function fisheryForHabitat(gameState, habitat, simMinute) {
     density,
     population: Math.floor(stock.population),
     capacity: stock.capacity,
-    visibleIndividualCount: visibleFishIndividualCount(speciesDef, density),
+    visibleIndividualCount: visibleFishCountForDensity(density),
     areaRadiusPx: fisheryAreaRadiusPx(normalHabitat.kind, speciesDef),
     overfished: density < 0.28,
     colors: speciesDef.colors,
@@ -192,10 +192,11 @@ function fisheryStockForHabitat(memory, habitat, speciesDef, simMinute) {
   return stock;
 }
 
-function visibleFishIndividualCount(speciesDef, density) {
-  const densityCount = Math.round(1 + density * 4);
-  const schoolingBonus = speciesDef.id === "herring" || speciesDef.id === "sardine" ? 1 : 0;
-  return Math.max(1, Math.min(6, densityCount + schoolingBonus));
+export function visibleFishCountForDensity(density) {
+  if (!Number.isFinite(density) || density < 0) {
+    throw new Error(`Invalid fishery density: ${density}`);
+  }
+  return Math.max(1, Math.min(8, Math.round(1 + Math.min(1, density) * 7)));
 }
 
 function fisheryAreaRadiusPx(habitatKind, speciesDef) {

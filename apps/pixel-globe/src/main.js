@@ -53,8 +53,6 @@ import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
-  autoProvisionFreshWaterAtPort,
-  autoProvisionHardtackAtPort,
   cargoFree,
   cargoUsed,
   createGameState,
@@ -63,13 +61,17 @@ import {
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
-  initializeShipProvisions,
+  initializeProvisionalShipLoadout,
+  loseCrew,
   receiveFishCatch,
   receiveSurrenderedLoot,
   recordAttackAgainstFaction,
   recordDiscovery,
   recordPiracyAgainstFaction,
-  setCargoCapacity,
+  restockSelectedShipLoadoutAtPort,
+  rollCrewCasualtiesForDamage,
+  purchasePlayerShip,
+  setPlayerShipStats,
   survivalStatus,
   updateCircumnavigationProgress,
   updateSurvival,
@@ -110,6 +112,7 @@ import {
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
   setNpcShipVisualNavigation,
+  sinkNpcShip,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
   updateNpcSeaRouteSystem
@@ -202,11 +205,13 @@ import {
 import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
 import {
   createShipInfoView,
+  createShipyardShipView,
   shipInfoCargoPage,
   shipLedgerDateLabel,
   shipLedgerPage,
   shipPapersPage
 } from "./shipInfo.js";
+import { claimShipyardListing, shipyardAtPort, shipyardRumorForPort } from "./shipyards.js";
 import {
   MANUAL_CITY_RECORDS_1522,
   selectCityCatalogRecords
@@ -228,6 +233,7 @@ import {
 import {
   FISHING_NET_FRAME_COUNT,
   FISHING_NET_FRAME_SIZE,
+  canStartFishing,
   fishingAnimationState,
   fishingCatchChance,
   fishingCatchSucceeds,
@@ -236,7 +242,7 @@ import {
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 import { gamepadControlFrame } from "./controllerInput.js";
-import { broadsideLaneGeometry, pointInBroadsideLane } from "./broadsideControls.js";
+import { broadsideArcGeometry, hasBroadsideCannons, pointInBroadsideArc } from "./broadsideControls.js";
 
 const BASE_SCREEN_W = 455;
 const BASE_SCREEN_H = 256;
@@ -580,11 +586,11 @@ const PORT_INTERACTION_RADIUS_PX = 34;
 const PORT_DIALOGUE_TRAFFIC_RADIUS_PX = 120;
 const FISH_INTERACTION_RADIUS_PX = 22;
 const PORT_CITY_CLICK_PAD_PX = 3;
-const INTERACTION_BUTTON_W = 110;
-const INTERACTION_BUTTON_H = 19;
+const INTERACTION_BUTTON_W = 136;
+const INTERACTION_BUTTON_H = 28;
 let INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
-let INTERACTION_BUTTON_Y = SCREEN_H - 24;
-const ANCHOR_BUTTON_W = 76;
+let INTERACTION_BUTTON_Y = SCREEN_H - INTERACTION_BUTTON_H - 5;
+const ANCHOR_BUTTON_W = 88;
 const ANCHOR_BUTTON_H = INTERACTION_BUTTON_H;
 let ANCHOR_BUTTON_X = Math.floor((SCREEN_W - ANCHOR_BUTTON_W - 4 - INTERACTION_BUTTON_W) / 2);
 let ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
@@ -607,11 +613,11 @@ const SURVIVAL_NOTICE_MS = 2400;
 const SURVIVAL_DAMAGE_INTERVAL_MINUTES = 12 * 60;
 const SURVIVAL_DEHYDRATION_DAMAGE = 1;
 const SURVIVAL_STARVATION_DAMAGE = 1;
-const DISCOVERIES_BUTTON_SIZE = 13;
+const DISCOVERIES_BUTTON_SIZE = 24;
 let DISCOVERIES_PANEL_W = 300;
 let DISCOVERIES_PANEL_H = 214;
-const SHIP_INFO_BUTTON_SIZE = 13;
-const POLITICS_BUTTON_SIZE = 13;
+const SHIP_INFO_BUTTON_SIZE = 24;
+const POLITICS_BUTTON_SIZE = 24;
 const SHIP_INFO_PANEL_X = 10;
 const SHIP_INFO_PANEL_Y = 8;
 let SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
@@ -622,29 +628,29 @@ let POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
 let POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
 const POLITICS_ROWS_PER_PAGE = 18;
 const POLITICS_MATRIX_CELL_W = 7;
-const POLITICS_MATRIX_ROW_H = 8;
+const POLITICS_MATRIX_ROW_H = 11;
 const SHIP_INFO_SIDE_VIEW_W = 192;
 const SHIP_INFO_SIDE_VIEW_H = 104;
 const DIALOGUE_PORTRAIT_SIZE = 64;
-const DIALOGUE_OPTION_H = 18;
+const DIALOGUE_OPTION_H = 24;
 let PLAYER_INTRO_PANEL_W = 326;
-let PLAYER_INTRO_PANEL_H = 178;
+let PLAYER_INTRO_PANEL_H = 194;
 let PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
 let PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
-const PLAYER_INTRO_BUTTON_W = 116;
-const PLAYER_INTRO_BUTTON_H = 20;
+const PLAYER_INTRO_BUTTON_W = 150;
+const PLAYER_INTRO_BUTTON_H = 28;
 let CAPTAIN_ALERT_PANEL_W = 286;
-const CAPTAIN_ALERT_PANEL_H = 96;
+const CAPTAIN_ALERT_PANEL_H = 110;
 let CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
 let CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
-const CAPTAIN_ALERT_BUTTON_W = 82;
-const CAPTAIN_ALERT_BUTTON_H = 19;
+const CAPTAIN_ALERT_BUTTON_W = 104;
+const CAPTAIN_ALERT_BUTTON_H = 28;
 let START_MENU_PANEL_W = 244;
-const START_MENU_PANEL_H = 178;
+const START_MENU_PANEL_H = 196;
 let START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
 let START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
-const START_MENU_BUTTON_W = 142;
-const START_MENU_BUTTON_H = 24;
+const START_MENU_BUTTON_W = 166;
+const START_MENU_BUTTON_H = 30;
 const START_MENU_BUTTON_GAP = 8;
 const START_MENU_BUTTON_COUNT = 3;
 const START_MENU_ACTION_START = 0;
@@ -686,6 +692,7 @@ const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_MONO = "\"Dogica\", \"zpix\", monospace";
 const PIXEL_FONT_BODY_8 = `8px ${PIXEL_FONT_BODY}`;
 const PIXEL_FONT_UI_8 = `8px ${PIXEL_FONT_UI}`;
+const PIXEL_FONT_UI_10 = `10px ${PIXEL_FONT_UI}`;
 const PIXEL_FONT_MONO_8 = `8px ${PIXEL_FONT_MONO}`;
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
@@ -702,7 +709,7 @@ const MINIMAP_LAND_COLOR = [92, 59, 31];
 const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
-const OPTIONS_BUTTON_SIZE = 19;
+const OPTIONS_BUTTON_SIZE = 27;
 let OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
 let DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
@@ -712,18 +719,17 @@ const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 196;
-const OPTIONS_ROW_H = 28;
-const OPTIONS_ROW_COUNT = 5;
+const OPTIONS_PANEL_H = 192;
+const OPTIONS_ROW_H = 34;
+const OPTIONS_ROW_COUNT = 4;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
-const OPTIONS_ROW_SHIP = 4;
-const UI_ICON_BUTTON_SIZE = 18;
-const UI_PAGER_BUTTON_W = 22;
-const UI_PAGER_BUTTON_H = 18;
-const UI_TAB_H = 18;
+const UI_ICON_BUTTON_SIZE = 24;
+const UI_PAGER_BUTTON_W = 30;
+const UI_PAGER_BUTTON_H = 24;
+const UI_TAB_H = 24;
 const CAPTAIN_MENU_LABELS = Object.freeze([
   "SHIP & LEDGER",
   "POLITICS",
@@ -731,7 +737,7 @@ const CAPTAIN_MENU_LABELS = Object.freeze([
   "OPTIONS"
 ]);
 const CAPTAIN_MENU_PANEL_W = 224;
-const CAPTAIN_MENU_PANEL_H = 214;
+const CAPTAIN_MENU_PANEL_H = 226;
 const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
@@ -1080,7 +1086,7 @@ const grayscalePortraitCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
 let windIndicatorState = null;
-let shipSelectionRequestId = 0;
+let shipyardPurchaseListingId = null;
 let dirty = true;
 let lastFrameMs = performance.now();
 let lastStatusMs = 0;
@@ -1386,13 +1392,20 @@ async function main() {
     ports: portCities,
     startMinute: weatherClockMinutes
   });
+  const activeShipyardListings = [...worldEconomy.shipyards.yards.values()].filter((yard) => yard.listing);
+  console.info(
+    `[pixel-globe] shipyards: ${worldEconomy.shipyards.yards.size} ports, ` +
+    `${activeShipyardListings.length} new vessels listed` +
+    (activeShipyardListings.length > 0
+      ? ` (${activeShipyardListings.map((yard) => `${yard.portName}: ${yard.listing.shipLabel}`).join(", ")})`
+      : "")
+  );
   if (!shipImage || !shipLighting || playerShipSlug !== START_SHIP_SLUG) {
     const playerShipAssets = await loadShipAssetSet(playerShipSlug);
     shipImage = playerShipAssets.image;
     shipLighting = playerShipAssets.lighting;
     shipWakeAnchors = requiredShipWakeAnchors(playerShipSlug);
   }
-  optionsMenu.shipSlug = playerShipSlug;
   portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest, usedCharacterNames);
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
@@ -1437,9 +1450,10 @@ async function main() {
   gameState = createGameState({
     cargoCapacity: ship.cargoCapacity,
     startMinute: weatherClockMinutes,
-    playerCharacter
+    playerCharacter,
+    shipStats: ship.stats
   });
-  initializeShipProvisions(gameState);
+  initializeProvisionalShipLoadout(gameState, ship.stats);
   playerIntroModal = createPlayerIntroModal(playerCharacter);
   startMenu = createStartMenuState();
   await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
@@ -2528,9 +2542,6 @@ function createOptionsMenuState() {
     musicVolume: loadStoredVolume(MUSIC_VOLUME_STORAGE_KEY, MUSIC_DEFAULT_VOLUME),
     sfxVolume: loadStoredVolume(SFX_VOLUME_STORAGE_KEY, SFX_DEFAULT_VOLUME),
     muted: loadStoredAudioMuted(),
-    shipSlug: START_SHIP_SLUG,
-    shipLoadingSlug: null,
-    shipError: null,
     fullscreenError: null,
     selectedIndex: 0,
     activeSliderKey: null,
@@ -2541,9 +2552,7 @@ function createOptionsMenuState() {
     rowRects: [],
     sliderRects: {},
     sliderHitRects: {},
-    muteRect: null,
-    shipPrevRect: null,
-    shipNextRect: null
+    muteRect: null
   };
 }
 
@@ -3220,48 +3229,6 @@ function toggleAudioMuted() {
   setAudioMuted(!optionsMenu.muted);
 }
 
-function requestShipMenuStep(offset) {
-  const currentIndex = shipMenuIndex(optionsMenu.shipSlug);
-  const nextIndex = (currentIndex + offset + SHIP_MENU_SLUGS.length) % SHIP_MENU_SLUGS.length;
-  setPlayerShipType(SHIP_MENU_SLUGS[nextIndex]);
-}
-
-function shipMenuIndex(slug) {
-  const index = SHIP_MENU_SLUGS.indexOf(slug);
-  if (index < 0) throw new Error(`Ship type is not in menu: ${slug}`);
-  return index;
-}
-
-async function setPlayerShipType(slug) {
-  const stats = shipStatsForSlug(slug);
-  if (ship?.typeSlug === slug && !optionsMenu.shipLoadingSlug) {
-    optionsMenu.shipSlug = slug;
-    optionsMenu.shipError = null;
-    dirty = true;
-    return;
-  }
-
-  const requestId = ++shipSelectionRequestId;
-  optionsMenu.shipSlug = slug;
-  optionsMenu.shipLoadingSlug = slug;
-  optionsMenu.shipError = null;
-  dirty = true;
-
-  try {
-    const assets = await loadShipAssetSet(slug);
-    if (requestId !== shipSelectionRequestId) return;
-    applyPlayerShipType(slug, stats, assets);
-  } catch (error) {
-    if (requestId !== shipSelectionRequestId) return;
-    const label = shipLabelForSlug(slug);
-    console.error(new Error(`Failed to load ship type ${label} (${slug})`, { cause: error }));
-    optionsMenu.shipSlug = ship?.typeSlug || START_SHIP_SLUG;
-    optionsMenu.shipLoadingSlug = null;
-    optionsMenu.shipError = `ERR ${label}`;
-    dirty = true;
-  }
-}
-
 async function loadShipAssetSet(slug) {
   const shipSpriteKey = vehicleSpriteKeyForShipSlug(slug);
   const [loadedShipImage, loadedShipLighting] = await Promise.all([
@@ -3274,12 +3241,12 @@ async function loadShipAssetSet(slug) {
   };
 }
 
-function applyPlayerShipType(slug, stats, assets) {
+function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false } = {}) {
   shipImage = assets.image;
   shipWakeAnchors = requiredShipWakeAnchors(slug);
   shipLighting = assets.lighting;
   if (ship) {
-    if (gameState) setCargoCapacity(gameState, stats.cargoCapacity);
+    if (gameState && !stateAlreadyUpdated) setPlayerShipStats(gameState, stats);
     ship.typeSlug = slug;
     ship.stats = stats;
     ship.hitPoints = stats.hitPoints;
@@ -3295,9 +3262,6 @@ function applyPlayerShipType(slug, stats, assets) {
       starboard: 0
     };
   }
-  optionsMenu.shipSlug = slug;
-  optionsMenu.shipLoadingSlug = null;
-  optionsMenu.shipError = null;
   syncShipSlugToLocation(slug);
   dirty = true;
 }
@@ -3556,8 +3520,6 @@ function closeOptionsMenu() {
   optionsMenu.sliderRects = {};
   optionsMenu.sliderHitRects = {};
   optionsMenu.muteRect = null;
-  optionsMenu.shipPrevRect = null;
-  optionsMenu.shipNextRect = null;
   dirty = true;
 }
 
@@ -3625,15 +3587,12 @@ function handleOptionsKeyDown(event) {
       setMusicVolume(optionsMenu.musicVolume + direction * 0.05);
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_SFX) {
       setSfxVolume(optionsMenu.sfxVolume + direction * 0.05);
-    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_SHIP) {
-      requestShipMenuStep(direction);
     }
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
     if (optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN) void toggleFullscreenMode();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_MUTE) toggleAudioMuted();
-    if (optionsMenu.selectedIndex === OPTIONS_ROW_SHIP) requestShipMenuStep(1);
     return;
   }
   if (event.key === "m" || event.key === "M") {
@@ -3756,7 +3715,7 @@ function handlePointerDown(event) {
     handleDiscoveriesPointerDown(point);
     return;
   }
-  if (pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
+  if (!dialogueState && pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     openCaptainMenu();
@@ -3954,15 +3913,6 @@ function handleOptionsPointerDown(point) {
     optionsMenu.selectedIndex = OPTIONS_ROW_MUTE;
     toggleAudioMuted();
     return;
-  }
-  if (pointInRect(point, optionsMenu.shipPrevRect)) {
-    optionsMenu.selectedIndex = OPTIONS_ROW_SHIP;
-    requestShipMenuStep(-1);
-    return;
-  }
-  if (pointInRect(point, optionsMenu.shipNextRect)) {
-    optionsMenu.selectedIndex = OPTIONS_ROW_SHIP;
-    requestShipMenuStep(1);
   }
 }
 
@@ -4185,10 +4135,14 @@ function openPortDialogue(cityCall) {
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { restart: true, force: true });
+  const needsLoadout = !gameState.ship?.loadoutId;
   visitPort(gameState, cityCall);
-  applyAutomaticPortServices(cityCall);
+  if (needsLoadout) repairPlayerShipAtPort();
+  else applyAutomaticPortServices(cityCall);
   const passengerQuest = passengerDialogueQuestForCity(cityCall, { createOffer: true });
-  if (passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)) {
+  if (needsLoadout) {
+    dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "loadout" });
+  } else if (passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)) {
     markPassengerOfferSeen(gameState, passengerQuest);
     dialogueState = createPassengerDialogueSession(cityCall, passengerQuest);
   } else {
@@ -4203,14 +4157,15 @@ function openPortDialogue(cityCall) {
 function applyAutomaticPortServices(cityCall) {
   const context = portDialogueContext();
   const repaired = repairPlayerShipAtPort();
-  const water = autoProvisionFreshWaterAtPort(gameState, cityCall, context);
-  const provisions = autoProvisionHardtackAtPort(gameState, worldEconomy, cityCall, context);
+  const loadout = restockSelectedShipLoadoutAtPort(gameState, cityCall, ship.stats, context);
   const labels = [];
   if (repaired > 0) labels.push(`HULL +${repaired}`);
-  if (water.quantity > 0) labels.push(`WATER +${water.quantity}D`);
-  if (provisions.quantity > 0) labels.push(`HARDTACK x${provisions.quantity}`);
-  if (water.quantity > 0 || provisions.quantity > 0) playCoinClinkSound();
-  if (provisions.quantity > 0) syncShipCargoFromGameState();
+  if (loadout?.additions.crew > 0) labels.push(`CREW +${loadout.additions.crew}`);
+  if (loadout?.additions.cannons > 0) labels.push(`GUNS +${loadout.additions.cannons}`);
+  if (loadout?.additions.water > 0) labels.push(`WATER +${Math.ceil(loadout.additions.water)}`);
+  if (loadout?.additions.food > 0) labels.push(`FOOD +${loadout.additions.food}`);
+  if (loadout?.spent > 0) playCoinClinkSound();
+  syncShipCargoFromGameState();
   if (labels.length > 0) showSurvivalNotice(`PORT: ${labels.join(" ")}`, "good");
 }
 
@@ -4320,6 +4275,10 @@ function chooseDialogueOption(optionIndex) {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
       return;
     }
+    if (result.action?.type === "purchase-ship") {
+      void purchaseShipyardShip(result.action);
+      return;
+    }
   } else if (dialogueState.kind === "passenger") {
     const doubloonsBefore = gameState.doubloons;
     result = selectPassengerDialogueOption(
@@ -4350,6 +4309,40 @@ function chooseDialogueOption(optionIndex) {
   clampDialogueSelection();
   ensureDialoguePortraitLoaded();
   dirty = true;
+}
+
+async function purchaseShipyardShip(action) {
+  if (shipyardPurchaseListingId) return;
+  const session = dialogueState;
+  const city = currentDialogueCity();
+  const yard = shipyardAtPort(worldEconomy.shipyards, city);
+  const listing = yard.listing;
+  if (!listing || listing.id !== action.listingId || listing.shipSlug !== action.shipSlug) {
+    session.feedback = "That vessel is no longer available.";
+    dirty = true;
+    return;
+  }
+  shipyardPurchaseListingId = listing.id;
+  session.feedback = "The shipwrights are readying the vessel for inspection.";
+  dirty = true;
+  try {
+    const stats = shipStatsForSlug(listing.shipSlug);
+    const assets = await loadShipAssetSet(listing.shipSlug);
+    if (dialogueState !== session || session.nodeId !== "shipyard") return;
+    purchasePlayerShip(gameState, city, stats, listing.price, { simMinute: Math.floor(weatherClockMinutes) });
+    claimShipyardListing(worldEconomy.shipyards, city, listing.id);
+    applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
+    syncShipCargoFromGameState();
+    playCoinClinkSound();
+    session.feedback = `Purchased ${listing.shipLabel} for ${listing.price} doubloons.`;
+    session.selectedIndex = 0;
+  } catch (error) {
+    console.error(new Error(`Failed to purchase ${listing.shipLabel}`, { cause: error }));
+    session.feedback = error instanceof Error ? error.message : "The ship purchase failed.";
+  } finally {
+    shipyardPurchaseListingId = null;
+    dirty = true;
+  }
 }
 
 function applyShipDialogueAction(npcShipId, action) {
@@ -4425,14 +4418,18 @@ function currentDialogueView() {
 
 function portDialogueContext() {
   const city = dialogueState?.cityTileId === undefined ? null : cityByTileId.get(dialogueState.cityTileId);
+  const shipyard = city ? shipyardAtPort(worldEconomy.shipyards, city) : null;
   return {
     simMinute: Math.floor(weatherClockMinutes),
     dayIndex: weatherParts.dayIndex,
     shipPower: playerShipPrivateeringPower(),
+    shipStats: ship?.stats || null,
     nearbyShips: nearbyPortTraffic(city),
     stormy: city ? stormIntensityForTile(city.tileId) >= STORM_ACTIVE_INTENSITY * 0.62 : false,
     playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
     rivalLabel: portPoliticalRivalLabel(city),
+    shipyard,
+    shipyardRumor: city ? shipyardRumorForPort(worldEconomy.shipyards, city) : null,
     passengerOffer: city && dialogueState?.kind === "port"
       ? pendingPassengerOfferForCity(gameState, city)
       : null
@@ -4498,7 +4495,7 @@ function createPassengerCharacterForQuest({ quest, origin, destination, scenario
 
 function playerShipPrivateeringPower() {
   if (!ship) return 0;
-  return Math.round((ship.stats?.cannons || 0) + (ship.maxHitPoints || ship.stats?.hitPoints || 0));
+  return Math.round((gameState?.ship?.cannons || 0) + (ship.maxHitPoints || ship.stats?.hitPoints || 0));
 }
 
 function currentDialogueShip() {
@@ -4802,11 +4799,11 @@ function catchFishAtFishery(call) {
     return false;
   }
   const free = cargoFree(gameState);
-  if (free <= 0) {
+  if (!canStartFishing(free)) {
     showFishCatchNotice("HOLD FULL", "warn");
     return false;
   }
-  const chance = fishingCatchChance(call.fishery.density, call.fishery.overfished);
+  const chance = fishingCatchChance(call.fishery.visibleIndividualCount);
   fishingAction = {
     startMs: lastFrameMs,
     fishery: call.fishery,
@@ -4896,6 +4893,8 @@ function syncShipCargoFromGameState() {
   if (!ship || !gameState) return;
   ship.cargoCapacity = gameState.cargoCapacity;
   ship.cargoUsed = cargoUsed(gameState);
+  ship.cannons = gameState.ship?.cannons || 0;
+  ship.crew = gameState.ship?.crew || 0;
 }
 
 function canvasPointFromEvent(event) {
@@ -6086,17 +6085,20 @@ function fireBroadside(sideName) {
 
 function drawCombatBroadsideControls() {
   if (!ship || !localLayout || !playerHasCombatEngagement() || dialogueState || menusAreOpen() || gameOverReason) return;
+  if (!hasBroadsideCannons(gameState?.ship?.cannons || 0)) return;
   for (const sideName of ["port", "starboard"]) {
-    const lane = cannonBroadsideLane(sideName);
+    const arc = cannonBroadsideArc(sideName);
     const cooldown = ship.cannonCooldowns[sideName] || 0;
     const ready = cooldown <= 0;
-    const hasTarget = cannonLaneHasEnemy(lane);
+    const hasTarget = cannonArcHasEnemy(arc);
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(lane.corners[0].x, lane.corners[0].y);
-    for (let index = 1; index < lane.corners.length; index++) {
-      ctx.lineTo(lane.corners[index].x, lane.corners[index].y);
-    }
+    ctx.arc(arc.origin.x, arc.origin.y, arc.innerRadius, arc.startAngle, arc.endAngle);
+    ctx.lineTo(
+      arc.origin.x + Math.cos(arc.endAngle) * arc.outerRadius,
+      arc.origin.y + Math.sin(arc.endAngle) * arc.outerRadius
+    );
+    ctx.arc(arc.origin.x, arc.origin.y, arc.outerRadius, arc.endAngle, arc.startAngle, true);
     ctx.closePath();
     ctx.fillStyle = ready
       ? (hasTarget ? "rgba(249, 194, 43, 0.18)" : "rgba(249, 194, 43, 0.09)")
@@ -6107,10 +6109,10 @@ function drawCombatBroadsideControls() {
     ctx.stroke();
 
     const readyFraction = 1 - clamp(cooldown / CANNON_BROADSIDE_COOLDOWN_SECONDS, 0, 1);
-    const lineStartX = lane.origin.x + lane.direction.x * lane.start;
-    const lineStartY = lane.origin.y + lane.direction.y * lane.start;
-    const lineEndX = lineStartX + lane.direction.x * lane.length * readyFraction;
-    const lineEndY = lineStartY + lane.direction.y * lane.length * readyFraction;
+    const lineStartX = arc.origin.x + arc.direction.x * arc.innerRadius;
+    const lineStartY = arc.origin.y + arc.direction.y * arc.innerRadius;
+    const lineEndX = lineStartX + arc.direction.x * arc.length * readyFraction;
+    const lineEndY = lineStartY + arc.direction.y * arc.length * readyFraction;
     ctx.strokeStyle = ready ? "#fff1bf" : "#ab947a";
     ctx.beginPath();
     ctx.moveTo(Math.round(lineStartX) + 0.5, Math.round(lineStartY) + 0.5);
@@ -6120,42 +6122,39 @@ function drawCombatBroadsideControls() {
   }
 }
 
-function cannonBroadsideLane(sideName) {
+function cannonBroadsideArc(sideName) {
   const heading = shipScreenHeading();
   const length = Math.min(CANNON_RANGE_PX, Math.max(46, Math.min(SCREEN_W, SCREEN_H) * 0.25));
-  const lane = broadsideLaneGeometry({
+  return broadsideArcGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     heading,
     sideName,
     range: length
   });
-  return {
-    ...lane,
-    corners: lane.corners.map((point) => ({ x: Math.round(point.x) + 0.5, y: Math.round(point.y) + 0.5 }))
-  };
 }
 
 function cannonBroadsideSideAtPoint(point) {
   if (!point || !ship || !localLayout || !playerHasCombatEngagement() || dialogueState || menusAreOpen()) return null;
+  if (!hasBroadsideCannons(gameState?.ship?.cannons || 0)) return null;
   for (const sideName of ["port", "starboard"]) {
-    if (pointInBroadsideLane(point, cannonBroadsideLane(sideName), 5)) return sideName;
+    if (pointInBroadsideArc(point, cannonBroadsideArc(sideName), 5)) return sideName;
   }
   return null;
 }
 
-function cannonLaneHasEnemy(lane) {
+function cannonArcHasEnemy(arc) {
   const offset = chartOffsetPixels(chart);
   for (const state of npcVisualShips.values()) {
     if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, state.id))) continue;
     const point = { x: state.x + offset.x, y: state.y + offset.y };
-    if (pointInBroadsideLane(point, lane, 7)) return true;
+    if (pointInBroadsideArc(point, arc, 7)) return true;
   }
   return false;
 }
 
 function shipBroadsideCannonCount() {
-  return Math.ceil(ship.stats.cannons / 2);
+  return Math.ceil((gameState?.ship?.cannons || 0) / 2);
 }
 
 function cannonMuzzleForeAftSpan(broadsideCount) {
@@ -6215,7 +6214,8 @@ function resolvePlayerCannonImpact(ball) {
   playCannonImpactSound(Math.hypot(ball.targetX - ball.startX, ball.targetY - ball.startY));
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
   target.hitPoints = damage.hitPoints;
-  if (damage.shouldSurrender) handleNpcSurrender(target.id, PLAYER_COMBAT_ID);
+  if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
+  else if (damage.shouldSurrender) handleNpcSurrender(target.id, PLAYER_COMBAT_ID);
   return true;
 }
 
@@ -6386,7 +6386,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
     freshwater: shipIsInFreshWater()
   });
   if (result.freshWaterRefilled) showSurvivalNotice("FRESH WATER REFILLED", "good");
-  if (result.foodConsumed.length > 0) syncShipCargoFromGameState();
+  if (result.changed) syncShipCargoFromGameState();
   const status = survivalStatus(gameState);
   const damageChanged = updateSurvivalDeprivationDamage(status, currentMinute);
   if (gameOverReason) return true;
@@ -6435,6 +6435,10 @@ function updateSurvivalDeprivationDamage(status, currentMinute) {
     damagePerTick: SURVIVAL_STARVATION_DAMAGE,
     alert: () => showSurvivalNotice("NO FOOD LEFT", "warn")
   });
+  const dehydrationLoss = waterDamage.damage > 0 ? loseCrew(gameState, waterDamage.damage) : 0;
+  if (dehydrationLoss > 0) {
+    syncShipCargoFromGameState();
+  }
   const totalDamage = waterDamage.damage + foodDamage.damage;
   if (totalDamage <= 0) return waterDamage.changed || foodDamage.changed;
 
@@ -6444,7 +6448,8 @@ function updateSurvivalDeprivationDamage(status, currentMinute) {
     : status.freshWater <= 0
       ? "The crew succumbed to thirst."
       : "The crew succumbed to starvation.";
-  showSurvivalNotice(`CREW SUFFERING -${totalDamage} HULL`, "warn");
+  const crewLossText = dehydrationLoss > 0 ? `  -${dehydrationLoss} CREW` : "";
+  showSurvivalNotice(`CREW SUFFERING -${totalDamage} HULL${crewLossText}`, "warn");
   if (ship.hitPoints <= 0) sinkPlayerShip(reason);
   return true;
 }
@@ -6487,6 +6492,7 @@ function updateStormDamage(previousMinute, currentMinute) {
   if (totalDamage <= 0) return false;
 
   ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
+  applyCrewCasualtiesFromHullDamage(totalDamage);
   stormDamageNotice = {
     damage: totalDamage,
     intensity: strongestIntensity,
@@ -6897,7 +6903,7 @@ function playerCombatEntity() {
     y: localLayout.viewY,
     hitPoints: Math.max(1, ship.hitPoints),
     maxHitPoints: ship.maxHitPoints,
-    cannons: ship.stats.cannons,
+    cannons: gameState?.ship?.cannons || 0,
     topSpeedRad: ship.stats.topSpeedRad,
     combatGrace: false,
     majorPortProtected: playerHasMajorPortProtection()
@@ -7101,6 +7107,7 @@ function resolveNpcCombatImpact(ball) {
   playCannonImpactSound(Math.hypot(ball.targetX - ball.startX, ball.targetY - ball.startY));
   if (ball.targetId === PLAYER_COMBAT_ID) {
     ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
+    applyCrewCasualtiesFromHullDamage(ball.damage);
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
     return;
   }
@@ -7108,7 +7115,8 @@ function resolveNpcCombatImpact(ball) {
   const damage = damageNpcShip(npcSeaRoutes, ball.targetId, ball.damage);
   const state = npcVisualShips.get(ball.targetId);
   if (state) state.hitPoints = damage.hitPoints;
-  if (damage.shouldSurrender) handleNpcSurrender(ball.targetId, ball.ownerId);
+  if (damage.sunk) handleNpcSinking(ball.targetId, ball.ownerId);
+  else if (damage.shouldSurrender) handleNpcSurrender(ball.targetId, ball.ownerId);
 }
 
 function addNpcCombatSplash(ball) {
@@ -7150,6 +7158,23 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     state.combatEnemyIds = [];
   }
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
+}
+
+function handleNpcSinking(loserId, winnerId) {
+  const strategic = npcSeaRoutes.shipById.get(loserId);
+  if (!strategic) return false;
+  const factionId = strategic.factionId;
+  sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
+  if (winnerId === PLAYER_COMBAT_ID) recordPlayerAttackConsequences(loserId, factionId);
+  clearCombatForShip(loserId);
+  npcVisualShips.delete(loserId);
+  shipCombatEntryCollisionGrace.delete(loserId);
+  npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
+  combatNotice = {
+    text: "SHIP SUNK",
+    expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+  };
+  return true;
 }
 
 function clearCombatForShip(shipId) {
@@ -7306,6 +7331,7 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   if (amount <= 0) return;
   if (id === PLAYER_COMBAT_ID) {
     ship.hitPoints = Math.max(0, ship.hitPoints - amount);
+    applyCrewCasualtiesFromHullDamage(amount);
     combatNotice = {
       text: `COLLISION  -${amount} HULL`,
       expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
@@ -7316,10 +7342,23 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   const damage = damageNpcShip(npcSeaRoutes, id, amount);
   const state = npcVisualShips.get(id);
   if (state) state.hitPoints = damage.hitPoints;
+  if (damage.sunk) {
+    handleNpcSinking(id, otherId);
+    return;
+  }
   if (!damage.shouldSurrender || !state) return;
   const directEnemy = shipCombatState.engagements.has(engagementKey(id, otherId));
   const winnerId = directEnemy ? otherId : state.combatTargetId;
   if (winnerId) handleNpcSurrender(id, winnerId);
+}
+
+function applyCrewCasualtiesFromHullDamage(damage) {
+  if (!gameState || damage <= 0) return 0;
+  const lost = rollCrewCasualtiesForDamage(gameState, damage);
+  if (lost <= 0) return 0;
+  syncShipCargoFromGameState();
+  showSurvivalNotice(`${lost} CREW LOST`, "warn");
+  return lost;
 }
 
 function applyNpcVisualPlacement(state, placement) {
@@ -8158,7 +8197,7 @@ function applyResponsiveViewport(width, height) {
   ctx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
-  INTERACTION_BUTTON_Y = SCREEN_H - 24;
+  INTERACTION_BUTTON_Y = SCREEN_H - INTERACTION_BUTTON_H - 5;
   ANCHOR_BUTTON_X = Math.floor((SCREEN_W - ANCHOR_BUTTON_W - 4 - INTERACTION_BUTTON_W) / 2);
   ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
   MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
@@ -8169,7 +8208,7 @@ function applyResponsiveViewport(width, height) {
   POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
   POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
   PLAYER_INTRO_PANEL_W = Math.min(326, SCREEN_W - 12);
-  PLAYER_INTRO_PANEL_H = Math.min(SCREEN_W < 400 ? 300 : 178, SCREEN_H - 12);
+  PLAYER_INTRO_PANEL_H = Math.min(SCREEN_W < 400 ? 320 : 194, SCREEN_H - 12);
   PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
   PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
   CAPTAIN_ALERT_PANEL_W = Math.min(286, SCREEN_W - 12);
@@ -8522,6 +8561,7 @@ function drawSelectableInteractionOutlines(nowMs) {
   }
 
   if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
+    const fishingDisabled = !canStartFishing(cargoFree(gameState));
     for (const call of fishIndividualDrawCalls(chart, nowMs)) {
       const interaction = fishInteractionCall(call);
       if (!fishInteractionCallIsUsable(interaction)) continue;
@@ -8535,7 +8575,8 @@ function drawSelectableInteractionOutlines(nowMs) {
         y: Math.round(call.y + offset.y),
         flip: call.flip,
         primary: primaryId === call.id,
-        pulseBright
+        pulseBright,
+        disabled: fishingDisabled
       });
     }
   }
@@ -8551,9 +8592,10 @@ function drawSelectableSpriteOutline({
   y,
   flip = false,
   primary,
-  pulseBright
+  pulseBright,
+  disabled = false
 }) {
-  const color = primary && pulseBright ? "#fff4a8" : "#f9c22b";
+  const color = disabled ? "#756c62" : primary && pulseBright ? "#fff4a8" : "#f9c22b";
   const outline = selectableSpriteOutlineCanvas(
     image,
     sourceX,
@@ -9191,7 +9233,7 @@ function getOptionsButtonRect() {
 }
 
 function drawCaptainMenuButton() {
-  if (startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
+  if (startMenu || gameOverReason || playerIntroModal || captainAlertModal || dialogueState) return;
   const rect = getCaptainMenuButtonRect();
   captainMenu.buttonRect = rect;
   const hovered = !menusAreOpen() && pointInRect(captainMenu.hoverPoint, expandedRect(rect, 3));
@@ -9201,9 +9243,11 @@ function drawCaptainMenuButton() {
   ctx.strokeStyle = hovered ? "#f9c22b" : "#ab947a";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   ctx.fillStyle = hovered ? "#fff1bf" : "#d6b66b";
-  ctx.fillRect(rect.x + 4, rect.y + 5, 11, 2);
-  ctx.fillRect(rect.x + 4, rect.y + 9, 11, 2);
-  ctx.fillRect(rect.x + 4, rect.y + 13, 11, 2);
+  const menuLineX = rect.x + Math.floor((rect.w - 15) / 2);
+  const menuLineY = rect.y + Math.floor((rect.h - 12) / 2);
+  ctx.fillRect(menuLineX, menuLineY, 15, 2);
+  ctx.fillRect(menuLineX, menuLineY + 5, 15, 2);
+  ctx.fillRect(menuLineX, menuLineY + 10, 15, 2);
   ctx.restore();
 }
 
@@ -9236,6 +9280,7 @@ function drawCaptainMenu(nowMs) {
     pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
   );
   drawOptionsText("CAPTAIN'S CHART", panel.x + panel.w / 2, panel.y + 10, {
+    font: PIXEL_FONT_UI_10,
     align: "center",
     color: "#ffd98a"
   });
@@ -9306,7 +9351,7 @@ function drawCaptainChart(panel, nowMs) {
 
 function drawCaptainChartNavigation(panel) {
   const gap = 4;
-  const navH = 28;
+  const navH = 36;
   const availableW = panel.w - 24;
   const itemW = Math.floor((availableW - gap * (CAPTAIN_MENU_LABELS.length - 1)) / CAPTAIN_MENU_LABELS.length);
   const totalW = itemW * CAPTAIN_MENU_LABELS.length + gap * (CAPTAIN_MENU_LABELS.length - 1);
@@ -9328,11 +9373,17 @@ function drawCaptainChartNavigation(panel) {
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     ctx.strokeStyle = selected || hovered ? "#f9c22b" : "#715033";
     ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-    drawCaptainMenuItemIcon(index, rect.x + Math.floor((rect.w - 13) / 2), rect.y + 7, selected || hovered);
+    drawCaptainMenuItemIcon(
+      index,
+      rect.x + Math.floor((rect.w - 13) / 2),
+      rect.y + Math.floor((rect.h - 13) / 2),
+      selected || hovered
+    );
   });
 
   const labelIndex = hoveredIndex >= 0 ? hoveredIndex : captainMenu.selectedIndex;
-  drawOptionsText(CAPTAIN_MENU_LABELS[labelIndex], panel.x + panel.w / 2, y - 11, {
+  drawOptionsText(CAPTAIN_MENU_LABELS[labelIndex], panel.x + panel.w / 2, y - 13, {
+    font: PIXEL_FONT_UI_10,
     align: "center",
     color: "#fff1bf"
   });
@@ -9531,7 +9582,7 @@ function drawShipInfoMenu() {
     drawOptionsText(
       fitPixelText(compactTitle, PIXEL_FONT_UI_8, panel.w - 24),
       panel.x + panel.w / 2,
-      panel.y + 25,
+      panel.y + 35,
       { align: "center", color: "#fbb954" }
     );
     if (shipInfoMenu.view === "ledger") drawCompactShipLedger(panel, view);
@@ -9569,7 +9620,7 @@ function drawShipInfoMenu() {
   }
 
   const artX = panel.x + 10;
-  const artY = panel.y + 28;
+  const artY = panel.y + 36;
   ctx.fillStyle = "#323353";
   ctx.fillRect(artX, artY, SHIP_INFO_SIDE_VIEW_W, SHIP_INFO_SIDE_VIEW_H);
   ctx.strokeStyle = "#7f708a";
@@ -9590,7 +9641,13 @@ function drawShipInfoMenu() {
   const valueX = panel.x + panel.w - 12;
   drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, statsX, valueX, panel.y + 31);
   drawShipInfoBar(statsX, panel.y + 43, valueX - statsX, view.hull / view.maxHull, "#91db69");
-  drawShipInfoValueRow("CANNONS", String(view.cannons), statsX, valueX, panel.y + 53);
+  drawShipInfoValueRow(
+    "CREW / GUNS",
+    `${view.crew}/${view.crewCapacity}  ${view.cannons}/${view.maxCannons}`,
+    statsX,
+    valueX,
+    panel.y + 53
+  );
   drawShipInfoValueRow("UPWIND LIMIT", `${view.upwindStallAngleDeg} DEG`, statsX, valueX, panel.y + 65);
   drawShipInfoRating("SPEED", view.ratings.speed, statsX, panel.y + 80);
   drawShipInfoRating("ACCEL", view.ratings.acceleration, statsX, panel.y + 93);
@@ -9640,7 +9697,7 @@ function drawShipInfoMenu() {
     });
   }
 
-  const pagerY = panel.y + panel.h - 23;
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
   if (cargoPage.pageCount > 1) {
     shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
@@ -9667,7 +9724,7 @@ function drawShipInfoMenu() {
 
 function drawCompactShipVessel(panel, view, cargoPage) {
   const artX = panel.x + Math.floor((panel.w - SHIP_INFO_SIDE_VIEW_W) / 2);
-  const artY = panel.y + 38;
+  const artY = panel.y + 48;
   ctx.fillStyle = "#323353";
   ctx.fillRect(artX, artY, SHIP_INFO_SIDE_VIEW_W, SHIP_INFO_SIDE_VIEW_H);
   ctx.strokeStyle = "#7f708a";
@@ -9689,7 +9746,13 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, labelX, valueX, y);
   drawShipInfoBar(labelX + 62, y + 1, Math.max(30, panel.w - 112), view.hull / view.maxHull, "#91db69");
   y += 13;
-  drawShipInfoValueRow("CANNONS", String(view.cannons), labelX, valueX, y);
+  drawShipInfoValueRow(
+    "CREW / GUNS",
+    `${view.crew}/${view.crewCapacity}  ${view.cannons}/${view.maxCannons}`,
+    labelX,
+    valueX,
+    y
+  );
   y += 12;
   drawShipInfoValueRow("UPWIND LIMIT", `${view.upwindStallAngleDeg} DEG`, labelX, valueX, y);
   y += 13;
@@ -9762,7 +9825,7 @@ function drawCompactShipLedger(panel, view) {
   const realized = Math.round(view.realizedPnl);
   drawOptionsText(`P/L ${formatSignedLedgerMoney(realized)} DB`, left, top, { color: ledgerPnlColor(realized) });
   drawOptionsText(`CASH ${view.doubloons} DB`, right, top, { align: "right", color: "#f9c22b" });
-  const availableH = panel.y + panel.h - 24 - (top + 14);
+  const availableH = panel.y + panel.h - UI_PAGER_BUTTON_H - 7 - (top + 14);
   const rowH = Math.max(20, Math.floor(availableH / Math.max(1, page.rows.length)));
   page.rows.forEach((entry, index) => {
     const y = top + 15 + index * rowH;
@@ -9797,7 +9860,7 @@ function drawCompactShipPapers(panel, view) {
   drawOptionsText("ITEMS & DOCUMENTS", left, top, { color: "#c7dcd0" });
   drawOptionsText(`${view.papers.length} HELD`, right, top, { align: "right", color: "#fbb954" });
   if (page.rows.length === 0) drawOptionsText("INVENTORY IS EMPTY", left, top + 21, { color: "#9babb2" });
-  const availableH = panel.y + panel.h - 24 - (top + 14);
+  const availableH = panel.y + panel.h - UI_PAGER_BUTTON_H - 7 - (top + 14);
   const rowH = Math.max(26, Math.floor(availableH / Math.max(1, page.rows.length)));
   page.rows.forEach((paper, index) => {
     const y = top + 16 + index * rowH;
@@ -9816,7 +9879,7 @@ function drawCompactShipPapers(panel, view) {
 }
 
 function drawCompactShipPager(panel, page, pageCount, label) {
-  const pagerY = panel.y + panel.h - 23;
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
   if (pageCount > 1) {
     shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
@@ -9929,7 +9992,7 @@ function drawShipLedger(panel, view) {
     });
   });
 
-  const pagerY = panel.y + panel.h - 23;
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
   if (page.pageCount > 1) {
     shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
@@ -10008,7 +10071,7 @@ function drawShipPapers(panel, view) {
     });
   });
 
-  const pagerY = panel.y + panel.h - 23;
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
   if (page.pageCount > 1) {
     shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
@@ -10184,7 +10247,7 @@ function drawDiscoveriesMenu() {
     });
   }
 
-  const pagerY = panelY + DISCOVERIES_PANEL_H - 25;
+  const pagerY = panelY + DISCOVERIES_PANEL_H - UI_PAGER_BUTTON_H - 5;
   discoveriesMenu.previousPageRect = { x: panelX + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
   discoveriesMenu.nextPageRect = {
     x: panelX + DISCOVERIES_PANEL_W - 12 - UI_PAGER_BUTTON_W,
@@ -10255,7 +10318,14 @@ function drawPoliticsMenu() {
     h: POLITICS_PANEL_H
   };
   const view = createPoliticsView(gameState);
-  const page = politicsRowsPage(view, politicsMenu.page, POLITICS_ROWS_PER_PAGE);
+  const availableRows = Math.floor(
+    (panel.h - 58 - UI_PAGER_BUTTON_H - 8) / POLITICS_MATRIX_ROW_H
+  );
+  const page = politicsRowsPage(
+    view,
+    politicsMenu.page,
+    Math.max(6, Math.min(POLITICS_ROWS_PER_PAGE, availableRows))
+  );
   politicsMenu.page = page.page;
 
   ctx.save();
@@ -10331,7 +10401,7 @@ function drawPoliticsMenu() {
     drawPoliticsStanding(row.player, statusX, y, statusW);
   });
 
-  const pagerY = panel.y + panel.h - 23;
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
   politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
   politicsMenu.nextPageRect = {
     x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
@@ -10462,7 +10532,7 @@ function drawCompactPoliticsMenu() {
     });
   });
 
-  const pagerY = panel.y + panel.h - 23;
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
   politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
   politicsMenu.nextPageRect = {
     x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
@@ -10574,7 +10644,7 @@ function drawStartMenu(nowMs) {
 
   ctx.fillStyle = "#fff1bf";
   drawPixelText("MARQUE & REPRISAL", panel.x + panel.w / 2, panel.y + 28, {
-    font: PIXEL_FONT_UI_8,
+    font: PIXEL_FONT_UI_10,
     align: "center"
   });
   ctx.fillStyle = `rgba(138, 192, 180, ${0.45 + pulse * 0.35})`;
@@ -10612,8 +10682,8 @@ function drawStartMenuButton(rect, label, highlighted) {
     ctx.fillRect(rect.x + rect.w - 7, markerY, 3, 3);
   }
   ctx.fillStyle = highlighted ? "#fff1bf" : "#d7d9bf";
-  drawPixelText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText(label, rect.x + rect.w / 2, controlTextY(rect), {
+    font: PIXEL_FONT_UI_10,
     align: "center"
   });
 }
@@ -10683,7 +10753,7 @@ function drawCreditsMenu() {
     color: "#ab947a"
   });
 
-  const navY = panel.y + panel.h - 27;
+  const navY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
   creditsMenu.previousPageRect = { x: panel.x + 14, y: navY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
   creditsMenu.nextPageRect = {
     x: panel.x + panel.w - 14 - UI_PAGER_BUTTON_W,
@@ -10763,24 +10833,25 @@ function drawOptionsMenu() {
   drawOptionsCloseButton(optionsMenu.closeButtonRect, pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect));
 
   drawOptionsText("OPTIONS", panelX + OPTIONS_PANEL_W / 2, panelY + 9, {
+    font: PIXEL_FONT_UI_10,
     align: "center",
     color: "#ffd700"
   });
 
   const rowX = panelX + 10;
   const rowW = OPTIONS_PANEL_W - 20;
-  const fullscreenRow = { x: rowX, y: panelY + 34, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const musicRow = { x: rowX, y: panelY + 65, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const sfxRow = { x: rowX, y: panelY + 96, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const muteRow = { x: rowX, y: panelY + 127, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const shipRow = { x: rowX, y: panelY + 158, w: rowW, h: OPTIONS_ROW_H - 2 };
-  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, shipRow];
+  const firstRowY = panelY + 34;
+  const rowStep = OPTIONS_ROW_H + 2;
+  const fullscreenRow = { x: rowX, y: firstRowY, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const musicRow = { x: rowX, y: firstRowY + rowStep, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const sfxRow = { x: rowX, y: firstRowY + rowStep * 2, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const muteRow = { x: rowX, y: firstRowY + rowStep * 3, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow];
 
   drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
   drawOptionsVolumeRow(musicRow, "MUSIC", "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
   drawOptionsVolumeRow(sfxRow, "SFX", "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
   drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
-  drawOptionsShipRow(shipRow, optionsMenu.selectedIndex === OPTIONS_ROW_SHIP);
   ctx.restore();
 }
 
@@ -10792,7 +10863,8 @@ function drawOptionsFullscreenRow(rowRect, highlighted) {
       ? (isFullscreen ? "EXIT FULLSCREEN" : "ENTER FULLSCREEN")
       : "FULLSCREEN UNAVAILABLE"
   );
-  drawOptionsText(fitPixelText(label, PIXEL_FONT_UI_8, rowRect.w - 16), rowRect.x + 8, rowRect.y + 9, {
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_UI_10, rowRect.w - 16), rowRect.x + 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_UI_10,
     color: optionsMenu.fullscreenError
       ? "#ff8888"
       : (fullscreenAvailable() ? (highlighted ? "#ffffff" : "#ffd700") : "#777777")
@@ -10813,14 +10885,15 @@ function drawOptionsCloseButton(rect, hovered) {
 
 function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText(label, rowRect.x + 8, rowRect.y + 9, {
+  drawOptionsText(label, rowRect.x + 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_UI_10,
     color: highlighted ? "#ffffff" : "#ffd700"
   });
 
   const sliderW = 70;
-  const sliderH = 8;
+  const sliderH = 10;
   const sliderX = rowRect.x + 66;
-  const sliderY = rowRect.y + 9;
+  const sliderY = rowRect.y + Math.floor((rowRect.h - sliderH) / 2);
   optionsMenu.sliderRects[sliderKey] = { x: sliderX, y: sliderY, w: sliderW, h: sliderH };
   optionsMenu.sliderHitRects[sliderKey] = { x: sliderX - 3, y: rowRect.y, w: sliderW + 6, h: rowRect.h };
 
@@ -10839,7 +10912,8 @@ function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   ctx.fillStyle = "#fff4a8";
   ctx.fillRect(knobX, sliderY - 1, 2, sliderH + 2);
 
-  drawOptionsText(`${percent}%`, rowRect.x + rowRect.w - 8, rowRect.y + 9, {
+  drawOptionsText(`${percent}%`, rowRect.x + rowRect.w - 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_UI_10,
     align: "right",
     color: "#eeeeee"
   });
@@ -10847,11 +10921,12 @@ function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
 
 function drawOptionsMuteRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText("MUTE", rowRect.x + 8, rowRect.y + 9, {
+  drawOptionsText("MUTE", rowRect.x + 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_UI_10,
     color: highlighted ? "#ffffff" : "#ffd700"
   });
 
-  const boxSize = 10;
+  const boxSize = 14;
   const boxX = rowRect.x + rowRect.w - boxSize - 12;
   const boxY = rowRect.y + Math.floor((rowRect.h - boxSize) / 2);
   optionsMenu.muteRect = { x: boxX - 10, y: rowRect.y, w: boxSize + 20, h: rowRect.h };
@@ -10869,32 +10944,6 @@ function drawOptionsMuteRow(rowRect, highlighted) {
     ctx.lineTo(boxX + 8, boxY + 2);
     ctx.stroke();
   }
-}
-
-function drawOptionsShipRow(rowRect, highlighted) {
-  drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText("SHIP", rowRect.x + 8, rowRect.y + 9, {
-    color: highlighted ? "#ffffff" : "#ffd700"
-  });
-
-  const buttonSize = UI_ICON_BUTTON_SIZE;
-  const buttonY = rowRect.y + Math.floor((rowRect.h - buttonSize) / 2);
-  const prevRect = { x: rowRect.x + 51, y: buttonY, w: buttonSize, h: buttonSize };
-  const nextRect = { x: rowRect.x + rowRect.w - buttonSize - 8, y: buttonY, w: buttonSize, h: buttonSize };
-  optionsMenu.shipPrevRect = prevRect;
-  optionsMenu.shipNextRect = nextRect;
-
-  drawOptionsArrowButton(prevRect, "<", highlighted && pointInRect(optionsMenu.hoverPoint, prevRect));
-  drawOptionsArrowButton(nextRect, ">", highlighted && pointInRect(optionsMenu.hoverPoint, nextRect));
-
-  const valueX = prevRect.x + prevRect.w + 5;
-  const valueW = nextRect.x - valueX - 5;
-  const label = optionsMenu.shipError || shipLabelForSlug(optionsMenu.shipSlug);
-  const fittedLabel = fitPixelText(label, PIXEL_FONT_UI_8, valueW);
-  const loading = optionsMenu.shipLoadingSlug === optionsMenu.shipSlug;
-  drawOptionsText(loading ? fitPixelText(`${fittedLabel}...`, PIXEL_FONT_UI_8, valueW) : fittedLabel, valueX, rowRect.y + 9, {
-    color: optionsMenu.shipError ? "#ff8888" : "#eeeeee"
-  });
 }
 
 function drawOptionsArrowButton(rect, label, highlighted) {
@@ -10917,10 +10966,18 @@ function drawOptionsRowFrame(rect, highlighted) {
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 }
 
+function rowTextY(rect) {
+  return rect.y + Math.floor((rect.h - 8) / 2);
+}
+
+function controlTextY(rect) {
+  return rect.y + Math.floor((rect.h - 10) / 2);
+}
+
 function drawOptionsText(text, x, y, options = {}) {
   ctx.fillStyle = options.color || "#d7d9bf";
   drawPixelText(text, x, y, {
-    font: PIXEL_FONT_UI_8,
+    font: options.font || PIXEL_FONT_UI_8,
     align: options.align || "left"
   });
 }
@@ -14043,24 +14100,28 @@ function drawInteractionButton() {
     w: INTERACTION_BUTTON_W,
     h: INTERACTION_BUTTON_H
   };
-  const hovered = pointInRect(optionsMenu.hoverPoint, interactionButtonRect);
-  ctx.fillStyle = hovered ? "#6d4b2f" : "#4a3424";
+  const disabled = target.kind === "fish" && !canStartFishing(cargoFree(gameState));
+  const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, interactionButtonRect);
+  ctx.fillStyle = disabled ? "#302c29" : hovered ? "#6d4b2f" : "#4a3424";
   ctx.fillRect(interactionButtonRect.x, interactionButtonRect.y, interactionButtonRect.w, interactionButtonRect.h);
-  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeStyle = disabled ? "#625b52" : "#d6b66b";
   ctx.strokeRect(
     interactionButtonRect.x + 0.5,
     interactionButtonRect.y + 0.5,
     interactionButtonRect.w - 1,
     interactionButtonRect.h - 1
   );
-  ctx.fillStyle = "#f3dfb0";
+  ctx.fillStyle = disabled ? "#81796f" : "#f3dfb0";
   const actionLabel = target.kind === "port"
     ? `Dock: ${cityLabelText(target.call)}`
     : target.kind === "fish"
       ? `Cast net: ${target.call.label}`
       : `Hail: ${target.call.label}`;
-  const label = fitPixelText(actionLabel, PIXEL_FONT_BODY_8, interactionButtonRect.w - 8);
-  drawPixelText(label, interactionButtonRect.x + 4, interactionButtonRect.y + 6, { font: PIXEL_FONT_BODY_8 });
+  const label = fitPixelText(actionLabel, PIXEL_FONT_UI_10, interactionButtonRect.w - 10);
+  drawPixelText(label, interactionButtonRect.x + interactionButtonRect.w / 2, controlTextY(interactionButtonRect), {
+    font: PIXEL_FONT_UI_10,
+    align: "center"
+  });
 }
 
 function drawAnchorButton() {
@@ -14088,10 +14149,13 @@ function drawAnchorButton() {
   ctx.fillStyle = "#f3dfb0";
   const label = fitPixelText(
     anchored ? "WEIGH ANCHOR" : "DROP ANCHOR",
-    PIXEL_FONT_BODY_8,
-    anchorButtonRect.w - 8
+    PIXEL_FONT_UI_10,
+    anchorButtonRect.w - 10
   );
-  drawPixelText(label, anchorButtonRect.x + 4, anchorButtonRect.y + 6, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText(label, anchorButtonRect.x + anchorButtonRect.w / 2, controlTextY(anchorButtonRect), {
+    font: PIXEL_FONT_UI_10,
+    align: "center"
+  });
 }
 
 function drawStormStatus(nowMs) {
@@ -14299,8 +14363,8 @@ function drawPlayerIntroModal(nowMs) {
   ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
   ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
   ctx.fillStyle = "#fff1bf";
-  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, button.y + 6, {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, controlTextY(button), {
+    font: PIXEL_FONT_UI_10,
     align: "center"
   });
 }
@@ -14373,8 +14437,8 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
   ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
   ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
   ctx.fillStyle = "#fff1bf";
-  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, button.y + 6, {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, controlTextY(button), {
+    font: PIXEL_FONT_UI_10,
     align: "center"
   });
 }
@@ -14425,8 +14489,8 @@ function drawCaptainAlertModal() {
   ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
   ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
   ctx.fillStyle = "#fff1bf";
-  drawPixelText("CONTINUE", button.x + button.w / 2, button.y + 6, {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText("CONTINUE", button.x + button.w / 2, controlTextY(button), {
+    font: PIXEL_FONT_UI_10,
     align: "center"
   });
 }
@@ -14577,7 +14641,12 @@ function formatCoordinate(value, positiveSuffix, negativeSuffix) {
 function drawDialogueOverlay(nowMs) {
   const subject = currentDialogueSubject();
   const view = currentDialogueView();
-  const dialogueFont = PIXEL_FONT_UI_8;
+  if (view.presentation?.kind === "shipyard") {
+    drawShipyardDialogueOverlay(view);
+    return;
+  }
+  const dialogueFont = PIXEL_FONT_UI_10;
+  const dialogueLineHeight = 12;
   const portFaction = dialogueState.kind === "port" ? factionById(subject.factionId) : null;
   const portGreeting = dialogueState.kind === "port" && dialogueState.nodeId === "greeting";
   const panelX = 6;
@@ -14595,9 +14664,10 @@ function drawDialogueOverlay(nowMs) {
     ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
     : [];
   const textYOffset = portGreeting ? 52 : 25;
-  const bodyEndOffset = textYOffset + (bodyLines.length + feedbackLines.length) * 10;
+  const bodyEndOffset = textYOffset + (bodyLines.length + feedbackLines.length) * dialogueLineHeight;
   const optionYOffset = portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
-  const contentHeight = optionYOffset + view.options.length * DIALOGUE_OPTION_H + 9;
+  const optionHeight = view.optionHeight || DIALOGUE_OPTION_H;
+  const contentHeight = optionYOffset + view.options.length * optionHeight + 9;
   const geometry = dialoguePanelGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
@@ -14625,7 +14695,7 @@ function drawDialogueOverlay(nowMs) {
     ? wrapPixelText(view.speaker, dialogueFont, speakerW, 2)
     : [fitPixelText(view.speaker, dialogueFont, speakerW)];
   speakerLines.forEach((line, index) => {
-    drawPixelText(fitPixelText(line, dialogueFont, speakerW), panel.x + 8, panel.y + 8 + index * 10, {
+    drawPixelText(fitPixelText(line, dialogueFont, speakerW), panel.x + 8, panel.y + 8 + index * dialogueLineHeight, {
       font: dialogueFont
     });
   });
@@ -14637,19 +14707,146 @@ function drawDialogueOverlay(nowMs) {
   ctx.fillStyle = "#ead9b5";
   for (const line of bodyLines) {
     drawPixelText(line, textX, y, { font: dialogueFont });
-    y += 10;
+    y += dialogueLineHeight;
   }
   if (view.feedback) {
     ctx.fillStyle = "#c7dd8a";
     for (const line of feedbackLines) {
       drawPixelText(line, textX, y, { font: dialogueFont });
-      y += 10;
+      y += dialogueLineHeight;
     }
   }
 
   const optionX = textX;
   const optionY = panel.y + optionYOffset;
   drawDialogueOptions(view, optionX, optionY, optionW, panel.y + panel.h - 9, dialogueFont);
+}
+
+function drawShipyardDialogueOverlay(dialogueView) {
+  const listing = dialogueView.presentation.listing;
+  const vessel = createShipyardShipView(listing.shipSlug);
+  ensureShipyardSideViewLoaded(listing.shipSlug);
+  const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
+  const compact = SCREEN_H > SCREEN_W;
+  const optionHeight = DIALOGUE_OPTION_H;
+  const optionY = panel.y + panel.h - dialogueView.options.length * optionHeight - 7;
+
+  ctx.fillStyle = "rgba(15, 18, 14, 0.9)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#3e3546";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = "#715033";
+  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+
+  drawOptionsText("SHIPYARD / NEW VESSEL", panel.x + panel.w / 2, panel.y + 9, {
+    font: PIXEL_FONT_UI_10,
+    align: "center",
+    color: "#fbb954"
+  });
+  drawOptionsText(vessel.label.toUpperCase(), panel.x + panel.w / 2, panel.y + 22, {
+    font: PIXEL_FONT_UI_10,
+    align: "center",
+    color: "#ffffff"
+  });
+
+  const artX = compact
+    ? panel.x + Math.floor((panel.w - SHIP_INFO_SIDE_VIEW_W) / 2)
+    : panel.x + 10;
+  const artY = compact ? panel.y + 40 : panel.y + 38;
+  ctx.fillStyle = "#323353";
+  ctx.fillRect(artX, artY, SHIP_INFO_SIDE_VIEW_W, SHIP_INFO_SIDE_VIEW_H);
+  ctx.strokeStyle = "#7f708a";
+  ctx.strokeRect(artX + 0.5, artY + 0.5, SHIP_INFO_SIDE_VIEW_W - 1, SHIP_INFO_SIDE_VIEW_H - 1);
+  const sideView = shipInfoImages.get(vessel.slug);
+  if (sideView) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sideView, artX, artY);
+  } else {
+    drawOptionsText("LOADING SHIP...", artX + SHIP_INFO_SIDE_VIEW_W / 2, artY + 48, {
+      align: "center",
+      color: "#9babb2"
+    });
+  }
+
+  if (compact) drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, optionY);
+  else drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, optionY);
+
+  drawDialogueOptions(
+    dialogueView,
+    panel.x + 9,
+    optionY,
+    panel.w - 18,
+    panel.y + panel.h - 6,
+    PIXEL_FONT_UI_10
+  );
+}
+
+function drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, optionY) {
+  const statsX = panel.x + 214;
+  const valueX = panel.x + panel.w - 12;
+  drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, panel.y + 40);
+  drawShipInfoValueRow("CREW / GUNS", `${vessel.crewCapacity} / ${vessel.maxCannons}`, statsX, valueX, panel.y + 52);
+  drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, panel.y + 64);
+  drawShipInfoValueRow("UPWIND LIMIT", `${vessel.upwindStallAngleDeg} DEG`, statsX, valueX, panel.y + 76);
+  drawShipInfoRating("SPEED", vessel.ratings.speed, statsX, panel.y + 92);
+  drawShipInfoRating("ACCEL", vessel.ratings.acceleration, statsX, panel.y + 104);
+  drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, panel.y + 116);
+  drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, panel.y + 128);
+  drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, panel.y + 140);
+  drawOptionsText(`${listing.price} DOUBLOONS`, panel.x + 12, panel.y + 149, {
+    font: PIXEL_FONT_UI_10,
+    color: "#f9c22b"
+  });
+  drawOptionsText(`PURSE ${gameState.doubloons}`, panel.x + 12, panel.y + 163, {
+    font: PIXEL_FONT_UI_10,
+    color: gameState.doubloons >= listing.price ? "#91db69" : "#f68181"
+  });
+  const status = dialogueView.feedback || dialogueView.text;
+  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 20), panel.x + 10, optionY - 12, {
+    color: dialogueView.feedback ? "#c7dd8a" : "#ab947a"
+  });
+}
+
+function drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, optionY) {
+  drawOptionsText(`${listing.price} DOUBLOONS`, panel.x + panel.w / 2, artY + SHIP_INFO_SIDE_VIEW_H + 8, {
+    font: PIXEL_FONT_UI_10,
+    align: "center",
+    color: "#f9c22b"
+  });
+  drawOptionsText(`PURSE ${gameState.doubloons}`, panel.x + panel.w / 2, artY + SHIP_INFO_SIDE_VIEW_H + 22, {
+    font: PIXEL_FONT_UI_10,
+    align: "center",
+    color: gameState.doubloons >= listing.price ? "#91db69" : "#f68181"
+  });
+  const statsX = panel.x + 12;
+  const valueX = panel.x + panel.w - 12;
+  let y = artY + SHIP_INFO_SIDE_VIEW_H + 43;
+  drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, y);
+  drawShipInfoValueRow("CREW / GUNS", `${vessel.crewCapacity} / ${vessel.maxCannons}`, statsX, valueX, y + 12);
+  drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, y + 24);
+  drawShipInfoValueRow("UPWIND LIMIT", `${vessel.upwindStallAngleDeg} DEG`, statsX, valueX, y + 36);
+  y += 56;
+  drawShipInfoRating("SPEED", vessel.ratings.speed, statsX, y);
+  drawShipInfoRating("ACCEL", vessel.ratings.acceleration, statsX, y + 12);
+  drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, y + 24);
+  drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, y + 36);
+  drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, y + 48);
+  const status = dialogueView.feedback || dialogueView.text;
+  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 20), panel.x + 10, optionY - 12, {
+    color: dialogueView.feedback ? "#c7dd8a" : "#ab947a"
+  });
+}
+
+function ensureShipyardSideViewLoaded(slug) {
+  if (shipInfoImages.has(slug) || shipInfoImagePromises.has(slug)) return;
+  void loadShipInfoImage(slug).then(() => {
+    dirty = true;
+  }).catch((error) => {
+    console.error(new Error(`Failed to load shipyard side view for ${shipLabelForSlug(slug)}`, { cause: error }));
+    dirty = true;
+  });
 }
 
 function drawDialogueFactionFlag(faction, panel, nowMs, city, factionBlockW) {
@@ -14717,8 +14914,9 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
   dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
-  const availableH = Math.max(DIALOGUE_OPTION_H, bottom - y);
-  const maxVisible = Math.max(1, Math.floor(availableH / DIALOGUE_OPTION_H));
+  const optionHeight = view.optionHeight || DIALOGUE_OPTION_H;
+  const availableH = Math.max(optionHeight, bottom - y);
+  const maxVisible = Math.max(1, Math.floor(availableH / optionHeight));
   const needsScroll = view.options.length > maxVisible;
   let scrollOffset = clamp(dialogueLayout.scrollOffset, 0, Math.max(0, view.options.length - maxVisible));
   if (dialogueState.selectedIndex < scrollOffset) scrollOffset = dialogueState.selectedIndex;
@@ -14733,9 +14931,9 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     const option = visibleOptions[localIndex];
     const rect = {
       x,
-      y: y + localIndex * DIALOGUE_OPTION_H,
+      y: y + localIndex * optionHeight,
       w: optionWidth,
-      h: DIALOGUE_OPTION_H - 2
+      h: optionHeight - 2
     };
     dialogueLayout.optionRects.push({ index, rect });
     const selected = index === dialogueState.selectedIndex;
@@ -14750,9 +14948,18 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     drawPixelText(
       fitPixelText(`${prefix}${option.label}`, font, rect.w - 4),
       rect.x + 3,
-      rect.y + 4,
+      option.detail ? rect.y + 3 : controlTextY(rect),
       { font }
     );
+    if (option.detail) {
+      ctx.fillStyle = option.disabled ? "#756c62" : selected ? "#d6d9bf" : "#ab947a";
+      drawPixelText(
+        fitPixelText(option.detail, PIXEL_FONT_BODY_8, rect.w - 8),
+        rect.x + 8,
+        rect.y + 16,
+        { font: PIXEL_FONT_BODY_8 }
+      );
+    }
   }
 
   if (needsScroll) {
@@ -14760,7 +14967,7 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     dialogueLayout.previousRect = { x: navX, y, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     dialogueLayout.nextRect = {
       x: navX,
-      y: y + maxVisible * DIALOGUE_OPTION_H - UI_PAGER_BUTTON_H,
+      y: y + maxVisible * optionHeight - UI_PAGER_BUTTON_H,
       w: UI_PAGER_BUTTON_W,
       h: UI_PAGER_BUTTON_H
     };
@@ -14777,7 +14984,7 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     drawOptionsText(
       `${dialogueState.selectedIndex + 1}/${view.options.length}`,
       navX + UI_PAGER_BUTTON_W / 2,
-      y + Math.floor((maxVisible * DIALOGUE_OPTION_H - 8) / 2),
+      y + Math.floor((maxVisible * optionHeight - 8) / 2),
       { align: "center", color: "#ab947a" }
     );
   }

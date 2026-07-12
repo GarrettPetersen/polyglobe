@@ -18,8 +18,10 @@ import {
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   adjustFactionReputation,
   createGameState,
-  hasLetterOfMarqueFrom
+  hasLetterOfMarqueFrom,
+  initializeProvisionalShipLoadout
 } from "./gameState.js";
+import { shipStatsForSlug } from "./shipStats.js";
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
@@ -236,8 +238,8 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(market.options.some((option) => /\d+ db  x\d+/.test(option.label)));
-  assert.equal(market.options[0].action.goodId, HARDTACK_GOOD_ID);
-  assert.equal(market.options[1].action.goodId, FRESH_WATER_GOOD_ID);
+  assert.ok(market.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
+  assert.ok(market.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   const buyIndex = market.options.findIndex((option) => (
     option.action.type === "buy" &&
     !option.disabled &&
@@ -253,6 +255,79 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.label)));
+});
+
+test("the first port requires a chunky loadout choice and provisions the ship", () => {
+  const city = {
+    tileId: 9,
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60000,
+    character: { name: "Isabel Mendez" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "loadout" });
+  const context = { shipStats: stats, simMinute: 120 };
+
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.optionHeight, 34);
+  assert.deepEqual(view.options.map((option) => option.label), [
+    "LONG HAUL",
+    "SHORT HAUL",
+    "COMBAT FOCUSED",
+    "BALANCED"
+  ]);
+  assert.ok(view.options.every((option) => /CREW \d+  GUNS \d+  FOOD \d+D  WATER \d+D/.test(option.detail)));
+
+  const before = gameState.doubloons;
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 3, context);
+  assert.equal(gameState.ship.loadoutId, "balanced");
+  assert.equal(session.nodeId, "root");
+  assert.ok(result.loadoutResult.plan.totalSpace <= stats.cargoCapacity);
+  assert.ok(gameState.doubloons <= before);
+  assert.match(session.feedback, /Balanced targets set/);
+});
+
+test("shipyards show a full vessel presentation and enforce the asking price", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const currentStats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const listing = {
+    id: "shipyard-10-4",
+    shipSlug: "brigantine",
+    shipLabel: "Brigantine",
+    price: 35000
+  };
+  const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
+
+  const poorView = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(poorView.presentation.kind, "shipyard");
+  assert.equal(poorView.presentation.listing.shipSlug, "brigantine");
+  assert.equal(poorView.options[0].disabled, true);
+  assert.match(poorView.options[0].disabledReason, /more doubloons/);
+
+  gameState.doubloons = 40000;
+  const richView = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(richView.options[0].disabled, false);
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
+    closed: false,
+    action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
+  });
 });
 
 test("passenger dialogue can be declined and accepted later", () => {

@@ -11,17 +11,20 @@ import {
   letterOfMarqueStatus,
   portMemory,
   questStateForCity,
+  restockShipLoadoutAtPort,
   sellGood
 } from "./gameState.js";
 import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, portEconomySummary, portMarket, tradeGoodById } from "./economy.js";
 import { factionById } from "./factions.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
+import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
+import { shipStatsForSlug } from "./shipStats.js";
 
-export function createPortDialogueSession(city) {
+export function createPortDialogueSession(city, options = {}) {
   return {
     kind: "port",
     cityTileId: city.tileId,
-    nodeId: "greeting",
+    nodeId: options.initialNodeId || "greeting",
     selectedIndex: 0,
     feedback: null
   };
@@ -196,11 +199,13 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
 
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
-  if (session.nodeId === "buy") return buyView(session, city, gameState, economy);
+  if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
+  if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
+  if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
@@ -231,6 +236,20 @@ export function selectPortDialogueOption(
   }
   if (action.type === "open-passenger") {
     return { closed: false, action: { type: "open-passenger", quest: action.quest } };
+  }
+  if (action.type === "purchase-ship") {
+    return { closed: false, action };
+  }
+  if (action.type === "select-loadout") {
+    if (!context.shipStats) throw new Error("Selecting a loadout requires player ship stats");
+    const result = restockShipLoadoutAtPort(gameState, city, context.shipStats, action.loadoutId, context);
+    const shortages = Object.values(result.shortfalls).reduce((sum, value) => sum + value, 0);
+    session.feedback = `${result.plan.label} targets set. Crew ${gameState.ship.crew}/${result.plan.crew}, ` +
+      `guns ${gameState.ship.cannons}/${result.plan.cannons}.` +
+      (shortages > 0 ? " Some stores could not be fitted or afforded." : " Ship fully provisioned.");
+    session.nodeId = "root";
+    session.selectedIndex = 0;
+    return { closed: false, loadoutResult: result };
   }
   if (action.type === "buy") {
     const result = buyGood(gameState, economy, city, action.goodId, 1, context);
@@ -376,7 +395,8 @@ function greetingView(session, city, gameState, context) {
     nearbyShips: context.nearbyShips,
     stormy: context.stormy === true,
     playerStanding: context.playerStanding || 0,
-    rivalLabel: context.rivalLabel || null
+    rivalLabel: context.rivalLabel || null,
+    shipyardRumor: context.shipyardRumor || null
   });
   return {
     speaker: speakerName(city),
@@ -391,6 +411,8 @@ function rootView(session, city, gameState, economy, context) {
   const market = portEconomySummary(economy, city);
   const options = [
     option("Buy goods", { type: "node", nodeId: "buy" }),
+    ...(context.shipStats ? [option("Ship loadout", { type: "node", nodeId: "loadout" })] : []),
+    option("Visit shipyard", { type: "node", nodeId: "shipyard" }),
     option("Sell cargo", { type: "node", nodeId: "sell" }),
     option("Ask about work", { type: "node", nodeId: "quest" })
   ];
@@ -416,15 +438,59 @@ function rootView(session, city, gameState, economy, context) {
   };
 }
 
-function buyView(session, city, gameState, economy) {
+function shipyardView(session, city, gameState, context) {
+  const yard = context.shipyard || null;
+  const listing = yard?.listing || null;
+  if (!listing) {
+    return {
+      speaker: speakerName(city),
+      expressionId: "neutral",
+      text: yard?.famous
+        ? "The master shipwrights have vessels on the stocks, but none ready for sale. New launches are uncommon and word travels quickly."
+        : "The slipways handle repairs and local work, but there is no newly built vessel for sale today.",
+      feedback: session.feedback,
+      options: [option("Back", { type: "node", nodeId: "root" })]
+    };
+  }
+  const stats = shipStatsForSlug(listing.shipSlug);
+  const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
+  const alreadyOwned = context.shipStats?.slug === listing.shipSlug;
+  const cannotAfford = gameState.doubloons < listing.price;
+  const disabledReason = alreadyOwned
+    ? "You already command this type of vessel."
+    : cargoDoesNotFit
+      ? `Your current cargo will not fit its ${stats.cargoCapacity}-unit hold.`
+      : cannotAfford
+        ? `You need ${listing.price - gameState.doubloons} more doubloons.`
+        : null;
+  return {
+    speaker: `${cityLabel(city)} shipyard`,
+    expressionId: "attentive",
+    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons. Your purse holds ${gameState.doubloons}.`,
+    feedback: session.feedback,
+    presentation: { kind: "shipyard", listing },
+    options: [
+      option(`Buy ${listing.shipLabel}  ${listing.price} db`, {
+        type: "purchase-ship",
+        listingId: listing.id,
+        shipSlug: listing.shipSlug
+      }, {
+        disabled: Boolean(disabledReason),
+        disabledReason
+      }),
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function buyView(session, city, gameState, economy, context) {
   const marketRows = portMarket(economy, city).filter((row) => row.listedForSale && row.stock > 0);
   const supplyIds = new Set([FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID]);
-  const supplyRows = marketRows.filter((row) => supplyIds.has(row.good.id));
   const tradeRows = marketRows
     .filter((row) => !supplyIds.has(row.good.id))
     .sort((a, b) => b.productionPerDay - a.productionPerDay || a.buyPrice - b.buyPrice)
     .slice(0, 5);
-  const rows = [...supplyRows, ...tradeRows]
+  const rows = tradeRows
     .map((row) => {
       const totalSize = row.good.unitSize;
       return option(`Buy ${row.good.label}  ${row.buyPrice} db  x${row.stock}`, { type: "buy", goodId: row.good.id }, {
@@ -432,12 +498,39 @@ function buyView(session, city, gameState, economy) {
         disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
       });
     });
+  if (context.shipStats) rows.unshift(option("Change ship loadout", { type: "node", nodeId: "loadout" }));
   rows.push(option("Back", { type: "node", nodeId: "root" }));
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
+    options: rows
+  };
+}
+
+function loadoutView(session, city, gameState, context) {
+  if (!context.shipStats) throw new Error("Loadout view requires player ship stats");
+  const currentId = gameState.ship?.loadoutId || null;
+  const rows = SHIP_LOADOUT_PRESETS.map((preset) => {
+    const plan = shipLoadoutPlan(context.shipStats, preset.id);
+    const selected = currentId === preset.id;
+    return option(`${selected ? "* " : ""}${preset.label.toUpperCase()}`, {
+      type: "select-loadout",
+      loadoutId: preset.id
+    }, {
+      detail: `CREW ${plan.crew}  GUNS ${plan.cannons}  FOOD ${Math.floor(plan.foodDays)}D  WATER ${Math.floor(plan.waterDays)}D`
+    });
+  });
+  if (currentId) rows.push(option("Back", { type: "node", nodeId: "root" }));
+  return {
+    speaker: speakerName(city),
+    expressionId: "attentive",
+    text: currentId
+      ? "Choose the targets we should automatically restore whenever you dock."
+      : "Before I provision your ship, choose how you intend to use her.",
+    feedback: session.feedback,
+    optionHeight: 34,
     options: rows
   };
 }
@@ -620,6 +713,7 @@ function option(label, action, details = {}) {
   return {
     label,
     action,
+    detail: details.detail || null,
     disabled: !!details.disabled,
     disabledReason: details.disabledReason || null
   };

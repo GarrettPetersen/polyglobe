@@ -5,7 +5,8 @@ import { createGameState } from "./gameState.js";
 import {
   FISH_PLAYER_CATCH_COOLDOWN_MINUTES,
   fisheryForHabitat,
-  harvestFishery
+  harvestFishery,
+  visibleFishCountForDensity
 } from "./fishEcology.js";
 
 const MINUTE = 1440;
@@ -21,6 +22,13 @@ test("temperate rivers can produce seasonal salmon runs", () => {
   assert.ok(fishery.capacity >= fishery.population);
   assert.ok(fishery.visibleIndividualCount > 0);
   assert.ok(fishery.areaRadiusPx > 0);
+});
+
+test("larger fishery populations draw visibly larger schools", () => {
+  assert.equal(visibleFishCountForDensity(0.12), 2);
+  assert.equal(visibleFishCountForDensity(0.5), 5);
+  assert.equal(visibleFishCountForDensity(1), 8);
+  assert.equal(visibleFishCountForDensity(4), 8);
 });
 
 test("fish catches mutate persistent fishery stock and enforce a local cooldown", () => {

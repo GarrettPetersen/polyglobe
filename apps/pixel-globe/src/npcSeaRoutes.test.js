@@ -13,6 +13,7 @@ import {
   npcPortHasMajorProtection,
   npcShipHasCombatGrace,
   npcShipSnapshots,
+  sinkNpcShip,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
   updateNpcSeaRouteSystem
@@ -150,7 +151,7 @@ test("surrender transfers stores and grants protection until a safe port", () =>
   assert.ok(loser);
   assert.ok(winner);
 
-  const damage = damageNpcShip(routes, loser.id, loser.maxHitPoints);
+  const damage = damageNpcShip(routes, loser.id, loser.maxHitPoints - 1);
   assert.equal(damage.shouldSurrender, true);
   const loot = surrenderNpcShip(routes, loser.id, winner.id);
   assert.ok(loot.specie > 0);
@@ -178,6 +179,42 @@ test("voluntary surrender preserves an undamaged hull", () => {
 
   assert.equal(loser.hitPoints, hullBefore);
   assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+});
+
+test("sunk NPC ships are replaced after a rare shipyard delay", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const originalCount = routes.ships.length;
+  const lost = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT);
+  assert.ok(lost);
+  const originalRole = lost.role;
+  const originalFaction = lost.factionId;
+
+  const damage = damageNpcShip(routes, lost.id, lost.maxHitPoints);
+  assert.equal(damage.sunk, true);
+  assert.equal(damage.shouldSurrender, false);
+  const sinking = sinkNpcShip(routes, lost.id, 1000);
+
+  assert.equal(routes.ships.length, originalCount - 1);
+  assert.equal(routes.shipById.has(lost.id), false);
+  assert.equal(routes.replacementQueue.length, 1);
+  assert.ok(sinking.delayDays >= 90);
+  assert.ok(sinking.delayDays <= 700);
+
+  const stepMinutes = 7 * 24 * 60;
+  for (let minute = stepMinutes; minute < sinking.replacement.readyMinute; minute += stepMinutes) {
+    updateNpcSeaRouteSystem(routes, minute);
+  }
+  updateNpcSeaRouteSystem(routes, sinking.replacement.readyMinute - 1);
+  assert.equal(routes.shipById.has(lost.id), false);
+  updateNpcSeaRouteSystem(routes, sinking.replacement.readyMinute);
+  const replacement = routes.shipById.get(lost.id);
+  assert.ok(replacement);
+  assert.equal(routes.ships.length, originalCount);
+  assert.equal(replacement.role, originalRole);
+  assert.equal(replacement.factionId, originalFaction);
+  assert.equal(replacement.hitPoints, replacement.maxHitPoints);
+  assert.equal(routes.replacementQueue.length, 0);
 });
 
 test("pirate hideouts are a deterministic invisible subset of coastal ports", () => {

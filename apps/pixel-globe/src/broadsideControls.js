@@ -1,17 +1,22 @@
-export function broadsideLaneGeometry({
+export function broadsideArcGeometry({
   screenWidth,
   screenHeight,
   heading,
   sideName,
   range,
   start = 13,
-  halfWidth = 10
+  halfAngle = Math.PI / 9
 }) {
   if (sideName !== "port" && sideName !== "starboard") {
-    throw new Error(`Unknown broadside lane: ${sideName}`);
+    throw new Error(`Unknown broadside arc: ${sideName}`);
   }
   const headingLength = Math.hypot(heading?.x || 0, heading?.y || 0);
-  if (headingLength <= 0) throw new Error("Broadside lane requires a heading");
+  if (headingLength <= 0) throw new Error("Broadside arc requires a heading");
+  if (!Number.isFinite(range) || range <= 0) throw new Error(`Invalid broadside range: ${range}`);
+  if (!Number.isFinite(halfAngle) || halfAngle <= 0 || halfAngle >= Math.PI / 2) {
+    throw new Error(`Invalid broadside half angle: ${halfAngle}`);
+  }
+
   const normalizedHeading = { x: heading.x / headingLength, y: heading.y / headingLength };
   const starboard = { x: -normalizedHeading.y, y: normalizedHeading.x };
   const rawDirection = sideName === "starboard" ? starboard : { x: -starboard.x, y: -starboard.y };
@@ -20,12 +25,7 @@ export function broadsideLaneGeometry({
     y: Object.is(rawDirection.y, -0) ? 0 : rawDirection.y
   };
   const origin = { x: screenWidth / 2, y: screenHeight / 2 };
-  const corners = [
-    lanePoint(origin, direction, normalizedHeading, start, -halfWidth),
-    lanePoint(origin, direction, normalizedHeading, start + range, -halfWidth),
-    lanePoint(origin, direction, normalizedHeading, start + range, halfWidth),
-    lanePoint(origin, direction, normalizedHeading, start, halfWidth)
-  ];
+  const centerAngle = Math.atan2(direction.y, direction.x);
   return {
     sideName,
     origin,
@@ -33,24 +33,31 @@ export function broadsideLaneGeometry({
     heading: normalizedHeading,
     start,
     length: range,
-    halfWidth,
-    corners
+    innerRadius: start,
+    outerRadius: start + range,
+    halfAngle,
+    startAngle: centerAngle - halfAngle,
+    endAngle: centerAngle + halfAngle
   };
 }
 
-export function pointInBroadsideLane(point, lane, padding = 0) {
-  const dx = point.x - lane.origin.x;
-  const dy = point.y - lane.origin.y;
-  const along = dx * lane.direction.x + dy * lane.direction.y;
-  const across = dx * lane.heading.x + dy * lane.heading.y;
-  return along >= lane.start - padding &&
-    along <= lane.start + lane.length + padding &&
-    Math.abs(across) <= lane.halfWidth + padding;
+export function pointInBroadsideArc(point, arc, padding = 0) {
+  const dx = point.x - arc.origin.x;
+  const dy = point.y - arc.origin.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance < Math.max(0, arc.innerRadius - padding) || distance > arc.outerRadius + padding) return false;
+  if (distance <= 0) return false;
+  const alignment = clamp((dx * arc.direction.x + dy * arc.direction.y) / distance, -1, 1);
+  const angleFromBroadside = Math.acos(alignment);
+  const angularPadding = Math.atan2(Math.max(0, padding), Math.max(1, distance));
+  return angleFromBroadside <= arc.halfAngle + angularPadding;
 }
 
-function lanePoint(origin, direction, heading, along, across) {
-  return {
-    x: origin.x + direction.x * along + heading.x * across,
-    y: origin.y + direction.y * along + heading.y * across
-  };
+export function hasBroadsideCannons(cannonCount) {
+  if (!Number.isFinite(cannonCount)) throw new Error(`Invalid cannon count: ${cannonCount}`);
+  return cannonCount > 0;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
