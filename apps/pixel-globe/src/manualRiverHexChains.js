@@ -1,3 +1,6 @@
+const DARDANELLES_HEX_CHAIN = Object.freeze([98820, 98676, 98678, 24757]);
+const BOSPORUS_HEX_CHAIN = Object.freeze([98682, 6233, 98694, 98704]);
+
 export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
   7: [
     [
@@ -57,10 +60,14 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     // Mekong/Tonle Sap approach for Angkor.
     [23399, 93282, 23390, 93245, 92992],
     // Dardanelles passage from the Aegean side into the Sea of Marmara.
-    [98820, 98676, 98678, 24757],
+    DARDANELLES_HEX_CHAIN,
     // Bosporus passage from the Sea of Marmara into the Black Sea.
-    [98682, 6233, 98694, 98704],
+    BOSPORUS_HEX_CHAIN,
   ],
+};
+
+export const MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS = {
+  7: Object.freeze([...DARDANELLES_HEX_CHAIN, ...BOSPORUS_HEX_CHAIN])
 };
 
 export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {

@@ -5,7 +5,8 @@ import test from "node:test";
 import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
-  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
+  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
+  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
 
 const SUBDIVISIONS = 7;
@@ -25,6 +26,14 @@ test("Grand Canal gives Ming Beijing water access", async () => {
 
   assert.equal(beijingTileId, 15605);
   assert.equal(cityHasPortAccess(graph, earth.tiles, reachable, masks, beijingTileId), true);
+});
+
+test("saltwater passages are an explicit subset of manual river channels", () => {
+  const chainTiles = new Set((MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || []).flat());
+  const passageTiles = MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
+
+  assert.ok(passageTiles.length > 0);
+  assert.ok(passageTiles.every((tileId) => chainTiles.has(tileId)));
 });
 
 function buildRiverMasks(graph, earth) {

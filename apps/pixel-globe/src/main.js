@@ -10,7 +10,8 @@ import {
 } from "./geodesic.js";
 import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
-  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
+  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
+  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
 import {
   TILE_DAY_RAIN,
@@ -228,10 +229,12 @@ import {
   fishingSideForTarget
 } from "./fishingAction.js";
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
+import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
 const SUBDIVISIONS = 7;
+const SALTWATER_PASSAGE_TILE_IDS = MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
 const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
@@ -415,7 +418,7 @@ const CLOUD_FADE_RATIO = 0.22;
 const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
-const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-1";
+const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-2";
 const VEHICLE_ASSET_VERSION = "ship-edge-shading-1";
 const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const CITY_ASSET_VERSION = "city-types-1";
@@ -587,7 +590,7 @@ const MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PAN
 const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
-const SURVIVAL_PANEL_W = 92;
+const SURVIVAL_PANEL_W = 108;
 const SURVIVAL_PANEL_H = 32;
 const SURVIVAL_BAR_W = 46;
 const SURVIVAL_NOTICE_MS = 2400;
@@ -4943,12 +4946,20 @@ function shipIsInRiverWater() {
 }
 
 function shipIsInFreshWater() {
-  if (!ship || !earthById) return false;
-  const tileId = ship.tileId;
-  if (freshwaterIceMask?.[tileId]) return false;
-  const row = earthById[tileId];
-  if (row?.t === "lake") return true;
-  return shipIsInRiverWater() || (!isWaterSurfaceRow(row) && (riverMasks?.[tileId] || 0) !== 0);
+  if (!ship || !earthById || !localLayout || !chart) return false;
+  const navigation = shipNavigabilityAtLocalPoint(
+    localLayout.viewX,
+    localLayout.viewY,
+    ship.tileId,
+    ship.position
+  );
+  const riverTileId = navigation.riverTileId ?? ship.tileId;
+  return shipCanRefillFreshWater({
+    navigationKind: navigation.kind,
+    riverTileId,
+    frozen: Boolean(freshwaterIceMask?.[riverTileId]),
+    saltwaterPassageTileIds: SALTWATER_PASSAGE_TILE_IDS
+  });
 }
 
 function sailingEfficiency(heading, windFlow) {
@@ -5310,7 +5321,7 @@ function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
   if (isShipOpenWaterTile(tileId)) return { ok: true, kind: "openWater" };
 
   const riverInfo = riverWaterInfoAtLocalPoint(x, y, chart);
-  if (riverInfo?.ok) return { ok: true, kind: "river" };
+  if (riverInfo?.ok) return { ok: true, kind: "river", riverTileId: riverInfo.tileId };
 
   const normal = riverInfo?.normal
     ? localNormalToTangent(riverInfo.normal, position)
@@ -6311,7 +6322,8 @@ function createNpcVisualState(snapshot, routePoint) {
     stormShelterTileId: null,
     stormReferenceTileId: null,
     stormAnchorUntilMinute: 0,
-    fishHarvestUntilMinute: 0
+    fishHarvestUntilMinute: 0,
+    fishingAction: null
   };
   setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   return state;
@@ -6331,7 +6343,46 @@ function updateNpcFishermenHarvest() {
   const nowMinute = Math.floor(weatherClockMinutes);
   let changed = false;
   for (const state of npcVisualShips.values()) {
-    if (state.role !== NPC_ROLE_FISHERMAN || state.combatMode || state.stormMode) continue;
+    if (state.role !== NPC_ROLE_FISHERMAN) continue;
+    if (state.fishingAction) {
+      if (state.combatMode || state.stormMode) {
+        state.fishingAction = null;
+        changed = true;
+        continue;
+      }
+      const animation = fishingAnimationState(state.fishingAction.startMs, lastFrameMs);
+      if (!animation.complete) {
+        if (
+          animation.frameIndex !== state.fishingAction.frameIndex ||
+          animation.cycleIndex !== state.fishingAction.cycleIndex
+        ) changed = true;
+        state.fishingAction.frameIndex = animation.frameIndex;
+        state.fishingAction.cycleIndex = animation.cycleIndex;
+        continue;
+      }
+
+      const action = state.fishingAction;
+      state.fishingAction = null;
+      state.fishHarvestUntilMinute = nowMinute + FISH_NPC_HARVEST_COOLDOWN_MINUTES;
+      const npcShip = npcSeaRoutes.shipById.get(state.id);
+      if (!npcShip) continue;
+      const free = npcShip.cargoCapacity - npcCargoUsedUnits(npcShip);
+      if (free <= 0) continue;
+      const result = harvestFishery(
+        gameState,
+        action.fishery,
+        Math.min(FISH_NPC_HARVEST_MAX, free),
+        nowMinute,
+        { actor: "npc" }
+      );
+      if (result.quantity > 0) {
+        npcShip.cargo[FISH_CARGO_GOOD_ID] = (npcShip.cargo[FISH_CARGO_GOOD_ID] || 0) + result.quantity;
+        npcShip.cargoCost[FISH_CARGO_GOOD_ID] = npcShip.cargoCost[FISH_CARGO_GOOD_ID] || 0;
+      }
+      changed = true;
+      continue;
+    }
+    if (state.combatMode || state.stormMode) continue;
     if ((state.fishHarvestUntilMinute || 0) > nowMinute) continue;
     const npcShip = npcSeaRoutes.shipById.get(state.id);
     if (!npcShip) continue;
@@ -6339,17 +6390,13 @@ function updateNpcFishermenHarvest() {
     if (free <= 0) continue;
     const call = nearestFishCallNearPoint(state.x, state.y, FISH_NPC_HARVEST_RADIUS_PX);
     if (!call) continue;
-    const result = harvestFishery(
-      gameState,
-      call.fishery,
-      Math.min(FISH_NPC_HARVEST_MAX, free),
-      nowMinute,
-      { actor: "npc" }
-    );
-    state.fishHarvestUntilMinute = nowMinute + FISH_NPC_HARVEST_COOLDOWN_MINUTES;
-    if (result.quantity <= 0) continue;
-    npcShip.cargo[FISH_CARGO_GOOD_ID] = (npcShip.cargo[FISH_CARGO_GOOD_ID] || 0) + result.quantity;
-    npcShip.cargoCost[FISH_CARGO_GOOD_ID] = npcShip.cargoCost[FISH_CARGO_GOOD_ID] || 0;
+    state.fishingAction = {
+      startMs: lastFrameMs,
+      fishery: call.fishery,
+      side: fishingSideForTarget(state.x, call.x),
+      frameIndex: 0,
+      cycleIndex: 0
+    };
     changed = true;
   }
   return changed;
@@ -6916,8 +6963,9 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
     clearNpcEscapeManeuver(state, true);
     clearNpcTackManeuver(state);
   }
-
   const stormNavigation = npcStormNavigation(state);
+  if (state.fishingAction && !state.combatMode && !stormNavigation) return collisionChanged;
+  if (state.fishingAction) state.fishingAction = null;
   if (stormNavigation?.anchored) return collisionChanged;
   const portAvoidance = stormNavigation ? null : npcPirateMajorPortAvoidance(state);
   const combatNavigation = stormNavigation || portAvoidance ? null : npcCombatNavigation(state);
@@ -7963,6 +8011,7 @@ function render(nowMs) {
 
   drawShipShadow(chart, shipLight, offset);
   drawFishingNetAnimation(nowMs);
+  drawNpcFishingNetAnimations(nowMs);
   drawShips(chart, shipLight, nowMs);
   ctx.save();
   ctx.translate(offset.x, offset.y);
@@ -9269,23 +9318,27 @@ function drawPoliticsMenu() {
     color: "#ffd98a"
   });
 
+  const rowLabelX = panel.x + 12;
+  const matrixX = panel.x + 124;
+  const matrixW = view.powers.length * POLITICS_MATRIX_CELL_W;
   const legendY = panel.y + 27;
   drawOptionsText("A ALLY", panel.x + 12, legendY, { color: "#91db69" });
   drawOptionsText("W WAR", panel.x + 62, legendY, { color: "#f68181" });
   drawOptionsText("- NEUTRAL", panel.x + 108, legendY, { color: "#9babb2" });
+  drawOptionsText("STANCE TOWARD", matrixX + matrixW / 2, legendY, {
+    align: "center",
+    color: "#ab947a"
+  });
   drawOptionsText("PLAYER STANDING", panel.x + panel.w - 12, legendY, {
     align: "right",
     color: "#d6b66b"
   });
 
-  const rowLabelX = panel.x + 12;
-  const matrixX = panel.x + 124;
   const headerY = panel.y + 42;
   const matrixY = panel.y + 58;
-  const statusX = matrixX + view.powers.length * POLITICS_MATRIX_CELL_W + 8;
+  const statusX = matrixX + matrixW + 8;
   const statusW = panel.x + panel.w - statusX - 12;
   drawOptionsText("POWER", rowLabelX, headerY + 5, { color: "#ab947a" });
-  drawOptionsText("STANCE TOWARD", matrixX, headerY - 4, { color: "#ab947a" });
   drawOptionsText("STATUS", statusX, headerY + 5, { color: "#ab947a" });
 
   view.powers.forEach((power, index) => {
@@ -11657,6 +11710,50 @@ function drawFishingNetAnimation(nowMs) {
   ctx.restore();
 }
 
+function drawNpcFishingNetAnimations(nowMs) {
+  if (!animalImages?.fishingNet || !chart) return;
+  const offset = chartOffsetPixels(chart);
+  for (const state of npcVisualShips.values()) {
+    const action = state.fishingAction;
+    if (!action) continue;
+    const animation = fishingAnimationState(action.startMs, nowMs);
+    if (animation.complete) continue;
+    const sx = animation.frameIndex * FISHING_NET_FRAME_SIZE;
+    const shipX = Math.round(state.x + offset.x);
+    const y = Math.round(state.y + offset.y - FISHING_NET_FRAME_SIZE / 2);
+    if (!pointNearScreen({ x: shipX, y }, FISHING_NET_FRAME_SIZE)) continue;
+    ctx.save();
+    if (action.side < 0) {
+      ctx.translate(shipX, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(
+        animalImages.fishingNet,
+        sx,
+        0,
+        FISHING_NET_FRAME_SIZE,
+        FISHING_NET_FRAME_SIZE,
+        0,
+        y,
+        FISHING_NET_FRAME_SIZE,
+        FISHING_NET_FRAME_SIZE
+      );
+    } else {
+      ctx.drawImage(
+        animalImages.fishingNet,
+        sx,
+        0,
+        FISHING_NET_FRAME_SIZE,
+        FISHING_NET_FRAME_SIZE,
+        shipX,
+        y,
+        FISHING_NET_FRAME_SIZE,
+        FISHING_NET_FRAME_SIZE
+      );
+    }
+    ctx.restore();
+  }
+}
+
 function drawFishIndividuals(activeChart, nowMs) {
   if (!animalImages?.fish || !gameState) return;
   const calls = fishIndividualDrawCalls(activeChart, nowMs);
@@ -12946,14 +13043,17 @@ function drawSurvivalMeters() {
 function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
   drawPixelText(label, x, y, { font: PIXEL_FONT_UI_8 });
   const barX = x + 25;
+  const valueRight = SURVIVAL_PANEL_X + SURVIVAL_PANEL_W - 5;
+  const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_UI_8);
+  const barW = Math.max(8, Math.min(SURVIVAL_BAR_W, valueLeft - barX - 4));
   ctx.fillStyle = "#172437";
-  ctx.fillRect(barX, y + 1, SURVIVAL_BAR_W, 5);
+  ctx.fillRect(barX, y + 1, barW, 5);
   ctx.fillStyle = fill;
-  ctx.fillRect(barX, y + 1, Math.max(0, Math.round(SURVIVAL_BAR_W * clamp(fraction, 0, 1))), 5);
+  ctx.fillRect(barX, y + 1, Math.max(0, Math.round(barW * clamp(fraction, 0, 1))), 5);
   ctx.strokeStyle = "#ab947a";
-  ctx.strokeRect(barX + 0.5, y + 0.5, SURVIVAL_BAR_W - 1, 5);
+  ctx.strokeRect(barX + 0.5, y + 0.5, barW - 1, 5);
   ctx.fillStyle = "#fff1bf";
-  drawPixelText(value, SURVIVAL_PANEL_X + SURVIVAL_PANEL_W - 5, y - 1, {
+  drawPixelText(value, valueRight, y - 1, {
     font: PIXEL_FONT_UI_8,
     align: "right"
   });
