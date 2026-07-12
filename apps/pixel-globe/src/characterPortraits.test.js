@@ -6,6 +6,7 @@ import { PORT_PERSONALITY_IDS } from "./portDialoguePersonality.js";
 import {
   PORTRAIT_ROLE_ACCENT,
   PORTRAIT_ROLE_CLOTH,
+  PORTRAIT_ROLE_EYE,
   PORTRAIT_ROLE_HAIR,
   PORTRAIT_ROLE_SKIN,
   applyPortraitPaletteSwap,
@@ -28,18 +29,19 @@ const GENERATED_MANIFEST = JSON.parse(readFileSync(
 const TEST_PALETTE = Object.freeze({
   skinRamp: ["#301818", "#a85d48", "#f0b08a"],
   hairRamp: ["#101114", "#3a3028", "#8a6848"],
+  eyeRamp: ["#171310", "#493229", "#795744"],
   clothRamp: ["#14233d", "#2f6090", "#78a8c8"],
   accentRamp: ["#24401f", "#56854a", "#a3c276"]
 });
 
 test("packed portrait role maps round-trip exactly", () => {
-  const roles = Uint8Array.from([0, 1, 2, 3, 4, 0, 4, 2, 1]);
+  const roles = Uint8Array.from([0, 1, 2, 3, 4, 5, 0, 4, 2, 1]);
   const encoded = encodePortraitRoleMap(roles);
   assert.deepEqual(decodePortraitRoleMap(encoded, roles.length), roles);
 });
 
 test("identical source colors can be swapped independently by semantic role", () => {
-  const data = new Uint8ClampedArray(4 * 4);
+  const data = new Uint8ClampedArray(5 * 4);
   for (let offset = 0; offset < data.length; offset += 4) {
     data.set([190, 130, 90, 255], offset);
   }
@@ -47,18 +49,20 @@ test("identical source colors can be swapped independently by semantic role", ()
     PORTRAIT_ROLE_SKIN,
     PORTRAIT_ROLE_HAIR,
     PORTRAIT_ROLE_CLOTH,
-    PORTRAIT_ROLE_ACCENT
+    PORTRAIT_ROLE_ACCENT,
+    PORTRAIT_ROLE_EYE
   ]));
 
-  applyPortraitPaletteSwap(data, 2, 2, TEST_PALETTE, roleMap);
+  applyPortraitPaletteSwap(data, 5, 1, TEST_PALETTE, roleMap);
 
-  const colors = Array.from({ length: 4 }, (_, index) => (
+  const colors = Array.from({ length: 5 }, (_, index) => (
     [...data.slice(index * 4, index * 4 + 3)].join(",")
   ));
-  assert.equal(new Set(colors).size, 4);
+  assert.equal(new Set(colors).size, 5);
   assert.ok(data[0] > data[2], "skin remains warm");
   assert.ok(data[10] > data[8], "clothing maps to blue");
   assert.ok(data[13] > data[12], "accent maps to green");
+  assert.ok(data[16] > data[18], "eye maps to brown");
 });
 
 test("portrait analysis separates a face, nearby hair, and torso colors", () => {
@@ -85,6 +89,22 @@ test("portrait analysis separates a face, nearby hair, and torso colors", () => 
     PORTRAIT_ROLE_ACCENT
   ].includes(roles[7 + 12 * width]));
   assert.notEqual(roles[4 + 12 * width], roles[7 + 12 * width]);
+});
+
+test("portrait analysis identifies paired iris pixels inside the face", () => {
+  const width = 24;
+  const height = 24;
+  const data = new Uint8ClampedArray(width * height * 4);
+  fillRect(data, width, 8, 6, 8, 9, [210, 150, 115, 255]);
+  fillRect(data, width, 9, 9, 1, 2, [55, 105, 145, 255]);
+  fillRect(data, width, 14, 9, 1, 2, [55, 105, 145, 255]);
+  fillRect(data, width, 7, 4, 10, 3, [45, 38, 50, 255]);
+  fillRect(data, width, 5, 16, 14, 8, [35, 75, 125, 255]);
+
+  const roles = classifyPortraitRoles(data, width, height);
+
+  assert.equal(roles[9 + 9 * width], PORTRAIT_ROLE_EYE);
+  assert.equal(roles[14 + 9 * width], PORTRAIT_ROLE_EYE);
 });
 
 test("portrait analysis treats a hat matching the outfit as clothing, not hair", () => {
@@ -148,14 +168,56 @@ test("player portrait pool contains only multi-expression captain sources", () =
   assert.equal(character.homePortName, "Cadiz");
   assert.equal(character.nameCulture, "spanish");
   assert.ok(character.sourceRoles.includes("captain"));
-  assert.equal(character.id, character.sourceId);
-  assert.equal(character.paletteSwapped, false);
-  assert.equal(character.palette, null);
-  assert.equal(character.skinToneId, null);
-  assert.equal(character.hairToneId, null);
-  assert.equal(character.outfitId, null);
+  assert.notEqual(character.id, character.sourceId);
+  assert.equal(character.paletteSwapped, true);
+  assert.ok(character.palette);
+  assert.ok(character.skinToneId);
+  assert.ok(character.hairToneId);
+  assert.ok(character.eyeToneId);
+  assert.ok(character.outfitId);
+  assert.ok(character.age >= character.minAge && character.age <= character.maxAge);
   assert.ok(character.expressions.length > 1);
   assert.ok(character.expressions.every((expression) => expression.src.startsWith("/assets/characters/")));
+});
+
+test("every portrait identity has a visually authored age range", () => {
+  assert.ok(GENERATED_MANIFEST.sourceCharacters.every((source) => (
+    Number.isInteger(source.minAge)
+      && Number.isInteger(source.maxAge)
+      && source.minAge >= 5
+      && source.maxAge <= 90
+      && source.minAge <= source.maxAge
+  )));
+  const littleGirl = GENERATED_MANIFEST.sourceCharacters.find((source) => source.label === "Little Girl Portrait");
+  const oldWarrior = GENERATED_MANIFEST.sourceCharacters.find((source) => source.label === "Old Warrior Grey Beard");
+  assert.deepEqual([littleGirl.minAge, littleGirl.maxAge], [8, 13]);
+  assert.deepEqual([oldWarrior.minAge, oldWarrior.maxAge], [58, 75]);
+});
+
+test("East Asian player palettes use regional hair, eye, and skin tones", () => {
+  const homePort = {
+    tileId: 12,
+    city: "Beijing",
+    displayCity: "Beijing",
+    country: "China",
+    factionId: "ming",
+    cityType: "east-asian",
+    lat: 39.9,
+    lon: 116.4
+  };
+  for (let index = 0; index < 100; index++) {
+    const character = generatePlayerCharacter({
+      identityKey: `beijing-player-${index}`,
+      homePort,
+      manifest: GENERATED_MANIFEST,
+      usedNames: new Set()
+    });
+    assert.ok(["fair", "golden", "olive", "tan"].includes(character.skinToneId));
+    assert.ok(["black", "dark-brown", "silver"].includes(character.hairToneId));
+    assert.ok(["dark-brown", "brown"].includes(character.eyeToneId));
+    assert.ok(character.age >= character.minAge && character.age <= character.maxAge);
+    if (character.age < 45) assert.notEqual(character.hairToneId, "silver");
+  }
 });
 
 test("character expressions change frames without changing character identity", () => {
@@ -225,6 +287,16 @@ test("generated portrait expressions are semantically labelled", () => {
   }
 
   assert.deepEqual(genericExpressions, []);
+});
+
+test("Knight Portrait opens on its calm neutral frame", () => {
+  const knight = GENERATED_MANIFEST.sourceCharacters.find((source) => (
+    source.sourceDirectory === "Knight Portrait Pack by Captainskeleto"
+  ));
+  const neutral = knight.expressions.find((expression) => expression.id === "neutral");
+
+  assert.match(neutral.src, /Knight%20Portrait_2\.png$/);
+  assert.equal(knight.expressions[0].id, "happy");
 });
 
 test("women portrait grid entries are individual people, not expression sets", () => {
@@ -307,6 +379,8 @@ test("return-home passenger generation can use destination culture", () => {
   assert.equal(passenger.paletteSwapped, true);
   assert.ok(passenger.palette);
   assert.ok(["fair", "golden", "olive", "tan"].includes(passenger.skinToneId));
+  assert.ok(["black", "dark-brown", "silver"].includes(passenger.hairToneId));
+  assert.ok(["dark-brown", "brown"].includes(passenger.eyeToneId));
 });
 
 test("port assignments use regional portrait and tone pools", () => {
@@ -319,12 +393,14 @@ test("port assignments use regional portrait and tone pools", () => {
   const american = assignments.get(1);
   assert.ok(american.sourceRegions.includes("americas"));
   assert.ok(["golden", "olive", "tan", "brown"].includes(american.skinToneId));
+  assert.ok(["dark-brown", "brown"].includes(american.eyeToneId));
   assert.equal(american.nameCulture, "nahua");
   assert.ok(american.name.includes(" "));
   assert.ok(PORT_PERSONALITY_IDS.includes(american.personalityId));
   const african = assignments.get(2);
   assert.ok(["tan", "brown", "deep-brown", "ebony"].includes(african.skinToneId));
   assert.ok(["black", "dark-brown"].includes(african.hairToneId));
+  assert.ok(["dark-brown", "brown"].includes(african.eyeToneId));
   assert.equal(african.nameCulture, "eastAfrican");
   assert.ok(PORT_PERSONALITY_IDS.includes(african.personalityId));
   assert.equal(usedNames.size, 2);

@@ -68,7 +68,7 @@ export function generatePlayerStartingProfile({
     manifest,
     usedNames
   });
-  const birthDate = generateBirthDate(identityKey, startYear);
+  const birthDate = generateBirthDate(identityKey, startYear, baseCharacter.age);
   const character = Object.freeze({
     ...baseCharacter,
     sex: baseCharacter.gender,
@@ -143,8 +143,8 @@ export function playerHomePortPools(ports) {
   return pools;
 }
 
-function generateBirthDate(identityKey, startYear) {
-  const age = 20 + hashString32(`${identityKey}|age`) % 21;
+function generateBirthDate(identityKey, startYear, age) {
+  if (!Number.isInteger(age) || age < 5 || age > 90) throw new Error(`Invalid player age: ${age}`);
   const month = hashString32(`${identityKey}|birth-month`) % 12 + 1;
   const day = hashString32(`${identityKey}|birth-day`) % DAYS_PER_MONTH[month - 1] + 1;
   const birthdayDayOfYear = DAYS_PER_MONTH

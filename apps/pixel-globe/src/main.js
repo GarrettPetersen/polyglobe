@@ -25,6 +25,7 @@ import {
   decodePixelRuntimeWeatherBakeFile,
   discreteWeatherFlagsForTile,
   fillIceMaskForDay,
+  weatherClockAtLocalTime,
   weatherClockParts,
   windAtLatLonDeg
 } from "./weather.js";
@@ -609,7 +610,6 @@ const SURVIVAL_STARVATION_DAMAGE = 1;
 const DISCOVERIES_BUTTON_SIZE = 13;
 let DISCOVERIES_PANEL_W = 300;
 let DISCOVERIES_PANEL_H = 214;
-const DISCOVERIES_PAGE_SIZE = 9;
 const SHIP_INFO_BUTTON_SIZE = 13;
 const POLITICS_BUTTON_SIZE = 13;
 const SHIP_INFO_PANEL_X = 10;
@@ -728,8 +728,7 @@ const CAPTAIN_MENU_LABELS = Object.freeze([
   "SHIP & LEDGER",
   "POLITICS",
   "DISCOVERIES",
-  "OPTIONS",
-  "CREDITS"
+  "OPTIONS"
 ]);
 const CAPTAIN_MENU_PANEL_W = 224;
 const CAPTAIN_MENU_PANEL_H = 214;
@@ -975,6 +974,7 @@ let earthById;
 let mountainLandmarks;
 let worldDiscoveries = [];
 let discoveryCatalog = [];
+let discoveryCatalogById = new Map();
 let discoveryNotice = null;
 const discoveryNoticeQueue = [];
 let fishCatchNotice = null;
@@ -1035,6 +1035,7 @@ let freshwaterIceMask;
 let snowGroundMask;
 let cloudSprites;
 let weatherClockMinutes = START_WEATHER.clockMinutes;
+let voyageStartClockMinutes = START_WEATHER.clockMinutes;
 let weatherTimeScale = START_WEATHER.timeScale;
 let pausedWeatherTimeScale = START_WEATHER.timeScale || WEATHER_DEFAULT_TIME_SCALE;
 let weatherParts = weatherClockParts(weatherClockMinutes);
@@ -1341,6 +1342,7 @@ async function main() {
     ...worldDiscoveries,
     CIRCUMNAVIGATION_DISCOVERY
   ];
+  discoveryCatalogById = new Map(discoveryCatalog.map((discovery) => [discovery.id, discovery]));
   console.info(
     `[pixel-globe] mountains: ${mountainLandmarks.all.length} named peaks, ` +
     `${mountainLandmarks.peakTileIds.size} peak tiles, ` +
@@ -1357,10 +1359,6 @@ async function main() {
   portCities = portCitiesForCharacters();
   factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
-  worldEconomy = createWorldEconomy({
-    ports: portCities,
-    startMinute: weatherClockMinutes
-  });
   usedCharacterNames = new Set();
   const playerPortraitSummary = playerCharacterPortraitSummary(characterPortraitManifest);
   const playerProfile = generatePlayerStartingProfile({
@@ -1375,6 +1373,19 @@ async function main() {
     lat: playerProfile.homePort.lat,
     lon: playerProfile.homePort.lon
   };
+  if (!START_WEATHER.explicitTime) {
+    weatherClockMinutes = weatherClockAtLocalTime(
+      START_WEATHER.clockMinutes,
+      playerStartPosition.lon,
+      10
+    );
+    weatherParts = weatherClockParts(weatherClockMinutes);
+  }
+  voyageStartClockMinutes = weatherClockMinutes;
+  worldEconomy = createWorldEconomy({
+    ports: portCities,
+    startMinute: weatherClockMinutes
+  });
   if (!shipImage || !shipLighting || playerShipSlug !== START_SHIP_SLUG) {
     const playerShipAssets = await loadShipAssetSet(playerShipSlug);
     shipImage = playerShipAssets.image;
@@ -1388,6 +1399,7 @@ async function main() {
     `${characterPortraitManifest.sourceCharacters.length} source portraits, ` +
     `${characterPortraitManifest.skinTones.length} skin tones, ` +
     `${characterPortraitManifest.hairTones.length} hair tones, ` +
+    `${characterPortraitManifest.eyeTones.length} eye tones, ` +
     `${characterPortraitManifest.outfitPalettes.length} outfit palettes`
   );
   console.info(
@@ -2068,7 +2080,8 @@ function startWeatherFromLocation() {
     clockMinutes: (Math.floor(dayNumber) - 1) * WEATHER_MINUTES_PER_DAY +
       Math.floor(hour) * 60 +
       Math.floor(minute),
-    timeScale
+    timeScale,
+    explicitTime: params.has("hour") || params.has("minute")
   };
 }
 
@@ -3592,7 +3605,6 @@ function activateCaptainMenuSelection(index) {
   else if (index === 1) openPoliticsMenu();
   else if (index === 2) openDiscoveriesMenu();
   else if (index === 3) openOptionsMenu();
-  else if (index === 4) openCreditsMenu();
 }
 
 function handleOptionsKeyDown(event) {
@@ -4035,7 +4047,7 @@ function stepDiscoveriesPage(direction) {
 }
 
 function discoveriesPageSize() {
-  return SCREEN_W < 300 ? 7 : DISCOVERIES_PAGE_SIZE;
+  return SCREEN_W < 300 ? 2 : 3;
 }
 
 function stepPoliticsPage(direction) {
@@ -6517,7 +6529,7 @@ function createGameOverState(reason, startedAtMs) {
 }
 
 function createGameOverStats(deathMinute) {
-  const startMinute = START_WEATHER.clockMinutes;
+  const startMinute = voyageStartClockMinutes;
   const daysAtSea = Math.max(1, Math.floor((deathMinute - startMinute) / WEATHER_MINUTES_PER_DAY) + 1);
   const discoveries = gameState ? discoveredEntries(gameState).length : 0;
   const visitedPorts = gameState ? Object.keys(gameState.memory.visitedPorts).length : 0;
@@ -9239,7 +9251,6 @@ function drawCaptainMenuItemIcon(index, x, y, active) {
   else if (index === 1) drawCaptainPoliticsIcon(x, y, active);
   else if (index === 2 && discoveriesMenuIcon) ctx.drawImage(discoveriesMenuIcon, x, y);
   else if (index === 3 && settingsMenuIcon) ctx.drawImage(settingsMenuIcon, x, y);
-  else if (index === 4) drawCaptainCreditsIcon(x, y, active);
   ctx.restore();
 }
 
@@ -9267,17 +9278,6 @@ function drawCaptainPoliticsIcon(x, y, active) {
   ctx.fillStyle = active ? "#f68181" : "#cd683d";
   ctx.fillRect(x + 9, y + 6, 4, 1);
   ctx.fillRect(x + 10, y + 7, 2, 1);
-}
-
-function drawCaptainCreditsIcon(x, y, active) {
-  ctx.fillStyle = active ? "#fff1bf" : "#d8c7a2";
-  ctx.fillRect(x + 2, y + 1, 9, 11);
-  ctx.fillStyle = "#2f241c";
-  ctx.fillRect(x + 4, y + 3, 5, 1);
-  ctx.fillRect(x + 4, y + 5, 5, 1);
-  ctx.fillRect(x + 4, y + 7, 4, 1);
-  ctx.fillStyle = active ? "#f9c22b" : "#cd683d";
-  ctx.fillRect(x + 8, y + 8, 2, 2);
 }
 
 function drawCaptainChart(panel, nowMs) {
@@ -9526,7 +9526,7 @@ function drawShipInfoMenu() {
     const compactTitle = shipInfoMenu.view === "ledger"
       ? "CAPTAIN'S LEDGER"
       : shipInfoMenu.view === "papers"
-        ? "SHIP'S PAPERS"
+        ? "SHIP'S INVENTORY"
         : vesselTitle.toUpperCase();
     drawOptionsText(
       fitPixelText(compactTitle, PIXEL_FONT_UI_8, panel.w - 24),
@@ -9543,11 +9543,13 @@ function drawShipInfoMenu() {
   const title = shipInfoMenu.view === "ledger"
     ? "CAPTAIN'S LEDGER"
     : shipInfoMenu.view === "papers"
-      ? "SHIP'S PAPERS"
-      : fitPixelText(vesselTitle.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 206);
+      ? "SHIP'S INVENTORY"
+      : vesselTitle.toUpperCase();
+  const titleLeft = shipInfoMenu.papersTabRect.x + shipInfoMenu.papersTabRect.w + 7;
+  const titleRight = shipInfoMenu.closeButtonRect.x - 7;
   drawOptionsText(
-    title,
-    panel.x + panel.w / 2,
+    fitPixelText(title, PIXEL_FONT_UI_8, titleRight - titleLeft),
+    (titleLeft + titleRight) / 2,
     panel.y + 8,
     {
       align: "center",
@@ -9792,9 +9794,9 @@ function drawCompactShipPapers(panel, view) {
   const left = panel.x + 12;
   const right = panel.x + panel.w - 12;
   const top = panel.y + 43;
-  drawOptionsText("ACTIVE DOCUMENTS", left, top, { color: "#c7dcd0" });
+  drawOptionsText("ITEMS & DOCUMENTS", left, top, { color: "#c7dcd0" });
   drawOptionsText(`${view.papers.length} HELD`, right, top, { align: "right", color: "#fbb954" });
-  if (page.rows.length === 0) drawOptionsText("NO SHIP PAPERS HELD", left, top + 21, { color: "#9babb2" });
+  if (page.rows.length === 0) drawOptionsText("INVENTORY IS EMPTY", left, top + 21, { color: "#9babb2" });
   const availableH = panel.y + panel.h - 24 - (top + 14);
   const rowH = Math.max(26, Math.floor(availableH / Math.max(1, page.rows.length)));
   page.rows.forEach((paper, index) => {
@@ -9810,7 +9812,7 @@ function drawCompactShipPapers(panel, view) {
       color: "#c7dcd0"
     });
   });
-  drawCompactShipPager(panel, page.page, page.pageCount, "PAPERS");
+  drawCompactShipPager(panel, page.page, page.pageCount, "INVENTORY");
 }
 
 function drawCompactShipPager(panel, page, pageCount, label) {
@@ -9841,7 +9843,7 @@ function drawCompactShipPager(panel, page, pageCount, label) {
 function drawShipInfoTabs(panel) {
   shipInfoMenu.vesselTabRect = { x: panel.x + 8, y: panel.y + 6, w: 48, h: UI_TAB_H };
   shipInfoMenu.ledgerTabRect = { x: panel.x + 59, y: panel.y + 6, w: 51, h: UI_TAB_H };
-  shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 51, h: UI_TAB_H };
+  shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 66, h: UI_TAB_H };
   drawShipInfoTab(
     shipInfoMenu.vesselTabRect,
     "VESSEL",
@@ -9856,7 +9858,7 @@ function drawShipInfoTabs(panel) {
   );
   drawShipInfoTab(
     shipInfoMenu.papersTabRect,
-    "PAPERS",
+    "INVENTORY",
     shipInfoMenu.view === "papers",
     pointInRect(optionsMenu.hoverPoint, shipInfoMenu.papersTabRect)
   );
@@ -9955,26 +9957,26 @@ function drawShipPapers(panel, view) {
   const page = shipPapersPage(view, shipInfoMenu.papersPage);
   shipInfoMenu.papersPage = page.page;
   const summaryY = panel.y + 27;
-  drawOptionsText("ACTIVE DOCUMENTS", panel.x + 12, summaryY, { color: "#c7dcd0" });
+  drawOptionsText("ITEMS & DOCUMENTS", panel.x + 12, summaryY, { color: "#c7dcd0" });
   drawOptionsText(`${view.papers.length} HELD`, panel.x + panel.w - 12, summaryY, {
     align: "right",
     color: view.papers.length > 0 ? "#fbb954" : "#9babb2"
   });
 
   const typeX = panel.x + 12;
-  const documentX = panel.x + 78;
+  const entryX = panel.x + 78;
   const detailX = panel.x + 218;
   const dateX = panel.x + panel.w - 12;
   const headerY = panel.y + 43;
   ctx.fillStyle = "#625565";
   ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
   drawOptionsText("TYPE", typeX, headerY, { color: "#ab947a" });
-  drawOptionsText("DOCUMENT", documentX, headerY, { color: "#ab947a" });
+  drawOptionsText("ENTRY", entryX, headerY, { color: "#ab947a" });
   drawOptionsText("DETAIL", detailX, headerY, { color: "#ab947a" });
   drawOptionsText("DATE", dateX, headerY, { align: "right", color: "#ab947a" });
 
   if (page.rows.length === 0) {
-    drawOptionsText("NO SHIP PAPERS HELD", panel.x + 12, panel.y + 63, { color: "#9babb2" });
+    drawOptionsText("INVENTORY IS EMPTY", panel.x + 12, panel.y + 63, { color: "#9babb2" });
   }
   page.rows.forEach((paper, index) => {
     const y = panel.y + 57 + index * 18;
@@ -9988,10 +9990,10 @@ function drawShipPapers(panel, view) {
     drawOptionsText(fitPixelText(paper.kind.toUpperCase(), PIXEL_FONT_UI_8, 55), typeX, y, {
       color: typeColor
     });
-    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_UI_8, 126), documentX, y, {
+    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_UI_8, 126), entryX, y, {
       color: "#ffffff"
     });
-    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_UI_8, 126), documentX, y + 8, {
+    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_UI_8, 126), entryX, y + 8, {
       color: "#9babb2"
     });
     drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_UI_8, 145), detailX, y, {
@@ -10157,15 +10159,28 @@ function drawDiscoveriesMenu() {
     drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: "#8f8779" });
   } else {
     pageEntries.forEach((entry, index) => {
-      const y = listY + index * 12;
-      ctx.fillStyle = discoveryKindColor(entry.kind);
-      ctx.fillRect(listX, y + 2, 3, 3);
+      const y = listY + index * 36;
+      const sprite = discoverySpriteImage(entry);
+      if (sprite) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(sprite, listX, y);
+      } else {
+        ctx.fillStyle = discoveryKindColor(entry.kind);
+        ctx.fillRect(listX + 15, y + 14, 6, 6);
+        ctx.fillStyle = "#17130e";
+        ctx.fillRect(listX + 17, y + 16, 2, 2);
+      }
+      const textX = listX + 42;
+      const textWidth = DISCOVERIES_PANEL_W - 67;
       drawOptionsText(
-        fitPixelText(entry.displayName, PIXEL_FONT_UI_8, DISCOVERIES_PANEL_W - 37),
-        listX + 8,
-        y,
+        fitPixelText(entry.displayName.toUpperCase(), PIXEL_FONT_UI_8, textWidth),
+        textX,
+        y + 7,
         { color: "#eee4cf" }
       );
+      const detail = fitPixelText(entry.detail.toUpperCase(), PIXEL_FONT_BODY_8, textWidth);
+      ctx.fillStyle = "#a9a08f";
+      drawPixelText(detail, textX, y + 20, { font: PIXEL_FONT_BODY_8 });
     });
   }
 
@@ -10192,6 +10207,14 @@ function drawDiscoveriesMenu() {
     color: "#a9a08f"
   });
   ctx.restore();
+}
+
+function discoverySpriteImage(entry) {
+  const spriteKey = discoveryCatalogById.get(entry.id)?.spriteKey;
+  if (!spriteKey) return null;
+  const image = worldDiscoveryImages.get(spriteKey);
+  if (!image) throw new Error(`Missing discovered wonder image: ${spriteKey}`);
+  return image;
 }
 
 function drawDiscoveryProgressRow(x, y, label, value, fraction, color, availableWidth, compact) {
@@ -10572,12 +10595,12 @@ function drawStartMenu(nowMs) {
   }));
 
   for (let i = 0; i < labels.length; i++) {
-    drawStartMenuButton(startMenu.buttonRects[i], labels[i], i, startMenu.selectedIndex === i);
+    drawStartMenuButton(startMenu.buttonRects[i], labels[i], startMenu.selectedIndex === i);
   }
   ctx.restore();
 }
 
-function drawStartMenuButton(rect, label, index, highlighted) {
+function drawStartMenuButton(rect, label, highlighted) {
   ctx.fillStyle = highlighted ? "#6d4b2f" : "#2f241c";
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = highlighted ? "#fff1bf" : "#715033";
@@ -10588,13 +10611,8 @@ function drawStartMenuButton(rect, label, index, highlighted) {
     ctx.fillRect(rect.x + 4, markerY, 3, 3);
     ctx.fillRect(rect.x + rect.w - 7, markerY, 3, 3);
   }
-  const labelX = rect.x + rect.w / 2 + (index === START_MENU_ACTION_OPTIONS && settingsMenuIcon ? 5 : 0);
-  if (index === START_MENU_ACTION_OPTIONS && settingsMenuIcon) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(settingsMenuIcon, rect.x + 34, rect.y + Math.floor((rect.h - settingsMenuIcon.height) / 2));
-  }
   ctx.fillStyle = highlighted ? "#fff1bf" : "#d7d9bf";
-  drawPixelText(label, labelX, rect.y + Math.floor((rect.h - 8) / 2), {
+  drawPixelText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
@@ -13999,11 +14017,17 @@ function drawDiscoveryNotice(nowMs) {
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = "#d6b66b";
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  const sprite = discoverySpriteImage(discovery);
+  const textX = sprite ? x + 25 : x + 5;
+  if (sprite) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sprite, x + 3, y + 3, 18, 18);
+  }
   ctx.fillStyle = "#fff1bf";
-  const headline = fitPixelText(discovery.notice, PIXEL_FONT_UI_8, w - 10);
-  drawPixelText(headline, x + 5, y + 4, { font: PIXEL_FONT_UI_8 });
+  const headline = fitPixelText(discovery.notice, PIXEL_FONT_UI_8, x + w - 5 - textX);
+  drawPixelText(headline, textX, y + 4, { font: PIXEL_FONT_UI_8 });
   ctx.fillStyle = "#cbb88a";
-  drawPixelText(discovery.detail, x + 5, y + 14, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText(discovery.detail, textX, y + 14, { font: PIXEL_FONT_BODY_8 });
 }
 
 function drawInteractionButton() {

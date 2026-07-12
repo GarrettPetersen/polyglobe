@@ -1,12 +1,13 @@
 import { assignRegionalCharacterName } from "./characterNames.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-3";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-4";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 export const PORTRAIT_ROLE_SKIN = 1;
 export const PORTRAIT_ROLE_HAIR = 2;
 export const PORTRAIT_ROLE_CLOTH = 3;
 export const PORTRAIT_ROLE_ACCENT = 4;
+export const PORTRAIT_ROLE_EYE = 5;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
   angry: Object.freeze(["stern", "shouting", "annoyed", "determined"]),
@@ -42,6 +43,9 @@ export function validateCharacterPortraitManifest(manifest) {
   if (!Array.isArray(manifest.hairTones) || manifest.hairTones.length === 0) {
     throw new Error("Character portrait manifest has no hair tones");
   }
+  if (!Array.isArray(manifest.eyeTones) || manifest.eyeTones.length === 0) {
+    throw new Error("Character portrait manifest has no eye tones");
+  }
   if (!Array.isArray(manifest.outfitPalettes) || manifest.outfitPalettes.length === 0) {
     throw new Error("Character portrait manifest has no outfit palettes");
   }
@@ -59,6 +63,7 @@ export function validateCharacterPortraitManifest(manifest) {
     }
     validateTagList(character.roles, `${character.id}.roles`);
     validateTagList(character.regions, `${character.id}.regions`);
+    validateAgeRange(character.minAge, character.maxAge, character.id);
     const expressionIds = new Set();
     for (const expression of character.expressions) {
       assertSlug(expression.id, `expression id for ${character.id}`);
@@ -94,6 +99,14 @@ export function validateCharacterPortraitManifest(manifest) {
     validateRamp(hairTone.ramp, `${hairTone.id}.ramp`);
   }
 
+  const eyeToneIds = new Set();
+  for (const eyeTone of manifest.eyeTones) {
+    assertSlug(eyeTone.id, "eye tone id");
+    if (eyeToneIds.has(eyeTone.id)) throw new Error(`Duplicate eye tone id: ${eyeTone.id}`);
+    eyeToneIds.add(eyeTone.id);
+    validateRamp(eyeTone.ramp, `${eyeTone.id}.ramp`);
+  }
+
   const outfitIds = new Set();
   for (const palette of manifest.outfitPalettes) {
     assertSlug(palette.id, "outfit palette id");
@@ -123,6 +136,12 @@ function validateRamp(ramp, label) {
 function validateTagList(tags, label) {
   if (!Array.isArray(tags) || tags.length === 0) throw new Error(`${label} must be a non-empty array`);
   for (const tag of tags) assertSlug(tag, label);
+}
+
+function validateAgeRange(minAge, maxAge, label) {
+  if (!Number.isInteger(minAge) || !Number.isInteger(maxAge) || minAge < 5 || maxAge > 90 || minAge > maxAge) {
+    throw new Error(`${label} has invalid portrait age range: ${minAge}-${maxAge}`);
+  }
 }
 
 export function assignPortCityCharacters(portCities, manifest, usedNames) {
@@ -222,7 +241,7 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
     throw new Error("Character portrait manifest has no multi-expression player captains");
   }
   const region = portraitRegionForCity(homePort);
-  const character = assignPlayerSourceCharacter(`player|${identityKey}`, region, sourcePool);
+  const character = assignCharacterVariant(`player|${identityKey}`, region, sourcePool, manifest, new Set());
   const name = assignRegionalCharacterName({
     identityKey: `player|${identityKey}`,
     city: homePort,
@@ -291,53 +310,67 @@ function assertUsedNames(usedNames) {
 function assignCharacterVariant(key, region, sourcePool, manifest, used) {
   if (sourcePool.length === 0) throw new Error(`No character portrait sources available for ${key}`);
   const skinTones = tonesForRegion(manifest.skinTones, SKIN_TONE_IDS_BY_REGION[region]);
-  const hairTones = tonesForRegion(manifest.hairTones, HAIR_TONE_IDS_BY_REGION[region]);
-  const stylesPerSource = skinTones.length * hairTones.length * manifest.outfitPalettes.length;
-  const capacity = sourcePool.length * stylesPerSource;
-  let comboIndex = hashString32(key) % capacity;
-  let attempts = 0;
-  while (attempts < capacity) {
-    const sourceIndex = comboIndex % sourcePool.length;
-    const styleIndex = Math.floor(comboIndex / sourcePool.length);
-    const skinToneIndex = styleIndex % skinTones.length;
-    const hairAndOutfitIndex = Math.floor(styleIndex / skinTones.length);
-    const hairToneIndex = hairAndOutfitIndex % hairTones.length;
-    const outfitIndex = Math.floor(hairAndOutfitIndex / hairTones.length);
-    const source = sourcePool[sourceIndex];
-    const skinTone = skinTones[skinToneIndex];
-    const hairTone = hairTones[hairToneIndex];
-    const outfit = manifest.outfitPalettes[outfitIndex];
-    const variantId = `${source.id}-${skinTone.id}-${hairTone.id}-${outfit.id}`;
-    if (!used.has(variantId)) {
-      used.add(variantId);
-      return assignedCharacterVariant(variantId, region, source, skinTone, hairTone, outfit);
+  const regionalHairTones = tonesForRegion(manifest.hairTones, HAIR_TONE_IDS_BY_REGION[region]);
+  const eyeTones = tonesForRegion(manifest.eyeTones, EYE_TONE_IDS_BY_REGION[region]);
+  const sourceStyles = sourcePool.map((source) => {
+    const age = ageForSource(key, source);
+    const hairTones = hairTonesForAge(regionalHairTones, age);
+    return {
+      source,
+      age,
+      hairTones,
+      count: skinTones.length * hairTones.length * eyeTones.length * manifest.outfitPalettes.length
+    };
+  });
+  const startSourceIndex = hashString32(`${key}|source`) % sourceStyles.length;
+  for (let sourceAttempt = 0; sourceAttempt < sourceStyles.length; sourceAttempt++) {
+    const entry = sourceStyles[(startSourceIndex + sourceAttempt) % sourceStyles.length];
+    const { source, age, hairTones } = entry;
+    let styleIndex = hashString32(`${key}|${source.id}|style`) % entry.count;
+    for (let styleAttempt = 0; styleAttempt < entry.count; styleAttempt++) {
+      const skinToneIndex = styleIndex % skinTones.length;
+      const hairEyeAndOutfitIndex = Math.floor(styleIndex / skinTones.length);
+      const hairToneIndex = hairEyeAndOutfitIndex % hairTones.length;
+      const eyeAndOutfitIndex = Math.floor(hairEyeAndOutfitIndex / hairTones.length);
+      const eyeToneIndex = eyeAndOutfitIndex % eyeTones.length;
+      const outfitIndex = Math.floor(eyeAndOutfitIndex / eyeTones.length);
+      const skinTone = skinTones[skinToneIndex];
+      const hairTone = hairTones[hairToneIndex];
+      const eyeTone = eyeTones[eyeToneIndex];
+      const outfit = manifest.outfitPalettes[outfitIndex];
+      const variantId = `${source.id}-${skinTone.id}-${hairTone.id}-${eyeTone.id}-${outfit.id}`;
+      if (!used.has(variantId)) {
+        used.add(variantId);
+        return assignedCharacterVariant(variantId, region, source, skinTone, hairTone, eyeTone, outfit, age);
+      }
+      styleIndex = (styleIndex + 1) % entry.count;
     }
-    comboIndex = (comboIndex + 1) % capacity;
-    attempts += 1;
   }
   throw new Error(`Not enough unique character variants for ${key}`);
 }
 
-function assignPlayerSourceCharacter(key, region, sourcePool) {
-  if (sourcePool.length === 0) throw new Error(`No player portrait sources available for ${key}`);
-  const source = sourcePool[hashString32(key) % sourcePool.length];
-  return assignedCharacter(source.id, region, source, null, null, null, { paletteSwapped: false });
+function hairTonesForAge(tones, age) {
+  const ageAppropriate = tones.filter((tone) => tone.id !== "silver" || age >= 45);
+  return ageAppropriate.length > 0 ? ageAppropriate : tones;
 }
 
-function assignedCharacterVariant(id, region, source, skinTone, hairTone, outfit) {
-  return assignedCharacter(id, region, source, skinTone, hairTone, outfit, { paletteSwapped: true });
+function ageForSource(key, source) {
+  const span = source.maxAge - source.minAge + 1;
+  return source.minAge + hashString32(`${key}|${source.id}|age`) % span;
 }
 
-function assignedCharacter(id, region, source, skinTone, hairTone, outfit, options = {}) {
-  const paletteSwapped = options.paletteSwapped !== false;
-  const palette = paletteSwapped
-    ? {
-        skinRamp: skinTone.ramp,
-        hairRamp: hairTone.ramp,
-        clothRamp: outfit.clothRamp,
-        accentRamp: outfit.accentRamp
-      }
-    : null;
+function assignedCharacterVariant(id, region, source, skinTone, hairTone, eyeTone, outfit, age) {
+  return assignedCharacter(id, region, source, skinTone, hairTone, eyeTone, outfit, age);
+}
+
+function assignedCharacter(id, region, source, skinTone, hairTone, eyeTone, outfit, age) {
+  const palette = {
+    skinRamp: skinTone.ramp,
+    hairRamp: hairTone.ramp,
+    eyeRamp: eyeTone.ramp,
+    clothRamp: outfit.clothRamp,
+    accentRamp: outfit.accentRamp
+  };
   return {
     id,
     region,
@@ -349,10 +382,15 @@ function assignedCharacter(id, region, source, skinTone, hairTone, outfit, optio
     skinToneLabel: skinTone?.label || null,
     hairToneId: hairTone?.id || null,
     hairToneLabel: hairTone?.label || null,
+    eyeToneId: eyeTone?.id || null,
+    eyeToneLabel: eyeTone?.label || null,
     outfitId: outfit?.id || null,
     outfitLabel: outfit?.label || null,
+    minAge: source.minAge,
+    maxAge: source.maxAge,
+    age,
     palette,
-    paletteSwapped,
+    paletteSwapped: true,
     expressions: source.expressions.map((expression) => ({
       id: expression.id,
       label: expression.label,
@@ -395,11 +433,22 @@ const HAIR_TONE_IDS_BY_REGION = Object.freeze({
   "northern-europe": ["black", "dark-brown", "chestnut", "golden-blond", "ash-blond", "silver"],
   mediterranean: ["black", "dark-brown", "chestnut", "auburn", "silver"],
   europe: ["black", "dark-brown", "chestnut", "auburn", "golden-blond", "ash-blond", "silver"],
-  "east-asia": ["black", "dark-brown"],
-  "south-asia": ["black", "dark-brown"],
-  "indian-ocean": ["black", "dark-brown", "chestnut"],
-  africa: ["black", "dark-brown"],
-  americas: ["black", "dark-brown", "chestnut"]
+  "east-asia": ["black", "dark-brown", "silver"],
+  "south-asia": ["black", "dark-brown", "silver"],
+  "indian-ocean": ["black", "dark-brown", "chestnut", "silver"],
+  africa: ["black", "dark-brown", "silver"],
+  americas: ["black", "dark-brown", "chestnut", "silver"]
+});
+
+const EYE_TONE_IDS_BY_REGION = Object.freeze({
+  "northern-europe": ["dark-brown", "brown", "hazel", "green", "gray", "blue"],
+  mediterranean: ["dark-brown", "brown", "hazel", "green"],
+  europe: ["dark-brown", "brown", "hazel", "green", "gray", "blue"],
+  "east-asia": ["dark-brown", "brown"],
+  "south-asia": ["dark-brown", "brown", "hazel"],
+  "indian-ocean": ["dark-brown", "brown", "hazel"],
+  africa: ["dark-brown", "brown"],
+  americas: ["dark-brown", "brown"]
 });
 
 function portraitRegionForCity(city) {
@@ -472,11 +521,14 @@ export function classifyPortraitRoles(data, width, height) {
   const outfitGroups = dominantOutfitGroups(pixels, skin.mask, width, height);
   const hairMask = buildHairMask(pixels, skin.mask, skin.faceMask, outfitGroups, width, height);
   const faceBounds = maskBounds(skin.faceMask, width);
+  const eyeMask = buildEyeMask(pixels, skin.mask, hairMask, skin.faceMask, width, height);
   const roles = new Uint8Array(width * height);
 
   for (const pixel of pixels) {
     if (!pixel.opaque || pixel.hsl.l < 0.12) continue;
-    if (skin.mask[pixel.index]) {
+    if (eyeMask[pixel.index]) {
+      roles[pixel.index] = PORTRAIT_ROLE_EYE;
+    } else if (skin.mask[pixel.index]) {
       roles[pixel.index] = PORTRAIT_ROLE_SKIN;
     } else if (hairMask[pixel.index]) {
       roles[pixel.index] = PORTRAIT_ROLE_HAIR;
@@ -493,7 +545,7 @@ export function encodePortraitRoleMap(roles) {
   const packed = new Uint8Array(Math.ceil(roles.length / 2));
   for (let index = 0; index < roles.length; index++) {
     const role = roles[index];
-    if (role < 0 || role > PORTRAIT_ROLE_ACCENT) {
+    if (role < 0 || role > PORTRAIT_ROLE_EYE) {
       throw new Error(`Cannot encode portrait role ${role} at pixel ${index}`);
     }
     const shift = index % 2 === 0 ? 0 : 4;
@@ -525,7 +577,7 @@ export function validatePortraitRoleMap(roleMap, width, height, label = "portrai
   const roles = decodePortraitRoleMap(roleMap, pixelCount);
   for (let index = 0; index < roles.length; index++) {
     const role = roles[index];
-    if (![PORTRAIT_ROLE_SKIN, PORTRAIT_ROLE_HAIR, PORTRAIT_ROLE_CLOTH, PORTRAIT_ROLE_ACCENT].includes(role)) {
+    if (![PORTRAIT_ROLE_SKIN, PORTRAIT_ROLE_HAIR, PORTRAIT_ROLE_CLOTH, PORTRAIT_ROLE_ACCENT, PORTRAIT_ROLE_EYE].includes(role)) {
       if (role !== 0) throw new Error(`${label} has an unknown portrait role ${role} at pixel ${index}`);
     }
   }
@@ -542,12 +594,14 @@ export function applyPortraitPaletteSwap(data, width, height, palette, roleMap) 
   const ramps = new Map([
     [PORTRAIT_ROLE_SKIN, palette.skinRamp.map(hexToRgb)],
     [PORTRAIT_ROLE_HAIR, palette.hairRamp.map(hexToRgb)],
+    [PORTRAIT_ROLE_EYE, palette.eyeRamp.map(hexToRgb)],
     [PORTRAIT_ROLE_CLOTH, palette.clothRamp.map(hexToRgb)],
     [PORTRAIT_ROLE_ACCENT, palette.accentRamp.map(hexToRgb)]
   ]);
   const strengths = new Map([
     [PORTRAIT_ROLE_SKIN, 0.82],
     [PORTRAIT_ROLE_HAIR, 0.76],
+    [PORTRAIT_ROLE_EYE, 0.92],
     [PORTRAIT_ROLE_CLOTH, 0.72],
     [PORTRAIT_ROLE_ACCENT, 0.68]
   ]);
@@ -750,6 +804,97 @@ function buildHairMask(pixels, skinMask, faceMask, outfitGroups, width, height) 
     for (const index of component) mask[index] = 1;
   }
   return mask;
+}
+
+function buildEyeMask(pixels, skinMask, hairMask, faceMask, width, height) {
+  const mask = new Uint8Array(pixels.length);
+  const faceBounds = maskBounds(faceMask, width);
+  if (!faceBounds) return mask;
+  const minY = faceBounds.top + faceBounds.height * 0.24;
+  const maxY = faceBounds.top + faceBounds.height * 0.62;
+  const candidates = new Uint8Array(pixels.length);
+  for (const pixel of pixels) {
+    if (!pixel.opaque || skinMask[pixel.index] || hairMask[pixel.index]) continue;
+    if (pixel.x < faceBounds.left || pixel.x > faceBounds.right || pixel.y < minY || pixel.y > maxY) continue;
+    if (pixel.hsl.l < 0.13 || pixel.hsl.l > 0.78 || pixel.hsl.s < 0.16) continue;
+    if (!pixelNearMask(pixel, faceMask, width, height, 2)) continue;
+    candidates[pixel.index] = 1;
+  }
+
+  const maxComponentWidth = Math.max(3, Math.ceil(faceBounds.width * 0.28));
+  const maxComponentHeight = Math.max(3, Math.ceil(faceBounds.height * 0.34));
+  const components = connectedMaskComponents(candidates, width, height)
+    .filter((component) => component.length <= 12)
+    .map((component) => ({ component, bounds: componentBounds(component, width) }))
+    .filter(({ bounds }) => bounds.width <= maxComponentWidth && bounds.height <= maxComponentHeight);
+  const centerX = (faceBounds.left + faceBounds.right) * 0.5;
+  const left = components.filter(({ bounds }) => (bounds.left + bounds.right) * 0.5 < centerX);
+  const right = components.filter(({ bounds }) => (bounds.left + bounds.right) * 0.5 > centerX);
+  let best = null;
+  for (const leftEye of left) {
+    for (const rightEye of right) {
+      const leftCenter = componentCenter(leftEye.bounds);
+      const rightCenter = componentCenter(rightEye.bounds);
+      const separation = rightCenter.x - leftCenter.x;
+      if (separation < Math.max(2, faceBounds.width * 0.16) || separation > faceBounds.width * 0.82) continue;
+      if (Math.abs(leftCenter.y - rightCenter.y) > Math.max(2, faceBounds.height * 0.16)) continue;
+      const symmetry = Math.abs((centerX - leftCenter.x) - (rightCenter.x - centerX));
+      const colorDistance = componentColorDistance(leftEye.component, rightEye.component, pixels);
+      const sizeDifference = Math.abs(leftEye.component.length - rightEye.component.length);
+      const score = Math.abs(leftCenter.y - rightCenter.y) * 12 + symmetry * 4 + colorDistance + sizeDifference * 5;
+      if (!best || score < best.score) best = { leftEye, rightEye, score };
+    }
+  }
+  const selected = best
+    ? [best.leftEye, best.rightEye]
+    : bestEyeComponentsBySide(left, right, faceBounds);
+  for (const eye of selected) {
+    for (const index of eye.component) mask[index] = 1;
+  }
+  return mask;
+}
+
+function bestEyeComponentsBySide(left, right, faceBounds) {
+  const centerX = (faceBounds.left + faceBounds.right) * 0.5;
+  const expectedY = faceBounds.top + faceBounds.height * 0.43;
+  const expectedOffset = faceBounds.width * 0.23;
+  const bestOnSide = (components, direction) => components
+    .map((eye) => {
+      const center = componentCenter(eye.bounds);
+      const expectedX = centerX + expectedOffset * direction;
+      return {
+        eye,
+        score: Math.abs(center.y - expectedY) * 10 + Math.abs(center.x - expectedX) * 4 + eye.component.length
+      };
+    })
+    .sort((a, b) => a.score - b.score)[0]?.eye || null;
+  return [bestOnSide(left, -1), bestOnSide(right, 1)].filter(Boolean);
+}
+
+function componentCenter(bounds) {
+  return {
+    x: (bounds.left + bounds.right) * 0.5,
+    y: (bounds.top + bounds.bottom) * 0.5
+  };
+}
+
+function componentColorDistance(a, b, pixels) {
+  const left = averageComponentColor(a, pixels);
+  const right = averageComponentColor(b, pixels);
+  return Math.hypot(left.r - right.r, left.g - right.g, left.b - right.b);
+}
+
+function averageComponentColor(component, pixels) {
+  const total = component.reduce((sum, index) => ({
+    r: sum.r + pixels[index].r,
+    g: sum.g + pixels[index].g,
+    b: sum.b + pixels[index].b
+  }), { r: 0, g: 0, b: 0 });
+  return {
+    r: total.r / component.length,
+    g: total.g / component.length,
+    b: total.b / component.length
+  };
 }
 
 function pixelNearMask(pixel, mask, width, height, radius) {

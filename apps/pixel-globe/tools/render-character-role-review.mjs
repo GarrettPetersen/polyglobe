@@ -6,6 +6,7 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 import {
   PORTRAIT_ROLE_ACCENT,
   PORTRAIT_ROLE_CLOTH,
+  PORTRAIT_ROLE_EYE,
   PORTRAIT_ROLE_HAIR,
   PORTRAIT_ROLE_SKIN,
   applyPortraitPaletteSwap,
@@ -28,13 +29,15 @@ const roleColors = new Map([
   [PORTRAIT_ROLE_SKIN, "#ff8e72"],
   [PORTRAIT_ROLE_HAIR, "#d66bff"],
   [PORTRAIT_ROLE_CLOTH, "#56a8ff"],
-  [PORTRAIT_ROLE_ACCENT, "#ffd65a"]
+  [PORTRAIT_ROLE_ACCENT, "#ffd65a"],
+  [PORTRAIT_ROLE_EYE, "#56f2de"]
 ]);
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const samplePalette = {
   skinRamp: manifest.skinTones[5].ramp,
   hairRamp: manifest.hairTones[4].ramp,
+  eyeRamp: manifest.eyeTones[3].ramp,
   clothRamp: manifest.outfitPalettes[4].clothRamp,
   accentRamp: manifest.outfitPalettes[14].accentRamp
 };

@@ -259,6 +259,20 @@ export function weatherClockParts(clockMinutes) {
   };
 }
 
+export function weatherClockAtLocalTime(clockMinutes, longitudeDeg, localHour, localMinute = 0) {
+  if (![clockMinutes, longitudeDeg, localHour, localMinute].every(Number.isFinite)) {
+    throw new Error("Local weather clock inputs must be finite numbers");
+  }
+  if (longitudeDeg < -180 || longitudeDeg > 180) {
+    throw new Error(`Longitude ${longitudeDeg} is outside -180..180`);
+  }
+  if (localHour < 0 || localHour >= 24 || localMinute < 0 || localMinute >= 60) {
+    throw new Error(`Invalid local time ${localHour}:${localMinute}`);
+  }
+  const localDayStart = Math.floor(clockMinutes / WEATHER_MINUTES_PER_DAY) * WEATHER_MINUTES_PER_DAY;
+  return localDayStart + localHour * 60 + localMinute - longitudeDeg * 4;
+}
+
 export function dateToSubsolarLatDeg(date) {
   const utcMs = date.getTime();
   const yearStart = Date.UTC(date.getUTCFullYear(), 0, 0, 0, 0, 0, 0);
