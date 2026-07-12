@@ -16,13 +16,233 @@ const individualSequencePacks = new Set([
   "Native Americain Portrait Pack by Captainskeleto",
   "Pirates Portrait Pack by Captainskeleto",
   "Viking Men Portrait Pack by Captainskeleto",
+  "Women Portrait Pack by Captainskeleto",
   "Women Pirates Portrait Pack by Captainskeleto"
 ]);
-const numericGridPacks = new Map([
-  [
-    "Women Portrait Pack by Captainskeleto/Women Portrait",
-    { characterDigit: 1, expressionDigit: 0 }
-  ]
+const numericGridPacks = new Map();
+
+const expressionLabelOverrides = new Map([
+  labels("Blacksmith Portrait Pack by Captainskeleto/Blacksmith Portrait", [
+    ["neutral", "Neutral"],
+    ["smile", "Smile"],
+    ["concerned", "Concerned"],
+    ["stern", "Stern"],
+    ["weary", "Weary"],
+    ["grimace", "Grimace"],
+    ["pleased", "Pleased"],
+    ["afraid", "Afraid"],
+    ["angry", "Angry"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Blacksmith/Blacksmith Portrait", [
+    ["neutral", "Neutral"],
+    ["stern", "Stern"],
+    ["hurt", "Hurt"],
+    ["afraid", "Afraid"],
+    ["happy", "Happy"],
+    ["determined", "Determined"]
+  ]),
+  labels("Blond Villager Portrait Pack by Captainskeleto/Blond Villager Portrait", commonTwelveLabels()),
+  labels("Blond Villager Women Portrait Pack by Captainskeleto/Blond Villager Women", commonTwelveLabels()),
+  labels("Ultimate Portrait Pack V1.0/Herbalist women portrait/Herbalist Women Portrait", [
+    ["neutral", "Neutral"],
+    ["stern", "Stern"],
+    ["soft-smile", "Soft Smile"],
+    ["knowing", "Knowing"],
+    ["afraid", "Afraid"],
+    ["happy", "Happy"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Knight Commander/Knight Commander", [
+    ["neutral", "Neutral"],
+    ["angry", "Angry"],
+    ["stern", "Stern"],
+    ["pleased", "Pleased"],
+    ["happy", "Happy"],
+    ["skeptical", "Skeptical"]
+  ]),
+  labels("Knight Portrait Pack by Captainskeleto/Knight Portrait", [
+    ["neutral", "Neutral"],
+    ["serious", "Serious"],
+    ["concerned", "Concerned"],
+    ["afraid", "Afraid"],
+    ["stern", "Stern"],
+    ["skeptical", "Skeptical"],
+    ["pleased", "Pleased"],
+    ["happy", "Happy"],
+    ["sad", "Sad"],
+    ["angry", "Angry"],
+    ["shouting", "Shouting"],
+    ["worried", "Worried"]
+  ]),
+  labels("Little Girl Portrait pack by Captainskeleto/Little Girl Portrait", [
+    ["neutral", "Neutral"],
+    ["happy", "Happy"],
+    ["concerned", "Concerned"],
+    ["afraid", "Afraid"],
+    ["attentive", "Attentive"],
+    ["sad", "Sad"],
+    ["wary", "Wary"],
+    ["angry", "Angry"],
+    ["embarrassed", "Embarrassed"],
+    ["serious", "Serious"],
+    ["pleased", "Pleased"],
+    ["laughing", "Laughing"]
+  ]),
+  labels("Lumberjack Portrait by Captainskeleto/Lumberjack Portrait", [
+    ["neutral", "Neutral"],
+    ["serious", "Serious"],
+    ["stern", "Stern"],
+    ["afraid", "Afraid"],
+    ["concerned", "Concerned"],
+    ["angry", "Angry"],
+    ["sad", "Sad"],
+    ["wary", "Wary"],
+    ["pleased", "Pleased"],
+    ["disgusted", "Disgusted"],
+    ["happy", "Happy"],
+    ["laughing", "Laughing"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Man Knight/Man Knight Portrait", [
+    ["neutral", "Neutral"],
+    ["angry", "Angry"],
+    ["happy", "Happy"],
+    ["serious", "Serious"],
+    ["shy", "Shy"],
+    ["afraid", "Afraid"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Monk/Monk Portrait", [
+    ["neutral", "Neutral"],
+    ["skeptical", "Skeptical"],
+    ["worried", "Worried"],
+    ["praying", "Praying"],
+    ["afraid", "Afraid"],
+    ["angry", "Angry"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Noblewomen/Noblewomen Portrait", [
+    ["neutral", "Neutral"],
+    ["wary", "Wary"],
+    ["happy", "Happy"],
+    ["soft-smile", "Soft Smile"],
+    ["afraid", "Afraid"],
+    ["sad", "Sad"]
+  ]),
+  labels("Old Villager Portrait by Captainskeleto/Old Villager Portrait", [
+    ["neutral", "Neutral"],
+    ["concerned", "Concerned"],
+    ["stern", "Stern"],
+    ["weary", "Weary"],
+    ["attentive", "Attentive"],
+    ["sad", "Sad"],
+    ["skeptical", "Skeptical"],
+    ["wary", "Wary"],
+    ["pleased", "Pleased"],
+    ["angry", "Angry"],
+    ["thoughtful", "Thoughtful"],
+    ["afraid", "Afraid"]
+  ]),
+  labels("Old Warrior Grey Beard by Captainskolot/Old Warrior Grey Beard", [
+    ["neutral", "Neutral"],
+    ["worried", "Worried"],
+    ["stern", "Stern"],
+    ["afraid", "Afraid"],
+    ["sad", "Sad"],
+    ["angry", "Angry"],
+    ["shouting", "Shouting"],
+    ["wary", "Wary"],
+    ["concerned", "Concerned"],
+    ["determined", "Determined"],
+    ["disgusted", "Disgusted"],
+    ["pained", "Pained"]
+  ]),
+  labels("Peasant Portrait Pack by Captainskeleto/Peasant Portrait", [
+    ["neutral", "Neutral"],
+    ["happy", "Happy"],
+    ["soft-smile", "Soft Smile"],
+    ["serious", "Serious"],
+    ["attentive", "Attentive"],
+    ["concerned", "Concerned"],
+    ["sad", "Sad"],
+    ["wary", "Wary"],
+    ["skeptical", "Skeptical"],
+    ["angry", "Angry"],
+    ["afraid", "Afraid"],
+    ["pleased", "Pleased"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Tavern Keeper/Tavern Keeper Portrait", [
+    ["neutral", "Neutral"],
+    ["happy", "Happy"],
+    ["angry", "Angry"],
+    ["stern", "Stern"],
+    ["laughing", "Laughing"],
+    ["sad", "Sad"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Village Elder/Villager Elder Portrait", [
+    ["neutral", "Neutral"],
+    ["afraid", "Afraid"],
+    ["happy", "Happy"],
+    ["thoughtful", "Thoughtful"],
+    ["sad", "Sad"],
+    ["stern", "Stern"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Young Peasant Girl/Villager Young Girl Portrait", [
+    ["neutral", "Neutral"],
+    ["soft-smile", "Soft Smile"],
+    ["happy", "Happy"],
+    ["afraid", "Afraid"],
+    ["laughing", "Laughing"],
+    ["sad", "Sad"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Women Baker/Women Baker Portrait", [
+    ["neutral", "Neutral"],
+    ["concerned", "Concerned"],
+    ["happy", "Happy"],
+    ["afraid", "Afraid"],
+    ["soft-smile", "Soft Smile"],
+    ["wary", "Wary"]
+  ]),
+  labels("Women Knight Portrait Pack by Captainskeleto/Women Knight Portrait", [
+    ["neutral", "Neutral"],
+    ["sad", "Sad"],
+    ["serious", "Serious"],
+    ["worried", "Worried"],
+    ["angry", "Angry"],
+    ["stern", "Stern"],
+    ["wary", "Wary"],
+    ["afraid", "Afraid"],
+    ["attentive", "Attentive"],
+    ["concerned", "Concerned"],
+    ["pained", "Pained"],
+    ["grimace", "Grimace"]
+  ]),
+  labels("Women Peasant Pack by Captainskeleto/Women Peasant", [
+    ["neutral", "Neutral"],
+    ["happy", "Happy"],
+    ["concerned", "Concerned"],
+    ["afraid", "Afraid"],
+    ["attentive", "Attentive"],
+    ["pleased", "Pleased"],
+    ["sad", "Sad"],
+    ["wary", "Wary"],
+    ["skeptical", "Skeptical"],
+    ["laughing", "Laughing"],
+    ["angry", "Angry"],
+    ["serious", "Serious"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Seamstress Women Portrait/Women Seamstress Portrait", [
+    ["neutral", "Neutral"],
+    ["happy", "Happy"],
+    ["thoughtful", "Thoughtful"],
+    ["afraid", "Afraid"],
+    ["sad", "Sad"],
+    ["serious", "Serious"]
+  ]),
+  labels("Ultimate Portrait Pack V1.0/Young Peasant Boy/Young Peasant Boy Portrait", [
+    ["neutral", "Neutral"],
+    ["concerned", "Concerned"],
+    ["happy", "Happy"],
+    ["soft-smile", "Soft Smile"],
+    ["afraid", "Afraid"],
+    ["sad", "Sad"]
+  ])
 ]);
 
 const skinTones = Object.freeze([
@@ -88,6 +308,31 @@ function tone(id, label, ramp) {
 
 function outfit(id, label, clothRamp, accentRamp) {
   return { id, label, clothRamp, accentRamp };
+}
+
+function labels(key, values) {
+  return [key, values.map(([id, label]) => expressionDescriptor(id, label))];
+}
+
+function expressionDescriptor(id, label) {
+  return { id, label };
+}
+
+function commonTwelveLabels() {
+  return [
+    ["neutral", "Neutral"],
+    ["happy", "Happy"],
+    ["concerned", "Concerned"],
+    ["afraid", "Afraid"],
+    ["attentive", "Attentive"],
+    ["stern", "Stern"],
+    ["pleased", "Pleased"],
+    ["surprised", "Surprised"],
+    ["skeptical", "Skeptical"],
+    ["sad", "Sad"],
+    ["shouting", "Shouting"],
+    ["angry", "Angry"]
+  ];
 }
 
 function walkPngFiles(root, files = []) {
@@ -173,6 +418,14 @@ function parsePortraitName(path, relDir) {
   }
 
   if (individualSequencePacks.has(topPathSegment(relDir))) {
+    if (/^\d+$/.test(rawBase)) {
+      return {
+        baseKey: `${slugify(parentLabel)}-${rawBase}`,
+        labelSeed: `${parentLabel} ${rawBase}`,
+        expressionIndex: 0,
+        groupingMode: "single-portrait"
+      };
+    }
     const numbered = numberedPortraitName(rawBase);
     return {
       baseKey: `${slugify(numbered.base)}-${numbered.index}`,
@@ -255,12 +508,14 @@ function normalizeExpressionGroup(group) {
   const sorted = group.expressions
     .sort((a, b) => a.expressionIndex - b.expressionIndex || a.relPath.localeCompare(b.relPath));
   const usedExpressionIds = new Set();
+  const semanticLabels = expressionLabelsForGroup(group, sorted.length);
   const expressions = sorted.map((expression, position) => {
-    const id = position === 0 ? "neutral" : uniqueExpressionId(usedExpressionIds, `expression-${String(position + 1).padStart(2, "0")}`);
+    const semantic = semanticLabels[position];
+    const id = position === 0 ? "neutral" : uniqueExpressionId(usedExpressionIds, semantic.id);
     usedExpressionIds.add(id);
     return {
       id,
-      label: position === 0 ? "Neutral" : `Expression ${position + 1}`,
+      label: semantic.label,
       index: expression.expressionIndex,
       src: expression.src,
       width: portraitSize,
@@ -277,6 +532,21 @@ function normalizeExpressionGroup(group) {
     expressionCount: expressions.length,
     expressions
   };
+}
+
+function expressionLabelsForGroup(group, expressionCount) {
+  if (expressionCount === 1 || group.groupingMode === "single-portrait") {
+    return [expressionDescriptor("neutral", "Neutral")];
+  }
+  const key = `${group.relDir}/${group.labelSeed}`;
+  const override = expressionLabelOverrides.get(key);
+  if (override) {
+    if (override.length !== expressionCount) {
+      throw new Error(`Expression label count mismatch for ${key}: expected ${expressionCount}, got ${override.length}`);
+    }
+    return override;
+  }
+  throw new Error(`Missing semantic expression labels for ${key}`);
 }
 
 function portraitMetadata(label, sourceDirectory) {

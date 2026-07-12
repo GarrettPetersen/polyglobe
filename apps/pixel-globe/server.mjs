@@ -15,6 +15,7 @@ const contentTypes = new Map([
   [".csv", "text/csv; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
+  [".mp3", "audio/mpeg"],
   [".bin", "application/octet-stream"],
   [".png", "image/png"],
   [".ogg", "audio/ogg"],

@@ -10,6 +10,7 @@ import {
   NPC_ROLE_WARSHIP,
   createNpcSeaRouteSystem,
   damageNpcShip,
+  npcPortHasMajorProtection,
   npcShipHasCombatGrace,
   npcShipSnapshots,
   surrenderNpcShip,
@@ -87,6 +88,7 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   assert.ok(counts.merchant > counts.warship + counts.pirate, JSON.stringify(counts));
   assert.ok(counts.fisherman > 0, JSON.stringify(counts));
   assert.ok(counts.warship > counts.pirate, JSON.stringify(counts));
+  assert.ok(counts.pirate / routes.ships.length <= 0.06, JSON.stringify(counts));
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
 });
 
@@ -195,6 +197,22 @@ test("pirate hideouts are a deterministic invisible subset of coastal ports", ()
   assert.equal(firstIds.length, 2);
   assert.ok(firstIds.every((tileId) => first.ports.some((port) => port.tileId === tileId)));
   assert.ok(first.ports.every((port) => !("pirateHideout" in port)));
+  assert.ok(first.pirateHideouts.every((port) => !npcPortHasMajorProtection(port)));
+});
+
+test("pirates keep their origins and planned calls away from major ports", () => {
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy: createWorldEconomy({ ports: PORTS, startMinute: 0 })
+  });
+  const pirates = routes.ships.filter((ship) => ship.role === NPC_ROLE_PIRATE);
+
+  assert.ok(pirates.length > 0);
+  for (const pirate of pirates) {
+    assert.equal(npcPortHasMajorProtection(pirate.currentPort), false, pirate.id);
+    assert.equal(npcPortHasMajorProtection(pirate.plan.destination), false, pirate.id);
+  }
 });
 
 test("damaged pirates hide, remain concealed near threats, and reappear repaired", () => {

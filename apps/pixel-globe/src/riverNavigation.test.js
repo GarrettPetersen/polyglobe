@@ -5,8 +5,18 @@ import {
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
+  heldRiverHaulStrength,
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
+
+test("river hauling starts only after deliberate held input and ramps smoothly", () => {
+  assert.equal(heldRiverHaulStrength(0), 0);
+  assert.equal(heldRiverHaulStrength(0.28), 0);
+  assert.ok(heldRiverHaulStrength(0.64) > 0);
+  assert.ok(heldRiverHaulStrength(0.64) < 1);
+  assert.equal(heldRiverHaulStrength(1), 1);
+  assert.equal(heldRiverHaulStrength(3), 1);
+});
 
 test("open-water ships are guided into a nearby river mouth in their forward cone", () => {
   const gateway = findRiverGatewayDirection({

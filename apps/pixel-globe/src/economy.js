@@ -8,7 +8,22 @@ const MAX_PRICE_MULTIPLIER = 3.8;
 const NPC_SPECIE_RESERVE_RATIO = 0.15;
 const NPC_CARGO_LINE_LIMIT = 4;
 
+export const HARDTACK_GOOD_ID = "hardtack";
+export const FRESH_WATER_GOOD_ID = "fresh-water";
+
 export const TRADE_GOODS = Object.freeze([
+  good(HARDTACK_GOOD_ID, "Hardtack", 2, "food", {
+    alwaysAvailable: true,
+    fixedBuyPrice: 2,
+    npcTrade: false,
+    sellable: false
+  }),
+  good(FRESH_WATER_GOOD_ID, "Fresh Water", 1, "supply", {
+    alwaysAvailable: true,
+    fixedBuyPrice: 1,
+    npcTrade: false,
+    sellable: false
+  }),
   good("grain", "Grain", 8, "food"),
   good("fish", "Fish", 10, "food"),
   good("cheese", "Cheese", 14, "food"),
@@ -49,15 +64,15 @@ const TRADE_GOODS_BY_ID = new Map(TRADE_GOODS.map((item) => [item.id, item]));
 if (TRADE_GOODS_BY_ID.size !== TRADE_GOODS.length) throw new Error("Trade goods contain duplicate ids");
 
 const REGION_PRODUCTION = Object.freeze({
-  "northern-european": rates({ fish: 1.1, timber: 1.1, wool: 1.2, flax: 0.8, iron: 0.55, "wool-cloth": 0.5, "linen-cloth": 0.45, arms: 0.22 }),
-  mediterranean: rates({ grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12 }),
-  "islamic-desert": rates({ cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, spices: 0.2, artwork: 0.12 }),
-  "east-asian": rates({ grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22 }),
-  "south-asian": rates({ grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, pepper: 0.85, spices: 0.65, dyes: 0.55, sugar: 0.35 }),
-  "southeast-asian": rates({ fish: 0.65, timber: 0.55, pepper: 0.75, spices: 1.2, sugar: 0.65, dyes: 0.25 }),
-  mesoamerican: rates({ grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55, silver: 0.3, gold: 0.12 }),
-  andean: rates({ grain: 0.45, wool: 0.6, copper: 0.55, silver: 0.8, gold: 0.22, dyes: 0.2 }),
-  "sub-saharan": rates({ grain: 0.45, timber: 0.45, ivory: 0.8, gold: 0.5, dyes: 0.35, salt: 0.3 })
+  "northern-european": rates({ hardtack: 0.75, fish: 1.1, timber: 1.1, wool: 1.2, flax: 0.8, iron: 0.55, "wool-cloth": 0.5, "linen-cloth": 0.45, arms: 0.22 }),
+  mediterranean: rates({ hardtack: 0.7, grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12 }),
+  "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, spices: 0.2, artwork: 0.12 }),
+  "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22 }),
+  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, pepper: 0.85, spices: 0.65, dyes: 0.55, sugar: 0.35 }),
+  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, pepper: 0.75, spices: 1.2, sugar: 0.65, dyes: 0.25 }),
+  mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55, silver: 0.3, gold: 0.12 }),
+  andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, silver: 0.8, gold: 0.22, dyes: 0.2 }),
+  "sub-saharan": rates({ hardtack: 0.45, grain: 0.45, timber: 0.45, ivory: 0.8, gold: 0.5, dyes: 0.35, salt: 0.3 })
 });
 
 const REGION_DEMAND = Object.freeze({
@@ -186,12 +201,12 @@ export function executePortSale(economy, city, goodId, quantity) {
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   const state = port.goods.get(goodId);
-  const available = Math.floor(state.stock);
+  const available = good.alwaysAvailable ? Number.POSITIVE_INFINITY : Math.floor(state.stock);
   if (available < quantity) {
     throw new Error(`${port.name} has only ${available} ${good.label} in stock`);
   }
   const total = quoteTransaction(port, good, quantity, -1, "buyPrice");
-  state.stock -= quantity;
+  if (!good.alwaysAvailable) state.stock -= quantity;
   port.specie += total;
   return { good, quantity, total, unitPrice: Math.max(1, Math.round(total / quantity)) };
 }
@@ -209,7 +224,7 @@ export function maximumPortSaleQuantity(economy, city, goodId, requestedQuantity
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   let low = 0;
-  let high = Math.min(requestedQuantity, Math.floor(port.goods.get(goodId).stock));
+  let high = good.alwaysAvailable ? requestedQuantity : Math.min(requestedQuantity, Math.floor(port.goods.get(goodId).stock));
   while (low < high) {
     const middle = Math.ceil((low + high) / 2);
     const total = quoteTransaction(port, good, middle, -1, "buyPrice");
@@ -223,6 +238,7 @@ export function executePortPurchase(economy, city, goodId, quantity) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
+  if (good.sellable === false) throw new Error(`${port.name} does not buy ${good.label}`);
   const total = quoteTransaction(port, good, quantity, 1, "sellPrice");
   if (port.specie + 1e-6 < total) {
     throw new Error(`${port.name} market has insufficient specie for ${quantity} ${good.label}`);
@@ -236,6 +252,7 @@ export function quotePortPurchase(economy, city, goodId, quantity) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
+  if (good.sellable === false) throw new Error(`${port.name} does not buy ${good.label}`);
   return quoteTransaction(port, good, quantity, 1, "sellPrice");
 }
 
@@ -243,6 +260,7 @@ export function maximumPortPurchaseQuantity(economy, city, goodId, requestedQuan
   assertTradeQuantity(requestedQuantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
+  if (good.sellable === false) return 0;
   return maximumAffordablePortPurchaseQuantity(port, good, requestedQuantity, port.specie);
 }
 
@@ -257,6 +275,7 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
   const candidates = [];
 
   for (const good of TRADE_GOODS) {
+    if (good.npcTrade === false || good.sellable === false) continue;
     const originState = originPort.goods.get(good.id);
     const reserve = Math.max(2, originState.targetStock * 0.12);
     const available = Math.max(0, Math.floor(originState.stock - reserve));
@@ -326,6 +345,7 @@ export function cargoSaleValue(economy, city, cargo) {
     if (!Number.isInteger(quantity) || quantity < 0) throw new Error(`Invalid NPC cargo quantity: ${goodId}=${quantity}`);
     if (quantity === 0) continue;
     const good = tradeGoodById(goodId);
+    if (good.sellable === false) continue;
     const affordable = maximumPortPurchaseQuantity(economy, city, goodId, quantity);
     if (affordable > 0) value += quoteTransaction(port, good, affordable, 1, "sellPrice");
   }
@@ -381,6 +401,7 @@ function createPortState(port) {
 function advancePortEconomy(port, elapsedDays) {
   let localCashFlow = 0;
   for (const good of TRADE_GOODS) {
+    if (good.alwaysAvailable) continue;
     const state = port.goods.get(good.id);
     const desiredProduction = state.productionPerDay * elapsedDays;
     const inputs = PRODUCTION_INPUTS[good.id];
@@ -411,15 +432,23 @@ function marketRow(port, good) {
     good,
     buyPrice: prices.buyPrice,
     sellPrice: prices.sellPrice,
-    stock: Math.max(0, Math.floor(state.stock)),
+    stock: good.alwaysAvailable ? 999 : Math.max(0, Math.floor(state.stock)),
     productionPerDay: state.productionPerDay,
     consumptionPerDay: state.consumptionPerDay,
-    listedForSale: state.productionPerDay > 0 || state.stock >= Math.max(3, state.targetStock * 0.16),
+    listedForSale: good.alwaysAvailable || state.productionPerDay > 0 || state.stock >= Math.max(3, state.targetStock * 0.16),
+    sellable: good.sellable !== false,
     portSpecie: Math.max(0, Math.floor(port.specie))
   };
 }
 
 function marketPrice(port, good, stock) {
+  if (Number.isFinite(good.fixedBuyPrice)) {
+    return {
+      midPrice: good.fixedBuyPrice,
+      buyPrice: good.fixedBuyPrice,
+      sellPrice: good.sellable === false ? 0 : Math.max(1, Math.floor(good.fixedBuyPrice * PORT_MARKDOWN))
+    };
+  }
   const state = port.goods.get(good.id);
   const balance = (state.consumptionPerDay - state.productionPerDay) /
     (state.consumptionPerDay + state.productionPerDay + 0.2);
@@ -437,6 +466,12 @@ function marketPrice(port, good, stock) {
 
 function quoteTransaction(port, good, quantity, stockDirection, priceKey) {
   if (quantity <= 0) return 0;
+  if (priceKey === "buyPrice" && Number.isFinite(good.fixedBuyPrice)) {
+    return good.fixedBuyPrice * quantity;
+  }
+  if (priceKey === "sellPrice" && good.sellable === false) {
+    throw new Error(`${port.name} does not buy ${good.label}`);
+  }
   const state = port.goods.get(good.id);
   const startPrice = marketPrice(port, good, state.stock)[priceKey];
   const endStock = Math.max(0, state.stock + stockDirection * quantity);
@@ -515,6 +550,7 @@ function assertCargoCapacity(cargoCapacity) {
 
 function stapleDemandRate(category) {
   if (category === "food") return 0.42;
+  if (category === "supply") return 0;
   if (category === "staple") return 0.25;
   if (category === "material") return 0.13;
   if (category === "manufactured" || category === "textile") return 0.09;
@@ -523,10 +559,22 @@ function stapleDemandRate(category) {
   throw new Error(`Unknown trade category: ${category}`);
 }
 
-function good(id, label, basePrice, category) {
+function good(id, label, basePrice, category, options = {}) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`Invalid trade good id: ${id}`);
   if (!Number.isInteger(basePrice) || basePrice <= 0) throw new Error(`Invalid base price for ${id}`);
-  return Object.freeze({ id, label, basePrice, category, unitSize: 1 });
+  const unitSize = options.unitSize ?? 1;
+  if (!Number.isInteger(unitSize) || unitSize <= 0) throw new Error(`Invalid unit size for ${id}`);
+  return Object.freeze({
+    id,
+    label,
+    basePrice,
+    category,
+    unitSize,
+    alwaysAvailable: options.alwaysAvailable === true,
+    fixedBuyPrice: Number.isFinite(options.fixedBuyPrice) ? options.fixedBuyPrice : null,
+    npcTrade: options.npcTrade !== false,
+    sellable: options.sellable !== false
+  });
 }
 
 function rates(values) {

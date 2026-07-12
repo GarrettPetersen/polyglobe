@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
-  COMBAT_DISENGAGE_RADIUS_PX,
+  PIRATE_PLAYER_DETECTION_RADIUS_PX,
+  WARSHIP_PIRATE_DISENGAGE_RADIUS_PX,
+  WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX,
   createShipCombatState,
   forceShipEngagement,
   npcShouldOfferSurrender,
@@ -26,6 +28,41 @@ test("pirates trigger many-to-many combat while merchants flee", () => {
   assert.equal(result.intents.get("pirate").enemyIds.length, 2);
   assert.equal(result.intents.get("merchant-a").mode, COMBAT_MODE_FLEE);
   assert.equal(result.intents.get("merchant-b").mode, COMBAT_MODE_FLEE);
+});
+
+test("warships intercept pirates before pirates can close with the player", () => {
+  const warshipRange = updateShipCombatState(createShipCombatState(), [
+    ship("pirate", "pirate", "pirate", 0, 0, 130, 12),
+    ship("warship", "warship", "portugal", WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX - 1, 0, 190, 18)
+  ]);
+  const playerRange = updateShipCombatState(createShipCombatState(), [
+    ship("pirate", "pirate", "pirate", 0, 0, 130, 12),
+    ship("player", "pirate", "portugal", PIRATE_PLAYER_DETECTION_RADIUS_PX + 1, 0, 30, 4)
+  ]);
+
+  assert.equal(warshipRange.engagementCount, 1);
+  assert.equal(playerRange.engagementCount, 0);
+});
+
+test("pirates cannot ambush the player inside protected major-port waters", () => {
+  const player = ship("player", "pirate", "portugal", 0, 0, 30, 4);
+  player.majorPortProtected = true;
+  const result = updateShipCombatState(createShipCombatState(), [
+    player,
+    ship("pirate", "pirate", "pirate", 20, 0, 130, 12)
+  ]);
+
+  assert.equal(result.engagementCount, 0);
+});
+
+test("major-port protection ends an existing pirate attack", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "pirate", "portugal", 0, 0, 30, 4);
+  const pirate = ship("pirate", "pirate", "pirate", 20, 0, 130, 12);
+  assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 1);
+
+  player.majorPortProtected = true;
+  assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
 });
 
 test("warring warships fight but unescorted merchants do not initiate", () => {
@@ -51,7 +88,7 @@ test("damaged ships flee and sufficient distance ends combat", () => {
   const active = updateShipCombatState(state, [pirate, target]);
   assert.equal(active.intents.get("pirate").mode, COMBAT_MODE_FLEE);
 
-  target.x = COMBAT_DISENGAGE_RADIUS_PX + 1;
+  target.x = WARSHIP_PIRATE_DISENGAGE_RADIUS_PX + 1;
   const escaped = updateShipCombatState(state, [pirate, target]);
   assert.equal(escaped.engagementCount, 0);
   assert.deepEqual(escaped.startedEngagements, []);

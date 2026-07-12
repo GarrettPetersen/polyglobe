@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  FRESH_WATER_GOOD_ID,
+  HARDTACK_GOOD_ID,
   TRADE_GOODS,
   advanceWorldEconomy,
   createWorldEconomy,
@@ -27,12 +29,30 @@ const GOA = port(2, "Goa", "India", "south-asian", 60000);
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [
-    "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
-    "tea", "porcelain", "ivory", "silver", "gold"
+    "hardtack", "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
+    "fresh-water", "tea", "porcelain", "ivory", "silver", "gold"
   ]) {
     assert.ok(ids.has(goodId), goodId);
   }
   assert.equal(ids.size, TRADE_GOODS.length);
+});
+
+test("ship supplies are cheap, available everywhere, and not bought back", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
+  for (const city of [LONDON, GOA]) {
+    const market = marketByGood(economy, city);
+    assert.equal(market.get(HARDTACK_GOOD_ID).buyPrice, 2);
+    assert.equal(market.get(FRESH_WATER_GOOD_ID).buyPrice, 1);
+    assert.equal(market.get(HARDTACK_GOOD_ID).listedForSale, true);
+    assert.equal(market.get(FRESH_WATER_GOOD_ID).listedForSale, true);
+    assert.equal(maximumPortPurchaseQuantity(economy, city, HARDTACK_GOOD_ID, 10), 0);
+    assert.equal(maximumPortPurchaseQuantity(economy, city, FRESH_WATER_GOOD_ID, 10), 0);
+    assert.throws(() => executePortPurchase(economy, city, HARDTACK_GOOD_ID, 1), /does not buy Hardtack/);
+    assert.throws(() => executePortPurchase(economy, city, FRESH_WATER_GOOD_ID, 1), /does not buy Fresh Water/);
+  }
+
+  const plan = planNpcTrade(economy, LONDON, GOA, { cargoCapacity: 100, specie: 5000 });
+  assert.ok(plan.lines.every((line) => line.goodId !== HARDTACK_GOOD_ID && line.goodId !== FRESH_WATER_GOOD_ID));
 });
 
 test("regional production creates comparative advantage and profitable merchant cargo", () => {

@@ -51,6 +51,7 @@ const PIRATE_HIDEOUT_MIN_STAY_MINUTES = 18 * 60;
 const PIRATE_HIDEOUT_STAY_SPREAD_MINUTES = 30 * 60;
 const PIRATE_HIDEOUT_DANGER_RADIUS_KM = 120;
 const PIRATE_HIDEOUT_DANGER_HOLD_MINUTES = 6 * 60;
+export const MAJOR_PORT_PROTECTION_POPULATION = 80000;
 const NPC_FISH_GOOD_ID = "fish";
 const FISHING_GROUND_TARGET = 220;
 const FISHING_GROUND_SAMPLE_DISTANCES_KM = Object.freeze([220, 520, 1100, 2100, 3400]);
@@ -64,6 +65,10 @@ export const NPC_ROLE_MERCHANT = "merchant";
 export const NPC_ROLE_FISHERMAN = "fisherman";
 export const NPC_ROLE_WARSHIP = "warship";
 export const NPC_ROLE_PIRATE = "pirate";
+
+export function npcPortHasMajorProtection(port) {
+  return Boolean(port?.isFactionCapital) || Number(port?.population || 0) >= MAJOR_PORT_PROTECTION_POPULATION;
+}
 
 const NPC_ROLE_SET = new Set([NPC_ROLE_MERCHANT, NPC_ROLE_FISHERMAN, NPC_ROLE_WARSHIP, NPC_ROLE_PIRATE]);
 const PIRATE_SHIP_SLUGS = Object.freeze([
@@ -247,7 +252,9 @@ function choosePirateHideouts(ports) {
     PIRATE_HIDEOUT_MAX_COUNT,
     Math.max(PIRATE_HIDEOUT_MIN_COUNT, Math.round(ports.length * PIRATE_HIDEOUT_PORT_FRACTION))
   );
-  return [...ports]
+  const discreetPorts = ports.filter((port) => !npcPortHasMajorProtection(port));
+  const candidates = discreetPorts.length >= count ? discreetPorts : ports;
+  return [...candidates]
     .sort((a, b) => (
       hashString32(`${a.tileId}|${a.city}|pirate-hideout`) -
       hashString32(`${b.tileId}|${b.city}|pirate-hideout`)
@@ -447,8 +454,12 @@ function createNpcFleet(system, startMinute) {
     const count = Math.min(profileSpec.count, pool.length * 2);
     for (let i = 0; i < count; i++) {
       const seed = hashString32(`${profileSpec.id}|${i}|npc`);
-      const origin = pool[seed % pool.length];
+      let origin = pool[seed % pool.length];
       const role = npcRoleForSeed(seed, origin.factionId, profileSpec.mode);
+      if (role === NPC_ROLE_PIRATE && npcPortHasMajorProtection(origin)) {
+        const discreetOrigins = pool.filter((port) => !npcPortHasMajorProtection(port));
+        if (discreetOrigins.length > 0) origin = discreetOrigins[seed % discreetOrigins.length];
+      }
       const slug = npcShipSlugForRole(profileSpec, role, seed);
       const stats = shipStatsForSlug(slug);
       const ship = {
@@ -491,9 +502,9 @@ function createNpcFleet(system, startMinute) {
 
 function npcRoleForSeed(seed, originFactionId, profileMode) {
   const roll = (seed >>> 5) % 100;
-  if (roll < 62) return NPC_ROLE_MERCHANT;
-  if (roll < 76 && profileMode === "regional") return NPC_ROLE_FISHERMAN;
-  if (roll < 91) return originFactionId === NEUTRAL_FACTION_ID ? NPC_ROLE_MERCHANT : NPC_ROLE_WARSHIP;
+  if (roll < 64) return NPC_ROLE_MERCHANT;
+  if (roll < 79 && profileMode === "regional") return NPC_ROLE_FISHERMAN;
+  if (roll < 96) return originFactionId === NEUTRAL_FACTION_ID ? NPC_ROLE_MERCHANT : NPC_ROLE_WARSHIP;
   return NPC_ROLE_PIRATE;
 }
 
@@ -626,6 +637,7 @@ function chooseNpcDestination(system, ship, origin) {
   const seed = hashString32(`${ship.id}|${origin.tileId}|dest`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
+    .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .filter((port) => !shipHasCombatGrace(ship) || npcPortIsSafeForShip(system, ship, port))
     .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(ship, port))
     .filter((port) => profileSpec.mode === "regional"
@@ -884,6 +896,7 @@ function npcCargoUnits(ship) {
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {
   const candidates = system.ports
     .filter((port) => !samePort(port, origin) && !samePort(port, desiredDestination))
+    .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(ship, port))
     .filter((port) => port.routeRegion === origin.routeRegion || distanceKm(origin, port) <= NPC_ROUTE_HOP_MAX_KM)
     .map((port) => ({

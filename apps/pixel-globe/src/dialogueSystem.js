@@ -13,7 +13,7 @@ import {
   questStateForCity,
   sellGood
 } from "./gameState.js";
-import { portEconomySummary, portMarket, tradeGoodById } from "./economy.js";
+import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, portEconomySummary, portMarket, tradeGoodById } from "./economy.js";
 import { factionById } from "./factions.js";
 
 export function createPortDialogueSession(city) {
@@ -387,10 +387,14 @@ function rootView(session, city, gameState, economy, context) {
 }
 
 function buyView(session, city, gameState, economy) {
-  const rows = portMarket(economy, city)
-    .filter((row) => row.listedForSale && row.stock > 0)
+  const marketRows = portMarket(economy, city).filter((row) => row.listedForSale && row.stock > 0);
+  const supplyIds = new Set([FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID]);
+  const supplyRows = marketRows.filter((row) => supplyIds.has(row.good.id));
+  const tradeRows = marketRows
+    .filter((row) => !supplyIds.has(row.good.id))
     .sort((a, b) => b.productionPerDay - a.productionPerDay || a.buyPrice - b.buyPrice)
-    .slice(0, 5)
+    .slice(0, 5);
+  const rows = [...supplyRows, ...tradeRows]
     .map((row) => {
       const totalSize = row.good.unitSize;
       return option(`Buy ${row.good.label}  ${row.buyPrice} db  x${row.stock}`, { type: "buy", goodId: row.good.id }, {
@@ -410,7 +414,7 @@ function buyView(session, city, gameState, economy) {
 
 function sellView(session, city, gameState, economy) {
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
-  const rows = cargoRows(gameState).map((cargo) => {
+  const rows = cargoRows(gameState).filter((cargo) => cargo.good.sellable !== false).map((cargo) => {
     const row = market.get(cargo.good.id);
     if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${cargo.good.id}`);
     const price = row.sellPrice;
@@ -427,7 +431,7 @@ function sellView(session, city, gameState, economy) {
   if (rows.length === 0) {
     rows.push(option("No cargo to sell", { type: "node", nodeId: "sell" }, {
       disabled: true,
-      disabledReason: "The hold is empty."
+      disabledReason: "The hold has no cargo buyers will take."
     }));
   }
   rows.push(option("Back", { type: "node", nodeId: "root" }));

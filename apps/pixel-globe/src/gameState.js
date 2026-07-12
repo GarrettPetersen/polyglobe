@@ -1,4 +1,6 @@
 import {
+  FRESH_WATER_GOOD_ID,
+  HARDTACK_GOOD_ID,
   TRADE_GOODS,
   executePortPurchase,
   executePortSale,
@@ -30,6 +32,15 @@ export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
 export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
 export const FISH_CARGO_GOOD_ID = "fish";
 export const SHIP_ITEM_FISHING_NET = "fishing-net";
+export const FRESH_WATER_CAPACITY = 100;
+export const FRESH_WATER_DAYS = 21;
+export const FRESH_WATER_CARGO_DAYS = 1;
+export const FOOD_UNITS_PER_DAY = 1;
+export const FOOD_TARGET_DAYS = 21;
+export const STARTING_HARDTACK_UNITS = 10;
+
+const MINUTES_PER_DAY = 24 * 60;
+const FRESH_WATER_USE_PER_DAY = FRESH_WATER_CAPACITY / FRESH_WATER_DAYS;
 
 export const SHIP_ITEM_CATALOG = Object.freeze([
   Object.freeze({
@@ -50,6 +61,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
     cargo: {},
+    survival: createSurvivalState(startMinute),
     inventory: {
       items: {
         [SHIP_ITEM_FISHING_NET]: 1
@@ -217,6 +229,143 @@ export function cargoRows(state) {
       quantity: state.cargo[good.id] || 0
     }))
     .filter((row) => row.quantity > 0);
+}
+
+export function survivalStatus(state) {
+  assertGameState(state);
+  const foodUnits = edibleCargoRows(state).reduce((total, row) => total + row.quantity, 0);
+  const foodDays = foodUnits / FOOD_UNITS_PER_DAY;
+  const freshWaterCaskDays = state.survival.freshWater / FRESH_WATER_USE_PER_DAY;
+  const freshWaterReserveUnits = state.cargo[FRESH_WATER_GOOD_ID] || 0;
+  const freshWaterReserveDays = freshWaterReserveUnits * FRESH_WATER_CARGO_DAYS;
+  const freshWaterDays = freshWaterCaskDays + freshWaterReserveDays;
+  return {
+    freshWater: state.survival.freshWater,
+    freshWaterCapacity: state.survival.freshWaterCapacity,
+    freshWaterDays,
+    freshWaterCaskDays,
+    freshWaterReserveUnits,
+    freshWaterReserveDays,
+    freshWaterTargetDays: FRESH_WATER_DAYS,
+    freshWaterFraction: clamp01(freshWaterDays / FRESH_WATER_DAYS),
+    foodUnits,
+    foodDays,
+    foodFraction: clamp01(foodDays / FOOD_TARGET_DAYS),
+    foodDebt: state.survival.foodDebt,
+    foodTargetDays: FOOD_TARGET_DAYS
+  };
+}
+
+export function initializeShipProvisions(state, quantity = STARTING_HARDTACK_UNITS) {
+  assertGameState(state);
+  assertProvisionQuantity(quantity, "starting hardtack quantity");
+  const good = goodById(HARDTACK_GOOD_ID);
+  const stowable = Math.min(quantity, Math.floor(cargoFree(state) / good.unitSize));
+  if (stowable <= 0) return { good, quantity: 0 };
+  state.cargo[good.id] = (state.cargo[good.id] || 0) + stowable;
+  state.accounts.cargoCostBasis[good.id] = roundLedgerMoney(
+    (state.accounts.cargoCostBasis[good.id] || 0) + good.basePrice * stowable
+  );
+  recordDecision(state, `provisions.start.${good.id}`, stowable);
+  return { good, quantity: stowable };
+}
+
+export function autoProvisionHardtackAtPort(state, economy, city, context = {}) {
+  assertGameState(state);
+  const good = goodById(HARDTACK_GOOD_ID);
+  const currentFood = survivalStatus(state).foodUnits;
+  const targetFood = Math.min(FOOD_TARGET_DAYS * FOOD_UNITS_PER_DAY, state.cargoCapacity);
+  const needed = Math.max(0, Math.ceil(targetFood - currentFood));
+  if (needed <= 0) return { good, quantity: 0, price: 0 };
+  const freeCargoQuantity = Math.floor(cargoFree(state) / good.unitSize);
+  if (freeCargoQuantity <= 0 || state.doubloons <= 0) return { good, quantity: 0, price: 0 };
+
+  const row = marketRow(economy, city, HARDTACK_GOOD_ID);
+  let quantity = Math.min(needed, freeCargoQuantity, row.stock);
+  while (quantity > 0 && quotePortSale(economy, city, HARDTACK_GOOD_ID, quantity) > state.doubloons) {
+    quantity -= 1;
+  }
+  if (quantity <= 0) return { good, quantity: 0, price: 0 };
+  const purchase = buyGood(state, economy, city, HARDTACK_GOOD_ID, quantity, context);
+  return { ...purchase, price: purchase.price };
+}
+
+export function autoProvisionFreshWaterAtPort(state, city, context = {}) {
+  assertGameState(state);
+  const good = goodById(FRESH_WATER_GOOD_ID);
+  const missing = Math.max(0, state.survival.freshWaterCapacity - state.survival.freshWater);
+  if (missing <= 0) return { good, quantity: 0, price: 0, filled: 0 };
+  const neededUnits = Math.ceil(missing / FRESH_WATER_USE_PER_DAY);
+  const quantity = Math.min(neededUnits, Math.floor(state.doubloons / good.basePrice));
+  if (quantity <= 0) return { good, quantity: 0, price: 0, filled: 0 };
+  const filled = Math.min(missing, quantity * FRESH_WATER_USE_PER_DAY);
+  const price = quantity * good.basePrice;
+  state.survival.freshWater = Math.min(state.survival.freshWaterCapacity, state.survival.freshWater + filled);
+  state.doubloons -= price;
+  recordDecision(state, `provisions.water.${good.id}`, quantity);
+  recordLedgerEntry(state, city, context, {
+    kind: "provision",
+    description: `Take on ${good.label} x${quantity}`,
+    goodId: good.id,
+    quantity,
+    amount: -price,
+    costBasis: null,
+    pnl: null
+  });
+  return { good, quantity, price, filled };
+}
+
+export function updateSurvival(state, previousMinute, currentMinute, options = {}) {
+  assertGameState(state);
+  assertSimulationMinute(previousMinute);
+  assertSimulationMinute(currentMinute);
+  const result = {
+    changed: false,
+    freshWaterRefilled: false,
+    waterConsumed: 0,
+    waterCargoConsumed: 0,
+    foodConsumed: [],
+    dehydrated: false,
+    starved: false
+  };
+  if (options.freshwater) {
+    if (state.survival.freshWater < state.survival.freshWaterCapacity) {
+      state.survival.freshWater = state.survival.freshWaterCapacity;
+      result.freshWaterRefilled = true;
+      result.changed = true;
+    }
+  }
+
+  const elapsedMinutes = Math.max(0, currentMinute - previousMinute);
+  if (elapsedMinutes <= 0) {
+    state.survival.lastMinute = currentMinute;
+    return result;
+  }
+
+  const elapsedDays = elapsedMinutes / MINUTES_PER_DAY;
+  if (!options.freshwater) {
+    const water = consumeFreshWater(state, elapsedDays * FRESH_WATER_USE_PER_DAY);
+    result.waterConsumed = water.waterConsumed;
+    result.waterCargoConsumed = water.cargoConsumed;
+    if (water.changed) {
+      result.changed = true;
+    }
+    if (water.dehydrated) result.dehydrated = true;
+  }
+
+  state.survival.foodDebt += elapsedDays * FOOD_UNITS_PER_DAY;
+  while (state.survival.foodDebt >= 1) {
+    const consumed = consumeCheapestFoodUnit(state);
+    if (!consumed) {
+      result.starved = true;
+      break;
+    }
+    state.survival.foodDebt -= 1;
+    result.foodConsumed.push(consumed);
+    result.changed = true;
+  }
+  state.survival.lastMinute = currentMinute;
+  return result;
 }
 
 export function cargoCostBasis(state, goodId) {
@@ -429,6 +578,9 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
   const held = state.cargo[row.good.id] || 0;
+  if (row.good.sellable === false) {
+    throw new Error(`${row.good.label} is a ship supply and cannot be sold`);
+  }
   if (held < quantity) throw new Error(`Cannot sell ${quantity} ${row.good.label}; hold has ${held}`);
   const total = quotePortPurchase(economy, city, goodId, quantity);
   if (row.portSpecie < total) throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
@@ -590,6 +742,119 @@ export function cityLabel(city) {
   return city.displayCity || city.city;
 }
 
+function createSurvivalState(startMinute) {
+  return {
+    freshWater: FRESH_WATER_CAPACITY,
+    freshWaterCapacity: FRESH_WATER_CAPACITY,
+    foodDebt: 0,
+    lastMinute: startMinute
+  };
+}
+
+function edibleCargoRows(state) {
+  return TRADE_GOODS
+    .filter((good) => good.category === "food")
+    .map((good) => ({
+      good,
+      quantity: state.cargo[good.id] || 0
+    }))
+    .filter((row) => row.quantity > 0);
+}
+
+function consumeCheapestFoodUnit(state) {
+  const candidates = edibleCargoRows(state)
+    .map((row) => {
+      const basis = cargoCostBasis(state, row.good.id);
+      return {
+        ...row,
+        averageCost: basis.known ? basis.average : row.good.basePrice
+      };
+    })
+    .sort((a, b) => (
+      a.averageCost - b.averageCost ||
+      a.good.basePrice - b.good.basePrice ||
+      a.good.label.localeCompare(b.good.label)
+    ));
+  const row = candidates[0];
+  if (!row) return null;
+
+  const held = state.cargo[row.good.id] || 0;
+  const basis = cargoCostBasis(state, row.good.id);
+  const consumedCost = basis.known && held > 0 ? basis.total / held : 0;
+  const remaining = held - 1;
+  if (remaining > 0) {
+    state.cargo[row.good.id] = remaining;
+    if (basis.known) {
+      state.accounts.cargoCostBasis[row.good.id] = roundLedgerMoney(basis.total - consumedCost);
+    }
+  } else {
+    delete state.cargo[row.good.id];
+    delete state.accounts.cargoCostBasis[row.good.id];
+  }
+  recordDecision(state, `provisions.consume.${row.good.id}`, 1);
+  return {
+    goodId: row.good.id,
+    label: row.good.label,
+    costBasis: consumedCost
+  };
+}
+
+function consumeFreshWater(state, waterUse) {
+  let remainingUse = Math.max(0, waterUse);
+  let waterConsumed = 0;
+  let cargoConsumed = 0;
+  let changed = false;
+
+  const caskUse = Math.min(state.survival.freshWater, remainingUse);
+  if (caskUse > 0) {
+    state.survival.freshWater -= caskUse;
+    remainingUse -= caskUse;
+    waterConsumed += caskUse;
+    changed = true;
+  }
+
+  while (remainingUse > 1e-8 && (state.cargo[FRESH_WATER_GOOD_ID] || 0) > 0) {
+    const unit = consumeCargoUnit(state, FRESH_WATER_GOOD_ID);
+    if (!unit) break;
+    cargoConsumed += 1;
+    const unitWater = FRESH_WATER_USE_PER_DAY * FRESH_WATER_CARGO_DAYS;
+    const unitUse = Math.min(unitWater, remainingUse);
+    waterConsumed += unitUse;
+    remainingUse -= unitUse;
+    const leftover = unitWater - unitUse;
+    if (leftover > 0) {
+      state.survival.freshWater = Math.min(state.survival.freshWaterCapacity, state.survival.freshWater + leftover);
+    }
+    changed = true;
+  }
+
+  return {
+    changed,
+    waterConsumed,
+    cargoConsumed,
+    dehydrated: remainingUse > 1e-8
+  };
+}
+
+function consumeCargoUnit(state, goodId) {
+  const held = state.cargo[goodId] || 0;
+  if (held <= 0) return null;
+  const basis = cargoCostBasis(state, goodId);
+  const consumedCost = basis.known ? basis.total / held : 0;
+  const remaining = held - 1;
+  if (remaining > 0) {
+    state.cargo[goodId] = remaining;
+    if (basis.known) {
+      state.accounts.cargoCostBasis[goodId] = roundLedgerMoney(basis.total - consumedCost);
+    }
+  } else {
+    delete state.cargo[goodId];
+    delete state.accounts.cargoCostBasis[goodId];
+  }
+  recordDecision(state, `provisions.consume.${goodId}`, 1);
+  return { goodId, costBasis: consumedCost };
+}
+
 function marketRow(economy, city, goodId) {
   tradeGoodById(goodId);
   const row = portMarket(economy, city).find((item) => item.good.id === goodId);
@@ -676,6 +941,7 @@ function assertGameState(state) {
     throw new Error(`Invalid doubloon balance: ${state.doubloons}`);
   }
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
+  ensureSurvivalState(state);
   if (!state.inventory || typeof state.inventory !== "object") {
     state.inventory = { items: {} };
   }
@@ -814,6 +1080,33 @@ function assertSimulationMinute(simMinute) {
 
 function assertQuantity(quantity, label) {
   if (!Number.isInteger(quantity) || quantity <= 0) throw new Error(`Invalid ${label}: ${quantity}`);
+}
+
+function assertProvisionQuantity(quantity, label) {
+  if (!Number.isInteger(quantity) || quantity < 0) throw new Error(`Invalid ${label}: ${quantity}`);
+}
+
+function ensureSurvivalState(state) {
+  if (!state.survival || typeof state.survival !== "object") {
+    state.survival = createSurvivalState(0);
+  }
+  if (!Number.isFinite(state.survival.freshWaterCapacity) || state.survival.freshWaterCapacity <= 0) {
+    state.survival.freshWaterCapacity = FRESH_WATER_CAPACITY;
+  }
+  if (!Number.isFinite(state.survival.freshWater) || state.survival.freshWater < 0) {
+    state.survival.freshWater = state.survival.freshWaterCapacity;
+  }
+  state.survival.freshWater = Math.min(state.survival.freshWater, state.survival.freshWaterCapacity);
+  if (!Number.isFinite(state.survival.foodDebt) || state.survival.foodDebt < 0) {
+    state.survival.foodDebt = 0;
+  }
+  if (!Number.isFinite(state.survival.lastMinute)) {
+    state.survival.lastMinute = 0;
+  }
+}
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
 }
 
 function hashString32(value) {

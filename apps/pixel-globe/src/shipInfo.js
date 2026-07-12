@@ -4,7 +4,8 @@ import {
   cargoUsed,
   ledgerEntries,
   realizedTradePnl,
-  shipItemRows
+  shipItemRows,
+  survivalStatus
 } from "./gameState.js";
 import { factionById } from "./factions.js";
 import { SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
@@ -68,6 +69,7 @@ export function createShipInfoView(ship, gameState) {
     cargoCapacity: stats.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
     seaworthiness: stats.seaworthiness,
+    survival: survivalStatus(gameState),
     ratings: Object.freeze({
       speed: shipPerformanceRating(stats, "speed"),
       acceleration: shipPerformanceRating(stats, "acceleration"),

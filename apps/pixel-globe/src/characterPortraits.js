@@ -7,6 +7,13 @@ export const PORTRAIT_ROLE_HAIR = 2;
 export const PORTRAIT_ROLE_CLOTH = 3;
 export const PORTRAIT_ROLE_ACCENT = 4;
 
+const EXPRESSION_FALLBACK_IDS = Object.freeze({
+  angry: Object.freeze(["stern", "shouting", "annoyed", "determined"]),
+  afraid: Object.freeze(["worried", "surprised", "concerned", "wary"]),
+  happy: Object.freeze(["laughing", "pleased", "smile", "soft-smile"]),
+  sad: Object.freeze(["worried", "concerned", "pained", "hurt", "weary"])
+});
+
 export async function loadCharacterPortraitManifest() {
   const res = await fetch(CHARACTER_PORTRAIT_MANIFEST_URL);
   if (!res.ok) throw new Error(`Failed to load character portrait manifest: HTTP ${res.status}`);
@@ -207,7 +214,7 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
     throw new Error("Character portrait manifest has no multi-expression player captains");
   }
   const region = portraitRegionForCity(homePort);
-  const character = assignCharacterVariant(`player|${identityKey}`, region, sourcePool, manifest, new Set());
+  const character = assignPlayerSourceCharacter(`player|${identityKey}`, region, sourcePool);
   const name = assignRegionalCharacterName({
     identityKey: `player|${identityKey}`,
     city: homePort,
@@ -295,7 +302,7 @@ function assignCharacterVariant(key, region, sourcePool, manifest, used) {
     const variantId = `${source.id}-${skinTone.id}-${hairTone.id}-${outfit.id}`;
     if (!used.has(variantId)) {
       used.add(variantId);
-      return assignedCharacter(variantId, region, source, skinTone, hairTone, outfit);
+      return assignedCharacterVariant(variantId, region, source, skinTone, hairTone, outfit);
     }
     comboIndex = (comboIndex + 1) % capacity;
     attempts += 1;
@@ -303,7 +310,26 @@ function assignCharacterVariant(key, region, sourcePool, manifest, used) {
   throw new Error(`Not enough unique character variants for ${key}`);
 }
 
-function assignedCharacter(id, region, source, skinTone, hairTone, outfit) {
+function assignPlayerSourceCharacter(key, region, sourcePool) {
+  if (sourcePool.length === 0) throw new Error(`No player portrait sources available for ${key}`);
+  const source = sourcePool[hashString32(key) % sourcePool.length];
+  return assignedCharacter(source.id, region, source, null, null, null, { paletteSwapped: false });
+}
+
+function assignedCharacterVariant(id, region, source, skinTone, hairTone, outfit) {
+  return assignedCharacter(id, region, source, skinTone, hairTone, outfit, { paletteSwapped: true });
+}
+
+function assignedCharacter(id, region, source, skinTone, hairTone, outfit, options = {}) {
+  const paletteSwapped = options.paletteSwapped !== false;
+  const palette = paletteSwapped
+    ? {
+        skinRamp: skinTone.ramp,
+        hairRamp: hairTone.ramp,
+        clothRamp: outfit.clothRamp,
+        accentRamp: outfit.accentRamp
+      }
+    : null;
   return {
     id,
     region,
@@ -311,18 +337,14 @@ function assignedCharacter(id, region, source, skinTone, hairTone, outfit) {
     sourceLabel: source.label,
     sourceRoles: source.roles,
     sourceRegions: source.regions,
-    skinToneId: skinTone.id,
-    skinToneLabel: skinTone.label,
-    hairToneId: hairTone.id,
-    hairToneLabel: hairTone.label,
-    outfitId: outfit.id,
-    outfitLabel: outfit.label,
-    palette: {
-      skinRamp: skinTone.ramp,
-      hairRamp: hairTone.ramp,
-      clothRamp: outfit.clothRamp,
-      accentRamp: outfit.accentRamp
-    },
+    skinToneId: skinTone?.id || null,
+    skinToneLabel: skinTone?.label || null,
+    hairToneId: hairTone?.id || null,
+    hairToneLabel: hairTone?.label || null,
+    outfitId: outfit?.id || null,
+    outfitLabel: outfit?.label || null,
+    palette,
+    paletteSwapped,
     expressions: source.expressions.map((expression) => ({
       id: expression.id,
       label: expression.label,
@@ -404,6 +426,10 @@ function portraitRegionForNpcShip(ship) {
 export function characterExpression(character, expressionId = "neutral") {
   const exact = character?.expressions?.find((expression) => expression.id === expressionId);
   if (exact) return exact;
+  for (const fallbackId of EXPRESSION_FALLBACK_IDS[expressionId] || []) {
+    const fallback = character?.expressions?.find((expression) => expression.id === fallbackId);
+    if (fallback) return fallback;
+  }
   const neutral = character?.expressions?.find((expression) => expression.id === "neutral");
   return neutral || character?.expressions?.[0] || null;
 }

@@ -1,3 +1,5 @@
+import { withColonialFounding } from "./colonialCities.js";
+
 export const CITY_WATER_ACCESS_SCORE_BONUS = 45000;
 
 export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
@@ -95,7 +97,7 @@ function cityLabelText(city) {
 }
 
 function manualCity1522(city, country, lat, lon, population, details = {}) {
-  return Object.freeze({
+  return Object.freeze(withColonialFounding({
     city,
     displayCity: city,
     country,
@@ -108,5 +110,5 @@ function manualCity1522(city, country, lat, lon, population, details = {}) {
     requiredTradePort: true,
     cityType: details.cityType || null,
     ...details
-  });
+  }));
 }

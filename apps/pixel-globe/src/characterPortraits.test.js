@@ -10,6 +10,7 @@ import {
   applyPortraitPaletteSwap,
   assignNpcShipCaptains,
   assignPortCityCharacters,
+  characterExpression,
   classifyPortraitRoles,
   decodePortraitRoleMap,
   encodePortraitRoleMap,
@@ -87,8 +88,8 @@ test("portrait analysis separates a face, nearby hair, and torso colors", () => 
 
 test("player portrait pool contains only multi-expression captain sources", () => {
   assert.deepEqual(playerCharacterPortraitSummary(GENERATED_MANIFEST), {
-    total: 131,
-    multipleExpressions: 28,
+    total: 156,
+    multipleExpressions: 23,
     eligibleCaptains: 5
   });
 
@@ -113,8 +114,76 @@ test("player portrait pool contains only multi-expression captain sources", () =
   assert.equal(character.homePortName, "Cadiz");
   assert.equal(character.nameCulture, "spanish");
   assert.ok(character.sourceRoles.includes("captain"));
+  assert.equal(character.id, character.sourceId);
+  assert.equal(character.paletteSwapped, false);
+  assert.equal(character.palette, null);
+  assert.equal(character.skinToneId, null);
+  assert.equal(character.hairToneId, null);
+  assert.equal(character.outfitId, null);
   assert.ok(character.expressions.length > 1);
   assert.ok(character.expressions.every((expression) => expression.src.startsWith("/assets/characters/")));
+});
+
+test("character expressions change frames without changing character identity", () => {
+  const character = {
+    id: "captain-a",
+    expressions: [
+      { id: "neutral", src: "/assets/characters/captain-a-neutral.png" },
+      { id: "sad", src: "/assets/characters/captain-a-sad.png" }
+    ]
+  };
+
+  assert.equal(characterExpression(character, "sad").id, "sad");
+  assert.equal(character.id, "captain-a");
+});
+
+test("unknown character expressions fall back to neutral", () => {
+  const character = {
+    id: "captain-b",
+    expressions: [
+      { id: "neutral", src: "/assets/characters/captain-b-neutral.png" },
+      { id: "expression-02", src: "/assets/characters/captain-b-expression-02.png" }
+    ]
+  };
+
+  assert.equal(characterExpression(character, "sad").id, "neutral");
+});
+
+test("requested moods can use a nearby semantic expression", () => {
+  const character = {
+    id: "captain-c",
+    expressions: [
+      { id: "neutral", src: "/assets/characters/captain-c-neutral.png" },
+      { id: "concerned", src: "/assets/characters/captain-c-concerned.png" },
+      { id: "soft-smile", src: "/assets/characters/captain-c-soft-smile.png" }
+    ]
+  };
+
+  assert.equal(characterExpression(character, "sad").id, "concerned");
+  assert.equal(characterExpression(character, "happy").id, "soft-smile");
+});
+
+test("generated portrait expressions are semantically labelled", () => {
+  const genericExpressions = [];
+  for (const source of GENERATED_MANIFEST.sourceCharacters) {
+    for (const expression of source.expressions) {
+      if (/^expression-\d+/.test(expression.id) || /^Expression \d+/.test(expression.label)) {
+        genericExpressions.push(`${source.id}.${expression.id}`);
+      }
+    }
+  }
+
+  assert.deepEqual(genericExpressions, []);
+});
+
+test("women portrait grid entries are individual people, not expression sets", () => {
+  const womenPortraits = GENERATED_MANIFEST.sourceCharacters.filter((source) => (
+    source.sourceDirectory === "Women Portrait Pack by Captainskeleto/Women Portrait"
+  ));
+
+  assert.equal(womenPortraits.length, 30);
+  assert.ok(womenPortraits.every((source) => source.groupingMode === "single-portrait"));
+  assert.ok(womenPortraits.every((source) => source.expressions.length === 1));
 });
 
 test("player generation is deterministic for an identity key", () => {
@@ -168,6 +237,8 @@ test("return-home passenger generation can use destination culture", () => {
   assert.equal(passenger.destinationPortTileId, 2);
   assert.equal(passenger.nameCulture, "japanese");
   assert.equal(passenger.region, "east-asia");
+  assert.equal(passenger.paletteSwapped, true);
+  assert.ok(passenger.palette);
   assert.ok(["fair", "golden", "olive", "tan"].includes(passenger.skinToneId));
 });
 

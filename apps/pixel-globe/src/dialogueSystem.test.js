@@ -12,7 +12,7 @@ import {
   selectShipDialogueOption,
   shipDialogueView
 } from "./dialogueSystem.js";
-import { createWorldEconomy } from "./economy.js";
+import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, createWorldEconomy } from "./economy.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
@@ -226,11 +226,21 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(market.options.some((option) => /\d+ db  x\d+/.test(option.label)));
-  const buyIndex = market.options.findIndex((option) => option.action.type === "buy" && !option.disabled);
+  assert.equal(market.options[0].action.goodId, HARDTACK_GOOD_ID);
+  assert.equal(market.options[1].action.goodId, FRESH_WATER_GOOD_ID);
+  const buyIndex = market.options.findIndex((option) => (
+    option.action.type === "buy" &&
+    !option.disabled &&
+    option.action.goodId !== HARDTACK_GOOD_ID &&
+    option.action.goodId !== FRESH_WATER_GOOD_ID
+  ));
   assert.ok(buyIndex >= 0);
   selectPortDialogueOption(session, city, gameState, economy, [city], buyIndex, { simMinute: 115200 });
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, { simMinute: 115201 });
   session.nodeId = "sell";
   const sell = portDialogueView(session, city, gameState, economy, [city]);
+  assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
+  assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.label)));
 });
 

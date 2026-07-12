@@ -14,6 +14,9 @@ import {
 export const PLAYER_COMBAT_ID = "player";
 export const COMBAT_DETECTION_RADIUS_PX = 92;
 export const COMBAT_DISENGAGE_RADIUS_PX = 148;
+export const PIRATE_PLAYER_DETECTION_RADIUS_PX = 68;
+export const WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX = 138;
+export const WARSHIP_PIRATE_DISENGAGE_RADIUS_PX = 190;
 export const COMBAT_MODE_ATTACK = "attack";
 export const COMBAT_MODE_FLEE = "flee";
 
@@ -33,7 +36,8 @@ export function updateShipCombatState(state, entities) {
   for (const [key, engagement] of [...state.engagements.entries()]) {
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
-    if (!a || !b || a.combatGrace || b.combatGrace || distance(a, b) > COMBAT_DISENGAGE_RADIUS_PX) {
+    if (!a || !b || a.combatGrace || b.combatGrace || protectedPortEndsPirateAttack(a, b) ||
+        distance(a, b) > combatDisengageRadius(a, b)) {
       state.engagements.delete(key);
       changed = true;
     }
@@ -43,7 +47,7 @@ export function updateShipCombatState(state, entities) {
     for (let j = i + 1; j < entities.length; j++) {
       const a = entities[i];
       const b = entities[j];
-      if (!shipsTriggerCombat(a, b) || distance(a, b) > COMBAT_DETECTION_RADIUS_PX) continue;
+      if (!shipsTriggerCombat(a, b) || distance(a, b) > combatDetectionRadius(a, b)) continue;
       const key = engagementKey(a.id, b.id);
       if (state.engagements.has(key)) continue;
       const engagement = { aId: a.id, bId: b.id };
@@ -82,7 +86,9 @@ export function shipsTriggerCombat(a, b) {
   if (a.id === b.id || a.combatGrace || b.combatGrace || a.factionId === b.factionId) return false;
   if (diplomacyBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) return false;
   if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {
+    const player = a.id === PLAYER_COMBAT_ID ? a : b;
     const npc = a.id === PLAYER_COMBAT_ID ? b : a;
+    if (npc.role === NPC_ROLE_PIRATE && player.majorPortProtected) return false;
     return npc.role === NPC_ROLE_PIRATE || npc.role === NPC_ROLE_WARSHIP;
   }
   return a.role === NPC_ROLE_PIRATE ||
@@ -91,6 +97,36 @@ export function shipsTriggerCombat(a, b) {
     b.factionId === PIRATE_FACTION_ID ||
     a.role === NPC_ROLE_WARSHIP ||
     b.role === NPC_ROLE_WARSHIP;
+}
+
+function combatDetectionRadius(a, b) {
+  if (isNpcWarshipPiratePair(a, b)) return WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX;
+  if (isPlayerPiratePair(a, b)) return PIRATE_PLAYER_DETECTION_RADIUS_PX;
+  return COMBAT_DETECTION_RADIUS_PX;
+}
+
+function combatDisengageRadius(a, b) {
+  return isNpcWarshipPiratePair(a, b)
+    ? WARSHIP_PIRATE_DISENGAGE_RADIUS_PX
+    : COMBAT_DISENGAGE_RADIUS_PX;
+}
+
+function isNpcWarshipPiratePair(a, b) {
+  if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) return false;
+  return (a.role === NPC_ROLE_WARSHIP && b.role === NPC_ROLE_PIRATE) ||
+    (a.role === NPC_ROLE_PIRATE && b.role === NPC_ROLE_WARSHIP);
+}
+
+function isPlayerPiratePair(a, b) {
+  if (a.id !== PLAYER_COMBAT_ID && b.id !== PLAYER_COMBAT_ID) return false;
+  const npc = a.id === PLAYER_COMBAT_ID ? b : a;
+  return npc.role === NPC_ROLE_PIRATE;
+}
+
+function protectedPortEndsPirateAttack(a, b) {
+  if (!isPlayerPiratePair(a, b)) return false;
+  const player = a.id === PLAYER_COMBAT_ID ? a : b;
+  return Boolean(player.majorPortProtected);
 }
 
 export function forceShipEngagement(state, aId, bId) {

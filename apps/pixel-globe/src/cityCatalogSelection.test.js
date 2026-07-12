@@ -18,6 +18,16 @@ import {
   cityCatalogSelectionScore,
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
+import {
+  COLONIAL_FOUNDING_CONQUERED,
+  COLONIAL_FOUNDING_NEGOTIATED,
+  COLONIAL_FOUNDING_SETTLER,
+  COLONIAL_CITY_FOUNDINGS,
+  COLONIZATION_TARGETS,
+  colonialFoundingForCity,
+  colonizationTargetForCity,
+  withColonialFounding
+} from "./colonialCities.js";
 
 const SUBDIVISIONS = 7;
 const CITY_CATALOG_MAX_COUNT = 480;
@@ -79,6 +89,76 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.deepEqual(manualPortFailures, [], "expected every manual 1522 trade port to survive selection as dockable");
 });
 
+test("colonial city metadata separates conquest, negotiated ports, and settler colonies", () => {
+  const mexicoCity = colonialFoundingForCity({ city: "Mexico City", country: "Mexico" });
+  const nagasaki = colonialFoundingForCity({ city: "Nagasaki", country: "Japan" });
+  const havana = colonialFoundingForCity({ city: "Havana", country: "Cuba" });
+
+  assert.equal(mexicoCity.type, COLONIAL_FOUNDING_CONQUERED);
+  assert.equal(mexicoCity.precolonialName, "Tenochtitlan");
+  assert.equal(nagasaki.type, COLONIAL_FOUNDING_NEGOTIATED);
+  assert.equal(havana.type, COLONIAL_FOUNDING_SETTLER);
+  assert.ok(COLONIAL_CITY_FOUNDINGS.some((entry) => entry.city === "Potosi" && entry.type === COLONIAL_FOUNDING_SETTLER));
+});
+
+test("colonization targets are creatable sites absent from the 1522 city list", async () => {
+  const csv = await readFile(
+    new URL("examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv", repoRoot),
+    "utf8"
+  );
+  const cityRecords = buildCityRecords1522(csv);
+  const currentCityKeys = new Set(cityRecords.keys());
+  const failures = [];
+
+  for (const target of COLONIZATION_TARGETS) {
+    const keys = new Set([
+      cityKey(target.city, target.country),
+      cityKey(target.datasetCity, target.datasetCountry)
+    ]);
+    for (const key of keys) {
+      if (currentCityKeys.has(key)) failures.push(`${target.city} via ${key}`);
+    }
+  }
+
+  assert.equal(failures.join(", "), "");
+  assert.ok(COLONIZATION_TARGETS.every((target) => target.canFoundFromYear === 1522));
+  assert.ok(COLONIZATION_TARGETS.every((target) => typeof target.cityType === "string" && target.cityType.length > 0));
+});
+
+test("colonization targets cover accelerated history hooks", () => {
+  const jamestown = colonizationTargetForCity({ city: "Jamestown", country: "United States of America" });
+  const quebec = colonizationTargetForCity({ city: "Quebec", country: "Canada" });
+  const newAmsterdam = colonizationTargetForCity({ city: "New York", country: "United States of America" });
+  const manila = colonizationTargetForCity({ city: "Manila", country: "Philippines" });
+  const nagasaki = colonizationTargetForCity({ city: "Nagasaki", country: "Japan" });
+
+  assert.equal(jamestown.type, COLONIAL_FOUNDING_SETTLER);
+  assert.equal(jamestown.datasetFirstYear, null);
+  assert.equal(quebec.factionId, "france");
+  assert.equal(quebec.datasetFirstYear, 1720);
+  assert.equal(newAmsterdam.city, "New Amsterdam");
+  assert.equal(newAmsterdam.datasetCity, "New York");
+  assert.equal(manila.type, COLONIAL_FOUNDING_CONQUERED);
+  assert.equal(nagasaki.type, COLONIAL_FOUNDING_NEGOTIATED);
+});
+
+test("1522 catalog records carry colonial metadata without changing current allegiance", async () => {
+  const csv = await readFile(
+    new URL("examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv", repoRoot),
+    "utf8"
+  );
+  const cityRecords = buildCityRecords1522(csv);
+  const tenochtitlan = cityRecords.get(cityKey("Mexico City", "Mexico"));
+  const havana = cityRecords.get(cityKey("Havana", "Cuba"));
+
+  assert.equal(tenochtitlan.displayCity, "Tenochtitlan");
+  assert.equal(tenochtitlan.factionId, "aztec");
+  assert.equal(tenochtitlan.colonialFounding.type, COLONIAL_FOUNDING_CONQUERED);
+  assert.equal(tenochtitlan.colonialFounding.factionId, "spain");
+  assert.equal(havana.factionId, "spain");
+  assert.equal(havana.colonialFounding.type, COLONIAL_FOUNDING_SETTLER);
+});
+
 async function readJson(url) {
   return JSON.parse(await readFile(url, "utf8"));
 }
@@ -102,7 +182,7 @@ function buildCityRecords1522(csv) {
     const cityId = cityKey(city, country);
     const prev = bestByCity.get(cityId);
     if (prev && (year < prev.year || (year === prev.year && population <= prev.population))) continue;
-    const cityRecord = {
+    const cityRecord = withColonialFounding({
       cityId,
       city,
       displayCity: displayName(city, country),
@@ -113,7 +193,7 @@ function buildCityRecords1522(csv) {
       population: Math.round(population),
       coastalIntent: truthyCsv(row[indexes.coastal_intent]),
       lakeIntent: truthyCsv(row[indexes.lake_intent])
-    };
+    });
     const capitalSpec = factionCapitalForCity(cityRecord);
     bestByCity.set(cityId, {
       ...cityRecord,
@@ -124,7 +204,7 @@ function buildCityRecords1522(csv) {
 
   for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
     const cityId = cityKey(manualSpec.city, manualSpec.country);
-    const cityRecord = {
+    const cityRecord = withColonialFounding({
       cityId,
       city: manualSpec.city,
       displayCity: manualSpec.displayCity || displayName(manualSpec.city, manualSpec.country),
@@ -139,7 +219,7 @@ function buildCityRecords1522(csv) {
       requiredTradePort: Boolean(manualSpec.requiredTradePort),
       manualRegion: manualSpec.manualRegion || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
-    };
+    });
     const capitalSpec = factionCapitalForCity(cityRecord);
     bestByCity.set(cityId, {
       ...cityRecord,
@@ -151,7 +231,7 @@ function buildCityRecords1522(csv) {
   for (const capitalSpec of factionCapitalCityRecords1522()) {
     const cityId = cityKey(capitalSpec.city, capitalSpec.country);
     if (bestByCity.has(cityId)) continue;
-    const cityRecord = {
+    const cityRecord = withColonialFounding({
       cityId,
       city: capitalSpec.city,
       displayCity: displayName(capitalSpec.city, capitalSpec.country),
@@ -162,7 +242,7 @@ function buildCityRecords1522(csv) {
       population: capitalSpec.population,
       coastalIntent: true,
       lakeIntent: false
-    };
+    });
     bestByCity.set(cityId, {
       ...cityRecord,
       factionId: factionIdForCity1522(cityRecord),
