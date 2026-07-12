@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { PORT_PERSONALITY_IDS } from "./portDialoguePersonality.js";
 
 import {
   PORTRAIT_ROLE_ACCENT,
@@ -86,6 +87,39 @@ test("portrait analysis separates a face, nearby hair, and torso colors", () => 
   assert.notEqual(roles[4 + 12 * width], roles[7 + 12 * width]);
 });
 
+test("portrait analysis treats a hat matching the outfit as clothing, not hair", () => {
+  const width = 24;
+  const height = 24;
+  const data = new Uint8ClampedArray(width * height * 4);
+  fillRect(data, width, 9, 7, 6, 7, [210, 150, 115, 255]);
+  fillRect(data, width, 8, 6, 1, 7, [70, 42, 28, 255]);
+  fillRect(data, width, 15, 6, 1, 7, [70, 42, 28, 255]);
+  fillRect(data, width, 8, 5, 8, 2, [70, 42, 28, 255]);
+  fillRect(data, width, 6, 2, 12, 3, [40, 90, 150, 255]);
+  fillRect(data, width, 5, 5, 14, 1, [40, 90, 150, 255]);
+  fillRect(data, width, 5, 15, 14, 9, [40, 90, 150, 255]);
+  fillRect(data, width, 10, 15, 4, 9, [190, 145, 45, 255]);
+
+  const roles = classifyPortraitRoles(data, width, height);
+
+  assert.equal(roles[11 + 3 * width], PORTRAIT_ROLE_CLOTH);
+  assert.equal(roles[8 + 9 * width], PORTRAIT_ROLE_HAIR);
+  assert.equal(roles[11 + 10 * width], PORTRAIT_ROLE_SKIN);
+});
+
+test("skin-colored torso fabric is not mistaken for a second face", () => {
+  const width = 24;
+  const height = 24;
+  const data = new Uint8ClampedArray(width * height * 4);
+  fillRect(data, width, 9, 7, 6, 7, [210, 150, 115, 255]);
+  fillRect(data, width, 5, 15, 14, 9, [198, 142, 108, 255]);
+
+  const roles = classifyPortraitRoles(data, width, height);
+
+  assert.equal(roles[11 + 10 * width], PORTRAIT_ROLE_SKIN);
+  assert.equal(roles[11 + 18 * width], PORTRAIT_ROLE_CLOTH);
+});
+
 test("player portrait pool contains only multi-expression captain sources", () => {
   assert.deepEqual(playerCharacterPortraitSummary(GENERATED_MANIFEST), {
     total: 156,
@@ -163,6 +197,23 @@ test("requested moods can use a nearby semantic expression", () => {
   assert.equal(characterExpression(character, "happy").id, "soft-smile");
 });
 
+test("port dialogue moods use the closest expression on the same character", () => {
+  const character = {
+    id: "factor-a",
+    expressions: [
+      { id: "neutral", src: "/assets/characters/factor-a-neutral.png" },
+      { id: "serious", src: "/assets/characters/factor-a-serious.png" },
+      { id: "soft-smile", src: "/assets/characters/factor-a-soft-smile.png" },
+      { id: "worried", src: "/assets/characters/factor-a-worried.png" }
+    ]
+  };
+
+  assert.equal(characterExpression(character, "stern").id, "serious");
+  assert.equal(characterExpression(character, "pleased").id, "soft-smile");
+  assert.equal(characterExpression(character, "concerned").id, "worried");
+  assert.equal(character.id, "factor-a");
+});
+
 test("generated portrait expressions are semantically labelled", () => {
   const genericExpressions = [];
   for (const source of GENERATED_MANIFEST.sourceCharacters) {
@@ -184,6 +235,22 @@ test("women portrait grid entries are individual people, not expression sets", (
   assert.equal(womenPortraits.length, 30);
   assert.ok(womenPortraits.every((source) => source.groupingMode === "single-portrait"));
   assert.ok(womenPortraits.every((source) => source.expressions.length === 1));
+});
+
+test("portrait expression packs produce one individual with many expressions", () => {
+  const villagers = GENERATED_MANIFEST.sourceCharacters.filter((source) => (
+    source.sourceDirectory === "Blond Villager Portrait Pack by Captainskeleto"
+  ));
+
+  assert.equal(villagers.length, 1);
+  assert.equal(villagers[0].groupingMode, "expression-set");
+  assert.equal(villagers[0].expressions.length, 12);
+  assert.deepEqual(villagers[0].expressions.slice(0, 4).map((expression) => expression.id), [
+    "neutral",
+    "happy",
+    "concerned",
+    "afraid"
+  ]);
 });
 
 test("player generation is deterministic for an identity key", () => {
@@ -254,10 +321,12 @@ test("port assignments use regional portrait and tone pools", () => {
   assert.ok(["golden", "olive", "tan", "brown"].includes(american.skinToneId));
   assert.equal(american.nameCulture, "nahua");
   assert.ok(american.name.includes(" "));
+  assert.ok(PORT_PERSONALITY_IDS.includes(american.personalityId));
   const african = assignments.get(2);
   assert.ok(["tan", "brown", "deep-brown", "ebony"].includes(african.skinToneId));
   assert.ok(["black", "dark-brown"].includes(african.hairToneId));
   assert.equal(african.nameCulture, "eastAfrican");
+  assert.ok(PORT_PERSONALITY_IDS.includes(african.personalityId));
   assert.equal(usedNames.size, 2);
 });
 

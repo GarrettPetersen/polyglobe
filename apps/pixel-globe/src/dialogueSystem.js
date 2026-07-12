@@ -15,12 +15,13 @@ import {
 } from "./gameState.js";
 import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, portEconomySummary, portMarket, tradeGoodById } from "./economy.js";
 import { factionById } from "./factions.js";
+import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 
 export function createPortDialogueSession(city) {
   return {
     kind: "port",
     cityTileId: city.tileId,
-    nodeId: "root",
+    nodeId: "greeting",
     selectedIndex: 0,
     feedback: null
   };
@@ -112,9 +113,16 @@ export function shipDialogueView(session, ship) {
     : role === "Warship"
       ? "Keep clear. We are on patrol."
       : "Fair winds, captain.";
+  const expressionId = ship.stormStatus
+    ? "concerned"
+    : role === "Pirate"
+      ? "stern"
+      : role === "Warship"
+        ? "attentive"
+        : "neutral";
   return {
     speaker,
-    expressionId: "neutral",
+    expressionId,
     text: `${greeting}${storm}${voyage}${cargo}`,
     feedback: null,
     options: [
@@ -186,6 +194,7 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
 
+  if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy);
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
@@ -285,7 +294,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
   if (active?.id === quest.id) {
     return {
       speaker,
-      expressionId: "neutral",
+      expressionId: "attentive",
       text: quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
       feedback: session.feedback,
       options: [
@@ -296,7 +305,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
   if (active && active.id !== quest.id) {
     return {
       speaker,
-      expressionId: "neutral",
+      expressionId: "concerned",
       text: `Your ship is already pledged to ${active.destinationName}. I will wait here if you return.`,
       feedback: session.feedback,
       options: [
@@ -353,12 +362,33 @@ function assertPassengerDialogueSubject(session, city, quest) {
   }
 }
 
-function rootView(session, city, gameState, economy, context) {
+function greetingView(session, city, gameState, context) {
   const memory = portMemory(gameState, city);
+  const name = cityLabel(city);
+  const personalityId = city.character?.personalityId || portPersonalityForKey(`${name}|${city.country || "port"}`);
+  const greeting = portGreetingPresentationForPersonality({
+    personalityId,
+    cityName: name,
+    returning: memory.visits > 1,
+    localFlavor: portFlavor(city),
+    visitCount: memory.visits,
+    dayIndex: context.dayIndex || 0,
+    nearbyShips: context.nearbyShips,
+    stormy: context.stormy === true,
+    playerStanding: context.playerStanding || 0,
+    rivalLabel: context.rivalLabel || null
+  });
+  return {
+    speaker: speakerName(city),
+    expressionId: greeting.expressionId,
+    text: greeting.text,
+    feedback: null,
+    options: [option("Continue", { type: "node", nodeId: "root" })]
+  };
+}
+
+function rootView(session, city, gameState, economy, context) {
   const market = portEconomySummary(economy, city);
-  const greeting = memory.visits <= 1
-    ? `Welcome to ${cityLabel(city)}. I keep accounts for captains who can keep their word.`
-    : `Back in ${cityLabel(city)}, captain. Your ledger is still open.`;
   const options = [
     option("Buy goods", { type: "node", nodeId: "buy" }),
     option("Sell cargo", { type: "node", nodeId: "sell" }),
@@ -379,8 +409,8 @@ function rootView(session, city, gameState, economy, context) {
   );
   return {
     speaker: speakerName(city),
-    expressionId: "neutral",
-    text: `${greeting} ${portFlavor(city)} Market specie: ${market.specie} db.`,
+    expressionId: feedbackExpressionId(session.feedback),
+    text: `What business brings you to port? Market specie: ${market.specie} db.`,
     feedback: session.feedback,
     options
   };
@@ -405,7 +435,7 @@ function buyView(session, city, gameState, economy) {
   rows.push(option("Back", { type: "node", nodeId: "root" }));
   return {
     speaker: speakerName(city),
-    expressionId: "neutral",
+    expressionId: feedbackExpressionId(session.feedback),
     text: `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
     options: rows
@@ -437,7 +467,7 @@ function sellView(session, city, gameState, economy) {
   rows.push(option("Back", { type: "node", nodeId: "root" }));
   return {
     speaker: speakerName(city),
-    expressionId: "neutral",
+    expressionId: feedbackExpressionId(session.feedback),
     text: `Buyers here pay port rates. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
     options: rows
@@ -467,7 +497,7 @@ function questView(session, city, gameState, portCities) {
     if (questState.quest.kind === "passenger") {
       return {
         speaker: speakerName(city),
-        expressionId: "neutral",
+        expressionId: "happy",
         text: `${passengerName(questState.quest)} has reached ${questState.quest.destinationName}. Let them go ashore and settle the fare.`,
         feedback: session.feedback,
         options: [
@@ -478,7 +508,7 @@ function questView(session, city, gameState, portCities) {
     }
     return {
       speaker: speakerName(city),
-      expressionId: "neutral",
+      expressionId: "pleased",
       text: `That packet bears our seal. Hand it over and I will pay ${questState.quest.reward} db.`,
       feedback: session.feedback,
       options: [
@@ -490,7 +520,7 @@ function questView(session, city, gameState, portCities) {
   if (questState.kind === "available") {
     return {
       speaker: speakerName(city),
-      expressionId: "neutral",
+      expressionId: "attentive",
       text: `A sealed packet needs passage to ${questState.quest.destinationName}. Payment is ${questState.quest.reward} db on delivery.`,
       feedback: session.feedback,
       options: [
@@ -505,7 +535,7 @@ function questView(session, city, gameState, portCities) {
   if (questState.kind === "completed") {
     return {
       speaker: speakerName(city),
-      expressionId: "neutral",
+      expressionId: "pleased",
       text: "You already handled my packet. A clean account is rare enough that I remember it.",
       feedback: session.feedback,
       options: [
@@ -516,7 +546,7 @@ function questView(session, city, gameState, portCities) {
   if (questState.kind === "unavailable") {
     return {
       speaker: speakerName(city),
-      expressionId: "neutral",
+      expressionId: "thoughtful",
       text: "No sealed packets are bound for our nearby ports right now.",
       feedback: session.feedback,
       options: [
@@ -528,7 +558,7 @@ function questView(session, city, gameState, portCities) {
   if (quest.kind === "passenger") {
     return {
       speaker: speakerName(city),
-      expressionId: "neutral",
+      expressionId: questState.kind === "in-progress-here" ? "attentive" : "concerned",
       text: questState.kind === "in-progress-here"
         ? `${passengerName(quest)} is waiting aboard for passage to ${quest.destinationName}.`
         : `You are carrying ${passengerName(quest)} from ${quest.originName} to ${quest.destinationName}; finish that passage first.`,
@@ -540,7 +570,7 @@ function questView(session, city, gameState, portCities) {
   }
   return {
     speaker: speakerName(city),
-    expressionId: "neutral",
+    expressionId: questState.kind === "in-progress-here" ? "stern" : "concerned",
     text: questState.kind === "in-progress-here"
       ? `The packet is bound for ${quest.destinationName}. Do not let it vanish into another captain's hold.`
       : `Finish your delivery from ${quest.originName} to ${quest.destinationName}; then I can talk work.`,
@@ -556,7 +586,7 @@ function marqueView(session, city, gameState, context) {
   if (!status.available) {
     return {
       speaker: speakerName(city),
-      expressionId: "neutral",
+      expressionId: "stern",
       text: status.reason,
       feedback: session.feedback,
       options: [
@@ -573,7 +603,7 @@ function marqueView(session, city, gameState, context) {
     : null;
   return {
     speaker: speakerName(city),
-    expressionId: "neutral",
+    expressionId: status.granted ? "pleased" : status.eligible ? "attentive" : "stern",
     text,
     feedback: session.feedback,
     options: [
@@ -603,6 +633,13 @@ function signedDoubloons(value) {
 function signedReputation(value) {
   const rounded = Math.round(value);
   return `${rounded >= 0 ? "+" : ""}${rounded}`;
+}
+
+function feedbackExpressionId(feedback) {
+  if (!feedback) return "neutral";
+  if (/bought|sold|earned|accepted|granted|delivered/i.test(feedback)) return "pleased";
+  if (/not available|not enough|out of|full|need /i.test(feedback)) return "concerned";
+  return "neutral";
 }
 
 function shipCargoManifest(cargo) {

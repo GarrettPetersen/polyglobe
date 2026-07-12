@@ -1,6 +1,7 @@
 import { assignRegionalCharacterName } from "./characterNames.js";
+import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-2";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-3";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 export const PORTRAIT_ROLE_SKIN = 1;
 export const PORTRAIT_ROLE_HAIR = 2;
@@ -11,7 +12,13 @@ const EXPRESSION_FALLBACK_IDS = Object.freeze({
   angry: Object.freeze(["stern", "shouting", "annoyed", "determined"]),
   afraid: Object.freeze(["worried", "surprised", "concerned", "wary"]),
   happy: Object.freeze(["laughing", "pleased", "smile", "soft-smile"]),
-  sad: Object.freeze(["worried", "concerned", "pained", "hurt", "weary"])
+  sad: Object.freeze(["worried", "concerned", "pained", "hurt", "weary"]),
+  concerned: Object.freeze(["worried", "wary", "afraid", "sad", "serious"]),
+  wary: Object.freeze(["concerned", "skeptical", "stern", "serious", "afraid"]),
+  stern: Object.freeze(["serious", "determined", "skeptical", "angry"]),
+  attentive: Object.freeze(["thoughtful", "knowing", "serious"]),
+  pleased: Object.freeze(["happy", "soft-smile", "smile", "laughing"]),
+  thoughtful: Object.freeze(["attentive", "knowing", "skeptical"])
 });
 
 export async function loadCharacterPortraitManifest() {
@@ -139,7 +146,8 @@ export function assignPortCityCharacters(portCities, manifest, usedNames) {
         usedNames
       }),
       cityKey: key,
-      role: "factor"
+      role: "factor",
+      personalityId: portPersonalityForKey(key)
     });
   }
   return assignments;
@@ -460,18 +468,19 @@ export function classifyPortraitRoles(data, width, height) {
   const pixels = portraitPixelMetadata(data, width, height);
   const skinSamples = collectSkinSamples(pixels, width, height, false);
   if (skinSamples.length === 0) skinSamples.push(...collectSkinSamples(pixels, width, height, true));
-  const skinMask = buildSkinMask(pixels, skinSamples);
-  const hairGroup = dominantHairGroup(pixels, skinMask, width, height);
-  const outfitGroups = dominantOutfitGroups(pixels, skinMask, width, height);
+  const skin = buildSkinAnalysis(pixels, skinSamples, width, height);
+  const outfitGroups = dominantOutfitGroups(pixels, skin.mask, width, height);
+  const hairMask = buildHairMask(pixels, skin.mask, skin.faceMask, outfitGroups, width, height);
+  const faceBounds = maskBounds(skin.faceMask, width);
   const roles = new Uint8Array(width * height);
 
   for (const pixel of pixels) {
-    if (!pixel.opaque || pixel.hsl.l < 0.08) continue;
-    if (skinMask[pixel.index]) {
+    if (!pixel.opaque || pixel.hsl.l < 0.12) continue;
+    if (skin.mask[pixel.index]) {
       roles[pixel.index] = PORTRAIT_ROLE_SKIN;
-    } else if (pixelIsHair(pixel, hairGroup, width, height)) {
+    } else if (hairMask[pixel.index]) {
       roles[pixel.index] = PORTRAIT_ROLE_HAIR;
-    } else if (pixelMayBeOutfit(pixel, width, height)) {
+    } else if (pixelMayBeOutfit(pixel, faceBounds, width, height)) {
       const outfitRole = outfitRoleForPixel(pixel, outfitGroups);
       if (outfitRole === "cloth") roles[pixel.index] = PORTRAIT_ROLE_CLOTH;
       if (outfitRole === "accent") roles[pixel.index] = PORTRAIT_ROLE_ACCENT;
@@ -536,13 +545,25 @@ export function applyPortraitPaletteSwap(data, width, height, palette, roleMap) 
     [PORTRAIT_ROLE_CLOTH, palette.clothRamp.map(hexToRgb)],
     [PORTRAIT_ROLE_ACCENT, palette.accentRamp.map(hexToRgb)]
   ]);
+  const strengths = new Map([
+    [PORTRAIT_ROLE_SKIN, 0.82],
+    [PORTRAIT_ROLE_HAIR, 0.76],
+    [PORTRAIT_ROLE_CLOTH, 0.72],
+    [PORTRAIT_ROLE_ACCENT, 0.68]
+  ]);
 
   for (let pixel = 0; pixel < roles.length; pixel++) {
-    const ramp = ramps.get(roles[pixel]);
+    const role = roles[pixel];
+    const ramp = ramps.get(role);
     if (!ramp) continue;
     const offset = pixel * 4;
     const hsl = rgbToHsl(data[offset], data[offset + 1], data[offset + 2]);
-    const next = rampColor(ramp, hsl.l);
+    const target = rampColor(ramp, hsl.l);
+    const next = lerpRgb(
+      { r: data[offset], g: data[offset + 1], b: data[offset + 2] },
+      target,
+      strengths.get(role)
+    );
     data[offset] = next.r;
     data[offset + 1] = next.g;
     data[offset + 2] = next.b;
@@ -577,8 +598,8 @@ function portraitPixelMetadata(data, width, height) {
 function collectSkinSamples(pixels, width, height, relaxed) {
   const centerX = width * 0.5;
   const centerY = height * (relaxed ? 0.42 : 0.43);
-  const radiusX = width * (relaxed ? 0.2 : 0.13);
-  const radiusY = height * (relaxed ? 0.22 : 0.14);
+  const radiusX = width * (relaxed ? 0.18 : 0.09);
+  const radiusY = height * (relaxed ? 0.2 : 0.11);
   const samples = [];
   for (const pixel of pixels) {
     if (!pixel.opaque || !isPlausibleSkinColor(pixel)) continue;
@@ -602,15 +623,64 @@ function isPlausibleSkinColor(pixel) {
     && r - b >= 8;
 }
 
-function buildSkinMask(pixels, samples) {
-  const mask = new Uint8Array(pixels.length);
-  if (samples.length === 0) return mask;
-  const uniqueSamples = deduplicateRgbSamples(samples);
+function buildSkinAnalysis(pixels, samples, width, height) {
+  const empty = {
+    mask: new Uint8Array(pixels.length),
+    faceMask: new Uint8Array(pixels.length)
+  };
+  if (samples.length === 0) return empty;
+  const sampleIndices = new Set(samples.map((sample) => sample.index));
+  const faceSamples = deduplicateRgbSamples(samples);
+  const candidateMask = new Uint8Array(pixels.length);
   for (const pixel of pixels) {
     if (!pixel.opaque || !isPlausibleSkinColor(pixel)) continue;
-    if (minimumRgbDistance(pixel, uniqueSamples) <= 24) mask[pixel.index] = 1;
+    if (minimumRgbDistance(pixel, faceSamples) <= 20) candidateMask[pixel.index] = 1;
   }
-  return mask;
+
+  const mask = new Uint8Array(pixels.length);
+  const faceMask = new Uint8Array(pixels.length);
+  const candidates = connectedMaskComponents(candidateMask, width, height);
+  const primaryFace = candidates
+    .map((component) => ({ component, score: faceComponentScore(component, sampleIndices, width, height) }))
+    .sort((a, b) => b.score - a.score || b.component.length - a.component.length)[0]?.component || null;
+  if (primaryFace) {
+    for (const index of primaryFace) {
+      mask[index] = 1;
+      faceMask[index] = 1;
+    }
+  }
+  for (const component of candidates) {
+    if (component === primaryFace || !plausibleSecondarySkinComponent(component, width, height)) continue;
+    for (const index of component) mask[index] = 1;
+  }
+  return { mask, faceMask };
+}
+
+function faceComponentScore(component, sampleIndices, width, height) {
+  let sampleHits = 0;
+  let centerHits = 0;
+  for (const index of component) {
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (sampleIndices.has(index)) sampleHits += 1;
+    if (x >= width * 0.34 && x <= width * 0.66 && y >= height * 0.25 && y <= height * 0.57) {
+      centerHits += 1;
+    }
+  }
+  return sampleHits * 8 + centerHits * 3 - component.length * 0.04;
+}
+
+function plausibleSecondarySkinComponent(component, width, height) {
+  if (component.length < 2 || component.length > width * height * 0.075) return false;
+  const bounds = componentBounds(component, width);
+  const centerX = (bounds.left + bounds.right) * 0.5;
+  const centerY = (bounds.top + bounds.bottom) * 0.5;
+  const sideLimb = centerY >= height * 0.38 && centerY <= height * 0.88
+    && (centerX <= width * 0.38 || centerX >= width * 0.62);
+  const neck = centerY >= height * 0.48 && centerY <= height * 0.68
+    && centerX >= width * 0.36 && centerX <= width * 0.64
+    && component.length <= width * height * 0.025;
+  return sideLimb || neck;
 }
 
 function deduplicateRgbSamples(samples) {
@@ -636,29 +706,50 @@ function dominantOutfitGroups(pixels, skinMask, width, height) {
   const minX = width * 0.12;
   const maxX = width * 0.88;
   for (const pixel of pixels) {
-    if (!pixel.opaque || skinMask[pixel.index] || pixel.hsl.l < 0.1) continue;
+    if (!pixel.opaque || skinMask[pixel.index] || pixel.hsl.l < 0.16) continue;
     if (pixel.y < minY || pixel.x < minX || pixel.x > maxX) continue;
     const group = outfitColorGroup(pixel.hsl);
     counts.set(group, (counts.get(group) || 0) + 1);
   }
   const ranked = [...counts.entries()]
     .filter(([, count]) => count >= 4)
-    .sort((a, b) => b[1] - a[1]);
-  return new Map(ranked.map(([group], index) => [group, index % 2 === 0 ? "cloth" : "accent"]));
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2);
+  return new Map(ranked.map(([group], index) => [group, index === 0 ? "cloth" : "accent"]));
 }
 
-function dominantHairGroup(pixels, skinMask, width, height) {
+function buildHairMask(pixels, skinMask, faceMask, outfitGroups, width, height) {
+  const mask = new Uint8Array(pixels.length);
+  const faceBounds = maskBounds(faceMask, width);
+  if (!faceBounds) return mask;
   const counts = new Map();
   for (const pixel of pixels) {
-    if (!pixel.opaque || skinMask[pixel.index] || pixel.hsl.l < 0.1) continue;
-    if (pixel.y > height * 0.68 || pixel.x < width * 0.08 || pixel.x > width * 0.92) continue;
-    if (!pixelNearMask(pixel, skinMask, width, height, 3)) continue;
+    if (!pixel.opaque || skinMask[pixel.index] || pixel.hsl.l < 0.14) continue;
+    if (!pixelInHairZone(pixel, faceBounds, width, height)) continue;
+    if (!pixelNearMask(pixel, faceMask, width, height, 3)) continue;
     const group = outfitColorGroup(pixel.hsl);
-    counts.set(group, (counts.get(group) || 0) + 1);
+    if (outfitGroups.has(group)) continue;
+    counts.set(group, (counts.get(group) || 0) + (pixel.y <= faceBounds.top + faceBounds.height * 0.5 ? 2 : 1));
   }
-  return [...counts.entries()]
+  const hairGroup = [...counts.entries()]
     .filter(([, count]) => count >= 3)
     .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  if (!hairGroup) return mask;
+
+  const candidates = new Uint8Array(pixels.length);
+  for (const pixel of pixels) {
+    if (!pixel.opaque || skinMask[pixel.index] || pixel.hsl.l < 0.14) continue;
+    if (!pixelInHairZone(pixel, faceBounds, width, height)) continue;
+    if (outfitColorGroup(pixel.hsl) !== hairGroup) continue;
+    if (pixelInsideLowerFace(pixel, faceBounds)) continue;
+    candidates[pixel.index] = 1;
+  }
+  for (const component of connectedMaskComponents(candidates, width, height)) {
+    const touchesFace = component.some((index) => pixelNearMask(pixels[index], faceMask, width, height, 3));
+    if (!touchesFace) continue;
+    for (const index of component) mask[index] = 1;
+  }
+  return mask;
 }
 
 function pixelNearMask(pixel, mask, width, height, radius) {
@@ -674,9 +765,21 @@ function pixelNearMask(pixel, mask, width, height, radius) {
   return false;
 }
 
-function pixelIsHair(pixel, hairGroup, width, height) {
-  if (!hairGroup || outfitColorGroup(pixel.hsl) !== hairGroup || pixel.hsl.l < 0.1) return false;
-  return pixel.y < height * 0.68 || pixel.x < width * 0.28 || pixel.x > width * 0.72;
+function pixelInHairZone(pixel, faceBounds, width, height) {
+  const padX = Math.max(4, Math.round(faceBounds.width * 0.5));
+  const minX = Math.max(width * 0.06, faceBounds.left - padX);
+  const maxX = Math.min(width * 0.94, faceBounds.right + padX);
+  const minY = Math.max(height * 0.08, faceBounds.top - Math.max(5, faceBounds.height * 0.55));
+  const maxY = Math.min(height * 0.72, faceBounds.bottom + Math.max(5, faceBounds.height * 0.45));
+  return pixel.x >= minX && pixel.x <= maxX && pixel.y >= minY && pixel.y <= maxY;
+}
+
+function pixelInsideLowerFace(pixel, faceBounds) {
+  const insetX = Math.max(1, Math.floor(faceBounds.width * 0.16));
+  return pixel.x > faceBounds.left + insetX
+    && pixel.x < faceBounds.right - insetX
+    && pixel.y > faceBounds.top + faceBounds.height * 0.38
+    && pixel.y < faceBounds.bottom;
 }
 
 function outfitColorGroup(hsl) {
@@ -685,17 +788,79 @@ function outfitColorGroup(hsl) {
     if (hsl.l < 0.68) return "neutral-mid";
     return "neutral-light";
   }
-  return `hue-${Math.floor(((hsl.h + 15) % 360) / 30)}`;
+  return `hue-${Math.floor(((hsl.h + 10) % 360) / 20)}`;
 }
 
 function outfitRoleForPixel(pixel, groups) {
   return groups.get(outfitColorGroup(pixel.hsl)) || null;
 }
 
-function pixelMayBeOutfit(pixel, width, height) {
-  if (pixel.y >= height * 0.48) return true;
-  if (pixel.y < height * 0.2) return true;
-  return pixel.x < width * 0.24 || pixel.x > width * 0.76;
+function pixelMayBeOutfit(pixel, faceBounds, width, height) {
+  if (pixel.y >= height * 0.52) return true;
+  if (!faceBounds) return pixel.y >= height * 0.48;
+  const aboveFace = pixel.y <= faceBounds.top + Math.max(2, faceBounds.height * 0.12)
+    && pixel.x >= faceBounds.left - 8
+    && pixel.x <= faceBounds.right + 8;
+  const besideFace = pixel.y <= faceBounds.bottom + 4
+    && (pixel.x < faceBounds.left - 2 || pixel.x > faceBounds.right + 2);
+  return aboveFace || besideFace;
+}
+
+function connectedMaskComponents(mask, width, height) {
+  const visited = new Uint8Array(mask.length);
+  const components = [];
+  const neighbors = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1]
+  ];
+  for (let start = 0; start < mask.length; start++) {
+    if (!mask[start] || visited[start]) continue;
+    const component = [];
+    const queue = [start];
+    visited[start] = 1;
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const index = queue[cursor];
+      component.push(index);
+      const x = index % width;
+      const y = Math.floor(index / width);
+      for (const [dx, dy] of neighbors) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+        const next = nx + ny * width;
+        if (!mask[next] || visited[next]) continue;
+        visited[next] = 1;
+        queue.push(next);
+      }
+    }
+    components.push(component);
+  }
+  return components;
+}
+
+function componentBounds(component, width) {
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (const index of component) {
+    const x = index % width;
+    const y = Math.floor(index / width);
+    left = Math.min(left, x);
+    right = Math.max(right, x);
+    top = Math.min(top, y);
+    bottom = Math.max(bottom, y);
+  }
+  return { left, right, top, bottom, width: right - left + 1, height: bottom - top + 1 };
+}
+
+function maskBounds(mask, width) {
+  const indices = [];
+  for (let index = 0; index < mask.length; index++) {
+    if (mask[index]) indices.push(index);
+  }
+  return indices.length > 0 ? componentBounds(indices, width) : null;
 }
 
 function rampColor(ramp, lightness) {

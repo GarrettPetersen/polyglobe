@@ -57,6 +57,7 @@ test("merchant captains report when they are anchored for a storm", () => {
     view.text,
     "Fair winds, captain. We are anchored until the storm passes. Running in ballast."
   );
+  assert.equal(view.expressionId, "concerned");
 });
 
 test("warship and pirate captains identify their role and allegiance", () => {
@@ -69,6 +70,7 @@ test("warship and pirate captains identify their role and allegiance", () => {
   const warView = shipDialogueView(createShipDialogueSession(warship), warship);
   assert.equal(warView.speaker, "Ines Vaz, Portuguese warship captain");
   assert.match(warView.text, /^Keep clear\. We are on patrol\./);
+  assert.equal(warView.expressionId, "attentive");
 
   const pirate = {
     id: "pirate",
@@ -79,6 +81,7 @@ test("warship and pirate captains identify their role and allegiance", () => {
   const pirateView = shipDialogueView(createShipDialogueSession(pirate), pirate);
   assert.equal(pirateView.speaker, "Anne Flint, pirate captain");
   assert.match(pirateView.text, /^Heave to/);
+  assert.equal(pirateView.expressionId, "stern");
 });
 
 test("an attacking captain hails with a reason before combat", () => {
@@ -214,13 +217,20 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
   const session = createPortDialogueSession(city);
 
-  const root = portDialogueView(session, city, gameState, economy, [city]);
+  const context = { nearbyShips: { pirates: 1 } };
+  const greeting = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(greeting.speaker, "Fernao da Cunha, Lisbon factor");
+  assert.match(greeting.text, /Pirates/);
+  assert.equal(greeting.expressionId, "afraid");
+  assert.deepEqual(greeting.options.map((option) => option.label), ["Continue"]);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(root.speaker, "Fernao da Cunha, Lisbon factor");
   assert.match(root.text, /Market specie: \d+ db/);
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
@@ -236,6 +246,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   ));
   assert.ok(buyIndex >= 0);
   selectPortDialogueOption(session, city, gameState, economy, [city], buyIndex, { simMinute: 115200 });
+  assert.equal(portDialogueView(session, city, gameState, economy, [city]).expressionId, "pleased");
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, { simMinute: 115201 });
   session.nodeId = "sell";
   const sell = portDialogueView(session, city, gameState, economy, [city]);
@@ -322,6 +333,7 @@ test("capital port dialogue can grant a letter of marque", () => {
   const session = createPortDialogueSession(city);
   const context = { shipPower: LETTER_OF_MARQUE_POWER_REQUIRED, simMinute: 120 };
 
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   const root = portDialogueView(session, city, gameState, economy, [city], context);
   const marqueIndex = root.options.findIndex((option) => option.action.nodeId === "marque");
   assert.ok(marqueIndex >= 0);

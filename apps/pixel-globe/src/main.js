@@ -58,6 +58,7 @@ import {
   cargoUsed,
   createGameState,
   discoveredEntries,
+  factionReputation,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
@@ -175,6 +176,7 @@ import {
   FACTION_CAPITALS_1522,
   FACTIONS,
   PIRATE_FACTION_ID,
+  diplomacyBetween,
   factionById,
   factionCapitalCityRecords1522,
   factionCapitalForCity,
@@ -573,15 +575,16 @@ const CITY_LABEL_PAD_X = 2;
 const CITY_LABEL_PAD_Y = 1;
 const CITY_LABEL_GAP_PX = 2;
 const PORT_INTERACTION_RADIUS_PX = 34;
+const PORT_DIALOGUE_TRAFFIC_RADIUS_PX = 120;
 const FISH_INTERACTION_RADIUS_PX = 22;
 const PORT_CITY_CLICK_PAD_PX = 3;
 const INTERACTION_BUTTON_W = 110;
-const INTERACTION_BUTTON_H = 13;
+const INTERACTION_BUTTON_H = 19;
 let INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
-let INTERACTION_BUTTON_Y = SCREEN_H - 18;
+let INTERACTION_BUTTON_Y = SCREEN_H - 24;
 const ANCHOR_BUTTON_W = 76;
 const ANCHOR_BUTTON_H = INTERACTION_BUTTON_H;
-let ANCHOR_BUTTON_X = INTERACTION_BUTTON_X - ANCHOR_BUTTON_W - 4;
+let ANCHOR_BUTTON_X = Math.floor((SCREEN_W - ANCHOR_BUTTON_W - 4 - INTERACTION_BUTTON_W) / 2);
 let ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
 const ANCHOR_SHORE_MAX_PX = 36;
 const QUEST_ARROW_EDGE_MARGIN_PX = 15;
@@ -616,7 +619,7 @@ const POLITICS_PANEL_X = 8;
 const POLITICS_PANEL_Y = 8;
 let POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
 let POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
-const POLITICS_ROWS_PER_PAGE = 20;
+const POLITICS_ROWS_PER_PAGE = 18;
 const POLITICS_MATRIX_CELL_W = 7;
 const POLITICS_MATRIX_ROW_H = 8;
 const SHIP_INFO_SIDE_VIEW_W = 192;
@@ -628,26 +631,26 @@ let DIALOGUE_PANEL_H = SCREEN_H - DIALOGUE_PANEL_Y - 7;
 const DIALOGUE_PORTRAIT_SIZE = 64;
 const DIALOGUE_PORTRAIT_X = DIALOGUE_PANEL_X + 16;
 const DIALOGUE_PORTRAIT_Y = DIALOGUE_PANEL_Y - DIALOGUE_PORTRAIT_SIZE + 8;
-const DIALOGUE_OPTION_H = 12;
+const DIALOGUE_OPTION_H = 18;
 let PLAYER_INTRO_PANEL_W = 326;
 let PLAYER_INTRO_PANEL_H = 178;
 let PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
 let PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
 const PLAYER_INTRO_BUTTON_W = 116;
-const PLAYER_INTRO_BUTTON_H = 16;
+const PLAYER_INTRO_BUTTON_H = 20;
 let CAPTAIN_ALERT_PANEL_W = 286;
 const CAPTAIN_ALERT_PANEL_H = 96;
 let CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
 let CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
 const CAPTAIN_ALERT_BUTTON_W = 82;
-const CAPTAIN_ALERT_BUTTON_H = 15;
+const CAPTAIN_ALERT_BUTTON_H = 19;
 let START_MENU_PANEL_W = 244;
-const START_MENU_PANEL_H = 158;
+const START_MENU_PANEL_H = 178;
 let START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
 let START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
 const START_MENU_BUTTON_W = 142;
-const START_MENU_BUTTON_H = 18;
-const START_MENU_BUTTON_GAP = 10;
+const START_MENU_BUTTON_H = 24;
+const START_MENU_BUTTON_GAP = 8;
 const START_MENU_BUTTON_COUNT = 3;
 const START_MENU_ACTION_START = 0;
 const START_MENU_ACTION_OPTIONS = 1;
@@ -704,7 +707,7 @@ const MINIMAP_LAND_COLOR = [92, 59, 31];
 const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
-const OPTIONS_BUTTON_SIZE = 13;
+const OPTIONS_BUTTON_SIZE = 19;
 let OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
 let DISCOVERIES_BUTTON_X = OPTIONS_BUTTON_X - DISCOVERIES_BUTTON_SIZE - 3;
@@ -714,26 +717,29 @@ const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 166;
-const OPTIONS_ROW_H = 22;
+const OPTIONS_PANEL_H = 196;
+const OPTIONS_ROW_H = 28;
 const OPTIONS_ROW_COUNT = 5;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_SHIP = 4;
+const UI_ICON_BUTTON_SIZE = 18;
+const UI_PAGER_BUTTON_W = 22;
+const UI_PAGER_BUTTON_H = 18;
+const UI_TAB_H = 18;
 const CAPTAIN_MENU_LABELS = Object.freeze([
   "SHIP & LEDGER",
-  "CHART",
   "POLITICS",
   "DISCOVERIES",
   "OPTIONS",
   "CREDITS"
 ]);
-const CAPTAIN_MENU_ROW_H = 24;
-const CAPTAIN_MENU_ROW_GAP = 3;
+const CAPTAIN_MENU_ROW_H = 26;
+const CAPTAIN_MENU_ROW_GAP = 4;
 const CAPTAIN_MENU_PANEL_W = 224;
-const CAPTAIN_MENU_PANEL_H = 194;
+const CAPTAIN_MENU_PANEL_H = 214;
 const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
@@ -958,6 +964,7 @@ shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
 const shipOutlineCtx = shipOutlineCanvas.getContext("2d");
 if (!shipOutlineCtx) throw new Error("Pixel Globe could not create its ship outline context");
 shipOutlineCtx.imageSmoothingEnabled = false;
+const selectableOutlineCache = new WeakMap();
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 
 const keys = new Set();
@@ -1108,7 +1115,6 @@ window.visualViewport?.addEventListener("resize", fitCanvasToDisplay);
 document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
 screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
-window.addEventListener("pagehide", unlockOrientationIfPossible);
 
 window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
@@ -1204,6 +1210,7 @@ window.addEventListener("keyup", (event) => {
 
 canvas.addEventListener("pointerdown", handlePointerDown);
 canvas.addEventListener("pointermove", handlePointerMove);
+canvas.addEventListener("wheel", handleCanvasWheel, { passive: false });
 window.addEventListener("pointerup", handlePointerUp);
 window.addEventListener("pointercancel", handlePointerUp);
 
@@ -2537,7 +2544,7 @@ function createOptionsMenuState() {
 function createCaptainMenuState() {
   return {
     isOpen: false,
-    view: "root",
+    view: "chart",
     selectedIndex: 0,
     hoverPoint: null,
     buttonRect: null,
@@ -2696,6 +2703,11 @@ function menusAreOpen() {
   return Boolean(startMenu) || creditsMenu.isOpen || optionsMenu.isOpen ||
     discoveriesMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen || captainMenu.isOpen ||
     Boolean(captainAlertModal);
+}
+
+function captainChildMenuIsOpen() {
+  return optionsMenu.isOpen || creditsMenu.isOpen || discoveriesMenu.isOpen ||
+    shipInfoMenu.isOpen || politicsMenu.isOpen;
 }
 
 function setupThemeMusic() {
@@ -3553,7 +3565,7 @@ function openCaptainMenu() {
   closePoliticsMenu();
   closeCreditsMenu();
   captainMenu.isOpen = true;
-  captainMenu.view = "root";
+  captainMenu.view = "chart";
   captainMenu.selectedIndex = 0;
   captainMenu.itemRects = [];
   keys.clear();
@@ -3563,7 +3575,7 @@ function openCaptainMenu() {
 
 function closeCaptainMenu() {
   captainMenu.isOpen = false;
-  captainMenu.view = "root";
+  captainMenu.view = "chart";
   captainMenu.panelRect = null;
   captainMenu.closeButtonRect = null;
   captainMenu.backButtonRect = null;
@@ -3574,8 +3586,8 @@ function closeCaptainMenu() {
 function handleCaptainMenuKeyDown(event) {
   event.preventDefault();
   if (event.key === "Escape") {
-    if (captainMenu.view === "chart") {
-      captainMenu.view = "root";
+    if (captainMenu.view === "root") {
+      captainMenu.view = "chart";
       dirty = true;
     } else {
       closeCaptainMenu();
@@ -3583,7 +3595,7 @@ function handleCaptainMenuKeyDown(event) {
     return;
   }
   if (captainMenu.view === "chart") {
-    if (event.key === "Enter" || event.key === " " || event.key === "ArrowLeft") {
+    if (event.key === "Enter" || event.key === " " || event.key === "ArrowRight") {
       captainMenu.view = "root";
       dirty = true;
     }
@@ -3600,17 +3612,11 @@ function handleCaptainMenuKeyDown(event) {
 }
 
 function activateCaptainMenuSelection(index) {
-  if (index === 1) {
-    captainMenu.view = "chart";
-    dirty = true;
-    return;
-  }
-  closeCaptainMenu();
   if (index === 0) openShipInfoMenu();
-  else if (index === 2) openPoliticsMenu();
-  else if (index === 3) openDiscoveriesMenu();
-  else if (index === 4) openOptionsMenu();
-  else if (index === 5) openCreditsMenu();
+  else if (index === 1) openPoliticsMenu();
+  else if (index === 2) openDiscoveriesMenu();
+  else if (index === 3) openOptionsMenu();
+  else if (index === 4) openCreditsMenu();
 }
 
 function handleOptionsKeyDown(event) {
@@ -3704,7 +3710,7 @@ function handlePointerDown(event) {
     if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
     return;
   }
-  if (captainMenu.isOpen) {
+  if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     handleCaptainMenuPointerDown(point);
@@ -3822,7 +3828,7 @@ function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
-  if (captainMenu.isOpen) {
+  if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
     updateCaptainMenuSelectionFromPoint(point);
     dirty = true;
     return;
@@ -3902,6 +3908,11 @@ function handleCaptainMenuPointerDown(point) {
       captainMenu.view = "root";
       dirty = true;
     }
+    return;
+  }
+  if (pointInRect(point, captainMenu.backButtonRect)) {
+    captainMenu.view = "chart";
+    dirty = true;
     return;
   }
   updateCaptainMenuSelectionFromPoint(point);
@@ -4112,7 +4123,10 @@ function setOptionsVolumeFromPoint(sliderKey, point) {
 
 function createDialogueLayoutState() {
   return {
-    optionRects: []
+    optionRects: [],
+    scrollOffset: 0,
+    previousRect: null,
+    nextRect: null
   };
 }
 
@@ -4123,10 +4137,7 @@ function handleDialogueKeyDown(event) {
     return;
   }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-    const view = currentDialogueView();
-    const direction = event.key === "ArrowDown" ? 1 : -1;
-    dialogueState.selectedIndex = (dialogueState.selectedIndex + direction + view.options.length) % view.options.length;
-    dirty = true;
+    stepDialogueSelection(event.key === "ArrowDown" ? 1 : -1);
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
@@ -4146,20 +4157,41 @@ function handleDialogueKeyDown(event) {
 }
 
 function handleDialoguePointerDown(point) {
+  if (pointInRect(point, dialogueLayout.previousRect)) {
+    stepDialogueSelection(-1);
+    return;
+  }
+  if (pointInRect(point, dialogueLayout.nextRect)) {
+    stepDialogueSelection(1);
+    return;
+  }
   updateDialogueSelectionFromPoint(point);
-  for (let i = 0; i < dialogueLayout.optionRects.length; i++) {
-    if (!pointInRect(point, dialogueLayout.optionRects[i])) continue;
-    chooseDialogueOption(i);
+  for (const entry of dialogueLayout.optionRects) {
+    if (!pointInRect(point, entry.rect)) continue;
+    chooseDialogueOption(entry.index);
     return;
   }
 }
 
 function updateDialogueSelectionFromPoint(point) {
-  for (let i = 0; i < dialogueLayout.optionRects.length; i++) {
-    if (!pointInRect(point, dialogueLayout.optionRects[i])) continue;
-    dialogueState.selectedIndex = i;
+  for (const entry of dialogueLayout.optionRects) {
+    if (!pointInRect(point, entry.rect)) continue;
+    dialogueState.selectedIndex = entry.index;
     return;
   }
+}
+
+function stepDialogueSelection(direction) {
+  const view = currentDialogueView();
+  dialogueState.selectedIndex =
+    (dialogueState.selectedIndex + direction + view.options.length) % view.options.length;
+  dirty = true;
+}
+
+function handleCanvasWheel(event) {
+  if (!dialogueState || Math.abs(event.deltaY) < 1) return;
+  event.preventDefault();
+  stepDialogueSelection(event.deltaY > 0 ? 1 : -1);
 }
 
 function openActiveInteractionDialogue() {
@@ -4420,11 +4452,43 @@ function portDialogueContext() {
   const city = dialogueState?.cityTileId === undefined ? null : cityByTileId.get(dialogueState.cityTileId);
   return {
     simMinute: Math.floor(weatherClockMinutes),
+    dayIndex: weatherParts.dayIndex,
     shipPower: playerShipPrivateeringPower(),
+    nearbyShips: nearbyPortTraffic(city),
+    stormy: city ? stormIntensityForTile(city.tileId) >= STORM_ACTIVE_INTENSITY * 0.62 : false,
+    playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
+    rivalLabel: portPoliticalRivalLabel(city),
     passengerOffer: city && dialogueState?.kind === "port"
       ? pendingPassengerOfferForCity(gameState, city)
       : null
   };
+}
+
+function nearbyPortTraffic(city) {
+  const counts = { merchants: 0, warships: 0, pirates: 0, fishermen: 0 };
+  if (!city || !chart) return counts;
+  const portCall = chart.cityCalls?.find((call) => call.tileId === city.tileId);
+  if (!portCall) return counts;
+  const radius2 = PORT_DIALOGUE_TRAFFIC_RADIUS_PX * PORT_DIALOGUE_TRAFFIC_RADIUS_PX;
+  for (const state of npcVisualShips.values()) {
+    if (distance2(portCall.x, portCall.y, state.x, state.y) > radius2) continue;
+    if (state.role === NPC_ROLE_PIRATE) counts.pirates += 1;
+    else if (state.role === NPC_ROLE_WARSHIP) counts.warships += 1;
+    else if (state.role === NPC_ROLE_FISHERMAN) counts.fishermen += 1;
+    else if (state.role === NPC_ROLE_MERCHANT) counts.merchants += 1;
+  }
+  return counts;
+}
+
+function portPoliticalRivalLabel(city) {
+  if (!city?.factionId || city.factionId === PIRATE_FACTION_ID) return null;
+  const rivals = FACTIONS
+    .filter((faction) => faction.id !== PIRATE_FACTION_ID && faction.id !== city.factionId)
+    .filter((faction) => diplomacyBetween(city.factionId, faction.id) === DIPLOMACY_WAR)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  if (rivals.length === 0) return null;
+  const rival = rivals[hashInt(city.tileId) % rivals.length];
+  return rival.adjective || rival.name;
 }
 
 function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
@@ -6370,7 +6434,7 @@ function updateStormCaptainAlert(previousMinute, currentMinute) {
   if (intensity < STORM_CAPTAIN_ALERT_ENTER_INTENSITY) return false;
   if (stormCaptainAlertNextMinute !== null && currentMinute < stormCaptainAlertNextMinute) return false;
 
-  const opened = openCaptainAlertModal(stormCaptainAlertMessage(intensity), "sad");
+  const opened = openCaptainAlertModal(stormCaptainAlertMessage(intensity), "concerned");
   stormCaptainAlertNextMinute = currentMinute + STORM_CAPTAIN_ALERT_COOLDOWN_MINUTES;
   return opened;
 }
@@ -8119,8 +8183,8 @@ function applyResponsiveViewport(width, height) {
   ctx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
-  INTERACTION_BUTTON_Y = SCREEN_H - 18;
-  ANCHOR_BUTTON_X = INTERACTION_BUTTON_X - ANCHOR_BUTTON_W - 4;
+  INTERACTION_BUTTON_Y = SCREEN_H - 24;
+  ANCHOR_BUTTON_X = Math.floor((SCREEN_W - ANCHOR_BUTTON_W - 4 - INTERACTION_BUTTON_W) / 2);
   ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
   MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
   DISCOVERIES_PANEL_W = Math.min(300, SCREEN_W - 12);
@@ -8185,7 +8249,6 @@ async function toggleFullscreenMode() {
     }
     if (!fullscreenAvailable()) throw new Error("Fullscreen is unavailable in this browser");
     await shell.requestFullscreen();
-    await lockLandscapeIfPossible();
   } catch (error) {
     optionsMenu.fullscreenError = "FULLSCREEN FAILED";
     dirty = true;
@@ -8194,35 +8257,13 @@ async function toggleFullscreenMode() {
 }
 
 function handleFullscreenChange() {
-  if (document.fullscreenElement !== shell) unlockOrientationIfPossible();
   optionsMenu.fullscreenError = null;
   fitCanvasToDisplay();
   dirty = true;
 }
 
 function handleFullscreenVisibilityChange() {
-  if (document.hidden) {
-    unlockOrientationIfPossible();
-  } else if (document.fullscreenElement === shell) {
-    void lockLandscapeIfPossible();
-  }
   fitCanvasToDisplay();
-}
-
-async function lockLandscapeIfPossible() {
-  try {
-    if (screen.orientation?.lock) await screen.orientation.lock("landscape");
-  } catch (_) {
-    // Mobile browsers may reject orientation lock outside installed-app contexts.
-  }
-}
-
-function unlockOrientationIfPossible() {
-  try {
-    screen.orientation?.unlock?.();
-  } catch (_) {
-    // Some browsers expose orientation lock without a usable unlock operation.
-  }
 }
 
 function northUpCamera(center, fallbackRight = [1, 0, 0]) {
@@ -8443,7 +8484,7 @@ function render(nowMs) {
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
-  if (captainMenu.isOpen) drawCaptainMenu(nowMs);
+  if (captainMenu.isOpen && !captainChildMenuIsOpen()) drawCaptainMenu(nowMs);
   if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
   if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal();
@@ -8476,53 +8517,131 @@ function drawSelectableInteractionOutlines(nowMs) {
 
   for (const call of chart.cityCalls || []) {
     if (!portCallInInteractionRange(call)) continue;
-    drawSelectableOutline({
+    drawSelectableSpriteOutline({
+      image: cityImageForType(call.cityType),
+      sourceX: 0,
+      sourceY: 0,
+      sourceW: call.spriteW,
+      sourceH: call.spriteH,
       x: Math.round(call.spriteX + offset.x),
       y: Math.round(call.spriteY + offset.y),
-      w: call.spriteW,
-      h: call.spriteH
-    }, primaryId === call.tileId, pulseBright);
+      primary: primaryId === call.tileId,
+      pulseBright
+    });
   }
 
   for (const state of npcVisualShips.values()) {
     if (!npcShipInHailRange(state)) continue;
-    const x = Math.round(state.x + offset.x);
-    const y = Math.round(state.y + offset.y);
-    drawSelectableOutline({ x: x - 14, y: y - 14, w: 28, h: 28 }, primaryId === state.id, pulseBright);
+    const baseCall = npcShipDrawCall(state, chart);
+    if (!baseCall) continue;
+    const call = stormBobbedShipCall(baseCall, nowMs);
+    drawSelectableSpriteOutline({
+      image: call.img,
+      sourceX: (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+      sourceY: Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+      sourceW: SHIP_SHEET_FRAME_SIZE,
+      sourceH: SHIP_SHEET_FRAME_SIZE,
+      x: call.x,
+      y: call.y,
+      primary: primaryId === state.id,
+      pulseBright
+    });
   }
 
   if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
     for (const call of fishIndividualDrawCalls(chart, nowMs)) {
       const interaction = fishInteractionCall(call);
       if (!fishInteractionCallIsUsable(interaction)) continue;
-      const x = Math.round(call.centerX + offset.x);
-      const y = Math.round(call.centerY + offset.y);
-      drawSelectableOutline({ x: x - 7, y: y - 7, w: 14, h: 14 }, primaryId === call.id, pulseBright);
+      drawSelectableSpriteOutline({
+        image: tintedFishSprite(call.colors),
+        sourceX: 0,
+        sourceY: 0,
+        sourceW: FISH_SPRITE_SIZE,
+        sourceH: FISH_SPRITE_SIZE,
+        x: Math.round(call.x + offset.x),
+        y: Math.round(call.y + offset.y),
+        flip: call.flip,
+        primary: primaryId === call.id,
+        pulseBright
+      });
     }
   }
 }
 
-function drawSelectableOutline(rect, primary, pulseBright) {
-  const x = Math.round(rect.x);
-  const y = Math.round(rect.y);
-  const w = Math.max(3, Math.round(rect.w));
-  const h = Math.max(3, Math.round(rect.h));
-  ctx.save();
-  ctx.strokeStyle = primary && pulseBright ? "#fff4a8" : "#f9c22b";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-  if (primary) {
-    ctx.fillStyle = "#fff4a8";
-    ctx.fillRect(x - 1, y - 1, 3, 1);
-    ctx.fillRect(x - 1, y - 1, 1, 3);
-    ctx.fillRect(x + w - 2, y - 1, 3, 1);
-    ctx.fillRect(x + w, y - 1, 1, 3);
-    ctx.fillRect(x - 1, y + h, 3, 1);
-    ctx.fillRect(x - 1, y + h - 2, 1, 3);
-    ctx.fillRect(x + w - 2, y + h, 3, 1);
-    ctx.fillRect(x + w, y + h - 2, 1, 3);
+function drawSelectableSpriteOutline({
+  image,
+  sourceX,
+  sourceY,
+  sourceW,
+  sourceH,
+  x,
+  y,
+  flip = false,
+  primary,
+  pulseBright
+}) {
+  const color = primary && pulseBright ? "#fff4a8" : "#f9c22b";
+  const outline = selectableSpriteOutlineCanvas(
+    image,
+    sourceX,
+    sourceY,
+    sourceW,
+    sourceH,
+    flip,
+    color
+  );
+  ctx.drawImage(outline, Math.round(x) - 1, Math.round(y) - 1);
+}
+
+function selectableSpriteOutlineCanvas(image, sourceX, sourceY, sourceW, sourceH, flip, color) {
+  let entries = selectableOutlineCache.get(image);
+  if (!entries) {
+    entries = new Map();
+    selectableOutlineCache.set(image, entries);
   }
-  ctx.restore();
+  const key = `${sourceX},${sourceY},${sourceW},${sourceH},${flip ? 1 : 0},${color}`;
+  const cached = entries.get(key);
+  if (cached) return cached;
+
+  const outline = document.createElement("canvas");
+  outline.width = sourceW + 2;
+  outline.height = sourceH + 2;
+  const outlineCtx = outline.getContext("2d");
+  if (!outlineCtx) throw new Error("Could not create selectable sprite outline");
+  outlineCtx.imageSmoothingEnabled = false;
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    drawOutlineSource(
+      outlineCtx,
+      image,
+      sourceX,
+      sourceY,
+      sourceW,
+      sourceH,
+      1 + dx,
+      1 + dy,
+      flip
+    );
+  }
+  outlineCtx.globalCompositeOperation = "source-in";
+  outlineCtx.fillStyle = color;
+  outlineCtx.fillRect(0, 0, outline.width, outline.height);
+  outlineCtx.globalCompositeOperation = "destination-out";
+  drawOutlineSource(outlineCtx, image, sourceX, sourceY, sourceW, sourceH, 1, 1, flip);
+  outlineCtx.globalCompositeOperation = "source-over";
+  entries.set(key, outline);
+  return outline;
+}
+
+function drawOutlineSource(targetCtx, image, sourceX, sourceY, sourceW, sourceH, x, y, flip) {
+  if (!flip) {
+    targetCtx.drawImage(image, sourceX, sourceY, sourceW, sourceH, x, y, sourceW, sourceH);
+    return;
+  }
+  targetCtx.save();
+  targetCtx.translate(x + sourceW, y);
+  targetCtx.scale(-1, 1);
+  targetCtx.drawImage(image, sourceX, sourceY, sourceW, sourceH, 0, 0, sourceW, sourceH);
+  targetCtx.restore();
 }
 
 function worldDiscoveryLocalPoint(discovery, activeChart) {
@@ -9109,9 +9228,9 @@ function drawCaptainMenuButton() {
   ctx.strokeStyle = hovered ? "#f9c22b" : "#ab947a";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   ctx.fillStyle = hovered ? "#fff1bf" : "#d6b66b";
-  ctx.fillRect(rect.x + 3, rect.y + 3, 7, 1);
-  ctx.fillRect(rect.x + 3, rect.y + 6, 7, 1);
-  ctx.fillRect(rect.x + 3, rect.y + 9, 7, 1);
+  ctx.fillRect(rect.x + 4, rect.y + 5, 11, 2);
+  ctx.fillRect(rect.x + 4, rect.y + 9, 11, 2);
+  ctx.fillRect(rect.x + 4, rect.y + 13, 11, 2);
   ctx.restore();
 }
 
@@ -9123,7 +9242,12 @@ function drawCaptainMenu(nowMs) {
     h: Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12)
   };
   captainMenu.panelRect = panel;
-  captainMenu.closeButtonRect = { x: panel.x + panel.w - 20, y: panel.y + 6, w: 13, h: 13 };
+  captainMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
 
   ctx.save();
   ctx.fillStyle = "rgba(12, 15, 14, 0.86)";
@@ -9165,19 +9289,60 @@ function drawCaptainMenuItems(panel) {
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     ctx.strokeStyle = selected || hovered ? "#f9c22b" : "#715033";
     ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-    drawCaptainMenuItemIcon(index, rect.x + 9, rect.y + 8, selected || hovered);
-    drawOptionsText(CAPTAIN_MENU_LABELS[index], rect.x + 22, rect.y + 8, {
+    drawCaptainMenuItemIcon(index, rect.x + 6, rect.y + 6, selected || hovered);
+    drawOptionsText(CAPTAIN_MENU_LABELS[index], rect.x + 25, rect.y + 8, {
       color: selected || hovered ? "#fff1bf" : "#d8c7a2"
     });
   });
+  drawCaptainMenuNavigationButton(panel, "BACK TO CHART");
 }
 
 function drawCaptainMenuItemIcon(index, x, y, active) {
-  const colors = ["#cd683d", "#6aa6a1", "#91db69", "#fbb954", "#9babb2", "#c7dcd0"];
-  ctx.fillStyle = active ? "#fff1bf" : colors[index];
-  ctx.fillRect(x, y, 7, 1);
-  ctx.fillRect(x + 1, y - 2, 5, 1);
-  ctx.fillRect(x + 2, y - 4, 3, 1);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (index === 0) drawCaptainShipIcon(x, y, active);
+  else if (index === 1) drawCaptainPoliticsIcon(x, y, active);
+  else if (index === 2 && discoveriesMenuIcon) ctx.drawImage(discoveriesMenuIcon, x, y);
+  else if (index === 3 && settingsMenuIcon) ctx.drawImage(settingsMenuIcon, x, y);
+  else if (index === 4) drawCaptainCreditsIcon(x, y, active);
+  ctx.restore();
+}
+
+function drawCaptainShipIcon(x, y, active) {
+  ctx.fillStyle = active ? "#fff1bf" : "#c7dcd0";
+  ctx.fillRect(x + 6, y + 1, 1, 8);
+  ctx.fillRect(x + 3, y + 3, 3, 1);
+  ctx.fillRect(x + 2, y + 4, 4, 1);
+  ctx.fillRect(x + 1, y + 5, 5, 2);
+  ctx.fillStyle = active ? "#f9c22b" : "#cd683d";
+  ctx.fillRect(x + 1, y + 9, 11, 2);
+  ctx.fillRect(x + 3, y + 11, 7, 1);
+}
+
+function drawCaptainPoliticsIcon(x, y, active) {
+  ctx.fillStyle = active ? "#fff1bf" : "#d6b66b";
+  ctx.fillRect(x + 6, y + 1, 1, 10);
+  ctx.fillRect(x + 2, y + 3, 9, 1);
+  ctx.fillRect(x + 1, y + 4, 1, 2);
+  ctx.fillRect(x + 11, y + 4, 1, 2);
+  ctx.fillRect(x + 4, y + 11, 5, 1);
+  ctx.fillStyle = active ? "#91db69" : "#6aa6a1";
+  ctx.fillRect(x, y + 6, 4, 1);
+  ctx.fillRect(x + 1, y + 7, 2, 1);
+  ctx.fillStyle = active ? "#f68181" : "#cd683d";
+  ctx.fillRect(x + 9, y + 6, 4, 1);
+  ctx.fillRect(x + 10, y + 7, 2, 1);
+}
+
+function drawCaptainCreditsIcon(x, y, active) {
+  ctx.fillStyle = active ? "#fff1bf" : "#d8c7a2";
+  ctx.fillRect(x + 2, y + 1, 9, 11);
+  ctx.fillStyle = "#2f241c";
+  ctx.fillRect(x + 4, y + 3, 5, 1);
+  ctx.fillRect(x + 4, y + 5, 5, 1);
+  ctx.fillRect(x + 4, y + 7, 4, 1);
+  ctx.fillStyle = active ? "#f9c22b" : "#cd683d";
+  ctx.fillRect(x + 8, y + 8, 2, 2);
 }
 
 function drawCaptainChart(panel, nowMs) {
@@ -9203,10 +9368,10 @@ function drawCaptainChart(panel, nowMs) {
     color: "#c7dcd0"
   });
   captainMenu.backButtonRect = {
-    x: panel.x + Math.floor((panel.w - 84) / 2),
-    y: panel.y + panel.h - 27,
-    w: 84,
-    h: 17
+    x: panel.x + Math.floor((panel.w - 112) / 2),
+    y: panel.y + panel.h - 30,
+    w: 112,
+    h: 22
   };
   const hovered = pointInRect(captainMenu.hoverPoint, captainMenu.backButtonRect);
   ctx.fillStyle = hovered ? "#5b4627" : "#201a16";
@@ -9223,7 +9388,35 @@ function drawCaptainChart(panel, nowMs) {
     captainMenu.backButtonRect.w - 1,
     captainMenu.backButtonRect.h - 1
   );
-  drawOptionsText("BACK", captainMenu.backButtonRect.x + captainMenu.backButtonRect.w / 2, captainMenu.backButtonRect.y + 5, {
+  drawOptionsText("MENU", captainMenu.backButtonRect.x + captainMenu.backButtonRect.w / 2, captainMenu.backButtonRect.y + 7, {
+    align: "center",
+    color: "#fff1bf"
+  });
+}
+
+function drawCaptainMenuNavigationButton(panel, label) {
+  captainMenu.backButtonRect = {
+    x: panel.x + Math.floor((panel.w - 112) / 2),
+    y: panel.y + panel.h - 30,
+    w: 112,
+    h: 22
+  };
+  const hovered = pointInRect(captainMenu.hoverPoint, captainMenu.backButtonRect);
+  ctx.fillStyle = hovered ? "#5b4627" : "#201a16";
+  ctx.fillRect(
+    captainMenu.backButtonRect.x,
+    captainMenu.backButtonRect.y,
+    captainMenu.backButtonRect.w,
+    captainMenu.backButtonRect.h
+  );
+  ctx.strokeStyle = hovered ? "#f9c22b" : "#715033";
+  ctx.strokeRect(
+    captainMenu.backButtonRect.x + 0.5,
+    captainMenu.backButtonRect.y + 0.5,
+    captainMenu.backButtonRect.w - 1,
+    captainMenu.backButtonRect.h - 1
+  );
+  drawOptionsText(label, captainMenu.backButtonRect.x + captainMenu.backButtonRect.w / 2, captainMenu.backButtonRect.y + 7, {
     align: "center",
     color: "#fff1bf"
   });
@@ -9401,7 +9594,12 @@ function drawShipInfoMenu() {
   ctx.lineWidth = 1;
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
 
-  shipInfoMenu.closeButtonRect = { x: panel.x + panel.w - 20, y: panel.y + 6, w: 13, h: 13 };
+  shipInfoMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
   drawShipInfoCloseButton(
     shipInfoMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, shipInfoMenu.closeButtonRect)
@@ -9524,10 +9722,10 @@ function drawShipInfoMenu() {
     });
   }
 
-  const pagerY = panel.y + panel.h - 18;
+  const pagerY = panel.y + panel.h - 23;
   if (cargoPage.pageCount > 1) {
-    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
-    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     drawShipInfoArrowButton(
       shipInfoMenu.previousPageRect,
       "<",
@@ -9700,10 +9898,10 @@ function drawCompactShipPapers(panel, view) {
 }
 
 function drawCompactShipPager(panel, page, pageCount, label) {
-  const pagerY = panel.y + panel.h - 18;
+  const pagerY = panel.y + panel.h - 23;
   if (pageCount > 1) {
-    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
-    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     drawShipInfoArrowButton(
       shipInfoMenu.previousPageRect,
       "<",
@@ -9725,9 +9923,9 @@ function drawCompactShipPager(panel, page, pageCount, label) {
 }
 
 function drawShipInfoTabs(panel) {
-  shipInfoMenu.vesselTabRect = { x: panel.x + 8, y: panel.y + 6, w: 48, h: 13 };
-  shipInfoMenu.ledgerTabRect = { x: panel.x + 59, y: panel.y + 6, w: 51, h: 13 };
-  shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 51, h: 13 };
+  shipInfoMenu.vesselTabRect = { x: panel.x + 8, y: panel.y + 6, w: 48, h: UI_TAB_H };
+  shipInfoMenu.ledgerTabRect = { x: panel.x + 59, y: panel.y + 6, w: 51, h: UI_TAB_H };
+  shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 51, h: UI_TAB_H };
   drawShipInfoTab(
     shipInfoMenu.vesselTabRect,
     "VESSEL",
@@ -9753,7 +9951,7 @@ function drawShipInfoTab(rect, label, selected, hovered) {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = selected || hovered ? "#c7dcd0" : "#7f708a";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawOptionsText(label, rect.x + rect.w / 2, rect.y + 3, {
+  drawOptionsText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
     color: selected ? "#ffffff" : "#9babb2"
   });
@@ -9813,10 +10011,10 @@ function drawShipLedger(panel, view) {
     });
   });
 
-  const pagerY = panel.y + panel.h - 18;
+  const pagerY = panel.y + panel.h - 23;
   if (page.pageCount > 1) {
-    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
-    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     drawShipInfoArrowButton(
       shipInfoMenu.previousPageRect,
       "<",
@@ -9892,10 +10090,10 @@ function drawShipPapers(panel, view) {
     });
   });
 
-  const pagerY = panel.y + panel.h - 18;
+  const pagerY = panel.y + panel.h - 23;
   if (page.pageCount > 1) {
-    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 13, h: 12 };
-    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 25, y: pagerY, w: 13, h: 12 };
+    shipInfoMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+    shipInfoMenu.nextPageRect = { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
     drawShipInfoArrowButton(
       shipInfoMenu.previousPageRect,
       "<",
@@ -9959,7 +10157,7 @@ function drawShipInfoCloseButton(rect, hovered) {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#ffffff" : "#7f708a";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawOptionsText("X", rect.x + rect.w / 2, rect.y + 3, {
+  drawOptionsText("X", rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
     color: hovered ? "#ffffff" : "#c7dcd0"
   });
@@ -9970,7 +10168,7 @@ function drawShipInfoArrowButton(rect, label, hovered) {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#ffffff" : "#7f708a";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawOptionsText(label, rect.x + rect.w / 2, rect.y + 2, {
+  drawOptionsText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
     color: hovered ? "#ffffff" : "#fbb954"
   });
@@ -9989,7 +10187,7 @@ function drawDiscoveriesMenu() {
   ctx.strokeStyle = "#a27a3b";
   ctx.strokeRect(panelX + 0.5, panelY + 0.5, DISCOVERIES_PANEL_W - 1, DISCOVERIES_PANEL_H - 1);
 
-  const closeSize = 14;
+  const closeSize = UI_ICON_BUTTON_SIZE;
   discoveriesMenu.closeButtonRect = {
     x: panelX + DISCOVERIES_PANEL_W - closeSize - 6,
     y: panelY + 6,
@@ -10055,9 +10253,14 @@ function drawDiscoveriesMenu() {
     });
   }
 
-  const pagerY = panelY + DISCOVERIES_PANEL_H - 21;
-  discoveriesMenu.previousPageRect = { x: panelX + 12, y: pagerY, w: 14, h: 13 };
-  discoveriesMenu.nextPageRect = { x: panelX + DISCOVERIES_PANEL_W - 26, y: pagerY, w: 14, h: 13 };
+  const pagerY = panelY + DISCOVERIES_PANEL_H - 25;
+  discoveriesMenu.previousPageRect = { x: panelX + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+  discoveriesMenu.nextPageRect = {
+    x: panelX + DISCOVERIES_PANEL_W - 12 - UI_PAGER_BUTTON_W,
+    y: pagerY,
+    w: UI_PAGER_BUTTON_W,
+    h: UI_PAGER_BUTTON_H
+  };
   drawOptionsArrowButton(
     discoveriesMenu.previousPageRect,
     "<",
@@ -10124,7 +10327,7 @@ function drawPoliticsMenu() {
   ctx.strokeStyle = "#a27a3b";
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
 
-  const closeSize = 14;
+  const closeSize = UI_ICON_BUTTON_SIZE;
   politicsMenu.closeButtonRect = {
     x: panel.x + panel.w - closeSize - 6,
     y: panel.y + 6,
@@ -10189,9 +10392,14 @@ function drawPoliticsMenu() {
     drawPoliticsStanding(row.player, statusX, y, statusW);
   });
 
-  const pagerY = panel.y + panel.h - 18;
-  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 14, h: 13 };
-  politicsMenu.nextPageRect = { x: panel.x + panel.w - 26, y: pagerY, w: 14, h: 13 };
+  const pagerY = panel.y + panel.h - 23;
+  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+  politicsMenu.nextPageRect = {
+    x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
+    y: pagerY,
+    w: UI_PAGER_BUTTON_W,
+    h: UI_PAGER_BUTTON_H
+  };
   drawOptionsArrowButton(
     politicsMenu.previousPageRect,
     "<",
@@ -10254,7 +10462,12 @@ function drawCompactPoliticsMenu() {
   ctx.strokeStyle = "#a27a3b";
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
   politicsMenu.panelRect = panel;
-  politicsMenu.closeButtonRect = { x: panel.x + panel.w - 20, y: panel.y + 6, w: 14, h: 14 };
+  politicsMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
   drawOptionsCloseButton(
     politicsMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, politicsMenu.closeButtonRect)
@@ -10310,9 +10523,14 @@ function drawCompactPoliticsMenu() {
     });
   });
 
-  const pagerY = panel.y + panel.h - 18;
-  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: 14, h: 13 };
-  politicsMenu.nextPageRect = { x: panel.x + panel.w - 26, y: pagerY, w: 14, h: 13 };
+  const pagerY = panel.y + panel.h - 23;
+  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+  politicsMenu.nextPageRect = {
+    x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
+    y: pagerY,
+    w: UI_PAGER_BUTTON_W,
+    h: UI_PAGER_BUTTON_H
+  };
   drawOptionsArrowButton(
     politicsMenu.previousPageRect,
     "<",
@@ -10455,16 +10673,17 @@ function drawStartMenuButton(rect, label, index, highlighted) {
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   if (highlighted) {
     ctx.fillStyle = "#f9c22b";
-    ctx.fillRect(rect.x + 4, rect.y + 7, 3, 3);
-    ctx.fillRect(rect.x + rect.w - 7, rect.y + 7, 3, 3);
+    const markerY = rect.y + Math.floor((rect.h - 3) / 2);
+    ctx.fillRect(rect.x + 4, markerY, 3, 3);
+    ctx.fillRect(rect.x + rect.w - 7, markerY, 3, 3);
   }
   const labelX = rect.x + rect.w / 2 + (index === START_MENU_ACTION_OPTIONS && settingsMenuIcon ? 5 : 0);
   if (index === START_MENU_ACTION_OPTIONS && settingsMenuIcon) {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(settingsMenuIcon, rect.x + 36, rect.y + 2);
+    ctx.drawImage(settingsMenuIcon, rect.x + 34, rect.y + Math.floor((rect.h - settingsMenuIcon.height) / 2));
   }
   ctx.fillStyle = highlighted ? "#fff1bf" : "#d7d9bf";
-  drawPixelText(label, labelX, rect.y + 5, {
+  drawPixelText(label, labelX, rect.y + Math.floor((rect.h - 8) / 2), {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
@@ -10495,7 +10714,7 @@ function drawCreditsMenu() {
   ctx.lineWidth = 1;
   ctx.strokeRect(panel.x + 5.5, panel.y + 5.5, panel.w - 11, panel.h - 11);
 
-  const closeSize = 14;
+  const closeSize = UI_ICON_BUTTON_SIZE;
   creditsMenu.closeButtonRect = {
     x: panel.x + panel.w - closeSize - 8,
     y: panel.y + 8,
@@ -10535,9 +10754,14 @@ function drawCreditsMenu() {
     color: "#ab947a"
   });
 
-  const navY = panel.y + panel.h - 23;
-  creditsMenu.previousPageRect = { x: panel.x + 14, y: navY, w: 18, h: 14 };
-  creditsMenu.nextPageRect = { x: panel.x + panel.w - 32, y: navY, w: 18, h: 14 };
+  const navY = panel.y + panel.h - 27;
+  creditsMenu.previousPageRect = { x: panel.x + 14, y: navY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+  creditsMenu.nextPageRect = {
+    x: panel.x + panel.w - 14 - UI_PAGER_BUTTON_W,
+    y: navY,
+    w: UI_PAGER_BUTTON_W,
+    h: UI_PAGER_BUTTON_H
+  };
   drawOptionsArrowButton(
     creditsMenu.previousPageRect,
     "<",
@@ -10603,7 +10827,7 @@ function drawOptionsMenu() {
   ctx.lineWidth = 2;
   ctx.strokeRect(panelX + 1, panelY + 1, OPTIONS_PANEL_W - 2, OPTIONS_PANEL_H - 2);
 
-  const closeSize = 14;
+  const closeSize = UI_ICON_BUTTON_SIZE;
   const closeX = panelX + OPTIONS_PANEL_W - closeSize - 6;
   const closeY = panelY + 6;
   optionsMenu.closeButtonRect = { x: closeX, y: closeY, w: closeSize, h: closeSize };
@@ -10616,11 +10840,11 @@ function drawOptionsMenu() {
 
   const rowX = panelX + 10;
   const rowW = OPTIONS_PANEL_W - 20;
-  const fullscreenRow = { x: rowX, y: panelY + 31, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const musicRow = { x: rowX, y: panelY + 55, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const sfxRow = { x: rowX, y: panelY + 79, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const muteRow = { x: rowX, y: panelY + 103, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const shipRow = { x: rowX, y: panelY + 127, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const fullscreenRow = { x: rowX, y: panelY + 34, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const musicRow = { x: rowX, y: panelY + 65, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const sfxRow = { x: rowX, y: panelY + 96, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const muteRow = { x: rowX, y: panelY + 127, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const shipRow = { x: rowX, y: panelY + 158, w: rowW, h: OPTIONS_ROW_H - 2 };
   optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, shipRow];
 
   drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
@@ -10639,7 +10863,7 @@ function drawOptionsFullscreenRow(rowRect, highlighted) {
       ? (isFullscreen ? "EXIT FULLSCREEN" : "ENTER FULLSCREEN")
       : "FULLSCREEN UNAVAILABLE"
   );
-  drawOptionsText(fitPixelText(label, PIXEL_FONT_UI_8, rowRect.w - 16), rowRect.x + 8, rowRect.y + 6, {
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_UI_8, rowRect.w - 16), rowRect.x + 8, rowRect.y + 9, {
     color: optionsMenu.fullscreenError
       ? "#ff8888"
       : (fullscreenAvailable() ? (highlighted ? "#ffffff" : "#ffd700") : "#777777")
@@ -10652,7 +10876,7 @@ function drawOptionsCloseButton(rect, hovered) {
   ctx.strokeStyle = hovered ? "#ffffff" : "#666666";
   ctx.lineWidth = 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawOptionsText("X", rect.x + rect.w / 2, rect.y + 3, {
+  drawOptionsText("X", rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
     color: hovered ? "#ffffff" : "#cccccc"
   });
@@ -10660,14 +10884,14 @@ function drawOptionsCloseButton(rect, hovered) {
 
 function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText(label, rowRect.x + 8, rowRect.y + 6, {
+  drawOptionsText(label, rowRect.x + 8, rowRect.y + 9, {
     color: highlighted ? "#ffffff" : "#ffd700"
   });
 
   const sliderW = 70;
   const sliderH = 8;
   const sliderX = rowRect.x + 66;
-  const sliderY = rowRect.y + 6;
+  const sliderY = rowRect.y + 9;
   optionsMenu.sliderRects[sliderKey] = { x: sliderX, y: sliderY, w: sliderW, h: sliderH };
   optionsMenu.sliderHitRects[sliderKey] = { x: sliderX - 3, y: rowRect.y, w: sliderW + 6, h: rowRect.h };
 
@@ -10686,7 +10910,7 @@ function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   ctx.fillStyle = "#fff4a8";
   ctx.fillRect(knobX, sliderY - 1, 2, sliderH + 2);
 
-  drawOptionsText(`${percent}%`, rowRect.x + rowRect.w - 8, rowRect.y + 6, {
+  drawOptionsText(`${percent}%`, rowRect.x + rowRect.w - 8, rowRect.y + 9, {
     align: "right",
     color: "#eeeeee"
   });
@@ -10694,7 +10918,7 @@ function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
 
 function drawOptionsMuteRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText("MUTE", rowRect.x + 8, rowRect.y + 6, {
+  drawOptionsText("MUTE", rowRect.x + 8, rowRect.y + 9, {
     color: highlighted ? "#ffffff" : "#ffd700"
   });
 
@@ -10720,11 +10944,11 @@ function drawOptionsMuteRow(rowRect, highlighted) {
 
 function drawOptionsShipRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText("SHIP", rowRect.x + 8, rowRect.y + 6, {
+  drawOptionsText("SHIP", rowRect.x + 8, rowRect.y + 9, {
     color: highlighted ? "#ffffff" : "#ffd700"
   });
 
-  const buttonSize = 12;
+  const buttonSize = UI_ICON_BUTTON_SIZE;
   const buttonY = rowRect.y + Math.floor((rowRect.h - buttonSize) / 2);
   const prevRect = { x: rowRect.x + 51, y: buttonY, w: buttonSize, h: buttonSize };
   const nextRect = { x: rowRect.x + rowRect.w - buttonSize - 8, y: buttonY, w: buttonSize, h: buttonSize };
@@ -10739,7 +10963,7 @@ function drawOptionsShipRow(rowRect, highlighted) {
   const label = optionsMenu.shipError || shipLabelForSlug(optionsMenu.shipSlug);
   const fittedLabel = fitPixelText(label, PIXEL_FONT_UI_8, valueW);
   const loading = optionsMenu.shipLoadingSlug === optionsMenu.shipSlug;
-  drawOptionsText(loading ? fitPixelText(`${fittedLabel}...`, PIXEL_FONT_UI_8, valueW) : fittedLabel, valueX, rowRect.y + 6, {
+  drawOptionsText(loading ? fitPixelText(`${fittedLabel}...`, PIXEL_FONT_UI_8, valueW) : fittedLabel, valueX, rowRect.y + 9, {
     color: optionsMenu.shipError ? "#ff8888" : "#eeeeee"
   });
 }
@@ -10750,7 +10974,7 @@ function drawOptionsArrowButton(rect, label, highlighted) {
   ctx.strokeStyle = highlighted ? "#ffffff" : "#777777";
   ctx.lineWidth = 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawOptionsText(label, rect.x + rect.w / 2, rect.y + 2, {
+  drawOptionsText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
     color: highlighted ? "#ffffff" : "#ffd700"
   });
@@ -13879,7 +14103,7 @@ function drawInteractionButton() {
   if (!target) return;
   interactionButtonTarget = target;
   interactionButtonRect = {
-    x: INTERACTION_BUTTON_X,
+    x: anchorButtonRect ? anchorButtonRect.x + anchorButtonRect.w + 4 : INTERACTION_BUTTON_X,
     y: INTERACTION_BUTTON_Y,
     w: INTERACTION_BUTTON_W,
     h: INTERACTION_BUTTON_H
@@ -13901,7 +14125,7 @@ function drawInteractionButton() {
       ? `Cast net: ${target.call.label}`
       : `Hail: ${target.call.label}`;
   const label = fitPixelText(actionLabel, PIXEL_FONT_BODY_8, interactionButtonRect.w - 8);
-  drawPixelText(label, interactionButtonRect.x + 4, interactionButtonRect.y + 3, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText(label, interactionButtonRect.x + 4, interactionButtonRect.y + 6, { font: PIXEL_FONT_BODY_8 });
 }
 
 function drawAnchorButton() {
@@ -13932,7 +14156,7 @@ function drawAnchorButton() {
     PIXEL_FONT_BODY_8,
     anchorButtonRect.w - 8
   );
-  drawPixelText(label, anchorButtonRect.x + 4, anchorButtonRect.y + 3, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText(label, anchorButtonRect.x + 4, anchorButtonRect.y + 6, { font: PIXEL_FONT_BODY_8 });
 }
 
 function drawStormStatus(nowMs) {
@@ -14140,7 +14364,7 @@ function drawPlayerIntroModal(nowMs) {
   ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
   ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
   ctx.fillStyle = "#fff1bf";
-  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, button.y + 4, {
+  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, button.y + 6, {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
@@ -14214,7 +14438,7 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
   ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
   ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
   ctx.fillStyle = "#fff1bf";
-  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, button.y + 4, {
+  drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, button.y + 6, {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
@@ -14266,7 +14490,7 @@ function drawCaptainAlertModal() {
   ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
   ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
   ctx.fillStyle = "#fff1bf";
-  drawPixelText("CONTINUE", button.x + button.w / 2, button.y + 4, {
+  drawPixelText("CONTINUE", button.x + button.w / 2, button.y + 6, {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
@@ -14314,7 +14538,7 @@ function drawGameOverMemorial(state, fade) {
   ctx.fillRect(portraitX - 3, portraitY - 3, DIALOGUE_PORTRAIT_SIZE + 6, DIALOGUE_PORTRAIT_SIZE + 6);
   ctx.strokeStyle = "#7f8890";
   ctx.strokeRect(portraitX - 2.5, portraitY - 2.5, DIALOGUE_PORTRAIT_SIZE + 5, DIALOGUE_PORTRAIT_SIZE + 5);
-  drawDialoguePortrait(state.character, null, portraitX, portraitY, { grayscale: true });
+  drawDialoguePortrait(state.character, "sad", portraitX, portraitY, { grayscale: true });
 
   const textX = panel.x + 104;
   const textW = panel.w - 122;
@@ -14419,6 +14643,7 @@ function drawDialogueOverlay(nowMs) {
   const subject = currentDialogueSubject();
   const view = currentDialogueView();
   const portFaction = dialogueState.kind === "port" ? factionById(subject.factionId) : null;
+  const portGreeting = dialogueState.kind === "port" && dialogueState.nodeId === "greeting";
   const panel = {
     x: DIALOGUE_PANEL_X,
     y: DIALOGUE_PANEL_Y,
@@ -14445,12 +14670,13 @@ function drawDialogueOverlay(nowMs) {
   if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject);
 
   const textX = panel.x + 12;
-  const textY = panel.y + 25;
+  const textY = panel.y + (portGreeting ? 52 : 25);
   const optionW = panel.x + panel.w - textX - 12;
-  const bodyTextW = portFaction ? factionBlockX - textX - 8 : optionW;
+  const bodyTextW = portFaction && !portGreeting ? factionBlockX - textX - 8 : optionW;
   let y = textY;
   ctx.fillStyle = "#ead9b5";
-  for (const line of wrapPixelText(view.text, PIXEL_FONT_BODY_8, bodyTextW, 4)) {
+  const bodyLineLimit = portGreeting ? 8 : 4;
+  for (const line of wrapPixelText(view.text, PIXEL_FONT_BODY_8, bodyTextW, bodyLineLimit)) {
     drawPixelText(line, textX, y, { font: PIXEL_FONT_BODY_8 });
     y += 10;
   }
@@ -14463,8 +14689,10 @@ function drawDialogueOverlay(nowMs) {
   }
 
   const optionX = textX;
-  const optionY = Math.max(panel.y + 82, y + 3);
-  drawDialogueOptions(view, optionX, optionY, optionW);
+  const optionY = portGreeting
+    ? panel.y + panel.h - DIALOGUE_OPTION_H - 12
+    : Math.max(panel.y + 82, y + 3);
+  drawDialogueOptions(view, optionX, optionY, optionW, panel.y + panel.h - 9);
 }
 
 function drawDialogueFactionFlag(faction, panel, nowMs, city) {
@@ -14528,29 +14756,72 @@ function grayscalePortraitCanvas(source) {
   return canvas;
 }
 
-function drawDialogueOptions(view, x, y, width) {
+function drawDialogueOptions(view, x, y, width, bottom) {
   dialogueLayout.optionRects = [];
-  for (let i = 0; i < view.options.length; i++) {
-    const option = view.options[i];
+  dialogueLayout.previousRect = null;
+  dialogueLayout.nextRect = null;
+  const availableH = Math.max(DIALOGUE_OPTION_H, bottom - y);
+  const maxVisible = Math.max(1, Math.floor(availableH / DIALOGUE_OPTION_H));
+  const needsScroll = view.options.length > maxVisible;
+  let scrollOffset = clamp(dialogueLayout.scrollOffset, 0, Math.max(0, view.options.length - maxVisible));
+  if (dialogueState.selectedIndex < scrollOffset) scrollOffset = dialogueState.selectedIndex;
+  if (dialogueState.selectedIndex >= scrollOffset + maxVisible) {
+    scrollOffset = dialogueState.selectedIndex - maxVisible + 1;
+  }
+  dialogueLayout.scrollOffset = scrollOffset;
+  const optionWidth = needsScroll ? width - UI_PAGER_BUTTON_W - 5 : width;
+  const visibleOptions = view.options.slice(scrollOffset, scrollOffset + maxVisible);
+  for (let localIndex = 0; localIndex < visibleOptions.length; localIndex++) {
+    const index = scrollOffset + localIndex;
+    const option = visibleOptions[localIndex];
     const rect = {
       x,
-      y: y + i * DIALOGUE_OPTION_H,
-      w: width,
-      h: DIALOGUE_OPTION_H
+      y: y + localIndex * DIALOGUE_OPTION_H,
+      w: optionWidth,
+      h: DIALOGUE_OPTION_H - 2
     };
-    dialogueLayout.optionRects.push(rect);
-    const selected = i === dialogueState.selectedIndex;
-    if (selected) {
-      ctx.fillStyle = option.disabled ? "rgba(90, 67, 55, 0.72)" : "rgba(104, 78, 44, 0.88)";
-      ctx.fillRect(rect.x - 2, rect.y, rect.w + 4, rect.h);
-    }
+    dialogueLayout.optionRects.push({ index, rect });
+    const selected = index === dialogueState.selectedIndex;
+    ctx.fillStyle = selected
+      ? (option.disabled ? "rgba(90, 67, 55, 0.82)" : "rgba(104, 78, 44, 0.94)")
+      : "rgba(47, 36, 28, 0.76)";
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.strokeStyle = selected ? "#d6b66b" : "#715033";
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
     ctx.fillStyle = option.disabled ? "#8d8171" : selected ? "#fff1b8" : "#e6c98e";
     const prefix = selected ? "> " : "  ";
     drawPixelText(
       fitPixelText(`${prefix}${option.label}`, PIXEL_FONT_BODY_8, rect.w - 4),
-      rect.x,
-      rect.y + 2,
+      rect.x + 3,
+      rect.y + 4,
       { font: PIXEL_FONT_BODY_8 }
+    );
+  }
+
+  if (needsScroll) {
+    const navX = x + width - UI_PAGER_BUTTON_W;
+    dialogueLayout.previousRect = { x: navX, y, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+    dialogueLayout.nextRect = {
+      x: navX,
+      y: y + maxVisible * DIALOGUE_OPTION_H - UI_PAGER_BUTTON_H,
+      w: UI_PAGER_BUTTON_W,
+      h: UI_PAGER_BUTTON_H
+    };
+    drawOptionsArrowButton(
+      dialogueLayout.previousRect,
+      "^",
+      pointInRect(optionsMenu.hoverPoint, dialogueLayout.previousRect)
+    );
+    drawOptionsArrowButton(
+      dialogueLayout.nextRect,
+      "v",
+      pointInRect(optionsMenu.hoverPoint, dialogueLayout.nextRect)
+    );
+    drawOptionsText(
+      `${dialogueState.selectedIndex + 1}/${view.options.length}`,
+      navX + UI_PAGER_BUTTON_W / 2,
+      y + Math.floor((maxVisible * DIALOGUE_OPTION_H - 8) / 2),
+      { align: "center", color: "#ab947a" }
     );
   }
 }
