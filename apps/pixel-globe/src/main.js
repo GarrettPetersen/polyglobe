@@ -152,6 +152,7 @@ import {
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
+import { dialoguePanelGeometry } from "./dialoguePanelLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import {
   COMBAT_MODE_ATTACK,
@@ -624,13 +625,7 @@ const POLITICS_MATRIX_CELL_W = 7;
 const POLITICS_MATRIX_ROW_H = 8;
 const SHIP_INFO_SIDE_VIEW_W = 192;
 const SHIP_INFO_SIDE_VIEW_H = 104;
-const DIALOGUE_PANEL_X = 6;
-const DIALOGUE_PANEL_Y = 78;
-let DIALOGUE_PANEL_W = SCREEN_W - 12;
-let DIALOGUE_PANEL_H = SCREEN_H - DIALOGUE_PANEL_Y - 7;
 const DIALOGUE_PORTRAIT_SIZE = 64;
-const DIALOGUE_PORTRAIT_X = DIALOGUE_PANEL_X + 16;
-const DIALOGUE_PORTRAIT_Y = DIALOGUE_PANEL_Y - DIALOGUE_PORTRAIT_SIZE + 8;
 const DIALOGUE_OPTION_H = 18;
 let PLAYER_INTRO_PANEL_W = 326;
 let PLAYER_INTRO_PANEL_H = 178;
@@ -3586,19 +3581,18 @@ function closeCaptainMenu() {
 function handleCaptainMenuKeyDown(event) {
   event.preventDefault();
   if (event.key === "Escape") {
-    if (captainMenu.view === "root") {
-      captainMenu.view = "chart";
-      dirty = true;
-    } else {
-      closeCaptainMenu();
-    }
+    closeCaptainMenu();
     return;
   }
   if (captainMenu.view === "chart") {
-    if (event.key === "Enter" || event.key === " " || event.key === "ArrowRight") {
-      captainMenu.view = "root";
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+      captainMenu.selectedIndex =
+        (captainMenu.selectedIndex + direction + CAPTAIN_MENU_LABELS.length) % CAPTAIN_MENU_LABELS.length;
       dirty = true;
+      return;
     }
+    if (event.key === "Enter" || event.key === " ") activateCaptainMenuSelection(captainMenu.selectedIndex);
     return;
   }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -3904,9 +3898,11 @@ function handleCaptainMenuPointerDown(point) {
     return;
   }
   if (captainMenu.view === "chart") {
-    if (pointInRect(point, captainMenu.backButtonRect)) {
-      captainMenu.view = "root";
-      dirty = true;
+    updateCaptainMenuSelectionFromPoint(point);
+    for (let index = 0; index < captainMenu.itemRects.length; index++) {
+      if (!pointInRect(point, captainMenu.itemRects[index])) continue;
+      activateCaptainMenuSelection(index);
+      return;
     }
     return;
   }
@@ -3924,7 +3920,6 @@ function handleCaptainMenuPointerDown(point) {
 }
 
 function updateCaptainMenuSelectionFromPoint(point) {
-  if (captainMenu.view !== "root") return;
   for (let index = 0; index < captainMenu.itemRects.length; index++) {
     if (!pointInRect(point, captainMenu.itemRects[index])) continue;
     captainMenu.selectedIndex = index;
@@ -8193,8 +8188,6 @@ function applyResponsiveViewport(width, height) {
   SHIP_INFO_PANEL_H = SCREEN_H - SHIP_INFO_PANEL_Y * 2;
   POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
   POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
-  DIALOGUE_PANEL_W = SCREEN_W - 12;
-  DIALOGUE_PANEL_H = SCREEN_H - DIALOGUE_PANEL_Y - 7;
   PLAYER_INTRO_PANEL_W = Math.min(326, SCREEN_W - 12);
   PLAYER_INTRO_PANEL_H = Math.min(SCREEN_W < 400 ? 300 : 178, SCREEN_H - 12);
   PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
@@ -9346,7 +9339,6 @@ function drawCaptainCreditsIcon(x, y, active) {
 }
 
 function drawCaptainChart(panel, nowMs) {
-  captainMenu.itemRects = [];
   const mapW = panel.w - 24;
   const mapH = Math.min(Math.floor(mapW * MINIMAP_H / MINIMAP_W), panel.h - 82);
   const mapX = panel.x + 12;
@@ -9367,28 +9359,39 @@ function drawCaptainChart(panel, nowMs) {
     align: "center",
     color: "#c7dcd0"
   });
-  captainMenu.backButtonRect = {
-    x: panel.x + Math.floor((panel.w - 112) / 2),
-    y: panel.y + panel.h - 30,
-    w: 112,
-    h: 22
-  };
-  const hovered = pointInRect(captainMenu.hoverPoint, captainMenu.backButtonRect);
-  ctx.fillStyle = hovered ? "#5b4627" : "#201a16";
-  ctx.fillRect(
-    captainMenu.backButtonRect.x,
-    captainMenu.backButtonRect.y,
-    captainMenu.backButtonRect.w,
-    captainMenu.backButtonRect.h
-  );
-  ctx.strokeStyle = hovered ? "#f9c22b" : "#715033";
-  ctx.strokeRect(
-    captainMenu.backButtonRect.x + 0.5,
-    captainMenu.backButtonRect.y + 0.5,
-    captainMenu.backButtonRect.w - 1,
-    captainMenu.backButtonRect.h - 1
-  );
-  drawOptionsText("MENU", captainMenu.backButtonRect.x + captainMenu.backButtonRect.w / 2, captainMenu.backButtonRect.y + 7, {
+  drawCaptainChartNavigation(panel);
+}
+
+function drawCaptainChartNavigation(panel) {
+  const gap = 4;
+  const navH = 28;
+  const availableW = panel.w - 24;
+  const itemW = Math.floor((availableW - gap * (CAPTAIN_MENU_LABELS.length - 1)) / CAPTAIN_MENU_LABELS.length);
+  const totalW = itemW * CAPTAIN_MENU_LABELS.length + gap * (CAPTAIN_MENU_LABELS.length - 1);
+  const startX = panel.x + Math.floor((panel.w - totalW) / 2);
+  const y = panel.y + panel.h - navH - 8;
+  captainMenu.backButtonRect = null;
+  captainMenu.itemRects = CAPTAIN_MENU_LABELS.map((_, index) => ({
+    x: startX + index * (itemW + gap),
+    y,
+    w: itemW,
+    h: navH
+  }));
+
+  let hoveredIndex = -1;
+  captainMenu.itemRects.forEach((rect, index) => {
+    const selected = index === captainMenu.selectedIndex;
+    const hovered = pointInRect(captainMenu.hoverPoint, rect);
+    if (hovered) hoveredIndex = index;
+    ctx.fillStyle = selected || hovered ? "#5b4627" : "#201a16";
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.strokeStyle = selected || hovered ? "#f9c22b" : "#715033";
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    drawCaptainMenuItemIcon(index, rect.x + Math.floor((rect.w - 13) / 2), rect.y + 7, selected || hovered);
+  });
+
+  const labelIndex = hoveredIndex >= 0 ? hoveredIndex : captainMenu.selectedIndex;
+  drawOptionsText(CAPTAIN_MENU_LABELS[labelIndex], panel.x + panel.w / 2, y - 11, {
     align: "center",
     color: "#fff1bf"
   });
@@ -14642,16 +14645,41 @@ function formatCoordinate(value, positiveSuffix, negativeSuffix) {
 function drawDialogueOverlay(nowMs) {
   const subject = currentDialogueSubject();
   const view = currentDialogueView();
+  const dialogueFont = PIXEL_FONT_UI_8;
   const portFaction = dialogueState.kind === "port" ? factionById(subject.factionId) : null;
   const portGreeting = dialogueState.kind === "port" && dialogueState.nodeId === "greeting";
-  const panel = {
-    x: DIALOGUE_PANEL_X,
-    y: DIALOGUE_PANEL_Y,
-    w: DIALOGUE_PANEL_W,
-    h: DIALOGUE_PANEL_H
-  };
+  const panelX = 6;
+  const panelW = SCREEN_W - 12;
+  const textXOffset = 12;
+  const optionW = panelW - textXOffset - 12;
+  const factionBlockW = Math.min(DIALOGUE_FACTION_BLOCK_W, Math.max(88, Math.floor(panelW * 0.4)));
+  const factionBlockX = panelX + panelW - factionBlockW - 8;
+  const bodyTextW = portFaction && !portGreeting
+    ? factionBlockX - (panelX + textXOffset) - 8
+    : optionW;
+  const bodyLineLimit = portGreeting ? 8 : 4;
+  const bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
+  const feedbackLines = view.feedback
+    ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
+    : [];
+  const textYOffset = portGreeting ? 52 : 25;
+  const bodyEndOffset = textYOffset + (bodyLines.length + feedbackLines.length) * 10;
+  const optionYOffset = portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
+  const contentHeight = optionYOffset + view.options.length * DIALOGUE_OPTION_H + 9;
+  const geometry = dialoguePanelGeometry({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    compact: true,
+    contentHeight
+  });
+  const panel = geometry.panel;
 
-  drawDialoguePortrait(subject.character, view.expressionId, DIALOGUE_PORTRAIT_X, DIALOGUE_PORTRAIT_Y);
+  drawDialoguePortrait(
+    subject.character,
+    view.expressionId,
+    geometry.portrait.x,
+    geometry.portrait.y
+  );
 
   ctx.fillStyle = "rgba(28, 20, 15, 0.94)";
   ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
@@ -14661,41 +14689,39 @@ function drawDialogueOverlay(nowMs) {
   ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
 
   ctx.fillStyle = "#f3dfb0";
-  const factionBlockX = panel.x + panel.w - DIALOGUE_FACTION_BLOCK_W - 8;
   const speakerW = portFaction ? factionBlockX - panel.x - 16 : panel.w - 18;
-  drawPixelText(fitPixelText(view.speaker, PIXEL_FONT_UI_8, speakerW), panel.x + 8, panel.y + 8, {
-    font: PIXEL_FONT_UI_8
+  const speakerLines = portGreeting && SCREEN_H > SCREEN_W
+    ? wrapPixelText(view.speaker, dialogueFont, speakerW, 2)
+    : [fitPixelText(view.speaker, dialogueFont, speakerW)];
+  speakerLines.forEach((line, index) => {
+    drawPixelText(fitPixelText(line, dialogueFont, speakerW), panel.x + 8, panel.y + 8 + index * 10, {
+      font: dialogueFont
+    });
   });
 
-  if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject);
+  if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject, factionBlockW);
 
   const textX = panel.x + 12;
-  const textY = panel.y + (portGreeting ? 52 : 25);
-  const optionW = panel.x + panel.w - textX - 12;
-  const bodyTextW = portFaction && !portGreeting ? factionBlockX - textX - 8 : optionW;
-  let y = textY;
+  let y = panel.y + textYOffset;
   ctx.fillStyle = "#ead9b5";
-  const bodyLineLimit = portGreeting ? 8 : 4;
-  for (const line of wrapPixelText(view.text, PIXEL_FONT_BODY_8, bodyTextW, bodyLineLimit)) {
-    drawPixelText(line, textX, y, { font: PIXEL_FONT_BODY_8 });
+  for (const line of bodyLines) {
+    drawPixelText(line, textX, y, { font: dialogueFont });
     y += 10;
   }
   if (view.feedback) {
     ctx.fillStyle = "#c7dd8a";
-    for (const line of wrapPixelText(view.feedback, PIXEL_FONT_BODY_8, bodyTextW, 2)) {
-      drawPixelText(line, textX, y, { font: PIXEL_FONT_BODY_8 });
+    for (const line of feedbackLines) {
+      drawPixelText(line, textX, y, { font: dialogueFont });
       y += 10;
     }
   }
 
   const optionX = textX;
-  const optionY = portGreeting
-    ? panel.y + panel.h - DIALOGUE_OPTION_H - 12
-    : Math.max(panel.y + 82, y + 3);
-  drawDialogueOptions(view, optionX, optionY, optionW, panel.y + panel.h - 9);
+  const optionY = panel.y + optionYOffset;
+  drawDialogueOptions(view, optionX, optionY, optionW, panel.y + panel.h - 9, dialogueFont);
 }
 
-function drawDialogueFactionFlag(faction, panel, nowMs, city) {
+function drawDialogueFactionFlag(faction, panel, nowMs, city, factionBlockW) {
   const flagX = panel.x + panel.w - DIALOGUE_FLAG_W - 10;
   const flagY = panel.y + 8;
   ctx.fillStyle = "#4c3e24";
@@ -14708,7 +14734,7 @@ function drawDialogueFactionFlag(faction, panel, nowMs, city) {
     DIALOGUE_FLAG_H,
     flagWavePhase(nowMs, city.tileId)
   );
-  const label = fitPixelText(faction.name.toUpperCase(), PIXEL_FONT_BODY_8, DIALOGUE_FACTION_BLOCK_W);
+  const label = fitPixelText(faction.name.toUpperCase(), PIXEL_FONT_BODY_8, factionBlockW);
   ctx.fillStyle = "#d6b66b";
   drawPixelText(label, panel.x + panel.w - 10, flagY + DIALOGUE_FLAG_H + 3, {
     font: PIXEL_FONT_BODY_8,
@@ -14756,7 +14782,7 @@ function grayscalePortraitCanvas(source) {
   return canvas;
 }
 
-function drawDialogueOptions(view, x, y, width, bottom) {
+function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8) {
   dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
@@ -14791,10 +14817,10 @@ function drawDialogueOptions(view, x, y, width, bottom) {
     ctx.fillStyle = option.disabled ? "#8d8171" : selected ? "#fff1b8" : "#e6c98e";
     const prefix = selected ? "> " : "  ";
     drawPixelText(
-      fitPixelText(`${prefix}${option.label}`, PIXEL_FONT_BODY_8, rect.w - 4),
+      fitPixelText(`${prefix}${option.label}`, font, rect.w - 4),
       rect.x + 3,
       rect.y + 4,
-      { font: PIXEL_FONT_BODY_8 }
+      { font }
     );
   }
 
