@@ -5127,18 +5127,17 @@ function updateSailing(dt) {
   if (recovered) playerRiverBlockedSeconds = 0;
   const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
-  const tutorialChanged = updateStallTackingTutorial(dt, inputHeading, inRiver);
+  const tutorialChanged = updateStallTackingTutorial(dt, inRiver);
   return tutorialChanged || recovered || moveResult.moved || moveResult.collided || headingChanged || wakeChanged || vectorLength(ship.velocity) > 0.0001;
 }
 
-function updateStallTackingTutorial(dt, inputHeading, inRiver) {
+function updateStallTackingTutorial(dt, inRiver) {
   const wind = windForTile(ship.tileId);
   const windFlow = windFlowVectorAtShip(wind);
   const shouldPrompt = updateSailingTutorialState(sailingTutorialState, {
     dt,
     alreadyShown: gameState?.memory?.flags?.tackingTutorialShown === true,
     eligible: !inRiver && !anchored && !playerHasCombatEngagement(),
-    activelySteering: Boolean(inputHeading),
     stalled: sailingEfficiency(ship.heading, windFlow) <= 0
   });
   if (!shouldPrompt) return false;

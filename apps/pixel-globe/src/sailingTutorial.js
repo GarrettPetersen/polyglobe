@@ -12,7 +12,7 @@ export function updateSailingTutorialState(state, input) {
     throw new Error("Sailing tutorial requires a valid frame duration");
   }
 
-  if (input.alreadyShown || !input.eligible || !input.activelySteering || !input.stalled) {
+  if (input.alreadyShown || !input.eligible || !input.stalled) {
     state.activeStallSeconds = 0;
     return false;
   }

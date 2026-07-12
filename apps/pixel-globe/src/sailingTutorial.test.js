@@ -12,13 +12,12 @@ function update(state, overrides = {}) {
     dt: 1,
     alreadyShown: false,
     eligible: true,
-    activelySteering: true,
     stalled: true,
     ...overrides
   });
 }
 
-test("the tacking tutorial appears after sustained active stalling", () => {
+test("the tacking tutorial appears after a sustained stall", () => {
   const state = createSailingTutorialState();
   for (let second = 1; second < STALL_TUTORIAL_TRIGGER_SECONDS; second++) {
     assert.equal(update(state), false);
@@ -26,14 +25,24 @@ test("the tacking tutorial appears after sustained active stalling", () => {
   assert.equal(update(state), true);
 });
 
-test("the stall timer resets when the player turns clear or stops steering", () => {
+test("the stall timer keeps counting after steering is released", () => {
+  const state = createSailingTutorialState();
+  update(state);
+  update(state);
+  assert.equal(update(state, { activelySteering: false }), false);
+  assert.equal(state.activeStallSeconds, 3);
+  assert.equal(update(state, { activelySteering: false }), false);
+  assert.equal(update(state, { activelySteering: false }), true);
+});
+
+test("the stall timer resets when the player turns clear or becomes ineligible", () => {
   const state = createSailingTutorialState();
   update(state);
   update(state);
   assert.equal(update(state, { stalled: false }), false);
   assert.equal(state.activeStallSeconds, 0);
   update(state);
-  assert.equal(update(state, { activelySteering: false }), false);
+  assert.equal(update(state, { eligible: false }), false);
   assert.equal(state.activeStallSeconds, 0);
 });
 
