@@ -299,6 +299,44 @@ test("Knight Portrait opens on its calm neutral frame", () => {
   assert.equal(knight.expressions[0].id, "happy");
 });
 
+test("visually reviewed expression packs use calm neutral frames", () => {
+  const neutralIndices = new Map([
+    ["blacksmith-portrait-pack-by-captainskeleto-blacksmith-portrait", 1],
+    ["ultimate-portrait-pack-v1-0-blacksmith-blacksmith-portrait", 2],
+    ["blond-villager-portrait-pack-by-captainskeleto-blond-villager-portrait", 6],
+    ["blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women", 6],
+    ["ultimate-portrait-pack-v1-0-herbalist-women-portrait-herbalist-women-portrait", 3],
+    ["ultimate-portrait-pack-v1-0-knight-commander-knight-commander", 3],
+    ["knight-portrait-pack-by-captainskeleto-knight-portrait", 2],
+    ["little-girl-portrait-pack-by-captainskeleto-little-girl-portrait", 10],
+    ["lumberjack-portrait-by-captainskeleto-lumberjack-portrait", 2],
+    ["ultimate-portrait-pack-v1-0-man-knight-man-knight-portrait", 4],
+    ["ultimate-portrait-pack-v1-0-monk-monk-portrait", 2],
+    ["ultimate-portrait-pack-v1-0-noblewomen-noblewomen-portrait", 6],
+    ["old-villager-portrait-by-captainskeleto-old-villager-portrait", 7],
+    ["old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard", 3],
+    ["peasant-portrait-pack-by-captainskeleto-peasant-portrait", 4],
+    ["ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait", 4],
+    ["ultimate-portrait-pack-v1-0-village-elder-villager-elder-portrait", 4],
+    ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", 4],
+    ["ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait", 6],
+    ["women-knight-portrait-pack-by-captainskeleto-women-knight-portrait", 3],
+    ["women-peasant-pack-by-captainskeleto-women-peasant", 3],
+    ["ultimate-portrait-pack-v1-0-seamstress-women-portrait-women-seamstress-portrait", 1],
+    ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", 6]
+  ]);
+
+  for (const [characterId, expectedIndex] of neutralIndices) {
+    const source = GENERATED_MANIFEST.sourceCharacters.find((character) => character.id === characterId);
+    assert.ok(source, `Missing reviewed portrait source: ${characterId}`);
+    assert.equal(
+      source.expressions.find((expression) => expression.id === "neutral")?.index,
+      expectedIndex,
+      `${source.label} neutral frame`
+    );
+  }
+});
+
 test("women portrait grid entries are individual people, not expression sets", () => {
   const womenPortraits = GENERATED_MANIFEST.sourceCharacters.filter((source) => (
     source.sourceDirectory === "Women Portrait Pack by Captainskeleto/Women Portrait"
@@ -318,11 +356,12 @@ test("portrait expression packs produce one individual with many expressions", (
   assert.equal(villagers[0].groupingMode, "expression-set");
   assert.equal(villagers[0].expressions.length, 12);
   assert.deepEqual(villagers[0].expressions.slice(0, 4).map((expression) => expression.id), [
-    "neutral",
-    "happy",
     "concerned",
+    "wary",
+    "surprised",
     "afraid"
   ]);
+  assert.equal(villagers[0].expressions.find((expression) => expression.id === "neutral").index, 6);
 });
 
 test("player generation is deterministic for an identity key", () => {

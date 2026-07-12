@@ -7,6 +7,7 @@
     "check": "node --check src/main.js && npm test && npm run build",
     "dev": "node server.mjs",
     "generate:characters": "node tools/build-character-portrait-manifest.mjs",
+    "preview:character-expressions": "node tools/render-character-expression-review.mjs",
     "preview:character-roles": "node tools/render-character-role-review.mjs",
     "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",

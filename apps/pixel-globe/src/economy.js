@@ -233,6 +233,34 @@ export function portEconomySummary(economy, city) {
   };
 }
 
+export function worldMarketPriceComparison(economy, city, goodId, side) {
+  const port = requiredPortState(economy, city);
+  const good = tradeGoodById(goodId);
+  const priceKey = side === "buy" ? "buyPrice" : side === "sell" ? "sellPrice" : null;
+  if (!priceKey) throw new Error(`Unknown market comparison side: ${side}`);
+  if (side === "sell" && good.sellable === false) {
+    throw new Error(`${good.label} cannot be compared on the sell market`);
+  }
+
+  const localPrice = marketPrice(port, good, port.goods.get(goodId).stock)[priceKey];
+  const worldPrices = [...economy.portStates.values()]
+    .map((worldPort) => marketPrice(
+      worldPort,
+      good,
+      worldPort.goods.get(goodId).stock
+    )[priceKey])
+    .sort((a, b) => a - b);
+  const worldPrice = median(worldPrices);
+  const percent = Math.round((localPrice / worldPrice - 1) * 100);
+  return {
+    side,
+    localPrice,
+    worldPrice,
+    percent,
+    direction: percent >= 8 ? "high" : percent <= -8 ? "low" : "fair"
+  };
+}
+
 export function executePortSale(economy, city, goodId, quantity) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
@@ -570,6 +598,15 @@ function requiredPortState(economy, city) {
   const port = economy.portStates.get(portId);
   if (!port) throw new Error(`No economy exists for port tile: ${portId}`);
   return port;
+}
+
+function median(sortedValues) {
+  if (!Array.isArray(sortedValues) || sortedValues.length === 0) {
+    throw new Error("Cannot calculate a world market median without prices");
+  }
+  const middle = Math.floor(sortedValues.length / 2);
+  if (sortedValues.length % 2 === 1) return sortedValues[middle];
+  return (sortedValues[middle - 1] + sortedValues[middle]) / 2;
 }
 
 function requiredPortId(port) {

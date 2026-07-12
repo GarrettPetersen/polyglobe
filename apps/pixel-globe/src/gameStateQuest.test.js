@@ -17,11 +17,11 @@ const PLAYER = {
   expressions: ["neutral", "happy"]
 };
 
-const LISBON = port(1, "Lisbon", "Portugal", "mediterranean", "portugal");
-const PORTO = port(2, "Porto", "Portugal", "mediterranean", "portugal");
-const GOA = port(3, "Goa", "India", "south-asian", "portugal");
-const CADIZ = port(4, "Cadiz", "Spain", "mediterranean", "spain");
-const DOVER = port(5, "Dover", "United Kingdom", "northern-european", "england");
+const LISBON = port(1, "Lisbon", "Portugal", "mediterranean", "portugal", 38.72, -9.14);
+const PORTO = port(2, "Porto", "Portugal", "mediterranean", "portugal", 41.15, -8.61);
+const GOA = port(3, "Goa", "India", "south-asian", "portugal", 15.5, 73.83);
+const CADIZ = port(4, "Cadiz", "Spain", "mediterranean", "spain", 36.53, -6.29);
+const DOVER = port(5, "Dover", "United Kingdom", "northern-european", "england", 51.13, 1.31);
 
 test("delivery quests stay inside the same faction and region", () => {
   const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO, GOA, CADIZ]);
@@ -29,6 +29,7 @@ test("delivery quests stay inside the same faction and region", () => {
   assert.equal(quest.factionId, "portugal");
   assert.equal(quest.regionKey, "mediterranean");
   assert.equal(quest.destinationTileId, PORTO.tileId);
+  assert.ok(quest.distanceKm >= 270 && quest.distanceKm <= 280);
 });
 
 test("ports without an intra-faction regional destination offer no delivery quest", () => {
@@ -52,6 +53,6 @@ test("completed package deliveries increase faction standing", () => {
   assert.equal(factionReputation(state, "portugal"), before + DELIVERY_REPUTATION_GAIN);
 });
 
-function port(tileId, city, country, cityType, factionId) {
-  return { tileId, city, displayCity: city, country, cityType, factionId, population: 60000, lat: 0, lon: 0 };
+function port(tileId, city, country, cityType, factionId, lat, lon) {
+  return { tileId, city, displayCity: city, country, cityType, factionId, population: 60000, lat, lon };
 }

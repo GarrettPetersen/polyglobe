@@ -14,7 +14,14 @@ import {
   restockShipLoadoutAtPort,
   sellGood
 } from "./gameState.js";
-import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, portEconomySummary, portMarket, tradeGoodById } from "./economy.js";
+import {
+  FRESH_WATER_GOOD_ID,
+  HARDTACK_GOOD_ID,
+  portEconomySummary,
+  portMarket,
+  tradeGoodById,
+  worldMarketPriceComparison
+} from "./economy.js";
 import { factionById } from "./factions.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
@@ -335,10 +342,12 @@ export function passengerDialogueView(session, city, quest, gameState) {
   return {
     speaker,
     expressionId,
-    text: quest.dialogue?.offer || `I need passage to ${quest.destinationName}. I can pay ${quest.reward} db on arrival.`,
+    text: `${quest.dialogue?.offer || `I need passage to ${quest.destinationName}. I can pay ${quest.reward} db on arrival.`} Distance ${formatDistanceKm(quest.distanceKm)}.`,
     feedback: session.feedback,
     options: [
-      option(`Take passenger to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }),
+      option(`Take passenger to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
+        detail: `${formatDistanceKm(quest.distanceKm)} GREAT-CIRCLE`
+      }),
       option("Talk to factor", { type: "open-port" }),
       option("Not now", { type: "close" })
     ]
@@ -493,7 +502,9 @@ function buyView(session, city, gameState, economy, context) {
   const rows = tradeRows
     .map((row) => {
       const totalSize = row.good.unitSize;
-      return option(`Buy ${row.good.label}  ${row.buyPrice} db  x${row.stock}`, { type: "buy", goodId: row.good.id }, {
+      const comparison = worldMarketPriceComparison(economy, city, row.good.id, "buy");
+      return option(`Buy ${row.good.label}  ${row.buyPrice} db`, { type: "buy", goodId: row.good.id }, {
+        detail: `${worldPriceIndicator(comparison)}  STOCK ${row.stock}`,
         disabled: gameState.doubloons < row.buyPrice || cargoFree(gameState) < totalSize,
         disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
       });
@@ -505,6 +516,7 @@ function buyView(session, city, gameState, economy, context) {
     expressionId: feedbackExpressionId(session.feedback),
     text: `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
+    optionHeight: 30,
     options: rows
   };
 }
@@ -543,10 +555,12 @@ function sellView(session, city, gameState, economy) {
     const price = row.sellPrice;
     const basis = cargoCostBasis(gameState, cargo.good.id);
     const pnlLabel = basis.known ? signedDoubloons(price - basis.average) : "--";
-    return option(`Sell ${cargo.good.label}  ${price} db  P/L ${pnlLabel}  held ${cargo.quantity}`, {
+    const comparison = worldMarketPriceComparison(economy, city, cargo.good.id, "sell");
+    return option(`Sell ${cargo.good.label}  ${price} db`, {
       type: "sell",
       goodId: cargo.good.id
     }, {
+      detail: `${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${cargo.quantity}`,
       disabled: row.portSpecie < price,
       disabledReason: "The market is out of specie."
     });
@@ -563,6 +577,7 @@ function sellView(session, city, gameState, economy) {
     expressionId: feedbackExpressionId(session.feedback),
     text: `Buyers here pay port rates. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
+    optionHeight: 30,
     options: rows
   };
 }
@@ -614,12 +629,14 @@ function questView(session, city, gameState, portCities) {
     return {
       speaker: speakerName(city),
       expressionId: "attentive",
-      text: `A sealed packet needs passage to ${questState.quest.destinationName}. Payment is ${questState.quest.reward} db on delivery.`,
+      text: `A sealed packet needs passage to ${questState.quest.destinationName}, ${formatDistanceKm(questState.quest.distanceKm)} away. Payment is ${questState.quest.reward} db on delivery.`,
       feedback: session.feedback,
       options: [
         option(`Accept delivery to ${questState.quest.destinationName}`, {
           type: "accept-quest",
           quest: questState.quest
+        }, {
+          detail: `${formatDistanceKm(questState.quest.distanceKm)} GREAT-CIRCLE`
         }),
         option("Back", { type: "node", nodeId: "root" })
       ]
@@ -722,6 +739,17 @@ function option(label, action, details = {}) {
 function signedDoubloons(value) {
   const rounded = Math.round(value);
   return `${rounded >= 0 ? "+" : ""}${rounded} db`;
+}
+
+function worldPriceIndicator(comparison) {
+  if (comparison.direction === "high") return `↗ ${Math.abs(comparison.percent)}% VS WORLD`;
+  if (comparison.direction === "low") return `↘ ${Math.abs(comparison.percent)}% VS WORLD`;
+  return "= WORLD PRICE";
+}
+
+function formatDistanceKm(distanceKm) {
+  if (!Number.isFinite(distanceKm) || distanceKm < 0) return "unknown distance";
+  return `${Math.round(distanceKm).toLocaleString("en-US")} km`;
 }
 
 function signedReputation(value) {

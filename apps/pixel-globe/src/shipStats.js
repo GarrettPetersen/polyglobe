@@ -1,3 +1,5 @@
+import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
+
 export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -123,7 +125,7 @@ function stats(
     slug,
     cannons,
     accelerationRad,
-    topSpeedRad,
+    topSpeedRad: topSpeedRad * SHIP_TOP_SPEED_SCALE,
     upwindStallAngleDeg,
     upwindStallAngleRad: upwindStallAngleDeg * DEG_TO_RAD,
     turnRateRad,

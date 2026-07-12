@@ -2,12 +2,11 @@ import {
   cityKey,
   cityLabel
 } from "./gameState.js";
+import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 1800;
 export const PASSENGER_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
-
-const EARTH_RADIUS_KM = 6371;
 
 export const PASSENGER_SCENARIOS = Object.freeze([
   Object.freeze({ id: "return-home", expressionId: "sad", namePort: "destination" }),
@@ -180,21 +179,6 @@ function passengerSpawnChance(value) {
 function passengerRollPeriod(simMinute) {
   if (!Number.isFinite(simMinute)) return 0;
   return Math.floor(simMinute / PASSENGER_ROLL_PERIOD_MINUTES);
-}
-
-function greatCircleDistanceKm(a, b) {
-  const latA = degreesToRadians(a.lat);
-  const latB = degreesToRadians(b.lat);
-  const dLat = latB - latA;
-  const dLon = degreesToRadians(b.lon - a.lon);
-  const sinLat = Math.sin(dLat / 2);
-  const sinLon = Math.sin(dLon / 2);
-  const h = sinLat * sinLat + Math.cos(latA) * Math.cos(latB) * sinLon * sinLon;
-  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
-}
-
-function degreesToRadians(value) {
-  return value * Math.PI / 180;
 }
 
 function seededFraction(value) {

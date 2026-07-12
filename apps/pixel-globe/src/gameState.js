@@ -27,6 +27,7 @@ import {
   shipLoadoutPlan
 } from "./shipLoadouts.js";
 import { shipLabelForSlug } from "./shipStats.js";
+import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const STARTING_DOUBLOONS = 360;
 export const REPUTATION_MIN = -100;
@@ -894,6 +895,7 @@ export function deliveryQuestForCity(city, portCities) {
     regionKey,
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
+    distanceKm: Math.round(greatCircleDistanceKm(city, destination)),
     reward
   };
 }

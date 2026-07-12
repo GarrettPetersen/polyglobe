@@ -126,6 +126,10 @@ import {
   updateSailingAudioState
 } from "./sailingAudio.js";
 import {
+  createSailingTutorialState,
+  updateSailingTutorialState
+} from "./sailingTutorial.js";
+import {
   RIVER_GATEWAY_SEARCH_RADIUS_PX,
   advanceRiverCenterline,
   blendRiverNavigationDirections,
@@ -156,9 +160,15 @@ import {
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
-import { dialoguePanelGeometry } from "./dialoguePanelLayout.js";
+import {
+  dialogueOptionLayout,
+  dialogueOptionNavigationLayout,
+  dialoguePanelGeometry
+} from "./dialoguePanelLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import { windVGeometry } from "./windIndicator.js";
+import { loadImageWithRetry } from "./assetImageLoader.js";
+import { DEFAULT_GAME_TIME_SCALE } from "./gamePacing.js";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
@@ -412,7 +422,7 @@ const SNOW_PARTICLE_LIMIT = 240;
 const RAIN_PARTICLES_PER_TILE = 3;
 const SNOW_PARTICLES_PER_TILE = 2;
 const PRECIP_PARTICLE_VIEW_MARGIN = 30;
-const WEATHER_DEFAULT_TIME_SCALE = 3600;
+const WEATHER_DEFAULT_TIME_SCALE = DEFAULT_GAME_TIME_SCALE;
 const WEATHER_WIND_SEED = 90210;
 const STORM_SCREEN_RAIN_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.62;
 const STORM_SCREEN_RAIN_MAX_STREAKS = 180;
@@ -1058,6 +1068,7 @@ let minimap;
 let themeMusic = null;
 let soundEffects = null;
 const sailingAudioState = createSailingAudioState();
+const sailingTutorialState = createSailingTutorialState();
 let backgroundMusicTrackKey = "ship";
 let combatMusicUntilMs = 0;
 let gameAudioActivationAllowed = false;
@@ -1578,12 +1589,10 @@ async function loadWorldDiscoveryImages() {
 }
 
 function loadImage(key) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve([key, img]);
-    img.onerror = () => reject(new Error(`Failed to load ${TERRAIN_VARIANT} terrain image: ${key}`));
-    img.src = `/assets/terrain/${TERRAIN_VARIANT}/${key}.png?v=${TERRAIN_ASSET_VERSION}`;
-  });
+  return loadAssetImage(
+    `/assets/terrain/${TERRAIN_VARIANT}/${key}.png?v=${TERRAIN_ASSET_VERSION}`,
+    `${TERRAIN_VARIANT} terrain image: ${key}`
+  ).then((image) => [key, image]);
 }
 
 function loadVehicleImage(key) {
@@ -1728,11 +1737,18 @@ async function loadFactionFlagImages() {
 }
 
 function loadAssetImage(src, label) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load ${label}`));
-    img.src = src;
+  return loadImageWithRetry({
+    src,
+    label,
+    createImage: () => new Image(),
+    beforeRetry: waitForVisiblePage
+  });
+}
+
+function waitForVisiblePage() {
+  if (document.visibilityState !== "hidden") return Promise.resolve();
+  return new Promise((resolve) => {
+    document.addEventListener("visibilitychange", resolve, { once: true });
   });
 }
 
@@ -5089,7 +5105,28 @@ function updateSailing(dt) {
   if (recovered) playerRiverBlockedSeconds = 0;
   const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
-  return recovered || moveResult.moved || moveResult.collided || headingChanged || wakeChanged || vectorLength(ship.velocity) > 0.0001;
+  const tutorialChanged = updateStallTackingTutorial(dt, inputHeading, inRiver);
+  return tutorialChanged || recovered || moveResult.moved || moveResult.collided || headingChanged || wakeChanged || vectorLength(ship.velocity) > 0.0001;
+}
+
+function updateStallTackingTutorial(dt, inputHeading, inRiver) {
+  const wind = windForTile(ship.tileId);
+  const windFlow = windFlowVectorAtShip(wind);
+  const shouldPrompt = updateSailingTutorialState(sailingTutorialState, {
+    dt,
+    alreadyShown: gameState?.memory?.flags?.tackingTutorialShown === true,
+    eligible: !inRiver && !anchored && !playerHasCombatEngagement(),
+    activelySteering: Boolean(inputHeading),
+    stalled: sailingEfficiency(ship.heading, windFlow) <= 0
+  });
+  if (!shouldPrompt) return false;
+
+  const opened = openCaptainAlertModal(
+    "We're head to wind. Turn until the wind V sits outside the bow, then zigzag back upwind. That's tacking.",
+    "concerned"
+  );
+  if (opened) gameState.memory.flags.tackingTutorialShown = true;
+  return opened;
 }
 
 function inputHeadingForShip() {
@@ -14641,15 +14678,19 @@ function drawDialogueOverlay(nowMs) {
   const bodyTextW = portFaction && !portGreeting
     ? factionBlockX - (panelX + textXOffset) - 8
     : optionW;
-  const bodyLineLimit = portGreeting ? 8 : 4;
-  const bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
-  const feedbackLines = view.feedback
+  const textYOffset = portGreeting ? 52 : 25;
+  const optionHeight = view.optionHeight || DIALOGUE_OPTION_H;
+  const maximumPanelHeight = SCREEN_H - 13;
+  const feedbackReserve = view.feedback ? dialogueLineHeight * 2 : 0;
+  const bodyLineLimit = Math.max(1, Math.floor(
+    (maximumPanelHeight - textYOffset - optionHeight - feedbackReserve - 14) / dialogueLineHeight
+  ));
+  let bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
+  let feedbackLines = view.feedback
     ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
     : [];
-  const textYOffset = portGreeting ? 52 : 25;
   const bodyEndOffset = textYOffset + (bodyLines.length + feedbackLines.length) * dialogueLineHeight;
   const optionYOffset = portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
-  const optionHeight = view.optionHeight || DIALOGUE_OPTION_H;
   const contentHeight = optionYOffset + view.options.length * optionHeight + 9;
   const geometry = dialoguePanelGeometry({
     screenWidth: SCREEN_W,
@@ -14657,6 +14698,25 @@ function drawDialogueOverlay(nowMs) {
     contentHeight
   });
   const panel = geometry.panel;
+  const optionBottom = panel.y + panel.h - 9;
+  const safeOptions = dialogueOptionLayout({
+    desiredY: panel.y + optionYOffset,
+    bottom: optionBottom,
+    optionHeight,
+    optionCount: view.options.length
+  });
+  const textLineCapacity = Math.max(
+    0,
+    Math.floor((safeOptions.y - 5 - (panel.y + textYOffset)) / dialogueLineHeight)
+  );
+  if (bodyLines.length + feedbackLines.length > textLineCapacity) {
+    const feedbackLimit = Math.min(feedbackLines.length, Math.max(0, textLineCapacity - 1));
+    const bodyLimit = Math.max(0, textLineCapacity - feedbackLimit);
+    bodyLines = bodyLimit > 0 ? wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLimit) : [];
+    feedbackLines = feedbackLimit > 0
+      ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, feedbackLimit)
+      : [];
+  }
 
   drawDialoguePortrait(
     subject.character,
@@ -14701,8 +14761,7 @@ function drawDialogueOverlay(nowMs) {
   }
 
   const optionX = textX;
-  const optionY = panel.y + optionYOffset;
-  drawDialogueOptions(view, optionX, optionY, optionW, panel.y + panel.h - 9, dialogueFont);
+  drawDialogueOptions(view, optionX, safeOptions.y, optionW, optionBottom, dialogueFont);
 }
 
 function drawShipyardDialogueOverlay(dialogueView) {
@@ -14728,7 +14787,7 @@ function drawShipyardDialogueOverlay(dialogueView) {
     align: "center",
     color: "#fbb954"
   });
-  drawOptionsText(vessel.label.toUpperCase(), panel.x + panel.w / 2, panel.y + 22, {
+  drawOptionsText(fitPixelText(vessel.label.toUpperCase(), PIXEL_FONT_UI_10, panel.w - 76), panel.x + panel.w / 2, panel.y + 22, {
     font: PIXEL_FONT_UI_10,
     align: "center",
     color: "#ffffff"
@@ -14898,16 +14957,33 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
   const optionHeight = view.optionHeight || DIALOGUE_OPTION_H;
-  const availableH = Math.max(optionHeight, bottom - y);
-  const maxVisible = Math.max(1, Math.floor(availableH / optionHeight));
-  const needsScroll = view.options.length > maxVisible;
+  const layout = dialogueOptionLayout({
+    desiredY: y,
+    bottom,
+    optionHeight,
+    optionCount: view.options.length
+  });
+  y = layout.y;
+  const maxVisible = layout.visibleCount;
+  const needsScroll = layout.needsScroll;
   let scrollOffset = clamp(dialogueLayout.scrollOffset, 0, Math.max(0, view.options.length - maxVisible));
   if (dialogueState.selectedIndex < scrollOffset) scrollOffset = dialogueState.selectedIndex;
   if (dialogueState.selectedIndex >= scrollOffset + maxVisible) {
     scrollOffset = dialogueState.selectedIndex - maxVisible + 1;
   }
   dialogueLayout.scrollOffset = scrollOffset;
-  const optionWidth = needsScroll ? width - UI_PAGER_BUTTON_W - 5 : width;
+  const navigation = needsScroll
+    ? dialogueOptionNavigationLayout({
+      x,
+      y,
+      width,
+      visibleCount: maxVisible,
+      optionHeight,
+      buttonWidth: UI_PAGER_BUTTON_W,
+      buttonHeight: UI_PAGER_BUTTON_H
+    })
+    : null;
+  const optionWidth = navigation?.optionWidth || width;
   const visibleOptions = view.options.slice(scrollOffset, scrollOffset + maxVisible);
   for (let localIndex = 0; localIndex < visibleOptions.length; localIndex++) {
     const index = scrollOffset + localIndex;
@@ -14945,37 +15021,33 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     }
   }
 
-  if (needsScroll) {
-    const navX = x + width - UI_PAGER_BUTTON_W;
-    dialogueLayout.previousRect = { x: navX, y, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
-    dialogueLayout.nextRect = {
-      x: navX,
-      y: y + maxVisible * optionHeight - UI_PAGER_BUTTON_H,
-      w: UI_PAGER_BUTTON_W,
-      h: UI_PAGER_BUTTON_H
-    };
+  if (navigation) {
+    dialogueLayout.previousRect = navigation.previousRect;
+    dialogueLayout.nextRect = navigation.nextRect;
     drawOptionsArrowButton(
       dialogueLayout.previousRect,
-      "^",
+      navigation.direction === "horizontal" ? "<" : "^",
       pointInRect(optionsMenu.hoverPoint, dialogueLayout.previousRect)
     );
     drawOptionsArrowButton(
       dialogueLayout.nextRect,
-      "v",
+      navigation.direction === "horizontal" ? ">" : "v",
       pointInRect(optionsMenu.hoverPoint, dialogueLayout.nextRect)
     );
-    drawOptionsText(
-      `${dialogueState.selectedIndex + 1}/${view.options.length}`,
-      navX + UI_PAGER_BUTTON_W / 2,
-      y + Math.floor((maxVisible * optionHeight - 8) / 2),
-      { align: "center", color: "#ab947a" }
-    );
+    if (navigation.direction === "vertical") {
+      drawOptionsText(
+        `${dialogueState.selectedIndex + 1}/${view.options.length}`,
+        dialogueLayout.previousRect.x + UI_PAGER_BUTTON_W / 2,
+        y + Math.floor((maxVisible * optionHeight - 8) / 2),
+        { align: "center", color: "#ab947a" }
+      );
+    }
   }
 }
 
 function wrapPixelText(text, font, maxWidth, maxLines) {
   const words = String(text).split(/\s+/).filter(Boolean);
-  const lines = [];
+  const wrapped = [];
   let line = "";
   for (const word of words) {
     const next = line ? `${line} ${word}` : word;
@@ -14983,14 +15055,13 @@ function wrapPixelText(text, font, maxWidth, maxLines) {
       line = next;
       continue;
     }
-    if (line) lines.push(line);
+    if (line) wrapped.push(line);
     line = word;
-    if (lines.length >= maxLines) break;
   }
-  if (lines.length < maxLines && line) lines.push(line);
-  if (lines.length > maxLines) lines.length = maxLines;
-  if (lines.length === maxLines && words.length > 0) {
-    lines[maxLines - 1] = fitPixelText(lines[maxLines - 1], font, maxWidth);
+  if (line) wrapped.push(line);
+  const lines = wrapped.slice(0, maxLines).map((entry) => fitPixelText(entry, font, maxWidth));
+  if (wrapped.length > maxLines && lines.length > 0) {
+    lines[lines.length - 1] = fitPixelText(`${lines[lines.length - 1]} ...`, font, maxWidth);
   }
   return lines;
 }

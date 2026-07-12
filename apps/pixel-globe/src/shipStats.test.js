@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  SHIP_STATS,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
+import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
 
 test("later asset silhouettes use period-appropriate game identities", () => {
   const periodIdentities = {
@@ -45,4 +47,10 @@ test("hull points count one-point cannonball hits while mass preserves ship scal
     [greatCarrack.mass, greatCarrack.hitPoints],
     [620, 62]
   );
+});
+
+test("all hulls share the gentler cruise-speed scale", () => {
+  assert.equal(shipStatsForSlug("brigantine").topSpeedRad, 0.040 * SHIP_TOP_SPEED_SCALE);
+  assert.equal(shipStatsForSlug("felucca").topSpeedRad, 0.031 * SHIP_TOP_SPEED_SCALE);
+  assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006));
 });

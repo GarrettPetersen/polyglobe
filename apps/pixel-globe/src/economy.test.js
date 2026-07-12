@@ -12,7 +12,8 @@ import {
   maximumPortPurchaseQuantity,
   planNpcTrade,
   portEconomySummary,
-  portMarket
+  portMarket,
+  worldMarketPriceComparison
 } from "./economy.js";
 import {
   buyGood,
@@ -91,6 +92,21 @@ test("spice-island cargo commands transformative prices in Europe", () => {
   const sale = executePortPurchase(economy, LONDON, "spices", quantity);
   assert.ok(sale.total >= purchase.total * 2.5);
   assert.ok(sale.total - purchase.total >= 1000);
+});
+
+test("market comparisons describe local prices against the live world median", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, TERNATE, GOA], startMinute: 0 });
+  const islandBuy = worldMarketPriceComparison(economy, TERNATE, "spices", "buy");
+  const europeanSale = worldMarketPriceComparison(economy, LONDON, "spices", "sell");
+
+  assert.equal(islandBuy.direction, "low");
+  assert.ok(islandBuy.percent < 0);
+  assert.equal(europeanSale.direction, "high");
+  assert.ok(europeanSale.percent > 0);
+  assert.throws(
+    () => worldMarketPriceComparison(economy, LONDON, "spices", "barter"),
+    /Unknown market comparison side/
+  );
 });
 
 test("other long-haul prestige goods support profitable world-spanning routes", () => {

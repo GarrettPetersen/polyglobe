@@ -237,7 +237,10 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.match(root.text, /Market specie: \d+ db/);
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
-  assert.ok(market.options.some((option) => /\d+ db  x\d+/.test(option.label)));
+  assert.equal(market.optionHeight, 30);
+  assert.ok(market.options.some((option) => /\d+ db/.test(option.label)));
+  assert.ok(market.options.some((option) => /WORLD/.test(option.detail || "")));
+  assert.ok(market.options.some((option) => /STOCK \d+/.test(option.detail || "")));
   assert.ok(market.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(market.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   const buyIndex = market.options.findIndex((option) => (
@@ -254,7 +257,9 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   const sell = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
-  assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.label)));
+  assert.equal(sell.optionHeight, 30);
+  assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
+  assert.ok(sell.options.some((option) => /WORLD/.test(option.detail || "")));
 });
 
 test("the first port requires a chunky loadout choice and provisions the ship", () => {
@@ -291,6 +296,39 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.ok(result.loadoutResult.plan.totalSpace <= stats.cargoCapacity);
   assert.ok(gameState.doubloons <= before);
   assert.match(session.feedback, /Balanced targets set/);
+});
+
+test("package job offers show the great-circle distance", () => {
+  const lisbon = {
+    tileId: 21,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    routeRegion: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    lat: 38.72,
+    lon: -9.14,
+    character: { name: "Fernao da Cunha" }
+  };
+  const porto = {
+    ...lisbon,
+    tileId: 22,
+    city: "Porto",
+    displayCity: "Porto",
+    population: 50000,
+    lat: 41.15,
+    lon: -8.61
+  };
+  const economy = createWorldEconomy({ ports: [lisbon, porto], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(lisbon, { initialNodeId: "quest" });
+
+  const view = portDialogueView(session, lisbon, gameState, economy, [lisbon, porto]);
+
+  assert.match(view.text, /27\d km away/);
+  assert.match(view.options[0].detail, /27\d km GREAT-CIRCLE/);
 });
 
 test("shipyards show a full vessel presentation and enforce the asking price", () => {
@@ -348,6 +386,7 @@ test("passenger dialogue can be declined and accepted later", () => {
     originName: "Lisbon",
     destinationTileId: 2,
     destinationName: "Goa",
+    distanceKm: 7640,
     passenger: { name: "Mateo Costa" },
     reward: 180,
     scenarioId: "family-letter",
@@ -362,6 +401,8 @@ test("passenger dialogue can be declined and accepted later", () => {
 
   const offer = passengerDialogueView(session, origin, quest, gameState);
   assert.equal(offer.speaker, "Mateo Costa, passenger");
+  assert.match(offer.text, /7,640 km/);
+  assert.equal(offer.options[0].detail, "7,640 km GREAT-CIRCLE");
   assert.deepEqual(offer.options.map((option) => option.label), [
     "Take passenger to Goa  180 db",
     "Talk to factor",
