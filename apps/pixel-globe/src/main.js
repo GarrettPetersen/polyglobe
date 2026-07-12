@@ -227,6 +227,7 @@ import {
   fishingCatchSucceeds,
   fishingSideForTarget
 } from "./fishingAction.js";
+import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 
 const SCREEN_W = 455;
 const SCREEN_H = 256;
@@ -11685,6 +11686,7 @@ function fishIndividualCallsForFishery(tileCall, fishery, nowMs, maxCount = Infi
   for (let i = 0; i < count; i++) {
     const fishSeed = hashInt(seed ^ Math.imul(i + 1, 0x9e3779b1));
     const motion = fishIndividualSwimMotion(tileCall, fishery, fishSeed, i, nowMs);
+    if (!motion) continue;
     const x = Math.round(motion.x);
     const y = Math.round(motion.y);
     calls.push({
@@ -11723,7 +11725,26 @@ function fishIndividualSwimMotion(tileCall, fishery, fishSeed, index, nowMs) {
   x += scatter.x;
   y += scatter.y;
   const vx = axis.x * Math.cos(schoolingPhase) * radius.x + cross.x * Math.cos(schoolingPhase * 1.8) * radius.y + scatter.x;
-  return { x, y, vx };
+  const waterPoint = fishWaterMaskedPoint(tileCall, fishery, x, y, axis);
+  return waterPoint ? { ...waterPoint, vx } : null;
+}
+
+function fishWaterMaskedPoint(tileCall, fishery, x, y, preferredDirection) {
+  const isWater = (px, py) => wakeMapPointIsWater(px, py, chart);
+  if (isWater(x, y)) return { x, y };
+  if (fishery.habitatKind === "river" || fishery.habitatKind === "river-mouth") {
+    const river = nearestRiverCenterlineInfoAtLocalPoint(x, y, chart, preferredDirection);
+    if (river && isWater(river.centerlineX, river.centerlineY)) {
+      return { x: river.centerlineX, y: river.centerlineY };
+    }
+  }
+  return nearestWaterMaskedPoint({
+    x,
+    y,
+    isWater,
+    fallback: { x: tileCall.drawSurfaceX, y: tileCall.drawSurfaceY },
+    maxRadius: Math.max(6, Math.ceil(fishery.areaRadiusPx || 8) + 4)
+  });
 }
 
 function fisherySwimRadius(fishery) {
@@ -11803,8 +11824,22 @@ function fishHabitatForTileCall(tileCall) {
 
 function drawFishSprite(call) {
   const sprite = tintedFishSprite(call.colors);
+  const alpha = terrainAlphaMask(sprite).alpha;
+  const visiblePixels = waterMaskedSpritePixels({
+    x: call.x,
+    y: call.y,
+    width: FISH_SPRITE_SIZE,
+    height: FISH_SPRITE_SIZE,
+    alpha,
+    flip: call.flip,
+    isWater: (x, y) => wakeMapPointIsWater(x, y, chart)
+  });
+  if (visiblePixels.length === 0) return;
   ctx.save();
   ctx.globalAlpha = call.alpha;
+  ctx.beginPath();
+  for (const pixel of visiblePixels) ctx.rect(pixel.x, pixel.y, 1, 1);
+  ctx.clip();
   if (call.flip) {
     ctx.translate(call.x + FISH_SPRITE_SIZE, call.y);
     ctx.scale(-1, 1);
