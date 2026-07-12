@@ -194,7 +194,10 @@ import {
   shipLedgerPage,
   shipPapersPage
 } from "./shipInfo.js";
-import { selectCityCatalogRecords } from "./cityCatalogSelection.js";
+import {
+  MANUAL_CITY_RECORDS_1522,
+  selectCityCatalogRecords
+} from "./cityCatalogSelection.js";
 import {
   activePassengerQuest,
   markPassengerOfferSeen,
@@ -433,6 +436,7 @@ const CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES = new Set([
   "Cambodia",
   "Indonesia",
   "Lao People's Democratic Republic",
+  "Malaysia",
   "Myanmar",
   "Thailand",
   "Vietnam"
@@ -490,6 +494,7 @@ const CITY_TYPE_ISLAMIC_DESERT_COUNTRIES = new Set([
   "Libya",
   "Mauritania",
   "Morocco",
+  "Oman",
   "Saudi Arabia",
   "Sudan",
   "Sumer",
@@ -506,9 +511,12 @@ const CITY_TYPE_SUB_SAHARAN_COUNTRIES = new Set([
   "Angola",
   "Ethiopia",
   "Guinea",
+  "Kenya",
   "Mali",
+  "Mozambique",
   "Nigeria",
   "Senegal",
+  "Somalia",
   "Tanzania",
   "Zimbabwe"
 ]);
@@ -578,6 +586,12 @@ const PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
 const PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
 const PLAYER_INTRO_BUTTON_W = 116;
 const PLAYER_INTRO_BUTTON_H = 16;
+const GAME_OVER_MEMORIAL_MS = 8500;
+const GAME_OVER_FADE_MS = 1800;
+const GAME_OVER_PANEL_W = 350;
+const GAME_OVER_PANEL_H = 178;
+const GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
+const GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
 const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
@@ -938,8 +952,10 @@ let stormMusicActive = false;
 let stormDamageNotice = null;
 let combatNotice = null;
 let gameOverReason = null;
+let gameOverState = null;
 const portraitCanvasCache = new Map();
 const portraitPromiseCache = new Map();
+const grayscalePortraitCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
 let windIndicatorState = null;
@@ -974,6 +990,10 @@ window.addEventListener("pagehide", unlockOrientationIfPossible);
 
 window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
+  if (gameOverReason) {
+    handleGameOverKeyDown(event);
+    return;
+  }
   if (playerIntroModal) {
     handlePlayerIntroKeyDown(event);
     return;
@@ -1589,12 +1609,43 @@ async function loadCityCatalog(targetYear) {
     }
   }
 
+  ensureManualCityRecords(bestByCity, targetYear);
   ensureFactionCapitalCityRecords(bestByCity, targetYear);
 
   const cities = selectCityCatalogRecords(bestByCity.values(), CITY_MAX_COUNT);
   ensureFactionCapitalsInCityCatalog(cities, bestByCity);
+  ensureManualCitiesInCityCatalog(cities, bestByCity);
   if (cities.length === 0) throw new Error(`City dataset produced no cities for year ${targetYear}`);
   return cities;
+}
+
+function ensureManualCityRecords(bestByCity, targetYear) {
+  for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
+    if (manualSpec.year > targetYear) continue;
+    const cityId = normalizeCityKey(manualSpec.city, manualSpec.country);
+    const cityRecord = {
+      cityId,
+      city: manualSpec.city,
+      displayCity: manualSpec.displayCity || cityDisplayName(manualSpec.city, manualSpec.country, targetYear),
+      country: manualSpec.country,
+      lat: manualSpec.lat,
+      lon: manualSpec.lon,
+      cityType: manualSpec.cityType || cityTypeForCity(manualSpec.country, manualSpec.lat, manualSpec.lon),
+      year: manualSpec.year,
+      population: manualSpec.population,
+      coastalIntent: manualSpec.coastalIntent,
+      lakeIntent: manualSpec.lakeIntent,
+      requiredTradePort: Boolean(manualSpec.requiredTradePort),
+      manualRegion: manualSpec.manualRegion || null,
+      playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
+    };
+    const capitalSpec = factionCapitalForCity(cityRecord);
+    bestByCity.set(cityId, {
+      ...cityRecord,
+      factionId: factionIdForCity1522(cityRecord),
+      declaredCapitalFactionId: capitalSpec?.factionId || null
+    });
+  }
 }
 
 function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
@@ -1637,6 +1688,18 @@ function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
         `Faction capital ${capitalSpec.city}, ${capitalSpec.country} belongs to ${city.factionId}, not ${capitalSpec.factionId}`
       );
     }
+    cities.push(city);
+    included.add(cityId);
+  }
+}
+
+function ensureManualCitiesInCityCatalog(cities, bestByCity) {
+  const included = new Set(cities.map((city) => city.cityId));
+  for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
+    const cityId = normalizeCityKey(manualSpec.city, manualSpec.country);
+    if (included.has(cityId)) continue;
+    const city = bestByCity.get(cityId);
+    if (!city) throw new Error(`No city catalog record for manual city: ${manualSpec.city}, ${manualSpec.country}`);
     cities.push(city);
     included.add(cityId);
   }
@@ -2249,9 +2312,9 @@ function loop(nowMs) {
 function runFrame(nowMs) {
   const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
   lastFrameMs = nowMs;
-  if (!menusAreOpen() && !dialogueState && !playerIntroModal) {
-    if (!anchored && !gameOverReason && updateSailing(dt)) dirty = true;
-    if (!gameOverReason && updateCannons(dt)) dirty = true;
+  if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
+    if (!anchored && updateSailing(dt)) dirty = true;
+    if (updateCannons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateFishAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
@@ -2265,7 +2328,7 @@ function runFrame(nowMs) {
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
   if (updateCityFlagAnimation(nowMs)) dirty = true;
-  if (dirty || menusAreOpen() || dialogueState || nowMs - lastStatusMs > 1000) {
+  if (dirty || menusAreOpen() || dialogueState || gameOverReason || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
     lastStatusMs = nowMs;
@@ -2329,6 +2392,11 @@ function createPlayerIntroModal(character) {
 function handlePlayerIntroKeyDown(event) {
   event.preventDefault();
   if (event.key === "Enter" || event.key === " ") closePlayerIntroModal();
+}
+
+function handleGameOverKeyDown(event) {
+  event.preventDefault();
+  if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
 }
 
 function handlePlayerIntroPointerDown(point) {
@@ -3225,6 +3293,12 @@ function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
   ensureGameAudioStarted(true);
+  if (gameOverReason) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
+    return;
+  }
   if (playerIntroModal) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -4188,10 +4262,10 @@ function placeCityCatalog(cities) {
       throw new Error(`Could not place city on drawable land tile: ${city.city}, ${city.country}`);
     }
     if (placed.has(tileId)) {
-      if (!city.declaredCapitalFactionId) continue;
+      if (!cityIsRequiredPort(city)) continue;
       const alternateTileId = nearestTileMatching(tileId, (id) => placementPredicate(id) && !placed.has(id));
       if (alternateTileId === undefined) {
-        throw new Error(`Could not place faction capital on an unoccupied land tile: ${city.city}, ${city.country}`);
+        throw new Error(`Could not place required port city on an unoccupied land tile: ${city.city}, ${city.country}`);
       }
       tileId = alternateTileId;
     }
@@ -4201,8 +4275,12 @@ function placeCityCatalog(cities) {
 }
 
 function cityPlacementPredicate(city) {
-  if (!city.declaredCapitalFactionId) return isCityDrawableTile;
+  if (!cityIsRequiredPort(city)) return isCityDrawableTile;
   return (tileId) => isCityDrawableTile(tileId) && cityHasPortAccess(tileId);
+}
+
+function cityIsRequiredPort(city) {
+  return Boolean(city?.declaredCapitalFactionId || city?.requiredTradePort);
 }
 
 function portCitiesForCharacters() {
@@ -5405,7 +5483,11 @@ function updateStormDamage(previousMinute, currentMinute) {
 function sinkPlayerShip(reason) {
   if (gameOverReason) return;
   gameOverReason = reason;
+  gameOverState = createGameOverState(reason, lastFrameMs);
   anchored = false;
+  dialogueState = null;
+  dialogueLayout = createDialogueLayoutState();
+  closeMenusForGameOver();
   ship.velocity = [0, 0, 0];
   ship.wakeParticles = [];
   keys.clear();
@@ -5413,6 +5495,65 @@ function sinkPlayerShip(reason) {
   combatMusicUntilMs = 0;
   stormMusicActive = false;
   playMusicTrack("gameOverSad", { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS, restart: true });
+  dirty = true;
+}
+
+function createGameOverState(reason, startedAtMs) {
+  const character = gameState?.playerCharacter || null;
+  const deathMinute = Math.floor(weatherClockMinutes);
+  return {
+    reason,
+    startedAtMs,
+    deathMinute,
+    deathDateLabel: shipLedgerDateLabel(deathMinute),
+    character,
+    stats: createGameOverStats(deathMinute)
+  };
+}
+
+function createGameOverStats(deathMinute) {
+  const startMinute = START_WEATHER.clockMinutes;
+  const daysAtSea = Math.max(1, Math.floor((deathMinute - startMinute) / WEATHER_MINUTES_PER_DAY) + 1);
+  const discoveries = gameState ? discoveredEntries(gameState).length : 0;
+  const visitedPorts = gameState ? Object.keys(gameState.memory.visitedPorts).length : 0;
+  const completedQuests = gameState ? Object.keys(gameState.memory.quests.completed).length : 0;
+  const ledgerEntries = gameState?.accounts?.ledger?.length || 0;
+  const lettersOfMarque = gameState ? Object.keys(gameState.relations.lettersOfMarque).length : 0;
+  const cargo = gameState ? cargoUsed(gameState) : 0;
+  const cargoCapacity = gameState?.cargoCapacity || ship?.cargoCapacity || 0;
+  return {
+    daysAtSea,
+    discoveries,
+    visitedPorts,
+    completedQuests,
+    ledgerEntries,
+    lettersOfMarque,
+    doubloons: gameState?.doubloons || 0,
+    cargo,
+    cargoCapacity,
+    latitude: ship ? latitudeDegForDirection(ship.position) : 0,
+    longitude: ship ? longitudeDegForDirection(ship.position) : 0
+  };
+}
+
+function closeMenusForGameOver() {
+  optionsMenu.isOpen = false;
+  optionsMenu.activeSliderKey = null;
+  discoveriesMenu.isOpen = false;
+  shipInfoMenu.isOpen = false;
+  politicsMenu.isOpen = false;
+}
+
+function gameOverElapsedMs(nowMs) {
+  return Math.max(0, nowMs - (gameOverState?.startedAtMs ?? nowMs));
+}
+
+function gameOverRestartIsAvailable(nowMs) {
+  return Boolean(gameOverState && gameOverElapsedMs(nowMs) >= GAME_OVER_MEMORIAL_MS + GAME_OVER_FADE_MS);
+}
+
+function restartAfterGameOver() {
+  window.location.reload();
 }
 
 function updateNpcShips(dt) {
@@ -7178,7 +7319,7 @@ function render(nowMs) {
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
-  if (gameOverReason) drawGameOverOverlay();
+  if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal) drawPlayerIntroModal(nowMs);
 }
 
@@ -11883,24 +12024,147 @@ function drawPlayerIntroModal(nowMs) {
   });
 }
 
-function drawGameOverOverlay() {
-  ctx.fillStyle = "rgba(18, 14, 24, 0.78)";
+function drawGameOverOverlay(nowMs) {
+  const state = gameOverState;
+  if (!state) return;
+  const elapsed = gameOverElapsedMs(nowMs);
+  const fade = smoothstep(GAME_OVER_MEMORIAL_MS, GAME_OVER_MEMORIAL_MS + GAME_OVER_FADE_MS, elapsed);
+
+  if (fade < 1) drawGameOverMemorial(state, fade);
+
+  ctx.fillStyle = `rgba(0, 0, 0, ${fade})`;
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  const panel = { x: 92, y: 90, w: SCREEN_W - 184, h: 68 };
-  ctx.fillStyle = "#2e222f";
+
+  if (fade >= 1) drawGameOverStatsScreen(state);
+}
+
+function drawGameOverMemorial(state, fade) {
+  ctx.fillStyle = "rgba(13, 14, 17, 0.78)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  const panel = {
+    x: GAME_OVER_PANEL_X,
+    y: GAME_OVER_PANEL_Y,
+    w: GAME_OVER_PANEL_W,
+    h: GAME_OVER_PANEL_H
+  };
+  ctx.fillStyle = "#211f23";
   ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#f68181";
+  ctx.strokeStyle = "#9babb2";
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.fillStyle = "#ffd2c6";
-  drawPixelText("SHIP LOST", SCREEN_W / 2, panel.y + 15, {
+  ctx.strokeStyle = "#625565";
+  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+
+  ctx.fillStyle = "#d8d1c2";
+  drawPixelText("LOST AT SEA", SCREEN_W / 2, panel.y + 11, {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
-  ctx.fillStyle = "#c7dcd0";
-  drawPixelText(gameOverReason, SCREEN_W / 2, panel.y + 37, {
-    font: PIXEL_FONT_BODY_8,
+
+  const portraitX = panel.x + 18;
+  const portraitY = panel.y + 40;
+  ctx.fillStyle = "#111418";
+  ctx.fillRect(portraitX - 3, portraitY - 3, DIALOGUE_PORTRAIT_SIZE + 6, DIALOGUE_PORTRAIT_SIZE + 6);
+  ctx.strokeStyle = "#7f8890";
+  ctx.strokeRect(portraitX - 2.5, portraitY - 2.5, DIALOGUE_PORTRAIT_SIZE + 5, DIALOGUE_PORTRAIT_SIZE + 5);
+  drawDialoguePortrait(state.character, null, portraitX, portraitY, { grayscale: true });
+
+  const textX = panel.x + 104;
+  const textW = panel.w - 122;
+  ctx.fillStyle = "#f0e8d4";
+  drawPixelText(
+    fitPixelText((state.character?.name || "The captain").toUpperCase(), PIXEL_FONT_UI_8, textW),
+    textX,
+    panel.y + 42,
+    { font: PIXEL_FONT_UI_8 }
+  );
+  ctx.fillStyle = "#c7d0d0";
+  drawPixelText("was never seen again.", textX, panel.y + 55, { font: PIXEL_FONT_BODY_8 });
+
+  const rows = [
+    ["BORN", state.character?.birthDateLabel || "--"],
+    ["DIED", state.deathDateLabel],
+    ["HOME", state.character ? `${state.character.homePortName}, ${state.character.homePortRealmName}` : "--"],
+    ["CAUSE", state.reason]
+  ];
+  for (let i = 0; i < rows.length; i++) {
+    const y = panel.y + 76 + i * 21;
+    ctx.fillStyle = "#8f9aa2";
+    drawPixelText(rows[i][0], textX, y, { font: PIXEL_FONT_BODY_8 });
+    ctx.fillStyle = "#e0d4bd";
+    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_UI_8, textW), textX, y + 9, {
+      font: PIXEL_FONT_UI_8
+    });
+  }
+
+  if (fade > 0) {
+    ctx.fillStyle = `rgba(0, 0, 0, ${fade * 0.35})`;
+    ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  }
+}
+
+function drawGameOverStatsScreen(state) {
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  const name = state.character?.name || "The captain";
+  ctx.fillStyle = "#d8d1c2";
+  drawPixelText("VOYAGE ENDED", SCREEN_W / 2, 22, {
+    font: PIXEL_FONT_UI_8,
     align: "center"
   });
+  ctx.fillStyle = "#8f9aa2";
+  drawPixelText(
+    fitPixelText(`${name} was never seen again.`, PIXEL_FONT_BODY_8, SCREEN_W - 44),
+    SCREEN_W / 2,
+    39,
+    { font: PIXEL_FONT_BODY_8, align: "center" }
+  );
+
+  const rows = gameOverStatRows(state);
+  const labelX = 92;
+  const valueX = SCREEN_W - 92;
+  const y0 = 63;
+  for (let i = 0; i < rows.length; i++) {
+    const y = y0 + i * 14;
+    ctx.fillStyle = "#6f7d86";
+    drawPixelText(rows[i][0], labelX, y, { font: PIXEL_FONT_BODY_8 });
+    ctx.fillStyle = "#e4dbc6";
+    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_UI_8, valueX - labelX - 8), valueX, y, {
+      font: PIXEL_FONT_UI_8,
+      align: "right"
+    });
+  }
+
+  ctx.fillStyle = "#d6b66b";
+  drawPixelText("PRESS ANY KEY TO START A NEW VOYAGE", SCREEN_W / 2, SCREEN_H - 24, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+}
+
+function gameOverStatRows(state) {
+  const stats = state.stats;
+  return [
+    ["BORN", state.character?.birthDateLabel || "--"],
+    ["DIED", state.deathDateLabel],
+    ["DAYS AT SEA", String(stats.daysAtSea)],
+    ["LAST POSITION", formatLatLon(stats.latitude, stats.longitude)],
+    ["DISCOVERIES", String(stats.discoveries)],
+    ["PORTS VISITED", String(stats.visitedPorts)],
+    ["QUESTS COMPLETED", String(stats.completedQuests)],
+    ["LEDGER ENTRIES", String(stats.ledgerEntries)],
+    ["LETTERS", String(stats.lettersOfMarque)],
+    ["CARGO", `${stats.cargo}/${stats.cargoCapacity}`],
+    ["DOUBLOONS", String(stats.doubloons)]
+  ];
+}
+
+function formatLatLon(lat, lon) {
+  return `${formatCoordinate(lat, "N", "S")} ${formatCoordinate(lon, "E", "W")}`;
+}
+
+function formatCoordinate(value, positiveSuffix, negativeSuffix) {
+  const suffix = value < 0 ? negativeSuffix : positiveSuffix;
+  return `${Math.abs(value).toFixed(1)}${suffix}`;
 }
 
 function drawDialogueOverlay(nowMs) {
@@ -11983,10 +12247,37 @@ function drawDialogueFactionFlag(faction, panel, nowMs, city) {
   }
 }
 
-function drawDialoguePortrait(character, expressionId, x, y) {
+function drawDialoguePortrait(character, expressionId, x, y, options = {}) {
+  if (!character) return;
   const expression = characterExpression(character, expressionId || "neutral");
   const image = dialoguePortraitImage(character, expression);
-  if (image) ctx.drawImage(image, x, y);
+  if (!image) return;
+  const source = options.grayscale ? grayscalePortraitCanvas(image) : image;
+  ctx.drawImage(source, x, y);
+}
+
+function grayscalePortraitCanvas(source) {
+  const cached = grayscalePortraitCanvasCache.get(source);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const gctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!gctx) throw new Error("Could not create grayscale portrait canvas");
+  gctx.imageSmoothingEnabled = false;
+  gctx.drawImage(source, 0, 0);
+  const imageData = gctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+    const memorial = Math.round(gray * 0.74 + 28);
+    data[i] = memorial;
+    data[i + 1] = memorial;
+    data[i + 2] = memorial;
+  }
+  gctx.putImageData(imageData, 0, 0);
+  grayscalePortraitCanvasCache.set(source, canvas);
+  return canvas;
 }
 
 function drawDialogueOptions(view, x, y, width) {

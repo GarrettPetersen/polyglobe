@@ -149,6 +149,9 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Goa", "India", "portugal"),
   cityRule("Hormuz", "Iran", "portugal"),
   cityRule("Malacca", "Malaysia", "portugal"),
+  cityRule("Muscat", "Oman", "portugal"),
+  cityRule("Sofala", "Mozambique", "portugal"),
+  cityRule("Mozambique Island", "Mozambique", "portugal"),
 
   cityRule("Lhasa", "China", NEUTRAL_FACTION_ID),
   cityRule("Kashi", "China", NEUTRAL_FACTION_ID),
@@ -160,8 +163,10 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Tenayuca", "Mexico", "aztec"),
   cityRule("Cholula", "Mexico", "aztec"),
   cityRule("Zempoala", "Mexico", "aztec"),
+  cityRule("Veracruz", "Mexico", "spain"),
 
   cityRule("Baghdad", "Iraq", "safavid"),
+  cityRule("Jeddah", "Saudi Arabia", "ottoman"),
 
   cityRule("Sarai", "Russian Federation", NEUTRAL_FACTION_ID),
   cityRule("Astrakhan", "Russian Federation", NEUTRAL_FACTION_ID),
@@ -176,7 +181,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
     "Kolar", "Madurai", "Halebidu", "Rajahmundry"
   ], "vijayanagara"),
   ...cityRulesForCountry("India", [
-    "Ahmedabad", "Cambay", "Patan", "Somnath", "Dholavira"
+    "Ahmedabad", "Cambay", "Diu", "Patan", "Somnath", "Dholavira", "Surat"
   ], "gujarat"),
   ...cityRulesForCountry("India", [
     "Gauda", "Patna", "Pandua", "Kamarupa", "Kamtapur", "Nadiya", "Tamralipti"

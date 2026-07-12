@@ -145,7 +145,7 @@ const COUNTRY_CULTURES = new Map([
   ["Republic of Korea", "korean"], ["Dem. People's Republic of Korea", "korean"],
   ["Mali", "westAfrican"], ["Ghana", "westAfrican"], ["Nigeria", "westAfrican"],
   ["Senegal", "westAfrican"], ["Ethiopia", "eastAfrican"], ["Kenya", "eastAfrican"],
-  ["Tanzania", "eastAfrican"], ["Somalia", "eastAfrican"], ["Mexico", "nahua"],
+  ["Mozambique", "eastAfrican"], ["Tanzania", "eastAfrican"], ["Somalia", "eastAfrican"], ["Mexico", "nahua"],
   ["Guatemala", "nahua"], ["Peru", "andean"], ["Bolivia", "andean"],
   ["Ecuador", "andean"], ["Columbia", "andean"], ["Cuba", "spanish"],
   ["Dominican Republic", "spanish"], ["Panama", "spanish"], ["Puerto Rico", "spanish"]

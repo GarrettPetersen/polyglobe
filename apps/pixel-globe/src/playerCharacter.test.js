@@ -27,7 +27,11 @@ const PORTS = [
   port(8, "Cambay", "India", "south-asian", "gujarat", 22.31, 72.62),
   port(9, "Kilwa", "Tanzania", "sub-saharan", "neutral", -8.96, 39.51),
   port(10, "Tenochtitlan", "Mexico", "mesoamerican", "aztec", 19.43, -99.13),
-  port(11, "Goa", "India", "south-asian", "portugal", 15.49, 73.83)
+  port(11, "Goa", "India", "south-asian", "portugal", 15.49, 73.83),
+  {
+    ...port(12, "Veracruz", "Mexico", "mediterranean", "spain", 19.17, -96.13),
+    playerHomeExcluded: true
+  }
 ];
 
 test("starting profiles are deterministic and internally consistent", () => {
@@ -77,7 +81,7 @@ test("home selection balances the four allowed regions and excludes implausible 
     const selection = selectPlayerHomePort(`captain-${i}`, PORTS);
     seenRegions.add(selection.startRegion);
     seenCities.add(selection.homePort.city);
-    assert.ok(!["Kilwa", "Tenochtitlan", "Goa"].includes(selection.homePort.city));
+    assert.ok(!["Kilwa", "Tenochtitlan", "Goa", "Veracruz"].includes(selection.homePort.city));
   }
 
   assert.deepEqual([...seenRegions].sort(), ["east-asia", "europe", "india", "ottoman"]);
@@ -106,6 +110,7 @@ test("port classification accepts only the intended cultures", () => {
   assert.equal(playerStartRegionForPort(PORTS[8]), null);
   assert.equal(playerStartRegionForPort(PORTS[9]), null);
   assert.equal(playerStartRegionForPort(PORTS[10]), null);
+  assert.equal(playerStartRegionForPort(PORTS[11]), null);
 });
 
 test("player-facing home labels use the 1522 realm instead of the modern country", () => {

@@ -14,6 +14,7 @@ import {
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
 import {
+  MANUAL_CITY_RECORDS_1522,
   cityCatalogSelectionScore,
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
@@ -47,7 +48,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const { masks, toWaterMasks } = buildRiverMasks(graph, earth);
   const reachable = buildOceanReachableNavigationMask(graph, earth.tiles, masks, toWaterMasks);
   const cityRecords = buildCityRecords1522(csv);
-  const selected = ensureFactionCapitals(
+  const selected = ensureRequiredCities(
     selectCityCatalogRecords(cityRecords.values(), CITY_CATALOG_MAX_COUNT),
     cityRecords
   );
@@ -57,6 +58,13 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     city.country === "United Kingdom" || city.country === "Ireland"
   );
   const incaPorts = ports.filter((city) => city.factionId === "inca");
+  const manualPortFailures = MANUAL_CITY_RECORDS_1522
+    .filter((manualSpec) => !ports.some((city) =>
+      city.city === manualSpec.city &&
+      city.country === manualSpec.country &&
+      city.manualRegion === manualSpec.manualRegion
+    ))
+    .map((manualSpec) => `${manualSpec.city}, ${manualSpec.country}`);
 
   assert.ok(
     britishIslesPorts.length >= 5,
@@ -68,6 +76,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
+  assert.deepEqual(manualPortFailures, [], "expected every manual 1522 trade port to survive selection as dockable");
 });
 
 async function readJson(url) {
@@ -113,6 +122,32 @@ function buildCityRecords1522(csv) {
     });
   }
 
+  for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
+    const cityId = cityKey(manualSpec.city, manualSpec.country);
+    const cityRecord = {
+      cityId,
+      city: manualSpec.city,
+      displayCity: manualSpec.displayCity || displayName(manualSpec.city, manualSpec.country),
+      country: manualSpec.country,
+      lat: manualSpec.lat,
+      lon: manualSpec.lon,
+      cityType: manualSpec.cityType || null,
+      year: manualSpec.year,
+      population: manualSpec.population,
+      coastalIntent: manualSpec.coastalIntent,
+      lakeIntent: manualSpec.lakeIntent,
+      requiredTradePort: Boolean(manualSpec.requiredTradePort),
+      manualRegion: manualSpec.manualRegion || null,
+      playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
+    };
+    const capitalSpec = factionCapitalForCity(cityRecord);
+    bestByCity.set(cityId, {
+      ...cityRecord,
+      factionId: factionIdForCity1522(cityRecord),
+      declaredCapitalFactionId: capitalSpec?.factionId || null
+    });
+  }
+
   for (const capitalSpec of factionCapitalCityRecords1522()) {
     const cityId = cityKey(capitalSpec.city, capitalSpec.country);
     if (bestByCity.has(cityId)) continue;
@@ -137,7 +172,7 @@ function buildCityRecords1522(csv) {
   return bestByCity;
 }
 
-function ensureFactionCapitals(cities, cityRecords) {
+function ensureRequiredCities(cities, cityRecords) {
   const included = new Set(cities.map((city) => city.cityId));
   const out = [...cities];
   for (const capitalSpec of FACTION_CAPITALS_1522) {
@@ -145,6 +180,14 @@ function ensureFactionCapitals(cities, cityRecords) {
     if (included.has(cityId)) continue;
     const city = cityRecords.get(cityId);
     assert.ok(city, `missing capital record: ${capitalSpec.city}, ${capitalSpec.country}`);
+    out.push(city);
+    included.add(cityId);
+  }
+  for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
+    const cityId = cityKey(manualSpec.city, manualSpec.country);
+    if (included.has(cityId)) continue;
+    const city = cityRecords.get(cityId);
+    assert.ok(city, `missing manual city record: ${manualSpec.city}, ${manualSpec.country}`);
     out.push(city);
     included.add(cityId);
   }
@@ -156,16 +199,16 @@ function placeCityRecords(graph, directionIndex, earthRows, reachable, riverMask
   const byTile = new Map();
   for (const city of cities) {
     const startId = findNearestTileId(graph, directionIndex, latLonToDirection(city.lat, city.lon));
-    const predicate = city.declaredCapitalFactionId
+    const predicate = cityIsRequiredPort(city)
       ? (tileId) => isCityDrawableTile(earthRows, tileId) &&
         cityHasPortAccess(graph, earthRows, reachable, riverMasks, tileId)
       : (tileId) => isCityDrawableTile(earthRows, tileId);
     let tileId = predicate(startId) ? startId : nearestTileMatching(graph, startId, predicate);
     if (tileId === undefined) continue;
     if (byTile.has(tileId)) {
-      if (!city.declaredCapitalFactionId) continue;
+      if (!cityIsRequiredPort(city)) continue;
       const alternateTileId = nearestTileMatching(graph, tileId, (id) => predicate(id) && !byTile.has(id));
-      assert.notEqual(alternateTileId, undefined, `capital cannot be placed: ${cityLabel(city)}`);
+      assert.notEqual(alternateTileId, undefined, `required port cannot be placed: ${cityLabel(city)}`);
       tileId = alternateTileId;
     }
     const placedCity = {
@@ -177,6 +220,10 @@ function placeCityRecords(graph, directionIndex, earthRows, reachable, riverMask
     placed.push(placedCity);
   }
   return placed;
+}
+
+function cityIsRequiredPort(city) {
+  return Boolean(city?.declaredCapitalFactionId || city?.requiredTradePort);
 }
 
 function buildRiverMasks(graph, earth) {

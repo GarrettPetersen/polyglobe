@@ -118,6 +118,7 @@ export function selectPlayerHomePort(identityKey, ports) {
 
 export function playerStartRegionForPort(port) {
   if (!port || typeof port !== "object") return null;
+  if (port.playerHomeExcluded) return null;
   if (port.factionId === "ottoman") return "ottoman";
   if (port.cityType === "east-asian" && EAST_ASIAN_FACTIONS.has(port.factionId)) return "east-asia";
   if (port.cityType === "south-asian" && INDIAN_FACTIONS.has(port.factionId)) return "india";
