@@ -140,7 +140,8 @@ import {
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
-  heldRiverHaulStrength,
+  heldShipHaulStrength,
+  shipHaulMotionScale,
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
 import {
@@ -331,9 +332,9 @@ const SHIP_RIVER_CHANNEL_TOLERANCE_PX = 0.75;
 const SHIP_RIVER_TURN_RATE_MULTIPLIER = 2.4;
 const SHIP_RIVER_HAUL_ACCEL_RAD = 0.009;
 const SHIP_RIVER_HAUL_MAX_SPEED_RAD = 0.0085;
-const SHIP_RIVER_RECOVERY_AFTER_SECONDS = 0.42;
-const SHIP_RIVER_RECOVERY_MAX_RADIUS_PX = 8;
-const SHIP_RIVER_RECOVERY_SPEED_RAD = 0.0045;
+const SHIP_HAUL_RECOVERY_AFTER_SECONDS = 0.42;
+const SHIP_HAUL_RECOVERY_MAX_RADIUS_PX = 8;
+const SHIP_HAUL_RECOVERY_SPEED_RAD = 0.0045;
 const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
 const SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX = 48;
 const SHIP_RIVER_HEADING_ALIGN_DOT = Math.cos(Math.PI / 3);
@@ -1068,7 +1069,7 @@ let weatherMaskDayIndex = -1;
 let weatherDrawTick = -1;
 let ship;
 let playerSteeringHoldSeconds = 0;
-let playerRiverBlockedSeconds = 0;
+let playerHaulBlockedSeconds = 0;
 let camera;
 let chart;
 let localLayout;
@@ -5094,8 +5095,12 @@ function updateSailing(dt) {
   if (!ship || !camera) return false;
   const inputHeading = inputHeadingForShip();
   const inRiver = shipIsInRiverWater();
+  const haulMotionScale = shipHaulMotionScale({
+    inRiver,
+    nearShore: !inRiver && canAnchorAtCurrentShore()
+  });
   playerSteeringHoldSeconds = inputHeading ? playerSteeringHoldSeconds + dt : 0;
-  if (!inputHeading) playerRiverBlockedSeconds = 0;
+  if (!inputHeading) playerHaulBlockedSeconds = 0;
 
   const previousHeading = ship.heading;
   if (inputHeading) {
@@ -5112,7 +5117,7 @@ function updateSailing(dt) {
   }
 
   applyWindAcceleration(dt);
-  applyRiverHaulAcceleration(dt, inputHeading, inRiver);
+  applyHeldShipHaulAcceleration(dt, inputHeading, haulMotionScale);
   const previousPosition = ship.position;
   const moveResult = moveShipWithCollision(dt);
   const movedPx = vectorLength([
@@ -5120,12 +5125,13 @@ function updateSailing(dt) {
     ship.position[1] - previousPosition[1],
     ship.position[2] - previousPosition[2]
   ]) * PIXELS_PER_RADIAN;
-  const blockedInRiver = inRiver && inputHeading && moveResult.collided && movedPx < 0.08;
-  playerRiverBlockedSeconds = blockedInRiver ? playerRiverBlockedSeconds + dt : 0;
-  const recovered = blockedInRiver && playerRiverBlockedSeconds >= SHIP_RIVER_RECOVERY_AFTER_SECONDS
-    ? recoverPlayerFromRiverBank(inputHeading, moveResult.normal)
+  const blockedWhileHauling = haulMotionScale > 0 && inputHeading &&
+    moveResult.collided && movedPx < 0.08;
+  playerHaulBlockedSeconds = blockedWhileHauling ? playerHaulBlockedSeconds + dt : 0;
+  const recovered = blockedWhileHauling && playerHaulBlockedSeconds >= SHIP_HAUL_RECOVERY_AFTER_SECONDS
+    ? recoverPlayerFromNavigationEdge(inputHeading, moveResult.normal, haulMotionScale)
     : false;
-  if (recovered) playerRiverBlockedSeconds = 0;
+  if (recovered) playerHaulBlockedSeconds = 0;
   const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
   const tutorialChanged = updateStallTackingTutorial(dt, inRiver);
@@ -5290,19 +5296,19 @@ function applyWindAcceleration(dt) {
   limitShipSpeed(poweredShipMaxSpeed(wind.strength, efficiency));
 }
 
-function applyRiverHaulAcceleration(dt, inputHeading, inRiver) {
-  if (!inputHeading || !inRiver) return;
-  const strength = heldRiverHaulStrength(playerSteeringHoldSeconds);
+function applyHeldShipHaulAcceleration(dt, inputHeading, motionScale) {
+  if (!inputHeading || motionScale <= 0) return;
+  const strength = heldShipHaulStrength(playerSteeringHoldSeconds);
   if (strength <= 0) return;
   const direction = normalizeOrNull(projectTangentVector(inputHeading, ship.position));
   if (!direction) return;
 
   const currentSpeedTowardInput = dot3(ship.velocity, direction);
-  const maxSpeed = SHIP_RIVER_HAUL_MAX_SPEED_RAD * strength;
+  const maxSpeed = SHIP_RIVER_HAUL_MAX_SPEED_RAD * motionScale * strength;
   if (currentSpeedTowardInput >= maxSpeed) return;
 
   const addSpeed = Math.min(
-    SHIP_RIVER_HAUL_ACCEL_RAD * strength * dt,
+    SHIP_RIVER_HAUL_ACCEL_RAD * motionScale * strength * dt,
     maxSpeed - currentSpeedTowardInput
   );
   ship.velocity = projectTangentVector([
@@ -5412,10 +5418,10 @@ function moveShipWithCollision(dt) {
   return { moved: false, collided: true, normal };
 }
 
-function recoverPlayerFromRiverBank(inputHeading, blockedNormal) {
+function recoverPlayerFromNavigationEdge(inputHeading, blockedNormal, motionScale) {
   if (!inputHeading || !localLayout || !chart || !camera) return false;
-  const directions = playerRiverRecoveryDirections(inputHeading, blockedNormal);
-  for (let radiusPx = 1; radiusPx <= SHIP_RIVER_RECOVERY_MAX_RADIUS_PX; radiusPx++) {
+  const directions = playerHaulRecoveryDirections(inputHeading, blockedNormal);
+  for (let radiusPx = 1; radiusPx <= SHIP_HAUL_RECOVERY_MAX_RADIUS_PX; radiusPx++) {
     for (const direction of directions) {
       const candidatePosition = normalize3([
         ship.position[0] + direction[0] * radiusPx / PIXELS_PER_RADIAN,
@@ -5435,28 +5441,28 @@ function recoverPlayerFromRiverBank(inputHeading, blockedNormal) {
       applyShipMove(candidatePosition, tileId);
       ship.heading = normalizeTangentOrFallback(recoveryHeading, ship.position, ship.heading);
       ship.targetHeading = ship.heading.slice();
-      ship.velocity = scaleVector(ship.heading, SHIP_RIVER_RECOVERY_SPEED_RAD);
+      ship.velocity = scaleVector(ship.heading, SHIP_HAUL_RECOVERY_SPEED_RAD * motionScale);
       return true;
     }
   }
   return false;
 }
 
-function playerRiverRecoveryDirections(inputHeading, blockedNormal) {
+function playerHaulRecoveryDirections(inputHeading, blockedNormal) {
   const desired = normalizeOrNull(projectTangentVector(inputHeading, ship.position));
   if (!desired) return [];
   const candidates = [];
   const away = blockedNormal
     ? normalizeOrNull(projectTangentVector(scaleVector(blockedNormal, -1), ship.position))
     : null;
-  if (away) addPlayerRiverRecoveryDirection(candidates, away);
+  if (away) addPlayerHaulRecoveryDirection(candidates, away);
   for (const degrees of [0, 18, -18, 36, -36, 60, -60, 90, -90, 135, -135, 180]) {
-    addPlayerRiverRecoveryDirection(candidates, rotateTangentDirection(desired, ship.position, degrees * Math.PI / 180));
+    addPlayerHaulRecoveryDirection(candidates, rotateTangentDirection(desired, ship.position, degrees * Math.PI / 180));
   }
   return candidates.map((candidate) => candidate.direction);
 }
 
-function addPlayerRiverRecoveryDirection(candidates, direction) {
+function addPlayerHaulRecoveryDirection(candidates, direction) {
   if (!direction) return;
   const key = direction.map((value) => Math.round(value * 1000)).join(",");
   if (candidates.some((candidate) => candidate.key === key)) return;

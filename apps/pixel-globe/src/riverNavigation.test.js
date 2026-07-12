@@ -1,21 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  COASTAL_HAUL_MOTION_SCALE,
   advanceRiverCenterline,
   blendRiverNavigationDirections,
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
-  heldRiverHaulStrength,
+  heldShipHaulStrength,
+  shipHaulMotionScale,
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
 
-test("river hauling starts only after deliberate held input and ramps smoothly", () => {
-  assert.equal(heldRiverHaulStrength(0), 0);
-  assert.equal(heldRiverHaulStrength(0.28), 0);
-  assert.ok(heldRiverHaulStrength(0.64) > 0);
-  assert.ok(heldRiverHaulStrength(0.64) < 1);
-  assert.equal(heldRiverHaulStrength(1), 1);
-  assert.equal(heldRiverHaulStrength(3), 1);
+test("ship hauling starts only after deliberate held input and ramps smoothly", () => {
+  assert.equal(heldShipHaulStrength(0), 0);
+  assert.equal(heldShipHaulStrength(0.28), 0);
+  assert.ok(heldShipHaulStrength(0.64) > 0);
+  assert.ok(heldShipHaulStrength(0.64) < 1);
+  assert.equal(heldShipHaulStrength(1), 1);
+  assert.equal(heldShipHaulStrength(3), 1);
+});
+
+test("coastal hauling is available only near shore and is much slower than river hauling", () => {
+  assert.equal(shipHaulMotionScale({ inRiver: true, nearShore: true }), 1);
+  assert.equal(shipHaulMotionScale({ inRiver: false, nearShore: true }), COASTAL_HAUL_MOTION_SCALE);
+  assert.equal(shipHaulMotionScale({ inRiver: false, nearShore: false }), 0);
+  assert.ok(COASTAL_HAUL_MOTION_SCALE > 0);
+  assert.ok(COASTAL_HAUL_MOTION_SCALE < 0.25);
 });
 
 test("open-water ships are guided into a nearby river mouth in their forward cone", () => {

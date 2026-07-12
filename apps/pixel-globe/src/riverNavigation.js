@@ -2,24 +2,31 @@ export const RIVER_GATEWAY_SEARCH_RADIUS_PX = 34;
 export const RIVER_GATEWAY_SAMPLE_STEP_PX = 2;
 export const RIVER_GATEWAY_SAMPLE_DIRECTIONS = 32;
 export const RIVER_GATEWAY_MIN_FORWARD_DOT = Math.cos(Math.PI / 3);
-export const RIVER_HAUL_HOLD_DELAY_SECONDS = 0.28;
-export const RIVER_HAUL_RAMP_SECONDS = 0.72;
+export const SHIP_HAUL_HOLD_DELAY_SECONDS = 0.28;
+export const SHIP_HAUL_RAMP_SECONDS = 0.72;
+export const COASTAL_HAUL_MOTION_SCALE = 0.18;
 
-export function heldRiverHaulStrength(
+export function heldShipHaulStrength(
   heldSeconds,
-  holdDelaySeconds = RIVER_HAUL_HOLD_DELAY_SECONDS,
-  rampSeconds = RIVER_HAUL_RAMP_SECONDS
+  holdDelaySeconds = SHIP_HAUL_HOLD_DELAY_SECONDS,
+  rampSeconds = SHIP_HAUL_RAMP_SECONDS
 ) {
   if (!Number.isFinite(heldSeconds) || heldSeconds < 0) {
-    throw new Error("River haul duration must be a finite non-negative number");
+    throw new Error("Ship haul duration must be a finite non-negative number");
   }
   if (!Number.isFinite(holdDelaySeconds) || holdDelaySeconds < 0) {
-    throw new Error("River haul delay must be a finite non-negative number");
+    throw new Error("Ship haul delay must be a finite non-negative number");
   }
   if (!Number.isFinite(rampSeconds) || rampSeconds <= 0) {
-    throw new Error("River haul ramp must be a finite positive number");
+    throw new Error("Ship haul ramp must be a finite positive number");
   }
   return smoothstep((heldSeconds - holdDelaySeconds) / rampSeconds);
+}
+
+export function shipHaulMotionScale({ inRiver, nearShore }) {
+  if (inRiver) return 1;
+  if (nearShore) return COASTAL_HAUL_MOTION_SCALE;
+  return 0;
 }
 
 export function findRiverGatewayDirection({
