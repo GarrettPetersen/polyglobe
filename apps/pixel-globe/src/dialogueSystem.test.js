@@ -258,8 +258,23 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.optionHeight, 30);
+  assert.equal(sell.options.at(-1).label, "Back");
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
   assert.ok(sell.options.some((option) => /WORLD/.test(option.detail || "")));
+
+  const provisionsOnlyState = createGameState({ cargoCapacity: 20 });
+  const provisionsOnlySession = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const provisionsOnlySell = portDialogueView(
+    provisionsOnlySession,
+    city,
+    provisionsOnlyState,
+    economy,
+    [city]
+  );
+  assert.deepEqual(provisionsOnlySell.options.map((option) => option.label), [
+    "No cargo to sell",
+    "Back"
+  ]);
 });
 
 test("the first port requires a chunky loadout choice and provisions the ship", () => {

@@ -163,6 +163,7 @@ import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import {
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
+  dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
@@ -4275,6 +4276,7 @@ function closeDialogue() {
 function chooseDialogueOption(optionIndex) {
   let result;
   let dialogueNpcShipId = null;
+  const previousNodeId = dialogueState.nodeId || null;
   if (dialogueState.kind === "port") {
     const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueOption(
@@ -4323,6 +4325,7 @@ function chooseDialogueOption(optionIndex) {
     closeDialogue();
     return;
   }
+  if ((dialogueState.nodeId || null) !== previousNodeId) dialogueLayout.scrollOffset = 0;
   clampDialogueSelection();
   ensureDialoguePortraitLoaded();
   dirty = true;
@@ -14966,12 +14969,14 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
   y = layout.y;
   const maxVisible = layout.visibleCount;
   const needsScroll = layout.needsScroll;
-  let scrollOffset = clamp(dialogueLayout.scrollOffset, 0, Math.max(0, view.options.length - maxVisible));
-  if (dialogueState.selectedIndex < scrollOffset) scrollOffset = dialogueState.selectedIndex;
-  if (dialogueState.selectedIndex >= scrollOffset + maxVisible) {
-    scrollOffset = dialogueState.selectedIndex - maxVisible + 1;
-  }
-  dialogueLayout.scrollOffset = scrollOffset;
+  const optionWindow = dialogueOptionWindow({
+    optionCount: view.options.length,
+    visibleCount: maxVisible,
+    selectedIndex: dialogueState.selectedIndex,
+    scrollOffset: dialogueLayout.scrollOffset
+  });
+  dialogueState.selectedIndex = optionWindow.selectedIndex;
+  dialogueLayout.scrollOffset = optionWindow.scrollOffset;
   const navigation = needsScroll
     ? dialogueOptionNavigationLayout({
       x,
@@ -14984,9 +14989,9 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     })
     : null;
   const optionWidth = navigation?.optionWidth || width;
-  const visibleOptions = view.options.slice(scrollOffset, scrollOffset + maxVisible);
+  const visibleOptions = view.options.slice(optionWindow.start, optionWindow.end);
   for (let localIndex = 0; localIndex < visibleOptions.length; localIndex++) {
-    const index = scrollOffset + localIndex;
+    const index = optionWindow.start + localIndex;
     const option = visibleOptions[localIndex];
     const rect = {
       x,

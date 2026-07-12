@@ -98,3 +98,41 @@ export function dialogueOptionNavigationLayout({
     })
   });
 }
+
+export function dialogueOptionWindow({
+  optionCount,
+  visibleCount,
+  selectedIndex,
+  scrollOffset
+}) {
+  for (const [label, value] of Object.entries({ optionCount, visibleCount, selectedIndex, scrollOffset })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid dialogue option window ${label}`);
+  }
+  if (!Number.isInteger(optionCount) || optionCount <= 0) {
+    throw new Error("Dialogue option window requires at least one option");
+  }
+  if (!Number.isInteger(visibleCount) || visibleCount <= 0) {
+    throw new Error("Dialogue option window requires a visible option");
+  }
+
+  const safeVisibleCount = Math.min(optionCount, visibleCount);
+  const safeSelectedIndex = clampInteger(selectedIndex, 0, optionCount - 1);
+  const maximumOffset = Math.max(0, optionCount - safeVisibleCount);
+  let safeScrollOffset = clampInteger(scrollOffset, 0, maximumOffset);
+  if (safeSelectedIndex < safeScrollOffset) safeScrollOffset = safeSelectedIndex;
+  if (safeSelectedIndex >= safeScrollOffset + safeVisibleCount) {
+    safeScrollOffset = safeSelectedIndex - safeVisibleCount + 1;
+  }
+  safeScrollOffset = clampInteger(safeScrollOffset, 0, maximumOffset);
+
+  return Object.freeze({
+    selectedIndex: safeSelectedIndex,
+    scrollOffset: safeScrollOffset,
+    start: safeScrollOffset,
+    end: safeScrollOffset + safeVisibleCount
+  });
+}
+
+function clampInteger(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, Math.trunc(value)));
+}

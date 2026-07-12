@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
+  dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
 
@@ -115,4 +116,36 @@ test("multi-row dialogue paging keeps vertical navigation at the side", () => {
   assert.deepEqual(navigation.previousRect, { x: 211, y: 160, w: 24, h: 24 });
   assert.deepEqual(navigation.nextRect, { x: 211, y: 208, w: 24, h: 24 });
   assert.equal(navigation.optionWidth, 191);
+});
+
+test("a submenu cannot inherit an out-of-range selection and render no options", () => {
+  const window = dialogueOptionWindow({
+    optionCount: 2,
+    visibleCount: 2,
+    selectedIndex: 4,
+    scrollOffset: 4
+  });
+
+  assert.deepEqual(window, {
+    selectedIndex: 1,
+    scrollOffset: 0,
+    start: 0,
+    end: 2
+  });
+});
+
+test("a stale scroll offset is clamped before slicing submenu options", () => {
+  const window = dialogueOptionWindow({
+    optionCount: 2,
+    visibleCount: 1,
+    selectedIndex: 0,
+    scrollOffset: 8
+  });
+
+  assert.deepEqual(window, {
+    selectedIndex: 0,
+    scrollOffset: 0,
+    start: 0,
+    end: 1
+  });
 });
