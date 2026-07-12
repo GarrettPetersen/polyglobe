@@ -231,6 +231,7 @@ import {
 import { claimShipyardListing, shipyardAtPort, shipyardRumorForPort } from "./shipyards.js";
 import {
   MANUAL_CITY_RECORDS_1522,
+  cityPopulationObservationAtYear,
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
 import { withColonialFounding } from "./colonialCities.js";
@@ -1776,7 +1777,7 @@ async function loadCityCatalog(targetYear) {
   const populationIndex = requiredCsvIndex(header, "population");
   const coastalIntentIndex = optionalCsvIndex(header, "coastal_intent");
   const lakeIntentIndex = optionalCsvIndex(header, "lake_intent");
-  const bestByCity = new Map();
+  const observationsByCity = new Map();
 
   for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
     const row = rows[rowIndex];
@@ -1789,31 +1790,31 @@ async function loadCityCatalog(targetYear) {
     const population = requiredCsvNumber(row, populationIndex, rowIndex, "population");
     const coastalIntent = optionalCsvBoolean(row, coastalIntentIndex);
     const lakeIntent = optionalCsvBoolean(row, lakeIntentIndex);
-    if (population <= 0 || year > targetYear) continue;
+    if (population <= 0) continue;
 
     const cityId = normalizeCityKey(city, country);
-    const prev = bestByCity.get(cityId);
-    if (!prev || year > prev.year || (year === prev.year && population > prev.population)) {
-      const cityRecord = withColonialFounding({
-        cityId,
-        city,
-        displayCity: cityDisplayName(city, country, targetYear),
-        country,
-        lat,
-        lon,
-        cityType: cityTypeForCity(country, lat, lon),
-        year,
-        population: Math.round(population),
-        coastalIntent,
-        lakeIntent
-      });
-      const capitalSpec = factionCapitalForCity(cityRecord);
-      bestByCity.set(cityId, {
-        ...cityRecord,
-        factionId: factionIdForCity1522(cityRecord),
-        declaredCapitalFactionId: capitalSpec?.factionId || null
-      });
-    }
+    const observations = observationsByCity.get(cityId) || [];
+    observations.push({ cityId, city, country, lat, lon, year, population, coastalIntent, lakeIntent });
+    observationsByCity.set(cityId, observations);
+  }
+
+  const bestByCity = new Map();
+  for (const [cityId, observations] of observationsByCity) {
+    const capitalSpec = factionCapitalForCity(observations[0]);
+    const observation = cityPopulationObservationAtYear(observations, targetYear, {
+      allowStaleObservation: Boolean(capitalSpec)
+    });
+    if (!observation) continue;
+    const cityRecord = withColonialFounding({
+      ...observation,
+      displayCity: cityDisplayName(observation.city, observation.country, targetYear),
+      cityType: cityTypeForCity(observation.country, observation.lat, observation.lon)
+    });
+    bestByCity.set(cityId, {
+      ...cityRecord,
+      factionId: factionIdForCity1522(cityRecord),
+      declaredCapitalFactionId: capitalSpec?.factionId || null
+    });
   }
 
   ensureManualCityRecords(bestByCity, targetYear);

@@ -1,8 +1,66 @@
 import { withColonialFounding } from "./colonialCities.js";
 
 export const CITY_WATER_ACCESS_SCORE_BONUS = 45000;
+export const CITY_OBSERVATION_RELEVANCE_YEARS = 100;
+
+export function cityPopulationObservationAtYear(observations, targetYear, options = {}) {
+  if (!Array.isArray(observations)) throw new Error("City population observations must be an array");
+  if (!Number.isInteger(targetYear)) throw new Error(`Invalid city catalog year: ${targetYear}`);
+
+  const bestByYear = new Map();
+  for (const observation of observations) {
+    if (
+      !Number.isInteger(observation?.year) ||
+      !Number.isFinite(observation?.population) ||
+      observation.population <= 0
+    ) {
+      throw new Error("Invalid city population observation");
+    }
+    const previous = bestByYear.get(observation.year);
+    if (!previous || observation.population > previous.population) {
+      bestByYear.set(observation.year, observation);
+    }
+  }
+  const ordered = [...bestByYear.values()].sort((a, b) => a.year - b.year);
+
+  let previous = null;
+  let next = null;
+  for (const observation of ordered) {
+    if (observation.year <= targetYear) previous = observation;
+    else {
+      next = observation;
+      break;
+    }
+  }
+  if (!previous) return null;
+  // Sparse snapshots may bracket 1522, but distant same-name rows are not continuity evidence.
+  const previousIsRelevant = targetYear - previous.year <= CITY_OBSERVATION_RELEVANCE_YEARS;
+  const nextIsRelevant = Boolean(next && next.year - targetYear <= CITY_OBSERVATION_RELEVANCE_YEARS);
+  if (!previousIsRelevant && !nextIsRelevant && options.allowStaleObservation !== true) return null;
+
+  let population = previous.population;
+  let sourceYear = previous.year;
+  if (previousIsRelevant && nextIsRelevant) {
+    population = previous.population + (next.population - previous.population) *
+      ((targetYear - previous.year) / (next.year - previous.year));
+  } else if (nextIsRelevant) {
+    population = next.population;
+    sourceYear = next.year;
+  }
+  return {
+    ...previous,
+    year: targetYear,
+    population: Math.max(1, Math.round(population)),
+    sourceYear,
+    nextSourceYear: nextIsRelevant ? next.year : null
+  };
+}
 
 export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
+  manualCity1522("Exeter", "United Kingdom", 50.7236, -3.52751, 6000, {
+    cityType: "northern-european",
+    manualRegion: "british-isles"
+  }),
   manualCity1522("Malacca", "Malaysia", 2.1896, 102.2501, 90000, {
     manualRegion: "strait-of-malacca"
   }),
@@ -66,6 +124,10 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "mediterranean",
     manualRegion: "spanish-main",
     playerHomeExcluded: true
+  }),
+  manualCity1522("Chanchan", "Peru", -8.106, -79.074536, 25000, {
+    cityType: "andean",
+    manualRegion: "inca-coast"
   })
 ]);
 

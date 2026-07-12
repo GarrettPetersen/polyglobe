@@ -14,8 +14,10 @@ import {
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
 import {
+  CITY_OBSERVATION_RELEVANCE_YEARS,
   MANUAL_CITY_RECORDS_1522,
   cityCatalogSelectionScore,
+  cityPopulationObservationAtYear,
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
 import {
@@ -45,6 +47,47 @@ test("water-access intent gives small gameplay ports selection weight", () => {
   );
 });
 
+test("city observations cannot be extrapolated indefinitely", () => {
+  const recent = cityPopulationObservationAtYear([
+    { year: 1500, population: 12000 }
+  ], 1522);
+  const stale = cityPopulationObservationAtYear([
+    { year: 1522 - CITY_OBSERVATION_RELEVANCE_YEARS - 1, population: 12000 }
+  ], 1522);
+
+  assert.equal(recent.population, 12000);
+  assert.equal(recent.sourceYear, 1500);
+  assert.equal(stale, null);
+  assert.equal(cityPopulationObservationAtYear([
+    { year: -1300, population: 10000 }
+  ], 1522, { allowStaleObservation: true }).population, 10000);
+});
+
+test("later observations provide continuity and interpolate the 1522 population", () => {
+  const estimate = cityPopulationObservationAtYear([
+    { year: 1500, population: 10000 },
+    { year: 1600, population: 20000 }
+  ], 1522);
+
+  assert.equal(estimate.population, 12200);
+  assert.equal(estimate.sourceYear, 1500);
+  assert.equal(estimate.nextSourceYear, 1600);
+});
+
+test("distant future rows cannot revive an ancient city or backfill a new one", () => {
+  assert.equal(cityPopulationObservationAtYear([
+    { year: -300, population: 100000 },
+    { year: 1975, population: 846000 }
+  ], 1522), null);
+  assert.equal(cityPopulationObservationAtYear([
+    { year: 1590, population: 10000 }
+  ], 1522), null);
+  assert.equal(cityPopulationObservationAtYear([
+    { year: 100, population: 65000 },
+    { year: 1594, population: 10000 }
+  ], 1522).sourceYear, 1594);
+});
+
 test("1522 city selection keeps enough British Isles ports and Inca access", async () => {
   const [earth, csv] = await Promise.all([
     readJson(new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot)),
@@ -58,6 +101,21 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const { masks, toWaterMasks } = buildRiverMasks(graph, earth);
   const reachable = buildOceanReachableNavigationMask(graph, earth.tiles, masks, toWaterMasks);
   const cityRecords = buildCityRecords1522(csv);
+  for (const [city, country] of [
+    ["Troy", "Turkey"],
+    ["Hattusa", "Turkey"],
+    ["Mycenae", "Greece"],
+    ["Teotihuacan", "Mexico"]
+  ]) {
+    assert.equal(cityRecords.has(cityKey(city, country)), false, `${city} should not survive into 1522`);
+  }
+  for (const [city, country] of [
+    ["Athens", "Greece"],
+    ["Rome", "Italy"],
+    ["Exeter", "United Kingdom"]
+  ]) {
+    assert.equal(cityRecords.has(cityKey(city, country)), true, `${city} should remain active in 1522`);
+  }
   const selected = ensureRequiredCities(
     selectCityCatalogRecords(cityRecords.values(), CITY_CATALOG_MAX_COUNT),
     cityRecords
@@ -167,7 +225,7 @@ function buildCityRecords1522(csv) {
   const rows = parseCsvRows(csv);
   const header = rows[0];
   const indexes = Object.fromEntries(header.map((name, index) => [name, index]));
-  const bestByCity = new Map();
+  const observationsByCity = new Map();
   for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
     const row = rows[rowIndex];
     if (row.length === 1 && row[0] === "") continue;
@@ -177,24 +235,35 @@ function buildCityRecords1522(csv) {
     const lon = Number(row[indexes.longitude]);
     const year = Number.parseInt(row[indexes.year], 10);
     const population = Number(row[indexes.population]);
-    if (!city || !country || population <= 0 || year > 1522) continue;
+    if (!city || !country || population <= 0) continue;
 
     const cityId = cityKey(city, country);
-    const prev = bestByCity.get(cityId);
-    if (prev && (year < prev.year || (year === prev.year && population <= prev.population))) continue;
-    const cityRecord = withColonialFounding({
+    const observations = observationsByCity.get(cityId) || [];
+    observations.push({
       cityId,
       city,
-      displayCity: displayName(city, country),
       country,
       lat,
       lon,
       year,
-      population: Math.round(population),
+      population,
       coastalIntent: truthyCsv(row[indexes.coastal_intent]),
       lakeIntent: truthyCsv(row[indexes.lake_intent])
     });
-    const capitalSpec = factionCapitalForCity(cityRecord);
+    observationsByCity.set(cityId, observations);
+  }
+
+  const bestByCity = new Map();
+  for (const [cityId, observations] of observationsByCity) {
+    const capitalSpec = factionCapitalForCity(observations[0]);
+    const observation = cityPopulationObservationAtYear(observations, 1522, {
+      allowStaleObservation: Boolean(capitalSpec)
+    });
+    if (!observation) continue;
+    const cityRecord = withColonialFounding({
+      ...observation,
+      displayCity: displayName(observation.city, observation.country)
+    });
     bestByCity.set(cityId, {
       ...cityRecord,
       factionId: factionIdForCity1522(cityRecord),
