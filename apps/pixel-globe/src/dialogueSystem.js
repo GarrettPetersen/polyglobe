@@ -40,12 +40,27 @@ export function createPortDialogueSession(city, options = {}) {
   };
 }
 
-export function createPassengerDialogueSession(city, quest) {
+export function createPortArrivalDialogueSession(city, options = {}) {
+  const needsLoadout = options.needsLoadout === true;
+  if (options.passengerQuest) {
+    return createPassengerDialogueSession(city, options.passengerQuest, {
+      continueToPortOnClose: true,
+      nextPortNodeId: needsLoadout ? "loadout" : "greeting"
+    });
+  }
+  return createPortDialogueSession(city, {
+    initialNodeId: needsLoadout ? "loadout" : "greeting"
+  });
+}
+
+export function createPassengerDialogueSession(city, quest, options = {}) {
   if (!quest || quest.kind !== "passenger") throw new Error("Passenger dialogue requires a passenger quest");
   return {
     kind: "passenger",
     cityTileId: city.tileId,
     questId: quest.id,
+    continueToPortOnClose: options.continueToPortOnClose === true,
+    nextPortNodeId: options.nextPortNodeId || null,
     selectedIndex: 0,
     feedback: null
   };
@@ -362,8 +377,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
       option(`Take passenger to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
         detail: `${formatDistanceKm(quest.distanceKm)} GREAT-CIRCLE`
       }),
-      option("Talk to factor", { type: "open-port" }),
-      option("Not now", { type: "close" })
+      option("Decline", { type: "open-port" })
     ]
   };
 }

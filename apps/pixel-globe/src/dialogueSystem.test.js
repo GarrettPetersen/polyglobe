@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createPassengerDialogueSession,
+  createPortArrivalDialogueSession,
   createPortDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
@@ -470,12 +471,11 @@ test("passenger dialogue can be declined and accepted later", () => {
   assert.equal(offer.options[0].detail, "7,640 km GREAT-CIRCLE");
   assert.deepEqual(offer.options.map((option) => option.label), [
     "Take passenger to Goa  180 db",
-    "Talk to factor",
-    "Not now"
+    "Decline"
   ]);
-  assert.deepEqual(selectPassengerDialogueOption(session, origin, quest, gameState, 2), {
-    closed: true,
-    action: null
+  assert.deepEqual(selectPassengerDialogueOption(session, origin, quest, gameState, 1), {
+    closed: false,
+    action: { type: "open-port" }
   });
   assert.equal(gameState.memory.quests.active, null);
 
@@ -486,6 +486,32 @@ test("passenger dialogue can be declined and accepted later", () => {
   });
   assert.equal(gameState.memory.quests.active.id, quest.id);
   assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
+});
+
+test("an unseen passenger precedes the loadout and factor during port arrival", () => {
+  const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
+  const passengerQuest = {
+    id: "passenger-arrival-order",
+    kind: "passenger",
+    originTileId: city.tileId,
+    destinationTileId: 2
+  };
+
+  const firstPort = createPortArrivalDialogueSession(city, {
+    needsLoadout: true,
+    passengerQuest
+  });
+  assert.equal(firstPort.kind, "passenger");
+  assert.equal(firstPort.continueToPortOnClose, true);
+  assert.equal(firstPort.nextPortNodeId, "loadout");
+
+  const ordinaryPort = createPortArrivalDialogueSession(city, { passengerQuest });
+  assert.equal(ordinaryPort.kind, "passenger");
+  assert.equal(ordinaryPort.nextPortNodeId, "greeting");
+
+  const noPassenger = createPortArrivalDialogueSession(city, { needsLoadout: true });
+  assert.equal(noPassenger.kind, "port");
+  assert.equal(noPassenger.nodeId, "loadout");
 });
 
 test("capital port dialogue can grant a letter of marque", () => {

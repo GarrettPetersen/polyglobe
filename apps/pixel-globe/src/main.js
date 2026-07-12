@@ -94,8 +94,9 @@ import {
   restrictMountainsToNavigableView
 } from "./discoveries.js";
 import {
-  createPortDialogueSession,
   createPassengerDialogueSession,
+  createPortArrivalDialogueSession,
+  createPortDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
   portDialogueView,
@@ -4175,14 +4176,16 @@ function openPortDialogue(cityCall) {
   if (needsLoadout) repairPlayerShipAtPort();
   else applyAutomaticPortServices(cityCall);
   const passengerQuest = passengerDialogueQuestForCity(cityCall, { createOffer: true });
-  if (needsLoadout) {
-    dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "loadout" });
-  } else if (passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)) {
-    markPassengerOfferSeen(gameState, passengerQuest);
-    dialogueState = createPassengerDialogueSession(cityCall, passengerQuest);
-  } else {
-    dialogueState = createPortDialogueSession(cityCall);
+  const autoPassengerQuest = passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)
+    ? passengerQuest
+    : null;
+  if (autoPassengerQuest) {
+    markPassengerOfferSeen(gameState, autoPassengerQuest);
   }
+  dialogueState = createPortArrivalDialogueSession(cityCall, {
+    needsLoadout,
+    passengerQuest: autoPassengerQuest
+  });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
@@ -4216,7 +4219,10 @@ function repairPlayerShipAtPort() {
 function openPassengerDialogue(cityCall, quest) {
   if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
   markPassengerOfferSeen(gameState, quest);
-  dialogueState = createPassengerDialogueSession(cityCall, quest);
+  dialogueState = createPassengerDialogueSession(cityCall, quest, {
+    continueToPortOnClose: true,
+    nextPortNodeId: "root"
+  });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
@@ -4225,7 +4231,8 @@ function openPassengerDialogue(cityCall, quest) {
 
 function openPortDialogueFromActivePassenger() {
   const city = currentDialogueCity();
-  dialogueState = createPortDialogueSession(city);
+  const initialNodeId = dialogueState.nextPortNodeId || "greeting";
+  dialogueState = createPortDialogueSession(city, { initialNodeId });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   dirty = true;
@@ -4339,6 +4346,10 @@ function chooseDialogueOption(optionIndex) {
   }
   if (result.action && dialogueNpcShipId) applyShipDialogueAction(dialogueNpcShipId, result.action);
   if (result.closed) {
+    if (dialogueState.kind === "passenger" && dialogueState.continueToPortOnClose) {
+      openPortDialogueFromActivePassenger();
+      return;
+    }
     closeDialogue();
     return;
   }
