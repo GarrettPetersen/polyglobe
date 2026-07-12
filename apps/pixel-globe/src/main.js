@@ -586,6 +586,40 @@ const PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
 const PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
 const PLAYER_INTRO_BUTTON_W = 116;
 const PLAYER_INTRO_BUTTON_H = 16;
+const START_MENU_PANEL_W = 244;
+const START_MENU_PANEL_H = 158;
+const START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
+const START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
+const START_MENU_BUTTON_W = 142;
+const START_MENU_BUTTON_H = 18;
+const START_MENU_BUTTON_GAP = 10;
+const START_MENU_BUTTON_COUNT = 3;
+const START_MENU_ACTION_START = 0;
+const START_MENU_ACTION_OPTIONS = 1;
+const START_MENU_ACTION_CREDITS = 2;
+const CREDITS_MARKDOWN_URL = "/assets/CREDITS.md";
+const CREDITS_FALLBACK_MARKDOWN = `# Pirates of the Pixel Globe Credits
+
+## Created by
+- Garrett Petersen
+
+## Music
+- YouFulca
+
+## Sound Effects
+- Alex Jauk
+- Dragon Studio
+- Floraphonic
+- Freesound Community
+- SoundsForYou
+- Tanweraman
+- Universfield
+- u_7hpxkdroz2`;
+const CREDITS_PANEL_W = 338;
+const CREDITS_PANEL_H = 218;
+const CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
+const CREDITS_PANEL_Y = Math.floor((SCREEN_H - CREDITS_PANEL_H) / 2);
+const CREDITS_LINES_PER_PAGE = 16;
 const GAME_OVER_MEMORIAL_MS = 8500;
 const GAME_OVER_FADE_MS = 1800;
 const GAME_OVER_PANEL_W = 350;
@@ -943,6 +977,8 @@ let gameAudioActivationAllowed = false;
 let gameState = null;
 let dialogueState = null;
 let dialogueLayout = createDialogueLayoutState();
+let startMenu = null;
+let creditsMarkdown = "";
 let playerIntroModal = null;
 let interactionButtonRect = null;
 let interactionButtonTarget = null;
@@ -976,6 +1012,7 @@ let seagulls = [];
 let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
 const optionsMenu = createOptionsMenuState();
+const creditsMenu = createCreditsMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
 const shipInfoMenu = createShipInfoMenuState();
 const politicsMenu = createPoliticsMenuState();
@@ -994,10 +1031,6 @@ window.addEventListener("keydown", (event) => {
     handleGameOverKeyDown(event);
     return;
   }
-  if (playerIntroModal) {
-    handlePlayerIntroKeyDown(event);
-    return;
-  }
   if (shipInfoMenu.isOpen) {
     handleShipInfoKeyDown(event);
     return;
@@ -1012,6 +1045,18 @@ window.addEventListener("keydown", (event) => {
   }
   if (optionsMenu.isOpen) {
     handleOptionsKeyDown(event);
+    return;
+  }
+  if (creditsMenu.isOpen) {
+    handleCreditsKeyDown(event);
+    return;
+  }
+  if (startMenu) {
+    handleStartMenuKeyDown(event);
+    return;
+  }
+  if (playerIntroModal) {
+    handlePlayerIntroKeyDown(event);
     return;
   }
   if (dialogueState) {
@@ -1089,6 +1134,7 @@ async function main() {
     loadedCityCatalog,
     loadedCharacterPortraitManifest,
     loadedNamedMountains,
+    loadedCreditsMarkdown,
     earth,
     discreteWeatherBuffer,
     runtimeWeatherBuffer
@@ -1111,6 +1157,10 @@ async function main() {
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
     loadNamedMountains(),
+    fetchText(CREDITS_MARKDOWN_URL, "credits").catch((error) => {
+      console.warn("[pixel-globe] failed to load credits markdown", error);
+      return "";
+    }),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
@@ -1128,6 +1178,7 @@ async function main() {
   factionFlagImages = loadedFactionFlagImages;
   animalImages = loadedAnimalImages;
   cityCatalog = loadedCityCatalog;
+  creditsMarkdown = loadedCreditsMarkdown;
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -1280,6 +1331,7 @@ async function main() {
     playerCharacter
   });
   playerIntroModal = createPlayerIntroModal(playerCharacter);
+  startMenu = createStartMenuState();
   await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
@@ -2333,7 +2385,7 @@ function runFrame(nowMs) {
     dirty = false;
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
-  } else if (!playerIntroModal && nowMs - lastOverlayMs > 250) {
+  } else if (!startMenu && !creditsMenu.isOpen && !playerIntroModal && nowMs - lastOverlayMs > 250) {
     drawMinimap(nowMs);
     drawShipInfoButton();
     drawPoliticsButton();
@@ -2373,6 +2425,24 @@ function createOptionsMenuState() {
     muteRect: null,
     shipPrevRect: null,
     shipNextRect: null
+  };
+}
+
+function createStartMenuState() {
+  return {
+    selectedIndex: START_MENU_ACTION_START,
+    buttonRects: []
+  };
+}
+
+function createCreditsMenuState() {
+  return {
+    isOpen: false,
+    page: 0,
+    panelRect: null,
+    closeButtonRect: null,
+    previousPageRect: null,
+    nextPageRect: null
   };
 }
 
@@ -2454,7 +2524,8 @@ function createPoliticsMenuState() {
 }
 
 function menusAreOpen() {
-  return optionsMenu.isOpen || discoveriesMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen;
+  return Boolean(startMenu) || creditsMenu.isOpen || optionsMenu.isOpen ||
+    discoveriesMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen;
 }
 
 function setupThemeMusic() {
@@ -3162,10 +3233,49 @@ function stepShipInfoPage(direction) {
   dirty = true;
 }
 
+function closeStartMenu() {
+  startMenu = null;
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function openCreditsMenu() {
+  closeOptionsMenu();
+  closeDiscoveriesMenu();
+  closeShipInfoMenu();
+  closePoliticsMenu();
+  creditsMenu.isOpen = true;
+  creditsMenu.page = 0;
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeCreditsMenu() {
+  creditsMenu.isOpen = false;
+  creditsMenu.panelRect = null;
+  creditsMenu.closeButtonRect = null;
+  creditsMenu.previousPageRect = null;
+  creditsMenu.nextPageRect = null;
+  dirty = true;
+}
+
+function creditsPageCount() {
+  return Math.max(1, Math.ceil(creditsDisplayLines().length / CREDITS_LINES_PER_PAGE));
+}
+
+function stepCreditsPage(direction) {
+  const pageCount = creditsPageCount();
+  creditsMenu.page = clamp(creditsMenu.page + direction, 0, pageCount - 1);
+  dirty = true;
+}
+
 function openOptionsMenu() {
   closeDiscoveriesMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
+  closeCreditsMenu();
   optionsMenu.isOpen = true;
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
@@ -3289,6 +3399,52 @@ function handleOptionsKeyDown(event) {
   }
 }
 
+function handleStartMenuKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    startMenu.selectedIndex =
+      (startMenu.selectedIndex + direction + START_MENU_BUTTON_COUNT) % START_MENU_BUTTON_COUNT;
+    dirty = true;
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    activateStartMenuSelection();
+    return;
+  }
+  if (event.key === "Escape") {
+    openOptionsMenu();
+  }
+}
+
+function handleCreditsKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closeCreditsMenu();
+    return;
+  }
+  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+    stepCreditsPage(-1);
+  } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+    const pageCount = creditsPageCount();
+    if (creditsMenu.page >= pageCount - 1 && (event.key === "Enter" || event.key === " ")) closeCreditsMenu();
+    else stepCreditsPage(1);
+  }
+}
+
+function activateStartMenuSelection() {
+  if (!startMenu) return;
+  if (startMenu.selectedIndex === START_MENU_ACTION_START) {
+    closeStartMenu();
+    return;
+  }
+  if (startMenu.selectedIndex === START_MENU_ACTION_OPTIONS) {
+    openOptionsMenu();
+    return;
+  }
+  if (startMenu.selectedIndex === START_MENU_ACTION_CREDITS) openCreditsMenu();
+}
+
 function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
@@ -3297,6 +3453,24 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
+    return;
+  }
+  if (optionsMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleOptionsPointerDown(point);
+    return;
+  }
+  if (creditsMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleCreditsPointerDown(point);
+    return;
+  }
+  if (startMenu) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleStartMenuPointerDown(point);
     return;
   }
   if (playerIntroModal) {
@@ -3321,12 +3495,6 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     handleDiscoveriesPointerDown(point);
-    return;
-  }
-  if (optionsMenu.isOpen) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleOptionsPointerDown(point);
     return;
   }
   if (pointInRect(point, getShipInfoButtonRect())) {
@@ -3392,6 +3560,20 @@ function handlePointerDown(event) {
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
+  if (optionsMenu.isOpen) {
+    updateOptionsSelectionFromPoint(point);
+    if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
+    else dirty = true;
+    return;
+  }
+  if (creditsMenu.isOpen) {
+    dirty = true;
+    return;
+  }
+  if (startMenu) {
+    updateStartMenuSelectionFromPoint(point);
+    return;
+  }
   if (playerIntroModal) {
     playerIntroModal.hovered = pointInRect(point, playerIntroModal.buttonRect);
     dirty = true;
@@ -3407,12 +3589,6 @@ function handlePointerMove(event) {
   }
   if (discoveriesMenu.isOpen) {
     dirty = true;
-    return;
-  }
-  if (optionsMenu.isOpen) {
-    updateOptionsSelectionFromPoint(point);
-    if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
-    else dirty = true;
     return;
   }
   if (dialogueState) {
@@ -3502,6 +3678,28 @@ function handleOptionsPointerDown(point) {
   }
 }
 
+function handleStartMenuPointerDown(point) {
+  updateStartMenuSelectionFromPoint(point);
+  for (let i = 0; i < startMenu.buttonRects.length; i++) {
+    if (!pointInRect(point, startMenu.buttonRects[i])) continue;
+    startMenu.selectedIndex = i;
+    activateStartMenuSelection();
+    return;
+  }
+}
+
+function handleCreditsPointerDown(point) {
+  if (pointInRect(point, creditsMenu.closeButtonRect)) {
+    closeCreditsMenu();
+    return;
+  }
+  if (pointInRect(point, creditsMenu.previousPageRect)) {
+    stepCreditsPage(-1);
+    return;
+  }
+  if (pointInRect(point, creditsMenu.nextPageRect)) stepCreditsPage(1);
+}
+
 function handleDiscoveriesPointerDown(point) {
   if (pointInRect(point, discoveriesMenu.closeButtonRect)) {
     closeDiscoveriesMenu();
@@ -3571,9 +3769,20 @@ function updateOptionsSelectionFromPoint(point) {
   for (let i = 0; i < optionsMenu.rowRects.length; i++) {
     if (pointInRect(point, optionsMenu.rowRects[i])) {
       optionsMenu.selectedIndex = i;
+      dirty = true;
       return;
     }
   }
+}
+
+function updateStartMenuSelectionFromPoint(point) {
+  for (let i = 0; i < startMenu.buttonRects.length; i++) {
+    if (!pointInRect(point, startMenu.buttonRects[i])) continue;
+    startMenu.selectedIndex = i;
+    dirty = true;
+    return;
+  }
+  dirty = true;
 }
 
 function setOptionsVolumeFromPoint(sliderKey, point) {
@@ -5553,6 +5762,7 @@ function gameOverRestartIsAvailable(nowMs) {
 }
 
 function restartAfterGameOver() {
+  // Rebuild the procedural voyage from scratch; boot now lands on the start menu.
   window.location.reload();
 }
 
@@ -7315,12 +7525,14 @@ function render(nowMs) {
   drawPoliticsButton();
   drawDiscoveriesButton();
   drawOptionsButton();
-  if (optionsMenu.isOpen) drawOptionsMenu();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
   if (gameOverReason) drawGameOverOverlay(nowMs);
-  if (playerIntroModal) drawPlayerIntroModal(nowMs);
+  if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
+  if (startMenu) drawStartMenu(nowMs);
+  if (creditsMenu.isOpen) drawCreditsMenu();
+  if (optionsMenu.isOpen) drawOptionsMenu();
 }
 
 function drawWorldDiscoverySprites(activeChart) {
@@ -8712,6 +8924,200 @@ function politicsStandingColor(reputation) {
 function politicsFactionColor(factionId) {
   if (factionId === PIRATE_FACTION_ID) return "#f04f78";
   return "#eee4cf";
+}
+
+function drawStartMenu(nowMs) {
+  const panel = {
+    x: START_MENU_PANEL_X,
+    y: START_MENU_PANEL_Y,
+    w: START_MENU_PANEL_W,
+    h: START_MENU_PANEL_H
+  };
+  const pulse = 0.5 + 0.5 * Math.sin(nowMs / 620);
+
+  ctx.save();
+  ctx.fillStyle = "rgba(16, 20, 23, 0.72)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#1d2630";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#8ac0b4";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(panel.x + 4.5, panel.y + 4.5, panel.w - 9, panel.h - 9);
+
+  ctx.fillStyle = "#fff1bf";
+  drawPixelText("PIRATES OF THE", panel.x + panel.w / 2, panel.y + 21, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+  ctx.fillStyle = "#f9c22b";
+  drawPixelText("PIXEL GLOBE", panel.x + panel.w / 2, panel.y + 34, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+  ctx.fillStyle = `rgba(138, 192, 180, ${0.45 + pulse * 0.35})`;
+  ctx.fillRect(panel.x + 54, panel.y + 51, panel.w - 108, 1);
+  ctx.fillStyle = "#c7dcd0";
+  drawPixelText("1522", panel.x + panel.w / 2, panel.y + 57, {
+    font: PIXEL_FONT_BODY_8,
+    align: "center"
+  });
+
+  const labels = ["START GAME", "OPTIONS", "CREDITS"];
+  const firstButtonY = panel.y + 76;
+  startMenu.buttonRects = labels.map((_, index) => ({
+    x: panel.x + Math.floor((panel.w - START_MENU_BUTTON_W) / 2),
+    y: firstButtonY + index * (START_MENU_BUTTON_H + START_MENU_BUTTON_GAP),
+    w: START_MENU_BUTTON_W,
+    h: START_MENU_BUTTON_H
+  }));
+
+  for (let i = 0; i < labels.length; i++) {
+    drawStartMenuButton(startMenu.buttonRects[i], labels[i], i, startMenu.selectedIndex === i);
+  }
+  ctx.restore();
+}
+
+function drawStartMenuButton(rect, label, index, highlighted) {
+  ctx.fillStyle = highlighted ? "#6d4b2f" : "#2f241c";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = highlighted ? "#fff1bf" : "#715033";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  if (highlighted) {
+    ctx.fillStyle = "#f9c22b";
+    ctx.fillRect(rect.x + 4, rect.y + 7, 3, 3);
+    ctx.fillRect(rect.x + rect.w - 7, rect.y + 7, 3, 3);
+  }
+  const labelX = rect.x + rect.w / 2 + (index === START_MENU_ACTION_OPTIONS && settingsMenuIcon ? 5 : 0);
+  if (index === START_MENU_ACTION_OPTIONS && settingsMenuIcon) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(settingsMenuIcon, rect.x + 36, rect.y + 2);
+  }
+  ctx.fillStyle = highlighted ? "#fff1bf" : "#d7d9bf";
+  drawPixelText(label, labelX, rect.y + 5, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+}
+
+function drawCreditsMenu() {
+  const panel = {
+    x: CREDITS_PANEL_X,
+    y: CREDITS_PANEL_Y,
+    w: CREDITS_PANEL_W,
+    h: CREDITS_PANEL_H
+  };
+  const lines = creditsDisplayLines();
+  const pageCount = Math.max(1, Math.ceil(lines.length / CREDITS_LINES_PER_PAGE));
+  creditsMenu.page = clamp(creditsMenu.page, 0, pageCount - 1);
+  const start = creditsMenu.page * CREDITS_LINES_PER_PAGE;
+  const visibleLines = lines.slice(start, start + CREDITS_LINES_PER_PAGE);
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#101010";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#8ac0b4";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2);
+  ctx.strokeStyle = "#4d3924";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panel.x + 5.5, panel.y + 5.5, panel.w - 11, panel.h - 11);
+
+  const closeSize = 14;
+  creditsMenu.closeButtonRect = {
+    x: panel.x + panel.w - closeSize - 8,
+    y: panel.y + 8,
+    w: closeSize,
+    h: closeSize
+  };
+  drawOptionsCloseButton(
+    creditsMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, creditsMenu.closeButtonRect)
+  );
+
+  drawOptionsText("CREDITS", panel.x + panel.w / 2, panel.y + 11, {
+    align: "center",
+    color: "#ffd700"
+  });
+
+  let y = panel.y + 32;
+  for (const line of visibleLines) {
+    if (line.kind === "blank") {
+      y += 7;
+      continue;
+    }
+    const color = line.kind === "title"
+      ? "#ffd700"
+      : line.kind === "heading"
+        ? "#8ac0b4"
+        : "#d7d9bf";
+    const font = line.kind === "body" ? PIXEL_FONT_BODY_8 : PIXEL_FONT_UI_8;
+    ctx.fillStyle = color;
+    drawPixelText(line.text, panel.x + 17 + line.indent, y, { font });
+    y += line.kind === "body" ? 9 : 11;
+  }
+
+  const pageLabel = `${creditsMenu.page + 1}/${pageCount}`;
+  drawOptionsText(pageLabel, panel.x + panel.w / 2, panel.y + panel.h - 18, {
+    align: "center",
+    color: "#ab947a"
+  });
+
+  const navY = panel.y + panel.h - 23;
+  creditsMenu.previousPageRect = { x: panel.x + 14, y: navY, w: 18, h: 14 };
+  creditsMenu.nextPageRect = { x: panel.x + panel.w - 32, y: navY, w: 18, h: 14 };
+  drawOptionsArrowButton(
+    creditsMenu.previousPageRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, creditsMenu.previousPageRect)
+  );
+  drawOptionsArrowButton(
+    creditsMenu.nextPageRect,
+    ">",
+    pointInRect(optionsMenu.hoverPoint, creditsMenu.nextPageRect)
+  );
+  ctx.restore();
+}
+
+function creditsDisplayLines() {
+  const markdown = creditsMarkdown.trim() ? creditsMarkdown : CREDITS_FALLBACK_MARKDOWN;
+  const lines = [];
+  for (const rawLine of markdown.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      if (lines.length > 0 && lines[lines.length - 1].kind !== "blank") {
+        lines.push({ kind: "blank", text: "", indent: 0 });
+      }
+      continue;
+    }
+    let kind = "body";
+    let indent = 0;
+    let text = trimmed;
+    if (text.startsWith("# ")) {
+      kind = "title";
+      text = text.slice(2);
+    } else if (text.startsWith("## ")) {
+      kind = "heading";
+      text = text.slice(3);
+    } else if (text.startsWith("- ")) {
+      text = text.slice(2);
+      indent = 6;
+    }
+    const font = kind === "body" ? PIXEL_FONT_BODY_8 : PIXEL_FONT_UI_8;
+    const maxWidth = CREDITS_PANEL_W - 42 - indent;
+    const wrapped = wrapPixelText(text, font, maxWidth, kind === "body" ? 3 : 2);
+    for (let i = 0; i < wrapped.length; i++) {
+      lines.push({
+        kind,
+        text: i === 0 && indent > 0 ? `- ${wrapped[i]}` : wrapped[i],
+        indent: i === 0 ? 0 : indent + 6
+      });
+    }
+  }
+  return lines;
 }
 
 function drawOptionsMenu() {
@@ -12135,7 +12541,7 @@ function drawGameOverStatsScreen(state) {
   }
 
   ctx.fillStyle = "#d6b66b";
-  drawPixelText("PRESS ANY KEY TO START A NEW VOYAGE", SCREEN_W / 2, SCREEN_H - 24, {
+  drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, SCREEN_H - 24, {
     font: PIXEL_FONT_UI_8,
     align: "center"
   });
