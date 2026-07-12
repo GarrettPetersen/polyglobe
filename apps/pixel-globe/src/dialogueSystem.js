@@ -10,6 +10,8 @@ import {
   grantLetterOfMarque,
   letterOfMarqueStatus,
   portMemory,
+  playerFishingNet,
+  purchaseFishingNet,
   questStateForCity,
   restockShipLoadoutAtPort,
   sellGood
@@ -26,6 +28,7 @@ import { factionById } from "./factions.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { FISHING_NETS } from "./fishingNets.js";
 
 export function createPortDialogueSession(city, options = {}) {
   return {
@@ -70,6 +73,9 @@ export function shipDialogueView(session, ship) {
   const voyage = ship.destinationName ? ` Bound for ${ship.destinationName}.` : "";
   const cargo = manifest ? ` We carry ${manifest}.` : " Running in ballast.";
   const role = ship.roleLabel || "Merchant";
+  const fishingGear = role === "Fisherman" && ship.fishingNetLabel
+    ? ` We work a ${ship.fishingNetLabel.toLowerCase()}.`
+    : "";
   const faction = role !== "Pirate" && ship.faction?.adjective ? `${ship.faction.adjective} ` : "";
   const speaker = `${characterName(ship.character)}, ${faction}${role.toLowerCase()} captain`;
   if (session.attackReason) {
@@ -133,7 +139,7 @@ export function shipDialogueView(session, ship) {
   return {
     speaker,
     expressionId,
-    text: `${greeting}${storm}${voyage}${cargo}`,
+    text: `${greeting}${storm}${voyage}${cargo}${fishingGear}`,
     feedback: null,
     options: [
       ...(!ship.combatGrace && !ship.inCombatWithPlayer
@@ -207,6 +213,7 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
+  if (session.nodeId === "nets") return fishingNetView(session, city, gameState);
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
@@ -262,6 +269,13 @@ export function selectPortDialogueOption(
     const result = buyGood(gameState, economy, city, action.goodId, 1, context);
     session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
     return { closed: false };
+  }
+  if (action.type === "buy-net") {
+    const result = purchaseFishingNet(gameState, city, action.netId, context);
+    session.feedback = `${result.net.label} fitted for ${result.price} db.`;
+    session.nodeId = "nets";
+    session.selectedIndex = 0;
+    return { closed: false, fishingNetPurchase: result };
   }
   if (action.type === "sell") {
     const result = sellGood(gameState, economy, city, action.goodId, 1, context);
@@ -420,6 +434,7 @@ function rootView(session, city, gameState, economy, context) {
   const market = portEconomySummary(economy, city);
   const options = [
     option("Buy goods", { type: "node", nodeId: "buy" }),
+    option("Fishing gear", { type: "node", nodeId: "nets" }),
     ...(context.shipStats ? [option("Ship loadout", { type: "node", nodeId: "loadout" })] : []),
     option("Visit shipyard", { type: "node", nodeId: "shipyard" }),
     option("Sell cargo", { type: "node", nodeId: "sell" }),
@@ -444,6 +459,40 @@ function rootView(session, city, gameState, economy, context) {
     text: `What business brings you to port? Market specie: ${market.specie} db.`,
     feedback: session.feedback,
     options
+  };
+}
+
+function fishingNetView(session, city, gameState) {
+  const current = playerFishingNet(gameState);
+  const rows = FISHING_NETS.map((net) => {
+    const fitted = net.id === current.id;
+    const inferior = net.tier < current.tier;
+    const cannotAfford = gameState.doubloons < net.price;
+    const disabledReason = fitted
+      ? "This net is already fitted."
+      : inferior
+        ? `Your ${current.label} is superior.`
+        : cannotAfford
+          ? `Need ${net.price - gameState.doubloons} more doubloons.`
+          : null;
+    const priceLabel = fitted ? "FITTED" : `${net.price} db`;
+    return option(`${fitted ? "* " : ""}${net.label}  ${priceLabel}`, {
+      type: "buy-net",
+      netId: net.id
+    }, {
+      detail: `ODDS x${net.catchRateMultiplier.toFixed(2)}  MAX HAUL ${net.maxCatch}`,
+      disabled: fitted || inferior || cannotAfford,
+      disabledReason
+    });
+  });
+  rows.push(option("Back", { type: "node", nodeId: "root" }));
+  return {
+    speaker: speakerName(city),
+    expressionId: feedbackExpressionId(session.feedback),
+    text: `Current gear: ${current.label}. Better nets improve catch odds and maximum haul. Purse ${gameState.doubloons} db.`,
+    feedback: session.feedback,
+    optionHeight: 34,
+    options: rows
   };
 }
 

@@ -26,6 +26,11 @@ import {
   fisheryForHabitat,
   harvestFishery
 } from "./fishEcology.js";
+import {
+  fishingNetById,
+  npcFishingNetExpectedHaul,
+  npcFishingNetForSeed
+} from "./fishingNets.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -59,7 +64,7 @@ const NPC_REPLACEMENT_SPREAD_DAYS = 220;
 const FISHING_GROUND_TARGET = 220;
 const FISHING_GROUND_SAMPLE_DISTANCES_KM = Object.freeze([220, 520, 1100, 2100, 3400]);
 const FISHING_GROUND_SAMPLE_BEARINGS_DEG = Object.freeze([0, 45, 90, 135, 180, 225, 270, 315]);
-const FISHING_GROUND_MIN_EXPECTED_CATCH = 5;
+const FISHING_GROUND_MIN_EXPECTED_CATCH = 1;
 const FISHING_GROUND_TRAVEL_COST_PER_KM = 0.035;
 const FISHING_GROUND_LONG_RANGE_COST_PER_KM = 0.018;
 const FISHING_GROUND_CATCH_RATIO = 0.72;
@@ -510,6 +515,9 @@ function createNpcFleet(system, startMinute) {
         hitPoints: stats.hitPoints,
         maxHitPoints: stats.hitPoints,
         cargoCapacity: stats.cargoCapacity,
+        fishingNetId: role === NPC_ROLE_FISHERMAN
+          ? npcFishingNetForSeed(seed, stats.cargoCapacity).id
+          : null,
         cargo: {},
         cargoCost: {},
         specie: npcStartingSpecieForRole(role, stats),
@@ -559,6 +567,9 @@ function spawnDueNpcReplacements(system, clockMinutes) {
       hitPoints: stats.hitPoints,
       maxHitPoints: stats.hitPoints,
       cargoCapacity: stats.cargoCapacity,
+      fishingNetId: replacement.role === NPC_ROLE_FISHERMAN
+        ? npcFishingNetForSeed(replacement.seed, stats.cargoCapacity).id
+        : null,
       cargo: {},
       cargoCost: {},
       specie: npcStartingSpecieForRole(replacement.role, stats),
@@ -804,8 +815,10 @@ function chooseFishermanFishingGround(system, ship, origin) {
 function fishermanGroundForecast(system, ship, origin, ground) {
   const fishery = fisheryForHabitat(system.fishState, ground.habitat, system.economy.lastMinute);
   if (!fishery) return null;
+  const net = fishingNetById(ship.fishingNetId);
   const expectedCatch = Math.min(
     ship.cargoCapacity,
+    npcFishingNetExpectedHaul(net.id),
     Math.max(0, Math.floor(fishery.population * FISHING_GROUND_CATCH_RATIO))
   );
   if (expectedCatch < FISHING_GROUND_MIN_EXPECTED_CATCH) return null;
@@ -855,7 +868,10 @@ function harvestNpcFishingGround(system, ship, ground, clockMinutes) {
   if (!system.fishState) return null;
   const fishery = fisheryForHabitat(system.fishState, ground.habitat, clockMinutes);
   if (!fishery) return null;
-  const requested = Math.max(1, Math.floor(ship.cargoCapacity * FISHING_GROUND_CATCH_RATIO));
+  const requested = Math.min(
+    ship.cargoCapacity,
+    npcFishingNetExpectedHaul(ship.fishingNetId)
+  );
   const result = harvestFishery(system.fishState, fishery, requested, clockMinutes, {
     actor: "npc",
     ignoreCooldown: true
@@ -1236,6 +1252,7 @@ function npcShipSnapshot(ship, clockMinutes) {
       role: ship.role,
       hitPoints: ship.hitPoints,
       maxHitPoints: ship.maxHitPoints,
+      fishingNetId: ship.fishingNetId,
       combatGrace: ship.graceUntilPortVisit > ship.portVisits,
       cargo: { ...ship.cargo },
       specie: Math.floor(ship.specie)
@@ -1263,6 +1280,7 @@ function npcShipSnapshot(ship, clockMinutes) {
     role: ship.role,
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
+    fishingNetId: ship.fishingNetId,
     combatGrace: ship.graceUntilPortVisit > ship.portVisits,
     cargo: { ...ship.cargo },
     specie: Math.floor(ship.specie)

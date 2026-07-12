@@ -42,6 +42,18 @@ test("each additional visible fish improves catch odds without guaranteeing a ca
   assert.equal(fishingCatchChance(12), 0.82);
 });
 
+test("better fishing nets improve catch odds across the same fish school", () => {
+  const basic = fishingCatchChance(6, 0.55);
+  const weighted = fishingCatchChance(6, 0.75);
+  const drift = fishingCatchChance(6, 1);
+  const masterwork = fishingCatchChance(6, 1.15);
+
+  assert.ok(basic < weighted);
+  assert.ok(weighted < drift);
+  assert.ok(drift < masterwork);
+  assert.ok(masterwork < 1);
+});
+
 test("catch resolution and casting side are deterministic from their inputs", () => {
   assert.equal(fishingCatchSucceeds(0.39, 0.4), true);
   assert.equal(fishingCatchSucceeds(0.4, 0.4), false);

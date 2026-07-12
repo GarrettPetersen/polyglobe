@@ -28,6 +28,10 @@ import {
 } from "./shipLoadouts.js";
 import { shipLabelForSlug } from "./shipStats.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
+import {
+  BASIC_FISHING_NET_ID,
+  fishingNetById
+} from "./fishingNets.js";
 
 export const STARTING_DOUBLOONS = 360;
 export const REPUTATION_MIN = -100;
@@ -70,7 +74,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
   }
   const playerFactionId = playerCharacter?.nationalityId || null;
   return {
-    version: 5,
+    version: 6,
     playerCharacter,
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
@@ -82,9 +86,8 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
       shipStats === null ? FRESH_WATER_CAPACITY : 0
     ),
     inventory: {
-      items: {
-        [SHIP_ITEM_FISHING_NET]: 1
-      }
+      items: {},
+      fishingNetId: BASIC_FISHING_NET_ID
     },
     accounts: {
       cargoCostBasis: {},
@@ -600,17 +603,46 @@ export function cargoCostBasis(state, goodId) {
 export function shipItemRows(state) {
   assertGameState(state);
   return SHIP_ITEM_CATALOG
-    .map((item) => ({
-      ...item,
-      quantity: state.inventory.items[item.id] || 0
-    }))
+    .map((item) => item.id === SHIP_ITEM_FISHING_NET
+      ? fishingNetItemRow(state)
+      : { ...item, quantity: state.inventory.items[item.id] || 0 })
     .filter((item) => item.quantity > 0);
 }
 
 export function hasShipItem(state, itemId) {
   assertGameState(state);
   if (typeof itemId !== "string" || itemId.trim() === "") throw new Error(`Invalid ship item id: ${itemId}`);
+  if (itemId === SHIP_ITEM_FISHING_NET) return Boolean(state.inventory.fishingNetId);
   return (state.inventory.items[itemId] || 0) > 0;
+}
+
+export function playerFishingNet(state) {
+  assertGameState(state);
+  return fishingNetById(state.inventory.fishingNetId);
+}
+
+export function purchaseFishingNet(state, city, netId, context = {}) {
+  assertGameState(state);
+  const current = playerFishingNet(state);
+  const next = fishingNetById(netId);
+  if (next.tier <= current.tier) {
+    throw new Error(`${next.label} is not an upgrade over ${current.label}`);
+  }
+  if (state.doubloons < next.price) {
+    throw new Error(`Not enough doubloons to buy ${next.label}`);
+  }
+  state.doubloons -= next.price;
+  state.inventory.fishingNetId = next.id;
+  recordLedgerEntry(state, city, context, {
+    kind: "equipment",
+    description: `Buy ${next.label}`,
+    goodId: null,
+    quantity: 1,
+    amount: -next.price,
+    costBasis: next.price,
+    pnl: null
+  });
+  return { previous: current, net: next, price: next.price };
 }
 
 export function ledgerEntries(state) {
@@ -1253,6 +1285,17 @@ function roundLedgerMoney(value) {
   return Math.round(value * 10000) / 10000;
 }
 
+function fishingNetItemRow(state) {
+  const net = fishingNetById(state.inventory.fishingNetId);
+  return {
+    id: SHIP_ITEM_FISHING_NET,
+    label: net.label,
+    detail: `Catch x${net.catchRateMultiplier.toFixed(2)}, max haul ${net.maxCatch}`,
+    quantity: 1,
+    netId: net.id
+  };
+}
+
 function assertGameState(state) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
   if (state.playerCharacter !== null) assertPlayerCharacter(state.playerCharacter);
@@ -1269,6 +1312,10 @@ function assertGameState(state) {
   if (!state.inventory.items || typeof state.inventory.items !== "object") {
     state.inventory.items = {};
   }
+  if (typeof state.inventory.fishingNetId !== "string") {
+    state.inventory.fishingNetId = BASIC_FISHING_NET_ID;
+  }
+  fishingNetById(state.inventory.fishingNetId);
   if (!state.accounts || typeof state.accounts !== "object") throw new Error("Game state accounts must be an object");
   if (!state.accounts.cargoCostBasis || typeof state.accounts.cargoCostBasis !== "object") {
     throw new Error("Game state cargo cost basis must be an object");

@@ -20,6 +20,10 @@ import {
 } from "./npcSeaRoutes.js";
 import { DIPLOMACY_WAR, PIRATE_FACTION_ID, diplomacyBetween } from "./factions.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import {
+  fishingNetById,
+  npcFishingNetExpectedHaul
+} from "./fishingNets.js";
 
 const PORTS = Object.freeze([
   port(1, "Lisbon", "Portugal", "mediterranean", 38.72, -9.14, 70000, "portugal"),
@@ -64,6 +68,7 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   const counts = { merchant: 0, fisherman: 0, warship: 0, pirate: 0 };
   let cheap = 0;
   let expensive = 0;
+  const fishermanNetIds = new Set();
 
   for (const ship of routes.ships) {
     counts[ship.role] += 1;
@@ -79,6 +84,8 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
     } else if (ship.role === NPC_ROLE_FISHERMAN) {
       assert.equal(stats.cannons <= 4, true);
       assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
+      fishingNetById(ship.fishingNetId);
+      fishermanNetIds.add(ship.fishingNetId);
     } else {
       assert.equal(ship.role, NPC_ROLE_MERCHANT);
       assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
@@ -88,6 +95,7 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   assert.ok(counts.merchant > counts.fisherman, JSON.stringify(counts));
   assert.ok(counts.merchant > counts.warship + counts.pirate, JSON.stringify(counts));
   assert.ok(counts.fisherman > 0, JSON.stringify(counts));
+  assert.ok(fishermanNetIds.size >= 2, JSON.stringify([...fishermanNetIds]));
   assert.ok(counts.warship > counts.pirate, JSON.stringify(counts));
   assert.ok(counts.pirate / routes.ships.length <= 0.06, JSON.stringify(counts));
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
@@ -132,14 +140,19 @@ test("NPC fishermen choose generated fishing grounds and deplete them offscreen"
   const ground = fisherman.plan.destination;
   const stockBefore = Object.values(fishState.memory.fish.stocks)
     .find((stock) => stock.tileId === ground.habitat.tileId)?.population ?? ground.initialPopulation;
+  const harvestedBefore = Object.values(fishState.memory.fish.stocks)
+    .find((stock) => stock.tileId === ground.habitat.tileId)?.harvested ?? 0;
 
   updateNpcSeaRouteSystem(routes, Math.ceil(fisherman.plan.endMinute + 1));
 
   assert.equal(fisherman.currentPort.isFishingGround, true);
   assert.ok((fisherman.cargo.fish || 0) > 0);
+  assert.ok((fisherman.cargo.fish || 0) <= npcFishingNetExpectedHaul(fisherman.fishingNetId));
   const stockAfter = Object.values(fishState.memory.fish.stocks)
     .find((stock) => stock.tileId === ground.habitat.tileId);
-  assert.ok(stockAfter.population < stockBefore);
+  assert.ok(stockAfter.harvested > harvestedBefore);
+  assert.ok(stockAfter.population < stockAfter.capacity);
+  assert.ok(Number.isFinite(stockBefore));
   assert.equal(fisherman.plan.destination.isFishingGround, undefined);
 });
 

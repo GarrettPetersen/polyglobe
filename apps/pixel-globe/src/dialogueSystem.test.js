@@ -62,6 +62,20 @@ test("merchant captains report when they are anchored for a storm", () => {
   assert.equal(view.expressionId, "concerned");
 });
 
+test("fishermen identify the net fitted to their ship", () => {
+  const fisher = {
+    id: "north-sea-fisher-2",
+    label: "Fishing lugger",
+    roleLabel: "Fisherman",
+    fishingNetLabel: "Weighted cast net",
+    character: { name: "Pieter Vos" }
+  };
+  const session = createShipDialogueSession(fisher);
+  const view = shipDialogueView(session, fisher);
+
+  assert.match(view.text, /work a weighted cast net/i);
+});
+
 test("warship and pirate captains identify their role and allegiance", () => {
   const warship = {
     id: "warship",
@@ -311,6 +325,42 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.ok(result.loadoutResult.plan.totalSpace <= stats.cargoCapacity);
   assert.ok(gameState.doubloons <= before);
   assert.match(session.feedback, /Balanced targets set/);
+});
+
+test("ports sell a costly progression of fishing net upgrades", () => {
+  const city = {
+    tileId: 13,
+    city: "Bristol",
+    displayCity: "Bristol",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 50000,
+    character: { name: "Alice Cabot" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.doubloons = 5000;
+  const session = createPortDialogueSession(city, { initialNodeId: "nets" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(view.optionHeight, 34);
+  assert.match(view.text, /Current gear: Basic cast net/);
+  assert.deepEqual(view.options.slice(0, 4).map((entry) => entry.label), [
+    "* Basic cast net  FITTED",
+    "Weighted cast net  900 db",
+    "Drift net  4000 db",
+    "Masterwork seine  15000 db"
+  ]);
+  assert.ok(view.options.slice(0, 4).every((entry) => /MAX HAUL/.test(entry.detail)));
+  assert.equal(view.options[0].disabled, true);
+  assert.equal(view.options[1].disabled, false);
+  assert.equal(view.options[2].disabled, false);
+  assert.equal(view.options[3].disabled, true);
+
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 300 });
+  assert.equal(result.fishingNetPurchase.net.id, "weighted-cast-net");
+  assert.equal(gameState.doubloons, 4100);
+  assert.match(session.feedback, /Weighted cast net fitted/);
 });
 
 test("package job offers show the great-circle distance", () => {

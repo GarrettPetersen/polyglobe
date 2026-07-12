@@ -124,8 +124,9 @@ test("ship papers include active deliveries and letters of marque", () => {
   assert.equal(view.papers[0].issuer, "Kingdom of Portugal");
   assert.equal(view.papers[0].route, "Lisbon -> Porto");
   assert.equal(view.papers[0].detail, "Reward 120 DB");
-  assert.equal(view.papers[1].title, "Fishing net");
+  assert.equal(view.papers[1].title, "Basic cast net");
   assert.equal(view.papers[1].issuer, "Ship stores");
+  assert.match(view.papers[1].detail, /max haul 2/);
   assert.equal(view.papers[2].issuer, "Kingdom of England");
   assert.equal(view.papers[2].title, "English letter of marque");
   assert.equal(view.papers[2].simMinute, 1440);

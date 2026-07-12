@@ -23,11 +23,15 @@ export function fishingAnimationState(startMs, nowMs) {
   };
 }
 
-export function fishingCatchChance(visibleFishCount) {
+export function fishingCatchChance(visibleFishCount, netCatchRateMultiplier = 1) {
   if (!Number.isInteger(visibleFishCount) || visibleFishCount <= 0) {
     throw new Error(`Invalid visible fish count: ${visibleFishCount}`);
   }
-  return clamp(0.16 + Math.min(8, visibleFishCount) * 0.0825, 0.24, 0.82);
+  if (!Number.isFinite(netCatchRateMultiplier) || netCatchRateMultiplier <= 0) {
+    throw new Error(`Invalid fishing net catch rate: ${netCatchRateMultiplier}`);
+  }
+  const fishPopulationChance = clamp(0.16 + Math.min(8, visibleFishCount) * 0.0825, 0.24, 0.82);
+  return clamp(fishPopulationChance * netCatchRateMultiplier, 0.12, 0.95);
 }
 
 export function fishingCatchSucceeds(randomValue, chance) {

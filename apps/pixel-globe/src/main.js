@@ -63,6 +63,7 @@ import {
   hasDiscovery,
   initializeProvisionalShipLoadout,
   loseCrew,
+  playerFishingNet,
   receiveFishCatch,
   receiveSurrenderedLoot,
   recordAttackAgainstFaction,
@@ -77,6 +78,10 @@ import {
   updateSurvival,
   visitPort
 } from "./gameState.js";
+import {
+  fishingNetById,
+  npcFishingNetExpectedHaul
+} from "./fishingNets.js";
 import {
   buildMountainLandmarks,
   loadNamedMountains
@@ -753,7 +758,7 @@ const CAPTAIN_MENU_PANEL_H = 226;
 const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "fishing-action-2";
+const SFX_ASSET_VERSION = "fishing-catch-3";
 const ANIMAL_ASSET_VERSION = "fishing-net-2";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
@@ -845,6 +850,7 @@ const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.og
 const SFX_DISCOVERY_SUCCESS_URL = "/assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
 const SFX_COIN_CLINK_URL = "/assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3";
 const SFX_FISHING_URL = "/assets/sfx/alex_jauk-water-splash-147014.mp3";
+const SFX_FISHING_SUCCESS_URL = "/assets/sfx/freesound_community-item-pickup-37089.ogg";
 const SFX_FISHING_FAILURE_URL = "/assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_IMPACT_POOL_SIZE = 6;
@@ -852,6 +858,7 @@ const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
 const SFX_COIN_CLINK_POOL_SIZE = 4;
 const SFX_FISHING_POOL_SIZE = 3;
+const SFX_FISHING_SUCCESS_POOL_SIZE = 2;
 const SFX_FISHING_FAILURE_POOL_SIZE = 2;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_IMPACT_VOLUME = 0.64;
@@ -859,6 +866,7 @@ const SFX_SAIL_DEPLOY_VOLUME = 0.22;
 const SFX_DISCOVERY_SUCCESS_VOLUME = 0.72;
 const SFX_COIN_CLINK_VOLUME = 0.58;
 const SFX_FISHING_VOLUME = 0.42;
+const SFX_FISHING_SUCCESS_VOLUME = 0.58;
 const SFX_FISHING_FAILURE_VOLUME = 0.46;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
@@ -887,8 +895,6 @@ const FISHING_NET_SHEET_URL = "/assets/misc/fishing-net-Sheet.png";
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
-const FISH_PLAYER_CATCH_MAX = 8;
-const FISH_NPC_HARVEST_MAX = 5;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NOTICE_MS = 2400;
 const FISH_SWIM_SEARCH_MARGIN_PX = 18;
@@ -2762,6 +2768,11 @@ function setupSoundEffects() {
     discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
     coinClink: createSoundPool(SFX_COIN_CLINK_URL, SFX_COIN_CLINK_POOL_SIZE, "coin clink"),
     fishing: createSoundPool(SFX_FISHING_URL, SFX_FISHING_POOL_SIZE, "fishing splash"),
+    fishingSuccess: createSoundPool(
+      SFX_FISHING_SUCCESS_URL,
+      SFX_FISHING_SUCCESS_POOL_SIZE,
+      "successful fish catch"
+    ),
     fishingFailure: createSoundPool(
       SFX_FISHING_FAILURE_URL,
       SFX_FISHING_FAILURE_POOL_SIZE,
@@ -2967,6 +2978,10 @@ function playCoinClinkSound() {
 
 function playFishingSound() {
   playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME, 0.94 + Math.random() * 0.12);
+}
+
+function playFishingSuccessSound() {
+  playSoundEffect(soundEffects?.fishingSuccess, SFX_FISHING_SUCCESS_VOLUME, 0.98 + Math.random() * 0.04);
 }
 
 function playFishingFailureSound() {
@@ -4543,6 +4558,7 @@ function currentDialogueShip() {
     label: shipLabelForSlug(npcShip.slug),
     role: npcShip.role,
     roleLabel: npcRoleLabel(npcShip.role),
+    fishingNetLabel: npcShip.fishingNetId ? fishingNetById(npcShip.fishingNetId).label : null,
     faction: factionById(npcShip.factionId),
     cargo: { ...npcShip.cargo },
     specie: Math.floor(npcShip.specie),
@@ -4823,11 +4839,13 @@ function catchFishAtFishery(call) {
     showFishCatchNotice("HOLD FULL", "warn");
     return false;
   }
-  const chance = fishingCatchChance(call.fishery.visibleIndividualCount);
+  const net = playerFishingNet(gameState);
+  const chance = fishingCatchChance(call.fishery.visibleIndividualCount, net.catchRateMultiplier);
   fishingAction = {
     startMs: lastFrameMs,
     fishery: call.fishery,
     speciesLabel: call.fishery.speciesLabel,
+    fishingNetId: net.id,
     side: fishingSideForTarget(localLayout.viewX, call.x),
     catchSucceeded: fishingCatchSucceeds(Math.random(), chance),
     frameIndex: 0,
@@ -4872,7 +4890,7 @@ function resolveFishingAction(action) {
   const result = harvestFishery(
     gameState,
     action.fishery,
-    Math.min(FISH_PLAYER_CATCH_MAX, free),
+    Math.min(fishingNetById(action.fishingNetId).maxCatch, free),
     Math.floor(weatherClockMinutes),
     { actor: "player" }
   );
@@ -4885,6 +4903,7 @@ function resolveFishingAction(action) {
     simMinute: Math.floor(weatherClockMinutes),
     location: "Fishing grounds"
   });
+  playFishingSuccessSound();
   syncShipCargoFromGameState();
   const depletedText = result.overfished ? " - OVERFISHED" : "";
   showFishCatchNotice(`CAUGHT ${result.speciesLabel.toUpperCase()} x${result.quantity}${depletedText}`, "good");
@@ -6727,6 +6746,7 @@ function createNpcVisualState(snapshot, routePoint) {
     slug: snapshot.slug,
     factionId: snapshot.factionId,
     role: snapshot.role,
+    fishingNetId: snapshot.fishingNetId,
     hitPoints: snapshot.hitPoints,
     maxHitPoints: snapshot.maxHitPoints,
     combatGrace: snapshot.combatGrace,
@@ -6764,6 +6784,7 @@ function syncNpcVisualStateFromSnapshot(state, snapshot) {
   state.slug = snapshot.slug;
   state.factionId = snapshot.factionId;
   state.role = snapshot.role;
+  state.fishingNetId = snapshot.fishingNetId;
   state.hitPoints = snapshot.hitPoints;
   state.maxHitPoints = snapshot.maxHitPoints;
   state.combatGrace = snapshot.combatGrace;
@@ -6802,7 +6823,7 @@ function updateNpcFishermenHarvest() {
       const result = harvestFishery(
         gameState,
         action.fishery,
-        Math.min(FISH_NPC_HARVEST_MAX, free),
+        Math.min(npcFishingNetExpectedHaul(npcShip.fishingNetId), free),
         nowMinute,
         { actor: "npc" }
       );
