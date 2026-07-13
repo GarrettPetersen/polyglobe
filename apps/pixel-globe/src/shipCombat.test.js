@@ -94,6 +94,20 @@ test("warring warships fight but unescorted merchants do not initiate", () => {
   assert.equal(tradeResult.engagementCount, 0);
 });
 
+test("a new war starts combat and a later peace ends it", () => {
+  const state = createShipCombatState();
+  const england = ship("england", "warship", "england", 0, 0, 30, 8);
+  const france = ship("france", "warship", "france", 20, 0, 30, 8);
+  let relation = "neutral";
+  const relationBetween = () => relation;
+
+  assert.equal(updateShipCombatState(state, [england, france], relationBetween).engagementCount, 0);
+  relation = "war";
+  assert.equal(updateShipCombatState(state, [england, france], relationBetween).engagementCount, 1);
+  relation = "neutral";
+  assert.equal(updateShipCombatState(state, [england, france], relationBetween).engagementCount, 0);
+});
+
 test("damaged ships flee and sufficient distance ends combat", () => {
   const state = createShipCombatState();
   const pirate = ship("pirate", "pirate", "pirate", 0, 0, 20, 12, 130);

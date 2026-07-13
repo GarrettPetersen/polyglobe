@@ -7,10 +7,12 @@ import {
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   adjustFactionReputation,
   createGameState,
+  diplomacyBetweenForState,
   grantLetterOfMarque,
   recordPiracyAgainstFaction,
   recordTradeWithFaction
 } from "./gameState.js";
+import { makeDiplomaticPeace } from "./worldDiplomacy.js";
 import {
   createPoliticsView,
   playerStandingForReputation,
@@ -51,6 +53,17 @@ test("politics matrix reports diplomacy and player standing", () => {
   assert.equal(pirate.player.label, "Hostile");
 });
 
+test("politics matrix follows changing world diplomacy", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200 * 24 * 60);
+  const view = createPoliticsView(state);
+  const england = view.rows.find((row) => row.faction.id === "england");
+
+  assert.equal(diplomacyBetweenForState(state, "england", "france"), "neutral");
+  assert.equal(england.stances.find((stance) => stance.factionId === "france").relation, "neutral");
+  assert.equal(view.recentEvents[0].kind, "peace");
+});
+
 test("politics view marks factions that granted letters of marque", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const london = {
@@ -70,14 +83,14 @@ test("politics view marks factions that granted letters of marque", () => {
   assert.equal(view.rows.find((row) => row.faction.id === "france").player.hasLetterOfMarque, false);
 });
 
-test("politics rows wrap across pages", () => {
+test("politics rows stop at the last page", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
   const first = politicsRowsPage(view, 0, 12);
-  const wrapped = politicsRowsPage(view, first.pageCount, 12);
+  const last = politicsRowsPage(view, first.pageCount, 12);
 
   assert.equal(first.rows.length, 12);
-  assert.equal(wrapped.page, 0);
+  assert.equal(last.page, first.pageCount - 1);
 });
 
 test("political power codes are compact for matrix headers", () => {

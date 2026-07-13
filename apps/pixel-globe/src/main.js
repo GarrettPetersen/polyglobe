@@ -59,10 +59,14 @@ import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
+  advanceGameDiplomacy,
+  attemptPortDisguise,
   cargoFree,
   cargoUsed,
+  consumePendingDiscoveryPortDialogue,
   createGameState,
   discoveredEntries,
+  diplomacyBetweenForState,
   factionReputation,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
@@ -70,7 +74,10 @@ import {
   initializeProvisionalShipLoadout,
   loseCrew,
   playerFishingNet,
+  pirateHideoutsVisibleToPlayer,
+  portEntryStatus,
   refillFreshWaterFromShore,
+  receiveDiscoveryCargo,
   receiveFishCatch,
   receiveSurrenderedLoot,
   reconcileQuestPortTiles,
@@ -88,18 +95,23 @@ import {
   validateGameState,
   visitPort
 } from "./gameState.js";
+import { diplomacyEventNotice } from "./worldDiplomacy.js";
 import {
   fishingNetById,
   npcFishingNetExpectedHaul
 } from "./fishingNets.js";
+import { buildPlayerPirateHideoutPorts } from "./piratePorts.js";
 import {
   buildMountainLandmarks,
   loadNamedMountains
 } from "./mountainLandmarks.js";
 import {
   CIRCUMNAVIGATION_DISCOVERY,
+  EL_DORADO_DISCOVERY_ID,
   WORLD_DISCOVERY_SPRITE_KEYS,
   buildWorldDiscoveries,
+  captainDialogueForDiscovery,
+  isDiscoveryNovelToCharacter,
   mountainDiscovery,
   restrictMountainsToNavigableView
 } from "./discoveries.js";
@@ -183,6 +195,7 @@ import {
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
 import { pixelTextOrigin, snapPointToTransformedPixelGrid } from "./pixelText.js";
+import { clampMenuIndex, stepMenuIndex } from "./menuNavigation.js";
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import {
   dialogueOptionLayout,
@@ -251,6 +264,12 @@ import {
 } from "./shipInfo.js";
 import { claimShipyardListing, shipyardAtPort, shipyardRumorForPort } from "./shipyards.js";
 import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
+import {
+  appendVoyageRecord,
+  grossDoubloonsEarned,
+  readVoyageHistory,
+  voyageHistorySummary
+} from "./voyageHistory.js";
 import {
   MANUAL_CITY_RECORDS_1522,
   cityPopulationObservationAtYear,
@@ -734,6 +753,7 @@ const START_MENU_BUTTON_H = 30;
 const START_MENU_BUTTON_GAP = 8;
 const START_MENU_ACTION_CONTINUE = "continue";
 const START_MENU_ACTION_NEW_GAME = "new-game";
+const START_MENU_ACTION_PAST_VOYAGES = "past-voyages";
 const START_MENU_ACTION_OPTIONS = "options";
 const START_MENU_ACTION_CREDITS = "credits";
 const AUTOSAVE_INTERVAL_MS = 30000;
@@ -765,6 +785,10 @@ let CREDITS_PANEL_H = 218;
 let CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
 let CREDITS_PANEL_Y = Math.floor((SCREEN_H - CREDITS_PANEL_H) / 2);
 const CREDITS_LINES_PER_PAGE = 16;
+let PAST_VOYAGES_PANEL_W = 338;
+let PAST_VOYAGES_PANEL_H = 238;
+let PAST_VOYAGES_PANEL_X = Math.floor((SCREEN_W - PAST_VOYAGES_PANEL_W) / 2);
+let PAST_VOYAGES_PANEL_Y = Math.floor((SCREEN_H - PAST_VOYAGES_PANEL_H) / 2);
 const GAME_OVER_MEMORIAL_MS = 8500;
 const GAME_OVER_FADE_MS = 1800;
 let GAME_OVER_PANEL_W = 350;
@@ -1105,6 +1129,8 @@ let npcShipImages;
 let npcSeaRoutes;
 let worldEconomy;
 let npcShipCaptains;
+let pirateHideoutCharacters = new Map();
+let pirateHideoutPortsByTileId = new Map();
 const npcVisualShips = new Map();
 const shipCombatState = createShipCombatState();
 const shipCollisionCooldowns = new Map();
@@ -1169,6 +1195,7 @@ let dialogueState = null;
 let dialogueLayout = createDialogueLayoutState();
 let startMenu = null;
 let localSaveResult = { status: "empty", save: null, error: null };
+let voyageHistoryResult = { status: "ready", records: [], error: null };
 let hasStartedVoyage = false;
 let lastAutosaveMs = 0;
 let captainAlertModal = null;
@@ -1215,6 +1242,7 @@ let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
 const optionsMenu = createOptionsMenuState();
 const creditsMenu = createCreditsMenuState();
+const pastVoyagesMenu = createPastVoyagesMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
 const shipInfoMenu = createShipInfoMenuState();
 const politicsMenu = createPoliticsMenuState();
@@ -1256,6 +1284,10 @@ window.addEventListener("keydown", (event) => {
   }
   if (creditsMenu.isOpen) {
     handleCreditsKeyDown(event);
+    return;
+  }
+  if (pastVoyagesMenu.isOpen) {
+    handlePastVoyagesKeyDown(event);
     return;
   }
   if (startMenu) {
@@ -1402,6 +1434,10 @@ async function main() {
   localSaveResult = readLocalSave();
   if (localSaveResult.status === "invalid") {
     console.warn("[pixel-globe] local save is unavailable", localSaveResult.error);
+  }
+  voyageHistoryResult = readVoyageHistory();
+  if (voyageHistoryResult.status === "invalid") {
+    console.warn("[pixel-globe] past voyage history is unavailable", voyageHistoryResult.error);
   }
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -1570,8 +1606,22 @@ async function main() {
     ports: portCities,
     startMinute: weatherClockMinutes,
     economy: worldEconomy,
-    fishState: gameState
+    fishState: gameState,
+    relationBetween: currentDiplomacyBetween
   });
+  const playerPirateHideoutPorts = buildPlayerPirateHideoutPorts(npcSeaRoutes.pirateHideouts);
+  pirateHideoutPortsByTileId = new Map(playerPirateHideoutPorts.map((port) => [port.tileId, port]));
+  const pirateHideoutHosts = playerPirateHideoutPorts.map((port) => ({
+    id: port.portId,
+    role: NPC_ROLE_PIRATE,
+    currentPort: port,
+    profileId: port.routeRegion || null
+  }));
+  pirateHideoutCharacters = assignNpcShipCaptains(
+    pirateHideoutHosts,
+    characterPortraitManifest,
+    usedCharacterNames
+  );
   npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
   console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
@@ -2139,7 +2189,7 @@ function isMediterraneanFrance(lat, lon) {
 }
 
 function cityLabelText(city) {
-  return city.displayCity || city.city;
+  return city.portAlias || city.displayCity || city.city;
 }
 
 async function loadShipLightingBake(shipSpriteKey) {
@@ -2722,12 +2772,24 @@ function startMenuActions() {
     id: START_MENU_ACTION_NEW_GAME,
     label: localSaveResult.status === "ready" ? "NEW GAME" : "START GAME"
   });
+  actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: "PAST VOYAGES" });
   actions.push({ id: START_MENU_ACTION_OPTIONS, label: "OPTIONS" });
   actions.push({ id: START_MENU_ACTION_CREDITS, label: "CREDITS" });
   return actions;
 }
 
 function createCreditsMenuState() {
+  return {
+    isOpen: false,
+    page: 0,
+    panelRect: null,
+    closeButtonRect: null,
+    previousPageRect: null,
+    nextPageRect: null
+  };
+}
+
+function createPastVoyagesMenuState() {
   return {
     isOpen: false,
     page: 0,
@@ -2933,7 +2995,8 @@ function createPoliticsMenuState() {
 
 function menusAreOpen() {
   return Boolean(startMenu) || creditsMenu.isOpen || optionsMenu.isOpen ||
-    discoveriesMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen || captainMenu.isOpen ||
+    pastVoyagesMenu.isOpen || discoveriesMenu.isOpen || shipInfoMenu.isOpen ||
+    politicsMenu.isOpen || captainMenu.isOpen ||
     Boolean(captainAlertModal);
 }
 
@@ -3634,10 +3697,7 @@ function handleShipInfoKeyDown(event) {
     return;
   }
   if (event.key === "Tab") {
-    const views = ["vessel", "ledger", "papers"];
-    const index = views.indexOf(shipInfoMenu.view);
-    shipInfoMenu.view = views[(index + 1) % views.length];
-    dirty = true;
+    stepShipInfoView(1);
     return;
   }
   if (event.key === "l" || event.key === "L") {
@@ -3689,6 +3749,7 @@ function closeStartMenu() {
 }
 
 function startNewVoyage() {
+  archiveSavedVoyageBeforeStartingOver();
   try {
     clearLocalSave();
     localSaveResult = { status: "empty", save: null, error: null };
@@ -3700,6 +3761,26 @@ function startNewVoyage() {
   hasStartedVoyage = true;
   closeStartMenu();
   saveVoyageNow("new voyage");
+}
+
+function archiveSavedVoyageBeforeStartingOver() {
+  const payload = localSaveResult.status === "ready" ? localSaveResult.save?.payload : null;
+  if (!payload) return false;
+  try {
+    const savedState = validateGameState(payload.gameState);
+    const record = createPastVoyageRecord({
+      state: savedState,
+      playerShip: payload.playerShip,
+      startMinute: payload.worldClock.voyageStartMinute,
+      endMinute: payload.worldClock.currentMinute,
+      outcome: "Voyage abandoned for a new expedition."
+    });
+    storePastVoyage(record);
+    return true;
+  } catch (error) {
+    console.warn("[pixel-globe] could not archive the abandoned voyage", error);
+    return false;
+  }
 }
 
 async function continueSavedVoyage() {
@@ -3747,7 +3828,8 @@ async function restoreSavedVoyage(payload) {
   restoreWorldEconomy(worldEconomy, payload.economy);
   restoreNpcSeaRouteSystem(npcSeaRoutes, payload.npcRoutes, {
     economy: worldEconomy,
-    fishState: restoredGameState
+    fishState: restoredGameState,
+    relationBetween: currentDiplomacyBetween
   });
 
   gameState = restoredGameState;
@@ -3879,6 +3961,7 @@ function finiteMinuteOrNull(value) {
 
 function openCreditsMenu() {
   closeOptionsMenu();
+  closePastVoyagesMenu();
   closeDiscoveriesMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
@@ -3886,6 +3969,35 @@ function openCreditsMenu() {
   creditsMenu.page = 0;
   keys.clear();
   clearPointerSteering();
+  dirty = true;
+}
+
+function openPastVoyagesMenu() {
+  closeOptionsMenu();
+  closeCreditsMenu();
+  pastVoyagesMenu.isOpen = true;
+  pastVoyagesMenu.page = 0;
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closePastVoyagesMenu() {
+  pastVoyagesMenu.isOpen = false;
+  pastVoyagesMenu.panelRect = null;
+  pastVoyagesMenu.closeButtonRect = null;
+  pastVoyagesMenu.previousPageRect = null;
+  pastVoyagesMenu.nextPageRect = null;
+  dirty = true;
+}
+
+function pastVoyagesPageCount() {
+  return voyageHistoryResult.records.length + 1;
+}
+
+function stepPastVoyagesPage(direction) {
+  const pageCount = pastVoyagesPageCount();
+  pastVoyagesMenu.page = stepMenuIndex(pastVoyagesMenu.page, direction, pageCount);
   dirty = true;
 }
 
@@ -3913,6 +4025,7 @@ function openOptionsMenu() {
   closeShipInfoMenu();
   closePoliticsMenu();
   closeCreditsMenu();
+  closePastVoyagesMenu();
   optionsMenu.isOpen = true;
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
@@ -4031,8 +4144,11 @@ function handleCaptainMenuKeyDown(event) {
   }
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
     const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-    captainMenu.selectedIndex =
-      (captainMenu.selectedIndex + direction + CAPTAIN_MENU_LABELS.length) % CAPTAIN_MENU_LABELS.length;
+    captainMenu.selectedIndex = stepMenuIndex(
+      captainMenu.selectedIndex,
+      direction,
+      CAPTAIN_MENU_LABELS.length
+    );
     dirty = true;
     return;
   }
@@ -4054,7 +4170,7 @@ function handleOptionsKeyDown(event) {
   }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
     const direction = event.key === "ArrowDown" ? 1 : -1;
-    optionsMenu.selectedIndex = (optionsMenu.selectedIndex + direction + OPTIONS_ROW_COUNT) % OPTIONS_ROW_COUNT;
+    optionsMenu.selectedIndex = stepMenuIndex(optionsMenu.selectedIndex, direction, OPTIONS_ROW_COUNT);
     dirty = true;
     return;
   }
@@ -4083,8 +4199,7 @@ function handleStartMenuKeyDown(event) {
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
     const direction = event.key === "ArrowDown" ? 1 : -1;
     const actionCount = startMenuActions().length;
-    startMenu.selectedIndex =
-      (startMenu.selectedIndex + direction + actionCount) % actionCount;
+    startMenu.selectedIndex = stepMenuIndex(startMenu.selectedIndex, direction, actionCount);
     dirty = true;
     return;
   }
@@ -4112,6 +4227,19 @@ function handleCreditsKeyDown(event) {
   }
 }
 
+function handlePastVoyagesKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closePastVoyagesMenu();
+    return;
+  }
+  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+    stepPastVoyagesPage(-1);
+  } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+    stepPastVoyagesPage(1);
+  }
+}
+
 function activateStartMenuSelection() {
   if (!startMenu || startMenu.isLoading) return;
   const action = startMenuActions()[startMenu.selectedIndex];
@@ -4122,6 +4250,10 @@ function activateStartMenuSelection() {
   }
   if (action.id === START_MENU_ACTION_NEW_GAME) {
     startNewVoyage();
+    return;
+  }
+  if (action.id === START_MENU_ACTION_PAST_VOYAGES) {
+    openPastVoyagesMenu();
     return;
   }
   if (action.id === START_MENU_ACTION_OPTIONS) {
@@ -4167,6 +4299,12 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     handleCreditsPointerDown(point);
+    return;
+  }
+  if (pastVoyagesMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handlePastVoyagesPointerDown(point);
     return;
   }
   if (startMenu) {
@@ -4287,6 +4425,10 @@ function handlePointerMove(event) {
     return;
   }
   if (creditsMenu.isOpen) {
+    dirty = true;
+    return;
+  }
+  if (pastVoyagesMenu.isOpen) {
     dirty = true;
     return;
   }
@@ -4439,6 +4581,18 @@ function handleCreditsPointerDown(point) {
   if (pointInRect(point, creditsMenu.nextPageRect)) stepCreditsPage(1);
 }
 
+function handlePastVoyagesPointerDown(point) {
+  if (pointInRect(point, pastVoyagesMenu.closeButtonRect)) {
+    closePastVoyagesMenu();
+    return;
+  }
+  if (pointInRect(point, pastVoyagesMenu.previousPageRect)) {
+    stepPastVoyagesPage(-1);
+    return;
+  }
+  if (pointInRect(point, pastVoyagesMenu.nextPageRect)) stepPastVoyagesPage(1);
+}
+
 function handleDiscoveriesPointerDown(point) {
   if (pointInRect(point, discoveriesMenu.closeButtonRect)) {
     closeDiscoveriesMenu();
@@ -4493,7 +4647,7 @@ function handleShipInfoPointerDown(point) {
 function stepDiscoveriesPage(direction) {
   const count = discoveredEntries(gameState).length;
   const pageCount = Math.max(1, Math.ceil(count / discoveriesPageSize()));
-  discoveriesMenu.page = (discoveriesMenu.page + direction + pageCount) % pageCount;
+  discoveriesMenu.page = stepMenuIndex(discoveriesMenu.page, direction, pageCount);
   dirty = true;
 }
 
@@ -4505,7 +4659,7 @@ function stepPoliticsPage(direction) {
   const view = createPoliticsView(gameState);
   if (SCREEN_W < 380) {
     const pagination = compactPoliticsPagination(view);
-    politicsMenu.page = (politicsMenu.page + direction + pagination.pageCount) % pagination.pageCount;
+    politicsMenu.page = stepMenuIndex(politicsMenu.page, direction, pagination.pageCount);
     dirty = true;
     return;
   }
@@ -4575,7 +4729,13 @@ function handleDialogueKeyDown(event) {
       closeDialogue();
       return;
     }
-    dialogueState.nodeId = "root";
+    if (dialogueState.kind === "port" && ["barred", "disguise-failed"].includes(dialogueState.nodeId)) {
+      closeDialogue();
+      return;
+    }
+    dialogueState.nodeId = dialogueState.kind === "port" && dialogueState.nodeId === "disguise-success"
+      ? dialogueState.nextPortNodeId || "root"
+      : "root";
     dialogueState.selectedIndex = 0;
     dialogueState.feedback = null;
     dirty = true;
@@ -4609,8 +4769,11 @@ function updateDialogueSelectionFromPoint(point) {
 
 function stepDialogueSelection(direction) {
   const view = currentDialogueView();
-  dialogueState.selectedIndex =
-    (dialogueState.selectedIndex + direction + view.options.length) % view.options.length;
+  dialogueState.selectedIndex = stepMenuIndex(
+    dialogueState.selectedIndex,
+    direction,
+    view.options.length
+  );
   dirty = true;
 }
 
@@ -4636,10 +4799,18 @@ function openPortDialogue(cityCall) {
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { restart: true, force: true });
-  const needsLoadout = !gameState.ship?.loadoutId;
-  visitPort(gameState, cityCall);
-  if (needsLoadout) repairPlayerShipAtPort();
-  else applyAutomaticPortServices(cityCall);
+  const entryStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
+  if (!entryStatus.allowed) {
+    dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "barred" });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow("barred from port");
+    dirty = true;
+    return;
+  }
+
+  const needsLoadout = admitPlayerToPort(cityCall);
   const passengerQuest = passengerDialogueQuestForCity(cityCall, { createOffer: true });
   const autoPassengerQuest = passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)
     ? passengerQuest
@@ -4656,7 +4827,47 @@ function openPortDialogue(cityCall) {
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
+  openPendingDiscoveryPortDialogue();
   saveVoyageNow("port arrival");
+  dirty = true;
+}
+
+function openPendingDiscoveryPortDialogue() {
+  const discoveryDialogue = consumePendingDiscoveryPortDialogue(gameState);
+  if (!discoveryDialogue) return false;
+  return openCaptainAlertModal(discoveryDialogue.message, discoveryDialogue.expressionId);
+}
+
+function admitPlayerToPort(cityCall) {
+  const needsLoadout = !gameState.ship?.loadoutId;
+  visitPort(gameState, cityCall);
+  if (needsLoadout) repairPlayerShipAtPort();
+  else applyAutomaticPortServices(cityCall);
+  return needsLoadout;
+}
+
+function attemptHostilePortEntry(cityCall) {
+  const outcome = attemptPortDisguise(
+    gameState,
+    cityCall,
+    Math.floor(weatherClockMinutes),
+    Math.random()
+  );
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  if (outcome.success) {
+    const needsLoadout = admitPlayerToPort(cityCall);
+    dialogueState.disguisedEntry = true;
+    dialogueState.nextPortNodeId = needsLoadout ? "loadout" : "root";
+    dialogueState.nodeId = "disguise-success";
+    openPendingDiscoveryPortDialogue();
+    saveVoyageNow("entered hostile port in disguise");
+  } else {
+    dialogueState.nodeId = "disguise-failed";
+    saveVoyageNow("failed hostile port disguise");
+  }
+  dialogueLayout.scrollOffset = 0;
+  ensureDialoguePortraitLoaded();
   dirty = true;
 }
 
@@ -4822,7 +5033,9 @@ function startWaitingInPort(city) {
   if (!city || portWaitState || gameOverReason) return false;
   portWaitState = {
     cityTileId: city.tileId,
-    startedAtMinute: weatherClockMinutes
+    portId: city.portId || `city-${city.tileId}`,
+    startedAtMinute: weatherClockMinutes,
+    disguisedEntry: dialogueState?.disguisedEntry === true
   };
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
@@ -4836,8 +5049,9 @@ function startWaitingInPort(city) {
 
 function stopWaitingInPort() {
   if (!portWaitState) return false;
-  const city = cityByTileId.get(portWaitState.cityTileId);
-  const character = city ? portCityCharacters?.get(city.tileId) : null;
+  const city = chartPortCallById(portWaitState.portId) || cityByTileId.get(portWaitState.cityTileId);
+  const character = city?.character || (city ? portCityCharacters?.get(city.tileId) : null);
+  const disguisedEntry = portWaitState.disguisedEntry === true;
   portWaitState = null;
   portWaitButtonRect = null;
   if (!city || !character) {
@@ -4849,7 +5063,7 @@ function stopWaitingInPort() {
     ...city,
     character,
     portrait: characterExpression(character)
-  }, { initialNodeId: "root" });
+  }, { initialNodeId: "root", disguisedEntry });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   saveVoyageNow("stopped waiting in port");
@@ -4903,6 +5117,10 @@ function chooseDialogueOption(optionIndex) {
     }
     if (result.action?.type === "wait-in-port") {
       startWaitingInPort(currentDialogueCity());
+      return;
+    }
+    if (result.action?.type === "attempt-disguise") {
+      attemptHostilePortEntry(currentDialogueCity());
       return;
     }
   } else if (dialogueState.kind === "passenger") {
@@ -5013,8 +5231,14 @@ function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   }
   if (hasPrivateeringAuthorityAgainst(gameState, factionId)) return;
   if (!state?.playerPiracyRecorded) {
+    const hideoutsWereVisible = pirateHideoutsVisibleToPlayer(gameState);
     recordPiracyAgainstFaction(gameState, factionId, { includeVictim: false });
     if (state) state.playerPiracyRecorded = true;
+    if (!hideoutsWereVisible && pirateHideoutsVisibleToPlayer(gameState)) {
+      chart = null;
+      showSurvivalNotice("PIRATE HIDEOUTS REVEALED", "good");
+      dirty = true;
+    }
   }
 }
 
@@ -5025,6 +5249,10 @@ function clampDialogueSelection() {
 
 function currentDialogueCity() {
   if (!dialogueState) throw new Error("No active dialogue session");
+  if (dialogueState.kind === "port") {
+    const portCall = chartPortCallById(dialogueState.portId);
+    if (portCall) return portCall;
+  }
   const city = cityByTileId.get(dialogueState.cityTileId);
   if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
   const character = portCityCharacters?.get(city.tileId);
@@ -5034,6 +5262,11 @@ function currentDialogueCity() {
     character,
     portrait: characterExpression(character)
   };
+}
+
+function chartPortCallById(portId) {
+  if (!portId || !chart?.cityCalls) return null;
+  return chart.cityCalls.find((call) => call.portId === portId) || null;
 }
 
 function currentDialogueView() {
@@ -5050,10 +5283,13 @@ function currentDialogueView() {
 }
 
 function portDialogueContext() {
-  const city = dialogueState?.cityTileId === undefined ? null : cityByTileId.get(dialogueState.cityTileId);
+  const city = dialogueState?.cityTileId === undefined
+    ? null
+    : chartPortCallById(dialogueState.portId) || cityByTileId.get(dialogueState.cityTileId);
   const shipyard = city ? shipyardAtPort(worldEconomy.shipyards, city) : null;
+  const simMinute = Math.floor(weatherClockMinutes);
   return {
-    simMinute: Math.floor(weatherClockMinutes),
+    simMinute,
     dayIndex: weatherParts.dayIndex,
     shipPower: playerShipPrivateeringPower(),
     shipStats: ship?.stats || null,
@@ -5062,6 +5298,7 @@ function portDialogueContext() {
     playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
     rivalLabel: portPoliticalRivalLabel(city),
     shipyard,
+    portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
     shipyardRumor: city ? shipyardRumorForPort(worldEconomy.shipyards, city) : null,
     passengerOffer: city && dialogueState?.kind === "port"
       ? pendingPassengerOfferForCity(gameState, city)
@@ -5089,7 +5326,7 @@ function portPoliticalRivalLabel(city) {
   if (!city?.factionId || city.factionId === PIRATE_FACTION_ID) return null;
   const rivals = FACTIONS
     .filter((faction) => faction.id !== PIRATE_FACTION_ID && faction.id !== city.factionId)
-    .filter((faction) => diplomacyBetween(city.factionId, faction.id) === DIPLOMACY_WAR)
+    .filter((faction) => currentDiplomacyBetween(city.factionId, faction.id) === DIPLOMACY_WAR)
     .sort((a, b) => a.id.localeCompare(b.id));
   if (rivals.length === 0) return null;
   const rival = rivals[hashInt(city.tileId) % rivals.length];
@@ -5203,14 +5440,10 @@ function activeInteractionTarget() {
 
 function activePortCall() {
   if (!chart || !localLayout) return null;
-  const currentCity = cityByTileId.get(ship?.tileId ?? centerTileId);
-  const currentCharacter = currentCity ? portCityCharacters?.get(currentCity.tileId) : null;
-  if (currentCity && currentCharacter) {
-    return {
-      ...currentCity,
-      character: currentCharacter,
-      portrait: characterExpression(currentCharacter)
-    };
+  const currentTileId = ship?.tileId ?? centerTileId;
+  const currentPortCalls = (chart.cityCalls || []).filter((call) => call.tileId === currentTileId && call.character);
+  if (currentPortCalls.length > 0) {
+    return currentPortCalls.find((call) => call.isPirateHideout) || currentPortCalls[0];
   }
   let best = null;
   let bestDistance = Infinity;
@@ -5847,13 +6080,14 @@ function handleControllerAction(action) {
 function stepShipInfoView(direction) {
   const views = ["vessel", "ledger", "papers"];
   const index = views.indexOf(shipInfoMenu.view);
-  shipInfoMenu.view = views[(index + direction + views.length) % views.length];
+  shipInfoMenu.view = views[stepMenuIndex(index, direction, views.length)];
   dirty = true;
 }
 
 function controllerUiIsActive() {
   return Boolean(gameOverReason || shipInfoMenu.isOpen || politicsMenu.isOpen || discoveriesMenu.isOpen ||
-    optionsMenu.isOpen || creditsMenu.isOpen || captainMenu.isOpen || startMenu || playerIntroModal ||
+    optionsMenu.isOpen || creditsMenu.isOpen || pastVoyagesMenu.isOpen || captainMenu.isOpen ||
+    startMenu || playerIntroModal ||
     captainAlertModal || dialogueState || portWaitState);
 }
 
@@ -5866,6 +6100,7 @@ function dispatchControllerKey(key) {
   else if (discoveriesMenu.isOpen) handleDiscoveriesKeyDown(event);
   else if (optionsMenu.isOpen) handleOptionsKeyDown(event);
   else if (creditsMenu.isOpen) handleCreditsKeyDown(event);
+  else if (pastVoyagesMenu.isOpen) handlePastVoyagesKeyDown(event);
   else if (captainMenu.isOpen) handleCaptainMenuKeyDown(event);
   else if (startMenu) handleStartMenuKeyDown(event);
   else if (playerIntroModal) handlePlayerIntroKeyDown(event);
@@ -7069,21 +7304,34 @@ function updateWeather(dt, nowMs) {
   let stormDamageChanged = false;
   let survivalChanged = false;
   let stormCaptainChanged = false;
+  let diplomacyChanged = false;
   if (weatherTimeScale > 0) {
     const previousClockMinutes = weatherClockMinutes;
     weatherClockMinutes += dt * weatherTimeScale / 60;
     stormDamageChanged = updateStormDamage(previousClockMinutes, weatherClockMinutes);
     survivalChanged = updatePlayerSurvival(previousClockMinutes, weatherClockMinutes);
     stormCaptainChanged = updateStormCaptainAlert(previousClockMinutes, weatherClockMinutes);
+    diplomacyChanged = updateWorldDiplomacy();
   }
 
   const dayChanged = refreshWeatherState(false);
   const tick = Math.floor(nowMs / WEATHER_REDRAW_MS);
   if (tick !== weatherDrawTick) {
     weatherDrawTick = tick;
-    return weatherTimeScale > 0 || dayChanged || stormDamageChanged || survivalChanged || stormCaptainChanged;
+    return weatherTimeScale > 0 || dayChanged || stormDamageChanged || survivalChanged ||
+      stormCaptainChanged || diplomacyChanged;
   }
-  return dayChanged || stormDamageChanged || survivalChanged || stormCaptainChanged;
+  return dayChanged || stormDamageChanged || survivalChanged || stormCaptainChanged || diplomacyChanged;
+}
+
+function updateWorldDiplomacy() {
+  const diplomacy = gameState?.relations?.diplomacy;
+  if (!diplomacy || weatherClockMinutes < diplomacy.nextEventMinute) return false;
+  const events = advanceGameDiplomacy(gameState, weatherClockMinutes);
+  if (events.length === 0) return false;
+  const latest = events[events.length - 1];
+  showSurvivalNotice(diplomacyEventNotice(latest), latest.kind === "peace" ? "good" : "warn");
+  return true;
 }
 
 function updatePlayerSurvival(previousMinute, currentMinute) {
@@ -7217,6 +7465,13 @@ function sinkPlayerShip(reason) {
   if (gameOverReason) return;
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs);
+  storePastVoyage(createPastVoyageRecord({
+    state: gameState,
+    playerShip: snapshotPlayerShip(),
+    startMinute: voyageStartClockMinutes,
+    endMinute: gameOverState.deathMinute,
+    outcome: reason
+  }));
   anchored = false;
   shoreScavengeAction = null;
   portWaitState = null;
@@ -7254,33 +7509,82 @@ function createGameOverState(reason, startedAtMs) {
 }
 
 function createGameOverStats(deathMinute) {
-  const startMinute = voyageStartClockMinutes;
-  const daysAtSea = Math.max(1, Math.floor((deathMinute - startMinute) / WEATHER_MINUTES_PER_DAY) + 1);
-  const discoveries = gameState ? discoveredEntries(gameState).length : 0;
-  const visitedPorts = gameState ? Object.keys(gameState.memory.visitedPorts).length : 0;
-  const completedQuests = gameState ? Object.keys(gameState.memory.quests.completed).length : 0;
-  const ledgerEntries = gameState?.accounts?.ledger?.length || 0;
-  const lettersOfMarque = gameState ? Object.keys(gameState.relations.lettersOfMarque).length : 0;
-  const cargo = gameState ? cargoUsed(gameState) : 0;
+  const voyage = createVoyageStatsForState(
+    gameState,
+    voyageStartClockMinutes,
+    deathMinute,
+    ship?.position
+  );
+  const ledgerEntries = gameState.accounts.ledger.length;
+  const cargo = cargoUsed(gameState);
   const cargoCapacity = gameState?.cargoCapacity || ship?.cargoCapacity || 0;
   return {
-    daysAtSea,
-    discoveries,
-    visitedPorts,
-    completedQuests,
+    ...voyage,
     ledgerEntries,
-    lettersOfMarque,
-    doubloons: gameState?.doubloons || 0,
+    doubloons: voyage.endingDoubloons,
     cargo,
-    cargoCapacity,
-    latitude: ship ? latitudeDegForDirection(ship.position) : 0,
-    longitude: ship ? longitudeDegForDirection(ship.position) : 0
+    cargoCapacity
   };
+}
+
+function createPastVoyageRecord({ state, playerShip, startMinute, endMinute, outcome }) {
+  const character = state.playerCharacter;
+  const stats = createVoyageStatsForState(state, startMinute, endMinute, playerShip.position);
+  return {
+    captainName: character?.name || "Unknown captain",
+    home: character
+      ? `${character.homePortName}, ${character.homePortRealmName}`
+      : "Unknown home port",
+    birthDateLabel: character?.birthDateLabel || "--",
+    endDateLabel: shipLedgerDateLabel(endMinute),
+    vessel: shipLabelForSlug(playerShip.typeSlug),
+    outcome,
+    ...stats
+  };
+}
+
+function createVoyageStatsForState(state, startMinute, endMinute, position) {
+  const ledger = state.accounts.ledger;
+  const opening = ledger.find((entry) => entry.kind === "opening");
+  const openingDoubloons = Number.isFinite(opening?.amount) ? opening.amount : 0;
+  const decisions = state.memory.decisions || {};
+  const piracyActs = Object.entries(decisions).reduce((total, [key, count]) => (
+    key.startsWith("reputation.piracy.") && Number.isFinite(count) ? total + count : total
+  ), 0);
+  const safePosition = Array.isArray(position) && position.length === 3 ? position : [1, 0, 0];
+  return {
+    daysAtSea: Math.max(1, Math.floor((endMinute - startMinute) / WEATHER_MINUTES_PER_DAY) + 1),
+    doubloonsEarned: Math.round(grossDoubloonsEarned(ledger)),
+    endingDoubloons: state.doubloons,
+    netDoubloons: Math.round(state.doubloons - openingDoubloons),
+    realizedPnl: Math.round(state.accounts.realizedPnl || 0),
+    discoveries: discoveredEntries(state).length,
+    visitedPorts: Object.keys(state.memory.visitedPorts).length,
+    completedQuests: Object.keys(state.memory.quests.completed).length,
+    lettersOfMarque: Object.keys(state.relations.lettersOfMarque).length,
+    crewLost: Math.max(0, decisions["crew.lost"] || 0),
+    piracyActs: Math.max(0, piracyActs),
+    circumnavigated: hasDiscovery(state, CIRCUMNAVIGATION_DISCOVERY.id),
+    latitude: latitudeDegForDirection(safePosition),
+    longitude: longitudeDegForDirection(safePosition)
+  };
+}
+
+function storePastVoyage(record) {
+  try {
+    const stored = appendVoyageRecord(record);
+    voyageHistoryResult = { status: "ready", records: stored.records, error: null };
+    return true;
+  } catch (error) {
+    console.warn("[pixel-globe] could not record the completed voyage", error);
+    return false;
+  }
 }
 
 function closeMenusForGameOver() {
   optionsMenu.isOpen = false;
   optionsMenu.activeSliderKey = null;
+  pastVoyagesMenu.isOpen = false;
   discoveriesMenu.isOpen = false;
   shipInfoMenu.isOpen = false;
   politicsMenu.isOpen = false;
@@ -7530,7 +7834,7 @@ function updateNpcCombat(dt) {
   const playerWasInCombat = playerHasCombatEngagement();
   const participantsBefore = combatParticipantIds();
   const entities = [playerCombatEntity(), ...[...npcVisualShips.values()].map(npcCombatEntity)];
-  const result = updateShipCombatState(shipCombatState, entities);
+  const result = updateShipCombatState(shipCombatState, entities, currentDiplomacyBetween);
   for (const id of combatParticipantIds()) {
     if (!participantsBefore.has(id)) {
       shipCombatEntryCollisionGrace.set(id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
@@ -8961,6 +9265,10 @@ function applyResponsiveViewport(width, height) {
   CREDITS_PANEL_H = Math.min(218, SCREEN_H - 12);
   CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
   CREDITS_PANEL_Y = Math.floor((SCREEN_H - CREDITS_PANEL_H) / 2);
+  PAST_VOYAGES_PANEL_W = Math.min(338, SCREEN_W - 12);
+  PAST_VOYAGES_PANEL_H = Math.min(238, SCREEN_H - 12);
+  PAST_VOYAGES_PANEL_X = Math.floor((SCREEN_W - PAST_VOYAGES_PANEL_W) / 2);
+  PAST_VOYAGES_PANEL_Y = Math.floor((SCREEN_H - PAST_VOYAGES_PANEL_H) / 2);
   GAME_OVER_PANEL_W = Math.min(350, SCREEN_W - 12);
   GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
   GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
@@ -9251,6 +9559,7 @@ function render(nowMs) {
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
   if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal();
   if (startMenu) drawStartMenu(nowMs);
+  if (pastVoyagesMenu.isOpen) drawPastVoyagesMenu();
   if (creditsMenu.isOpen) drawCreditsMenu();
   if (optionsMenu.isOpen) drawOptionsMenu();
 }
@@ -9435,7 +9744,11 @@ function updateDiscoveries(nowMs) {
   let nearest = null;
   let nearestDistancePx = Infinity;
   for (const discovery of discoveryCatalog) {
-    if (discovery.kind === "achievement" || hasDiscovery(gameState, discovery.id)) continue;
+    if (
+      discovery.kind === "achievement" ||
+      hasDiscovery(gameState, discovery.id) ||
+      !isDiscoveryNovelToCharacter(discovery, gameState.playerCharacter)
+    ) continue;
     const distancePx = discoveryDistancePx(discovery, ship.position);
     if (distancePx > discovery.radiusPx || distancePx >= nearestDistancePx) continue;
     nearest = discovery;
@@ -9472,11 +9785,39 @@ function latitudeDegForDirection(direction) {
 
 function queueDiscovery(discovery, nowMs) {
   if (!recordDiscovery(gameState, discovery)) return false;
+  const cargoReward = applyDiscoveryCargoReward(discovery);
+  openDiscoveryCaptainDialogue(discovery, cargoReward);
   playDiscoverySuccessSound();
   discoveryNoticeQueue.push(discovery);
   updateDiscoveryNotice(nowMs);
   saveVoyageNow("discovery");
   return true;
+}
+
+function applyDiscoveryCargoReward(discovery) {
+  const reward = discovery.cargoReward;
+  if (!reward?.fillRemainingHold) return null;
+  const received = receiveDiscoveryCargo(
+    gameState,
+    discovery,
+    reward.goodId,
+    { simMinute: Math.floor(weatherClockMinutes) }
+  );
+  syncShipCargoFromGameState();
+  return received;
+}
+
+function openDiscoveryCaptainDialogue(discovery, cargoReward) {
+  const dialogue = captainDialogueForDiscovery(discovery, gameState?.playerCharacter);
+  if (!dialogue) return false;
+  let message = dialogue;
+  if (discovery.id === EL_DORADO_DISCOVERY_ID && cargoReward) {
+    const cargoMessage = cargoReward.quantity > 0
+      ? `Every spare inch now holds gold: ${cargoReward.quantity} units.`
+      : "But our hold is full; we cannot carry its treasure.";
+    message = `${message} ${cargoMessage}`;
+  }
+  return openCaptainAlertModal(message, "happy");
 }
 
 function updateDiscoveryNotice(nowMs) {
@@ -9623,6 +9964,9 @@ function buildChart(anchorCamera) {
   const frontFacesByTile = new Map();
   const tileById = new Map();
   const visibleSet = new Set();
+  const visiblePirateHideouts = gameState && npcSeaRoutes && pirateHideoutsVisibleToPlayer(gameState)
+    ? pirateHideoutPortsByTileId
+    : null;
 
   for (const item of projectedVisible) visibleSet.add(item.id);
   for (const item of projectedVisible) {
@@ -9647,6 +9991,8 @@ function buildChart(anchorCamera) {
     tileById.set(item.id, tileCall);
     const city = cityByTileId.get(item.id);
     if (city) cityCalls.push(makeCityCall(city, tileCall));
+    const pirateHideout = visiblePirateHideouts?.get(item.id);
+    if (pirateHideout) cityCalls.push(makeCityCall(pirateHideout, tileCall));
 
     const neighbors = graph.neighbors[item.id];
     for (const nid of neighbors) {
@@ -9720,14 +10066,19 @@ function buildChart(anchorCamera) {
 }
 
 function makeCityCall(city, tileCall) {
-  const x = Math.round(tileCall.drawSurfaceX);
-  const y = Math.round(tileCall.drawSurfaceY);
-  const spriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF);
-  const spriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF);
+  const offsetX = city.isPirateHideout ? 18 : 0;
+  const offsetY = city.isPirateHideout ? -4 : 0;
+  const x = Math.round(tileCall.drawSurfaceX + offsetX);
+  const y = Math.round(tileCall.drawSurfaceY + offsetY);
+  const spriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF + offsetX);
+  const spriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF + offsetY);
   const labelH = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
-  const character = portCityCharacters?.get(city.tileId) || null;
+  const character = city.isPirateHideout
+    ? pirateHideoutCharacters.get(city.portId) || null
+    : portCityCharacters?.get(city.tileId) || null;
   return {
     ...city,
+    portId: city.portId || `city-${city.tileId}`,
     character,
     portrait: character ? characterExpression(character) : null,
     x,
@@ -11069,8 +11420,9 @@ function drawPoliticsMenu() {
     h: POLITICS_PANEL_H
   };
   const view = createPoliticsView(gameState);
+  const newsHeight = view.recentEvents.length > 0 ? 12 : 0;
   const availableRows = Math.floor(
-    (panel.h - 58 - UI_PAGER_BUTTON_H - 8) / POLITICS_MATRIX_ROW_H
+    (panel.h - 58 - UI_PAGER_BUTTON_H - 8 - newsHeight) / POLITICS_MATRIX_ROW_H
   );
   const page = politicsRowsPage(
     view,
@@ -11174,6 +11526,7 @@ function drawPoliticsMenu() {
     align: "center",
     color: "#a9a08f"
   });
+  drawPoliticsLatestNews(view, panel, pagerY);
   ctx.restore();
 }
 
@@ -11181,7 +11534,11 @@ function compactPoliticsPagination(view) {
   const panelW = POLITICS_PANEL_W;
   const panelH = POLITICS_PANEL_H;
   const columnsPerPage = Math.max(5, Math.floor((panelW - 130) / POLITICS_MATRIX_CELL_W));
-  const rowsPerPage = Math.max(6, Math.min(20, Math.floor((panelH - 92) / POLITICS_MATRIX_ROW_H)));
+  const newsHeight = view.recentEvents.length > 0 ? 12 : 0;
+  const rowsPerPage = Math.max(
+    6,
+    Math.min(20, Math.floor((panelH - 92 - newsHeight) / POLITICS_MATRIX_ROW_H))
+  );
   const columnPageCount = Math.max(1, Math.ceil(view.powers.length / columnsPerPage));
   const rowPageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
   return {
@@ -11202,7 +11559,7 @@ function drawCompactPoliticsMenu() {
   };
   const view = createPoliticsView(gameState);
   const pagination = compactPoliticsPagination(view);
-  politicsMenu.page = ((politicsMenu.page % pagination.pageCount) + pagination.pageCount) % pagination.pageCount;
+  politicsMenu.page = clampMenuIndex(politicsMenu.page, pagination.pageCount);
   const rowPage = Math.floor(politicsMenu.page / pagination.columnPageCount);
   const columnPage = politicsMenu.page % pagination.columnPageCount;
   const rows = view.rows.slice(
@@ -11307,7 +11664,19 @@ function drawCompactPoliticsMenu() {
     pagerY + 3,
     { align: "center", color: "#a9a08f" }
   );
+  drawPoliticsLatestNews(view, panel, pagerY);
   ctx.restore();
+}
+
+function drawPoliticsLatestNews(view, panel, pagerY) {
+  const latest = view.recentEvents[0];
+  if (!latest) return;
+  drawOptionsText(
+    fitPixelText(`LATEST ${diplomacyEventNotice(latest)}`, PIXEL_FONT_UI_8, panel.w - 120),
+    panel.x + panel.w / 2,
+    pagerY - 11,
+    { align: "center", color: latest.kind === "peace" ? "#91db69" : "#f68181" }
+  );
 }
 
 function drawPoliticsColumnCode(code, x, y, color) {
@@ -11375,7 +11744,10 @@ function politicsFactionColor(factionId) {
 
 function drawStartMenu(nowMs) {
   const actions = startMenuActions();
-  const panelHeight = actions.length >= 4 ? START_MENU_PANEL_H : (startMenu.message ? 212 : 196);
+  const compactFiveActions = actions.length >= 5;
+  const panelHeight = compactFiveActions
+    ? Math.min(244, SCREEN_H - 12)
+    : (actions.length >= 4 ? START_MENU_PANEL_H : (startMenu.message ? 212 : 196));
   const panel = {
     x: START_MENU_PANEL_X,
     y: Math.floor((SCREEN_H - panelHeight) / 2),
@@ -11409,10 +11781,11 @@ function drawStartMenu(nowMs) {
   });
 
   const labels = actions.map((action) => action.label);
-  const firstButtonY = panel.y + 76;
+  const firstButtonY = panel.y + (compactFiveActions ? 72 : 76);
+  const buttonGap = compactFiveActions ? 4 : START_MENU_BUTTON_GAP;
   startMenu.buttonRects = labels.map((_, index) => ({
     x: panel.x + Math.floor((panel.w - START_MENU_BUTTON_W) / 2),
-    y: firstButtonY + index * (START_MENU_BUTTON_H + START_MENU_BUTTON_GAP),
+    y: firstButtonY + index * (START_MENU_BUTTON_H + buttonGap),
     w: START_MENU_BUTTON_W,
     h: START_MENU_BUTTON_H
   }));
@@ -11446,6 +11819,165 @@ function drawStartMenuButton(rect, label, highlighted) {
     font: PIXEL_FONT_UI_10,
     align: "center"
   });
+}
+
+function drawPastVoyagesMenu() {
+  const records = voyageHistoryResult.records;
+  const pageCount = records.length + 1;
+  pastVoyagesMenu.page = clamp(pastVoyagesMenu.page, 0, pageCount - 1);
+  const panel = {
+    x: PAST_VOYAGES_PANEL_X,
+    y: PAST_VOYAGES_PANEL_Y,
+    w: PAST_VOYAGES_PANEL_W,
+    h: PAST_VOYAGES_PANEL_H
+  };
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#182127";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#8ac0b4";
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(panel.x + 4.5, panel.y + 4.5, panel.w - 9, panel.h - 9);
+  ctx.fillStyle = "rgba(138, 192, 180, 0.12)";
+  for (let y = panel.y + 39; y < panel.y + panel.h - 29; y += 13) {
+    ctx.fillRect(panel.x + 12, y, panel.w - 24, 1);
+  }
+  ctx.fillStyle = "#d6b66b";
+  ctx.fillRect(panel.x + 11, panel.y + 33, 1, panel.h - 65);
+
+  pastVoyagesMenu.panelRect = panel;
+  pastVoyagesMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 7,
+    y: panel.y + 7,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
+  drawOptionsCloseButton(
+    pastVoyagesMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, pastVoyagesMenu.closeButtonRect)
+  );
+
+  if (pastVoyagesMenu.page === 0) drawPastVoyagesSummaryPage(panel, records);
+  else drawPastVoyageRecordPage(panel, records[pastVoyagesMenu.page - 1], records.length - pastVoyagesMenu.page + 1);
+
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
+  pastVoyagesMenu.previousPageRect = {
+    x: panel.x + 12,
+    y: pagerY,
+    w: UI_PAGER_BUTTON_W,
+    h: UI_PAGER_BUTTON_H
+  };
+  pastVoyagesMenu.nextPageRect = {
+    x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
+    y: pagerY,
+    w: UI_PAGER_BUTTON_W,
+    h: UI_PAGER_BUTTON_H
+  };
+  drawOptionsArrowButton(
+    pastVoyagesMenu.previousPageRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, pastVoyagesMenu.previousPageRect)
+  );
+  drawOptionsArrowButton(
+    pastVoyagesMenu.nextPageRect,
+    ">",
+    pointInRect(optionsMenu.hoverPoint, pastVoyagesMenu.nextPageRect)
+  );
+  drawOptionsText(`PAGE ${pastVoyagesMenu.page + 1}/${pageCount}`, panel.x + panel.w / 2, pagerY + 3, {
+    align: "center",
+    color: "#a9a08f"
+  });
+  ctx.restore();
+}
+
+function drawPastVoyagesSummaryPage(panel, records) {
+  ctx.fillStyle = "#fff1bf";
+  drawPixelText("PAST VOYAGES", panel.x + panel.w / 2, panel.y + 10, {
+    font: PIXEL_FONT_UI_10,
+    align: "center"
+  });
+  drawOptionsText("CAPTAINS' REGISTER", panel.x + panel.w / 2, panel.y + 27, {
+    align: "center",
+    color: "#8ac0b4"
+  });
+  const summary = voyageHistorySummary(records);
+  drawPastVoyageRows(panel, [
+    ["VOYAGES", summary.voyages],
+    ["TOTAL DAYS", summary.totalDays],
+    ["LONGEST VOYAGE", `${summary.longestVoyageDays} DAYS`],
+    ["TOTAL EARNED", `${formatDoubloons(summary.totalDoubloonsEarned)} DB`],
+    ["MOST EARNED", `${formatDoubloons(summary.mostDoubloonsEarned)} DB`],
+    ["RICHEST ENDING", `${formatDoubloons(summary.richestEndingPurse)} DB`],
+    ["MOST DISCOVERIES", summary.mostDiscoveries],
+    ["MOST PORTS", summary.mostPortsVisited]
+  ], panel.y + 48, 16);
+  if (records.length === 0) {
+    drawOptionsText("NO PAST VOYAGES YET", panel.x + panel.w / 2, panel.y + panel.h - 42, {
+      align: "center",
+      color: "#7f8890"
+    });
+  }
+}
+
+function drawPastVoyageRecordPage(panel, record, voyageNumber) {
+  ctx.fillStyle = "#fff1bf";
+  drawPixelText(`VOYAGE ${voyageNumber}`, panel.x + panel.w / 2, panel.y + 10, {
+    font: PIXEL_FONT_UI_10,
+    align: "center"
+  });
+  drawOptionsText(
+    fitPixelText(record.captainName.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 76),
+    panel.x + panel.w / 2,
+    panel.y + 27,
+    { align: "center", color: "#8ac0b4" }
+  );
+  drawPastVoyageRows(panel, [
+    ["LIFETIME", `${record.birthDateLabel} - ${record.endDateLabel}`],
+    ["HOME", record.home],
+    ["LAST VESSEL", record.vessel],
+    ["DAYS AT SEA", record.daysAtSea],
+    ["EARNED / NET", `${formatDoubloons(record.doubloonsEarned)} / ${formatSignedDoubloons(record.netDoubloons)}`],
+    ["FINAL / TRADE PNL", `${formatDoubloons(record.endingDoubloons)} / ${formatSignedDoubloons(record.realizedPnl)}`],
+    ["DISC / PORTS / WORLD", `${record.discoveries} / ${record.visitedPorts} / ${record.circumnavigated ? "YES" : "NO"}`],
+    ["QUESTS / MARQUES", `${record.completedQuests} / ${record.lettersOfMarque}`],
+    ["CREW LOST / PIRACY", `${record.crewLost} / ${record.piracyActs}`],
+    ["LAST POSITION", formatLatLon(record.latitude, record.longitude)]
+  ], panel.y + 42, 13);
+  drawOptionsText("FATE", panel.x + 18, panel.y + 174, { color: "#7f8890" });
+  drawOptionsText(
+    fitPixelText(record.outcome, PIXEL_FONT_UI_8, panel.w - 36),
+    panel.x + 18,
+    panel.y + 187,
+    { color: "#e4dbc6" }
+  );
+}
+
+function drawPastVoyageRows(panel, rows, startY, lineHeight) {
+  const labelX = panel.x + 18;
+  const valueX = panel.x + panel.w - 18;
+  const valueWidth = Math.max(42, Math.floor(panel.w * 0.57));
+  rows.forEach(([label, value], index) => {
+    const y = startY + index * lineHeight;
+    drawOptionsText(String(label), labelX, y, { color: "#7f8890" });
+    drawOptionsText(
+      fitPixelText(String(value), PIXEL_FONT_UI_8, valueWidth),
+      valueX,
+      y,
+      { align: "right", color: "#e4dbc6" }
+    );
+  });
+}
+
+function formatDoubloons(value) {
+  return Math.round(value).toLocaleString("en-US");
+}
+
+function formatSignedDoubloons(value) {
+  const rounded = Math.round(value);
+  return `${rounded >= 0 ? "+" : ""}${formatDoubloons(rounded)}`;
 }
 
 function drawCreditsMenu() {
@@ -14124,7 +14656,18 @@ function stormBobbedShipCall(call, nowMs) {
 
 function npcCombatAllegiance(npcShipId, factionId) {
   if (shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShipId))) return "enemy";
-  return playerCombatAllegiance(ship.factionId, factionId, playerHasCombatEngagement());
+  return playerCombatAllegiance(
+    ship.factionId,
+    factionId,
+    playerHasCombatEngagement(),
+    currentDiplomacyBetween
+  );
+}
+
+function currentDiplomacyBetween(factionAId, factionBId) {
+  return gameState
+    ? diplomacyBetweenForState(gameState, factionAId, factionBId)
+    : diplomacyBetween(factionAId, factionBId);
 }
 
 function drawShipCombatOutline(call, sx, sy) {
@@ -15647,7 +16190,7 @@ function gameOverStatRows(state) {
     ["DISCOVERIES", String(stats.discoveries)],
     ["PORTS VISITED", String(stats.visitedPorts)],
     ["QUESTS COMPLETED", String(stats.completedQuests)],
-    ["LEDGER ENTRIES", String(stats.ledgerEntries)],
+    ["DOUBLOONS EARNED", formatDoubloons(stats.doubloonsEarned)],
     ["LETTERS", String(stats.lettersOfMarque)],
     ["CARGO", `${stats.cargo}/${stats.cargoCapacity}`],
     ["DOUBLOONS", String(stats.doubloons)]

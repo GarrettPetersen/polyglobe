@@ -18,9 +18,11 @@ import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   adjustFactionReputation,
+  attemptPortDisguise,
   createGameState,
   hasLetterOfMarqueFrom,
-  initializeProvisionalShipLoadout
+  initializeProvisionalShipLoadout,
+  portEntryStatus
 } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -333,6 +335,122 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.ok(result.loadoutResult.plan.totalSpace <= stats.cargoCapacity);
   assert.ok(gameState.doubloons <= before);
   assert.match(session.feedback, /Balanced targets set/);
+});
+
+test("enemy port guards bar resupply and offer one risky disguise route", () => {
+  const city = {
+    tileId: 12,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    factionId: "france",
+    population: 18000,
+    character: { name: "Etienne Moreau" }
+  };
+  const playerCharacter = {
+    name: "Joan Alden",
+    nationalityId: "england",
+    expressions: ["neutral", "happy"]
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
+  const session = createPortDialogueSession(city, { initialNodeId: "barred" });
+  let context = { portEntryStatus: portEntryStatus(gameState, city, 100) };
+
+  const barred = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(barred.speaker, "Calais harbor guard");
+  assert.match(barred.text, /No supplies will be sold/);
+  assert.deepEqual(barred.options.map((entry) => entry.label), [
+    "Try to enter in disguise",
+    "Leave"
+  ]);
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
+    closed: false,
+    action: { type: "attempt-disguise" }
+  });
+
+  attemptPortDisguise(gameState, city, 100, 0.99);
+  session.nodeId = "disguise-failed";
+  context = { portEntryStatus: portEntryStatus(gameState, city, 101) };
+  const failed = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(failed.text, /barely escape/);
+  assert.deepEqual(failed.options.map((entry) => entry.label), ["Make for open water"]);
+});
+
+test("a successful disguise opens commerce but not faction business", () => {
+  const city = {
+    tileId: 14,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    factionId: "france",
+    population: 18000,
+    character: { name: "Etienne Moreau" }
+  };
+  const playerCharacter = {
+    name: "Joan Alden",
+    nationalityId: "england",
+    expressions: ["neutral", "happy"]
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "disguise-success",
+    disguisedEntry: true,
+    nextPortNodeId: "root"
+  });
+
+  const success = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(success.text, /papers appear to be in order/);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0);
+  const root = portDialogueView(session, city, gameState, economy, [city], {
+    passengerOffer: { passenger: { name: "Pierre" } }
+  });
+  assert.match(root.text, /Keep your disguise intact/);
+  assert.ok(root.options.some((entry) => entry.label === "Buy goods"));
+  assert.ok(root.options.every((entry) => entry.label !== "Ask about work"));
+  assert.ok(root.options.every((entry) => !entry.label.startsWith("Speak with")));
+  assert.ok(root.options.every((entry) => entry.label !== "Letter of marque"));
+});
+
+test("pirate hideouts speak and trade like covert havens", () => {
+  const marketPort = {
+    tileId: 18,
+    city: "Falmouth",
+    displayCity: "Falmouth",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    factionId: "england",
+    population: 9000
+  };
+  const hideout = {
+    ...marketPort,
+    portId: "pirate-hideout-18",
+    portAlias: "Black Gull Cove",
+    factionId: "pirate",
+    isPirateHideout: true,
+    settlementType: "village",
+    population: 1200,
+    character: { name: "Mara Vane" }
+  };
+  const economy = createWorldEconomy({ ports: [marketPort], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(hideout);
+
+  const greeting = portDialogueView(session, hideout, gameState, economy, [marketPort], { dayIndex: 3 });
+  assert.equal(greeting.speaker, "Mara Vane, keeper of Black Gull Cove");
+  assert.match(greeting.text, /cove|cargo|questions/i);
+  selectPortDialogueOption(session, hideout, gameState, economy, [marketPort], 0);
+
+  const root = portDialogueView(session, hideout, gameState, economy, [marketPort]);
+  assert.match(root.text, /Powder, provisions, and silence/);
+  assert.ok(root.options.some((entry) => entry.label === "Buy doubtful goods"));
+  assert.ok(root.options.some((entry) => entry.label === "Fence cargo"));
+  assert.ok(root.options.some((entry) => entry.label === "Lie low in the cove"));
+  assert.ok(root.options.some((entry) => entry.label === "Put to sea"));
+  assert.ok(root.options.every((entry) => entry.label !== "Ask about work"));
 });
 
 test("ports sell a costly progression of fishing net upgrades", () => {

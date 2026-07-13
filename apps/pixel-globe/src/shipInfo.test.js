@@ -182,24 +182,24 @@ test("performance ratings preserve the expected fleet ordering", () => {
   );
 });
 
-test("cargo manifest pages wrap in both directions", () => {
+test("cargo manifest pages stop at either end", () => {
   const view = {
     cargo: Array.from({ length: SHIP_INFO_CARGO_ROWS_PER_PAGE + 2 }, (_, index) => ({ id: `good-${index}` }))
   };
   assert.equal(shipInfoCargoPage(view, 0).rows.length, SHIP_INFO_CARGO_ROWS_PER_PAGE);
   assert.equal(shipInfoCargoPage(view, 1).rows.length, 2);
-  assert.equal(shipInfoCargoPage(view, -1).page, 1);
-  assert.equal(shipInfoCargoPage(view, 2).page, 0);
+  assert.equal(shipInfoCargoPage(view, -1).page, 0);
+  assert.equal(shipInfoCargoPage(view, 2).page, 1);
 });
 
-test("ship papers pages wrap in both directions", () => {
+test("ship papers pages stop at either end", () => {
   const view = {
     papers: Array.from({ length: SHIP_PAPERS_ROWS_PER_PAGE + 1 }, (_, index) => ({ id: `paper-${index}` }))
   };
   assert.equal(shipPapersPage(view, 0).rows.length, SHIP_PAPERS_ROWS_PER_PAGE);
   assert.equal(shipPapersPage(view, 1).rows.length, 1);
-  assert.equal(shipPapersPage(view, -1).page, 1);
-  assert.equal(shipPapersPage(view, 2).page, 0);
+  assert.equal(shipPapersPage(view, -1).page, 0);
+  assert.equal(shipPapersPage(view, 2).page, 1);
 });
 
 test("cargo capacity disagreement fails loudly", () => {

@@ -320,7 +320,7 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["ultimate-portrait-pack-v1-0-village-elder-villager-elder-portrait", 4],
     ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", 4],
     ["ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait", 6],
-    ["women-knight-portrait-pack-by-captainskeleto-women-knight-portrait", 3],
+    ["women-knight-portrait-pack-by-captainskeleto-women-knight-portrait", 12],
     ["women-peasant-pack-by-captainskeleto-women-peasant", 3],
     ["ultimate-portrait-pack-v1-0-seamstress-women-portrait-women-seamstress-portrait", 1],
     ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", 6]

@@ -228,7 +228,7 @@ const expressionLabelOverrides = new Map([
   labels("Women Knight Portrait Pack by Captainskeleto/Women Knight Portrait", [
     ["happy", "Happy"],
     ["sad", "Sad"],
-    ["neutral", "Neutral"],
+    ["shy", "Shy"],
     ["worried", "Worried"],
     ["angry", "Angry"],
     ["stern", "Stern"],
@@ -237,7 +237,7 @@ const expressionLabelOverrides = new Map([
     ["soft-smile", "Soft Smile"],
     ["attentive", "Attentive"],
     ["laughing", "Laughing"],
-    ["serious", "Serious"]
+    ["neutral", "Neutral"]
   ]),
   labels("Women Peasant Pack by Captainskeleto/Women Peasant", [
     ["sad", "Sad"],

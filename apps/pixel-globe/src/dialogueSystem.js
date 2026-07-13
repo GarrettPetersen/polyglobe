@@ -34,7 +34,10 @@ export function createPortDialogueSession(city, options = {}) {
   return {
     kind: "port",
     cityTileId: city.tileId,
+    portId: city.portId || `city-${city.tileId}`,
     nodeId: options.initialNodeId || "greeting",
+    disguisedEntry: options.disguisedEntry === true,
+    nextPortNodeId: options.nextPortNodeId || null,
     selectedIndex: 0,
     feedback: null
   };
@@ -230,6 +233,9 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
 
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
+  if (session.nodeId === "barred") return barredPortView(city, context);
+  if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
+  if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
   if (session.nodeId === "nets") return fishingNetView(session, city, gameState);
@@ -272,6 +278,9 @@ export function selectPortDialogueOption(
   }
   if (action.type === "wait-in-port") {
     return { closed: true, action: { type: "wait-in-port" } };
+  }
+  if (action.type === "attempt-disguise") {
+    return { closed: false, action: { type: "attempt-disguise" } };
   }
   if (action.type === "purchase-ship") {
     return { closed: false, action };
@@ -427,6 +436,7 @@ function assertPassengerDialogueSubject(session, city, quest) {
 
 function greetingView(session, city, gameState, context) {
   const memory = portMemory(gameState, city);
+  if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
   const name = cityLabel(city);
   const personalityId = city.character?.personalityId || portPersonalityForKey(`${name}|${city.country || "port"}`);
   const greeting = portGreetingPresentationForPersonality({
@@ -451,34 +461,120 @@ function greetingView(session, city, gameState, context) {
   };
 }
 
+function pirateHideoutGreetingView(city, memory, context) {
+  const firstVisitLines = [
+    "You found the cove. Either someone trusts you, or someone talks too much. Coin spends clean here. Names do not.",
+    "Furl your colors beyond the headland. Inside this cove, no captain asks where a cargo came from.",
+    "The carpenter patches shot holes, the victualler takes coin, and the priest asks no questions. Welcome ashore."
+  ];
+  const returningLines = [
+    "Back from another honest voyage, are you? Tie up before the patrol rounds the cape.",
+    "Your berth is still yours. Keep the guns quiet and the purse open.",
+    "Word of your work reached us before you did. Come in before the tide turns."
+  ];
+  const lines = memory.visits > 1 ? returningLines : firstVisitLines;
+  const line = lines[(city.tileId + (context.dayIndex || 0) + memory.visits) % lines.length];
+  return {
+    speaker: speakerName(city),
+    expressionId: memory.visits > 1 ? "pleased" : "attentive",
+    text: line,
+    feedback: null,
+    options: [option("Step into the cove", { type: "node", nodeId: "root" })]
+  };
+}
+
+function barredPortView(city, context) {
+  const status = context.portEntryStatus;
+  if (!status?.hostile) throw new Error("Barred port dialogue requires a hostile port status");
+  const faction = factionById(status.factionId);
+  if (status.locked) {
+    return {
+      speaker: `${cityLabel(city)} harbor guard`,
+      expressionId: "angry",
+      text: `We know this vessel. The harbor watch is waiting for you. This port remains closed for ${status.lockDaysRemaining} more day${status.lockDaysRemaining === 1 ? "" : "s"}.`,
+      feedback: null,
+      options: [option("Leave", { type: "close" })]
+    };
+  }
+  return {
+    speaker: `${cityLabel(city)} harbor guard`,
+    expressionId: "stern",
+    text: `By order of the ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
+    feedback: null,
+    options: [
+      option("Try to enter in disguise", { type: "attempt-disguise" }),
+      option("Leave", { type: "close" })
+    ]
+  };
+}
+
+function disguiseSuccessView(session, city) {
+  return {
+    speaker: `${cityLabel(city)} harbor official`,
+    expressionId: "neutral",
+    text: "Your papers appear to be in order. Keep your business quiet and cause no trouble.",
+    feedback: null,
+    options: [option("Enter quietly", {
+      type: "node",
+      nodeId: session.nextPortNodeId || "root"
+    })]
+  };
+}
+
+function disguiseFailureView(city, context) {
+  const days = context.portEntryStatus?.lockDaysRemaining || 1;
+  return {
+    speaker: `${cityLabel(city)} harbor guard`,
+    expressionId: "angry",
+    text: `There they are! Sound the alarm! The watch recognizes your ship, and you barely escape. The port will remain alert for ${days} day${days === 1 ? "" : "s"}.`,
+    feedback: null,
+    options: [option("Make for open water", { type: "close" })]
+  };
+}
+
 function rootView(session, city, gameState, economy, context) {
   const market = portEconomySummary(economy, city);
+  const pirateHideout = city.isPirateHideout === true;
+  const activeQuest = gameState.memory.quests?.active || null;
+  const canCompleteQuest = activeQuest?.destinationTileId === city.tileId;
   const options = [
-    option("Buy goods", { type: "node", nodeId: "buy" }),
+    option(pirateHideout ? "Buy doubtful goods" : "Buy goods", { type: "node", nodeId: "buy" }),
     option("Fishing gear", { type: "node", nodeId: "nets" }),
-    ...(context.shipStats ? [option("Ship loadout", { type: "node", nodeId: "loadout" })] : []),
-    option("Visit shipyard", { type: "node", nodeId: "shipyard" }),
-    option("Sell cargo", { type: "node", nodeId: "sell" }),
-    option("Ask about work", { type: "node", nodeId: "quest" })
+    ...(context.shipStats ? [option(pirateHideout ? "Refit and provision" : "Ship loadout", {
+      type: "node",
+      nodeId: "loadout"
+    })] : []),
+    option(pirateHideout ? "Visit the hidden yard" : "Visit shipyard", { type: "node", nodeId: "shipyard" }),
+    option(pirateHideout ? "Fence cargo" : "Sell cargo", { type: "node", nodeId: "sell" }),
+    ...(!pirateHideout && (!session.disguisedEntry || canCompleteQuest)
+      ? [option(session.disguisedEntry ? "Complete current job" : "Ask about work", {
+        type: "node",
+        nodeId: "quest"
+      })]
+      : [])
   ];
-  if (context.passengerOffer) {
+  if (context.passengerOffer && !session.disguisedEntry && !pirateHideout) {
     options.splice(2, 0, option(`Speak with ${passengerName(context.passengerOffer)}`, {
       type: "open-passenger",
       quest: context.passengerOffer
     }));
   }
-  if (letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
+  if (!session.disguisedEntry && letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
     options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));
   }
   options.push(
     option("Cargo ledger", { type: "node", nodeId: "cargo" }),
-    option("Wait safely in port", { type: "wait-in-port" }),
-    option("Leave port", { type: "close" })
+    option(pirateHideout ? "Lie low in the cove" : "Wait safely in port", { type: "wait-in-port" }),
+    option(pirateHideout ? "Put to sea" : "Leave port", { type: "close" })
   );
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: `What business brings you to port? Market specie: ${market.specie} db.`,
+    text: pirateHideout
+      ? `Powder, provisions, and silence are all for sale. Cove specie: ${market.specie} db.`
+      : session.disguisedEntry
+      ? `Keep your disguise intact. Market specie: ${market.specie} db.`
+      : `What business brings you to port? Market specie: ${market.specie} db.`,
     feedback: session.feedback,
     options
   };
@@ -525,7 +621,9 @@ function shipyardView(session, city, gameState, context) {
     return {
       speaker: speakerName(city),
       expressionId: "neutral",
-      text: yard?.famous
+      text: city.isPirateHideout
+        ? "The hidden slips can patch any hull, but there is no captured vessel for sale today."
+        : yard?.famous
         ? "The master shipwrights have vessels on the stocks, but none ready for sale. New launches are uncommon and word travels quickly."
         : "The slipways handle repairs and local work, but there is no newly built vessel for sale today.",
       feedback: session.feedback,
@@ -544,7 +642,7 @@ function shipyardView(session, city, gameState, context) {
         ? `You need ${listing.price - gameState.doubloons} more doubloons.`
         : null;
   return {
-    speaker: `${cityLabel(city)} shipyard`,
+    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
     text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons. Your purse holds ${gameState.doubloons}.`,
     feedback: session.feedback,
@@ -585,7 +683,9 @@ function buyView(session, city, gameState, economy, context) {
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+    text: city.isPirateHideout
+      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`
+      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
     optionHeight: 30,
     options: rows
@@ -646,7 +746,9 @@ function sellView(session, city, gameState, economy) {
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: `Buyers here pay port rates. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+    text: city.isPirateHideout
+      ? `The fences care about value, not provenance. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`
+      : `Buyers here pay port rates. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
     optionHeight: 30,
     options: rows
@@ -845,7 +947,9 @@ function shipCargoManifest(cargo) {
 }
 
 function speakerName(city) {
-  return `${characterName(city.character)}, ${cityLabel(city)} factor`;
+  return city.isPirateHideout
+    ? `${characterName(city.character)}, keeper of ${cityLabel(city)}`
+    : `${characterName(city.character)}, ${cityLabel(city)} factor`;
 }
 
 function passengerName(quest) {

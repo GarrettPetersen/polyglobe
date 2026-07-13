@@ -26,8 +26,9 @@ export function createShipCombatState() {
   };
 }
 
-export function updateShipCombatState(state, entities) {
+export function updateShipCombatState(state, entities, relationBetween = diplomacyBetween) {
   if (!state?.engagements) throw new Error("Missing ship combat state");
+  assertRelationResolver(relationBetween);
   const byId = new Map(entities.map(validateEntity).map((entity) => [entity.id, entity]));
   if (byId.size !== entities.length) throw new Error("Combat entities contain duplicate ids");
   let changed = false;
@@ -36,7 +37,9 @@ export function updateShipCombatState(state, entities) {
   for (const [key, engagement] of [...state.engagements.entries()]) {
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
-    if (!a || !b || a.combatGrace || b.combatGrace || protectedPortEndsPlayerAttack(a, b) ||
+    if (!a || !b || a.combatGrace || b.combatGrace ||
+        (!engagement.playerInitiated && relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) ||
+        protectedPortEndsPlayerAttack(a, b) ||
         distance(a, b) > combatDisengageRadius(a, b)) {
       state.engagements.delete(key);
       changed = true;
@@ -47,7 +50,7 @@ export function updateShipCombatState(state, entities) {
     for (let j = i + 1; j < entities.length; j++) {
       const a = entities[i];
       const b = entities[j];
-      if (!shipsTriggerCombat(a, b) || distance(a, b) > combatDetectionRadius(a, b)) continue;
+      if (!shipsTriggerCombat(a, b, relationBetween) || distance(a, b) > combatDetectionRadius(a, b)) continue;
       const key = engagementKey(a.id, b.id);
       if (state.engagements.has(key)) continue;
       const engagement = { aId: a.id, bId: b.id };
@@ -80,11 +83,12 @@ export function updateShipCombatState(state, entities) {
   return { changed, intents, engagementCount: state.engagements.size, startedEngagements };
 }
 
-export function shipsTriggerCombat(a, b) {
+export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {
   validateEntity(a);
   validateEntity(b);
+  assertRelationResolver(relationBetween);
   if (a.id === b.id || a.combatGrace || b.combatGrace || a.factionId === b.factionId) return false;
-  if (diplomacyBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) return false;
+  if (relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) return false;
   if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {
     const player = a.id === PLAYER_COMBAT_ID ? a : b;
     const npc = a.id === PLAYER_COMBAT_ID ? b : a;
@@ -152,9 +156,15 @@ export function engagementKey(aId, bId) {
   return aId < bId ? `${aId}|${bId}` : `${bId}|${aId}`;
 }
 
-export function playerCombatAllegiance(playerFactionId, otherFactionId, playerInCombat) {
+export function playerCombatAllegiance(
+  playerFactionId,
+  otherFactionId,
+  playerInCombat,
+  relationBetween = diplomacyBetween
+) {
   if (!playerInCombat) return null;
-  const relation = diplomacyBetween(playerFactionId, otherFactionId);
+  assertRelationResolver(relationBetween);
+  const relation = relationBetween(playerFactionId, otherFactionId);
   if (relation === DIPLOMACY_WAR) return "enemy";
   if (relation === DIPLOMACY_ALLY) return "friendly";
   return null;
@@ -210,6 +220,10 @@ function validateEntity(entity) {
   }
   if (!Number.isInteger(entity.cannons) || entity.cannons < 0) throw new Error(`Invalid cannon count: ${entity.id}`);
   return entity;
+}
+
+function assertRelationResolver(relationBetween) {
+  if (typeof relationBetween !== "function") throw new Error("Ship combat requires a diplomacy resolver");
 }
 
 function distance(a, b) {

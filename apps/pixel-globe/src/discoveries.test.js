@@ -10,9 +10,16 @@ import {
   WORLD_DISCOVERY_SPECS,
   WORLD_DISCOVERY_SPRITE_KEYS,
   buildWorldDiscoveries,
+  captainDialogueForDiscovery,
+  isDiscoveryNovelToCharacter,
   mountainIsAccessibleFromNavigation
 } from "./discoveries.js";
-import { createGameState, recordDiscovery } from "./gameState.js";
+import {
+  consumePendingDiscoveryPortDialogue,
+  createGameState,
+  recordDiscovery,
+  validateGameState
+} from "./gameState.js";
 
 test("world wonders map onto globe tiles and visual landmarks get dedicated art tiles", () => {
   const graph = buildGeodesicGraph(3);
@@ -43,6 +50,11 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.ok(elDorado);
   assert.equal(elDorado.kind, "legend");
   assert.equal(elDorado.historicity, "legendary");
+  assert.match(elDorado.captainDialogue, /legendary city of gold/i);
+  assert.deepEqual(elDorado.cargoReward, {
+    goodId: "gold",
+    fillRemainingHold: true
+  });
   const grandCanal = discoveries.find((item) => item.id === GRAND_CANAL_DISCOVERY_ID);
   assert.ok(grandCanal);
   assert.equal(grandCanal.displayName, "The Grand Canal");
@@ -77,6 +89,45 @@ test("legendary discoveries are recorded alongside historical landmarks", () => 
   const elDorado = WORLD_DISCOVERY_SPECS.find((item) => item.id === EL_DORADO_DISCOVERY_ID);
   assert.equal(recordDiscovery(state, elDorado), true);
   assert.equal(state.memory.discoveries[EL_DORADO_DISCOVERY_ID].kind, "legend");
+});
+
+test("circumnavigation queues a one-time calendar remark for the next port", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  assert.equal(recordDiscovery(state, CIRCUMNAVIGATION_DISCOVERY), true);
+
+  const restored = validateGameState(JSON.parse(JSON.stringify(state)));
+  const remark = consumePendingDiscoveryPortDialogue(restored);
+  assert.equal(remark.discoveryId, CIRCUMNAVIGATION_DISCOVERY.id);
+  assert.match(remark.message, /calendar.*log.*whole day/i);
+  assert.equal(remark.expressionId, "surprised");
+  assert.equal(consumePendingDiscoveryPortDialogue(restored), null);
+});
+
+test("captains react to discoveries outside their home region", () => {
+  const lakeVictoria = WORLD_DISCOVERY_SPECS.find((item) => item.id === LAKE_VICTORIA_DISCOVERY_ID);
+  const greatPyramid = WORLD_DISCOVERY_SPECS.find((item) => item.id === GREAT_PYRAMID_DISCOVERY_ID);
+  const greatWall = WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-great-wall");
+
+  assert.equal(
+    captainDialogueForDiscovery(lakeVictoria, { startRegion: "europe" }),
+    "We've found it! The legendary source of the Nile!"
+  );
+  assert.equal(captainDialogueForDiscovery(greatPyramid, { startRegion: "ottoman" }), null);
+  assert.match(captainDialogueForDiscovery(greatPyramid, { startRegion: "india" }), /Great Pyramid/);
+  assert.equal(captainDialogueForDiscovery(greatWall, { startRegion: "east-asia" }), null);
+  assert.match(captainDialogueForDiscovery(greatWall, { startRegion: "europe" }), /beyond the horizon/);
+  assert.equal(captainDialogueForDiscovery(CIRCUMNAVIGATION_DISCOVERY, { startRegion: "europe" }), null);
+});
+
+test("home-region landmarks are familiar rather than player discoveries", () => {
+  const stonehenge = WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-stonehenge");
+  const greatWall = WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-great-wall");
+
+  assert.equal(isDiscoveryNovelToCharacter(stonehenge, { startRegion: "europe" }), false);
+  assert.equal(isDiscoveryNovelToCharacter(stonehenge, { startRegion: "east-asia" }), true);
+  assert.equal(isDiscoveryNovelToCharacter(greatWall, { startRegion: "east-asia" }), false);
+  assert.equal(isDiscoveryNovelToCharacter(greatWall, { startRegion: "europe" }), true);
+  assert.equal(isDiscoveryNovelToCharacter(CIRCUMNAVIGATION_DISCOVERY, { startRegion: "europe" }), true);
 });
 
 test("mountain accessibility requires ocean-connected navigation within viewing range", () => {

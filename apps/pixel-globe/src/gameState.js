@@ -33,6 +33,13 @@ import {
   BASIC_FISHING_NET_ID,
   fishingNetById
 } from "./fishingNets.js";
+import {
+  advanceWorldDiplomacy,
+  createWorldDiplomacy,
+  recentDiplomacyEvents,
+  validateWorldDiplomacy,
+  worldDiplomacyBetween
+} from "./worldDiplomacy.js";
 
 export const STARTING_DOUBLOONS = 360;
 export const GAME_STATE_VERSION = 6;
@@ -41,12 +48,17 @@ export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
 export const ENEMY_FACTION_START_REPUTATION = -8;
 export const PIRATE_START_REPUTATION = REPUTATION_MIN;
+export const PIRATE_REPUTATION_GAIN_PER_PIRACY = 8;
+export const PIRATE_HIDEOUT_REPUTATION_REQUIRED = -25;
 export const TRADE_REPUTATION_GAIN = 0.2;
 export const DELIVERY_REPUTATION_GAIN = 2;
 export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
 export const PIRACY_REPUTATION_PENALTY = -3;
 export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
 export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
+export const HOSTILE_PORT_REPUTATION_THRESHOLD = -75;
+export const PORT_DISGUISE_SUCCESS_CHANCE = 0.6;
+export const PORT_DISGUISE_LOCK_DAYS = 14;
 export const FISH_CARGO_GOOD_ID = "fish";
 export const SHIP_ITEM_FISHING_NET = "fishing-net";
 export const FRESH_WATER_CAPACITY = 100;
@@ -57,6 +69,7 @@ export const FOOD_TARGET_DAYS = 21;
 export const STARTING_HARDTACK_UNITS = 10;
 
 const MINUTES_PER_DAY = 24 * 60;
+const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
 const FRESH_WATER_USE_PER_DAY = FRESH_WATER_CAPACITY / FRESH_WATER_DAYS;
 
 export const SHIP_ITEM_CATALOG = Object.freeze([
@@ -112,7 +125,11 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
     },
     relations: {
       factionReputation: initialFactionReputation(playerFactionId),
-      lettersOfMarque: {}
+      lettersOfMarque: {},
+      diplomacy: createWorldDiplomacy({
+        startMinute,
+        seedKey: worldDiplomacySeedKey(playerCharacter, startMinute)
+      })
     },
     memory: {
       visitedPorts: {},
@@ -120,6 +137,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
       flags: {},
       discoveries: {},
       discoveryOrder: [],
+      pendingDiscoveryPortDialogueIds: [],
       navigation: {
         lastLongitudeDeg: null,
         cumulativeLongitudeDeg: 0
@@ -142,18 +160,59 @@ export function validateGameState(state) {
   return state;
 }
 
+export function diplomacyBetweenForState(state, factionAId, factionBId) {
+  if (!state?.relations?.diplomacy) throw new Error("Game state has no world diplomacy");
+  return worldDiplomacyBetween(state.relations.diplomacy, factionAId, factionBId);
+}
+
+export function advanceGameDiplomacy(state, currentMinute) {
+  assertGameState(state);
+  assertSimulationMinute(currentMinute);
+  return advanceWorldDiplomacy(state.relations.diplomacy, currentMinute, {
+    homeFactionId: state.playerCharacter?.nationalityId || null,
+    reputation: state.relations.factionReputation,
+    decisions: state.memory.decisions
+  });
+}
+
+export function recentGameDiplomacyEvents(state, limit = 3) {
+  assertGameState(state);
+  return recentDiplomacyEvents(state.relations.diplomacy, limit);
+}
+
 export function recordDiscovery(state, discovery) {
   assertGameState(state);
   assertDiscovery(discovery);
   if (state.memory.discoveries[discovery.id]) return false;
-  state.memory.discoveries[discovery.id] = {
+  const entry = {
     id: discovery.id,
     displayName: discovery.displayName,
     kind: discovery.kind,
     detail: discovery.detail || ""
   };
+  if (discovery.portArrivalDialogue) {
+    entry.portArrivalDialogue = discovery.portArrivalDialogue;
+    entry.portArrivalExpressionId = discovery.portArrivalExpressionId || "attentive";
+    state.memory.pendingDiscoveryPortDialogueIds.push(discovery.id);
+  }
+  state.memory.discoveries[discovery.id] = entry;
   state.memory.discoveryOrder.push(discovery.id);
   return true;
+}
+
+export function consumePendingDiscoveryPortDialogue(state) {
+  assertGameState(state);
+  while (state.memory.pendingDiscoveryPortDialogueIds.length > 0) {
+    const discoveryId = state.memory.pendingDiscoveryPortDialogueIds.shift();
+    const discovery = state.memory.discoveries[discoveryId];
+    if (!discovery?.portArrivalDialogue) continue;
+    return {
+      discoveryId,
+      message: discovery.portArrivalDialogue,
+      expressionId: discovery.portArrivalExpressionId || "attentive"
+    };
+  }
+  return null;
 }
 
 export function hasDiscovery(state, discoveryId) {
@@ -168,6 +227,36 @@ export function discoveredEntries(state) {
     if (!discovery) throw new Error(`Discovery order references missing discovery: ${id}`);
     return discovery;
   });
+}
+
+export function receiveDiscoveryCargo(state, discovery, goodId, context = {}) {
+  assertGameState(state);
+  assertDiscovery(discovery);
+  if (!state.memory.discoveries[discovery.id]) {
+    throw new Error(`Cannot receive cargo for undiscovered site: ${discovery.displayName}`);
+  }
+  const good = goodById(goodId);
+  const rewardKey = `discovery.cargo.${discovery.id}.${good.id}`;
+  if (Object.prototype.hasOwnProperty.call(state.memory.decisions, rewardKey)) {
+    return { good, quantity: 0, alreadyReceived: true };
+  }
+
+  const quantity = Math.floor(Math.max(0, cargoFree(state)) / good.unitSize);
+  recordDecision(state, rewardKey, quantity);
+  if (quantity <= 0) return { good, quantity: 0, alreadyReceived: false };
+
+  state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
+  state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
+  recordLedgerEntry(state, null, context, {
+    kind: "discovery",
+    description: `Treasure from ${discovery.displayName}: ${good.label} x${quantity}`,
+    goodId: good.id,
+    quantity,
+    amount: 0,
+    costBasis: 0,
+    pnl: null
+  });
+  return { good, quantity, alreadyReceived: false };
 }
 
 export function updateCircumnavigationProgress(state, longitudeDeg) {
@@ -706,10 +795,91 @@ export function adjustFactionReputation(state, factionId, delta) {
   return next;
 }
 
+export function portEntryStatus(state, city, simMinute = 0) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const factionId = city?.factionId || null;
+  if (!factionId || factionId === NEUTRAL_FACTION_ID) {
+    return {
+      allowed: true,
+      hostile: false,
+      factionId,
+      hostileByWar: false,
+      hostileByStanding: false,
+      locked: false,
+      lockUntilMinute: null,
+      lockDaysRemaining: 0,
+      canAttemptDisguise: false
+    };
+  }
+  assertFactionId(factionId);
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  const hostileByWar = Boolean(
+    factionId !== PIRATE_FACTION_ID &&
+    playerFactionId &&
+    playerFactionId !== factionId &&
+    worldDiplomacyBetween(state.relations.diplomacy, playerFactionId, factionId) === DIPLOMACY_WAR
+  );
+  const hostileByStanding = factionReputation(state, factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD;
+  const hostile = hostileByWar || hostileByStanding;
+  const memory = portMemory(state, city);
+  const storedLock = Number.isFinite(memory.disguiseLockUntilMinute)
+    ? memory.disguiseLockUntilMinute
+    : null;
+  const locked = hostile && storedLock !== null && storedLock > simMinute;
+  return {
+    allowed: !hostile,
+    hostile,
+    factionId,
+    hostileByWar,
+    hostileByStanding,
+    locked,
+    lockUntilMinute: locked ? storedLock : null,
+    lockDaysRemaining: locked ? Math.ceil((storedLock - simMinute) / MINUTES_PER_DAY) : 0,
+    canAttemptDisguise: hostile && !locked
+  };
+}
+
+export function attemptPortDisguise(state, city, simMinute, roll) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Invalid port disguise roll: ${roll}`);
+  }
+  const status = portEntryStatus(state, city, simMinute);
+  if (!status.hostile) throw new Error(`${cityLabel(city)} is not barring the player`);
+  if (status.locked) {
+    return { attempted: false, success: false, ...status };
+  }
+
+  const memory = portMemory(state, city);
+  memory.disguiseAttempts = (memory.disguiseAttempts || 0) + 1;
+  memory.lastDisguiseAttemptMinute = simMinute;
+  if (roll < PORT_DISGUISE_SUCCESS_CHANCE) {
+    return {
+      attempted: true,
+      success: true,
+      locked: false,
+      lockUntilMinute: null,
+      lockDaysRemaining: 0
+    };
+  }
+
+  const lockUntilMinute = simMinute + PORT_DISGUISE_LOCK_MINUTES;
+  memory.disguiseLockUntilMinute = lockUntilMinute;
+  return {
+    attempted: true,
+    success: false,
+    locked: true,
+    lockUntilMinute,
+    lockDaysRemaining: PORT_DISGUISE_LOCK_DAYS
+  };
+}
+
 export function recordTradeWithFaction(state, factionId) {
   assertGameState(state);
   const id = assertFactionId(factionId);
-  if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return factionReputation(state, id);
+  if (id === NEUTRAL_FACTION_ID) return factionReputation(state, id);
   const before = factionReputation(state, id);
   const after = adjustFactionReputation(state, id, TRADE_REPUTATION_GAIN);
   if (after !== before) recordDecision(state, `reputation.trade.${id}`, 1);
@@ -751,8 +921,17 @@ export function recordPiracyAgainstFaction(state, victimFactionId, options = {})
     const after = adjustFactionReputation(state, faction.id, penalty);
     if (after !== before) changes[faction.id] = { before, after };
   }
+  const pirateBefore = factionReputation(state, PIRATE_FACTION_ID);
+  const pirateAfter = adjustFactionReputation(state, PIRATE_FACTION_ID, PIRATE_REPUTATION_GAIN_PER_PIRACY);
+  if (pirateAfter !== pirateBefore) {
+    changes[PIRATE_FACTION_ID] = { before: pirateBefore, after: pirateAfter };
+  }
   if (Object.keys(changes).length > 0) recordDecision(state, `reputation.piracy.${victimId}`, 1);
   return changes;
+}
+
+export function pirateHideoutsVisibleToPlayer(state) {
+  return factionReputation(state, PIRATE_FACTION_ID) >= PIRATE_HIDEOUT_REPUTATION_REQUIRED;
 }
 
 export function hasLetterOfMarqueFrom(state, factionId) {
@@ -767,7 +946,7 @@ export function hasPrivateeringAuthorityAgainst(state, targetFactionId) {
   if (targetId === NEUTRAL_FACTION_ID || targetId === PIRATE_FACTION_ID) return false;
   for (const issuerId of Object.keys(state.relations.lettersOfMarque)) {
     assertFactionId(issuerId);
-    if (diplomacyBetween(issuerId, targetId) === DIPLOMACY_WAR) return true;
+    if (worldDiplomacyBetween(state.relations.diplomacy, issuerId, targetId) === DIPLOMACY_WAR) return true;
   }
   return false;
 }
@@ -929,7 +1108,7 @@ export function visitPort(state, city) {
 
 export function portMemory(state, city) {
   assertGameState(state);
-  const key = cityKey(city);
+  const key = city.portId || cityKey(city);
   let memory = state.memory.visitedPorts[key];
   if (!memory) {
     memory = { visits: 0 };
@@ -1048,7 +1227,7 @@ export function cityKey(city) {
 }
 
 export function cityLabel(city) {
-  return city.displayCity || city.city;
+  return city.portAlias || city.displayCity || city.city;
 }
 
 function createPlayerShipState(stats) {
@@ -1421,6 +1600,7 @@ function assertGameState(state) {
   }
   assertFactionReputationTable(state.relations?.factionReputation);
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);
+  ensureWorldDiplomacyState(state);
   if (!Number.isFinite(state.accounts.realizedPnl)) throw new Error("Invalid realized trade P/L");
   if (!Array.isArray(state.accounts.ledger)) throw new Error("Game state ledger must be an array");
   if (!Number.isInteger(state.accounts.nextEntryId) || state.accounts.nextEntryId <= 0) {
@@ -1432,6 +1612,12 @@ function assertGameState(state) {
   }
   if (!Array.isArray(state.memory.discoveryOrder)) {
     throw new Error("Game state discovery order must be an array");
+  }
+  if (!Array.isArray(state.memory.pendingDiscoveryPortDialogueIds)) {
+    state.memory.pendingDiscoveryPortDialogueIds = [];
+  }
+  if (state.memory.pendingDiscoveryPortDialogueIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("Pending discovery port dialogue ids must be non-empty strings");
   }
   if (!state.memory.navigation || typeof state.memory.navigation !== "object") {
     throw new Error("Game state navigation memory must be an object");
@@ -1477,6 +1663,33 @@ function assertPlayerCharacter(character) {
     throw new Error("Player character requires multiple expressions");
   }
   if (character.nationalityId !== undefined) assertFactionId(character.nationalityId);
+}
+
+function ensureWorldDiplomacyState(state) {
+  if (!state.relations || typeof state.relations !== "object") {
+    throw new Error("Game state relations must be an object");
+  }
+  if (!state.relations.diplomacy) {
+    const startMinute = Number.isFinite(state.accounts?.ledger?.[0]?.simMinute)
+      ? state.accounts.ledger[0].simMinute
+      : 0;
+    state.relations.diplomacy = createWorldDiplomacy({
+      startMinute,
+      seedKey: worldDiplomacySeedKey(state.playerCharacter, startMinute)
+    });
+  }
+  validateWorldDiplomacy(state.relations.diplomacy);
+}
+
+function worldDiplomacySeedKey(character, startMinute) {
+  if (!character) return `anonymous|${startMinute}`;
+  return [
+    character.id || character.sourceId || "captain",
+    character.name || "unknown",
+    character.birthDateLabel || character.birthDate?.label || "unknown-birth",
+    character.homePortName || "unknown-home",
+    startMinute
+  ].join("|");
 }
 
 function assertFactionReputationTable(reputation) {
@@ -1540,6 +1753,14 @@ function assertDiscovery(discovery) {
   }
   if (!["mountain", "landmark", "legend", "achievement"].includes(discovery.kind)) {
     throw new Error(`Discovery ${discovery.id} has invalid kind: ${discovery.kind}`);
+  }
+  if (discovery.portArrivalDialogue !== undefined &&
+      (typeof discovery.portArrivalDialogue !== "string" || discovery.portArrivalDialogue.trim() === "")) {
+    throw new Error(`Discovery ${discovery.id} has invalid port-arrival dialogue`);
+  }
+  if (discovery.portArrivalExpressionId !== undefined &&
+      (typeof discovery.portArrivalExpressionId !== "string" || discovery.portArrivalExpressionId === "")) {
+    throw new Error(`Discovery ${discovery.id} has invalid port-arrival expression`);
   }
 }
 

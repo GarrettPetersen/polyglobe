@@ -3,10 +3,15 @@ import {
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
-  NEUTRAL_FACTION_ID,
-  diplomacyBetween
+  NEUTRAL_FACTION_ID
 } from "./factions.js";
-import { factionReputation, hasLetterOfMarqueFrom } from "./gameState.js";
+import {
+  diplomacyBetweenForState,
+  factionReputation,
+  hasLetterOfMarqueFrom,
+  recentGameDiplomacyEvents
+} from "./gameState.js";
+import { clampMenuIndex } from "./menuNavigation.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
@@ -19,17 +24,21 @@ export function createPoliticsView(gameState) {
   const powers = politicalPowers();
   return {
     powers,
+    recentEvents: recentGameDiplomacyEvents(gameState, 3),
     rows: powers.map((faction) => ({
       faction,
       player: {
         ...playerStandingForReputation(factionReputation(gameState, faction.id)),
         hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id)
       },
-      stances: powers.map((other) => ({
-        factionId: other.id,
-        relation: diplomacyBetween(faction.id, other.id),
-        label: POLITICS_RELATION_LABELS[diplomacyBetween(faction.id, other.id)]
-      }))
+      stances: powers.map((other) => {
+        const relation = diplomacyBetweenForState(gameState, faction.id, other.id);
+        return {
+          factionId: other.id,
+          relation,
+          label: POLITICS_RELATION_LABELS[relation]
+        };
+      })
     }))
   };
 }
@@ -48,7 +57,7 @@ export function politicsRowsPage(view, page, rowsPerPage) {
   if (!Number.isInteger(page)) throw new Error(`Invalid politics page: ${page}`);
   if (!Number.isInteger(rowsPerPage) || rowsPerPage <= 0) throw new Error(`Invalid politics rows per page: ${rowsPerPage}`);
   const pageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
-  const normalizedPage = ((page % pageCount) + pageCount) % pageCount;
+  const normalizedPage = clampMenuIndex(page, pageCount);
   const start = normalizedPage * rowsPerPage;
   return {
     page: normalizedPage,

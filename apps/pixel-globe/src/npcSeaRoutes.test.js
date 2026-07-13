@@ -193,6 +193,38 @@ test("NPC traders only plan trade calls at friendly or neutral ports", () => {
   }
 });
 
+test("NPC traders follow changing diplomacy when selecting later calls", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  let portugalAndSpain = "neutral";
+  const relationBetween = (factionAId, factionBId) => {
+    if (new Set([factionAId, factionBId]).size === 2 &&
+        [factionAId, factionBId].includes("portugal") &&
+        [factionAId, factionBId].includes("spain")) return portugalAndSpain;
+    return diplomacyBetween(factionAId, factionBId);
+  };
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    relationBetween
+  });
+  portugalAndSpain = DIPLOMACY_WAR;
+
+  for (let day = 1; day <= 240; day++) {
+    const minute = day * 24 * 60;
+    advanceWorldEconomy(economy, minute);
+    updateNpcSeaRouteSystem(routes, minute);
+  }
+
+  for (const ship of routes.ships.filter((item) => (
+    (item.role === NPC_ROLE_MERCHANT || item.role === NPC_ROLE_FISHERMAN) &&
+    item.factionId === "portugal"
+  ))) {
+    const plannedPorts = [ship.plan?.destination, ship.finalDestination].filter(Boolean);
+    assert.ok(plannedPorts.every((port) => port.factionId !== "spain"), ship.id);
+  }
+});
+
 test("NPC fishermen choose generated fishing grounds and deplete them offscreen", () => {
   const fishState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });

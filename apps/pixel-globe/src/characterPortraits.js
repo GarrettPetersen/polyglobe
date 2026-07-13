@@ -1,7 +1,7 @@
 import { assignRegionalCharacterName } from "./characterNames.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-4";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-5";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 export const PORTRAIT_ROLE_SKIN = 1;
 export const PORTRAIT_ROLE_HAIR = 2;

@@ -241,8 +241,15 @@ const FLEET_PROFILES = Object.freeze([
   }, isWideWorldPort, "interregional")
 ]);
 
-export function createNpcSeaRouteSystem({ ports, startMinute, economy, fishState = null }) {
+export function createNpcSeaRouteSystem({
+  ports,
+  startMinute,
+  economy,
+  fishState = null,
+  relationBetween = diplomacyBetween
+}) {
   if (!economy) throw new Error("NPC sea routes require a world economy");
+  if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
   const usablePorts = ports
     .filter(isAnyUsablePort)
     .map((port) => ({
@@ -265,6 +272,7 @@ export function createNpcSeaRouteSystem({ ports, startMinute, economy, fishState
     baseEdges,
     routeCache: new Map(),
     edgeCostCache: new Map(),
+    relationBetween,
     fishState,
     fishingGrounds: fishState ? buildFishingGrounds(usablePorts, fishState, startMinute) : [],
     pirateHideouts: choosePirateHideouts(usablePorts),
@@ -290,7 +298,11 @@ export function snapshotNpcSeaRouteSystem(system) {
   };
 }
 
-export function restoreNpcSeaRouteSystem(system, snapshot, { economy, fishState = null } = {}) {
+export function restoreNpcSeaRouteSystem(
+  system,
+  snapshot,
+  { economy, fishState = null, relationBetween = system?.relationBetween || diplomacyBetween } = {}
+) {
   assertSaveableNpcRouteSystem(system);
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil)) {
@@ -319,6 +331,8 @@ export function restoreNpcSeaRouteSystem(system, snapshot, { economy, fishState 
   }
   system.economy = economy || system.economy;
   system.fishState = fishState;
+  if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
+  system.relationBetween = relationBetween;
   system.ships = ships;
   system.shipById = shipById;
   system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
@@ -415,9 +429,27 @@ function fishingGroundLabel(point, speciesLabel) {
 
 export function updateNpcSeaRouteSystem(system, clockMinutes) {
   refreshPirateHideoutWarshipDanger(system, clockMinutes);
-  let changed = spawnDueNpcReplacements(system, clockMinutes);
+  let changed = rerouteHostileNpcTradePlans(system, clockMinutes);
+  if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
   for (const ship of system.ships) {
     if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 12)) changed = true;
+  }
+  return changed;
+}
+
+function rerouteHostileNpcTradePlans(system, clockMinutes) {
+  let changed = false;
+  for (const ship of system.ships) {
+    if (!npcNeedsFriendlyTradePort(ship)) continue;
+    if (ship.finalDestination && !npcMerchantCanTradeAtPort(system, ship, ship.finalDestination)) {
+      ship.finalDestination = null;
+      changed = true;
+    }
+    if (!ship.plan?.destination || npcMerchantCanTradeAtPort(system, ship, ship.plan.destination)) continue;
+    if (ship.visualNavigation) continue;
+    ship.finalDestination = null;
+    assignNpcPlan(system, ship, clockMinutes);
+    changed = true;
   }
   return changed;
 }
@@ -771,7 +803,12 @@ function assignNpcPlan(system, ship, startMinute) {
     ship.hideoutDestinationTileId = null;
   }
   const desiredDestination = ship.finalDestination || hideoutDestination || chooseNpcDestination(system, ship, origin);
-  if (ship.role === NPC_ROLE_MERCHANT && !ship.finalDestination && npcCargoUnits(ship) === 0) {
+  if (
+    ship.role === NPC_ROLE_MERCHANT &&
+    !ship.finalDestination &&
+    npcCargoUnits(ship) === 0 &&
+    npcMerchantCanTradeAtPort(system, ship, origin)
+  ) {
     buyNpcCargo(system, ship, origin, desiredDestination);
   }
   let destination = desiredDestination;
@@ -818,6 +855,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       ship.hideoutDestinationTileId === ship.currentPort.tileId &&
       (!ship.finalDestination || samePort(ship.currentPort, ship.finalDestination));
     if (reachedHideout) {
+      if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
       enterPirateHideout(ship, ship.plan.endMinute);
       changed = true;
       guard++;
@@ -830,10 +868,14 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     if (ship.role === NPC_ROLE_FISHERMAN && reachedTradingDestination) {
       ship.finalDestination = null;
       if (ship.currentPort.isFishingGround) harvestNpcFishingGround(system, ship, ship.currentPort, ship.plan.endMinute);
-      else if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
+      else if (npcCargoUnits(ship) > 0 && npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) {
+        sellNpcCargo(system, ship, ship.currentPort);
+      }
     } else if (ship.role === NPC_ROLE_MERCHANT && reachedTradingDestination) {
       ship.finalDestination = null;
-      sellNpcCargo(system, ship, ship.currentPort);
+      if (npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) {
+        sellNpcCargo(system, ship, ship.currentPort);
+      }
     } else if (reachedTradingDestination) {
       ship.finalDestination = null;
       if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
@@ -855,7 +897,7 @@ function chooseNpcDestination(system, ship, origin) {
     .filter((port) => !samePort(port, origin))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .filter((port) => !shipHasCombatGrace(ship) || npcPortIsSafeForShip(system, ship, port))
-    .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(ship, port))
+    .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(system, ship, port))
     .filter((port) => profileSpec.mode === "regional"
       ? profileSpec.portPredicate(port) && distanceKm(origin, port) >= NPC_MIN_TRIP_DISTANCE_KM
       : port.routeRegion !== origin.routeRegion && longRangePairAllowed(origin, port))
@@ -928,7 +970,7 @@ function chooseFishermanSalePort(system, ship, origin, quantity) {
   const seed = hashString32(`${ship.id}|${origin.tileId}|fish-sale`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
-    .filter((port) => npcMerchantCanTradeAtPort(ship, port))
+    .filter((port) => npcMerchantCanTradeAtPort(system, ship, port))
     .map((port) => ({
       port,
       score: fishermanSalePortScore(system, origin, port, safeQuantity)
@@ -1006,8 +1048,8 @@ function enterPirateHideout(ship, arrivalMinute) {
     stayJitter * PIRATE_HIDEOUT_STAY_SPREAD_MINUTES;
 }
 
-function npcMerchantCanTradeAtPort(ship, port) {
-  return diplomacyBetween(ship.factionId, port.factionId) !== DIPLOMACY_WAR;
+function npcMerchantCanTradeAtPort(system, ship, port) {
+  return system.relationBetween(ship.factionId, port.factionId) !== DIPLOMACY_WAR;
 }
 
 function npcNeedsFriendlyTradePort(ship) {
@@ -1040,7 +1082,8 @@ function npcDestinationEconomicScore(system, ship, origin, destination) {
 
 function buyNpcCargo(system, ship, origin, destination) {
   if (ship.role !== NPC_ROLE_MERCHANT) throw new Error(`NPC ${ship.id} cannot buy trade cargo as ${ship.role}`);
-  if (!npcMerchantCanTradeAtPort(ship, origin) || !npcMerchantCanTradeAtPort(ship, destination)) {
+  if (!npcMerchantCanTradeAtPort(system, ship, origin) ||
+      !npcMerchantCanTradeAtPort(system, ship, destination)) {
     throw new Error(`NPC merchant ${ship.id} cannot trade across a hostile port route`);
   }
   const plan = planNpcTrade(system.economy, origin, destination, {
@@ -1064,7 +1107,7 @@ function buyNpcCargo(system, ship, origin, destination) {
 }
 
 function sellNpcCargo(system, ship, port) {
-  if (npcNeedsFriendlyTradePort(ship) && !npcMerchantCanTradeAtPort(ship, port)) {
+  if (npcNeedsFriendlyTradePort(ship) && !npcMerchantCanTradeAtPort(system, ship, port)) {
     throw new Error(`NPC ${ship.role} ${ship.id} cannot trade at hostile port ${portName(port)}`);
   }
   for (const [goodId, held] of Object.entries(ship.cargo)) {
@@ -1118,7 +1161,7 @@ function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute
   const candidates = system.ports
     .filter((port) => !samePort(port, origin) && !samePort(port, desiredDestination))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
-    .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(ship, port))
+    .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(system, ship, port))
     .filter((port) => port.routeRegion === origin.routeRegion || distanceKm(origin, port) <= NPC_ROUTE_HOP_MAX_KM)
     .map((port) => ({
       port,
@@ -1909,7 +1952,8 @@ function easeInOut(t) {
 function assertSaveableNpcRouteSystem(system) {
   if (!system || !Array.isArray(system.ships) || !(system.shipById instanceof Map) ||
       !Array.isArray(system.replacementQueue) || !(system.pirateHideoutDangerUntil instanceof Map) ||
-      !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map)) {
+      !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map) ||
+      typeof system.relationBetween !== "function") {
     throw new Error("Invalid NPC route system");
   }
 }

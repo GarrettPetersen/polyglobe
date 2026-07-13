@@ -29,7 +29,9 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     radiusPx: 96,
     spriteKey: "egyptian_pyramid",
     placementLongitudeSide: "west",
-    historicity: "historical"
+    historicity: "historical",
+    region: "ottoman",
+    captainDialogue: "The Great Pyramid! No tale prepared me for the scale of it."
   },
   {
     id: LAKE_VICTORIA_DISCOVERY_ID,
@@ -41,16 +43,42 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     lon: 33.0,
     radiusPx: 350,
     spriteKey: null,
-    historicity: "historical"
+    historicity: "historical",
+    region: "africa",
+    captainDialogue: "We've found it! The legendary source of the Nile!"
   },
-  landmark("stonehenge", "Stonehenge", "Salisbury Plain", 51.1789, -1.8262, 165),
-  landmark("pyramids-of-meroe", "The Pyramids of Meroe", "Nubian royal necropolis", 16.9370, 33.7500, 170),
-  landmark("great-zimbabwe", "Great Zimbabwe", "The stone city of the plateau", -20.2674, 30.9338, 165),
-  landmark("petra", "Petra", "The rose-red city", 30.3285, 35.4444, 210),
-  landmark("mohenjo-daro", "Mohenjo-daro", "City of the Indus Valley", 27.3242, 68.1386, 190),
-  landmark("sigiriya", "Sigiriya", "The Lion Rock fortress", 7.9570, 80.7603, 165),
-  landmark("angkor-wat", "Angkor Wat", "Temple of the Khmer", 13.4125, 103.8670, 200),
-  landmark("great-wall", "The Great Wall", "The northern walls of China", 40.4319, 116.5704, 175),
+  landmark("stonehenge", "Stonehenge", "Salisbury Plain", 51.1789, -1.8262, 165, {
+    region: "europe",
+    captainDialogue: "Stonehenge! Who raised these stones, and what did they see in the sky?"
+  }),
+  landmark("pyramids-of-meroe", "The Pyramids of Meroe", "Nubian royal necropolis", 16.9370, 33.7500, 170, {
+    region: "africa",
+    captainDialogue: "Pyramids in Nubia! How many kingdoms has the Nile carried?"
+  }),
+  landmark("great-zimbabwe", "Great Zimbabwe", "The stone city of the plateau", -20.2674, 30.9338, 165, {
+    region: "africa",
+    captainDialogue: "A stone city on the plateau. What hands raised these walls?"
+  }),
+  landmark("petra", "Petra", "The rose-red city", 30.3285, 35.4444, 210, {
+    region: "ottoman",
+    captainDialogue: "A whole city carved from rose-red stone. I scarcely believe my eyes."
+  }),
+  landmark("mohenjo-daro", "Mohenjo-daro", "City of the Indus Valley", 27.3242, 68.1386, 190, {
+    region: "india",
+    captainDialogue: "An ancient city laid out in brick, older than any chart aboard."
+  }),
+  landmark("sigiriya", "Sigiriya", "The Lion Rock fortress", 7.9570, 80.7603, 165, {
+    region: "india",
+    captainDialogue: "A fortress atop the Lion Rock! It seems to float above the forest."
+  }),
+  landmark("angkor-wat", "Angkor Wat", "Temple of the Khmer", 13.4125, 103.8670, 200, {
+    region: "southeast-asia",
+    captainDialogue: "Those towers rise like a stone mountain above the forest."
+  }),
+  landmark("great-wall", "The Great Wall", "The northern walls of China", 40.4319, 116.5704, 175, {
+    region: "east-asia",
+    captainDialogue: "The Great Wall runs beyond the horizon. No map could capture its scale."
+  }),
   {
     id: GRAND_CANAL_DISCOVERY_ID,
     kind: "landmark",
@@ -62,15 +90,38 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     radiusPx: 120,
     spriteKey: null,
     routeCoordinates: GRAND_CANAL_ROUTE_COORDINATES,
-    historicity: "historical"
+    historicity: "historical",
+    region: "east-asia",
+    captainDialogue: "A river shaped by human hands, joining north and south."
   },
-  landmark("borobudur", "Borobudur", "The mountain of a thousand Buddhas", -7.6079, 110.2038, 205),
-  landmark("chichen-itza", "Chichen Itza", "The city at the edge of the well", 20.6843, -88.5678, 155),
-  landmark("nazca-lines", "The Nazca Lines", "Figures drawn across the desert", -14.7390, -75.1300, 140),
-  landmark("machu-picchu", "Machu Picchu", "The Inca citadel in the clouds", -13.1631, -72.5450, 190),
-  waterFeature("niagara-falls", "Niagara Falls", "The thunder of the waters", 43.0828, -79.0742, 260),
-  waterFeature("victoria-falls", "Victoria Falls", "The smoke that thunders", -17.9243, 25.8572, 380),
-  waterFeature("lake-titicaca", "Lake Titicaca", "The sacred lake of the Andes", -15.8000, -69.4000, 180),
+  landmark("borobudur", "Borobudur", "The mountain of a thousand Buddhas", -7.6079, 110.2038, 205, {
+    region: "southeast-asia",
+    captainDialogue: "A mountain of carved stone, crowned with a thousand Buddhas."
+  }),
+  landmark("chichen-itza", "Chichen Itza", "The city at the edge of the well", 20.6843, -88.5678, 155, {
+    region: "americas",
+    captainDialogue: "A great stone city stands here, beyond every map we carried."
+  }),
+  landmark("nazca-lines", "The Nazca Lines", "Figures drawn across the desert", -14.7390, -75.1300, 140, {
+    region: "americas",
+    captainDialogue: "Great figures scored into the desert. Who were they meant to see?"
+  }),
+  landmark("machu-picchu", "Machu Picchu", "The Inca citadel in the clouds", -13.1631, -72.5450, 190, {
+    region: "americas",
+    captainDialogue: "A citadel among the clouds. How did they raise stone so high?"
+  }),
+  waterFeature("niagara-falls", "Niagara Falls", "The thunder of the waters", 43.0828, -79.0742, 260, {
+    region: "americas",
+    captainDialogue: "The river falls away in thunder. I can feel it through the deck."
+  }),
+  waterFeature("victoria-falls", "Victoria Falls", "The smoke that thunders", -17.9243, 25.8572, 380, {
+    region: "africa",
+    captainDialogue: "Smoke that thunders indeed! The whole river vanishes into mist."
+  }),
+  waterFeature("lake-titicaca", "Lake Titicaca", "The sacred lake of the Andes", -15.8000, -69.4000, 180, {
+    region: "americas",
+    captainDialogue: "A vast lake beneath the Andes, higher than any sea I know."
+  }),
   {
     id: EL_DORADO_DISCOVERY_ID,
     kind: "legend",
@@ -81,7 +132,13 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     lon: -73.7740,
     radiusPx: 280,
     spriteKey: "landmark_el_dorado",
-    historicity: "legendary"
+    historicity: "legendary",
+    region: "americas",
+    captainDialogue: "El Dorado! The legendary city of gold is real.",
+    cargoReward: Object.freeze({
+      goodId: "gold",
+      fillRemainingHold: true
+    })
   }
 ].map((spec) => Object.freeze(spec)));
 
@@ -94,8 +151,21 @@ export const CIRCUMNAVIGATION_DISCOVERY = Object.freeze({
   kind: "achievement",
   displayName: "Circumnavigated the Globe",
   notice: "You have circumnavigated the globe",
-  detail: "A full voyage around the world"
+  detail: "A full voyage around the world",
+  portArrivalDialogue: "The harbor clerk's calendar and our log disagree by a whole day. We sailed around the world and carried our old reckoning all the way with us!",
+  portArrivalExpressionId: "surprised"
 });
+
+export function captainDialogueForDiscovery(discovery, playerCharacter) {
+  if (!discovery?.captainDialogue || !playerCharacter) return null;
+  if (!isDiscoveryNovelToCharacter(discovery, playerCharacter)) return null;
+  return discovery.captainDialogue;
+}
+
+export function isDiscoveryNovelToCharacter(discovery, playerCharacter) {
+  if (!discovery?.region || !playerCharacter?.startRegion) return true;
+  return discovery.region !== playerCharacter.startRegion;
+}
 
 export function buildWorldDiscoveries(graph, directionIndex, placement) {
   if (!graph || !directionIndex) throw new Error("Cannot place world discoveries without a geodesic graph");
@@ -232,7 +302,7 @@ function longitudeDelta(lon, originLon) {
   return ((lon - originLon + 540) % 360) - 180;
 }
 
-function landmark(slug, displayName, detail, lat, lon, radiusPx) {
+function landmark(slug, displayName, detail, lat, lon, radiusPx, options = {}) {
   return {
     id: `landmark-${slug}`,
     kind: "landmark",
@@ -243,13 +313,14 @@ function landmark(slug, displayName, detail, lat, lon, radiusPx) {
     lon,
     radiusPx,
     spriteKey: `landmark_${slug.replaceAll("-", "_")}`,
-    historicity: "historical"
+    historicity: "historical",
+    ...options
   };
 }
 
-function waterFeature(slug, displayName, detail, lat, lon, radiusPx) {
+function waterFeature(slug, displayName, detail, lat, lon, radiusPx, options = {}) {
   return {
-    ...landmark(slug, displayName, detail, lat, lon, radiusPx),
+    ...landmark(slug, displayName, detail, lat, lon, radiusPx, options),
     spriteKey: null
   };
 }

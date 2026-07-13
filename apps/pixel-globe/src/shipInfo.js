@@ -16,6 +16,7 @@ import {
   shipStatsForSlug
 } from "./shipStats.js";
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
+import { clampMenuIndex } from "./menuNavigation.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
 export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
@@ -142,7 +143,7 @@ export function shipInfoCargoPage(view, page) {
   if (!view || !Array.isArray(view.cargo)) throw new Error("Invalid ship information view");
   const pageCount = Math.max(1, Math.ceil(view.cargo.length / SHIP_INFO_CARGO_ROWS_PER_PAGE));
   if (!Number.isInteger(page)) throw new Error(`Invalid cargo page: ${page}`);
-  const normalizedPage = ((page % pageCount) + pageCount) % pageCount;
+  const normalizedPage = clampMenuIndex(page, pageCount);
   const start = normalizedPage * SHIP_INFO_CARGO_ROWS_PER_PAGE;
   return {
     page: normalizedPage,
@@ -155,7 +156,7 @@ export function shipLedgerPage(gameState, page) {
   const rows = ledgerEntries(gameState).reverse();
   const pageCount = Math.max(1, Math.ceil(rows.length / SHIP_LEDGER_ROWS_PER_PAGE));
   if (!Number.isInteger(page)) throw new Error(`Invalid ship ledger page: ${page}`);
-  const normalizedPage = ((page % pageCount) + pageCount) % pageCount;
+  const normalizedPage = clampMenuIndex(page, pageCount);
   const start = normalizedPage * SHIP_LEDGER_ROWS_PER_PAGE;
   return {
     page: normalizedPage,
@@ -168,7 +169,7 @@ export function shipPapersPage(view, page) {
   if (!view || !Array.isArray(view.papers)) throw new Error("Invalid ship papers view");
   const pageCount = Math.max(1, Math.ceil(view.papers.length / SHIP_PAPERS_ROWS_PER_PAGE));
   if (!Number.isInteger(page)) throw new Error(`Invalid ship papers page: ${page}`);
-  const normalizedPage = ((page % pageCount) + pageCount) % pageCount;
+  const normalizedPage = clampMenuIndex(page, pageCount);
   const start = normalizedPage * SHIP_PAPERS_ROWS_PER_PAGE;
   return {
     page: normalizedPage,
