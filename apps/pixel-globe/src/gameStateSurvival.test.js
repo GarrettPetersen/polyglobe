@@ -70,6 +70,24 @@ test("freshwater refills casks while food still ticks down", () => {
   assert.equal(cargoCostBasis(state, "grain").total, 8);
 });
 
+test("waiting safely in port advances time without consuming provisions", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.survival.freshWater = 12;
+  state.survival.foodDebt = 0.5;
+  state.cargo.grain = 2;
+  state.accounts.cargoCostBasis.grain = 16;
+
+  const result = updateSurvival(state, 0, 30 * 24 * 60, { safePort: true });
+
+  assert.equal(result.changed, false);
+  assert.equal(result.dehydrated, false);
+  assert.equal(result.starved, false);
+  assert.equal(state.survival.freshWater, 12);
+  assert.equal(state.survival.foodDebt, 0.5);
+  assert.equal(state.cargo.grain, 2);
+  assert.equal(state.survival.lastMinute, 30 * 24 * 60);
+});
+
 test("reserve water cargo extends a voyage after casks run dry", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.survival.freshWater = 1;

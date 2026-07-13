@@ -5037,6 +5037,7 @@ function startWaitingInPort(city) {
     startedAtMinute: weatherClockMinutes,
     disguisedEntry: dialogueState?.disguisedEntry === true
   };
+  resetSurvivalDamageTimers();
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -5045,6 +5046,15 @@ function startWaitingInPort(city) {
   saveVoyageNow("waiting in port");
   dirty = true;
   return true;
+}
+
+function playerShipIsInvulnerable() {
+  return Boolean(portWaitState);
+}
+
+function resetSurvivalDamageTimers() {
+  survivalDamageTimers.waterNextMinute = null;
+  survivalDamageTimers.foodNextMinute = null;
 }
 
 function stopWaitingInPort() {
@@ -7336,9 +7346,15 @@ function updateWorldDiplomacy() {
 
 function updatePlayerSurvival(previousMinute, currentMinute) {
   if (!gameState || !ship || gameOverReason || currentMinute <= previousMinute) return false;
+  const safePort = playerShipIsInvulnerable();
   const result = updateSurvival(gameState, previousMinute, currentMinute, {
-    freshwater: shipIsInFreshWater()
+    freshwater: shipIsInFreshWater(),
+    safePort
   });
+  if (safePort) {
+    resetSurvivalDamageTimers();
+    return result.changed;
+  }
   if (result.freshWaterRefilled) showSurvivalNotice("FRESH WATER REFILLED", "good");
   if (result.changed) syncShipCargoFromGameState();
   const status = survivalStatus(gameState);
@@ -7431,7 +7447,7 @@ function updateSurvivalDamageTimer({ key, active, currentMinute, damagePerTick, 
 }
 
 function updateStormDamage(previousMinute, currentMinute) {
-  if (!ship || !stormSystem || anchored || portWaitState || gameOverReason || currentMinute <= previousMinute) return false;
+  if (!ship || !stormSystem || anchored || playerShipIsInvulnerable() || gameOverReason || currentMinute <= previousMinute) return false;
   const firstHour = Math.floor(previousMinute / 60) + 1;
   const lastHour = Math.floor(currentMinute / 60);
   let totalDamage = 0;
@@ -7462,7 +7478,7 @@ function updateStormDamage(previousMinute, currentMinute) {
 }
 
 function sinkPlayerShip(reason) {
-  if (gameOverReason) return;
+  if (gameOverReason || playerShipIsInvulnerable()) return;
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs);
   storePastVoyage(createPastVoyageRecord({
@@ -7932,7 +7948,7 @@ function playerCombatEntity() {
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? gameState?.ship?.cannons || 0 : 0,
     topSpeedRad: ship.stats.topSpeedRad,
     combatGrace: false,
-    portProtected: Boolean(portWaitState),
+    portProtected: playerShipIsInvulnerable(),
     majorPortProtected: playerHasMajorPortProtection()
   };
 }
@@ -8147,6 +8163,7 @@ function resolveNpcCombatImpact(ball) {
     return;
   }
 
+  if (ball.targetId === PLAYER_COMBAT_ID && playerShipIsInvulnerable()) return;
   playNavalImpactSound(ball);
   if (ball.targetId === PLAYER_COMBAT_ID) {
     ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
@@ -8373,6 +8390,7 @@ function applyNpcCollisionCorrection(id, dx, dy) {
 function applyCombatCollisionDamage(id, amount, otherId) {
   if (amount <= 0) return;
   if (id === PLAYER_COMBAT_ID) {
+    if (playerShipIsInvulnerable()) return;
     ship.hitPoints = Math.max(0, ship.hitPoints - amount);
     applyCrewCasualtiesFromHullDamage(amount, "The last of the crew died after a collision.");
     combatNotice = {
@@ -8396,7 +8414,7 @@ function applyCombatCollisionDamage(id, amount, otherId) {
 }
 
 function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of the crew was lost at sea.") {
-  if (!gameState || damage <= 0) return 0;
+  if (!gameState || damage <= 0 || playerShipIsInvulnerable()) return 0;
   const lost = rollCrewCasualtiesForDamage(gameState, damage);
   if (lost <= 0) return 0;
   syncShipCargoFromGameState();

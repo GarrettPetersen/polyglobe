@@ -664,6 +664,10 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     dehydrated: false,
     starved: false
   };
+  if (options.safePort) {
+    state.survival.lastMinute = currentMinute;
+    return result;
+  }
   if (options.freshwater) {
     if (state.survival.freshWater < state.survival.freshWaterCapacity) {
       state.survival.freshWater = state.survival.freshWaterCapacity;
