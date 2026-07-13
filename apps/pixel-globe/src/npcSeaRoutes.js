@@ -106,6 +106,7 @@ export const NPC_SHIP_SLUGS = Object.freeze([
   "felucca",
   "xebec",
   "lateen-xebec",
+  "mediterranean-galley",
   "caravel",
   "small-carrack",
   "carrack",
@@ -222,7 +223,7 @@ const FLEET_PROFILES = Object.freeze([
   profile("mediterranean", 28, {
     fishers: ["fishing-lugger", "felucca", "cutter"],
     merchants: ["felucca", "lateen-xebec", "xebec"],
-    warships: ["lateen-xebec", "xebec", "caravel", "galleon"]
+    warships: ["lateen-xebec", "xebec", "mediterranean-galley", "mediterranean-galley", "caravel", "galleon"]
   }, isMediterraneanPort, "regional"),
   profile("atlantic-coast", 30, {
     fishers: ["fishing-lugger", "cutter", "felucca"],

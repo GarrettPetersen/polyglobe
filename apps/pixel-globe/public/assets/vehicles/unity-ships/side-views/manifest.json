@@ -8,6 +8,9 @@
     {
       "slug": "fishing-lugger",
       "label": "Fishing Barque",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/boats/boat 1.fbx",
       "sourceMaxDim": 831.0967,
       "targetModelMaxDim": 0.9096,
@@ -22,6 +25,9 @@
     {
       "slug": "small-dhow",
       "label": "Small Dhow",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/boats/boat 2.fbx",
       "sourceMaxDim": 792.8333,
       "targetModelMaxDim": 0.8884,
@@ -33,6 +39,9 @@
     {
       "slug": "small-cog",
       "label": "Small Cog",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/boats/boat 3.fbx",
       "sourceMaxDim": 645.6119,
       "targetModelMaxDim": 0.8017,
@@ -44,6 +53,9 @@
     {
       "slug": "dhow",
       "label": "Dhow",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/boats/boat 4.fbx",
       "sourceMaxDim": 679.2523,
       "targetModelMaxDim": 0.8224,
@@ -55,6 +67,9 @@
     {
       "slug": "sampan",
       "label": "Sampan",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/boats/chinese boat.fbx",
       "sourceMaxDim": 857.9191,
       "targetModelMaxDim": 0.9242,
@@ -66,6 +81,9 @@
     {
       "slug": "large-junk",
       "label": "Large Junk",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/chinese ship large.fbx",
       "sourceMaxDim": 3252.2148,
       "targetModelMaxDim": 1.7994,
@@ -77,6 +95,9 @@
     {
       "slug": "pirate-brig",
       "label": "Heavy Caravel",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/pirate ship large 1.fbx",
       "sourceMaxDim": 3234.0896,
       "targetModelMaxDim": 1.7944,
@@ -91,6 +112,9 @@
     {
       "slug": "pirate-frigate",
       "label": "Armed Galleon",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/pirate ship large 2.fbx",
       "sourceMaxDim": 4397.644,
       "targetModelMaxDim": 2.0924,
@@ -105,6 +129,9 @@
     {
       "slug": "galleon",
       "label": "Galleon",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 1.fbx",
       "sourceMaxDim": 3962.6594,
       "targetModelMaxDim": 1.9863,
@@ -116,6 +143,9 @@
     {
       "slug": "frigate",
       "label": "Great Galleon",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 2.fbx",
       "sourceMaxDim": 4513.6729,
       "targetModelMaxDim": 2.1199,
@@ -130,6 +160,9 @@
     {
       "slug": "fluyt",
       "label": "Urca",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 3.fbx",
       "sourceMaxDim": 5137.2568,
       "targetModelMaxDim": 2.2616,
@@ -144,6 +177,9 @@
     {
       "slug": "carrack",
       "label": "Carrack",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 4.fbx",
       "sourceMaxDim": 4324.8892,
       "targetModelMaxDim": 2.0751,
@@ -155,6 +191,9 @@
     {
       "slug": "ship-of-the-line",
       "label": "Great Carrack",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships large/ship large 5.fbx",
       "sourceMaxDim": 5313.3955,
       "targetModelMaxDim": 2.3,
@@ -169,6 +208,9 @@
     {
       "slug": "medium-junk",
       "label": "Medium Junk",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/chinese ship medium.fbx",
       "sourceMaxDim": 2870.6094,
       "targetModelMaxDim": 1.6906,
@@ -180,6 +222,9 @@
     {
       "slug": "pirate-brigantine",
       "label": "Light Brigantine",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/pirate ship medium.fbx",
       "sourceMaxDim": 3473.9243,
       "targetModelMaxDim": 1.8597,
@@ -194,6 +239,9 @@
     {
       "slug": "xebec",
       "label": "Xebec",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 1.fbx",
       "sourceMaxDim": 3954.8806,
       "targetModelMaxDim": 1.9843,
@@ -205,6 +253,9 @@
     {
       "slug": "caravel",
       "label": "Caravel",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 2.fbx",
       "sourceMaxDim": 3621.5095,
       "targetModelMaxDim": 1.8988,
@@ -216,6 +267,9 @@
     {
       "slug": "small-carrack",
       "label": "Small Carrack",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 3.fbx",
       "sourceMaxDim": 3190.7581,
       "targetModelMaxDim": 1.7823,
@@ -227,6 +281,9 @@
     {
       "slug": "square-rigged-caravel",
       "label": "Square-Rigged Caravel",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 4.fbx",
       "sourceMaxDim": 2620.5049,
       "targetModelMaxDim": 1.6152,
@@ -238,6 +295,9 @@
     {
       "slug": "brigantine",
       "label": "Brigantine",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 5.fbx",
       "sourceMaxDim": 3148.0386,
       "targetModelMaxDim": 1.7704,
@@ -252,6 +312,9 @@
     {
       "slug": "corvette",
       "label": "Armed Caravel",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 6.fbx",
       "sourceMaxDim": 3343.8057,
       "targetModelMaxDim": 1.8246,
@@ -266,6 +329,9 @@
     {
       "slug": "small-junk",
       "label": "Small Junk",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/chinese ship small.fbx",
       "sourceMaxDim": 2058.6396,
       "targetModelMaxDim": 1.4316,
@@ -277,6 +343,9 @@
     {
       "slug": "pirate-sloop",
       "label": "Small Pinnace",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/pirate ship small.fbx",
       "sourceMaxDim": 2226.1963,
       "targetModelMaxDim": 1.4888,
@@ -291,6 +360,9 @@
     {
       "slug": "lateen-xebec",
       "label": "Lateen Xebec",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 1.fbx",
       "sourceMaxDim": 1868.9733,
       "targetModelMaxDim": 1.3641,
@@ -302,6 +374,9 @@
     {
       "slug": "felucca",
       "label": "Felucca",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 2.fbx",
       "sourceMaxDim": 1609.0532,
       "targetModelMaxDim": 1.2657,
@@ -313,6 +388,9 @@
     {
       "slug": "cutter",
       "label": "Coastal Pinnace",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 3.fbx",
       "sourceMaxDim": 1941.4077,
       "targetModelMaxDim": 1.3903,
@@ -327,6 +405,9 @@
     {
       "slug": "lateen-dhow",
       "label": "Lateen Dhow",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 4.fbx",
       "sourceMaxDim": 2070.3197,
       "targetModelMaxDim": 1.4357,
@@ -338,6 +419,9 @@
     {
       "slug": "ketch",
       "label": "Lateen Barque",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 5.fbx",
       "sourceMaxDim": 2970.9222,
       "targetModelMaxDim": 1.7198,
@@ -352,6 +436,9 @@
     {
       "slug": "square-sail-trader",
       "label": "Square-Sail Trader",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 6.fbx",
       "sourceMaxDim": 2720.7915,
       "targetModelMaxDim": 1.6458,
@@ -363,6 +450,9 @@
     {
       "slug": "dhow-felucca",
       "label": "Dhow-Felucca",
+      "creator": "Palmov Island",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "license": "Standard Unity Asset Store EULA",
       "sourceModel": "tmp/unity-assets/low-poly-cartoon-sailing-ships/Models/ships small/ship small 7.fbx",
       "sourceMaxDim": 2617.5764,
       "targetModelMaxDim": 1.6143,
@@ -370,6 +460,20 @@
       "height": 104,
       "palette": "Resurrect 64",
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/dhow-felucca.png"
+    },
+    {
+      "slug": "mediterranean-galley",
+      "label": "Mediterranean Galley",
+      "sourceModel": "tmp/mediterranean-galley-model/scene.gltf",
+      "sourceMaxDim": 4604.1799,
+      "targetModelMaxDim": 1.9,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/mediterranean-galley.png",
+      "creator": "Museovirasto Museiverket Finnish Heritage Agency",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Russian 22-bank Baltic galley"
     },
     {
       "slug": "polynesian-voyaging-canoe",
@@ -400,5 +504,6 @@
       "sourceTitle": "Low Poly Canoe - Stylized Game Asset"
     }
   ],
-  "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats"
+  "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
+  "mediterraneanGalleyGenerator": "tools/render-sail-ship-sprites.mjs --mediterranean-galley"
 }

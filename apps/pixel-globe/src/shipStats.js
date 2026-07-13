@@ -44,6 +44,7 @@ const SHIP_LABELS = Object.freeze({
   ketch: "Lateen Barque",
   "square-sail-trader": "Square-Sail Trader",
   "dhow-felucca": "Dhow-Felucca",
+  "mediterranean-galley": "Mediterranean Galley",
   "polynesian-voyaging-canoe": "Polynesian Voyaging Canoe",
   "mesoamerican-dugout-canoe": "Mesoamerican Dugout Canoe"
 });
@@ -53,7 +54,7 @@ const rawShipStats = [
   stats("small-dhow", 0, 0.027, 0.032, 34, 3.20, 38, 28, 4),
   stats("small-cog", 2, 0.016, 0.026, 58, 2.00, 70, 70, 6),
   stats("dhow", 4, 0.022, 0.033, 42, 2.80, 55, 45, 5),
-  stats("sampan", 0, 0.026, 0.026, 45, 3.40, 30, 25, 2, SHIP_PROPULSION_OAR_SAIL),
+  stats("sampan", 0, 0.026, 0.026, 45, 3.40, 30, 25, 2),
   stats("large-junk", 24, 0.015, 0.038, 50, 1.75, 220, 360, 8),
   stats("pirate-brig", 18, 0.020, 0.041, 42, 2.35, 190, 130, 7),
   stats("pirate-frigate", 36, 0.017, 0.046, 45, 1.95, 300, 190, 8),
@@ -79,7 +80,8 @@ const rawShipStats = [
   stats("ketch", 4, 0.024, 0.035, 34, 2.85, 75, 60, 6),
   stats("square-sail-trader", 2, 0.020, 0.034, 52, 2.30, 65, 95, 5),
   stats("dhow-felucca", 0, 0.030, 0.032, 30, 3.40, 35, 18, 3),
-  stats("polynesian-voyaging-canoe", 0, 0.031, 0.038, 28, 3.15, 45, 42, 7, SHIP_PROPULSION_OAR_SAIL),
+  stats("mediterranean-galley", 12, 0.026, 0.040, 38, 2.55, 210, 90, 5, SHIP_PROPULSION_OAR_SAIL),
+  stats("polynesian-voyaging-canoe", 0, 0.031, 0.038, 28, 3.15, 45, 42, 7),
   stats("mesoamerican-dugout-canoe", 0, 0.018, 0.016, 0, 3.80, 30, 16, 3, SHIP_PROPULSION_OAR)
 ];
 

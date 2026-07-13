@@ -5,7 +5,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
-import { SHIP_STATS } from "./shipStats.js";
+import { MODEL_CREDITS } from "./modelCredits.js";
+import {
+  SHIP_PROPULSION_OAR,
+  SHIP_PROPULSION_OAR_SAIL,
+  SHIP_STATS
+} from "./shipStats.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const SIDE_VIEW_WIDTH = 192;
@@ -16,6 +21,40 @@ const NATIVE_BOAT_SLUGS = Object.freeze([
   "polynesian-voyaging-canoe",
   "mesoamerican-dugout-canoe"
 ]);
+const MEDITERRANEAN_GALLEY_SLUG = "mediterranean-galley";
+const MESOAMERICAN_CANOE_SLUG = "mesoamerican-dugout-canoe";
+
+test("every runtime ship model has a registered attribution", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const registeredCredits = new Set(MODEL_CREDITS.map(modelCreditKey));
+
+  for (const entry of manifest.ships) {
+    assert.ok(entry.creator, `${entry.slug} creator`);
+    assert.ok(entry.license, `${entry.slug} license`);
+    assert.ok(entry.sourceTitle, `${entry.slug} source title`);
+    assert.ok(
+      registeredCredits.has(modelCreditKey(entry)),
+      `${entry.slug} model attribution is registered in the credits`
+    );
+    assert.doesNotMatch(JSON.stringify(entry), /https?:\/\//);
+  }
+});
+
+test("every oar-capable hull and only those hulls have rowing animation", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const expected = SHIP_STATS
+    .filter((stats) => (
+      stats.propulsion === SHIP_PROPULSION_OAR || stats.propulsion === SHIP_PROPULSION_OAR_SAIL
+    ))
+    .map((stats) => stats.slug)
+    .sort();
+  const animated = manifest.ships
+    .filter((entry) => Array.isArray(entry.files?.rowingAnimation))
+    .map((entry) => entry.slug)
+    .sort();
+
+  assert.deepEqual(animated, expected);
+});
 
 test("every roster ship has a clipped-safe Resurrect side-view sprite", async () => {
   const manifest = JSON.parse(await readFile(join(sideViewRoot, "manifest.json"), "utf8"));
@@ -78,6 +117,51 @@ test("native boat models provide complete 16-heading sprite and wake bakes", asy
   }
 });
 
+test("the Mediterranean galley provides licensed rowing animation frames", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const wakeAnchors = JSON.parse(await readFile(join(shipAssetRoot, "wake-anchors.json"), "utf8"));
+  const entry = manifest.ships.find((ship) => ship.slug === MEDITERRANEAN_GALLEY_SLUG);
+
+  assert.ok(entry, "Mediterranean galley manifest entry");
+  assert.equal(entry.creator, "Museovirasto Museiverket Finnish Heritage Agency");
+  assert.equal(entry.license, "CC BY 4.0");
+  assert.equal(entry.sourceTitle, "Russian 22-bank Baltic galley");
+  assert.doesNotMatch(JSON.stringify(entry), /https?:\/\//);
+  assert.equal(wakeAnchors.ships[MEDITERRANEAN_GALLEY_SLUG].length, 16);
+  assert.equal(entry.files.rowingAnimation.length, 4);
+
+  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+    const image = await loadImage(join(
+      shipAssetRoot,
+      `${MEDITERRANEAN_GALLEY_SLUG}-rowing-${frameIndex}-16-headings.png`
+    ));
+    assert.equal(image.width, 144, `rowing frame ${frameIndex} width`);
+    assert.equal(image.height, 144, `rowing frame ${frameIndex} height`);
+    assert.ok(opaquePixelCount(image) > 0, `rowing frame ${frameIndex} is blank`);
+  }
+});
+
+test("the Mesoamerican canoe has a compact four-frame paddle cycle", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const entry = manifest.ships.find((ship) => ship.slug === MESOAMERICAN_CANOE_SLUG);
+
+  assert.ok(entry, "Mesoamerican canoe manifest entry");
+  assert.equal(entry.files.rowingAnimation.length, 4);
+  const frameBuffers = [];
+  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+    const path = join(
+      shipAssetRoot,
+      `${MESOAMERICAN_CANOE_SLUG}-rowing-${frameIndex}-16-headings.png`
+    );
+    const image = await loadImage(path);
+    assert.equal(image.width, 144, `paddling frame ${frameIndex} width`);
+    assert.equal(image.height, 144, `paddling frame ${frameIndex} height`);
+    assert.ok(opaquePixelCount(image) > 0, `paddling frame ${frameIndex} is blank`);
+    frameBuffers.push(await readFile(path));
+  }
+  assert.equal(new Set(frameBuffers.map((buffer) => buffer.toString("base64"))).size, 4);
+});
+
 function opaquePixelCount(image) {
   const canvas = createCanvas(image.width, image.height);
   const ctx = canvas.getContext("2d");
@@ -88,4 +172,8 @@ function opaquePixelCount(image) {
     if (pixels[offset] > 0) count += 1;
   }
   return count;
+}
+
+function modelCreditKey({ creator, sourceTitle, license }) {
+  return `${creator}\n${sourceTitle}\n${license}`;
 }

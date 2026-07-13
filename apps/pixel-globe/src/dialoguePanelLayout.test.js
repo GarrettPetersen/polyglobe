@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
+  dialogueOptionTextLayout,
   dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
@@ -116,6 +117,33 @@ test("multi-row dialogue paging keeps vertical navigation at the side", () => {
   assert.deepEqual(navigation.previousRect, { x: 211, y: 160, w: 24, h: 24 });
   assert.deepEqual(navigation.nextRect, { x: 211, y: 208, w: 24, h: 24 });
   assert.equal(navigation.optionWidth, 191);
+});
+
+test("long dialogue options wrap above their detail instead of truncating", () => {
+  const measure = (text) => text.length * 6;
+  const layout = dialogueOptionTextLayout({
+    label: "Take passenger to Paris 375 db",
+    detail: "9,499 km",
+    labelWidth: 120,
+    detailWidth: 120,
+    measureLabel: measure
+  });
+
+  assert.deepEqual(layout.labelLines, ["Take passenger to", "Paris 375 db"]);
+  assert.deepEqual(layout.detailLines, ["9,499 km"]);
+  assert.equal(layout.height, 42);
+});
+
+test("short dialogue options keep their compact minimum height", () => {
+  const layout = dialogueOptionTextLayout({
+    label: "Decline",
+    labelWidth: 120,
+    measureLabel: (text) => text.length * 6
+  });
+
+  assert.deepEqual(layout.labelLines, ["Decline"]);
+  assert.deepEqual(layout.detailLines, []);
+  assert.equal(layout.height, 24);
 });
 
 test("a submenu cannot inherit an out-of-range selection and render no options", () => {

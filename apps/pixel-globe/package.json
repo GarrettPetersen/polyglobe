@@ -12,6 +12,8 @@
     "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
     "render:native-boats": "node tools/render-sail-ship-sprites.mjs --native-boats",
+    "render:mediterranean-galley": "node tools/render-sail-ship-sprites.mjs --mediterranean-galley",
+    "render:mediterranean-galley-reference": "PIXEL_GLOBE_SHIP_FRAME_SIZE=96 PIXEL_GLOBE_SHIP_RENDER_SIZE=192 PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE=192 PIXEL_GLOBE_SHIP_PREVIEW_SCALE=1 node tools/render-sail-ship-sprites.mjs --mediterranean-galley-reference",
     "render:social-cards": "node tools/render-social-cards.mjs",
     "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet",
     "render:unity-ship-side-views": "node tools/render-sail-ship-sprites.mjs --unity-fleet-side-views",

@@ -71,10 +71,10 @@ test("shipyard previews expose the full vessel specification", () => {
 
 test("ship specifications explain oar and combined propulsion", () => {
   const canoe = createShipyardShipView("mesoamerican-dugout-canoe");
-  const voyagingCanoe = createShipyardShipView("polynesian-voyaging-canoe");
+  const galley = createShipyardShipView("mediterranean-galley");
 
   assert.equal(canoe.propulsionSummary, "OAR / NO DEAD ZONE");
-  assert.equal(voyagingCanoe.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
+  assert.equal(galley.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {

@@ -32,6 +32,7 @@ import {
 } from "./weather.js";
 import {
   DEFAULT_PLAYER_SHIP_SLUG,
+  SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_SAIL,
   SHIP_STATS,
   SHIP_STATS_BY_SLUG,
@@ -56,6 +57,7 @@ import {
   resolvePlayerCharacterIdentityKey
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
+import { modelCreditsMarkdown } from "./modelCredits.js";
 import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
@@ -155,6 +157,7 @@ import {
   sailingStallWarningStrength,
   updateSailingAudioState
 } from "./sailingAudio.js";
+import { advanceRowingCadence, createRowingCadenceState } from "./rowingCadence.js";
 import {
   EARLY_SAILING_HELP_WINDOW_SECONDS,
   createSailingTutorialState,
@@ -200,6 +203,7 @@ import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import {
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
+  dialogueOptionTextLayout,
   dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
@@ -510,8 +514,12 @@ const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-2";
-const VEHICLE_ASSET_VERSION = "native-boats-1";
+const VEHICLE_ASSET_VERSION = "rowing-complete-1";
 const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
+const ROWING_SHIP_ANIMATION_SPECS = new Map([
+  ["mediterranean-galley", Object.freeze({ frames: 4, frameMs: 190, volume: 0.14, playbackRate: 0.88 })],
+  ["mesoamerican-dugout-canoe", Object.freeze({ frames: 4, frameMs: 165, volume: 0.11, playbackRate: 1.08 })]
+]);
 const CITY_ASSET_VERSION = "city-types-2";
 const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-1";
 const FACTION_FLAG_SOURCE_W = 32;
@@ -767,8 +775,7 @@ const CREDITS_FALLBACK_MARKDOWN = `# Marque & Reprisal Credits
 - YouFulca
 
 ## 3D Models
-- Hialda Alpizar - "Polynesian Voyaging Canoe" (CC BY 4.0)
-- irodatiii - "Low Poly Canoe - Stylized Game Asset" (Sketchfab Free Standard)
+${modelCreditsMarkdown()}
 
 ## Sound Effects
 - Alex Jauk
@@ -851,7 +858,7 @@ const CAPTAIN_MENU_PANEL_H = 226;
 const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "shore-scavenge-1";
+const SFX_ASSET_VERSION = "rowing-1";
 const ANIMAL_ASSET_VERSION = "fishing-net-2";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
@@ -958,6 +965,7 @@ const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
 const SFX_COIN_CLINK_POOL_SIZE = 4;
 const SFX_FISHING_POOL_SIZE = 3;
+const SFX_ROWING_POOL_SIZE = 2;
 const SFX_FISHING_SUCCESS_POOL_SIZE = 2;
 const SFX_FISHING_FAILURE_POOL_SIZE = 2;
 const SFX_SCAVENGE_SUCCESS_POOL_SIZE = 2;
@@ -1126,6 +1134,7 @@ let animalImages;
 let cityCatalog;
 let cityByTileId;
 let npcShipImages;
+let rowingShipImagesBySlug;
 let npcSeaRoutes;
 let worldEconomy;
 let npcShipCaptains;
@@ -1183,6 +1192,7 @@ let minimap;
 let themeMusic = null;
 let soundEffects = null;
 const sailingAudioState = createSailingAudioState();
+const rowingCadenceState = createRowingCadenceState();
 let sailingTutorialState = createSailingTutorialState();
 let sailingTutorialInputMode = window.matchMedia?.("(pointer: coarse)")?.matches === true
   ? "touch"
@@ -1377,6 +1387,7 @@ async function main() {
     loadedShipWakeAnchors,
     loadedShipLighting,
     loadedNpcShipImages,
+    loadedRowingShipImages,
     loadedSettingsMenuIcon,
     loadedDiscoveriesMenuIcon,
     loadedWorldDiscoveryImages,
@@ -1400,6 +1411,7 @@ async function main() {
       ? loadShipLightingBake(shipSpriteKey)
       : Promise.resolve(null),
     loadNpcShipImages(),
+    loadRowingShipImages(),
     loadUiImage("settings_menu_icon"),
     loadUiImage("discoveries_menu_icon"),
     loadWorldDiscoveryImages(),
@@ -1423,6 +1435,7 @@ async function main() {
   shipWakeAnchors = requiredShipWakeAnchors(START_SHIP_SLUG);
   shipLighting = loadedShipLighting;
   npcShipImages = loadedNpcShipImages;
+  rowingShipImagesBySlug = loadedRowingShipImages;
   settingsMenuIcon = loadedSettingsMenuIcon;
   discoveriesMenuIcon = loadedDiscoveriesMenuIcon;
   worldDiscoveryImages = loadedWorldDiscoveryImages;
@@ -1765,6 +1778,19 @@ async function loadNpcShipImages() {
     const img = await loadVehicleImage(key);
     validateShipSpriteSheet(img, `NPC ship image: ${slug}`);
     return [slug, img];
+  }));
+  return new Map(entries);
+}
+
+async function loadRowingShipImages() {
+  const entries = await Promise.all([...ROWING_SHIP_ANIMATION_SPECS].map(async ([slug, spec]) => {
+    const images = await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
+      const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-16-headings`;
+      const image = await loadVehicleImage(key);
+      validateShipSpriteSheet(image, `Rowing ship image: ${slug} frame ${frameIndex}`);
+      return image;
+    }));
+    return [slug, images];
   }));
   return new Map(entries);
 }
@@ -3028,6 +3054,7 @@ function setupSoundEffects() {
     discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
     coinClink: createSoundPool(SFX_COIN_CLINK_URL, SFX_COIN_CLINK_POOL_SIZE, "coin clink"),
     fishing: createSoundPool(SFX_FISHING_URL, SFX_FISHING_POOL_SIZE, "fishing splash"),
+    rowing: createSoundPool(SFX_FISHING_URL, SFX_ROWING_POOL_SIZE, "oar stroke"),
     fishingSuccess: createSoundPool(
       SFX_FISHING_SUCCESS_URL,
       SFX_FISHING_SUCCESS_POOL_SIZE,
@@ -3203,6 +3230,7 @@ function applyThemeAudioSettings() {
       ...soundEffects.discoverySuccess,
       ...soundEffects.coinClink,
       ...soundEffects.fishing,
+      ...soundEffects.rowing,
       ...soundEffects.fishingSuccess,
       ...soundEffects.fishingFailure,
       ...soundEffects.scavengeSuccess,
@@ -3286,6 +3314,14 @@ function playFishingSound() {
   playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME, 0.94 + Math.random() * 0.12);
 }
 
+function playRowingStrokeSound(spec) {
+  playSoundEffect(
+    soundEffects?.rowing,
+    spec.volume,
+    spec.playbackRate * (0.97 + Math.random() * 0.06)
+  );
+}
+
 function playFishingSuccessSound() {
   playSoundEffect(soundEffects?.fishingSuccess, SFX_FISHING_SUCCESS_VOLUME, 0.98 + Math.random() * 0.04);
 }
@@ -3306,6 +3342,7 @@ function updateAmbientAudio(dt) {
   if (!soundEffects) return;
   const shore = shoreProximity();
   const sailing = sailingAmbientTargets(dt);
+  updateRowingStrokeAudio(dt, sailing.rowing);
   let changed = false;
   changed = updateAmbientLoop(
     soundEffects.harbour,
@@ -3371,6 +3408,20 @@ function updateAmbientAudio(dt) {
   if (changed) applyThemeAudioSettings();
 }
 
+function updateRowingStrokeAudio(dt, active) {
+  const spec = ship ? ROWING_SHIP_ANIMATION_SPECS.get(ship.typeSlug) : null;
+  if (!spec) {
+    advanceRowingCadence(rowingCadenceState, { active: false, dt, periodSeconds: 1 });
+    return;
+  }
+  const stroke = advanceRowingCadence(rowingCadenceState, {
+    active,
+    dt,
+    periodSeconds: spec.frames * spec.frameMs / 1000
+  });
+  if (stroke) playRowingStrokeSound(spec);
+}
+
 function updateAmbientLoop(loop, targetVolume, maxVolume, dt, fadePerSecond = SFX_AMBIENT_FADE_PER_SECOND) {
   if (!loop) return false;
   loop.targetVolume = clamp(targetVolume, 0, maxVolume);
@@ -3424,15 +3475,21 @@ function sailingAmbientTargets(dt) {
     angleFromWindRad,
     stallAngleRad: ship.stats.upwindStallAngleRad
   });
+  const paused = Boolean(dialogueState || menusAreOpen() || gameOverReason);
+  const rowing = !paused && playerShipIsRowing();
   if (!anchored) {
-    return ship.stats.propulsion === SHIP_PROPULSION_SAIL
-      ? targets
-      : { ...targets, sailFlap: 0 };
+    return {
+      ...targets,
+      sailFlap: ship.stats.propulsion !== SHIP_PROPULSION_OAR && !rowing ? targets.sailFlap : 0,
+      underway: rowing ? 0 : targets.underway,
+      rowing
+    };
   }
   return {
     ...targets,
     sailFlap: 0,
-    underway: 0
+    underway: 0,
+    rowing: false
   };
 }
 
@@ -5986,7 +6043,8 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
   const propulsion = shipPropulsionPerformance(ship.stats, {
     windStrength: wind.strength,
     sailEfficiency: sailingEfficiency(ship.heading, windFlow),
-    minimumSailSpeed: SHIP_MIN_POWERED_SPEED_RAD
+    minimumSailSpeed: SHIP_MIN_POWERED_SPEED_RAD,
+    rowerRatio: playerRowerRatio()
   });
   const shouldPrompt = updateSailingTutorialState(sailingTutorialState, {
     dt,
@@ -6137,7 +6195,8 @@ function applyWindAcceleration(dt) {
   const propulsion = shipPropulsionPerformance(ship.stats, {
     windStrength: wind.strength,
     sailEfficiency: efficiency,
-    minimumSailSpeed: SHIP_MIN_POWERED_SPEED_RAD
+    minimumSailSpeed: SHIP_MIN_POWERED_SPEED_RAD,
+    rowerRatio: playerRowerRatio()
   });
   const propulsionAccel = ship.stats.accelerationRad * propulsion.accelerationFactor;
 
@@ -6198,9 +6257,13 @@ function shipIsInFreshWater() {
 }
 
 function sailingEfficiency(heading, windFlow) {
+  return sailingEfficiencyForStats(ship.stats, heading, windFlow);
+}
+
+function sailingEfficiencyForStats(stats, heading, windFlow) {
   const alignment = clamp(dot3(heading, windFlow), -1, 1);
   const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
-  const stallAngle = ship.stats.upwindStallAngleRad;
+  const stallAngle = stats.upwindStallAngleRad;
   const closeHauledAngle = Math.min(Math.PI / 2 - 0.01, stallAngle + SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD);
   if (angleFromWind <= stallAngle) return 0;
 
@@ -6222,12 +6285,16 @@ function sailingEfficiency(heading, windFlow) {
 }
 
 function windFlowVectorAtShip(wind) {
+  return windFlowVectorAtPosition(wind, ship.position, ship.heading);
+}
+
+function windFlowVectorAtPosition(wind, position, fallbackHeading) {
   const flowDir = wind.directionRad + Math.PI;
   return normalizeTangentOrFallback([
     camera.right[0] * Math.cos(flowDir) + camera.up[0] * Math.sin(flowDir),
     camera.right[1] * Math.cos(flowDir) + camera.up[1] * Math.sin(flowDir),
     camera.right[2] * Math.cos(flowDir) + camera.up[2] * Math.sin(flowDir)
-  ], ship.position, ship.heading);
+  ], position, fallbackHeading);
 }
 
 function limitShipSpeed(maxSpeed) {
@@ -14584,7 +14651,9 @@ function playerShipDrawCall(light) {
     kind: "player",
     tileId: ship.tileId,
     bobSeed: 0x504c4159,
+    slug: ship.typeSlug,
     img: shipImage,
+    rowing: playerShipIsRowing(),
     frame,
     x: origin.x,
     y: origin.y,
@@ -14610,6 +14679,7 @@ function npcShipDrawCall(state, activeChart) {
     factionId: state.factionId,
     role: state.role,
     img,
+    rowing: npcShipIsRowing(state),
     frame: headingFrameForScreenHeading(heading),
     x: Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2),
     y: Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2),
@@ -14639,7 +14709,10 @@ function pointNearScreen(point, margin) {
 }
 
 function drawShipCall(call, nowMs) {
-  const drawCall = stormBobbedShipCall(call, nowMs);
+  const drawCall = stormBobbedShipCall({
+    ...call,
+    img: rowingShipImage(call, nowMs)
+  }, nowMs);
   const sx = (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
   const sy = Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
   if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, sx, sy);
@@ -14660,6 +14733,55 @@ function drawShipCall(call, nowMs) {
     if (drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
     if (drawCall.combatMode) drawNpcCombatHull(drawCall);
   }
+}
+
+function rowingShipImage(call, nowMs) {
+  if (!call.rowing) return call.img;
+  const frames = rowingShipImagesBySlug?.get(call.slug);
+  if (!frames || frames.length === 0) return call.img;
+  const spec = ROWING_SHIP_ANIMATION_SPECS.get(call.slug);
+  if (!spec) return call.img;
+  const seedOffset = call.kind === "npc" ? (call.bobSeed & 0xff) * 3 : 0;
+  const frameIndex = reducedMotionPreferred
+    ? 0
+    : Math.floor((nowMs + seedOffset) / spec.frameMs) % frames.length;
+  return frames[frameIndex];
+}
+
+function playerShipIsRowing() {
+  if (!ship || anchored || portWaitState) return false;
+  if (vectorLength(ship.velocity) <= SHIP_MIN_SLIDE_SPEED_RAD) return false;
+  return shipUsesOars(
+    ship.stats,
+    ship.heading,
+    ship.position,
+    ship.tileId,
+    playerRowerRatio()
+  );
+}
+
+function npcShipIsRowing(state) {
+  if (state.stormMode === "anchored" || state.fishingAction) return false;
+  if (state.routeKey?.startsWith("held:")) return false;
+  return shipUsesOars(shipStatsForSlug(state.slug), state.heading, state.vector, state.tileId);
+}
+
+function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
+  if (!rowingShipImagesBySlug?.has(stats.slug)) return false;
+  const wind = windForTile(tileId);
+  const windFlow = windFlowVectorAtPosition(wind, position, heading);
+  return shipPropulsionPerformance(stats, {
+    windStrength: wind.strength,
+    sailEfficiency: sailingEfficiencyForStats(stats, heading, windFlow),
+    minimumSailSpeed: SHIP_MIN_POWERED_SPEED_RAD,
+    rowerRatio
+  }).rowing;
+}
+
+function playerRowerRatio() {
+  if (!ship?.stats) return 0;
+  const crew = gameState?.ship?.crew ?? ship.stats.crewCapacity;
+  return clamp(crew / ship.stats.crewCapacity, 0, 1);
 }
 
 function stormBobbedShipCall(call, nowMs) {
@@ -16245,7 +16367,7 @@ function drawDialogueOverlay(nowMs) {
     ? factionBlockX - (panelX + textXOffset) - 8
     : optionW;
   const textYOffset = portGreeting ? 52 : 25;
-  const optionHeight = view.optionHeight || DIALOGUE_OPTION_H;
+  const optionHeight = dialogueOptionsHeight(view, dialogueFont, optionW);
   const maximumPanelHeight = SCREEN_H - 13;
   const feedbackReserve = view.feedback ? dialogueLineHeight * 2 : 0;
   const bodyLineLimit = Math.max(1, Math.floor(
@@ -16336,7 +16458,8 @@ function drawShipyardDialogueOverlay(dialogueView) {
   ensureShipyardSideViewLoaded(listing.shipSlug);
   const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
   const compact = SCREEN_H > SCREEN_W;
-  const optionHeight = DIALOGUE_OPTION_H;
+  const optionWidth = panel.w - 18;
+  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_UI_10, optionWidth);
   const optionY = panel.y + panel.h - dialogueView.options.length * optionHeight - 7;
 
   ctx.fillStyle = "rgba(15, 18, 14, 0.9)";
@@ -16385,7 +16508,7 @@ function drawShipyardDialogueOverlay(dialogueView) {
     dialogueView,
     panel.x + 9,
     optionY,
-    panel.w - 18,
+    optionWidth,
     panel.y + panel.h - 6,
     PIXEL_FONT_UI_10
   );
@@ -16522,7 +16645,7 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
   dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
-  const optionHeight = view.optionHeight || DIALOGUE_OPTION_H;
+  const optionHeight = dialogueOptionsHeight(view, font, width);
   const layout = dialogueOptionLayout({
     desiredY: y,
     bottom,
@@ -16572,20 +16695,28 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
     ctx.fillStyle = option.disabled ? "#8d8171" : selected ? "#fff1b8" : "#e6c98e";
     const prefix = selected ? "> " : "  ";
-    drawPixelText(
-      fitPixelText(`${prefix}${option.label}`, font, rect.w - 4),
-      rect.x + 3,
-      option.detail ? rect.y + 3 : controlTextY(rect),
-      { font }
-    );
-    if (option.detail) {
-      ctx.fillStyle = option.disabled ? "#756c62" : selected ? "#d6d9bf" : "#ab947a";
+    const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
+    const multiLine = textLayout.labelLines.length > 1 || textLayout.detailLines.length > 0;
+    const labelY = multiLine ? rect.y + 3 : controlTextY(rect);
+    for (let lineIndex = 0; lineIndex < textLayout.labelLines.length; lineIndex++) {
       drawPixelText(
-        fitPixelText(option.detail, PIXEL_FONT_BODY_8, rect.w - 8),
-        rect.x + 8,
-        rect.y + 16,
-        { font: PIXEL_FONT_BODY_8 }
+        `${lineIndex === 0 ? prefix : "  "}${textLayout.labelLines[lineIndex]}`,
+        rect.x + 3,
+        labelY + lineIndex * 12,
+        { font }
       );
+    }
+    if (textLayout.detailLines.length > 0) {
+      ctx.fillStyle = option.disabled ? "#756c62" : selected ? "#d6d9bf" : "#ab947a";
+      const detailY = rect.y + 4 + textLayout.labelLines.length * 12;
+      for (let lineIndex = 0; lineIndex < textLayout.detailLines.length; lineIndex++) {
+        drawPixelText(
+          textLayout.detailLines[lineIndex],
+          rect.x + 8,
+          detailY + lineIndex * 10,
+          { font: PIXEL_FONT_BODY_8 }
+        );
+      }
     }
   }
 
@@ -16611,6 +16742,28 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
       );
     }
   }
+}
+
+function dialogueOptionsHeight(view, font, width) {
+  const minimumHeight = view.optionHeight || DIALOGUE_OPTION_H;
+  const conservativeWidth = Math.max(40, width - UI_PAGER_BUTTON_W - 5);
+  return view.options.reduce((height, option) => Math.max(
+    height,
+    dialogueOptionTextMetrics(option, font, conservativeWidth, minimumHeight).height
+  ), minimumHeight);
+}
+
+function dialogueOptionTextMetrics(option, font, width, minimumHeight) {
+  const prefixWidth = measurePixelTextWidth("> ", font);
+  return dialogueOptionTextLayout({
+    label: option.label,
+    detail: option.detail || "",
+    labelWidth: Math.max(1, width - prefixWidth - 6),
+    detailWidth: Math.max(1, width - 16),
+    measureLabel: (text) => measurePixelTextWidth(text, font),
+    measureDetail: (text) => measurePixelTextWidth(text, PIXEL_FONT_BODY_8),
+    minimumHeight
+  });
 }
 
 function wrapPixelText(text, font, maxWidth, maxLines) {

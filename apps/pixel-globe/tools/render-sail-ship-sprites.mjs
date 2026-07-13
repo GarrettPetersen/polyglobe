@@ -5,6 +5,12 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 import * as THREE from "../../../examples/globe-demo/node_modules/three/build/three.module.js";
 import { FBXLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  MEDITERRANEAN_GALLEY_MODEL_CREDIT,
+  MESOAMERICAN_CANOE_MODEL_CREDIT,
+  POLYNESIAN_CANOE_MODEL_CREDIT,
+  UNITY_FLEET_MODEL_CREDIT
+} from "../src/modelCredits.js";
 import { shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
@@ -15,6 +21,7 @@ const unityShipSourceRoot = join(repoRoot, "tmp/unity-assets/low-poly-cartoon-sa
 const unityShipModelRoot = join(unityShipSourceRoot, "Models");
 const unityShipTexturePath = join(unityShipSourceRoot, "Textures/texture main.png");
 const nativeBoatSourceRoot = join(repoRoot, "tmp/native-boat-models");
+const mediterraneanGalleySourceRoot = join(repoRoot, "tmp/mediterranean-galley-model");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
@@ -50,6 +57,21 @@ const wakeSternClearancePx = 1.5;
 const wakeBowShoulderOutsetPx = 1.25;
 const shipEdgeShadeScale = 0.76;
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
+const mediterraneanGalleyMeshNames = new Set([
+  "Object_9",  // stern windows
+  "Object_10", // small metal fittings
+  "Object_12", // major metal fittings
+  "Object_13", // mast and spars
+  "Object_14", // hull planking
+  "Object_17", // prominent rigging
+  "Object_20", // sails
+  "Object_21", // dark hull timber
+  "Object_22", // small dark timber fitting
+  "Object_23", // principal hull and mast timber
+  "Object_24"  // deck and stern timber
+]);
+const mediterraneanGalleyRowingFrames = 4;
+const canoePaddlingFrames = 4;
 
 function integerEnv(name, fallback) {
   const raw = process.env[name];
@@ -443,6 +465,7 @@ function collectTriangles(scene, options = {}) {
 
   scene.traverse((node) => {
     if (!node.isMesh) return;
+    if (options.includeMesh && !options.includeMesh(node)) return;
     const geometry = node.geometry;
     const positions = geometry.attributes.position;
     const index = geometry.index;
@@ -454,11 +477,14 @@ function collectTriangles(scene, options = {}) {
       const ids = index
         ? [index.getX(offset), index.getX(offset + 1), index.getX(offset + 2)]
         : [offset, offset + 1, offset + 2];
-      const points = ids.map((id) => new THREE.Vector3(
-        positions.getX(id),
-        positions.getY(id),
-        positions.getZ(id)
-      ).applyMatrix4(matrix));
+      const points = ids.map((id) => {
+        const point = new THREE.Vector3(
+          positions.getX(id),
+          positions.getY(id),
+          positions.getZ(id)
+        ).applyMatrix4(matrix);
+        return options.transformPoint ? options.transformPoint(point, node) : point;
+      });
       const uvs = geometry.attributes.uv
         ? ids.map((id) => new THREE.Vector2(
           geometry.attributes.uv.getX(id),
@@ -589,14 +615,14 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
   const depth = new Float32Array(size.width * size.height);
   const normals = new Float32Array(size.width * size.height * 3);
   const positions = new Float32Array(size.width * size.height * 3);
-  const casters = [];
+  const casters = renderOptions?.collectCasters === false ? null : [];
   depth.fill(-Infinity);
 
-  const rotation = new THREE.Matrix4().makeRotationY((headingIndex / headings) * Math.PI * 2 + Math.PI * 0.5);
+  const rotation = new THREE.Matrix4().makeRotationY(modelYawForScreenHeading(headingIndex, camera));
 
   for (const tri of baseTriangles) {
     const points = tri.points.map((point) => point.clone().applyMatrix4(rotation));
-    casters.push(makeCasterTriangle(points));
+    if (casters) casters.push(makeCasterTriangle(points));
     const normal = new THREE.Vector3()
       .subVectors(points[1], points[0])
       .cross(new THREE.Vector3().subVectors(points[2], points[0]))
@@ -620,7 +646,23 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
   }
 
   ctx.putImageData(image, 0, 0);
-  return { canvas, normals, positions, casters };
+  return { canvas, normals, positions, casters: casters || [] };
+}
+
+function modelYawForScreenHeading(headingIndex, camera) {
+  const desired = frameScreenHeading(headingIndex);
+  const elements = camera.matrixWorld.elements;
+  const cameraRight = new THREE.Vector3(elements[0], 0, elements[2]);
+  const cameraUp = new THREE.Vector3(elements[4], 0, elements[6]);
+  const rightProjection = cameraRight.length();
+  const downProjection = cameraUp.length();
+  if (rightProjection <= 1e-6 || downProjection <= 1e-6) {
+    throw new Error("Ship camera cannot resolve screen-aligned headings");
+  }
+  const worldForward = cameraRight.normalize().multiplyScalar(desired.x / rightProjection)
+    .add(cameraUp.normalize().multiplyScalar(-desired.y / downProjection))
+    .normalize();
+  return Math.atan2(worldForward.x, worldForward.z);
 }
 
 function makeCasterTriangle(points) {
@@ -869,11 +911,11 @@ function sheetCell(frameIndex, size) {
   };
 }
 
-function makeWakeAnchors(frames, waterlineY) {
-  return frames.map((frame, frameIndex) => makeWakeAnchor(frame, frameIndex, waterlineY));
+function makeWakeAnchors(frames, waterlineY, waterlineBand = wakeWaterlineBand) {
+  return frames.map((frame, frameIndex) => makeWakeAnchor(frame, frameIndex, waterlineY, waterlineBand));
 }
 
-function makeWakeAnchor(frame, frameIndex, waterlineY) {
+function makeWakeAnchor(frame, frameIndex, waterlineY, waterlineBand) {
   const direction = frameScreenHeading(frameIndex);
   const side = { x: -direction.y, y: direction.x };
   const points = [];
@@ -885,7 +927,7 @@ function makeWakeAnchor(frame, frameIndex, waterlineY) {
       const pixel = x + y * frameSize;
       if (!frame.alpha[pixel]) continue;
       const worldY = frame.positions[pixel * 3 + 1];
-      if (Math.abs(worldY - waterlineY) > wakeWaterlineBand) continue;
+      if (Math.abs(worldY - waterlineY) > waterlineBand) continue;
       const ox = x + 0.5 - frameSize / 2;
       const oy = y + 0.5 - frameSize / 2;
       const projection = ox * direction.x + oy * direction.y;
@@ -1379,10 +1421,14 @@ async function renderShipSpriteSet(config) {
   const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
   const model = collectTriangles(scene, {
     targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim,
-    materialTextureSamplers
+    materialTextureSamplers,
+    ...config.collectOptions
   });
-  const triangles = model.triangles;
-  const waterlineY = estimateWaterlineY(triangles);
+  const hullTriangles = model.triangles;
+  const waterlineY = estimateWaterlineY(hullTriangles);
+  const triangles = config.animationTrianglesForFrame
+    ? config.animationTrianglesForFrame(hullTriangles, 0, waterlineY)
+    : hullTriangles;
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
   const sheetCtx = sheet.getContext("2d");
@@ -1392,7 +1438,8 @@ async function renderShipSpriteSet(config) {
   const renderOptions = {
     textureSampler,
     recolorSails: Boolean(config.recolorSails),
-    waterlineY
+    waterlineY,
+    collectCasters: !config.skipSelfShadowMaps
   };
   const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera, renderOptions));
   const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
@@ -1401,10 +1448,12 @@ async function renderShipSpriteSet(config) {
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i);
   }
-  const wakeAnchors = makeWakeAnchors(frames, waterlineY);
+  const wakeAnchors = makeWakeAnchors(frames, waterlineY, config.wakeWaterlineBand);
 
   const lightDirections = makeLightingDirections();
-  const selfShadowMaps = makeSelfShadowMaps(frames, lightDirections, camera);
+  const selfShadowMaps = config.skipSelfShadowMaps
+    ? null
+    : makeSelfShadowMaps(frames, lightDirections, camera);
   const lightMask = makeLightingMaskSheet(frames, lightDirections, "light", selfShadowMaps);
   const shadeMask = makeLightingMaskSheet(frames, lightDirections, "shade", selfShadowMaps);
   const shadowMask = makeShadowMaskSheet(frames, lightDirections, camera, waterlineY);
@@ -1422,6 +1471,17 @@ async function renderShipSpriteSet(config) {
   writeFileSync(shadowPath, shadowMask.toBuffer("image/png"));
   writeFileSync(previewPath, preview.toBuffer("image/png"));
   writeFileSync(lightingPreviewPath, lightingPreview.toBuffer("image/png"));
+  const animationFiles = config.animationFrameCount
+    ? await renderShipAnimationSheets({
+      config,
+      hullTriangles,
+      waterlineY,
+      camera,
+      renderOptions,
+      frameScale,
+      firstSheet: sheet
+    })
+    : null;
   return {
     slug: config.slug || config.outputPrefix.replace(/-16-headings$/, ""),
     label: config.label || config.outputPrefix,
@@ -1455,10 +1515,91 @@ async function renderShipSpriteSet(config) {
       shade: portablePath(shadePath),
       shadow: portablePath(shadowPath),
       preview: portablePath(previewPath),
-      lightingPreview: portablePath(lightingPreviewPath)
+      lightingPreview: portablePath(lightingPreviewPath),
+      ...(animationFiles ? { rowingAnimation: animationFiles.map(portablePath) } : {})
     },
     sheet
   };
+}
+
+async function renderShipAnimationSheets({
+  config,
+  hullTriangles,
+  waterlineY,
+  camera,
+  renderOptions,
+  frameScale,
+  firstSheet
+}) {
+  const animationSheets = [firstSheet];
+  const animationPaths = [];
+  const basePrefix = config.outputPrefix.replace(/-16-headings$/, "");
+  for (let frameIndex = 0; frameIndex < config.animationFrameCount; frameIndex++) {
+    let sheet = animationSheets[frameIndex];
+    if (!sheet) {
+      const triangles = config.animationTrianglesForFrame(hullTriangles, frameIndex, waterlineY);
+      const renderedHeadings = Array.from(
+        { length: headings },
+        (_, headingIndex) => renderHeading(triangles, headingIndex, camera, renderOptions)
+      );
+      const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
+      const frames = renderedHeadings.map((rendered, headingIndex) => (
+        makeFrame(rendered, boundsByHeading[headingIndex], frameScale)
+      ));
+      sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
+      const sheetCtx = sheet.getContext("2d");
+      sheetCtx.imageSmoothingEnabled = false;
+      for (let headingIndex = 0; headingIndex < headings; headingIndex++) {
+        copyFrameToSheet(frames[headingIndex], sheetCtx, headingIndex);
+      }
+      animationSheets.push(sheet);
+    }
+    const path = join(config.outputDir, `${basePrefix}-rowing-${frameIndex}-16-headings.png`);
+    writeFileSync(path, sheet.toBuffer("image/png"));
+    animationPaths.push(path);
+  }
+  if (config.animationContactSheetPath) {
+    mkdirSync(dirname(config.animationContactSheetPath), { recursive: true });
+    const contactSheet = makeRowingAnimationContactSheet(
+      animationSheets,
+      config.animationContactScale,
+      config.animationReviewHeading
+    );
+    writeFileSync(config.animationContactSheetPath, contactSheet.toBuffer("image/png"));
+  }
+  return animationPaths;
+}
+
+function makeRowingAnimationContactSheet(animationSheets, requestedScale = 6, reviewHeading = 2) {
+  const scale = requestedScale;
+  const labelHeight = 22;
+  const cellWidth = frameSize * scale;
+  const canvas = createCanvas(cellWidth * animationSheets.length, frameSize * scale + labelHeight);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#14151f";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "14px monospace";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+  for (let frameIndex = 0; frameIndex < animationSheets.length; frameIndex++) {
+    const x = frameIndex * cellWidth;
+    const sourceCell = sheetCell(reviewHeading, frameSize);
+    ctx.drawImage(
+      animationSheets[frameIndex],
+      sourceCell.x,
+      sourceCell.y,
+      frameSize,
+      frameSize,
+      x,
+      0,
+      cellWidth,
+      frameSize * scale
+    );
+    ctx.fillStyle = "#f4ecd8";
+    ctx.fillText(`FRAME ${frameIndex + 1}`, x + cellWidth / 2, frameSize * scale + labelHeight / 2);
+  }
+  return canvas;
 }
 
 function portablePath(path) {
@@ -1507,6 +1648,7 @@ function unityShipConfig(modelPath) {
     identifiedType: rosterEntry.identifiedType,
     identificationConfidence: rosterEntry.confidence,
     identificationNotes: rosterEntry.notes,
+    ...UNITY_FLEET_MODEL_CREDIT,
     stats: shipStatsForSlug(rosterEntry.slug),
     modelPath,
     texturePath: unityShipTexturePath,
@@ -1752,15 +1894,19 @@ async function renderShipSideView(config) {
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
   const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
   const model = collectTriangles(scene, {
-    targetMaxDim: config.targetModelMaxDim,
-    materialTextureSamplers
+    targetMaxDim: config.sideViewTargetModelMaxDim ?? config.targetModelMaxDim,
+    materialTextureSamplers,
+    ...config.collectOptions
   });
   const waterlineY = estimateWaterlineY(model.triangles);
+  const triangles = config.animationTrianglesForFrame
+    ? config.animationTrianglesForFrame(model.triangles, 0, waterlineY)
+    : model.triangles;
   const renderViewport = {
     width: sideViewWidth * sideViewRenderScale,
     height: sideViewHeight * sideViewRenderScale
   };
-  const rendered = renderHeading(model.triangles, 0, makeSideViewCamera(), {
+  const rendered = renderHeading(triangles, 0, makeSideViewCamera(), {
     textureSampler,
     recolorSails: Boolean(config.recolorSails),
     waterlineY
@@ -1789,7 +1935,7 @@ async function renderShipSideView(config) {
     label: config.label,
     sourceModel: portablePath(config.modelPath),
     sourceMaxDim: Number(config.sourceMaxDim.toFixed(4)),
-    targetModelMaxDim: Number(config.targetModelMaxDim.toFixed(4)),
+    targetModelMaxDim: Number((config.sideViewTargetModelMaxDim ?? config.targetModelMaxDim).toFixed(4)),
     width: sideViewWidth,
     height: sideViewHeight,
     palette: "Resurrect 64",
@@ -1798,6 +1944,207 @@ async function renderShipSideView(config) {
     ...(config.license ? { license: config.license } : {}),
     ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {})
   };
+}
+
+function mediterraneanGalleyConfig() {
+  const slug = "mediterranean-galley";
+  return {
+    slug,
+    label: "Mediterranean Galley",
+    category: "Mediterranean warship",
+    assetLabel: "Russian 22-bank Baltic galley",
+    identifiedType: "sixteenth-century Mediterranean-style sailing galley",
+    identificationConfidence: "high",
+    identificationNotes: "An unfurled-sail galley model adapted with a readable animated bank of oars.",
+    ...MEDITERRANEAN_GALLEY_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(mediterraneanGalleySourceRoot, "scene.gltf"),
+    targetModelMaxDim: 2.22,
+    sideViewTargetModelMaxDim: 1.9,
+    recolorSails: false,
+    scaleMode: "galley-pixel-derivative",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.22,
+    skipSelfShadowMaps: true,
+    collectOptions: {
+      includeMesh: (node) => mediterraneanGalleyMeshNames.has(node.name)
+    },
+    animationFrameCount: mediterraneanGalleyRowingFrames,
+    animationTrianglesForFrame: mediterraneanGalleyTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/mediterranean-galley-rowing-frames.png"
+    )
+  };
+}
+
+function mediterraneanGalleyTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeGalleyOarTriangles(frameIndex, waterlineY)
+  ];
+}
+
+function makeGalleyOarTriangles(frameIndex, waterlineY) {
+  const phase = ((frameIndex % mediterraneanGalleyRowingFrames) + mediterraneanGalleyRowingFrames) %
+    mediterraneanGalleyRowingFrames;
+  const sweeps = [-0.24, -0.06, 0.24, 0.08];
+  const lifts = [0.055, -0.015, -0.045, 0.035];
+  const sweep = sweeps[phase];
+  const lift = lifts[phase];
+  const oarColor = { r: 140, g: 86, b: 48 };
+  const bladeColor = { r: 111, g: 68, b: 44 };
+  const triangles = [];
+  // Keep the readable oar pairs on the central working deck, clear of both pointed ends.
+  const bankPositions = [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45];
+  const pivotY = waterlineY + 0.21;
+  const pivotHalfBeam = 0.19;
+  const shaftLength = 0.57;
+  const bladeLength = 0.16;
+  for (const side of [-1, 1]) {
+    for (const bankZ of bankPositions) {
+      const pivot = new THREE.Vector3(side * pivotHalfBeam, pivotY, bankZ);
+      const shaftEnd = new THREE.Vector3(
+        pivot.x + side * shaftLength * Math.cos(sweep),
+        pivot.y + lift,
+        pivot.z + shaftLength * Math.sin(sweep)
+      );
+      const bladeEnd = shaftEnd.clone().add(new THREE.Vector3(
+        side * bladeLength * Math.cos(sweep),
+        lift * 0.35,
+        bladeLength * Math.sin(sweep)
+      ));
+      triangles.push(...makePrismTriangles(pivot, shaftEnd, 0.024, oarColor, 5));
+      triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, 0.038, bladeColor, 5));
+    }
+  }
+  return triangles;
+}
+
+function mesoamericanCanoeTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeCanoePaddleTriangles(frameIndex, waterlineY, {
+      paddles: [
+        { side: -1, z: -0.23 },
+        { side: 1, z: 0.23 }
+      ],
+      pivotYOffset: 0.13,
+      pivotHalfBeam: 0.22,
+      shaftLength: 0.3,
+      bladeLength: 0.1,
+      shaftRadius: 0.016,
+      bladeRadius: 0.028
+    })
+  ];
+}
+
+function makeCanoePaddleTriangles(frameIndex, waterlineY, config) {
+  const phase = ((frameIndex % canoePaddlingFrames) + canoePaddlingFrames) % canoePaddlingFrames;
+  const sweeps = [-0.28, -0.08, 0.28, 0.08];
+  const lifts = [0.032, -0.008, -0.026, 0.018];
+  const sweep = sweeps[phase];
+  const lift = lifts[phase];
+  const shaftColor = { r: 140, g: 86, b: 48 };
+  const bladeColor = { r: 111, g: 68, b: 44 };
+  const pivotY = waterlineY + config.pivotYOffset;
+  const triangles = [];
+
+  for (const paddle of config.paddles) {
+    const pivot = new THREE.Vector3(paddle.side * config.pivotHalfBeam, pivotY, paddle.z);
+    const shaftEnd = new THREE.Vector3(
+      pivot.x + paddle.side * config.shaftLength * Math.cos(sweep),
+      pivot.y + lift,
+      pivot.z + config.shaftLength * Math.sin(sweep)
+    );
+    const bladeEnd = shaftEnd.clone().add(new THREE.Vector3(
+      paddle.side * config.bladeLength * Math.cos(sweep),
+      lift * 0.35,
+      config.bladeLength * Math.sin(sweep)
+    ));
+    triangles.push(...makePrismTriangles(pivot, shaftEnd, config.shaftRadius, shaftColor, 5));
+    triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5));
+  }
+  return triangles;
+}
+
+function makePrismTriangles(start, end, radius, color, sides) {
+  const axis = end.clone().sub(start).normalize();
+  const reference = Math.abs(axis.y) < 0.9
+    ? new THREE.Vector3(0, 1, 0)
+    : new THREE.Vector3(0, 0, 1);
+  const u = new THREE.Vector3().crossVectors(axis, reference).normalize().multiplyScalar(radius);
+  const v = new THREE.Vector3().crossVectors(axis, u).normalize().multiplyScalar(radius);
+  const rings = [start, end].map((center) => Array.from({ length: sides }, (_, index) => {
+    const angle = index / sides * Math.PI * 2;
+    return center.clone()
+      .addScaledVector(u, Math.cos(angle))
+      .addScaledVector(v, Math.sin(angle));
+  }));
+  const triangles = [];
+  const addTriangle = (a, b, c) => triangles.push({
+    points: [a.clone(), b.clone(), c.clone()],
+    uvs: null,
+    color,
+    textureSampler: null
+  });
+  for (let index = 0; index < sides; index++) {
+    const next = (index + 1) % sides;
+    addTriangle(rings[0][index], rings[1][index], rings[1][next]);
+    addTriangle(rings[0][index], rings[1][next], rings[0][next]);
+    addTriangle(start, rings[0][next], rings[0][index]);
+    addTriangle(end, rings[1][index], rings[1][next]);
+  }
+  return triangles;
+}
+
+async function renderMediterraneanGalley() {
+  const config = mediterraneanGalleyConfig();
+  const sourceScene = await loadScene(config.modelPath);
+  config.sourceMaxDim = collectTriangles(sourceScene, {
+    targetMaxDim: null,
+    ...config.collectOptions
+  }).sourceMaxDim;
+  validateShipStatsForSlugs([config.slug]);
+
+  console.log(`render ${config.slug}`);
+  const rendered = await renderShipSpriteSet(config);
+  const manifestPath = join(unityFleetOutputRoot, "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const { sheet, wakeAnchors, ...entry } = rendered;
+  manifest.ships = upsertShipEntries(manifest.ships, [entry]);
+  manifest.mediterraneanGalleyGenerator = "tools/render-sail-ship-sprites.mjs --mediterranean-galley";
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const wakePath = join(unityFleetOutputRoot, "wake-anchors.json");
+  const wakeManifest = JSON.parse(readFileSync(wakePath, "utf8"));
+  wakeManifest.ships[config.slug] = wakeAnchors;
+  wakeManifest.mediterraneanGalleyGenerator = "tools/render-sail-ship-sprites.mjs --mediterranean-galley";
+  writeFileSync(wakePath, `${JSON.stringify(wakeManifest)}\n`);
+
+  const sideViewPath = join(unityFleetSideViewOutputRoot, "manifest.json");
+  const sideViewManifest = JSON.parse(readFileSync(sideViewPath, "utf8"));
+  const sideView = await renderShipSideView(config);
+  sideViewManifest.ships = upsertShipEntries(sideViewManifest.ships, [sideView]);
+  sideViewManifest.mediterraneanGalleyGenerator = "tools/render-sail-ship-sprites.mjs --mediterranean-galley";
+  writeFileSync(sideViewPath, `${JSON.stringify(sideViewManifest, null, 2)}\n`);
+
+  console.log(entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
+async function renderMediterraneanGalleyReference() {
+  const config = mediterraneanGalleyConfig();
+  config.outputDir = join(repoRoot, "tmp/mediterranean-galley-reference");
+  config.outputPrefix = "mediterranean-galley-reference-16-headings";
+  config.animationContactScale = 2;
+  config.animationContactSheetPath = join(
+    appRoot,
+    "docs/ship-reference/mediterranean-galley-rowing-frames-large.png"
+  );
+  await renderShipSpriteSet(config);
+  console.log(config.animationContactSheetPath);
 }
 
 function nativeBoatConfigs() {
@@ -1810,9 +2157,7 @@ function nativeBoatConfigs() {
       identifiedType: "double-hulled Polynesian voyaging canoe",
       identificationConfidence: "high",
       identificationNotes: "Model depicts a Hawaiian double-hulled ocean-going voyaging canoe.",
-      creator: "Hialda Alpizar",
-      license: "CC BY 4.0",
-      sourceTitle: "Polynesian Voyaging Canoe",
+      ...POLYNESIAN_CANOE_MODEL_CREDIT,
       stats: shipStatsForSlug("polynesian-voyaging-canoe"),
       modelPath: join(nativeBoatSourceRoot, "polynesian-voyaging-canoe/scene.gltf"),
       targetModelMaxDim: 2.25,
@@ -1829,16 +2174,21 @@ function nativeBoatConfigs() {
       identifiedType: "open paddled canoe",
       identificationConfidence: "medium",
       identificationNotes: "Generic intact canoe used as a readable stand-in for a Mesoamerican coastal dugout.",
-      creator: "irodatiii",
-      license: "Sketchfab Free Standard",
-      sourceTitle: "Low Poly Canoe - Stylized Game Asset",
+      ...MESOAMERICAN_CANOE_MODEL_CREDIT,
       stats: shipStatsForSlug("mesoamerican-dugout-canoe"),
       modelPath: join(nativeBoatSourceRoot, "mesoamerican-dugout-canoe/scene.gltf"),
       targetModelMaxDim: 1.85,
       recolorSails: false,
       scaleMode: "native-boat-relative",
       outputDir: unityFleetOutputRoot,
-      outputPrefix: "mesoamerican-dugout-canoe-16-headings"
+      outputPrefix: "mesoamerican-dugout-canoe-16-headings",
+      animationFrameCount: canoePaddlingFrames,
+      animationTrianglesForFrame: mesoamericanCanoeTrianglesForFrame,
+      animationContactSheetPath: join(
+        appRoot,
+        "docs/ship-reference/mesoamerican-canoe-paddling-frames.png"
+      ),
+      animationReviewHeading: 5
     }
   ];
 }
@@ -2079,6 +2429,14 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.has("--mediterranean-galley-reference")) {
+    await renderMediterraneanGalleyReference();
+    return;
+  }
+  if (args.has("--mediterranean-galley")) {
+    await renderMediterraneanGalley();
+    return;
+  }
   if (args.has("--native-boats")) {
     await renderNativeBoats();
     return;

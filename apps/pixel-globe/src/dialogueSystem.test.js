@@ -489,7 +489,7 @@ test("ports sell a costly progression of fishing net upgrades", () => {
   assert.match(session.feedback, /Weighted cast net fitted/);
 });
 
-test("package job offers show the great-circle distance", () => {
+test("package job offers show the destination distance", () => {
   const lisbon = {
     tileId: 21,
     city: "Lisbon",
@@ -519,7 +519,8 @@ test("package job offers show the great-circle distance", () => {
   const view = portDialogueView(session, lisbon, gameState, economy, [lisbon, porto]);
 
   assert.match(view.text, /27\d km away/);
-  assert.match(view.options[0].detail, /27\d km GREAT-CIRCLE/);
+  assert.match(view.options[0].detail, /27\d km/);
+  assert.doesNotMatch(view.options[0].detail, /GREAT-CIRCLE/);
 });
 
 test("shipyards show a full vessel presentation and enforce the asking price", () => {
@@ -593,7 +594,7 @@ test("passenger dialogue can be declined and accepted later", () => {
   const offer = passengerDialogueView(session, origin, quest, gameState);
   assert.equal(offer.speaker, "Mateo Costa, passenger");
   assert.match(offer.text, /7,640 km/);
-  assert.equal(offer.options[0].detail, "7,640 km GREAT-CIRCLE");
+  assert.equal(offer.options[0].detail, "7,640 km");
   assert.deepEqual(offer.options.map((option) => option.label), [
     "Take passenger to Goa  180 db",
     "Decline"

@@ -24,22 +24,79 @@ test("paddled canoes have no dead zone and keep their low speed into the wind", 
 });
 
 test("oar-sail ships row slowly when their sails cannot make progress", () => {
-  const sampan = shipStatsForSlug("sampan");
-  const rowing = shipPropulsionPerformance(sampan, {
+  const galley = shipStatsForSlug("mediterranean-galley");
+  const rowing = shipPropulsionPerformance(galley, {
     windStrength: 0.8,
     sailEfficiency: 0
   });
-  const sailing = shipPropulsionPerformance(sampan, {
+  const sailing = shipPropulsionPerformance(galley, {
     windStrength: 1,
     sailEfficiency: 1
   });
 
-  assert.equal(shipHasWindDeadZone(sampan), false);
+  assert.equal(shipHasWindDeadZone(galley), false);
   assert.equal(rowing.stalled, false);
   assert.equal(rowing.rowing, true);
-  assert.equal(rowing.maxSpeedRad, sampan.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
+  assert.equal(rowing.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
   assert.equal(sailing.rowing, false);
   assert.ok(sailing.maxSpeedRad > rowing.maxSpeedRad * 2);
+});
+
+test("rowing power falls gracefully as an oar crew is depleted", () => {
+  const canoe = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const fullCrew = shipPropulsionPerformance(canoe, {
+    windStrength: 0.8,
+    sailEfficiency: 0,
+    rowerRatio: 1
+  });
+  const quarterCrew = shipPropulsionPerformance(canoe, {
+    windStrength: 0.8,
+    sailEfficiency: 0,
+    rowerRatio: 0.25
+  });
+
+  assert.equal(quarterCrew.rowing, true);
+  assert.equal(quarterCrew.maxSpeedRad, fullCrew.maxSpeedRad * 0.5);
+  assert.equal(quarterCrew.accelerationFactor, fullCrew.accelerationFactor * 0.5);
+});
+
+test("a depleted hybrid crew still uses its sails when they are stronger", () => {
+  const galley = shipStatsForSlug("mediterranean-galley");
+  const performance = shipPropulsionPerformance(galley, {
+    windStrength: 1,
+    sailEfficiency: 0.45,
+    rowerRatio: 0.1
+  });
+
+  assert.equal(performance.rowing, false);
+  assert.equal(performance.stalled, false);
+  assert.ok(performance.maxSpeedRad > 0);
+});
+
+test("an oar craft with no living crew cannot propel itself", () => {
+  const canoe = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const performance = shipPropulsionPerformance(canoe, {
+    windStrength: 1,
+    sailEfficiency: 0,
+    rowerRatio: 0
+  });
+
+  assert.equal(performance.rowing, false);
+  assert.equal(performance.stalled, true);
+  assert.equal(performance.maxSpeedRad, 0);
+  assert.equal(performance.accelerationFactor, 0);
+});
+
+test("sampans must tack because their current sprite has no rowing mode", () => {
+  const sampan = shipStatsForSlug("sampan");
+  const performance = shipPropulsionPerformance(sampan, {
+    windStrength: 0.8,
+    sailEfficiency: 0
+  });
+
+  assert.equal(shipHasWindDeadZone(sampan), true);
+  assert.equal(performance.stalled, true);
+  assert.equal(performance.rowing, false);
 });
 
 test("sail-only ships still stall head to wind", () => {

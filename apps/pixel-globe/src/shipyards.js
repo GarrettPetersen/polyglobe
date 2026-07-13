@@ -22,7 +22,7 @@ const REGION_SHIP_POOLS = Object.freeze({
     "small-carrack", "brigantine", "fluyt", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
   ]),
   mediterranean: Object.freeze([
-    "fishing-lugger", "felucca", "lateen-xebec", "xebec", "square-rigged-caravel", "caravel",
+    "fishing-lugger", "felucca", "lateen-xebec", "xebec", "mediterranean-galley", "square-rigged-caravel", "caravel",
     "small-carrack", "brigantine", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
   ]),
   "islamic-desert": Object.freeze([

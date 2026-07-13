@@ -391,7 +391,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
     feedback: session.feedback,
     options: [
       option(`Take passenger to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
-        detail: `${formatDistanceKm(quest.distanceKm)} GREAT-CIRCLE`
+        detail: formatDistanceKm(quest.distanceKm)
       }),
       option("Decline", { type: "open-port" })
     ]
@@ -809,7 +809,7 @@ function questView(session, city, gameState, portCities) {
           type: "accept-quest",
           quest: questState.quest
         }, {
-          detail: `${formatDistanceKm(questState.quest.distanceKm)} GREAT-CIRCLE`
+          detail: formatDistanceKm(questState.quest.distanceKm)
         }),
         option("Back", { type: "node", nodeId: "root" })
       ]

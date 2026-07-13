@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_OAR_SAIL,
+  SHIP_PROPULSION_SAIL,
   SHIP_STATS,
   shipLabelForSlug,
   shipStatsForSlug
@@ -70,7 +71,19 @@ test("native canoe hulls are small, unarmed, and regionally distinct", () => {
   assert.ok(mesoamerican.turnRateRad > polynesian.turnRateRad);
   assert.equal(mesoamerican.propulsion, SHIP_PROPULSION_OAR);
   assert.equal(mesoamerican.upwindStallAngleDeg, 0);
-  assert.equal(polynesian.propulsion, SHIP_PROPULSION_OAR_SAIL);
-  assert.equal(shipStatsForSlug("sampan").propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(polynesian.propulsion, SHIP_PROPULSION_SAIL);
+  assert.ok(polynesian.upwindStallAngleDeg > 0);
+  assert.equal(shipStatsForSlug("sampan").propulsion, SHIP_PROPULSION_SAIL);
+  assert.equal(shipStatsForSlug("sampan").upwindStallAngleDeg, 45);
   assert.ok(mesoamerican.topSpeedRad < shipStatsForSlug("fishing-lugger").topSpeedRad);
+});
+
+test("the Mediterranean galley is a period hybrid warship", () => {
+  const galley = shipStatsForSlug("mediterranean-galley");
+
+  assert.equal(shipLabelForSlug(galley.slug), "Mediterranean Galley");
+  assert.equal(galley.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.ok(galley.cannons > 0);
+  assert.ok(galley.seaworthiness < shipStatsForSlug("carrack").seaworthiness);
+  assert.ok(galley.cargoCapacity < shipStatsForSlug("carrack").cargoCapacity);
 });

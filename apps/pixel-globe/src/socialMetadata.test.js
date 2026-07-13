@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { MODEL_CREDITS, modelCreditMarkdownLine } from "./modelCredits.js";
+
 const appRoot = new URL("..", import.meta.url);
 
 test("prototype page uses the Marque & Reprisal title and social metadata", () => {
@@ -28,8 +30,9 @@ test("social cards have the declared dimensions", () => {
 test("credits contain attribution text without hyperlinks", () => {
   const credits = readFileSync(new URL("public/assets/CREDITS.md", appRoot), "utf8");
   assert.match(credits, /^# Marque & Reprisal Credits/m);
-  assert.match(credits, /Hialda Alpizar - "Polynesian Voyaging Canoe" \(CC BY 4\.0\)/);
-  assert.match(credits, /irodatiii - "Low Poly Canoe - Stylized Game Asset" \(Sketchfab Free Standard\)/);
+  for (const credit of MODEL_CREDITS) {
+    assert.ok(credits.includes(modelCreditMarkdownLine(credit)), `${credit.sourceTitle} credit`);
+  }
   assert.doesNotMatch(credits, /https?:\/\//);
   assert.doesNotMatch(credits, /\[[^\]]+\]\([^)]+\)/);
 });
