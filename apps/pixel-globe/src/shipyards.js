@@ -68,6 +68,49 @@ export function createWorldShipyards({ ports, startMinute }) {
   return { version: 1, lastMinute: startMinute, yards };
 }
 
+export function snapshotWorldShipyards(system) {
+  assertShipyardSystem(system);
+  return {
+    version: 1,
+    lastMinute: system.lastMinute,
+    yards: [...system.yards.values()].map((yard) => ({
+      portId: yard.portId,
+      buildNumber: yard.buildNumber,
+      listing: yard.listing ? { ...yard.listing } : null,
+      nextBuildMinute: yard.nextBuildMinute
+    }))
+  };
+}
+
+export function restoreWorldShipyards(system, snapshot) {
+  assertShipyardSystem(system);
+  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.yards)) {
+    throw new Error("Unsupported shipyard save data");
+  }
+  if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved shipyard minute");
+  if (snapshot.yards.length !== system.yards.size) {
+    throw new Error("Saved shipyards do not match the current port catalog");
+  }
+  for (const saved of snapshot.yards) {
+    const yard = system.yards.get(saved.portId);
+    if (!yard) throw new Error(`Saved shipyard port is missing: ${saved.portId}`);
+    if (!Number.isInteger(saved.buildNumber) || saved.buildNumber < 0) {
+      throw new Error(`Invalid saved shipyard build number: ${saved.buildNumber}`);
+    }
+    if (!Number.isFinite(saved.nextBuildMinute)) {
+      throw new Error(`Invalid saved shipyard build minute: ${saved.nextBuildMinute}`);
+    }
+  }
+  for (const saved of snapshot.yards) {
+    const yard = system.yards.get(saved.portId);
+    yard.buildNumber = saved.buildNumber;
+    yard.listing = saved.listing ? { ...saved.listing } : null;
+    yard.nextBuildMinute = saved.nextBuildMinute;
+  }
+  system.lastMinute = snapshot.lastMinute;
+  return system;
+}
+
 export function advanceWorldShipyards(system, simMinute) {
   assertShipyardSystem(system);
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid shipyard minute: ${simMinute}`);

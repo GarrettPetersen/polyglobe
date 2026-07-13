@@ -255,6 +255,53 @@ export function createNpcSeaRouteSystem({ ports, startMinute, economy, fishState
   return system;
 }
 
+export function snapshotNpcSeaRouteSystem(system) {
+  assertSaveableNpcRouteSystem(system);
+  return {
+    version: 1,
+    ships: cloneJsonData(system.ships),
+    replacementQueue: cloneJsonData(system.replacementQueue),
+    pirateHideoutDangerUntil: [...system.pirateHideoutDangerUntil.entries()]
+  };
+}
+
+export function restoreNpcSeaRouteSystem(system, snapshot, { economy, fishState = null } = {}) {
+  assertSaveableNpcRouteSystem(system);
+  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships) ||
+      !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil)) {
+    throw new Error("Unsupported NPC route save data");
+  }
+  const ships = cloneJsonData(snapshot.ships);
+  const shipById = new Map();
+  for (const ship of ships) {
+    if (!ship || typeof ship.id !== "string" || ship.id === "" || shipById.has(ship.id)) {
+      throw new Error(`Invalid saved NPC ship id: ${ship?.id}`);
+    }
+    if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
+        !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
+      throw new Error(`Invalid saved NPC hull: ${ship.id}`);
+    }
+    shipStatsForSlug(ship.slug);
+    shipById.set(ship.id, ship);
+  }
+  const danger = new Map();
+  for (const entry of snapshot.pirateHideoutDangerUntil) {
+    if (!Array.isArray(entry) || !Number.isInteger(entry[0]) || !Number.isFinite(entry[1])) {
+      throw new Error("Invalid saved pirate hideout danger state");
+    }
+    danger.set(entry[0], entry[1]);
+  }
+  system.economy = economy || system.economy;
+  system.fishState = fishState;
+  system.ships = ships;
+  system.shipById = shipById;
+  system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
+  system.pirateHideoutDangerUntil = danger;
+  system.routeCache.clear();
+  system.edgeCostCache.clear();
+  return system;
+}
+
 function choosePirateHideouts(ports) {
   const count = Math.min(
     ports.length - 1,
@@ -1774,6 +1821,18 @@ function clamp01(value) {
 function easeInOut(t) {
   const x = clamp01(t);
   return x * x * (3 - 2 * x);
+}
+
+function assertSaveableNpcRouteSystem(system) {
+  if (!system || !Array.isArray(system.ships) || !(system.shipById instanceof Map) ||
+      !Array.isArray(system.replacementQueue) || !(system.pirateHideoutDangerUntil instanceof Map) ||
+      !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map)) {
+    throw new Error("Invalid NPC route system");
+  }
+}
+
+function cloneJsonData(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function hashString32(value) {

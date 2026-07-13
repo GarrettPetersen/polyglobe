@@ -13,7 +13,9 @@ import {
   npcPortHasMajorProtection,
   npcShipHasCombatGrace,
   npcShipSnapshots,
+  restoreNpcSeaRouteSystem,
   sinkNpcShip,
+  snapshotNpcSeaRouteSystem,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
   updateNpcSeaRouteSystem
@@ -99,6 +101,26 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   assert.ok(counts.warship > counts.pirate, JSON.stringify(counts));
   assert.ok(counts.pirate / routes.ships.length <= 0.06, JSON.stringify(counts));
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
+});
+
+test("NPC route snapshots restore ships, plans, and replacement queues without caches", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const lost = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT);
+  sinkNpcShip(routes, lost.id, 1000);
+  routes.pirateHideoutDangerUntil.set(PORTS[0].tileId, 5555);
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+
+  updateNpcSeaRouteSystem(routes, 2000);
+  routes.pirateHideoutDangerUntil.clear();
+  routes.routeCache.set("discard-me", []);
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  assert.deepEqual(routes.ships, snapshot.ships);
+  assert.deepEqual(routes.replacementQueue, snapshot.replacementQueue);
+  assert.equal(routes.pirateHideoutDangerUntil.get(PORTS[0].tileId), 5555);
+  assert.equal(routes.routeCache.size, 0);
+  assert.equal(routes.shipById.size, routes.ships.length);
 });
 
 test("NPC traders only plan trade calls at friendly or neutral ports", () => {

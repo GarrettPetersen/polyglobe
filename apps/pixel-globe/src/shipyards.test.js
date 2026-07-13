@@ -6,10 +6,12 @@ import {
   claimShipyardListing,
   createWorldShipyards,
   generateShipyardListing,
+  restoreWorldShipyards,
   shipConstructionPrice,
   shipyardAtPort,
   shipyardQualityBudget,
-  shipyardRumorForPort
+  shipyardRumorForPort,
+  snapshotWorldShipyards
 } from "./shipyards.js";
 
 const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14);
@@ -77,6 +79,26 @@ test("new listings spawn over time and purchased listings disappear", () => {
   const claimed = claimShipyardListing(system, SMALL_PORT, yard.listing.id);
   assert.equal(claimed.portId, SMALL_PORT.tileId);
   assert.equal(yard.listing, null);
+});
+
+test("shipyard snapshots restore listings and construction clocks", () => {
+  const system = createWorldShipyards({ ports: [LISBON, PORTO], startMinute: 0 });
+  const lisbon = shipyardAtPort(system, LISBON);
+  lisbon.buildNumber = 14;
+  lisbon.listing = generateShipyardListing(lisbon, 14, 9000);
+  lisbon.nextBuildMinute = 123456;
+  system.lastMinute = 120000;
+  const snapshot = snapshotWorldShipyards(system);
+
+  lisbon.buildNumber = 99;
+  lisbon.listing = null;
+  lisbon.nextBuildMinute = 999999;
+  restoreWorldShipyards(system, snapshot);
+
+  assert.equal(system.lastMinute, 120000);
+  assert.equal(lisbon.buildNumber, 14);
+  assert.equal(lisbon.listing.id, snapshot.yards.find((yard) => yard.portId === LISBON.tileId).listing.id);
+  assert.equal(lisbon.nextBuildMinute, 123456);
 });
 
 function port(tileId, city, cityType, population, lat, lon) {

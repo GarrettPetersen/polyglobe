@@ -13,6 +13,8 @@ import {
   planNpcTrade,
   portEconomySummary,
   portMarket,
+  restoreWorldEconomy,
+  snapshotWorldEconomy,
   worldMarketPriceComparison
 } from "./economy.js";
 import {
@@ -183,6 +185,24 @@ test("production and consumption advance in coarse simulation steps", () => {
   const pepperAfter = marketByGood(economy, GOA).get("pepper").stock;
   assert.ok(pepperAfter > pepperBefore);
   assert.equal(advanceWorldEconomy(economy, 10 * 24 * 60), false);
+});
+
+test("economy snapshots restore stocks, specie, clocks, and shipyards", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
+  executePortSale(economy, LONDON, "wool", 3);
+  advanceWorldEconomy(economy, 12 * 24 * 60);
+  const snapshot = snapshotWorldEconomy(economy);
+  const expectedLondon = portEconomySummary(economy, LONDON);
+  const expectedWool = marketByGood(economy, LONDON).get("wool").stock;
+
+  executePortSale(economy, LONDON, "wool", 5);
+  advanceWorldEconomy(economy, 20 * 24 * 60);
+  restoreWorldEconomy(economy, snapshot);
+
+  assert.deepEqual(portEconomySummary(economy, LONDON), expectedLondon);
+  assert.equal(marketByGood(economy, LONDON).get("wool").stock, expectedWool);
+  assert.equal(economy.lastMinute, snapshot.lastMinute);
+  assert.equal(economy.shipyards.lastMinute, snapshot.shipyards.lastMinute);
 });
 
 function marketByGood(economy, city) {

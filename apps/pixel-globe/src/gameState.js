@@ -34,6 +34,7 @@ import {
 } from "./fishingNets.js";
 
 export const STARTING_DOUBLOONS = 360;
+export const GAME_STATE_VERSION = 6;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -74,7 +75,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
   }
   const playerFactionId = playerCharacter?.nationalityId || null;
   return {
-    version: 6,
+    version: GAME_STATE_VERSION,
     playerCharacter,
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
@@ -130,6 +131,14 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
       }
     }
   };
+}
+
+export function validateGameState(state) {
+  if (state?.version !== GAME_STATE_VERSION) {
+    throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
+  }
+  assertGameState(state);
+  return state;
 }
 
 export function recordDiscovery(state, discovery) {

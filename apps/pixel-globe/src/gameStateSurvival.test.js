@@ -20,12 +20,20 @@ import {
   setPlayerShipStats,
   shipConsumption,
   survivalStatus,
-  updateSurvival
+  updateSurvival,
+  validateGameState
 } from "./gameState.js";
 import { crewHoldSpace, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "england");
+
+test("saved game state rejects unsupported schema versions", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  assert.equal(validateGameState(state), state);
+  state.version += 1;
+  assert.throws(() => validateGameState(state), /Unsupported game state version/);
+});
 
 test("survival drains water and consumes the cheapest edible cargo first", () => {
   const state = createGameState({ cargoCapacity: 10 });

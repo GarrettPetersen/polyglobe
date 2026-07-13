@@ -1,4 +1,9 @@
-import { advanceWorldShipyards, createWorldShipyards } from "./shipyards.js";
+import {
+  advanceWorldShipyards,
+  createWorldShipyards,
+  restoreWorldShipyards,
+  snapshotWorldShipyards
+} from "./shipyards.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const ECONOMY_STEP_MINUTES = 6 * 60;
@@ -200,6 +205,56 @@ export function createWorldEconomy({ ports, startMinute }) {
     portStates,
     shipyards: createWorldShipyards({ ports, startMinute })
   };
+}
+
+export function snapshotWorldEconomy(economy) {
+  assertEconomy(economy);
+  return {
+    version: 1,
+    lastMinute: economy.lastMinute,
+    ports: [...economy.portStates.values()].map((port) => ({
+      id: port.id,
+      specie: port.specie,
+      stocks: [...port.goods.entries()].map(([goodId, state]) => [goodId, state.stock])
+    })),
+    shipyards: snapshotWorldShipyards(economy.shipyards)
+  };
+}
+
+export function restoreWorldEconomy(economy, snapshot) {
+  assertEconomy(economy);
+  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ports)) {
+    throw new Error("Unsupported world economy save data");
+  }
+  if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved economy minute");
+  if (snapshot.ports.length !== economy.portStates.size) {
+    throw new Error("Saved economy does not match the current port catalog");
+  }
+  for (const saved of snapshot.ports) {
+    const port = economy.portStates.get(saved.id);
+    if (!port) throw new Error(`Saved economy port is missing: ${saved.id}`);
+    if (!Number.isFinite(saved.specie) || saved.specie < 0 || !Array.isArray(saved.stocks)) {
+      throw new Error(`Invalid saved economy state for port: ${saved.id}`);
+    }
+    if (saved.stocks.length !== port.goods.size) {
+      throw new Error(`Saved economy goods do not match port: ${saved.id}`);
+    }
+    for (const [goodId, stock] of saved.stocks) {
+      const good = port.goods.get(goodId);
+      if (!good) throw new Error(`Saved economy good is missing: ${saved.id}/${goodId}`);
+      if (!Number.isFinite(stock) || stock < 0) {
+        throw new Error(`Invalid saved stock: ${saved.id}/${goodId}=${stock}`);
+      }
+    }
+  }
+  restoreWorldShipyards(economy.shipyards, snapshot.shipyards);
+  for (const saved of snapshot.ports) {
+    const port = economy.portStates.get(saved.id);
+    for (const [goodId, stock] of saved.stocks) port.goods.get(goodId).stock = stock;
+    port.specie = saved.specie;
+  }
+  economy.lastMinute = snapshot.lastMinute;
+  return economy;
 }
 
 export function advanceWorldEconomy(economy, clockMinute) {

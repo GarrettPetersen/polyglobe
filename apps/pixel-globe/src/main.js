@@ -76,6 +76,7 @@ import {
   survivalStatus,
   updateCircumnavigationProgress,
   updateSurvival,
+  validateGameState,
   visitPort
 } from "./gameState.js";
 import {
@@ -117,8 +118,10 @@ import {
   npcRoleLabel,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
+  restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
   sinkNpcShip,
+  snapshotNpcSeaRouteSystem,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
   updateNpcSeaRouteSystem
@@ -215,6 +218,8 @@ import {
 import {
   advanceWorldEconomy,
   createWorldEconomy,
+  restoreWorldEconomy,
+  snapshotWorldEconomy,
   tradeGoodById
 } from "./economy.js";
 import {
@@ -232,6 +237,7 @@ import {
   shipPapersPage
 } from "./shipInfo.js";
 import { claimShipyardListing, shipyardAtPort, shipyardRumorForPort } from "./shipyards.js";
+import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
 import {
   MANUAL_CITY_RECORDS_1522,
   cityPopulationObservationAtYear,
@@ -667,16 +673,17 @@ let CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
 const CAPTAIN_ALERT_BUTTON_W = 104;
 const CAPTAIN_ALERT_BUTTON_H = 28;
 let START_MENU_PANEL_W = 244;
-const START_MENU_PANEL_H = 196;
+const START_MENU_PANEL_H = 232;
 let START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
 let START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
 const START_MENU_BUTTON_W = 166;
 const START_MENU_BUTTON_H = 30;
 const START_MENU_BUTTON_GAP = 8;
-const START_MENU_BUTTON_COUNT = 3;
-const START_MENU_ACTION_START = 0;
-const START_MENU_ACTION_OPTIONS = 1;
-const START_MENU_ACTION_CREDITS = 2;
+const START_MENU_ACTION_CONTINUE = "continue";
+const START_MENU_ACTION_NEW_GAME = "new-game";
+const START_MENU_ACTION_OPTIONS = "options";
+const START_MENU_ACTION_CREDITS = "credits";
+const AUTOSAVE_INTERVAL_MS = 30000;
 const CREDITS_MARKDOWN_URL = "/assets/CREDITS.md";
 const CREDITS_FALLBACK_MARKDOWN = `# Marque & Reprisal Credits
 
@@ -1087,6 +1094,9 @@ let gameState = null;
 let dialogueState = null;
 let dialogueLayout = createDialogueLayoutState();
 let startMenu = null;
+let localSaveResult = { status: "empty", save: null, error: null };
+let hasStartedVoyage = false;
+let lastAutosaveMs = 0;
 let captainAlertModal = null;
 const survivalDamageTimers = {
   waterNextMinute: null,
@@ -1306,6 +1316,10 @@ async function main() {
   animalImages = loadedAnimalImages;
   cityCatalog = loadedCityCatalog;
   creditsMarkdown = loadedCreditsMarkdown;
+  localSaveResult = readLocalSave();
+  if (localSaveResult.status === "invalid") {
+    console.warn("[pixel-globe] local save is unavailable", localSaveResult.error);
+  }
   earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -1448,16 +1462,6 @@ async function main() {
     `home port ${playerCharacter.homePortName}, starter ${shipLabelForSlug(playerShipSlug)}`
   );
   console.info(`[pixel-globe] faction capitals: ${factionCapitalPorts.size} water-accessible capitals`);
-  npcSeaRoutes = createNpcSeaRouteSystem({
-    ports: portCities,
-    startMinute: weatherClockMinutes,
-    economy: worldEconomy,
-    fishState: gameState
-  });
-  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
-  console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
-  console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
-  console.info(`[pixel-globe] named characters: ${usedCharacterNames.size} unique people`);
   seaIceMask = new Uint8Array(graph.tileCount);
   freshwaterIceMask = new Uint8Array(graph.tileCount);
   snowGroundMask = new Uint8Array(graph.tileCount);
@@ -1477,6 +1481,16 @@ async function main() {
     shipStats: ship.stats
   });
   initializeProvisionalShipLoadout(gameState, ship.stats);
+  npcSeaRoutes = createNpcSeaRouteSystem({
+    ports: portCities,
+    startMinute: weatherClockMinutes,
+    economy: worldEconomy,
+    fishState: gameState
+  });
+  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
+  console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
+  console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
+  console.info(`[pixel-globe] named characters: ${usedCharacterNames.size} unique people`);
   playerIntroModal = createPlayerIntroModal(playerCharacter);
   startMenu = createStartMenuState();
   await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
@@ -2523,7 +2537,7 @@ function loop(nowMs) {
 
 function runFrame(nowMs) {
   pollGamepadControls();
-  const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
+  const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   lastFrameMs = nowMs;
   if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
     if (fishingAction) {
@@ -2542,6 +2556,9 @@ function runFrame(nowMs) {
   }
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
+  if (hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
+    saveVoyageNow("periodic autosave");
+  }
   if (updateCityFlagAnimation(nowMs)) dirty = true;
   if (dirty || menusAreOpen() || dialogueState || gameOverReason || nowMs - lastStatusMs > 1000) {
     render(nowMs);
@@ -2598,9 +2615,25 @@ function createCaptainMenuState() {
 
 function createStartMenuState() {
   return {
-    selectedIndex: START_MENU_ACTION_START,
-    buttonRects: []
+    selectedIndex: 0,
+    buttonRects: [],
+    isLoading: false,
+    message: localSaveResult.status === "invalid" ? "SAVE COULD NOT BE READ" : ""
   };
+}
+
+function startMenuActions() {
+  const actions = [];
+  if (localSaveResult.status === "ready") {
+    actions.push({ id: START_MENU_ACTION_CONTINUE, label: startMenu?.isLoading ? "LOADING..." : "CONTINUE" });
+  }
+  actions.push({
+    id: START_MENU_ACTION_NEW_GAME,
+    label: localSaveResult.status === "ready" ? "NEW GAME" : "START GAME"
+  });
+  actions.push({ id: START_MENU_ACTION_OPTIONS, label: "OPTIONS" });
+  actions.push({ id: START_MENU_ACTION_CREDITS, label: "CREDITS" });
+  return actions;
 }
 
 function createCreditsMenuState() {
@@ -3437,6 +3470,181 @@ function closeStartMenu() {
   dirty = true;
 }
 
+function startNewVoyage() {
+  try {
+    clearLocalSave();
+    localSaveResult = { status: "empty", save: null, error: null };
+  } catch (error) {
+    console.warn("[pixel-globe] could not clear the previous local save", error);
+  }
+  hasStartedVoyage = true;
+  closeStartMenu();
+  saveVoyageNow("new voyage");
+}
+
+async function continueSavedVoyage() {
+  if (!startMenu || startMenu.isLoading || localSaveResult.status !== "ready") return;
+  const menu = startMenu;
+  menu.isLoading = true;
+  menu.message = "";
+  dirty = true;
+  try {
+    await restoreSavedVoyage(localSaveResult.save.payload);
+    hasStartedVoyage = true;
+    closeStartMenu();
+    saveVoyageNow("continued voyage");
+  } catch (error) {
+    console.warn("[pixel-globe] could not continue the local save", error);
+    localSaveResult = { status: "invalid", save: null, error };
+    if (startMenu === menu) {
+      menu.isLoading = false;
+      menu.selectedIndex = 0;
+      menu.message = "SAVE COULD NOT BE LOADED";
+    }
+    dirty = true;
+  }
+}
+
+async function restoreSavedVoyage(payload) {
+  const restoredGameState = validateGameState(payload.gameState);
+  const savedShip = payload.playerShip;
+  const stats = shipStatsForSlug(savedShip.typeSlug);
+  factionById(savedShip.factionId);
+  if (restoredGameState.cargoCapacity !== stats.cargoCapacity) {
+    throw new Error("Saved ship capacity does not match its hull");
+  }
+  if (!Number.isInteger(savedShip.tileId) || !isShipNavigableTile(savedShip.tileId)) {
+    throw new Error(`Saved ship tile is not navigable: ${savedShip.tileId}`);
+  }
+  if (!Number.isFinite(savedShip.hitPoints) || savedShip.hitPoints <= 0 ||
+      !Number.isFinite(savedShip.maxHitPoints) || savedShip.maxHitPoints < savedShip.hitPoints) {
+    throw new Error("Saved player hull is invalid");
+  }
+  if (Math.hypot(...savedShip.position) < 0.5 || Math.hypot(...savedShip.heading) < 0.5) {
+    throw new Error("Saved player navigation vectors are invalid");
+  }
+  const assets = await loadShipAssetSet(savedShip.typeSlug);
+  restoreWorldEconomy(worldEconomy, payload.economy);
+  restoreNpcSeaRouteSystem(npcSeaRoutes, payload.npcRoutes, {
+    economy: worldEconomy,
+    fishState: restoredGameState
+  });
+
+  gameState = restoredGameState;
+  shipImage = assets.image;
+  shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
+  shipLighting = assets.lighting;
+  const position = normalize3(savedShip.position.slice());
+  const savedLat = latitudeDegForDirection(position);
+  const savedLon = longitudeDegForDirection(position);
+  ship = createShip(savedLat, savedLon, savedShip.typeSlug, savedShip.factionId);
+  ship.position = position;
+  ship.tileId = savedShip.tileId;
+  ship.heading = normalizeTangentOrFallback(savedShip.heading, position, WORLD_NORTH);
+  ship.targetHeading = normalizeTangentOrFallback(savedShip.targetHeading, position, ship.heading);
+  ship.velocity = savedShip.velocity.slice();
+  ship.hitPoints = savedShip.hitPoints;
+  ship.maxHitPoints = savedShip.maxHitPoints;
+  ship.wakeSeedCounter = savedShip.wakeSeedCounter || 0;
+  ship.cannonSequence = savedShip.cannonSequence || 0;
+  ship.cannonCooldowns = { port: 0, starboard: 0 };
+  ship.wakeParticles = [];
+  ship.lastWakeEmit = null;
+  ship.cannonballs = [];
+  ship.cannonSplashes = [];
+
+  weatherClockMinutes = payload.worldClock.currentMinute;
+  voyageStartClockMinutes = payload.worldClock.voyageStartMinute;
+  weatherParts = weatherClockParts(weatherClockMinutes);
+  anchored = payload.anchored;
+  survivalDamageTimers.thirst = finiteMinuteOrNull(payload.survivalDamageTimers?.thirst);
+  survivalDamageTimers.hunger = finiteMinuteOrNull(payload.survivalDamageTimers?.hunger);
+  stormCaptainAlertNextMinute = finiteMinuteOrNull(payload.stormCaptainAlertNextMinute);
+  playerIntroModal = null;
+  captainAlertModal = null;
+  dialogueState = null;
+  dialogueLayout = createDialogueLayoutState();
+  fishingAction = null;
+  discoveryNotice = null;
+  discoveryNoticeQueue.length = 0;
+  fishCatchNotice = null;
+  gameOverReason = null;
+  gameOverState = null;
+  npcVisualShips.clear();
+  npcCombatProjectiles = [];
+  npcCombatSplashes = [];
+  shipCombatState.engagements.clear();
+  shipCollisionCooldowns.clear();
+  shipCombatEntryCollisionGrace.clear();
+  playerSteeringHoldSeconds = 0;
+  playerHaulBlockedSeconds = 0;
+  keys.clear();
+  clearPointerSteering();
+
+  usedCharacterNames = new Set([gameState.playerCharacter.name]);
+  for (const character of portCityCharacters.values()) usedCharacterNames.add(character.name);
+  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
+  await ensureCharacterPortraitLoaded(gameState.playerCharacter, characterExpression(gameState.playerCharacter));
+  syncShipCargoFromGameState();
+  camera = northUpCamera(ship.position);
+  centerTileId = ship.tileId;
+  localLayout = createLocalLayout(centerTileId);
+  chart = buildChart(camera);
+  refreshWeatherState(true);
+  setBackgroundMusicTrack("ship", { force: true });
+  lastAutosaveMs = performance.now();
+  dirty = true;
+}
+
+function saveVoyageNow(reason) {
+  if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
+  try {
+    const save = writeLocalSave({
+      gameState,
+      playerShip: snapshotPlayerShip(),
+      worldClock: {
+        currentMinute: weatherClockMinutes,
+        voyageStartMinute: voyageStartClockMinutes
+      },
+      economy: snapshotWorldEconomy(worldEconomy),
+      npcRoutes: snapshotNpcSeaRouteSystem(npcSeaRoutes),
+      anchored,
+      survivalDamageTimers: { ...survivalDamageTimers },
+      stormCaptainAlertNextMinute
+    });
+    localSaveResult = { status: "ready", save, error: null };
+    if (reason === "new voyage" || reason === "continued voyage") {
+      const bytes = new TextEncoder().encode(JSON.stringify(save)).byteLength;
+      console.info(`[pixel-globe] local save: ${Math.ceil(bytes / 1024)} KiB`);
+    }
+    lastAutosaveMs = performance.now();
+    return true;
+  } catch (error) {
+    console.warn(`[pixel-globe] local save failed (${reason})`, error);
+    return false;
+  }
+}
+
+function snapshotPlayerShip() {
+  return {
+    factionId: ship.factionId,
+    typeSlug: ship.typeSlug,
+    position: ship.position.slice(),
+    tileId: ship.tileId,
+    heading: ship.heading.slice(),
+    targetHeading: ship.targetHeading.slice(),
+    velocity: ship.velocity.slice(),
+    hitPoints: ship.hitPoints,
+    maxHitPoints: ship.maxHitPoints,
+    wakeSeedCounter: ship.wakeSeedCounter,
+    cannonSequence: ship.cannonSequence
+  };
+}
+
+function finiteMinuteOrNull(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
 function openCreditsMenu() {
   closeOptionsMenu();
   closeDiscoveriesMenu();
@@ -3639,10 +3847,12 @@ function handleOptionsKeyDown(event) {
 
 function handleStartMenuKeyDown(event) {
   event.preventDefault();
+  if (startMenu.isLoading) return;
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
     const direction = event.key === "ArrowDown" ? 1 : -1;
+    const actionCount = startMenuActions().length;
     startMenu.selectedIndex =
-      (startMenu.selectedIndex + direction + START_MENU_BUTTON_COUNT) % START_MENU_BUTTON_COUNT;
+      (startMenu.selectedIndex + direction + actionCount) % actionCount;
     dirty = true;
     return;
   }
@@ -3671,16 +3881,22 @@ function handleCreditsKeyDown(event) {
 }
 
 function activateStartMenuSelection() {
-  if (!startMenu) return;
-  if (startMenu.selectedIndex === START_MENU_ACTION_START) {
-    closeStartMenu();
+  if (!startMenu || startMenu.isLoading) return;
+  const action = startMenuActions()[startMenu.selectedIndex];
+  if (!action) return;
+  if (action.id === START_MENU_ACTION_CONTINUE) {
+    void continueSavedVoyage();
     return;
   }
-  if (startMenu.selectedIndex === START_MENU_ACTION_OPTIONS) {
+  if (action.id === START_MENU_ACTION_NEW_GAME) {
+    startNewVoyage();
+    return;
+  }
+  if (action.id === START_MENU_ACTION_OPTIONS) {
     openOptionsMenu();
     return;
   }
-  if (startMenu.selectedIndex === START_MENU_ACTION_CREDITS) openCreditsMenu();
+  if (action.id === START_MENU_ACTION_CREDITS) openCreditsMenu();
 }
 
 function handlePointerDown(event) {
@@ -3954,6 +4170,7 @@ function handleOptionsPointerDown(point) {
 }
 
 function handleStartMenuPointerDown(point) {
+  if (startMenu.isLoading) return;
   updateStartMenuSelectionFromPoint(point);
   for (let i = 0; i < startMenu.buttonRects.length; i++) {
     if (!pointInRect(point, startMenu.buttonRects[i])) continue;
@@ -4192,6 +4409,7 @@ function openPortDialogue(cityCall) {
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
+  saveVoyageNow("port arrival");
   dirty = true;
 }
 
@@ -4267,12 +4485,14 @@ function toggleAnchor() {
     keys.clear();
     clearPointerSteering();
     playSailDeploySound();
+    saveVoyageNow("weighed anchor");
     dirty = true;
     return true;
   }
   if (!canAnchorAtCurrentShore()) return false;
   anchored = true;
   stopShipForDialogue();
+  saveVoyageNow("dropped anchor");
   dirty = true;
   return true;
 }
@@ -4296,6 +4516,7 @@ function closeDialogue() {
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack("ship", { force: true });
     playSailDeploySound();
+    saveVoyageNow("left port dialogue");
   }
   dirty = true;
 }
@@ -4317,6 +4538,7 @@ function chooseDialogueOption(optionIndex) {
     );
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
+    saveVoyageNow("port transaction");
     if (result.action?.type === "open-passenger") {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
       return;
@@ -4337,6 +4559,7 @@ function chooseDialogueOption(optionIndex) {
     );
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
+    saveVoyageNow("quest decision");
     if (result.action?.type === "open-port") {
       continuePortDialogueAfterQuestCharacter();
       return;
@@ -4387,6 +4610,7 @@ async function purchaseShipyardShip(action) {
     playCoinClinkSound();
     session.feedback = `Purchased ${listing.shipLabel} for ${listing.price} doubloons.`;
     session.selectedIndex = 0;
+    saveVoyageNow("ship purchase");
   } catch (error) {
     console.error(new Error(`Failed to purchase ${listing.shipLabel}`, { cause: error }));
     session.feedback = error instanceof Error ? error.message : "The ship purchase failed.";
@@ -4923,6 +5147,7 @@ function resolveFishingAction(action) {
   syncShipCargoFromGameState();
   const depletedText = result.overfished ? " - OVERFISHED" : "";
   showFishCatchNotice(`CAUGHT ${result.speciesLabel.toUpperCase()} x${result.quantity}${depletedText}`, "good");
+  saveVoyageNow("fishing catch");
   dirty = true;
 }
 
@@ -6597,6 +6822,12 @@ function sinkPlayerShip(reason) {
   clearPointerSteering();
   combatMusicUntilMs = 0;
   stormMusicActive = false;
+  try {
+    clearLocalSave();
+    localSaveResult = { status: "empty", save: null, error: null };
+  } catch (error) {
+    console.warn("[pixel-globe] could not clear the local save after death", error);
+  }
   playMusicTrack("gameOverSad", { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS, restart: true });
   dirty = true;
 }
@@ -8358,6 +8589,7 @@ function handleFullscreenChange() {
 
 function handleFullscreenVisibilityChange() {
   fitCanvasToDisplay();
+  if (document.visibilityState === "hidden") saveVoyageNow("page hidden");
 }
 
 function northUpCamera(center, fallbackRight = [1, 0, 0]) {
@@ -8807,6 +9039,7 @@ function queueDiscovery(discovery, nowMs) {
   playDiscoverySuccessSound();
   discoveryNoticeQueue.push(discovery);
   updateDiscoveryNotice(nowMs);
+  saveVoyageNow("discovery");
   return true;
 }
 
@@ -10705,11 +10938,13 @@ function politicsFactionColor(factionId) {
 }
 
 function drawStartMenu(nowMs) {
+  const actions = startMenuActions();
+  const panelHeight = actions.length >= 4 ? START_MENU_PANEL_H : (startMenu.message ? 212 : 196);
   const panel = {
     x: START_MENU_PANEL_X,
-    y: START_MENU_PANEL_Y,
+    y: Math.floor((SCREEN_H - panelHeight) / 2),
     w: START_MENU_PANEL_W,
-    h: START_MENU_PANEL_H
+    h: panelHeight
   };
   const pulse = 0.5 + 0.5 * Math.sin(nowMs / 620);
 
@@ -10737,7 +10972,7 @@ function drawStartMenu(nowMs) {
     align: "center"
   });
 
-  const labels = ["START GAME", "OPTIONS", "CREDITS"];
+  const labels = actions.map((action) => action.label);
   const firstButtonY = panel.y + 76;
   startMenu.buttonRects = labels.map((_, index) => ({
     x: panel.x + Math.floor((panel.w - START_MENU_BUTTON_W) / 2),
@@ -10748,6 +10983,13 @@ function drawStartMenu(nowMs) {
 
   for (let i = 0; i < labels.length; i++) {
     drawStartMenuButton(startMenu.buttonRects[i], labels[i], startMenu.selectedIndex === i);
+  }
+  if (startMenu.message && actions.length < 4) {
+    ctx.fillStyle = "#f68181";
+    drawPixelText(startMenu.message, panel.x + panel.w / 2, panel.y + panel.h - 16, {
+      font: PIXEL_FONT_BODY_8,
+      align: "center"
+    });
   }
   ctx.restore();
 }
