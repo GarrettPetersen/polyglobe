@@ -492,8 +492,8 @@ function createPortState(port) {
   const settlementType = port.settlementType === "village" ? "village" : "city";
   const productionMultiplier = settlementType === "village" ? VILLAGE_PRODUCTION_MULTIPLIER : 1;
   const consumptionMultiplier = settlementType === "village" ? VILLAGE_CONSUMPTION_MULTIPLIER : 1;
-  const declaredMarketGoodIds = settlementType === "village" && Array.isArray(port.marketGoods)
-    ? villageMarketGoodIds(port.marketGoods, port.displayCity || port.city)
+  const declaredMarketGoodIds = Array.isArray(port.marketGoods)
+    ? declaredPortMarketGoodIds(port.marketGoods, port.displayCity || port.city)
     : null;
   const productionProfile = REGION_PRODUCTION[port.cityType];
   const demandProfile = REGION_DEMAND[port.cityType];
@@ -532,8 +532,8 @@ function createPortState(port) {
     state.stock = state.targetStock * stockVariance;
   }
 
-  const marketGoodIds = settlementType === "village"
-    ? declaredMarketGoodIds || new Set([...goods.entries()]
+  const marketGoodIds = declaredMarketGoodIds || (settlementType === "village"
+    ? new Set([...goods.entries()]
       .filter(([goodId, state]) =>
         goodId !== HARDTACK_GOOD_ID &&
         goodId !== FRESH_WATER_GOOD_ID &&
@@ -542,7 +542,7 @@ function createPortState(port) {
       .sort((a, b) => b[1].productionPerDay - a[1].productionPerDay || a[0].localeCompare(b[0]))
       .slice(0, VILLAGE_MARKET_GOOD_LIMIT)
       .map(([goodId]) => goodId))
-    : null;
+    : null);
   const targetSpecie = settlementType === "village"
     ? Math.round(250 + populationScale * 900)
     : Math.round(1200 + populationScale * 4200);
@@ -596,17 +596,17 @@ function portOffersGood(port, good) {
   return good.alwaysAvailable || !port.marketGoodIds || port.marketGoodIds.has(good.id);
 }
 
-function villageMarketGoodIds(goodIds, portName) {
+function declaredPortMarketGoodIds(goodIds, portName) {
   if (goodIds.length !== VILLAGE_MARKET_GOOD_LIMIT) {
-    throw new Error(`${portName} village market must declare exactly ${VILLAGE_MARKET_GOOD_LIMIT} goods`);
+    throw new Error(`${portName} market must declare exactly ${VILLAGE_MARKET_GOOD_LIMIT} goods`);
   }
   const ids = new Set();
   for (const goodId of goodIds) {
     const good = tradeGoodById(goodId);
-    if (good.alwaysAvailable) throw new Error(`${portName} cannot list ship supplies as village trade goods`);
+    if (good.alwaysAvailable) throw new Error(`${portName} cannot list ship supplies as trade goods`);
     ids.add(goodId);
   }
-  if (ids.size !== goodIds.length) throw new Error(`${portName} village market contains duplicate goods`);
+  if (ids.size !== goodIds.length) throw new Error(`${portName} market contains duplicate goods`);
   return ids;
 }
 

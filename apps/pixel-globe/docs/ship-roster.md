@@ -4,13 +4,13 @@ The Unity asset pack labels the vessels generically, so this roster assigns 16th
 
 Generated fleet sprites live in `apps/pixel-globe/public/assets/vehicles/unity-ships/` and use filenames like `{filename slug}-16-headings.png`, with matching `-light`, `-shade`, `-shadow`, `-preview`, and `-lighting-preview` sheets.
 
-Large side-view sprites for the ship information screen live in `apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/`. They preserve the same source-relative fleet scale, use neutral sails, and are quantized to the Resurrect 64 palette. Regenerate all 30 with `npm run render:unity-ship-side-views` from `apps/pixel-globe/`.
+Large side-view sprites for the ship information screen live in `apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/`. They preserve the same source-relative fleet scale and are quantized to the Resurrect 64 palette. Regenerate all 31 with `npm run render:unity-ship-side-views` from `apps/pixel-globe/`.
 
 High-resolution review rasters live in `apps/pixel-globe/docs/ship-reference/high-res/`. Regenerate them with `PIXEL_GLOBE_SHIP_FRAME_SIZE=160 PIXEL_GLOBE_SHIP_RENDER_SIZE=320 PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE=320 PIXEL_GLOBE_SHIP_PREVIEW_SCALE=1 node tools/render-sail-ship-sprites.mjs --unity-fleet-reference` from `apps/pixel-globe/`.
 
 The fleet bake preserves source-relative ship sizes with a compressed readability curve, so boats remain smaller than large ocean-going ships without disappearing at 36px.
 
-Use `?ship={slug}` in the Marque & Reprisal URL to start with any ship in this roster.
+For development, `?ship={slug}` starts with any roster ship. In normal gameplay the Viking Longship is available only after its Hafnarfjordur reconstruction quest.
 
 | Game name | Filename slug | Source asset label | Identification | Confidence | Notes |
 |---|---|---|---|---|---|
@@ -44,6 +44,7 @@ Use `?ship={slug}` in the Marque & Reprisal URL to start with any ship in this r
 | Lateen Barque | `ketch` | Ship Small 5 | two-masted lateen barque | Medium | Two triangular sails interpreted as a small Mediterranean lateen trader. |
 | Square-Sail Trader | `square-sail-trader` | Ship Small 6 | small cog / square-sail trader | Medium | Simple small trader with square-sail read. |
 | Dhow-Felucca | `dhow-felucca` | Ship Small 7 | felucca / dhow | High | Another small lateen craft; distinct source model from Felucca. |
+| Viking Longship | `viking-longship` | Viking Ship 1 | Norse-style clinker-built longship reconstruction | High | Special quest ship. Its bright striped sail is retained and its animated oars are procedurally baked. |
 
 ## Ship Stats
 
@@ -81,10 +82,11 @@ The source of truth for gameplay tuning is `apps/pixel-globe/src/shipStats.js`. 
 | Lateen Barque | `ketch` | 4 | 0.024 | 0.035 | 34deg | 2.85 | 75 | 60 |
 | Square-Sail Trader | `square-sail-trader` | 2 | 0.020 | 0.034 | 52deg | 2.30 | 65 | 95 |
 | Dhow-Felucca | `dhow-felucca` | 0 | 0.030 | 0.032 | 30deg | 3.40 | 35 | 18 |
+| Viking Longship | `viking-longship` | 0 (arrows) | 0.030 | 0.043 | 55deg | 2.75 | 18 | 90 |
 
 Skipped source assets:
 
 | Source asset label | Reason |
 |---|---|
-| Viking Ship 1-4 | Wrong era for the current sailing roster. |
+| Viking Ship 2-4 | Alternate sail-color variants of the special quest longship. |
 | Water | Environment prop, not a ship. |

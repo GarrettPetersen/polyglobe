@@ -4,6 +4,7 @@ export function broadsideArcGeometry({
   heading,
   sideName,
   range,
+  origin = null,
   start = 13,
   halfAngle = Math.PI / 9
 }) {
@@ -24,11 +25,14 @@ export function broadsideArcGeometry({
     x: Object.is(rawDirection.x, -0) ? 0 : rawDirection.x,
     y: Object.is(rawDirection.y, -0) ? 0 : rawDirection.y
   };
-  const origin = { x: screenWidth / 2, y: screenHeight / 2 };
+  const resolvedOrigin = origin || { x: screenWidth / 2, y: screenHeight / 2 };
+  if (!Number.isFinite(resolvedOrigin.x) || !Number.isFinite(resolvedOrigin.y)) {
+    throw new Error(`Invalid broadside origin: ${resolvedOrigin.x}, ${resolvedOrigin.y}`);
+  }
   const centerAngle = Math.atan2(direction.y, direction.x);
   return {
     sideName,
-    origin,
+    origin: { x: resolvedOrigin.x, y: resolvedOrigin.y },
     direction,
     heading: normalizedHeading,
     start,
@@ -51,6 +55,20 @@ export function pointInBroadsideArc(point, arc, padding = 0) {
   const angleFromBroadside = Math.acos(alignment);
   const angularPadding = Math.atan2(Math.max(0, padding), Math.max(1, distance));
   return angleFromBroadside <= arc.halfAngle + angularPadding;
+}
+
+export function broadsideReloadGeometry(arc, readyFraction) {
+  if (!arc || !Number.isFinite(arc.innerRadius) || !Number.isFinite(arc.outerRadius)) {
+    throw new Error("Broadside reload geometry requires a valid arc");
+  }
+  if (!Number.isFinite(readyFraction) || readyFraction < 0 || readyFraction > 1) {
+    throw new Error(`Invalid broadside ready fraction: ${readyFraction}`);
+  }
+  return {
+    readyFraction,
+    fillOuterRadius: arc.innerRadius + (arc.outerRadius - arc.innerRadius) * readyFraction,
+    reloading: readyFraction < 1
+  };
 }
 
 export function hasBroadsideCannons(cannonCount) {

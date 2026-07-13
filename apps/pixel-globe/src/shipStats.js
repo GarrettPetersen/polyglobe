@@ -1,4 +1,5 @@
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
+import { NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
 
 export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 export const SHIP_PROPULSION_SAIL = "sail";
@@ -10,6 +11,7 @@ const SHIP_PROPULSIONS = new Set([
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_OAR_SAIL
 ]);
+const NAVAL_WEAPON_KINDS = new Set([NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON]);
 
 const DEG_TO_RAD = Math.PI / 180;
 const SHIP_MASS_PER_HIT_POINT = 10;
@@ -45,6 +47,7 @@ const SHIP_LABELS = Object.freeze({
   "square-sail-trader": "Square-Sail Trader",
   "dhow-felucca": "Dhow-Felucca",
   "mediterranean-galley": "Mediterranean Galley",
+  "viking-longship": "Viking Longship",
   "polynesian-voyaging-canoe": "Polynesian Voyaging Canoe",
   "mesoamerican-dugout-canoe": "Mesoamerican Dugout Canoe"
 });
@@ -81,8 +84,33 @@ const rawShipStats = [
   stats("square-sail-trader", 2, 0.020, 0.034, 52, 2.30, 65, 95, 5),
   stats("dhow-felucca", 0, 0.030, 0.032, 30, 3.40, 35, 18, 3),
   stats("mediterranean-galley", 12, 0.026, 0.040, 38, 2.55, 210, 90, 5, SHIP_PROPULSION_OAR_SAIL),
-  stats("polynesian-voyaging-canoe", 0, 0.031, 0.038, 28, 3.15, 45, 42, 7),
-  stats("mesoamerican-dugout-canoe", 0, 0.018, 0.016, 0, 3.80, 30, 16, 3, SHIP_PROPULSION_OAR)
+  stats("viking-longship", 0, 0.030, 0.043, 55, 2.75, 180, 90, 9, SHIP_PROPULSION_OAR_SAIL, NAVAL_WEAPON_ARROW),
+  stats(
+    "polynesian-voyaging-canoe",
+    0,
+    0.031,
+    0.038,
+    28,
+    3.15,
+    45,
+    42,
+    7,
+    SHIP_PROPULSION_SAIL,
+    NAVAL_WEAPON_ARROW
+  ),
+  stats(
+    "mesoamerican-dugout-canoe",
+    0,
+    0.018,
+    0.016,
+    0,
+    3.80,
+    30,
+    16,
+    3,
+    SHIP_PROPULSION_OAR,
+    NAVAL_WEAPON_ARROW
+  )
 ];
 
 export const SHIP_STATS = Object.freeze(rawShipStats);
@@ -122,7 +150,8 @@ function stats(
   mass,
   cargoCapacity,
   seaworthiness,
-  propulsion = SHIP_PROPULSION_SAIL
+  propulsion = SHIP_PROPULSION_SAIL,
+  navalWeaponKind = null
 ) {
   assertSlug(slug);
   assertInteger(`${slug}.cannons`, cannons, 0);
@@ -135,6 +164,9 @@ function stats(
   assertInteger(`${slug}.seaworthiness`, seaworthiness, 1);
   if (seaworthiness > 10) throw new Error(`Invalid ${slug}.seaworthiness: ${seaworthiness}`);
   if (!SHIP_PROPULSIONS.has(propulsion)) throw new Error(`Invalid ${slug}.propulsion: ${propulsion}`);
+  if (navalWeaponKind !== null && !NAVAL_WEAPON_KINDS.has(navalWeaponKind)) {
+    throw new Error(`Invalid ${slug}.navalWeaponKind: ${navalWeaponKind}`);
+  }
   if (propulsion === SHIP_PROPULSION_OAR && upwindStallAngleDeg !== 0) {
     throw new Error(`Oar-powered ship ${slug} must have a zero-degree wind dead zone`);
   }
@@ -154,7 +186,8 @@ function stats(
     hitPoints,
     cargoCapacity,
     seaworthiness,
-    propulsion
+    propulsion,
+    navalWeaponKind
   });
 }
 

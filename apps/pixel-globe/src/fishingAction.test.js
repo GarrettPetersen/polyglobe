@@ -5,6 +5,7 @@ import {
   FISHING_NET_FRAME_COUNT,
   FISHING_NET_FRAME_MS,
   canStartFishing,
+  fishingActionLabel,
   fishingAnimationState,
   fishingCatchChance,
   fishingCatchSucceeds,
@@ -60,6 +61,12 @@ test("catch resolution and casting side are deterministic from their inputs", ()
   assert.equal(fishingCatchSucceeds(0.4, 0.4), false);
   assert.equal(fishingSideForTarget(100, 80), -1);
   assert.equal(fishingSideForTarget(100, 120), 1);
+});
+
+test("fishing action labels put the live success percentage before the species", () => {
+  assert.equal(fishingActionLabel("Atlantic cod", 0.674), "CAST 67%: ATLANTIC COD");
+  assert.throws(() => fishingActionLabel("", 0.5), /species name/);
+  assert.throws(() => fishingActionLabel("Cod", 1.01), /catch chance/);
 });
 
 test("fishing is disabled when the cargo hold is full", () => {

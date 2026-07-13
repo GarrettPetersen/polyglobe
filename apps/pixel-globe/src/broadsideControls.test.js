@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   broadsideArcGeometry,
+  broadsideReloadGeometry,
   hasBroadsideCannons,
   pointInBroadsideArc
 } from "./broadsideControls.js";
@@ -54,6 +55,44 @@ test("broadside hit testing includes a touch pad outside the visible arc", () =>
   const nearOuterEdge = { x: 128, y: 295 };
   assert.equal(pointInBroadsideArc(nearOuterEdge, arc), false);
   assert.equal(pointInBroadsideArc(nearOuterEdge, arc, 5), true);
+});
+
+test("broadside arcs can follow a freely moving ship", () => {
+  const arc = broadsideArcGeometry({
+    screenWidth: 455,
+    screenHeight: 256,
+    heading: { x: 1, y: 0 },
+    sideName: "starboard",
+    range: 74,
+    origin: { x: 91, y: 173 }
+  });
+
+  assert.deepEqual(arc.origin, { x: 91, y: 173 });
+  assert.equal(pointInBroadsideArc({ x: 91, y: 200 }, arc), true);
+  assert.equal(pointInBroadsideArc({ x: 227.5, y: 155 }, arc), false);
+});
+
+test("broadside reload fill advances outward through the firing sector", () => {
+  const arc = broadsideArcGeometry({
+    screenWidth: 455,
+    screenHeight: 256,
+    heading: { x: 1, y: 0 },
+    sideName: "port",
+    range: 72
+  });
+
+  assert.deepEqual(broadsideReloadGeometry(arc, 0), {
+    readyFraction: 0,
+    fillOuterRadius: arc.innerRadius,
+    reloading: true
+  });
+  assert.equal(broadsideReloadGeometry(arc, 0.5).fillOuterRadius, arc.innerRadius + 36);
+  assert.deepEqual(broadsideReloadGeometry(arc, 1), {
+    readyFraction: 1,
+    fillOuterRadius: arc.outerRadius,
+    reloading: false
+  });
+  assert.throws(() => broadsideReloadGeometry(arc, 1.1), /Invalid broadside ready fraction/);
 });
 
 test("broadside controls require at least one cannon", () => {

@@ -1,0 +1,798 @@
+import { navalWeaponForShip, NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
+import {
+  STANDARD_CANNON_EQUIPMENT_ID,
+  cannonWeaponWithEquipment
+} from "./cannonEquipment.js";
+import { resolveShipCollision, shipCollisionRadius } from "./shipCollision.js";
+import { shipPropulsionPerformance } from "./shipPropulsion.js";
+import { SHIP_PROPULSION_SAIL, SHIP_STATS, shipStatsForSlug } from "./shipStats.js";
+import {
+  chooseNpcObstacleAvoidanceDirection,
+  chooseNpcSailingDirection
+} from "./npcVisualNavigation.js";
+import {
+  buildLakeBattleMapWaterMask,
+  createLakeBattleMap,
+  lakeBattleMapSpawnPoint,
+  lakeBattleMapWaterAt
+} from "./lakeBattleMap.js";
+
+export const LAKE_BATTLE_PHASE_ACTIVE = "active";
+export const LAKE_BATTLE_PHASE_FINISHED = "finished";
+export const LAKE_BATTLE_PLAYER_ID = "lake-player";
+export const LAKE_BATTLE_ENEMY_ID = "lake-enemy";
+export const LAKE_BATTLE_DEFAULT_SEED = 0x4c414b45;
+export const LAKE_BATTLE_WIND = Object.freeze({ directionRad: Math.PI * 0.69, strength: 0.54 });
+export const LAKE_BATTLE_SHIP_SLUGS = Object.freeze(SHIP_STATS
+  .filter((stats) => stats.cannons > 0 || stats.navalWeaponKind !== null)
+  .map((stats) => stats.slug));
+
+const PIXELS_PER_RADIAN = 2450;
+const MINIMUM_SAIL_SPEED_RAD = 0.006;
+const SHIP_DRAG_PER_SECOND = 0.62;
+const STALLED_DRAG_PER_SECOND = 2.8;
+const CLOSE_HAULED_RANGE_RAD = Math.PI / 12;
+const CLOSE_HAULED_EFFICIENCY = 0.34;
+const BROADSIDE_HALF_ANGLE_RAD = 0.62;
+const CANNON_RANGE_PX = 74;
+const CANNON_SPEED_PX = 88;
+const CANNON_ARC_HEIGHT_PX = 13;
+const CANNON_SPREAD_RAD = 0.18;
+const SPLASH_TTL_SECONDS = 0.46;
+const IMPACT_TTL_SECONDS = 0.32;
+const MAX_PROJECTILES = 160;
+const MAX_EFFECTS = 128;
+const LAKE_BATTLE_MAP_SEED_SALT = 0x6d61702d;
+const LAKE_BATTLE_WIND_SEED_SALT = 0x77696e64;
+const SHORE_SLIDE_ANGLES = Object.freeze([
+  0,
+  Math.PI / 12,
+  -Math.PI / 12,
+  Math.PI / 6,
+  -Math.PI / 6,
+  Math.PI / 4,
+  -Math.PI / 4,
+  Math.PI / 2,
+  -Math.PI / 2
+]);
+const ENEMY_OBSTACLE_PROBE_DISTANCES_PX = Object.freeze([12, 24, 40, 60, 84, 112]);
+const ENEMY_OBSTACLE_ENTER_CLEARANCE_PX = 60;
+const ENEMY_OBSTACLE_REJOIN_CLEARANCE_PX = 84;
+const ENEMY_OBSTACLE_REJOIN_DECISIONS = 3;
+const ENEMY_NAVIGATION_DECISION_SECONDS = 0.12;
+const ENEMY_TACK_LEG_PX = 72;
+
+export function createLakeBattle({
+  width,
+  height,
+  playerSlug,
+  enemySlug,
+  playerCannonEquipmentId = STANDARD_CANNON_EQUIPMENT_ID,
+  enemyCannonEquipmentId = STANDARD_CANNON_EQUIPMENT_ID,
+  seed = LAKE_BATTLE_DEFAULT_SEED
+}) {
+  validateArenaSize(width, height);
+  validateBattleShipSlug(playerSlug);
+  validateBattleShipSlug(enemySlug);
+  if (!Number.isInteger(seed)) throw new Error(`Lake battle seed must be an integer: ${seed}`);
+  const map = createLakeBattleArenaMap(width, height, seed);
+  const playerStats = shipStatsForSlug(playerSlug);
+  const enemyStats = shipStatsForSlug(enemySlug);
+  const playerSpawn = lakeBattleMapSpawnPoint(map, "player", shipCollisionRadius(playerStats.mass) * 0.72);
+  const enemySpawn = lakeBattleMapSpawnPoint(map, "enemy", shipCollisionRadius(enemyStats.mass) * 0.72);
+
+  const state = {
+    width,
+    height,
+    phase: LAKE_BATTLE_PHASE_ACTIVE,
+    outcome: null,
+    elapsedSeconds: 0,
+    map,
+    wind: createLakeBattleWind(seed ^ LAKE_BATTLE_WIND_SEED_SALT),
+    player: createBattleShip(
+      LAKE_BATTLE_PLAYER_ID,
+      playerSlug,
+      playerSpawn.x,
+      playerSpawn.y,
+      -0.18,
+      playerCannonEquipmentId
+    ),
+    enemy: createBattleShip(
+      LAKE_BATTLE_ENEMY_ID,
+      enemySlug,
+      enemySpawn.x,
+      enemySpawn.y,
+      Math.PI - 0.18,
+      enemyCannonEquipmentId
+    ),
+    projectiles: [],
+    splashes: [],
+    impacts: [],
+    events: [],
+    randomSeed: seed >>> 0,
+    projectileSerial: 1,
+    collisionCooldown: 0
+  };
+  assertShipFitsLake(state, state.player);
+  assertShipFitsLake(state, state.enemy);
+  return state;
+}
+
+export function createLakeBattleArenaMap(width, height, seed = LAKE_BATTLE_DEFAULT_SEED) {
+  if (!Number.isInteger(seed)) throw new Error(`Lake battle seed must be an integer: ${seed}`);
+  return createLakeBattleMap(width, height, seed ^ LAKE_BATTLE_MAP_SEED_SALT);
+}
+
+export function updateLakeBattle(state, dt, input = {}) {
+  validateBattleState(state);
+  if (!Number.isFinite(dt) || dt < 0 || dt > 0.1) throw new Error(`Invalid lake battle timestep: ${dt}`);
+  if (state.phase !== LAKE_BATTLE_PHASE_ACTIVE || dt === 0) return false;
+
+  state.elapsedSeconds += dt;
+  updateLakeBattleWind(state);
+  state.collisionCooldown = Math.max(0, state.collisionCooldown - dt);
+  updateCooldowns(state.player, dt);
+  updateCooldowns(state.enemy, dt);
+
+  const playerDesiredHeading = input.desiredHeadingRad === null || input.desiredHeadingRad === undefined
+    ? null
+    : normalizeAngle(input.desiredHeadingRad);
+  if (playerDesiredHeading !== null && !Number.isFinite(playerDesiredHeading)) {
+    throw new Error(`Invalid player lake battle heading: ${input.desiredHeadingRad}`);
+  }
+
+  updateBattleShipMotion(state, state.player, playerDesiredHeading, dt);
+  updateBattleShipMotion(state, state.enemy, enemyDesiredHeading(state, dt), dt);
+  resolveBattleShipCollision(state);
+
+  if (input.firePort) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "port");
+  if (input.fireStarboard) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "starboard");
+  fireEnemyWhenAligned(state);
+  updateProjectiles(state, dt);
+  updateEffects(state, dt);
+  finishBattleIfNeeded(state);
+  return true;
+}
+
+export function resizeLakeBattle(state, width, height) {
+  validateBattleState(state);
+  validateArenaSize(width, height);
+  if (state.width === width && state.height === height) return false;
+  const scaleX = width / state.width;
+  const scaleY = height / state.height;
+  const scalePoint = (point) => {
+    point.x *= scaleX;
+    point.y *= scaleY;
+  };
+  for (const ship of [state.player, state.enemy]) {
+    scalePoint(ship);
+    for (const wake of ship.wake) scalePoint(wake);
+    if (ship.lastWakePoint) scalePoint(ship.lastWakePoint);
+  }
+  for (const projectile of state.projectiles) {
+    projectile.startX *= scaleX;
+    projectile.startY *= scaleY;
+    projectile.targetX *= scaleX;
+    projectile.targetY *= scaleY;
+    projectile.arcHeight *= Math.min(scaleX, scaleY);
+  }
+  for (const effect of [...state.splashes, ...state.impacts]) scalePoint(effect);
+  state.width = width;
+  state.height = height;
+  state.map = createLakeBattleMap(width, height, state.map.seed);
+  relocateShipToNavigableMapCell(state, state.player);
+  relocateShipToNavigableMapCell(state, state.enemy);
+  assertShipFitsLake(state, state.player);
+  assertShipFitsLake(state, state.enemy);
+  return true;
+}
+
+export function fireLakeBattleBroadside(state, shipId, sideName) {
+  validateBattleState(state);
+  if (state.phase !== LAKE_BATTLE_PHASE_ACTIVE) return false;
+  if (sideName !== "port" && sideName !== "starboard") {
+    throw new Error(`Unknown lake battle broadside: ${sideName}`);
+  }
+  const ship = lakeBattleShipById(state, shipId);
+  const target = ship.id === LAKE_BATTLE_PLAYER_ID ? state.enemy : state.player;
+  if (ship.cooldowns[sideName] > 0 || ship.hitPoints <= 0) return false;
+
+  ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
+  const count = battleVolleyCount(ship);
+  const side = lakeBattleBroadsideDirection(ship, sideName);
+  const toTarget = normalizedDirection(target.x - ship.x, target.y - ship.y);
+  const targetDistance = Math.hypot(target.x - ship.x, target.y - ship.y);
+  const range = lakeBattleWeaponRange(ship);
+  const aimed = targetDistance <= range * 1.08 && dot2(side, toTarget) >= Math.cos(BROADSIDE_HALF_ANGLE_RAD);
+
+  for (let index = 0; index < count; index++) {
+    const random = nextBattleRandom(state);
+    const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
+    const heading = lakeBattleHeadingVector(ship);
+    const startX = ship.x + heading.x * lineT * 13 + side.x * 8;
+    const startY = ship.y + heading.y * lineT * 13 + side.y * 8;
+    const spread = (random - 0.5) * 2 * CANNON_SPREAD_RAD;
+    const aim = rotate2(aimed ? toTarget : side, spread);
+    const projectileRange = aimed
+      ? targetDistance + (nextBattleRandom(state) - 0.5) * 7
+      : range * (0.82 + nextBattleRandom(state) * 0.28);
+    const targetX = startX + aim.x * projectileRange;
+    const targetY = startY + aim.y * projectileRange;
+    state.projectiles.push({
+      id: state.projectileSerial++,
+      ownerId: ship.id,
+      targetId: aimed ? target.id : null,
+      kind: ship.weapon.kind,
+      startX,
+      startY,
+      targetX,
+      targetY,
+      age: 0,
+      duration: Math.max(0.12, projectileRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
+      arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * ship.weapon.arcHeightScale,
+      damage: ship.weapon.damage,
+      seed: Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0
+    });
+  }
+  if (state.projectiles.length > MAX_PROJECTILES) {
+    state.projectiles.splice(0, state.projectiles.length - MAX_PROJECTILES);
+  }
+  state.events.push({ type: "fire", shipId: ship.id, weaponKind: ship.weapon.kind, count });
+  return true;
+}
+
+export function lakeBattleWaterAt(state, x, y, margin = 0) {
+  validateArenaGeometry(state, x, y, margin);
+  return lakeBattleMapWaterAt(state.map, x, y, margin);
+}
+
+export function buildLakeBattleWaterMask(map) {
+  return buildLakeBattleMapWaterMask(map);
+}
+
+export function lakeBattleShipFitsInWater(state, ship, x = ship.x, y = ship.y) {
+  const radius = shipCollisionRadius(ship.stats.mass) * 0.72;
+  return lakeBattleMapWaterAt(state.map, x, y, radius);
+}
+
+export function lakeBattleWindFlowDirection(battle) {
+  validateBattleState(battle);
+  return normalizeAngle(battle.wind.directionRad + Math.PI);
+}
+
+export function lakeBattleShipById(state, shipId) {
+  if (shipId === LAKE_BATTLE_PLAYER_ID) return state.player;
+  if (shipId === LAKE_BATTLE_ENEMY_ID) return state.enemy;
+  throw new Error(`Unknown lake battle ship: ${shipId}`);
+}
+
+export function lakeBattleHeadingVector(ship) {
+  return { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
+}
+
+export function lakeBattleBroadsideDirection(ship, sideName) {
+  if (sideName !== "port" && sideName !== "starboard") {
+    throw new Error(`Unknown lake battle broadside: ${sideName}`);
+  }
+  const heading = lakeBattleHeadingVector(ship);
+  const starboard = { x: -heading.y, y: heading.x };
+  return sideName === "starboard" ? starboard : { x: -starboard.x, y: -starboard.y };
+}
+
+export function lakeBattleWeaponRange(ship) {
+  if (!ship?.weapon) throw new Error("Lake battle weapon range requires an armed ship");
+  return CANNON_RANGE_PX * ship.weapon.rangeScale;
+}
+
+export function lakeBattleProjectilePoint(projectile) {
+  const t = clamp(projectile.age / projectile.duration, 0, 1);
+  return {
+    x: projectile.startX + (projectile.targetX - projectile.startX) * t,
+    y: projectile.startY + (projectile.targetY - projectile.startY) * t,
+    z: Math.sin(Math.PI * t) * projectile.arcHeight
+  };
+}
+
+export function drainLakeBattleEvents(state) {
+  validateBattleState(state);
+  const events = state.events.slice();
+  state.events.length = 0;
+  return events;
+}
+
+function createBattleShip(id, slug, x, y, headingRad, cannonEquipmentId) {
+  const stats = shipStatsForSlug(slug);
+  const baseWeapon = navalWeaponForShip({ cannons: stats.cannons, weaponKind: stats.navalWeaponKind });
+  if (!baseWeapon) throw new Error(`Lake battle ship is unarmed: ${slug}`);
+  if (baseWeapon.kind !== NAVAL_WEAPON_CANNON && cannonEquipmentId !== STANDARD_CANNON_EQUIPMENT_ID) {
+    throw new Error(`Cannon equipment cannot be fitted to ${baseWeapon.kind}-armed ship: ${slug}`);
+  }
+  const weapon = baseWeapon.kind === NAVAL_WEAPON_CANNON
+    ? cannonWeaponWithEquipment(baseWeapon, cannonEquipmentId)
+    : baseWeapon;
+  return {
+    id,
+    slug,
+    stats,
+    weapon,
+    x,
+    y,
+    headingRad: normalizeAngle(headingRad),
+    speedPx: 0,
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints,
+    cooldowns: { port: 0, starboard: 0 },
+    rowing: false,
+    orbitDirection: id === LAKE_BATTLE_ENEMY_ID ? 1 : 0,
+    avoidanceActive: false,
+    avoidanceSide: 0,
+    avoidanceClearDecisions: 0,
+    tackSide: 0,
+    tackRemainingPx: 0,
+    navigationCourseRad: normalizeAngle(headingRad),
+    navigationDecisionCooldown: 0,
+    wake: [],
+    lastWakePoint: null
+  };
+}
+
+function createLakeBattleWind(seed) {
+  const directionOffset = (seedUnit(seed, 1) - 0.5) * 0.9;
+  const strengthOffset = (seedUnit(seed, 2) - 0.5) * 0.34;
+  const wind = {
+    directionRad: normalizeAngle(LAKE_BATTLE_WIND.directionRad + directionOffset),
+    strength: clamp(LAKE_BATTLE_WIND.strength + strengthOffset, 0.24, 0.88),
+    baseDirectionRad: normalizeAngle(LAKE_BATTLE_WIND.directionRad + directionOffset),
+    baseStrength: clamp(LAKE_BATTLE_WIND.strength + strengthOffset, 0.24, 0.88),
+    directionPhase: seedUnit(seed, 3) * Math.PI * 2,
+    strengthPhase: seedUnit(seed, 4) * Math.PI * 2
+  };
+  sampleLakeBattleWind(wind, 0);
+  return wind;
+}
+
+function updateLakeBattleWind(state) {
+  sampleLakeBattleWind(state.wind, state.elapsedSeconds);
+}
+
+function sampleLakeBattleWind(wind, time) {
+  wind.directionRad = normalizeAngle(
+    wind.baseDirectionRad +
+    Math.sin(time / 18 + wind.directionPhase) * 0.16 +
+    Math.sin(time / 43 - wind.directionPhase * 0.6) * 0.08
+  );
+  wind.strength = clamp(
+    wind.baseStrength +
+    Math.sin(time / 14 + wind.strengthPhase) * 0.16 +
+    Math.sin(time / 37 - wind.strengthPhase * 0.7) * 0.09,
+    0.16,
+    0.98
+  );
+}
+
+function relocateShipToNavigableMapCell(state, ship) {
+  if (lakeBattleShipFitsInWater(state, ship)) return;
+  const radius = shipCollisionRadius(ship.stats.mass) * 0.72;
+  const candidates = state.map.cells
+    .filter((cell) => cell.water && cell.shoreDistance >= 2)
+    .sort((a, b) => {
+      const aDistance = (a.x - ship.x) ** 2 + (a.y - ship.y) ** 2;
+      const bDistance = (b.x - ship.x) ** 2 + (b.y - ship.y) ** 2;
+      return aDistance - bDistance || a.id - b.id;
+    });
+  const target = candidates.find((cell) => lakeBattleMapWaterAt(state.map, cell.x, cell.y, radius));
+  if (!target) throw new Error(`Could not place ${ship.slug} in resized lake battle map`);
+  ship.x = target.x;
+  ship.y = target.y;
+  ship.speedPx = 0;
+}
+
+function updateBattleShipMotion(state, ship, desiredHeadingRad, dt) {
+  if (desiredHeadingRad !== null) {
+    ship.headingRad = rotateAngleToward(ship.headingRad, desiredHeadingRad, ship.stats.turnRateRad * dt);
+  }
+  const heading = lakeBattleHeadingVector(ship);
+  const windFlowDirection = lakeBattleWindFlowDirection(state);
+  const windFlow = { x: Math.cos(windFlowDirection), y: Math.sin(windFlowDirection) };
+  const sailEfficiency = sailingEfficiencyForStats(ship.stats, heading, windFlow);
+  const propulsion = shipPropulsionPerformance(ship.stats, {
+    windStrength: state.wind.strength,
+    sailEfficiency,
+    minimumSailSpeed: MINIMUM_SAIL_SPEED_RAD,
+    rowerRatio: 1
+  });
+  ship.rowing = propulsion.rowing;
+  ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN * propulsion.accelerationFactor * dt;
+  ship.speedPx *= Math.exp(-(propulsion.stalled ? STALLED_DRAG_PER_SECOND : SHIP_DRAG_PER_SECOND) * dt);
+  const maxSpeedPx = propulsion.stalled ? 0 : propulsion.maxSpeedRad * PIXELS_PER_RADIAN;
+  ship.speedPx = clamp(ship.speedPx, 0, Number.isFinite(maxSpeedPx) ? maxSpeedPx : ship.speedPx);
+  const movedDistance = moveShipInsideLake(state, ship, ship.speedPx * dt);
+  if (ship.tackSide !== 0) {
+    ship.tackRemainingPx = Math.max(0, ship.tackRemainingPx - movedDistance);
+  }
+  updateShipWake(ship, dt);
+}
+
+function updateShipWake(ship, dt) {
+  for (const particle of ship.wake) particle.age += dt;
+  ship.wake = ship.wake.filter((particle) => particle.age < particle.ttl);
+  if (ship.speedPx < 4) {
+    ship.lastWakePoint = null;
+    return;
+  }
+  const heading = lakeBattleHeadingVector(ship);
+  const point = { x: ship.x - heading.x * 6, y: ship.y - heading.y * 6 };
+  if (ship.lastWakePoint && Math.hypot(point.x - ship.lastWakePoint.x, point.y - ship.lastWakePoint.y) < 3) return;
+  ship.wake.push({
+    x: point.x,
+    y: point.y,
+    sideX: -heading.y,
+    sideY: heading.x,
+    age: 0,
+    ttl: 2.25,
+    seed: Math.round(point.x * 17 + point.y * 31) >>> 0
+  });
+  if (ship.wake.length > 80) ship.wake.splice(0, ship.wake.length - 80);
+  ship.lastWakePoint = point;
+}
+
+function moveShipInsideLake(state, ship, distance) {
+  if (distance <= 0) return 0;
+  for (const angleOffset of SHORE_SLIDE_ANGLES) {
+    const movementAngle = ship.headingRad + angleOffset;
+    const x = ship.x + Math.cos(movementAngle) * distance;
+    const y = ship.y + Math.sin(movementAngle) * distance;
+    if (!lakeBattleShipFitsInWater(state, ship, x, y)) continue;
+    ship.x = x;
+    ship.y = y;
+    if (angleOffset !== 0) ship.speedPx *= 0.96;
+    return distance;
+  }
+  ship.speedPx *= 0.28;
+  return 0;
+}
+
+function enemyDesiredHeading(state, dt) {
+  const enemy = state.enemy;
+  enemy.navigationDecisionCooldown = Math.max(0, enemy.navigationDecisionCooldown - dt);
+  if (enemy.navigationDecisionCooldown > 0) return enemy.navigationCourseRad;
+  enemy.navigationDecisionCooldown = ENEMY_NAVIGATION_DECISION_SECONDS;
+
+  const player = state.player;
+  const toPlayer = normalizedDirection(player.x - enemy.x, player.y - enemy.y);
+  const distance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+  const tacticalDirection = distance > Math.min(68, lakeBattleWeaponRange(enemy) * 0.86)
+    ? toPlayer
+    : rotate2(toPlayer, enemy.orbitDirection * Math.PI / 2);
+  const sailingDirection = enemySailingDirection(state, tacticalDirection);
+  const clearDistance = enemyDirectionClearDistance(state, enemy, sailingDirection);
+
+  if (enemy.avoidanceActive) {
+    enemy.avoidanceClearDecisions = clearDistance >= ENEMY_OBSTACLE_REJOIN_CLEARANCE_PX
+      ? enemy.avoidanceClearDecisions + 1
+      : 0;
+    if (enemy.avoidanceClearDecisions >= ENEMY_OBSTACLE_REJOIN_DECISIONS) {
+      enemy.avoidanceActive = false;
+      enemy.avoidanceClearDecisions = 0;
+      enemy.avoidanceSide = 0;
+    }
+  } else if (clearDistance < ENEMY_OBSTACLE_ENTER_CLEARANCE_PX) {
+    enemy.avoidanceActive = true;
+    enemy.avoidanceClearDecisions = 0;
+  }
+  if (!enemy.avoidanceActive) {
+    enemy.navigationCourseRad = Math.atan2(sailingDirection.y, sailingDirection.x);
+    return enemy.navigationCourseRad;
+  }
+
+  const avoidance = chooseNpcObstacleAvoidanceDirection({
+    desiredDirection: sailingDirection,
+    currentDirection: lakeBattleHeadingVector(enemy),
+    clearDistanceFor: (candidate) => (
+      enemyDirectionCanMakeWay(state, enemy, candidate)
+        ? enemyDirectionClearDistance(state, enemy, candidate)
+        : 0
+    ),
+    preferredSide: enemy.avoidanceSide || enemy.orbitDirection
+  });
+  if (avoidance) {
+    if (avoidance.side !== 0) enemy.avoidanceSide = avoidance.side;
+    enemy.navigationCourseRad = Math.atan2(avoidance.direction.y, avoidance.direction.x);
+  }
+  return enemy.navigationCourseRad;
+}
+
+function enemySailingDirection(state, desiredDirection) {
+  const enemy = state.enemy;
+  if (enemy.stats.propulsion !== SHIP_PROPULSION_SAIL) return desiredDirection;
+  const windFlowDirection = lakeBattleWindFlowDirection(state);
+  const preferredTackSide = enemy.tackSide !== 0 && enemy.tackRemainingPx <= 0
+    ? -enemy.tackSide
+    : enemy.tackSide || enemy.orbitDirection;
+  const result = chooseNpcSailingDirection({
+    desiredDirection,
+    windFlowDirection: {
+      x: Math.cos(windFlowDirection),
+      y: Math.sin(windFlowDirection)
+    },
+    stallAngleRad: enemy.stats.upwindStallAngleRad,
+    currentDirection: lakeBattleHeadingVector(enemy),
+    preferredTackSide
+  });
+  if (result.tacking && (enemy.tackSide !== result.tackSide || enemy.tackRemainingPx <= 0)) {
+    enemy.tackSide = result.tackSide;
+    enemy.tackRemainingPx = ENEMY_TACK_LEG_PX;
+  } else if (!result.tacking) {
+    enemy.tackSide = 0;
+    enemy.tackRemainingPx = 0;
+  }
+  return result.direction;
+}
+
+function enemyDirectionCanMakeWay(state, enemy, direction) {
+  if (enemy.stats.propulsion !== SHIP_PROPULSION_SAIL) return true;
+  const windFlowDirection = lakeBattleWindFlowDirection(state);
+  const windFlow = { x: Math.cos(windFlowDirection), y: Math.sin(windFlowDirection) };
+  return sailingEfficiencyForStats(enemy.stats, direction, windFlow) > 0;
+}
+
+function enemyDirectionClearDistance(state, enemy, direction) {
+  let clearDistance = 0;
+  for (const distance of ENEMY_OBSTACLE_PROBE_DISTANCES_PX) {
+    const x = enemy.x + direction.x * distance;
+    const y = enemy.y + direction.y * distance;
+    if (!lakeBattleShipFitsInWater(state, enemy, x, y)) break;
+    clearDistance = distance;
+  }
+  return clearDistance;
+}
+
+function fireEnemyWhenAligned(state) {
+  const enemy = state.enemy;
+  const targetDirection = normalizedDirection(state.player.x - enemy.x, state.player.y - enemy.y);
+  const targetDistance = Math.hypot(state.player.x - enemy.x, state.player.y - enemy.y);
+  if (targetDistance > lakeBattleWeaponRange(enemy) * 1.04) return false;
+  const port = lakeBattleBroadsideDirection(enemy, "port");
+  const starboard = lakeBattleBroadsideDirection(enemy, "starboard");
+  const portDot = dot2(port, targetDirection);
+  const starboardDot = dot2(starboard, targetDirection);
+  const sideName = portDot >= starboardDot ? "port" : "starboard";
+  if (Math.max(portDot, starboardDot) < Math.cos(BROADSIDE_HALF_ANGLE_RAD * 0.82)) return false;
+  return fireLakeBattleBroadside(state, enemy.id, sideName);
+}
+
+function updateProjectiles(state, dt) {
+  const kept = [];
+  for (const projectile of state.projectiles) {
+    projectile.age += dt;
+    if (projectile.age < projectile.duration) {
+      kept.push(projectile);
+      continue;
+    }
+    const target = projectile.targetId ? lakeBattleShipById(state, projectile.targetId) : null;
+    const hitRadius = target ? shipCollisionRadius(target.stats.mass) + 2 : 0;
+    const hit = target && target.hitPoints > 0 &&
+      Math.hypot(target.x - projectile.targetX, target.y - projectile.targetY) <= hitRadius;
+    if (hit) {
+      target.hitPoints = Math.max(0, target.hitPoints - projectile.damage);
+      state.impacts.push({
+        x: Math.round(projectile.targetX),
+        y: Math.round(projectile.targetY),
+        age: 0,
+        ttl: IMPACT_TTL_SECONDS,
+        seed: projectile.seed,
+        kind: projectile.kind
+      });
+      state.events.push({
+        type: "hit",
+        shipId: target.id,
+        weaponKind: projectile.kind,
+        damage: projectile.damage
+      });
+    } else if (projectile.kind === NAVAL_WEAPON_CANNON) {
+      state.splashes.push({
+        x: Math.round(projectile.targetX),
+        y: Math.round(projectile.targetY),
+        age: 0,
+        ttl: SPLASH_TTL_SECONDS,
+        seed: projectile.seed
+      });
+    }
+  }
+  state.projectiles = kept;
+  trimEffects(state);
+}
+
+function updateEffects(state, dt) {
+  for (const effect of state.splashes) effect.age += dt;
+  for (const effect of state.impacts) effect.age += dt;
+  state.splashes = state.splashes.filter((effect) => effect.age < effect.ttl);
+  state.impacts = state.impacts.filter((effect) => effect.age < effect.ttl);
+}
+
+function resolveBattleShipCollision(state) {
+  const a = collisionBody(state.player);
+  const b = collisionBody(state.enemy);
+  const result = resolveShipCollision(a, b);
+  if (!result) return false;
+  const playerX = state.player.x + result.a.correctionX;
+  const playerY = state.player.y + result.a.correctionY;
+  const enemyX = state.enemy.x + result.b.correctionX;
+  const enemyY = state.enemy.y + result.b.correctionY;
+  if (lakeBattleShipFitsInWater(state, state.player, playerX, playerY)) {
+    state.player.x = playerX;
+    state.player.y = playerY;
+  }
+  if (lakeBattleShipFitsInWater(state, state.enemy, enemyX, enemyY)) {
+    state.enemy.x = enemyX;
+    state.enemy.y = enemyY;
+  }
+  state.player.speedPx = Math.max(0, result.a.vx * Math.cos(state.player.headingRad) + result.a.vy * Math.sin(state.player.headingRad));
+  state.enemy.speedPx = Math.max(0, result.b.vx * Math.cos(state.enemy.headingRad) + result.b.vy * Math.sin(state.enemy.headingRad));
+  if (state.collisionCooldown <= 0 && (result.a.damage > 0 || result.b.damage > 0)) {
+    state.player.hitPoints = Math.max(0, state.player.hitPoints - result.a.damage);
+    state.enemy.hitPoints = Math.max(0, state.enemy.hitPoints - result.b.damage);
+    state.collisionCooldown = 0.5;
+    state.events.push({ type: "collision", playerDamage: result.a.damage, enemyDamage: result.b.damage });
+  }
+  return true;
+}
+
+function collisionBody(ship) {
+  const heading = lakeBattleHeadingVector(ship);
+  return {
+    id: ship.id,
+    x: ship.x,
+    y: ship.y,
+    vx: heading.x * ship.speedPx,
+    vy: heading.y * ship.speedPx,
+    headingX: heading.x,
+    headingY: heading.y,
+    mass: ship.stats.mass,
+    radius: shipCollisionRadius(ship.stats.mass)
+  };
+}
+
+function finishBattleIfNeeded(state) {
+  if (state.player.hitPoints > 0 && state.enemy.hitPoints > 0) return false;
+  state.phase = LAKE_BATTLE_PHASE_FINISHED;
+  state.player.speedPx = 0;
+  state.enemy.speedPx = 0;
+  state.outcome = state.player.hitPoints <= 0 && state.enemy.hitPoints <= 0
+    ? "draw"
+    : state.enemy.hitPoints <= 0
+      ? "victory"
+      : "defeat";
+  state.events.push({ type: "finished", outcome: state.outcome });
+  return true;
+}
+
+function battleVolleyCount(ship) {
+  if (ship.weapon.kind === NAVAL_WEAPON_ARROW) {
+    return clamp(Math.ceil(ship.stats.crewCapacity / 5), 2, 5);
+  }
+  return Math.max(1, Math.ceil(ship.stats.cannons / 2));
+}
+
+function sailingEfficiencyForStats(stats, heading, windFlow) {
+  const alignment = clamp(dot2(heading, windFlow), -1, 1);
+  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
+  const stallAngle = stats.upwindStallAngleRad;
+  const closeHauledAngle = Math.min(Math.PI / 2 - 0.01, stallAngle + CLOSE_HAULED_RANGE_RAD);
+  if (angleFromWind <= stallAngle) return 0;
+  if (angleFromWind <= closeHauledAngle) {
+    return CLOSE_HAULED_EFFICIENCY * smoothstep((angleFromWind - stallAngle) / (closeHauledAngle - stallAngle));
+  }
+  if (angleFromWind <= Math.PI / 2) {
+    const t = smoothstep((angleFromWind - closeHauledAngle) / (Math.PI / 2 - closeHauledAngle));
+    return CLOSE_HAULED_EFFICIENCY + (1 - CLOSE_HAULED_EFFICIENCY) * t;
+  }
+  if (angleFromWind <= Math.PI * 0.75) {
+    return 1 - (angleFromWind - Math.PI / 2) / (Math.PI * 0.25) * 0.15;
+  }
+  return 0.85 - (angleFromWind - Math.PI * 0.75) / (Math.PI * 0.25) * 0.3;
+}
+
+function updateCooldowns(ship, dt) {
+  ship.cooldowns.port = Math.max(0, ship.cooldowns.port - dt);
+  ship.cooldowns.starboard = Math.max(0, ship.cooldowns.starboard - dt);
+}
+
+function assertShipFitsLake(state, ship) {
+  if (!lakeBattleShipFitsInWater(state, ship)) {
+    throw new Error(`Lake battle start position is not navigable for ${ship.slug}`);
+  }
+}
+
+function validateBattleShipSlug(slug) {
+  shipStatsForSlug(slug);
+  if (!LAKE_BATTLE_SHIP_SLUGS.includes(slug)) throw new Error(`Ship cannot enter lake battle: ${slug}`);
+}
+
+function validateBattleState(state) {
+  if (!state || typeof state !== "object") throw new Error("Lake battle state is required");
+  validateArenaSize(state.width, state.height);
+  if (
+    !state.player || !state.enemy || !state.map || !state.wind ||
+    !Array.isArray(state.projectiles) || !Array.isArray(state.events)
+  ) {
+    throw new Error("Lake battle state is incomplete");
+  }
+  if (!Number.isFinite(state.wind.directionRad) || !Number.isFinite(state.wind.strength)) {
+    throw new Error("Lake battle wind is invalid");
+  }
+}
+
+function validateArenaSize(width, height) {
+  if (!Number.isInteger(width) || width < 200) throw new Error(`Invalid lake battle width: ${width}`);
+  if (!Number.isInteger(height) || height < 140) throw new Error(`Invalid lake battle height: ${height}`);
+}
+
+function validateArenaGeometry(state, x, y, margin) {
+  validateArenaSize(state.width, state.height);
+  if (![x, y, margin].every(Number.isFinite) || margin < 0) {
+    throw new Error(`Invalid lake battle geometry: ${x}, ${y}, ${margin}`);
+  }
+}
+
+function nextBattleRandom(state) {
+  let x = state.randomSeed >>> 0;
+  x ^= x << 13;
+  x ^= x >>> 17;
+  x ^= x << 5;
+  state.randomSeed = x >>> 0;
+  return state.randomSeed / 0x100000000;
+}
+
+function seedUnit(seed, salt) {
+  let value = (seed ^ Math.imul(salt, 0x9e3779b1)) >>> 0;
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
+  return ((value ^ (value >>> 16)) >>> 0) / 0x100000000;
+}
+
+function normalizedDirection(x, y) {
+  const length = Math.hypot(x, y);
+  if (length <= 1e-9) return { x: 1, y: 0 };
+  return { x: x / length, y: y / length };
+}
+
+function rotateAngleToward(current, target, maxStep) {
+  const delta = shortestAngle(target - current);
+  return normalizeAngle(current + clamp(delta, -maxStep, maxStep));
+}
+
+function normalizeAngle(angle) {
+  return shortestAngle(angle);
+}
+
+function shortestAngle(angle) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
+
+function rotate2(direction, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: direction.x * cos - direction.y * sin,
+    y: direction.x * sin + direction.y * cos
+  };
+}
+
+function dot2(a, b) {
+  return a.x * b.x + a.y * b.y;
+}
+
+function smoothstep(value) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function trimEffects(state) {
+  if (state.splashes.length > MAX_EFFECTS) state.splashes.splice(0, state.splashes.length - MAX_EFFECTS);
+  if (state.impacts.length > MAX_EFFECTS) state.impacts.splice(0, state.impacts.length - MAX_EFFECTS);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}

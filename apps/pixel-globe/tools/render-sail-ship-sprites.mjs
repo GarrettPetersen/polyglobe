@@ -17,11 +17,14 @@ import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(appRoot, "../..");
 const defaultModelPath = join(repoRoot, "examples/globe-demo/public/assets/vehicles/Sail Ship.glb");
-const unityShipSourceRoot = join(repoRoot, "tmp/unity-assets/low-poly-cartoon-sailing-ships");
+const shipSourceRoot = process.env.PIXEL_GLOBE_SHIP_SOURCE_ROOT
+  ? resolve(process.env.PIXEL_GLOBE_SHIP_SOURCE_ROOT)
+  : join(appRoot, "source-models");
+const unityShipSourceRoot = join(shipSourceRoot, "unity/low-poly-cartoon-sailing-ships");
 const unityShipModelRoot = join(unityShipSourceRoot, "Models");
 const unityShipTexturePath = join(unityShipSourceRoot, "Textures/texture main.png");
-const nativeBoatSourceRoot = join(repoRoot, "tmp/native-boat-models");
-const mediterraneanGalleySourceRoot = join(repoRoot, "tmp/mediterranean-galley-model");
+const nativeBoatSourceRoot = join(shipSourceRoot, "sketchfab");
+const mediterraneanGalleySourceRoot = join(shipSourceRoot, "sketchfab/mediterranean-galley");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
@@ -71,7 +74,12 @@ const mediterraneanGalleyMeshNames = new Set([
   "Object_24"  // deck and stern timber
 ]);
 const mediterraneanGalleyRowingFrames = 4;
+const vikingLongshipRowingFrames = 4;
 const canoePaddlingFrames = 4;
+const unityFleetSkippedModels = Object.freeze([
+  "Models/viking ships/viking ship 2.fbx through viking ship 4.fbx (alternate sail colors)",
+  "Models/water.fbx"
+]);
 
 function integerEnv(name, fallback) {
   const raw = process.env[name];
@@ -874,6 +882,49 @@ function copyFrameToSheet(frame, sheetCtx, frameIndex) {
   sheetCtx.putImageData(edgeShadedFrameImage(frame, sheetCtx), cell.x, cell.y);
 }
 
+function makeSinkDepthSheet(frames, waterlineY) {
+  let minHeight = Infinity;
+  let maxHeight = -Infinity;
+  for (const frame of frames) {
+    for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+      if (!frame.alpha[pixel]) continue;
+      const height = frame.positions[pixel * 3 + 1];
+      if (!Number.isFinite(height)) throw new Error("Ship sink-depth bake found a non-finite model height");
+      minHeight = Math.min(minHeight, height);
+      maxHeight = Math.max(maxHeight, height);
+    }
+  }
+  const heightRange = maxHeight - minHeight;
+  if (!Number.isFinite(heightRange) || heightRange <= 1e-6) {
+    throw new Error(`Ship sink-depth bake has no usable height range: ${heightRange}`);
+  }
+
+  const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
+  const ctx = sheet.getContext("2d");
+  for (let frameIndex = 0; frameIndex < frames.length; frameIndex++) {
+    const frame = frames[frameIndex];
+    const image = ctx.createImageData(frameSize, frameSize);
+    for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+      if (!frame.alpha[pixel]) continue;
+      const height = frame.positions[pixel * 3 + 1];
+      const level = Math.round(clamp((height - minHeight) / heightRange, 0, 1) * 255);
+      const offset = pixel * 4;
+      image.data[offset] = level;
+      image.data[offset + 1] = level;
+      image.data[offset + 2] = level;
+      image.data[offset + 3] = 255;
+    }
+    const cell = sheetCell(frameIndex, frameSize);
+    ctx.putImageData(image, cell.x, cell.y);
+  }
+  return {
+    sheet,
+    minHeight,
+    maxHeight,
+    waterlineLevel: clamp((waterlineY - minHeight) / heightRange, 0, 1)
+  };
+}
+
 function edgeShadedFrameImage(frame, targetCtx) {
   const shaded = targetCtx.createImageData(frameSize, frameSize);
   shaded.data.set(frame.image.data);
@@ -1448,6 +1499,7 @@ async function renderShipSpriteSet(config) {
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i);
   }
+  const sinkDepth = makeSinkDepthSheet(frames, waterlineY);
   const wakeAnchors = makeWakeAnchors(frames, waterlineY, config.wakeWaterlineBand);
 
   const lightDirections = makeLightingDirections();
@@ -1460,12 +1512,14 @@ async function renderShipSpriteSet(config) {
   const preview = makePreview(sheet);
   const lightingPreview = makeLightingPreview(sheet, lightMask, shadeMask, shadowMask);
   const sheetPath = join(config.outputDir, `${config.outputPrefix}.png`);
+  const sinkDepthPath = join(config.outputDir, `${config.outputPrefix}-sink-depth.png`);
   const lightPath = join(config.outputDir, `${config.outputPrefix}-light.png`);
   const shadePath = join(config.outputDir, `${config.outputPrefix}-shade.png`);
   const shadowPath = join(config.outputDir, `${config.outputPrefix}-shadow.png`);
   const previewPath = join(config.outputDir, `${config.outputPrefix}-preview.png`);
   const lightingPreviewPath = join(config.outputDir, `${config.outputPrefix}-lighting-preview.png`);
   writeFileSync(sheetPath, sheet.toBuffer("image/png"));
+  writeFileSync(sinkDepthPath, sinkDepth.sheet.toBuffer("image/png"));
   writeFileSync(lightPath, lightMask.toBuffer("image/png"));
   writeFileSync(shadePath, shadeMask.toBuffer("image/png"));
   writeFileSync(shadowPath, shadowMask.toBuffer("image/png"));
@@ -1479,7 +1533,8 @@ async function renderShipSpriteSet(config) {
       camera,
       renderOptions,
       frameScale,
-      firstSheet: sheet
+      firstSheet: sheet,
+      firstFrames: frames
     })
     : null;
   return {
@@ -1501,6 +1556,10 @@ async function renderShipSpriteSet(config) {
     frameScale: Number(frameScale.toFixed(4)),
     scaleMode: config.scaleMode || "fit-model",
     waterlineY,
+    sinkHeightBins: 256,
+    sinkHeightMin: Number(sinkDepth.minHeight.toFixed(6)),
+    sinkHeightMax: Number(sinkDepth.maxHeight.toFixed(6)),
+    sinkWaterlineLevel: Number(sinkDepth.waterlineLevel.toFixed(6)),
     frameSize,
     shadowFrameSize,
     headings,
@@ -1511,12 +1570,16 @@ async function renderShipSpriteSet(config) {
     ...(config.stats ? { stats: config.stats } : {}),
     files: {
       sheet: portablePath(sheetPath),
+      sinkDepth: portablePath(sinkDepthPath),
       light: portablePath(lightPath),
       shade: portablePath(shadePath),
       shadow: portablePath(shadowPath),
       preview: portablePath(previewPath),
       lightingPreview: portablePath(lightingPreviewPath),
-      ...(animationFiles ? { rowingAnimation: animationFiles.map(portablePath) } : {})
+      ...(animationFiles ? {
+        rowingAnimation: animationFiles.spritePaths.map(portablePath),
+        rowingSinkDepth: animationFiles.sinkDepthPaths.map(portablePath)
+      } : {})
     },
     sheet
   };
@@ -1529,13 +1592,17 @@ async function renderShipAnimationSheets({
   camera,
   renderOptions,
   frameScale,
-  firstSheet
+  firstSheet,
+  firstFrames
 }) {
   const animationSheets = [firstSheet];
-  const animationPaths = [];
+  const animationFrames = [firstFrames];
+  const spritePaths = [];
+  const sinkDepthPaths = [];
   const basePrefix = config.outputPrefix.replace(/-16-headings$/, "");
   for (let frameIndex = 0; frameIndex < config.animationFrameCount; frameIndex++) {
     let sheet = animationSheets[frameIndex];
+    let frames = animationFrames[frameIndex];
     if (!sheet) {
       const triangles = config.animationTrianglesForFrame(hullTriangles, frameIndex, waterlineY);
       const renderedHeadings = Array.from(
@@ -1543,7 +1610,7 @@ async function renderShipAnimationSheets({
         (_, headingIndex) => renderHeading(triangles, headingIndex, camera, renderOptions)
       );
       const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
-      const frames = renderedHeadings.map((rendered, headingIndex) => (
+      frames = renderedHeadings.map((rendered, headingIndex) => (
         makeFrame(rendered, boundsByHeading[headingIndex], frameScale)
       ));
       sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
@@ -1553,10 +1620,19 @@ async function renderShipAnimationSheets({
         copyFrameToSheet(frames[headingIndex], sheetCtx, headingIndex);
       }
       animationSheets.push(sheet);
+      animationFrames.push(frames);
     }
-    const path = join(config.outputDir, `${basePrefix}-rowing-${frameIndex}-16-headings.png`);
-    writeFileSync(path, sheet.toBuffer("image/png"));
-    animationPaths.push(path);
+    if (!frames) throw new Error(`Missing ship animation geometry for frame ${frameIndex}`);
+    const spritePath = join(config.outputDir, `${basePrefix}-rowing-${frameIndex}-16-headings.png`);
+    const sinkDepthPath = join(
+      config.outputDir,
+      `${basePrefix}-rowing-${frameIndex}-16-headings-sink-depth.png`
+    );
+    const sinkDepth = makeSinkDepthSheet(frames, waterlineY);
+    writeFileSync(spritePath, sheet.toBuffer("image/png"));
+    writeFileSync(sinkDepthPath, sinkDepth.sheet.toBuffer("image/png"));
+    spritePaths.push(spritePath);
+    sinkDepthPaths.push(sinkDepthPath);
   }
   if (config.animationContactSheetPath) {
     mkdirSync(dirname(config.animationContactSheetPath), { recursive: true });
@@ -1567,7 +1643,7 @@ async function renderShipAnimationSheets({
     );
     writeFileSync(config.animationContactSheetPath, contactSheet.toBuffer("image/png"));
   }
-  return animationPaths;
+  return { spritePaths, sinkDepthPaths };
 }
 
 function makeRowingAnimationContactSheet(animationSheets, requestedScale = 6, reviewHeading = 2) {
@@ -1987,8 +2063,20 @@ function mediterraneanGalleyTrianglesForFrame(hullTriangles, frameIndex, waterli
 }
 
 function makeGalleyOarTriangles(frameIndex, waterlineY) {
-  const phase = ((frameIndex % mediterraneanGalleyRowingFrames) + mediterraneanGalleyRowingFrames) %
-    mediterraneanGalleyRowingFrames;
+  return makeOarBankTriangles(frameIndex, waterlineY, {
+    frameCount: mediterraneanGalleyRowingFrames,
+    bankPositions: [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45],
+    pivotYOffset: 0.21,
+    pivotHalfBeam: 0.19,
+    shaftLength: 0.57,
+    bladeLength: 0.16,
+    shaftRadius: 0.024,
+    bladeRadius: 0.038
+  });
+}
+
+function makeOarBankTriangles(frameIndex, waterlineY, config) {
+  const phase = ((frameIndex % config.frameCount) + config.frameCount) % config.frameCount;
   const sweeps = [-0.24, -0.06, 0.24, 0.08];
   const lifts = [0.055, -0.015, -0.045, 0.035];
   const sweep = sweeps[phase];
@@ -1996,30 +2084,71 @@ function makeGalleyOarTriangles(frameIndex, waterlineY) {
   const oarColor = { r: 140, g: 86, b: 48 };
   const bladeColor = { r: 111, g: 68, b: 44 };
   const triangles = [];
-  // Keep the readable oar pairs on the central working deck, clear of both pointed ends.
-  const bankPositions = [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45];
-  const pivotY = waterlineY + 0.21;
-  const pivotHalfBeam = 0.19;
-  const shaftLength = 0.57;
-  const bladeLength = 0.16;
+  const pivotY = waterlineY + config.pivotYOffset;
   for (const side of [-1, 1]) {
-    for (const bankZ of bankPositions) {
-      const pivot = new THREE.Vector3(side * pivotHalfBeam, pivotY, bankZ);
+    for (const bankZ of config.bankPositions) {
+      const pivot = new THREE.Vector3(side * config.pivotHalfBeam, pivotY, bankZ);
       const shaftEnd = new THREE.Vector3(
-        pivot.x + side * shaftLength * Math.cos(sweep),
+        pivot.x + side * config.shaftLength * Math.cos(sweep),
         pivot.y + lift,
-        pivot.z + shaftLength * Math.sin(sweep)
+        pivot.z + config.shaftLength * Math.sin(sweep)
       );
       const bladeEnd = shaftEnd.clone().add(new THREE.Vector3(
-        side * bladeLength * Math.cos(sweep),
+        side * config.bladeLength * Math.cos(sweep),
         lift * 0.35,
-        bladeLength * Math.sin(sweep)
+        config.bladeLength * Math.sin(sweep)
       ));
-      triangles.push(...makePrismTriangles(pivot, shaftEnd, 0.024, oarColor, 5));
-      triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, 0.038, bladeColor, 5));
+      triangles.push(...makePrismTriangles(pivot, shaftEnd, config.shaftRadius, oarColor, 5));
+      triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5));
     }
   }
   return triangles;
+}
+
+function vikingLongshipConfig() {
+  const slug = "viking-longship";
+  return {
+    slug,
+    label: "Viking Longship",
+    category: "special quest ship",
+    assetLabel: "Viking Ship 1",
+    identifiedType: "Norse-style clinker-built longship reconstruction",
+    identificationConfidence: "high",
+    identificationNotes: "Bright red-and-white square sail retained from the source model; animated oars are procedurally added.",
+    ...UNITY_FLEET_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(unityShipModelRoot, "viking ships/viking ship 1.fbx"),
+    texturePath: unityShipTexturePath,
+    targetModelMaxDim: 2.05,
+    sideViewTargetModelMaxDim: 1.8,
+    recolorSails: false,
+    scaleMode: "special-longship",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.2,
+    animationFrameCount: vikingLongshipRowingFrames,
+    animationTrianglesForFrame: vikingLongshipTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/viking-longship-rowing-frames.png"
+    )
+  };
+}
+
+function vikingLongshipTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, {
+      frameCount: vikingLongshipRowingFrames,
+      bankPositions: [-0.56, -0.42, -0.28, -0.14, 0, 0.14, 0.28, 0.42, 0.56],
+      pivotYOffset: 0.19,
+      pivotHalfBeam: 0.18,
+      shaftLength: 0.5,
+      bladeLength: 0.14,
+      shaftRadius: 0.022,
+      bladeRadius: 0.036
+    })
+  ];
 }
 
 function mesoamericanCanoeTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
@@ -2101,6 +2230,23 @@ function makePrismTriangles(start, end, radius, color, sides) {
 
 async function renderMediterraneanGalley() {
   const config = mediterraneanGalleyConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "mediterraneanGalleyGenerator",
+    "--mediterranean-galley"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
+async function renderVikingLongship() {
+  const config = vikingLongshipConfig();
+  const result = await renderStandaloneShip(config, "vikingLongshipGenerator", "--viking-longship");
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
+async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   const sourceScene = await loadScene(config.modelPath);
   config.sourceMaxDim = collectTriangles(sourceScene, {
     targetMaxDim: null,
@@ -2114,24 +2260,23 @@ async function renderMediterraneanGalley() {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const { sheet, wakeAnchors, ...entry } = rendered;
   manifest.ships = upsertShipEntries(manifest.ships, [entry]);
-  manifest.mediterraneanGalleyGenerator = "tools/render-sail-ship-sprites.mjs --mediterranean-galley";
+  manifest.skipped = unityFleetSkippedModels;
+  manifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
   const wakePath = join(unityFleetOutputRoot, "wake-anchors.json");
   const wakeManifest = JSON.parse(readFileSync(wakePath, "utf8"));
   wakeManifest.ships[config.slug] = wakeAnchors;
-  wakeManifest.mediterraneanGalleyGenerator = "tools/render-sail-ship-sprites.mjs --mediterranean-galley";
+  wakeManifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
   writeFileSync(wakePath, `${JSON.stringify(wakeManifest)}\n`);
 
   const sideViewPath = join(unityFleetSideViewOutputRoot, "manifest.json");
   const sideViewManifest = JSON.parse(readFileSync(sideViewPath, "utf8"));
   const sideView = await renderShipSideView(config);
   sideViewManifest.ships = upsertShipEntries(sideViewManifest.ships, [sideView]);
-  sideViewManifest.mediterraneanGalleyGenerator = "tools/render-sail-ship-sprites.mjs --mediterranean-galley";
+  sideViewManifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
   writeFileSync(sideViewPath, `${JSON.stringify(sideViewManifest, null, 2)}\n`);
-
-  console.log(entry.files.sheet);
-  console.log(config.animationContactSheetPath);
+  return { entry, wakeAnchors, sideView };
 }
 
 async function renderMediterraneanGalleyReference() {
@@ -2250,9 +2395,12 @@ async function renderUnityFleetSideViews() {
     config.sourceMaxDim = await measureSourceMaxDim(modelPath);
     configs.push(config);
   }
+  const vikingConfig = vikingLongshipConfig();
+  vikingConfig.sourceMaxDim = await measureSourceMaxDim(vikingConfig.modelPath);
+  configs.push(vikingConfig);
   const largestSourceMaxDim = Math.max(...configs.map((config) => config.sourceMaxDim));
   for (const config of configs) {
-    config.targetModelMaxDim = fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
+    config.targetModelMaxDim ??= fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
   }
   validateShipStatsForSlugs(configs.map((config) => config.slug));
 
@@ -2288,9 +2436,12 @@ async function renderUnityFleet() {
     config.sourceMaxDim = await measureSourceMaxDim(modelPath);
     measuredConfigs.push(config);
   }
+  const vikingConfig = vikingLongshipConfig();
+  vikingConfig.sourceMaxDim = await measureSourceMaxDim(vikingConfig.modelPath);
+  measuredConfigs.push(vikingConfig);
   const largestSourceMaxDim = Math.max(...measuredConfigs.map((config) => config.sourceMaxDim));
   for (const config of measuredConfigs) {
-    config.targetModelMaxDim = fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
+    config.targetModelMaxDim ??= fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
   }
 
   const fleetBounds = [];
@@ -2324,7 +2475,7 @@ async function renderUnityFleet() {
     targetMaxDimForLargestShip: defaultTargetModelMaxDim,
     fleetScaleExponent: unityFleetScaleExponent,
     sharedFrameScale: Number(sharedFrameScale.toFixed(4)),
-    skipped: ["Models/viking ships/*.fbx", "Models/water.fbx"],
+    skipped: unityFleetSkippedModels,
     ships: manifestForDisk
   }, null, 2)}\n`);
   writeFileSync(wakeAnchorsPath, `${JSON.stringify({
@@ -2357,9 +2508,14 @@ async function renderUnityFleetReferences() {
     config.outputPrefix = `${config.slug}-reference-16-headings`;
     measuredConfigs.push(config);
   }
+  const vikingConfig = vikingLongshipConfig();
+  vikingConfig.sourceMaxDim = await measureSourceMaxDim(vikingConfig.modelPath);
+  vikingConfig.outputDir = unityFleetReferenceOutputRoot;
+  vikingConfig.outputPrefix = `${vikingConfig.slug}-reference-16-headings`;
+  measuredConfigs.push(vikingConfig);
   const largestSourceMaxDim = Math.max(...measuredConfigs.map((config) => config.sourceMaxDim));
   for (const config of measuredConfigs) {
-    config.targetModelMaxDim = fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
+    config.targetModelMaxDim ??= fleetTargetModelMaxDim(config.sourceMaxDim, largestSourceMaxDim);
   }
 
   const fleetBounds = [];
@@ -2390,7 +2546,7 @@ async function renderUnityFleetReferences() {
     targetMaxDimForLargestShip: defaultTargetModelMaxDim,
     fleetScaleExponent: unityFleetScaleExponent,
     sharedFrameScale: Number(sharedFrameScale.toFixed(4)),
-    skipped: ["Models/viking ships/*.fbx", "Models/water.fbx"],
+    skipped: unityFleetSkippedModels,
     ships: manifestForDisk
   }, null, 2)}\n`);
 
@@ -2435,6 +2591,10 @@ async function main() {
   }
   if (args.has("--mediterranean-galley")) {
     await renderMediterraneanGalley();
+    return;
+  }
+  if (args.has("--viking-longship")) {
+    await renderVikingLongship();
     return;
   }
   if (args.has("--native-boats")) {

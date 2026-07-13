@@ -1,0 +1,834 @@
+{
+  "version": "resurrect-icons-2",
+  "palette": "Resurrect 64",
+  "width": 256,
+  "height": 80,
+  "iconSize": 16,
+  "icons": [
+    {
+      "id": "good:hardtack",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "alex",
+      "assetPath": null
+    },
+    {
+      "id": "good:fresh-water",
+      "rect": {
+        "x": 16,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null
+    },
+    {
+      "id": "good:foraged-food",
+      "rect": {
+        "x": 32,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "alex",
+      "assetPath": null
+    },
+    {
+      "id": "good:grain",
+      "rect": {
+        "x": 48,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null
+    },
+    {
+      "id": "good:fish",
+      "rect": {
+        "x": 64,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "hollow",
+      "assetPath": null
+    },
+    {
+      "id": "good:cheese",
+      "rect": {
+        "x": 80,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "alex",
+      "assetPath": null
+    },
+    {
+      "id": "good:wine",
+      "rect": {
+        "x": 96,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "good:olive-oil",
+      "rect": {
+        "x": 112,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:salt",
+      "rect": {
+        "x": 128,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:sugar",
+      "rect": {
+        "x": 144,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:timber",
+      "rect": {
+        "x": 160,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:wool",
+      "rect": {
+        "x": 176,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:cotton",
+      "rect": {
+        "x": 192,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:flax",
+      "rect": {
+        "x": 208,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:iron",
+      "rect": {
+        "x": 224,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:copper",
+      "rect": {
+        "x": 240,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:tin",
+      "rect": {
+        "x": 0,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:arms",
+      "rect": {
+        "x": 16,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "good:linen-cloth",
+      "rect": {
+        "x": 32,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:wool-cloth",
+      "rect": {
+        "x": 48,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:cotton-cloth",
+      "rect": {
+        "x": 64,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:silk",
+      "rect": {
+        "x": 80,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:silk-cloth",
+      "rect": {
+        "x": 96,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:pepper",
+      "rect": {
+        "x": 112,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null
+    },
+    {
+      "id": "good:spices",
+      "rect": {
+        "x": 128,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null
+    },
+    {
+      "id": "good:tea",
+      "rect": {
+        "x": 144,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "alex",
+      "assetPath": null
+    },
+    {
+      "id": "good:coffee",
+      "rect": {
+        "x": 160,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "alex",
+      "assetPath": null
+    },
+    {
+      "id": "good:cacao",
+      "rect": {
+        "x": 176,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:dyes",
+      "rect": {
+        "x": 192,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:porcelain",
+      "rect": {
+        "x": 208,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:glassware",
+      "rect": {
+        "x": 224,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:carpets",
+      "rect": {
+        "x": 240,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:artwork",
+      "rect": {
+        "x": 0,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:perfume",
+      "rect": {
+        "x": 16,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:ivory",
+      "rect": {
+        "x": 32,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:silver",
+      "rect": {
+        "x": 48,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:gold",
+      "rect": {
+        "x": 64,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "menu:continue",
+      "rect": {
+        "x": 80,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "menu:new-game",
+      "rect": {
+        "x": 96,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "menu:lake-battle",
+      "rect": {
+        "x": 112,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "menu:past-voyages",
+      "rect": {
+        "x": 128,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "menu:options",
+      "rect": {
+        "x": 144,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "menu:credits",
+      "rect": {
+        "x": 160,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "menu:captain",
+      "rect": {
+        "x": 176,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "menu:ship",
+      "rect": {
+        "x": 192,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "menu:politics",
+      "rect": {
+        "x": 208,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "menu:discoveries",
+      "rect": {
+        "x": 224,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:dock",
+      "rect": {
+        "x": 240,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:hail",
+      "rect": {
+        "x": 0,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:fish",
+      "rect": {
+        "x": 16,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": null,
+      "assetPath": "public/assets/misc/fishing-net-Sheet.png"
+    },
+    {
+      "id": "action:scavenge",
+      "rect": {
+        "x": 32,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "hollow",
+      "assetPath": null
+    },
+    {
+      "id": "action:buy",
+      "rect": {
+        "x": 48,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:sell",
+      "rect": {
+        "x": 64,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:back",
+      "rect": {
+        "x": 80,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:leave",
+      "rect": {
+        "x": 96,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:quest",
+      "rect": {
+        "x": 112,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:talk",
+      "rect": {
+        "x": 128,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "action:wait",
+      "rect": {
+        "x": 144,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:attack",
+      "rect": {
+        "x": 160,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:loadout",
+      "rect": {
+        "x": 176,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "action:shipyard",
+      "rect": {
+        "x": 192,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:letter",
+      "rect": {
+        "x": 208,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "action:disguise",
+      "rect": {
+        "x": 224,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:surrender",
+      "rect": {
+        "x": 240,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:passenger",
+      "rect": {
+        "x": 0,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:viking",
+      "rect": {
+        "x": 16,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "action:inventory",
+      "rect": {
+        "x": 32,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:resume",
+      "rect": {
+        "x": 48,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:restart",
+      "rect": {
+        "x": 64,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:choose-ships",
+      "rect": {
+        "x": 80,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:start-menu",
+      "rect": {
+        "x": 96,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    }
+  ],
+  "packs": {
+    "pirate": {
+      "creator": "Free Game Assets",
+      "title": "Free Pirate Stuff Icons",
+      "sourceUrl": "https://free-game-assets.itch.io/free-pirate-stuff-pixel-art-icons",
+      "license": "CraftPix Freebie License",
+      "archive": "free-pirate-stuff-pixel-art-icons.zip"
+    },
+    "lethe": {
+      "creator": "LetheDiana",
+      "title": "Pixel Items_300+",
+      "sourceUrl": "https://lethediana.itch.io/pixel-items",
+      "license": "LetheDiana itch.io asset license",
+      "archive": "Pixel_Items_16x16_free.zip"
+    },
+    "glionox": {
+      "creator": "Glionox",
+      "title": "Items pack (x16)",
+      "sourceUrl": "https://glionox.itch.io/items16",
+      "license": "Glionox itch.io asset license",
+      "archive": "items.zip"
+    },
+    "alex": {
+      "creator": "alexkovacsart",
+      "title": "100 Free Pixel Art Foods!",
+      "sourceUrl": "https://alexkovacsart.itch.io/free-pixel-art-foods",
+      "license": "CC BY 4.0",
+      "archive": "Free_pixel_food_16x16.zip"
+    },
+    "keifoo": {
+      "creator": "KeifooPX",
+      "title": "99 various ingredients +",
+      "sourceUrl": "https://keifoopx.itch.io/99-various-ingredients",
+      "license": "KeifooPX itch.io asset license",
+      "archive": "99_ingredients.zip"
+    },
+    "hollow": {
+      "creator": "Hollow Dolphin",
+      "title": "Fishing Icon Pack 16x16",
+      "sourceUrl": "https://hollowdolphin.itch.io/fishing-icon-pack",
+      "license": "Hollow Dolphin itch.io asset license",
+      "archive": "Hollow Dolphin Fishing Icon Pack.zip"
+    }
+  }
+}

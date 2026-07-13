@@ -30,6 +30,18 @@ test("unarmed gunpowder-culture ships still have no ranged attack", () => {
   assert.equal(navalWeaponForShip({ cultureType: "northern-european", cannons: 0 }), null);
 });
 
+test("a hull-specific weapon overrides culture and cannon count", () => {
+  assert.equal(navalWeaponForShip({
+    cultureType: "northern-european",
+    cannons: 0,
+    weaponKind: NAVAL_WEAPON_ARROW
+  }).kind, NAVAL_WEAPON_ARROW);
+  assert.throws(
+    () => navalWeaponForShip({ cultureType: "northern-european", cannons: 0, weaponKind: "ballista" }),
+    /Unknown naval weapon/
+  );
+});
+
 test("bow fire and arrow hit sounds are packaged as repo-local Ogg assets", async () => {
   for (const name of ["bow-fire.ogg", "arrow-hit.ogg"]) {
     const bytes = await readFile(new URL(`../public/assets/sfx/${name}`, import.meta.url));

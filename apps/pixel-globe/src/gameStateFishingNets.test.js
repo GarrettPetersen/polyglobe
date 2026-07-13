@@ -8,13 +8,16 @@ import {
   purchaseFishingNet,
   shipItemRows
 } from "./gameState.js";
+import { createWorldEconomy } from "./economy.js";
 import { BASIC_FISHING_NET_ID } from "./fishingNets.js";
 
 const LISBON = {
   tileId: 1,
   city: "Lisbon",
   displayCity: "Lisbon",
-  country: "Portugal"
+  country: "Portugal",
+  cityType: "mediterranean",
+  population: 70000
 };
 
 test("players begin with the forgiving basic cast net", () => {
@@ -30,8 +33,9 @@ test("players begin with the forgiving basic cast net", () => {
 test("fishing net upgrades are expensive equipment purchases recorded in the ledger", () => {
   const state = createGameState({ cargoCapacity: 20 });
   state.doubloons = 5000;
+  const economy = createWorldEconomy({ ports: [LISBON], startMinute: 0 });
 
-  const purchase = purchaseFishingNet(state, LISBON, "weighted-cast-net", { simMinute: 120 });
+  const purchase = purchaseFishingNet(state, economy, LISBON, "weighted-cast-net", { simMinute: 120 });
 
   assert.equal(purchase.previous.id, BASIC_FISHING_NET_ID);
   assert.equal(purchase.net.id, "weighted-cast-net");
@@ -56,15 +60,16 @@ test("fishing net upgrades are expensive equipment purchases recorded in the led
 
 test("players cannot afford top nets early or replace good gear with worse gear", () => {
   const state = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: [LISBON], startMinute: 0 });
 
   assert.throws(
-    () => purchaseFishingNet(state, LISBON, "masterwork-seine"),
+    () => purchaseFishingNet(state, economy, LISBON, "masterwork-seine"),
     /Not enough doubloons/
   );
   state.doubloons = 20000;
-  purchaseFishingNet(state, LISBON, "drift-net");
+  purchaseFishingNet(state, economy, LISBON, "weighted-cast-net");
   assert.throws(
-    () => purchaseFishingNet(state, LISBON, BASIC_FISHING_NET_ID),
+    () => purchaseFishingNet(state, economy, LISBON, BASIC_FISHING_NET_ID),
     /not an upgrade/
   );
 });

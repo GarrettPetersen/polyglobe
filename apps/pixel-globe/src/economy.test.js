@@ -113,6 +113,28 @@ test("small spice-island villages offer narrow but valuable local markets", () =
   assert.equal(maximumPortSaleQuantity(economy, BANDA, "pepper", 1, 1000), 0);
 });
 
+test("a city can declare a narrow market for a fetch-quest port", () => {
+  const hafnarfjordur = port(
+    64,
+    "Hafnarfjordur",
+    "Iceland",
+    "northern-european",
+    1500,
+    "city",
+    ["fish", "salt", "cheese"]
+  );
+  const economy = createWorldEconomy({ ports: [hafnarfjordur], startMinute: 0 });
+  const listed = portMarket(economy, hafnarfjordur)
+    .filter((row) => row.listedForSale && row.good.sellable !== false)
+    .map((row) => row.good.id)
+    .sort();
+
+  assert.deepEqual(listed, ["cheese", "fish", "salt"]);
+  assert.ok(portMarket(economy, hafnarfjordur).every((row) => (
+    !["wool", "timber", "iron"].includes(row.good.id) || row.listedForSale === false
+  )));
+});
+
 test("spice-island cargo commands transformative prices in Europe", () => {
   const economy = createWorldEconomy({ ports: [LONDON, TERNATE], startMinute: 0 });
   const london = marketByGood(economy, LONDON);

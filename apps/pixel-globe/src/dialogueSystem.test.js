@@ -453,7 +453,7 @@ test("pirate hideouts speak and trade like covert havens", () => {
   assert.ok(root.options.every((entry) => entry.label !== "Ask about work"));
 });
 
-test("ports sell a costly progression of fishing net upgrades", () => {
+test("ports stock a local selection of fishing net upgrades", () => {
   const city = {
     tileId: 13,
     city: "Bristol",
@@ -466,27 +466,54 @@ test("ports sell a costly progression of fishing net upgrades", () => {
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.doubloons = 5000;
-  const session = createPortDialogueSession(city, { initialNodeId: "nets" });
+  const session = createPortDialogueSession(city, { initialNodeId: "equipment-nets" });
 
   const view = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(view.optionHeight, 34);
   assert.match(view.text, /Current gear: Basic cast net/);
-  assert.deepEqual(view.options.slice(0, 4).map((entry) => entry.label), [
+  assert.deepEqual(view.options.slice(0, 2).map((entry) => entry.label), [
     "* Basic cast net  FITTED",
-    "Weighted cast net  900 db",
-    "Drift net  4000 db",
-    "Masterwork seine  15000 db"
+    "Weighted cast net  900 db"
   ]);
-  assert.ok(view.options.slice(0, 4).every((entry) => /MAX HAUL/.test(entry.detail)));
+  assert.ok(view.options.slice(0, 2).every((entry) => /MAX HAUL/.test(entry.detail)));
   assert.equal(view.options[0].disabled, true);
   assert.equal(view.options[1].disabled, false);
-  assert.equal(view.options[2].disabled, false);
-  assert.equal(view.options[3].disabled, true);
 
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 300 });
   assert.equal(result.fishingNetPurchase.net.id, "weighted-cast-net");
   assert.equal(gameState.doubloons, 4100);
   assert.match(session.feedback, /Weighted cast net fitted/);
+});
+
+test("the equipment store exposes stocked cannon upgrades and their complete firing profile", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.doubloons = 10000;
+  const session = createPortDialogueSession(city, { initialNodeId: "equipment-cannons" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(view.optionHeight, 34);
+  assert.deepEqual(view.options.slice(0, 3).map((entry) => entry.label), [
+    "* Standard ordnance  FITTED",
+    "Bronze culverins  2400 db",
+    "Reinforced culverins  8500 db"
+  ]);
+  assert.match(view.options[1].detail, /RELOAD 1\.02S  DAMAGE x1\.15  RANGE x1\.12/);
+
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 300 });
+  assert.equal(result.cannonEquipmentPurchase.equipment.id, "bronze-culverins");
+  assert.equal(gameState.doubloons, 7600);
+  assert.match(session.feedback, /Bronze culverins fitted/);
 });
 
 test("package job offers show the destination distance", () => {
@@ -558,6 +585,55 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     closed: false,
     action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
   });
+});
+
+test("the Icelandic enthusiast unlocks the Viking longship after three fetch deliveries", () => {
+  const city = {
+    tileId: 64,
+    city: "Hafnarfjordur",
+    displayCity: "Hafnarfjordur",
+    country: "Iceland",
+    cityType: "northern-european",
+    population: 1500,
+    character: { name: "Leif Eriksen" }
+  };
+  const currentStats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const context = { shipStats: currentStats };
+  const session = createPortDialogueSession(city, { initialNodeId: "root" });
+
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const enthusiastIndex = root.options.findIndex((entry) => entry.action.nodeId === "viking-longship");
+  assert.ok(enthusiastIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], enthusiastIndex, context);
+
+  const firstView = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(firstView.speaker, "Leif Eriksen, historical enthusiast");
+  assert.match(firstView.text, /historical enthusiast/i);
+  assert.equal(firstView.options[0].disabled, true);
+
+  gameState.cargo = { wool: 8, timber: 6, iron: 3 };
+  gameState.accounts.cargoCostBasis = { wool: 144, timber: 84, iron: 78 };
+  for (const expectedGood of ["Wool", "Timber", "Iron"]) {
+    const view = portDialogueView(session, city, gameState, economy, [city], context);
+    assert.match(view.options[0].label, new RegExp(expectedGood));
+    const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
+      ...context,
+      simMinute: 500
+    });
+    assert.ok(result.vikingLongshipDelivery);
+  }
+
+  gameState.doubloons = 50000;
+  const unlocked = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(unlocked.presentation.kind, "shipyard");
+  assert.equal(unlocked.presentation.listing.shipSlug, "viking-longship");
+  assert.equal(unlocked.options[0].disabled, false);
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
+    { closed: false, action: { type: "purchase-viking-longship", shipSlug: "viking-longship" } }
+  );
 });
 
 test("passenger dialogue can be declined and accepted later", () => {

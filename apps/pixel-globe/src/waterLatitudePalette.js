@@ -113,6 +113,26 @@ export function isResurrect64Hex(hex) {
   return RESURRECT_64_HEX.includes(normalizeHex(hex));
 }
 
+export function nearestResurrect64Hex(r, g, b) {
+  assertChannel(r, "red");
+  assertChannel(g, "green");
+  assertChannel(b, "blue");
+  let best = null;
+  let bestDistance = Infinity;
+  for (const hex of RESURRECT_64_HEX) {
+    const candidate = parseHex(hex);
+    const dr = r - candidate.r;
+    const dg = g - candidate.g;
+    const db = b - candidate.b;
+    const distance = dr * dr * 2 + dg * dg * 4 + db * db * 3;
+    if (distance >= bestDistance) continue;
+    bestDistance = distance;
+    best = candidate.hex;
+  }
+  if (!best) throw new Error("Resurrect 64 palette is empty");
+  return best;
+}
+
 export function isWaterResurrectHex(hex) {
   return WATER_PALETTE_SET.has(normalizeHex(hex));
 }

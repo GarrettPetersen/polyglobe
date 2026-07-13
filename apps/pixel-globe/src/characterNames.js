@@ -130,7 +130,7 @@ const COUNTRY_CULTURES = new Map([
   ["France", "french"], ["Spain", "spanish"], ["Portugal", "portuguese"],
   ["Italy", "italian"], ["Austria", "germanic"], ["Belgium", "germanic"],
   ["Germany", "germanic"], ["Netherlands", "germanic"], ["Denmark", "nordic"],
-  ["Norway", "nordic"], ["Sweden", "nordic"], ["Poland", "slavic"],
+  ["Norway", "nordic"], ["Sweden", "nordic"], ["Iceland", "nordic"], ["Poland", "slavic"],
   ["Lithuania", "slavic"], ["Russian Federation", "slavic"], ["Ukraine", "slavic"],
   ["Hungary", "slavic"], ["Albania", "slavic"], ["Bulgaria", "slavic"],
   ["Romania", "slavic"], ["Serbia", "slavic"], ["Greece", "greek"],

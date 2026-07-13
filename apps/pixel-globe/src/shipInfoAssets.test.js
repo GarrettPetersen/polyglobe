@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
@@ -23,6 +23,7 @@ const NATIVE_BOAT_SLUGS = Object.freeze([
 ]);
 const MEDITERRANEAN_GALLEY_SLUG = "mediterranean-galley";
 const MESOAMERICAN_CANOE_SLUG = "mesoamerican-dugout-canoe";
+const VIKING_LONGSHIP_SLUG = "viking-longship";
 
 test("every runtime ship model has a registered attribution", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
@@ -54,6 +55,37 @@ test("every oar-capable hull and only those hulls have rowing animation", async 
     .sort();
 
   assert.deepEqual(animated, expected);
+});
+
+test("every ship sprite and rowing frame has an exact per-pixel model-height bake", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+
+  for (const entry of manifest.ships) {
+    assert.equal(entry.sinkHeightBins, 256, `${entry.slug} sink height bins`);
+    assert.ok(entry.sinkHeightMin < entry.sinkHeightMax, `${entry.slug} sink height range`);
+    assert.ok(
+      entry.sinkWaterlineLevel >= 0 && entry.sinkWaterlineLevel <= 1,
+      `${entry.slug} sink waterline level`
+    );
+    assert.ok(entry.files?.sinkDepth, `${entry.slug} sink-depth asset`);
+    await assertSinkDepthPair(entry.files.sheet, entry.files.sinkDepth, entry.slug);
+
+    const rowingAnimation = entry.files.rowingAnimation;
+    const rowingSinkDepth = entry.files.rowingSinkDepth;
+    if (!rowingAnimation) {
+      assert.equal(rowingSinkDepth, undefined, `${entry.slug} has no orphan rowing sink-depth assets`);
+      continue;
+    }
+    assert.ok(Array.isArray(rowingSinkDepth), `${entry.slug} rowing sink-depth list`);
+    assert.equal(rowingSinkDepth.length, rowingAnimation.length, `${entry.slug} rowing sink-depth count`);
+    for (let frameIndex = 0; frameIndex < rowingAnimation.length; frameIndex++) {
+      await assertSinkDepthPair(
+        rowingAnimation[frameIndex],
+        rowingSinkDepth[frameIndex],
+        `${entry.slug} rowing frame ${frameIndex}`
+      );
+    }
+  }
 });
 
 test("every roster ship has a clipped-safe Resurrect side-view sprite", async () => {
@@ -94,6 +126,7 @@ test("native boat models provide complete 16-heading sprite and wake bakes", asy
   const wakeAnchors = JSON.parse(await readFile(join(shipAssetRoot, "wake-anchors.json"), "utf8"));
   const expectedAssets = [
     ["", 144, 144],
+    ["-sink-depth", 144, 144],
     ["-light", 144, 288],
     ["-shade", 144, 288],
     ["-shadow", 288, 576]
@@ -141,6 +174,29 @@ test("the Mediterranean galley provides licensed rowing animation frames", async
   }
 });
 
+test("the Viking longship keeps its colored sail and provides four working oar phases", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const entry = manifest.ships.find((ship) => ship.slug === VIKING_LONGSHIP_SLUG);
+
+  assert.ok(entry, "Viking longship manifest entry");
+  assert.equal(entry.sailRecolor, false);
+  assert.match(entry.sourceModel, /viking ship 1\.fbx$/);
+  assert.equal(entry.files.rowingAnimation.length, 4);
+  const frames = [];
+  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+    const path = join(
+      shipAssetRoot,
+      `${VIKING_LONGSHIP_SLUG}-rowing-${frameIndex}-16-headings.png`
+    );
+    const image = await loadImage(path);
+    assert.equal(image.width, 144, `longship rowing frame ${frameIndex} width`);
+    assert.equal(image.height, 144, `longship rowing frame ${frameIndex} height`);
+    assert.ok(opaquePixelCount(image) > 0, `longship rowing frame ${frameIndex} is blank`);
+    frames.push(await readFile(path));
+  }
+  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, 4);
+});
+
 test("the Mesoamerican canoe has a compact four-frame paddle cycle", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === MESOAMERICAN_CANOE_SLUG);
@@ -172,6 +228,37 @@ function opaquePixelCount(image) {
     if (pixels[offset] > 0) count += 1;
   }
   return count;
+}
+
+async function assertSinkDepthPair(spritePath, sinkDepthPath, label) {
+  const [sprite, sinkDepth] = await Promise.all([
+    loadImage(join(shipAssetRoot, basename(spritePath))),
+    loadImage(join(shipAssetRoot, basename(sinkDepthPath)))
+  ]);
+  assert.equal(sinkDepth.width, sprite.width, `${label} sink-depth width`);
+  assert.equal(sinkDepth.height, sprite.height, `${label} sink-depth height`);
+  const spritePixels = imagePixels(sprite);
+  const sinkDepthPixels = imagePixels(sinkDepth);
+  const levels = new Set();
+  for (let offset = 0; offset < spritePixels.length; offset += 4) {
+    assert.equal(
+      sinkDepthPixels[offset + 3],
+      spritePixels[offset + 3],
+      `${label} sink-depth alpha at pixel ${offset / 4}`
+    );
+    if (spritePixels[offset + 3] === 0) continue;
+    assert.equal(sinkDepthPixels[offset], sinkDepthPixels[offset + 1], `${label} sink-depth red/green`);
+    assert.equal(sinkDepthPixels[offset], sinkDepthPixels[offset + 2], `${label} sink-depth red/blue`);
+    levels.add(sinkDepthPixels[offset]);
+  }
+  assert.ok(levels.size >= 4, `${label} sink-depth bake has only ${levels.size} distinct levels`);
+}
+
+function imagePixels(image) {
+  const canvas = createCanvas(image.width, image.height);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(image, 0, 0);
+  return ctx.getImageData(0, 0, image.width, image.height).data;
 }
 
 function modelCreditKey({ creator, sourceTitle, license }) {

@@ -56,7 +56,8 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Beijing", "China", "ming"],
     ["Mexico City", "Mexico", "aztec"],
     ["Cuzco", "Peru", "inca"],
-    ["Cairo", "Egypt", "ottoman"]
+    ["Cairo", "Egypt", "ottoman"],
+    ["Hafnarfjordur", "Iceland", "denmark-norway"]
   ];
   for (const [city, country, factionId] of cases) {
     assert.equal(factionIdForCity1522({ city, country }), factionId, `${city}, ${country}`);

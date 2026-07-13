@@ -13,7 +13,7 @@ const socialRoot = join(assetRoot, "social");
 const sourcePath = join(socialRoot, "gameplay-source.png");
 
 registerFont(join(assetRoot, "fonts/Silkscreen-Regular.ttf"), { family: "Silkscreen" });
-registerFont(join(assetRoot, "fonts/Tiny5-Regular.ttf"), { family: "Tiny5" });
+registerFont(join(assetRoot, "fonts/dogicapixel.ttf"), { family: "Dogica" });
 
 const source = await loadImage(sourcePath);
 mkdirSync(socialRoot, { recursive: true });
@@ -47,11 +47,11 @@ function renderCard(filename, width, height) {
   ctx.fillText("MARQUE & REPRISAL", 64, bandY + 68);
 
   ctx.fillStyle = "#fff1bf";
-  ctx.font = "29px Tiny5";
+  ctx.font = "32px Dogica";
   ctx.fillText("TRADE. FISH. EXPLORE. PLUNDER.", 66, bandY + 126);
 
   ctx.fillStyle = "#c7dcd0";
-  ctx.font = "22px Silkscreen";
+  ctx.font = "24px Silkscreen";
   ctx.fillText("1522  |  ONLINE PROTOTYPE", 66, bandY + 174);
 
   const outputPath = join(socialRoot, filename);
@@ -75,10 +75,10 @@ function drawImageCover(ctx, image, width, height) {
 
 function fitFont(ctx, text, family, initialSize, maxWidth) {
   let size = initialSize;
-  while (size > 16) {
+  while (size > 8) {
     ctx.font = `${size}px ${family}`;
     if (ctx.measureText(text).width <= maxWidth) break;
-    size -= 1;
+    size -= 8;
   }
   return `${size}px ${family}`;
 }

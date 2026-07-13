@@ -222,6 +222,7 @@ const COUNTRY_FACTIONS = uniqueMap([
   ["Lithuania", "poland-lithuania"],
   ["Denmark", "denmark-norway"],
   ["Norway", "denmark-norway"],
+  ["Iceland", "denmark-norway"],
   ["Mali", "songhai"],
   ["Morocco", "morocco"],
   ["Ethiopia", "ethiopia"],

@@ -6,6 +6,7 @@ import {
   FRESH_WATER_CAPACITY,
   autoProvisionFreshWaterAtPort,
   autoProvisionHardtackAtPort,
+  applySurvivalDeprivation,
   buyGood,
   cargoCostBasis,
   cargoUsed,
@@ -222,6 +223,25 @@ test("crew die from thirst and sometimes from hull damage", () => {
   const remainingCrew = state.ship.crew;
   assert.equal(loseCrew(state, remainingCrew + 10), remainingCrew);
   assert.equal(state.ship.crew, 0);
+});
+
+test("dehydration kills crew without contributing hull damage", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const startingCrew = state.ship.crew;
+
+  const thirst = applySurvivalDeprivation(state, { dehydration: 1, starvation: 0 });
+  assert.deepEqual(thirst, { crewLost: 1, crewDepleted: startingCrew === 1, hullDamage: 0 });
+  assert.equal(state.ship.crew, startingCrew - 1);
+
+  const combined = applySurvivalDeprivation(state, { dehydration: 1, starvation: 1 });
+  assert.equal(combined.crewLost, Math.min(1, startingCrew - 1));
+  assert.equal(combined.hullDamage, 1);
+  assert.throws(
+    () => applySurvivalDeprivation(state, { dehydration: 0.5, starvation: 0 }),
+    /Invalid dehydration severity/
+  );
 });
 
 test("changing hulls updates crew, gun, and loadout capacities together", () => {

@@ -34,6 +34,15 @@ import {
   fishingNetById
 } from "./fishingNets.js";
 import {
+  STANDARD_CANNON_EQUIPMENT_ID,
+  cannonEquipmentById
+} from "./cannonEquipment.js";
+import {
+  EQUIPMENT_STOCK_CANNON,
+  EQUIPMENT_STOCK_FISHING_NET,
+  equipmentAvailableAtPort
+} from "./portEquipment.js";
+import {
   advanceWorldDiplomacy,
   createWorldDiplomacy,
   recentDiplomacyEvents,
@@ -42,7 +51,7 @@ import {
 } from "./worldDiplomacy.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 6;
+export const GAME_STATE_VERSION = 7;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -61,6 +70,7 @@ export const PORT_DISGUISE_SUCCESS_CHANCE = 0.6;
 export const PORT_DISGUISE_LOCK_DAYS = 14;
 export const FISH_CARGO_GOOD_ID = "fish";
 export const SHIP_ITEM_FISHING_NET = "fishing-net";
+export const SHIP_ITEM_CANNON_EQUIPMENT = "cannon-equipment";
 export const FRESH_WATER_CAPACITY = 100;
 export const FRESH_WATER_DAYS = 21;
 export const FRESH_WATER_CARGO_DAYS = 1;
@@ -77,6 +87,11 @@ export const SHIP_ITEM_CATALOG = Object.freeze([
     id: SHIP_ITEM_FISHING_NET,
     label: "Fishing net",
     detail: "Can harvest nearby fisheries"
+  }),
+  Object.freeze({
+    id: SHIP_ITEM_CANNON_EQUIPMENT,
+    label: "Cannon battery",
+    detail: "Installed naval ordnance"
   })
 ]);
 
@@ -102,7 +117,8 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
     ),
     inventory: {
       items: {},
-      fishingNetId: BASIC_FISHING_NET_ID
+      fishingNetId: BASIC_FISHING_NET_ID,
+      cannonEquipmentId: STANDARD_CANNON_EQUIPMENT_ID
     },
     accounts: {
       cargoCostBasis: {},
@@ -560,6 +576,24 @@ export function loseCrew(state, requestedLoss) {
   return lost;
 }
 
+export function applySurvivalDeprivation(state, { dehydration, starvation }) {
+  assertGameState(state);
+  assertDeprivationSeverity(dehydration, "dehydration");
+  assertDeprivationSeverity(starvation, "starvation");
+  const crewLost = loseCrew(state, dehydration);
+  return {
+    crewLost,
+    crewDepleted: crewLost > 0 && state.ship.crew <= 0,
+    hullDamage: starvation
+  };
+}
+
+function assertDeprivationSeverity(value, label) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Invalid ${label} severity: ${value}`);
+  }
+}
+
 export function rollCrewCasualtiesForDamage(state, damage, random = Math.random) {
   assertGameState(state);
   if (!Number.isFinite(damage) || damage < 0) throw new Error(`Invalid hull damage: ${damage}`);
@@ -728,12 +762,50 @@ export function cargoCostBasis(state, goodId) {
   };
 }
 
+export function deliverQuestCargo(state, city, goodId, quantity, questId, context = {}) {
+  assertGameState(state);
+  const good = goodById(goodId);
+  assertQuantity(quantity, "quest cargo quantity");
+  if (typeof questId !== "string" || questId.trim() === "") {
+    throw new Error(`Invalid cargo quest id: ${questId}`);
+  }
+  const held = state.cargo[good.id] || 0;
+  if (held < quantity) {
+    throw new Error(`Cannot deliver ${quantity} ${good.label}; hold has ${held}`);
+  }
+  const basis = cargoCostBasis(state, good.id);
+  const deliveredCost = basis.known ? basis.total * quantity / held : 0;
+  const remaining = held - quantity;
+  if (remaining > 0) {
+    state.cargo[good.id] = remaining;
+    if (basis.known) {
+      state.accounts.cargoCostBasis[good.id] = roundLedgerMoney(basis.total - deliveredCost);
+    }
+  } else {
+    delete state.cargo[good.id];
+    delete state.accounts.cargoCostBasis[good.id];
+  }
+  recordDecision(state, `quest.deliver.${questId}.${good.id}`, quantity);
+  recordLedgerEntry(state, city, context, {
+    kind: "quest",
+    description: `Deliver ${good.label} x${quantity}`,
+    goodId: good.id,
+    quantity,
+    amount: 0,
+    costBasis: deliveredCost,
+    pnl: null
+  });
+  return { good, quantity, costBasis: deliveredCost };
+}
+
 export function shipItemRows(state) {
   assertGameState(state);
   return SHIP_ITEM_CATALOG
-    .map((item) => item.id === SHIP_ITEM_FISHING_NET
-      ? fishingNetItemRow(state)
-      : { ...item, quantity: state.inventory.items[item.id] || 0 })
+    .map((item) => {
+      if (item.id === SHIP_ITEM_FISHING_NET) return fishingNetItemRow(state);
+      if (item.id === SHIP_ITEM_CANNON_EQUIPMENT) return cannonEquipmentItemRow(state);
+      return { ...item, quantity: state.inventory.items[item.id] || 0 };
+    })
     .filter((item) => item.quantity > 0);
 }
 
@@ -741,6 +813,7 @@ export function hasShipItem(state, itemId) {
   assertGameState(state);
   if (typeof itemId !== "string" || itemId.trim() === "") throw new Error(`Invalid ship item id: ${itemId}`);
   if (itemId === SHIP_ITEM_FISHING_NET) return Boolean(state.inventory.fishingNetId);
+  if (itemId === SHIP_ITEM_CANNON_EQUIPMENT) return Boolean(state.inventory.cannonEquipmentId);
   return (state.inventory.items[itemId] || 0) > 0;
 }
 
@@ -749,7 +822,7 @@ export function playerFishingNet(state) {
   return fishingNetById(state.inventory.fishingNetId);
 }
 
-export function purchaseFishingNet(state, city, netId, context = {}) {
+export function purchaseFishingNet(state, economy, city, netId, context = {}) {
   assertGameState(state);
   const current = playerFishingNet(state);
   const next = fishingNetById(netId);
@@ -758,6 +831,9 @@ export function purchaseFishingNet(state, city, netId, context = {}) {
   }
   if (state.doubloons < next.price) {
     throw new Error(`Not enough doubloons to buy ${next.label}`);
+  }
+  if (!equipmentAvailableAtPort(economy, city, EQUIPMENT_STOCK_FISHING_NET, next)) {
+    throw new Error(`${next.label} is not stocked at ${cityLabel(city)}`);
   }
   state.doubloons -= next.price;
   state.inventory.fishingNetId = next.id;
@@ -771,6 +847,41 @@ export function purchaseFishingNet(state, city, netId, context = {}) {
     pnl: null
   });
   return { previous: current, net: next, price: next.price };
+}
+
+export function playerCannonEquipment(state) {
+  assertGameState(state);
+  return cannonEquipmentById(state.inventory.cannonEquipmentId);
+}
+
+export function purchaseCannonEquipment(state, economy, city, equipmentId, context = {}) {
+  assertGameState(state);
+  if (!state.ship || state.ship.cannonCapacity <= 0) {
+    throw new Error("Cannon equipment requires a cannon-armed ship");
+  }
+  const current = playerCannonEquipment(state);
+  const next = cannonEquipmentById(equipmentId);
+  if (next.tier <= current.tier) {
+    throw new Error(`${next.label} is not an upgrade over ${current.label}`);
+  }
+  if (state.doubloons < next.price) {
+    throw new Error(`Not enough doubloons to buy ${next.label}`);
+  }
+  if (!equipmentAvailableAtPort(economy, city, EQUIPMENT_STOCK_CANNON, next)) {
+    throw new Error(`${next.label} is not stocked at ${cityLabel(city)}`);
+  }
+  state.doubloons -= next.price;
+  state.inventory.cannonEquipmentId = next.id;
+  recordLedgerEntry(state, city, context, {
+    kind: "equipment",
+    description: `Buy ${next.label}`,
+    goodId: null,
+    quantity: 1,
+    amount: -next.price,
+    costBasis: next.price,
+    pnl: null
+  });
+  return { previous: current, equipment: next, price: next.price };
 }
 
 export function ledgerEntries(state) {
@@ -1578,6 +1689,17 @@ function fishingNetItemRow(state) {
   };
 }
 
+function cannonEquipmentItemRow(state) {
+  const equipment = cannonEquipmentById(state.inventory.cannonEquipmentId);
+  return {
+    id: SHIP_ITEM_CANNON_EQUIPMENT,
+    label: equipment.label,
+    detail: `Reload ${equipment.reloadSeconds.toFixed(2)}s, damage x${equipment.damageMultiplier.toFixed(2)}, range x${equipment.rangeMultiplier.toFixed(2)}`,
+    quantity: 1,
+    equipmentId: equipment.id
+  };
+}
+
 function assertGameState(state) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
   if (state.playerCharacter !== null) assertPlayerCharacter(state.playerCharacter);
@@ -1588,16 +1710,16 @@ function assertGameState(state) {
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
   ensureSurvivalState(state);
   if (state.ship !== null && state.ship !== undefined) assertPlayerShipState(state.ship);
-  if (!state.inventory || typeof state.inventory !== "object") {
-    state.inventory = { items: {} };
-  }
+  if (!state.inventory || typeof state.inventory !== "object") throw new Error("Game state inventory must be an object");
   if (!state.inventory.items || typeof state.inventory.items !== "object") {
-    state.inventory.items = {};
+    throw new Error("Game state inventory items must be an object");
   }
-  if (typeof state.inventory.fishingNetId !== "string") {
-    state.inventory.fishingNetId = BASIC_FISHING_NET_ID;
-  }
+  if (typeof state.inventory.fishingNetId !== "string") throw new Error("Game state requires fishing net equipment");
   fishingNetById(state.inventory.fishingNetId);
+  if (typeof state.inventory.cannonEquipmentId !== "string") {
+    throw new Error("Game state requires cannon equipment");
+  }
+  cannonEquipmentById(state.inventory.cannonEquipmentId);
   if (!state.accounts || typeof state.accounts !== "object") throw new Error("Game state accounts must be an object");
   if (!state.accounts.cargoCostBasis || typeof state.accounts.cargoCostBasis !== "object") {
     throw new Error("Game state cargo cost basis must be an object");

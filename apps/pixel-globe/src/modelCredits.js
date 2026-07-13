@@ -32,7 +32,3 @@ export const MODEL_CREDITS = Object.freeze([
 export function modelCreditMarkdownLine({ creator, sourceTitle, license }) {
   return `- ${creator} - "${sourceTitle}" (${license})`;
 }
-
-export function modelCreditsMarkdown() {
-  return MODEL_CREDITS.map(modelCreditMarkdownLine).join("\n");
-}

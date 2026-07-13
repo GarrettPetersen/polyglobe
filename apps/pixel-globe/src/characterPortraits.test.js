@@ -11,6 +11,7 @@ import {
   PORTRAIT_ROLE_SKIN,
   applyPortraitPaletteSwap,
   assignNpcShipCaptains,
+  assignPortCityCharacterFromSource,
   assignPortCityCharacters,
   characterExpression,
   classifyPortraitRoles,
@@ -476,6 +477,24 @@ test("port assignments use regional portrait and tone pools", () => {
   assert.ok(["black", "dark-brown", "silver"].includes(polynesian.hairToneId));
   assert.equal(polynesian.nameCulture, "polynesian");
   assert.equal(usedNames.size, 3);
+});
+
+test("a fixed port source keeps the Viking helmet portrait and a Nordic name", () => {
+  const city = {
+    tileId: 64,
+    city: "Hafnarfjordur",
+    country: "Iceland",
+    cityType: "northern-european",
+    lat: 64.0671,
+    lon: -21.9547
+  };
+  const sourceId = "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-9";
+  const character = assignPortCityCharacterFromSource(city, sourceId, GENERATED_MANIFEST, new Set());
+
+  assert.equal(character.sourceId, sourceId);
+  assert.equal(character.region, "northern-europe");
+  assert.equal(character.nameCulture, "nordic");
+  assert.equal(character.role, "factor");
 });
 
 test("ship captains use pirate portraits only for pirate crews", () => {

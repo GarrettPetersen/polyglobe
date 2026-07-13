@@ -40,6 +40,44 @@ test("sunset mapping pushes the whole palette toward red and gold", () => {
   assert.ok(new Set(mapped).size >= 8);
 });
 
+test("dominant water and land colors stay distinct at sunset and night", () => {
+  const terrainPairs = [
+    ["323353", "4c3e24"],
+    ["9babb2", "a2a947"],
+    ["0b8a8f", "676633"],
+    ["0b5e65", "165a4c"],
+    ["0eaf9b", "239063"],
+    ["30e1b9", "f9c22b"]
+  ];
+  for (const [water, land] of terrainPairs) {
+    assert.notEqual(nightPaletteHexForSourceHex(water), nightPaletteHexForSourceHex(land), `${water}/${land} night`);
+    assert.notEqual(sunsetPaletteHexForSourceHex(water), sunsetPaletteHexForSourceHex(land), `${water}/${land} sunset`);
+  }
+});
+
+test("dominant water and land colors stay distinct throughout both transitions", () => {
+  const terrainPairs = [
+    ["323353", "4c3e24"],
+    ["9babb2", "a2a947"],
+    ["0b8a8f", "676633"],
+    ["0b5e65", "165a4c"],
+    ["0eaf9b", "239063"],
+    ["30e1b9", "f9c22b"]
+  ];
+  for (const mode of ["sunset", "night"]) {
+    for (let stage = 1; stage <= 16; stage++) {
+      for (const [water, land] of terrainPairs) {
+        const pixels = new Uint8ClampedArray([...rgba(water), ...rgba(land)]);
+        applyDayNightPaletteGrade(pixels, 2, 1, {
+          sunset: mode === "sunset" ? stage / 16 : 0,
+          night: mode === "night" ? stage / 16 : 0
+        });
+        assert.notEqual(rgbHex(pixels, 0), rgbHex(pixels, 4), `${water}/${land} ${mode} stage ${stage}`);
+      }
+    }
+  }
+});
+
 test("palette grading leaves day pixels untouched and fully maps night pixels", () => {
   const day = new Uint8ClampedArray([77, 155, 230, 255, 249, 194, 43, 255]);
   const unchanged = new Uint8ClampedArray(day);
@@ -104,6 +142,11 @@ function rgbHex(data, offset) {
   return [data[offset], data[offset + 1], data[offset + 2]]
     .map((channel) => channel.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function rgba(hex) {
+  const { r, g, b } = parseHex(hex);
+  return [r, g, b, 255];
 }
 
 function average(values) {

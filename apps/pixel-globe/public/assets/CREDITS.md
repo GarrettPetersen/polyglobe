@@ -17,8 +17,18 @@
 - Dragon Studio
 - Floraphonic
 - Freesound Community
+- Freesound Community / druidus (Freesound) - "Lightning Strike" (Pixabay 29683, Pixabay Content License; trimmed)
 - SoundsForYou
 - Tanweraman
 - Universfield
 - u_7hpxkdroz2
 - Dominik Braun - "Failure Sound" from "107 Free Retro Game Sounds" (CC BY 4.0)
+
+## Pixel Art Icons
+- Free Game Assets - "Free Pirate Stuff Icons" (CraftPix Freebie License)
+- LetheDiana - "Pixel Items_300+" (itch.io asset license)
+- Glionox - "Items pack (x16)" (itch.io asset license)
+- alexkovacsart - "100 Free Pixel Art Foods!" (CC BY 4.0)
+- KeifooPX - "99 various ingredients +" (itch.io asset license)
+- Hollow Dolphin - "Fishing Icon Pack 16x16" (itch.io asset license)
+- Selected icons were modified and palette-adapted to Resurrect 64. Source links are recorded in the public game icon manifest.

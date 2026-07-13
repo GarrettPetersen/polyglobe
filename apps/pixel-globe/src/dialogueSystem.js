@@ -10,7 +10,9 @@ import {
   grantLetterOfMarque,
   letterOfMarqueStatus,
   portMemory,
+  playerCannonEquipment,
   playerFishingNet,
+  purchaseCannonEquipment,
   purchaseFishingNet,
   questStateForCity,
   restockShipLoadoutAtPort,
@@ -27,8 +29,21 @@ import {
 import { factionById } from "./factions.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
-import { shipStatsForSlug } from "./shipStats.js";
+import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { FISHING_NETS } from "./fishingNets.js";
+import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
+import {
+  EQUIPMENT_STOCK_CANNON,
+  EQUIPMENT_STOCK_FISHING_NET,
+  equipmentStockAtPort
+} from "./portEquipment.js";
+import {
+  VIKING_LONGSHIP_PRICE,
+  VIKING_LONGSHIP_SLUG,
+  deliverVikingLongshipQuestCargo,
+  isVikingLongshipQuestPort,
+  vikingLongshipQuestState
+} from "./vikingLongshipQuest.js";
 
 export function createPortDialogueSession(city, options = {}) {
   return {
@@ -238,13 +253,16 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
-  if (session.nodeId === "nets") return fishingNetView(session, city, gameState);
+  if (session.nodeId === "equipment") return equipmentView(session, city, gameState, economy);
+  if (session.nodeId === "equipment-nets") return fishingNetView(session, city, gameState, economy);
+  if (session.nodeId === "equipment-cannons") return cannonEquipmentView(session, city, gameState, economy);
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
+  if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
@@ -285,6 +303,15 @@ export function selectPortDialogueOption(
   if (action.type === "purchase-ship") {
     return { closed: false, action };
   }
+  if (action.type === "purchase-viking-longship") {
+    return { closed: false, action };
+  }
+  if (action.type === "deliver-viking-material") {
+    const result = deliverVikingLongshipQuestCargo(gameState, city, action.stageId, context);
+    session.feedback = `Delivered ${result.completedStage.goodLabel} x${result.completedStage.quantity}.`;
+    session.selectedIndex = 0;
+    return { closed: false, vikingLongshipDelivery: result };
+  }
   if (action.type === "select-loadout") {
     if (!context.shipStats) throw new Error("Selecting a loadout requires player ship stats");
     const result = restockShipLoadoutAtPort(gameState, city, context.shipStats, action.loadoutId, context);
@@ -302,11 +329,18 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "buy-net") {
-    const result = purchaseFishingNet(gameState, city, action.netId, context);
+    const result = purchaseFishingNet(gameState, economy, city, action.netId, context);
     session.feedback = `${result.net.label} fitted for ${result.price} db.`;
-    session.nodeId = "nets";
+    session.nodeId = "equipment-nets";
     session.selectedIndex = 0;
     return { closed: false, fishingNetPurchase: result };
+  }
+  if (action.type === "buy-cannon-equipment") {
+    const result = purchaseCannonEquipment(gameState, economy, city, action.equipmentId, context);
+    session.feedback = `${result.equipment.label} fitted for ${result.price} db.`;
+    session.nodeId = "equipment-cannons";
+    session.selectedIndex = 0;
+    return { closed: false, cannonEquipmentPurchase: result };
   }
   if (action.type === "sell") {
     const result = sellGood(gameState, economy, city, action.goodId, 1, context);
@@ -539,7 +573,7 @@ function rootView(session, city, gameState, economy, context) {
   const canCompleteQuest = activeQuest?.destinationTileId === city.tileId;
   const options = [
     option(pirateHideout ? "Buy doubtful goods" : "Buy goods", { type: "node", nodeId: "buy" }),
-    option("Fishing gear", { type: "node", nodeId: "nets" }),
+    option("Equipment", { type: "node", nodeId: "equipment" }),
     ...(context.shipStats ? [option(pirateHideout ? "Refit and provision" : "Ship loadout", {
       type: "node",
       nodeId: "loadout"
@@ -553,6 +587,12 @@ function rootView(session, city, gameState, economy, context) {
       })]
       : [])
   ];
+  if (isVikingLongshipQuestPort(city) && !session.disguisedEntry) {
+    options.splice(4, 0, option("Speak with the historical enthusiast", {
+      type: "node",
+      nodeId: "viking-longship"
+    }));
+  }
   if (context.passengerOffer && !session.disguisedEntry && !pirateHideout) {
     options.splice(2, 0, option(`Speak with ${passengerName(context.passengerOffer)}`, {
       type: "open-passenger",
@@ -580,9 +620,98 @@ function rootView(session, city, gameState, economy, context) {
   };
 }
 
-function fishingNetView(session, city, gameState) {
+function vikingLongshipView(session, city, gameState, context) {
+  const quest = vikingLongshipQuestState(gameState, city);
+  if (!quest) throw new Error("Viking longship dialogue opened outside Hafnarfjordur");
+  const speaker = `${characterName(city.character)}, historical enthusiast`;
+  if (!quest.unlocked) {
+    const stage = quest.stage;
+    const introductions = [
+      "I am a historical enthusiast, reconstructing a seaworthy Norse longship from the old sagas. First I need enough wool for",
+      "The striped sail is ready. Next I need straight, seasoned timber for",
+      "The oar bank is fitted. One last material remains: iron for"
+    ];
+    return {
+      speaker,
+      expressionId: quest.canDeliver ? "pleased" : "attentive",
+      text: `${introductions[quest.stageIndex]} ${stage.purpose}. Bring me ${stage.quantity} ${stage.goodLabel.toLowerCase()}.`,
+      feedback: session.feedback,
+      options: [
+        option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+          type: "deliver-viking-material",
+          stageId: stage.id
+        }, {
+          disabled: !quest.canDeliver,
+          disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
+        }),
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
+
+  const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
+  const alreadyOwned = context.shipStats?.slug === VIKING_LONGSHIP_SLUG;
+  const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
+  const cannotAfford = gameState.doubloons < VIKING_LONGSHIP_PRICE;
+  const disabledReason = alreadyOwned
+    ? "You already command the reconstructed longship."
+    : cargoDoesNotFit
+      ? `Your current cargo will not fit its ${stats.cargoCapacity}-unit hold.`
+      : cannotAfford
+        ? `You need ${VIKING_LONGSHIP_PRICE - gameState.doubloons} more doubloons.`
+        : null;
+  const shipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
+  return {
+    speaker,
+    expressionId: alreadyOwned ? "pleased" : "happy",
+    text: `The reconstruction is complete: bright sail, working oars, shield rail, and a bow crew in place of cannon. I can part with her for ${VIKING_LONGSHIP_PRICE} doubloons.`,
+    feedback: session.feedback,
+    presentation: {
+      kind: "shipyard",
+      listing: {
+        id: "quest-viking-longship",
+        shipSlug: VIKING_LONGSHIP_SLUG,
+        shipLabel,
+        price: VIKING_LONGSHIP_PRICE
+      }
+    },
+    options: [
+      option(`Buy ${shipLabel}  ${VIKING_LONGSHIP_PRICE} db`, {
+        type: "purchase-viking-longship",
+        shipSlug: VIKING_LONGSHIP_SLUG
+      }, {
+        disabled: Boolean(disabledReason),
+        disabledReason
+      }),
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function equipmentView(session, city, gameState, economy) {
+  const nets = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS);
+  const cannonEquipment = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT);
+  const cannonArmed = Boolean(gameState.ship && gameState.ship.cannonCapacity > 0);
+  return {
+    speaker: speakerName(city),
+    expressionId: feedbackExpressionId(session.feedback),
+    text: `Local outfitters carry ${nets.length} net type${nets.length === 1 ? "" : "s"} and ${cannonEquipment.length} cannon fitting${cannonEquipment.length === 1 ? "" : "s"}. Prosperous ports attract rarer equipment.`,
+    feedback: session.feedback,
+    options: [
+      option("Fishing nets", { type: "node", nodeId: "equipment-nets" }),
+      option("Cannon battery", { type: "node", nodeId: "equipment-cannons" }, {
+        disabled: !cannonArmed,
+        disabledReason: "Your ship has no cannon battery to refit."
+      }),
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function fishingNetView(session, city, gameState, economy) {
   const current = playerFishingNet(gameState);
-  const rows = FISHING_NETS.map((net) => {
+  const stock = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS);
+  const rows = stock.map((net) => {
     const fitted = net.id === current.id;
     const inferior = net.tier < current.tier;
     const cannotAfford = gameState.doubloons < net.price;
@@ -603,11 +732,49 @@ function fishingNetView(session, city, gameState) {
       disabledReason
     });
   });
-  rows.push(option("Back", { type: "node", nodeId: "root" }));
+  rows.push(option("Back", { type: "node", nodeId: "equipment" }));
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: `Current gear: ${current.label}. Better nets improve catch odds and maximum haul. Purse ${gameState.doubloons} db.`,
+    text: `Current gear: ${current.label}. This port stocks ${stock.length} net type${stock.length === 1 ? "" : "s"}. Purse ${gameState.doubloons} db.`,
+    feedback: session.feedback,
+    optionHeight: 34,
+    options: rows
+  };
+}
+
+function cannonEquipmentView(session, city, gameState, economy) {
+  if (!gameState.ship || gameState.ship.cannonCapacity <= 0) {
+    throw new Error("Cannon equipment opened for a ship without cannon capacity");
+  }
+  const current = playerCannonEquipment(gameState);
+  const stock = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT);
+  const rows = stock.map((equipment) => {
+    const fitted = equipment.id === current.id;
+    const inferior = equipment.tier < current.tier;
+    const cannotAfford = gameState.doubloons < equipment.price;
+    const disabledReason = fitted
+      ? "This cannon battery is already fitted."
+      : inferior
+        ? `Your ${current.label} is superior.`
+        : cannotAfford
+          ? `Need ${equipment.price - gameState.doubloons} more doubloons.`
+          : null;
+    const priceLabel = fitted ? "FITTED" : `${equipment.price} db`;
+    return option(`${fitted ? "* " : ""}${equipment.label}  ${priceLabel}`, {
+      type: "buy-cannon-equipment",
+      equipmentId: equipment.id
+    }, {
+      detail: `RELOAD ${equipment.reloadSeconds.toFixed(2)}S  DAMAGE x${equipment.damageMultiplier.toFixed(2)}  RANGE x${equipment.rangeMultiplier.toFixed(2)}`,
+      disabled: fitted || inferior || cannotAfford,
+      disabledReason
+    });
+  });
+  rows.push(option("Back", { type: "node", nodeId: "equipment" }));
+  return {
+    speaker: speakerName(city),
+    expressionId: feedbackExpressionId(session.feedback),
+    text: `Current battery: ${current.label}. Faster locks and longer culverins improve reload, damage, and range. Purse ${gameState.doubloons} db.`,
     feedback: session.feedback,
     optionHeight: 34,
     options: rows

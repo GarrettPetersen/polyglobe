@@ -72,9 +72,13 @@ test("shipyard previews expose the full vessel specification", () => {
 test("ship specifications explain oar and combined propulsion", () => {
   const canoe = createShipyardShipView("mesoamerican-dugout-canoe");
   const galley = createShipyardShipView("mediterranean-galley");
+  const longship = createShipyardShipView("viking-longship");
 
   assert.equal(canoe.propulsionSummary, "OAR / NO DEAD ZONE");
   assert.equal(galley.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
+  assert.equal(longship.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
+  assert.equal(longship.armamentLabel, "ARROWS");
+  assert.equal(longship.armamentSummary, "VOLLEY");
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {
@@ -130,17 +134,19 @@ test("ship papers include active deliveries and letters of marque", () => {
     maxHitPoints: stats.hitPoints
   }, gameState);
 
-  assert.deepEqual(view.papers.map((paper) => paper.kind), ["delivery", "item", "marque"]);
+  assert.deepEqual(view.papers.map((paper) => paper.kind), ["delivery", "item", "item", "marque"]);
   assert.equal(view.papers[0].issuer, "Kingdom of Portugal");
   assert.equal(view.papers[0].route, "Lisbon -> Porto");
   assert.equal(view.papers[0].detail, "Reward 120 DB");
   assert.equal(view.papers[1].title, "Basic cast net");
   assert.equal(view.papers[1].issuer, "Ship stores");
   assert.match(view.papers[1].detail, /max haul 3/);
-  assert.equal(view.papers[2].issuer, "Kingdom of England");
-  assert.equal(view.papers[2].title, "English letter of marque");
-  assert.equal(view.papers[2].simMinute, 1440);
-  assert.equal(shipPapersPage(view, 0).rows.length, 3);
+  assert.equal(view.papers[2].title, "Standard ordnance");
+  assert.match(view.papers[2].detail, /Reload 1\.15s/);
+  assert.equal(view.papers[3].issuer, "Kingdom of England");
+  assert.equal(view.papers[3].title, "English letter of marque");
+  assert.equal(view.papers[3].simMinute, 1440);
+  assert.equal(shipPapersPage(view, 0).rows.length, 4);
 });
 
 test("ship papers show an active passenger aboard", () => {

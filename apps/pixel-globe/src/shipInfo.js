@@ -8,6 +8,7 @@ import {
   survivalStatus
 } from "./gameState.js";
 import { factionById } from "./factions.js";
+import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 import {
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_OAR_SAIL,
@@ -65,6 +66,7 @@ export function createShipInfoView(ship, gameState) {
   });
   const activeCannons = gameState.ship?.cannons ?? stats.cannons;
   const activeCrew = gameState.ship?.crew ?? stats.crewCapacity;
+  const armament = shipArmamentSummary(stats, activeCannons);
   return {
     slug: ship.typeSlug,
     label: shipLabelForSlug(ship.typeSlug),
@@ -73,6 +75,8 @@ export function createShipInfoView(ship, gameState) {
     maxHull: Math.round(ship.maxHitPoints),
     cannons: activeCannons,
     maxCannons: stats.cannons,
+    armamentLabel: armament.label,
+    armamentSummary: armament.summary,
     crew: activeCrew,
     crewCapacity: stats.crewCapacity,
     loadoutId: gameState.ship?.loadoutId || null,
@@ -98,6 +102,7 @@ export function createShipInfoView(ship, gameState) {
 
 export function createShipyardShipView(slug) {
   const stats = shipStatsForSlug(slug);
+  const armament = shipArmamentSummary(stats, stats.cannons);
   return {
     slug,
     label: shipLabelForSlug(slug),
@@ -105,6 +110,8 @@ export function createShipyardShipView(slug) {
     maxHull: stats.hitPoints,
     cannons: stats.cannons,
     maxCannons: stats.cannons,
+    armamentLabel: armament.label,
+    armamentSummary: armament.summary,
     crew: stats.crewCapacity,
     crewCapacity: stats.crewCapacity,
     cargoUsed: 0,
@@ -120,6 +127,17 @@ export function createShipyardShipView(slug) {
       windward: shipPerformanceRating(stats, "windward")
     })
   };
+}
+
+export function shipArmamentSummary(stats, activeCannons) {
+  if (!stats || typeof stats !== "object") throw new Error("Ship armament summary requires ship stats");
+  if (stats.navalWeaponKind === NAVAL_WEAPON_ARROW) {
+    return Object.freeze({ label: "ARROWS", summary: "VOLLEY" });
+  }
+  if (!Number.isInteger(activeCannons) || activeCannons < 0 || activeCannons > stats.cannons) {
+    throw new Error(`Invalid active cannon count for ${stats.slug}: ${activeCannons}`);
+  }
+  return Object.freeze({ label: "GUNS", summary: `${activeCannons}/${stats.cannons}` });
 }
 
 export function shipPerformanceRating(stats, ratingName) {

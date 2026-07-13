@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   chooseNpcEscapeDirection,
+  chooseNpcObstacleAvoidanceDirection,
   chooseNpcSailingDirection
 } from "./npcVisualNavigation.js";
 
@@ -63,6 +64,35 @@ test("NPC escape navigation keeps routing around the committed side", () => {
   assert.ok(escape);
   assert.equal(escape.side, -1);
   assert.ok(escape.direction.y < 0);
+});
+
+test("NPC obstacle navigation takes the committed clear side around an island", () => {
+  const avoidance = chooseNpcObstacleAvoidanceDirection({
+    desiredDirection: { x: 1, y: 0 },
+    currentDirection: { x: 1, y: 0 },
+    preferredSide: 1,
+    clearDistanceFor: (direction) => {
+      if (direction.y > 0.5) return 72;
+      if (direction.y < -0.5) return 72;
+      return 12;
+    }
+  });
+
+  assert.ok(avoidance);
+  assert.equal(avoidance.side, 1);
+  assert.ok(avoidance.direction.y > 0.5);
+  assert.equal(avoidance.clearDistance, 72);
+});
+
+test("NPC obstacle navigation can reverse out of an enclosed shoreline", () => {
+  const avoidance = chooseNpcObstacleAvoidanceDirection({
+    desiredDirection: { x: 1, y: 0 },
+    currentDirection: { x: 1, y: 0 },
+    clearDistanceFor: (direction) => direction.x < -0.95 ? 54 : 0
+  });
+
+  assert.ok(avoidance);
+  assert.ok(avoidance.direction.x < -0.95);
 });
 
 test("NPC sailing uses a direct course outside the upwind no-go angle", () => {

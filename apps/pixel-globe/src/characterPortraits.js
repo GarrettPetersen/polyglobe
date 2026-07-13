@@ -172,6 +172,30 @@ export function assignPortCityCharacters(portCities, manifest, usedNames) {
   return assignments;
 }
 
+export function assignPortCityCharacterFromSource(city, sourceId, manifest, usedNames) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (!city || typeof city !== "object") throw new Error("Fixed port character requires a city");
+  const source = manifest.sourceCharacters.find((entry) => entry.id === sourceId);
+  if (!source) throw new Error(`Missing fixed port portrait source: ${sourceId}`);
+  const key = stableCityKey(city);
+  const region = portraitRegionForCity(city);
+  const character = assignCharacterVariant(key, region, [source], manifest, new Set());
+  return {
+    ...character,
+    ...assignRegionalCharacterName({
+      identityKey: key,
+      city,
+      sourceId: character.sourceId,
+      sourceLabel: character.sourceLabel,
+      usedNames
+    }),
+    cityKey: key,
+    role: "factor",
+    personalityId: portPersonalityForKey(key)
+  };
+}
+
 export function assignNpcShipCaptains(npcShips, manifest, usedNames) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);

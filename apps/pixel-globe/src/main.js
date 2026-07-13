@@ -45,6 +45,7 @@ import {
 } from "./shipPropulsion.js";
 import {
   assignNpcShipCaptains,
+  assignPortCityCharacterFromSource,
   assignPortCityCharacters,
   characterExpression,
   generatePassengerCharacter,
@@ -57,11 +58,11 @@ import {
   resolvePlayerCharacterIdentityKey
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
-import { modelCreditsMarkdown } from "./modelCredits.js";
 import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
   advanceGameDiplomacy,
+  applySurvivalDeprivation,
   attemptPortDisguise,
   cargoFree,
   cargoUsed,
@@ -75,6 +76,7 @@ import {
   hasDiscovery,
   initializeProvisionalShipLoadout,
   loseCrew,
+  playerCannonEquipment,
   playerFishingNet,
   pirateHideoutsVisibleToPlayer,
   portEntryStatus,
@@ -178,9 +180,16 @@ import {
 } from "./riverNavigation.js";
 import {
   chooseNpcEscapeDirection,
+  chooseNpcObstacleAvoidanceDirection,
   chooseNpcSailingDirection
 } from "./npcVisualNavigation.js";
 import { compareShipDrawCalls } from "./shipDrawOrder.js";
+import {
+  SHIP_SINK_EFFECT_DURATION_MS,
+  createShipSinkEffect,
+  shipSinkEffectComplete,
+  shipSinkFrame
+} from "./shipSinking.js";
 import { shipLightStrengthsForSunAltitude } from "./shipLighting.js";
 import {
   STORM_ACTIVE_INTENSITY,
@@ -193,12 +202,38 @@ import {
   stormWindStrength
 } from "./stormSystem.js";
 import {
+  consumeStormLightningFlash,
+  createStormLightningState,
+  updateStormLightning
+} from "./stormLightning.js";
+import {
   compareTerrainDrawCalls,
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
-import { pixelTextOrigin, snapPointToTransformedPixelGrid } from "./pixelText.js";
+import {
+  hardenPixelTextAlpha,
+  pixelTextOrigin,
+  pixelTextRasterHeight,
+  snapPointToTransformedPixelGrid
+} from "./pixelText.js";
+import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
+import {
+  globeWaterHexWaveOffset,
+  localWaterHexWaveOffset
+} from "./waterHexWave.js";
 import { clampMenuIndex, stepMenuIndex } from "./menuNavigation.js";
+import {
+  GAME_ICON_ASSET_VERSION,
+  GAME_ICON_SIZE,
+  dialogueOptionIconId,
+  gameIconAtlasDimensions,
+  gameIconAtlasRect,
+  gameIconIds,
+  menuLabelIconId,
+  startMenuIconId,
+  tradeGoodIconId
+} from "./gameIcons.js";
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import {
   dialogueOptionLayout,
@@ -299,6 +334,7 @@ import {
   FISHING_NET_FRAME_COUNT,
   FISHING_NET_FRAME_SIZE,
   canStartFishing,
+  fishingActionLabel,
   fishingAnimationState,
   fishingCatchChance,
   fishingCatchSucceeds,
@@ -307,12 +343,41 @@ import {
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 import { gamepadControlFrame } from "./controllerInput.js";
-import { broadsideArcGeometry, pointInBroadsideArc } from "./broadsideControls.js";
+import {
+  broadsideArcGeometry,
+  broadsideReloadGeometry,
+  pointInBroadsideArc
+} from "./broadsideControls.js";
 import {
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
   navalWeaponForShip
 } from "./navalWeapons.js";
+import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
+import {
+  LAKE_BATTLE_PHASE_ACTIVE,
+  LAKE_BATTLE_PLAYER_ID,
+  LAKE_BATTLE_SHIP_SLUGS,
+  createLakeBattle,
+  createLakeBattleArenaMap,
+  drainLakeBattleEvents,
+  fireLakeBattleBroadside,
+  lakeBattleHeadingVector,
+  lakeBattleProjectilePoint,
+  lakeBattleWaterAt,
+  lakeBattleWeaponRange,
+  lakeBattleWindFlowDirection,
+  resizeLakeBattle,
+  updateLakeBattle
+} from "./lakeBattle.js";
+import { lakeBattleHudLayout } from "./lakeBattleHud.js";
+import {
+  VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
+  VIKING_LONGSHIP_PRICE,
+  VIKING_LONGSHIP_SLUG,
+  isVikingLongshipQuestPort,
+  vikingLongshipUnlocked
+} from "./vikingLongshipQuest.js";
 import {
   SHORE_SCAVENGE_CASUALTY,
   SHORE_SCAVENGE_FOOD,
@@ -434,9 +499,6 @@ const NPC_STORM_SHELTER_SPEED_PX = 7;
 const NPC_STORM_FAR_TARGET_PX = 120;
 const NPC_RIVER_CONVEYOR_CENTERING_SPEED_PX = 9;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
-const NPC_VISUAL_ESCAPE_ANGLES_RAD = [
-  105, -105, 120, -120, 135, -135, 150, -150, 165, -165, 180
-].map((degrees) => degrees * Math.PI / 180);
 const NPC_VISUAL_UPDATE_INTERVAL_SECONDS = 1 / 30;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
@@ -460,7 +522,6 @@ const NPC_HAIL_CLICK_PAD_PX = 4;
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
-const CANNON_BROADSIDE_COOLDOWN_SECONDS = 1.15;
 const CANNON_MUZZLE_SIDE_OFFSET_PX = 8;
 const CANNON_MUZZLE_FORE_AFT_SPAN_PX = 13;
 const CANNON_RANGE_PX = 74;
@@ -514,10 +575,11 @@ const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-2";
-const VEHICLE_ASSET_VERSION = "rowing-complete-1";
+const VEHICLE_ASSET_VERSION = "ship-sink-depth-1";
 const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const ROWING_SHIP_ANIMATION_SPECS = new Map([
   ["mediterranean-galley", Object.freeze({ frames: 4, frameMs: 190, volume: 0.14, playbackRate: 0.88 })],
+  ["viking-longship", Object.freeze({ frames: 4, frameMs: 175, volume: 0.14, playbackRate: 0.96 })],
   ["mesoamerican-dugout-canoe", Object.freeze({ frames: 4, frameMs: 165, volume: 0.11, playbackRate: 1.08 })]
 ]);
 const CITY_ASSET_VERSION = "city-types-2";
@@ -620,6 +682,7 @@ const CITY_TYPE_NORTHERN_EUROPEAN_COUNTRIES = new Set([
   "France",
   "Germany",
   "Hungary",
+  "Iceland",
   "Ireland",
   "Lithuania",
   "Netherlands",
@@ -714,7 +777,7 @@ const SURVIVAL_PANEL_H = 42;
 const SURVIVAL_BAR_W = 46;
 const SURVIVAL_NOTICE_MS = 2400;
 const SURVIVAL_DAMAGE_INTERVAL_MINUTES = 12 * 60;
-const SURVIVAL_DEHYDRATION_DAMAGE = 1;
+const SURVIVAL_DEHYDRATION_CREW_LOSS = 1;
 const SURVIVAL_STARVATION_DAMAGE = 1;
 const DISCOVERIES_BUTTON_SIZE = 24;
 let DISCOVERIES_PANEL_W = 300;
@@ -761,32 +824,24 @@ const START_MENU_BUTTON_H = 30;
 const START_MENU_BUTTON_GAP = 8;
 const START_MENU_ACTION_CONTINUE = "continue";
 const START_MENU_ACTION_NEW_GAME = "new-game";
+const START_MENU_ACTION_LAKE_BATTLE = "lake-battle";
 const START_MENU_ACTION_PAST_VOYAGES = "past-voyages";
 const START_MENU_ACTION_OPTIONS = "options";
 const START_MENU_ACTION_CREDITS = "credits";
+const LAKE_BATTLE_SCREEN_SETUP = "setup";
+const LAKE_BATTLE_SCREEN_ACTIVE = "active";
+const LAKE_BATTLE_SCREEN_PAUSED = "paused";
+const LAKE_BATTLE_SCREEN_SINKING = "sinking";
+const LAKE_BATTLE_SCREEN_RESULT = "result";
+const LAKE_BATTLE_SETUP_PLAYER_ROW = 0;
+const LAKE_BATTLE_SETUP_ENEMY_ROW = 1;
+const LAKE_BATTLE_SETUP_BEGIN_ROW = 2;
+const LAKE_BATTLE_SETUP_BACK_ROW = 3;
+const LAKE_BATTLE_SETUP_ROW_COUNT = 4;
+const LAKE_BATTLE_PAUSE_ACTIONS = Object.freeze(["RESUME", "RESTART", "CHOOSE SHIPS", "OPTIONS", "START MENU"]);
+const LAKE_BATTLE_RESULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE SHIPS", "START MENU"]);
 const AUTOSAVE_INTERVAL_MS = 30000;
 const CREDITS_MARKDOWN_URL = "/assets/CREDITS.md";
-const CREDITS_FALLBACK_MARKDOWN = `# Marque & Reprisal Credits
-
-## Created by
-- Garrett Petersen
-
-## Music
-- YouFulca
-
-## 3D Models
-${modelCreditsMarkdown()}
-
-## Sound Effects
-- Alex Jauk
-- Dragon Studio
-- Floraphonic
-- Freesound Community
-- SoundsForYou
-- Tanweraman
-- Universfield
-- u_7hpxkdroz2
-- Dominik Braun`;
 let CREDITS_PANEL_W = 338;
 let CREDITS_PANEL_H = 218;
 let CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
@@ -803,14 +858,19 @@ const GAME_OVER_PANEL_H = 178;
 let GAME_OVER_PANEL_X = Math.floor((SCREEN_W - GAME_OVER_PANEL_W) / 2);
 let GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
-const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
-const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
-const PIXEL_FONT_MONO = "\"Dogica\", \"zpix\", monospace";
-const PIXEL_FONT_BODY_8 = `8px ${PIXEL_FONT_BODY}`;
-const PIXEL_FONT_BODY_10 = `10px ${PIXEL_FONT_BODY}`;
-const PIXEL_FONT_UI_8 = `8px ${PIXEL_FONT_UI}`;
-const PIXEL_FONT_UI_10 = `10px ${PIXEL_FONT_UI}`;
-const PIXEL_FONT_MONO_8 = `8px ${PIXEL_FONT_MONO}`;
+const PIXEL_FONT_SMALL_8 = "8px \"Silkscreen\", monospace";
+const PIXEL_FONT_DIALOGUE_8 = "8px \"Dogica\", monospace";
+const PIXEL_TEXT_RASTER_CACHE_LIMIT = 2048;
+const PIRATE_MENU_PAPER = "#ead8b2";
+const PIRATE_MENU_PAPER_BUTTON = "#d6bd8f";
+const PIRATE_MENU_PAPER_SELECTED = "#fbb954";
+const PIRATE_MENU_INK = "#2f241c";
+const PIRATE_MENU_INK_MUTED = "#715033";
+const PIRATE_MENU_CHART_LINE = "#547e64";
+const PIRATE_MENU_PAPER_INSET = "#d6bd8f";
+const PIRATE_MENU_PAPER_INSET_ALT = "#c9aa78";
+const PIRATE_MENU_DANGER = "#9e3e36";
+const PIRATE_MENU_SUCCESS = "#547e64";
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
@@ -853,12 +913,17 @@ const CAPTAIN_MENU_LABELS = Object.freeze([
   "DISCOVERIES",
   "OPTIONS"
 ]);
+const CAPTAIN_MENU_ICON_IDS = Object.freeze([
+  "menu:ship",
+  "menu:politics",
+  "menu:discoveries",
+  "menu:options"
+]);
 const CAPTAIN_MENU_PANEL_W = 224;
 const CAPTAIN_MENU_PANEL_H = 226;
-const UI_ASSET_VERSION = "discoveries-menu-1";
 const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "rowing-1";
+const SFX_ASSET_VERSION = "storm-lightning-2";
 const ANIMAL_ASSET_VERSION = "fishing-net-2";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
@@ -947,6 +1012,7 @@ const SFX_HARSH_WIND_URL = "/assets/sfx/dragon-studio-harsh-wind-515272.ogg";
 const SFX_WINTER_WIND_URL = "/assets/sfx/dragon-studio-winter-wind-402331.ogg";
 const SFX_DESERT_WIND_URL = "/assets/sfx/tanweraman-desert-wind-1-350398.ogg";
 const SFX_STORM_URL = "/assets/sfx/u_7hpxkdroz2-storm-461601.mp3";
+const SFX_LIGHTNING_URL = "/assets/sfx/freesound_community-lightning-strike-29683.ogg";
 const SFX_SAIL_FLAP_URL = "/assets/sfx/freesound_community-flag-6367.ogg";
 const SFX_UNDERWAY_URL = "/assets/sfx/freesound_community-sailboat-underway-48728.ogg";
 const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.ogg";
@@ -970,6 +1036,7 @@ const SFX_FISHING_SUCCESS_POOL_SIZE = 2;
 const SFX_FISHING_FAILURE_POOL_SIZE = 2;
 const SFX_SCAVENGE_SUCCESS_POOL_SIZE = 2;
 const SFX_SCAVENGE_FAILURE_POOL_SIZE = 2;
+const SFX_LIGHTNING_POOL_SIZE = 2;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_BOW_FIRE_VOLUME = 0.68;
 const SFX_ARROW_HIT_VOLUME = 0.54;
@@ -982,6 +1049,7 @@ const SFX_FISHING_SUCCESS_VOLUME = 0.58;
 const SFX_FISHING_FAILURE_VOLUME = 0.46;
 const SFX_SCAVENGE_SUCCESS_VOLUME = 0.62;
 const SFX_SCAVENGE_FAILURE_VOLUME = 0.44;
+const SFX_LIGHTNING_VOLUME = 0.72;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
 const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
@@ -1094,7 +1162,15 @@ shipOutlineCanvas.height = SHIP_SHEET_FRAME_SIZE;
 const shipOutlineCtx = shipOutlineCanvas.getContext("2d");
 if (!shipOutlineCtx) throw new Error("Marque & Reprisal could not create its ship outline context");
 shipOutlineCtx.imageSmoothingEnabled = false;
+const shipSinkSampleCanvas = document.createElement("canvas");
+shipSinkSampleCanvas.width = SHIP_SHEET_FRAME_SIZE;
+shipSinkSampleCanvas.height = SHIP_SHEET_FRAME_SIZE;
+const shipSinkSampleCtx = shipSinkSampleCanvas.getContext("2d", { willReadFrequently: true });
+if (!shipSinkSampleCtx) throw new Error("Marque & Reprisal could not create its ship sinking sample context");
+shipSinkSampleCtx.imageSmoothingEnabled = false;
+const shipSinkPixelCache = new WeakMap();
 const selectableOutlineCache = new WeakMap();
+const pixelTextRasterCache = new Map();
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 
 const keys = new Set();
@@ -1120,21 +1196,22 @@ let fishingAction = null;
 let survivalNotice = null;
 let images;
 let shipImage;
+let shipSinkDepthImage;
 let shipWakeAnchors;
 let shipWakeAnchorsBySlug;
 let shipLighting;
 const shipInfoImages = new Map();
 const shipInfoImagePromises = new Map();
-let settingsMenuIcon;
-let discoveriesMenuIcon;
+let gameIconAtlasImage;
+let gameIconOutlineAtlasImage;
 let worldDiscoveryImages;
 let cityImages;
 let factionFlagImages;
 let animalImages;
 let cityCatalog;
 let cityByTileId;
-let npcShipImages;
-let rowingShipImagesBySlug;
+let npcShipAssetsBySlug;
+let rowingShipAssetsBySlug;
 let npcSeaRoutes;
 let worldEconomy;
 let npcShipCaptains;
@@ -1191,6 +1268,7 @@ let localLayout;
 let minimap;
 let themeMusic = null;
 let soundEffects = null;
+const stormLightningState = createStormLightningState();
 const sailingAudioState = createSailingAudioState();
 const rowingCadenceState = createRowingCadenceState();
 let sailingTutorialState = createSailingTutorialState();
@@ -1204,6 +1282,11 @@ let gameState = null;
 let dialogueState = null;
 let dialogueLayout = createDialogueLayoutState();
 let startMenu = null;
+let lakeBattleMode = null;
+let lakeBattleTerrainChart = null;
+let lakeBattleTerrainChartKey = "";
+const lakeBattleShipAssets = new Map();
+const lakeBattleShipAssetPromises = new Map();
 let localSaveResult = { status: "empty", save: null, error: null };
 let voyageHistoryResult = { status: "ready", records: [], error: null };
 let hasStartedVoyage = false;
@@ -1228,6 +1311,7 @@ let stormDamageNotice = null;
 let combatNotice = null;
 let gameOverReason = null;
 let gameOverState = null;
+let worldShipSinkEffects = [];
 const portraitCanvasCache = new Map();
 const portraitPromiseCache = new Map();
 const grayscalePortraitCanvasCache = new WeakMap();
@@ -1235,6 +1319,7 @@ const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
 let windIndicatorState = null;
 let shipyardPurchaseListingId = null;
+let vikingLongshipPurchasePending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
 let lastStatusMs = 0;
@@ -1242,6 +1327,8 @@ let lastOverlayMs = 0;
 let cityFlagAnimationTick = -1;
 let waterAnimationClockMs = 0;
 let waterAnimationDrawTick = -1;
+const globeWaterHexWaveOffsetCache = new Map();
+const localWaterHexWaveOffsetCache = new Map();
 let fishAnimationDrawTick = -1;
 let precipParticleDrawTick = -1;
 let precipParticles = [];
@@ -1268,6 +1355,14 @@ screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
   if (isControlKey(event.key)) sailingTutorialInputMode = "keyboard";
+  if (lakeBattleMode && optionsMenu.isOpen) {
+    handleOptionsKeyDown(event);
+    return;
+  }
+  if (lakeBattleMode) {
+    handleLakeBattleKeyDown(event);
+    return;
+  }
   if (gameOverReason) {
     handleGameOverKeyDown(event);
     return;
@@ -1383,13 +1478,12 @@ async function main() {
   const shipSpriteKey = vehicleSpriteKeyForShipSlug(START_SHIP_SLUG);
   const [
     loadedImages,
-    loadedShipImage,
+    loadedShipSpriteAsset,
     loadedShipWakeAnchors,
     loadedShipLighting,
-    loadedNpcShipImages,
-    loadedRowingShipImages,
-    loadedSettingsMenuIcon,
-    loadedDiscoveriesMenuIcon,
+    loadedNpcShipAssets,
+    loadedRowingShipAssets,
+    loadedGameIconAtlas,
     loadedWorldDiscoveryImages,
     loadedCityImages,
     loadedFactionFlagImages,
@@ -1404,16 +1498,15 @@ async function main() {
   ] = await Promise.all([
     loadTerrainImages(),
     START_SHIP_SLUG_OVERRIDE
-      ? loadVehicleImage(`${shipSpriteKey}-16-headings`)
+      ? loadShipSpriteAsset(`${shipSpriteKey}-16-headings`, `Player ship: ${START_SHIP_SLUG}`)
       : Promise.resolve(null),
     loadShipWakeAnchors(),
     START_SHIP_SLUG_OVERRIDE
       ? loadShipLightingBake(shipSpriteKey)
       : Promise.resolve(null),
-    loadNpcShipImages(),
-    loadRowingShipImages(),
-    loadUiImage("settings_menu_icon"),
-    loadUiImage("discoveries_menu_icon"),
+    loadNpcShipAssets(),
+    loadRowingShipAssets(),
+    loadGameIconAtlas(),
     loadWorldDiscoveryImages(),
     loadCityImages(),
     loadFactionFlagImages(),
@@ -1421,23 +1514,21 @@ async function main() {
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
     loadNamedMountains(),
-    fetchText(CREDITS_MARKDOWN_URL, "credits").catch((error) => {
-      console.warn("[pixel-globe] failed to load credits markdown", error);
-      return "";
-    }),
+    fetchText(CREDITS_MARKDOWN_URL, "credits"),
     fetchEarthCache(),
     fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
   images = loadedImages;
-  shipImage = loadedShipImage;
+  shipImage = loadedShipSpriteAsset?.image || null;
+  shipSinkDepthImage = loadedShipSpriteAsset?.sinkDepthImage || null;
   shipWakeAnchorsBySlug = loadedShipWakeAnchors;
   shipWakeAnchors = requiredShipWakeAnchors(START_SHIP_SLUG);
   shipLighting = loadedShipLighting;
-  npcShipImages = loadedNpcShipImages;
-  rowingShipImagesBySlug = loadedRowingShipImages;
-  settingsMenuIcon = loadedSettingsMenuIcon;
-  discoveriesMenuIcon = loadedDiscoveriesMenuIcon;
+  npcShipAssetsBySlug = loadedNpcShipAssets;
+  rowingShipAssetsBySlug = loadedRowingShipAssets;
+  gameIconAtlasImage = loadedGameIconAtlas;
+  gameIconOutlineAtlasImage = createGameIconOutlineAtlas(loadedGameIconAtlas);
   worldDiscoveryImages = loadedWorldDiscoveryImages;
   cityImages = loadedCityImages;
   factionFlagImages = loadedFactionFlagImages;
@@ -1570,13 +1661,22 @@ async function main() {
       ? ` (${activeShipyardListings.map((yard) => `${yard.portName}: ${yard.listing.shipLabel}`).join(", ")})`
       : "")
   );
-  if (!shipImage || !shipLighting || playerShipSlug !== START_SHIP_SLUG) {
+  if (!shipImage || !shipSinkDepthImage || !shipLighting || playerShipSlug !== START_SHIP_SLUG) {
     const playerShipAssets = await loadShipAssetSet(playerShipSlug);
     shipImage = playerShipAssets.image;
+    shipSinkDepthImage = playerShipAssets.sinkDepthImage;
     shipLighting = playerShipAssets.lighting;
     shipWakeAnchors = requiredShipWakeAnchors(playerShipSlug);
   }
   portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest, usedCharacterNames);
+  const vikingLongshipPort = portCities.find(isVikingLongshipQuestPort);
+  if (!vikingLongshipPort) throw new Error("Hafnarfjordur is missing from the dockable 1522 port roster");
+  portCityCharacters.set(vikingLongshipPort.tileId, assignPortCityCharacterFromSource(
+    vikingLongshipPort,
+    VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
+    characterPortraitManifest,
+    usedCharacterNames
+  ));
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
     `${characterPortraitManifest.sourceCharacters.length} source portraits, ` +
@@ -1724,10 +1824,8 @@ async function loadPixelFonts() {
   }
 
   const requiredFonts = [
-    { label: "Tiny5", font: "8px \"Tiny5\"" },
     { label: "Silkscreen", font: "8px \"Silkscreen\"" },
-    { label: "Dogica", font: "8px \"Dogica\"" },
-    { label: "zpix", font: "12px \"zpix\"" }
+    { label: "Dogica", font: "8px \"Dogica\"" }
   ];
   await Promise.all(requiredFonts.map(({ font }) => document.fonts.load(font)));
   await document.fonts.ready;
@@ -1772,25 +1870,31 @@ function loadVehicleImage(key) {
   return loadAssetImage(`/assets/vehicles/${key}.png?v=${VEHICLE_ASSET_VERSION}`, `vehicle image: ${key}`);
 }
 
-async function loadNpcShipImages() {
+async function loadShipSpriteAsset(spriteKey, label) {
+  const [image, sinkDepthImage] = await Promise.all([
+    loadVehicleImage(spriteKey),
+    loadVehicleImage(`${spriteKey}-sink-depth`)
+  ]);
+  validateShipSpriteSheet(image, `${label} image`);
+  validateShipSpriteSheet(sinkDepthImage, `${label} sink-depth image`);
+  return Object.freeze({ image, sinkDepthImage });
+}
+
+async function loadNpcShipAssets() {
   const entries = await Promise.all(NPC_SHIP_SLUGS.map(async (slug) => {
     const key = `${vehicleSpriteKeyForShipSlug(slug)}-16-headings`;
-    const img = await loadVehicleImage(key);
-    validateShipSpriteSheet(img, `NPC ship image: ${slug}`);
-    return [slug, img];
+    return [slug, await loadShipSpriteAsset(key, `NPC ship: ${slug}`)];
   }));
   return new Map(entries);
 }
 
-async function loadRowingShipImages() {
+async function loadRowingShipAssets() {
   const entries = await Promise.all([...ROWING_SHIP_ANIMATION_SPECS].map(async ([slug, spec]) => {
-    const images = await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
+    const assets = await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
       const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-16-headings`;
-      const image = await loadVehicleImage(key);
-      validateShipSpriteSheet(image, `Rowing ship image: ${slug} frame ${frameIndex}`);
-      return image;
+      return loadShipSpriteAsset(key, `Rowing ship: ${slug} frame ${frameIndex}`);
     }));
-    return [slug, images];
+    return [slug, assets];
   }));
   return new Map(entries);
 }
@@ -1855,8 +1959,42 @@ function requiredShipWakeAnchors(slug) {
   return anchors;
 }
 
-function loadUiImage(key) {
-  return loadAssetImage(`/assets/ui/${key}.png?v=${UI_ASSET_VERSION}`, `UI image: ${key}`);
+async function loadGameIconAtlas() {
+  const image = await loadAssetImage(
+    `/assets/ui/game-icons.png?v=${GAME_ICON_ASSET_VERSION}`,
+    "game icon atlas"
+  );
+  const dimensions = gameIconAtlasDimensions();
+  validateImageDimensions(image, "game icon atlas", dimensions.width, dimensions.height);
+  return image;
+}
+
+function createGameIconOutlineAtlas(image) {
+  const dimensions = gameIconAtlasDimensions();
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = dimensions.width;
+  sourceCanvas.height = dimensions.height;
+  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sourceCtx) throw new Error("Could not create game icon outline source canvas");
+  sourceCtx.imageSmoothingEnabled = false;
+  sourceCtx.drawImage(image, 0, 0);
+  const source = sourceCtx.getImageData(0, 0, dimensions.width, dimensions.height);
+  const outlinePixels = buildPixelIconOutlinePixels({
+    sourcePixels: source.data,
+    width: dimensions.width,
+    height: dimensions.height,
+    cells: gameIconIds().map(gameIconAtlasRect)
+  });
+
+  const outlineCanvas = document.createElement("canvas");
+  outlineCanvas.width = dimensions.width;
+  outlineCanvas.height = dimensions.height;
+  const outlineCtx = outlineCanvas.getContext("2d");
+  if (!outlineCtx) throw new Error("Could not create game icon outline canvas");
+  const outline = outlineCtx.createImageData(dimensions.width, dimensions.height);
+  outline.data.set(outlinePixels);
+  outlineCtx.putImageData(outline, 0, 0);
+  return outlineCanvas;
 }
 
 async function loadAnimalImages() {
@@ -2704,6 +2842,17 @@ function runFrame(nowMs) {
   pollGamepadControls();
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   lastFrameMs = nowMs;
+  if (lakeBattleMode) {
+    updateWaterAnimation(nowMs);
+    updateLakeBattleModeFrame(dt, nowMs);
+    updateMusicContext(nowMs);
+    render(nowMs);
+    dirty = false;
+    lastStatusMs = nowMs;
+    lastOverlayMs = nowMs;
+    requestAnimationFrame(loop);
+    return;
+  }
   if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
@@ -2719,7 +2868,12 @@ function runFrame(nowMs) {
     if (updateSeagulls(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
     if (updatePrecipitationAnimation(nowMs)) dirty = true;
+    if (updateStormLightning(stormLightningState, {
+      nowMs,
+      intensity: playerStormIntensity()
+    })) dirty = true;
   }
+  if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
   if (hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
@@ -2798,6 +2952,7 @@ function startMenuActions() {
     id: START_MENU_ACTION_NEW_GAME,
     label: localSaveResult.status === "ready" ? "NEW GAME" : "START GAME"
   });
+  actions.push({ id: START_MENU_ACTION_LAKE_BATTLE, label: "SHIP BATTLE" });
   actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: "PAST VOYAGES" });
   actions.push({ id: START_MENU_ACTION_OPTIONS, label: "OPTIONS" });
   actions.push({ id: START_MENU_ACTION_CREDITS, label: "CREDITS" });
@@ -3075,6 +3230,11 @@ function setupSoundEffects() {
       SFX_SCAVENGE_FAILURE_POOL_SIZE,
       "unsuccessful shore scavenge"
     ),
+    lightning: createSoundPool(
+      SFX_LIGHTNING_URL,
+      SFX_LIGHTNING_POOL_SIZE,
+      "storm lightning"
+    ),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
     shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves"),
@@ -3154,6 +3314,10 @@ function startCombatMusicForThreat() {
 }
 
 function combatMusicIsActive(nowMs) {
+  if (lakeBattleMode && (
+    lakeBattleMode.battle?.phase === LAKE_BATTLE_PHASE_ACTIVE ||
+    lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING
+  )) return true;
   return nowMs < combatMusicUntilMs;
 }
 
@@ -3234,7 +3398,8 @@ function applyThemeAudioSettings() {
       ...soundEffects.fishingSuccess,
       ...soundEffects.fishingFailure,
       ...soundEffects.scavengeSuccess,
-      ...soundEffects.scavengeFailure
+      ...soundEffects.scavengeFailure,
+      ...soundEffects.lightning
     ]) {
       audio.muted = optionsMenu.muted;
     }
@@ -3260,6 +3425,10 @@ function playSoundEffect(pool, volume, playbackRate = 1) {
 function playCannonShotSound(broadsideCount) {
   const countGain = 0.72 + Math.min(0.28, Math.max(0, broadsideCount - 1) * 0.025);
   playSoundEffect(soundEffects?.cannon, SFX_CANNON_VOLUME * countGain, 0.94 + Math.random() * 0.1);
+}
+
+function playLightningStrikeSound() {
+  playSoundEffect(soundEffects?.lightning, SFX_LIGHTNING_VOLUME, 1);
 }
 
 function playBowFireSound() {
@@ -3639,18 +3808,19 @@ function toggleAudioMuted() {
 
 async function loadShipAssetSet(slug) {
   const shipSpriteKey = vehicleSpriteKeyForShipSlug(slug);
-  const [loadedShipImage, loadedShipLighting] = await Promise.all([
-    loadVehicleImage(`${shipSpriteKey}-16-headings`),
+  const [spriteAsset, loadedShipLighting] = await Promise.all([
+    loadShipSpriteAsset(`${shipSpriteKey}-16-headings`, `Player ship: ${slug}`),
     loadShipLightingBake(shipSpriteKey)
   ]);
   return {
-    image: loadedShipImage,
+    ...spriteAsset,
     lighting: loadedShipLighting
   };
 }
 
 function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false } = {}) {
   shipImage = assets.image;
+  shipSinkDepthImage = assets.sinkDepthImage;
   shipWakeAnchors = requiredShipWakeAnchors(slug);
   shipLighting = assets.lighting;
   if (ship) {
@@ -3798,6 +3968,483 @@ function stepShipInfoPage(direction) {
   dirty = true;
 }
 
+function createLakeBattleModeState() {
+  const playerIndex = LAKE_BATTLE_SHIP_SLUGS.indexOf("brigantine");
+  const enemyIndex = LAKE_BATTLE_SHIP_SLUGS.indexOf("caravel");
+  if (playerIndex < 0 || enemyIndex < 0) throw new Error("Lake battle default ships are missing from the armed roster");
+  return {
+    screen: LAKE_BATTLE_SCREEN_SETUP,
+    playerIndex,
+    enemyIndex,
+    selectedIndex: LAKE_BATTLE_SETUP_PLAYER_ROW,
+    battle: null,
+    sinkEffects: [],
+    resultReadyAtMs: null,
+    loading: false,
+    error: null,
+    hoverPoint: null,
+    rowRects: [],
+    leftArrowRects: [],
+    rightArrowRects: [],
+    actionRects: [],
+    pauseButtonRect: null
+  };
+}
+
+function openLakeBattleMode() {
+  lakeBattleMode = createLakeBattleModeState();
+  startMenu = null;
+  keys.clear();
+  clearPointerSteering();
+  syncCanvasAriaLabel();
+  preloadLakeBattleShipAsset(selectedLakeBattleSlug("player"));
+  preloadLakeBattleShipAsset(selectedLakeBattleSlug("enemy"));
+  dirty = true;
+}
+
+function closeLakeBattleModeToStartMenu() {
+  lakeBattleMode = null;
+  lakeBattleTerrainChart = null;
+  lakeBattleTerrainChartKey = "";
+  combatMusicUntilMs = 0;
+  startMenu = createStartMenuState();
+  syncCanvasAriaLabel();
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function selectedLakeBattleSlug(side) {
+  if (!lakeBattleMode) throw new Error("Lake battle mode is not open");
+  if (side === "player") return LAKE_BATTLE_SHIP_SLUGS[lakeBattleMode.playerIndex];
+  if (side === "enemy") return LAKE_BATTLE_SHIP_SLUGS[lakeBattleMode.enemyIndex];
+  throw new Error(`Unknown lake battle selection side: ${side}`);
+}
+
+function stepLakeBattleShipSelection(side, direction) {
+  if (!Number.isInteger(direction) || direction === 0) throw new Error(`Invalid lake battle selection step: ${direction}`);
+  const key = side === "player" ? "playerIndex" : side === "enemy" ? "enemyIndex" : null;
+  if (!key) throw new Error(`Unknown lake battle selection side: ${side}`);
+  const length = LAKE_BATTLE_SHIP_SLUGS.length;
+  lakeBattleMode[key] = ((lakeBattleMode[key] + direction) % length + length) % length;
+  lakeBattleMode.error = null;
+  preloadLakeBattleShipAsset(selectedLakeBattleSlug(side));
+  dirty = true;
+}
+
+function preloadLakeBattleShipAsset(slug) {
+  void ensureLakeBattleShipAsset(slug).catch(() => {
+    // ensureLakeBattleShipAsset reports the exact asset failure in the mode and console.
+  });
+}
+
+async function ensureLakeBattleShipAsset(slug) {
+  if (lakeBattleShipAssets.has(slug)) return lakeBattleShipAssets.get(slug);
+  const npcAsset = npcShipAssetsBySlug?.get(slug);
+  if (npcAsset) {
+    lakeBattleShipAssets.set(slug, npcAsset);
+    return npcAsset;
+  }
+  const pending = lakeBattleShipAssetPromises.get(slug);
+  if (pending) return pending;
+  const promise = loadShipSpriteAsset(
+    `${vehicleSpriteKeyForShipSlug(slug)}-16-headings`,
+    `Lake battle ship: ${slug}`
+  )
+    .then((asset) => {
+      lakeBattleShipAssets.set(slug, asset);
+      lakeBattleShipAssetPromises.delete(slug);
+      dirty = true;
+      return asset;
+    })
+    .catch((error) => {
+      lakeBattleShipAssetPromises.delete(slug);
+      if (lakeBattleMode) lakeBattleMode.error = `COULD NOT LOAD ${shipLabelForSlug(slug).toUpperCase()}`;
+      console.error(`[pixel-globe] lake battle ship asset failed: ${slug}`, error);
+      dirty = true;
+      throw error;
+    });
+  lakeBattleShipAssetPromises.set(slug, promise);
+  return promise;
+}
+
+async function beginLakeBattle() {
+  if (!lakeBattleMode || lakeBattleMode.loading) return;
+  const mode = lakeBattleMode;
+  mode.loading = true;
+  mode.error = null;
+  dirty = true;
+  try {
+    const playerSlug = selectedLakeBattleSlug("player");
+    const enemySlug = selectedLakeBattleSlug("enemy");
+    await Promise.all([
+      ensureLakeBattleShipAsset(playerSlug),
+      ensureLakeBattleShipAsset(enemySlug)
+    ]);
+    if (lakeBattleMode !== mode) return;
+    mode.battle = createLakeBattle({
+      width: SCREEN_W,
+      height: SCREEN_H,
+      playerSlug,
+      enemySlug
+    });
+    mode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+    mode.sinkEffects = [];
+    mode.resultReadyAtMs = null;
+    mode.selectedIndex = 0;
+    mode.loading = false;
+    mode.pauseButtonRect = null;
+    keys.clear();
+    clearPointerSteering();
+    startCombatMusicForThreat(Math.max(
+      shipStatsForSlug(playerSlug).cannons,
+      shipStatsForSlug(enemySlug).cannons
+    ) >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  } catch (error) {
+    if (lakeBattleMode !== mode) return;
+    mode.loading = false;
+    mode.error ||= "BATTLE COULD NOT START";
+    console.error("[pixel-globe] lake battle could not start", error);
+  }
+  dirty = true;
+}
+
+function restartLakeBattle() {
+  if (!lakeBattleMode) return;
+  const playerSlug = selectedLakeBattleSlug("player");
+  const enemySlug = selectedLakeBattleSlug("enemy");
+  if (!lakeBattleShipAssets.has(playerSlug) || !lakeBattleShipAssets.has(enemySlug)) {
+    throw new Error("Cannot restart lake battle without both selected ship assets");
+  }
+  lakeBattleMode.battle = createLakeBattle({
+    width: SCREEN_W,
+    height: SCREEN_H,
+    playerSlug,
+    enemySlug
+  });
+  lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+  lakeBattleMode.sinkEffects = [];
+  lakeBattleMode.resultReadyAtMs = null;
+  lakeBattleMode.selectedIndex = 0;
+  keys.clear();
+  clearPointerSteering();
+  startCombatMusicForThreat(Math.max(
+    shipStatsForSlug(playerSlug).cannons,
+    shipStatsForSlug(enemySlug).cannons
+  ) >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  dirty = true;
+}
+
+function returnLakeBattleToSetup() {
+  if (!lakeBattleMode) return;
+  lakeBattleMode.screen = LAKE_BATTLE_SCREEN_SETUP;
+  lakeBattleMode.battle = null;
+  lakeBattleMode.sinkEffects = [];
+  lakeBattleMode.resultReadyAtMs = null;
+  lakeBattleMode.selectedIndex = LAKE_BATTLE_SETUP_PLAYER_ROW;
+  lakeBattleMode.error = null;
+  combatMusicUntilMs = 0;
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function updateLakeBattleModeFrame(dt, nowMs) {
+  if (!lakeBattleMode || optionsMenu.isOpen) return false;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
+    if (!Number.isFinite(lakeBattleMode.resultReadyAtMs)) {
+      throw new Error("Lake battle sinking screen has no result deadline");
+    }
+    if (nowMs >= lakeBattleMode.resultReadyAtMs) {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_RESULT;
+      lakeBattleMode.selectedIndex = 0;
+    }
+    dirty = true;
+    return true;
+  }
+  if (lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
+  const battle = lakeBattleMode.battle;
+  if (!battle) throw new Error("Active lake battle screen has no battle state");
+  updateLakeBattle(battle, dt, { desiredHeadingRad: lakeBattleInputHeading() });
+  processLakeBattleEvents(battle);
+  if (battle.phase !== LAKE_BATTLE_PHASE_ACTIVE) {
+    startLakeBattleSinkSequence(battle, nowMs);
+    keys.clear();
+    clearPointerSteering();
+  }
+  dirty = true;
+  return true;
+}
+
+function startLakeBattleSinkSequence(battle, nowMs) {
+  const sunkShips = [battle.player, battle.enemy].filter((shipState) => shipState.hitPoints <= 0);
+  if (sunkShips.length === 0) throw new Error("Finished lake battle has no sunk ship");
+  lakeBattleMode.sinkEffects = sunkShips.map((shipState) => ({
+    shipId: shipState.id,
+    effect: createLakeBattleShipSinkEffect(shipState, nowMs)
+  }));
+  lakeBattleMode.resultReadyAtMs = nowMs + SHIP_SINK_EFFECT_DURATION_MS;
+  lakeBattleMode.screen = LAKE_BATTLE_SCREEN_SINKING;
+}
+
+function lakeBattleInputHeading() {
+  const battle = lakeBattleMode?.battle;
+  if (!battle) return null;
+  let dx = 0;
+  let dy = 0;
+  if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) dx -= 1;
+  if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) dx += 1;
+  if (keys.has("ArrowUp") || keys.has("w") || keys.has("W")) dy -= 1;
+  if (keys.has("ArrowDown") || keys.has("s") || keys.has("S")) dy += 1;
+  if (pointerSteering.active && pointerSteering.point) {
+    const px = pointerSteering.point.x - battle.player.x;
+    const py = pointerSteering.point.y - battle.player.y;
+    const length = Math.hypot(px, py);
+    if (length >= POINTER_STEERING_DEADZONE_PX) {
+      dx += px / length;
+      dy += py / length;
+    }
+  }
+  if (controllerSteering) {
+    dx += controllerSteering.dx * controllerSteering.strength;
+    dy -= controllerSteering.dy * controllerSteering.strength;
+  }
+  if (dx === 0 && dy === 0) return null;
+  return Math.atan2(dy, dx);
+}
+
+function fireLakeBattlePlayerBroadside(sideName) {
+  const battle = lakeBattleMode?.battle;
+  if (!battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
+  const fired = fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, sideName);
+  if (fired) processLakeBattleEvents(battle);
+  dirty = dirty || fired;
+  return fired;
+}
+
+function processLakeBattleEvents(battle) {
+  for (const event of drainLakeBattleEvents(battle)) {
+    if (event.type === "fire") {
+      playNavalAttackSound({ kind: event.weaponKind }, event.count);
+    } else if (event.type === "hit") {
+      if (event.weaponKind === NAVAL_WEAPON_ARROW) playArrowHitSound();
+      else playCannonImpactSound(18);
+    } else if (event.type === "collision") {
+      playCannonImpactSound(8);
+    } else if (event.type !== "finished") {
+      throw new Error(`Unknown lake battle event: ${event.type}`);
+    }
+  }
+}
+
+function handleLakeBattlePointerDown(pointerId, point) {
+  lakeBattleMode.hoverPoint = point;
+  if (lakeBattleMode.loading) return;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) return;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    for (let row = 0; row <= LAKE_BATTLE_SETUP_ENEMY_ROW; row++) {
+      if (pointInRect(point, lakeBattleMode.leftArrowRects[row])) {
+        lakeBattleMode.selectedIndex = row;
+        stepLakeBattleShipSelection(row === 0 ? "player" : "enemy", -1);
+        return;
+      }
+      if (pointInRect(point, lakeBattleMode.rightArrowRects[row])) {
+        lakeBattleMode.selectedIndex = row;
+        stepLakeBattleShipSelection(row === 0 ? "player" : "enemy", 1);
+        return;
+      }
+    }
+    for (let row = 0; row < lakeBattleMode.rowRects.length; row++) {
+      if (!pointInRect(point, lakeBattleMode.rowRects[row])) continue;
+      lakeBattleMode.selectedIndex = row;
+      if (row >= LAKE_BATTLE_SETUP_BEGIN_ROW) activateLakeBattleSetupRow();
+      dirty = true;
+      return;
+    }
+    return;
+  }
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+    if (pointInRect(point, lakeBattleMode.pauseButtonRect)) {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_PAUSED;
+      lakeBattleMode.selectedIndex = 0;
+      keys.clear();
+      clearPointerSteering();
+      dirty = true;
+      return;
+    }
+    const broadside = lakeBattleBroadsideSideAtPoint(point);
+    if (broadside) {
+      fireLakeBattlePlayerBroadside(broadside);
+      return;
+    }
+    beginPointerSteering(pointerId, point);
+    return;
+  }
+  const actions = lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED
+    ? LAKE_BATTLE_PAUSE_ACTIONS
+    : LAKE_BATTLE_RESULT_ACTIONS;
+  for (let index = 0; index < lakeBattleMode.actionRects.length; index++) {
+    if (!pointInRect(point, lakeBattleMode.actionRects[index])) continue;
+    lakeBattleMode.selectedIndex = index;
+    activateLakeBattleAction(actions[index]);
+    return;
+  }
+}
+
+function handleLakeBattlePointerMove(event, point) {
+  lakeBattleMode.hoverPoint = point;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
+    dirty = true;
+    return;
+  }
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE &&
+      pointerSteering.active && pointerSteering.pointerId === event.pointerId) {
+    event.preventDefault();
+    updatePointerSteering(point);
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    for (let row = 0; row < lakeBattleMode.rowRects.length; row++) {
+      if (pointInRect(point, lakeBattleMode.rowRects[row])) lakeBattleMode.selectedIndex = row;
+    }
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED ||
+             lakeBattleMode.screen === LAKE_BATTLE_SCREEN_RESULT) {
+    for (let index = 0; index < lakeBattleMode.actionRects.length; index++) {
+      if (pointInRect(point, lakeBattleMode.actionRects[index])) lakeBattleMode.selectedIndex = index;
+    }
+  }
+  dirty = true;
+}
+
+function lakeBattleBroadsideArc(sideName) {
+  const battle = lakeBattleMode?.battle;
+  if (!battle) throw new Error("Cannot create lake broadside arc without a battle");
+  return broadsideArcGeometry({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    heading: lakeBattleHeadingVector(battle.player),
+    sideName,
+    range: lakeBattleWeaponRange(battle.player),
+    origin: { x: battle.player.x, y: battle.player.y }
+  });
+}
+
+function lakeBattleBroadsideSideAtPoint(point) {
+  if (!lakeBattleMode?.battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return null;
+  for (const sideName of ["port", "starboard"]) {
+    if (pointInBroadsideArc(point, lakeBattleBroadsideArc(sideName), 5)) return sideName;
+  }
+  return null;
+}
+
+function handleLakeBattleKeyDown(event) {
+  if (!lakeBattleMode) return;
+  event.preventDefault();
+  if (lakeBattleMode.loading) return;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) return;
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    handleLakeBattleSetupKeyDown(event.key);
+    return;
+  }
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+    if (event.key === "Escape") {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_PAUSED;
+      lakeBattleMode.selectedIndex = 0;
+      keys.clear();
+      clearPointerSteering();
+    } else if (isCannonKey(event.key)) {
+      if (!event.repeat) fireLakeBattlePlayerBroadside(cannonSideForKey(event.key));
+    } else if (isControlKey(event.key)) {
+      keys.add(event.key);
+    }
+    dirty = true;
+    return;
+  }
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED) {
+    handleLakeBattleActionMenuKeyDown(event.key, LAKE_BATTLE_PAUSE_ACTIONS);
+    return;
+  }
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_RESULT) {
+    handleLakeBattleActionMenuKeyDown(event.key, LAKE_BATTLE_RESULT_ACTIONS);
+    return;
+  }
+  throw new Error(`Unknown lake battle screen: ${lakeBattleMode.screen}`);
+}
+
+function handleLakeBattleSetupKeyDown(key) {
+  if (key === "Escape") {
+    closeLakeBattleModeToStartMenu();
+    return;
+  }
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    lakeBattleMode.selectedIndex = stepMenuIndex(
+      lakeBattleMode.selectedIndex,
+      key === "ArrowDown" ? 1 : -1,
+      LAKE_BATTLE_SETUP_ROW_COUNT
+    );
+    dirty = true;
+    return;
+  }
+  if ((key === "ArrowLeft" || key === "ArrowRight") && lakeBattleMode.selectedIndex <= LAKE_BATTLE_SETUP_ENEMY_ROW) {
+    stepLakeBattleShipSelection(
+      lakeBattleMode.selectedIndex === LAKE_BATTLE_SETUP_PLAYER_ROW ? "player" : "enemy",
+      key === "ArrowRight" ? 1 : -1
+    );
+    return;
+  }
+  if (key === "Enter" || key === " ") activateLakeBattleSetupRow();
+}
+
+function activateLakeBattleSetupRow() {
+  if (lakeBattleMode.selectedIndex === LAKE_BATTLE_SETUP_PLAYER_ROW) {
+    stepLakeBattleShipSelection("player", 1);
+  } else if (lakeBattleMode.selectedIndex === LAKE_BATTLE_SETUP_ENEMY_ROW) {
+    stepLakeBattleShipSelection("enemy", 1);
+  } else if (lakeBattleMode.selectedIndex === LAKE_BATTLE_SETUP_BEGIN_ROW) {
+    void beginLakeBattle();
+  } else if (lakeBattleMode.selectedIndex === LAKE_BATTLE_SETUP_BACK_ROW) {
+    closeLakeBattleModeToStartMenu();
+  }
+}
+
+function handleLakeBattleActionMenuKeyDown(key, actions) {
+  if (key === "Escape") {
+    if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED) {
+      lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+      lakeBattleMode.selectedIndex = 0;
+    } else {
+      returnLakeBattleToSetup();
+    }
+    dirty = true;
+    return;
+  }
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    lakeBattleMode.selectedIndex = stepMenuIndex(
+      lakeBattleMode.selectedIndex,
+      key === "ArrowDown" ? 1 : -1,
+      actions.length
+    );
+    dirty = true;
+    return;
+  }
+  if (key === "Enter" || key === " ") activateLakeBattleAction(actions[lakeBattleMode.selectedIndex]);
+}
+
+function activateLakeBattleAction(action) {
+  if (action === "RESUME") {
+    lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
+  } else if (action === "RESTART" || action === "REMATCH") {
+    restartLakeBattle();
+  } else if (action === "CHOOSE SHIPS") {
+    returnLakeBattleToSetup();
+  } else if (action === "OPTIONS") {
+    openOptionsMenu();
+  } else if (action === "START MENU") {
+    closeLakeBattleModeToStartMenu();
+  } else {
+    throw new Error(`Unknown lake battle action: ${action}`);
+  }
+  dirty = true;
+}
+
 function closeStartMenu() {
   startMenu = null;
   keys.clear();
@@ -3900,6 +4547,7 @@ async function restoreSavedVoyage(payload) {
   });
   reconcileQuestPortTiles(gameState, portCities);
   shipImage = assets.image;
+  shipSinkDepthImage = assets.sinkDepthImage;
   shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
   shipLighting = assets.lighting;
   const position = normalize3(savedShip.position.slice());
@@ -4309,6 +4957,10 @@ function activateStartMenuSelection() {
     startNewVoyage();
     return;
   }
+  if (action.id === START_MENU_ACTION_LAKE_BATTLE) {
+    openLakeBattleMode();
+    return;
+  }
   if (action.id === START_MENU_ACTION_PAST_VOYAGES) {
     openPastVoyagesMenu();
     return;
@@ -4328,6 +4980,18 @@ function handlePointerDown(event) {
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
   ensureGameAudioStarted(true);
+  if (lakeBattleMode && optionsMenu.isOpen) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleOptionsPointerDown(point);
+    return;
+  }
+  if (lakeBattleMode) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleLakeBattlePointerDown(event.pointerId, point);
+    return;
+  }
   if (gameOverReason) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -4470,6 +5134,16 @@ function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
+  if (lakeBattleMode && optionsMenu.isOpen) {
+    updateOptionsSelectionFromPoint(point);
+    if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
+    else dirty = true;
+    return;
+  }
+  if (lakeBattleMode) {
+    handleLakeBattlePointerMove(event, point);
+    return;
+  }
   if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
     updateCaptainMenuSelectionFromPoint(point);
     dirty = true;
@@ -5182,6 +5856,10 @@ function chooseDialogueOption(optionIndex) {
       void purchaseShipyardShip(result.action);
       return;
     }
+    if (result.action?.type === "purchase-viking-longship") {
+      void purchaseVikingLongship(result.action);
+      return;
+    }
     if (result.action?.type === "wait-in-port") {
       startWaitingInPort(currentDialogueCity());
       return;
@@ -5259,6 +5937,44 @@ async function purchaseShipyardShip(action) {
     session.feedback = error instanceof Error ? error.message : "The ship purchase failed.";
   } finally {
     shipyardPurchaseListingId = null;
+    dirty = true;
+  }
+}
+
+async function purchaseVikingLongship(action) {
+  if (vikingLongshipPurchasePending) return;
+  const session = dialogueState;
+  const city = currentDialogueCity();
+  if (
+    session?.kind !== "port" ||
+    session.nodeId !== "viking-longship" ||
+    !isVikingLongshipQuestPort(city) ||
+    action.shipSlug !== VIKING_LONGSHIP_SLUG ||
+    !vikingLongshipUnlocked(gameState)
+  ) {
+    throw new Error("Invalid Viking longship purchase state");
+  }
+  vikingLongshipPurchasePending = true;
+  session.feedback = "The enthusiast is readying the longship for inspection.";
+  dirty = true;
+  try {
+    const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
+    const assets = await loadShipAssetSet(VIKING_LONGSHIP_SLUG);
+    if (dialogueState !== session || session.nodeId !== "viking-longship") return;
+    purchasePlayerShip(gameState, city, stats, VIKING_LONGSHIP_PRICE, {
+      simMinute: Math.floor(weatherClockMinutes)
+    });
+    applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
+    syncShipCargoFromGameState();
+    playCoinClinkSound();
+    session.feedback = `Purchased ${shipLabelForSlug(VIKING_LONGSHIP_SLUG)} for ${VIKING_LONGSHIP_PRICE} doubloons.`;
+    session.selectedIndex = 0;
+    saveVoyageNow("Viking longship purchase");
+  } catch (error) {
+    console.error(new Error("Failed to purchase Viking Longship", { cause: error }));
+    session.feedback = error instanceof Error ? error.message : "The longship purchase failed.";
+  } finally {
+    vikingLongshipPurchasePending = false;
     dirty = true;
   }
 }
@@ -5575,6 +6291,13 @@ function fishInteractionCall(call) {
   };
 }
 
+function fishingChanceForCall(call) {
+  if (!gameState) throw new Error("Cannot calculate fishing chance before game state is ready");
+  if (!call?.fishery) throw new Error("Cannot calculate fishing chance without a fishery");
+  const net = playerFishingNet(gameState);
+  return fishingCatchChance(call.fishery.visibleIndividualCount, net.catchRateMultiplier);
+}
+
 function npcShipCallAtPoint(point) {
   if (!point || !chart || !localLayout || !npcShipCaptains) return null;
   const offset = chartOffsetPixels(chart);
@@ -5738,7 +6461,7 @@ function catchFishAtFishery(call) {
     return false;
   }
   const net = playerFishingNet(gameState);
-  const chance = fishingCatchChance(call.fishery.visibleIndividualCount, net.catchRateMultiplier);
+  const chance = fishingChanceForCall(call);
   fishingAction = {
     startMs: lastFrameMs,
     fishery: call.fishery,
@@ -6105,6 +6828,12 @@ function pollGamepadControls() {
 function handleControllerAction(action) {
   ensureGameAudioStarted(true);
   if (action === "firePort" || action === "fireStarboard") {
+    if (lakeBattleMode) {
+      if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+        fireLakeBattlePlayerBroadside(action === "firePort" ? "port" : "starboard");
+      }
+      return;
+    }
     if (shipInfoMenu.isOpen) {
       stepShipInfoView(action === "firePort" ? -1 : 1);
       return;
@@ -6120,6 +6849,10 @@ function handleControllerAction(action) {
     return;
   }
   if (action === "menu") {
+    if (lakeBattleMode) {
+      dispatchControllerKey("Escape");
+      return;
+    }
     if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) openCaptainMenu();
     else dispatchControllerKey("Escape");
     return;
@@ -6131,6 +6864,10 @@ function handleControllerAction(action) {
   }
   if (action === "back") {
     dispatchControllerKey("Escape");
+    return;
+  }
+  if (lakeBattleMode?.screen === LAKE_BATTLE_SCREEN_ACTIVE &&
+      ["up", "down", "left", "right"].includes(action)) {
     return;
   }
   const key = action === "up"
@@ -6155,13 +6892,15 @@ function stepShipInfoView(direction) {
 function controllerUiIsActive() {
   return Boolean(gameOverReason || shipInfoMenu.isOpen || politicsMenu.isOpen || discoveriesMenu.isOpen ||
     optionsMenu.isOpen || creditsMenu.isOpen || pastVoyagesMenu.isOpen || captainMenu.isOpen ||
-    startMenu || playerIntroModal ||
+    startMenu || lakeBattleMode || playerIntroModal ||
     captainAlertModal || dialogueState || portWaitState);
 }
 
 function dispatchControllerKey(key) {
   const event = { key, preventDefault() {} };
-  if (gameOverReason) handleGameOverKeyDown(event);
+  if (lakeBattleMode && optionsMenu.isOpen) handleOptionsKeyDown(event);
+  else if (lakeBattleMode) handleLakeBattleKeyDown(event);
+  else if (gameOverReason) handleGameOverKeyDown(event);
   else if (portWaitState) handlePortWaitKeyDown(event);
   else if (shipInfoMenu.isOpen) handleShipInfoKeyDown(event);
   else if (politicsMenu.isOpen) handlePoliticsKeyDown(event);
@@ -7019,7 +7758,7 @@ function fireBroadside(sideName) {
   const broadsideCount = weapon.kind === NAVAL_WEAPON_CANNON ? shipBroadsideCannonCount() : 1;
   if (ship.cannonCooldowns[sideName] > 0) return;
 
-  ship.cannonCooldowns[sideName] = CANNON_BROADSIDE_COOLDOWN_SECONDS;
+  ship.cannonCooldowns[sideName] = weapon.reloadSeconds;
   startCombatMusicForThreat(broadsideCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   playNavalAttackSound(weapon, broadsideCount);
 
@@ -7076,37 +7815,63 @@ function drawCombatBroadsideControls() {
   for (const sideName of ["port", "starboard"]) {
     const arc = navalBroadsideArc(sideName, weapon);
     const cooldown = ship.cannonCooldowns[sideName] || 0;
-    const ready = cooldown <= 0;
     const hasTarget = navalArcHasEnemy(arc);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(arc.origin.x, arc.origin.y, arc.innerRadius, arc.startAngle, arc.endAngle);
-    ctx.lineTo(
-      arc.origin.x + Math.cos(arc.endAngle) * arc.outerRadius,
-      arc.origin.y + Math.sin(arc.endAngle) * arc.outerRadius
-    );
-    ctx.arc(arc.origin.x, arc.origin.y, arc.outerRadius, arc.endAngle, arc.startAngle, true);
-    ctx.closePath();
-    ctx.fillStyle = ready
-      ? (hasTarget ? "rgba(249, 194, 43, 0.18)" : "rgba(249, 194, 43, 0.09)")
-      : "rgba(46, 34, 47, 0.28)";
-    ctx.fill();
-    ctx.strokeStyle = ready ? (hasTarget ? "#fff4a8" : "#f9c22b") : "#625565";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    const readyFraction = 1 - clamp(cooldown / CANNON_BROADSIDE_COOLDOWN_SECONDS, 0, 1);
-    const lineStartX = arc.origin.x + arc.direction.x * arc.innerRadius;
-    const lineStartY = arc.origin.y + arc.direction.y * arc.innerRadius;
-    const lineEndX = lineStartX + arc.direction.x * arc.length * readyFraction;
-    const lineEndY = lineStartY + arc.direction.y * arc.length * readyFraction;
-    ctx.strokeStyle = ready ? "#fff1bf" : "#ab947a";
-    ctx.beginPath();
-    ctx.moveTo(Math.round(lineStartX) + 0.5, Math.round(lineStartY) + 0.5);
-    ctx.lineTo(Math.round(lineEndX) + 0.5, Math.round(lineEndY) + 0.5);
-    ctx.stroke();
-    ctx.restore();
+    drawBroadsideReloadIndicator(arc, cooldown, weapon.reloadSeconds, hasTarget);
   }
+}
+
+function drawBroadsideReloadIndicator(arc, cooldown, reloadSeconds, hasTarget) {
+  if (!Number.isFinite(reloadSeconds) || reloadSeconds <= 0) {
+    throw new Error(`Invalid broadside reload time: ${reloadSeconds}`);
+  }
+  const ready = cooldown <= 0;
+  const readyFraction = 1 - clamp(cooldown / reloadSeconds, 0, 1);
+  const reload = broadsideReloadGeometry(arc, readyFraction);
+  ctx.save();
+  traceBroadsideSector(arc, arc.outerRadius);
+  ctx.fillStyle = ready ? "rgba(46, 34, 47, 0.04)" : "rgba(46, 34, 47, 0.16)";
+  ctx.fill();
+
+  if (reload.readyFraction > 0) {
+    traceBroadsideSector(arc, reload.fillOuterRadius);
+    ctx.fillStyle = ready
+      ? (hasTarget ? "rgba(249, 194, 43, 0.14)" : "rgba(249, 194, 43, 0.07)")
+      : "rgba(249, 194, 43, 0.12)";
+    ctx.fill();
+  }
+
+  traceBroadsideSector(arc, arc.outerRadius);
+  ctx.strokeStyle = ready ? (hasTarget ? "#fff4a8" : "#f9c22b") : "#625565";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  if (reload.reloading && reload.readyFraction > 0) {
+    ctx.strokeStyle = "#f9c22b";
+    ctx.beginPath();
+    ctx.arc(
+      arc.origin.x,
+      arc.origin.y,
+      reload.fillOuterRadius,
+      arc.startAngle,
+      arc.endAngle
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function traceBroadsideSector(arc, outerRadius) {
+  if (!Number.isFinite(outerRadius) || outerRadius < arc.innerRadius || outerRadius > arc.outerRadius) {
+    throw new Error(`Invalid broadside sector radius: ${outerRadius}`);
+  }
+  ctx.beginPath();
+  ctx.arc(arc.origin.x, arc.origin.y, arc.innerRadius, arc.startAngle, arc.endAngle);
+  ctx.lineTo(
+    arc.origin.x + Math.cos(arc.endAngle) * outerRadius,
+    arc.origin.y + Math.sin(arc.endAngle) * outerRadius
+  );
+  ctx.arc(arc.origin.x, arc.origin.y, outerRadius, arc.endAngle, arc.startAngle, true);
+  ctx.closePath();
 }
 
 function navalBroadsideArc(sideName, weapon = playerNavalWeapon()) {
@@ -7148,10 +7913,13 @@ function shipBroadsideCannonCount() {
 
 function playerNavalWeapon() {
   const homePort = portCitiesByTileId?.get(gameState?.character?.homePortTileId);
-  return navalWeaponForShip({
+  const weapon = navalWeaponForShip({
     cultureType: homePort?.cityType || null,
-    cannons: gameState?.ship?.cannons || 0
+    cannons: gameState?.ship?.cannons || 0,
+    weaponKind: ship?.stats?.navalWeaponKind || null
   });
+  if (!weapon || weapon.kind !== NAVAL_WEAPON_CANNON) return weapon;
+  return cannonWeaponWithEquipment(weapon, playerCannonEquipment(gameState).id);
 }
 
 function cannonMuzzleForeAftSpan(broadsideCount) {
@@ -7365,6 +8133,8 @@ function updateWaterAnimation(nowMs) {
   if (tick === waterAnimationDrawTick) return false;
   waterAnimationDrawTick = tick;
   waterAnimationClockMs = tick * WATER_REDRAW_MS;
+  globeWaterHexWaveOffsetCache.clear();
+  localWaterHexWaveOffsetCache.clear();
   return true;
 }
 
@@ -7462,7 +8232,7 @@ function updateSurvivalDeprivationDamage(status, currentMinute) {
     key: "waterNextMinute",
     active: status.freshWater <= 0,
     currentMinute,
-    damagePerTick: SURVIVAL_DEHYDRATION_DAMAGE,
+    damagePerTick: SURVIVAL_DEHYDRATION_CREW_LOSS,
     alert: () => openCaptainAlertModal("So thirsty... We need fresh water.", "sad")
   });
   const foodDamage = updateSurvivalDamageTimer({
@@ -7472,27 +8242,38 @@ function updateSurvivalDeprivationDamage(status, currentMinute) {
     damagePerTick: SURVIVAL_STARVATION_DAMAGE,
     alert: () => showSurvivalNotice("NO FOOD LEFT", "warn")
   });
-  const dehydrationLoss = waterDamage.damage > 0 ? loseCrew(gameState, waterDamage.damage) : 0;
-  if (dehydrationLoss > 0) {
-    syncShipCargoFromGameState();
+  const deprivation = applySurvivalDeprivation(gameState, {
+    dehydration: waterDamage.damage,
+    starvation: foodDamage.damage
+  });
+  if (deprivation.crewLost > 0) syncShipCargoFromGameState();
+  if (deprivation.crewLost <= 0 && deprivation.hullDamage <= 0) {
+    return waterDamage.changed || foodDamage.changed;
   }
-  const totalDamage = waterDamage.damage + foodDamage.damage;
-  if (totalDamage <= 0) return waterDamage.changed || foodDamage.changed;
 
-  ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
+  ship.hitPoints = Math.max(0, ship.hitPoints - deprivation.hullDamage);
   const reason = status.freshWater <= 0 && status.foodUnits <= 0
     ? "The crew succumbed to thirst and starvation."
     : status.freshWater <= 0
       ? "The crew succumbed to thirst."
       : "The crew succumbed to starvation.";
-  const crewLossText = dehydrationLoss > 0 ? `  -${dehydrationLoss} CREW` : "";
-  showSurvivalNotice(`CREW SUFFERING -${totalDamage} HULL${crewLossText}`, "warn");
-  if (dehydrationLoss > 0 && gameState.ship.crew <= 0) {
-    sinkPlayerShip(reason);
+  const losses = [];
+  if (deprivation.crewLost > 0) losses.push(`-${deprivation.crewLost} CREW`);
+  if (deprivation.hullDamage > 0) losses.push(`-${deprivation.hullDamage} HULL`);
+  showSurvivalNotice(`${deprivationNoticeLabel(deprivation)} ${losses.join("  ")}`, "warn");
+  if (deprivation.crewDepleted) {
+    endPlayerVoyage(reason, { sinkShip: false });
     return true;
   }
   if (ship.hitPoints <= 0) sinkPlayerShip(reason);
   return true;
+}
+
+function deprivationNoticeLabel({ crewLost, hullDamage }) {
+  if (crewLost > 0 && hullDamage > 0) return "DEPRIVATION";
+  if (crewLost > 0) return "DEHYDRATION";
+  if (hullDamage > 0) return "STARVATION";
+  throw new Error("Cannot label deprivation without a crew or hull loss");
 }
 
 function updateSurvivalDamageTimer({ key, active, currentMinute, damagePerTick, alert }) {
@@ -7545,9 +8326,16 @@ function updateStormDamage(previousMinute, currentMinute) {
 }
 
 function sinkPlayerShip(reason) {
+  endPlayerVoyage(reason, { sinkShip: true });
+}
+
+function endPlayerVoyage(reason, { sinkShip }) {
+  if (typeof reason !== "string" || reason.trim() === "") throw new Error("Ending a voyage requires a reason");
+  if (typeof sinkShip !== "boolean") throw new Error("Ending a voyage requires an explicit sinkShip decision");
   if (gameOverReason || playerShipIsInvulnerable()) return;
+  if (sinkShip) spawnPlayerShipSinkEffect(lastFrameMs);
   gameOverReason = reason;
-  gameOverState = createGameOverState(reason, lastFrameMs);
+  gameOverState = createGameOverState(reason, lastFrameMs, sinkShip);
   storePastVoyage(createPastVoyageRecord({
     state: gameState,
     playerShip: snapshotPlayerShip(),
@@ -7556,6 +8344,7 @@ function sinkPlayerShip(reason) {
     outcome: reason
   }));
   anchored = false;
+  fishingAction = null;
   shoreScavengeAction = null;
   portWaitState = null;
   portWaitButtonRect = null;
@@ -7578,11 +8367,13 @@ function sinkPlayerShip(reason) {
   dirty = true;
 }
 
-function createGameOverState(reason, startedAtMs) {
+function createGameOverState(reason, startedAtMs, sinkShip) {
+  if (typeof sinkShip !== "boolean") throw new Error("Game-over state requires an explicit sinkShip decision");
   const character = gameState?.playerCharacter || null;
   const deathMinute = Math.floor(weatherClockMinutes);
   return {
     reason,
+    sinkShip,
     startedAtMs,
     deathMinute,
     deathDateLabel: shipLedgerDateLabel(deathMinute),
@@ -7679,7 +8470,13 @@ function gameOverElapsedMs(nowMs) {
 }
 
 function gameOverRestartIsAvailable(nowMs) {
-  return Boolean(gameOverState && gameOverElapsedMs(nowMs) >= GAME_OVER_MEMORIAL_MS + GAME_OVER_FADE_MS);
+  return Boolean(gameOverState && gameOverElapsedMs(nowMs) >=
+    gameOverTransitionDurationMs() + GAME_OVER_MEMORIAL_MS + GAME_OVER_FADE_MS);
+}
+
+function gameOverTransitionDurationMs() {
+  if (!gameOverState) return 0;
+  return gameOverState.sinkShip ? SHIP_SINK_EFFECT_DURATION_MS : 0;
 }
 
 function restartAfterGameOver() {
@@ -8189,7 +8986,8 @@ function npcNavalWeapon(state, stats = shipStatsForSlug(state.slug)) {
   const routeShip = npcSeaRoutes?.shipById.get(state.id);
   return navalWeaponForShip({
     cultureType: routeShip?.cultureType || routeShip?.currentPort?.cityType || null,
-    cannons: stats.cannons
+    cannons: stats.cannons,
+    weaponKind: stats.navalWeaponKind || null
   });
 }
 
@@ -8290,6 +9088,8 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
 function handleNpcSinking(loserId, winnerId) {
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
+  const visualState = npcVisualShips.get(loserId);
+  if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
   const factionId = strategic.factionId;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerAttackConsequences(loserId, factionId);
@@ -8699,10 +9499,9 @@ function moveNpcVisualShip(state, direction, distance, heading, dt) {
     }
   }
 
-  const escape = chooseNpcEscapeDirection({
+  const escape = chooseNpcObstacleAvoidanceDirection({
     desiredDirection: direction,
     currentDirection: tangentToScreenDirection(state.heading) || direction,
-    candidateDirections: NPC_VISUAL_ESCAPE_ANGLES_RAD.map((angle) => rotate2(direction, angle)),
     clearDistanceFor: (candidateDirection) => npcEscapeClearDistance(state, candidateDirection, heading),
     preferredSide: state.escapeSide
   });
@@ -9320,9 +10119,12 @@ function applyResponsiveViewport(width, height) {
   if (width === SCREEN_W && height === SCREEN_H) return;
   SCREEN_W = width;
   SCREEN_H = height;
+  if (lakeBattleMode?.battle) resizeLakeBattle(lakeBattleMode.battle, width, height);
+  lakeBattleTerrainChart = null;
+  lakeBattleTerrainChartKey = "";
   canvas.width = width;
   canvas.height = height;
-  canvas.setAttribute("aria-label", `Marque & Reprisal world map, ${width} by ${height}`);
+  syncCanvasAriaLabel();
   ctx.imageSmoothingEnabled = false;
 
   INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
@@ -9371,6 +10173,11 @@ function applyResponsiveViewport(width, height) {
       : captainAlertButtonRect();
   }
   dirty = true;
+}
+
+function syncCanvasAriaLabel() {
+  const surface = lakeBattleMode ? "ship battle lake" : "world map";
+  canvas.setAttribute("aria-label", `Marque & Reprisal ${surface}, ${SCREEN_W} by ${SCREEN_H}`);
 }
 
 function coarsePointerIsPrimary() {
@@ -9569,6 +10376,11 @@ function smoothstep(edge0, edge1, x) {
 }
 
 function render(nowMs) {
+  if (lakeBattleMode) {
+    drawLakeBattleMode(nowMs);
+    if (optionsMenu.isOpen) drawOptionsMenu();
+    return;
+  }
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
@@ -9647,6 +10459,18 @@ function render(nowMs) {
   if (pastVoyagesMenu.isOpen) drawPastVoyagesMenu();
   if (creditsMenu.isOpen) drawCreditsMenu();
   if (optionsMenu.isOpen) drawOptionsMenu();
+  drawStormLightningFlash();
+}
+
+function drawStormLightningFlash() {
+  if (!consumeStormLightningFlash(stormLightningState)) return;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.restore();
+  playLightningStrikeSound();
 }
 
 function drawWorldDiscoverySprites(activeChart) {
@@ -10454,22 +11278,15 @@ function drawCaptainMenu(nowMs) {
   };
 
   ctx.save();
-  ctx.fillStyle = "rgba(12, 15, 14, 0.86)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#2f241c";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#d6b66b";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#715033";
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+  drawPiratePaperModal(panel, 0.82);
   drawOptionsCloseButton(
     captainMenu.closeButtonRect,
     pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
   );
   drawOptionsText("CAPTAIN'S CHART", panel.x + panel.w / 2, panel.y + 10, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
-    color: "#ffd98a"
+    color: PIRATE_MENU_INK
   });
 
   drawCaptainChart(panel, nowMs);
@@ -10477,39 +11294,48 @@ function drawCaptainMenu(nowMs) {
 }
 
 function drawCaptainMenuItemIcon(index, x, y, active) {
+  const iconId = CAPTAIN_MENU_ICON_IDS[index];
+  if (!iconId) throw new Error(`Captain menu item has no icon: ${index}`);
+  drawGameIcon(iconId, x - 1, y - 1, GAME_ICON_SIZE, active ? 1 : 0.82, false);
+}
+
+function drawGameIcon(iconId, x, y, size = GAME_ICON_SIZE, alpha = 1, contrastOutline = false) {
+  if (!gameIconAtlasImage) throw new Error("Game icon atlas is not loaded");
+  if (!gameIconOutlineAtlasImage) throw new Error("Game icon outline atlas is not initialized");
+  if (!Number.isInteger(size) || size <= 0) throw new Error(`Invalid game icon size: ${size}`);
+  if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) throw new Error(`Invalid game icon alpha: ${alpha}`);
+  if (typeof contrastOutline !== "boolean") throw new Error(`Invalid game icon outline mode: ${contrastOutline}`);
+  const source = gameIconAtlasRect(iconId);
+  const drawX = Math.round(x);
+  const drawY = Math.round(y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  if (index === 0) drawCaptainShipIcon(x, y, active);
-  else if (index === 1) drawCaptainPoliticsIcon(x, y, active);
-  else if (index === 2 && discoveriesMenuIcon) ctx.drawImage(discoveriesMenuIcon, x, y);
-  else if (index === 3 && settingsMenuIcon) ctx.drawImage(settingsMenuIcon, x, y);
+  ctx.globalAlpha *= alpha;
+  if (contrastOutline) {
+    ctx.drawImage(
+      gameIconOutlineAtlasImage,
+      source.x,
+      source.y,
+      source.w,
+      source.h,
+      drawX,
+      drawY,
+      size,
+      size
+    );
+  }
+  ctx.drawImage(
+    gameIconAtlasImage,
+    source.x,
+    source.y,
+    source.w,
+    source.h,
+    drawX,
+    drawY,
+    size,
+    size
+  );
   ctx.restore();
-}
-
-function drawCaptainShipIcon(x, y, active) {
-  ctx.fillStyle = active ? "#fff1bf" : "#c7dcd0";
-  ctx.fillRect(x + 6, y + 1, 1, 8);
-  ctx.fillRect(x + 3, y + 3, 3, 1);
-  ctx.fillRect(x + 2, y + 4, 4, 1);
-  ctx.fillRect(x + 1, y + 5, 5, 2);
-  ctx.fillStyle = active ? "#f9c22b" : "#cd683d";
-  ctx.fillRect(x + 1, y + 9, 11, 2);
-  ctx.fillRect(x + 3, y + 11, 7, 1);
-}
-
-function drawCaptainPoliticsIcon(x, y, active) {
-  ctx.fillStyle = active ? "#fff1bf" : "#d6b66b";
-  ctx.fillRect(x + 6, y + 1, 1, 10);
-  ctx.fillRect(x + 2, y + 3, 9, 1);
-  ctx.fillRect(x + 1, y + 4, 1, 2);
-  ctx.fillRect(x + 11, y + 4, 1, 2);
-  ctx.fillRect(x + 4, y + 11, 5, 1);
-  ctx.fillStyle = active ? "#91db69" : "#6aa6a1";
-  ctx.fillRect(x, y + 6, 4, 1);
-  ctx.fillRect(x + 1, y + 7, 2, 1);
-  ctx.fillStyle = active ? "#f68181" : "#cd683d";
-  ctx.fillRect(x + 9, y + 6, 4, 1);
-  ctx.fillRect(x + 10, y + 7, 2, 1);
 }
 
 function drawCaptainChart(panel, nowMs) {
@@ -10531,7 +11357,7 @@ function drawCaptainChart(panel, nowMs) {
   const mapped = minimap ? minimap.seenTileCount / graph.tileCount : 0;
   drawOptionsText(`MAPPED ${(mapped * 100).toFixed(2)}%`, panel.x + panel.w / 2, mapY + mapH + 12, {
     align: "center",
-    color: "#c7dcd0"
+    color: PIRATE_MENU_INK_MUTED
   });
   drawCaptainChartNavigation(panel);
 }
@@ -10556,10 +11382,7 @@ function drawCaptainChartNavigation(panel) {
     const selected = index === captainMenu.selectedIndex;
     const hovered = pointInRect(captainMenu.hoverPoint, rect);
     if (hovered) hoveredIndex = index;
-    ctx.fillStyle = selected || hovered ? "#5b4627" : "#201a16";
-    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-    ctx.strokeStyle = selected || hovered ? "#f9c22b" : "#715033";
-    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    drawPiratePaperInset(rect, selected || hovered);
     drawCaptainMenuItemIcon(
       index,
       rect.x + Math.floor((rect.w - 13) / 2),
@@ -10570,9 +11393,9 @@ function drawCaptainChartNavigation(panel) {
 
   const labelIndex = hoveredIndex >= 0 ? hoveredIndex : captainMenu.selectedIndex;
   drawOptionsText(CAPTAIN_MENU_LABELS[labelIndex], panel.x + panel.w / 2, y - 13, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
-    color: "#fff1bf"
+    color: PIRATE_MENU_INK
   });
 }
 
@@ -10625,21 +11448,15 @@ function drawShipInfoButton() {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#ffffff" : "#ab947a";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  ctx.fillStyle = "#c7dcd0";
-  ctx.fillRect(rect.x + 5, rect.y + 2, 1, 6);
-  ctx.fillRect(rect.x + 6, rect.y + 4, 3, 1);
-  ctx.fillRect(rect.x + 7, rect.y + 5, 2, 1);
-  ctx.fillStyle = "#cd683d";
-  ctx.fillRect(rect.x + 2, rect.y + 8, 9, 2);
-  ctx.fillRect(rect.x + 3, rect.y + 10, 7, 1);
+  drawGameIcon("menu:ship", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
   if (hovered) {
     const label = "SHIP";
-    const width = measurePixelTextWidth(label, PIXEL_FONT_BODY_8) + 6;
+    const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
     ctx.fillStyle = "#2e222f";
     ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
     ctx.fillStyle = "#ffffff";
     drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
-      font: PIXEL_FONT_BODY_8,
+      font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
   }
@@ -10656,23 +11473,15 @@ function drawPoliticsButton() {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  ctx.fillStyle = "#d6b66b";
-  ctx.fillRect(rect.x + 3, rect.y + 8, 7, 1);
-  ctx.fillRect(rect.x + 4, rect.y + 4, 1, 5);
-  ctx.fillRect(rect.x + 8, rect.y + 4, 1, 5);
-  ctx.fillRect(rect.x + 3, rect.y + 3, 7, 1);
-  ctx.fillStyle = "#91db69";
-  ctx.fillRect(rect.x + 2, rect.y + 6, 2, 1);
-  ctx.fillStyle = "#f68181";
-  ctx.fillRect(rect.x + 9, rect.y + 6, 2, 1);
+  drawGameIcon("menu:politics", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
   if (hovered) {
     const label = "POLITICS";
-    const width = measurePixelTextWidth(label, PIXEL_FONT_BODY_8) + 6;
+    const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
     ctx.fillStyle = "rgba(15, 18, 14, 0.94)";
     ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
     ctx.fillStyle = "#fff4a8";
     drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
-      font: PIXEL_FONT_BODY_8,
+      font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
   }
@@ -10689,16 +11498,15 @@ function drawDiscoveriesButton() {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(discoveriesMenuIcon, rect.x, rect.y);
+  drawGameIcon("menu:discoveries", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
   if (hovered) {
     const label = "DISCOVERIES";
-    const width = measurePixelTextWidth(label, PIXEL_FONT_BODY_8) + 6;
+    const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
     ctx.fillStyle = "rgba(15, 18, 14, 0.94)";
     ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
     ctx.fillStyle = "#fff4a8";
     drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
-      font: PIXEL_FONT_BODY_8,
+      font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
   }
@@ -10716,15 +11524,7 @@ function drawOptionsButton() {
   ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
   ctx.lineWidth = 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  if (settingsMenuIcon) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(settingsMenuIcon, rect.x, rect.y);
-  } else {
-    ctx.fillStyle = "#d7d9bf";
-    ctx.fillRect(rect.x + 3, rect.y + 3, 7, 1);
-    ctx.fillRect(rect.x + 2, rect.y + 6, 9, 1);
-    ctx.fillRect(rect.x + 3, rect.y + 9, 7, 1);
-  }
+  drawGameIcon("menu:options", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
   ctx.restore();
 }
 
@@ -10740,13 +11540,7 @@ function drawShipInfoMenu() {
   shipInfoMenu.cargoPage = cargoPage.page;
 
   ctx.save();
-  ctx.fillStyle = "#2e222f";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#3e3546";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#ab947a";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  drawPiratePaperModal(panel, 0.9);
 
   shipInfoMenu.closeButtonRect = {
     x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
@@ -10767,10 +11561,10 @@ function drawShipInfoMenu() {
         ? "SHIP'S INVENTORY"
         : vesselTitle.toUpperCase();
     drawOptionsText(
-      fitPixelText(compactTitle, PIXEL_FONT_UI_8, panel.w - 24),
+      fitPixelText(compactTitle, PIXEL_FONT_SMALL_8, panel.w - 24),
       panel.x + panel.w / 2,
       panel.y + 35,
-      { align: "center", color: "#fbb954" }
+      { align: "center", color: PIRATE_MENU_INK }
     );
     if (shipInfoMenu.view === "ledger") drawCompactShipLedger(panel, view);
     else if (shipInfoMenu.view === "papers") drawCompactShipPapers(panel, view);
@@ -10786,12 +11580,12 @@ function drawShipInfoMenu() {
   const titleLeft = shipInfoMenu.papersTabRect.x + shipInfoMenu.papersTabRect.w + 7;
   const titleRight = shipInfoMenu.closeButtonRect.x - 7;
   drawOptionsText(
-    fitPixelText(title, PIXEL_FONT_UI_8, titleRight - titleLeft),
+    fitPixelText(title, PIXEL_FONT_SMALL_8, titleRight - titleLeft),
     (titleLeft + titleRight) / 2,
     panel.y + 8,
     {
       align: "center",
-      color: "#fbb954"
+      color: PIRATE_MENU_INK
     }
   );
 
@@ -10829,8 +11623,8 @@ function drawShipInfoMenu() {
   drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, statsX, valueX, panel.y + 31);
   drawShipInfoBar(statsX, panel.y + 43, valueX - statsX, view.hull / view.maxHull, "#91db69");
   drawShipInfoValueRow(
-    "CREW / GUNS",
-    `${view.crew}/${view.crewCapacity}  ${view.cannons}/${view.maxCannons}`,
+    `CREW / ${view.armamentLabel}`,
+    `${view.crew}/${view.crewCapacity}  ${view.armamentSummary}`,
     statsX,
     valueX,
     panel.y + 53
@@ -10843,44 +11637,43 @@ function drawShipInfoMenu() {
   drawShipInfoRating("SEAWORTHY", view.seaworthiness, statsX, panel.y + 132);
   const provisionY = artY + SHIP_INFO_SIDE_VIEW_H + 2;
   drawOptionsText(`WATER ${Math.ceil(view.survival.freshWaterDays)}D`, artX, provisionY, {
-    color: view.survival.freshWaterFraction <= 0.16 ? "#f68181" : "#8ac0b4"
+    color: view.survival.freshWaterFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
   });
   drawOptionsText(`FOOD ${Math.floor(view.survival.foodDays)}D`, artX + 91, provisionY, {
-    color: view.survival.foodDays <= 3 ? "#f68181" : "#d6b66b"
+    color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
 
   const cargoY = panel.y + 155;
-  ctx.fillStyle = "#625565";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, cargoY - 3, panel.w - 20, 1);
-  drawOptionsText("CARGO HOLD", panel.x + 12, cargoY + 1, { color: "#c7dcd0" });
+  drawOptionsText("CARGO HOLD", panel.x + 12, cargoY + 1, { color: PIRATE_MENU_INK });
   drawOptionsText(`${view.cargoUsed}/${view.cargoCapacity}`, panel.x + 105, cargoY + 1, {
     align: "right",
-    color: "#ffffff"
+    color: PIRATE_MENU_INK
   });
   drawShipInfoBar(panel.x + 116, cargoY + 2, 150, view.cargoUsed / view.cargoCapacity, "#fbb954");
   drawOptionsText(`${view.doubloons} DOUBLOONS`, panel.x + panel.w - 12, cargoY + 1, {
     align: "right",
-    color: "#f9c22b"
+    color: PIRATE_MENU_INK
   });
 
   if (cargoPage.rows.length === 0) {
-    drawOptionsText("THE HOLD IS EMPTY", panel.x + 12, cargoY + 24, { color: "#9babb2" });
+    drawOptionsText("THE HOLD IS EMPTY", panel.x + 12, cargoY + 24, { color: PIRATE_MENU_INK_MUTED });
   } else {
     cargoPage.rows.forEach((row, index) => {
       const column = Math.floor(index / 4);
       const rowIndex = index % 4;
       const x = panel.x + 12 + column * 207;
-      const y = cargoY + 19 + rowIndex * 13;
-      ctx.fillStyle = "#ab947a";
-      ctx.fillRect(x, y + 3, 3, 3);
+      const y = cargoY + 19 + rowIndex * 17;
+      drawGameIcon(tradeGoodIconId(row.id), x, y - 4);
       drawOptionsText(
-        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_UI_8, 145),
-        x + 8,
+        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_SMALL_8, 130),
+        x + GAME_ICON_SIZE + 4,
         y,
-        { color: "#ffffff" }
+        { color: PIRATE_MENU_INK }
       );
       const basisLabel = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
-      drawOptionsText(basisLabel, x + 194, y, { align: "right", color: "#fbb954" });
+      drawOptionsText(basisLabel, x + 194, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
     });
   }
 
@@ -10900,7 +11693,7 @@ function drawShipInfoMenu() {
     );
     drawOptionsText(`MANIFEST ${cargoPage.page + 1}/${cargoPage.pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
       align: "center",
-      color: "#9babb2"
+      color: PIRATE_MENU_INK_MUTED
     });
   } else {
     shipInfoMenu.previousPageRect = null;
@@ -10934,8 +11727,8 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   drawShipInfoBar(labelX + 62, y + 1, Math.max(30, panel.w - 112), view.hull / view.maxHull, "#91db69");
   y += 13;
   drawShipInfoValueRow(
-    "CREW / GUNS",
-    `${view.crew}/${view.crewCapacity}  ${view.cannons}/${view.maxCannons}`,
+    `CREW / ${view.armamentLabel}`,
+    `${view.crew}/${view.crewCapacity}  ${view.armamentSummary}`,
     labelX,
     valueX,
     y
@@ -10955,52 +11748,51 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     y += 12;
   }
   drawOptionsText(`WATER ${Math.ceil(view.survival.freshWaterDays)}D`, labelX, y + 1, {
-    color: view.survival.freshWaterFraction <= 0.16 ? "#f68181" : "#8ac0b4"
+    color: view.survival.freshWaterFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
   });
   drawOptionsText(`FOOD ${Math.floor(view.survival.foodDays)}D`, valueX, y + 1, {
     align: "right",
-    color: view.survival.foodDays <= 3 ? "#f68181" : "#d6b66b"
+    color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
   y += 17;
 
-  ctx.fillStyle = "#625565";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, y, panel.w - 20, 1);
-  drawOptionsText("CARGO HOLD", labelX, y + 6, { color: "#c7dcd0" });
+  drawOptionsText("CARGO HOLD", labelX, y + 6, { color: PIRATE_MENU_INK });
   drawOptionsText(`${view.cargoUsed}/${view.cargoCapacity}`, labelX + 89, y + 6, {
     align: "right",
-    color: "#ffffff"
+    color: PIRATE_MENU_INK
   });
-  drawOptionsText(`${view.doubloons} DB`, valueX, y + 6, { align: "right", color: "#f9c22b" });
+  drawOptionsText(`${view.doubloons} DB`, valueX, y + 6, { align: "right", color: PIRATE_MENU_INK });
   y += 20;
   if (cargoPage.rows.length === 0) {
-    drawOptionsText("THE HOLD IS EMPTY", labelX, y, { color: "#9babb2" });
+    drawOptionsText("THE HOLD IS EMPTY", labelX, y, { color: PIRATE_MENU_INK_MUTED });
   } else {
-    const maxRows = Math.max(1, Math.floor((panel.y + panel.h - 22 - y) / 13));
+    const maxRows = Math.max(1, Math.floor((panel.y + panel.h - 22 - y) / 17));
     cargoPage.rows.slice(0, maxRows).forEach((row, index) => {
-      const rowY = y + index * 13;
-      ctx.fillStyle = "#ab947a";
-      ctx.fillRect(labelX, rowY + 3, 3, 3);
+      const rowY = y + index * 17;
+      drawGameIcon(tradeGoodIconId(row.id), labelX, rowY - 4);
       drawOptionsText(
-        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_UI_8, panel.w - 96),
-        labelX + 8,
+        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_SMALL_8, panel.w - 108),
+        labelX + GAME_ICON_SIZE + 4,
         rowY,
-        { color: "#ffffff" }
+        { color: PIRATE_MENU_INK }
       );
       const basis = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
-      drawOptionsText(basis, valueX, rowY, { align: "right", color: "#fbb954" });
+      drawOptionsText(basis, valueX, rowY, { align: "right", color: PIRATE_MENU_INK_MUTED });
     });
   }
   drawCompactShipPager(panel, cargoPage.page, cargoPage.pageCount, "MANIFEST");
 }
 
 function drawCompactShipRating(label, rating, x, valueX, y) {
-  drawOptionsText(label, x, y, { color: "#c7dcd0" });
+  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
   const meterX = x + 80;
   for (let index = 0; index < 10; index++) {
-    ctx.fillStyle = index < rating ? "#30e1b9" : "#625565";
+    ctx.fillStyle = index < rating ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
     ctx.fillRect(meterX + index * 7, y + 2, 5, 5);
   }
-  drawOptionsText(String(rating), valueX, y, { align: "right", color: "#ffffff" });
+  drawOptionsText(String(rating), valueX, y, { align: "right", color: PIRATE_MENU_INK });
 }
 
 function drawCompactShipLedger(panel, view) {
@@ -11011,23 +11803,23 @@ function drawCompactShipLedger(panel, view) {
   const top = panel.y + 43;
   const realized = Math.round(view.realizedPnl);
   drawOptionsText(`P/L ${formatSignedLedgerMoney(realized)} DB`, left, top, { color: ledgerPnlColor(realized) });
-  drawOptionsText(`CASH ${view.doubloons} DB`, right, top, { align: "right", color: "#f9c22b" });
+  drawOptionsText(`CASH ${view.doubloons} DB`, right, top, { align: "right", color: PIRATE_MENU_INK });
   const availableH = panel.y + panel.h - UI_PAGER_BUTTON_H - 7 - (top + 14);
   const rowH = Math.max(20, Math.floor(availableH / Math.max(1, page.rows.length)));
   page.rows.forEach((entry, index) => {
     const y = top + 15 + index * rowH;
-    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowH - 1);
-    drawOptionsText(shipLedgerDateLabel(entry.simMinute), left, y, { color: "#9babb2" });
-    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 125), left + 70, y, {
-      color: "#c7dcd0"
+    drawOptionsText(shipLedgerDateLabel(entry.simMinute), left, y, { color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 125), left + 70, y, {
+      color: PIRATE_MENU_CHART_LINE
     });
     drawOptionsText(formatSignedLedgerMoney(entry.amount), right, y, {
       align: "right",
       color: entry.amount < 0 ? "#f68181" : "#91db69"
     });
-    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 82), left, y + 9, {
-      color: "#ffffff"
+    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 82), left, y + 9, {
+      color: PIRATE_MENU_INK
     });
     const pnl = entry.pnl === null ? `BAL ${Math.round(entry.balance)}` : `P/L ${formatSignedLedgerMoney(entry.pnl)}`;
     drawOptionsText(pnl, right, y + 9, {
@@ -11044,22 +11836,22 @@ function drawCompactShipPapers(panel, view) {
   const left = panel.x + 12;
   const right = panel.x + panel.w - 12;
   const top = panel.y + 43;
-  drawOptionsText("ITEMS & DOCUMENTS", left, top, { color: "#c7dcd0" });
-  drawOptionsText(`${view.papers.length} HELD`, right, top, { align: "right", color: "#fbb954" });
-  if (page.rows.length === 0) drawOptionsText("INVENTORY IS EMPTY", left, top + 21, { color: "#9babb2" });
+  drawOptionsText("ITEMS & DOCUMENTS", left, top, { color: PIRATE_MENU_INK });
+  drawOptionsText(`${view.papers.length} HELD`, right, top, { align: "right", color: PIRATE_MENU_INK_MUTED });
+  if (page.rows.length === 0) drawOptionsText("INVENTORY IS EMPTY", left, top + 21, { color: PIRATE_MENU_INK_MUTED });
   const availableH = panel.y + panel.h - UI_PAGER_BUTTON_H - 7 - (top + 14);
   const rowH = Math.max(26, Math.floor(availableH / Math.max(1, page.rows.length)));
   page.rows.forEach((paper, index) => {
     const y = top + 16 + index * rowH;
-    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowH - 1);
     drawOptionsText(paper.kind.toUpperCase(), left, y, { color: paper.kind === "marque" ? "#91db69" : "#fbb954" });
-    drawOptionsText(shipLedgerDateLabel(paper.simMinute), right, y, { align: "right", color: "#9babb2" });
-    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 24), left, y + 9, {
-      color: "#ffffff"
+    drawOptionsText(shipLedgerDateLabel(paper.simMinute), right, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + 9, {
+      color: PIRATE_MENU_INK
     });
-    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 24), left, y + 18, {
-      color: "#c7dcd0"
+    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + 18, {
+      color: PIRATE_MENU_CHART_LINE
     });
   });
   drawCompactShipPager(panel, page.page, page.pageCount, "INVENTORY");
@@ -11086,7 +11878,7 @@ function drawCompactShipPager(panel, page, pageCount, label) {
   }
   drawOptionsText(`${label} ${page + 1}/${pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
     align: "center",
-    color: "#9babb2"
+    color: PIRATE_MENU_INK_MUTED
   });
 }
 
@@ -11115,13 +11907,10 @@ function drawShipInfoTabs(panel) {
 }
 
 function drawShipInfoTab(rect, label, selected, hovered) {
-  ctx.fillStyle = selected ? "#625565" : (hovered ? "#484a77" : "#2e222f");
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = selected || hovered ? "#c7dcd0" : "#7f708a";
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawPiratePaperInset(rect, selected || hovered);
   drawOptionsText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
-    color: selected ? "#ffffff" : "#9babb2"
+    color: PIRATE_MENU_INK
   });
 }
 
@@ -11135,7 +11924,7 @@ function drawShipLedger(panel, view) {
   });
   drawOptionsText(`CASH ${view.doubloons} DB`, panel.x + panel.w - 12, summaryY, {
     align: "right",
-    color: "#f9c22b"
+    color: PIRATE_MENU_INK
   });
 
   const dateX = panel.x + 12;
@@ -11145,25 +11934,25 @@ function drawShipLedger(panel, view) {
   const balanceX = panel.x + 374;
   const pnlX = panel.x + panel.w - 12;
   const headerY = panel.y + 43;
-  ctx.fillStyle = "#625565";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
-  drawOptionsText("DATE", dateX, headerY, { color: "#ab947a" });
-  drawOptionsText("PORT", portX, headerY, { color: "#ab947a" });
-  drawOptionsText("ENTRY", entryX, headerY, { color: "#ab947a" });
-  drawOptionsText("AMOUNT", amountX, headerY, { align: "right", color: "#ab947a" });
-  drawOptionsText("BAL", balanceX, headerY, { align: "right", color: "#ab947a" });
-  drawOptionsText("P/L", pnlX, headerY, { align: "right", color: "#ab947a" });
+  drawOptionsText("DATE", dateX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("PORT", portX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("ENTRY", entryX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("AMOUNT", amountX, headerY, { align: "right", color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("BAL", balanceX, headerY, { align: "right", color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("P/L", pnlX, headerY, { align: "right", color: PIRATE_MENU_INK_MUTED });
 
   page.rows.forEach((entry, index) => {
     const y = panel.y + 57 + index * 15;
-    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, 13);
-    drawOptionsText(shipLedgerDateLabel(entry.simMinute), dateX, y, { color: "#9babb2" });
-    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_UI_8, 59), portX, y, {
-      color: "#c7dcd0"
+    drawOptionsText(shipLedgerDateLabel(entry.simMinute), dateX, y, { color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_SMALL_8, 59), portX, y, {
+      color: PIRATE_MENU_CHART_LINE
     });
-    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_UI_8, 116), entryX, y, {
-      color: "#ffffff"
+    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_SMALL_8, 116), entryX, y, {
+      color: PIRATE_MENU_INK
     });
     drawOptionsText(formatSignedLedgerMoney(entry.amount), amountX, y, {
       align: "right",
@@ -11199,7 +11988,7 @@ function drawShipLedger(panel, view) {
   }
   drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
     align: "center",
-    color: "#9babb2"
+    color: PIRATE_MENU_INK_MUTED
   });
 }
 
@@ -11207,10 +11996,10 @@ function drawShipPapers(panel, view) {
   const page = shipPapersPage(view, shipInfoMenu.papersPage);
   shipInfoMenu.papersPage = page.page;
   const summaryY = panel.y + 27;
-  drawOptionsText("ITEMS & DOCUMENTS", panel.x + 12, summaryY, { color: "#c7dcd0" });
+  drawOptionsText("ITEMS & DOCUMENTS", panel.x + 12, summaryY, { color: PIRATE_MENU_INK });
   drawOptionsText(`${view.papers.length} HELD`, panel.x + panel.w - 12, summaryY, {
     align: "right",
-    color: view.papers.length > 0 ? "#fbb954" : "#9babb2"
+    color: view.papers.length > 0 ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED
   });
 
   const typeX = panel.x + 12;
@@ -11218,43 +12007,43 @@ function drawShipPapers(panel, view) {
   const detailX = panel.x + 218;
   const dateX = panel.x + panel.w - 12;
   const headerY = panel.y + 43;
-  ctx.fillStyle = "#625565";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
-  drawOptionsText("TYPE", typeX, headerY, { color: "#ab947a" });
-  drawOptionsText("ENTRY", entryX, headerY, { color: "#ab947a" });
-  drawOptionsText("DETAIL", detailX, headerY, { color: "#ab947a" });
-  drawOptionsText("DATE", dateX, headerY, { align: "right", color: "#ab947a" });
+  drawOptionsText("TYPE", typeX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("ENTRY", entryX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("DETAIL", detailX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("DATE", dateX, headerY, { align: "right", color: PIRATE_MENU_INK_MUTED });
 
   if (page.rows.length === 0) {
-    drawOptionsText("INVENTORY IS EMPTY", panel.x + 12, panel.y + 63, { color: "#9babb2" });
+    drawOptionsText("INVENTORY IS EMPTY", panel.x + 12, panel.y + 63, { color: PIRATE_MENU_INK_MUTED });
   }
   page.rows.forEach((paper, index) => {
     const y = panel.y + 57 + index * 18;
-    ctx.fillStyle = index % 2 === 0 ? "rgba(46, 34, 47, 0.42)" : "rgba(46, 34, 47, 0.18)";
+    ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, 16);
     const typeColor = paper.kind === "marque"
-      ? "#91db69"
+      ? PIRATE_MENU_SUCCESS
       : paper.kind === "delivery"
-        ? "#fbb954"
-        : "#c7dcd0";
-    drawOptionsText(fitPixelText(paper.kind.toUpperCase(), PIXEL_FONT_UI_8, 55), typeX, y, {
+        ? PIRATE_MENU_INK
+        : PIRATE_MENU_CHART_LINE;
+    drawOptionsText(fitPixelText(paper.kind.toUpperCase(), PIXEL_FONT_SMALL_8, 55), typeX, y, {
       color: typeColor
     });
-    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_UI_8, 126), entryX, y, {
-      color: "#ffffff"
+    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y, {
+      color: PIRATE_MENU_INK
     });
-    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_UI_8, 126), entryX, y + 8, {
-      color: "#9babb2"
+    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y + 8, {
+      color: PIRATE_MENU_INK_MUTED
     });
-    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_UI_8, 145), detailX, y, {
-      color: "#c7dcd0"
+    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y, {
+      color: PIRATE_MENU_CHART_LINE
     });
-    drawOptionsText(fitPixelText(paper.detail.toUpperCase(), PIXEL_FONT_UI_8, 145), detailX, y + 8, {
-      color: "#ab947a"
+    drawOptionsText(fitPixelText(paper.detail.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y + 8, {
+      color: PIRATE_MENU_INK_MUTED
     });
     drawOptionsText(shipLedgerDateLabel(paper.simMinute), dateX, y, {
       align: "right",
-      color: Number.isFinite(paper.simMinute) ? "#9babb2" : "#625565"
+      color: PIRATE_MENU_INK_MUTED
     });
   });
 
@@ -11278,7 +12067,7 @@ function drawShipPapers(panel, view) {
   }
   drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
     align: "center",
-    color: "#9babb2"
+    color: PIRATE_MENU_INK_MUTED
   });
 }
 
@@ -11294,24 +12083,24 @@ function ledgerPnlColor(value) {
 }
 
 function drawShipInfoValueRow(label, value, x, valueX, y) {
-  drawOptionsText(label, x, y, { color: "#c7dcd0" });
-  drawOptionsText(value, valueX, y, { align: "right", color: "#ffffff" });
+  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
+  drawOptionsText(value, valueX, y, { align: "right", color: PIRATE_MENU_INK });
 }
 
 function drawShipInfoRating(label, rating, x, y) {
-  drawOptionsText(label, x, y, { color: "#c7dcd0" });
+  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
   const meterX = x + 78;
   for (let index = 0; index < 10; index++) {
-    ctx.fillStyle = index < rating ? "#30e1b9" : "#625565";
+    ctx.fillStyle = index < rating ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
     ctx.fillRect(meterX + index * 8, y + 2, 6, 5);
   }
-  drawOptionsText(String(rating), meterX + 89, y, { align: "right", color: "#ffffff" });
+  drawOptionsText(String(rating), meterX + 89, y, { align: "right", color: PIRATE_MENU_INK });
 }
 
 function drawShipInfoBar(x, y, width, fraction, color) {
-  ctx.fillStyle = "#2e222f";
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
   ctx.fillRect(x, y, width, 6);
-  ctx.strokeStyle = "#625565";
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 5);
   const fillWidth = Math.round((width - 2) * clamp(fraction, 0, 1));
   if (fillWidth > 0) {
@@ -11321,24 +12110,18 @@ function drawShipInfoBar(x, y, width, fraction, color) {
 }
 
 function drawShipInfoCloseButton(rect, hovered) {
-  ctx.fillStyle = hovered ? "#625565" : "#2e222f";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#ffffff" : "#7f708a";
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawPiratePaperInset(rect, hovered);
   drawOptionsText("X", rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
-    color: hovered ? "#ffffff" : "#c7dcd0"
+    color: PIRATE_MENU_INK
   });
 }
 
 function drawShipInfoArrowButton(rect, label, hovered) {
-  ctx.fillStyle = hovered ? "#625565" : "#2e222f";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#ffffff" : "#7f708a";
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawPiratePaperInset(rect, hovered);
   drawOptionsText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
-    color: hovered ? "#ffffff" : "#fbb954"
+    color: PIRATE_MENU_INK
   });
 }
 
@@ -11348,12 +12131,7 @@ function drawDiscoveriesMenu() {
   discoveriesMenu.panelRect = { x: panelX, y: panelY, w: DISCOVERIES_PANEL_W, h: DISCOVERIES_PANEL_H };
 
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#17130e";
-  ctx.fillRect(panelX, panelY, DISCOVERIES_PANEL_W, DISCOVERIES_PANEL_H);
-  ctx.strokeStyle = "#a27a3b";
-  ctx.strokeRect(panelX + 0.5, panelY + 0.5, DISCOVERIES_PANEL_W - 1, DISCOVERIES_PANEL_H - 1);
+  drawPiratePaperModal(discoveriesMenu.panelRect, 0.78);
 
   const closeSize = UI_ICON_BUTTON_SIZE;
   discoveriesMenu.closeButtonRect = {
@@ -11368,7 +12146,7 @@ function drawDiscoveriesMenu() {
   );
   drawOptionsText("DISCOVERIES", panelX + DISCOVERIES_PANEL_W / 2, panelY + 9, {
     align: "center",
-    color: "#ffd98a"
+    color: PIRATE_MENU_INK
   });
 
   const entries = discoveredEntries(gameState);
@@ -11406,7 +12184,7 @@ function drawDiscoveriesMenu() {
   const listX = panelX + 13;
   const listY = panelY + (compact ? 91 : 79);
   if (pageEntries.length === 0) {
-    drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: "#8f8779" });
+    drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: PIRATE_MENU_INK_MUTED });
   } else {
     pageEntries.forEach((entry, index) => {
       const y = listY + index * 36;
@@ -11417,20 +12195,20 @@ function drawDiscoveriesMenu() {
       } else {
         ctx.fillStyle = discoveryKindColor(entry.kind);
         ctx.fillRect(listX + 15, y + 14, 6, 6);
-        ctx.fillStyle = "#17130e";
+        ctx.fillStyle = PIRATE_MENU_INK;
         ctx.fillRect(listX + 17, y + 16, 2, 2);
       }
       const textX = listX + 42;
       const textWidth = DISCOVERIES_PANEL_W - 67;
       drawOptionsText(
-        fitPixelText(entry.displayName.toUpperCase(), PIXEL_FONT_UI_8, textWidth),
+        fitPixelText(entry.displayName.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth),
         textX,
         y + 7,
-        { color: "#eee4cf" }
+        { color: PIRATE_MENU_INK }
       );
-      const detail = fitPixelText(entry.detail.toUpperCase(), PIXEL_FONT_BODY_8, textWidth);
-      ctx.fillStyle = "#a9a08f";
-      drawPixelText(detail, textX, y + 20, { font: PIXEL_FONT_BODY_8 });
+      const detail = fitPixelText(entry.detail.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
+      ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+      drawPixelText(detail, textX, y + 20, { font: PIXEL_FONT_SMALL_8 });
     });
   }
 
@@ -11454,7 +12232,7 @@ function drawDiscoveriesMenu() {
   );
   drawOptionsText(`PAGE ${discoveriesMenu.page + 1}/${pageCount}`, panelX + DISCOVERIES_PANEL_W / 2, pagerY + 3, {
     align: "center",
-    color: "#a9a08f"
+    color: PIRATE_MENU_INK_MUTED
   });
   ctx.restore();
 }
@@ -11468,15 +12246,15 @@ function discoverySpriteImage(entry) {
 }
 
 function drawDiscoveryProgressRow(x, y, label, value, fraction, color, availableWidth, compact) {
-  drawOptionsText(label, x, y, { color: "#d7d0c2" });
-  drawOptionsText(value, x + (compact ? availableWidth : 103), y, { align: "right", color: "#fff1bf" });
+  drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
+  drawOptionsText(value, x + (compact ? availableWidth : 103), y, { align: "right", color: PIRATE_MENU_INK });
   const barX = compact ? x : x + 112;
   const barY = compact ? y + 11 : y + 1;
   const barW = compact ? availableWidth : Math.max(20, availableWidth - 112);
   const barH = 7;
-  ctx.fillStyle = "#28231d";
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
   ctx.fillRect(barX, barY, barW, barH);
-  ctx.strokeStyle = "#675a49";
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1);
   const fillW = Math.round((barW - 2) * clamp(fraction, 0, 1));
   if (fillW > 0) {
@@ -11517,12 +12295,7 @@ function drawPoliticsMenu() {
   politicsMenu.page = page.page;
 
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#17130e";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#a27a3b";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  drawPiratePaperModal(panel, 0.78);
 
   const closeSize = UI_ICON_BUTTON_SIZE;
   politicsMenu.closeButtonRect = {
@@ -11537,7 +12310,7 @@ function drawPoliticsMenu() {
   );
   drawOptionsText("POLITICAL CHART", panel.x + panel.w / 2, panel.y + 9, {
     align: "center",
-    color: "#ffd98a"
+    color: PIRATE_MENU_INK
   });
 
   const rowLabelX = panel.x + 12;
@@ -11546,22 +12319,22 @@ function drawPoliticsMenu() {
   const legendY = panel.y + 27;
   drawOptionsText("A ALLY", panel.x + 12, legendY, { color: "#91db69" });
   drawOptionsText("W WAR", panel.x + 62, legendY, { color: "#f68181" });
-  drawOptionsText("- NEUTRAL", panel.x + 108, legendY, { color: "#9babb2" });
+  drawOptionsText("- NEUTRAL", panel.x + 108, legendY, { color: PIRATE_MENU_INK_MUTED });
   drawOptionsText("STANCE TOWARD", matrixX + matrixW / 2, legendY, {
     align: "center",
-    color: "#ab947a"
+    color: PIRATE_MENU_INK_MUTED
   });
   drawOptionsText("PLAYER STANDING", panel.x + panel.w - 12, legendY, {
     align: "right",
-    color: "#d6b66b"
+    color: PIRATE_MENU_INK
   });
 
   const headerY = panel.y + 42;
   const matrixY = panel.y + 58;
   const statusX = matrixX + matrixW + 8;
   const statusW = panel.x + panel.w - statusX - 12;
-  drawOptionsText("POWER", rowLabelX, headerY + 5, { color: "#ab947a" });
-  drawOptionsText("STATUS", statusX, headerY + 5, { color: "#ab947a" });
+  drawOptionsText("POWER", rowLabelX, headerY + 5, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("STATUS", statusX, headerY + 5, { color: PIRATE_MENU_INK_MUTED });
 
   view.powers.forEach((power, index) => {
     const x = matrixX + index * POLITICS_MATRIX_CELL_W;
@@ -11570,10 +12343,10 @@ function drawPoliticsMenu() {
 
   page.rows.forEach((row, rowIndex) => {
     const y = matrixY + rowIndex * POLITICS_MATRIX_ROW_H;
-    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(46, 34, 47, 0.28)" : "rgba(46, 34, 47, 0.12)";
+    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 1, panel.w - 20, POLITICS_MATRIX_ROW_H);
     drawOptionsText(
-      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_UI_8, 104),
+      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_SMALL_8, 104),
       rowLabelX,
       y,
       { color: politicsFactionColor(row.faction.id) }
@@ -11609,7 +12382,7 @@ function drawPoliticsMenu() {
   );
   drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 3, {
     align: "center",
-    color: "#a9a08f"
+    color: PIRATE_MENU_INK_MUTED
   });
   drawPoliticsLatestNews(view, panel, pagerY);
   ctx.restore();
@@ -11657,12 +12430,7 @@ function drawCompactPoliticsMenu() {
   );
 
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.82)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#17130e";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#a27a3b";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  drawPiratePaperModal(panel, 0.82);
   politicsMenu.panelRect = panel;
   politicsMenu.closeButtonRect = {
     x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
@@ -11676,19 +12444,19 @@ function drawCompactPoliticsMenu() {
   );
   drawOptionsText("POLITICAL CHART", panel.x + panel.w / 2, panel.y + 9, {
     align: "center",
-    color: "#ffd98a"
+    color: PIRATE_MENU_INK
   });
   drawOptionsText("A ALLY", panel.x + 10, panel.y + 27, { color: "#91db69" });
   drawOptionsText("W WAR", panel.x + 58, panel.y + 27, { color: "#f68181" });
-  drawOptionsText("- NEUTRAL", panel.x + 104, panel.y + 27, { color: "#9babb2" });
+  drawOptionsText("- NEUTRAL", panel.x + 104, panel.y + 27, { color: PIRATE_MENU_INK_MUTED });
 
   const labelX = panel.x + 10;
   const matrixX = panel.x + 91;
   const statusX = panel.x + panel.w - 31;
   const headerY = panel.y + 44;
   const matrixY = panel.y + 63;
-  drawOptionsText("POWER", labelX, headerY, { color: "#ab947a" });
-  drawOptionsText("YOU", statusX, headerY, { color: "#d6b66b" });
+  drawOptionsText("POWER", labelX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("YOU", statusX, headerY, { color: PIRATE_MENU_INK });
   powers.forEach((power, index) => {
     drawPoliticsColumnCode(
       power.code,
@@ -11700,10 +12468,10 @@ function drawCompactPoliticsMenu() {
 
   rows.forEach((row, rowIndex) => {
     const y = matrixY + rowIndex * POLITICS_MATRIX_ROW_H;
-    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(46, 34, 47, 0.3)" : "rgba(46, 34, 47, 0.12)";
+    ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 8, y - 1, panel.w - 16, POLITICS_MATRIX_ROW_H);
     drawOptionsText(
-      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_UI_8, 76),
+      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_SMALL_8, 76),
       labelX,
       y,
       { color: politicsFactionColor(row.faction.id) }
@@ -11747,7 +12515,7 @@ function drawCompactPoliticsMenu() {
     `PAGE ${politicsMenu.page + 1}/${pagination.pageCount}`,
     panel.x + panel.w / 2,
     pagerY + 3,
-    { align: "center", color: "#a9a08f" }
+    { align: "center", color: PIRATE_MENU_INK_MUTED }
   );
   drawPoliticsLatestNews(view, panel, pagerY);
   ctx.restore();
@@ -11757,7 +12525,7 @@ function drawPoliticsLatestNews(view, panel, pagerY) {
   const latest = view.recentEvents[0];
   if (!latest) return;
   drawOptionsText(
-    fitPixelText(`LATEST ${diplomacyEventNotice(latest)}`, PIXEL_FONT_UI_8, panel.w - 120),
+    fitPixelText(`LATEST ${diplomacyEventNotice(latest)}`, PIXEL_FONT_SMALL_8, panel.w - 120),
     panel.x + panel.w / 2,
     pagerY - 11,
     { align: "center", color: latest.kind === "peace" ? "#91db69" : "#f68181" }
@@ -11774,10 +12542,10 @@ function drawPoliticsColumnCode(code, x, y, color) {
 
 function drawPoliticsMatrixCell(x, y, relation, self) {
   const glyph = politicsRelationGlyph(relation);
-  ctx.fillStyle = self ? "#3e3546" : "rgba(0, 0, 0, 0.22)";
+  ctx.fillStyle = self ? PIRATE_MENU_PAPER_INSET_ALT : "rgba(113, 80, 51, 0.12)";
   ctx.fillRect(x, y, POLITICS_MATRIX_CELL_W - 1, POLITICS_MATRIX_ROW_H - 1);
   drawOptionsText(glyph, x + 1, y, {
-    color: self ? "#fff1bf" : politicsRelationColor(relation)
+    color: self ? PIRATE_MENU_INK : politicsRelationColor(relation)
   });
 }
 
@@ -11789,12 +12557,12 @@ function drawPoliticsStanding(player, x, y, width) {
   drawOptionsText(
     fitPixelText(
       player.hasLetterOfMarque ? `${player.label.toUpperCase()} MARQUE` : player.label.toUpperCase(),
-      PIXEL_FONT_UI_8,
+      PIXEL_FONT_SMALL_8,
       Math.max(0, width - scoreW)
     ),
     x + scoreW,
     y,
-    { color: "#eee4cf" }
+    { color: PIRATE_MENU_INK }
   );
 }
 
@@ -11808,29 +12576,495 @@ function politicsRelationGlyph(relation) {
 function politicsRelationColor(relation) {
   if (relation === DIPLOMACY_ALLY) return "#91db69";
   if (relation === DIPLOMACY_WAR) return "#f68181";
-  if (relation === DIPLOMACY_NEUTRAL) return "#9babb2";
+  if (relation === DIPLOMACY_NEUTRAL) return PIRATE_MENU_INK_MUTED;
   throw new Error(`Unknown political relation: ${relation}`);
 }
 
 function politicsStandingColor(reputation) {
   if (reputation <= -75) return "#f04f78";
   if (reputation <= -25) return "#cd683d";
-  if (reputation < 0) return "#7f708a";
-  if (reputation === 0) return "#9babb2";
-  if (reputation < 15) return "#91db69";
-  if (reputation < 50) return "#30e1b9";
-  return "#fff1bf";
+  if (reputation < 0) return PIRATE_MENU_INK_MUTED;
+  if (reputation === 0) return PIRATE_MENU_INK_MUTED;
+  if (reputation < 15) return PIRATE_MENU_SUCCESS;
+  if (reputation < 50) return PIRATE_MENU_CHART_LINE;
+  return PIRATE_MENU_INK;
 }
 
 function politicsFactionColor(factionId) {
-  if (factionId === PIRATE_FACTION_ID) return "#f04f78";
-  return "#eee4cf";
+  if (factionId === PIRATE_FACTION_ID) return PIRATE_MENU_DANGER;
+  return PIRATE_MENU_INK;
+}
+
+function drawLakeBattleMode(nowMs) {
+  const terrainChart = ensureLakeBattleTerrainChart();
+  drawLakeBattleTerrain(terrainChart);
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SETUP) {
+    drawLakeBattleSetup();
+    return;
+  }
+  const battle = lakeBattleMode.battle;
+  if (!battle) throw new Error(`Lake battle screen ${lakeBattleMode.screen} has no battle state`);
+  drawLakeBattleWakes(battle);
+  drawLakeBattleEffects(battle);
+  drawLakeBattleShips(battle, nowMs);
+  drawLakeBattleSinkEffects(battle, nowMs);
+  const hudLayout = drawLakeBattleHud(battle);
+  if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+    drawLakeBattleBroadsideControls(battle);
+    drawLakeBattleWindIndicator(battle, nowMs);
+    drawLakeBattlePauseButton(hudLayout.pauseButton);
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PAUSED) {
+    drawLakeBattleActionOverlay("BATTLE PAUSED", LAKE_BATTLE_PAUSE_ACTIONS);
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING) {
+    // The wreck animation is the result presentation until the last pixels submerge.
+  } else if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_RESULT) {
+    const title = battle.outcome === "victory"
+      ? "VICTORY"
+      : battle.outcome === "defeat"
+        ? "DEFEAT"
+        : "DRAW";
+    drawLakeBattleActionOverlay(title, LAKE_BATTLE_RESULT_ACTIONS);
+  } else {
+    throw new Error(`Unknown lake battle screen: ${lakeBattleMode.screen}`);
+  }
+}
+
+function ensureLakeBattleTerrainChart() {
+  const map = lakeBattleMode?.battle?.map || createLakeBattleArenaMap(SCREEN_W, SCREEN_H);
+  const key = `${map.width}x${map.height}|${map.seed}`;
+  if (lakeBattleTerrainChart && lakeBattleTerrainChartKey === key) return lakeBattleTerrainChart;
+  lakeBattleTerrainChart = buildLakeBattleTerrainChart(map);
+  lakeBattleTerrainChartKey = key;
+  return lakeBattleTerrainChart;
+}
+
+function buildLakeBattleTerrainChart(map) {
+  const faceCalls = [];
+  const tileCalls = [];
+  const baseFaceCalls = [];
+  const frontFacesByTile = new Map();
+  const tileById = new Map();
+
+  for (const cell of map.cells) {
+    const row = cell.terrain;
+    const level = terrainLevel(row, cell.id);
+    const surface = { x: cell.x, y: cell.y - level * 3 };
+    const tileCall = {
+      id: cell.id,
+      x: cell.x,
+      y: cell.y,
+      row,
+      level,
+      surface,
+      drawSurfaceX: surface.x,
+      drawSurfaceY: surface.y,
+      drawLayer: terrainSpriteDrawLayer(spriteForTerrain(row, cell.id)),
+      sortY: cell.y
+    };
+    tileCalls.push(tileCall);
+    tileById.set(cell.id, tileCall);
+  }
+
+  for (const cell of map.cells) {
+    const tile = tileById.get(cell.id);
+    for (const neighborId of cell.neighbors) {
+      if (neighborId < cell.id) continue;
+      const neighbor = tileById.get(neighborId);
+      if (!neighbor) throw new Error(`Lake battle tile has missing neighbor: ${cell.id}/${neighborId}`);
+      faceCalls.push(makeFaceCall({
+        a: tile.id,
+        b: neighbor.id,
+        ax: tile.drawSurfaceX,
+        ay: tile.drawSurfaceY,
+        aSortY: tile.y,
+        bx: neighbor.drawSurfaceX,
+        by: neighbor.drawSurfaceY,
+        bSortY: neighbor.y,
+        row: tile.row,
+        nrow: neighbor.row,
+        level: tile.level,
+        nlevel: neighbor.level
+      }));
+    }
+  }
+
+  for (const call of faceCalls) {
+    if (isFrontCoverFace(call)) addFrontFace(frontFacesByTile, call.ownerId, call);
+    else baseFaceCalls.push(call);
+  }
+  baseFaceCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
+  tileCalls.sort(compareTerrainDrawCalls);
+  for (const frontFaces of frontFacesByTile.values()) frontFaces.sort((a, b) => a.sortY - b.sortY);
+  return { map, tileById, baseFaceCalls, tileCalls, frontFacesByTile };
+}
+
+function drawLakeBattleTerrain(terrainChart) {
+  ctx.fillStyle = "#1f3650";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  for (const face of terrainChart.baseFaceCalls) drawFace(face, terrainChart);
+  for (const tile of terrainChart.tileCalls) {
+    drawTile(tile, terrainChart);
+    const frontFaces = terrainChart.frontFacesByTile.get(tile.id);
+    if (frontFaces) {
+      for (const face of frontFaces) drawFace(face, terrainChart, { coverFront: true });
+    }
+  }
+}
+
+function drawLakeBattleSetup() {
+  const panel = lakeBattleSetupPanelRect();
+  ctx.save();
+  drawPiratePaperModal(panel, 0.76);
+  drawOptionsText("SHIP BATTLE", panel.x + panel.w / 2, panel.y + 11, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+
+  const selectorHeight = 54;
+  const playerRect = { x: panel.x + 10, y: panel.y + 30, w: panel.w - 20, h: selectorHeight };
+  const enemyRect = { ...playerRect, y: playerRect.y + selectorHeight + 5 };
+  const beginRect = { x: panel.x + Math.floor((panel.w - 166) / 2), y: enemyRect.y + selectorHeight + 8, w: 166, h: 24 };
+  const backRect = { ...beginRect, y: beginRect.y + 28 };
+  lakeBattleMode.rowRects = [playerRect, enemyRect, beginRect, backRect];
+  drawLakeBattleShipSelector(playerRect, "YOUR SHIP", "player", LAKE_BATTLE_SETUP_PLAYER_ROW);
+  drawLakeBattleShipSelector(enemyRect, "ENEMY SHIP", "enemy", LAKE_BATTLE_SETUP_ENEMY_ROW);
+  drawStartMenuButton(
+    beginRect,
+    lakeBattleMode.loading ? "LOADING SHIPS..." : "BEGIN BATTLE",
+    lakeBattleMode.selectedIndex === LAKE_BATTLE_SETUP_BEGIN_ROW,
+    "action:attack"
+  );
+  drawStartMenuButton(
+    backRect,
+    "BACK",
+    lakeBattleMode.selectedIndex === LAKE_BATTLE_SETUP_BACK_ROW,
+    "action:back"
+  );
+  if (lakeBattleMode.error) {
+    drawOptionsText(
+      fitPixelText(lakeBattleMode.error, PIXEL_FONT_SMALL_8, panel.w - 20),
+      panel.x + panel.w / 2,
+      panel.y + panel.h - 14,
+      { align: "center", color: "#f68181" }
+    );
+  }
+  ctx.restore();
+}
+
+function lakeBattleSetupPanelRect() {
+  const width = Math.min(390, SCREEN_W - 12);
+  const height = Math.min(244, SCREEN_H - 12);
+  return {
+    x: Math.floor((SCREEN_W - width) / 2),
+    y: Math.floor((SCREEN_H - height) / 2),
+    w: width,
+    h: height
+  };
+}
+
+function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
+  const selected = lakeBattleMode.selectedIndex === row;
+  const slug = selectedLakeBattleSlug(side);
+  const stats = shipStatsForSlug(slug);
+  drawPiratePaperInset(rect, selected);
+  const arrowSize = 24;
+  const leftRect = { x: rect.x + 4, y: rect.y + 15, w: arrowSize, h: arrowSize };
+  const rightRect = { x: rect.x + rect.w - arrowSize - 4, y: rect.y + 15, w: arrowSize, h: arrowSize };
+  lakeBattleMode.leftArrowRects[row] = leftRect;
+  lakeBattleMode.rightArrowRects[row] = rightRect;
+  drawShipInfoArrowButton(leftRect, "<", pointInRect(lakeBattleMode.hoverPoint, leftRect));
+  drawShipInfoArrowButton(rightRect, ">", pointInRect(lakeBattleMode.hoverPoint, rightRect));
+
+  const asset = lakeBattleShipAssets.get(slug) || npcShipAssetsBySlug?.get(slug);
+  if (asset) drawLakeBattleSpriteFrame(asset.image, 0, rect.x + 31, rect.y + 9);
+  else drawOptionsText("...", rect.x + 49, rect.y + 23, { align: "center", color: PIRATE_MENU_INK_MUTED });
+  const textLeft = rect.x + 72;
+  const textWidth = Math.max(64, rect.w - 108);
+  drawOptionsText(headingLabel, textLeft, rect.y + 6, { color: selected ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED });
+  drawOptionsText(
+    fitPixelText(shipLabelForSlug(slug).toUpperCase(), PIXEL_FONT_SMALL_8, textWidth),
+    textLeft,
+    rect.y + 20,
+    { color: PIRATE_MENU_INK }
+  );
+  const armament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARROWS" : `${stats.cannons} GUNS`;
+  const compactArmament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARR" : `${stats.cannons}G`;
+  const summary = rect.w < 300
+    ? `H${stats.hitPoints} ${compactArmament} C${stats.crewCapacity}`
+    : `HULL ${stats.hitPoints}  ${armament}  CREW ${stats.crewCapacity}`;
+  drawOptionsText(
+    fitPixelText(summary, PIXEL_FONT_SMALL_8, textWidth),
+    textLeft,
+    rect.y + 36,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+}
+
+function drawLakeBattleWakes(battle) {
+  ctx.save();
+  for (const shipState of [battle.player, battle.enemy]) {
+    for (const wake of shipState.wake) {
+      const life = clamp(wake.age / wake.ttl, 0, 1);
+      const spread = 1 + Math.floor(life * 5);
+      const broken = (wake.seed + Math.floor(wake.age * 8)) % 4 === 0;
+      ctx.globalAlpha = (1 - life) * 0.72;
+      ctx.fillStyle = "#ffffff";
+      const port = {
+        x: Math.round(wake.x + wake.sideX * spread),
+        y: Math.round(wake.y + wake.sideY * spread)
+      };
+      const starboard = {
+        x: Math.round(wake.x - wake.sideX * spread),
+        y: Math.round(wake.y - wake.sideY * spread)
+      };
+      if (!broken && lakeBattleWaterAt(battle, port.x, port.y)) {
+        ctx.fillRect(port.x, port.y, 1, 1);
+      }
+      if (lakeBattleWaterAt(battle, starboard.x, starboard.y)) {
+        ctx.fillRect(starboard.x, starboard.y, 1, 1);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawLakeBattleEffects(battle) {
+  for (const projectile of battle.projectiles) {
+    drawNavalProjectile(projectile, lakeBattleProjectilePoint(projectile));
+  }
+  for (const splash of battle.splashes) {
+    if (!lakeBattleWaterAt(battle, splash.x, splash.y)) continue;
+    const life = clamp(splash.age / splash.ttl, 0, 1);
+    ctx.globalAlpha = (1 - life) * 0.82;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(splash.x - 1, splash.y, 3, 1);
+    ctx.fillRect(splash.x, splash.y - 2, 1, 4);
+  }
+  for (const impact of battle.impacts) {
+    const life = clamp(impact.age / impact.ttl, 0, 1);
+    ctx.globalAlpha = 1 - life;
+    ctx.fillStyle = impact.kind === NAVAL_WEAPON_ARROW ? "#ffffff" : "#f9c22b";
+    ctx.fillRect(impact.x, impact.y, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawLakeBattleShips(battle, nowMs) {
+  const ships = [battle.player, battle.enemy].sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
+  for (const shipState of ships) {
+    if (shipState.hitPoints > 0) drawLakeBattleShip(shipState, nowMs);
+  }
+}
+
+function lakeBattleShipSpriteCall(shipState, nowMs) {
+  const baseAsset = lakeBattleShipAssets.get(shipState.slug) || npcShipAssetsBySlug?.get(shipState.slug);
+  if (!baseAsset) throw new Error(`Missing loaded lake battle ship asset: ${shipState.slug}`);
+  const baseCall = {
+    id: shipState.id,
+    kind: shipState.id === LAKE_BATTLE_PLAYER_ID ? "player" : "npc",
+    slug: shipState.slug,
+    img: baseAsset.image,
+    sinkDepthImg: baseAsset.sinkDepthImage,
+    rowing: shipState.rowing,
+    bobSeed: shipState.id === LAKE_BATTLE_PLAYER_ID ? 0 : 37
+  };
+  const frameAsset = rowingShipFrameAsset(baseCall, nowMs);
+  return {
+    ...baseCall,
+    img: frameAsset.image,
+    sinkDepthImg: frameAsset.sinkDepthImage,
+    frame: headingFrameForScreenHeading(lakeBattleHeadingVector(shipState)),
+    x: Math.round(shipState.x - SHIP_SHEET_FRAME_SIZE / 2),
+    y: Math.round(shipState.y - SHIP_SHEET_FRAME_SIZE / 2),
+    combatAllegiance: shipState.id === LAKE_BATTLE_PLAYER_ID ? "ally" : "enemy"
+  };
+}
+
+function createLakeBattleShipSinkEffect(shipState, nowMs) {
+  const call = lakeBattleShipSpriteCall(shipState, nowMs);
+  return createShipSinkEffect({
+    id: call.id,
+    pixels: shipSpriteFramePixels(call.img, call.sinkDepthImg, call.frame),
+    frameSize: SHIP_SHEET_FRAME_SIZE,
+    originX: call.x,
+    originY: call.y,
+    startedAtMs: nowMs,
+    seed: hashInt(Math.round(shipState.x * 257) ^ Math.round(shipState.y * 65537) ^ call.id.length)
+  });
+}
+
+function drawLakeBattleShip(shipState, nowMs) {
+  const call = lakeBattleShipSpriteCall(shipState, nowMs);
+  const sx = (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const sy = Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  drawShipCombatOutline(call, sx, sy);
+  ctx.drawImage(
+    call.img,
+    sx,
+    sy,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE,
+    call.x,
+    call.y,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
+  drawLakeBattleShipHullBar(shipState, call.x + 7, call.y + SHIP_SHEET_FRAME_SIZE - 1, 22);
+}
+
+function drawLakeBattleSinkEffects(battle, nowMs) {
+  for (const { effect } of lakeBattleMode.sinkEffects) {
+    drawShipSinkEffect(effect, nowMs, { x: 0, y: 0 }, (x, y) => lakeBattleWaterAt(battle, x, y));
+  }
+}
+
+function drawLakeBattleSpriteFrame(image, frame, x, y) {
+  const sx = (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const sy = Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  ctx.drawImage(
+    image,
+    sx,
+    sy,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE,
+    Math.round(x),
+    Math.round(y),
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
+}
+
+function drawLakeBattleShipHullBar(shipState, x, y, width) {
+  const ratio = clamp(shipState.hitPoints / shipState.maxHitPoints, 0, 1);
+  ctx.fillStyle = "#2e222f";
+  ctx.fillRect(x, y, width, 3);
+  ctx.fillStyle = shipState.id === LAKE_BATTLE_PLAYER_ID ? "#91db69" : "#e83b3b";
+  ctx.fillRect(x + 1, y + 1, Math.round((width - 2) * ratio), 1);
+}
+
+function drawLakeBattleHud(battle) {
+  const playerLabel = shipLabelForSlug(battle.player.slug).toUpperCase();
+  const enemyLabel = shipLabelForSlug(battle.enemy.slug).toUpperCase();
+  const layout = lakeBattleHudLayout({
+    screenWidth: SCREEN_W,
+    labelWidths: [
+      measurePixelTextWidth(playerLabel, PIXEL_FONT_SMALL_8),
+      measurePixelTextWidth(enemyLabel, PIXEL_FONT_SMALL_8)
+    ]
+  });
+  ctx.fillStyle = "rgba(46, 34, 47, 0.82)";
+  for (const panel of [layout.player, layout.enemy]) {
+    ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  }
+  drawLakeBattleHudSide(battle.player, playerLabel, layout.player);
+  drawLakeBattleHudSide(battle.enemy, enemyLabel, layout.enemy);
+  return layout;
+}
+
+function drawLakeBattleHudSide(shipState, label, panel) {
+  const x = panel.alignRight ? panel.x + panel.w - 4 : panel.x + 4;
+  const y = panel.y + 4;
+  const width = panel.w - 8;
+  drawOptionsText(
+    fitPixelText(label, PIXEL_FONT_SMALL_8, width),
+    x,
+    y,
+    { align: panel.alignRight ? "right" : "left", color: "#ffffff" }
+  );
+  const barX = panel.x + 4;
+  const ratio = clamp(shipState.hitPoints / shipState.maxHitPoints, 0, 1);
+  ctx.fillStyle = "#313638";
+  ctx.fillRect(barX, y + 12, width, 5);
+  ctx.fillStyle = panel.alignRight ? "#e83b3b" : "#91db69";
+  ctx.fillRect(barX + 1, y + 13, Math.round((width - 2) * ratio), 3);
+}
+
+function drawLakeBattleWindIndicator(battle, nowMs) {
+  const flowDirectionRad = lakeBattleWindFlowDirection(battle);
+  const flow = { x: Math.cos(flowDirectionRad), y: Math.sin(flowDirectionRad) };
+  const heading = lakeBattleHeadingVector(battle.player);
+  const alignment = clamp(heading.x * flow.x + heading.y * flow.y, -1, 1);
+  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
+  const warning = shipHasWindDeadZone(battle.player.stats)
+    ? sailingStallWarningStrength(angleFromWind, battle.player.stats.upwindStallAngleRad)
+    : 0;
+  drawShipWindV({
+    centerX: battle.player.x,
+    centerY: battle.player.y,
+    flowDirectionRad,
+    deadZoneHalfAngleRad: battle.player.stats.upwindStallAngleRad,
+    strength: battle.wind.strength,
+    warning,
+    nowMs
+  });
+}
+
+function drawLakeBattleBroadsideControls(battle) {
+  for (const sideName of ["port", "starboard"]) {
+    const arc = lakeBattleBroadsideArc(sideName);
+    const cooldown = battle.player.cooldowns[sideName];
+    const targetInArc = pointInBroadsideArc({ x: battle.enemy.x, y: battle.enemy.y }, arc, 7);
+    drawBroadsideReloadIndicator(
+      arc,
+      cooldown,
+      battle.player.weapon.reloadSeconds,
+      targetInArc
+    );
+  }
+}
+
+function drawLakeBattlePauseButton(rect) {
+  lakeBattleMode.pauseButtonRect = rect;
+  const hovered = pointInRect(lakeBattleMode.hoverPoint, rect);
+  ctx.fillStyle = hovered ? "#625565" : "#313638";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = hovered ? "#ffffff" : "#9babb2";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = "#c7dcd0";
+  ctx.fillRect(rect.x + 7, rect.y + 6, 2, 10);
+  ctx.fillRect(rect.x + 13, rect.y + 6, 2, 10);
+}
+
+function drawLakeBattleActionOverlay(title, actions) {
+  ctx.fillStyle = "rgba(16, 20, 23, 0.66)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  const width = Math.min(220, SCREEN_W - 16);
+  const height = 50 + actions.length * 28;
+  const panel = {
+    x: Math.floor((SCREEN_W - width) / 2),
+    y: Math.floor((SCREEN_H - height) / 2),
+    w: width,
+    h: height
+  };
+  drawPiratePaperPanel(panel);
+  ctx.strokeStyle = PIRATE_MENU_INK;
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  drawOptionsText(title, panel.x + panel.w / 2, panel.y + 14, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  lakeBattleMode.actionRects = actions.map((_, index) => ({
+    x: panel.x + 20,
+    y: panel.y + 37 + index * 28,
+    w: panel.w - 40,
+    h: 24
+  }));
+  for (let index = 0; index < actions.length; index++) {
+    drawStartMenuButton(
+      lakeBattleMode.actionRects[index],
+      actions[index],
+      lakeBattleMode.selectedIndex === index,
+      menuLabelIconId(actions[index])
+    );
+  }
 }
 
 function drawStartMenu(nowMs) {
   const actions = startMenuActions();
-  const compactFiveActions = actions.length >= 5;
-  const panelHeight = compactFiveActions
+  const denseActions = actions.length >= 5;
+  const panelHeight = denseActions
     ? Math.min(244, SCREEN_H - 12)
     : (actions.length >= 4 ? START_MENU_PANEL_H : (startMenu.message ? 212 : 196));
   const panel = {
@@ -11844,66 +13078,122 @@ function drawStartMenu(nowMs) {
   ctx.save();
   ctx.fillStyle = "rgba(16, 20, 23, 0.72)";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#1d2630";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#8ac0b4";
+  drawPiratePaperPanel(panel);
+  ctx.strokeStyle = PIRATE_MENU_INK;
   ctx.lineWidth = 1;
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
   ctx.strokeRect(panel.x + 4.5, panel.y + 4.5, panel.w - 9, panel.h - 9);
 
-  ctx.fillStyle = "#fff1bf";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("MARQUE & REPRISAL", panel.x + panel.w / 2, panel.y + 28, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
-  ctx.fillStyle = `rgba(138, 192, 180, ${0.45 + pulse * 0.35})`;
+  ctx.fillStyle = `rgba(84, 126, 100, ${0.58 + pulse * 0.32})`;
   ctx.fillRect(panel.x + 54, panel.y + 51, panel.w - 108, 1);
-  ctx.fillStyle = "#c7dcd0";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   drawPixelText("1522", panel.x + panel.w / 2, panel.y + 57, {
-    font: PIXEL_FONT_BODY_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 
   const labels = actions.map((action) => action.label);
-  const firstButtonY = panel.y + (compactFiveActions ? 72 : 76);
-  const buttonGap = compactFiveActions ? 4 : START_MENU_BUTTON_GAP;
+  const firstButtonY = panel.y + (denseActions ? 68 : 76);
+  const buttonGap = denseActions ? 3 : START_MENU_BUTTON_GAP;
+  const buttonHeight = denseActions ? 24 : START_MENU_BUTTON_H;
   startMenu.buttonRects = labels.map((_, index) => ({
     x: panel.x + Math.floor((panel.w - START_MENU_BUTTON_W) / 2),
-    y: firstButtonY + index * (START_MENU_BUTTON_H + buttonGap),
+    y: firstButtonY + index * (buttonHeight + buttonGap),
     w: START_MENU_BUTTON_W,
-    h: START_MENU_BUTTON_H
+    h: buttonHeight
   }));
 
   for (let i = 0; i < labels.length; i++) {
-    drawStartMenuButton(startMenu.buttonRects[i], labels[i], startMenu.selectedIndex === i);
+    drawStartMenuButton(
+      startMenu.buttonRects[i],
+      labels[i],
+      startMenu.selectedIndex === i,
+      startMenuIconId(actions[i].id)
+    );
   }
-  if (startMenu.message && actions.length < 4) {
+  if (startMenu.message) {
     ctx.fillStyle = "#f68181";
     drawPixelText(startMenu.message, panel.x + panel.w / 2, panel.y + panel.h - 16, {
-      font: PIXEL_FONT_BODY_8,
+      font: PIXEL_FONT_SMALL_8,
       align: "center"
     });
   }
   ctx.restore();
 }
 
-function drawStartMenuButton(rect, label, highlighted) {
-  ctx.fillStyle = highlighted ? "#6d4b2f" : "#2f241c";
+function drawStartMenuButton(rect, label, highlighted, iconId = null) {
+  ctx.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER_BUTTON;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = highlighted ? "#fff1bf" : "#715033";
+  ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   if (highlighted) {
-    ctx.fillStyle = "#f9c22b";
+    ctx.fillStyle = PIRATE_MENU_CHART_LINE;
     const markerY = rect.y + Math.floor((rect.h - 3) / 2);
     ctx.fillRect(rect.x + 4, markerY, 3, 3);
     ctx.fillRect(rect.x + rect.w - 7, markerY, 3, 3);
   }
-  ctx.fillStyle = highlighted ? "#fff1bf" : "#d7d9bf";
-  drawPixelText(label, rect.x + rect.w / 2, controlTextY(rect), {
-    font: PIXEL_FONT_UI_10,
-    align: "center"
-  });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  if (iconId) {
+    const textWidth = measurePixelTextWidth(label, PIXEL_FONT_DIALOGUE_8);
+    const contentWidth = GAME_ICON_SIZE + 6 + textWidth;
+    const iconX = Math.floor(rect.x + (rect.w - contentWidth) / 2);
+    const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
+    drawGameIcon(iconId, iconX, iconY, GAME_ICON_SIZE, 1, false);
+    drawPixelText(label, iconX + GAME_ICON_SIZE + 6, controlTextY(rect), {
+      font: PIXEL_FONT_DIALOGUE_8
+    });
+  } else {
+    drawPixelText(label, rect.x + rect.w / 2, controlTextY(rect), {
+      font: PIXEL_FONT_DIALOGUE_8,
+      align: "center"
+    });
+  }
+}
+
+function drawPiratePaperPanel(panel) {
+  ctx.fillStyle = PIRATE_MENU_PAPER;
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  const fleckCount = Math.max(12, Math.floor(panel.w * panel.h / 720));
+  const panelSeed = hashInt(
+    Math.imul(Math.round(panel.x), 0x45d9f3b) ^
+    Math.imul(Math.round(panel.y), 0x27d4eb2d) ^
+    Math.imul(Math.round(panel.w), 0x165667b1) ^
+    Math.round(panel.h)
+  );
+  for (let index = 0; index < fleckCount; index++) {
+    const seed = hashInt(panelSeed ^ Math.imul(index + 1, 0x9e3779b1));
+    const x = panel.x + 3 + (seed & 0xffff) % Math.max(1, panel.w - 6);
+    const y = panel.y + 3 + ((seed >>> 16) & 0xffff) % Math.max(1, panel.h - 6);
+    ctx.fillStyle = (seed & 0x10000) === 0
+      ? "rgba(113, 80, 51, 0.12)"
+      : "rgba(84, 126, 100, 0.09)";
+    ctx.fillRect(x, y, (seed & 3) === 0 ? 2 : 1, 1);
+  }
+}
+
+function drawPiratePaperModal(panel, overlayAlpha = 0.76) {
+  ctx.fillStyle = `rgba(16, 20, 23, ${overlayAlpha})`;
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  drawPiratePaperPanel(panel);
+  ctx.strokeStyle = PIRATE_MENU_INK;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
+  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+}
+
+function drawPiratePaperInset(rect, highlighted = false) {
+  ctx.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER_INSET;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 }
 
 function drawPastVoyagesMenu() {
@@ -11918,19 +13208,12 @@ function drawPastVoyagesMenu() {
   };
 
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#182127";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#8ac0b4";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#d6b66b";
-  ctx.strokeRect(panel.x + 4.5, panel.y + 4.5, panel.w - 9, panel.h - 9);
-  ctx.fillStyle = "rgba(138, 192, 180, 0.12)";
+  drawPiratePaperModal(panel, 0.8);
+  ctx.fillStyle = "rgba(84, 126, 100, 0.18)";
   for (let y = panel.y + 39; y < panel.y + panel.h - 29; y += 13) {
     ctx.fillRect(panel.x + 12, y, panel.w - 24, 1);
   }
-  ctx.fillStyle = "#d6b66b";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 11, panel.y + 33, 1, panel.h - 65);
 
   pastVoyagesMenu.panelRect = panel;
@@ -11973,20 +13256,20 @@ function drawPastVoyagesMenu() {
   );
   drawOptionsText(`PAGE ${pastVoyagesMenu.page + 1}/${pageCount}`, panel.x + panel.w / 2, pagerY + 3, {
     align: "center",
-    color: "#a9a08f"
+    color: PIRATE_MENU_INK_MUTED
   });
   ctx.restore();
 }
 
 function drawPastVoyagesSummaryPage(panel, records) {
-  ctx.fillStyle = "#fff1bf";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("PAST VOYAGES", panel.x + panel.w / 2, panel.y + 10, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
   drawOptionsText("CAPTAINS' REGISTER", panel.x + panel.w / 2, panel.y + 27, {
     align: "center",
-    color: "#8ac0b4"
+    color: PIRATE_MENU_CHART_LINE
   });
   const summary = voyageHistorySummary(records);
   drawPastVoyageRows(panel, [
@@ -12002,22 +13285,22 @@ function drawPastVoyagesSummaryPage(panel, records) {
   if (records.length === 0) {
     drawOptionsText("NO PAST VOYAGES YET", panel.x + panel.w / 2, panel.y + panel.h - 42, {
       align: "center",
-      color: "#7f8890"
+      color: PIRATE_MENU_INK_MUTED
     });
   }
 }
 
 function drawPastVoyageRecordPage(panel, record, voyageNumber) {
-  ctx.fillStyle = "#fff1bf";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(`VOYAGE ${voyageNumber}`, panel.x + panel.w / 2, panel.y + 10, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
   drawOptionsText(
-    fitPixelText(record.captainName.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 76),
+    fitPixelText(record.captainName.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 76),
     panel.x + panel.w / 2,
     panel.y + 27,
-    { align: "center", color: "#8ac0b4" }
+    { align: "center", color: PIRATE_MENU_CHART_LINE }
   );
   drawPastVoyageRows(panel, [
     ["LIFETIME", `${record.birthDateLabel} - ${record.endDateLabel}`],
@@ -12031,12 +13314,12 @@ function drawPastVoyageRecordPage(panel, record, voyageNumber) {
     ["CREW LOST / PIRACY", `${record.crewLost} / ${record.piracyActs}`],
     ["LAST POSITION", formatLatLon(record.latitude, record.longitude)]
   ], panel.y + 42, 13);
-  drawOptionsText("FATE", panel.x + 18, panel.y + 174, { color: "#7f8890" });
+  drawOptionsText("FATE", panel.x + 18, panel.y + 174, { color: PIRATE_MENU_INK_MUTED });
   drawOptionsText(
-    fitPixelText(record.outcome, PIXEL_FONT_UI_8, panel.w - 36),
+    fitPixelText(record.outcome, PIXEL_FONT_SMALL_8, panel.w - 36),
     panel.x + 18,
     panel.y + 187,
-    { color: "#e4dbc6" }
+    { color: PIRATE_MENU_INK }
   );
 }
 
@@ -12046,12 +13329,12 @@ function drawPastVoyageRows(panel, rows, startY, lineHeight) {
   const valueWidth = Math.max(42, Math.floor(panel.w * 0.57));
   rows.forEach(([label, value], index) => {
     const y = startY + index * lineHeight;
-    drawOptionsText(String(label), labelX, y, { color: "#7f8890" });
+    drawOptionsText(String(label), labelX, y, { color: PIRATE_MENU_INK_MUTED });
     drawOptionsText(
-      fitPixelText(String(value), PIXEL_FONT_UI_8, valueWidth),
+      fitPixelText(String(value), PIXEL_FONT_SMALL_8, valueWidth),
       valueX,
       y,
-      { align: "right", color: "#e4dbc6" }
+      { align: "right", color: PIRATE_MENU_INK }
     );
   });
 }
@@ -12079,16 +13362,7 @@ function drawCreditsMenu() {
   const visibleLines = lines.slice(start, start + CREDITS_LINES_PER_PAGE);
 
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#101010";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#8ac0b4";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2);
-  ctx.strokeStyle = "#4d3924";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(panel.x + 5.5, panel.y + 5.5, panel.w - 11, panel.h - 11);
+  drawPiratePaperModal(panel, 0.78);
 
   const closeSize = UI_ICON_BUTTON_SIZE;
   creditsMenu.closeButtonRect = {
@@ -12104,7 +13378,7 @@ function drawCreditsMenu() {
 
   drawOptionsText("CREDITS", panel.x + panel.w / 2, panel.y + 11, {
     align: "center",
-    color: "#ffd700"
+    color: PIRATE_MENU_INK
   });
 
   let y = panel.y + 32;
@@ -12114,11 +13388,11 @@ function drawCreditsMenu() {
       continue;
     }
     const color = line.kind === "title"
-      ? "#ffd700"
+      ? PIRATE_MENU_INK
       : line.kind === "heading"
-        ? "#8ac0b4"
-        : "#d7d9bf";
-    const font = line.kind === "body" ? PIXEL_FONT_BODY_8 : PIXEL_FONT_UI_8;
+        ? PIRATE_MENU_CHART_LINE
+        : PIRATE_MENU_INK_MUTED;
+    const font = PIXEL_FONT_SMALL_8;
     ctx.fillStyle = color;
     drawPixelText(line.text, panel.x + 17 + line.indent, y, { font });
     y += line.kind === "body" ? 9 : 11;
@@ -12127,7 +13401,7 @@ function drawCreditsMenu() {
   const pageLabel = `${creditsMenu.page + 1}/${pageCount}`;
   drawOptionsText(pageLabel, panel.x + panel.w / 2, panel.y + panel.h - 18, {
     align: "center",
-    color: "#ab947a"
+    color: PIRATE_MENU_INK_MUTED
   });
 
   const navY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
@@ -12152,7 +13426,8 @@ function drawCreditsMenu() {
 }
 
 function creditsDisplayLines() {
-  const markdown = creditsMarkdown.trim() ? creditsMarkdown : CREDITS_FALLBACK_MARKDOWN;
+  const markdown = creditsMarkdown.trim();
+  if (!markdown) throw new Error("Credits markdown is empty");
   const lines = [];
   for (const rawLine of markdown.split(/\r?\n/)) {
     const trimmed = rawLine.trim();
@@ -12175,7 +13450,7 @@ function creditsDisplayLines() {
       text = text.slice(2);
       indent = 6;
     }
-    const font = kind === "body" ? PIXEL_FONT_BODY_8 : PIXEL_FONT_UI_8;
+    const font = PIXEL_FONT_SMALL_8;
     const maxWidth = CREDITS_PANEL_W - 42 - indent;
     const wrapped = wrapPixelText(text, font, maxWidth, kind === "body" ? 3 : 2);
     for (let i = 0; i < wrapped.length; i++) {
@@ -12195,13 +13470,7 @@ function drawOptionsMenu() {
   optionsMenu.panelRect = { x: panelX, y: panelY, w: OPTIONS_PANEL_W, h: OPTIONS_PANEL_H };
 
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#101010";
-  ctx.fillRect(panelX, panelY, OPTIONS_PANEL_W, OPTIONS_PANEL_H);
-  ctx.strokeStyle = "#8b0000";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(panelX + 1, panelY + 1, OPTIONS_PANEL_W - 2, OPTIONS_PANEL_H - 2);
+  drawPiratePaperModal(optionsMenu.panelRect, 0.78);
 
   const closeSize = UI_ICON_BUTTON_SIZE;
   const closeX = panelX + OPTIONS_PANEL_W - closeSize - 6;
@@ -12210,9 +13479,9 @@ function drawOptionsMenu() {
   drawOptionsCloseButton(optionsMenu.closeButtonRect, pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect));
 
   drawOptionsText("OPTIONS", panelX + OPTIONS_PANEL_W / 2, panelY + 9, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
-    color: "#ffd700"
+    color: PIRATE_MENU_INK
   });
 
   const rowX = panelX + 10;
@@ -12240,31 +13509,27 @@ function drawOptionsFullscreenRow(rowRect, highlighted) {
       ? (isFullscreen ? "EXIT FULLSCREEN" : "ENTER FULLSCREEN")
       : "FULLSCREEN UNAVAILABLE"
   );
-  drawOptionsText(fitPixelText(label, PIXEL_FONT_UI_10, rowRect.w - 16), rowRect.x + 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_UI_10,
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_DIALOGUE_8, rowRect.w - 16), rowRect.x + 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_DIALOGUE_8,
     color: optionsMenu.fullscreenError
-      ? "#ff8888"
-      : (fullscreenAvailable() ? (highlighted ? "#ffffff" : "#ffd700") : "#777777")
+      ? PIRATE_MENU_DANGER
+      : (fullscreenAvailable() ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED)
   });
 }
 
 function drawOptionsCloseButton(rect, hovered) {
-  ctx.fillStyle = hovered ? "#3a3a3a" : "#222222";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#ffffff" : "#666666";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawPiratePaperInset(rect, hovered);
   drawOptionsText("X", rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
-    color: hovered ? "#ffffff" : "#cccccc"
+    color: PIRATE_MENU_INK
   });
 }
 
 function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
   drawOptionsText(label, rowRect.x + 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_UI_10,
-    color: highlighted ? "#ffffff" : "#ffd700"
+    font: PIXEL_FONT_DIALOGUE_8,
+    color: PIRATE_MENU_INK
   });
 
   const sliderW = 70;
@@ -12275,32 +13540,32 @@ function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
   optionsMenu.sliderHitRects[sliderKey] = { x: sliderX - 3, y: rowRect.y, w: sliderW + 6, h: rowRect.h };
 
   const percent = Math.round(value * 100);
-  ctx.fillStyle = "#202020";
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
   ctx.fillRect(sliderX, sliderY, sliderW, sliderH);
-  ctx.strokeStyle = highlighted ? "#ffffff" : "#777777";
+  ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
   ctx.lineWidth = 1;
   ctx.strokeRect(sliderX + 0.5, sliderY + 0.5, sliderW - 1, sliderH - 1);
   const fillW = Math.max(0, Math.min(sliderW - 2, Math.round((sliderW - 2) * value)));
   if (fillW > 0) {
-    ctx.fillStyle = "#66ccff";
+    ctx.fillStyle = PIRATE_MENU_CHART_LINE;
     ctx.fillRect(sliderX + 1, sliderY + 1, fillW, sliderH - 2);
   }
   const knobX = sliderX + clamp(Math.round((sliderW - 2) * value), 0, sliderW - 2);
-  ctx.fillStyle = "#fff4a8";
+  ctx.fillStyle = PIRATE_MENU_INK;
   ctx.fillRect(knobX, sliderY - 1, 2, sliderH + 2);
 
   drawOptionsText(`${percent}%`, rowRect.x + rowRect.w - 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "right",
-    color: "#eeeeee"
+    color: PIRATE_MENU_INK
   });
 }
 
 function drawOptionsMuteRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
   drawOptionsText("MUTE", rowRect.x + 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_UI_10,
-    color: highlighted ? "#ffffff" : "#ffd700"
+    font: PIXEL_FONT_DIALOGUE_8,
+    color: PIRATE_MENU_INK
   });
 
   const boxSize = 14;
@@ -12308,13 +13573,13 @@ function drawOptionsMuteRow(rowRect, highlighted) {
   const boxY = rowRect.y + Math.floor((rowRect.h - boxSize) / 2);
   optionsMenu.muteRect = { x: boxX - 10, y: rowRect.y, w: boxSize + 20, h: rowRect.h };
 
-  ctx.fillStyle = optionsMenu.muted ? "#66ccff" : "#202020";
+  ctx.fillStyle = optionsMenu.muted ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
   ctx.fillRect(boxX, boxY, boxSize, boxSize);
-  ctx.strokeStyle = highlighted ? "#ffffff" : "#777777";
+  ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
   ctx.lineWidth = 1;
   ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxSize - 1, boxSize - 1);
   if (optionsMenu.muted) {
-    ctx.strokeStyle = "#001018";
+    ctx.strokeStyle = PIRATE_MENU_PAPER;
     ctx.beginPath();
     ctx.moveTo(boxX + 2, boxY + 5);
     ctx.lineTo(boxX + 4, boxY + 8);
@@ -12324,23 +13589,15 @@ function drawOptionsMuteRow(rowRect, highlighted) {
 }
 
 function drawOptionsArrowButton(rect, label, highlighted) {
-  ctx.fillStyle = highlighted ? "#3a3a3a" : "#202020";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = highlighted ? "#ffffff" : "#777777";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawPiratePaperInset(rect, highlighted);
   drawOptionsText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
-    color: highlighted ? "#ffffff" : "#ffd700"
+    color: PIRATE_MENU_INK
   });
 }
 
 function drawOptionsRowFrame(rect, highlighted) {
-  ctx.fillStyle = highlighted ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.04)";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = highlighted ? "#eeeeee" : "#444444";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  drawPiratePaperInset(rect, highlighted);
 }
 
 function rowTextY(rect) {
@@ -12354,7 +13611,7 @@ function controlTextY(rect) {
 function drawOptionsText(text, x, y, options = {}) {
   ctx.fillStyle = options.color || "#d7d9bf";
   drawPixelText(text, x, y, {
-    font: options.font || PIXEL_FONT_UI_8,
+    font: options.font || PIXEL_FONT_SMALL_8,
     align: options.align || "left"
   });
 }
@@ -12372,7 +13629,8 @@ function fitPixelText(text, font, maxWidth) {
 }
 
 function drawPixelText(text, x, y, options = {}) {
-  const font = options.font || PIXEL_FONT_BODY_8;
+  if (typeof text !== "string") throw new Error(`Pixel text must be a string: ${text}`);
+  const font = options.font || PIXEL_FONT_SMALL_8;
   const align = options.align || "left";
   ctx.font = font;
   ctx.textAlign = "left";
@@ -12380,11 +13638,56 @@ function drawPixelText(text, x, y, options = {}) {
   const textW = measurePixelTextWidth(text, font);
   const alignedOrigin = pixelTextOrigin({ x, y, width: textW, align });
   const origin = snapPointToTransformedPixelGrid(alignedOrigin, ctx.getTransform());
-  ctx.fillText(text, origin.x, origin.y);
+  if (typeof ctx.fillStyle !== "string") {
+    throw new Error("Pixel text requires a solid CSS fill color");
+  }
+  const raster = pixelTextRaster(text, font, ctx.fillStyle, textW);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(raster, origin.x, origin.y);
+  ctx.restore();
   return { x: origin.x, y: origin.y, w: textW, h: CITY_LABEL_H };
 }
 
-function measurePixelTextWidth(text, font = PIXEL_FONT_BODY_8) {
+function pixelTextRaster(text, font, color, measuredWidth) {
+  const key = `${font}\u0000${color}\u0000${text}`;
+  const cached = pixelTextRasterCache.get(key);
+  if (cached) {
+    pixelTextRasterCache.delete(key);
+    pixelTextRasterCache.set(key, cached);
+    return cached;
+  }
+
+  const width = Math.max(1, measuredWidth);
+  const height = pixelTextRasterHeight(font);
+  const raster = document.createElement("canvas");
+  raster.width = width;
+  raster.height = height;
+  const rasterCtx = raster.getContext("2d", { willReadFrequently: true });
+  if (!rasterCtx) throw new Error(`Could not create pixel text raster for: ${text}`);
+  rasterCtx.imageSmoothingEnabled = false;
+  rasterCtx.font = font;
+  rasterCtx.textAlign = "left";
+  rasterCtx.textBaseline = "top";
+  rasterCtx.fillStyle = color;
+  rasterCtx.fillText(text, 0, 0);
+  const imageData = rasterCtx.getImageData(0, 0, width, height);
+  const opaquePixels = hardenPixelTextAlpha(imageData.data);
+  if (text.trim().length > 0 && opaquePixels === 0) {
+    throw new Error(`Pixel text raster contains no opaque glyph pixels: ${text}`);
+  }
+  rasterCtx.putImageData(imageData, 0, 0);
+
+  if (pixelTextRasterCache.size >= PIXEL_TEXT_RASTER_CACHE_LIMIT) {
+    const oldestKey = pixelTextRasterCache.keys().next().value;
+    if (oldestKey === undefined) throw new Error("Pixel text raster cache eviction failed");
+    pixelTextRasterCache.delete(oldestKey);
+  }
+  pixelTextRasterCache.set(key, raster);
+  return raster;
+}
+
+function measurePixelTextWidth(text, font = PIXEL_FONT_SMALL_8) {
   ctx.font = font;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
@@ -12829,14 +14132,42 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
 
 function drawTile(call, activeChart) {
   const img = terrainImageForTile(call.row, call.id);
+  const waveOffsetY = waterHexWaveOffsetForTile(call, activeChart);
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
-  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF + waveOffsetY);
   ctx.drawImage(img, x, y);
 
   if (graph.isPentagon[call.id]) {
     ctx.fillStyle = "rgba(31, 35, 26, 0.35)";
-    ctx.fillRect(Math.round(call.drawSurfaceX) - 1, Math.round(call.drawSurfaceY) - 1, 3, 3);
+    ctx.fillRect(
+      Math.round(call.drawSurfaceX) - 1,
+      Math.round(call.drawSurfaceY + waveOffsetY) - 1,
+      3,
+      3
+    );
   }
+}
+
+function waterHexWaveOffsetForTile(call, activeChart) {
+  if (!isWaterSurfaceRow(call.row)) return 0;
+  if (!activeChart?.map && (seaIceMask?.[call.id] || freshwaterIceMask?.[call.id])) return 0;
+  if (activeChart?.map) {
+    const cached = localWaterHexWaveOffsetCache.get(call.id);
+    if (cached !== undefined) return cached;
+    const offset = localWaterHexWaveOffset(waterAnimationClockMs, call.x, call.y);
+    localWaterHexWaveOffsetCache.set(call.id, offset);
+    return offset;
+  }
+  const cached = globeWaterHexWaveOffsetCache.get(call.id);
+  if (cached !== undefined) return cached;
+  const latitudeDeg = graph?.latDeg?.[call.id];
+  const longitudeDeg = graph?.lonDeg?.[call.id];
+  if (!Number.isFinite(latitudeDeg) || !Number.isFinite(longitudeDeg)) {
+    throw new Error(`Water tile ${call.id} has no globe coordinates for its wave phase`);
+  }
+  const offset = globeWaterHexWaveOffset(waterAnimationClockMs, latitudeDeg, longitudeDeg);
+  globeWaterHexWaveOffsetCache.set(call.id, offset);
+  return offset;
 }
 
 function cityImageForType(cityType, settlementType = "city") {
@@ -13533,18 +14864,18 @@ function terrainImage(key) {
 
 function terrainImageForTile(row, id) {
   const key = spriteForTerrain(row, id);
-  if (isWaterSurfaceRow(row)) return waterLatitudeTerrainImage(key, id);
+  if (isWaterSurfaceRow(row)) return waterLatitudeTerrainImage(key, id, row);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainImage(key) : terrainImage(key);
 }
 
 function terrainColorForTile(row, id) {
   const key = spriteForTerrain(row, id);
-  if (isWaterSurfaceRow(row)) return waterLatitudeTerrainColor(key, id);
+  if (isWaterSurfaceRow(row)) return waterLatitudeTerrainColor(key, id, row);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainColor(key) : terrainSpriteColor(key);
 }
 
-function waterLatitudeTerrainImage(key, id) {
-  const latitudeBand = waterLatitudeBandForTile(id);
+function waterLatitudeTerrainImage(key, id, row = null) {
+  const latitudeBand = waterLatitudeBandForTile(id, row);
   const cacheKey = `${key}|${latitudeBand}`;
   const cached = waterLatitudeImages?.get(cacheKey);
   if (cached) return cached;
@@ -13581,17 +14912,17 @@ function waterLatitudeTerrainImage(key, id) {
   return spriteCanvas;
 }
 
-function waterLatitudeTerrainColor(key, id) {
-  const latitudeBand = waterLatitudeBandForTile(id);
+function waterLatitudeTerrainColor(key, id, row = null) {
+  const latitudeBand = waterLatitudeBandForTile(id, row);
   const cacheKey = `${key}|${latitudeBand}`;
-  if (!waterLatitudeSpriteColors?.has(cacheKey)) waterLatitudeTerrainImage(key, id);
+  if (!waterLatitudeSpriteColors?.has(cacheKey)) waterLatitudeTerrainImage(key, id, row);
   const color = waterLatitudeSpriteColors?.get(cacheKey);
   if (!color) throw new Error(`Missing latitude water color for ${cacheKey}`);
   return color;
 }
 
-function waterLatitudeBandForTile(id) {
-  const latitude = graph?.latDeg?.[id];
+function waterLatitudeBandForTile(id, row = null) {
+  const latitude = Number.isFinite(row?.latitudeDeg) ? row.latitudeDeg : graph?.latDeg?.[id];
   if (!Number.isFinite(latitude)) throw new Error(`Missing latitude for water tile: ${id}`);
   return waterLatitudeBand(latitude);
 }
@@ -14186,7 +15517,7 @@ function closestPointOnSegment(px, py, ax, ay, bx, by) {
 }
 
 function drawShipShadow(activeChart, light, offset) {
-  if (!ship || !shipLighting || !light || light.shadow <= 0.01) return;
+  if (!ship || (gameOverReason && gameOverState?.sinkShip !== false) || !shipLighting || !light || light.shadow <= 0.01) return;
   const frame = shipHeadingFrame();
   const points = shipLightingPoints("shadow", frame, light.bin);
   if (points.length === 0) return;
@@ -14628,22 +15959,192 @@ function tileHasWaterNeighbor(tileId) {
   return false;
 }
 
+function updateWorldShipSinkEffects(nowMs) {
+  if (worldShipSinkEffects.length === 0) return false;
+  worldShipSinkEffects = worldShipSinkEffects.filter(({ effect }) => !shipSinkEffectComplete(effect, nowMs));
+  return true;
+}
+
+function spawnPlayerShipSinkEffect(nowMs) {
+  const call = playerShipDrawCall(shipSunLightState());
+  if (!call) throw new Error("Cannot sink the player ship without its current draw call");
+  worldShipSinkEffects.push(createWorldShipSinkEntry(call, nowMs, "screen", { x: 0, y: 0 }));
+}
+
+function spawnNpcShipSinkEffect(state, nowMs) {
+  if (!chart) throw new Error(`Cannot sink NPC ship ${state.id} before the local chart exists`);
+  const call = npcShipDrawCall(state, chart);
+  if (!call) return false;
+  worldShipSinkEffects.push(createWorldShipSinkEntry(call, nowMs, "chart", chartOffsetPixels(chart)));
+  return true;
+}
+
+function createWorldShipSinkEntry(call, nowMs, space, coordinateOffset) {
+  if (space !== "screen" && space !== "chart") throw new Error(`Unknown ship sinking coordinate space: ${space}`);
+  const frameAsset = rowingShipFrameAsset(call, nowMs);
+  const renderedCall = stormBobbedShipCall({
+    ...call,
+    img: frameAsset.image,
+    sinkDepthImg: frameAsset.sinkDepthImage
+  }, nowMs);
+  return {
+    space,
+    effect: createShipSinkEffect({
+      id: call.id,
+      pixels: shipSpriteFramePixels(renderedCall.img, renderedCall.sinkDepthImg, renderedCall.frame),
+      frameSize: SHIP_SHEET_FRAME_SIZE,
+      originX: renderedCall.x - coordinateOffset.x,
+      originY: renderedCall.y - coordinateOffset.y,
+      startedAtMs: nowMs,
+      seed: hashInt(call.tileId ^ Math.imul(String(call.id).length + 1, 0x9e3779b1))
+    })
+  };
+}
+
+function shipSpriteFramePixels(image, sinkDepthImage, frame) {
+  if (!(image instanceof HTMLImageElement) && !(image instanceof HTMLCanvasElement)) {
+    throw new Error("Ship sinking requires a loaded image or canvas sprite sheet");
+  }
+  if (!(sinkDepthImage instanceof HTMLImageElement) && !(sinkDepthImage instanceof HTMLCanvasElement)) {
+    throw new Error("Ship sinking requires a loaded sink-depth image or canvas sprite sheet");
+  }
+  if (!Number.isInteger(frame) || frame < 0 || frame >= SHIP_HEADING_COUNT) {
+    throw new Error(`Ship sinking received an invalid heading frame: ${frame}`);
+  }
+  let depthImages = shipSinkPixelCache.get(image);
+  if (!depthImages) {
+    depthImages = new WeakMap();
+    shipSinkPixelCache.set(image, depthImages);
+  }
+  let frames = depthImages.get(sinkDepthImage);
+  if (!frames) {
+    frames = new Map();
+    depthImages.set(sinkDepthImage, frames);
+  }
+  const cached = frames.get(frame);
+  if (cached) return cached;
+
+  const sx = (frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  const sy = Math.floor(frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
+  shipSinkSampleCtx.clearRect(0, 0, SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
+  shipSinkSampleCtx.drawImage(
+    image,
+    sx,
+    sy,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE,
+    0,
+    0,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
+  const data = shipSinkSampleCtx.getImageData(0, 0, SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE).data;
+  shipSinkSampleCtx.clearRect(0, 0, SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE);
+  shipSinkSampleCtx.drawImage(
+    sinkDepthImage,
+    sx,
+    sy,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE,
+    0,
+    0,
+    SHIP_SHEET_FRAME_SIZE,
+    SHIP_SHEET_FRAME_SIZE
+  );
+  const sinkDepthData = shipSinkSampleCtx
+    .getImageData(0, 0, SHIP_SHEET_FRAME_SIZE, SHIP_SHEET_FRAME_SIZE)
+    .data;
+  const pixels = [];
+  for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y++) {
+    for (let x = 0; x < SHIP_SHEET_FRAME_SIZE; x++) {
+      const index = (y * SHIP_SHEET_FRAME_SIZE + x) * 4;
+      const alpha = data[index + 3];
+      const sinkDepthAlpha = sinkDepthData[index + 3];
+      if ((alpha === 0) !== (sinkDepthAlpha === 0)) {
+        throw new Error(`Ship sinking sprite and sink-depth alpha disagree in frame ${frame} at ${x},${y}`);
+      }
+      if (alpha === 0) continue;
+      if (
+        sinkDepthData[index] !== sinkDepthData[index + 1] ||
+        sinkDepthData[index] !== sinkDepthData[index + 2]
+      ) {
+        throw new Error(`Ship sinking depth map is not grayscale in frame ${frame} at ${x},${y}`);
+      }
+      pixels.push(Object.freeze({
+        x,
+        y,
+        color: `rgb(${data[index]}, ${data[index + 1]}, ${data[index + 2]})`,
+        alpha: alpha / 255,
+        sinkHeight: sinkDepthData[index] / 255
+      }));
+    }
+  }
+  if (pixels.length === 0) throw new Error(`Ship sinking sprite frame ${frame} contains no opaque pixels`);
+  const result = Object.freeze(pixels);
+  frames.set(frame, result);
+  return result;
+}
+
+function drawWorldShipSinkEffect(entry, activeChart, nowMs) {
+  const chartOffset = chartOffsetPixels(activeChart);
+  if (entry.space === "chart") {
+    drawShipSinkEffect(entry.effect, nowMs, chartOffset, (x, y) => wakeMapPointIsWater(x, y, activeChart));
+    return;
+  }
+  if (entry.space === "screen") {
+    drawShipSinkEffect(entry.effect, nowMs, { x: 0, y: 0 }, (x, y) => (
+      wakeMapPointIsWater(x - chartOffset.x, y - chartOffset.y, activeChart)
+    ));
+    return;
+  }
+  throw new Error(`Unknown ship sinking coordinate space: ${entry.space}`);
+}
+
+function drawShipSinkEffect(effect, nowMs, drawOffset, waterAtPoint) {
+  const frame = shipSinkFrame(effect, nowMs);
+  ctx.save();
+  for (const pixel of frame.ripples) {
+    if (!waterAtPoint(pixel.x, pixel.y)) continue;
+    drawShipSinkPixel(pixel, drawOffset);
+  }
+  for (const pixel of frame.hullPixels) drawShipSinkPixel(pixel, drawOffset);
+  for (const pixel of frame.particles) drawShipSinkPixel(pixel, drawOffset);
+  ctx.restore();
+}
+
+function drawShipSinkPixel(pixel, drawOffset) {
+  if (pixel.alpha <= 0) return;
+  ctx.globalAlpha = pixel.alpha;
+  ctx.fillStyle = pixel.color;
+  ctx.fillRect(pixel.x + drawOffset.x, pixel.y + drawOffset.y, 1, 1);
+}
+
 function drawShips(activeChart, playerLight, nowMs) {
   const drawCalls = [];
   const playerCall = playerShipDrawCall(playerLight);
   if (playerCall) drawCalls.push(playerCall);
-  if (npcSeaRoutes && npcShipImages && camera && directionIndex) {
+  if (npcSeaRoutes && npcShipAssetsBySlug && camera && directionIndex) {
     for (const state of npcVisualShips.values()) {
       const call = npcShipDrawCall(state, activeChart);
       if (call) drawCalls.push(call);
     }
+  }
+  for (const entry of worldShipSinkEffects) {
+    const offset = entry.space === "chart" ? chartOffsetPixels(activeChart) : { x: 0, y: 0 };
+    drawCalls.push({
+      id: `sinking:${entry.effect.id}`,
+      kind: "sinking",
+      sortY: entry.effect.waterlineY + offset.y,
+      entry,
+      activeChart
+    });
   }
   drawCalls.sort(compareShipDrawCalls);
   for (const call of drawCalls) drawShipCall(call, nowMs);
 }
 
 function playerShipDrawCall(light) {
-  if (!ship || !shipImage) return null;
+  if (!ship || !shipImage || (gameOverReason && gameOverState?.sinkShip !== false)) return null;
   const frame = shipHeadingFrame();
   const origin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
   return {
@@ -14653,6 +16154,7 @@ function playerShipDrawCall(light) {
     bobSeed: 0x504c4159,
     slug: ship.typeSlug,
     img: shipImage,
+    sinkDepthImg: shipSinkDepthImage,
     rowing: playerShipIsRowing(),
     frame,
     x: origin.x,
@@ -14668,8 +16170,8 @@ function npcShipDrawCall(state, activeChart) {
   if (!pointNearScreen(point, SHIP_SHEET_FRAME_SIZE)) return null;
   if (!activeChart.visibleSet.has(state.tileId)) return null;
   const heading = npcShipScreenHeading(state.heading);
-  const img = npcShipImages.get(state.slug);
-  if (!img) throw new Error(`Missing NPC ship sprite sheet for ${state.slug}`);
+  const asset = npcShipAssetsBySlug.get(state.slug);
+  if (!asset) throw new Error(`Missing NPC ship sprite asset for ${state.slug}`);
   return {
     id: state.id,
     kind: "npc",
@@ -14678,7 +16180,8 @@ function npcShipDrawCall(state, activeChart) {
     slug: state.slug,
     factionId: state.factionId,
     role: state.role,
-    img,
+    img: asset.image,
+    sinkDepthImg: asset.sinkDepthImage,
     rowing: npcShipIsRowing(state),
     frame: headingFrameForScreenHeading(heading),
     x: Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2),
@@ -14709,9 +16212,15 @@ function pointNearScreen(point, margin) {
 }
 
 function drawShipCall(call, nowMs) {
+  if (call.kind === "sinking") {
+    drawWorldShipSinkEffect(call.entry, call.activeChart, nowMs);
+    return;
+  }
+  const frameAsset = rowingShipFrameAsset(call, nowMs);
   const drawCall = stormBobbedShipCall({
     ...call,
-    img: rowingShipImage(call, nowMs)
+    img: frameAsset.image,
+    sinkDepthImg: frameAsset.sinkDepthImage
   }, nowMs);
   const sx = (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
   const sy = Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE;
@@ -14735,12 +16244,13 @@ function drawShipCall(call, nowMs) {
   }
 }
 
-function rowingShipImage(call, nowMs) {
-  if (!call.rowing) return call.img;
-  const frames = rowingShipImagesBySlug?.get(call.slug);
-  if (!frames || frames.length === 0) return call.img;
+function rowingShipFrameAsset(call, nowMs) {
+  if (!call.img || !call.sinkDepthImg) throw new Error(`Ship ${call.slug} is missing its sprite asset pair`);
+  if (!call.rowing) return { image: call.img, sinkDepthImage: call.sinkDepthImg };
+  const frames = rowingShipAssetsBySlug?.get(call.slug);
+  if (!frames || frames.length === 0) throw new Error(`Rowing ship ${call.slug} has no animation assets`);
   const spec = ROWING_SHIP_ANIMATION_SPECS.get(call.slug);
-  if (!spec) return call.img;
+  if (!spec) throw new Error(`Rowing ship ${call.slug} has no animation specification`);
   const seedOffset = call.kind === "npc" ? (call.bobSeed & 0xff) * 3 : 0;
   const frameIndex = reducedMotionPreferred
     ? 0
@@ -14767,7 +16277,7 @@ function npcShipIsRowing(state) {
 }
 
 function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
-  if (!rowingShipImagesBySlug?.has(stats.slug)) return false;
+  if (!rowingShipAssetsBySlug?.has(stats.slug)) return false;
   const wind = windForTile(tileId);
   const windFlow = windFlowVectorAtPosition(wind, position, heading);
   return shipPropulsionPerformance(stats, {
@@ -14939,28 +16449,47 @@ function shipScreenHeading() {
 function drawWindIndicator(nowMs) {
   if (!ship) return;
   const state = windIndicatorState || windIndicatorTarget();
-  const flowDir = state.flowDirectionRad;
-  const strength = clamp(state.strength, 0.05, 1.25);
-  const geometry = windVGeometry({
+  drawShipWindV({
     centerX: SCREEN_W / 2,
     centerY: SCREEN_H / 2,
-    flowDirectionRad: flowDir,
+    flowDirectionRad: state.flowDirectionRad,
     deadZoneHalfAngleRad: ship.stats.upwindStallAngleRad,
-    windStrength: strength,
+    strength: state.strength,
+    warning: state.stallWarning || 0,
+    nowMs
+  });
+}
+
+function drawShipWindV({
+  centerX,
+  centerY,
+  flowDirectionRad,
+  deadZoneHalfAngleRad,
+  strength,
+  warning,
+  nowMs
+}) {
+  const clampedStrength = clamp(strength, 0.05, 1.25);
+  const geometry = windVGeometry({
+    centerX,
+    centerY,
+    flowDirectionRad,
+    deadZoneHalfAngleRad,
+    windStrength: clampedStrength,
     radiusPx: WIND_INDICATOR_RADIUS_PX
   });
-  const warning = clamp(state.stallWarning || 0, 0, 1);
+  const clampedWarning = clamp(warning, 0, 1);
   const pulse = reducedMotionPreferred
     ? 0.72
     : 0.5 + Math.sin(nowMs / WIND_INDICATOR_STALL_PULSE_MS * Math.PI * 2) * 0.5;
-  const warningHue = easeInOut(warning);
+  const warningHue = easeInOut(clampedWarning);
   const warningColor = {
     r: Math.round(249 + (240 - 249) * warningHue),
     g: Math.round(194 + (79 - 194) * warningHue),
     b: Math.round(43 + (120 - 43) * warningHue)
   };
-  const warningMix = warning * (0.28 + pulse * 0.72);
-  const alpha = windVOpacity(strength, warning, pulse);
+  const warningMix = clampedWarning * (0.28 + pulse * 0.72);
+  const alpha = windVOpacity(clampedStrength, clampedWarning, pulse);
   const color = `rgba(${Math.round(158 + (warningColor.r - 158) * warningMix)}, ` +
     `${Math.round(226 + (warningColor.g - 226) * warningMix)}, ` +
     `${Math.round(211 + (warningColor.b - 211) * warningMix)}, ` +
@@ -15355,7 +16884,7 @@ function drawCityLabels(cityCalls, activeChart) {
     ctx.fillRect(box.x, box.y, box.w, box.h);
     ctx.fillStyle = "#f3dfb0";
     drawPixelText(label, box.x + CITY_LABEL_PAD_X, box.y + CITY_LABEL_PAD_Y, {
-      font: PIXEL_FONT_BODY_8
+      font: PIXEL_FONT_SMALL_8
     });
   }
 }
@@ -15370,7 +16899,7 @@ function cityLabelBoxes(cityCalls, activeChart) {
 
   for (const call of sorted) {
     const label = cityLabelText(call);
-    const textW = measurePixelTextWidth(label, PIXEL_FONT_BODY_8);
+    const textW = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8);
     const box = placeCityLabel(call, textW, occupied, labelBounds);
     occupied.push(box);
     boxes.push({ call, label, box });
@@ -15508,10 +17037,10 @@ function drawDiscoveryNotice(nowMs) {
     ctx.drawImage(sprite, x + 3, y + 3, 18, 18);
   }
   ctx.fillStyle = "#fff1bf";
-  const headline = fitPixelText(discovery.notice, PIXEL_FONT_UI_8, x + w - 5 - textX);
-  drawPixelText(headline, textX, y + 4, { font: PIXEL_FONT_UI_8 });
+  const headline = fitPixelText(discovery.notice, PIXEL_FONT_SMALL_8, x + w - 5 - textX);
+  drawPixelText(headline, textX, y + 4, { font: PIXEL_FONT_SMALL_8 });
   ctx.fillStyle = "#cbb88a";
-  drawPixelText(discovery.detail, textX, y + 14, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText(discovery.detail, textX, y + 14, { font: PIXEL_FONT_SMALL_8 });
 }
 
 function drawInteractionButton() {
@@ -15531,26 +17060,18 @@ function drawInteractionButton() {
   };
   const disabled = target.kind === "fish" && !canStartFishing(cargoFree(gameState));
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, interactionButtonRect);
-  ctx.fillStyle = disabled ? "#302c29" : hovered ? "#6d4b2f" : "#4a3424";
-  ctx.fillRect(interactionButtonRect.x, interactionButtonRect.y, interactionButtonRect.w, interactionButtonRect.h);
-  ctx.strokeStyle = disabled ? "#625b52" : "#d6b66b";
-  ctx.strokeRect(
-    interactionButtonRect.x + 0.5,
-    interactionButtonRect.y + 0.5,
-    interactionButtonRect.w - 1,
-    interactionButtonRect.h - 1
-  );
-  ctx.fillStyle = disabled ? "#81796f" : "#f3dfb0";
+  drawPiratePaperControl(interactionButtonRect, { disabled, hovered });
   const actionLabel = target.kind === "port"
     ? `Dock: ${cityLabelText(target.call)}`
     : target.kind === "fish"
-      ? `Cast net: ${target.call.label}`
+      ? fishingActionLabel(target.call.label, fishingChanceForCall(target.call))
       : `Hail: ${target.call.label}`;
-  const label = fitPixelText(actionLabel, PIXEL_FONT_UI_10, interactionButtonRect.w - 10);
-  drawPixelText(label, interactionButtonRect.x + interactionButtonRect.w / 2, controlTextY(interactionButtonRect), {
-    font: PIXEL_FONT_UI_10,
-    align: "center"
-  });
+  const iconId = target.kind === "port"
+    ? "action:dock"
+    : target.kind === "fish"
+      ? "action:fish"
+      : "action:hail";
+  drawControlIconLabel(interactionButtonRect, actionLabel, iconId, disabled);
 }
 
 function drawAnchorButton() {
@@ -15567,29 +17088,9 @@ function drawAnchorButton() {
   };
   const disabled = anchored && Boolean(shoreScavengeAction);
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, anchorButtonRect);
-  ctx.fillStyle = disabled
-    ? "#302c29"
-    : anchored
-    ? (hovered ? "#4f6b62" : "#354b48")
-    : (hovered ? "#6d4b2f" : "#4a3424");
-  ctx.fillRect(anchorButtonRect.x, anchorButtonRect.y, anchorButtonRect.w, anchorButtonRect.h);
-  ctx.strokeStyle = disabled ? "#625b52" : anchored ? "#8ac0b4" : "#d6b66b";
-  ctx.strokeRect(
-    anchorButtonRect.x + 0.5,
-    anchorButtonRect.y + 0.5,
-    anchorButtonRect.w - 1,
-    anchorButtonRect.h - 1
-  );
-  ctx.fillStyle = disabled ? "#81796f" : "#f3dfb0";
-  const label = fitPixelText(
-    disabled ? "HOLD FAST" : anchored ? "WEIGH ANCHOR" : "DROP ANCHOR",
-    PIXEL_FONT_UI_10,
-    anchorButtonRect.w - 10
-  );
-  drawPixelText(label, anchorButtonRect.x + anchorButtonRect.w / 2, controlTextY(anchorButtonRect), {
-    font: PIXEL_FONT_UI_10,
-    align: "center"
-  });
+  drawPiratePaperControl(anchorButtonRect, { disabled, hovered, active: anchored });
+  const label = disabled ? "HOLD FAST" : anchored ? "WEIGH ANCHOR" : "DROP ANCHOR";
+  drawControlIconLabel(anchorButtonRect, label, "action:dock", disabled);
 }
 
 function drawScavengeButton() {
@@ -15604,21 +17105,41 @@ function drawScavengeButton() {
   const stormy = playerStormIntensity() >= STORM_ACTIVE_INTENSITY;
   const disabled = Boolean(shoreScavengeAction) || stormy;
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, scavengeButtonRect);
-  ctx.fillStyle = disabled ? "#302c29" : hovered ? "#6d4b2f" : "#4a3424";
-  ctx.fillRect(scavengeButtonRect.x, scavengeButtonRect.y, scavengeButtonRect.w, scavengeButtonRect.h);
-  ctx.strokeStyle = disabled ? "#625b52" : "#d6b66b";
-  ctx.strokeRect(
-    scavengeButtonRect.x + 0.5,
-    scavengeButtonRect.y + 0.5,
-    scavengeButtonRect.w - 1,
-    scavengeButtonRect.h - 1
-  );
-  ctx.fillStyle = disabled ? "#81796f" : "#f3dfb0";
+  drawPiratePaperControl(scavengeButtonRect, { disabled, hovered });
   const label = shoreScavengeAction ? "SEARCHING..." : stormy ? "STORM" : "SCAVENGE";
-  drawPixelText(label, scavengeButtonRect.x + scavengeButtonRect.w / 2, controlTextY(scavengeButtonRect), {
-    font: PIXEL_FONT_UI_10,
-    align: "center"
-  });
+  drawControlIconLabel(scavengeButtonRect, label, "action:scavenge", disabled);
+}
+
+function drawControlIconLabel(rect, label, iconId, disabled = false) {
+  const iconX = rect.x + 5;
+  const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
+  drawGameIcon(iconId, iconX, iconY, GAME_ICON_SIZE, disabled ? 0.4 : 1, false);
+  const textLeft = iconX + GAME_ICON_SIZE + 4;
+  const textWidth = rect.x + rect.w - textLeft - 4;
+  drawPixelText(
+    fitPixelText(label, PIXEL_FONT_DIALOGUE_8, textWidth),
+    textLeft + textWidth / 2,
+    controlTextY(rect),
+    { font: PIXEL_FONT_DIALOGUE_8, align: "center" }
+  );
+}
+
+function drawPiratePaperControl(rect, { disabled = false, hovered = false, active = false } = {}) {
+  ctx.fillStyle = disabled
+    ? PIRATE_MENU_PAPER_INSET_ALT
+    : hovered
+      ? PIRATE_MENU_PAPER_SELECTED
+      : PIRATE_MENU_PAPER_BUTTON;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = disabled
+    ? PIRATE_MENU_INK_MUTED
+    : active
+      ? PIRATE_MENU_CHART_LINE
+      : hovered
+        ? PIRATE_MENU_INK
+        : PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK;
 }
 
 function drawPortWaitControls() {
@@ -15626,7 +17147,7 @@ function drawPortWaitControls() {
   if (!portWaitState || gameOverReason) return;
   const city = cityByTileId.get(portWaitState.cityTileId);
   const status = `WAITING SAFELY IN ${city ? cityLabelText(city).toUpperCase() : "PORT"}`;
-  const statusW = Math.min(SCREEN_W - 12, measurePixelTextWidth(status, PIXEL_FONT_UI_8) + 12);
+  const statusW = Math.min(SCREEN_W - 12, measurePixelTextWidth(status, PIXEL_FONT_SMALL_8) + 12);
   const statusX = Math.floor((SCREEN_W - statusW) / 2);
   const buttonW = Math.min(PORT_WAIT_BUTTON_W, SCREEN_W - 12);
   portWaitButtonRect = {
@@ -15640,26 +17161,14 @@ function drawPortWaitControls() {
   ctx.strokeStyle = "#8ac0b4";
   ctx.strokeRect(statusX + 0.5, portWaitButtonRect.y - 16.5, statusW - 1, 12);
   ctx.fillStyle = "#d6f2e8";
-  drawPixelText(fitPixelText(status, PIXEL_FONT_UI_8, statusW - 8), SCREEN_W / 2, portWaitButtonRect.y - 14, {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText(fitPixelText(status, PIXEL_FONT_SMALL_8, statusW - 8), SCREEN_W / 2, portWaitButtonRect.y - 14, {
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 
   const hovered = pointInRect(optionsMenu.hoverPoint, portWaitButtonRect);
-  ctx.fillStyle = hovered ? "#4f6b62" : "#354b48";
-  ctx.fillRect(portWaitButtonRect.x, portWaitButtonRect.y, portWaitButtonRect.w, portWaitButtonRect.h);
-  ctx.strokeStyle = hovered ? "#fff1bf" : "#8ac0b4";
-  ctx.strokeRect(
-    portWaitButtonRect.x + 0.5,
-    portWaitButtonRect.y + 0.5,
-    portWaitButtonRect.w - 1,
-    portWaitButtonRect.h - 1
-  );
-  ctx.fillStyle = "#f3dfb0";
-  drawPixelText("RETURN TO PORT", portWaitButtonRect.x + portWaitButtonRect.w / 2, controlTextY(portWaitButtonRect), {
-    font: PIXEL_FONT_UI_10,
-    align: "center"
-  });
+  drawPiratePaperControl(portWaitButtonRect, { hovered, active: true });
+  drawControlIconLabel(portWaitButtonRect, "RETURN TO PORT", "action:dock");
 }
 
 function drawStormStatus(nowMs) {
@@ -15672,7 +17181,7 @@ function drawStormStatus(nowMs) {
     : anchored
       ? (intensity >= STORM_ACTIVE_INTENSITY ? "ANCHORED - STORM SHELTER" : "ANCHORED - WAITING")
       : `STORM ${Math.round(intensity * 100)}%`;
-  const width = Math.min(190, measurePixelTextWidth(text, PIXEL_FONT_UI_8) + 12);
+  const width = Math.min(190, measurePixelTextWidth(text, PIXEL_FONT_SMALL_8) + 12);
   const x = Math.round((SCREEN_W - width) / 2);
   const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 3;
   ctx.fillStyle = damageActive ? "rgba(93, 42, 43, 0.94)" : "rgba(38, 47, 58, 0.9)";
@@ -15680,7 +17189,7 @@ function drawStormStatus(nowMs) {
   ctx.strokeStyle = damageActive ? "#f68181" : "#8ac0b4";
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
   ctx.fillStyle = damageActive ? "#ffd2c6" : "#d6f2e8";
-  drawPixelText(text, x + width / 2, y + 3, { font: PIXEL_FONT_UI_8, align: "center" });
+  drawPixelText(text, x + width / 2, y + 3, { font: PIXEL_FONT_SMALL_8, align: "center" });
 }
 
 function drawSurvivalMeters() {
@@ -15699,7 +17208,7 @@ function drawSurvivalMeters() {
   ctx.strokeStyle = "#7f708a";
   ctx.strokeRect(x + 0.5, y + 0.5, SURVIVAL_PANEL_W - 1, SURVIVAL_PANEL_H - 1);
   ctx.fillStyle = "#d6b66b";
-  drawPixelText("SHIP STATUS", x + 5, y + 3, { font: PIXEL_FONT_UI_8 });
+  drawPixelText("SHIP STATUS", x + 5, y + 3, { font: PIXEL_FONT_SMALL_8 });
   drawSurvivalMeterRow(
     "HULL",
     `${Math.max(0, Math.ceil(ship.hitPoints))}/${Math.ceil(ship.maxHitPoints)}`,
@@ -15727,10 +17236,10 @@ function drawSurvivalMeters() {
 }
 
 function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
-  drawPixelText(label, x, y, { font: PIXEL_FONT_UI_8 });
+  drawPixelText(label, x, y, { font: PIXEL_FONT_SMALL_8 });
   const barX = x + 25;
   const valueRight = SURVIVAL_PANEL_X + SURVIVAL_PANEL_W - 5;
-  const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_UI_8);
+  const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_SMALL_8);
   const barW = Math.max(8, Math.min(SURVIVAL_BAR_W, valueLeft - barX - 4));
   ctx.fillStyle = "#172437";
   ctx.fillRect(barX, y + 1, barW, 5);
@@ -15740,14 +17249,14 @@ function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
   ctx.strokeRect(barX + 0.5, y + 0.5, barW - 1, 5);
   ctx.fillStyle = "#fff1bf";
   drawPixelText(value, valueRight, y - 1, {
-    font: PIXEL_FONT_UI_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "right"
   });
 }
 
 function drawSurvivalNotice(nowMs) {
   if (!survivalNotice || nowMs >= survivalNotice.expiresAtMs) return;
-  const width = Math.min(240, measurePixelTextWidth(survivalNotice.text, PIXEL_FONT_UI_8) + 12);
+  const width = Math.min(240, measurePixelTextWidth(survivalNotice.text, PIXEL_FONT_SMALL_8) + 12);
   const x = Math.round((SCREEN_W - width) / 2);
   const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 48;
   const warn = survivalNotice.tone === "warn";
@@ -15756,15 +17265,15 @@ function drawSurvivalNotice(nowMs) {
   ctx.strokeStyle = warn ? "#e3a857" : "#8ac0b4";
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
   ctx.fillStyle = warn ? "#ffe6a6" : "#d6f2e8";
-  drawPixelText(fitPixelText(survivalNotice.text, PIXEL_FONT_UI_8, width - 10), x + width / 2, y + 3, {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText(fitPixelText(survivalNotice.text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 }
 
 function drawCombatNotice(nowMs) {
   if (!combatNotice || nowMs >= combatNotice.expiresAtMs) return;
-  const width = Math.min(230, measurePixelTextWidth(combatNotice.text, PIXEL_FONT_UI_8) + 12);
+  const width = Math.min(230, measurePixelTextWidth(combatNotice.text, PIXEL_FONT_SMALL_8) + 12);
   const x = Math.round((SCREEN_W - width) / 2);
   const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 18;
   ctx.fillStyle = "rgba(49, 54, 56, 0.94)";
@@ -15772,15 +17281,15 @@ function drawCombatNotice(nowMs) {
   ctx.strokeStyle = "#f9c22b";
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
   ctx.fillStyle = "#fbff86";
-  drawPixelText(fitPixelText(combatNotice.text, PIXEL_FONT_UI_8, width - 10), x + width / 2, y + 3, {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText(fitPixelText(combatNotice.text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 }
 
 function drawFishCatchNotice(nowMs) {
   if (!fishCatchNotice || nowMs >= fishCatchNotice.expiresAtMs) return;
-  const width = Math.min(240, measurePixelTextWidth(fishCatchNotice.text, PIXEL_FONT_UI_8) + 12);
+  const width = Math.min(240, measurePixelTextWidth(fishCatchNotice.text, PIXEL_FONT_SMALL_8) + 12);
   const x = Math.round((SCREEN_W - width) / 2);
   const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 33;
   const warn = fishCatchNotice.tone === "warn";
@@ -15789,8 +17298,8 @@ function drawFishCatchNotice(nowMs) {
   ctx.strokeStyle = warn ? "#e3a857" : "#8ac0b4";
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
   ctx.fillStyle = warn ? "#ffe6a6" : "#d6f2e8";
-  drawPixelText(fitPixelText(fishCatchNotice.text, PIXEL_FONT_UI_8, width - 10), x + width / 2, y + 3, {
-    font: PIXEL_FONT_UI_8,
+  drawPixelText(fitPixelText(fishCatchNotice.text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 }
@@ -15806,31 +17315,24 @@ function drawPlayerIntroModal(nowMs) {
     h: PLAYER_INTRO_PANEL_H
   };
 
-  ctx.fillStyle = "rgba(16, 20, 23, 0.82)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#2f241c";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#d6b66b";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#715033";
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+  drawPiratePaperModal(panel, 0.82);
 
   if (SCREEN_W < 400) {
     drawCompactPlayerIntroModal(panel, character, modal, nowMs);
     return;
   }
 
-  ctx.fillStyle = "#d6b66b";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   drawPixelText("CAPTAIN'S PAPERS", SCREEN_W / 2, panel.y + 10, {
-    font: PIXEL_FONT_UI_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
-  ctx.fillStyle = "#fff1bf";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(
-    fitPixelText(character.name.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 32),
+    fitPixelText(character.name.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 32),
     SCREEN_W / 2,
     panel.y + 25,
-    { font: PIXEL_FONT_UI_8, align: "center" }
+    { font: PIXEL_FONT_SMALL_8, align: "center" }
   );
 
   const portraitX = panel.x + 18;
@@ -15867,38 +17369,35 @@ function drawPlayerIntroModal(nowMs) {
   ];
   for (let i = 0; i < rows.length; i++) {
     const y = panel.y + 47 + i * 21;
-    ctx.fillStyle = "#bda66f";
-    drawPixelText(rows[i][0], detailX, y, { font: PIXEL_FONT_BODY_8 });
-    ctx.fillStyle = "#f3dfb0";
-    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_UI_8, detailW), detailX, y + 9, {
-      font: PIXEL_FONT_UI_8
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText(rows[i][0], detailX, y, { font: PIXEL_FONT_SMALL_8 });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_SMALL_8, detailW), detailX, y + 9, {
+      font: PIXEL_FONT_SMALL_8
     });
   }
 
   const button = modal.buttonRect;
-  ctx.fillStyle = modal.hovered ? "#6d4b2f" : "#4a3424";
-  ctx.fillRect(button.x, button.y, button.w, button.h);
-  ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
-  ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
-  ctx.fillStyle = "#fff1bf";
+  drawPiratePaperInset(button, modal.hovered);
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, controlTextY(button), {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
 }
 
 function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
-  ctx.fillStyle = "#d6b66b";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   drawPixelText("CAPTAIN'S PAPERS", SCREEN_W / 2, panel.y + 10, {
-    font: PIXEL_FONT_UI_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
-  ctx.fillStyle = "#fff1bf";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(
-    fitPixelText(character.name.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 32),
+    fitPixelText(character.name.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 32),
     SCREEN_W / 2,
     panel.y + 25,
-    { font: PIXEL_FONT_UI_8, align: "center" }
+    { font: PIXEL_FONT_SMALL_8, align: "center" }
   );
 
   const portraitX = panel.x + 18;
@@ -15921,14 +17420,14 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
     DIALOGUE_FLAG_H,
     flagWavePhase(nowMs, character.homePortTileId)
   );
-  ctx.fillStyle = "#bda66f";
-  drawPixelText("NATIONALITY", flagX, flagY + 29, { font: PIXEL_FONT_BODY_8 });
-  ctx.fillStyle = "#f3dfb0";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  drawPixelText("NATIONALITY", flagX, flagY + 29, { font: PIXEL_FONT_SMALL_8 });
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(
-    fitPixelText(character.nationalityAdjective, PIXEL_FONT_UI_8, panel.w - 121),
+    fitPixelText(character.nationalityAdjective, PIXEL_FONT_SMALL_8, panel.w - 121),
     flagX,
     flagY + 38,
-    { font: PIXEL_FONT_UI_8 }
+    { font: PIXEL_FONT_SMALL_8 }
   );
 
   const rows = [
@@ -15941,22 +17440,19 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
   const detailW = panel.w - 36;
   rows.forEach((row, index) => {
     const y = panel.y + 122 + index * 31;
-    ctx.fillStyle = "#bda66f";
-    drawPixelText(row[0], detailX, y, { font: PIXEL_FONT_BODY_8 });
-    ctx.fillStyle = "#f3dfb0";
-    drawPixelText(fitPixelText(row[1], PIXEL_FONT_UI_8, detailW), detailX, y + 10, {
-      font: PIXEL_FONT_UI_8
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText(row[0], detailX, y, { font: PIXEL_FONT_SMALL_8 });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(fitPixelText(row[1], PIXEL_FONT_SMALL_8, detailW), detailX, y + 10, {
+      font: PIXEL_FONT_SMALL_8
     });
   });
 
   const button = modal.buttonRect;
-  ctx.fillStyle = modal.hovered ? "#6d4b2f" : "#4a3424";
-  ctx.fillRect(button.x, button.y, button.w, button.h);
-  ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
-  ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
-  ctx.fillStyle = "#fff1bf";
+  drawPiratePaperInset(button, modal.hovered);
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, controlTextY(button), {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
 }
@@ -15975,14 +17471,7 @@ function drawCaptainAlertModal() {
     h: CAPTAIN_ALERT_PANEL_H
   };
 
-  ctx.fillStyle = "rgba(16, 20, 23, 0.72)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#2f241c";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#d6b66b";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#715033";
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+  drawPiratePaperModal(panel, 0.72);
 
   const portraitX = panel.x + 14;
   const portraitY = panel.y + 18;
@@ -15994,25 +17483,22 @@ function drawCaptainAlertModal() {
 
   const textX = panel.x + 93;
   const textW = panel.w - 110;
-  ctx.fillStyle = "#d6b66b";
-  drawPixelText(fitPixelText((modal.character?.name || "Captain").toUpperCase(), PIXEL_FONT_UI_8, textW), textX, panel.y + 15, {
-    font: PIXEL_FONT_UI_8
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  drawPixelText(fitPixelText((modal.character?.name || "Captain").toUpperCase(), PIXEL_FONT_SMALL_8, textW), textX, panel.y + 15, {
+    font: PIXEL_FONT_SMALL_8
   });
-  ctx.fillStyle = "#f3dfb0";
+  ctx.fillStyle = PIRATE_MENU_INK;
   let y = panel.y + 31;
-  for (const line of wrapPixelText(modal.message, PIXEL_FONT_BODY_8, textW, 4)) {
-    drawPixelText(line, textX, y, { font: PIXEL_FONT_BODY_8 });
+  for (const line of wrapPixelText(modal.message.toUpperCase(), PIXEL_FONT_SMALL_8, textW, 4)) {
+    drawPixelText(line, textX, y, { font: PIXEL_FONT_SMALL_8 });
     y += 10;
   }
 
   const button = modal.buttonRect;
-  ctx.fillStyle = modal.hovered ? "#6d4b2f" : "#4a3424";
-  ctx.fillRect(button.x, button.y, button.w, button.h);
-  ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
-  ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
-  ctx.fillStyle = "#fff1bf";
+  drawPiratePaperInset(button, modal.hovered);
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("CONTINUE", button.x + button.w / 2, controlTextY(button), {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
 }
@@ -16022,24 +17508,17 @@ function drawSailingHelpModal(modal) {
   const page = modal.pages[modal.page];
   modal.buttonRect = sailingHelpButtonRect();
 
-  ctx.fillStyle = "rgba(16, 20, 23, 0.78)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#2f241c";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#d6b66b";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#715033";
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+  drawPiratePaperModal(panel, 0.78);
 
-  ctx.fillStyle = "#fff1bf";
-  drawPixelText("SAILING BASICS", panel.x + 12, panel.y + 12, { font: PIXEL_FONT_UI_10 });
-  ctx.fillStyle = "#ab947a";
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText("SAILING BASICS", panel.x + 12, panel.y + 12, { font: PIXEL_FONT_DIALOGUE_8 });
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   drawPixelText(`${modal.page + 1}/${modal.pages.length}`, panel.x + panel.w - 12, panel.y + 13, {
-    font: PIXEL_FONT_BODY_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "right"
   });
-  ctx.fillStyle = "#d6b66b";
-  drawPixelText(page.title, panel.x + 12, panel.y + 29, { font: PIXEL_FONT_UI_8 });
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  drawPixelText(page.title, panel.x + 12, panel.y + 29, { font: PIXEL_FONT_SMALL_8 });
 
   const diagram = {
     x: panel.x + 12,
@@ -16052,54 +17531,95 @@ function drawSailingHelpModal(modal) {
   const bodyX = panel.x + 14;
   const bodyY = diagram.y + diagram.h + 9;
   const bodyW = panel.w - 28;
-  const lineHeight = 12;
+  const lineHeight = 10;
   const maxLines = Math.max(1, Math.floor((modal.buttonRect.y - bodyY - 5) / lineHeight));
-  ctx.fillStyle = "#f3dfb0";
-  const lines = wrapPixelText(page.body, PIXEL_FONT_BODY_10, bodyW, maxLines);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  const body = page.body.toUpperCase();
+  const lines = wrapPixelText(body, PIXEL_FONT_SMALL_8, bodyW, maxLines);
   for (let index = 0; index < lines.length; index++) {
-    drawPixelText(lines[index], bodyX, bodyY + index * lineHeight, { font: PIXEL_FONT_BODY_10 });
+    drawPixelText(lines[index], bodyX, bodyY + index * lineHeight, { font: PIXEL_FONT_SMALL_8 });
   }
 
   const button = modal.buttonRect;
-  ctx.fillStyle = modal.hovered ? "#6d4b2f" : "#4a3424";
-  ctx.fillRect(button.x, button.y, button.w, button.h);
-  ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
-  ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
-  ctx.fillStyle = "#fff1bf";
+  drawPiratePaperInset(button, modal.hovered);
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(modal.page === modal.pages.length - 1 ? "TAKE THE HELM" : "NEXT", button.x + button.w / 2, controlTextY(button), {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
 }
 
 function drawSailingHelpDiagram(kind, rect, inputMode) {
-  ctx.fillStyle = "#191f24";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = "#715033";
+  drawTutorialTerrainField(rect, kind === "haul");
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   if (kind === "steer") drawSailingSteeringDiagram(rect, inputMode);
   else if (kind === "tack") drawSailingTackingDiagram(rect);
   else if (kind === "haul") drawSailingHaulingDiagram(rect);
+  else throw new Error(`Unknown sailing tutorial diagram: ${kind}`);
+}
+
+function drawTutorialTerrainField(rect, shore) {
+  const inner = { x: rect.x + 1, y: rect.y + 1, w: rect.w - 2, h: rect.h - 2 };
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(inner.x, inner.y, inner.w, inner.h);
+  ctx.clip();
+  ctx.fillStyle = "#3b5e8c";
+  ctx.fillRect(inner.x, inner.y, inner.w, inner.h);
+  for (let row = -1; row <= Math.ceil(inner.h / 18) + 1; row++) {
+    const y = inner.y + row * 18 + 9;
+    for (let column = -1; column <= Math.ceil(inner.w / 24) + 1; column++) {
+      const x = inner.x + column * 24 + (row & 1 ? 12 : 0) + 10;
+      const frame = waterFrameFor(hashInt(row * 127 + column * 8191));
+      const key = shore && x < inner.x + inner.w * 0.52
+        ? `water_shallow_0${frame}`
+        : `water_depth_02_0${frame}`;
+      ctx.drawImage(terrainImage(key), x - TILE_ART_HALF, y - TILE_ART_HALF);
+    }
+  }
+  if (shore) drawTutorialShoreSprites(inner);
+  ctx.restore();
+}
+
+function drawTutorialShoreSprites(rect) {
+  const coastX = rect.x + Math.round(rect.w * 0.34);
+  const grass = terrainImage("grass_01");
+  const sand = terrainImage("sand_01");
+  for (let row = -1; row <= Math.ceil(rect.h / 18) + 1; row++) {
+    const y = rect.y + row * 18 + 9;
+    const lastGrassColumn = Math.ceil((coastX - rect.x) / 24);
+    for (let column = -1; column <= lastGrassColumn; column++) {
+      const x = rect.x + column * 24 + (row & 1 ? 12 : 0) + 10;
+      if (x >= coastX - 6) continue;
+      ctx.drawImage(grass, x - TILE_ART_HALF, y - TILE_ART_HALF);
+    }
+    ctx.drawImage(sand, coastX - TILE_ART_HALF, y - TILE_ART_HALF);
+  }
+  const surfColor = "#fff1bf";
+  for (let y = rect.y + 2; y < rect.y + rect.h - 1; y += 3) {
+    const x = coastX + ((Math.floor((y - rect.y) / 3) % 3) - 1);
+    ctx.fillStyle = surfColor;
+    ctx.fillRect(x + TILE_ART_HALF - 4, y, 2, 1);
+  }
 }
 
 function drawSailingSteeringDiagram(rect, inputMode) {
   const cx = Math.round(rect.x + rect.w * 0.52);
   const cy = Math.round(rect.y + rect.h * 0.56);
-  drawTutorialShip(cx, cy);
   const targetX = Math.round(rect.x + rect.w * 0.75);
   const targetY = Math.round(rect.y + rect.h * 0.24);
+  drawTutorialShip(cx, cy, { x: targetX - cx, y: targetY - cy });
   drawTutorialArrow(cx + 7, cy - 7, targetX, targetY, "#f9c22b");
-  ctx.fillStyle = "#8ac0b4";
   const modeLabel = inputMode === "keyboard"
     ? "PRESS + HOLD"
     : inputMode === "controller"
       ? "TILT + HOLD"
       : inputMode === "touch"
-        ? "TOUCH + HOLD"
+      ? "TOUCH + HOLD"
         : "CLICK + HOLD";
-  drawPixelText(modeLabel, rect.x + 8, rect.y + 9, { font: PIXEL_FONT_UI_8 });
-  ctx.fillStyle = "#ab947a";
-  drawPixelText("TURN THE BOW", rect.x + 8, rect.y + rect.h - 11, { font: PIXEL_FONT_BODY_8 });
+  drawTutorialLabel(modeLabel, rect.x + 7, rect.y + 6);
+  drawTutorialLabel("TURN THE BOW", rect.x + 7, rect.y + rect.h - 14);
   ctx.fillStyle = "#f9c22b";
   ctx.fillRect(targetX - 2, targetY - 2, 5, 5);
 }
@@ -16107,106 +17627,94 @@ function drawSailingSteeringDiagram(rect, inputMode) {
 function drawSailingTackingDiagram(rect) {
   const windX = rect.x + 27;
   drawTutorialArrow(windX, rect.y + 13, windX, rect.y + 54, "#8ac0b4");
-  ctx.fillStyle = "#8ac0b4";
-  drawPixelText("WIND DIRECTION", rect.x + 8, rect.y + 7, { font: PIXEL_FONT_UI_8 });
+  drawTutorialLabel("WIND", rect.x + 7, rect.y + 6);
 
   const shipX = Math.round(rect.x + rect.w * 0.56);
   const shipY = rect.y + rect.h - 11;
-  ctx.strokeStyle = "#c24b4b";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(shipX, shipY - 9);
-  ctx.lineTo(shipX - 22, rect.y + 12);
-  ctx.moveTo(shipX, shipY - 9);
-  ctx.lineTo(shipX + 22, rect.y + 12);
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  ctx.fillStyle = "#e36d5b";
-  drawPixelText("NO-GO", shipX, rect.y + 6, { font: PIXEL_FONT_BODY_8, align: "center" });
+  drawPixelLine(shipX, shipY - 9, shipX - 22, rect.y + 12, "#e36d5b");
+  drawPixelLine(shipX, shipY - 9, shipX + 22, rect.y + 12, "#e36d5b");
+  drawTutorialLabel("NO-GO", shipX - 15, rect.y + 5);
 
-  ctx.strokeStyle = "#f9c22b";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(shipX, shipY);
-  ctx.lineTo(shipX - 43, shipY - 18);
-  ctx.lineTo(shipX + 42, shipY - 36);
-  ctx.lineTo(shipX + 7, rect.y + 7);
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  drawTutorialShip(shipX, shipY);
-  ctx.fillStyle = "#f9c22b";
-  drawPixelText("TACK", rect.x + rect.w - 9, rect.y + rect.h - 12, {
-    font: PIXEL_FONT_UI_8,
-    align: "right"
+  const tackPoints = [
+    { x: shipX, y: shipY },
+    { x: shipX - 43, y: shipY - 18 },
+    { x: shipX + 42, y: shipY - 36 },
+    { x: shipX + 7, y: rect.y + 7 }
+  ];
+  for (let index = 1; index < tackPoints.length; index++) {
+    const from = tackPoints[index - 1];
+    const to = tackPoints[index];
+    drawPixelLine(from.x, from.y, to.x, to.y, "#f9c22b");
+  }
+  drawTutorialShip(shipX, shipY, {
+    x: tackPoints[1].x - shipX,
+    y: tackPoints[1].y - shipY
   });
+  drawTutorialLabel("TACK", rect.x + rect.w - 39, rect.y + rect.h - 14);
 }
 
 function drawSailingHaulingDiagram(rect) {
-  ctx.fillStyle = "#3d6b73";
-  ctx.fillRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
-  ctx.fillStyle = "#586b3b";
-  ctx.beginPath();
-  ctx.moveTo(rect.x + 1, rect.y + 1);
-  ctx.lineTo(rect.x + Math.round(rect.w * 0.38), rect.y + 1);
-  ctx.lineTo(rect.x + Math.round(rect.w * 0.31), rect.y + 22);
-  ctx.lineTo(rect.x + Math.round(rect.w * 0.4), rect.y + 42);
-  ctx.lineTo(rect.x + Math.round(rect.w * 0.34), rect.y + rect.h - 1);
-  ctx.lineTo(rect.x + 1, rect.y + rect.h - 1);
-  ctx.closePath();
-  ctx.fill();
-
   const shipX = rect.x + Math.round(rect.w * 0.43);
   const shipY = rect.y + Math.round(rect.h * 0.56);
-  drawTutorialShip(shipX, shipY);
-  drawTutorialArrow(shipX + 7, shipY, rect.x + Math.round(rect.w * 0.75), shipY, "#f9c22b");
-  ctx.fillStyle = "#f9c22b";
-  drawPixelText("HOLD", rect.x + Math.round(rect.w * 0.61), shipY - 13, {
-    font: PIXEL_FONT_UI_8,
-    align: "center"
-  });
-  ctx.fillStyle = "#d7d9bf";
-  drawPixelText("OPEN WATER", rect.x + rect.w - 8, rect.y + 8, {
-    font: PIXEL_FONT_BODY_8,
-    align: "right"
-  });
+  const targetX = rect.x + Math.round(rect.w * 0.75);
+  drawTutorialShip(shipX, shipY, { x: 1, y: 0 });
+  drawTutorialArrow(shipX + 7, shipY, targetX, shipY, "#f9c22b");
+  drawTutorialLabel("HOLD", rect.x + Math.round(rect.w * 0.58), shipY - 14);
+  drawTutorialLabel("OPEN WATER", rect.x + rect.w - 86, rect.y + 6);
 }
 
-function drawTutorialShip(x, y) {
-  ctx.fillStyle = "#2f241c";
-  ctx.fillRect(x - 4, y - 7, 9, 13);
-  ctx.fillRect(x - 2, y - 10, 5, 3);
-  ctx.fillStyle = "#fff1bf";
-  ctx.fillRect(x, y - 6, 1, 9);
-  ctx.fillStyle = "#d6b66b";
-  ctx.fillRect(x + 1, y - 5, 4, 5);
+function drawTutorialShip(x, y, heading) {
+  if (!shipImage) throw new Error("Sailing tutorial requires loaded player ship art");
+  const length = Math.hypot(heading.x, heading.y);
+  if (!(length > 0)) throw new Error("Sailing tutorial ship requires a heading");
+  const frame = headingFrameForScreenHeading({ x: heading.x / length, y: heading.y / length });
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  drawLakeBattleSpriteFrame(
+    shipImage,
+    frame,
+    x - Math.floor(SHIP_SHEET_FRAME_SIZE / 2),
+    y - Math.floor(SHIP_SHEET_FRAME_SIZE / 2)
+  );
+  ctx.restore();
+}
+
+function drawTutorialLabel(text, x, y) {
+  const width = measurePixelTextWidth(text, PIXEL_FONT_SMALL_8) + 6;
+  ctx.fillStyle = "rgba(234, 216, 178, 0.9)";
+  ctx.fillRect(Math.round(x), Math.round(y), width, 11);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText(text, Math.round(x) + 3, Math.round(y) + 2, { font: PIXEL_FONT_SMALL_8 });
 }
 
 function drawTutorialArrow(fromX, fromY, toX, toY, color) {
   const angle = Math.atan2(toY - fromY, toX - fromX);
   const wing = 5;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(Math.round(fromX), Math.round(fromY));
-  ctx.lineTo(Math.round(toX), Math.round(toY));
-  ctx.moveTo(Math.round(toX), Math.round(toY));
-  ctx.lineTo(
-    Math.round(toX - Math.cos(angle - Math.PI / 4) * wing),
-    Math.round(toY - Math.sin(angle - Math.PI / 4) * wing)
-  );
-  ctx.moveTo(Math.round(toX), Math.round(toY));
-  ctx.lineTo(
-    Math.round(toX - Math.cos(angle + Math.PI / 4) * wing),
-    Math.round(toY - Math.sin(angle + Math.PI / 4) * wing)
-  );
-  ctx.stroke();
-  ctx.lineWidth = 1;
+  const startX = Math.round(fromX);
+  const startY = Math.round(fromY);
+  const endX = Math.round(toX);
+  const endY = Math.round(toY);
+  const wingAX = Math.round(toX - Math.cos(angle - Math.PI / 4) * wing);
+  const wingAY = Math.round(toY - Math.sin(angle - Math.PI / 4) * wing);
+  const wingBX = Math.round(toX - Math.cos(angle + Math.PI / 4) * wing);
+  const wingBY = Math.round(toY - Math.sin(angle + Math.PI / 4) * wing);
+  drawPixelLine(startX, startY, endX, endY, color);
+  drawPixelLine(endX, endY, wingAX, wingAY, color);
+  drawPixelLine(endX, endY, wingBX, wingBY, color);
 }
 
 function drawGameOverOverlay(nowMs) {
   const state = gameOverState;
   if (!state) return;
-  const elapsed = gameOverElapsedMs(nowMs);
+  const transitionDuration = gameOverTransitionDurationMs();
+  const transitionElapsed = gameOverElapsedMs(nowMs);
+  if (transitionElapsed < transitionDuration) {
+    const shade = smoothstep(0, transitionDuration, transitionElapsed) * 0.16;
+    ctx.fillStyle = `rgba(13, 14, 17, ${shade})`;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    return;
+  }
+  const elapsed = transitionElapsed - transitionDuration;
   const fade = smoothstep(GAME_OVER_MEMORIAL_MS, GAME_OVER_MEMORIAL_MS + GAME_OVER_FADE_MS, elapsed);
 
   if (fade < 1) drawGameOverMemorial(state, fade);
@@ -16218,24 +17726,17 @@ function drawGameOverOverlay(nowMs) {
 }
 
 function drawGameOverMemorial(state, fade) {
-  ctx.fillStyle = "rgba(13, 14, 17, 0.78)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   const panel = {
     x: GAME_OVER_PANEL_X,
     y: GAME_OVER_PANEL_Y,
     w: GAME_OVER_PANEL_W,
     h: GAME_OVER_PANEL_H
   };
-  ctx.fillStyle = "#211f23";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#9babb2";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#625565";
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+  drawPiratePaperModal(panel, 0.78);
 
-  ctx.fillStyle = "#d8d1c2";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("LOST AT SEA", SCREEN_W / 2, panel.y + 11, {
-    font: PIXEL_FONT_UI_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 
@@ -16249,15 +17750,15 @@ function drawGameOverMemorial(state, fade) {
 
   const textX = panel.x + 104;
   const textW = panel.w - 122;
-  ctx.fillStyle = "#f0e8d4";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(
-    fitPixelText((state.character?.name || "The captain").toUpperCase(), PIXEL_FONT_UI_8, textW),
+    fitPixelText((state.character?.name || "The captain").toUpperCase(), PIXEL_FONT_SMALL_8, textW),
     textX,
     panel.y + 42,
-    { font: PIXEL_FONT_UI_8 }
+    { font: PIXEL_FONT_SMALL_8 }
   );
-  ctx.fillStyle = "#c7d0d0";
-  drawPixelText("was never seen again.", textX, panel.y + 55, { font: PIXEL_FONT_BODY_8 });
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  drawPixelText("WAS NEVER SEEN AGAIN.", textX, panel.y + 55, { font: PIXEL_FONT_SMALL_8 });
 
   const rows = [
     ["BORN", state.character?.birthDateLabel || "--"],
@@ -16267,11 +17768,11 @@ function drawGameOverMemorial(state, fade) {
   ];
   for (let i = 0; i < rows.length; i++) {
     const y = panel.y + 76 + i * 21;
-    ctx.fillStyle = "#8f9aa2";
-    drawPixelText(rows[i][0], textX, y, { font: PIXEL_FONT_BODY_8 });
-    ctx.fillStyle = "#e0d4bd";
-    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_UI_8, textW), textX, y + 9, {
-      font: PIXEL_FONT_UI_8
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText(rows[i][0], textX, y, { font: PIXEL_FONT_SMALL_8 });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_SMALL_8, textW), textX, y + 9, {
+      font: PIXEL_FONT_SMALL_8
     });
   }
 
@@ -16282,20 +17783,19 @@ function drawGameOverMemorial(state, fade) {
 }
 
 function drawGameOverStatsScreen(state) {
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  drawPiratePaperPanel({ x: 0, y: 0, w: SCREEN_W, h: SCREEN_H });
   const name = state.character?.name || "The captain";
-  ctx.fillStyle = "#d8d1c2";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("VOYAGE ENDED", SCREEN_W / 2, 22, {
-    font: PIXEL_FONT_UI_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
-  ctx.fillStyle = "#8f9aa2";
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   drawPixelText(
-    fitPixelText(`${name} was never seen again.`, PIXEL_FONT_BODY_8, SCREEN_W - 44),
+    fitPixelText(`${name} WAS NEVER SEEN AGAIN.`.toUpperCase(), PIXEL_FONT_SMALL_8, SCREEN_W - 44),
     SCREEN_W / 2,
     39,
-    { font: PIXEL_FONT_BODY_8, align: "center" }
+    { font: PIXEL_FONT_SMALL_8, align: "center" }
   );
 
   const rows = gameOverStatRows(state);
@@ -16304,18 +17804,18 @@ function drawGameOverStatsScreen(state) {
   const y0 = 63;
   for (let i = 0; i < rows.length; i++) {
     const y = y0 + i * 14;
-    ctx.fillStyle = "#6f7d86";
-    drawPixelText(rows[i][0], labelX, y, { font: PIXEL_FONT_BODY_8 });
-    ctx.fillStyle = "#e4dbc6";
-    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_UI_8, valueX - labelX - 8), valueX, y, {
-      font: PIXEL_FONT_UI_8,
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText(rows[i][0], labelX, y, { font: PIXEL_FONT_SMALL_8 });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_SMALL_8, valueX - labelX - 8), valueX, y, {
+      font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
   }
 
-  ctx.fillStyle = "#d6b66b";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, SCREEN_H - 24, {
-    font: PIXEL_FONT_UI_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 }
@@ -16353,7 +17853,7 @@ function drawDialogueOverlay(nowMs) {
     drawShipyardDialogueOverlay(view);
     return;
   }
-  const dialogueFont = PIXEL_FONT_UI_10;
+  const dialogueFont = PIXEL_FONT_DIALOGUE_8;
   const dialogueLineHeight = 12;
   const portFaction = dialogueState.kind === "port" ? factionById(subject.factionId) : null;
   const portGreeting = dialogueState.kind === "port" && dialogueState.nodeId === "greeting";
@@ -16413,14 +17913,13 @@ function drawDialogueOverlay(nowMs) {
     geometry.portrait.y
   );
 
-  ctx.fillStyle = "rgba(28, 20, 15, 0.94)";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#d6b66b";
+  drawPiratePaperPanel(panel);
+  ctx.strokeStyle = PIRATE_MENU_INK;
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#715033";
+  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
   ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
 
-  ctx.fillStyle = "#f3dfb0";
+  ctx.fillStyle = PIRATE_MENU_INK;
   const speakerW = portFaction ? factionBlockX - panel.x - 16 : panel.w - 18;
   const speakerLines = portGreeting && SCREEN_H > SCREEN_W
     ? wrapPixelText(view.speaker, dialogueFont, speakerW, 2)
@@ -16435,13 +17934,13 @@ function drawDialogueOverlay(nowMs) {
 
   const textX = panel.x + 12;
   let y = panel.y + textYOffset;
-  ctx.fillStyle = "#ead9b5";
+  ctx.fillStyle = PIRATE_MENU_INK;
   for (const line of bodyLines) {
     drawPixelText(line, textX, y, { font: dialogueFont });
     y += dialogueLineHeight;
   }
   if (view.feedback) {
-    ctx.fillStyle = "#c7dd8a";
+    ctx.fillStyle = PIRATE_MENU_SUCCESS;
     for (const line of feedbackLines) {
       drawPixelText(line, textX, y, { font: dialogueFont });
       y += dialogueLineHeight;
@@ -16459,27 +17958,20 @@ function drawShipyardDialogueOverlay(dialogueView) {
   const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
   const compact = SCREEN_H > SCREEN_W;
   const optionWidth = panel.w - 18;
-  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_UI_10, optionWidth);
+  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_DIALOGUE_8, optionWidth);
   const optionY = panel.y + panel.h - dialogueView.options.length * optionHeight - 7;
 
-  ctx.fillStyle = "rgba(15, 18, 14, 0.9)";
-  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  ctx.fillStyle = "#3e3546";
-  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
-  ctx.strokeStyle = "#d6b66b";
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = "#715033";
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+  drawPiratePaperModal(panel, 0.9);
 
   drawOptionsText("SHIPYARD / NEW VESSEL", panel.x + panel.w / 2, panel.y + 9, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
-    color: "#fbb954"
+    color: PIRATE_MENU_INK_MUTED
   });
-  drawOptionsText(fitPixelText(vessel.label.toUpperCase(), PIXEL_FONT_UI_10, panel.w - 76), panel.x + panel.w / 2, panel.y + 22, {
-    font: PIXEL_FONT_UI_10,
+  drawOptionsText(fitPixelText(vessel.label.toUpperCase(), PIXEL_FONT_DIALOGUE_8, panel.w - 76), panel.x + panel.w / 2, panel.y + 22, {
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
-    color: "#ffffff"
+    color: PIRATE_MENU_INK
   });
 
   const artX = compact
@@ -16510,7 +18002,7 @@ function drawShipyardDialogueOverlay(dialogueView) {
     optionY,
     optionWidth,
     panel.y + panel.h - 6,
-    PIXEL_FONT_UI_10
+    PIXEL_FONT_DIALOGUE_8
   );
 }
 
@@ -16518,7 +18010,13 @@ function drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, option
   const statsX = panel.x + 214;
   const valueX = panel.x + panel.w - 12;
   drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, panel.y + 40);
-  drawShipInfoValueRow("CREW / GUNS", `${vessel.crewCapacity} / ${vessel.maxCannons}`, statsX, valueX, panel.y + 52);
+  drawShipInfoValueRow(
+    `CREW / ${vessel.armamentLabel}`,
+    `${vessel.crewCapacity} / ${vessel.armamentSummary}`,
+    statsX,
+    valueX,
+    panel.y + 52
+  );
   drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, panel.y + 64);
   drawShipInfoValueRow("PROPULSION", vessel.propulsionSummary, statsX, valueX, panel.y + 76);
   drawShipInfoRating("SPEED", vessel.ratings.speed, statsX, panel.y + 92);
@@ -16527,27 +18025,27 @@ function drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, option
   drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, panel.y + 128);
   drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, panel.y + 140);
   drawOptionsText(`${listing.price} DOUBLOONS`, panel.x + 12, panel.y + 149, {
-    font: PIXEL_FONT_UI_10,
-    color: "#f9c22b"
+    font: PIXEL_FONT_DIALOGUE_8,
+    color: PIRATE_MENU_INK
   });
   drawOptionsText(`PURSE ${gameState.doubloons}`, panel.x + 12, panel.y + 163, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     color: gameState.doubloons >= listing.price ? "#91db69" : "#f68181"
   });
   const status = dialogueView.feedback || dialogueView.text;
-  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 20), panel.x + 10, optionY - 12, {
-    color: dialogueView.feedback ? "#c7dd8a" : "#ab947a"
+  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 20), panel.x + 10, optionY - 12, {
+    color: dialogueView.feedback ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
   });
 }
 
 function drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, optionY) {
   drawOptionsText(`${listing.price} DOUBLOONS`, panel.x + panel.w / 2, artY + SHIP_INFO_SIDE_VIEW_H + 8, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
-    color: "#f9c22b"
+    color: PIRATE_MENU_INK
   });
   drawOptionsText(`PURSE ${gameState.doubloons}`, panel.x + panel.w / 2, artY + SHIP_INFO_SIDE_VIEW_H + 22, {
-    font: PIXEL_FONT_UI_10,
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: gameState.doubloons >= listing.price ? "#91db69" : "#f68181"
   });
@@ -16555,7 +18053,13 @@ function drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, op
   const valueX = panel.x + panel.w - 12;
   let y = artY + SHIP_INFO_SIDE_VIEW_H + 43;
   drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, y);
-  drawShipInfoValueRow("CREW / GUNS", `${vessel.crewCapacity} / ${vessel.maxCannons}`, statsX, valueX, y + 12);
+  drawShipInfoValueRow(
+    `CREW / ${vessel.armamentLabel}`,
+    `${vessel.crewCapacity} / ${vessel.armamentSummary}`,
+    statsX,
+    valueX,
+    y + 12
+  );
   drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, y + 24);
   drawShipInfoValueRow("PROPULSION", vessel.propulsionSummary, statsX, valueX, y + 36);
   y += 56;
@@ -16565,8 +18069,8 @@ function drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, op
   drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, y + 36);
   drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, y + 48);
   const status = dialogueView.feedback || dialogueView.text;
-  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_UI_8, panel.w - 20), panel.x + 10, optionY - 12, {
-    color: dialogueView.feedback ? "#c7dd8a" : "#ab947a"
+  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 20), panel.x + 10, optionY - 12, {
+    color: dialogueView.feedback ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
   });
 }
 
@@ -16593,16 +18097,16 @@ function drawDialogueFactionFlag(faction, panel, nowMs, city, factionBlockW) {
     DIALOGUE_FLAG_H,
     flagWavePhase(nowMs, city.tileId)
   );
-  const label = fitPixelText(faction.name.toUpperCase(), PIXEL_FONT_BODY_8, factionBlockW);
-  ctx.fillStyle = "#d6b66b";
+  const label = fitPixelText(faction.name.toUpperCase(), PIXEL_FONT_SMALL_8, factionBlockW);
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   drawPixelText(label, panel.x + panel.w - 10, flagY + DIALOGUE_FLAG_H + 3, {
-    font: PIXEL_FONT_BODY_8,
+    font: PIXEL_FONT_SMALL_8,
     align: "right"
   });
   if (city.isFactionCapital) {
-    ctx.fillStyle = "#fbff86";
+    ctx.fillStyle = PIRATE_MENU_INK;
     drawPixelText("CAPITAL", panel.x + panel.w - 10, flagY + DIALOGUE_FLAG_H + 13, {
-      font: PIXEL_FONT_BODY_8,
+      font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
   }
@@ -16641,7 +18145,7 @@ function grayscalePortraitCanvas(source) {
   return canvas;
 }
 
-function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8) {
+function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_8) {
   dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
@@ -16687,34 +18191,39 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
     };
     dialogueLayout.optionRects.push({ index, rect });
     const selected = index === dialogueState.selectedIndex;
-    ctx.fillStyle = selected
-      ? (option.disabled ? "rgba(90, 67, 55, 0.82)" : "rgba(104, 78, 44, 0.94)")
-      : "rgba(47, 36, 28, 0.76)";
-    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-    ctx.strokeStyle = selected ? "#d6b66b" : "#715033";
-    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-    ctx.fillStyle = option.disabled ? "#8d8171" : selected ? "#fff1b8" : "#e6c98e";
-    const prefix = selected ? "> " : "  ";
+    drawPiratePaperInset(rect, selected && !option.disabled);
+    if (selected) {
+      ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
+      ctx.fillRect(rect.x + 2, rect.y + 3, 2, Math.max(2, rect.h - 6));
+    }
+    drawGameIcon(
+      dialogueOptionIconId(option),
+      rect.x + 6,
+      rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2),
+      GAME_ICON_SIZE,
+      option.disabled ? 0.38 : 1
+    );
+    ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK;
     const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
     const multiLine = textLayout.labelLines.length > 1 || textLayout.detailLines.length > 0;
     const labelY = multiLine ? rect.y + 3 : controlTextY(rect);
     for (let lineIndex = 0; lineIndex < textLayout.labelLines.length; lineIndex++) {
       drawPixelText(
-        `${lineIndex === 0 ? prefix : "  "}${textLayout.labelLines[lineIndex]}`,
-        rect.x + 3,
+        textLayout.labelLines[lineIndex],
+        rect.x + GAME_ICON_SIZE + 10,
         labelY + lineIndex * 12,
         { font }
       );
     }
     if (textLayout.detailLines.length > 0) {
-      ctx.fillStyle = option.disabled ? "#756c62" : selected ? "#d6d9bf" : "#ab947a";
+      ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
       const detailY = rect.y + 4 + textLayout.labelLines.length * 12;
       for (let lineIndex = 0; lineIndex < textLayout.detailLines.length; lineIndex++) {
         drawPixelText(
           textLayout.detailLines[lineIndex],
-          rect.x + 8,
+          rect.x + GAME_ICON_SIZE + 10,
           detailY + lineIndex * 10,
-          { font: PIXEL_FONT_BODY_8 }
+          { font: PIXEL_FONT_SMALL_8 }
         );
       }
     }
@@ -16738,7 +18247,7 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_BODY_8
         `${dialogueState.selectedIndex + 1}/${view.options.length}`,
         dialogueLayout.previousRect.x + UI_PAGER_BUTTON_W / 2,
         y + Math.floor((maxVisible * optionHeight - 8) / 2),
-        { align: "center", color: "#ab947a" }
+        { align: "center", color: PIRATE_MENU_INK_MUTED }
       );
     }
   }
@@ -16754,14 +18263,14 @@ function dialogueOptionsHeight(view, font, width) {
 }
 
 function dialogueOptionTextMetrics(option, font, width, minimumHeight) {
-  const prefixWidth = measurePixelTextWidth("> ", font);
+  const iconReserve = GAME_ICON_SIZE + 13;
   return dialogueOptionTextLayout({
     label: option.label,
     detail: option.detail || "",
-    labelWidth: Math.max(1, width - prefixWidth - 6),
-    detailWidth: Math.max(1, width - 16),
+    labelWidth: Math.max(1, width - iconReserve),
+    detailWidth: Math.max(1, width - iconReserve),
     measureLabel: (text) => measurePixelTextWidth(text, font),
-    measureDetail: (text) => measurePixelTextWidth(text, PIXEL_FONT_BODY_8),
+    measureDetail: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8),
     minimumHeight
   });
 }
@@ -16844,13 +18353,13 @@ function drawTinyStatus(nowMs) {
   const line2 = `${weatherDateLabel()} ${condition} wind ${windDirectionName(flowDir)} ${wind.strength.toFixed(1)} spd ${shipSpeed.toFixed(0)} ${npcStatus}`;
   const width = Math.min(
     SCREEN_W - 8,
-    Math.max(measurePixelTextWidth(line1, PIXEL_FONT_MONO_8), measurePixelTextWidth(line2, PIXEL_FONT_MONO_8)) + 8
+    Math.max(measurePixelTextWidth(line1, PIXEL_FONT_DIALOGUE_8), measurePixelTextWidth(line2, PIXEL_FONT_DIALOGUE_8)) + 8
   );
   ctx.fillStyle = "rgba(15, 18, 14, 0.62)";
   ctx.fillRect(4, SCREEN_H - 24, width, 20);
   ctx.fillStyle = "#d7d9bf";
-  drawPixelText(line1, 8, SCREEN_H - 16, { font: PIXEL_FONT_MONO_8 });
-  drawPixelText(line2, 8, SCREEN_H - 6, { font: PIXEL_FONT_MONO_8 });
+  drawPixelText(line1, 8, SCREEN_H - 16, { font: PIXEL_FONT_DIALOGUE_8 });
+  drawPixelText(line2, 8, SCREEN_H - 6, { font: PIXEL_FONT_DIALOGUE_8 });
 
   void nowMs;
 }
@@ -17005,7 +18514,7 @@ function spriteForTerrain(row, id) {
   const t = row.t || "";
   const variant = hashInt(id) % 4;
 
-  if (t === "water") return waterSpriteForTile(id);
+  if (t === "water") return waterSpriteForTile(id, row.waterDepthBand);
   if (t === "lake" || t === "beach") return `water_shallow_0${waterFrameFor(id)}`;
   if (isMountainPeakTile(id)) return snowyMountainVariant(id);
   if (t === "mountain") return mountainVariant(id);
@@ -17024,9 +18533,11 @@ function spriteForTerrain(row, id) {
   return `grass_0${1 + variant}`;
 }
 
-function waterSpriteForTile(id) {
+function waterSpriteForTile(id, explicitBand = null) {
   const frame = waterFrameFor(id);
-  const band = waterDepthBands?.[id] ?? (WATER_DEPTH_GRADATION_COUNT + 1);
+  const band = Number.isInteger(explicitBand)
+    ? explicitBand
+    : waterDepthBands?.[id] ?? (WATER_DEPTH_GRADATION_COUNT + 1);
   if (band >= 1 && band <= WATER_DEPTH_GRADATION_COUNT) {
     return `water_depth_0${band}_0${frame}`;
   }
@@ -17169,7 +18680,7 @@ function drawLoading() {
   ctx.fillStyle = "#172437";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#d7d9bf";
-  drawPixelText("Loading Marque & Reprisal...", 8, 14, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText("Loading Marque & Reprisal...", 8, 14, { font: PIXEL_FONT_SMALL_8 });
 }
 
 function drawFatalError(err, heading = "Prototype failed to start") {
@@ -17177,8 +18688,8 @@ function drawFatalError(err, heading = "Prototype failed to start") {
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#f0d2be";
   const lines = String(err?.message || err).match(/.{1,70}/g) || ["Unknown error"];
-  drawPixelText(heading, 8, 14, { font: PIXEL_FONT_BODY_8 });
-  for (let i = 0; i < lines.length; i++) drawPixelText(lines[i], 8, 28 + i * 10, { font: PIXEL_FONT_BODY_8 });
+  drawPixelText(heading, 8, 14, { font: PIXEL_FONT_SMALL_8 });
+  for (let i = 0; i < lines.length; i++) drawPixelText(lines[i], 8, 28 + i * 10, { font: PIXEL_FONT_SMALL_8 });
 }
 
 function hashInt(n) {

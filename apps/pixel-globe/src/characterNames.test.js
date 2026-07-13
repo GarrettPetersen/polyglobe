@@ -60,6 +60,14 @@ test("England and Scotland use distinct naming cultures", () => {
   assert.equal(nameCultureForSubject({ city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
 });
 
+test("Icelandic characters use the Nordic name pool", () => {
+  assert.equal(nameCultureForSubject({
+    city: "Hafnarfjordur",
+    country: "Iceland",
+    factionId: "denmark-norway"
+  }), "nordic");
+});
+
 test("Pacific island villages use the Polynesian naming culture", () => {
   const village = { city: "Fiji Village", country: "Fiji", cityType: "polynesian", factionId: "neutral" };
   assert.equal(nameCultureForSubject(village), "polynesian");

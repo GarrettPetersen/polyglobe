@@ -1,10 +1,4 @@
 @font-face {
-  font-family: "Tiny5";
-  src: url("/assets/fonts/Tiny5-Regular.ttf") format("truetype");
-  font-display: block;
-}
-
-@font-face {
   font-family: "Silkscreen";
   src: url("/assets/fonts/Silkscreen-Regular.ttf") format("truetype");
   font-display: block;
@@ -28,7 +22,7 @@ body {
   min-height: 100%;
   background: #111712;
   overflow: hidden;
-  font-family: "Tiny5", "zpix", monospace;
+  font-family: "Silkscreen", monospace;
 }
 
 body {
@@ -63,5 +57,5 @@ canvas {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  font-family: "Tiny5", "zpix", monospace;
+  font-family: "Silkscreen", monospace;
 }

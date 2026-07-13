@@ -15,8 +15,39 @@ export const SUNSET_GRADE_HEX = Object.freeze([
 ]);
 
 const RESURRECT_COLORS = RESURRECT_64_HEX.map(parsePaletteColor);
+const RESURRECT_INDEX_BY_HEX = new Map(RESURRECT_COLORS.map((color, index) => [color.hex, index]));
+const DOMINANT_WATER_LAND_PAIRS = Object.freeze([
+  ["323353", "4c3e24"],
+  ["9babb2", "a2a947"],
+  ["0b8a8f", "676633"],
+  ["0b5e65", "165a4c"],
+  ["0eaf9b", "239063"],
+  ["30e1b9", "f9c22b"]
+]);
 const NIGHT_CANDIDATES = paletteSubset(NIGHT_GRADE_HEX);
 const SUNSET_CANDIDATES = paletteSubset(SUNSET_GRADE_HEX);
+const NIGHT_TERRAIN_SEPARATION = paletteOverrideMap({
+  "4c3e24": "3e3546",
+  "676633": "45293f",
+  "a2a947": "625565",
+  "d5e04b": "905ea9",
+  "165a4c": "3e3546",
+  "239063": "625565",
+  "1ebc73": "6b3e75",
+  "91db69": "905ea9"
+}, NIGHT_CANDIDATES, "night terrain separation");
+const SUNSET_TERRAIN_SEPARATION = paletteOverrideMap({
+  "323353": "45293f",
+  "4c3e24": "6e2727",
+  "676633": "b33831",
+  "a2a947": "f79617",
+  "d5e04b": "fbff86",
+  "165a4c": "6e2727",
+  "239063": "ea4f36",
+  "1ebc73": "f57d4a",
+  "91db69": "f79617",
+  "f9c22b": "fbff86"
+}, SUNSET_CANDIDATES, "sunset terrain separation");
 const NIGHT_PALETTE_MAP = RESURRECT_COLORS.map((source) => nightTargetFor(source));
 const SUNSET_PALETTE_MAP = RESURRECT_COLORS.map((source) => sunsetTargetFor(source));
 const SOURCE_PALETTE_LUT = buildSourcePaletteLut();
@@ -55,6 +86,8 @@ export function sunsetPaletteHexForSourceHex(sourceHex) {
 }
 
 function nightTargetFor(source) {
+  const terrainOverride = NIGHT_TERRAIN_SEPARATION.get(source.hex);
+  if (terrainOverride) return terrainOverride;
   const desired = {
     l: clamp(source.lab.l * 0.8 - 0.01, 0.2, 0.76),
     a: source.lab.a * 0.28 + 0.018,
@@ -65,6 +98,8 @@ function nightTargetFor(source) {
 }
 
 function sunsetTargetFor(source) {
+  const terrainOverride = SUNSET_TERRAIN_SEPARATION.get(source.hex);
+  if (terrainOverride) return terrainOverride;
   const highlight = smoothstep(0.35, 0.86, source.lab.l);
   const desired = {
     l: clamp(source.lab.l * 0.95 + 0.018, 0.24, 0.94),
@@ -110,13 +145,32 @@ function buildRgbGradeRamp(targetMap) {
       continue;
     }
     const progress = stage / COLOR_RAMP_STEPS;
-    const stageMap = RESURRECT_COLORS.map((source, index) => {
-      if (stage === COLOR_RAMP_STEPS) return targetMap[index];
-      return nearestLabColor(mixLab(source.lab, targetMap[index].lab, progress), RESURRECT_COLORS);
-    });
+    const desiredMap = RESURRECT_COLORS.map((source, index) => (
+      mixLab(source.lab, targetMap[index].lab, progress)
+    ));
+    const stageMap = stage === COLOR_RAMP_STEPS
+      ? [...targetMap]
+      : desiredMap.map((desired) => nearestLabColor(desired, RESURRECT_COLORS));
+    separateDominantTerrainColors(stageMap, desiredMap);
     ramp.push(buildRgbGradeLut(stageMap));
   }
   return Object.freeze(ramp);
+}
+
+function separateDominantTerrainColors(stageMap, desiredMap) {
+  for (const [waterHex, landHex] of DOMINANT_WATER_LAND_PAIRS) {
+    const waterIndex = paletteIndexForHex(waterHex);
+    const landIndex = paletteIndexForHex(landHex);
+    if (stageMap[waterIndex].hex !== stageMap[landIndex].hex) continue;
+    const landCandidates = RESURRECT_COLORS.filter((color) => color.hex !== stageMap[waterIndex].hex);
+    stageMap[landIndex] = nearestLabColor(desiredMap[landIndex], landCandidates);
+  }
+}
+
+function paletteIndexForHex(hex) {
+  const index = RESURRECT_INDEX_BY_HEX.get(hex);
+  if (index === undefined) throw new Error(`Terrain separation contains an unknown source color: ${hex}`);
+  return index;
 }
 
 function applyPackedGrade(pixels, lut) {
@@ -180,6 +234,20 @@ function paletteSubset(hexValues) {
   const colors = RESURRECT_COLORS.filter((color) => allowed.has(color.hex));
   if (colors.length !== allowed.size) throw new Error("Day/night grade contains a color outside Resurrect 64");
   return colors;
+}
+
+function paletteOverrideMap(entries, candidates, label) {
+  const candidatesByHex = new Map(candidates.map((color) => [color.hex, color]));
+  const overrides = new Map();
+  for (const [sourceHex, targetHex] of Object.entries(entries)) {
+    if (!RESURRECT_64_HEX.includes(sourceHex)) {
+      throw new Error(`${label} contains an unknown source color: ${sourceHex}`);
+    }
+    const target = candidatesByHex.get(targetHex);
+    if (!target) throw new Error(`${label} contains an invalid target color: ${targetHex}`);
+    overrides.set(sourceHex, target);
+  }
+  return overrides;
 }
 
 function parsePaletteColor(value) {

@@ -10,6 +10,7 @@ import {
   shipStatsForSlug
 } from "./shipStats.js";
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
+import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 
 test("later asset silhouettes use period-appropriate game identities", () => {
   const periodIdentities = {
@@ -58,7 +59,7 @@ test("all hulls share the gentler cruise-speed scale", () => {
   assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006));
 });
 
-test("native canoe hulls are small, unarmed, and regionally distinct", () => {
+test("native canoe hulls are small, arrow-armed, and regionally distinct", () => {
   const polynesian = shipStatsForSlug("polynesian-voyaging-canoe");
   const mesoamerican = shipStatsForSlug("mesoamerican-dugout-canoe");
 
@@ -66,6 +67,8 @@ test("native canoe hulls are small, unarmed, and regionally distinct", () => {
   assert.equal(shipLabelForSlug(mesoamerican.slug), "Mesoamerican Dugout Canoe");
   assert.equal(polynesian.cannons, 0);
   assert.equal(mesoamerican.cannons, 0);
+  assert.equal(polynesian.navalWeaponKind, NAVAL_WEAPON_ARROW);
+  assert.equal(mesoamerican.navalWeaponKind, NAVAL_WEAPON_ARROW);
   assert.ok(polynesian.seaworthiness > mesoamerican.seaworthiness);
   assert.ok(polynesian.cargoCapacity > mesoamerican.cargoCapacity);
   assert.ok(mesoamerican.turnRateRad > polynesian.turnRateRad);
@@ -86,4 +89,15 @@ test("the Mediterranean galley is a period hybrid warship", () => {
   assert.ok(galley.cannons > 0);
   assert.ok(galley.seaworthiness < shipStatsForSlug("carrack").seaworthiness);
   assert.ok(galley.cargoCapacity < shipStatsForSlug("carrack").cargoCapacity);
+});
+
+test("the Viking longship is a fast seaworthy oar-and-sail arrow ship", () => {
+  const longship = shipStatsForSlug("viking-longship");
+
+  assert.equal(shipLabelForSlug(longship.slug), "Viking Longship");
+  assert.equal(longship.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(longship.navalWeaponKind, "arrow");
+  assert.equal(longship.cannons, 0);
+  assert.ok(longship.seaworthiness >= 9);
+  assert.ok(longship.topSpeedRad > shipStatsForSlug("brigantine").topSpeedRad);
 });
