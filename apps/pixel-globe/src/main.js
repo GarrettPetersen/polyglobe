@@ -144,7 +144,11 @@ import {
   updateSailingAudioState
 } from "./sailingAudio.js";
 import {
+  EARLY_SAILING_HELP_WINDOW_SECONDS,
   createSailingTutorialState,
+  earlySailingHelpWindowIsActive,
+  sailingHelpPages,
+  updateEarlySailingHelpState,
   updateSailingTutorialState
 } from "./sailingTutorial.js";
 import {
@@ -717,6 +721,10 @@ let CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
 let CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
 const CAPTAIN_ALERT_BUTTON_W = 104;
 const CAPTAIN_ALERT_BUTTON_H = 28;
+const SAILING_HELP_PANEL_MAX_W = 344;
+const SAILING_HELP_PANEL_MAX_H = 238;
+const SAILING_HELP_BUTTON_W = 150;
+const SAILING_HELP_BUTTON_H = 30;
 let START_MENU_PANEL_W = 244;
 const START_MENU_PANEL_H = 232;
 let START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
@@ -768,6 +776,7 @@ const PIXEL_FONT_BODY = "\"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_UI = "\"Silkscreen\", \"Tiny5\", \"zpix\", monospace";
 const PIXEL_FONT_MONO = "\"Dogica\", \"zpix\", monospace";
 const PIXEL_FONT_BODY_8 = `8px ${PIXEL_FONT_BODY}`;
+const PIXEL_FONT_BODY_10 = `10px ${PIXEL_FONT_BODY}`;
 const PIXEL_FONT_UI_8 = `8px ${PIXEL_FONT_UI}`;
 const PIXEL_FONT_UI_10 = `10px ${PIXEL_FONT_UI}`;
 const PIXEL_FONT_MONO_8 = `8px ${PIXEL_FONT_MONO}`;
@@ -1148,7 +1157,10 @@ let minimap;
 let themeMusic = null;
 let soundEffects = null;
 const sailingAudioState = createSailingAudioState();
-const sailingTutorialState = createSailingTutorialState();
+let sailingTutorialState = createSailingTutorialState();
+let sailingTutorialInputMode = window.matchMedia?.("(pointer: coarse)")?.matches === true
+  ? "touch"
+  : "keyboard";
 let backgroundMusicTrackKey = "ship";
 let combatMusicUntilMs = 0;
 let gameAudioActivationAllowed = false;
@@ -1217,6 +1229,7 @@ screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 
 window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
+  if (isControlKey(event.key)) sailingTutorialInputMode = "keyboard";
   if (gameOverReason) {
     handleGameOverKeyDown(event);
     return;
@@ -1551,6 +1564,7 @@ async function main() {
     playerCharacter,
     shipStats: ship.stats
   });
+  sailingTutorialState = createSailingTutorialState();
   initializeProvisionalShipLoadout(gameState, ship.stats);
   npcSeaRoutes = createNpcSeaRouteSystem({
     ports: portCities,
@@ -2743,11 +2757,45 @@ function playerIntroButtonRect() {
 
 function createCaptainAlertModal(message, expressionId = "neutral") {
   return {
+    kind: "alert",
     character: gameState?.playerCharacter || null,
     message,
     expressionId,
     hovered: false,
     buttonRect: captainAlertButtonRect()
+  };
+}
+
+function createSailingHelpModal(inputMode) {
+  const pages = sailingHelpPages(inputMode);
+  return {
+    kind: "sailing-help",
+    inputMode,
+    pages,
+    page: 0,
+    hovered: false,
+    buttonRect: sailingHelpButtonRect()
+  };
+}
+
+function sailingHelpPanelRect() {
+  const w = Math.min(SAILING_HELP_PANEL_MAX_W, SCREEN_W - 12);
+  const h = Math.min(SAILING_HELP_PANEL_MAX_H, SCREEN_H - 12);
+  return {
+    x: Math.floor((SCREEN_W - w) / 2),
+    y: Math.floor((SCREEN_H - h) / 2),
+    w,
+    h
+  };
+}
+
+function sailingHelpButtonRect() {
+  const panel = sailingHelpPanelRect();
+  return {
+    x: panel.x + Math.floor((panel.w - SAILING_HELP_BUTTON_W) / 2),
+    y: panel.y + panel.h - SAILING_HELP_BUTTON_H - 9,
+    w: SAILING_HELP_BUTTON_W,
+    h: SAILING_HELP_BUTTON_H
   };
 }
 
@@ -2770,6 +2818,14 @@ function openCaptainAlertModal(message, expressionId = "neutral") {
   return true;
 }
 
+function openSailingHelpModal(inputMode) {
+  if (!gameState?.playerCharacter || captainAlertModal || gameOverReason) return false;
+  captainAlertModal = createSailingHelpModal(inputMode);
+  stopShipForDialogue();
+  dirty = true;
+  return true;
+}
+
 function handlePlayerIntroKeyDown(event) {
   event.preventDefault();
   if (event.key === "Enter" || event.key === " ") closePlayerIntroModal();
@@ -2777,6 +2833,15 @@ function handlePlayerIntroKeyDown(event) {
 
 function handleCaptainAlertKeyDown(event) {
   event.preventDefault();
+  if (captainAlertModal?.kind === "sailing-help") {
+    if (event.key === "Escape") closeCaptainAlertModal();
+    else if (["Enter", " ", "ArrowRight", "ArrowDown", "PageDown"].includes(event.key)) {
+      stepSailingHelpPage(1);
+    } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+      stepSailingHelpPage(-1);
+    }
+    return;
+  }
   if (event.key === "Enter" || event.key === " " || event.key === "Escape") closeCaptainAlertModal();
 }
 
@@ -2790,7 +2855,23 @@ function handlePlayerIntroPointerDown(point) {
 }
 
 function handleCaptainAlertPointerDown(point) {
-  if (pointInRect(point, captainAlertModal?.buttonRect)) closeCaptainAlertModal();
+  if (!pointInRect(point, captainAlertModal?.buttonRect)) return;
+  if (captainAlertModal.kind === "sailing-help") stepSailingHelpPage(1);
+  else closeCaptainAlertModal();
+}
+
+function stepSailingHelpPage(direction) {
+  const modal = captainAlertModal;
+  if (modal?.kind !== "sailing-help") return;
+  const nextPage = modal.page + direction;
+  if (nextPage >= modal.pages.length) {
+    closeCaptainAlertModal();
+    return;
+  }
+  modal.page = Math.max(0, nextPage);
+  modal.hovered = false;
+  modal.buttonRect = sailingHelpButtonRect();
+  dirty = true;
 }
 
 function closePlayerIntroModal() {
@@ -3614,6 +3695,8 @@ function startNewVoyage() {
   } catch (error) {
     console.warn("[pixel-globe] could not clear the previous local save", error);
   }
+  sailingTutorialState = createSailingTutorialState();
+  gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   hasStartedVoyage = true;
   closeStartMenu();
   saveVoyageNow("new voyage");
@@ -3668,6 +3751,14 @@ async function restoreSavedVoyage(payload) {
   });
 
   gameState = restoredGameState;
+  if (!gameState.memory.flags || typeof gameState.memory.flags !== "object") {
+    gameState.memory.flags = {};
+  }
+  sailingTutorialState = createSailingTutorialState({
+    earlyWindowSeconds: Number.isFinite(gameState.memory.flags.sailingBasicsElapsedSeconds)
+      ? gameState.memory.flags.sailingBasicsElapsedSeconds
+      : EARLY_SAILING_HELP_WINDOW_SECONDS
+  });
   reconcileQuestPortTiles(gameState, portCities);
   shipImage = assets.image;
   shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
@@ -4042,6 +4133,9 @@ function activateStartMenuSelection() {
 
 function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
+  sailingTutorialInputMode = event.pointerType === "touch" || event.pointerType === "pen"
+    ? "touch"
+    : "mouse";
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
   ensureGameAudioStarted(true);
@@ -5620,11 +5714,30 @@ function updateSailing(dt) {
   if (recovered) playerHaulBlockedSeconds = 0;
   const wakeChanged = updateShipWake(dt);
   const headingChanged = dot3(previousHeading, ship.heading) < 0.9995;
-  const tutorialChanged = updateStallTackingTutorial(dt, inRiver);
+  const tutorialChanged = updateSailingTutorials(dt, inRiver, movedPx);
   return tutorialChanged || recovered || moveResult.moved || moveResult.collided || headingChanged || wakeChanged || vectorLength(ship.velocity) > 0.0001;
 }
 
-function updateStallTackingTutorial(dt, inRiver) {
+function updateSailingTutorials(dt, inRiver, movedPx) {
+  const flags = gameState?.memory?.flags;
+  const basicsAlreadyShown = flags?.sailingBasicsTutorialShown === true;
+  const shouldOpenBasics = updateEarlySailingHelpState(sailingTutorialState, {
+    dt,
+    movedPx,
+    alreadyShown: basicsAlreadyShown,
+    eligible: !anchored && !playerHasCombatEngagement()
+  });
+  if (flags) flags.sailingBasicsElapsedSeconds = sailingTutorialState.earlyWindowSeconds;
+  if (shouldOpenBasics) {
+    const opened = openSailingHelpModal(sailingTutorialInputMode);
+    if (opened && flags) {
+      flags.sailingBasicsTutorialShown = true;
+      flags.tackingTutorialShown = true;
+    }
+    return opened;
+  }
+
+  const waitingForBasics = !basicsAlreadyShown && earlySailingHelpWindowIsActive(sailingTutorialState);
   const wind = windForTile(ship.tileId);
   const windFlow = windFlowVectorAtShip(wind);
   const propulsion = shipPropulsionPerformance(ship.stats, {
@@ -5635,7 +5748,7 @@ function updateStallTackingTutorial(dt, inRiver) {
   const shouldPrompt = updateSailingTutorialState(sailingTutorialState, {
     dt,
     alreadyShown: gameState?.memory?.flags?.tackingTutorialShown === true,
-    eligible: !inRiver && !anchored && !playerHasCombatEngagement(),
+    eligible: !waitingForBasics && !inRiver && !anchored && !playerHasCombatEngagement(),
     stalled: propulsion.stalled
   });
   if (!shouldPrompt) return false;
@@ -5684,6 +5797,7 @@ function pollGamepadControls() {
   const frame = gamepadControlFrame(gamepad, controllerButtons);
   controllerButtons = frame.buttons;
   controllerSteering = frame.steering;
+  if (frame.steering || frame.actions.length > 0) sailingTutorialInputMode = "controller";
   for (const action of frame.actions) handleControllerAction(action);
 }
 
@@ -8858,7 +8972,11 @@ function applyResponsiveViewport(width, height) {
   POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 
   if (playerIntroModal) playerIntroModal.buttonRect = playerIntroButtonRect();
-  if (captainAlertModal) captainAlertModal.buttonRect = captainAlertButtonRect();
+  if (captainAlertModal) {
+    captainAlertModal.buttonRect = captainAlertModal.kind === "sailing-help"
+      ? sailingHelpButtonRect()
+      : captainAlertButtonRect();
+  }
   dirty = true;
 }
 
@@ -15163,6 +15281,10 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
 function drawCaptainAlertModal() {
   const modal = captainAlertModal;
   if (!modal) return;
+  if (modal.kind === "sailing-help") {
+    drawSailingHelpModal(modal);
+    return;
+  }
   const panel = {
     x: CAPTAIN_ALERT_PANEL_X,
     y: CAPTAIN_ALERT_PANEL_Y,
@@ -15210,6 +15332,192 @@ function drawCaptainAlertModal() {
     font: PIXEL_FONT_UI_10,
     align: "center"
   });
+}
+
+function drawSailingHelpModal(modal) {
+  const panel = sailingHelpPanelRect();
+  const page = modal.pages[modal.page];
+  modal.buttonRect = sailingHelpButtonRect();
+
+  ctx.fillStyle = "rgba(16, 20, 23, 0.78)";
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.fillStyle = "#2f241c";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+  ctx.strokeStyle = "#d6b66b";
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = "#715033";
+  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+
+  ctx.fillStyle = "#fff1bf";
+  drawPixelText("SAILING BASICS", panel.x + 12, panel.y + 12, { font: PIXEL_FONT_UI_10 });
+  ctx.fillStyle = "#ab947a";
+  drawPixelText(`${modal.page + 1}/${modal.pages.length}`, panel.x + panel.w - 12, panel.y + 13, {
+    font: PIXEL_FONT_BODY_8,
+    align: "right"
+  });
+  ctx.fillStyle = "#d6b66b";
+  drawPixelText(page.title, panel.x + 12, panel.y + 29, { font: PIXEL_FONT_UI_8 });
+
+  const diagram = {
+    x: panel.x + 12,
+    y: panel.y + 39,
+    w: panel.w - 24,
+    h: 70
+  };
+  drawSailingHelpDiagram(page.diagram, diagram, modal.inputMode);
+
+  const bodyX = panel.x + 14;
+  const bodyY = diagram.y + diagram.h + 9;
+  const bodyW = panel.w - 28;
+  const lineHeight = 12;
+  const maxLines = Math.max(1, Math.floor((modal.buttonRect.y - bodyY - 5) / lineHeight));
+  ctx.fillStyle = "#f3dfb0";
+  const lines = wrapPixelText(page.body, PIXEL_FONT_BODY_10, bodyW, maxLines);
+  for (let index = 0; index < lines.length; index++) {
+    drawPixelText(lines[index], bodyX, bodyY + index * lineHeight, { font: PIXEL_FONT_BODY_10 });
+  }
+
+  const button = modal.buttonRect;
+  ctx.fillStyle = modal.hovered ? "#6d4b2f" : "#4a3424";
+  ctx.fillRect(button.x, button.y, button.w, button.h);
+  ctx.strokeStyle = modal.hovered ? "#fff1bf" : "#d6b66b";
+  ctx.strokeRect(button.x + 0.5, button.y + 0.5, button.w - 1, button.h - 1);
+  ctx.fillStyle = "#fff1bf";
+  drawPixelText(modal.page === modal.pages.length - 1 ? "TAKE THE HELM" : "NEXT", button.x + button.w / 2, controlTextY(button), {
+    font: PIXEL_FONT_UI_10,
+    align: "center"
+  });
+}
+
+function drawSailingHelpDiagram(kind, rect, inputMode) {
+  ctx.fillStyle = "#191f24";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = "#715033";
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  if (kind === "steer") drawSailingSteeringDiagram(rect, inputMode);
+  else if (kind === "tack") drawSailingTackingDiagram(rect);
+  else if (kind === "haul") drawSailingHaulingDiagram(rect);
+}
+
+function drawSailingSteeringDiagram(rect, inputMode) {
+  const cx = Math.round(rect.x + rect.w * 0.52);
+  const cy = Math.round(rect.y + rect.h * 0.56);
+  drawTutorialShip(cx, cy);
+  const targetX = Math.round(rect.x + rect.w * 0.75);
+  const targetY = Math.round(rect.y + rect.h * 0.24);
+  drawTutorialArrow(cx + 7, cy - 7, targetX, targetY, "#f9c22b");
+  ctx.fillStyle = "#8ac0b4";
+  const modeLabel = inputMode === "keyboard"
+    ? "PRESS + HOLD"
+    : inputMode === "controller"
+      ? "TILT + HOLD"
+      : inputMode === "touch"
+        ? "TOUCH + HOLD"
+        : "CLICK + HOLD";
+  drawPixelText(modeLabel, rect.x + 8, rect.y + 9, { font: PIXEL_FONT_UI_8 });
+  ctx.fillStyle = "#ab947a";
+  drawPixelText("TURN THE BOW", rect.x + 8, rect.y + rect.h - 11, { font: PIXEL_FONT_BODY_8 });
+  ctx.fillStyle = "#f9c22b";
+  ctx.fillRect(targetX - 2, targetY - 2, 5, 5);
+}
+
+function drawSailingTackingDiagram(rect) {
+  const windX = rect.x + 27;
+  drawTutorialArrow(windX, rect.y + 13, windX, rect.y + 54, "#8ac0b4");
+  ctx.fillStyle = "#8ac0b4";
+  drawPixelText("WIND DIRECTION", rect.x + 8, rect.y + 7, { font: PIXEL_FONT_UI_8 });
+
+  const shipX = Math.round(rect.x + rect.w * 0.56);
+  const shipY = rect.y + rect.h - 11;
+  ctx.strokeStyle = "#c24b4b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(shipX, shipY - 9);
+  ctx.lineTo(shipX - 22, rect.y + 12);
+  ctx.moveTo(shipX, shipY - 9);
+  ctx.lineTo(shipX + 22, rect.y + 12);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#e36d5b";
+  drawPixelText("NO-GO", shipX, rect.y + 6, { font: PIXEL_FONT_BODY_8, align: "center" });
+
+  ctx.strokeStyle = "#f9c22b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(shipX, shipY);
+  ctx.lineTo(shipX - 43, shipY - 18);
+  ctx.lineTo(shipX + 42, shipY - 36);
+  ctx.lineTo(shipX + 7, rect.y + 7);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  drawTutorialShip(shipX, shipY);
+  ctx.fillStyle = "#f9c22b";
+  drawPixelText("TACK", rect.x + rect.w - 9, rect.y + rect.h - 12, {
+    font: PIXEL_FONT_UI_8,
+    align: "right"
+  });
+}
+
+function drawSailingHaulingDiagram(rect) {
+  ctx.fillStyle = "#3d6b73";
+  ctx.fillRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
+  ctx.fillStyle = "#586b3b";
+  ctx.beginPath();
+  ctx.moveTo(rect.x + 1, rect.y + 1);
+  ctx.lineTo(rect.x + Math.round(rect.w * 0.38), rect.y + 1);
+  ctx.lineTo(rect.x + Math.round(rect.w * 0.31), rect.y + 22);
+  ctx.lineTo(rect.x + Math.round(rect.w * 0.4), rect.y + 42);
+  ctx.lineTo(rect.x + Math.round(rect.w * 0.34), rect.y + rect.h - 1);
+  ctx.lineTo(rect.x + 1, rect.y + rect.h - 1);
+  ctx.closePath();
+  ctx.fill();
+
+  const shipX = rect.x + Math.round(rect.w * 0.43);
+  const shipY = rect.y + Math.round(rect.h * 0.56);
+  drawTutorialShip(shipX, shipY);
+  drawTutorialArrow(shipX + 7, shipY, rect.x + Math.round(rect.w * 0.75), shipY, "#f9c22b");
+  ctx.fillStyle = "#f9c22b";
+  drawPixelText("HOLD", rect.x + Math.round(rect.w * 0.61), shipY - 13, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+  ctx.fillStyle = "#d7d9bf";
+  drawPixelText("OPEN WATER", rect.x + rect.w - 8, rect.y + 8, {
+    font: PIXEL_FONT_BODY_8,
+    align: "right"
+  });
+}
+
+function drawTutorialShip(x, y) {
+  ctx.fillStyle = "#2f241c";
+  ctx.fillRect(x - 4, y - 7, 9, 13);
+  ctx.fillRect(x - 2, y - 10, 5, 3);
+  ctx.fillStyle = "#fff1bf";
+  ctx.fillRect(x, y - 6, 1, 9);
+  ctx.fillStyle = "#d6b66b";
+  ctx.fillRect(x + 1, y - 5, 4, 5);
+}
+
+function drawTutorialArrow(fromX, fromY, toX, toY, color) {
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  const wing = 5;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(Math.round(fromX), Math.round(fromY));
+  ctx.lineTo(Math.round(toX), Math.round(toY));
+  ctx.moveTo(Math.round(toX), Math.round(toY));
+  ctx.lineTo(
+    Math.round(toX - Math.cos(angle - Math.PI / 4) * wing),
+    Math.round(toY - Math.sin(angle - Math.PI / 4) * wing)
+  );
+  ctx.moveTo(Math.round(toX), Math.round(toY));
+  ctx.lineTo(
+    Math.round(toX - Math.cos(angle + Math.PI / 4) * wing),
+    Math.round(toY - Math.sin(angle + Math.PI / 4) * wing)
+  );
+  ctx.stroke();
+  ctx.lineWidth = 1;
 }
 
 function drawGameOverOverlay(nowMs) {
