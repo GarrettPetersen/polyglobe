@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { createGameState } from "./gameState.js";
 import {
+  FISH_MIN_CATCHABLE_POPULATION,
   FISH_PLAYER_CATCH_COOLDOWN_MINUTES,
   fisheryForHabitat,
   harvestFishery,
@@ -56,12 +57,13 @@ test("overfished stocks disappear from the visible fishery layer", () => {
   const habitat = findHabitatWithFishery(state, "coastal", 38, 12, minute);
   const fishery = fisheryForHabitat(state, habitat, minute);
   const stock = state.memory.fish.fisheries[fishery.stockKey];
-  stock.population = 2;
+  const catchablePopulation = Math.ceil(stock.capacity * 0.3);
+  stock.population = catchablePopulation;
 
   const caught = harvestFishery(
     state,
     fishery,
-    8,
+    catchablePopulation,
     minute + FISH_PLAYER_CATCH_COOLDOWN_MINUTES + 1
   );
   const visible = fisheryForHabitat(
@@ -70,10 +72,56 @@ test("overfished stocks disappear from the visible fishery layer", () => {
     minute + FISH_PLAYER_CATCH_COOLDOWN_MINUTES + 2
   );
 
-  assert.equal(caught.quantity, 2);
+  assert.equal(caught.quantity, catchablePopulation);
   assert.equal(caught.overfished, true);
   assert.equal(caught.depleted, true);
   assert.equal(visible, null);
+});
+
+test("fractional depleted stocks cannot draw or produce phantom catches", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 180 * MINUTE;
+  const habitat = findHabitatWithFishery(state, "coastal", 38, 12, minute);
+  const fishery = fisheryForHabitat(state, habitat, minute);
+  const stock = state.memory.fish.fisheries[fishery.stockKey];
+  stock.population = FISH_MIN_CATCHABLE_POPULATION - 0.01;
+
+  const caught = harvestFishery(state, fishery, 1, minute, { ignoreCooldown: true });
+
+  assert.equal(caught.quantity, 0);
+  assert.equal(caught.reason, "depleted");
+  assert.equal(caught.depleted, true);
+  assert.equal(fisheryForHabitat(state, habitat, minute), null);
+});
+
+test("stale fishery references cannot harvest stocks below the visible threshold", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 180 * MINUTE;
+  const habitat = findHabitatWithFishery(state, "coastal", 38, 12, minute);
+  const fishery = fisheryForHabitat(state, habitat, minute);
+  const stock = state.memory.fish.fisheries[fishery.stockKey];
+  stock.population = Math.max(1, Math.floor(stock.capacity * 0.05));
+
+  assert.equal(fisheryForHabitat(state, habitat, minute), null);
+
+  const caught = harvestFishery(state, fishery, 1, minute, { ignoreCooldown: true });
+  assert.equal(caught.quantity, 0);
+  assert.equal(caught.reason, "depleted");
+});
+
+test("visible schools never depict more whole fish than remain", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 180 * MINUTE;
+  const habitat = findHabitatWithFishery(state, "coastal", 38, 12, minute);
+  const fishery = fisheryForHabitat(state, habitat, minute);
+  const stock = state.memory.fish.fisheries[fishery.stockKey];
+  stock.capacity = 4;
+  stock.population = 1.5;
+
+  const sparseFishery = fisheryForHabitat(state, habitat, minute);
+
+  assert.equal(sparseFishery.population, 1);
+  assert.equal(sparseFishery.visibleIndividualCount, 1);
 });
 
 function findFishery(state, kind, lat, lon, simMinute, speciesId = null) {

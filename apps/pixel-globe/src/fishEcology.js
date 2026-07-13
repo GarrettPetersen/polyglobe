@@ -2,6 +2,7 @@ import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
 export const FISH_PLAYER_CATCH_COOLDOWN_MINUTES = 6 * 60;
 export const FISH_NPC_HARVEST_COOLDOWN_MINUTES = 8 * 60;
+export const FISH_MIN_CATCHABLE_POPULATION = 1;
 
 const FISH_MEMORY_VERSION = 2;
 const RIVER_SPAWN_START_DAY = 245;
@@ -68,7 +69,8 @@ export function fisheryForHabitat(gameState, habitat, simMinute) {
   if (!fisheryExists(speciesDef, normalHabitat, dayOfYear)) return null;
   const stock = fisheryStockForHabitat(memory, normalHabitat, speciesDef, simMinute);
   const density = stock.population / stock.capacity;
-  if (density < speciesDef.minVisibleDensity) return null;
+  if (!fisheryStockIsVisible(stock, speciesDef)) return null;
+  const catchablePopulation = Math.floor(stock.population);
   return {
     kind: "fishery",
     id: stock.key,
@@ -81,7 +83,7 @@ export function fisheryForHabitat(gameState, habitat, simMinute) {
     density,
     population: Math.floor(stock.population),
     capacity: stock.capacity,
-    visibleIndividualCount: visibleFishCountForDensity(density),
+    visibleIndividualCount: Math.min(catchablePopulation, visibleFishCountForDensity(density)),
     areaRadiusPx: fisheryAreaRadiusPx(normalHabitat.kind, speciesDef),
     overfished: density < 0.28,
     colors: speciesDef.colors,
@@ -101,6 +103,9 @@ export function harvestFishery(gameState, fishery, requestedQuantity, simMinute,
   const speciesDef = fishSpeciesById(stock.speciesId);
   advanceFishStock(stock, speciesDef, simMinute);
   const actor = options.actor === "npc" ? "npc" : "player";
+  if (!fisheryStockIsVisible(stock, speciesDef)) {
+    return harvestResult(stock, speciesDef, 0, actor, "depleted");
+  }
   const cooldownKey = actor === "npc" ? "npcCooldownUntil" : "playerCooldownUntil";
   if (!options.ignoreCooldown && (stock[cooldownKey] || 0) > simMinute) {
     return harvestResult(stock, speciesDef, 0, actor, "cooldown");
@@ -223,6 +228,11 @@ function advanceFishStock(stock, speciesDef, simMinute) {
   stock.lastMinute = Math.floor(simMinute);
 }
 
+function fisheryStockIsVisible(stock, speciesDef) {
+  if (Math.floor(stock.population) < FISH_MIN_CATCHABLE_POPULATION) return false;
+  return stock.population / stock.capacity >= speciesDef.minVisibleDensity;
+}
+
 function chooseSpeciesForHabitat(habitat, dayOfYear) {
   const scored = FISH_SPECIES
     .map((speciesDef) => ({
@@ -325,7 +335,7 @@ function harvestResult(stock, speciesDef, quantity, actor, reason) {
     remaining: Math.floor(stock.population),
     capacity: stock.capacity,
     overfished: density < 0.22,
-    depleted: density < speciesDef.minVisibleDensity,
+    depleted: !fisheryStockIsVisible(stock, speciesDef),
     colors: speciesDef.colors
   };
 }
