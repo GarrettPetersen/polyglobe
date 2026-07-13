@@ -44,14 +44,17 @@ export function fishingCatchSucceeds(randomValue, chance) {
   return randomValue < chance;
 }
 
-export function fishingActionLabel(speciesLabel, chance) {
+export function fishingActionPresentation(speciesLabel, chance) {
   if (typeof speciesLabel !== "string" || speciesLabel.trim().length === 0) {
     throw new Error("Fishing action label requires a species name");
   }
   if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
     throw new Error(`Invalid fishing catch chance: ${chance}`);
   }
-  return `CAST ${Math.round(chance * 100)}%: ${speciesLabel.trim().toUpperCase()}`;
+  return {
+    label: `FISH FOR ${speciesLabel.trim().toUpperCase()}`,
+    chanceLabel: `${Math.round(chance * 100)}%`
+  };
 }
 
 export function canStartFishing(freeCargoSpace) {

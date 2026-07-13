@@ -4,6 +4,26 @@ export const EARLY_SAILING_HELP_WINDOW_SECONDS = 90;
 export const EARLY_SAILING_HELP_MOVEMENT_PX_PER_SECOND = 1;
 
 const SAILING_HELP_INPUT_MODES = new Set(["touch", "mouse", "keyboard", "controller"]);
+const SAILING_HELP_DIAGRAMS = new Set(["steer", "tack", "haul"]);
+
+export function sailingTutorialTerrainKind(diagram, normalizedX, normalizedY) {
+  if (!SAILING_HELP_DIAGRAMS.has(diagram)) {
+    throw new Error(`Unknown sailing tutorial diagram: ${diagram}`);
+  }
+  if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) {
+    throw new Error("Sailing tutorial terrain requires finite coordinates");
+  }
+  if (diagram !== "haul") return "deep-water";
+
+  const channelCenterY = 0.56 - normalizedX * 0.08;
+  const channelHalfWidth = 0.1 + normalizedX * normalizedX * 0.36;
+  const channelMargin = Math.min(
+    normalizedX - 0.14,
+    channelHalfWidth - Math.abs(normalizedY - channelCenterY)
+  );
+  if (channelMargin <= 0) return "land";
+  return channelMargin < 0.1 ? "coastal-water" : "deep-water";
+}
 
 export function createSailingTutorialState(options = {}) {
   const restoredWindowSeconds = Number.isFinite(options.earlyWindowSeconds)
@@ -92,10 +112,10 @@ export function sailingHelpPages(inputMode) {
     controller: "Tilt and hold the left stick. The bow turns toward that direction. Keep holding while it sails."
   };
   const haulingCopy = {
-    touch: "If a riverbank or coast traps you, touch and hold toward open water. Your crew will haul along the shore, very slowly.",
-    mouse: "If a riverbank or coast traps you, click and hold toward open water. Your crew will haul along the shore, very slowly.",
-    keyboard: "If a riverbank or coast traps you, hold a direction key toward open water. Your crew will haul along the shore, very slowly.",
-    controller: "If a riverbank or coast traps you, hold the left stick toward open water. Your crew will haul along the shore, very slowly."
+    touch: "If wind pins you against a riverbank or coast, touch and hold toward open water. Your crew will haul along the shore, very slowly.",
+    mouse: "If wind pins you against a riverbank or coast, click and hold toward open water. Your crew will haul along the shore, very slowly.",
+    keyboard: "If wind pins you against a riverbank or coast, hold a direction key toward open water. Your crew will haul along the shore, very slowly.",
+    controller: "If wind pins you against a riverbank or coast, hold the left stick toward open water. Your crew will haul along the shore, very slowly."
   };
   return [
     {

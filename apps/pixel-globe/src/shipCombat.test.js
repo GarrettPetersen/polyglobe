@@ -4,12 +4,14 @@ import test from "node:test";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
+  PLAYER_NPC_ATTACK_GRACE_SECONDS,
   PIRATE_PLAYER_DETECTION_RADIUS_PX,
   WARSHIP_PIRATE_DISENGAGE_RADIUS_PX,
   WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX,
   createShipCombatState,
   forceShipEngagement,
   npcShouldOfferSurrender,
+  playerNpcAttackGraceIsActive,
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
@@ -147,6 +149,29 @@ test("merchants do not initiate against the player but warships do", () => {
   assert.equal(warshipEncounter.engagementCount, 1);
 });
 
+test("NPC ships cannot attack the player during the first active minute", () => {
+  const player = ship("player", "pirate", "netherlands", 0, 0, 30, 14);
+  const frenchWarship = ship("french", "warship", "france", 30, 0, 30, 18);
+  const atWar = () => "war";
+
+  player.npcAttackProtected = playerNpcAttackGraceIsActive(PLAYER_NPC_ATTACK_GRACE_SECONDS - 0.001);
+  assert.equal(updateShipCombatState(createShipCombatState(), [player, frenchWarship], atWar).engagementCount, 0);
+
+  player.npcAttackProtected = playerNpcAttackGraceIsActive(PLAYER_NPC_ATTACK_GRACE_SECONDS);
+  assert.equal(updateShipCombatState(createShipCombatState(), [player, frenchWarship], atWar).engagementCount, 1);
+});
+
+test("the player can force an engagement during NPC attack protection", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "pirate", "netherlands", 0, 0, 30, 14);
+  const frenchWarship = ship("french", "warship", "france", 30, 0, 30, 18);
+  player.npcAttackProtected = true;
+  assert.equal(forceShipEngagement(state, "player", "french"), true);
+  const result = updateShipCombatState(state, [player, frenchWarship], () => "neutral");
+  assert.equal(result.engagementCount, 1);
+  assert.equal(state.engagements.get("french|player").playerInitiated, true);
+});
+
 test("the player can force an engagement regardless of diplomacy", () => {
   const state = createShipCombatState();
   assert.equal(forceShipEngagement(state, "player", "friendly"), true);
@@ -163,7 +188,18 @@ test("surrender judgment weighs combat power, damage, and escape speed", () => {
 });
 
 function ship(id, role, factionId, x, y, hitPoints, cannons, maxHitPoints = hitPoints) {
-  return { id, role, factionId, x, y, hitPoints, maxHitPoints, cannons, combatGrace: false };
+  return {
+    id,
+    role,
+    factionId,
+    x,
+    y,
+    hitPoints,
+    maxHitPoints,
+    cannons,
+    combatGrace: false,
+    npcAttackProtected: false
+  };
 }
 
 function threatShip(id, hitPoints, cannons, topSpeedRad, maxHitPoints = hitPoints) {

@@ -8,6 +8,7 @@ import {
   createSailingTutorialState,
   earlySailingHelpWindowIsActive,
   sailingHelpPages,
+  sailingTutorialTerrainKind,
   updateEarlySailingHelpState,
   updateSailingTutorialState
 } from "./sailingTutorial.js";
@@ -117,5 +118,25 @@ test("sailing help uses the active device's control language", () => {
   assert.match(keyboard[0].body, /WASD or an arrow key/);
   assert.match(controller[0].body, /left stick/);
   assert.match(mouse[1].body, /zigzag.*tacking/i);
+  assert.match(keyboard[2].body, /wind pins you/i);
   assert.match(keyboard[2].body, /haul along the shore/i);
+});
+
+test("ordinary sailing diagrams remain open water", () => {
+  assert.equal(sailingTutorialTerrainKind("steer", 0.1, 0.1), "deep-water");
+  assert.equal(sailingTutorialTerrainKind("tack", 0.9, 0.9), "deep-water");
+});
+
+test("the hauling diagram traps the ship inside a widening cove", () => {
+  assert.equal(sailingTutorialTerrainKind("haul", 0.1, 0.56), "land");
+  assert.equal(sailingTutorialTerrainKind("haul", 0.4, 0.05), "land");
+  assert.equal(sailingTutorialTerrainKind("haul", 0.4, 0.95), "land");
+  assert.equal(sailingTutorialTerrainKind("haul", 0.43, 0.4), "coastal-water");
+  assert.equal(sailingTutorialTerrainKind("haul", 0.43, 0.56), "deep-water");
+  assert.equal(sailingTutorialTerrainKind("haul", 0.8, 0.5), "deep-water");
+});
+
+test("sailing tutorial terrain rejects unknown diagrams and invalid coordinates", () => {
+  assert.throws(() => sailingTutorialTerrainKind("unknown", 0.5, 0.5), /Unknown sailing tutorial diagram/);
+  assert.throws(() => sailingTutorialTerrainKind("haul", Number.NaN, 0.5), /finite coordinates/);
 });

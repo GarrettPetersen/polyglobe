@@ -220,6 +220,18 @@ export function gameIconAtlasRect(iconId) {
   };
 }
 
+export function gameIconDrawRect(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error(`Invalid game icon position: ${x},${y}`);
+  }
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: GAME_ICON_SIZE,
+    h: GAME_ICON_SIZE
+  };
+}
+
 export function tradeGoodIconId(goodId) {
   const iconId = TRADE_GOOD_ICON_IDS[goodId];
   if (!iconId) throw new Error(`Trade good has no icon: ${goodId}`);

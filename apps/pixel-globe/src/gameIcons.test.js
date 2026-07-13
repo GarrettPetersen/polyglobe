@@ -14,6 +14,7 @@ import {
   dialogueOptionIconId,
   gameIconAtlasDimensions,
   gameIconAtlasRect,
+  gameIconDrawRect,
   gameIconIds,
   startMenuIconId,
   tradeGoodIconId
@@ -68,6 +69,16 @@ test("fishing actions use the widest repo-local casting-net frame", () => {
   assert.equal(source.packId, null);
   assert.equal(source.assetPath, "public/assets/misc/fishing-net-Sheet.png");
   assert.deepEqual(source.crop, { x: 150, y: 4, w: 26, h: 26 });
+});
+
+test("runtime icons always draw at the native atlas size", () => {
+  assert.deepEqual(gameIconDrawRect(10.4, 20.6), {
+    x: 10,
+    y: 21,
+    w: GAME_ICON_SIZE,
+    h: GAME_ICON_SIZE
+  });
+  assert.throws(() => gameIconDrawRect(Number.NaN, 0), /Invalid game icon position/);
 });
 
 test("the game icon atlas exactly matches the registry and Resurrect 64", async () => {

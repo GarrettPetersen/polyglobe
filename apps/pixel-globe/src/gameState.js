@@ -51,7 +51,7 @@ import {
 } from "./worldDiplomacy.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 7;
+export const GAME_STATE_VERSION = 8;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -105,6 +105,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
   const playerFactionId = playerCharacter?.nationalityId || null;
   return {
     version: GAME_STATE_VERSION,
+    activePlaySeconds: 0,
     playerCharacter,
     doubloons: STARTING_DOUBLOONS,
     cargoCapacity,
@@ -174,6 +175,15 @@ export function validateGameState(state) {
   }
   assertGameState(state);
   return state;
+}
+
+export function advanceActivePlayTime(state, elapsedSeconds) {
+  assertGameState(state);
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+    throw new Error(`Invalid active play duration: ${elapsedSeconds}`);
+  }
+  state.activePlaySeconds += elapsedSeconds;
+  return state.activePlaySeconds;
 }
 
 export function diplomacyBetweenForState(state, factionAId, factionBId) {
@@ -1702,6 +1712,9 @@ function cannonEquipmentItemRow(state) {
 
 function assertGameState(state) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
+  if (!Number.isFinite(state.activePlaySeconds) || state.activePlaySeconds < 0) {
+    throw new Error(`Invalid active play time: ${state.activePlaySeconds}`);
+  }
   if (state.playerCharacter !== null) assertPlayerCharacter(state.playerCharacter);
   assertCargoCapacity(state.cargoCapacity);
   if (!Number.isInteger(state.doubloons) || state.doubloons < 0) {

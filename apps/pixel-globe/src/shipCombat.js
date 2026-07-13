@@ -17,6 +17,7 @@ export const COMBAT_DISENGAGE_RADIUS_PX = 148;
 export const PIRATE_PLAYER_DETECTION_RADIUS_PX = 68;
 export const WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX = 138;
 export const WARSHIP_PIRATE_DISENGAGE_RADIUS_PX = 190;
+export const PLAYER_NPC_ATTACK_GRACE_SECONDS = 60;
 export const COMBAT_MODE_ATTACK = "attack";
 export const COMBAT_MODE_FLEE = "flee";
 
@@ -92,6 +93,7 @@ export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {
   if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {
     const player = a.id === PLAYER_COMBAT_ID ? a : b;
     const npc = a.id === PLAYER_COMBAT_ID ? b : a;
+    if (player.npcAttackProtected) return false;
     if (player.portProtected) return false;
     if (npc.role === NPC_ROLE_PIRATE && player.majorPortProtected) return false;
     return npc.role === NPC_ROLE_PIRATE || npc.role === NPC_ROLE_WARSHIP;
@@ -102,6 +104,13 @@ export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {
     b.factionId === PIRATE_FACTION_ID ||
     a.role === NPC_ROLE_WARSHIP ||
     b.role === NPC_ROLE_WARSHIP;
+}
+
+export function playerNpcAttackGraceIsActive(activePlaySeconds) {
+  if (!Number.isFinite(activePlaySeconds) || activePlaySeconds < 0) {
+    throw new Error(`Invalid active play time for combat grace: ${activePlaySeconds}`);
+  }
+  return activePlaySeconds < PLAYER_NPC_ATTACK_GRACE_SECONDS;
 }
 
 function combatDetectionRadius(a, b) {
@@ -219,6 +228,9 @@ function validateEntity(entity) {
     throw new Error(`Invalid maximum hull: ${entity.id}`);
   }
   if (!Number.isInteger(entity.cannons) || entity.cannons < 0) throw new Error(`Invalid cannon count: ${entity.id}`);
+  if (typeof entity.npcAttackProtected !== "boolean") {
+    throw new Error(`Invalid NPC attack protection for ${entity.id}: ${entity.npcAttackProtected}`);
+  }
   return entity;
 }
 

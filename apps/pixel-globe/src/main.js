@@ -62,6 +62,7 @@ import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
   advanceGameDiplomacy,
+  advanceActivePlayTime,
   applySurvivalDeprivation,
   attemptPortDisguise,
   cargoFree,
@@ -165,6 +166,7 @@ import {
   createSailingTutorialState,
   earlySailingHelpWindowIsActive,
   sailingHelpPages,
+  sailingTutorialTerrainKind,
   updateEarlySailingHelpState,
   updateSailingTutorialState
 } from "./sailingTutorial.js";
@@ -229,6 +231,7 @@ import {
   dialogueOptionIconId,
   gameIconAtlasDimensions,
   gameIconAtlasRect,
+  gameIconDrawRect,
   gameIconIds,
   menuLabelIconId,
   startMenuIconId,
@@ -254,6 +257,7 @@ import {
   engagementKey,
   forceShipEngagement,
   npcShouldOfferSurrender,
+  playerNpcAttackGraceIsActive,
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
@@ -334,12 +338,17 @@ import {
   FISHING_NET_FRAME_COUNT,
   FISHING_NET_FRAME_SIZE,
   canStartFishing,
-  fishingActionLabel,
+  fishingActionPresentation,
   fishingAnimationState,
   fishingCatchChance,
   fishingCatchSucceeds,
   fishingSideForTarget
 } from "./fishingAction.js";
+import {
+  isCoastalWaterRow,
+  isWaterSurfaceRow,
+  terrainRowsNeedBeach
+} from "./terrainSurface.js";
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 import { gamepadControlFrame } from "./controllerInput.js";
@@ -2854,6 +2863,7 @@ function runFrame(nowMs) {
     return;
   }
   if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
+    advanceActivePlayTime(gameState, dt);
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
@@ -8812,6 +8822,7 @@ function playerCombatEntity() {
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? gameState?.ship?.cannons || 0 : 0,
     topSpeedRad: ship.stats.topSpeedRad,
     combatGrace: false,
+    npcAttackProtected: playerNpcAttackGraceIsActive(gameState.activePlaySeconds),
     portProtected: playerShipIsInvulnerable(),
     majorPortProtected: playerHasMajorPortProtection()
   };
@@ -8867,7 +8878,8 @@ function npcCombatEntity(state) {
     maxHitPoints: state.maxHitPoints,
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? stats.cannons : 0,
     topSpeedRad: stats.topSpeedRad,
-    combatGrace: state.combatGrace
+    combatGrace: state.combatGrace,
+    npcAttackProtected: false
   };
 }
 
@@ -11296,18 +11308,20 @@ function drawCaptainMenu(nowMs) {
 function drawCaptainMenuItemIcon(index, x, y, active) {
   const iconId = CAPTAIN_MENU_ICON_IDS[index];
   if (!iconId) throw new Error(`Captain menu item has no icon: ${index}`);
-  drawGameIcon(iconId, x - 1, y - 1, GAME_ICON_SIZE, active ? 1 : 0.82, false);
+  drawGameIcon(iconId, x - 1, y - 1, { alpha: active ? 1 : 0.82 });
 }
 
-function drawGameIcon(iconId, x, y, size = GAME_ICON_SIZE, alpha = 1, contrastOutline = false) {
+function drawGameIcon(iconId, x, y, options = {}) {
   if (!gameIconAtlasImage) throw new Error("Game icon atlas is not loaded");
   if (!gameIconOutlineAtlasImage) throw new Error("Game icon outline atlas is not initialized");
-  if (!Number.isInteger(size) || size <= 0) throw new Error(`Invalid game icon size: ${size}`);
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new Error("Game icon options must be an object");
+  }
+  const { alpha = 1, contrastOutline = false } = options;
   if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) throw new Error(`Invalid game icon alpha: ${alpha}`);
   if (typeof contrastOutline !== "boolean") throw new Error(`Invalid game icon outline mode: ${contrastOutline}`);
   const source = gameIconAtlasRect(iconId);
-  const drawX = Math.round(x);
-  const drawY = Math.round(y);
+  const destination = gameIconDrawRect(x, y);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.globalAlpha *= alpha;
@@ -11318,10 +11332,10 @@ function drawGameIcon(iconId, x, y, size = GAME_ICON_SIZE, alpha = 1, contrastOu
       source.y,
       source.w,
       source.h,
-      drawX,
-      drawY,
-      size,
-      size
+      destination.x,
+      destination.y,
+      destination.w,
+      destination.h
     );
   }
   ctx.drawImage(
@@ -11330,10 +11344,10 @@ function drawGameIcon(iconId, x, y, size = GAME_ICON_SIZE, alpha = 1, contrastOu
     source.y,
     source.w,
     source.h,
-    drawX,
-    drawY,
-    size,
-    size
+    destination.x,
+    destination.y,
+    destination.w,
+    destination.h
   );
   ctx.restore();
 }
@@ -11448,7 +11462,7 @@ function drawShipInfoButton() {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#ffffff" : "#ab947a";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:ship", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
+  drawGameIcon("menu:ship", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
   if (hovered) {
     const label = "SHIP";
     const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
@@ -11473,7 +11487,7 @@ function drawPoliticsButton() {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:politics", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
+  drawGameIcon("menu:politics", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
   if (hovered) {
     const label = "POLITICS";
     const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
@@ -11498,7 +11512,7 @@ function drawDiscoveriesButton() {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:discoveries", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
+  drawGameIcon("menu:discoveries", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
   if (hovered) {
     const label = "DISCOVERIES";
     const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
@@ -11524,7 +11538,7 @@ function drawOptionsButton() {
   ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
   ctx.lineWidth = 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:options", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), GAME_ICON_SIZE, 1, true);
+  drawGameIcon("menu:options", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
   ctx.restore();
 }
 
@@ -13144,7 +13158,7 @@ function drawStartMenuButton(rect, label, highlighted, iconId = null) {
     const contentWidth = GAME_ICON_SIZE + 6 + textWidth;
     const iconX = Math.floor(rect.x + (rect.w - contentWidth) / 2);
     const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
-    drawGameIcon(iconId, iconX, iconY, GAME_ICON_SIZE, 1, false);
+    drawGameIcon(iconId, iconX, iconY);
     drawPixelText(label, iconX + GAME_ICON_SIZE + 6, controlTextY(rect), {
       font: PIXEL_FONT_DIALOGUE_8
     });
@@ -13702,16 +13716,6 @@ function minimapLandWeight(row) {
   return 1;
 }
 
-function isCoastalWaterRow(row) {
-  return (row?.t || "") === "beach";
-}
-
-function isWaterSurfaceRow(row) {
-  // The shared globe cache uses "beach" for underwater coastal waters.
-  const t = row?.t || "";
-  return t === "water" || t === "lake" || isCoastalWaterRow(row);
-}
-
 function minimapPixelLandFraction(pixel) {
   const total = minimap.pixelTileCounts[pixel];
   if (total === 0) return 0;
@@ -13850,7 +13854,7 @@ function drawFace(call, activeChart, options = {}) {
   drawMountainFaceFoot(call, ax, ay, mx, my, bx, by, nx, ny, width);
 
   if (isCoastFace(call)) {
-    drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width);
+    drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, options.waveClockMs);
   } else if (Math.abs(call.level - call.nlevel) >= 2) {
     ctx.strokeStyle = call.nlevel > call.level ? "#28261f" : "#d3cab0";
     ctx.lineWidth = 1;
@@ -13903,7 +13907,7 @@ function quadraticFacePoint(ax, ay, mx, my, bx, by, t) {
   };
 }
 
-function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width) {
+function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs) {
   const seed = hashInt(call.a ^ Math.imul(call.b, 0x9e3779b1));
   drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed);
   for (let i = 0; i < BEACH_SPECKLE_COUNT; i++) {
@@ -13916,7 +13920,7 @@ function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width) {
     ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
 
-  drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width);
+  drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs);
 }
 
 function drawBeachLandEdgeJags(call, ax, ay, bx, by, nx, ny, width, seed) {
@@ -13969,9 +13973,9 @@ function drawBeachJagPixelRun(x, y, dx, dy, depth, length, color) {
   }
 }
 
-function drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width) {
+function drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs) {
   const waterIsA = isWaterSurfaceRow(call.row);
-  const wave = beachWaveState(call);
+  const wave = beachWaveState(call, waveClockMs);
   const fromT = waterIsA ? 0 : 1;
   const toT = waterIsA ? wave.reach : 1 - wave.reach;
   const foamT = waterIsA ? wave.foamReach : 1 - wave.foamReach;
@@ -13979,9 +13983,10 @@ function drawBeachWave(call, ax, ay, mx, my, bx, by, nx, ny, width) {
   drawBeachFoamLine(ax, ay, mx, my, bx, by, nx, ny, width, fromT, foamT, wave.foamAlpha);
 }
 
-function beachWaveState(call) {
+function beachWaveState(call, clockMs = waterAnimationClockMs) {
+  if (!Number.isFinite(clockMs) || clockMs < 0) throw new Error(`Invalid beach wave clock: ${clockMs}`);
   const offsetMs = hashInt(call.a ^ Math.imul(call.b, 0x632be59b)) % BEACH_WAVE_PERIOD_MS;
-  const phase = ((waterAnimationClockMs + offsetMs) % BEACH_WAVE_PERIOD_MS) / BEACH_WAVE_PERIOD_MS;
+  const phase = ((clockMs + offsetMs) % BEACH_WAVE_PERIOD_MS) / BEACH_WAVE_PERIOD_MS;
   const reachSpan = BEACH_WAVE_MAX_REACH - BEACH_WAVE_MIN_REACH;
   if (phase < BEACH_WAVE_ADVANCE_RATIO) {
     const p = easeInOut(phase / BEACH_WAVE_ADVANCE_RATIO);
@@ -17061,17 +17066,28 @@ function drawInteractionButton() {
   const disabled = target.kind === "fish" && !canStartFishing(cargoFree(gameState));
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, interactionButtonRect);
   drawPiratePaperControl(interactionButtonRect, { disabled, hovered });
-  const actionLabel = target.kind === "port"
-    ? `Dock: ${cityLabelText(target.call)}`
-    : target.kind === "fish"
-      ? fishingActionLabel(target.call.label, fishingChanceForCall(target.call))
-      : `Hail: ${target.call.label}`;
+  let actionLabel;
+  let secondaryLabel = null;
+  if (target.kind === "port") {
+    actionLabel = `Dock: ${cityLabelText(target.call)}`;
+  } else if (target.kind === "fish") {
+    const presentation = fishingActionPresentation(target.call.label, fishingChanceForCall(target.call));
+    actionLabel = presentation.label;
+    secondaryLabel = presentation.chanceLabel;
+  } else if (target.kind === "ship") {
+    actionLabel = `Hail: ${target.call.label}`;
+  } else {
+    throw new Error(`Unknown interaction target kind: ${target.kind}`);
+  }
   const iconId = target.kind === "port"
     ? "action:dock"
     : target.kind === "fish"
       ? "action:fish"
       : "action:hail";
-  drawControlIconLabel(interactionButtonRect, actionLabel, iconId, disabled);
+  drawControlIconLabel(interactionButtonRect, actionLabel, iconId, {
+    disabled,
+    secondaryLabel
+  });
 }
 
 function drawAnchorButton() {
@@ -17090,7 +17106,7 @@ function drawAnchorButton() {
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, anchorButtonRect);
   drawPiratePaperControl(anchorButtonRect, { disabled, hovered, active: anchored });
   const label = disabled ? "HOLD FAST" : anchored ? "WEIGH ANCHOR" : "DROP ANCHOR";
-  drawControlIconLabel(anchorButtonRect, label, "action:dock", disabled);
+  drawControlIconLabel(anchorButtonRect, label, "action:dock", { disabled });
 }
 
 function drawScavengeButton() {
@@ -17107,13 +17123,13 @@ function drawScavengeButton() {
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, scavengeButtonRect);
   drawPiratePaperControl(scavengeButtonRect, { disabled, hovered });
   const label = shoreScavengeAction ? "SEARCHING..." : stormy ? "STORM" : "SCAVENGE";
-  drawControlIconLabel(scavengeButtonRect, label, "action:scavenge", disabled);
+  drawControlIconLabel(scavengeButtonRect, label, "action:scavenge", { disabled });
 }
 
-function drawControlIconLabel(rect, label, iconId, disabled = false) {
+function drawControlIconLabel(rect, label, iconId, { disabled = false, secondaryLabel = null } = {}) {
   const iconX = rect.x + 5;
   const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
-  drawGameIcon(iconId, iconX, iconY, GAME_ICON_SIZE, disabled ? 0.4 : 1, false);
+  drawGameIcon(iconId, iconX, iconY, { alpha: disabled ? 0.4 : 1 });
   const textLeft = iconX + GAME_ICON_SIZE + 4;
   const textWidth = rect.x + rect.w - textLeft - 4;
   drawPixelText(
@@ -17122,6 +17138,12 @@ function drawControlIconLabel(rect, label, iconId, disabled = false) {
     controlTextY(rect),
     { font: PIXEL_FONT_DIALOGUE_8, align: "center" }
   );
+  if (secondaryLabel) {
+    drawPixelText(secondaryLabel, rect.x + rect.w - 3, rect.y + 2, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "right"
+    });
+  }
 }
 
 function drawPiratePaperControl(rect, { disabled = false, hovered = false, active = false } = {}) {
@@ -17550,7 +17572,7 @@ function drawSailingHelpModal(modal) {
 }
 
 function drawSailingHelpDiagram(kind, rect, inputMode) {
-  drawTutorialTerrainField(rect, kind === "haul");
+  drawTutorialTerrainField(rect, kind);
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   if (kind === "steer") drawSailingSteeringDiagram(rect, inputMode);
@@ -17559,49 +17581,99 @@ function drawSailingHelpDiagram(kind, rect, inputMode) {
   else throw new Error(`Unknown sailing tutorial diagram: ${kind}`);
 }
 
-function drawTutorialTerrainField(rect, shore) {
+function drawTutorialTerrainField(rect, diagram) {
   const inner = { x: rect.x + 1, y: rect.y + 1, w: rect.w - 2, h: rect.h - 2 };
+  const rowCount = Math.ceil(inner.h / 18) + 1;
+  const columnCount = Math.ceil(inner.w / 24) + 1;
+  const cells = [];
+  const cellByGridPosition = new Map();
+
+  for (let rowIndex = -1; rowIndex <= rowCount; rowIndex++) {
+    const y = inner.y + rowIndex * 18 + 9;
+    for (let columnIndex = -1; columnIndex <= columnCount; columnIndex++) {
+      const x = inner.x + columnIndex * 24 + (rowIndex & 1 ? 12 : 0) + 10;
+      const id = 900000 + (rowIndex + 2) * 128 + columnIndex + 2;
+      const terrainRow = tutorialTerrainRow(x, y, diagram, inner);
+      const cell = {
+        id,
+        rowIndex,
+        columnIndex,
+        x,
+        y,
+        terrainRow,
+        level: tutorialTerrainLevel(terrainRow)
+      };
+      cells.push(cell);
+      cellByGridPosition.set(`${rowIndex},${columnIndex}`, cell);
+    }
+  }
+
+  const faceCalls = [];
+  for (const cell of cells) {
+    addTutorialTerrainFace(faceCalls, cell, cellByGridPosition.get(`${cell.rowIndex},${cell.columnIndex + 1}`));
+    const lowerColumns = (cell.rowIndex & 1) === 0
+      ? [cell.columnIndex - 1, cell.columnIndex]
+      : [cell.columnIndex, cell.columnIndex + 1];
+    for (const lowerColumn of lowerColumns) {
+      addTutorialTerrainFace(faceCalls, cell, cellByGridPosition.get(`${cell.rowIndex + 1},${lowerColumn}`));
+    }
+  }
+
   ctx.save();
   ctx.beginPath();
   ctx.rect(inner.x, inner.y, inner.w, inner.h);
   ctx.clip();
-  ctx.fillStyle = "#3b5e8c";
+  ctx.fillStyle = terrainColorForTile({ t: "water", waterDepthBand: 2, latitudeDeg: 35 }, 899999);
   ctx.fillRect(inner.x, inner.y, inner.w, inner.h);
-  for (let row = -1; row <= Math.ceil(inner.h / 18) + 1; row++) {
-    const y = inner.y + row * 18 + 9;
-    for (let column = -1; column <= Math.ceil(inner.w / 24) + 1; column++) {
-      const x = inner.x + column * 24 + (row & 1 ? 12 : 0) + 10;
-      const frame = waterFrameFor(hashInt(row * 127 + column * 8191));
-      const key = shore && x < inner.x + inner.w * 0.52
-        ? `water_shallow_0${frame}`
-        : `water_depth_02_0${frame}`;
-      ctx.drawImage(terrainImage(key), x - TILE_ART_HALF, y - TILE_ART_HALF);
-    }
+  const tutorialChart = { tileById: new Map() };
+  for (const face of faceCalls) {
+    drawFace(face, tutorialChart, { waveClockMs: lastFrameMs });
   }
-  if (shore) drawTutorialShoreSprites(inner);
+  for (const cell of cells) {
+    ctx.drawImage(
+      terrainImageForTile(cell.terrainRow, cell.id),
+      cell.x - TILE_ART_HALF,
+      cell.y - TILE_ART_HALF
+    );
+  }
   ctx.restore();
 }
 
-function drawTutorialShoreSprites(rect) {
-  const coastX = rect.x + Math.round(rect.w * 0.34);
-  const grass = terrainImage("grass_01");
-  const sand = terrainImage("sand_01");
-  for (let row = -1; row <= Math.ceil(rect.h / 18) + 1; row++) {
-    const y = rect.y + row * 18 + 9;
-    const lastGrassColumn = Math.ceil((coastX - rect.x) / 24);
-    for (let column = -1; column <= lastGrassColumn; column++) {
-      const x = rect.x + column * 24 + (row & 1 ? 12 : 0) + 10;
-      if (x >= coastX - 6) continue;
-      ctx.drawImage(grass, x - TILE_ART_HALF, y - TILE_ART_HALF);
-    }
-    ctx.drawImage(sand, coastX - TILE_ART_HALF, y - TILE_ART_HALF);
-  }
-  const surfColor = "#fff1bf";
-  for (let y = rect.y + 2; y < rect.y + rect.h - 1; y += 3) {
-    const x = coastX + ((Math.floor((y - rect.y) / 3) % 3) - 1);
-    ctx.fillStyle = surfColor;
-    ctx.fillRect(x + TILE_ART_HALF - 4, y, 2, 1);
-  }
+function tutorialTerrainRow(x, y, diagram, rect) {
+  const kind = sailingTutorialTerrainKind(
+    diagram,
+    (x - rect.x) / rect.w,
+    (y - rect.y) / rect.h
+  );
+  if (kind === "land") return { t: "land", e: 0, h: 0, latitudeDeg: 35 };
+  if (kind === "coastal-water") return { t: "beach", e: -0.1, h: 0, latitudeDeg: 35 };
+  if (kind === "deep-water") return { t: "water", e: -0.2, h: 0, waterDepthBand: 2, latitudeDeg: 35 };
+  throw new Error(`Unknown sailing tutorial terrain kind: ${kind}`);
+}
+
+function tutorialTerrainLevel(row) {
+  if (row.t === "water") return -2;
+  if (row.t === "beach") return -1;
+  if (row.t === "land") return 0;
+  throw new Error(`Unknown tutorial terrain: ${row.t}`);
+}
+
+function addTutorialTerrainFace(faceCalls, a, b) {
+  if (!b) return;
+  faceCalls.push(makeFaceCall({
+    a: a.id,
+    b: b.id,
+    ax: a.x,
+    ay: a.y,
+    aSortY: a.y,
+    bx: b.x,
+    by: b.y,
+    bSortY: b.y,
+    row: a.terrainRow,
+    nrow: b.terrainRow,
+    level: a.level,
+    nlevel: b.level
+  }));
 }
 
 function drawSailingSteeringDiagram(rect, inputMode) {
@@ -17654,12 +17726,23 @@ function drawSailingTackingDiagram(rect) {
 }
 
 function drawSailingHaulingDiagram(rect) {
-  const shipX = rect.x + Math.round(rect.w * 0.43);
+  const shipX = rect.x + Math.round(rect.w * 0.4);
   const shipY = rect.y + Math.round(rect.h * 0.56);
-  const targetX = rect.x + Math.round(rect.w * 0.75);
+  const targetX = rect.x + Math.round(rect.w * 0.78);
   drawTutorialShip(shipX, shipY, { x: 1, y: 0 });
+  drawShipWindV({
+    centerX: shipX,
+    centerY: shipY,
+    flowDirectionRad: Math.PI,
+    deadZoneHalfAngleRad: ship.stats.upwindStallAngleRad,
+    strength: 0.9,
+    warning: 1,
+    nowMs: lastFrameMs
+  });
+  drawTutorialArrow(shipX + 20, shipY - 17, shipX - 25, shipY - 17, "#9ee2d3");
   drawTutorialArrow(shipX + 7, shipY, targetX, shipY, "#f9c22b");
-  drawTutorialLabel("HOLD", rect.x + Math.round(rect.w * 0.58), shipY - 14);
+  drawTutorialLabel("WIND", shipX + 22, shipY - 25);
+  drawTutorialLabel("HAUL", rect.x + Math.round(rect.w * 0.59), shipY - 14);
   drawTutorialLabel("OPEN WATER", rect.x + rect.w - 86, rect.y + 6);
 }
 
@@ -18088,7 +18171,7 @@ function drawDialogueFactionFlag(faction, panel, nowMs, city, factionBlockW) {
   const flagX = panel.x + panel.w - DIALOGUE_FLAG_W - 10;
   const flagY = panel.y + 8;
   ctx.fillStyle = "#4c3e24";
-  ctx.fillRect(flagX - 1, flagY - 1, 1, DIALOGUE_FLAG_H + 9);
+  ctx.fillRect(flagX - 1, flagY - 1, 1, DIALOGUE_FLAG_H + 2);
   drawWavingFactionFlag(
     faction.id,
     flagX,
@@ -18200,8 +18283,7 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_
       dialogueOptionIconId(option),
       rect.x + 6,
       rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2),
-      GAME_ICON_SIZE,
-      option.disabled ? 0.38 : 1
+      { alpha: option.disabled ? 0.38 : 1 }
     );
     ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK;
     const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
@@ -18482,7 +18564,7 @@ function mountainFaceInfo(call) {
 }
 
 function isCoastFace(call) {
-  return isWaterSurfaceRow(call.row) !== isWaterSurfaceRow(call.nrow);
+  return terrainRowsNeedBeach(call.row, call.nrow);
 }
 
 function beachFaceColor(call) {

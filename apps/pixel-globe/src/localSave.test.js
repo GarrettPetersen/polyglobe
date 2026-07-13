@@ -42,7 +42,7 @@ test("clearing a save leaves the slot empty", () => {
 
 function savePayload() {
   return {
-    gameState: { version: 7 },
+    gameState: { version: 8 },
     playerShip: {
       typeSlug: "brigantine",
       tileId: 12,
