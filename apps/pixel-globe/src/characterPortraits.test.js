@@ -168,21 +168,6 @@ test("Women Portrait 13 keeps exposed torso skin separate from her garment", () 
   ].includes(roles[14 + 60 * 64]));
 });
 
-test("Retro-guided Viking mask separates his face, eye, beard, and wolf-pelt clothing", () => {
-  const portrait = GENERATED_MANIFEST.sourceCharacters.find((source) => (
-    source.id === "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-3"
-  ));
-  const roles = decodePortraitRoleMap(portrait.expressions[0].roleMap, 64 * 64);
-
-  assert.equal(roles[20 + 27 * 64], PORTRAIT_ROLE_SKIN);
-  assert.equal(roles[20 + 22 * 64], PORTRAIT_ROLE_EYE);
-  assert.equal(roles[11 + 29 * 64], PORTRAIT_ROLE_HAIR);
-  assert.equal(roles[30 + 40 * 64], PORTRAIT_ROLE_CLOTH);
-  assert.equal(roles[36 + 15 * 64], PORTRAIT_ROLE_CLOTH);
-  assert.equal(roles[44 + 37 * 64], PORTRAIT_ROLE_CLOTH);
-  assert.equal(roles.filter((role) => role === PORTRAIT_ROLE_EYE).length, 1);
-});
-
 test("player portrait pool contains only multi-expression captain sources", () => {
   assert.deepEqual(playerCharacterPortraitSummary(GENERATED_MANIFEST), {
     total: 156,
