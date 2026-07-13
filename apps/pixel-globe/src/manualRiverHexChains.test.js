@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import { cityHasPortAccess } from "./cityPortAccess.js";
+import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
@@ -18,6 +19,7 @@ test("Grand Canal gives Ming Beijing water access", async () => {
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
     "utf8"
   ));
+  earth.tiles = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
   const graph = buildGeodesicGraph(SUBDIVISIONS);
   const directionIndex = createDirectionIndex(graph);
   const { masks, toWaterMasks } = buildRiverMasks(graph, earth);

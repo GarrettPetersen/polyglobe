@@ -13,6 +13,7 @@ import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
+import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
   CITY_OBSERVATION_RELEVANCE_YEARS,
   MANUAL_CITY_RECORDS_1522,
@@ -99,6 +100,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   ]);
   const graph = buildGeodesicGraph(SUBDIVISIONS);
   const directionIndex = createDirectionIndex(graph);
+  earth.tiles = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
   const { masks, toWaterMasks } = buildRiverMasks(graph, earth);
   const reachable = buildOceanReachableNavigationMask(graph, earth.tiles, masks, toWaterMasks);
   const cityRecords = buildCityRecords1522(csv);
@@ -153,6 +155,8 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
   assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
   assert.equal(cambay.factionId, "gujarat");
+  assert.equal(earth.tiles[38891].t, "beach", "Cambay's historical bay should be shallow water");
+  assert.ok(graph.neighbors[cambay.tileId].includes(38891), "Cambay should sit beside its corrected harbor");
   assert.ok(
     cityPortAccessRingDistance({
       graph,

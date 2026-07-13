@@ -13,6 +13,7 @@ import {
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
+import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
   TILE_DAY_RAIN,
   TILE_DAY_SNOW_FALL,
@@ -1389,10 +1390,11 @@ async function main() {
   if (localSaveResult.status === "invalid") {
     console.warn("[pixel-globe] local save is unavailable", localSaveResult.error);
   }
-  earthRows = earth.tiles;
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
   }
+  earthRows = applyManualTerrainOverrides(earth.tiles, earth.subdivisions);
+  earth.tiles = earthRows;
 
   graph = buildGeodesicGraph(SUBDIVISIONS);
   if (graph.tileCount !== earth.tileCount || graph.tileCount !== earthRows.length) {
