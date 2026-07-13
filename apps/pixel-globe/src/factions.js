@@ -244,6 +244,11 @@ export function factionById(factionId) {
   return faction;
 }
 
+export function factionHasFlag(factionId) {
+  factionById(factionId);
+  return factionId !== NEUTRAL_FACTION_ID;
+}
+
 export function factionCapitalForId(factionId) {
   assertFactionId(factionId);
   const capitalSpec = FACTION_CAPITALS_BY_ID.get(factionId);

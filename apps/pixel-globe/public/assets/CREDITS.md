@@ -32,3 +32,6 @@
 - KeifooPX - "99 various ingredients +" (itch.io asset license)
 - Hollow Dolphin - "Fishing Icon Pack 16x16" (itch.io asset license)
 - Selected icons were modified and palette-adapted to Resurrect 64. Source links are recorded in the public game icon manifest.
+
+## Pixel Art Effects
+- InfectedTribe - "Pixel Animated Lightning Strike Effect" (itch.io asset license)

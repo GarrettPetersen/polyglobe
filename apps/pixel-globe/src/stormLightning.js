@@ -1,4 +1,14 @@
 export const STORM_LIGHTNING_MIN_INTENSITY = 0.42;
+export const STORM_SHIP_STRIKE_FRAME_WIDTH = 195;
+export const STORM_SHIP_STRIKE_FRAME_HEIGHT = 220;
+export const STORM_SHIP_STRIKE_SHEET_COLUMNS = 6;
+export const STORM_SHIP_STRIKE_FRAME_COUNT = 30;
+export const STORM_SHIP_STRIKE_FLASH_FRAME = 3;
+
+const STORM_SHIP_STRIKE_DURATION_MS = 1000;
+const STORM_SHIP_STRIKE_FRAME_MS = STORM_SHIP_STRIKE_DURATION_MS / STORM_SHIP_STRIKE_FRAME_COUNT;
+const STORM_SHIP_STRIKE_IMPACT_X = 98;
+const STORM_SHIP_STRIKE_IMPACT_Y = 217;
 
 const FIRST_STRIKE_MIN_MS = 900;
 const FIRST_STRIKE_MAX_MS = 3600;
@@ -51,6 +61,72 @@ export function consumeStormLightningFlash(state) {
   return true;
 }
 
+export function createStormShipStrikeState() {
+  return {
+    startedAtMs: null,
+    sequence: 0,
+    flashPending: false
+  };
+}
+
+export function triggerStormShipStrike(state, nowMs) {
+  validateStormShipStrikeState(state);
+  if (!Number.isFinite(nowMs)) throw new Error(`Storm ship strike requires finite time: ${nowMs}`);
+  state.startedAtMs = nowMs;
+  state.sequence += 1;
+  state.flashPending = true;
+}
+
+export function updateStormShipStrike(state, nowMs) {
+  validateStormShipStrikeState(state);
+  if (!Number.isFinite(nowMs)) throw new Error(`Storm ship strike requires finite time: ${nowMs}`);
+  if (state.startedAtMs === null) return false;
+  if (nowMs < state.startedAtMs) throw new Error("Storm ship strike cannot run before it starts");
+  if (nowMs - state.startedAtMs < STORM_SHIP_STRIKE_DURATION_MS) {
+    return true;
+  }
+  state.startedAtMs = null;
+  state.flashPending = false;
+  return false;
+}
+
+export function stormShipStrikeFrame(state, nowMs) {
+  validateStormShipStrikeState(state);
+  if (!Number.isFinite(nowMs)) throw new Error(`Storm ship strike requires finite time: ${nowMs}`);
+  if (state.startedAtMs === null) return null;
+  const elapsedMs = nowMs - state.startedAtMs;
+  if (elapsedMs < 0) throw new Error("Storm ship strike cannot render before it starts");
+  const index = Math.floor(elapsedMs / STORM_SHIP_STRIKE_FRAME_MS);
+  if (index >= STORM_SHIP_STRIKE_FRAME_COUNT) return null;
+  return {
+    index,
+    sourceX: index % STORM_SHIP_STRIKE_SHEET_COLUMNS * STORM_SHIP_STRIKE_FRAME_WIDTH,
+    sourceY: Math.floor(index / STORM_SHIP_STRIKE_SHEET_COLUMNS) * STORM_SHIP_STRIKE_FRAME_HEIGHT,
+    mirrored: state.sequence % 2 === 0
+  };
+}
+
+export function consumeStormShipStrikeFlash(state, nowMs) {
+  validateStormShipStrikeState(state);
+  if (!state.flashPending) return false;
+  const frame = stormShipStrikeFrame(state, nowMs);
+  if (!frame || frame.index < STORM_SHIP_STRIKE_FLASH_FRAME) return false;
+  state.flashPending = false;
+  return true;
+}
+
+export function stormShipStrikeDrawOrigin({ shipX, shipY, shipFrameSize }) {
+  if (![shipX, shipY, shipFrameSize].every(Number.isFinite) || shipFrameSize <= 0) {
+    throw new Error("Storm ship strike draw origin requires a finite positive ship frame");
+  }
+  const impactX = shipX + Math.round(shipFrameSize / 2);
+  const impactY = shipY + Math.round(shipFrameSize * 0.75);
+  return {
+    x: Math.round(impactX - STORM_SHIP_STRIKE_IMPACT_X),
+    y: Math.round(impactY - STORM_SHIP_STRIKE_IMPACT_Y)
+  };
+}
+
 function strikeDelayMs(state, severity, firstStrike) {
   const minMs = firstStrike
     ? lerp(FIRST_STRIKE_MIN_MS * 1.6, FIRST_STRIKE_MIN_MS, severity)
@@ -71,6 +147,14 @@ function validateStormLightningState(state) {
       (state.nextStrikeAtMs !== null && !Number.isFinite(state.nextStrikeAtMs)) ||
       typeof state.flashPending !== "boolean") {
     throw new Error("Invalid storm lightning state");
+  }
+}
+
+function validateStormShipStrikeState(state) {
+  if (!state || !Number.isInteger(state.sequence) ||
+      (state.startedAtMs !== null && !Number.isFinite(state.startedAtMs)) ||
+      typeof state.flashPending !== "boolean") {
+    throw new Error("Invalid storm ship strike state");
   }
 }
 

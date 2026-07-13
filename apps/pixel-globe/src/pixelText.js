@@ -83,9 +83,20 @@ export function hardenPixelTextAlpha(pixels, threshold = 128) {
   if (!Number.isInteger(threshold) || threshold < 1 || threshold > 255) {
     throw new Error(`Invalid pixel text alpha threshold: ${threshold}`);
   }
+
+  let strongestAlpha = 0;
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    strongestAlpha = Math.max(strongestAlpha, pixels[offset + 3]);
+  }
+  if (strongestAlpha === 0) return 0;
+
+  // Mobile Safari can rasterize the same loaded pixel font with a lower alpha
+  // ceiling than desktop browsers. Normalize that ceiling, then keep the
+  // output strictly binary so text remains pixel-perfect.
+  const effectiveThreshold = Math.min(threshold, Math.max(1, Math.ceil(strongestAlpha / 2)));
   let opaquePixels = 0;
   for (let offset = 0; offset < pixels.length; offset += 4) {
-    if (pixels[offset + 3] < threshold) {
+    if (pixels[offset + 3] < effectiveThreshold) {
       pixels[offset + 3] = 0;
       continue;
     }

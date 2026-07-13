@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas } from "../../../examples/globe-demo/node_modules/canvas/index.js";
-import { FACTIONS } from "../src/factions.js";
+import { FACTIONS, factionHasFlag } from "../src/factions.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
 const appRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -13,6 +13,7 @@ const FLAG_W = 32;
 const FLAG_H = 20;
 const CONTACT_SCALE = 5;
 const CONTACT_COLS = 5;
+const FLAG_FACTIONS = FACTIONS.filter((faction) => factionHasFlag(faction.id));
 
 const C = Object.freeze({
   black: "2e222f",
@@ -39,7 +40,6 @@ const C = Object.freeze({
 });
 
 const RESEARCH = Object.freeze([
-  research("neutral", "ui-symbol", "Neutral UI marker", "A deliberately non-historical gray marker for unaffiliated ports and ships.", []),
   research("pirate", "ui-symbol", "Black rogue pennant", "A generic black early-modern rogue pennant. It avoids the later standardized Jolly Roger iconography.", []),
   research("england", "period-banner", "Royal banner of England, 1406-1603", "The Tudor royal banner quarters the three lions of England with the three fleurs-de-lis of France.", [
     source("Royal standard of England (1406-1603)", "https://commons.wikimedia.org/wiki/File:Royal_standard_of_England_(1406%E2%80%931603).svg")
@@ -268,14 +268,6 @@ function drawFactionFlag(id) {
 }
 
 const DRAWERS = Object.freeze({
-  neutral: () => {
-    const s = base(C.gray);
-    s.rect(0, 0, FLAG_W, 3, C.silver);
-    s.rect(0, FLAG_H - 3, FLAG_W, 3, C.ink);
-    s.line(10, 6, 21, 13, C.cream, 2);
-    s.line(21, 6, 10, 13, C.cream, 2);
-    return s;
-  },
   pirate: () => {
     const s = base(C.black);
     swallowtail(s, C.black);
@@ -659,7 +651,7 @@ function coinKnot(s, cx, cy, color) {
 }
 
 function validateResearchCoverage() {
-  const factionIds = FACTIONS.map((faction) => faction.id).sort();
+  const factionIds = FLAG_FACTIONS.map((faction) => faction.id).sort();
   const researchIds = RESEARCH.map((entry) => entry.id).sort();
   const rendererIds = Object.keys(DRAWERS).sort();
   if (JSON.stringify(factionIds) !== JSON.stringify(researchIds)) {
@@ -718,7 +710,7 @@ function main() {
   validateResearchCoverage();
   mkdirSync(outputRoot, { recursive: true });
   const entries = [];
-  for (const faction of FACTIONS) {
+  for (const faction of FLAG_FACTIONS) {
     const researchEntry = RESEARCH_BY_ID.get(faction.id);
     const canvas = drawFactionFlag(faction.id).toCanvas();
     const file = `${faction.id}.png`;

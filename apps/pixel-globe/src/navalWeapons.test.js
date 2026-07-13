@@ -26,6 +26,14 @@ test("arrows have exactly half cannon range and damage", () => {
   assert.equal(arrow.damage, cannon.damage / 2);
 });
 
+test("cannons use a low direct-fire arc while arrows retain a high arc", () => {
+  const cannon = navalWeaponSpec(NAVAL_WEAPON_CANNON);
+  const arrow = navalWeaponSpec(NAVAL_WEAPON_ARROW);
+
+  assert.ok(cannon.arcHeightScale <= 0.25);
+  assert.ok(arrow.arcHeightScale > cannon.arcHeightScale * 2);
+});
+
 test("unarmed gunpowder-culture ships still have no ranged attack", () => {
   assert.equal(navalWeaponForShip({ cultureType: "northern-european", cannons: 0 }), null);
 });

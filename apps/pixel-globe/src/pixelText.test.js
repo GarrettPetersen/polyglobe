@@ -66,6 +66,26 @@ test("pixel text alpha is hardened to fully transparent or fully opaque", () => 
   );
 });
 
+test("pixel text alpha adapts to a browser's lower glyph alpha ceiling", () => {
+  const pixels = new Uint8ClampedArray([
+    255, 255, 255, 0,
+    255, 255, 255, 20,
+    255, 255, 255, 40,
+    255, 255, 255, 80
+  ]);
+  assert.equal(hardenPixelTextAlpha(pixels), 2);
+  assert.deepEqual(
+    Array.from({ length: pixels.length / 4 }, (_, index) => pixels[index * 4 + 3]),
+    [0, 0, 255, 255]
+  );
+});
+
+test("a genuinely empty pixel text raster remains empty", () => {
+  const pixels = new Uint8ClampedArray(16);
+  assert.equal(hardenPixelTextAlpha(pixels), 0);
+  assert.deepEqual([...pixels], Array(16).fill(0));
+});
+
 test("runtime text can only enter the canvas through the pixel raster helper", async () => {
   const mainSource = await readFile(new URL("./main.js", import.meta.url), "utf8");
   assert.equal(mainSource.match(/\bctx\.fillText\(/g), null);

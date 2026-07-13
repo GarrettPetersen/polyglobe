@@ -14,9 +14,17 @@ import {
   factionCapitalCityRecords1522,
   factionCapitalForCity,
   factionCapitalForId,
+  factionHasFlag,
   factionIdForCity1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
+
+test("neutral allegiance has no flag while real factions do", () => {
+  assert.equal(factionHasFlag(NEUTRAL_FACTION_ID), false);
+  assert.equal(factionHasFlag(PIRATE_FACTION_ID), true);
+  assert.equal(factionHasFlag("england"), true);
+  assert.throws(() => factionHasFlag("missing-faction"), /Unknown faction/);
+});
 
 test("1522 diplomacy matrix is complete and symmetric", () => {
   const validRelations = new Set([DIPLOMACY_ALLY, DIPLOMACY_NEUTRAL, DIPLOMACY_WAR]);

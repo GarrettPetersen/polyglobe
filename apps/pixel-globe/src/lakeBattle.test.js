@@ -220,12 +220,50 @@ test("broadside fire follows the selected side and emits combat events", () => {
   assert.equal(starboard.y, 1);
   assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), true);
   assert.ok(battle.projectiles.length > 1);
+  assert.ok(battle.projectiles.every((projectile) => projectile.arcHeight < 4));
   assert.deepEqual(drainLakeBattleEvents(battle).map((event) => event.type), ["fire"]);
   assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), false);
   assert.throws(
     () => fireLakeBattleBroadside(battle, LAKE_BATTLE_ENEMY_ID, "bow"),
     /Unknown lake battle broadside/
   );
+});
+
+test("a cannonball damages the first ship crossed before its endpoint", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: "caravel"
+  });
+  const initialHitPoints = battle.enemy.hitPoints;
+  battle.enemy.cooldowns.port = 100;
+  battle.enemy.cooldowns.starboard = 100;
+  battle.projectiles = [{
+    id: 999,
+    ownerId: LAKE_BATTLE_PLAYER_ID,
+    targetId: null,
+    kind: "cannon",
+    startX: battle.enemy.x - 30,
+    startY: battle.enemy.y,
+    targetX: battle.enemy.x + 30,
+    targetY: battle.enemy.y,
+    age: 0,
+    duration: 0.6,
+    arcHeight: 3,
+    damage: 1,
+    seed: 1
+  }];
+
+  for (let frame = 0; frame < 6 && battle.enemy.hitPoints === initialHitPoints; frame++) {
+    updateLakeBattle(battle, 0.1, {});
+  }
+
+  assert.equal(battle.enemy.hitPoints, initialHitPoints - 1);
+  assert.equal(battle.projectiles.length, 0);
+  assert.ok(drainLakeBattleEvents(battle).some((event) => (
+    event.type === "hit" && event.shipId === LAKE_BATTLE_ENEMY_ID
+  )));
 });
 
 test("lake battle cannon tiers alter cooldown, damage, and range without save data", () => {

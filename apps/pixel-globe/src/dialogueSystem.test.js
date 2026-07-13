@@ -11,7 +11,8 @@ import {
   selectPassengerDialogueOption,
   selectPortDialogueOption,
   selectShipDialogueOption,
-  shipDialogueView
+  shipDialogueView,
+  worldPriceIndicator
 } from "./dialogueSystem.js";
 import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, createWorldEconomy } from "./economy.js";
 import {
@@ -299,6 +300,16 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     "No cargo to sell",
     "Back"
   ]);
+});
+
+test("market comparisons use pixel-font-safe directional wording", () => {
+  assert.equal(worldPriceIndicator({ direction: "high", percent: 18 }), "18% ABOVE WORLD");
+  assert.equal(worldPriceIndicator({ direction: "low", percent: -12 }), "12% BELOW WORLD");
+  assert.equal(worldPriceIndicator({ direction: "fair", percent: 3 }), "= WORLD PRICE");
+  assert.throws(
+    () => worldPriceIndicator({ direction: "sideways", percent: 0 }),
+    /Unknown world price direction/
+  );
 });
 
 test("the first port requires a chunky loadout choice and provisions the ship", () => {

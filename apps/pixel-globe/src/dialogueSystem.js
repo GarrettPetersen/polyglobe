@@ -1081,10 +1081,11 @@ function signedDoubloons(value) {
   return `${rounded >= 0 ? "+" : ""}${rounded} db`;
 }
 
-function worldPriceIndicator(comparison) {
-  if (comparison.direction === "high") return `↗ ${Math.abs(comparison.percent)}% VS WORLD`;
-  if (comparison.direction === "low") return `↘ ${Math.abs(comparison.percent)}% VS WORLD`;
-  return "= WORLD PRICE";
+export function worldPriceIndicator(comparison) {
+  if (comparison.direction === "high") return `${Math.abs(comparison.percent)}% ABOVE WORLD`;
+  if (comparison.direction === "low") return `${Math.abs(comparison.percent)}% BELOW WORLD`;
+  if (comparison.direction === "fair") return "= WORLD PRICE";
+  throw new Error(`Unknown world price direction: ${comparison.direction}`);
 }
 
 function formatDistanceKm(distanceKm) {

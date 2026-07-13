@@ -23,17 +23,6 @@
   },
   "factions": [
     {
-      "id": "neutral",
-      "factionName": "Neutral",
-      "width": 32,
-      "height": 20,
-      "file": "neutral.png",
-      "evidence": "ui-symbol",
-      "representation": "Neutral UI marker",
-      "accuracyNote": "A deliberately non-historical gray marker for unaffiliated ports and ships.",
-      "sources": []
-    },
-    {
       "id": "pirate",
       "factionName": "Pirates",
       "width": 32,

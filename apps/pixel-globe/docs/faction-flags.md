@@ -6,7 +6,6 @@ All pixels use the Resurrect 64 palette. Regenerate with `npm run render:faction
 
 | Faction | Representation | Evidence | Accuracy note |
 |---|---|---|---|
-| Neutral | Neutral UI marker | `ui-symbol` | A deliberately non-historical gray marker for unaffiliated ports and ships. |
 | Pirates | Black rogue pennant | `ui-symbol` | A generic black early-modern rogue pennant. It avoids the later standardized Jolly Roger iconography. |
 | Kingdom of England | Royal banner of England, 1406-1603 | `period-banner` | The Tudor royal banner quarters the three lions of England with the three fleurs-de-lis of France. Sources: [Royal standard of England (1406-1603)](https://commons.wikimedia.org/wiki/File:Royal_standard_of_England_(1406%E2%80%931603).svg). |
 | Kingdom of Scotland | Royal Banner of Scotland | `period-banner` | The red lion rampant within the double tressure on gold was the royal banner throughout the period. Sources: [Royal Banner of Scotland](https://en.wikipedia.org/wiki/Royal_Banner_of_Scotland). |

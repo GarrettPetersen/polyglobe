@@ -14,7 +14,7 @@ const NAVAL_WEAPON_SPECS = Object.freeze({
     damage: 1,
     rangeScale: 1,
     speedScale: 1,
-    arcHeightScale: 1,
+    arcHeightScale: 0.2,
     reloadSeconds: STANDARD_CANNON_RELOAD_SECONDS
   }),
   [NAVAL_WEAPON_ARROW]: Object.freeze({
@@ -22,7 +22,7 @@ const NAVAL_WEAPON_SPECS = Object.freeze({
     damage: 0.5,
     rangeScale: 0.5,
     speedScale: 1.35,
-    arcHeightScale: 0.22,
+    arcHeightScale: 0.75,
     reloadSeconds: 0.85
   })
 });

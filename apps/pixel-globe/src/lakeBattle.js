@@ -4,6 +4,7 @@ import {
   cannonWeaponWithEquipment
 } from "./cannonEquipment.js";
 import { resolveShipCollision, shipCollisionRadius } from "./shipCollision.js";
+import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { shipPropulsionPerformance } from "./shipPropulsion.js";
 import { SHIP_PROPULSION_SAIL, SHIP_STATS, shipStatsForSlug } from "./shipStats.js";
 import {
@@ -285,12 +286,7 @@ export function lakeBattleWeaponRange(ship) {
 }
 
 export function lakeBattleProjectilePoint(projectile) {
-  const t = clamp(projectile.age / projectile.duration, 0, 1);
-  return {
-    x: projectile.startX + (projectile.targetX - projectile.startX) * t,
-    y: projectile.startY + (projectile.targetY - projectile.startY) * t,
-    z: Math.sin(Math.PI * t) * projectile.arcHeight
-  };
+  return navalProjectilePoint(projectile);
 }
 
 export function drainLakeBattleEvents(state) {
@@ -564,7 +560,27 @@ function fireEnemyWhenAligned(state) {
 function updateProjectiles(state, dt) {
   const kept = [];
   for (const projectile of state.projectiles) {
-    projectile.age += dt;
+    const previousAge = projectile.age;
+    projectile.age = Math.min(projectile.duration, projectile.age + dt);
+    if (projectile.kind === NAVAL_WEAPON_CANNON) {
+      const target = lakeBattleProjectileTarget(state, projectile);
+      const hit = target.hitPoints > 0
+        ? firstNavalProjectileHit(
+            navalProjectilePoint(projectile, previousAge),
+            navalProjectilePoint(projectile),
+            [{
+              id: target.id,
+              x: target.x,
+              y: target.y,
+              radius: shipCollisionRadius(target.stats.mass) + 2
+            }]
+          )
+        : null;
+      if (hit) {
+        applyLakeBattleProjectileHit(state, projectile, target, hit);
+        continue;
+      }
+    }
     if (projectile.age < projectile.duration) {
       kept.push(projectile);
       continue;
@@ -574,20 +590,9 @@ function updateProjectiles(state, dt) {
     const hit = target && target.hitPoints > 0 &&
       Math.hypot(target.x - projectile.targetX, target.y - projectile.targetY) <= hitRadius;
     if (hit) {
-      target.hitPoints = Math.max(0, target.hitPoints - projectile.damage);
-      state.impacts.push({
-        x: Math.round(projectile.targetX),
-        y: Math.round(projectile.targetY),
-        age: 0,
-        ttl: IMPACT_TTL_SECONDS,
-        seed: projectile.seed,
-        kind: projectile.kind
-      });
-      state.events.push({
-        type: "hit",
-        shipId: target.id,
-        weaponKind: projectile.kind,
-        damage: projectile.damage
+      applyLakeBattleProjectileHit(state, projectile, target, {
+        x: projectile.targetX,
+        y: projectile.targetY
       });
     } else if (projectile.kind === NAVAL_WEAPON_CANNON) {
       state.splashes.push({
@@ -601,6 +606,30 @@ function updateProjectiles(state, dt) {
   }
   state.projectiles = kept;
   trimEffects(state);
+}
+
+function lakeBattleProjectileTarget(state, projectile) {
+  if (projectile.ownerId === state.player.id) return state.enemy;
+  if (projectile.ownerId === state.enemy.id) return state.player;
+  throw new Error(`Unknown lake battle projectile owner: ${projectile.ownerId}`);
+}
+
+function applyLakeBattleProjectileHit(state, projectile, target, point) {
+  target.hitPoints = Math.max(0, target.hitPoints - projectile.damage);
+  state.impacts.push({
+    x: Math.round(point.x),
+    y: Math.round(point.y),
+    age: 0,
+    ttl: IMPACT_TTL_SECONDS,
+    seed: projectile.seed,
+    kind: projectile.kind
+  });
+  state.events.push({
+    type: "hit",
+    shipId: target.id,
+    weaponKind: projectile.kind,
+    damage: projectile.damage
+  });
 }
 
 function updateEffects(state, dt) {

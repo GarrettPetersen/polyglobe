@@ -1,16 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
-import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
+import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID, factionHasFlag } from "./factions.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const flagRoot = join(dirname(fileURLToPath(import.meta.url)), "../public/assets/factions/flags");
 
-test("every faction has a sourced Resurrect pixel identifier", async () => {
+test("every flag-bearing faction has a sourced Resurrect pixel identifier", async () => {
   const manifest = JSON.parse(await readFile(join(flagRoot, "manifest.json"), "utf8"));
   assert.equal(manifest.year, 1522);
   assert.equal(manifest.palette, "Resurrect 64");
@@ -18,8 +18,9 @@ test("every faction has a sourced Resurrect pixel identifier", async () => {
   assert.equal(manifest.height, 20);
   assert.deepEqual(
     manifest.factions.map((entry) => entry.id).sort(),
-    FACTIONS.map((entry) => entry.id).sort()
+    FACTIONS.filter((entry) => factionHasFlag(entry.id)).map((entry) => entry.id).sort()
   );
+  await assert.rejects(access(join(flagRoot, `${NEUTRAL_FACTION_ID}.png`)), { code: "ENOENT" });
 
   const palette = new Set(RESURRECT_64_HEX);
   for (const entry of manifest.factions) {
@@ -27,7 +28,7 @@ test("every faction has a sourced Resurrect pixel identifier", async () => {
     assert.ok(manifest.evidenceLevels[entry.evidence], `${entry.id} has an undocumented evidence level`);
     assert.ok(entry.representation, `${entry.id} lacks a representation`);
     assert.ok(entry.accuracyNote, `${entry.id} lacks an accuracy note`);
-    if (![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(entry.id)) {
+    if (entry.id !== PIRATE_FACTION_ID) {
       assert.ok(entry.sources.length > 0, `${entry.id} lacks provenance`);
       for (const source of entry.sources) assert.match(source.url, /^https:\/\//, `${entry.id} source URL`);
     }

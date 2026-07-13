@@ -204,8 +204,27 @@ import {
   stormWindStrength
 } from "./stormSystem.js";
 import {
+  STORM_PASSAGE_CLEARED,
+  createStormPassageState,
+  fillStormEdgeFogPixels,
+  markStormClearanceDelivered,
+  stormFogStrength,
+  updateStormPassage
+} from "./stormPresentation.js";
+import {
+  STORM_SHIP_STRIKE_FLASH_FRAME,
+  STORM_SHIP_STRIKE_FRAME_COUNT,
+  STORM_SHIP_STRIKE_FRAME_HEIGHT,
+  STORM_SHIP_STRIKE_FRAME_WIDTH,
+  STORM_SHIP_STRIKE_SHEET_COLUMNS,
+  consumeStormShipStrikeFlash,
   consumeStormLightningFlash,
+  createStormShipStrikeState,
   createStormLightningState,
+  stormShipStrikeDrawOrigin,
+  stormShipStrikeFrame,
+  triggerStormShipStrike,
+  updateStormShipStrike,
   updateStormLightning
 } from "./stormLightning.js";
 import {
@@ -277,6 +296,7 @@ import {
   factionById,
   factionCapitalCityRecords1522,
   factionCapitalForCity,
+  factionHasFlag,
   factionIdForCity1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
@@ -362,6 +382,7 @@ import {
   NAVAL_WEAPON_CANNON,
   navalWeaponForShip
 } from "./navalWeapons.js";
+import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
 import {
   LAKE_BATTLE_PHASE_ACTIVE,
@@ -567,6 +588,9 @@ const STORM_SCREEN_RAIN_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.62;
 const STORM_SCREEN_RAIN_MAX_STREAKS = 180;
 const STORM_SCREEN_RAIN_TRAVEL_PX = 620;
 const STORM_SCREEN_RAIN_MARGIN_PX = 44;
+const STORM_FOG_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.45;
+const STORM_FOG_FULL_INTENSITY = 0.6;
+const STORM_FOG_BREATHE_PERIOD_MS = 7200;
 const STORM_SHIP_BOB_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY * 0.52;
 const STORM_SHIP_BOB_MAX_X_PX = 1;
 const STORM_SHIP_BOB_MAX_Y_PX = 3;
@@ -758,7 +782,7 @@ const PORT_INTERACTION_RADIUS_PX = 34;
 const PORT_DIALOGUE_TRAFFIC_RADIUS_PX = 120;
 const FISH_INTERACTION_RADIUS_PX = 22;
 const PORT_CITY_CLICK_PAD_PX = 3;
-const INTERACTION_BUTTON_W = 136;
+const INTERACTION_BUTTON_W = 156;
 const INTERACTION_BUTTON_H = 28;
 let INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
 let INTERACTION_BUTTON_Y = SCREEN_H - INTERACTION_BUTTON_H - 5;
@@ -934,6 +958,7 @@ const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
 const SFX_ASSET_VERSION = "storm-lightning-2";
 const ANIMAL_ASSET_VERSION = "fishing-net-2";
+const STORM_SHIP_STRIKE_ASSET_VERSION = "infected-tribe-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
 const MUSIC_CROSSFADE_SECONDS = 1.6;
@@ -1022,6 +1047,7 @@ const SFX_WINTER_WIND_URL = "/assets/sfx/dragon-studio-winter-wind-402331.ogg";
 const SFX_DESERT_WIND_URL = "/assets/sfx/tanweraman-desert-wind-1-350398.ogg";
 const SFX_STORM_URL = "/assets/sfx/u_7hpxkdroz2-storm-461601.mp3";
 const SFX_LIGHTNING_URL = "/assets/sfx/freesound_community-lightning-strike-29683.ogg";
+const STORM_SHIP_STRIKE_URL = "/assets/misc/lightning.png";
 const SFX_SAIL_FLAP_URL = "/assets/sfx/freesound_community-flag-6367.ogg";
 const SFX_UNDERWAY_URL = "/assets/sfx/freesound_community-sailboat-underway-48728.ogg";
 const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.ogg";
@@ -1180,6 +1206,7 @@ shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
 const selectableOutlineCache = new WeakMap();
 const pixelTextRasterCache = new Map();
+let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 
 const keys = new Set();
@@ -1217,6 +1244,7 @@ let worldDiscoveryImages;
 let cityImages;
 let factionFlagImages;
 let animalImages;
+let stormShipStrikeImage;
 let cityCatalog;
 let cityByTileId;
 let npcShipAssetsBySlug;
@@ -1253,6 +1281,7 @@ let riverToWaterMasks;
 let oceanReachableNavigationMask;
 let stormSystem;
 let stormCaptainAlertNextMinute = null;
+const stormPassageState = createStormPassageState();
 let riverSpriteCache = new Map();
 let waterDepthBands;
 let weatherBake;
@@ -1278,6 +1307,7 @@ let minimap;
 let themeMusic = null;
 let soundEffects = null;
 const stormLightningState = createStormLightningState();
+const stormShipStrikeState = createStormShipStrikeState();
 const sailingAudioState = createSailingAudioState();
 const rowingCadenceState = createRowingCadenceState();
 let sailingTutorialState = createSailingTutorialState();
@@ -1497,6 +1527,7 @@ async function main() {
     loadedCityImages,
     loadedFactionFlagImages,
     loadedAnimalImages,
+    loadedStormShipStrikeImage,
     loadedCityCatalog,
     loadedCharacterPortraitManifest,
     loadedNamedMountains,
@@ -1520,6 +1551,7 @@ async function main() {
     loadCityImages(),
     loadFactionFlagImages(),
     loadAnimalImages(),
+    loadStormShipStrikeImage(),
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
     loadNamedMountains(),
@@ -1542,6 +1574,7 @@ async function main() {
   cityImages = loadedCityImages;
   factionFlagImages = loadedFactionFlagImages;
   animalImages = loadedAnimalImages;
+  stormShipStrikeImage = loadedStormShipStrikeImage;
   cityCatalog = loadedCityCatalog;
   creditsMarkdown = loadedCreditsMarkdown;
   localSaveResult = readLocalSave();
@@ -1832,18 +1865,44 @@ async function loadPixelFonts() {
     throw new Error("Cannot guarantee pixel font rendering: FontFaceSet API is unavailable");
   }
 
+  const sample = "PIXEL 1522";
   const requiredFonts = [
     { label: "Silkscreen", font: "8px \"Silkscreen\"" },
     { label: "Dogica", font: "8px \"Dogica\"" }
   ];
-  await Promise.all(requiredFonts.map(({ font }) => document.fonts.load(font)));
+  const loadedFaces = await Promise.all(
+    requiredFonts.map(({ font }) => document.fonts.load(font, sample))
+  );
   await document.fonts.ready;
 
-  for (const { label, font } of requiredFonts) {
-    if (!document.fonts.check(font)) {
+  for (let index = 0; index < requiredFonts.length; index++) {
+    const { label, font } = requiredFonts[index];
+    if (loadedFaces[index].length === 0 || !document.fonts.check(font, sample)) {
       throw new Error(`Pixel font failed to load: ${label}`);
     }
+    await waitForPixelFontRaster(label, font, sample);
   }
+}
+
+async function waitForPixelFontRaster(label, font, sample) {
+  const attempts = 8;
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    try {
+      const measuredWidth = measurePixelTextWidth(sample, font);
+      pixelTextRaster(sample, font, "#ffffff", measuredWidth);
+      return;
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("Pixel text raster contains no opaque glyph pixels:")) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+  throw new Error(
+    `Pixel font loaded but could not rasterize after ${attempts} frames: ${label}; ${lastError?.message || "unknown error"}`
+  );
 }
 
 function loadTerrainImages() {
@@ -2030,6 +2089,22 @@ async function loadAnimalImages() {
   return { seagullFlight, seagullStanding, fish, fishingNet };
 }
 
+async function loadStormShipStrikeImage() {
+  const image = await loadAssetImage(
+    `${STORM_SHIP_STRIKE_URL}?v=${STORM_SHIP_STRIKE_ASSET_VERSION}`,
+    "storm ship lightning sheet"
+  );
+  validateImageDimensions(
+    image,
+    "storm ship lightning sheet",
+    STORM_SHIP_STRIKE_FRAME_WIDTH * STORM_SHIP_STRIKE_SHEET_COLUMNS,
+    STORM_SHIP_STRIKE_FRAME_HEIGHT * Math.ceil(
+      STORM_SHIP_STRIKE_FRAME_COUNT / STORM_SHIP_STRIKE_SHEET_COLUMNS
+    )
+  );
+  return image;
+}
+
 function validateImageDimensions(img, label, expectedWidth, expectedHeight) {
   if (img.width !== expectedWidth || img.height !== expectedHeight) {
     throw new Error(`${label} has ${img.width}x${img.height}; expected ${expectedWidth}x${expectedHeight}`);
@@ -2054,7 +2129,7 @@ async function loadCityTypeImage(cityType) {
 }
 
 async function loadFactionFlagImages() {
-  const entries = await Promise.all(FACTIONS.map(async (faction) => {
+  const entries = await Promise.all(FACTIONS.filter((faction) => factionHasFlag(faction.id)).map(async (faction) => {
     const image = await loadAssetImage(
       `/assets/factions/flags/${faction.id}.png?v=${FACTION_FLAG_ASSET_VERSION}`,
       `faction flag: ${faction.id}`
@@ -2883,6 +2958,7 @@ function runFrame(nowMs) {
       intensity: playerStormIntensity()
     })) dirty = true;
   }
+  if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
@@ -7800,6 +7876,7 @@ function fireBroadside(sideName) {
     const targetY = startY + aim.y * range;
     ship.navalProjectiles.push({
       kind: weapon.kind,
+      ownerId: PLAYER_COMBAT_ID,
       startX,
       startY,
       targetX,
@@ -7945,10 +8022,19 @@ function updateNavalWeapons(dt) {
   if (ship.navalProjectiles.length > 0) {
     const keptBalls = [];
     for (const ball of ship.navalProjectiles) {
-      ball.age += dt;
+      const previousAge = ball.age;
+      ball.age = Math.min(ball.duration, ball.age + dt);
+      if (
+        ball.kind === NAVAL_WEAPON_CANNON &&
+        resolvePlayerCannonPathHit(ball, previousAge)
+      ) {
+        continue;
+      }
       if (ball.age >= ball.duration) {
-        if (resolvePlayerNavalImpact(ball)) continue;
-        if (ball.kind === NAVAL_WEAPON_ARROW) continue;
+        if (ball.kind === NAVAL_WEAPON_ARROW) {
+          resolvePlayerNavalImpact(ball);
+          continue;
+        }
         if (wakeMapPointIsWater(Math.round(ball.targetX), Math.round(ball.targetY), chart)) {
           addCannonSplash(ball);
         } else {
@@ -7975,6 +8061,27 @@ function updateNavalWeapons(dt) {
   return changed;
 }
 
+function resolvePlayerCannonPathHit(ball, previousAge) {
+  const targets = [...npcVisualShips.values()]
+    .filter((state) => state.hitPoints > 0 && !state.combatGrace)
+    .map((state) => ({
+      id: state.id,
+      x: state.x,
+      y: state.y,
+      radius: shipCollisionRadius(shipStatsForSlug(state.slug).mass) + 2
+    }));
+  const hit = firstNavalProjectileHit(
+    navalProjectilePoint(ball, previousAge),
+    navalProjectilePoint(ball),
+    targets
+  );
+  if (!hit) return false;
+  const target = npcVisualShips.get(hit.target.id);
+  if (!target) throw new Error(`Cannon path target disappeared: ${hit.target.id}`);
+  applyPlayerNavalHit(ball, target, hit);
+  return true;
+}
+
 function resolvePlayerNavalImpact(ball) {
   let target = null;
   let bestDistance = Infinity;
@@ -7987,12 +8094,19 @@ function resolvePlayerNavalImpact(ball) {
   }
   if (!target) return false;
 
-  playNavalImpactSound(ball);
+  applyPlayerNavalHit(ball, target, { x: ball.targetX, y: ball.targetY });
+  return true;
+}
+
+function applyPlayerNavalHit(ball, target, point) {
+  if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, target.id))) {
+    beginPlayerInitiatedCombat(target.id);
+  }
+  playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
   target.hitPoints = damage.hitPoints;
   if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
   else if (damage.shouldSurrender) handleNpcSurrender(target.id, PLAYER_COMBAT_ID);
-  return true;
 }
 
 function addCannonSplash(ball) {
@@ -8105,12 +8219,7 @@ function drawCannonSplashes(activeChart) {
 }
 
 function cannonBallPoint(ball, age) {
-  const t = clamp(age / ball.duration, 0, 1);
-  return {
-    x: ball.startX + (ball.targetX - ball.startX) * t,
-    y: ball.startY + (ball.targetY - ball.startY) * t,
-    z: Math.sin(Math.PI * t) * ball.arcHeight
-  };
+  return navalProjectilePoint(ball, age);
 }
 
 function cannonSeed(sequence, index, sideSalt, origin) {
@@ -8217,24 +8326,45 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
 }
 
 function updateStormCaptainAlert(previousMinute, currentMinute) {
-  if (!ship || portWaitState || gameOverReason || currentMinute <= previousMinute) return false;
+  if (!ship || gameOverReason || currentMinute <= previousMinute) return false;
   const intensity = playerStormIntensity();
+  const transition = updateStormPassage(stormPassageState, intensity, {
+    enterIntensity: STORM_CAPTAIN_ALERT_ENTER_INTENSITY,
+    exitIntensity: STORM_CAPTAIN_ALERT_EXIT_INTENSITY
+  });
+  let changed = transition !== null;
+
+  if (transition === STORM_PASSAGE_CLEARED) {
+    stormCaptainAlertNextMinute = null;
+    showSurvivalNotice("STORM PASSED - SAFE TO SAIL", "good");
+  }
+  if (stormPassageState.clearancePending) {
+    const opened = openCaptainAlertModal(stormClearanceMessage(), "happy");
+    if (opened) markStormClearanceDelivered(stormPassageState);
+    return changed || opened;
+  }
   if (intensity < STORM_CAPTAIN_ALERT_EXIT_INTENSITY) {
     stormCaptainAlertNextMinute = null;
-    return false;
+    return changed;
   }
-  if (intensity < STORM_CAPTAIN_ALERT_ENTER_INTENSITY) return false;
-  if (stormCaptainAlertNextMinute !== null && currentMinute < stormCaptainAlertNextMinute) return false;
+  if (portWaitState || intensity < STORM_CAPTAIN_ALERT_ENTER_INTENSITY) return changed;
+  if (stormCaptainAlertNextMinute !== null && currentMinute < stormCaptainAlertNextMinute) return changed;
 
   const opened = openCaptainAlertModal(stormCaptainAlertMessage(intensity), "concerned");
-  stormCaptainAlertNextMinute = currentMinute + STORM_CAPTAIN_ALERT_COOLDOWN_MINUTES;
-  return opened;
+  if (opened) stormCaptainAlertNextMinute = currentMinute + STORM_CAPTAIN_ALERT_COOLDOWN_MINUTES;
+  return changed || opened;
 }
 
 function stormCaptainAlertMessage(intensity) {
   if (anchored) return "The anchor is holding, but this weather is fierce.";
   if (intensity >= STORM_DAMAGE_INTENSITY) return "This storm is hammering us. We should get to shore.";
   return "The weather is turning ugly. Keep her bow steady.";
+}
+
+function stormClearanceMessage() {
+  if (portWaitState) return "The storm has passed. It is safe to put to sea again.";
+  if (anchored) return "The storm has passed. We can weigh anchor safely.";
+  return "The worst has passed. We are safe to make sail again.";
 }
 
 function updateSurvivalDeprivationDamage(status, currentMinute) {
@@ -8323,6 +8453,7 @@ function updateStormDamage(previousMinute, currentMinute) {
   }
   if (totalDamage <= 0) return false;
 
+  triggerStormShipStrike(stormShipStrikeState, lastFrameMs);
   ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
   applyCrewCasualtiesFromHullDamage(totalDamage, "The last of the crew was lost in the storm.");
   stormDamageNotice = {
@@ -8330,7 +8461,6 @@ function updateStormDamage(previousMinute, currentMinute) {
     intensity: strongestIntensity,
     expiresAtMs: lastFrameMs + STORM_DAMAGE_NOTICE_MS
   };
-  playCannonImpactSound(0);
   if (ship.hitPoints <= 0) sinkPlayerShip("Your ship foundered in the storm.");
   return true;
 }
@@ -9007,13 +9137,19 @@ function updateNpcCombatProjectiles(dt) {
   let changed = false;
   const kept = [];
   for (const ball of npcCombatProjectiles) {
-    ball.age += dt;
+    const previousAge = ball.age;
+    ball.age = Math.min(ball.duration, ball.age + dt);
+    if (ball.kind === NAVAL_WEAPON_CANNON && resolveNpcCannonPathHit(ball, previousAge)) {
+      changed = true;
+      continue;
+    }
     if (ball.age < ball.duration) {
       kept.push(ball);
       changed = true;
       continue;
     }
-    resolveNpcCombatImpact(ball);
+    if (ball.kind === NAVAL_WEAPON_ARROW) resolveNpcCombatImpact(ball);
+    else addNpcCombatSplash(ball);
     changed = true;
   }
   npcCombatProjectiles = kept;
@@ -9028,6 +9164,38 @@ function updateNpcCombatProjectiles(dt) {
   return changed;
 }
 
+function resolveNpcCannonPathHit(ball, previousAge) {
+  const targets = [];
+  if (
+    ball.ownerId !== PLAYER_COMBAT_ID &&
+    ship && ship.hitPoints > 0
+  ) {
+    targets.push({
+      id: PLAYER_COMBAT_ID,
+      x: localLayout.viewX,
+      y: localLayout.viewY,
+      radius: shipCollisionRadius(ship.stats.mass) + 2
+    });
+  }
+  for (const state of npcVisualShips.values()) {
+    if (state.id === ball.ownerId || state.hitPoints <= 0 || state.combatGrace) continue;
+    targets.push({
+      id: state.id,
+      x: state.x,
+      y: state.y,
+      radius: shipCollisionRadius(shipStatsForSlug(state.slug).mass) + 2
+    });
+  }
+  const hit = firstNavalProjectileHit(
+    navalProjectilePoint(ball, previousAge),
+    navalProjectilePoint(ball),
+    targets
+  );
+  if (!hit) return false;
+  applyNpcCombatHit(ball, hit.target.id, hit);
+  return true;
+}
+
 function resolveNpcCombatImpact(ball) {
   const target = combatEntityPoint(ball.targetId);
   const active = shipCombatState.engagements.has(engagementKey(ball.ownerId, ball.targetId));
@@ -9040,20 +9208,24 @@ function resolveNpcCombatImpact(ball) {
     return;
   }
 
-  if (ball.targetId === PLAYER_COMBAT_ID && playerShipIsInvulnerable()) return;
-  playNavalImpactSound(ball);
-  if (ball.targetId === PLAYER_COMBAT_ID) {
+  applyNpcCombatHit(ball, ball.targetId, { x: ball.targetX, y: ball.targetY });
+}
+
+function applyNpcCombatHit(ball, targetId, point) {
+  if (targetId === PLAYER_COMBAT_ID && playerShipIsInvulnerable()) return;
+  playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
+  if (targetId === PLAYER_COMBAT_ID) {
     ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
     applyCrewCasualtiesFromHullDamage(ball.damage, "The last of the crew fell in battle.");
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
     return;
   }
 
-  const damage = damageNpcShip(npcSeaRoutes, ball.targetId, ball.damage);
-  const state = npcVisualShips.get(ball.targetId);
+  const damage = damageNpcShip(npcSeaRoutes, targetId, ball.damage);
+  const state = npcVisualShips.get(targetId);
   if (state) state.hitPoints = damage.hitPoints;
-  if (damage.sunk) handleNpcSinking(ball.targetId, ball.ownerId);
-  else if (damage.shouldSurrender) handleNpcSurrender(ball.targetId, ball.ownerId);
+  if (damage.sunk) handleNpcSinking(targetId, ball.ownerId);
+  else if (damage.shouldSurrender) handleNpcSurrender(targetId, ball.ownerId);
 }
 
 function addNpcCombatSplash(ball) {
@@ -10439,6 +10611,8 @@ function render(nowMs) {
   ctx.restore();
   drawDayNightPaletteGrade();
   drawStormScreenRain(nowMs);
+  drawStormEdgeFog(nowMs);
+  drawStormShipStrike(nowMs);
   drawCombatBroadsideControls();
   drawSelectableInteractionOutlines(nowMs);
   drawWindIndicator(nowMs);
@@ -10471,11 +10645,65 @@ function render(nowMs) {
   if (pastVoyagesMenu.isOpen) drawPastVoyagesMenu();
   if (creditsMenu.isOpen) drawCreditsMenu();
   if (optionsMenu.isOpen) drawOptionsMenu();
-  drawStormLightningFlash();
+  drawStormLightningFlash(nowMs);
 }
 
-function drawStormLightningFlash() {
-  if (!consumeStormLightningFlash(stormLightningState)) return;
+function drawStormShipStrike(nowMs) {
+  const frame = stormShipStrikeFrame(stormShipStrikeState, nowMs);
+  if (!frame || frame.index === STORM_SHIP_STRIKE_FLASH_FRAME) return;
+  if (!stormShipStrikeImage) throw new Error("Storm ship lightning sheet is not loaded");
+  if (!ship) throw new Error("Storm ship lightning cannot draw without the player ship");
+
+  const origin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
+  const bobbed = stormBobbedShipCall({
+    tileId: ship.tileId,
+    bobSeed: 0x504c4159,
+    x: origin.x,
+    y: origin.y
+  }, nowMs);
+  const drawOrigin = stormShipStrikeDrawOrigin({
+    shipX: bobbed.x,
+    shipY: bobbed.y,
+    shipFrameSize: SHIP_SHEET_FRAME_SIZE
+  });
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalCompositeOperation = "source-over";
+  if (frame.mirrored) {
+    ctx.translate(drawOrigin.x + STORM_SHIP_STRIKE_FRAME_WIDTH, drawOrigin.y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      stormShipStrikeImage,
+      frame.sourceX,
+      frame.sourceY,
+      STORM_SHIP_STRIKE_FRAME_WIDTH,
+      STORM_SHIP_STRIKE_FRAME_HEIGHT,
+      0,
+      0,
+      STORM_SHIP_STRIKE_FRAME_WIDTH,
+      STORM_SHIP_STRIKE_FRAME_HEIGHT
+    );
+  } else {
+    ctx.drawImage(
+      stormShipStrikeImage,
+      frame.sourceX,
+      frame.sourceY,
+      STORM_SHIP_STRIKE_FRAME_WIDTH,
+      STORM_SHIP_STRIKE_FRAME_HEIGHT,
+      drawOrigin.x,
+      drawOrigin.y,
+      STORM_SHIP_STRIKE_FRAME_WIDTH,
+      STORM_SHIP_STRIKE_FRAME_HEIGHT
+    );
+  }
+  ctx.restore();
+}
+
+function drawStormLightningFlash(nowMs) {
+  const ambientFlash = consumeStormLightningFlash(stormLightningState);
+  const shipStrikeFlash = consumeStormShipStrikeFlash(stormShipStrikeState, nowMs);
+  if (!ambientFlash && !shipStrikeFlash) return;
   ctx.save();
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -14275,6 +14503,41 @@ function drawStormScreenRain(nowMs) {
   }
 }
 
+function drawStormEdgeFog(nowMs) {
+  if (!ship) return;
+  const strength = stormFogStrength(
+    playerStormIntensity(),
+    STORM_FOG_ENTER_INTENSITY,
+    STORM_FOG_FULL_INTENSITY
+  );
+  if (strength <= 0) return;
+  const texture = stormEdgeFogTexture();
+  const breathe = reducedMotionPreferred
+    ? 1
+    : 0.94 + Math.sin(nowMs / STORM_FOG_BREATHE_PERIOD_MS * Math.PI * 2) * 0.06;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = strength * breathe;
+  ctx.drawImage(texture, 0, 0);
+  ctx.restore();
+}
+
+function stormEdgeFogTexture() {
+  if (stormEdgeFogCanvas?.width === SCREEN_W && stormEdgeFogCanvas.height === SCREEN_H) {
+    return stormEdgeFogCanvas;
+  }
+  const texture = document.createElement("canvas");
+  texture.width = SCREEN_W;
+  texture.height = SCREEN_H;
+  const textureCtx = texture.getContext("2d");
+  if (!textureCtx) throw new Error("Could not create storm edge fog texture");
+  const imageData = textureCtx.createImageData(SCREEN_W, SCREEN_H);
+  fillStormEdgeFogPixels(imageData.data, SCREEN_W, SCREEN_H);
+  textureCtx.putImageData(imageData, 0, 0);
+  stormEdgeFogCanvas = texture;
+  return texture;
+}
+
 function screenWindFlowVector(wind) {
   const flowDir = wind.directionRad + Math.PI;
   const x = Math.cos(flowDir);
@@ -16350,6 +16613,7 @@ function drawShipCombatOutline(call, sx, sy) {
 }
 
 function drawNpcShipFlag(call, nowMs) {
+  if (!factionHasFlag(call.factionId)) return;
   const poleX = call.x + 19;
   const poleY = call.y + 5;
   ctx.fillStyle = "#4c3e24";
@@ -16814,17 +17078,22 @@ function drawCitySprite(call, nowMs) {
   const img = cityImageForType(call.cityType, call.settlementType);
   const poleX = call.spriteX + 29;
   const poleTop = call.spriteY + 2;
-  ctx.fillStyle = "#4c3e24";
-  ctx.fillRect(poleX, poleTop, 1, 18);
+  const hasFlag = factionHasFlag(call.factionId);
+  if (hasFlag) {
+    ctx.fillStyle = "#4c3e24";
+    ctx.fillRect(poleX, poleTop, 1, 18);
+  }
   ctx.drawImage(img, call.spriteX, call.spriteY);
-  drawWavingFactionFlag(
-    call.factionId,
-    poleX + 1,
-    poleTop + 1,
-    CITY_FLAG_W,
-    CITY_FLAG_H,
-    flagWavePhase(nowMs, call.tileId)
-  );
+  if (hasFlag) {
+    drawWavingFactionFlag(
+      call.factionId,
+      poleX + 1,
+      poleTop + 1,
+      CITY_FLAG_W,
+      CITY_FLAG_H,
+      flagWavePhase(nowMs, call.tileId)
+    );
+  }
 }
 
 function flagWavePhase(nowMs, seed = 0) {
@@ -16832,6 +17101,9 @@ function flagWavePhase(nowMs, seed = 0) {
 }
 
 function drawWavingFactionFlag(factionId, x, y, width, height, phaseRad) {
+  if (!factionHasFlag(factionId)) {
+    throw new Error(`Neutral faction cannot be drawn as a flag`);
+  }
   const image = factionFlagImages?.get(factionId);
   if (!image) throw new Error(`Missing faction flag image: ${factionId}`);
   const offsets = flagWaveColumnOffsets(width, phaseRad, 1);
@@ -17086,7 +17358,8 @@ function drawInteractionButton() {
       : "action:hail";
   drawControlIconLabel(interactionButtonRect, actionLabel, iconId, {
     disabled,
-    secondaryLabel
+    secondaryLabel,
+    font: target.kind === "fish" ? PIXEL_FONT_SMALL_8 : PIXEL_FONT_DIALOGUE_8
   });
 }
 
@@ -17126,17 +17399,21 @@ function drawScavengeButton() {
   drawControlIconLabel(scavengeButtonRect, label, "action:scavenge", { disabled });
 }
 
-function drawControlIconLabel(rect, label, iconId, { disabled = false, secondaryLabel = null } = {}) {
+function drawControlIconLabel(rect, label, iconId, {
+  disabled = false,
+  secondaryLabel = null,
+  font = PIXEL_FONT_DIALOGUE_8
+} = {}) {
   const iconX = rect.x + 5;
   const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
   drawGameIcon(iconId, iconX, iconY, { alpha: disabled ? 0.4 : 1 });
   const textLeft = iconX + GAME_ICON_SIZE + 4;
   const textWidth = rect.x + rect.w - textLeft - 4;
   drawPixelText(
-    fitPixelText(label, PIXEL_FONT_DIALOGUE_8, textWidth),
+    fitPixelText(label, font, textWidth),
     textLeft + textWidth / 2,
     controlTextY(rect),
-    { font: PIXEL_FONT_DIALOGUE_8, align: "center" }
+    { font, align: "center" }
   );
   if (secondaryLabel) {
     drawPixelText(secondaryLabel, rect.x + rect.w - 3, rect.y + 2, {
@@ -17369,16 +17646,18 @@ function drawPlayerIntroModal(nowMs) {
   const flagH = 20;
   const flagX = portraitX + Math.floor((DIALOGUE_PORTRAIT_SIZE - flagW) / 2);
   const flagY = portraitY + DIALOGUE_PORTRAIT_SIZE + 8;
-  ctx.fillStyle = "#4c3e24";
-  ctx.fillRect(flagX - 2, flagY - 2, 2, flagH + 8);
-  drawWavingFactionFlag(
-    character.nationalityId,
-    flagX,
-    flagY,
-    flagW,
-    flagH,
-    flagWavePhase(nowMs, character.homePortTileId)
-  );
+  if (factionHasFlag(character.nationalityId)) {
+    ctx.fillStyle = "#4c3e24";
+    ctx.fillRect(flagX - 2, flagY - 2, 2, flagH + 8);
+    drawWavingFactionFlag(
+      character.nationalityId,
+      flagX,
+      flagY,
+      flagW,
+      flagH,
+      flagWavePhase(nowMs, character.homePortTileId)
+    );
+  }
 
   const detailX = panel.x + 104;
   const detailW = panel.w - 122;
@@ -17432,23 +17711,27 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
 
   const flagX = portraitX + DIALOGUE_PORTRAIT_SIZE + 18;
   const flagY = portraitY + 12;
-  ctx.fillStyle = "#4c3e24";
-  ctx.fillRect(flagX - 2, flagY - 2, 2, DIALOGUE_FLAG_H + 8);
-  drawWavingFactionFlag(
-    character.nationalityId,
-    flagX,
-    flagY,
-    DIALOGUE_FLAG_W,
-    DIALOGUE_FLAG_H,
-    flagWavePhase(nowMs, character.homePortTileId)
-  );
+  const hasFlag = factionHasFlag(character.nationalityId);
+  if (hasFlag) {
+    ctx.fillStyle = "#4c3e24";
+    ctx.fillRect(flagX - 2, flagY - 2, 2, DIALOGUE_FLAG_H + 8);
+    drawWavingFactionFlag(
+      character.nationalityId,
+      flagX,
+      flagY,
+      DIALOGUE_FLAG_W,
+      DIALOGUE_FLAG_H,
+      flagWavePhase(nowMs, character.homePortTileId)
+    );
+  }
+  const nationalityLabelY = hasFlag ? flagY + 29 : flagY;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText("NATIONALITY", flagX, flagY + 29, { font: PIXEL_FONT_SMALL_8 });
+  drawPixelText("NATIONALITY", flagX, nationalityLabelY, { font: PIXEL_FONT_SMALL_8 });
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(
     fitPixelText(character.nationalityAdjective, PIXEL_FONT_SMALL_8, panel.w - 121),
     flagX,
-    flagY + 38,
+    nationalityLabelY + 9,
     { font: PIXEL_FONT_SMALL_8 }
   );
 
@@ -18170,19 +18453,22 @@ function ensureShipyardSideViewLoaded(slug) {
 function drawDialogueFactionFlag(faction, panel, nowMs, city, factionBlockW) {
   const flagX = panel.x + panel.w - DIALOGUE_FLAG_W - 10;
   const flagY = panel.y + 8;
-  ctx.fillStyle = "#4c3e24";
-  ctx.fillRect(flagX - 1, flagY - 1, 1, DIALOGUE_FLAG_H + 2);
-  drawWavingFactionFlag(
-    faction.id,
-    flagX,
-    flagY,
-    DIALOGUE_FLAG_W,
-    DIALOGUE_FLAG_H,
-    flagWavePhase(nowMs, city.tileId)
-  );
+  const hasFlag = factionHasFlag(faction.id);
+  if (hasFlag) {
+    ctx.fillStyle = "#4c3e24";
+    ctx.fillRect(flagX - 1, flagY - 1, 1, DIALOGUE_FLAG_H + 2);
+    drawWavingFactionFlag(
+      faction.id,
+      flagX,
+      flagY,
+      DIALOGUE_FLAG_W,
+      DIALOGUE_FLAG_H,
+      flagWavePhase(nowMs, city.tileId)
+    );
+  }
   const label = fitPixelText(faction.name.toUpperCase(), PIXEL_FONT_SMALL_8, factionBlockW);
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText(label, panel.x + panel.w - 10, flagY + DIALOGUE_FLAG_H + 3, {
+  drawPixelText(label, panel.x + panel.w - 10, hasFlag ? flagY + DIALOGUE_FLAG_H + 3 : flagY, {
     font: PIXEL_FONT_SMALL_8,
     align: "right"
   });

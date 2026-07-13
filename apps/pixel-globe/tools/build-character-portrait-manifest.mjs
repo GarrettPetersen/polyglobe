@@ -4,13 +4,17 @@ import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
   classifyPortraitRoles,
-  encodePortraitRoleMap
+  encodePortraitRoleMap,
+  validatePortraitRoleMap
 } from "../src/characterPortraits.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const characterRoot = join(appRoot, "public/assets/characters");
 const outputPath = join(characterRoot, "generated/character-portraits.json");
+const roleOverridePath = join(appRoot, "tools/character-role-overrides.json");
 const portraitSize = 64;
+const portraitRoleOverrides = loadPortraitRoleOverrides();
+const usedPortraitRoleOverrides = new Set();
 const individualSequencePacks = new Set([
   "Master Chef Portrait Pack by Captainskolot",
   "Native Americain Portrait Pack by Captainskeleto",
@@ -699,11 +703,37 @@ async function bakeExpressionRoleMaps(sourceCharacters) {
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(image, 0, 0);
       const pixels = ctx.getImageData(0, 0, expression.width, expression.height);
-      expression.roleMap = encodePortraitRoleMap(
-        classifyPortraitRoles(pixels.data, expression.width, expression.height)
-      );
+      const overrideKey = `${character.id}/${expression.id}`;
+      const override = portraitRoleOverrides.get(overrideKey);
+      if (override) {
+        validatePortraitRoleMap(override, expression.width, expression.height, overrideKey);
+        expression.roleMap = override;
+        usedPortraitRoleOverrides.add(overrideKey);
+      } else {
+        expression.roleMap = encodePortraitRoleMap(
+          classifyPortraitRoles(pixels.data, expression.width, expression.height)
+        );
+      }
     }
   }
+  const unusedOverrides = [...portraitRoleOverrides.keys()].filter((key) => !usedPortraitRoleOverrides.has(key));
+  if (unusedOverrides.length > 0) {
+    throw new Error(`Unused character role overrides: ${unusedOverrides.join(", ")}`);
+  }
+}
+
+function loadPortraitRoleOverrides() {
+  const document = JSON.parse(readFileSync(roleOverridePath, "utf8"));
+  if (document.version !== 1 || !document.overrides || Array.isArray(document.overrides)) {
+    throw new Error(`Invalid character role override document: ${roleOverridePath}`);
+  }
+  const entries = Object.entries(document.overrides);
+  for (const [key, roleMap] of entries) {
+    if (!key.includes("/") || typeof roleMap !== "string" || roleMap.length === 0) {
+      throw new Error(`Invalid character role override entry: ${key}`);
+    }
+  }
+  return new Map(entries);
 }
 
 function uniqueExpressionId(used, id) {
