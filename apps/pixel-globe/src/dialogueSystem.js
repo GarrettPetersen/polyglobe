@@ -42,11 +42,15 @@ export function createPortDialogueSession(city, options = {}) {
 
 export function createPortArrivalDialogueSession(city, options = {}) {
   const needsLoadout = options.needsLoadout === true;
-  if (options.passengerQuest) {
-    return createPassengerDialogueSession(city, options.passengerQuest, {
+  if (options.questCharacterSession) {
+    if (options.questCharacterSession.cityTileId !== city.tileId) {
+      throw new Error("Port-arrival quest character does not belong to this city");
+    }
+    return {
+      ...options.questCharacterSession,
       continueToPortOnClose: true,
       nextPortNodeId: needsLoadout ? "loadout" : "greeting"
-    });
+    };
   }
   return createPortDialogueSession(city, {
     initialNodeId: needsLoadout ? "loadout" : "greeting"

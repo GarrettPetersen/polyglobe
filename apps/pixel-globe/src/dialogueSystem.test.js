@@ -488,7 +488,7 @@ test("passenger dialogue can be declined and accepted later", () => {
   assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
 });
 
-test("an unseen passenger precedes the loadout and factor during port arrival", () => {
+test("a quest character precedes the loadout and factor during port arrival", () => {
   const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
   const passengerQuest = {
     id: "passenger-arrival-order",
@@ -496,22 +496,36 @@ test("an unseen passenger precedes the loadout and factor during port arrival", 
     originTileId: city.tileId,
     destinationTileId: 2
   };
+  const passengerSession = createPassengerDialogueSession(city, passengerQuest);
 
   const firstPort = createPortArrivalDialogueSession(city, {
     needsLoadout: true,
-    passengerQuest
+    questCharacterSession: passengerSession
   });
   assert.equal(firstPort.kind, "passenger");
   assert.equal(firstPort.continueToPortOnClose, true);
   assert.equal(firstPort.nextPortNodeId, "loadout");
 
-  const ordinaryPort = createPortArrivalDialogueSession(city, { passengerQuest });
+  const ordinaryPort = createPortArrivalDialogueSession(city, {
+    questCharacterSession: passengerSession
+  });
   assert.equal(ordinaryPort.kind, "passenger");
   assert.equal(ordinaryPort.nextPortNodeId, "greeting");
 
   const noPassenger = createPortArrivalDialogueSession(city, { needsLoadout: true });
   assert.equal(noPassenger.kind, "port");
   assert.equal(noPassenger.nodeId, "loadout");
+
+  const futureQuestSession = createPortArrivalDialogueSession(city, {
+    questCharacterSession: {
+      kind: "colony-founder",
+      cityTileId: city.tileId,
+      questId: "future-colony-quest"
+    }
+  });
+  assert.equal(futureQuestSession.kind, "colony-founder");
+  assert.equal(futureQuestSession.continueToPortOnClose, true);
+  assert.equal(futureQuestSession.nextPortNodeId, "greeting");
 });
 
 test("capital port dialogue can grant a letter of marque", () => {

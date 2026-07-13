@@ -166,6 +166,7 @@ import {
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
+import { pixelTextOrigin, snapPointToTransformedPixelGrid } from "./pixelText.js";
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import {
   dialogueOptionLayout,
@@ -4179,12 +4180,14 @@ function openPortDialogue(cityCall) {
   const autoPassengerQuest = passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)
     ? passengerQuest
     : null;
+  let questCharacterSession = null;
   if (autoPassengerQuest) {
     markPassengerOfferSeen(gameState, autoPassengerQuest);
+    questCharacterSession = createPassengerDialogueSession(cityCall, autoPassengerQuest);
   }
   dialogueState = createPortArrivalDialogueSession(cityCall, {
     needsLoadout,
-    passengerQuest: autoPassengerQuest
+    questCharacterSession
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -4229,7 +4232,7 @@ function openPassengerDialogue(cityCall, quest) {
   dirty = true;
 }
 
-function openPortDialogueFromActivePassenger() {
+function continuePortDialogueAfterQuestCharacter() {
   const city = currentDialogueCity();
   const initialNodeId = dialogueState.nextPortNodeId || "greeting";
   dialogueState = createPortDialogueSession(city, { initialNodeId });
@@ -4335,7 +4338,7 @@ function chooseDialogueOption(optionIndex) {
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
     if (result.action?.type === "open-port") {
-      openPortDialogueFromActivePassenger();
+      continuePortDialogueAfterQuestCharacter();
       return;
     }
   } else if (dialogueState.kind === "ship") {
@@ -4346,8 +4349,8 @@ function chooseDialogueOption(optionIndex) {
   }
   if (result.action && dialogueNpcShipId) applyShipDialogueAction(dialogueNpcShipId, result.action);
   if (result.closed) {
-    if (dialogueState.kind === "passenger" && dialogueState.continueToPortOnClose) {
-      openPortDialogueFromActivePassenger();
+    if (dialogueState.continueToPortOnClose) {
+      continuePortDialogueAfterQuestCharacter();
       return;
     }
     closeDialogue();
@@ -11080,12 +11083,10 @@ function drawPixelText(text, x, y, options = {}) {
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   const textW = measurePixelTextWidth(text, font);
-  let drawX = Math.round(x);
-  if (align === "center") drawX = Math.round(x - textW / 2);
-  if (align === "right") drawX = Math.round(x - textW);
-  const drawY = Math.round(y);
-  ctx.fillText(text, drawX, drawY);
-  return { x: drawX, y: drawY, w: textW, h: CITY_LABEL_H };
+  const alignedOrigin = pixelTextOrigin({ x, y, width: textW, align });
+  const origin = snapPointToTransformedPixelGrid(alignedOrigin, ctx.getTransform());
+  ctx.fillText(text, origin.x, origin.y);
+  return { x: origin.x, y: origin.y, w: textW, h: CITY_LABEL_H };
 }
 
 function measurePixelTextWidth(text, font = PIXEL_FONT_BODY_8) {

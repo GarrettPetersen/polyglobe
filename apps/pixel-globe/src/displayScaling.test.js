@@ -13,6 +13,7 @@ test("windowed canvas scaling stays on an integer pixel multiple", () => {
   });
 
   assert.equal(layout.scale, 2);
+  assert.equal(layout.physicalScale, 4);
   assert.equal(layout.width, 910);
   assert.equal(layout.height, 512);
 });
@@ -29,6 +30,8 @@ test("fullscreen fit scaling snaps the canvas box to physical pixels", () => {
   });
 
   assert.ok(layout.scale > 2 && layout.scale < 3);
+  assert.equal(Number.isInteger(layout.scale * dpr), true);
+  assert.equal(layout.physicalScale, layout.scale * dpr);
   for (const value of [layout.width, layout.height, layout.left, layout.top]) {
     assert.ok(Math.abs(value * dpr - Math.round(value * dpr)) < 1e-9);
   }
@@ -45,8 +48,25 @@ test("a canvas larger than the viewport scales down instead of overflowing", () 
   });
 
   assert.ok(layout.scale < 1);
+  assert.equal(Number.isInteger(layout.scale * 3), true);
   assert.ok(layout.width <= 390);
   assert.ok(layout.height <= 700);
+});
+
+test("a high-DPR portrait phone uses an integer physical pixel scale", () => {
+  const layout = canvasDisplayLayout({
+    viewportWidth: 390,
+    viewportHeight: 700,
+    canvasWidth: 256,
+    canvasHeight: 455,
+    devicePixelRatio: 3,
+    fitScreen: true
+  });
+
+  assert.equal(layout.physicalScale, 4);
+  assert.equal(layout.scale, 4 / 3);
+  assert.equal(layout.width * 3, 256 * 4);
+  assert.equal(layout.height * 3, 455 * 4);
 });
 
 test("canvas display scaling rejects invalid geometry", () => {
