@@ -63,8 +63,18 @@ test("shipyard previews expose the full vessel specification", () => {
   assert.equal(view.crew, view.crewCapacity);
   assert.ok(view.cargoCapacity > 0);
   assert.ok(view.upwindStallAngleDeg > 0);
+  assert.equal(view.propulsion, "sail");
+  assert.match(view.propulsionSummary, /^SAIL \/ /);
   assert.ok(view.seaworthiness > 0);
   assert.deepEqual(Object.keys(view.ratings), ["speed", "acceleration", "turning", "windward"]);
+});
+
+test("ship specifications explain oar and combined propulsion", () => {
+  const canoe = createShipyardShipView("mesoamerican-dugout-canoe");
+  const voyagingCanoe = createShipyardShipView("polynesian-voyaging-canoe");
+
+  assert.equal(canoe.propulsionSummary, "OAR / NO DEAD ZONE");
+  assert.equal(voyagingCanoe.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {
@@ -126,7 +136,7 @@ test("ship papers include active deliveries and letters of marque", () => {
   assert.equal(view.papers[0].detail, "Reward 120 DB");
   assert.equal(view.papers[1].title, "Basic cast net");
   assert.equal(view.papers[1].issuer, "Ship stores");
-  assert.match(view.papers[1].detail, /max haul 2/);
+  assert.match(view.papers[1].detail, /max haul 3/);
   assert.equal(view.papers[2].issuer, "Kingdom of England");
   assert.equal(view.papers[2].title, "English letter of marque");
   assert.equal(view.papers[2].simMinute, 1440);

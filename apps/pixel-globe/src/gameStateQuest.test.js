@@ -8,7 +8,8 @@ import {
   createGameState,
   deliveryQuestForCity,
   factionReputation,
-  questStateForCity
+  questStateForCity,
+  reconcileQuestPortTiles
 } from "./gameState.js";
 
 const PLAYER = {
@@ -51,6 +52,23 @@ test("completed package deliveries increase faction standing", () => {
   completeQuest(state, PORTO, { simMinute: 100 });
 
   assert.equal(factionReputation(state, "portugal"), before + DELIVERY_REPUTATION_GAIN);
+});
+
+test("saved jobs rebind to corrected coastal port tiles", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const oldLisbon = { ...LISBON, tileId: 101 };
+  const oldPorto = { ...PORTO, tileId: 202 };
+  const quest = deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto]);
+  acceptQuest(state, quest);
+
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO]), 2);
+  assert.equal(state.memory.quests.active.originTileId, LISBON.tileId);
+  assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
+  assert.equal(state.memory.quests.active.originKey, `Lisbon|Portugal|${LISBON.tileId}`);
+  assert.equal(state.memory.quests.active.destinationKey, `Porto|Portugal|${PORTO.tileId}`);
+
+  completeQuest(state, PORTO, { simMinute: 100 });
+  assert.equal(state.memory.quests.active, null);
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {

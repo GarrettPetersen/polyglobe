@@ -370,6 +370,35 @@
       "height": 104,
       "palette": "Resurrect 64",
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/dhow-felucca.png"
+    },
+    {
+      "slug": "polynesian-voyaging-canoe",
+      "label": "Polynesian Voyaging Canoe",
+      "sourceModel": "tmp/native-boat-models/polynesian-voyaging-canoe/scene.gltf",
+      "sourceMaxDim": 13.4873,
+      "targetModelMaxDim": 2.25,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/polynesian-voyaging-canoe.png",
+      "creator": "Hialda Alpizar",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Polynesian Voyaging Canoe"
+    },
+    {
+      "slug": "mesoamerican-dugout-canoe",
+      "label": "Mesoamerican Dugout Canoe",
+      "sourceModel": "tmp/native-boat-models/mesoamerican-dugout-canoe/scene.gltf",
+      "sourceMaxDim": 9.1055,
+      "targetModelMaxDim": 1.85,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/mesoamerican-dugout-canoe.png",
+      "creator": "irodatiii",
+      "license": "Sketchfab Free Standard",
+      "sourceTitle": "Low Poly Canoe - Stylized Game Asset"
     }
-  ]
+  ],
+  "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats"
 }

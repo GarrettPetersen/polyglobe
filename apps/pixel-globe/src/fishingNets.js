@@ -1,10 +1,10 @@
 export const BASIC_FISHING_NET_ID = "basic-cast-net";
 
 export const FISHING_NETS = Object.freeze([
-  fishingNet(BASIC_FISHING_NET_ID, "Basic cast net", 0, 0, 0.55, 2),
-  fishingNet("weighted-cast-net", "Weighted cast net", 1, 900, 0.75, 4),
-  fishingNet("drift-net", "Drift net", 2, 4000, 1, 7),
-  fishingNet("masterwork-seine", "Masterwork seine", 3, 15000, 1.15, 10)
+  fishingNet(BASIC_FISHING_NET_ID, "Basic cast net", 0, 0, 0.8, 3),
+  fishingNet("weighted-cast-net", "Weighted cast net", 1, 900, 1, 5),
+  fishingNet("drift-net", "Drift net", 2, 4000, 1.2, 8),
+  fishingNet("masterwork-seine", "Masterwork seine", 3, 15000, 1.4, 12)
 ]);
 
 const FISHING_NETS_BY_ID = new Map(FISHING_NETS.map((net) => [net.id, net]));

@@ -20,6 +20,7 @@ const VILLAGE_CONSUMPTION_MULTIPLIER = 0.62;
 
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
+export const FORAGED_FOOD_GOOD_ID = "foraged-food";
 
 export const TRADE_GOODS = Object.freeze([
   good(HARDTACK_GOOD_ID, "Hardtack", 2, "food", {
@@ -31,6 +32,10 @@ export const TRADE_GOODS = Object.freeze([
   good(FRESH_WATER_GOOD_ID, "Fresh Water", 1, "supply", {
     alwaysAvailable: true,
     fixedBuyPrice: 1,
+    npcTrade: false,
+    sellable: false
+  }),
+  good(FORAGED_FOOD_GOOD_ID, "Foraged Food", 1, "food", {
     npcTrade: false,
     sellable: false
   }),

@@ -28,6 +28,8 @@ test("social cards have the declared dimensions", () => {
 test("credits contain attribution text without hyperlinks", () => {
   const credits = readFileSync(new URL("public/assets/CREDITS.md", appRoot), "utf8");
   assert.match(credits, /^# Marque & Reprisal Credits/m);
+  assert.match(credits, /Hialda Alpizar - "Polynesian Voyaging Canoe" \(CC BY 4\.0\)/);
+  assert.match(credits, /irodatiii - "Low Poly Canoe - Stylized Game Asset" \(Sketchfab Free Standard\)/);
   assert.doesNotMatch(credits, /https?:\/\//);
   assert.doesNotMatch(credits, /\[[^\]]+\]\([^)]+\)/);
 });

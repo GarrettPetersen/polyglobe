@@ -38,13 +38,8 @@ const REGION_SHIP_POOLS = Object.freeze({
     "sampan", "small-dhow", "lateen-dhow", "dhow", "small-junk", "medium-junk", "large-junk",
     "small-carrack", "carrack"
   ]),
-  polynesian: Object.freeze([
-    "sampan", "small-dhow", "lateen-dhow", "small-junk", "medium-junk"
-  ]),
-  mesoamerican: Object.freeze([
-    "fishing-lugger", "small-cog", "square-sail-trader", "square-rigged-caravel", "caravel",
-    "small-carrack", "brigantine", "carrack", "galleon"
-  ]),
+  polynesian: Object.freeze(["polynesian-voyaging-canoe"]),
+  mesoamerican: Object.freeze(["mesoamerican-dugout-canoe"]),
   andean: Object.freeze([
     "fishing-lugger", "small-cog", "square-sail-trader", "square-rigged-caravel", "caravel",
     "small-carrack", "brigantine", "carrack", "galleon"

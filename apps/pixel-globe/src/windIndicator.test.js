@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { windVArmLengthPx, windVGeometry } from "./windIndicator.js";
+import { windVArmLengthPx, windVGeometry, windVOpacity } from "./windIndicator.js";
 
 test("wind V boundaries match the ship dead-zone angle", () => {
   const deadZoneHalfAngleRad = 40 * Math.PI / 180;
@@ -43,6 +43,26 @@ test("wind V arms lengthen with wind speed and cap in extreme storms", () => {
   assert.ok(windVArmLengthPx(0.8) > windVArmLengthPx(0.2));
   assert.ok(windVArmLengthPx(1.25) > windVArmLengthPx(0.8));
   assert.equal(windVArmLengthPx(5), windVArmLengthPx(1.25));
+});
+
+test("the wind V remains legible even in light wind", () => {
+  assert.ok(windVOpacity(0.05) > 0.55);
+  assert.ok(windVOpacity(1) > windVOpacity(0.05));
+  assert.ok(windVOpacity(0.4, 1, 1) > windVOpacity(0.4, 0, 1));
+});
+
+test("an oar-powered ship collapses the wind V to show no dead zone", () => {
+  const geometry = windVGeometry({
+    centerX: 128,
+    centerY: 128,
+    flowDirectionRad: 0,
+    deadZoneHalfAngleRad: 0,
+    windStrength: 0.6,
+    radiusPx: 20
+  });
+
+  assert.deepEqual(geometry.portBoundary, geometry.starboardBoundary);
+  assert.deepEqual(geometry.port, geometry.starboard);
 });
 
 function angleBetween(a, b) {

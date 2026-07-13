@@ -8,7 +8,13 @@ import {
   survivalStatus
 } from "./gameState.js";
 import { factionById } from "./factions.js";
-import { SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import {
+  SHIP_PROPULSION_OAR,
+  SHIP_PROPULSION_OAR_SAIL,
+  SHIP_STATS,
+  shipLabelForSlug,
+  shipStatsForSlug
+} from "./shipStats.js";
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
@@ -74,6 +80,8 @@ export function createShipInfoView(ship, gameState) {
     cargoUsed: used,
     cargoCapacity: stats.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
+    propulsion: stats.propulsion,
+    propulsionSummary: shipPropulsionSummary(stats),
     seaworthiness: stats.seaworthiness,
     survival: survivalStatus(gameState),
     ratings: Object.freeze({
@@ -101,6 +109,8 @@ export function createShipyardShipView(slug) {
     cargoUsed: 0,
     cargoCapacity: stats.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
+    propulsion: stats.propulsion,
+    propulsionSummary: shipPropulsionSummary(stats),
     seaworthiness: stats.seaworthiness,
     ratings: Object.freeze({
       speed: shipPerformanceRating(stats, "speed"),
@@ -119,6 +129,13 @@ export function shipPerformanceRating(stats, ratingName) {
   const fraction = range.max === range.min ? 1 : (value - range.min) / (range.max - range.min);
   const usefulFraction = range.invert ? 1 - fraction : fraction;
   return Math.max(1, Math.min(10, 1 + Math.round(usefulFraction * 9)));
+}
+
+export function shipPropulsionSummary(stats) {
+  if (!stats || typeof stats !== "object") throw new Error("Ship propulsion summary requires ship stats");
+  if (stats.propulsion === SHIP_PROPULSION_OAR) return "OAR / NO DEAD ZONE";
+  if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) return "OAR + SAIL / ROWS UPWIND";
+  return `SAIL / ${stats.upwindStallAngleDeg} DEG`;
 }
 
 export function shipInfoCargoPage(view, page) {

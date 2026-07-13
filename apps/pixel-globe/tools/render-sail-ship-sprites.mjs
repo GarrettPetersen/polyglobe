@@ -14,6 +14,7 @@ const defaultModelPath = join(repoRoot, "examples/globe-demo/public/assets/vehic
 const unityShipSourceRoot = join(repoRoot, "tmp/unity-assets/low-poly-cartoon-sailing-ships");
 const unityShipModelRoot = join(unityShipSourceRoot, "Models");
 const unityShipTexturePath = join(unityShipSourceRoot, "Textures/texture main.png");
+const nativeBoatSourceRoot = join(repoRoot, "tmp/native-boat-models");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
@@ -274,34 +275,101 @@ const unityShipRoster = new Map([
 ]);
 
 async function loadGltf(path) {
-  const bytes = readFileSync(path);
-  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  installNodeDomShim();
+  const ext = extname(path).toLowerCase();
+  const bytes = ext === ".gltf" ? preparedGltfJson(path) : readFileSync(path);
+  const payload = typeof bytes === "string"
+    ? bytes
+    : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   return new Promise((resolveLoad, rejectLoad) => {
-    new GLTFLoader().parse(arrayBuffer, "", resolveLoad, rejectLoad);
+    new GLTFLoader().parse(payload, "", resolveLoad, rejectLoad);
   });
 }
 
-function installNodeImageShim() {
-  if (globalThis.document) return;
-  globalThis.document = {
-    createElementNS(_namespace, name) {
-      if (name !== "img") throw new Error(`Unsupported DOM shim element: ${name}`);
-      return {
-        addEventListener() {},
-        removeEventListener() {},
-        set src(value) {
-          this._src = value;
-        },
-        get src() {
-          return this._src;
-        }
-      };
+function preparedGltfJson(path) {
+  const document = JSON.parse(readFileSync(path, "utf8"));
+  for (const buffer of document.buffers || []) {
+    if (!buffer.uri || buffer.uri.startsWith("data:")) continue;
+    const bytes = readFileSync(join(dirname(path), decodeURIComponent(buffer.uri)));
+    buffer.uri = `data:application/octet-stream;base64,${bytes.toString("base64")}`;
+  }
+  for (let index = 0; index < (document.materials || []).length; index++) {
+    const material = document.materials[index];
+    material.name = gltfMaterialKey(index);
+    if (material.pbrMetallicRoughness) {
+      delete material.pbrMetallicRoughness.baseColorTexture;
+      delete material.pbrMetallicRoughness.metallicRoughnessTexture;
     }
-  };
+    delete material.normalTexture;
+    delete material.occlusionTexture;
+    delete material.emissiveTexture;
+    delete material.extensions;
+  }
+  delete document.images;
+  delete document.textures;
+  delete document.samplers;
+  document.extensionsUsed = (document.extensionsUsed || []).filter((name) => (
+    name !== "KHR_materials_pbrSpecularGlossiness"
+  ));
+  document.extensionsRequired = (document.extensionsRequired || []).filter((name) => (
+    name !== "KHR_materials_pbrSpecularGlossiness"
+  ));
+  return JSON.stringify(document);
+}
+
+async function loadGltfMaterialTextureSamplers(path) {
+  if (extname(path).toLowerCase() !== ".gltf") return null;
+  const document = JSON.parse(readFileSync(path, "utf8"));
+  const samplers = new Map();
+  for (let index = 0; index < (document.materials || []).length; index++) {
+    const material = document.materials[index];
+    const textureIndex = material.pbrMetallicRoughness?.baseColorTexture?.index ??
+      material.extensions?.KHR_materials_pbrSpecularGlossiness?.diffuseTexture?.index;
+    const imageIndex = document.textures?.[textureIndex]?.source;
+    const uri = document.images?.[imageIndex]?.uri;
+    if (!uri || uri.startsWith("data:")) continue;
+    samplers.set(gltfMaterialKey(index), await loadTextureSampler(
+      join(dirname(path), decodeURIComponent(uri)),
+      512
+    ));
+  }
+  return samplers;
+}
+
+function gltfMaterialKey(index) {
+  return `pixel-globe-gltf-material-${index}`;
+}
+
+function installNodeDomShim() {
+  if (!globalThis.ProgressEvent) {
+    globalThis.ProgressEvent = class ProgressEvent {
+      constructor(type, init = {}) {
+        this.type = type;
+        Object.assign(this, init);
+      }
+    };
+  }
+  if (!globalThis.document) {
+    globalThis.document = {
+      createElementNS(_namespace, name) {
+        if (name !== "img") throw new Error(`Unsupported DOM shim element: ${name}`);
+        return {
+          addEventListener() {},
+          removeEventListener() {},
+          set src(value) {
+            this._src = value;
+          },
+          get src() {
+            return this._src;
+          }
+        };
+      }
+    };
+  }
 }
 
 function loadFbx(path) {
-  installNodeImageShim();
+  installNodeDomShim();
   const bytes = readFileSync(path);
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   return new FBXLoader().parse(arrayBuffer, "");
@@ -317,20 +385,23 @@ async function loadScene(path) {
   throw new Error(`Unsupported ship model extension: ${path}`);
 }
 
-async function loadTextureSampler(path) {
+async function loadTextureSampler(path, maxDimension = Infinity) {
   const image = await loadImage(path);
-  const canvas = createCanvas(image.width, image.height);
+  const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(image, 0, 0);
-  const data = ctx.getImageData(0, 0, image.width, image.height).data;
+  ctx.drawImage(image, 0, 0, width, height);
+  const data = ctx.getImageData(0, 0, width, height).data;
   return {
-    width: image.width,
-    height: image.height,
+    width,
+    height,
     sample(u, v) {
-      const x = clamp(Math.floor(wrap01(u) * image.width), 0, image.width - 1);
-      const y = clamp(Math.floor((1 - wrap01(v)) * image.height), 0, image.height - 1);
-      const offset = (x + y * image.width) * 4;
+      const x = clamp(Math.floor(wrap01(u) * width), 0, width - 1);
+      const y = clamp(Math.floor((1 - wrap01(v)) * height), 0, height - 1);
+      const offset = (x + y * width) * 4;
       return {
         r: data[offset],
         g: data[offset + 1],
@@ -356,13 +427,13 @@ function materialColor(material) {
 }
 
 function triangleMaterial(mesh, geometry, triOffset) {
-  if (!Array.isArray(mesh.material)) return materialColor(mesh.material);
+  if (!Array.isArray(mesh.material)) return mesh.material;
   for (const group of geometry.groups) {
     if (triOffset >= group.start && triOffset < group.start + group.count) {
-      return materialColor(mesh.material[group.materialIndex]);
+      return mesh.material[group.materialIndex];
     }
   }
-  return materialColor(mesh.material[0]);
+  return mesh.material[0];
 }
 
 function collectTriangles(scene, options = {}) {
@@ -396,10 +467,12 @@ function collectTriangles(scene, options = {}) {
         : null;
 
       for (const point of points) allPoints.push(point);
+      const material = triangleMaterial(node, geometry, offset);
       triangles.push({
         points,
         uvs,
-        color: triangleMaterial(node, geometry, offset)
+        color: materialColor(material),
+        textureSampler: options.materialTextureSamplers?.get(material?.name) || null
       });
     }
   });
@@ -493,7 +566,7 @@ function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-function projectedPoint(point, camera, viewport) {
+function projectedPoint(point, camera, viewport = { width: renderSize, height: renderSize }) {
   const ndc = point.clone().project(camera);
   const view = point.clone().applyMatrix4(camera.matrixWorldInverse);
   return {
@@ -536,7 +609,7 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
       color: tri.color,
       normal,
       uvs: tri.uvs,
-      textureSampler: renderOptions?.textureSampler,
+      textureSampler: tri.textureSampler || renderOptions?.textureSampler,
       recolorSails: renderOptions?.recolorSails,
       waterlineY: renderOptions?.waterlineY
     }, {
@@ -1303,8 +1376,10 @@ async function renderShipSpriteSet(config) {
   mkdirSync(config.outputDir, { recursive: true });
   const scene = await loadScene(config.modelPath);
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
+  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
   const model = collectTriangles(scene, {
-    targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim
+    targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim,
+    materialTextureSamplers
   });
   const triangles = model.triangles;
   const waterlineY = estimateWaterlineY(triangles);
@@ -1355,6 +1430,9 @@ async function renderShipSpriteSet(config) {
     identifiedType: config.identifiedType || config.label || config.outputPrefix,
     identificationConfidence: config.identificationConfidence || "unknown",
     identificationNotes: config.identificationNotes || "",
+    ...(config.creator ? { creator: config.creator } : {}),
+    ...(config.license ? { license: config.license } : {}),
+    ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {}),
     sourceModel: portablePath(config.modelPath),
     sourceTexture: config.texturePath ? portablePath(config.texturePath) : null,
     sailRecolor: Boolean(config.recolorSails),
@@ -1672,7 +1750,11 @@ function shadeEdgesAndQuantizeToResurrect(canvas) {
 async function renderShipSideView(config) {
   const scene = await loadScene(config.modelPath);
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
-  const model = collectTriangles(scene, { targetMaxDim: config.targetModelMaxDim });
+  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
+  const model = collectTriangles(scene, {
+    targetMaxDim: config.targetModelMaxDim,
+    materialTextureSamplers
+  });
   const waterlineY = estimateWaterlineY(model.triangles);
   const renderViewport = {
     width: sideViewWidth * sideViewRenderScale,
@@ -1711,8 +1793,100 @@ async function renderShipSideView(config) {
     width: sideViewWidth,
     height: sideViewHeight,
     palette: "Resurrect 64",
-    file: portablePath(outputPath)
+    file: portablePath(outputPath),
+    ...(config.creator ? { creator: config.creator } : {}),
+    ...(config.license ? { license: config.license } : {}),
+    ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {})
   };
+}
+
+function nativeBoatConfigs() {
+  return [
+    {
+      slug: "polynesian-voyaging-canoe",
+      label: "Polynesian Voyaging Canoe",
+      category: "native boat",
+      assetLabel: "Polynesian Voyaging Canoe",
+      identifiedType: "double-hulled Polynesian voyaging canoe",
+      identificationConfidence: "high",
+      identificationNotes: "Model depicts a Hawaiian double-hulled ocean-going voyaging canoe.",
+      creator: "Hialda Alpizar",
+      license: "CC BY 4.0",
+      sourceTitle: "Polynesian Voyaging Canoe",
+      stats: shipStatsForSlug("polynesian-voyaging-canoe"),
+      modelPath: join(nativeBoatSourceRoot, "polynesian-voyaging-canoe/scene.gltf"),
+      targetModelMaxDim: 2.25,
+      recolorSails: false,
+      scaleMode: "native-boat-relative",
+      outputDir: unityFleetOutputRoot,
+      outputPrefix: "polynesian-voyaging-canoe-16-headings"
+    },
+    {
+      slug: "mesoamerican-dugout-canoe",
+      label: "Mesoamerican Dugout Canoe",
+      category: "native boat",
+      assetLabel: "Low Poly Canoe",
+      identifiedType: "open paddled canoe",
+      identificationConfidence: "medium",
+      identificationNotes: "Generic intact canoe used as a readable stand-in for a Mesoamerican coastal dugout.",
+      creator: "irodatiii",
+      license: "Sketchfab Free Standard",
+      sourceTitle: "Low Poly Canoe - Stylized Game Asset",
+      stats: shipStatsForSlug("mesoamerican-dugout-canoe"),
+      modelPath: join(nativeBoatSourceRoot, "mesoamerican-dugout-canoe/scene.gltf"),
+      targetModelMaxDim: 1.85,
+      recolorSails: false,
+      scaleMode: "native-boat-relative",
+      outputDir: unityFleetOutputRoot,
+      outputPrefix: "mesoamerican-dugout-canoe-16-headings"
+    }
+  ];
+}
+
+async function renderNativeBoats() {
+  const configs = nativeBoatConfigs();
+  for (const config of configs) {
+    config.sourceMaxDim = await measureSourceMaxDim(config.modelPath);
+  }
+  const fleetBounds = [];
+  for (const config of configs) fleetBounds.push(...await measureRenderedBounds(config));
+  const sharedFrameScale = fixedFrameScale(fleetBounds);
+  for (const config of configs) config.frameScale = sharedFrameScale;
+  validateShipStatsForSlugs(configs.map((config) => config.slug));
+
+  const rendered = [];
+  for (const config of configs) {
+    console.log(`render native boat ${config.slug}`);
+    rendered.push(await renderShipSpriteSet(config));
+  }
+
+  const manifestPath = join(unityFleetOutputRoot, "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.ships = upsertShipEntries(
+    manifest.ships,
+    rendered.map(({ sheet, wakeAnchors, ...entry }) => entry)
+  );
+  manifest.nativeBoatGenerator = "tools/render-sail-ship-sprites.mjs --native-boats";
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const wakePath = join(unityFleetOutputRoot, "wake-anchors.json");
+  const wakeManifest = JSON.parse(readFileSync(wakePath, "utf8"));
+  for (const entry of rendered) wakeManifest.ships[entry.slug] = entry.wakeAnchors;
+  wakeManifest.nativeBoatGenerator = "tools/render-sail-ship-sprites.mjs --native-boats";
+  writeFileSync(wakePath, `${JSON.stringify(wakeManifest)}\n`);
+
+  const sideViewPath = join(unityFleetSideViewOutputRoot, "manifest.json");
+  const sideViewManifest = JSON.parse(readFileSync(sideViewPath, "utf8"));
+  const sideViews = [];
+  for (const config of configs) sideViews.push(await renderShipSideView(config));
+  sideViewManifest.ships = upsertShipEntries(sideViewManifest.ships, sideViews);
+  sideViewManifest.nativeBoatGenerator = "tools/render-sail-ship-sprites.mjs --native-boats";
+  writeFileSync(sideViewPath, `${JSON.stringify(sideViewManifest, null, 2)}\n`);
+}
+
+function upsertShipEntries(existing, replacements) {
+  const replacementSlugs = new Set(replacements.map((entry) => entry.slug));
+  return [...existing.filter((entry) => !replacementSlugs.has(entry.slug)), ...replacements];
 }
 
 async function renderUnityFleetSideViews() {
@@ -1905,6 +2079,10 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.has("--native-boats")) {
+    await renderNativeBoats();
+    return;
+  }
   if (args.has("--unity-fleet")) {
     await renderUnityFleet();
     return;

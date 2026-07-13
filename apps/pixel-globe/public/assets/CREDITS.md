@@ -6,6 +6,10 @@
 ## Music
 - YouFulca
 
+## 3D Models
+- Hialda Alpizar - "Polynesian Voyaging Canoe" (CC BY 4.0)
+- irodatiii - "Low Poly Canoe - Stylized Game Asset" (Sketchfab Free Standard)
+
 ## Sound Effects
 - Alex Jauk
 - Dragon Studio

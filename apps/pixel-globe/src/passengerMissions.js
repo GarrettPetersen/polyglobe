@@ -95,6 +95,8 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period) 
     originKey,
     originTileId: origin.tileId,
     originName: cityLabel(origin),
+    originCountry: origin.country || "",
+    destinationKey,
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
     destinationCountry: destination.country || "",

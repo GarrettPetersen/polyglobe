@@ -4,7 +4,12 @@ import {
   dateToSubsolarLatDeg,
   windAtLatLonDeg
 } from "./weather.js";
-import { shipStatsForSlug } from "./shipStats.js";
+import {
+  SHIP_PROPULSION_OAR,
+  SHIP_PROPULSION_OAR_SAIL,
+  shipStatsForSlug
+} from "./shipStats.js";
+import { HYBRID_ROUTE_PROGRESS_FLOOR } from "./shipPropulsion.js";
 import {
   DIPLOMACY_WAR,
   NEUTRAL_FACTION_ID,
@@ -87,6 +92,8 @@ const PIRATE_SHIP_SLUGS = Object.freeze([
 ]);
 
 export const NPC_SHIP_SLUGS = Object.freeze([
+  "polynesian-voyaging-canoe",
+  "mesoamerican-dugout-canoe",
   "fishing-lugger",
   "small-junk",
   "medium-junk",
@@ -192,11 +199,16 @@ const LANE_EDGES = Object.freeze([
 ]);
 
 const FLEET_PROFILES = Object.freeze([
-  profile("pacific-islands", 10, {
-    fishers: ["sampan"],
-    merchants: ["sampan", "small-dhow", "lateen-dhow"],
-    warships: ["small-junk", "medium-junk"]
-  }, isPolynesianPort, "regional"),
+  profile("pacific-islands", 6, {
+    fishers: ["polynesian-voyaging-canoe"],
+    merchants: ["polynesian-voyaging-canoe"],
+    warships: ["polynesian-voyaging-canoe"]
+  }, isPolynesianPort, "regional", nativeCoastalRoleWeights()),
+  profile("mesoamerican-coast", 5, {
+    fishers: ["mesoamerican-dugout-canoe"],
+    merchants: ["mesoamerican-dugout-canoe"],
+    warships: ["mesoamerican-dugout-canoe"]
+  }, isMesoamericanPort, "regional", nativeCoastalRoleWeights()),
   profile("east-asia", 34, {
     fishers: ["sampan", "small-junk"],
     merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
@@ -226,7 +238,7 @@ const FLEET_PROFILES = Object.freeze([
     fishers: ["fishing-lugger", "cutter", "small-dhow"],
     merchants: ["caravel", "small-carrack", "brigantine", "carrack", "fluyt", "galleon"],
     warships: ["brigantine", "corvette", "galleon", "frigate", "ship-of-the-line"]
-  }, isAnyUsablePort, "interregional")
+  }, isWideWorldPort, "interregional")
 ]);
 
 export function createNpcSeaRouteSystem({ ports, startMinute, economy, fishState = null }) {
@@ -294,6 +306,7 @@ export function restoreNpcSeaRouteSystem(system, snapshot, { economy, fishState 
         !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
       throw new Error(`Invalid saved NPC hull: ${ship.id}`);
     }
+    ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;
     shipStatsForSlug(ship.slug);
     shipById.set(ship.id, ship);
   }
@@ -404,7 +417,7 @@ export function updateNpcSeaRouteSystem(system, clockMinutes) {
   refreshPirateHideoutWarshipDanger(system, clockMinutes);
   let changed = spawnDueNpcReplacements(system, clockMinutes);
   for (const ship of system.ships) {
-    if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 5)) changed = true;
+    if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 12)) changed = true;
   }
   return changed;
 }
@@ -448,7 +461,7 @@ export function npcShipHasCombatGrace(system, shipId) {
 export function damageNpcShip(system, shipId, amount) {
   const ship = requiredNpcShip(system, shipId);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error(`Invalid NPC ship damage: ${amount}`);
-  ship.hitPoints = Math.max(0, ship.hitPoints - Math.round(amount));
+  ship.hitPoints = Math.max(0, ship.hitPoints - amount);
   if (ship.role === NPC_ROLE_PIRATE && ship.hitPoints > 0 && ship.hitPoints / ship.maxHitPoints <= PIRATE_HIDEOUT_RETREAT_HULL_RATIO) {
     ship.seekingHideout = true;
   }
@@ -480,6 +493,7 @@ export function sinkNpcShip(system, shipId, clockMinutes) {
     role: ship.role,
     profileId: ship.profileId,
     mode: ship.mode,
+    cultureType: ship.cultureType || ship.currentPort?.cityType || null,
     slugs: ship.slugs.slice(),
     seed: hashString32(`${ship.seed}|${ship.portVisits}|replacement`),
     originPortId: replacementPort.tileId,
@@ -556,7 +570,7 @@ function createNpcFleet(system, startMinute) {
     for (let i = 0; i < count; i++) {
       const seed = hashString32(`${profileSpec.id}|${i}|npc`);
       let origin = pool[seed % pool.length];
-      const role = npcRoleForSeed(seed, origin.factionId, profileSpec.mode);
+      const role = npcRoleForSeed(seed, origin.factionId, profileSpec);
       if (role === NPC_ROLE_PIRATE && npcPortHasMajorProtection(origin)) {
         const discreetOrigins = pool.filter((port) => !npcPortHasMajorProtection(port));
         if (discreetOrigins.length > 0) origin = discreetOrigins[seed % discreetOrigins.length];
@@ -569,6 +583,7 @@ function createNpcFleet(system, startMinute) {
         role,
         profileId: profileSpec.id,
         mode: profileSpec.mode,
+        cultureType: origin.cityType,
         slugs: profileSlugsForRole(profileSpec, role),
         slug,
         seed,
@@ -621,6 +636,7 @@ function spawnDueNpcReplacements(system, clockMinutes) {
       role: replacement.role,
       profileId: replacement.profileId,
       mode: replacement.mode,
+      cultureType: replacement.cultureType || origin.cityType,
       slugs: replacement.slugs.slice(),
       slug,
       seed: replacement.seed,
@@ -690,10 +706,20 @@ function npcReplacementPortScore(system, port, ship) {
   return shipbuilding - distancePenalty + variation;
 }
 
-function npcRoleForSeed(seed, originFactionId, profileMode) {
+function npcRoleForSeed(seed, originFactionId, profileSpec) {
+  if (profileSpec.roleWeights) {
+    const roll = (seed >>> 5) % 100;
+    const { merchant, fisherman, warship } = profileSpec.roleWeights;
+    if (roll < merchant) return NPC_ROLE_MERCHANT;
+    if (roll < merchant + fisherman) return NPC_ROLE_FISHERMAN;
+    if (roll < merchant + fisherman + warship) {
+      return originFactionId === NEUTRAL_FACTION_ID ? NPC_ROLE_MERCHANT : NPC_ROLE_WARSHIP;
+    }
+    return NPC_ROLE_PIRATE;
+  }
   const roll = (seed >>> 5) % 100;
   if (roll < 64) return NPC_ROLE_MERCHANT;
-  if (roll < 79 && profileMode === "regional") return NPC_ROLE_FISHERMAN;
+  if (roll < 79 && profileSpec.mode === "regional") return NPC_ROLE_FISHERMAN;
   if (roll < 96) return originFactionId === NEUTRAL_FACTION_ID ? NPC_ROLE_MERCHANT : NPC_ROLE_WARSHIP;
   return NPC_ROLE_PIRATE;
 }
@@ -1494,7 +1520,11 @@ function seasonalEdgeCostDays(system, nodes, edge, shipSlug, month) {
   }
 
   const factor = factorTotal / samples.length;
-  const baseKmPerDay = clamp(stats.topSpeedRad * 7200, 115, 360);
+  const baseKmPerDay = clamp(
+    stats.topSpeedRad * 7200,
+    stats.propulsion === SHIP_PROPULSION_OAR ? 60 : 115,
+    360
+  );
   const kindMul = edge.kind === "strait" ? 0.78 : edge.kind === "coastal" || edge.kind === "port" ? 0.88 : 1;
   const days = distance / Math.max(25, baseKmPerDay * factor * kindMul);
   const result = Math.max(0.12, days);
@@ -1503,6 +1533,7 @@ function seasonalEdgeCostDays(system, nodes, edge, shipSlug, month) {
 }
 
 function routeWindProgressFactor(stats, bearing, wind, edgeKind) {
+  if (stats.propulsion === SHIP_PROPULSION_OAR) return 1;
   const flow = normalizeAngleRad(wind.directionRad + Math.PI);
   const alignment = Math.cos(shortestAngleDelta(bearing, flow));
   const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
@@ -1521,7 +1552,10 @@ function routeWindProgressFactor(stats, bearing, wind, edgeKind) {
     efficiency = directSailingEfficiency(stats, angleFromWind);
   }
   const windPower = 0.34 + wind.strength * 0.92;
-  return clamp(efficiency * windPower, 0.04, 1.2);
+  const sailingProgress = clamp(efficiency * windPower, 0.04, 1.2);
+  return stats.propulsion === SHIP_PROPULSION_OAR_SAIL
+    ? Math.max(HYBRID_ROUTE_PROGRESS_FLOOR, sailingProgress)
+    : sailingProgress;
 }
 
 function directSailingEfficiency(stats, angleFromWind) {
@@ -1576,6 +1610,7 @@ function isAnyUsablePort(port) {
 }
 
 function isEastAsiaPort(port) {
+  if (isNativeCoastalPort(port)) return false;
   return port.cityType === "east-asian" || (port.lon >= 105 && port.lon <= 145 && port.lat >= 10 && port.lat <= 42);
 }
 
@@ -1589,18 +1624,23 @@ function isPolynesianPort(port) {
   return port.cityType === "polynesian";
 }
 
+function isMesoamericanPort(port) {
+  return port.cityType === "mesoamerican";
+}
+
 function isMediterraneanPort(port) {
   return port.cityType === "mediterranean" ||
     (port.lon >= -7 && port.lon <= 42 && port.lat >= 30 && port.lat <= 46);
 }
 
 function isAtlanticPort(port) {
+  if (isNativeCoastalPort(port)) return false;
   return port.cityType === "northern-european" ||
     (port.lon >= -85 && port.lon <= 20 && port.lat >= -36 && port.lat <= 58);
 }
 
 function isLongRangePort(port) {
-  return isAnyUsablePort(port) && [
+  return isAnyUsablePort(port) && !isNativeCoastalPort(port) && [
     "europe",
     "south-asia",
     "east-asia",
@@ -1609,6 +1649,14 @@ function isLongRangePort(port) {
     "americas",
     "polynesia"
   ].includes(portRouteRegion(port));
+}
+
+function isWideWorldPort(port) {
+  return isAnyUsablePort(port) && !isNativeCoastalPort(port);
+}
+
+function isNativeCoastalPort(port) {
+  return port.cityType === "polynesian" || port.cityType === "mesoamerican" || port.cityType === "andean";
 }
 
 function portRouteRegion(port) {
@@ -1665,15 +1713,29 @@ function laneEdge(a, b, kind) {
   return Object.freeze({ a, b, kind });
 }
 
-function profile(id, count, shipPools, portPredicate, mode) {
+function profile(id, count, shipPools, portPredicate, mode, roleWeights = null) {
   const fisherSlugs = Object.freeze([...(shipPools.fishers || shipPools.merchants)]);
   const merchantSlugs = Object.freeze([...shipPools.merchants]);
   const warshipSlugs = Object.freeze([...shipPools.warships]);
   if (fisherSlugs.length === 0 || merchantSlugs.length === 0 || warshipSlugs.length === 0) {
     throw new Error(`NPC fleet profile ${id} needs fisher, merchant, and warship hulls`);
   }
+  if (roleWeights) {
+    const roles = ["merchant", "fisherman", "warship", "pirate"];
+    for (const role of roles) {
+      if (!Number.isInteger(roleWeights[role]) || roleWeights[role] < 0) {
+        throw new Error(`NPC fleet profile ${id} has an invalid ${role} weight`);
+      }
+    }
+    const total = roles.reduce((sum, role) => sum + roleWeights[role], 0);
+    if (total !== 100) throw new Error(`NPC fleet profile ${id} role weights total ${total}, expected 100`);
+  }
   for (const slug of [...fisherSlugs, ...merchantSlugs, ...warshipSlugs]) shipStatsForSlug(slug);
-  return Object.freeze({ id, count, fisherSlugs, merchantSlugs, warshipSlugs, portPredicate, mode });
+  return Object.freeze({ id, count, fisherSlugs, merchantSlugs, warshipSlugs, portPredicate, mode, roleWeights });
+}
+
+function nativeCoastalRoleWeights() {
+  return Object.freeze({ merchant: 45, fisherman: 50, warship: 5, pirate: 0 });
 }
 
 function portNodeId(port, role) {

@@ -270,6 +270,9 @@ export function selectPortDialogueOption(
   if (action.type === "open-passenger") {
     return { closed: false, action: { type: "open-passenger", quest: action.quest } };
   }
+  if (action.type === "wait-in-port") {
+    return { closed: true, action: { type: "wait-in-port" } };
+  }
   if (action.type === "purchase-ship") {
     return { closed: false, action };
   }
@@ -469,6 +472,7 @@ function rootView(session, city, gameState, economy, context) {
   }
   options.push(
     option("Cargo ledger", { type: "node", nodeId: "cargo" }),
+    option("Wait safely in port", { type: "wait-in-port" }),
     option("Leave port", { type: "close" })
   );
   return {

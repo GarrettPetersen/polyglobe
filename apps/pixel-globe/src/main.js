@@ -31,11 +31,16 @@ import {
 } from "./weather.js";
 import {
   DEFAULT_PLAYER_SHIP_SLUG,
+  SHIP_PROPULSION_SAIL,
   SHIP_STATS,
   SHIP_STATS_BY_SLUG,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
+import {
+  shipHasWindDeadZone,
+  shipPropulsionPerformance
+} from "./shipPropulsion.js";
 import {
   assignNpcShipCaptains,
   assignPortCityCharacters,
@@ -64,8 +69,10 @@ import {
   initializeProvisionalShipLoadout,
   loseCrew,
   playerFishingNet,
+  refillFreshWaterFromShore,
   receiveFishCatch,
   receiveSurrenderedLoot,
+  reconcileQuestPortTiles,
   recordAttackAgainstFaction,
   recordDiscovery,
   recordPiracyAgainstFaction,
@@ -73,6 +80,7 @@ import {
   rollCrewCasualtiesForDamage,
   purchasePlayerShip,
   setPlayerShipStats,
+  stowForagedFood,
   survivalStatus,
   updateCircumnavigationProgress,
   updateSurvival,
@@ -178,7 +186,7 @@ import {
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
-import { windVGeometry } from "./windIndicator.js";
+import { windVGeometry, windVOpacity } from "./windIndicator.js";
 import { loadImageWithRetry } from "./assetImageLoader.js";
 import { DEFAULT_GAME_TIME_SCALE } from "./gamePacing.js";
 import {
@@ -241,8 +249,10 @@ import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
 import {
   MANUAL_CITY_RECORDS_1522,
   cityPopulationObservationAtYear,
+  cityRequiresPortAccess,
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
+import { cityIsLandlocked } from "./cityPortAccess.js";
 import { withColonialFounding } from "./colonialCities.js";
 import {
   activePassengerQuest,
@@ -269,7 +279,21 @@ import {
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 import { gamepadControlFrame } from "./controllerInput.js";
-import { broadsideArcGeometry, hasBroadsideCannons, pointInBroadsideArc } from "./broadsideControls.js";
+import { broadsideArcGeometry, pointInBroadsideArc } from "./broadsideControls.js";
+import {
+  NAVAL_WEAPON_ARROW,
+  NAVAL_WEAPON_CANNON,
+  navalWeaponForShip
+} from "./navalWeapons.js";
+import {
+  SHORE_SCAVENGE_CASUALTY,
+  SHORE_SCAVENGE_FOOD,
+  SHORE_SCAVENGE_NOTHING,
+  SHORE_SCAVENGE_SPRING,
+  foragedFoodQuantity,
+  rollShoreScavenge,
+  shoreScavengeNarrative
+} from "./shoreScavenge.js";
 
 const BASE_SCREEN_W = 455;
 const BASE_SCREEN_H = 256;
@@ -419,8 +443,9 @@ const CANNON_ARC_HEIGHT_PX = 13;
 const CANNON_TRAIL_MAX_PX = 3;
 const CANNON_SPLASH_TTL_SECONDS = 0.46;
 const CANNON_SPLASH_DROP_COUNT = 6;
-const CANNON_MAX_BALLS = 160;
+const NAVAL_MAX_PROJECTILES = 160;
 const CANNON_MAX_SPLASHES = 128;
+const ARROW_LINE_LENGTH_PX = 4;
 const WIND_INDICATOR_RADIUS_PX = 20;
 const WIND_INDICATOR_DIRECTION_COUNT = 16;
 const WIND_INDICATOR_DIRECTION_STABLE_FRAMES = 3;
@@ -461,7 +486,7 @@ const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-2";
-const VEHICLE_ASSET_VERSION = "ship-edge-shading-1";
+const VEHICLE_ASSET_VERSION = "native-boats-1";
 const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const CITY_ASSET_VERSION = "city-types-2";
 const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-1";
@@ -476,7 +501,6 @@ const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_DATA_YEAR = 1522;
 const CITY_MAX_COUNT = 480;
-const CITY_PORT_ACCESS_RING_DISTANCE = 2;
 const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
   ["mexico city|mexico", [{ throughYear: 1522, displayCity: "Tenochtitlan" }]],
@@ -524,8 +548,14 @@ const CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES = new Set([
   "Vietnam"
 ]);
 const CITY_TYPE_POLYNESIAN_COUNTRIES = new Set([
+  "Aotearoa",
+  "Cook Islands",
   "Fiji",
   "French Polynesia",
+  "Hawaii",
+  "Kiribati",
+  "Niue",
+  "Rapa Nui",
   "Samoa",
   "Tonga"
 ]);
@@ -633,6 +663,9 @@ const ANCHOR_BUTTON_H = INTERACTION_BUTTON_H;
 let ANCHOR_BUTTON_X = Math.floor((SCREEN_W - ANCHOR_BUTTON_W - 4 - INTERACTION_BUTTON_W) / 2);
 let ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
 const ANCHOR_SHORE_MAX_PX = 36;
+const SCAVENGE_BUTTON_W = 96;
+const SCAVENGE_ACTION_MS = 3000;
+const PORT_WAIT_BUTTON_W = 176;
 const QUEST_ARROW_EDGE_MARGIN_PX = 15;
 const QUEST_ARROW_CITY_Y_OFFSET = -18;
 const QUEST_ARROW_SIZE_PX = 7;
@@ -645,7 +678,7 @@ const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
 const SURVIVAL_PANEL_W = 108;
-const SURVIVAL_PANEL_H = 32;
+const SURVIVAL_PANEL_H = 42;
 const SURVIVAL_BAR_W = 46;
 const SURVIVAL_NOTICE_MS = 2400;
 const SURVIVAL_DAMAGE_INTERVAL_MINUTES = 12 * 60;
@@ -703,6 +736,10 @@ const CREDITS_FALLBACK_MARKDOWN = `# Marque & Reprisal Credits
 
 ## Music
 - YouFulca
+
+## 3D Models
+- Hialda Alpizar - "Polynesian Voyaging Canoe" (CC BY 4.0)
+- irodatiii - "Low Poly Canoe - Stylized Game Asset" (Sketchfab Free Standard)
 
 ## Sound Effects
 - Alex Jauk
@@ -778,9 +815,9 @@ const CAPTAIN_MENU_LABELS = Object.freeze([
 const CAPTAIN_MENU_PANEL_W = 224;
 const CAPTAIN_MENU_PANEL_H = 226;
 const UI_ASSET_VERSION = "discoveries-menu-1";
-const SHIP_INFO_ASSET_VERSION = "side-view-resurrect-1";
+const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "fishing-catch-3";
+const SFX_ASSET_VERSION = "shore-scavenge-1";
 const ANIMAL_ASSET_VERSION = "fishing-net-2";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
@@ -859,6 +896,8 @@ const COMBAT_MUSIC_HOLD_MS = 18000;
 const COMBAT_BIG_BROADSIDE_MIN_CANNONS = 10;
 const COMBAT_NOTICE_MS = 4200;
 const SFX_CANNON_URL = "/assets/sfx/universfield-cannon-shot-352459.ogg";
+const SFX_BOW_FIRE_URL = "/assets/sfx/bow-fire.ogg";
+const SFX_ARROW_HIT_URL = "/assets/sfx/arrow-hit.ogg";
 const SFX_HARBOUR_URL = "/assets/sfx/freesound_community-harboursoundsanno1811-24015.ogg";
 const SFX_IMPACT_URL = "/assets/sfx/dragon-studio-boulder-impact-487673.ogg";
 const SFX_SEAGULLS_URL = "/assets/sfx/dragon-studio-seagull-calls-339723.ogg";
@@ -875,7 +914,11 @@ const SFX_COIN_CLINK_URL = "/assets/sfx/floraphonic-coin-and-money-bag-3-185264.
 const SFX_FISHING_URL = "/assets/sfx/alex_jauk-water-splash-147014.mp3";
 const SFX_FISHING_SUCCESS_URL = "/assets/sfx/freesound_community-item-pickup-37089.ogg";
 const SFX_FISHING_FAILURE_URL = "/assets/sfx/dominik-braun-failure-sound.mp3";
+const SFX_SCAVENGE_SUCCESS_URL = "/assets/sfx/freesound_community-item-pickup-37089.ogg";
+const SFX_SCAVENGE_FAILURE_URL = "/assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_CANNON_POOL_SIZE = 8;
+const SFX_BOW_FIRE_POOL_SIZE = 6;
+const SFX_ARROW_HIT_POOL_SIZE = 6;
 const SFX_IMPACT_POOL_SIZE = 6;
 const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
@@ -883,7 +926,11 @@ const SFX_COIN_CLINK_POOL_SIZE = 4;
 const SFX_FISHING_POOL_SIZE = 3;
 const SFX_FISHING_SUCCESS_POOL_SIZE = 2;
 const SFX_FISHING_FAILURE_POOL_SIZE = 2;
+const SFX_SCAVENGE_SUCCESS_POOL_SIZE = 2;
+const SFX_SCAVENGE_FAILURE_POOL_SIZE = 2;
 const SFX_CANNON_VOLUME = 0.76;
+const SFX_BOW_FIRE_VOLUME = 0.68;
+const SFX_ARROW_HIT_VOLUME = 0.54;
 const SFX_IMPACT_VOLUME = 0.64;
 const SFX_SAIL_DEPLOY_VOLUME = 0.22;
 const SFX_DISCOVERY_SUCCESS_VOLUME = 0.72;
@@ -891,6 +938,8 @@ const SFX_COIN_CLINK_VOLUME = 0.58;
 const SFX_FISHING_VOLUME = 0.42;
 const SFX_FISHING_SUCCESS_VOLUME = 0.58;
 const SFX_FISHING_FAILURE_VOLUME = 0.46;
+const SFX_SCAVENGE_SUCCESS_VOLUME = 0.62;
+const SFX_SCAVENGE_FAILURE_VOLUME = 0.44;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
 const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
@@ -1119,7 +1168,11 @@ let playerIntroModal = null;
 let interactionButtonRect = null;
 let interactionButtonTarget = null;
 let anchorButtonRect = null;
+let scavengeButtonRect = null;
+let shoreScavengeAction = null;
 let anchored = false;
+let portWaitState = null;
+let portWaitButtonRect = null;
 let stormMusicActive = false;
 let stormDamageNotice = null;
 let combatNotice = null;
@@ -1165,6 +1218,10 @@ window.addEventListener("keydown", (event) => {
   ensureGameAudioStarted(true);
   if (gameOverReason) {
     handleGameOverKeyDown(event);
+    return;
+  }
+  if (portWaitState) {
+    handlePortWaitKeyDown(event);
     return;
   }
   if (shipInfoMenu.isOpen) {
@@ -2558,11 +2615,12 @@ function runFrame(nowMs) {
   if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
-    } else if (!anchored && updateSailing(dt)) dirty = true;
-    if (updateCannons(dt)) dirty = true;
+    } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
+    if (updateNavalWeapons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateFishAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
+    if (updateShoreScavenge(nowMs)) dirty = true;
     ensureChart();
     if (updateDiscoveries(nowMs)) dirty = true;
     if (updateNpcShips(dt)) dirty = true;
@@ -2584,7 +2642,8 @@ function runFrame(nowMs) {
   } else if (!startMenu && !creditsMenu.isOpen && !playerIntroModal && nowMs - lastOverlayMs > 250) {
     if (minimapShouldBeVisible()) drawMinimap(nowMs);
     drawSurvivalMeters();
-    drawCaptainMenuButton();
+    if (portWaitState) drawPortWaitControls();
+    else drawCaptainMenuButton();
     lastOverlayMs = nowMs;
   }
   requestAnimationFrame(loop);
@@ -2816,6 +2875,8 @@ function setupSoundEffects() {
   if (soundEffects) return;
   soundEffects = {
     cannon: createSoundPool(SFX_CANNON_URL, SFX_CANNON_POOL_SIZE, "cannon shot"),
+    bowFire: createSoundPool(SFX_BOW_FIRE_URL, SFX_BOW_FIRE_POOL_SIZE, "bow fire"),
+    arrowHit: createSoundPool(SFX_ARROW_HIT_URL, SFX_ARROW_HIT_POOL_SIZE, "arrow hit"),
     impact: createSoundPool(SFX_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "impact thud"),
     sailDeploy: createSoundPool(SFX_SAIL_DEPLOY_URL, SFX_SAIL_DEPLOY_POOL_SIZE, "sail deployment"),
     discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
@@ -2830,6 +2891,16 @@ function setupSoundEffects() {
       SFX_FISHING_FAILURE_URL,
       SFX_FISHING_FAILURE_POOL_SIZE,
       "empty fishing net"
+    ),
+    scavengeSuccess: createSoundPool(
+      SFX_SCAVENGE_SUCCESS_URL,
+      SFX_SCAVENGE_SUCCESS_POOL_SIZE,
+      "successful shore scavenge"
+    ),
+    scavengeFailure: createSoundPool(
+      SFX_SCAVENGE_FAILURE_URL,
+      SFX_SCAVENGE_FAILURE_POOL_SIZE,
+      "unsuccessful shore scavenge"
     ),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
@@ -2979,12 +3050,17 @@ function applyThemeAudioSettings() {
   if (soundEffects) {
     for (const audio of [
       ...soundEffects.cannon,
+      ...soundEffects.bowFire,
+      ...soundEffects.arrowHit,
       ...soundEffects.impact,
       ...soundEffects.sailDeploy,
       ...soundEffects.discoverySuccess,
       ...soundEffects.coinClink,
       ...soundEffects.fishing,
-      ...soundEffects.fishingFailure
+      ...soundEffects.fishingSuccess,
+      ...soundEffects.fishingFailure,
+      ...soundEffects.scavengeSuccess,
+      ...soundEffects.scavengeFailure
     ]) {
       audio.muted = optionsMenu.muted;
     }
@@ -3010,6 +3086,37 @@ function playSoundEffect(pool, volume, playbackRate = 1) {
 function playCannonShotSound(broadsideCount) {
   const countGain = 0.72 + Math.min(0.28, Math.max(0, broadsideCount - 1) * 0.025);
   playSoundEffect(soundEffects?.cannon, SFX_CANNON_VOLUME * countGain, 0.94 + Math.random() * 0.1);
+}
+
+function playBowFireSound() {
+  playSoundEffect(soundEffects?.bowFire, SFX_BOW_FIRE_VOLUME, 0.94 + Math.random() * 0.1);
+}
+
+function playArrowHitSound() {
+  playSoundEffect(soundEffects?.arrowHit, SFX_ARROW_HIT_VOLUME, 0.95 + Math.random() * 0.08);
+}
+
+function playNavalAttackSound(weapon, broadsideCount) {
+  if (weapon.kind === NAVAL_WEAPON_ARROW) {
+    playBowFireSound();
+    return;
+  }
+  if (weapon.kind === NAVAL_WEAPON_CANNON) {
+    playCannonShotSound(broadsideCount);
+    return;
+  }
+  throw new Error(`Unknown naval attack sound: ${weapon.kind}`);
+}
+
+function playNavalImpactSound(projectile) {
+  if (projectile.kind === NAVAL_WEAPON_ARROW) {
+    playArrowHitSound();
+    return;
+  }
+  playCannonImpactSound(Math.hypot(
+    projectile.targetX - projectile.startX,
+    projectile.targetY - projectile.startY
+  ));
 }
 
 function playCannonImpactSound(distancePx = 0) {
@@ -3039,6 +3146,14 @@ function playFishingSuccessSound() {
 
 function playFishingFailureSound() {
   playSoundEffect(soundEffects?.fishingFailure, SFX_FISHING_FAILURE_VOLUME, 0.98 + Math.random() * 0.04);
+}
+
+function playScavengeSuccessSound() {
+  playSoundEffect(soundEffects?.scavengeSuccess, SFX_SCAVENGE_SUCCESS_VOLUME, 0.96 + Math.random() * 0.06);
+}
+
+function playScavengeFailureSound() {
+  playSoundEffect(soundEffects?.scavengeFailure, SFX_SCAVENGE_FAILURE_VOLUME, 0.98 + Math.random() * 0.04);
 }
 
 function updateAmbientAudio(dt) {
@@ -3163,7 +3278,11 @@ function sailingAmbientTargets(dt) {
     angleFromWindRad,
     stallAngleRad: ship.stats.upwindStallAngleRad
   });
-  if (!anchored) return targets;
+  if (!anchored) {
+    return ship.stats.propulsion === SHIP_PROPULSION_SAIL
+      ? targets
+      : { ...targets, sailFlap: 0 };
+  }
   return {
     ...targets,
     sailFlap: 0,
@@ -3341,7 +3460,7 @@ function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false 
     ship.cargoUsed = gameState ? cargoUsed(gameState) : Math.min(ship.cargoUsed || 0, stats.cargoCapacity);
     ship.wakeParticles = [];
     ship.lastWakeEmit = null;
-    ship.cannonballs = [];
+    ship.navalProjectiles = [];
     ship.cannonSplashes = [];
     ship.cannonCooldowns = {
       port: 0,
@@ -3547,6 +3666,7 @@ async function restoreSavedVoyage(payload) {
   });
 
   gameState = restoredGameState;
+  reconcileQuestPortTiles(gameState, portCities);
   shipImage = assets.image;
   shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
   shipLighting = assets.lighting;
@@ -3566,7 +3686,7 @@ async function restoreSavedVoyage(payload) {
   ship.cannonCooldowns = { port: 0, starboard: 0 };
   ship.wakeParticles = [];
   ship.lastWakeEmit = null;
-  ship.cannonballs = [];
+  ship.navalProjectiles = [];
   ship.cannonSplashes = [];
 
   weatherClockMinutes = payload.worldClock.currentMinute;
@@ -3581,6 +3701,9 @@ async function restoreSavedVoyage(payload) {
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
   fishingAction = null;
+  shoreScavengeAction = null;
+  portWaitState = null;
+  portWaitButtonRect = null;
   discoveryNotice = null;
   discoveryNoticeQueue.length = 0;
   fishCatchNotice = null;
@@ -3926,6 +4049,12 @@ function handlePointerDown(event) {
     if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
     return;
   }
+  if (portWaitState) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    if (pointInRect(point, portWaitButtonRect)) stopWaitingInPort();
+    return;
+  }
   if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -3996,6 +4125,12 @@ function handlePointerDown(event) {
     toggleAnchor();
     return;
   }
+  if (!dialogueState && pointInRect(point, scavengeButtonRect)) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    startShoreScavenge();
+    return;
+  }
   if (dialogueState) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -4008,11 +4143,11 @@ function handlePointerDown(event) {
     openActiveInteractionDialogue();
     return;
   }
-  const cannonSide = cannonBroadsideSideAtPoint(point);
-  if (cannonSide) {
+  const broadside = navalBroadsideSideAtPoint(point);
+  if (broadside) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    fireBroadside(cannonSide);
+    fireBroadside(broadside);
     return;
   }
   const clickedShip = npcShipCallAtPoint(point);
@@ -4495,7 +4630,7 @@ function stopShipForDialogue() {
 }
 
 function toggleAnchor() {
-  if (!ship || gameOverReason) return false;
+  if (!ship || gameOverReason || shoreScavengeAction) return false;
   if (anchored) {
     anchored = false;
     keys.clear();
@@ -4522,6 +4657,113 @@ function canAnchorAtCurrentShore() {
     if (distance2(localLayout.viewX, localLayout.viewY, call.x, call.y) <= maxDistance2) return true;
   }
   return false;
+}
+
+function startShoreScavenge() {
+  if (!anchored || shoreScavengeAction || gameOverReason) return false;
+  if (playerStormIntensity() >= STORM_ACTIVE_INTENSITY) {
+    showSurvivalNotice("TOO DANGEROUS TO GO ASHORE", "warn");
+    return false;
+  }
+  shoreScavengeAction = {
+    startedAtMs: lastFrameMs,
+    completesAtMs: lastFrameMs + SCAVENGE_ACTION_MS
+  };
+  stopShipForDialogue();
+  showSurvivalNotice("SCAVENGING ASHORE...", "good");
+  dirty = true;
+  return true;
+}
+
+function updateShoreScavenge(nowMs) {
+  if (!shoreScavengeAction || nowMs < shoreScavengeAction.completesAtMs) return false;
+  shoreScavengeAction = null;
+  const outcome = rollShoreScavenge();
+  const narrative = shoreScavengeNarrative(outcome);
+  if (outcome === SHORE_SCAVENGE_SPRING) {
+    const filled = refillFreshWaterFromShore(gameState);
+    if (filled > 0) {
+      playScavengeSuccessSound();
+      showSurvivalNotice(`FOUND A SPRING  WATER +${Math.ceil(filled)}`, "good");
+      openCaptainAlertModal(`${narrative} We filled the casks.`, "happy");
+    } else {
+      playScavengeFailureSound();
+      showSurvivalNotice("FOUND A SPRING  CASKS CANNOT TAKE MORE", "warn");
+      openCaptainAlertModal(`${narrative} Every cask was already full.`, "concerned");
+    }
+  } else if (outcome === SHORE_SCAVENGE_FOOD) {
+    const found = stowForagedFood(gameState, foragedFoodQuantity());
+    if (found > 0) {
+      playScavengeSuccessSound();
+      showSurvivalNotice(`FOUND WILD GAME  FOOD +${found}`, "good");
+      openCaptainAlertModal(`${narrative} We gained ${found} food.`, "happy");
+    } else {
+      playScavengeFailureSound();
+      showSurvivalNotice("FOUND WILD GAME  HOLD FULL", "warn");
+      openCaptainAlertModal(`${narrative} There was no room in the hold.`, "concerned");
+    }
+  } else if (outcome === SHORE_SCAVENGE_NOTHING) {
+    playScavengeFailureSound();
+    showSurvivalNotice("FOUND NOTHING", "warn");
+    openCaptainAlertModal(narrative, "sad");
+  } else if (outcome === SHORE_SCAVENGE_CASUALTY) {
+    const lost = loseCrew(gameState, 1);
+    playScavengeFailureSound();
+    syncShipCargoFromGameState();
+    showSurvivalNotice(`${lost} CREW LOST ASHORE`, "warn");
+    if (gameState.ship.crew <= 0) {
+      sinkPlayerShip("The last of the crew died while scavenging ashore.");
+    } else {
+      openCaptainAlertModal(narrative, "sad");
+    }
+  }
+  syncShipCargoFromGameState();
+  saveVoyageNow("shore scavenging");
+  return true;
+}
+
+function startWaitingInPort(city) {
+  if (!city || portWaitState || gameOverReason) return false;
+  portWaitState = {
+    cityTileId: city.tileId,
+    startedAtMinute: weatherClockMinutes
+  };
+  dialogueState = null;
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  clearCombatForShip(PLAYER_COMBAT_ID);
+  npcCombatProjectiles = npcCombatProjectiles.filter((projectile) => projectile.targetId !== PLAYER_COMBAT_ID);
+  saveVoyageNow("waiting in port");
+  dirty = true;
+  return true;
+}
+
+function stopWaitingInPort() {
+  if (!portWaitState) return false;
+  const city = cityByTileId.get(portWaitState.cityTileId);
+  const character = city ? portCityCharacters?.get(city.tileId) : null;
+  portWaitState = null;
+  portWaitButtonRect = null;
+  if (!city || !character) {
+    setBackgroundMusicTrack("ship", { force: true });
+    dirty = true;
+    return false;
+  }
+  dialogueState = createPortDialogueSession({
+    ...city,
+    character,
+    portrait: characterExpression(character)
+  }, { initialNodeId: "root" });
+  dialogueLayout = createDialogueLayoutState();
+  ensureDialoguePortraitLoaded();
+  saveVoyageNow("stopped waiting in port");
+  dirty = true;
+  return true;
+}
+
+function handlePortWaitKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Enter" || event.key === " " || event.key === "Escape") stopWaitingInPort();
 }
 
 function closeDialogue() {
@@ -4561,6 +4803,10 @@ function chooseDialogueOption(optionIndex) {
     }
     if (result.action?.type === "purchase-ship") {
       void purchaseShipyardShip(result.action);
+      return;
+    }
+    if (result.action?.type === "wait-in-port") {
+      startWaitingInPort(currentDialogueCity());
       return;
     }
   } else if (dialogueState.kind === "passenger") {
@@ -5227,7 +5473,7 @@ function placeCityCatalog(cities) {
       throw new Error(`Could not place city on drawable land tile: ${city.city}, ${city.country}`);
     }
     if (placed.has(tileId)) {
-      if (!cityIsRequiredPort(city)) continue;
+      if (!cityRequiresPortAccess(city)) continue;
       const alternateTileId = nearestTileMatching(tileId, (id) => placementPredicate(id) && !placed.has(id));
       if (alternateTileId === undefined) {
         throw new Error(`Could not place required port city on an unoccupied land tile: ${city.city}, ${city.country}`);
@@ -5240,41 +5486,24 @@ function placeCityCatalog(cities) {
 }
 
 function cityPlacementPredicate(city) {
-  if (!cityIsRequiredPort(city)) return isCityDrawableTile;
-  return (tileId) => isCityDrawableTile(tileId) && cityHasPortAccess(tileId);
-}
-
-function cityIsRequiredPort(city) {
-  return Boolean(city?.declaredCapitalFactionId || city?.requiredTradePort);
+  if (!cityRequiresPortAccess(city)) return isCityDrawableTile;
+  return (tileId) => isCityDrawableTile(tileId) && !cityIsLandlocked(cityPortAccessOptions(tileId));
 }
 
 function portCitiesForCharacters() {
-  const ports = [...cityByTileId.values()].filter((city) => cityHasPortAccess(city.tileId));
+  const ports = [...cityByTileId.values()].filter((city) => !cityIsLandlocked(cityPortAccessOptions(city.tileId)));
   if (ports.length === 0) throw new Error("No port cities found for character portrait assignments");
   return ports;
 }
 
-function cityHasPortAccess(tileId) {
-  const visited = new Set([tileId]);
-  const queue = [{ tileId, distance: 0 }];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (isCityPortAccessTile(current.tileId)) return true;
-    if (current.distance >= CITY_PORT_ACCESS_RING_DISTANCE) continue;
-
-    for (const neighborId of graph.neighbors[current.tileId] || []) {
-      if (visited.has(neighborId)) continue;
-      visited.add(neighborId);
-      queue.push({ tileId: neighborId, distance: current.distance + 1 });
-    }
-  }
-  return false;
-}
-
-function isCityPortAccessTile(tileId) {
-  if (!oceanReachableNavigationMask?.[tileId]) return false;
-  return isWaterSurfaceRow(earthById[tileId]) || (riverMasks?.[tileId] || 0) !== 0;
+function cityPortAccessOptions(tileId) {
+  return {
+    graph,
+    earthRows: earthById,
+    reachableNavigationMask: oceanReachableNavigationMask,
+    riverMasks,
+    tileId
+  };
 }
 
 function isCityDrawableTile(tileId) {
@@ -5304,7 +5533,7 @@ function createShip(latDeg, lonDeg, shipSlug, factionId) {
     wakeParticles: [],
     wakeSeedCounter: 0,
     lastWakeEmit: null,
-    cannonballs: [],
+    navalProjectiles: [],
     cannonSplashes: [],
     cannonSequence: 0,
     cannonCooldowns: {
@@ -5396,11 +5625,16 @@ function updateSailing(dt) {
 function updateStallTackingTutorial(dt, inRiver) {
   const wind = windForTile(ship.tileId);
   const windFlow = windFlowVectorAtShip(wind);
+  const propulsion = shipPropulsionPerformance(ship.stats, {
+    windStrength: wind.strength,
+    sailEfficiency: sailingEfficiency(ship.heading, windFlow),
+    minimumSailSpeed: SHIP_MIN_POWERED_SPEED_RAD
+  });
   const shouldPrompt = updateSailingTutorialState(sailingTutorialState, {
     dt,
     alreadyShown: gameState?.memory?.flags?.tackingTutorialShown === true,
     eligible: !inRiver && !anchored && !playerHasCombatEngagement(),
-    stalled: sailingEfficiency(ship.heading, windFlow) <= 0
+    stalled: propulsion.stalled
   });
   if (!shouldPrompt) return false;
 
@@ -5504,12 +5738,13 @@ function stepShipInfoView(direction) {
 function controllerUiIsActive() {
   return Boolean(gameOverReason || shipInfoMenu.isOpen || politicsMenu.isOpen || discoveriesMenu.isOpen ||
     optionsMenu.isOpen || creditsMenu.isOpen || captainMenu.isOpen || startMenu || playerIntroModal ||
-    captainAlertModal || dialogueState);
+    captainAlertModal || dialogueState || portWaitState);
 }
 
 function dispatchControllerKey(key) {
   const event = { key, preventDefault() {} };
   if (gameOverReason) handleGameOverKeyDown(event);
+  else if (portWaitState) handlePortWaitKeyDown(event);
   else if (shipInfoMenu.isOpen) handleShipInfoKeyDown(event);
   else if (politicsMenu.isOpen) handlePoliticsKeyDown(event);
   else if (discoveriesMenu.isOpen) handleDiscoveriesKeyDown(event);
@@ -5538,17 +5773,22 @@ function applyWindAcceleration(dt) {
   const wind = windForTile(ship.tileId);
   const windFlow = windFlowVectorAtShip(wind);
   const efficiency = sailingEfficiency(ship.heading, windFlow);
-  const sailAccel = ship.stats.accelerationRad * wind.strength * efficiency;
+  const propulsion = shipPropulsionPerformance(ship.stats, {
+    windStrength: wind.strength,
+    sailEfficiency: efficiency,
+    minimumSailSpeed: SHIP_MIN_POWERED_SPEED_RAD
+  });
+  const propulsionAccel = ship.stats.accelerationRad * propulsion.accelerationFactor;
 
   ship.velocity = [
-    ship.velocity[0] + ship.heading[0] * sailAccel * dt,
-    ship.velocity[1] + ship.heading[1] * sailAccel * dt,
-    ship.velocity[2] + ship.heading[2] * sailAccel * dt
+    ship.velocity[0] + ship.heading[0] * propulsionAccel * dt,
+    ship.velocity[1] + ship.heading[1] * propulsionAccel * dt,
+    ship.velocity[2] + ship.heading[2] * propulsionAccel * dt
   ];
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
-  const drag = SHIP_DRAG_PER_SECOND * (efficiency > 0 ? 1 : SHIP_NO_GO_DRAG_MULTIPLIER);
+  const drag = SHIP_DRAG_PER_SECOND * (propulsion.stalled ? SHIP_NO_GO_DRAG_MULTIPLIER : 1);
   ship.velocity = scaleVector(ship.velocity, Math.exp(-drag * dt));
-  limitShipSpeed(poweredShipMaxSpeed(wind.strength, efficiency));
+  limitShipSpeed(propulsion.maxSpeedRad);
 }
 
 function applyHeldShipHaulAcceleration(dt, inputHeading, motionScale) {
@@ -5618,12 +5858,6 @@ function sailingEfficiency(heading, windFlow) {
 
   const t = (angleFromWind - Math.PI * 0.75) / (Math.PI * 0.25);
   return 0.85 - t * 0.3;
-}
-
-function poweredShipMaxSpeed(windStrength, efficiency) {
-  if (efficiency <= 0) return Infinity;
-  const windFactor = 0.28 + windStrength * 0.72;
-  return SHIP_MIN_POWERED_SPEED_RAD + (ship.stats.topSpeedRad - SHIP_MIN_POWERED_SPEED_RAD) * windFactor * efficiency;
 }
 
 function windFlowVectorAtShip(wind) {
@@ -6352,13 +6586,14 @@ function fireBroadside(sideName) {
   if (sideName !== "port" && sideName !== "starboard") {
     throw new Error(`Unknown cannon broadside: ${sideName}`);
   }
-  const broadsideCount = shipBroadsideCannonCount();
-  if (broadsideCount <= 0) return;
+  const weapon = playerNavalWeapon();
+  if (!weapon) return;
+  const broadsideCount = weapon.kind === NAVAL_WEAPON_CANNON ? shipBroadsideCannonCount() : 1;
   if (ship.cannonCooldowns[sideName] > 0) return;
 
   ship.cannonCooldowns[sideName] = CANNON_BROADSIDE_COOLDOWN_SECONDS;
   startCombatMusicForThreat(broadsideCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
-  playCannonShotSound(broadsideCount);
+  playNavalAttackSound(weapon, broadsideCount);
 
   const heading = shipScreenHeading();
   const starboard = { x: -heading.y, y: heading.x };
@@ -6374,7 +6609,8 @@ function fireBroadside(sideName) {
       : i / (broadsideCount - 1) - 0.5;
     const seed = cannonSeed(sequenceBase, i, sideSalt, origin);
     const spread = (cannonUnit(seed, 1) * 2 - 1) * CANNON_AIM_SPREAD_RAD;
-    const range = CANNON_RANGE_PX + (cannonUnit(seed, 2) * 2 - 1) * CANNON_RANGE_JITTER_PX;
+    const range = (CANNON_RANGE_PX + (cannonUnit(seed, 2) * 2 - 1) * CANNON_RANGE_JITTER_PX) *
+      weapon.rangeScale;
     const sideJitter = (cannonUnit(seed, 3) * 2 - 1) * 0.75;
     const aim = rotate2(side, spread);
     const startX = origin.x +
@@ -6385,33 +6621,35 @@ function fireBroadside(sideName) {
       side.y * (CANNON_MUZZLE_SIDE_OFFSET_PX + sideJitter);
     const targetX = startX + aim.x * range;
     const targetY = startY + aim.y * range;
-    ship.cannonballs.push({
+    ship.navalProjectiles.push({
+      kind: weapon.kind,
       startX,
       startY,
       targetX,
       targetY,
       age: 0,
-      duration: range / CANNON_SPEED_PX,
-      arcHeight: CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 4) * 4,
-      damage: 1,
+      duration: range / (CANNON_SPEED_PX * weapon.speedScale),
+      arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 4) * 4) * weapon.arcHeightScale,
+      damage: weapon.damage,
       seed
     });
   }
 
-  if (ship.cannonballs.length > CANNON_MAX_BALLS) {
-    ship.cannonballs.splice(0, ship.cannonballs.length - CANNON_MAX_BALLS);
+  if (ship.navalProjectiles.length > NAVAL_MAX_PROJECTILES) {
+    ship.navalProjectiles.splice(0, ship.navalProjectiles.length - NAVAL_MAX_PROJECTILES);
   }
   dirty = true;
 }
 
 function drawCombatBroadsideControls() {
-  if (!ship || !localLayout || !playerHasCombatEngagement() || dialogueState || menusAreOpen() || gameOverReason) return;
-  if (!hasBroadsideCannons(gameState?.ship?.cannons || 0)) return;
+  if (!ship || !localLayout || portWaitState || !playerHasCombatEngagement() || dialogueState || menusAreOpen() || gameOverReason) return;
+  const weapon = playerNavalWeapon();
+  if (!weapon) return;
   for (const sideName of ["port", "starboard"]) {
-    const arc = cannonBroadsideArc(sideName);
+    const arc = navalBroadsideArc(sideName, weapon);
     const cooldown = ship.cannonCooldowns[sideName] || 0;
     const ready = cooldown <= 0;
-    const hasTarget = cannonArcHasEnemy(arc);
+    const hasTarget = navalArcHasEnemy(arc);
     ctx.save();
     ctx.beginPath();
     ctx.arc(arc.origin.x, arc.origin.y, arc.innerRadius, arc.startAngle, arc.endAngle);
@@ -6443,28 +6681,30 @@ function drawCombatBroadsideControls() {
   }
 }
 
-function cannonBroadsideArc(sideName) {
+function navalBroadsideArc(sideName, weapon = playerNavalWeapon()) {
+  if (!weapon) throw new Error("Cannot draw a broadside arc without a naval weapon");
   const heading = shipScreenHeading();
-  const length = Math.min(CANNON_RANGE_PX, Math.max(46, Math.min(SCREEN_W, SCREEN_H) * 0.25));
+  const cannonLength = Math.min(CANNON_RANGE_PX, Math.max(46, Math.min(SCREEN_W, SCREEN_H) * 0.25));
   return broadsideArcGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     heading,
     sideName,
-    range: length
+    range: cannonLength * weapon.rangeScale
   });
 }
 
-function cannonBroadsideSideAtPoint(point) {
+function navalBroadsideSideAtPoint(point) {
   if (!point || !ship || !localLayout || !playerHasCombatEngagement() || dialogueState || menusAreOpen()) return null;
-  if (!hasBroadsideCannons(gameState?.ship?.cannons || 0)) return null;
+  const weapon = playerNavalWeapon();
+  if (!weapon) return null;
   for (const sideName of ["port", "starboard"]) {
-    if (pointInBroadsideArc(point, cannonBroadsideArc(sideName), 5)) return sideName;
+    if (pointInBroadsideArc(point, navalBroadsideArc(sideName, weapon), 5)) return sideName;
   }
   return null;
 }
 
-function cannonArcHasEnemy(arc) {
+function navalArcHasEnemy(arc) {
   const offset = chartOffsetPixels(chart);
   for (const state of npcVisualShips.values()) {
     if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, state.id))) continue;
@@ -6478,22 +6718,31 @@ function shipBroadsideCannonCount() {
   return Math.ceil((gameState?.ship?.cannons || 0) / 2);
 }
 
+function playerNavalWeapon() {
+  const homePort = portCitiesByTileId?.get(gameState?.character?.homePortTileId);
+  return navalWeaponForShip({
+    cultureType: homePort?.cityType || null,
+    cannons: gameState?.ship?.cannons || 0
+  });
+}
+
 function cannonMuzzleForeAftSpan(broadsideCount) {
   return CANNON_MUZZLE_FORE_AFT_SPAN_PX + Math.min(9, Math.max(0, broadsideCount - 7) * 0.38);
 }
 
-function updateCannons(dt) {
+function updateNavalWeapons(dt) {
   if (!ship) return false;
   ship.cannonCooldowns.port = Math.max(0, ship.cannonCooldowns.port - dt);
   ship.cannonCooldowns.starboard = Math.max(0, ship.cannonCooldowns.starboard - dt);
 
   let changed = false;
-  if (ship.cannonballs.length > 0) {
+  if (ship.navalProjectiles.length > 0) {
     const keptBalls = [];
-    for (const ball of ship.cannonballs) {
+    for (const ball of ship.navalProjectiles) {
       ball.age += dt;
       if (ball.age >= ball.duration) {
-        if (resolvePlayerCannonImpact(ball)) continue;
+        if (resolvePlayerNavalImpact(ball)) continue;
+        if (ball.kind === NAVAL_WEAPON_ARROW) continue;
         if (wakeMapPointIsWater(Math.round(ball.targetX), Math.round(ball.targetY), chart)) {
           addCannonSplash(ball);
         } else {
@@ -6503,7 +6752,7 @@ function updateCannons(dt) {
       }
       keptBalls.push(ball);
     }
-    ship.cannonballs = keptBalls;
+    ship.navalProjectiles = keptBalls;
     changed = true;
   }
 
@@ -6520,7 +6769,7 @@ function updateCannons(dt) {
   return changed;
 }
 
-function resolvePlayerCannonImpact(ball) {
+function resolvePlayerNavalImpact(ball) {
   let target = null;
   let bestDistance = Infinity;
   for (const state of npcVisualShips.values()) {
@@ -6532,7 +6781,7 @@ function resolvePlayerCannonImpact(ball) {
   }
   if (!target) return false;
 
-  playCannonImpactSound(Math.hypot(ball.targetX - ball.startX, ball.targetY - ball.startY));
+  playNavalImpactSound(ball);
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
   target.hitPoints = damage.hitPoints;
   if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
@@ -6553,10 +6802,10 @@ function addCannonSplash(ball) {
   }
 }
 
-function drawCannonEffects(activeChart) {
+function drawNavalEffects(activeChart) {
   if (!ship) return;
   drawCannonSplashes(activeChart);
-  drawCannonBalls();
+  drawPlayerNavalProjectiles();
   drawNpcCombatSplashes(activeChart);
   drawNpcCombatProjectiles();
 }
@@ -6564,9 +6813,7 @@ function drawCannonEffects(activeChart) {
 function drawNpcCombatProjectiles() {
   for (const ball of npcCombatProjectiles) {
     const point = cannonBallPoint(ball, ball.age);
-    drawCannonTrail(ball);
-    ctx.fillStyle = "rgba(18, 14, 12, 0.95)";
-    ctx.fillRect(Math.round(point.x), Math.round(point.y - point.z), 1, 1);
+    drawNavalProjectile(ball, point);
   }
 }
 
@@ -6581,13 +6828,35 @@ function drawNpcCombatSplashes(activeChart) {
   }
 }
 
-function drawCannonBalls() {
-  if (!ship.cannonballs.length) return;
-  for (const ball of ship.cannonballs) {
+function drawPlayerNavalProjectiles() {
+  if (!ship.navalProjectiles.length) return;
+  for (const ball of ship.navalProjectiles) {
     const point = cannonBallPoint(ball, ball.age);
-    drawCannonTrail(ball);
-    ctx.fillStyle = "rgba(18, 14, 12, 0.95)";
-    ctx.fillRect(Math.round(point.x), Math.round(point.y - point.z), 1, 1);
+    drawNavalProjectile(ball, point);
+  }
+}
+
+function drawNavalProjectile(projectile, point) {
+  if (projectile.kind === NAVAL_WEAPON_ARROW) {
+    drawArrowProjectile(projectile, point);
+    return;
+  }
+  drawCannonTrail(projectile);
+  ctx.fillStyle = "rgba(18, 14, 12, 0.95)";
+  ctx.fillRect(Math.round(point.x), Math.round(point.y - point.z), 1, 1);
+}
+
+function drawArrowProjectile(projectile, point) {
+  const dx = projectile.targetX - projectile.startX;
+  const dy = projectile.targetY - projectile.startY;
+  const length = Math.hypot(dx, dy);
+  if (length <= 1e-6) return;
+  const ux = dx / length;
+  const uy = dy / length;
+  const y = point.y - point.z;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
+  for (let i = 0; i < ARROW_LINE_LENGTH_PX; i++) {
+    ctx.fillRect(Math.round(point.x - ux * i), Math.round(y - uy * i), 1, 1);
   }
 }
 
@@ -6721,7 +6990,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
 }
 
 function updateStormCaptainAlert(previousMinute, currentMinute) {
-  if (!ship || gameOverReason || currentMinute <= previousMinute) return false;
+  if (!ship || portWaitState || gameOverReason || currentMinute <= previousMinute) return false;
   const intensity = playerStormIntensity();
   if (intensity < STORM_CAPTAIN_ALERT_EXIT_INTENSITY) {
     stormCaptainAlertNextMinute = null;
@@ -6771,6 +7040,10 @@ function updateSurvivalDeprivationDamage(status, currentMinute) {
       : "The crew succumbed to starvation.";
   const crewLossText = dehydrationLoss > 0 ? `  -${dehydrationLoss} CREW` : "";
   showSurvivalNotice(`CREW SUFFERING -${totalDamage} HULL${crewLossText}`, "warn");
+  if (dehydrationLoss > 0 && gameState.ship.crew <= 0) {
+    sinkPlayerShip(reason);
+    return true;
+  }
   if (ship.hitPoints <= 0) sinkPlayerShip(reason);
   return true;
 }
@@ -6794,7 +7067,7 @@ function updateSurvivalDamageTimer({ key, active, currentMinute, damagePerTick, 
 }
 
 function updateStormDamage(previousMinute, currentMinute) {
-  if (!ship || !stormSystem || anchored || gameOverReason || currentMinute <= previousMinute) return false;
+  if (!ship || !stormSystem || anchored || portWaitState || gameOverReason || currentMinute <= previousMinute) return false;
   const firstHour = Math.floor(previousMinute / 60) + 1;
   const lastHour = Math.floor(currentMinute / 60);
   let totalDamage = 0;
@@ -6813,7 +7086,7 @@ function updateStormDamage(previousMinute, currentMinute) {
   if (totalDamage <= 0) return false;
 
   ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
-  applyCrewCasualtiesFromHullDamage(totalDamage);
+  applyCrewCasualtiesFromHullDamage(totalDamage, "The last of the crew was lost in the storm.");
   stormDamageNotice = {
     damage: totalDamage,
     intensity: strongestIntensity,
@@ -6829,6 +7102,9 @@ function sinkPlayerShip(reason) {
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs);
   anchored = false;
+  shoreScavengeAction = null;
+  portWaitState = null;
+  portWaitButtonRect = null;
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
   closeMenusForGameOver();
@@ -7224,6 +7500,7 @@ function npcCombatAttackReason(state) {
 }
 
 function playerCombatEntity() {
+  const weapon = playerNavalWeapon();
   return {
     id: PLAYER_COMBAT_ID,
     factionId: ship.factionId,
@@ -7232,9 +7509,10 @@ function playerCombatEntity() {
     y: localLayout.viewY,
     hitPoints: Math.max(1, ship.hitPoints),
     maxHitPoints: ship.maxHitPoints,
-    cannons: gameState?.ship?.cannons || 0,
+    cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? gameState?.ship?.cannons || 0 : 0,
     topSpeedRad: ship.stats.topSpeedRad,
     combatGrace: false,
+    portProtected: Boolean(portWaitState),
     majorPortProtected: playerHasMajorPortProtection()
   };
 }
@@ -7278,6 +7556,7 @@ function npcPirateMajorPortAvoidance(state) {
 
 function npcCombatEntity(state) {
   const stats = shipStatsForSlug(state.slug);
+  const weapon = npcNavalWeapon(state, stats);
   return {
     id: state.id,
     factionId: state.factionId,
@@ -7286,7 +7565,7 @@ function npcCombatEntity(state) {
     y: state.y,
     hitPoints: state.hitPoints,
     maxHitPoints: state.maxHitPoints,
-    cannons: stats.cannons,
+    cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? stats.cannons : 0,
     topSpeedRad: stats.topSpeedRad,
     combatGrace: state.combatGrace
   };
@@ -7330,11 +7609,13 @@ function npcCombatNavigation(state) {
   const dy = target.y - state.y;
   const distance = Math.hypot(dx, dy);
   if (distance <= 1e-6) return null;
-  if (distance > NPC_COMBAT_ORBIT_RANGE_PX * 1.35) return { routePoint: target };
+  const weapon = npcNavalWeapon(state);
+  const orbitRange = NPC_COMBAT_ORBIT_RANGE_PX * (weapon?.rangeScale || 1);
+  if (distance > orbitRange * 1.35) return { routePoint: target };
 
   const direct = { x: dx / distance, y: dy / distance };
   const orbitSide = (hashInt(state.id.length * 0x45d9f3b) & 1) === 0 ? -1 : 1;
-  const radialCorrection = clamp((distance - NPC_COMBAT_ORBIT_RANGE_PX) / 16, -0.8, 0.8);
+  const radialCorrection = clamp((distance - orbitRange) / Math.max(8, 16 * (weapon?.rangeScale || 1)), -0.8, 0.8);
   const orbit = {
     x: -direct.y * orbitSide + direct.x * radialCorrection,
     y: direct.x * orbitSide + direct.y * radialCorrection
@@ -7352,31 +7633,36 @@ function fireNpcBroadsideAtTarget(state, targetId) {
   if (state.cannonCooldown > 0 || state.combatGrace) return false;
   const target = combatEntityPoint(targetId);
   if (!target) return false;
+  const stats = shipStatsForSlug(state.slug);
+  const weapon = npcNavalWeapon(state, stats);
+  if (!weapon) return false;
   const dx = target.x - state.x;
   const dy = target.y - state.y;
   const distance = Math.hypot(dx, dy);
-  if (distance > NPC_COMBAT_FIRE_RANGE_PX || distance <= 1e-6) return false;
+  if (distance > NPC_COMBAT_FIRE_RANGE_PX * weapon.rangeScale || distance <= 1e-6) return false;
   const heading = tangentToScreenDirection(state.heading);
   if (!heading) return false;
   const direct = { x: dx / distance, y: dy / distance };
   if (Math.abs(heading.x * direct.x + heading.y * direct.y) > NPC_COMBAT_BROADSIDE_DOT) return false;
 
-  const stats = shipStatsForSlug(state.slug);
-  if (stats.cannons <= 0) return false;
-  const volleyCount = Math.min(4, Math.max(1, Math.ceil(stats.cannons / 10)));
+  const volleyCount = weapon.kind === NAVAL_WEAPON_CANNON
+    ? Math.min(4, Math.max(1, Math.ceil(stats.cannons / 10)))
+    : 1;
   state.cannonCooldown = NPC_COMBAT_COOLDOWN_SECONDS;
   state.cannonSequence += 1;
-  playCannonShotSound(Math.ceil(stats.cannons / 2));
+  playNavalAttackSound(weapon, Math.max(1, Math.ceil(stats.cannons / 2)));
   startCombatMusicForThreat(stats.cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
 
   for (let index = 0; index < volleyCount; index++) {
     const seed = cannonSeed(state.cannonSequence, index, state.id.length * 0x51a7, state);
-    const jitterX = (cannonUnit(seed, 1) * 2 - 1) * 7;
-    const jitterY = (cannonUnit(seed, 2) * 2 - 1) * 7;
+    const jitterScale = weapon.kind === NAVAL_WEAPON_ARROW ? 3.5 : 7;
+    const jitterX = (cannonUnit(seed, 1) * 2 - 1) * jitterScale;
+    const jitterY = (cannonUnit(seed, 2) * 2 - 1) * jitterScale;
     const targetX = target.x + jitterX;
     const targetY = target.y + jitterY;
     const range = Math.hypot(targetX - state.x, targetY - state.y);
     npcCombatProjectiles.push({
+      kind: weapon.kind,
       ownerId: state.id,
       targetId,
       startX: state.x,
@@ -7384,9 +7670,9 @@ function fireNpcBroadsideAtTarget(state, targetId) {
       targetX,
       targetY,
       age: 0,
-      duration: range / CANNON_SPEED_PX,
-      arcHeight: CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 3,
-      damage: 1,
+      duration: range / (CANNON_SPEED_PX * weapon.speedScale),
+      arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 3) * weapon.arcHeightScale,
+      damage: weapon.damage,
       seed
     });
   }
@@ -7394,6 +7680,14 @@ function fireNpcBroadsideAtTarget(state, targetId) {
     npcCombatProjectiles.splice(0, npcCombatProjectiles.length - NPC_COMBAT_MAX_PROJECTILES);
   }
   return true;
+}
+
+function npcNavalWeapon(state, stats = shipStatsForSlug(state.slug)) {
+  const routeShip = npcSeaRoutes?.shipById.get(state.id);
+  return navalWeaponForShip({
+    cultureType: routeShip?.cultureType || routeShip?.currentPort?.cityType || null,
+    cannons: stats.cannons
+  });
 }
 
 function updateNpcCombatProjectiles(dt) {
@@ -7429,14 +7723,14 @@ function resolveNpcCombatImpact(ball) {
     !active ||
     Math.hypot(target.x - ball.targetX, target.y - ball.targetY) > NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX
   ) {
-    addNpcCombatSplash(ball);
+    if (ball.kind !== NAVAL_WEAPON_ARROW) addNpcCombatSplash(ball);
     return;
   }
 
-  playCannonImpactSound(Math.hypot(ball.targetX - ball.startX, ball.targetY - ball.startY));
+  playNavalImpactSound(ball);
   if (ball.targetId === PLAYER_COMBAT_ID) {
     ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
-    applyCrewCasualtiesFromHullDamage(ball.damage);
+    applyCrewCasualtiesFromHullDamage(ball.damage, "The last of the crew fell in battle.");
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
     return;
   }
@@ -7660,7 +7954,7 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   if (amount <= 0) return;
   if (id === PLAYER_COMBAT_ID) {
     ship.hitPoints = Math.max(0, ship.hitPoints - amount);
-    applyCrewCasualtiesFromHullDamage(amount);
+    applyCrewCasualtiesFromHullDamage(amount, "The last of the crew died after a collision.");
     combatNotice = {
       text: `COLLISION  -${amount} HULL`,
       expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
@@ -7681,12 +7975,13 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   if (winnerId) handleNpcSurrender(id, winnerId);
 }
 
-function applyCrewCasualtiesFromHullDamage(damage) {
+function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of the crew was lost at sea.") {
   if (!gameState || damage <= 0) return 0;
   const lost = rollCrewCasualtiesForDamage(gameState, damage);
   if (lost <= 0) return 0;
   syncShipCargoFromGameState();
   showSurvivalNotice(`${lost} CREW LOST`, "warn");
+  if (gameState.ship.crew <= 0) sinkPlayerShip(crewLossReason);
   return lost;
 }
 
@@ -7748,7 +8043,7 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
   const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
   let direction = routeDirection;
   let tack = null;
-  if (startNav.ok && startNav.kind !== "river") {
+  if (startNav.ok && startNav.kind !== "river" && stats.propulsion === SHIP_PROPULSION_SAIL) {
     const wind = windForTile(state.tileId);
     const flowDir = wind.directionRad + Math.PI;
     const windFlowDirection = { x: Math.cos(flowDir), y: -Math.sin(flowDir) };
@@ -8789,7 +9084,7 @@ function render(nowMs) {
   drawPrecipitation(chart, nowMs, offset);
   drawCloudLayer(chart);
   drawShipWake(chart);
-  drawCannonEffects(chart);
+  drawNavalEffects(chart);
   drawCityShadows(chart, shipLight);
   drawSeagulls(chart, nowMs);
   drawWorldDiscoverySprites(chart);
@@ -8817,12 +9112,17 @@ function render(nowMs) {
   drawCombatNotice(nowMs);
   drawFishCatchNotice(nowMs);
   drawSurvivalNotice(nowMs);
-  drawAnchorButton();
-  drawInteractionButton();
+  if (portWaitState) {
+    drawPortWaitControls();
+  } else {
+    drawAnchorButton();
+    drawScavengeButton();
+    drawInteractionButton();
+  }
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay(nowMs);
-  drawCaptainMenuButton();
+  if (!portWaitState) drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
@@ -8851,7 +9151,7 @@ function drawWorldDiscoverySprites(activeChart) {
 }
 
 function drawSelectableInteractionOutlines(nowMs) {
-  if (!chart || !localLayout || dialogueState || menusAreOpen() || fishingAction || gameOverReason) return;
+  if (!chart || !localLayout || portWaitState || dialogueState || menusAreOpen() || fishingAction || gameOverReason) return;
   const offset = chartOffsetPixels(chart);
   const primary = activeInteractionTarget();
   const primaryId = primary?.call?.id ?? primary?.call?.tileId ?? null;
@@ -9979,7 +10279,7 @@ function drawShipInfoMenu() {
     valueX,
     panel.y + 53
   );
-  drawShipInfoValueRow("UPWIND LIMIT", `${view.upwindStallAngleDeg} DEG`, statsX, valueX, panel.y + 65);
+  drawShipInfoValueRow("PROPULSION", view.propulsionSummary, statsX, valueX, panel.y + 65);
   drawShipInfoRating("SPEED", view.ratings.speed, statsX, panel.y + 80);
   drawShipInfoRating("ACCEL", view.ratings.acceleration, statsX, panel.y + 93);
   drawShipInfoRating("TURNING", view.ratings.turning, statsX, panel.y + 106);
@@ -10085,7 +10385,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     y
   );
   y += 12;
-  drawShipInfoValueRow("UPWIND LIMIT", `${view.upwindStallAngleDeg} DEG`, labelX, valueX, y);
+  drawShipInfoValueRow("PROPULSION", view.propulsionSummary, labelX, valueX, y);
   y += 13;
   const ratings = [
     ["SPEED", view.ratings.speed],
@@ -13857,10 +14157,10 @@ function drawWindIndicator(nowMs) {
     b: Math.round(43 + (120 - 43) * warningHue)
   };
   const warningMix = warning * (0.28 + pulse * 0.72);
-  const alpha = clamp(0.42 + strength * 0.44 + warning * pulse * 0.12, 0, 1);
-  const color = `rgba(${Math.round(130 + (warningColor.r - 130) * warningMix)}, ` +
-    `${Math.round(215 + (warningColor.g - 215) * warningMix)}, ` +
-    `${Math.round(204 + (warningColor.b - 204) * warningMix)}, ` +
+  const alpha = windVOpacity(strength, warning, pulse);
+  const color = `rgba(${Math.round(158 + (warningColor.r - 158) * warningMix)}, ` +
+    `${Math.round(226 + (warningColor.g - 226) * warningMix)}, ` +
+    `${Math.round(211 + (warningColor.b - 211) * warningMix)}, ` +
     `${alpha.toFixed(3)})`;
   drawPixelLine(geometry.apex.x, geometry.apex.y, geometry.port.x, geometry.port.y, color);
   drawPixelLine(geometry.apex.x, geometry.apex.y, geometry.starboard.x, geometry.starboard.y, color);
@@ -14009,7 +14309,9 @@ function windIndicatorTarget() {
     flowDirectionRad: windDirectionForBucket(directionIndex),
     directionIndex,
     strength: wind.strength,
-    stallWarning: sailingStallWarningStrength(angleFromWind, ship.stats.upwindStallAngleRad)
+    stallWarning: shipHasWindDeadZone(ship.stats)
+      ? sailingStallWarningStrength(angleFromWind, ship.stats.upwindStallAngleRad)
+      : 0
   };
 }
 
@@ -14417,8 +14719,10 @@ function drawInteractionButton() {
   if (!target) return;
   interactionButtonTarget = target;
   interactionButtonRect = {
-    x: anchorButtonRect ? anchorButtonRect.x + anchorButtonRect.w + 4 : INTERACTION_BUTTON_X,
-    y: INTERACTION_BUTTON_Y,
+    x: anchored
+      ? Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2)
+      : anchorButtonRect ? anchorButtonRect.x + anchorButtonRect.w + 4 : INTERACTION_BUTTON_X,
+    y: anchored ? INTERACTION_BUTTON_Y - INTERACTION_BUTTON_H - 4 : INTERACTION_BUTTON_Y,
     w: INTERACTION_BUTTON_W,
     h: INTERACTION_BUTTON_H
   };
@@ -14451,30 +14755,105 @@ function drawAnchorButton() {
   if (dialogueState || menusAreOpen() || gameOverReason || fishingAction) return;
   if (!anchored && !canAnchorAtCurrentShore()) return;
   anchorButtonRect = {
-    x: ANCHOR_BUTTON_X,
+    x: anchored
+      ? Math.floor((SCREEN_W - ANCHOR_BUTTON_W - 4 - SCAVENGE_BUTTON_W) / 2)
+      : ANCHOR_BUTTON_X,
     y: ANCHOR_BUTTON_Y,
     w: ANCHOR_BUTTON_W,
     h: ANCHOR_BUTTON_H
   };
-  const hovered = pointInRect(optionsMenu.hoverPoint, anchorButtonRect);
-  ctx.fillStyle = anchored
+  const disabled = anchored && Boolean(shoreScavengeAction);
+  const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, anchorButtonRect);
+  ctx.fillStyle = disabled
+    ? "#302c29"
+    : anchored
     ? (hovered ? "#4f6b62" : "#354b48")
     : (hovered ? "#6d4b2f" : "#4a3424");
   ctx.fillRect(anchorButtonRect.x, anchorButtonRect.y, anchorButtonRect.w, anchorButtonRect.h);
-  ctx.strokeStyle = anchored ? "#8ac0b4" : "#d6b66b";
+  ctx.strokeStyle = disabled ? "#625b52" : anchored ? "#8ac0b4" : "#d6b66b";
   ctx.strokeRect(
     anchorButtonRect.x + 0.5,
     anchorButtonRect.y + 0.5,
     anchorButtonRect.w - 1,
     anchorButtonRect.h - 1
   );
-  ctx.fillStyle = "#f3dfb0";
+  ctx.fillStyle = disabled ? "#81796f" : "#f3dfb0";
   const label = fitPixelText(
-    anchored ? "WEIGH ANCHOR" : "DROP ANCHOR",
+    disabled ? "HOLD FAST" : anchored ? "WEIGH ANCHOR" : "DROP ANCHOR",
     PIXEL_FONT_UI_10,
     anchorButtonRect.w - 10
   );
   drawPixelText(label, anchorButtonRect.x + anchorButtonRect.w / 2, controlTextY(anchorButtonRect), {
+    font: PIXEL_FONT_UI_10,
+    align: "center"
+  });
+}
+
+function drawScavengeButton() {
+  scavengeButtonRect = null;
+  if (!anchored || dialogueState || menusAreOpen() || gameOverReason || fishingAction) return;
+  scavengeButtonRect = {
+    x: anchorButtonRect.x + anchorButtonRect.w + 4,
+    y: ANCHOR_BUTTON_Y,
+    w: SCAVENGE_BUTTON_W,
+    h: ANCHOR_BUTTON_H
+  };
+  const stormy = playerStormIntensity() >= STORM_ACTIVE_INTENSITY;
+  const disabled = Boolean(shoreScavengeAction) || stormy;
+  const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, scavengeButtonRect);
+  ctx.fillStyle = disabled ? "#302c29" : hovered ? "#6d4b2f" : "#4a3424";
+  ctx.fillRect(scavengeButtonRect.x, scavengeButtonRect.y, scavengeButtonRect.w, scavengeButtonRect.h);
+  ctx.strokeStyle = disabled ? "#625b52" : "#d6b66b";
+  ctx.strokeRect(
+    scavengeButtonRect.x + 0.5,
+    scavengeButtonRect.y + 0.5,
+    scavengeButtonRect.w - 1,
+    scavengeButtonRect.h - 1
+  );
+  ctx.fillStyle = disabled ? "#81796f" : "#f3dfb0";
+  const label = shoreScavengeAction ? "SEARCHING..." : stormy ? "STORM" : "SCAVENGE";
+  drawPixelText(label, scavengeButtonRect.x + scavengeButtonRect.w / 2, controlTextY(scavengeButtonRect), {
+    font: PIXEL_FONT_UI_10,
+    align: "center"
+  });
+}
+
+function drawPortWaitControls() {
+  portWaitButtonRect = null;
+  if (!portWaitState || gameOverReason) return;
+  const city = cityByTileId.get(portWaitState.cityTileId);
+  const status = `WAITING SAFELY IN ${city ? cityLabelText(city).toUpperCase() : "PORT"}`;
+  const statusW = Math.min(SCREEN_W - 12, measurePixelTextWidth(status, PIXEL_FONT_UI_8) + 12);
+  const statusX = Math.floor((SCREEN_W - statusW) / 2);
+  const buttonW = Math.min(PORT_WAIT_BUTTON_W, SCREEN_W - 12);
+  portWaitButtonRect = {
+    x: Math.floor((SCREEN_W - buttonW) / 2),
+    y: SCREEN_H - INTERACTION_BUTTON_H - 5,
+    w: buttonW,
+    h: INTERACTION_BUTTON_H
+  };
+  ctx.fillStyle = "rgba(25, 31, 36, 0.9)";
+  ctx.fillRect(statusX, portWaitButtonRect.y - 17, statusW, 13);
+  ctx.strokeStyle = "#8ac0b4";
+  ctx.strokeRect(statusX + 0.5, portWaitButtonRect.y - 16.5, statusW - 1, 12);
+  ctx.fillStyle = "#d6f2e8";
+  drawPixelText(fitPixelText(status, PIXEL_FONT_UI_8, statusW - 8), SCREEN_W / 2, portWaitButtonRect.y - 14, {
+    font: PIXEL_FONT_UI_8,
+    align: "center"
+  });
+
+  const hovered = pointInRect(optionsMenu.hoverPoint, portWaitButtonRect);
+  ctx.fillStyle = hovered ? "#4f6b62" : "#354b48";
+  ctx.fillRect(portWaitButtonRect.x, portWaitButtonRect.y, portWaitButtonRect.w, portWaitButtonRect.h);
+  ctx.strokeStyle = hovered ? "#fff1bf" : "#8ac0b4";
+  ctx.strokeRect(
+    portWaitButtonRect.x + 0.5,
+    portWaitButtonRect.y + 0.5,
+    portWaitButtonRect.w - 1,
+    portWaitButtonRect.h - 1
+  );
+  ctx.fillStyle = "#f3dfb0";
+  drawPixelText("RETURN TO PORT", portWaitButtonRect.x + portWaitButtonRect.w / 2, controlTextY(portWaitButtonRect), {
     font: PIXEL_FONT_UI_10,
     align: "center"
   });
@@ -14502,8 +14881,14 @@ function drawStormStatus(nowMs) {
 }
 
 function drawSurvivalMeters() {
-  if (!gameState || gameOverReason) return;
+  if (!gameState || !ship || gameOverReason) return;
   const status = survivalStatus(gameState);
+  const hullFraction = ship.maxHitPoints > 0 ? ship.hitPoints / ship.maxHitPoints : 0;
+  const hullColor = hullFraction <= 0.25
+    ? "#f68181"
+    : hullFraction <= 0.5
+      ? "#f9c22b"
+      : "#91db69";
   const x = SURVIVAL_PANEL_X;
   const y = SURVIVAL_PANEL_Y;
   ctx.fillStyle = "rgba(25, 31, 36, 0.88)";
@@ -14511,14 +14896,22 @@ function drawSurvivalMeters() {
   ctx.strokeStyle = "#7f708a";
   ctx.strokeRect(x + 0.5, y + 0.5, SURVIVAL_PANEL_W - 1, SURVIVAL_PANEL_H - 1);
   ctx.fillStyle = "#d6b66b";
-  drawPixelText("STORES", x + 5, y + 3, { font: PIXEL_FONT_UI_8 });
+  drawPixelText("SHIP STATUS", x + 5, y + 3, { font: PIXEL_FONT_UI_8 });
+  drawSurvivalMeterRow(
+    "HULL",
+    `${Math.max(0, Math.ceil(ship.hitPoints))}/${Math.ceil(ship.maxHitPoints)}`,
+    hullFraction,
+    hullColor,
+    x + 5,
+    y + 13
+  );
   drawSurvivalMeterRow(
     "WTR",
     `${Math.ceil(status.freshWaterDays)}D`,
     status.freshWaterFraction,
     status.freshWaterFraction <= 0.16 ? "#f68181" : "#5bb7d6",
     x + 5,
-    y + 13
+    y + 23
   );
   drawSurvivalMeterRow(
     "FOOD",
@@ -14526,7 +14919,7 @@ function drawSurvivalMeters() {
     status.foodFraction,
     status.foodDays <= 3 ? "#f68181" : "#d6b66b",
     x + 5,
-    y + 23
+    y + 33
   );
 }
 
@@ -14800,7 +15193,7 @@ function drawCaptainAlertModal() {
   });
   ctx.fillStyle = "#f3dfb0";
   let y = panel.y + 31;
-  for (const line of wrapPixelText(modal.message, PIXEL_FONT_BODY_8, textW, 3)) {
+  for (const line of wrapPixelText(modal.message, PIXEL_FONT_BODY_8, textW, 4)) {
     drawPixelText(line, textX, y, { font: PIXEL_FONT_BODY_8 });
     y += 10;
   }
@@ -15133,7 +15526,7 @@ function drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, option
   drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, panel.y + 40);
   drawShipInfoValueRow("CREW / GUNS", `${vessel.crewCapacity} / ${vessel.maxCannons}`, statsX, valueX, panel.y + 52);
   drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, panel.y + 64);
-  drawShipInfoValueRow("UPWIND LIMIT", `${vessel.upwindStallAngleDeg} DEG`, statsX, valueX, panel.y + 76);
+  drawShipInfoValueRow("PROPULSION", vessel.propulsionSummary, statsX, valueX, panel.y + 76);
   drawShipInfoRating("SPEED", vessel.ratings.speed, statsX, panel.y + 92);
   drawShipInfoRating("ACCEL", vessel.ratings.acceleration, statsX, panel.y + 104);
   drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, panel.y + 116);
@@ -15170,7 +15563,7 @@ function drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, op
   drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, y);
   drawShipInfoValueRow("CREW / GUNS", `${vessel.crewCapacity} / ${vessel.maxCannons}`, statsX, valueX, y + 12);
   drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, y + 24);
-  drawShipInfoValueRow("UPWIND LIMIT", `${vessel.upwindStallAngleDeg} DEG`, statsX, valueX, y + 36);
+  drawShipInfoValueRow("PROPULSION", vessel.propulsionSummary, statsX, valueX, y + 36);
   y += 56;
   drawShipInfoRating("SPEED", vessel.ratings.speed, statsX, y);
   drawShipInfoRating("ACCEL", vessel.ratings.acceleration, statsX, y + 12);

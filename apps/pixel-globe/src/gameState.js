@@ -1,4 +1,5 @@
 import {
+  FORAGED_FOOD_GOOD_ID,
   FRESH_WATER_GOOD_ID,
   HARDTACK_GOOD_ID,
   TRADE_GOODS,
@@ -312,6 +313,31 @@ export function receiveSurrenderedLoot(state, loot, context = {}) {
 
 export function cargoFree(state) {
   return state.cargoCapacity - cargoUsed(state);
+}
+
+export function refillFreshWaterFromShore(state) {
+  assertGameState(state);
+  const missing = Math.max(0, state.survival.freshWaterCapacity - state.survival.freshWater);
+  const availableSpace = Math.max(0, cargoFree(state));
+  const filled = Math.min(missing, availableSpace);
+  if (filled <= 0) return 0;
+  state.survival.freshWater += filled;
+  recordDecision(state, "scavenge.spring", Math.ceil(filled));
+  return filled;
+}
+
+export function stowForagedFood(state, requestedQuantity) {
+  assertGameState(state);
+  if (!Number.isInteger(requestedQuantity) || requestedQuantity < 0) {
+    throw new Error(`Invalid foraged food quantity: ${requestedQuantity}`);
+  }
+  const good = tradeGoodById(FORAGED_FOOD_GOOD_ID);
+  const quantity = Math.min(requestedQuantity, Math.floor(Math.max(0, cargoFree(state)) / good.unitSize));
+  if (quantity <= 0) return 0;
+  state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
+  state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
+  recordDecision(state, "scavenge.food", quantity);
+  return quantity;
 }
 
 export function cargoRows(state) {
@@ -930,15 +956,41 @@ export function deliveryQuestForCity(city, portCities) {
   return {
     id: `delivery-${city.tileId}-${destination.tileId}`,
     kind: "delivery",
+    originKey: cityKey(city),
     originTileId: city.tileId,
     originName: cityLabel(city),
+    originCountry: city.country || "",
     factionId,
     regionKey,
+    destinationKey: cityKey(destination),
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
+    destinationCountry: destination.country || "",
     distanceKm: Math.round(greatCircleDistanceKm(city, destination)),
     reward
   };
+}
+
+export function reconcileQuestPortTiles(state, portCities) {
+  assertGameState(state);
+  if (!Array.isArray(portCities)) throw new Error("Quest port reconciliation requires a port list");
+  const quests = questMemory(state);
+  let updates = 0;
+
+  const reconcile = (quest) => {
+    if (!quest || typeof quest !== "object") return;
+    updates += reconcileQuestEndpoint(quest, "origin", portCities);
+    updates += reconcileQuestEndpoint(quest, "destination", portCities);
+  };
+
+  reconcile(quests.active);
+  const offers = {};
+  for (const [storedKey, offer] of Object.entries(quests.passengerOffers)) {
+    reconcile(offer);
+    offers[offer?.originKey || storedKey] = offer;
+  }
+  quests.passengerOffers = offers;
+  return updates;
 }
 
 export function questStateForCity(state, city, portCities) {
@@ -1248,6 +1300,44 @@ function deliveryFactionId(city) {
   const factionId = assertFactionId(city.factionId);
   if (factionId === NEUTRAL_FACTION_ID || factionId === PIRATE_FACTION_ID) return null;
   return factionId;
+}
+
+function reconcileQuestEndpoint(quest, endpoint, portCities) {
+  const tileField = `${endpoint}TileId`;
+  const nameField = `${endpoint}Name`;
+  const countryField = `${endpoint}Country`;
+  const keyField = `${endpoint}Key`;
+  const name = quest[nameField];
+  if (typeof name !== "string" || name === "") return 0;
+
+  const current = portCities.find((port) => (
+    port.tileId === quest[tileField] && cityLabel(port) === name
+  ));
+  if (current) {
+    updateQuestEndpointIdentity(quest, endpoint, current);
+    return 0;
+  }
+
+  const keyCountry = quest[keyField]?.split("|")[1] || "";
+  const country = quest[countryField] || keyCountry;
+  let candidates = portCities.filter((port) => cityLabel(port) === name);
+  if (country) candidates = candidates.filter((port) => port.country === country);
+  if (quest.kind === "delivery" && quest.factionId) {
+    candidates = candidates.filter((port) => port.factionId === quest.factionId);
+  }
+  if (quest.kind === "delivery" && quest.regionKey) {
+    candidates = candidates.filter((port) => deliveryRegionKey(port) === quest.regionKey);
+  }
+  if (candidates.length !== 1) return 0;
+  updateQuestEndpointIdentity(quest, endpoint, candidates[0]);
+  return 1;
+}
+
+function updateQuestEndpointIdentity(quest, endpoint, port) {
+  quest[`${endpoint}TileId`] = port.tileId;
+  quest[`${endpoint}Name`] = cityLabel(port);
+  quest[`${endpoint}Country`] = port.country || "";
+  quest[`${endpoint}Key`] = cityKey(port);
 }
 
 function deliveryRegionKey(city) {

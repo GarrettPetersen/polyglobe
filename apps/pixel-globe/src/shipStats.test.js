@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  SHIP_PROPULSION_OAR,
+  SHIP_PROPULSION_OAR_SAIL,
   SHIP_STATS,
   shipLabelForSlug,
   shipStatsForSlug
@@ -53,4 +55,22 @@ test("all hulls share the gentler cruise-speed scale", () => {
   assert.equal(shipStatsForSlug("brigantine").topSpeedRad, 0.040 * SHIP_TOP_SPEED_SCALE);
   assert.equal(shipStatsForSlug("felucca").topSpeedRad, 0.031 * SHIP_TOP_SPEED_SCALE);
   assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006));
+});
+
+test("native canoe hulls are small, unarmed, and regionally distinct", () => {
+  const polynesian = shipStatsForSlug("polynesian-voyaging-canoe");
+  const mesoamerican = shipStatsForSlug("mesoamerican-dugout-canoe");
+
+  assert.equal(shipLabelForSlug(polynesian.slug), "Polynesian Voyaging Canoe");
+  assert.equal(shipLabelForSlug(mesoamerican.slug), "Mesoamerican Dugout Canoe");
+  assert.equal(polynesian.cannons, 0);
+  assert.equal(mesoamerican.cannons, 0);
+  assert.ok(polynesian.seaworthiness > mesoamerican.seaworthiness);
+  assert.ok(polynesian.cargoCapacity > mesoamerican.cargoCapacity);
+  assert.ok(mesoamerican.turnRateRad > polynesian.turnRateRad);
+  assert.equal(mesoamerican.propulsion, SHIP_PROPULSION_OAR);
+  assert.equal(mesoamerican.upwindStallAngleDeg, 0);
+  assert.equal(polynesian.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(shipStatsForSlug("sampan").propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.ok(mesoamerican.topSpeedRad < shipStatsForSlug("fishing-lugger").topSpeedRad);
 });

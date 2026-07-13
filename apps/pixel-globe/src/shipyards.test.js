@@ -18,6 +18,7 @@ const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14);
 const PORTO = port(2, "Porto", "northern-european", 65000, 41.15, -8.61);
 const SMALL_PORT = port(3, "Quiet Haven", "northern-european", 2500, 42, -9);
 const FIJI = port(4, "Fiji Village", "polynesian", 3500, -18.14, 178.44);
+const GUANAHANI = port(5, "Guanahani Village", "mesoamerican", 1200, 24.06, -74.47);
 
 test("every port has a shipyard but active new-build listings remain rare", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
@@ -48,12 +49,19 @@ test("rich famous yards can build better ships than poor ordinary ports", () => 
   assert.ok(Math.max(...richPrices) > Math.max(...poorPrices));
 });
 
-test("Polynesian villages build only modest regional stand-in hulls", () => {
+test("native villages build their own modest regional hulls", () => {
   const system = createWorldShipyards({ ports: [FIJI], startMinute: 0 });
   const yard = shipyardAtPort(system, FIJI);
   for (let build = 0; build < 40; build++) {
     const listing = generateShipyardListing(yard, build, build * 1000);
-    assert.ok(["sampan", "small-dhow", "lateen-dhow", "small-junk", "medium-junk"].includes(listing.shipSlug));
+    assert.equal(listing.shipSlug, "polynesian-voyaging-canoe");
+  }
+
+  const mesoamericanSystem = createWorldShipyards({ ports: [GUANAHANI], startMinute: 0 });
+  const mesoamericanYard = shipyardAtPort(mesoamericanSystem, GUANAHANI);
+  for (let build = 0; build < 40; build++) {
+    const listing = generateShipyardListing(mesoamericanYard, build, build * 1000);
+    assert.equal(listing.shipSlug, "mesoamerican-dugout-canoe");
   }
 });
 

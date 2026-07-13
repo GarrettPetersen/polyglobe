@@ -18,8 +18,10 @@ import {
   MANUAL_CITY_RECORDS_1522,
   cityCatalogSelectionScore,
   cityPopulationObservationAtYear,
+  cityRequiresPortAccess,
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
+import { cityHasPortAccess, cityPortAccessRingDistance } from "./cityPortAccess.js";
 import {
   COLONIAL_FOUNDING_CONQUERED,
   COLONIAL_FOUNDING_NEGOTIATED,
@@ -33,7 +35,6 @@ import {
 
 const SUBDIVISIONS = 7;
 const CITY_CATALOG_MAX_COUNT = 480;
-const CITY_PORT_ACCESS_RING_DISTANCE = 2;
 const repoRoot = new URL("../../../", import.meta.url);
 
 test("water-access intent gives small gameplay ports selection weight", () => {
@@ -126,6 +127,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     city.country === "United Kingdom" || city.country === "Ireland"
   );
   const incaPorts = ports.filter((city) => city.factionId === "inca");
+  const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
   const pacificVillages = ports.filter((city) => city.manualRegion === "pacific-islands");
   const encounterVillages = ports.filter((city) => city.manualRegion === "explorer-encounters");
   const spiceIslandVillages = ports.filter((city) =>
@@ -149,9 +151,33 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
+  assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
+  assert.equal(cambay.factionId, "gujarat");
+  assert.ok(
+    cityPortAccessRingDistance({
+      graph,
+      earthRows: earth.tiles,
+      reachableNavigationMask: reachable,
+      riverMasks: masks,
+      tileId: cambay.tileId
+    }) <= 1,
+    "Cambay should be visibly adjacent to navigable water"
+  );
   assert.deepEqual(
     pacificVillages.map((city) => city.city).sort(),
-    ["Fiji Village", "Samoa Village", "Tahiti Village", "Tonga Village"]
+    [
+      "Bay of Islands Village",
+      "Fiji Village",
+      "Hawaii Village",
+      "Niue Village",
+      "Rangiroa Village",
+      "Rapa Nui Village",
+      "Rarotonga Village",
+      "Samoa Village",
+      "Tahiti Village",
+      "Tarawa Village",
+      "Tonga Village"
+    ]
   );
   assert.ok(pacificVillages.every((city) => city.cityType === "polynesian"));
   assert.ok(pacificVillages.every((city) => city.settlementType === "village"));
@@ -379,16 +405,22 @@ function ensureRequiredCities(cities, cityRecords) {
 function placeCityRecords(graph, directionIndex, earthRows, reachable, riverMasks, cities) {
   const placed = [];
   const byTile = new Map();
+  const portAccessContext = {
+    graph,
+    earthRows,
+    reachableNavigationMask: reachable,
+    riverMasks
+  };
   for (const city of cities) {
     const startId = findNearestTileId(graph, directionIndex, latLonToDirection(city.lat, city.lon));
-    const predicate = cityIsRequiredPort(city)
+    const predicate = cityRequiresPortAccess(city)
       ? (tileId) => isCityDrawableTile(earthRows, tileId) &&
-        cityHasPortAccess(graph, earthRows, reachable, riverMasks, tileId)
+        cityHasPortAccess({ ...portAccessContext, tileId })
       : (tileId) => isCityDrawableTile(earthRows, tileId);
     let tileId = predicate(startId) ? startId : nearestTileMatching(graph, startId, predicate);
     if (tileId === undefined) continue;
     if (byTile.has(tileId)) {
-      if (!cityIsRequiredPort(city)) continue;
+      if (!cityRequiresPortAccess(city)) continue;
       const alternateTileId = nearestTileMatching(graph, tileId, (id) => predicate(id) && !byTile.has(id));
       assert.notEqual(alternateTileId, undefined, `required port cannot be placed: ${cityLabel(city)}`);
       tileId = alternateTileId;
@@ -396,16 +428,12 @@ function placeCityRecords(graph, directionIndex, earthRows, reachable, riverMask
     const placedCity = {
       ...city,
       tileId,
-      dockable: cityHasPortAccess(graph, earthRows, reachable, riverMasks, tileId)
+      dockable: cityHasPortAccess({ ...portAccessContext, tileId })
     };
     byTile.set(tileId, placedCity);
     placed.push(placedCity);
   }
   return placed;
-}
-
-function cityIsRequiredPort(city) {
-  return Boolean(city?.declaredCapitalFactionId || city?.requiredTradePort);
 }
 
 function buildRiverMasks(graph, earth) {
@@ -447,24 +475,6 @@ function buildOceanReachableNavigationMask(graph, earthRows, riverMasks, riverTo
     }
   }
   return reachable;
-}
-
-function cityHasPortAccess(graph, earthRows, reachable, riverMasks, tileId) {
-  const visited = new Set([tileId]);
-  const queue = [{ tileId, distance: 0 }];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (isCityPortAccessTile(earthRows, reachable, riverMasks, current.tileId)) return true;
-    if (current.distance >= CITY_PORT_ACCESS_RING_DISTANCE) continue;
-
-    for (const neighborId of graph.neighbors[current.tileId] || []) {
-      if (visited.has(neighborId)) continue;
-      visited.add(neighborId);
-      queue.push({ tileId: neighborId, distance: current.distance + 1 });
-    }
-  }
-  return false;
 }
 
 function canTraverseOceanReachability(graph, earthRows, riverMasks, riverToWaterMasks, fromTileId, toTileId) {
@@ -578,11 +588,6 @@ function edgeIndexTowardNeighbor(graph, tileId, neighborId) {
 
 function riverEdgeSet(masks, tileId, edge) {
   return ((masks?.[tileId] || 0) & (1 << edge)) !== 0;
-}
-
-function isCityPortAccessTile(earthRows, reachable, riverMasks, tileId) {
-  if (!reachable[tileId]) return false;
-  return isWaterSurfaceRow(earthRows[tileId]) || (riverMasks[tileId] || 0) !== 0;
 }
 
 function isCityDrawableTile(earthRows, tileId) {

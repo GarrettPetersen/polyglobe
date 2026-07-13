@@ -1,6 +1,15 @@
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
 
 export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
+export const SHIP_PROPULSION_SAIL = "sail";
+export const SHIP_PROPULSION_OAR = "oar";
+export const SHIP_PROPULSION_OAR_SAIL = "oar-sail";
+
+const SHIP_PROPULSIONS = new Set([
+  SHIP_PROPULSION_SAIL,
+  SHIP_PROPULSION_OAR,
+  SHIP_PROPULSION_OAR_SAIL
+]);
 
 const DEG_TO_RAD = Math.PI / 180;
 const SHIP_MASS_PER_HIT_POINT = 10;
@@ -34,7 +43,9 @@ const SHIP_LABELS = Object.freeze({
   "lateen-dhow": "Lateen Dhow",
   ketch: "Lateen Barque",
   "square-sail-trader": "Square-Sail Trader",
-  "dhow-felucca": "Dhow-Felucca"
+  "dhow-felucca": "Dhow-Felucca",
+  "polynesian-voyaging-canoe": "Polynesian Voyaging Canoe",
+  "mesoamerican-dugout-canoe": "Mesoamerican Dugout Canoe"
 });
 
 const rawShipStats = [
@@ -42,7 +53,7 @@ const rawShipStats = [
   stats("small-dhow", 0, 0.027, 0.032, 34, 3.20, 38, 28, 4),
   stats("small-cog", 2, 0.016, 0.026, 58, 2.00, 70, 70, 6),
   stats("dhow", 4, 0.022, 0.033, 42, 2.80, 55, 45, 5),
-  stats("sampan", 0, 0.026, 0.026, 45, 3.40, 30, 25, 2),
+  stats("sampan", 0, 0.026, 0.026, 45, 3.40, 30, 25, 2, SHIP_PROPULSION_OAR_SAIL),
   stats("large-junk", 24, 0.015, 0.038, 50, 1.75, 220, 360, 8),
   stats("pirate-brig", 18, 0.020, 0.041, 42, 2.35, 190, 130, 7),
   stats("pirate-frigate", 36, 0.017, 0.046, 45, 1.95, 300, 190, 8),
@@ -67,7 +78,9 @@ const rawShipStats = [
   stats("lateen-dhow", 2, 0.027, 0.032, 34, 3.00, 45, 35, 4),
   stats("ketch", 4, 0.024, 0.035, 34, 2.85, 75, 60, 6),
   stats("square-sail-trader", 2, 0.020, 0.034, 52, 2.30, 65, 95, 5),
-  stats("dhow-felucca", 0, 0.030, 0.032, 30, 3.40, 35, 18, 3)
+  stats("dhow-felucca", 0, 0.030, 0.032, 30, 3.40, 35, 18, 3),
+  stats("polynesian-voyaging-canoe", 0, 0.031, 0.038, 28, 3.15, 45, 42, 7, SHIP_PROPULSION_OAR_SAIL),
+  stats("mesoamerican-dugout-canoe", 0, 0.018, 0.016, 0, 3.80, 30, 16, 3, SHIP_PROPULSION_OAR)
 ];
 
 export const SHIP_STATS = Object.freeze(rawShipStats);
@@ -106,18 +119,23 @@ function stats(
   turnRateRad,
   mass,
   cargoCapacity,
-  seaworthiness
+  seaworthiness,
+  propulsion = SHIP_PROPULSION_SAIL
 ) {
   assertSlug(slug);
   assertInteger(`${slug}.cannons`, cannons, 0);
   assertFinitePositive(`${slug}.accelerationRad`, accelerationRad);
   assertFinitePositive(`${slug}.topSpeedRad`, topSpeedRad);
-  assertFiniteRange(`${slug}.upwindStallAngleDeg`, upwindStallAngleDeg, 1, 89);
+  assertFiniteRange(`${slug}.upwindStallAngleDeg`, upwindStallAngleDeg, 0, 89);
   assertFinitePositive(`${slug}.turnRateRad`, turnRateRad);
   assertInteger(`${slug}.mass`, mass, 1);
   assertInteger(`${slug}.cargoCapacity`, cargoCapacity, 0);
   assertInteger(`${slug}.seaworthiness`, seaworthiness, 1);
   if (seaworthiness > 10) throw new Error(`Invalid ${slug}.seaworthiness: ${seaworthiness}`);
+  if (!SHIP_PROPULSIONS.has(propulsion)) throw new Error(`Invalid ${slug}.propulsion: ${propulsion}`);
+  if (propulsion === SHIP_PROPULSION_OAR && upwindStallAngleDeg !== 0) {
+    throw new Error(`Oar-powered ship ${slug} must have a zero-degree wind dead zone`);
+  }
 
   const hitPoints = Math.max(3, Math.round(mass / SHIP_MASS_PER_HIT_POINT));
   const crewCapacity = Math.max(2, Math.round(mass / 12 + cannons * 0.75));
@@ -133,7 +151,8 @@ function stats(
     crewCapacity,
     hitPoints,
     cargoCapacity,
-    seaworthiness
+    seaworthiness,
+    propulsion
   });
 }
 

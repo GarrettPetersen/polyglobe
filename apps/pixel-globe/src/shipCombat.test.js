@@ -65,6 +65,19 @@ test("major-port protection ends an existing pirate attack", () => {
   assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
 });
 
+test("waiting inside any port prevents and ends combat", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "merchant", "england", 0, 0, 30, 4);
+  const pirate = ship("pirate", "pirate", "pirate", 20, 0, 130, 12);
+
+  updateShipCombatState(state, [player, pirate]);
+  assert.equal(state.engagements.size, 1);
+
+  player.portProtected = true;
+  assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
+  assert.equal(updateShipCombatState(createShipCombatState(), [player, pirate]).engagementCount, 0);
+});
+
 test("warring warships fight but unescorted merchants do not initiate", () => {
   const war = createShipCombatState();
   const warResult = updateShipCombatState(war, [

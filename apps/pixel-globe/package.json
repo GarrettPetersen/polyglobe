@@ -11,6 +11,7 @@
     "preview:character-roles": "node tools/render-character-role-review.mjs",
     "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",
+    "render:native-boats": "node tools/render-sail-ship-sprites.mjs --native-boats",
     "render:social-cards": "node tools/render-social-cards.mjs",
     "render:unity-ships": "node tools/render-sail-ship-sprites.mjs --unity-fleet",
     "render:unity-ship-side-views": "node tools/render-sail-ship-sprites.mjs --unity-fleet-side-views",

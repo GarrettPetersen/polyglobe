@@ -34,8 +34,8 @@ test("NPC fishermen usually receive cheap nets but can carry every tier", () => 
 });
 
 test("NPC expected hauls respect each net's maximum capacity", () => {
-  assert.equal(npcFishingNetExpectedHaul(BASIC_FISHING_NET_ID), 1);
-  assert.equal(npcFishingNetExpectedHaul("weighted-cast-net"), 3);
-  assert.equal(npcFishingNetExpectedHaul("drift-net"), 7);
-  assert.equal(npcFishingNetExpectedHaul("masterwork-seine"), 10);
+  assert.equal(npcFishingNetExpectedHaul(BASIC_FISHING_NET_ID), 2);
+  assert.equal(npcFishingNetExpectedHaul("weighted-cast-net"), 5);
+  assert.equal(npcFishingNetExpectedHaul("drift-net"), 8);
+  assert.equal(npcFishingNetExpectedHaul("masterwork-seine"), 12);
 });

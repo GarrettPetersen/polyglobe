@@ -22,6 +22,7 @@ import {
 } from "./npcSeaRoutes.js";
 import { DIPLOMACY_WAR, PIRATE_FACTION_ID, diplomacyBetween } from "./factions.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { navalWeaponForShip } from "./navalWeapons.js";
 import {
   fishingNetById,
   npcFishingNetExpectedHaul
@@ -44,6 +45,11 @@ const PACIFIC_PORTS = Object.freeze([
   port(21, "Tonga Village", "Tonga", "polynesian", -21.14, -175.2, 3000, "neutral"),
   port(22, "Samoa Village", "Samoa", "polynesian", -13.83, -171.75, 3000, "neutral"),
   port(23, "Tahiti Village", "French Polynesia", "polynesian", -17.55, -149.56, 3000, "neutral")
+]);
+
+const MESOAMERICAN_PORTS = Object.freeze([
+  port(30, "Guanahani Village", "Bahamas", "mesoamerican", 24.06, -74.47, 1200, "neutral"),
+  port(31, "Coroa Vermelha Village", "Brazil", "mesoamerican", -16.33, -39.01, 1600, "neutral")
 ]);
 
 test("NPC merchants carry finite cargo and realize profits over repeated port calls", () => {
@@ -88,7 +94,7 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
       assert.equal(ship.factionId, PIRATE_FACTION_ID);
       assert.match(ship.slug, /^pirate-/);
     } else if (ship.role === NPC_ROLE_WARSHIP) {
-      assert.ok(stats.cannons > 0);
+      assert.ok(navalWeaponForShip({ cultureType: ship.cultureType, cannons: stats.cannons }));
       assert.notEqual(ship.factionId, PIRATE_FACTION_ID);
     } else if (ship.role === NPC_ROLE_FISHERMAN) {
       assert.equal(stats.cannons <= 4, true);
@@ -117,10 +123,29 @@ test("Pacific villages get a small regional fishing and trading fleet", () => {
   const pacificShips = routes.ships.filter((ship) => ship.profileId === "pacific-islands");
 
   assert.ok(pacificShips.length > 0);
-  assert.ok(pacificShips.every((ship) => ["sampan", "small-dhow", "lateen-dhow", "small-junk", "medium-junk"].includes(ship.slug)));
+  assert.ok(pacificShips.length <= 6);
+  assert.ok(pacificShips.every((ship) => ship.slug === "polynesian-voyaging-canoe"));
+  assert.ok(pacificShips.every((ship) => ship.cultureType === "polynesian"));
+  assert.ok(routes.ships.filter((ship) => ship.currentPort?.cityType === "polynesian").every((ship) => ship.profileId === "pacific-islands"));
   assert.ok(routes.ports.filter((port) => port.routeRegion === "polynesia").length >= PACIFIC_PORTS.length);
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
+});
+
+test("Mesoamerican ports get a sparse coastal fishing and trading fleet", () => {
+  const ports = [...PORTS, ...MESOAMERICAN_PORTS];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  const nativeShips = routes.ships.filter((ship) => ship.profileId === "mesoamerican-coast");
+
+  assert.ok(nativeShips.length > 0);
+  assert.ok(nativeShips.length <= 5);
+  assert.ok(nativeShips.every((ship) => ship.slug === "mesoamerican-dugout-canoe"));
+  assert.ok(nativeShips.every((ship) => ship.cultureType === "mesoamerican"));
+  assert.ok(routes.ships.filter((ship) => ship.currentPort?.cityType === "mesoamerican").every((ship) => ship.profileId === "mesoamerican-coast"));
+  assert.ok(nativeShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
+  assert.ok(nativeShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
+  assert.ok(nativeShips.every((ship) => ship.role !== NPC_ROLE_PIRATE));
 });
 
 test("NPC route snapshots restore ships, plans, and replacement queues without caches", () => {
@@ -234,6 +259,18 @@ test("voluntary surrender preserves an undamaged hull", () => {
 
   assert.equal(loser.hitPoints, hullBefore);
   assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+});
+
+test("NPC hull damage preserves half-point arrow hits", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const target = routes.ships[0];
+  const before = target.hitPoints;
+
+  const damage = damageNpcShip(routes, target.id, 0.5);
+
+  assert.equal(damage.hitPoints, before - 0.5);
+  assert.equal(target.hitPoints, before - 0.5);
 });
 
 test("sunk NPC ships are replaced after a rare shipyard delay", () => {

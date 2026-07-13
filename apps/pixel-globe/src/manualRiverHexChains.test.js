@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
+import { cityHasPortAccess } from "./cityPortAccess.js";
 import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
@@ -10,7 +11,6 @@ import {
 } from "./manualRiverHexChains.js";
 
 const SUBDIVISIONS = 7;
-const CITY_PORT_ACCESS_RING_DISTANCE = 2;
 const repoRoot = new URL("../../../", import.meta.url);
 
 test("Grand Canal gives Ming Beijing water access", async () => {
@@ -25,7 +25,13 @@ test("Grand Canal gives Ming Beijing water access", async () => {
   const beijingTileId = findNearestTileId(graph, directionIndex, latLonToDirection(39.9075, 116.39723));
 
   assert.equal(beijingTileId, 15605);
-  assert.equal(cityHasPortAccess(graph, earth.tiles, reachable, masks, beijingTileId), true);
+  assert.equal(cityHasPortAccess({
+    graph,
+    earthRows: earth.tiles,
+    reachableNavigationMask: reachable,
+    riverMasks: masks,
+    tileId: beijingTileId
+  }), true);
 });
 
 test("saltwater passages are an explicit subset of manual river channels", () => {
@@ -83,24 +89,6 @@ function buildOceanReachableNavigationMask(graph, earthRows, riverMasks, riverTo
     }
   }
   return reachable;
-}
-
-function cityHasPortAccess(graph, earthRows, reachable, riverMasks, tileId) {
-  const visited = new Set([tileId]);
-  const queue = [{ tileId, distance: 0 }];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (isCityPortAccessTile(earthRows, reachable, riverMasks, current.tileId)) return true;
-    if (current.distance >= CITY_PORT_ACCESS_RING_DISTANCE) continue;
-
-    for (const neighborId of graph.neighbors[current.tileId] || []) {
-      if (visited.has(neighborId)) continue;
-      visited.add(neighborId);
-      queue.push({ tileId: neighborId, distance: current.distance + 1 });
-    }
-  }
-  return false;
 }
 
 function canTraverseOceanReachability(graph, earthRows, riverMasks, riverToWaterMasks, fromTileId, toTileId) {
@@ -161,11 +149,6 @@ function edgeIndexTowardNeighbor(graph, tileId, neighborId) {
 
 function riverEdgeSet(masks, tileId, edge) {
   return ((masks?.[tileId] || 0) & (1 << edge)) !== 0;
-}
-
-function isCityPortAccessTile(earthRows, reachable, riverMasks, tileId) {
-  if (!reachable[tileId]) return false;
-  return isWaterSurfaceRow(earthRows[tileId]) || (riverMasks[tileId] || 0) !== 0;
 }
 
 function isOceanNavigationSeedTile(row) {

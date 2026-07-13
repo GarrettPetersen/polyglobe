@@ -3,6 +3,14 @@ const MIN_ARM_LENGTH_PX = 6;
 const ARM_LENGTH_PER_WIND_STRENGTH_PX = 12;
 const APEX_ARM_OFFSET_RATIO = 0.7;
 
+export function windVOpacity(windStrength, stallWarning = 0, pulse = 0) {
+  for (const [label, value] of Object.entries({ windStrength, stallWarning, pulse })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid wind V ${label}: ${value}`);
+  }
+  return clamp(0.56 + Math.min(MAX_DISPLAY_WIND_STRENGTH, Math.max(0, windStrength)) * 0.34 +
+    clamp(stallWarning, 0, 1) * clamp(pulse, 0, 1) * 0.1, 0, 1);
+}
+
 export function windVArmLengthPx(windStrength) {
   if (!Number.isFinite(windStrength) || windStrength < 0) {
     throw new Error(`Invalid wind strength: ${windStrength}`);
@@ -23,7 +31,7 @@ export function windVGeometry({
   for (const [label, value] of Object.entries({ centerX, centerY, flowDirectionRad, radiusPx })) {
     if (!Number.isFinite(value)) throw new Error(`Invalid wind V ${label}: ${value}`);
   }
-  if (!Number.isFinite(deadZoneHalfAngleRad) || deadZoneHalfAngleRad <= 0 || deadZoneHalfAngleRad >= Math.PI / 2) {
+  if (!Number.isFinite(deadZoneHalfAngleRad) || deadZoneHalfAngleRad < 0 || deadZoneHalfAngleRad >= Math.PI / 2) {
     throw new Error(`Invalid wind V dead-zone angle: ${deadZoneHalfAngleRad}`);
   }
   if (radiusPx < 0) throw new Error(`Invalid wind V radius: ${radiusPx}`);
@@ -72,4 +80,8 @@ function roundPoint(point) {
     x: Math.round(point.x),
     y: Math.round(point.y)
   };
+}
+
+function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
 }

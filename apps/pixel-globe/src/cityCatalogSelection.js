@@ -164,6 +164,41 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "pacific-islands",
     marketGoods: ["fish", "timber", "artwork"]
   }),
+  manualVillage1522("Hawaii Village", "Hawaii", 19.4756, -155.9225, 3500, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "sugar", "artwork"]
+  }),
+  manualVillage1522("Rarotonga Village", "Cook Islands", -21.2367, -159.7777, 2200, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
+  manualVillage1522("Niue Village", "Niue", -19.0544, -169.8672, 1100, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Rangiroa Village", "French Polynesia", -14.9667, -147.6333, 1000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "salt", "artwork"]
+  }),
+  manualVillage1522("Tarawa Village", "Kiribati", 1.4518, 173.0312, 1800, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "salt", "artwork"]
+  }),
+  manualVillage1522("Rapa Nui Village", "Rapa Nui", -27.1212, -109.3664, 1800, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "dyes", "artwork"]
+  }),
+  manualVillage1522("Bay of Islands Village", "Aotearoa", -35.2285, 174.0915, 2400, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
   manualVillage1522("Guanahani Village", "Bahamas", 24.059, -74.474, 1200, {
     cityType: "mesoamerican",
     manualRegion: "explorer-encounters",
@@ -217,6 +252,14 @@ export function cityCatalogSelectionScore(city) {
 
 export function cityHasWaterAccessIntent(city) {
   return Boolean(city?.coastalIntent || city?.lakeIntent);
+}
+
+export function cityRequiresPortAccess(city) {
+  return Boolean(
+    city?.declaredCapitalFactionId ||
+    city?.requiredTradePort ||
+    cityHasWaterAccessIntent(city)
+  );
 }
 
 function cityLabelText(city) {

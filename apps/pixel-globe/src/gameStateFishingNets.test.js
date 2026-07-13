@@ -17,14 +17,14 @@ const LISBON = {
   country: "Portugal"
 };
 
-test("players begin with the low-capacity basic cast net", () => {
+test("players begin with the forgiving basic cast net", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const net = playerFishingNet(state);
 
   assert.equal(net.id, BASIC_FISHING_NET_ID);
-  assert.equal(net.maxCatch, 2);
+  assert.equal(net.maxCatch, 3);
   assert.equal(shipItemRows(state)[0].label, "Basic cast net");
-  assert.match(shipItemRows(state)[0].detail, /max haul 2/);
+  assert.match(shipItemRows(state)[0].detail, /max haul 3/);
 });
 
 test("fishing net upgrades are expensive equipment purchases recorded in the ledger", () => {
@@ -37,7 +37,7 @@ test("fishing net upgrades are expensive equipment purchases recorded in the led
   assert.equal(purchase.net.id, "weighted-cast-net");
   assert.equal(purchase.price, 900);
   assert.equal(state.doubloons, 4100);
-  assert.equal(playerFishingNet(state).maxCatch, 4);
+  assert.equal(playerFishingNet(state).maxCatch, 5);
   assert.deepEqual(ledgerEntries(state).at(-1), {
     id: 2,
     kind: "equipment",

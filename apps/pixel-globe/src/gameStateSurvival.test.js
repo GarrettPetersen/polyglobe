@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { FRESH_WATER_GOOD_ID, createWorldEconomy } from "./economy.js";
+import { FORAGED_FOOD_GOOD_ID, FRESH_WATER_GOOD_ID, createWorldEconomy } from "./economy.js";
 import {
   FRESH_WATER_CAPACITY,
   autoProvisionFreshWaterAtPort,
@@ -15,10 +15,12 @@ import {
   loseCrew,
   purchasePlayerShip,
   restockShipLoadoutAtPort,
+  refillFreshWaterFromShore,
   rollCrewCasualtiesForDamage,
   sellGood,
   setPlayerShipStats,
   shipConsumption,
+  stowForagedFood,
   survivalStatus,
   updateSurvival,
   validateGameState
@@ -170,6 +172,23 @@ test("crew, passengers, and livestock all increase food and water burn", () => {
   assert.equal(voyage.waterConsumers, crewOnly.waterConsumers + 5);
 });
 
+test("shore scavenging fills available cask space and stows edible food", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.survival.freshWater -= 4;
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+
+  assert.equal(refillFreshWaterFromShore(state), 4);
+  assert.equal(state.survival.freshWater, state.survival.freshWaterCapacity);
+  assert.equal(stowForagedFood(state, 2), 2);
+  assert.equal(state.cargo[FORAGED_FOOD_GOOD_ID], 2);
+  assert.equal(state.accounts.cargoCostBasis[FORAGED_FOOD_GOOD_ID], 0);
+  assert.ok(survivalStatus(state).foodUnits >= 2);
+  assert.ok(cargoUsed(state) <= state.cargoCapacity);
+});
+
 test("crew die from thirst and sometimes from hull damage", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -181,6 +200,10 @@ test("crew die from thirst and sometimes from hull damage", () => {
   const rolls = [0, 0.99];
   assert.equal(rollCrewCasualtiesForDamage(state, 4, () => rolls.shift()), 2);
   assert.equal(rollCrewCasualtiesForDamage(state, 1, () => 0.99), 0);
+
+  const remainingCrew = state.ship.crew;
+  assert.equal(loseCrew(state, remainingCrew + 10), remainingCrew);
+  assert.equal(state.ship.crew, 0);
 });
 
 test("changing hulls updates crew, gun, and loadout capacities together", () => {

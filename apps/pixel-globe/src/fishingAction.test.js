@@ -43,11 +43,12 @@ test("each additional visible fish improves catch odds without guaranteeing a ca
 });
 
 test("better fishing nets improve catch odds across the same fish school", () => {
-  const basic = fishingCatchChance(6, 0.55);
-  const weighted = fishingCatchChance(6, 0.75);
-  const drift = fishingCatchChance(6, 1);
-  const masterwork = fishingCatchChance(6, 1.15);
+  const basic = fishingCatchChance(6, 0.8);
+  const weighted = fishingCatchChance(6, 1);
+  const drift = fishingCatchChance(6, 1.2);
+  const masterwork = fishingCatchChance(6, 1.4);
 
+  assert.ok(basic > 0.5);
   assert.ok(basic < weighted);
   assert.ok(weighted < drift);
   assert.ok(drift < masterwork);

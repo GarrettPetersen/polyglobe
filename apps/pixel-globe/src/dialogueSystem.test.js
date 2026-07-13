@@ -250,6 +250,13 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   const root = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(root.speaker, "Fernao da Cunha, Lisbon factor");
   assert.match(root.text, /Market specie: \d+ db/);
+  const waitIndex = root.options.findIndex((option) => option.action.type === "wait-in-port");
+  assert.ok(waitIndex >= 0);
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], waitIndex, context),
+    { closed: true, action: { type: "wait-in-port" } }
+  );
+  session.nodeId = "root";
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(market.optionHeight, 30);
