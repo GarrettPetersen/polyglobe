@@ -1,7 +1,7 @@
 import { assignRegionalCharacterName } from "./characterNames.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-5";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-semantic-palette-6";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 export const PORTRAIT_ROLE_SKIN = 1;
 export const PORTRAIT_ROLE_HAIR = 2;
@@ -730,16 +730,25 @@ function faceComponentScore(component, sampleIndices, width, height) {
 }
 
 function plausibleSecondarySkinComponent(component, width, height) {
-  if (component.length < 2 || component.length > width * height * 0.075) return false;
+  if (component.length < 2) return false;
   const bounds = componentBounds(component, width);
   const centerX = (bounds.left + bounds.right) * 0.5;
   const centerY = (bounds.top + bounds.bottom) * 0.5;
+  const upperTorso = bounds.top >= height * 0.52
+    && bounds.top <= height * 0.7
+    && bounds.bottom <= height * 0.94
+    && bounds.width >= width * 0.18
+    && bounds.width <= width * 0.7
+    && centerX >= width * 0.32
+    && centerX <= width * 0.68
+    && component.length <= width * height * 0.16;
+  if (component.length > width * height * 0.075 && !upperTorso) return false;
   const sideLimb = centerY >= height * 0.38 && centerY <= height * 0.88
     && (centerX <= width * 0.38 || centerX >= width * 0.62);
   const neck = centerY >= height * 0.48 && centerY <= height * 0.68
     && centerX >= width * 0.36 && centerX <= width * 0.64
     && component.length <= width * height * 0.025;
-  return sideLimb || neck;
+  return sideLimb || neck || upperTorso;
 }
 
 function deduplicateRgbSamples(samples) {

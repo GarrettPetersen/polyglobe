@@ -140,6 +140,33 @@ test("skin-colored torso fabric is not mistaken for a second face", () => {
   assert.equal(roles[11 + 18 * width], PORTRAIT_ROLE_CLOTH);
 });
 
+test("exposed upper torso matching the face remains skin", () => {
+  const width = 24;
+  const height = 24;
+  const data = new Uint8ClampedArray(width * height * 4);
+  fillRect(data, width, 9, 5, 6, 7, [210, 150, 115, 255]);
+  fillRect(data, width, 6, 14, 12, 6, [210, 150, 115, 255]);
+  fillRect(data, width, 5, 20, 14, 4, [35, 75, 125, 255]);
+
+  const roles = classifyPortraitRoles(data, width, height);
+
+  assert.equal(roles[11 + 17 * width], PORTRAIT_ROLE_SKIN);
+  assert.equal(roles[11 + 21 * width], PORTRAIT_ROLE_CLOTH);
+});
+
+test("Women Portrait 13 keeps exposed torso skin separate from her garment", () => {
+  const portrait = GENERATED_MANIFEST.sourceCharacters.find((source) => (
+    source.id === "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-13"
+  ));
+  const roles = decodePortraitRoleMap(portrait.expressions[0].roleMap, 64 * 64);
+
+  assert.equal(roles[32 + 48 * 64], PORTRAIT_ROLE_SKIN);
+  assert.ok([
+    PORTRAIT_ROLE_CLOTH,
+    PORTRAIT_ROLE_ACCENT
+  ].includes(roles[14 + 60 * 64]));
+});
+
 test("player portrait pool contains only multi-expression captain sources", () => {
   assert.deepEqual(playerCharacterPortraitSummary(GENERATED_MANIFEST), {
     total: 156,
