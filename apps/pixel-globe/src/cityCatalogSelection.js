@@ -73,6 +73,21 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   manualCity1522("Ternate", "Indonesia", 0.7893, 127.3844, 12000, {
     manualRegion: "spice-islands"
   }),
+  manualVillage1522("Banda Village", "Indonesia", -4.5234, 129.9002, 3500, {
+    cityType: "southeast-asian",
+    manualRegion: "spice-islands",
+    marketGoods: ["spices", "fish", "timber"]
+  }),
+  manualVillage1522("Hitu Village", "Indonesia", -3.5833, 128.1833, 3000, {
+    cityType: "southeast-asian",
+    manualRegion: "spice-islands",
+    marketGoods: ["spices", "fish", "timber"]
+  }),
+  manualVillage1522("Makian Village", "Indonesia", 0.3204, 127.3695, 2200, {
+    cityType: "southeast-asian",
+    manualRegion: "spice-islands",
+    marketGoods: ["spices", "fish", "timber"]
+  }),
   manualCity1522("Aden", "Yemen", 12.7855, 45.0187, 35000, {
     manualRegion: "red-sea"
   }),
@@ -128,6 +143,56 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   manualCity1522("Chanchan", "Peru", -8.106, -79.074536, 25000, {
     cityType: "andean",
     manualRegion: "inca-coast"
+  }),
+  manualVillage1522("Fiji Village", "Fiji", -18.1416, 178.4419, 3500, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Tonga Village", "Tonga", -21.1394, -175.2049, 3000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Samoa Village", "Samoa", -13.8333, -171.75, 3000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Tahiti Village", "French Polynesia", -17.5516, -149.5585, 3000, {
+    cityType: "polynesian",
+    manualRegion: "pacific-islands",
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
+  manualVillage1522("Guanahani Village", "Bahamas", 24.059, -74.474, 1200, {
+    cityType: "mesoamerican",
+    manualRegion: "explorer-encounters",
+    marketGoods: ["fish", "cotton", "salt"]
+  }),
+  manualVillage1522("Coroa Vermelha Village", "Brazil", -16.3338, -39.0117, 1600, {
+    cityType: "mesoamerican",
+    manualRegion: "explorer-encounters",
+    marketGoods: ["fish", "timber", "dyes"]
+  }),
+  manualVillage1522("Mossel Bay Village", "South Africa", -34.1831, 22.1461, 1400, {
+    cityType: "sub-saharan",
+    manualRegion: "explorer-encounters",
+    marketGoods: ["fish", "salt", "wool"]
+  }),
+  manualVillage1522("Umatac Village", "Guam", 13.298, 144.659, 1400, {
+    cityType: "polynesian",
+    manualRegion: "explorer-encounters",
+    marketGoods: ["fish", "timber", "sugar"]
+  }),
+  manualVillage1522("Mactan Village", "Philippines", 10.3075, 123.9794, 2500, {
+    cityType: "southeast-asian",
+    manualRegion: "explorer-encounters",
+    marketGoods: ["fish", "cotton", "sugar"]
+  }),
+  manualVillage1522("Vaitahu Village", "French Polynesia", -9.9372, -139.111, 900, {
+    cityType: "polynesian",
+    manualRegion: "explorer-encounters",
+    marketGoods: ["fish", "timber", "artwork"]
   })
 ]);
 
@@ -173,4 +238,11 @@ function manualCity1522(city, country, lat, lon, population, details = {}) {
     cityType: details.cityType || null,
     ...details
   }));
+}
+
+function manualVillage1522(city, country, lat, lon, population, details = {}) {
+  return manualCity1522(city, country, lat, lon, population, {
+    ...details,
+    settlementType: "village"
+  });
 }

@@ -14,6 +14,9 @@ const MIN_PRICE_MULTIPLIER = 0.38;
 const MAX_PRICE_MULTIPLIER = 3.8;
 const NPC_SPECIE_RESERVE_RATIO = 0.15;
 const NPC_CARGO_LINE_LIMIT = 4;
+const VILLAGE_MARKET_GOOD_LIMIT = 3;
+const VILLAGE_PRODUCTION_MULTIPLIER = 0.58;
+const VILLAGE_CONSUMPTION_MULTIPLIER = 0.62;
 
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
@@ -77,6 +80,7 @@ const REGION_PRODUCTION = Object.freeze({
   "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22 }),
   "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, pepper: 0.85, spices: 0.65, dyes: 0.55, sugar: 0.35 }),
   "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, pepper: 0.75, spices: 1.2, sugar: 0.65, dyes: 0.25 }),
+  polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
   mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55, silver: 0.3, gold: 0.12 }),
   andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, silver: 0.8, gold: 0.22, dyes: 0.2 }),
   "sub-saharan": rates({ hardtack: 0.45, grain: 0.45, timber: 0.45, ivory: 0.8, gold: 0.5, dyes: 0.35, salt: 0.3 })
@@ -89,6 +93,7 @@ const REGION_DEMAND = Object.freeze({
   "east-asian": rates({ pepper: 0.25, spices: 0.3, silver: 0.55, glassware: 0.25, wool: 0.2 }),
   "south-asian": rates({ silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18 }),
   "southeast-asian": rates({ cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16 }),
+  polynesian: rates({ iron: 0.65, arms: 0.45, "cotton-cloth": 0.45, glassware: 0.35, salt: 0.25 }),
   mesoamerican: rates({ iron: 0.7, arms: 0.55, "cotton-cloth": 0.3, glassware: 0.3, wine: 0.2 }),
   andean: rates({ iron: 0.55, arms: 0.5, "cotton-cloth": 0.3, wine: 0.2, salt: 0.2 }),
   "sub-saharan": rates({ "cotton-cloth": 0.5, iron: 0.45, arms: 0.35, salt: 0.35, glassware: 0.3 })
@@ -122,6 +127,7 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
   "east-asian": rates({ silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
   "south-asian": rates({ silver: 1.45, gold: 1.15, arms: 1.2, glassware: 1.25, porcelain: 1.15 }),
   "southeast-asian": rates({ silver: 1.5, gold: 1.15, arms: 1.25, glassware: 1.25, "cotton-cloth": 1.15 }),
+  polynesian: rates({ iron: 1.4, arms: 1.35, glassware: 1.35, "cotton-cloth": 1.3, salt: 1.2 }),
   mesoamerican: rates({ arms: 1.35, iron: 1.25, glassware: 1.25, "cotton-cloth": 1.2, wine: 1.15 }),
   andean: rates({ arms: 1.35, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
   "sub-saharan": rates({ arms: 1.25, iron: 1.2, glassware: 1.2, "cotton-cloth": 1.2, salt: 1.15 })
@@ -149,6 +155,9 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Aceh", ["pepper"]),
   specialty("Patani", ["pepper", "spices"]),
   specialty("Ternate", ["spices"]),
+  specialty("Banda Village", ["spices"]),
+  specialty("Hitu Village", ["spices"]),
+  specialty("Makian Village", ["spices"]),
   specialty("Sofala", ["gold"]),
   specialty("Mozambique Island", ["gold", "ivory"]),
   specialty("Mombasa", ["ivory"]),
@@ -227,9 +236,6 @@ export function restoreWorldEconomy(economy, snapshot) {
     throw new Error("Unsupported world economy save data");
   }
   if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved economy minute");
-  if (snapshot.ports.length !== economy.portStates.size) {
-    throw new Error("Saved economy does not match the current port catalog");
-  }
   for (const saved of snapshot.ports) {
     const port = economy.portStates.get(saved.id);
     if (!port) throw new Error(`Saved economy port is missing: ${saved.id}`);
@@ -320,6 +326,7 @@ export function executePortSale(economy, city, goodId, quantity) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
+  assertPortOffersGood(port, good);
   const state = port.goods.get(goodId);
   const available = good.alwaysAvailable ? Number.POSITIVE_INFINITY : Math.floor(state.stock);
   if (available < quantity) {
@@ -335,6 +342,7 @@ export function quotePortSale(economy, city, goodId, quantity) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
+  assertPortOffersGood(port, good);
   return quoteTransaction(port, good, quantity, -1, "buyPrice");
 }
 
@@ -343,6 +351,7 @@ export function maximumPortSaleQuantity(economy, city, goodId, requestedQuantity
   if (!Number.isFinite(traderSpecie) || traderSpecie < 0) throw new Error(`Invalid trader specie: ${traderSpecie}`);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
+  if (!portOffersGood(port, good)) return 0;
   let low = 0;
   let high = good.alwaysAvailable ? requestedQuantity : Math.min(requestedQuantity, Math.floor(port.goods.get(goodId).stock));
   while (low < high) {
@@ -396,6 +405,7 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
 
   for (const good of TRADE_GOODS) {
     if (good.npcTrade === false || good.sellable === false) continue;
+    if (!portOffersGood(originPort, good)) continue;
     const originState = originPort.goods.get(good.id);
     const reserve = Math.max(2, originState.targetStock * 0.12);
     const available = Math.max(0, Math.floor(originState.stock - reserve));
@@ -474,6 +484,12 @@ export function cargoSaleValue(economy, city, cargo) {
 
 function createPortState(port) {
   const populationScale = clamp(Math.sqrt(Math.max(1000, port.population || 10000) / 30000), 0.45, 4.2);
+  const settlementType = port.settlementType === "village" ? "village" : "city";
+  const productionMultiplier = settlementType === "village" ? VILLAGE_PRODUCTION_MULTIPLIER : 1;
+  const consumptionMultiplier = settlementType === "village" ? VILLAGE_CONSUMPTION_MULTIPLIER : 1;
+  const declaredMarketGoodIds = settlementType === "village" && Array.isArray(port.marketGoods)
+    ? villageMarketGoodIds(port.marketGoods, port.displayCity || port.city)
+    : null;
   const productionProfile = REGION_PRODUCTION[port.cityType];
   const demandProfile = REGION_DEMAND[port.cityType];
   if (!productionProfile || !demandProfile) throw new Error(`No economy profile for city type: ${port.cityType}`);
@@ -482,8 +498,12 @@ function createPortState(port) {
 
   for (const good of TRADE_GOODS) {
     const stapleDemand = stapleDemandRate(good.category);
-    const productionRate = populationScale * ((productionProfile[good.id] || 0) + (specialties.includes(good.id) ? 1.35 : 0));
-    const householdConsumptionPerDay = populationScale * (stapleDemand + (demandProfile[good.id] || 0));
+    const regionalProduction = productionProfile[good.id] || 0;
+    const villageLocalProduction = declaredMarketGoodIds?.has(good.id) ? 0.45 : 0;
+    const productionRate = populationScale * productionMultiplier *
+      (Math.max(regionalProduction, villageLocalProduction) + (specialties.includes(good.id) ? 1.35 : 0));
+    const householdConsumptionPerDay = populationScale * consumptionMultiplier *
+      (stapleDemand + (demandProfile[good.id] || 0));
     goods.set(good.id, {
       productionPerDay: productionRate,
       householdConsumptionPerDay,
@@ -507,14 +527,29 @@ function createPortState(port) {
     state.stock = state.targetStock * stockVariance;
   }
 
-  const targetSpecie = Math.round(1200 + populationScale * 4200);
+  const marketGoodIds = settlementType === "village"
+    ? declaredMarketGoodIds || new Set([...goods.entries()]
+      .filter(([goodId, state]) =>
+        goodId !== HARDTACK_GOOD_ID &&
+        goodId !== FRESH_WATER_GOOD_ID &&
+        state.productionPerDay > 0
+      )
+      .sort((a, b) => b[1].productionPerDay - a[1].productionPerDay || a[0].localeCompare(b[0]))
+      .slice(0, VILLAGE_MARKET_GOOD_LIMIT)
+      .map(([goodId]) => goodId))
+    : null;
+  const targetSpecie = settlementType === "village"
+    ? Math.round(250 + populationScale * 900)
+    : Math.round(1200 + populationScale * 4200);
   return {
     id: requiredPortId(port),
     name: port.displayCity || port.city,
     cityType: port.cityType,
+    settlementType,
     populationScale,
     targetSpecie,
     specie: targetSpecie * (0.85 + hashUnit(`${port.tileId}|specie`) * 0.3),
+    marketGoodIds,
     goods
   };
 }
@@ -546,6 +581,30 @@ function advancePortEconomy(port, elapsedDays) {
   port.specie = Math.max(0, port.specie + localCashFlow + circulation);
 }
 
+function assertPortOffersGood(port, good) {
+  if (!portOffersGood(port, good)) {
+    throw new Error(`${port.name} does not offer ${good.label}`);
+  }
+}
+
+function portOffersGood(port, good) {
+  return good.alwaysAvailable || !port.marketGoodIds || port.marketGoodIds.has(good.id);
+}
+
+function villageMarketGoodIds(goodIds, portName) {
+  if (goodIds.length !== VILLAGE_MARKET_GOOD_LIMIT) {
+    throw new Error(`${portName} village market must declare exactly ${VILLAGE_MARKET_GOOD_LIMIT} goods`);
+  }
+  const ids = new Set();
+  for (const goodId of goodIds) {
+    const good = tradeGoodById(goodId);
+    if (good.alwaysAvailable) throw new Error(`${portName} cannot list ship supplies as village trade goods`);
+    ids.add(goodId);
+  }
+  if (ids.size !== goodIds.length) throw new Error(`${portName} village market contains duplicate goods`);
+  return ids;
+}
+
 function marketRow(port, good) {
   const state = port.goods.get(good.id);
   const prices = marketPrice(port, good, state.stock);
@@ -556,7 +615,9 @@ function marketRow(port, good) {
     stock: good.alwaysAvailable ? 999 : Math.max(0, Math.floor(state.stock)),
     productionPerDay: state.productionPerDay,
     consumptionPerDay: state.consumptionPerDay,
-    listedForSale: good.alwaysAvailable || state.productionPerDay > 0 || state.stock >= Math.max(3, state.targetStock * 0.16),
+    listedForSale: good.alwaysAvailable || (portOffersGood(port, good) && (
+      state.productionPerDay > 0 || state.stock >= Math.max(3, state.targetStock * 0.16)
+    )),
     sellable: good.sellable !== false,
     portSpecie: Math.max(0, Math.floor(port.specie))
   };

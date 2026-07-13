@@ -38,6 +38,9 @@ const REGION_SHIP_POOLS = Object.freeze({
     "sampan", "small-dhow", "lateen-dhow", "dhow", "small-junk", "medium-junk", "large-junk",
     "small-carrack", "carrack"
   ]),
+  polynesian: Object.freeze([
+    "sampan", "small-dhow", "lateen-dhow", "small-junk", "medium-junk"
+  ]),
   mesoamerican: Object.freeze([
     "fishing-lugger", "small-cog", "square-sail-trader", "square-rigged-caravel", "caravel",
     "small-carrack", "brigantine", "carrack", "galleon"
@@ -88,9 +91,6 @@ export function restoreWorldShipyards(system, snapshot) {
     throw new Error("Unsupported shipyard save data");
   }
   if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved shipyard minute");
-  if (snapshot.yards.length !== system.yards.size) {
-    throw new Error("Saved shipyards do not match the current port catalog");
-  }
   for (const saved of snapshot.yards) {
     const yard = system.yards.get(saved.portId);
     if (!yard) throw new Error(`Saved shipyard port is missing: ${saved.portId}`);

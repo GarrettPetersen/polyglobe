@@ -60,6 +60,20 @@ test("England and Scotland use distinct naming cultures", () => {
   assert.equal(nameCultureForSubject({ city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
 });
 
+test("Pacific island villages use the Polynesian naming culture", () => {
+  const village = { city: "Fiji Village", country: "Fiji", cityType: "polynesian", factionId: "neutral" };
+  assert.equal(nameCultureForSubject(village), "polynesian");
+  const character = assignRegionalCharacterName({
+    identityKey: "fiji-village-factor",
+    city: village,
+    sourceId: "captain-portrait",
+    sourceLabel: "Captain Portrait",
+    usedNames: new Set()
+  });
+  assert.equal(character.nameCulture, "polynesian");
+  assert.ok(character.name.includes(" "));
+});
+
 test("border and colonial cities mix local and ruling name cultures", () => {
   const sudak = {
     city: "Sudak",

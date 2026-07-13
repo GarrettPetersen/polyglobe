@@ -426,7 +426,8 @@ test("port assignments use regional portrait and tone pools", () => {
   const usedNames = new Set();
   const assignments = assignPortCityCharacters([
     { tileId: 1, city: "Tenochtitlan", country: "Mexico", cityType: "meso-american", lat: 19.4, lon: -99.1 },
-    { tileId: 2, city: "Kilwa", country: "Tanzania", cityType: "sub-saharan", lat: -8.9, lon: 39.5 }
+    { tileId: 2, city: "Kilwa", country: "Tanzania", cityType: "sub-saharan", lat: -8.9, lon: 39.5 },
+    { tileId: 3, city: "Fiji Village", country: "Fiji", cityType: "polynesian", lat: -18.1, lon: 178.4 }
   ], GENERATED_MANIFEST, usedNames);
 
   const american = assignments.get(1);
@@ -442,7 +443,12 @@ test("port assignments use regional portrait and tone pools", () => {
   assert.ok(["dark-brown", "brown"].includes(african.eyeToneId));
   assert.equal(african.nameCulture, "eastAfrican");
   assert.ok(PORT_PERSONALITY_IDS.includes(african.personalityId));
-  assert.equal(usedNames.size, 2);
+  const polynesian = assignments.get(3);
+  assert.equal(polynesian.region, "polynesia");
+  assert.ok(["golden", "olive", "tan", "brown", "deep-brown"].includes(polynesian.skinToneId));
+  assert.ok(["black", "dark-brown", "silver"].includes(polynesian.hairToneId));
+  assert.equal(polynesian.nameCulture, "polynesian");
+  assert.equal(usedNames.size, 3);
 });
 
 test("ship captains use pirate portraits only for pirate crews", () => {

@@ -39,6 +39,13 @@ const PORTS = Object.freeze([
   port(9, "Nanjing", "China", "east-asian", 32.06, 118.79, 160000, "ming")
 ]);
 
+const PACIFIC_PORTS = Object.freeze([
+  port(20, "Fiji Village", "Fiji", "polynesian", -18.14, 178.44, 3500, "neutral"),
+  port(21, "Tonga Village", "Tonga", "polynesian", -21.14, -175.2, 3000, "neutral"),
+  port(22, "Samoa Village", "Samoa", "polynesian", -13.83, -171.75, 3000, "neutral"),
+  port(23, "Tahiti Village", "French Polynesia", "polynesian", -17.55, -149.56, 3000, "neutral")
+]);
+
 test("NPC merchants carry finite cargo and realize profits over repeated port calls", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
@@ -101,6 +108,19 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   assert.ok(counts.warship > counts.pirate, JSON.stringify(counts));
   assert.ok(counts.pirate / routes.ships.length <= 0.06, JSON.stringify(counts));
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
+});
+
+test("Pacific villages get a small regional fishing and trading fleet", () => {
+  const ports = [...PORTS, ...PACIFIC_PORTS];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  const pacificShips = routes.ships.filter((ship) => ship.profileId === "pacific-islands");
+
+  assert.ok(pacificShips.length > 0);
+  assert.ok(pacificShips.every((ship) => ["sampan", "small-dhow", "lateen-dhow", "small-junk", "medium-junk"].includes(ship.slug)));
+  assert.ok(routes.ports.filter((port) => port.routeRegion === "polynesia").length >= PACIFIC_PORTS.length);
+  assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
+  assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
 });
 
 test("NPC route snapshots restore ships, plans, and replacement queues without caches", () => {

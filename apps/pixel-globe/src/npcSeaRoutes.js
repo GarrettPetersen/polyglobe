@@ -141,6 +141,9 @@ const LANE_NODES = Object.freeze([
   laneNode("manila", "Manila Bay", 14.5, 120.8),
   laneNode("canton", "Pearl River", 22.4, 113.8),
   laneNode("nagasaki", "Nagasaki", 32.7, 129.8),
+  laneNode("new-guinea", "New Guinea", -6.0, 147.0),
+  laneNode("fiji", "Fiji", -18.0, 178.0),
+  laneNode("tahiti", "Tahiti", -17.5, -149.5),
   laneNode("caribbean", "Caribbean", 18.4, -67.0),
   laneNode("havana", "Havana", 23.1, -82.4),
   laneNode("magellan", "Magellan", -53.2, -70.9)
@@ -180,10 +183,20 @@ const LANE_EDGES = Object.freeze([
   laneEdge("malacca", "canton", "monsoon"),
   laneEdge("sunda", "manila", "monsoon"),
   laneEdge("manila", "canton", "coastal"),
-  laneEdge("canton", "nagasaki", "coastal")
+  laneEdge("canton", "nagasaki", "coastal"),
+  laneEdge("sunda", "new-guinea", "bluewater"),
+  laneEdge("manila", "new-guinea", "bluewater"),
+  laneEdge("new-guinea", "fiji", "bluewater"),
+  laneEdge("fiji", "tahiti", "bluewater"),
+  laneEdge("tahiti", "magellan", "bluewater")
 ]);
 
 const FLEET_PROFILES = Object.freeze([
+  profile("pacific-islands", 10, {
+    fishers: ["sampan"],
+    merchants: ["sampan", "small-dhow", "lateen-dhow"],
+    warships: ["small-junk", "medium-junk"]
+  }, isPolynesianPort, "regional"),
   profile("east-asia", 34, {
     fishers: ["sampan", "small-junk"],
     merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
@@ -1554,6 +1567,7 @@ function longRangePairAllowed(a, b) {
   if (pair.has("americas") && pair.has("europe")) return true;
   if (pair.has("africa") && pair.has("europe")) return true;
   if (pair.has("east-asia") && pair.has("indian-ocean")) return true;
+  if (pair.has("east-asia") && pair.has("polynesia")) return true;
   return distanceKm(a, b) > 2800;
 }
 
@@ -1569,6 +1583,10 @@ function isIndianOceanPort(port) {
   return port.cityType === "south-asian" ||
     port.cityType === "southeast-asian" ||
     (port.lon >= 38 && port.lon <= 86 && port.lat >= -12 && port.lat <= 28);
+}
+
+function isPolynesianPort(port) {
+  return port.cityType === "polynesian";
 }
 
 function isMediterraneanPort(port) {
@@ -1588,11 +1606,13 @@ function isLongRangePort(port) {
     "east-asia",
     "indian-ocean",
     "africa",
-    "americas"
+    "americas",
+    "polynesia"
   ].includes(portRouteRegion(port));
 }
 
 function portRouteRegion(port) {
+  if (port.cityType === "polynesian") return "polynesia";
   if (isEastAsiaPort(port)) return "east-asia";
   if (port.cityType === "southeast-asian") return "southeast-asia";
   if (port.cityType === "south-asian") return "south-asia";
@@ -1619,6 +1639,7 @@ function anchorIdsForPort(port) {
       ? nearestAnchors(port, ["goodhope", "mozambique", "zanzibar"], 2)
       : nearestAnchors(port, ["guinea", "cape-verde", "zanzibar"], 2);
   }
+  if (region === "polynesia") return nearestAnchors(port, ["new-guinea", "fiji", "tahiti"], 2);
   if (region === "americas") return nearestAnchors(port, ["caribbean", "havana", "brazil-bulge", "magellan"], 2);
   return nearestAnchors(port, LANE_NODES.map((node) => node.id), 2);
 }

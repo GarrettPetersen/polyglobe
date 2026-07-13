@@ -463,7 +463,7 @@ const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-2";
 const VEHICLE_ASSET_VERSION = "ship-edge-shading-1";
 const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
-const CITY_ASSET_VERSION = "city-types-1";
+const CITY_ASSET_VERSION = "city-types-2";
 const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-1";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
@@ -491,11 +491,16 @@ const CITY_TYPE_KEYS = Object.freeze([
   "east-asian",
   "south-asian",
   "southeast-asian",
+  "polynesian",
   "mesoamerican",
   "andean",
   "sub-saharan"
 ]);
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
+const CITY_TYPE_ART_KEYS = Object.freeze({
+  polynesian: "village"
+});
+const CITY_IMAGE_KEYS = Object.freeze([...CITY_TYPE_KEYS, "village"]);
 const CITY_TYPE_EAST_ASIAN_COUNTRIES = new Set([
   "China",
   "Dem. People's Republic of Korea",
@@ -517,6 +522,12 @@ const CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES = new Set([
   "Myanmar",
   "Thailand",
   "Vietnam"
+]);
+const CITY_TYPE_POLYNESIAN_COUNTRIES = new Set([
+  "Fiji",
+  "French Polynesia",
+  "Samoa",
+  "Tonga"
 ]);
 const CITY_TYPE_ANDEAN_COUNTRIES = new Set([
   "Bolivia",
@@ -839,6 +850,7 @@ const CITY_TYPE_MUSIC_TRACK_KEYS = Object.freeze({
   "east-asian": "cityEastAsian",
   "south-asian": "cityDesert",
   "southeast-asian": "cityTropical",
+  polynesian: "cityTropical",
   mesoamerican: "cityTropical",
   andean: "cityAndean",
   "sub-saharan": "cityTropical"
@@ -1729,13 +1741,14 @@ function validateImageDimensions(img, label, expectedWidth, expectedHeight) {
 }
 
 async function loadCityImages() {
-  const entries = await Promise.all(CITY_TYPE_KEYS.map(loadCityTypeImage));
+  const entries = await Promise.all(CITY_IMAGE_KEYS.map(loadCityTypeImage));
   return new Map(entries);
 }
 
 async function loadCityTypeImage(cityType) {
+  const artKey = CITY_TYPE_ART_KEYS[cityType] || cityType;
   const img = await loadAssetImage(
-    `/assets/buildings/city-types/city-${cityType}.png?v=${CITY_ASSET_VERSION}`,
+    `/assets/buildings/city-types/city-${artKey}.png?v=${CITY_ASSET_VERSION}`,
     `city type image: ${cityType}`
   );
   if (img.width !== CITY_SPRITE_W || img.height !== CITY_SPRITE_H) {
@@ -1862,6 +1875,8 @@ function ensureManualCityRecords(bestByCity, targetYear) {
       lakeIntent: manualSpec.lakeIntent,
       requiredTradePort: Boolean(manualSpec.requiredTradePort),
       manualRegion: manualSpec.manualRegion || null,
+      settlementType: manualSpec.settlementType || "city",
+      marketGoods: manualSpec.marketGoods || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
     });
     const capitalSpec = factionCapitalForCity(cityRecord);
@@ -2032,6 +2047,7 @@ function cityTypeForCity(country, lat, lon) {
   if (CITY_TYPE_EAST_ASIAN_COUNTRIES.has(country)) return "east-asian";
   if (CITY_TYPE_SOUTH_ASIAN_COUNTRIES.has(country)) return "south-asian";
   if (CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES.has(country)) return "southeast-asian";
+  if (CITY_TYPE_POLYNESIAN_COUNTRIES.has(country)) return "polynesian";
   if (CITY_TYPE_ANDEAN_COUNTRIES.has(country)) return "andean";
   if (CITY_TYPE_MESOAMERICAN_COUNTRIES.has(country)) return "mesoamerican";
   if (country === "France" && isMediterraneanFrance(lat, lon)) return "mediterranean";
@@ -8844,7 +8860,7 @@ function drawSelectableInteractionOutlines(nowMs) {
   for (const call of chart.cityCalls || []) {
     if (!portCallInInteractionRange(call)) continue;
     drawSelectableSpriteOutline({
-      image: cityImageForType(call.cityType),
+      image: cityImageForType(call.cityType, call.settlementType),
       sourceX: 0,
       sourceY: 0,
       sourceW: call.spriteW,
@@ -11786,10 +11802,11 @@ function drawTile(call, activeChart) {
   }
 }
 
-function cityImageForType(cityType) {
+function cityImageForType(cityType, settlementType = "city") {
   if (!CITY_TYPE_KEY_SET.has(cityType)) throw new Error(`Unknown city type: ${cityType}`);
-  const img = cityImages?.get(cityType);
-  if (!img) throw new Error(`Missing loaded city type image: ${cityType}`);
+  const imageKey = settlementType === "village" ? "village" : cityType;
+  const img = cityImages?.get(imageKey);
+  if (!img) throw new Error(`Missing loaded city image: ${imageKey}`);
   return img;
 }
 
@@ -14095,7 +14112,7 @@ function cityShadowDirection() {
 }
 
 function drawCityShadow(call, direction, stretch) {
-  const img = cityShadowSpriteForType(call.cityType);
+  const img = cityShadowSpriteForType(call.cityType, call.settlementType);
   const px = -direction.y;
   const py = direction.x;
   const anchorX = call.spriteX + CITY_SPRITE_W / 2;
@@ -14114,10 +14131,11 @@ function drawCityShadow(call, direction, stretch) {
   ctx.restore();
 }
 
-function cityShadowSpriteForType(cityType) {
-  let canvas = cityShadowSpriteCache.get(cityType);
+function cityShadowSpriteForType(cityType, settlementType = "city") {
+  const cacheKey = settlementType === "village" ? "village" : cityType;
+  let canvas = cityShadowSpriteCache.get(cacheKey);
   if (canvas) return canvas;
-  const img = cityImageForType(cityType);
+  const img = cityImageForType(cityType, settlementType);
   canvas = document.createElement("canvas");
   canvas.width = CITY_SPRITE_W;
   canvas.height = CITY_SHADOW_SOURCE_H;
@@ -14137,7 +14155,7 @@ function cityShadowSpriteForType(cityType) {
   shadowCtx.globalCompositeOperation = "source-in";
   shadowCtx.fillStyle = "#120d18";
   shadowCtx.fillRect(0, 0, canvas.width, canvas.height);
-  cityShadowSpriteCache.set(cityType, canvas);
+  cityShadowSpriteCache.set(cacheKey, canvas);
   return canvas;
 }
 
@@ -14154,7 +14172,7 @@ function drawCitySpritesAboveShip(activeChart, offset, nowMs) {
 }
 
 function drawCitySprite(call, nowMs) {
-  const img = cityImageForType(call.cityType);
+  const img = cityImageForType(call.cityType, call.settlementType);
   const poleX = call.spriteX + 29;
   const poleTop = call.spriteY + 2;
   ctx.fillStyle = "#4c3e24";

@@ -10,6 +10,7 @@ import {
   executePortPurchase,
   executePortSale,
   maximumPortPurchaseQuantity,
+  maximumPortSaleQuantity,
   planNpcTrade,
   portEconomySummary,
   portMarket,
@@ -31,6 +32,8 @@ const GOA = port(2, "Goa", "India", "south-asian", 60000);
 const TERNATE = port(3, "Ternate", "Spice Islands", "southeast-asian", 45000);
 const GUANGZHOU = port(4, "Guangzhou", "Ming", "east-asian", 100000);
 const VERACRUZ = port(5, "Veracruz", "New Spain", "mesoamerican", 50000);
+const FIJI = port(6, "Fiji Village", "Fiji", "polynesian", 3500, "village", ["fish", "timber", "sugar"]);
+const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", ["spices", "fish", "timber"]);
 
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
@@ -75,6 +78,39 @@ test("regional production creates comparative advantage and profitable merchant 
   assert.ok(plan.expectedProfit > 0);
   assert.ok(plan.lines.some((line) => line.goodId === "wool"));
   assert.ok(plan.cargoUnits <= 100);
+});
+
+test("Polynesian villages support a fish-rich island economy", () => {
+  const islandCity = port(7, "Island City", "Fiji", "polynesian", 3500);
+  const economy = createWorldEconomy({ ports: [FIJI, islandCity, GOA], startMinute: 0 });
+  const fiji = marketByGood(economy, FIJI);
+  const city = marketByGood(economy, islandCity);
+  const villageTradeRows = [...fiji.values()].filter((row) =>
+    row.listedForSale &&
+    row.good.id !== HARDTACK_GOOD_ID &&
+    row.good.id !== FRESH_WATER_GOOD_ID
+  );
+  assert.ok(fiji.get("fish").productionPerDay > fiji.get("iron").productionPerDay);
+  assert.ok(fiji.get("fish").stock > 0);
+  assert.ok(fiji.get("iron").buyPrice > 0);
+  assert.equal(villageTradeRows.length, 3);
+  assert.deepEqual(villageTradeRows.map((row) => row.good.id).sort(), ["fish", "sugar", "timber"]);
+  assert.ok(fiji.get("fish").productionPerDay < city.get("fish").productionPerDay);
+  assert.ok(portEconomySummary(economy, FIJI).targetSpecie < portEconomySummary(economy, islandCity).targetSpecie / 3);
+  assert.equal(maximumPortSaleQuantity(economy, FIJI, "artwork", 1, 1000), 0);
+});
+
+test("small spice-island villages offer narrow but valuable local markets", () => {
+  const economy = createWorldEconomy({ ports: [BANDA, TERNATE, LONDON], startMinute: 0 });
+  const market = [...marketByGood(economy, BANDA).values()];
+  const listedTradeGoods = market.filter((row) =>
+    row.listedForSale && row.good.id !== HARDTACK_GOOD_ID && row.good.id !== FRESH_WATER_GOOD_ID
+  );
+
+  assert.deepEqual(listedTradeGoods.map((row) => row.good.id).sort(), ["fish", "spices", "timber"]);
+  assert.ok(marketByGood(economy, BANDA).get("spices").stock > 0);
+  assert.ok(portEconomySummary(economy, BANDA).targetSpecie < portEconomySummary(economy, TERNATE).targetSpecie / 3);
+  assert.equal(maximumPortSaleQuantity(economy, BANDA, "pepper", 1, 1000), 0);
 });
 
 test("spice-island cargo commands transformative prices in Europe", () => {
@@ -205,10 +241,23 @@ test("economy snapshots restore stocks, specie, clocks, and shipyards", () => {
   assert.equal(economy.shipyards.lastMinute, snapshot.shipyards.lastMinute);
 });
 
+test("older economy snapshots leave newly added ports at current defaults", () => {
+  const oldEconomy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
+  executePortSale(oldEconomy, LONDON, "wool", 3);
+  const snapshot = snapshotWorldEconomy(oldEconomy);
+  const expanded = createWorldEconomy({ ports: [LONDON, GOA, FIJI], startMinute: 0 });
+  const fijiBefore = portEconomySummary(expanded, FIJI);
+
+  restoreWorldEconomy(expanded, snapshot);
+
+  assert.deepEqual(portEconomySummary(expanded, FIJI), fijiBefore);
+  assert.ok(expanded.shipyards.yards.has(FIJI.tileId));
+});
+
 function marketByGood(economy, city) {
   return new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
 }
 
-function port(tileId, city, country, cityType, population) {
-  return { tileId, city, displayCity: city, country, cityType, population, lat: 0, lon: 0 };
+function port(tileId, city, country, cityType, population, settlementType = "city", marketGoods = null) {
+  return { tileId, city, displayCity: city, country, cityType, population, settlementType, marketGoods, lat: 0, lon: 0 };
 }

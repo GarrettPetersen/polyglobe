@@ -76,6 +76,11 @@ const CULTURES = Object.freeze({
     ["Ayu", "Bunga", "Dewi", "Indah", "Kanya", "Lan", "Mali", "Ratna", "Sari", "Sokha", "Suda", "Thuy"],
     ["Angkasa", "Chandra", "Jayavarman", "Kiet", "Nguyen", "Prasetya", "Rattanakosin", "Sok", "Sudirman", "Surya", "Tran", "Wirawan"]
   ),
+  polynesian: culture(
+    ["Aho'eitu", "Kau'ulufonua", "Mau", "Pili", "Puni", "Savea", "Tamatoa", "Tanoa", "Tupaia", "Tupou", "Tu", "Vaea"],
+    ["Hina", "Kihawahine", "Lupepau'u", "Nafanua", "Pele", "Purea", "Salamasina", "Sina", "Teura", "Teri'i", "Vahine", "Veiqia"],
+    ["Ha'apai", "Malietoa", "Nayau", "Roko Tui", "Sa Tupua", "Tamatoa", "Teva", "Tu'i Tonga", "Tui Viti", "Tupou", "Vunivalu", "Viti"]
+  ),
   chinese: culture(
     ["Bao", "Cheng", "De", "Guang", "Hong", "Jian", "Ming", "Ping", "Sheng", "Wei", "Wen", "Yong"],
     ["Chun", "Fang", "Hua", "Lan", "Lian", "Mei", "Ning", "Qiao", "Xia", "Xiu", "Yan", "Ying"],
@@ -141,6 +146,8 @@ const COUNTRY_CULTURES = new Map([
   ["Indonesia", "southeastAsian"], ["Malaysia", "southeastAsian"],
   ["Brunei", "southeastAsian"], ["Lao People's Democratic Republic", "southeastAsian"],
   ["Philippines", "southeastAsian"],
+  ["Fiji", "polynesian"], ["French Polynesia", "polynesian"],
+  ["Samoa", "polynesian"], ["Tonga", "polynesian"],
   ["China", "chinese"], ["Japan", "japanese"],
   ["Republic of Korea", "korean"], ["Dem. People's Republic of Korea", "korean"],
   ["Mali", "westAfrican"], ["Ghana", "westAfrican"], ["Nigeria", "westAfrican"],
@@ -241,6 +248,7 @@ function localNameCultureForSubject(subject) {
   if (subject.cityType === "east-asian") return "chinese";
   if (subject.cityType === "south-asian") return "southAsian";
   if (subject.cityType === "southeast-asian") return "southeastAsian";
+  if (subject.cityType === "polynesian") return "polynesian";
   if (subject.cityType === "sub-saharan") return subject.lon >= 25 ? "eastAfrican" : "westAfrican";
   if (subject.cityType === "islamic-desert") return "arabic";
   if (subject.cityType === "mesoamerican" || subject.cityType === "meso-american") return "nahua";

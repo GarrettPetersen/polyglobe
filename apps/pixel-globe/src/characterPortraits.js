@@ -426,6 +426,7 @@ const SKIN_TONE_IDS_BY_REGION = Object.freeze({
   "south-asia": ["olive", "tan", "brown", "deep-brown"],
   "indian-ocean": ["olive", "tan", "brown", "deep-brown"],
   africa: ["tan", "brown", "deep-brown", "ebony"],
+  polynesia: ["golden", "olive", "tan", "brown", "deep-brown"],
   americas: ["golden", "olive", "tan", "brown"]
 });
 
@@ -437,6 +438,7 @@ const HAIR_TONE_IDS_BY_REGION = Object.freeze({
   "south-asia": ["black", "dark-brown", "silver"],
   "indian-ocean": ["black", "dark-brown", "chestnut", "silver"],
   africa: ["black", "dark-brown", "silver"],
+  polynesia: ["black", "dark-brown", "silver"],
   americas: ["black", "dark-brown", "chestnut", "silver"]
 });
 
@@ -448,6 +450,7 @@ const EYE_TONE_IDS_BY_REGION = Object.freeze({
   "south-asia": ["dark-brown", "brown", "hazel"],
   "indian-ocean": ["dark-brown", "brown", "hazel"],
   africa: ["dark-brown", "brown"],
+  polynesia: ["dark-brown", "brown"],
   americas: ["dark-brown", "brown"]
 });
 
@@ -455,6 +458,7 @@ function portraitRegionForCity(city) {
   if (city.cityType === "east-asian") return "east-asia";
   if (city.cityType === "south-asian" || city.cityType === "southeast-asian") return "south-asia";
   if (city.cityType === "sub-saharan") return "africa";
+  if (city.cityType === "polynesian") return "polynesia";
   if (city.cityType === "islamic-desert") return "indian-ocean";
   if (city.cityType === "northern-european") return "northern-europe";
   if (city.cityType === "mediterranean") return "mediterranean";
@@ -469,6 +473,7 @@ function portraitRegionForNpcShip(ship) {
   if (routeRegion === "south-asia" || routeRegion === "southeast-asia") return "south-asia";
   if (routeRegion === "indian-ocean") return "indian-ocean";
   if (routeRegion === "africa") return "africa";
+  if (routeRegion === "polynesia") return "polynesia";
   if (routeRegion === "americas") return "americas";
   if (routeRegion === "europe") {
     return ship.profileId === "mediterranean" ? "mediterranean" : "northern-europe";

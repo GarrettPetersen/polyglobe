@@ -126,6 +126,11 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     city.country === "United Kingdom" || city.country === "Ireland"
   );
   const incaPorts = ports.filter((city) => city.factionId === "inca");
+  const pacificVillages = ports.filter((city) => city.manualRegion === "pacific-islands");
+  const encounterVillages = ports.filter((city) => city.manualRegion === "explorer-encounters");
+  const spiceIslandVillages = ports.filter((city) =>
+    city.manualRegion === "spice-islands" && city.settlementType === "village"
+  );
   const manualPortFailures = MANUAL_CITY_RECORDS_1522
     .filter((manualSpec) => !ports.some((city) =>
       city.city === manualSpec.city &&
@@ -144,6 +149,32 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
+  assert.deepEqual(
+    pacificVillages.map((city) => city.city).sort(),
+    ["Fiji Village", "Samoa Village", "Tahiti Village", "Tonga Village"]
+  );
+  assert.ok(pacificVillages.every((city) => city.cityType === "polynesian"));
+  assert.ok(pacificVillages.every((city) => city.settlementType === "village"));
+  assert.deepEqual(
+    encounterVillages.map((city) => city.city).sort(),
+    [
+      "Coroa Vermelha Village",
+      "Guanahani Village",
+      "Mactan Village",
+      "Mossel Bay Village",
+      "Umatac Village",
+      "Vaitahu Village"
+    ]
+  );
+  assert.ok(encounterVillages.every((city) => city.settlementType === "village"));
+  assert.deepEqual(
+    spiceIslandVillages.map((city) => city.city).sort(),
+    ["Banda Village", "Hitu Village", "Makian Village"]
+  );
+  assert.ok(spiceIslandVillages.every((city) => city.marketGoods.includes("spices")));
+  assert.ok([...pacificVillages, ...encounterVillages, ...spiceIslandVillages].every((city) =>
+    city.marketGoods.length === 3 && city.marketGoods.every((goodId) => typeof goodId === "string")
+  ));
   assert.deepEqual(manualPortFailures, [], "expected every manual 1522 trade port to survive selection as dockable");
 });
 
@@ -287,6 +318,8 @@ function buildCityRecords1522(csv) {
       lakeIntent: manualSpec.lakeIntent,
       requiredTradePort: Boolean(manualSpec.requiredTradePort),
       manualRegion: manualSpec.manualRegion || null,
+      settlementType: manualSpec.settlementType || "city",
+      marketGoods: manualSpec.marketGoods || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
     });
     const capitalSpec = factionCapitalForCity(cityRecord);

@@ -17,6 +17,7 @@ import {
 const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14);
 const PORTO = port(2, "Porto", "northern-european", 65000, 41.15, -8.61);
 const SMALL_PORT = port(3, "Quiet Haven", "northern-european", 2500, 42, -9);
+const FIJI = port(4, "Fiji Village", "polynesian", 3500, -18.14, 178.44);
 
 test("every port has a shipyard but active new-build listings remain rare", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
@@ -45,6 +46,15 @@ test("rich famous yards can build better ships than poor ordinary ports", () => 
   }
   assert.ok(average(richPrices) > average(poorPrices) * 1.6);
   assert.ok(Math.max(...richPrices) > Math.max(...poorPrices));
+});
+
+test("Polynesian villages build only modest regional stand-in hulls", () => {
+  const system = createWorldShipyards({ ports: [FIJI], startMinute: 0 });
+  const yard = shipyardAtPort(system, FIJI);
+  for (let build = 0; build < 40; build++) {
+    const listing = generateShipyardListing(yard, build, build * 1000);
+    assert.ok(["sampan", "small-dhow", "lateen-dhow", "small-junk", "medium-junk"].includes(listing.shipSlug));
+  }
 });
 
 test("ship prices put major hulls far beyond casual fishing income", () => {
