@@ -234,6 +234,7 @@ import {
   hardenPixelTextAlpha,
   pixelTextOrigin,
   pixelTextRasterHeight,
+  pixelTextScratchRasterLayout,
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
@@ -1204,6 +1205,7 @@ shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
 const selectableOutlineCache = new WeakMap();
 const pixelTextRasterCache = new Map();
+const pixelTextFontLayoutCache = new Map();
 let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 
@@ -1854,7 +1856,7 @@ async function loadPixelFonts() {
     throw new Error("Cannot guarantee pixel font rendering: FontFaceSet API is unavailable");
   }
 
-  const sample = "PIXEL 1522";
+  const sample = "PIXEL 1522 gy";
   const requiredFonts = [
     { label: "Silkscreen", font: "8px \"Silkscreen\"" },
     { label: "Dogica", font: "8px \"Dogica\"" }
@@ -1874,10 +1876,13 @@ async function loadPixelFonts() {
 }
 
 async function waitForPixelFontRaster(label, font, sample) {
-  const attempts = 8;
+  const timeoutMs = 3000;
+  const startedAt = Date.now();
+  let attempts = 0;
   let lastError = null;
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+  do {
+    await nextFontRasterProbe();
+    attempts += 1;
     try {
       const measuredWidth = measurePixelTextWidth(sample, font);
       pixelTextRaster(sample, font, "#ffffff", measuredWidth);
@@ -1888,10 +1893,24 @@ async function waitForPixelFontRaster(label, font, sample) {
       }
       lastError = error;
     }
-  }
+  } while (Date.now() - startedAt < timeoutMs);
   throw new Error(
-    `Pixel font loaded but could not rasterize after ${attempts} frames: ${label}; ${lastError?.message || "unknown error"}`
+    `Pixel font loaded but could not rasterize after ${attempts} probes over ${Date.now() - startedAt}ms: ` +
+    `${label}; ${lastError?.message || "unknown error"}`
   );
+}
+
+function nextFontRasterProbe() {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve();
+    };
+    requestAnimationFrame(finish);
+    setTimeout(finish, 50);
+  });
 }
 
 function loadTerrainImages() {
@@ -13890,23 +13909,30 @@ function pixelTextRaster(text, font, color, measuredWidth) {
   }
 
   const width = Math.max(1, measuredWidth);
-  const height = pixelTextRasterHeight(font);
-  const raster = document.createElement("canvas");
-  raster.width = width;
-  raster.height = height;
-  const rasterCtx = raster.getContext("2d", { willReadFrequently: true });
-  if (!rasterCtx) throw new Error(`Could not create pixel text raster for: ${text}`);
-  rasterCtx.imageSmoothingEnabled = false;
-  rasterCtx.font = font;
-  rasterCtx.textAlign = "left";
-  rasterCtx.textBaseline = "top";
-  rasterCtx.fillStyle = color;
-  rasterCtx.fillText(text, 0, 0);
-  const imageData = rasterCtx.getImageData(0, 0, width, height);
+  const layout = pixelTextFontLayout(font);
+  const scratch = document.createElement("canvas");
+  scratch.width = width + layout.padding * 2;
+  scratch.height = layout.scratchHeight;
+  const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
+  if (!scratchCtx) throw new Error(`Could not create pixel text scratch raster for: ${text}`);
+  scratchCtx.imageSmoothingEnabled = false;
+  scratchCtx.font = font;
+  scratchCtx.textAlign = "left";
+  scratchCtx.textBaseline = "alphabetic";
+  scratchCtx.fillStyle = color;
+  scratchCtx.fillText(text, layout.padding, layout.baselineY);
+  const imageData = scratchCtx.getImageData(layout.padding, layout.padding, width, layout.height);
   const opaquePixels = hardenPixelTextAlpha(imageData.data);
   if (text.trim().length > 0 && opaquePixels === 0) {
     throw new Error(`Pixel text raster contains no opaque glyph pixels: ${text}`);
   }
+
+  const raster = document.createElement("canvas");
+  raster.width = width;
+  raster.height = layout.height;
+  const rasterCtx = raster.getContext("2d", { willReadFrequently: true });
+  if (!rasterCtx) throw new Error(`Could not create pixel text raster for: ${text}`);
+  rasterCtx.imageSmoothingEnabled = false;
   rasterCtx.putImageData(imageData, 0, 0);
 
   if (pixelTextRasterCache.size >= PIXEL_TEXT_RASTER_CACHE_LIMIT) {
@@ -13916,6 +13942,18 @@ function pixelTextRaster(text, font, color, measuredWidth) {
   }
   pixelTextRasterCache.set(key, raster);
   return raster;
+}
+
+function pixelTextFontLayout(font) {
+  const cached = pixelTextFontLayoutCache.get(font);
+  if (cached) return cached;
+  const metricsCanvas = document.createElement("canvas");
+  const metricsCtx = metricsCanvas.getContext("2d");
+  if (!metricsCtx) throw new Error(`Could not measure pixel font: ${font}`);
+  metricsCtx.font = font;
+  const layout = pixelTextScratchRasterLayout(font, metricsCtx.measureText("PIXEL 1522 gy"));
+  pixelTextFontLayoutCache.set(font, layout);
+  return layout;
 }
 
 function measurePixelTextWidth(text, font = PIXEL_FONT_SMALL_8) {

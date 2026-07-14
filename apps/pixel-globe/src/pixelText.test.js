@@ -7,6 +7,7 @@ import {
   pixelFontSizePx,
   pixelTextOrigin,
   pixelTextRasterHeight,
+  pixelTextScratchRasterLayout,
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
 
@@ -50,6 +51,32 @@ test("pixel font sizes occupy whole logical canvas pixels", () => {
   assert.throws(() => pixelFontSizePx('small "Dogica"'), /no px size/);
 });
 
+test("pixel text uses an alphabetic scratch baseline inside the logical raster", () => {
+  assert.deepEqual(
+    pixelTextScratchRasterLayout('8px "Dogica"', {
+      fontBoundingBoxAscent: 7,
+      fontBoundingBoxDescent: 2,
+      actualBoundingBoxAscent: 6,
+      actualBoundingBoxDescent: 1
+    }),
+    { baselineY: 23, height: 16, padding: 16, scratchHeight: 48 }
+  );
+  assert.deepEqual(
+    pixelTextScratchRasterLayout('8px "Silkscreen"', {}),
+    { baselineY: 24, height: 16, padding: 16, scratchHeight: 48 }
+  );
+});
+
+test("pixel text rejects font metrics that cannot fit its native raster", () => {
+  assert.throws(
+    () => pixelTextScratchRasterLayout('8px "Dogica"', {
+      fontBoundingBoxAscent: 14,
+      fontBoundingBoxDescent: 4
+    }),
+    /metrics exceed the 16px raster/
+  );
+});
+
 test("pixel text alpha is hardened to fully transparent or fully opaque", () => {
   const pixels = new Uint8ClampedArray([
     255, 255, 255, 0,
@@ -89,7 +116,7 @@ test("a genuinely empty pixel text raster remains empty", () => {
 test("runtime text can only enter the canvas through the pixel raster helper", async () => {
   const mainSource = await readFile(new URL("./main.js", import.meta.url), "utf8");
   assert.equal(mainSource.match(/\bctx\.fillText\(/g), null);
-  assert.equal(mainSource.match(/\brasterCtx\.fillText\(/g)?.length, 1);
+  assert.deepEqual(mainSource.match(/\b[a-zA-Z]+Ctx\.fillText\(/g), ["scratchCtx.fillText("]);
 });
 
 test("English uses Silkscreen and Dogica while zpix remains isolated for Chinese", async () => {

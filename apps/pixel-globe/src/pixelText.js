@@ -76,6 +76,36 @@ export function pixelTextRasterHeight(font) {
   return pixelFontSizePx(font) * 2;
 }
 
+export function pixelTextScratchRasterLayout(font, metrics = {}) {
+  const fontSize = pixelFontSizePx(font);
+  const height = pixelTextRasterHeight(font);
+  const ascent = firstPositiveMetric(metrics.fontBoundingBoxAscent, metrics.actualBoundingBoxAscent, fontSize);
+  const descent = firstNonNegativeMetric(
+    metrics.fontBoundingBoxDescent,
+    metrics.actualBoundingBoxDescent,
+    Math.ceil(fontSize / 4)
+  );
+  const inkHeight = Math.ceil(ascent + descent);
+  if (inkHeight > height) {
+    throw new Error(`Pixel font metrics exceed the ${height}px raster: ${inkHeight}px for ${font}`);
+  }
+  const padding = height;
+  return Object.freeze({
+    baselineY: padding + Math.ceil(ascent),
+    height,
+    padding,
+    scratchHeight: padding * 2 + height
+  });
+}
+
+function firstPositiveMetric(...values) {
+  return values.find((value) => Number.isFinite(value) && value > 0);
+}
+
+function firstNonNegativeMetric(...values) {
+  return values.find((value) => Number.isFinite(value) && value >= 0);
+}
+
 export function hardenPixelTextAlpha(pixels, threshold = 128) {
   if (!(pixels instanceof Uint8ClampedArray) || pixels.length % 4 !== 0) {
     throw new Error("Pixel text raster must be RGBA Uint8ClampedArray data");
