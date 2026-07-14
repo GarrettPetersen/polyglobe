@@ -716,6 +716,7 @@ test("a quest character precedes the loadout and factor during port arrival", ()
     questCharacterSession: passengerSession
   });
   assert.equal(firstPort.kind, "passenger");
+  assert.equal(firstPort.admittedToPort, true);
   assert.equal(firstPort.continueToPortOnClose, true);
   assert.equal(firstPort.nextPortNodeId, "loadout");
 
@@ -723,10 +724,12 @@ test("a quest character precedes the loadout and factor during port arrival", ()
     questCharacterSession: passengerSession
   });
   assert.equal(ordinaryPort.kind, "passenger");
+  assert.equal(ordinaryPort.admittedToPort, true);
   assert.equal(ordinaryPort.nextPortNodeId, "greeting");
 
   const noPassenger = createPortArrivalDialogueSession(city, { needsLoadout: true });
   assert.equal(noPassenger.kind, "port");
+  assert.equal(noPassenger.admittedToPort, true);
   assert.equal(noPassenger.nodeId, "loadout");
 
   const futureQuestSession = createPortArrivalDialogueSession(city, {
@@ -737,8 +740,18 @@ test("a quest character precedes the loadout and factor during port arrival", ()
     }
   });
   assert.equal(futureQuestSession.kind, "colony-founder");
+  assert.equal(futureQuestSession.admittedToPort, true);
   assert.equal(futureQuestSession.continueToPortOnClose, true);
   assert.equal(futureQuestSession.nextPortNodeId, "greeting");
+});
+
+test("only admitted port sessions carry automatic departure services", () => {
+  const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
+  const barred = createPortDialogueSession(city, { initialNodeId: "barred" });
+  const admitted = createPortDialogueSession(city, { admittedToPort: true });
+
+  assert.equal(barred.admittedToPort, false);
+  assert.equal(admitted.admittedToPort, true);
 });
 
 test("capital port dialogue can grant a letter of marque", () => {

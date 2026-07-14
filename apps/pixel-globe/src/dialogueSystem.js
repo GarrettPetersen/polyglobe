@@ -51,6 +51,7 @@ export function createPortDialogueSession(city, options = {}) {
     cityTileId: city.tileId,
     portId: city.portId || `city-${city.tileId}`,
     nodeId: options.initialNodeId || "greeting",
+    admittedToPort: options.admittedToPort === true,
     disguisedEntry: options.disguisedEntry === true,
     nextPortNodeId: options.nextPortNodeId || null,
     selectedIndex: 0,
@@ -66,12 +67,14 @@ export function createPortArrivalDialogueSession(city, options = {}) {
     }
     return {
       ...options.questCharacterSession,
+      admittedToPort: true,
       continueToPortOnClose: true,
       nextPortNodeId: needsLoadout ? "loadout" : "greeting"
     };
   }
   return createPortDialogueSession(city, {
-    initialNodeId: needsLoadout ? "loadout" : "greeting"
+    initialNodeId: needsLoadout ? "loadout" : "greeting",
+    admittedToPort: true
   });
 }
 
@@ -81,6 +84,7 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     kind: "passenger",
     cityTileId: city.tileId,
     questId: quest.id,
+    admittedToPort: options.admittedToPort === true,
     continueToPortOnClose: options.continueToPortOnClose === true,
     nextPortNodeId: options.nextPortNodeId || null,
     selectedIndex: 0,

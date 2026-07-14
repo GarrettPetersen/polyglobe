@@ -37,7 +37,7 @@ test("storm fog fades in smoothly and reaches full strength", () => {
   assert.equal(stormFogStrength(0.1, 0.12, 0.6), 0);
   const moderate = stormFogStrength(0.28, 0.12, 0.6);
   const severe = stormFogStrength(0.45, 0.12, 0.6);
-  assert.ok(moderate > 0 && moderate < severe);
+  assert.ok(moderate > 0.45 && moderate < severe);
   assert.equal(stormFogStrength(0.6, 0.12, 0.6), 1);
 });
 
@@ -52,6 +52,7 @@ test("storm fog is deterministic, pixelated, and limited to screen edges", () =>
 
   const alphaAt = (x, y) => first[(y * width + x) * 4 + 3];
   assert.equal(alphaAt(Math.floor(width / 2), Math.floor(height / 2)), 0);
+  assert.ok(alphaAt(0, Math.floor(height / 2)) >= 200);
   let edgePixels = 0;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {

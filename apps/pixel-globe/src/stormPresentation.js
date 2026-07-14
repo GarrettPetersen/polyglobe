@@ -46,7 +46,8 @@ export function stormFogStrength(intensity, enterIntensity, fullIntensity) {
     throw new Error(`Invalid storm fog thresholds: ${enterIntensity}, ${fullIntensity}`);
   }
   const normalized = clamp((intensity - enterIntensity) / (fullIntensity - enterIntensity), 0, 1);
-  return normalized * normalized * (3 - 2 * normalized);
+  const smoothStrength = normalized * normalized * (3 - 2 * normalized);
+  return Math.sqrt(smoothStrength);
 }
 
 export function fillStormEdgeFogPixels(pixels, width, height, seed = 0x464f4721) {
@@ -92,7 +93,7 @@ export function fillStormEdgeFogPixels(pixels, width, height, seed = 0x464f4721)
       pixels[offset] = color[0];
       pixels[offset + 1] = color[1];
       pixels[offset + 2] = color[2];
-      pixels[offset + 3] = Math.round(26 + Math.ceil(density * 5) / 5 * 104);
+      pixels[offset + 3] = Math.round(64 + Math.ceil(density * 5) / 5 * 144);
     }
   }
   return depth;

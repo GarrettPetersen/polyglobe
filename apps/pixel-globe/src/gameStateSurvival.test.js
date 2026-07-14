@@ -4,6 +4,7 @@ import test from "node:test";
 import { FORAGED_FOOD_GOOD_ID, FRESH_WATER_GOOD_ID, createWorldEconomy } from "./economy.js";
 import {
   FRESH_WATER_CAPACITY,
+  RAIN_WATER_COLLECTION_PER_DAY,
   autoProvisionFreshWaterAtPort,
   autoProvisionHardtackAtPort,
   applySurvivalDeprivation,
@@ -69,6 +70,26 @@ test("freshwater refills casks while food still ticks down", () => {
   assert.equal(state.survival.freshWater, FRESH_WATER_CAPACITY);
   assert.equal(state.cargo.grain, 1);
   assert.equal(cargoCostBasis(state, "grain").total, 8);
+});
+
+test("rainwater silently offsets a tiny share of water consumption", () => {
+  const dry = createGameState({ cargoCapacity: 10 });
+  const rainy = createGameState({ cargoCapacity: 10 });
+  dry.survival.freshWater = 20;
+  rainy.survival.freshWater = 20;
+
+  const dryResult = updateSurvival(dry, 0, 24 * 60, { rainfall: 0 });
+  const rainyResult = updateSurvival(rainy, 0, 24 * 60, { rainfall: 1 });
+
+  assert.equal(rainyResult.freshWaterRefilled, false);
+  assert.equal(rainyResult.rainWaterCollected, RAIN_WATER_COLLECTION_PER_DAY);
+  assert.equal(dryResult.rainWaterCollected, 0);
+  assert.ok(rainy.survival.freshWater > dry.survival.freshWater);
+  assert.ok(rainyResult.waterConsumed < dryResult.waterConsumed);
+  assert.throws(
+    () => updateSurvival(rainy, 24 * 60, 25 * 60, { rainfall: 1.01 }),
+    /Invalid rainfall strength/
+  );
 });
 
 test("waiting safely in port advances time without consuming provisions", () => {

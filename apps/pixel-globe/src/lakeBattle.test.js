@@ -38,6 +38,7 @@ test("native canoes enter lake battle with working arrow broadsides", () => {
     assert.equal(battle.player.weapon.kind, "arrow");
     assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), true);
     assert.ok(battle.projectiles.length >= 2);
+    assert.equal(battle.cannonSmokeBursts.length, 0);
     assert.ok(lakeBattleWeaponRange(battle.player) < lakeBattleWeaponRange(battle.enemy));
   }
 });
@@ -220,6 +221,7 @@ test("broadside fire follows the selected side and emits combat events", () => {
   assert.equal(starboard.y, 1);
   assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), true);
   assert.ok(battle.projectiles.length > 1);
+  assert.equal(battle.cannonSmokeBursts.length, battle.projectiles.length);
   assert.ok(battle.projectiles.every((projectile) => projectile.arcHeight < 4));
   assert.deepEqual(drainLakeBattleEvents(battle).map((event) => event.type), ["fire"]);
   assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), false);
@@ -261,6 +263,7 @@ test("a cannonball damages the first ship crossed before its endpoint", () => {
 
   assert.equal(battle.enemy.hitPoints, initialHitPoints - 1);
   assert.equal(battle.projectiles.length, 0);
+  assert.equal(battle.hullSplinterBursts.length, 1);
   assert.ok(drainLakeBattleEvents(battle).some((event) => (
     event.type === "hit" && event.shipId === LAKE_BATTLE_ENEMY_ID
   )));

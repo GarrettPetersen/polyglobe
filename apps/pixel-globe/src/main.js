@@ -386,6 +386,16 @@ import {
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { cannonWeaponWithEquipment } from "./cannonEquipment.js";
 import {
+  advanceCannonSmokeBursts,
+  cannonSmokePixels,
+  createCannonSmokeBurst
+} from "./cannonSmoke.js";
+import {
+  advanceHullSplinterBursts,
+  createHullSplinterBurst,
+  hullSplinterPixels
+} from "./hullSplinters.js";
+import {
   LAKE_BATTLE_PHASE_ACTIVE,
   LAKE_BATTLE_PLAYER_ID,
   LAKE_BATTLE_SHIP_SLUGS,
@@ -565,6 +575,10 @@ const CANNON_SPLASH_TTL_SECONDS = 0.46;
 const CANNON_SPLASH_DROP_COUNT = 6;
 const NAVAL_MAX_PROJECTILES = 160;
 const CANNON_MAX_SPLASHES = 128;
+const CANNON_MAX_SMOKE_BURSTS = 192;
+const CANNON_SMOKE_COLORS = Object.freeze(["92, 84, 76", "137, 129, 116", "199, 204, 195"]);
+const HULL_SPLINTER_MAX_BURSTS = 128;
+const HULL_SPLINTER_COLORS = Object.freeze(["84, 51, 30", "139, 82, 41", "218, 145, 62"]);
 const ARROW_LINE_LENGTH_PX = 4;
 const WIND_INDICATOR_RADIUS_PX = 20;
 const WIND_INDICATOR_DIRECTION_COUNT = 16;
@@ -1262,6 +1276,8 @@ const shipCollisionCooldowns = new Map();
 const shipCombatEntryCollisionGrace = new Map();
 let npcCombatProjectiles = [];
 let npcCombatSplashes = [];
+let cannonSmokeBursts = [];
+let hullSplinterBursts = [];
 let npcVisualUpdateAccumulator = 0;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
@@ -3931,6 +3947,8 @@ function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false 
     ship.lastWakeEmit = null;
     ship.navalProjectiles = [];
     ship.cannonSplashes = [];
+    cannonSmokeBursts = [];
+    hullSplinterBursts = [];
     ship.cannonCooldowns = {
       port: 0,
       starboard: 0
@@ -4664,6 +4682,8 @@ async function restoreSavedVoyage(payload) {
   ship.lastWakeEmit = null;
   ship.navalProjectiles = [];
   ship.cannonSplashes = [];
+  cannonSmokeBursts = [];
+  hullSplinterBursts = [];
 
   weatherClockMinutes = payload.worldClock.currentMinute;
   voyageStartClockMinutes = payload.worldClock.voyageStartMinute;
@@ -5684,6 +5704,7 @@ function attemptHostilePortEntry(cityCall) {
   dialogueState.feedback = null;
   if (outcome.success) {
     const needsLoadout = admitPlayerToPort(cityCall);
+    dialogueState.admittedToPort = true;
     dialogueState.disguisedEntry = true;
     dialogueState.nextPortNodeId = needsLoadout ? "loadout" : "root";
     dialogueState.nodeId = "disguise-success";
@@ -5726,6 +5747,7 @@ function openPassengerDialogue(cityCall, quest) {
   if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
   markPassengerOfferSeen(gameState, quest);
   dialogueState = createPassengerDialogueSession(cityCall, quest, {
+    admittedToPort: true,
     continueToPortOnClose: true,
     nextPortNodeId: "root"
   });
@@ -5738,7 +5760,10 @@ function openPassengerDialogue(cityCall, quest) {
 function continuePortDialogueAfterQuestCharacter() {
   const city = currentDialogueCity();
   const initialNodeId = dialogueState.nextPortNodeId || "greeting";
-  dialogueState = createPortDialogueSession(city, { initialNodeId });
+  dialogueState = createPortDialogueSession(city, {
+    initialNodeId,
+    admittedToPort: dialogueState.admittedToPort === true
+  });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   dirty = true;
@@ -5900,7 +5925,7 @@ function stopWaitingInPort() {
     ...city,
     character,
     portrait: characterExpression(character)
-  }, { initialNodeId: "root", disguisedEntry });
+  }, { initialNodeId: "root", admittedToPort: true, disguisedEntry });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   saveVoyageNow("stopped waiting in port");
@@ -5915,6 +5940,10 @@ function handlePortWaitKeyDown(event) {
 
 function closeDialogue() {
   const wasPortDialogue = dialogueState?.kind === "port" || dialogueState?.kind === "passenger";
+  const departureCity = wasPortDialogue && dialogueState.admittedToPort === true
+    ? currentDialogueCity()
+    : null;
+  if (departureCity) applyAutomaticPortServices(departureCity);
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
   if (wasPortDialogue) {
@@ -7884,7 +7913,7 @@ function fireBroadside(sideName) {
       side.y * (CANNON_MUZZLE_SIDE_OFFSET_PX + sideJitter);
     const targetX = startX + aim.x * range;
     const targetY = startY + aim.y * range;
-    ship.navalProjectiles.push({
+    const projectile = {
       kind: weapon.kind,
       ownerId: PLAYER_COMBAT_ID,
       startX,
@@ -7896,7 +7925,9 @@ function fireBroadside(sideName) {
       arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 4) * 4) * weapon.arcHeightScale,
       damage: weapon.damage,
       seed
-    });
+    };
+    ship.navalProjectiles.push(projectile);
+    if (projectile.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
   }
 
   if (ship.navalProjectiles.length > NAVAL_MAX_PROJECTILES) {
@@ -8029,6 +8060,14 @@ function updateNavalWeapons(dt) {
   ship.cannonCooldowns.starboard = Math.max(0, ship.cannonCooldowns.starboard - dt);
 
   let changed = false;
+  if (cannonSmokeBursts.length > 0) {
+    cannonSmokeBursts = advanceCannonSmokeBursts(cannonSmokeBursts, dt);
+    changed = true;
+  }
+  if (hullSplinterBursts.length > 0) {
+    hullSplinterBursts = advanceHullSplinterBursts(hullSplinterBursts, dt);
+    changed = true;
+  }
   if (ship.navalProjectiles.length > 0) {
     const keptBalls = [];
     for (const ball of ship.navalProjectiles) {
@@ -8116,7 +8155,10 @@ function applyPlayerNavalHit(ball, target, point) {
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
   target.hitPoints = damage.hitPoints;
   if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
-  else if (damage.shouldSurrender) handleNpcSurrender(target.id, PLAYER_COMBAT_ID);
+  else {
+    addHullSplinterBurst(ball, point);
+    if (damage.shouldSurrender) handleNpcSurrender(target.id, PLAYER_COMBAT_ID);
+  }
 }
 
 function addCannonSplash(ball) {
@@ -8134,6 +8176,7 @@ function addCannonSplash(ball) {
 
 function drawNavalEffects(activeChart) {
   if (!ship) return;
+  drawCannonSmokeBursts(cannonSmokeBursts);
   drawCannonSplashes(activeChart);
   drawPlayerNavalProjectiles();
   drawNpcCombatSplashes(activeChart);
@@ -8174,6 +8217,38 @@ function drawNavalProjectile(projectile, point) {
   drawCannonTrail(projectile);
   ctx.fillStyle = "rgba(18, 14, 12, 0.95)";
   ctx.fillRect(Math.round(point.x), Math.round(point.y - point.z), 1, 1);
+}
+
+function addCannonSmokeBurst(projectile) {
+  cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
+  if (cannonSmokeBursts.length > CANNON_MAX_SMOKE_BURSTS) {
+    cannonSmokeBursts.splice(0, cannonSmokeBursts.length - CANNON_MAX_SMOKE_BURSTS);
+  }
+}
+
+function drawCannonSmokeBursts(bursts) {
+  for (const burst of bursts) {
+    for (const pixel of cannonSmokePixels(burst)) {
+      ctx.fillStyle = `rgba(${CANNON_SMOKE_COLORS[pixel.shade]}, ${pixel.alpha.toFixed(3)})`;
+      ctx.fillRect(pixel.x, pixel.y, pixel.size, pixel.size);
+    }
+  }
+}
+
+function addHullSplinterBurst(projectile, point) {
+  hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
+  if (hullSplinterBursts.length > HULL_SPLINTER_MAX_BURSTS) {
+    hullSplinterBursts.splice(0, hullSplinterBursts.length - HULL_SPLINTER_MAX_BURSTS);
+  }
+}
+
+function drawHullSplinterBursts(bursts) {
+  for (const burst of bursts) {
+    for (const pixel of hullSplinterPixels(burst)) {
+      ctx.fillStyle = `rgba(${HULL_SPLINTER_COLORS[pixel.shade]}, ${pixel.alpha.toFixed(3)})`;
+      ctx.fillRect(pixel.x, pixel.y, 1, 1);
+    }
+  }
 }
 
 function drawArrowProjectile(projectile, point) {
@@ -8315,6 +8390,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   const safePort = playerShipIsInvulnerable();
   const result = updateSurvival(gameState, previousMinute, currentMinute, {
     freshwater: shipIsInFreshWater(),
+    rainfall: playerRainfallStrength(),
     safePort
   });
   if (safePort) {
@@ -9113,7 +9189,7 @@ function fireNpcBroadsideAtTarget(state, targetId) {
     const targetX = target.x + jitterX;
     const targetY = target.y + jitterY;
     const range = Math.hypot(targetX - state.x, targetY - state.y);
-    npcCombatProjectiles.push({
+    const projectile = {
       kind: weapon.kind,
       ownerId: state.id,
       targetId,
@@ -9126,7 +9202,9 @@ function fireNpcBroadsideAtTarget(state, targetId) {
       arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 3) * weapon.arcHeightScale,
       damage: weapon.damage,
       seed
-    });
+    };
+    npcCombatProjectiles.push(projectile);
+    if (projectile.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
   }
   if (npcCombatProjectiles.length > NPC_COMBAT_MAX_PROJECTILES) {
     npcCombatProjectiles.splice(0, npcCombatProjectiles.length - NPC_COMBAT_MAX_PROJECTILES);
@@ -9228,6 +9306,7 @@ function applyNpcCombatHit(ball, targetId, point) {
     ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
     applyCrewCasualtiesFromHullDamage(ball.damage, "The last of the crew fell in battle.");
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
+    else addHullSplinterBurst(ball, point);
     return;
   }
 
@@ -9235,7 +9314,10 @@ function applyNpcCombatHit(ball, targetId, point) {
   const state = npcVisualShips.get(targetId);
   if (state) state.hitPoints = damage.hitPoints;
   if (damage.sunk) handleNpcSinking(targetId, ball.ownerId);
-  else if (damage.shouldSurrender) handleNpcSurrender(targetId, ball.ownerId);
+  else {
+    addHullSplinterBurst(ball, point);
+    if (damage.shouldSurrender) handleNpcSurrender(targetId, ball.ownerId);
+  }
 }
 
 function addNpcCombatSplash(ball) {
@@ -10616,6 +10698,7 @@ function render(nowMs) {
   drawShips(chart, shipLight, nowMs);
   ctx.save();
   ctx.translate(offset.x, offset.y);
+  drawHullSplinterBursts(hullSplinterBursts);
   drawCitySpritesAboveShip(chart, offset, nowMs);
   drawCityLabels(chart.cityCalls, chart);
   ctx.restore();
@@ -12859,6 +12942,7 @@ function drawLakeBattleMode(nowMs) {
   drawLakeBattleWakes(battle);
   drawLakeBattleEffects(battle);
   drawLakeBattleShips(battle, nowMs);
+  drawHullSplinterBursts(battle.hullSplinterBursts);
   drawLakeBattleSinkEffects(battle, nowMs);
   const hudLayout = drawLakeBattleHud(battle);
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
@@ -13082,6 +13166,7 @@ function drawLakeBattleWakes(battle) {
 }
 
 function drawLakeBattleEffects(battle) {
+  drawCannonSmokeBursts(battle.cannonSmokeBursts);
   for (const projectile of battle.projectiles) {
     drawNavalProjectile(projectile, lakeBattleProjectilePoint(projectile));
   }
@@ -17571,8 +17656,11 @@ function drawSurvivalMeters() {
 }
 
 function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
-  drawPixelText(label, x, y, { font: PIXEL_FONT_SMALL_8 });
   const barX = x + 25;
+  drawPixelText(label, barX - 4, y, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "right"
+  });
   const valueRight = SURVIVAL_PANEL_X + SURVIVAL_PANEL_W - 5;
   const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_SMALL_8);
   const barW = Math.max(8, Math.min(SURVIVAL_BAR_W, valueLeft - barX - 4));
@@ -18796,6 +18884,23 @@ function stormIntensityForTile(tileId, simMinute = weatherClockMinutes) {
 
 function playerStormIntensity() {
   return ship ? stormIntensityForTile(ship.tileId) : 0;
+}
+
+function playerRainfallStrength() {
+  if (!ship) return 0;
+  const flags = weatherFlagsForTile(ship.tileId);
+  if ((flags & TILE_DAY_SNOW_FALL) !== 0) return 0;
+  let strength = (flags & TILE_DAY_RAIN) !== 0 ? 0.35 : 0;
+  const storm = playerStormIntensity();
+  if (storm >= STORM_SCREEN_RAIN_ENTER_INTENSITY) {
+    const stormRain = 0.35 + 0.65 * clamp(
+      (storm - STORM_SCREEN_RAIN_ENTER_INTENSITY) / (1 - STORM_SCREEN_RAIN_ENTER_INTENSITY),
+      0,
+      1
+    );
+    strength = Math.max(strength, stormRain);
+  }
+  return strength;
 }
 
 function weatherDateLabel() {

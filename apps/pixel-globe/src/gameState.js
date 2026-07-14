@@ -74,6 +74,7 @@ export const SHIP_ITEM_CANNON_EQUIPMENT = "cannon-equipment";
 export const FRESH_WATER_CAPACITY = 100;
 export const FRESH_WATER_DAYS = 21;
 export const FRESH_WATER_CARGO_DAYS = 1;
+export const RAIN_WATER_COLLECTION_PER_DAY = 0.08;
 export const FOOD_UNITS_PER_DAY = 1;
 export const FOOD_TARGET_DAYS = 21;
 export const STARTING_HARDTACK_UNITS = 10;
@@ -699,9 +700,14 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   assertGameState(state);
   assertSimulationMinute(previousMinute);
   assertSimulationMinute(currentMinute);
+  const rainfall = options.rainfall ?? 0;
+  if (!Number.isFinite(rainfall) || rainfall < 0 || rainfall > 1) {
+    throw new Error(`Invalid rainfall strength: ${rainfall}`);
+  }
   const result = {
     changed: false,
     freshWaterRefilled: false,
+    rainWaterCollected: 0,
     waterConsumed: 0,
     waterCargoConsumed: 0,
     foodConsumed: [],
@@ -732,7 +738,9 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     const waterUse = state.ship
       ? elapsedDays * consumption.waterConsumers / WATER_PERSON_DAYS_PER_UNIT
       : elapsedDays * FRESH_WATER_USE_PER_DAY;
-    const water = consumeFreshWater(state, waterUse, !state.ship);
+    const rainWater = elapsedDays * rainfall * RAIN_WATER_COLLECTION_PER_DAY;
+    const water = consumeFreshWater(state, Math.max(0, waterUse - rainWater), !state.ship);
+    result.rainWaterCollected = Math.min(waterUse, rainWater);
     result.waterConsumed = water.waterConsumed;
     result.waterCargoConsumed = water.cargoConsumed;
     if (water.changed) {

@@ -3,6 +3,8 @@ import {
   STANDARD_CANNON_EQUIPMENT_ID,
   cannonWeaponWithEquipment
 } from "./cannonEquipment.js";
+import { advanceCannonSmokeBursts, createCannonSmokeBurst } from "./cannonSmoke.js";
+import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import { resolveShipCollision, shipCollisionRadius } from "./shipCollision.js";
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
 import { shipPropulsionPerformance } from "./shipPropulsion.js";
@@ -107,6 +109,8 @@ export function createLakeBattle({
       enemyCannonEquipmentId
     ),
     projectiles: [],
+    cannonSmokeBursts: [],
+    hullSplinterBursts: [],
     splashes: [],
     impacts: [],
     events: [],
@@ -177,7 +181,12 @@ export function resizeLakeBattle(state, width, height) {
     projectile.targetY *= scaleY;
     projectile.arcHeight *= Math.min(scaleX, scaleY);
   }
-  for (const effect of [...state.splashes, ...state.impacts]) scalePoint(effect);
+  for (const effect of [
+    ...state.cannonSmokeBursts,
+    ...state.hullSplinterBursts,
+    ...state.splashes,
+    ...state.impacts
+  ]) scalePoint(effect);
   state.width = width;
   state.height = height;
   state.map = createLakeBattleMap(width, height, state.map.seed);
@@ -219,7 +228,7 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
       : range * (0.82 + nextBattleRandom(state) * 0.28);
     const targetX = startX + aim.x * projectileRange;
     const targetY = startY + aim.y * projectileRange;
-    state.projectiles.push({
+    const projectile = {
       id: state.projectileSerial++,
       ownerId: ship.id,
       targetId: aimed ? target.id : null,
@@ -233,7 +242,11 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
       arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * ship.weapon.arcHeightScale,
       damage: ship.weapon.damage,
       seed: Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0
-    });
+    };
+    state.projectiles.push(projectile);
+    if (projectile.kind === NAVAL_WEAPON_CANNON) {
+      state.cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
+    }
   }
   if (state.projectiles.length > MAX_PROJECTILES) {
     state.projectiles.splice(0, state.projectiles.length - MAX_PROJECTILES);
@@ -616,6 +629,7 @@ function lakeBattleProjectileTarget(state, projectile) {
 
 function applyLakeBattleProjectileHit(state, projectile, target, point) {
   target.hitPoints = Math.max(0, target.hitPoints - projectile.damage);
+  if (target.hitPoints > 0) state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
   state.impacts.push({
     x: Math.round(point.x),
     y: Math.round(point.y),
@@ -633,6 +647,8 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
 }
 
 function updateEffects(state, dt) {
+  state.cannonSmokeBursts = advanceCannonSmokeBursts(state.cannonSmokeBursts, dt);
+  state.hullSplinterBursts = advanceHullSplinterBursts(state.hullSplinterBursts, dt);
   for (const effect of state.splashes) effect.age += dt;
   for (const effect of state.impacts) effect.age += dt;
   state.splashes = state.splashes.filter((effect) => effect.age < effect.ttl);
@@ -743,7 +759,8 @@ function validateBattleState(state) {
   validateArenaSize(state.width, state.height);
   if (
     !state.player || !state.enemy || !state.map || !state.wind ||
-    !Array.isArray(state.projectiles) || !Array.isArray(state.events)
+    !Array.isArray(state.projectiles) || !Array.isArray(state.cannonSmokeBursts) ||
+    !Array.isArray(state.hullSplinterBursts) || !Array.isArray(state.events)
   ) {
     throw new Error("Lake battle state is incomplete");
   }
@@ -818,6 +835,12 @@ function smoothstep(value) {
 }
 
 function trimEffects(state) {
+  if (state.cannonSmokeBursts.length > MAX_EFFECTS) {
+    state.cannonSmokeBursts.splice(0, state.cannonSmokeBursts.length - MAX_EFFECTS);
+  }
+  if (state.hullSplinterBursts.length > MAX_EFFECTS) {
+    state.hullSplinterBursts.splice(0, state.hullSplinterBursts.length - MAX_EFFECTS);
+  }
   if (state.splashes.length > MAX_EFFECTS) state.splashes.splice(0, state.splashes.length - MAX_EFFECTS);
   if (state.impacts.length > MAX_EFFECTS) state.impacts.splice(0, state.impacts.length - MAX_EFFECTS);
 }
