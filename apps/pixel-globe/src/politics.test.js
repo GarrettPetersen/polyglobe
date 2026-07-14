@@ -59,8 +59,8 @@ test("politics matrix follows changing world diplomacy", () => {
   const view = createPoliticsView(state);
   const england = view.rows.find((row) => row.faction.id === "england");
 
-  assert.equal(diplomacyBetweenForState(state, "england", "france"), "neutral");
-  assert.equal(england.stances.find((stance) => stance.factionId === "france").relation, "neutral");
+  assert.equal(diplomacyBetweenForState(state, "england", "france"), "hostile");
+  assert.equal(england.stances.find((stance) => stance.factionId === "france").relation, "hostile");
   assert.equal(view.recentEvents[0].kind, "peace");
 });
 

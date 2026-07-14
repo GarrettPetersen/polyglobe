@@ -11,6 +11,7 @@ import {
   tradeGoodById
 } from "./economy.js";
 import {
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_WAR,
   FACTIONS,
   NEUTRAL_FACTION_ID,
@@ -45,13 +46,15 @@ import {
 import {
   advanceWorldDiplomacy,
   createWorldDiplomacy,
+  migrateWorldDiplomacy,
   recentDiplomacyEvents,
   validateWorldDiplomacy,
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
+import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 8;
+export const GAME_STATE_VERSION = 9;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -68,6 +71,7 @@ export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
 export const HOSTILE_PORT_REPUTATION_THRESHOLD = -75;
 export const PORT_DISGUISE_SUCCESS_CHANCE = 0.6;
 export const PORT_DISGUISE_LOCK_DAYS = 14;
+export const FACTION_SAFE_PASSAGE_DAYS = 7;
 export const FISH_CARGO_GOOD_ID = "fish";
 export const SHIP_ITEM_FISHING_NET = "fishing-net";
 export const SHIP_ITEM_CANNON_EQUIPMENT = "cannon-equipment";
@@ -82,6 +86,7 @@ export const EMERGENCY_SHIP_AID_UNITS = 3;
 
 const MINUTES_PER_DAY = 24 * 60;
 const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
+const FACTION_SAFE_PASSAGE_MINUTES = FACTION_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
 const FRESH_WATER_USE_PER_DAY = FRESH_WATER_CAPACITY / FRESH_WATER_DAYS;
 
 export const SHIP_ITEM_CATALOG = Object.freeze([
@@ -145,6 +150,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
     relations: {
       factionReputation: initialFactionReputation(playerFactionId),
       lettersOfMarque: {},
+      safePassageUntilMinute: {},
       diplomacy: createWorldDiplomacy({
         startMinute,
         seedKey: worldDiplomacySeedKey(playerCharacter, startMinute)
@@ -177,6 +183,44 @@ export function validateGameState(state) {
   }
   assertGameState(state);
   return state;
+}
+
+export function migrateGameState(state, shipStats) {
+  if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
+  if (state?.version !== 8) {
+    throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
+  }
+  if (state.ship && (!shipStats || typeof shipStats !== "object")) {
+    throw new Error("Game state migration requires canonical ship stats");
+  }
+  if (state.ship && shipStats.cargoCapacity !== state.cargoCapacity) {
+    throw new Error("Saved ship capacity does not match its hull during migration");
+  }
+  if (!state.relations || typeof state.relations !== "object") {
+    throw new Error("Game state migration requires relations");
+  }
+
+  const migratedDiplomacy = state.relations.diplomacy
+    ? migrateWorldDiplomacy(state.relations.diplomacy)
+    : createWorldDiplomacy({
+        startMinute: savedGameStartMinute(state),
+        seedKey: worldDiplomacySeedKey(state.playerCharacter, savedGameStartMinute(state))
+      });
+  const migrated = {
+    ...state,
+    version: GAME_STATE_VERSION,
+    ship: state.ship ? {
+      ...state.ship,
+      mass: shipStats.mass,
+      navalWeaponKind: shipStats.navalWeaponKind
+    } : state.ship,
+    relations: {
+      ...state.relations,
+      safePassageUntilMinute: {},
+      diplomacy: migratedDiplomacy
+    }
+  };
+  return validateGameState(migrated);
 }
 
 export function advanceActivePlayTime(state, elapsedSeconds) {
@@ -327,6 +371,8 @@ export function setPlayerShipStats(state, stats) {
   const plan = shipLoadoutPlan(stats, loadoutId);
   state.ship.crewCapacity = stats.crewCapacity;
   state.ship.cannonCapacity = stats.cannons;
+  state.ship.mass = stats.mass;
+  state.ship.navalWeaponKind = stats.navalWeaponKind;
   state.ship.crew = Math.min(state.ship.crew, plan.crew);
   state.ship.cannons = Math.min(state.ship.cannons, plan.cannons);
   state.ship.loadoutTargets = plan;
@@ -991,7 +1037,9 @@ export function portEntryStatus(state, city, simMinute = 0) {
       hostile: false,
       factionId,
       hostileByWar: false,
+      hostileByStance: false,
       hostileByStanding: false,
+      safePassage: false,
       locked: false,
       lockUntilMinute: null,
       lockDaysRemaining: 0,
@@ -1000,14 +1048,17 @@ export function portEntryStatus(state, city, simMinute = 0) {
   }
   assertFactionId(factionId);
   const playerFactionId = state.playerCharacter?.nationalityId || null;
+  const relation = playerFactionId && playerFactionId !== factionId
+    ? worldDiplomacyBetween(state.relations.diplomacy, playerFactionId, factionId)
+    : null;
   const hostileByWar = Boolean(
     factionId !== PIRATE_FACTION_ID &&
-    playerFactionId &&
-    playerFactionId !== factionId &&
-    worldDiplomacyBetween(state.relations.diplomacy, playerFactionId, factionId) === DIPLOMACY_WAR
+    relation === DIPLOMACY_WAR
   );
+  const hostileByStance = factionId !== PIRATE_FACTION_ID && relation === DIPLOMACY_HOSTILE;
+  const safePassage = !playerShipIsWarship(state) && factionSafePassageStatus(state, factionId, simMinute).active;
   const hostileByStanding = factionReputation(state, factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD;
-  const hostile = hostileByWar || hostileByStanding;
+  const hostile = ((hostileByWar || hostileByStance) && !safePassage) || hostileByStanding;
   const memory = portMemory(state, city);
   const storedLock = Number.isFinite(memory.disguiseLockUntilMinute)
     ? memory.disguiseLockUntilMinute
@@ -1018,12 +1069,85 @@ export function portEntryStatus(state, city, simMinute = 0) {
     hostile,
     factionId,
     hostileByWar,
+    hostileByStance,
     hostileByStanding,
+    safePassage,
     locked,
     lockUntilMinute: locked ? storedLock : null,
     lockDaysRemaining: locked ? Math.ceil((storedLock - simMinute) / MINUTES_PER_DAY) : 0,
     canAttemptDisguise: hostile && !locked
   };
+}
+
+export function playerShipIsWarship(state) {
+  if (!state?.ship) return false;
+  const ship = state.ship;
+  assertPlayerShipState(ship);
+  return ship.cannons >= 8 ||
+    (ship.cannonCapacity >= 16 && ship.cannons >= 4) ||
+    (ship.navalWeaponKind === NAVAL_WEAPON_ARROW && ship.mass >= 100);
+}
+
+export function factionSafePassageToll(state) {
+  assertGameState(state);
+  if (playerShipIsWarship(state)) throw new Error("Warships cannot purchase civilian safe passage");
+  return Math.ceil((20 + state.cargoCapacity / 4 + state.ship.cannons * 2) / 5) * 5;
+}
+
+export function factionSafePassageStatus(state, factionId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const id = assertFactionId(factionId);
+  const untilMinute = state.relations.safePassageUntilMinute[id] || 0;
+  if (!Number.isFinite(untilMinute) || untilMinute < 0) {
+    throw new Error(`Invalid safe passage expiry for ${id}: ${untilMinute}`);
+  }
+  const active = untilMinute > simMinute;
+  return {
+    factionId: id,
+    active,
+    untilMinute: active ? untilMinute : null,
+    daysRemaining: active ? Math.ceil((untilMinute - simMinute) / MINUTES_PER_DAY) : 0
+  };
+}
+
+export function activeFactionSafePassageIds(state, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (playerShipIsWarship(state)) return [];
+  return Object.entries(state.relations.safePassageUntilMinute)
+    .filter(([, untilMinute]) => untilMinute > simMinute)
+    .map(([factionId]) => assertFactionId(factionId));
+}
+
+export function purchaseFactionSafePassage(state, city, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const factionId = assertFactionId(city?.factionId);
+  if (factionId === NEUTRAL_FACTION_ID || factionId === PIRATE_FACTION_ID) {
+    throw new Error(`Faction does not issue safe passage: ${factionId}`);
+  }
+  if (playerShipIsWarship(state)) throw new Error("Warships cannot purchase civilian safe passage");
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  const relation = playerFactionId ? diplomacyBetweenForState(state, playerFactionId, factionId) : null;
+  if (relation !== DIPLOMACY_HOSTILE && relation !== DIPLOMACY_WAR) {
+    throw new Error(`${cityLabel(city)} has no reason to demand a passage toll`);
+  }
+  const toll = factionSafePassageToll(state);
+  if (state.doubloons < toll) throw new Error(`Not enough doubloons for ${factionId} safe passage`);
+  state.doubloons -= toll;
+  const untilMinute = simMinute + FACTION_SAFE_PASSAGE_MINUTES;
+  state.relations.safePassageUntilMinute[factionId] = untilMinute;
+  recordLedgerEntry(state, city, { simMinute }, {
+    kind: "expense",
+    description: `${cityLabel(city)} passage toll`,
+    goodId: null,
+    quantity: 1,
+    amount: -toll,
+    costBasis: null,
+    pnl: null
+  });
+  return { factionId, toll, untilMinute, days: FACTION_SAFE_PASSAGE_DAYS };
 }
 
 export function attemptPortDisguise(state, city, simMinute, roll) {
@@ -1423,7 +1547,9 @@ function createPlayerShipState(stats) {
     crew: 0,
     crewCapacity: stats.crewCapacity,
     cannons: 0,
-    cannonCapacity: stats.cannons
+    cannonCapacity: stats.cannons,
+    mass: stats.mass,
+    navalWeaponKind: stats.navalWeaponKind
   };
 }
 
@@ -1649,6 +1775,9 @@ function initialFactionReputation(playerFactionId) {
     if (diplomacyBetween(homeFactionId, faction.id) === DIPLOMACY_WAR) {
       return [faction.id, ENEMY_FACTION_START_REPUTATION];
     }
+    if (diplomacyBetween(homeFactionId, faction.id) === DIPLOMACY_HOSTILE) {
+      return [faction.id, ENEMY_FACTION_START_REPUTATION / 2];
+    }
     return [faction.id, 0];
   }));
 }
@@ -1810,7 +1939,8 @@ function assertGameState(state) {
   }
   assertFactionReputationTable(state.relations?.factionReputation);
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);
-  ensureWorldDiplomacyState(state);
+  assertSafePassageTable(state.relations?.safePassageUntilMinute);
+  assertWorldDiplomacyState(state);
   if (!Number.isFinite(state.accounts.realizedPnl)) throw new Error("Invalid realized trade P/L");
   if (!Array.isArray(state.accounts.ledger)) throw new Error("Game state ledger must be an array");
   if (!Number.isInteger(state.accounts.nextEntryId) || state.accounts.nextEntryId <= 0) {
@@ -1848,8 +1978,22 @@ function assertPlayerShipState(ship) {
   }
   if (ship.crew > ship.crewCapacity) throw new Error("Player crew exceeds ship capacity");
   if (ship.cannons > ship.cannonCapacity) throw new Error("Player cannons exceed ship capacity");
+  if (!Number.isInteger(ship.mass) || ship.mass <= 0) throw new Error(`Invalid ship mass: ${ship.mass}`);
+  if (ship.navalWeaponKind !== null && typeof ship.navalWeaponKind !== "string") {
+    throw new Error(`Invalid ship naval weapon kind: ${ship.navalWeaponKind}`);
+  }
   if (ship.loadoutId !== null && typeof ship.loadoutId !== "string") {
     throw new Error(`Invalid ship loadout id: ${ship.loadoutId}`);
+  }
+}
+
+function assertSafePassageTable(table) {
+  if (!table || typeof table !== "object" || Array.isArray(table)) {
+    throw new Error("Game state safe passage must be an object");
+  }
+  for (const [factionId, untilMinute] of Object.entries(table)) {
+    assertFactionId(factionId);
+    assertSimulationMinute(untilMinute);
   }
 }
 
@@ -1875,20 +2019,18 @@ function assertPlayerCharacter(character) {
   if (character.nationalityId !== undefined) assertFactionId(character.nationalityId);
 }
 
-function ensureWorldDiplomacyState(state) {
+function assertWorldDiplomacyState(state) {
   if (!state.relations || typeof state.relations !== "object") {
     throw new Error("Game state relations must be an object");
   }
-  if (!state.relations.diplomacy) {
-    const startMinute = Number.isFinite(state.accounts?.ledger?.[0]?.simMinute)
-      ? state.accounts.ledger[0].simMinute
-      : 0;
-    state.relations.diplomacy = createWorldDiplomacy({
-      startMinute,
-      seedKey: worldDiplomacySeedKey(state.playerCharacter, startMinute)
-    });
-  }
+  if (!state.relations.diplomacy) throw new Error("Game state requires world diplomacy");
   validateWorldDiplomacy(state.relations.diplomacy);
+}
+
+function savedGameStartMinute(state) {
+  return Number.isFinite(state.accounts?.ledger?.[0]?.simMinute)
+    ? state.accounts.ledger[0].simMinute
+    : 0;
 }
 
 function worldDiplomacySeedKey(character, startMinute) {

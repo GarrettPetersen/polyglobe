@@ -59,6 +59,7 @@ import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
+  activeFactionSafePassageIds,
   advanceGameDiplomacy,
   advanceActivePlayTime,
   applySurvivalDeprivation,
@@ -70,13 +71,16 @@ import {
   discoveredEntries,
   diplomacyBetweenForState,
   factionReputation,
+  factionSafePassageToll,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
   initializeProvisionalShipLoadout,
   loseCrew,
+  migrateGameState,
   playerCannonEquipment,
   playerFishingNet,
+  playerShipIsWarship,
   pirateHideoutsVisibleToPlayer,
   portEntryStatus,
   refillFreshWaterFromShore,
@@ -91,13 +95,13 @@ import {
   restockSelectedShipLoadoutAtPort,
   rollCrewCasualtiesForDamage,
   purchasePlayerShip,
+  purchaseFactionSafePassage,
   setPlayerShipStats,
   shipEmergencyAidNeed,
   stowForagedFood,
   survivalStatus,
   updateCircumnavigationProgress,
   updateSurvival,
-  validateGameState,
   visitPort
 } from "./gameState.js";
 import { diplomacyEventNotice } from "./worldDiplomacy.js";
@@ -305,6 +309,8 @@ import {
 } from "./shipCollision.js";
 import {
   DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTION_CAPITALS_1522,
@@ -4634,7 +4640,8 @@ function archiveSavedVoyageBeforeStartingOver() {
   const payload = localSaveResult.status === "ready" ? localSaveResult.save?.payload : null;
   if (!payload) return false;
   try {
-    const savedState = validateGameState(payload.gameState);
+    const savedStats = shipStatsForSlug(payload.playerShip.typeSlug);
+    const savedState = migrateGameState(payload.gameState, savedStats);
     const record = createPastVoyageRecord({
       state: savedState,
       playerShip: payload.playerShip,
@@ -4674,9 +4681,9 @@ async function continueSavedVoyage() {
 }
 
 async function restoreSavedVoyage(payload) {
-  const restoredGameState = validateGameState(payload.gameState);
   const savedShip = payload.playerShip;
   const stats = shipStatsForSlug(savedShip.typeSlug);
+  const restoredGameState = migrateGameState(payload.gameState, stats);
   factionById(savedShip.factionId);
   if (restoredGameState.cargoCapacity !== stats.cargoCapacity) {
     throw new Error("Saved ship capacity does not match its hull");
@@ -6064,7 +6071,20 @@ function chooseDialogueOption(optionIndex) {
     dialogueNpcShipId = dialogueState.npcShipId;
     result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
   } else if (dialogueState.kind === "shore-battery") {
-    result = selectShoreBatteryDialogueOption(dialogueState, currentDialogueCity(), optionIndex);
+    const city = currentDialogueCity();
+    result = selectShoreBatteryDialogueOption(dialogueState, city, optionIndex);
+    if (result.action?.type === "purchase-safe-passage") {
+      const passage = purchaseFactionSafePassage(gameState, city, Math.floor(weatherClockMinutes));
+      const battery = shoreBatteryStates.get(shoreBatteryId(city));
+      if (battery) {
+        battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
+        battery.playerHailed = false;
+      }
+      playCoinClinkSound();
+      showSurvivalNotice(`${factionById(passage.factionId).adjective.toUpperCase()} PASSAGE  ${passage.days} DAYS`, "good");
+      saveVoyageNow("purchased faction safe passage");
+      result.action = null;
+    }
   } else {
     throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
   }
@@ -9198,15 +9218,15 @@ function updateShoreBatteryCombat(dt, anotherHailOpened) {
     const range = SHORE_BATTERY_RANGE_PX * weapon.rangeScale;
     const nextTargets = new Set();
     const playerDistance = Math.hypot(point.x - localLayout.viewX, point.y - localLayout.viewY);
-    const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) &&
-      portEntryStatus(gameState, city, simMinute).hostile;
+    const entryStatus = portEntryStatus(gameState, city, simMinute);
+    const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile;
     if (playerHostile && playerDistance <= range) {
       if (!state.playerHailed && !anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
         openShoreBatteryCombatHail(city, state);
         hailOpened = true;
         changed = true;
       }
-      if (state.playerHailed) nextTargets.add(PLAYER_COMBAT_ID);
+      if (state.playerHailed && entryStatus.hostileByWar) nextTargets.add(PLAYER_COMBAT_ID);
     } else if (playerDistance > range + 20) {
       state.playerHailed = false;
     }
@@ -9243,7 +9263,16 @@ function shoreBatteryHostileToFaction(city, factionId) {
 
 function openShoreBatteryCombatHail(city, state) {
   state.playerHailed = true;
-  dialogueState = createShoreBatteryDialogueSession(city);
+  const currentRelation = currentDiplomacyBetween(ship.factionId, city.factionId);
+  const relation = currentRelation === DIPLOMACY_WAR ? DIPLOMACY_WAR : DIPLOMACY_HOSTILE;
+  const playerWarship = playerShipIsWarship(gameState);
+  const toll = playerWarship ? null : factionSafePassageToll(gameState);
+  dialogueState = createShoreBatteryDialogueSession(city, {
+    relation,
+    playerWarship,
+    toll,
+    canAffordToll: toll !== null && gameState.doubloons >= toll
+  });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
@@ -9347,7 +9376,8 @@ function playerCombatEntity() {
     combatGrace: false,
     npcAttackProtected: playerNpcAttackGraceIsActive(gameState.activePlaySeconds),
     portProtected: playerShipIsInvulnerable(),
-    majorPortProtected: playerHasMajorPortProtection()
+    majorPortProtected: playerHasMajorPortProtection(),
+    safePassageFactionIds: activeFactionSafePassageIds(gameState, Math.floor(weatherClockMinutes))
   };
 }
 
@@ -13231,14 +13261,18 @@ function drawPoliticsStanding(player, x, y, width) {
 
 function politicsRelationGlyph(relation) {
   if (relation === DIPLOMACY_ALLY) return "A";
+  if (relation === DIPLOMACY_FRIENDLY) return "+";
   if (relation === DIPLOMACY_WAR) return "W";
+  if (relation === DIPLOMACY_HOSTILE) return "!";
   if (relation === DIPLOMACY_NEUTRAL) return "-";
   throw new Error(`Unknown political relation: ${relation}`);
 }
 
 function politicsRelationColor(relation) {
   if (relation === DIPLOMACY_ALLY) return "#91db69";
+  if (relation === DIPLOMACY_FRIENDLY) return "#c8d45d";
   if (relation === DIPLOMACY_WAR) return "#f68181";
+  if (relation === DIPLOMACY_HOSTILE) return "#e6a15c";
   if (relation === DIPLOMACY_NEUTRAL) return PIRATE_MENU_INK_MUTED;
   throw new Error(`Unknown political relation: ${relation}`);
 }

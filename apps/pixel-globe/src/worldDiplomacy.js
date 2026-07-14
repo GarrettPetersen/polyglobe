@@ -1,5 +1,7 @@
 import {
   DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
@@ -9,7 +11,7 @@ import {
   diplomacyBetween
 } from "./factions.js";
 
-export const WORLD_DIPLOMACY_VERSION = 1;
+export const WORLD_DIPLOMACY_VERSION = 2;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -18,7 +20,14 @@ export const DIPLOMACY_HISTORY_LIMIT = 24;
 const MINUTES_PER_DAY = 24 * 60;
 const DIPLOMACY_PAIR_COOLDOWN_MINUTES = DIPLOMACY_PAIR_COOLDOWN_DAYS * MINUTES_PER_DAY;
 const MAX_CATCH_UP_EVENTS = 24;
-const RELATIONS = new Set([DIPLOMACY_ALLY, DIPLOMACY_NEUTRAL, DIPLOMACY_WAR]);
+const RELATION_LADDER = Object.freeze([
+  DIPLOMACY_WAR,
+  DIPLOMACY_HOSTILE,
+  DIPLOMACY_NEUTRAL,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_ALLY
+]);
+const RELATIONS = new Set(RELATION_LADDER);
 const SOVEREIGN_FACTIONS = FACTIONS.filter((faction) => (
   faction.id !== NEUTRAL_FACTION_ID && faction.id !== PIRATE_FACTION_ID
 ));
@@ -44,6 +53,20 @@ for (const theatre of DIPLOMATIC_THEATRES) {
     }
   }
 }
+
+const HISTORICAL_RIVALRY_WEIGHTS = new Map([
+  ["habsburg|ottoman", 8],
+  ["hungary|ottoman", 7],
+  ["ottoman|safavid", 6],
+  ["ottoman|portugal", 5],
+  ["france|habsburg", 5],
+  ["france|spain", 5],
+  ["england|france", 4],
+  ["aztec|spain", 7],
+  ["gujarat|portugal", 4],
+  ["ming|portugal", 3],
+  ["muscovy|poland-lithuania", 4]
+]);
 
 export function createWorldDiplomacy({ startMinute = 0, seedKey = "world" } = {}) {
   assertMinute(startMinute, "diplomacy start minute");
@@ -90,6 +113,17 @@ export function validateWorldDiplomacy(state) {
   return state;
 }
 
+export function migrateWorldDiplomacy(state) {
+  if (!state || typeof state !== "object") {
+    throw new Error("World diplomacy migration requires a saved state");
+  }
+  if (state.version === WORLD_DIPLOMACY_VERSION) return validateWorldDiplomacy(state);
+  if (state.version !== 1) {
+    throw new Error(`Unsupported world diplomacy version: ${state.version ?? "missing"}`);
+  }
+  return validateWorldDiplomacy({ ...state, version: WORLD_DIPLOMACY_VERSION });
+}
+
 export function worldDiplomacyBetween(state, factionAId, factionBId) {
   assertFactionId(factionAId);
   assertFactionId(factionBId);
@@ -117,7 +151,8 @@ export function advanceWorldDiplomacy(state, currentMinute, influence = {}) {
     const primary = chooseDiplomacyEvent(state, eventMinute, influence);
     if (primary) {
       const attackerFirst = diplomacyRandom(state, state.sequence, "war-side") < 0.5;
-      const resolved = primary.kind === "war"
+      const relation = worldDiplomacyBetween(state, primary.factionAId, primary.factionBId);
+      const resolved = primary.direction === "worsen" && relation === DIPLOMACY_HOSTILE
         ? declareDiplomaticWar(
             state,
             attackerFirst ? primary.factionAId : primary.factionBId,
@@ -125,7 +160,16 @@ export function advanceWorldDiplomacy(state, currentMinute, influence = {}) {
             eventMinute,
             influence
           )
-        : makeDiplomaticPeace(state, primary.factionAId, primary.factionBId, eventMinute, influence);
+        : primary.direction === "improve" && relation === DIPLOMACY_WAR
+          ? makeDiplomaticPeace(state, primary.factionAId, primary.factionBId, eventMinute, influence)
+          : adjustDiplomaticStance(
+              state,
+              primary.factionAId,
+              primary.factionBId,
+              primary.direction,
+              eventMinute,
+              influence
+            );
       events.push(...resolved);
     }
     state.sequence += 1;
@@ -192,7 +236,7 @@ export function makeDiplomaticPeace(state, factionAId, factionBId, simMinute, in
   assertSovereignPair(factionAId, factionBId);
   assertMinute(simMinute, "peace treaty minute");
   if (worldDiplomacyBetween(state, factionAId, factionBId) !== DIPLOMACY_WAR) return [];
-  setDynamicRelation(state, factionAId, factionBId, DIPLOMACY_NEUTRAL, simMinute);
+  setDynamicRelation(state, factionAId, factionBId, DIPLOMACY_HOSTILE, simMinute);
   const events = [diplomacyEvent({
     state,
     simMinute,
@@ -204,6 +248,47 @@ export function makeDiplomaticPeace(state, factionAId, factionBId, simMinute, in
   })];
   recordDiplomacyEvents(state, events);
   return events;
+}
+
+export function adjustDiplomaticStance(
+  state,
+  factionAId,
+  factionBId,
+  direction,
+  simMinute,
+  influence = {}
+) {
+  validateWorldDiplomacy(state);
+  assertSovereignPair(factionAId, factionBId);
+  assertMinute(simMinute, "diplomatic stance minute");
+  if (direction !== "improve" && direction !== "worsen") {
+    throw new Error(`Invalid diplomatic stance direction: ${direction}`);
+  }
+  const previous = worldDiplomacyBetween(state, factionAId, factionBId);
+  const previousIndex = RELATION_LADDER.indexOf(previous);
+  const nextIndex = clamp(previousIndex + (direction === "improve" ? 1 : -1), 0, RELATION_LADDER.length - 1);
+  if (nextIndex === previousIndex) return [];
+  const relation = RELATION_LADDER[nextIndex];
+  setDynamicRelation(state, factionAId, factionBId, relation, simMinute);
+  const kind = stanceEventKind(previous, relation);
+  const events = [diplomacyEvent({
+    state,
+    simMinute,
+    kind,
+    factionAId,
+    factionBId,
+    previousRelation: previous,
+    relation,
+    reason: playerInfluenceReason(influence, factionAId, factionBId),
+    headline: stanceHeadline(kind, factionAId, factionBId)
+  })];
+  recordDiplomacyEvents(state, events);
+  return events;
+}
+
+export function historicalRivalryWeight(factionAId, factionBId) {
+  assertSovereignPair(factionAId, factionBId);
+  return HISTORICAL_RIVALRY_WEIGHTS.get(diplomacyPairKey(factionAId, factionBId)) || 1;
 }
 
 export function playerDiplomacyBias(influence, factionAId, factionBId, eventKind) {
@@ -234,6 +319,10 @@ export function diplomacyEventNotice(event) {
   const a = factionShortName(event.factionAId).toUpperCase();
   const b = factionShortName(event.factionBId).toUpperCase();
   if (event.kind === "peace") return `PEACE: ${a} / ${b}`;
+  if (event.kind === "alliance") return `ALLIANCE: ${a} / ${b}`;
+  if (event.kind === "alliance-ended") return `ALLIANCE ENDS: ${a} / ${b}`;
+  if (event.kind === "relations-improve") return `RELATIONS IMPROVE: ${a} / ${b}`;
+  if (event.kind === "relations-worsen") return `RELATIONS WORSEN: ${a} / ${b}`;
   if (event.kind === "alliance-war") return `ALLY JOINS WAR: ${a} / ${b}`;
   return `WAR: ${a} / ${b}`;
 }
@@ -256,22 +345,24 @@ function chooseDiplomacyEvent(state, eventMinute, influence) {
       const factionBId = SOVEREIGN_FACTIONS[j].id;
       if (pairIsCoolingDown(state, factionAId, factionBId, eventMinute)) continue;
       const relation = worldDiplomacyBetween(state, factionAId, factionBId);
-      if (relation === DIPLOMACY_WAR) {
+      if (!PLAUSIBLE_WAR_PAIRS.has(diplomacyPairKey(factionAId, factionBId))) continue;
+      const rivalry = historicalRivalryWeight(factionAId, factionBId);
+      if (relation !== DIPLOMACY_ALLY) {
         candidates.push({
-          kind: "peace",
+          direction: "improve",
           factionAId,
           factionBId,
-          weight: peaceBalance * playerDiplomacyBias(influence, factionAId, factionBId, "peace")
+          weight: 0.1 * (relation === DIPLOMACY_WAR ? peaceBalance : 1) /
+            Math.sqrt(rivalry) * playerDiplomacyBias(influence, factionAId, factionBId, "peace")
         });
-      } else if (
-        relation === DIPLOMACY_NEUTRAL &&
-        PLAUSIBLE_WAR_PAIRS.has(diplomacyPairKey(factionAId, factionBId))
-      ) {
+      }
+      if (relation !== DIPLOMACY_WAR) {
         candidates.push({
-          kind: "war",
+          direction: "worsen",
           factionAId,
           factionBId,
-          weight: 0.13 * warBalance * playerDiplomacyBias(influence, factionAId, factionBId, "war")
+          weight: 0.1 * rivalry * (relation === DIPLOMACY_HOSTILE ? warBalance : 1) *
+            playerDiplomacyBias(influence, factionAId, factionBId, "war")
         });
       }
     }
@@ -411,7 +502,15 @@ function validateDiplomacyEvent(event) {
   if (!event || typeof event !== "object" || typeof event.id !== "string" || event.id === "") {
     throw new Error("Invalid diplomacy history event");
   }
-  if (!["war", "peace", "alliance-war"].includes(event.kind)) {
+  if (![
+    "war",
+    "peace",
+    "alliance-war",
+    "alliance",
+    "alliance-ended",
+    "relations-improve",
+    "relations-worsen"
+  ].includes(event.kind)) {
     throw new Error(`Invalid diplomacy history event kind: ${event.kind}`);
   }
   assertSovereignPair(event.factionAId, event.factionBId);
@@ -419,6 +518,23 @@ function validateDiplomacyEvent(event) {
   if (typeof event.headline !== "string" || event.headline === "") {
     throw new Error(`Diplomacy event ${event.id} has no headline`);
   }
+}
+
+function stanceEventKind(previous, relation) {
+  if (previous === DIPLOMACY_FRIENDLY && relation === DIPLOMACY_ALLY) return "alliance";
+  if (previous === DIPLOMACY_ALLY && relation === DIPLOMACY_FRIENDLY) return "alliance-ended";
+  return RELATION_LADDER.indexOf(relation) > RELATION_LADDER.indexOf(previous)
+    ? "relations-improve"
+    : "relations-worsen";
+}
+
+function stanceHeadline(kind, factionAId, factionBId) {
+  const a = factionName(factionAId);
+  const b = factionName(factionBId);
+  if (kind === "alliance") return `${a} and ${b} form an alliance.`;
+  if (kind === "alliance-ended") return `${a} and ${b} dissolve their alliance.`;
+  if (kind === "relations-improve") return `${a} and ${b} improve relations.`;
+  return `${a} and ${b} move toward conflict.`;
 }
 
 function assertMinute(value, label) {

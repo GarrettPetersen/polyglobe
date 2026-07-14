@@ -1,5 +1,7 @@
 import {
   DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
@@ -15,7 +17,9 @@ import { clampMenuIndex } from "./menuNavigation.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
+  [DIPLOMACY_FRIENDLY]: "Friendly",
   [DIPLOMACY_NEUTRAL]: "Neutral",
+  [DIPLOMACY_HOSTILE]: "Hostile",
   [DIPLOMACY_WAR]: "War"
 });
 

@@ -139,6 +139,7 @@ test("player combat allegiance distinguishes enemies, allies, and neutral ships"
   assert.equal(playerCombatAllegiance("england", "france", true), "enemy");
   assert.equal(playerCombatAllegiance("england", "spain", true), "friendly");
   assert.equal(playerCombatAllegiance("venice", "genoa", true), null);
+  assert.equal(playerCombatAllegiance("ottoman", "habsburg", true), "enemy");
   assert.equal(playerCombatAllegiance("england", "france", false), null);
 });
 
@@ -171,6 +172,17 @@ test("NPC ships cannot attack the player during the first active minute", () => 
 
   player.npcAttackProtected = playerNpcAttackGraceIsActive(PLAYER_NPC_ATTACK_GRACE_SECONDS);
   assert.equal(updateShipCombatState(createShipCombatState(), [player, frenchWarship], atWar).engagementCount, 1);
+});
+
+test("faction safe passage prevents and ends NPC attacks on the player", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "merchant", "habsburg", 0, 0, 30, 2);
+  const ottomanWarship = ship("ottoman", "warship", "ottoman", 30, 0, 40, 18);
+  const atWar = () => "war";
+
+  assert.equal(updateShipCombatState(state, [player, ottomanWarship], atWar).engagementCount, 1);
+  player.safePassageFactionIds.push("ottoman");
+  assert.equal(updateShipCombatState(state, [player, ottomanWarship], atWar).engagementCount, 0);
 });
 
 test("the player can force an engagement during NPC attack protection", () => {
@@ -210,7 +222,8 @@ function ship(id, role, factionId, x, y, hitPoints, cannons, maxHitPoints = hitP
     maxHitPoints,
     cannons,
     combatGrace: false,
-    npcAttackProtected: false
+    npcAttackProtected: false,
+    safePassageFactionIds: id === "player" ? [] : undefined
   };
 }
 

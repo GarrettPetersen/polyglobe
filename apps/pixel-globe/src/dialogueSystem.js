@@ -107,13 +107,24 @@ export function createShipDialogueSession(ship, { attackReason = null } = {}) {
   };
 }
 
-export function createShoreBatteryDialogueSession(city) {
+export function createShoreBatteryDialogueSession(city, context = {}) {
   if (!city?.character) throw new Error("Shore battery hail requires a city character");
+  if (context.relation !== "hostile" && context.relation !== "war") {
+    throw new Error(`Shore battery hail requires hostile diplomacy: ${context.relation}`);
+  }
+  if (typeof context.playerWarship !== "boolean") throw new Error("Shore battery hail requires ship classification");
+  if (!context.playerWarship && (!Number.isInteger(context.toll) || context.toll <= 0)) {
+    throw new Error(`Invalid shore battery passage toll: ${context.toll}`);
+  }
   return {
     kind: "shore-battery",
     cityTileId: city.tileId,
     portId: city.portId || `city-${city.tileId}`,
-    selectedIndex: 0
+    selectedIndex: 0,
+    relation: context.relation,
+    playerWarship: context.playerWarship,
+    toll: context.playerWarship ? null : context.toll,
+    canAffordToll: context.playerWarship ? false : context.canAffordToll === true
   };
 }
 
@@ -122,12 +133,30 @@ export function shoreBatteryDialogueView(session, city) {
     throw new Error("Shore battery dialogue city does not match active session");
   }
   const faction = factionById(city.factionId);
+  if (session.playerWarship) {
+    const atWar = session.relation === "war";
+    return {
+      speaker: `${characterName(city.character)}, ${city.city}`,
+      expressionId: "angry",
+      text: atWar
+        ? `${faction.name} is at war with your flag. Armed vessels will be fired upon.`
+        : `${faction.name} denies passage to your armed vessel. Turn away.`,
+      feedback: null,
+      options: [option(atWar ? "To arms" : "Turn away", { type: "close" })]
+    };
+  }
   return {
     speaker: `${characterName(city.character)}, ${city.city}`,
-    expressionId: "angry",
-    text: `${faction.name} is hostile to your flag. Strike your colors or face the shore batteries!`,
+    expressionId: "stern",
+    text: `${faction.name} demands ${session.toll} doubloons for seven days of safe passage throughout the empire.`,
     feedback: null,
-    options: [option("To arms", { type: "close" })]
+    options: [
+      option(`Pay ${session.toll} db`, { type: "purchase-safe-passage" }, {
+        disabled: !session.canAffordToll,
+        disabledReason: "Not enough doubloons."
+      }),
+      option(session.relation === "war" ? "Refuse" : "Turn away", { type: "close" })
+    ]
   };
 }
 
@@ -135,8 +164,12 @@ export function selectShoreBatteryDialogueOption(session, city, optionIndex = se
   const view = shoreBatteryDialogueView(session, city);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid shore battery dialogue option index: ${optionIndex}`);
-  if (selected.action.type !== "close") throw new Error(`Unknown shore battery dialogue action: ${selected.action.type}`);
-  return { closed: true, action: null };
+  if (selected.disabled) throw new Error(selected.disabledReason || "Shore battery option is unavailable");
+  if (selected.action.type === "close") return { closed: true, action: null };
+  if (selected.action.type === "purchase-safe-passage") {
+    return { closed: true, action: selected.action };
+  }
+  throw new Error(`Unknown shore battery dialogue action: ${selected.action.type}`);
 }
 
 export function shipDialogueView(session, ship) {

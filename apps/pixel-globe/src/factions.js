@@ -2,12 +2,16 @@ export const NEUTRAL_FACTION_ID = "neutral";
 export const PIRATE_FACTION_ID = "pirate";
 
 export const DIPLOMACY_ALLY = "ally";
+export const DIPLOMACY_FRIENDLY = "friendly";
 export const DIPLOMACY_NEUTRAL = "neutral";
+export const DIPLOMACY_HOSTILE = "hostile";
 export const DIPLOMACY_WAR = "war";
 
 const DIPLOMACY_RELATIONS = new Set([
   DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
   DIPLOMACY_NEUTRAL,
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_WAR
 ]);
 
@@ -102,11 +106,14 @@ const ALLIANCES_1522 = Object.freeze([
   ["france", "scotland"]
 ]);
 
+const HOSTILITIES_1522 = Object.freeze([
+  ["ottoman", "habsburg"]
+]);
+
 const WARS_1522 = Object.freeze([
   ["england", "france"],
   ["spain", "france"],
   ["habsburg", "france"],
-  ["ottoman", "habsburg"],
   ["ottoman", "hungary"],
   ["ottoman", "safavid"],
   ["ottoman", "portugal"],
@@ -350,6 +357,9 @@ function buildDiplomacyMatrix() {
   }
   for (const [factionAId, factionBId] of ALLIANCES_1522) {
     setSymmetricRelation(matrix, factionAId, factionBId, DIPLOMACY_ALLY);
+  }
+  for (const [factionAId, factionBId] of HOSTILITIES_1522) {
+    setSymmetricRelation(matrix, factionAId, factionBId, DIPLOMACY_HOSTILE);
   }
   for (const [factionAId, factionBId] of WARS_1522) {
     setSymmetricRelation(matrix, factionAId, factionBId, DIPLOMACY_WAR);

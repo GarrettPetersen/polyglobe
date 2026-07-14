@@ -1,5 +1,7 @@
 import {
   DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_WAR,
   PIRATE_FACTION_ID,
   diplomacyBetween
@@ -39,6 +41,7 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     const a = byId.get(engagement.aId);
     const b = byId.get(engagement.bId);
     if (!a || !b || a.combatGrace || b.combatGrace ||
+        (!engagement.playerInitiated && playerSafePassageApplies(a, b)) ||
         (!engagement.playerInitiated && relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) ||
         protectedPortEndsPlayerAttack(a, b) ||
         distance(a, b) > combatDisengageRadius(a, b)) {
@@ -93,6 +96,7 @@ export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {
   if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {
     const player = a.id === PLAYER_COMBAT_ID ? a : b;
     const npc = a.id === PLAYER_COMBAT_ID ? b : a;
+    if (playerSafePassageApplies(player, npc)) return false;
     if (player.npcAttackProtected) return false;
     if (player.portProtected) return false;
     if (npc.role === NPC_ROLE_PIRATE && player.majorPortProtected) return false;
@@ -104,6 +108,13 @@ export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {
     b.factionId === PIRATE_FACTION_ID ||
     a.role === NPC_ROLE_WARSHIP ||
     b.role === NPC_ROLE_WARSHIP;
+}
+
+function playerSafePassageApplies(a, b) {
+  if (a.id !== PLAYER_COMBAT_ID && b.id !== PLAYER_COMBAT_ID) return false;
+  const player = a.id === PLAYER_COMBAT_ID ? a : b;
+  const npc = a.id === PLAYER_COMBAT_ID ? b : a;
+  return player.safePassageFactionIds.includes(npc.factionId);
 }
 
 export function playerNpcAttackGraceIsActive(activePlaySeconds) {
@@ -187,8 +198,8 @@ export function playerCombatAllegiance(
   if (!playerInCombat) return null;
   assertRelationResolver(relationBetween);
   const relation = relationBetween(playerFactionId, otherFactionId);
-  if (relation === DIPLOMACY_WAR) return "enemy";
-  if (relation === DIPLOMACY_ALLY) return "friendly";
+  if (relation === DIPLOMACY_WAR || relation === DIPLOMACY_HOSTILE) return "enemy";
+  if (relation === DIPLOMACY_ALLY || relation === DIPLOMACY_FRIENDLY) return "friendly";
   return null;
 }
 
@@ -243,6 +254,12 @@ function validateEntity(entity) {
   if (!Number.isInteger(entity.cannons) || entity.cannons < 0) throw new Error(`Invalid cannon count: ${entity.id}`);
   if (typeof entity.npcAttackProtected !== "boolean") {
     throw new Error(`Invalid NPC attack protection for ${entity.id}: ${entity.npcAttackProtected}`);
+  }
+  if (entity.id === PLAYER_COMBAT_ID) {
+    if (!Array.isArray(entity.safePassageFactionIds) ||
+        entity.safePassageFactionIds.some((factionId) => typeof factionId !== "string" || factionId === "")) {
+      throw new Error("Player combat entity requires safe passage faction ids");
+    }
   }
   return entity;
 }

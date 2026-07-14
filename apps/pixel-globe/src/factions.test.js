@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_MATRIX_1522,
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
@@ -27,7 +29,13 @@ test("neutral allegiance has no flag while real factions do", () => {
 });
 
 test("1522 diplomacy matrix is complete and symmetric", () => {
-  const validRelations = new Set([DIPLOMACY_ALLY, DIPLOMACY_NEUTRAL, DIPLOMACY_WAR]);
+  const validRelations = new Set([
+    DIPLOMACY_ALLY,
+    DIPLOMACY_FRIENDLY,
+    DIPLOMACY_NEUTRAL,
+    DIPLOMACY_HOSTILE,
+    DIPLOMACY_WAR
+  ]);
   for (const factionA of FACTIONS) {
     assert.deepEqual(Object.keys(DIPLOMACY_MATRIX_1522[factionA.id]).sort(), FACTIONS.map((item) => item.id).sort());
     for (const factionB of FACTIONS) {
@@ -43,6 +51,7 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("england", "spain"), DIPLOMACY_ALLY);
   assert.equal(diplomacyBetween("france", "scotland"), DIPLOMACY_ALLY);
   assert.equal(diplomacyBetween("england", "france"), DIPLOMACY_WAR);
+  assert.equal(diplomacyBetween("ottoman", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("portugal", "ming"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("venice", "genoa"), DIPLOMACY_NEUTRAL);
   for (const faction of FACTIONS) {

@@ -70,12 +70,38 @@ test("hostile shore batteries hail before opening fire", () => {
     factionId: "ottoman",
     character: { name: "Kemal Reis" }
   };
-  const session = createShoreBatteryDialogueSession(city);
+  const session = createShoreBatteryDialogueSession(city, {
+    relation: "war",
+    playerWarship: true
+  });
   const view = shoreBatteryDialogueView(session, city);
   assert.equal(session.kind, "shore-battery");
   assert.equal(view.speaker, "Kemal Reis, Alexandria");
-  assert.match(view.text, /shore batteries/);
+  assert.match(view.text, /fired upon/);
   assert.deepEqual(selectShoreBatteryDialogueOption(session, city, 0), { closed: true, action: null });
+});
+
+test("hostile shore batteries sell civilian passage for the whole empire", () => {
+  const city = {
+    tileId: 17,
+    portId: "city-17",
+    city: "Alexandria",
+    factionId: "ottoman",
+    character: { name: "Kemal Reis" }
+  };
+  const session = createShoreBatteryDialogueSession(city, {
+    relation: "hostile",
+    playerWarship: false,
+    toll: 55,
+    canAffordToll: true
+  });
+  const view = shoreBatteryDialogueView(session, city);
+  assert.match(view.text, /seven days of safe passage/);
+  assert.deepEqual(view.options.map((entry) => entry.label), ["Pay 55 db", "Turn away"]);
+  assert.deepEqual(
+    selectShoreBatteryDialogueOption(session, city, 0),
+    { closed: true, action: { type: "purchase-safe-passage" } }
+  );
 });
 
 test("merchant captains report their destination and visible cargo", () => {

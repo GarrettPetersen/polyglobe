@@ -15,6 +15,7 @@ import {
   initializeProvisionalShipLoadout,
   initializeShipProvisions,
   loseCrew,
+  migrateGameState,
   purchasePlayerShip,
   receiveEmergencyShipAid,
   restockShipLoadoutAtPort,
@@ -39,6 +40,7 @@ test("saved game state rejects unsupported schema versions", () => {
   assert.equal(validateGameState(state), state);
   state.version += 1;
   assert.throws(() => validateGameState(state), /Unsupported game state version/);
+  assert.throws(() => migrateGameState({ version: 7 }), /Unsupported game state version/);
 });
 
 test("survival drains water and consumes the cheapest edible cargo first", () => {
