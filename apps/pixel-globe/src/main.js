@@ -49,9 +49,7 @@ import {
   assignPortCityCharacters,
   characterExpression,
   generatePassengerCharacter,
-  loadCharacterPortraitManifest,
-  playerCharacterPortraitSummary,
-  recolorPortraitImage
+  loadCharacterPortraitManifest
 } from "./characterPortraits.js";
 import {
   generatePlayerStartingProfile,
@@ -1669,7 +1667,6 @@ async function main() {
   factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
   usedCharacterNames = new Set();
-  const playerPortraitSummary = playerCharacterPortraitSummary(characterPortraitManifest);
   const playerProfile = generatePlayerStartingProfile({
     identityKey: playerCharacterIdentityKey(),
     ports: portCities,
@@ -1721,15 +1718,7 @@ async function main() {
   ));
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
-    `${characterPortraitManifest.sourceCharacters.length} source portraits, ` +
-    `${characterPortraitManifest.skinTones.length} skin tones, ` +
-    `${characterPortraitManifest.hairTones.length} hair tones, ` +
-    `${characterPortraitManifest.eyeTones.length} eye tones, ` +
-    `${characterPortraitManifest.outfitPalettes.length} outfit palettes`
-  );
-  console.info(
-    `[pixel-globe] player portraits: ${playerPortraitSummary.multipleExpressions} multi-expression sources, ` +
-    `${playerPortraitSummary.eligibleCaptains} captain eligible`
+    `${characterPortraitManifest.sourceCharacters.length} authored portraits`
   );
   console.info(
     `[pixel-globe] player captain: ${playerCharacter.name}, ${playerCharacter.nationalityAdjective}, ` +
@@ -18687,10 +18676,7 @@ function dialoguePortraitImage(character, expression) {
   if (!portraitPromiseCache.has(key)) {
     const promise = loadAssetImage(expression.src, `portrait ${character.id}.${expression.id}`)
       .then((sourceImage) => {
-        const portrait = character.paletteSwapped === false || !character.palette
-          ? sourceImage
-          : recolorPortraitImage(sourceImage, character.palette, expression.roleMap);
-        portraitCanvasCache.set(key, portrait);
+        portraitCanvasCache.set(key, sourceImage);
         dirty = true;
       })
       .catch((error) => {

@@ -50,11 +50,11 @@ test("starting profiles are deterministic and internally consistent", () => {
   assert.equal(profile.character.startRegion, profile.startRegion);
   assert.equal(profile.character.starterShipSlug, PLAYER_STARTER_SHIPS[profile.startRegion]);
   assert.equal(profile.character.homePortName, profile.homePort.displayCity);
-  assert.ok(profile.character.expressions.length > 1);
+  assert.ok(profile.character.expressions.length >= 1);
   assert.ok(profile.character.age >= profile.character.minAge);
   assert.ok(profile.character.age <= profile.character.maxAge);
-  assert.equal(profile.character.paletteSwapped, true);
-  assert.ok(profile.character.eyeToneId);
+  assert.equal("paletteSwapped" in profile.character, false);
+  assert.equal("palette" in profile.character, false);
   assert.match(profile.character.birthDateLabel, /^\d{1,2} [A-Z][a-z]+ (?:14|15)\d{2}$/);
 });
 

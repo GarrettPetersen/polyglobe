@@ -1,11 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
-import {
-  classifyPortraitRoles,
-  encodePortraitRoleMap
-} from "../src/characterPortraits.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const characterRoot = join(appRoot, "public/assets/characters");
@@ -13,8 +8,14 @@ const outputPath = join(characterRoot, "generated/character-portraits.json");
 const portraitSize = 64;
 const individualSequencePacks = new Set([
   "Master Chef Portrait Pack by Captainskolot",
+  "Indian Ocean Portrait Pack by OpenAI",
+  "Ming Chinese Portrait Pack by OpenAI",
   "Native Americain Portrait Pack by Captainskeleto",
   "Pirates Portrait Pack by Captainskeleto",
+  "Polynesian Portrait Pack by OpenAI",
+  "South Asian Portrait Pack by OpenAI",
+  "Southeast Asian Portrait Pack by OpenAI",
+  "Sub-Saharan African Portrait Pack by OpenAI",
   "Viking Men Portrait Pack by Captainskeleto",
   "Women Portrait Pack by Captainskeleto",
   "Women Pirates Portrait Pack by Captainskeleto"
@@ -271,37 +272,6 @@ const expressionLabelOverrides = new Map([
   ])
 ]);
 
-const skinTones = Object.freeze([
-  tone("porcelain", "Porcelain", ["#4a2d2d", "#92584d", "#d99078", "#ffd6b5"]),
-  tone("fair", "Fair", ["#452923", "#8b4e3d", "#d18462", "#f5bd91"]),
-  tone("golden", "Golden", ["#42281f", "#86513a", "#c47d54", "#eab078"]),
-  tone("olive", "Olive", ["#33271f", "#6d5137", "#a98055", "#d1b080"]),
-  tone("tan", "Tan", ["#2b201b", "#624231", "#9b6748", "#c99168"]),
-  tone("brown", "Brown", ["#211817", "#4b3028", "#79503c", "#a87957"]),
-  tone("deep-brown", "Deep Brown", ["#171315", "#352326", "#593a34", "#805747"]),
-  tone("ebony", "Ebony", ["#101013", "#282026", "#453037", "#6a4846"])
-]);
-
-const hairTones = Object.freeze([
-  tone("black", "Black", ["#111216", "#292b30", "#4b4d52"]),
-  tone("dark-brown", "Dark Brown", ["#1b1412", "#442b22", "#72503a"]),
-  tone("chestnut", "Chestnut", ["#241511", "#603324", "#9a5c3b"]),
-  tone("auburn", "Auburn", ["#281412", "#713128", "#b25f43"]),
-  tone("copper", "Copper", ["#321810", "#85401f", "#cd7a3d"]),
-  tone("golden-blond", "Golden Blond", ["#403019", "#92703a", "#d8b96a"]),
-  tone("ash-blond", "Ash Blond", ["#37332c", "#777064", "#b8ad93"]),
-  tone("silver", "Silver", ["#292a2d", "#707278", "#c1c3c5"])
-]);
-
-const eyeTones = Object.freeze([
-  tone("dark-brown", "Dark Brown", ["#151214", "#30211d", "#5a4030"]),
-  tone("brown", "Brown", ["#1d1716", "#493229", "#795744"]),
-  tone("hazel", "Hazel", ["#202019", "#4f5433", "#8a8a4d"]),
-  tone("green", "Green", ["#16201c", "#315b45", "#6e9a70"]),
-  tone("gray", "Gray", ["#1d2228", "#465764", "#8799a1"]),
-  tone("blue", "Blue", ["#172334", "#2f5777", "#6594b0"])
-]);
-
 const portraitAgeRanges = new Map([
   ["Blacksmith Portrait Pack by Captainskeleto/Blacksmith Portrait", ageRange(32, 48)],
   ["Ultimate Portrait Pack V1.0/Blacksmith/Blacksmith Portrait", ageRange(50, 70)],
@@ -332,6 +302,42 @@ const numberedPortraitAgeRanges = new Map([
   ["Master Chef Portrait Pack by Captainskolot", numberedRanges({
     1: [35, 50], 2: [25, 40], 3: [50, 68], 4: [30, 44], 5: [30, 45], 6: [50, 68],
     7: [32, 48], 8: [28, 42], 9: [30, 45], 10: [50, 65], 11: [18, 28], 12: [30, 45]
+  })],
+  ["Ming Chinese Portrait Pack by OpenAI", numberedRanges({
+    1: [35, 52], 2: [18, 30], 3: [20, 32], 4: [58, 78],
+    5: [20, 34], 6: [35, 52], 7: [18, 30], 8: [30, 45],
+    9: [35, 52], 10: [20, 34], 11: [30, 45], 12: [35, 52],
+    13: [18, 30], 14: [30, 45], 15: [20, 34], 16: [30, 45]
+  })],
+  ["South Asian Portrait Pack by OpenAI", numberedRanges({
+    1: [30, 45], 2: [20, 34], 3: [30, 45], 4: [20, 34],
+    5: [25, 40], 6: [55, 75], 7: [18, 30], 8: [30, 45],
+    9: [20, 34], 10: [30, 45], 11: [20, 34], 12: [55, 75],
+    13: [25, 40], 14: [20, 34], 15: [30, 45], 16: [18, 30]
+  })],
+  ["Indian Ocean Portrait Pack by OpenAI", numberedRanges({
+    1: [30, 45], 2: [20, 34], 3: [35, 50], 4: [55, 75],
+    5: [18, 30], 6: [30, 45], 7: [20, 34], 8: [30, 45],
+    9: [20, 34], 10: [45, 62], 11: [30, 45], 12: [20, 34],
+    13: [55, 75], 14: [20, 34], 15: [30, 45], 16: [18, 30]
+  })],
+  ["Sub-Saharan African Portrait Pack by OpenAI", numberedRanges({
+    1: [30, 45], 2: [20, 34], 3: [30, 45], 4: [20, 34],
+    5: [30, 45], 6: [20, 34], 7: [55, 75], 8: [18, 30],
+    9: [25, 40], 10: [20, 34], 11: [30, 45], 12: [20, 34],
+    13: [18, 30], 14: [20, 34], 15: [40, 58], 16: [20, 34]
+  })],
+  ["Southeast Asian Portrait Pack by OpenAI", numberedRanges({
+    1: [25, 40], 2: [20, 34], 3: [25, 40], 4: [20, 34],
+    5: [30, 45], 6: [55, 75], 7: [18, 30], 8: [35, 52],
+    9: [20, 34], 10: [30, 45], 11: [20, 34], 12: [18, 30],
+    13: [18, 30], 14: [20, 34], 15: [55, 75], 16: [18, 30]
+  })],
+  ["Polynesian Portrait Pack by OpenAI", numberedRanges({
+    1: [20, 34], 2: [20, 34], 3: [25, 40], 4: [20, 34],
+    5: [25, 40], 6: [20, 34], 7: [55, 75], 8: [20, 34],
+    9: [30, 45], 10: [20, 34], 11: [18, 30], 12: [20, 34],
+    13: [18, 30], 14: [20, 34], 15: [30, 45], 16: [18, 30]
   })],
   ["Native Americain Portrait Pack by Captainskeleto", numberedRanges({
     1: [22, 36], 2: [20, 34], 3: [20, 34], 4: [20, 34], 5: [40, 58], 6: [30, 45],
@@ -366,45 +372,6 @@ const numberedPortraitAgeRanges = new Map([
   })]
 ]);
 
-const outfitPalettes = Object.freeze([
-  outfit("harbour-ochre", "Harbour Ochre", ["#1e2a33", "#3c5964", "#7e9aa1"], ["#7a4b20", "#bf7e36", "#e3b85f"]),
-  outfit("atlantic-wool", "Atlantic Wool", ["#252936", "#4d5368", "#8993a7"], ["#6a2f2b", "#a95545", "#d98a68"]),
-  outfit("linen-and-tar", "Linen and Tar", ["#2b2520", "#6b5640", "#bba678"], ["#22384a", "#476f89", "#89aebc"]),
-  outfit("spice-red", "Spice Red", ["#3b2026", "#822f3b", "#c35e54"], ["#8b611e", "#c09232", "#e0c15e"]),
-  outfit("bay-green", "Bay Green", ["#1f3a32", "#3f755f", "#78a98b"], ["#845d24", "#b98d39", "#d7bf68"]),
-  outfit("storm-indigo", "Storm Indigo", ["#222542", "#454b7a", "#7980ad"], ["#6c4b72", "#9d6fa4", "#c7a0c1"]),
-  outfit("sun-bleached", "Sun Bleached", ["#776342", "#b69b62", "#decf91"], ["#3b6573", "#6a9aa3", "#aad0c7"]),
-  outfit("copper-sash", "Copper Sash", ["#2b3342", "#556277", "#8b9aa8"], ["#8a3f25", "#c26b38", "#e5a159"]),
-  outfit("pearl-grey", "Pearl Grey", ["#44413d", "#817b70", "#b9b2a0"], ["#2d5360", "#5c8790", "#94bdba"]),
-  outfit("dusk-purple", "Dusk Purple", ["#32233c", "#624778", "#9777a6"], ["#72512a", "#b6813f", "#deb760"]),
-  outfit("olive-canvas", "Olive Canvas", ["#3d4328", "#727a42", "#aeb36d"], ["#81462e", "#ba7443", "#e0a35d"]),
-  outfit("white-sail", "White Sail", ["#6e6658", "#b0a78f", "#ded6bd"], ["#2e4a63", "#557b9b", "#90b4c2"]),
-  outfit("mulberry-coat", "Mulberry Coat", ["#3d2131", "#7b3e58", "#bb6e80"], ["#8d6726", "#c1953d", "#e4c763"]),
-  outfit("teal-brocade", "Teal Brocade", ["#173943", "#347481", "#72aab0"], ["#87512e", "#c07d41", "#dfa75e"]),
-  outfit("wine-and-cream", "Wine and Cream", ["#572632", "#994550", "#cf7b73"], ["#877044", "#bda66c", "#e3d49c"]),
-  outfit("night-watch", "Night Watch", ["#1b2433", "#344e67", "#6888a0"], ["#73592e", "#ad8945", "#d8bc67"]),
-  outfit("saffron-port", "Saffron Port", ["#6a4521", "#aa7932", "#d9ad4f"], ["#364e63", "#667f96", "#a4bac1"]),
-  outfit("reef-blue", "Reef Blue", ["#1a4658", "#367f9b", "#75b5c5"], ["#7e5e2a", "#b99543", "#dec766"]),
-  outfit("mahogany-gold", "Mahogany Gold", ["#4b2c22", "#8d5b39", "#c89155"], ["#8c6c22", "#c59b34", "#e2c961"]),
-  outfit("pilgrim-black", "Pilgrim Black", ["#1b1c21", "#373b45", "#747985"], ["#7a602c", "#b68f3f", "#dcc169"]),
-  outfit("moss-and-rust", "Moss and Rust", ["#2f482e", "#617c48", "#9dad70"], ["#8e3f26", "#c46a38", "#e39e58"]),
-  outfit("royal-navy", "Royal Navy", ["#202d4c", "#415b90", "#748fc0"], ["#8b6425", "#bd9340", "#e1c367"]),
-  outfit("rose-market", "Rose Market", ["#5a2c36", "#a35462", "#d9878b"], ["#576c35", "#899951", "#bec879"]),
-  outfit("smoke-blue", "Smoke Blue", ["#38485a", "#6a7e92", "#a4b5c0"], ["#81602d", "#b88d43", "#dbc067"]),
-  outfit("coral-trader", "Coral Trader", ["#7b332f", "#bc5d52", "#e28f75"], ["#2d5961", "#5b8b91", "#99beb8"]),
-  outfit("cedar-green", "Cedar Green", ["#253f35", "#52725d", "#86a484"], ["#8d5429", "#c27f3d", "#e2ad5e"]),
-  outfit("violet-harbour", "Violet Harbour", ["#3b2f55", "#6b5d91", "#9d8cbc"], ["#775e28", "#b0903f", "#dac369"]),
-  outfit("terra-sail", "Terra Sail", ["#6c3d2b", "#a96c47", "#d69e66"], ["#31556c", "#62839b", "#9fb9c1"]),
-  outfit("jade-thread", "Jade Thread", ["#23483e", "#4c826e", "#86b59a"], ["#95672a", "#c79a3e", "#e5c864"]),
-  outfit("ash-and-amber", "Ash and Amber", ["#49423d", "#817264", "#b7a68d"], ["#925328", "#c5833d", "#e4b05e"]),
-  outfit("crimson-bay", "Crimson Bay", ["#4d1f27", "#91343e", "#d0625c"], ["#7d642b", "#b99743", "#dec566"]),
-  outfit("deep-water", "Deep Water", ["#173247", "#315f80", "#6695ad"], ["#7f5a2b", "#b98a42", "#dcc068"])
-]);
-
-function tone(id, label, ramp) {
-  return { id, label, ramp };
-}
-
 function ageRange(minAge, maxAge) {
   return Object.freeze({ minAge, maxAge });
 }
@@ -413,9 +380,6 @@ function numberedRanges(values) {
   return new Map(Object.entries(values).map(([number, range]) => [Number(number), ageRange(...range)]));
 }
 
-function outfit(id, label, clothRamp, accentRamp) {
-  return { id, label, clothRamp, accentRamp };
-}
 
 function labels(key, values) {
   return [key, values.map(([id, label]) => expressionDescriptor(id, label))];
@@ -667,6 +631,24 @@ function portraitMetadata(label, sourceDirectory) {
   if (text.includes("viking")) {
     return { roles: ["captain", "warrior", "factor"], regions: ["northern-europe"] };
   }
+  if (text.includes("southeast asian")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["southeast-asia"] };
+  }
+  if (text.includes("south asian")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["south-asia"] };
+  }
+  if (text.includes("indian ocean")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["indian-ocean"] };
+  }
+  if (text.includes("sub-saharan african")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["africa"] };
+  }
+  if (text.includes("polynesian")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["polynesia"] };
+  }
+  if (text.includes("ming chinese")) {
+    return { roles: ["captain", "factor", "civilian", "artisan"], regions: ["east-asia"] };
+  }
   if (text.includes("little girl") || text.includes("young girl") || text.includes("young peasant boy")) {
     return { roles: ["civilian"], regions: ["global", "europe"] };
   }
@@ -683,27 +665,6 @@ function portraitMetadata(label, sourceDirectory) {
     roles,
     regions: ["global", "europe", "northern-europe", "mediterranean"]
   };
-}
-
-async function bakeExpressionRoleMaps(sourceCharacters) {
-  const sourcePrefix = "/assets/characters/";
-  for (const character of sourceCharacters) {
-    for (const expression of character.expressions) {
-      if (!expression.src.startsWith(sourcePrefix)) {
-        throw new Error(`Cannot resolve portrait source: ${expression.src}`);
-      }
-      const relPath = decodeURIComponent(expression.src.slice(sourcePrefix.length));
-      const image = await loadImage(join(characterRoot, relPath));
-      const canvas = createCanvas(expression.width, expression.height);
-      const ctx = canvas.getContext("2d");
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(image, 0, 0);
-      const pixels = ctx.getImageData(0, 0, expression.width, expression.height);
-      expression.roleMap = encodePortraitRoleMap(
-        classifyPortraitRoles(pixels.data, expression.width, expression.height)
-      );
-    }
-  }
 }
 
 function uniqueExpressionId(used, id) {
@@ -755,38 +716,25 @@ function slugify(value) {
     .replace(/^-+|-+$/g, "") || "portrait";
 }
 
-async function main() {
+function main() {
   if (!statSync(characterRoot).isDirectory()) {
     throw new Error(`Missing character asset root: ${characterRoot}`);
   }
   const sourceCharacters = withUniqueIds(groupPortraitFiles(walkPngFiles(characterRoot)));
   if (sourceCharacters.length === 0) throw new Error(`No ${portraitSize}x${portraitSize} portrait expressions found in ${characterRoot}`);
-  await bakeExpressionRoleMaps(sourceCharacters);
   const expressionCount = sourceCharacters.reduce((total, character) => total + character.expressions.length, 0);
   const manifest = {
-    version: 3,
+    version: 4,
     generatedBy: "tools/build-character-portrait-manifest.mjs",
     portraitSize,
     sourceRoot: "/assets/characters",
-    sourceCharacters,
-    skinTones,
-    hairTones,
-    eyeTones,
-    outfitPalettes
+    sourceCharacters
   };
 
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`Wrote ${outputPath}`);
-  console.log(
-    `${sourceCharacters.length} source characters, ${expressionCount} expression frames, ` +
-    `${skinTones.length} skin tones, ${hairTones.length} hair tones, ${eyeTones.length} eye tones, ` +
-    `${outfitPalettes.length} outfit palettes`
-  );
-  console.log(
-    `${sourceCharacters.length * skinTones.length * hairTones.length * eyeTones.length * outfitPalettes.length} ` +
-    "deterministic palette-swapped character variants available"
-  );
+  console.log(`${sourceCharacters.length} authored characters, ${expressionCount} expression frames`);
 }
 
-await main();
+main();

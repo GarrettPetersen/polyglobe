@@ -1798,8 +1798,8 @@ function assertPlayerCharacter(character) {
   if (typeof character.name !== "string" || character.name.trim() === "") {
     throw new Error("Player character requires a name");
   }
-  if (!Array.isArray(character.expressions) || character.expressions.length < 2) {
-    throw new Error("Player character requires multiple expressions");
+  if (!Array.isArray(character.expressions) || character.expressions.length === 0) {
+    throw new Error("Player character requires an authored portrait expression");
   }
   if (character.nationalityId !== undefined) assertFactionId(character.nationalityId);
 }
