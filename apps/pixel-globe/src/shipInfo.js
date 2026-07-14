@@ -206,6 +206,14 @@ export function shipLedgerDateLabel(simMinute) {
   return `${String(date.getUTCDate()).padStart(2, "0")} ${LEDGER_MONTHS[date.getUTCMonth()]} ${year}`;
 }
 
+export function shipLocalDateLabel(simMinute, longitudeDeg) {
+  if (!Number.isFinite(simMinute)) throw new Error(`Invalid ship local date minute: ${simMinute}`);
+  if (!Number.isFinite(longitudeDeg) || longitudeDeg < -180 || longitudeDeg > 180) {
+    throw new Error(`Invalid ship local date longitude: ${longitudeDeg}`);
+  }
+  return shipLedgerDateLabel(simMinute + longitudeDeg * 4);
+}
+
 function positiveModulo(value, modulus) {
   return ((value % modulus) + modulus) % modulus;
 }

@@ -338,6 +338,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipLocalDateLabel,
   shipLedgerDateLabel,
   shipLedgerPage,
   shipPapersPage
@@ -358,6 +359,7 @@ import {
 } from "./cityCatalogSelection.js";
 import { cityIsLandlocked } from "./cityPortAccess.js";
 import { withColonialFounding } from "./colonialCities.js";
+import { formatCompactNumber } from "./compactNumber.js";
 import {
   activePassengerQuest,
   markPassengerOfferSeen,
@@ -366,7 +368,6 @@ import {
   pendingPassengerOfferForCity
 } from "./passengerMissions.js";
 import {
-  FISH_NPC_HARVEST_COOLDOWN_MINUTES,
   fishHabitatKind,
   fisheryForHabitat,
   harvestFishery
@@ -843,7 +844,7 @@ let MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL
 const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
-const SURVIVAL_PANEL_W = 108;
+const SURVIVAL_PANEL_W = 120;
 const SURVIVAL_PANEL_H = 44;
 const SURVIVAL_BAR_W = 46;
 const SURVIVAL_NOTICE_MS = 2400;
@@ -1151,6 +1152,7 @@ const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
+const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
 const FISH_NOTICE_MS = 2400;
 const FISH_SWIM_SEARCH_MARGIN_PX = 18;
 const FISH_SWIM_PERIOD_MIN_MS = 4200;
@@ -6698,7 +6700,7 @@ function resolveFishingAction(action) {
   );
   if (result.quantity <= 0) {
     playFishingFailureSound();
-    showFishCatchNotice(result.reason === "cooldown" ? "FISHERY RESTING" : "FISHERY DEPLETED", "warn");
+    showFishCatchNotice("FISHERY DEPLETED", "warn");
     return;
   }
   receiveFishCatch(gameState, result, {
@@ -9013,7 +9015,7 @@ function updateNpcFishermenHarvest() {
 
       const action = state.fishingAction;
       state.fishingAction = null;
-      state.fishHarvestUntilMinute = nowMinute + FISH_NPC_HARVEST_COOLDOWN_MINUTES;
+      state.fishHarvestUntilMinute = nowMinute + FISH_NPC_HARVEST_INTERVAL_MINUTES;
       const npcShip = npcSeaRoutes.shipById.get(state.id);
       if (!npcShip) continue;
       const free = npcShip.cargoCapacity - npcCargoUsedUnits(npcShip);
@@ -17992,7 +17994,7 @@ function drawSurvivalMeters() {
   const y = SURVIVAL_PANEL_Y;
   drawPirateHudPanel({ x, y, w: SURVIVAL_PANEL_W, h: SURVIVAL_PANEL_H });
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("SHIP STATUS", x + 5, y + 3, { font: PIXEL_FONT_SMALL_8 });
+  drawSurvivalPanelTitle(x, y);
   drawSurvivalMeterRow(
     "HULL",
     `${Math.max(0, Math.ceil(ship.hitPoints))}/${Math.ceil(ship.maxHitPoints)}`,
@@ -18017,6 +18019,20 @@ function drawSurvivalMeters() {
     x + 5,
     y + 33
   );
+}
+
+function drawSurvivalPanelTitle(x, y) {
+  const title = shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]);
+  const titleX = x + 5;
+  const right = x + SURVIVAL_PANEL_W - 5;
+  const availablePurseWidth = right - (titleX + measurePixelTextWidth(title, PIXEL_FONT_SMALL_8)) - 4;
+  const amount = formatCompactNumber(gameState.doubloons);
+  const purse = `DB ${amount}`;
+  if (measurePixelTextWidth(purse, PIXEL_FONT_SMALL_8) > availablePurseWidth) {
+    throw new Error(`Doubloon HUD value does not fit ship status title row: ${purse}`);
+  }
+  drawPixelText(title, titleX, y + 3, { font: PIXEL_FONT_SMALL_8 });
+  drawPixelText(purse, right, y + 3, { font: PIXEL_FONT_SMALL_8, align: "right" });
 }
 
 function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {

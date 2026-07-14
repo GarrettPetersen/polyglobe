@@ -1001,10 +1001,7 @@ function harvestNpcFishingGround(system, ship, ground, clockMinutes) {
     ship.cargoCapacity,
     npcFishingNetExpectedHaul(ship.fishingNetId)
   );
-  const result = harvestFishery(system.fishState, fishery, requested, clockMinutes, {
-    actor: "npc",
-    ignoreCooldown: true
-  });
+  const result = harvestFishery(system.fishState, fishery, requested, clockMinutes, { actor: "npc" });
   if (result.quantity <= 0) return result;
   ship.cargo[NPC_FISH_GOOD_ID] = (ship.cargo[NPC_FISH_GOOD_ID] || 0) + result.quantity;
   ship.cargoCost[NPC_FISH_GOOD_ID] = ship.cargoCost[NPC_FISH_GOOD_ID] || 0;

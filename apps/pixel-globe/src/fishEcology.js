@@ -1,7 +1,5 @@
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
-export const FISH_PLAYER_CATCH_COOLDOWN_MINUTES = 6 * 60;
-export const FISH_NPC_HARVEST_COOLDOWN_MINUTES = 8 * 60;
 export const FISH_MIN_CATCHABLE_POPULATION = 1;
 
 const FISH_MEMORY_VERSION = 2;
@@ -106,20 +104,11 @@ export function harvestFishery(gameState, fishery, requestedQuantity, simMinute,
   if (!fisheryStockIsVisible(stock, speciesDef)) {
     return harvestResult(stock, speciesDef, 0, actor, "depleted");
   }
-  const cooldownKey = actor === "npc" ? "npcCooldownUntil" : "playerCooldownUntil";
-  if (!options.ignoreCooldown && (stock[cooldownKey] || 0) > simMinute) {
-    return harvestResult(stock, speciesDef, 0, actor, "cooldown");
-  }
   const available = Math.floor(stock.population);
   const quantity = Math.max(0, Math.min(requestedQuantity, available));
   if (quantity > 0) {
     stock.population = Math.max(0, stock.population - quantity);
     stock.harvested = (stock.harvested || 0) + quantity;
-  }
-  if (!options.ignoreCooldown) {
-    stock[cooldownKey] = simMinute + (actor === "npc"
-      ? FISH_NPC_HARVEST_COOLDOWN_MINUTES
-      : FISH_PLAYER_CATCH_COOLDOWN_MINUTES);
   }
   const reason = quantity > 0 ? "caught" : "depleted";
   return harvestResult(stock, speciesDef, quantity, actor, reason);
@@ -187,8 +176,6 @@ function fisheryStockForHabitat(memory, habitat, speciesDef, simMinute) {
       population: Math.max(1, Math.round(capacity * (0.34 + seededFraction(seed ^ 0x7f4a7c15) * 0.44))),
       seed,
       harvested: 0,
-      playerCooldownUntil: 0,
-      npcCooldownUntil: 0,
       lastMinute: Math.floor(simMinute)
     };
   }

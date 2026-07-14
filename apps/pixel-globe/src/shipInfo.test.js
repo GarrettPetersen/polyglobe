@@ -15,6 +15,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipLocalDateLabel,
   shipLedgerDateLabel,
   shipLedgerPage,
   shipPapersPage,
@@ -94,6 +95,16 @@ test("ship ledger pages newest entries first and uses the 1522 game calendar", (
   assert.equal(firstPage.rows[0].id, 12);
   assert.equal(secondPage.rows.length, 2);
   assert.equal(shipLedgerDateLabel(79 * 1440 + 12 * 60), "21 MAR 1522");
+});
+
+test("ship local date follows longitude across midnight and the date line", () => {
+  const march21At0030 = 79 * 1440 + 30;
+  const march21At1400 = 79 * 1440 + 14 * 60;
+  assert.equal(shipLocalDateLabel(march21At0030, 0), "21 MAR 1522");
+  assert.equal(shipLocalDateLabel(march21At0030, -15), "20 MAR 1522");
+  assert.equal(shipLocalDateLabel(march21At1400, 170), "22 MAR 1522");
+  assert.equal(shipLocalDateLabel(march21At1400, -170), "21 MAR 1522");
+  assert.throws(() => shipLocalDateLabel(march21At0030, 181), /longitude/);
 });
 
 test("ship papers include active deliveries and letters of marque", () => {

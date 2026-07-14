@@ -4,7 +4,6 @@ import test from "node:test";
 import { createGameState } from "./gameState.js";
 import {
   FISH_MIN_CATCHABLE_POPULATION,
-  FISH_PLAYER_CATCH_COOLDOWN_MINUTES,
   fisheryForHabitat,
   harvestFishery,
   visibleFishCountForDensity
@@ -32,7 +31,7 @@ test("larger fishery populations draw visibly larger schools", () => {
   assert.equal(visibleFishCountForDensity(4), 8);
 });
 
-test("fish catches mutate persistent fishery stock and enforce a local cooldown", () => {
+test("repeated fish catches continue reducing persistent local stock", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const minute = 140 * MINUTE;
   const fishery = findFishery(state, "coastal", 42, -9, minute);
@@ -40,15 +39,16 @@ test("fish catches mutate persistent fishery stock and enforce a local cooldown"
 
   const caught = harvestFishery(state, fishery, 4, minute);
   const after = state.memory.fish.fisheries[fishery.stockKey].population;
-  const cooldown = harvestFishery(state, fishery, 4, minute + 1);
+  const secondCatch = harvestFishery(state, fishery, 4, minute + 1);
 
   assert.ok(caught.quantity > 0);
   assert.ok(caught.quantity <= 4);
   assert.equal(caught.reason, "caught");
   assert.equal(caught.fisheryId, fishery.id);
   assert.ok(after < before);
-  assert.equal(cooldown.quantity, 0);
-  assert.equal(cooldown.reason, "cooldown");
+  assert.ok(secondCatch.quantity > 0);
+  assert.equal(secondCatch.reason, "caught");
+  assert.ok(state.memory.fish.fisheries[fishery.stockKey].population < after);
 });
 
 test("overfished stocks disappear from the visible fishery layer", () => {
@@ -64,12 +64,12 @@ test("overfished stocks disappear from the visible fishery layer", () => {
     state,
     fishery,
     catchablePopulation,
-    minute + FISH_PLAYER_CATCH_COOLDOWN_MINUTES + 1
+    minute + 1
   );
   const visible = fisheryForHabitat(
     state,
     habitat,
-    minute + FISH_PLAYER_CATCH_COOLDOWN_MINUTES + 2
+    minute + 2
   );
 
   assert.equal(caught.quantity, catchablePopulation);
@@ -86,7 +86,7 @@ test("fractional depleted stocks cannot draw or produce phantom catches", () => 
   const stock = state.memory.fish.fisheries[fishery.stockKey];
   stock.population = FISH_MIN_CATCHABLE_POPULATION - 0.01;
 
-  const caught = harvestFishery(state, fishery, 1, minute, { ignoreCooldown: true });
+  const caught = harvestFishery(state, fishery, 1, minute);
 
   assert.equal(caught.quantity, 0);
   assert.equal(caught.reason, "depleted");
@@ -104,7 +104,7 @@ test("stale fishery references cannot harvest stocks below the visible threshold
 
   assert.equal(fisheryForHabitat(state, habitat, minute), null);
 
-  const caught = harvestFishery(state, fishery, 1, minute, { ignoreCooldown: true });
+  const caught = harvestFishery(state, fishery, 1, minute);
   assert.equal(caught.quantity, 0);
   assert.equal(caught.reason, "depleted");
 });
