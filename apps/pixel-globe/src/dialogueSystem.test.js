@@ -77,6 +77,7 @@ test("hostile shore batteries hail before opening fire", () => {
   const view = shoreBatteryDialogueView(session, city);
   assert.equal(session.kind, "shore-battery");
   assert.equal(view.speaker, "Kemal Reis, Alexandria");
+  assert.match(view.text, /Sultan Suleiman I/);
   assert.match(view.text, /fired upon/);
   assert.deepEqual(selectShoreBatteryDialogueOption(session, city, 0), { closed: true, action: null });
 });
@@ -436,6 +437,7 @@ test("enemy port guards bar resupply and offer one risky disguise route", () => 
 
   const barred = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(barred.speaker, "Calais harbor guard");
+  assert.match(barred.text, /King Francis I/);
   assert.match(barred.text, /No supplies will be sold/);
   assert.deepEqual(barred.options.map((entry) => entry.label), [
     "Try to enter in disguise",
@@ -920,6 +922,7 @@ test("capital port dialogue can grant a letter of marque", () => {
   assert.ok(marqueIndex >= 0);
   selectPortDialogueOption(session, city, gameState, economy, [city], marqueIndex, context);
   const marque = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(marque.text, /King Henry VIII/);
   assert.equal(marque.options[0].disabled, false);
 
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);

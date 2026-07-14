@@ -181,7 +181,9 @@ export function portGreetingPresentationForPersonality({
   stormy = false,
   playerStanding = 0,
   rivalLabel = null,
-  shipyardRumor = null
+  shipyardRumor = null,
+  rulerRumor = null,
+  historicalGossip = null
 }) {
   if (!PORT_PERSONALITY_IDS.includes(personalityId)) {
     throw new Error(`Unknown port personality: ${personalityId}`);
@@ -191,18 +193,66 @@ export function portGreetingPresentationForPersonality({
   const baseFactory = choose(BASE_LINES[personalityId][phase], `${seed}|base`);
   const base = baseFactory(cityName);
   const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalLabel, seed });
-  const rumorLine = shouldTellShipyardRumor(personalityId, topic, shipyardRumor, seed)
+  const rulerLine = shouldTellRulerRumor(topic, rulerRumor)
+    ? rulerRumorLine(personalityId, rulerRumor)
+    : null;
+  const historyLine = !rulerLine && shouldTellHistoricalGossip(topic, historicalGossip)
+    ? historicalGossipLine(personalityId, historicalGossip)
+    : null;
+  const shipyardLine = !rulerLine && !historyLine && shouldTellShipyardRumor(personalityId, topic, shipyardRumor, seed)
     ? shipyardRumorLine(personalityId, shipyardRumor)
     : null;
+  const rumorLine = rulerLine || historyLine || shipyardLine;
   const contextLine = rumorLine || (topic ? contextLineFor(topic, personalityId, rivalLabel) : localFlavor);
   return Object.freeze({
     text: `${base} ${contextLine}`.trim(),
-    expressionId: rumorLine
+    expressionId: rulerLine
+      ? "attentive"
+      : historyLine
+      ? (personalityId === "gossipy" ? "pleased" : "attentive")
+      : shipyardLine
       ? (personalityId === "gossipy" ? "pleased" : "attentive")
       : topic
       ? TOPIC_EXPRESSION_IDS[topic]
       : PERSONALITY_EXPRESSION_IDS[personalityId]
   });
+}
+
+function shouldTellHistoricalGossip(topic, gossip) {
+  return Boolean(gossip) && topic !== "pirates" && topic !== "storm";
+}
+
+function historicalGossipLine(personalityId, gossip) {
+  const report = sentence(gossip.report);
+  if (personalityId === "austere") return `News from ${gossip.place}: ${report}`;
+  if (personalityId === "enterprising") return `${report} ${gossip.tradeImpact}`;
+  if (personalityId === "reflective") return `${report} ${gossip.reflection}`;
+  if (personalityId === "vigilant") return `Reports from ${gossip.place}: ${report}`;
+  if (personalityId === "cordial") return `Travelers from ${gossip.place} say ${lowerFirst(report)}`;
+  return `Have you heard? ${report}`;
+}
+
+function sentence(value) {
+  const text = String(value || "").trim();
+  if (text === "") throw new Error("Historical gossip has an empty report");
+  const capitalized = text.charAt(0).toUpperCase() + text.slice(1);
+  return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+}
+
+function shouldTellRulerRumor(topic, rumor) {
+  return Boolean(rumor) && topic !== "pirates" && topic !== "storm";
+}
+
+function rulerRumorLine(personalityId, rumor) {
+  const former = rumor.previousRuler.displayName;
+  const current = rumor.displayName;
+  const realm = rumor.factionName;
+  if (personalityId === "austere") return `Court notice: ${former} is gone. ${current} now rules the ${realm}.`;
+  if (personalityId === "enterprising") return `${current} now rules the ${realm}. A new ruler always means new contracts.`;
+  if (personalityId === "reflective") return `Crowns change hands: ${current} now rules the ${realm} after ${former}.`;
+  if (personalityId === "vigilant") return `${current} has taken power in the ${realm}. The harbor watch expects policy to follow.`;
+  if (personalityId === "cordial") return `News from the ${realm}: ${current} has succeeded ${former}. May the change be peaceful.`;
+  return `Have you heard? ${former} is gone, and ${current} now rules the ${realm}.`;
 }
 
 function shouldTellShipyardRumor(personalityId, topic, rumor, seed) {

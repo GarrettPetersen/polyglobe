@@ -326,6 +326,8 @@ import {
   factionIdForCity1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
+import { recentRegionalRulerChange } from "./rulers.js";
+import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
   createPoliticsView,
   politicsRowsPage
@@ -6309,6 +6311,8 @@ function portDialogueContext() {
     stormy: city ? stormIntensityForTile(city.tileId) >= STORM_ACTIVE_INTENSITY * 0.62 : false,
     playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
     rivalLabel: portPoliticalRivalLabel(city),
+    rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
+    historicalGossip: city ? recentHistoricalGossipForPort(city, simMinute) : null,
     shipyard,
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
     shipyardRumor: city ? shipyardRumorForPort(worldEconomy.shipyards, city) : null,
@@ -9315,7 +9319,8 @@ function openShoreBatteryCombatHail(city, state) {
     relation,
     playerWarship,
     toll,
-    canAffordToll: toll !== null && gameState.doubloons >= toll
+    canAffordToll: toll !== null && gameState.doubloons >= toll,
+    simMinute: Math.floor(weatherClockMinutes)
   });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();

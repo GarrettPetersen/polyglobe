@@ -29,6 +29,7 @@ import {
   worldMarketPriceComparison
 } from "./economy.js";
 import { factionById } from "./factions.js";
+import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
@@ -120,6 +121,8 @@ export function createShoreBatteryDialogueSession(city, context = {}) {
   if (!context.playerWarship && (!Number.isInteger(context.toll) || context.toll <= 0)) {
     throw new Error(`Invalid shore battery passage toll: ${context.toll}`);
   }
+  const ruler = rulerAtMinute(city.factionId, context.simMinute ?? 0);
+  if (!ruler) throw new Error(`Shore battery faction has no ruler: ${city.factionId}`);
   return {
     kind: "shore-battery",
     cityTileId: city.tileId,
@@ -127,6 +130,7 @@ export function createShoreBatteryDialogueSession(city, context = {}) {
     selectedIndex: 0,
     relation: context.relation,
     playerWarship: context.playerWarship,
+    rulerName: ruler.displayName,
     toll: context.playerWarship ? null : context.toll,
     canAffordToll: context.playerWarship ? false : context.canAffordToll === true
   };
@@ -143,8 +147,8 @@ export function shoreBatteryDialogueView(session, city) {
       speaker: `${characterName(city.character)}, ${city.city}`,
       expressionId: "angry",
       text: atWar
-        ? `${faction.name} is at war with your flag. Armed vessels will be fired upon.`
-        : `${faction.name} denies passage to your armed vessel. Turn away.`,
+        ? `By order of ${session.rulerName}, ${faction.name} is at war with your flag. Armed vessels will be fired upon.`
+        : `By order of ${session.rulerName}, ${faction.name} denies passage to your armed vessel. Turn away.`,
       feedback: null,
       options: [option(atWar ? "To arms" : "Turn away", { type: "close" })]
     };
@@ -152,7 +156,7 @@ export function shoreBatteryDialogueView(session, city) {
   return {
     speaker: `${characterName(city.character)}, ${city.city}`,
     expressionId: "stern",
-    text: `${faction.name} demands ${session.toll} doubloons for seven days of safe passage throughout the empire.`,
+    text: `${session.rulerName} demands ${session.toll} doubloons for seven days of safe passage throughout ${faction.name}.`,
     feedback: null,
     options: [
       option(`Pay ${session.toll} db`, { type: "purchase-safe-passage" }, {
@@ -601,7 +605,9 @@ function greetingView(session, city, gameState, context) {
     stormy: context.stormy === true,
     playerStanding: context.playerStanding || 0,
     rivalLabel: context.rivalLabel || null,
-    shipyardRumor: context.shipyardRumor || null
+    shipyardRumor: context.shipyardRumor || null,
+    rulerRumor: context.rulerRumor || null,
+    historicalGossip: context.historicalGossip || null
   });
   return {
     speaker: speakerName(city),
@@ -638,6 +644,8 @@ function barredPortView(city, context) {
   const status = context.portEntryStatus;
   if (!status?.hostile) throw new Error("Barred port dialogue requires a hostile port status");
   const faction = factionById(status.factionId);
+  const ruler = rulerAtMinute(status.factionId, context.simMinute ?? 0);
+  if (!ruler) throw new Error(`Barred port faction has no ruler: ${status.factionId}`);
   if (status.locked) {
     return {
       speaker: `${cityLabel(city)} harbor guard`,
@@ -650,7 +658,7 @@ function barredPortView(city, context) {
   return {
     speaker: `${cityLabel(city)} harbor guard`,
     expressionId: "stern",
-    text: `By order of the ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
+    text: `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
     feedback: null,
     options: [
       option("Try to enter in disguise", { type: "attempt-disguise" }),
@@ -1167,9 +1175,11 @@ function marqueView(session, city, gameState, context) {
     };
   }
   const faction = factionById(status.factionId);
+  const ruler = rulerAtMinute(status.factionId, context.simMinute ?? 0);
+  if (!ruler) throw new Error(`Letter of marque faction has no ruler: ${status.factionId}`);
   const text = status.granted
-    ? `You already carry ${faction.adjective} authority to prize enemy shipping.`
-    : `The ${faction.adjective} court will issue a letter if your standing and fighting ship are sufficient. Standing ${signedReputation(status.reputation)}/${signedReputation(status.reputationRequired)}. Ship strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
+    ? `You already carry ${ruler.displayName}'s authority to prize enemies of ${faction.name}.`
+    : `${ruler.displayName}'s court will issue a letter if your standing and fighting ship are sufficient. Standing ${signedReputation(status.reputation)}/${signedReputation(status.reputationRequired)}. Ship strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
   const disabledReason = status.missing.length > 0
     ? `Need ${status.missing.join(" and ")}.`
     : null;

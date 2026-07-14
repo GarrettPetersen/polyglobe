@@ -69,3 +69,46 @@ test("gossipy factors report nearby new shipyard listings", () => {
   assert.match(presentation.text, /new brigantine for sale in Lisbon/i);
   assert.equal(presentation.expressionId, "pleased");
 });
+
+test("regional succession news takes priority over ordinary port gossip", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "gossipy",
+    cityName: "Istanbul",
+    localFlavor: "The harbor is busy.",
+    shipyardRumor: { shipLabel: "Brigantine", portName: "Venice" },
+    rulerRumor: {
+      factionName: "Safavid Empire",
+      displayName: "Shah Tahmasp I",
+      previousRuler: { displayName: "Shah Ismail I" }
+    }
+  });
+
+  assert.match(presentation.text, /Shah Tahmasp I now rules the Safavid Empire/);
+  assert.doesNotMatch(presentation.text, /brigantine/i);
+  assert.equal(presentation.expressionId, "attentive");
+});
+
+test("port personalities retell regional historical news in their own voice", () => {
+  const gossip = {
+    place: "Worms",
+    report: "Martin Luther refused to recant before Emperor Charles V at the Diet of Worms",
+    tradeImpact: "Printers and pamphlet sellers have never been busier.",
+    reflection: "A few spoken words can travel farther than an army."
+  };
+  const enterprising = portGreetingPresentationForPersonality({
+    personalityId: "enterprising",
+    cityName: "Hamburg",
+    localFlavor: "The harbor is busy.",
+    historicalGossip: gossip
+  });
+  const reflective = portGreetingPresentationForPersonality({
+    personalityId: "reflective",
+    cityName: "Bremen",
+    localFlavor: "The harbor is busy.",
+    historicalGossip: gossip
+  });
+
+  assert.match(enterprising.text, /Printers and pamphlet sellers/);
+  assert.match(reflective.text, /spoken words can travel farther/);
+  assert.equal(enterprising.expressionId, "attentive");
+});

@@ -140,6 +140,10 @@ test("a friendly envoy negotiates abroad and is paid only after returning home",
 
   assert.equal(offer.kind, "friendly-envoy");
   assert.equal(offer.stage, "outbound");
+  assert.equal(offer.originRulerName, "King John III");
+  assert.equal(offer.targetRulerName, "King Henry VIII");
+  assert.match(offer.dialogue.offer, /King John III/);
+  assert.match(offer.dialogue.negotiation, /King Henry VIII/);
   assert.match(offer.dialogue.offer, /there and back|home again|return me/i);
   acceptQuest(state, offer);
   const negotiation = negotiateEnvoyQuest(state, LONDON, { simMinute: 240 });
