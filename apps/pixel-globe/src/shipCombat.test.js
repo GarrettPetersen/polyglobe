@@ -138,7 +138,7 @@ test("damaged ships flee and sufficient distance ends combat", () => {
 test("player combat allegiance distinguishes enemies, allies, and neutral ships", () => {
   assert.equal(playerCombatAllegiance("england", "france", true), "enemy");
   assert.equal(playerCombatAllegiance("england", "spain", true), "friendly");
-  assert.equal(playerCombatAllegiance("venice", "genoa", true), null);
+  assert.equal(playerCombatAllegiance("venice", "portugal", true), null);
   assert.equal(playerCombatAllegiance("ottoman", "habsburg", true), "enemy");
   assert.equal(playerCombatAllegiance("england", "france", false), null);
 });

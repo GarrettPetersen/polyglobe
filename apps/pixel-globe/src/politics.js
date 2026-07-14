@@ -14,6 +14,7 @@ import {
   recentGameDiplomacyEvents
 } from "./gameState.js";
 import { clampMenuIndex } from "./menuNavigation.js";
+import { diplomaticContactBetween } from "./worldDiplomacy.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
@@ -37,10 +38,14 @@ export function createPoliticsView(gameState) {
       },
       stances: powers.map((other) => {
         const relation = diplomacyBetweenForState(gameState, faction.id, other.id);
+        const contact = faction.id === other.id
+          ? null
+          : diplomaticContactBetween(gameState.relations.diplomacy, faction.id, other.id);
         return {
           factionId: other.id,
           relation,
-          label: POLITICS_RELATION_LABELS[relation]
+          label: POLITICS_RELATION_LABELS[relation],
+          contact
         };
       })
     }))

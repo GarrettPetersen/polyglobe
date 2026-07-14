@@ -103,22 +103,59 @@ const ALLIANCES_1522 = Object.freeze([
   ["england", "spain"],
   ["england", "habsburg"],
   ["spain", "habsburg"],
-  ["france", "scotland"]
+  ["france", "scotland"],
+  ["france", "venice"],
+  ["habsburg", "hungary"],
+  ["habsburg", "papal-states"],
+  ["spain", "papal-states"],
+  ["ming", "joseon"]
+]);
+
+const FRIENDSHIPS_1522 = Object.freeze([
+  ["england", "portugal"],
+  ["spain", "portugal"],
+  ["france", "genoa"],
+  ["habsburg", "denmark-norway"],
+  ["habsburg", "poland-lithuania"],
+  ["hungary", "poland-lithuania"],
+  ["hungary", "papal-states"],
+  ["venice", "safavid"],
+  ["papal-states", "portugal"],
+  ["papal-states", "safavid"],
+  ["portugal", "safavid"],
+  ["portugal", "ethiopia"],
+  ["portugal", "vijayanagara"],
+  ["portugal", "ayutthaya"],
+  ["ottoman", "gujarat"],
+  ["ming", "ayutthaya"],
+  ["japan", "joseon"],
+  ["bengal", "ayutthaya"]
 ]);
 
 const HOSTILITIES_1522 = Object.freeze([
-  ["ottoman", "habsburg"]
+  ["ottoman", "habsburg"],
+  ["ottoman", "spain"],
+  ["ottoman", "papal-states"],
+  ["venice", "genoa"],
+  ["spain", "morocco"],
+  ["ming", "japan"],
+  ["bengal", "delhi"]
 ]);
 
 const WARS_1522 = Object.freeze([
   ["england", "france"],
   ["spain", "france"],
   ["habsburg", "france"],
+  ["papal-states", "france"],
+  ["habsburg", "venice"],
+  ["spain", "venice"],
+  ["papal-states", "venice"],
   ["ottoman", "hungary"],
   ["ottoman", "safavid"],
   ["ottoman", "portugal"],
   ["portugal", "ming"],
   ["portugal", "gujarat"],
+  ["portugal", "morocco"],
   ["spain", "aztec"],
   ["muscovy", "poland-lithuania"]
 ]);
@@ -357,6 +394,9 @@ function buildDiplomacyMatrix() {
   }
   for (const [factionAId, factionBId] of ALLIANCES_1522) {
     setSymmetricRelation(matrix, factionAId, factionBId, DIPLOMACY_ALLY);
+  }
+  for (const [factionAId, factionBId] of FRIENDSHIPS_1522) {
+    setSymmetricRelation(matrix, factionAId, factionBId, DIPLOMACY_FRIENDLY);
   }
   for (const [factionAId, factionBId] of HOSTILITIES_1522) {
     setSymmetricRelation(matrix, factionAId, factionBId, DIPLOMACY_HOSTILE);

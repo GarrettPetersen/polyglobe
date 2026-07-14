@@ -104,7 +104,7 @@ import {
   updateSurvival,
   visitPort
 } from "./gameState.js";
-import { diplomacyEventNotice } from "./worldDiplomacy.js";
+import { diplomacyEventNotice, recordDiplomaticPortCall } from "./worldDiplomacy.js";
 import {
   fishingNetById,
   npcFishingNetExpectedHaul
@@ -1806,7 +1806,8 @@ async function main() {
     startMinute: weatherClockMinutes,
     economy: worldEconomy,
     fishState: gameState,
-    relationBetween: currentDiplomacyBetween
+    relationBetween: currentDiplomacyBetween,
+    onForeignPortCall: recordNpcDiplomaticPortCall
   });
   const playerPirateHideoutPorts = buildPlayerPirateHideoutPorts(npcSeaRoutes.pirateHideouts);
   pirateHideoutPortsByTileId = new Map(playerPirateHideoutPorts.map((port) => [port.tileId, port]));
@@ -5744,7 +5745,7 @@ function openPendingDiscoveryPortDialogue() {
 
 function admitPlayerToPort(cityCall) {
   const needsLoadout = !gameState.ship?.loadoutId;
-  visitPort(gameState, cityCall);
+  visitPort(gameState, cityCall, Math.floor(weatherClockMinutes));
   if (needsLoadout) repairPlayerShipAtPort();
   else applyAutomaticPortServices(cityCall);
   return needsLoadout;
@@ -8546,6 +8547,16 @@ function updateWorldDiplomacy() {
   const latest = events[events.length - 1];
   showSurvivalNotice(diplomacyEventNotice(latest), latest.kind === "peace" ? "good" : "warn");
   return true;
+}
+
+function recordNpcDiplomaticPortCall(visitingFactionId, portFactionId, simMinute) {
+  if (!gameState?.relations?.diplomacy) throw new Error("NPC port call occurred without world diplomacy");
+  return recordDiplomaticPortCall(
+    gameState.relations.diplomacy,
+    visitingFactionId,
+    portFactionId,
+    simMinute
+  );
 }
 
 function updatePlayerSurvival(previousMinute, currentMinute) {
@@ -13012,7 +13023,7 @@ function drawPoliticsMenu() {
   const legendY = panel.y + 27;
   drawOptionsText("A ALLY", panel.x + 12, legendY, { color: "#91db69" });
   drawOptionsText("W WAR", panel.x + 62, legendY, { color: "#f68181" });
-  drawOptionsText("- NEUTRAL", panel.x + 108, legendY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("- NEUTRAL  . NO CONTACT", panel.x + 108, legendY, { color: PIRATE_MENU_INK_MUTED });
   drawOptionsText("STANCE TOWARD", matrixX + matrixW / 2, legendY, {
     align: "center",
     color: PIRATE_MENU_INK_MUTED
@@ -13049,7 +13060,8 @@ function drawPoliticsMenu() {
         matrixX + index * POLITICS_MATRIX_CELL_W,
         y,
         stance.relation,
-        row.faction.id === stance.factionId
+        row.faction.id === stance.factionId,
+        stance.contact
       );
     });
     drawPoliticsStanding(row.player, statusX, y, statusW);
@@ -13141,7 +13153,7 @@ function drawCompactPoliticsMenu() {
   });
   drawOptionsText("A ALLY", panel.x + 10, panel.y + 27, { color: "#91db69" });
   drawOptionsText("W WAR", panel.x + 58, panel.y + 27, { color: "#f68181" });
-  drawOptionsText("- NEUTRAL", panel.x + 104, panel.y + 27, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText("- NEUT  . NONE", panel.x + 104, panel.y + 27, { color: PIRATE_MENU_INK_MUTED });
 
   const labelX = panel.x + 10;
   const matrixX = panel.x + 91;
@@ -13177,7 +13189,8 @@ function drawCompactPoliticsMenu() {
         matrixX + index * POLITICS_MATRIX_CELL_W,
         y,
         stance.relation,
-        row.faction.id === power.id
+        row.faction.id === power.id,
+        stance.contact
       );
     });
     drawOptionsText(row.player.scoreLabel, statusX + 21, y, {
@@ -13233,8 +13246,8 @@ function drawPoliticsColumnCode(code, x, y, color) {
   ctx.restore();
 }
 
-function drawPoliticsMatrixCell(x, y, relation, self) {
-  const glyph = politicsRelationGlyph(relation);
+function drawPoliticsMatrixCell(x, y, relation, self, contact) {
+  const glyph = politicsRelationGlyph(relation, self, contact);
   ctx.fillStyle = self ? PIRATE_MENU_PAPER_INSET_ALT : "rgba(113, 80, 51, 0.12)";
   ctx.fillRect(x, y, POLITICS_MATRIX_CELL_W - 1, POLITICS_MATRIX_ROW_H - 1);
   drawOptionsText(glyph, x + 1, y, {
@@ -13259,12 +13272,13 @@ function drawPoliticsStanding(player, x, y, width) {
   );
 }
 
-function politicsRelationGlyph(relation) {
+function politicsRelationGlyph(relation, self, contact) {
+  if (self) return "A";
   if (relation === DIPLOMACY_ALLY) return "A";
   if (relation === DIPLOMACY_FRIENDLY) return "+";
   if (relation === DIPLOMACY_WAR) return "W";
   if (relation === DIPLOMACY_HOSTILE) return "!";
-  if (relation === DIPLOMACY_NEUTRAL) return "-";
+  if (relation === DIPLOMACY_NEUTRAL) return contact ? "-" : ".";
   throw new Error(`Unknown political relation: ${relation}`);
 }
 

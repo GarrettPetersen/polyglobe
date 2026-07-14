@@ -11,7 +11,7 @@ import {
   diplomacyBetween
 } from "./factions.js";
 
-export const WORLD_DIPLOMACY_VERSION = 2;
+export const WORLD_DIPLOMACY_VERSION = 3;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -33,41 +33,6 @@ const SOVEREIGN_FACTIONS = FACTIONS.filter((faction) => (
 ));
 const FACTIONS_BY_ID = new Map(FACTIONS.map((faction) => [faction.id, faction]));
 
-// Shared theatres keep procedural wars geographically and politically legible.
-const DIPLOMATIC_THEATRES = Object.freeze([
-  Object.freeze(["england", "scotland", "france", "spain", "portugal", "habsburg", "denmark-norway"]),
-  Object.freeze(["habsburg", "hungary", "ottoman", "venice", "genoa", "papal-states", "muscovy", "poland-lithuania"]),
-  Object.freeze(["spain", "portugal", "ottoman", "venice", "genoa", "papal-states", "morocco"]),
-  Object.freeze(["portugal", "ottoman", "safavid", "ethiopia", "gujarat", "vijayanagara"]),
-  Object.freeze(["portugal", "safavid", "gujarat", "vijayanagara", "bengal", "delhi"]),
-  Object.freeze(["portugal", "ming", "japan", "joseon", "ayutthaya"]),
-  Object.freeze(["spain", "portugal", "aztec", "inca"]),
-  Object.freeze(["portugal", "spain", "morocco", "songhai"])
-]);
-
-const PLAUSIBLE_WAR_PAIRS = new Set();
-for (const theatre of DIPLOMATIC_THEATRES) {
-  for (let i = 0; i < theatre.length; i++) {
-    for (let j = i + 1; j < theatre.length; j++) {
-      PLAUSIBLE_WAR_PAIRS.add(diplomacyPairKey(theatre[i], theatre[j]));
-    }
-  }
-}
-
-const HISTORICAL_RIVALRY_WEIGHTS = new Map([
-  ["habsburg|ottoman", 8],
-  ["hungary|ottoman", 7],
-  ["ottoman|safavid", 6],
-  ["ottoman|portugal", 5],
-  ["france|habsburg", 5],
-  ["france|spain", 5],
-  ["england|france", 4],
-  ["aztec|spain", 7],
-  ["gujarat|portugal", 4],
-  ["ming|portugal", 3],
-  ["muscovy|poland-lithuania", 4]
-]);
-
 export function createWorldDiplomacy({ startMinute = 0, seedKey = "world" } = {}) {
   assertMinute(startMinute, "diplomacy start minute");
   if (typeof seedKey !== "string" || seedKey.trim() === "") {
@@ -82,6 +47,7 @@ export function createWorldDiplomacy({ startMinute = 0, seedKey = "world" } = {}
     nextEventMinute: startMinute,
     overrides: {},
     pairLastChangedMinute: {},
+    contacts: {},
     history: []
   };
   state.nextEventMinute += diplomacyEventIntervalMinutes(state, 0);
@@ -106,6 +72,7 @@ export function validateWorldDiplomacy(state) {
   }
   validateRelationTable(state.overrides, "diplomacy override", true);
   validateMinuteTable(state.pairLastChangedMinute, "diplomacy pair change");
+  validateContactTable(state.contacts);
   if (!Array.isArray(state.history) || state.history.length > DIPLOMACY_HISTORY_LIMIT) {
     throw new Error("Invalid world diplomacy history");
   }
@@ -118,10 +85,47 @@ export function migrateWorldDiplomacy(state) {
     throw new Error("World diplomacy migration requires a saved state");
   }
   if (state.version === WORLD_DIPLOMACY_VERSION) return validateWorldDiplomacy(state);
-  if (state.version !== 1) {
+  if (state.version !== 1 && state.version !== 2) {
     throw new Error(`Unsupported world diplomacy version: ${state.version ?? "missing"}`);
   }
-  return validateWorldDiplomacy({ ...state, version: WORLD_DIPLOMACY_VERSION });
+  return validateWorldDiplomacy({
+    ...state,
+    version: WORLD_DIPLOMACY_VERSION,
+    contacts: {}
+  });
+}
+
+export function recordDiplomaticPortCall(state, visitingFactionId, portFactionId, simMinute) {
+  validateWorldDiplomacy(state);
+  assertFactionId(visitingFactionId);
+  assertFactionId(portFactionId);
+  assertMinute(simMinute, "diplomatic port call minute");
+  if (visitingFactionId === portFactionId ||
+      visitingFactionId === NEUTRAL_FACTION_ID || portFactionId === NEUTRAL_FACTION_ID ||
+      visitingFactionId === PIRATE_FACTION_ID || portFactionId === PIRATE_FACTION_ID) {
+    return null;
+  }
+  const key = diplomacyPairKey(visitingFactionId, portFactionId);
+  const previous = state.contacts[key];
+  const contact = previous
+    ? {
+        firstContactMinute: previous.firstContactMinute,
+        lastContactMinute: Math.max(previous.lastContactMinute, simMinute),
+        portCalls: previous.portCalls + 1
+      }
+    : { firstContactMinute: simMinute, lastContactMinute: simMinute, portCalls: 1 };
+  state.contacts[key] = contact;
+  return { factionAId: key.split("|")[0], factionBId: key.split("|")[1], ...contact };
+}
+
+export function diplomaticContactBetween(state, factionAId, factionBId) {
+  if (!state?.contacts || typeof state.contacts !== "object") {
+    throw new Error("World diplomacy has no contact ledger");
+  }
+  assertFactionId(factionAId);
+  assertFactionId(factionBId);
+  if (factionAId === factionBId) return null;
+  return state.contacts[diplomacyPairKey(factionAId, factionBId)] || null;
 }
 
 export function worldDiplomacyBetween(state, factionAId, factionBId) {
@@ -286,11 +290,6 @@ export function adjustDiplomaticStance(
   return events;
 }
 
-export function historicalRivalryWeight(factionAId, factionBId) {
-  assertSovereignPair(factionAId, factionBId);
-  return HISTORICAL_RIVALRY_WEIGHTS.get(diplomacyPairKey(factionAId, factionBId)) || 1;
-}
-
 export function playerDiplomacyBias(influence, factionAId, factionBId, eventKind) {
   if (eventKind !== "war" && eventKind !== "peace") throw new Error(`Invalid diplomacy event kind: ${eventKind}`);
   const homeFactionId = influence?.homeFactionId || null;
@@ -345,15 +344,16 @@ function chooseDiplomacyEvent(state, eventMinute, influence) {
       const factionBId = SOVEREIGN_FACTIONS[j].id;
       if (pairIsCoolingDown(state, factionAId, factionBId, eventMinute)) continue;
       const relation = worldDiplomacyBetween(state, factionAId, factionBId);
-      if (!PLAUSIBLE_WAR_PAIRS.has(diplomacyPairKey(factionAId, factionBId))) continue;
-      const rivalry = historicalRivalryWeight(factionAId, factionBId);
+      const contact = state.contacts[diplomacyPairKey(factionAId, factionBId)];
+      if (!contact) continue;
+      const interactionWeight = 1 + Math.min(2, Math.log2(contact.portCalls + 1) * 0.25);
       if (relation !== DIPLOMACY_ALLY) {
         candidates.push({
           direction: "improve",
           factionAId,
           factionBId,
-          weight: 0.1 * (relation === DIPLOMACY_WAR ? peaceBalance : 1) /
-            Math.sqrt(rivalry) * playerDiplomacyBias(influence, factionAId, factionBId, "peace")
+          weight: 0.1 * interactionWeight * (relation === DIPLOMACY_WAR ? peaceBalance : 1) *
+            playerDiplomacyBias(influence, factionAId, factionBId, "peace")
         });
       }
       if (relation !== DIPLOMACY_WAR) {
@@ -361,7 +361,7 @@ function chooseDiplomacyEvent(state, eventMinute, influence) {
           direction: "worsen",
           factionAId,
           factionBId,
-          weight: 0.1 * rivalry * (relation === DIPLOMACY_HOSTILE ? warBalance : 1) *
+          weight: 0.1 * interactionWeight * (relation === DIPLOMACY_HOSTILE ? warBalance : 1) *
             playerDiplomacyBias(influence, factionAId, factionBId, "war")
         });
       }
@@ -486,6 +486,25 @@ function validateMinuteTable(table, label) {
   for (const [key, minute] of Object.entries(table)) {
     parsePairKey(key);
     assertMinute(minute, `${label} ${key}`);
+  }
+}
+
+function validateContactTable(table) {
+  if (!table || typeof table !== "object" || Array.isArray(table)) {
+    throw new Error("Invalid diplomatic contact table");
+  }
+  for (const [key, contact] of Object.entries(table)) {
+    const [factionAId, factionBId] = parsePairKey(key);
+    assertSovereignPair(factionAId, factionBId);
+    if (!contact || typeof contact !== "object" ||
+        !Number.isInteger(contact.portCalls) || contact.portCalls <= 0) {
+      throw new Error(`Invalid diplomatic contact: ${key}`);
+    }
+    assertMinute(contact.firstContactMinute, `first diplomatic contact ${key}`);
+    assertMinute(contact.lastContactMinute, `last diplomatic contact ${key}`);
+    if (contact.lastContactMinute < contact.firstContactMinute) {
+      throw new Error(`Diplomatic contact ends before it begins: ${key}`);
+    }
   }
 }
 

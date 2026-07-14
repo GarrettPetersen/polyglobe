@@ -46,6 +46,7 @@ import {
 import {
   advanceWorldDiplomacy,
   createWorldDiplomacy,
+  recordDiplomaticPortCall,
   migrateWorldDiplomacy,
   recentDiplomacyEvents,
   validateWorldDiplomacy,
@@ -54,7 +55,7 @@ import {
 import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 9;
+export const GAME_STATE_VERSION = 10;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -187,7 +188,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (state?.version !== 8) {
+  if (state?.version !== 8 && state?.version !== 9) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -216,7 +217,7 @@ export function migrateGameState(state, shipStats) {
     } : state.ship,
     relations: {
       ...state.relations,
-      safePassageUntilMinute: {},
+      safePassageUntilMinute: state.version === 8 ? {} : state.relations.safePassageUntilMinute,
       diplomacy: migratedDiplomacy
     }
   };
@@ -1410,10 +1411,18 @@ export function receiveFishCatch(state, catchResult, context = {}) {
   return { good, quantity, speciesLabel };
 }
 
-export function visitPort(state, city) {
+export function visitPort(state, city, simMinute) {
   assertGameState(state);
+  assertSimulationMinute(simMinute);
   const memory = portMemory(state, city);
   memory.visits += 1;
+  const playerFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  return recordDiplomaticPortCall(
+    state.relations.diplomacy,
+    playerFactionId,
+    city.factionId || NEUTRAL_FACTION_ID,
+    simMinute
+  );
 }
 
 export function portMemory(state, city) {

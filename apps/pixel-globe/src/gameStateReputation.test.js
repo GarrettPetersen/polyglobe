@@ -77,7 +77,7 @@ test("version 8 game states migrate diplomacy and ship classification without lo
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 9);
+  assert.equal(restored.version, 10);
   assert.ok(restored.relations.diplomacy);
   assert.deepEqual(restored.relations.safePassageUntilMinute, {});
   assert.equal(restored.ship.mass, stats.mass);
@@ -95,6 +95,7 @@ test("version 8 game states retain version 1 diplomacy history during migration"
   })));
   saved.version = 8;
   saved.relations.diplomacy.version = 1;
+  delete saved.relations.diplomacy.contacts;
   delete saved.relations.safePassageUntilMinute;
   delete saved.ship.mass;
   delete saved.ship.navalWeaponKind;
@@ -102,11 +103,29 @@ test("version 8 game states retain version 1 diplomacy history during migration"
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.relations.diplomacy.version, 2);
-  assert.deepEqual(
-    { ...restored.relations.diplomacy, version: 1 },
-    before
-  );
+  assert.equal(restored.relations.diplomacy.version, 3);
+  const { contacts, ...withoutContacts } = restored.relations.diplomacy;
+  assert.deepEqual({ ...withoutContacts, version: 1 }, before);
+});
+
+test("version 9 game states preserve passage and gain diplomatic contacts", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const saved = JSON.parse(JSON.stringify(createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    startMinute: 500,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  })));
+  saved.version = 9;
+  saved.relations.safePassageUntilMinute.ottoman = 2000;
+  saved.relations.diplomacy.version = 2;
+  delete saved.relations.diplomacy.contacts;
+
+  const restored = migrateGameState(saved, stats);
+
+  assert.equal(restored.version, 10);
+  assert.equal(restored.relations.safePassageUntilMinute.ottoman, 2000);
+  assert.deepEqual(restored.relations.diplomacy.contacts, {});
 });
 
 test("successful trade gives only a tiny faction reputation gain", () => {

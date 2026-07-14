@@ -77,6 +77,29 @@ test("NPC merchants carry finite cargo and realize profits over repeated port ca
   }
 });
 
+test("foreign NPC port calls report the visiting and host factions", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const calls = [];
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    onForeignPortCall: (visitingFactionId, portFactionId, simMinute) => {
+      if (visitingFactionId !== portFactionId &&
+          visitingFactionId !== "neutral" && portFactionId !== "neutral" &&
+          visitingFactionId !== "pirate" && portFactionId !== "pirate") {
+        calls.push({ visitingFactionId, portFactionId, simMinute });
+      }
+    }
+  });
+
+  for (let day = 1; day <= 180; day++) updateNpcSeaRouteSystem(routes, day * 24 * 60);
+
+  assert.ok(calls.length > 0);
+  assert.ok(calls.every((call) => call.visitingFactionId !== call.portFactionId));
+  assert.ok(calls.every((call) => Number.isFinite(call.simMinute)));
+});
+
 test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

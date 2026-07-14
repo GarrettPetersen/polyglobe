@@ -17,11 +17,12 @@ import {
   adjustDiplomaticStance,
   createWorldDiplomacy,
   declareDiplomaticWar,
+  diplomaticContactBetween,
   diplomacyEventNotice,
-  historicalRivalryWeight,
   makeDiplomaticPeace,
   migrateWorldDiplomacy,
   playerDiplomacyBias,
+  recordDiplomaticPortCall,
   recentDiplomacyEvents,
   validateWorldDiplomacy,
   worldDiplomacyBetween
@@ -34,7 +35,7 @@ test("world diplomacy begins from the historical 1522 matrix", () => {
 
   assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_WAR);
   assert.equal(worldDiplomacyBetween(state, "england", "spain"), DIPLOMACY_ALLY);
-  assert.equal(worldDiplomacyBetween(state, "venice", "genoa"), DIPLOMACY_NEUTRAL);
+  assert.equal(worldDiplomacyBetween(state, "venice", "genoa"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, "ottoman", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, PIRATE_FACTION_ID, "england"), DIPLOMACY_WAR);
   assert.ok(state.nextEventMinute >= 100 + DIPLOMACY_MIN_EVENT_DAYS * DAY);
@@ -43,13 +44,27 @@ test("world diplomacy begins from the historical 1522 matrix", () => {
 test("version 1 diplomacy migrates without changing its simulation state", () => {
   const saved = createWorldDiplomacy({ startMinute: 100, seedKey: "old-voyage" });
   saved.version = 1;
+  delete saved.contacts;
   const before = JSON.parse(JSON.stringify(saved));
 
   const migrated = migrateWorldDiplomacy(saved);
 
-  assert.equal(migrated.version, 2);
-  assert.deepEqual({ ...migrated, version: 1 }, before);
+  assert.equal(migrated.version, 3);
+  assert.deepEqual(migrated.contacts, {});
+  const { contacts, ...withoutContacts } = migrated;
+  assert.deepEqual({ ...withoutContacts, version: 1 }, before);
   assert.throws(() => migrateWorldDiplomacy({ version: 0 }), /Unsupported world diplomacy version/);
+});
+
+test("version 2 diplomacy gains an empty contact ledger", () => {
+  const saved = createWorldDiplomacy({ startMinute: 100, seedKey: "recent-voyage" });
+  saved.version = 2;
+  delete saved.contacts;
+
+  const migrated = migrateWorldDiplomacy(saved);
+
+  assert.equal(migrated.version, 3);
+  assert.deepEqual(migrated.contacts, {});
 });
 
 test("procedural diplomacy changes slowly and deterministically per voyage", () => {
@@ -57,6 +72,11 @@ test("procedural diplomacy changes slowly and deterministically per voyage", () 
   const b = createWorldDiplomacy({ startMinute: 0, seedKey: "same-voyage" });
   const c = createWorldDiplomacy({ startMinute: 0, seedKey: "different-voyage" });
   const minute = 900 * DAY;
+  for (const state of [a, b, c]) {
+    recordDiplomaticPortCall(state, "england", "france", 10);
+    recordDiplomaticPortCall(state, "ottoman", "habsburg", 20);
+    recordDiplomaticPortCall(state, "portugal", "gujarat", 30);
+  }
 
   const eventsA = advanceWorldDiplomacy(a, minute);
   const eventsB = advanceWorldDiplomacy(b, minute);
@@ -67,6 +87,30 @@ test("procedural diplomacy changes slowly and deterministically per voyage", () 
   assert.notDeepEqual(a, c);
   assert.ok(eventsA.length > 0);
   assert.ok(eventsA.every((event) => event.simMinute >= DIPLOMACY_MIN_EVENT_DAYS * DAY));
+});
+
+test("only foreign port calls activate bilateral political change", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "contacts" });
+
+  assert.equal(recordDiplomaticPortCall(state, "gujarat", "gujarat", 10), null);
+  assert.equal(recordDiplomaticPortCall(state, "gujarat", "neutral", 10), null);
+  assert.equal(diplomaticContactBetween(state, "gujarat", "portugal"), null);
+
+  recordDiplomaticPortCall(state, "portugal", "gujarat", 20);
+  recordDiplomaticPortCall(state, "gujarat", "portugal", 35);
+  const contact = diplomaticContactBetween(state, "gujarat", "portugal");
+
+  assert.deepEqual(contact, { firstContactMinute: 20, lastContactMinute: 35, portCalls: 2 });
+  assert.equal(diplomaticContactBetween(state, "gujarat", "muscovy"), null);
+  assert.equal(diplomaticContactBetween(state, "gujarat", "aztec"), null);
+});
+
+test("no port contact means no procedural diplomatic events", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "isolated-world" });
+  const events = advanceWorldDiplomacy(state, 900 * DAY);
+
+  assert.deepEqual(events, []);
+  assert.deepEqual(state.overrides, {});
 });
 
 test("wars can end in peace and later relation changes obey pair cooldowns", () => {
@@ -93,11 +137,6 @@ test("diplomatic relations improve and worsen one stance at a time", () => {
   assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_ALLY);
   adjustDiplomaticStance(state, "england", "france", "worsen", 1000 * DAY);
   assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_FRIENDLY);
-});
-
-test("historical rivalries strongly bias likely conflicts", () => {
-  assert.ok(historicalRivalryWeight("ottoman", "habsburg") > historicalRivalryWeight("venice", "genoa"));
-  assert.ok(historicalRivalryWeight("ottoman", "hungary") > 1);
 });
 
 test("allied powers can be dragged into a new war", () => {

@@ -247,10 +247,14 @@ export function createNpcSeaRouteSystem({
   startMinute,
   economy,
   fishState = null,
-  relationBetween = diplomacyBetween
+  relationBetween = diplomacyBetween,
+  onForeignPortCall = null
 }) {
   if (!economy) throw new Error("NPC sea routes require a world economy");
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
+  if (onForeignPortCall !== null && typeof onForeignPortCall !== "function") {
+    throw new Error("NPC sea routes foreign port contact handler must be a function");
+  }
   const usablePorts = ports
     .filter(isAnyUsablePort)
     .map((port) => ({
@@ -274,6 +278,7 @@ export function createNpcSeaRouteSystem({
     routeCache: new Map(),
     edgeCostCache: new Map(),
     relationBetween,
+    onForeignPortCall,
     fishState,
     fishingGrounds: fishState ? buildFishingGrounds(usablePorts, fishState, startMinute) : [],
     pirateHideouts: choosePirateHideouts(usablePorts),
@@ -851,6 +856,9 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < maxPlans) {
     ship.currentPort = ship.plan.destination;
     ship.portVisits += 1;
+    if (system.onForeignPortCall && !ship.currentPort.isFishingGround) {
+      system.onForeignPortCall(ship.factionId, ship.currentPort.factionId, ship.plan.endMinute);
+    }
     if (ship.role === NPC_ROLE_PIRATE && ship.seekingHideout) ship.finalDestination = null;
     const reachedHideout = ship.role === NPC_ROLE_PIRATE &&
       ship.hideoutDestinationTileId === ship.currentPort.tileId &&

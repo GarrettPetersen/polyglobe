@@ -52,8 +52,15 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("france", "scotland"), DIPLOMACY_ALLY);
   assert.equal(diplomacyBetween("england", "france"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("ottoman", "habsburg"), DIPLOMACY_HOSTILE);
+  assert.equal(diplomacyBetween("england", "portugal"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("portugal", "vijayanagara"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("ming", "joseon"), DIPLOMACY_ALLY);
+  assert.equal(diplomacyBetween("venice", "habsburg"), DIPLOMACY_WAR);
+  assert.equal(diplomacyBetween("portugal", "morocco"), DIPLOMACY_WAR);
+  assert.equal(diplomacyBetween("ming", "japan"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("portugal", "ming"), DIPLOMACY_WAR);
-  assert.equal(diplomacyBetween("venice", "genoa"), DIPLOMACY_NEUTRAL);
+  assert.equal(diplomacyBetween("venice", "genoa"), DIPLOMACY_HOSTILE);
+  assert.equal(diplomacyBetween("aztec", "muscovy"), DIPLOMACY_NEUTRAL);
   for (const faction of FACTIONS) {
     if (faction.id !== PIRATE_FACTION_ID) {
       assert.equal(diplomacyBetween(PIRATE_FACTION_ID, faction.id), DIPLOMACY_WAR);

@@ -9,6 +9,7 @@ import {
   createGameState,
   diplomacyBetweenForState,
   grantLetterOfMarque,
+  visitPort,
   recordPiracyAgainstFaction,
   recordTradeWithFaction
 } from "./gameState.js";
@@ -62,6 +63,17 @@ test("politics matrix follows changing world diplomacy", () => {
   assert.equal(diplomacyBetweenForState(state, "england", "france"), "hostile");
   assert.equal(england.stances.find((stance) => stance.factionId === "france").relation, "hostile");
   assert.equal(view.recentEvents[0].kind, "peace");
+});
+
+test("politics distinguishes contacted neutral powers from powers with no interaction", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const venice = { tileId: 9, city: "Venice", country: "Italy", factionId: "venice" };
+  visitPort(state, venice, 100);
+  const view = createPoliticsView(state);
+  const england = view.rows.find((row) => row.faction.id === "england");
+
+  assert.equal(england.stances.find((stance) => stance.factionId === "venice").contact.portCalls, 1);
+  assert.equal(england.stances.find((stance) => stance.factionId === "aztec").contact, null);
 });
 
 test("politics view marks factions that granted letters of marque", () => {
