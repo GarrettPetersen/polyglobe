@@ -6,47 +6,59 @@ const FAMOUS_BUILD_INTERVAL_DAYS = 1800;
 const NORMAL_LISTING_DAYS = 180;
 const FAMOUS_LISTING_DAYS = 240;
 const GOSSIP_RADIUS_KM = 1800;
+const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
+const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
+const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
+const SPANISH_NAO_SLUG = "spanish-nao";
+const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
+
+const FACTION_SHIPS = Object.freeze({
+  joseon: Object.freeze([JOSEON_TURTLE_SHIP_SLUG, JOSEON_PANOKSEON_SLUG]),
+  japan: Object.freeze([JAPANESE_ATAKEBUNE_SLUG]),
+  spain: Object.freeze([SPANISH_NAO_SLUG]),
+  portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG])
+});
 
 export const FAMOUS_SHIPBUILDING_TOWNS = Object.freeze([
   "Lisbon", "Porto", "Seville", "Cadiz", "London", "Bristol", "Southampton", "Portsmouth",
   "Amsterdam", "Antwerp", "Venice", "Genova", "Genoa", "Ragusa", "Istanbul", "Alexandria",
   "Goa", "Calicut", "Cochin", "Malacca", "Aceh", "Guangzhou", "Quanzhou", "Hangzhou",
-  "Nanjing", "Nagasaki"
+  "Nanjing", "Nagasaki", "Seoul", "Busan", "Tongyeong", "Yeosu"
 ]);
 
 const FAMOUS_TOWN_KEYS = new Set(FAMOUS_SHIPBUILDING_TOWNS.map(normalizeName));
 
 const REGION_SHIP_POOLS = Object.freeze({
   "northern-european": Object.freeze([
-    "fishing-lugger", "small-cog", "square-sail-trader", "square-rigged-caravel", "caravel",
-    "small-carrack", "brigantine", "fluyt", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
+    "fishing-lugger", "small-cog", "small-cog", "square-rigged-caravel", "caravel",
+    "caravel", "brigantine", "fluyt", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
   ]),
   mediterranean: Object.freeze([
-    "fishing-lugger", "felucca", "lateen-xebec", "xebec", "mediterranean-galley", "square-rigged-caravel", "caravel",
-    "small-carrack", "brigantine", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
+    "fishing-lugger", "felucca", "xebec", "xebec", "mediterranean-galley", "square-rigged-caravel", "caravel",
+    "caravel", "brigantine", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
   ]),
   "islamic-desert": Object.freeze([
-    "felucca", "small-dhow", "lateen-dhow", "dhow-felucca", "dhow", "lateen-xebec", "xebec",
-    "small-carrack", "carrack", "galleon"
+    "felucca", "small-dhow", "small-dhow", "felucca", "dhow", "xebec", "xebec",
+    "caravel", "carrack", "galleon"
   ]),
   "east-asian": Object.freeze(["sampan", "small-junk", "medium-junk", "large-junk"]),
   "south-asian": Object.freeze([
-    "felucca", "small-dhow", "lateen-dhow", "dhow-felucca", "dhow", "small-junk", "medium-junk",
-    "large-junk", "small-carrack", "carrack"
+    "felucca", "small-dhow", "small-dhow", "felucca", "dhow", "small-junk", "medium-junk",
+    "large-junk", "caravel", "carrack"
   ]),
   "southeast-asian": Object.freeze([
-    "sampan", "small-dhow", "lateen-dhow", "dhow", "small-junk", "medium-junk", "large-junk",
-    "small-carrack", "carrack"
+    "sampan", "small-dhow", "dhow", "dhow", "small-junk", "medium-junk", "large-junk",
+    "caravel", "carrack"
   ]),
   polynesian: Object.freeze(["polynesian-voyaging-canoe"]),
   mesoamerican: Object.freeze(["mesoamerican-dugout-canoe"]),
   andean: Object.freeze([
-    "fishing-lugger", "small-cog", "square-sail-trader", "square-rigged-caravel", "caravel",
-    "small-carrack", "brigantine", "carrack", "galleon"
+    "fishing-lugger", "small-cog", "small-cog", "square-rigged-caravel", "caravel",
+    "caravel", "brigantine", "carrack", "galleon"
   ]),
   "sub-saharan": Object.freeze([
-    "fishing-lugger", "felucca", "small-dhow", "lateen-dhow", "dhow-felucca", "dhow", "caravel",
-    "small-carrack", "carrack"
+    "fishing-lugger", "felucca", "small-dhow", "small-dhow", "felucca", "dhow", "caravel",
+    "caravel", "carrack"
   ])
 });
 
@@ -177,8 +189,9 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
   if (!yard || typeof yard !== "object") throw new Error("Shipyard listing requires a yard");
   if (!Number.isInteger(buildNumber) || buildNumber < 0) throw new Error(`Invalid shipyard build number: ${buildNumber}`);
   if (!Number.isFinite(builtMinute)) throw new Error(`Invalid shipyard build minute: ${builtMinute}`);
-  const pool = REGION_SHIP_POOLS[yard.cityType];
-  if (!pool) throw new Error(`No shipyard hull pool for region: ${yard.cityType}`);
+  const regionalPool = shipPoolForYard(yard);
+  if (!regionalPool) throw new Error(`No shipyard hull pool for region: ${yard.cityType}`);
+  const pool = regionalPool;
   const seed = hashString32(`${yard.portId}|${buildNumber}|hull`);
   const masterworkChance = yard.famous ? 0.055 : 0.008;
   const masterwork = hashUnit(`${seed}|masterwork`) < masterworkChance;
@@ -206,6 +219,14 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
     expiresMinute: builtMinute + listingDays * MINUTES_PER_DAY,
     masterwork
   });
+}
+
+function shipPoolForYard(yard) {
+  const regionalPool = REGION_SHIP_POOLS[yard.cityType];
+  if (!regionalPool) return null;
+  const factionShips = FACTION_SHIPS[yard.factionId];
+  if (factionShips) return [...regionalPool, ...factionShips];
+  return regionalPool;
 }
 
 export function shipConstructionPrice(slug) {
@@ -236,6 +257,7 @@ function createShipyard(port, startMinute) {
     portId,
     portName: portName(port),
     cityType,
+    factionId: port.factionId || "neutral",
     lat: Number(port.lat) || 0,
     lon: Number(port.lon) || 0,
     wealthScale,

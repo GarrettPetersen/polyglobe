@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { windVArmLengthPx, windVGeometry, windVOpacity } from "./windIndicator.js";
+import {
+  windVArmLengthPx,
+  windVFlowDirectionForScreenVector,
+  windVGeometry,
+  windVOpacity
+} from "./windIndicator.js";
 
 test("wind V boundaries match the ship dead-zone angle", () => {
   const deadZoneHalfAngleRad = 40 * Math.PI / 180;
@@ -80,7 +85,45 @@ test("an oar-powered ship collapses the wind V to show no dead zone", () => {
   assert.deepEqual(geometry.port, geometry.starboard);
 });
 
+test("screen-space lake wind converts to the renderer angle without vertical mirroring", () => {
+  const cardinals = [
+    { flow: { x: 1, y: 0 }, expectedUpwind: { x: -1, y: 0 } },
+    { flow: { x: 0, y: 1 }, expectedUpwind: { x: 0, y: -1 } },
+    { flow: { x: -1, y: 0 }, expectedUpwind: { x: 1, y: 0 } },
+    { flow: { x: 0, y: -1 }, expectedUpwind: { x: 0, y: 1 } }
+  ];
+  for (const { flow, expectedUpwind } of cardinals) {
+    const geometry = windVGeometry({
+      centerX: 100,
+      centerY: 100,
+      flowDirectionRad: windVFlowDirectionForScreenVector(flow.x, flow.y),
+      deadZoneHalfAngleRad: Math.PI / 4,
+      windStrength: 0.6,
+      radiusPx: 20
+    });
+    const apexDirection = normalize({
+      x: geometry.apex.x - 100,
+      y: geometry.apex.y - 100
+    });
+    assert.ok(dot(apexDirection, expectedUpwind) > 0.99);
+  }
+});
+
+test("screen-space wind conversion rejects invalid vectors", () => {
+  assert.throws(() => windVFlowDirectionForScreenVector(0, 0), /zero length/);
+  assert.throws(() => windVFlowDirectionForScreenVector(Number.NaN, 1), /Invalid wind V screen flow/);
+});
+
 function angleBetween(a, b) {
   const dot = a.x * b.x + a.y * b.y;
   return Math.acos(Math.max(-1, Math.min(1, dot)));
+}
+
+function normalize(vector) {
+  const length = Math.hypot(vector.x, vector.y);
+  return { x: vector.x / length, y: vector.y / length };
+}
+
+function dot(a, b) {
+  return a.x * b.x + a.y * b.y;
 }

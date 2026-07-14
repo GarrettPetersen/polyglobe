@@ -35,6 +35,13 @@ sketchfab/polynesian-voyaging-canoe/scene.gltf
 sketchfab/mesoamerican-dugout-canoe/scene.gltf
 sketchfab/mediterranean-galley/scene.gltf
 sketchfab/mediterranean-galley-furled/scene.gltf
+sketchfab/joseon-turtle-ship/scene.gltf
+sketchfab/joseon-panokseon/scene.gltf
+sketchfab/atakebune-japanese-warship/scene.gltf
+sketchfab/nao-victoria/scene.gltf
+sketchfab/portuguese-carrack/scene.gltf
+sketchfab/dhow-gogiart/scene.gltf
+sketchfab/cyc3w-sailing-ship/scene.gltf
 blendswap/greek-trireme/trireme-bsw.blend
 ```
 
@@ -49,10 +56,17 @@ Run these commands from `apps/pixel-globe/` after refreshing the private checkou
 ```sh
 npm run render:native-boats
 npm run render:mediterranean-galley
+npm run render:joseon-turtle-ship
+npm run render:joseon-panokseon
+npm run render:japanese-atakebune
+npm run render:spanish-nao
+npm run render:portuguese-carrack
+npm run render:dhow
+npm run render:galleon
 node --test src/shipInfoAssets.test.js
 ```
 
-Both render commands generate the 16-heading sprite, lighting and shadow masks,
+These render commands generate the 16-heading sprite, lighting and shadow masks,
 side view, wake anchors, and an exact per-pixel sink-depth map. Rowing or paddling
 ships also receive one sprite and sink-depth map for every animation frame. The
 generated runtime files are written under:

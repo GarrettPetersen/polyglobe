@@ -20,6 +20,16 @@ export function windVArmLengthPx(windStrength) {
   );
 }
 
+export function windVFlowDirectionForScreenVector(flowX, flowY) {
+  if (!Number.isFinite(flowX) || !Number.isFinite(flowY)) {
+    throw new Error(`Invalid wind V screen flow: ${flowX}, ${flowY}`);
+  }
+  if (Math.hypot(flowX, flowY) <= 1e-6) {
+    throw new Error("Wind V screen flow cannot be zero length");
+  }
+  return Math.atan2(-flowY, flowX);
+}
+
 export function windVGeometry({
   centerX,
   centerY,

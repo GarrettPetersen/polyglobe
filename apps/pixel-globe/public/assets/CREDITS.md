@@ -11,6 +11,13 @@
 - Hialda Alpizar - "Polynesian Voyaging Canoe" (CC BY 4.0)
 - irodatiii - "Low Poly Canoe - Stylized Game Asset" (Sketchfab Free Standard)
 - Museovirasto Museiverket Finnish Heritage Agency - "Russian 22-bank Baltic galley" (CC BY 4.0)
+- KargaEntiti - "Geobukseon (Turtle Ship)" (CC BY 4.0)
+- Heat Of Fusion, with JJakgwi - "Panok ship (Panokseon) | 판옥선 | 板屋船" (CC BY 4.0)
+- LukasSI - "Atakebune Japanese Medieval Warship" (CC BY 4.0)
+- Javier López Cuadrado - "Nao Victoria Galleon Ship" (CC BY 4.0)
+- gogiart - "Portuguese Carrack" (CC BY 4.0)
+- gogiart - "Dhow" (CC BY 4.0)
+- cyc3w - "Sailing ship" (CC BY 4.0)
 
 ## Sound Effects
 - Alex Jauk

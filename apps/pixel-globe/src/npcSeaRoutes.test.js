@@ -57,6 +57,9 @@ test("NPC merchants carry finite cargo and realize profits over repeated port ca
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
 
   assert.ok(routes.ships.length > 0);
+  assert.ok(routes.ships.some((ship) => (
+    ship.factionId === "portugal" && ship.slug === "portuguese-carrack"
+  )));
   assert.ok(routes.ships.some((ship) => cargoUnits(ship) > 0));
   for (const ship of routes.ships) {
     assert.ok(ship.specie >= 0);

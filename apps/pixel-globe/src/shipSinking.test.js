@@ -69,6 +69,18 @@ test("remaining hull pixels descend while model-low pixels submerge and fade fir
   assert.ok(lowest.alpha < highest.alpha);
 });
 
+test("a ship begins with its low hull already submerged", () => {
+  const effect = createTestEffect();
+  const start = shipSinkFrame(effect, effect.startedAtMs);
+  const submerged = start.hullPixels.filter((pixel) => pixel.underwater);
+  const dry = start.hullPixels.filter((pixel) => !pixel.underwater);
+
+  assert.ok(submerged.length > 0);
+  assert.ok(dry.length > 0);
+  assert.ok(submerged.every((pixel) => pixel.alpha < 1));
+  assert.ok(dry.every((pixel) => pixel.alpha === 1));
+});
+
 test("water drag keeps the hull anchored while its baked slices submerge", () => {
   const effect = createTestEffect();
   const start = shipSinkFrame(effect, effect.startedAtMs);

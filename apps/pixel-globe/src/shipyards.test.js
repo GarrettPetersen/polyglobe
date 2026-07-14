@@ -14,11 +14,16 @@ import {
   snapshotWorldShipyards
 } from "./shipyards.js";
 
-const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14);
+const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14, "portugal");
 const PORTO = port(2, "Porto", "northern-european", 65000, 41.15, -8.61);
 const SMALL_PORT = port(3, "Quiet Haven", "northern-european", 2500, 42, -9);
 const FIJI = port(4, "Fiji Village", "polynesian", 3500, -18.14, 178.44);
 const GUANAHANI = port(5, "Guanahani Village", "mesoamerican", 1200, 24.06, -74.47);
+const SEOUL = port(6, "Seoul", "east-asian", 120000, 37.57, 126.98, "joseon");
+const NANJING = port(7, "Nanjing", "east-asian", 160000, 32.06, 118.79, "ming");
+const NAGASAKI = port(8, "Nagasaki", "east-asian", 120000, 32.75, 129.88, "japan");
+const SEVILLE = port(9, "Seville", "mediterranean", 120000, 37.39, -5.99, "spain");
+const VENICE = port(10, "Venice", "mediterranean", 120000, 45.44, 12.32, "venice");
 
 test("every port has a shipyard but active new-build listings remain rare", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
@@ -63,6 +68,57 @@ test("native villages build their own modest regional hulls", () => {
     const listing = generateShipyardListing(mesoamericanYard, build, build * 1000);
     assert.equal(listing.shipSlug, "mesoamerican-dugout-canoe");
   }
+});
+
+test("East Asian national warships stay exclusive to their own shipyards", () => {
+  const system = createWorldShipyards({ ports: [SEOUL, NANJING, NAGASAKI], startMinute: 0 });
+  const seoulYard = shipyardAtPort(system, SEOUL);
+  const nanjingYard = shipyardAtPort(system, NANJING);
+  const nagasakiYard = shipyardAtPort(system, NAGASAKI);
+  const seoulHulls = new Set();
+  const nanjingHulls = new Set();
+  const nagasakiHulls = new Set();
+  for (let build = 0; build < 400; build++) {
+    seoulHulls.add(generateShipyardListing(seoulYard, build, build * 1000).shipSlug);
+    nanjingHulls.add(generateShipyardListing(nanjingYard, build, build * 1000).shipSlug);
+    nagasakiHulls.add(generateShipyardListing(nagasakiYard, build, build * 1000).shipSlug);
+  }
+
+  assert.equal(seoulHulls.has("joseon-turtle-ship"), true);
+  assert.equal(seoulHulls.has("joseon-panokseon"), true);
+  assert.equal(seoulHulls.has("japanese-atakebune"), false);
+  assert.equal(nanjingHulls.has("joseon-turtle-ship"), false);
+  assert.equal(nanjingHulls.has("japanese-atakebune"), false);
+  assert.equal(nagasakiHulls.has("joseon-turtle-ship"), false);
+  assert.equal(nagasakiHulls.has("japanese-atakebune"), true);
+});
+
+test("Spanish shipyards exclusively build the Spanish Nao", () => {
+  const system = createWorldShipyards({ ports: [SEVILLE, VENICE], startMinute: 0 });
+  const sevilleYard = shipyardAtPort(system, SEVILLE);
+  const veniceYard = shipyardAtPort(system, VENICE);
+  const spanishHulls = new Set();
+  const venetianHulls = new Set();
+  for (let build = 0; build < 800; build++) {
+    spanishHulls.add(generateShipyardListing(sevilleYard, build, build * 1000).shipSlug);
+    venetianHulls.add(generateShipyardListing(veniceYard, build, build * 1000).shipSlug);
+  }
+  assert.equal(spanishHulls.has("spanish-nao"), true);
+  assert.equal(venetianHulls.has("spanish-nao"), false);
+});
+
+test("Portuguese shipyards exclusively build the Portuguese Carrack", () => {
+  const system = createWorldShipyards({ ports: [LISBON, VENICE], startMinute: 0 });
+  const lisbonYard = shipyardAtPort(system, LISBON);
+  const veniceYard = shipyardAtPort(system, VENICE);
+  const portugueseHulls = new Set();
+  const venetianHulls = new Set();
+  for (let build = 0; build < 800; build++) {
+    portugueseHulls.add(generateShipyardListing(lisbonYard, build, build * 1000).shipSlug);
+    venetianHulls.add(generateShipyardListing(veniceYard, build, build * 1000).shipSlug);
+  }
+  assert.equal(portugueseHulls.has("portuguese-carrack"), true);
+  assert.equal(venetianHulls.has("portuguese-carrack"), false);
 });
 
 test("ship prices put major hulls far beyond casual fishing income", () => {
@@ -119,8 +175,8 @@ test("shipyard snapshots restore listings and construction clocks", () => {
   assert.equal(lisbon.nextBuildMinute, 123456);
 });
 
-function port(tileId, city, cityType, population, lat, lon) {
-  return { tileId, city, displayCity: city, cityType, population, lat, lon };
+function port(tileId, city, cityType, population, lat, lon, factionId = "neutral") {
+  return { tileId, city, displayCity: city, cityType, population, lat, lon, factionId };
 }
 
 function average(values) {

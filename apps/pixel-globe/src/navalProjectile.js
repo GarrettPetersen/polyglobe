@@ -1,3 +1,5 @@
+import { firstSegmentShipFootprintHit } from "./shipFootprint.js";
+
 export function navalProjectilePoint(projectile, age = projectile?.age) {
   validateProjectile(projectile, age);
   const t = clamp(age / projectile.duration, 0, 1);
@@ -16,25 +18,27 @@ export function firstNavalProjectileHit(start, end, targets) {
   let firstHit = null;
   for (const target of targets) {
     validateTarget(target);
-    const fraction = segmentCircleEntryFraction(start, end, target);
-    if (fraction === null || (firstHit && fraction >= firstHit.fraction)) continue;
+    const hit = target.footprint
+      ? firstSegmentShipFootprintHit(start, end, target.footprint)
+      : segmentCircleEntry(start, end, target);
+    if (!hit || (firstHit && hit.fraction >= firstHit.fraction)) continue;
     firstHit = {
       target,
-      fraction,
-      x: start.x + (end.x - start.x) * fraction,
-      y: start.y + (end.y - start.y) * fraction
+      ...hit
     };
   }
   return firstHit;
 }
 
-function segmentCircleEntryFraction(start, end, target) {
+function segmentCircleEntry(start, end, target) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const offsetX = start.x - target.x;
   const offsetY = start.y - target.y;
   const radiusSquared = target.radius * target.radius;
-  if (offsetX * offsetX + offsetY * offsetY <= radiusSquared) return 0;
+  if (offsetX * offsetX + offsetY * offsetY <= radiusSquared) {
+    return { fraction: 0, x: start.x, y: start.y };
+  }
 
   const lengthSquared = dx * dx + dy * dy;
   if (lengthSquared <= 1e-12) return null;
@@ -46,7 +50,12 @@ function segmentCircleEntryFraction(start, end, target) {
   const entry = (-b - root) / (2 * lengthSquared);
   const exit = (-b + root) / (2 * lengthSquared);
   if (exit < 0 || entry > 1) return null;
-  return clamp(entry, 0, 1);
+  const fraction = clamp(entry, 0, 1);
+  return {
+    fraction,
+    x: start.x + (end.x - start.x) * fraction,
+    y: start.y + (end.y - start.y) * fraction
+  };
 }
 
 function validateProjectile(projectile, age) {
@@ -80,11 +89,15 @@ function validateTarget(target) {
     target.id.length === 0 ||
     !Number.isFinite(target.x) ||
     !Number.isFinite(target.y) ||
-    !Number.isFinite(target.radius) ||
-    target.radius <= 0
+    !validTargetShape(target)
   ) {
     throw new Error("Invalid naval projectile target");
   }
+}
+
+function validTargetShape(target) {
+  if (Array.isArray(target.footprint)) return target.footprint.length >= 3;
+  return Number.isFinite(target.radius) && target.radius > 0;
 }
 
 function clamp(value, min, max) {

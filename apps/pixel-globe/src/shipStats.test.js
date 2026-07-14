@@ -25,7 +25,9 @@ test("later asset silhouettes use period-appropriate game identities", () => {
     corvette: "Armed Caravel",
     "pirate-sloop": "Small Pinnace",
     cutter: "Coastal Pinnace",
-    ketch: "Lateen Barque"
+    ketch: "Lateen Barque",
+    "spanish-nao": "Spanish Nao",
+    "portuguese-carrack": "Portuguese Carrack"
   };
 
   for (const [slug, label] of Object.entries(periodIdentities)) {
@@ -89,6 +91,62 @@ test("the Mediterranean galley is a period hybrid warship", () => {
   assert.ok(galley.cannons > 0);
   assert.ok(galley.seaworthiness < shipStatsForSlug("carrack").seaworthiness);
   assert.ok(galley.cargoCapacity < shipStatsForSlug("carrack").cargoCapacity);
+});
+
+test("the Joseon turtle ship is a heavy cannon-armed oar-and-sail warship", () => {
+  const turtleShip = shipStatsForSlug("joseon-turtle-ship");
+
+  assert.equal(shipLabelForSlug(turtleShip.slug), "Turtle Ship");
+  assert.equal(turtleShip.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(turtleShip.cannons, 30);
+  assert.ok(turtleShip.hitPoints > shipStatsForSlug("large-junk").hitPoints);
+  assert.ok(turtleShip.cargoCapacity < shipStatsForSlug("large-junk").cargoCapacity);
+});
+
+test("the Panokseon represents the Joseon decked oar-and-sail warship lineage", () => {
+  const panokseon = shipStatsForSlug("joseon-panokseon");
+
+  assert.equal(shipLabelForSlug(panokseon.slug), "Panokseon");
+  assert.equal(panokseon.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(panokseon.cannons, 20);
+  assert.ok(panokseon.hitPoints > shipStatsForSlug("large-junk").hitPoints);
+  assert.ok(panokseon.cargoCapacity > shipStatsForSlug("joseon-turtle-ship").cargoCapacity);
+});
+
+test("the Japanese Atakebune is a slow heavy coastal oar-and-sail fortress", () => {
+  const atakebune = shipStatsForSlug("japanese-atakebune");
+
+  assert.equal(shipLabelForSlug(atakebune.slug), "Atakebune");
+  assert.equal(atakebune.propulsion, SHIP_PROPULSION_OAR_SAIL);
+  assert.equal(atakebune.cannons, 6);
+  assert.ok(atakebune.hitPoints > shipStatsForSlug("galleon").hitPoints);
+  assert.ok(atakebune.topSpeedRad < shipStatsForSlug("large-junk").topSpeedRad);
+  assert.ok(atakebune.turnRateRad < shipStatsForSlug("large-junk").turnRateRad);
+});
+
+test("the Spanish Nao is a small seaworthy exploration carrack", () => {
+  const nao = shipStatsForSlug("spanish-nao");
+
+  assert.equal(shipLabelForSlug(nao.slug), "Spanish Nao");
+  assert.equal(nao.propulsion, SHIP_PROPULSION_SAIL);
+  assert.equal(nao.cannons, 8);
+  assert.ok(nao.mass > shipStatsForSlug("small-cog").mass);
+  assert.ok(nao.cargoCapacity > shipStatsForSlug("small-cog").cargoCapacity);
+  assert.ok(nao.seaworthiness > shipStatsForSlug("small-cog").seaworthiness);
+});
+
+test("the Portuguese Carrack is a large armed ocean-going merchant", () => {
+  const portugueseCarrack = shipStatsForSlug("portuguese-carrack");
+  const spanishNao = shipStatsForSlug("spanish-nao");
+  const greatCarrack = shipStatsForSlug("ship-of-the-line");
+
+  assert.equal(shipLabelForSlug(portugueseCarrack.slug), "Portuguese Carrack");
+  assert.equal(portugueseCarrack.propulsion, SHIP_PROPULSION_SAIL);
+  assert.ok(portugueseCarrack.cannons > spanishNao.cannons);
+  assert.ok(portugueseCarrack.cargoCapacity > spanishNao.cargoCapacity);
+  assert.ok(portugueseCarrack.mass > spanishNao.mass);
+  assert.ok(portugueseCarrack.mass < greatCarrack.mass);
+  assert.ok(portugueseCarrack.seaworthiness >= spanishNao.seaworthiness);
 });
 
 test("the Viking longship is a fast seaworthy oar-and-sail arrow ship", () => {

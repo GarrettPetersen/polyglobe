@@ -41,9 +41,10 @@ test("latitude bands are symmetric across the equator", () => {
 
 test("water sprite keys map to their intended depth", () => {
   assert.equal(waterDepthIndexForSpriteKey("water_shallow_01"), 0);
-  assert.equal(waterDepthIndexForSpriteKey("water_depth_01_02"), 1);
+  assert.equal(waterDepthIndexForSpriteKey("water_depth_01_01"), 1);
   assert.equal(waterDepthIndexForSpriteKey("water_depth_04_01"), 4);
-  assert.equal(waterDepthIndexForSpriteKey("water_deep_01_02"), 5);
+  assert.equal(waterDepthIndexForSpriteKey("water_deep_01_01"), 5);
+  assert.equal(waterDepthIndexForSpriteKey("water_depth_01_02"), 1);
   assert.throws(() => waterDepthIndexForSpriteKey("grass_01"), /Unknown water sprite key/);
 });
 

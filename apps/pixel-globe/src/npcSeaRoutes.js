@@ -94,6 +94,15 @@ const PIRATE_SHIP_SLUGS = Object.freeze([
   "pirate-brig",
   "pirate-frigate"
 ]);
+const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
+const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
+const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
+const SPANISH_NAO_SLUG = "spanish-nao";
+const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
+const EAST_ASIAN_FACTION_WARSHIPS = Object.freeze({
+  joseon: JOSEON_TURTLE_SHIP_SLUG,
+  japan: JAPANESE_ATAKEBUNE_SLUG
+});
 
 export const NPC_SHIP_SLUGS = Object.freeze([
   "polynesian-voyaging-canoe",
@@ -105,20 +114,20 @@ export const NPC_SHIP_SLUGS = Object.freeze([
   "sampan",
   "small-dhow",
   "dhow",
-  "lateen-dhow",
-  "dhow-felucca",
   "felucca",
   "xebec",
-  "lateen-xebec",
   "mediterranean-galley",
+  JOSEON_TURTLE_SHIP_SLUG,
+  JOSEON_PANOKSEON_SLUG,
+  JAPANESE_ATAKEBUNE_SLUG,
+  SPANISH_NAO_SLUG,
+  PORTUGUESE_CARRACK_SLUG,
   "caravel",
-  "small-carrack",
   "carrack",
   "fluyt",
   "brigantine",
   "galleon",
   "cutter",
-  "square-sail-trader",
   "square-rigged-caravel",
   "corvette",
   "frigate",
@@ -220,28 +229,28 @@ const FLEET_PROFILES = Object.freeze([
     warships: ["small-junk", "medium-junk", "large-junk"]
   }, isEastAsiaPort, "regional"),
   profile("indian-ocean", 34, {
-    fishers: ["small-dhow", "dhow-felucca", "felucca"],
-    merchants: ["small-dhow", "dhow-felucca", "lateen-dhow", "dhow"],
-    warships: ["lateen-dhow", "dhow", "xebec"]
+    fishers: ["small-dhow", "felucca", "felucca"],
+    merchants: ["small-dhow", "felucca", "dhow", "dhow"],
+    warships: ["dhow", "dhow", "xebec"]
   }, isIndianOceanPort, "regional"),
   profile("mediterranean", 28, {
     fishers: ["fishing-lugger", "felucca", "cutter"],
-    merchants: ["felucca", "lateen-xebec", "xebec"],
-    warships: ["lateen-xebec", "xebec", "mediterranean-galley", "mediterranean-galley", "caravel", "galleon"]
+    merchants: ["felucca", "xebec", "xebec"],
+    warships: ["xebec", "xebec", "mediterranean-galley", "mediterranean-galley", "caravel", "galleon"]
   }, isMediterraneanPort, "regional"),
   profile("atlantic-coast", 30, {
     fishers: ["fishing-lugger", "cutter", "felucca"],
-    merchants: ["cutter", "square-sail-trader", "caravel", "small-carrack", "brigantine", "fluyt"],
+    merchants: ["cutter", "small-cog", "caravel", "caravel", "brigantine", "fluyt"],
     warships: ["square-rigged-caravel", "caravel", "brigantine", "corvette", "frigate"]
   }, isAtlanticPort, "regional"),
   profile("cape-trade", 44, {
     fishers: ["fishing-lugger", "cutter", "small-dhow"],
-    merchants: ["square-sail-trader", "caravel", "small-carrack", "brigantine", "carrack", "fluyt", "galleon"],
+    merchants: ["small-cog", "caravel", "caravel", "brigantine", "carrack", "fluyt", "galleon"],
     warships: ["caravel", "brigantine", "corvette", "galleon", "frigate"]
   }, isLongRangePort, "interregional"),
   profile("wide-world", 24, {
     fishers: ["fishing-lugger", "cutter", "small-dhow"],
-    merchants: ["caravel", "small-carrack", "brigantine", "carrack", "fluyt", "galleon"],
+    merchants: ["caravel", "caravel", "brigantine", "carrack", "fluyt", "galleon"],
     warships: ["brigantine", "corvette", "galleon", "frigate", "ship-of-the-line"]
   }, isWideWorldPort, "interregional")
 ]);
@@ -631,7 +640,8 @@ function createNpcFleet(system, startMinute) {
         const discreetOrigins = pool.filter((port) => !npcPortHasMajorProtection(port));
         if (discreetOrigins.length > 0) origin = discreetOrigins[seed % discreetOrigins.length];
       }
-      const slug = npcShipSlugForRole(profileSpec, role, seed);
+      const slugs = profileSlugsForRole(profileSpec, role, origin.factionId);
+      const slug = npcShipSlugForRole(profileSpec, role, seed, origin.factionId);
       const stats = shipStatsForSlug(slug);
       const ship = {
         id: `${profileSpec.id}-${i}`,
@@ -640,7 +650,7 @@ function createNpcFleet(system, startMinute) {
         profileId: profileSpec.id,
         mode: profileSpec.mode,
         cultureType: origin.cityType,
-        slugs: profileSlugsForRole(profileSpec, role),
+        slugs,
         slug,
         seed,
         hitPoints: stats.hitPoints,
@@ -780,15 +790,37 @@ function npcRoleForSeed(seed, originFactionId, profileSpec) {
   return NPC_ROLE_PIRATE;
 }
 
-function npcShipSlugForRole(profileSpec, role, seed) {
+function npcShipSlugForRole(profileSpec, role, seed, factionId) {
   if (!NPC_ROLE_SET.has(role)) throw new Error(`Unknown NPC ship role: ${role}`);
-  const pool = profileSlugsForRole(profileSpec, role);
+  const nationalWarship = EAST_ASIAN_FACTION_WARSHIPS[factionId];
+  if (
+    role === NPC_ROLE_WARSHIP &&
+    profileSpec.id === "east-asia" &&
+    nationalWarship &&
+    hashUnit(`${seed}|national-warship`) < 0.4
+  ) {
+    return nationalWarship;
+  }
+  if (
+    role === NPC_ROLE_MERCHANT &&
+    factionId === "portugal" &&
+    ["atlantic-coast", "cape-trade", "wide-world"].includes(profileSpec.id) &&
+    hashUnit(`${seed}|portuguese-carrack`) < 0.45
+  ) {
+    return PORTUGUESE_CARRACK_SLUG;
+  }
+  const pool = profileSlugsForRole(profileSpec, role, factionId);
   return weightedCheapShipSlug(pool, hashString32(`${seed}|${role}|hull`));
 }
 
-function profileSlugsForRole(profileSpec, role) {
+function profileSlugsForRole(profileSpec, role, factionId = null) {
   if (role === NPC_ROLE_PIRATE) return PIRATE_SHIP_SLUGS;
-  if (role === NPC_ROLE_WARSHIP) return profileSpec.warshipSlugs;
+  if (role === NPC_ROLE_WARSHIP) {
+    const nationalWarship = EAST_ASIAN_FACTION_WARSHIPS[factionId];
+    return nationalWarship && profileSpec.id === "east-asia"
+      ? [...profileSpec.warshipSlugs, nationalWarship]
+      : profileSpec.warshipSlugs;
+  }
   if (role === NPC_ROLE_FISHERMAN) return profileSpec.fisherSlugs;
   return profileSpec.merchantSlugs;
 }

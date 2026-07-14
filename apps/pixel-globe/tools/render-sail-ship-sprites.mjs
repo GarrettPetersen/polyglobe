@@ -6,12 +6,40 @@ import * as THREE from "../../../examples/globe-demo/node_modules/three/build/th
 import { FBXLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
 import {
+  CYC3W_SAILING_SHIP_MODEL_CREDIT,
+  GOGIART_DHOW_MODEL_CREDIT,
+  JAPANESE_ATAKEBUNE_MODEL_CREDIT,
+  JOSEON_PANOKSEON_MODEL_CREDIT,
+  JOSEON_TURTLE_SHIP_MODEL_CREDIT,
   MEDITERRANEAN_GALLEY_MODEL_CREDIT,
   MESOAMERICAN_CANOE_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
+  NAO_VICTORIA_MODEL_CREDIT,
+  PORTUGUESE_CARRACK_MODEL_CREDIT,
   UNITY_FLEET_MODEL_CREDIT
 } from "../src/modelCredits.js";
 import { shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
+import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
+import {
+  SHIP_DECK_NORMAL_Y,
+  SHIP_WATERLINE_DEPTH_BYTE,
+  SHIP_WATERLINE_LEVEL,
+  encodedShipWaterlineY,
+  shipPixelBakeHeight
+} from "../src/shipWaterline.js";
+import {
+  orientXForwardToZForward,
+  orientPositiveXForwardToZForward,
+  orientPositiveXForwardZUpToZForward,
+  orientYForwardZDownToZForward
+} from "../src/shipModelOrientation.js";
+import {
+  SHIP_SHADOW_FRAME_SIZE,
+  SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADINGS,
+  SHIP_SPRITE_RENDER_SIZE,
+  SHIP_SPRITE_SHEET_COLS
+} from "../src/shipSpriteLayout.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,19 +53,26 @@ const unityShipModelRoot = join(unityShipSourceRoot, "Models");
 const unityShipTexturePath = join(unityShipSourceRoot, "Textures/texture main.png");
 const nativeBoatSourceRoot = join(shipSourceRoot, "sketchfab");
 const mediterraneanGalleySourceRoot = join(shipSourceRoot, "sketchfab/mediterranean-galley");
+const joseonTurtleShipSourceRoot = join(shipSourceRoot, "sketchfab/joseon-turtle-ship");
+const joseonPanokseonSourceRoot = join(shipSourceRoot, "sketchfab/joseon-panokseon");
+const japaneseAtakebuneSourceRoot = join(shipSourceRoot, "sketchfab/atakebune-japanese-warship");
+const naoVictoriaSourceRoot = join(shipSourceRoot, "sketchfab/nao-victoria");
+const portugueseCarrackSourceRoot = join(shipSourceRoot, "sketchfab/portuguese-carrack");
+const gogiartDhowSourceRoot = join(shipSourceRoot, "sketchfab/dhow-gogiart");
+const cyc3wSailingShipSourceRoot = join(shipSourceRoot, "sketchfab/cyc3w-sailing-ship");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
 
-const frameSize = integerEnv("PIXEL_GLOBE_SHIP_FRAME_SIZE", 36);
-const headings = 16;
-const sheetCols = 4;
-const renderSize = integerEnv("PIXEL_GLOBE_SHIP_RENDER_SIZE", 72);
+const frameSize = integerEnv("PIXEL_GLOBE_SHIP_FRAME_SIZE", SHIP_SPRITE_FRAME_SIZE);
+const headings = SHIP_SPRITE_HEADINGS;
+const sheetCols = SHIP_SPRITE_SHEET_COLS;
+const renderSize = integerEnv("PIXEL_GLOBE_SHIP_RENDER_SIZE", SHIP_SPRITE_RENDER_SIZE);
 const lightAzimuthBins = 16;
 const lightElevationBins = 2;
 const lightBinCount = lightAzimuthBins * lightElevationBins;
-const shadowFrameSize = integerEnv("PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE", 72);
+const shadowFrameSize = integerEnv("PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE", SHIP_SHADOW_FRAME_SIZE);
 const shadowFrameInset = Math.floor((shadowFrameSize - frameSize) / 2);
 const previewScale = integerEnv("PIXEL_GLOBE_SHIP_PREVIEW_SCALE", 4);
 const sideViewWidth = integerEnv("PIXEL_GLOBE_SHIP_SIDE_WIDTH", 192);
@@ -51,8 +86,9 @@ const shadeDotThreshold = 0.1;
 const selfShadowMapSize = 128;
 const selfShadowDepthBias = 0.035;
 const selfShadowLookupRadius = 1;
-const waterlineQuantile = 0.18;
+const waterlineQuantile = 0.08;
 const wakeWaterlineBand = 0.12;
+const footprintWaterlineBand = 0.18;
 const wakeAftBandRatio = 0.2;
 const wakeBowShoulderRatio = 0.68;
 const wakeBowShoulderBandRatio = 0.22;
@@ -74,12 +110,42 @@ const mediterraneanGalleyMeshNames = new Set([
   "Object_24"  // deck and stern timber
 ]);
 const mediterraneanGalleyRowingFrames = 4;
+const joseonTurtleShipRowingFrames = 4;
+const joseonPanokseonRowingFrames = 4;
+const japaneseAtakebuneRowingFrames = 4;
 const vikingLongshipRowingFrames = 4;
 const canoePaddlingFrames = 4;
-const unityFleetSkippedModels = Object.freeze([
-  "Models/viking ships/viking ship 2.fbx through viking ship 4.fbx (alternate sail colors)",
-  "Models/water.fbx"
+const japaneseAtakebuneStaticOarMeshes = Object.freeze([
+  Object.freeze({
+    nodeName: "Object_13",
+    parentName: "Cube071_3",
+    positionCount: 480
+  })
 ]);
+const joseonPanokseonStaticOarMeshes = Object.freeze([
+  Object.freeze({
+    nodeName: "Object_9",
+    parentName: "Object_4",
+    positionCount: 2544
+  })
+]);
+const unityFleetExcludedModels = new Map([
+  ["boats/boat 4.fbx", "superseded by the credited gogiart Dhow model"],
+  ["ships large/ship large 1.fbx", "superseded by the credited cyc3w Sailing ship model"],
+  ["ships medium/ship medium 3.fbx", "redundant with the stronger Carrack and Spanish Nao models"],
+  ["ships small/ship small 1.fbx", "redundant with the more distinctive Xebec"],
+  ["ships small/ship small 4.fbx", "redundant with the credited gogiart Dhow model"],
+  ["ships small/ship small 6.fbx", "redundant with the Small Cog and Caravel"],
+  ["ships small/ship small 7.fbx", "redundant with the Felucca and credited gogiart Dhow models"],
+  ["viking ships/viking ship 1.fbx", "rendered by the dedicated animated-oar Viking Longship bake"],
+  ["viking ships/viking ship 2.fbx", "alternate sail color"],
+  ["viking ships/viking ship 3.fbx", "alternate sail color"],
+  ["viking ships/viking ship 4.fbx", "alternate sail color"],
+  ["water.fbx", "environment prop, not a ship"]
+]);
+const unityFleetSkippedModels = Object.freeze(
+  [...unityFleetExcludedModels].map(([path, reason]) => `Models/${path} (${reason})`)
+);
 
 function integerEnv(name, fallback) {
   const raw = process.env[name];
@@ -113,13 +179,6 @@ const unityShipRoster = new Map([
     confidence: "medium",
     notes: "Broad little hull with a simple square-sail profile."
   }],
-  ["boats/boat 4.fbx", {
-    label: "Dhow",
-    slug: "dhow",
-    identifiedType: "dhow / felucca",
-    confidence: "high",
-    notes: "Lateen sail and narrow hull read strongly as an Indian Ocean or Red Sea craft."
-  }],
   ["boats/chinese boat.fbx", {
     label: "Sampan",
     slug: "sampan",
@@ -147,13 +206,6 @@ const unityShipRoster = new Map([
     identifiedType: "early galleon / raider",
     confidence: "medium",
     notes: "Longer, heavier black-sailed hull interpreted as an armed early galleon; pirate markings are a faction treatment."
-  }],
-  ["ships large/ship large 1.fbx", {
-    label: "Galleon",
-    slug: "galleon",
-    identifiedType: "galleon",
-    confidence: "high",
-    notes: "Tall stern and large square-rigged profile."
   }],
   ["ships large/ship large 2.fbx", {
     label: "Great Galleon",
@@ -211,13 +263,6 @@ const unityShipRoster = new Map([
     confidence: "medium",
     notes: "Small explorer/trader silhouette."
   }],
-  ["ships medium/ship medium 3.fbx", {
-    label: "Small Carrack",
-    slug: "small-carrack",
-    identifiedType: "cog / small carrack",
-    confidence: "medium",
-    notes: "Roundship profile, larger than a cog but less imposing than the carrack."
-  }],
   ["ships medium/ship medium 4.fbx", {
     label: "Square-Rigged Caravel",
     slug: "square-rigged-caravel",
@@ -253,13 +298,6 @@ const unityShipRoster = new Map([
     confidence: "medium",
     notes: "Small black-sailed hull interpreted as a light pinnace; pirate markings are a faction treatment."
   }],
-  ["ships small/ship small 1.fbx", {
-    label: "Lateen Xebec",
-    slug: "lateen-xebec",
-    identifiedType: "xebec / small lateen trader",
-    confidence: "medium",
-    notes: "Small lateen-rigged Mediterranean-style craft."
-  }],
   ["ships small/ship small 2.fbx", {
     label: "Felucca",
     slug: "felucca",
@@ -274,13 +312,6 @@ const unityShipRoster = new Map([
     confidence: "medium",
     notes: "Small European fore-and-aft silhouette used as a coastal pinnace."
   }],
-  ["ships small/ship small 4.fbx", {
-    label: "Lateen Dhow",
-    slug: "lateen-dhow",
-    identifiedType: "dhow / lateen boat",
-    confidence: "high",
-    notes: "Curved lateen silhouette; good Indian Ocean/Arabian Sea craft."
-  }],
   ["ships small/ship small 5.fbx", {
     label: "Lateen Barque",
     slug: "ketch",
@@ -288,20 +319,6 @@ const unityShipRoster = new Map([
     confidence: "medium",
     notes: "Two triangular sails interpreted as a small Mediterranean lateen trader."
   }],
-  ["ships small/ship small 6.fbx", {
-    label: "Square-Sail Trader",
-    slug: "square-sail-trader",
-    identifiedType: "small cog / square-sail trader",
-    confidence: "medium",
-    notes: "Simple small trader with square-sail read."
-  }],
-  ["ships small/ship small 7.fbx", {
-    label: "Dhow-Felucca",
-    slug: "dhow-felucca",
-    identifiedType: "felucca / dhow",
-    confidence: "high",
-    notes: "Another small lateen craft; distinct source model from Felucca."
-  }]
 ]);
 
 async function loadGltf(path) {
@@ -470,9 +487,11 @@ function collectTriangles(scene, options = {}) {
   scene.updateMatrixWorld(true);
   const triangles = [];
   const allPoints = [];
+  const excludedMeshes = requiredMeshExclusionSet(scene, options.requiredExcludedMeshes);
 
   scene.traverse((node) => {
     if (!node.isMesh) return;
+    if (excludedMeshes.has(node)) return;
     if (options.includeMesh && !options.includeMesh(node)) return;
     const geometry = node.geometry;
     const positions = geometry.attributes.position;
@@ -525,6 +544,41 @@ function collectTriangles(scene, options = {}) {
     sourceMaxDim: sourceBounds.maxDim,
     targetMaxDim
   };
+}
+
+function requiredMeshExclusionSet(scene, specs = []) {
+  if (!Array.isArray(specs)) throw new Error("Required mesh exclusions must be an array");
+  if (specs.length === 0) return new Set();
+  const meshes = [];
+  scene.traverse((node) => {
+    if (node.isMesh) meshes.push(node);
+  });
+  const excluded = new Set();
+  for (const spec of specs) {
+    const matches = meshes.filter((node) => (
+      node.name === spec.nodeName && node.parent?.name === spec.parentName
+    ));
+    if (matches.length !== 1) {
+      const sameName = meshes
+        .filter((node) => node.name === spec.nodeName)
+        .map((node) => `${node.parent?.name || "<no parent>"}/${node.name}`);
+      throw new Error(
+        `Expected one source mesh ${spec.parentName}/${spec.nodeName}, found ${matches.length}; ` +
+        `same-name meshes: ${sameName.join(", ") || "none"}`
+      );
+    }
+    const mesh = matches[0];
+    const positionCount = mesh.geometry?.attributes?.position?.count;
+    if (positionCount !== spec.positionCount) {
+      throw new Error(
+        `Source mesh ${spec.parentName}/${spec.nodeName} changed: ` +
+        `expected ${spec.positionCount} positions, found ${positionCount}`
+      );
+    }
+    excluded.add(mesh);
+  }
+  if (excluded.size !== specs.length) throw new Error("Required mesh exclusions overlap");
+  return excluded;
 }
 
 function boundsForPoints(points) {
@@ -623,8 +677,11 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
   const depth = new Float32Array(size.width * size.height);
   const normals = new Float32Array(size.width * size.height * 3);
   const positions = new Float32Array(size.width * size.height * 3);
+  const features = new Int32Array(size.width * size.height);
   const casters = renderOptions?.collectCasters === false ? null : [];
   depth.fill(-Infinity);
+  features.fill(-1);
+  const featureIds = new Map();
 
   const rotation = new THREE.Matrix4().makeRotationY(modelYawForScreenHeading(headingIndex, camera));
 
@@ -639,13 +696,20 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
     if (screen.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) continue;
 
     const screenNormal = normal.clone().transformDirection(camera.matrixWorldInverse);
-    rasterizeTriangle(image.data, depth, normals, positions, screen, {
+    const featureId = tri.rasterFeature == null
+      ? -1
+      : featureIds.has(tri.rasterFeature)
+        ? featureIds.get(tri.rasterFeature)
+        : featureIds.set(tri.rasterFeature, featureIds.size).get(tri.rasterFeature);
+    rasterizeTriangle(image.data, depth, normals, positions, features, screen, {
       color: tri.color,
       normal,
       uvs: tri.uvs,
       textureSampler: tri.textureSampler || renderOptions?.textureSampler,
+      colorTransform: renderOptions?.colorTransform,
       recolorSails: renderOptions?.recolorSails,
-      waterlineY: renderOptions?.waterlineY
+      waterlineY: renderOptions?.waterlineY,
+      featureId
     }, {
       x: screenNormal.x,
       y: -screenNormal.y,
@@ -654,7 +718,7 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
   }
 
   ctx.putImageData(image, 0, 0);
-  return { canvas, normals, positions, casters: casters || [] };
+  return { canvas, normals, positions, features, casters: casters || [] };
 }
 
 function modelYawForScreenHeading(headingIndex, camera) {
@@ -682,7 +746,7 @@ function makeCasterTriangle(points) {
   };
 }
 
-function rasterizeTriangle(data, depth, normals, positions, points, surface, normal, viewport) {
+function rasterizeTriangle(data, depth, normals, positions, features, points, surface, normal, viewport) {
   const [a, b, c] = points;
   const minX = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x)));
   const minY = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y)));
@@ -722,6 +786,7 @@ function rasterizeTriangle(data, depth, normals, positions, points, surface, nor
       positions[normalOffset] = wx;
       positions[normalOffset + 1] = wy;
       positions[normalOffset + 2] = wz;
+      features[index] = surface.featureId;
     }
   }
 }
@@ -733,6 +798,7 @@ function shadeSurfaceColor(surface, point, w0, w1, w2) {
     const v = w0 * surface.uvs[0].y + w1 * surface.uvs[1].y + w2 * surface.uvs[2].y;
     color = surface.textureSampler.sample(u, v);
   }
+  if (surface.colorTransform) color = surface.colorTransform(color);
   if (surface.recolorSails && isLikelySailPixel(color, surface.normal, point, surface.waterlineY)) {
     color = neutralSailColor(color);
   }
@@ -831,14 +897,21 @@ function makeFrame(rendered, bounds, scale) {
   const drawH = Math.max(1, Math.round(bounds.height * scale));
   const drawX = Math.floor((frameSize - drawW) / 2);
   const drawY = Math.floor((frameSize - drawH) / 2);
+  const sourceSamples = hardEdgeSampleMap({
+    rgba: source.data,
+    sourceWidth,
+    sourceHeight,
+    sourceFeatures: rendered.features,
+    bounds,
+    targetWidth: drawW,
+    targetHeight: drawH
+  });
 
   for (let dy = 0; dy < drawH; dy++) {
-    const sy = bounds.minY + Math.min(bounds.height - 1, Math.floor(((dy + 0.5) / drawH) * bounds.height));
     for (let dx = 0; dx < drawW; dx++) {
-      const sx = bounds.minX + Math.min(bounds.width - 1, Math.floor(((dx + 0.5) / drawW) * bounds.width));
-      const sourceIndex = sx + sy * sourceWidth;
+      const sourceIndex = sourceSamples[dx + dy * drawW];
+      if (sourceIndex < 0) continue;
       const sourceOffset = sourceIndex * 4;
-      if (source.data[sourceOffset + 3] < 128) continue;
 
       const x = drawX + dx;
       const y = drawY + dy;
@@ -898,16 +971,43 @@ function makeSinkDepthSheet(frames, waterlineY) {
   if (!Number.isFinite(heightRange) || heightRange <= 1e-6) {
     throw new Error(`Ship sink-depth bake has no usable height range: ${heightRange}`);
   }
+  const encodedWaterlineY = encodedShipWaterlineY(waterlineY, minHeight, maxHeight);
+  const waterlineRasterPadding = heightRange / (SHIP_WATERLINE_DEPTH_BYTE - 1);
+  if (encodedWaterlineY <= minHeight || encodedWaterlineY >= maxHeight) {
+    throw new Error(`Ship encoded waterline ${encodedWaterlineY} is outside its visible height range ${minHeight}..${maxHeight}`);
+  }
 
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
   const ctx = sheet.getContext("2d");
   for (let frameIndex = 0; frameIndex < frames.length; frameIndex++) {
     const frame = frames[frameIndex];
     const image = ctx.createImageData(frameSize, frameSize);
+    const levels = new Uint8Array(frame.alpha.length);
+    let submergedPixels = 0;
     for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
       if (!frame.alpha[pixel]) continue;
-      const height = frame.positions[pixel * 3 + 1];
-      const level = Math.round(clamp((height - minHeight) / heightRange, 0, 1) * 255);
+      const normalY = frame.normals[pixel * 3 + 1];
+      const height = shipPixelBakeHeight(
+        frame.positions[pixel * 3 + 1],
+        normalY,
+        encodedWaterlineY,
+        waterlineRasterPadding
+      );
+      const level = height < encodedWaterlineY
+        ? Math.round(clamp((height - minHeight) / (encodedWaterlineY - minHeight), 0, 1) * (SHIP_WATERLINE_DEPTH_BYTE - 1))
+        : SHIP_WATERLINE_DEPTH_BYTE + Math.round(
+          clamp((height - encodedWaterlineY) / (maxHeight - encodedWaterlineY), 0, 1) *
+            (255 - SHIP_WATERLINE_DEPTH_BYTE)
+        );
+      levels[pixel] = level;
+      if (level <= SHIP_WATERLINE_DEPTH_BYTE) submergedPixels++;
+    }
+    if (submergedPixels === 0) {
+      reconcileOccludedWaterline(frame, levels, waterlineRasterPadding, frameIndex);
+    }
+    for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+      if (!frame.alpha[pixel]) continue;
+      const level = levels[pixel];
       const offset = pixel * 4;
       image.data[offset] = level;
       image.data[offset + 1] = level;
@@ -921,8 +1021,33 @@ function makeSinkDepthSheet(frames, waterlineY) {
     sheet,
     minHeight,
     maxHeight,
-    waterlineLevel: clamp((waterlineY - minHeight) / heightRange, 0, 1)
+    encodedWaterlineY,
+    waterlineLevel: SHIP_WATERLINE_LEVEL
   };
+}
+
+function reconcileOccludedWaterline(frame, levels, rasterPadding, frameIndex) {
+  let lowestSideHeight = Infinity;
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    if (frame.normals[pixel * 3 + 1] >= SHIP_DECK_NORMAL_Y) continue;
+    lowestSideHeight = Math.min(lowestSideHeight, frame.positions[pixel * 3 + 1]);
+  }
+  if (!Number.isFinite(lowestSideHeight)) {
+    throw new Error(`Ship frame ${frameIndex} has no visible side hull for waterline reconciliation`);
+  }
+
+  let reconciledPixels = 0;
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    if (frame.normals[pixel * 3 + 1] >= SHIP_DECK_NORMAL_Y) continue;
+    if (frame.positions[pixel * 3 + 1] > lowestSideHeight + rasterPadding) continue;
+    levels[pixel] = SHIP_WATERLINE_DEPTH_BYTE - 1;
+    reconciledPixels++;
+  }
+  if (reconciledPixels === 0) {
+    throw new Error(`Ship frame ${frameIndex} could not reconcile its occluded waterline`);
+  }
 }
 
 function edgeShadedFrameImage(frame, targetCtx) {
@@ -964,6 +1089,114 @@ function sheetCell(frameIndex, size) {
 
 function makeWakeAnchors(frames, waterlineY, waterlineBand = wakeWaterlineBand) {
   return frames.map((frame, frameIndex) => makeWakeAnchor(frame, frameIndex, waterlineY, waterlineBand));
+}
+
+function makeHullFootprints(frames, waterlineY, waterlineBand = footprintWaterlineBand) {
+  return frames.map((frame, frameIndex) => makeHullFootprint(frame, frameIndex, waterlineY, waterlineBand));
+}
+
+function makeHullFootprint(frame, frameIndex, waterlineY, waterlineBand) {
+  const visibleWaterlineDistances = [];
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    visibleWaterlineDistances.push(Math.abs(frame.positions[pixel * 3 + 1] - waterlineY));
+  }
+  if (visibleWaterlineDistances.length < 3) {
+    throw new Error(`Ship frame ${frameIndex} has fewer than three visible hull pixels`);
+  }
+  visibleWaterlineDistances.sort((a, b) => a - b);
+  const visibleBand = visibleWaterlineDistances[
+    Math.floor((visibleWaterlineDistances.length - 1) * 0.12)
+  ];
+  const effectiveBand = Math.max(waterlineBand, visibleBand + 1e-6);
+  const points = [];
+  for (let y = 0; y < frameSize; y++) {
+    for (let x = 0; x < frameSize; x++) {
+      const pixel = x + y * frameSize;
+      if (!frame.alpha[pixel]) continue;
+      const worldY = frame.positions[pixel * 3 + 1];
+      if (Math.abs(worldY - waterlineY) > effectiveBand) continue;
+      points.push({
+        x: x + 0.5 - frameSize / 2,
+        y: y + 0.5 - frameSize / 2
+      });
+    }
+  }
+  const polygon = convexHull(points).map((point) => ({
+    x: Number(point.x.toFixed(2)),
+    y: Number(point.y.toFixed(2))
+  }));
+  const area = Math.abs(polygonArea(polygon));
+  if (polygon.length < 3 || area < 0.25) {
+    throw new Error(
+      `Ship frame ${frameIndex} has an invalid waterline hull footprint: ${polygon.length} points, area ${area}`
+    );
+  }
+  const samples = rasterizeFootprint(polygon);
+  if (samples.length < 3) throw new Error(`Ship frame ${frameIndex} has no usable hull footprint samples`);
+  return { polygon, samples };
+}
+
+function convexHull(points) {
+  const unique = [...new Map(points.map((point) => [`${point.x},${point.y}`, point])).values()]
+    .sort((a, b) => a.x - b.x || a.y - b.y);
+  if (unique.length < 3) return unique;
+  const lower = [];
+  for (const point of unique) {
+    while (lower.length >= 2 && hullTurn(lower.at(-2), lower.at(-1), point) <= 0) lower.pop();
+    lower.push(point);
+  }
+  const upper = [];
+  for (let i = unique.length - 1; i >= 0; i--) {
+    const point = unique[i];
+    while (upper.length >= 2 && hullTurn(upper.at(-2), upper.at(-1), point) <= 0) upper.pop();
+    upper.push(point);
+  }
+  lower.pop();
+  upper.pop();
+  return [...lower, ...upper];
+}
+
+function hullTurn(a, b, c) {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function polygonArea(polygon) {
+  let area = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const next = polygon[(i + 1) % polygon.length];
+    area += polygon[i].x * next.y - next.x * polygon[i].y;
+  }
+  return area / 2;
+}
+
+function rasterizeFootprint(polygon) {
+  const minX = Math.floor(Math.min(...polygon.map((point) => point.x)));
+  const maxX = Math.ceil(Math.max(...polygon.map((point) => point.x)));
+  const minY = Math.floor(Math.min(...polygon.map((point) => point.y)));
+  const maxY = Math.ceil(Math.max(...polygon.map((point) => point.y)));
+  const samples = [];
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (!pointInsideConvexPolygon({ x, y }, polygon)) continue;
+      samples.push({ x, y });
+    }
+  }
+  return samples;
+}
+
+function pointInsideConvexPolygon(point, polygon) {
+  let sign = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const cross = (b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x);
+    if (Math.abs(cross) < 1e-6) continue;
+    const nextSign = Math.sign(cross);
+    if (sign !== 0 && sign !== nextSign) return false;
+    sign = nextSign;
+  }
+  return true;
 }
 
 function makeWakeAnchor(frame, frameIndex, waterlineY, waterlineBand) {
@@ -1488,6 +1721,7 @@ async function renderShipSpriteSet(config) {
 
   const renderOptions = {
     textureSampler,
+    colorTransform: config.colorTransform,
     recolorSails: Boolean(config.recolorSails),
     waterlineY,
     collectCasters: !config.skipSelfShadowMaps
@@ -1496,11 +1730,18 @@ async function renderShipSpriteSet(config) {
   const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
   const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
   const frames = renderedHeadings.map((rendered, i) => makeFrame(rendered, boundsByHeading[i], frameScale));
+  const footprintFrames = config.animationTrianglesForFrame
+    ? Array.from({ length: headings }, (_, i) => {
+        const rendered = renderHeading(hullTriangles, i, camera, renderOptions);
+        return makeFrame(rendered, boundsByHeading[i], frameScale);
+      })
+    : frames;
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i);
   }
   const sinkDepth = makeSinkDepthSheet(frames, waterlineY);
   const wakeAnchors = makeWakeAnchors(frames, waterlineY, config.wakeWaterlineBand);
+  const hullFootprints = makeHullFootprints(footprintFrames, waterlineY, config.footprintWaterlineBand);
 
   const lightDirections = makeLightingDirections();
   const selfShadowMaps = config.skipSelfShadowMaps
@@ -1545,6 +1786,9 @@ async function renderShipSpriteSet(config) {
     identifiedType: config.identifiedType || config.label || config.outputPrefix,
     identificationConfidence: config.identificationConfidence || "unknown",
     identificationNotes: config.identificationNotes || "",
+    ...(config.collectOptions?.requiredExcludedMeshes ? {
+      removedSourceMeshes: config.collectOptions.requiredExcludedMeshes.map((spec) => ({ ...spec }))
+    } : {}),
     ...(config.creator ? { creator: config.creator } : {}),
     ...(config.license ? { license: config.license } : {}),
     ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {}),
@@ -1556,6 +1800,7 @@ async function renderShipSpriteSet(config) {
     frameScale: Number(frameScale.toFixed(4)),
     scaleMode: config.scaleMode || "fit-model",
     waterlineY,
+    encodedWaterlineY: Number(sinkDepth.encodedWaterlineY.toFixed(6)),
     sinkHeightBins: 256,
     sinkHeightMin: Number(sinkDepth.minHeight.toFixed(6)),
     sinkHeightMax: Number(sinkDepth.maxHeight.toFixed(6)),
@@ -1567,6 +1812,7 @@ async function renderShipSpriteSet(config) {
     lightAzimuthBins,
     lightElevationBins,
     wakeAnchors,
+    hullFootprints,
     ...(config.stats ? { stats: config.stats } : {}),
     files: {
       sheet: portablePath(sheetPath),
@@ -1687,8 +1933,7 @@ function unityShipModels() {
   walkFiles(unityShipModelRoot, (path) => {
     if (extname(path).toLowerCase() !== ".fbx") return;
     const rel = relative(unityShipModelRoot, path).split("/").join("/");
-    if (rel.startsWith("viking ships/")) return;
-    if (basename(path).toLowerCase() === "water.fbx") return;
+    if (unityFleetExcludedModels.has(rel)) return;
     files.push(path);
   });
   return files.sort((a, b) => portableUnityModelPath(a).localeCompare(portableUnityModelPath(b)));
@@ -1838,11 +2083,16 @@ async function renderShipReferenceSet(config) {
   mkdirSync(config.outputDir, { recursive: true });
   const scene = await loadScene(config.modelPath);
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
+  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
   const model = collectTriangles(scene, {
-    targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim
+    targetMaxDim: config.targetModelMaxDim ?? defaultTargetModelMaxDim,
+    materialTextureSamplers,
+    ...config.collectOptions
   });
-  const triangles = model.triangles;
-  const waterlineY = estimateWaterlineY(triangles);
+  const waterlineY = estimateWaterlineY(model.triangles);
+  const triangles = config.animationTrianglesForFrame
+    ? config.animationTrianglesForFrame(model.triangles, 0, waterlineY)
+    : model.triangles;
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
   const sheetCtx = sheet.getContext("2d");
@@ -1851,6 +2101,7 @@ async function renderShipReferenceSet(config) {
 
   const renderOptions = {
     textureSampler,
+    colorTransform: config.colorTransform,
     recolorSails: Boolean(config.recolorSails),
     waterlineY
   };
@@ -1982,8 +2233,9 @@ async function renderShipSideView(config) {
     width: sideViewWidth * sideViewRenderScale,
     height: sideViewHeight * sideViewRenderScale
   };
-  const rendered = renderHeading(triangles, 0, makeSideViewCamera(), {
+  const rendered = renderHeading(triangles, config.sideViewHeading ?? 0, makeSideViewCamera(), {
     textureSampler,
+    colorTransform: config.colorTransform,
     recolorSails: Boolean(config.recolorSails),
     waterlineY
   }, renderViewport);
@@ -2036,6 +2288,7 @@ function mediterraneanGalleyConfig() {
     stats: shipStatsForSlug(slug),
     modelPath: join(mediterraneanGalleySourceRoot, "scene.gltf"),
     targetModelMaxDim: 2.22,
+    frameScale: 0.6667,
     sideViewTargetModelMaxDim: 1.9,
     recolorSails: false,
     scaleMode: "galley-pixel-derivative",
@@ -2062,16 +2315,321 @@ function mediterraneanGalleyTrianglesForFrame(hullTriangles, frameIndex, waterli
   ];
 }
 
+function joseonTurtleShipConfig() {
+  const slug = "joseon-turtle-ship";
+  return {
+    slug,
+    label: "Turtle Ship",
+    category: "Joseon warship",
+    assetLabel: "Geobukseon (Turtle Ship)",
+    identifiedType: "early Joseon armored oar-and-sail warship",
+    identificationConfidence: "high",
+    identificationNotes: "Textured geobukseon model with a procedurally animated bank of working oars.",
+    ...JOSEON_TURTLE_SHIP_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(joseonTurtleShipSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 2.28,
+    frameScale: 0.56,
+    sideViewTargetModelMaxDim: 2.05,
+    recolorSails: false,
+    scaleMode: "joseon-warship",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.22,
+    skipSelfShadowMaps: true,
+    collectOptions: {
+      transformPoint: orientTurtleShipPoint
+    },
+    animationFrameCount: joseonTurtleShipRowingFrames,
+    animationTrianglesForFrame: joseonTurtleShipTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/joseon-turtle-ship-rowing-frames.png"
+    )
+  };
+}
+
+function joseonTurtleShipTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, {
+      frameCount: joseonTurtleShipRowingFrames,
+      bankPositions: evenBankPositions(-0.48, 0.48, 5),
+      bankOffset: 0.28,
+      pivotYOffset: -0.45,
+      pivotHalfBeam: 0.27,
+      shaftLength: 0.48,
+      bladeLength: 0.14,
+      shaftRadius: 0.032,
+      bladeRadius: 0.052
+    })
+  ];
+}
+
+function joseonPanokseonConfig() {
+  const slug = "joseon-panokseon";
+  return {
+    slug,
+    label: "Panokseon",
+    category: "Joseon warship",
+    assetLabel: "Panok ship (Panokseon)",
+    identifiedType: "Joseon decked oar-and-sail warship",
+    identificationConfidence: "high",
+    identificationNotes: "The source model's static paddles are removed and replaced with smaller procedurally animated Joseon oars.",
+    ...JOSEON_PANOKSEON_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(joseonPanokseonSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 2.3,
+    frameScale: 0.58,
+    sideViewTargetModelMaxDim: 2.05,
+    recolorSails: false,
+    scaleMode: "joseon-decked-warship",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.22,
+    skipSelfShadowMaps: true,
+    collectOptions: {
+      requiredExcludedMeshes: joseonPanokseonStaticOarMeshes,
+      transformPoint: orientPanokseonPoint
+    },
+    animationFrameCount: joseonPanokseonRowingFrames,
+    animationTrianglesForFrame: joseonPanokseonTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/joseon-panokseon-rowing-frames.png"
+    )
+  };
+}
+
+function joseonPanokseonTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, {
+      frameCount: joseonPanokseonRowingFrames,
+      bankPositions: evenBankPositions(-0.5, 0.5, 6),
+      pivotYOffset: 0.1,
+      pivotHalfBeam: 0.31,
+      shaftLength: 0.32,
+      bladeLength: 0.1,
+      shaftRadius: 0.03,
+      bladeRadius: 0.048
+    })
+  ];
+}
+
+function japaneseAtakebuneConfig() {
+  const slug = "japanese-atakebune";
+  return {
+    slug,
+    label: "Atakebune",
+    category: "Japanese warship",
+    assetLabel: "Atakebune Japanese Medieval Warship",
+    identifiedType: "Japanese coastal fortress warship",
+    identificationConfidence: "high",
+    identificationNotes: "The source model's static oars are removed and replaced with procedurally animated working oars.",
+    ...JAPANESE_ATAKEBUNE_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(japaneseAtakebuneSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 2.3,
+    frameScale: 0.6,
+    sideViewTargetModelMaxDim: 2.08,
+    recolorSails: false,
+    scaleMode: "japanese-fortress-warship",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.22,
+    skipSelfShadowMaps: true,
+    collectOptions: {
+      requiredExcludedMeshes: japaneseAtakebuneStaticOarMeshes,
+      transformPoint: orientAtakebunePoint
+    },
+    animationFrameCount: japaneseAtakebuneRowingFrames,
+    animationTrianglesForFrame: japaneseAtakebuneTrianglesForFrame,
+    animationContactSheetPath: join(
+      appRoot,
+      "docs/ship-reference/japanese-atakebune-rowing-frames.png"
+    )
+  };
+}
+
+function spanishNaoConfig() {
+  const slug = "spanish-nao";
+  return {
+    slug,
+    label: "Spanish Nao",
+    category: "Iberian exploration ship",
+    assetLabel: "Nao Victoria Galleon Ship",
+    identifiedType: "early-16th-century Spanish nao / small carrack",
+    identificationConfidence: "high",
+    identificationNotes: "The source depicts Nao Victoria; the gameplay hull represents the broader Spanish nao class.",
+    ...NAO_VICTORIA_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(naoVictoriaSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 2.3,
+    frameScale: 0.56,
+    sideViewTargetModelMaxDim: 2.0,
+    recolorSails: false,
+    colorTransform: spanishNaoTextureColor,
+    scaleMode: "spanish-nao",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.2,
+    skipSelfShadowMaps: true
+  };
+}
+
+function portugueseCarrackConfig() {
+  const slug = "portuguese-carrack";
+  return {
+    slug,
+    label: "Portuguese Carrack",
+    category: "Portuguese ocean-going merchant",
+    assetLabel: "Portuguese Carrack",
+    identifiedType: "early-16th-century Portuguese carrack",
+    identificationConfidence: "high",
+    identificationNotes: "Portugal-specific armed merchant carrack retaining the source model's cream and red sail treatment.",
+    ...PORTUGUESE_CARRACK_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(portugueseCarrackSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 2.3,
+    frameScale: 0.62,
+    sideViewTargetModelMaxDim: 2.1,
+    recolorSails: false,
+    scaleMode: "portuguese-carrack",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.2,
+    collectOptions: {
+      transformPoint: orientPortugueseCarrackPoint
+    }
+  };
+}
+
+function gogiartDhowConfig() {
+  const slug = "dhow";
+  return {
+    slug,
+    label: "Dhow",
+    category: "Indian Ocean merchant",
+    assetLabel: "Dhow",
+    identifiedType: "ocean-going lateen-rigged dhow",
+    identificationConfidence: "high",
+    identificationNotes: "A purpose-built dhow model replaces the generic Unity lateen boat while retaining the existing gameplay hull.",
+    ...GOGIART_DHOW_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(gogiartDhowSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 1.58,
+    frameScale: 0.64,
+    sideViewTargetModelMaxDim: 1.65,
+    recolorSails: false,
+    scaleMode: "standalone-source-relative",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.18,
+    collectOptions: {
+      transformPoint: orientGogiartDhowPoint
+    }
+  };
+}
+
+function cyc3wGalleonConfig() {
+  const slug = "galleon";
+  return {
+    slug,
+    label: "Galleon",
+    category: "European armed merchant",
+    assetLabel: "Sailing ship",
+    identifiedType: "three-masted galleon / armed merchant",
+    identificationConfidence: "medium",
+    identificationNotes: "A detailed mixed square-and-lateen rig replaces the generic Unity galleon while retaining the existing gameplay hull.",
+    ...CYC3W_SAILING_SHIP_MODEL_CREDIT,
+    stats: shipStatsForSlug(slug),
+    modelPath: join(cyc3wSailingShipSourceRoot, "scene.gltf"),
+    targetModelMaxDim: 2.3,
+    frameScale: 0.62,
+    sideViewTargetModelMaxDim: 2.1,
+    recolorSails: false,
+    colorTransform: cyc3wSailingShipTextureColor,
+    scaleMode: "standalone-source-relative",
+    outputDir: unityFleetOutputRoot,
+    outputPrefix: `${slug}-16-headings`,
+    wakeWaterlineBand: 0.2,
+    collectOptions: {
+      transformPoint: orientCyc3wSailingShipPoint
+    }
+  };
+}
+
+function spanishNaoTextureColor(color) {
+  return liftTextureColor(color, { rScale: 1.75, gScale: 1.65, bScale: 1.5, rOffset: 20, gOffset: 18, bOffset: 14 });
+}
+
+function cyc3wSailingShipTextureColor(color) {
+  return liftTextureColor(color, { rScale: 1.4, gScale: 1.4, bScale: 1.4, rOffset: 16, gOffset: 16, bOffset: 16 });
+}
+
+function liftTextureColor(color, { rScale, gScale, bScale, rOffset, gOffset, bOffset }) {
+  return {
+    r: clamp255(color.r * rScale + rOffset),
+    g: clamp255(color.g * gScale + gOffset),
+    b: clamp255(color.b * bScale + bOffset)
+  };
+}
+
+function orientAtakebunePoint(point) {
+  return vectorFromCoordinates(orientXForwardToZForward(point));
+}
+
+function orientTurtleShipPoint(point) {
+  return vectorFromCoordinates(orientPositiveXForwardToZForward(point));
+}
+
+function orientPanokseonPoint(point) {
+  return vectorFromCoordinates(orientYForwardZDownToZForward(point));
+}
+
+function orientPortugueseCarrackPoint(point) {
+  return vectorFromCoordinates(orientXForwardToZForward(point));
+}
+
+function orientGogiartDhowPoint(point) {
+  return vectorFromCoordinates(orientXForwardToZForward(point));
+}
+
+function orientCyc3wSailingShipPoint(point) {
+  return vectorFromCoordinates(orientPositiveXForwardZUpToZForward(point));
+}
+
+function vectorFromCoordinates(point) {
+  return new THREE.Vector3(point.x, point.y, point.z);
+}
+
+function japaneseAtakebuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
+  return [
+    ...hullTriangles,
+    ...makeOarBankTriangles(frameIndex, waterlineY, {
+      frameCount: japaneseAtakebuneRowingFrames,
+      bankPositions: evenBankPositions(-0.42, 0.28, 4),
+      pivotYOffset: 0.035,
+      pivotHalfBeam: 0.35,
+      shaftLength: 0.28,
+      bladeLength: 0.09,
+      shaftRadius: 0.03,
+      bladeRadius: 0.048
+    })
+  ];
+}
+
 function makeGalleyOarTriangles(frameIndex, waterlineY) {
   return makeOarBankTriangles(frameIndex, waterlineY, {
     frameCount: mediterraneanGalleyRowingFrames,
-    bankPositions: [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45],
+    bankPositions: evenBankPositions(-0.45, 0.45, 5),
     pivotYOffset: 0.21,
     pivotHalfBeam: 0.19,
     shaftLength: 0.57,
     bladeLength: 0.16,
-    shaftRadius: 0.024,
-    bladeRadius: 0.038
+    shaftRadius: 0.032,
+    bladeRadius: 0.05
   });
 }
 
@@ -2086,7 +2644,8 @@ function makeOarBankTriangles(frameIndex, waterlineY, config) {
   const triangles = [];
   const pivotY = waterlineY + config.pivotYOffset;
   for (const side of [-1, 1]) {
-    for (const bankZ of config.bankPositions) {
+    for (let bankIndex = 0; bankIndex < config.bankPositions.length; bankIndex++) {
+      const bankZ = config.bankPositions[bankIndex] + (config.bankOffset ?? 0);
       const pivot = new THREE.Vector3(side * config.pivotHalfBeam, pivotY, bankZ);
       const shaftEnd = new THREE.Vector3(
         pivot.x + side * config.shaftLength * Math.cos(sweep),
@@ -2098,11 +2657,22 @@ function makeOarBankTriangles(frameIndex, waterlineY, config) {
         lift * 0.35,
         config.bladeLength * Math.sin(sweep)
       ));
-      triangles.push(...makePrismTriangles(pivot, shaftEnd, config.shaftRadius, oarColor, 5));
-      triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5));
+      const rasterFeature = `oar:${side}:${bankIndex}`;
+      triangles.push(...makePrismTriangles(pivot, shaftEnd, config.shaftRadius, oarColor, 5, rasterFeature));
+      triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5, rasterFeature));
     }
   }
   return triangles;
+}
+
+function evenBankPositions(min, max, count) {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || !(max > min)) {
+    throw new Error(`Oar bank requires a finite increasing range, got ${min} to ${max}`);
+  }
+  if (!Number.isInteger(count) || count < 2) {
+    throw new Error(`Oar bank requires at least two positions, got ${count}`);
+  }
+  return Array.from({ length: count }, (_, index) => min + (max - min) * index / (count - 1));
 }
 
 function vikingLongshipConfig() {
@@ -2140,13 +2710,13 @@ function vikingLongshipTrianglesForFrame(hullTriangles, frameIndex, waterlineY) 
     ...hullTriangles,
     ...makeOarBankTriangles(frameIndex, waterlineY, {
       frameCount: vikingLongshipRowingFrames,
-      bankPositions: [-0.56, -0.42, -0.28, -0.14, 0, 0.14, 0.28, 0.42, 0.56],
+      bankPositions: evenBankPositions(-0.56, 0.56, 6),
       pivotYOffset: 0.19,
       pivotHalfBeam: 0.18,
       shaftLength: 0.5,
       bladeLength: 0.14,
-      shaftRadius: 0.022,
-      bladeRadius: 0.036
+      shaftRadius: 0.03,
+      bladeRadius: 0.048
     })
   ];
 }
@@ -2198,7 +2768,7 @@ function makeCanoePaddleTriangles(frameIndex, waterlineY, config) {
   return triangles;
 }
 
-function makePrismTriangles(start, end, radius, color, sides) {
+function makePrismTriangles(start, end, radius, color, sides, rasterFeature = null) {
   const axis = end.clone().sub(start).normalize();
   const reference = Math.abs(axis.y) < 0.9
     ? new THREE.Vector3(0, 1, 0)
@@ -2216,7 +2786,8 @@ function makePrismTriangles(start, end, radius, color, sides) {
     points: [a.clone(), b.clone(), c.clone()],
     uvs: null,
     color,
-    textureSampler: null
+    textureSampler: null,
+    rasterFeature
   });
   for (let index = 0; index < sides; index++) {
     const next = (index + 1) % sides;
@@ -2246,6 +2817,92 @@ async function renderVikingLongship() {
   console.log(config.animationContactSheetPath);
 }
 
+async function renderJoseonTurtleShip() {
+  const config = joseonTurtleShipConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "joseonTurtleShipGenerator",
+    "--joseon-turtle-ship"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
+async function renderJoseonPanokseon() {
+  const config = joseonPanokseonConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "joseonPanokseonGenerator",
+    "--joseon-panokseon"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
+async function renderJapaneseAtakebune() {
+  const config = japaneseAtakebuneConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "japaneseAtakebuneGenerator",
+    "--japanese-atakebune"
+  );
+  console.log(result.entry.files.sheet);
+  console.log(config.animationContactSheetPath);
+}
+
+async function renderSpanishNao() {
+  const config = spanishNaoConfig();
+  const result = await renderStandaloneShip(config, "spanishNaoGenerator", "--spanish-nao");
+  console.log(result.entry.files.sheet);
+}
+
+async function renderPortugueseCarrack() {
+  const config = portugueseCarrackConfig();
+  const result = await renderStandaloneShip(
+    config,
+    "portugueseCarrackGenerator",
+    "--portuguese-carrack"
+  );
+  console.log(result.entry.files.sheet);
+}
+
+async function renderGogiartDhow() {
+  const config = gogiartDhowConfig();
+  const result = await renderStandaloneShip(config, "gogiartDhowGenerator", "--gogiart-dhow");
+  console.log(result.entry.files.sheet);
+}
+
+async function renderCyc3wGalleon() {
+  const config = cyc3wGalleonConfig();
+  const result = await renderStandaloneShip(config, "cyc3wGalleonGenerator", "--cyc3w-galleon");
+  console.log(result.entry.files.sheet);
+}
+
+function standaloneShipConfigForSlug(slug) {
+  if (slug === "mediterranean-galley") return mediterraneanGalleyConfig();
+  if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
+  if (slug === "joseon-panokseon") return joseonPanokseonConfig();
+  if (slug === "japanese-atakebune") return japaneseAtakebuneConfig();
+  if (slug === "spanish-nao") return spanishNaoConfig();
+  if (slug === "portuguese-carrack") return portugueseCarrackConfig();
+  if (slug === "dhow") return gogiartDhowConfig();
+  if (slug === "galleon") return cyc3wGalleonConfig();
+  if (slug === "viking-longship") return vikingLongshipConfig();
+  throw new Error(`Unsupported standalone comparison ship: ${slug}`);
+}
+
+async function renderStandaloneComparison(args) {
+  const slug = args.value("--comparison-ship");
+  const outputDir = args.value("--output-dir");
+  if (!slug) throw new Error("--comparison-ship requires a ship slug");
+  if (!outputDir) throw new Error("--comparison-ship requires --output-dir");
+  const config = standaloneShipConfigForSlug(slug);
+  config.outputDir = resolve(outputDir);
+  config.outputPrefix = args.value("--output-prefix") || `${slug}-comparison-16-headings`;
+  const result = await renderShipReferenceSet(config);
+  console.log(result.files.referenceSheet);
+}
+
 async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   const sourceScene = await loadScene(config.modelPath);
   config.sourceMaxDim = collectTriangles(sourceScene, {
@@ -2258,7 +2915,7 @@ async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   const rendered = await renderShipSpriteSet(config);
   const manifestPath = join(unityFleetOutputRoot, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  const { sheet, wakeAnchors, ...entry } = rendered;
+  const { sheet, wakeAnchors, hullFootprints, ...entry } = rendered;
   manifest.ships = upsertShipEntries(manifest.ships, [entry]);
   manifest.skipped = unityFleetSkippedModels;
   manifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
@@ -2270,13 +2927,15 @@ async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   wakeManifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
   writeFileSync(wakePath, `${JSON.stringify(wakeManifest)}\n`);
 
+  upsertHullFootprints(config.slug, hullFootprints, generatorKey, generatorFlag);
+
   const sideViewPath = join(unityFleetSideViewOutputRoot, "manifest.json");
   const sideViewManifest = JSON.parse(readFileSync(sideViewPath, "utf8"));
   const sideView = await renderShipSideView(config);
   sideViewManifest.ships = upsertShipEntries(sideViewManifest.ships, [sideView]);
   sideViewManifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
   writeFileSync(sideViewPath, `${JSON.stringify(sideViewManifest, null, 2)}\n`);
-  return { entry, wakeAnchors, sideView };
+  return { entry, wakeAnchors, hullFootprints, sideView };
 }
 
 async function renderMediterraneanGalleyReference() {
@@ -2359,7 +3018,7 @@ async function renderNativeBoats() {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   manifest.ships = upsertShipEntries(
     manifest.ships,
-    rendered.map(({ sheet, wakeAnchors, ...entry }) => entry)
+    rendered.map(({ sheet, wakeAnchors, hullFootprints, ...entry }) => entry)
   );
   manifest.nativeBoatGenerator = "tools/render-sail-ship-sprites.mjs --native-boats";
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -2369,6 +3028,10 @@ async function renderNativeBoats() {
   for (const entry of rendered) wakeManifest.ships[entry.slug] = entry.wakeAnchors;
   wakeManifest.nativeBoatGenerator = "tools/render-sail-ship-sprites.mjs --native-boats";
   writeFileSync(wakePath, `${JSON.stringify(wakeManifest)}\n`);
+
+  for (const entry of rendered) {
+    upsertHullFootprints(entry.slug, entry.hullFootprints, "nativeBoatGenerator", "--native-boats");
+  }
 
   const sideViewPath = join(unityFleetSideViewOutputRoot, "manifest.json");
   const sideViewManifest = JSON.parse(readFileSync(sideViewPath, "utf8"));
@@ -2382,6 +3045,17 @@ async function renderNativeBoats() {
 function upsertShipEntries(existing, replacements) {
   const replacementSlugs = new Set(replacements.map((entry) => entry.slug));
   return [...existing.filter((entry) => !replacementSlugs.has(entry.slug)), ...replacements];
+}
+
+function upsertHullFootprints(slug, hullFootprints, generatorKey, generatorFlag) {
+  const footprintPath = join(unityFleetOutputRoot, "hull-footprints.json");
+  const bake = JSON.parse(readFileSync(footprintPath, "utf8"));
+  if (bake.frameSize !== frameSize || bake.headings !== headings || !bake.ships) {
+    throw new Error("Existing ship hull footprint bake has incompatible dimensions");
+  }
+  bake.ships[slug] = hullFootprints;
+  bake[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
+  writeFileSync(footprintPath, `${JSON.stringify(bake)}\n`);
 }
 
 async function renderUnityFleetSideViews() {
@@ -2464,14 +3138,15 @@ async function renderUnityFleet() {
     console.log(`  ${entry.files.sheet}`);
   }
 
-  const manifestForDisk = manifest.map(({ sheet, wakeAnchors, ...entry }) => entry);
+  const manifestForDisk = manifest.map(({ sheet, wakeAnchors, hullFootprints, ...entry }) => entry);
   const manifestPath = join(unityFleetOutputRoot, "manifest.json");
   const wakeAnchorsPath = join(unityFleetOutputRoot, "wake-anchors.json");
+  const hullFootprintsPath = join(unityFleetOutputRoot, "hull-footprints.json");
   writeFileSync(manifestPath, `${JSON.stringify({
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
     sourceRoot: portablePath(unityShipSourceRoot),
     scaleMode: "source-relative-fleet",
-    scaleNotes: "Imported FBX source sizes are preserved through a compressed readability curve so boats stay smaller without becoming illegible at 36px.",
+    scaleNotes: `Imported FBX source sizes are preserved through a compressed readability curve so boats stay smaller without becoming illegible at ${frameSize}px.`,
     targetMaxDimForLargestShip: defaultTargetModelMaxDim,
     fleetScaleExponent: unityFleetScaleExponent,
     sharedFrameScale: Number(sharedFrameScale.toFixed(4)),
@@ -2484,13 +3159,34 @@ async function renderUnityFleet() {
     headings,
     ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.wakeAnchors]))
   })}\n`);
+  writeFileSync(hullFootprintsPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
+    frameSize,
+    headings,
+    ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.hullFootprints]))
+  })}\n`);
 
   const contactSheet = makeFleetContactSheet(manifest);
   const contactSheetPath = join(unityFleetOutputRoot, "unity-ships-contact-sheet.png");
   writeFileSync(contactSheetPath, contactSheet.toBuffer("image/png"));
   console.log(manifestPath);
   console.log(wakeAnchorsPath);
+  console.log(hullFootprintsPath);
   console.log(contactSheetPath);
+}
+
+async function renderAllProductionShips() {
+  await renderUnityFleet();
+  await renderUnityFleetSideViews();
+  await renderNativeBoats();
+  await renderMediterraneanGalley();
+  await renderJoseonTurtleShip();
+  await renderJoseonPanokseon();
+  await renderJapaneseAtakebune();
+  await renderSpanishNao();
+  await renderPortugueseCarrack();
+  await renderGogiartDhow();
+  await renderCyc3wGalleon();
 }
 
 async function renderUnityFleetReferences() {
@@ -2530,6 +3226,15 @@ async function renderUnityFleetReferences() {
 
   const references = [];
   for (const config of measuredConfigs) {
+    console.log(`reference ${config.slug}`);
+    const entry = await renderShipReferenceSet(config);
+    references.push(entry);
+    console.log(`  ${entry.files.referenceSheet}`);
+  }
+  for (const config of [gogiartDhowConfig(), cyc3wGalleonConfig()]) {
+    config.sourceMaxDim = await measureSourceMaxDim(config.modelPath);
+    config.outputDir = unityFleetReferenceOutputRoot;
+    config.outputPrefix = `${config.slug}-reference-16-headings`;
     console.log(`reference ${config.slug}`);
     const entry = await renderShipReferenceSet(config);
     references.push(entry);
@@ -2585,6 +3290,14 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.has("--all-production-ships")) {
+    await renderAllProductionShips();
+    return;
+  }
+  if (args.has("--comparison-ship")) {
+    await renderStandaloneComparison(args);
+    return;
+  }
   if (args.has("--mediterranean-galley-reference")) {
     await renderMediterraneanGalleyReference();
     return;
@@ -2595,6 +3308,34 @@ async function main() {
   }
   if (args.has("--viking-longship")) {
     await renderVikingLongship();
+    return;
+  }
+  if (args.has("--joseon-turtle-ship")) {
+    await renderJoseonTurtleShip();
+    return;
+  }
+  if (args.has("--joseon-panokseon")) {
+    await renderJoseonPanokseon();
+    return;
+  }
+  if (args.has("--japanese-atakebune")) {
+    await renderJapaneseAtakebune();
+    return;
+  }
+  if (args.has("--spanish-nao")) {
+    await renderSpanishNao();
+    return;
+  }
+  if (args.has("--portuguese-carrack")) {
+    await renderPortugueseCarrack();
+    return;
+  }
+  if (args.has("--gogiart-dhow")) {
+    await renderGogiartDhow();
+    return;
+  }
+  if (args.has("--cyc3w-galleon")) {
+    await renderCyc3wGalleon();
     return;
   }
   if (args.has("--native-boats")) {

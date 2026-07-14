@@ -5,8 +5,15 @@ import {
 } from "./cannonEquipment.js";
 import { advanceCannonSmokeBursts, createCannonSmokeBurst } from "./cannonSmoke.js";
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
-import { resolveShipCollision, shipCollisionRadius } from "./shipCollision.js";
+import { resolveShipCollision } from "./shipCollision.js";
 import { firstNavalProjectileHit, navalProjectilePoint } from "./navalProjectile.js";
+import {
+  pointInShipFootprint,
+  shipFootprintCenter,
+  shipFootprintFrame,
+  shipFootprintRadius,
+  translatedShipFootprint
+} from "./shipFootprint.js";
 import { shipPropulsionPerformance } from "./shipPropulsion.js";
 import { SHIP_PROPULSION_SAIL, SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import {
@@ -95,19 +102,21 @@ export function createLakeBattle({
   enemySlug,
   playerCannonEquipmentId = STANDARD_CANNON_EQUIPMENT_ID,
   enemyCannonEquipmentId = STANDARD_CANNON_EQUIPMENT_ID,
+  shipFootprints,
   seed = LAKE_BATTLE_DEFAULT_SEED
 }) {
   validateArenaSize(width, height);
   validateBattleShipSlug(playerSlug);
   validateBattleEnemySlug(enemySlug);
   if (!Number.isInteger(seed)) throw new Error(`Lake battle seed must be an integer: ${seed}`);
+  validateLakeBattleShipFootprints(shipFootprints, playerSlug, enemySlug);
   const map = createLakeBattleArenaMap(width, height, seed);
   const playerStats = lakeBattleCombatantStats(playerSlug);
   const enemyStats = lakeBattleCombatantStats(enemySlug);
-  const playerSpawn = lakeBattleMapSpawnPoint(map, "player", shipCollisionRadius(playerStats.mass) * 0.72);
+  const playerSpawn = lakeBattleMapSpawnPoint(map, "player", lakeBattleSlugFootprintRadius(shipFootprints, playerSlug));
   const enemySpawn = enemySlug === LAKE_BATTLE_CITY_SLUG
     ? lakeBattleMapCoastalSpawnPoint(map)
-    : lakeBattleMapSpawnPoint(map, "enemy", shipCollisionRadius(enemyStats.mass) * 0.72);
+    : lakeBattleMapSpawnPoint(map, "enemy", lakeBattleSlugFootprintRadius(shipFootprints, enemySlug));
 
   const state = {
     width,
@@ -116,7 +125,9 @@ export function createLakeBattle({
     outcome: null,
     elapsedSeconds: 0,
     map,
+    waterMask: buildLakeBattleMapWaterMask(map),
     wind: createLakeBattleWind(seed ^ LAKE_BATTLE_WIND_SEED_SALT),
+    shipFootprints,
     player: createBattleShip(
       LAKE_BATTLE_PLAYER_ID,
       playerSlug,
@@ -215,6 +226,7 @@ export function resizeLakeBattle(state, width, height) {
   state.width = width;
   state.height = height;
   state.map = createLakeBattleMap(width, height, state.map.seed);
+  state.waterMask = buildLakeBattleMapWaterMask(state.map);
   relocateShipToNavigableMapCell(state, state.player);
   relocateShipToNavigableMapCell(state, state.enemy);
   assertShipFitsLake(state, state.player);
@@ -236,7 +248,7 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
   const count = battleVolleyCount(ship);
   const side = lakeBattleBroadsideDirection(ship, sideName);
   const sourcePoint = lakeBattleCombatantPoint(ship);
-  const targetPoint = lakeBattleCombatantPoint(target);
+  const targetPoint = lakeBattleCombatantAimPoint(state, target);
   const toTarget = normalizedDirection(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
   const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
   const range = lakeBattleWeaponRange(ship);
@@ -293,8 +305,15 @@ export function buildLakeBattleWaterMask(map) {
 
 export function lakeBattleShipFitsInWater(state, ship, x = ship.x, y = ship.y) {
   if (ship.kind === "city") return lakeBattleCityFitsShore(state, x, y);
-  const radius = shipCollisionRadius(ship.stats.mass) * 0.72;
-  return lakeBattleMapWaterAt(state.map, x, y, radius);
+  const frame = lakeBattleShipFootprintFrame(state, ship);
+  return frame.samples.every((sample) => lakeBattleMaskWaterAt(state, x + sample.x, y + sample.y));
+}
+
+function lakeBattleMaskWaterAt(state, x, y) {
+  const px = Math.floor(x);
+  const py = Math.floor(y);
+  if (px < 0 || px >= state.width || py < 0 || py >= state.height) return false;
+  return state.waterMask[py * state.width + px] === 1;
 }
 
 export function lakeBattleWindFlowDirection(battle) {
@@ -424,7 +443,6 @@ function relocateShipToNavigableMapCell(state, ship) {
     return;
   }
   if (lakeBattleShipFitsInWater(state, ship)) return;
-  const radius = shipCollisionRadius(ship.stats.mass) * 0.72;
   const candidates = state.map.cells
     .filter((cell) => cell.water && cell.shoreDistance >= 2)
     .sort((a, b) => {
@@ -432,7 +450,7 @@ function relocateShipToNavigableMapCell(state, ship) {
       const bDistance = (b.x - ship.x) ** 2 + (b.y - ship.y) ** 2;
       return aDistance - bDistance || a.id - b.id;
     });
-  const target = candidates.find((cell) => lakeBattleMapWaterAt(state.map, cell.x, cell.y, radius));
+  const target = candidates.find((cell) => lakeBattleShipFitsInWater(state, ship, cell.x, cell.y));
   if (!target) throw new Error(`Could not place ${ship.slug} in resized lake battle map`);
   ship.x = target.x;
   ship.y = target.y;
@@ -442,7 +460,9 @@ function relocateShipToNavigableMapCell(state, ship) {
 function updateBattleShipMotion(state, ship, desiredHeadingRad, dt) {
   if (ship.kind === "city") return;
   if (desiredHeadingRad !== null) {
+    const previousHeadingRad = ship.headingRad;
     ship.headingRad = rotateAngleToward(ship.headingRad, desiredHeadingRad, ship.stats.turnRateRad * dt);
+    if (!lakeBattleShipFitsInWater(state, ship)) ship.headingRad = previousHeadingRad;
   }
   const heading = lakeBattleHeadingVector(ship);
   const windFlowDirection = lakeBattleWindFlowDirection(state);
@@ -605,7 +625,7 @@ function fireEnemyWhenAligned(state) {
   const enemy = state.enemy;
   if (enemy.kind === "city") {
     const source = lakeBattleCombatantPoint(enemy);
-    const target = lakeBattleCombatantPoint(state.player);
+    const target = lakeBattleCombatantAimPoint(state, state.player);
     const direction = Math.atan2(target.y - source.y, target.x - source.x);
     enemy.headingRad = normalizeAngle(direction - Math.PI / 2);
     return fireLakeBattleBroadside(state, enemy.id, "starboard");
@@ -636,7 +656,9 @@ function updateProjectiles(state, dt) {
             [{
               id: target.id,
               ...lakeBattleCombatantPoint(target),
-              radius: lakeBattleCombatantHitRadius(target)
+              ...(lakeBattleCombatantIsCity(target)
+                ? { radius: lakeBattleCombatantHitRadius(target) }
+                : { footprint: lakeBattleShipWorldFootprint(state, target) })
             }]
           )
         : null;
@@ -650,12 +672,15 @@ function updateProjectiles(state, dt) {
       continue;
     }
     const target = projectile.targetId ? lakeBattleShipById(state, projectile.targetId) : null;
-    const hitRadius = target ? lakeBattleCombatantHitRadius(target) : 0;
-    const hit = target && target.hitPoints > 0 &&
-      Math.hypot(
-        lakeBattleCombatantPoint(target).x - projectile.targetX,
-        lakeBattleCombatantPoint(target).y - projectile.targetY
-      ) <= hitRadius;
+    const hit = target && target.hitPoints > 0 && (lakeBattleCombatantIsCity(target)
+      ? Math.hypot(
+          lakeBattleCombatantPoint(target).x - projectile.targetX,
+          lakeBattleCombatantPoint(target).y - projectile.targetY
+        ) <= lakeBattleCombatantHitRadius(target)
+      : pointInShipFootprint(
+          { x: projectile.targetX, y: projectile.targetY },
+          lakeBattleShipWorldFootprint(state, target)
+        ));
     if (hit) {
       applyLakeBattleProjectileHit(state, projectile, target, {
         x: projectile.targetX,
@@ -711,8 +736,8 @@ function updateEffects(state, dt) {
 
 function resolveBattleShipCollision(state) {
   if (state.player.kind === "city" || state.enemy.kind === "city") return false;
-  const a = collisionBody(state.player);
-  const b = collisionBody(state.enemy);
+  const a = collisionBody(state, state.player);
+  const b = collisionBody(state, state.enemy);
   const result = resolveShipCollision(a, b);
   if (!result) return false;
   const playerX = state.player.x + result.a.correctionX;
@@ -738,7 +763,7 @@ function resolveBattleShipCollision(state) {
   return true;
 }
 
-function collisionBody(ship) {
+function collisionBody(state, ship) {
   const heading = lakeBattleHeadingVector(ship);
   return {
     id: ship.id,
@@ -749,7 +774,7 @@ function collisionBody(ship) {
     headingX: heading.x,
     headingY: heading.y,
     mass: ship.stats.mass,
-    radius: shipCollisionRadius(ship.stats.mass)
+    footprint: lakeBattleShipWorldFootprint(state, ship)
   };
 }
 
@@ -842,7 +867,41 @@ export function lakeBattleCombatantIsCity(combatantOrSlug) {
 
 export function lakeBattleCombatantHitRadius(combatant) {
   if (!combatant?.stats) throw new Error("Lake battle hit radius requires a combatant");
-  return lakeBattleCombatantIsCity(combatant) ? 14 : shipCollisionRadius(combatant.stats.mass) + 2;
+  return lakeBattleCombatantIsCity(combatant)
+    ? 14
+    : clamp(7 + Math.sqrt(combatant.stats.mass) / 5, 8, 12);
+}
+
+function lakeBattleShipFootprintFrame(state, ship) {
+  const frames = state.shipFootprints?.get(ship.slug);
+  if (!frames) throw new Error(`Lake battle is missing hull footprints for ${ship.slug}`);
+  return shipFootprintFrame(frames, lakeBattleHeadingVector(ship));
+}
+
+function lakeBattleShipWorldFootprint(state, ship) {
+  const point = lakeBattleCombatantPoint(ship);
+  return translatedShipFootprint(lakeBattleShipFootprintFrame(state, ship), point.x, point.y);
+}
+
+function lakeBattleCombatantAimPoint(state, combatant) {
+  if (lakeBattleCombatantIsCity(combatant)) return lakeBattleCombatantPoint(combatant);
+  const point = lakeBattleCombatantPoint(combatant);
+  const center = shipFootprintCenter(lakeBattleShipFootprintFrame(state, combatant));
+  return { x: point.x + center.x, y: point.y + center.y };
+}
+
+function lakeBattleSlugFootprintRadius(shipFootprints, slug) {
+  const frames = shipFootprints.get(slug);
+  if (!frames) throw new Error(`Lake battle is missing hull footprints for ${slug}`);
+  return Math.max(...frames.map(shipFootprintRadius));
+}
+
+function validateLakeBattleShipFootprints(shipFootprints, playerSlug, enemySlug) {
+  if (!(shipFootprints instanceof Map)) throw new Error("Lake battle requires the baked ship hull footprints");
+  for (const slug of [playerSlug, enemySlug]) {
+    if (slug === LAKE_BATTLE_CITY_SLUG) continue;
+    if (!shipFootprints.has(slug)) throw new Error(`Lake battle is missing hull footprints for ${slug}`);
+  }
 }
 
 export function lakeBattleCombatantPoint(combatant) {
@@ -860,6 +919,7 @@ function validateBattleState(state) {
   validateArenaSize(state.width, state.height);
   if (
     !state.player || !state.enemy || !state.map || !state.wind ||
+    !(state.waterMask instanceof Uint8Array) || state.waterMask.length !== state.width * state.height ||
     !Array.isArray(state.projectiles) || !Array.isArray(state.cannonSmokeBursts) ||
     !Array.isArray(state.hullSplinterBursts) || !Array.isArray(state.events)
   ) {

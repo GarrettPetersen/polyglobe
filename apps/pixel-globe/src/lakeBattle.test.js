@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   LAKE_BATTLE_ENEMY_ID,
@@ -9,10 +10,11 @@ import {
   LAKE_BATTLE_PLAYER_ID,
   LAKE_BATTLE_SHIP_SLUGS,
   buildLakeBattleWaterMask,
-  createLakeBattle,
+  createLakeBattle as createRuntimeLakeBattle,
   drainLakeBattleEvents,
   fireLakeBattleBroadside,
   lakeBattleBroadsideDirection,
+  lakeBattleHeadingVector,
   lakeBattleShipFitsInWater,
   lakeBattleWindFlowDirection,
   lakeBattleWeaponRange,
@@ -23,6 +25,26 @@ import {
   SHORE_BATTERY_HIT_POINTS_PER_GUN,
   SHORE_BATTERY_RELOAD_SECONDS
 } from "./shoreBatteries.js";
+import {
+  shipFootprintCenter,
+  shipFootprintFrame,
+  validateShipFootprintBake
+} from "./shipFootprint.js";
+import {
+  SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADINGS
+} from "./shipSpriteLayout.js";
+
+const TEST_SHIP_FOOTPRINTS = validateShipFootprintBake(
+  JSON.parse(readFileSync(new URL("../public/assets/vehicles/unity-ships/hull-footprints.json", import.meta.url), "utf8")),
+  SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADINGS,
+  LAKE_BATTLE_SHIP_SLUGS
+);
+
+function createLakeBattle(options) {
+  return createRuntimeLakeBattle({ ...options, shipFootprints: TEST_SHIP_FOOTPRINTS });
+}
 
 test("lake battle roster contains every armed hull including native canoes", () => {
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("brigantine"));
@@ -274,6 +296,10 @@ test("a cannonball damages the first ship crossed before its endpoint", () => {
     enemySlug: "caravel"
   });
   const initialHitPoints = battle.enemy.hitPoints;
+  const targetCenter = shipFootprintCenter(shipFootprintFrame(
+    TEST_SHIP_FOOTPRINTS.get(battle.enemy.slug),
+    lakeBattleHeadingVector(battle.enemy)
+  ));
   battle.enemy.cooldowns.port = 100;
   battle.enemy.cooldowns.starboard = 100;
   battle.projectiles = [{
@@ -282,9 +308,9 @@ test("a cannonball damages the first ship crossed before its endpoint", () => {
     targetId: null,
     kind: "cannon",
     startX: battle.enemy.x - 30,
-    startY: battle.enemy.y,
+    startY: battle.enemy.y + targetCenter.y,
     targetX: battle.enemy.x + 30,
-    targetY: battle.enemy.y,
+    targetY: battle.enemy.y + targetCenter.y,
     age: 0,
     duration: 0.6,
     arcHeight: 3,

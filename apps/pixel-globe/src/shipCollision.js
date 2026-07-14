@@ -1,24 +1,24 @@
+import { shipFootprintCollision } from "./shipFootprint.js";
+
 export const SHIP_COLLISION_RESTITUTION = 0.48;
 export const SHIP_COLLISION_MIN_DAMAGE_SPEED_PX = 1.5;
 
-export function shipCollisionRadius(mass) {
-  if (!Number.isFinite(mass) || mass <= 0) throw new Error(`Invalid ship mass: ${mass}`);
-  return clamp(5 + Math.sqrt(mass) / 5, 6, 10);
-}
+const BOW_HIT_VULNERABILITY = 0.55;
+const SIDE_HIT_VULNERABILITY = 1.55;
+const STERN_HIT_VULNERABILITY = 1.1;
+const BASE_COLLISION_DAMAGE = 0.65;
+const BOW_RAM_DAMAGE_BONUS = 1.75;
+const BOW_RAM_SELF_PROTECTION = 0.5;
 
 export function resolveShipCollision(a, b) {
   validateBody(a);
   validateBody(b);
   if (a.id === b.id) throw new Error(`Cannot collide ship ${a.id} with itself`);
 
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const distance = Math.hypot(dx, dy);
-  const minimumDistance = a.radius + b.radius;
-  if (distance >= minimumDistance) return null;
-
-  const normal = collisionNormal(a, b, dx, dy, distance);
-  const penetration = minimumDistance - distance;
+  const overlap = shipFootprintCollision(a.footprint, b.footprint);
+  if (!overlap) return null;
+  const normal = overlap.normal;
+  const penetration = overlap.penetration;
   const inverseMassA = 1 / a.mass;
   const inverseMassB = 1 / b.mass;
   const inverseMassSum = inverseMassA + inverseMassB;
@@ -29,20 +29,24 @@ export function resolveShipCollision(a, b) {
     impulse = (1 + SHIP_COLLISION_RESTITUTION) * closingSpeed / inverseMassSum;
   }
 
+  const impactA = collisionImpact(a, b, normal, closingSpeed);
+  const impactB = collisionImpact(b, a, opposite(normal), closingSpeed);
   return {
     a: {
       vx: a.vx - normal.x * impulse * inverseMassA,
       vy: a.vy - normal.y * impulse * inverseMassA,
       correctionX: -normal.x * penetration * inverseMassA / inverseMassSum,
       correctionY: -normal.y * penetration * inverseMassA / inverseMassSum,
-      damage: collisionDamage(a, b, normal, closingSpeed)
+      damage: impactA.damage,
+      impact: impactA.geometry
     },
     b: {
       vx: b.vx + normal.x * impulse * inverseMassB,
       vy: b.vy + normal.y * impulse * inverseMassB,
       correctionX: normal.x * penetration * inverseMassB / inverseMassSum,
       correctionY: normal.y * penetration * inverseMassB / inverseMassSum,
-      damage: collisionDamage(b, a, normal, closingSpeed)
+      damage: impactB.damage,
+      impact: impactB.geometry
     },
     closingSpeed,
     penetration
@@ -55,14 +59,10 @@ export function separateTouchingShips(a, b, padding = 2) {
   if (a.id === b.id) throw new Error(`Cannot separate ship ${a.id} from itself`);
   if (!Number.isFinite(padding) || padding < 0) throw new Error(`Invalid ship separation padding: ${padding}`);
 
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const distance = Math.hypot(dx, dy);
-  const minimumDistance = a.radius + b.radius + padding;
-  if (distance >= minimumDistance) return null;
-
-  const normal = collisionNormal(a, b, dx, dy, distance);
-  const penetration = minimumDistance - distance;
+  const overlap = shipFootprintCollision(a.footprint, b.footprint, padding);
+  if (!overlap) return null;
+  const normal = overlap.normal;
+  const penetration = overlap.penetration;
   const inverseMassA = 1 / a.mass;
   const inverseMassB = 1 / b.mass;
   const inverseMassSum = inverseMassA + inverseMassB;
@@ -79,31 +79,73 @@ export function separateTouchingShips(a, b, padding = 2) {
   };
 }
 
-function collisionDamage(body, other, normal, closingSpeed) {
-  if (closingSpeed < SHIP_COLLISION_MIN_DAMAGE_SPEED_PX) return 0;
-  const headingLength = Math.hypot(body.headingX, body.headingY);
-  const headingDot = Math.abs((body.headingX * normal.x + body.headingY * normal.y) / headingLength);
-  const sideExposure = 1 - clamp(headingDot, 0, 1);
-  const massDisadvantage = clamp(Math.sqrt(other.mass / body.mass), 0.45, 2.6);
-  const rawDamage = closingSpeed / 4.5 * massDisadvantage * (0.55 + sideExposure * 0.9);
-  return rawDamage >= 0.65 ? Math.max(1, Math.round(rawDamage)) : 0;
+function collisionImpact(body, other, directionToOther, closingSpeed) {
+  const bodyHeading = normalizedHeading(body);
+  const otherHeading = normalizedHeading(other);
+  const contactProjection = dot(bodyHeading, directionToOther);
+  const bowExposure = Math.max(0, contactProjection);
+  const sternExposure = Math.max(0, -contactProjection);
+  const sideExposure = 1 - Math.abs(contactProjection);
+  const incomingBow = bowRammingStrength(other, body, opposite(directionToOther), otherHeading, closingSpeed);
+  const outgoingBow = bowRammingStrength(body, other, directionToOther, bodyHeading, closingSpeed);
+  const geometry = {
+    bowExposure,
+    sideExposure,
+    sternExposure,
+    incomingBow,
+    outgoingBow
+  };
+  if (closingSpeed < SHIP_COLLISION_MIN_DAMAGE_SPEED_PX) return { damage: 0, geometry };
+
+  const hitVulnerability =
+    bowExposure * BOW_HIT_VULNERABILITY +
+    sideExposure * SIDE_HIT_VULNERABILITY +
+    sternExposure * STERN_HIT_VULNERABILITY;
+  const massFactor = clamp(Math.pow(other.mass / body.mass, 0.25), 0.7, 1.55);
+  const ramFactor = BASE_COLLISION_DAMAGE + incomingBow * BOW_RAM_DAMAGE_BONUS;
+  const selfProtection = 1 - outgoingBow * BOW_RAM_SELF_PROTECTION;
+  const rawDamage = closingSpeed / 4.5 * massFactor * hitVulnerability * ramFactor * selfProtection;
+  return {
+    damage: rawDamage >= 0.65 ? Math.max(1, Math.round(rawDamage)) : 0,
+    geometry
+  };
 }
 
-function collisionNormal(a, b, dx, dy, distance) {
-  if (distance > 1e-6) return { x: dx / distance, y: dy / distance };
-  const relativeX = a.vx - b.vx;
-  const relativeY = a.vy - b.vy;
-  const relativeLength = Math.hypot(relativeX, relativeY);
-  if (relativeLength > 1e-6) return { x: relativeX / relativeLength, y: relativeY / relativeLength };
-  return a.id < b.id ? { x: 1, y: 0 } : { x: -1, y: 0 };
+function bowRammingStrength(rammer, target, directionToTarget, heading, closingSpeed) {
+  if (closingSpeed <= 0) return 0;
+  const bowAlignment = clamp(dot(heading, directionToTarget), 0, 1);
+  if (bowAlignment <= 0) return 0;
+  const forwardSpeed = Math.max(0, rammer.vx * heading.x + rammer.vy * heading.y);
+  const relativeApproach = Math.max(
+    0,
+    (rammer.vx - target.vx) * directionToTarget.x + (rammer.vy - target.vy) * directionToTarget.y
+  );
+  const drivenShare = clamp(Math.min(forwardSpeed * bowAlignment, relativeApproach) / closingSpeed, 0, 1);
+  return bowAlignment * bowAlignment * drivenShare;
+}
+
+function normalizedHeading(body) {
+  const length = Math.hypot(body.headingX, body.headingY);
+  return { x: body.headingX / length, y: body.headingY / length };
+}
+
+function opposite(vector) {
+  return { x: -vector.x, y: -vector.y };
+}
+
+function dot(a, b) {
+  return a.x * b.x + a.y * b.y;
 }
 
 function validateBody(body) {
   if (!body || typeof body.id !== "string" || body.id === "") throw new Error("Ship collision body needs an id");
-  for (const field of ["x", "y", "vx", "vy", "headingX", "headingY", "mass", "radius"]) {
+  for (const field of ["x", "y", "vx", "vy", "headingX", "headingY", "mass"]) {
     if (!Number.isFinite(body[field])) throw new Error(`Invalid ${field} for collision ship ${body.id}`);
   }
-  if (body.mass <= 0 || body.radius <= 0) throw new Error(`Invalid dimensions for collision ship ${body.id}`);
+  if (body.mass <= 0) throw new Error(`Invalid dimensions for collision ship ${body.id}`);
+  if (!Array.isArray(body.footprint) || body.footprint.length < 3) {
+    throw new Error(`Collision ship ${body.id} needs a hull footprint`);
+  }
   if (Math.hypot(body.headingX, body.headingY) <= 1e-6) throw new Error(`Invalid heading for collision ship ${body.id}`);
   return body;
 }

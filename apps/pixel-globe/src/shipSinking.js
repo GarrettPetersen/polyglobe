@@ -1,3 +1,5 @@
+import { SHIP_WATERLINE_LEVEL } from "./shipWaterline.js";
+
 export const SHIP_SINK_EFFECT_DURATION_MS = 5200;
 
 const SHIP_SINK_BURST_SHARE = 0.28;
@@ -77,7 +79,8 @@ export function shipSinkFrame(effect, nowMs) {
     0,
     1
   );
-  const sinkProgress = smootherstep(timelineProgress);
+  const sinkProgress = SHIP_WATERLINE_LEVEL +
+    (1 - SHIP_WATERLINE_LEVEL) * smootherstep(timelineProgress);
   const settleProgress = smoothstep(clamp((timelineProgress - 0.12) / 0.88, 0, 1));
   const maxSettleOffset = Math.max(2, Math.round(effect.frameSize * SHIP_SINK_MAX_SETTLE_SHARE));
   const sinkOffset = Math.round(settleProgress * maxSettleOffset);
@@ -90,7 +93,7 @@ export function shipSinkFrame(effect, nowMs) {
       0,
       1
     );
-    const underwater = sinkProgress > pixel.sinkHeight;
+    const underwater = sinkProgress >= pixel.sinkHeight;
     const refractionOffset = underwater
       ? underwaterRefractionOffset(effect, pixel, elapsedMs, sinkOffset, underwaterDepth)
       : 0;

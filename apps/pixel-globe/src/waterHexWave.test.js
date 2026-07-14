@@ -3,43 +3,64 @@ import test from "node:test";
 
 import {
   WATER_HEX_WAVE_AMPLITUDE_PX,
+  WATER_HEX_WAVE_FRAME_COUNT,
   WATER_HEX_WAVE_PERIOD_MS,
-  globeWaterHexWaveOffset,
-  localWaterHexWaveOffset
+  globeWaterHexWaveFrame,
+  localWaterHexWaveFrame,
+  waterHexWaveBandsForFrame
 } from "./waterHexWave.js";
 
-test("water hex swell stays pixel-snapped and within one pixel", () => {
+test("water wave bands shift rows horizontally by at most one pixel", () => {
   for (let nowMs = 0; nowMs < WATER_HEX_WAVE_PERIOD_MS; nowMs += 137) {
-    const offset = globeWaterHexWaveOffset(nowMs, 37.2, -18.5);
-    assert.equal(Number.isInteger(offset), true);
-    assert.ok(Math.abs(offset) <= WATER_HEX_WAVE_AMPLITUDE_PX);
+    const frame = globeWaterHexWaveFrame(nowMs, 37.2, -18.5);
+    const bands = waterHexWaveBandsForFrame(frame, 36);
+    assert.equal(bands.reduce((height, band) => height + band.height, 0), 36);
+    assert.ok(bands.every((band) => Number.isInteger(band.offsetX)));
+    assert.ok(bands.every((band) => Math.abs(band.offsetX) <= WATER_HEX_WAVE_AMPLITUDE_PX));
   }
 });
 
-test("water hex swell is slow, periodic, and phase-staggered", () => {
-  assert.equal(globeWaterHexWaveOffset(0, 0, 0), 0);
-  assert.equal(globeWaterHexWaveOffset(WATER_HEX_WAVE_PERIOD_MS / 4, 0, 0), 1);
+test("water rows ripple independently without moving vertically", () => {
+  const bands = waterHexWaveBandsForFrame(3, 36);
+  assert.ok(new Set(bands.map((band) => band.offsetX)).size >= 2);
+  assert.equal(bands[0].y, 0);
+  for (let i = 1; i < bands.length; i++) {
+    assert.equal(bands[i].y, bands[i - 1].y + bands[i - 1].height);
+  }
+});
+
+test("water row waves are slow, periodic, and phase-staggered", () => {
   assert.equal(
-    globeWaterHexWaveOffset(731, 12, 44),
-    globeWaterHexWaveOffset(731 + WATER_HEX_WAVE_PERIOD_MS, 12, 44)
+    globeWaterHexWaveFrame(731, 12, 44),
+    globeWaterHexWaveFrame(731 + WATER_HEX_WAVE_PERIOD_MS, 12, 44)
   );
   assert.notEqual(
-    localWaterHexWaveOffset(0, 0, 0),
-    localWaterHexWaveOffset(0, 60, 0)
+    localWaterHexWaveFrame(0, 0, 0),
+    localWaterHexWaveFrame(0, 60, 0)
   );
 });
 
-test("globe water phase joins cleanly across the date line", () => {
+test("globe water row phase joins cleanly across the date line", () => {
   for (const nowMs of [0, 900, 2400, 5100, 8100]) {
     assert.equal(
-      globeWaterHexWaveOffset(nowMs, 24, -180),
-      globeWaterHexWaveOffset(nowMs, 24, 180)
+      globeWaterHexWaveFrame(nowMs, 24, -180),
+      globeWaterHexWaveFrame(nowMs, 24, 180)
     );
   }
 });
 
-test("water hex swell rejects invalid coordinates and time", () => {
-  assert.throws(() => globeWaterHexWaveOffset(Number.NaN, 0, 0), /invalid time/);
-  assert.throws(() => globeWaterHexWaveOffset(0, Number.NaN, 0), /invalid spatial phase/);
-  assert.throws(() => localWaterHexWaveOffset(0, 0, Number.POSITIVE_INFINITY), /invalid spatial phase/);
+test("the complete pre-baked cycle contains distinct hard-edged frames", () => {
+  const signatures = new Set();
+  for (let frame = 0; frame < WATER_HEX_WAVE_FRAME_COUNT; frame++) {
+    signatures.add(JSON.stringify(waterHexWaveBandsForFrame(frame, 36)));
+  }
+  assert.equal(signatures.size, WATER_HEX_WAVE_FRAME_COUNT);
+});
+
+test("water row waves reject invalid coordinates, time, frames, and sprite heights", () => {
+  assert.throws(() => globeWaterHexWaveFrame(Number.NaN, 0, 0), /invalid time/);
+  assert.throws(() => globeWaterHexWaveFrame(0, Number.NaN, 0), /invalid spatial phase/);
+  assert.throws(() => localWaterHexWaveFrame(0, 0, Number.POSITIVE_INFINITY), /invalid spatial phase/);
+  assert.throws(() => waterHexWaveBandsForFrame(WATER_HEX_WAVE_FRAME_COUNT, 36), /invalid frame/);
+  assert.throws(() => waterHexWaveBandsForFrame(0, 0), /invalid sprite height/);
 });
