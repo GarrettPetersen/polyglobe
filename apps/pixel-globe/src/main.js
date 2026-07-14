@@ -81,6 +81,7 @@ import {
   portEntryStatus,
   refillFreshWaterFromShore,
   receiveDiscoveryCargo,
+  receiveEmergencyShipAid,
   receiveFishCatch,
   receiveSurrenderedLoot,
   reconcileQuestPortTiles,
@@ -91,6 +92,7 @@ import {
   rollCrewCasualtiesForDamage,
   purchasePlayerShip,
   setPlayerShipStats,
+  shipEmergencyAidNeed,
   stowForagedFood,
   survivalStatus,
   updateCircumnavigationProgress,
@@ -6139,6 +6141,18 @@ async function purchaseVikingLongship(action) {
 }
 
 function applyShipDialogueAction(npcShipId, action) {
+  if (action.type === "receive-aid") {
+    const granted = receiveEmergencyShipAid(gameState, npcShipId);
+    if (!dialogueState || dialogueState.kind !== "ship" || dialogueState.npcShipId !== npcShipId) {
+      throw new Error(`Emergency aid dialogue closed before transfer: ${npcShipId}`);
+    }
+    dialogueState.aidMessage = `Take these stores with our compliments. Food +${granted.food}, water +${granted.water}.`;
+    syncShipCargoFromGameState();
+    resetSurvivalDamageTimers();
+    showSurvivalNotice(`SHIP AID: FOOD +${granted.food}  WATER +${granted.water}`, "good");
+    saveVoyageNow("received emergency provisions at sea");
+    return;
+  }
   if (action.type === "surrender") {
     handleNpcSurrender(npcShipId, PLAYER_COMBAT_ID, { preserveHull: true });
     return;
@@ -6323,6 +6337,9 @@ function currentDialogueShip() {
   if (!visualState) throw new Error(`Dialogue NPC ship is no longer visible: ${npcShip.id}`);
   const combatGrace = npcShip.graceUntilPortVisit > npcShip.portVisits;
   const inCombatWithPlayer = shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShip.id));
+  const enemy = inCombatWithPlayer || npcShip.role === NPC_ROLE_PIRATE ||
+    currentDiplomacyBetween(ship.factionId, npcShip.factionId) === DIPLOMACY_WAR;
+  const emergencyAid = shipEmergencyAidNeed(gameState, npcShip.id);
   const playerAttackIsPiracy = npcShip.factionId !== PIRATE_FACTION_ID &&
     !hasPrivateeringAuthorityAgainst(gameState, npcShip.factionId);
   const stormStatus = visualState?.stormMode === "anchored"
@@ -6348,6 +6365,7 @@ function currentDialogueShip() {
     stormStatus,
     combatGrace,
     inCombatWithPlayer,
+    canOfferEmergencyAid: !enemy && emergencyAid.available,
     playerAttackIsPiracy,
     willOfferSurrender: npcShouldOfferSurrender(npcCombatEntity(visualState), playerCombatEntity()),
     character
@@ -11868,11 +11886,8 @@ function drawCaptainMenuButton() {
   captainMenu.buttonRect = rect;
   const hovered = !menusAreOpen() && pointInRect(captainMenu.hoverPoint, expandedRect(rect, 3));
   ctx.save();
-  ctx.fillStyle = hovered ? "#5b4627" : "rgba(15, 18, 14, 0.88)";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#f9c22b" : "#ab947a";
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  ctx.fillStyle = hovered ? "#fff1bf" : "#d6b66b";
+  drawPirateHudButton(rect, hovered);
+  ctx.fillStyle = PIRATE_MENU_INK;
   const menuLineX = rect.x + Math.floor((rect.w - 15) / 2);
   const menuLineY = rect.y + Math.floor((rect.h - 12) / 2);
   ctx.fillRect(menuLineX, menuLineY, 15, 2);
@@ -12065,17 +12080,14 @@ function drawShipInfoButton() {
   const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
 
   ctx.save();
-  ctx.fillStyle = hovered ? "#625565" : "#2e222f";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#ffffff" : "#ab947a";
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:ship", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
+  drawPirateHudButton(rect, hovered);
+  drawGameIcon("menu:ship", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
   if (hovered) {
     const label = "SHIP";
     const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
-    ctx.fillStyle = "#2e222f";
+    ctx.fillStyle = PIRATE_MENU_PAPER;
     ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = PIRATE_MENU_INK;
     drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
       font: PIXEL_FONT_SMALL_8,
       align: "right"
@@ -12090,17 +12102,14 @@ function drawPoliticsButton() {
   const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
 
   ctx.save();
-  ctx.fillStyle = hovered ? "rgba(255, 244, 168, 0.24)" : "rgba(15, 18, 14, 0.78)";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:politics", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
+  drawPirateHudButton(rect, hovered);
+  drawGameIcon("menu:politics", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
   if (hovered) {
     const label = "POLITICS";
     const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
-    ctx.fillStyle = "rgba(15, 18, 14, 0.94)";
+    ctx.fillStyle = PIRATE_MENU_PAPER;
     ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
-    ctx.fillStyle = "#fff4a8";
+    ctx.fillStyle = PIRATE_MENU_INK;
     drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
       font: PIXEL_FONT_SMALL_8,
       align: "right"
@@ -12115,17 +12124,14 @@ function drawDiscoveriesButton() {
   const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
 
   ctx.save();
-  ctx.fillStyle = hovered ? "rgba(255, 244, 168, 0.24)" : "rgba(15, 18, 14, 0.78)";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:discoveries", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
+  drawPirateHudButton(rect, hovered);
+  drawGameIcon("menu:discoveries", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
   if (hovered) {
     const label = "DISCOVERIES";
     const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
-    ctx.fillStyle = "rgba(15, 18, 14, 0.94)";
+    ctx.fillStyle = PIRATE_MENU_PAPER;
     ctx.fillRect(rect.x - width + rect.w, rect.y + rect.h + 2, width, 11);
-    ctx.fillStyle = "#fff4a8";
+    ctx.fillStyle = PIRATE_MENU_INK;
     drawPixelText(label, rect.x + rect.w - 3, rect.y + rect.h + 4, {
       font: PIXEL_FONT_SMALL_8,
       align: "right"
@@ -12140,12 +12146,8 @@ function drawOptionsButton() {
   const hovered = !menusAreOpen() && pointInRect(optionsMenu.hoverPoint, rect);
 
   ctx.save();
-  ctx.fillStyle = hovered ? "rgba(255, 244, 168, 0.24)" : "rgba(15, 18, 14, 0.78)";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = hovered ? "#fff4a8" : "#4d3924";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  drawGameIcon("menu:options", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2), { contrastOutline: true });
+  drawPirateHudButton(rect, hovered);
+  drawGameIcon("menu:options", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
   ctx.restore();
 }
 
@@ -13850,6 +13852,21 @@ function drawPiratePaperInset(rect, highlighted = false) {
   ctx.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER_INSET;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+}
+
+function drawPirateHudPanel(rect) {
+  drawPiratePaperPanel(rect);
+  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+}
+
+function drawPirateHudButton(rect, highlighted = false) {
+  ctx.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE;
   ctx.lineWidth = 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 }
@@ -17971,11 +17988,8 @@ function drawSurvivalMeters() {
       : "#91db69";
   const x = SURVIVAL_PANEL_X;
   const y = SURVIVAL_PANEL_Y;
-  ctx.fillStyle = "rgba(25, 31, 36, 0.88)";
-  ctx.fillRect(x, y, SURVIVAL_PANEL_W, SURVIVAL_PANEL_H);
-  ctx.strokeStyle = "#7f708a";
-  ctx.strokeRect(x + 0.5, y + 0.5, SURVIVAL_PANEL_W - 1, SURVIVAL_PANEL_H - 1);
-  ctx.fillStyle = "#d6b66b";
+  drawPirateHudPanel({ x, y, w: SURVIVAL_PANEL_W, h: SURVIVAL_PANEL_H });
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("SHIP STATUS", x + 5, y + 3, { font: PIXEL_FONT_SMALL_8 });
   drawSurvivalMeterRow(
     "HULL",
@@ -18005,6 +18019,7 @@ function drawSurvivalMeters() {
 
 function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
   const barX = x + 25;
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(label, barX - 4, y, {
     font: PIXEL_FONT_SMALL_8,
     align: "right"
@@ -18012,13 +18027,13 @@ function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
   const valueRight = SURVIVAL_PANEL_X + SURVIVAL_PANEL_W - 5;
   const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_SMALL_8);
   const barW = Math.max(8, Math.min(SURVIVAL_BAR_W, valueLeft - barX - 4));
-  ctx.fillStyle = "#172437";
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
   ctx.fillRect(barX, y + 1, barW, 5);
   ctx.fillStyle = fill;
   ctx.fillRect(barX, y + 1, Math.max(0, Math.round(barW * clamp(fraction, 0, 1))), 5);
-  ctx.strokeStyle = "#ab947a";
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(barX + 0.5, y + 0.5, barW - 1, 5);
-  ctx.fillStyle = "#fff1bf";
+  ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(value, valueRight, y - 1, {
     font: PIXEL_FONT_SMALL_8,
     align: "right"

@@ -42,6 +42,26 @@ test("hailing an NPC ship identifies the captain by name", () => {
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
 });
 
+test("a non-enemy ship offers emergency provisions once the player is depleted", () => {
+  const ship = {
+    id: "relief-ship",
+    character: { name: "Marco Doria" },
+    canOfferEmergencyAid: true
+  };
+  const session = createShipDialogueSession(ship);
+  const view = shipDialogueView(session, ship);
+
+  assert.equal(view.options[0].label, "Ask for provisions");
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), {
+    closed: false,
+    action: { type: "receive-aid" }
+  });
+  session.aidMessage = "Take these stores with our compliments. Food +3, water +3.";
+  const thanks = shipDialogueView(session, { ...ship, canOfferEmergencyAid: false });
+  assert.equal(thanks.expressionId, "happy");
+  assert.deepEqual(thanks.options.map((entry) => entry.label), ["Thank the captain"]);
+});
+
 test("hostile shore batteries hail before opening fire", () => {
   const city = {
     tileId: 17,
@@ -538,7 +558,7 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
     "Bronze culverins  2400 db",
     "Reinforced culverins  8500 db"
   ]);
-  assert.match(view.options[1].detail, /RELOAD 1\.02S  DAMAGE x1\.15  RANGE x1\.12/);
+  assert.match(view.options[1].detail, /RELOAD 8\.50S  DAMAGE x1\.15  RANGE x1\.12/);
 
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 300 });
   assert.equal(result.cannonEquipmentPurchase.equipment.id, "bronze-culverins");

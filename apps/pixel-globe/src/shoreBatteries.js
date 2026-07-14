@@ -1,6 +1,7 @@
 export const SHORE_BATTERY_DISABLE_MINUTES = 3 * 24 * 60;
 export const SHORE_BATTERY_RANGE_PX = 76;
-export const SHORE_BATTERY_RELOAD_SECONDS = 3.2;
+export const SHORE_BATTERY_RELOAD_SECONDS = 14;
+export const SHORE_BATTERY_HIT_POINTS_PER_GUN = 8;
 
 const DISABLED_UNTIL_PREFIX = "shoreBatteryDisabledUntil:";
 
@@ -19,6 +20,7 @@ export function createShoreBatteryState(city, flags, simMinute) {
   assertFlags(flags);
   assertMinute(simMinute);
   const gunCount = shoreBatteryGunCount(city);
+  const maxHitPoints = gunCount * SHORE_BATTERY_HIT_POINTS_PER_GUN;
   const disabledUntilMinute = readDisabledUntil(flags, city);
   return {
     id: shoreBatteryId(city),
@@ -27,8 +29,8 @@ export function createShoreBatteryState(city, flags, simMinute) {
     factionId: city.factionId,
     cultureType: city.cityType || null,
     gunCount,
-    maxHitPoints: gunCount * 4,
-    hitPoints: disabledUntilMinute > simMinute ? 0 : gunCount * 4,
+    maxHitPoints,
+    hitPoints: disabledUntilMinute > simMinute ? 0 : maxHitPoints,
     disabledUntilMinute: disabledUntilMinute > simMinute ? disabledUntilMinute : null,
     cooldownSeconds: 0,
     shotSequence: 0,

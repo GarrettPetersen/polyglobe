@@ -11,6 +11,8 @@ import { NAVAL_WEAPON_CANNON, navalWeaponSpec } from "./navalWeapons.js";
 
 test("cannon equipment is a strictly improving and increasingly expensive ramp", () => {
   assert.equal(CANNON_EQUIPMENT[0].id, STANDARD_CANNON_EQUIPMENT_ID);
+  assert.equal(CANNON_EQUIPMENT[0].reloadSeconds, 10);
+  assert.ok(CANNON_EQUIPMENT.at(-1).reloadSeconds >= 5);
   for (let index = 1; index < CANNON_EQUIPMENT.length; index++) {
     const previous = CANNON_EQUIPMENT[index - 1];
     const current = CANNON_EQUIPMENT[index];

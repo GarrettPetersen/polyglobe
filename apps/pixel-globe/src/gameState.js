@@ -78,6 +78,7 @@ export const RAIN_WATER_COLLECTION_PER_DAY = 0.08;
 export const FOOD_UNITS_PER_DAY = 1;
 export const FOOD_TARGET_DAYS = 21;
 export const STARTING_HARDTACK_UNITS = 10;
+export const EMERGENCY_SHIP_AID_UNITS = 3;
 
 const MINUTES_PER_DAY = 24 * 60;
 const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
@@ -498,6 +499,58 @@ export function survivalStatus(state) {
     foodTargetDays: state.ship?.loadoutTargets?.foodDays || FOOD_TARGET_DAYS,
     consumers: consumption
   };
+}
+
+export function shipEmergencyAidNeed(state, npcShipId) {
+  assertGameState(state);
+  assertNpcShipId(npcShipId);
+  const status = survivalStatus(state);
+  const needsFood = status.foodUnits <= 0;
+  const needsWater = status.freshWater <= 0;
+  const alreadyReceived = (state.memory.decisions[emergencyShipAidKey(npcShipId)] || 0) > 0;
+  return {
+    needsFood,
+    needsWater,
+    alreadyReceived,
+    available: (needsFood || needsWater) && !alreadyReceived && cargoFree(state) >= 1
+  };
+}
+
+export function receiveEmergencyShipAid(state, npcShipId) {
+  const need = shipEmergencyAidNeed(state, npcShipId);
+  if (need.alreadyReceived) throw new Error(`Emergency aid already received from ship: ${npcShipId}`);
+  if (!need.needsFood && !need.needsWater) {
+    throw new Error("Emergency ship aid requires depleted food or water");
+  }
+  if (!need.available) throw new Error("Emergency ship aid requires free hold space");
+
+  const desired = { food: EMERGENCY_SHIP_AID_UNITS, water: EMERGENCY_SHIP_AID_UNITS };
+  const granted = { food: 0, water: 0 };
+  const order = need.needsFood ? ["food", "water"] : ["water", "food"];
+  while (cargoFree(state) >= 1 && (granted.food < desired.food || granted.water < desired.water)) {
+    let changed = false;
+    for (const kind of order) {
+      if (cargoFree(state) < 1 || granted[kind] >= desired[kind]) continue;
+      if (kind === "food") {
+        state.cargo[HARDTACK_GOOD_ID] = (state.cargo[HARDTACK_GOOD_ID] || 0) + 1;
+        granted.food += 1;
+      } else {
+        const missingWater = Math.floor(state.survival.freshWaterCapacity - state.survival.freshWater);
+        if (missingWater <= 0) continue;
+        state.survival.freshWater += 1;
+        granted.water += 1;
+      }
+      changed = true;
+    }
+    if (!changed) break;
+  }
+
+  if (granted.food > 0) {
+    state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] = state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] || 0;
+  }
+  if (granted.food <= 0 && granted.water <= 0) throw new Error("Emergency ship aid transferred no provisions");
+  recordDecision(state, emergencyShipAidKey(npcShipId), 1);
+  return granted;
 }
 
 export function initializeProvisionalShipLoadout(state, stats) {
@@ -1671,6 +1724,16 @@ function goodById(goodId) {
 
 function recordDecision(state, key, amount) {
   state.memory.decisions[key] = (state.memory.decisions[key] || 0) + amount;
+}
+
+function emergencyShipAidKey(npcShipId) {
+  return `ship.aid.${npcShipId}`;
+}
+
+function assertNpcShipId(npcShipId) {
+  if (typeof npcShipId !== "string" || npcShipId.trim() === "") {
+    throw new Error(`Invalid emergency-aid ship id: ${npcShipId}`);
+  }
 }
 
 function recordLedgerEntry(state, city, context, entry) {

@@ -20,6 +20,10 @@ import {
   lakeBattleMapSpawnPoint,
   lakeBattleMapWaterAt
 } from "./lakeBattleMap.js";
+import {
+  SHORE_BATTERY_HIT_POINTS_PER_GUN,
+  SHORE_BATTERY_RELOAD_SECONDS
+} from "./shoreBatteries.js";
 
 export const LAKE_BATTLE_PHASE_ACTIVE = "active";
 export const LAKE_BATTLE_PHASE_FINISHED = "finished";
@@ -37,7 +41,7 @@ const LAKE_BATTLE_CITY_STATS = Object.freeze({
   slug: LAKE_BATTLE_CITY_SLUG,
   cannons: 4,
   batteryGuns: 2,
-  hitPoints: 8,
+  hitPoints: 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN,
   crewCapacity: 24,
   mass: 48,
   accelerationRad: 0,
@@ -344,9 +348,12 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
   if (baseWeapon.kind !== NAVAL_WEAPON_CANNON && cannonEquipmentId !== STANDARD_CANNON_EQUIPMENT_ID) {
     throw new Error(`Cannon equipment cannot be fitted to ${baseWeapon.kind}-armed ship: ${slug}`);
   }
-  const weapon = baseWeapon.kind === NAVAL_WEAPON_CANNON
+  let weapon = baseWeapon.kind === NAVAL_WEAPON_CANNON
     ? cannonWeaponWithEquipment(baseWeapon, cannonEquipmentId)
     : baseWeapon;
+  if (slug === LAKE_BATTLE_CITY_SLUG) {
+    weapon = Object.freeze({ ...weapon, reloadSeconds: SHORE_BATTERY_RELOAD_SECONDS });
+  }
   return {
     id,
     slug,

@@ -1,6 +1,6 @@
 export const NAVAL_WEAPON_CANNON = "cannon";
 export const NAVAL_WEAPON_ARROW = "arrow";
-export const STANDARD_CANNON_RELOAD_SECONDS = 1.15;
+export const STANDARD_CANNON_RELOAD_SECONDS = 10;
 
 const PRE_GUNPOWDER_CULTURES = new Set([
   "polynesian",

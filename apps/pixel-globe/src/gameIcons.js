@@ -190,6 +190,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "purchase-ship": "action:shipyard",
   "deliver-viking-material": "action:quest",
   "confirm-piracy": "action:attack",
+  "receive-aid": "good:fresh-water",
   "complete-passenger": "action:passenger",
   "buy-net": "action:fish",
   "buy-cannon-equipment": "action:attack",

@@ -196,6 +196,18 @@ export function shipDialogueView(session, ship) {
       ]
     };
   }
+  if (session.nodeId === "aid-given") {
+    if (typeof session.aidMessage !== "string" || session.aidMessage === "") {
+      throw new Error("Ship aid dialogue requires a transfer message");
+    }
+    return {
+      speaker,
+      expressionId: "happy",
+      text: session.aidMessage,
+      feedback: null,
+      options: [option("Thank the captain", { type: "close" })]
+    };
+  }
   if (session.nodeId !== "root") throw new Error(`Unknown ship dialogue node: ${session.nodeId}`);
   const greeting = role === "Pirate"
     ? "Heave to and keep your hands where I can see them."
@@ -215,6 +227,9 @@ export function shipDialogueView(session, ship) {
     text: `${greeting}${storm}${voyage}${cargo}${fishingGear}`,
     feedback: null,
     options: [
+      ...(ship.canOfferEmergencyAid
+        ? [option("Ask for provisions", { type: "receive-aid" })]
+        : []),
       ...(!ship.combatGrace && !ship.inCombatWithPlayer
         ? [option("Demand surrender", { type: "threaten" })]
         : []),
@@ -251,6 +266,12 @@ function assertShipDialogueSubject(session, ship) {
 }
 
 function applyShipDialogueAction(session, ship, action) {
+  if (action.type === "receive-aid") {
+    if (!ship.canOfferEmergencyAid) throw new Error(`Ship cannot offer emergency aid: ${ship.id}`);
+    session.nodeId = "aid-given";
+    session.selectedIndex = 0;
+    return { closed: false, action: { type: "receive-aid" } };
+  }
   if (action.type === "threaten") {
     session.nodeId = ship.willOfferSurrender ? "surrender-offer" : "defiance";
     session.selectedIndex = 0;

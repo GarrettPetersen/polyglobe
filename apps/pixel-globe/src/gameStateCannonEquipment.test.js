@@ -27,7 +27,7 @@ test("players begin with standard ordnance recorded in ship equipment", () => {
   assert.equal(playerCannonEquipment(state).id, "standard-ordnance");
   const row = shipItemRows(state).find((item) => item.id === "cannon-equipment");
   assert.equal(row.label, "Standard ordnance");
-  assert.match(row.detail, /Reload 1\.15s, damage x1\.00, range x1\.00/);
+  assert.match(row.detail, /Reload 10\.00s, damage x1\.00, range x1\.00/);
 });
 
 test("cannon upgrades spend doubloons and enter the ledger", () => {
@@ -47,7 +47,7 @@ test("cannon upgrades spend doubloons and enter the ledger", () => {
   assert.equal(purchase.previous.id, "standard-ordnance");
   assert.equal(purchase.equipment.id, "bronze-culverins");
   assert.equal(state.doubloons, 7600);
-  assert.equal(playerCannonEquipment(state).reloadSeconds, 1.02);
+  assert.equal(playerCannonEquipment(state).reloadSeconds, 8.5);
   assert.equal(ledgerEntries(state).at(-1).description, "Buy Bronze culverins");
   assert.equal(ledgerEntries(state).at(-1).amount, -2400);
 });

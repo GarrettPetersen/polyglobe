@@ -142,7 +142,7 @@ test("ship papers include active deliveries and letters of marque", () => {
   assert.equal(view.papers[1].issuer, "Ship stores");
   assert.match(view.papers[1].detail, /max haul 3/);
   assert.equal(view.papers[2].title, "Standard ordnance");
-  assert.match(view.papers[2].detail, /Reload 1\.15s/);
+  assert.match(view.papers[2].detail, /Reload 10\.00s/);
   assert.equal(view.papers[3].issuer, "Kingdom of England");
   assert.equal(view.papers[3].title, "English letter of marque");
   assert.equal(view.papers[3].simMinute, 1440);

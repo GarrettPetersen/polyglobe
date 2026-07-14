@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { STANDARD_CANNON_RELOAD_SECONDS } from "./navalWeapons.js";
 import {
   SHORE_BATTERY_DISABLE_MINUTES,
+  SHORE_BATTERY_HIT_POINTS_PER_GUN,
+  SHORE_BATTERY_RELOAD_SECONDS,
   armShoreBatteryReload,
   createShoreBatteryState,
   damageShoreBattery,
@@ -13,7 +16,9 @@ import {
 const city = { tileId: 7, portId: "test-port", factionId: "ottoman", cityType: "mediterranean", population: 80000 };
 
 test("important cities mount two shore guns", () => {
+  const battery = createShoreBatteryState(city, {}, 0);
   assert.equal(shoreBatteryGunCount(city), 2);
+  assert.equal(battery.maxHitPoints, 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN);
   assert.equal(shoreBatteryGunCount({ ...city, population: 12000, settlementType: "village" }), 1);
 });
 
@@ -30,9 +35,13 @@ test("disabled shore batteries recover after three in-game days", () => {
 
 test("shore battery reload prevents immediate repeat fire", () => {
   const battery = createShoreBatteryState(city, {}, 0);
+  assert.ok(SHORE_BATTERY_RELOAD_SECONDS > STANDARD_CANNON_RELOAD_SECONDS);
   assert.equal(shoreBatteryCanFire(battery, 0), true);
   armShoreBatteryReload(battery);
+  assert.equal(battery.cooldownSeconds, SHORE_BATTERY_RELOAD_SECONDS);
   assert.equal(shoreBatteryCanFire(battery, 0), false);
-  updateShoreBatteryState(battery, {}, 0, 10);
+  updateShoreBatteryState(battery, {}, 0, SHORE_BATTERY_RELOAD_SECONDS - 0.01);
+  assert.equal(shoreBatteryCanFire(battery, 0), false);
+  updateShoreBatteryState(battery, {}, 0, 0.01);
   assert.equal(shoreBatteryCanFire(battery, 0), true);
 });

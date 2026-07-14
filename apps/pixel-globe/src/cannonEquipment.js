@@ -15,9 +15,9 @@ export const CANNON_EQUIPMENT = Object.freeze([
     1,
     1
   ),
-  cannonEquipment("bronze-culverins", "Bronze culverins", 1, 2400, 1.02, 1.15, 1.12),
-  cannonEquipment("reinforced-culverins", "Reinforced culverins", 2, 8500, 0.86, 1.34, 1.23),
-  cannonEquipment("royal-foundry-battery", "Royal foundry battery", 3, 24000, 0.7, 1.58, 1.36)
+  cannonEquipment("bronze-culverins", "Bronze culverins", 1, 2400, 8.5, 1.15, 1.12),
+  cannonEquipment("reinforced-culverins", "Reinforced culverins", 2, 8500, 7, 1.34, 1.23),
+  cannonEquipment("royal-foundry-battery", "Royal foundry battery", 3, 24000, 5.5, 1.58, 1.36)
 ]);
 
 const CANNON_EQUIPMENT_BY_ID = new Map(CANNON_EQUIPMENT.map((equipment) => [equipment.id, equipment]));

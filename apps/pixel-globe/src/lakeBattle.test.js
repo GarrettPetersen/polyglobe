@@ -19,6 +19,10 @@ import {
   resizeLakeBattle,
   updateLakeBattle
 } from "./lakeBattle.js";
+import {
+  SHORE_BATTERY_HIT_POINTS_PER_GUN,
+  SHORE_BATTERY_RELOAD_SECONDS
+} from "./shoreBatteries.js";
 
 test("lake battle roster contains every armed hull including native canoes", () => {
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("brigantine"));
@@ -41,6 +45,8 @@ test("a city is a stationary coastal enemy with a two-shot shore battery", () =>
 
   assert.equal(battle.enemy.kind, "city");
   assert.equal(battle.enemy.stats.batteryGuns, 2);
+  assert.equal(battle.enemy.maxHitPoints, 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN);
+  assert.equal(battle.enemy.weapon.reloadSeconds, SHORE_BATTERY_RELOAD_SECONDS);
   assert.equal(lakeBattleShipFitsInWater(battle, battle.enemy), true);
   assert.ok(battle.enemy.x >= 36 && battle.enemy.x <= battle.width - 36);
   assert.ok(battle.enemy.y >= 36 && battle.enemy.y <= battle.height - 36);
@@ -221,7 +227,7 @@ test("a scripted skirmish reaches a transient combat result", () => {
     playerSlug: "brigantine",
     enemySlug: "caravel"
   });
-  for (let frame = 0; frame < 1800 && battle.phase === LAKE_BATTLE_PHASE_ACTIVE; frame++) {
+  for (let frame = 0; frame < 7200 && battle.phase === LAKE_BATTLE_PHASE_ACTIVE; frame++) {
     updateLakeBattle(battle, 1 / 60, {
       desiredHeadingRad: frame < 900 ? -0.5 : 1.2,
       firePort: frame % 90 === 0,
@@ -315,7 +321,7 @@ test("lake battle cannon tiers alter cooldown, damage, and range without save da
 
   assert.ok(lakeBattleWeaponRange(upgraded.player) > lakeBattleWeaponRange(standard.player));
   assert.equal(fireLakeBattleBroadside(upgraded, LAKE_BATTLE_PLAYER_ID, "port"), true);
-  assert.equal(upgraded.player.cooldowns.port, 0.7);
+  assert.equal(upgraded.player.cooldowns.port, 5.5);
   assert.ok(upgraded.projectiles.every((projectile) => projectile.damage === 1.58));
   assert.throws(
     () => createLakeBattle({

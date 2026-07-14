@@ -16,12 +16,14 @@ import {
   initializeShipProvisions,
   loseCrew,
   purchasePlayerShip,
+  receiveEmergencyShipAid,
   restockShipLoadoutAtPort,
   refillFreshWaterFromShore,
   rollCrewCasualtiesForDamage,
   sellGood,
   setPlayerShipStats,
   shipConsumption,
+  shipEmergencyAidNeed,
   stowForagedFood,
   survivalStatus,
   updateSurvival,
@@ -136,6 +138,41 @@ test("exhausted food and water report deprivation instead of ending immediately"
   assert.equal(result.starved, true);
   assert.equal(state.survival.freshWater, 0);
   assert.equal(survivalStatus(state).foodUnits, 0);
+});
+
+test("a friendly ship can give one emergency ration of food and water", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.survival.freshWater = 0;
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+
+  assert.equal(shipEmergencyAidNeed(state, "friendly-ship").available, true);
+  assert.deepEqual(receiveEmergencyShipAid(state, "friendly-ship"), { food: 3, water: 3 });
+  assert.equal(state.cargo.hardtack, 3);
+  assert.equal(state.survival.freshWater, 3);
+  assert.equal(state.accounts.cargoCostBasis.hardtack, 0);
+  assert.equal(shipEmergencyAidNeed(state, "friendly-ship").alreadyReceived, true);
+  assert.throws(() => receiveEmergencyShipAid(state, "friendly-ship"), /already received/);
+  assert.ok(cargoUsed(state) <= state.cargoCapacity);
+});
+
+test("emergency ship aid respects the remaining hold capacity", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.survival.freshWater = 0;
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+  state.cargo.gold = state.cargoCapacity - crewHoldSpace(state.ship.crew) - state.ship.cannons - 2;
+  state.accounts.cargoCostBasis.gold = 0;
+
+  const granted = receiveEmergencyShipAid(state, "crowded-relief-ship");
+  assert.equal(granted.food + granted.water, 2);
+  assert.ok(granted.food > 0);
+  assert.ok(granted.water > 0);
+  assert.equal(cargoUsed(state), state.cargoCapacity);
 });
 
 test("starting provisions and port auto-provisioning use hardtack cargo", () => {
