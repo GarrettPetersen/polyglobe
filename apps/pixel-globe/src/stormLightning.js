@@ -4,6 +4,7 @@ export const STORM_SHIP_STRIKE_FRAME_HEIGHT = 220;
 export const STORM_SHIP_STRIKE_SHEET_COLUMNS = 6;
 export const STORM_SHIP_STRIKE_FRAME_COUNT = 30;
 export const STORM_SHIP_STRIKE_FLASH_FRAME = 3;
+export const STORM_SHIP_STRIKE_COOLDOWN_MS = 10000;
 
 const STORM_SHIP_STRIKE_DURATION_MS = 1000;
 const STORM_SHIP_STRIKE_FRAME_MS = STORM_SHIP_STRIKE_DURATION_MS / STORM_SHIP_STRIKE_FRAME_COUNT;
@@ -64,6 +65,7 @@ export function consumeStormLightningFlash(state) {
 export function createStormShipStrikeState() {
   return {
     startedAtMs: null,
+    cooldownUntilMs: null,
     sequence: 0,
     flashPending: false
   };
@@ -72,9 +74,12 @@ export function createStormShipStrikeState() {
 export function triggerStormShipStrike(state, nowMs) {
   validateStormShipStrikeState(state);
   if (!Number.isFinite(nowMs)) throw new Error(`Storm ship strike requires finite time: ${nowMs}`);
+  if (state.cooldownUntilMs !== null && nowMs < state.cooldownUntilMs) return false;
   state.startedAtMs = nowMs;
+  state.cooldownUntilMs = nowMs + STORM_SHIP_STRIKE_COOLDOWN_MS;
   state.sequence += 1;
   state.flashPending = true;
+  return true;
 }
 
 export function updateStormShipStrike(state, nowMs) {
@@ -153,6 +158,7 @@ function validateStormLightningState(state) {
 function validateStormShipStrikeState(state) {
   if (!state || !Number.isInteger(state.sequence) ||
       (state.startedAtMs !== null && !Number.isFinite(state.startedAtMs)) ||
+      (state.cooldownUntilMs !== null && !Number.isFinite(state.cooldownUntilMs)) ||
       typeof state.flashPending !== "boolean") {
     throw new Error("Invalid storm ship strike state");
   }

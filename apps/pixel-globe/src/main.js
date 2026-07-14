@@ -122,12 +122,15 @@ import {
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
+  createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
   portDialogueView,
   selectPassengerDialogueOption,
   selectPortDialogueOption,
+  selectShoreBatteryDialogueOption,
   selectShipDialogueOption,
+  shoreBatteryDialogueView,
   shipDialogueView
 } from "./dialogueSystem.js";
 import {
@@ -265,6 +268,7 @@ import {
 } from "./dialoguePanelLayout.js";
 import { controlTextLayout } from "./controlTextLayout.js";
 import { fitMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
+import { gameOverStatsLayout } from "./gameOverLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import { windVGeometry, windVOpacity } from "./windIndicator.js";
 import { loadImageWithRetry } from "./assetImageLoader.js";
@@ -281,6 +285,16 @@ import {
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
+import {
+  SHORE_BATTERY_RANGE_PX,
+  armShoreBatteryReload,
+  createShoreBatteryState,
+  damageShoreBattery,
+  shoreBatteryCanFire,
+  shoreBatteryId,
+  shoreBatteryIsDisabled,
+  updateShoreBatteryState
+} from "./shoreBatteries.js";
 import {
   resolveShipCollision,
   separateTouchingShips,
@@ -398,12 +412,18 @@ import {
 import {
   LAKE_BATTLE_PHASE_ACTIVE,
   LAKE_BATTLE_PLAYER_ID,
+  LAKE_BATTLE_ENEMY_SLUGS,
   LAKE_BATTLE_SHIP_SLUGS,
   createLakeBattle,
   createLakeBattleArenaMap,
   drainLakeBattleEvents,
   fireLakeBattleBroadside,
   lakeBattleHeadingVector,
+  lakeBattleCombatantIsCity,
+  lakeBattleCombatantHitRadius,
+  lakeBattleCombatantLabel,
+  lakeBattleCombatantPoint,
+  lakeBattleCombatantStats,
   lakeBattleProjectilePoint,
   lakeBattleWaterAt,
   lakeBattleWeaponRange,
@@ -1274,6 +1294,7 @@ const npcVisualShips = new Map();
 const shipCombatState = createShipCombatState();
 const shipCollisionCooldowns = new Map();
 const shipCombatEntryCollisionGrace = new Map();
+const shoreBatteryStates = new Map();
 let npcCombatProjectiles = [];
 let npcCombatSplashes = [];
 let cannonSmokeBursts = [];
@@ -4084,7 +4105,7 @@ function stepShipInfoPage(direction) {
 
 function createLakeBattleModeState() {
   const playerIndex = LAKE_BATTLE_SHIP_SLUGS.indexOf("brigantine");
-  const enemyIndex = LAKE_BATTLE_SHIP_SLUGS.indexOf("caravel");
+  const enemyIndex = LAKE_BATTLE_ENEMY_SLUGS.indexOf("caravel");
   if (playerIndex < 0 || enemyIndex < 0) throw new Error("Lake battle default ships are missing from the armed roster");
   return {
     screen: LAKE_BATTLE_SCREEN_SETUP,
@@ -4131,7 +4152,7 @@ function closeLakeBattleModeToStartMenu() {
 function selectedLakeBattleSlug(side) {
   if (!lakeBattleMode) throw new Error("Lake battle mode is not open");
   if (side === "player") return LAKE_BATTLE_SHIP_SLUGS[lakeBattleMode.playerIndex];
-  if (side === "enemy") return LAKE_BATTLE_SHIP_SLUGS[lakeBattleMode.enemyIndex];
+  if (side === "enemy") return LAKE_BATTLE_ENEMY_SLUGS[lakeBattleMode.enemyIndex];
   throw new Error(`Unknown lake battle selection side: ${side}`);
 }
 
@@ -4139,7 +4160,7 @@ function stepLakeBattleShipSelection(side, direction) {
   if (!Number.isInteger(direction) || direction === 0) throw new Error(`Invalid lake battle selection step: ${direction}`);
   const key = side === "player" ? "playerIndex" : side === "enemy" ? "enemyIndex" : null;
   if (!key) throw new Error(`Unknown lake battle selection side: ${side}`);
-  const length = LAKE_BATTLE_SHIP_SLUGS.length;
+  const length = side === "player" ? LAKE_BATTLE_SHIP_SLUGS.length : LAKE_BATTLE_ENEMY_SLUGS.length;
   lakeBattleMode[key] = ((lakeBattleMode[key] + direction) % length + length) % length;
   lakeBattleMode.error = null;
   preloadLakeBattleShipAsset(selectedLakeBattleSlug(side));
@@ -4147,12 +4168,14 @@ function stepLakeBattleShipSelection(side, direction) {
 }
 
 function preloadLakeBattleShipAsset(slug) {
+  if (lakeBattleCombatantIsCity(slug)) return;
   void ensureLakeBattleShipAsset(slug).catch(() => {
     // ensureLakeBattleShipAsset reports the exact asset failure in the mode and console.
   });
 }
 
 async function ensureLakeBattleShipAsset(slug) {
+  if (lakeBattleCombatantIsCity(slug)) throw new Error("A lake battle city does not use a ship asset");
   if (lakeBattleShipAssets.has(slug)) return lakeBattleShipAssets.get(slug);
   const npcAsset = npcShipAssetsBySlug?.get(slug);
   if (npcAsset) {
@@ -4191,10 +4214,9 @@ async function beginLakeBattle() {
   try {
     const playerSlug = selectedLakeBattleSlug("player");
     const enemySlug = selectedLakeBattleSlug("enemy");
-    await Promise.all([
-      ensureLakeBattleShipAsset(playerSlug),
-      ensureLakeBattleShipAsset(enemySlug)
-    ]);
+    const assets = [ensureLakeBattleShipAsset(playerSlug)];
+    if (!lakeBattleCombatantIsCity(enemySlug)) assets.push(ensureLakeBattleShipAsset(enemySlug));
+    await Promise.all(assets);
     if (lakeBattleMode !== mode) return;
     mode.battle = createLakeBattle({
       width: SCREEN_W,
@@ -4211,8 +4233,8 @@ async function beginLakeBattle() {
     keys.clear();
     clearPointerSteering();
     startCombatMusicForThreat(Math.max(
-      shipStatsForSlug(playerSlug).cannons,
-      shipStatsForSlug(enemySlug).cannons
+      lakeBattleCombatantStats(playerSlug).cannons,
+      lakeBattleCombatantStats(enemySlug).cannons
     ) >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   } catch (error) {
     if (lakeBattleMode !== mode) return;
@@ -4227,7 +4249,8 @@ function restartLakeBattle() {
   if (!lakeBattleMode) return;
   const playerSlug = selectedLakeBattleSlug("player");
   const enemySlug = selectedLakeBattleSlug("enemy");
-  if (!lakeBattleShipAssets.has(playerSlug) || !lakeBattleShipAssets.has(enemySlug)) {
+  if (!lakeBattleShipAssets.has(playerSlug) ||
+      (!lakeBattleCombatantIsCity(enemySlug) && !lakeBattleShipAssets.has(enemySlug))) {
     throw new Error("Cannot restart lake battle without both selected ship assets");
   }
   lakeBattleMode.battle = createLakeBattle({
@@ -4243,8 +4266,8 @@ function restartLakeBattle() {
   keys.clear();
   clearPointerSteering();
   startCombatMusicForThreat(Math.max(
-    shipStatsForSlug(playerSlug).cannons,
-    shipStatsForSlug(enemySlug).cannons
+    lakeBattleCombatantStats(playerSlug).cannons,
+    lakeBattleCombatantStats(enemySlug).cannons
   ) >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   dirty = true;
 }
@@ -4291,8 +4314,16 @@ function updateLakeBattleModeFrame(dt, nowMs) {
 }
 
 function startLakeBattleSinkSequence(battle, nowMs) {
-  const sunkShips = [battle.player, battle.enemy].filter((shipState) => shipState.hitPoints <= 0);
-  if (sunkShips.length === 0) throw new Error("Finished lake battle has no sunk ship");
+  const defeatedCombatants = [battle.player, battle.enemy].filter((state) => state.hitPoints <= 0);
+  if (defeatedCombatants.length === 0) throw new Error("Finished lake battle has no defeated combatant");
+  const sunkShips = defeatedCombatants.filter((state) => !lakeBattleCombatantIsCity(state));
+  if (sunkShips.length === 0) {
+    lakeBattleMode.sinkEffects = [];
+    lakeBattleMode.resultReadyAtMs = null;
+    lakeBattleMode.screen = LAKE_BATTLE_SCREEN_RESULT;
+    lakeBattleMode.selectedIndex = 0;
+    return;
+  }
   lakeBattleMode.sinkEffects = sunkShips.map((shipState) => ({
     shipId: shipState.id,
     effect: createLakeBattleShipSinkEffect(shipState, nowMs)
@@ -4706,6 +4737,7 @@ async function restoreSavedVoyage(payload) {
   gameOverReason = null;
   gameOverState = null;
   npcVisualShips.clear();
+  shoreBatteryStates.clear();
   npcCombatProjectiles = [];
   npcCombatSplashes = [];
   shipCombatState.engagements.clear();
@@ -6013,6 +6045,8 @@ function chooseDialogueOption(optionIndex) {
   } else if (dialogueState.kind === "ship") {
     dialogueNpcShipId = dialogueState.npcShipId;
     result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
+  } else if (dialogueState.kind === "shore-battery") {
+    result = selectShoreBatteryDialogueOption(dialogueState, currentDialogueCity(), optionIndex);
   } else {
     throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
   }
@@ -6186,6 +6220,9 @@ function currentDialogueView() {
   }
   if (dialogueState.kind === "ship") {
     return shipDialogueView(dialogueState, currentDialogueShip());
+  }
+  if (dialogueState.kind === "shore-battery") {
+    return shoreBatteryDialogueView(dialogueState, currentDialogueCity());
   }
   throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
 }
@@ -8032,6 +8069,12 @@ function navalArcHasEnemy(arc) {
     const point = { x: state.x + offset.x, y: state.y + offset.y };
     if (pointInBroadsideArc(point, arc, 7)) return true;
   }
+  for (const battery of activeVisibleShoreBatteries()) {
+    if (!battery.engagedTargetIds.has(PLAYER_COMBAT_ID)) continue;
+    const localPoint = shoreBatteryPoint(battery.id);
+    const point = { x: localPoint.x + offset.x, y: localPoint.y + offset.y };
+    if (pointInBroadsideArc(point, arc, 9)) return true;
+  }
   return false;
 }
 
@@ -8119,15 +8162,20 @@ function resolvePlayerCannonPathHit(ball, previousAge) {
       y: state.y,
       radius: shipCollisionRadius(shipStatsForSlug(state.slug).mass) + 2
     }));
+  for (const battery of activeVisibleShoreBatteries()) {
+    const point = shoreBatteryPoint(battery.id);
+    targets.push({ id: battery.id, x: point.x, y: point.y, radius: 9 });
+  }
   const hit = firstNavalProjectileHit(
     navalProjectilePoint(ball, previousAge),
     navalProjectilePoint(ball),
     targets
   );
   if (!hit) return false;
-  const target = npcVisualShips.get(hit.target.id);
+  const target = npcVisualShips.get(hit.target.id) || shoreBatteryStates.get(hit.target.id);
   if (!target) throw new Error(`Cannon path target disappeared: ${hit.target.id}`);
-  applyPlayerNavalHit(ball, target, hit);
+  if (shoreBatteryStates.has(target.id)) applyShoreBatteryHit(ball, target, hit, true);
+  else applyPlayerNavalHit(ball, target, hit);
   return true;
 }
 
@@ -8141,10 +8189,71 @@ function resolvePlayerNavalImpact(ball) {
     target = state;
     bestDistance = distance;
   }
+  for (const battery of activeVisibleShoreBatteries()) {
+    const point = shoreBatteryPoint(battery.id);
+    const distance = Math.hypot(point.x - ball.targetX, point.y - ball.targetY);
+    if (distance > NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX || distance >= bestDistance) continue;
+    target = battery;
+    bestDistance = distance;
+  }
   if (!target) return false;
 
-  applyPlayerNavalHit(ball, target, { x: ball.targetX, y: ball.targetY });
+  if (shoreBatteryStates.has(target.id)) {
+    applyShoreBatteryHit(ball, target, { x: ball.targetX, y: ball.targetY }, true);
+  } else {
+    applyPlayerNavalHit(ball, target, { x: ball.targetX, y: ball.targetY });
+  }
   return true;
+}
+
+function activeVisibleShoreBatteries() {
+  const simMinute = Math.floor(weatherClockMinutes);
+  return [...shoreBatteryStates.values()].filter((state) => (
+    !shoreBatteryIsDisabled(state, simMinute) && shoreBatteryPoint(state.id)
+  ));
+}
+
+function combatEngagementIsActive(aId, bId) {
+  if (shipCombatState.engagements.has(engagementKey(aId, bId))) return true;
+  const aBattery = shoreBatteryStates.get(aId);
+  if (aBattery?.engagedTargetIds.has(bId)) return true;
+  const bBattery = shoreBatteryStates.get(bId);
+  return bBattery?.engagedTargetIds.has(aId) === true;
+}
+
+function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
+  if (hitByPlayer) beginPlayerInitiatedShoreCombat(battery);
+  else battery.engagedTargetIds.add(ball.ownerId);
+  playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
+  const result = damageShoreBattery(
+    battery,
+    gameState.memory.flags,
+    ball.damage,
+    Math.floor(weatherClockMinutes)
+  );
+  addHullSplinterBurst(ball, point);
+  if (!result.newlyDisabled) return;
+  npcCombatProjectiles = npcCombatProjectiles.filter((shot) => (
+    shot.ownerId !== battery.id && shot.targetId !== battery.id
+  ));
+  combatNotice = {
+    text: "SHORE BATTERY DISABLED  3 DAYS",
+    expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+  };
+  saveVoyageNow("shore battery disabled");
+}
+
+function beginPlayerInitiatedShoreCombat(battery) {
+  if (!battery.engagedTargetIds.has(PLAYER_COMBAT_ID)) {
+    battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
+    battery.playerHailed = true;
+  }
+  if (battery.playerAttackRecorded) return;
+  recordAttackAgainstFaction(gameState, battery.factionId);
+  if (!hasPrivateeringAuthorityAgainst(gameState, battery.factionId)) {
+    recordPiracyAgainstFaction(gameState, battery.factionId, { includeVictim: false });
+  }
+  battery.playerAttackRecorded = true;
 }
 
 function applyPlayerNavalHit(ball, target, point) {
@@ -8539,7 +8648,7 @@ function updateStormDamage(previousMinute, currentMinute) {
   }
   if (totalDamage <= 0) return false;
 
-  triggerStormShipStrike(stormShipStrikeState, lastFrameMs);
+  if (!triggerStormShipStrike(stormShipStrikeState, lastFrameMs)) return false;
   ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
   applyCrewCasualtiesFromHullDamage(totalDamage, "The last of the crew was lost in the storm.");
   stormDamageNotice = {
@@ -8956,10 +9065,12 @@ function updateNpcCombat(dt) {
     ? (firstPlayerEngagement.aId === PLAYER_COMBAT_ID ? firstPlayerEngagement.bId : firstPlayerEngagement.aId)
     : null;
   const combatHailOpened = initiatingNpcId ? openNpcCombatHail(initiatingNpcId) : false;
+  const batteryCombat = updateShoreBatteryCombat(dt, combatHailOpened);
+  changed ||= batteryCombat.changed;
 
   for (const state of npcVisualShips.values()) {
     state.cannonCooldown = Math.max(0, state.cannonCooldown - dt);
-    const intent = result.intents.get(state.id) || null;
+    const intent = result.intents.get(state.id) || shoreBatteryIntentForNpc(state);
     const nextMode = intent?.mode || null;
     const nextTargetId = intent?.targetId || null;
     const nextEnemyIds = intent?.enemyIds || [];
@@ -8971,12 +9082,12 @@ function updateNpcCombat(dt) {
     state.combatMode = nextMode;
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
-    if (!combatHailOpened && intent?.mode === COMBAT_MODE_ATTACK && fireNpcBroadsideAtTarget(state, intent.targetId)) {
+    if (!combatHailOpened && !batteryCombat.hailOpened && intent?.mode === COMBAT_MODE_ATTACK && fireNpcBroadsideAtTarget(state, intent.targetId)) {
       changed = true;
     }
   }
 
-  if (result.intents.has(PLAYER_COMBAT_ID)) {
+  if (result.intents.has(PLAYER_COMBAT_ID) || playerHasShoreBatteryEngagement()) {
     const hostileCannons = Math.max(0, ...[...npcVisualShips.values()]
       .filter((state) => state.combatEnemyIds.includes(PLAYER_COMBAT_ID))
       .map((state) => shipStatsForSlug(state.slug).cannons));
@@ -8988,6 +9099,13 @@ function updateNpcCombat(dt) {
 function playerHasCombatEngagement() {
   for (const engagement of shipCombatState.engagements.values()) {
     if (engagement.aId === PLAYER_COMBAT_ID || engagement.bId === PLAYER_COMBAT_ID) return true;
+  }
+  return playerHasShoreBatteryEngagement();
+}
+
+function playerHasShoreBatteryEngagement() {
+  for (const state of shoreBatteryStates.values()) {
+    if (state.engagedTargetIds.has(PLAYER_COMBAT_ID)) return true;
   }
   return false;
 }
@@ -9023,6 +9141,160 @@ function npcCombatAttackReason(state) {
   }
   const faction = factionById(state.factionId);
   return `${faction.name} is at war with your flag. Heave to, or we open fire!`;
+}
+
+function updateShoreBatteryCombat(dt, anotherHailOpened) {
+  if (!chart || !gameState || !ship || !localLayout) return { changed: false, hailOpened: false };
+  const simMinute = Math.floor(weatherClockMinutes);
+  const flags = gameState.memory.flags;
+  let changed = false;
+  let hailOpened = false;
+  const visibleIds = new Set();
+
+  for (const city of chart.cityCalls || []) {
+    if (!city.character || !factionHasFlag(city.factionId)) continue;
+    const state = ensureShoreBatteryState(city);
+    visibleIds.add(state.id);
+    if (updateShoreBatteryState(state, flags, simMinute, dt)) changed = true;
+    if (shoreBatteryIsDisabled(state, simMinute)) continue;
+    const point = shoreBatteryPoint(state.id);
+    if (!point) throw new Error(`Visible shore battery has no draw point: ${state.id}`);
+    const weapon = shoreBatteryWeapon(state);
+    const range = SHORE_BATTERY_RANGE_PX * weapon.rangeScale;
+    const nextTargets = new Set();
+    const playerDistance = Math.hypot(point.x - localLayout.viewX, point.y - localLayout.viewY);
+    const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) &&
+      portEntryStatus(gameState, city, simMinute).hostile;
+    if (playerHostile && playerDistance <= range) {
+      if (!state.playerHailed && !anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
+        openShoreBatteryCombatHail(city, state);
+        hailOpened = true;
+        changed = true;
+      }
+      if (state.playerHailed) nextTargets.add(PLAYER_COMBAT_ID);
+    } else if (playerDistance > range + 20) {
+      state.playerHailed = false;
+    }
+
+    for (const npc of npcVisualShips.values()) {
+      if (npc.combatGrace || npc.hitPoints <= 0 || !shoreBatteryHostileToFaction(city, npc.factionId)) continue;
+      if (Math.hypot(point.x - npc.x, point.y - npc.y) <= range) nextTargets.add(npc.id);
+    }
+    if (setContentsDiffer(state.engagedTargetIds, nextTargets)) changed = true;
+    state.engagedTargetIds = nextTargets;
+    if (shoreBatteryCanFire(state, simMinute) && fireShoreBatteryAtNearestTarget(state)) changed = true;
+  }
+
+  for (const state of shoreBatteryStates.values()) {
+    if (!visibleIds.has(state.id)) state.engagedTargetIds.clear();
+  }
+  return { changed, hailOpened };
+}
+
+function ensureShoreBatteryState(city) {
+  const id = shoreBatteryId(city);
+  let state = shoreBatteryStates.get(id);
+  if (!state) {
+    state = createShoreBatteryState(city, gameState.memory.flags, Math.floor(weatherClockMinutes));
+    shoreBatteryStates.set(id, state);
+  }
+  return state;
+}
+
+function shoreBatteryHostileToFaction(city, factionId) {
+  if (!factionId || city.factionId === factionId) return false;
+  return currentDiplomacyBetween(city.factionId, factionId) === DIPLOMACY_WAR;
+}
+
+function openShoreBatteryCombatHail(city, state) {
+  state.playerHailed = true;
+  dialogueState = createShoreBatteryDialogueSession(city);
+  dialogueLayout = createDialogueLayoutState();
+  ensureDialoguePortraitLoaded();
+  startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
+  dirty = true;
+}
+
+function shoreBatteryWeapon(state) {
+  const weapon = navalWeaponForShip({ cultureType: state.cultureType, cannons: state.gunCount });
+  if (!weapon) throw new Error(`Shore battery has no weapon: ${state.id}`);
+  return weapon;
+}
+
+function shoreBatteryPoint(batteryId) {
+  const state = shoreBatteryStates.get(batteryId);
+  if (!state || !chart) return null;
+  const call = chart.cityCalls?.find((city) => (city.portId || `city-${city.tileId}`) === state.portId);
+  if (!call) return null;
+  return { x: call.x, y: call.y - 2 };
+}
+
+function shoreBatteryIntentForNpc(npc) {
+  let targetId = null;
+  let nearestDistance = Infinity;
+  for (const battery of shoreBatteryStates.values()) {
+    if (!battery.engagedTargetIds.has(npc.id)) continue;
+    const point = shoreBatteryPoint(battery.id);
+    if (!point) continue;
+    const distance = Math.hypot(point.x - npc.x, point.y - npc.y);
+    if (distance >= nearestDistance) continue;
+    nearestDistance = distance;
+    targetId = battery.id;
+  }
+  return targetId ? { mode: COMBAT_MODE_ATTACK, targetId, enemyIds: [targetId] } : null;
+}
+
+function fireShoreBatteryAtNearestTarget(state) {
+  const origin = shoreBatteryPoint(state.id);
+  if (!origin) return false;
+  let targetId = null;
+  let target = null;
+  let nearestDistance = Infinity;
+  for (const id of state.engagedTargetIds) {
+    if (id === PLAYER_COMBAT_ID && dialogueState) continue;
+    const point = combatEntityPoint(id);
+    if (!point) continue;
+    const distance = Math.hypot(point.x - origin.x, point.y - origin.y);
+    if (distance >= nearestDistance) continue;
+    targetId = id;
+    target = point;
+    nearestDistance = distance;
+  }
+  if (!target) return false;
+  const weapon = shoreBatteryWeapon(state);
+  armShoreBatteryReload(state);
+  playNavalAttackSound(weapon, state.gunCount);
+  startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
+  for (let index = 0; index < state.gunCount; index++) {
+    const seed = cannonSeed(state.shotSequence, index, state.cityTileId * 0x51a7, origin);
+    const jitter = weapon.kind === NAVAL_WEAPON_ARROW ? 2.5 : 5;
+    const targetX = target.x + (cannonUnit(seed, 1) * 2 - 1) * jitter;
+    const targetY = target.y + (cannonUnit(seed, 2) * 2 - 1) * jitter;
+    const range = Math.hypot(targetX - origin.x, targetY - origin.y);
+    const projectile = {
+      kind: weapon.kind,
+      ownerId: state.id,
+      targetId,
+      startX: origin.x + index,
+      startY: origin.y,
+      targetX,
+      targetY,
+      age: 0,
+      duration: range / (CANNON_SPEED_PX * weapon.speedScale),
+      arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 3) * weapon.arcHeightScale,
+      damage: weapon.damage,
+      seed
+    };
+    npcCombatProjectiles.push(projectile);
+    if (weapon.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
+  }
+  return true;
+}
+
+function setContentsDiffer(a, b) {
+  if (a.size !== b.size) return true;
+  for (const value of a) if (!b.has(value)) return true;
+  return false;
 }
 
 function playerCombatEntity() {
@@ -9103,6 +9375,7 @@ function combatEntityPoint(entityId) {
   if (entityId === PLAYER_COMBAT_ID) {
     return ship && localLayout ? { x: localLayout.viewX, y: localLayout.viewY } : null;
   }
+  if (shoreBatteryStates.has(entityId)) return shoreBatteryPoint(entityId);
   const state = npcVisualShips.get(entityId);
   return state ? { x: state.x, y: state.y } : null;
 }
@@ -9274,6 +9547,12 @@ function resolveNpcCannonPathHit(ball, previousAge) {
       radius: shipCollisionRadius(shipStatsForSlug(state.slug).mass) + 2
     });
   }
+  for (const battery of activeVisibleShoreBatteries()) {
+    if (battery.id === ball.ownerId) continue;
+    if (!combatEngagementIsActive(ball.ownerId, battery.id)) continue;
+    const point = shoreBatteryPoint(battery.id);
+    targets.push({ id: battery.id, x: point.x, y: point.y, radius: 9 });
+  }
   const hit = firstNavalProjectileHit(
     navalProjectilePoint(ball, previousAge),
     navalProjectilePoint(ball),
@@ -9286,7 +9565,7 @@ function resolveNpcCannonPathHit(ball, previousAge) {
 
 function resolveNpcCombatImpact(ball) {
   const target = combatEntityPoint(ball.targetId);
-  const active = shipCombatState.engagements.has(engagementKey(ball.ownerId, ball.targetId));
+  const active = combatEngagementIsActive(ball.ownerId, ball.targetId);
   if (
     !target ||
     !active ||
@@ -9307,6 +9586,12 @@ function applyNpcCombatHit(ball, targetId, point) {
     applyCrewCasualtiesFromHullDamage(ball.damage, "The last of the crew fell in battle.");
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
     else addHullSplinterBurst(ball, point);
+    return;
+  }
+
+  const battery = shoreBatteryStates.get(targetId);
+  if (battery) {
+    applyShoreBatteryHit(ball, battery, point, false);
     return;
   }
 
@@ -9384,6 +9669,7 @@ function clearCombatForShip(shipId) {
   for (const [key, engagement] of [...shipCombatState.engagements.entries()]) {
     if (engagement.aId === shipId || engagement.bId === shipId) shipCombatState.engagements.delete(key);
   }
+  for (const battery of shoreBatteryStates.values()) battery.engagedTargetIds.delete(shipId);
 }
 
 function updateCombatShipCollisions(dt) {
@@ -13064,7 +13350,7 @@ function drawLakeBattleSetup() {
   const backRect = { ...beginRect, y: beginRect.y + 28 };
   lakeBattleMode.rowRects = [playerRect, enemyRect, beginRect, backRect];
   drawLakeBattleShipSelector(playerRect, "YOUR SHIP", "player", LAKE_BATTLE_SETUP_PLAYER_ROW);
-  drawLakeBattleShipSelector(enemyRect, "ENEMY SHIP", "enemy", LAKE_BATTLE_SETUP_ENEMY_ROW);
+  drawLakeBattleShipSelector(enemyRect, "ENEMY", "enemy", LAKE_BATTLE_SETUP_ENEMY_ROW);
   drawStartMenuButton(
     beginRect,
     lakeBattleMode.loading ? "LOADING SHIPS..." : "BEGIN BATTLE",
@@ -13102,7 +13388,7 @@ function lakeBattleSetupPanelRect() {
 function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
   const selected = lakeBattleMode.selectedIndex === row;
   const slug = selectedLakeBattleSlug(side);
-  const stats = shipStatsForSlug(slug);
+  const stats = lakeBattleCombatantStats(slug);
   drawPiratePaperInset(rect, selected);
   const arrowSize = 24;
   const leftRect = { x: rect.x + 4, y: rect.y + 15, w: arrowSize, h: arrowSize };
@@ -13112,20 +13398,25 @@ function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
   drawShipInfoArrowButton(leftRect, "<", pointInRect(lakeBattleMode.hoverPoint, leftRect));
   drawShipInfoArrowButton(rightRect, ">", pointInRect(lakeBattleMode.hoverPoint, rightRect));
 
-  const asset = lakeBattleShipAssets.get(slug) || npcShipAssetsBySlug?.get(slug);
-  if (asset) drawLakeBattleSpriteFrame(asset.image, 0, rect.x + 31, rect.y + 9);
-  else drawOptionsText("...", rect.x + 49, rect.y + 23, { align: "center", color: PIRATE_MENU_INK_MUTED });
+  if (lakeBattleCombatantIsCity(slug)) {
+    ctx.drawImage(cityImageForType("mediterranean"), rect.x + 31, rect.y + 9);
+  } else {
+    const asset = lakeBattleShipAssets.get(slug) || npcShipAssetsBySlug?.get(slug);
+    if (asset) drawLakeBattleSpriteFrame(asset.image, 0, rect.x + 31, rect.y + 9);
+    else drawOptionsText("...", rect.x + 49, rect.y + 23, { align: "center", color: PIRATE_MENU_INK_MUTED });
+  }
   const textLeft = rect.x + 72;
   const textWidth = Math.max(64, rect.w - 108);
   drawOptionsText(headingLabel, textLeft, rect.y + 6, { color: selected ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED });
   drawOptionsText(
-    fitPixelText(shipLabelForSlug(slug).toUpperCase(), PIXEL_FONT_SMALL_8, textWidth),
+    fitPixelText(lakeBattleCombatantLabel(slug).toUpperCase(), PIXEL_FONT_SMALL_8, textWidth),
     textLeft,
     rect.y + 20,
     { color: PIRATE_MENU_INK }
   );
-  const armament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARROWS" : `${stats.cannons} GUNS`;
-  const compactArmament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARR" : `${stats.cannons}G`;
+  const gunCount = stats.batteryGuns || stats.cannons;
+  const armament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARROWS" : `${gunCount} GUNS`;
+  const compactArmament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARR" : `${gunCount}G`;
   const summary = rect.w < 300
     ? `H${stats.hitPoints} ${compactArmament} C${stats.crewCapacity}`
     : `HULL ${stats.hitPoints}  ${armament}  CREW ${stats.crewCapacity}`;
@@ -13190,8 +13481,34 @@ function drawLakeBattleEffects(battle) {
 function drawLakeBattleShips(battle, nowMs) {
   const ships = [battle.player, battle.enemy].sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
   for (const shipState of ships) {
-    if (shipState.hitPoints > 0) drawLakeBattleShip(shipState, nowMs);
+    if (lakeBattleCombatantIsCity(shipState)) drawLakeBattleCity(shipState);
+    else if (shipState.hitPoints > 0) drawLakeBattleShip(shipState, nowMs);
   }
+}
+
+function drawLakeBattleCity(cityState) {
+  const image = cityImageForType("mediterranean");
+  const point = lakeBattleCombatantPoint(cityState);
+  const x = Math.round(point.x - CITY_SPRITE_W / 2);
+  const y = Math.round(point.y - CITY_SPRITE_H / 2);
+  if (cityState.hitPoints > 0) {
+    const outline = selectableSpriteOutlineCanvas(
+      image,
+      0,
+      0,
+      CITY_SPRITE_W,
+      CITY_SPRITE_H,
+      false,
+      "#e83b3b"
+    );
+    ctx.drawImage(outline, x - 1, y - 1);
+  }
+  ctx.drawImage(image, x, y);
+  if (cityState.hitPoints <= 0) {
+    ctx.fillStyle = "rgba(46, 34, 47, 0.58)";
+    ctx.fillRect(x + 7, y + 7, CITY_SPRITE_W - 14, CITY_SPRITE_H - 14);
+  }
+  drawLakeBattleShipHullBar(cityState, x + 7, y + CITY_SPRITE_H - 1, 22);
 }
 
 function lakeBattleShipSpriteCall(shipState, nowMs) {
@@ -13281,8 +13598,8 @@ function drawLakeBattleShipHullBar(shipState, x, y, width) {
 }
 
 function drawLakeBattleHud(battle) {
-  const playerLabel = shipLabelForSlug(battle.player.slug).toUpperCase();
-  const enemyLabel = shipLabelForSlug(battle.enemy.slug).toUpperCase();
+  const playerLabel = lakeBattleCombatantLabel(battle.player.slug).toUpperCase();
+  const enemyLabel = lakeBattleCombatantLabel(battle.enemy.slug).toUpperCase();
   const layout = lakeBattleHudLayout({
     screenWidth: SCREEN_W,
     labelWidths: [
@@ -13341,7 +13658,11 @@ function drawLakeBattleBroadsideControls(battle) {
   for (const sideName of ["port", "starboard"]) {
     const arc = lakeBattleBroadsideArc(sideName);
     const cooldown = battle.player.cooldowns[sideName];
-    const targetInArc = pointInBroadsideArc({ x: battle.enemy.x, y: battle.enemy.y }, arc, 7);
+    const targetInArc = pointInBroadsideArc(
+      lakeBattleCombatantPoint(battle.enemy),
+      arc,
+      lakeBattleCombatantHitRadius(battle.enemy)
+    );
     drawBroadsideReloadIndicator(
       arc,
       cooldown,
@@ -17182,6 +17503,21 @@ function drawCitySpritesAboveShip(activeChart, offset, nowMs) {
 
 function drawCitySprite(call, nowMs) {
   const img = cityImageForType(call.cityType, call.settlementType);
+  const battery = shoreBatteryStates.get(shoreBatteryId(call));
+  const batteryInPlayerCombat = battery?.engagedTargetIds.has(PLAYER_COMBAT_ID) &&
+    !shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes));
+  if (batteryInPlayerCombat) {
+    const outline = selectableSpriteOutlineCanvas(
+      img,
+      0,
+      0,
+      call.spriteW,
+      call.spriteH,
+      false,
+      "#e83b3b"
+    );
+    ctx.drawImage(outline, call.spriteX - 1, call.spriteY - 1);
+  }
   const poleX = call.spriteX + 29;
   const poleTop = call.spriteY + 2;
   const hasFlag = factionHasFlag(call.factionId);
@@ -17200,6 +17536,18 @@ function drawCitySprite(call, nowMs) {
       flagWavePhase(nowMs, call.tileId)
     );
   }
+  if (batteryInPlayerCombat) drawShoreBatteryHealthBar(call, battery);
+}
+
+function drawShoreBatteryHealthBar(call, battery) {
+  const width = 18;
+  const x = Math.round(call.x - width / 2);
+  const y = Math.round(call.spriteY - 3);
+  const fill = Math.round((width - 2) * clamp(battery.hitPoints / battery.maxHitPoints, 0, 1));
+  ctx.fillStyle = "#1a1512";
+  ctx.fillRect(x, y, width, 3);
+  ctx.fillStyle = battery.hitPoints <= battery.maxHitPoints * 0.35 ? "#e83b3b" : "#f68181";
+  ctx.fillRect(x + 1, y + 1, fill, 1);
 }
 
 function flagWavePhase(nowMs, seed = 0) {
@@ -18275,36 +18623,47 @@ function drawGameOverMemorial(state, fade) {
 function drawGameOverStatsScreen(state) {
   drawPiratePaperPanel({ x: 0, y: 0, w: SCREEN_W, h: SCREEN_H });
   const name = state.character?.name || "The captain";
+  const epitaph = `${name} WAS NEVER SEEN AGAIN.`.toUpperCase();
+  const layout = gameOverStatsLayout({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    epitaph,
+    cause: state.reason.toUpperCase(),
+    rows: gameOverStatRows(state),
+    measureText: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
+  });
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("VOYAGE ENDED", SCREEN_W / 2, 22, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText(
-    fitPixelText(`${name} WAS NEVER SEEN AGAIN.`.toUpperCase(), PIXEL_FONT_SMALL_8, SCREEN_W - 44),
-    SCREEN_W / 2,
-    39,
-    { font: PIXEL_FONT_SMALL_8, align: "center" }
-  );
+  layout.epitaphLines.forEach((line, index) => {
+    drawPixelText(line, SCREEN_W / 2, layout.epitaphY + index * 10, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  layout.causeLines.forEach((line, index) => {
+    drawPixelText(line, SCREEN_W / 2, layout.causeY + index * 10, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  });
 
-  const rows = gameOverStatRows(state);
-  const labelX = 92;
-  const valueX = SCREEN_W - 92;
-  const y0 = 63;
-  for (let i = 0; i < rows.length; i++) {
-    const y = y0 + i * 14;
+  for (const row of layout.rows) {
     ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-    drawPixelText(rows[i][0], labelX, y, { font: PIXEL_FONT_SMALL_8 });
+    drawPixelText(row.label, row.labelX, row.labelY, { font: PIXEL_FONT_SMALL_8 });
     ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText(fitPixelText(rows[i][1], PIXEL_FONT_SMALL_8, valueX - labelX - 8), valueX, y, {
+    drawPixelText(row.value, row.valueX, row.valueY, {
       font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
   }
 
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, SCREEN_H - 24, {
+  drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, layout.promptY, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });

@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   LAKE_BATTLE_ENEMY_ID,
+  LAKE_BATTLE_CITY_SLUG,
+  LAKE_BATTLE_ENEMY_SLUGS,
   LAKE_BATTLE_PHASE_ACTIVE,
   LAKE_BATTLE_PLAYER_ID,
   LAKE_BATTLE_SHIP_SLUGS,
@@ -24,6 +26,33 @@ test("lake battle roster contains every armed hull including native canoes", () 
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("polynesian-voyaging-canoe"));
   assert.ok(LAKE_BATTLE_SHIP_SLUGS.includes("mesoamerican-dugout-canoe"));
   assert.equal(LAKE_BATTLE_SHIP_SLUGS.includes("fishing-lugger"), false);
+  assert.ok(LAKE_BATTLE_ENEMY_SLUGS.includes(LAKE_BATTLE_CITY_SLUG));
+  assert.equal(LAKE_BATTLE_SHIP_SLUGS.includes(LAKE_BATTLE_CITY_SLUG), false);
+});
+
+test("a city is a stationary coastal enemy with a two-shot shore battery", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: LAKE_BATTLE_CITY_SLUG
+  });
+  const start = { x: battle.enemy.x, y: battle.enemy.y };
+
+  assert.equal(battle.enemy.kind, "city");
+  assert.equal(battle.enemy.stats.batteryGuns, 2);
+  assert.equal(lakeBattleShipFitsInWater(battle, battle.enemy), true);
+  assert.ok(battle.enemy.x >= 36 && battle.enemy.x <= battle.width - 36);
+  assert.ok(battle.enemy.y >= 36 && battle.enemy.y <= battle.height - 36);
+  updateLakeBattle(battle, 1 / 60, {});
+  assert.deepEqual({ x: battle.enemy.x, y: battle.enemy.y }, start);
+  const fire = drainLakeBattleEvents(battle).find((event) => event.type === "fire");
+  assert.equal(fire.shipId, LAKE_BATTLE_ENEMY_ID);
+  assert.equal(fire.count, 2);
+
+  resizeLakeBattle(battle, 400, 240);
+  assert.equal(lakeBattleShipFitsInWater(battle, battle.enemy), true);
+  assert.ok(battle.enemy.x >= 36 && battle.enemy.x <= battle.width - 36);
 });
 
 test("native canoes enter lake battle with working arrow broadsides", () => {

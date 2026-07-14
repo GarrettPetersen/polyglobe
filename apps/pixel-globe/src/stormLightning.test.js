@@ -4,6 +4,7 @@ import test from "node:test";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
   STORM_LIGHTNING_MIN_INTENSITY,
+  STORM_SHIP_STRIKE_COOLDOWN_MS,
   STORM_SHIP_STRIKE_FLASH_FRAME,
   STORM_SHIP_STRIKE_FRAME_COUNT,
   STORM_SHIP_STRIKE_FRAME_HEIGHT,
@@ -54,7 +55,7 @@ test("leaving the storm cancels a scheduled strike", () => {
 
 test("storm damage animates all thirty lightning frames and flashes at impact", () => {
   const state = createStormShipStrikeState();
-  triggerStormShipStrike(state, 1000);
+  assert.equal(triggerStormShipStrike(state, 1000), true);
 
   assert.equal(stormShipStrikeFrame(state, 1000).index, 0);
   assert.equal(consumeStormShipStrikeFlash(state, 1000), false);
@@ -69,6 +70,15 @@ test("storm damage animates all thirty lightning frames and flashes at impact", 
   assert.equal(updateStormShipStrike(state, lastFrameTime), true);
   assert.equal(updateStormShipStrike(state, 2000), false);
   assert.equal(stormShipStrikeFrame(state, 2000), null);
+});
+
+test("ship lightning cannot strike twice during its cooldown", () => {
+  const state = createStormShipStrikeState();
+  assert.equal(triggerStormShipStrike(state, 1000), true);
+  assert.equal(triggerStormShipStrike(state, 1000 + STORM_SHIP_STRIKE_COOLDOWN_MS - 1), false);
+  assert.equal(state.sequence, 1);
+  assert.equal(triggerStormShipStrike(state, 1000 + STORM_SHIP_STRIKE_COOLDOWN_MS), true);
+  assert.equal(state.sequence, 2);
 });
 
 test("storm strike origin follows the current responsive ship position", () => {

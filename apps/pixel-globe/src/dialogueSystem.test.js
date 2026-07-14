@@ -5,12 +5,15 @@ import {
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
+  createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
   portDialogueView,
   selectPassengerDialogueOption,
   selectPortDialogueOption,
+  selectShoreBatteryDialogueOption,
   selectShipDialogueOption,
+  shoreBatteryDialogueView,
   shipDialogueView,
   worldPriceIndicator
 } from "./dialogueSystem.js";
@@ -37,6 +40,22 @@ test("hailing an NPC ship identifies the captain by name", () => {
   assert.equal(view.text, "Fair winds, captain. Running in ballast.");
   assert.deepEqual(view.options.map((option) => option.label), ["Demand surrender", "Leave"]);
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
+});
+
+test("hostile shore batteries hail before opening fire", () => {
+  const city = {
+    tileId: 17,
+    portId: "city-17",
+    city: "Alexandria",
+    factionId: "ottoman",
+    character: { name: "Kemal Reis" }
+  };
+  const session = createShoreBatteryDialogueSession(city);
+  const view = shoreBatteryDialogueView(session, city);
+  assert.equal(session.kind, "shore-battery");
+  assert.equal(view.speaker, "Kemal Reis, Alexandria");
+  assert.match(view.text, /shore batteries/);
+  assert.deepEqual(selectShoreBatteryDialogueOption(session, city, 0), { closed: true, action: null });
 });
 
 test("merchant captains report their destination and visible cargo", () => {

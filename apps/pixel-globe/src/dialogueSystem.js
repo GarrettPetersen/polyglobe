@@ -107,6 +107,38 @@ export function createShipDialogueSession(ship, { attackReason = null } = {}) {
   };
 }
 
+export function createShoreBatteryDialogueSession(city) {
+  if (!city?.character) throw new Error("Shore battery hail requires a city character");
+  return {
+    kind: "shore-battery",
+    cityTileId: city.tileId,
+    portId: city.portId || `city-${city.tileId}`,
+    selectedIndex: 0
+  };
+}
+
+export function shoreBatteryDialogueView(session, city) {
+  if (!session || session.kind !== "shore-battery" || session.cityTileId !== city?.tileId) {
+    throw new Error("Shore battery dialogue city does not match active session");
+  }
+  const faction = factionById(city.factionId);
+  return {
+    speaker: `${characterName(city.character)}, ${city.city}`,
+    expressionId: "angry",
+    text: `${faction.name} is hostile to your flag. Strike your colors or face the shore batteries!`,
+    feedback: null,
+    options: [option("To arms", { type: "close" })]
+  };
+}
+
+export function selectShoreBatteryDialogueOption(session, city, optionIndex = session.selectedIndex) {
+  const view = shoreBatteryDialogueView(session, city);
+  const selected = view.options[optionIndex];
+  if (!selected) throw new Error(`Invalid shore battery dialogue option index: ${optionIndex}`);
+  if (selected.action.type !== "close") throw new Error(`Unknown shore battery dialogue action: ${selected.action.type}`);
+  return { closed: true, action: null };
+}
+
 export function shipDialogueView(session, ship) {
   assertShipDialogueSubject(session, ship);
   const manifest = shipCargoManifest(ship.cargo);

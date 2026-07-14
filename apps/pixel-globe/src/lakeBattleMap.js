@@ -127,6 +127,34 @@ export function lakeBattleMapSpawnPoint(map, side, clearanceRadius = 0) {
   return { x: cell.x, y: cell.y, tileId: cell.id };
 }
 
+export function lakeBattleMapCoastalSpawnPoint(map) {
+  assertLakeBattleMap(map);
+  const target = { x: map.width * 0.63, y: map.height * 0.46 };
+  const marginX = Math.min(72, map.width * 0.24);
+  const marginTop = Math.min(64, map.height * 0.28);
+  const marginBottom = Math.min(48, map.height * 0.22);
+  const inset = (candidate) => (
+    candidate.x >= marginX && candidate.x <= map.width - marginX &&
+    candidate.y >= marginTop && candidate.y <= map.height - marginBottom
+  );
+  const nearCoast = map.cells.filter((candidate) => (
+    inset(candidate) &&
+    !candidate.water &&
+    !candidate.coastal &&
+    candidate.neighbors.some((id) => map.cellById.get(id).coastal)
+  ));
+  const interiorCoast = map.cells.filter((candidate) => inset(candidate) && candidate.coastal);
+  const candidates = nearCoast.length > 0
+    ? nearCoast
+    : interiorCoast.length > 0
+      ? interiorCoast
+      : map.cells.filter((candidate) => candidate.coastal);
+  const cell = candidates
+    .sort((a, b) => squaredDistance(a, target) - squaredDistance(b, target) || a.id - b.id)[0];
+  if (!cell) throw new Error("Lake battle map has no coastal city spawn");
+  return { x: cell.x, y: cell.y, tileId: cell.id };
+}
+
 export function nearestLakeBattleCell(map, x, y) {
   assertLakeBattleMap(map);
   const estimatedRow = Math.round((y - map.originY) / LAKE_BATTLE_HEX_ROW_SPACING);
