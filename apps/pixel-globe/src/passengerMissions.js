@@ -1,12 +1,21 @@
 import {
   cityKey,
-  cityLabel
+  cityLabel,
+  isEnvoyQuest
 } from "./gameState.js";
+import {
+  DIPLOMACY_ALLY,
+  DIPLOMACY_WAR,
+  factionById
+} from "./factions.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
-export const PASSENGER_MIN_DISTANCE_KM = 1800;
+export const PASSENGER_MIN_DISTANCE_KM = 900;
+export const PASSENGER_MAX_DISTANCE_KM = 4200;
+export const PASSENGER_PREFERRED_DISTANCE_KM = 2400;
 export const PASSENGER_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
+export const ENVOY_SPAWN_CHANCE = 0.08;
 
 export const PASSENGER_SCENARIOS = Object.freeze([
   Object.freeze({ id: "return-home", expressionId: "sad", namePort: "destination" }),
@@ -47,17 +56,75 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   return quest;
 }
 
+export function travelMissionOfferForCity(state, city, portCities, context = {}) {
+  const existing = pendingPassengerOfferForCity(state, city);
+  if (existing || questMemory(state).active) return existing;
+  if (city?.isFactionCapital) {
+    const envoy = envoyOfferForCapital(state, city, portCities, context);
+    if (envoy) return envoy;
+  }
+  return passengerOfferForCity(state, city, portCities, context);
+}
+
+export function envoyOfferForCapital(state, city, portCities, context = {}) {
+  const quests = questMemory(state);
+  if (quests.active) return null;
+  const existing = pendingPassengerOfferForCity(state, city);
+  if (existing) return existing;
+  if (!city?.isFactionCapital || city.capitalOfFactionId !== city.factionId) return null;
+  if (typeof context.relationBetween !== "function") {
+    throw new Error("Envoy missions require a diplomacy resolver");
+  }
+
+  const period = passengerRollPeriod(context.simMinute);
+  const originKey = cityKey(city);
+  const rollKey = `${originKey}|${period}|envoy`;
+  if (quests.passengerRolls[rollKey]) return null;
+  quests.passengerRolls[rollKey] = true;
+
+  const spawnChance = passengerSpawnChance(context.envoySpawnChance ?? ENVOY_SPAWN_CHANCE);
+  if (spawnChance < 1 && seededFraction(`${rollKey}|spawn`) >= spawnChance) return null;
+  const missionKind = chooseEnvoyKind(`${rollKey}|kind`, context.envoyKind);
+  const destination = chooseEnvoyDestination(city, portCities, missionKind, context);
+  if (!destination) return null;
+  const distanceKm = greatCircleDistanceKm(city, destination);
+  const quest = buildEnvoyQuest(city, destination, missionKind, distanceKm, period);
+  if (typeof context.createCharacter === "function") {
+    const scenario = {
+      id: missionKind,
+      expressionId: missionKind === "friendly-envoy" ? "attentive" : "stern",
+      namePort: "origin"
+    };
+    const character = context.createCharacter({ quest, origin: city, destination, scenario });
+    if (character) {
+      quest.passenger = character;
+      quest.passengerName = character.name;
+    }
+  }
+  quests.passengerOffers[originKey] = quest;
+  return quest;
+}
+
 export function pendingPassengerOfferForCity(state, city) {
   if (!state || !city) return null;
   const quests = questMemory(state);
   const offer = quests.passengerOffers[cityKey(city)];
   if (!offer || quests.completed[offer.id]) return null;
+  if (!passengerDistanceIsMedium(offer.distanceKm)) {
+    delete quests.passengerOffers[cityKey(city)];
+    return null;
+  }
   return offer;
 }
 
 export function activePassengerQuest(state) {
   const active = questMemory(state).active;
   return active?.kind === "passenger" ? active : null;
+}
+
+export function activeTravelMissionQuest(state) {
+  const active = questMemory(state).active;
+  return active?.kind === "passenger" || isEnvoyQuest(active) ? active : null;
 }
 
 export function passengerQuestById(state, questId) {
@@ -70,13 +137,120 @@ export function passengerQuestById(state, questId) {
 }
 
 export function markPassengerOfferSeen(state, quest) {
-  if (!quest || quest.kind !== "passenger" || !quest.originKey) return null;
+  if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest)) || !quest.originKey) return null;
   const quests = questMemory(state);
   const offer = quests.passengerOffers[quest.originKey];
   if (!offer || offer.id !== quest.id) return null;
   offer.seen = true;
   quest.seen = true;
   return offer;
+}
+
+function buildEnvoyQuest(origin, target, kind, distanceKm, period) {
+  const originKey = cityKey(origin);
+  const targetKey = cityKey(target);
+  const seed = `${originKey}|${targetKey}|${kind}|${period}`;
+  const reward = 220 + Math.round(distanceKm / 24) + (hashString32(`${seed}|reward`) % 121);
+  return {
+    id: `${kind}-${origin.tileId}-${target.tileId}-${hashString32(seed).toString(36)}`,
+    kind,
+    stage: "outbound",
+    originKey,
+    originTileId: origin.tileId,
+    originName: cityLabel(origin),
+    originCountry: origin.country || "",
+    originFactionId: origin.factionId,
+    targetKey,
+    targetTileId: target.tileId,
+    targetName: cityLabel(target),
+    targetCountry: target.country || "",
+    targetFactionId: target.factionId,
+    destinationKey: targetKey,
+    destinationTileId: target.tileId,
+    destinationName: cityLabel(target),
+    destinationCountry: target.country || "",
+    distanceKm: Math.round(distanceKm),
+    reward,
+    passengerName: "Envoy",
+    seen: false,
+    envoySafePassageUntilMinute: {},
+    dialogue: envoyDialogueText(kind, origin, target, reward, seed)
+  };
+}
+
+function envoyDialogueText(kind, origin, target, reward, seed) {
+  const home = cityLabel(origin);
+  const foreign = cityLabel(target);
+  const homeFaction = factionById(origin.factionId).name;
+  const targetFaction = factionById(target.factionId).name;
+  const friendly = kind === "friendly-envoy";
+  const variants = friendly ? FRIENDLY_ENVOY_DIALOGUE : HOSTILE_ENVOY_DIALOGUE;
+  const variant = variants[hashString32(`${seed}|dialogue`) % variants.length];
+  return Object.fromEntries(Object.entries(variant).map(([event, template]) => [event, template({
+    home,
+    foreign,
+    homeFaction,
+    targetFaction,
+    reward
+  })]));
+}
+
+const FRIENDLY_ENVOY_DIALOGUE = Object.freeze([
+  envoyDialogueVariant(
+    ({ foreign, reward }) => `Our courts have more to gain from ink than iron. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
+    ({ foreign }) => `My letters for ${foreign} are sealed. Let us hope their ministers are as ready as ours.`,
+    ({ targetFaction }) => `${targetFaction} received our proposals warmly. The first accord is made; now I must carry their answer home.`,
+    ({ home }) => `The agreement is signed. Set our course back to ${home}, captain.`,
+    ({ reward }) => `You brought both envoy and accord safely home. Your ${reward} db is waiting at the treasury.`,
+    () => "Hold your fire! I travel under seal to improve relations between our nations. This ship has diplomatic protection."
+  ),
+  envoyDialogueVariant(
+    ({ foreign, reward }) => `A marriage of interests is being discussed in ${foreign}. I need a discreet ship there and back. The fee is ${reward} db.`,
+    ({ foreign }) => `At ${foreign}, courtesy will matter as much as the terms. I have rehearsed both.`,
+    ({ homeFaction, targetFaction }) => `${homeFaction} and ${targetFaction} have found common ground. Their reply must reach my court unchanged.`,
+    ({ home }) => `The difficult words are behind us. Take me back to ${home} with the answer.`,
+    ({ reward }) => `The court approves the agreement, and your service. Accept ${reward} db with our thanks.`,
+    () => "Stand down! An envoy is aboard under diplomatic seal. An attack would insult both courts."
+  ),
+  envoyDialogueVariant(
+    ({ foreign, reward }) => `Trade and safe harbors are on the table in ${foreign}. Deliver me, wait for the talks, then return me for ${reward} db.`,
+    ({ foreign }) => `If the winds favor us, perhaps the ministers of ${foreign} will do the same.`,
+    ({ targetFaction }) => `${targetFaction} accepted the opening terms. I carry enough goodwill home to build upon.`,
+    ({ home }) => `Our work here is done. Home to ${home}, before cautious men reconsider.`,
+    ({ reward }) => `The dispatches arrived with me. The treasury releases your ${reward} db.`,
+    () => "Cease your attack! This captain carries a peaceful embassy under the protection of both crowns."
+  )
+]);
+
+const HOSTILE_ENVOY_DIALOGUE = Object.freeze([
+  envoyDialogueVariant(
+    ({ foreign, reward }) => `I bear a protest that must be delivered in ${foreign}, face to face. Carry me there and back for ${reward} db.`,
+    ({ foreign }) => `The court at ${foreign} will dislike every line. That is why it must be read aloud.`,
+    ({ targetFaction }) => `${targetFaction} rejected our demands, as expected. Their answer is colder than the sea outside.`,
+    ({ home }) => `We have said what honor required. Return me to ${home} with their refusal.`,
+    ({ reward }) => `The court has heard their answer. Here is ${reward} db for your loyal service.`,
+    () => "Hold! I am an accredited envoy bearing formal demands. You will grant this vessel diplomatic passage."
+  ),
+  envoyDialogueVariant(
+    ({ foreign, reward }) => `A warning must reach ${foreign} before rumor does. I require passage there and home; payment is ${reward} db.`,
+    ({ foreign }) => `No smiles will soften the warning I carry to ${foreign}. Keep the ship ready for a quick departure.`,
+    ({ homeFaction, targetFaction }) => `${targetFaction} would not yield to ${homeFaction}. Their contempt will be remembered.`,
+    ({ home }) => `There is nothing more to discuss. Take me home to ${home}.`,
+    ({ reward }) => `Your part was carried out without hesitation. The promised ${reward} db is yours.`,
+    () => "Do not fire! I carry an official warning under diplomatic privilege. Let this ship pass for seven days."
+  ),
+  envoyDialogueVariant(
+    ({ foreign, reward }) => `Our grievances have gone unanswered. Take me to ${foreign} to deliver the final articles, then home for ${reward} db.`,
+    ({ foreign }) => `At ${foreign}, keep the tide beneath us. These talks may end quickly.`,
+    ({ targetFaction }) => `${targetFaction} answered pride with pride. I have their words, and no reason to linger.`,
+    ({ home }) => `Set every useful sail for ${home}. My report belongs before the council.`,
+    ({ reward }) => `The council has your name in its record. Take ${reward} db for completing the mission.`,
+    () => "By diplomatic law, stay your weapons! This vessel bears an envoy between our governments."
+  )
+]);
+
+function envoyDialogueVariant(offer, underway, negotiation, returnUnderway, homecoming, intercession) {
+  return Object.freeze({ offer, underway, negotiation, returnUnderway, homecoming, intercession });
 }
 
 export function passengerName(quest) {
@@ -140,15 +314,54 @@ function passengerDialogueText(scenarioId, origin, destination, reward) {
   };
 }
 
+function chooseEnvoyKind(seed, forcedKind) {
+  if (forcedKind !== undefined) {
+    if (forcedKind !== "friendly-envoy" && forcedKind !== "hostile-envoy") {
+      throw new Error(`Unknown envoy mission kind: ${forcedKind}`);
+    }
+    return forcedKind;
+  }
+  return seededFraction(seed) < 0.5 ? "friendly-envoy" : "hostile-envoy";
+}
+
+function chooseEnvoyDestination(origin, portCities, missionKind, context) {
+  const candidates = portCities
+    .filter((port) => port.tileId !== origin.tileId)
+    .filter((port) => port.isFactionCapital && port.capitalOfFactionId === port.factionId)
+    .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
+    .map((port) => ({
+      port,
+      distanceKm: greatCircleDistanceKm(origin, port),
+      relation: context.relationBetween(origin.factionId, port.factionId)
+    }))
+    .filter(({ distanceKm }) => passengerDistanceIsMedium(distanceKm))
+    .filter(({ relation }) => missionKind === "friendly-envoy"
+      ? relation !== DIPLOMACY_ALLY
+      : relation !== DIPLOMACY_WAR);
+  if (context.destinationTileId !== undefined) {
+    return candidates.find(({ port }) => port.tileId === context.destinationTileId)?.port || null;
+  }
+  if (candidates.length === 0) return null;
+  const seed = `${cityKey(origin)}|${passengerRollPeriod(context.simMinute)}|${missionKind}|target`;
+  return candidates
+    .map((candidate) => ({
+      ...candidate,
+      score: destinationScore(seed, candidate.port, candidate.distanceKm)
+    }))
+    .sort((a, b) => a.score - b.score)[0].port;
+}
+
 function choosePassengerDestination(origin, portCities, context) {
   if (context.destinationTileId !== undefined) {
-    return portCities.find((port) => port.tileId === context.destinationTileId) || null;
+    const destination = portCities.find((port) => port.tileId === context.destinationTileId) || null;
+    if (!destination) return null;
+    return passengerDistanceIsMedium(greatCircleDistanceKm(origin, destination)) ? destination : null;
   }
   const candidates = portCities
     .filter((port) => port.tileId !== origin.tileId)
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
     .map((port) => ({ port, distanceKm: greatCircleDistanceKm(origin, port) }))
-    .filter(({ distanceKm }) => distanceKm >= PASSENGER_MIN_DISTANCE_KM);
+    .filter(({ distanceKm }) => passengerDistanceIsMedium(distanceKm));
   if (candidates.length === 0) return null;
   const seed = `${cityKey(origin)}|${passengerRollPeriod(context.simMinute)}|destination`;
   return candidates
@@ -161,8 +374,18 @@ function choosePassengerDestination(origin, portCities, context) {
 
 function destinationScore(seed, port, distanceKm) {
   const random = seededFraction(`${seed}|${cityKey(port)}`);
-  const distanceBonus = Math.min(distanceKm, 9000) / 9000;
-  return random - distanceBonus * 0.25;
+  const distanceSpan = Math.max(
+    PASSENGER_PREFERRED_DISTANCE_KM - PASSENGER_MIN_DISTANCE_KM,
+    PASSENGER_MAX_DISTANCE_KM - PASSENGER_PREFERRED_DISTANCE_KM
+  );
+  const distancePenalty = Math.abs(distanceKm - PASSENGER_PREFERRED_DISTANCE_KM) / distanceSpan;
+  return random + distancePenalty * 0.5;
+}
+
+function passengerDistanceIsMedium(distanceKm) {
+  return Number.isFinite(distanceKm) &&
+    distanceKm >= PASSENGER_MIN_DISTANCE_KM &&
+    distanceKm <= PASSENGER_MAX_DISTANCE_KM;
 }
 
 function choosePassengerScenario(seed, context) {

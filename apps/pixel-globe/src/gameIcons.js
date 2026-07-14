@@ -193,6 +193,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "confirm-piracy": "action:attack",
   "receive-aid": "good:fresh-water",
   "complete-passenger": "action:passenger",
+  "negotiate-envoy": "action:letter",
+  "envoy-negotiated": "action:letter",
   "buy-net": "action:fish",
   "buy-cannon-equipment": "action:attack",
   buy: "action:buy",

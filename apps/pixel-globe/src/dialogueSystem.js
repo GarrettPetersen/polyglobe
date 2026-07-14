@@ -8,7 +8,9 @@ import {
   cityLabel,
   completeQuest,
   grantLetterOfMarque,
+  isEnvoyQuest,
   letterOfMarqueStatus,
+  negotiateEnvoyQuest,
   portMemory,
   playerCannonEquipment,
   playerFishingNet,
@@ -79,7 +81,9 @@ export function createPortArrivalDialogueSession(city, options = {}) {
 }
 
 export function createPassengerDialogueSession(city, quest, options = {}) {
-  if (!quest || quest.kind !== "passenger") throw new Error("Passenger dialogue requires a passenger quest");
+  if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest))) {
+    throw new Error("Passenger dialogue requires a passenger or envoy quest");
+  }
   return {
     kind: "passenger",
     cityTileId: city.tileId,
@@ -472,16 +476,33 @@ export function selectPortDialogueOption(
 export function passengerDialogueView(session, city, quest, gameState) {
   assertPassengerDialogueSubject(session, city, quest);
   const active = gameState?.memory?.quests?.active || null;
-  const speaker = `${passengerName(quest)}, passenger`;
+  const speaker = `${passengerName(quest)}, ${isEnvoyQuest(quest) ? "envoy" : "passenger"}`;
   const expressionId = questExpressionId(quest);
+  if (active?.id === quest.id && isEnvoyQuest(quest) && quest.stage === "outbound" && quest.targetTileId === city.tileId) {
+    return {
+      speaker,
+      expressionId: quest.kind === "friendly-envoy" ? "attentive" : "stern",
+      text: quest.dialogue?.negotiation || `The court of ${quest.targetName} is ready to receive me.`,
+      feedback: session.feedback,
+      options: [
+        option("Begin negotiations", { type: "negotiate-envoy" }),
+        option("Not yet", { type: "close" })
+      ]
+    };
+  }
   if (active?.id === quest.id && quest.destinationTileId === city.tileId) {
     return {
       speaker,
       expressionId: "happy",
-      text: quest.dialogue?.arrival || `${cityLabel(city)} at last. Here is the fare I promised.`,
+      text: isEnvoyQuest(quest)
+        ? quest.dialogue?.homecoming || `${cityLabel(city)} at last. The treasury will settle our account.`
+        : quest.dialogue?.arrival || `${cityLabel(city)} at last. Here is the fare I promised.`,
       feedback: session.feedback,
       options: [
-        option(`Set passenger ashore  ${quest.reward} db`, { type: "complete-passenger" }),
+        option(
+          isEnvoyQuest(quest) ? `Report to court  ${quest.reward} db` : `Set passenger ashore  ${quest.reward} db`,
+          { type: "complete-passenger" }
+        ),
         option("Not yet", { type: "close" })
       ]
     };
@@ -490,7 +511,9 @@ export function passengerDialogueView(session, city, quest, gameState) {
     return {
       speaker,
       expressionId: "attentive",
-      text: quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
+      text: isEnvoyQuest(quest) && quest.stage === "return"
+        ? quest.dialogue?.returnUnderway || `I carry the answer home to ${quest.originName}.`
+        : quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
       feedback: session.feedback,
       options: [
         option("Leave", { type: "close" })
@@ -514,7 +537,7 @@ export function passengerDialogueView(session, city, quest, gameState) {
     text: `${quest.dialogue?.offer || `I need passage to ${quest.destinationName}. I can pay ${quest.reward} db on arrival.`} Distance ${formatDistanceKm(quest.distanceKm)}.`,
     feedback: session.feedback,
     options: [
-      option(`Take passenger to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
+      option(`${isEnvoyQuest(quest) ? "Carry envoy" : "Take passenger"} to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
         detail: formatDistanceKm(quest.distanceKm)
       }),
       option("Decline", { type: "open-port" })
@@ -540,6 +563,10 @@ export function selectPassengerDialogueOption(
     acceptQuest(gameState, quest);
     return { closed: true, action: null };
   }
+  if (action.type === "negotiate-envoy") {
+    const negotiation = negotiateEnvoyQuest(gameState, city, context);
+    return { closed: true, action: { type: "envoy-negotiated", negotiation } };
+  }
   if (action.type === "complete-passenger") {
     completeQuest(gameState, city, context);
     return { closed: true, action: null };
@@ -550,7 +577,7 @@ export function selectPassengerDialogueOption(
 function assertPassengerDialogueSubject(session, city, quest) {
   if (!session || session.kind !== "passenger") throw new Error("Missing passenger dialogue session");
   if (!city || session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active passenger session");
-  if (!quest || quest.kind !== "passenger" || session.questId !== quest.id) {
+  if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest)) || session.questId !== quest.id) {
     throw new Error("Dialogue passenger quest does not match active session");
   }
   if (quest.originTileId !== city.tileId && quest.destinationTileId !== city.tileId) {
@@ -1032,14 +1059,19 @@ function cargoView(session, city, gameState) {
 function questView(session, city, gameState, portCities) {
   const questState = questStateForCity(gameState, city, portCities);
   if (questState.kind === "ready-to-complete") {
-    if (questState.quest.kind === "passenger") {
+    if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
+      const envoy = isEnvoyQuest(questState.quest);
       return {
         speaker: speakerName(city),
         expressionId: "happy",
-        text: `${passengerName(questState.quest)} has reached ${questState.quest.destinationName}. Let them go ashore and settle the fare.`,
+        text: envoy
+          ? `${passengerName(questState.quest)} is ready for the court at ${questState.quest.destinationName}.`
+          : `${passengerName(questState.quest)} has reached ${questState.quest.destinationName}. Let them go ashore and settle the fare.`,
         feedback: session.feedback,
         options: [
-          option(`Set passenger ashore  ${questState.quest.reward} db`, { type: "complete-quest" }),
+          option(envoy ? "Speak with envoy" : `Set passenger ashore  ${questState.quest.reward} db`, envoy
+            ? { type: "open-passenger", quest: questState.quest }
+            : { type: "complete-quest" }),
           option("Back", { type: "node", nodeId: "root" })
         ]
       };
@@ -1095,7 +1127,7 @@ function questView(session, city, gameState, portCities) {
     };
   }
   const quest = questState.quest;
-  if (quest.kind === "passenger") {
+  if (quest.kind === "passenger" || isEnvoyQuest(quest)) {
     return {
       speaker: speakerName(city),
       expressionId: questState.kind === "in-progress-here" ? "attentive" : "concerned",
@@ -1222,6 +1254,8 @@ function characterName(character) {
 }
 
 function questExpressionId(quest) {
+  if (quest?.kind === "friendly-envoy") return "attentive";
+  if (quest?.kind === "hostile-envoy") return "stern";
   if (quest?.scenarioId === "shipwrecked-sailor") return "afraid";
   if (quest?.scenarioId === "return-home" || quest?.scenarioId === "family-letter") return "sad";
   return "neutral";

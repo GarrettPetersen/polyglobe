@@ -766,6 +766,75 @@ test("passenger dialogue can be declined and accepted later", () => {
   assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
 });
 
+test("envoy dialogue advances from negotiations to a paid return voyage", () => {
+  const origin = { tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
+  const target = { tileId: 2, city: "London", country: "United Kingdom", factionId: "england" };
+  const quest = {
+    id: "friendly-envoy-1-2-test",
+    kind: "friendly-envoy",
+    stage: "outbound",
+    originKey: "Lisbon|Portugal|1",
+    originTileId: origin.tileId,
+    originName: "Lisbon",
+    originCountry: "Portugal",
+    originFactionId: "portugal",
+    targetKey: "London|United Kingdom|2",
+    targetTileId: target.tileId,
+    targetName: "London",
+    targetCountry: "United Kingdom",
+    targetFactionId: "england",
+    destinationKey: "London|United Kingdom|2",
+    destinationTileId: target.tileId,
+    destinationName: "London",
+    destinationCountry: "United Kingdom",
+    distanceKm: 1580,
+    passenger: { name: "Duarte de Meneses" },
+    reward: 310,
+    dialogue: {
+      offer: "Carry me to London and home again.",
+      negotiation: "The English court has received our proposals.",
+      returnUnderway: "Take me home with their answer.",
+      homecoming: "The court awaits my report."
+    }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.memory.quests.passengerOffers[quest.originKey] = quest;
+
+  const offerSession = createPassengerDialogueSession(origin, quest);
+  const offer = passengerDialogueView(offerSession, origin, quest, gameState);
+  assert.equal(offer.speaker, "Duarte de Meneses, envoy");
+  assert.match(offer.options[0].label, /Carry envoy to London/);
+  selectPassengerDialogueOption(offerSession, origin, quest, gameState, 0);
+
+  const active = gameState.memory.quests.active;
+  const negotiationSession = createPassengerDialogueSession(target, active);
+  const negotiation = passengerDialogueView(negotiationSession, target, active, gameState);
+  assert.equal(negotiation.options[0].label, "Begin negotiations");
+  const result = selectPassengerDialogueOption(
+    negotiationSession,
+    target,
+    active,
+    gameState,
+    0,
+    { simMinute: 240 }
+  );
+  assert.equal(result.action.type, "envoy-negotiated");
+  assert.equal(gameState.memory.quests.active.stage, "return");
+
+  const returnSession = createPassengerDialogueSession(origin, gameState.memory.quests.active);
+  const homecoming = passengerDialogueView(returnSession, origin, gameState.memory.quests.active, gameState);
+  assert.equal(homecoming.options[0].label, "Report to court  310 db");
+  assert.deepEqual(selectPassengerDialogueOption(
+    returnSession,
+    origin,
+    gameState.memory.quests.active,
+    gameState,
+    0,
+    { simMinute: 480 }
+  ), { closed: true, action: null });
+  assert.equal(gameState.memory.quests.active, null);
+});
+
 test("a quest character precedes the loadout and factor during port arrival", () => {
   const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
   const passengerQuest = {

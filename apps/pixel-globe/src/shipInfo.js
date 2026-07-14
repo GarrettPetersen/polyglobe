@@ -2,6 +2,7 @@ import {
   cargoCostBasis,
   cargoRows,
   cargoUsed,
+  isEnvoyQuest,
   ledgerEntries,
   realizedTradePnl,
   shipItemRows,
@@ -249,6 +250,19 @@ function activeQuestPaper(quest) {
       issuer: passengerName,
       route: `${quest.originName || "Unknown port"} -> ${quest.destinationName || "Unknown port"}`,
       detail: `Fare ${reward}`,
+      simMinute: null
+    };
+  }
+  if (isEnvoyQuest(quest)) {
+    const envoyName = quest.passenger?.name || quest.passengerName || "Envoy";
+    return {
+      kind: quest.kind,
+      title: `${quest.kind === "friendly-envoy" ? "Friendly" : "Hostile"} envoy: ${envoyName}`,
+      issuer: factionById(quest.originFactionId).name,
+      route: quest.stage === "return"
+        ? `${quest.targetName || "Foreign court"} -> ${quest.originName || "Home court"}`
+        : `${quest.originName || "Home court"} -> ${quest.targetName || "Foreign court"}`,
+      detail: `Round-trip reward ${reward}`,
       simMinute: null
     };
   }

@@ -60,6 +60,7 @@ import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
   activeFactionSafePassageIds,
+  grantEnvoySafePassage,
   advanceGameDiplomacy,
   advanceActivePlayTime,
   applySurvivalDeprivation,
@@ -76,6 +77,7 @@ import {
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
   initializeProvisionalShipLoadout,
+  isEnvoyQuest,
   loseCrew,
   migrateGameState,
   playerCannonEquipment,
@@ -368,11 +370,11 @@ import { cityIsLandlocked } from "./cityPortAccess.js";
 import { withColonialFounding } from "./colonialCities.js";
 import { formatCompactNumber } from "./compactNumber.js";
 import {
-  activePassengerQuest,
+  activeTravelMissionQuest,
   markPassengerOfferSeen,
-  passengerOfferForCity,
   passengerQuestById,
-  pendingPassengerOfferForCity
+  pendingPassengerOfferForCity,
+  travelMissionOfferForCity
 } from "./passengerMissions.js";
 import {
   fishHabitatKind,
@@ -3147,9 +3149,14 @@ function playerIntroButtonRect() {
 }
 
 function createCaptainAlertModal(message, expressionId = "neutral") {
+  return createCharacterAlertModal(gameState?.playerCharacter || null, message, expressionId);
+}
+
+function createCharacterAlertModal(character, message, expressionId = "neutral") {
+  if (!character) throw new Error("Character alert requires a character");
   return {
     kind: "alert",
-    character: gameState?.playerCharacter || null,
+    character,
     message,
     expressionId,
     hovered: false,
@@ -3200,11 +3207,15 @@ function captainAlertButtonRect() {
 }
 
 function openCaptainAlertModal(message, expressionId = "neutral") {
-  if (!gameState?.playerCharacter || captainAlertModal || gameOverReason) return false;
-  captainAlertModal = createCaptainAlertModal(message, expressionId);
+  return openCharacterAlertModal(gameState?.playerCharacter || null, message, expressionId);
+}
+
+function openCharacterAlertModal(character, message, expressionId = "neutral") {
+  if (!character || captainAlertModal || gameOverReason) return false;
+  captainAlertModal = createCharacterAlertModal(character, message, expressionId);
   stopShipForDialogue();
-  const expression = characterExpression(gameState.playerCharacter, expressionId);
-  void ensureCharacterPortraitLoaded(gameState.playerCharacter, expression);
+  const expression = characterExpression(character, expressionId);
+  void ensureCharacterPortraitLoaded(character, expression);
   dirty = true;
   return true;
 }
@@ -6068,6 +6079,11 @@ function chooseDialogueOption(optionIndex) {
       continuePortDialogueAfterQuestCharacter();
       return;
     }
+    if (result.action?.type === "envoy-negotiated") {
+      const event = result.action.negotiation.events[0] || null;
+      showSurvivalNotice(event ? diplomacyEventNotice(event) : "DIPLOMATIC MISSION ADVANCES", "good");
+      saveVoyageNow("envoy negotiations");
+    }
   } else if (dialogueState.kind === "ship") {
     dialogueNpcShipId = dialogueState.npcShipId;
     result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
@@ -6330,20 +6346,23 @@ function portPoliticalRivalLabel(city) {
 }
 
 function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
-  const activePassenger = activePassengerQuest(gameState);
-  if (activePassenger) {
-    return activePassenger.destinationTileId === city.tileId ? activePassenger : null;
+  const activeMission = activeTravelMissionQuest(gameState);
+  if (activeMission) {
+    return activeMission.destinationTileId === city.tileId ? activeMission : null;
   }
   if (!createOffer) return pendingPassengerOfferForCity(gameState, city);
-  return passengerOfferForCity(gameState, city, portCities, {
+  return travelMissionOfferForCity(gameState, city, portCities, {
     simMinute: Math.floor(weatherClockMinutes),
+    relationBetween: currentDiplomacyBetween,
     createCharacter: createPassengerCharacterForQuest
   });
 }
 
 function shouldAutoOpenPassengerDialogue(city, quest) {
-  if (!quest || quest.kind !== "passenger") return false;
-  if (quest.destinationTileId === city.tileId && activePassengerQuest(gameState)?.id === quest.id) return true;
+  if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest))) {
+    return false;
+  }
+  if (quest.destinationTileId === city.tileId && activeTravelMissionQuest(gameState)?.id === quest.id) return true;
   return quest.originTileId === city.tileId && quest.seen !== true;
 }
 
@@ -9189,7 +9208,21 @@ function openNpcCombatHail(npcShipId) {
   const state = npcVisualShips.get(npcShipId);
   const character = npcShipCaptains?.get(npcShipId);
   if (!state || !character) throw new Error(`Cannot open combat hail for NPC ship ${npcShipId}`);
+  if (attemptEnvoyIntercession(state.factionId)) return true;
   openShipDialogue({ id: npcShipId, character }, { attackReason: npcCombatAttackReason(state) });
+  return true;
+}
+
+function attemptEnvoyIntercession(factionId) {
+  const passage = grantEnvoySafePassage(gameState, factionId, Math.floor(weatherClockMinutes));
+  if (!passage) return false;
+  const envoy = passage.quest.passenger;
+  if (!envoy) throw new Error(`Envoy mission has no character: ${passage.quest.id}`);
+  clearCombatForShip(PLAYER_COMBAT_ID);
+  for (const battery of shoreBatteryStates.values()) battery.engagedTargetIds.delete(PLAYER_COMBAT_ID);
+  openCharacterAlertModal(envoy, passage.message, "stern");
+  showSurvivalNotice(`${factionById(factionId).adjective.toUpperCase()} DIPLOMATIC PASSAGE  ${passage.days} DAYS`, "good");
+  saveVoyageNow("envoy claimed diplomatic passage");
   return true;
 }
 
@@ -9233,7 +9266,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened) {
     const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile;
     if (playerHostile && playerDistance <= range) {
       if (!state.playerHailed && !anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
-        openShoreBatteryCombatHail(city, state);
+        if (!attemptEnvoyIntercession(city.factionId)) openShoreBatteryCombatHail(city, state);
         hailOpened = true;
         changed = true;
       }

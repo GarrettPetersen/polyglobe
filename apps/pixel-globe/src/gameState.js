@@ -44,6 +44,7 @@ import {
   equipmentAvailableAtPort
 } from "./portEquipment.js";
 import {
+  adjustDiplomaticStance,
   advanceWorldDiplomacy,
   createWorldDiplomacy,
   recordDiplomaticPortCall,
@@ -84,10 +85,16 @@ export const FOOD_UNITS_PER_DAY = 1;
 export const FOOD_TARGET_DAYS = 21;
 export const STARTING_HARDTACK_UNITS = 10;
 export const EMERGENCY_SHIP_AID_UNITS = 3;
+export const ENVOY_SAFE_PASSAGE_DAYS = 7;
+export const ENVOY_TARGET_FRIENDLY_REPUTATION = 5;
+export const ENVOY_TARGET_HOSTILE_REPUTATION = -8;
+export const ENVOY_HOME_REPUTATION = 8;
 
 const MINUTES_PER_DAY = 24 * 60;
 const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_MINUTES = FACTION_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
+const ENVOY_SAFE_PASSAGE_MINUTES = ENVOY_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
+const ENVOY_QUEST_KINDS = new Set(["friendly-envoy", "hostile-envoy"]);
 const FRESH_WATER_USE_PER_DAY = FRESH_WATER_CAPACITY / FRESH_WATER_DAYS;
 
 export const SHIP_ITEM_CATALOG = Object.freeze([
@@ -721,7 +728,7 @@ export function shipConsumption(state) {
     return { crew: 0, passengers: 0, livestock: 0, foodConsumers: 1, waterConsumers: 1 };
   }
   const quest = state.memory.quests?.active || null;
-  const passengers = quest?.kind === "passenger"
+  const passengers = quest?.kind === "passenger" || isEnvoyQuest(quest)
     ? 1
     : Math.max(0, Number(quest?.passengerCount || quest?.passengers?.length || 0));
   const livestock = Math.max(0, Number(quest?.livestockCount || quest?.livestock?.count || 0));
@@ -1018,6 +1025,79 @@ export function factionReputation(state, factionId) {
   return state.relations.factionReputation[id];
 }
 
+export function isEnvoyQuest(quest) {
+  return Boolean(quest && ENVOY_QUEST_KINDS.has(quest.kind));
+}
+
+export function negotiateEnvoyQuest(state, city, context = {}) {
+  assertGameState(state);
+  const quests = questMemory(state);
+  const active = quests.active;
+  if (!isEnvoyQuest(active)) throw new Error("No active envoy mission to negotiate");
+  if (active.stage !== "outbound") throw new Error(`Envoy mission is not outbound: ${active.stage}`);
+  if (active.targetTileId !== city?.tileId || active.destinationTileId !== city?.tileId) {
+    throw new Error(`Envoy negotiations belong in ${active.targetName}, not ${cityLabel(city)}`);
+  }
+  assertSimulationMinute(context.simMinute);
+  const direction = active.kind === "friendly-envoy" ? "improve" : "worsen";
+  const events = adjustDiplomaticStance(
+    state.relations.diplomacy,
+    active.originFactionId,
+    active.targetFactionId,
+    direction,
+    context.simMinute,
+    { homeFactionId: state.playerCharacter?.nationalityId || null }
+  );
+  const targetReputationDelta = active.kind === "friendly-envoy"
+    ? ENVOY_TARGET_FRIENDLY_REPUTATION
+    : ENVOY_TARGET_HOSTILE_REPUTATION;
+  adjustFactionReputation(state, active.targetFactionId, targetReputationDelta);
+  recordDecision(state, `quest.envoy.negotiate.${active.id}`, 1);
+  active.stage = "return";
+  active.negotiatedAtMinute = context.simMinute;
+  active.destinationKey = active.originKey;
+  active.destinationTileId = active.originTileId;
+  active.destinationName = active.originName;
+  active.destinationCountry = active.originCountry;
+  return { quest: active, events, targetReputationDelta };
+}
+
+export function grantEnvoySafePassage(state, factionId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const id = assertFactionId(factionId);
+  const active = questMemory(state).active;
+  if (!isEnvoyQuest(active)) return null;
+  if (id !== active.originFactionId && id !== active.targetFactionId) return null;
+  if (!active.envoySafePassageUntilMinute || typeof active.envoySafePassageUntilMinute !== "object") {
+    active.envoySafePassageUntilMinute = {};
+  }
+  const previousUntilMinute = active.envoySafePassageUntilMinute[id] || 0;
+  const untilMinute = Math.max(previousUntilMinute, simMinute + ENVOY_SAFE_PASSAGE_MINUTES);
+  active.envoySafePassageUntilMinute[id] = untilMinute;
+  recordDecision(state, `quest.envoy.safe-passage.${active.id}.${id}`, 1);
+  return {
+    quest: active,
+    factionId: id,
+    untilMinute,
+    days: ENVOY_SAFE_PASSAGE_DAYS,
+    message: active.dialogue?.intercession ||
+      "Hold your fire! This vessel carries an accredited envoy on a diplomatic mission."
+  };
+}
+
+export function activeEnvoySafePassageIds(state, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const active = questMemory(state).active;
+  if (!isEnvoyQuest(active)) return [];
+  const passage = active.envoySafePassageUntilMinute;
+  if (!passage || typeof passage !== "object") return [];
+  return Object.entries(passage)
+    .filter(([, untilMinute]) => Number.isFinite(untilMinute) && untilMinute > simMinute)
+    .map(([factionId]) => assertFactionId(factionId));
+}
+
 export function adjustFactionReputation(state, factionId, delta) {
   assertGameState(state);
   const id = assertFactionId(factionId);
@@ -1057,7 +1137,9 @@ export function portEntryStatus(state, city, simMinute = 0) {
     relation === DIPLOMACY_WAR
   );
   const hostileByStance = factionId !== PIRATE_FACTION_ID && relation === DIPLOMACY_HOSTILE;
-  const safePassage = !playerShipIsWarship(state) && factionSafePassageStatus(state, factionId, simMinute).active;
+  const diplomaticPassage = activeEnvoySafePassageIds(state, simMinute).includes(factionId);
+  const safePassage = diplomaticPassage ||
+    (!playerShipIsWarship(state) && factionSafePassageStatus(state, factionId, simMinute).active);
   const hostileByStanding = factionReputation(state, factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD;
   const hostile = ((hostileByWar || hostileByStance) && !safePassage) || hostileByStanding;
   const memory = portMemory(state, city);
@@ -1115,10 +1197,13 @@ export function factionSafePassageStatus(state, factionId, simMinute) {
 export function activeFactionSafePassageIds(state, simMinute) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
-  if (playerShipIsWarship(state)) return [];
-  return Object.entries(state.relations.safePassageUntilMinute)
-    .filter(([, untilMinute]) => untilMinute > simMinute)
-    .map(([factionId]) => assertFactionId(factionId));
+  const ids = new Set(activeEnvoySafePassageIds(state, simMinute));
+  if (!playerShipIsWarship(state)) {
+    for (const [factionId, untilMinute] of Object.entries(state.relations.safePassageUntilMinute)) {
+      if (untilMinute > simMinute) ids.add(assertFactionId(factionId));
+    }
+  }
+  return [...ids];
 }
 
 export function purchaseFactionSafePassage(state, city, simMinute) {
@@ -1479,6 +1564,7 @@ export function reconcileQuestPortTiles(state, portCities) {
     if (!quest || typeof quest !== "object") return;
     updates += reconcileQuestEndpoint(quest, "origin", portCities);
     updates += reconcileQuestEndpoint(quest, "destination", portCities);
+    if (isEnvoyQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
   };
 
   reconcile(quests.active);
@@ -1512,7 +1598,9 @@ export function acceptQuest(state, quest) {
   if (quests.active) throw new Error("Cannot accept a quest while another quest is active");
   if (quests.completed[quest.id]) throw new Error(`Quest already completed: ${quest.id}`);
   quests.active = { ...quest };
-  if (quest.kind === "passenger" && quest.originKey) delete quests.passengerOffers[quest.originKey];
+  if ((quest.kind === "passenger" || isEnvoyQuest(quest)) && quest.originKey) {
+    delete quests.passengerOffers[quest.originKey];
+  }
   recordDecision(state, `quest.accept.${quest.id}`, 1);
 }
 
@@ -1524,14 +1612,25 @@ export function completeQuest(state, city, context = {}) {
   if (active.destinationTileId !== city.tileId) {
     throw new Error(`Quest destination is ${active.destinationName}, not ${cityLabel(city)}`);
   }
+  if (isEnvoyQuest(active) && active.stage !== "return") {
+    throw new Error(`Envoy must complete negotiations before returning home: ${active.id}`);
+  }
   state.doubloons += active.reward;
   quests.completed[active.id] = true;
   quests.active = null;
   recordDecision(state, `quest.complete.${active.id}`, 1);
   if (active.kind === "delivery" && active.factionId) recordDeliveryForFaction(state, active.factionId);
+  if (isEnvoyQuest(active)) {
+    adjustFactionReputation(state, active.originFactionId, ENVOY_HOME_REPUTATION);
+    recordDecision(state, `reputation.envoy.${active.originFactionId}`, 1);
+  }
   recordLedgerEntry(state, city, context, {
     kind: "income",
-    description: active.kind === "passenger" ? "Passenger fare" : "Delivery reward",
+    description: active.kind === "passenger"
+      ? "Passenger fare"
+      : isEnvoyQuest(active)
+        ? "Diplomatic mission"
+        : "Delivery reward",
     goodId: null,
     quantity: 1,
     amount: active.reward,
