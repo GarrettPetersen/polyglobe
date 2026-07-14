@@ -1,7 +1,8 @@
 import {
   cityKey,
   cityLabel,
-  isEnvoyQuest
+  isEnvoyQuest,
+  mingTradeOpenToFaction
 } from "./gameState.js";
 import {
   DIPLOMACY_ALLY,
@@ -10,6 +11,7 @@ import {
 } from "./factions.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { rulerAtMinute } from "./rulers.js";
+import { MING_FACTION_ID } from "./mingTradeRestrictions.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -77,6 +79,23 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
     throw new Error("Envoy missions require a diplomacy resolver");
   }
 
+  const mingTradeTarget = mingTradeOpeningTarget(state, city, portCities);
+  if (mingTradeTarget) {
+    const distanceKm = greatCircleDistanceKm(city, mingTradeTarget);
+    const quest = buildEnvoyQuest(
+      city,
+      mingTradeTarget,
+      "friendly-envoy",
+      distanceKm,
+      passengerRollPeriod(context.simMinute),
+      context.simMinute ?? 0,
+      { mingTradeOpeningFactionId: state.playerCharacter.nationalityId }
+    );
+    attachEnvoyCharacter(quest, city, mingTradeTarget, context);
+    quests.passengerOffers[cityKey(city)] = quest;
+    return quest;
+  }
+
   const period = passengerRollPeriod(context.simMinute);
   const originKey = cityKey(city);
   const rollKey = `${originKey}|${period}|envoy`;
@@ -90,20 +109,24 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
   if (!destination) return null;
   const distanceKm = greatCircleDistanceKm(city, destination);
   const quest = buildEnvoyQuest(city, destination, missionKind, distanceKm, period, context.simMinute ?? 0);
+  attachEnvoyCharacter(quest, city, destination, context);
+  quests.passengerOffers[originKey] = quest;
+  return quest;
+}
+
+function attachEnvoyCharacter(quest, origin, destination, context) {
   if (typeof context.createCharacter === "function") {
     const scenario = {
-      id: missionKind,
-      expressionId: missionKind === "friendly-envoy" ? "attentive" : "stern",
+      id: quest.kind,
+      expressionId: quest.kind === "friendly-envoy" ? "attentive" : "stern",
       namePort: "origin"
     };
-    const character = context.createCharacter({ quest, origin: city, destination, scenario });
+    const character = context.createCharacter({ quest, origin, destination, scenario });
     if (character) {
       quest.passenger = character;
       quest.passengerName = character.name;
     }
   }
-  quests.passengerOffers[originKey] = quest;
-  return quest;
 }
 
 export function pendingPassengerOfferForCity(state, city) {
@@ -111,7 +134,11 @@ export function pendingPassengerOfferForCity(state, city) {
   const quests = questMemory(state);
   const offer = quests.passengerOffers[cityKey(city)];
   if (!offer || quests.completed[offer.id]) return null;
-  if (!passengerDistanceIsMedium(offer.distanceKm)) {
+  if (offer.mingTradeOpeningFactionId && mingTradeOpenToFaction(state, offer.mingTradeOpeningFactionId)) {
+    delete quests.passengerOffers[cityKey(city)];
+    return null;
+  }
+  if (!offer.mingTradeOpeningFactionId && !passengerDistanceIsMedium(offer.distanceKm)) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
@@ -147,7 +174,7 @@ export function markPassengerOfferSeen(state, quest) {
   return offer;
 }
 
-function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute) {
+function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, options = {}) {
   const originKey = cityKey(origin);
   const targetKey = cityKey(target);
   const seed = `${originKey}|${targetKey}|${kind}|${period}`;
@@ -155,6 +182,10 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute) {
   const originRuler = rulerAtMinute(origin.factionId, simMinute);
   const targetRuler = rulerAtMinute(target.factionId, simMinute);
   if (!originRuler || !targetRuler) throw new Error("Envoy missions require sovereign origin and destination factions");
+  const mingTradeOpeningFactionId = options.mingTradeOpeningFactionId || null;
+  if (mingTradeOpeningFactionId !== null && kind !== "friendly-envoy") {
+    throw new Error("Ming trade opening requires a friendly envoy");
+  }
   return {
     id: `${kind}-${origin.tileId}-${target.tileId}-${hashString32(seed).toString(36)}`,
     kind,
@@ -180,7 +211,38 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute) {
     passengerName: "Envoy",
     seen: false,
     envoySafePassageUntilMinute: {},
-    dialogue: envoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler)
+    ...(mingTradeOpeningFactionId ? { mingTradeOpeningFactionId } : {}),
+    dialogue: mingTradeOpeningFactionId
+      ? mingTradeOpeningDialogueText(origin, target, reward, originRuler, targetRuler)
+      : envoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler)
+  };
+}
+
+function mingTradeOpeningTarget(state, origin, portCities) {
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  if (!playerFactionId || playerFactionId === MING_FACTION_ID ||
+      origin.factionId !== playerFactionId || mingTradeOpenToFaction(state, playerFactionId)) {
+    return null;
+  }
+  return portCities.find((port) => (
+    port.factionId === MING_FACTION_ID &&
+    port.isFactionCapital === true &&
+    port.capitalOfFactionId === MING_FACTION_ID &&
+    Number.isFinite(port.lat) &&
+    Number.isFinite(port.lon)
+  )) || null;
+}
+
+function mingTradeOpeningDialogueText(origin, target, reward, originRuler, targetRuler) {
+  const home = cityLabel(origin);
+  const foreign = cityLabel(target);
+  return {
+    offer: `${originRuler.displayName} seeks lawful trade with the Ming Empire. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
+    underway: `My memorial asks ${targetRuler.displayName} to open Ming markets to our merchants. The wording has taken months.`,
+    negotiation: `${targetRuler.displayName}'s ministers have accepted our embassy. Ming ports are now open to our nation's lawful trade.`,
+    returnUnderway: `The trade seal is granted. Set our course back to ${home} so ${originRuler.displayName} can publish the accord.`,
+    homecoming: `${originRuler.displayName} has received the Ming trade seal. Your ${reward} db is waiting at the treasury.`,
+    intercession: "Hold your fire! This vessel carries an accredited trade embassy between our nations."
   };
 }
 

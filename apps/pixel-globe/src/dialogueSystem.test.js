@@ -493,6 +493,72 @@ test("a successful disguise opens commerce but not faction business", () => {
   assert.ok(root.options.every((entry) => entry.label !== "Letter of marque"));
 });
 
+test("foreign captains must find an illicit market to trade at Ming ports", () => {
+  const city = {
+    tileId: 15,
+    city: "Guangzhou",
+    displayCity: "Guangzhou",
+    country: "China",
+    cityType: "east-asian",
+    factionId: "ming",
+    population: 120000,
+    character: { name: "Li Wen" }
+  };
+  const playerCharacter = {
+    name: "Joan Alden",
+    nationalityId: "england",
+    expressions: ["neutral", "happy"]
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const context = { simMinute: 0, random: () => 0.1 };
+
+  let root = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(root.text, /maritime prohibition/);
+  assert.ok(root.options.every((entry) => entry.label !== "Buy goods" && entry.label !== "Sell cargo"));
+  const illicitIndex = root.options.findIndex((entry) => entry.label === "Seek illicit market");
+  assert.ok(illicitIndex >= 0);
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
+  assert.equal(result.mingIllicitMarketAccess, true);
+
+  root = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.ok(root.options.some((entry) => entry.label === "Buy illicit goods"));
+  assert.ok(root.options.some((entry) => entry.label === "Sell cargo illicitly"));
+});
+
+test("a failed Ming illicit-market approach costs standing and cannot be repeated that visit", () => {
+  const city = {
+    tileId: 16,
+    city: "Nanjing",
+    displayCity: "Nanjing",
+    country: "China",
+    cityType: "east-asian",
+    factionId: "ming",
+    population: 160000,
+    character: { name: "Zhang Rui" }
+  };
+  const playerCharacter = {
+    name: "Joan Alden",
+    nationalityId: "england",
+    expressions: ["neutral", "happy"]
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const before = gameState.relations.factionReputation.ming;
+  const context = { simMinute: 0, random: () => 0.9 };
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const illicitIndex = root.options.findIndex((entry) => entry.label === "Seek illicit market");
+
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
+  assert.equal(result.mingIllicitMarketAccess, false);
+  assert.equal(gameState.relations.factionReputation.ming, before - 8);
+  assert.match(session.feedback, /Ming standing fell/);
+  const after = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.ok(after.options.every((entry) => entry.label !== "Seek illicit market"));
+});
+
 test("pirate hideouts speak and trade like covert havens", () => {
   const marketPort = {
     tileId: 18,

@@ -191,7 +191,7 @@ test("NPC route snapshots restore ships, plans, and replacement queues without c
   assert.equal(routes.shipById.size, routes.ships.length);
 });
 
-test("NPC traders only plan trade calls at friendly or neutral ports", () => {
+test("NPC traders obey diplomacy and the Ming maritime prohibition", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
 
@@ -211,6 +211,13 @@ test("NPC traders only plan trade calls at friendly or neutral ports", () => {
           DIPLOMACY_WAR,
           `${ship.id} planned a hostile call at ${plannedPort.city}`
         );
+        if (plannedPort.factionId === "ming") {
+          assert.equal(
+            ship.factionId,
+            "ming",
+            `${ship.id} planned unauthorized foreign trade at ${plannedPort.city}`
+          );
+        }
       }
     }
   }

@@ -9,6 +9,7 @@ import {
   factionReputation,
   grantEnvoySafePassage,
   ledgerEntries,
+  mingTradeOpenToFaction,
   negotiateEnvoyQuest
 } from "./gameState.js";
 import { diplomacyBetween } from "./factions.js";
@@ -159,6 +160,37 @@ test("a friendly envoy negotiates abroad and is paid only after returning home",
   assert.equal(state.doubloons, startingDoubloons + offer.reward);
   assert.equal(factionReputation(state, "portugal"), originStanding + 8);
   assert.equal(ledgerEntries(state).at(-1).description, "Diplomatic mission");
+});
+
+test("a special envoy from the player capital opens Ming trade during negotiations", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const startingDoubloons = state.doubloons;
+  const offer = envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], {
+    envoySpawnChance: 0,
+    relationBetween: diplomacyBetween,
+    simMinute: 0,
+    createCharacter: () => ({ name: "Thomas Moreton" })
+  });
+
+  assert.equal(offer.kind, "friendly-envoy");
+  assert.equal(offer.mingTradeOpeningFactionId, "england");
+  assert.equal(offer.targetFactionId, "ming");
+  assert.ok(offer.distanceKm > PASSENGER_MAX_DISTANCE_KM);
+  assert.match(offer.dialogue.offer, /lawful trade with the Ming Empire/);
+  assert.equal(pendingPassengerOfferForCity(state, LONDON), offer);
+  assert.equal(mingTradeOpenToFaction(state, "england"), false);
+
+  acceptQuest(state, offer);
+  const negotiation = negotiateEnvoyQuest(state, BEIJING, { simMinute: 1000 });
+
+  assert.equal(negotiation.mingTradeOpened, true);
+  assert.equal(negotiation.mingTradeOpenedFactionId, "england");
+  assert.equal(mingTradeOpenToFaction(state, "england"), true);
+  assert.equal(state.doubloons, startingDoubloons);
+
+  completeQuest(state, LONDON, { simMinute: 2000 });
+  assert.equal(state.doubloons, startingDoubloons + offer.reward);
+  assert.equal(mingTradeOpenToFaction(state, "england"), true);
 });
 
 test("a hostile envoy worsens relations and the player's standing with the foreign court", () => {

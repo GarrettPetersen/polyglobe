@@ -53,10 +53,15 @@ import {
   validateWorldDiplomacy,
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
+import {
+  DEFAULT_MING_OPEN_TRADE_FACTION_IDS,
+  MING_FACTION_ID,
+  mingTradeAccess
+} from "./mingTradeRestrictions.js";
 import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 10;
+export const GAME_STATE_VERSION = 11;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -159,6 +164,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
       factionReputation: initialFactionReputation(playerFactionId),
       lettersOfMarque: {},
       safePassageUntilMinute: {},
+      mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
       diplomacy: createWorldDiplomacy({
         startMinute,
         seedKey: worldDiplomacySeedKey(playerCharacter, startMinute)
@@ -195,7 +201,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (state?.version !== 8 && state?.version !== 9) {
+  if (state?.version !== 8 && state?.version !== 9 && state?.version !== 10) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -225,6 +231,7 @@ export function migrateGameState(state, shipStats) {
     relations: {
       ...state.relations,
       safePassageUntilMinute: state.version === 8 ? {} : state.relations.safePassageUntilMinute,
+      mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
       diplomacy: migratedDiplomacy
     }
   };
@@ -1025,6 +1032,27 @@ export function factionReputation(state, factionId) {
   return state.relations.factionReputation[id];
 }
 
+export function mingTradeOpenToFaction(state, factionId) {
+  if (!state || typeof state !== "object") throw new Error("Missing game state");
+  assertMingOpenTradeFactionIds(state.relations?.mingOpenTradeFactionIds);
+  const id = assertFactionId(factionId);
+  if (id === MING_FACTION_ID) return true;
+  return state.relations.mingOpenTradeFactionIds.includes(id);
+}
+
+export function openMingTradeToFaction(state, factionId) {
+  assertGameState(state);
+  const id = assertFactionId(factionId);
+  if (id === MING_FACTION_ID || id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
+    throw new Error(`Ming foreign trade cannot be opened to faction: ${id}`);
+  }
+  if (state.relations.mingOpenTradeFactionIds.includes(id)) return false;
+  state.relations.mingOpenTradeFactionIds.push(id);
+  state.relations.mingOpenTradeFactionIds.sort();
+  recordDecision(state, `diplomacy.ming-open-trade.${id}`, 1);
+  return true;
+}
+
 export function isEnvoyQuest(quest) {
   return Boolean(quest && ENVOY_QUEST_KINDS.has(quest.kind));
 }
@@ -1052,6 +1080,12 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     ? ENVOY_TARGET_FRIENDLY_REPUTATION
     : ENVOY_TARGET_HOSTILE_REPUTATION;
   adjustFactionReputation(state, active.targetFactionId, targetReputationDelta);
+  const mingTradeOpenedFactionId = active.kind === "friendly-envoy"
+    ? mingTradeOpeningFactionId(state, active)
+    : null;
+  const mingTradeOpened = mingTradeOpenedFactionId
+    ? openMingTradeToFaction(state, mingTradeOpenedFactionId)
+    : false;
   recordDecision(state, `quest.envoy.negotiate.${active.id}`, 1);
   active.stage = "return";
   active.negotiatedAtMinute = context.simMinute;
@@ -1059,7 +1093,14 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
   active.destinationTileId = active.originTileId;
   active.destinationName = active.originName;
   active.destinationCountry = active.originCountry;
-  return { quest: active, events, targetReputationDelta };
+  return { quest: active, events, targetReputationDelta, mingTradeOpened, mingTradeOpenedFactionId };
+}
+
+function mingTradeOpeningFactionId(state, quest) {
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  if (!playerFactionId || mingTradeOpenToFaction(state, playerFactionId)) return null;
+  const pair = new Set([quest.originFactionId, quest.targetFactionId]);
+  return pair.has(MING_FACTION_ID) && pair.has(playerFactionId) ? playerFactionId : null;
 }
 
 export function grantEnvoySafePassage(state, factionId, simMinute) {
@@ -1399,6 +1440,7 @@ export function grantLetterOfMarque(state, city, shipPower = 0, context = {}) {
 export function buyGood(state, economy, city, goodId, quantity = 1, context = {}) {
   assertGameState(state);
   assertQuantity(quantity, "buy quantity");
+  assertPlayerTradeAccess(state, city, context);
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
   if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
@@ -1432,6 +1474,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
 export function sellGood(state, economy, city, goodId, quantity = 1, context = {}) {
   assertGameState(state);
   assertQuantity(quantity, "sell quantity");
+  assertPlayerTradeAccess(state, city, context);
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
   const held = state.cargo[row.good.id] || 0;
@@ -1467,6 +1510,24 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   });
   if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
   return { good: row.good, quantity, price: total, costBasis: soldCost, pnl };
+}
+
+function assertPlayerTradeAccess(state, city, context) {
+  const access = mingTradeAccess({
+    portFactionId: city?.factionId || NEUTRAL_FACTION_ID,
+    traderFactionId: state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID,
+    simMinute: context.simMinute ?? 0,
+    openTrade: mingTradeOpenToFaction(
+      state,
+      state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
+    ),
+    illicitAccess: context.mingIllicitTradeAccess === true,
+    disguisedEntry: context.disguisedEntry === true
+  });
+  if (!access.allowed) {
+    throw new Error(`${cityLabel(city)} market is closed to foreign trade under the Ming maritime prohibition`);
+  }
+  return access;
 }
 
 export function receiveFishCatch(state, catchResult, context = {}) {
@@ -2046,6 +2107,7 @@ function assertGameState(state) {
     throw new Error("Game state cargo cost basis must be an object");
   }
   assertFactionReputationTable(state.relations?.factionReputation);
+  assertMingOpenTradeFactionIds(state.relations?.mingOpenTradeFactionIds);
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);
   assertSafePassageTable(state.relations?.safePassageUntilMinute);
   assertWorldDiplomacyState(state);
@@ -2161,6 +2223,21 @@ function assertFactionReputationTable(reputation) {
       throw new Error(`Missing faction reputation: ${faction.id}`);
     }
     assertReputationValue(reputation[faction.id], `reputation.${faction.id}`);
+  }
+}
+
+function assertMingOpenTradeFactionIds(factionIds) {
+  if (!Array.isArray(factionIds)) {
+    throw new Error("Game state Ming open-trade factions must be an array");
+  }
+  const unique = new Set();
+  for (const factionId of factionIds) {
+    const id = assertFactionId(factionId);
+    if (id === MING_FACTION_ID || id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
+      throw new Error(`Invalid Ming open-trade faction: ${id}`);
+    }
+    if (unique.has(id)) throw new Error(`Duplicate Ming open-trade faction: ${id}`);
+    unique.add(id);
   }
 }
 

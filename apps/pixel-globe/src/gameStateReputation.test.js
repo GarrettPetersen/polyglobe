@@ -27,6 +27,7 @@ import {
   hasPrivateeringAuthorityAgainst,
   letterOfMarqueStatus,
   migrateGameState,
+  mingTradeOpenToFaction,
   pirateHideoutsVisibleToPlayer,
   playerShipIsWarship,
   portEntryStatus,
@@ -77,7 +78,9 @@ test("version 8 game states migrate diplomacy and ship classification without lo
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 10);
+  assert.equal(restored.version, 11);
+  assert.equal(mingTradeOpenToFaction(restored, "joseon"), true);
+  assert.equal(mingTradeOpenToFaction(restored, "england"), false);
   assert.ok(restored.relations.diplomacy);
   assert.deepEqual(restored.relations.safePassageUntilMinute, {});
   assert.equal(restored.ship.mass, stats.mass);
@@ -123,9 +126,26 @@ test("version 9 game states preserve passage and gain diplomatic contacts", () =
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 10);
+  assert.equal(restored.version, 11);
   assert.equal(restored.relations.safePassageUntilMinute.ottoman, 2000);
   assert.deepEqual(restored.relations.diplomacy.contacts, {});
+});
+
+test("version 10 game states gain the initial Joseon Ming trade agreement", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const saved = JSON.parse(JSON.stringify(createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    startMinute: 500,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  })));
+  saved.version = 10;
+  delete saved.relations.mingOpenTradeFactionIds;
+
+  const restored = migrateGameState(saved, stats);
+
+  assert.equal(restored.version, 11);
+  assert.deepEqual(restored.relations.mingOpenTradeFactionIds, ["joseon"]);
 });
 
 test("successful trade gives only a tiny faction reputation gain", () => {

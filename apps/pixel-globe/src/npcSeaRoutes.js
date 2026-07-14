@@ -36,6 +36,10 @@ import {
   npcFishingNetExpectedHaul,
   npcFishingNetForSeed
 } from "./fishingNets.js";
+import {
+  DEFAULT_MING_OPEN_TRADE_FACTION_IDS,
+  mingTradeAccess
+} from "./mingTradeRestrictions.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -248,10 +252,14 @@ export function createNpcSeaRouteSystem({
   economy,
   fishState = null,
   relationBetween = diplomacyBetween,
+  mingTradeOpenToFaction = defaultMingTradeOpenToFaction,
   onForeignPortCall = null
 }) {
   if (!economy) throw new Error("NPC sea routes require a world economy");
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
+  if (typeof mingTradeOpenToFaction !== "function") {
+    throw new Error("NPC sea routes require a Ming trade-access resolver");
+  }
   if (onForeignPortCall !== null && typeof onForeignPortCall !== "function") {
     throw new Error("NPC sea routes foreign port contact handler must be a function");
   }
@@ -278,6 +286,7 @@ export function createNpcSeaRouteSystem({
     routeCache: new Map(),
     edgeCostCache: new Map(),
     relationBetween,
+    mingTradeOpenToFaction,
     onForeignPortCall,
     fishState,
     fishingGrounds: fishState ? buildFishingGrounds(usablePorts, fishState, startMinute) : [],
@@ -307,7 +316,12 @@ export function snapshotNpcSeaRouteSystem(system) {
 export function restoreNpcSeaRouteSystem(
   system,
   snapshot,
-  { economy, fishState = null, relationBetween = system?.relationBetween || diplomacyBetween } = {}
+  {
+    economy,
+    fishState = null,
+    relationBetween = system?.relationBetween || diplomacyBetween,
+    mingTradeOpenToFaction = system?.mingTradeOpenToFaction || defaultMingTradeOpenToFaction
+  } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships) ||
@@ -338,7 +352,11 @@ export function restoreNpcSeaRouteSystem(
   system.economy = economy || system.economy;
   system.fishState = fishState;
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
+  if (typeof mingTradeOpenToFaction !== "function") {
+    throw new Error("NPC sea routes require a Ming trade-access resolver");
+  }
   system.relationBetween = relationBetween;
+  system.mingTradeOpenToFaction = mingTradeOpenToFaction;
   system.ships = ships;
   system.shipById = shipById;
   system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
@@ -1055,7 +1073,18 @@ function enterPirateHideout(ship, arrivalMinute) {
 }
 
 function npcMerchantCanTradeAtPort(system, ship, port) {
-  return system.relationBetween(ship.factionId, port.factionId) !== DIPLOMACY_WAR;
+  if (system.relationBetween(ship.factionId, port.factionId) === DIPLOMACY_WAR) return false;
+  return mingTradeAccess({
+    portFactionId: port.factionId,
+    traderFactionId: ship.factionId,
+    simMinute: system.economy.lastMinute,
+    openTrade: system.mingTradeOpenToFaction(ship.factionId)
+  }).allowed;
+}
+
+function defaultMingTradeOpenToFaction(factionId) {
+  assertFactionId(factionId);
+  return DEFAULT_MING_OPEN_TRADE_FACTION_IDS.includes(factionId);
 }
 
 function npcNeedsFriendlyTradePort(ship) {
@@ -1959,7 +1988,7 @@ function assertSaveableNpcRouteSystem(system) {
   if (!system || !Array.isArray(system.ships) || !(system.shipById instanceof Map) ||
       !Array.isArray(system.replacementQueue) || !(system.pirateHideoutDangerUntil instanceof Map) ||
       !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map) ||
-      typeof system.relationBetween !== "function") {
+      typeof system.relationBetween !== "function" || typeof system.mingTradeOpenToFaction !== "function") {
     throw new Error("Invalid NPC route system");
   }
 }

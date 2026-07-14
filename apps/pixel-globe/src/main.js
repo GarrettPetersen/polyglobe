@@ -77,6 +77,7 @@ import {
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
   initializeProvisionalShipLoadout,
+  mingTradeOpenToFaction,
   isEnvoyQuest,
   loseCrew,
   migrateGameState,
@@ -1811,6 +1812,7 @@ async function main() {
     economy: worldEconomy,
     fishState: gameState,
     relationBetween: currentDiplomacyBetween,
+    mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(gameState, factionId),
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
   const playerPirateHideoutPorts = buildPlayerPirateHideoutPorts(npcSeaRoutes.pirateHideouts);
@@ -4717,7 +4719,8 @@ async function restoreSavedVoyage(payload) {
   restoreNpcSeaRouteSystem(npcSeaRoutes, payload.npcRoutes, {
     economy: worldEconomy,
     fishState: restoredGameState,
-    relationBetween: currentDiplomacyBetween
+    relationBetween: currentDiplomacyBetween,
+    mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId)
   });
 
   gameState = restoredGameState;
@@ -5958,7 +5961,9 @@ function startWaitingInPort(city) {
     cityTileId: city.tileId,
     portId: city.portId || `city-${city.tileId}`,
     startedAtMinute: weatherClockMinutes,
-    disguisedEntry: dialogueState?.disguisedEntry === true
+    disguisedEntry: dialogueState?.disguisedEntry === true,
+    mingIllicitTradeAccess: dialogueState?.mingIllicitTradeAccess === true,
+    mingIllicitTradeAttempted: dialogueState?.mingIllicitTradeAttempted === true
   };
   resetSurvivalDamageTimers();
   dialogueState = null;
@@ -5985,6 +5990,8 @@ function stopWaitingInPort() {
   const city = chartPortCallById(portWaitState.portId) || cityByTileId.get(portWaitState.cityTileId);
   const character = city?.character || (city ? portCityCharacters?.get(city.tileId) : null);
   const disguisedEntry = portWaitState.disguisedEntry === true;
+  const mingIllicitTradeAccess = portWaitState.mingIllicitTradeAccess === true;
+  const mingIllicitTradeAttempted = portWaitState.mingIllicitTradeAttempted === true;
   portWaitState = null;
   portWaitButtonRect = null;
   if (!city || !character) {
@@ -5996,7 +6003,13 @@ function stopWaitingInPort() {
     ...city,
     character,
     portrait: characterExpression(character)
-  }, { initialNodeId: "root", admittedToPort: true, disguisedEntry });
+  }, {
+    initialNodeId: "root",
+    admittedToPort: true,
+    disguisedEntry,
+    mingIllicitTradeAccess,
+    mingIllicitTradeAttempted
+  });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   saveVoyageNow("stopped waiting in port");
@@ -6082,8 +6095,13 @@ function chooseDialogueOption(optionIndex) {
       return;
     }
     if (result.action?.type === "envoy-negotiated") {
-      const event = result.action.negotiation.events[0] || null;
-      showSurvivalNotice(event ? diplomacyEventNotice(event) : "DIPLOMATIC MISSION ADVANCES", "good");
+      const negotiation = result.action.negotiation;
+      const event = negotiation.events[0] || null;
+      showSurvivalNotice(
+        negotiation.mingTradeOpened ? "MING TRADE OPENED" :
+          event ? diplomacyEventNotice(event) : "DIPLOMATIC MISSION ADVANCES",
+        "good"
+      );
       saveVoyageNow("envoy negotiations");
     }
   } else if (dialogueState.kind === "ship") {
@@ -6303,6 +6321,7 @@ function portDialogueContext() {
   const shipyard = city ? shipyardAtPort(worldEconomy.shipyards, city) : null;
   const simMinute = Math.floor(weatherClockMinutes);
   return {
+    random: Math.random,
     simMinute,
     dayIndex: weatherParts.dayIndex,
     shipPower: playerShipPrivateeringPower(),

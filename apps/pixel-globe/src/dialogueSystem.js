@@ -1,5 +1,6 @@
 import {
   acceptQuest,
+  adjustFactionReputation,
   buyGood,
   cargoCostBasis,
   cargoFree,
@@ -10,6 +11,7 @@ import {
   grantLetterOfMarque,
   isEnvoyQuest,
   letterOfMarqueStatus,
+  mingTradeOpenToFaction,
   negotiateEnvoyQuest,
   portMemory,
   playerCannonEquipment,
@@ -47,6 +49,12 @@ import {
   isVikingLongshipQuestPort,
   vikingLongshipQuestState
 } from "./vikingLongshipQuest.js";
+import {
+  MING_FACTION_ID,
+  MING_ILLICIT_MARKET_REPUTATION_PENALTY,
+  mingTradeAccess,
+  resolveMingIllicitMarketAttempt
+} from "./mingTradeRestrictions.js";
 
 export function createPortDialogueSession(city, options = {}) {
   return {
@@ -56,6 +64,8 @@ export function createPortDialogueSession(city, options = {}) {
     nodeId: options.initialNodeId || "greeting",
     admittedToPort: options.admittedToPort === true,
     disguisedEntry: options.disguisedEntry === true,
+    mingIllicitTradeAccess: options.mingIllicitTradeAccess === true,
+    mingIllicitTradeAttempted: options.mingIllicitTradeAttempted === true,
     nextPortNodeId: options.nextPortNodeId || null,
     selectedIndex: 0,
     feedback: null
@@ -398,6 +408,24 @@ export function selectPortDialogueOption(
   if (action.type === "attempt-disguise") {
     return { closed: false, action: { type: "attempt-disguise" } };
   }
+  if (action.type === "attempt-ming-illicit-trade") {
+    if (typeof context.random !== "function") {
+      throw new Error("Ming illicit market attempt requires a random source");
+    }
+    if (session.mingIllicitTradeAttempted) {
+      throw new Error("Ming illicit market may only be approached once per port visit");
+    }
+    session.mingIllicitTradeAttempted = true;
+    if (resolveMingIllicitMarketAttempt(context.random())) {
+      session.mingIllicitTradeAccess = true;
+      session.feedback = "A discreet broker agrees to handle your cargo until you leave port.";
+    } else {
+      adjustFactionReputation(gameState, MING_FACTION_ID, -MING_ILLICIT_MARKET_REPUTATION_PENALTY);
+      session.feedback = "The broker reports you to the harbor watch. Ming standing fell.";
+    }
+    session.selectedIndex = 0;
+    return { closed: false, mingIllicitMarketAccess: session.mingIllicitTradeAccess };
+  }
   if (action.type === "purchase-ship") {
     return { closed: false, action };
   }
@@ -422,7 +450,7 @@ export function selectPortDialogueOption(
     return { closed: false, loadoutResult: result };
   }
   if (action.type === "buy") {
-    const result = buyGood(gameState, economy, city, action.goodId, 1, context);
+    const result = buyGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
     session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
     return { closed: false };
   }
@@ -441,7 +469,7 @@ export function selectPortDialogueOption(
     return { closed: false, cannonEquipmentPurchase: result };
   }
   if (action.type === "sell") {
-    const result = sellGood(gameState, economy, city, action.goodId, 1, context);
+    const result = sellGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
     const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
     session.feedback = `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`;
     return { closed: false };
@@ -694,17 +722,30 @@ function disguiseFailureView(city, context) {
 function rootView(session, city, gameState, economy, context) {
   const market = portEconomySummary(economy, city);
   const pirateHideout = city.isPirateHideout === true;
+  const tradeAccess = playerMingTradeAccess(session, city, gameState, context);
   const activeQuest = gameState.memory.quests?.active || null;
   const canCompleteQuest = activeQuest?.destinationTileId === city.tileId;
   const options = [
-    option(pirateHideout ? "Buy doubtful goods" : "Buy goods", { type: "node", nodeId: "buy" }),
+    ...(tradeAccess.allowed
+      ? [option(pirateHideout ? "Buy doubtful goods" : tradeAccess.illicit ? "Buy illicit goods" : "Buy goods", {
+        type: "node",
+        nodeId: "buy"
+      })]
+      : !session.mingIllicitTradeAttempted
+        ? [option("Seek illicit market", { type: "attempt-ming-illicit-trade" })]
+        : []),
     option("Equipment", { type: "node", nodeId: "equipment" }),
     ...(context.shipStats ? [option(pirateHideout ? "Refit and provision" : "Ship loadout", {
       type: "node",
       nodeId: "loadout"
     })] : []),
     option(pirateHideout ? "Visit the hidden yard" : "Visit shipyard", { type: "node", nodeId: "shipyard" }),
-    option(pirateHideout ? "Fence cargo" : "Sell cargo", { type: "node", nodeId: "sell" }),
+    ...(tradeAccess.allowed
+      ? [option(pirateHideout ? "Fence cargo" : tradeAccess.illicit ? "Sell cargo illicitly" : "Sell cargo", {
+        type: "node",
+        nodeId: "sell"
+      })]
+      : []),
     ...(!pirateHideout && (!session.disguisedEntry || canCompleteQuest)
       ? [option(session.disguisedEntry ? "Complete current job" : "Ask about work", {
         type: "node",
@@ -739,9 +780,35 @@ function rootView(session, city, gameState, economy, context) {
       ? `Powder, provisions, and silence are all for sale. Cove specie: ${market.specie} db.`
       : session.disguisedEntry
       ? `Keep your disguise intact. Market specie: ${market.specie} db.`
+      : tradeAccess.restricted && !tradeAccess.allowed
+      ? "The maritime prohibition closes this market to foreign trade. Harbor services remain available."
+      : tradeAccess.illicit
+      ? `Keep your market business discreet. Market specie: ${market.specie} db.`
       : `What business brings you to port? Market specie: ${market.specie} db.`,
     feedback: session.feedback,
     options
+  };
+}
+
+function playerMingTradeAccess(session, city, gameState, context) {
+  return mingTradeAccess({
+    portFactionId: city.factionId || "neutral",
+    traderFactionId: gameState.playerCharacter?.nationalityId || "neutral",
+    simMinute: context.simMinute ?? 0,
+    openTrade: mingTradeOpenToFaction(
+      gameState,
+      gameState.playerCharacter?.nationalityId || "neutral"
+    ),
+    illicitAccess: session.mingIllicitTradeAccess === true,
+    disguisedEntry: session.disguisedEntry === true
+  });
+}
+
+function tradeContext(session, context) {
+  return {
+    ...context,
+    mingIllicitTradeAccess: session.mingIllicitTradeAccess === true,
+    disguisedEntry: session.disguisedEntry === true
   };
 }
 
