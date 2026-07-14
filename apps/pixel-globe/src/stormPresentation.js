@@ -11,24 +11,38 @@ export function createStormPassageState(active = false) {
   if (typeof active !== "boolean") throw new Error(`Storm passage active state must be boolean: ${active}`);
   return {
     active,
-    clearancePending: false
+    clearancePending: false,
+    belowExitSinceMs: null
   };
 }
 
-export function updateStormPassage(state, intensity, { enterIntensity, exitIntensity }) {
+export function updateStormPassage(
+  state,
+  intensity,
+  { enterIntensity, exitIntensity, clearanceDelayMs },
+  nowMs
+) {
   validateStormPassageState(state);
-  validateStormThresholds(intensity, enterIntensity, exitIntensity);
+  validateStormThresholds(intensity, enterIntensity, exitIntensity, clearanceDelayMs, nowMs);
 
   if (!state.active && intensity >= enterIntensity) {
     state.active = true;
     state.clearancePending = false;
+    state.belowExitSinceMs = null;
     return STORM_PASSAGE_ENTERED;
   }
   if (state.active && intensity < exitIntensity) {
+    if (state.belowExitSinceMs === null) {
+      state.belowExitSinceMs = nowMs;
+      return null;
+    }
+    if (nowMs - state.belowExitSinceMs < clearanceDelayMs) return null;
     state.active = false;
     state.clearancePending = true;
+    state.belowExitSinceMs = null;
     return STORM_PASSAGE_CLEARED;
   }
+  state.belowExitSinceMs = null;
   return null;
 }
 
@@ -100,18 +114,25 @@ export function fillStormEdgeFogPixels(pixels, width, height, seed = 0x464f4721)
 }
 
 function validateStormPassageState(state) {
-  if (!state || typeof state.active !== "boolean" || typeof state.clearancePending !== "boolean") {
+  if (
+    !state ||
+    typeof state.active !== "boolean" ||
+    typeof state.clearancePending !== "boolean" ||
+    (state.belowExitSinceMs !== null && (!Number.isFinite(state.belowExitSinceMs) || state.belowExitSinceMs < 0))
+  ) {
     throw new Error("Invalid storm passage state");
   }
 }
 
-function validateStormThresholds(intensity, enterIntensity, exitIntensity) {
-  for (const [label, value] of Object.entries({ intensity, enterIntensity, exitIntensity })) {
+function validateStormThresholds(intensity, enterIntensity, exitIntensity, clearanceDelayMs, nowMs) {
+  for (const [label, value] of Object.entries({ intensity, enterIntensity, exitIntensity, clearanceDelayMs, nowMs })) {
     if (!Number.isFinite(value)) throw new Error(`Storm passage ${label} must be finite: ${value}`);
   }
   if (exitIntensity < 0 || enterIntensity <= exitIntensity || enterIntensity > 1) {
     throw new Error(`Invalid storm passage thresholds: ${exitIntensity}, ${enterIntensity}`);
   }
+  if (clearanceDelayMs < 0) throw new Error(`Invalid storm clearance delay: ${clearanceDelayMs}`);
+  if (nowMs < 0) throw new Error(`Invalid storm passage time: ${nowMs}`);
 }
 
 function fogNoise(x, y, seed) {

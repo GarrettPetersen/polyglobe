@@ -633,6 +633,7 @@ const STORM_SHIP_BOB_MAX_X_PX = 1;
 const STORM_SHIP_BOB_MAX_Y_PX = 3;
 const STORM_CAPTAIN_ALERT_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_CAPTAIN_ALERT_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.58;
+const STORM_CAPTAIN_CLEARANCE_DELAY_MS = 10000;
 const STORM_CAPTAIN_ALERT_COOLDOWN_MINUTES = 2 * WEATHER_MINUTES_PER_DAY;
 const DAY_NIGHT_DAY_ALT = 0.34;
 const DAY_NIGHT_NIGHT_ALT = -0.34;
@@ -8488,7 +8489,7 @@ function updateWeather(dt, nowMs) {
     weatherClockMinutes += dt * weatherTimeScale / 60;
     stormDamageChanged = updateStormDamage(previousClockMinutes, weatherClockMinutes);
     survivalChanged = updatePlayerSurvival(previousClockMinutes, weatherClockMinutes);
-    stormCaptainChanged = updateStormCaptainAlert(previousClockMinutes, weatherClockMinutes);
+    stormCaptainChanged = updateStormCaptainAlert(previousClockMinutes, weatherClockMinutes, nowMs);
     diplomacyChanged = updateWorldDiplomacy();
   }
 
@@ -8538,13 +8539,14 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   return result.changed || damageChanged;
 }
 
-function updateStormCaptainAlert(previousMinute, currentMinute) {
+function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   if (!ship || gameOverReason || currentMinute <= previousMinute) return false;
   const intensity = playerStormIntensity();
   const transition = updateStormPassage(stormPassageState, intensity, {
     enterIntensity: STORM_CAPTAIN_ALERT_ENTER_INTENSITY,
-    exitIntensity: STORM_CAPTAIN_ALERT_EXIT_INTENSITY
-  });
+    exitIntensity: STORM_CAPTAIN_ALERT_EXIT_INTENSITY,
+    clearanceDelayMs: STORM_CAPTAIN_CLEARANCE_DELAY_MS
+  }, nowMs);
   let changed = transition !== null;
 
   if (transition === STORM_PASSAGE_CLEARED) {
