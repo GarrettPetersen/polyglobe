@@ -263,6 +263,8 @@ import {
   dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
+import { controlTextLayout } from "./controlTextLayout.js";
+import { fitMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import { windVGeometry, windVOpacity } from "./windIndicator.js";
 import { loadImageWithRetry } from "./assetImageLoader.js";
@@ -13867,15 +13869,7 @@ function drawOptionsText(text, x, y, options = {}) {
 }
 
 function fitPixelText(text, font, maxWidth) {
-  if (measurePixelTextWidth(text, font) <= maxWidth) return text;
-  const suffix = "...";
-  const suffixWidth = measurePixelTextWidth(suffix, font);
-  let kept = "";
-  for (const char of text) {
-    if (measurePixelTextWidth(kept + char, font) + suffixWidth > maxWidth) break;
-    kept += char;
-  }
-  return kept.length > 0 ? `${kept}${suffix}` : suffix;
+  return fitMeasuredText(text, maxWidth, (entry) => measurePixelTextWidth(entry, font));
 }
 
 function drawPixelText(text, x, y, options = {}) {
@@ -17436,12 +17430,27 @@ function drawControlIconLabel(rect, label, iconId, {
   drawGameIcon(iconId, iconX, iconY, { alpha: disabled ? 0.4 : 1 });
   const textLeft = iconX + GAME_ICON_SIZE + 4;
   const textWidth = rect.x + rect.w - textLeft - 4;
-  drawPixelText(
-    fitPixelText(label, font, textWidth),
-    textLeft + textWidth / 2,
-    controlTextY(rect),
-    { font, align: "center" }
-  );
+  const secondaryWidth = secondaryLabel
+    ? measurePixelTextWidth(secondaryLabel, PIXEL_FONT_SMALL_8) + 4
+    : 0;
+  const labelWidth = textWidth - secondaryWidth;
+  const textLayout = controlTextLayout({
+    label,
+    maxWidth: labelWidth,
+    measurePrimary: (text) => measurePixelTextWidth(text, font),
+    measureCompact: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
+  });
+  const labelFont = textLayout.fontRole === "compact" ? PIXEL_FONT_SMALL_8 : font;
+  const lineStep = 9;
+  const firstLineY = controlTextY(rect) - Math.floor((textLayout.lines.length - 1) * lineStep / 2);
+  for (let index = 0; index < textLayout.lines.length; index++) {
+    drawPixelText(
+      textLayout.lines[index],
+      textLeft + labelWidth / 2,
+      firstLineY + index * lineStep,
+      { font: labelFont, align: "center" }
+    );
+  }
   if (secondaryLabel) {
     drawPixelText(secondaryLabel, rect.x + rect.w - 3, rect.y + 2, {
       font: PIXEL_FONT_SMALL_8,
@@ -18671,24 +18680,7 @@ function dialogueOptionTextMetrics(option, font, width, minimumHeight) {
 }
 
 function wrapPixelText(text, font, maxWidth, maxLines) {
-  const words = String(text).split(/\s+/).filter(Boolean);
-  const wrapped = [];
-  let line = "";
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (measurePixelTextWidth(next, font) <= maxWidth) {
-      line = next;
-      continue;
-    }
-    if (line) wrapped.push(line);
-    line = word;
-  }
-  if (line) wrapped.push(line);
-  const lines = wrapped.slice(0, maxLines).map((entry) => fitPixelText(entry, font, maxWidth));
-  if (wrapped.length > maxLines && lines.length > 0) {
-    lines[lines.length - 1] = fitPixelText(`${lines[lines.length - 1]} ...`, font, maxWidth);
-  }
-  return lines;
+  return wrapMeasuredText(text, maxWidth, maxLines, (entry) => measurePixelTextWidth(entry, font));
 }
 
 function ensureDialoguePortraitLoaded() {

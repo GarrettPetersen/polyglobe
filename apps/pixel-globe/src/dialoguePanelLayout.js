@@ -1,3 +1,5 @@
+import { wrapMeasuredText } from "./measuredTextLayout.js";
+
 export function dialoguePanelGeometry({
   screenWidth,
   screenHeight,
@@ -174,37 +176,4 @@ export function dialogueOptionWindow({
 
 function clampInteger(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, Math.trunc(value)));
-}
-
-function wrapMeasuredText(text, maxWidth, maxLines, measureText) {
-  const words = String(text).split(/\s+/).filter(Boolean);
-  const wrapped = [];
-  let line = "";
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (measureText(next) <= maxWidth) {
-      line = next;
-      continue;
-    }
-    if (line) wrapped.push(line);
-    line = word;
-  }
-  if (line) wrapped.push(line);
-
-  const lines = wrapped.slice(0, maxLines).map((entry) => fitMeasuredText(entry, maxWidth, measureText));
-  if (wrapped.length > maxLines && lines.length > 0) {
-    lines[lines.length - 1] = fitMeasuredText(`${lines[lines.length - 1]} ...`, maxWidth, measureText);
-  }
-  return lines.length > 0 ? lines : [""];
-}
-
-function fitMeasuredText(text, maxWidth, measureText) {
-  if (measureText(text) <= maxWidth) return text;
-  const suffix = "...";
-  let kept = "";
-  for (const character of text) {
-    if (measureText(kept + character + suffix) > maxWidth) break;
-    kept += character;
-  }
-  return kept ? `${kept}${suffix}` : suffix;
 }
