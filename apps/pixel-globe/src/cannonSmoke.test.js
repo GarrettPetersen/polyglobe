@@ -20,22 +20,31 @@ const CANNONBALL = Object.freeze({
 test("cannon smoke starts at the muzzle and expands on the pixel grid", () => {
   const burst = createCannonSmokeBurst(CANNONBALL);
   const initial = cannonSmokePixels(burst);
-  assert.ok(initial.length > 0);
-  assert.ok(initial.every((pixel) => Number.isInteger(pixel.x) && Number.isInteger(pixel.y)));
+  assert.equal(initial.length, 4);
+  assert.ok(initial.every((pixel) => (
+    Number.isInteger(pixel.x)
+    && Number.isInteger(pixel.y)
+    && Number.isInteger(pixel.size)
+    && pixel.size >= 2
+    && pixel.alpha >= 0.72
+  )));
 
   advanceCannonSmokeBursts([burst], 0.2);
   advanceCannonSmokeBursts([burst], 0.1);
   const expanded = cannonSmokePixels(burst);
-  assert.ok(expanded.some((pixel) => pixel.size === 2));
-  assert.ok(expanded.some((pixel) => pixel.x > CANNONBALL.startX + 1));
-  assert.ok(expanded.some((pixel) => pixel.y < CANNONBALL.startY));
+  assert.equal(expanded.length, 20);
+  assert.ok(expanded.some((pixel) => pixel.size === 4));
+  assert.ok(Math.max(...expanded.map((pixel) => pixel.x + pixel.size)) - Math.min(...expanded.map((pixel) => pixel.x)) >= 9);
+  assert.ok(Math.max(...expanded.map((pixel) => pixel.y + pixel.size)) - Math.min(...expanded.map((pixel) => pixel.y)) >= 9);
 });
 
 test("cannon smoke persists independently and expires at a fixed time", () => {
   const burst = createCannonSmokeBurst(CANNONBALL);
-  assert.equal(advanceCannonSmokeBursts([burst], 0.25).length, 1);
-  assert.equal(advanceCannonSmokeBursts([burst], 0.25).length, 1);
-  assert.equal(advanceCannonSmokeBursts([burst], CANNON_SMOKE_TTL_SECONDS - 0.5).length, 0);
+  let bursts = [burst];
+  for (let elapsed = 0; elapsed < CANNON_SMOKE_TTL_SECONDS; elapsed += 0.25) {
+    bursts = advanceCannonSmokeBursts(bursts, Math.min(0.25, CANNON_SMOKE_TTL_SECONDS - elapsed));
+  }
+  assert.equal(bursts.length, 0);
 });
 
 test("arrow projectiles cannot create cannon smoke", () => {

@@ -4,17 +4,29 @@ import test from "node:test";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
+  PLAYER_COMBAT_ID,
   PLAYER_NPC_ATTACK_GRACE_SECONDS,
   PIRATE_PLAYER_DETECTION_RADIUS_PX,
   WARSHIP_PIRATE_DISENGAGE_RADIUS_PX,
   WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX,
   createShipCombatState,
   forceShipEngagement,
+  npcPrizeRecipientId,
   npcShouldOfferSurrender,
   playerNpcAttackGraceIsActive,
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
+
+test("shore batteries confiscate prizes without masquerading as NPC ships", () => {
+  const npcShips = new Map([["merchant-1", {}], ["warship-1", {}]]);
+  const shoreBatteries = new Map([["shore-battery:lisbon", {}]]);
+
+  assert.equal(npcPrizeRecipientId(PLAYER_COMBAT_ID, npcShips, shoreBatteries), null);
+  assert.equal(npcPrizeRecipientId("shore-battery:lisbon", npcShips, shoreBatteries), null);
+  assert.equal(npcPrizeRecipientId("warship-1", npcShips, shoreBatteries), "warship-1");
+  assert.throws(() => npcPrizeRecipientId("missing-combatant", npcShips, shoreBatteries), /Unknown combat winner/);
+});
 
 test("pirates trigger many-to-many combat while merchants flee", () => {
   const state = createShipCombatState();

@@ -113,6 +113,19 @@ export function playerNpcAttackGraceIsActive(activePlaySeconds) {
   return activePlaySeconds < PLAYER_NPC_ATTACK_GRACE_SECONDS;
 }
 
+export function npcPrizeRecipientId(winnerId, npcShips, shoreBatteries) {
+  if (typeof winnerId !== "string" || winnerId.length === 0) {
+    throw new Error(`Invalid combat winner id: ${winnerId}`);
+  }
+  if (!npcShips || typeof npcShips.has !== "function") throw new Error("NPC prize resolution requires an NPC ship collection");
+  if (!shoreBatteries || typeof shoreBatteries.has !== "function") {
+    throw new Error("NPC prize resolution requires a shore battery collection");
+  }
+  if (winnerId === PLAYER_COMBAT_ID || shoreBatteries.has(winnerId)) return null;
+  if (npcShips.has(winnerId)) return winnerId;
+  throw new Error(`Unknown combat winner: ${winnerId}`);
+}
+
 function combatDetectionRadius(a, b) {
   if (isNpcWarshipPiratePair(a, b)) return WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX;
   if (isPlayerPiratePair(a, b)) return PIRATE_PLAYER_DETECTION_RADIUS_PX;

@@ -282,6 +282,7 @@ import {
   createShipCombatState,
   engagementKey,
   forceShipEngagement,
+  npcPrizeRecipientId,
   npcShouldOfferSurrender,
   playerNpcAttackGraceIsActive,
   playerCombatAllegiance,
@@ -407,6 +408,7 @@ import {
   cannonSmokePixels,
   createCannonSmokeBurst
 } from "./cannonSmoke.js";
+import { cannonShotDistanceGain } from "./cannonAudio.js";
 import {
   advanceHullSplinterBursts,
   createHullSplinterBurst,
@@ -421,6 +423,7 @@ import {
   createLakeBattleArenaMap,
   drainLakeBattleEvents,
   fireLakeBattleBroadside,
+  lakeBattleShipById,
   lakeBattleHeadingVector,
   lakeBattleCombatantIsCity,
   lakeBattleCombatantHitRadius,
@@ -599,7 +602,7 @@ const CANNON_SPLASH_DROP_COUNT = 6;
 const NAVAL_MAX_PROJECTILES = 160;
 const CANNON_MAX_SPLASHES = 128;
 const CANNON_MAX_SMOKE_BURSTS = 192;
-const CANNON_SMOKE_COLORS = Object.freeze(["92, 84, 76", "137, 129, 116", "199, 204, 195"]);
+const CANNON_SMOKE_COLORS = Object.freeze(["92, 84, 76", "199, 204, 195", "255, 253, 231"]);
 const HULL_SPLINTER_MAX_BURSTS = 128;
 const HULL_SPLINTER_COLORS = Object.freeze(["84, 51, 30", "139, 82, 41", "218, 145, 62"]);
 const ARROW_LINE_LENGTH_PX = 4;
@@ -3560,9 +3563,14 @@ function playSoundEffect(pool, volume, playbackRate = 1) {
   if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
 }
 
-function playCannonShotSound(broadsideCount) {
+function playCannonShotSound(broadsideCount, distancePx = 0) {
   const countGain = 0.72 + Math.min(0.28, Math.max(0, broadsideCount - 1) * 0.025);
-  playSoundEffect(soundEffects?.cannon, SFX_CANNON_VOLUME * countGain, 0.94 + Math.random() * 0.1);
+  const distanceGain = cannonShotDistanceGain(distancePx);
+  playSoundEffect(
+    soundEffects?.cannon,
+    SFX_CANNON_VOLUME * countGain * distanceGain,
+    0.94 + Math.random() * 0.1
+  );
 }
 
 function playLightningStrikeSound() {
@@ -3577,13 +3585,13 @@ function playArrowHitSound() {
   playSoundEffect(soundEffects?.arrowHit, SFX_ARROW_HIT_VOLUME, 0.95 + Math.random() * 0.08);
 }
 
-function playNavalAttackSound(weapon, broadsideCount) {
+function playNavalAttackSound(weapon, broadsideCount, distancePx = 0) {
   if (weapon.kind === NAVAL_WEAPON_ARROW) {
     playBowFireSound();
     return;
   }
   if (weapon.kind === NAVAL_WEAPON_CANNON) {
-    playCannonShotSound(broadsideCount);
+    playCannonShotSound(broadsideCount, distancePx);
     return;
   }
   throw new Error(`Unknown naval attack sound: ${weapon.kind}`);
@@ -4375,7 +4383,12 @@ function fireLakeBattlePlayerBroadside(sideName) {
 function processLakeBattleEvents(battle) {
   for (const event of drainLakeBattleEvents(battle)) {
     if (event.type === "fire") {
-      playNavalAttackSound({ kind: event.weaponKind }, event.count);
+      const firingShip = lakeBattleShipById(battle, event.shipId);
+      const distanceFromPlayer = Math.hypot(
+        firingShip.x - battle.player.x,
+        firingShip.y - battle.player.y
+      );
+      playNavalAttackSound({ kind: event.weaponKind }, event.count, distanceFromPlayer);
     } else if (event.type === "hit") {
       if (event.weaponKind === NAVAL_WEAPON_ARROW) playArrowHitSound();
       else playCannonImpactSound(18);
@@ -9285,7 +9298,7 @@ function fireShoreBatteryAtNearestTarget(state) {
   if (!target) return false;
   const weapon = shoreBatteryWeapon(state);
   armShoreBatteryReload(state);
-  playNavalAttackSound(weapon, state.gunCount);
+  playNavalAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
   for (let index = 0; index < state.gunCount; index++) {
     const seed = cannonSeed(state.shotSequence, index, state.cityTileId * 0x51a7, origin);
@@ -9402,6 +9415,15 @@ function combatEntityPoint(entityId) {
   return state ? { x: state.x, y: state.y } : null;
 }
 
+function distanceFromPlayerPoint(point) {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    throw new Error(`Invalid cannon sound source: ${point?.x},${point?.y}`);
+  }
+  const playerPoint = combatEntityPoint(PLAYER_COMBAT_ID);
+  if (!playerPoint) throw new Error("Cannot spatialize cannon sound without the player draw position");
+  return Math.hypot(point.x - playerPoint.x, point.y - playerPoint.y);
+}
+
 function npcCombatNavigation(state) {
   if (!state.combatMode || state.combatGrace) return null;
   if (state.combatMode === COMBAT_MODE_FLEE) {
@@ -9473,7 +9495,11 @@ function fireNpcBroadsideAtTarget(state, targetId) {
     : 1;
   state.cannonCooldown = NPC_COMBAT_COOLDOWN_SECONDS;
   state.cannonSequence += 1;
-  playNavalAttackSound(weapon, Math.max(1, Math.ceil(stats.cannons / 2)));
+  playNavalAttackSound(
+    weapon,
+    Math.max(1, Math.ceil(stats.cannons / 2)),
+    distanceFromPlayerPoint(state)
+  );
   startCombatMusicForThreat(stats.cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
 
   for (let index = 0; index < volleyCount; index++) {
@@ -9638,7 +9664,12 @@ function addNpcCombatSplash(ball) {
 }
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
-  const npcWinnerId = winnerId === PLAYER_COMBAT_ID ? null : winnerId;
+  const npcWinnerId = npcPrizeRecipientId(
+    winnerId,
+    npcSeaRoutes.shipById,
+    shoreBatteryStates
+  );
+  const wonByShoreBattery = shoreBatteryStates.has(winnerId);
   const loserFactionId =
     npcSeaRoutes.shipById.get(loserId)?.factionId ||
     npcVisualShips.get(loserId)?.factionId ||
@@ -9652,6 +9683,11 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     const cargoQuantity = Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0);
     combatNotice = {
       text: `SHIP SURRENDERED  +${received.specie} DB${cargoQuantity > 0 ? `  +${cargoQuantity} CARGO` : ""}`,
+      expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+    };
+  } else if (wonByShoreBattery) {
+    combatNotice = {
+      text: "SHIP SURRENDERED TO PORT",
       expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
     };
   }
