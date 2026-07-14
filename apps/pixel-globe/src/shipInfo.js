@@ -133,7 +133,7 @@ export function createShipyardShipView(slug) {
 export function shipArmamentSummary(stats, activeCannons) {
   if (!stats || typeof stats !== "object") throw new Error("Ship armament summary requires ship stats");
   if (stats.navalWeaponKind === NAVAL_WEAPON_ARROW) {
-    return Object.freeze({ label: "ARROWS", summary: "VOLLEY" });
+    return Object.freeze({ label: "ARROWS", summary: "AT WILL" });
   }
   if (!Number.isInteger(activeCannons) || activeCannons < 0 || activeCannons > stats.cannons) {
     throw new Error(`Invalid active cannon count for ${stats.slug}: ${activeCannons}`);

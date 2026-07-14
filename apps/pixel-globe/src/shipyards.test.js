@@ -24,6 +24,8 @@ const NANJING = port(7, "Nanjing", "east-asian", 160000, 32.06, 118.79, "ming");
 const NAGASAKI = port(8, "Nagasaki", "east-asian", 120000, 32.75, 129.88, "japan");
 const SEVILLE = port(9, "Seville", "mediterranean", 120000, 37.39, -5.99, "spain");
 const VENICE = port(10, "Venice", "mediterranean", 120000, 45.44, 12.32, "venice");
+const ISTANBUL = port(11, "Istanbul", "islamic-desert", 180000, 41.01, 28.98, "ottoman");
+const MALACCA = port(12, "Malacca", "southeast-asian", 45000, 2.19, 102.25, "neutral");
 
 test("every port has a shipyard but active new-build listings remain rare", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
@@ -121,6 +123,22 @@ test("Portuguese shipyards exclusively build the Portuguese Carrack", () => {
   assert.equal(venetianHulls.has("portuguese-carrack"), false);
 });
 
+test("Ottoman shipyards exclusively build the Ottoman coastal trader", () => {
+  const system = createWorldShipyards({ ports: [ISTANBUL, VENICE], startMinute: 0 });
+  const ottomanHulls = generatedHulls(shipyardAtPort(system, ISTANBUL), 800);
+  const venetianHulls = generatedHulls(shipyardAtPort(system, VENICE), 800);
+
+  assert.equal(ottomanHulls.has("ottoman-coastal-trader"), true);
+  assert.equal(venetianHulls.has("ottoman-coastal-trader"), false);
+});
+
+test("Southeast Asian shipyards build Nusantaran outriggers", () => {
+  const system = createWorldShipyards({ ports: [MALACCA], startMinute: 0 });
+  const hulls = generatedHulls(shipyardAtPort(system, MALACCA), 800);
+
+  assert.equal(hulls.has("nusantaran-outrigger"), true);
+});
+
 test("ship prices put major hulls far beyond casual fishing income", () => {
   const brigantine = shipConstructionPrice("brigantine");
   const galleon = shipConstructionPrice("galleon");
@@ -181,4 +199,12 @@ function port(tileId, city, cityType, population, lat, lon, factionId = "neutral
 
 function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function generatedHulls(yard, count) {
+  const hulls = new Set();
+  for (let build = 0; build < count; build++) {
+    hulls.add(generateShipyardListing(yard, build, build * 1000).shipSlug);
+  }
+  return hulls;
 }

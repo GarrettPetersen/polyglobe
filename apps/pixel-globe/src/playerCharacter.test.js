@@ -96,7 +96,7 @@ test("regional starter ships are the smallest unarmed local vessels", () => {
     europe: "fishing-lugger",
     ottoman: "felucca",
     "east-asia": "sampan",
-    india: "small-dhow"
+    india: "dhow"
   });
   for (const slug of Object.values(PLAYER_STARTER_SHIPS)) {
     const stats = shipStatsForSlug(slug);

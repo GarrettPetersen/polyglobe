@@ -9,6 +9,47 @@ export function shipPixelIsAboveWater(sinkHeight) {
   return sinkHeight > SHIP_WATERLINE_LEVEL;
 }
 
+export function floatingShipSubmergedPixelKeys(pixels, frameSize) {
+  if (!Array.isArray(pixels) || pixels.length === 0) {
+    throw new Error("Floating ship waterline requires opaque sprite pixels");
+  }
+  if (!Number.isInteger(frameSize) || frameSize <= 0) {
+    throw new Error(`Floating ship waterline has invalid frame size: ${frameSize}`);
+  }
+
+  const pixelKinds = new Uint8Array(frameSize * frameSize);
+  for (const pixel of pixels) {
+    if (!pixel || !Number.isInteger(pixel.x) || !Number.isInteger(pixel.y)) {
+      throw new Error("Floating ship waterline pixel has invalid coordinates");
+    }
+    if (pixel.x < 0 || pixel.x >= frameSize || pixel.y < 0 || pixel.y >= frameSize) {
+      throw new Error(`Floating ship waterline pixel is outside its frame: ${pixel.x},${pixel.y}`);
+    }
+    const key = pixel.y * frameSize + pixel.x;
+    if (pixelKinds[key] !== 0) {
+      throw new Error(`Floating ship waterline has duplicate pixel coordinates: ${pixel.x},${pixel.y}`);
+    }
+    pixelKinds[key] = shipPixelIsAboveWater(pixel.sinkHeight) ? 1 : 2;
+  }
+
+  const submerged = new Set();
+  for (let x = 0; x < frameSize; x++) {
+    let reachedSilhouette = false;
+    for (let y = frameSize - 1; y >= 0; y--) {
+      const key = y * frameSize + x;
+      const kind = pixelKinds[key];
+      if (kind === 0) {
+        if (reachedSilhouette) break;
+        continue;
+      }
+      reachedSilhouette = true;
+      if (kind === 1) break;
+      submerged.add(key);
+    }
+  }
+  return submerged;
+}
+
 export function encodedShipWaterlineY(waterlineY, minHeight, maxHeight) {
   for (const [label, value] of Object.entries({ waterlineY, minHeight, maxHeight })) {
     if (!Number.isFinite(value)) throw new Error(`Ship waterline has invalid ${label}: ${value}`);

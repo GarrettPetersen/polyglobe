@@ -79,7 +79,7 @@ test("ship specifications explain oar and combined propulsion", () => {
   assert.equal(galley.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
   assert.equal(longship.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
   assert.equal(longship.armamentLabel, "ARROWS");
-  assert.equal(longship.armamentSummary, "VOLLEY");
+  assert.equal(longship.armamentSummary, "AT WILL");
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {
@@ -190,7 +190,7 @@ test("ship papers show an active passenger aboard", () => {
 
 test("performance ratings preserve the expected fleet ordering", () => {
   assert.ok(
-    shipPerformanceRating(shipStatsForSlug("frigate"), "speed") >
+    shipPerformanceRating(shipStatsForSlug("pirate-brig"), "speed") >
     shipPerformanceRating(shipStatsForSlug("small-cog"), "speed")
   );
   assert.ok(

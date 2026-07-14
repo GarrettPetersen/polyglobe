@@ -17,27 +17,21 @@ const DEG_TO_RAD = Math.PI / 180;
 const SHIP_MASS_PER_HIT_POINT = 10;
 const SHIP_LABELS = Object.freeze({
   "fishing-lugger": "Fishing Barque",
-  "small-dhow": "Small Dhow",
   "small-cog": "Small Cog",
   dhow: "Dhow",
   sampan: "Sampan",
   "large-junk": "Large Junk",
   "pirate-brig": "Heavy Caravel",
-  "pirate-frigate": "Armed Galleon",
   galleon: "Galleon",
-  frigate: "Great Galleon",
   fluyt: "Urca",
   carrack: "Carrack",
   "ship-of-the-line": "Great Carrack",
   "medium-junk": "Medium Junk",
-  "pirate-brigantine": "Light Brigantine",
   xebec: "Xebec",
   caravel: "Caravel",
   "square-rigged-caravel": "Square-Rigged Caravel",
   brigantine: "Brigantine",
-  corvette: "Armed Caravel",
   "small-junk": "Small Junk",
-  "pirate-sloop": "Small Pinnace",
   felucca: "Felucca",
   cutter: "Coastal Pinnace",
   ketch: "Lateen Barque",
@@ -49,32 +43,28 @@ const SHIP_LABELS = Object.freeze({
   "portuguese-carrack": "Portuguese Carrack",
   "viking-longship": "Viking Longship",
   "polynesian-voyaging-canoe": "Polynesian Voyaging Canoe",
-  "mesoamerican-dugout-canoe": "Mesoamerican Dugout Canoe"
+  "mesoamerican-dugout-canoe": "Mesoamerican Dugout Canoe",
+  "nusantaran-outrigger": "Nusantaran Outrigger",
+  "ottoman-coastal-trader": "Ottoman Coastal Trader"
 });
 
 const rawShipStats = [
   stats("fishing-lugger", 0, 0.021, 0.028, 48, 2.90, 35, 18, 3),
-  stats("small-dhow", 0, 0.027, 0.032, 34, 3.20, 38, 28, 4),
   stats("small-cog", 2, 0.016, 0.026, 58, 2.00, 70, 70, 6),
-  stats("dhow", 4, 0.022, 0.033, 42, 2.80, 55, 45, 5),
+  stats("dhow", 0, 0.030, 0.029, 38, 3.50, 12, 10, 3),
   stats("sampan", 0, 0.026, 0.026, 45, 3.40, 30, 25, 2),
   stats("large-junk", 24, 0.015, 0.038, 50, 1.75, 220, 360, 8),
   stats("pirate-brig", 18, 0.020, 0.041, 42, 2.35, 190, 130, 7),
-  stats("pirate-frigate", 36, 0.017, 0.046, 45, 1.95, 300, 190, 8),
   stats("galleon", 32, 0.013, 0.037, 55, 1.55, 360, 420, 9),
-  stats("frigate", 40, 0.018, 0.047, 43, 2.05, 320, 180, 8),
   stats("fluyt", 12, 0.012, 0.036, 58, 1.45, 260, 520, 7),
   stats("carrack", 26, 0.012, 0.034, 60, 1.35, 340, 480, 9),
   stats("ship-of-the-line", 50, 0.010, 0.045, 58, 1.15, 620, 260, 10),
   stats("medium-junk", 12, 0.018, 0.036, 48, 2.10, 135, 170, 7),
-  stats("pirate-brigantine", 12, 0.022, 0.041, 38, 2.65, 135, 80, 6),
   stats("xebec", 16, 0.024, 0.043, 34, 2.80, 130, 85, 6),
   stats("caravel", 8, 0.019, 0.036, 44, 2.35, 110, 120, 7),
   stats("square-rigged-caravel", 4, 0.020, 0.034, 52, 2.30, 90, 100, 6),
   stats("brigantine", 14, 0.021, 0.040, 40, 2.45, 155, 115, 7),
-  stats("corvette", 18, 0.020, 0.042, 42, 2.35, 190, 90, 7),
   stats("small-junk", 4, 0.023, 0.032, 43, 2.70, 75, 80, 5),
-  stats("pirate-sloop", 6, 0.026, 0.035, 34, 3.05, 75, 35, 4),
   stats("felucca", 0, 0.029, 0.031, 30, 3.35, 35, 20, 3),
   stats("cutter", 4, 0.028, 0.035, 32, 3.25, 60, 30, 4),
   stats("ketch", 4, 0.024, 0.035, 34, 2.85, 75, 60, 6),
@@ -110,7 +100,9 @@ const rawShipStats = [
     3,
     SHIP_PROPULSION_OAR,
     NAVAL_WEAPON_ARROW
-  )
+  ),
+  stats("nusantaran-outrigger", 0, 0.022, 0.035, 48, 2.50, 100, 130, 8, SHIP_PROPULSION_SAIL, NAVAL_WEAPON_ARROW),
+  stats("ottoman-coastal-trader", 8, 0.017, 0.035, 55, 1.90, 170, 240, 7)
 ];
 
 export const SHIP_STATS = Object.freeze(rawShipStats);
@@ -172,7 +164,7 @@ function stats(
   }
 
   const hitPoints = Math.max(3, Math.round(mass / SHIP_MASS_PER_HIT_POINT));
-  const crewCapacity = Math.max(2, Math.round(mass / 12 + cannons * 0.75));
+  const crewCapacity = Math.max(1, Math.round(mass / 12 + cannons * 0.75));
   return Object.freeze({
     slug,
     cannons,

@@ -64,6 +64,18 @@ export const CYC3W_SAILING_SHIP_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const BOROBUDUR_SHIP_MODEL_CREDIT = Object.freeze({
+  creator: "Nisa Nurul Azizah",
+  sourceTitle: "Low Poly Borobudur Ship of Sriwijaya",
+  license: "CC BY 4.0"
+});
+
+export const OTTOMAN_COASTAL_TRADER_MODEL_CREDIT = Object.freeze({
+  creator: "Polygora",
+  sourceTitle: "Ottoman Coastal Trade Tall Ship 3D Model",
+  license: "CC BY 4.0"
+});
+
 export const MODEL_CREDITS = Object.freeze([
   UNITY_FLEET_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
@@ -75,7 +87,9 @@ export const MODEL_CREDITS = Object.freeze([
   NAO_VICTORIA_MODEL_CREDIT,
   PORTUGUESE_CARRACK_MODEL_CREDIT,
   GOGIART_DHOW_MODEL_CREDIT,
-  CYC3W_SAILING_SHIP_MODEL_CREDIT
+  CYC3W_SAILING_SHIP_MODEL_CREDIT,
+  BOROBUDUR_SHIP_MODEL_CREDIT,
+  OTTOMAN_COASTAL_TRADER_MODEL_CREDIT
 ]);
 
 export function modelCreditMarkdownLine({ creator, sourceTitle, license }) {

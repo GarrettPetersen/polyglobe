@@ -18,6 +18,8 @@
 - gogiart - "Portuguese Carrack" (CC BY 4.0)
 - gogiart - "Dhow" (CC BY 4.0)
 - cyc3w - "Sailing ship" (CC BY 4.0)
+- Nisa Nurul Azizah - "Low Poly Borobudur Ship of Sriwijaya" (CC BY 4.0)
+- Polygora - "Ottoman Coastal Trade Tall Ship 3D Model" (CC BY 4.0)
 
 ## Sound Effects
 - Alex Jauk

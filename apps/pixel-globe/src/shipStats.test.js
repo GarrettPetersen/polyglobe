@@ -16,14 +16,9 @@ test("later asset silhouettes use period-appropriate game identities", () => {
   const periodIdentities = {
     "fishing-lugger": "Fishing Barque",
     "pirate-brig": "Heavy Caravel",
-    "pirate-frigate": "Armed Galleon",
-    frigate: "Great Galleon",
     fluyt: "Urca",
     "ship-of-the-line": "Great Carrack",
-    "pirate-brigantine": "Light Brigantine",
     brigantine: "Brigantine",
-    corvette: "Armed Caravel",
-    "pirate-sloop": "Small Pinnace",
     cutter: "Coastal Pinnace",
     ketch: "Lateen Barque",
     "spanish-nao": "Spanish Nao",
@@ -37,13 +32,13 @@ test("later asset silhouettes use period-appropriate game identities", () => {
 });
 
 test("hull points count one-point cannonball hits while mass preserves ship scale", () => {
-  const pinnace = shipStatsForSlug("pirate-sloop");
+  const pinnace = shipStatsForSlug("cutter");
   const galleon = shipStatsForSlug("galleon");
   const greatCarrack = shipStatsForSlug("ship-of-the-line");
 
   assert.deepEqual(
     [pinnace.mass, pinnace.hitPoints],
-    [75, 8]
+    [60, 6]
   );
   assert.deepEqual(
     [galleon.mass, galleon.hitPoints],
@@ -81,6 +76,17 @@ test("native canoe hulls are small, arrow-armed, and regionally distinct", () =>
   assert.equal(shipStatsForSlug("sampan").propulsion, SHIP_PROPULSION_SAIL);
   assert.equal(shipStatsForSlug("sampan").upwindStallAngleDeg, 45);
   assert.ok(mesoamerican.topSpeedRad < shipStatsForSlug("fishing-lugger").topSpeedRad);
+});
+
+test("the coastal Dhow is a tiny unarmed solo craft", () => {
+  const dhow = shipStatsForSlug("dhow");
+  const fishingBarque = shipStatsForSlug("fishing-lugger");
+
+  assert.equal(dhow.cannons, 0);
+  assert.equal(dhow.crewCapacity, 1);
+  assert.ok(dhow.mass < fishingBarque.mass);
+  assert.ok(dhow.cargoCapacity < fishingBarque.cargoCapacity);
+  assert.ok(dhow.turnRateRad > fishingBarque.turnRateRad);
 });
 
 test("the Mediterranean galley is a period hybrid warship", () => {
@@ -158,4 +164,26 @@ test("the Viking longship is a fast seaworthy oar-and-sail arrow ship", () => {
   assert.equal(longship.cannons, 0);
   assert.ok(longship.seaworthiness >= 9);
   assert.ok(longship.topSpeedRad > shipStatsForSlug("brigantine").topSpeedRad);
+});
+
+test("the Nusantaran outrigger is a seaworthy regional arrow ship and trader", () => {
+  const outrigger = shipStatsForSlug("nusantaran-outrigger");
+
+  assert.equal(shipLabelForSlug(outrigger.slug), "Nusantaran Outrigger");
+  assert.equal(outrigger.propulsion, SHIP_PROPULSION_SAIL);
+  assert.equal(outrigger.navalWeaponKind, NAVAL_WEAPON_ARROW);
+  assert.equal(outrigger.cannons, 0);
+  assert.ok(outrigger.cargoCapacity > shipStatsForSlug("small-junk").cargoCapacity);
+  assert.ok(outrigger.cargoCapacity < shipStatsForSlug("medium-junk").cargoCapacity);
+  assert.ok(outrigger.seaworthiness >= shipStatsForSlug("large-junk").seaworthiness);
+});
+
+test("the Ottoman coastal trader is an armed regional merchant", () => {
+  const trader = shipStatsForSlug("ottoman-coastal-trader");
+
+  assert.equal(shipLabelForSlug(trader.slug), "Ottoman Coastal Trader");
+  assert.equal(trader.propulsion, SHIP_PROPULSION_SAIL);
+  assert.ok(trader.cannons > shipStatsForSlug("caravel").cannons - 1);
+  assert.ok(trader.cargoCapacity > shipStatsForSlug("spanish-nao").cargoCapacity);
+  assert.ok(trader.mass < shipStatsForSlug("galleon").mass);
 });

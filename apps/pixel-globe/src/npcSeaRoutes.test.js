@@ -8,6 +8,7 @@ import {
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP,
+  PIRATE_SHIP_SLUGS,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcPortHasMajorProtection,
@@ -118,7 +119,7 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
     if (stats.mass >= 260) expensive += 1;
     if (ship.role === NPC_ROLE_PIRATE) {
       assert.equal(ship.factionId, PIRATE_FACTION_ID);
-      assert.match(ship.slug, /^pirate-/);
+      assert.ok(PIRATE_SHIP_SLUGS.includes(ship.slug));
     } else if (ship.role === NPC_ROLE_WARSHIP) {
       assert.ok(navalWeaponForShip({ cultureType: ship.cultureType, cannons: stats.cannons }));
       assert.notEqual(ship.factionId, PIRATE_FACTION_ID);

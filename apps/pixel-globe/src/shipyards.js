@@ -11,12 +11,14 @@ const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
+const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
 
 const FACTION_SHIPS = Object.freeze({
   joseon: Object.freeze([JOSEON_TURTLE_SHIP_SLUG, JOSEON_PANOKSEON_SLUG]),
   japan: Object.freeze([JAPANESE_ATAKEBUNE_SLUG]),
   spain: Object.freeze([SPANISH_NAO_SLUG]),
-  portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG])
+  portugal: Object.freeze([PORTUGUESE_CARRACK_SLUG]),
+  ottoman: Object.freeze([OTTOMAN_COASTAL_TRADER_SLUG])
 });
 
 export const FAMOUS_SHIPBUILDING_TOWNS = Object.freeze([
@@ -31,23 +33,23 @@ const FAMOUS_TOWN_KEYS = new Set(FAMOUS_SHIPBUILDING_TOWNS.map(normalizeName));
 const REGION_SHIP_POOLS = Object.freeze({
   "northern-european": Object.freeze([
     "fishing-lugger", "small-cog", "small-cog", "square-rigged-caravel", "caravel",
-    "caravel", "brigantine", "fluyt", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
+    "caravel", "brigantine", "fluyt", "carrack", "galleon", "ship-of-the-line"
   ]),
   mediterranean: Object.freeze([
     "fishing-lugger", "felucca", "xebec", "xebec", "mediterranean-galley", "square-rigged-caravel", "caravel",
-    "caravel", "brigantine", "carrack", "galleon", "pirate-frigate", "ship-of-the-line"
+    "caravel", "brigantine", "carrack", "galleon", "ship-of-the-line"
   ]),
   "islamic-desert": Object.freeze([
-    "felucca", "small-dhow", "small-dhow", "felucca", "dhow", "xebec", "xebec",
+    "felucca", "dhow", "dhow", "felucca", "dhow", "xebec", "xebec",
     "caravel", "carrack", "galleon"
   ]),
   "east-asian": Object.freeze(["sampan", "small-junk", "medium-junk", "large-junk"]),
   "south-asian": Object.freeze([
-    "felucca", "small-dhow", "small-dhow", "felucca", "dhow", "small-junk", "medium-junk",
+    "felucca", "dhow", "dhow", "felucca", "dhow", "small-junk", "medium-junk",
     "large-junk", "caravel", "carrack"
   ]),
   "southeast-asian": Object.freeze([
-    "sampan", "small-dhow", "dhow", "dhow", "small-junk", "medium-junk", "large-junk",
+    "sampan", "dhow", "dhow", "dhow", "nusantaran-outrigger", "nusantaran-outrigger", "small-junk", "medium-junk", "large-junk",
     "caravel", "carrack"
   ]),
   polynesian: Object.freeze(["polynesian-voyaging-canoe"]),
@@ -57,7 +59,7 @@ const REGION_SHIP_POOLS = Object.freeze({
     "caravel", "brigantine", "carrack", "galleon"
   ]),
   "sub-saharan": Object.freeze([
-    "fishing-lugger", "felucca", "small-dhow", "small-dhow", "felucca", "dhow", "caravel",
+    "fishing-lugger", "felucca", "dhow", "dhow", "felucca", "dhow", "caravel",
     "caravel", "carrack"
   ])
 });

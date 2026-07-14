@@ -15,7 +15,7 @@ export const PLAYER_STARTER_SHIPS = Object.freeze({
   europe: "fishing-lugger",
   ottoman: "felucca",
   "east-asia": "sampan",
-  india: "small-dhow"
+  india: "dhow"
 });
 
 const EUROPEAN_FACTIONS = new Set([

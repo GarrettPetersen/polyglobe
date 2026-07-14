@@ -1,4 +1,11 @@
-import { navalWeaponForShip, NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
+import {
+  navalArrowVolleyCount,
+  navalWeaponFiresAtWill,
+  navalWeaponForShip,
+  navalWeaponUsesBroadside,
+  NAVAL_WEAPON_ARROW,
+  NAVAL_WEAPON_CANNON
+} from "./navalWeapons.js";
 import {
   STANDARD_CANNON_EQUIPMENT_ID,
   cannonWeaponWithEquipment
@@ -14,8 +21,14 @@ import {
   shipFootprintRadius,
   translatedShipFootprint
 } from "./shipFootprint.js";
-import { shipPropulsionPerformance } from "./shipPropulsion.js";
+import {
+  SHIP_MINIMUM_POWERED_SPEED_RAD,
+  sailingEfficiencyForAlignment,
+  shipDragFactor,
+  shipPropulsionPerformance
+} from "./shipPropulsion.js";
 import { SHIP_PROPULSION_SAIL, SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import { shipTurnRate } from "./shipTurning.js";
 import {
   chooseNpcObstacleAvoidanceDirection,
   chooseNpcSailingDirection
@@ -60,11 +73,6 @@ const LAKE_BATTLE_CITY_STATS = Object.freeze({
 });
 
 const PIXELS_PER_RADIAN = 2450;
-const MINIMUM_SAIL_SPEED_RAD = 0.006;
-const SHIP_DRAG_PER_SECOND = 0.62;
-const STALLED_DRAG_PER_SECOND = 2.8;
-const CLOSE_HAULED_RANGE_RAD = Math.PI / 12;
-const CLOSE_HAULED_EFFICIENCY = 0.34;
 const BROADSIDE_HALF_ANGLE_RAD = 0.62;
 const CANNON_RANGE_PX = 74;
 const CANNON_SPEED_PX = 88;
@@ -94,6 +102,8 @@ const ENEMY_OBSTACLE_REJOIN_DECISIONS = 3;
 const ENEMY_NAVIGATION_DECISION_SECONDS = 0.12;
 const ENEMY_TACK_LEG_PX = 72;
 const CITY_COMBAT_OFFSET_Y = 8;
+const SHORE_ROTATION_ESCAPE_SEARCH_PX = 24;
+const SHORE_ROTATION_ESCAPE_DIRECTIONS = 16;
 
 export function createLakeBattle({
   width,
@@ -188,6 +198,8 @@ export function updateLakeBattle(state, dt, input = {}) {
 
   if (input.firePort) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "port");
   if (input.fireStarboard) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "starboard");
+  fireLakeBattleArrowVolley(state, LAKE_BATTLE_PLAYER_ID);
+  fireLakeBattleArrowVolley(state, LAKE_BATTLE_ENEMY_ID);
   fireEnemyWhenAligned(state);
   updateProjectiles(state, dt);
   updateEffects(state, dt);
@@ -241,11 +253,12 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
     throw new Error(`Unknown lake battle broadside: ${sideName}`);
   }
   const ship = lakeBattleShipById(state, shipId);
+  if (!navalWeaponUsesBroadside(ship.weapon)) return false;
   const target = ship.id === LAKE_BATTLE_PLAYER_ID ? state.enemy : state.player;
   if (ship.cooldowns[sideName] > 0 || ship.hitPoints <= 0) return false;
 
   ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
-  const count = battleVolleyCount(ship);
+  const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
   const side = lakeBattleBroadsideDirection(ship, sideName);
   const sourcePoint = lakeBattleCombatantPoint(ship);
   const targetPoint = lakeBattleCombatantAimPoint(state, target);
@@ -267,7 +280,7 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
       : range * (0.82 + nextBattleRandom(state) * 0.28);
     const targetX = startX + aim.x * projectileRange;
     const targetY = startY + aim.y * projectileRange;
-    const projectile = {
+    addLakeBattleProjectile(state, ship, {
       id: state.projectileSerial++,
       ownerId: ship.id,
       targetId: aimed ? target.id : null,
@@ -281,17 +294,70 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
       arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * ship.weapon.arcHeightScale,
       damage: ship.weapon.damage,
       seed: Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0
-    };
-    state.projectiles.push(projectile);
-    if (projectile.kind === NAVAL_WEAPON_CANNON) {
-      state.cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
-    }
+    });
   }
+  finishLakeBattleVolley(state, ship, count);
+  return true;
+}
+
+export function fireLakeBattleArrowVolley(state, shipId) {
+  validateBattleState(state);
+  if (state.phase !== LAKE_BATTLE_PHASE_ACTIVE) return false;
+  const ship = lakeBattleShipById(state, shipId);
+  if (!navalWeaponFiresAtWill(ship.weapon) || ship.cooldowns.atWill > 0 || ship.hitPoints <= 0) return false;
+  const target = ship.id === LAKE_BATTLE_PLAYER_ID ? state.enemy : state.player;
+  if (target.hitPoints <= 0) return false;
+  const sourcePoint = lakeBattleCombatantPoint(ship);
+  const targetPoint = lakeBattleCombatantAimPoint(state, target);
+  const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
+  if (targetDistance <= 1e-6 || targetDistance > lakeBattleWeaponRange(ship)) return false;
+
+  ship.cooldowns.atWill = ship.weapon.reloadSeconds;
+  const count = navalArrowVolleyCount(ship.stats.crewCapacity);
+  const heading = lakeBattleHeadingVector(ship);
+  for (let index = 0; index < count; index++) {
+    const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
+    const seed = Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0;
+    const startX = sourcePoint.x + heading.x * lineT * 8;
+    const startY = sourcePoint.y + heading.y * lineT * 8;
+    const targetX = targetPoint.x + (nextBattleRandom(state) - 0.5) * 6;
+    const targetY = targetPoint.y + (nextBattleRandom(state) - 0.5) * 6;
+    const projectileRange = Math.hypot(targetX - startX, targetY - startY);
+    addLakeBattleProjectile(state, ship, {
+      id: state.projectileSerial++,
+      ownerId: ship.id,
+      targetId: target.id,
+      kind: ship.weapon.kind,
+      startX,
+      startY,
+      targetX,
+      targetY,
+      age: 0,
+      duration: Math.max(0.12, projectileRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
+      arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * ship.weapon.arcHeightScale,
+      damage: ship.weapon.damage,
+      seed
+    });
+  }
+  finishLakeBattleVolley(state, ship, count);
+  return true;
+}
+
+function addLakeBattleProjectile(state, ship, projectile) {
+  if (projectile.ownerId !== ship.id || projectile.kind !== ship.weapon.kind) {
+    throw new Error(`Lake battle projectile does not match firing ship: ${ship.id}`);
+  }
+  state.projectiles.push(projectile);
+  if (projectile.kind === NAVAL_WEAPON_CANNON) {
+    state.cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
+  }
+}
+
+function finishLakeBattleVolley(state, ship, count) {
   if (state.projectiles.length > MAX_PROJECTILES) {
     state.projectiles.splice(0, state.projectiles.length - MAX_PROJECTILES);
   }
   state.events.push({ type: "fire", shipId: ship.id, weaponKind: ship.weapon.kind, count });
-  return true;
 }
 
 export function lakeBattleWaterAt(state, x, y, margin = 0) {
@@ -385,7 +451,7 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
     speedPx: 0,
     hitPoints: stats.hitPoints,
     maxHitPoints: stats.hitPoints,
-    cooldowns: { port: 0, starboard: 0 },
+    cooldowns: { port: 0, starboard: 0, atWill: 0 },
     rowing: false,
     orbitDirection: id === LAKE_BATTLE_ENEMY_ID ? 1 : 0,
     avoidanceActive: false,
@@ -460,9 +526,13 @@ function relocateShipToNavigableMapCell(state, ship) {
 function updateBattleShipMotion(state, ship, desiredHeadingRad, dt) {
   if (ship.kind === "city") return;
   if (desiredHeadingRad !== null) {
-    const previousHeadingRad = ship.headingRad;
-    ship.headingRad = rotateAngleToward(ship.headingRad, desiredHeadingRad, ship.stats.turnRateRad * dt);
-    if (!lakeBattleShipFitsInWater(state, ship)) ship.headingRad = previousHeadingRad;
+    const turnRate = shipTurnRate({
+      turnRateRad: ship.stats.turnRateRad,
+      speedRad: ship.speedPx / PIXELS_PER_RADIAN,
+      topSpeedRad: ship.stats.topSpeedRad
+    });
+    ship.headingRad = rotateAngleToward(ship.headingRad, desiredHeadingRad, turnRate * dt);
+    nudgeLakeBattleShipTowardClearWater(state, ship);
   }
   const heading = lakeBattleHeadingVector(ship);
   const windFlowDirection = lakeBattleWindFlowDirection(state);
@@ -471,12 +541,12 @@ function updateBattleShipMotion(state, ship, desiredHeadingRad, dt) {
   const propulsion = shipPropulsionPerformance(ship.stats, {
     windStrength: state.wind.strength,
     sailEfficiency,
-    minimumSailSpeed: MINIMUM_SAIL_SPEED_RAD,
+    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
     rowerRatio: 1
   });
   ship.rowing = propulsion.rowing;
   ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN * propulsion.accelerationFactor * dt;
-  ship.speedPx *= Math.exp(-(propulsion.stalled ? STALLED_DRAG_PER_SECOND : SHIP_DRAG_PER_SECOND) * dt);
+  ship.speedPx *= shipDragFactor(propulsion.stalled, dt);
   const maxSpeedPx = propulsion.stalled ? 0 : propulsion.maxSpeedRad * PIXELS_PER_RADIAN;
   ship.speedPx = clamp(ship.speedPx, 0, Number.isFinite(maxSpeedPx) ? maxSpeedPx : ship.speedPx);
   const movedDistance = moveShipInsideLake(state, ship, ship.speedPx * dt);
@@ -484,6 +554,27 @@ function updateBattleShipMotion(state, ship, desiredHeadingRad, dt) {
     ship.tackRemainingPx = Math.max(0, ship.tackRemainingPx - movedDistance);
   }
   updateShipWake(ship, dt);
+}
+
+function nudgeLakeBattleShipTowardClearWater(state, ship) {
+  if (lakeBattleShipFitsInWater(state, ship)) return false;
+  const target = nearestLakeBattleClearancePoint(state, ship);
+  if (!target) return false;
+  ship.x = target.x;
+  ship.y = target.y;
+  return true;
+}
+
+function nearestLakeBattleClearancePoint(state, ship) {
+  for (let radius = 1; radius <= SHORE_ROTATION_ESCAPE_SEARCH_PX; radius++) {
+    for (let index = 0; index < SHORE_ROTATION_ESCAPE_DIRECTIONS; index++) {
+      const angle = ship.headingRad + index / SHORE_ROTATION_ESCAPE_DIRECTIONS * Math.PI * 2;
+      const x = ship.x + Math.cos(angle) * radius;
+      const y = ship.y + Math.sin(angle) * radius;
+      if (lakeBattleShipFitsInWater(state, ship, x, y)) return { x, y };
+    }
+  }
+  return null;
 }
 
 function updateShipWake(ship, dt) {
@@ -623,6 +714,7 @@ function enemyDirectionClearDistance(state, enemy, direction) {
 
 function fireEnemyWhenAligned(state) {
   const enemy = state.enemy;
+  if (!navalWeaponUsesBroadside(enemy.weapon)) return false;
   if (enemy.kind === "city") {
     const source = lakeBattleCombatantPoint(enemy);
     const target = lakeBattleCombatantAimPoint(state, state.player);
@@ -792,35 +884,15 @@ function finishBattleIfNeeded(state) {
   return true;
 }
 
-function battleVolleyCount(ship) {
-  if (ship.weapon.kind === NAVAL_WEAPON_ARROW) {
-    return clamp(Math.ceil(ship.stats.crewCapacity / 5), 2, 5);
-  }
-  return Math.max(1, Math.ceil(ship.stats.cannons / 2));
-}
-
 function sailingEfficiencyForStats(stats, heading, windFlow) {
   const alignment = clamp(dot2(heading, windFlow), -1, 1);
-  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
-  const stallAngle = stats.upwindStallAngleRad;
-  const closeHauledAngle = Math.min(Math.PI / 2 - 0.01, stallAngle + CLOSE_HAULED_RANGE_RAD);
-  if (angleFromWind <= stallAngle) return 0;
-  if (angleFromWind <= closeHauledAngle) {
-    return CLOSE_HAULED_EFFICIENCY * smoothstep((angleFromWind - stallAngle) / (closeHauledAngle - stallAngle));
-  }
-  if (angleFromWind <= Math.PI / 2) {
-    const t = smoothstep((angleFromWind - closeHauledAngle) / (Math.PI / 2 - closeHauledAngle));
-    return CLOSE_HAULED_EFFICIENCY + (1 - CLOSE_HAULED_EFFICIENCY) * t;
-  }
-  if (angleFromWind <= Math.PI * 0.75) {
-    return 1 - (angleFromWind - Math.PI / 2) / (Math.PI * 0.25) * 0.15;
-  }
-  return 0.85 - (angleFromWind - Math.PI * 0.75) / (Math.PI * 0.25) * 0.3;
+  return sailingEfficiencyForAlignment(stats, alignment);
 }
 
 function updateCooldowns(ship, dt) {
   ship.cooldowns.port = Math.max(0, ship.cooldowns.port - dt);
   ship.cooldowns.starboard = Math.max(0, ship.cooldowns.starboard - dt);
+  ship.cooldowns.atWill = Math.max(0, ship.cooldowns.atWill - dt);
 }
 
 function assertShipFitsLake(state, ship) {
@@ -988,11 +1060,6 @@ function rotate2(direction, angle) {
 
 function dot2(a, b) {
   return a.x * b.x + a.y * b.y;
-}
-
-function smoothstep(value) {
-  const t = clamp(value, 0, 1);
-  return t * t * (3 - 2 * t);
 }
 
 function trimEffects(state) {

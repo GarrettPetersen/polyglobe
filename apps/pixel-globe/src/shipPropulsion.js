@@ -7,6 +7,47 @@ import {
 export const HYBRID_ROWING_SPEED_RATIO = 0.36;
 export const HYBRID_ROWING_ACCELERATION_RATIO = 0.42;
 export const HYBRID_ROUTE_PROGRESS_FLOOR = 0.34;
+export const SHIP_DRAG_PER_SECOND = 0.62;
+export const SHIP_STALLED_DRAG_MULTIPLIER = 1.35;
+export const SHIP_MINIMUM_POWERED_SPEED_RAD = 0.006;
+export const SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD = Math.PI / 12;
+export const SAIL_CLOSE_HAULED_EFFICIENCY = 0.34;
+
+export function sailingEfficiencyForAlignment(stats, alignment) {
+  if (!stats || !Number.isFinite(stats.upwindStallAngleRad)) {
+    throw new Error("Sailing efficiency requires valid ship stats");
+  }
+  if (!Number.isFinite(alignment) || alignment < -1 || alignment > 1) {
+    throw new Error(`Invalid sailing alignment: ${alignment}`);
+  }
+  const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
+  const stallAngle = stats.upwindStallAngleRad;
+  const closeHauledAngle = Math.min(
+    Math.PI / 2 - 0.01,
+    stallAngle + SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD
+  );
+  if (angleFromWind <= stallAngle) return 0;
+  if (angleFromWind <= closeHauledAngle) {
+    return SAIL_CLOSE_HAULED_EFFICIENCY * smoothstep(
+      (angleFromWind - stallAngle) / (closeHauledAngle - stallAngle)
+    );
+  }
+  if (angleFromWind <= Math.PI / 2) {
+    const t = smoothstep((angleFromWind - closeHauledAngle) / (Math.PI / 2 - closeHauledAngle));
+    return SAIL_CLOSE_HAULED_EFFICIENCY + (1 - SAIL_CLOSE_HAULED_EFFICIENCY) * t;
+  }
+  if (angleFromWind <= Math.PI * 0.75) {
+    return 1 - (angleFromWind - Math.PI / 2) / (Math.PI * 0.25) * 0.15;
+  }
+  return 0.85 - (angleFromWind - Math.PI * 0.75) / (Math.PI * 0.25) * 0.3;
+}
+
+export function shipDragFactor(stalled, dt) {
+  if (typeof stalled !== "boolean") throw new Error("Ship drag requires a stalled state");
+  if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid ship drag timestep: ${dt}`);
+  const drag = SHIP_DRAG_PER_SECOND * (stalled ? SHIP_STALLED_DRAG_MULTIPLIER : 1);
+  return Math.exp(-drag * dt);
+}
 
 export function shipPropulsionPerformance(stats, {
   windStrength,
@@ -74,4 +115,13 @@ export function shipPropulsionPerformance(stats, {
 export function shipHasWindDeadZone(stats) {
   if (!stats || typeof stats !== "object") throw new Error("Ship propulsion requires ship stats");
   return stats.propulsion === SHIP_PROPULSION_SAIL;
+}
+
+function smoothstep(value) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }

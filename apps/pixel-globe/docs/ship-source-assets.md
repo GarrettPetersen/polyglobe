@@ -42,6 +42,8 @@ sketchfab/nao-victoria/scene.gltf
 sketchfab/portuguese-carrack/scene.gltf
 sketchfab/dhow-gogiart/scene.gltf
 sketchfab/cyc3w-sailing-ship/scene.gltf
+sketchfab/borobudur-sriwijaya/scene.gltf
+sketchfab/ottoman-coastal-trader/scene.gltf
 blendswap/greek-trireme/trireme-bsw.blend
 ```
 
@@ -63,6 +65,8 @@ npm run render:spanish-nao
 npm run render:portuguese-carrack
 npm run render:dhow
 npm run render:galleon
+npm run render:nusantaran-outrigger
+npm run render:ottoman-coastal-trader
 node --test src/shipInfoAssets.test.js
 ```
 

@@ -20,25 +20,11 @@
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
     },
     {
-      "slug": "small-dhow",
-      "label": "Small Dhow",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 2.fbx",
-      "sourceMaxDim": 792.8333,
-      "targetModelMaxDim": 0.8884,
-      "width": 192,
-      "height": 104,
-      "palette": "Resurrect 64",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/small-dhow.png",
-      "creator": "Palmov Island",
-      "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
-    },
-    {
       "slug": "small-cog",
       "label": "Small Cog",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 3.fbx",
       "sourceMaxDim": 645.6119,
-      "targetModelMaxDim": 0.8017,
+      "targetModelMaxDim": 1.55,
       "width": 192,
       "height": 104,
       "palette": "Resurrect 64",
@@ -85,34 +71,6 @@
       "height": 104,
       "palette": "Resurrect 64",
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/pirate-brig.png",
-      "creator": "Palmov Island",
-      "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
-    },
-    {
-      "slug": "pirate-frigate",
-      "label": "Armed Galleon",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships large/pirate ship large 2.fbx",
-      "sourceMaxDim": 4397.644,
-      "targetModelMaxDim": 2.0924,
-      "width": 192,
-      "height": 104,
-      "palette": "Resurrect 64",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/pirate-frigate.png",
-      "creator": "Palmov Island",
-      "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
-    },
-    {
-      "slug": "frigate",
-      "label": "Great Galleon",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships large/ship large 2.fbx",
-      "sourceMaxDim": 4513.6729,
-      "targetModelMaxDim": 2.1199,
-      "width": 192,
-      "height": 104,
-      "palette": "Resurrect 64",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/frigate.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
@@ -174,20 +132,6 @@
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
     },
     {
-      "slug": "pirate-brigantine",
-      "label": "Light Brigantine",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/pirate ship medium.fbx",
-      "sourceMaxDim": 3473.9243,
-      "targetModelMaxDim": 1.8597,
-      "width": 192,
-      "height": 104,
-      "palette": "Resurrect 64",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/pirate-brigantine.png",
-      "creator": "Palmov Island",
-      "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
-    },
-    {
       "slug": "xebec",
       "label": "Xebec",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 1.fbx",
@@ -244,20 +188,6 @@
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
     },
     {
-      "slug": "corvette",
-      "label": "Armed Caravel",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 6.fbx",
-      "sourceMaxDim": 3343.8057,
-      "targetModelMaxDim": 1.8246,
-      "width": 192,
-      "height": 104,
-      "palette": "Resurrect 64",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/corvette.png",
-      "creator": "Palmov Island",
-      "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
-    },
-    {
       "slug": "small-junk",
       "label": "Small Junk",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/chinese ship small.fbx",
@@ -267,20 +197,6 @@
       "height": 104,
       "palette": "Resurrect 64",
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/small-junk.png",
-      "creator": "Palmov Island",
-      "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
-    },
-    {
-      "slug": "pirate-sloop",
-      "label": "Small Pinnace",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/pirate ship small.fbx",
-      "sourceMaxDim": 2226.1963,
-      "targetModelMaxDim": 1.4888,
-      "width": 192,
-      "height": 104,
-      "palette": "Resurrect 64",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/pirate-sloop.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
@@ -458,7 +374,7 @@
       "label": "Dhow",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/dhow-gogiart/scene.gltf",
       "sourceMaxDim": 5.9955,
-      "targetModelMaxDim": 1.65,
+      "targetModelMaxDim": 0.95,
       "width": 192,
       "height": 104,
       "palette": "Resurrect 64",
@@ -471,7 +387,7 @@
       "slug": "galleon",
       "label": "Galleon",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/cyc3w-sailing-ship/scene.gltf",
-      "sourceMaxDim": 1.7144,
+      "sourceMaxDim": 1.8555,
       "targetModelMaxDim": 2.1,
       "width": 192,
       "height": 104,
@@ -480,6 +396,34 @@
       "creator": "cyc3w",
       "license": "CC BY 4.0",
       "sourceTitle": "Sailing ship"
+    },
+    {
+      "slug": "nusantaran-outrigger",
+      "label": "Nusantaran Outrigger",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/borobudur-sriwijaya/scene.gltf",
+      "sourceMaxDim": 39.5996,
+      "targetModelMaxDim": 1.85,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/nusantaran-outrigger.png",
+      "creator": "Nisa Nurul Azizah",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Low Poly Borobudur Ship of Sriwijaya"
+    },
+    {
+      "slug": "ottoman-coastal-trader",
+      "label": "Ottoman Coastal Trader",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/ottoman-coastal-trader/scene.gltf",
+      "sourceMaxDim": 7.385,
+      "targetModelMaxDim": 2,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/ottoman-coastal-trader.png",
+      "creator": "Polygora",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model"
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -490,5 +434,7 @@
   "spanishNaoGenerator": "tools/render-sail-ship-sprites.mjs --spanish-nao",
   "portugueseCarrackGenerator": "tools/render-sail-ship-sprites.mjs --portuguese-carrack",
   "gogiartDhowGenerator": "tools/render-sail-ship-sprites.mjs --gogiart-dhow",
-  "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon"
+  "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
+  "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
+  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader"
 }

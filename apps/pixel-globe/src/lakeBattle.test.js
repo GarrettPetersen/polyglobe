@@ -83,7 +83,7 @@ test("a city is a stationary coastal enemy with a two-shot shore battery", () =>
   assert.ok(battle.enemy.x >= 36 && battle.enemy.x <= battle.width - 36);
 });
 
-test("native canoes enter lake battle with working arrow broadsides", () => {
+test("native canoe archers automatically fire in any direction", () => {
   for (const playerSlug of ["polynesian-voyaging-canoe", "mesoamerican-dugout-canoe"]) {
     const battle = createLakeBattle({
       width: 455,
@@ -93,8 +93,24 @@ test("native canoes enter lake battle with working arrow broadsides", () => {
     });
 
     assert.equal(battle.player.weapon.kind, "arrow");
-    assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), true);
-    assert.ok(battle.projectiles.length >= 2);
+    assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), false);
+    const dx = battle.enemy.x - battle.player.x;
+    const dy = battle.enemy.y - battle.player.y;
+    const distance = Math.hypot(dx, dy);
+    battle.enemy.x = battle.player.x + dx / distance * 32;
+    battle.enemy.y = battle.player.y + dy / distance * 32;
+    battle.enemy.cooldowns.port = 100;
+    battle.enemy.cooldowns.starboard = 100;
+    battle.player.headingRad = Math.atan2(dy, dx);
+    updateLakeBattle(battle, 1 / 60, {});
+    const arrows = battle.projectiles.filter((projectile) => (
+      projectile.ownerId === LAKE_BATTLE_PLAYER_ID && projectile.kind === "arrow"
+    ));
+    assert.ok(arrows.length >= 2);
+    assert.ok(arrows.every((projectile) => projectile.targetId === LAKE_BATTLE_ENEMY_ID));
+    assert.ok(battle.player.cooldowns.atWill > 0);
+    assert.equal(battle.player.cooldowns.port, 0);
+    assert.equal(battle.player.cooldowns.starboard, 0);
     assert.equal(battle.cannonSmokeBursts.length, 0);
     assert.ok(lakeBattleWeaponRange(battle.player) < lakeBattleWeaponRange(battle.enemy));
   }
@@ -249,7 +265,7 @@ test("a scripted skirmish reaches a transient combat result", () => {
     playerSlug: "brigantine",
     enemySlug: "caravel"
   });
-  for (let frame = 0; frame < 7200 && battle.phase === LAKE_BATTLE_PHASE_ACTIVE; frame++) {
+  for (let frame = 0; frame < 14400 && battle.phase === LAKE_BATTLE_PHASE_ACTIVE; frame++) {
     updateLakeBattle(battle, 1 / 60, {
       desiredHeadingRad: frame < 900 ? -0.5 : 1.2,
       firePort: frame % 90 === 0,
@@ -376,6 +392,69 @@ test("releasing steering stops turning while the ship continues under sail", () 
 
   assert.equal(battle.player.headingRad, releasedHeading);
   assert.ok(Math.hypot(battle.player.x - releasedPosition.x, battle.player.y - releasedPosition.y) > 0);
+});
+
+test("lake battle rudder authority falls while stalled without reaching zero", () => {
+  const stalled = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: "caravel"
+  });
+  const moving = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: "caravel"
+  });
+  stalled.player.headingRad = 0;
+  stalled.player.speedPx = 0;
+  moving.player.headingRad = 0;
+  moving.player.speedPx = Number.MAX_SAFE_INTEGER;
+
+  updateLakeBattle(stalled, 0.1, { desiredHeadingRad: Math.PI / 2 });
+  updateLakeBattle(moving, 0.1, { desiredHeadingRad: Math.PI / 2 });
+
+  assert.ok(stalled.player.headingRad > 0);
+  assert.ok(stalled.player.headingRad < moving.player.headingRad);
+  assert.equal(moving.player.headingRad, moving.player.stats.turnRateRad * 0.1);
+});
+
+test("shore overlap never vetoes a player turn and nudges the hull toward clearance", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: "caravel"
+  });
+  const ship = battle.player;
+  ship.headingRad = 0;
+  ship.speedPx = Number.MAX_SAFE_INTEGER;
+  const nextHeading = ship.stats.turnRateRad * 0.1;
+  const frames = battle.shipFootprints.get(ship.slug);
+  const currentFrame = shipFootprintFrame(frames, { x: 1, y: 0 });
+  const nextFrame = shipFootprintFrame(frames, {
+    x: Math.cos(nextHeading),
+    y: Math.sin(nextHeading)
+  });
+  const occupiedNow = new Set(currentFrame.samples.map((sample) => (
+    `${Math.floor(ship.x + sample.x)},${Math.floor(ship.y + sample.y)}`
+  )));
+  const newlyOccupied = nextFrame.samples.find((sample) => !occupiedNow.has(
+    `${Math.floor(ship.x + sample.x)},${Math.floor(ship.y + sample.y)}`
+  ));
+  assert.ok(newlyOccupied, "adjacent heading needs a distinct waterline sample");
+  const blockedX = Math.floor(ship.x + newlyOccupied.x);
+  const blockedY = Math.floor(ship.y + newlyOccupied.y);
+  battle.waterMask[blockedY * battle.width + blockedX] = 0;
+  assert.equal(lakeBattleShipFitsInWater(battle, ship), true);
+  const start = { x: ship.x, y: ship.y };
+
+  updateLakeBattle(battle, 0.1, { desiredHeadingRad: Math.PI / 2 });
+
+  assert.equal(ship.headingRad, nextHeading);
+  assert.ok(Math.hypot(ship.x - start.x, ship.y - start.y) > 0);
+  assert.equal(lakeBattleShipFitsInWater(battle, ship), true);
 });
 
 test("lake battle geometry follows responsive logical viewport changes", () => {

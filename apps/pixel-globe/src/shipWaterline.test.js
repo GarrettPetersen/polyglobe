@@ -5,6 +5,7 @@ import {
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_WATERLINE_LEVEL,
   encodedShipWaterlineY,
+  floatingShipSubmergedPixelKeys,
   liveShipRefractionOffset,
   shipPixelBakeHeight,
   shipPixelIsAboveWater
@@ -15,6 +16,34 @@ test("the baked midpoint divides submerged and above-water hull pixels", () => {
   assert.equal(shipPixelIsAboveWater(SHIP_WATERLINE_LEVEL), false);
   assert.equal(shipPixelIsAboveWater(SHIP_WATERLINE_LEVEL + 1 / 255), true);
   assert.equal(shipPixelIsAboveWater(1), true);
+});
+
+test("a floating ship submerges only low pixels exposed along the lower silhouette", () => {
+  const low = SHIP_WATERLINE_LEVEL - 1 / 255;
+  const high = SHIP_WATERLINE_LEVEL + 1 / 255;
+  const submerged = floatingShipSubmergedPixelKeys([
+    { x: 1, y: 0, sinkHeight: low },
+    { x: 1, y: 1, sinkHeight: high },
+    { x: 1, y: 2, sinkHeight: low },
+    { x: 1, y: 3, sinkHeight: low },
+    { x: 2, y: 2, sinkHeight: low },
+    { x: 2, y: 3, sinkHeight: high }
+  ], 4);
+
+  assert.deepEqual([...submerged].sort((a, b) => a - b), [9, 13]);
+});
+
+test("a waterproof hull keeps enclosed low pixels in the opaque layer", () => {
+  const low = SHIP_WATERLINE_LEVEL - 1 / 255;
+  const high = SHIP_WATERLINE_LEVEL + 1 / 255;
+  const submerged = floatingShipSubmergedPixelKeys([
+    { x: 1, y: 1, sinkHeight: low },
+    { x: 0, y: 2, sinkHeight: high },
+    { x: 1, y: 2, sinkHeight: high },
+    { x: 2, y: 2, sinkHeight: high }
+  ], 4);
+
+  assert.equal(submerged.size, 0);
 });
 
 test("the sink bake preserves an in-range model waterline", () => {
@@ -63,4 +92,6 @@ test("adjacent refraction bands do not all move in lockstep", () => {
 test("waterline helpers reject malformed bake data", () => {
   assert.throws(() => shipPixelIsAboveWater(Number.NaN), /invalid sink height/);
   assert.throws(() => liveShipRefractionOffset(-1, 0, 0), /pixel Y/);
+  assert.throws(() => floatingShipSubmergedPixelKeys([], 4), /requires opaque/);
+  assert.throws(() => floatingShipSubmergedPixelKeys([{ x: 4, y: 0, sinkHeight: 0.5 }], 4), /outside/);
 });

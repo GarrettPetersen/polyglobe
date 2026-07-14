@@ -1,5 +1,7 @@
 export const NAVAL_WEAPON_CANNON = "cannon";
 export const NAVAL_WEAPON_ARROW = "arrow";
+export const NAVAL_FIRE_MODE_BROADSIDE = "broadside";
+export const NAVAL_FIRE_MODE_AT_WILL = "at-will";
 export const STANDARD_CANNON_RELOAD_SECONDS = 10;
 
 const PRE_GUNPOWDER_CULTURES = new Set([
@@ -15,6 +17,7 @@ const NAVAL_WEAPON_SPECS = Object.freeze({
     rangeScale: 1,
     speedScale: 1,
     arcHeightScale: 0.2,
+    fireMode: NAVAL_FIRE_MODE_BROADSIDE,
     reloadSeconds: STANDARD_CANNON_RELOAD_SECONDS
   }),
   [NAVAL_WEAPON_ARROW]: Object.freeze({
@@ -23,6 +26,7 @@ const NAVAL_WEAPON_SPECS = Object.freeze({
     rangeScale: 0.5,
     speedScale: 1.35,
     arcHeightScale: 0.75,
+    fireMode: NAVAL_FIRE_MODE_AT_WILL,
     reloadSeconds: 0.85
   })
 });
@@ -46,4 +50,19 @@ export function navalWeaponSpec(kind) {
 
 export function isPreGunpowderCulture(cultureType) {
   return PRE_GUNPOWDER_CULTURES.has(cultureType);
+}
+
+export function navalWeaponUsesBroadside(weapon) {
+  return weapon?.fireMode === NAVAL_FIRE_MODE_BROADSIDE;
+}
+
+export function navalWeaponFiresAtWill(weapon) {
+  return weapon?.fireMode === NAVAL_FIRE_MODE_AT_WILL;
+}
+
+export function navalArrowVolleyCount(crewCapacity) {
+  if (!Number.isInteger(crewCapacity) || crewCapacity <= 0) {
+    throw new Error(`Invalid arrow ship crew capacity: ${crewCapacity}`);
+  }
+  return Math.min(5, Math.max(2, Math.ceil(crewCapacity / 5)));
 }

@@ -4,9 +4,29 @@ import test from "node:test";
 import { shipStatsForSlug } from "./shipStats.js";
 import {
   HYBRID_ROWING_SPEED_RATIO,
+  SHIP_DRAG_PER_SECOND,
+  SHIP_STALLED_DRAG_MULTIPLIER,
+  sailingEfficiencyForAlignment,
+  shipDragFactor,
   shipHasWindDeadZone,
   shipPropulsionPerformance
 } from "./shipPropulsion.js";
+
+test("world and lake sailing share one drag curve", () => {
+  assert.equal(shipDragFactor(false, 1), Math.exp(-SHIP_DRAG_PER_SECOND));
+  assert.equal(
+    shipDragFactor(true, 1),
+    Math.exp(-SHIP_DRAG_PER_SECOND * SHIP_STALLED_DRAG_MULTIPLIER)
+  );
+  assert.ok(shipDragFactor(true, 1) < shipDragFactor(false, 1));
+});
+
+test("the shared sail curve stalls upwind and peaks across the wind", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  assert.equal(sailingEfficiencyForAlignment(brigantine, -1), 0);
+  assert.equal(sailingEfficiencyForAlignment(brigantine, 0), 1);
+  assert.ok(sailingEfficiencyForAlignment(brigantine, 1) > 0);
+});
 
 test("paddled canoes have no dead zone and keep their low speed into the wind", () => {
   const canoe = shipStatsForSlug("mesoamerican-dugout-canoe");

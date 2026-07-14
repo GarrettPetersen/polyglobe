@@ -6,7 +6,10 @@ import {
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
   isPreGunpowderCulture,
+  navalArrowVolleyCount,
   navalWeaponForShip,
+  navalWeaponFiresAtWill,
+  navalWeaponUsesBroadside,
   navalWeaponSpec
 } from "./navalWeapons.js";
 
@@ -32,6 +35,20 @@ test("cannons use a low direct-fire arc while arrows retain a high arc", () => {
 
   assert.ok(cannon.arcHeightScale <= 0.25);
   assert.ok(arrow.arcHeightScale > cannon.arcHeightScale * 2);
+});
+
+test("cannons use broadsides while deck archers fire at will", () => {
+  const cannon = navalWeaponSpec(NAVAL_WEAPON_CANNON);
+  const arrow = navalWeaponSpec(NAVAL_WEAPON_ARROW);
+
+  assert.equal(navalWeaponUsesBroadside(cannon), true);
+  assert.equal(navalWeaponFiresAtWill(cannon), false);
+  assert.equal(navalWeaponUsesBroadside(arrow), false);
+  assert.equal(navalWeaponFiresAtWill(arrow), true);
+  assert.equal(navalArrowVolleyCount(3), 2);
+  assert.equal(navalArrowVolleyCount(12), 3);
+  assert.equal(navalArrowVolleyCount(40), 5);
+  assert.throws(() => navalArrowVolleyCount(0), /crew capacity/);
 });
 
 test("unarmed gunpowder-culture ships still have no ranged attack", () => {

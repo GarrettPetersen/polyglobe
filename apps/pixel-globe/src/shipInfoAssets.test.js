@@ -19,9 +19,11 @@ import {
   SHIP_SPRITE_SHEET_COLS
 } from "./shipSpriteLayout.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
+import { SHIP_ROWING_FRAME_COUNT } from "./shipRowingAnimation.js";
 import {
   SHIP_WATERLINE_DEPTH_BYTE,
-  SHIP_WATERLINE_LEVEL
+  SHIP_WATERLINE_LEVEL,
+  floatingShipSubmergedPixelKeys
 } from "./shipWaterline.js";
 
 const SIDE_VIEW_WIDTH = 192;
@@ -48,12 +50,15 @@ const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const DHOW_SLUG = "dhow";
 const GALLEON_SLUG = "galleon";
+const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
+const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
 
 test("every runtime ship model has a registered attribution", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const registeredCredits = new Set(MODEL_CREDITS.map(modelCreditKey));
 
   for (const entry of manifest.ships) {
+    assert.equal("sailRecolor" in entry, false, `${entry.slug} preserves authored model colors`);
     assert.ok(entry.creator, `${entry.slug} creator`);
     assert.ok(entry.license, `${entry.slug} license`);
     assert.ok(entry.sourceTitle, `${entry.slug} source title`);
@@ -101,6 +106,22 @@ test("every ship sprite and rowing frame has an exact per-pixel model-height bak
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
 
   for (const entry of manifest.ships) {
+    const expectedHullCount = entry.slug === "polynesian-voyaging-canoe"
+      ? 2
+      : 1;
+    assert.equal(
+      entry.waterlineSlice?.expectedHullCount,
+      expectedHullCount,
+      `${entry.slug} declared waterline hull count`
+    );
+    assert.ok(
+      entry.waterlineSlice.componentCount >= expectedHullCount,
+      `${entry.slug} waterline component count`
+    );
+    assert.ok(
+      entry.waterlineSlice.dominantLengthRatio >= 0.68,
+      `${entry.slug} dominant connected waterline shape`
+    );
     assert.equal(entry.sinkHeightBins, 256, `${entry.slug} sink height bins`);
     assert.ok(entry.sinkHeightMin < entry.sinkHeightMax, `${entry.slug} sink height range`);
     assert.ok(
@@ -194,6 +215,39 @@ test("native boat models provide complete 16-heading sprite and wake bakes", asy
   }
 });
 
+test("the floating Lateen Barque keeps enclosed low hull pixels waterproof", async () => {
+  const [sprite, sinkDepth] = await Promise.all([
+    loadImage(join(shipAssetRoot, "ketch-16-headings.png")),
+    loadImage(join(shipAssetRoot, "ketch-16-headings-sink-depth.png"))
+  ]);
+  const spritePixels = imagePixels(sprite);
+  const sinkPixels = imagePixels(sinkDepth);
+  let enclosedLowPixels = 0;
+  let exteriorSubmergedPixels = 0;
+
+  for (let frame = 0; frame < SHIP_SPRITE_HEADINGS; frame++) {
+    const originX = frame % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+    const originY = Math.floor(frame / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+    const pixels = [];
+    let rawLowPixels = 0;
+    for (let y = 0; y < SHIP_SPRITE_FRAME_SIZE; y++) {
+      for (let x = 0; x < SHIP_SPRITE_FRAME_SIZE; x++) {
+        const offset = ((originX + x) + (originY + y) * sprite.width) * 4;
+        if (spritePixels[offset + 3] === 0) continue;
+        const sinkHeight = sinkPixels[offset] / 255;
+        if (sinkHeight <= SHIP_WATERLINE_LEVEL) rawLowPixels++;
+        pixels.push({ x, y, sinkHeight });
+      }
+    }
+    const exterior = floatingShipSubmergedPixelKeys(pixels, SHIP_SPRITE_FRAME_SIZE);
+    exteriorSubmergedPixels += exterior.size;
+    enclosedLowPixels += rawLowPixels - exterior.size;
+  }
+
+  assert.ok(exteriorSubmergedPixels > 0, "Lateen Barque has no exterior submerged hull");
+  assert.ok(enclosedLowPixels > 0, "Lateen Barque has no enclosed low pixels to keep dry");
+});
+
 test("the Mediterranean galley provides licensed rowing animation frames", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const wakeAnchors = JSON.parse(await readFile(join(shipAssetRoot, "wake-anchors.json"), "utf8"));
@@ -205,9 +259,9 @@ test("the Mediterranean galley provides licensed rowing animation frames", async
   assert.equal(entry.sourceTitle, "Russian 22-bank Baltic galley");
   assert.doesNotMatch(JSON.stringify(entry), /https?:\/\//);
   assert.equal(wakeAnchors.ships[MEDITERRANEAN_GALLEY_SLUG].length, 16);
-  assert.equal(entry.files.rowingAnimation.length, 4);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
 
-  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+  for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const image = await loadImage(join(
       shipAssetRoot,
       `${MEDITERRANEAN_GALLEY_SLUG}-rowing-${frameIndex}-16-headings.png`
@@ -218,16 +272,15 @@ test("the Mediterranean galley provides licensed rowing animation frames", async
   }
 });
 
-test("the Viking longship keeps its colored sail and provides four working oar phases", async () => {
+test("the Viking longship keeps its authored colored sail and provides six working oar phases", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === VIKING_LONGSHIP_SLUG);
 
   assert.ok(entry, "Viking longship manifest entry");
-  assert.equal(entry.sailRecolor, false);
   assert.match(entry.sourceModel, /viking ship 1\.fbx$/);
-  assert.equal(entry.files.rowingAnimation.length, 4);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
   const frames = [];
-  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+  for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
       `${VIKING_LONGSHIP_SLUG}-rowing-${frameIndex}-16-headings.png`
@@ -238,10 +291,10 @@ test("the Viking longship keeps its colored sail and provides four working oar p
     assert.ok(opaquePixelCount(image) > 0, `longship rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
-  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, 4);
+  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, SHIP_ROWING_FRAME_COUNT);
 });
 
-test("the Joseon turtle ship has credited art and four working oar phases", async () => {
+test("the Joseon turtle ship has credited art and six working oar phases", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === JOSEON_TURTLE_SHIP_SLUG);
 
@@ -250,9 +303,9 @@ test("the Joseon turtle ship has credited art and four working oar phases", asyn
   assert.equal(entry.license, "CC BY 4.0");
   assert.equal(entry.sourceTitle, "Geobukseon (Turtle Ship)");
   assert.match(entry.sourceModel, /joseon-turtle-ship\/scene\.gltf$/);
-  assert.equal(entry.files.rowingAnimation.length, 4);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
   const frames = [];
-  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+  for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
       `${JOSEON_TURTLE_SHIP_SLUG}-rowing-${frameIndex}-16-headings.png`
@@ -263,10 +316,10 @@ test("the Joseon turtle ship has credited art and four working oar phases", asyn
     assert.ok(opaquePixelCount(image) > 0, `turtle ship rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
-  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, 4);
+  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, SHIP_ROWING_FRAME_COUNT);
 });
 
-test("the Joseon Panokseon replaces its static paddles with four working phases", async () => {
+test("the Joseon Panokseon replaces its static paddles with six working phases", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === JOSEON_PANOKSEON_SLUG);
 
@@ -280,9 +333,9 @@ test("the Joseon Panokseon replaces its static paddles with four working phases"
     parentName: "Object_4",
     positionCount: 2544
   }]);
-  assert.equal(entry.files.rowingAnimation.length, 4);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
   const frames = [];
-  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+  for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
       `${JOSEON_PANOKSEON_SLUG}-rowing-${frameIndex}-16-headings.png`
@@ -293,10 +346,10 @@ test("the Joseon Panokseon replaces its static paddles with four working phases"
     assert.ok(opaquePixelCount(image) > 0, `Panokseon rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
-  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, 4);
+  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, SHIP_ROWING_FRAME_COUNT);
 });
 
-test("the Japanese Atakebune replaces its static oars with four working phases", async () => {
+test("the Japanese Atakebune replaces its static oars with six working phases", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === JAPANESE_ATAKEBUNE_SLUG);
 
@@ -310,9 +363,9 @@ test("the Japanese Atakebune replaces its static oars with four working phases",
     parentName: "Cube071_3",
     positionCount: 480
   }]);
-  assert.equal(entry.files.rowingAnimation.length, 4);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
   const frames = [];
-  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+  for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
       `${JAPANESE_ATAKEBUNE_SLUG}-rowing-${frameIndex}-16-headings.png`
@@ -323,7 +376,7 @@ test("the Japanese Atakebune replaces its static oars with four working phases",
     assert.ok(opaquePixelCount(image) > 0, `Atakebune rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
-  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, 4);
+  assert.equal(new Set(frames.map((buffer) => buffer.toString("base64"))).size, SHIP_ROWING_FRAME_COUNT);
 });
 
 test("the Spanish Nao uses the credited Nao Victoria source at an intermediate carrack scale", async () => {
@@ -375,11 +428,20 @@ test("the Dhow uses the credited purpose-built source model", async () => {
   assert.equal(entry.files.rowingAnimation, undefined);
 
   const dimensions = {};
-  for (const slug of ["small-dhow", DHOW_SLUG, "xebec"]) {
+  for (const slug of ["fishing-lugger", DHOW_SLUG, "xebec"]) {
     dimensions[slug] = maxOpaqueFrameDimension(await loadImage(join(shipAssetRoot, `${slug}-16-headings.png`)));
   }
-  assert.ok(dimensions[DHOW_SLUG] > dimensions["small-dhow"]);
+  assert.ok(dimensions[DHOW_SLUG] <= dimensions["fishing-lugger"]);
   assert.ok(dimensions[DHOW_SLUG] < dimensions.xebec);
+});
+
+test("the Small Cog reads as a roundship rather than a rowboat", async () => {
+  const [smallCog, dugoutCanoe] = await Promise.all([
+    loadImage(join(shipAssetRoot, "small-cog-16-headings.png")),
+    loadImage(join(shipAssetRoot, `${MESOAMERICAN_CANOE_SLUG}-16-headings.png`))
+  ]);
+
+  assert.ok(opaquePixelCount(smallCog) > opaquePixelCount(dugoutCanoe));
 });
 
 test("the Galleon uses the credited detailed sailing ship model", async () => {
@@ -394,14 +456,75 @@ test("the Galleon uses the credited detailed sailing ship model", async () => {
   assert.equal(entry.files.rowingAnimation, undefined);
 });
 
-test("the Mesoamerican canoe has a compact four-frame paddle cycle", async () => {
+test("the new regional traders use their credited source models and complete bakes", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const expected = [
+    {
+      slug: NUSANTARAN_OUTRIGGER_SLUG,
+      creator: "Nisa Nurul Azizah",
+      sourceTitle: "Low Poly Borobudur Ship of Sriwijaya",
+      sourcePattern: /borobudur-sriwijaya\/scene\.gltf$/
+    },
+    {
+      slug: OTTOMAN_COASTAL_TRADER_SLUG,
+      creator: "Polygora",
+      sourceTitle: "Ottoman Coastal Trade Tall Ship 3D Model",
+      sourcePattern: /ottoman-coastal-trader\/scene\.gltf$/
+    }
+  ];
+
+  for (const source of expected) {
+    const entry = manifest.ships.find((ship) => ship.slug === source.slug);
+    assert.ok(entry, `${source.slug} manifest entry`);
+    assert.equal(entry.creator, source.creator);
+    assert.equal(entry.sourceTitle, source.sourceTitle);
+    assert.equal(entry.license, "CC BY 4.0");
+    assert.match(entry.sourceModel, source.sourcePattern);
+    assert.equal(entry.files.rowingAnimation, undefined);
+    if (source.slug === NUSANTARAN_OUTRIGGER_SLUG) {
+      assert.equal(entry.waterlineSlice.expectedHullCount, 1);
+      assert.ok(entry.waterlineY < -0.25, "outrigger waterline must stay below its deck and rig");
+    }
+  }
+});
+
+test("the Nusantaran outrigger refracts only its lowest exterior hull pixels", async () => {
+  const [sprite, sinkDepth] = await Promise.all([
+    loadImage(join(shipAssetRoot, `${NUSANTARAN_OUTRIGGER_SLUG}-16-headings.png`)),
+    loadImage(join(shipAssetRoot, `${NUSANTARAN_OUTRIGGER_SLUG}-16-headings-sink-depth.png`))
+  ]);
+  const spritePixels = imagePixels(sprite);
+  const sinkPixels = imagePixels(sinkDepth);
+  const minimumSubmergedY = Math.floor(SHIP_SPRITE_FRAME_SIZE * 0.45);
+
+  for (let frame = 0; frame < SHIP_SPRITE_HEADINGS; frame++) {
+    const originX = frame % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+    const originY = Math.floor(frame / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+    const pixels = [];
+    for (let y = 0; y < SHIP_SPRITE_FRAME_SIZE; y++) {
+      for (let x = 0; x < SHIP_SPRITE_FRAME_SIZE; x++) {
+        const offset = ((originX + x) + (originY + y) * sprite.width) * 4;
+        if (spritePixels[offset + 3] === 0) continue;
+        pixels.push({ x, y, sinkHeight: sinkPixels[offset] / 255 });
+      }
+    }
+    const submerged = floatingShipSubmergedPixelKeys(pixels, SHIP_SPRITE_FRAME_SIZE);
+    assert.ok(submerged.size > 0, `outrigger frame ${frame} has no submerged hull pixels`);
+    assert.ok(
+      [...submerged].every((key) => Math.floor(key / SHIP_SPRITE_FRAME_SIZE) >= minimumSubmergedY),
+      `outrigger frame ${frame} refracts pixels above its lower hull`
+    );
+  }
+});
+
+test("the Mesoamerican canoe has a readable six-frame paddle cycle", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === MESOAMERICAN_CANOE_SLUG);
 
   assert.ok(entry, "Mesoamerican canoe manifest entry");
-  assert.equal(entry.files.rowingAnimation.length, 4);
+  assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
   const frameBuffers = [];
-  for (let frameIndex = 0; frameIndex < 4; frameIndex++) {
+  for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
       `${MESOAMERICAN_CANOE_SLUG}-rowing-${frameIndex}-16-headings.png`
@@ -412,7 +535,10 @@ test("the Mesoamerican canoe has a compact four-frame paddle cycle", async () =>
     assert.ok(opaquePixelCount(image) > 0, `paddling frame ${frameIndex} is blank`);
     frameBuffers.push(await readFile(path));
   }
-  assert.equal(new Set(frameBuffers.map((buffer) => buffer.toString("base64"))).size, 4);
+  assert.equal(
+    new Set(frameBuffers.map((buffer) => buffer.toString("base64"))).size,
+    SHIP_ROWING_FRAME_COUNT
+  );
 });
 
 test("standalone Asian warships preserve their scale below the longer Mediterranean galley", async () => {
