@@ -6,6 +6,7 @@ import {
   RESURRECT_64_HEX,
   nearestResurrect64Hex
 } from "../src/waterLatitudePalette.js";
+import { removePortraitChromaFringe } from "../src/portraitChromaKey.js";
 
 const GRID_SIZE = 4;
 const PORTRAIT_SIZE = 64;
@@ -94,30 +95,12 @@ async function main() {
 
 function removeChromaKey(context, width, height) {
   const image = context.getImageData(0, 0, width, height);
-  let removed = 0;
-  for (let offset = 0; offset < image.data.length; offset += 4) {
-    const red = image.data[offset];
-    const green = image.data[offset + 1];
-    const blue = image.data[offset + 2];
-    if (isChromaGreen(red, green, blue)) {
-      image.data[offset] = 0;
-      image.data[offset + 1] = 0;
-      image.data[offset + 2] = 0;
-      image.data[offset + 3] = 0;
-      removed += 1;
-    } else {
-      image.data[offset + 3] = 255;
-    }
-  }
+  const removed = removePortraitChromaFringe(image, width, height);
   const removedShare = removed / (width * height);
   if (removedShare < 0.35 || removedShare > 0.85) {
     throw new Error(`Chroma-key coverage is implausible: ${(removedShare * 100).toFixed(1)}%`);
   }
   context.putImageData(image, 0, 0);
-}
-
-function isChromaGreen(red, green, blue) {
-  return green >= 150 && green - red >= 60 && green - blue >= 60;
 }
 
 function cleanAndQuantizePortrait(context, index) {
@@ -129,7 +112,7 @@ function cleanAndQuantizePortrait(context, index) {
     const red = image.data[offset];
     const green = image.data[offset + 1];
     const blue = image.data[offset + 2];
-    if (image.data[offset + 3] < 128 || isChromaGreen(red, green, blue)) {
+    if (image.data[offset + 3] < 128) {
       image.data[offset] = 0;
       image.data[offset + 1] = 0;
       image.data[offset + 2] = 0;

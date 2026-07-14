@@ -17,6 +17,21 @@ test("wind V boundaries match the ship dead-zone angle", () => {
   assert.ok((geometry.port.y - geometry.apex.y) * (geometry.starboard.y - geometry.apex.y) < 0);
 });
 
+test("the wind V sits upwind of the ship and opens farther into the no-go zone", () => {
+  const geometry = windVGeometry({
+    centerX: 100,
+    centerY: 80,
+    flowDirectionRad: 0,
+    deadZoneHalfAngleRad: 40 * Math.PI / 180,
+    windStrength: 0.7,
+    radiusPx: 20
+  });
+
+  assert.ok(geometry.apex.x < 100, "apex should be opposite the downwind flow");
+  assert.ok(geometry.port.x < geometry.apex.x);
+  assert.ok(geometry.starboard.x < geometry.apex.x);
+});
+
 test("better windward ships draw a narrower wind V", () => {
   const narrow = windVGeometry({
     centerX: 128,

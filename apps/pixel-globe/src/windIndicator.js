@@ -44,8 +44,8 @@ export function windVGeometry({
   const upwind = { x: -flow.x, y: -flow.y };
   const apexDistance = radiusPx + armLengthPx * APEX_ARM_OFFSET_RATIO;
   const apex = {
-    x: centerX + flow.x * apexDistance,
-    y: centerY + flow.y * apexDistance
+    x: centerX + upwind.x * apexDistance,
+    y: centerY + upwind.y * apexDistance
   };
   const portBoundary = rotateScreenVector(upwind, -deadZoneHalfAngleRad);
   const starboardBoundary = rotateScreenVector(upwind, deadZoneHalfAngleRad);

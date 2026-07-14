@@ -14,6 +14,7 @@ import {
   mingTradeOpenToFaction,
   negotiateEnvoyQuest,
   portMemory,
+  portEntryStatus,
   playerCannonEquipment,
   playerFishingNet,
   purchaseCannonEquipment,
@@ -25,8 +26,10 @@ import {
 import {
   FRESH_WATER_GOOD_ID,
   HARDTACK_GOOD_ID,
+  maximumPortPurchaseQuantity,
   portEconomySummary,
   portMarket,
+  quotePortPurchase,
   tradeGoodById,
   worldMarketPriceComparison
 } from "./economy.js";
@@ -67,6 +70,8 @@ export function createPortDialogueSession(city, options = {}) {
     mingIllicitTradeAccess: options.mingIllicitTradeAccess === true,
     mingIllicitTradeAttempted: options.mingIllicitTradeAttempted === true,
     nextPortNodeId: options.nextPortNodeId || null,
+    marketPurchases: {},
+    tradeTip: null,
     selectedIndex: 0,
     feedback: null
   };
@@ -361,6 +366,7 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
   if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
+  if (session.nodeId === "trade-tip") return tradeTipView(session, city);
   if (session.nodeId === "equipment") return equipmentView(session, city, gameState, economy);
   if (session.nodeId === "equipment-nets") return fishingNetView(session, city, gameState, economy);
   if (session.nodeId === "equipment-cannons") return cannonEquipmentView(session, city, gameState, economy);
@@ -394,10 +400,32 @@ export function selectPortDialogueOption(
   const action = option.action;
   if (action.type === "close") return { closed: true };
   if (action.type === "node") {
+    if (action.nodeId === "buy") session.marketPurchases = {};
+    if (session.nodeId === "trade-tip") session.tradeTip = null;
     session.nodeId = action.nodeId;
     session.selectedIndex = 0;
     session.feedback = null;
     return { closed: false };
+  }
+  if (action.type === "leave-buy") {
+    const tip = bestPurchasedTradeRoute({
+      purchases: session.marketPurchases,
+      originCity: city,
+      gameState,
+      economy,
+      portCities,
+      simMinute: context.simMinute ?? 0
+    });
+    session.marketPurchases = {};
+    session.selectedIndex = 0;
+    session.feedback = null;
+    if (!tip) {
+      session.nodeId = action.nodeId;
+      return { closed: false };
+    }
+    session.tradeTip = { ...tip, nextNodeId: action.nodeId };
+    session.nodeId = "trade-tip";
+    return { closed: false, tradeTip: tip };
   }
   if (action.type === "open-passenger") {
     return { closed: false, action: { type: "open-passenger", quest: action.quest } };
@@ -451,6 +479,7 @@ export function selectPortDialogueOption(
   }
   if (action.type === "buy") {
     const result = buyGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
+    recordMarketPurchase(session, result);
     session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
     return { closed: false };
   }
@@ -1037,8 +1066,8 @@ function buyView(session, city, gameState, economy, context) {
         disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
       });
     });
-  if (context.shipStats) rows.unshift(option("Change ship loadout", { type: "node", nodeId: "loadout" }));
-  rows.push(option("Back", { type: "node", nodeId: "root" }));
+  if (context.shipStats) rows.unshift(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
+  rows.push(option("Back", { type: "leave-buy", nodeId: "root" }));
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
@@ -1049,6 +1078,107 @@ function buyView(session, city, gameState, economy, context) {
     optionHeight: 30,
     options: rows
   };
+}
+
+function tradeTipView(session, city) {
+  const tip = session.tradeTip;
+  if (!tip) throw new Error("Trade-tip dialogue requires a computed route");
+  return {
+    speaker: speakerName(city),
+    expressionId: "attentive",
+    text: `I hear ${tip.destinationName} buys ${tip.goodLabel} for the best price.`,
+    feedback: null,
+    options: [option("Continue", { type: "node", nodeId: tip.nextNodeId })]
+  };
+}
+
+export function bestPurchasedTradeRoute({
+  purchases,
+  originCity,
+  gameState,
+  economy,
+  portCities,
+  simMinute = 0
+}) {
+  if (!purchases || typeof purchases !== "object" || Array.isArray(purchases)) {
+    throw new Error("Trade-route advice requires a purchase record");
+  }
+  if (!originCity || !Number.isInteger(originCity.tileId)) {
+    throw new Error("Trade-route advice requires an origin port");
+  }
+  if (!Array.isArray(portCities)) throw new Error("Trade-route advice requires candidate ports");
+
+  let best = null;
+  for (const purchase of Object.values(purchases)) {
+    if (!purchase || !Number.isInteger(purchase.quantity) || purchase.quantity <= 0) {
+      throw new Error("Trade-route purchase quantity must be a positive integer");
+    }
+    if (!Number.isFinite(purchase.cost) || purchase.cost <= 0) {
+      throw new Error("Trade-route purchase cost must be positive");
+    }
+    const good = tradeGoodById(purchase.goodId);
+    for (const destination of portCities) {
+      if (destination.tileId === originCity.tileId) continue;
+      if (!destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
+      if (maximumPortPurchaseQuantity(
+        economy,
+        destination,
+        good.id,
+        purchase.quantity
+      ) < purchase.quantity) continue;
+      const revenue = quotePortPurchase(economy, destination, good.id, purchase.quantity);
+      const pnl = revenue - purchase.cost;
+      const candidate = {
+        goodId: good.id,
+        goodLabel: good.label,
+        destinationTileId: destination.tileId,
+        destinationName: cityLabel(destination),
+        quantity: purchase.quantity,
+        expectedPnl: pnl
+      };
+      if (betterTradeTip(candidate, best)) best = candidate;
+    }
+  }
+  return best?.expectedPnl > 0 ? best : null;
+}
+
+function recordMarketPurchase(session, result) {
+  if (!session.marketPurchases || typeof session.marketPurchases !== "object") {
+    throw new Error("Port dialogue session has no market purchase record");
+  }
+  const current = session.marketPurchases[result.good.id] || {
+    goodId: result.good.id,
+    quantity: 0,
+    cost: 0
+  };
+  current.quantity += result.quantity;
+  current.cost += result.price;
+  session.marketPurchases[result.good.id] = current;
+}
+
+function destinationAcceptsPlayerTrade(city, gameState, simMinute) {
+  if (!portEntryStatus(gameState, city, simMinute).allowed) return false;
+  return mingTradeAccess({
+    portFactionId: city.factionId || "neutral",
+    traderFactionId: gameState.playerCharacter?.nationalityId || "neutral",
+    simMinute,
+    openTrade: mingTradeOpenToFaction(
+      gameState,
+      gameState.playerCharacter?.nationalityId || "neutral"
+    ),
+    illicitAccess: false,
+    disguisedEntry: false
+  }).allowed;
+}
+
+function betterTradeTip(candidate, current) {
+  if (!current || candidate.expectedPnl !== current.expectedPnl) {
+    return !current || candidate.expectedPnl > current.expectedPnl;
+  }
+  if (candidate.destinationName !== current.destinationName) {
+    return candidate.destinationName.localeCompare(current.destinationName) < 0;
+  }
+  return candidate.goodLabel.localeCompare(current.goodLabel) < 0;
 }
 
 function loadoutView(session, city, gameState, context) {

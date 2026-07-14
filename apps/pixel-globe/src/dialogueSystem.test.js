@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  bestPurchasedTradeRoute,
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
@@ -376,6 +377,95 @@ test("market comparisons use pixel-font-safe directional wording", () => {
     () => worldPriceIndicator({ direction: "sideways", percent: 0 }),
     /Unknown world price direction/
   );
+});
+
+test("leaving the buy screen recommends the purchased route with the highest P/L", () => {
+  const ternate = {
+    tileId: 101,
+    city: "Ternate",
+    displayCity: "Ternate",
+    country: "Ternate",
+    cityType: "southeast-asian",
+    population: 25000,
+    character: { name: "Hamza Darwis" }
+  };
+  const london = {
+    tileId: 102,
+    city: "London",
+    displayCity: "London",
+    country: "England",
+    cityType: "northern-european",
+    population: 70000
+  };
+  const lisbon = {
+    tileId: 103,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const ports = [ternate, london, lisbon];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 200 });
+  gameState.doubloons = 1000;
+  const session = createPortDialogueSession(ternate, { initialNodeId: "buy" });
+
+  for (const goodId of ["pepper", "spices"]) {
+    const market = portDialogueView(session, ternate, gameState, economy, ports);
+    const index = market.options.findIndex((entry) => entry.action.goodId === goodId);
+    assert.ok(index >= 0, `${goodId} must be offered in Ternate`);
+    selectPortDialogueOption(session, ternate, gameState, economy, ports, index);
+  }
+
+  const expected = bestPurchasedTradeRoute({
+    purchases: session.marketPurchases,
+    originCity: ternate,
+    gameState,
+    economy,
+    portCities: ports
+  });
+  assert.deepEqual(
+    { good: expected.goodLabel, destination: expected.destinationName },
+    { good: "Spices", destination: "London" }
+  );
+
+  const market = portDialogueView(session, ternate, gameState, economy, ports);
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
+  const result = selectPortDialogueOption(session, ternate, gameState, economy, ports, backIndex);
+  assert.equal(result.tradeTip.expectedPnl, expected.expectedPnl);
+  assert.equal(session.nodeId, "trade-tip");
+  assert.equal(
+    portDialogueView(session, ternate, gameState, economy, ports).text,
+    "I hear London buys Spices for the best price."
+  );
+
+  selectPortDialogueOption(session, ternate, gameState, economy, ports, 0);
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.tradeTip, null);
+});
+
+test("leaving the buy screen without a purchase returns directly to port business", () => {
+  const city = {
+    tileId: 104,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const market = portDialogueView(session, city, gameState, economy, [city]);
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
+
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], backIndex),
+    { closed: false }
+  );
+  assert.equal(session.nodeId, "root");
 });
 
 test("the first port requires a chunky loadout choice and provisions the ship", () => {

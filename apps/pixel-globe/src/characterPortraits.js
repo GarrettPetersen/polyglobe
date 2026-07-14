@@ -1,7 +1,7 @@
 import { assignRegionalCharacterName } from "./characterNames.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-7";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-8";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({

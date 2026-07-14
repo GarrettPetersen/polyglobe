@@ -47,6 +47,7 @@ import {
   assignNpcShipCaptains,
   assignPortCityCharacterFromSource,
   assignPortCityCharacters,
+  CHARACTER_PORTRAIT_ASSET_VERSION,
   characterExpression,
   generatePassengerCharacter,
   loadCharacterPortraitManifest
@@ -18187,11 +18188,11 @@ function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
   const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_SMALL_8);
   const barW = Math.max(8, Math.min(SURVIVAL_BAR_W, valueLeft - barX - 4));
   ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
-  ctx.fillRect(barX, y + 1, barW, 5);
+  ctx.fillRect(barX, y + 4, barW, 5);
   ctx.fillStyle = fill;
-  ctx.fillRect(barX, y + 1, Math.max(0, Math.round(barW * clamp(fraction, 0, 1))), 5);
+  ctx.fillRect(barX, y + 4, Math.max(0, Math.round(barW * clamp(fraction, 0, 1))), 5);
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
-  ctx.strokeRect(barX + 0.5, y + 0.5, barW - 1, 5);
+  ctx.strokeRect(barX + 0.5, y + 3.5, barW - 1, 5);
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(value, valueRight, y - 1, {
     font: PIXEL_FONT_SMALL_8,
@@ -18632,8 +18633,15 @@ function drawSailingTackingDiagram(rect) {
 
   const shipX = Math.round(rect.x + rect.w * 0.56);
   const shipY = rect.y + rect.h - 11;
-  drawPixelLine(shipX, shipY - 9, shipX - 22, rect.y + 12, "#e36d5b");
-  drawPixelLine(shipX, shipY - 9, shipX + 22, rect.y + 12, "#e36d5b");
+  drawShipWindV({
+    centerX: shipX,
+    centerY: shipY,
+    flowDirectionRad: -Math.PI / 2,
+    deadZoneHalfAngleRad: ship.stats.upwindStallAngleRad,
+    strength: 0.9,
+    warning: 1,
+    nowMs: lastFrameMs
+  });
   drawTutorialLabel("NO-GO", shipX - 15, rect.y + 5);
 
   const tackPoints = [
@@ -19325,7 +19333,8 @@ function dialoguePortraitImage(character, expression) {
   const cached = portraitCanvasCache.get(key);
   if (cached) return cached;
   if (!portraitPromiseCache.has(key)) {
-    const promise = loadAssetImage(expression.src, `portrait ${character.id}.${expression.id}`)
+    const sourceUrl = `${expression.src}?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
+    const promise = loadAssetImage(sourceUrl, `portrait ${character.id}.${expression.id}`)
       .then((sourceImage) => {
         portraitCanvasCache.set(key, sourceImage);
         dirty = true;

@@ -176,6 +176,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
 const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   close: "action:leave",
   "wait-in-port": "action:wait",
+  "leave-buy": "action:back",
   "open-port": "action:dock",
   "open-passenger": "action:passenger",
   "complete-quest": "action:quest",
@@ -258,7 +259,9 @@ export function menuLabelIconId(label) {
 export function dialogueOptionIconId(option) {
   if (!option?.action?.type) throw new Error("Dialogue option has no action type");
   if (option.action.goodId) return tradeGoodIconId(option.action.goodId);
-  if (option.action.type === "node") {
+  if (option.action.type === "node" || (
+    option.action.type === "leave-buy" && option.action.nodeId
+  )) {
     const iconId = DIALOGUE_NODE_ICON_IDS[option.action.nodeId];
     if (!iconId) throw new Error(`Dialogue node has no icon: ${option.action.nodeId}`);
     return iconId;
