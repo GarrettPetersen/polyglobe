@@ -47,6 +47,7 @@ test("every current dialogue and start-menu action resolves to an icon", async (
   for (const nodeId of nodeIds) {
     assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "node", nodeId } })], nodeId);
   }
+  assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "continue-campaign" } })]);
 });
 
 test("all downloaded icon packs are used and fully attributed", async () => {

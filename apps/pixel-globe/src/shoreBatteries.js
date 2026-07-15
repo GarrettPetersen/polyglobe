@@ -1,4 +1,5 @@
-export const SHORE_BATTERY_DISABLE_MINUTES = 3 * 24 * 60;
+export const SHORE_BATTERY_DISABLE_DAYS = 3;
+export const SHORE_BATTERY_DISABLE_MINUTES = SHORE_BATTERY_DISABLE_DAYS * 24 * 60;
 export const SHORE_BATTERY_RANGE_PX = 76;
 export const SHORE_BATTERY_RELOAD_SECONDS = 14;
 export const SHORE_BATTERY_HIT_POINTS_PER_GUN = 8;
@@ -30,6 +31,7 @@ export function createShoreBatteryState(city, flags, simMinute) {
   return {
     id: shoreBatteryId(city),
     cityTileId: city.tileId,
+    cityName: city.portAlias || city.displayCity || city.city,
     portId: city.portId || `city-${city.tileId}`,
     factionId: city.factionId,
     cultureType: city.cityType || null,
@@ -86,6 +88,11 @@ export function shoreBatteryCanFire(state, simMinute) {
   return !shoreBatteryIsDisabled(state, simMinute) && state.cooldownSeconds <= 0;
 }
 
+export function shoreBatteryDisabledNotice(state) {
+  assertState(state);
+  return `${state.cityName.toUpperCase()} BATTERY DISABLED (${SHORE_BATTERY_DISABLE_DAYS} DAYS)`;
+}
+
 export function armShoreBatteryReload(state) {
   assertState(state);
   state.cooldownSeconds = SHORE_BATTERY_RELOAD_SECONDS;
@@ -136,7 +143,10 @@ function disabledFlagKey(portId) {
 }
 
 function assertCity(city) {
-  if (!city || !Number.isInteger(city.tileId) || !city.factionId) throw new Error("Invalid shore battery city");
+  const cityName = city?.portAlias || city?.displayCity || city?.city;
+  if (!city || !Number.isInteger(city.tileId) || !city.factionId || typeof cityName !== "string" || !cityName.trim()) {
+    throw new Error("Invalid shore battery city");
+  }
 }
 
 function assertFlags(flags) {
@@ -148,7 +158,8 @@ function assertMinute(value) {
 }
 
 function assertState(state) {
-  if (!state || typeof state.id !== "string" || !(state.engagedTargetIds instanceof Set)) {
+  if (!state || typeof state.id !== "string" || typeof state.cityName !== "string" || !state.cityName.trim() ||
+      !(state.engagedTargetIds instanceof Set)) {
     throw new Error("Invalid shore battery state");
   }
 }

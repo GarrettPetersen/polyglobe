@@ -60,9 +60,16 @@ import {
 } from "./mingTradeRestrictions.js";
 import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 import { createPortConquestMemory, validatePortConquestMemory } from "./portConquest.js";
+import {
+  CAMPAIGN_GOAL_EXPLORER,
+  createCampaignGoal,
+  settleExplorerHomecoming,
+  settleFamilyDebtHomecoming,
+  validateCampaignGoal
+} from "./campaignGoals.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 13;
+export const GAME_STATE_VERSION = 14;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -98,6 +105,8 @@ export const ENVOY_TARGET_HOSTILE_REPUTATION = -8;
 export const ENVOY_HOME_REPUTATION = 8;
 
 const MINUTES_PER_DAY = 24 * 60;
+export const SURVIVAL_DEHYDRATION_INTERVAL_MINUTES = 12 * 60;
+export const SURVIVAL_STARVATION_INTERVAL_MINUTES = 5 * MINUTES_PER_DAY;
 const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_MINUTES = FACTION_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_REFUSAL_MINUTES = FACTION_SAFE_PASSAGE_REFUSAL_DAYS * MINUTES_PER_DAY;
@@ -191,7 +200,11 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
         passengerOffers: {},
         passengerRolls: {}
       },
-      conquest: createPortConquestMemory()
+      conquest: createPortConquestMemory(),
+      campaignGoal: playerCharacterSupportsCampaignGoal(playerCharacter)
+        ? createCampaignGoal({ playerCharacter, startMinute })
+        : null,
+      cartography: createCartographyMemory()
     }
   };
 }
@@ -206,7 +219,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (![8, 9, 10, 11, 12].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -242,7 +255,11 @@ export function migrateGameState(state, shipStats) {
     },
     memory: {
       ...state.memory,
-      conquest: state.memory?.conquest || createPortConquestMemory()
+      conquest: state.memory?.conquest || createPortConquestMemory(),
+      campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(state.playerCharacter)
+        ? createCampaignGoal({ playerCharacter: state.playerCharacter, startMinute: savedGameStartMinute(state) })
+        : null),
+      cartography: state.memory?.cartography || createCartographyMemory()
     }
   };
   return validateGameState(migrated);
@@ -315,6 +332,59 @@ export function consumePendingDiscoveryPortDialogue(state) {
 export function hasDiscovery(state, discoveryId) {
   assertGameState(state);
   return Boolean(state.memory.discoveries[discoveryId]);
+}
+
+export function settleCampaignGoalAtHome(state, city, {
+  currentMinute,
+  wonderCatalog = [],
+  nextLeadDiscoveryId = null
+} = {}) {
+  assertGameState(state);
+  if (!city || !Number.isInteger(city.tileId)) throw new Error("Campaign homecoming requires a port city");
+  assertSimulationMinute(currentMinute);
+  const goal = state.memory.campaignGoal;
+  if (!goal) throw new Error("Player character has no campaign goal");
+  if (city.tileId !== goal.homePortTileId) {
+    throw new Error(`Campaign homecoming is not at the player's home port: ${city.tileId}`);
+  }
+
+  const outcome = goal.type === CAMPAIGN_GOAL_EXPLORER
+    ? settleExplorerHomecoming(goal, {
+        discoveredIds: new Set(state.memory.discoveryOrder),
+        wonderCatalog,
+        nextLeadDiscoveryId
+      })
+    : settleFamilyDebtHomecoming(goal, {
+        currentMinute,
+        doubloons: state.doubloons
+      });
+  const amount = goal.type === CAMPAIGN_GOAL_EXPLORER ? outcome.reward : -outcome.payment;
+  if (amount !== 0) {
+    state.doubloons += amount;
+    if (state.doubloons < 0) throw new Error("Campaign settlement overdraws the player's purse");
+    recordLedgerEntry(state, city, { simMinute: currentMinute }, {
+      kind: "campaign",
+      description: goal.type === CAMPAIGN_GOAL_EXPLORER
+        ? `Patron rewards ${outcome.newlyReportedIds.length} discoveries`
+        : "Family debt payment",
+      goodId: null,
+      quantity: goal.type === CAMPAIGN_GOAL_EXPLORER ? outcome.newlyReportedIds.length : 0,
+      amount,
+      costBasis: null,
+      pnl: amount > 0 ? amount : null
+    });
+  }
+  return outcome;
+}
+
+export function updateCartographyMemory(state, seenTilesBase64, seenTileCount) {
+  assertGameState(state);
+  if (typeof seenTilesBase64 !== "string") throw new Error("Cartography tile mask must be a string");
+  if (!Number.isInteger(seenTileCount) || seenTileCount < 0) {
+    throw new Error(`Invalid mapped tile count: ${seenTileCount}`);
+  }
+  state.memory.cartography = { seenTilesBase64, seenTileCount };
+  return state.memory.cartography;
 }
 
 export function discoveredEntries(state) {
@@ -732,11 +802,14 @@ export function applySurvivalDeprivation(state, { dehydration, starvation }) {
   assertGameState(state);
   assertDeprivationSeverity(dehydration, "dehydration");
   assertDeprivationSeverity(starvation, "starvation");
-  const crewLost = loseCrew(state, dehydration);
+  const crewLost = loseCrew(state, dehydration + starvation);
+  const dehydrationCrewLost = Math.min(dehydration, crewLost);
+  const starvationCrewLost = crewLost - dehydrationCrewLost;
   return {
     crewLost,
-    crewDepleted: crewLost > 0 && state.ship.crew <= 0,
-    hullDamage: starvation
+    dehydrationCrewLost,
+    starvationCrewLost,
+    crewDepleted: crewLost > 0 && state.ship.crew <= 0
   };
 }
 
@@ -2181,6 +2254,17 @@ function assertGameState(state) {
   }
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
   validatePortConquestMemory(state.memory.conquest);
+  if (state.memory.campaignGoal === null) {
+    if (playerCharacterSupportsCampaignGoal(state.playerCharacter)) {
+      throw new Error("Persistent player character requires a campaign goal");
+    }
+  } else {
+    validateCampaignGoal(state.memory.campaignGoal);
+    if (state.memory.campaignGoal.homePortTileId !== state.playerCharacter?.homePortTileId) {
+      throw new Error("Campaign goal home port does not match the player character");
+    }
+  }
+  validateCartographyMemory(state.memory.cartography);
   if (!state.memory.discoveries || typeof state.memory.discoveries !== "object") {
     throw new Error("Game state discoveries must be an object");
   }
@@ -2275,6 +2359,24 @@ function savedGameStartMinute(state) {
   return Number.isFinite(state.accounts?.ledger?.[0]?.simMinute)
     ? state.accounts.ledger[0].simMinute
     : 0;
+}
+
+function createCartographyMemory() {
+  return { seenTilesBase64: "", seenTileCount: 0 };
+}
+
+function validateCartographyMemory(cartography) {
+  if (!cartography || typeof cartography !== "object") throw new Error("Game state requires cartography memory");
+  if (typeof cartography.seenTilesBase64 !== "string") throw new Error("Invalid cartography tile mask");
+  if (!Number.isInteger(cartography.seenTileCount) || cartography.seenTileCount < 0) {
+    throw new Error(`Invalid mapped tile count: ${cartography.seenTileCount}`);
+  }
+}
+
+function playerCharacterSupportsCampaignGoal(character) {
+  if (!character) return false;
+  return typeof character.id === "string" && character.id !== "" &&
+    Number.isInteger(character.homePortTileId) && character.homePortTileId >= 0;
 }
 
 function worldDiplomacySeedKey(character, startMinute) {

@@ -28,6 +28,15 @@ test("the shared sail curve stalls upwind and peaks across the wind", () => {
   assert.ok(sailingEfficiencyForAlignment(brigantine, 1) > 0);
 });
 
+test("ships now make progress inside their former upwind boundary", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const oldBoundaryAngle = 38 * Math.PI / 180;
+  const currentBoundaryAngle = brigantine.upwindStallAngleRad;
+
+  assert.ok(sailingEfficiencyForAlignment(brigantine, -Math.cos(oldBoundaryAngle)) > 0);
+  assert.equal(sailingEfficiencyForAlignment(brigantine, -Math.cos(currentBoundaryAngle)), 0);
+});
+
 test("paddled canoes have no dead zone and keep their low speed into the wind", () => {
   const canoe = shipStatsForSlug("mesoamerican-dugout-canoe");
   const performance = shipPropulsionPerformance(canoe, {

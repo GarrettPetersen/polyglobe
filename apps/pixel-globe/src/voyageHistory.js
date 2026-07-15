@@ -1,5 +1,5 @@
 export const VOYAGE_HISTORY_STORAGE_KEY = "marque-and-reprisal.voyage-history";
-export const VOYAGE_HISTORY_VERSION = 1;
+export const VOYAGE_HISTORY_VERSION = 2;
 export const MAX_PAST_VOYAGES = 50;
 
 const NON_NEGATIVE_FIELDS = Object.freeze([
@@ -18,7 +18,7 @@ export function readVoyageHistory({ storage = defaultStorage() } = {}) {
   try {
     const serialized = storage.getItem(VOYAGE_HISTORY_STORAGE_KEY);
     if (serialized === null) return { status: "ready", records: [], error: null };
-    const history = JSON.parse(serialized);
+    const history = migrateVoyageHistory(JSON.parse(serialized));
     validateVoyageHistory(history);
     return { status: "ready", records: history.records, error: null };
   } catch (error) {
@@ -60,7 +60,10 @@ export function voyageHistorySummary(records) {
     mostDoubloonsEarned: Math.max(summary.mostDoubloonsEarned, record.doubloonsEarned),
     richestEndingPurse: Math.max(summary.richestEndingPurse, record.endingDoubloons),
     mostDiscoveries: Math.max(summary.mostDiscoveries, record.discoveries),
-    mostPortsVisited: Math.max(summary.mostPortsVisited, record.visitedPorts)
+    mostPortsVisited: Math.max(summary.mostPortsVisited, record.visitedPorts),
+    victories: summary.victories + (record.outcomeType === "victory" ? 1 : 0),
+    deaths: summary.deaths + (record.outcomeType === "death" ? 1 : 0),
+    quits: summary.quits + (record.outcomeType === "quit" ? 1 : 0)
   }), {
     voyages: 0,
     totalDays: 0,
@@ -69,7 +72,10 @@ export function voyageHistorySummary(records) {
     mostDoubloonsEarned: 0,
     richestEndingPurse: 0,
     mostDiscoveries: 0,
-    mostPortsVisited: 0
+    mostPortsVisited: 0,
+    victories: 0,
+    deaths: 0,
+    quits: 0
   });
 }
 
@@ -92,6 +98,23 @@ function validateVoyageHistory(history) {
   return history;
 }
 
+function migrateVoyageHistory(history) {
+  if (!history || typeof history !== "object") throw new Error("Invalid voyage history");
+  if (history.version === VOYAGE_HISTORY_VERSION) return history;
+  if (history.version !== 1 || !Array.isArray(history.records)) {
+    throw new Error(`Unsupported voyage history version: ${history.version ?? "missing"}`);
+  }
+  return {
+    version: VOYAGE_HISTORY_VERSION,
+    records: history.records.map((record) => ({
+      ...record,
+      outcomeType: typeof record.outcome === "string" && record.outcome.includes("abandoned") ? "quit" : "death",
+      goal: "Unknown",
+      mappedPercent: 0
+    }))
+  };
+}
+
 function validateVoyageRecord(record) {
   if (!record || typeof record !== "object") throw new Error("Invalid voyage record");
   for (const key of [
@@ -101,11 +124,15 @@ function validateVoyageRecord(record) {
     "birthDateLabel",
     "endDateLabel",
     "vessel",
-    "outcome"
+    "outcome",
+    "goal"
   ]) {
     if (typeof record[key] !== "string" || record[key].trim() === "") {
       throw new Error(`Voyage record has invalid ${key}`);
     }
+  }
+  if (!["victory", "death", "quit"].includes(record.outcomeType)) {
+    throw new Error(`Voyage record has invalid outcome type: ${record.outcomeType}`);
   }
   if (!Number.isFinite(record.endedAt) || record.endedAt <= 0) {
     throw new Error(`Voyage record has invalid endedAt: ${record.endedAt}`);
@@ -120,6 +147,9 @@ function validateVoyageRecord(record) {
   }
   if (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude)) {
     throw new Error("Voyage record has invalid last position");
+  }
+  if (!Number.isFinite(record.mappedPercent) || record.mappedPercent < 0 || record.mappedPercent > 100) {
+    throw new Error(`Voyage record has invalid mapped percentage: ${record.mappedPercent}`);
   }
   if (typeof record.circumnavigated !== "boolean") {
     throw new Error("Voyage record has invalid circumnavigation status");

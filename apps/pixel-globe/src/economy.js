@@ -431,10 +431,15 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
   const lines = [];
   for (const candidate of candidates.slice(0, NPC_CARGO_LINE_LIMIT)) {
     if (capacityLeft <= 0 || specieLeft < candidate.originPrice) break;
-    const lineCapacity = Math.max(1, Math.ceil(cargoCapacity * 0.55));
+    const quantityCapacity = Math.floor(capacityLeft / candidate.good.unitSize);
+    if (quantityCapacity <= 0) continue;
+    const lineCapacity = Math.max(
+      1,
+      Math.floor(cargoCapacity * 0.55 / candidate.good.unitSize)
+    );
     let quantity = Math.min(
       candidate.available,
-      capacityLeft,
+      quantityCapacity,
       lineCapacity,
       Math.floor(specieLeft / candidate.originPrice),
       Math.floor(destinationSpecieLeft / candidate.destinationPrice)
@@ -469,7 +474,9 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
   return {
     lines,
     expectedProfit: lines.reduce((sum, line) => sum + line.expectedProfit, 0),
-    cargoUnits: lines.reduce((sum, line) => sum + line.quantity, 0)
+    cargoUnits: lines.reduce((sum, line) => (
+      sum + line.quantity * tradeGoodById(line.goodId).unitSize
+    ), 0)
   };
 }
 

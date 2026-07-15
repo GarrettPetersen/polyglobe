@@ -5,6 +5,8 @@ import { FORAGED_FOOD_GOOD_ID, FRESH_WATER_GOOD_ID, createWorldEconomy } from ".
 import {
   FRESH_WATER_CAPACITY,
   RAIN_WATER_COLLECTION_PER_DAY,
+  SURVIVAL_DEHYDRATION_INTERVAL_MINUTES,
+  SURVIVAL_STARVATION_INTERVAL_MINUTES,
   autoProvisionFreshWaterAtPort,
   autoProvisionHardtackAtPort,
   applySurvivalDeprivation,
@@ -285,22 +287,35 @@ test("crew die from thirst and sometimes from hull damage", () => {
   assert.equal(state.ship.crew, 0);
 });
 
-test("dehydration kills crew without contributing hull damage", () => {
+test("dehydration and starvation kill crew without damaging the hull", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
   const startingCrew = state.ship.crew;
 
   const thirst = applySurvivalDeprivation(state, { dehydration: 1, starvation: 0 });
-  assert.deepEqual(thirst, { crewLost: 1, crewDepleted: startingCrew === 1, hullDamage: 0 });
+  assert.deepEqual(thirst, {
+    crewLost: 1,
+    dehydrationCrewLost: 1,
+    starvationCrewLost: 0,
+    crewDepleted: startingCrew === 1
+  });
   assert.equal(state.ship.crew, startingCrew - 1);
 
   const combined = applySurvivalDeprivation(state, { dehydration: 1, starvation: 1 });
-  assert.equal(combined.crewLost, Math.min(1, startingCrew - 1));
-  assert.equal(combined.hullDamage, 1);
+  assert.equal(combined.crewLost, Math.min(2, startingCrew - 1));
+  assert.equal(combined.dehydrationCrewLost, Math.min(1, combined.crewLost));
+  assert.equal(combined.starvationCrewLost, Math.max(0, combined.crewLost - 1));
   assert.throws(
     () => applySurvivalDeprivation(state, { dehydration: 0.5, starvation: 0 }),
     /Invalid dehydration severity/
+  );
+});
+
+test("starvation casualties occur ten times slower than dehydration casualties", () => {
+  assert.equal(
+    SURVIVAL_STARVATION_INTERVAL_MINUTES,
+    SURVIVAL_DEHYDRATION_INTERVAL_MINUTES * 10
   );
 });
 

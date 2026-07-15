@@ -7,16 +7,17 @@ import {
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
   heldShipHaulStrength,
+  selectRiverRailPath,
   shipHaulMotionScale,
   steerAlongRiverCenterline
 } from "./riverNavigation.js";
 
 test("ship hauling starts only after deliberate held input and ramps smoothly", () => {
   assert.equal(heldShipHaulStrength(0), 0);
-  assert.equal(heldShipHaulStrength(0.28), 0);
-  assert.ok(heldShipHaulStrength(0.64) > 0);
-  assert.ok(heldShipHaulStrength(0.64) < 1);
-  assert.equal(heldShipHaulStrength(1), 1);
+  assert.equal(heldShipHaulStrength(0.18), 0);
+  assert.ok(heldShipHaulStrength(0.43) > 0);
+  assert.ok(heldShipHaulStrength(0.43) < 1);
+  assert.equal(heldShipHaulStrength(0.68), 1);
   assert.equal(heldShipHaulStrength(3), 1);
 });
 
@@ -24,8 +25,8 @@ test("coastal hauling is available only near shore and is much slower than river
   assert.equal(shipHaulMotionScale({ inRiver: true, nearShore: true }), 1);
   assert.equal(shipHaulMotionScale({ inRiver: false, nearShore: true }), COASTAL_HAUL_MOTION_SCALE);
   assert.equal(shipHaulMotionScale({ inRiver: false, nearShore: false }), 0);
-  assert.ok(COASTAL_HAUL_MOTION_SCALE > 0);
-  assert.ok(COASTAL_HAUL_MOTION_SCALE < 0.25);
+  assert.ok(COASTAL_HAUL_MOTION_SCALE > 0.2);
+  assert.ok(COASTAL_HAUL_MOTION_SCALE <= 0.25);
 });
 
 test("open-water ships are guided into a nearby river mouth in their forward cone", () => {
@@ -146,7 +147,7 @@ test("river centerline steering pushes a ship away from the outside bank", () =>
   assert.ok(direction.y > 0);
 });
 
-test("river conveyor advances along the centerline in either direction", () => {
+test("river rail advances along the centerline in either direction", () => {
   const path = { x0: 0, y0: 0, cx: 5, cy: 3, x1: 10, y1: 0 };
   const forward = advanceRiverCenterline(path, 0.5, 2, 1);
   const reverse = advanceRiverCenterline(path, 0.5, 2, -1);
@@ -157,10 +158,42 @@ test("river conveyor advances along the centerline in either direction", () => {
   assert.equal(forward.reachedEnd, false);
 });
 
-test("river conveyor stops at a centerline endpoint", () => {
+test("river rail stops at a centerline endpoint", () => {
   const path = { x0: 0, y0: 0, cx: 5, cy: 0, x1: 10, y1: 0 };
   const target = advanceRiverCenterline(path, 0.95, 20, 1);
   assert.equal(target.pathT, 1);
   assert.equal(target.x, 10);
   assert.equal(target.reachedEnd, true);
+});
+
+test("river rail keeps its active path at a crossing instead of vibrating between segments", () => {
+  const probes = [
+    { pathKey: "west-east", centerlineDistance: 0.4, tangent: { x: 1, y: 0 } },
+    { pathKey: "north-south", centerlineDistance: 0.1, tangent: { x: 0, y: 1 } }
+  ];
+  const selection = selectRiverRailPath({
+    probes,
+    desiredDirection: { x: 0, y: 1 },
+    activePathKey: "west-east",
+    activeDirectionSign: 1
+  });
+
+  assert.equal(selection.probe.pathKey, "west-east");
+  assert.equal(selection.directionSign, 1);
+});
+
+test("river rail excludes a completed segment and takes the best outgoing branch", () => {
+  const probes = [
+    { pathKey: "incoming", centerlineDistance: 0, tangent: { x: 1, y: 0 } },
+    { pathKey: "wrong-branch", centerlineDistance: 0.2, tangent: { x: 0, y: -1 } },
+    { pathKey: "route-branch", centerlineDistance: 0.3, tangent: { x: 0.9, y: 0.1 } }
+  ];
+  const selection = selectRiverRailPath({
+    probes,
+    desiredDirection: { x: 1, y: 0 },
+    excludedPathKey: "incoming"
+  });
+
+  assert.equal(selection.probe.pathKey, "route-branch");
+  assert.equal(selection.directionSign, 1);
 });

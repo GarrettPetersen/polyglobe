@@ -5,6 +5,7 @@ export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 export const SHIP_PROPULSION_SAIL = "sail";
 export const SHIP_PROPULSION_OAR = "oar";
 export const SHIP_PROPULSION_OAR_SAIL = "oar-sail";
+export const SHIP_UPWIND_FORGIVENESS_DEG = 5;
 
 const SHIP_PROPULSIONS = new Set([
   SHIP_PROPULSION_SAIL,
@@ -137,7 +138,7 @@ function stats(
   cannons,
   accelerationRad,
   topSpeedRad,
-  upwindStallAngleDeg,
+  baseUpwindStallAngleDeg,
   turnRateRad,
   mass,
   cargoCapacity,
@@ -149,7 +150,7 @@ function stats(
   assertInteger(`${slug}.cannons`, cannons, 0);
   assertFinitePositive(`${slug}.accelerationRad`, accelerationRad);
   assertFinitePositive(`${slug}.topSpeedRad`, topSpeedRad);
-  assertFiniteRange(`${slug}.upwindStallAngleDeg`, upwindStallAngleDeg, 0, 89);
+  assertFiniteRange(`${slug}.upwindStallAngleDeg`, baseUpwindStallAngleDeg, 0, 89);
   assertFinitePositive(`${slug}.turnRateRad`, turnRateRad);
   assertInteger(`${slug}.mass`, mass, 1);
   assertInteger(`${slug}.cargoCapacity`, cargoCapacity, 0);
@@ -159,9 +160,12 @@ function stats(
   if (navalWeaponKind !== null && !NAVAL_WEAPON_KINDS.has(navalWeaponKind)) {
     throw new Error(`Invalid ${slug}.navalWeaponKind: ${navalWeaponKind}`);
   }
-  if (propulsion === SHIP_PROPULSION_OAR && upwindStallAngleDeg !== 0) {
+  if (propulsion === SHIP_PROPULSION_OAR && baseUpwindStallAngleDeg !== 0) {
     throw new Error(`Oar-powered ship ${slug} must have a zero-degree wind dead zone`);
   }
+  const effectiveUpwindStallAngleDeg = propulsion === SHIP_PROPULSION_OAR
+    ? 0
+    : Math.max(0, baseUpwindStallAngleDeg - SHIP_UPWIND_FORGIVENESS_DEG);
 
   const hitPoints = Math.max(3, Math.round(mass / SHIP_MASS_PER_HIT_POINT));
   const crewCapacity = Math.max(1, Math.round(mass / 12 + cannons * 0.75));
@@ -170,8 +174,8 @@ function stats(
     cannons,
     accelerationRad,
     topSpeedRad: topSpeedRad * SHIP_TOP_SPEED_SCALE,
-    upwindStallAngleDeg,
-    upwindStallAngleRad: upwindStallAngleDeg * DEG_TO_RAD,
+    upwindStallAngleDeg: effectiveUpwindStallAngleDeg,
+    upwindStallAngleRad: effectiveUpwindStallAngleDeg * DEG_TO_RAD,
     turnRateRad,
     mass,
     crewCapacity,

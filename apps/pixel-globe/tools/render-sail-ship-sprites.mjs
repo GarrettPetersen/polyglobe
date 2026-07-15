@@ -246,7 +246,8 @@ const unityShipRoster = new Map([
     slug: "caravel",
     identifiedType: "caravel / caravel redonda",
     confidence: "medium",
-    notes: "Small explorer/trader silhouette."
+    notes: "Small explorer/trader silhouette.",
+    waterlineOffsetY: -0.046
   }],
   ["ships medium/ship medium 4.fbx", {
     label: "Square-Rigged Caravel",

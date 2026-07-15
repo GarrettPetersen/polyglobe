@@ -8,7 +8,6 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Portuguese Carrack | 8 | 81 | 89 | 0.073 |
 | Spanish Nao | 7 | 81 | 88 | -0.025 |
 | Atakebune | 6 | 72 | 78 | 0.073 |
-| Caravel | 5 | 82 | 87 | 0.000 |
 | Dhow | 5 | 69 | 74 | -0.244 |
 | Felucca | 5 | 75 | 80 | -0.455 |
 | Nusantaran Outrigger | 5 | 81 | 86 | -0.012 |
@@ -19,6 +18,7 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Heavy Caravel | 4 | 88 | 92 | 0.000 |
 | Large Junk | 4 | 82 | 86 | 0.000 |
 | Medium Junk | 4 | 82 | 86 | 0.000 |
+| Caravel | 3 | 84 | 87 | -0.046 |
 | Great Carrack | 3 | 83 | 86 | 0.000 |
 | Lateen Barque | 3 | 77 | 80 | 0.000 |
 | Mediterranean Galley | 3 | 76 | 79 | -0.150 |

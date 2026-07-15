@@ -19,6 +19,11 @@ import {
   mountainIsAccessibleFromNavigation
 } from "./discoveries.js";
 import {
+  AUTHORED_WORLD_REPORT_IDS,
+  explorerReportDialogueForDiscovery,
+  validateExplorerReportDialogueCatalog
+} from "./explorerDiscoveryDialogue.js";
+import {
   consumePendingDiscoveryPortDialogue,
   createGameState,
   recordDiscovery,
@@ -95,6 +100,16 @@ test("world discovery registry is unique, complete, and explicit about historici
       .menuTerrainSpriteKey,
     MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY
   );
+  assert.deepEqual(
+    new Set(AUTHORED_WORLD_REPORT_IDS),
+    new Set(WORLD_DISCOVERY_SPECS.map((item) => item.id))
+  );
+  assert.equal(validateExplorerReportDialogueCatalog(WORLD_DISCOVERY_SPECS), WORLD_DISCOVERY_SPECS.length);
+  const canalReport = explorerReportDialogueForDiscovery(
+    WORLD_DISCOVERY_SPECS.find((item) => item.id === GRAND_CANAL_DISCOVERY_ID)
+  );
+  assert.match(canalReport.player, /gates raise and lower the water/i);
+  assert.match(canalReport.patron, /empire fed by an engineered river/i);
 });
 
 test("legendary discoveries are recorded alongside historical landmarks", () => {

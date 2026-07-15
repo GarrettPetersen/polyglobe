@@ -376,6 +376,7 @@ function capturePoint(lat, lon, label) {
 
 export function snapshotNpcSeaRouteSystem(system) {
   assertSaveableNpcRouteSystem(system);
+  reconcileNpcFleetCargo(system, "route snapshot");
   return {
     version: 1,
     ships: cloneJsonData(system.ships),
@@ -411,6 +412,7 @@ export function restoreNpcSeaRouteSystem(
     }
     ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;
     shipStatsForSlug(ship.slug);
+    reconcileNpcCargoCapacity(ship, "save restore");
     shipById.set(ship.id, ship);
   }
   const danger = new Map();
@@ -557,7 +559,8 @@ function fishingGroundLabel(point, speciesLabel) {
 
 export function updateNpcSeaRouteSystem(system, clockMinutes) {
   refreshPirateHideoutWarshipDanger(system, clockMinutes);
-  let changed = rerouteHostileNpcTradePlans(system, clockMinutes);
+  let changed = reconcileNpcFleetCargo(system, "route update");
+  if (rerouteHostileNpcTradePlans(system, clockMinutes)) changed = true;
   if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
   for (const ship of system.ships) {
     if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 12)) changed = true;
@@ -1166,8 +1169,10 @@ function harvestNpcFishingGround(system, ship, ground, clockMinutes) {
   );
   const result = harvestFishery(system.fishState, fishery, requested, clockMinutes, { actor: "npc" });
   if (result.quantity <= 0) return result;
-  ship.cargo[NPC_FISH_GOOD_ID] = (ship.cargo[NPC_FISH_GOOD_ID] || 0) + result.quantity;
-  ship.cargoCost[NPC_FISH_GOOD_ID] = ship.cargoCost[NPC_FISH_GOOD_ID] || 0;
+  const stored = storeNpcCargo(ship, NPC_FISH_GOOD_ID, result.quantity, 0, "offscreen fishing");
+  if (stored !== result.quantity) {
+    throw new Error(`NPC fishing capacity changed during harvest: ${ship.id} stored ${stored}/${result.quantity}`);
+  }
   return result;
 }
 
@@ -1263,18 +1268,22 @@ function buyNpcCargo(system, ship, origin, destination) {
     specie: ship.specie
   });
   for (const line of plan.lines) {
+    const holdQuantity = npcCargoAvailableQuantity(ship, line.goodId);
+    if (holdQuantity <= 0) break;
     const quantity = maximumPortSaleQuantity(
       system.economy,
       origin,
       line.goodId,
-      line.quantity,
+      Math.min(line.quantity, holdQuantity),
       ship.specie
     );
     if (quantity <= 0) continue;
     const transaction = executePortSale(system.economy, origin, line.goodId, quantity);
     ship.specie -= transaction.total;
-    ship.cargo[line.goodId] = (ship.cargo[line.goodId] || 0) + quantity;
-    ship.cargoCost[line.goodId] = (ship.cargoCost[line.goodId] || 0) + transaction.total;
+    const stored = storeNpcCargo(ship, line.goodId, quantity, transaction.total, "port purchase");
+    if (stored !== quantity) {
+      throw new Error(`NPC port purchase exceeded available hold: ${ship.id} stored ${stored}/${quantity}`);
+    }
   }
 }
 
@@ -1305,28 +1314,127 @@ function sellNpcCargo(system, ship, port) {
 
 function receiveNpcLoot(ship, loot) {
   ship.specie += loot.specie;
-  let free = ship.cargoCapacity - npcCargoUnits(ship);
   for (const [goodId, available] of Object.entries(loot.cargo)) {
-    const good = tradeGoodById(goodId);
-    const quantity = Math.min(available, Math.floor(free / good.unitSize));
-    if (quantity <= 0) continue;
-    ship.cargo[goodId] = (ship.cargo[goodId] || 0) + quantity;
-    ship.cargoCost[goodId] = ship.cargoCost[goodId] || 0;
-    free -= quantity * good.unitSize;
+    storeNpcCargo(ship, goodId, available, 0, "captured cargo");
   }
 }
 
-function npcCargoUnits(ship) {
-  let units = 0;
-  for (const [goodId, quantity] of Object.entries(ship.cargo)) {
-    const good = tradeGoodById(goodId);
-    if (!Number.isInteger(quantity) || quantity < 0) throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo: ${quantity}`);
-    units += quantity * good.unitSize;
+export function reconcileNpcCargoCapacity(ship, source) {
+  if (typeof source !== "string" || source.trim() === "") {
+    throw new Error("NPC cargo reconciliation requires a source");
   }
+  const beforeUnits = inspectNpcCargo(ship);
+  if (beforeUnits <= ship.cargoCapacity) return null;
+
+  let excessUnits = beforeUnits - ship.cargoCapacity;
+  const removed = {};
+  const candidates = Object.entries(ship.cargo)
+    .filter(([, quantity]) => quantity > 0)
+    .map(([goodId, quantity]) => ({ goodId, quantity, good: tradeGoodById(goodId) }))
+    .sort((a, b) => a.goodId.localeCompare(b.goodId));
+  let randomState = hashString32(
+    `${ship.id}|${ship.cargoCapacity}|${beforeUnits}|${candidates.map((item) => `${item.goodId}:${item.quantity}`).join("|")}`
+  );
+
+  while (excessUnits > 0) {
+    if (candidates.length === 0) {
+      throw new Error(`NPC ship ${ship.id} could not jettison ${excessUnits} excess cargo units`);
+    }
+    randomState = (Math.imul(randomState, 1664525) + 1013904223) >>> 0;
+    const candidateIndex = randomState % candidates.length;
+    const candidate = candidates[candidateIndex];
+    const quantity = Math.min(
+      candidate.quantity,
+      Math.ceil(excessUnits / candidate.good.unitSize)
+    );
+    const heldBefore = ship.cargo[candidate.goodId];
+    const heldAfter = heldBefore - quantity;
+    const costBefore = npcCargoCost(ship, candidate.goodId);
+    removed[candidate.goodId] = (removed[candidate.goodId] || 0) + quantity;
+    excessUnits = Math.max(0, excessUnits - quantity * candidate.good.unitSize);
+    candidate.quantity = heldAfter;
+    if (heldAfter > 0) {
+      ship.cargo[candidate.goodId] = heldAfter;
+      ship.cargoCost[candidate.goodId] = costBefore * (heldAfter / heldBefore);
+    } else {
+      delete ship.cargo[candidate.goodId];
+      delete ship.cargoCost[candidate.goodId];
+      candidates.splice(candidateIndex, 1);
+    }
+  }
+
+  const afterUnits = npcCargoUnits(ship);
+  const report = {
+    shipId: ship.id,
+    shipSlug: ship.slug,
+    source,
+    capacity: ship.cargoCapacity,
+    beforeUnits,
+    afterUnits,
+    removed
+  };
+  console.warn("NPC cargo capacity exceeded; cargo was jettisoned", report);
+  return report;
+}
+
+export function storeNpcCargo(ship, goodId, requestedQuantity, costBasis, source) {
+  if (!Number.isInteger(requestedQuantity) || requestedQuantity < 0) {
+    throw new Error(`NPC cargo storage requires a non-negative quantity: ${requestedQuantity}`);
+  }
+  if (!Number.isFinite(costBasis) || costBasis < 0) {
+    throw new Error(`NPC cargo storage requires a non-negative cost basis: ${costBasis}`);
+  }
+  reconcileNpcCargoCapacity(ship, source);
+  const quantity = Math.min(requestedQuantity, npcCargoAvailableQuantity(ship, goodId));
+  if (quantity <= 0) return 0;
+  const acceptedCost = requestedQuantity > 0 ? costBasis * (quantity / requestedQuantity) : 0;
+  ship.cargo[goodId] = (ship.cargo[goodId] || 0) + quantity;
+  ship.cargoCost[goodId] = npcCargoCost(ship, goodId) + acceptedCost;
+  if (npcCargoUnits(ship) > ship.cargoCapacity) {
+    throw new Error(`NPC cargo storage overflowed after capacity check: ${ship.id}`);
+  }
+  return quantity;
+}
+
+function npcCargoUnits(ship) {
+  const units = inspectNpcCargo(ship);
   if (units > ship.cargoCapacity) {
     throw new Error(`NPC ship ${ship.id} exceeds cargo capacity: ${units}/${ship.cargoCapacity}`);
   }
   return units;
+}
+
+function inspectNpcCargo(ship) {
+  if (!ship || typeof ship.id !== "string" || ship.id === "" ||
+      !Number.isInteger(ship.cargoCapacity) || ship.cargoCapacity < 0 ||
+      !ship.cargo || typeof ship.cargo !== "object" || Array.isArray(ship.cargo) ||
+      !ship.cargoCost || typeof ship.cargoCost !== "object" || Array.isArray(ship.cargoCost)) {
+    throw new Error(`Invalid NPC cargo state: ${ship?.id}`);
+  }
+  let units = 0;
+  for (const [goodId, quantity] of Object.entries(ship.cargo)) {
+    const good = tradeGoodById(goodId);
+    if (!Number.isInteger(quantity) || quantity < 0) throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo: ${quantity}`);
+    npcCargoCost(ship, goodId);
+    units += quantity * good.unitSize;
+  }
+  return units;
+}
+
+function npcCargoCost(ship, goodId) {
+  const cost = ship.cargoCost[goodId] ?? 0;
+  if (!Number.isFinite(cost) || cost < 0) {
+    throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo cost: ${cost}`);
+  }
+  return cost;
+}
+
+function reconcileNpcFleetCargo(system, source) {
+  let changed = false;
+  for (const ship of system.ships) {
+    if (reconcileNpcCargoCapacity(ship, source)) changed = true;
+  }
+  return changed;
 }
 
 export function npcCargoAvailableQuantity(ship, goodId) {

@@ -2,9 +2,9 @@ export const RIVER_GATEWAY_SEARCH_RADIUS_PX = 34;
 export const RIVER_GATEWAY_SAMPLE_STEP_PX = 2;
 export const RIVER_GATEWAY_SAMPLE_DIRECTIONS = 32;
 export const RIVER_GATEWAY_MIN_FORWARD_DOT = Math.cos(Math.PI / 3);
-export const SHIP_HAUL_HOLD_DELAY_SECONDS = 0.28;
-export const SHIP_HAUL_RAMP_SECONDS = 0.72;
-export const COASTAL_HAUL_MOTION_SCALE = 0.18;
+export const SHIP_HAUL_HOLD_DELAY_SECONDS = 0.18;
+export const SHIP_HAUL_RAMP_SECONDS = 0.5;
+export const COASTAL_HAUL_MOTION_SCALE = 0.24;
 
 export function heldShipHaulStrength(
   heldSeconds,
@@ -145,10 +145,10 @@ export function advanceRiverCenterline(path, pathT, distancePx, directionSign) {
   validateRiverPath(path);
   if (!Number.isFinite(pathT)) throw new Error(`Invalid river path position: ${pathT}`);
   if (!Number.isFinite(distancePx) || distancePx < 0) {
-    throw new Error(`Invalid river conveyor distance: ${distancePx}`);
+    throw new Error(`Invalid river rail distance: ${distancePx}`);
   }
   if (directionSign !== 1 && directionSign !== -1) {
-    throw new Error(`Invalid river conveyor direction: ${directionSign}`);
+    throw new Error(`Invalid river rail direction: ${directionSign}`);
   }
 
   const pathLength = approximateRiverPathLength(path);
@@ -161,9 +161,78 @@ export function advanceRiverCenterline(path, pathT, distancePx, directionSign) {
   };
 }
 
+export function selectRiverRailPath({
+  probes,
+  desiredDirection,
+  activePathKey = null,
+  activeDirectionSign = 0,
+  excludedPathKey = null
+}) {
+  if (!Array.isArray(probes)) throw new Error("River rail selection requires centerline probes");
+  const desired = normalize2(desiredDirection);
+  if (!desired) return null;
+
+  if (activePathKey !== null) {
+    if (typeof activePathKey !== "string" || activePathKey.length === 0) {
+      throw new Error("River rail active path key must be a non-empty string");
+    }
+    if (activeDirectionSign !== 1 && activeDirectionSign !== -1) {
+      throw new Error(`Invalid active river rail direction: ${activeDirectionSign}`);
+    }
+    const activeProbe = nearestProbeForPath(probes, activePathKey);
+    if (activeProbe) {
+      return { probe: activeProbe, directionSign: activeDirectionSign };
+    }
+  }
+
+  let best = null;
+  for (const probe of probes) {
+    validateRiverRailProbe(probe);
+    if (probe.pathKey === excludedPathKey) continue;
+    if (!best || riverRailProbeIsBetter(probe, best, desired)) best = probe;
+  }
+  if (!best) return null;
+  return {
+    probe: best,
+    directionSign: dot2(best.tangent, desired) >= 0 ? 1 : -1
+  };
+}
+
+function nearestProbeForPath(probes, pathKey) {
+  let best = null;
+  for (const probe of probes) {
+    validateRiverRailProbe(probe);
+    if (probe.pathKey !== pathKey) continue;
+    if (!best || probe.centerlineDistance < best.centerlineDistance) best = probe;
+  }
+  return best;
+}
+
+function validateRiverRailProbe(probe) {
+  if (!probe || typeof probe.pathKey !== "string" || probe.pathKey.length === 0) {
+    throw new Error("River rail probe requires a path key");
+  }
+  if (!Number.isFinite(probe.centerlineDistance)) {
+    throw new Error(`River rail probe ${probe.pathKey} requires a finite centerline distance`);
+  }
+  if (!normalize2(probe.tangent)) {
+    throw new Error(`River rail probe ${probe.pathKey} requires a finite tangent`);
+  }
+}
+
+function riverRailProbeIsBetter(candidate, current, desired) {
+  const distanceDifference = candidate.centerlineDistance - current.centerlineDistance;
+  if (distanceDifference < -0.75) return true;
+  if (distanceDifference > 0.75) return false;
+  const candidateAlignment = Math.abs(dot2(candidate.tangent, desired));
+  const currentAlignment = Math.abs(dot2(current.tangent, desired));
+  if (candidateAlignment !== currentAlignment) return candidateAlignment > currentAlignment;
+  return candidate.centerlineDistance < current.centerlineDistance;
+}
+
 function validateRiverPath(path) {
   if (!path || !["x0", "y0", "cx", "cy", "x1", "y1"].every((key) => Number.isFinite(path[key]))) {
-    throw new Error("River conveyor requires a finite Bezier path");
+    throw new Error("River rail requires a finite Bezier path");
   }
 }
 
@@ -175,7 +244,7 @@ function approximateRiverPathLength(path) {
     length += Math.hypot(point.x - previous.x, point.y - previous.y);
     previous = point;
   }
-  if (length <= 1e-6) throw new Error("River conveyor path has no length");
+  if (length <= 1e-6) throw new Error("River rail path has no length");
   return length;
 }
 

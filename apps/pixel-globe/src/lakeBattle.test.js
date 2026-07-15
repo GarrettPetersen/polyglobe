@@ -267,7 +267,7 @@ test("a scripted skirmish reaches a transient combat result", () => {
   });
   for (let frame = 0; frame < 14400 && battle.phase === LAKE_BATTLE_PHASE_ACTIVE; frame++) {
     updateLakeBattle(battle, 1 / 60, {
-      desiredHeadingRad: frame < 900 ? -0.5 : 1.2,
+      desiredHeadingRad: frame < 900 ? -0.5 : -1.2,
       firePort: frame % 90 === 0,
       fireStarboard: frame % 90 === 45
     });

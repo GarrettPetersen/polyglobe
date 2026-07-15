@@ -6,6 +6,7 @@ import {
   SHIP_PROPULSION_OAR_SAIL,
   SHIP_PROPULSION_SAIL,
   SHIP_STATS,
+  SHIP_UPWIND_FORGIVENESS_DEG,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
@@ -74,11 +75,20 @@ test("native canoe hulls are small, arrow-armed, and regionally distinct", () =>
   assert.equal(polynesian.propulsion, SHIP_PROPULSION_SAIL);
   assert.ok(polynesian.upwindStallAngleDeg > 0);
   assert.equal(shipStatsForSlug("sampan").propulsion, SHIP_PROPULSION_SAIL);
-  assert.equal(shipStatsForSlug("sampan").upwindStallAngleDeg, 45);
+  assert.equal(SHIP_UPWIND_FORGIVENESS_DEG, 5);
+  assert.equal(shipStatsForSlug("sampan").upwindStallAngleDeg, 40);
   const fishingBarque = shipStatsForSlug("fishing-lugger");
   assert.equal(mesoamerican.topSpeedRad, 0.010 * SHIP_TOP_SPEED_SCALE);
   assert.ok(mesoamerican.topSpeedRad < fishingBarque.topSpeedRad * 0.4);
   assert.ok(mesoamerican.accelerationRad < fishingBarque.accelerationRad);
+});
+
+test("every sail plan receives the shared five-degree close-hauled allowance", () => {
+  assert.equal(shipStatsForSlug("felucca").upwindStallAngleDeg, 25);
+  assert.equal(shipStatsForSlug("brigantine").upwindStallAngleDeg, 35);
+  assert.equal(shipStatsForSlug("carrack").upwindStallAngleDeg, 55);
+  assert.equal(shipStatsForSlug("polynesian-voyaging-canoe").upwindStallAngleDeg, 23);
+  assert.equal(shipStatsForSlug("mesoamerican-dugout-canoe").upwindStallAngleDeg, 0);
 });
 
 test("the coastal Dhow is a tiny unarmed solo craft", () => {

@@ -5,6 +5,7 @@ import { createWorldEconomy } from "./economy.js";
 import {
   ENEMY_FACTION_START_REPUTATION,
   FACTION_SAFE_PASSAGE_DAYS,
+  GAME_STATE_VERSION,
   HOME_FACTION_START_REPUTATION,
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
@@ -82,7 +83,7 @@ test("version 8 game states migrate diplomacy and ship classification without lo
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 13);
+  assert.equal(restored.version, GAME_STATE_VERSION);
   assert.equal(mingTradeOpenToFaction(restored, "joseon"), true);
   assert.equal(mingTradeOpenToFaction(restored, "england"), false);
   assert.ok(restored.relations.diplomacy);
@@ -130,7 +131,7 @@ test("version 9 game states preserve passage and gain diplomatic contacts", () =
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 13);
+  assert.equal(restored.version, GAME_STATE_VERSION);
   assert.equal(restored.relations.safePassageUntilMinute.ottoman, 2000);
   assert.deepEqual(restored.relations.diplomacy.contacts, {});
 });
@@ -148,7 +149,7 @@ test("version 10 game states gain the initial Joseon Ming trade agreement", () =
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 13);
+  assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.relations.mingOpenTradeFactionIds, ["joseon"]);
 });
 
@@ -157,7 +158,7 @@ test("version 11 voyages gain empty persistent port conquest state", () => {
   legacy.version = 11;
   delete legacy.memory.conquest;
   const restored = migrateGameState(legacy, null);
-  assert.equal(restored.version, 13);
+  assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.memory.conquest, {
     portFactionOverrides: {},
     collapsedFactionIds: [],
@@ -172,7 +173,7 @@ test("version 12 voyages gain empty persistent safe-passage refusals", () => {
 
   const restored = migrateGameState(legacy, null);
 
-  assert.equal(restored.version, 13);
+  assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.relations.safePassageRefusalUntilMinute, {});
 });
 

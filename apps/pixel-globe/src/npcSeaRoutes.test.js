@@ -15,11 +15,13 @@ import {
   damageNpcShip,
   npcCargoAvailableQuantity,
   npcPortHasMajorProtection,
+  reconcileNpcCargoCapacity,
   npcShipHasCombatGrace,
   npcShipSnapshots,
   restoreNpcSeaRouteSystem,
   sinkNpcShip,
   snapshotNpcSeaRouteSystem,
+  storeNpcCargo,
   surrenderNpcShip,
   updateNpcPirateHideoutPlayerThreat,
   updateNpcSeaRouteSystem
@@ -328,6 +330,82 @@ test("NPC fishing catches stop at the remaining hull cargo capacity", () => {
 
   assert.equal(cargoUnits(fisherman), fisherman.cargoCapacity);
   assert.equal(npcCargoAvailableQuantity(fisherman, "fish"), 0);
+});
+
+test("NPC cargo storage accepts only the remaining hull capacity", () => {
+  const ship = {
+    id: "capacity-test",
+    slug: "small-cog",
+    cargoCapacity: 4,
+    cargo: { fish: 3 },
+    cargoCost: { fish: 30 }
+  };
+
+  const stored = storeNpcCargo(ship, "spices", 5, 500, "capacity test");
+
+  assert.equal(stored, 1);
+  assert.deepEqual(ship.cargo, { fish: 3, spices: 1 });
+  assert.equal(ship.cargoCost.spices, 100);
+  assert.equal(cargoUnits(ship), ship.cargoCapacity);
+});
+
+test("over-capacity NPC cargo is jettisoned with a visible diagnostic", (t) => {
+  const warnings = [];
+  t.mock.method(console, "warn", (...args) => warnings.push(args));
+  const ship = {
+    id: "overflow-test",
+    slug: "small-cog",
+    cargoCapacity: 4,
+    cargo: { fish: 3, spices: 4 },
+    cargoCost: { fish: 30, spices: 400 }
+  };
+
+  const report = reconcileNpcCargoCapacity(ship, "test overflow");
+
+  assert.equal(report.beforeUnits, 7);
+  assert.ok(report.afterUnits <= ship.cargoCapacity);
+  assert.equal(cargoUnits(ship), report.afterUnits);
+  assert.equal(Object.values(report.removed).reduce((sum, quantity) => sum + quantity, 0), 3);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0][0], /cargo capacity exceeded/i);
+  assert.deepEqual(warnings[0][1], report);
+  for (const [goodId, quantity] of Object.entries(ship.cargo)) {
+    const originalUnitCost = goodId === "fish" ? 10 : 100;
+    assert.equal(ship.cargoCost[goodId], quantity * originalUnitCost);
+  }
+});
+
+test("over-capacity saved NPC cargo is repaired during restore", (t) => {
+  const warnings = [];
+  t.mock.method(console, "warn", (...args) => warnings.push(args));
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const savedShip = snapshot.ships[0];
+  savedShip.cargo = { fish: savedShip.cargoCapacity + 3 };
+  savedShip.cargoCost = { fish: (savedShip.cargoCapacity + 3) * 10 };
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  const restored = routes.shipById.get(savedShip.id);
+  assert.equal(cargoUnits(restored), restored.cargoCapacity);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0][1].source, "save restore");
+});
+
+test("invalid NPC cargo still fails loudly", () => {
+  const ship = {
+    id: "invalid-cargo-test",
+    slug: "small-cog",
+    cargoCapacity: 4,
+    cargo: { fish: -1 },
+    cargoCost: { fish: 0 }
+  };
+
+  assert.throws(
+    () => reconcileNpcCargoCapacity(ship, "test invalid cargo"),
+    /invalid fish cargo/
+  );
 });
 
 test("surrender transfers stores and grants protection until a safe port", () => {

@@ -21,12 +21,12 @@
     {
       "slug": "caravel",
       "label": "Caravel",
-      "waterlineY": -0.6125613902860336,
-      "waterlineOffsetY": 0,
-      "sideViewWaterlineY": 82,
+      "waterlineY": -0.6585510141770778,
+      "waterlineOffsetY": -0.046,
+      "sideViewWaterlineY": 84,
       "lowestOpaquePixelY": 87,
-      "lowestOpaqueRelativeToWaterlinePx": 5,
-      "opaqueRowsBelowWaterline": 5,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
       "oarPivotCount": 0,
       "oarPivotPixels": [],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/caravel-waterline.png"

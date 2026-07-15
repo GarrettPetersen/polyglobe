@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { STANDARD_CANNON_RELOAD_SECONDS } from "./navalWeapons.js";
 import {
+  SHORE_BATTERY_DISABLE_DAYS,
   SHORE_BATTERY_DISABLE_MINUTES,
   SHORE_BATTERY_HIT_POINTS_PER_GUN,
   SHORE_BATTERY_RELOAD_SECONDS,
@@ -9,13 +10,21 @@ import {
   createShoreBatteryState,
   damageShoreBattery,
   shoreBatteryCanFire,
+  shoreBatteryDisabledNotice,
   shoreBatteryGunCount,
   shoreBatteryMayDemandToll,
   shoreBatteryPlayerResponse,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 
-const city = { tileId: 7, portId: "test-port", factionId: "ottoman", cityType: "mediterranean", population: 80000 };
+const city = {
+  tileId: 7,
+  portId: "test-port",
+  city: "Alexandria",
+  factionId: "ottoman",
+  cityType: "mediterranean",
+  population: 80000
+};
 
 test("capitals mount four shore guns while other important cities mount two", () => {
   const battery = createShoreBatteryState(city, {}, 0);
@@ -36,6 +45,8 @@ test("disabled shore batteries recover after three in-game days", () => {
   const battery = createShoreBatteryState(city, flags, 100);
   const result = damageShoreBattery(battery, flags, battery.maxHitPoints, 100);
   assert.equal(result.newlyDisabled, true);
+  assert.equal(SHORE_BATTERY_DISABLE_DAYS, 3);
+  assert.equal(shoreBatteryDisabledNotice(battery), "ALEXANDRIA BATTERY DISABLED (3 DAYS)");
   assert.equal(battery.disabledUntilMinute, 100 + SHORE_BATTERY_DISABLE_MINUTES);
   assert.equal(updateShoreBatteryState(battery, flags, battery.disabledUntilMinute - 1, 1), false);
   assert.equal(updateShoreBatteryState(battery, flags, battery.disabledUntilMinute, 1), true);

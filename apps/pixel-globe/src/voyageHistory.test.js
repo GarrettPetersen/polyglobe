@@ -30,7 +30,8 @@ test("voyage summaries expose lifetime totals and useful records", () => {
       doubloonsEarned: 900,
       endingDoubloons: 1300,
       discoveries: 2,
-      visitedPorts: 5
+      visitedPorts: 5,
+      outcomeType: "victory"
     }), 1),
     completedRecord(voyageRecord({
       captainName: "Zheng",
@@ -38,7 +39,8 @@ test("voyage summaries expose lifetime totals and useful records", () => {
       doubloonsEarned: 4200,
       endingDoubloons: 3900,
       discoveries: 7,
-      visitedPorts: 14
+      visitedPorts: 14,
+      outcomeType: "quit"
     }), 2)
   ];
 
@@ -50,7 +52,10 @@ test("voyage summaries expose lifetime totals and useful records", () => {
     mostDoubloonsEarned: 4200,
     richestEndingPurse: 3900,
     mostDiscoveries: 7,
-    mostPortsVisited: 14
+    mostPortsVisited: 14,
+    victories: 1,
+    deaths: 0,
+    quits: 1
   });
 });
 
@@ -77,6 +82,23 @@ test("history remains bounded and malformed storage fails closed", () => {
   assert.equal(readVoyageHistory({ storage }).status, "invalid");
 });
 
+test("version 1 voyage history is upgraded with explicit outcomes and map coverage", () => {
+  const storage = memoryStorage();
+  const legacy = voyageRecord();
+  delete legacy.outcomeType;
+  delete legacy.goal;
+  delete legacy.mappedPercent;
+  storage.setItem(VOYAGE_HISTORY_STORAGE_KEY, JSON.stringify({
+    version: 1,
+    records: [completedRecord(legacy, 1)]
+  }));
+  const loaded = readVoyageHistory({ storage });
+  assert.equal(loaded.status, "ready");
+  assert.equal(loaded.records[0].outcomeType, "death");
+  assert.equal(loaded.records[0].goal, "Unknown");
+  assert.equal(loaded.records[0].mappedPercent, 0);
+});
+
 function voyageRecord(overrides = {}) {
   return {
     captainName: "Captain Test",
@@ -85,6 +107,8 @@ function voyageRecord(overrides = {}) {
     endDateLabel: "2 FEB 1523",
     vessel: "Caravel",
     outcome: "Lost at sea.",
+    outcomeType: "death",
+    goal: "Explorer",
     daysAtSea: 10,
     doubloonsEarned: 500,
     endingDoubloons: 1200,
@@ -97,6 +121,7 @@ function voyageRecord(overrides = {}) {
     crewLost: 4,
     piracyActs: 0,
     circumnavigated: false,
+    mappedPercent: 12.5,
     latitude: 10,
     longitude: 20,
     ...overrides

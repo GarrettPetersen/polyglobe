@@ -10,6 +10,11 @@ import {
   updateCircumnavigationProgress
 } from "./gameState.js";
 import { buildMountainLandmarks } from "./mountainLandmarks.js";
+import {
+  AUTHORED_MOUNTAIN_REPORT_NAMES,
+  explorerReportDialogueForDiscovery,
+  validateExplorerReportDialogueCatalog
+} from "./explorerDiscoveryDialogue.js";
 
 const repoRoot = new URL("../../../", import.meta.url);
 
@@ -32,6 +37,15 @@ test("full named mountain data aligns with cached peak tiles", async () => {
   assert.equal(fuji.elevationM, 3776);
   assert.ok(registry.peakTileIds.has(fuji.tileId));
   assert.equal(registry.famous.some((mountain) => mountain.displayName === "Cero Raya"), false);
+  assert.deepEqual(
+    new Set(AUTHORED_MOUNTAIN_REPORT_NAMES),
+    new Set(registry.famous.map((mountain) => mountain.displayName))
+  );
+  const discoveries = registry.famous.map((mountain) => ({ ...mountain, kind: "mountain" }));
+  assert.equal(validateExplorerReportDialogueCatalog(discoveries), registry.famous.length);
+  const fujiReport = explorerReportDialogueForDiscovery({ ...fuji, kind: "mountain" });
+  assert.match(fujiReport.player, /near-perfect cone/i);
+  assert.match(fujiReport.patron, /painters/i);
 });
 
 test("landmark discoveries are recorded only once", () => {

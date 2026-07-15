@@ -130,6 +130,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   const incaPorts = ports.filter((city) => city.factionId === "inca");
   const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
+  const kilwa = ports.find((city) => city.city === "Kilwa" && city.country === "Tanzania");
   const pacificVillages = ports.filter((city) => city.manualRegion === "pacific-islands");
   const encounterVillages = ports.filter((city) => city.manualRegion === "explorer-encounters");
   const spiceIslandVillages = ports.filter((city) =>
@@ -154,6 +155,18 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
   assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
+  assert.ok(kilwa, "Kilwa should be a dockable Swahili-coast island port");
+  assert.equal(kilwa.lon, 39.51);
+  assert.ok(
+    cityPortAccessRingDistance({
+      graph,
+      earthRows: earth.tiles,
+      reachableNavigationMask: reachable,
+      riverMasks: masks,
+      tileId: kilwa.tileId
+    }) <= 1,
+    "Kilwa should be visibly adjacent to ocean-reachable water"
+  );
   const hafnarfjordur = ports.find((city) => city.city === "Hafnarfjordur" && city.country === "Iceland");
   assert.ok(hafnarfjordur, "Hafnarfjordur should be a dockable Icelandic port");
   assert.equal(hafnarfjordur.cityType, "northern-european");
