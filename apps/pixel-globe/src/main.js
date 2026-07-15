@@ -324,6 +324,11 @@ import {
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
 import { controlTextLayout } from "./controlTextLayout.js";
+import {
+  INTERACTION_INPUT_DIALOGUE,
+  INTERACTION_INPUT_FISHING,
+  interactionInputOwner
+} from "./interactionInput.js";
 import { fitMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { gameOverStatsLayout } from "./gameOverLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
@@ -1598,12 +1603,16 @@ window.addEventListener("keydown", (event) => {
     handleCaptainAlertKeyDown(event);
     return;
   }
-  if (fishingAction) {
-    event.preventDefault();
+  const interactionOwner = interactionInputOwner({
+    dialogueActive: Boolean(dialogueState),
+    fishingActive: Boolean(fishingAction)
+  });
+  if (interactionOwner === INTERACTION_INPUT_DIALOGUE) {
+    handleDialogueKeyDown(event);
     return;
   }
-  if (dialogueState) {
-    handleDialogueKeyDown(event);
+  if (interactionOwner === INTERACTION_INPUT_FISHING) {
+    event.preventDefault();
     return;
   }
   if (captainMenu.isOpen) {
@@ -5539,7 +5548,17 @@ function handlePointerDown(event) {
     handleCaptainAlertPointerDown(point);
     return;
   }
-  if (fishingAction) {
+  const interactionOwner = interactionInputOwner({
+    dialogueActive: Boolean(dialogueState),
+    fishingActive: Boolean(fishingAction)
+  });
+  if (interactionOwner === INTERACTION_INPUT_DIALOGUE) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    handleDialoguePointerDown(point);
+    return;
+  }
+  if (interactionOwner === INTERACTION_INPUT_FISHING) {
     event.preventDefault();
     return;
   }
@@ -5577,12 +5596,6 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     startShoreScavenge();
-    return;
-  }
-  if (dialogueState) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleDialoguePointerDown(point);
     return;
   }
   if (pointInRect(point, interactionButtonRect)) {
@@ -5671,7 +5684,16 @@ function handlePointerMove(event) {
     dirty = true;
     return;
   }
-  if (fishingAction) return;
+  const interactionOwner = interactionInputOwner({
+    dialogueActive: Boolean(dialogueState),
+    fishingActive: Boolean(fishingAction)
+  });
+  if (interactionOwner === INTERACTION_INPUT_DIALOGUE) {
+    updateDialogueSelectionFromPoint(point);
+    dirty = true;
+    return;
+  }
+  if (interactionOwner === INTERACTION_INPUT_FISHING) return;
   if (shipInfoMenu.isOpen) {
     dirty = true;
     return;
@@ -5681,11 +5703,6 @@ function handlePointerMove(event) {
     return;
   }
   if (discoveriesMenu.isOpen) {
-    dirty = true;
-    return;
-  }
-  if (dialogueState) {
-    updateDialogueSelectionFromPoint(point);
     dirty = true;
     return;
   }
@@ -6326,6 +6343,11 @@ function openShipDialogue(shipCall, options = {}) {
 }
 
 function stopShipForDialogue() {
+  fishingAction = null;
+  stopShipMotion();
+}
+
+function stopShipMotion() {
   if (!ship) return;
   ship.velocity = [0, 0, 0];
   ship.targetHeading = ship.heading.slice();
@@ -6348,7 +6370,7 @@ function toggleAnchor() {
   }
   if (!canAnchorAtCurrentShore()) return false;
   anchored = true;
-  stopShipForDialogue();
+  stopShipMotion();
   saveVoyageNow("dropped anchor");
   dirty = true;
   return true;
@@ -7237,7 +7259,7 @@ function catchFishAtFishery(call) {
     frameIndex: 0,
     cycleIndex: 0
   };
-  stopShipForDialogue();
+  stopShipMotion();
   playFishingSound();
   dirty = true;
   return true;
@@ -10106,6 +10128,7 @@ function openShoreBatteryCombatHail(city, state) {
     simMinute: Math.floor(weatherClockMinutes)
   });
   dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
   ensureDialoguePortraitLoaded();
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
   dirty = true;
@@ -13834,7 +13857,10 @@ function drawDiscoveriesMenu() {
 }
 
 function discoverySpriteImage(entry) {
-  const spriteKey = discoveryCatalogById.get(entry.id)?.spriteKey;
+  const discovery = discoveryCatalogById.get(entry.id);
+  if (!discovery) throw new Error(`Discovered entry is missing from the catalog: ${entry.id}`);
+  if (discovery.menuTerrainSpriteKey) return terrainImage(discovery.menuTerrainSpriteKey);
+  const spriteKey = discovery.spriteKey;
   if (!spriteKey) return null;
   const image = worldDiscoveryImages.get(spriteKey);
   if (!image) throw new Error(`Missing discovered wonder image: ${spriteKey}`);

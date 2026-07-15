@@ -5,6 +5,8 @@ export const LAKE_VICTORIA_DISCOVERY_ID = "landmark-lake-victoria";
 export const GRAND_CANAL_DISCOVERY_ID = "landmark-grand-canal";
 export const EL_DORADO_DISCOVERY_ID = "legend-el-dorado";
 export const CIRCUMNAVIGATION_DISCOVERY_ID = "achievement-circumnavigation";
+export const MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY = "mountain_snowy_01";
+export const WATER_DISCOVERY_MENU_SPRITE_KEY = "water_shallow_01";
 
 const GRAND_CANAL_ROUTE_COORDINATES = Object.freeze([
   Object.freeze({ lat: 39.92, lon: 116.21 }),
@@ -33,20 +35,10 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     region: "ottoman",
     captainDialogue: "The Great Pyramid! No tale prepared me for the scale of it."
   },
-  {
-    id: LAKE_VICTORIA_DISCOVERY_ID,
-    kind: "landmark",
-    displayName: "Lake Victoria",
-    notice: "You have discovered Lake Victoria",
-    detail: "Africa's great lake",
-    lat: -1.0,
-    lon: 33.0,
-    radiusPx: 350,
-    spriteKey: null,
-    historicity: "historical",
+  waterFeature("lake-victoria", "Lake Victoria", "Africa's great lake", -1.0, 33.0, 350, {
     region: "africa",
     captainDialogue: "We've found it! The legendary source of the Nile!"
-  },
+  }),
   landmark("stonehenge", "Stonehenge", "Salisbury Plain", 51.1789, -1.8262, 165, {
     region: "europe",
     captainDialogue: "Stonehenge! Who raised these stones, and what did they see in the sky?"
@@ -79,21 +71,11 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     region: "east-asia",
     captainDialogue: "The Great Wall runs beyond the horizon. No map could capture its scale."
   }),
-  {
-    id: GRAND_CANAL_DISCOVERY_ID,
-    kind: "landmark",
-    displayName: "The Grand Canal",
-    notice: "You have discovered the Grand Canal",
-    detail: "Beijing-Hangzhou waterway",
-    lat: 35.30,
-    lon: 116.54,
-    radiusPx: 120,
-    spriteKey: null,
+  waterFeature("grand-canal", "The Grand Canal", "Beijing-Hangzhou waterway", 35.30, 116.54, 120, {
     routeCoordinates: GRAND_CANAL_ROUTE_COORDINATES,
-    historicity: "historical",
     region: "east-asia",
     captainDialogue: "A river shaped by human hands, joining north and south."
-  },
+  }),
   landmark("borobudur", "Borobudur", "The mountain of a thousand Buddhas", -7.6079, 110.2038, 205, {
     region: "southeast-asia",
     captainDialogue: "A mountain of carved stone, crowned with a thousand Buddhas."
@@ -321,7 +303,8 @@ function landmark(slug, displayName, detail, lat, lon, radiusPx, options = {}) {
 function waterFeature(slug, displayName, detail, lat, lon, radiusPx, options = {}) {
   return {
     ...landmark(slug, displayName, detail, lat, lon, radiusPx, options),
-    spriteKey: null
+    spriteKey: null,
+    menuTerrainSpriteKey: WATER_DISCOVERY_MENU_SPRITE_KEY
   };
 }
 
@@ -385,7 +368,8 @@ export function mountainDiscovery(mountain) {
     notice: `You have discovered ${mountain.displayName}`,
     detail: `${Math.round(mountain.elevationM).toLocaleString("en-US")} m`,
     tileId: mountain.tileId,
-    radiusPx: 120
+    radiusPx: 120,
+    menuTerrainSpriteKey: MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY
   };
 }
 

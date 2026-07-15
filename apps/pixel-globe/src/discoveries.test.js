@@ -7,11 +7,14 @@ import {
   GRAND_CANAL_DISCOVERY_ID,
   GREAT_PYRAMID_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_ID,
+  MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY,
+  WATER_DISCOVERY_MENU_SPRITE_KEY,
   WORLD_DISCOVERY_SPECS,
   WORLD_DISCOVERY_SPRITE_KEYS,
   buildWorldDiscoveries,
   captainDialogueForDiscovery,
   isDiscoveryNovelToCharacter,
+  mountainDiscovery,
   mountainIsAccessibleFromNavigation
 } from "./discoveries.js";
 import {
@@ -81,7 +84,14 @@ test("world discovery registry is unique, complete, and explicit about historici
   ]);
   assert.ok(WORLD_DISCOVERY_SPECS
     .filter((item) => waterFeatures.has(item.id))
-    .every((item) => item.spriteKey === null));
+    .every((item) =>
+      item.spriteKey === null && item.menuTerrainSpriteKey === WATER_DISCOVERY_MENU_SPRITE_KEY
+    ));
+  assert.equal(
+    mountainDiscovery({ id: "mountain-fuji", displayName: "Mount Fuji", elevationM: 3776, tileId: 42 })
+      .menuTerrainSpriteKey,
+    MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY
+  );
 });
 
 test("legendary discoveries are recorded alongside historical landmarks", () => {
