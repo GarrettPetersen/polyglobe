@@ -1,0 +1,4 @@
+interface:
+  display_name: "Produce Pixel Globe Shorts"
+  short_description: "Turn gameplay and narration into polished Shorts"
+  default_prompt: "Use $produce-pixel-globe-youtube-shorts to plan, capture, edit, and verify a YouTube Short for Marque & Reprisal."

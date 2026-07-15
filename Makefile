@@ -2,8 +2,10 @@ DEMO_DIR := examples/globe-demo
 RAILWAYS_DIR := apps/railways
 PIXEL_GLOBE_DIR := apps/pixel-globe
 PIXEL_GLOBE_PORT ?= 5184
+PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
+PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-capture pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships
 
 help:
 	@echo "Targets:"
@@ -22,6 +24,10 @@ help:
 	@echo "  make railways-build     Build Railways app"
 	@echo "  make railways-preview   Preview built Railways app"
 	@echo "  make pixel-globe-dev    Run Pixel Globe locally on PIXEL_GLOBE_PORT (default: 5184)"
+	@echo "  make pixel-globe-capture Run a disposable 9:16 capture scenario"
+	@echo "  make pixel-globe-shorts-setup Install the local Whisper environment"
+	@echo "  make pixel-globe-transcribe AUDIO=... OUT=... Transcribe narration"
+	@echo "  make pixel-globe-short VIDEO=... EVENTS=... NARRATION=... TRANSCRIPT=... OUTPUT=..."
 	@echo "  make pixel-globe-normalize-sfx      Normalize source SFX to runtime OGG files"
 	@echo "  make pixel-globe-render-ship        Rebuild the default ship sprite lighting sheets"
 	@echo "  make pixel-globe-render-unity-ships Rebuild imported Unity ship sprite lighting sheets"
@@ -70,6 +76,31 @@ railways-preview:
 
 pixel-globe-dev:
 	PORT=$(PIXEL_GLOBE_PORT) npm --prefix $(PIXEL_GLOBE_DIR) run dev
+
+pixel-globe-capture:
+	@echo "Capture URL: http://127.0.0.1:$(PIXEL_GLOBE_PORT)/?capture=$(PIXEL_GLOBE_CAPTURE_SCENARIO)"
+	PORT=$(PIXEL_GLOBE_PORT) npm --prefix $(PIXEL_GLOBE_DIR) run dev
+
+pixel-globe-shorts-setup:
+	python3 -m venv $(PIXEL_GLOBE_DIR)/.venv-shorts
+	$(PIXEL_GLOBE_DIR)/.venv-shorts/bin/pip install -r $(PIXEL_GLOBE_DIR)/tools/shorts/requirements.txt
+
+pixel-globe-transcribe:
+	@test -n "$(AUDIO)" || (echo "AUDIO is required" && exit 2)
+	@test -n "$(OUT)" || (echo "OUT is required" && exit 2)
+	@test -x "$(PIXEL_GLOBE_SHORTS_PYTHON)" || (echo "Run make pixel-globe-shorts-setup first" && exit 2)
+	$(PIXEL_GLOBE_SHORTS_PYTHON) $(PIXEL_GLOBE_DIR)/tools/shorts/transcribe.py "$(AUDIO)" --output-dir "$(OUT)"
+
+pixel-globe-short:
+	@test -n "$(VIDEO)" || (echo "VIDEO is required" && exit 2)
+	@test -n "$(EVENTS)" || (echo "EVENTS is required" && exit 2)
+	@test -n "$(NARRATION)" || (echo "NARRATION is required" && exit 2)
+	@test -n "$(TRANSCRIPT)" || (echo "TRANSCRIPT is required" && exit 2)
+	@test -n "$(OUTPUT)" || (echo "OUTPUT is required" && exit 2)
+	@test -x "$(PIXEL_GLOBE_SHORTS_PYTHON)" || (echo "Run make pixel-globe-shorts-setup first" && exit 2)
+	$(PIXEL_GLOBE_SHORTS_PYTHON) $(PIXEL_GLOBE_DIR)/tools/shorts/build_short.py \
+		--video "$(VIDEO)" --events "$(EVENTS)" --narration "$(NARRATION)" \
+		--transcript "$(TRANSCRIPT)" --output "$(OUTPUT)" $(if $(PLAN),--plan "$(PLAN)",)
 
 pixel-globe-normalize-sfx:
 	npm --prefix $(PIXEL_GLOBE_DIR) run normalize:sfx

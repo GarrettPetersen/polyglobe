@@ -121,7 +121,12 @@ import {
   updateSurvival,
   visitPort
 } from "./gameState.js";
-import { diplomacyEventNotice, recordDiplomaticPortCall } from "./worldDiplomacy.js";
+import {
+  diplomacyEventNotice,
+  diplomacyPairKey,
+  recordDiplomaticPortCall,
+  validateWorldDiplomacy
+} from "./worldDiplomacy.js";
 import {
   fishingNetById,
   npcFishingNetExpectedHaul
@@ -163,6 +168,7 @@ import {
   NPC_ROLE_WARSHIP,
   NPC_SHIP_SLUGS,
   applyNpcConquestOwnership,
+  configureCaptureEncounter,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcPortHasMajorProtection,
@@ -303,6 +309,13 @@ import {
   tradeGoodIconId
 } from "./gameIcons.js";
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
+import {
+  CAPTURE_MAX_SECONDS,
+  CAPTURE_VIEWPORT,
+  captureScenarioFromSearch
+} from "./captureScenarios.js";
+import { CaptureRecorder } from "./captureRecorder.js";
+import { createCaptureControls } from "./captureControls.js";
 import {
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
@@ -1262,6 +1275,7 @@ const SEAGULL_FLAP_MIN_MS = 330;
 const SEAGULL_FLAP_SPREAD_MS = 260;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
+const CAPTURE_SCENARIO = captureScenarioFromSearch(window.location.search);
 const START_POSITION_OVERRIDE = startPositionOverrideFromLocation();
 const START_WEATHER = startWeatherFromLocation();
 const START_SHIP_SLUG_OVERRIDE = shipSlugOverrideFromLocation();
@@ -1463,6 +1477,9 @@ const lakeBattleShipAssetPromises = new Map();
 let localSaveResult = { status: "empty", save: null, error: null };
 let voyageHistoryResult = { status: "ready", records: [], error: null };
 let hasStartedVoyage = false;
+let captureRecorder = null;
+let capturePlaybackPaused = Boolean(CAPTURE_SCENARIO);
+let captureLastPositionEventMs = -Infinity;
 let lastAutosaveMs = 0;
 let captainAlertModal = null;
 const survivalDamageTimers = {
@@ -1715,11 +1732,15 @@ async function main() {
   stormShipStrikeImage = loadedStormShipStrikeImage;
   cityCatalog = loadedCityCatalog;
   creditsMarkdown = loadedCreditsMarkdown;
-  localSaveResult = readLocalSave();
+  localSaveResult = CAPTURE_SCENARIO
+    ? { status: "empty", save: null, error: null }
+    : readLocalSave();
   if (localSaveResult.status === "invalid") {
     console.warn("[pixel-globe] local save is unavailable", localSaveResult.error);
   }
-  voyageHistoryResult = readVoyageHistory();
+  voyageHistoryResult = CAPTURE_SCENARIO
+    ? { status: "ready", records: [], error: null }
+    : readVoyageHistory();
   if (voyageHistoryResult.status === "invalid") {
     console.warn("[pixel-globe] past voyage history is unavailable", voyageHistoryResult.error);
   }
@@ -1813,7 +1834,9 @@ async function main() {
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
-  const playerCharacter = playerProfile.character;
+  const playerCharacter = CAPTURE_SCENARIO
+    ? capturePlayerCharacter(playerProfile.character, CAPTURE_SCENARIO)
+    : playerProfile.character;
   const playerShipSlug = START_SHIP_SLUG_OVERRIDE || playerProfile.starterShipSlug;
   const playerStartPosition = START_POSITION_OVERRIDE || {
     lat: playerProfile.homePort.lat,
@@ -1878,15 +1901,18 @@ async function main() {
     playerShipSlug,
     playerCharacter.nationalityId
   );
+  if (CAPTURE_SCENARIO) applyCaptureShipHeading(ship, CAPTURE_SCENARIO.player.headingDeg);
   gameState = createGameState({
     cargoCapacity: ship.cargoCapacity,
     startMinute: weatherClockMinutes,
     playerCharacter,
     shipStats: ship.stats
   });
+  if (CAPTURE_SCENARIO) gameState.activePlaySeconds = CAPTURE_SCENARIO.player.activePlaySeconds;
   applyCurrentPortConquestOwnership();
   sailingTutorialState = createSailingTutorialState();
   initializeProvisionalShipLoadout(gameState, ship.stats);
+  if (CAPTURE_SCENARIO) applyCaptureDiplomacy(gameState, CAPTURE_SCENARIO.diplomacy);
   npcSeaRoutes = createNpcSeaRouteSystem({
     ports: portCities,
     startMinute: weatherClockMinutes,
@@ -1896,6 +1922,11 @@ async function main() {
     mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(gameState, factionId),
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
+  if (CAPTURE_SCENARIO) {
+    for (const encounter of CAPTURE_SCENARIO.encounters) {
+      configureCaptureEncounter(npcSeaRoutes, encounter, weatherClockMinutes);
+    }
+  }
   const playerPirateHideoutPorts = buildPlayerPirateHideoutPorts(npcSeaRoutes.pirateHideouts);
   pirateHideoutPortsByTileId = new Map(playerPirateHideoutPorts.map((port) => [port.tileId, port]));
   const pirateHideoutHosts = playerPirateHideoutPorts.map((port) => ({
@@ -1913,8 +1944,9 @@ async function main() {
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
   console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
   console.info(`[pixel-globe] named characters: ${usedCharacterNames.size} unique people`);
-  playerIntroModal = createPlayerIntroModal(playerCharacter);
-  startMenu = createStartMenuState();
+  playerIntroModal = CAPTURE_SCENARIO ? null : createPlayerIntroModal(playerCharacter);
+  startMenu = CAPTURE_SCENARIO ? null : createStartMenuState();
+  hasStartedVoyage = Boolean(CAPTURE_SCENARIO);
   await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
@@ -1923,6 +1955,7 @@ async function main() {
   chart = buildChart(camera);
   setupThemeMusic();
   setupSoundEffects();
+  if (CAPTURE_SCENARIO) setupCaptureMode();
   requestAnimationFrame(loop);
   ensureGameAudioStarted();
 }
@@ -2665,6 +2698,9 @@ function terrainVariantFromLocation() {
 }
 
 function startPositionOverrideFromLocation() {
+  if (CAPTURE_SCENARIO) {
+    return { lat: CAPTURE_SCENARIO.player.lat, lon: CAPTURE_SCENARIO.player.lon };
+  }
   const params = new URLSearchParams(window.location.search);
   if (!params.has("lat") && !params.has("lon")) return null;
   return {
@@ -2674,6 +2710,14 @@ function startPositionOverrideFromLocation() {
 }
 
 function startWeatherFromLocation() {
+  if (CAPTURE_SCENARIO) {
+    const world = CAPTURE_SCENARIO.world;
+    return {
+      clockMinutes: (world.day - 1) * WEATHER_MINUTES_PER_DAY + world.hour * 60 + world.minute,
+      timeScale: world.timeScale,
+      explicitTime: true
+    };
+  }
   const params = new URLSearchParams(window.location.search);
   const dayParam = params.has("doy") ? "doy" : "day";
   const dayNumber = numericQueryParam(params, dayParam, 80, 1, WEATHER_DAYS);
@@ -2691,6 +2735,7 @@ function startWeatherFromLocation() {
 }
 
 function shipSlugOverrideFromLocation() {
+  if (CAPTURE_SCENARIO) return CAPTURE_SCENARIO.player.shipSlug;
   const requested = new URLSearchParams(window.location.search).get("ship");
   if (!requested) return null;
   if (!/^[a-z0-9][a-z0-9-]*$/i.test(requested)) {
@@ -3099,7 +3144,7 @@ function runFrame(nowMs) {
     requestAnimationFrame(loop);
     return;
   }
-  if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
+  if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
     advanceActivePlayTime(gameState, dt);
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
@@ -3119,12 +3164,13 @@ function runFrame(nowMs) {
       nowMs,
       intensity: playerStormIntensity()
     })) dirty = true;
+    recordCapturePosition(nowMs);
   }
   if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
-  if (hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
+  if (!CAPTURE_SCENARIO && hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
     saveVoyageNow("periodic autosave");
   }
   if (updateCityFlagAnimation(nowMs)) dirty = true;
@@ -3640,7 +3686,7 @@ function ensureAmbientLoopStarted(loop) {
 }
 
 function applyThemeAudioSettings() {
-  const musicVolume = clamp(optionsMenu.musicVolume, 0, 1);
+  const musicVolume = CAPTURE_SCENARIO ? 0 : clamp(optionsMenu.musicVolume, 0, 1);
   const sfxVolume = clamp(optionsMenu.sfxVolume, 0, 1);
   if (themeMusic) themeMusic.setOutput(musicVolume, optionsMenu.muted);
   if (soundEffects) {
@@ -4023,10 +4069,89 @@ function writeLocalStorage(key, value) {
 }
 
 function playerCharacterIdentityKey() {
+  if (CAPTURE_SCENARIO) return CAPTURE_SCENARIO.seed;
   const querySeed = new URLSearchParams(window.location.search).get("captainSeed");
   return resolvePlayerCharacterIdentityKey({
     querySeed,
     generatedSeed: randomPlayerCharacterIdentitySeed()
+  });
+}
+
+function capturePlayerCharacter(character, scenarioValue) {
+  const faction = factionById(scenarioValue.player.factionId);
+  return Object.freeze({
+    ...character,
+    nationalityId: faction.id,
+    nationalityName: faction.name,
+    nationalityAdjective: faction.adjective,
+    homePortRealmName: faction.name
+  });
+}
+
+function applyCaptureShipHeading(playerShip, headingDeg) {
+  if (!playerShip?.position) throw new Error("Cannot set capture heading before creating the player ship");
+  const frame = northUpCamera(playerShip.position);
+  const radians = headingDeg * Math.PI / 180;
+  const heading = normalizeTangentOrFallback([
+    frame.right[0] * Math.cos(radians) + frame.up[0] * Math.sin(radians),
+    frame.right[1] * Math.cos(radians) + frame.up[1] * Math.sin(radians),
+    frame.right[2] * Math.cos(radians) + frame.up[2] * Math.sin(radians)
+  ], playerShip.position, frame.right);
+  playerShip.heading = heading;
+  playerShip.targetHeading = heading.slice();
+}
+
+function applyCaptureDiplomacy(state, relations) {
+  const diplomacy = state?.relations?.diplomacy;
+  if (!diplomacy) throw new Error("Capture scenario cannot configure missing world diplomacy");
+  for (const relation of relations) {
+    diplomacy.overrides[diplomacyPairKey(relation.factionAId, relation.factionBId)] = relation.relation;
+  }
+  validateWorldDiplomacy(diplomacy);
+}
+
+function setupCaptureMode() {
+  if (!CAPTURE_SCENARIO) throw new Error("Capture mode requires a scenario");
+  applyResponsiveViewport(CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height);
+  document.body.classList.add("capture-mode");
+  captureRecorder = new CaptureRecorder({
+    canvas,
+    scenario: CAPTURE_SCENARIO,
+    maxSeconds: CAPTURE_MAX_SECONDS,
+    simMinute: () => weatherClockMinutes
+  });
+  createCaptureControls({
+    shell,
+    scenario: CAPTURE_SCENARIO,
+    recorder: captureRecorder,
+    onRecordingStarted: () => {
+      capturePlaybackPaused = false;
+      ensureGameAudioStarted(true);
+      emitCaptureEvent("scenario-start", {
+        playerShip: ship.typeSlug,
+        playerFaction: ship.factionId,
+        encounterIds: CAPTURE_SCENARIO.encounters.map((encounter) => encounter.id)
+      });
+      dirty = true;
+    }
+  });
+}
+
+function emitCaptureEvent(type, data = {}) {
+  return captureRecorder?.recordEvent(type, data) || false;
+}
+
+function recordCapturePosition(nowMs) {
+  if (!captureRecorder || captureRecorder.state !== "recording" || nowMs - captureLastPositionEventMs < 1000) {
+    return;
+  }
+  captureLastPositionEventMs = nowMs;
+  emitCaptureEvent("position", {
+    lat: Math.round(latitudeDegForDirection(ship.position) * 10000) / 10000,
+    lon: Math.round(longitudeDegForDirection(ship.position) * 10000) / 10000,
+    tileId: ship.tileId,
+    speed: Math.round(Math.hypot(...ship.velocity) * 1e7) / 1e7,
+    heading: shipHeadingFrame()
   });
 }
 
@@ -4914,6 +5039,7 @@ async function restoreSavedVoyage(payload) {
 }
 
 function saveVoyageNow(reason) {
+  if (CAPTURE_SCENARIO) return true;
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
   try {
     const save = writeLocalSave({
@@ -5969,6 +6095,11 @@ function openActiveInteractionDialogue() {
   const promptTarget = interactionTargetIsUsable(interactionButtonTarget) ? interactionButtonTarget : null;
   const target = promptTarget || activeInteractionTarget();
   if (!target) return false;
+  emitCaptureEvent("interaction-opened", {
+    kind: target.kind,
+    id: target.call?.id || target.call?.tileId || null,
+    label: target.call?.displayCity || target.call?.city || target.call?.slug || null
+  });
   if (target.kind === "port") openPortDialogue(target.call);
   else if (target.kind === "fish") return catchFishAtFishery(target.call);
   else openShipDialogue(target.call);
@@ -8501,6 +8632,12 @@ function fireBroadside(sideName) {
   if (ship.cannonCooldowns[sideName] > 0) return false;
 
   ship.cannonCooldowns[sideName] = weapon.reloadSeconds;
+  emitCaptureEvent("weapon-fired", {
+    ownerId: PLAYER_COMBAT_ID,
+    weapon: weapon.kind,
+    side: sideName,
+    count: broadsideCount
+  });
   startCombatMusicForThreat(broadsideCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   playNavalAttackSound(weapon, broadsideCount);
 
@@ -8563,6 +8700,12 @@ function firePlayerArrowVolleyAtWill() {
 
   ship.arrowCooldown = weapon.reloadSeconds;
   const count = navalArrowVolleyCount(ship.stats.crewCapacity);
+  emitCaptureEvent("weapon-fired", {
+    ownerId: PLAYER_COMBAT_ID,
+    targetId: target.id,
+    weapon: weapon.kind,
+    count
+  });
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
   const heading = shipScreenHeading();
   const sequence = ++ship.cannonSequence;
@@ -8948,6 +9091,13 @@ function applyPlayerNavalHit(ball, target, point) {
   }
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
+  emitCaptureEvent("projectile-hit", {
+    ownerId: PLAYER_COMBAT_ID,
+    targetId: target.id,
+    weapon: ball.kind,
+    damage: ball.damage,
+    remainingHitPoints: damage.hitPoints
+  });
   target.hitPoints = damage.hitPoints;
   if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
   else {
@@ -9347,6 +9497,11 @@ function updateStormDamage(previousMinute, currentMinute) {
 
   if (!triggerStormShipStrike(stormShipStrikeState, lastFrameMs)) return false;
   ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
+  emitCaptureEvent("storm-damage", {
+    damage: totalDamage,
+    intensity: strongestIntensity,
+    remainingHitPoints: ship.hitPoints
+  });
   applyCrewCasualtiesFromHullDamage(totalDamage, "The last of the crew was lost in the storm.");
   stormDamageNotice = {
     damage: totalDamage,
@@ -9358,6 +9513,7 @@ function updateStormDamage(previousMinute, currentMinute) {
 }
 
 function sinkPlayerShip(reason) {
+  emitCaptureEvent("ship-sunk", { shipId: PLAYER_COMBAT_ID, reason });
   endPlayerVoyage(reason, { sinkShip: true });
 }
 
@@ -10002,6 +10158,12 @@ function fireShoreBatteryAtNearestTarget(state) {
   }
   if (!target) return false;
   const weapon = shoreBatteryWeapon(state);
+  emitCaptureEvent("weapon-fired", {
+    ownerId: state.id,
+    targetId,
+    weapon: weapon.kind,
+    count: state.gunCount
+  });
   armShoreBatteryReload(state);
   playNavalAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
@@ -10209,6 +10371,12 @@ function fireNpcWeaponAtTarget(state, targetId) {
   const volleyCount = navalWeaponUsesBroadside(weapon)
     ? Math.min(4, Math.max(1, Math.ceil(stats.cannons / 10)))
     : navalArrowVolleyCount(stats.crewCapacity);
+  emitCaptureEvent("weapon-fired", {
+    ownerId: state.id,
+    targetId,
+    weapon: weapon.kind,
+    count: volleyCount
+  });
   state.weaponCooldown = navalWeaponUsesBroadside(weapon)
     ? NPC_COMBAT_COOLDOWN_SECONDS
     : weapon.reloadSeconds;
@@ -10371,6 +10539,13 @@ function applyNpcCombatHit(ball, targetId, point) {
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   if (targetId === PLAYER_COMBAT_ID) {
     ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
+    emitCaptureEvent("projectile-hit", {
+      ownerId: ball.ownerId,
+      targetId,
+      weapon: ball.kind,
+      damage: ball.damage,
+      remainingHitPoints: ship.hitPoints
+    });
     applyCrewCasualtiesFromHullDamage(ball.damage, "The last of the crew fell in battle.");
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
     else addHullSplinterBurst(ball, point);
@@ -10384,6 +10559,13 @@ function applyNpcCombatHit(ball, targetId, point) {
   }
 
   const damage = damageNpcShip(npcSeaRoutes, targetId, ball.damage);
+  emitCaptureEvent("projectile-hit", {
+    ownerId: ball.ownerId,
+    targetId,
+    weapon: ball.kind,
+    damage: ball.damage,
+    remainingHitPoints: damage.hitPoints
+  });
   const state = npcVisualShips.get(targetId);
   if (state) state.hitPoints = damage.hitPoints;
   if (damage.sunk) handleNpcSinking(targetId, ball.ownerId);
@@ -11462,7 +11644,9 @@ function fitCanvasToDisplay() {
   const viewport = window.visualViewport;
   const viewportWidth = Math.min(shell.clientWidth || window.innerWidth, viewport?.width || window.innerWidth);
   const viewportHeight = Math.min(shell.clientHeight || window.innerHeight, viewport?.height || window.innerHeight);
-  const logical = responsiveLogicalViewport({ viewportWidth, viewportHeight });
+  const logical = CAPTURE_SCENARIO
+    ? CAPTURE_VIEWPORT
+    : responsiveLogicalViewport({ viewportWidth, viewportHeight });
   applyResponsiveViewport(logical.width, logical.height);
   const layout = canvasDisplayLayout({
     viewportWidth,
@@ -11884,6 +12068,7 @@ function drawStormLightningFlash(nowMs) {
   const ambientFlash = consumeStormLightningFlash(stormLightningState);
   const shipStrikeFlash = consumeStormShipStrikeFlash(stormShipStrikeState, nowMs);
   if (!ambientFlash && !shipStrikeFlash) return;
+  emitCaptureEvent("lightning", { shipStrike: shipStrikeFlash });
   ctx.save();
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -12117,6 +12302,11 @@ function queueDiscovery(discovery, nowMs) {
   const cargoReward = applyDiscoveryCargoReward(discovery);
   openDiscoveryCaptainDialogue(discovery, cargoReward);
   playDiscoverySuccessSound();
+  emitCaptureEvent("discovery", {
+    id: discovery.id,
+    name: discovery.displayName || discovery.name || discovery.id,
+    kind: discovery.kind
+  });
   discoveryNoticeQueue.push(discovery);
   updateDiscoveryNotice(nowMs);
   saveVoyageNow("discovery");

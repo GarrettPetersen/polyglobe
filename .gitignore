@@ -9,6 +9,8 @@ __pycache__/
 *.pyc
 tmp/
 apps/pixel-globe/source-models/
+apps/pixel-globe/.captures/
+apps/pixel-globe/.venv-shorts/
 
 # ~198MB precomputed land/ocean region grid (GitHub limit 100MB). Generate locally:
 #   cd examples/globe-demo && npm run download-data && npm run build-land-raster-png

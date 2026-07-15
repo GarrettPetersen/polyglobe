@@ -293,6 +293,87 @@ export function createNpcSeaRouteSystem({
   return system;
 }
 
+export function configureCaptureEncounter(system, spec, clockMinutes) {
+  assertSaveableNpcRouteSystem(system);
+  if (!spec || typeof spec !== "object") throw new Error("Capture encounter specification is required");
+  if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid capture encounter clock: ${clockMinutes}`);
+  if (system.shipById.has(spec.id)) throw new Error(`Capture encounter id already exists: ${spec.id}`);
+  assertFactionId(spec.factionId);
+  if (!NPC_ROLE_SET.has(spec.role)) throw new Error(`Unknown capture encounter role: ${spec.role}`);
+  const stats = shipStatsForSlug(spec.shipSlug);
+  const origin = capturePoint(spec.lat, spec.lon, `${spec.id}-origin`);
+  const destination = destinationPoint(origin, spec.headingDeg * DEG_TO_RAD, 900);
+  const destinationNode = capturePoint(destination.lat, destination.lon, `${spec.id}-destination`);
+  const startMinute = clockMinutes - 60;
+  const endMinute = clockMinutes + 30 * WEATHER_MINUTES_PER_DAY;
+  const vector = latLonToVector(origin.lat, origin.lon);
+  const heading = headingVectorAt(origin, origin, destinationNode);
+  const ship = {
+    id: spec.id,
+    factionId: spec.factionId,
+    role: spec.role,
+    profileId: "wide-world",
+    mode: "interregional",
+    cultureType: spec.cultureType || null,
+    slugs: [spec.shipSlug],
+    slug: spec.shipSlug,
+    seed: hashString32(`${spec.id}|capture`),
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints,
+    cargoCapacity: stats.cargoCapacity,
+    fishingNetId: null,
+    cargo: {},
+    cargoCost: {},
+    specie: npcStartingSpecieForRole(spec.role, stats),
+    lifetimeProfit: 0,
+    portVisits: 0,
+    graceUntilPortVisit: 0,
+    seekingHideout: false,
+    hideoutDestinationTileId: null,
+    hiddenAtHideout: false,
+    hiddenUntilMinute: 0,
+    hideoutCooldownUntilPortVisit: 0,
+    currentPort: origin,
+    finalDestination: destinationNode,
+    plan: {
+      origin,
+      destination: destinationNode,
+      segments: [{ kind: "sail", from: origin, to: destinationNode, startMinute, endMinute }],
+      startMinute,
+      endMinute
+    },
+    clockOffsetMinutes: 0,
+    visualNavigation: { vector, heading }
+  };
+  system.ships.push(ship);
+  system.shipById.set(ship.id, ship);
+  return ship;
+}
+
+function capturePoint(lat, lon, label) {
+  if (!Number.isFinite(lat) || lat < -89.999 || lat > 89.999) {
+    throw new Error(`Invalid capture encounter latitude: ${lat}`);
+  }
+  if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+    throw new Error(`Invalid capture encounter longitude: ${lon}`);
+  }
+  return {
+    id: `capture:${label}`,
+    label,
+    city: label,
+    displayCity: label,
+    country: "Capture scenario",
+    cityType: "northern-european",
+    population: 1,
+    factionId: NEUTRAL_FACTION_ID,
+    routeRegion: "wide-world",
+    routeAnchors: [],
+    tileId: -1 - hashString32(label),
+    lat,
+    lon
+  };
+}
+
 export function snapshotNpcSeaRouteSystem(system) {
   assertSaveableNpcRouteSystem(system);
   return {

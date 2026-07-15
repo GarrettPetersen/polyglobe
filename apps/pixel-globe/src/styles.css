@@ -59,3 +59,56 @@ canvas {
   -webkit-touch-callout: none;
   font-family: "Silkscreen", monospace;
 }
+
+.capture-controls {
+  position: fixed;
+  z-index: 10;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  width: min(260px, calc(100vw - 24px));
+  color: #352719;
+  font-family: "Silkscreen", monospace;
+  font-size: 10px;
+}
+
+.capture-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 2px solid #725137;
+  background: #f1ddb0;
+  box-shadow: 0 0 0 2px #d0ae72;
+}
+
+.capture-card strong,
+.capture-card small,
+.capture-status {
+  line-height: 1.5;
+}
+
+.capture-status {
+  color: #715237;
+}
+
+.capture-primary {
+  min-height: 38px;
+  border: 2px solid #725137;
+  border-radius: 0;
+  color: #fff1c7;
+  background: #6c3826;
+  font: inherit;
+  cursor: pointer;
+}
+
+.capture-primary:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.capture-controls[data-state="recording"] .capture-card {
+  border-color: #9a2e2e;
+}
+
+.capture-controls[data-state="recording"] .capture-status {
+  color: #9a2e2e;
+}
