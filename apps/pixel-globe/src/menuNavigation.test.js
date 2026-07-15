@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { clampMenuIndex, stepMenuIndex } from "./menuNavigation.js";
+import {
+  BINARY_CONFIRM_NO_INDEX,
+  BINARY_CONFIRM_YES_INDEX,
+  clampMenuIndex,
+  createBinaryConfirmationState,
+  stepMenuIndex,
+  toggleBinaryConfirmationIndex
+} from "./menuNavigation.js";
 
 test("menu selection stops at either end instead of looping", () => {
   assert.equal(stepMenuIndex(0, -1, 4), 0);
@@ -13,4 +20,11 @@ test("menu selection stops at either end instead of looping", () => {
 test("out-of-range menu pages clamp to the nearest valid page", () => {
   assert.equal(clampMenuIndex(-20, 3), 0);
   assert.equal(clampMenuIndex(20, 3), 2);
+});
+
+test("destructive confirmations default to no and toggle between both choices", () => {
+  assert.equal(createBinaryConfirmationState().selectedIndex, BINARY_CONFIRM_NO_INDEX);
+  assert.equal(toggleBinaryConfirmationIndex(BINARY_CONFIRM_NO_INDEX), BINARY_CONFIRM_YES_INDEX);
+  assert.equal(toggleBinaryConfirmationIndex(BINARY_CONFIRM_YES_INDEX), BINARY_CONFIRM_NO_INDEX);
+  assert.throws(() => toggleBinaryConfirmationIndex(2), /Invalid binary confirmation index/);
 });

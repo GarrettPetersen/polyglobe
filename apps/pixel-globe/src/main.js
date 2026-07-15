@@ -280,7 +280,14 @@ import {
   localWaterHexWaveFrame,
   waterHexWaveBandsForFrame
 } from "./waterHexWave.js";
-import { clampMenuIndex, stepMenuIndex } from "./menuNavigation.js";
+import {
+  BINARY_CONFIRM_NO_INDEX,
+  BINARY_CONFIRM_YES_INDEX,
+  clampMenuIndex,
+  createBinaryConfirmationState,
+  stepMenuIndex,
+  toggleBinaryConfirmationIndex
+} from "./menuNavigation.js";
 import {
   GAME_ICON_ASSET_VERSION,
   GAME_ICON_SIZE,
@@ -3177,7 +3184,8 @@ function createStartMenuState() {
     selectedIndex: 0,
     buttonRects: [],
     isLoading: false,
-    message: localSaveResult.status === "invalid" ? "SAVE COULD NOT BE READ" : ""
+    message: localSaveResult.status === "invalid" ? "SAVE COULD NOT BE READ" : "",
+    newGameConfirmation: null
   };
 }
 
@@ -4726,12 +4734,14 @@ function closeStartMenu() {
 }
 
 function startNewVoyage() {
-  archiveSavedVoyageBeforeStartingOver();
-  try {
+  if (localSaveResult.status === "ready") {
+    if (!archiveSavedVoyageBeforeStartingOver()) {
+      throw new Error("Could not archive the current voyage before starting over");
+    }
     clearLocalSave();
     localSaveResult = { status: "empty", save: null, error: null };
-  } catch (error) {
-    console.warn("[pixel-globe] could not clear the previous local save", error);
+    window.location.reload();
+    return;
   }
   sailingTutorialState = createSailingTutorialState();
   playerBoundaryAssistContact = null;
@@ -4754,7 +4764,9 @@ function archiveSavedVoyageBeforeStartingOver() {
       endMinute: payload.worldClock.currentMinute,
       outcome: "Voyage abandoned for a new expedition."
     });
-    storePastVoyage(record);
+    if (!storePastVoyage(record)) {
+      throw new Error("Could not store the abandoned voyage in voyage history");
+    }
     return true;
   } catch (error) {
     console.warn("[pixel-globe] could not archive the abandoned voyage", error);
@@ -5247,6 +5259,10 @@ function handleOptionsKeyDown(event) {
 function handleStartMenuKeyDown(event) {
   event.preventDefault();
   if (startMenu.isLoading) return;
+  if (startMenu.newGameConfirmation) {
+    handleNewGameConfirmationKeyDown(event.key);
+    return;
+  }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
     const direction = event.key === "ArrowDown" ? 1 : -1;
     const actionCount = startMenuActions().length;
@@ -5300,7 +5316,8 @@ function activateStartMenuSelection() {
     return;
   }
   if (action.id === START_MENU_ACTION_NEW_GAME) {
-    startNewVoyage();
+    if (localSaveResult.status === "ready") openNewGameConfirmation();
+    else startNewVoyage();
     return;
   }
   if (action.id === START_MENU_ACTION_LAKE_BATTLE) {
@@ -5510,7 +5527,8 @@ function handlePointerMove(event) {
     return;
   }
   if (startMenu) {
-    updateStartMenuSelectionFromPoint(point);
+    if (startMenu.newGameConfirmation) updateNewGameConfirmationSelectionFromPoint(point);
+    else updateStartMenuSelectionFromPoint(point);
     return;
   }
   if (playerIntroModal) {
@@ -5641,12 +5659,90 @@ function handleOptionsPointerDown(point) {
 
 function handleStartMenuPointerDown(point) {
   if (startMenu.isLoading) return;
+  if (startMenu.newGameConfirmation) {
+    handleNewGameConfirmationPointerDown(point);
+    return;
+  }
   updateStartMenuSelectionFromPoint(point);
   for (let i = 0; i < startMenu.buttonRects.length; i++) {
     if (!pointInRect(point, startMenu.buttonRects[i])) continue;
     startMenu.selectedIndex = i;
     activateStartMenuSelection();
     return;
+  }
+}
+
+function openNewGameConfirmation() {
+  if (!startMenu || localSaveResult.status !== "ready") {
+    throw new Error("New-game confirmation requires an active saved voyage");
+  }
+  startMenu.newGameConfirmation = createBinaryConfirmationState();
+  startMenu.message = "";
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeNewGameConfirmation() {
+  if (!startMenu) return;
+  startMenu.newGameConfirmation = null;
+  dirty = true;
+}
+
+function handleNewGameConfirmationKeyDown(key) {
+  const confirmation = startMenu?.newGameConfirmation;
+  if (!confirmation) throw new Error("New-game confirmation keyboard input requires an open confirmation");
+  if (key === "Escape") {
+    closeNewGameConfirmation();
+    return;
+  }
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) {
+    confirmation.selectedIndex = toggleBinaryConfirmationIndex(confirmation.selectedIndex);
+    dirty = true;
+    return;
+  }
+  if (key === "Enter" || key === " ") activateNewGameConfirmation();
+}
+
+function handleNewGameConfirmationPointerDown(point) {
+  const confirmation = startMenu?.newGameConfirmation;
+  if (!confirmation) throw new Error("New-game confirmation pointer input requires an open confirmation");
+  for (let index = 0; index < confirmation.buttonRects.length; index++) {
+    if (!pointInRect(point, confirmation.buttonRects[index])) continue;
+    confirmation.selectedIndex = index;
+    activateNewGameConfirmation();
+    return;
+  }
+}
+
+function updateNewGameConfirmationSelectionFromPoint(point) {
+  const confirmation = startMenu?.newGameConfirmation;
+  if (!confirmation) throw new Error("New-game confirmation hover requires an open confirmation");
+  for (let index = 0; index < confirmation.buttonRects.length; index++) {
+    if (!pointInRect(point, confirmation.buttonRects[index])) continue;
+    confirmation.selectedIndex = index;
+    dirty = true;
+    return;
+  }
+}
+
+function activateNewGameConfirmation() {
+  const confirmation = startMenu?.newGameConfirmation;
+  if (!confirmation) throw new Error("Cannot activate a closed new-game confirmation");
+  if (confirmation.selectedIndex === BINARY_CONFIRM_NO_INDEX) {
+    closeNewGameConfirmation();
+    return;
+  }
+  if (confirmation.selectedIndex !== BINARY_CONFIRM_YES_INDEX) {
+    throw new Error(`Unknown new-game confirmation choice: ${confirmation.selectedIndex}`);
+  }
+  try {
+    startNewVoyage();
+  } catch (error) {
+    console.error("[pixel-globe] could not start a new voyage", error);
+    startMenu.newGameConfirmation = null;
+    startMenu.message = "COULD NOT END CURRENT VOYAGE";
+    dirty = true;
   }
 }
 
@@ -14448,6 +14544,74 @@ function drawStartMenu(nowMs) {
       align: "center"
     });
   }
+  ctx.restore();
+  if (startMenu.newGameConfirmation) drawNewGameConfirmation();
+}
+
+function drawNewGameConfirmation() {
+  const confirmation = startMenu?.newGameConfirmation;
+  if (!confirmation) throw new Error("Cannot draw a closed new-game confirmation");
+
+  const panelWidth = Math.min(318, SCREEN_W - 16);
+  const panelHeight = 126;
+  const panel = {
+    x: Math.floor((SCREEN_W - panelWidth) / 2),
+    y: Math.floor((SCREEN_H - panelHeight) / 2),
+    w: panelWidth,
+    h: panelHeight
+  };
+  const titleLines = wrapPixelText(
+    "ARE YOU SURE YOU WANT TO START A NEW GAME?",
+    PIXEL_FONT_DIALOGUE_8,
+    panel.w - 24,
+    3
+  );
+  const warningLines = wrapPixelText(
+    "THIS WILL END YOUR CURRENT VOYAGE.",
+    PIXEL_FONT_SMALL_8,
+    panel.w - 24,
+    2
+  );
+  const buttonGap = 10;
+  const buttonWidth = Math.min(88, Math.floor((panel.w - 34 - buttonGap) / 2));
+  const buttonY = panel.y + panel.h - 34;
+  const buttonsWidth = buttonWidth * 2 + buttonGap;
+  const buttonsX = panel.x + Math.floor((panel.w - buttonsWidth) / 2);
+  confirmation.buttonRects = [
+    { x: buttonsX, y: buttonY, w: buttonWidth, h: 24 },
+    { x: buttonsX + buttonWidth + buttonGap, y: buttonY, w: buttonWidth, h: 24 }
+  ];
+
+  ctx.save();
+  drawPiratePaperModal(panel, 0.84);
+  let textY = panel.y + 17;
+  ctx.fillStyle = PIRATE_MENU_INK;
+  for (const line of titleLines) {
+    drawPixelText(line, panel.x + panel.w / 2, textY, {
+      font: PIXEL_FONT_DIALOGUE_8,
+      align: "center"
+    });
+    textY += 11;
+  }
+  textY += 7;
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  for (const line of warningLines) {
+    drawPixelText(line, panel.x + panel.w / 2, textY, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+    textY += 9;
+  }
+  drawStartMenuButton(
+    confirmation.buttonRects[BINARY_CONFIRM_YES_INDEX],
+    "YES",
+    confirmation.selectedIndex === BINARY_CONFIRM_YES_INDEX
+  );
+  drawStartMenuButton(
+    confirmation.buttonRects[BINARY_CONFIRM_NO_INDEX],
+    "NO",
+    confirmation.selectedIndex === BINARY_CONFIRM_NO_INDEX
+  );
   ctx.restore();
 }
 
