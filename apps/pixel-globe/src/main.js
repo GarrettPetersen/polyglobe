@@ -325,8 +325,7 @@ import {
 } from "./dialoguePanelLayout.js";
 import { controlTextLayout } from "./controlTextLayout.js";
 import {
-  INTERACTION_INPUT_DIALOGUE,
-  INTERACTION_INPUT_FISHING,
+  INTERACTION_INPUT,
   interactionInputOwner
 } from "./interactionInput.js";
 import { fitMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
@@ -1559,66 +1558,7 @@ window.addEventListener("keydown", (event) => {
     handleLakeBattleKeyDown(event);
     return;
   }
-  if (gameOverReason) {
-    handleGameOverKeyDown(event);
-    return;
-  }
-  if (portWaitState) {
-    handlePortWaitKeyDown(event);
-    return;
-  }
-  if (shipInfoMenu.isOpen) {
-    handleShipInfoKeyDown(event);
-    return;
-  }
-  if (politicsMenu.isOpen) {
-    handlePoliticsKeyDown(event);
-    return;
-  }
-  if (discoveriesMenu.isOpen) {
-    handleDiscoveriesKeyDown(event);
-    return;
-  }
-  if (optionsMenu.isOpen) {
-    handleOptionsKeyDown(event);
-    return;
-  }
-  if (creditsMenu.isOpen) {
-    handleCreditsKeyDown(event);
-    return;
-  }
-  if (pastVoyagesMenu.isOpen) {
-    handlePastVoyagesKeyDown(event);
-    return;
-  }
-  if (startMenu) {
-    handleStartMenuKeyDown(event);
-    return;
-  }
-  if (playerIntroModal) {
-    handlePlayerIntroKeyDown(event);
-    return;
-  }
-  if (captainAlertModal) {
-    handleCaptainAlertKeyDown(event);
-    return;
-  }
-  const interactionOwner = interactionInputOwner({
-    dialogueActive: Boolean(dialogueState),
-    fishingActive: Boolean(fishingAction)
-  });
-  if (interactionOwner === INTERACTION_INPUT_DIALOGUE) {
-    handleDialogueKeyDown(event);
-    return;
-  }
-  if (interactionOwner === INTERACTION_INPUT_FISHING) {
-    event.preventDefault();
-    return;
-  }
-  if (captainMenu.isOpen) {
-    handleCaptainMenuKeyDown(event);
-    return;
-  }
+  if (dispatchWorldOverlayKey(event)) return;
   if (event.key === "Escape") {
     event.preventDefault();
     openCaptainMenu();
@@ -3498,6 +3438,102 @@ function menusAreOpen() {
 function captainChildMenuIsOpen() {
   return optionsMenu.isOpen || creditsMenu.isOpen || discoveriesMenu.isOpen ||
     shipInfoMenu.isOpen || politicsMenu.isOpen;
+}
+
+function currentInteractionInputOwner() {
+  return interactionInputOwner({
+    optionsActive: optionsMenu.isOpen,
+    creditsActive: creditsMenu.isOpen,
+    pastVoyagesActive: pastVoyagesMenu.isOpen,
+    startMenuActive: Boolean(startMenu),
+    captainAlertActive: Boolean(captainAlertModal),
+    playerIntroActive: Boolean(playerIntroModal),
+    gameOverActive: Boolean(gameOverReason),
+    captainMenuActive: captainMenu.isOpen && !captainChildMenuIsOpen(),
+    shipInfoActive: shipInfoMenu.isOpen,
+    politicsActive: politicsMenu.isOpen,
+    discoveriesActive: discoveriesMenu.isOpen,
+    dialogueActive: Boolean(dialogueState),
+    portWaitActive: Boolean(portWaitState),
+    fishingActive: Boolean(fishingAction)
+  });
+}
+
+function dispatchWorldOverlayKey(event) {
+  const owner = currentInteractionInputOwner();
+  if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsKeyDown(event);
+  else if (owner === INTERACTION_INPUT.CREDITS) handleCreditsKeyDown(event);
+  else if (owner === INTERACTION_INPUT.PAST_VOYAGES) handlePastVoyagesKeyDown(event);
+  else if (owner === INTERACTION_INPUT.START_MENU) handleStartMenuKeyDown(event);
+  else if (owner === INTERACTION_INPUT.CAPTAIN_ALERT) handleCaptainAlertKeyDown(event);
+  else if (owner === INTERACTION_INPUT.PLAYER_INTRO) handlePlayerIntroKeyDown(event);
+  else if (owner === INTERACTION_INPUT.GAME_OVER) handleGameOverKeyDown(event);
+  else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) handleCaptainMenuKeyDown(event);
+  else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoKeyDown(event);
+  else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsKeyDown(event);
+  else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesKeyDown(event);
+  else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialogueKeyDown(event);
+  else if (owner === INTERACTION_INPUT.PORT_WAIT) handlePortWaitKeyDown(event);
+  else if (owner === INTERACTION_INPUT.FISHING) event.preventDefault();
+  else if (owner === INTERACTION_INPUT.WORLD) return false;
+  else throw new Error(`Unknown interaction input owner: ${owner}`);
+  return true;
+}
+
+function dispatchWorldOverlayPointerDown(event, point) {
+  const owner = currentInteractionInputOwner();
+  if (owner === INTERACTION_INPUT.WORLD) return false;
+  event.preventDefault();
+  if (owner !== INTERACTION_INPUT.FISHING && typeof canvas.setPointerCapture === "function") {
+    canvas.setPointerCapture(event.pointerId);
+  }
+  if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsPointerDown(point);
+  else if (owner === INTERACTION_INPUT.CREDITS) handleCreditsPointerDown(point);
+  else if (owner === INTERACTION_INPUT.PAST_VOYAGES) handlePastVoyagesPointerDown(point);
+  else if (owner === INTERACTION_INPUT.START_MENU) handleStartMenuPointerDown(point);
+  else if (owner === INTERACTION_INPUT.CAPTAIN_ALERT) handleCaptainAlertPointerDown(point);
+  else if (owner === INTERACTION_INPUT.PLAYER_INTRO) handlePlayerIntroPointerDown(point);
+  else if (owner === INTERACTION_INPUT.GAME_OVER) {
+    if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
+  } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) handleCaptainMenuPointerDown(point);
+  else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoPointerDown(point);
+  else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsPointerDown(point);
+  else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesPointerDown(point);
+  else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialoguePointerDown(point);
+  else if (owner === INTERACTION_INPUT.PORT_WAIT) {
+    if (pointInRect(point, portWaitButtonRect)) stopWaitingInPort();
+  } else if (owner !== INTERACTION_INPUT.FISHING) {
+    throw new Error(`Unknown interaction input owner: ${owner}`);
+  }
+  return true;
+}
+
+function dispatchWorldOverlayPointerMove(point) {
+  const owner = currentInteractionInputOwner();
+  if (owner === INTERACTION_INPUT.WORLD) return false;
+  if (owner === INTERACTION_INPUT.OPTIONS) {
+    updateOptionsSelectionFromPoint(point);
+    if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
+    else dirty = true;
+  } else if (owner === INTERACTION_INPUT.START_MENU) {
+    if (startMenu.newGameConfirmation) updateNewGameConfirmationSelectionFromPoint(point);
+    else updateStartMenuSelectionFromPoint(point);
+  } else if (owner === INTERACTION_INPUT.CAPTAIN_ALERT) {
+    captainAlertModal.hovered = pointInRect(point, captainAlertModal.buttonRect);
+    dirty = true;
+  } else if (owner === INTERACTION_INPUT.PLAYER_INTRO) {
+    playerIntroModal.hovered = pointInRect(point, playerIntroModal.buttonRect);
+    dirty = true;
+  } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) {
+    updateCaptainMenuSelectionFromPoint(point);
+    dirty = true;
+  } else if (owner === INTERACTION_INPUT.DIALOGUE) {
+    updateDialogueSelectionFromPoint(point);
+    dirty = true;
+  } else if (owner !== INTERACTION_INPUT.FISHING) {
+    dirty = true;
+  }
+  return true;
 }
 
 function setupThemeMusic() {
@@ -5494,92 +5530,7 @@ function handlePointerDown(event) {
     handleLakeBattlePointerDown(event.pointerId, point);
     return;
   }
-  if (gameOverReason) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
-    return;
-  }
-  if (portWaitState) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    if (pointInRect(point, portWaitButtonRect)) stopWaitingInPort();
-    return;
-  }
-  if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleCaptainMenuPointerDown(point);
-    return;
-  }
-  if (optionsMenu.isOpen) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleOptionsPointerDown(point);
-    return;
-  }
-  if (creditsMenu.isOpen) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleCreditsPointerDown(point);
-    return;
-  }
-  if (pastVoyagesMenu.isOpen) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handlePastVoyagesPointerDown(point);
-    return;
-  }
-  if (startMenu) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleStartMenuPointerDown(point);
-    return;
-  }
-  if (playerIntroModal) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handlePlayerIntroPointerDown(point);
-    return;
-  }
-  if (captainAlertModal) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleCaptainAlertPointerDown(point);
-    return;
-  }
-  const interactionOwner = interactionInputOwner({
-    dialogueActive: Boolean(dialogueState),
-    fishingActive: Boolean(fishingAction)
-  });
-  if (interactionOwner === INTERACTION_INPUT_DIALOGUE) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleDialoguePointerDown(point);
-    return;
-  }
-  if (interactionOwner === INTERACTION_INPUT_FISHING) {
-    event.preventDefault();
-    return;
-  }
-  if (shipInfoMenu.isOpen) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleShipInfoPointerDown(point);
-    return;
-  }
-  if (politicsMenu.isOpen) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handlePoliticsPointerDown(point);
-    return;
-  }
-  if (discoveriesMenu.isOpen) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    handleDiscoveriesPointerDown(point);
-    return;
-  }
+  if (dispatchWorldOverlayPointerDown(event, point)) return;
   if (!dialogueState && pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -5650,62 +5601,7 @@ function handlePointerMove(event) {
     handleLakeBattlePointerMove(event, point);
     return;
   }
-  if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
-    updateCaptainMenuSelectionFromPoint(point);
-    dirty = true;
-    return;
-  }
-  if (optionsMenu.isOpen) {
-    updateOptionsSelectionFromPoint(point);
-    if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
-    else dirty = true;
-    return;
-  }
-  if (creditsMenu.isOpen) {
-    dirty = true;
-    return;
-  }
-  if (pastVoyagesMenu.isOpen) {
-    dirty = true;
-    return;
-  }
-  if (startMenu) {
-    if (startMenu.newGameConfirmation) updateNewGameConfirmationSelectionFromPoint(point);
-    else updateStartMenuSelectionFromPoint(point);
-    return;
-  }
-  if (playerIntroModal) {
-    playerIntroModal.hovered = pointInRect(point, playerIntroModal.buttonRect);
-    dirty = true;
-    return;
-  }
-  if (captainAlertModal) {
-    captainAlertModal.hovered = pointInRect(point, captainAlertModal.buttonRect);
-    dirty = true;
-    return;
-  }
-  const interactionOwner = interactionInputOwner({
-    dialogueActive: Boolean(dialogueState),
-    fishingActive: Boolean(fishingAction)
-  });
-  if (interactionOwner === INTERACTION_INPUT_DIALOGUE) {
-    updateDialogueSelectionFromPoint(point);
-    dirty = true;
-    return;
-  }
-  if (interactionOwner === INTERACTION_INPUT_FISHING) return;
-  if (shipInfoMenu.isOpen) {
-    dirty = true;
-    return;
-  }
-  if (politicsMenu.isOpen) {
-    dirty = true;
-    return;
-  }
-  if (discoveriesMenu.isOpen) {
-    dirty = true;
-    return;
-  }
+  if (dispatchWorldOverlayPointerMove(point)) return;
   if (pointerSteering.active && pointerSteering.pointerId === event.pointerId) {
     event.preventDefault();
     updatePointerSteering(point);
@@ -6102,7 +5998,7 @@ function stepDialogueSelection(direction) {
 }
 
 function handleCanvasWheel(event) {
-  if (!dialogueState || Math.abs(event.deltaY) < 1) return;
+  if (currentInteractionInputOwner() !== INTERACTION_INPUT.DIALOGUE || Math.abs(event.deltaY) < 1) return;
   event.preventDefault();
   stepDialogueSelection(event.deltaY > 0 ? 1 : -1);
 }
@@ -7763,19 +7659,7 @@ function dispatchControllerKey(key) {
   const event = { key, preventDefault() {} };
   if (lakeBattleMode && optionsMenu.isOpen) handleOptionsKeyDown(event);
   else if (lakeBattleMode) handleLakeBattleKeyDown(event);
-  else if (gameOverReason) handleGameOverKeyDown(event);
-  else if (portWaitState) handlePortWaitKeyDown(event);
-  else if (shipInfoMenu.isOpen) handleShipInfoKeyDown(event);
-  else if (politicsMenu.isOpen) handlePoliticsKeyDown(event);
-  else if (discoveriesMenu.isOpen) handleDiscoveriesKeyDown(event);
-  else if (optionsMenu.isOpen) handleOptionsKeyDown(event);
-  else if (creditsMenu.isOpen) handleCreditsKeyDown(event);
-  else if (pastVoyagesMenu.isOpen) handlePastVoyagesKeyDown(event);
-  else if (captainMenu.isOpen) handleCaptainMenuKeyDown(event);
-  else if (startMenu) handleStartMenuKeyDown(event);
-  else if (playerIntroModal) handlePlayerIntroKeyDown(event);
-  else if (captainAlertModal) handleCaptainAlertKeyDown(event);
-  else if (dialogueState) handleDialogueKeyDown(event);
+  else dispatchWorldOverlayKey(event);
 }
 
 function pointerSteeringInputVector() {
