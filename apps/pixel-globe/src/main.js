@@ -14,6 +14,11 @@ import {
   pixelMaskKey
 } from "./pixelWaterMask.js";
 import {
+  CITY_VISUAL_MAX_OFFSET_PX,
+  cityBankPreferenceVector,
+  selectCityVisualOffset
+} from "./cityVisualPlacement.js";
+import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
@@ -158,6 +163,7 @@ import {
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
+  deliveryMissionShouldOpenOnArrival,
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
@@ -1427,6 +1433,8 @@ let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
 const spriteAlphaMasks = new WeakMap();
+const cityOpaquePixelCache = new WeakMap();
+const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
 let spriteColors;
 let waterLatitudeImages;
@@ -4920,8 +4928,19 @@ function startNewVoyage() {
     if (!archiveSavedVoyageBeforeStartingOver()) {
       throw new Error("Could not archive the current voyage before starting over");
     }
-    clearLocalSave();
-    localSaveResult = { status: "empty", save: null, error: null };
+    const voyageWasStarted = hasStartedVoyage;
+    hasStartedVoyage = false;
+    try {
+      clearLocalSave();
+      const clearedSave = readLocalSave();
+      if (clearedSave.status !== "empty") {
+        throw new Error(`Local save was not empty after deletion: ${clearedSave.status}`);
+      }
+      localSaveResult = clearedSave;
+    } catch (error) {
+      hasStartedVoyage = voyageWasStarted;
+      throw error;
+    }
     window.location.reload();
     return;
   }
@@ -6056,7 +6075,8 @@ function openPortDialogue(cityCall) {
   }
   dialogueState = createPortArrivalDialogueSession(cityCall, {
     needsLoadout,
-    questCharacterSession
+    questCharacterSession,
+    openDeliveryMission: deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities)
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -12394,6 +12414,7 @@ function buildChart(anchorCamera) {
   const riverConnectorCalls = [];
   const tileCalls = [];
   const cityCalls = [];
+  const citySpecs = [];
   const baseFaceCalls = [];
   const frontFacesByTile = new Map();
   const tileById = new Map();
@@ -12424,9 +12445,9 @@ function buildChart(anchorCamera) {
     tileCalls.push(tileCall);
     tileById.set(item.id, tileCall);
     const city = cityByTileId.get(item.id);
-    if (city) cityCalls.push(makeCityCall(city, tileCall));
+    if (city) citySpecs.push({ city, tileCall });
     const pirateHideout = visiblePirateHideouts?.get(item.id);
-    if (pirateHideout) cityCalls.push(makeCityCall(pirateHideout, tileCall));
+    if (pirateHideout) citySpecs.push({ city: pirateHideout, tileCall });
 
     const neighbors = graph.neighbors[item.id];
     for (const nid of neighbors) {
@@ -12481,9 +12502,16 @@ function buildChart(anchorCamera) {
   baseFaceCalls.sort((a, b) => a.sortY - b.sortY);
   riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
   tileCalls.sort(compareTerrainDrawCalls);
-  cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
   for (const frontFaces of frontFacesByTile.values()) frontFaces.sort((a, b) => a.sortY - b.sortY);
   const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, { tileById });
+  const placementChart = {
+    tileById,
+    waterIndex,
+    right: chartCamera.right,
+    up: chartCamera.up
+  };
+  for (const { city, tileCall } of citySpecs) cityCalls.push(makeCityCall(city, tileCall, placementChart));
+  cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
 
   return {
     ...chartCamera,
@@ -12499,9 +12527,12 @@ function buildChart(anchorCamera) {
   };
 }
 
-function makeCityCall(city, tileCall) {
-  const offsetX = city.isPirateHideout ? 18 : 0;
-  const offsetY = city.isPirateHideout ? -4 : 0;
+function makeCityCall(city, tileCall, activeChart) {
+  const visualOffset = city.isPirateHideout
+    ? { x: 18, y: -4 }
+    : cityVisualOffset(city, tileCall, activeChart);
+  const offsetX = visualOffset.x;
+  const offsetY = visualOffset.y;
   const x = Math.round(tileCall.drawSurfaceX + offsetX);
   const y = Math.round(tileCall.drawSurfaceY + offsetY);
   const spriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF + offsetX);
@@ -12515,6 +12546,7 @@ function makeCityCall(city, tileCall) {
     portId: city.portId || `city-${city.tileId}`,
     character,
     portrait: character ? characterExpression(character) : null,
+    visualOffset,
     x,
     y,
     spriteX,
@@ -12524,6 +12556,93 @@ function makeCityCall(city, tileCall) {
     labelY: spriteY - labelH - CITY_LABEL_GAP_PX,
     sortY: spriteY + CITY_SPRITE_H + 2
   };
+}
+
+function cityVisualOffset(city, tileCall, activeChart) {
+  if (!activeChart?.waterIndex) throw new Error(`Cannot place city without a river index: ${city.city}`);
+  const key = city.portId || `city-${city.tileId}`;
+  const cached = cityVisualOffsets.get(key);
+  if (cached) return cached;
+
+  const image = cityImageForType(city.cityType, city.settlementType);
+  const opaquePixels = cityOpaquePixels(image);
+  const riverPixels = riverPixelsForCityPlacement(tileCall, activeChart);
+  const baseSpriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF);
+  const baseSpriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF);
+  const preferredDirection = cityBankPreferenceVector(city);
+  const offset = selectCityVisualOffset((candidate) => {
+    let riverOverlapPixels = 0;
+    for (const pixel of opaquePixels) {
+      const x = baseSpriteX + candidate.x + pixel.x;
+      const y = baseSpriteY + candidate.y + pixel.y;
+      if (riverPixels.has(pixelMaskKey(x, y))) riverOverlapPixels++;
+    }
+    return {
+      riverOverlapPixels,
+      centerOnOpenWater: wakeMapPointIsWater(
+        tileCall.drawSurfaceX + candidate.x,
+        tileCall.drawSurfaceY + candidate.y,
+        activeChart
+      )
+    };
+  }, preferredDirection);
+  cityVisualOffsets.set(key, offset);
+  return offset;
+}
+
+function cityOpaquePixels(image) {
+  const cached = cityOpaquePixelCache.get(image);
+  if (cached) return cached;
+  const mask = spriteAlphaMask(image);
+  const pixels = [];
+  for (let y = 0; y < mask.height; y++) {
+    for (let x = 0; x < mask.width; x++) {
+      if (mask.alpha[x + y * mask.width] > 0) pixels.push({ x, y });
+    }
+  }
+  if (pixels.length === 0) throw new Error("City sprite contains no opaque pixels");
+  cityOpaquePixelCache.set(image, pixels);
+  return pixels;
+}
+
+function riverPixelsForCityPlacement(tileCall, activeChart) {
+  const pixels = new Set();
+  const extent = TILE_ART_HALF + CITY_VISUAL_MAX_OFFSET_PX;
+  const minX = Math.floor(tileCall.drawSurfaceX - extent);
+  const maxX = Math.ceil(tileCall.drawSurfaceX + extent);
+  const minY = Math.floor(tileCall.drawSurfaceY - extent);
+  const maxY = Math.ceil(tileCall.drawSurfaceY + extent);
+
+  for (const entry of wakeWaterCandidatesForPoint(tileCall.drawSurfaceX, tileCall.drawSurfaceY, activeChart.waterIndex)) {
+    if (entry.kind === "riverConnector") {
+      for (const key of entry.waterPixels) {
+        const comma = key.indexOf(",");
+        const x = Number(key.slice(0, comma));
+        const y = Number(key.slice(comma + 1));
+        if (x >= minX && x <= maxX && y >= minY && y <= maxY) pixels.add(key);
+      }
+      continue;
+    }
+    if (entry.kind !== "tile") continue;
+    const mask = riverMasks?.[entry.call.id] || 0;
+    if (mask === 0 || isWaterSurfaceRow(entry.call.row)) continue;
+    const sprite = riverSpriteForTile(entry.call, activeChart, mask);
+    if (!sprite) continue;
+    const alphaMask = spriteAlphaMask(sprite);
+    const originX = Math.round(entry.call.drawSurfaceX - TILE_ART_HALF);
+    const originY = Math.round(entry.call.drawSurfaceY - TILE_ART_HALF);
+    for (let y = 0; y < alphaMask.height; y++) {
+      const mapY = originY + y;
+      if (mapY < minY || mapY > maxY) continue;
+      for (let x = 0; x < alphaMask.width; x++) {
+        if (alphaMask.alpha[x + y * alphaMask.width] === 0) continue;
+        const mapX = originX + x;
+        if (mapX < minX || mapX > maxX) continue;
+        pixels.add(pixelMaskKey(mapX, mapY));
+      }
+    }
+  }
+  return pixels;
 }
 
 function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
@@ -16387,6 +16506,9 @@ function riverEdgeScreenDirection(call, activeChart, edge) {
     dx = neighbor.drawSurfaceX - call.drawSurfaceX;
     dy = neighbor.drawSurfaceY - call.drawSurfaceY;
   } else {
+    if (!activeChart.right || !activeChart.up) {
+      throw new Error(`Cannot project offscreen river edge ${edge} on tile ${call.id} without chart axes`);
+    }
     dx = dotTile(neighborId, activeChart.right) - dotTile(call.id, activeChart.right);
     dy = -(dotTile(neighborId, activeChart.up) - dotTile(call.id, activeChart.up));
   }
@@ -18287,7 +18409,8 @@ function drawQuestDestinationArrow(nowMs) {
   const destination = activeQuestDestinationPort();
   if (!destination || !ship || !chart || !localLayout) return;
   const destinationVector = latLonToDirection(destination.lat, destination.lon);
-  const localPoint = localPointForGlobeVector(destinationVector);
+  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+  const localPoint = visibleCity || localPointForGlobeVector(destinationVector);
   if (localPoint) {
     const offset = chartOffsetPixels(chart);
     const cityPoint = {

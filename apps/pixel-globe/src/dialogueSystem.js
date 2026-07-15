@@ -91,10 +91,23 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       nextPortNodeId: needsLoadout ? "loadout" : "greeting"
     };
   }
+  if (options.openDeliveryMission === true) {
+    return createPortDialogueSession(city, {
+      initialNodeId: "quest",
+      nextPortNodeId: needsLoadout ? "loadout" : "root",
+      admittedToPort: true
+    });
+  }
   return createPortDialogueSession(city, {
     initialNodeId: needsLoadout ? "loadout" : "greeting",
     admittedToPort: true
   });
+}
+
+export function deliveryMissionShouldOpenOnArrival(gameState, city, portCities) {
+  const state = questStateForCity(gameState, city, portCities);
+  return state.quest?.kind === "delivery" &&
+    (state.kind === "ready-to-complete" || state.kind === "in-progress-here");
 }
 
 export function createPassengerDialogueSession(city, quest, options = {}) {
@@ -368,6 +381,10 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
 
+  return withBackOptionFirst(portDialogueNodeView(session, city, gameState, economy, portCities, context));
+}
+
+function portDialogueNodeView(session, city, gameState, economy, portCities, context) {
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
   if (session.nodeId === "barred") return barredPortView(city, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
@@ -386,6 +403,20 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
+}
+
+function withBackOptionFirst(view) {
+  const backIndexes = view.options
+    .map((entry, index) => entry.label === "Back" ? index : -1)
+    .filter((index) => index >= 0);
+  if (backIndexes.length > 1) {
+    throw new Error("Dialogue view contains more than one Back option");
+  }
+  if (backIndexes.length === 0 || backIndexes[0] === 0) return view;
+  const options = [...view.options];
+  const [back] = options.splice(backIndexes[0], 1);
+  options.unshift(back);
+  return { ...view, options };
 }
 
 export function selectPortDialogueOption(
@@ -528,7 +559,8 @@ export function selectPortDialogueOption(
     session.feedback = quest.kind === "passenger"
       ? `${passengerName(quest)} went ashore. Earned ${quest.reward} db.`
       : `Delivered. Earned ${quest.reward} db. Standing improved.`;
-    session.nodeId = "root";
+    session.nodeId = session.nextPortNodeId || "root";
+    session.nextPortNodeId = null;
     session.selectedIndex = 0;
     return { closed: false };
   }
@@ -1095,7 +1127,7 @@ function buyView(session, city, gameState, economy, context) {
         disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
       });
     });
-  if (context.shipStats) rows.unshift(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
+  if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
   rows.push(option("Back", { type: "leave-buy", nodeId: "root" }));
   return {
     speaker: speakerName(city),
@@ -1291,6 +1323,7 @@ function cargoView(session, city, gameState) {
 }
 
 function questView(session, city, gameState, portCities) {
+  const returnNodeId = session.nextPortNodeId || "root";
   const questState = questStateForCity(gameState, city, portCities);
   if (questState.kind === "ready-to-complete") {
     if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
@@ -1306,7 +1339,7 @@ function questView(session, city, gameState, portCities) {
           option(envoy ? "Speak with envoy" : `Set passenger ashore  ${questState.quest.reward} db`, envoy
             ? { type: "open-passenger", quest: questState.quest }
             : { type: "complete-quest" }),
-          option("Back", { type: "node", nodeId: "root" })
+          option("Back", { type: "node", nodeId: returnNodeId })
         ]
       };
     }
@@ -1317,7 +1350,7 @@ function questView(session, city, gameState, portCities) {
       feedback: session.feedback,
       options: [
         option(`Complete delivery  ${questState.quest.reward} db`, { type: "complete-quest" }),
-        option("Back", { type: "node", nodeId: "root" })
+        option("Back", { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -1334,7 +1367,7 @@ function questView(session, city, gameState, portCities) {
         }, {
           detail: formatDistanceKm(questState.quest.distanceKm)
         }),
-        option("Back", { type: "node", nodeId: "root" })
+        option("Back", { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -1345,7 +1378,7 @@ function questView(session, city, gameState, portCities) {
       text: "You already handled my packet. A clean account is rare enough that I remember it.",
       feedback: session.feedback,
       options: [
-        option("Back", { type: "node", nodeId: "root" })
+        option("Back", { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -1356,7 +1389,7 @@ function questView(session, city, gameState, portCities) {
       text: "No sealed packets are bound for our nearby ports right now.",
       feedback: session.feedback,
       options: [
-        option("Back", { type: "node", nodeId: "root" })
+        option("Back", { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -1370,7 +1403,7 @@ function questView(session, city, gameState, portCities) {
         : `You are carrying ${passengerName(quest)} from ${quest.originName} to ${quest.destinationName}; finish that passage first.`,
       feedback: session.feedback,
       options: [
-        option("Back", { type: "node", nodeId: "root" })
+        option("Back", { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -1382,7 +1415,7 @@ function questView(session, city, gameState, portCities) {
       : `Finish your delivery from ${quest.originName} to ${quest.destinationName}; then I can talk work.`,
     feedback: session.feedback,
     options: [
-      option("Back", { type: "node", nodeId: "root" })
+      option("Back", { type: "node", nodeId: returnNodeId })
     ]
   };
 }

@@ -21,6 +21,9 @@ export function readLocalSave({ storage = defaultStorage() } = {}) {
 
 export function clearLocalSave({ storage = defaultStorage() } = {}) {
   storage.removeItem(LOCAL_SAVE_STORAGE_KEY);
+  if (storage.getItem(LOCAL_SAVE_STORAGE_KEY) !== null) {
+    throw new Error("Local save slot remained occupied after deletion");
+  }
 }
 
 export function validateLocalSave(save) {

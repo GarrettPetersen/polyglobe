@@ -3,6 +3,7 @@ export const SHIP_WATERLINE_LEVEL = SHIP_WATERLINE_DEPTH_BYTE / 255;
 export const SHIP_SUBMERGED_ALPHA = 0.38;
 export const SHIP_REFRACTION_BAND_HEIGHT = 3;
 export const SHIP_DECK_NORMAL_Y = 0.35;
+const MAX_UNSUPPORTED_SUBMERGED_COLUMN_HEIGHT = 2;
 
 export function shipPixelIsAboveWater(sinkHeight) {
   validateSinkHeight(sinkHeight);
@@ -32,7 +33,7 @@ export function floatingShipSubmergedPixelKeys(pixels, frameSize) {
     pixelKinds[key] = shipPixelIsAboveWater(pixel.sinkHeight) ? 1 : 2;
   }
 
-  const submerged = new Set();
+  const rawSubmerged = new Set();
   for (let x = 0; x < frameSize; x++) {
     let reachedSilhouette = false;
     for (let y = frameSize - 1; y >= 0; y--) {
@@ -44,10 +45,39 @@ export function floatingShipSubmergedPixelKeys(pixels, frameSize) {
       }
       reachedSilhouette = true;
       if (kind === 1) break;
-      submerged.add(key);
+      rawSubmerged.add(key);
+    }
+  }
+  return removeUnsupportedSubmergedColumns(rawSubmerged, frameSize);
+}
+
+function removeUnsupportedSubmergedColumns(rawSubmerged, frameSize) {
+  const submerged = new Set(rawSubmerged);
+  for (let x = 0; x < frameSize; x++) {
+    let pixelsAboveColumnBottom = 0;
+    for (let y = frameSize - 1; y >= 0; y--) {
+      const key = y * frameSize + x;
+      if (!rawSubmerged.has(key)) continue;
+      if (
+        pixelsAboveColumnBottom >= MAX_UNSUPPORTED_SUBMERGED_COLUMN_HEIGHT &&
+        !hasNeighboringSubmergedSupport(rawSubmerged, frameSize, x, y)
+      ) {
+        submerged.delete(key);
+      }
+      pixelsAboveColumnBottom++;
     }
   }
   return submerged;
+}
+
+function hasNeighboringSubmergedSupport(submerged, frameSize, x, y) {
+  for (const neighborX of [x - 1, x + 1]) {
+    if (neighborX < 0 || neighborX >= frameSize) continue;
+    for (let neighborY = Math.max(0, y - 1); neighborY <= Math.min(frameSize - 1, y + 1); neighborY++) {
+      if (submerged.has(neighborY * frameSize + neighborX)) return true;
+    }
+  }
+  return false;
 }
 
 export function encodedShipWaterlineY(waterlineY, minHeight, maxHeight) {

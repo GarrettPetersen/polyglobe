@@ -6,6 +6,7 @@ import {
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
+  deliveryMissionShouldOpenOnArrival,
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
@@ -22,12 +23,14 @@ import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, createWorldEconomy } from "./eco
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
+  acceptQuest,
   adjustFactionReputation,
   attemptPortDisguise,
   createGameState,
   hasLetterOfMarqueFrom,
   initializeProvisionalShipLoadout,
-  portEntryStatus
+  portEntryStatus,
+  questStateForCity
 } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -354,7 +357,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.optionHeight, 30);
-  assert.equal(sell.options.at(-1).label, "Back");
+  assert.equal(sell.options[0].label, "Back");
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
   assert.ok(sell.options.some((option) => /WORLD/.test(option.detail || "")));
 
@@ -368,9 +371,37 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     [city]
   );
   assert.deepEqual(provisionsOnlySell.options.map((option) => option.label), [
-    "No cargo to sell",
-    "Back"
+    "Back",
+    "No cargo to sell"
   ]);
+});
+
+test("port submenus keep Back first and put the infrequent loadout action last", () => {
+  const city = {
+    tileId: 106,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.ship.loadoutId = "balanced";
+  gameState.doubloons = 1000;
+  const context = { shipStats: stats };
+
+  for (const nodeId of ["buy", "sell", "equipment", "equipment-nets", "equipment-cannons", "cargo", "loadout"]) {
+    const session = createPortDialogueSession(city, { initialNodeId: nodeId });
+    const view = portDialogueView(session, city, gameState, economy, [city], context);
+    assert.equal(view.options[0].label, "Back", `${nodeId} should put Back first`);
+  }
+
+  const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const buy = portDialogueView(buySession, city, gameState, economy, [city], context);
+  assert.equal(buy.options.at(-1).label, "Change ship loadout");
+  assert.ok(buy.options.slice(1, -1).every((entry) => entry.action.type === "buy"));
 });
 
 test("market comparisons use pixel-font-safe directional wording", () => {
@@ -744,15 +775,15 @@ test("ports stock a local selection of fishing net upgrades", () => {
   const view = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(view.optionHeight, 34);
   assert.match(view.text, /Current gear: Basic cast net/);
-  assert.deepEqual(view.options.slice(0, 2).map((entry) => entry.label), [
+  assert.deepEqual(view.options.slice(1, 3).map((entry) => entry.label), [
     "* Basic cast net  FITTED",
     "Weighted cast net  900 db"
   ]);
-  assert.ok(view.options.slice(0, 2).every((entry) => /MAX HAUL/.test(entry.detail)));
-  assert.equal(view.options[0].disabled, true);
-  assert.equal(view.options[1].disabled, false);
+  assert.ok(view.options.slice(1, 3).every((entry) => /MAX HAUL/.test(entry.detail)));
+  assert.equal(view.options[1].disabled, true);
+  assert.equal(view.options[2].disabled, false);
 
-  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 300 });
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 2, { simMinute: 300 });
   assert.equal(result.fishingNetPurchase.net.id, "weighted-cast-net");
   assert.equal(gameState.doubloons, 4100);
   assert.match(session.feedback, /Weighted cast net fitted/);
@@ -776,14 +807,14 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
 
   const view = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(view.optionHeight, 34);
-  assert.deepEqual(view.options.slice(0, 3).map((entry) => entry.label), [
+  assert.deepEqual(view.options.slice(1, 4).map((entry) => entry.label), [
     "* Standard ordnance  FITTED",
     "Bronze culverins  2400 db",
     "Reinforced culverins  8500 db"
   ]);
-  assert.match(view.options[1].detail, /RELOAD 8\.50S  DAMAGE x1\.15  RANGE x1\.12/);
+  assert.match(view.options[2].detail, /RELOAD 8\.50S  DAMAGE x1\.15  RANGE x1\.12/);
 
-  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 300 });
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 2, { simMinute: 300 });
   assert.equal(result.cannonEquipmentPurchase.equipment.id, "bronze-culverins");
   assert.equal(gameState.doubloons, 7600);
   assert.match(session.feedback, /Bronze culverins fitted/);
@@ -819,8 +850,9 @@ test("package job offers show the destination distance", () => {
   const view = portDialogueView(session, lisbon, gameState, economy, [lisbon, porto]);
 
   assert.match(view.text, /27\d km away/);
-  assert.match(view.options[0].detail, /27\d km/);
-  assert.doesNotMatch(view.options[0].detail, /GREAT-CIRCLE/);
+  const offer = view.options.find((entry) => entry.action.type === "accept-quest");
+  assert.match(offer.detail, /27\d km/);
+  assert.doesNotMatch(offer.detail, /GREAT-CIRCLE/);
 });
 
 test("shipyards show a full vessel presentation and enforce the asking price", () => {
@@ -848,13 +880,15 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
   const poorView = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(poorView.presentation.kind, "shipyard");
   assert.equal(poorView.presentation.listing.shipSlug, "brigantine");
-  assert.equal(poorView.options[0].disabled, true);
-  assert.match(poorView.options[0].disabledReason, /more doubloons/);
+  const poorPurchase = poorView.options.find((entry) => entry.action.type === "purchase-ship");
+  assert.equal(poorPurchase.disabled, true);
+  assert.match(poorPurchase.disabledReason, /more doubloons/);
 
   gameState.doubloons = 40000;
   const richView = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(richView.options[0].disabled, false);
-  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
+  const richPurchaseIndex = richView.options.findIndex((entry) => entry.action.type === "purchase-ship");
+  assert.equal(richView.options[richPurchaseIndex].disabled, false);
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], richPurchaseIndex, context), {
     closed: false,
     action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
   });
@@ -884,14 +918,15 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   const firstView = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(firstView.speaker, "Leif Eriksen, historical enthusiast");
   assert.match(firstView.text, /historical enthusiast/i);
-  assert.equal(firstView.options[0].disabled, true);
+  assert.equal(firstView.options.find((entry) => entry.action.type === "deliver-viking-material").disabled, true);
 
   gameState.cargo = { wool: 8, timber: 6, iron: 3 };
   gameState.accounts.cargoCostBasis = { wool: 144, timber: 84, iron: 78 };
   for (const expectedGood of ["Wool", "Timber", "Iron"]) {
     const view = portDialogueView(session, city, gameState, economy, [city], context);
-    assert.match(view.options[0].label, new RegExp(expectedGood));
-    const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
+    const deliveryIndex = view.options.findIndex((entry) => entry.action.type === "deliver-viking-material");
+    assert.match(view.options[deliveryIndex].label, new RegExp(expectedGood));
+    const result = selectPortDialogueOption(session, city, gameState, economy, [city], deliveryIndex, {
       ...context,
       simMinute: 500
     });
@@ -902,9 +937,10 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   const unlocked = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(unlocked.presentation.kind, "shipyard");
   assert.equal(unlocked.presentation.listing.shipSlug, "viking-longship");
-  assert.equal(unlocked.options[0].disabled, false);
+  const purchaseIndex = unlocked.options.findIndex((entry) => entry.action.type === "purchase-viking-longship");
+  assert.equal(unlocked.options[purchaseIndex].disabled, false);
   assert.deepEqual(
-    selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
+    selectPortDialogueOption(session, city, gameState, economy, [city], purchaseIndex, context),
     { closed: false, action: { type: "purchase-viking-longship", shipSlug: "viking-longship" } }
   );
 });
@@ -1076,6 +1112,93 @@ test("a quest character precedes the loadout and factor during port arrival", ()
   assert.equal(futureQuestSession.nextPortNodeId, "greeting");
 });
 
+test("an active package mission opens its factor before the port menu", () => {
+  const origin = {
+    tileId: 71,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    factionId: "portugal",
+    cityType: "mediterranean",
+    routeRegion: "mediterranean",
+    lat: 38.72,
+    lon: -9.14
+  };
+  const destination = {
+    ...origin,
+    tileId: 72,
+    city: "Porto",
+    displayCity: "Porto",
+    lat: 41.15,
+    lon: -8.61
+  };
+  const unrelated = {
+    ...origin,
+    tileId: 73,
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    factionId: "spain",
+    lat: 36.53,
+    lon: -6.29
+  };
+  const ports = [origin, destination, unrelated];
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const available = questStateForCity(gameState, origin, ports);
+  assert.equal(available.kind, "available");
+  assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), false);
+
+  acceptQuest(gameState, available.quest);
+  assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), true);
+  assert.equal(deliveryMissionShouldOpenOnArrival(gameState, destination, ports), true);
+  assert.equal(deliveryMissionShouldOpenOnArrival(gameState, unrelated, ports), false);
+
+  const arrival = createPortArrivalDialogueSession(destination, { openDeliveryMission: true });
+  assert.equal(arrival.kind, "port");
+  assert.equal(arrival.nodeId, "quest");
+  assert.equal(arrival.nextPortNodeId, "root");
+  assert.equal(arrival.admittedToPort, true);
+});
+
+test("completing an arrival delivery proceeds to the required loadout", () => {
+  const origin = {
+    tileId: 74,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    factionId: "portugal",
+    cityType: "mediterranean",
+    routeRegion: "mediterranean",
+    lat: 38.72,
+    lon: -9.14,
+    character: { name: "Fernao da Cunha" }
+  };
+  const destination = {
+    ...origin,
+    tileId: 75,
+    city: "Porto",
+    displayCity: "Porto",
+    lat: 41.15,
+    lon: -8.61
+  };
+  const ports = [origin, destination];
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const quest = questStateForCity(gameState, origin, ports).quest;
+  acceptQuest(gameState, quest);
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const session = createPortArrivalDialogueSession(destination, {
+    needsLoadout: true,
+    openDeliveryMission: true
+  });
+  const view = portDialogueView(session, destination, gameState, economy, ports);
+  const completeIndex = view.options.findIndex((entry) => entry.action.type === "complete-quest");
+
+  assert.ok(completeIndex >= 0);
+  selectPortDialogueOption(session, destination, gameState, economy, ports, completeIndex);
+  assert.equal(session.nodeId, "loadout");
+  assert.equal(gameState.memory.quests.active, null);
+});
+
 test("only admitted port sessions carry automatic departure services", () => {
   const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
   const barred = createPortDialogueSession(city, { initialNodeId: "barred" });
@@ -1118,9 +1241,10 @@ test("capital port dialogue can grant a letter of marque", () => {
   selectPortDialogueOption(session, city, gameState, economy, [city], marqueIndex, context);
   const marque = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(marque.text, /King Henry VIII/);
-  assert.equal(marque.options[0].disabled, false);
+  const requestIndex = marque.options.findIndex((entry) => entry.action.type === "request-marque");
+  assert.equal(marque.options[requestIndex].disabled, false);
 
-  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  selectPortDialogueOption(session, city, gameState, economy, [city], requestIndex, context);
   assert.equal(hasLetterOfMarqueFrom(gameState, "england"), true);
   assert.match(session.feedback, /letter of marque granted/i);
 });

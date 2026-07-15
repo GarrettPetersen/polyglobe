@@ -40,6 +40,15 @@ test("clearing a save leaves the slot empty", () => {
   assert.equal(readLocalSave({ storage }).status, "empty");
 });
 
+test("clearing a save fails loudly when storage does not delete the slot", () => {
+  const storage = memoryStorage();
+  writeLocalSave(savePayload(), { storage, savedAt: 1 });
+  storage.removeItem = () => {};
+
+  assert.throws(() => clearLocalSave({ storage }), /remained occupied/);
+  assert.equal(readLocalSave({ storage }).status, "ready");
+});
+
 function savePayload() {
   return {
     gameState: { version: 8 },

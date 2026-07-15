@@ -517,6 +517,32 @@ test("the Nusantaran outrigger refracts only its lowest exterior hull pixels", a
   }
 });
 
+test("the northwest Dhow frame has no vertical submerged streak through its hull", async () => {
+  const [sprite, sinkDepth] = await Promise.all([
+    loadImage(join(shipAssetRoot, "dhow-16-headings.png")),
+    loadImage(join(shipAssetRoot, "dhow-16-headings-sink-depth.png"))
+  ]);
+  const spritePixels = imagePixels(sprite);
+  const sinkPixels = imagePixels(sinkDepth);
+  const frame = 6;
+  const originX = frame % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+  const originY = Math.floor(frame / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+  const pixels = [];
+  for (let y = 0; y < SHIP_SPRITE_FRAME_SIZE; y++) {
+    for (let x = 0; x < SHIP_SPRITE_FRAME_SIZE; x++) {
+      const offset = ((originX + x) + (originY + y) * sprite.width) * 4;
+      if (spritePixels[offset + 3] === 0) continue;
+      pixels.push({ x, y, sinkHeight: sinkPixels[offset] / 255 });
+    }
+  }
+
+  const submerged = floatingShipSubmergedPixelKeys(pixels, SHIP_SPRITE_FRAME_SIZE);
+  assert.deepEqual(
+    [...submerged].filter((key) => key % SHIP_SPRITE_FRAME_SIZE === 23).sort((a, b) => a - b),
+    [26 * SHIP_SPRITE_FRAME_SIZE + 23, 27 * SHIP_SPRITE_FRAME_SIZE + 23]
+  );
+});
+
 test("the Mesoamerican canoe has a readable six-frame paddle cycle", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const entry = manifest.ships.find((ship) => ship.slug === MESOAMERICAN_CANOE_SLUG);

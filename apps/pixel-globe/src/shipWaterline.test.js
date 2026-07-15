@@ -46,6 +46,36 @@ test("a waterproof hull keeps enclosed low pixels in the opaque layer", () => {
   assert.equal(submerged.size, 0);
 });
 
+test("a narrow unsupported depth column cannot refract vertically through a ship", () => {
+  const low = SHIP_WATERLINE_LEVEL - 1 / 255;
+  const submerged = floatingShipSubmergedPixelKeys([
+    { x: 2, y: 1, sinkHeight: low },
+    { x: 2, y: 2, sinkHeight: low },
+    { x: 2, y: 3, sinkHeight: low },
+    { x: 2, y: 4, sinkHeight: low },
+    { x: 2, y: 5, sinkHeight: low }
+  ], 7);
+
+  assert.deepEqual([...submerged].sort((a, b) => a - b), [30, 37]);
+});
+
+test("neighboring hull pixels preserve a broad submerged diagonal", () => {
+  const low = SHIP_WATERLINE_LEVEL - 1 / 255;
+  const submerged = floatingShipSubmergedPixelKeys([
+    { x: 1, y: 4, sinkHeight: low },
+    { x: 1, y: 5, sinkHeight: low },
+    { x: 2, y: 3, sinkHeight: low },
+    { x: 2, y: 4, sinkHeight: low },
+    { x: 2, y: 5, sinkHeight: low },
+    { x: 3, y: 2, sinkHeight: low },
+    { x: 3, y: 3, sinkHeight: low },
+    { x: 3, y: 4, sinkHeight: low },
+    { x: 3, y: 5, sinkHeight: low }
+  ], 7);
+
+  assert.equal(submerged.size, 9);
+});
+
 test("the sink bake preserves an in-range model waterline", () => {
   assert.equal(encodedShipWaterlineY(-0.46, -0.68, 0.73), -0.46);
 });
