@@ -8,9 +8,21 @@ export function isWaterSurfaceRow(row) {
   return terrain === "water" || terrain === "lake" || isCoastalWaterRow(row);
 }
 
+export function isPermanentSeaIceRow(row) {
+  return (row?.t || "") === "ice";
+}
+
+export function isShipUsableSurfaceWater(row, tileId, occupiedTileId, hasSurfaceIce) {
+  if (!Number.isInteger(tileId) || tileId < 0) throw new Error(`Invalid surface ice tile: ${tileId}`);
+  if (!Number.isInteger(occupiedTileId) || occupiedTileId < 0) {
+    throw new Error(`Invalid occupied surface ice tile: ${occupiedTileId}`);
+  }
+  return isWaterSurfaceRow(row) && (hasSurfaceIce !== true || tileId === occupiedTileId);
+}
+
 export function isFrozenShoreRow(row) {
   const terrain = row?.t || "";
-  return terrain === "ice" || terrain === "ice_cap";
+  return isPermanentSeaIceRow(row) || terrain === "ice_cap";
 }
 
 export function terrainRowsNeedBeach(rowA, rowB) {

@@ -446,6 +446,8 @@ import {
 } from "./fishingAction.js";
 import {
   isCoastalWaterRow,
+  isPermanentSeaIceRow,
+  isShipUsableSurfaceWater,
   isWaterSurfaceRow,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
@@ -513,9 +515,11 @@ import {
   SHORE_SCAVENGE_CASUALTY,
   SHORE_SCAVENGE_FOOD,
   SHORE_SCAVENGE_NOTHING,
-  SHORE_SCAVENGE_SPRING,
+  SHORE_SCAVENGE_WATER,
   foragedFoodQuantity,
   rollShoreScavenge,
+  shoreScavengeContextForTerrain,
+  shoreScavengeNoticeLabel,
   shoreScavengeNarrative
 } from "./shoreScavenge.js";
 
@@ -1039,13 +1043,14 @@ const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 192;
+const OPTIONS_PANEL_H = 228;
 const OPTIONS_ROW_H = 34;
-const OPTIONS_ROW_COUNT = 4;
+const OPTIONS_ROW_COUNT = 5;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
+const OPTIONS_ROW_START_MENU = 4;
 const UI_ICON_BUTTON_SIZE = 24;
 const UI_PAGER_BUTTON_W = 30;
 const UI_PAGER_BUTTON_H = 24;
@@ -3141,6 +3146,7 @@ function createOptionsMenuState() {
     sfxVolume: loadStoredVolume(SFX_VOLUME_STORAGE_KEY, SFX_DEFAULT_VOLUME),
     muted: loadStoredAudioMuted(),
     fullscreenError: null,
+    returnError: null,
     selectedIndex: 0,
     activeSliderKey: null,
     hoverPoint: null,
@@ -4787,7 +4793,7 @@ async function restoreSavedVoyage(payload) {
   if (restoredGameState.cargoCapacity !== stats.cargoCapacity) {
     throw new Error("Saved ship capacity does not match its hull");
   }
-  if (!Number.isInteger(savedShip.tileId) || !isShipNavigableTile(savedShip.tileId)) {
+  if (!Number.isInteger(savedShip.tileId) || !isShipBaseNavigableTile(savedShip.tileId)) {
     throw new Error(`Saved ship tile is not navigable: ${savedShip.tileId}`);
   }
   if (!Number.isFinite(savedShip.hitPoints) || savedShip.hitPoints <= 0 ||
@@ -5042,6 +5048,7 @@ function openOptionsMenu() {
   optionsMenu.isOpen = true;
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
+  optionsMenu.returnError = null;
   keys.clear();
   clearPointerSteering();
   dirty = true;
@@ -5123,7 +5130,37 @@ function closeOptionsMenu() {
   optionsMenu.sliderRects = {};
   optionsMenu.sliderHitRects = {};
   optionsMenu.muteRect = null;
+  optionsMenu.returnError = null;
   dirty = true;
+}
+
+function returnToStartMenuFromOptions() {
+  if (!optionsMenu.isOpen) throw new Error("Cannot return to the start menu while options are closed");
+  optionsMenu.returnError = null;
+
+  if (lakeBattleMode) {
+    closeOptionsMenu();
+    closeLakeBattleModeToStartMenu();
+    return true;
+  }
+  if (startMenu) {
+    closeOptionsMenu();
+    return true;
+  }
+  if (hasStartedVoyage && !saveVoyageNow("returned to start menu")) {
+    optionsMenu.returnError = "SAVE FAILED - TRY AGAIN";
+    dirty = true;
+    return false;
+  }
+
+  closeOptionsMenu();
+  closeCaptainMenu();
+  startMenu = createStartMenuState();
+  syncCanvasAriaLabel();
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+  return true;
 }
 
 function openCaptainMenu() {
@@ -5199,6 +5236,7 @@ function handleOptionsKeyDown(event) {
   if (event.key === "Enter" || event.key === " ") {
     if (optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN) void toggleFullscreenMode();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_MUTE) toggleAudioMuted();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) returnToStartMenuFromOptions();
     return;
   }
   if (event.key === "m" || event.key === "M") {
@@ -5594,6 +5632,10 @@ function handleOptionsPointerDown(point) {
     optionsMenu.selectedIndex = OPTIONS_ROW_MUTE;
     toggleAudioMuted();
     return;
+  }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_START_MENU])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_START_MENU;
+    returnToStartMenuFromOptions();
   }
 }
 
@@ -6083,13 +6125,33 @@ function toggleAnchor() {
 
 function canAnchorAtCurrentShore() {
   if (!ship || !chart || !localLayout || gameOverReason) return false;
-  if (!isShipNavigableTile(ship.tileId)) return false;
+  if (!isShipNavigableTile(ship.tileId) && !isPlayerUsableSurfaceWaterTile(ship.tileId)) return false;
+  return Boolean(nearestScavengeShoreCall());
+}
+
+function nearestScavengeShoreCall() {
+  if (!ship || !chart || !localLayout) return null;
   const maxDistance2 = ANCHOR_SHORE_MAX_PX * ANCHOR_SHORE_MAX_PX;
+  let nearest = null;
+  let nearestDistance2 = Infinity;
   for (const call of chart.tileCalls) {
     if (isWaterSurfaceRow(call.row)) continue;
-    if (distance2(localLayout.viewX, localLayout.viewY, call.x, call.y) <= maxDistance2) return true;
+    const callDistance2 = distance2(localLayout.viewX, localLayout.viewY, call.x, call.y);
+    if (callDistance2 > maxDistance2 || callDistance2 >= nearestDistance2) continue;
+    nearest = call;
+    nearestDistance2 = callDistance2;
   }
-  return false;
+  return nearest;
+}
+
+function currentShoreScavengeContext() {
+  const shoreCall = nearestScavengeShoreCall();
+  if (!shoreCall) throw new Error("Anchored shore scavenging requires a nearby shore tile");
+  return shoreScavengeContextForTerrain(
+    shoreCall.row,
+    graph.latDeg[shoreCall.id],
+    Boolean(snowGroundMask?.[shoreCall.id])
+  );
 }
 
 function startShoreScavenge() {
@@ -6100,7 +6162,8 @@ function startShoreScavenge() {
   }
   shoreScavengeAction = {
     startedAtMs: lastFrameMs,
-    completesAtMs: lastFrameMs + SCAVENGE_ACTION_MS
+    completesAtMs: lastFrameMs + SCAVENGE_ACTION_MS,
+    context: currentShoreScavengeContext()
   };
   stopShipForDialogue();
   showSurvivalNotice("SCAVENGING ASHORE...", "good");
@@ -6110,29 +6173,32 @@ function startShoreScavenge() {
 
 function updateShoreScavenge(nowMs) {
   if (!shoreScavengeAction || nowMs < shoreScavengeAction.completesAtMs) return false;
+  const context = shoreScavengeAction.context;
   shoreScavengeAction = null;
   const outcome = rollShoreScavenge();
-  const narrative = shoreScavengeNarrative(outcome);
-  if (outcome === SHORE_SCAVENGE_SPRING) {
+  const narrative = shoreScavengeNarrative(outcome, context);
+  if (outcome === SHORE_SCAVENGE_WATER) {
+    const noticeLabel = shoreScavengeNoticeLabel(outcome, context);
     const filled = refillFreshWaterFromShore(gameState);
     if (filled > 0) {
       playScavengeSuccessSound();
-      showSurvivalNotice(`FOUND A SPRING  WATER +${Math.ceil(filled)}`, "good");
+      showSurvivalNotice(`${noticeLabel}  WATER +${Math.ceil(filled)}`, "good");
       openCaptainAlertModal(`${narrative} We filled the casks.`, "happy");
     } else {
       playScavengeFailureSound();
-      showSurvivalNotice("FOUND A SPRING  CASKS CANNOT TAKE MORE", "warn");
+      showSurvivalNotice(`${noticeLabel}  CASKS CANNOT TAKE MORE`, "warn");
       openCaptainAlertModal(`${narrative} Every cask was already full.`, "concerned");
     }
   } else if (outcome === SHORE_SCAVENGE_FOOD) {
+    const noticeLabel = shoreScavengeNoticeLabel(outcome, context);
     const found = stowForagedFood(gameState, foragedFoodQuantity());
     if (found > 0) {
       playScavengeSuccessSound();
-      showSurvivalNotice(`FOUND WILD GAME  FOOD +${found}`, "good");
+      showSurvivalNotice(`${noticeLabel}  FOOD +${found}`, "good");
       openCaptainAlertModal(`${narrative} We gained ${found} food.`, "happy");
     } else {
       playScavengeFailureSound();
-      showSurvivalNotice("FOUND WILD GAME  HOLD FULL", "warn");
+      showSurvivalNotice(`${noticeLabel}  HOLD FULL`, "warn");
       openCaptainAlertModal(`${narrative} There was no room in the hold.`, "concerned");
     }
   } else if (outcome === SHORE_SCAVENGE_NOTHING) {
@@ -7915,7 +7981,9 @@ function localShipCollisionSamplePoint(sampleVector, distancePx, localPoint) {
 }
 
 function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
-  if (isShipOpenWaterTile(tileId)) return { ok: true, kind: "openWater" };
+  if (isPlayerUsableSurfaceWaterTile(tileId)) {
+    return { ok: true, kind: "openWater" };
+  }
 
   const riverInfo = riverWaterInfoAtLocalPoint(x, y, chart);
   if (riverInfo?.ok) return { ok: true, kind: "river", riverTileId: riverInfo.tileId };
@@ -8062,15 +8130,16 @@ function localNormalToTangent(normal, position) {
 }
 
 function canShipMoveBetween(fromTileId, toTileId, movementDirection = null) {
-  if (!isShipNavigableTile(toTileId)) return false;
+  const toPlayerWater = isPlayerUsableSurfaceWaterTile(toTileId);
+  if (!isShipNavigableTile(toTileId) && !toPlayerWater) return false;
   if (fromTileId === toTileId) return true;
 
   const edgeA = edgeIndexTowardNeighbor(fromTileId, toTileId);
   const edgeB = edgeIndexTowardNeighbor(toTileId, fromTileId);
   if (edgeA === undefined || edgeB === undefined) return false;
 
-  const fromWater = isShipOpenWaterTile(fromTileId);
-  const toWater = isShipOpenWaterTile(toTileId);
+  const fromWater = isPlayerUsableSurfaceWaterTile(fromTileId);
+  const toWater = toPlayerWater;
   if (fromWater && toWater) return true;
 
   const fromRiver = shipTileHasRiver(fromTileId);
@@ -8137,6 +8206,10 @@ function isShipNavigableTile(tileId) {
   return isShipOpenWaterTile(tileId) || shipTileHasRiver(tileId);
 }
 
+function isShipBaseNavigableTile(tileId) {
+  return isWaterSurfaceRow(earthById[tileId]) || shipTileHasRiver(tileId);
+}
+
 function isShipOpenWaterTile(tileId) {
   return isWaterSurfaceRow(earthById[tileId]) && !isShipBlockedByIceTile(tileId);
 }
@@ -8148,6 +8221,16 @@ function isShipOceanTile(tileId) {
 function isShipBlockedByIceTile(tileId) {
   if (!isWaterSurfaceRow(earthById[tileId])) return false;
   return Boolean(seaIceMask?.[tileId] || freshwaterIceMask?.[tileId]);
+}
+
+function isPlayerUsableSurfaceWaterTile(tileId) {
+  if (!ship) return false;
+  return isShipUsableSurfaceWater(
+    earthById[tileId],
+    tileId,
+    ship.tileId,
+    isShipBlockedByIceTile(tileId)
+  );
 }
 
 function shipTileHasRiver(tileId) {
@@ -14748,12 +14831,14 @@ function drawOptionsMenu() {
   const musicRow = { x: rowX, y: firstRowY + rowStep, w: rowW, h: OPTIONS_ROW_H - 2 };
   const sfxRow = { x: rowX, y: firstRowY + rowStep * 2, w: rowW, h: OPTIONS_ROW_H - 2 };
   const muteRow = { x: rowX, y: firstRowY + rowStep * 3, w: rowW, h: OPTIONS_ROW_H - 2 };
-  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow];
+  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 4, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, startMenuRow];
 
   drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
   drawOptionsVolumeRow(musicRow, "MUSIC", "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
   drawOptionsVolumeRow(sfxRow, "SFX", "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
   drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
+  drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
   ctx.restore();
 }
 
@@ -14842,6 +14927,18 @@ function drawOptionsMuteRow(rowRect, highlighted) {
     ctx.lineTo(boxX + 8, boxY + 2);
     ctx.stroke();
   }
+}
+
+function drawOptionsStartMenuRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  const iconX = rowRect.x + 8;
+  const iconY = rowRect.y + Math.floor((rowRect.h - GAME_ICON_SIZE) / 2);
+  drawGameIcon("action:start-menu", iconX, iconY, { alpha: optionsMenu.returnError ? 0.5 : 1 });
+  const label = optionsMenu.returnError || "RETURN TO MAIN MENU";
+  drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, rowRect.w - 38), rowRect.x + 31, controlTextY(rowRect), {
+    font: PIXEL_FONT_SMALL_8,
+    color: optionsMenu.returnError ? PIRATE_MENU_DANGER : PIRATE_MENU_INK
+  });
 }
 
 function drawOptionsArrowButton(rect, label, highlighted) {
@@ -15481,9 +15578,10 @@ function drawWeatherSurface(call) {
 }
 
 function drawIceSurface(call) {
-  if (!isWaterSurfaceRow(call.row)) return;
-  if (!tileHasSurfaceIce(call.id)) return;
-  drawWeatherSpeckles(call, "rgba(255, 255, 255, 0.72)", 8, 0x494345, 10, 6);
+  const isPermanentIce = isPermanentSeaIceRow(call.row);
+  const isSeasonalIce = isWaterSurfaceRow(call.row) && tileHasSurfaceIce(call.id);
+  if (!isPermanentIce && !isSeasonalIce) return;
+  drawWeatherSpeckles(call, "rgba(155, 171, 178, 0.68)", 7, 0x494345, 10, 6);
 }
 
 function drawWeatherSpeckles(call, color, count, salt, radiusX, radiusY) {
@@ -16181,14 +16279,18 @@ function terrainImage(key) {
 }
 
 function terrainImageForTile(row, id) {
-  if (isWaterSurfaceRow(row) && tileHasSurfaceIce(id)) return terrainImage("ice_01");
+  if (isPermanentSeaIceRow(row) || (isWaterSurfaceRow(row) && tileHasSurfaceIce(id))) {
+    return terrainImage("snow_01");
+  }
   const key = spriteForTerrain(row, id);
   if (isWaterSurfaceRow(row)) return waterLatitudeTerrainImage(key, id, row);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainImage(key) : terrainImage(key);
 }
 
 function terrainColorForTile(row, id) {
-  if (isWaterSurfaceRow(row) && tileHasSurfaceIce(id)) return terrainSpriteColor("ice_01");
+  if (isPermanentSeaIceRow(row) || (isWaterSurfaceRow(row) && tileHasSurfaceIce(id))) {
+    return terrainSpriteColor("snow_01");
+  }
   const key = spriteForTerrain(row, id);
   if (isWaterSurfaceRow(row)) return waterLatitudeTerrainColor(key, id, row);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainColor(key) : terrainSpriteColor(key);
@@ -20074,7 +20176,7 @@ function spriteForTerrain(row, id) {
   if (isMountainPeakTile(id)) return snowyMountainVariant(id);
   if (t === "mountain") return mountainVariant(id);
   if (t.includes("ice_cap")) return "snow_01";
-  if (t === "ice") return "ice_01";
+  if (t === "ice") return "snow_01";
   if (t.includes("tundra") || t === "snow") return "snow_01";
   if (row.e > 0.13) return "earth_stone";
   if (row.h === 1) return hillSpriteForTerrain(row, id);

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   isCoastalWaterRow,
   isFrozenShoreRow,
+  isPermanentSeaIceRow,
+  isShipUsableSurfaceWater,
   isWaterSurfaceRow,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
@@ -13,6 +15,25 @@ test("shared coastal-water terrain remains navigable water", () => {
   assert.equal(isWaterSurfaceRow({ t: "water" }), true);
   assert.equal(isWaterSurfaceRow({ t: "lake" }), true);
   assert.equal(isWaterSurfaceRow({ t: "ice" }), false);
+});
+
+test("permanent polar pack ice is distinct from land ice caps", () => {
+  assert.equal(isPermanentSeaIceRow({ t: "ice", o: 1 }), true);
+  assert.equal(isPermanentSeaIceRow({ t: "ice", l: 40 }), true);
+  assert.equal(isPermanentSeaIceRow({ t: "ice_cap", m: 1185 }), false);
+  assert.equal(isPermanentSeaIceRow({ t: "water" }), false);
+});
+
+test("a ship may leave only the seasonal ice tile it already occupies", () => {
+  assert.equal(isShipUsableSurfaceWater({ t: "water" }, 12, 12, true), true);
+  assert.equal(isShipUsableSurfaceWater({ t: "lake" }, 12, 12, true), true);
+  assert.equal(isShipUsableSurfaceWater({ t: "water" }, 13, 12, true), false);
+  assert.equal(isShipUsableSurfaceWater({ t: "water" }, 13, 12, false), true);
+  assert.equal(isShipUsableSurfaceWater({ t: "ice" }, 12, 12, true), false);
+  assert.throws(
+    () => isShipUsableSurfaceWater({ t: "water" }, -1, 12, true),
+    /Invalid surface ice tile/
+  );
 });
 
 test("ordinary shores receive beaches in either row order", () => {

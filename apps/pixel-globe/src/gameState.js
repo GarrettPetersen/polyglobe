@@ -523,7 +523,7 @@ export function refillFreshWaterFromShore(state) {
   const filled = Math.min(missing, availableSpace);
   if (filled <= 0) return 0;
   state.survival.freshWater += filled;
-  recordDecision(state, "scavenge.spring", Math.ceil(filled));
+  recordDecision(state, "scavenge.water", Math.ceil(filled));
   return filled;
 }
 
