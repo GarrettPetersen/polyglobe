@@ -1178,6 +1178,10 @@ const MUSIC_TRACK_SPECS = Object.freeze({
     intro: "/assets/music/victory-intro.ogg",
     loop: "/assets/music/victory-loop.ogg"
   },
+  gameVictory: {
+    intro: "/assets/music/game-victory-intro.ogg",
+    loop: "/assets/music/game-victory-loop.ogg"
+  },
   storm: {
     intro: "/assets/music/storm-theme-intro.ogg",
     loop: "/assets/music/storm-theme-loop.ogg"
