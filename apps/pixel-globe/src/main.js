@@ -9,11 +9,19 @@ import {
   normalize3
 } from "./geodesic.js";
 import {
+  alphaMaskContainsMapPoint,
+  forEachPixelBrushPoint,
+  pixelMaskKey
+} from "./pixelWaterMask.js";
+import {
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
-import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
+import {
+  applyManualTerrainOverrides,
+  assertManualShallowWaterReachesOcean
+} from "./manualTerrainOverrides.js";
 import {
   TILE_DAY_RAIN,
   TILE_DAY_SNOW_FALL,
@@ -1418,7 +1426,7 @@ let portCityCharacters;
 let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
-const terrainAlphaMasks = new WeakMap();
+const spriteAlphaMasks = new WeakMap();
 const fishSpriteTintCache = new Map();
 let spriteColors;
 let waterLatitudeImages;
@@ -1730,6 +1738,7 @@ async function main() {
   riverMasks = riverData.masks;
   riverToWaterMasks = riverData.toWaterMasks;
   oceanReachableNavigationMask = buildOceanReachableNavigationMask();
+  assertManualShallowWaterReachesOcean(oceanReachableNavigationMask, SUBDIVISIONS);
   cityByTileId = placeCityCatalog(cityCatalog);
   waterDepthBands = buildWaterDepthBands();
   stormSystem = createStormSystem({
@@ -2862,8 +2871,7 @@ function buildOceanReachableNavigationMask() {
 }
 
 function isOceanNavigationSeedTile(tileId) {
-  const t = earthById[tileId]?.t || "";
-  return t === "water" || isCoastalWaterRow(earthById[tileId]);
+  return earthById[tileId]?.t === "water";
 }
 
 function canTraverseOceanReachability(fromTileId, toTileId) {
@@ -12540,7 +12548,8 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
       kind: "riverConnector",
       call,
       geometry,
-      path
+      path,
+      waterPixels: riverConnectorWaterPixels(call, geometry)
     });
   }
   return { buckets };
@@ -15717,6 +15726,27 @@ function drawRiverConnector(call, activeChart) {
   drawRiverSparkles(ctx, path, frame, seed, colors.light);
 }
 
+function riverConnectorWaterPixels(call, geometry) {
+  const { path, a, b } = geometry;
+  const pixels = new Set();
+  const addBrush = (x, y, radius) => {
+    forEachPixelBrushPoint(x, y, radius, (px, py) => pixels.add(pixelMaskKey(px, py)));
+  };
+
+  forEachPixelOnBezier(path, (x, y) => addBrush(x, y, RIVER_CONNECTOR_RADIUS_PX));
+  const wideAtStart = riverConnectorMouthWideAtStart(call);
+  if (wideAtStart !== null) {
+    forEachRiverMouthFlareSample(path, wideAtStart, (x, y, radius) => {
+      addBrush(x, y, Math.round(radius));
+    });
+  }
+  addBrush(a.x, a.y, RIVER_CONNECTOR_RADIUS_PX);
+  addBrush(b.x, b.y, RIVER_CONNECTOR_RADIUS_PX);
+  if (call.aMouth && call.bWater) addBrush(b.x, b.y, RIVER_MOUTH_RADIUS_PX);
+  if (call.bMouth && call.aWater) addBrush(a.x, a.y, RIVER_MOUTH_RADIUS_PX);
+  return pixels;
+}
+
 function riverConnectorGeometry(call, activeChart) {
   const aTile = activeChart.tileById.get(call.a);
   const bTile = activeChart.tileById.get(call.b);
@@ -16548,12 +16578,7 @@ function bezierPathLength(path) {
 
 function drawPixelBrush(targetCtx, x, y, radius, color) {
   targetCtx.fillStyle = color;
-  for (let yy = -radius; yy <= radius; yy++) {
-    for (let xx = -radius; xx <= radius; xx++) {
-      if (Math.abs(xx) + Math.abs(yy) > radius + 1) continue;
-      targetCtx.fillRect(Math.round(x + xx), Math.round(y + yy), 1, 1);
-    }
-  }
+  forEachPixelBrushPoint(x, y, radius, (px, py) => targetCtx.fillRect(px, py, 1, 1));
 }
 
 function terrainImage(key) {
@@ -16861,8 +16886,9 @@ function wakeFoamSideJitter(hash) {
 function wakeMapPointIsWater(x, y, activeChart) {
   if (!activeChart?.waterIndex) return false;
   const candidates = wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex);
+  const pixelKey = pixelMaskKey(Math.round(x), Math.round(y));
   for (const entry of candidates) {
-    if (entry.kind === "riverConnector" && pointDistanceToBezierPath(x, y, entry.path) <= WAKE_RIVER_RADIUS_PX) {
+    if (entry.kind === "riverConnector" && entry.waterPixels.has(pixelKey)) {
       return true;
     }
   }
@@ -17113,12 +17139,12 @@ function tileTerrainSpriteOpaqueAtMapPoint(call, x, y) {
   const px = Math.round(x - (call.drawSurfaceX - TILE_ART_HALF));
   const py = Math.round(y - (call.drawSurfaceY - TILE_ART_HALF));
   if (px < 0 || py < 0 || px >= img.width || py >= img.height) return false;
-  const mask = terrainAlphaMask(img);
+  const mask = spriteAlphaMask(img);
   return mask.alpha[px + py * mask.width] > 0;
 }
 
-function terrainAlphaMask(img) {
-  const cached = terrainAlphaMasks.get(img);
+function spriteAlphaMask(img) {
+  const cached = spriteAlphaMasks.get(img);
   if (cached) return cached;
 
   const sampleCanvas = document.createElement("canvas");
@@ -17134,32 +17160,22 @@ function terrainAlphaMask(img) {
   for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
 
   const mask = { width: img.width, height: img.height, alpha };
-  terrainAlphaMasks.set(img, mask);
+  spriteAlphaMasks.set(img, mask);
   return mask;
 }
 
 function wakePointIsOnRiverTile(x, y, call, activeChart) {
   const mask = riverMasks?.[call.id] || 0;
   if (mask === 0) return false;
-  const px = x - (call.drawSurfaceX - TILE_ART_HALF);
-  const py = y - (call.drawSurfaceY - TILE_ART_HALF);
-  const margin = WAKE_RIVER_RADIUS_PX + 1;
-  if (px < -margin || px > TILE_ART_SIZE + margin || py < -margin || py > TILE_ART_SIZE + margin) return false;
-
-  const endpoints = riverEndpointsForTile(call, activeChart, mask);
-  if (endpoints.length === 0) return false;
-  const variant = hashInt(call.id) & 15;
-  for (const path of riverBezierPaths(endpoints, variant)) {
-    if (pointDistanceToBezierPath(px, py, path) <= WAKE_RIVER_RADIUS_PX) return true;
-  }
-  if (endpoints.length !== 2 && Math.hypot(px - TILE_ART_HALF, py - TILE_ART_HALF) <= WAKE_RIVER_RADIUS_PX) {
-    return true;
-  }
-  for (const endpoint of endpoints) {
-    const radius = endpoint.mouth ? RIVER_MOUTH_RADIUS_PX + 1 : RIVER_CONNECTOR_RADIUS_PX + 1;
-    if (Math.hypot(px - endpoint.x, py - endpoint.y) <= radius) return true;
-  }
-  return false;
+  const sprite = riverSpriteForTile(call, activeChart, mask);
+  if (!sprite) return false;
+  return alphaMaskContainsMapPoint(
+    spriteAlphaMask(sprite),
+    Math.round(call.drawSurfaceX - TILE_ART_HALF),
+    Math.round(call.drawSurfaceY - TILE_ART_HALF),
+    x,
+    y
+  );
 }
 
 function pointDistanceToBezierPath(px, py, path) {
@@ -17494,7 +17510,7 @@ function fishHabitatForTileCall(tileCall) {
 
 function drawFishSprite(call) {
   const sprite = tintedFishSprite(call.colors);
-  const alpha = terrainAlphaMask(sprite).alpha;
+  const alpha = spriteAlphaMask(sprite).alpha;
   const visiblePixels = waterMaskedSpritePixels({
     x: call.x,
     y: call.y,

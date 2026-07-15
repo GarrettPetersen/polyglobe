@@ -2,7 +2,8 @@ const SHALLOW_WATER_ELEVATION = -0.20500000000000002;
 
 export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze([
-    38891 // Gulf of Khambhat at Cambay's historical harbor.
+    38891, // Gulf of Khambhat at Cambay's historical harbor.
+    38903 // Outlet from the inner gulf to the existing Arabian Sea coast.
   ])
 });
 
@@ -26,4 +27,16 @@ export function applyManualTerrainOverrides(earthRows, subdivisions) {
     };
   }
   return correctedRows;
+}
+
+export function assertManualShallowWaterReachesOcean(reachableNavigationMask, subdivisions) {
+  if (!reachableNavigationMask || typeof reachableNavigationMask.length !== "number") {
+    throw new Error("Manual shallow-water validation requires a navigation mask");
+  }
+  const tileIds = MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS[subdivisions] || [];
+  for (const tileId of tileIds) {
+    if (reachableNavigationMask[tileId] !== 1) {
+      throw new Error(`Manual shallow-water tile ${tileId} is isolated from the ocean`);
+    }
+  }
 }

@@ -154,8 +154,7 @@ function riverEdgeSet(masks, tileId, edge) {
 }
 
 function isOceanNavigationSeedTile(row) {
-  const t = row?.t || "";
-  return t === "water" || t === "beach";
+  return row?.t === "water";
 }
 
 function isWaterSurfaceRow(row) {

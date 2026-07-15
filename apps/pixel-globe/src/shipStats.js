@@ -91,8 +91,8 @@ const rawShipStats = [
   stats(
     "mesoamerican-dugout-canoe",
     0,
-    0.018,
-    0.016,
+    0.014,
+    0.010,
     0,
     3.80,
     30,
