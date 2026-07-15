@@ -56,9 +56,13 @@ export function portConquestStatus({ city, batteryDisabled, crew, crewCapacity, 
   const canAttempt = !alreadyOwned && batteryDisabled === true && largeWarship && enoughCrew;
   const capital = city.isFactionCapital === true;
   const crewAdvantage = Math.max(0, crew - PORT_CONQUEST_MIN_CREW);
+  const population = Math.max(1000, Number(city.population || 1000));
+  if (!Number.isFinite(population)) throw new Error(`Invalid conquest port population: ${city.population}`);
+  const populationPenalty = clamp((Math.log10(population) - 3.3) * 0.08, 0, 0.16);
+  const crewChance = (capital ? 0.24 : 0.48) + crewAdvantage * (capital ? 0.003 : 0.005);
   const successChance = clamp(
-    (capital ? 0.24 : 0.48) + crewAdvantage * (capital ? 0.003 : 0.005),
-    capital ? 0.24 : 0.48,
+    crewChance - populationPenalty,
+    capital ? 0.15 : 0.32,
     capital ? 0.42 : 0.72
   );
   const lossRange = capital
@@ -73,6 +77,7 @@ export function portConquestStatus({ city, batteryDisabled, crew, crewCapacity, 
     enoughCrew,
     capital,
     minimumCrew: PORT_CONQUEST_MIN_CREW,
+    populationPenalty,
     successChance,
     successPercent: Math.round(successChance * 100),
     failureCrewLossMin: lossRange.min,

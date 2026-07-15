@@ -51,6 +51,27 @@ test("capitals resist conquest more strongly and inflict heavier losses", () => 
   assert.ok(npcPortConquestChance(city({ isFactionCapital: true })) < npcPortConquestChance(city()));
 });
 
+test("assault success falls logarithmically with population but keeps a viable floor", () => {
+  const statusForPopulation = (population, capital = false) => portConquestStatus({
+    city: city({ population, isFactionCapital: capital, capitalOfFactionId: capital ? "portugal" : undefined }),
+    batteryDisabled: true,
+    crew: 54,
+    crewCapacity: 54,
+    attackerFactionId: "england"
+  });
+  const village = statusForPopulation(2500);
+  const cityPort = statusForPopulation(12500);
+  const metropolis = statusForPopulation(62500);
+  assert.ok(village.successChance > cityPort.successChance);
+  assert.ok(cityPort.successChance > metropolis.successChance);
+  assert.ok(Math.abs(
+    (village.successChance - cityPort.successChance) -
+    (cityPort.successChance - metropolis.successChance)
+  ) < 0.000001);
+  assert.ok(Math.abs(statusForPopulation(100000000).successChance - 0.41) < 0.000001);
+  assert.equal(statusForPopulation(100000000, true).successChance, 0.15);
+});
+
 test("conquest pays a large population-scaled prize with a capital treasury bonus", () => {
   const villagePrize = portConquestPrize(city({ population: 3000 }));
   const richPortPrize = portConquestPrize(city({ population: 90000 }));
