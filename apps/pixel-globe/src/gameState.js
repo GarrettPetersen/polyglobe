@@ -59,9 +59,10 @@ import {
   mingTradeAccess
 } from "./mingTradeRestrictions.js";
 import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
+import { createPortConquestMemory, validatePortConquestMemory } from "./portConquest.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 11;
+export const GAME_STATE_VERSION = 12;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -186,7 +187,8 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
         completed: {},
         passengerOffers: {},
         passengerRolls: {}
-      }
+      },
+      conquest: createPortConquestMemory()
     }
   };
 }
@@ -201,7 +203,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (state?.version !== 8 && state?.version !== 9 && state?.version !== 10) {
+  if (state?.version !== 8 && state?.version !== 9 && state?.version !== 10 && state?.version !== 11) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -233,6 +235,10 @@ export function migrateGameState(state, shipStats) {
       safePassageUntilMinute: state.version === 8 ? {} : state.relations.safePassageUntilMinute,
       mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
       diplomacy: migratedDiplomacy
+    },
+    memory: {
+      ...state.memory,
+      conquest: state.memory?.conquest || createPortConquestMemory()
     }
   };
   return validateGameState(migrated);
@@ -487,6 +493,23 @@ export function receiveSurrenderedLoot(state, loot, context = {}) {
     });
   }
   return { specie: loot.specie, cargo: receivedCargo };
+}
+
+export function receivePortConquestPrize(state, city, amount, context = {}) {
+  assertGameState(state);
+  if (!city || !Number.isInteger(city.tileId)) throw new Error("Port conquest prize requires a city");
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error(`Invalid port conquest prize: ${amount}`);
+  state.doubloons += amount;
+  recordLedgerEntry(state, city, context, {
+    kind: "conquest",
+    description: `${cityLabel(city)} conquest prize`,
+    goodId: null,
+    quantity: 0,
+    amount,
+    costBasis: 0,
+    pnl: amount
+  });
+  return { amount, balance: state.doubloons };
 }
 
 export function cargoFree(state) {
@@ -2117,6 +2140,7 @@ function assertGameState(state) {
     throw new Error(`Invalid next ledger entry id: ${state.accounts.nextEntryId}`);
   }
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
+  validatePortConquestMemory(state.memory.conquest);
   if (!state.memory.discoveries || typeof state.memory.discoveries !== "object") {
     throw new Error("Game state discoveries must be an object");
   }

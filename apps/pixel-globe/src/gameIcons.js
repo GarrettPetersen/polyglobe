@@ -181,6 +181,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "open-passenger": "action:passenger",
   "complete-quest": "action:quest",
   "attempt-disguise": "action:disguise",
+  "land-marines": "action:attack",
   "attempt-ming-illicit-trade": "action:disguise",
   attack: "action:attack",
   threaten: "action:attack",

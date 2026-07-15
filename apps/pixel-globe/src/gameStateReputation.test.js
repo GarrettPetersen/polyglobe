@@ -78,7 +78,7 @@ test("version 8 game states migrate diplomacy and ship classification without lo
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 11);
+  assert.equal(restored.version, 12);
   assert.equal(mingTradeOpenToFaction(restored, "joseon"), true);
   assert.equal(mingTradeOpenToFaction(restored, "england"), false);
   assert.ok(restored.relations.diplomacy);
@@ -126,7 +126,7 @@ test("version 9 game states preserve passage and gain diplomatic contacts", () =
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 11);
+  assert.equal(restored.version, 12);
   assert.equal(restored.relations.safePassageUntilMinute.ottoman, 2000);
   assert.deepEqual(restored.relations.diplomacy.contacts, {});
 });
@@ -144,8 +144,21 @@ test("version 10 game states gain the initial Joseon Ming trade agreement", () =
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 11);
+  assert.equal(restored.version, 12);
   assert.deepEqual(restored.relations.mingOpenTradeFactionIds, ["joseon"]);
+});
+
+test("version 11 voyages gain empty persistent port conquest state", () => {
+  const legacy = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  legacy.version = 11;
+  delete legacy.memory.conquest;
+  const restored = migrateGameState(legacy, null);
+  assert.equal(restored.version, 12);
+  assert.deepEqual(restored.memory.conquest, {
+    portFactionOverrides: {},
+    collapsedFactionIds: [],
+    events: []
+  });
 });
 
 test("successful trade gives only a tiny faction reputation gain", () => {

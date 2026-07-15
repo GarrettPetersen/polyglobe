@@ -12,7 +12,8 @@ export function shoreBatteryId(city) {
 
 export function shoreBatteryGunCount(city) {
   assertCity(city);
-  return city.isFactionCapital || (city.population || 0) >= 50000 ? 2 : 1;
+  if (city.isFactionCapital) return 4;
+  return (city.population || 0) >= 50000 ? 2 : 1;
 }
 
 export function createShoreBatteryState(city, flags, simMinute) {

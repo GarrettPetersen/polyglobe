@@ -546,6 +546,41 @@ test("enemy port guards bar resupply and offer one risky disguise route", () => 
   assert.deepEqual(failed.options.map((entry) => entry.label), ["Make for open water"]);
 });
 
+test("a disabled hostile harbor offers an eligible captain a marine landing", () => {
+  const city = {
+    tileId: 12,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    factionId: "france",
+    population: 18000,
+    character: { name: "Etienne Moreau" }
+  };
+  const playerCharacter = { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] };
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "barred" });
+  const context = {
+    portEntryStatus: portEntryStatus(gameState, city, 100),
+    portConquestStatus: {
+      canAttempt: true,
+      capital: false,
+      successPercent: 57,
+      failureCrewLossMin: 12,
+      failureCrewLossMax: 21
+    }
+  };
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(view.text, /harbor guns are silent/i);
+  assert.equal(view.options[0].label, "Land marines  57%");
+  assert.equal(view.options[0].detail, "Defeat risks 12-21 crew");
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
+    closed: false,
+    action: { type: "land-marines" }
+  });
+});
+
 test("a successful disguise opens commerce but not faction business", () => {
   const city = {
     tileId: 14,

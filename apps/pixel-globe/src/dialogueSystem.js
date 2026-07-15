@@ -436,6 +436,9 @@ export function selectPortDialogueOption(
   if (action.type === "attempt-disguise") {
     return { closed: false, action: { type: "attempt-disguise" } };
   }
+  if (action.type === "land-marines") {
+    return { closed: false, action: { type: "land-marines" } };
+  }
   if (action.type === "attempt-ming-illicit-trade") {
     if (typeof context.random !== "function") {
       throw new Error("Ming illicit market attempt requires a random source");
@@ -699,11 +702,14 @@ function pirateHideoutGreetingView(city, memory, context) {
 
 function barredPortView(city, context) {
   const status = context.portEntryStatus;
-  if (!status?.hostile) throw new Error("Barred port dialogue requires a hostile port status");
+  const conquest = context.portConquestStatus || null;
+  if (!status?.hostile && !conquest?.canAttempt && !conquest?.playerAssaultActive) {
+    throw new Error("Barred port dialogue requires hostility or an exposed foreign port");
+  }
   const faction = factionById(status.factionId);
   const ruler = rulerAtMinute(status.factionId, context.simMinute ?? 0);
   if (!ruler) throw new Error(`Barred port faction has no ruler: ${status.factionId}`);
-  if (status.locked) {
+  if (status.locked && !conquest?.canAttempt) {
     return {
       speaker: `${cityLabel(city)} harbor guard`,
       expressionId: "angry",
@@ -712,15 +718,30 @@ function barredPortView(city, context) {
       options: [option("Leave", { type: "close" })]
     };
   }
+  const options = [];
+  if (conquest?.canAttempt) {
+    options.push(option(
+      `Land marines  ${conquest.successPercent}%`,
+      { type: "land-marines" },
+      {
+        detail: `Defeat risks ${conquest.failureCrewLossMin}-${conquest.failureCrewLossMax} crew`
+      }
+    ));
+  }
+  if (status.hostile && !status.locked && !conquest?.playerAssaultActive) {
+    options.push(option("Try to enter in disguise", { type: "attempt-disguise" }));
+  }
+  options.push(option("Leave", { type: "close" }));
   return {
     speaker: `${cityLabel(city)} harbor guard`,
     expressionId: "stern",
-    text: `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
+    text: conquest?.canAttempt
+      ? `The harbor guns are silent. ${cityLabel(city)} is exposed, but ${conquest.capital ? "the capital garrison" : "the garrison"} still bars the quays.`
+      : conquest?.playerAssaultActive
+      ? `The harbor guns are silent, but you need at least ${conquest.minimumCrew} crew aboard a large warship to land a viable assault force.`
+      : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
     feedback: null,
-    options: [
-      option("Try to enter in disguise", { type: "attempt-disguise" }),
-      option("Leave", { type: "close" })
-    ]
+    options
   };
 }
 

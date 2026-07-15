@@ -9,6 +9,7 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP,
   PIRATE_SHIP_SLUGS,
+  applyNpcConquestOwnership,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcPortHasMajorProtection,
@@ -52,6 +53,20 @@ const MESOAMERICAN_PORTS = Object.freeze([
   port(30, "Guanahani Village", "Bahamas", "mesoamerican", 24.06, -74.47, 1200, "neutral"),
   port(31, "Coroa Vermelha Village", "Brazil", "mesoamerican", -16.33, -39.01, 1600, "neutral")
 ]);
+
+test("a collapsed empire loses its NPC fleet and captured port ownership", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  assert.ok(routes.ships.some((ship) => ship.factionId === "portugal"));
+  const factionByTileId = new Map(PORTS.map((entry) => [
+    entry.tileId,
+    entry.tileId === 1 ? "england" : entry.factionId === "portugal" ? "neutral" : entry.factionId
+  ]));
+  applyNpcConquestOwnership(routes, factionByTileId, new Set(["portugal"]));
+  assert.equal(routes.ports.find((entry) => entry.tileId === 1).factionId, "england");
+  assert.equal(routes.ports.find((entry) => entry.tileId === 5).factionId, "neutral");
+  assert.equal(routes.ships.some((ship) => ship.factionId === "portugal"), false);
+});
 
 test("NPC merchants carry finite cargo and realize profits over repeated port calls", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });

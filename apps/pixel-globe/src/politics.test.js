@@ -39,6 +39,15 @@ test("politics view covers every non-neutral power including pirates", () => {
   assert.ok(view.rows.every((row) => row.stances.length === expectedIds.length));
 });
 
+test("collapsed empires leave the active politics matrix", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.memory.conquest.collapsedFactionIds.push("france");
+  const view = createPoliticsView(state);
+  assert.equal(view.powers.some((faction) => faction.id === "france"), false);
+  assert.equal(view.rows.some((row) => row.faction.id === "france"), false);
+  assert.ok(view.rows.every((row) => row.stances.every((stance) => stance.factionId !== "france")));
+});
+
 test("politics matrix reports diplomacy and player standing", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   recordTradeWithFaction(state, "england");

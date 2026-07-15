@@ -7,6 +7,7 @@ import {
   recordDiscovery,
   receiveDiscoveryCargo,
   receiveFishCatch,
+  receivePortConquestPrize,
   receiveSurrenderedLoot
 } from "./gameState.js";
 
@@ -22,6 +23,28 @@ test("surrendered loot credits money and accepts only cargo that fits", () => {
   assert.equal(received.specie, 75);
   assert.ok(Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0) > 0);
   assert.ok(state.accounts.ledger.some((entry) => entry.description === "Surrendered prize money"));
+});
+
+test("port conquest pays prize money and records the captured treasury", () => {
+  const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
+  const city = { tileId: 9, city: "Lisbon", displayCity: "Lisbon", country: "Portugal" };
+  const prize = receivePortConquestPrize(state, city, 1800, { simMinute: 140 });
+  assert.deepEqual(prize, { amount: 1800, balance: 2160 });
+  assert.equal(state.doubloons, 2160);
+  assert.deepEqual(state.accounts.ledger.at(-1), {
+    id: 2,
+    kind: "conquest",
+    simMinute: 140,
+    location: "Lisbon",
+    country: "Portugal",
+    description: "Lisbon conquest prize",
+    goodId: null,
+    quantity: 0,
+    amount: 1800,
+    balance: 2160,
+    costBasis: 0,
+    pnl: 1800
+  });
 });
 
 test("fish catches enter cargo and the ledger with no cost basis", () => {

@@ -26,7 +26,7 @@ export const POLITICS_RELATION_LABELS = Object.freeze({
 
 export function createPoliticsView(gameState) {
   if (!gameState || typeof gameState !== "object") throw new Error("Politics view requires game state");
-  const powers = politicalPowers();
+  const powers = politicalPowers(gameState);
   return {
     powers,
     recentEvents: recentGameDiplomacyEvents(gameState, 3),
@@ -52,9 +52,10 @@ export function createPoliticsView(gameState) {
   };
 }
 
-export function politicalPowers() {
+export function politicalPowers(gameState = null) {
+  const collapsed = new Set(gameState?.memory?.conquest?.collapsedFactionIds || []);
   return FACTIONS
-    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID)
+    .filter((faction) => faction.id !== NEUTRAL_FACTION_ID && !collapsed.has(faction.id))
     .map((faction) => ({
       ...faction,
       code: factionCode(faction)

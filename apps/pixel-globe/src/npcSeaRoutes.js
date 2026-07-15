@@ -376,6 +376,39 @@ export function restoreNpcSeaRouteSystem(
   return system;
 }
 
+export function applyNpcConquestOwnership(system, portFactionByTileId, collapsedFactionIds) {
+  assertSaveableNpcRouteSystem(system);
+  if (!(portFactionByTileId instanceof Map)) throw new Error("NPC conquest ownership requires a port faction map");
+  if (!(collapsedFactionIds instanceof Set)) throw new Error("NPC conquest ownership requires collapsed factions");
+  for (const [tileId, factionId] of portFactionByTileId) {
+    if (!Number.isInteger(tileId)) throw new Error(`Invalid conquered port tile: ${tileId}`);
+    assertFactionId(factionId);
+  }
+  for (const factionId of collapsedFactionIds) assertFactionId(factionId);
+
+  for (const port of system.ports) synchronizeNpcPortFaction(port, portFactionByTileId);
+  for (const ship of system.ships) {
+    if (collapsedFactionIds.has(ship.factionId)) ship.factionId = NEUTRAL_FACTION_ID;
+    synchronizeNpcPortFaction(ship.currentPort, portFactionByTileId);
+    synchronizeNpcPortFaction(ship.finalDestination, portFactionByTileId);
+    synchronizeNpcPortFaction(ship.plan?.origin, portFactionByTileId);
+    synchronizeNpcPortFaction(ship.plan?.destination, portFactionByTileId);
+  }
+  for (const replacement of system.replacementQueue) {
+    if (collapsedFactionIds.has(replacement.factionId)) replacement.factionId = NEUTRAL_FACTION_ID;
+  }
+  system.routeCache.clear();
+  system.edgeCostCache.clear();
+  return system;
+}
+
+function synchronizeNpcPortFaction(port, portFactionByTileId) {
+  if (!port) return;
+  if (!Number.isInteger(port.tileId)) throw new Error("NPC route port has no tile id");
+  const factionId = portFactionByTileId.get(port.tileId);
+  if (factionId) port.factionId = factionId;
+}
+
 function choosePirateHideouts(ports) {
   const count = Math.min(
     ports.length - 1,

@@ -101,6 +101,7 @@ import {
   receiveDiscoveryCargo,
   receiveEmergencyShipAid,
   receiveFishCatch,
+  receivePortConquestPrize,
   receiveSurrenderedLoot,
   reconcileQuestPortTiles,
   recordAttackAgainstFaction,
@@ -159,6 +160,7 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP,
   NPC_SHIP_SLUGS,
+  applyNpcConquestOwnership,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcPortHasMajorProtection,
@@ -352,6 +354,7 @@ import {
   DIPLOMACY_WAR,
   FACTION_CAPITALS_1522,
   FACTIONS,
+  NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   diplomacyBetween,
   factionById,
@@ -361,6 +364,19 @@ import {
   factionIdForCity1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
+import {
+  PORT_CONQUEST_MIN_CREW,
+  PORT_CONQUEST_NPC_LANDING_RANGE_PX,
+  applyPortConquestOwnership,
+  clearPlayerPortAssault,
+  markPlayerPortAssault,
+  npcPortConquestChance,
+  portConquestPrize,
+  playerPortAssaultIsActive,
+  portConquestStatus,
+  recordPortCapture,
+  resolvePortConquest
+} from "./portConquest.js";
 import { recentRegionalRulerChange } from "./rulers.js";
 import { recentHistoricalGossipForPort } from "./historicalGossip.js";
 import {
@@ -1852,6 +1868,7 @@ async function main() {
     playerCharacter,
     shipStats: ship.stats
   });
+  applyCurrentPortConquestOwnership();
   sailingTutorialState = createSailingTutorialState();
   initializeProvisionalShipLoadout(gameState, ship.stats);
   npcSeaRoutes = createNpcSeaRouteSystem({
@@ -4790,6 +4807,7 @@ async function restoreSavedVoyage(payload) {
   });
 
   gameState = restoredGameState;
+  applyCurrentPortConquestOwnership();
   if (!gameState.memory.flags || typeof gameState.memory.flags !== "object") {
     gameState.memory.flags = {};
   }
@@ -4900,6 +4918,38 @@ function saveVoyageNow(reason) {
     console.warn(`[pixel-globe] local save failed (${reason})`, error);
     return false;
   }
+}
+
+function applyCurrentPortConquestOwnership() {
+  if (!gameState?.memory?.conquest) throw new Error("Cannot apply port ownership without conquest state");
+  applyPortConquestOwnership(gameState.memory.conquest, portCities);
+  const factionByTileId = new Map(portCities.map((city) => [city.tileId, city.factionId]));
+  for (const [tileId, factionId] of factionByTileId) {
+    const catalogCity = cityByTileId.get(tileId);
+    if (catalogCity) factionSyncCity(catalogCity, factionId);
+  }
+  for (const city of chart?.cityCalls || []) {
+    const factionId = factionByTileId.get(city.tileId);
+    if (factionId) factionSyncCity(city, factionId);
+  }
+  if (npcSeaRoutes) {
+    applyNpcConquestOwnership(
+      npcSeaRoutes,
+      factionByTileId,
+      new Set(gameState.memory.conquest.collapsedFactionIds)
+    );
+    for (const state of npcVisualShips.values()) {
+      const strategic = npcSeaRoutes.shipById.get(state.id);
+      if (strategic) state.factionId = strategic.factionId;
+    }
+  }
+  shoreBatteryStates.clear();
+  return factionByTileId;
+}
+
+function factionSyncCity(city, factionId) {
+  city.foundingFactionId = city.foundingFactionId || city.factionId;
+  city.factionId = factionId;
 }
 
 function snapshotPlayerShip() {
@@ -5789,7 +5839,8 @@ function openPortDialogue(cityCall) {
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { restart: true, force: true });
   const entryStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
-  if (!entryStatus.allowed) {
+  const conquestStatus = playerPortConquestStatus(cityCall);
+  if (!entryStatus.allowed || conquestStatus.canAttempt || conquestStatus.playerAssaultActive) {
     dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "barred" });
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
@@ -5859,6 +5910,87 @@ function attemptHostilePortEntry(cityCall) {
   dialogueLayout.scrollOffset = 0;
   ensureDialoguePortraitLoaded();
   dirty = true;
+}
+
+function playerPortConquestStatus(cityCall) {
+  if (!gameState?.ship || !ship) throw new Error("Port conquest requires the player ship");
+  const battery = ensureShoreBatteryState(cityCall);
+  return {
+    ...portConquestStatus({
+    city: cityCall,
+    batteryDisabled: shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes)),
+    crew: gameState.ship.crew,
+    crewCapacity: gameState.ship.crewCapacity,
+    attackerFactionId: ship.factionId
+    }),
+    playerAssaultActive: playerPortAssaultIsActive(
+      gameState.memory.flags,
+      cityCall,
+      Math.floor(weatherClockMinutes)
+    )
+  };
+}
+
+function attemptPlayerPortConquest(cityCall) {
+  const status = playerPortConquestStatus(cityCall);
+  const outcome = resolvePortConquest(status, Math.random(), Math.random());
+  if (!outcome.success) {
+    const lost = loseCrew(gameState, outcome.crewLost);
+    syncShipCargoFromGameState();
+    closeDialogue();
+    showSurvivalNotice(`${lost} MARINES LOST`, "warn");
+    if (gameState.ship.crew <= 0) {
+      sinkPlayerShip(`The landing force was destroyed during the assault on ${cityLabelText(cityCall)}.`);
+    } else {
+      openCaptainAlertModal(
+        `${cityLabelText(cityCall)} repelled the landing. We lost ${lost} crew in the fighting.`,
+        "sad"
+      );
+      saveVoyageNow("port conquest repelled");
+    }
+    dirty = true;
+    return false;
+  }
+
+  const oldFaction = factionById(cityCall.factionId);
+  const newFaction = factionById(ship.factionId);
+  const prize = receivePortConquestPrize(
+    gameState,
+    cityCall,
+    portConquestPrize(cityCall),
+    { simMinute: Math.floor(weatherClockMinutes) }
+  );
+  const event = recordPortCapture(
+    gameState.memory.conquest,
+    cityCall,
+    ship.factionId,
+    Math.floor(weatherClockMinutes),
+    "player"
+  );
+  clearPlayerPortAssault(gameState.memory.flags, cityCall);
+  applyCurrentPortConquestOwnership();
+  clearCombatForShip(PLAYER_COMBAT_ID);
+  npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
+  const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
+  if (!capturedCity) throw new Error(`Captured port disappeared: ${event.portId}`);
+  const needsLoadout = admitPlayerToPort(capturedCity);
+  dialogueState = createPortArrivalDialogueSession(capturedCity, { needsLoadout });
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  const collapseText = event.collapsedFactionId
+    ? ` ${oldFaction.name} has collapsed; its remaining ports and ships are now neutral.`
+    : "";
+  playCoinClinkSound();
+  showSurvivalNotice(`${cityLabelText(capturedCity).toUpperCase()} CAPTURED  +${prize.amount} DB`, "good");
+  openCaptainAlertModal(
+    `${cityLabelText(capturedCity)} has surrendered and now flies the ${newFaction.adjective} flag. ` +
+      `The captured treasury yields ${prize.amount} doubloons.${collapseText}`,
+    "happy"
+  );
+  saveVoyageNow("port conquered");
+  dirty = true;
+  return true;
 }
 
 function applyAutomaticPortServices(cityCall) {
@@ -6145,6 +6277,10 @@ function chooseDialogueOption(optionIndex) {
       attemptHostilePortEntry(currentDialogueCity());
       return;
     }
+    if (result.action?.type === "land-marines") {
+      attemptPlayerPortConquest(currentDialogueCity());
+      return;
+    }
   } else if (dialogueState.kind === "passenger") {
     const doubloonsBefore = gameState.doubloons;
     result = selectPassengerDialogueOption(
@@ -6402,6 +6538,7 @@ function portDialogueContext() {
     historicalGossip: city ? recentHistoricalGossipForPort(city, simMinute) : null,
     shipyard,
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
+    portConquestStatus: city ? playerPortConquestStatus(city) : null,
     shipyardRumor: city ? shipyardRumorForPort(worldEconomy.shipyards, city) : null,
     passengerOffer: city && dialogueState?.kind === "port"
       ? pendingPassengerOfferForCity(gameState, city)
@@ -8553,6 +8690,12 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   );
   addHullSplinterBurst(ball, point);
   if (!result.newlyDisabled) return;
+  if (hitByPlayer) {
+    const city = chartPortCallById(battery.portId);
+    if (!city) throw new Error(`Disabled player target has no port: ${battery.portId}`);
+    markPlayerPortAssault(gameState.memory.flags, city, battery.disabledUntilMinute);
+  }
+  if (!hitByPlayer) attemptNpcPortConquest(battery, ball.ownerId);
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => (
     shot.ownerId !== battery.id && shot.targetId !== battery.id
   ));
@@ -8561,6 +8704,42 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
   };
   saveVoyageNow("shore battery disabled");
+}
+
+function attemptNpcPortConquest(battery, npcShipId) {
+  const npc = npcVisualShips.get(npcShipId);
+  const strategic = npcSeaRoutes?.shipById.get(npcShipId);
+  if (!npc || !strategic || strategic.role !== NPC_ROLE_WARSHIP) return false;
+  const stats = shipStatsForSlug(strategic.slug);
+  if (stats.crewCapacity < PORT_CONQUEST_MIN_CREW || strategic.factionId === NEUTRAL_FACTION_ID ||
+      strategic.factionId === PIRATE_FACTION_ID || strategic.factionId === battery.factionId) return false;
+  const batteryPoint = shoreBatteryPoint(battery.id);
+  if (!batteryPoint || Math.hypot(npc.x - batteryPoint.x, npc.y - batteryPoint.y) > PORT_CONQUEST_NPC_LANDING_RANGE_PX) {
+    return false;
+  }
+  const city = chartPortCallById(battery.portId);
+  if (!city) throw new Error(`NPC conquest port is not visible: ${battery.portId}`);
+  if (Math.random() >= npcPortConquestChance(city)) return false;
+
+  const event = recordPortCapture(
+    gameState.memory.conquest,
+    city,
+    strategic.factionId,
+    Math.floor(weatherClockMinutes),
+    `npc:${npcShipId}`
+  );
+  clearPlayerPortAssault(gameState.memory.flags, city);
+  const conqueringFaction = factionById(strategic.factionId);
+  const defeatedFaction = factionById(event.previousFactionId);
+  applyCurrentPortConquestOwnership();
+  const collapseText = event.collapsedFactionId ? `; ${defeatedFaction.name.toUpperCase()} COLLAPSES` : "";
+  showSurvivalNotice(
+    `${event.cityName.toUpperCase()} TAKEN BY ${conqueringFaction.adjective.toUpperCase()} FORCES${collapseText}`,
+    "warn"
+  );
+  saveVoyageNow("npc conquered port");
+  dirty = true;
+  return true;
 }
 
 function beginPlayerInitiatedShoreCombat(battery) {

@@ -15,10 +15,11 @@ import {
 
 const city = { tileId: 7, portId: "test-port", factionId: "ottoman", cityType: "mediterranean", population: 80000 };
 
-test("important cities mount two shore guns", () => {
+test("capitals mount four shore guns while other important cities mount two", () => {
   const battery = createShoreBatteryState(city, {}, 0);
   assert.equal(shoreBatteryGunCount(city), 2);
   assert.equal(battery.maxHitPoints, 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN);
+  assert.equal(shoreBatteryGunCount({ ...city, isFactionCapital: true }), 4);
   assert.equal(shoreBatteryGunCount({ ...city, population: 12000, settlementType: "village" }), 1);
 });
 
