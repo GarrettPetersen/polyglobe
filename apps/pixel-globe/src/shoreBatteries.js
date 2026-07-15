@@ -3,6 +3,7 @@ export const SHORE_BATTERY_DISABLE_MINUTES = SHORE_BATTERY_DISABLE_DAYS * 24 * 6
 export const SHORE_BATTERY_RANGE_PX = 76;
 export const SHORE_BATTERY_RELOAD_SECONDS = 14;
 export const SHORE_BATTERY_HIT_POINTS_PER_GUN = 8;
+export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
 
 const DISABLED_UNTIL_PREFIX = "shoreBatteryDisabledUntil:";
 
@@ -93,6 +94,30 @@ export function shoreBatteryDisabledNotice(state) {
   return `${state.cityName.toUpperCase()} BATTERY DISABLED (${SHORE_BATTERY_DISABLE_DAYS} DAYS)`;
 }
 
+export function shoreBatterySurrenderNotice({
+  captainName,
+  nationalityAdjective,
+  portName,
+  playerPoint,
+  surrenderPoint
+}) {
+  for (const [label, value] of Object.entries({ captainName, nationalityAdjective, portName })) {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new Error(`Shore battery surrender notice requires ${label}`);
+    }
+  }
+  assertPoint(playerPoint, "player");
+  assertPoint(surrenderPoint, "surrender");
+  if (Math.hypot(
+    surrenderPoint.x - playerPoint.x,
+    surrenderPoint.y - playerPoint.y
+  ) > SHORE_BATTERY_NOTICE_RADIUS_PX) {
+    return null;
+  }
+  return `${captainName.toUpperCase()}, ${nationalityAdjective.toUpperCase()} CAPTAIN, ` +
+    `SURRENDERED TO ${portName.toUpperCase()}`;
+}
+
 export function armShoreBatteryReload(state) {
   assertState(state);
   state.cooldownSeconds = SHORE_BATTERY_RELOAD_SECONDS;
@@ -161,5 +186,11 @@ function assertState(state) {
   if (!state || typeof state.id !== "string" || typeof state.cityName !== "string" || !state.cityName.trim() ||
       !(state.engagedTargetIds instanceof Set)) {
     throw new Error("Invalid shore battery state");
+  }
+}
+
+function assertPoint(point, label) {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    throw new Error(`Shore battery surrender notice requires a finite ${label} point`);
   }
 }

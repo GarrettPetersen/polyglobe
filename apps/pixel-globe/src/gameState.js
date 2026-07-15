@@ -352,6 +352,7 @@ export function settleCampaignGoalAtHome(state, city, {
     ? settleExplorerHomecoming(goal, {
         discoveredIds: new Set(state.memory.discoveryOrder),
         wonderCatalog,
+        homePort: city,
         nextLeadDiscoveryId
       })
     : settleFamilyDebtHomecoming(goal, {

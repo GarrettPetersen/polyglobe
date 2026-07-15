@@ -5,6 +5,7 @@ import {
   SHORE_BATTERY_DISABLE_DAYS,
   SHORE_BATTERY_DISABLE_MINUTES,
   SHORE_BATTERY_HIT_POINTS_PER_GUN,
+  SHORE_BATTERY_NOTICE_RADIUS_PX,
   SHORE_BATTERY_RELOAD_SECONDS,
   armShoreBatteryReload,
   createShoreBatteryState,
@@ -14,6 +15,7 @@ import {
   shoreBatteryGunCount,
   shoreBatteryMayDemandToll,
   shoreBatteryPlayerResponse,
+  shoreBatterySurrenderNotice,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 
@@ -125,4 +127,42 @@ test("hostile toll hails wait for docking range and ignore minor ports", () => {
     withinTollRange: true,
     tollDemandEligible: true
   }).shouldHail, true);
+});
+
+test("nearby port surrenders identify the captain, nationality, and port", () => {
+  assert.equal(shoreBatterySurrenderNotice({
+    captainName: "Jean Moreau",
+    nationalityAdjective: "French",
+    portName: "Lisbon",
+    playerPoint: { x: 20, y: 30 },
+    surrenderPoint: { x: 20 + SHORE_BATTERY_NOTICE_RADIUS_PX, y: 30 }
+  }), "JEAN MOREAU, FRENCH CAPTAIN, SURRENDERED TO LISBON");
+});
+
+test("distant port surrenders do not notify the player", () => {
+  assert.equal(shoreBatterySurrenderNotice({
+    captainName: "Jean Moreau",
+    nationalityAdjective: "French",
+    portName: "Lisbon",
+    playerPoint: { x: 20, y: 30 },
+    surrenderPoint: { x: 21 + SHORE_BATTERY_NOTICE_RADIUS_PX, y: 30 }
+  }), null);
+});
+
+test("port surrender notices reject missing identities and positions", () => {
+  const valid = {
+    captainName: "Jean Moreau",
+    nationalityAdjective: "French",
+    portName: "Lisbon",
+    playerPoint: { x: 20, y: 30 },
+    surrenderPoint: { x: 21, y: 30 }
+  };
+  assert.throws(
+    () => shoreBatterySurrenderNotice({ ...valid, captainName: "" }),
+    /requires captainName/
+  );
+  assert.throws(
+    () => shoreBatterySurrenderNotice({ ...valid, surrenderPoint: null }),
+    /finite surrender point/
+  );
 });

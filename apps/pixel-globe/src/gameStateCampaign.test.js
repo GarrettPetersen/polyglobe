@@ -26,9 +26,16 @@ const PLAYER = Object.freeze({
   homePortName: "London",
   expressions: ["neutral"]
 });
-const HOME = Object.freeze({ tileId: 12, city: "London", country: "United Kingdom", factionId: "england" });
+const HOME = Object.freeze({
+  tileId: 12,
+  city: "London",
+  country: "United Kingdom",
+  factionId: "england",
+  lat: 51.5074,
+  lon: -0.1278
+});
 const WONDERS = Object.freeze([
-  Object.freeze({ id: "wonder-a", kind: "landmark", displayName: "Wonder A" }),
+  Object.freeze({ id: "wonder-a", kind: "landmark", displayName: "Wonder A", lat: HOME.lat, lon: HOME.lon }),
   Object.freeze({ id: "circumnavigation", kind: "achievement", displayName: "Around the world" })
 ]);
 
@@ -50,9 +57,9 @@ test("home-port patron settlement pays once and records campaign income", () => 
     wonderCatalog: WONDERS
   });
 
-  assert.equal(first.reward, 1000);
+  assert.equal(first.reward, 100);
   assert.equal(second.reward, 0);
-  assert.equal(state.doubloons, 1360);
+  assert.equal(state.doubloons, 460);
   assert.equal(state.accounts.ledger.at(-1).kind, "campaign");
 });
 

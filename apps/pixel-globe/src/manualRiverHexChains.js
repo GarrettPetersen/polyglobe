@@ -1,6 +1,22 @@
 const DARDANELLES_HEX_CHAIN = Object.freeze([98820, 98676, 98678, 24757]);
 const BOSPORUS_HEX_CHAIN = Object.freeze([98682, 6233, 98694, 98704]);
 
+export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
+  7: Object.freeze({
+    Guangzhou: Object.freeze([61752, 15492, 92879]),
+    Jingdezhen: Object.freeze([61646, 15465, 61859, 61651]),
+    Florence: Object.freeze([162182, 40562, 162199]),
+    Bologna: Object.freeze([40274, 161027, 98199]),
+    Verona: Object.freeze([161032, 161027, 98199]),
+    Changsha: Object.freeze([15508, 61803, 15502]),
+    Wroclaw: Object.freeze([
+      98257, 98256, 24642, 98242, 98239, 98238, 98440, 24692, 98474,
+      98473,
+    ]),
+    Bremen: Object.freeze([98128, 98127, 98140]),
+  }),
+});
+
 export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
   7: [
     [
@@ -63,6 +79,8 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     DARDANELLES_HEX_CHAIN,
     // Bosporus passage from the Sea of Marmara into the Black Sea.
     BOSPORUS_HEX_CHAIN,
+    // Historically navigable city corridors added for the 1522 port roster.
+    ...Object.values(MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]),
   ],
 };
 

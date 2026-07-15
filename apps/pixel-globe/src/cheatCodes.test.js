@@ -28,7 +28,13 @@ const PLAYER = Object.freeze({
   homePortName: "Test Harbor",
   expressions: ["neutral"]
 });
-const HOME = Object.freeze({ tileId: 12, city: "Test Harbor", factionId: "neutral" });
+const HOME = Object.freeze({
+  tileId: 12,
+  city: "Test Harbor",
+  factionId: "neutral",
+  lat: 51.5,
+  lon: -0.1
+});
 
 test("backtick opens a cheat prompt and discoverall resolves case-insensitively", () => {
   const state = createCheatCodeInputState();
@@ -94,7 +100,7 @@ test("discoverall completes the explorer goal at the next home-port report", () 
     type: CAMPAIGN_GOAL_EXPLORER
   });
   const catalog = [
-    { id: "wonder-a", kind: "landmark", displayName: "Wonder A" },
+    { id: "wonder-a", kind: "landmark", displayName: "Wonder A", lat: HOME.lat, lon: HOME.lon },
     { id: "around-world", kind: "achievement", displayName: "Around the World" }
   ];
   grantAllDiscoveriesForCheat(state, catalog);
@@ -104,7 +110,7 @@ test("discoverall completes the explorer goal at the next home-port report", () 
   });
   assert.equal(result.completed, true);
   assert.equal(result.reportedCount, 1);
-  assert.equal(state.doubloons, 1360);
+  assert.equal(state.doubloons, 460);
 });
 
 test("milliondb pays the family debt in full at the next home-port accounting", () => {

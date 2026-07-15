@@ -192,6 +192,48 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
   });
 }
 
+export function generateCampaignContactCharacter({
+  playerCharacter,
+  homePort,
+  goalType,
+  excludedSourceId,
+  manifest,
+  usedNames
+}) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (!playerCharacter?.id) throw new Error("Campaign contact generation requires a player character");
+  if (!homePort || typeof homePort !== "object") {
+    throw new Error("Campaign contact generation requires a home port");
+  }
+  if (!["explorer", "family-debt"].includes(goalType)) {
+    throw new Error(`Unknown campaign contact goal type: ${goalType}`);
+  }
+  if (typeof excludedSourceId !== "string" || excludedSourceId === "") {
+    throw new Error("Campaign contact generation requires the home factor portrait source");
+  }
+  const region = portraitRegionForCity(homePort);
+  const sourcePool = characterSourcesForRole(manifest, "factor", region)
+    .filter((source) => source.id !== excludedSourceId);
+  if (sourcePool.length === 0) {
+    throw new Error(`Campaign contact has no portrait distinct from the factor at ${homePort.displayCity || homePort.city}`);
+  }
+  const identityKey = `campaign-contact|${goalType}|${playerCharacter.id}|${homePort.tileId}`;
+  const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
+  return Object.freeze({
+    ...character,
+    ...assignRegionalCharacterName({
+      identityKey,
+      city: homePort,
+      sourceId: character.sourceId,
+      sourceLabel: character.sourceLabel,
+      usedNames
+    }),
+    role: goalType === "explorer" ? "patron" : "creditor",
+    homePortTileId: homePort.tileId
+  });
+}
+
 export function generatePassengerCharacter({
   identityKey,
   originPort,

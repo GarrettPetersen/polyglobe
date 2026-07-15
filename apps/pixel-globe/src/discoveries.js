@@ -376,6 +376,8 @@ export function mountainDiscovery(mountain) {
     displayName: mountain.displayName,
     notice: `You have discovered ${mountain.displayName}`,
     detail: `${Math.round(mountain.elevationM).toLocaleString("en-US")} m`,
+    lat: mountain.lat,
+    lon: mountain.lon,
     tileId: mountain.tileId,
     radiusPx: 120,
     menuTerrainSpriteKey: MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY

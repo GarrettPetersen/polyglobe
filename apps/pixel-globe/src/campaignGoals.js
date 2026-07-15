@@ -1,11 +1,14 @@
 import { explorerReportDialogueForDiscovery } from "./explorerDiscoveryDialogue.js";
+import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDistance.js";
 
 export const CAMPAIGN_GOAL_VERSION = 1;
 export const CAMPAIGN_GOAL_EXPLORER = "explorer";
 export const CAMPAIGN_GOAL_FAMILY_DEBT = "family-debt";
 export const CAMPAIGN_GOAL_ACTIVE = "active";
 export const CAMPAIGN_GOAL_COMPLETE = "complete";
-export const EXPLORER_DISCOVERY_REWARD = 1000;
+export const EXPLORER_DISCOVERY_REWARD_MIN = 100;
+export const EXPLORER_DISCOVERY_REWARD_MAX = 3000;
+export const EXPLORER_MOUNTAIN_REWARD_MULTIPLIER = 0.5;
 export const FAMILY_DEBT_PRINCIPAL = 100000;
 export const FAMILY_DEBT_ANNUAL_RATE = 0.10;
 export const FAMILY_DEBT_PROTECTED_PURSE = 100;
@@ -40,7 +43,6 @@ export function createCampaignGoal({ playerCharacter, startMinute = 0, type = nu
         ...base,
         reportedDiscoveryIds: [],
         currentLeadDiscoveryId: null,
-        rewardPerDiscovery: EXPLORER_DISCOVERY_REWARD,
         totalWonderCount: 0
       }
     : {
@@ -95,6 +97,19 @@ export function explorerWonderCatalog(discoveries) {
     ids.add(wonder.id);
   }
   return wonders;
+}
+
+export function explorerDiscoveryReward(discovery, homePort) {
+  if (!isExplorerWonder(discovery)) throw new Error("Explorer rewards require a wonder");
+  const distanceKm = greatCircleDistanceKm(homePort, discovery);
+  const distanceShare = Math.min(1, distanceKm / MAX_GREAT_CIRCLE_DISTANCE_KM);
+  const distanceReward = EXPLORER_DISCOVERY_REWARD_MIN +
+    (EXPLORER_DISCOVERY_REWARD_MAX - EXPLORER_DISCOVERY_REWARD_MIN) * distanceShare;
+  const adjustedReward = discovery.kind === "mountain"
+    ? distanceReward * EXPLORER_MOUNTAIN_REWARD_MULTIPLIER
+    : distanceReward;
+  const roundedReward = Math.round(adjustedReward / 50) * 50;
+  return Math.max(EXPLORER_DISCOVERY_REWARD_MIN, roundedReward);
 }
 
 export function campaignGoalDestination(goal, {
@@ -166,17 +181,25 @@ export function familyDebtPayoffProjection(goal, currentMinute, additionalDays =
 export function settleExplorerHomecoming(goal, {
   discoveredIds,
   wonderCatalog,
+  homePort,
   nextLeadDiscoveryId = null
 }) {
   validateCampaignGoal(goal);
   if (goal.type !== CAMPAIGN_GOAL_EXPLORER) throw new Error("Explorer settlement requires an explorer goal");
   if (!(discoveredIds instanceof Set)) throw new Error("Explorer settlement requires discovered ids");
+  if (!Number.isFinite(homePort?.lat) || !Number.isFinite(homePort?.lon)) {
+    throw new Error("Explorer settlement requires a placed home port");
+  }
   const wonders = explorerWonderCatalog(wonderCatalog);
   const wonderIds = new Set(wonders.map((wonder) => wonder.id));
   const reported = new Set(goal.reportedDiscoveryIds);
-  const newlyReported = wonders
-    .filter((wonder) => discoveredIds.has(wonder.id) && !reported.has(wonder.id))
-    .map((wonder) => wonder.id);
+  const newlyReportedWonders = wonders
+    .filter((wonder) => discoveredIds.has(wonder.id) && !reported.has(wonder.id));
+  const newlyReported = newlyReportedWonders.map((wonder) => wonder.id);
+  const rewardEntries = newlyReportedWonders.map((wonder) => ({
+    discoveryId: wonder.id,
+    reward: explorerDiscoveryReward(wonder, homePort)
+  }));
   for (const discoveryId of newlyReported) goal.reportedDiscoveryIds.push(discoveryId);
   goal.totalWonderCount = wonders.length;
 
@@ -186,6 +209,9 @@ export function settleExplorerHomecoming(goal, {
     throw new Error(`Explorer lead is already discovered: ${nextLeadDiscoveryId}`);
   }
   goal.currentLeadDiscoveryId = nextLeadDiscoveryId;
+  const nextLead = goal.currentLeadDiscoveryId === null
+    ? null
+    : wonders.find((wonder) => wonder.id === goal.currentLeadDiscoveryId);
   const completed = goal.reportedDiscoveryIds.length === wonders.length;
   if (completed) {
     goal.status = CAMPAIGN_GOAL_COMPLETE;
@@ -194,10 +220,12 @@ export function settleExplorerHomecoming(goal, {
   return {
     type: goal.type,
     newlyReportedIds: newlyReported,
-    reward: newlyReported.length * goal.rewardPerDiscovery,
+    rewardEntries,
+    reward: rewardEntries.reduce((sum, entry) => sum + entry.reward, 0),
     reportedCount: goal.reportedDiscoveryIds.length,
     totalWonderCount: wonders.length,
     nextLeadDiscoveryId: goal.currentLeadDiscoveryId,
+    nextLeadReward: nextLead ? explorerDiscoveryReward(nextLead, homePort) : null,
     completed
   };
 }
@@ -238,7 +266,7 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
     return [
       step("contact", "pleased", `${playerCharacter.givenName || playerCharacter.name}, I have spent years buying travelers' tales of the world's wonders, and most contradict the last. I want an account from someone whose eyes I trust. You notice what other captains sail past. I believe there is something exceptional in you.`),
       step("player", "thoughtful", `Since I was a child, I have dreamed of seeing the whole world with my own eyes: every impossible mountain, ancient city, and shore beyond the horizon. ${culture.explorerIntro}`),
-      step("contact", "attentive", `Then bring that world home to me. I want to know not merely where each wonder stands, but what makes it worthy of wonder. I will pay ${goal.rewardPerDiscovery} doubloons for every true account, and each time you return I will share the nearest rumor still worth chasing.`),
+      step("contact", "attentive", "Then bring that world home to me. I want to know not merely where each wonder stands, but what makes it worthy of wonder. I will reward every true account, and pay most richly for the rarest wonders at the farthest reaches of your voyage. Each time you return, I will share the nearest rumor still worth chasing."),
       step("player", "determined", "I will follow those rumors to the edge of every chart. When I return, you will know these places as more than names, and I will finally have seen the world I imagined.")
     ];
   }
@@ -383,7 +411,7 @@ function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) 
   } else if (outcome.nextLeadDiscoveryId) {
     const lead = discoveryById.get(outcome.nextLeadDiscoveryId);
     if (!lead) throw new Error(`Missing explorer lead discovery: ${outcome.nextLeadDiscoveryId}`);
-    steps.push(step("contact", "attentive", `The nearest untested report concerns ${lead.displayName}: ${lead.detail || "a wonder not yet entered in our atlas"}. I have marked the bearing for you.`));
+    steps.push(step("contact", "attentive", `The nearest untested report concerns ${lead.displayName}: ${lead.detail || "a wonder not yet entered in our atlas"}. I can offer ${formatDoubloons(outcome.nextLeadReward)} doubloons for a true account. I have marked the bearing for you.`));
   }
   return steps;
 }
@@ -545,9 +573,6 @@ function validateExplorerGoal(goal) {
   }
   if (goal.currentLeadDiscoveryId !== null && (typeof goal.currentLeadDiscoveryId !== "string" || goal.currentLeadDiscoveryId === "")) {
     throw new Error("Explorer lead must be null or a discovery id");
-  }
-  if (!Number.isInteger(goal.rewardPerDiscovery) || goal.rewardPerDiscovery <= 0) {
-    throw new Error(`Invalid explorer reward: ${goal.rewardPerDiscovery}`);
   }
   if (!Number.isInteger(goal.totalWonderCount) || goal.totalWonderCount < 0) {
     throw new Error(`Invalid explorer wonder count: ${goal.totalWonderCount}`);

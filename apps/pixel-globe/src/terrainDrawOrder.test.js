@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   compareTerrainDrawCalls,
   terrainBaseSpriteKey,
+  terrainConnectorNeedsSlopeDetail,
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
 
@@ -11,6 +12,14 @@ test("mountains compose over ordinary rocky ground", () => {
   assert.equal(terrainBaseSpriteKey("mountain_snowy_02"), "earth_rocky");
   assert.equal(terrainBaseSpriteKey("forest_broadleaf_01"), "forest_broadleaf_01");
   assert.throws(() => terrainBaseSpriteKey(""), /requires a sprite key/);
+});
+
+test("mountain connectors do not leak elevation lines beyond the mountain art", () => {
+  assert.equal(terrainConnectorNeedsSlopeDetail(3, 0), false);
+  assert.equal(terrainConnectorNeedsSlopeDetail(4, 1), false);
+  assert.equal(terrainConnectorNeedsSlopeDetail(2, 0), true);
+  assert.equal(terrainConnectorNeedsSlopeDetail(2, 1), false);
+  assert.throws(() => terrainConnectorNeedsSlopeDetail(NaN, 0), /finite levels/);
 });
 
 test("flat terrain draws below vegetation and mountains on the same baseline", () => {

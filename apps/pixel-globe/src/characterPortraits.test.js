@@ -8,6 +8,7 @@ import {
   assignPortCityCharacterFromSource,
   assignPortCityCharacters,
   characterExpression,
+  generateCampaignContactCharacter,
   generatePassengerCharacter,
   generatePlayerCharacter
 } from "./characterPortraits.js";
@@ -266,6 +267,45 @@ test("player generation is deterministic for an identity key", () => {
   });
 
   assert.deepEqual(generate(), generate());
+});
+
+test("campaign contacts are distinct people from the home port factor", () => {
+  const homePort = {
+    tileId: 11,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    lat: 38.72,
+    lon: -9.14
+  };
+  const usedNames = new Set(["Ines Pereira"]);
+  const [factor] = assignPortCityCharacters([homePort], GENERATED_MANIFEST, usedNames).values();
+  const playerCharacter = { id: "captain-lisbon", name: "Ines Pereira" };
+  const patron = generateCampaignContactCharacter({
+    playerCharacter,
+    homePort,
+    goalType: "explorer",
+    excludedSourceId: factor.sourceId,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+  const creditor = generateCampaignContactCharacter({
+    playerCharacter,
+    homePort,
+    goalType: "family-debt",
+    excludedSourceId: factor.sourceId,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+
+  assert.equal(patron.role, "patron");
+  assert.notEqual(patron.sourceId, factor.sourceId);
+  assert.notEqual(patron.name, factor.name);
+  assert.equal(patron.homePortTileId, homePort.tileId);
+  assert.equal(creditor.role, "creditor");
+  assert.notEqual(creditor.sourceId, factor.sourceId);
+  assert.notEqual(creditor.name, factor.name);
 });
 
 test("return-home passenger generation can use destination culture", () => {

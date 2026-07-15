@@ -6,6 +6,7 @@ import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./g
 import { cityHasPortAccess } from "./cityPortAccess.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
+  MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
   MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
@@ -14,16 +15,19 @@ import {
 const SUBDIVISIONS = 7;
 const repoRoot = new URL("../../../", import.meta.url);
 
+const MANUAL_CITY_RIVER_CONNECTIONS = Object.freeze([
+  { city: "Guangzhou", lat: 23.11667, lon: 113.25, tileId: 61752 },
+  { city: "Jingdezhen", lat: 29.268836, lon: 117.17842, tileId: 61646 },
+  { city: "Florence", lat: 43.771033, lon: 11.248, tileId: 162182 },
+  { city: "Bologna", lat: 44.49381, lon: 11.33875, tileId: 40274 },
+  { city: "Verona", lat: 45.43419, lon: 10.99779, tileId: 161032 },
+  { city: "Changsha", lat: 28.196111, lon: 112.972222, tileId: 15508 },
+  { city: "Wroclaw", lat: 51.116667, lon: 17.033333, tileId: 98257 },
+  { city: "Bremen", lat: 53.07516, lon: 8.80777, tileId: 98128 }
+]);
+
 test("Grand Canal gives Ming Beijing water access", async () => {
-  const earth = JSON.parse(await readFile(
-    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
-    "utf8"
-  ));
-  earth.tiles = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
-  const graph = buildGeodesicGraph(SUBDIVISIONS);
-  const directionIndex = createDirectionIndex(graph);
-  const { masks, toWaterMasks } = buildRiverMasks(graph, earth);
-  const reachable = buildOceanReachableNavigationMask(graph, earth.tiles, masks, toWaterMasks);
+  const { earth, graph, directionIndex, masks, reachable } = await buildManualRiverFixture();
   const beijingTileId = findNearestTileId(graph, directionIndex, latLonToDirection(39.9075, 116.39723));
 
   assert.equal(beijingTileId, 15605);
@@ -36,6 +40,26 @@ test("Grand Canal gives Ming Beijing water access", async () => {
   }), true);
 });
 
+test("manual city river corridors give their mapped city tiles ocean access", async () => {
+  const { earth, graph, directionIndex, masks, reachable } = await buildManualRiverFixture();
+  const cityChains = MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS];
+
+  assert.deepEqual(Object.keys(cityChains), MANUAL_CITY_RIVER_CONNECTIONS.map(({ city }) => city));
+  for (const { city, lat, lon, tileId } of MANUAL_CITY_RIVER_CONNECTIONS) {
+    const nearestTileId = findNearestTileId(graph, directionIndex, latLonToDirection(lat, lon));
+    assert.equal(nearestTileId, tileId, `${city} moved to a different globe tile`);
+    assert.equal(cityChains[city][0], tileId, `${city} river chain must begin at its city tile`);
+    assert.equal(reachable[tileId], 1, `${city} river chain must reach the ocean`);
+    assert.equal(cityHasPortAccess({
+      graph,
+      earthRows: earth.tiles,
+      reachableNavigationMask: reachable,
+      riverMasks: masks,
+      tileId
+    }), true, `${city} must be dockable at its mapped tile`);
+  }
+});
+
 test("saltwater passages are an explicit subset of manual river channels", () => {
   const chainTiles = new Set((MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || []).flat());
   const passageTiles = MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
@@ -43,6 +67,19 @@ test("saltwater passages are an explicit subset of manual river channels", () =>
   assert.ok(passageTiles.length > 0);
   assert.ok(passageTiles.every((tileId) => chainTiles.has(tileId)));
 });
+
+async function buildManualRiverFixture() {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  earth.tiles = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+  const directionIndex = createDirectionIndex(graph);
+  const { masks, toWaterMasks } = buildRiverMasks(graph, earth);
+  const reachable = buildOceanReachableNavigationMask(graph, earth.tiles, masks, toWaterMasks);
+  return { earth, graph, directionIndex, masks, reachable };
+}
 
 function buildRiverMasks(graph, earth) {
   const masks = new Uint8Array(graph.tileCount);

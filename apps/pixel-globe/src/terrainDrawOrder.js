@@ -4,6 +4,7 @@ const TERRAIN_DRAW_LAYER_HILL = 2;
 const TERRAIN_DRAW_LAYER_FOREST = 3;
 const TERRAIN_DRAW_LAYER_JUNGLE = 4;
 const TERRAIN_DRAW_LAYER_MOUNTAIN = 5;
+export const TERRAIN_MOUNTAIN_LEVEL = 3;
 
 export function terrainSpriteDrawLayer(spriteKey) {
   if (typeof spriteKey !== "string" || spriteKey === "") {
@@ -25,6 +26,13 @@ export function terrainBaseSpriteKey(spriteKey) {
     throw new Error("Terrain base composition requires a sprite key");
   }
   return spriteKey.startsWith("mountain_") ? "earth_rocky" : spriteKey;
+}
+
+export function terrainConnectorNeedsSlopeDetail(levelA, levelB) {
+  if (!Number.isFinite(levelA) || !Number.isFinite(levelB)) {
+    throw new Error("Terrain connector slope detail requires finite levels");
+  }
+  return Math.max(levelA, levelB) < TERRAIN_MOUNTAIN_LEVEL && Math.abs(levelA - levelB) >= 2;
 }
 
 export function compareTerrainDrawCalls(a, b) {

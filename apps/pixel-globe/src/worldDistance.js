@@ -1,4 +1,5 @@
-const EARTH_RADIUS_KM = 6371;
+export const EARTH_RADIUS_KM = 6371;
+export const MAX_GREAT_CIRCLE_DISTANCE_KM = Math.PI * EARTH_RADIUS_KM;
 
 export function greatCircleDistanceKm(a, b) {
   assertCoordinate(a, "origin");

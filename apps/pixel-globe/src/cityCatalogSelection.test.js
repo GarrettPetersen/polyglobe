@@ -10,6 +10,7 @@ import {
   factionIdForCity1522
 } from "./factions.js";
 import {
+  MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
@@ -125,6 +126,10 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   const placed = placeCityRecords(graph, directionIndex, earth.tiles, reachable, masks, selected);
   const ports = placed.filter((city) => city.dockable);
+  const manualCityRiverChains = MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS];
+  const missingManualRiverPorts = Object.entries(manualCityRiverChains)
+    .filter(([cityName, chain]) => !ports.some((city) => city.city === cityName && city.tileId === chain[0]))
+    .map(([cityName]) => cityName);
   const britishIslesPorts = ports.filter((city) =>
     city.country === "United Kingdom" || city.country === "Ireland"
   );
@@ -151,6 +156,11 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(
     incaPorts.length >= 1,
     `expected at least one Inca port, got ${incaPorts.map(cityLabel).join(", ")}`
+  );
+  assert.deepEqual(
+    missingManualRiverPorts,
+    [],
+    "expected every named manual river city to remain a dockable port on its mapped tile"
   );
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));

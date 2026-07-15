@@ -15,6 +15,7 @@ import {
   campaignVictorySummary,
   createCampaignDialogueSession,
   createCampaignGoal,
+  explorerDiscoveryReward,
   familyDebtPayoffProjection,
   markCampaignGoalIntroSeen,
   selectCampaignDialogueOption,
@@ -33,9 +34,10 @@ const CHARACTER = Object.freeze({
   homePortName: "Nanjing"
 });
 const CONTACT = Object.freeze({ id: "factor-test", name: "Zhao Min", homePortTileId: 42 });
+const HOME = Object.freeze({ tileId: 42, city: "Nanjing", lat: 32.06, lon: 118.80 });
 const WONDERS = Object.freeze([
-  Object.freeze({ id: "mount-a", kind: "mountain", displayName: "Mount A", detail: "1,000 m" }),
-  Object.freeze({ id: "lake-b", kind: "landmark", displayName: "Lake B", detail: "A great lake" }),
+  Object.freeze({ id: "mount-a", kind: "mountain", displayName: "Mount A", detail: "1,000 m", lat: HOME.lat, lon: HOME.lon }),
+  Object.freeze({ id: "lake-b", kind: "landmark", displayName: "Lake B", detail: "A great lake", lat: -HOME.lat, lon: HOME.lon - 180 }),
   Object.freeze({ id: "around", kind: "achievement", displayName: "Around the world" })
 ]);
 
@@ -44,15 +46,19 @@ test("explorer reports each wonder once and uses the dynamic catalog total", () 
   const first = settleExplorerHomecoming(goal, {
     discoveredIds: new Set(["mount-a"]),
     wonderCatalog: WONDERS,
+    homePort: HOME,
     nextLeadDiscoveryId: "lake-b"
   });
-  assert.equal(first.reward, 1000);
+  assert.equal(first.reward, 100);
+  assert.deepEqual(first.rewardEntries, [{ discoveryId: "mount-a", reward: 100 }]);
+  assert.equal(first.nextLeadReward, 3000);
   assert.equal(first.totalWonderCount, 2);
   assert.equal(goal.currentLeadDiscoveryId, "lake-b");
 
   const repeated = settleExplorerHomecoming(goal, {
     discoveredIds: new Set(["mount-a"]),
     wonderCatalog: WONDERS,
+    homePort: HOME,
     nextLeadDiscoveryId: "lake-b"
   });
   assert.equal(repeated.reward, 0);
@@ -60,11 +66,22 @@ test("explorer reports each wonder once and uses the dynamic catalog total", () 
   const final = settleExplorerHomecoming(goal, {
     discoveredIds: new Set(["mount-a", "lake-b"]),
     wonderCatalog: WONDERS,
+    homePort: HOME,
     nextLeadDiscoveryId: null
   });
-  assert.equal(final.reward, 1000);
+  assert.equal(final.reward, 3000);
   assert.equal(final.completed, true);
   assert.equal(goal.status, CAMPAIGN_GOAL_COMPLETE);
+});
+
+test("explorer rewards scale with distance and pay mountains half as much", () => {
+  const antipode = { id: "far-wonder", kind: "landmark", lat: -HOME.lat, lon: HOME.lon - 180 };
+  const farMountain = { ...antipode, id: "far-mountain", kind: "mountain" };
+  const nearbyMountain = { id: "near-mountain", kind: "mountain", lat: HOME.lat, lon: HOME.lon };
+
+  assert.equal(explorerDiscoveryReward(nearbyMountain, HOME), 100);
+  assert.equal(explorerDiscoveryReward(antipode, HOME), 3000);
+  assert.equal(explorerDiscoveryReward(farMountain, HOME), 1500);
 });
 
 test("explorer destination returns home after finding the patron's assigned wonder", () => {
@@ -152,10 +169,13 @@ test("campaign dialogue and endings include cultural story material", () => {
   assert.ok(intro.some((entry) => entry.text.includes("imperial examinations")));
   assert.ok(intro.some((entry) => /dreamed of seeing the whole world/i.test(entry.text)));
   assert.ok(intro.some((entry) => /something exceptional in you/i.test(entry.text)));
+  assert.ok(intro.some((entry) => /reward every true account/i.test(entry.text)));
+  assert.ok(intro.every((entry) => !/1,?000 doubloons/i.test(entry.text)));
   markCampaignGoalIntroSeen(goal);
   settleExplorerHomecoming(goal, {
     discoveredIds: new Set(["mount-a", "lake-b"]),
     wonderCatalog: WONDERS,
+    homePort: HOME,
     nextLeadDiscoveryId: null
   });
   const victory = campaignVictorySummary(goal, CHARACTER);
@@ -167,7 +187,8 @@ test("explorer homecoming gives each discovery a specific captain and patron exc
   const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
   const outcome = settleExplorerHomecoming(goal, {
     discoveredIds: new Set([pyramid.id]),
-    wonderCatalog: [pyramid]
+    wonderCatalog: [pyramid],
+    homePort: HOME
   });
   const steps = campaignHomecomingSteps(
     goal,

@@ -72,6 +72,7 @@ import {
   assignPortCityCharacters,
   CHARACTER_PORTRAIT_ASSET_VERSION,
   characterExpression,
+  generateCampaignContactCharacter,
   generatePassengerCharacter,
   loadCharacterPortraitManifest
 } from "./characterPortraits.js";
@@ -322,6 +323,8 @@ import {
 import {
   compareTerrainDrawCalls,
   terrainBaseSpriteKey,
+  terrainConnectorNeedsSlopeDetail,
+  TERRAIN_MOUNTAIN_LEVEL,
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
@@ -413,6 +416,7 @@ import {
   shoreBatteryIsDisabled,
   shoreBatteryMayDemandToll,
   shoreBatteryPlayerResponse,
+  shoreBatterySurrenderNotice,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 import { cityCrackSegments } from "./cityDamage.js";
@@ -1480,6 +1484,7 @@ let npcVisualUpdateAccumulator = 0;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
 let portCityCharacters;
+let campaignGoalContact;
 let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
@@ -1906,6 +1911,9 @@ async function main() {
   portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest, usedCharacterNames);
   const vikingLongshipPort = portCities.find(isVikingLongshipQuestPort);
   if (!vikingLongshipPort) throw new Error("Hafnarfjordur is missing from the dockable 1522 port roster");
+  const replacedVikingPortFactor = portCityCharacters.get(vikingLongshipPort.tileId);
+  if (!replacedVikingPortFactor) throw new Error("Hafnarfjordur has no generated port factor to replace");
+  usedCharacterNames.delete(replacedVikingPortFactor.name);
   portCityCharacters.set(vikingLongshipPort.tileId, assignPortCityCharacterFromSource(
     vikingLongshipPort,
     VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
@@ -1942,6 +1950,7 @@ async function main() {
     shipStats: ship.stats
   });
   familyDebtReturnReminderDelivered = false;
+  campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
   if (CAPTURE_SCENARIO) gameState.activePlaySeconds = CAPTURE_SCENARIO.player.activePlaySeconds;
   applyCurrentPortConquestOwnership();
   sailingTutorialState = createSailingTutorialState();
@@ -3529,7 +3538,7 @@ function openCampaignGoalIntroDialogue() {
         {
           speaker: "contact",
           expressionId: "attentive",
-          text: `Begin with ${lead.displayName}: ${lead.detail || "the nearest wonder still missing from our atlas"}. I have marked its bearing.`
+          text: `Begin with ${lead.displayName}: ${lead.detail || "the nearest wonder still missing from our atlas"}. I can offer ${outcome.nextLeadReward.toLocaleString("en-US")} doubloons for a true account. I have marked its bearing.`
         }
       ];
     }
@@ -3589,10 +3598,24 @@ function updateCampaignGoalReturnReminder() {
 }
 
 function campaignGoalContactCharacter() {
-  const city = campaignGoalHomeCity();
-  const character = portCityCharacters?.get(city.tileId);
-  if (!character) throw new Error(`Campaign home port has no character: ${cityLabelText(city)}`);
-  return character;
+  if (!campaignGoalContact) throw new Error("Campaign goal contact has not been assigned");
+  return campaignGoalContact;
+}
+
+function createCampaignGoalContact(playerCharacter, goal) {
+  if (!goal) throw new Error("Cannot assign a campaign contact without a campaign goal");
+  const homeCity = portCitiesByTileId.get(goal.homePortTileId);
+  if (!homeCity) throw new Error(`Campaign home port is not in the port roster: ${goal.homePortTileId}`);
+  const factor = portCityCharacters.get(homeCity.tileId);
+  if (!factor) throw new Error(`Campaign home port has no factor: ${cityLabelText(homeCity)}`);
+  return generateCampaignContactCharacter({
+    playerCharacter,
+    homePort: homeCity,
+    goalType: goal.type,
+    excludedSourceId: factor.sourceId,
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
 }
 
 function closeCaptainAlertModal() {
@@ -5306,6 +5329,7 @@ async function restoreSavedVoyage(payload) {
 
   usedCharacterNames = new Set([gameState.playerCharacter.name]);
   for (const character of portCityCharacters.values()) usedCharacterNames.add(character.name);
+  campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
   npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
   await ensureCharacterPortraitLoaded(gameState.playerCharacter, characterExpression(gameState.playerCharacter));
   syncShipCargoFromGameState();
@@ -10904,10 +10928,26 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
       expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
     };
   } else if (wonByShoreBattery) {
-    combatNotice = {
-      text: "SHIP SURRENDERED TO PORT",
-      expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
-    };
+    const battery = shoreBatteryStates.get(winnerId);
+    const captain = npcShipCaptains.get(loserId);
+    const loserPoint = combatEntityPoint(loserId);
+    const playerPoint = combatEntityPoint(PLAYER_COMBAT_ID);
+    if (!battery) throw new Error(`Missing victorious shore battery: ${winnerId}`);
+    if (!captain) throw new Error(`Surrendering NPC ship has no captain: ${loserId}`);
+    if (!loserFactionId) throw new Error(`Surrendering NPC ship has no faction: ${loserId}`);
+    const noticeText = shoreBatterySurrenderNotice({
+      captainName: captain.name,
+      nationalityAdjective: factionById(loserFactionId).adjective,
+      portName: battery.cityName,
+      playerPoint,
+      surrenderPoint: loserPoint
+    });
+    if (noticeText) {
+      combatNotice = {
+        text: noticeText,
+        expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+      };
+    }
   }
   clearCombatForShip(loserId);
   const state = npcVisualShips.get(loserId);
@@ -16088,7 +16128,7 @@ function drawTerrainConnectorDetails(entry, options) {
 
   if (isCoastFace(call)) {
     drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, options.waveClockMs);
-  } else if (Math.abs(call.level - call.nlevel) >= 2) {
+  } else if (terrainConnectorNeedsSlopeDetail(call.level, call.nlevel)) {
     const slopeColor = call.nlevel > call.level ? "#28261f" : "#d3cab0";
     const startX = Math.round(ax + nx * width);
     const startY = Math.round(ay + ny * width);
@@ -19804,7 +19844,13 @@ function drawSurvivalNotice(nowMs) {
   if (!survivalNotice || nowMs >= survivalNotice.expiresAtMs) return;
   const width = Math.min(240, measurePixelTextWidth(survivalNotice.text, PIXEL_FONT_SMALL_8) + 12);
   const x = Math.round((SCREEN_W - width) / 2);
-  const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 48;
+  const combatLayout = combatNoticeLayout(nowMs);
+  const fishY = fishCatchNoticeY(nowMs);
+  const y = Math.max(
+    MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 48,
+    combatLayout ? combatLayout.y + combatLayout.h + 2 : 0,
+    fishY === null ? 0 : fishY + 15
+  );
   const warn = survivalNotice.tone === "warn";
   ctx.fillStyle = warn ? "rgba(80, 61, 42, 0.94)" : "rgba(31, 67, 70, 0.92)";
   ctx.fillRect(x, y, width, 13);
@@ -19818,26 +19864,27 @@ function drawSurvivalNotice(nowMs) {
 }
 
 function drawCombatNotice(nowMs) {
-  if (!combatNotice || nowMs >= combatNotice.expiresAtMs) return;
-  const width = Math.min(230, measurePixelTextWidth(combatNotice.text, PIXEL_FONT_SMALL_8) + 12);
-  const x = Math.round((SCREEN_W - width) / 2);
-  const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 18;
+  const layout = combatNoticeLayout(nowMs);
+  if (!layout) return;
   ctx.fillStyle = "rgba(49, 54, 56, 0.94)";
-  ctx.fillRect(x, y, width, 13);
+  ctx.fillRect(layout.x, layout.y, layout.w, layout.h);
   ctx.strokeStyle = "#f9c22b";
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
+  ctx.strokeRect(layout.x + 0.5, layout.y + 0.5, layout.w - 1, layout.h - 1);
   ctx.fillStyle = "#fbff86";
-  drawPixelText(fitPixelText(combatNotice.text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center"
-  });
+  for (let index = 0; index < layout.lines.length; index++) {
+    drawPixelText(layout.lines[index], layout.x + layout.w / 2, layout.y + 3 + index * 9, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  }
 }
 
 function drawFishCatchNotice(nowMs) {
   if (!fishCatchNotice || nowMs >= fishCatchNotice.expiresAtMs) return;
   const width = Math.min(240, measurePixelTextWidth(fishCatchNotice.text, PIXEL_FONT_SMALL_8) + 12);
   const x = Math.round((SCREEN_W - width) / 2);
-  const y = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 33;
+  const y = fishCatchNoticeY(nowMs);
+  if (y === null) return;
   const warn = fishCatchNotice.tone === "warn";
   ctx.fillStyle = warn ? "rgba(80, 61, 42, 0.94)" : "rgba(31, 67, 70, 0.92)";
   ctx.fillRect(x, y, width, 13);
@@ -19848,6 +19895,29 @@ function drawFishCatchNotice(nowMs) {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
+}
+
+function combatNoticeLayout(nowMs) {
+  if (!combatNotice || nowMs >= combatNotice.expiresAtMs) return null;
+  const maxWidth = Math.min(360, SCREEN_W - 12);
+  const lines = wrapPixelText(combatNotice.text, PIXEL_FONT_SMALL_8, maxWidth - 10, 3);
+  const textWidth = Math.max(...lines.map((line) => measurePixelTextWidth(line, PIXEL_FONT_SMALL_8)));
+  const w = Math.min(maxWidth, textWidth + 12);
+  const h = 4 + lines.length * 9;
+  return {
+    x: Math.round((SCREEN_W - w) / 2),
+    y: MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 18,
+    w,
+    h,
+    lines
+  };
+}
+
+function fishCatchNoticeY(nowMs) {
+  if (!fishCatchNotice || nowMs >= fishCatchNotice.expiresAtMs) return null;
+  const baseY = MOUNTAIN_DISCOVERY_PANEL_Y + MOUNTAIN_DISCOVERY_PANEL_H + 33;
+  const combatLayout = combatNoticeLayout(nowMs);
+  return combatLayout ? Math.max(baseY, combatLayout.y + combatLayout.h + 2) : baseY;
 }
 
 function drawPlayerIntroModal(nowMs) {
@@ -21156,7 +21226,7 @@ function mountainFaceInfo(call) {
     { side: "a", id: call.a, row: call.row, level: call.level },
     { side: "b", id: call.b, row: call.nrow, level: call.nlevel }
   ];
-  const mountains = candidates.filter((candidate) => candidate.level >= 3);
+  const mountains = candidates.filter((candidate) => candidate.level >= TERRAIN_MOUNTAIN_LEVEL);
   if (mountains.length === 0) return null;
   const mountain = mountains.find((candidate) => candidate.id === call.ownerId) || mountains[0];
   if (mountains.length === 2) return { mountain, neighbor: null, bothMountain: true };
