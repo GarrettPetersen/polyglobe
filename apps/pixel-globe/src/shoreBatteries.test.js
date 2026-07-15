@@ -10,6 +10,8 @@ import {
   damageShoreBattery,
   shoreBatteryCanFire,
   shoreBatteryGunCount,
+  shoreBatteryMayDemandToll,
+  shoreBatteryPlayerResponse,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 
@@ -21,6 +23,12 @@ test("capitals mount four shore guns while other important cities mount two", ()
   assert.equal(battery.maxHitPoints, 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN);
   assert.equal(shoreBatteryGunCount({ ...city, isFactionCapital: true }), 4);
   assert.equal(shoreBatteryGunCount({ ...city, population: 12000, settlementType: "village" }), 1);
+});
+
+test("only fortified ports demand empire-wide passage tolls", () => {
+  assert.equal(shoreBatteryMayDemandToll(city), true);
+  assert.equal(shoreBatteryMayDemandToll({ ...city, population: 12000 }), false);
+  assert.equal(shoreBatteryMayDemandToll({ ...city, population: 12000, isFactionCapital: true }), true);
 });
 
 test("disabled shore batteries recover after three in-game days", () => {
@@ -45,4 +53,65 @@ test("shore battery reload prevents immediate repeat fire", () => {
   assert.equal(shoreBatteryCanFire(battery, 0), false);
   updateShoreBatteryState(battery, {}, 0, 0.01);
   assert.equal(shoreBatteryCanFire(battery, 0), true);
+});
+
+test("a remembered toll refusal suppresses another hail without forgiving a war", () => {
+  const hostile = shoreBatteryPlayerResponse({
+    playerHostile: true,
+    hostileByWar: false,
+    withinWeaponRange: true,
+    withinTollRange: true,
+    tollDemandEligible: true,
+    playerHailed: false,
+    passageRefusalActive: true
+  });
+  assert.deepEqual(hostile, { shouldHail: false, shouldEngage: false });
+
+  const war = shoreBatteryPlayerResponse({
+    playerHostile: true,
+    hostileByWar: true,
+    withinWeaponRange: true,
+    withinTollRange: false,
+    tollDemandEligible: false,
+    playerHailed: false,
+    passageRefusalActive: true
+  });
+  assert.deepEqual(war, { shouldHail: false, shouldEngage: true });
+});
+
+test("an expired toll refusal allows the next hostile port to hail", () => {
+  assert.deepEqual(shoreBatteryPlayerResponse({
+    playerHostile: true,
+    hostileByWar: false,
+    withinWeaponRange: true,
+    withinTollRange: true,
+    tollDemandEligible: true,
+    playerHailed: false,
+    passageRefusalActive: false
+  }), { shouldHail: true, shouldEngage: false });
+});
+
+test("hostile toll hails wait for docking range and ignore minor ports", () => {
+  const base = {
+    playerHostile: true,
+    hostileByWar: false,
+    withinWeaponRange: true,
+    playerHailed: false,
+    passageRefusalActive: false
+  };
+  assert.equal(shoreBatteryPlayerResponse({
+    ...base,
+    withinTollRange: false,
+    tollDemandEligible: true
+  }).shouldHail, false);
+  assert.equal(shoreBatteryPlayerResponse({
+    ...base,
+    withinTollRange: true,
+    tollDemandEligible: false
+  }).shouldHail, false);
+  assert.equal(shoreBatteryPlayerResponse({
+    ...base,
+    withinTollRange: true,
+    tollDemandEligible: true
+  }).shouldHail, true);
 });

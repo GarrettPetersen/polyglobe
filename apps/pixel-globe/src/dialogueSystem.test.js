@@ -98,11 +98,15 @@ test("hostile shore batteries sell civilian passage for the whole empire", () =>
     canAffordToll: true
   });
   const view = shoreBatteryDialogueView(session, city);
-  assert.match(view.text, /seven days of safe passage/);
+  assert.match(view.text, /one month of safe passage/);
   assert.deepEqual(view.options.map((entry) => entry.label), ["Pay 55 db", "Turn away"]);
   assert.deepEqual(
     selectShoreBatteryDialogueOption(session, city, 0),
     { closed: true, action: { type: "purchase-safe-passage" } }
+  );
+  assert.deepEqual(
+    selectShoreBatteryDialogueOption(session, city, 1),
+    { closed: true, action: { type: "refuse-safe-passage" } }
   );
 });
 

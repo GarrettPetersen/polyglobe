@@ -1,4 +1,5 @@
 import {
+  FACTION_SAFE_PASSAGE_DAYS,
   acceptQuest,
   adjustFactionReputation,
   buyGood,
@@ -171,16 +172,20 @@ export function shoreBatteryDialogueView(session, city) {
   return {
     speaker: `${characterName(city.character)}, ${city.city}`,
     expressionId: "stern",
-    text: `${session.rulerName} demands ${session.toll} doubloons for seven days of safe passage throughout ${faction.name}.`,
+    text: `${session.rulerName} demands ${session.toll} doubloons for ${safePassageDurationLabel()} of safe passage throughout ${faction.name}.`,
     feedback: null,
     options: [
       option(`Pay ${session.toll} db`, { type: "purchase-safe-passage" }, {
         disabled: !session.canAffordToll,
         disabledReason: "Not enough doubloons."
       }),
-      option(session.relation === "war" ? "Refuse" : "Turn away", { type: "close" })
+      option(session.relation === "war" ? "Refuse" : "Turn away", { type: "refuse-safe-passage" })
     ]
   };
+}
+
+function safePassageDurationLabel() {
+  return FACTION_SAFE_PASSAGE_DAYS === 30 ? "one month" : `${FACTION_SAFE_PASSAGE_DAYS} days`;
 }
 
 export function selectShoreBatteryDialogueOption(session, city, optionIndex = session.selectedIndex) {
@@ -190,6 +195,9 @@ export function selectShoreBatteryDialogueOption(session, city, optionIndex = se
   if (selected.disabled) throw new Error(selected.disabledReason || "Shore battery option is unavailable");
   if (selected.action.type === "close") return { closed: true, action: null };
   if (selected.action.type === "purchase-safe-passage") {
+    return { closed: true, action: selected.action };
+  }
+  if (selected.action.type === "refuse-safe-passage") {
     return { closed: true, action: selected.action };
   }
   throw new Error(`Unknown shore battery dialogue action: ${selected.action.type}`);

@@ -4,10 +4,12 @@ import test from "node:test";
 import { createWorldEconomy } from "./economy.js";
 import {
   ENEMY_FACTION_START_REPUTATION,
+  FACTION_SAFE_PASSAGE_DAYS,
   HOME_FACTION_START_REPUTATION,
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   PORT_DISGUISE_LOCK_DAYS,
+  FACTION_SAFE_PASSAGE_REFUSAL_DAYS,
   PIRATE_HIDEOUT_REPUTATION_REQUIRED,
   PIRATE_REPUTATION_GAIN_PER_PIRACY,
   PIRACY_REPUTATION_PENALTY,
@@ -21,6 +23,7 @@ import {
   diplomacyBetweenForState,
   factionReputation,
   factionSafePassageStatus,
+  factionSafePassageRefusalStatus,
   factionSafePassageToll,
   grantLetterOfMarque,
   hasLetterOfMarqueFrom,
@@ -32,6 +35,7 @@ import {
   playerShipIsWarship,
   portEntryStatus,
   purchaseFactionSafePassage,
+  refuseFactionSafePassage,
   recordAttackAgainstFaction,
   recordPiracyAgainstFaction,
   validateGameState
@@ -78,7 +82,7 @@ test("version 8 game states migrate diplomacy and ship classification without lo
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 12);
+  assert.equal(restored.version, 13);
   assert.equal(mingTradeOpenToFaction(restored, "joseon"), true);
   assert.equal(mingTradeOpenToFaction(restored, "england"), false);
   assert.ok(restored.relations.diplomacy);
@@ -126,7 +130,7 @@ test("version 9 game states preserve passage and gain diplomatic contacts", () =
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 12);
+  assert.equal(restored.version, 13);
   assert.equal(restored.relations.safePassageUntilMinute.ottoman, 2000);
   assert.deepEqual(restored.relations.diplomacy.contacts, {});
 });
@@ -144,7 +148,7 @@ test("version 10 game states gain the initial Joseon Ming trade agreement", () =
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.version, 12);
+  assert.equal(restored.version, 13);
   assert.deepEqual(restored.relations.mingOpenTradeFactionIds, ["joseon"]);
 });
 
@@ -153,12 +157,23 @@ test("version 11 voyages gain empty persistent port conquest state", () => {
   legacy.version = 11;
   delete legacy.memory.conquest;
   const restored = migrateGameState(legacy, null);
-  assert.equal(restored.version, 12);
+  assert.equal(restored.version, 13);
   assert.deepEqual(restored.memory.conquest, {
     portFactionOverrides: {},
     collapsedFactionIds: [],
     events: []
   });
+});
+
+test("version 12 voyages gain empty persistent safe-passage refusals", () => {
+  const legacy = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  legacy.version = 12;
+  delete legacy.relations.safePassageRefusalUntilMinute;
+
+  const restored = migrateGameState(legacy, null);
+
+  assert.equal(restored.version, 13);
+  assert.deepEqual(restored.relations.safePassageRefusalUntilMinute, {});
 });
 
 test("successful trade gives only a tiny faction reputation gain", () => {
@@ -321,7 +336,7 @@ test("failed port disguises impose a fixed fourteen-day lock", () => {
   assert.equal(succeeded.success, true);
 });
 
-test("civilian tolls grant seven days of empire-wide safe passage", () => {
+test("civilian tolls grant one month of empire-wide safe passage", () => {
   const habsburgPlayer = { ...PLAYER, nationalityId: "habsburg" };
   const fishingBarque = shipStatsForSlug("fishing-lugger");
   const state = createGameState({
@@ -340,8 +355,28 @@ test("civilian tolls grant seven days of empire-wide safe passage", () => {
   assert.equal(state.doubloons, 360 - toll);
   assert.equal(portEntryStatus(state, istanbul, 101).allowed, true);
   assert.equal(portEntryStatus(state, alexandria, 101).safePassage, true);
-  assert.equal(factionSafePassageStatus(state, "ottoman", 101).daysRemaining, 7);
+  assert.equal(passage.days, FACTION_SAFE_PASSAGE_DAYS);
+  assert.equal(factionSafePassageStatus(state, "ottoman", 101).daysRemaining, 30);
   assert.equal(portEntryStatus(state, alexandria, passage.untilMinute).allowed, false);
+});
+
+test("refusing a civilian toll suppresses that faction for two days", () => {
+  const habsburgPlayer = { ...PLAYER, nationalityId: "habsburg" };
+  const fishingBarque = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({
+    cargoCapacity: fishingBarque.cargoCapacity,
+    playerCharacter: habsburgPlayer,
+    shipStats: fishingBarque
+  });
+  const startMinute = 100;
+
+  const refusal = refuseFactionSafePassage(state, "ottoman", startMinute);
+
+  assert.equal(refusal.days, FACTION_SAFE_PASSAGE_REFUSAL_DAYS);
+  assert.equal(factionSafePassageRefusalStatus(state, "ottoman", startMinute + 1).active, true);
+  assert.equal(factionSafePassageRefusalStatus(state, "ottoman", startMinute + 1).daysRemaining, 2);
+  assert.equal(factionSafePassageRefusalStatus(state, "france", startMinute + 1).active, false);
+  assert.equal(factionSafePassageRefusalStatus(state, "ottoman", refusal.untilMinute).active, false);
 });
 
 test("armed warships cannot buy civilian safe passage", () => {

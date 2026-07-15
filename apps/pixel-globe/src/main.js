@@ -83,6 +83,7 @@ import {
   discoveredEntries,
   diplomacyBetweenForState,
   factionReputation,
+  factionSafePassageRefusalStatus,
   factionSafePassageToll,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
@@ -107,6 +108,7 @@ import {
   recordAttackAgainstFaction,
   recordDiscovery,
   recordPiracyAgainstFaction,
+  refuseFactionSafePassage,
   restockSelectedShipLoadoutAtPort,
   rollCrewCasualtiesForDamage,
   purchasePlayerShip,
@@ -340,6 +342,8 @@ import {
   shoreBatteryCanFire,
   shoreBatteryId,
   shoreBatteryIsDisabled,
+  shoreBatteryMayDemandToll,
+  shoreBatteryPlayerResponse,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
 import {
@@ -6487,6 +6491,10 @@ function chooseDialogueOption(optionIndex) {
       showSurvivalNotice(`${factionById(passage.factionId).adjective.toUpperCase()} PASSAGE  ${passage.days} DAYS`, "good");
       saveVoyageNow("purchased faction safe passage");
       result.action = null;
+    } else if (result.action?.type === "refuse-safe-passage") {
+      refuseFactionSafePassage(gameState, city.factionId, Math.floor(weatherClockMinutes));
+      saveVoyageNow("refused faction safe passage");
+      result.action = null;
     }
   } else {
     throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
@@ -9875,14 +9883,26 @@ function updateShoreBatteryCombat(dt, anotherHailOpened) {
     const playerDistance = Math.hypot(point.x - localLayout.viewX, point.y - localLayout.viewY);
     const entryStatus = portEntryStatus(gameState, city, simMinute);
     const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile;
-    if (playerHostile && playerDistance <= range) {
-      if (!state.playerHailed && !anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
+    const passageRefusalActive = playerHostile &&
+      factionSafePassageRefusalStatus(gameState, city.factionId, simMinute).active;
+    const playerResponse = shoreBatteryPlayerResponse({
+      playerHostile,
+      hostileByWar: entryStatus.hostileByWar,
+      withinWeaponRange: playerDistance <= range,
+      withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
+      tollDemandEligible: shoreBatteryMayDemandToll(city),
+      playerHailed: state.playerHailed,
+      passageRefusalActive
+    });
+    if (playerResponse.shouldHail) {
+      if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
         if (!attemptEnvoyIntercession(city.factionId)) openShoreBatteryCombatHail(city, state);
         hailOpened = true;
         changed = true;
       }
-      if (state.playerHailed && entryStatus.hostileByWar) nextTargets.add(PLAYER_COMBAT_ID);
-    } else if (playerDistance > range + 20) {
+    }
+    if (playerResponse.shouldEngage) nextTargets.add(PLAYER_COMBAT_ID);
+    if (playerDistance > range + 20) {
       state.playerHailed = false;
     }
 

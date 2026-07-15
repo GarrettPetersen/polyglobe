@@ -190,6 +190,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "select-loadout": "action:loadout",
   "request-marque": "action:letter",
   "purchase-safe-passage": "action:buy",
+  "refuse-safe-passage": "action:leave",
   "purchase-viking-longship": "action:viking",
   "purchase-ship": "action:shipyard",
   "deliver-viking-material": "action:quest",

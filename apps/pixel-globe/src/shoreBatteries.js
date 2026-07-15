@@ -16,6 +16,10 @@ export function shoreBatteryGunCount(city) {
   return (city.population || 0) >= 50000 ? 2 : 1;
 }
 
+export function shoreBatteryMayDemandToll(city) {
+  return shoreBatteryGunCount(city) >= 2;
+}
+
 export function createShoreBatteryState(city, flags, simMinute) {
   assertCity(city);
   assertFlags(flags);
@@ -86,6 +90,36 @@ export function armShoreBatteryReload(state) {
   assertState(state);
   state.cooldownSeconds = SHORE_BATTERY_RELOAD_SECONDS;
   state.shotSequence += 1;
+}
+
+export function shoreBatteryPlayerResponse({
+  playerHostile,
+  hostileByWar,
+  withinWeaponRange,
+  withinTollRange,
+  tollDemandEligible,
+  playerHailed,
+  passageRefusalActive
+}) {
+  for (const [key, value] of Object.entries({
+    playerHostile,
+    hostileByWar,
+    withinWeaponRange,
+    withinTollRange,
+    tollDemandEligible,
+    playerHailed,
+    passageRefusalActive
+  })) {
+    if (typeof value !== "boolean") throw new Error(`Invalid shore battery player response ${key}: ${value}`);
+  }
+  const confronted = playerHailed || passageRefusalActive;
+  const shouldConfront = hostileByWar
+    ? withinWeaponRange
+    : tollDemandEligible && withinTollRange;
+  return {
+    shouldHail: playerHostile && shouldConfront && !confronted,
+    shouldEngage: playerHostile && withinWeaponRange && hostileByWar && confronted
+  };
 }
 
 function readDisabledUntil(flags, city) {

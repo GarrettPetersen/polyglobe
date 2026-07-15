@@ -62,7 +62,7 @@ import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 import { createPortConquestMemory, validatePortConquestMemory } from "./portConquest.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 12;
+export const GAME_STATE_VERSION = 13;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -79,7 +79,8 @@ export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
 export const HOSTILE_PORT_REPUTATION_THRESHOLD = -75;
 export const PORT_DISGUISE_SUCCESS_CHANCE = 0.6;
 export const PORT_DISGUISE_LOCK_DAYS = 14;
-export const FACTION_SAFE_PASSAGE_DAYS = 7;
+export const FACTION_SAFE_PASSAGE_DAYS = 30;
+export const FACTION_SAFE_PASSAGE_REFUSAL_DAYS = 2;
 export const FISH_CARGO_GOOD_ID = "fish";
 export const SHIP_ITEM_FISHING_NET = "fishing-net";
 export const SHIP_ITEM_CANNON_EQUIPMENT = "cannon-equipment";
@@ -99,6 +100,7 @@ export const ENVOY_HOME_REPUTATION = 8;
 const MINUTES_PER_DAY = 24 * 60;
 const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_MINUTES = FACTION_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
+const FACTION_SAFE_PASSAGE_REFUSAL_MINUTES = FACTION_SAFE_PASSAGE_REFUSAL_DAYS * MINUTES_PER_DAY;
 const ENVOY_SAFE_PASSAGE_MINUTES = ENVOY_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
 const ENVOY_QUEST_KINDS = new Set(["friendly-envoy", "hostile-envoy"]);
 const FRESH_WATER_USE_PER_DAY = FRESH_WATER_CAPACITY / FRESH_WATER_DAYS;
@@ -165,6 +167,7 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
       factionReputation: initialFactionReputation(playerFactionId),
       lettersOfMarque: {},
       safePassageUntilMinute: {},
+      safePassageRefusalUntilMinute: {},
       mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
       diplomacy: createWorldDiplomacy({
         startMinute,
@@ -203,7 +206,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (state?.version !== 8 && state?.version !== 9 && state?.version !== 10 && state?.version !== 11) {
+  if (![8, 9, 10, 11, 12].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -233,6 +236,7 @@ export function migrateGameState(state, shipStats) {
     relations: {
       ...state.relations,
       safePassageUntilMinute: state.version === 8 ? {} : state.relations.safePassageUntilMinute,
+      safePassageRefusalUntilMinute: {},
       mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
       diplomacy: migratedDiplomacy
     },
@@ -1258,6 +1262,40 @@ export function factionSafePassageStatus(state, factionId, simMinute) {
   };
 }
 
+export function factionSafePassageRefusalStatus(state, factionId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const id = assertFactionId(factionId);
+  const untilMinute = state.relations.safePassageRefusalUntilMinute[id] || 0;
+  if (!Number.isFinite(untilMinute) || untilMinute < 0) {
+    throw new Error(`Invalid safe passage refusal expiry for ${id}: ${untilMinute}`);
+  }
+  const active = untilMinute > simMinute;
+  return {
+    factionId: id,
+    active,
+    untilMinute: active ? untilMinute : null,
+    daysRemaining: active ? Math.ceil((untilMinute - simMinute) / MINUTES_PER_DAY) : 0
+  };
+}
+
+export function refuseFactionSafePassage(state, factionId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const id = assertFactionId(factionId);
+  if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
+    throw new Error(`Faction cannot demand safe passage: ${id}`);
+  }
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  const relation = playerFactionId ? diplomacyBetweenForState(state, playerFactionId, id) : null;
+  if (relation !== DIPLOMACY_HOSTILE && relation !== DIPLOMACY_WAR) {
+    throw new Error(`${id} has no reason to demand a passage toll`);
+  }
+  const untilMinute = simMinute + FACTION_SAFE_PASSAGE_REFUSAL_MINUTES;
+  state.relations.safePassageRefusalUntilMinute[id] = untilMinute;
+  return { factionId: id, untilMinute, days: FACTION_SAFE_PASSAGE_REFUSAL_DAYS };
+}
+
 export function activeFactionSafePassageIds(state, simMinute) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
@@ -1288,6 +1326,7 @@ export function purchaseFactionSafePassage(state, city, simMinute) {
   state.doubloons -= toll;
   const untilMinute = simMinute + FACTION_SAFE_PASSAGE_MINUTES;
   state.relations.safePassageUntilMinute[factionId] = untilMinute;
+  delete state.relations.safePassageRefusalUntilMinute[factionId];
   recordLedgerEntry(state, city, { simMinute }, {
     kind: "expense",
     description: `${cityLabel(city)} passage toll`,
@@ -2133,6 +2172,7 @@ function assertGameState(state) {
   assertMingOpenTradeFactionIds(state.relations?.mingOpenTradeFactionIds);
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);
   assertSafePassageTable(state.relations?.safePassageUntilMinute);
+  assertSafePassageRefusalTable(state.relations?.safePassageRefusalUntilMinute);
   assertWorldDiplomacyState(state);
   if (!Number.isFinite(state.accounts.realizedPnl)) throw new Error("Invalid realized trade P/L");
   if (!Array.isArray(state.accounts.ledger)) throw new Error("Game state ledger must be an array");
@@ -2184,6 +2224,16 @@ function assertPlayerShipState(ship) {
 function assertSafePassageTable(table) {
   if (!table || typeof table !== "object" || Array.isArray(table)) {
     throw new Error("Game state safe passage must be an object");
+  }
+  for (const [factionId, untilMinute] of Object.entries(table)) {
+    assertFactionId(factionId);
+    assertSimulationMinute(untilMinute);
+  }
+}
+
+function assertSafePassageRefusalTable(table) {
+  if (!table || typeof table !== "object" || Array.isArray(table)) {
+    throw new Error("Game state safe passage refusals must be an object");
   }
   for (const [factionId, untilMinute] of Object.entries(table)) {
     assertFactionId(factionId);
