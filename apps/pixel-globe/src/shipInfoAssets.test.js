@@ -537,10 +537,23 @@ test("the northwest Dhow frame has no vertical submerged streak through its hull
   }
 
   const submerged = floatingShipSubmergedPixelKeys(pixels, SHIP_SPRITE_FRAME_SIZE);
-  assert.deepEqual(
-    [...submerged].filter((key) => key % SHIP_SPRITE_FRAME_SIZE === 23).sort((a, b) => a - b),
-    [26 * SHIP_SPRITE_FRAME_SIZE + 23, 27 * SHIP_SPRITE_FRAME_SIZE + 23]
-  );
+  const rowsByColumn = new Map();
+  for (const key of submerged) {
+    const x = key % SHIP_SPRITE_FRAME_SIZE;
+    const y = Math.floor(key / SHIP_SPRITE_FRAME_SIZE);
+    if (!rowsByColumn.has(x)) rowsByColumn.set(x, []);
+    rowsByColumn.get(x).push(y);
+  }
+  for (const [x, rows] of rowsByColumn) {
+    rows.sort((a, b) => a - b);
+    let run = 1;
+    let longestRun = rows.length > 0 ? 1 : 0;
+    for (let index = 1; index < rows.length; index++) {
+      run = rows[index] === rows[index - 1] + 1 ? run + 1 : 1;
+      longestRun = Math.max(longestRun, run);
+    }
+    assert.ok(longestRun <= 2, `dhow frame ${frame} has a ${longestRun}px submerged streak at x=${x}`);
+  }
 });
 
 test("the Mesoamerican canoe has a readable six-frame paddle cycle", async () => {

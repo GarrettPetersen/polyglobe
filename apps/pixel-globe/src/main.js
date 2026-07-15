@@ -185,6 +185,7 @@ import {
   configureCaptureEncounter,
   createNpcSeaRouteSystem,
   damageNpcShip,
+  npcCargoAvailableQuantity,
   npcPortHasMajorProtection,
   npcRoleLabel,
   npcShipSnapshots,
@@ -247,7 +248,8 @@ import {
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_SUBMERGED_ALPHA,
   floatingShipSubmergedPixelKeys,
-  liveShipRefractionOffset
+  liveShipRefractionOffset,
+  shipMaxRasterWaterlineDepth
 } from "./shipWaterline.js";
 import { shipLightStrengthsForSunAltitude } from "./shipLighting.js";
 import {
@@ -265,6 +267,7 @@ import {
   createStormPassageState,
   fillStormEdgeFogPixels,
   markStormClearanceDelivered,
+  markStormWarningDelivered,
   stormFogStrength,
   updateStormPassage
 } from "./stormPresentation.js";
@@ -286,6 +289,7 @@ import {
 } from "./stormLightning.js";
 import {
   compareTerrainDrawCalls,
+  terrainBaseSpriteKey,
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
@@ -330,6 +334,7 @@ import {
 } from "./captureScenarios.js";
 import { CaptureRecorder } from "./captureRecorder.js";
 import { createCaptureControls } from "./captureControls.js";
+import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js";
 import {
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
@@ -487,6 +492,7 @@ import {
   fishingSideForTarget
 } from "./fishingAction.js";
 import {
+  compareTerrainConnectorDrawOrder,
   isCoastalWaterRow,
   isPermanentSeaIceRow,
   isShipUsableSurfaceWater,
@@ -575,7 +581,8 @@ const PIXELS_PER_RADIAN = 2450;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
 const TILE_ART_HALF = TILE_ART_SIZE / 2;
-const FACE_HALF_WIDTH = 7;
+const FACE_HALF_WIDTH = 9;
+const COAST_FACE_ENDPOINT_OVERLAP_PX = 2;
 const BEACH_SPECKLE_COUNT = 5;
 const BEACH_LIGHT_SPECKLE_COLOR = "rgba(255, 236, 151, 0.46)";
 const BEACH_DARK_SPECKLE_COLOR = "rgba(218, 184, 92, 0.26)";
@@ -587,10 +594,6 @@ const BEACH_WAVE_MIN_REACH = 0.16;
 const BEACH_WAVE_MAX_REACH = 0.78;
 const BEACH_WAVE_WATER_ALPHA = 0.58;
 const BEACH_WAVE_EDGE_RECESS = 0.2;
-const FRONT_FACE_OVERLAP_PX = 4;
-const FRONT_FACE_MIN_DY = 2;
-const MOUNTAIN_FOOT_REACH = 0.36;
-const MOUNTAIN_FOOT_TIP_HALF_WIDTH = 1;
 const RIVER_ARM_LENGTH_PX = 15;
 const RIVER_MOUTH_ARM_LENGTH_PX = 17;
 const RIVER_CURVE_BEND_PX = 4;
@@ -747,7 +750,6 @@ const STORM_SHIP_BOB_MAX_Y_PX = 3;
 const STORM_CAPTAIN_ALERT_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_CAPTAIN_ALERT_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.58;
 const STORM_CAPTAIN_CLEARANCE_DELAY_MS = 10000;
-const STORM_CAPTAIN_ALERT_COOLDOWN_MINUTES = 2 * WEATHER_MINUTES_PER_DAY;
 const DAY_NIGHT_DAY_ALT = 0.34;
 const DAY_NIGHT_NIGHT_ALT = -0.34;
 const DAY_NIGHT_SUNSET_START_ALT = -0.3;
@@ -1097,6 +1099,10 @@ const UI_ICON_BUTTON_SIZE = 24;
 const UI_PAGER_BUTTON_W = 30;
 const UI_PAGER_BUTTON_H = 24;
 const UI_TAB_H = 24;
+const SHIP_INFO_DESKTOP_SUMMARY_Y = 36;
+const SHIP_INFO_DESKTOP_HEADER_Y = 52;
+const SHIP_INFO_DESKTOP_FIRST_ROW_Y = 66;
+const SHIP_INFO_PAPER_ROW_H = 21;
 const CAPTAIN_MENU_LABELS = Object.freeze([
   "SHIP & LEDGER",
   "POLITICS",
@@ -1447,7 +1453,6 @@ let riverMasks;
 let riverToWaterMasks;
 let oceanReachableNavigationMask;
 let stormSystem;
-let stormCaptainAlertNextMinute = null;
 const stormPassageState = createStormPassageState();
 let riverSpriteCache = new Map();
 let waterDepthBands;
@@ -1564,6 +1569,18 @@ document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
 screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 
 window.addEventListener("keydown", (event) => {
+  if (isShareScreenshotKey(event)) {
+    event.preventDefault();
+    if (!event.repeat) {
+      void saveShareScreenshot(canvas)
+        .then(({ width, height }) => showSurvivalNotice(`SCREENSHOT SAVED  ${width}X${height}`, "good"))
+        .catch((error) => {
+          console.error("Could not save share screenshot", error);
+          showSurvivalNotice("SCREENSHOT FAILED", "warn");
+        });
+    }
+    return;
+  }
   ensureGameAudioStarted(true);
   if (isControlKey(event.key)) sailingTutorialInputMode = "keyboard";
   if (lakeBattleMode && optionsMenu.isOpen) {
@@ -5068,7 +5085,6 @@ async function restoreSavedVoyage(payload) {
   anchored = payload.anchored;
   survivalDamageTimers.thirst = finiteMinuteOrNull(payload.survivalDamageTimers?.thirst);
   survivalDamageTimers.hunger = finiteMinuteOrNull(payload.survivalDamageTimers?.hunger);
-  stormCaptainAlertNextMinute = finiteMinuteOrNull(payload.stormCaptainAlertNextMinute);
   playerIntroModal = null;
   captainAlertModal = null;
   dialogueState = null;
@@ -5124,8 +5140,7 @@ function saveVoyageNow(reason) {
       economy: snapshotWorldEconomy(worldEconomy),
       npcRoutes: snapshotNpcSeaRouteSystem(npcSeaRoutes),
       anchored,
-      survivalDamageTimers: { ...survivalDamageTimers },
-      stormCaptainAlertNextMinute
+      survivalDamageTimers: { ...survivalDamageTimers }
     });
     localSaveResult = { status: "ready", save, error: null };
     if (reason === "new voyage" || reason === "continued voyage") {
@@ -6352,7 +6367,7 @@ function updateShoreScavenge(nowMs) {
   if (!shoreScavengeAction || nowMs < shoreScavengeAction.completesAtMs) return false;
   const context = shoreScavengeAction.context;
   shoreScavengeAction = null;
-  const outcome = rollShoreScavenge();
+  const outcome = rollShoreScavenge(context);
   const narrative = shoreScavengeNarrative(outcome, context);
   if (outcome === SHORE_SCAVENGE_WATER) {
     const noticeLabel = shoreScavengeNoticeLabel(outcome, context);
@@ -9311,7 +9326,6 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   let changed = transition !== null;
 
   if (transition === STORM_PASSAGE_CLEARED) {
-    stormCaptainAlertNextMinute = null;
     showSurvivalNotice("STORM PASSED - SAFE TO SAIL", "good");
   }
   if (stormPassageState.clearancePending) {
@@ -9320,14 +9334,13 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
     return changed || opened;
   }
   if (intensity < STORM_CAPTAIN_ALERT_EXIT_INTENSITY) {
-    stormCaptainAlertNextMinute = null;
     return changed;
   }
   if (portWaitState || intensity < STORM_CAPTAIN_ALERT_ENTER_INTENSITY) return changed;
-  if (stormCaptainAlertNextMinute !== null && currentMinute < stormCaptainAlertNextMinute) return changed;
+  if (!stormPassageState.warningPending) return changed;
 
   const opened = openCaptainAlertModal(stormCaptainAlertMessage(intensity), "concerned");
-  if (opened) stormCaptainAlertNextMinute = currentMinute + STORM_CAPTAIN_ALERT_COOLDOWN_MINUTES;
+  if (opened) markStormWarningDelivered(stormPassageState);
   return changed || opened;
 }
 
@@ -9790,7 +9803,7 @@ function updateNpcFishermenHarvest() {
       state.fishHarvestUntilMinute = nowMinute + FISH_NPC_HARVEST_INTERVAL_MINUTES;
       const npcShip = npcSeaRoutes.shipById.get(state.id);
       if (!npcShip) continue;
-      const free = npcShip.cargoCapacity - npcCargoUsedUnits(npcShip);
+      const free = npcCargoAvailableQuantity(npcShip, FISH_CARGO_GOOD_ID);
       if (free <= 0) continue;
       const result = harvestFishery(
         gameState,
@@ -9810,7 +9823,7 @@ function updateNpcFishermenHarvest() {
     if ((state.fishHarvestUntilMinute || 0) > nowMinute) continue;
     const npcShip = npcSeaRoutes.shipById.get(state.id);
     if (!npcShip) continue;
-    const free = npcShip.cargoCapacity - npcCargoUsedUnits(npcShip);
+    const free = npcCargoAvailableQuantity(npcShip, FISH_CARGO_GOOD_ID);
     if (free <= 0) continue;
     const call = nearestFishCallNearPoint(state.x, state.y, FISH_NPC_HARVEST_RADIUS_PX);
     if (!call) continue;
@@ -9824,18 +9837,6 @@ function updateNpcFishermenHarvest() {
     changed = true;
   }
   return changed;
-}
-
-function npcCargoUsedUnits(npcShip) {
-  let used = 0;
-  for (const [goodId, quantity] of Object.entries(npcShip.cargo || {})) {
-    const good = tradeGoodById(goodId);
-    if (!Number.isInteger(quantity) || quantity < 0) {
-      throw new Error(`NPC ship ${npcShip.id} has invalid ${goodId} cargo: ${quantity}`);
-    }
-    used += good.unitSize * quantity;
-  }
-  return used;
 }
 
 function updateNpcCombat(dt) {
@@ -11872,15 +11873,11 @@ function render(nowMs) {
 
   ctx.save();
   ctx.translate(offset.x, offset.y);
-  for (const call of chart.baseFaceCalls) drawFace(call, chart);
+  for (const call of chart.faceCalls) drawFace(call, chart);
 
   for (const call of chart.tileCalls) {
     drawTile(call, chart);
     drawIceSurface(call);
-    const frontFaces = chart.frontFacesByTile.get(call.id);
-    if (frontFaces) {
-      for (const face of frontFaces) drawFace(face, chart, { coverFront: true });
-    }
   }
 
   for (const call of chart.tileCalls) drawWeatherSurface(call);
@@ -12415,8 +12412,6 @@ function buildChart(anchorCamera) {
   const tileCalls = [];
   const cityCalls = [];
   const citySpecs = [];
-  const baseFaceCalls = [];
-  const frontFacesByTile = new Map();
   const tileById = new Map();
   const visibleSet = new Set();
   const visiblePirateHideouts = gameState && npcSeaRoutes && pirateHideoutsVisibleToPlayer(gameState)
@@ -12491,18 +12486,9 @@ function buildChart(anchorCamera) {
     }
   }
 
-  for (const call of faceCalls) {
-    if (isFrontCoverFace(call) && visibleSet.has(call.ownerId)) {
-      addFrontFace(frontFacesByTile, call.ownerId, call);
-    } else {
-      baseFaceCalls.push(call);
-    }
-  }
-
-  baseFaceCalls.sort((a, b) => a.sortY - b.sortY);
+  faceCalls.sort(compareTerrainConnectorDrawOrder);
   riverConnectorCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
   tileCalls.sort(compareTerrainDrawCalls);
-  for (const frontFaces of frontFacesByTile.values()) frontFaces.sort((a, b) => a.sortY - b.sortY);
   const waterIndex = buildWakeWaterIndex(tileCalls, riverConnectorCalls, { tileById });
   const placementChart = {
     tileById,
@@ -12519,11 +12505,10 @@ function buildChart(anchorCamera) {
     visibleSet,
     tileById,
     waterIndex,
-    baseFaceCalls,
+    faceCalls,
     riverConnectorCalls,
     tileCalls,
-    cityCalls,
-    frontFacesByTile
+    cityCalls
   };
 }
 
@@ -12712,19 +12697,6 @@ function makeFaceCall(call) {
     otherLevel: aOwnsFace ? call.nlevel : call.level,
     sortY: Math.max(call.aSortY, call.bSortY)
   };
-}
-
-function isFrontCoverFace(call) {
-  return Math.abs(call.bSortY - call.aSortY) > FRONT_FACE_MIN_DY;
-}
-
-function addFrontFace(frontFacesByTile, tileId, call) {
-  let faces = frontFacesByTile.get(tileId);
-  if (!faces) {
-    faces = [];
-    frontFacesByTile.set(tileId, faces);
-  }
-  faces.push(call);
 }
 
 function makeRiverConnectorCall(call) {
@@ -13548,7 +13520,7 @@ function drawShipInfoTab(rect, label, selected, hovered) {
 function drawShipLedger(panel, view) {
   const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage);
   shipInfoMenu.ledgerPage = page.page;
-  const summaryY = panel.y + 27;
+  const summaryY = panel.y + SHIP_INFO_DESKTOP_SUMMARY_Y;
   const realized = Math.round(view.realizedPnl);
   drawOptionsText(`REALIZED P/L ${formatSignedLedgerMoney(realized)} DB`, panel.x + 12, summaryY, {
     color: ledgerPnlColor(realized)
@@ -13564,7 +13536,7 @@ function drawShipLedger(panel, view) {
   const amountX = panel.x + 322;
   const balanceX = panel.x + 374;
   const pnlX = panel.x + panel.w - 12;
-  const headerY = panel.y + 43;
+  const headerY = panel.y + SHIP_INFO_DESKTOP_HEADER_Y;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
   drawOptionsText("DATE", dateX, headerY, { color: PIRATE_MENU_INK_MUTED });
@@ -13575,7 +13547,7 @@ function drawShipLedger(panel, view) {
   drawOptionsText("P/L", pnlX, headerY, { align: "right", color: PIRATE_MENU_INK_MUTED });
 
   page.rows.forEach((entry, index) => {
-    const y = panel.y + 57 + index * 15;
+    const y = panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * 15;
     ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, 13);
     drawOptionsText(shipLedgerDateLabel(entry.simMinute), dateX, y, { color: PIRATE_MENU_INK_MUTED });
@@ -13626,7 +13598,7 @@ function drawShipLedger(panel, view) {
 function drawShipPapers(panel, view) {
   const page = shipPapersPage(view, shipInfoMenu.papersPage);
   shipInfoMenu.papersPage = page.page;
-  const summaryY = panel.y + 27;
+  const summaryY = panel.y + SHIP_INFO_DESKTOP_SUMMARY_Y;
   drawOptionsText("ITEMS & DOCUMENTS", panel.x + 12, summaryY, { color: PIRATE_MENU_INK });
   drawOptionsText(`${view.papers.length} HELD`, panel.x + panel.w - 12, summaryY, {
     align: "right",
@@ -13637,7 +13609,7 @@ function drawShipPapers(panel, view) {
   const entryX = panel.x + 78;
   const detailX = panel.x + 218;
   const dateX = panel.x + panel.w - 12;
-  const headerY = panel.y + 43;
+  const headerY = panel.y + SHIP_INFO_DESKTOP_HEADER_Y;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
   drawOptionsText("TYPE", typeX, headerY, { color: PIRATE_MENU_INK_MUTED });
@@ -13646,12 +13618,14 @@ function drawShipPapers(panel, view) {
   drawOptionsText("DATE", dateX, headerY, { align: "right", color: PIRATE_MENU_INK_MUTED });
 
   if (page.rows.length === 0) {
-    drawOptionsText("INVENTORY IS EMPTY", panel.x + 12, panel.y + 63, { color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText("INVENTORY IS EMPTY", panel.x + 12, panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + 6, {
+      color: PIRATE_MENU_INK_MUTED
+    });
   }
   page.rows.forEach((paper, index) => {
-    const y = panel.y + 57 + index * 18;
+    const y = panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * SHIP_INFO_PAPER_ROW_H;
     ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
-    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, 16);
+    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, SHIP_INFO_PAPER_ROW_H - 1);
     const typeColor = paper.kind === "marque"
       ? PIRATE_MENU_SUCCESS
       : paper.kind === "delivery"
@@ -13663,13 +13637,13 @@ function drawShipPapers(panel, view) {
     drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y, {
       color: PIRATE_MENU_INK
     });
-    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y + 8, {
+    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y + 9, {
       color: PIRATE_MENU_INK_MUTED
     });
     drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y, {
       color: PIRATE_MENU_CHART_LINE
     });
-    drawOptionsText(fitPixelText(paper.detail.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y + 8, {
+    drawOptionsText(fitPixelText(paper.detail.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y + 9, {
       color: PIRATE_MENU_INK_MUTED
     });
     drawOptionsText(shipLedgerDateLabel(paper.simMinute), dateX, y, {
@@ -14283,8 +14257,6 @@ function ensureLakeBattleTerrainChart() {
 function buildLakeBattleTerrainChart(map) {
   const faceCalls = [];
   const tileCalls = [];
-  const baseFaceCalls = [];
-  const frontFacesByTile = new Map();
   const tileById = new Map();
 
   for (const cell of map.cells) {
@@ -14330,27 +14302,16 @@ function buildLakeBattleTerrainChart(map) {
     }
   }
 
-  for (const call of faceCalls) {
-    if (isFrontCoverFace(call)) addFrontFace(frontFacesByTile, call.ownerId, call);
-    else baseFaceCalls.push(call);
-  }
-  baseFaceCalls.sort((a, b) => a.sortY - b.sortY || a.a - b.a || a.b - b.b);
+  faceCalls.sort(compareTerrainConnectorDrawOrder);
   tileCalls.sort(compareTerrainDrawCalls);
-  for (const frontFaces of frontFacesByTile.values()) frontFaces.sort((a, b) => a.sortY - b.sortY);
-  return { map, tileById, baseFaceCalls, tileCalls, frontFacesByTile };
+  return { map, tileById, faceCalls, tileCalls };
 }
 
 function drawLakeBattleTerrain(terrainChart) {
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  for (const face of terrainChart.baseFaceCalls) drawFace(face, terrainChart);
-  for (const tile of terrainChart.tileCalls) {
-    drawTile(tile, terrainChart);
-    const frontFaces = terrainChart.frontFacesByTile.get(tile.id);
-    if (frontFaces) {
-      for (const face of frontFaces) drawFace(face, terrainChart, { coverFront: true });
-    }
-  }
+  for (const face of terrainChart.faceCalls) drawFace(face, terrainChart);
+  for (const tile of terrainChart.tileCalls) drawTile(tile, terrainChart);
 }
 
 function drawLakeBattleSetup() {
@@ -14570,7 +14531,7 @@ function createLakeBattleShipSinkEffect(shipState, nowMs) {
 
 function drawLakeBattleShip(shipState, nowMs) {
   const call = lakeBattleShipSpriteCall(shipState, nowMs);
-  const layers = shipWaterlineLayers(call.img, call.sinkDepthImg, call.frame);
+  const layers = shipWaterlineLayers(call.img, call.sinkDepthImg, call.frame, call.slug);
   drawShipCombatOutline(call, layers);
   drawFloatingShipSprite(call, layers, nowMs);
   drawLakeBattleShipHullBar(shipState, call.x + 7, call.y + SHIP_SHEET_FRAME_SIZE - 1, 22);
@@ -15590,30 +15551,26 @@ function drawFace(call, activeChart, options = {}) {
   const uy = dy / len;
   const nx = -uy;
   const ny = ux;
-  const overlap = options.coverFront ? FRONT_FACE_OVERLAP_PX : 0;
-  const start = Math.max(2, TILE_RADIUS_PX - 1 - overlap);
-  const end = len - TILE_RADIUS_PX + 1;
-  const width = FACE_HALF_WIDTH + Math.min(2, Math.abs(call.nlevel - call.level)) + (options.coverFront ? 1 : 0);
-  const ax = sourceAx + ux * start;
-  const ay = sourceAy + uy * start;
-  const bx = sourceAx + ux * end;
-  const by = sourceAy + uy * end;
+  const width = FACE_HALF_WIDTH + Math.min(2, Math.abs(call.nlevel - call.level));
+  const endpointWidth = width + (isCoastFace(call) ? COAST_FACE_ENDPOINT_OVERLAP_PX : 0);
+  const ax = sourceAx;
+  const ay = sourceAy;
+  const bx = sourceBx;
+  const by = sourceBy;
   const bend = (hash2(call.a, call.b) - 0.5) * 2.2;
   const mx = (ax + bx) * 0.5 + nx * bend;
   const my = (ay + by) * 0.5 + ny * bend;
 
   ctx.fillStyle = faceColorFor(call);
   ctx.beginPath();
-  ctx.moveTo(Math.round(ax + nx * width), Math.round(ay + ny * width));
+  ctx.moveTo(Math.round(ax + nx * endpointWidth), Math.round(ay + ny * endpointWidth));
   ctx.lineTo(Math.round(mx + nx * (width + 1)), Math.round(my + ny * (width + 1)));
-  ctx.lineTo(Math.round(bx + nx * width), Math.round(by + ny * width));
-  ctx.lineTo(Math.round(bx - nx * width), Math.round(by - ny * width));
+  ctx.lineTo(Math.round(bx + nx * endpointWidth), Math.round(by + ny * endpointWidth));
+  ctx.lineTo(Math.round(bx - nx * endpointWidth), Math.round(by - ny * endpointWidth));
   ctx.lineTo(Math.round(mx - nx * (width - 1)), Math.round(my - ny * (width - 1)));
-  ctx.lineTo(Math.round(ax - nx * width), Math.round(ay - ny * width));
+  ctx.lineTo(Math.round(ax - nx * endpointWidth), Math.round(ay - ny * endpointWidth));
   ctx.closePath();
   ctx.fill();
-
-  drawMountainFaceFoot(call, ax, ay, mx, my, bx, by, nx, ny, width);
 
   if (isCoastFace(call)) {
     drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, options.waveClockMs);
@@ -15626,47 +15583,6 @@ function drawFace(call, activeChart, options = {}) {
     ctx.lineTo(Math.round(bx + nx * width), Math.round(by + ny * width));
     ctx.stroke();
   }
-}
-
-function drawMountainFaceFoot(call, ax, ay, mx, my, bx, by, nx, ny, width) {
-  if (isCoastFace(call)) return;
-  const info = mountainFaceInfo(call);
-  if (!info || info.bothMountain) return;
-
-  const mountainAtStart = info.mountain.side === "a";
-  const mountainPoint = mountainAtStart ? { x: ax, y: ay } : { x: bx, y: by };
-  const pathT = mountainAtStart ? MOUNTAIN_FOOT_REACH : 1 - MOUNTAIN_FOOT_REACH;
-  const tip = quadraticFacePoint(ax, ay, mx, my, bx, by, pathT);
-  const color = terrainSpriteColor(mountainVariant(info.mountain.id));
-
-  ctx.fillStyle = shadeHex(color, -18);
-  ctx.beginPath();
-  ctx.moveTo(
-    Math.round(mountainPoint.x + nx * width),
-    Math.round(mountainPoint.y + ny * width)
-  );
-  ctx.lineTo(
-    Math.round(tip.x + nx * MOUNTAIN_FOOT_TIP_HALF_WIDTH),
-    Math.round(tip.y + ny * MOUNTAIN_FOOT_TIP_HALF_WIDTH)
-  );
-  ctx.lineTo(
-    Math.round(tip.x - nx * MOUNTAIN_FOOT_TIP_HALF_WIDTH),
-    Math.round(tip.y - ny * MOUNTAIN_FOOT_TIP_HALF_WIDTH)
-  );
-  ctx.lineTo(
-    Math.round(mountainPoint.x - nx * width),
-    Math.round(mountainPoint.y - ny * width)
-  );
-  ctx.closePath();
-  ctx.fill();
-}
-
-function quadraticFacePoint(ax, ay, mx, my, bx, by, t) {
-  const omt = 1 - t;
-  return {
-    x: omt * omt * ax + 2 * omt * t * mx + t * t * bx,
-    y: omt * omt * ay + 2 * omt * t * my + t * t * by
-  };
 }
 
 function drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, waveClockMs) {
@@ -15919,7 +15835,11 @@ function riverConnectorEndpoint(call, side, x, y, towardX, towardY) {
 }
 
 function drawTile(call, activeChart) {
-  const img = terrainImageForTile(call.row, call.id);
+  const spriteKey = spriteForTerrain(call.row, call.id);
+  const baseSpriteKey = terrainBaseSpriteKey(spriteKey);
+  const img = baseSpriteKey === spriteKey
+    ? terrainImageForTile(call.row, call.id)
+    : terrainBaseImageForTile(call.row, call.id, baseSpriteKey);
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const waveFrame = waterHexWaveFrameForTile(call, activeChart);
@@ -15928,6 +15848,7 @@ function drawTile(call, activeChart) {
   } else {
     ctx.drawImage(img, x, y);
   }
+  if (baseSpriteKey !== spriteKey) ctx.drawImage(terrainImageForTile(call.row, call.id), x, y);
 
   if (graph.isPentagon[call.id]) {
     ctx.fillStyle = "rgba(31, 35, 26, 0.35)";
@@ -16716,6 +16637,15 @@ function terrainImageForTile(row, id) {
   const key = spriteForTerrain(row, id);
   if (isWaterSurfaceRow(row)) return waterLatitudeTerrainImage(key, id, row);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainImage(key) : terrainImage(key);
+}
+
+function terrainBaseImageForTile(row, id, baseSpriteKey) {
+  if (!baseSpriteKey.startsWith("earth_")) {
+    throw new Error(`Mountain terrain requires rocky ground, got: ${baseSpriteKey}`);
+  }
+  return tileHasSeasonalSnowTerrain(row, id)
+    ? snowCoveredTerrainImage(baseSpriteKey)
+    : terrainImage(baseSpriteKey);
 }
 
 function terrainColorForTile(row, id) {
@@ -17934,7 +17864,7 @@ function shipSpriteFramePixels(image, sinkDepthImage, frame) {
   return result;
 }
 
-function shipWaterlineLayers(image, sinkDepthImage, frame) {
+function shipWaterlineLayers(image, sinkDepthImage, frame, slug) {
   let depthImages = shipWaterlineLayerCache.get(image);
   if (!depthImages) {
     depthImages = new WeakMap();
@@ -17945,7 +17875,9 @@ function shipWaterlineLayers(image, sinkDepthImage, frame) {
     frames = new Map();
     depthImages.set(sinkDepthImage, frames);
   }
-  const cached = frames.get(frame);
+  const maxRasterDepth = shipMaxRasterWaterlineDepth(slug);
+  const cacheKey = `${frame}:${maxRasterDepth}`;
+  const cached = frames.get(cacheKey);
   if (cached) return cached;
 
   const aboveCanvas = document.createElement("canvas");
@@ -17961,7 +17893,11 @@ function shipWaterlineLayers(image, sinkDepthImage, frame) {
   submergedCtx.imageSmoothingEnabled = false;
 
   const pixels = shipSpriteFramePixels(image, sinkDepthImage, frame);
-  const submergedPointSet = floatingShipSubmergedPixelKeys(pixels, SHIP_SHEET_FRAME_SIZE);
+  const submergedPointSet = floatingShipSubmergedPixelKeys(
+    pixels,
+    SHIP_SHEET_FRAME_SIZE,
+    maxRasterDepth
+  );
   const abovePointSet = new Set();
   for (const pixel of pixels) {
     const key = pixel.y * SHIP_SHEET_FRAME_SIZE + pixel.x;
@@ -17979,7 +17915,7 @@ function shipWaterlineLayers(image, sinkDepthImage, frame) {
     submergedCanvas,
     abovePointSet
   });
-  frames.set(frame, layers);
+  frames.set(cacheKey, layers);
   return layers;
 }
 
@@ -18143,7 +18079,12 @@ function drawShipCall(call, nowMs) {
     img: frameAsset.image,
     sinkDepthImg: frameAsset.sinkDepthImage
   }, nowMs);
-  const layers = shipWaterlineLayers(drawCall.img, drawCall.sinkDepthImg, drawCall.frame);
+  const layers = shipWaterlineLayers(
+    drawCall.img,
+    drawCall.sinkDepthImg,
+    drawCall.frame,
+    drawCall.slug
+  );
   if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
   drawFloatingShipSprite(drawCall, layers, nowMs);
   if (drawCall.kind === "player") {
@@ -20522,7 +20463,7 @@ function faceColorFor(call) {
   if (isCoastFace(call)) return beachFaceColor(call);
   const mountain = mountainFaceInfo(call);
   if (mountain?.bothMountain) {
-    return shadeHex(terrainSpriteColor(mountainVariant(mountain.mountain.id)), -12);
+    return shadeHex(terrainSpriteColor("earth_rocky"), -12);
   }
   if (mountain) {
     return mountainNeighborGroundColor(mountain.neighbor.row, mountain.neighbor.id);

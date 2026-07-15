@@ -1,3 +1,5 @@
+import { downloadBlob } from "./browserDownload.js";
+
 export const CAPTURE_FRAME_RATE = 30;
 
 export class CaptureRecorder {
@@ -156,15 +158,4 @@ function cloneJson(value) {
 
 function timestampSlug() {
   return new Date().toISOString().replace(/[:.]/g, "-");
-}
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

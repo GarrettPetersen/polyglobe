@@ -100,7 +100,8 @@ pixel-globe-short:
 	@test -x "$(PIXEL_GLOBE_SHORTS_PYTHON)" || (echo "Run make pixel-globe-shorts-setup first" && exit 2)
 	$(PIXEL_GLOBE_SHORTS_PYTHON) $(PIXEL_GLOBE_DIR)/tools/shorts/build_short.py \
 		--video "$(VIDEO)" --events "$(EVENTS)" --narration "$(NARRATION)" \
-		--transcript "$(TRANSCRIPT)" --output "$(OUTPUT)" $(if $(PLAN),--plan "$(PLAN)",)
+		--transcript "$(TRANSCRIPT)" --output "$(OUTPUT)" $(if $(PLAN),--plan "$(PLAN)",) \
+		$(if $(filter 0,$(VOICE_PROCESSING)),--no-voice-processing,)
 
 pixel-globe-normalize-sfx:
 	npm --prefix $(PIXEL_GLOBE_DIR) run normalize:sfx

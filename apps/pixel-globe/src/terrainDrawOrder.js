@@ -20,6 +20,13 @@ export function terrainSpriteDrawLayer(spriteKey) {
   throw new Error(`No terrain draw layer is defined for sprite: ${spriteKey}`);
 }
 
+export function terrainBaseSpriteKey(spriteKey) {
+  if (typeof spriteKey !== "string" || spriteKey === "") {
+    throw new Error("Terrain base composition requires a sprite key");
+  }
+  return spriteKey.startsWith("mountain_") ? "earth_rocky" : spriteKey;
+}
+
 export function compareTerrainDrawCalls(a, b) {
   const yDifference = a.sortY - b.sortY;
   if (yDifference !== 0) return yDifference;

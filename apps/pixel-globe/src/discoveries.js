@@ -2,6 +2,7 @@ import { findNearestTileId } from "./geodesic.js";
 
 export const GREAT_PYRAMID_DISCOVERY_ID = "landmark-great-pyramid";
 export const LAKE_VICTORIA_DISCOVERY_ID = "landmark-lake-victoria";
+export const LAKE_VICTORIA_DISCOVERY_RADIUS_PX = 60;
 export const GRAND_CANAL_DISCOVERY_ID = "landmark-grand-canal";
 export const EL_DORADO_DISCOVERY_ID = "legend-el-dorado";
 export const CIRCUMNAVIGATION_DISCOVERY_ID = "achievement-circumnavigation";
@@ -35,10 +36,18 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     region: "ottoman",
     captainDialogue: "The Great Pyramid! No tale prepared me for the scale of it."
   },
-  waterFeature("lake-victoria", "Lake Victoria", "Africa's great lake", -1.0, 33.0, 350, {
-    region: "africa",
-    captainDialogue: "We've found it! The legendary source of the Nile!"
-  }),
+  waterFeature(
+    "lake-victoria",
+    "Lake Victoria",
+    "Africa's great lake",
+    -1.0,
+    33.0,
+    LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
+    {
+      region: "africa",
+      captainDialogue: "We've found it! The legendary source of the Nile!"
+    }
+  ),
   landmark("stonehenge", "Stonehenge", "Salisbury Plain", 51.1789, -1.8262, 165, {
     region: "europe",
     captainDialogue: "Stonehenge! Who raised these stones, and what did they see in the sky?"

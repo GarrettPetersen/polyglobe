@@ -78,7 +78,7 @@ make pixel-globe-short \
   OUTPUT=apps/pixel-globe/.captures/<short-id>/final.mp4
 ```
 
-The editor must use native real-time gameplay clips, quiet game SFX under narration, Dogica captions, nearest-neighbour 4x scaling, and no music. Preserve pixel edges. Never resize the native capture with interpolation.
+The editor must use native real-time gameplay clips, quiet game SFX under narration, Dogica captions, nearest-neighbour 4x scaling, and no music. Preserve pixel edges. Never resize the native capture with interpolation. Keep the default narration treatment enabled; use `VOICE_PROCESSING=0` only to produce a loudness-matched A/B comparison.
 
 ## Review And Revise
 

@@ -3,19 +3,40 @@ export const SHIP_WATERLINE_LEVEL = SHIP_WATERLINE_DEPTH_BYTE / 255;
 export const SHIP_SUBMERGED_ALPHA = 0.38;
 export const SHIP_REFRACTION_BAND_HEIGHT = 3;
 export const SHIP_DECK_NORMAL_Y = 0.35;
+export const SHIP_MIN_RASTER_WATERLINE_DEPTH = 1;
+export const SHIP_MAX_RASTER_WATERLINE_DEPTH = 5;
 const MAX_UNSUPPORTED_SUBMERGED_COLUMN_HEIGHT = 2;
+const SHIP_DEEP_DRAFT_RASTER_DEPTH = Object.freeze({
+  "japanese-atakebune": 6,
+  "portuguese-carrack": 8,
+  "spanish-nao": 7
+});
+
+export function shipMaxRasterWaterlineDepth(slug) {
+  if (typeof slug !== "string" || slug.length === 0) {
+    throw new Error(`Ship raster waterline depth requires a slug: ${slug}`);
+  }
+  return SHIP_DEEP_DRAFT_RASTER_DEPTH[slug] ?? SHIP_MAX_RASTER_WATERLINE_DEPTH;
+}
 
 export function shipPixelIsAboveWater(sinkHeight) {
   validateSinkHeight(sinkHeight);
   return sinkHeight > SHIP_WATERLINE_LEVEL;
 }
 
-export function floatingShipSubmergedPixelKeys(pixels, frameSize) {
+export function floatingShipSubmergedPixelKeys(
+  pixels,
+  frameSize,
+  maxRasterDepth = SHIP_MAX_RASTER_WATERLINE_DEPTH
+) {
   if (!Array.isArray(pixels) || pixels.length === 0) {
     throw new Error("Floating ship waterline requires opaque sprite pixels");
   }
   if (!Number.isInteger(frameSize) || frameSize <= 0) {
     throw new Error(`Floating ship waterline has invalid frame size: ${frameSize}`);
+  }
+  if (!Number.isInteger(maxRasterDepth) || maxRasterDepth < SHIP_MIN_RASTER_WATERLINE_DEPTH) {
+    throw new Error(`Floating ship waterline has invalid maximum raster depth: ${maxRasterDepth}`);
   }
 
   const pixelKinds = new Uint8Array(frameSize * frameSize);
@@ -48,7 +69,22 @@ export function floatingShipSubmergedPixelKeys(pixels, frameSize) {
       rawSubmerged.add(key);
     }
   }
-  return removeUnsupportedSubmergedColumns(rawSubmerged, frameSize);
+  return capSubmergedRasterDepth(
+    removeUnsupportedSubmergedColumns(rawSubmerged, frameSize),
+    frameSize,
+    maxRasterDepth
+  );
+}
+
+function capSubmergedRasterDepth(submerged, frameSize, maxRasterDepth) {
+  if (submerged.size === 0) return submerged;
+  let lowestY = -1;
+  for (const key of submerged) lowestY = Math.max(lowestY, Math.floor(key / frameSize));
+  const highestAllowedY = lowestY - maxRasterDepth + 1;
+  for (const key of submerged) {
+    if (Math.floor(key / frameSize) < highestAllowedY) submerged.delete(key);
+  }
+  return submerged;
 }
 
 function removeUnsupportedSubmergedColumns(rawSubmerged, frameSize) {

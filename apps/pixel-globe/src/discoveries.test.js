@@ -7,6 +7,7 @@ import {
   GRAND_CANAL_DISCOVERY_ID,
   GREAT_PYRAMID_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_ID,
+  LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
   MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY,
   WATER_DISCOVERY_MENU_SPRITE_KEY,
   WORLD_DISCOVERY_SPECS,
@@ -25,7 +26,7 @@ import {
 } from "./gameState.js";
 
 test("world wonders map onto globe tiles and visual landmarks get dedicated art tiles", () => {
-  const graph = buildGeodesicGraph(3);
+  const graph = buildGeodesicGraph(5);
   const landMask = new Uint8Array(graph.tileCount).fill(1);
   const riverMasks = new Uint8Array(graph.tileCount);
   const riverToWaterMasks = new Uint8Array(graph.tileCount);
@@ -41,6 +42,8 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.equal(discoveries.length, 19);
   assert.equal(discoveries[0].id, GREAT_PYRAMID_DISCOVERY_ID);
   assert.equal(discoveries[1].id, LAKE_VICTORIA_DISCOVERY_ID);
+  assert.equal(discoveries[1].radiusPx, LAKE_VICTORIA_DISCOVERY_RADIUS_PX);
+  assert.equal(LAKE_VICTORIA_DISCOVERY_RADIUS_PX, 60);
   assert.ok(discoveries.every((item) => Number.isInteger(item.tileId)));
   assert.ok(discoveries.every((item) =>
     item.spriteKey ? Number.isInteger(item.spriteTileId) : item.spriteTileId === null

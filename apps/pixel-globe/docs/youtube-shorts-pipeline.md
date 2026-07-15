@@ -68,6 +68,20 @@ make pixel-globe-short \
   OUTPUT=apps/pixel-globe/.captures/turtle-ship-war/final.mp4
 ```
 
-The editor matches narration language to semantic events, cuts native footage around those moments, scales by nearest neighbour to `1080x1920`, keeps game SFX quietly under narration, burns Dogica captions, and exports H.264/AAC at 30 fps. It also writes `final.edit.json`, the exact edit decision list. Codex can revise that file and rerun with `PLAN=/absolute/path/final.edit.json` without opening editing software.
+The editor matches narration language to semantic events, cuts native footage around those moments, scales by nearest neighbour to `1080x1920`, keeps game SFX quietly under narration, burns Dogica captions, and exports H.264/AAC at 30 fps. Narration receives a restrained voice treatment: rumble removal, a low-mid warmth lift, a small upper-mid cut, light de-essing, and gentle compression. The completed mix is normalized to `-16 LUFS` with a `-1.5 dBTP` ceiling.
+
+For an A/B comparison, render the untreated narration with `VOICE_PROCESSING=0`. Loudness normalization still runs so the comparison is not biased by volume:
+
+```sh
+make pixel-globe-short \
+  VIDEO=/absolute/path/take.webm \
+  EVENTS=/absolute/path/take.events.json \
+  NARRATION=/absolute/path/narration.m4a \
+  TRANSCRIPT=/absolute/path/narration.transcript.json \
+  OUTPUT=apps/pixel-globe/.captures/example/final-untreated.mp4 \
+  VOICE_PROCESSING=0
+```
+
+The builder also writes `final.edit.json`, the exact edit decision list. Codex can revise that file and rerun with `PLAN=/absolute/path/final.edit.json` without opening editing software.
 
 Raw takes, narration, transcripts, and final videos belong in `apps/pixel-globe/.captures/`, which is ignored by git.

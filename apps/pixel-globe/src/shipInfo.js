@@ -22,7 +22,7 @@ import { clampMenuIndex } from "./menuNavigation.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
 export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
-export const SHIP_PAPERS_ROWS_PER_PAGE = 8;
+export const SHIP_PAPERS_ROWS_PER_PAGE = 7;
 
 const LEDGER_START_YEAR = 1522;
 const LEDGER_MONTHS = Object.freeze(["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]);

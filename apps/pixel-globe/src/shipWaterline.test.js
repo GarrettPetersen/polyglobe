@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  SHIP_MAX_RASTER_WATERLINE_DEPTH,
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_WATERLINE_LEVEL,
   encodedShipWaterlineY,
   floatingShipSubmergedPixelKeys,
   liveShipRefractionOffset,
+  shipMaxRasterWaterlineDepth,
   shipPixelBakeHeight,
   shipPixelIsAboveWater
 } from "./shipWaterline.js";
@@ -74,6 +76,27 @@ test("neighboring hull pixels preserve a broad submerged diagonal", () => {
   ], 7);
 
   assert.equal(submerged.size, 9);
+});
+
+test("floating ship refraction is capped at five raster rows", () => {
+  const low = SHIP_WATERLINE_LEVEL - 1 / 255;
+  const pixels = [];
+  for (let y = 1; y <= 8; y++) {
+    for (let x = 1; x <= 3; x++) pixels.push({ x, y, sinkHeight: low });
+  }
+  const submerged = floatingShipSubmergedPixelKeys(pixels, 10);
+  const rows = new Set([...submerged].map((key) => Math.floor(key / 10)));
+
+  assert.deepEqual([...rows].sort((a, b) => a - b), [4, 5, 6, 7, 8]);
+  assert.equal(rows.size, SHIP_MAX_RASTER_WATERLINE_DEPTH);
+});
+
+test("deep-draft ships explicitly extend the normal raster waterline cap", () => {
+  assert.equal(shipMaxRasterWaterlineDepth("portuguese-carrack"), 8);
+  assert.equal(shipMaxRasterWaterlineDepth("spanish-nao"), 7);
+  assert.equal(shipMaxRasterWaterlineDepth("japanese-atakebune"), 6);
+  assert.equal(shipMaxRasterWaterlineDepth("caravel"), SHIP_MAX_RASTER_WATERLINE_DEPTH);
+  assert.throws(() => shipMaxRasterWaterlineDepth(""), /requires a slug/);
 });
 
 test("the sink bake preserves an in-range model waterline", () => {

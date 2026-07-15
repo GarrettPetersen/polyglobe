@@ -5,6 +5,54 @@ export const CAPTURE_VIEWPORT = Object.freeze({ width: 270, height: 480 });
 export const CAPTURE_MAX_SECONDS = 10 * 60;
 
 const CAPTURE_SCENARIOS = Object.freeze({
+  "icosahedron-earth": scenario({
+    id: "icosahedron-earth",
+    title: "Flat While You Look, Round While You Sail",
+    seed: "short-icosahedron-earth-v1",
+    player: {
+      factionId: "portugal",
+      shipSlug: "portuguese-carrack",
+      lat: 58.283,
+      lon: 0,
+      headingDeg: 90,
+      activePlaySeconds: 60
+    },
+    world: { day: 196, hour: 13, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
+  "icosahedron-earth-broll": scenario({
+    id: "icosahedron-earth-broll",
+    title: "Round Earth B-Roll: Spice Islands",
+    seed: "short-icosahedron-earth-broll-v1",
+    player: {
+      factionId: "portugal",
+      shipSlug: "portuguese-carrack",
+      lat: 0,
+      lon: 125.095,
+      headingDeg: 270,
+      activePlaySeconds: 60
+    },
+    world: { day: 196, hour: 5, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
+  "icosahedron-earth-cape-horn": scenario({
+    id: "icosahedron-earth-cape-horn",
+    title: "Round Earth B-Roll: Cape Horn",
+    seed: "short-icosahedron-earth-cape-horn-v1",
+    player: {
+      factionId: "portugal",
+      shipSlug: "portuguese-carrack",
+      lat: -55.196,
+      lon: -66.838,
+      headingDeg: 90,
+      activePlaySeconds: 60
+    },
+    world: { day: 350, hour: 17, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
   "turtle-ship-war": scenario({
     id: "turtle-ship-war",
     title: "Turtle Ship versus Atakebune",

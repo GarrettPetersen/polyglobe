@@ -7,6 +7,7 @@ import {
   createStormPassageState,
   fillStormEdgeFogPixels,
   markStormClearanceDelivered,
+  markStormWarningDelivered,
   stormFogStrength,
   updateStormPassage
 } from "./stormPresentation.js";
@@ -21,6 +22,8 @@ test("storm passage reports clearance only after ten continuous safe seconds", (
   const state = createStormPassageState();
   assert.equal(updateStormPassage(state, 0.27, THRESHOLDS, 0), null);
   assert.equal(updateStormPassage(state, 0.28, THRESHOLDS, 1000), STORM_PASSAGE_ENTERED);
+  assert.equal(state.warningPending, true);
+  markStormWarningDelivered(state);
   assert.equal(updateStormPassage(state, 0.2, THRESHOLDS, 2000), null);
   assert.equal(updateStormPassage(state, 0.15, THRESHOLDS, 3000), null);
   assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 12999), null);
@@ -29,6 +32,22 @@ test("storm passage reports clearance only after ten continuous safe seconds", (
   assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 14000), null);
   markStormClearanceDelivered(state);
   assert.equal(state.clearancePending, false);
+});
+
+test("a delivered storm warning stays suppressed until the all-clear", () => {
+  const state = createStormPassageState();
+  assert.equal(updateStormPassage(state, 0.4, THRESHOLDS, 0), STORM_PASSAGE_ENTERED);
+  markStormWarningDelivered(state);
+  assert.equal(updateStormPassage(state, 0.5, THRESHOLDS, 1000), null);
+  assert.equal(updateStormPassage(state, 0.2, THRESHOLDS, 2000), null);
+  assert.equal(updateStormPassage(state, 0.4, THRESHOLDS, 3000), null);
+  assert.equal(state.warningPending, false);
+
+  assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 4000), null);
+  assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 14000), STORM_PASSAGE_CLEARED);
+  markStormClearanceDelivered(state);
+  assert.equal(updateStormPassage(state, 0.4, THRESHOLDS, 15000), STORM_PASSAGE_ENTERED);
+  assert.equal(state.warningPending, true);
 });
 
 test("storm intensity returning above the safe threshold resets clearance timing", () => {
@@ -46,6 +65,7 @@ test("a new storm cancels a stale undelivered clearance comment", () => {
   assert.equal(updateStormPassage(state, 0.1, THRESHOLDS, 10000), STORM_PASSAGE_CLEARED);
   assert.equal(state.clearancePending, true);
   assert.equal(updateStormPassage(state, 0.5, THRESHOLDS, 11000), STORM_PASSAGE_ENTERED);
+  assert.equal(state.warningPending, true);
   assert.equal(state.clearancePending, false);
 });
 

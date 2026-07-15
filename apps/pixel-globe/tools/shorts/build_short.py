@@ -24,6 +24,14 @@ EVENT_KEYWORDS = {
     "position": {"sail", "ship", "wind", "ocean", "sea", "route", "world", "map"},
 }
 
+CAPTION_NATIVE_Y = 320
+OUTPUT_SCALE = 4
+CAPTION_FONT_SIZE = 16
+CAPTION_MAX_WIDTH = 238
+CAPTION_MAX_LINES = 2
+CAPTION_MAX_WORDS = 7
+CAPTION_MAX_DURATION = 3.2
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Build a captioned 9:16 Short from a gameplay take.")
@@ -35,6 +43,11 @@ def parse_args():
     parser.add_argument("--plan", type=Path, help="Use an edited decision list instead of automatic matching")
     parser.add_argument("--plan-out", type=Path)
     parser.add_argument("--game-volume", type=float, default=0.18)
+    parser.add_argument(
+        "--no-voice-processing",
+        action="store_true",
+        help="Bypass narration EQ, de-essing, and compression for A/B comparison",
+    )
     return parser.parse_args()
 
 
@@ -78,6 +91,20 @@ def require_audio(data, label):
     streams = [stream for stream in data.get("streams", []) if stream.get("codec_type") == "audio"]
     if not streams:
         raise SystemExit(f"{label} contains no audio stream")
+
+
+def narration_filter(duration, process_voice):
+    filters = ["aresample=48000"]
+    if process_voice:
+        filters.extend([
+            "highpass=f=70",
+            "bass=g=2.5:f=180:t=q:w=0.8",
+            "equalizer=f=3200:t=q:w=1.2:g=-2",
+            "deesser=i=0.12:m=0.35:f=0.55",
+            "acompressor=threshold=0.125:ratio=2.5:attack=15:release=180:makeup=1.4",
+        ])
+    filters.extend(["apad", f"atrim=duration={duration}", "volume=1.0"])
+    return ",".join(filters)
 
 
 def words(text):
@@ -165,7 +192,7 @@ def validate_plan(plan, video_duration, narration_duration):
     return plan
 
 
-def wrap_caption(text, font, max_width):
+def wrap_caption(text, font, max_width, max_lines):
     tokens = text.split()
     if not tokens:
         raise SystemExit("Transcript contains an empty caption")
@@ -179,9 +206,78 @@ def wrap_caption(text, font, max_width):
             lines.append(current)
             current = token
     lines.append(current)
-    if len(lines) > 3 or any(font.getlength(line) > max_width for line in lines):
+    if len(lines) > max_lines or any(font.getlength(line) > max_width for line in lines):
         raise SystemExit(f"Caption cannot fit the native pixel grid: {text}")
     return lines
+
+
+def caption_fits(text, font):
+    tokens = text.split()
+    lines = []
+    current = ""
+    for token in tokens:
+        candidate = token if not current else f"{current} {token}"
+        if font.getlength(candidate) <= CAPTION_MAX_WIDTH:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = token
+    if current:
+        lines.append(current)
+    return (
+        len(lines) <= CAPTION_MAX_LINES
+        and all(font.getlength(line) <= CAPTION_MAX_WIDTH for line in lines)
+    )
+
+
+def timed_caption_chunks(transcript, font):
+    chunks = []
+    for segment_index, segment in enumerate(transcript.get("segments", [])):
+        timed_words = segment.get("words")
+        if not isinstance(timed_words, list) or not timed_words:
+            raise SystemExit(f"Transcript segment {segment_index + 1} has no word timings")
+        current = []
+        for word_index, word in enumerate(timed_words):
+            text = str(word.get("text", "")).strip()
+            start = float(word.get("start", -1))
+            end = float(word.get("end", -1))
+            if not text or start < 0 or end < start:
+                raise SystemExit(
+                    f"Transcript segment {segment_index + 1}, word {word_index + 1} has invalid timing"
+                )
+            candidate = current + [(text, start, end)]
+            candidate_text = " ".join(item[0] for item in candidate)
+            too_long = candidate[-1][2] - candidate[0][1] > CAPTION_MAX_DURATION
+            if current and (
+                len(candidate) > CAPTION_MAX_WORDS
+                or too_long
+                or not caption_fits(candidate_text, font)
+            ):
+                chunks.append({
+                    "text": " ".join(item[0] for item in current),
+                    "start": current[0][1],
+                    "end": current[-1][2],
+                })
+                current = [(text, start, end)]
+            else:
+                current = candidate
+            if len(current) >= 4 and re.search(r"[.!?]$", current[-1][0]):
+                chunks.append({
+                    "text": " ".join(item[0] for item in current),
+                    "start": current[0][1],
+                    "end": current[-1][2],
+                })
+                current = []
+        if current:
+            chunks.append({
+                "text": " ".join(item[0] for item in current),
+                "start": current[0][1],
+                "end": current[-1][2],
+            })
+    if not chunks:
+        raise SystemExit("Transcript contains no timed caption words")
+    return chunks
 
 
 def harden_alpha(image):
@@ -193,21 +289,28 @@ def harden_alpha(image):
 
 
 def write_caption_images(directory, transcript, font_path):
-    font = ImageFont.truetype(str(font_path), 8)
+    font = ImageFont.truetype(str(font_path), CAPTION_FONT_SIZE)
     records = []
-    for index, segment in enumerate(transcript["segments"]):
-        lines = wrap_caption(segment["text"], font, 238)
+    for index, segment in enumerate(timed_caption_chunks(transcript, font)):
+        lines = wrap_caption(
+            segment["text"], font, CAPTION_MAX_WIDTH, CAPTION_MAX_LINES
+        )
         native = Image.new("RGBA", (270, 60), (0, 0, 0, 0))
         draw = ImageDraw.Draw(native)
-        line_height = 12
-        total_height = len(lines) * line_height - 4
+        line_height = 16
+        total_height = len(lines) * line_height
         first_y = (native.height - total_height) // 2
         for line_index, line in enumerate(lines):
             width = round(font.getlength(line))
             x = (native.width - width) // 2
-            y = first_y + line_index * line_height
-            draw.rectangle((x - 3, y - 2, x + width + 3, y + 10), fill=(32, 22, 15, 208))
-            draw.text((x, y), line, font=font, fill=(247, 230, 190, 255), stroke_width=1, stroke_fill=(39, 25, 15, 255))
+            bbox = draw.textbbox((0, 0), line, font=font)
+            visible_y = first_y + line_index * line_height
+            text_y = visible_y - bbox[1]
+            draw.rectangle(
+                (x - 4, visible_y - 3, x + width + 3, visible_y + bbox[3] - bbox[1] + 2),
+                fill=(32, 22, 15, 208),
+            )
+            draw.text((x, text_y), line, font=font, fill=(247, 230, 190, 255))
         harden_alpha(native)
         output = directory / f"caption-{index:03}.png"
         native.resize((1080, 240), Image.Resampling.NEAREST).save(output)
@@ -240,9 +343,9 @@ def render(args, plan, transcript, video_duration):
     filters.append("".join(concat_inputs) + f"concat=n={len(clips)}:v=1:a=1[vcat][gamea]")
 
     fonts_dir = Path(__file__).resolve().parents[2] / "public" / "assets" / "fonts"
-    dogica = fonts_dir / "dogicapixel.ttf"
-    if not dogica.is_file():
-        raise SystemExit(f"Dogica caption font is missing: {dogica}")
+    caption_font = fonts_dir / "born2bsporty-fs.otf"
+    if not caption_font.is_file():
+        raise SystemExit(f"Born2bSporty caption font is missing: {caption_font}")
     with tempfile.TemporaryDirectory(prefix="pixel-globe-short-") as temp_dir:
         temp_path = Path(temp_dir)
         game_video_path = temp_path / "game-video.mkv"
@@ -262,19 +365,22 @@ def render(args, plan, transcript, video_duration):
                 "Gameplay WebM repair lost media: "
                 f"source={video_duration:.3f}s video={repaired_video_duration:.3f}s audio={repaired_audio_duration:.3f}s"
             )
-        caption_inputs = write_caption_images(temp_path, transcript, dogica)
+        caption_inputs = write_caption_images(temp_path, transcript, caption_font)
         previous_video = "vcat"
         for index, (_, start, end) in enumerate(caption_inputs):
             output_video = f"captioned{index}"
             filters.append(
-                f"[{previous_video}][{index + 3}:v]overlay=0:1680:enable='between(t,{start},{end})'"
+                f"[{previous_video}][{index + 3}:v]"
+                f"overlay=0:{CAPTION_NATIVE_Y * OUTPUT_SCALE}:enable='between(t,{start},{end})'"
                 f"[{output_video}]"
             )
             previous_video = output_video
+        voice_filters = narration_filter(plan["duration"], not args.no_voice_processing)
         filters.append(
-            "[1:a]aresample=48000,apad,atrim=duration=" + str(plan["duration"]) + ",volume=1.0[voice];"
+            f"[1:a]{voice_filters}[voice];"
             "[gamea][voice]amix=inputs=2:duration=first:normalize=0[mixed];"
-            "[mixed]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[aout]"
+            "[mixed]loudnorm=I=-16:LRA=7:TP=-1.5,"
+            "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[aout]"
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         command = [

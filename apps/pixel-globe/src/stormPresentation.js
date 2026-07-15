@@ -11,6 +11,7 @@ export function createStormPassageState(active = false) {
   if (typeof active !== "boolean") throw new Error(`Storm passage active state must be boolean: ${active}`);
   return {
     active,
+    warningPending: false,
     clearancePending: false,
     belowExitSinceMs: null
   };
@@ -27,6 +28,7 @@ export function updateStormPassage(
 
   if (!state.active && intensity >= enterIntensity) {
     state.active = true;
+    state.warningPending = true;
     state.clearancePending = false;
     state.belowExitSinceMs = null;
     return STORM_PASSAGE_ENTERED;
@@ -38,12 +40,19 @@ export function updateStormPassage(
     }
     if (nowMs - state.belowExitSinceMs < clearanceDelayMs) return null;
     state.active = false;
+    state.warningPending = false;
     state.clearancePending = true;
     state.belowExitSinceMs = null;
     return STORM_PASSAGE_CLEARED;
   }
   state.belowExitSinceMs = null;
   return null;
+}
+
+export function markStormWarningDelivered(state) {
+  validateStormPassageState(state);
+  if (!state.warningPending) throw new Error("Storm warning is not pending");
+  state.warningPending = false;
 }
 
 export function markStormClearanceDelivered(state) {
@@ -117,6 +126,7 @@ function validateStormPassageState(state) {
   if (
     !state ||
     typeof state.active !== "boolean" ||
+    typeof state.warningPending !== "boolean" ||
     typeof state.clearancePending !== "boolean" ||
     (state.belowExitSinceMs !== null && (!Number.isFinite(state.belowExitSinceMs) || state.belowExitSinceMs < 0))
   ) {

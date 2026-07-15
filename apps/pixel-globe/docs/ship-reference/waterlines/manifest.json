@@ -1,0 +1,517 @@
+{
+  "generatedBy": "tools/render-sail-ship-sprites.mjs --waterline-review",
+  "lineColor": "#4d9be6",
+  "oarPivotColor": "#e83b3b",
+  "width": 192,
+  "height": 104,
+  "ships": [
+    {
+      "slug": "brigantine",
+      "label": "Brigantine",
+      "waterlineY": -0.6690514625851667,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 85,
+      "lowestOpaquePixelY": 87,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/brigantine-waterline.png"
+    },
+    {
+      "slug": "caravel",
+      "label": "Caravel",
+      "waterlineY": -0.6125613902860336,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 82,
+      "lowestOpaquePixelY": 87,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/caravel-waterline.png"
+    },
+    {
+      "slug": "carrack",
+      "label": "Carrack",
+      "waterlineY": -0.6335832014325332,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 87,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/carrack-waterline.png"
+    },
+    {
+      "slug": "cutter",
+      "label": "Coastal Pinnace",
+      "waterlineY": -0.5050682202365155,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 77,
+      "lowestOpaquePixelY": 78,
+      "lowestOpaqueRelativeToWaterlinePx": 1,
+      "opaqueRowsBelowWaterline": 1,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/cutter-waterline.png"
+    },
+    {
+      "slug": "dhow",
+      "label": "Dhow",
+      "waterlineY": -0.3262044250051358,
+      "waterlineOffsetY": -0.244,
+      "sideViewWaterlineY": 69,
+      "lowestOpaquePixelY": 74,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/dhow-waterline.png"
+    },
+    {
+      "slug": "felucca",
+      "label": "Felucca",
+      "waterlineY": -0.45952069892091124,
+      "waterlineOffsetY": -0.455,
+      "sideViewWaterlineY": 75,
+      "lowestOpaquePixelY": 80,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/felucca-waterline.png"
+    },
+    {
+      "slug": "fishing-lugger",
+      "label": "Fishing Barque",
+      "waterlineY": -0.31413747736668796,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 68,
+      "lowestOpaquePixelY": 69,
+      "lowestOpaqueRelativeToWaterlinePx": 1,
+      "opaqueRowsBelowWaterline": 1,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/fishing-lugger-waterline.png"
+    },
+    {
+      "slug": "fluyt",
+      "label": "Urca",
+      "waterlineY": -0.6408279004097618,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 86,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/fluyt-waterline.png"
+    },
+    {
+      "slug": "galleon",
+      "label": "Galleon",
+      "waterlineY": -0.7066668082951645,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 85,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/galleon-waterline.png"
+    },
+    {
+      "slug": "japanese-atakebune",
+      "label": "Atakebune",
+      "waterlineY": -0.44259402325803004,
+      "waterlineOffsetY": 0.073,
+      "sideViewWaterlineY": 72,
+      "lowestOpaquePixelY": 78,
+      "lowestOpaqueRelativeToWaterlinePx": 6,
+      "opaqueRowsBelowWaterline": 6,
+      "oarPivotCount": 8,
+      "oarPivotPixels": [
+        {
+          "x": 77,
+          "y": 71
+        },
+        {
+          "x": 88,
+          "y": 71
+        },
+        {
+          "x": 98,
+          "y": 71
+        },
+        {
+          "x": 109,
+          "y": 71
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/japanese-atakebune-waterline.png"
+    },
+    {
+      "slug": "joseon-panokseon",
+      "label": "Panokseon",
+      "waterlineY": -0.8071472001982696,
+      "waterlineOffsetY": -0.23,
+      "sideViewWaterlineY": 87,
+      "lowestOpaquePixelY": 90,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 12,
+      "oarPivotPixels": [
+        {
+          "x": 73,
+          "y": 82
+        },
+        {
+          "x": 82,
+          "y": 82
+        },
+        {
+          "x": 91,
+          "y": 82
+        },
+        {
+          "x": 101,
+          "y": 82
+        },
+        {
+          "x": 110,
+          "y": 82
+        },
+        {
+          "x": 119,
+          "y": 82
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/joseon-panokseon-waterline.png"
+    },
+    {
+      "slug": "joseon-turtle-ship",
+      "label": "Turtle Ship",
+      "waterlineY": -0.7857002231841475,
+      "waterlineOffsetY": -0.05,
+      "sideViewWaterlineY": 86,
+      "lowestOpaquePixelY": 87,
+      "lowestOpaqueRelativeToWaterlinePx": 1,
+      "opaqueRowsBelowWaterline": 1,
+      "oarPivotCount": 10,
+      "oarPivotPixels": [
+        {
+          "x": 87,
+          "y": 84
+        },
+        {
+          "x": 98,
+          "y": 84
+        },
+        {
+          "x": 109,
+          "y": 84
+        },
+        {
+          "x": 120,
+          "y": 84
+        },
+        {
+          "x": 130,
+          "y": 84
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/joseon-turtle-ship-waterline.png"
+    },
+    {
+      "slug": "ketch",
+      "label": "Lateen Barque",
+      "waterlineY": -0.5115140875905757,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 77,
+      "lowestOpaquePixelY": 80,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/ketch-waterline.png"
+    },
+    {
+      "slug": "large-junk",
+      "label": "Large Junk",
+      "waterlineY": -0.6114549926396833,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 82,
+      "lowestOpaquePixelY": 86,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/large-junk-waterline.png"
+    },
+    {
+      "slug": "mediterranean-galley",
+      "label": "Mediterranean Galley",
+      "waterlineY": -0.5527968075173886,
+      "waterlineOffsetY": -0.15,
+      "sideViewWaterlineY": 76,
+      "lowestOpaquePixelY": 79,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 10,
+      "oarPivotPixels": [
+        {
+          "x": 76,
+          "y": 73
+        },
+        {
+          "x": 86,
+          "y": 73
+        },
+        {
+          "x": 96,
+          "y": 73
+        },
+        {
+          "x": 106,
+          "y": 73
+        },
+        {
+          "x": 116,
+          "y": 73
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/mediterranean-galley-waterline.png"
+    },
+    {
+      "slug": "medium-junk",
+      "label": "Medium Junk",
+      "waterlineY": -0.606253297214245,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 82,
+      "lowestOpaquePixelY": 86,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/medium-junk-waterline.png"
+    },
+    {
+      "slug": "mesoamerican-dugout-canoe",
+      "label": "Mesoamerican Dugout Canoe",
+      "waterlineY": -0.08247808122694711,
+      "waterlineOffsetY": 0.023,
+      "sideViewWaterlineY": 58,
+      "lowestOpaquePixelY": 59,
+      "lowestOpaqueRelativeToWaterlinePx": 1,
+      "opaqueRowsBelowWaterline": 1,
+      "oarPivotCount": 2,
+      "oarPivotPixels": [
+        {
+          "x": 86,
+          "y": 53
+        },
+        {
+          "x": 106,
+          "y": 53
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/mesoamerican-dugout-canoe-waterline.png"
+    },
+    {
+      "slug": "nusantaran-outrigger",
+      "label": "Nusantaran Outrigger",
+      "waterlineY": -0.6052930799427692,
+      "waterlineOffsetY": -0.012,
+      "sideViewWaterlineY": 81,
+      "lowestOpaquePixelY": 86,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/nusantaran-outrigger-waterline.png"
+    },
+    {
+      "slug": "ottoman-coastal-trader",
+      "label": "Ottoman Coastal Trader",
+      "waterlineY": -0.7898186179309307,
+      "waterlineOffsetY": -0.883,
+      "sideViewWaterlineY": 88,
+      "lowestOpaquePixelY": 93,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/ottoman-coastal-trader-waterline.png"
+    },
+    {
+      "slug": "pirate-brig",
+      "label": "Heavy Caravel",
+      "waterlineY": -0.7496062855636385,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 88,
+      "lowestOpaquePixelY": 92,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/pirate-brig-waterline.png"
+    },
+    {
+      "slug": "polynesian-voyaging-canoe",
+      "label": "Polynesian Voyaging Canoe",
+      "waterlineY": -0.7126525394099021,
+      "waterlineOffsetY": -0.995,
+      "sideViewWaterlineY": 86,
+      "lowestOpaquePixelY": 91,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/polynesian-voyaging-canoe-waterline.png"
+    },
+    {
+      "slug": "portuguese-carrack",
+      "label": "Portuguese Carrack",
+      "waterlineY": -0.6508335864420707,
+      "waterlineOffsetY": 0.073,
+      "sideViewWaterlineY": 81,
+      "lowestOpaquePixelY": 89,
+      "lowestOpaqueRelativeToWaterlinePx": 8,
+      "opaqueRowsBelowWaterline": 8,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/portuguese-carrack-waterline.png"
+    },
+    {
+      "slug": "sampan",
+      "label": "Sampan",
+      "waterlineY": -0.40660859375,
+      "waterlineOffsetY": 0.023,
+      "sideViewWaterlineY": 73,
+      "lowestOpaquePixelY": 74,
+      "lowestOpaqueRelativeToWaterlinePx": 1,
+      "opaqueRowsBelowWaterline": 1,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/sampan-waterline.png"
+    },
+    {
+      "slug": "ship-of-the-line",
+      "label": "Great Carrack",
+      "waterlineY": -0.6375315248193973,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 86,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/ship-of-the-line-waterline.png"
+    },
+    {
+      "slug": "small-cog",
+      "label": "Small Cog",
+      "waterlineY": -0.5517766243621313,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 79,
+      "lowestOpaquePixelY": 80,
+      "lowestOpaqueRelativeToWaterlinePx": 1,
+      "opaqueRowsBelowWaterline": 1,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/small-cog-waterline.png"
+    },
+    {
+      "slug": "small-junk",
+      "label": "Small Junk",
+      "waterlineY": -0.6023806016218708,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 81,
+      "lowestOpaquePixelY": 83,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/small-junk-waterline.png"
+    },
+    {
+      "slug": "spanish-nao",
+      "label": "Spanish Nao",
+      "waterlineY": -0.6919229817707491,
+      "waterlineOffsetY": -0.025,
+      "sideViewWaterlineY": 81,
+      "lowestOpaquePixelY": 88,
+      "lowestOpaqueRelativeToWaterlinePx": 7,
+      "opaqueRowsBelowWaterline": 7,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/spanish-nao-waterline.png"
+    },
+    {
+      "slug": "square-rigged-caravel",
+      "label": "Square-Rigged Caravel",
+      "waterlineY": -0.6751154748377313,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 85,
+      "lowestOpaquePixelY": 90,
+      "lowestOpaqueRelativeToWaterlinePx": 5,
+      "opaqueRowsBelowWaterline": 5,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/square-rigged-caravel-waterline.png"
+    },
+    {
+      "slug": "viking-longship",
+      "label": "Viking Longship",
+      "waterlineY": -0.5558266884279744,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 76,
+      "lowestOpaquePixelY": 79,
+      "lowestOpaqueRelativeToWaterlinePx": 3,
+      "opaqueRowsBelowWaterline": 3,
+      "oarPivotCount": 12,
+      "oarPivotPixels": [
+        {
+          "x": 71,
+          "y": 74
+        },
+        {
+          "x": 81,
+          "y": 74
+        },
+        {
+          "x": 91,
+          "y": 74
+        },
+        {
+          "x": 101,
+          "y": 74
+        },
+        {
+          "x": 111,
+          "y": 74
+        },
+        {
+          "x": 121,
+          "y": 74
+        }
+      ],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/viking-longship-waterline.png"
+    },
+    {
+      "slug": "xebec",
+      "label": "Xebec",
+      "waterlineY": -0.6930998858395693,
+      "waterlineOffsetY": 0,
+      "sideViewWaterlineY": 86,
+      "lowestOpaquePixelY": 88,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
+      "oarPivotCount": 0,
+      "oarPivotPixels": [],
+      "file": "apps/pixel-globe/docs/ship-reference/waterlines/xebec-waterline.png"
+    }
+  ]
+}

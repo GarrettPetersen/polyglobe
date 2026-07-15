@@ -2,8 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   compareTerrainDrawCalls,
+  terrainBaseSpriteKey,
   terrainSpriteDrawLayer
 } from "./terrainDrawOrder.js";
+
+test("mountains compose over ordinary rocky ground", () => {
+  assert.equal(terrainBaseSpriteKey("mountain_stone_01"), "earth_rocky");
+  assert.equal(terrainBaseSpriteKey("mountain_snowy_02"), "earth_rocky");
+  assert.equal(terrainBaseSpriteKey("forest_broadleaf_01"), "forest_broadleaf_01");
+  assert.throws(() => terrainBaseSpriteKey(""), /requires a sprite key/);
+});
 
 test("flat terrain draws below vegetation and mountains on the same baseline", () => {
   const keys = [

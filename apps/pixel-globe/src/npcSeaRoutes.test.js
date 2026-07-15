@@ -13,6 +13,7 @@ import {
   applyNpcConquestOwnership,
   createNpcSeaRouteSystem,
   damageNpcShip,
+  npcCargoAvailableQuantity,
   npcPortHasMajorProtection,
   npcShipHasCombatGrace,
   npcShipSnapshots,
@@ -308,6 +309,25 @@ test("NPC fishermen choose generated fishing grounds and deplete them offscreen"
   assert.ok(stockAfter.population < stockAfter.capacity);
   assert.ok(Number.isFinite(stockBefore));
   assert.equal(fisherman.plan.destination.isFishingGround, undefined);
+});
+
+test("NPC fishing catches stop at the remaining hull cargo capacity", () => {
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, fishState });
+  const fisherman = routes.ships.find((ship) => (
+    ship.role === NPC_ROLE_FISHERMAN &&
+    ship.plan?.destination?.isFishingGround
+  ));
+  assert.ok(fisherman, "expected a fisherman sailing toward a fishing ground");
+  fisherman.cargo = { fish: fisherman.cargoCapacity - 1 };
+  fisherman.cargoCost = { fish: 0 };
+
+  assert.equal(npcCargoAvailableQuantity(fisherman, "fish"), 1);
+  updateNpcSeaRouteSystem(routes, Math.ceil(fisherman.plan.endMinute + 1));
+
+  assert.equal(cargoUnits(fisherman), fisherman.cargoCapacity);
+  assert.equal(npcCargoAvailableQuantity(fisherman, "fish"), 0);
 });
 
 test("surrender transfers stores and grants protection until a safe port", () => {

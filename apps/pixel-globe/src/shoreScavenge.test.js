@@ -6,6 +6,7 @@ import {
   SHORE_SCAVENGE_ARCTIC,
   SHORE_SCAVENGE_CASUALTY,
   SHORE_SCAVENGE_CASUALTY_CHANCE,
+  SHORE_SCAVENGE_DESERT,
   SHORE_SCAVENGE_FOOD,
   SHORE_SCAVENGE_NOTHING,
   SHORE_SCAVENGE_TEMPERATE,
@@ -18,15 +19,24 @@ import {
 } from "./shoreScavenge.js";
 
 test("shore scavenging can find supplies, nothing, or a rare casualty", () => {
-  assert.equal(rollShoreScavenge(() => 0), SHORE_SCAVENGE_WATER);
-  assert.equal(rollShoreScavenge(() => 0.2799), SHORE_SCAVENGE_WATER);
-  assert.equal(rollShoreScavenge(() => 0.28), SHORE_SCAVENGE_FOOD);
-  assert.equal(rollShoreScavenge(() => 0.6799), SHORE_SCAVENGE_FOOD);
-  assert.equal(rollShoreScavenge(() => 0.68), SHORE_SCAVENGE_NOTHING);
-  assert.equal(rollShoreScavenge(() => 0.9899), SHORE_SCAVENGE_NOTHING);
-  assert.equal(rollShoreScavenge(() => 0.99), SHORE_SCAVENGE_CASUALTY);
-  assert.equal(rollShoreScavenge(() => 0.9999), SHORE_SCAVENGE_CASUALTY);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.2799), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.28), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.6799), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.68), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.9899), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.99), SHORE_SCAVENGE_CASUALTY);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.9999), SHORE_SCAVENGE_CASUALTY);
   assert.equal(SHORE_SCAVENGE_CASUALTY_CHANCE, 0.01);
+});
+
+test("desert scavenging rarely finds water and usually finds nothing", () => {
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.0399), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.04), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.1799), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.18), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.9899), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.99), SHORE_SCAVENGE_CASUALTY);
 });
 
 test("found food is a small one-to-three unit haul", () => {
@@ -36,7 +46,12 @@ test("found food is a small one-to-three unit haul", () => {
 });
 
 test("every shore and outcome has varied descriptive text", () => {
-  for (const context of [SHORE_SCAVENGE_TEMPERATE, SHORE_SCAVENGE_ARCTIC, SHORE_SCAVENGE_ANTARCTIC]) {
+  for (const context of [
+    SHORE_SCAVENGE_TEMPERATE,
+    SHORE_SCAVENGE_DESERT,
+    SHORE_SCAVENGE_ARCTIC,
+    SHORE_SCAVENGE_ANTARCTIC
+  ]) {
     for (const outcome of [
       SHORE_SCAVENGE_WATER,
       SHORE_SCAVENGE_FOOD,
@@ -58,6 +73,20 @@ test("frozen terrain selects the correct polar scavenging context", () => {
   assert.equal(shoreScavengeContextForTerrain({ t: "grass" }, 64, true), SHORE_SCAVENGE_ARCTIC);
   assert.equal(shoreScavengeContextForTerrain({ t: "grass" }, 45, true), SHORE_SCAVENGE_TEMPERATE);
   assert.equal(shoreScavengeContextForTerrain({ t: "grass" }, 50, false), SHORE_SCAVENGE_TEMPERATE);
+  assert.equal(shoreScavengeContextForTerrain({ t: "hot_desert" }, 25, false), SHORE_SCAVENGE_DESERT);
+  assert.equal(shoreScavengeContextForTerrain({ t: "cold_desert" }, 45, false), SHORE_SCAVENGE_DESERT);
+  assert.equal(shoreScavengeContextForTerrain({ t: "cold_desert" }, 65, true), SHORE_SCAVENGE_ARCTIC);
+});
+
+test("desert supplies use scarce arid-shore language", () => {
+  assert.equal(shoreScavengeNoticeLabel(SHORE_SCAVENGE_WATER, SHORE_SCAVENGE_DESERT), "FOUND A SEEP");
+  assert.equal(shoreScavengeNoticeLabel(SHORE_SCAVENGE_FOOD, SHORE_SCAVENGE_DESERT), "FOUND COASTAL FOOD");
+  for (const outcome of [SHORE_SCAVENGE_WATER, SHORE_SCAVENGE_FOOD, SHORE_SCAVENGE_NOTHING]) {
+    for (const roll of [0, 0.5, 0.9999]) {
+      const narrative = shoreScavengeNarrative(outcome, SHORE_SCAVENGE_DESERT, () => roll).toLowerCase();
+      assert.doesNotMatch(narrative, /clear spring|stand of trees/);
+    }
+  }
 });
 
 test("polar supply notices and narratives never claim to find woodland springs", () => {

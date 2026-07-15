@@ -7,8 +7,16 @@ export const SHORE_SCAVENGE_CASUALTY = "casualty";
 export const SHORE_SCAVENGE_CASUALTY_CHANCE = 0.01;
 
 export const SHORE_SCAVENGE_TEMPERATE = "temperate";
+export const SHORE_SCAVENGE_DESERT = "desert";
 export const SHORE_SCAVENGE_ARCTIC = "arctic";
 export const SHORE_SCAVENGE_ANTARCTIC = "antarctic";
+
+const SCAVENGE_PROBABILITIES = Object.freeze({
+  [SHORE_SCAVENGE_TEMPERATE]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 }),
+  [SHORE_SCAVENGE_DESERT]: Object.freeze({ waterMax: 0.04, foodMax: 0.18 }),
+  [SHORE_SCAVENGE_ARCTIC]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 }),
+  [SHORE_SCAVENGE_ANTARCTIC]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 })
+});
 
 const TEMPERATE_NARRATIVES = Object.freeze({
   [SHORE_SCAVENGE_WATER]: Object.freeze([
@@ -56,6 +64,29 @@ const ARCTIC_NARRATIVES = Object.freeze({
   ])
 });
 
+const DESERT_NARRATIVES = Object.freeze({
+  [SHORE_SCAVENGE_WATER]: Object.freeze([
+    "After hours probing a dry wadi, the shore party uncovered a muddy seep and filled the casks slowly.",
+    "The party found damp sand beneath a shaded rock face and dug until a thin trickle gathered.",
+    "Before sunrise, the party collected dew from canvas sheets stretched across the cold desert stones."
+  ]),
+  [SHORE_SCAVENGE_FOOD]: Object.freeze([
+    "The shore party gathered shellfish from the tidal rocks and carried the small catch back aboard.",
+    "Hunters found desert hares among the scrub and returned with a little fresh meat.",
+    "A nesting colony of shore birds yielded eggs and meat enough to add to the stores."
+  ]),
+  [SHORE_SCAVENGE_NOTHING]: Object.freeze([
+    "The party searched the wadis until dusk and returned with empty casks beneath a pitiless sun.",
+    "They found salt crust, thorn scrub, and dry gullies, but nothing fit for the ship's stores.",
+    "Every hollow was dry and every distant patch of green proved to be bare stone shimmering in the heat."
+  ]),
+  [SHORE_SCAVENGE_CASUALTY]: Object.freeze([
+    "A sailor collapsed from the heat before the party could carry them back to the shore.",
+    "A venomous snake struck among the rocks. The party returned to the ship one fewer.",
+    "Loose stone gave way beneath a sailor crossing a dry ravine. The fall proved fatal."
+  ])
+});
+
 const ANTARCTIC_NARRATIVES = Object.freeze({
   [SHORE_SCAVENGE_WATER]: Object.freeze([
     "The shore party cut clean snow from the ice shelf and melted it into drinking water.",
@@ -81,6 +112,7 @@ const ANTARCTIC_NARRATIVES = Object.freeze({
 
 const NARRATIVES_BY_CONTEXT = Object.freeze({
   [SHORE_SCAVENGE_TEMPERATE]: TEMPERATE_NARRATIVES,
+  [SHORE_SCAVENGE_DESERT]: DESERT_NARRATIVES,
   [SHORE_SCAVENGE_ARCTIC]: ARCTIC_NARRATIVES,
   [SHORE_SCAVENGE_ANTARCTIC]: ANTARCTIC_NARRATIVES
 });
@@ -94,17 +126,21 @@ export function shoreScavengeContextForTerrain(row, latitudeDeg, hasSnowGround) 
     hasSnowGround === true || terrain.includes("snow") || terrain.includes("tundra") || terrain.includes("cold")
   );
   const frozen = permanentIce || polarFrozenTerrain;
-  if (!frozen) return SHORE_SCAVENGE_TEMPERATE;
-  return latitudeDeg >= 0 ? SHORE_SCAVENGE_ARCTIC : SHORE_SCAVENGE_ANTARCTIC;
+  if (frozen) return latitudeDeg >= 0 ? SHORE_SCAVENGE_ARCTIC : SHORE_SCAVENGE_ANTARCTIC;
+  if (terrain.includes("desert")) return SHORE_SCAVENGE_DESERT;
+  return SHORE_SCAVENGE_TEMPERATE;
 }
 
-export function rollShoreScavenge(random = Math.random) {
+export function rollShoreScavenge(context, random = Math.random) {
+  requireScavengeContext(context);
+  const probabilities = SCAVENGE_PROBABILITIES[context];
+  if (!probabilities) throw new Error(`Missing shore scavenge probabilities: ${context}`);
   const roll = random();
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
     throw new Error(`Invalid shore scavenge roll: ${roll}`);
   }
-  if (roll < 0.28) return SHORE_SCAVENGE_WATER;
-  if (roll < 0.68) return SHORE_SCAVENGE_FOOD;
+  if (roll < probabilities.waterMax) return SHORE_SCAVENGE_WATER;
+  if (roll < probabilities.foodMax) return SHORE_SCAVENGE_FOOD;
   if (roll < 1 - SHORE_SCAVENGE_CASUALTY_CHANCE) return SHORE_SCAVENGE_NOTHING;
   return SHORE_SCAVENGE_CASUALTY;
 }
@@ -120,10 +156,14 @@ export function foragedFoodQuantity(random = Math.random) {
 export function shoreScavengeNoticeLabel(outcome, context) {
   requireScavengeContext(context);
   if (outcome === SHORE_SCAVENGE_WATER) {
-    return context === SHORE_SCAVENGE_TEMPERATE ? "FOUND A SPRING" : "MELTED SNOW";
+    if (context === SHORE_SCAVENGE_TEMPERATE) return "FOUND A SPRING";
+    if (context === SHORE_SCAVENGE_DESERT) return "FOUND A SEEP";
+    return "MELTED SNOW";
   }
   if (outcome === SHORE_SCAVENGE_FOOD) {
-    return context === SHORE_SCAVENGE_TEMPERATE ? "FOUND WILD GAME" : "FOUND POLAR GAME";
+    if (context === SHORE_SCAVENGE_TEMPERATE) return "FOUND WILD GAME";
+    if (context === SHORE_SCAVENGE_DESERT) return "FOUND COASTAL FOOD";
+    return "FOUND POLAR GAME";
   }
   throw new Error(`Shore scavenge outcome has no supply label: ${outcome}`);
 }

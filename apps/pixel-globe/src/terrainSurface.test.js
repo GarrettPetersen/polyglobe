@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  compareTerrainConnectorDrawOrder,
   isCoastalWaterRow,
   isFrozenShoreRow,
   isPermanentSeaIceRow,
@@ -8,6 +9,15 @@ import {
   isWaterSurfaceRow,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
+
+test("coastal connectors draw over other connector overlaps", () => {
+  const inland = { a: 1, b: 2, row: { t: "land" }, nrow: { t: "forest" }, sortY: 20 };
+  const coast = { a: 3, b: 4, row: { t: "water" }, nrow: { t: "land" }, sortY: 5 };
+  assert.deepEqual(
+    [coast, inland].sort(compareTerrainConnectorDrawOrder),
+    [inland, coast]
+  );
+});
 
 test("shared coastal-water terrain remains navigable water", () => {
   assert.equal(isCoastalWaterRow({ t: "beach" }), true);

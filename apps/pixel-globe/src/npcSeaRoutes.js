@@ -1158,8 +1158,10 @@ function harvestNpcFishingGround(system, ship, ground, clockMinutes) {
   if (!system.fishState) return null;
   const fishery = fisheryForHabitat(system.fishState, ground.habitat, clockMinutes);
   if (!fishery) return null;
+  const availableQuantity = npcCargoAvailableQuantity(ship, NPC_FISH_GOOD_ID);
+  if (availableQuantity <= 0) return null;
   const requested = Math.min(
-    ship.cargoCapacity,
+    availableQuantity,
     npcFishingNetExpectedHaul(ship.fishingNetId)
   );
   const result = harvestFishery(system.fishState, fishery, requested, clockMinutes, { actor: "npc" });
@@ -1325,6 +1327,14 @@ function npcCargoUnits(ship) {
     throw new Error(`NPC ship ${ship.id} exceeds cargo capacity: ${units}/${ship.cargoCapacity}`);
   }
   return units;
+}
+
+export function npcCargoAvailableQuantity(ship, goodId) {
+  if (!ship || !Number.isInteger(ship.cargoCapacity) || ship.cargoCapacity < 0) {
+    throw new Error(`NPC cargo availability requires a valid ship capacity: ${ship?.cargoCapacity}`);
+  }
+  const good = tradeGoodById(goodId);
+  return Math.floor((ship.cargoCapacity - npcCargoUnits(ship)) / good.unitSize);
 }
 
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {

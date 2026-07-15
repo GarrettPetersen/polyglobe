@@ -42,8 +42,63 @@ export const FISH_SPECIES = Object.freeze([
     growthPerDay: 0.043,
     minVisibleDensity: 0.16,
     schoolScale: 0.86
+  }),
+  species("victoria-cichlid", "Victoria cichlid", "#f9c22b", "#fbff86", "#9e4539", {
+    baseCapacity: 66,
+    growthPerDay: 0.046,
+    minVisibleDensity: 0.1,
+    schoolScale: 0.82
+  }),
+  species("native-tilapia", "Native tilapia", "#92a984", "#c7dcd0", "#374e4a", {
+    baseCapacity: 54,
+    growthPerDay: 0.036,
+    minVisibleDensity: 0.12,
+    schoolScale: 1.02
+  }),
+  species("lake-trout", "Lake trout", "#547e64", "#c7dcd0", "#313638", {
+    baseCapacity: 34,
+    growthPerDay: 0.014,
+    minVisibleDensity: 0.16,
+    schoolScale: 1.2
+  }),
+  species("lake-whitefish", "Lake whitefish", "#9babb2", "#ffffff", "#484a77", {
+    baseCapacity: 58,
+    growthPerDay: 0.026,
+    minVisibleDensity: 0.12,
+    schoolScale: 0.96
+  }),
+  species("walleye", "Walleye", "#a2a947", "#fbff86", "#4c3e24", {
+    baseCapacity: 42,
+    growthPerDay: 0.021,
+    minVisibleDensity: 0.14,
+    schoolScale: 1.08
+  }),
+  species("yellow-perch", "Yellow perch", "#f9c22b", "#fbb954", "#676633", {
+    baseCapacity: 64,
+    growthPerDay: 0.034,
+    minVisibleDensity: 0.11,
+    schoolScale: 0.88
+  }),
+  species("lake-sturgeon", "Lake sturgeon", "#625565", "#9babb2", "#323353", {
+    baseCapacity: 18,
+    growthPerDay: 0.006,
+    minVisibleDensity: 0.18,
+    schoolScale: 1.42
   })
 ]);
+
+const LAKE_VICTORIA_SPECIES_SCORES = Object.freeze({
+  "victoria-cichlid": 1.0,
+  "native-tilapia": 0.68
+});
+
+const GREAT_LAKES_SPECIES_SCORES = Object.freeze({
+  "lake-trout": 0.9,
+  "lake-whitefish": 1.0,
+  walleye: 0.82,
+  "yellow-perch": 0.76,
+  "lake-sturgeon": 0.22
+});
 
 const FISH_SPECIES_BY_ID = new Map(FISH_SPECIES.map((item) => [item.id, item]));
 
@@ -249,6 +304,7 @@ function fisheryExists(speciesDef, habitat, dayOfYear) {
 }
 
 function speciesHabitatScore(speciesId, habitat, dayOfYear) {
+  if (habitat.kind === "lake") return lakeSpeciesHabitatScore(speciesId, habitat);
   const absLat = Math.abs(habitat.lat);
   const tropical = absLat < 28;
   const cold = absLat >= 42;
@@ -287,7 +343,13 @@ function fisheryPresenceChance(speciesId, habitat, dayOfYear) {
       ? (habitat.kind === "river" ? 0.52 : 0.34)
       : 0.08;
   }
-  if (habitat.kind === "river" || habitat.kind === "lake") return 0.12;
+  if (habitat.kind === "lake") {
+    const region = lakeFishRegion(habitat);
+    if (region === "lake-victoria") return 0.74;
+    if (region === "great-lakes") return 0.68;
+    return 0;
+  }
+  if (habitat.kind === "river") return 0.12;
   if (habitat.kind === "river-mouth") return 0.36;
   if (habitat.kind === "coastal") return 0.28;
   return speciesId === "tuna" || speciesId === "cod" ? 0.12 : 0.08;
@@ -307,6 +369,23 @@ function salmonRunActive(lat, dayOfYear) {
   if (lat >= 0) return dayOfYear >= RIVER_SPAWN_START_DAY && dayOfYear <= RIVER_SPAWN_END_DAY;
   const southernDay = positiveModulo(dayOfYear + Math.floor(WEATHER_DAYS / 2), WEATHER_DAYS);
   return southernDay >= RIVER_SPAWN_START_DAY && southernDay <= RIVER_SPAWN_END_DAY;
+}
+
+function lakeSpeciesHabitatScore(speciesId, habitat) {
+  const region = lakeFishRegion(habitat);
+  if (region === "lake-victoria") return LAKE_VICTORIA_SPECIES_SCORES[speciesId] || 0;
+  if (region === "great-lakes") return GREAT_LAKES_SPECIES_SCORES[speciesId] || 0;
+  return 0;
+}
+
+function lakeFishRegion(habitat) {
+  if (habitat.lat >= -4 && habitat.lat <= 1.5 && habitat.lon >= 30.5 && habitat.lon <= 35.5) {
+    return "lake-victoria";
+  }
+  if (habitat.lat >= 41 && habitat.lat <= 50 && habitat.lon >= -93 && habitat.lon <= -74) {
+    return "great-lakes";
+  }
+  return null;
 }
 
 function harvestResult(stock, speciesDef, quantity, actor, reason) {

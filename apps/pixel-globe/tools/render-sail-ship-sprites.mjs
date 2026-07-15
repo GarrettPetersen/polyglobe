@@ -20,13 +20,15 @@ import {
   PORTUGUESE_CARRACK_MODEL_CREDIT,
   UNITY_FLEET_MODEL_CREDIT
 } from "../src/modelCredits.js";
-import { shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
+import { SHIP_STATS, shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
 import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
 import {
   SHIP_DECK_NORMAL_Y,
+  SHIP_MIN_RASTER_WATERLINE_DEPTH,
   SHIP_WATERLINE_DEPTH_BYTE,
   SHIP_WATERLINE_LEVEL,
   encodedShipWaterlineY,
+  shipMaxRasterWaterlineDepth,
   shipPixelBakeHeight
 } from "../src/shipWaterline.js";
 import { estimateShipWaterlineY } from "../src/shipWaterlineSlice.js";
@@ -71,6 +73,7 @@ const outputRoot = join(appRoot, "public/assets/vehicles");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
+const waterlineReviewOutputRoot = join(appRoot, "docs/ship-reference/waterlines");
 
 const frameSize = integerEnv("PIXEL_GLOBE_SHIP_FRAME_SIZE", SHIP_SPRITE_FRAME_SIZE);
 const headings = SHIP_SPRITE_HEADINGS;
@@ -101,6 +104,8 @@ const wakeBowShoulderBandRatio = 0.22;
 const wakeSternClearancePx = 1.5;
 const wakeBowShoulderOutsetPx = 1.25;
 const shipEdgeShadeScale = 0.76;
+const waterlineReviewColor = "#4d9be6";
+const oarPivotReviewColor = "#e83b3b";
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 const mediterraneanGalleyMeshNames = new Set([
   "Object_9",  // stern windows
@@ -184,7 +189,8 @@ const unityShipRoster = new Map([
     slug: "sampan",
     identifiedType: "small junk / sampan",
     confidence: "high",
-    notes: "Small Chinese-rigged vessel; good for river/coastal Asian traffic."
+    notes: "Small Chinese-rigged vessel; good for river/coastal Asian traffic.",
+    waterlineOffsetY: 0.023
   }],
   ["ships large/chinese ship large.fbx", {
     label: "Large Junk",
@@ -268,7 +274,8 @@ const unityShipRoster = new Map([
     slug: "felucca",
     identifiedType: "dhow / felucca",
     confidence: "high",
-    notes: "Small single-lateen craft."
+    notes: "Small single-lateen craft.",
+    waterlineOffsetY: -0.455
   }],
   ["ships small/ship small 3.fbx", {
     label: "Coastal Pinnace",
@@ -574,21 +581,28 @@ function fitTrianglesToMaxDimension(triangles, bounds, targetMaxDim) {
 
 function estimateWaterlineForConfig(triangles, config) {
   if (!config?.slug) throw new Error("Ship waterline analysis requires a configured ship slug");
-  return estimateShipWaterlineY(triangles, {
+  const estimated = estimateShipWaterlineY(triangles, {
     expectedHullCount: config.expectedWaterlineHullCount ?? 1,
     immersionRatio: config.waterlineImmersionRatio,
     label: config.slug
   });
-}
-
-function proceduralAnimationReferenceY(triangles) {
-  const yValues = [];
+  const offsetY = config.waterlineOffsetY ?? 0;
+  if (!Number.isFinite(offsetY)) throw new Error(`${config.slug} has invalid waterline offset: ${offsetY}`);
+  const y = estimated.y + offsetY;
+  let modelMinY = Infinity;
+  let modelMaxY = -Infinity;
   for (const triangle of triangles) {
-    for (const point of triangle.points) yValues.push(point.y);
+    for (const point of triangle.points) {
+      modelMinY = Math.min(modelMinY, point.y);
+      modelMaxY = Math.max(modelMaxY, point.y);
+    }
   }
-  if (yValues.length === 0) throw new Error("Procedural ship animation requires model points");
-  yValues.sort((a, b) => a - b);
-  return yValues[Math.floor((yValues.length - 1) * 0.08)];
+  if (y <= modelMinY || y >= modelMaxY) {
+    throw new Error(
+      `${config.slug} adjusted waterline ${y} leaves its model bounds ${modelMinY}..${modelMaxY}`
+    );
+  }
+  return { ...estimated, y };
 }
 
 function makeCamera() {
@@ -656,7 +670,8 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
   features.fill(-1);
   const featureIds = new Map();
 
-  const rotation = new THREE.Matrix4().makeRotationY(modelYawForScreenHeading(headingIndex, camera));
+  const modelYaw = renderOptions?.modelYaw ?? modelYawForScreenHeading(headingIndex, camera);
+  const rotation = new THREE.Matrix4().makeRotationY(modelYaw);
 
   for (const tri of baseTriangles) {
     const points = tri.points.map((point) => point.clone().applyMatrix4(rotation));
@@ -1641,11 +1656,8 @@ async function renderShipSpriteSet(config) {
   const hullTriangles = model.triangles;
   const waterline = estimateWaterlineForConfig(hullTriangles, config);
   const waterlineY = waterline.y;
-  const animationReferenceY = config.animationTrianglesForFrame
-    ? proceduralAnimationReferenceY(hullTriangles)
-    : waterlineY;
   const triangles = config.animationTrianglesForFrame
-    ? config.animationTrianglesForFrame(hullTriangles, 0, animationReferenceY)
+    ? config.animationTrianglesForFrame(hullTriangles, 0, waterlineY)
     : hullTriangles;
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
@@ -1704,7 +1716,6 @@ async function renderShipSpriteSet(config) {
       config,
       hullTriangles,
       waterlineY,
-      animationReferenceY,
       camera,
       renderOptions,
       frameScale,
@@ -1733,6 +1744,7 @@ async function renderShipSpriteSet(config) {
     frameScale: Number(frameScale.toFixed(4)),
     scaleMode: config.scaleMode || "fit-model",
     waterlineY,
+    waterlineOffsetY: config.waterlineOffsetY ?? 0,
     waterlineSlice: {
       expectedHullCount: waterline.expectedHullCount,
       componentCount: waterline.componentCount,
@@ -1775,7 +1787,6 @@ async function renderShipAnimationSheets({
   config,
   hullTriangles,
   waterlineY,
-  animationReferenceY,
   camera,
   renderOptions,
   frameScale,
@@ -1791,7 +1802,7 @@ async function renderShipAnimationSheets({
     let sheet = animationSheets[frameIndex];
     let frames = animationFrames[frameIndex];
     if (!sheet) {
-      const triangles = config.animationTrianglesForFrame(hullTriangles, frameIndex, animationReferenceY);
+      const triangles = config.animationTrianglesForFrame(hullTriangles, frameIndex, waterlineY);
       const renderedHeadings = Array.from(
         { length: headings },
         (_, headingIndex) => renderHeading(triangles, headingIndex, camera, renderOptions)
@@ -1915,6 +1926,7 @@ function unityShipConfig(modelPath) {
     modelPath,
     texturePath: unityShipTexturePath,
     targetModelMaxDim: rosterEntry.targetModelMaxDim,
+    waterlineOffsetY: rosterEntry.waterlineOffsetY,
     scaleMode: "source-relative-fleet",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${rosterEntry.slug}-16-headings`
@@ -2031,11 +2043,8 @@ async function renderShipReferenceSet(config) {
     ...config.collectOptions
   });
   const waterlineY = estimateWaterlineForConfig(model.triangles, config).y;
-  const animationReferenceY = config.animationTrianglesForFrame
-    ? proceduralAnimationReferenceY(model.triangles)
-    : waterlineY;
   const triangles = config.animationTrianglesForFrame
-    ? config.animationTrianglesForFrame(model.triangles, 0, animationReferenceY)
+    ? config.animationTrianglesForFrame(model.triangles, 0, waterlineY)
     : model.triangles;
   const camera = makeCamera();
   const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
@@ -2093,6 +2102,17 @@ function makeSideViewCamera() {
   const extentX = extentY * sideViewWidth / sideViewHeight;
   const camera = new THREE.OrthographicCamera(-extentX, extentX, extentY, -extentY, 0.01, 30);
   camera.position.set(0, 1.15, 7.5);
+  camera.lookAt(0, 0.05, 0);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  return camera;
+}
+
+function makeLevelSideViewCamera() {
+  const extentY = 1.15;
+  const extentX = extentY * sideViewWidth / sideViewHeight;
+  const camera = new THREE.OrthographicCamera(-extentX, extentX, extentY, -extentY, 0.01, 30);
+  camera.position.set(0, 0.05, 7.5);
   camera.lookAt(0, 0.05, 0);
   camera.updateMatrixWorld();
   camera.updateProjectionMatrix();
@@ -2159,6 +2179,29 @@ function shadeEdgesAndQuantizeToResurrect(canvas) {
 }
 
 async function renderShipSideView(config) {
+  const { canvas: sideView } = await renderShipSideViewCanvas(config, {
+    camera: makeSideViewCamera()
+  });
+  const outputPath = join(unityFleetSideViewOutputRoot, `${config.slug}.png`);
+  writeFileSync(outputPath, sideView.toBuffer("image/png"));
+  return {
+    slug: config.slug,
+    label: config.label,
+    sourceModel: portablePath(config.modelPath),
+    sourceMaxDim: Number(config.sourceMaxDim.toFixed(4)),
+    targetModelMaxDim: Number((config.sideViewTargetModelMaxDim ?? config.targetModelMaxDim).toFixed(4)),
+    width: sideViewWidth,
+    height: sideViewHeight,
+    palette: "Resurrect 64",
+    file: portablePath(outputPath),
+    ...(config.creator ? { creator: config.creator } : {}),
+    ...(config.license ? { license: config.license } : {}),
+    ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {})
+  };
+}
+
+async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw } = {}) {
+  if (!camera) throw new Error(`Ship side view requires a camera: ${config.slug}`);
   const scene = await loadScene(config.modelPath);
   const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
   const materialTextureSamplers = await loadGltfMaterialTextureSamplers(config.modelPath);
@@ -2167,21 +2210,19 @@ async function renderShipSideView(config) {
     materialTextureSamplers,
     ...config.collectOptions
   });
-  const waterlineY = estimateWaterlineForConfig(model.triangles, config).y;
-  const animationReferenceY = config.animationTrianglesForFrame
-    ? proceduralAnimationReferenceY(model.triangles)
-    : waterlineY;
+  const resolvedWaterlineY = waterlineY ?? estimateWaterlineForConfig(model.triangles, config).y;
   const triangles = config.animationTrianglesForFrame
-    ? config.animationTrianglesForFrame(model.triangles, 0, animationReferenceY)
+    ? config.animationTrianglesForFrame(model.triangles, 0, resolvedWaterlineY)
     : model.triangles;
   const renderViewport = {
     width: sideViewWidth * sideViewRenderScale,
     height: sideViewHeight * sideViewRenderScale
   };
-  const rendered = renderHeading(triangles, config.sideViewHeading ?? 0, makeSideViewCamera(), {
+  const rendered = renderHeading(triangles, config.sideViewHeading ?? 0, camera, {
     textureSampler,
     colorTransform: config.colorTransform,
-    waterlineY
+    waterlineY: resolvedWaterlineY,
+    modelYaw
   }, renderViewport);
   alphaBounds(rendered.canvas);
 
@@ -2200,22 +2241,271 @@ async function renderShipSideView(config) {
   ) {
     throw new Error(`Ship side view clips its ${sideViewWidth}x${sideViewHeight} frame: ${config.slug}`);
   }
-  const outputPath = join(unityFleetSideViewOutputRoot, `${config.slug}.png`);
-  writeFileSync(outputPath, sideView.toBuffer("image/png"));
-  return {
-    slug: config.slug,
-    label: config.label,
-    sourceModel: portablePath(config.modelPath),
-    sourceMaxDim: Number(config.sourceMaxDim.toFixed(4)),
-    targetModelMaxDim: Number((config.sideViewTargetModelMaxDim ?? config.targetModelMaxDim).toFixed(4)),
+  return { canvas: sideView, waterlineY: resolvedWaterlineY };
+}
+
+async function renderShipWaterlineReview() {
+  const manifest = JSON.parse(readFileSync(join(unityFleetOutputRoot, "manifest.json"), "utf8"));
+  const sideViewManifest = JSON.parse(
+    readFileSync(join(unityFleetSideViewOutputRoot, "manifest.json"), "utf8")
+  );
+  if (!Array.isArray(manifest.ships) || !Array.isArray(sideViewManifest.ships)) {
+    throw new Error("Ship waterline review requires production and side-view manifests");
+  }
+  const productionBySlug = uniqueShipEntriesBySlug(manifest.ships, "production manifest");
+  const sideViewBySlug = uniqueShipEntriesBySlug(sideViewManifest.ships, "side-view manifest");
+  const expectedSlugs = SHIP_STATS.map((entry) => entry.slug).sort();
+  if (JSON.stringify([...productionBySlug.keys()].sort()) !== JSON.stringify(expectedSlugs)) {
+    throw new Error("Production ship manifest does not exactly match the ship roster");
+  }
+  if (JSON.stringify([...sideViewBySlug.keys()].sort()) !== JSON.stringify(expectedSlugs)) {
+    throw new Error("Side-view ship manifest does not exactly match the ship roster");
+  }
+  const configBySlug = productionShipRenderConfigs();
+
+  resetWaterlineReviewOutput();
+  const entries = [];
+  for (const slug of expectedSlugs) {
+    const production = productionBySlug.get(slug);
+    const sideView = sideViewBySlug.get(slug);
+    const config = configBySlug.get(slug);
+    config.targetModelMaxDim = production.targetModelMaxDim;
+    config.sideViewTargetModelMaxDim = sideView.targetModelMaxDim;
+    const camera = makeLevelSideViewCamera();
+    const scaledWaterlineY = scaledSideViewWaterlineY(production, sideView);
+    const { canvas: review } = await renderShipSideViewCanvas(config, {
+      camera,
+      waterlineY: scaledWaterlineY,
+      modelYaw: Math.PI / 2
+    });
+    const waterlinePixelY = sideViewWaterlinePixelY(production, sideView, camera);
+    const oarPivotPoints = config.animationTrianglesForFrame
+      ? proceduralOarPivotPoints(slug, scaledWaterlineY)
+      : [];
+    const oarPivotPixels = uniqueProjectedSideViewPixels(oarPivotPoints, camera, Math.PI / 2, slug);
+    const opaqueBounds = alphaBounds(review);
+    const lowestOpaquePixelY = opaqueBounds.minY + opaqueBounds.height - 1;
+    const lowestOpaqueRelativeToWaterlinePx = lowestOpaquePixelY - waterlinePixelY;
+    const maxRasterWaterlineDepth = shipMaxRasterWaterlineDepth(slug);
+    if (
+      lowestOpaqueRelativeToWaterlinePx < SHIP_MIN_RASTER_WATERLINE_DEPTH ||
+      lowestOpaqueRelativeToWaterlinePx > maxRasterWaterlineDepth
+    ) {
+      throw new Error(
+        `${slug} waterline depth ${lowestOpaqueRelativeToWaterlinePx}px is outside ` +
+        `${SHIP_MIN_RASTER_WATERLINE_DEPTH}..${maxRasterWaterlineDepth}px`
+      );
+    }
+    const ctx = review.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.fillStyle = "#18243a";
+    ctx.fillRect(0, 0, sideViewWidth, sideViewHeight);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = waterlineReviewColor;
+    ctx.fillRect(0, waterlinePixelY, sideViewWidth, 1);
+    ctx.fillStyle = oarPivotReviewColor;
+    for (const pivot of oarPivotPixels) ctx.fillRect(pivot.x - 1, pivot.y - 1, 3, 3);
+    const outputPath = join(waterlineReviewOutputRoot, `${slug}-waterline.png`);
+    writeFileSync(outputPath, review.toBuffer("image/png"));
+    entries.push({
+      slug,
+      label: production.label,
+      waterlineY: production.waterlineY,
+      waterlineOffsetY: production.waterlineOffsetY ?? 0,
+      sideViewWaterlineY: waterlinePixelY,
+      lowestOpaquePixelY,
+      lowestOpaqueRelativeToWaterlinePx,
+      opaqueRowsBelowWaterline: Math.max(0, lowestOpaqueRelativeToWaterlinePx),
+      oarPivotCount: oarPivotPoints.length,
+      oarPivotPixels,
+      file: portablePath(outputPath),
+      canvas: review
+    });
+  }
+
+  const contactSheetPath = join(waterlineReviewOutputRoot, "ship-waterlines-contact-sheet.png");
+  writeFileSync(contactSheetPath, makeWaterlineReviewContactSheet(entries).toBuffer("image/png"));
+  const reviewManifestPath = join(waterlineReviewOutputRoot, "manifest.json");
+  writeFileSync(reviewManifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --waterline-review",
+    lineColor: waterlineReviewColor,
+    oarPivotColor: oarPivotReviewColor,
     width: sideViewWidth,
     height: sideViewHeight,
-    palette: "Resurrect 64",
-    file: portablePath(outputPath),
-    ...(config.creator ? { creator: config.creator } : {}),
-    ...(config.license ? { license: config.license } : {}),
-    ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {})
-  };
+    ships: entries.map(({ canvas, ...entry }) => entry)
+  }, null, 2)}\n`);
+  writeFileSync(join(waterlineReviewOutputRoot, "README.md"), [
+    "# Ship waterline review",
+    "",
+    `The ${waterlineReviewColor} guide marks each production ship's model-space waterline`,
+    "projected through the same camera as its side-view raster.",
+    "",
+    "Regenerate the review with:",
+    "",
+    "```sh",
+    "npm run render:ship-waterline-review",
+    "```",
+    "",
+    "Unity fleet corrections belong in `waterlineOffsetY` on the corresponding",
+    "`unityShipRoster` entry. Re-bake one corrected Unity ship with:",
+    "",
+    "```sh",
+    "npm run render:unity-ship -- <slug>",
+    "```",
+    "",
+    "A negative offset lowers the waterline toward the keel; a positive offset raises it.",
+    "The bake rejects offsets outside the model bounds.",
+    "",
+    "`lowestOpaqueRelativeToWaterlinePx` is the signed vertical distance from the guide",
+    "to the raster's lowest non-transparent pixel before the guide and background are drawn.",
+    "Red 3x3 markers show the projected pivot points used by procedural oars and paddles.",
+    ""
+  ].join("\n"));
+  writeFileSync(
+    join(waterlineReviewOutputRoot, "waterline-depths.md"),
+    makeWaterlineDepthReport(entries)
+  );
+  console.log(reviewManifestPath);
+  console.log(contactSheetPath);
+}
+
+function uniqueShipEntriesBySlug(entries, label) {
+  const bySlug = new Map();
+  for (const entry of entries) {
+    if (!entry || typeof entry.slug !== "string" || entry.slug.length === 0) {
+      throw new Error(`${label} contains a ship without a slug`);
+    }
+    if (bySlug.has(entry.slug)) throw new Error(`${label} contains duplicate ship ${entry.slug}`);
+    bySlug.set(entry.slug, entry);
+  }
+  return bySlug;
+}
+
+function productionShipRenderConfigs() {
+  const configs = [
+    ...unityShipModels().map((modelPath) => unityShipConfig(modelPath)),
+    ...nativeBoatConfigs(),
+    ...[
+      "mediterranean-galley",
+      "joseon-turtle-ship",
+      "joseon-panokseon",
+      "japanese-atakebune",
+      "spanish-nao",
+      "portuguese-carrack",
+      "dhow",
+      "galleon",
+      "nusantaran-outrigger",
+      "ottoman-coastal-trader",
+      "viking-longship"
+    ].map((slug) => standaloneShipConfigForSlug(slug))
+  ];
+  const bySlug = uniqueShipEntriesBySlug(configs, "production ship render configuration");
+  const expectedSlugs = SHIP_STATS.map((entry) => entry.slug).sort();
+  if (JSON.stringify([...bySlug.keys()].sort()) !== JSON.stringify(expectedSlugs)) {
+    throw new Error("Production ship render configurations do not exactly match the ship roster");
+  }
+  return bySlug;
+}
+
+function scaledSideViewWaterlineY(production, sideView) {
+  for (const [label, value] of Object.entries({
+    waterlineY: production.waterlineY,
+    productionTargetModelMaxDim: production.targetModelMaxDim,
+    sideViewTargetModelMaxDim: sideView.targetModelMaxDim
+  })) {
+    if (!Number.isFinite(value)) throw new Error(`${production.slug} has invalid ${label}: ${value}`);
+  }
+  if (production.targetModelMaxDim <= 0 || sideView.targetModelMaxDim <= 0) {
+    throw new Error(`${production.slug} has non-positive model scale in its manifests`);
+  }
+  return production.waterlineY * sideView.targetModelMaxDim / production.targetModelMaxDim;
+}
+
+function sideViewWaterlinePixelY(production, sideView, camera) {
+  const point = new THREE.Vector3(0, scaledSideViewWaterlineY(production, sideView), 0).project(camera);
+  const pixelY = Math.round((1 - point.y) * 0.5 * sideViewHeight);
+  if (pixelY < 0 || pixelY >= sideViewHeight) {
+    throw new Error(`${production.slug} waterline projects outside its side view: ${pixelY}`);
+  }
+  return pixelY;
+}
+
+function uniqueProjectedSideViewPixels(points, camera, modelYaw, slug) {
+  const rotation = new THREE.Matrix4().makeRotationY(modelYaw);
+  const unique = new Map();
+  for (const point of points) {
+    const projected = point.clone().applyMatrix4(rotation).project(camera);
+    const pixel = {
+      x: Math.round((projected.x * 0.5 + 0.5) * sideViewWidth),
+      y: Math.round((1 - projected.y) * 0.5 * sideViewHeight)
+    };
+    if (pixel.x < 1 || pixel.x >= sideViewWidth - 1 || pixel.y < 1 || pixel.y >= sideViewHeight - 1) {
+      throw new Error(`${slug} oar pivot projects outside its side-view review: ${pixel.x},${pixel.y}`);
+    }
+    unique.set(`${pixel.x}:${pixel.y}`, pixel);
+  }
+  return [...unique.values()].sort((a, b) => a.x - b.x || a.y - b.y);
+}
+
+function makeWaterlineReviewContactSheet(entries) {
+  const scale = 2;
+  const columns = 3;
+  const labelHeight = 20;
+  const cellWidth = sideViewWidth * scale;
+  const imageHeight = sideViewHeight * scale;
+  const cellHeight = imageHeight + labelHeight;
+  const sheet = createCanvas(cellWidth * columns, cellHeight * Math.ceil(entries.length / columns));
+  const ctx = sheet.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#14151f";
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  ctx.font = "12px monospace";
+  ctx.textBaseline = "middle";
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    const x = index % columns * cellWidth;
+    const y = Math.floor(index / columns) * cellHeight;
+    ctx.drawImage(entry.canvas, x, y, cellWidth, imageHeight);
+    ctx.fillStyle = "#f4ecd8";
+    const offset = `${entry.waterlineOffsetY >= 0 ? "+" : ""}${entry.waterlineOffsetY.toFixed(3)}`;
+    ctx.fillText(
+      `${entry.label} | depth ${entry.lowestOpaqueRelativeToWaterlinePx}px | ${offset}`,
+      x + 6,
+      y + imageHeight + labelHeight / 2
+    );
+  }
+  return sheet;
+}
+
+function makeWaterlineDepthReport(entries) {
+  const sorted = [...entries].sort((a, b) => (
+    b.lowestOpaqueRelativeToWaterlinePx - a.lowestOpaqueRelativeToWaterlinePx ||
+    a.label.localeCompare(b.label)
+  ));
+  return [
+    "# Ship waterline depth report",
+    "",
+    "Positive depth is the number of vertical raster pixels from the waterline to the lowest opaque pixel.",
+    "Procedural oars and outriggers are included because this is a literal whole-raster measurement.",
+    "",
+    "| Ship | Relative depth | Waterline row | Lowest opaque row | Manual offset |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    ...sorted.map((entry) => (
+      `| ${entry.label} | ${entry.lowestOpaqueRelativeToWaterlinePx} | ` +
+      `${entry.sideViewWaterlineY} | ${entry.lowestOpaquePixelY} | ${entry.waterlineOffsetY.toFixed(3)} |`
+    )),
+    ""
+  ].join("\n");
+}
+
+function resetWaterlineReviewOutput() {
+  const relativeOutput = portablePath(waterlineReviewOutputRoot);
+  if (relativeOutput !== "apps/pixel-globe/docs/ship-reference/waterlines") {
+    throw new Error(`Refusing to clear unexpected waterline review path: ${waterlineReviewOutputRoot}`);
+  }
+  rmSync(waterlineReviewOutputRoot, { recursive: true, force: true });
+  mkdirSync(waterlineReviewOutputRoot, { recursive: true });
 }
 
 function mediterraneanGalleyConfig() {
@@ -2237,6 +2527,7 @@ function mediterraneanGalleyConfig() {
     scaleMode: "galley-pixel-derivative",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: -0.15,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
     collectOptions: {
@@ -2277,6 +2568,7 @@ function joseonTurtleShipConfig() {
     scaleMode: "joseon-warship",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: -0.05,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
     collectOptions: {
@@ -2294,16 +2586,7 @@ function joseonTurtleShipConfig() {
 function joseonTurtleShipTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, {
-      bankPositions: evenBankPositions(-0.48, 0.48, 5),
-      bankOffset: 0.28,
-      pivotYOffset: -0.45,
-      pivotHalfBeam: 0.27,
-      shaftLength: 0.48,
-      bladeLength: 0.14,
-      shaftRadius: 0.032,
-      bladeRadius: 0.052
-    })
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("joseon-turtle-ship"))
   ];
 }
 
@@ -2326,6 +2609,7 @@ function joseonPanokseonConfig() {
     scaleMode: "joseon-decked-warship",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: -0.23,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
     collectOptions: {
@@ -2344,15 +2628,7 @@ function joseonPanokseonConfig() {
 function joseonPanokseonTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, {
-      bankPositions: evenBankPositions(-0.5, 0.5, 6),
-      pivotYOffset: 0.1,
-      pivotHalfBeam: 0.31,
-      shaftLength: 0.32,
-      bladeLength: 0.1,
-      shaftRadius: 0.03,
-      bladeRadius: 0.048
-    })
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("joseon-panokseon"))
   ];
 }
 
@@ -2375,6 +2651,7 @@ function japaneseAtakebuneConfig() {
     scaleMode: "japanese-fortress-warship",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: 0.073,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
     collectOptions: {
@@ -2410,6 +2687,7 @@ function spanishNaoConfig() {
     scaleMode: "spanish-nao",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: -0.025,
     wakeWaterlineBand: 0.2,
     skipSelfShadowMaps: true
   };
@@ -2434,6 +2712,7 @@ function portugueseCarrackConfig() {
     scaleMode: "portuguese-carrack",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: 0.073,
     wakeWaterlineBand: 0.2,
     collectOptions: {
       transformPoint: orientPortugueseCarrackPoint
@@ -2460,6 +2739,7 @@ function gogiartDhowConfig() {
     scaleMode: "standalone-source-relative",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: -0.244,
     wakeWaterlineBand: 0.18,
     collectOptions: {
       transformPoint: orientGogiartDhowPoint
@@ -2513,6 +2793,7 @@ function nusantaranOutriggerConfig() {
     scaleMode: "nusantaran-ocean-trader",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: -0.012,
     wakeWaterlineBand: 0.2,
     expectedWaterlineHullCount: 1,
     waterlineImmersionRatio: 0.82,
@@ -2541,6 +2822,7 @@ function ottomanCoastalTraderConfig() {
     scaleMode: "ottoman-regional-merchant",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-16-headings`,
+    waterlineOffsetY: -0.883,
     wakeWaterlineBand: 0.2,
     skipSelfShadowMaps: true
   };
@@ -2598,40 +2880,21 @@ function vectorFromCoordinates(point) {
 function japaneseAtakebuneTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, {
-      bankPositions: evenBankPositions(-0.42, 0.28, 4),
-      pivotYOffset: 0.035,
-      pivotHalfBeam: 0.35,
-      shaftLength: 0.28,
-      bladeLength: 0.09,
-      shaftRadius: 0.03,
-      bladeRadius: 0.048
-    })
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("japanese-atakebune"))
   ];
 }
 
 function makeGalleyOarTriangles(frameIndex, waterlineY) {
-  return makeOarBankTriangles(frameIndex, waterlineY, {
-    bankPositions: evenBankPositions(-0.45, 0.45, 5),
-    pivotYOffset: 0.21,
-    pivotHalfBeam: 0.19,
-    shaftLength: 0.57,
-    bladeLength: 0.16,
-    shaftRadius: 0.032,
-    bladeRadius: 0.05
-  });
+  return makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("mediterranean-galley"));
 }
 
 function makeOarBankTriangles(frameIndex, waterlineY, config) {
+  validateProceduralOarStroke(config);
   const { sweep, lift } = rowingOarPose(frameIndex);
   const oarColor = { r: 140, g: 86, b: 48 };
   const bladeColor = { r: 111, g: 68, b: 44 };
   const triangles = [];
-  const pivotY = waterlineY + config.pivotYOffset;
-  for (const side of [-1, 1]) {
-    for (let bankIndex = 0; bankIndex < config.bankPositions.length; bankIndex++) {
-      const bankZ = config.bankPositions[bankIndex] + (config.bankOffset ?? 0);
-      const pivot = new THREE.Vector3(side * config.pivotHalfBeam, pivotY, bankZ);
+  for (const { pivot, side, bankIndex } of oarBankPivotEntries(waterlineY, config)) {
       const shaftEnd = new THREE.Vector3(
         pivot.x + side * config.shaftLength * Math.cos(sweep),
         pivot.y + lift,
@@ -2645,9 +2908,45 @@ function makeOarBankTriangles(frameIndex, waterlineY, config) {
       const rasterFeature = `oar:${side}:${bankIndex}`;
       triangles.push(...makePrismTriangles(pivot, shaftEnd, config.shaftRadius, oarColor, 5, rasterFeature));
       triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5, rasterFeature));
-    }
   }
   return triangles;
+}
+
+function validateProceduralOarStroke(config) {
+  const bladeTipOffsets = Array.from({ length: SHIP_ROWING_FRAME_COUNT }, (_, frameIndex) => {
+    const { lift } = rowingOarPose(frameIndex);
+    return config.pivotYOffset + lift * 1.35;
+  });
+  if (Math.min(...bladeTipOffsets) >= 0 || Math.max(...bladeTipOffsets) <= 0) {
+    throw new Error(
+      `Procedural oar stroke must move its blade tip below and above the waterline: ` +
+      `${bladeTipOffsets.join(",")}`
+    );
+  }
+}
+
+function oarBankPivotEntries(waterlineY, config) {
+  const pivotY = proceduralOarPivotY(waterlineY, config);
+  const entries = [];
+  for (const side of [-1, 1]) {
+    for (let bankIndex = 0; bankIndex < config.bankPositions.length; bankIndex++) {
+      const bankZ = config.bankPositions[bankIndex] + (config.bankOffset ?? 0);
+      entries.push({
+        side,
+        bankIndex,
+        pivot: new THREE.Vector3(side * config.pivotHalfBeam, pivotY, bankZ)
+      });
+    }
+  }
+  return entries;
+}
+
+function proceduralOarPivotY(waterlineY, config) {
+  if (!Number.isFinite(waterlineY)) throw new Error(`Procedural oars require a finite waterline: ${waterlineY}`);
+  if (!Number.isFinite(config.pivotYOffset) || config.pivotYOffset < 0) {
+    throw new Error(`Procedural oar pivot must be at or above the waterline: ${config.pivotYOffset}`);
+  }
+  return waterlineY + config.pivotYOffset;
 }
 
 function evenBankPositions(min, max, count) {
@@ -2658,6 +2957,85 @@ function evenBankPositions(min, max, count) {
     throw new Error(`Oar bank requires at least two positions, got ${count}`);
   }
   return Array.from({ length: count }, (_, index) => min + (max - min) * index / (count - 1));
+}
+
+function proceduralOarConfig(slug) {
+  if (slug === "mediterranean-galley") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.45, 0.45, 5),
+    pivotYOffset: 0.05,
+    pivotHalfBeam: 0.19,
+    shaftLength: 0.57,
+    bladeLength: 0.16,
+    shaftRadius: 0.032,
+    bladeRadius: 0.05
+  };
+  if (slug === "joseon-turtle-ship") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.48, 0.48, 5),
+    bankOffset: 0.28,
+    pivotYOffset: 0.04,
+    pivotHalfBeam: 0.27,
+    shaftLength: 0.48,
+    bladeLength: 0.14,
+    shaftRadius: 0.032,
+    bladeRadius: 0.052
+  };
+  if (slug === "joseon-panokseon") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.5, 0.5, 6),
+    pivotYOffset: 0.1,
+    pivotHalfBeam: 0.31,
+    shaftLength: 0.32,
+    bladeLength: 0.1,
+    shaftRadius: 0.03,
+    bladeRadius: 0.048
+  };
+  if (slug === "japanese-atakebune") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.42, 0.28, 4),
+    pivotYOffset: 0.035,
+    pivotHalfBeam: 0.35,
+    shaftLength: 0.28,
+    bladeLength: 0.09,
+    shaftRadius: 0.03,
+    bladeRadius: 0.048
+  };
+  if (slug === "viking-longship") return {
+    kind: "bank",
+    bankPositions: evenBankPositions(-0.56, 0.56, 6),
+    pivotYOffset: 0.05,
+    pivotHalfBeam: 0.18,
+    shaftLength: 0.5,
+    bladeLength: 0.14,
+    shaftRadius: 0.03,
+    bladeRadius: 0.048
+  };
+  if (slug === "mesoamerican-dugout-canoe") return {
+    kind: "paddles",
+    paddles: [
+      { side: -1, z: -0.23 },
+      { side: 1, z: 0.23 }
+    ],
+    pivotYOffset: 0.11,
+    pivotHalfBeam: 0.22,
+    shaftLength: 0.3,
+    bladeLength: 0.1,
+    shaftRadius: 0.016,
+    bladeRadius: 0.028
+  };
+  throw new Error(`No procedural oar configuration for ship: ${slug}`);
+}
+
+function proceduralOarPivotPoints(slug, waterlineY) {
+  const config = proceduralOarConfig(slug);
+  if (config.kind === "bank") {
+    return oarBankPivotEntries(waterlineY, config).map((entry) => entry.pivot);
+  }
+  if (config.kind === "paddles") {
+    return paddlePivotEntries(waterlineY, config).map((entry) => entry.pivot);
+  }
+  throw new Error(`Unknown procedural oar configuration kind for ${slug}: ${config.kind}`);
 }
 
 function vikingLongshipConfig() {
@@ -2692,33 +3070,14 @@ function vikingLongshipConfig() {
 function vikingLongshipTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
   return [
     ...hullTriangles,
-    ...makeOarBankTriangles(frameIndex, waterlineY, {
-      bankPositions: evenBankPositions(-0.56, 0.56, 6),
-      pivotYOffset: 0.19,
-      pivotHalfBeam: 0.18,
-      shaftLength: 0.5,
-      bladeLength: 0.14,
-      shaftRadius: 0.03,
-      bladeRadius: 0.048
-    })
+    ...makeOarBankTriangles(frameIndex, waterlineY, proceduralOarConfig("viking-longship"))
   ];
 }
 
 function mesoamericanCanoeTrianglesForFrame(hullTriangles, frameIndex, waterlineY) {
   return [
     ...hullTriangles,
-    ...makeCanoePaddleTriangles(frameIndex, waterlineY, {
-      paddles: [
-        { side: -1, z: -0.23 },
-        { side: 1, z: 0.23 }
-      ],
-      pivotYOffset: 0.13,
-      pivotHalfBeam: 0.22,
-      shaftLength: 0.3,
-      bladeLength: 0.1,
-      shaftRadius: 0.016,
-      bladeRadius: 0.028
-    })
+    ...makeCanoePaddleTriangles(frameIndex, waterlineY, proceduralOarConfig("mesoamerican-dugout-canoe"))
   ];
 }
 
@@ -2726,11 +3085,9 @@ function makeCanoePaddleTriangles(frameIndex, waterlineY, config) {
   const { sweep, lift } = rowingOarPose(frameIndex, { sweepScale: 0.5, liftScale: 0.06 });
   const shaftColor = { r: 140, g: 86, b: 48 };
   const bladeColor = { r: 111, g: 68, b: 44 };
-  const pivotY = waterlineY + config.pivotYOffset;
   const triangles = [];
 
-  for (const paddle of config.paddles) {
-    const pivot = new THREE.Vector3(paddle.side * config.pivotHalfBeam, pivotY, paddle.z);
+  for (const { paddle, pivot } of paddlePivotEntries(waterlineY, config)) {
     const shaftEnd = new THREE.Vector3(
       pivot.x + paddle.side * config.shaftLength * Math.cos(sweep),
       pivot.y + lift,
@@ -2745,6 +3102,14 @@ function makeCanoePaddleTriangles(frameIndex, waterlineY, config) {
     triangles.push(...makePrismTriangles(shaftEnd, bladeEnd, config.bladeRadius, bladeColor, 5));
   }
   return triangles;
+}
+
+function paddlePivotEntries(waterlineY, config) {
+  const pivotY = proceduralOarPivotY(waterlineY, config);
+  return config.paddles.map((paddle) => ({
+    paddle,
+    pivot: new THREE.Vector3(paddle.side * config.pivotHalfBeam, pivotY, paddle.z)
+  }));
 }
 
 function makePrismTriangles(start, end, radius, color, sides, rasterFeature = null) {
@@ -2939,6 +3304,22 @@ async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   return { entry, wakeAnchors, hullFootprints, sideView };
 }
 
+async function renderUnityShip(slug) {
+  if (!slug) throw new Error("--unity-ship requires a ship slug");
+  const modelPath = unityShipModels().find((candidate) => unityShipConfig(candidate).slug === slug);
+  if (!modelPath) throw new Error(`No Unity fleet ship has slug: ${slug}`);
+  const manifest = JSON.parse(readFileSync(join(unityFleetOutputRoot, "manifest.json"), "utf8"));
+  const existing = manifest.ships?.find((entry) => entry.slug === slug);
+  if (!existing) throw new Error(`Production manifest has no Unity fleet ship: ${slug}`);
+  if (!Number.isFinite(existing.targetModelMaxDim) || !Number.isFinite(existing.frameScale)) {
+    throw new Error(`Production manifest has incomplete render scale for Unity fleet ship: ${slug}`);
+  }
+  const config = unityShipConfig(modelPath);
+  config.targetModelMaxDim ??= existing.targetModelMaxDim;
+  config.frameScale = existing.frameScale;
+  return renderStandaloneShip(config, "unitySingleShipGenerator", `--unity-ship ${slug}`);
+}
+
 async function renderMediterraneanGalleyReference() {
   const config = mediterraneanGalleyConfig();
   config.outputDir = join(repoRoot, "tmp/mediterranean-galley-reference");
@@ -2969,6 +3350,7 @@ function nativeBoatConfigs() {
       scaleMode: "native-boat-relative",
       outputDir: unityFleetOutputRoot,
       outputPrefix: "polynesian-voyaging-canoe-16-headings",
+      waterlineOffsetY: -0.995,
       expectedWaterlineHullCount: 2
     },
     {
@@ -2986,6 +3368,7 @@ function nativeBoatConfigs() {
       scaleMode: "native-boat-relative",
       outputDir: unityFleetOutputRoot,
       outputPrefix: "mesoamerican-dugout-canoe-16-headings",
+      waterlineOffsetY: 0.023,
       animationFrameCount: SHIP_ROWING_FRAME_COUNT,
       animationTrianglesForFrame: mesoamericanCanoeTrianglesForFrame,
       animationContactSheetPath: join(
@@ -3043,8 +3426,14 @@ async function renderNativeBoats() {
 }
 
 function upsertShipEntries(existing, replacements) {
-  const replacementSlugs = new Set(replacements.map((entry) => entry.slug));
-  return [...existing.filter((entry) => !replacementSlugs.has(entry.slug)), ...replacements];
+  const replacementBySlug = new Map(replacements.map((entry) => [entry.slug, entry]));
+  const result = existing.map((entry) => {
+    const replacement = replacementBySlug.get(entry.slug);
+    if (!replacement) return entry;
+    replacementBySlug.delete(entry.slug);
+    return replacement;
+  });
+  return [...result, ...replacementBySlug.values()];
 }
 
 function upsertHullFootprints(slug, hullFootprints, generatorKey, generatorFlag) {
@@ -3301,8 +3690,16 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.has("--waterline-review")) {
+    await renderShipWaterlineReview();
+    return;
+  }
   if (args.has("--all-production-ships")) {
     await renderAllProductionShips();
+    return;
+  }
+  if (args.has("--unity-ship")) {
+    await renderUnityShip(args.value("--unity-ship"));
     return;
   }
   if (args.has("--rowing-ships")) {

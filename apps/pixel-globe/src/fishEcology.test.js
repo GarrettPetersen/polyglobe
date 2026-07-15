@@ -24,6 +24,41 @@ test("temperate rivers can produce seasonal salmon runs", () => {
   assert.ok(fishery.areaRadiusPx > 0);
 });
 
+test("Lake Victoria has only native 1522 freshwater fisheries", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 140 * MINUTE;
+  const victoriaCichlid = findFishery(state, "lake", -1, 33, minute, "victoria-cichlid");
+  const nativeTilapia = findFishery(state, "lake", -1, 33, minute, "native-tilapia");
+
+  assert.equal(victoriaCichlid.speciesLabel, "Victoria cichlid");
+  assert.equal(nativeTilapia.speciesLabel, "Native tilapia");
+  assert.equal(victoriaCichlid.habitatKind, "lake");
+  assert.equal(nativeTilapia.habitatKind, "lake");
+});
+
+test("the Great Lakes support their native freshwater fish roster", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 140 * MINUTE;
+  const speciesIds = ["lake-trout", "lake-whitefish", "walleye", "yellow-perch", "lake-sturgeon"];
+
+  for (const speciesId of speciesIds) {
+    const fishery = findFishery(state, "lake", 45, -84, minute, speciesId);
+    assert.equal(fishery.speciesId, speciesId);
+    assert.equal(fishery.habitatKind, "lake");
+  }
+});
+
+test("marine fish do not populate freshwater lakes", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 140 * MINUTE;
+  const allowed = new Set(["victoria-cichlid", "native-tilapia"]);
+
+  for (let tileId = 1; tileId <= 200; tileId++) {
+    const fishery = fisheryForHabitat(state, { tileId, kind: "lake", lat: -1, lon: 33 }, minute);
+    if (fishery) assert.equal(allowed.has(fishery.speciesId), true);
+  }
+});
+
 test("larger fishery populations draw visibly larger schools", () => {
   assert.equal(visibleFishCountForDensity(0.12), 2);
   assert.equal(visibleFishCountForDensity(0.5), 5);
