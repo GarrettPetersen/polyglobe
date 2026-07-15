@@ -721,10 +721,10 @@ function barredPortView(city, context) {
   const options = [];
   if (conquest?.canAttempt) {
     options.push(option(
-      `Land marines  ${conquest.successPercent}%`,
+      "Land Marines",
       { type: "land-marines" },
       {
-        detail: `Defeat risks ${conquest.failureCrewLossMin}-${conquest.failureCrewLossMax} crew`
+        detail: `${conquest.successPercent}% Chance of Success`
       }
     ));
   }

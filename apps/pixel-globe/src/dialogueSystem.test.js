@@ -573,8 +573,8 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
   };
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(view.text, /harbor guns are silent/i);
-  assert.equal(view.options[0].label, "Land marines  57%");
-  assert.equal(view.options[0].detail, "Defeat risks 12-21 crew");
+  assert.equal(view.options[0].label, "Land Marines");
+  assert.equal(view.options[0].detail, "57% Chance of Success");
   assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
     closed: false,
     action: { type: "land-marines" }
