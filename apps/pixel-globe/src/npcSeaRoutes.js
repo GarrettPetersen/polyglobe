@@ -95,9 +95,7 @@ export const PIRATE_SHIP_SLUGS = Object.freeze([
   "galleon"
 ]);
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
-const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
 const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
-const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
@@ -105,36 +103,6 @@ const EAST_ASIAN_FACTION_WARSHIPS = Object.freeze({
   joseon: JOSEON_TURTLE_SHIP_SLUG,
   japan: JAPANESE_ATAKEBUNE_SLUG
 });
-
-export const NPC_SHIP_SLUGS = Object.freeze([
-  "polynesian-voyaging-canoe",
-  "mesoamerican-dugout-canoe",
-  "fishing-lugger",
-  "small-junk",
-  "medium-junk",
-  "large-junk",
-  "sampan",
-  "dhow",
-  "felucca",
-  "xebec",
-  "mediterranean-galley",
-  JOSEON_TURTLE_SHIP_SLUG,
-  JOSEON_PANOKSEON_SLUG,
-  JAPANESE_ATAKEBUNE_SLUG,
-  SPANISH_NAO_SLUG,
-  PORTUGUESE_CARRACK_SLUG,
-  NUSANTARAN_OUTRIGGER_SLUG,
-  OTTOMAN_COASTAL_TRADER_SLUG,
-  "caravel",
-  "carrack",
-  "fluyt",
-  "brigantine",
-  "galleon",
-  "cutter",
-  "square-rigged-caravel",
-  "ship-of-the-line",
-  ...PIRATE_SHIP_SLUGS
-]);
 
 const LANE_NODES = Object.freeze([
   laneNode("north-sea", "North Sea", 52.2, 3.4),
@@ -255,6 +223,18 @@ const FLEET_PROFILES = Object.freeze([
     warships: ["brigantine", "pirate-brig", "galleon", "ship-of-the-line"]
   }, isWideWorldPort, "interregional")
 ]);
+
+export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
+  ...FLEET_PROFILES.flatMap((profileSpec) => [
+    ...profileSpec.fisherSlugs,
+    ...profileSpec.merchantSlugs,
+    ...profileSpec.warshipSlugs
+  ]),
+  ...PIRATE_SHIP_SLUGS,
+  ...Object.values(EAST_ASIAN_FACTION_WARSHIPS),
+  PORTUGUESE_CARRACK_SLUG,
+  OTTOMAN_COASTAL_TRADER_SLUG
+])]);
 
 export function createNpcSeaRouteSystem({
   ports,

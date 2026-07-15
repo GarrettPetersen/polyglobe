@@ -15444,7 +15444,7 @@ function prebakedWaterHexWaveFrame(img, frame) {
 
 function waterHexWaveFrameForTile(call, activeChart) {
   if (call.row?.t !== "water" && call.row?.t !== "lake") return null;
-  if (!activeChart?.map && (seaIceMask?.[call.id] || freshwaterIceMask?.[call.id])) return null;
+  if (!activeChart?.map && tileHasSurfaceIce(call.id)) return null;
   if (activeChart?.map) {
     const cached = localWaterHexWaveFrameIndexCache.get(call.id);
     if (cached !== undefined) return cached;
@@ -15482,19 +15482,8 @@ function drawWeatherSurface(call) {
 
 function drawIceSurface(call) {
   if (!isWaterSurfaceRow(call.row)) return;
-  if (!seaIceMask?.[call.id] && !freshwaterIceMask?.[call.id]) return;
-  drawIceOverlay(call, freshwaterIceMask?.[call.id] ? 0.72 : 0.6);
-}
-
-function drawIceOverlay(call, alpha) {
-  const img = terrainImage("ice_01");
-  const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
-  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(img, x, y);
-  ctx.restore();
-  drawWeatherSpeckles(call, "rgba(229, 242, 235, 0.58)", 8, 0x494345, 10, 6);
+  if (!tileHasSurfaceIce(call.id)) return;
+  drawWeatherSpeckles(call, "rgba(255, 255, 255, 0.72)", 8, 0x494345, 10, 6);
 }
 
 function drawWeatherSpeckles(call, color, count, salt, radiusX, radiusY) {
@@ -16192,15 +16181,22 @@ function terrainImage(key) {
 }
 
 function terrainImageForTile(row, id) {
+  if (isWaterSurfaceRow(row) && tileHasSurfaceIce(id)) return terrainImage("ice_01");
   const key = spriteForTerrain(row, id);
   if (isWaterSurfaceRow(row)) return waterLatitudeTerrainImage(key, id, row);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainImage(key) : terrainImage(key);
 }
 
 function terrainColorForTile(row, id) {
+  if (isWaterSurfaceRow(row) && tileHasSurfaceIce(id)) return terrainSpriteColor("ice_01");
   const key = spriteForTerrain(row, id);
   if (isWaterSurfaceRow(row)) return waterLatitudeTerrainColor(key, id, row);
   return tileHasSeasonalSnowTerrain(row, id) ? snowCoveredTerrainColor(key) : terrainSpriteColor(key);
+}
+
+function tileHasSurfaceIce(tileId) {
+  if (!Number.isInteger(tileId) || tileId < 0) throw new Error(`Invalid surface ice tile: ${tileId}`);
+  return Boolean(seaIceMask?.[tileId] || freshwaterIceMask?.[tileId]);
 }
 
 function waterLatitudeTerrainImage(key, id, row = null) {

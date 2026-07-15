@@ -8,6 +8,7 @@ import {
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP,
+  NPC_SHIP_SLUGS,
   PIRATE_SHIP_SLUGS,
   applyNpcConquestOwnership,
   createNpcSeaRouteSystem,
@@ -53,6 +54,11 @@ const MESOAMERICAN_PORTS = Object.freeze([
   port(30, "Guanahani Village", "Bahamas", "mesoamerican", 24.06, -74.47, 1200, "neutral"),
   port(31, "Coroa Vermelha Village", "Brazil", "mesoamerican", -16.33, -39.01, 1600, "neutral")
 ]);
+
+test("every NPC route hull is included in the sprite preload roster", () => {
+  assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
+  for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
+});
 
 test("a collapsed empire loses its NPC fleet and captured port ownership", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
