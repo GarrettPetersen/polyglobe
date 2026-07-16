@@ -540,6 +540,13 @@ import {
   isColonizationQuestTarget
 } from "./colonizationQuest.js";
 import { formatCompactNumber } from "./compactNumber.js";
+import { EARTH_RADIUS_KM } from "./worldDistance.js";
+import {
+  formatWaypointLabel,
+  waypointArrowEdgePoint,
+  waypointArrowGeometry,
+  waypointArrowMaxY
+} from "./waypointArrowUi.js";
 import {
   activeTravelMissionQuest,
   markPassengerOfferSeen,
@@ -1035,6 +1042,9 @@ const PORT_WAIT_BUTTON_W = 176;
 const QUEST_ARROW_EDGE_MARGIN_PX = 15;
 const QUEST_ARROW_CITY_Y_OFFSET = -18;
 const QUEST_ARROW_SIZE_PX = 7;
+const QUEST_ARROW_CONTROL_GAP_PX = 4;
+const QUEST_ARROW_TOOLTIP_GAP_PX = 4;
+const QUEST_ARROW_TOOLTIP_H = 14;
 const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
 const MOUNTAIN_DISCOVERY_NOTICE_MS = 4600;
 const MOUNTAIN_DISCOVERY_PANEL_W = 230;
@@ -1624,6 +1634,9 @@ let shoreScavengeAction = null;
 let anchored = false;
 let portWaitState = null;
 let portWaitButtonRect = null;
+let waypointArrowTargets = [];
+let selectedWaypointArrowId = null;
+let waypointArrowHoverPoint = null;
 let stormMusicActive = false;
 let stormDamageNotice = null;
 let combatNotice = null;
@@ -1742,6 +1755,7 @@ window.addEventListener("keyup", (event) => {
 
 canvas.addEventListener("pointerdown", handlePointerDown);
 canvas.addEventListener("pointermove", handlePointerMove);
+canvas.addEventListener("pointerleave", handlePointerLeave);
 canvas.addEventListener("wheel", handleCanvasWheel, { passive: false });
 window.addEventListener("pointerup", handlePointerUp);
 window.addEventListener("pointercancel", handlePointerUp);
@@ -5904,6 +5918,7 @@ function activateStartMenuSelection() {
 
 function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
+  waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
   sailingTutorialInputMode = event.pointerType === "touch" || event.pointerType === "pen"
     ? "touch"
     : "mouse";
@@ -5928,6 +5943,19 @@ function handlePointerDown(event) {
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     openCaptainMenu();
     return;
+  }
+  if (!dialogueState) {
+    const waypoint = waypointArrowAtPoint(point);
+    if (waypoint) {
+      event.preventDefault();
+      selectedWaypointArrowId = selectedWaypointArrowId === waypoint.id ? null : waypoint.id;
+      dirty = true;
+      return;
+    }
+    if (selectedWaypointArrowId !== null) {
+      selectedWaypointArrowId = null;
+      dirty = true;
+    }
   }
   if (!dialogueState && pointInRect(point, anchorButtonRect)) {
     event.preventDefault();
@@ -5983,6 +6011,7 @@ function handlePointerDown(event) {
 
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
+  waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
   if (lakeBattleMode && optionsMenu.isOpen) {
@@ -6001,6 +6030,12 @@ function handlePointerMove(event) {
     updatePointerSteering(point);
     return;
   }
+  dirty = true;
+}
+
+function handlePointerLeave(event) {
+  if (event.pointerType === "touch") return;
+  waypointArrowHoverPoint = null;
   dirty = true;
 }
 
@@ -12670,9 +12705,6 @@ function render(nowMs) {
   drawWindIndicator(nowMs);
   if (minimapShouldBeVisible()) drawMinimap(nowMs);
   drawSurvivalMeters();
-  drawQuestDestinationArrow(nowMs);
-  drawColonizationDestinationArrow(nowMs);
-  drawCampaignGoalDestinationArrow(nowMs);
   drawStormStatus(nowMs);
   drawCombatNotice(nowMs);
   drawFishCatchNotice(nowMs);
@@ -12684,6 +12716,11 @@ function render(nowMs) {
     drawScavengeButton();
     drawInteractionButton();
   }
+  beginWaypointArrowFrame();
+  drawQuestDestinationArrow(nowMs);
+  drawColonizationDestinationArrow(nowMs);
+  drawCampaignGoalDestinationArrow(nowMs);
+  drawWaypointArrowTooltip();
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay(nowMs);
@@ -19227,6 +19264,8 @@ function drawQuestDestinationArrow(nowMs) {
   const destinationVector = latLonToDirection(destination.lat, destination.lon);
   const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
   drawWorldTargetArrow({
+    id: `quest:${destination.tileId}`,
+    label: cityLabelText(destination),
     targetVector: destinationVector,
     localPoint: visibleCity || localPointForGlobeVector(destinationVector),
     localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
@@ -19245,6 +19284,8 @@ function drawCampaignGoalDestinationArrow(nowMs) {
     if (!discovery) throw new Error(`Campaign goal points to missing discovery: ${destination.discoveryId}`);
     const targetVector = nearestDiscoveryDirection(discovery, ship.position);
     drawWorldTargetArrow({
+      id: `campaign:discovery:${discovery.id}`,
+      label: discovery.displayName,
       targetVector,
       localPoint: localPointForGlobeVector(targetVector),
       localYOffset: -10,
@@ -19263,6 +19304,8 @@ function drawCampaignGoalDestinationArrow(nowMs) {
   const targetVector = latLonToDirection(homeCity.lat, homeCity.lon);
   const visibleCity = chart.cityCalls?.find((call) => call.tileId === homeCity.tileId);
   drawWorldTargetArrow({
+    id: `campaign:home:${homeCity.tileId}`,
+    label: cityLabelText(homeCity),
     targetVector,
     localPoint: visibleCity || localPointForGlobeVector(targetVector),
     localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
@@ -19275,9 +19318,13 @@ function drawColonizationDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout || !gameState) return;
   const objective = colonizationObjective(gameState.memory.colonization);
   if (!objective) return;
+  const destination = colonizationWorldRecord(gameState.memory.colonization);
+  if (!destination) throw new Error("Colonization objective has no world destination");
   const targetVector = tileCenterVector(objective.tileId);
   const visibleCity = chart.cityCalls?.find((call) => call.tileId === objective.tileId);
   drawWorldTargetArrow({
+    id: `colonization:${objective.kind}:${objective.tileId}`,
+    label: cityLabelText(destination),
     targetVector,
     localPoint: visibleCity || localPointForGlobeVector(targetVector),
     localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
@@ -19286,22 +19333,116 @@ function drawColonizationDestinationArrow(nowMs) {
   });
 }
 
-function drawWorldTargetArrow({ targetVector, localPoint, localYOffset, nowMs, style }) {
+function beginWaypointArrowFrame() {
+  waypointArrowTargets = [];
+}
+
+function drawWorldTargetArrow({
+  id,
+  label,
+  targetVector,
+  localPoint,
+  localYOffset,
+  nowMs,
+  style
+}) {
+  const maxY = currentWaypointArrowMaxY();
   if (localPoint) {
     const offset = chartOffsetPixels(chart);
     const point = {
       x: Math.round(localPoint.x + offset.x),
       y: Math.round(localPoint.y + offset.y + localYOffset)
     };
-    if (pointWithinScreen(point, QUEST_ARROW_EDGE_MARGIN_PX)) {
-      drawQuestArrowGlyph(point, { x: 0, y: 1 }, nowMs, style);
+    if (pointWithinWaypointBounds(point, QUEST_ARROW_EDGE_MARGIN_PX, maxY)) {
+      const direction = { x: 0, y: 1 };
+      const hitRect = drawQuestArrowGlyph(point, direction, nowMs, style);
+      registerWaypointArrow({ id, label, targetVector, point, direction, hitRect });
       return;
     }
   }
   const tangent = normalizeOrNull(projectTangentVector(targetVector, ship.position));
   const direction = tangent ? tangentToScreenDirection(tangent) : null;
   if (!direction) return;
-  drawQuestArrowGlyph(screenEdgePointForDirection(direction), direction, nowMs, style);
+  const point = waypointArrowEdgePoint({
+    direction,
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    margin: QUEST_ARROW_EDGE_MARGIN_PX,
+    maxY
+  });
+  const hitRect = drawQuestArrowGlyph(point, direction, nowMs, style);
+  registerWaypointArrow({ id, label, targetVector, point, direction, hitRect });
+}
+
+function currentWaypointArrowMaxY() {
+  const controlRects = [
+    anchorButtonRect,
+    scavengeButtonRect,
+    interactionButtonRect
+  ].filter(Boolean);
+  if (portWaitButtonRect) {
+    controlRects.push({
+      ...portWaitButtonRect,
+      y: portWaitButtonRect.y - 17,
+      h: portWaitButtonRect.h + 17
+    });
+  }
+  return waypointArrowMaxY({
+    screenHeight: SCREEN_H,
+    margin: QUEST_ARROW_EDGE_MARGIN_PX,
+    controlRects,
+    gap: QUEST_ARROW_CONTROL_GAP_PX
+  });
+}
+
+function registerWaypointArrow({ id, label, targetVector, point, direction, hitRect }) {
+  if (typeof id !== "string" || id === "") throw new Error("Waypoint arrow requires an id");
+  const distanceKm = EARTH_RADIUS_KM * vectorArcDistance(ship.position, targetVector);
+  waypointArrowTargets.push({
+    id,
+    label: formatWaypointLabel(label, distanceKm),
+    point,
+    direction,
+    hitRect
+  });
+}
+
+function waypointArrowAtPoint(point) {
+  if (!point) return null;
+  for (let index = waypointArrowTargets.length - 1; index >= 0; index--) {
+    if (pointInRect(point, waypointArrowTargets[index].hitRect)) {
+      return waypointArrowTargets[index];
+    }
+  }
+  return null;
+}
+
+function drawWaypointArrowTooltip() {
+  const hovered = waypointArrowAtPoint(waypointArrowHoverPoint);
+  let target = hovered;
+  if (!target && selectedWaypointArrowId !== null) {
+    target = waypointArrowTargets.find((entry) => entry.id === selectedWaypointArrowId) || null;
+    if (!target) selectedWaypointArrowId = null;
+  }
+  if (!target) return;
+
+  const label = fitPixelText(target.label, PIXEL_FONT_SMALL_8, SCREEN_W - 16);
+  const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 8;
+  const x = Math.round(clamp(target.point.x - width / 2, 4, SCREEN_W - width - 4));
+  const aboveArrow = target.point.y > SCREEN_H / 2;
+  const preferredY = aboveArrow
+    ? target.hitRect.y - QUEST_ARROW_TOOLTIP_H - QUEST_ARROW_TOOLTIP_GAP_PX
+    : target.hitRect.y + target.hitRect.h + QUEST_ARROW_TOOLTIP_GAP_PX;
+  const y = Math.round(clamp(preferredY, 4, SCREEN_H - QUEST_ARROW_TOOLTIP_H - 4));
+
+  ctx.fillStyle = PIRATE_MENU_PAPER;
+  ctx.fillRect(x, y, width, QUEST_ARROW_TOOLTIP_H);
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, QUEST_ARROW_TOOLTIP_H - 1);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText(label, x + 4, y + 3, {
+    font: PIXEL_FONT_SMALL_8
+  });
 }
 
 function nearestUndiscoveredExplorerWonder(origin) {
@@ -19347,54 +19488,23 @@ function activeQuestDestinationPort() {
   return destination;
 }
 
-function pointWithinScreen(point, margin = 0) {
+function pointWithinWaypointBounds(point, margin, maxY) {
   return point.x >= margin &&
     point.x <= SCREEN_W - margin &&
     point.y >= margin &&
-    point.y <= SCREEN_H - margin;
-}
-
-function screenEdgePointForDirection(direction) {
-  const dir = normalizeScreenVector(direction) || { x: 0, y: -1 };
-  const cx = SCREEN_W / 2;
-  const cy = SCREEN_H / 2;
-  const candidates = [];
-  if (Math.abs(dir.x) > 1e-6) {
-    candidates.push(((dir.x > 0 ? SCREEN_W - QUEST_ARROW_EDGE_MARGIN_PX : QUEST_ARROW_EDGE_MARGIN_PX) - cx) / dir.x);
-  }
-  if (Math.abs(dir.y) > 1e-6) {
-    candidates.push(((dir.y > 0 ? SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX : QUEST_ARROW_EDGE_MARGIN_PX) - cy) / dir.y);
-  }
-  const t = Math.min(...candidates.filter((value) => value > 0));
-  return {
-    x: Math.round(cx + dir.x * t),
-    y: Math.round(cy + dir.y * t)
-  };
+    point.y <= maxY;
 }
 
 function drawQuestArrowGlyph(point, direction, nowMs, style = {}) {
-  const dir = normalizeScreenVector(direction) || { x: 0, y: -1 };
   const pulse = reducedMotionPreferred ? 0.5 : 0.5 + Math.sin(nowMs / 420 * Math.PI * 2) * 0.5;
   const size = QUEST_ARROW_SIZE_PX + (pulse > 0.72 ? 1 : 0);
-  const width = 4;
-  const px = -dir.y;
-  const py = dir.x;
-  const tip = {
-    x: Math.round(point.x),
-    y: Math.round(point.y)
-  };
-  const base = {
-    x: Math.round(tip.x - dir.x * size),
-    y: Math.round(tip.y - dir.y * size)
-  };
-  const left = {
-    x: Math.round(base.x + px * width),
-    y: Math.round(base.y + py * width)
-  };
-  const right = {
-    x: Math.round(base.x - px * width),
-    y: Math.round(base.y - py * width)
-  };
+  const geometry = waypointArrowGeometry({
+    point,
+    direction,
+    size,
+    width: 4
+  });
+  const { tip, base, left, right } = geometry;
 
   ctx.fillStyle = style.shadow || "rgba(33, 24, 20, 0.72)";
   ctx.beginPath();
@@ -19419,6 +19529,7 @@ function drawQuestArrowGlyph(point, direction, nowMs, style = {}) {
   ctx.lineTo(base.x, base.y);
   ctx.closePath();
   ctx.fill();
+  return geometry.hitRect;
 }
 
 function updateWindIndicator(dt) {

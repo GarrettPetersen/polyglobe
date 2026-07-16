@@ -9,6 +9,9 @@
 ## Fonts
 - SparklyDest - "Pixel Pirate" (CC BY-SA 3.0; via DaFont)
 
+## Capsule Art
+- Anonymous British School - "The Embarkation of Henry VIII at Dover" (circa 1520-1540, public domain; Royal Collection / Wikimedia Commons)
+
 ## 3D Models
 - Palmov Island - "Low Poly Cartoon Sailing Ships" (Standard Unity Asset Store EULA)
 - Hialda Alpizar - "Polynesian Voyaging Canoe" (CC BY 4.0)

@@ -5,7 +5,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-capture pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-capture pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
 
 help:
 	@echo "Targets:"
@@ -31,6 +31,7 @@ help:
 	@echo "  make pixel-globe-normalize-sfx      Normalize source SFX to runtime OGG files"
 	@echo "  make pixel-globe-render-ship        Rebuild the default ship sprite lighting sheets"
 	@echo "  make pixel-globe-render-unity-ships Rebuild imported Unity ship sprite lighting sheets"
+	@echo "  make pixel-globe-render-capsules    Rebuild storefront and library capsule art"
 
 demo-dev:
 	cd $(DEMO_DIR) && npm run dev
@@ -111,3 +112,6 @@ pixel-globe-render-ship:
 
 pixel-globe-render-unity-ships:
 	npm --prefix $(PIXEL_GLOBE_DIR) run render:unity-ships
+
+pixel-globe-render-capsules:
+	npm --prefix $(PIXEL_GLOBE_DIR) run render:capsules

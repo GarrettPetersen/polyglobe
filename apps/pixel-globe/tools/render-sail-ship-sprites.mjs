@@ -2860,7 +2860,7 @@ function liftTextureColor(color, { rScale, gScale, bScale, rOffset, gOffset, bOf
 }
 
 function orientAtakebunePoint(point) {
-  return vectorFromCoordinates(orientNegativeXForwardYUpToZForward(point));
+  return vectorFromCoordinates(orientPositiveXForwardToZForward(point));
 }
 
 function orientTurtleShipPoint(point) {
