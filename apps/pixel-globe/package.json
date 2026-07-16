@@ -36,6 +36,7 @@
     "render:game-icons": "node tools/build-game-icon-atlas.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
     "render:capsules": "node tools/generate-capsule-art.mjs",
+    "render:capsule-title-comparison": "node tools/generate-capsule-title-comparison.mjs",
     "test": "node --test src/*.test.js",
     "test:characters": "node --test src/characterPortraits.test.js",
     "test:music": "node --test src/musicPlayer.test.js"

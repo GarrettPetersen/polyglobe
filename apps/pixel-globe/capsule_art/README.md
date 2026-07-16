@@ -13,6 +13,15 @@ The generator combines:
 
 Generated files are written to `capsule_art/generated/`.
 
+## Title Lettering
+
+The rasterized title uses **Pirata One** for the lettering and **Party LET**
+for the ampersand. Font binaries are not packaged with the capsule output.
+
+Pirata One source:
+
+`https://fonts.google.com/specimen/Pirata+One`
+
 ## Painting
 
 **The Embarkation of Henry VIII at Dover**, anonymous British School,

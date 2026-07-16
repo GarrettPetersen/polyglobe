@@ -13,6 +13,7 @@ apps/pixel-globe/.captures/
 apps/pixel-globe/.venv-shorts/
 apps/pixel-globe/dist-demo/
 apps/pixel-globe/build/
+apps/pixel-globe/capsule_art/generated-*/
 
 # ~198MB precomputed land/ocean region grid (GitHub limit 100MB). Generate locally:
 #   cd examples/globe-demo && npm run download-data && npm run build-land-raster-png

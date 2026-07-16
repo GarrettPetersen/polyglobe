@@ -15,12 +15,13 @@ const paintingPath = join(
   appRoot,
   "capsule_art/source/embarkation-of-henry-viii-at-dover.jpg"
 );
-const titlePath = join(appRoot, "public/assets/capsule/detailed_title.png");
+const generatorOptions = parseGeneratorOptions(process.argv.slice(2));
+const titlePath = resolve(appRoot, generatorOptions.titlePath);
 const clientIconWaterPath = join(
   appRoot,
   "public/assets/terrain/resurrect-64/water_depth_03_01.png"
 );
-const outputDir = join(appRoot, "capsule_art/generated");
+const outputDir = resolve(appRoot, generatorOptions.outputDir);
 const CLIENT_ICON_SHIP_SLUG = "carrack";
 const CLIENT_ICON_HEADING_FRAME = 28;
 const CLIENT_ICON_BACKGROUND = "#3b7180";
@@ -31,6 +32,43 @@ const PAINTING_GRADE = Object.freeze({
   deepShadowThreshold: 90,
   deepShadowDepth: 0.13
 });
+
+function parseGeneratorOptions(args) {
+  const options = {
+    titlePath: "public/assets/capsule/detailed_title.png",
+    outputDir: "capsule_art/generated",
+    onlyName: null
+  };
+  for (let index = 0; index < args.length; index++) {
+    const argument = args[index];
+    if (argument === "--title") {
+      options.titlePath = requiredOptionValue(args[++index], "--title");
+    } else if (argument.startsWith("--title=")) {
+      options.titlePath = requiredOptionValue(argument.slice("--title=".length), "--title");
+    } else if (argument === "--output-dir") {
+      options.outputDir = requiredOptionValue(args[++index], "--output-dir");
+    } else if (argument.startsWith("--output-dir=")) {
+      options.outputDir = requiredOptionValue(
+        argument.slice("--output-dir=".length),
+        "--output-dir"
+      );
+    } else if (argument === "--only") {
+      options.onlyName = requiredOptionValue(args[++index], "--only");
+    } else if (argument.startsWith("--only=")) {
+      options.onlyName = requiredOptionValue(argument.slice("--only=".length), "--only");
+    } else {
+      throw new Error(`Unknown capsule generator argument: ${argument}`);
+    }
+  }
+  return Object.freeze(options);
+}
+
+function requiredOptionValue(value, optionName) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${optionName} requires a path`);
+  }
+  return value;
+}
 
 const OUTPUTS = Object.freeze([
   capsule("capsule_header_en.png", 920, 430, {
@@ -128,24 +166,33 @@ function artwork(name, width, height, options = {}) {
 }
 
 async function main() {
-  const [painting, titleImage, clientIconWater, clientIconShips] = await Promise.all([
+  const selectedOutputs = generatorOptions.onlyName === null
+    ? OUTPUTS
+    : OUTPUTS.filter((output) => output.name === generatorOptions.onlyName);
+  if (selectedOutputs.length === 0) {
+    throw new Error(`Unknown capsule output requested by --only: ${generatorOptions.onlyName}`);
+  }
+  const needsClientIcon = selectedOutputs.some((output) => output.kind === "client-icon");
+  const [painting, titleImage] = await Promise.all([
     loadImage(paintingPath),
-    loadImage(titlePath),
-    loadImage(clientIconWaterPath),
-    loadClientIconShips()
+    loadImage(titlePath)
   ]);
-  const selectedClientIconShip = clientIconShips.find(
-    (entry) => entry.slug === CLIENT_ICON_SHIP_SLUG
-  );
-  if (!selectedClientIconShip) {
-    throw new Error(`Client icon ship is absent from the active roster: ${CLIENT_ICON_SHIP_SLUG}`);
+  const clientIconWater = needsClientIcon ? await loadImage(clientIconWaterPath) : null;
+  const clientIconShips = needsClientIcon ? await loadClientIconShips() : [];
+  const selectedClientIconShip = needsClientIcon
+    ? clientIconShips.find((entry) => entry.slug === CLIENT_ICON_SHIP_SLUG)
+    : null;
+  if (needsClientIcon && !selectedClientIconShip) {
+    throw new Error(
+      `Client icon ship is absent from the active roster: ${CLIENT_ICON_SHIP_SLUG}`
+    );
   }
   const gradedPainting = gradePainting(painting, PAINTING_GRADE);
   const title = trimTransparentImage(titleImage);
   await mkdir(outputDir, { recursive: true });
 
   const rendered = [];
-  for (const output of OUTPUTS) {
+  for (const output of selectedOutputs) {
     const canvas = createCanvas(output.width, output.height);
     const context = canvas.getContext("2d");
     context.imageSmoothingEnabled = true;
@@ -165,8 +212,10 @@ async function main() {
     rendered.push({ output, canvas });
     console.log(`Generated ${output.name} (${output.width}x${output.height})`);
   }
-  await writeContactSheet(rendered);
-  await writeClientIconShipComparison(clientIconShips, clientIconWater);
+  if (generatorOptions.onlyName === null) {
+    await writeContactSheet(rendered);
+    await writeClientIconShipComparison(clientIconShips, clientIconWater);
+  }
 }
 
 async function loadClientIconShips() {

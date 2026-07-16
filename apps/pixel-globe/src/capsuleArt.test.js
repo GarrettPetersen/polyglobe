@@ -41,7 +41,7 @@ test("capsule generator produces the active ship client icon comparison", async 
   assert.equal(image.height, 780);
 });
 
-test("capsule art keeps its title source and public-domain painting documented", async () => {
+test("capsule art keeps its title fonts and public-domain painting documented", async () => {
   const [generator, readme, credits] = await Promise.all([
     readFile(new URL("../tools/generate-capsule-art.mjs", import.meta.url), "utf8"),
     readFile(new URL("../capsule_art/README.md", import.meta.url), "utf8"),
@@ -49,6 +49,10 @@ test("capsule art keeps its title source and public-domain painting documented",
   ]);
   assert.match(generator, /public\/assets\/capsule\/detailed_title\.png/);
   assert.match(generator, /embarkation-of-henry-viii-at-dover\.jpg/);
+  assert.match(readme, /Pirata One/);
+  assert.match(readme, /Party LET/);
+  assert.match(credits, /Pirata One - capsule title lettering/);
+  assert.match(credits, /Party LET - capsule title ampersand/);
   assert.match(readme, /31 May 1520/);
   assert.match(readme, /public domain/i);
   assert.match(credits, /Embarkation of Henry VIII at Dover.*public domain/i);

@@ -1,0 +1,7 @@
+Pixel Fire Asset Pack
+Creator: DevKidd
+Source: https://devkidd.itch.io/pixel-fire-asset-pack
+Used asset: public/assets/misc/fire.png
+
+The asset was obtained from the creator's itch.io page. Refer to the source
+page and downloaded package for the applicable license terms.

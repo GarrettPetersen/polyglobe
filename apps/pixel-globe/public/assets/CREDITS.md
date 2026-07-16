@@ -8,6 +8,8 @@
 
 ## Fonts
 - SparklyDest - "Pixel Pirate" (CC BY-SA 3.0; via DaFont; locally modified R kerning)
+- Pirata One - capsule title lettering
+- Party LET - capsule title ampersand
 
 ## Capsule Art
 - Anonymous British School - "The Embarkation of Henry VIII at Dover" (circa 1520-1540, public domain; Royal Collection / Wikimedia Commons)
@@ -51,4 +53,4 @@
 
 ## Pixel Art Effects
 - InfectedTribe - "Pixel Animated Lightning Strike Effect" (itch.io asset license)
-- Garrett Petersen - fire animation, adapted from Three Kingdoms Stratagem
+- DevKidd - "Pixel Fire Asset Pack" (itch.io asset license)

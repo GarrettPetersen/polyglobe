@@ -46,6 +46,13 @@ test("the reusable fire assets have their exact production formats", () => {
   assert.equal(crackle.toString("ascii", 0, 4), "OggS");
 
   const credits = readFileSync(new URL("public/assets/CREDITS.md", APP_ROOT), "utf8");
-  assert.match(credits, /fire animation, adapted from Three Kingdoms Stratagem/i);
+  assert.match(credits, /DevKidd - "Pixel Fire Asset Pack" \(itch\.io asset license\)/i);
+  assert.doesNotMatch(credits, /Garrett Petersen - fire animation/i);
   assert.match(credits, /Three Kingdoms Stratagem - fire crackle loop/i);
+
+  const fireLicense = readFileSync(
+    new URL("public/assets/licenses/devkidd-pixel-fire-asset-pack.txt", APP_ROOT),
+    "utf8"
+  );
+  assert.match(fireLicense, /https:\/\/devkidd\.itch\.io\/pixel-fire-asset-pack/);
 });
