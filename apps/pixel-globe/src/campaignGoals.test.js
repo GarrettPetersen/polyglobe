@@ -16,7 +16,7 @@ import {
   createCampaignDialogueSession,
   createCampaignGoal,
   explorerDiscoveryReward,
-  familyDebtOriginDialogue,
+  familyDebtOriginExchange,
   familyDebtPayoffProjection,
   markCampaignGoalIntroSeen,
   selectCampaignDialogueOption,
@@ -186,26 +186,37 @@ test("family debt dialogue gives the creditor a concise recurring voice", () => 
 
 test("family debt origins use faction-specific recent history", () => {
   const cases = [
-    ["scotland", /Flodden/i],
-    ["spain", /Villalar/i],
-    ["habsburg", /imperial crown/i],
-    ["papal-states", /Urbino/i],
-    ["ming", /Prince of Ning/i],
-    ["safavid", /Chaldiran/i],
-    ["songhai", /Agadez/i],
-    ["vijayanagara", /Raichur/i],
-    ["joseon", /reformers' memorials/i]
+    ["scotland", /Flodden/i, /crossed the Tweed/i],
+    ["spain", /Villalar/i, /account book/i],
+    ["habsburg", /Imperial crowns/i, /electors were paid/i],
+    ["papal-states", /treasury forgot its wagons/i, /Urbino/i],
+    ["ming", /rebels' roll/i, /Prince of Ning/i],
+    ["safavid", /Chaldiran/i, /Tabriz/i],
+    ["songhai", /Agadez/i, /Askia's march/i],
+    ["vijayanagara", /Raichur/i, /Arabian horses/i],
+    ["joseon", /reformer's office/i, /memorials before the purge/i]
   ];
-  for (const [nationalityId, expectedText] of cases) {
-    const text = familyDebtOriginDialogue({ ...CHARACTER, nationalityId });
-    assert.match(text, expectedText);
-    assert.ok(text.length < 180, `${nationalityId} debt origin is too long`);
+  for (const [nationalityId, expectedCreditor, expectedPlayer] of cases) {
+    const exchange = familyDebtOriginExchange({ ...CHARACTER, nationalityId });
+    assert.match(exchange.creditor, expectedCreditor);
+    assert.match(exchange.player, expectedPlayer);
+    assert.ok(exchange.creditor.length < 120, `${nationalityId} creditor debt origin is too long`);
+    assert.ok(exchange.player.length < 140, `${nationalityId} player debt origin is too long`);
   }
 
   assert.throws(
-    () => familyDebtOriginDialogue({ ...CHARACTER, nationalityId: "neutral" }),
+    () => familyDebtOriginExchange({ ...CHARACTER, nationalityId: "neutral" }),
     /Missing family debt origin for faction: neutral/
   );
+});
+
+test("Ming debt intro lets both sides allude to the Ning rebellion", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
+  const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
+
+  assert.match(intro[0].text, /court struck your uncle from the rebels' roll/i);
+  assert.match(intro[1].text, /name appeared among the Prince of Ning's papers/i);
+  assert.ok(intro.every((entry) => entry.text.length < 300));
 });
 
 test("campaign dialogue and endings include cultural story material", () => {

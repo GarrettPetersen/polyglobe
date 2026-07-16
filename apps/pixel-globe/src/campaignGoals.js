@@ -271,15 +271,16 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
       step("player", "determined", "I will follow those rumors to the edge of every chart. When I return, you will know these places as more than names, and I will finally have seen the world I imagined.")
     ];
   }
+  const debtOrigin = familyDebtOriginExchange(playerCharacter);
   return [
-    step("contact", "stern", `${playerCharacter.name}, your family's signature is here, beneath a debt of ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons. The estate secures every coin. At ten percent interest, time now works for me.`),
-    step("player", "concerned", `${familyDebtOriginDialogue(playerCharacter)} ${culture.debtIntro}`),
+    step("contact", "stern", `${playerCharacter.name}, your family's signature is here, beneath a debt of ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons. The estate secures every coin. At ten percent interest, time now works for me. ${debtOrigin.creditor}`),
+    step("player", "concerned", `${debtOrigin.player} ${culture.debtIntro}`),
     step("contact", "pleased", `I am not unreasonable. Each time you return, I will leave you ${goal.protectedPurse} doubloons for bread, rope, and whatever courage remains. Everything above it comes to me. Arrive poorer, and we shall learn what your promises are worth.`),
     step("player", "determined", "Keep the deed close and your ink ready. One day you will write paid in full across it, and my family will keep what is ours.")
   ];
 }
 
-export function familyDebtOriginDialogue(character) {
+export function familyDebtOriginExchange(character) {
   assertCharacter(character);
   if (!Object.hasOwn(FAMILY_DEBT_ORIGINS_BY_FACTION, character.nationalityId)) {
     throw new Error(`Missing family debt origin for faction: ${character.nationalityId ?? "none"}`);
@@ -549,34 +550,118 @@ const CULTURAL_STORIES = Object.freeze({
 });
 
 const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
-  england: "Our name was entered in a great duke's household books. When the duke fell, every old favor became a charge and every guarantee became ours.",
-  scotland: "We furnished horses and grain for the army that crossed the Tweed. The men did not return from Flodden, but every lender did.",
-  france: "We provisioned the king's first march into Lombardy on promises sealed before Marignano. Victory came home; payment did not.",
-  spain: "Our seal was found in a Comunero account book after Villalar. The Crown took the land, and the lender kept the note.",
-  portugal: "We fitted a carrack for the taking of Goa, then borrowed again when its cargo failed to return. The Crown kept the port; we kept the debt.",
-  habsburg: "My father guaranteed loans gathered to win an imperial crown. The electors were paid; smaller guarantors were forgotten.",
-  hungary: "We mortgaged the estate to provision Belgrade. When the fortress fell, the quartermaster vanished with the receipts.",
-  ottoman: "Our household backed the wrong prince when the old Sultan yielded the throne. The victor spared our lives, but not our property.",
-  venice: "The Republic called for one forced loan after another while the mainland burned. Cambrai ended; our obligations did not.",
-  genoa: "Our warehouse was pledged under one lord and seized when the next banner rose. Genoa changed masters faster than the ink could dry.",
-  "papal-states": "We supplied wagons to the army sent against Urbino. Rome exhausted its treasury before settling our account, so the lender settled it for us.",
-  ming: "An uncle's name appeared among the Prince of Ning's papers. The court cleared him of rebellion only after the family pledged nearly everything.",
-  aztec: "When the causeways closed and the lake city burned, our stores fed three households. Rebuilding them all required a lender with a long memory.",
-  inca: "The northern campaign took our llamas, grain, and sons, all on imperial tallies. The tallies came back honored; the goods did not.",
-  safavid: "Our finest caravan was in Tabriz when the western army entered after Chaldiran. We borrowed against its return before learning none would come.",
-  muscovy: "We fitted wagons and horses for the long siege of Smolensk. The fortress changed hands; the court's promise of payment did not.",
-  "poland-lithuania": "We raised cavalry for the Prussian war on a royal warrant. The truce came before the treasury found our name.",
-  "denmark-norway": "We mortgaged the farm to outfit ships for the king's Swedish crown. Stockholm yielded, then the payment vanished into court quarrels.",
-  songhai: "We advanced salt, grain, and camels for Askia's march on Agadez. Tribute came downriver to Gao, but not one cowrie reached our house.",
-  morocco: "Our warehouses stood at Azemmour when the Portuguese came. We ransomed kin, rebuilt inland, and signed whatever terms the lender set.",
-  ethiopia: "Year after year the frontier riders came with Mahfuz. We borrowed to replace burned herds, then borrowed once more to arm the men who stopped him.",
-  vijayanagara: "We bought Arabian horses for the Raichur campaign. The victory procession passed our door; the paymaster did not.",
-  gujarat: "When the Portuguese demanded a fortress at Diu, our family financed ships to make the refusal credible. The ships were lost; the refusal was not.",
-  bengal: "Our ships were caught in the fighting for Chittagong. By the time the port was ours again, three rulers claimed the cargo and the lender claimed the house.",
-  delhi: "A kinsman guaranteed a noble who chose Jalal Khan when the old Sultan died. Ibrahim took the noble's lands; the guarantee survived.",
-  ayutthaya: "Our family kept a warehouse in Malacca until the Portuguese took the city. The warehouse disappeared, but its bills crossed the sea intact.",
-  japan: "Our house backed the wrong Hosokawa at Funaokayama. The survivors changed allegiance; our creditors merely changed the seal on the deed.",
-  joseon: "A cousin signed the reformers' memorials before the purge. His name was erased from office, and saving the clan lands cost everything else."
+  england: debtOrigin(
+    "The duke's fall made many signatures expensive. Yours among them.",
+    "Our name was entered in his household books. When he fell, every old favor became a charge and every guarantee became ours."
+  ),
+  scotland: debtOrigin(
+    "Flodden left Scotland short of heirs and long on unpaid accounts. Yours survived nicely.",
+    "We furnished horses and grain for the army that crossed the Tweed. The men did not return, but every lender did."
+  ),
+  france: debtOrigin(
+    "Marignano made the king glorious. It made your family available to me.",
+    "We provisioned the march into Lombardy on sealed promises. Victory came home; payment did not."
+  ),
+  spain: debtOrigin(
+    "Villalar settled the Comuneros' quarrel. It also settled your estate beneath my seal.",
+    "Our seal was found in their account book. The Crown took the land, and the lender kept the note."
+  ),
+  portugal: debtOrigin(
+    "Goa enriched the Crown. Your missing carrack enriched my ledger.",
+    "We fitted that carrack for the taking of Goa, then borrowed again when its cargo failed to return."
+  ),
+  habsburg: debtOrigin(
+    "Imperial crowns are costly. Your father should have remembered that guarantors do not wear them.",
+    "He guaranteed loans gathered to win that crown. The electors were paid; smaller guarantors were forgotten."
+  ),
+  hungary: debtOrigin(
+    "Belgrade fell. Your quartermaster fled. My claim remained.",
+    "We mortgaged the estate to provision the fortress. The receipts vanished with the man who signed them."
+  ),
+  ottoman: debtOrigin(
+    "Your family chose a prince poorly. I chose collateral better.",
+    "We backed him before the old Sultan yielded the throne. The victor spared our lives, but not our property."
+  ),
+  venice: debtOrigin(
+    "The Republic calls its demands forced loans. I prefer to call mine enforceable.",
+    "Venice called for one loan after another while the mainland burned. Cambrai ended; our obligations did not."
+  ),
+  genoa: debtOrigin(
+    "Genoa may change masters again. This deed will not.",
+    "Our warehouse was pledged under one lord and seized when the next banner rose. The ink never had time to dry."
+  ),
+  "papal-states": debtOrigin(
+    "His Holiness's treasury forgot its wagons. Mine remembers every creditor.",
+    "We supplied the army sent against Urbino. Rome exhausted its treasury before it settled our account."
+  ),
+  ming: debtOrigin(
+    "The court struck your uncle from the rebels' roll. It did not strike your family seal from this note.",
+    "His name appeared among the Prince of Ning's papers. Proving his innocence cost the family nearly everything."
+  ),
+  aztec: debtOrigin(
+    "Causeways can be rebuilt. Debts survive even fire.",
+    "When the causeways closed and the lake city burned, our stores fed three households. We borrowed to rebuild them."
+  ),
+  inca: debtOrigin(
+    "Imperial tallies are excellent promises, provided one does not need payment.",
+    "The northern campaign took our llamas, grain, and sons. The tallies came back honored; the goods did not."
+  ),
+  safavid: debtOrigin(
+    "Chaldiran scattered armies and caravans. Your debt alone kept formation.",
+    "Our finest caravan was in Tabriz when the western army entered. We borrowed before learning none would return."
+  ),
+  muscovy: debtOrigin(
+    "Smolensk changed hands. This deed did not.",
+    "We fitted wagons and horses for the long siege. The court's promise of payment proved less durable than the fortress."
+  ),
+  "poland-lithuania": debtOrigin(
+    "The Prussian truce rested the cavalry. It did nothing for their guarantors.",
+    "We raised that cavalry on a royal warrant. Peace came before the treasury found our name."
+  ),
+  "denmark-norway": debtOrigin(
+    "Stockholm yielded more readily than your royal paymaster.",
+    "We mortgaged the farm to outfit the king's ships. The payment vanished into court quarrels."
+  ),
+  songhai: debtOrigin(
+    "Agadez sends tribute to Gao. None of it bears your family's mark.",
+    "We advanced salt, grain, and camels for Askia's march. Not one cowrie of the tribute reached our house."
+  ),
+  morocco: debtOrigin(
+    "Azemmour cost your family twice: once to Portugal, once to me.",
+    "Our warehouses stood there when the Portuguese came. We ransomed kin, rebuilt inland, and signed your terms."
+  ),
+  ethiopia: debtOrigin(
+    "Mahfuz is gone. The notes signed during his raids are not.",
+    "We borrowed to replace burned herds, then borrowed once more to arm the men who finally stopped him."
+  ),
+  vijayanagara: debtOrigin(
+    "Raichur's victory procession was splendid. I noticed your paymaster absent from it.",
+    "We bought Arabian horses for that campaign. Victory passed our door; payment did not."
+  ),
+  gujarat: debtOrigin(
+    "Diu kept its walls free of Portugal. Your estate was less fortunate with me.",
+    "We financed ships to make that refusal credible. The ships were lost; the refusal was not."
+  ),
+  bengal: debtOrigin(
+    "Chittagong changed hands enough. Your estate need only change hands once.",
+    "Our ships were caught in the fighting. By the time the port was ours again, three rulers claimed the cargo."
+  ),
+  delhi: debtOrigin(
+    "Ibrahim forgot many of Jalal's friends. Your kinsman's guarantee was not among them.",
+    "He guaranteed a noble who chose Jalal when the old Sultan died. Ibrahim took the noble's lands; the guarantee survived."
+  ),
+  ayutthaya: debtOrigin(
+    "Malacca lost a warehouse. I acquired excellent security.",
+    "The warehouse was ours until the Portuguese took the city. It disappeared, but its bills crossed the sea intact."
+  ),
+  japan: debtOrigin(
+    "The Hosokawa changed sides. The terms of this note did not.",
+    "Our house backed the wrong side at Funaokayama. The survivors changed allegiance; our creditors changed the seal."
+  ),
+  joseon: debtOrigin(
+    "The court erased a reformer's office. It left the family obligations untouched.",
+    "A cousin signed their memorials before the purge. Saving the clan lands cost everything else."
+  )
 });
 
 assertExactKeys(
@@ -589,6 +674,16 @@ assertExactKeys(
 
 function story(explorerIntro, explorerOutro, debtIntro, debtOutro) {
   return Object.freeze({ explorerIntro, explorerOutro, debtIntro, debtOutro });
+}
+
+function debtOrigin(creditor, player) {
+  if (typeof creditor !== "string" || creditor.trim() === "") {
+    throw new Error("Family debt origin requires creditor dialogue");
+  }
+  if (typeof player !== "string" || player.trim() === "") {
+    throw new Error("Family debt origin requires player dialogue");
+  }
+  return Object.freeze({ creditor, player });
 }
 
 function assertExactKeys(label, actualKeys, expectedKeys) {
