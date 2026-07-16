@@ -271,10 +271,10 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
     ];
   }
   return [
-    step("contact", "stern", `${playerCharacter.name}, your family owes me ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons. The estate stands as collateral, and the balance grows at ten percent each year.`),
+    step("contact", "stern", `${playerCharacter.name}, your family's signature is here, beneath a debt of ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons. The estate secures every coin. At ten percent interest, time now works for me.`),
     step("player", "concerned", culture.debtIntro),
-    step("contact", "angry", `Whenever you return, I will take every doubloon above ${goal.protectedPurse}. Bring less than that and I shall know the sea has taught you nothing.`),
-    step("player", "determined", "Keep your sneers ready. I will return with your money, and my family will keep what is ours.")
+    step("contact", "pleased", `I am not unreasonable. Each time you return, I will leave you ${goal.protectedPurse} doubloons for bread, rope, and whatever courage remains. Everything above it comes to me. Arrive poorer, and we shall learn what your promises are worth.`),
+    step("player", "determined", "Keep the deed close and your ink ready. One day you will write paid in full across it, and my family will keep what is ours.")
   ];
 }
 
@@ -417,24 +417,26 @@ function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) 
 }
 
 function debtHomecomingSteps(goal, outcome, playerCharacter) {
+  const captainName = playerCharacter.givenName || playerCharacter.name;
   const steps = [step(
     "contact",
     "stern",
     outcome.accruedInterest >= 0.5
-      ? `Since your last accounting, interest added ${formatDoubloons(outcome.accruedInterest)} doubloons. The balance stood at ${formatDoubloons(outcome.previousBalance + outcome.accruedInterest)}.`
-      : `Hardly any time has passed. Your balance still stands at ${formatDoubloons(outcome.previousBalance + outcome.accruedInterest)} doubloons.`
+      ? `Ah, ${captainName}. I kept the account warm while you were away. Interest added ${formatDoubloons(outcome.accruedInterest)} doubloons, bringing the balance to ${formatDoubloons(outcome.previousBalance + outcome.accruedInterest)}. The sea may ignore calendars. I do not.`
+      : `Back already, ${captainName}? The ink on our last accounting is scarcely dry. You still owe ${formatDoubloons(outcome.previousBalance + outcome.accruedInterest)} doubloons.`
   )];
   if (outcome.completed) {
-    steps.push(step("contact", "annoyed", `Your final payment of ${formatDoubloons(outcome.payment)} settles the account. Against my expectations, the estate is yours again.`));
-    steps.push(step("player", "happy", "Then write the receipt carefully. My family will frame it where your claim once hung."));
+    steps.push(step("contact", "annoyed", `There. Your final ${formatDoubloons(outcome.payment)} doubloons settle the account. Against my expectations, the estate is yours again. I had nearly decided where my seal would hang.`));
+    steps.push(step("player", "happy", "Choose another wall. Write paid in full carefully; my family will frame the receipt where your claim once hung."));
   } else if (outcome.payment > 0) {
-    steps.push(step("contact", "stern", `I have taken ${formatDoubloons(outcome.payment)} doubloons and left your last ${outcome.protectedPurse}. You still owe ${formatDoubloons(outcome.remainingBalance)}.`));
-    steps.push(step("player", "determined", "Count it twice. The next payment will be larger."));
+    steps.push(step("contact", "stern", `${formatDoubloons(outcome.payment)} doubloons. Respectable enough to delay my plans, not enough to end them. I have left you ${outcome.protectedPurse}; the remaining balance is ${formatDoubloons(outcome.remainingBalance)}.`));
+    steps.push(step("player", "determined", "You count what remains. I count how far I have come. The next payment will be larger."));
   } else if (outcome.insufficientPurse) {
-    steps.push(step("contact", "angry", `Not even ${outcome.protectedPurse} doubloons in your purse? Your family placed its hopes in a very poor captain.`));
+    steps.push(step("contact", "angry", `Not even ${outcome.protectedPurse} doubloons in your purse? Did the ocean swallow your profit, or did you never find any? Your family chose a poor champion.`));
     steps.push(step("player", "stern", "Enjoy the insult. It earns you no interest, and I will remember it when the debt is gone."));
   } else {
-    steps.push(step("contact", "annoyed", `You keep your protected ${outcome.protectedPurse} doubloons and pay me nothing. The remaining ${formatDoubloons(outcome.remainingBalance)} continues to grow.`));
+    steps.push(step("contact", "annoyed", `Exactly ${outcome.protectedPurse} doubloons. You have preserved your purse and wasted my afternoon. The remaining ${formatDoubloons(outcome.remainingBalance)} continues to grow.`));
+    steps.push(step("player", "determined", "Then keep the chair warm. I will bring you a payment worth standing up to count."));
   }
   return steps;
 }

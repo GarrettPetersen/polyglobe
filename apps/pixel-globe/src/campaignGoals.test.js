@@ -163,6 +163,25 @@ test("family debt points home only with the debt, reserve, and one month of inte
   });
 });
 
+test("family debt dialogue gives the creditor a concise recurring voice", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
+  const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
+  assert.equal(intro.length, 4);
+  assert.ok(intro.some((entry) => /time now works for me/i.test(entry.text)));
+  assert.ok(intro.some((entry) => /bread, rope/i.test(entry.text)));
+
+  const outcome = settleFamilyDebtHomecoming(goal, {
+    currentMinute: 40 * 24 * 60,
+    doubloons: 500
+  });
+  const homecoming = campaignHomecomingSteps(goal, outcome, CHARACTER, new Map());
+  assert.equal(homecoming.length, 3);
+  assert.match(homecoming[0].text, /the sea may ignore calendars\. i do not/i);
+  assert.match(homecoming[1].text, /respectable enough to delay my plans/i);
+  assert.match(homecoming[2].text, /count how far i have come/i);
+  assert.ok([...intro, ...homecoming].every((entry) => entry.text.length < 300));
+});
+
 test("campaign dialogue and endings include cultural story material", () => {
   const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
   const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
