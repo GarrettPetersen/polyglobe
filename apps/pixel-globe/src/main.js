@@ -524,8 +524,18 @@ import {
   appendVoyageRecord,
   grossDoubloonsEarned,
   readVoyageHistory,
+  VOYAGE_OUTCOME_TYPES,
   voyageHistorySummary
 } from "./voyageHistory.js";
+import {
+  DEMO_LIMIT_MESSAGE,
+  DEMO_VOYAGE_OUTCOME,
+  demoVoyageLimitReached
+} from "./demoVoyage.js";
+import {
+  ACTIVE_PLAY_LIMIT_SECONDS,
+  BUILD_EDITION_ID
+} from "./buildEdition.js";
 import {
   MANUAL_CITY_RECORDS_1522,
   cityPopulationObservationAtYear,
@@ -853,8 +863,8 @@ const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-2";
 const VEHICLE_ASSET_VERSION = "ship-orientation-3";
-const SHIP_WAKE_ANCHORS_URL = `/assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
-const SHIP_HULL_FOOTPRINTS_URL = `/assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
+const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
+const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
 const ROWING_SHIP_ANIMATION_SPECS = new Map([
   ["mediterranean-galley", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 125, volume: 0.14, playbackRate: 0.88 })],
   ["joseon-turtle-ship", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 123, volume: 0.14, playbackRate: 0.92 })],
@@ -865,7 +875,7 @@ const ROWING_SHIP_ANIMATION_SPECS = new Map([
 ]);
 const CITY_ASSET_VERSION = "city-types-2";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
-const FIRE_EFFECT_URL = "/assets/misc/fire.png";
+const FIRE_EFFECT_URL = "assets/misc/fire.png";
 const COLONY_DEPARTURE_DISTANCE_PX = 90;
 const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-1";
 const FACTION_FLAG_SOURCE_W = 32;
@@ -879,7 +889,7 @@ const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_DATA_YEAR = 1522;
 const CITY_MAX_COUNT = 480;
-const CITY_DATA_URL = "/shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
+const CITY_DATA_URL = "shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
   ["mexico city|mexico", [{ throughYear: 1522, displayCity: "Tenochtitlan" }]],
   ["texcoco|mexico", [{ throughYear: 1522, displayCity: "Tezcoco" }]],
@@ -1128,7 +1138,7 @@ const LAKE_BATTLE_SETUP_ROW_COUNT = 4;
 const LAKE_BATTLE_PAUSE_ACTIONS = Object.freeze(["RESUME", "RESTART", "CHOOSE SHIPS", "OPTIONS", "START MENU"]);
 const LAKE_BATTLE_RESULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE SHIPS", "START MENU"]);
 const AUTOSAVE_INTERVAL_MS = 30000;
-const CREDITS_MARKDOWN_URL = "/assets/CREDITS.md";
+const CREDITS_MARKDOWN_URL = "assets/CREDITS.md";
 let CREDITS_PANEL_W = 338;
 let CREDITS_PANEL_H = 218;
 let CREDITS_PANEL_X = Math.floor((SCREEN_W - CREDITS_PANEL_W) / 2);
@@ -1232,58 +1242,58 @@ const SFX_VOLUME_STORAGE_KEY = "pixel_globe_sfx_volume";
 const AUDIO_MUTED_STORAGE_KEY = "pixel_globe_audio_muted";
 const MUSIC_TRACK_SPECS = Object.freeze({
   ship: {
-    intro: "/assets/music/ship-theme-intro.ogg",
-    loop: "/assets/music/ship-theme-loop.ogg"
+    intro: "assets/music/ship-theme-intro.ogg",
+    loop: "assets/music/ship-theme-loop.ogg"
   },
   cityNorthernEuropean: {
-    intro: "/assets/music/city-northern-european-intro.ogg",
-    loop: "/assets/music/city-northern-european-loop.ogg"
+    intro: "assets/music/city-northern-european-intro.ogg",
+    loop: "assets/music/city-northern-european-loop.ogg"
   },
   cityMediterranean: {
-    intro: "/assets/music/city-mediterranean-intro.ogg",
-    loop: "/assets/music/city-mediterranean-loop.ogg"
+    intro: "assets/music/city-mediterranean-intro.ogg",
+    loop: "assets/music/city-mediterranean-loop.ogg"
   },
   cityDesert: {
-    intro: "/assets/music/city-desert-intro.ogg",
-    loop: "/assets/music/city-desert-loop.ogg"
+    intro: "assets/music/city-desert-intro.ogg",
+    loop: "assets/music/city-desert-loop.ogg"
   },
   cityEastAsian: {
-    intro: "/assets/music/city-east-asian-intro.ogg",
-    loop: "/assets/music/city-east-asian-loop.ogg"
+    intro: "assets/music/city-east-asian-intro.ogg",
+    loop: "assets/music/city-east-asian-loop.ogg"
   },
   cityTropical: {
-    loop: "/assets/music/city-tropical-loop.ogg"
+    loop: "assets/music/city-tropical-loop.ogg"
   },
   cityAndean: {
-    intro: "/assets/music/city-andean-intro.ogg",
-    loop: "/assets/music/city-andean-loop.ogg"
+    intro: "assets/music/city-andean-intro.ogg",
+    loop: "assets/music/city-andean-loop.ogg"
   },
   combat: {
-    intro: "/assets/music/combat-theme-intro.ogg",
-    loop: "/assets/music/combat-theme-loop.ogg"
+    intro: "assets/music/combat-theme-intro.ogg",
+    loop: "assets/music/combat-theme-loop.ogg"
   },
   combatSmall: {
-    intro: "/assets/music/combat-small-intro.ogg",
-    loop: "/assets/music/combat-small-loop.ogg"
+    intro: "assets/music/combat-small-intro.ogg",
+    loop: "assets/music/combat-small-loop.ogg"
   },
   combatBig: {
-    intro: "/assets/music/combat-big-intro.ogg",
-    loop: "/assets/music/combat-big-loop.ogg"
+    intro: "assets/music/combat-big-intro.ogg",
+    loop: "assets/music/combat-big-loop.ogg"
   },
   gameOverSad: {
-    loop: "/assets/music/game-over-sad-loop.ogg"
+    loop: "assets/music/game-over-sad-loop.ogg"
   },
   victory: {
-    intro: "/assets/music/victory-intro.ogg",
-    loop: "/assets/music/victory-loop.ogg"
+    intro: "assets/music/victory-intro.ogg",
+    loop: "assets/music/victory-loop.ogg"
   },
   gameVictory: {
-    intro: "/assets/music/game-victory-intro.ogg",
-    loop: "/assets/music/game-victory-loop.ogg"
+    intro: "assets/music/game-victory-intro.ogg",
+    loop: "assets/music/game-victory-loop.ogg"
   },
   storm: {
-    intro: "/assets/music/storm-theme-intro.ogg",
-    loop: "/assets/music/storm-theme-loop.ogg"
+    intro: "assets/music/storm-theme-intro.ogg",
+    loop: "assets/music/storm-theme-loop.ogg"
   }
 });
 const CITY_TYPE_MUSIC_TRACK_KEYS = Object.freeze({
@@ -1301,30 +1311,30 @@ const CITY_TYPE_MUSIC_TRACK_KEYS = Object.freeze({
 const COMBAT_MUSIC_HOLD_MS = 18000;
 const COMBAT_BIG_BROADSIDE_MIN_CANNONS = 10;
 const COMBAT_NOTICE_MS = 4200;
-const SFX_CANNON_URL = "/assets/sfx/universfield-cannon-shot-352459.ogg";
-const SFX_BOW_FIRE_URL = "/assets/sfx/bow-fire.ogg";
-const SFX_ARROW_HIT_URL = "/assets/sfx/arrow-hit.ogg";
-const SFX_HARBOUR_URL = "/assets/sfx/freesound_community-harboursoundsanno1811-24015.ogg";
-const SFX_IMPACT_URL = "/assets/sfx/dragon-studio-boulder-impact-487673.ogg";
-const SFX_SEAGULLS_URL = "/assets/sfx/dragon-studio-seagull-calls-339723.ogg";
-const SFX_SHORE_GULLS_URL = "/assets/sfx/freesound_community-sea-and-seagull-wave-5932.ogg";
-const SFX_HARSH_WIND_URL = "/assets/sfx/dragon-studio-harsh-wind-515272.ogg";
-const SFX_WINTER_WIND_URL = "/assets/sfx/dragon-studio-winter-wind-402331.ogg";
-const SFX_DESERT_WIND_URL = "/assets/sfx/tanweraman-desert-wind-1-350398.ogg";
-const SFX_STORM_URL = "/assets/sfx/u_7hpxkdroz2-storm-461601.mp3";
-const SFX_LIGHTNING_URL = "/assets/sfx/freesound_community-lightning-strike-29683.ogg";
-const STORM_SHIP_STRIKE_URL = "/assets/misc/lightning.png";
-const SFX_SAIL_FLAP_URL = "/assets/sfx/freesound_community-flag-6367.ogg";
-const SFX_UNDERWAY_URL = "/assets/sfx/freesound_community-sailboat-underway-48728.ogg";
-const SFX_SAIL_DEPLOY_URL = "/assets/sfx/freesound_community-saildeploy-99393.ogg";
-const SFX_DISCOVERY_SUCCESS_URL = "/assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
-const SFX_COIN_CLINK_URL = "/assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3";
-const SFX_FISHING_URL = "/assets/sfx/alex_jauk-water-splash-147014.mp3";
-const SFX_FISHING_SUCCESS_URL = "/assets/sfx/freesound_community-item-pickup-37089.ogg";
-const SFX_FISHING_FAILURE_URL = "/assets/sfx/dominik-braun-failure-sound.mp3";
-const SFX_SCAVENGE_SUCCESS_URL = "/assets/sfx/freesound_community-item-pickup-37089.ogg";
-const SFX_SCAVENGE_FAILURE_URL = "/assets/sfx/dominik-braun-failure-sound.mp3";
-const SFX_FIRE_URL = "/assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg";
+const SFX_CANNON_URL = "assets/sfx/universfield-cannon-shot-352459.ogg";
+const SFX_BOW_FIRE_URL = "assets/sfx/bow-fire.ogg";
+const SFX_ARROW_HIT_URL = "assets/sfx/arrow-hit.ogg";
+const SFX_HARBOUR_URL = "assets/sfx/freesound_community-harboursoundsanno1811-24015.ogg";
+const SFX_IMPACT_URL = "assets/sfx/dragon-studio-boulder-impact-487673.ogg";
+const SFX_SEAGULLS_URL = "assets/sfx/dragon-studio-seagull-calls-339723.ogg";
+const SFX_SHORE_GULLS_URL = "assets/sfx/freesound_community-sea-and-seagull-wave-5932.ogg";
+const SFX_HARSH_WIND_URL = "assets/sfx/dragon-studio-harsh-wind-515272.ogg";
+const SFX_WINTER_WIND_URL = "assets/sfx/dragon-studio-winter-wind-402331.ogg";
+const SFX_DESERT_WIND_URL = "assets/sfx/tanweraman-desert-wind-1-350398.ogg";
+const SFX_STORM_URL = "assets/sfx/u_7hpxkdroz2-storm-461601.mp3";
+const SFX_LIGHTNING_URL = "assets/sfx/freesound_community-lightning-strike-29683.ogg";
+const STORM_SHIP_STRIKE_URL = "assets/misc/lightning.png";
+const SFX_SAIL_FLAP_URL = "assets/sfx/freesound_community-flag-6367.ogg";
+const SFX_UNDERWAY_URL = "assets/sfx/freesound_community-sailboat-underway-48728.ogg";
+const SFX_SAIL_DEPLOY_URL = "assets/sfx/freesound_community-saildeploy-99393.ogg";
+const SFX_DISCOVERY_SUCCESS_URL = "assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
+const SFX_COIN_CLINK_URL = "assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3";
+const SFX_FISHING_URL = "assets/sfx/alex_jauk-water-splash-147014.mp3";
+const SFX_FISHING_SUCCESS_URL = "assets/sfx/freesound_community-item-pickup-37089.ogg";
+const SFX_FISHING_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
+const SFX_SCAVENGE_SUCCESS_URL = "assets/sfx/freesound_community-item-pickup-37089.ogg";
+const SFX_SCAVENGE_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
+const SFX_FIRE_URL = "assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg";
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_BOW_FIRE_POOL_SIZE = 6;
 const SFX_ARROW_HIT_POOL_SIZE = 6;
@@ -1374,10 +1384,10 @@ const SFX_WIND_TERRAIN_RADIUS_PX = 150;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
 const STORM_DAMAGE_NOTICE_MS = 3600;
-const SEAGULL_FLIGHT_URL = "/assets/animals/seagull-Sheet.png";
-const SEAGULL_STANDING_URL = "/assets/animals/seagull_standing.png";
-const FISH_SPRITE_URL = "/assets/animals/fish.png";
-const FISHING_NET_SHEET_URL = "/assets/misc/fishing-net-Sheet.png";
+const SEAGULL_FLIGHT_URL = "assets/animals/seagull-Sheet.png";
+const SEAGULL_STANDING_URL = "assets/animals/seagull_standing.png";
+const FISH_SPRITE_URL = "assets/animals/fish.png";
+const FISHING_NET_SHEET_URL = "assets/misc/fishing-net-Sheet.png";
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
@@ -1823,8 +1833,8 @@ async function main() {
     loadNamedMountains(),
     fetchText(CREDITS_MARKDOWN_URL, "credits"),
     fetchEarthCache(),
-    fetchBinary("/shared/discrete-weather-bake-7.bin", "discrete weather bake"),
-    fetchBinary("/shared/globe-runtime-bake-7.bin", "globe runtime bake")
+    fetchBinary("shared/discrete-weather-bake-7.bin", "discrete weather bake"),
+    fetchBinary("shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
   images = loadedImages;
   shipImage = loadedShipSpriteAsset?.image || null;
@@ -2096,7 +2106,7 @@ async function main() {
 }
 
 async function fetchEarthCache() {
-  const res = await fetch("/shared/earth-globe-cache-7.json");
+  const res = await fetch("shared/earth-globe-cache-7.json");
   if (!res.ok) throw new Error(`Failed to load Earth cache: HTTP ${res.status}`);
   return res.json();
 }
@@ -2236,7 +2246,7 @@ function loadTerrainImages() {
 async function loadWorldDiscoveryImages() {
   const entries = await Promise.all(WORLD_DISCOVERY_SPRITE_KEYS.map(async (spriteKey) => {
     const image = await loadAssetImage(
-      `/assets/terrain/resurrect-64/${spriteKey}.png?v=${WORLD_DISCOVERY_ASSET_VERSION}`,
+      `assets/terrain/resurrect-64/${spriteKey}.png?v=${WORLD_DISCOVERY_ASSET_VERSION}`,
       `world discovery image: ${spriteKey}`
     );
     validateImageDimensions(image, `World discovery image: ${spriteKey}`, TILE_ART_SIZE, TILE_ART_SIZE);
@@ -2247,13 +2257,13 @@ async function loadWorldDiscoveryImages() {
 
 function loadImage(key) {
   return loadAssetImage(
-    `/assets/terrain/${TERRAIN_VARIANT}/${key}.png?v=${TERRAIN_ASSET_VERSION}`,
+    `assets/terrain/${TERRAIN_VARIANT}/${key}.png?v=${TERRAIN_ASSET_VERSION}`,
     `${TERRAIN_VARIANT} terrain image: ${key}`
   ).then((image) => [key, image]);
 }
 
 function loadVehicleImage(key) {
-  return loadAssetImage(`/assets/vehicles/${key}.png?v=${VEHICLE_ASSET_VERSION}`, `vehicle image: ${key}`);
+  return loadAssetImage(`assets/vehicles/${key}.png?v=${VEHICLE_ASSET_VERSION}`, `vehicle image: ${key}`);
 }
 
 async function loadShipSpriteAsset(spriteKey, label) {
@@ -2360,7 +2370,7 @@ function requiredShipWakeAnchors(slug) {
 
 async function loadGameIconAtlas() {
   const image = await loadAssetImage(
-    `/assets/ui/game-icons.png?v=${GAME_ICON_ASSET_VERSION}`,
+    `assets/ui/game-icons.png?v=${GAME_ICON_ASSET_VERSION}`,
     "game icon atlas"
   );
   const dimensions = gameIconAtlasDimensions();
@@ -2464,7 +2474,7 @@ async function loadCityImages() {
 async function loadCityTypeImage(cityType) {
   const artKey = CITY_TYPE_ART_KEYS[cityType] || cityType;
   const img = await loadAssetImage(
-    `/assets/buildings/city-types/city-${artKey}.png?v=${CITY_ASSET_VERSION}`,
+    `assets/buildings/city-types/city-${artKey}.png?v=${CITY_ASSET_VERSION}`,
     `city type image: ${cityType}`
   );
   if (img.width !== CITY_SPRITE_W || img.height !== CITY_SPRITE_H) {
@@ -2476,7 +2486,7 @@ async function loadCityTypeImage(cityType) {
 async function loadFactionFlagImages() {
   const entries = await Promise.all(FACTIONS.filter((faction) => factionHasFlag(faction.id)).map(async (faction) => {
     const image = await loadAssetImage(
-      `/assets/factions/flags/${faction.id}.png?v=${FACTION_FLAG_ASSET_VERSION}`,
+      `assets/factions/flags/${faction.id}.png?v=${FACTION_FLAG_ASSET_VERSION}`,
       `faction flag: ${faction.id}`
     );
     validateImageDimensions(
@@ -3351,7 +3361,9 @@ function runFrame(nowMs) {
   }
   if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
     advanceActivePlayTime(gameState, dt);
-    if (fishingAction) {
+    if (updateDemoVoyageLimit()) {
+      dirty = true;
+    } else if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
     if (updateNavalWeapons(dt)) dirty = true;
@@ -3505,13 +3517,21 @@ function createCaptainAlertModal(message, expressionId = "neutral") {
   return createCharacterAlertModal(gameState?.playerCharacter || null, message, expressionId);
 }
 
-function createCharacterAlertModal(character, message, expressionId = "neutral") {
+function createCharacterAlertModal(character, message, expressionId = "neutral", {
+  kind = "alert",
+  buttonLabel = "CONTINUE"
+} = {}) {
   if (!character) throw new Error("Character alert requires a character");
+  if (!["alert", "demo-limit"].includes(kind)) throw new Error(`Unknown character alert kind: ${kind}`);
+  if (typeof buttonLabel !== "string" || buttonLabel.trim() === "") {
+    throw new Error("Character alert requires a button label");
+  }
   return {
-    kind: "alert",
+    kind,
     character,
     message,
     expressionId,
+    buttonLabel,
     hovered: false,
     buttonRect: captainAlertButtonRect()
   };
@@ -3715,6 +3735,25 @@ function updateCampaignGoalReturnReminder() {
   return true;
 }
 
+function updateDemoVoyageLimit() {
+  if (!demoVoyageLimitReached(gameState.activePlaySeconds, ACTIVE_PLAY_LIMIT_SECONDS)) return false;
+  if (BUILD_EDITION_ID !== "demo") {
+    throw new Error(`Active play limit configured for non-demo build: ${BUILD_EDITION_ID}`);
+  }
+  if (captainAlertModal) return false;
+  captainAlertModal = createCharacterAlertModal(
+    gameState.playerCharacter,
+    DEMO_LIMIT_MESSAGE,
+    "neutral",
+    { kind: "demo-limit", buttonLabel: "END VOYAGE" }
+  );
+  stopShipForDialogue();
+  const expression = characterExpression(gameState.playerCharacter, "neutral");
+  void ensureCharacterPortraitLoaded(gameState.playerCharacter, expression);
+  dirty = true;
+  return true;
+}
+
 function updateColonizationQuest() {
   const memory = gameState?.memory?.colonization;
   if (!memory || !ship || !Number.isInteger(memory.targetTileId)) return false;
@@ -3753,9 +3792,14 @@ function createCampaignGoalContact(playerCharacter, goal) {
 }
 
 function closeCaptainAlertModal() {
+  const closedKind = captainAlertModal?.kind || null;
   captainAlertModal = null;
   keys.clear();
   clearPointerSteering();
+  if (closedKind === "demo-limit") {
+    completeDemoVoyage();
+    return;
+  }
   dirty = true;
 }
 
@@ -4691,7 +4735,7 @@ function loadShipInfoImage(slug) {
   if (pending) return pending;
   shipStatsForSlug(slug);
   const promise = loadAssetImage(
-    `/assets/vehicles/unity-ships/side-views/${slug}.png?v=${SHIP_INFO_ASSET_VERSION}`,
+    `assets/vehicles/unity-ships/side-views/${slug}.png?v=${SHIP_INFO_ASSET_VERSION}`,
     `ship side view: ${slug}`
   ).then((image) => {
     validateImageDimensions(
@@ -10186,14 +10230,26 @@ function completeCampaignVoyage() {
   });
 }
 
+function completeDemoVoyage() {
+  if (BUILD_EDITION_ID !== "demo" || ACTIVE_PLAY_LIMIT_SECONDS === null) {
+    throw new Error("Cannot complete a demo voyage outside the demo build");
+  }
+  endPlayerVoyage(DEMO_VOYAGE_OUTCOME, {
+    sinkShip: false,
+    outcomeType: "demo"
+  });
+}
+
 function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   if (typeof reason !== "string" || reason.trim() === "") throw new Error("Ending a voyage requires a reason");
   if (typeof sinkShip !== "boolean") throw new Error("Ending a voyage requires an explicit sinkShip decision");
-  if (!["death", "victory"].includes(outcomeType)) throw new Error(`Invalid voyage outcome type: ${outcomeType}`);
+  if (!VOYAGE_OUTCOME_TYPES.includes(outcomeType) || outcomeType === "quit") {
+    throw new Error(`Invalid live voyage outcome type: ${outcomeType}`);
+  }
   if (outcomeType === "victory" && (!victory || typeof victory.legacy !== "string")) {
     throw new Error("Campaign victory requires a legacy summary");
   }
-  if (gameOverReason || playerShipIsInvulnerable()) return;
+  if (gameOverReason || (outcomeType === "death" && playerShipIsInvulnerable())) return;
   if (sinkShip) spawnPlayerShipSinkEffect(lastFrameMs);
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs, sinkShip, outcomeType, victory);
@@ -10201,7 +10257,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
     state: gameState,
     playerShip: snapshotPlayerShip(),
     startMinute: voyageStartClockMinutes,
-    endMinute: gameOverState.deathMinute,
+    endMinute: gameOverState.endMinute,
     outcome: reason,
     outcomeType
   }));
@@ -10225,9 +10281,14 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   } catch (error) {
     console.warn(`[pixel-globe] could not clear the local save after ${outcomeType}`, error);
   }
-  playMusicTrack(outcomeType === "victory" ? "gameVictory" : "gameOverSad", {
+  const outcomeMusic = outcomeType === "victory"
+    ? "gameVictory"
+    : outcomeType === "demo"
+      ? "ship"
+      : "gameOverSad";
+  playMusicTrack(outcomeMusic, {
     crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS,
-    restart: true
+    restart: outcomeType !== "demo"
   });
   dirty = true;
 }
@@ -10235,26 +10296,26 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
 function createGameOverState(reason, startedAtMs, sinkShip, outcomeType, victory) {
   if (typeof sinkShip !== "boolean") throw new Error("Game-over state requires an explicit sinkShip decision");
   const character = gameState?.playerCharacter || null;
-  const deathMinute = Math.floor(weatherClockMinutes);
+  const endMinute = Math.floor(weatherClockMinutes);
   return {
     reason,
     outcomeType,
     victory,
     sinkShip,
     startedAtMs,
-    deathMinute,
-    deathDateLabel: shipLedgerDateLabel(deathMinute),
+    endMinute,
+    endDateLabel: shipLedgerDateLabel(endMinute),
     character,
     vessel: shipLabelForSlug(ship.typeSlug),
-    stats: createGameOverStats(deathMinute)
+    stats: createGameOverStats(endMinute)
   };
 }
 
-function createGameOverStats(deathMinute) {
+function createGameOverStats(endMinute) {
   const voyage = createVoyageStatsForState(
     gameState,
     voyageStartClockMinutes,
-    deathMinute,
+    endMinute,
     ship?.position
   );
   const ledgerEntries = gameState.accounts.ledger.length;
@@ -10341,7 +10402,7 @@ function gameOverElapsedMs(nowMs) {
 }
 
 function gameOverRestartIsAvailable(nowMs) {
-  if (gameOverState?.outcomeType === "victory") {
+  if (gameOverState?.outcomeType === "victory" || gameOverState?.outcomeType === "demo") {
     return gameOverElapsedMs(nowMs) >= 900;
   }
   return Boolean(gameOverState && gameOverElapsedMs(nowMs) >=
@@ -15866,7 +15927,10 @@ function drawPastVoyagesSummaryPage(panel, records) {
     ["MOST EARNED", `${formatDoubloons(summary.mostDoubloonsEarned)} DB`],
     ["RICHEST ENDING", `${formatDoubloons(summary.richestEndingPurse)} DB`],
     ["MOST DISCOVERIES", summary.mostDiscoveries],
-    ["VICTORY / DEATH / QUIT", `${summary.victories} / ${summary.deaths} / ${summary.quits}`]
+    [
+      "WIN / DEATH / QUIT / DEMO",
+      `${summary.victories} / ${summary.deaths} / ${summary.quits} / ${summary.demos}`
+    ]
   ], panel.y + 48, 16);
   if (records.length === 0) {
     drawOptionsText("NO PAST VOYAGES YET", panel.x + panel.w / 2, panel.y + panel.h - 42, {
@@ -20660,7 +20724,7 @@ function drawCaptainAlertModal() {
   const button = modal.buttonRect;
   drawPiratePaperInset(button, modal.hovered);
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("CONTINUE", button.x + button.w / 2, controlTextY(button), {
+  drawPixelText(modal.buttonLabel, button.x + button.w / 2, controlTextY(button), {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
@@ -20939,6 +21003,10 @@ function drawGameOverOverlay(nowMs) {
     drawVictoryStatsScreen(state, gameOverElapsedMs(nowMs));
     return;
   }
+  if (state.outcomeType === "demo") {
+    drawDemoStatsScreen(state, gameOverElapsedMs(nowMs));
+    return;
+  }
   const transitionDuration = gameOverTransitionDurationMs();
   const transitionElapsed = gameOverElapsedMs(nowMs);
   if (transitionElapsed < transitionDuration) {
@@ -20956,6 +21024,53 @@ function drawGameOverOverlay(nowMs) {
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
   if (fade >= 1) drawGameOverStatsScreen(state);
+}
+
+function drawDemoStatsScreen(state, elapsedMs) {
+  drawPiratePaperPanel({ x: 0, y: 0, w: SCREEN_W, h: SCREEN_H });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText("DEMO VOYAGE COMPLETE", SCREEN_W / 2, 16, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center"
+  });
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  drawPixelText("THANKS FOR PLAYING", SCREEN_W / 2, 32, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "center"
+  });
+
+  const rows = [
+    ["CAPTAIN", state.character?.name || "Unknown"],
+    ["VOYAGE ENDED", state.endDateLabel],
+    ["FINAL VESSEL", state.vessel],
+    ["DAYS AT SEA", String(state.stats.daysAtSea)],
+    ["DISCOVERIES", String(state.stats.discoveries)],
+    ["PORTS VISITED", String(state.stats.visitedPorts)],
+    ["WORLD MAPPED", `${state.stats.mappedPercent.toFixed(2)}%`],
+    ["FINAL DOUBLOONS", formatDoubloons(state.stats.endingDoubloons)]
+  ];
+  rows.forEach(([label, value], index) => {
+    const y = 57 + index * 16;
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText(label, 42, y, { font: PIXEL_FONT_SMALL_8 });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(fitPixelText(value, PIXEL_FONT_SMALL_8, 220), SCREEN_W - 42, y, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "right"
+    });
+  });
+
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText("BUY THE FULL VERSION ON STEAM FOR MORE", SCREEN_W / 2, SCREEN_H - 31, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "center"
+  });
+  if (elapsedMs >= 900) {
+    drawPixelText("PRESS ANY KEY TO RETURN TO START MENU", SCREEN_W / 2, SCREEN_H - 16, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  }
 }
 
 function drawVictoryStatsScreen(state, elapsedMs) {
@@ -21048,7 +21163,7 @@ function drawGameOverMemorial(state, fade) {
 
   const rows = [
     ["BORN", state.character?.birthDateLabel || "--"],
-    ["DIED", state.deathDateLabel],
+    ["DIED", state.endDateLabel],
     ["HOME", state.character ? `${state.character.homePortName}, ${state.character.homePortRealmName}` : "--"],
     ["CAUSE", state.reason]
   ];
@@ -21121,7 +21236,7 @@ function gameOverStatRows(state) {
   const stats = state.stats;
   return [
     ["BORN", state.character?.birthDateLabel || "--"],
-    ["DIED", state.deathDateLabel],
+    ["DIED", state.endDateLabel],
     ["DAYS AT SEA", String(stats.daysAtSea)],
     ["LAST POSITION", formatLatLon(stats.latitude, stats.longitude)],
     ["DISCOVERIES", String(stats.discoveries)],

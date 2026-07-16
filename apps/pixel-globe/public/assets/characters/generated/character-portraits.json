@@ -2,7 +2,7 @@
   "version": 5,
   "generatedBy": "tools/build-character-portrait-manifest.mjs",
   "portraitSize": 64,
-  "sourceRoot": "/assets/characters",
+  "sourceRoot": "assets/characters",
   "sourceCharacters": [
     {
       "id": "blacksmith-portrait-pack-by-captainskeleto-blacksmith-portrait",
@@ -28,7 +28,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 1,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_1.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -36,7 +36,7 @@
           "id": "smile",
           "label": "Smile",
           "index": 2,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_2.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -44,7 +44,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 3,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_3.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -52,7 +52,7 @@
           "id": "stern",
           "label": "Stern",
           "index": 4,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_4.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -60,7 +60,7 @@
           "id": "weary",
           "label": "Weary",
           "index": 5,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_5.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -68,7 +68,7 @@
           "id": "grimace",
           "label": "Grimace",
           "index": 6,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_6.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -76,7 +76,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 7,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_7.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -84,7 +84,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 8,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_8.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -92,7 +92,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 9,
-          "src": "/assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_9.png",
+          "src": "assets/characters/Blacksmith%20Portrait%20Pack%20by%20Captainskeleto/Blacksmith%20Portrait_9.png",
           "width": 64,
           "height": 64
         }
@@ -122,7 +122,7 @@
           "id": "grimace",
           "label": "Grimace",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -130,7 +130,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -138,7 +138,7 @@
           "id": "hurt",
           "label": "Hurt",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -146,7 +146,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -154,7 +154,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -162,7 +162,7 @@
           "id": "determined",
           "label": "Determined",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Blacksmith/blacksmith%20portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -192,7 +192,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 1,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_1.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -200,7 +200,7 @@
           "id": "wary",
           "label": "Wary",
           "index": 2,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_2.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -208,7 +208,7 @@
           "id": "surprised",
           "label": "Surprised",
           "index": 3,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_3.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -216,7 +216,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 4,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_4.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -224,7 +224,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 5,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_5.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -232,7 +232,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 6,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_6.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -240,7 +240,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 7,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_7.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -248,7 +248,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 8,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_8.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -256,7 +256,7 @@
           "id": "stern",
           "label": "Stern",
           "index": 9,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_9.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_9.png",
           "width": 64,
           "height": 64
         },
@@ -264,7 +264,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 10,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_10.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_10.png",
           "width": 64,
           "height": 64
         },
@@ -272,7 +272,7 @@
           "id": "shouting",
           "label": "Shouting",
           "index": 11,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_11.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_11.png",
           "width": 64,
           "height": 64
         },
@@ -280,7 +280,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 12,
-          "src": "/assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_12.png",
+          "src": "assets/characters/Blond%20Villager%20Portrait%20Pack%20by%20Captainskeleto/blond%20villager%20portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -310,7 +310,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_1.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_1.png",
           "width": 64,
           "height": 64
         },
@@ -318,7 +318,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 2,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_2.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_2.png",
           "width": 64,
           "height": 64
         },
@@ -326,7 +326,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 3,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_3.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_3.png",
           "width": 64,
           "height": 64
         },
@@ -334,7 +334,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 4,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_4.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_4.png",
           "width": 64,
           "height": 64
         },
@@ -342,7 +342,7 @@
           "id": "pained",
           "label": "Pained",
           "index": 5,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_5.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_5.png",
           "width": 64,
           "height": 64
         },
@@ -350,7 +350,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 6,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_6.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_6.png",
           "width": 64,
           "height": 64
         },
@@ -358,7 +358,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 7,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_7.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_7.png",
           "width": 64,
           "height": 64
         },
@@ -366,7 +366,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 8,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_8.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_8.png",
           "width": 64,
           "height": 64
         },
@@ -374,7 +374,7 @@
           "id": "wary",
           "label": "Wary",
           "index": 9,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_9.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_9.png",
           "width": 64,
           "height": 64
         },
@@ -382,7 +382,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 10,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_10.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_10.png",
           "width": 64,
           "height": 64
         },
@@ -390,7 +390,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 11,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_11.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_11.png",
           "width": 64,
           "height": 64
         },
@@ -398,7 +398,7 @@
           "id": "serious",
           "label": "Serious",
           "index": 12,
-          "src": "/assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_12.png",
+          "src": "assets/characters/Blond%20Villager%20Women%20Portrait%20Pack%20by%20Captainskeleto/Blond%20Villager%20Women_12.png",
           "width": 64,
           "height": 64
         }
@@ -428,7 +428,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -436,7 +436,7 @@
           "id": "stern",
           "label": "Stern",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -444,7 +444,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -452,7 +452,7 @@
           "id": "knowing",
           "label": "Knowing",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -460,7 +460,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -468,7 +468,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Herbalist%20women%20portrait/Herbalist%20women%20portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -497,7 +497,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-01.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-01.png",
           "width": 64,
           "height": 64
         }
@@ -526,7 +526,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-10.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-10.png",
           "width": 64,
           "height": 64
         }
@@ -555,7 +555,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-11.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-11.png",
           "width": 64,
           "height": 64
         }
@@ -584,7 +584,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-12.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-12.png",
           "width": 64,
           "height": 64
         }
@@ -613,7 +613,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-13.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-13.png",
           "width": 64,
           "height": 64
         }
@@ -642,7 +642,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-14.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-14.png",
           "width": 64,
           "height": 64
         }
@@ -671,7 +671,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-15.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-15.png",
           "width": 64,
           "height": 64
         }
@@ -700,7 +700,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-16.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-16.png",
           "width": 64,
           "height": 64
         }
@@ -729,7 +729,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-02.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-02.png",
           "width": 64,
           "height": 64
         }
@@ -758,7 +758,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-03.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-03.png",
           "width": 64,
           "height": 64
         }
@@ -787,7 +787,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-04.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-04.png",
           "width": 64,
           "height": 64
         }
@@ -816,7 +816,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-05.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-05.png",
           "width": 64,
           "height": 64
         }
@@ -845,7 +845,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-06.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-06.png",
           "width": 64,
           "height": 64
         }
@@ -874,7 +874,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-07.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-07.png",
           "width": 64,
           "height": 64
         }
@@ -903,7 +903,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-08.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-08.png",
           "width": 64,
           "height": 64
         }
@@ -932,7 +932,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-09.png",
+          "src": "assets/characters/Indian%20Ocean%20Portrait%20Pack%20by%20OpenAI/indian-ocean-09.png",
           "width": 64,
           "height": 64
         }
@@ -963,7 +963,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander1.png",
           "width": 64,
           "height": 64
         },
@@ -971,7 +971,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander2.png",
           "width": 64,
           "height": 64
         },
@@ -979,7 +979,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander3.png",
           "width": 64,
           "height": 64
         },
@@ -987,7 +987,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander4.png",
           "width": 64,
           "height": 64
         },
@@ -995,7 +995,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander5.png",
           "width": 64,
           "height": 64
         },
@@ -1003,7 +1003,7 @@
           "id": "skeptical",
           "label": "Skeptical",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Knight%20Commander/Knight%20Commander6.png",
           "width": 64,
           "height": 64
         }
@@ -1034,7 +1034,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 1,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_1.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -1042,7 +1042,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 2,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_2.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -1050,7 +1050,7 @@
           "id": "smile",
           "label": "Smile",
           "index": 3,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_3.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -1058,7 +1058,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 4,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_4.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -1066,7 +1066,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 5,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_5.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -1074,7 +1074,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 6,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_6.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -1082,7 +1082,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 7,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_7.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -1090,7 +1090,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 8,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_8.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -1098,7 +1098,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 9,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_9.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_9.png",
           "width": 64,
           "height": 64
         },
@@ -1106,7 +1106,7 @@
           "id": "pained",
           "label": "Pained",
           "index": 10,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_10.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_10.png",
           "width": 64,
           "height": 64
         },
@@ -1114,7 +1114,7 @@
           "id": "shouting",
           "label": "Shouting",
           "index": 11,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_11.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_11.png",
           "width": 64,
           "height": 64
         },
@@ -1122,7 +1122,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 12,
-          "src": "/assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_12.png",
+          "src": "assets/characters/Knight%20Portrait%20Pack%20by%20Captainskeleto/Knight%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -1149,7 +1149,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_1.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -1157,7 +1157,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 2,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_2.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -1165,7 +1165,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 3,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_3.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -1173,7 +1173,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 4,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_4.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -1181,7 +1181,7 @@
           "id": "wary",
           "label": "Wary",
           "index": 5,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_5.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -1189,7 +1189,7 @@
           "id": "surprised",
           "label": "Surprised",
           "index": 6,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_6.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -1197,7 +1197,7 @@
           "id": "attentive",
           "label": "Attentive",
           "index": 7,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_7.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -1205,7 +1205,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 8,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_8.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -1213,7 +1213,7 @@
           "id": "embarrassed",
           "label": "Embarrassed",
           "index": 9,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_9.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_9.png",
           "width": 64,
           "height": 64
         },
@@ -1221,7 +1221,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 10,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_10.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_10.png",
           "width": 64,
           "height": 64
         },
@@ -1229,7 +1229,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 11,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_11.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_11.png",
           "width": 64,
           "height": 64
         },
@@ -1237,7 +1237,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 12,
-          "src": "/assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_12.png",
+          "src": "assets/characters/Little%20Girl%20Portrait%20pack%20by%20Captainskeleto/Little%20Girl%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -1267,7 +1267,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_1.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -1275,7 +1275,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 2,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_2.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -1283,7 +1283,7 @@
           "id": "stern",
           "label": "Stern",
           "index": 3,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_3.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -1291,7 +1291,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 4,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_4.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -1299,7 +1299,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 5,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_5.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -1307,7 +1307,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 6,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_6.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -1315,7 +1315,7 @@
           "id": "pained",
           "label": "Pained",
           "index": 7,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_7.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -1323,7 +1323,7 @@
           "id": "wary",
           "label": "Wary",
           "index": 8,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_8.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -1331,7 +1331,7 @@
           "id": "attentive",
           "label": "Attentive",
           "index": 9,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_9.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_9.png",
           "width": 64,
           "height": 64
         },
@@ -1339,7 +1339,7 @@
           "id": "disgusted",
           "label": "Disgusted",
           "index": 10,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_10.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_10.png",
           "width": 64,
           "height": 64
         },
@@ -1347,7 +1347,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 11,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_11.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_11.png",
           "width": 64,
           "height": 64
         },
@@ -1355,7 +1355,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 12,
-          "src": "/assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_12.png",
+          "src": "assets/characters/Lumberjack%20Portrait%20by%20Captainskeleto/Lumberjack%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -1386,7 +1386,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -1394,7 +1394,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -1402,7 +1402,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -1410,7 +1410,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -1418,7 +1418,7 @@
           "id": "shy",
           "label": "Shy",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -1426,7 +1426,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Man%20Knight/man%20knight%20portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -1456,7 +1456,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_1.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_1.png",
           "width": 64,
           "height": 64
         }
@@ -1486,7 +1486,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_10.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_10.png",
           "width": 64,
           "height": 64
         }
@@ -1516,7 +1516,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_11.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_11.png",
           "width": 64,
           "height": 64
         }
@@ -1546,7 +1546,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_12.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -1576,7 +1576,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_2.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_2.png",
           "width": 64,
           "height": 64
         }
@@ -1606,7 +1606,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_3.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_3.png",
           "width": 64,
           "height": 64
         }
@@ -1636,7 +1636,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_4.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_4.png",
           "width": 64,
           "height": 64
         }
@@ -1666,7 +1666,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_5.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_5.png",
           "width": 64,
           "height": 64
         }
@@ -1696,7 +1696,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_6.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_6.png",
           "width": 64,
           "height": 64
         }
@@ -1726,7 +1726,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_7.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_7.png",
           "width": 64,
           "height": 64
         }
@@ -1756,7 +1756,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_8.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_8.png",
           "width": 64,
           "height": 64
         }
@@ -1786,7 +1786,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_9.png",
+          "src": "assets/characters/Master%20Chef%20Portrait%20Pack%20by%20Captainskolot/Master%20Chef%20Portrait_9.png",
           "width": 64,
           "height": 64
         }
@@ -1815,7 +1815,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-01.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-01.png",
           "width": 64,
           "height": 64
         }
@@ -1844,7 +1844,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-10.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-10.png",
           "width": 64,
           "height": 64
         }
@@ -1873,7 +1873,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-11.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-11.png",
           "width": 64,
           "height": 64
         }
@@ -1902,7 +1902,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-12.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-12.png",
           "width": 64,
           "height": 64
         }
@@ -1931,7 +1931,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-13.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-13.png",
           "width": 64,
           "height": 64
         }
@@ -1960,7 +1960,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-14.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-14.png",
           "width": 64,
           "height": 64
         }
@@ -1989,7 +1989,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-15.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-15.png",
           "width": 64,
           "height": 64
         }
@@ -2018,7 +2018,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-16.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-16.png",
           "width": 64,
           "height": 64
         }
@@ -2047,7 +2047,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-02.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-02.png",
           "width": 64,
           "height": 64
         }
@@ -2076,7 +2076,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-03.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-03.png",
           "width": 64,
           "height": 64
         }
@@ -2105,7 +2105,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-04.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-04.png",
           "width": 64,
           "height": 64
         }
@@ -2134,7 +2134,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-05.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-05.png",
           "width": 64,
           "height": 64
         }
@@ -2163,7 +2163,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-06.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-06.png",
           "width": 64,
           "height": 64
         }
@@ -2192,7 +2192,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-07.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-07.png",
           "width": 64,
           "height": 64
         }
@@ -2221,7 +2221,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-08.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-08.png",
           "width": 64,
           "height": 64
         }
@@ -2250,7 +2250,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-09.png",
+          "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-09.png",
           "width": 64,
           "height": 64
         }
@@ -2280,7 +2280,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -2288,7 +2288,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -2296,7 +2296,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -2304,7 +2304,7 @@
           "id": "praying",
           "label": "Praying",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -2312,7 +2312,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -2320,7 +2320,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Monk/Monk%20portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -2348,7 +2348,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_1.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_1.png",
           "width": 64,
           "height": 64
         }
@@ -2376,7 +2376,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_10.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_10.png",
           "width": 64,
           "height": 64
         }
@@ -2404,7 +2404,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_11.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_11.png",
           "width": 64,
           "height": 64
         }
@@ -2432,7 +2432,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_12.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -2460,7 +2460,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_13.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_13.png",
           "width": 64,
           "height": 64
         }
@@ -2488,7 +2488,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_14.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_14.png",
           "width": 64,
           "height": 64
         }
@@ -2516,7 +2516,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_15.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_15.png",
           "width": 64,
           "height": 64
         }
@@ -2544,7 +2544,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_16.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_16.png",
           "width": 64,
           "height": 64
         }
@@ -2572,7 +2572,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_2.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_2.png",
           "width": 64,
           "height": 64
         }
@@ -2600,7 +2600,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_3.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_3.png",
           "width": 64,
           "height": 64
         }
@@ -2628,7 +2628,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_4.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_4.png",
           "width": 64,
           "height": 64
         }
@@ -2656,7 +2656,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_5.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_5.png",
           "width": 64,
           "height": 64
         }
@@ -2684,7 +2684,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_6.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_6.png",
           "width": 64,
           "height": 64
         }
@@ -2712,7 +2712,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_7.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_7.png",
           "width": 64,
           "height": 64
         }
@@ -2740,7 +2740,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_8.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_8.png",
           "width": 64,
           "height": 64
         }
@@ -2768,7 +2768,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_9.png",
+          "src": "assets/characters/Native%20Americain%20Portrait%20Pack%20by%20Captainskeleto/Native%20American%20Portrait_9.png",
           "width": 64,
           "height": 64
         }
@@ -2798,7 +2798,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -2806,7 +2806,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -2814,7 +2814,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -2822,7 +2822,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -2830,7 +2830,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -2838,7 +2838,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -2868,7 +2868,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 1,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_1.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -2876,7 +2876,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 2,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_2.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -2884,7 +2884,7 @@
           "id": "stern",
           "label": "Stern",
           "index": 3,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_3.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -2892,7 +2892,7 @@
           "id": "pained",
           "label": "Pained",
           "index": 4,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_4.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -2900,7 +2900,7 @@
           "id": "shouting",
           "label": "Shouting",
           "index": 5,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_5.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -2908,7 +2908,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 6,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_6.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -2916,7 +2916,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 7,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_7.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -2924,7 +2924,7 @@
           "id": "weary",
           "label": "Weary",
           "index": 8,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_8.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -2932,7 +2932,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 9,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_9.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_9.png",
           "width": 64,
           "height": 64
         },
@@ -2940,7 +2940,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 10,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_10.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_10.png",
           "width": 64,
           "height": 64
         },
@@ -2948,7 +2948,7 @@
           "id": "determined",
           "label": "Determined",
           "index": 11,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_11.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_11.png",
           "width": 64,
           "height": 64
         },
@@ -2956,7 +2956,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 12,
-          "src": "/assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_12.png",
+          "src": "assets/characters/Old%20Villager%20Portrait%20by%20Captainskeleto/Old%20Villager%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -2987,7 +2987,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_1.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_1.png",
           "width": 64,
           "height": 64
         },
@@ -2995,7 +2995,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 2,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_2.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_2.png",
           "width": 64,
           "height": 64
         },
@@ -3003,7 +3003,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 3,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_3.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_3.png",
           "width": 64,
           "height": 64
         },
@@ -3011,7 +3011,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 4,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_4.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_4.png",
           "width": 64,
           "height": 64
         },
@@ -3019,7 +3019,7 @@
           "id": "pained",
           "label": "Pained",
           "index": 5,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_5.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_5.png",
           "width": 64,
           "height": 64
         },
@@ -3027,7 +3027,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 6,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_6.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_6.png",
           "width": 64,
           "height": 64
         },
@@ -3035,7 +3035,7 @@
           "id": "shouting",
           "label": "Shouting",
           "index": 7,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_7.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_7.png",
           "width": 64,
           "height": 64
         },
@@ -3043,7 +3043,7 @@
           "id": "wary",
           "label": "Wary",
           "index": 8,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_8.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_8.png",
           "width": 64,
           "height": 64
         },
@@ -3051,7 +3051,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 9,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_9.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_9.png",
           "width": 64,
           "height": 64
         },
@@ -3059,7 +3059,7 @@
           "id": "determined",
           "label": "Determined",
           "index": 10,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_10.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_10.png",
           "width": 64,
           "height": 64
         },
@@ -3067,7 +3067,7 @@
           "id": "disgusted",
           "label": "Disgusted",
           "index": 11,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_11.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_11.png",
           "width": 64,
           "height": 64
         },
@@ -3075,7 +3075,7 @@
           "id": "hurt",
           "label": "Hurt",
           "index": 12,
-          "src": "/assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_12.png",
+          "src": "assets/characters/Old%20Warrior%20Grey%20Beard%20by%20Captainskolot/Old%20Warrior%20grey%20Beard_12.png",
           "width": 64,
           "height": 64
         }
@@ -3105,7 +3105,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 1,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_1.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -3113,7 +3113,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 2,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_2.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -3121,7 +3121,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 3,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_3.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -3129,7 +3129,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 4,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_4.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -3137,7 +3137,7 @@
           "id": "attentive",
           "label": "Attentive",
           "index": 5,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_5.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -3145,7 +3145,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 6,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_6.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -3153,7 +3153,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 7,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_7.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -3161,7 +3161,7 @@
           "id": "wary",
           "label": "Wary",
           "index": 8,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_8.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -3169,7 +3169,7 @@
           "id": "skeptical",
           "label": "Skeptical",
           "index": 9,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_9.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_9.png",
           "width": 64,
           "height": 64
         },
@@ -3177,7 +3177,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 10,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_10.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_10.png",
           "width": 64,
           "height": 64
         },
@@ -3185,7 +3185,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 11,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_11.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_11.png",
           "width": 64,
           "height": 64
         },
@@ -3193,7 +3193,7 @@
           "id": "smile",
           "label": "Smile",
           "index": 12,
-          "src": "/assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_12.png",
+          "src": "assets/characters/Peasant%20Portrait%20Pack%20by%20Captainskeleto/Peasant%20portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -3220,7 +3220,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_1.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_1.png",
           "width": 64,
           "height": 64
         }
@@ -3247,7 +3247,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_10.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_10.png",
           "width": 64,
           "height": 64
         }
@@ -3274,7 +3274,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_11.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_11.png",
           "width": 64,
           "height": 64
         }
@@ -3301,7 +3301,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_12.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_12.png",
           "width": 64,
           "height": 64
         }
@@ -3328,7 +3328,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_13.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_13.png",
           "width": 64,
           "height": 64
         }
@@ -3355,7 +3355,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_14.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_14.png",
           "width": 64,
           "height": 64
         }
@@ -3382,7 +3382,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_15.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_15.png",
           "width": 64,
           "height": 64
         }
@@ -3409,7 +3409,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_16.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_16.png",
           "width": 64,
           "height": 64
         }
@@ -3436,7 +3436,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_17.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_17.png",
           "width": 64,
           "height": 64
         }
@@ -3463,7 +3463,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_18.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_18.png",
           "width": 64,
           "height": 64
         }
@@ -3490,7 +3490,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_19.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_19.png",
           "width": 64,
           "height": 64
         }
@@ -3517,7 +3517,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_2.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_2.png",
           "width": 64,
           "height": 64
         }
@@ -3544,7 +3544,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_20.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_20.png",
           "width": 64,
           "height": 64
         }
@@ -3571,7 +3571,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_21.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_21.png",
           "width": 64,
           "height": 64
         }
@@ -3598,7 +3598,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_22.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_22.png",
           "width": 64,
           "height": 64
         }
@@ -3625,7 +3625,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_23.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_23.png",
           "width": 64,
           "height": 64
         }
@@ -3652,7 +3652,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_24.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_24.png",
           "width": 64,
           "height": 64
         }
@@ -3679,7 +3679,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_25.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_25.png",
           "width": 64,
           "height": 64
         }
@@ -3706,7 +3706,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_3.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_3.png",
           "width": 64,
           "height": 64
         }
@@ -3733,7 +3733,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_4.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_4.png",
           "width": 64,
           "height": 64
         }
@@ -3760,7 +3760,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_5.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_5.png",
           "width": 64,
           "height": 64
         }
@@ -3787,7 +3787,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_6.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_6.png",
           "width": 64,
           "height": 64
         }
@@ -3814,7 +3814,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_7.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_7.png",
           "width": 64,
           "height": 64
         }
@@ -3841,7 +3841,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_8.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_8.png",
           "width": 64,
           "height": 64
         }
@@ -3868,7 +3868,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_9.png",
+          "src": "assets/characters/Pirates%20Portrait%20Pack%20by%20Captainskeleto/Pirates%20Portrait/Pirates%20portrait%20by%20captainskeleto_9.png",
           "width": 64,
           "height": 64
         }
@@ -3897,7 +3897,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-01.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-01.png",
           "width": 64,
           "height": 64
         }
@@ -3926,7 +3926,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-10.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-10.png",
           "width": 64,
           "height": 64
         }
@@ -3955,7 +3955,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-11.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-11.png",
           "width": 64,
           "height": 64
         }
@@ -3984,7 +3984,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-12.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-12.png",
           "width": 64,
           "height": 64
         }
@@ -4013,7 +4013,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-13.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-13.png",
           "width": 64,
           "height": 64
         }
@@ -4042,7 +4042,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-14.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-14.png",
           "width": 64,
           "height": 64
         }
@@ -4071,7 +4071,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-15.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-15.png",
           "width": 64,
           "height": 64
         }
@@ -4100,7 +4100,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-16.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-16.png",
           "width": 64,
           "height": 64
         }
@@ -4129,7 +4129,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-02.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-02.png",
           "width": 64,
           "height": 64
         }
@@ -4158,7 +4158,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-03.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-03.png",
           "width": 64,
           "height": 64
         }
@@ -4187,7 +4187,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-04.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-04.png",
           "width": 64,
           "height": 64
         }
@@ -4216,7 +4216,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-05.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-05.png",
           "width": 64,
           "height": 64
         }
@@ -4245,7 +4245,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-06.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-06.png",
           "width": 64,
           "height": 64
         }
@@ -4274,7 +4274,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-07.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-07.png",
           "width": 64,
           "height": 64
         }
@@ -4303,7 +4303,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-08.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-08.png",
           "width": 64,
           "height": 64
         }
@@ -4332,7 +4332,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-09.png",
+          "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-09.png",
           "width": 64,
           "height": 64
         }
@@ -4361,7 +4361,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-01.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-01.png",
           "width": 64,
           "height": 64
         }
@@ -4390,7 +4390,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-10.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-10.png",
           "width": 64,
           "height": 64
         }
@@ -4419,7 +4419,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-11.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-11.png",
           "width": 64,
           "height": 64
         }
@@ -4448,7 +4448,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-12.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-12.png",
           "width": 64,
           "height": 64
         }
@@ -4477,7 +4477,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-13.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-13.png",
           "width": 64,
           "height": 64
         }
@@ -4506,7 +4506,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-14.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-14.png",
           "width": 64,
           "height": 64
         }
@@ -4535,7 +4535,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-15.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-15.png",
           "width": 64,
           "height": 64
         }
@@ -4564,7 +4564,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-16.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-16.png",
           "width": 64,
           "height": 64
         }
@@ -4593,7 +4593,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-02.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-02.png",
           "width": 64,
           "height": 64
         }
@@ -4622,7 +4622,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-03.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-03.png",
           "width": 64,
           "height": 64
         }
@@ -4651,7 +4651,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-04.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-04.png",
           "width": 64,
           "height": 64
         }
@@ -4680,7 +4680,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-05.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-05.png",
           "width": 64,
           "height": 64
         }
@@ -4709,7 +4709,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-06.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-06.png",
           "width": 64,
           "height": 64
         }
@@ -4738,7 +4738,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-07.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-07.png",
           "width": 64,
           "height": 64
         }
@@ -4767,7 +4767,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-08.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-08.png",
           "width": 64,
           "height": 64
         }
@@ -4796,7 +4796,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-09.png",
+          "src": "assets/characters/South%20Asian%20Portrait%20Pack%20by%20OpenAI/south-asian-09.png",
           "width": 64,
           "height": 64
         }
@@ -4825,7 +4825,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-01.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-01.png",
           "width": 64,
           "height": 64
         }
@@ -4854,7 +4854,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-10.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-10.png",
           "width": 64,
           "height": 64
         }
@@ -4883,7 +4883,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-11.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-11.png",
           "width": 64,
           "height": 64
         }
@@ -4912,7 +4912,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-12.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-12.png",
           "width": 64,
           "height": 64
         }
@@ -4941,7 +4941,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-13.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-13.png",
           "width": 64,
           "height": 64
         }
@@ -4970,7 +4970,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-14.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-14.png",
           "width": 64,
           "height": 64
         }
@@ -4999,7 +4999,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-15.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-15.png",
           "width": 64,
           "height": 64
         }
@@ -5028,7 +5028,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-16.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-16.png",
           "width": 64,
           "height": 64
         }
@@ -5057,7 +5057,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-02.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-02.png",
           "width": 64,
           "height": 64
         }
@@ -5086,7 +5086,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-03.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-03.png",
           "width": 64,
           "height": 64
         }
@@ -5115,7 +5115,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-04.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-04.png",
           "width": 64,
           "height": 64
         }
@@ -5144,7 +5144,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-05.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-05.png",
           "width": 64,
           "height": 64
         }
@@ -5173,7 +5173,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-06.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-06.png",
           "width": 64,
           "height": 64
         }
@@ -5202,7 +5202,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-07.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-07.png",
           "width": 64,
           "height": 64
         }
@@ -5231,7 +5231,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-08.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-08.png",
           "width": 64,
           "height": 64
         }
@@ -5260,7 +5260,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-09.png",
+          "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-09.png",
           "width": 64,
           "height": 64
         }
@@ -5289,7 +5289,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-01.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-01.png",
           "width": 64,
           "height": 64
         }
@@ -5318,7 +5318,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-10.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-10.png",
           "width": 64,
           "height": 64
         }
@@ -5347,7 +5347,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-11.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-11.png",
           "width": 64,
           "height": 64
         }
@@ -5376,7 +5376,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-12.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-12.png",
           "width": 64,
           "height": 64
         }
@@ -5405,7 +5405,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-13.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-13.png",
           "width": 64,
           "height": 64
         }
@@ -5434,7 +5434,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-14.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-14.png",
           "width": 64,
           "height": 64
         }
@@ -5463,7 +5463,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-15.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-15.png",
           "width": 64,
           "height": 64
         }
@@ -5492,7 +5492,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-16.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-16.png",
           "width": 64,
           "height": 64
         }
@@ -5521,7 +5521,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-02.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-02.png",
           "width": 64,
           "height": 64
         }
@@ -5550,7 +5550,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-03.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-03.png",
           "width": 64,
           "height": 64
         }
@@ -5579,7 +5579,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-04.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-04.png",
           "width": 64,
           "height": 64
         }
@@ -5608,7 +5608,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-05.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-05.png",
           "width": 64,
           "height": 64
         }
@@ -5637,7 +5637,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-06.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-06.png",
           "width": 64,
           "height": 64
         }
@@ -5666,7 +5666,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-07.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-07.png",
           "width": 64,
           "height": 64
         }
@@ -5695,7 +5695,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-08.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-08.png",
           "width": 64,
           "height": 64
         }
@@ -5724,7 +5724,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-09.png",
+          "src": "assets/characters/Sub-Saharan%20African%20Portrait%20Pack%20by%20OpenAI/sub-saharan-african-09.png",
           "width": 64,
           "height": 64
         }
@@ -5754,7 +5754,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -5762,7 +5762,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -5770,7 +5770,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -5778,7 +5778,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -5786,7 +5786,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -5794,7 +5794,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -5822,7 +5822,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_1.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_1.png",
           "width": 64,
           "height": 64
         }
@@ -5850,7 +5850,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_10.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_10.png",
           "width": 64,
           "height": 64
         }
@@ -5878,7 +5878,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_11.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_11.png",
           "width": 64,
           "height": 64
         }
@@ -5906,7 +5906,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_12.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_12.png",
           "width": 64,
           "height": 64
         }
@@ -5934,7 +5934,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_13.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_13.png",
           "width": 64,
           "height": 64
         }
@@ -5962,7 +5962,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_14.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_14.png",
           "width": 64,
           "height": 64
         }
@@ -5990,7 +5990,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_15.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_15.png",
           "width": 64,
           "height": 64
         }
@@ -6018,7 +6018,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_16.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_16.png",
           "width": 64,
           "height": 64
         }
@@ -6046,7 +6046,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_17.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_17.png",
           "width": 64,
           "height": 64
         }
@@ -6074,7 +6074,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_18.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_18.png",
           "width": 64,
           "height": 64
         }
@@ -6102,7 +6102,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_19.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_19.png",
           "width": 64,
           "height": 64
         }
@@ -6130,7 +6130,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_2.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_2.png",
           "width": 64,
           "height": 64
         }
@@ -6158,7 +6158,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_20.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_20.png",
           "width": 64,
           "height": 64
         }
@@ -6186,7 +6186,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_21.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_21.png",
           "width": 64,
           "height": 64
         }
@@ -6214,7 +6214,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_22.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_22.png",
           "width": 64,
           "height": 64
         }
@@ -6242,7 +6242,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_23.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_23.png",
           "width": 64,
           "height": 64
         }
@@ -6270,7 +6270,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_24.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_24.png",
           "width": 64,
           "height": 64
         }
@@ -6298,7 +6298,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_25.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_25.png",
           "width": 64,
           "height": 64
         }
@@ -6326,7 +6326,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_3.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_3.png",
           "width": 64,
           "height": 64
         }
@@ -6354,7 +6354,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_4.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_4.png",
           "width": 64,
           "height": 64
         }
@@ -6382,7 +6382,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_5.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_5.png",
           "width": 64,
           "height": 64
         }
@@ -6410,7 +6410,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_6.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_6.png",
           "width": 64,
           "height": 64
         }
@@ -6438,7 +6438,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_7.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_7.png",
           "width": 64,
           "height": 64
         }
@@ -6466,7 +6466,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_8.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_8.png",
           "width": 64,
           "height": 64
         }
@@ -6494,7 +6494,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_9.png",
+          "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_9.png",
           "width": 64,
           "height": 64
         }
@@ -6524,7 +6524,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -6532,7 +6532,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -6540,7 +6540,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -6548,7 +6548,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -6556,7 +6556,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -6564,7 +6564,7 @@
           "id": "stern",
           "label": "Stern",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Village%20Elder/Villager%20Elder%20Portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -6591,7 +6591,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -6599,7 +6599,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -6607,7 +6607,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -6615,7 +6615,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -6623,7 +6623,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -6631,7 +6631,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Girl/Villager%20Young%20Girl%20Portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -6661,7 +6661,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -6669,7 +6669,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -6677,7 +6677,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -6685,7 +6685,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -6693,7 +6693,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -6701,7 +6701,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -6732,7 +6732,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 1,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_1.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_1.png",
           "width": 64,
           "height": 64
         },
@@ -6740,7 +6740,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 2,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_2.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_2.png",
           "width": 64,
           "height": 64
         },
@@ -6748,7 +6748,7 @@
           "id": "shy",
           "label": "Shy",
           "index": 3,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_3.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_3.png",
           "width": 64,
           "height": 64
         },
@@ -6756,7 +6756,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 4,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_4.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_4.png",
           "width": 64,
           "height": 64
         },
@@ -6764,7 +6764,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 5,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_5.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_5.png",
           "width": 64,
           "height": 64
         },
@@ -6772,7 +6772,7 @@
           "id": "stern",
           "label": "Stern",
           "index": 6,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_6.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_6.png",
           "width": 64,
           "height": 64
         },
@@ -6780,7 +6780,7 @@
           "id": "wary",
           "label": "Wary",
           "index": 7,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_7.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_7.png",
           "width": 64,
           "height": 64
         },
@@ -6788,7 +6788,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 8,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_8.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_8.png",
           "width": 64,
           "height": 64
         },
@@ -6796,7 +6796,7 @@
           "id": "soft-smile",
           "label": "Soft Smile",
           "index": 9,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_9.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_9.png",
           "width": 64,
           "height": 64
         },
@@ -6804,7 +6804,7 @@
           "id": "attentive",
           "label": "Attentive",
           "index": 10,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_10.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_10.png",
           "width": 64,
           "height": 64
         },
@@ -6812,7 +6812,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 11,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_11.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_11.png",
           "width": 64,
           "height": 64
         },
@@ -6820,7 +6820,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 12,
-          "src": "/assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_12.png",
+          "src": "assets/characters/Women%20Knight%20Portrait%20Pack%20by%20Captainskeleto/Women%20Knight%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -6850,7 +6850,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_1.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_1.png",
           "width": 64,
           "height": 64
         },
@@ -6858,7 +6858,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 2,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_2.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_2.png",
           "width": 64,
           "height": 64
         },
@@ -6866,7 +6866,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 3,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_3.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_3.png",
           "width": 64,
           "height": 64
         },
@@ -6874,7 +6874,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 4,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_4.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_4.png",
           "width": 64,
           "height": 64
         },
@@ -6882,7 +6882,7 @@
           "id": "attentive",
           "label": "Attentive",
           "index": 5,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_5.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_5.png",
           "width": 64,
           "height": 64
         },
@@ -6890,7 +6890,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 6,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_6.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_6.png",
           "width": 64,
           "height": 64
         },
@@ -6898,7 +6898,7 @@
           "id": "surprised",
           "label": "Surprised",
           "index": 7,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_7.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_7.png",
           "width": 64,
           "height": 64
         },
@@ -6906,7 +6906,7 @@
           "id": "embarrassed",
           "label": "Embarrassed",
           "index": 8,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_8.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_8.png",
           "width": 64,
           "height": 64
         },
@@ -6914,7 +6914,7 @@
           "id": "worried",
           "label": "Worried",
           "index": 9,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_9.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_9.png",
           "width": 64,
           "height": 64
         },
@@ -6922,7 +6922,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 10,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_10.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_10.png",
           "width": 64,
           "height": 64
         },
@@ -6930,7 +6930,7 @@
           "id": "angry",
           "label": "Angry",
           "index": 11,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_11.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_11.png",
           "width": 64,
           "height": 64
         },
@@ -6938,7 +6938,7 @@
           "id": "pleased",
           "label": "Pleased",
           "index": 12,
-          "src": "/assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_12.png",
+          "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_12.png",
           "width": 64,
           "height": 64
         }
@@ -6965,7 +6965,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_1.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_1.png",
           "width": 64,
           "height": 64
         }
@@ -6992,7 +6992,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_10.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_10.png",
           "width": 64,
           "height": 64
         }
@@ -7019,7 +7019,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_11.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_11.png",
           "width": 64,
           "height": 64
         }
@@ -7046,7 +7046,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_12.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -7073,7 +7073,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_13.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_13.png",
           "width": 64,
           "height": 64
         }
@@ -7100,7 +7100,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_14.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_14.png",
           "width": 64,
           "height": 64
         }
@@ -7127,7 +7127,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_15.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_15.png",
           "width": 64,
           "height": 64
         }
@@ -7154,7 +7154,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_16.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_16.png",
           "width": 64,
           "height": 64
         }
@@ -7181,7 +7181,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_17.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_17.png",
           "width": 64,
           "height": 64
         }
@@ -7208,7 +7208,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_18.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_18.png",
           "width": 64,
           "height": 64
         }
@@ -7235,7 +7235,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_19.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_19.png",
           "width": 64,
           "height": 64
         }
@@ -7262,7 +7262,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_2.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_2.png",
           "width": 64,
           "height": 64
         }
@@ -7289,7 +7289,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_20.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_20.png",
           "width": 64,
           "height": 64
         }
@@ -7316,7 +7316,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_21.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_21.png",
           "width": 64,
           "height": 64
         }
@@ -7343,7 +7343,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_22.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_22.png",
           "width": 64,
           "height": 64
         }
@@ -7370,7 +7370,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_23.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_23.png",
           "width": 64,
           "height": 64
         }
@@ -7397,7 +7397,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_24.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_24.png",
           "width": 64,
           "height": 64
         }
@@ -7424,7 +7424,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_25.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_25.png",
           "width": 64,
           "height": 64
         }
@@ -7451,7 +7451,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_3.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_3.png",
           "width": 64,
           "height": 64
         }
@@ -7478,7 +7478,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_4.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_4.png",
           "width": 64,
           "height": 64
         }
@@ -7505,7 +7505,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_5.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_5.png",
           "width": 64,
           "height": 64
         }
@@ -7532,7 +7532,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_6.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_6.png",
           "width": 64,
           "height": 64
         }
@@ -7559,7 +7559,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_7.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_7.png",
           "width": 64,
           "height": 64
         }
@@ -7586,7 +7586,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_8.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_8.png",
           "width": 64,
           "height": 64
         }
@@ -7613,7 +7613,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_9.png",
+          "src": "assets/characters/Women%20Pirates%20Portrait%20Pack%20by%20Captainskeleto/Women%20Pirates%20Portrait_9.png",
           "width": 64,
           "height": 64
         }
@@ -7643,7 +7643,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/00.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/00.png",
           "width": 64,
           "height": 64
         }
@@ -7673,7 +7673,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/01.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/01.png",
           "width": 64,
           "height": 64
         }
@@ -7703,7 +7703,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/02.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/02.png",
           "width": 64,
           "height": 64
         }
@@ -7733,7 +7733,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/03.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/03.png",
           "width": 64,
           "height": 64
         }
@@ -7763,7 +7763,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/04.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/04.png",
           "width": 64,
           "height": 64
         }
@@ -7793,7 +7793,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/10.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/10.png",
           "width": 64,
           "height": 64
         }
@@ -7823,7 +7823,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/11.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/11.png",
           "width": 64,
           "height": 64
         }
@@ -7853,7 +7853,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/12.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/12.png",
           "width": 64,
           "height": 64
         }
@@ -7883,7 +7883,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/13.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/13.png",
           "width": 64,
           "height": 64
         }
@@ -7913,7 +7913,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/14.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/14.png",
           "width": 64,
           "height": 64
         }
@@ -7943,7 +7943,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/20.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/20.png",
           "width": 64,
           "height": 64
         }
@@ -7973,7 +7973,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/21.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/21.png",
           "width": 64,
           "height": 64
         }
@@ -8003,7 +8003,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/22.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/22.png",
           "width": 64,
           "height": 64
         }
@@ -8033,7 +8033,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/23.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/23.png",
           "width": 64,
           "height": 64
         }
@@ -8063,7 +8063,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/24.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/24.png",
           "width": 64,
           "height": 64
         }
@@ -8093,7 +8093,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/30.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/30.png",
           "width": 64,
           "height": 64
         }
@@ -8123,7 +8123,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/31.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/31.png",
           "width": 64,
           "height": 64
         }
@@ -8153,7 +8153,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/32.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/32.png",
           "width": 64,
           "height": 64
         }
@@ -8183,7 +8183,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/33.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/33.png",
           "width": 64,
           "height": 64
         }
@@ -8213,7 +8213,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/34.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/34.png",
           "width": 64,
           "height": 64
         }
@@ -8243,7 +8243,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/40.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/40.png",
           "width": 64,
           "height": 64
         }
@@ -8273,7 +8273,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/41.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/41.png",
           "width": 64,
           "height": 64
         }
@@ -8303,7 +8303,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/42.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/42.png",
           "width": 64,
           "height": 64
         }
@@ -8333,7 +8333,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/43.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/43.png",
           "width": 64,
           "height": 64
         }
@@ -8363,7 +8363,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/44.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/44.png",
           "width": 64,
           "height": 64
         }
@@ -8393,7 +8393,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/50.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/50.png",
           "width": 64,
           "height": 64
         }
@@ -8423,7 +8423,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/51.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/51.png",
           "width": 64,
           "height": 64
         }
@@ -8453,7 +8453,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/52.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/52.png",
           "width": 64,
           "height": 64
         }
@@ -8483,7 +8483,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/53.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/53.png",
           "width": 64,
           "height": 64
         }
@@ -8513,7 +8513,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 0,
-          "src": "/assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/54.png",
+          "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/54.png",
           "width": 64,
           "height": 64
         }
@@ -8543,7 +8543,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -8551,7 +8551,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -8559,7 +8559,7 @@
           "id": "thoughtful",
           "label": "Thoughtful",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -8567,7 +8567,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -8575,7 +8575,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -8583,7 +8583,7 @@
           "id": "serious",
           "label": "Serious",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Seamstress%20Women%20Portrait/Women%20Seamstress%20Portrait6.png",
           "width": 64,
           "height": 64
         }
@@ -8610,7 +8610,7 @@
           "id": "sad",
           "label": "Sad",
           "index": 1,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait1.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait1.png",
           "width": 64,
           "height": 64
         },
@@ -8618,7 +8618,7 @@
           "id": "concerned",
           "label": "Concerned",
           "index": 2,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait2.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait2.png",
           "width": 64,
           "height": 64
         },
@@ -8626,7 +8626,7 @@
           "id": "happy",
           "label": "Happy",
           "index": 3,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait3.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait3.png",
           "width": 64,
           "height": 64
         },
@@ -8634,7 +8634,7 @@
           "id": "laughing",
           "label": "Laughing",
           "index": 4,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait4.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait4.png",
           "width": 64,
           "height": 64
         },
@@ -8642,7 +8642,7 @@
           "id": "afraid",
           "label": "Afraid",
           "index": 5,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait5.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait5.png",
           "width": 64,
           "height": 64
         },
@@ -8650,7 +8650,7 @@
           "id": "neutral",
           "label": "Neutral",
           "index": 6,
-          "src": "/assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait6.png",
+          "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait6.png",
           "width": 64,
           "height": 64
         }

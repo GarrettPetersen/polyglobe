@@ -47,7 +47,7 @@ test("player portrait selection uses a directly authored regional captain sprite
   assert.equal("palette" in character, false);
   assert.ok(character.age >= character.minAge && character.age <= character.maxAge);
   assert.ok(character.expressions.length >= 1);
-  assert.ok(character.expressions.every((expression) => expression.src.startsWith("/assets/characters/")));
+  assert.ok(character.expressions.every((expression) => expression.src.startsWith("assets/characters/")));
   assert.ok(character.expressions.every((expression) => expression.width === 64 && expression.height === 64));
 });
 test("every portrait identity has a visually authored age range", () => {
@@ -147,8 +147,8 @@ test("character expressions change frames without changing character identity", 
   const character = {
     id: "captain-a",
     expressions: [
-      { id: "neutral", src: "/assets/characters/captain-a-neutral.png" },
-      { id: "sad", src: "/assets/characters/captain-a-sad.png" }
+      { id: "neutral", src: "assets/characters/captain-a-neutral.png" },
+      { id: "sad", src: "assets/characters/captain-a-sad.png" }
     ]
   };
 
@@ -160,8 +160,8 @@ test("unknown character expressions fall back to neutral", () => {
   const character = {
     id: "captain-b",
     expressions: [
-      { id: "neutral", src: "/assets/characters/captain-b-neutral.png" },
-      { id: "expression-02", src: "/assets/characters/captain-b-expression-02.png" }
+      { id: "neutral", src: "assets/characters/captain-b-neutral.png" },
+      { id: "expression-02", src: "assets/characters/captain-b-expression-02.png" }
     ]
   };
 
@@ -172,9 +172,9 @@ test("requested moods can use a nearby semantic expression", () => {
   const character = {
     id: "captain-c",
     expressions: [
-      { id: "neutral", src: "/assets/characters/captain-c-neutral.png" },
-      { id: "concerned", src: "/assets/characters/captain-c-concerned.png" },
-      { id: "soft-smile", src: "/assets/characters/captain-c-soft-smile.png" }
+      { id: "neutral", src: "assets/characters/captain-c-neutral.png" },
+      { id: "concerned", src: "assets/characters/captain-c-concerned.png" },
+      { id: "soft-smile", src: "assets/characters/captain-c-soft-smile.png" }
     ]
   };
 
@@ -186,10 +186,10 @@ test("port dialogue moods use the closest expression on the same character", () 
   const character = {
     id: "factor-a",
     expressions: [
-      { id: "neutral", src: "/assets/characters/factor-a-neutral.png" },
-      { id: "serious", src: "/assets/characters/factor-a-serious.png" },
-      { id: "soft-smile", src: "/assets/characters/factor-a-soft-smile.png" },
-      { id: "worried", src: "/assets/characters/factor-a-worried.png" }
+      { id: "neutral", src: "assets/characters/factor-a-neutral.png" },
+      { id: "serious", src: "assets/characters/factor-a-serious.png" },
+      { id: "soft-smile", src: "assets/characters/factor-a-soft-smile.png" },
+      { id: "worried", src: "assets/characters/factor-a-worried.png" }
     ]
   };
 

@@ -28,6 +28,8 @@
     "railways:preview": "npm --prefix apps/railways run preview",
     "pixel-globe:dev": "npm --prefix apps/pixel-globe run dev",
     "pixel-globe:build": "npm --prefix apps/pixel-globe run build",
+    "pixel-globe:build-demo": "npm --prefix apps/pixel-globe run build:demo",
+    "pixel-globe:package-demo:itch": "npm --prefix apps/pixel-globe run package:demo:itch",
     "pixel-globe:check": "npm --prefix apps/pixel-globe run check"
   },
   "keywords": [

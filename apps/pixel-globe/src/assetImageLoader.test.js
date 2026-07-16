@@ -6,7 +6,7 @@ test("image loading retries a temporary failure with a fresh request", async () 
   const requestedSources = [];
   const beforeRetryAttempts = [];
   const image = await loadImageWithRetry({
-    src: "/assets/vehicles/carrack.png?v=1",
+    src: "assets/vehicles/carrack.png?v=1",
     label: "vehicle image: carrack",
     createImage: createFakeImageFactory({ failures: 1, requestedSources }),
     retryDelaysMs: [250, 1000],
@@ -17,8 +17,8 @@ test("image loading retries a temporary failure with a fresh request", async () 
   assert.equal(image.loaded, true);
   assert.deepEqual(beforeRetryAttempts, [1]);
   assert.deepEqual(requestedSources, [
-    "/assets/vehicles/carrack.png?v=1",
-    "/assets/vehicles/carrack.png?v=1&retry=1"
+    "assets/vehicles/carrack.png?v=1",
+    "assets/vehicles/carrack.png?v=1&retry=1"
   ]);
 });
 

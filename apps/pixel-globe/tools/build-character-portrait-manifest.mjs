@@ -492,7 +492,7 @@ function groupPortraitFiles(files) {
     group.expressions.push({
       expressionIndex: parsed.expressionIndex,
       relPath,
-      src: `/assets/characters/${relPath.split("/").map(encodeURIComponent).join("/")}`
+      src: `assets/characters/${relPath.split("/").map(encodeURIComponent).join("/")}`
     });
   }
   return [...groups.values()]
@@ -788,7 +788,7 @@ function main() {
     version: 5,
     generatedBy: "tools/build-character-portrait-manifest.mjs",
     portraitSize,
-    sourceRoot: "/assets/characters",
+    sourceRoot: "assets/characters",
     sourceCharacters
   };
 

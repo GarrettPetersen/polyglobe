@@ -2,7 +2,7 @@ import { assignRegionalCharacterName } from "./characterNames.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
 export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-9";
-export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
+export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
   angry: Object.freeze(["stern", "shouting", "annoyed", "determined"]),
@@ -56,7 +56,7 @@ export function validateCharacterPortraitManifest(manifest) {
         throw new Error(`Duplicate expression ${expression.id} for source character ${character.id}`);
       }
       expressionIds.add(expression.id);
-      if (typeof expression.src !== "string" || !expression.src.startsWith("/assets/characters/")) {
+      if (typeof expression.src !== "string" || !expression.src.startsWith("assets/characters/")) {
         throw new Error(`Expression ${character.id}.${expression.id} has invalid src: ${expression.src}`);
       }
       if (expression.width !== 64 || expression.height !== 64) {

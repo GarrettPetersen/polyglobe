@@ -31,6 +31,18 @@ npm run pixel-globe:build
 
 The build output is `apps/pixel-globe/dist`.
 
+Build the two-hour HTML5 demo ZIP for itch.io:
+
+```sh
+make pixel-globe-demo-itch
+```
+
+The upload-ready archive is
+`apps/pixel-globe/build/marque-and-reprisal-demo-itch.zip`. It contains
+`index.html` at the ZIP root, uses relative runtime paths for itch.io's
+subdirectory hosting, and validates itch.io's default file, path, and size
+limits before packaging.
+
 Controls: arrow keys or WASD steer. Space or Enter activates the available interaction.
 
 Developer weather controls are available only with `?debugWeather=true`.

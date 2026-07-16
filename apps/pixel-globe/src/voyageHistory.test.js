@@ -41,13 +41,18 @@ test("voyage summaries expose lifetime totals and useful records", () => {
       discoveries: 7,
       visitedPorts: 14,
       outcomeType: "quit"
-    }), 2)
+    }), 2),
+    completedRecord(voyageRecord({
+      captainName: "Ines",
+      daysAtSea: 5,
+      outcomeType: "demo"
+    }), 3)
   ];
 
   assert.deepEqual(voyageHistorySummary(records), {
-    voyages: 2,
-    totalDays: 29,
-    totalDoubloonsEarned: 5100,
+    voyages: 3,
+    totalDays: 34,
+    totalDoubloonsEarned: 5600,
     longestVoyageDays: 21,
     mostDoubloonsEarned: 4200,
     richestEndingPurse: 3900,
@@ -55,7 +60,8 @@ test("voyage summaries expose lifetime totals and useful records", () => {
     mostPortsVisited: 14,
     victories: 1,
     deaths: 0,
-    quits: 1
+    quits: 1,
+    demos: 1
   });
 });
 

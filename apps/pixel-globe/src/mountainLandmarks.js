@@ -1,6 +1,6 @@
 import { findNearestTileId } from "./geodesic.js";
 
-export const NAMED_MOUNTAINS_URL = "/shared/mountains.json";
+export const NAMED_MOUNTAINS_URL = "shared/mountains.json";
 
 const ICONIC_MOUNTAIN_NAMES = new Set([
   "aconcagua",

@@ -247,6 +247,9 @@ export function createNpcSeaRouteSystem({
   mingTradeOpenToFaction = defaultMingTradeOpenToFaction,
   onForeignPortCall = null
 }) {
+  if (!Number.isFinite(startMinute) || startMinute < 0) {
+    throw new Error(`NPC sea routes require a non-negative start minute: ${startMinute}`);
+  }
   if (!economy) throw new Error("NPC sea routes require a world economy");
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
   if (typeof mingTradeOpenToFaction !== "function") {
@@ -275,6 +278,7 @@ export function createNpcSeaRouteSystem({
     relationBetween,
     mingTradeOpenToFaction,
     onForeignPortCall,
+    contactStartMinute: startMinute,
     fishState,
     fishingGrounds: fishState ? buildFishingGrounds(usablePorts, fishState, startMinute) : [],
     pirateHideouts: choosePirateHideouts(usablePorts),
@@ -1112,7 +1116,8 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < maxPlans) {
     ship.currentPort = ship.plan.destination;
     ship.portVisits += 1;
-    if (system.onForeignPortCall && !ship.currentPort.isFishingGround) {
+    if (system.onForeignPortCall && !ship.currentPort.isFishingGround &&
+        ship.plan.endMinute >= system.contactStartMinute) {
       system.onForeignPortCall(ship.factionId, ship.currentPort.factionId, ship.plan.endMinute);
     }
     if (ship.role === NPC_ROLE_PIRATE && ship.seekingHideout) ship.finalDestination = null;

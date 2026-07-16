@@ -475,13 +475,15 @@ test("market comparisons use pixel-font-safe directional wording", () => {
   );
 });
 
-test("leaving the buy screen recommends the purchased route with the highest P/L", () => {
+test("leaving the buy screen recommends the strongest distance-adjusted trade route", () => {
   const ternate = {
     tileId: 101,
     city: "Ternate",
     displayCity: "Ternate",
     country: "Ternate",
     cityType: "southeast-asian",
+    lat: 0.79,
+    lon: 127.38,
     population: 25000,
     character: { name: "Hamza Darwis" }
   };
@@ -491,6 +493,8 @@ test("leaving the buy screen recommends the purchased route with the highest P/L
     displayCity: "London",
     country: "England",
     cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
     population: 70000
   };
   const lisbon = {
@@ -499,6 +503,8 @@ test("leaving the buy screen recommends the purchased route with the highest P/L
     displayCity: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
+    lat: 38.72,
+    lon: -9.14,
     population: 70000,
     character: { name: "Fernao da Cunha" }
   };
@@ -534,12 +540,69 @@ test("leaving the buy screen recommends the purchased route with the highest P/L
   assert.equal(session.nodeId, "trade-tip");
   assert.equal(
     portDialogueView(session, ternate, gameState, economy, ports).text,
-    "I hear London buys Spices for the best price."
+    "I heard London pays a good price for Spices."
   );
 
   selectPortDialogueOption(session, ternate, gameState, economy, ports, 0);
   assert.equal(session.nodeId, "root");
   assert.equal(session.tradeTip, null);
+});
+
+test("trade advice prefers a useful regional price over a better transcontinental price", () => {
+  const istanbul = {
+    tileId: 110,
+    city: "Istanbul",
+    country: "Turkey",
+    cityType: "islamic-desert",
+    lat: 41.01,
+    lon: 28.98,
+    population: 180000,
+    factionId: "neutral"
+  };
+  const cairo = {
+    tileId: 111,
+    city: "Cairo",
+    country: "Egypt",
+    cityType: "islamic-desert",
+    lat: 30.04,
+    lon: 31.24,
+    population: 120000,
+    factionId: "neutral"
+  };
+  const wuhan = {
+    tileId: 112,
+    city: "Wuhan",
+    country: "China",
+    cityType: "east-asian",
+    lat: 30.59,
+    lon: 114.31,
+    population: 150000,
+    factionId: "neutral"
+  };
+  const ports = [istanbul, cairo, wuhan];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  economy.portStates.get(cairo.tileId).goods.get("spices").stock = 0;
+  economy.portStates.get(wuhan.tileId).goods.get("spices").stock = 0;
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const purchases = {
+    spices: { goodId: "spices", quantity: 1, cost: 60 }
+  };
+  const route = (destinations) => bestPurchasedTradeRoute({
+    purchases,
+    originCity: istanbul,
+    gameState,
+    economy,
+    portCities: [istanbul, ...destinations]
+  });
+
+  const cairoOnly = route([cairo]);
+  const wuhanOnly = route([wuhan]);
+  assert.ok(wuhanOnly.expectedPnl > cairoOnly.expectedPnl);
+  assert.ok(wuhanOnly.distanceKm > cairoOnly.distanceKm * 5);
+
+  const recommended = route([cairo, wuhan]);
+  assert.equal(recommended.destinationName, "Cairo");
+  assert.equal(recommended.goodLabel, "Spices");
 });
 
 test("leaving the buy screen without a purchase returns directly to port business", () => {

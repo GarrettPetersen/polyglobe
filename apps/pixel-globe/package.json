@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "node tools/build-static-site.mjs",
+    "build:demo": "node tools/build-static-site.mjs --edition=demo",
+    "package:demo:itch": "npm run build:demo && node tools/package-itch-demo.mjs",
     "check": "node --check src/main.js && npm test && npm run build",
     "dev": "node server.mjs",
     "generate:characters": "node tools/build-character-portrait-manifest.mjs",

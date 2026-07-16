@@ -1,13 +1,23 @@
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { DEMO_VOYAGE_LIMIT_SECONDS } from "../src/demoVoyage.js";
+
+const BUILD_EDITION_FULL = "full";
+const BUILD_EDITION_DEMO = "demo";
+const DEMO_PORTRAIT_EXPRESSION_LIMIT = 4;
+const CHARACTER_MANIFEST_PATH = "assets/characters/generated/character-portraits.json";
+const SOURCE_ONLY_EXTENSIONS = new Set([".ase", ".aseprite"]);
+const DEMO_TERRAIN_VARIANT = "resurrect-64";
 
 const toolsRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolsRoot, "..");
 const repoRoot = resolve(appRoot, "../..");
-const distRoot = join(appRoot, "dist");
 const publicRoot = join(appRoot, "public");
 const sharedDataRoot = join(repoRoot, "examples/globe-demo/public");
+const edition = buildEditionFromArgs(process.argv.slice(2));
+const distRoot = join(appRoot, edition === BUILD_EDITION_DEMO ? "dist-demo" : "dist");
 const maxPagesFileBytes = 24 * 1024 * 1024;
 
 const appEntries = [
@@ -30,6 +40,16 @@ const sharedEntries = [
   ]
 ];
 
+const fullCharacterManifest = JSON.parse(
+  await readFile(join(publicRoot, CHARACTER_MANIFEST_PATH), "utf8")
+);
+const demoCharacterManifest = edition === BUILD_EDITION_DEMO
+  ? createDemoCharacterManifest(fullCharacterManifest)
+  : null;
+const demoPortraitFiles = demoCharacterManifest
+  ? portraitFilesForManifest(demoCharacterManifest)
+  : null;
+
 async function mustExist(path) {
   try {
     return await stat(path);
@@ -38,7 +58,7 @@ async function mustExist(path) {
   }
 }
 
-async function copyEntry(fromRoot, [from, to]) {
+async function copyEntry(fromRoot, [from, to], filter = null) {
   const source = join(fromRoot, from);
   const target = join(distRoot, to);
   const sourceStat = await mustExist(source);
@@ -47,7 +67,10 @@ async function copyEntry(fromRoot, [from, to]) {
     await copyLargeFileAsChunks(source, target, sourceStat.size);
     return;
   }
-  await cp(source, target, { recursive: true });
+  await cp(source, target, {
+    recursive: true,
+    filter: filter ? (sourcePath) => filter(relative(fromRoot, sourcePath)) : undefined
+  });
 }
 
 async function copyLargeFileAsChunks(source, target, byteLength) {
@@ -73,11 +96,144 @@ async function copyLargeFileAsChunks(source, target, byteLength) {
   );
 }
 
+function buildEditionFromArgs(args) {
+  let requested = BUILD_EDITION_FULL;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--edition") {
+      requested = args[index + 1];
+      index++;
+    } else if (arg.startsWith("--edition=")) {
+      requested = arg.slice("--edition=".length);
+    } else {
+      throw new Error(`Unknown static build argument: ${arg}`);
+    }
+  }
+  if (![BUILD_EDITION_FULL, BUILD_EDITION_DEMO].includes(requested)) {
+    throw new Error(`Unknown Pixel Globe build edition: ${requested}`);
+  }
+  return requested;
+}
+
+function shouldCopyAppPath(path) {
+  const normalized = normalizePath(path);
+  return !normalized.endsWith(".test.js");
+}
+
+function shouldCopyPublicPath(path) {
+  const normalized = normalizePath(path);
+  const fileName = basename(normalized);
+  const extension = extname(fileName).toLowerCase();
+  if (fileName === ".DS_Store" || SOURCE_ONLY_EXTENSIONS.has(extension)) return false;
+  if (normalized.startsWith("assets/capsule/")) return false;
+  if (normalized === "assets/social/gameplay-source.png") return false;
+  if (normalized === "assets/fonts/born2bsporty-fs.otf") return false;
+  if (normalized === "assets/ui/game-icons.json") return false;
+  if (normalized.startsWith("assets/vehicles/sail-ship-16-headings")) return false;
+  if (normalized === "assets/vehicles/unity-ships/unity-ships-contact-sheet.png") return false;
+  if (/-32-headings-(?:preview|lighting-preview)\.png$/.test(normalized)) return false;
+
+  if (edition !== BUILD_EDITION_DEMO) return true;
+  if (normalized.startsWith("assets/terrain/")) {
+    const demoTerrainRoot = `assets/terrain/${DEMO_TERRAIN_VARIANT}`;
+    return normalized === demoTerrainRoot || normalized.startsWith(`${demoTerrainRoot}/`);
+  }
+  if (normalized.startsWith("assets/characters/") && normalized.endsWith(".png")) {
+    return demoPortraitFiles.has(normalized);
+  }
+  return true;
+}
+
+function createDemoCharacterManifest(manifest) {
+  if (!manifest || !Array.isArray(manifest.sourceCharacters)) {
+    throw new Error("Cannot create demo portrait manifest from malformed source data");
+  }
+  return {
+    ...manifest,
+    generatedBy: "tools/build-static-site.mjs --edition=demo",
+    sourceCharacters: manifest.sourceCharacters.map((character) => ({
+      ...character,
+      expressions: selectDemoExpressions(character)
+    }))
+  };
+}
+
+function selectDemoExpressions(character) {
+  if (!Array.isArray(character.expressions) || character.expressions.length === 0) {
+    throw new Error(`Demo portrait source has no expressions: ${character?.id}`);
+  }
+  const ranked = character.expressions
+    .map((expression, index) => ({
+      expression,
+      index,
+      priority: demoExpressionPriority(expression.id)
+    }))
+    .sort((a, b) => a.priority - b.priority || a.index - b.index)
+    .slice(0, DEMO_PORTRAIT_EXPRESSION_LIMIT)
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.expression);
+  if (!ranked.some((expression) => expression.id === "neutral")) {
+    throw new Error(`Demo portrait selection lost neutral expression: ${character.id}`);
+  }
+  return ranked;
+}
+
+function demoExpressionPriority(expressionId) {
+  const preferred = [
+    "neutral",
+    "happy",
+    "soft-smile",
+    "smile",
+    "sad",
+    "worried",
+    "angry",
+    "stern",
+    "concerned",
+    "serious"
+  ];
+  const index = preferred.indexOf(expressionId);
+  return index >= 0 ? index : preferred.length;
+}
+
+function portraitFilesForManifest(manifest) {
+  const paths = new Set();
+  for (const character of manifest.sourceCharacters) {
+    for (const expression of character.expressions) {
+      if (typeof expression.src !== "string" || !expression.src.startsWith("assets/characters/")) {
+        throw new Error(`Demo portrait has invalid relative source: ${expression.src}`);
+      }
+      paths.add(decodeURIComponent(expression.src));
+    }
+  }
+  return paths;
+}
+
+function normalizePath(path) {
+  return path.split(sep).join("/");
+}
+
+function buildEditionModuleSource() {
+  const limit = edition === BUILD_EDITION_DEMO ? DEMO_VOYAGE_LIMIT_SECONDS : null;
+  return [
+    `export const BUILD_EDITION_ID = ${JSON.stringify(edition)};`,
+    `export const ACTIVE_PLAY_LIMIT_SECONDS = ${limit === null ? "null" : limit};`,
+    ""
+  ].join("\n");
+}
+
 await rm(distRoot, { recursive: true, force: true });
 await mkdir(distRoot, { recursive: true });
 
-for (const entry of appEntries) await copyEntry(appRoot, entry);
-for (const entry of publicEntries) await copyEntry(publicRoot, entry);
+for (const entry of appEntries) await copyEntry(appRoot, entry, shouldCopyAppPath);
+for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 
-console.log(`Built Marque & Reprisal static site at ${distRoot}`);
+await writeFile(join(distRoot, "src/buildEdition.js"), buildEditionModuleSource());
+if (demoCharacterManifest) {
+  await writeFile(
+    join(distRoot, CHARACTER_MANIFEST_PATH),
+    `${JSON.stringify(demoCharacterManifest, null, 2)}\n`
+  );
+}
+
+console.log(`Built Marque & Reprisal ${edition} static site at ${distRoot}`);

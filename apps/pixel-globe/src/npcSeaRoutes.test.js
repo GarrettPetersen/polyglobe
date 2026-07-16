@@ -66,6 +66,26 @@ test("every NPC route hull is included in the sprite preload roster", () => {
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
 });
 
+test("initial fleet phasing never reports diplomatic contacts before the voyage begins", () => {
+  const startMinute = 79 * 24 * 60 + 10 * 60;
+  const economy = createWorldEconomy({ ports: PORTS, startMinute });
+  const calls = [];
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute,
+    economy,
+    onForeignPortCall: (visitingFactionId, portFactionId, minute) => {
+      calls.push({ visitingFactionId, portFactionId, minute });
+    }
+  });
+
+  for (let day = 20; day <= 180; day += 20) {
+    updateNpcSeaRouteSystem(routes, startMinute + day * 24 * 60);
+  }
+  assert.ok(calls.length > 0);
+  assert.ok(calls.every((call) => call.minute >= startMinute));
+});
+
 test("eastbound Malacca routes go around the Malay Peninsula through Singapore", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

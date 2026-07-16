@@ -1,6 +1,7 @@
 export const VOYAGE_HISTORY_STORAGE_KEY = "marque-and-reprisal.voyage-history";
 export const VOYAGE_HISTORY_VERSION = 2;
 export const MAX_PAST_VOYAGES = 50;
+export const VOYAGE_OUTCOME_TYPES = Object.freeze(["victory", "death", "quit", "demo"]);
 
 const NON_NEGATIVE_FIELDS = Object.freeze([
   "daysAtSea",
@@ -63,7 +64,8 @@ export function voyageHistorySummary(records) {
     mostPortsVisited: Math.max(summary.mostPortsVisited, record.visitedPorts),
     victories: summary.victories + (record.outcomeType === "victory" ? 1 : 0),
     deaths: summary.deaths + (record.outcomeType === "death" ? 1 : 0),
-    quits: summary.quits + (record.outcomeType === "quit" ? 1 : 0)
+    quits: summary.quits + (record.outcomeType === "quit" ? 1 : 0),
+    demos: summary.demos + (record.outcomeType === "demo" ? 1 : 0)
   }), {
     voyages: 0,
     totalDays: 0,
@@ -75,7 +77,8 @@ export function voyageHistorySummary(records) {
     mostPortsVisited: 0,
     victories: 0,
     deaths: 0,
-    quits: 0
+    quits: 0,
+    demos: 0
   });
 }
 
@@ -131,7 +134,7 @@ function validateVoyageRecord(record) {
       throw new Error(`Voyage record has invalid ${key}`);
     }
   }
-  if (!["victory", "death", "quit"].includes(record.outcomeType)) {
+  if (!VOYAGE_OUTCOME_TYPES.includes(record.outcomeType)) {
     throw new Error(`Voyage record has invalid outcome type: ${record.outcomeType}`);
   }
   if (!Number.isFinite(record.endedAt) || record.endedAt <= 0) {

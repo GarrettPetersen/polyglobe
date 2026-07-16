@@ -90,6 +90,9 @@ import {
   mingTradeAccess,
   resolveMingIllicitMarketAttempt
 } from "./mingTradeRestrictions.js";
+import { greatCircleDistanceKm } from "./worldDistance.js";
+
+const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
 
 export function createPortDialogueSession(city, options = {}) {
   return {
@@ -1626,7 +1629,7 @@ function tradeTipView(session, city) {
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
-    text: `I hear ${tip.destinationName} buys ${tip.goodLabel} for the best price.`,
+    text: `I heard ${tip.destinationName} pays a good price for ${tip.goodLabel}.`,
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: tip.nextNodeId })]
   };
@@ -1668,13 +1671,16 @@ export function bestPurchasedTradeRoute({
       ) < purchase.quantity) continue;
       const revenue = quotePortPurchase(economy, destination, good.id, purchase.quantity);
       const pnl = revenue - purchase.cost;
+      const distanceKm = greatCircleDistanceKm(originCity, destination);
       const candidate = {
         goodId: good.id,
         goodLabel: good.label,
         destinationTileId: destination.tileId,
         destinationName: cityLabel(destination),
         quantity: purchase.quantity,
-        expectedPnl: pnl
+        expectedPnl: pnl,
+        distanceKm,
+        recommendationScore: distanceAdjustedTradeProfit(pnl, distanceKm)
       };
       if (betterTradeTip(candidate, best)) best = candidate;
     }
@@ -1712,13 +1718,29 @@ function destinationAcceptsPlayerTrade(city, gameState, simMinute) {
 }
 
 function betterTradeTip(candidate, current) {
-  if (!current || candidate.expectedPnl !== current.expectedPnl) {
-    return !current || candidate.expectedPnl > current.expectedPnl;
+  if (!current || candidate.recommendationScore !== current.recommendationScore) {
+    return !current || candidate.recommendationScore > current.recommendationScore;
+  }
+  if (candidate.expectedPnl !== current.expectedPnl) {
+    return candidate.expectedPnl > current.expectedPnl;
+  }
+  if (candidate.distanceKm !== current.distanceKm) {
+    return candidate.distanceKm < current.distanceKm;
   }
   if (candidate.destinationName !== current.destinationName) {
     return candidate.destinationName.localeCompare(current.destinationName) < 0;
   }
   return candidate.goodLabel.localeCompare(current.goodLabel) < 0;
+}
+
+function distanceAdjustedTradeProfit(expectedPnl, distanceKm) {
+  if (!Number.isFinite(expectedPnl)) {
+    throw new Error(`Trade-route advice requires finite expected profit: ${expectedPnl}`);
+  }
+  if (!Number.isFinite(distanceKm) || distanceKm < 0) {
+    throw new Error(`Trade-route advice requires a non-negative distance: ${distanceKm}`);
+  }
+  return expectedPnl / (1 + distanceKm / TRADE_TIP_DISTANCE_SCALE_KM);
 }
 
 function loadoutView(session, city, gameState, context) {
