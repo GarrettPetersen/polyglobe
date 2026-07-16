@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  SHIP_SINK_DEPTH_CHANNEL_TOLERANCE,
   SHIP_SINK_EFFECT_DURATION_MS,
   createShipSinkEffect,
+  shipSinkDepthByte,
   shipSinkEffectComplete,
   shipSinkFrame
 } from "./shipSinking.js";
@@ -36,6 +38,22 @@ function createTestEffect(overrides = {}) {
     ...overrides
   });
 }
+
+test("sink-depth decoding normalizes harmless browser color-channel drift", () => {
+  assert.equal(shipSinkDepthByte(127, 127, 127), 127);
+  assert.equal(
+    shipSinkDepthByte(127, 127 + SHIP_SINK_DEPTH_CHANNEL_TOLERANCE, 128),
+    128
+  );
+});
+
+test("sink-depth decoding rejects materially colored or invalid pixels", () => {
+  assert.throws(
+    () => shipSinkDepthByte(127, 132, 127, " in frame 4 at 12,9"),
+    /materially non-grayscale in frame 4 at 12,9: rgb\(127,132,127\)/
+  );
+  assert.throws(() => shipSinkDepthByte(-1, 0, 0), /invalid red channel/);
+});
 
 test("ship breakup deterministically partitions sprite pixels into hull and debris", () => {
   const first = createTestEffect();

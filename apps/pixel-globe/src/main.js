@@ -284,6 +284,7 @@ import {
 import {
   SHIP_SINK_EFFECT_DURATION_MS,
   createShipSinkEffect,
+  shipSinkDepthByte,
   shipSinkEffectComplete,
   shipSinkFrame
 } from "./shipSinking.js";
@@ -1453,7 +1454,10 @@ shipOutlineCtx.imageSmoothingEnabled = false;
 const shipSinkSampleCanvas = document.createElement("canvas");
 shipSinkSampleCanvas.width = SHIP_SHEET_FRAME_SIZE;
 shipSinkSampleCanvas.height = SHIP_SHEET_FRAME_SIZE;
-const shipSinkSampleCtx = shipSinkSampleCanvas.getContext("2d", { willReadFrequently: true });
+const shipSinkSampleCtx = shipSinkSampleCanvas.getContext("2d", {
+  willReadFrequently: true,
+  colorSpace: "srgb"
+});
 if (!shipSinkSampleCtx) throw new Error("Marque & Reprisal could not create its ship sinking sample context");
 shipSinkSampleCtx.imageSmoothingEnabled = false;
 const shipSinkPixelCache = new WeakMap();
@@ -18712,18 +18716,18 @@ function shipSpriteFramePixels(image, sinkDepthImage, frame) {
         throw new Error(`Ship sinking sprite and sink-depth alpha disagree in frame ${frame} at ${x},${y}`);
       }
       if (alpha === 0) continue;
-      if (
-        sinkDepthData[index] !== sinkDepthData[index + 1] ||
-        sinkDepthData[index] !== sinkDepthData[index + 2]
-      ) {
-        throw new Error(`Ship sinking depth map is not grayscale in frame ${frame} at ${x},${y}`);
-      }
+      const sinkDepth = shipSinkDepthByte(
+        sinkDepthData[index],
+        sinkDepthData[index + 1],
+        sinkDepthData[index + 2],
+        ` in frame ${frame} at ${x},${y}`
+      );
       pixels.push(Object.freeze({
         x,
         y,
         color: `rgb(${data[index]}, ${data[index + 1]}, ${data[index + 2]})`,
         alpha: alpha / 255,
-        sinkHeight: sinkDepthData[index] / 255
+        sinkHeight: sinkDepth / 255
       }));
     }
   }

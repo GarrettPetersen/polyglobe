@@ -1,6 +1,7 @@
 import { SHIP_WATERLINE_LEVEL } from "./shipWaterline.js";
 
 export const SHIP_SINK_EFFECT_DURATION_MS = 5200;
+export const SHIP_SINK_DEPTH_CHANNEL_TOLERANCE = 4;
 
 const SHIP_SINK_BURST_SHARE = 0.28;
 const SHIP_SINK_START_MS = 320;
@@ -9,6 +10,23 @@ const SHIP_SINK_SURFACE_LEVEL = 0.2;
 const SHIP_SINK_RIPPLE_COLOR = "#fff1bf";
 const SHIP_SINK_SUBMERSION_FADE_RANGE = 0.24;
 const SHIP_SINK_REFRACTION_BAND_HEIGHT = 3;
+
+export function shipSinkDepthByte(red, green, blue, location = "") {
+  for (const [channel, value] of Object.entries({ red, green, blue })) {
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      throw new Error(`Ship sinking depth map has invalid ${channel} channel${location}: ${value}`);
+    }
+  }
+  const minimum = Math.min(red, green, blue);
+  const maximum = Math.max(red, green, blue);
+  const spread = maximum - minimum;
+  if (spread > SHIP_SINK_DEPTH_CHANNEL_TOLERANCE) {
+    throw new Error(
+      `Ship sinking depth map is materially non-grayscale${location}: rgb(${red},${green},${blue})`
+    );
+  }
+  return red + green + blue - minimum - maximum;
+}
 
 export function createShipSinkEffect({
   id,
