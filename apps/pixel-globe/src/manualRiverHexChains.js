@@ -84,6 +84,14 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
   ],
 };
 
+// The coarse river bake incorrectly joins the Lancang/Mekong to the
+// Jinsha/Yangtze across the drainage divide in northwest Yunnan.
+export const MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS = Object.freeze({
+  7: Object.freeze([
+    Object.freeze([92179, 92180]),
+  ]),
+});
+
 export const MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS = {
   7: Object.freeze([...DARDANELLES_HEX_CHAIN, ...BOSPORUS_HEX_CHAIN])
 };
@@ -93,3 +101,40 @@ export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
     { tile: 25502, edge: 0 },
   ],
 };
+
+export function removeBlockedRiverEdgesFromMasks(graph, masks, blockedEdges) {
+  if (!graph || !Array.isArray(graph.edgeNeighbors)) {
+    throw new Error("Blocked river edge removal requires a geodesic graph");
+  }
+  if (!(masks instanceof Uint8Array) || masks.length !== graph.tileCount) {
+    throw new Error("Blocked river edge removal requires one mask per globe tile");
+  }
+  if (!Array.isArray(blockedEdges)) {
+    throw new Error("Blocked river edges must be an array");
+  }
+
+  let removed = 0;
+  for (const pair of blockedEdges) {
+    if (!Array.isArray(pair) || pair.length !== 2) {
+      throw new Error(`Blocked river edge must contain two tile ids: ${pair}`);
+    }
+    const [a, b] = pair;
+    if (!Number.isInteger(a) || !Number.isInteger(b)) {
+      throw new Error(`Blocked river edge has invalid tile ids: ${a}, ${b}`);
+    }
+    const edgeA = graph.edgeNeighbors[a]?.indexOf(b);
+    const edgeB = graph.edgeNeighbors[b]?.indexOf(a);
+    if (!Number.isInteger(edgeA) || edgeA < 0 || !Number.isInteger(edgeB) || edgeB < 0) {
+      throw new Error(`Blocked river tiles ${a} and ${b} are not adjacent`);
+    }
+    const bitA = 1 << edgeA;
+    const bitB = 1 << edgeB;
+    if ((masks[a] & bitA) === 0 || (masks[b] & bitB) === 0) {
+      throw new Error(`Blocked river edge ${a}<->${b} is missing from the base river bake`);
+    }
+    masks[a] &= ~bitA;
+    masks[b] &= ~bitB;
+    removed += 2;
+  }
+  return removed;
+}

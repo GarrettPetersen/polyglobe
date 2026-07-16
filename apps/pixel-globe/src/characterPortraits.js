@@ -1,7 +1,7 @@
 import { assignRegionalCharacterName } from "./characterNames.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-8";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-9";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `/assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
@@ -39,6 +39,9 @@ export function validateCharacterPortraitManifest(manifest) {
     characterIds.add(character.id);
     if (typeof character.label !== "string" || character.label.trim() === "") {
       throw new Error(`Source character ${character.id} is missing a label`);
+    }
+    if (character.sex !== "female" && character.sex !== "male") {
+      throw new Error(`Source character ${character.id} has invalid sex: ${character.sex}`);
     }
     if (!Array.isArray(character.expressions) || character.expressions.length === 0) {
       throw new Error(`Source character ${character.id} has no expressions`);
@@ -96,8 +99,7 @@ export function assignPortCityCharacters(portCities, manifest, usedNames) {
       ...assignRegionalCharacterName({
         identityKey: key,
         city,
-        sourceId: character.sourceId,
-        sourceLabel: character.sourceLabel,
+        sex: character.sex,
         usedNames
       }),
       cityKey: key,
@@ -122,8 +124,7 @@ export function assignPortCityCharacterFromSource(city, sourceId, manifest, used
     ...assignRegionalCharacterName({
       identityKey: key,
       city,
-      sourceId: character.sourceId,
-      sourceLabel: character.sourceLabel,
+      sex: character.sex,
       usedNames
     }),
     cityKey: key,
@@ -153,8 +154,7 @@ export function assignNpcShipCaptains(npcShips, manifest, usedNames) {
       ...assignRegionalCharacterName({
         identityKey,
         ship,
-        sourceId: character.sourceId,
-        sourceLabel: character.sourceLabel,
+        sex: character.sex,
         usedNames
       }),
       npcShipId: ship.id,
@@ -179,8 +179,7 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
   const name = assignRegionalCharacterName({
     identityKey: `player|${identityKey}`,
     city: homePort,
-    sourceId: character.sourceId,
-    sourceLabel: character.sourceLabel,
+    sex: character.sex,
     usedNames
   });
   return Object.freeze({
@@ -257,8 +256,7 @@ export function generateSpecialPortCharacter({
     ...assignRegionalCharacterName({
       identityKey,
       city: port,
-      sourceId: character.sourceId,
-      sourceLabel: character.sourceLabel,
+      sex: character.sex,
       usedNames
     }),
     role,
@@ -295,8 +293,7 @@ export function generatePassengerCharacter({
   const name = assignRegionalCharacterName({
     identityKey: key,
     city: namePort,
-    sourceId: character.sourceId,
-    sourceLabel: character.sourceLabel,
+    sex: character.sex,
     usedNames
   });
   return Object.freeze({
@@ -339,6 +336,7 @@ function assignedCharacter(id, region, source, age) {
     region,
     sourceId: source.id,
     sourceLabel: source.label,
+    sex: source.sex,
     sourceRoles: source.roles,
     sourceRegions: source.regions,
     minAge: source.minAge,

@@ -10,7 +10,8 @@ import {
   characterExpression,
   generateCampaignContactCharacter,
   generatePassengerCharacter,
-  generatePlayerCharacter
+  generatePlayerCharacter,
+  validateCharacterPortraitManifest
 } from "./characterPortraits.js";
 
 const GENERATED_MANIFEST = JSON.parse(readFileSync(
@@ -38,6 +39,7 @@ test("player portrait selection uses a directly authored regional captain sprite
   assert.equal(character.role, "player-captain");
   assert.equal(character.homePortName, "Cadiz");
   assert.equal(character.nameCulture, "spanish");
+  assert.equal(character.sex, character.gender);
   assert.ok(character.sourceRoles.includes("captain"));
   assert.ok(character.sourceRegions.includes("mediterranean"));
   assert.notEqual(character.id, character.sourceId);
@@ -62,6 +64,38 @@ test("every portrait identity has a visually authored age range", () => {
   assert.deepEqual([oldWarrior.minAge, oldWarrior.maxAge], [58, 75]);
 });
 
+test("every portrait identity has an explicit reviewed sex", () => {
+  assert.ok(GENERATED_MANIFEST.sourceCharacters.every((source) => (
+    source.sex === "female" || source.sex === "male"
+  )));
+  const withoutSex = structuredClone(GENERATED_MANIFEST);
+  delete withoutSex.sourceCharacters[0].sex;
+  assert.throws(
+    () => validateCharacterPortraitManifest(withoutSex),
+    /has invalid sex/
+  );
+});
+
+test("mixed portrait sheets retain their visually reviewed sex assignments", () => {
+  const expectedFemalePortraits = new Map([
+    ["Indian Ocean Portrait Pack by OpenAI", [2, 7, 9, 12, 14]],
+    ["Ming Chinese Portrait Pack by OpenAI", [5, 10, 15]],
+    ["Native Americain Portrait Pack by Captainskeleto", [1, 2, 3, 4, 9, 10, 13, 14]],
+    ["Polynesian Portrait Pack by OpenAI", [2, 4, 6, 8, 9, 12, 14]],
+    ["South Asian Portrait Pack by OpenAI", [2, 4, 9, 14, 16]],
+    ["Southeast Asian Portrait Pack by OpenAI", [2, 4, 9, 11, 12, 14]],
+    ["Sub-Saharan African Portrait Pack by OpenAI", [2, 4, 6, 8, 10, 12, 14, 16]]
+  ]);
+
+  for (const [directory, expectedNumbers] of expectedFemalePortraits) {
+    const actualNumbers = GENERATED_MANIFEST.sourceCharacters
+      .filter((source) => source.sourceDirectory === directory && source.sex === "female")
+      .map((source) => Number.parseInt(source.label.match(/(\d+)$/)?.[1], 10))
+      .sort((a, b) => a - b);
+    assert.deepEqual(actualNumbers, expectedNumbers, directory);
+  }
+});
+
 test("East Asian players use the authored Ming portrait group", () => {
   const homePort = {
     tileId: 12,
@@ -73,6 +107,7 @@ test("East Asian players use the authored Ming portrait group", () => {
     lat: 39.9,
     lon: 116.4
   };
+  const generatedSexes = new Set();
   for (let index = 0; index < 100; index++) {
     const character = generatePlayerCharacter({
       identityKey: `beijing-player-${index}`,
@@ -82,8 +117,11 @@ test("East Asian players use the authored Ming portrait group", () => {
     });
     assert.ok(character.sourceId.startsWith("ming-chinese-portrait-pack-by-openai-"));
     assert.deepEqual(character.sourceRegions, ["east-asia"]);
+    assert.equal(character.sex, character.gender);
     assert.ok(character.age >= character.minAge && character.age <= character.maxAge);
+    generatedSexes.add(character.sex);
   }
+  assert.deepEqual(generatedSexes, new Set(["female", "male"]));
 });
 
 test("generated culture packs contain sixteen native authored sprites apiece", () => {

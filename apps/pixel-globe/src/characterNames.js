@@ -1,5 +1,3 @@
-const FEMALE_SOURCE_PATTERN = /(?:women|woman|girl|female|noblewomen)/i;
-
 const CULTURES = Object.freeze({
   english: culture(
     ["John", "William", "Thomas", "Richard", "Robert", "Edward", "Henry", "George", "Nicholas", "Christopher", "Francis", "Martin"],
@@ -192,14 +190,15 @@ const FACTION_CULTURES = new Map([
   ["joseon", "korean"]
 ]);
 
-export function assignRegionalCharacterName({ identityKey, city, ship, sourceId, sourceLabel, usedNames }) {
+export function assignRegionalCharacterName({ identityKey, city, ship, sex, usedNames }) {
   if (typeof identityKey !== "string" || identityKey === "") throw new Error("Character name requires an identity key");
   if (!(usedNames instanceof Set)) throw new Error("Character name assignment requires a shared used-name Set");
+  if (sex !== "female" && sex !== "male") throw new Error(`Character name requires an explicit sex: ${sex}`);
   const subject = city || shipPort(ship);
   const cultureId = chooseNameCultureForSubject(subject, identityKey);
   const nameCulture = CULTURES[cultureId];
   if (!nameCulture) throw new Error(`Unknown character name culture: ${cultureId}`);
-  const gender = characterGenderForSource(sourceId, sourceLabel);
+  const gender = sex;
   const givenNames = gender === "female" ? nameCulture.female : nameCulture.male;
   const capacity = givenNames.length * nameCulture.family.length;
   const startIndex = hashString32(`${identityKey}|${cultureId}|${gender}|name`) % capacity;
@@ -216,11 +215,6 @@ export function assignRegionalCharacterName({ identityKey, city, ship, sourceId,
     return { name, givenName, familyName, gender, nameCulture: cultureId };
   }
   throw new Error(`Exhausted ${gender} names for ${cultureId}`);
-}
-
-export function characterGenderForSource(sourceId, sourceLabel) {
-  const source = `${sourceId || ""}|${sourceLabel || ""}`;
-  return FEMALE_SOURCE_PATTERN.test(source) ? "female" : "male";
 }
 
 export function nameCultureForSubject(subject) {

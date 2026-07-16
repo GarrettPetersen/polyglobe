@@ -10,9 +10,11 @@ import {
   factionIdForCity1522
 } from "./factions.js";
 import {
+  MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
   MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
-  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS
+  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
+  removeBlockedRiverEdgesFromMasks
 } from "./manualRiverHexChains.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
@@ -475,6 +477,11 @@ function buildRiverMasks(graph, earth) {
   for (const [rawId, edges] of Object.entries(earth.riverEdgeToWater || {})) {
     for (const edge of edges) addRiverEdgeMask(graph, toWaterMasks, Number(rawId), edge);
   }
+  removeBlockedRiverEdgesFromMasks(
+    graph,
+    masks,
+    MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []
+  );
   for (const chain of MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || []) {
     for (let i = 0; i < chain.length - 1; i++) addRiverEdgeBetween(graph, masks, chain[i], chain[i + 1]);
   }

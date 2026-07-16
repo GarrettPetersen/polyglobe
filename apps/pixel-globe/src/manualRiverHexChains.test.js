@@ -6,10 +6,12 @@ import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./g
 import { cityHasPortAccess } from "./cityPortAccess.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
+  MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
   MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
-  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
+  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS,
+  removeBlockedRiverEdgesFromMasks
 } from "./manualRiverHexChains.js";
 
 const SUBDIVISIONS = 7;
@@ -68,6 +70,14 @@ test("saltwater passages are an explicit subset of manual river channels", () =>
   assert.ok(passageTiles.every((tileId) => chainTiles.has(tileId)));
 });
 
+test("Mekong and Yangtze remain separate river systems", async () => {
+  const { graph, masks } = await buildManualRiverFixture();
+  const blockedEdges = MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS];
+
+  assert.deepEqual(blockedEdges, [[92179, 92180]]);
+  assert.equal(riverTilesConnected(graph, masks, 93216, 61636), false);
+});
+
 async function buildManualRiverFixture() {
   const earth = JSON.parse(await readFile(
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
@@ -93,6 +103,11 @@ function buildRiverMasks(graph, earth) {
     const tileId = Number(rawId);
     for (const edge of edges) addRiverEdgeMask(graph, toWaterMasks, tileId, edge);
   }
+  removeBlockedRiverEdgesFromMasks(
+    graph,
+    masks,
+    MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []
+  );
   for (const chain of MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || []) {
     for (let i = 0; i < chain.length - 1; i++) {
       addRiverEdgeBetween(graph, masks, chain[i], chain[i + 1]);
@@ -105,6 +120,25 @@ function buildRiverMasks(graph, earth) {
   markRiverEdgesOpeningToWater(graph, earth.tiles, masks, toWaterMasks);
 
   return { masks, toWaterMasks };
+}
+
+function riverTilesConnected(graph, masks, startTileId, targetTileId) {
+  const queue = [startTileId];
+  const seen = new Set(queue);
+  for (let head = 0; head < queue.length; head++) {
+    const tileId = queue[head];
+    for (let edge = 0; edge < graph.edgeCount[tileId]; edge++) {
+      if (!riverEdgeSet(masks, tileId, edge)) continue;
+      const neighborId = graph.edgeNeighbors[tileId]?.[edge];
+      if (neighborId === targetTileId) return true;
+      if (neighborId === undefined || seen.has(neighborId)) continue;
+      const reciprocalEdge = edgeIndexTowardNeighbor(graph, neighborId, tileId);
+      if (reciprocalEdge === undefined || !riverEdgeSet(masks, neighborId, reciprocalEdge)) continue;
+      seen.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  return startTileId === targetTileId;
 }
 
 function buildOceanReachableNavigationMask(graph, earthRows, riverMasks, riverToWaterMasks) {

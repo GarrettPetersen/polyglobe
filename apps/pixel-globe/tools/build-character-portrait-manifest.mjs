@@ -22,6 +22,47 @@ const individualSequencePacks = new Set([
 ]);
 const numericGridPacks = new Map();
 
+const singleSexPortraitDirectories = new Map([
+  ["Blacksmith Portrait Pack by Captainskeleto", "male"],
+  ["Blond Villager Portrait Pack by Captainskeleto", "male"],
+  ["Blond Villager Women Portrait Pack by Captainskeleto", "female"],
+  ["Knight Portrait Pack by Captainskeleto", "male"],
+  ["Little Girl Portrait pack by Captainskeleto", "female"],
+  ["Lumberjack Portrait by Captainskeleto", "male"],
+  ["Master Chef Portrait Pack by Captainskolot", "male"],
+  ["Old Villager Portrait by Captainskeleto", "male"],
+  ["Old Warrior Grey Beard by Captainskolot", "male"],
+  ["Peasant Portrait Pack by Captainskeleto", "male"],
+  ["Pirates Portrait Pack by Captainskeleto/Pirates Portrait", "male"],
+  ["Ultimate Portrait Pack V1.0/Blacksmith", "male"],
+  ["Ultimate Portrait Pack V1.0/Herbalist women portrait", "female"],
+  ["Ultimate Portrait Pack V1.0/Knight Commander", "male"],
+  ["Ultimate Portrait Pack V1.0/Man Knight", "male"],
+  ["Ultimate Portrait Pack V1.0/Monk", "male"],
+  ["Ultimate Portrait Pack V1.0/Noblewomen", "female"],
+  ["Ultimate Portrait Pack V1.0/Seamstress Women Portrait", "female"],
+  ["Ultimate Portrait Pack V1.0/Tavern Keeper", "male"],
+  ["Ultimate Portrait Pack V1.0/Village Elder", "male"],
+  ["Ultimate Portrait Pack V1.0/Women Baker", "female"],
+  ["Ultimate Portrait Pack V1.0/Young Peasant Boy", "male"],
+  ["Ultimate Portrait Pack V1.0/Young Peasant Girl", "female"],
+  ["Viking Men Portrait Pack by Captainskeleto", "male"],
+  ["Women Knight Portrait Pack by Captainskeleto", "female"],
+  ["Women Peasant Pack by Captainskeleto", "female"],
+  ["Women Pirates Portrait Pack by Captainskeleto", "female"],
+  ["Women Portrait Pack by Captainskeleto/Women Portrait", "female"]
+]);
+
+const reviewedSexSequences = new Map([
+  ["Indian Ocean Portrait Pack by OpenAI", sexSequence("mfmmmmfmfmmfmfmm")],
+  ["Ming Chinese Portrait Pack by OpenAI", sexSequence("mmmmfmmmmfmmmmfm")],
+  ["Native Americain Portrait Pack by Captainskeleto", sexSequence("ffffmmmmffmmffmm")],
+  ["Polynesian Portrait Pack by OpenAI", sexSequence("mfmfmfmffmmfmfmm")],
+  ["South Asian Portrait Pack by OpenAI", sexSequence("mfmfmmmmfmmmmfmf")],
+  ["Southeast Asian Portrait Pack by OpenAI", sexSequence("mfmfmmmmfmffmfmm")],
+  ["Sub-Saharan African Portrait Pack by OpenAI", sexSequence("mfmfmfmfmfmfmfmf")]
+]);
+
 const expressionLabelOverrides = new Map([
   labels("Blacksmith Portrait Pack by Captainskeleto/Blacksmith Portrait", [
     ["neutral", "Neutral"],
@@ -385,6 +426,13 @@ function labels(key, values) {
   return [key, values.map(([id, label]) => expressionDescriptor(id, label))];
 }
 
+function sexSequence(sequence) {
+  if (!/^[mf]{16}$/.test(sequence)) {
+    throw new Error(`Reviewed portrait sex sequence must contain exactly 16 m/f entries: ${sequence}`);
+  }
+  return Object.freeze([...sequence].map((entry) => entry === "f" ? "female" : "male"));
+}
+
 function expressionDescriptor(id, label) {
   return { id, label };
 }
@@ -582,6 +630,7 @@ function normalizeExpressionGroup(group) {
     label: group.labelSeed,
     groupingMode: group.groupingMode,
     sourceDirectory: group.relDir,
+    sex: portraitSex(group.labelSeed, group.relDir),
     roles: metadata.roles,
     regions: metadata.regions,
     minAge: ages.minAge,
@@ -589,6 +638,18 @@ function normalizeExpressionGroup(group) {
     expressionCount: expressions.length,
     expressions
   };
+}
+
+function portraitSex(label, sourceDirectory) {
+  const uniformSex = singleSexPortraitDirectories.get(sourceDirectory);
+  if (uniformSex) return uniformSex;
+
+  const sequence = reviewedSexSequences.get(sourceDirectory);
+  const match = label.match(/(\d+)$/);
+  const portraitNumber = match ? Number.parseInt(match[1], 10) : NaN;
+  const sex = sequence?.[portraitNumber - 1];
+  if (sex) return sex;
+  throw new Error(`Missing reviewed sex for portrait: ${sourceDirectory}/${label}`);
 }
 
 function portraitAgeRange(label, sourceDirectory) {
@@ -724,7 +785,7 @@ function main() {
   if (sourceCharacters.length === 0) throw new Error(`No ${portraitSize}x${portraitSize} portrait expressions found in ${characterRoot}`);
   const expressionCount = sourceCharacters.reduce((total, character) => total + character.expressions.length, 0);
   const manifest = {
-    version: 4,
+    version: 5,
     generatedBy: "tools/build-character-portrait-manifest.mjs",
     portraitSize,
     sourceRoot: "/assets/characters",

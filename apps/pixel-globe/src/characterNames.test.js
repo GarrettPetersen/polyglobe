@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   assignRegionalCharacterName,
-  characterGenderForSource,
   nameCultureCandidatesForSubject,
   nameCultureForSubject
 } from "./characterNames.js";
@@ -13,8 +12,7 @@ test("regional character names are deterministic and respect family-first cultur
   const args = {
     identityKey: "Nanjing|China|12",
     city,
-    sourceId: "knight-portrait",
-    sourceLabel: "Knight Portrait"
+    sex: "male"
   };
   const first = assignRegionalCharacterName({ ...args, usedNames: new Set() });
   const second = assignRegionalCharacterName({ ...args, usedNames: new Set() });
@@ -25,19 +23,23 @@ test("regional character names are deterministic and respect family-first cultur
   assert.equal(first.name, `${first.familyName} ${first.givenName}`);
 });
 
-test("portrait source labels select the matching given-name pool", () => {
-  assert.equal(characterGenderForSource("women-pirates-portrait-4", "Women Pirates Portrait 4"), "female");
-  assert.equal(characterGenderForSource("viking-portrait-male-4", "Viking Portrait Male 4"), "male");
-
+test("explicit portrait sex selects the matching given-name pool", () => {
   const character = assignRegionalCharacterName({
     identityKey: "captain|ship-4",
     ship: { currentPort: { city: "Lisbon", country: "Portugal", cityType: "mediterranean" } },
-    sourceId: "women-pirates-portrait-4",
-    sourceLabel: "Women Pirates Portrait 4",
+    sex: "female",
     usedNames: new Set()
   });
   assert.equal(character.gender, "female");
   assert.equal(character.nameCulture, "portuguese");
+});
+
+test("character names reject missing portrait sex", () => {
+  assert.throws(() => assignRegionalCharacterName({
+    identityKey: "captain|ship-5",
+    ship: { currentPort: { city: "Lisbon", country: "Portugal", cityType: "mediterranean" } },
+    usedNames: new Set()
+  }), /requires an explicit sex/);
 });
 
 test("a shared name registry prevents duplicate people", () => {
@@ -45,8 +47,7 @@ test("a shared name registry prevents duplicate people", () => {
   const args = {
     identityKey: "same-key",
     city: { city: "London", country: "United Kingdom", factionId: "england" },
-    sourceId: "blacksmith-portrait",
-    sourceLabel: "Blacksmith Portrait",
+    sex: "male",
     usedNames
   };
   const first = assignRegionalCharacterName(args);
@@ -74,8 +75,7 @@ test("Pacific island villages use the Polynesian naming culture", () => {
   const character = assignRegionalCharacterName({
     identityKey: "fiji-village-factor",
     city: village,
-    sourceId: "captain-portrait",
-    sourceLabel: "Captain Portrait",
+    sex: "male",
     usedNames: new Set()
   });
   assert.equal(character.nameCulture, "polynesian");
@@ -97,8 +97,7 @@ test("border and colonial cities mix local and ruling name cultures", () => {
     seen.add(assignRegionalCharacterName({
       identityKey: `sudak-captain-${i}`,
       city: sudak,
-      sourceId: "captain-portrait",
-      sourceLabel: "Captain Portrait",
+      sex: "male",
       usedNames: new Set()
     }).nameCulture);
   }

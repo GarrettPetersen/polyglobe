@@ -19,9 +19,11 @@ import {
   selectCityVisualOffset
 } from "./cityVisualPlacement.js";
 import {
+  MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
   MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
   MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
-  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
+  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS,
+  removeBlockedRiverEdgesFromMasks
 } from "./manualRiverHexChains.js";
 import {
   applyManualTerrainOverrides,
@@ -3037,11 +3039,16 @@ function buildRiverMasksFromCache(earth) {
     }
   }
 
+  const removed = removeBlockedRiverEdgesFromMasks(
+    graph,
+    masks,
+    MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []
+  );
   const added = mergeManualRiverChainsIntoMasks(masks);
   const manualMouthEdges = mergeManualRiverMouthEdgesIntoMasks(masks, toWaterMasks);
   const mouthEdges = markRiverEdgesOpeningToWater(masks, toWaterMasks);
   console.info(
-    `[pixel-globe] river masks loaded: ${countRiverTiles(masks)} tiles, ${added} manual half-edge additions, ${manualMouthEdges} manual mouth half-edges, ${mouthEdges} derived coastal mouth half-edges`
+    `[pixel-globe] river masks loaded: ${countRiverTiles(masks)} tiles, ${removed} blocked base half-edges, ${added} manual half-edge additions, ${manualMouthEdges} manual mouth half-edges, ${mouthEdges} derived coastal mouth half-edges`
   );
   return { masks, toWaterMasks };
 }
