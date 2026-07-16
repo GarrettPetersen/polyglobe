@@ -169,6 +169,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   sell: "action:sell",
   quest: "action:quest",
   "viking-longship": "action:viking",
+  colonization: "action:quest",
   marque: "action:letter",
   cargo: "action:inventory"
 });
@@ -196,6 +197,10 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "decline-viking-longship-reward": "action:leave",
   "purchase-ship": "action:shipyard",
   "deliver-viking-material": "action:quest",
+  "deliver-colonization-material": "action:quest",
+  "embark-colonists": "action:passenger",
+  "land-colonists": "action:dock",
+  "deliver-colony-resupply": "action:quest",
   "confirm-piracy": "action:attack",
   "receive-aid": "good:fresh-water",
   "complete-passenger": "action:passenger",

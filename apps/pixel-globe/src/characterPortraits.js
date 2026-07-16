@@ -212,25 +212,57 @@ export function generateCampaignContactCharacter({
   if (typeof excludedSourceId !== "string" || excludedSourceId === "") {
     throw new Error("Campaign contact generation requires the home factor portrait source");
   }
-  const region = portraitRegionForCity(homePort);
-  const sourcePool = characterSourcesForRole(manifest, "factor", region)
-    .filter((source) => source.id !== excludedSourceId);
-  if (sourcePool.length === 0) {
-    throw new Error(`Campaign contact has no portrait distinct from the factor at ${homePort.displayCity || homePort.city}`);
+  return generateSpecialPortCharacter({
+    identityKey: `campaign-contact|${goalType}|${playerCharacter.id}|${homePort.tileId}`,
+    port: homePort,
+    excludedSourceIds: [excludedSourceId],
+    role: goalType === "explorer" ? "patron" : "creditor",
+    manifest,
+    usedNames
+  });
+}
+
+export function generateSpecialPortCharacter({
+  identityKey,
+  port,
+  excludedSourceIds = [],
+  role,
+  manifest,
+  usedNames
+}) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (typeof identityKey !== "string" || identityKey.trim() === "") {
+    throw new Error("Special port character generation requires an identity key");
   }
-  const identityKey = `campaign-contact|${goalType}|${playerCharacter.id}|${homePort.tileId}`;
+  if (!port || typeof port !== "object") {
+    throw new Error("Special port character generation requires a port");
+  }
+  if (!Array.isArray(excludedSourceIds) || excludedSourceIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("Special port character exclusions must be portrait source ids");
+  }
+  if (typeof role !== "string" || role.trim() === "") {
+    throw new Error("Special port character generation requires a role");
+  }
+  const excluded = new Set(excludedSourceIds);
+  const region = portraitRegionForCity(port);
+  const sourcePool = characterSourcesForRole(manifest, "factor", region)
+    .filter((source) => !excluded.has(source.id));
+  if (sourcePool.length === 0) {
+    throw new Error(`Special character has no distinct portrait at ${port.displayCity || port.city}`);
+  }
   const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
   return Object.freeze({
     ...character,
     ...assignRegionalCharacterName({
       identityKey,
-      city: homePort,
+      city: port,
       sourceId: character.sourceId,
       sourceLabel: character.sourceLabel,
       usedNames
     }),
-    role: goalType === "explorer" ? "patron" : "creditor",
-    homePortTileId: homePort.tileId
+    role,
+    homePortTileId: port.tileId
   });
 }
 

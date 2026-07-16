@@ -13,6 +13,8 @@ import {
   awardPlayerShip,
   buyGood,
   cargoCostBasis,
+  cargoFree,
+  cargoReservationUnits,
   cargoUsed,
   createGameState,
   initializeProvisionalShipLoadout,
@@ -21,6 +23,8 @@ import {
   migrateGameState,
   purchasePlayerShip,
   receiveEmergencyShipAid,
+  releaseCargoSpace,
+  reserveCargoSpace,
   restockShipLoadoutAtPort,
   refillFreshWaterFromShore,
   rollCrewCasualtiesForDamage,
@@ -44,6 +48,22 @@ test("saved game state rejects unsupported schema versions", () => {
   state.version += 1;
   assert.throws(() => validateGameState(state), /Unsupported game state version/);
   assert.throws(() => migrateGameState({ version: 7 }), /Unsupported game state version/);
+});
+
+test("passengers reserve hold space across every cargo and ship-capacity check", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const before = cargoFree(state);
+
+  reserveCargoSpace(state, "test-passengers", 12);
+  assert.equal(cargoReservationUnits(state, "test-passengers"), 12);
+  assert.equal(cargoFree(state), before - 12);
+  assert.throws(() => reserveCargoSpace(state, "test-passengers", 1), /already exists/);
+
+  assert.equal(releaseCargoSpace(state, "test-passengers"), 12);
+  assert.equal(cargoFree(state), before);
+  assert.throws(() => releaseCargoSpace(state, "test-passengers"), /does not exist/);
 });
 
 test("survival drains water and consumes the cheapest edible cargo first", () => {

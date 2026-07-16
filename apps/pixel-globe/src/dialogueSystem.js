@@ -5,10 +5,12 @@ import {
   buyGood,
   cargoCostBasis,
   cargoFree,
+  cargoReservationUnits,
   cargoRows,
   cargoUsed,
   cityLabel,
   completeQuest,
+  deliverQuestCargo,
   grantLetterOfMarque,
   isEnvoyQuest,
   letterOfMarqueStatus,
@@ -21,6 +23,9 @@ import {
   purchaseCannonEquipment,
   purchaseFishingNet,
   questStateForCity,
+  receiveQuestPayment,
+  releaseCargoSpace,
+  reserveCargoSpace,
   restockShipLoadoutAtPort,
   sellGood
 } from "./gameState.js";
@@ -31,6 +36,7 @@ import {
   portEconomySummary,
   portMarket,
   quotePortPurchase,
+  quotePortSale,
   tradeGoodById,
   worldMarketPriceComparison
 } from "./economy.js";
@@ -58,6 +64,25 @@ import {
   isVikingLongshipQuestPort,
   vikingLongshipQuestState
 } from "./vikingLongshipQuest.js";
+import {
+  COLONIZATION_CARGO_RESERVATION_ID,
+  COLONIZATION_EXPEDITION_CARGO_UNITS,
+  COLONIZATION_STAGE_AWAITING_RESUPPLY,
+  COLONIZATION_STAGE_ESTABLISHED,
+  COLONIZATION_STAGE_FAILED,
+  COLONIZATION_STAGE_FETCH,
+  COLONIZATION_STAGE_OUTBOUND,
+  COLONIZATION_STAGE_READY,
+  assertColonizationFetchDelivery,
+  assertColonizationResupplyDelivery,
+  beginColonizationExpedition,
+  colonizationQuestView,
+  completeColonizationFetchStage,
+  establishColony,
+  isColonizationQuestOrigin,
+  isColonizationQuestTarget,
+  landColonists
+} from "./colonizationQuest.js";
 import {
   MING_FACTION_ID,
   MING_ILLICIT_MARKET_REPUTATION_PENALTY,
@@ -407,6 +432,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
+  if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
@@ -521,6 +547,83 @@ export function selectPortDialogueOption(
     session.feedback = `Delivered ${result.completedStage.goodLabel} x${result.completedStage.quantity}.`;
     session.selectedIndex = 0;
     return { closed: false, vikingLongshipDelivery: result };
+  }
+  if (action.type === "deliver-colonization-material") {
+    const quest = colonizationQuestView(gameState, { currentMinute: context.simMinute ?? 0 });
+    const stage = assertColonizationFetchDelivery(gameState.memory.colonization, action.stageId);
+    if (!quest.canDeliverFetch) throw new Error(`Not enough ${stage.goodLabel} for the colony expedition`);
+    const delivery = deliverQuestCargo(
+      gameState,
+      city,
+      stage.goodId,
+      stage.quantity,
+      `port-royal.${stage.id}`,
+      context
+    );
+    completeColonizationFetchStage(gameState.memory.colonization, stage.id);
+    const payment = receiveQuestPayment(
+      gameState,
+      city,
+      stage.reward,
+      `Port Royal expedition: ${stage.goodLabel}`,
+      context
+    );
+    session.feedback = `Delivered ${stage.goodLabel} x${stage.quantity}. Paid ${payment.amount} db.`;
+    session.selectedIndex = 0;
+    return { closed: false, colonizationChanged: true, colonizationDelivery: delivery };
+  }
+  if (action.type === "embark-colonists") {
+    const quest = colonizationQuestView(gameState, {
+      currentMinute: context.simMinute ?? 0,
+      shipStats: context.shipStats,
+      freeCargoUnits: cargoFree(gameState)
+    });
+    if (!quest.shipEligibility?.eligible) {
+      throw new Error(`Ship cannot carry the colonists: ${quest.shipEligibility?.missing.join(", ")}`);
+    }
+    reserveCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID, COLONIZATION_EXPEDITION_CARGO_UNITS);
+    beginColonizationExpedition(gameState.memory.colonization);
+    session.feedback = "The colonists and their stores are aboard. Port Royal lies across the Atlantic.";
+    session.selectedIndex = 0;
+    return { closed: false, colonizationChanged: true };
+  }
+  if (action.type === "land-colonists") {
+    if (cargoReservationUnits(gameState, COLONIZATION_CARGO_RESERVATION_ID) !==
+        COLONIZATION_EXPEDITION_CARGO_UNITS) {
+      throw new Error("The Port Royal expedition has no colonist cargo reservation");
+    }
+    releaseCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID);
+    landColonists(gameState.memory.colonization, context.simMinute ?? 0);
+    session.feedback = "Port Royal Colony has been founded. Return within one year with the promised grain.";
+    session.selectedIndex = 0;
+    return { closed: false, colonizationChanged: true };
+  }
+  if (action.type === "deliver-colony-resupply") {
+    const minute = context.simMinute ?? 0;
+    const resupply = assertColonizationResupplyDelivery(gameState.memory.colonization, minute);
+    const held = gameState.cargo?.[resupply.goodId] || 0;
+    if (held < resupply.quantity) {
+      throw new Error(`Not enough ${resupply.goodLabel} for Port Royal: ${held}/${resupply.quantity}`);
+    }
+    const delivery = deliverQuestCargo(
+      gameState,
+      city,
+      resupply.goodId,
+      resupply.quantity,
+      "port-royal.first-year-resupply",
+      context
+    );
+    establishColony(gameState.memory.colonization, minute);
+    const payment = receiveQuestPayment(
+      gameState,
+      city,
+      resupply.reward,
+      "Port Royal first-year resupply",
+      context
+    );
+    session.feedback = `Port Royal is secure. Paid ${payment.amount} db.`;
+    session.selectedIndex = 0;
+    return { closed: false, colonizationChanged: true, colonyEstablished: true, colonizationDelivery: delivery };
   }
   if (action.type === "select-loadout") {
     if (!context.shipStats) throw new Error("Selecting a loadout requires player ship stats");
@@ -706,6 +809,17 @@ function assertPassengerDialogueSubject(session, city, quest) {
 function greetingView(session, city, gameState, context) {
   const memory = portMemory(gameState, city);
   if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
+  if (city.playerFoundedColony) {
+    return {
+      speaker: `${characterName(city.character)}, governor of ${cityLabel(city)}`,
+      expressionId: "happy",
+      text: memory.visits > 1
+        ? "Welcome home, founder. Your berth is kept clear, and every factor knows to charge you the founder's price."
+        : "You have returned to the city you saved. Port Royal's warehouses, shipyard, and market are open to you at the founder's price.",
+      feedback: null,
+      options: [option("Continue", { type: "node", nodeId: "root" })]
+    };
+  }
   const name = cityLabel(city);
   const personalityId = city.character?.personalityId || portPersonalityForKey(`${name}|${city.country || "port"}`);
   const greeting = portGreetingPresentationForPersonality({
@@ -861,6 +975,12 @@ function rootView(session, city, gameState, economy, context) {
     options.splice(4, 0, option("Speak with the historical enthusiast", {
       type: "node",
       nodeId: "viking-longship"
+    }));
+  }
+  if (isColonizationQuestOrigin(city) && !session.disguisedEntry) {
+    options.splice(4, 0, option("Speak with the colonial organizer", {
+      type: "node",
+      nodeId: "colonization"
     }));
   }
   if (context.passengerOffer && !session.disguisedEntry && !pirateHideout) {
@@ -1035,6 +1155,145 @@ function vikingLongshipView(session, city, gameState, context) {
   };
 }
 
+function colonizationView(session, city, gameState, context) {
+  const atOrigin = isColonizationQuestOrigin(city);
+  const atTarget = isColonizationQuestTarget(city);
+  if (!atOrigin && !atTarget) throw new Error("Colonization dialogue opened outside Bordeaux or Port Royal");
+  const quest = colonizationQuestView(gameState, {
+    currentMinute: context.simMinute ?? 0,
+    shipStats: context.shipStats,
+    freeCargoUnits: context.shipStats ? cargoFree(gameState) : null
+  });
+  const organizer = characterName(city.character);
+  const back = atOrigin
+    ? option("Back", { type: "node", nodeId: "root" })
+    : option("Put to sea", { type: "close" });
+
+  if (quest.stage === COLONIZATION_STAGE_FETCH) {
+    if (!atOrigin) throw new Error("Port Royal site exists before its expedition departed");
+    const stage = quest.fetchStage;
+    const introductions = [
+      "In France they call people like us Lutherans now. Since last year, even a private reading can invite an inquiry. I mean to found a place across the Atlantic where conscience is not examined at the door. We first need",
+      "The families have made tents and sea-cloaks from your cloth. A settlement cannot live beneath canvas forever. Now we need",
+      "The frames and palisade are laid out in the yard. One last cargo stands between these people and a fair chance abroad:"
+    ];
+    return {
+      speaker: `${organizer}, colonial organizer`,
+      expressionId: quest.canDeliverFetch ? "pleased" : "attentive",
+      text: `${introductions[quest.fetchStageIndex]} ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}. I will pay ${stage.reward} doubloons for this delivery.`,
+      feedback: session.feedback,
+      options: [
+        option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+          type: "deliver-colonization-material",
+          stageId: stage.id
+        }, {
+          disabled: !quest.canDeliverFetch,
+          disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
+        }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === COLONIZATION_STAGE_READY) {
+    if (!atOrigin) throw new Error("The prepared colonists are not in Bordeaux");
+    const eligibility = quest.shipEligibility;
+    const disabledReason = eligibility?.eligible
+      ? null
+      : `Need ${eligibility?.missing.join(", ") || "a suitable ocean-going ship"}.`;
+    return {
+      speaker: `${organizer}, colonial organizer`,
+      expressionId: eligibility?.eligible ? "happy" : "concerned",
+      text: "The stores are ready, and twenty-four units of your hold will carry our people and their personal chests. Port Royal is an empty harbor far across the Atlantic. I will entrust them only to a capacious, seaworthy ship.",
+      feedback: session.feedback,
+      options: [
+        option("Take the colonists aboard", { type: "embark-colonists" }, {
+          disabled: Boolean(disabledReason),
+          disabledReason
+        }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === COLONIZATION_STAGE_OUTBOUND) {
+    if (atOrigin) {
+      return {
+        speaker: `${organizer}, colonial organizer`,
+        expressionId: "attentive",
+        text: "Everyone is aboard. The children are trying to be brave, and the older folk are pretending not to notice. Let us make for Port Royal before resolve turns into homesickness.",
+        feedback: session.feedback,
+        options: [back]
+      };
+    }
+    return {
+      speaker: `${organizer}, colonial organizer`,
+      expressionId: "happy",
+      text: "This harbor is sheltered, the soil beyond the trees is dark, and no magistrate waits on the beach. Put us ashore. We will raise Port Royal Colony here. Return within one year with twelve measures of grain, or the first bad harvest may finish us.",
+      feedback: session.feedback,
+      options: [
+        option("Found Port Royal Colony", { type: "land-colonists" }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === COLONIZATION_STAGE_AWAITING_RESUPPLY) {
+    if (atOrigin) {
+      return {
+        speaker: `${organizer}, colonial organizer`,
+        expressionId: "attentive",
+        text: "Port Royal waits across the Atlantic. The colony asked for twelve measures of grain before its first year ends.",
+        feedback: session.feedback,
+        options: [back]
+      };
+    }
+    const canDeliver = quest.leftSinceFounding && quest.resupplyHeld >= quest.resupply.quantity && !quest.deadlineExpired;
+    const deadlineText = quest.leftSinceFounding
+      ? "You kept your promise and returned. The storehouse is nearly bare, but the settlement still stands."
+      : "The first roofs are going up. Sail away, find twelve measures of grain, and return before one year has passed.";
+    return {
+      speaker: `${organizer}, governor of Port Royal Colony`,
+      expressionId: canDeliver ? "happy" : "concerned",
+      text: `${deadlineText} A timely resupply earns ${quest.resupply.reward} doubloons and gives Port Royal the stores it needs to become a permanent city.`,
+      feedback: session.feedback,
+      options: [
+        option(`Deliver ${quest.resupply.goodLabel} x${quest.resupply.quantity}`, {
+          type: "deliver-colony-resupply"
+        }, {
+          disabled: !canDeliver,
+          disabledReason: !quest.leftSinceFounding
+            ? "You must first leave the colony and return."
+            : `Need ${quest.resupply.quantity} ${quest.resupply.goodLabel.toLowerCase()}; hold has ${quest.resupplyHeld}.`
+        }),
+        back
+      ]
+    };
+  }
+
+  if (quest.stage === COLONIZATION_STAGE_FAILED) {
+    return {
+      speaker: gameState.playerCharacter?.name || "Captain",
+      expressionId: "sad",
+      text: "The palisade is broken and every roof is burning. We call until our voices fail, but nothing answers. Nothing alive remains in Port Royal.",
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  if (quest.stage === COLONIZATION_STAGE_ESTABLISHED) {
+    return {
+      speaker: `${organizer}, governor of Port Royal`,
+      expressionId: "happy",
+      text: "Port Royal lives because you came back. Your name is known in every warehouse here, and our factors will always sell to you at the founder's price.",
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  throw new Error(`Unknown colonization quest stage: ${quest.stage}`);
+}
+
 function equipmentView(session, city, gameState, economy) {
   const nets = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS);
   const cannonEquipment = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT);
@@ -1185,11 +1444,18 @@ function buyView(session, city, gameState, economy, context) {
   const rows = tradeRows
     .map((row) => {
       const totalSize = row.good.unitSize;
+      const displayedPrice = quotePortSale(
+        economy,
+        city,
+        row.good.id,
+        1,
+        city.purchaseDiscountMultiplier ?? 1
+      );
       const comparison = worldMarketPriceComparison(economy, city, row.good.id, "buy");
-      return option(`Buy ${row.good.label}  ${row.buyPrice} db`, { type: "buy", goodId: row.good.id }, {
+      return option(`Buy ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
         detail: `${worldPriceIndicator(comparison)}  STOCK ${row.stock}`,
-        disabled: gameState.doubloons < row.buyPrice || cargoFree(gameState) < totalSize,
-        disabledReason: gameState.doubloons < row.buyPrice ? "Not enough doubloons." : "Cargo hold is full."
+        disabled: gameState.doubloons < displayedPrice || cargoFree(gameState) < totalSize,
+        disabledReason: gameState.doubloons < displayedPrice ? "Not enough doubloons." : "Cargo hold is full."
       });
     });
   if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));

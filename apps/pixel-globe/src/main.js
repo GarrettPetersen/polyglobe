@@ -74,6 +74,7 @@ import {
   characterExpression,
   generateCampaignContactCharacter,
   generatePassengerCharacter,
+  generateSpecialPortCharacter,
   loadCharacterPortraitManifest
 } from "./characterPortraits.js";
 import {
@@ -214,6 +215,7 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WARSHIP,
   NPC_SHIP_SLUGS,
+  addNpcSeaRoutePort,
   applyNpcConquestOwnership,
   configureCaptureEncounter,
   createNpcSeaRouteSystem,
@@ -221,6 +223,7 @@ import {
   npcCargoAvailableQuantity,
   npcPortHasMajorProtection,
   npcRoleLabel,
+  npcSeaRouteHasPort,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
   restoreNpcSeaRouteSystem,
@@ -423,6 +426,14 @@ import {
 } from "./shoreBatteries.js";
 import { cityCrackSegments } from "./cityDamage.js";
 import {
+  FIRE_FRAME_COUNT,
+  FIRE_FRAME_HEIGHT,
+  FIRE_FRAME_MS,
+  FIRE_FRAME_WIDTH,
+  fireAnimationFrame,
+  fireSoundPresence
+} from "./fireEffects.js";
+import {
   resolveShipCollision,
   separateTouchingShips
 } from "./shipCollision.js";
@@ -471,11 +482,13 @@ import {
   politicsRowsPage
 } from "./politics.js";
 import {
+  addWorldEconomyPort,
   advanceWorldEconomy,
   createWorldEconomy,
   restoreWorldEconomy,
   snapshotWorldEconomy,
-  tradeGoodById
+  tradeGoodById,
+  worldEconomyHasPort
 } from "./economy.js";
 import {
   waterDepthIndexForSpriteKey,
@@ -508,6 +521,17 @@ import {
 } from "./cityCatalogSelection.js";
 import { cityIsLandlocked } from "./cityPortAccess.js";
 import { withColonialFounding } from "./colonialCities.js";
+import {
+  COLONIZATION_STAGE_ESTABLISHED,
+  COLONIZATION_STAGE_FAILED,
+  advanceColonizationQuest,
+  assignColonizationTargetTile,
+  colonizationObjective,
+  colonizationTargetCoordinates,
+  colonizationWorldRecord,
+  isColonizationQuestOrigin,
+  isColonizationQuestTarget
+} from "./colonizationQuest.js";
 import { formatCompactNumber } from "./compactNumber.js";
 import {
   activeTravelMissionQuest,
@@ -820,6 +844,9 @@ const ROWING_SHIP_ANIMATION_SPECS = new Map([
   ["mesoamerican-dugout-canoe", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 110, volume: 0.11, playbackRate: 1.08 })]
 ]);
 const CITY_ASSET_VERSION = "city-types-2";
+const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
+const FIRE_EFFECT_URL = "/assets/misc/fire.png";
+const COLONY_DEPARTURE_DISTANCE_PX = 90;
 const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-1";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
@@ -1167,7 +1194,7 @@ const CAPTAIN_MENU_PANEL_W = 224;
 const CAPTAIN_MENU_PANEL_H = 226;
 const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "storm-lightning-2";
+const SFX_ASSET_VERSION = "fire-crackle-1";
 const ANIMAL_ASSET_VERSION = "fishing-net-2";
 const STORM_SHIP_STRIKE_ASSET_VERSION = "infected-tribe-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
@@ -1273,6 +1300,7 @@ const SFX_FISHING_SUCCESS_URL = "/assets/sfx/freesound_community-item-pickup-370
 const SFX_FISHING_FAILURE_URL = "/assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_SCAVENGE_SUCCESS_URL = "/assets/sfx/freesound_community-item-pickup-37089.ogg";
 const SFX_SCAVENGE_FAILURE_URL = "/assets/sfx/dominik-braun-failure-sound.mp3";
+const SFX_FIRE_URL = "/assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg";
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_BOW_FIRE_POOL_SIZE = 6;
 const SFX_ARROW_HIT_POOL_SIZE = 6;
@@ -1309,6 +1337,7 @@ const SFX_DESERT_WIND_MAX_VOLUME = 0.1;
 const SFX_STORM_MAX_VOLUME = 0.42;
 const SFX_SAIL_FLAP_MAX_VOLUME = 0.52;
 const SFX_UNDERWAY_MAX_VOLUME = 0.065;
+const SFX_FIRE_MAX_VOLUME = 0.2;
 const SFX_HARBOUR_NEAR_PX = 42;
 const SFX_HARBOUR_FAR_PX = 170;
 const SFX_AMBIENT_FADE_PER_SECOND = 1.35;
@@ -1316,6 +1345,7 @@ const SFX_WIND_FADE_PER_SECOND = 0.035;
 const SFX_STORM_FADE_PER_SECOND = 0.35;
 const SFX_SAIL_FLAP_FADE_PER_SECOND = 2.4;
 const SFX_UNDERWAY_FADE_PER_SECOND = 0.018;
+const SFX_FIRE_FADE_PER_SECOND = 0.55;
 const SFX_WIND_TERRAIN_RADIUS_PX = 150;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
@@ -1469,6 +1499,7 @@ let cityImages;
 let factionFlagImages;
 let animalImages;
 let stormShipStrikeImage;
+let fireEffectImage;
 let cityCatalog;
 let cityByTileId;
 let npcShipAssetsBySlug;
@@ -1492,6 +1523,8 @@ let characterPortraitManifest;
 let usedCharacterNames = new Set();
 let portCityCharacters;
 let campaignGoalContact;
+let colonizationOrganizer;
+let colonizationTargetTileId = null;
 let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
@@ -1598,7 +1631,7 @@ let dirty = true;
 let lastFrameMs = performance.now();
 let lastStatusMs = 0;
 let lastOverlayMs = 0;
-let cityFlagAnimationTick = -1;
+let worldSpriteAnimationTick = -1;
 let waterAnimationClockMs = 0;
 let waterAnimationDrawTick = -1;
 const globeWaterHexWaveFrameIndexCache = new Map();
@@ -1724,6 +1757,7 @@ async function main() {
     loadedFactionFlagImages,
     loadedAnimalImages,
     loadedStormShipStrikeImage,
+    loadedFireEffectImage,
     loadedCityCatalog,
     loadedCharacterPortraitManifest,
     loadedNamedMountains,
@@ -1749,6 +1783,7 @@ async function main() {
     loadFactionFlagImages(),
     loadAnimalImages(),
     loadStormShipStrikeImage(),
+    loadFireEffectImage(),
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
     loadNamedMountains(),
@@ -1773,6 +1808,7 @@ async function main() {
   factionFlagImages = loadedFactionFlagImages;
   animalImages = loadedAnimalImages;
   stormShipStrikeImage = loadedStormShipStrikeImage;
+  fireEffectImage = loadedFireEffectImage;
   cityCatalog = loadedCityCatalog;
   creditsMarkdown = loadedCreditsMarkdown;
   localSaveResult = CAPTURE_SCENARIO
@@ -1826,6 +1862,7 @@ async function main() {
   oceanReachableNavigationMask = buildOceanReachableNavigationMask();
   assertManualShallowWaterReachesOcean(oceanReachableNavigationMask, SUBDIVISIONS);
   cityByTileId = placeCityCatalog(cityCatalog);
+  colonizationTargetTileId = findColonizationTargetTile();
   waterDepthBands = buildWaterDepthBands();
   stormSystem = createStormSystem({
     neighbors: graph.neighbors,
@@ -1927,6 +1964,18 @@ async function main() {
     characterPortraitManifest,
     usedCharacterNames
   ));
+  const colonizationOrigin = portCities.find(isColonizationQuestOrigin);
+  if (!colonizationOrigin) throw new Error("Bordeaux is missing from the dockable 1522 port roster");
+  const bordeauxFactor = portCityCharacters.get(colonizationOrigin.tileId);
+  if (!bordeauxFactor) throw new Error("Bordeaux has no generated port factor");
+  colonizationOrganizer = generateSpecialPortCharacter({
+    identityKey: "port-royal-colonial-organizer",
+    port: colonizationOrigin,
+    excludedSourceIds: [bordeauxFactor.sourceId],
+    role: "colonial-organizer",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
     `${characterPortraitManifest.sourceCharacters.length} authored portraits`
@@ -1956,6 +2005,8 @@ async function main() {
     playerCharacter,
     shipStats: ship.stats
   });
+  assignColonizationTargetTile(gameState.memory.colonization, colonizationTargetTileId);
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   familyDebtReturnReminderDelivered = false;
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
   if (CAPTURE_SCENARIO) gameState.activePlaySeconds = CAPTURE_SCENARIO.player.activePlaySeconds;
@@ -2346,6 +2397,20 @@ async function loadStormShipStrikeImage() {
     STORM_SHIP_STRIKE_FRAME_HEIGHT * Math.ceil(
       STORM_SHIP_STRIKE_FRAME_COUNT / STORM_SHIP_STRIKE_SHEET_COLUMNS
     )
+  );
+  return image;
+}
+
+async function loadFireEffectImage() {
+  const image = await loadAssetImage(
+    `${FIRE_EFFECT_URL}?v=${FIRE_EFFECT_ASSET_VERSION}`,
+    "world fire animation"
+  );
+  validateImageDimensions(
+    image,
+    "world fire animation",
+    FIRE_FRAME_WIDTH * FIRE_FRAME_COUNT,
+    FIRE_FRAME_HEIGHT
   );
   return image;
 }
@@ -3249,6 +3314,7 @@ function runFrame(nowMs) {
     if (updateFishAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
     if (updateCampaignGoalReturnReminder()) dirty = true;
+    if (updateColonizationQuest()) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
     ensureChart();
     if (updateDiscoveries(nowMs)) dirty = true;
@@ -3269,7 +3335,7 @@ function runFrame(nowMs) {
   if (!CAPTURE_SCENARIO && hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
     saveVoyageNow("periodic autosave");
   }
-  if (updateCityFlagAnimation(nowMs)) dirty = true;
+  if (updateWorldSpriteAnimation(nowMs)) dirty = true;
   if (dirty || menusAreOpen() || dialogueState || gameOverReason || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
@@ -3285,10 +3351,10 @@ function runFrame(nowMs) {
   requestAnimationFrame(loop);
 }
 
-function updateCityFlagAnimation(nowMs) {
-  const tick = Math.floor(nowMs / CITY_FLAG_FRAME_MS);
-  if (tick === cityFlagAnimationTick) return false;
-  cityFlagAnimationTick = tick;
+function updateWorldSpriteAnimation(nowMs) {
+  const tick = Math.floor(nowMs / Math.min(CITY_FLAG_FRAME_MS, FIRE_FRAME_MS));
+  if (tick === worldSpriteAnimationTick) return false;
+  worldSpriteAnimationTick = tick;
   return true;
 }
 
@@ -3604,6 +3670,22 @@ function updateCampaignGoalReturnReminder() {
   return true;
 }
 
+function updateColonizationQuest() {
+  const memory = gameState?.memory?.colonization;
+  if (!memory || !ship || !Number.isInteger(memory.targetTileId)) return false;
+  const targetVector = tileCenterVector(memory.targetTileId);
+  const distancePx = Math.acos(clamp(dot3(ship.position, targetVector), -1, 1)) * PIXELS_PER_RADIAN;
+  const changed = advanceColonizationQuest(memory, weatherClockMinutes, {
+    awayFromColony: distancePx >= COLONY_DEPARTURE_DISTANCE_PX
+  });
+  if (!changed) return false;
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  saveVoyageNow(memory.stage === COLONIZATION_STAGE_FAILED
+    ? "Port Royal colony failed"
+    : "departed Port Royal colony");
+  return true;
+}
+
 function campaignGoalContactCharacter() {
   if (!campaignGoalContact) throw new Error("Campaign goal contact has not been assigned");
   return campaignGoalContact;
@@ -3840,7 +3922,8 @@ function setupSoundEffects() {
     desertWind: createAmbientLoop(SFX_DESERT_WIND_URL, "desert wind"),
     storm: createAmbientLoop(SFX_STORM_URL, "storm"),
     sailFlap: createAmbientLoop(SFX_SAIL_FLAP_URL, "upwind sail flapping"),
-    underway: createAmbientLoop(SFX_UNDERWAY_URL, "ship underway")
+    underway: createAmbientLoop(SFX_UNDERWAY_URL, "ship underway"),
+    fire: createAmbientLoop(SFX_FIRE_URL, "nearby fire")
   };
   applyThemeAudioSettings();
 }
@@ -4176,6 +4259,13 @@ function updateAmbientAudio(dt) {
     dt,
     SFX_UNDERWAY_FADE_PER_SECOND
   ) || changed;
+  changed = updateAmbientLoop(
+    soundEffects.fire,
+    visibleFireSoundPresence() * SFX_FIRE_MAX_VOLUME,
+    SFX_FIRE_MAX_VOLUME,
+    dt,
+    SFX_FIRE_FADE_PER_SECOND
+  ) || changed;
   if (changed) applyThemeAudioSettings();
 }
 
@@ -4223,8 +4313,23 @@ function ambientSoundLoops() {
     soundEffects.desertWind,
     soundEffects.storm,
     soundEffects.sailFlap,
-    soundEffects.underway
+    soundEffects.underway,
+    soundEffects.fire
   ].filter(Boolean);
+}
+
+function visibleFireSoundPresence() {
+  if (!chart || !localLayout || !ship) return 0;
+  let nearestDistanceSquared = Infinity;
+  for (const source of visibleWorldFireSources()) {
+    nearestDistanceSquared = Math.min(
+      nearestDistanceSquared,
+      distance2(localLayout.viewX, localLayout.viewY, source.x, source.y)
+    );
+  }
+  return Number.isFinite(nearestDistanceSquared)
+    ? fireSoundPresence(Math.sqrt(nearestDistanceSquared))
+    : 0;
 }
 
 function sailingAmbientTargets(dt) {
@@ -5252,6 +5357,8 @@ async function restoreSavedVoyage(payload) {
   if (Math.hypot(...savedShip.position) < 0.5 || Math.hypot(...savedShip.heading) < 0.5) {
     throw new Error("Saved player navigation vectors are invalid");
   }
+  assignColonizationTargetTile(restoredGameState.memory.colonization, colonizationTargetTileId);
+  syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
   const assets = await loadShipAssetSet(savedShip.typeSlug);
   restoreWorldEconomy(worldEconomy, payload.economy);
   restoreNpcSeaRouteSystem(npcSeaRoutes, payload.npcRoutes, {
@@ -6327,6 +6434,19 @@ function openPortDialogue(cityCall) {
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { restart: true, force: true });
+  if (isColonizationQuestTarget(cityCall) &&
+      cityCall.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
+    dialogueState = createPortDialogueSession(cityCall, {
+      initialNodeId: "colonization",
+      admittedToPort: false
+    });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow("visited Port Royal colony site");
+    dirty = true;
+    return;
+  }
   const entryStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
   const conquestStatus = playerPortConquestStatus(cityCall);
   if (!entryStatus.allowed || conquestStatus.canAttempt || conquestStatus.playerAssaultActive) {
@@ -6827,6 +6947,9 @@ function chooseDialogueOption(optionIndex) {
       optionIndex,
       portDialogueContext()
     );
+    if (result.colonizationChanged) {
+      syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+    }
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
     saveVoyageNow("port transaction");
@@ -7094,11 +7217,27 @@ function currentDialogueCity() {
   if (!dialogueState) throw new Error("No active dialogue session");
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
-    if (portCall) return portCall;
+    if (portCall) {
+      if (dialogueState.nodeId !== "colonization") return portCall;
+      const character = portCall.colonizationQuestStage === COLONIZATION_STAGE_FAILED
+        ? gameState.playerCharacter
+        : colonizationOrganizer;
+      if (!character) throw new Error("Colonization dialogue has no character");
+      return {
+        ...portCall,
+        character,
+        portrait: characterExpression(character)
+      };
+    }
   }
   const city = cityByTileId.get(dialogueState.cityTileId);
   if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
-  const character = portCityCharacters?.get(city.tileId);
+  const questCharacter = dialogueState.kind === "port" && dialogueState.nodeId === "colonization"
+    ? city.colonizationQuestStage === COLONIZATION_STAGE_FAILED
+      ? gameState.playerCharacter
+      : colonizationOrganizer
+    : null;
+  const character = questCharacter || portCityCharacters?.get(city.tileId);
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
   return {
     ...city,
@@ -7139,7 +7278,9 @@ function portDialogueContext() {
   const city = dialogueState?.cityTileId === undefined
     ? null
     : chartPortCallById(dialogueState.portId) || cityByTileId.get(dialogueState.cityTileId);
-  const shipyard = city ? shipyardAtPort(worldEconomy.shipyards, city) : null;
+  const questOnlyColony = city?.colonizationQuestSite === true &&
+    city.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED;
+  const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
   const simMinute = Math.floor(weatherClockMinutes);
   return {
     random: Math.random,
@@ -7155,8 +7296,8 @@ function portDialogueContext() {
     historicalGossip: city ? recentHistoricalGossipForPort(city, simMinute) : null,
     shipyard,
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
-    portConquestStatus: city ? playerPortConquestStatus(city) : null,
-    shipyardRumor: city ? shipyardRumorForPort(worldEconomy.shipyards, city) : null,
+    portConquestStatus: city && !questOnlyColony ? playerPortConquestStatus(city) : null,
+    shipyardRumor: city && !questOnlyColony ? shipyardRumorForPort(worldEconomy.shipyards, city) : null,
     passengerOffer: city && dialogueState?.kind === "port"
       ? pendingPassengerOfferForCity(gameState, city)
       : null
@@ -7695,6 +7836,57 @@ function placeCityCatalog(cities) {
     placed.set(tileId, { ...city, tileId });
   }
   return placed;
+}
+
+function findColonizationTargetTile() {
+  const target = colonizationTargetCoordinates();
+  const startId = findNearestTileId(graph, directionIndex, latLonToDirection(target.lat, target.lon));
+  const tileId = nearestTileMatching(startId, (id) => (
+    isCityDrawableTile(id) &&
+    !cityByTileId.has(id) &&
+    !cityIsLandlocked(cityPortAccessOptions(id))
+  ));
+  if (tileId === undefined) throw new Error("Could not place Port Royal on an empty coastal hex");
+  return tileId;
+}
+
+function syncColonizationWorldState(state, { startMinute = weatherClockMinutes } = {}) {
+  if (!state?.memory?.colonization) throw new Error("Cannot sync colonization without quest state");
+  if (!Number.isInteger(colonizationTargetTileId)) throw new Error("Port Royal target tile is not assigned");
+  if (!colonizationOrganizer) throw new Error("Port Royal colonial organizer is not assigned");
+  assignColonizationTargetTile(state.memory.colonization, colonizationTargetTileId);
+  const record = colonizationWorldRecord(state.memory.colonization);
+  const existing = cityByTileId.get(colonizationTargetTileId);
+  if (!record) {
+    if (existing?.colonizationQuestSite) cityByTileId.delete(colonizationTargetTileId);
+    portCityCharacters.delete(colonizationTargetTileId);
+    return null;
+  }
+  if (existing && !existing.colonizationQuestSite) {
+    throw new Error(`Port Royal target tile is occupied by ${cityLabelText(existing)}`);
+  }
+
+  cityByTileId.set(record.tileId, record);
+  portCityCharacters.set(record.tileId, colonizationOrganizer);
+  if (record.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
+    chart = null;
+    dirty = true;
+    return record;
+  }
+
+  const portIndex = portCities.findIndex((city) => city.tileId === record.tileId);
+  if (portIndex < 0) portCities.push(record);
+  else portCities[portIndex] = record;
+  portCitiesByTileId.set(record.tileId, record);
+  if (!worldEconomyHasPort(worldEconomy, record)) {
+    addWorldEconomyPort(worldEconomy, record, startMinute);
+  }
+  if (npcSeaRoutes && !npcSeaRouteHasPort(npcSeaRoutes, record)) {
+    addNpcSeaRoutePort(npcSeaRoutes, record);
+  }
+  chart = null;
+  dirty = true;
+  return record;
 }
 
 function cityPlacementPredicate(city) {
@@ -12365,6 +12557,7 @@ function render(nowMs) {
   if (minimapShouldBeVisible()) drawMinimap(nowMs);
   drawSurvivalMeters();
   drawQuestDestinationArrow(nowMs);
+  drawColonizationDestinationArrow(nowMs);
   drawCampaignGoalDestinationArrow(nowMs);
   drawStormStatus(nowMs);
   drawCombatNotice(nowMs);
@@ -12484,6 +12677,7 @@ function drawSelectableInteractionOutlines(nowMs) {
   const pulseBright = reducedMotionPreferred || Math.floor(nowMs / 420) % 2 === 0;
 
   for (const call of chart.cityCalls || []) {
+    if (call.hiddenSettlement) continue;
     if (!portCallInInteractionRange(call)) continue;
     drawSelectableSpriteOutline({
       image: cityImageForType(call.cityType, call.settlementType),
@@ -18963,6 +19157,21 @@ function drawCampaignGoalDestinationArrow(nowMs) {
   });
 }
 
+function drawColonizationDestinationArrow(nowMs) {
+  if (!ship || !chart || !localLayout || !gameState) return;
+  const objective = colonizationObjective(gameState.memory.colonization);
+  if (!objective) return;
+  const targetVector = tileCenterVector(objective.tileId);
+  const visibleCity = chart.cityCalls?.find((call) => call.tileId === objective.tileId);
+  drawWorldTargetArrow({
+    targetVector,
+    localPoint: visibleCity || localPointForGlobeVector(targetVector),
+    localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+    nowMs,
+    style: { light: "#8bd5ff", dark: "#277bb8", shadow: "rgba(14, 35, 56, 0.78)" }
+  });
+}
+
 function drawWorldTargetArrow({ targetVector, localPoint, localYOffset, nowMs, style }) {
   if (localPoint) {
     const offset = chartOffsetPixels(chart);
@@ -19282,6 +19491,7 @@ function cityShadowDirection() {
 }
 
 function drawCityShadow(call, direction, stretch) {
+  if (call.hiddenSettlement) return;
   const img = cityShadowSpriteForType(call.cityType, call.settlementType);
   const px = -direction.y;
   const py = direction.x;
@@ -19342,9 +19552,11 @@ function drawCitySpritesAboveShip(activeChart, offset, nowMs) {
 }
 
 function drawCitySprite(call, nowMs) {
+  if (call.hiddenSettlement) return;
   const img = cityImageForType(call.cityType, call.settlementType);
   const battery = shoreBatteryStates.get(shoreBatteryId(call));
   const batteryDisabled = battery && shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes));
+  const fireSource = fireSourceForCity(call, batteryDisabled);
   const batteryInPlayerCombat = battery?.engagedTargetIds.has(PLAYER_COMBAT_ID) &&
     !batteryDisabled;
   if (batteryInPlayerCombat) {
@@ -19380,7 +19592,49 @@ function drawCitySprite(call, nowMs) {
       flagWavePhase(nowMs, call.tileId)
     );
   }
+  if (fireSource) drawOnFire(fireSource, nowMs);
   if (batteryInPlayerCombat) drawShoreBatteryHealthBar(call, battery);
+}
+
+function visibleWorldFireSources() {
+  if (!chart?.cityCalls) return [];
+  const simMinute = Math.floor(weatherClockMinutes);
+  const sources = [];
+  for (const call of chart.cityCalls) {
+    const battery = shoreBatteryStates.get(shoreBatteryId(call));
+    const batteryDisabled = Boolean(battery && shoreBatteryIsDisabled(battery, simMinute));
+    const source = fireSourceForCity(call, batteryDisabled);
+    if (source) sources.push(source);
+  }
+  return sources;
+}
+
+function fireSourceForCity(call, batteryDisabled) {
+  if (call.hiddenSettlement || (!call.colonyBurning && !batteryDisabled)) return null;
+  return {
+    id: call.colonyBurning ? `colony-fire:${call.tileId}` : `battery-fire:${call.tileId}`,
+    x: call.x,
+    y: call.y,
+    screenX: call.spriteX + CITY_SPRITE_W / 2,
+    screenBaseY: call.spriteY + CITY_SPRITE_H,
+    phaseSeed: call.tileId
+  };
+}
+
+function drawOnFire(source, nowMs) {
+  if (!fireEffectImage) throw new Error(`Fire source ${source.id} cannot draw before the fire animation loads`);
+  const frame = fireAnimationFrame(nowMs, source.phaseSeed);
+  ctx.drawImage(
+    fireEffectImage,
+    frame * FIRE_FRAME_WIDTH,
+    0,
+    FIRE_FRAME_WIDTH,
+    FIRE_FRAME_HEIGHT,
+    Math.round(source.screenX - FIRE_FRAME_WIDTH / 2),
+    Math.round(source.screenBaseY - FIRE_FRAME_HEIGHT),
+    FIRE_FRAME_WIDTH,
+    FIRE_FRAME_HEIGHT
+  );
 }
 
 function drawShoreBatteryHealthBar(call, battery) {
@@ -19467,7 +19721,7 @@ function drawCityLabels(cityCalls, activeChart) {
 function cityLabelBoxes(cityCalls, activeChart) {
   const { labelBounds, visibleBounds, blockers } = cityLabelScreenLayout(activeChart);
   const sorted = [...cityCalls]
-    .filter((call) => cityCallIsOnScreen(call, visibleBounds))
+    .filter((call) => !call.hiddenSettlement && cityCallIsOnScreen(call, visibleBounds))
     .sort((a, b) => b.population - a.population || cityLabelText(a).localeCompare(cityLabelText(b)));
   const occupied = blockers.slice();
   const boxes = [];

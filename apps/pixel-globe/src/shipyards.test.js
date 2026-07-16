@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  addWorldShipyardPort,
   advanceWorldShipyards,
   claimShipyardListing,
   createWorldShipyards,
@@ -37,6 +38,15 @@ test("every port has a shipyard but active new-build listings remain rare", () =
   assert.equal(system.yards.size, ports.length);
   assert.ok(active.length > 0);
   assert.ok(active.length < ports.length * 0.1, `${active.length} active listings`);
+});
+
+test("a newly founded port receives a normal regional shipyard", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0 });
+  const yard = addWorldShipyardPort(system, SMALL_PORT, 500);
+
+  assert.equal(shipyardAtPort(system, SMALL_PORT), yard);
+  assert.equal(yard.cityType, "northern-european");
+  assert.throws(() => addWorldShipyardPort(system, SMALL_PORT, 500), /already exists/);
 });
 
 test("rich famous yards can build better ships than poor ordinary ports", () => {

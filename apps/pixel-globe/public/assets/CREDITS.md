@@ -32,6 +32,7 @@
 - Universfield
 - u_7hpxkdroz2
 - Dominik Braun - "Failure Sound" from "107 Free Retro Game Sounds" (CC BY 4.0)
+- Three Kingdoms Stratagem - fire crackle loop
 
 ## Pixel Art Icons
 - Free Game Assets - "Free Pirate Stuff Icons" (CraftPix Freebie License)
@@ -44,3 +45,4 @@
 
 ## Pixel Art Effects
 - InfectedTribe - "Pixel Animated Lightning Strike Effect" (itch.io asset license)
+- Garrett Petersen - fire animation, adapted from Three Kingdoms Stratagem

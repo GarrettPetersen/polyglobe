@@ -80,6 +80,15 @@ export function createWorldShipyards({ ports, startMinute }) {
   return { version: 1, lastMinute: startMinute, yards };
 }
 
+export function addWorldShipyardPort(system, port, startMinute = system?.lastMinute) {
+  assertShipyardSystem(system);
+  if (!Number.isFinite(startMinute)) throw new Error(`Invalid shipyard port start minute: ${startMinute}`);
+  const yard = createShipyard(port, startMinute);
+  if (system.yards.has(yard.portId)) throw new Error(`Shipyard port already exists: ${yard.portId}`);
+  system.yards.set(yard.portId, yard);
+  return yard;
+}
+
 export function snapshotWorldShipyards(system) {
   assertShipyardSystem(system);
   return {

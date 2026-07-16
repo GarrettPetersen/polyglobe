@@ -67,9 +67,13 @@ import {
   settleFamilyDebtHomecoming,
   validateCampaignGoal
 } from "./campaignGoals.js";
+import {
+  createColonizationQuestMemory,
+  validateColonizationQuestMemory
+} from "./colonizationQuest.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 14;
+export const GAME_STATE_VERSION = 15;
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -200,6 +204,8 @@ export function createGameState({ cargoCapacity, startMinute = 0, playerCharacte
         passengerOffers: {},
         passengerRolls: {}
       },
+      cargoReservations: {},
+      colonization: createColonizationQuestMemory(),
       conquest: createPortConquestMemory(),
       campaignGoal: playerCharacterSupportsCampaignGoal(playerCharacter)
         ? createCampaignGoal({ playerCharacter, startMinute })
@@ -219,7 +225,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (![8, 9, 10, 11, 12, 13].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -255,6 +261,8 @@ export function migrateGameState(state, shipStats) {
     },
     memory: {
       ...state.memory,
+      cargoReservations: state.memory?.cargoReservations || {},
+      colonization: state.memory?.colonization || createColonizationQuestMemory(),
       conquest: state.memory?.conquest || createPortConquestMemory(),
       campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(state.playerCharacter)
         ? createCampaignGoal({ playerCharacter: state.playerCharacter, startMinute: savedGameStartMinute(state) })
@@ -550,7 +558,41 @@ export function cargoUsed(state) {
     used += state.ship.cannons;
     used += Math.ceil(state.survival.freshWater);
   }
+  for (const units of Object.values(state.memory.cargoReservations)) used += units;
   return used;
+}
+
+export function reserveCargoSpace(state, reservationId, units) {
+  assertGameState(state);
+  assertCargoReservationId(reservationId);
+  if (!Number.isInteger(units) || units <= 0) {
+    throw new Error(`Invalid cargo reservation size: ${units}`);
+  }
+  if (Object.prototype.hasOwnProperty.call(state.memory.cargoReservations, reservationId)) {
+    throw new Error(`Cargo reservation already exists: ${reservationId}`);
+  }
+  if (cargoFree(state) < units) {
+    throw new Error(`Cannot reserve ${units} cargo units; only ${cargoFree(state)} remain`);
+  }
+  state.memory.cargoReservations[reservationId] = units;
+  return units;
+}
+
+export function releaseCargoSpace(state, reservationId) {
+  assertGameState(state);
+  assertCargoReservationId(reservationId);
+  const units = state.memory.cargoReservations[reservationId];
+  if (!Number.isInteger(units) || units <= 0) {
+    throw new Error(`Cargo reservation does not exist: ${reservationId}`);
+  }
+  delete state.memory.cargoReservations[reservationId];
+  return units;
+}
+
+export function cargoReservationUnits(state, reservationId) {
+  assertGameState(state);
+  assertCargoReservationId(reservationId);
+  return state.memory.cargoReservations[reservationId] || 0;
 }
 
 export function receiveSurrenderedLoot(state, loot, context = {}) {
@@ -604,6 +646,25 @@ export function receivePortConquestPrize(state, city, amount, context = {}) {
   recordLedgerEntry(state, city, context, {
     kind: "conquest",
     description: `${cityLabel(city)} conquest prize`,
+    goodId: null,
+    quantity: 0,
+    amount,
+    costBasis: 0,
+    pnl: amount
+  });
+  return { amount, balance: state.doubloons };
+}
+
+export function receiveQuestPayment(state, city, amount, description, context = {}) {
+  assertGameState(state);
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error(`Invalid quest payment: ${amount}`);
+  if (typeof description !== "string" || description.trim() === "") {
+    throw new Error("Quest payment requires a ledger description");
+  }
+  state.doubloons += amount;
+  recordLedgerEntry(state, city, context, {
+    kind: "quest",
+    description,
     goodId: null,
     quantity: 0,
     amount,
@@ -1606,14 +1667,15 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
   if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
-  const total = quotePortSale(economy, city, goodId, quantity);
+  const purchaseMultiplier = portPurchasePriceMultiplier(city);
+  const total = quotePortSale(economy, city, goodId, quantity, purchaseMultiplier);
   if (state.doubloons < total) {
     throw new Error(`Not enough doubloons to buy ${quantity} ${row.good.label}`);
   }
   if (cargoFree(state) < row.good.unitSize * quantity) {
     throw new Error(`Not enough cargo space to buy ${quantity} ${row.good.label}`);
   }
-  executePortSale(economy, city, goodId, quantity);
+  executePortSale(economy, city, goodId, quantity, purchaseMultiplier);
   state.doubloons -= total;
   state.cargo[row.good.id] = (state.cargo[row.good.id] || 0) + quantity;
   state.accounts.cargoCostBasis[row.good.id] = roundLedgerMoney(
@@ -1631,6 +1693,14 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   });
   if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
   return { good: row.good, quantity, price: total, costBasis: total };
+}
+
+function portPurchasePriceMultiplier(city) {
+  const multiplier = city?.purchaseDiscountMultiplier ?? 1;
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 1) {
+    throw new Error(`Invalid purchase discount at ${cityLabel(city)}: ${multiplier}`);
+  }
+  return multiplier;
 }
 
 export function sellGood(state, economy, city, goodId, quantity = 1, context = {}) {
@@ -2280,6 +2350,8 @@ function assertGameState(state) {
     throw new Error(`Invalid next ledger entry id: ${state.accounts.nextEntryId}`);
   }
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
+  assertCargoReservations(state.memory.cargoReservations);
+  validateColonizationQuestMemory(state.memory.colonization);
   validatePortConquestMemory(state.memory.conquest);
   if (state.memory.campaignGoal === null) {
     if (playerCharacterSupportsCampaignGoal(state.playerCharacter)) {
@@ -2313,6 +2385,24 @@ function assertGameState(state) {
   }
   if (!Number.isFinite(cumulativeLongitudeDeg)) {
     throw new Error(`Invalid cumulative navigation longitude: ${cumulativeLongitudeDeg}`);
+  }
+}
+
+function assertCargoReservations(reservations) {
+  if (!reservations || typeof reservations !== "object" || Array.isArray(reservations)) {
+    throw new Error("Game state cargo reservations must be an object");
+  }
+  for (const [reservationId, units] of Object.entries(reservations)) {
+    assertCargoReservationId(reservationId);
+    if (!Number.isInteger(units) || units <= 0) {
+      throw new Error(`Invalid cargo reservation ${reservationId}: ${units}`);
+    }
+  }
+}
+
+function assertCargoReservationId(reservationId) {
+  if (typeof reservationId !== "string" || reservationId.trim() === "") {
+    throw new Error(`Invalid cargo reservation id: ${reservationId}`);
   }
 }
 

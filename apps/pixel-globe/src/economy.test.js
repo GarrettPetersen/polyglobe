@@ -5,6 +5,7 @@ import {
   FRESH_WATER_GOOD_ID,
   HARDTACK_GOOD_ID,
   TRADE_GOODS,
+  addWorldEconomyPort,
   advanceWorldEconomy,
   createWorldEconomy,
   executePortPurchase,
@@ -44,6 +45,27 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
     assert.ok(ids.has(goodId), goodId);
   }
   assert.equal(ids.size, TRADE_GOODS.length);
+});
+
+test("a founded port joins the economy and its save snapshot", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const colony = port(99, "Port Royal", "Canada", "northern-european", 2400);
+  const added = addWorldEconomyPort(economy, colony, 500);
+
+  assert.equal(added.port.name, "Port Royal");
+  assert.ok(portMarket(economy, colony).some((row) => row.listedForSale));
+  assert.ok(snapshotWorldEconomy(economy).ports.some((entry) => entry.id === colony.tileId));
+  assert.throws(() => addWorldEconomyPort(economy, colony, 500), /already exists/);
+});
+
+test("a founder discount changes both the quoted and executed market price", () => {
+  const colony = { ...LONDON, tileId: 98, city: "Port Royal", displayCity: "Port Royal", purchaseDiscountMultiplier: 0.85 };
+  const economy = createWorldEconomy({ ports: [LONDON, colony], startMinute: 0 });
+  const base = executePortSale(economy, LONDON, "wool", 1).total;
+  const discounted = executePortSale(economy, colony, "wool", 1, colony.purchaseDiscountMultiplier).total;
+
+  assert.ok(discounted < base);
+  assert.equal(discounted, Math.round(base * 0.85));
 });
 
 test("ship supplies are cheap, available everywhere, and not bought back", () => {

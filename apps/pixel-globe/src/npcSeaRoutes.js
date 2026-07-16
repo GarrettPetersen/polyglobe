@@ -255,12 +255,7 @@ export function createNpcSeaRouteSystem({
   }
   const usablePorts = ports
     .filter(isAnyUsablePort)
-    .map((port) => ({
-      ...port,
-      factionId: assertFactionId(port.factionId),
-      routeRegion: portRouteRegion(port),
-      routeAnchors: anchorIdsForPort(port)
-    }))
+    .map(normalizeNpcRoutePort)
     .filter((port) => port.routeAnchors.length > 0);
   if (usablePorts.length < 8) {
     throw new Error(`NPC sea routes need at least 8 usable ports, got ${usablePorts.length}`);
@@ -291,6 +286,30 @@ export function createNpcSeaRouteSystem({
   system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
   if (system.shipById.size !== system.ships.length) throw new Error("NPC sea routes created duplicate ship ids");
   return system;
+}
+
+export function addNpcSeaRoutePort(system, port) {
+  assertSaveableNpcRouteSystem(system);
+  if (!isAnyUsablePort(port)) throw new Error(`NPC route port is unusable: ${portName(port)}`);
+  if (system.ports.some((candidate) => candidate.tileId === port.tileId)) {
+    throw new Error(`NPC route port already exists: ${port.tileId}`);
+  }
+  const normalized = normalizeNpcRoutePort(port);
+  if (normalized.routeAnchors.length === 0) {
+    throw new Error(`NPC route port has no sea-lane anchors: ${portName(port)}`);
+  }
+  system.ports.push(normalized);
+  system.routeCache.clear();
+  system.edgeCostCache.clear();
+  return normalized;
+}
+
+export function npcSeaRouteHasPort(system, port) {
+  assertSaveableNpcRouteSystem(system);
+  if (!Number.isInteger(port?.tileId) || port.tileId < 0) {
+    throw new Error("NPC route port lookup requires a tile id");
+  }
+  return system.ports.some((candidate) => candidate.tileId === port.tileId);
 }
 
 export function configureCaptureEncounter(system, spec, clockMinutes) {
@@ -1938,6 +1957,15 @@ function longRangePairAllowed(a, b) {
 
 function isAnyUsablePort(port) {
   return Number.isFinite(port.lat) && Number.isFinite(port.lon) && Number.isFinite(port.population);
+}
+
+function normalizeNpcRoutePort(port) {
+  return {
+    ...port,
+    factionId: assertFactionId(port.factionId),
+    routeRegion: portRouteRegion(port),
+    routeAnchors: anchorIdsForPort(port)
+  };
 }
 
 function isEastAsiaPort(port) {

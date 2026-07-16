@@ -80,17 +80,17 @@ test("home-port creditor settlement leaves the protected purse and records payme
   assert.equal(state.accounts.ledger.at(-1).amount, -FAMILY_DEBT_PRINCIPAL);
 });
 
-test("version 13 saves gain campaign and cartography state", () => {
+test("version 14 saves gain colony quest and cargo reservation state", () => {
   const legacy = createGameState({ cargoCapacity: 20, startMinute: 500, playerCharacter: PLAYER });
-  legacy.version = 13;
-  delete legacy.memory.campaignGoal;
-  delete legacy.memory.cartography;
+  legacy.version = 14;
+  delete legacy.memory.colonization;
+  delete legacy.memory.cargoReservations;
 
   const restored = migrateGameState(legacy, null);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
-  assert.equal(restored.memory.campaignGoal.homePortTileId, PLAYER.homePortTileId);
-  assert.deepEqual(restored.memory.cartography, { seenTilesBase64: "", seenTileCount: 0 });
+  assert.equal(restored.memory.colonization.stage, "fetch");
+  assert.deepEqual(restored.memory.cargoReservations, {});
 });
 
 test("cartography snapshots validate and persist their packed mask", () => {

@@ -10,6 +10,7 @@ import {
   NPC_ROLE_WARSHIP,
   NPC_SHIP_SLUGS,
   PIRATE_SHIP_SLUGS,
+  addNpcSeaRoutePort,
   applyNpcConquestOwnership,
   createNpcSeaRouteSystem,
   damageNpcShip,
@@ -61,6 +62,17 @@ const MESOAMERICAN_PORTS = Object.freeze([
 test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
+});
+
+test("a founded American port becomes an NPC sea-lane destination", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const colony = port(99, "Port Royal", "Canada", "northern-european", 44.74, -65.52, 2400, "france");
+  const added = addNpcSeaRoutePort(routes, colony);
+
+  assert.equal(added.routeRegion, "americas");
+  assert.ok(added.routeAnchors.length > 0);
+  assert.throws(() => addNpcSeaRoutePort(routes, colony), /already exists/);
 });
 
 test("a collapsed empire loses its NPC fleet and captured port ownership", () => {

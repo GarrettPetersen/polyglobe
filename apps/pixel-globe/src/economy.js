@@ -1,4 +1,5 @@
 import {
+  addWorldShipyardPort,
   advanceWorldShipyards,
   createWorldShipyards,
   restoreWorldShipyards,
@@ -221,6 +222,22 @@ export function createWorldEconomy({ ports, startMinute }) {
   };
 }
 
+export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMinute) {
+  assertEconomy(economy);
+  if (!Number.isFinite(startMinute)) throw new Error(`Invalid economy port start minute: ${startMinute}`);
+  const portId = requiredPortId(port);
+  if (economy.portStates.has(portId)) throw new Error(`Economy port already exists: ${portId}`);
+  const state = createPortState(port);
+  const yard = addWorldShipyardPort(economy.shipyards, port, startMinute);
+  economy.portStates.set(portId, state);
+  return { port: state, shipyard: yard };
+}
+
+export function worldEconomyHasPort(economy, port) {
+  assertEconomy(economy);
+  return economy.portStates.has(requiredPortId(port));
+}
+
 export function snapshotWorldEconomy(economy) {
   assertEconomy(economy);
   return {
@@ -327,7 +344,7 @@ export function worldMarketPriceComparison(economy, city, goodId, side) {
   };
 }
 
-export function executePortSale(economy, city, goodId, quantity) {
+export function executePortSale(economy, city, goodId, quantity, priceMultiplier = 1) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
@@ -337,18 +354,24 @@ export function executePortSale(economy, city, goodId, quantity) {
   if (available < quantity) {
     throw new Error(`${port.name} has only ${available} ${good.label} in stock`);
   }
-  const total = quoteTransaction(port, good, quantity, -1, "buyPrice");
+  const total = applySalePriceMultiplier(
+    quoteTransaction(port, good, quantity, -1, "buyPrice"),
+    priceMultiplier
+  );
   if (!good.alwaysAvailable) state.stock -= quantity;
   port.specie += total;
   return { good, quantity, total, unitPrice: Math.max(1, Math.round(total / quantity)) };
 }
 
-export function quotePortSale(economy, city, goodId, quantity) {
+export function quotePortSale(economy, city, goodId, quantity, priceMultiplier = 1) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   assertPortOffersGood(port, good);
-  return quoteTransaction(port, good, quantity, -1, "buyPrice");
+  return applySalePriceMultiplier(
+    quoteTransaction(port, good, quantity, -1, "buyPrice"),
+    priceMultiplier
+  );
 }
 
 export function maximumPortSaleQuantity(economy, city, goodId, requestedQuantity, traderSpecie) {
@@ -750,6 +773,13 @@ function assertEconomy(economy) {
 
 function assertTradeQuantity(quantity) {
   if (!Number.isInteger(quantity) || quantity <= 0) throw new Error(`Invalid trade quantity: ${quantity}`);
+}
+
+function applySalePriceMultiplier(total, multiplier) {
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 1) {
+    throw new Error(`Invalid port sale price multiplier: ${multiplier}`);
+  }
+  return Math.max(1, Math.round(total * multiplier));
 }
 
 function assertCargoCapacity(cargoCapacity) {
