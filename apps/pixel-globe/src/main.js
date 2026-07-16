@@ -1133,6 +1133,7 @@ const POINTER_TAP_ACTION_MAX_MS = 220;
 const POINTER_TAP_ACTION_MAX_TRAVEL_PX = 5;
 const PIXEL_FONT_SMALL_8 = "8px \"Silkscreen\", monospace";
 const PIXEL_FONT_DIALOGUE_8 = "8px \"Dogica\", monospace";
+const PIXEL_FONT_TITLE_8 = "8px \"Pixel Pirate\", monospace";
 const PIXEL_TEXT_RASTER_CACHE_LIMIT = 2048;
 const PIRATE_MENU_PAPER = "#ead8b2";
 const PIRATE_MENU_PAPER_BUTTON = "#d6bd8f";
@@ -2144,20 +2145,21 @@ async function loadPixelFonts() {
 
   const sample = "PIXEL 1522 gy";
   const requiredFonts = [
-    { label: "Silkscreen", font: "8px \"Silkscreen\"" },
-    { label: "Dogica", font: "8px \"Dogica\"" }
+    { label: "Silkscreen", font: "8px \"Silkscreen\"", sample },
+    { label: "Dogica", font: "8px \"Dogica\"", sample },
+    { label: "Pixel Pirate", font: PIXEL_FONT_TITLE_8, sample: "MARQUE & REPRISAL" }
   ];
   const loadedFaces = await Promise.all(
-    requiredFonts.map(({ font }) => document.fonts.load(font, sample))
+    requiredFonts.map(({ font, sample: fontSample }) => document.fonts.load(font, fontSample))
   );
   await document.fonts.ready;
 
   for (let index = 0; index < requiredFonts.length; index++) {
-    const { label, font } = requiredFonts[index];
-    if (loadedFaces[index].length === 0 || !document.fonts.check(font, sample)) {
+    const { label, font, sample: fontSample } = requiredFonts[index];
+    if (loadedFaces[index].length === 0 || !document.fonts.check(font, fontSample)) {
       throw new Error(`Pixel font failed to load: ${label}`);
     }
-    await waitForPixelFontRaster(label, font, sample);
+    await waitForPixelFontRaster(label, font, fontSample);
   }
 }
 
@@ -15529,8 +15531,8 @@ function drawStartMenu(nowMs) {
   ctx.strokeRect(panel.x + 4.5, panel.y + 4.5, panel.w - 9, panel.h - 9);
 
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("MARQUE & REPRISAL", panel.x + panel.w / 2, panel.y + 28, {
-    font: PIXEL_FONT_DIALOGUE_8,
+  drawPixelText("MARQUE & REPRISAL", panel.x + panel.w / 2, panel.y + 24, {
+    font: PIXEL_FONT_TITLE_8,
     align: "center"
   });
   ctx.fillStyle = `rgba(84, 126, 100, ${0.58 + pulse * 0.32})`;

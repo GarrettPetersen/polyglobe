@@ -1,6 +1,7 @@
 const PIXEL_FONT_DESIGN_SIZES = Object.freeze(new Map([
   ["Silkscreen", 8],
   ["Dogica", 8],
+  ["Pixel Pirate", 8],
   ["zpix", 12]
 ]));
 

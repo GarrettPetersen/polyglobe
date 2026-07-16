@@ -6,6 +6,9 @@
 ## Music
 - YouFulca
 
+## Fonts
+- SparklyDest - "Pixel Pirate" (CC BY-SA 3.0; via DaFont)
+
 ## 3D Models
 - Palmov Island - "Low Poly Cartoon Sailing Ships" (Standard Unity Asset Store EULA)
 - Hialda Alpizar - "Polynesian Voyaging Canoe" (CC BY 4.0)

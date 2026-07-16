@@ -44,8 +44,10 @@ test("text origins snap in canvas space through right-angle rotation", () => {
 test("pixel font sizes occupy whole logical canvas pixels", () => {
   assert.equal(pixelFontSizePx('8px "Silkscreen", monospace'), 8);
   assert.equal(pixelTextRasterHeight('8px "Dogica", monospace'), 16);
+  assert.equal(pixelFontSizePx('8px "Pixel Pirate", monospace'), 8);
   assert.equal(pixelFontSizePx('12px "zpix", monospace'), 12);
   assert.throws(() => pixelFontSizePx('10px "Silkscreen"'), /multiple of 8px/);
+  assert.throws(() => pixelFontSizePx('12px "Pixel Pirate"'), /multiple of 8px/);
   assert.throws(() => pixelFontSizePx('8px "zpix"'), /multiple of 12px/);
   assert.throws(() => pixelFontSizePx('8px "Tiny5"'), /Unsupported pixel font family/);
   assert.throws(() => pixelFontSizePx('small "Dogica"'), /no px size/);
@@ -119,18 +121,30 @@ test("runtime text can only enter the canvas through the pixel raster helper", a
   assert.deepEqual(mainSource.match(/\b[a-zA-Z]+Ctx\.fillText\(/g), ["scratchCtx.fillText("]);
 });
 
-test("English uses Silkscreen and Dogica while zpix remains isolated for Chinese", async () => {
+test("English uses the three Latin pixel fonts while zpix remains isolated for Chinese", async () => {
   const fontFiles = (await readdir(new URL("../public/assets/fonts/", import.meta.url)))
     .filter((filename) => filename.endsWith(".ttf"))
     .sort();
-  assert.deepEqual(fontFiles, ["Silkscreen-Regular.ttf", "dogicapixel.ttf", "zpix.ttf"]);
+  assert.deepEqual(fontFiles, [
+    "Silkscreen-Regular.ttf",
+    "dogicapixel.ttf",
+    "pixel_pirate.ttf",
+    "zpix.ttf"
+  ]);
 
-  const [mainSource, stylesSource] = await Promise.all([
+  const [mainSource, stylesSource, credits, pixelPirateFont] = await Promise.all([
     readFile(new URL("./main.js", import.meta.url), "utf8"),
-    readFile(new URL("./styles.css", import.meta.url), "utf8")
+    readFile(new URL("./styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/assets/CREDITS.md", import.meta.url), "utf8"),
+    readFile(new URL("../public/assets/fonts/pixel_pirate.ttf", import.meta.url))
   ]);
   assert.equal(mainSource.includes("Tiny5"), false);
   assert.equal(stylesSource.includes("Tiny5"), false);
   assert.equal(mainSource.includes("zpix"), false);
+  assert.match(mainSource, /8px \\"Pixel Pirate\\"/);
+  assert.match(stylesSource, /font-family: "Pixel Pirate"/);
+  assert.match(credits, /SparklyDest.*Pixel Pirate.*CC BY-SA 3\.0.*DaFont/);
+  assert.match(pixelPirateFont.toString("latin1"), /Copyright SparklyDest 2011/);
+  assert.match(pixelPirateFont.toString("latin1"), /Creative Commons Attribution Share Alike/);
   assert.equal(stylesSource.includes('font-family: "zpix"'), true);
 });
