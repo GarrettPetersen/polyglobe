@@ -1,8 +1,10 @@
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 
 const MINUTES_PER_DAY = 24 * 60;
-const NORMAL_BUILD_INTERVAL_DAYS = 5200;
-const FAMOUS_BUILD_INTERVAL_DAYS = 1800;
+const SHIPYARD_SNAPSHOT_VERSION = 2;
+const LEGACY_BUILD_TIME_SCALE = 0.75;
+const NORMAL_BUILD_INTERVAL_DAYS = 3900;
+const FAMOUS_BUILD_INTERVAL_DAYS = 1350;
 const NORMAL_LISTING_DAYS = 180;
 const FAMOUS_LISTING_DAYS = 240;
 const GOSSIP_RADIUS_KM = 1800;
@@ -12,6 +14,20 @@ const JAPANESE_ATAKEBUNE_SLUG = "japanese-atakebune";
 const SPANISH_NAO_SLUG = "spanish-nao";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
+const ACCESSIBLE_SHIP_PRICES = Object.freeze({
+  dhow: 1400,
+  "mesoamerican-dugout-canoe": 1400,
+  "fishing-lugger": 1800,
+  felucca: 1800,
+  sampan: 1800,
+  "polynesian-voyaging-canoe": 2400,
+  cutter: 3000,
+  "small-cog": 3400,
+  ketch: 3600,
+  "small-junk": 3800,
+  "nusantaran-outrigger": 4000,
+  "square-rigged-caravel": 4000
+});
 
 const FACTION_SHIPS = Object.freeze({
   joseon: Object.freeze([JOSEON_TURTLE_SHIP_SLUG, JOSEON_PANOKSEON_SLUG]),
@@ -32,20 +48,20 @@ const FAMOUS_TOWN_KEYS = new Set(FAMOUS_SHIPBUILDING_TOWNS.map(normalizeName));
 
 const REGION_SHIP_POOLS = Object.freeze({
   "northern-european": Object.freeze([
-    "fishing-lugger", "small-cog", "small-cog", "square-rigged-caravel", "caravel",
-    "caravel", "brigantine", "fluyt", "carrack", "galleon", "ship-of-the-line"
+    "fishing-lugger", "small-cog", "small-cog", "cutter", "ketch", "square-rigged-caravel",
+    "caravel", "caravel", "brigantine", "fluyt", "carrack", "galleon", "ship-of-the-line"
   ]),
   mediterranean: Object.freeze([
-    "fishing-lugger", "felucca", "xebec", "xebec", "mediterranean-galley", "square-rigged-caravel", "caravel",
-    "caravel", "brigantine", "carrack", "galleon", "ship-of-the-line"
+    "fishing-lugger", "felucca", "cutter", "ketch", "xebec", "xebec", "mediterranean-galley",
+    "square-rigged-caravel", "caravel", "caravel", "brigantine", "carrack", "galleon", "ship-of-the-line"
   ]),
   "islamic-desert": Object.freeze([
-    "felucca", "dhow", "dhow", "felucca", "dhow", "xebec", "xebec",
+    "felucca", "dhow", "dhow", "felucca", "dhow", "ketch", "ketch", "xebec", "xebec",
     "caravel", "carrack", "galleon"
   ]),
   "east-asian": Object.freeze(["sampan", "small-junk", "medium-junk", "large-junk"]),
   "south-asian": Object.freeze([
-    "felucca", "dhow", "dhow", "felucca", "dhow", "small-junk", "medium-junk",
+    "felucca", "dhow", "dhow", "felucca", "dhow", "ketch", "small-junk", "medium-junk",
     "large-junk", "caravel", "carrack"
   ]),
   "southeast-asian": Object.freeze([
@@ -55,11 +71,11 @@ const REGION_SHIP_POOLS = Object.freeze({
   polynesian: Object.freeze(["polynesian-voyaging-canoe"]),
   mesoamerican: Object.freeze(["mesoamerican-dugout-canoe"]),
   andean: Object.freeze([
-    "fishing-lugger", "small-cog", "small-cog", "square-rigged-caravel", "caravel",
-    "caravel", "brigantine", "carrack", "galleon"
+    "fishing-lugger", "small-cog", "small-cog", "cutter", "ketch", "square-rigged-caravel",
+    "caravel", "caravel", "brigantine", "carrack", "galleon"
   ]),
   "sub-saharan": Object.freeze([
-    "fishing-lugger", "felucca", "dhow", "dhow", "felucca", "dhow", "caravel",
+    "fishing-lugger", "felucca", "dhow", "dhow", "felucca", "dhow", "ketch", "caravel",
     "caravel", "carrack"
   ])
 });
@@ -92,7 +108,7 @@ export function addWorldShipyardPort(system, port, startMinute = system?.lastMin
 export function snapshotWorldShipyards(system) {
   assertShipyardSystem(system);
   return {
-    version: 1,
+    version: SHIPYARD_SNAPSHOT_VERSION,
     lastMinute: system.lastMinute,
     yards: [...system.yards.values()].map((yard) => ({
       portId: yard.portId,
@@ -105,7 +121,11 @@ export function snapshotWorldShipyards(system) {
 
 export function restoreWorldShipyards(system, snapshot) {
   assertShipyardSystem(system);
-  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.yards)) {
+  if (
+    !snapshot ||
+    (snapshot.version !== 1 && snapshot.version !== SHIPYARD_SNAPSHOT_VERSION) ||
+    !Array.isArray(snapshot.yards)
+  ) {
     throw new Error("Unsupported shipyard save data");
   }
   if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved shipyard minute");
@@ -122,8 +142,21 @@ export function restoreWorldShipyards(system, snapshot) {
   for (const saved of snapshot.yards) {
     const yard = system.yards.get(saved.portId);
     yard.buildNumber = saved.buildNumber;
-    yard.listing = saved.listing ? { ...saved.listing } : null;
-    yard.nextBuildMinute = saved.nextBuildMinute;
+    yard.listing = saved.listing
+      ? {
+          ...saved.listing,
+          price: shipyardListingPrice(
+            saved.listing.shipSlug,
+            shipyardListingSeed(yard, saved.buildNumber)
+          )
+        }
+      : null;
+    yard.nextBuildMinute = snapshot.version === 1 && saved.nextBuildMinute > snapshot.lastMinute
+      ? Math.round(
+          snapshot.lastMinute +
+          (saved.nextBuildMinute - snapshot.lastMinute) * LEGACY_BUILD_TIME_SCALE
+        )
+      : saved.nextBuildMinute;
   }
   system.lastMinute = snapshot.lastMinute;
   return system;
@@ -203,7 +236,7 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
   const regionalPool = shipPoolForYard(yard);
   if (!regionalPool) throw new Error(`No shipyard hull pool for region: ${yard.cityType}`);
   const pool = regionalPool;
-  const seed = hashString32(`${yard.portId}|${buildNumber}|hull`);
+  const seed = shipyardListingSeed(yard, buildNumber);
   const masterworkChance = yard.famous ? 0.055 : 0.008;
   const masterwork = hashUnit(`${seed}|masterwork`) < masterworkChance;
   const qualityBudget = masterwork ? Infinity : shipyardQualityBudget(yard);
@@ -216,8 +249,7 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
   const roll = hashUnit(`${seed}|rank`);
   const rankFraction = Math.pow(roll, 2.15 - wealthFraction * 1.15);
   const selected = candidates[Math.min(candidates.length - 1, Math.floor(rankFraction * candidates.length))];
-  const priceVariation = 0.94 + hashUnit(`${seed}|price`) * 0.14;
-  const price = roundToHundred(selected.price * priceVariation);
+  const price = shipyardListingPrice(selected.slug, seed);
   const listingDays = yard.famous ? FAMOUS_LISTING_DAYS : NORMAL_LISTING_DAYS;
   return Object.freeze({
     id: `shipyard-${yard.portId}-${buildNumber}`,
@@ -240,8 +272,19 @@ function shipPoolForYard(yard) {
   return regionalPool;
 }
 
+function shipyardListingSeed(yard, buildNumber) {
+  return hashString32(`${yard.portId}|${buildNumber}|hull`);
+}
+
+function shipyardListingPrice(slug, seed) {
+  const priceVariation = 0.94 + hashUnit(`${seed}|price`) * 0.14;
+  return roundToHundred(shipConstructionPrice(slug) * priceVariation);
+}
+
 export function shipConstructionPrice(slug) {
   const stats = shipStatsForSlug(slug);
+  const accessiblePrice = ACCESSIBLE_SHIP_PRICES[slug];
+  if (accessiblePrice !== undefined) return accessiblePrice;
   return roundToHundred(
     2000 +
     stats.mass * 75 +

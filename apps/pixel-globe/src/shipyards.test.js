@@ -27,8 +27,9 @@ const SEVILLE = port(9, "Seville", "mediterranean", 120000, 37.39, -5.99, "spain
 const VENICE = port(10, "Venice", "mediterranean", 120000, 45.44, 12.32, "venice");
 const ISTANBUL = port(11, "Istanbul", "islamic-desert", 180000, 41.01, 28.98, "ottoman");
 const MALACCA = port(12, "Malacca", "southeast-asian", 45000, 2.19, 102.25, "neutral");
+const GOA = port(13, "Goa", "south-asian", 75000, 15.49, 73.83, "portugal");
 
-test("every port has a shipyard but active new-build listings remain rare", () => {
+test("new-build listings are uncommon but available across a useful share of ports", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
     port(index + 10, `Port ${index}`, index % 2 ? "northern-european" : "mediterranean", 8000 + index * 310, 20 + index * 0.1, -40 + index * 0.2)
   ));
@@ -36,8 +37,8 @@ test("every port has a shipyard but active new-build listings remain rare", () =
   const active = [...system.yards.values()].filter((yard) => yard.listing);
 
   assert.equal(system.yards.size, ports.length);
-  assert.ok(active.length > 0);
-  assert.ok(active.length < ports.length * 0.1, `${active.length} active listings`);
+  assert.ok(active.length >= ports.length * 0.06, `${active.length} active listings`);
+  assert.ok(active.length < ports.length * 0.15, `${active.length} active listings`);
 });
 
 test("a newly founded port receives a normal regional shipyard", () => {
@@ -149,6 +150,30 @@ test("Southeast Asian shipyards build Nusantaran outriggers", () => {
   assert.equal(hulls.has("nusantaran-outrigger"), true);
 });
 
+test("every player start region offers an affordable second ship", () => {
+  const system = createWorldShipyards({ ports: [PORTO, ISTANBUL, NANJING, GOA], startMinute: 0 });
+  for (const port of [PORTO, ISTANBUL, NANJING, GOA]) {
+    const affordableUpgrades = [...generatedHulls(shipyardAtPort(system, port), 800)]
+      .filter((slug) => {
+        const price = shipConstructionPrice(slug);
+        return price >= 3000 && price <= 4000;
+      });
+    assert.ok(affordableUpgrades.length > 0, `${port.city} affordable upgrades`);
+  }
+});
+
+test("starter replacements and first upgrades form an accessible price ladder", () => {
+  const starterPrices = ["dhow", "fishing-lugger", "felucca", "sampan"]
+    .map(shipConstructionPrice);
+  const upgradePrices = ["cutter", "small-cog", "ketch", "small-junk"]
+    .map(shipConstructionPrice);
+
+  assert.ok(Math.max(...starterPrices) < Math.min(...upgradePrices));
+  assert.deepEqual(upgradePrices, [3000, 3400, 3600, 3800]);
+  assert.equal(shipConstructionPrice("square-rigged-caravel"), 4000);
+  assert.equal(shipConstructionPrice("nusantaran-outrigger"), 4000);
+});
+
 test("ship prices put major hulls far beyond casual fishing income", () => {
   const brigantine = shipConstructionPrice("brigantine");
   const galleon = shipConstructionPrice("galleon");
@@ -181,6 +206,26 @@ test("new listings spawn over time and purchased listings disappear", () => {
   const claimed = claimShipyardListing(system, SMALL_PORT, yard.listing.id);
   assert.equal(claimed.portId, SMALL_PORT.tileId);
   assert.equal(yard.listing, null);
+});
+
+test("restoring a voyage applies the current ship prices and construction cadence", () => {
+  const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0 });
+  const yard = shipyardAtPort(system, SMALL_PORT);
+  yard.buildNumber = 12;
+  yard.listing = {
+    ...generateShipyardListing(yard, yard.buildNumber, 0),
+    shipSlug: "small-cog",
+    shipLabel: "Small Cog",
+    price: 16800
+  };
+  yard.nextBuildMinute = 5200 * 1440;
+  const snapshot = snapshotWorldShipyards(system);
+  snapshot.version = 1;
+
+  restoreWorldShipyards(system, snapshot);
+
+  assert.ok(yard.listing.price >= 3200 && yard.listing.price <= 3700, yard.listing.price);
+  assert.equal(yard.nextBuildMinute, 3900 * 1440);
 });
 
 test("shipyard snapshots restore listings and construction clocks", () => {
