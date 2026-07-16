@@ -658,7 +658,22 @@ export function damageNpcShip(system, shipId, amount) {
 
 export function sinkNpcShip(system, shipId, clockMinutes) {
   const ship = requiredNpcShip(system, shipId);
-  if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid NPC sinking minute: ${clockMinutes}`);
+  return removeNpcShipForReplacement(system, ship, clockMinutes);
+}
+
+export function captureSurrenderedNpcShip(system, shipId, clockMinutes) {
+  const ship = requiredNpcShip(system, shipId);
+  if (ship.specie !== 0 || npcCargoUnits(ship) !== 0) {
+    throw new Error(`Captured NPC ship still carries unclaimed loot: ${shipId}`);
+  }
+  if (!shipHasCombatGrace(ship)) {
+    throw new Error(`NPC ship has not surrendered: ${shipId}`);
+  }
+  return removeNpcShipForReplacement(system, ship, clockMinutes);
+}
+
+function removeNpcShipForReplacement(system, ship, clockMinutes) {
+  if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid NPC replacement minute: ${clockMinutes}`);
   const replacementPort = chooseNpcReplacementPort(system, ship);
   const yard = system.economy.shipyards?.yards?.get(replacementPort.tileId) || null;
   const yardSpeed = clamp((yard?.wealthScale || 0.75) + (yard?.famous ? 0.8 : 0), 0.65, 3.4);
@@ -681,8 +696,8 @@ export function sinkNpcShip(system, shipId, clockMinutes) {
     originPortId: replacementPort.tileId,
     readyMinute: clockMinutes + delayDays * WEATHER_MINUTES_PER_DAY
   };
-  system.ships = system.ships.filter((entry) => entry.id !== shipId);
-  system.shipById.delete(shipId);
+  system.ships = system.ships.filter((entry) => entry.id !== ship.id);
+  system.shipById.delete(ship.id);
   system.replacementQueue.push(replacement);
   system.replacementQueue.sort((a, b) => a.readyMinute - b.readyMinute || a.shipId.localeCompare(b.shipId));
   return { ship, replacement, delayDays, port: replacementPort };

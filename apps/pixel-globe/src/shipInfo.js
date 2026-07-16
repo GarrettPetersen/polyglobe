@@ -130,6 +130,35 @@ export function createShipyardShipView(slug) {
   };
 }
 
+export function createShipComparisonView(currentSlug, candidateSlug) {
+  const current = createShipyardShipView(currentSlug);
+  const candidate = createShipyardShipView(candidateSlug);
+  return Object.freeze({
+    current,
+    candidate,
+    metrics: Object.freeze([
+      comparisonMetric("hull", "HULL", current.maxHull, candidate.maxHull),
+      comparisonMetric("crew", "CREW", current.crewCapacity, candidate.crewCapacity),
+      comparisonMetric("cargo", "CARGO", current.cargoCapacity, candidate.cargoCapacity),
+      comparisonMetric("speed", "SPEED", current.ratings.speed, candidate.ratings.speed),
+      comparisonMetric("acceleration", "ACCEL", current.ratings.acceleration, candidate.ratings.acceleration),
+      comparisonMetric("turning", "TURNING", current.ratings.turning, candidate.ratings.turning),
+      comparisonMetric("windward", "WINDWARD", current.ratings.windward, candidate.ratings.windward),
+      comparisonMetric("seaworthiness", "SEAWORTHY", current.seaworthiness, candidate.seaworthiness)
+    ])
+  });
+}
+
+function comparisonMetric(id, label, current, candidate) {
+  return Object.freeze({
+    id,
+    label,
+    current,
+    candidate,
+    difference: candidate - current
+  });
+}
+
 export function shipArmamentSummary(stats, activeCannons) {
   if (!stats || typeof stats !== "object") throw new Error("Ship armament summary requires ship stats");
   if (stats.navalWeaponKind === NAVAL_WEAPON_ARROW) {

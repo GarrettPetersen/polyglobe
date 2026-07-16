@@ -205,6 +205,7 @@ import {
   createShipDialogueSession,
   passengerDialogueView,
   portDialogueView,
+  prepareSurrenderPrizeDialogue,
   selectPassengerDialogueOption,
   selectPortDialogueOption,
   selectShoreBatteryDialogueOption,
@@ -220,6 +221,7 @@ import {
   NPC_SHIP_SLUGS,
   addNpcSeaRoutePort,
   applyNpcConquestOwnership,
+  captureSurrenderedNpcShip,
   configureCaptureEncounter,
   createNpcSeaRouteSystem,
   damageNpcShip,
@@ -500,6 +502,7 @@ import {
 } from "./waterLatitudePalette.js";
 import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
 import {
+  createShipComparisonView,
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
@@ -1629,6 +1632,7 @@ const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
 let windIndicatorState = null;
 let shipyardPurchaseListingId = null;
+let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
@@ -7175,11 +7179,75 @@ function applyShipDialogueAction(npcShipId, action) {
     handleNpcSurrender(npcShipId, PLAYER_COMBAT_ID, { preserveHull: true });
     return;
   }
+  if (action.type === "capture-surrendered-ship") {
+    void captureSurrenderedShip(npcShipId);
+    return;
+  }
   if (action.type === "attack") {
     beginPlayerInitiatedCombat(npcShipId);
     return;
   }
   throw new Error(`Unknown ship dialogue result action: ${action.type}`);
+}
+
+async function captureSurrenderedShip(npcShipId) {
+  if (surrenderedShipCapturePendingId) return;
+  const session = dialogueState;
+  if (
+    !session ||
+    session.kind !== "ship" ||
+    session.npcShipId !== npcShipId ||
+    session.nodeId !== "capture-loading" ||
+    session.prize?.candidateShipSlug === undefined
+  ) {
+    throw new Error(`Invalid surrendered ship capture state: ${npcShipId}`);
+  }
+  const candidateSlug = session.prize.candidateShipSlug;
+  const strategic = npcSeaRoutes.shipById.get(npcShipId);
+  if (!strategic || strategic.slug !== candidateSlug) {
+    throw new Error(`Surrendered prize is no longer available: ${npcShipId}`);
+  }
+  if (
+    strategic.specie !== 0 ||
+    Object.values(strategic.cargo).some((quantity) => quantity !== 0) ||
+    strategic.graceUntilPortVisit <= strategic.portVisits
+  ) {
+    throw new Error(`Surrendered prize is not ready for transfer: ${npcShipId}`);
+  }
+  surrenderedShipCapturePendingId = npcShipId;
+  session.feedback = "Your prize crew are transferring command.";
+  dirty = true;
+  try {
+    const stats = shipStatsForSlug(candidateSlug);
+    const assets = await loadShipAssetSet(candidateSlug);
+    if (dialogueState !== session || session.nodeId !== "capture-loading") return;
+    awardPlayerShip(
+      gameState,
+      null,
+      stats,
+      `Captured ${shipLabelForSlug(candidateSlug)} as a surrendered prize`,
+      { simMinute: Math.floor(weatherClockMinutes) }
+    );
+    applyPlayerShipType(candidateSlug, stats, assets, { stateAlreadyUpdated: true });
+    ship.hitPoints = Math.max(1, Math.min(stats.hitPoints, strategic.hitPoints));
+    captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
+    npcVisualShips.delete(npcShipId);
+    shipCombatEntryCollisionGrace.delete(npcShipId);
+    syncShipCargoFromGameState();
+    showSurvivalNotice(`CAPTURED ${shipLabelForSlug(candidateSlug).toUpperCase()}`, "good");
+    saveVoyageNow("captured surrendered ship");
+    closeDialogue();
+  } catch (error) {
+    console.error(new Error(`Failed to capture surrendered ship ${npcShipId}`, { cause: error }));
+    if (dialogueState === session) {
+      session.nodeId = "capture-confirm";
+      session.feedback = error instanceof Error ? error.message : "The prize transfer failed.";
+      session.selectedIndex = 0;
+    }
+  } finally {
+    surrenderedShipCapturePendingId = null;
+    dirty = true;
+  }
 }
 
 function beginPlayerInitiatedCombat(npcShipId) {
@@ -7379,8 +7447,12 @@ function playerShipPrivateeringPower() {
 
 function currentDialogueShip() {
   if (!dialogueState || dialogueState.kind !== "ship") throw new Error("No active ship dialogue session");
-  const npcShip = npcSeaRoutes?.shipById?.get(dialogueState.npcShipId);
-  if (!npcShip) throw new Error(`Dialogue NPC ship no longer exists: ${dialogueState.npcShipId}`);
+  return dialogueShipForId(dialogueState.npcShipId);
+}
+
+function dialogueShipForId(npcShipId) {
+  const npcShip = npcSeaRoutes?.shipById?.get(npcShipId);
+  if (!npcShip) throw new Error(`Dialogue NPC ship no longer exists: ${npcShipId}`);
   const character = npcShipCaptains?.get(npcShip.id);
   if (!character) throw new Error(`Dialogue NPC ship has no captain: ${npcShip.id}`);
   const visualState = npcVisualShips.get(npcShip.id);
@@ -7403,6 +7475,8 @@ function currentDialogueShip() {
     id: npcShip.id,
     slug: npcShip.slug,
     label: shipLabelForSlug(npcShip.slug),
+    hitPoints: npcShip.hitPoints,
+    maxHitPoints: npcShip.maxHitPoints,
     role: npcShip.role,
     roleLabel: npcRoleLabel(npcShip.role),
     fishingNetLabel: npcShip.fishingNetId ? fishingNetById(npcShip.fishingNetId).label : null,
@@ -11132,6 +11206,7 @@ function addNpcCombatSplash(ball) {
 }
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
+  let playerPrizeSummary = null;
   const npcWinnerId = npcPrizeRecipientId(
     winnerId,
     npcSeaRoutes.shipById,
@@ -11152,6 +11227,10 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     combatNotice = {
       text: `SHIP SURRENDERED  +${received.specie} DB${cargoQuantity > 0 ? `  +${cargoQuantity} CARGO` : ""}`,
       expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+    };
+    playerPrizeSummary = {
+      specie: received.specie,
+      cargoQuantity
     };
   } else if (wonByShoreBattery) {
     const battery = shoreBatteryStates.get(winnerId);
@@ -11186,6 +11265,27 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     state.combatEnemyIds = [];
   }
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
+  if (playerPrizeSummary) openSurrenderPrizeDecision(loserId, playerPrizeSummary);
+}
+
+function openSurrenderPrizeDecision(npcShipId, lootSummary) {
+  const existingSession = dialogueState?.kind === "ship" && dialogueState.npcShipId === npcShipId
+    ? dialogueState
+    : null;
+  if (dialogueState && !existingSession) {
+    throw new Error(`Cannot open surrender prize while ${dialogueState.kind} dialogue is active`);
+  }
+  const prizeShip = dialogueShipForId(npcShipId);
+  dialogueState = prepareSurrenderPrizeDialogue(existingSession, prizeShip, {
+    slug: ship.typeSlug,
+    hitPoints: ship.hitPoints,
+    maxHitPoints: ship.maxHitPoints,
+    cargoUsed: cargoUsed(gameState)
+  }, lootSummary);
+  dialogueLayout = createDialogueLayoutState();
+  ensureShipyardSideViewLoaded(prizeShip.slug);
+  ensureDialoguePortraitLoaded();
+  dirty = true;
 }
 
 function handleNpcSinking(loserId, winnerId) {
@@ -20908,8 +21008,8 @@ function formatCoordinate(value, positiveSuffix, negativeSuffix) {
 function drawDialogueOverlay(nowMs) {
   const subject = currentDialogueSubject();
   const view = currentDialogueView();
-  if (view.presentation?.kind === "shipyard") {
-    drawShipyardDialogueOverlay(view);
+  if (view.presentation?.kind === "shipyard" || view.presentation?.kind === "ship-capture") {
+    drawVesselDecisionDialogueOverlay(view);
     return;
   }
   const dialogueFont = PIXEL_FONT_DIALOGUE_8;
@@ -21010,10 +21110,16 @@ function drawDialogueOverlay(nowMs) {
   drawDialogueOptions(view, optionX, safeOptions.y, optionW, optionBottom, dialogueFont);
 }
 
-function drawShipyardDialogueOverlay(dialogueView) {
-  const listing = dialogueView.presentation.listing;
-  const vessel = createShipyardShipView(listing.shipSlug);
-  ensureShipyardSideViewLoaded(listing.shipSlug);
+function drawVesselDecisionDialogueOverlay(dialogueView) {
+  const presentation = dialogueView.presentation;
+  const shipyard = presentation.kind === "shipyard";
+  const listing = shipyard ? presentation.listing : null;
+  const candidateSlug = shipyard ? listing.shipSlug : presentation.candidateShipSlug;
+  const vessel = createShipyardShipView(candidateSlug);
+  const comparison = shipyard
+    ? null
+    : createShipComparisonView(presentation.currentShipSlug, candidateSlug);
+  ensureShipyardSideViewLoaded(candidateSlug);
   const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
   const compact = SCREEN_H > SCREEN_W;
   const optionWidth = panel.w - 18;
@@ -21022,7 +21128,7 @@ function drawShipyardDialogueOverlay(dialogueView) {
 
   drawPiratePaperModal(panel, 0.9);
 
-  drawOptionsText("SHIPYARD / NEW VESSEL", panel.x + panel.w / 2, panel.y + 9, {
+  drawOptionsText(shipyard ? "SHIPYARD / NEW VESSEL" : "SURRENDERED PRIZE", panel.x + panel.w / 2, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK_MUTED
@@ -21052,8 +21158,15 @@ function drawShipyardDialogueOverlay(dialogueView) {
     });
   }
 
-  if (compact) drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, optionY);
-  else drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, optionY);
+  if (compact) {
+    if (shipyard) drawCompactShipyardStats(panel, vessel, listing, artY);
+    else drawCompactShipCaptureStats(panel, comparison, presentation, artY);
+  } else if (shipyard) {
+    drawLandscapeShipyardStats(panel, vessel, listing);
+  } else {
+    drawLandscapeShipCaptureStats(panel, comparison, presentation);
+  }
+  drawVesselDecisionStatus(dialogueView, panel, optionY);
 
   drawDialogueOptions(
     dialogueView,
@@ -21065,7 +21178,7 @@ function drawShipyardDialogueOverlay(dialogueView) {
   );
 }
 
-function drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, optionY) {
+function drawLandscapeShipyardStats(panel, vessel, listing) {
   const statsX = panel.x + 214;
   const valueX = panel.x + panel.w - 12;
   drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, panel.y + 40);
@@ -21091,13 +21204,9 @@ function drawLandscapeShipyardStats(panel, vessel, listing, dialogueView, option
     font: PIXEL_FONT_DIALOGUE_8,
     color: gameState.doubloons >= listing.price ? "#91db69" : "#f68181"
   });
-  const status = dialogueView.feedback || dialogueView.text;
-  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 20), panel.x + 10, optionY - 12, {
-    color: dialogueView.feedback ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
-  });
 }
 
-function drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, optionY) {
+function drawCompactShipyardStats(panel, vessel, listing, artY) {
   drawOptionsText(`${listing.price} DOUBLOONS`, panel.x + panel.w / 2, artY + SHIP_INFO_SIDE_VIEW_H + 8, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
@@ -21127,9 +21236,119 @@ function drawCompactShipyardStats(panel, vessel, listing, dialogueView, artY, op
   drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, y + 24);
   drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, y + 36);
   drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, y + 48);
+}
+
+function drawLandscapeShipCaptureStats(panel, comparison, presentation) {
+  drawShipCaptureComparison(
+    comparison,
+    presentation,
+    panel.x + 214,
+    panel.x + panel.w - 12,
+    panel.y + 40
+  );
+}
+
+function drawCompactShipCaptureStats(panel, comparison, presentation, artY) {
+  drawShipCaptureComparison(
+    comparison,
+    presentation,
+    panel.x + 12,
+    panel.x + panel.w - 12,
+    artY + SHIP_INFO_SIDE_VIEW_H + 9
+  );
+}
+
+function drawShipCaptureComparison(comparison, presentation, x, valueX, y) {
+  const candidateX = valueX - 72;
+  drawOptionsText("PRIZE", candidateX, y, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "right",
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText("CURRENT", valueX, y, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "right",
+    color: PIRATE_MENU_INK_MUTED
+  });
+  y += 12;
+
+  const hullMetric = comparison.metrics.find((metric) => metric.id === "hull");
+  if (!hullMetric) throw new Error("Ship comparison is missing hull metrics");
+  drawShipComparisonRow(
+    "HULL",
+    `${presentation.candidateHitPoints}/${presentation.candidateMaxHitPoints}`,
+    `${presentation.currentHitPoints}/${presentation.currentMaxHitPoints}`,
+    hullMetric.difference,
+    x,
+    candidateX,
+    valueX,
+    y
+  );
+  y += 12;
+
+  const armamentDifference = comparison.candidate.maxCannons - comparison.current.maxCannons;
+  drawShipComparisonRow(
+    "ARMAMENT",
+    `${comparison.candidate.armamentLabel} ${comparison.candidate.armamentSummary}`,
+    `${comparison.current.armamentLabel} ${comparison.current.armamentSummary}`,
+    armamentDifference,
+    x,
+    candidateX,
+    valueX,
+    y
+  );
+  y += 12;
+
+  for (const metric of comparison.metrics.filter((entry) => entry.id !== "hull")) {
+    drawShipComparisonRow(
+      metric.label,
+      String(metric.candidate),
+      String(metric.current),
+      metric.difference,
+      x,
+      candidateX,
+      valueX,
+      y
+    );
+    y += 12;
+  }
+}
+
+function drawShipComparisonRow(label, candidate, current, difference, x, candidateX, currentX, y) {
+  drawOptionsText(label, x, y, {
+    font: PIXEL_FONT_SMALL_8,
+    color: PIRATE_MENU_INK
+  });
+  const candidateText = difference === 0
+    ? candidate
+    : `${candidate} ${difference > 0 ? "+" : ""}${difference}`;
+  drawOptionsText(fitPixelText(candidateText, PIXEL_FONT_SMALL_8, 88), candidateX, y, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "right",
+    color: shipComparisonDifferenceColor(difference)
+  });
+  drawOptionsText(fitPixelText(current, PIXEL_FONT_SMALL_8, 65), currentX, y, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "right",
+    color: PIRATE_MENU_INK_MUTED
+  });
+}
+
+function shipComparisonDifferenceColor(difference) {
+  if (difference > 0) return PIRATE_MENU_SUCCESS;
+  if (difference < 0) return PIRATE_MENU_DANGER;
+  return PIRATE_MENU_INK_MUTED;
+}
+
+function drawVesselDecisionStatus(dialogueView, panel, optionY) {
   const status = dialogueView.feedback || dialogueView.text;
-  drawOptionsText(fitPixelText(status.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 20), panel.x + 10, optionY - 12, {
-    color: dialogueView.feedback ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
+  const lines = wrapPixelText(status.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 20, 2);
+  const startY = optionY - lines.length * 10 - 2;
+  lines.forEach((line, index) => {
+    drawOptionsText(line, panel.x + 10, startY + index * 10, {
+      font: PIXEL_FONT_SMALL_8,
+      color: dialogueView.feedback ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
+    });
   });
 }
 

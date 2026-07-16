@@ -187,6 +187,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   attack: "action:attack",
   threaten: "action:attack",
   surrender: "action:surrender",
+  "inspect-surrendered-ship": "action:shipyard",
+  "capture-surrendered-ship": "action:surrender",
   sell: "action:sell",
   "select-loadout": "action:loadout",
   "request-marque": "action:letter",

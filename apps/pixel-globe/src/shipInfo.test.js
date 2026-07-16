@@ -12,6 +12,7 @@ import {
 import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
   SHIP_PAPERS_ROWS_PER_PAGE,
+  createShipComparisonView,
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
@@ -68,6 +69,18 @@ test("shipyard previews expose the full vessel specification", () => {
   assert.match(view.propulsionSummary, /^SAIL \/ /);
   assert.ok(view.seaworthiness > 0);
   assert.deepEqual(Object.keys(view.ratings), ["speed", "acceleration", "turning", "windward"]);
+});
+
+test("ship comparisons expose signed differences from the current vessel", () => {
+  const comparison = createShipComparisonView("fishing-lugger", "small-cog");
+  const metrics = Object.fromEntries(comparison.metrics.map((metric) => [metric.id, metric]));
+
+  assert.equal(comparison.current.label, "Fishing Barque");
+  assert.equal(comparison.candidate.label, "Small Cog");
+  assert.ok(metrics.hull.difference > 0);
+  assert.ok(metrics.cargo.difference > 0);
+  assert.ok(metrics.speed.difference < 0);
+  assert.equal(metrics.cargo.difference, 52);
 });
 
 test("ship specifications explain oar and combined propulsion", () => {

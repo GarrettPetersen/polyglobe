@@ -11,6 +11,7 @@ import {
   createShipDialogueSession,
   passengerDialogueView,
   portDialogueView,
+  prepareSurrenderPrizeDialogue,
   selectPassengerDialogueOption,
   selectPortDialogueOption,
   selectShoreBatteryDialogueOption,
@@ -198,6 +199,9 @@ test("an attacking captain hails with a reason before combat", () => {
 test("an outmatched ship offers surrender and the player may refuse it", () => {
   const ship = {
     id: "outmatched",
+    slug: "small-cog",
+    hitPoints: 7,
+    maxHitPoints: 7,
     roleLabel: "Merchant",
     faction: { adjective: "Spanish" },
     character: { name: "Teresa de la Vega" },
@@ -217,9 +221,63 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
   const acceptingSession = createShipDialogueSession(ship);
   selectShipDialogueOption(acceptingSession, ship, 0);
   assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
-    closed: true,
+    closed: false,
     action: { type: "surrender" }
   });
+  ship.combatGrace = true;
+  prepareSurrenderPrizeDialogue(acceptingSession, ship, {
+    slug: "fishing-lugger",
+    hitPoints: 3,
+    maxHitPoints: 4,
+    cargoUsed: 8
+  }, {
+    specie: 75,
+    cargoQuantity: 3
+  });
+  const prize = shipDialogueView(acceptingSession, ship);
+  assert.equal(prize.presentation.kind, "ship-capture");
+  assert.equal(prize.presentation.candidateShipSlug, "small-cog");
+  assert.equal(prize.presentation.currentShipSlug, "fishing-lugger");
+  assert.match(prize.text, /75 doubloons and 3 cargo/);
+  assert.deepEqual(prize.options.map((option) => option.label), [
+    "Take Small Cog",
+    "Keep Fishing Barque"
+  ]);
+
+  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
+    closed: false,
+    action: null
+  });
+  const confirmation = shipDialogueView(acceptingSession, ship);
+  assert.match(confirmation.text, /permanently replace your current Fishing Barque/);
+  assert.equal(confirmation.options[0].detail, "CURRENT SHIP WILL BE REPLACED");
+  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
+    closed: false,
+    action: { type: "capture-surrendered-ship" }
+  });
+  assert.equal(acceptingSession.nodeId, "capture-loading");
+});
+
+test("a surrendered prize cannot replace the player with a hold that is too small", () => {
+  const ship = {
+    id: "small-prize",
+    slug: "dhow",
+    hitPoints: 3,
+    maxHitPoints: 3,
+    combatGrace: true,
+    character: { name: "Salim Reis" }
+  };
+  const session = prepareSurrenderPrizeDialogue(null, ship, {
+    slug: "small-cog",
+    hitPoints: 7,
+    maxHitPoints: 7,
+    cargoUsed: 11
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.equal(view.options[0].disabled, true);
+  assert.match(view.options[0].disabledReason, /11 units of cargo/);
+  assert.throws(() => selectShipDialogueOption(session, ship, 0), /11 units of cargo/);
 });
 
 test("a protected surrendered ship cannot be threatened again", () => {

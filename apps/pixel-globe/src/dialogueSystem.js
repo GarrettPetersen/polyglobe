@@ -171,6 +171,56 @@ export function createShipDialogueSession(ship, { attackReason = null } = {}) {
   };
 }
 
+export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot = {}) {
+  const target = session || createShipDialogueSession(ship);
+  assertShipDialogueSubject(target, ship);
+  if (session && target.nodeId !== "surrender-resolving") {
+    throw new Error(`Cannot prepare surrender prize from dialogue node: ${target.nodeId}`);
+  }
+  if (ship.combatGrace !== true) throw new Error("Surrender prize requires a protected defeated ship");
+  const candidateStats = shipStatsForSlug(ship.slug);
+  const currentStats = shipStatsForSlug(currentShip?.slug);
+  if (!Number.isFinite(ship.hitPoints) || !Number.isFinite(ship.maxHitPoints)) {
+    throw new Error(`Surrendered ship ${ship.id} requires finite hull points`);
+  }
+  if (!Number.isFinite(currentShip?.hitPoints) || !Number.isFinite(currentShip?.maxHitPoints)) {
+    throw new Error("Surrender prize requires the current player hull condition");
+  }
+  if (ship.maxHitPoints !== candidateStats.hitPoints) {
+    throw new Error(
+      `Surrendered ${candidateStats.slug} hull mismatch: ${ship.maxHitPoints}/${candidateStats.hitPoints}`
+    );
+  }
+  if (currentShip.maxHitPoints !== currentStats.hitPoints) {
+    throw new Error(
+      `Current ${currentStats.slug} hull mismatch: ${currentShip.maxHitPoints}/${currentStats.hitPoints}`
+    );
+  }
+  if (!Number.isInteger(currentShip?.cargoUsed) || currentShip.cargoUsed < 0) {
+    throw new Error(`Surrender prize requires current cargo use: ${currentShip?.cargoUsed}`);
+  }
+  const specie = loot.specie ?? 0;
+  const cargoQuantity = loot.cargoQuantity ?? 0;
+  if (!Number.isInteger(specie) || specie < 0 || !Number.isInteger(cargoQuantity) || cargoQuantity < 0) {
+    throw new Error("Surrender prize requires a valid loot summary");
+  }
+  target.nodeId = "prize-choice";
+  target.selectedIndex = 0;
+  target.feedback = null;
+  target.prize = Object.freeze({
+    candidateShipSlug: candidateStats.slug,
+    candidateHitPoints: Math.max(1, Math.min(candidateStats.hitPoints, ship.hitPoints)),
+    candidateMaxHitPoints: ship.maxHitPoints,
+    currentShipSlug: currentStats.slug,
+    currentHitPoints: Math.max(0, Math.min(currentStats.hitPoints, currentShip.hitPoints)),
+    currentMaxHitPoints: currentShip.maxHitPoints,
+    cargoUsed: currentShip.cargoUsed,
+    specie,
+    cargoQuantity
+  });
+  return target;
+}
+
 export function createShoreBatteryDialogueSession(city, context = {}) {
   if (!city?.character) throw new Error("Shore battery hail requires a city character");
   if (context.relation !== "hostile" && context.relation !== "war") {
@@ -291,6 +341,24 @@ export function shipDialogueView(session, ship) {
       ]
     };
   }
+  if (session.nodeId === "prize-choice" || session.nodeId === "capture-confirm") {
+    return surrenderPrizeView(session, ship);
+  }
+  if (session.nodeId === "capture-loading") {
+    return {
+      speaker,
+      expressionId: "afraid",
+      text: "Your crew are transferring command of the captured vessel.",
+      feedback: session.feedback,
+      presentation: surrenderPrizePresentation(session, ship),
+      options: [
+        option("Transferring command", { type: "close" }, {
+          disabled: true,
+          disabledReason: "The prize crew are still at work."
+        })
+      ]
+    };
+  }
   if (session.nodeId === "defiance") {
     return {
       speaker,
@@ -345,10 +413,66 @@ export function shipDialogueView(session, ship) {
   };
 }
 
+function surrenderPrizeView(session, ship) {
+  const presentation = surrenderPrizePresentation(session, ship);
+  const candidate = shipLabelForSlug(presentation.candidateShipSlug);
+  const current = shipLabelForSlug(presentation.currentShipSlug);
+  const cargoDoesNotFit = presentation.cargoUsed > shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity;
+  const disabledReason = cargoDoesNotFit
+    ? `Your ${presentation.cargoUsed} units of cargo will not fit its ` +
+      `${shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity}-unit hold.`
+    : null;
+  if (session.nodeId === "capture-confirm") {
+    return {
+      speaker: `${candidate}, surrendered prize`,
+      expressionId: "afraid",
+      text: `Taking this prize will permanently replace your current ${current}.`,
+      feedback: session.feedback,
+      presentation,
+      options: [
+        option(`Confirm ${candidate}`, { type: "capture-surrendered-ship" }, {
+          detail: "CURRENT SHIP WILL BE REPLACED",
+          disabled: Boolean(disabledReason),
+          disabledReason
+        }),
+        option(`Keep ${current}`, { type: "close" })
+      ]
+    };
+  }
+  const lootParts = [];
+  if (presentation.specie > 0) lootParts.push(`${presentation.specie} doubloons`);
+  if (presentation.cargoQuantity > 0) lootParts.push(`${presentation.cargoQuantity} cargo`);
+  const lootSummary = lootParts.length > 0 ? ` You have already secured ${lootParts.join(" and ")}.` : "";
+  return {
+    speaker: `${candidate}, surrendered prize`,
+    expressionId: "afraid",
+    text: `The defeated captain has struck their colors.${lootSummary}`,
+    feedback: session.feedback,
+    presentation,
+    options: [
+      option(`Take ${candidate}`, { type: "inspect-surrendered-ship" }, {
+        detail: `COMPARE WITH ${current.toUpperCase()}`,
+        disabled: Boolean(disabledReason),
+        disabledReason
+      }),
+      option(`Keep ${current}`, { type: "close" })
+    ]
+  };
+}
+
+function surrenderPrizePresentation(session, ship) {
+  const prize = session.prize;
+  if (!prize || prize.candidateShipSlug !== ship.slug) {
+    throw new Error(`Ship surrender prize does not match active ship: ${ship.id}`);
+  }
+  return Object.freeze({ kind: "ship-capture", ...prize });
+}
+
 export function selectShipDialogueOption(session, ship, optionIndex = session.selectedIndex) {
   const view = shipDialogueView(session, ship);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid ship dialogue option index: ${optionIndex}`);
+  if (selected.disabled) throw new Error(selected.disabledReason || "Ship dialogue option is unavailable");
   const action = selected.action;
   if (action.type === "close") return { closed: true, action: null };
   if (action.type === "confirm-piracy") {
@@ -384,8 +508,23 @@ function applyShipDialogueAction(session, ship, action) {
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
-  if (action.type === "surrender" || action.type === "attack") {
-    return { closed: true, action: { type: action.type } };
+  if (action.type === "surrender") {
+    session.nodeId = "surrender-resolving";
+    session.selectedIndex = 0;
+    return { closed: false, action: { type: "surrender" } };
+  }
+  if (action.type === "inspect-surrendered-ship") {
+    session.nodeId = "capture-confirm";
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "capture-surrendered-ship") {
+    session.nodeId = "capture-loading";
+    session.selectedIndex = 0;
+    return { closed: false, action: { type: "capture-surrendered-ship" } };
+  }
+  if (action.type === "attack") {
+    return { closed: true, action: { type: "attack" } };
   }
   throw new Error(`Unknown ship dialogue action: ${action.type}`);
 }

@@ -12,6 +12,7 @@ import {
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
   applyNpcConquestOwnership,
+  captureSurrenderedNpcShip,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
@@ -456,6 +457,23 @@ test("voluntary surrender preserves an undamaged hull", () => {
 
   assert.equal(loser.hitPoints, hullBefore);
   assert.equal(npcShipHasCombatGrace(routes, loser.id), true);
+});
+
+test("claiming a surrendered hull removes it from traffic and queues a replacement", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const loser = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT && cargoUnits(ship) > 0);
+  assert.ok(loser);
+  const replacementCount = routes.replacementQueue.length;
+
+  surrenderNpcShip(routes, loser.id, null, { preserveHull: true });
+  const captured = captureSurrenderedNpcShip(routes, loser.id, 120);
+
+  assert.equal(captured.ship.id, loser.id);
+  assert.equal(routes.shipById.has(loser.id), false);
+  assert.equal(routes.ships.some((ship) => ship.id === loser.id), false);
+  assert.equal(routes.replacementQueue.length, replacementCount + 1);
+  assert.equal(captured.replacement.shipId, loser.id);
 });
 
 test("NPC hull damage preserves half-point arrow hits", () => {
