@@ -1,5 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import * as THREE from "../../../examples/globe-demo/node_modules/three/build/three.module.js";
@@ -42,6 +43,7 @@ import {
 import {
   SHIP_SHADOW_FRAME_SIZE,
   SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADING_SUFFIX,
   SHIP_SPRITE_HEADINGS,
   SHIP_SPRITE_RENDER_SIZE,
   SHIP_SPRITE_SHEET_COLS
@@ -1725,7 +1727,7 @@ async function renderShipSpriteSet(config) {
     })
     : null;
   return {
-    slug: config.slug || config.outputPrefix.replace(/-16-headings$/, ""),
+    slug: config.slug || stripShipHeadingSuffix(config.outputPrefix),
     label: config.label || config.outputPrefix,
     category: config.category || "default",
     assetLabel: config.assetLabel || config.label || config.outputPrefix,
@@ -1798,7 +1800,7 @@ async function renderShipAnimationSheets({
   const animationFrames = [firstFrames];
   const spritePaths = [];
   const sinkDepthPaths = [];
-  const basePrefix = config.outputPrefix.replace(/-16-headings$/, "");
+  const basePrefix = stripShipHeadingSuffix(config.outputPrefix);
   for (let frameIndex = 0; frameIndex < config.animationFrameCount; frameIndex++) {
     let sheet = animationSheets[frameIndex];
     let frames = animationFrames[frameIndex];
@@ -1822,10 +1824,13 @@ async function renderShipAnimationSheets({
       animationFrames.push(frames);
     }
     if (!frames) throw new Error(`Missing ship animation geometry for frame ${frameIndex}`);
-    const spritePath = join(config.outputDir, `${basePrefix}-rowing-${frameIndex}-16-headings.png`);
+    const spritePath = join(
+      config.outputDir,
+      `${basePrefix}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}.png`
+    );
     const sinkDepthPath = join(
       config.outputDir,
-      `${basePrefix}-rowing-${frameIndex}-16-headings-sink-depth.png`
+      `${basePrefix}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}-sink-depth.png`
     );
     const sinkDepth = makeSinkDepthSheet(frames, waterlineY);
     writeFileSync(spritePath, sheet.toBuffer("image/png"));
@@ -1881,6 +1886,14 @@ function portablePath(path) {
   return relative(repoRoot, path).split("/").join("/");
 }
 
+function stripShipHeadingSuffix(value) {
+  const suffix = `-${SHIP_SPRITE_HEADING_SUFFIX}`;
+  if (!value.endsWith(suffix)) {
+    throw new Error(`Ship output prefix must end with ${suffix}: ${value}`);
+  }
+  return value.slice(0, -suffix.length);
+}
+
 function unityShipModels() {
   const files = [];
   walkFiles(unityShipModelRoot, (path) => {
@@ -1930,7 +1943,7 @@ function unityShipConfig(modelPath) {
     waterlineOffsetY: rosterEntry.waterlineOffsetY,
     scaleMode: "source-relative-fleet",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${rosterEntry.slug}-16-headings`
+    outputPrefix: `${rosterEntry.slug}-${SHIP_SPRITE_HEADING_SUFFIX}`
   };
 }
 
@@ -2056,7 +2069,8 @@ async function renderShipReferenceSet(config) {
   const renderOptions = {
     textureSampler,
     colorTransform: config.colorTransform,
-    waterlineY
+    waterlineY,
+    collectCasters: false
   };
   const renderedHeadings = Array.from({ length: headings }, (_, i) => renderHeading(triangles, i, camera, renderOptions));
   const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
@@ -2527,7 +2541,7 @@ function mediterraneanGalleyConfig() {
     sideViewTargetModelMaxDim: 1.9,
     scaleMode: "galley-pixel-derivative",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: -0.15,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
@@ -2568,7 +2582,7 @@ function joseonTurtleShipConfig() {
     sideViewTargetModelMaxDim: 2.05,
     scaleMode: "joseon-warship",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: -0.05,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
@@ -2609,7 +2623,7 @@ function joseonPanokseonConfig() {
     sideViewTargetModelMaxDim: 2.05,
     scaleMode: "joseon-decked-warship",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: -0.23,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
@@ -2651,7 +2665,7 @@ function japaneseAtakebuneConfig() {
     sideViewTargetModelMaxDim: 2.08,
     scaleMode: "japanese-fortress-warship",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: 0.073,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
@@ -2687,7 +2701,7 @@ function spanishNaoConfig() {
     colorTransform: spanishNaoTextureColor,
     scaleMode: "spanish-nao",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: -0.025,
     wakeWaterlineBand: 0.2,
     skipSelfShadowMaps: true
@@ -2712,7 +2726,7 @@ function portugueseCarrackConfig() {
     sideViewTargetModelMaxDim: 2.1,
     scaleMode: "portuguese-carrack",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: 0.073,
     wakeWaterlineBand: 0.2,
     collectOptions: {
@@ -2739,7 +2753,7 @@ function gogiartDhowConfig() {
     sideViewTargetModelMaxDim: 0.95,
     scaleMode: "standalone-source-relative",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: -0.244,
     wakeWaterlineBand: 0.18,
     collectOptions: {
@@ -2767,7 +2781,7 @@ function cyc3wGalleonConfig() {
     colorTransform: cyc3wSailingShipTextureColor,
     scaleMode: "standalone-source-relative",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     wakeWaterlineBand: 0.2,
     collectOptions: {
       transformPoint: orientCyc3wSailingShipPoint
@@ -2793,7 +2807,7 @@ function nusantaranOutriggerConfig() {
     sideViewTargetModelMaxDim: 1.85,
     scaleMode: "nusantaran-ocean-trader",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: -0.012,
     wakeWaterlineBand: 0.2,
     expectedWaterlineHullCount: 1,
@@ -2822,7 +2836,7 @@ function ottomanCoastalTraderConfig() {
     sideViewTargetModelMaxDim: 2.0,
     scaleMode: "ottoman-regional-merchant",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: -0.883,
     wakeWaterlineBand: 0.2,
     skipSelfShadowMaps: true
@@ -3057,7 +3071,7 @@ function vikingLongshipConfig() {
     sideViewTargetModelMaxDim: 1.8,
     scaleMode: "special-longship",
     outputDir: unityFleetOutputRoot,
-    outputPrefix: `${slug}-16-headings`,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     wakeWaterlineBand: 0.2,
     animationFrameCount: SHIP_ROWING_FRAME_COUNT,
     animationTrianglesForFrame: vikingLongshipTrianglesForFrame,
@@ -3265,7 +3279,7 @@ async function renderStandaloneComparison(args) {
   if (!outputDir) throw new Error("--comparison-ship requires --output-dir");
   const config = standaloneShipConfigForSlug(slug);
   config.outputDir = resolve(outputDir);
-  config.outputPrefix = args.value("--output-prefix") || `${slug}-comparison-16-headings`;
+  config.outputPrefix = args.value("--output-prefix") || `${slug}-comparison-${SHIP_SPRITE_HEADING_SUFFIX}`;
   const result = await renderShipReferenceSet(config);
   console.log(result.files.referenceSheet);
 }
@@ -3324,7 +3338,7 @@ async function renderUnityShip(slug) {
 async function renderMediterraneanGalleyReference() {
   const config = mediterraneanGalleyConfig();
   config.outputDir = join(repoRoot, "tmp/mediterranean-galley-reference");
-  config.outputPrefix = "mediterranean-galley-reference-16-headings";
+  config.outputPrefix = `mediterranean-galley-reference-${SHIP_SPRITE_HEADING_SUFFIX}`;
   config.animationContactScale = 2;
   config.animationContactSheetPath = join(
     appRoot,
@@ -3350,7 +3364,7 @@ function nativeBoatConfigs() {
       targetModelMaxDim: 2.25,
       scaleMode: "native-boat-relative",
       outputDir: unityFleetOutputRoot,
-      outputPrefix: "polynesian-voyaging-canoe-16-headings",
+      outputPrefix: `polynesian-voyaging-canoe-${SHIP_SPRITE_HEADING_SUFFIX}`,
       waterlineOffsetY: -0.995,
       expectedWaterlineHullCount: 2
     },
@@ -3368,7 +3382,7 @@ function nativeBoatConfigs() {
       targetModelMaxDim: 1.85,
       scaleMode: "native-boat-relative",
       outputDir: unityFleetOutputRoot,
-      outputPrefix: "mesoamerican-dugout-canoe-16-headings",
+      outputPrefix: `mesoamerican-dugout-canoe-${SHIP_SPRITE_HEADING_SUFFIX}`,
       waterlineOffsetY: 0.023,
       animationFrameCount: SHIP_ROWING_FRAME_COUNT,
       animationTrianglesForFrame: mesoamericanCanoeTrianglesForFrame,
@@ -3565,20 +3579,35 @@ async function renderUnityFleet() {
   console.log(contactSheetPath);
 }
 
-async function renderAllProductionShips() {
-  await renderUnityFleet();
-  await renderUnityFleetSideViews();
-  await renderNativeBoats();
-  await renderMediterraneanGalley();
-  await renderJoseonTurtleShip();
-  await renderJoseonPanokseon();
-  await renderJapaneseAtakebune();
-  await renderSpanishNao();
-  await renderPortugueseCarrack();
-  await renderGogiartDhow();
-  await renderCyc3wGalleon();
-  await renderNusantaranOutrigger();
-  await renderOttomanCoastalTrader();
+function renderAllProductionShips() {
+  const rendererPath = fileURLToPath(import.meta.url);
+  const stages = [
+    "--unity-fleet",
+    "--unity-fleet-side-views",
+    "--native-boats",
+    "--mediterranean-galley",
+    "--joseon-turtle-ship",
+    "--joseon-panokseon",
+    "--japanese-atakebune",
+    "--spanish-nao",
+    "--portuguese-carrack",
+    "--gogiart-dhow",
+    "--cyc3w-galleon",
+    "--nusantaran-outrigger",
+    "--ottoman-coastal-trader"
+  ];
+  for (const stage of stages) {
+    console.log(`production fleet stage ${stage}`);
+    const result = spawnSync(
+      process.execPath,
+      ["--max-old-space-size=8192", rendererPath, stage],
+      { cwd: appRoot, env: process.env, stdio: "inherit" }
+    );
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`Production fleet stage failed (${result.status}): ${stage}`);
+    }
+  }
 }
 
 async function renderRowingShips() {
@@ -3602,13 +3631,13 @@ async function renderUnityFleetReferences() {
     const config = unityShipConfig(modelPath);
     config.sourceMaxDim = await measureSourceMaxDim(modelPath);
     config.outputDir = unityFleetReferenceOutputRoot;
-    config.outputPrefix = `${config.slug}-reference-16-headings`;
+    config.outputPrefix = `${config.slug}-reference-${SHIP_SPRITE_HEADING_SUFFIX}`;
     measuredConfigs.push(config);
   }
   const vikingConfig = vikingLongshipConfig();
   vikingConfig.sourceMaxDim = await measureSourceMaxDim(vikingConfig.modelPath);
   vikingConfig.outputDir = unityFleetReferenceOutputRoot;
-  vikingConfig.outputPrefix = `${vikingConfig.slug}-reference-16-headings`;
+  vikingConfig.outputPrefix = `${vikingConfig.slug}-reference-${SHIP_SPRITE_HEADING_SUFFIX}`;
   measuredConfigs.push(vikingConfig);
   const largestSourceMaxDim = Math.max(...measuredConfigs.map((config) => config.sourceMaxDim));
   for (const config of measuredConfigs) {
@@ -3635,7 +3664,7 @@ async function renderUnityFleetReferences() {
   for (const config of [gogiartDhowConfig(), cyc3wGalleonConfig()]) {
     config.sourceMaxDim = await measureSourceMaxDim(config.modelPath);
     config.outputDir = unityFleetReferenceOutputRoot;
-    config.outputPrefix = `${config.slug}-reference-16-headings`;
+    config.outputPrefix = `${config.slug}-reference-${SHIP_SPRITE_HEADING_SUFFIX}`;
     console.log(`reference ${config.slug}`);
     const entry = await renderShipReferenceSet(config);
     references.push(entry);
@@ -3782,10 +3811,10 @@ async function main() {
   const outputDir = args.value("--output-dir")
     ? resolve(args.value("--output-dir"))
     : outputRoot;
-  const outputPrefix = args.value("--output-prefix") || "sail-ship-16-headings";
+  const outputPrefix = args.value("--output-prefix") || `sail-ship-${SHIP_SPRITE_HEADING_SUFFIX}`;
   const texturePath = args.value("--texture") ? resolve(args.value("--texture")) : null;
   const result = await renderShipSpriteSet({
-    slug: outputPrefix.replace(/-16-headings$/, ""),
+    slug: stripShipHeadingSuffix(outputPrefix),
     label: outputPrefix,
     category: "single",
     modelPath,

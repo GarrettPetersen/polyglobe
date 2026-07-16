@@ -44,11 +44,11 @@
       "waterlineY": -0.31413747736668796,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/fishing-lugger-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/fishing-lugger-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/fishing-lugger-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/fishing-lugger-reference-32-headings-preview.png"
       }
     },
     {
@@ -68,11 +68,11 @@
       "waterlineY": -0.5517766243621313,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/small-cog-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/small-cog-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/small-cog-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/small-cog-reference-32-headings-preview.png"
       }
     },
     {
@@ -89,14 +89,14 @@
       "targetModelMaxDim": 0.9242,
       "frameScale": 0.6872,
       "scaleMode": "source-relative-fleet",
-      "waterlineY": -0.42960758006419353,
+      "waterlineY": -0.4066075800641935,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/sampan-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/sampan-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/sampan-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/sampan-reference-32-headings-preview.png"
       }
     },
     {
@@ -116,11 +116,11 @@
       "waterlineY": -0.6114549926396833,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/large-junk-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/large-junk-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/large-junk-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/large-junk-reference-32-headings-preview.png"
       }
     },
     {
@@ -140,11 +140,11 @@
       "waterlineY": -0.7496062855636385,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/pirate-brig-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/pirate-brig-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/pirate-brig-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/pirate-brig-reference-32-headings-preview.png"
       }
     },
     {
@@ -164,11 +164,11 @@
       "waterlineY": -0.6408279004097618,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/fluyt-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/fluyt-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/fluyt-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/fluyt-reference-32-headings-preview.png"
       }
     },
     {
@@ -188,11 +188,11 @@
       "waterlineY": -0.6335832014325332,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/carrack-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/carrack-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/carrack-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/carrack-reference-32-headings-preview.png"
       }
     },
     {
@@ -212,11 +212,11 @@
       "waterlineY": -0.6375315248193973,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/ship-of-the-line-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/ship-of-the-line-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/ship-of-the-line-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/ship-of-the-line-reference-32-headings-preview.png"
       }
     },
     {
@@ -236,11 +236,11 @@
       "waterlineY": -0.606253297214245,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/medium-junk-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/medium-junk-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/medium-junk-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/medium-junk-reference-32-headings-preview.png"
       }
     },
     {
@@ -260,11 +260,11 @@
       "waterlineY": -0.6930998858395693,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/xebec-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/xebec-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/xebec-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/xebec-reference-32-headings-preview.png"
       }
     },
     {
@@ -281,14 +281,14 @@
       "targetModelMaxDim": 1.8988,
       "frameScale": 0.6872,
       "scaleMode": "source-relative-fleet",
-      "waterlineY": -0.6125613902860336,
+      "waterlineY": -0.6585613902860337,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/caravel-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/caravel-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/caravel-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/caravel-reference-32-headings-preview.png"
       }
     },
     {
@@ -308,11 +308,11 @@
       "waterlineY": -0.6751154748377313,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/square-rigged-caravel-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/square-rigged-caravel-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/square-rigged-caravel-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/square-rigged-caravel-reference-32-headings-preview.png"
       }
     },
     {
@@ -332,11 +332,11 @@
       "waterlineY": -0.6690514625851667,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/brigantine-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/brigantine-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/brigantine-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/brigantine-reference-32-headings-preview.png"
       }
     },
     {
@@ -356,11 +356,11 @@
       "waterlineY": -0.6023806016218708,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/small-junk-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/small-junk-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/small-junk-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/small-junk-reference-32-headings-preview.png"
       }
     },
     {
@@ -377,14 +377,14 @@
       "targetModelMaxDim": 1.2657,
       "frameScale": 0.6872,
       "scaleMode": "source-relative-fleet",
-      "waterlineY": -0.004520659246471825,
+      "waterlineY": -0.45952065924647184,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/felucca-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/felucca-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/felucca-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/felucca-reference-32-headings-preview.png"
       }
     },
     {
@@ -404,11 +404,11 @@
       "waterlineY": -0.5050682202365155,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/cutter-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/cutter-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/cutter-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/cutter-reference-32-headings-preview.png"
       }
     },
     {
@@ -428,11 +428,11 @@
       "waterlineY": -0.5115140875905757,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/ketch-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/ketch-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/ketch-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/ketch-reference-32-headings-preview.png"
       }
     },
     {
@@ -452,11 +452,11 @@
       "waterlineY": -0.5558266884279744,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/viking-longship-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/viking-longship-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/viking-longship-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/viking-longship-reference-32-headings-preview.png"
       }
     },
     {
@@ -473,14 +473,14 @@
       "targetModelMaxDim": 0.95,
       "frameScale": 0.6,
       "scaleMode": "standalone-source-relative",
-      "waterlineY": -0.0822044250051358,
+      "waterlineY": -0.3262044250051358,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/dhow-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/dhow-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/dhow-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/dhow-reference-32-headings-preview.png"
       }
     },
     {
@@ -500,11 +500,11 @@
       "waterlineY": -0.7066668082951645,
       "frameSize": 160,
       "renderSize": 320,
-      "headings": 16,
-      "sheetCols": 4,
+      "headings": 32,
+      "sheetCols": 8,
       "files": {
-        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/galleon-reference-16-headings.png",
-        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/galleon-reference-16-headings-preview.png"
+        "referenceSheet": "apps/pixel-globe/docs/ship-reference/high-res/galleon-reference-32-headings.png",
+        "referencePreview": "apps/pixel-globe/docs/ship-reference/high-res/galleon-reference-32-headings-preview.png"
       }
     }
   ]

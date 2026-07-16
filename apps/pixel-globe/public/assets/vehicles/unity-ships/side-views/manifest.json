@@ -202,6 +202,20 @@
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
     },
     {
+      "slug": "felucca",
+      "label": "Felucca",
+      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 2.fbx",
+      "sourceMaxDim": 1609.0532,
+      "targetModelMaxDim": 1.2657,
+      "width": 192,
+      "height": 104,
+      "palette": "Resurrect 64",
+      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/felucca.png",
+      "creator": "Palmov Island",
+      "license": "Standard Unity Asset Store EULA",
+      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+    },
+    {
       "slug": "cutter",
       "label": "Coastal Pinnace",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 3.fbx",
@@ -410,20 +424,6 @@
       "creator": "Polygora",
       "license": "CC BY 4.0",
       "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model"
-    },
-    {
-      "slug": "felucca",
-      "label": "Felucca",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 2.fbx",
-      "sourceMaxDim": 1609.0532,
-      "targetModelMaxDim": 1.2657,
-      "width": 192,
-      "height": 104,
-      "palette": "Resurrect 64",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/felucca.png",
-      "creator": "Palmov Island",
-      "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
@@ -436,7 +436,5 @@
   "gogiartDhowGenerator": "tools/render-sail-ship-sprites.mjs --gogiart-dhow",
   "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
   "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
-  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
-  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship caravel",
-  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
+  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader"
 }

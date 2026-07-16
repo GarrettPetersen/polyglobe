@@ -2,7 +2,7 @@
 
 The Unity asset pack labels the vessels generically, so this roster assigns 16th-century game-facing names from the baked silhouettes. Internal filename slugs remain tied to the source assets and are not historical classifications. These are practical visual interpretations, not museum-catalog claims.
 
-Generated fleet sprites live in `apps/pixel-globe/public/assets/vehicles/unity-ships/` and use filenames like `{filename slug}-16-headings.png`, with matching `-light`, `-shade`, `-shadow`, `-preview`, and `-lighting-preview` sheets.
+Generated fleet sprites live in `apps/pixel-globe/public/assets/vehicles/unity-ships/` and use filenames like `{filename slug}-32-headings.png`, with matching `-light`, `-shade`, `-shadow`, `-preview`, and `-lighting-preview` sheets.
 
 Large side-view sprites for the ship information screen live in `apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/`. They preserve the same source-relative fleet scale and are quantized to the Resurrect 64 palette. Regenerate all roster side views with `npm run render:unity-ship-side-views` from `apps/pixel-globe/`.
 

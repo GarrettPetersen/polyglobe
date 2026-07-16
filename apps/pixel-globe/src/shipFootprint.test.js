@@ -9,6 +9,7 @@ import {
   translatedShipFootprint,
   validateShipFootprintBake
 } from "./shipFootprint.js";
+import { SHIP_SPRITE_FRAME_SIZE, SHIP_SPRITE_HEADINGS } from "./shipSpriteLayout.js";
 
 const horizontal = Object.freeze({
   polygon: Object.freeze([
@@ -25,10 +26,10 @@ const horizontal = Object.freeze({
 });
 
 test("heading lookup chooses the matching discrete baked footprint", () => {
-  const frames = Array.from({ length: 16 }, (_, frame) => ({ ...horizontal, frame }));
+  const frames = Array.from({ length: SHIP_SPRITE_HEADINGS }, (_, frame) => ({ ...horizontal, frame }));
   assert.equal(shipFootprintFrame(frames, { x: 1, y: 0 }).frame, 0);
-  assert.equal(shipFootprintFrame(frames, { x: 0, y: 1 }).frame, 4);
-  assert.equal(shipFootprintFrame(frames, { x: -1, y: 0 }).frame, 8);
+  assert.equal(shipFootprintFrame(frames, { x: 0, y: 1 }).frame, SHIP_SPRITE_HEADINGS / 4);
+  assert.equal(shipFootprintFrame(frames, { x: -1, y: 0 }).frame, SHIP_SPRITE_HEADINGS / 2);
 });
 
 test("projectiles hit the drawn hull footprint and miss empty bounding-circle corners", () => {
@@ -51,7 +52,12 @@ test("ship overlap uses polygon geometry rather than center radii", () => {
 
 test("footprint bakes fail loudly when a roster ship is absent", () => {
   assert.throws(
-    () => validateShipFootprintBake({ frameSize: 47, headings: 16, ships: {} }, 47, 16, ["caravel"]),
+    () => validateShipFootprintBake(
+      { frameSize: SHIP_SPRITE_FRAME_SIZE, headings: SHIP_SPRITE_HEADINGS, ships: {} },
+      SHIP_SPRITE_FRAME_SIZE,
+      SHIP_SPRITE_HEADINGS,
+      ["caravel"]
+    ),
     /missing: caravel/
   );
 });

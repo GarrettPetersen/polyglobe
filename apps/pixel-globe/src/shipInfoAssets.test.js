@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,8 +15,11 @@ import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 import {
   SHIP_SHADOW_FRAME_SIZE,
   SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADING_SUFFIX,
   SHIP_SPRITE_HEADINGS,
-  SHIP_SPRITE_SHEET_COLS
+  SHIP_SPRITE_SHEET_COLS,
+  SHIP_SPRITE_SHEET_HEIGHT,
+  SHIP_SPRITE_SHEET_WIDTH
 } from "./shipSpriteLayout.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
 import { SHIP_ROWING_FRAME_COUNT } from "./shipRowingAnimation.js";
@@ -28,12 +31,13 @@ import {
 
 const SIDE_VIEW_WIDTH = 192;
 const SIDE_VIEW_HEIGHT = 104;
-const SHIP_SHEET_SIZE = SHIP_SPRITE_FRAME_SIZE * SHIP_SPRITE_SHEET_COLS;
+const SHIP_SHEET_WIDTH = SHIP_SPRITE_SHEET_WIDTH;
+const SHIP_SHEET_HEIGHT = SHIP_SPRITE_SHEET_HEIGHT;
 const SHIP_SHADOW_SHEET_WIDTH = SHIP_SHADOW_FRAME_SIZE * SHIP_SPRITE_SHEET_COLS;
 const SHIP_SHADOW_SHEET_HEIGHT = SHIP_SHADOW_FRAME_SIZE * Math.ceil(
   SHIP_SPRITE_HEADINGS / SHIP_SPRITE_SHEET_COLS
 ) * 2;
-const SHIP_LIGHTING_SHEET_HEIGHT = SHIP_SHEET_SIZE * 2;
+const SHIP_LIGHTING_SHEET_HEIGHT = SHIP_SHEET_HEIGHT * 2;
 const sideViewRoot = join(dirname(fileURLToPath(import.meta.url)), "../public/assets/vehicles/unity-ships/side-views");
 const shipAssetRoot = dirname(sideViewRoot);
 const NATIVE_BOAT_SLUGS = Object.freeze([
@@ -52,6 +56,26 @@ const DHOW_SLUG = "dhow";
 const GALLEON_SLUG = "galleon";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
 const OTTOMAN_COASTAL_TRADER_SLUG = "ottoman-coastal-trader";
+
+function headingAssetFile(slug, suffix = "") {
+  return `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}${suffix}.png`;
+}
+
+function rowingHeadingAssetFile(slug, frameIndex, suffix = "") {
+  return `${slug}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}${suffix}.png`;
+}
+
+test("ship sprites provide 32 discrete headings at 11.25 degree intervals", () => {
+  assert.equal(SHIP_SPRITE_HEADINGS, 32);
+  assert.equal(SHIP_SPRITE_HEADING_SUFFIX, "32-headings");
+  assert.equal(360 / SHIP_SPRITE_HEADINGS, 11.25);
+});
+
+test("the runtime fleet contains no legacy heading sheets", async () => {
+  const files = await readdir(shipAssetRoot);
+  assert.ok(files.some((file) => file.includes(`-${SHIP_SPRITE_HEADING_SUFFIX}`)));
+  assert.deepEqual(files.filter((file) => file.includes("-16-headings")), []);
+});
 
 test("every runtime ship model has a registered attribution", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
@@ -86,7 +110,7 @@ test("every oar-capable hull and only those hulls have rowing animation", async 
   assert.deepEqual(animated, expected);
 });
 
-test("every roster ship has sixteen baked waterline hull footprints", async () => {
+test("every roster ship has a hull footprint for every sprite heading", async () => {
   const bake = JSON.parse(await readFile(join(shipAssetRoot, "hull-footprints.json"), "utf8"));
   const footprints = validateShipFootprintBake(
     bake,
@@ -186,14 +210,14 @@ test("every roster ship has a clipped-safe Resurrect side-view sprite", async ()
   }
 });
 
-test("native boat models provide complete 16-heading sprite and wake bakes", async () => {
+test("native boat models provide complete sprite and wake bakes for every heading", async () => {
   const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
   const wakeAnchors = JSON.parse(await readFile(join(shipAssetRoot, "wake-anchors.json"), "utf8"));
   const expectedAssets = [
-    ["", SHIP_SHEET_SIZE, SHIP_SHEET_SIZE],
-    ["-sink-depth", SHIP_SHEET_SIZE, SHIP_SHEET_SIZE],
-    ["-light", SHIP_SHEET_SIZE, SHIP_LIGHTING_SHEET_HEIGHT],
-    ["-shade", SHIP_SHEET_SIZE, SHIP_LIGHTING_SHEET_HEIGHT],
+    ["", SHIP_SHEET_WIDTH, SHIP_SHEET_HEIGHT],
+    ["-sink-depth", SHIP_SHEET_WIDTH, SHIP_SHEET_HEIGHT],
+    ["-light", SHIP_SHEET_WIDTH, SHIP_LIGHTING_SHEET_HEIGHT],
+    ["-shade", SHIP_SHEET_WIDTH, SHIP_LIGHTING_SHEET_HEIGHT],
     ["-shadow", SHIP_SHADOW_SHEET_WIDTH, SHIP_SHADOW_SHEET_HEIGHT]
   ];
 
@@ -204,10 +228,10 @@ test("native boat models provide complete 16-heading sprite and wake bakes", asy
     assert.ok(entry.license, `${slug} license`);
     assert.ok(entry.sourceTitle, `${slug} source title`);
     assert.doesNotMatch(JSON.stringify(entry), /https?:\/\//);
-    assert.equal(wakeAnchors.ships[slug].length, 16, `${slug} wake headings`);
+    assert.equal(wakeAnchors.ships[slug].length, SHIP_SPRITE_HEADINGS, `${slug} wake headings`);
 
     for (const [suffix, width, height] of expectedAssets) {
-      const image = await loadImage(join(shipAssetRoot, `${slug}-16-headings${suffix}.png`));
+      const image = await loadImage(join(shipAssetRoot, headingAssetFile(slug, suffix)));
       assert.equal(image.width, width, `${slug}${suffix} width`);
       assert.equal(image.height, height, `${slug}${suffix} height`);
       assert.ok(opaquePixelCount(image) > 0, `${slug}${suffix} is blank`);
@@ -217,8 +241,8 @@ test("native boat models provide complete 16-heading sprite and wake bakes", asy
 
 test("the floating Lateen Barque keeps enclosed low hull pixels waterproof", async () => {
   const [sprite, sinkDepth] = await Promise.all([
-    loadImage(join(shipAssetRoot, "ketch-16-headings.png")),
-    loadImage(join(shipAssetRoot, "ketch-16-headings-sink-depth.png"))
+    loadImage(join(shipAssetRoot, headingAssetFile("ketch"))),
+    loadImage(join(shipAssetRoot, headingAssetFile("ketch", "-sink-depth")))
   ]);
   const spritePixels = imagePixels(sprite);
   const sinkPixels = imagePixels(sinkDepth);
@@ -258,16 +282,16 @@ test("the Mediterranean galley provides licensed rowing animation frames", async
   assert.equal(entry.license, "CC BY 4.0");
   assert.equal(entry.sourceTitle, "Russian 22-bank Baltic galley");
   assert.doesNotMatch(JSON.stringify(entry), /https?:\/\//);
-  assert.equal(wakeAnchors.ships[MEDITERRANEAN_GALLEY_SLUG].length, 16);
+  assert.equal(wakeAnchors.ships[MEDITERRANEAN_GALLEY_SLUG].length, SHIP_SPRITE_HEADINGS);
   assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
 
   for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const image = await loadImage(join(
       shipAssetRoot,
-      `${MEDITERRANEAN_GALLEY_SLUG}-rowing-${frameIndex}-16-headings.png`
+      rowingHeadingAssetFile(MEDITERRANEAN_GALLEY_SLUG, frameIndex)
     ));
-    assert.equal(image.width, SHIP_SHEET_SIZE, `rowing frame ${frameIndex} width`);
-    assert.equal(image.height, SHIP_SHEET_SIZE, `rowing frame ${frameIndex} height`);
+    assert.equal(image.width, SHIP_SHEET_WIDTH, `rowing frame ${frameIndex} width`);
+    assert.equal(image.height, SHIP_SHEET_HEIGHT, `rowing frame ${frameIndex} height`);
     assert.ok(opaquePixelCount(image) > 0, `rowing frame ${frameIndex} is blank`);
   }
 });
@@ -283,11 +307,11 @@ test("the Viking longship keeps its authored colored sail and provides six worki
   for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
-      `${VIKING_LONGSHIP_SLUG}-rowing-${frameIndex}-16-headings.png`
+      rowingHeadingAssetFile(VIKING_LONGSHIP_SLUG, frameIndex)
     );
     const image = await loadImage(path);
-    assert.equal(image.width, SHIP_SHEET_SIZE, `longship rowing frame ${frameIndex} width`);
-    assert.equal(image.height, SHIP_SHEET_SIZE, `longship rowing frame ${frameIndex} height`);
+    assert.equal(image.width, SHIP_SHEET_WIDTH, `longship rowing frame ${frameIndex} width`);
+    assert.equal(image.height, SHIP_SHEET_HEIGHT, `longship rowing frame ${frameIndex} height`);
     assert.ok(opaquePixelCount(image) > 0, `longship rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
@@ -308,11 +332,11 @@ test("the Joseon turtle ship has credited art and six working oar phases", async
   for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
-      `${JOSEON_TURTLE_SHIP_SLUG}-rowing-${frameIndex}-16-headings.png`
+      rowingHeadingAssetFile(JOSEON_TURTLE_SHIP_SLUG, frameIndex)
     );
     const image = await loadImage(path);
-    assert.equal(image.width, SHIP_SHEET_SIZE, `turtle ship rowing frame ${frameIndex} width`);
-    assert.equal(image.height, SHIP_SHEET_SIZE, `turtle ship rowing frame ${frameIndex} height`);
+    assert.equal(image.width, SHIP_SHEET_WIDTH, `turtle ship rowing frame ${frameIndex} width`);
+    assert.equal(image.height, SHIP_SHEET_HEIGHT, `turtle ship rowing frame ${frameIndex} height`);
     assert.ok(opaquePixelCount(image) > 0, `turtle ship rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
@@ -338,11 +362,11 @@ test("the Joseon Panokseon replaces its static paddles with six working phases",
   for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
-      `${JOSEON_PANOKSEON_SLUG}-rowing-${frameIndex}-16-headings.png`
+      rowingHeadingAssetFile(JOSEON_PANOKSEON_SLUG, frameIndex)
     );
     const image = await loadImage(path);
-    assert.equal(image.width, SHIP_SHEET_SIZE, `Panokseon rowing frame ${frameIndex} width`);
-    assert.equal(image.height, SHIP_SHEET_SIZE, `Panokseon rowing frame ${frameIndex} height`);
+    assert.equal(image.width, SHIP_SHEET_WIDTH, `Panokseon rowing frame ${frameIndex} width`);
+    assert.equal(image.height, SHIP_SHEET_HEIGHT, `Panokseon rowing frame ${frameIndex} height`);
     assert.ok(opaquePixelCount(image) > 0, `Panokseon rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
@@ -368,11 +392,11 @@ test("the Japanese Atakebune replaces its static oars with six working phases", 
   for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
-      `${JAPANESE_ATAKEBUNE_SLUG}-rowing-${frameIndex}-16-headings.png`
+      rowingHeadingAssetFile(JAPANESE_ATAKEBUNE_SLUG, frameIndex)
     );
     const image = await loadImage(path);
-    assert.equal(image.width, SHIP_SHEET_SIZE, `Atakebune rowing frame ${frameIndex} width`);
-    assert.equal(image.height, SHIP_SHEET_SIZE, `Atakebune rowing frame ${frameIndex} height`);
+    assert.equal(image.width, SHIP_SHEET_WIDTH, `Atakebune rowing frame ${frameIndex} width`);
+    assert.equal(image.height, SHIP_SHEET_HEIGHT, `Atakebune rowing frame ${frameIndex} height`);
     assert.ok(opaquePixelCount(image) > 0, `Atakebune rowing frame ${frameIndex} is blank`);
     frames.push(await readFile(path));
   }
@@ -392,7 +416,7 @@ test("the Spanish Nao uses the credited Nao Victoria source at an intermediate c
 
   const dimensions = {};
   for (const slug of ["square-rigged-caravel", SPANISH_NAO_SLUG, "carrack"]) {
-    dimensions[slug] = maxOpaqueFrameDimension(await loadImage(join(shipAssetRoot, `${slug}-16-headings.png`)));
+    dimensions[slug] = maxOpaqueFrameDimension(await loadImage(join(shipAssetRoot, headingAssetFile(slug))));
   }
   assert.ok(dimensions[SPANISH_NAO_SLUG] > dimensions["square-rigged-caravel"]);
   assert.ok(dimensions[SPANISH_NAO_SLUG] < dimensions.carrack);
@@ -411,7 +435,7 @@ test("the Portuguese Carrack uses its credited model and large period rig", asyn
 
   const dimensions = {};
   for (const slug of [SPANISH_NAO_SLUG, PORTUGUESE_CARRACK_SLUG]) {
-    dimensions[slug] = maxOpaqueFrameDimension(await loadImage(join(shipAssetRoot, `${slug}-16-headings.png`)));
+    dimensions[slug] = maxOpaqueFrameDimension(await loadImage(join(shipAssetRoot, headingAssetFile(slug))));
   }
   assert.ok(dimensions[PORTUGUESE_CARRACK_SLUG] > dimensions[SPANISH_NAO_SLUG]);
 });
@@ -429,7 +453,7 @@ test("the Dhow uses the credited purpose-built source model", async () => {
 
   const dimensions = {};
   for (const slug of ["fishing-lugger", DHOW_SLUG, "xebec"]) {
-    dimensions[slug] = maxOpaqueFrameDimension(await loadImage(join(shipAssetRoot, `${slug}-16-headings.png`)));
+    dimensions[slug] = maxOpaqueFrameDimension(await loadImage(join(shipAssetRoot, headingAssetFile(slug))));
   }
   assert.ok(dimensions[DHOW_SLUG] <= dimensions["fishing-lugger"]);
   assert.ok(dimensions[DHOW_SLUG] < dimensions.xebec);
@@ -437,8 +461,8 @@ test("the Dhow uses the credited purpose-built source model", async () => {
 
 test("the Small Cog reads as a roundship rather than a rowboat", async () => {
   const [smallCog, dugoutCanoe] = await Promise.all([
-    loadImage(join(shipAssetRoot, "small-cog-16-headings.png")),
-    loadImage(join(shipAssetRoot, `${MESOAMERICAN_CANOE_SLUG}-16-headings.png`))
+    loadImage(join(shipAssetRoot, headingAssetFile("small-cog"))),
+    loadImage(join(shipAssetRoot, headingAssetFile(MESOAMERICAN_CANOE_SLUG)))
   ]);
 
   assert.ok(opaquePixelCount(smallCog) > opaquePixelCount(dugoutCanoe));
@@ -490,8 +514,8 @@ test("the new regional traders use their credited source models and complete bak
 
 test("the Nusantaran outrigger refracts only its lowest exterior hull pixels", async () => {
   const [sprite, sinkDepth] = await Promise.all([
-    loadImage(join(shipAssetRoot, `${NUSANTARAN_OUTRIGGER_SLUG}-16-headings.png`)),
-    loadImage(join(shipAssetRoot, `${NUSANTARAN_OUTRIGGER_SLUG}-16-headings-sink-depth.png`))
+    loadImage(join(shipAssetRoot, headingAssetFile(NUSANTARAN_OUTRIGGER_SLUG))),
+    loadImage(join(shipAssetRoot, headingAssetFile(NUSANTARAN_OUTRIGGER_SLUG, "-sink-depth")))
   ]);
   const spritePixels = imagePixels(sprite);
   const sinkPixels = imagePixels(sinkDepth);
@@ -519,8 +543,8 @@ test("the Nusantaran outrigger refracts only its lowest exterior hull pixels", a
 
 test("the northwest Dhow frame has no vertical submerged streak through its hull", async () => {
   const [sprite, sinkDepth] = await Promise.all([
-    loadImage(join(shipAssetRoot, "dhow-16-headings.png")),
-    loadImage(join(shipAssetRoot, "dhow-16-headings-sink-depth.png"))
+    loadImage(join(shipAssetRoot, headingAssetFile("dhow"))),
+    loadImage(join(shipAssetRoot, headingAssetFile("dhow", "-sink-depth")))
   ]);
   const spritePixels = imagePixels(sprite);
   const sinkPixels = imagePixels(sinkDepth);
@@ -566,11 +590,11 @@ test("the Mesoamerican canoe has a readable six-frame paddle cycle", async () =>
   for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
     const path = join(
       shipAssetRoot,
-      `${MESOAMERICAN_CANOE_SLUG}-rowing-${frameIndex}-16-headings.png`
+      rowingHeadingAssetFile(MESOAMERICAN_CANOE_SLUG, frameIndex)
     );
     const image = await loadImage(path);
-    assert.equal(image.width, SHIP_SHEET_SIZE, `paddling frame ${frameIndex} width`);
-    assert.equal(image.height, SHIP_SHEET_SIZE, `paddling frame ${frameIndex} height`);
+    assert.equal(image.width, SHIP_SHEET_WIDTH, `paddling frame ${frameIndex} width`);
+    assert.equal(image.height, SHIP_SHEET_HEIGHT, `paddling frame ${frameIndex} height`);
     assert.ok(opaquePixelCount(image) > 0, `paddling frame ${frameIndex} is blank`);
     frameBuffers.push(await readFile(path));
   }
@@ -588,7 +612,7 @@ test("standalone Asian warships preserve their scale below the longer Mediterran
     JOSEON_PANOKSEON_SLUG,
     JOSEON_TURTLE_SHIP_SLUG
   ]) {
-    const image = await loadImage(join(shipAssetRoot, `${slug}-16-headings.png`));
+    const image = await loadImage(join(shipAssetRoot, headingAssetFile(slug)));
     dimensions[slug] = maxOpaqueFrameDimension(image);
   }
 
@@ -610,11 +634,11 @@ function opaquePixelCount(image) {
 }
 
 function maxOpaqueFrameDimension(image) {
-  assert.equal(image.width, SHIP_SHEET_SIZE);
-  assert.equal(image.height, SHIP_SHEET_SIZE);
+  assert.equal(image.width, SHIP_SHEET_WIDTH);
+  assert.equal(image.height, SHIP_SHEET_HEIGHT);
   const pixels = imagePixels(image);
   let maximum = 0;
-  for (let frame = 0; frame < 16; frame++) {
+  for (let frame = 0; frame < SHIP_SPRITE_HEADINGS; frame++) {
     const originX = frame % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
     const originY = Math.floor(frame / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
     let minX = SHIP_SPRITE_FRAME_SIZE;

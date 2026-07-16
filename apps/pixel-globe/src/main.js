@@ -57,6 +57,7 @@ import {
 import {
   SHIP_SHADOW_FRAME_SIZE,
   SHIP_SPRITE_FRAME_SIZE,
+  SHIP_SPRITE_HEADING_SUFFIX,
   SHIP_SPRITE_HEADINGS,
   SHIP_SPRITE_SHEET_COLS
 } from "./shipSpriteLayout.js";
@@ -1770,7 +1771,7 @@ async function main() {
   ] = await Promise.all([
     loadTerrainImages(),
     START_SHIP_SLUG_OVERRIDE
-      ? loadShipSpriteAsset(`${shipSpriteKey}-16-headings`, `Player ship: ${START_SHIP_SLUG}`)
+      ? loadShipSpriteAsset(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}`, `Player ship: ${START_SHIP_SLUG}`)
       : Promise.resolve(null),
     loadShipWakeAnchors(),
     loadShipFootprints(),
@@ -2235,7 +2236,7 @@ async function loadShipSpriteAsset(spriteKey, label) {
 
 async function loadNpcShipAssets() {
   const entries = await Promise.all(NPC_SHIP_SLUGS.map(async (slug) => {
-    const key = `${vehicleSpriteKeyForShipSlug(slug)}-16-headings`;
+    const key = `${vehicleSpriteKeyForShipSlug(slug)}-${SHIP_SPRITE_HEADING_SUFFIX}`;
     return [slug, await loadShipSpriteAsset(key, `NPC ship: ${slug}`)];
   }));
   return new Map(entries);
@@ -2244,7 +2245,7 @@ async function loadNpcShipAssets() {
 async function loadRowingShipAssets() {
   const entries = await Promise.all([...ROWING_SHIP_ANIMATION_SPECS].map(async ([slug, spec]) => {
     const assets = await Promise.all(Array.from({ length: spec.frames }, async (_, frameIndex) => {
-      const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-16-headings`;
+      const key = `${vehicleSpriteKeyForShipSlug(slug)}-rowing-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
       return loadShipSpriteAsset(key, `Rowing ship: ${slug} frame ${frameIndex}`);
     }));
     return [slug, assets];
@@ -2754,9 +2755,9 @@ function cityLabelText(city) {
 
 async function loadShipLightingBake(shipSpriteKey) {
   const [lightImage, shadeImage, shadowImage] = await Promise.all([
-    loadVehicleImage(`${shipSpriteKey}-16-headings-light`),
-    loadVehicleImage(`${shipSpriteKey}-16-headings-shade`),
-    loadVehicleImage(`${shipSpriteKey}-16-headings-shadow`)
+    loadVehicleImage(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}-light`),
+    loadVehicleImage(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}-shade`),
+    loadVehicleImage(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}-shadow`)
   ]);
   return {
     light: decodeShipLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, "ship light mask"),
@@ -4602,7 +4603,7 @@ function toggleAudioMuted() {
 async function loadShipAssetSet(slug) {
   const shipSpriteKey = vehicleSpriteKeyForShipSlug(slug);
   const [spriteAsset, loadedShipLighting] = await Promise.all([
-    loadShipSpriteAsset(`${shipSpriteKey}-16-headings`, `Player ship: ${slug}`),
+    loadShipSpriteAsset(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}`, `Player ship: ${slug}`),
     loadShipLightingBake(shipSpriteKey)
   ]);
   return {
@@ -4846,7 +4847,7 @@ async function ensureLakeBattleShipAsset(slug) {
   const pending = lakeBattleShipAssetPromises.get(slug);
   if (pending) return pending;
   const promise = loadShipSpriteAsset(
-    `${vehicleSpriteKeyForShipSlug(slug)}-16-headings`,
+    `${vehicleSpriteKeyForShipSlug(slug)}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     `Lake battle ship: ${slug}`
   )
     .then((asset) => {

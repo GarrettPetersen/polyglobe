@@ -70,7 +70,7 @@ npm run render:ottoman-coastal-trader
 node --test src/shipInfoAssets.test.js
 ```
 
-These render commands generate the 16-heading sprite, lighting and shadow masks,
+These render commands generate the 32-heading sprite, lighting and shadow masks,
 side view, wake anchors, and an exact per-pixel sink-depth map. Rowing or paddling
 ships also receive one sprite and sink-depth map for every animation frame. The
 generated runtime files are written under:
