@@ -7229,7 +7229,7 @@ async function captureSurrenderedShip(npcShipId) {
       { simMinute: Math.floor(weatherClockMinutes) }
     );
     applyPlayerShipType(candidateSlug, stats, assets, { stateAlreadyUpdated: true });
-    ship.hitPoints = Math.max(1, Math.min(stats.hitPoints, strategic.hitPoints));
+    ship.hitPoints = stats.hitPoints;
     captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
     npcVisualShips.delete(npcShipId);
     shipCombatEntryCollisionGrace.delete(npcShipId);

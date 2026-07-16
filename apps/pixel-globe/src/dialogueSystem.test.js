@@ -237,6 +237,7 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
   const prize = shipDialogueView(acceptingSession, ship);
   assert.equal(prize.presentation.kind, "ship-capture");
   assert.equal(prize.presentation.candidateShipSlug, "small-cog");
+  assert.equal(prize.presentation.candidateHitPoints, prize.presentation.candidateMaxHitPoints);
   assert.equal(prize.presentation.currentShipSlug, "fishing-lugger");
   assert.match(prize.text, /75 doubloons and 3 cargo/);
   assert.deepEqual(prize.options.map((option) => option.label), [
@@ -249,6 +250,7 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
     action: null
   });
   const confirmation = shipDialogueView(acceptingSession, ship);
+  assert.match(confirmation.text, /repaired to full hull strength/);
   assert.match(confirmation.text, /permanently replace your current Fishing Barque/);
   assert.equal(confirmation.options[0].detail, "CURRENT SHIP WILL BE REPLACED");
   assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {

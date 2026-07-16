@@ -209,7 +209,7 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
   target.feedback = null;
   target.prize = Object.freeze({
     candidateShipSlug: candidateStats.slug,
-    candidateHitPoints: Math.max(1, Math.min(candidateStats.hitPoints, ship.hitPoints)),
+    candidateHitPoints: candidateStats.hitPoints,
     candidateMaxHitPoints: ship.maxHitPoints,
     currentShipSlug: currentStats.slug,
     currentHitPoints: Math.max(0, Math.min(currentStats.hitPoints, currentShip.hitPoints)),
@@ -426,7 +426,8 @@ function surrenderPrizeView(session, ship) {
     return {
       speaker: `${candidate}, surrendered prize`,
       expressionId: "afraid",
-      text: `Taking this prize will permanently replace your current ${current}.`,
+      text: `The prize will be repaired to full hull strength before transfer. ` +
+        `Taking it will permanently replace your current ${current}.`,
       feedback: session.feedback,
       presentation,
       options: [
