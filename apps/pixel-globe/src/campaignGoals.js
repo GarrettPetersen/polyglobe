@@ -1,4 +1,5 @@
 import { explorerReportDialogueForDiscovery } from "./explorerDiscoveryDialogue.js";
+import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDistance.js";
 
 export const CAMPAIGN_GOAL_VERSION = 1;
@@ -272,10 +273,18 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
   }
   return [
     step("contact", "stern", `${playerCharacter.name}, your family's signature is here, beneath a debt of ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons. The estate secures every coin. At ten percent interest, time now works for me.`),
-    step("player", "concerned", culture.debtIntro),
+    step("player", "concerned", `${familyDebtOriginDialogue(playerCharacter)} ${culture.debtIntro}`),
     step("contact", "pleased", `I am not unreasonable. Each time you return, I will leave you ${goal.protectedPurse} doubloons for bread, rope, and whatever courage remains. Everything above it comes to me. Arrive poorer, and we shall learn what your promises are worth.`),
     step("player", "determined", "Keep the deed close and your ink ready. One day you will write paid in full across it, and my family will keep what is ours.")
   ];
+}
+
+export function familyDebtOriginDialogue(character) {
+  assertCharacter(character);
+  if (!Object.hasOwn(FAMILY_DEBT_ORIGINS_BY_FACTION, character.nationalityId)) {
+    throw new Error(`Missing family debt origin for faction: ${character.nationalityId ?? "none"}`);
+  }
+  return FAMILY_DEBT_ORIGINS_BY_FACTION[character.nationalityId];
 }
 
 export function campaignHomecomingSteps(goal, outcome, playerCharacter, discoveryById) {
@@ -539,8 +548,55 @@ const CULTURAL_STORIES = Object.freeze({
   )
 });
 
+const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
+  england: "Our name was entered in a great duke's household books. When the duke fell, every old favor became a charge and every guarantee became ours.",
+  scotland: "We furnished horses and grain for the army that crossed the Tweed. The men did not return from Flodden, but every lender did.",
+  france: "We provisioned the king's first march into Lombardy on promises sealed before Marignano. Victory came home; payment did not.",
+  spain: "Our seal was found in a Comunero account book after Villalar. The Crown took the land, and the lender kept the note.",
+  portugal: "We fitted a carrack for the taking of Goa, then borrowed again when its cargo failed to return. The Crown kept the port; we kept the debt.",
+  habsburg: "My father guaranteed loans gathered to win an imperial crown. The electors were paid; smaller guarantors were forgotten.",
+  hungary: "We mortgaged the estate to provision Belgrade. When the fortress fell, the quartermaster vanished with the receipts.",
+  ottoman: "Our household backed the wrong prince when the old Sultan yielded the throne. The victor spared our lives, but not our property.",
+  venice: "The Republic called for one forced loan after another while the mainland burned. Cambrai ended; our obligations did not.",
+  genoa: "Our warehouse was pledged under one lord and seized when the next banner rose. Genoa changed masters faster than the ink could dry.",
+  "papal-states": "We supplied wagons to the army sent against Urbino. Rome exhausted its treasury before settling our account, so the lender settled it for us.",
+  ming: "An uncle's name appeared among the Prince of Ning's papers. The court cleared him of rebellion only after the family pledged nearly everything.",
+  aztec: "When the causeways closed and the lake city burned, our stores fed three households. Rebuilding them all required a lender with a long memory.",
+  inca: "The northern campaign took our llamas, grain, and sons, all on imperial tallies. The tallies came back honored; the goods did not.",
+  safavid: "Our finest caravan was in Tabriz when the western army entered after Chaldiran. We borrowed against its return before learning none would come.",
+  muscovy: "We fitted wagons and horses for the long siege of Smolensk. The fortress changed hands; the court's promise of payment did not.",
+  "poland-lithuania": "We raised cavalry for the Prussian war on a royal warrant. The truce came before the treasury found our name.",
+  "denmark-norway": "We mortgaged the farm to outfit ships for the king's Swedish crown. Stockholm yielded, then the payment vanished into court quarrels.",
+  songhai: "We advanced salt, grain, and camels for Askia's march on Agadez. Tribute came downriver to Gao, but not one cowrie reached our house.",
+  morocco: "Our warehouses stood at Azemmour when the Portuguese came. We ransomed kin, rebuilt inland, and signed whatever terms the lender set.",
+  ethiopia: "Year after year the frontier riders came with Mahfuz. We borrowed to replace burned herds, then borrowed once more to arm the men who stopped him.",
+  vijayanagara: "We bought Arabian horses for the Raichur campaign. The victory procession passed our door; the paymaster did not.",
+  gujarat: "When the Portuguese demanded a fortress at Diu, our family financed ships to make the refusal credible. The ships were lost; the refusal was not.",
+  bengal: "Our ships were caught in the fighting for Chittagong. By the time the port was ours again, three rulers claimed the cargo and the lender claimed the house.",
+  delhi: "A kinsman guaranteed a noble who chose Jalal Khan when the old Sultan died. Ibrahim took the noble's lands; the guarantee survived.",
+  ayutthaya: "Our family kept a warehouse in Malacca until the Portuguese took the city. The warehouse disappeared, but its bills crossed the sea intact.",
+  japan: "Our house backed the wrong Hosokawa at Funaokayama. The survivors changed allegiance; our creditors merely changed the seal on the deed.",
+  joseon: "A cousin signed the reformers' memorials before the purge. His name was erased from office, and saving the clan lands cost everything else."
+});
+
+assertExactKeys(
+  "family debt faction origins",
+  Object.keys(FAMILY_DEBT_ORIGINS_BY_FACTION),
+  FACTIONS
+    .map((faction) => faction.id)
+    .filter((factionId) => ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(factionId))
+);
+
 function story(explorerIntro, explorerOutro, debtIntro, debtOutro) {
   return Object.freeze({ explorerIntro, explorerOutro, debtIntro, debtOutro });
+}
+
+function assertExactKeys(label, actualKeys, expectedKeys) {
+  const actual = [...actualKeys].sort();
+  const expected = [...expectedKeys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new Error(`${label} must exactly cover: ${expected.join(", ")}`);
+  }
 }
 
 function personalEnding(character, variant) {

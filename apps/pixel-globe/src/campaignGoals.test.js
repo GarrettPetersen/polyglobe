@@ -16,6 +16,7 @@ import {
   createCampaignDialogueSession,
   createCampaignGoal,
   explorerDiscoveryReward,
+  familyDebtOriginDialogue,
   familyDebtPayoffProjection,
   markCampaignGoalIntroSeen,
   selectCampaignDialogueOption,
@@ -30,6 +31,7 @@ const CHARACTER = Object.freeze({
   givenName: "Wei",
   gender: "male",
   nameCulture: "chinese",
+  nationalityId: "ming",
   homePortTileId: 42,
   homePortName: "Nanjing"
 });
@@ -180,6 +182,30 @@ test("family debt dialogue gives the creditor a concise recurring voice", () => 
   assert.match(homecoming[1].text, /respectable enough to delay my plans/i);
   assert.match(homecoming[2].text, /count how far i have come/i);
   assert.ok([...intro, ...homecoming].every((entry) => entry.text.length < 300));
+});
+
+test("family debt origins use faction-specific recent history", () => {
+  const cases = [
+    ["scotland", /Flodden/i],
+    ["spain", /Villalar/i],
+    ["habsburg", /imperial crown/i],
+    ["papal-states", /Urbino/i],
+    ["ming", /Prince of Ning/i],
+    ["safavid", /Chaldiran/i],
+    ["songhai", /Agadez/i],
+    ["vijayanagara", /Raichur/i],
+    ["joseon", /reformers' memorials/i]
+  ];
+  for (const [nationalityId, expectedText] of cases) {
+    const text = familyDebtOriginDialogue({ ...CHARACTER, nationalityId });
+    assert.match(text, expectedText);
+    assert.ok(text.length < 180, `${nationalityId} debt origin is too long`);
+  }
+
+  assert.throws(
+    () => familyDebtOriginDialogue({ ...CHARACTER, nationalityId: "neutral" }),
+    /Missing family debt origin for faction: neutral/
+  );
 });
 
 test("campaign dialogue and endings include cultural story material", () => {
