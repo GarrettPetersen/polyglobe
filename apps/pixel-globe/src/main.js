@@ -92,6 +92,7 @@ import {
   advanceActivePlayTime,
   applySurvivalDeprivation,
   attemptPortDisguise,
+  awardPlayerShip,
   cargoFree,
   cargoUsed,
   consumePendingDiscoveryPortDialogue,
@@ -153,6 +154,7 @@ import {
   campaignVictorySummary,
   createCampaignDialogueSession,
   explorerWonderCatalog,
+  isExplorerLeadAssignable,
   markCampaignGoalIntroSeen,
   selectCampaignDialogueOption
 } from "./campaignGoals.js";
@@ -594,8 +596,13 @@ import { lakeBattleHudLayout } from "./lakeBattleHud.js";
 import {
   VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
   VIKING_LONGSHIP_PRICE,
+  VIKING_LONGSHIP_REWARD_DECLINED,
+  VIKING_LONGSHIP_REWARD_PENDING,
   VIKING_LONGSHIP_SLUG,
+  acceptVikingLongshipReward,
   isVikingLongshipQuestPort,
+  markVikingLongshipPurchased,
+  vikingLongshipRewardDisposition,
   vikingLongshipUnlocked
 } from "./vikingLongshipQuest.js";
 import {
@@ -1586,7 +1593,7 @@ const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
 let windIndicatorState = null;
 let shipyardPurchaseListingId = null;
-let vikingLongshipPurchasePending = false;
+let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
 let lastStatusMs = 0;
@@ -6369,7 +6376,7 @@ function createCampaignHomecomingSession(cityCall, needsLoadout) {
   if (!goal || cityCall.tileId !== goal.homePortTileId) return null;
   const doubloonsBefore = gameState.doubloons;
   const lead = goal.type === CAMPAIGN_GOAL_EXPLORER
-    ? nearestUndiscoveredExplorerWonder(cityCall)
+    ? retainedOrNearestExplorerLead(cityCall, goal)
     : null;
   const outcome = settleCampaignGoalAtHome(gameState, cityCall, {
     currentMinute: weatherClockMinutes,
@@ -6831,8 +6838,8 @@ function chooseDialogueOption(optionIndex) {
       void purchaseShipyardShip(result.action);
       return;
     }
-    if (result.action?.type === "purchase-viking-longship") {
-      void purchaseVikingLongship(result.action);
+    if (["purchase-viking-longship", "accept-viking-longship-reward"].includes(result.action?.type)) {
+      void acquireVikingLongship(result.action);
       return;
     }
     if (result.action?.type === "wait-in-port") {
@@ -6963,40 +6970,59 @@ async function purchaseShipyardShip(action) {
   }
 }
 
-async function purchaseVikingLongship(action) {
-  if (vikingLongshipPurchasePending) return;
+async function acquireVikingLongship(action) {
+  if (vikingLongshipAcquisitionPending) return;
   const session = dialogueState;
   const city = currentDialogueCity();
+  const rewardDisposition = vikingLongshipRewardDisposition(gameState);
+  const acceptingReward = action.type === "accept-viking-longship-reward";
+  const purchasing = action.type === "purchase-viking-longship";
   if (
     session?.kind !== "port" ||
     session.nodeId !== "viking-longship" ||
     !isVikingLongshipQuestPort(city) ||
     action.shipSlug !== VIKING_LONGSHIP_SLUG ||
-    !vikingLongshipUnlocked(gameState)
+    !vikingLongshipUnlocked(gameState) ||
+    (!acceptingReward && !purchasing) ||
+    (acceptingReward && rewardDisposition !== VIKING_LONGSHIP_REWARD_PENDING) ||
+    (purchasing && rewardDisposition !== VIKING_LONGSHIP_REWARD_DECLINED)
   ) {
-    throw new Error("Invalid Viking longship purchase state");
+    throw new Error("Invalid Viking longship acquisition state");
   }
-  vikingLongshipPurchasePending = true;
+  vikingLongshipAcquisitionPending = true;
   session.feedback = "The enthusiast is readying the longship for inspection.";
   dirty = true;
   try {
     const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
     const assets = await loadShipAssetSet(VIKING_LONGSHIP_SLUG);
     if (dialogueState !== session || session.nodeId !== "viking-longship") return;
-    purchasePlayerShip(gameState, city, stats, VIKING_LONGSHIP_PRICE, {
-      simMinute: Math.floor(weatherClockMinutes)
-    });
+    const transactionContext = { simMinute: Math.floor(weatherClockMinutes) };
+    if (acceptingReward) {
+      awardPlayerShip(
+        gameState,
+        city,
+        stats,
+        "Longship awarded for completing the historical reconstruction",
+        transactionContext
+      );
+      acceptVikingLongshipReward(gameState);
+    } else {
+      purchasePlayerShip(gameState, city, stats, VIKING_LONGSHIP_PRICE, transactionContext);
+      markVikingLongshipPurchased(gameState);
+    }
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
-    playCoinClinkSound();
-    session.feedback = `Purchased ${shipLabelForSlug(VIKING_LONGSHIP_SLUG)} for ${VIKING_LONGSHIP_PRICE} doubloons.`;
+    if (purchasing) playCoinClinkSound();
+    session.feedback = acceptingReward
+      ? `Accepted ${shipLabelForSlug(VIKING_LONGSHIP_SLUG)} as the reconstruction reward.`
+      : `Purchased ${shipLabelForSlug(VIKING_LONGSHIP_SLUG)} for ${VIKING_LONGSHIP_PRICE} doubloons.`;
     session.selectedIndex = 0;
-    saveVoyageNow("Viking longship purchase");
+    saveVoyageNow(acceptingReward ? "accepted Viking longship reward" : "Viking longship purchase");
   } catch (error) {
-    console.error(new Error("Failed to purchase Viking Longship", { cause: error }));
-    session.feedback = error instanceof Error ? error.message : "The longship purchase failed.";
+    console.error(new Error("Failed to acquire Viking Longship", { cause: error }));
+    session.feedback = error instanceof Error ? error.message : "The longship acquisition failed.";
   } finally {
-    vikingLongshipPurchasePending = false;
+    vikingLongshipAcquisitionPending = false;
     dirty = true;
   }
 }
@@ -18961,9 +18987,24 @@ function nearestUndiscoveredExplorerWonder(origin) {
   }
   const originDirection = latLonToDirection(origin.lat, origin.lon);
   return explorerWonderCatalog(discoveryCatalog)
+    .filter(isExplorerLeadAssignable)
     .filter((discovery) => !hasDiscovery(gameState, discovery.id))
     .map((discovery) => ({ discovery, distance: discoveryDistancePx(discovery, originDirection) }))
     .sort((a, b) => a.distance - b.distance || a.discovery.id.localeCompare(b.discovery.id))[0]?.discovery || null;
+}
+
+function retainedOrNearestExplorerLead(origin, goal) {
+  if (goal.currentLeadDiscoveryId !== null) {
+    const assignedLead = discoveryCatalogById.get(goal.currentLeadDiscoveryId);
+    if (!assignedLead) {
+      throw new Error(`Explorer goal points to missing discovery: ${goal.currentLeadDiscoveryId}`);
+    }
+    if (!isExplorerLeadAssignable(assignedLead)) {
+      throw new Error(`Explorer goal points to non-location objective: ${goal.currentLeadDiscoveryId}`);
+    }
+    if (!hasDiscovery(gameState, assignedLead.id)) return assignedLead;
+  }
+  return nearestUndiscoveredExplorerWonder(origin);
 }
 
 function nearestDiscoveryDirection(discovery, position) {

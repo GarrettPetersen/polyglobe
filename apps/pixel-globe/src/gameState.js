@@ -495,20 +495,46 @@ export function purchasePlayerShip(state, city, stats, price, context = {}) {
   if (!stats || typeof stats.slug !== "string") throw new Error("Ship purchase requires valid ship stats");
   if (!Number.isInteger(price) || price <= 0) throw new Error(`Invalid ship purchase price: ${price}`);
   if (state.doubloons < price) throw new Error(`Not enough doubloons to buy ${shipLabelForSlug(stats.slug)}`);
-  const plan = setPlayerShipStats(state, stats);
-  state.doubloons -= price;
   const label = shipLabelForSlug(stats.slug);
-  recordDecision(state, `ship.purchase.${cityKey(city)}.${stats.slug}`, 1);
-  recordLedgerEntry(state, city, context, {
-    kind: "ship",
+  const plan = replacePlayerShipAndRecord(state, city, stats, context, {
     description: `Purchase ${label}`,
-    goodId: null,
-    quantity: 1,
     amount: -price,
-    costBasis: price,
-    pnl: null
+    costBasis: price
+  }, () => {
+    state.doubloons -= price;
+    recordDecision(state, `ship.purchase.${cityKey(city)}.${stats.slug}`, 1);
   });
   return { slug: stats.slug, label, price, plan };
+}
+
+export function awardPlayerShip(state, city, stats, description, context = {}) {
+  assertGameState(state);
+  if (!stats || typeof stats.slug !== "string") throw new Error("Ship award requires valid ship stats");
+  if (typeof description !== "string" || description.trim() === "") {
+    throw new Error("Ship award requires a ledger description");
+  }
+  const label = shipLabelForSlug(stats.slug);
+  const plan = replacePlayerShipAndRecord(state, city, stats, context, {
+    description,
+    amount: 0,
+    costBasis: 0
+  });
+  return { slug: stats.slug, label, price: 0, plan };
+}
+
+function replacePlayerShipAndRecord(state, city, stats, context, ledger, beforeLedger = null) {
+  const plan = setPlayerShipStats(state, stats);
+  if (beforeLedger) beforeLedger();
+  recordLedgerEntry(state, city, context, {
+    kind: "ship",
+    description: ledger.description,
+    goodId: null,
+    quantity: 1,
+    amount: ledger.amount,
+    costBasis: ledger.costBasis,
+    pnl: null
+  });
+  return plan;
 }
 
 export function cargoUsed(state) {

@@ -192,6 +192,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "purchase-safe-passage": "action:buy",
   "refuse-safe-passage": "action:leave",
   "purchase-viking-longship": "action:viking",
+  "accept-viking-longship-reward": "action:viking",
+  "decline-viking-longship-reward": "action:leave",
   "purchase-ship": "action:shipyard",
   "deliver-viking-material": "action:quest",
   "confirm-piracy": "action:attack",

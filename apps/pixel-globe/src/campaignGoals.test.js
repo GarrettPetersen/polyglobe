@@ -16,14 +16,16 @@ import {
   createCampaignDialogueSession,
   createCampaignGoal,
   explorerDiscoveryReward,
+  explorerPatronOutlook,
   familyDebtOriginExchange,
   familyDebtPayoffProjection,
+  isExplorerLeadAssignable,
   markCampaignGoalIntroSeen,
   selectCampaignDialogueOption,
   settleExplorerHomecoming,
   settleFamilyDebtHomecoming
 } from "./campaignGoals.js";
-import { WORLD_DISCOVERY_SPECS } from "./discoveries.js";
+import { CIRCUMNAVIGATION_DISCOVERY, WORLD_DISCOVERY_SPECS } from "./discoveries.js";
 
 const CHARACTER = Object.freeze({
   id: "player-test",
@@ -41,6 +43,10 @@ const WONDERS = Object.freeze([
   Object.freeze({ id: "mount-a", kind: "mountain", displayName: "Mount A", detail: "1,000 m", lat: HOME.lat, lon: HOME.lon }),
   Object.freeze({ id: "lake-b", kind: "landmark", displayName: "Lake B", detail: "A great lake", lat: -HOME.lat, lon: HOME.lon - 180 }),
   Object.freeze({ id: "around", kind: "achievement", displayName: "Around the world" })
+]);
+const EXPLORER_OBJECTIVES = Object.freeze([
+  ...WONDERS.slice(0, 2),
+  CIRCUMNAVIGATION_DISCOVERY
 ]);
 
 test("explorer reports each wonder once and uses the dynamic catalog total", () => {
@@ -84,6 +90,62 @@ test("explorer rewards scale with distance and pay mountains half as much", () =
   assert.equal(explorerDiscoveryReward(nearbyMountain, HOME), 100);
   assert.equal(explorerDiscoveryReward(antipode, HOME), 3000);
   assert.equal(explorerDiscoveryReward(farMountain, HOME), 1500);
+});
+
+test("circumnavigation pays 3,000 doubloons without replacing an existing map lead", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
+  goal.currentLeadDiscoveryId = "lake-b";
+
+  assert.equal(isExplorerLeadAssignable(CIRCUMNAVIGATION_DISCOVERY), false);
+  assert.equal(explorerDiscoveryReward(CIRCUMNAVIGATION_DISCOVERY, HOME), 3000);
+  assert.deepEqual(campaignGoalDestination(goal, {
+    discoveredIds: new Set([CIRCUMNAVIGATION_DISCOVERY.id])
+  }), {
+    kind: CAMPAIGN_DESTINATION_DISCOVERY,
+    discoveryId: "lake-b"
+  });
+
+  const outcome = settleExplorerHomecoming(goal, {
+    discoveredIds: new Set([CIRCUMNAVIGATION_DISCOVERY.id]),
+    wonderCatalog: EXPLORER_OBJECTIVES,
+    homePort: HOME,
+    nextLeadDiscoveryId: "lake-b"
+  });
+  assert.equal(outcome.reward, 3000);
+  assert.equal(outcome.reportedCount, 1);
+  assert.equal(outcome.totalWonderCount, 3);
+  assert.equal(outcome.nextLeadDiscoveryId, "lake-b");
+  assert.equal(outcome.completed, false);
+
+  const steps = campaignHomecomingSteps(
+    goal,
+    outcome,
+    CHARACTER,
+    new Map(EXPLORER_OBJECTIVES.map((discovery) => [discovery.id, discovery]))
+  );
+  assert.ok(steps.some((entry) => /world joined behind us/i.test(entry.text)));
+  assert.ok(steps.some((entry) => /3,000 doubloons/i.test(entry.text)));
+  assert.ok(steps.some((entry) => /Lake B/i.test(entry.text)));
+});
+
+test("circumnavigation can remain as the final non-location explorer objective", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
+  const locationReports = settleExplorerHomecoming(goal, {
+    discoveredIds: new Set(["mount-a", "lake-b"]),
+    wonderCatalog: EXPLORER_OBJECTIVES,
+    homePort: HOME
+  });
+  assert.equal(locationReports.completed, false);
+  assert.deepEqual(locationReports.remainingNonLocationObjectiveIds, [CIRCUMNAVIGATION_DISCOVERY.id]);
+
+  const final = settleExplorerHomecoming(goal, {
+    discoveredIds: new Set(["mount-a", "lake-b", CIRCUMNAVIGATION_DISCOVERY.id]),
+    wonderCatalog: EXPLORER_OBJECTIVES,
+    homePort: HOME
+  });
+  assert.equal(final.reward, 3000);
+  assert.equal(final.completed, true);
+  assert.equal(goal.status, CAMPAIGN_GOAL_COMPLETE);
 });
 
 test("explorer destination returns home after finding the patron's assigned wonder", () => {
@@ -226,6 +288,7 @@ test("campaign dialogue and endings include cultural story material", () => {
   assert.ok(intro.some((entry) => /dreamed of seeing the whole world/i.test(entry.text)));
   assert.ok(intro.some((entry) => /something exceptional in you/i.test(entry.text)));
   assert.ok(intro.some((entry) => /reward every true account/i.test(entry.text)));
+  assert.ok(intro.some((entry) => /Admiral Zheng's sea roads/i.test(entry.text)));
   assert.ok(intro.every((entry) => !/1,?000 doubloons/i.test(entry.text)));
   markCampaignGoalIntroSeen(goal);
   settleExplorerHomecoming(goal, {
@@ -236,6 +299,25 @@ test("campaign dialogue and endings include cultural story material", () => {
   });
   const victory = campaignVictorySummary(goal, CHARACTER);
   assert.match(victory.legacy, /passed the imperial examinations/);
+});
+
+test("explorer patrons frame discovery through faction-specific recent history", () => {
+  const cases = [
+    ["ming", /Admiral Zheng's sea roads/i],
+    ["spain", /Columbus.*Balboa/i],
+    ["ottoman", /Piri Reis/i],
+    ["ethiopia", /Envoys from Portugal/i],
+    ["ayutthaya", /Portuguese.*Malacca/i]
+  ];
+  for (const [nationalityId, expected] of cases) {
+    const outlook = explorerPatronOutlook({ ...CHARACTER, nationalityId });
+    assert.match(outlook, expected);
+    assert.ok(outlook.length < 170, `${nationalityId} explorer patron outlook is too long`);
+  }
+  assert.throws(
+    () => explorerPatronOutlook({ ...CHARACTER, nationalityId: "neutral" }),
+    /Missing explorer patron outlook for faction: neutral/
+  );
 });
 
 test("explorer homecoming gives each discovery a specific captain and patron exchange", () => {

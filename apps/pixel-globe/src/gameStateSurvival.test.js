@@ -10,6 +10,7 @@ import {
   autoProvisionFreshWaterAtPort,
   autoProvisionHardtackAtPort,
   applySurvivalDeprivation,
+  awardPlayerShip,
   buyGood,
   cargoCostBasis,
   cargoUsed,
@@ -349,6 +350,49 @@ test("buying a ship spends specie, changes capacity, and enters the ledger", () 
   assert.equal(state.cargoCapacity, carrack.cargoCapacity);
   assert.equal(state.accounts.ledger.at(-1).kind, "ship");
   assert.equal(state.accounts.ledger.at(-1).amount, -50000);
+});
+
+test("awarding a ship replaces the hull without charging the player", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const longship = shipStatsForSlug("viking-longship");
+  const state = createGameState({ cargoCapacity: brigantine.cargoCapacity, shipStats: brigantine });
+  initializeProvisionalShipLoadout(state, brigantine);
+  const startingDoubloons = state.doubloons;
+
+  const result = awardPlayerShip(
+    state,
+    LONDON,
+    longship,
+    "Longship awarded for completing a reconstruction",
+    { simMinute: 240 }
+  );
+
+  assert.equal(result.slug, "viking-longship");
+  assert.equal(result.price, 0);
+  assert.equal(state.doubloons, startingDoubloons);
+  assert.equal(state.cargoCapacity, longship.cargoCapacity);
+  assert.equal(state.accounts.ledger.at(-1).kind, "ship");
+  assert.equal(state.accounts.ledger.at(-1).amount, 0);
+  assert.match(state.accounts.ledger.at(-1).description, /awarded for completing/i);
+});
+
+test("a rejected ship replacement changes neither money nor the ledger", () => {
+  const carrack = shipStatsForSlug("carrack");
+  const felucca = shipStatsForSlug("felucca");
+  const state = createGameState({ cargoCapacity: carrack.cargoCapacity, shipStats: carrack });
+  initializeProvisionalShipLoadout(state, carrack);
+  state.doubloons = 60000;
+  state.cargo.timber = felucca.cargoCapacity + 1;
+  state.accounts.cargoCostBasis.timber = 100;
+  const ledgerLength = state.accounts.ledger.length;
+
+  assert.throws(
+    () => purchasePlayerShip(state, LONDON, felucca, 50000, { simMinute: 240 }),
+    /current hold will not fit/
+  );
+  assert.equal(state.doubloons, 60000);
+  assert.equal(state.cargoCapacity, carrack.cargoCapacity);
+  assert.equal(state.accounts.ledger.length, ledgerLength);
 });
 
 function port(tileId, city, country, cityType, population, factionId = null) {

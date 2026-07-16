@@ -48,7 +48,12 @@ import {
 } from "./portEquipment.js";
 import {
   VIKING_LONGSHIP_PRICE,
+  VIKING_LONGSHIP_REWARD_ACCEPTED,
+  VIKING_LONGSHIP_REWARD_DECLINED,
+  VIKING_LONGSHIP_REWARD_PENDING,
+  VIKING_LONGSHIP_REWARD_PURCHASED,
   VIKING_LONGSHIP_SLUG,
+  declineVikingLongshipReward,
   deliverVikingLongshipQuestCargo,
   isVikingLongshipQuestPort,
   vikingLongshipQuestState
@@ -502,6 +507,15 @@ export function selectPortDialogueOption(
   if (action.type === "purchase-viking-longship") {
     return { closed: false, action };
   }
+  if (action.type === "accept-viking-longship-reward") {
+    return { closed: false, action };
+  }
+  if (action.type === "decline-viking-longship-reward") {
+    declineVikingLongshipReward(gameState);
+    session.feedback = "The completed longship will remain here for purchase if you change your mind.";
+    session.selectedIndex = 0;
+    return { closed: false, vikingLongshipRewardDeclined: true };
+  }
   if (action.type === "deliver-viking-material") {
     const result = deliverVikingLongshipQuestCargo(gameState, city, action.stageId, context);
     session.feedback = `Delivered ${result.completedStage.goodLabel} x${result.completedStage.quantity}.`;
@@ -934,6 +948,58 @@ function vikingLongshipView(session, city, gameState, context) {
   const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
   const alreadyOwned = context.shipStats?.slug === VIKING_LONGSHIP_SLUG;
   const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
+  const shipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
+  if (quest.rewardDisposition === VIKING_LONGSHIP_REWARD_PENDING) {
+    const currentShipLabel = context.shipStats?.slug
+      ? shipLabelForSlug(context.shipStats.slug)
+      : "current ship";
+    const disabledReason = alreadyOwned
+      ? "You already command a Viking Longship."
+      : cargoDoesNotFit
+        ? `Your current cargo will not fit its ${stats.cargoCapacity}-unit hold.`
+        : null;
+    return {
+      speaker,
+      expressionId: "happy",
+      text: `The longship is complete, and you supplied everything that made her possible. Take her as your reward. Warning: accepting will replace your ${currentShipLabel}; the current vessel will be left behind.`,
+      feedback: session.feedback,
+      presentation: {
+        kind: "shipyard",
+        listing: {
+          id: "quest-viking-longship-reward",
+          shipSlug: VIKING_LONGSHIP_SLUG,
+          shipLabel,
+          price: 0
+        }
+      },
+      options: [
+        option(`Accept ${shipLabel}`, {
+          type: "accept-viking-longship-reward",
+          shipSlug: VIKING_LONGSHIP_SLUG
+        }, {
+          disabled: Boolean(disabledReason),
+          disabledReason
+        }),
+        option("Keep current ship", { type: "decline-viking-longship-reward" }),
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
+  if ([VIKING_LONGSHIP_REWARD_ACCEPTED, VIKING_LONGSHIP_REWARD_PURCHASED]
+    .includes(quest.rewardDisposition)) {
+    return {
+      speaker,
+      expressionId: "pleased",
+      text: quest.rewardDisposition === VIKING_LONGSHIP_REWARD_ACCEPTED
+        ? "The reconstructed longship is yours now. May her striped sail carry our old seafaring craft into a new age."
+        : "The reconstructed longship has already left this yard in your service. There will never be another quite like her.",
+      feedback: session.feedback,
+      options: [option("Back", { type: "node", nodeId: "root" })]
+    };
+  }
+  if (quest.rewardDisposition !== VIKING_LONGSHIP_REWARD_DECLINED) {
+    throw new Error(`Unknown Viking longship reward disposition: ${quest.rewardDisposition}`);
+  }
   const cannotAfford = gameState.doubloons < VIKING_LONGSHIP_PRICE;
   const disabledReason = alreadyOwned
     ? "You already command the reconstructed longship."
@@ -942,7 +1008,6 @@ function vikingLongshipView(session, city, gameState, context) {
       : cannotAfford
         ? `You need ${VIKING_LONGSHIP_PRICE - gameState.doubloons} more doubloons.`
         : null;
-  const shipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
   return {
     speaker,
     expressionId: alreadyOwned ? "pleased" : "happy",

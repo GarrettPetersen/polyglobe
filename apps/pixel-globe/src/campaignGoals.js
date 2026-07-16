@@ -23,6 +23,9 @@ const CAMPAIGN_GOAL_TYPES = new Set([
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT
 ]);
+const SOVEREIGN_FACTION_IDS = Object.freeze(FACTIONS
+  .map((faction) => faction.id)
+  .filter((factionId) => ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(factionId)));
 
 export function createCampaignGoal({ playerCharacter, startMinute = 0, type = null }) {
   assertCharacter(playerCharacter);
@@ -85,7 +88,13 @@ export function markCampaignGoalIntroSeen(goal) {
 }
 
 export function isExplorerWonder(discovery) {
-  return Boolean(discovery && discovery.kind !== "achievement");
+  return Boolean(discovery && (
+    discovery.kind !== "achievement" || discovery.countsTowardExplorerGoal === true
+  ));
+}
+
+export function isExplorerLeadAssignable(discovery) {
+  return isExplorerWonder(discovery) && discovery.explorerLeadAssignable !== false;
 }
 
 export function explorerWonderCatalog(discoveries) {
@@ -102,6 +111,12 @@ export function explorerWonderCatalog(discoveries) {
 
 export function explorerDiscoveryReward(discovery, homePort) {
   if (!isExplorerWonder(discovery)) throw new Error("Explorer rewards require a wonder");
+  if (discovery.explorerRewardDoubloons !== undefined) {
+    if (!Number.isInteger(discovery.explorerRewardDoubloons) || discovery.explorerRewardDoubloons <= 0) {
+      throw new Error(`Invalid fixed explorer reward: ${discovery.explorerRewardDoubloons}`);
+    }
+    return discovery.explorerRewardDoubloons;
+  }
   const distanceKm = greatCircleDistanceKm(homePort, discovery);
   const distanceShare = Math.min(1, distanceKm / MAX_GREAT_CIRCLE_DISTANCE_KM);
   const distanceReward = EXPLORER_DISCOVERY_REWARD_MIN +
@@ -192,7 +207,6 @@ export function settleExplorerHomecoming(goal, {
     throw new Error("Explorer settlement requires a placed home port");
   }
   const wonders = explorerWonderCatalog(wonderCatalog);
-  const wonderIds = new Set(wonders.map((wonder) => wonder.id));
   const reported = new Set(goal.reportedDiscoveryIds);
   const newlyReportedWonders = wonders
     .filter((wonder) => discoveredIds.has(wonder.id) && !reported.has(wonder.id));
@@ -201,18 +215,27 @@ export function settleExplorerHomecoming(goal, {
     discoveryId: wonder.id,
     reward: explorerDiscoveryReward(wonder, homePort)
   }));
-  for (const discoveryId of newlyReported) goal.reportedDiscoveryIds.push(discoveryId);
+  for (const discoveryId of newlyReported) {
+    goal.reportedDiscoveryIds.push(discoveryId);
+    reported.add(discoveryId);
+  }
   goal.totalWonderCount = wonders.length;
 
-  const unknownLead = nextLeadDiscoveryId !== null && !wonderIds.has(nextLeadDiscoveryId);
+  const nextLead = nextLeadDiscoveryId === null
+    ? null
+    : wonders.find((wonder) => wonder.id === nextLeadDiscoveryId);
+  const unknownLead = nextLeadDiscoveryId !== null && !nextLead;
   if (unknownLead) throw new Error(`Explorer lead is not in the wonder catalog: ${nextLeadDiscoveryId}`);
+  if (nextLead && !isExplorerLeadAssignable(nextLead)) {
+    throw new Error(`Explorer lead has no map location: ${nextLeadDiscoveryId}`);
+  }
   if (nextLeadDiscoveryId !== null && discoveredIds.has(nextLeadDiscoveryId)) {
     throw new Error(`Explorer lead is already discovered: ${nextLeadDiscoveryId}`);
   }
   goal.currentLeadDiscoveryId = nextLeadDiscoveryId;
-  const nextLead = goal.currentLeadDiscoveryId === null
-    ? null
-    : wonders.find((wonder) => wonder.id === goal.currentLeadDiscoveryId);
+  const remainingNonLocationObjectiveIds = wonders
+    .filter((wonder) => !isExplorerLeadAssignable(wonder) && !reported.has(wonder.id))
+    .map((wonder) => wonder.id);
   const completed = goal.reportedDiscoveryIds.length === wonders.length;
   if (completed) {
     goal.status = CAMPAIGN_GOAL_COMPLETE;
@@ -227,6 +250,7 @@ export function settleExplorerHomecoming(goal, {
     totalWonderCount: wonders.length,
     nextLeadDiscoveryId: goal.currentLeadDiscoveryId,
     nextLeadReward: nextLead ? explorerDiscoveryReward(nextLead, homePort) : null,
+    remainingNonLocationObjectiveIds,
     completed
   };
 }
@@ -264,8 +288,9 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
   assertPerson(contactCharacter);
   const culture = culturalStory(playerCharacter);
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
+    const patronOutlook = explorerPatronOutlook(playerCharacter);
     return [
-      step("contact", "pleased", `${playerCharacter.givenName || playerCharacter.name}, I have spent years buying travelers' tales of the world's wonders, and most contradict the last. I want an account from someone whose eyes I trust. You notice what other captains sail past. I believe there is something exceptional in you.`),
+      step("contact", "pleased", `${playerCharacter.givenName || playerCharacter.name}, travelers bring me tales of the world's wonders, and most contradict the last. I want an account from someone whose eyes I trust. ${patronOutlook} You notice what other captains sail past; I believe there is something exceptional in you.`),
       step("player", "thoughtful", `Since I was a child, I have dreamed of seeing the whole world with my own eyes: every impossible mountain, ancient city, and shore beyond the horizon. ${culture.explorerIntro}`),
       step("contact", "attentive", "Then bring that world home to me. I want to know not merely where each wonder stands, but what makes it worthy of wonder. I will reward every true account, and pay most richly for the rarest wonders at the farthest reaches of your voyage. Each time you return, I will share the nearest rumor still worth chasing."),
       step("player", "determined", "I will follow those rumors to the edge of every chart. When I return, you will know these places as more than names, and I will finally have seen the world I imagined.")
@@ -286,6 +311,14 @@ export function familyDebtOriginExchange(character) {
     throw new Error(`Missing family debt origin for faction: ${character.nationalityId ?? "none"}`);
   }
   return FAMILY_DEBT_ORIGINS_BY_FACTION[character.nationalityId];
+}
+
+export function explorerPatronOutlook(character) {
+  assertCharacter(character);
+  if (!Object.hasOwn(EXPLORER_PATRON_OUTLOOKS_BY_FACTION, character.nationalityId)) {
+    throw new Error(`Missing explorer patron outlook for faction: ${character.nationalityId ?? "none"}`);
+  }
+  return EXPLORER_PATRON_OUTLOOKS_BY_FACTION[character.nationalityId];
 }
 
 export function campaignHomecomingSteps(goal, outcome, playerCharacter, discoveryById) {
@@ -422,6 +455,14 @@ function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) 
     const lead = discoveryById.get(outcome.nextLeadDiscoveryId);
     if (!lead) throw new Error(`Missing explorer lead discovery: ${outcome.nextLeadDiscoveryId}`);
     steps.push(step("contact", "attentive", `The nearest untested report concerns ${lead.displayName}: ${lead.detail || "a wonder not yet entered in our atlas"}. I can offer ${formatDoubloons(outcome.nextLeadReward)} doubloons for a true account. I have marked the bearing for you.`));
+  } else if (outcome.remainingNonLocationObjectiveIds.length > 0) {
+    const objectiveId = outcome.remainingNonLocationObjectiveIds[0];
+    const objective = discoveryById.get(objectiveId);
+    if (!objective) throw new Error(`Missing non-location explorer objective: ${objectiveId}`);
+    if (typeof objective.explorerChallengeDialogue !== "string" || objective.explorerChallengeDialogue === "") {
+      throw new Error(`Non-location explorer objective has no patron challenge: ${objectiveId}`);
+    }
+    steps.push(step("contact", "attentive", objective.explorerChallengeDialogue));
   }
   return steps;
 }
@@ -664,12 +705,46 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
   )
 });
 
+const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
+  england: "Cabot's western landfall brought Bristol questions, not answers. I mean to know what lies beyond it.",
+  scotland: "The Great Michael is gone to France, and with it our court's boldest seaward ambition. I would see Scottish sails look outward again.",
+  france: "Breton and Norman fishermen return from western banks with coastlines no court map agrees upon. I want a true one.",
+  spain: "Columbus found a western world, and Balboa another ocean beyond it. Court boasts are plentiful; reliable accounts are not.",
+  portugal: "Our pilots have rounded Africa and reached India and Malacca, yet the Crown keeps each chart close. I want the world considered as one.",
+  habsburg: "The Emperor's realms now face oceans no single court understands. A private atlas may tell the truth ceremony conceals.",
+  hungary: "Belgrade's fall has narrowed every gaze to the frontier. That is precisely when someone must remember the world is larger.",
+  ottoman: "Piri Reis set western discoveries beside eastern charts. His map proves no court owns all useful knowledge.",
+  venice: "The Portuguese ocean road drains spice from our galleys. I would learn the routes reshaping Venice before they finish doing so.",
+  genoa: "A Genoese sailor crossed the western ocean beneath Castile's flag. The next great account should not leave our harbor under another name.",
+  "papal-states": "Reports from lands beyond the Atlantic reach Rome mixed with conversion, gold, and boasting. I want an account concerned first with truth.",
+  ming: "The court lets Admiral Zheng's sea roads fade because no treasure fleet now follows them. I do not share that lack of curiosity.",
+  aztec: "Strangers came from an eastern horizon our painted books did not contain. We must know the world that sent them.",
+  inca: "The Sapa Inca's roads bind mountains beyond counting, yet every official map stops at the sea. Mine need not.",
+  safavid: "Ottoman armies close one road and Portuguese cannon command another at Hormuz. Knowledge may reveal a third.",
+  muscovy: "Novgorod's merchants know the Baltic by price and rumor. I want bearings that reach beyond their counting houses.",
+  "poland-lithuania": "Danzig hears of western lands and eastern seas from a dozen tongues. I want one captain's measured account.",
+  "denmark-norway": "Our sagas remember western shores, while the king's ships fight over Sweden. I would rather recover the horizon than another crown.",
+  songhai: "Timbuktu gathers the world in books and Gao in caravans. I want the Atlantic to answer what neither can.",
+  morocco: "Portuguese forts advance along our coast as if the ocean belongs to them. A true chart is one way to dispute that claim.",
+  ethiopia: "Envoys from Portugal have crossed half the world to reach our court. I mean to understand the world they crossed.",
+  vijayanagara: "Portuguese horses and gunners arrive through Goa carrying news of seas beyond Arabia. I want knowledge without their price.",
+  gujarat: "Diu hears every sea language, while Portuguese cannon tries to decide which routes remain open. A chart is another kind of defense.",
+  bengal: "Portuguese sails have reached Chittagong, bringing maps as uncertain as their intentions. We should know more than our visitors.",
+  delhi: "Caravans describe oceans beyond Gujarat and Bengal, each story altered by ten merchants. I want one witness.",
+  ayutthaya: "The Portuguese arrived after taking Malacca and now speak of seas beyond Africa. I would hear the world without their interpreter.",
+  japan: "Ming merchants and island pilots carry fragments of distant coasts. I want them joined before rumor distorts them further.",
+  joseon: "Our old world maps reach far beyond Joseon, but copied names are not witnessed places. A captain can test what scholars inherited."
+});
+
 assertExactKeys(
   "family debt faction origins",
   Object.keys(FAMILY_DEBT_ORIGINS_BY_FACTION),
-  FACTIONS
-    .map((faction) => faction.id)
-    .filter((factionId) => ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(factionId))
+  SOVEREIGN_FACTION_IDS
+);
+assertExactKeys(
+  "explorer patron faction outlooks",
+  Object.keys(EXPLORER_PATRON_OUTLOOKS_BY_FACTION),
+  SOVEREIGN_FACTION_IDS
 );
 
 function story(explorerIntro, explorerOutro, debtIntro, debtOutro) {

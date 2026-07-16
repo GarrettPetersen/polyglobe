@@ -101,7 +101,14 @@ test("discoverall completes the explorer goal at the next home-port report", () 
   });
   const catalog = [
     { id: "wonder-a", kind: "landmark", displayName: "Wonder A", lat: HOME.lat, lon: HOME.lon },
-    { id: "around-world", kind: "achievement", displayName: "Around the World" }
+    {
+      id: "around-world",
+      kind: "achievement",
+      displayName: "Around the World",
+      countsTowardExplorerGoal: true,
+      explorerLeadAssignable: false,
+      explorerRewardDoubloons: 3000
+    }
   ];
   grantAllDiscoveriesForCheat(state, catalog);
   const result = settleCampaignGoalAtHome(state, HOME, {
@@ -109,8 +116,9 @@ test("discoverall completes the explorer goal at the next home-port report", () 
     wonderCatalog: catalog
   });
   assert.equal(result.completed, true);
-  assert.equal(result.reportedCount, 1);
-  assert.equal(state.doubloons, 460);
+  assert.equal(result.reportedCount, 2);
+  assert.equal(result.reward, 3100);
+  assert.equal(state.doubloons, 3460);
 });
 
 test("milliondb pays the family debt in full at the next home-port accounting", () => {

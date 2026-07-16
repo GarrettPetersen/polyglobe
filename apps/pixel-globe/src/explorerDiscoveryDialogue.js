@@ -74,6 +74,10 @@ const WORLD_REPORTS = new Map(Object.entries({
   "legend-el-dorado": exchange(
     "I followed the golden stories beyond every sensible chart, and there it was: El Dorado, bright enough to make seasoned sailors forget how to speak.",
     "For once, the wildest rumor was too modest. We shall record what you saw, though every reader will accuse us of invention. I confess I might have done the same."
+  ),
+  "achievement-circumnavigation": exchange(
+    "Our log closes on this harbor from the opposite direction. We followed one ocean into the next until the world joined behind us.",
+    "Then the globe is no scholar's conjecture in this room. You have measured its continuity with your own wake. That belongs among the greatest feats in this book."
   )
 }));
 

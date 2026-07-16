@@ -933,12 +933,25 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
     assert.ok(result.vikingLongshipDelivery);
   }
 
+  const reward = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(reward.presentation.kind, "shipyard");
+  assert.equal(reward.presentation.listing.shipSlug, "viking-longship");
+  assert.equal(reward.presentation.listing.price, 0);
+  assert.match(reward.text, /accepting will replace your Brigantine/i);
+  assert.ok(reward.options.some((entry) => entry.action.type === "accept-viking-longship-reward"));
+  const declineIndex = reward.options.findIndex((entry) => entry.action.type === "decline-viking-longship-reward");
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], declineIndex, context),
+    { closed: false, vikingLongshipRewardDeclined: true }
+  );
+
   gameState.doubloons = 50000;
-  const unlocked = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(unlocked.presentation.kind, "shipyard");
-  assert.equal(unlocked.presentation.listing.shipSlug, "viking-longship");
-  const purchaseIndex = unlocked.options.findIndex((entry) => entry.action.type === "purchase-viking-longship");
-  assert.equal(unlocked.options[purchaseIndex].disabled, false);
+  const availableForPurchase = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(availableForPurchase.text, /part with her for 42000 doubloons/i);
+  const purchaseIndex = availableForPurchase.options.findIndex(
+    (entry) => entry.action.type === "purchase-viking-longship"
+  );
+  assert.equal(availableForPurchase.options[purchaseIndex].disabled, false);
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], purchaseIndex, context),
     { closed: false, action: { type: "purchase-viking-longship", shipSlug: "viking-longship" } }

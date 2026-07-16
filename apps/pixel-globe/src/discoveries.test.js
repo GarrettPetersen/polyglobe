@@ -73,6 +73,9 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.equal(grandCanal.historicity, "historical");
   assert.equal(grandCanal.routeDirections.length, 8);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.kind, "achievement");
+  assert.equal(CIRCUMNAVIGATION_DISCOVERY.countsTowardExplorerGoal, true);
+  assert.equal(CIRCUMNAVIGATION_DISCOVERY.explorerLeadAssignable, false);
+  assert.equal(CIRCUMNAVIGATION_DISCOVERY.explorerRewardDoubloons, 3000);
 });
 
 test("world discovery registry is unique, complete, and explicit about historicity", () => {
@@ -102,14 +105,20 @@ test("world discovery registry is unique, complete, and explicit about historici
   );
   assert.deepEqual(
     new Set(AUTHORED_WORLD_REPORT_IDS),
-    new Set(WORLD_DISCOVERY_SPECS.map((item) => item.id))
+    new Set([...WORLD_DISCOVERY_SPECS.map((item) => item.id), CIRCUMNAVIGATION_DISCOVERY.id])
   );
-  assert.equal(validateExplorerReportDialogueCatalog(WORLD_DISCOVERY_SPECS), WORLD_DISCOVERY_SPECS.length);
+  assert.equal(
+    validateExplorerReportDialogueCatalog([...WORLD_DISCOVERY_SPECS, CIRCUMNAVIGATION_DISCOVERY]),
+    WORLD_DISCOVERY_SPECS.length + 1
+  );
   const canalReport = explorerReportDialogueForDiscovery(
     WORLD_DISCOVERY_SPECS.find((item) => item.id === GRAND_CANAL_DISCOVERY_ID)
   );
   assert.match(canalReport.player, /gates raise and lower the water/i);
   assert.match(canalReport.patron, /empire fed by an engineered river/i);
+  const circumnavigationReport = explorerReportDialogueForDiscovery(CIRCUMNAVIGATION_DISCOVERY);
+  assert.match(circumnavigationReport.player, /world joined behind us/i);
+  assert.match(circumnavigationReport.patron, /scholar's conjecture/i);
 });
 
 test("legendary discoveries are recorded alongside historical landmarks", () => {
