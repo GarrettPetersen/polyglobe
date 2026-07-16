@@ -17,11 +17,13 @@ import {
   portMarket,
   restoreWorldEconomy,
   snapshotWorldEconomy,
+  tradeGoodById,
   worldMarketPriceComparison
 } from "./economy.js";
 import {
   buyGood,
   cargoCostBasis,
+  cargoUsed,
   createGameState,
   ledgerEntries,
   realizedTradePnl,
@@ -45,6 +47,22 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
     assert.ok(ids.has(goodId), goodId);
   }
   assert.equal(ids.size, TRADE_GOODS.length);
+});
+
+test("cargo lots create a clear value-per-hold hierarchy without inflating nominal prices", () => {
+  const timber = tradeGoodById("timber");
+  const cotton = tradeGoodById("cotton");
+  const spices = tradeGoodById("spices");
+  const gold = tradeGoodById("gold");
+
+  assert.equal(timber.unitSize, 4);
+  assert.equal(cotton.unitSize, 3);
+  assert.equal(spices.unitSize, 1);
+  assert.equal(gold.unitSize, 1);
+  const valuePerHold = (good) => good.basePrice / good.unitSize;
+  assert.ok(valuePerHold(cotton) > valuePerHold(timber));
+  assert.ok(valuePerHold(spices) >= valuePerHold(cotton) * 10);
+  assert.ok(valuePerHold(gold) > valuePerHold(spices));
 });
 
 test("a founded port joins the economy and its save snapshot", () => {
@@ -98,7 +116,7 @@ test("regional production creates comparative advantage and profitable merchant 
 
   const plan = planNpcTrade(economy, LONDON, GOA, { cargoCapacity: 100, specie: 5000 });
   assert.ok(plan.expectedProfit > 0);
-  assert.ok(plan.lines.some((line) => line.goodId === "wool"));
+  assert.ok(plan.lines.some((line) => line.goodId === "wool-cloth"));
   assert.ok(plan.cargoUnits <= 100);
 });
 
@@ -167,6 +185,8 @@ test("spice-island cargo commands transformative prices in Europe", () => {
 
   const tradePlan = planNpcTrade(economy, TERNATE, LONDON, { cargoCapacity: 20, specie: 10000 });
   assert.ok(tradePlan.expectedProfit >= 2000);
+  assert.ok(tradePlan.expectedProfit <= 3500);
+  assert.equal(tradePlan.cargoUnits, 20);
   assert.ok(tradePlan.lines.some((line) => line.goodId === "spices"));
 
   const quantity = Math.min(10, ternate.get("spices").stock);
@@ -221,6 +241,7 @@ test("player trades transfer finite stock and specie between the player and port
 
   const purchase = buyGood(player, economy, LONDON, "wool", 2, { simMinute: 80 * 1440 });
   assert.equal(player.cargo.wool, 2);
+  assert.equal(cargoUsed(player), 6);
   assert.equal(player.doubloons, 360 - purchase.price);
   assert.equal(cargoCostBasis(player, "wool").total, purchase.price);
   assert.equal(cargoCostBasis(player, "wool").average, purchase.price / 2);
@@ -230,6 +251,7 @@ test("player trades transfer finite stock and specie between the player and port
   const goaSpecieBefore = portEconomySummary(economy, GOA).specie;
   const sale = sellGood(player, economy, GOA, "wool", 1, { simMinute: 84 * 1440 });
   assert.equal(player.cargo.wool, 1);
+  assert.equal(cargoUsed(player), 3);
   assert.equal(player.doubloons, 360 - purchase.price + sale.price);
   assert.equal(sale.costBasis, purchase.price / 2);
   assert.equal(sale.pnl, sale.price - purchase.price / 2);

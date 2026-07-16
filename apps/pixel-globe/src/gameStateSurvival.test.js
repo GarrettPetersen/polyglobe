@@ -260,6 +260,84 @@ test("loadouts put crew, guns, food, and water into the hold", () => {
   assert.ok(state.accounts.ledger.some((entry) => entry.description === "Combat focused loadout restock"));
 });
 
+test("consumed loadout provisions remain reserved against ordinary trade cargo", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  initializeProvisionalShipLoadout(state, stats);
+  restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 120 });
+  const freeTradeSpace = cargoFree(state);
+  const stockedCargo = cargoUsed(state);
+
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+  state.survival.freshWater = 0;
+
+  assert.ok(cargoUsed(state) < stockedCargo);
+  assert.equal(cargoFree(state), freeTradeSpace);
+  state.cargo.spices = freeTradeSpace;
+  state.accounts.cargoCostBasis.spices = 0;
+  assert.equal(cargoFree(state), 0);
+  assert.throws(() => buyGood(state, economy, LONDON, "timber", 1), /Not enough cargo space/);
+  assert.equal(buyGood(state, economy, LONDON, "hardtack", 1).quantity, 1);
+  assert.equal(cargoFree(state), 0);
+});
+
+test("port restocking dumps excess water and fills constrained stores evenly", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 120 });
+  const plan = shipLoadoutPlan(stats, "balanced");
+
+  state.cargo = { gold: 10 };
+  state.accounts.cargoCostBasis = { gold: 0 };
+  state.survival.freshWater = 7;
+  const result = restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 240 });
+
+  assert.ok(plan.foodUnits > 3);
+  assert.ok(plan.waterUnits > 4);
+  assert.equal(state.cargo.hardtack, 3);
+  assert.equal(state.survival.freshWater, 4);
+  assert.equal(result.additions.food, 3);
+  assert.equal(result.additions.water, 0);
+  assert.equal(result.removed.water, 3);
+  assert.equal(cargoUsed(state), state.cargoCapacity);
+  assert.equal(cargoFree(state), 0);
+});
+
+test("port restocking never dumps water that the player cannot replace with food", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 120 });
+  state.cargo = { gold: 10 };
+  state.accounts.cargoCostBasis = { gold: 0 };
+  state.survival.freshWater = 7;
+  state.doubloons = 0;
+
+  const result = restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 240 });
+
+  assert.equal(state.cargo.hardtack, undefined);
+  assert.equal(state.survival.freshWater, 7);
+  assert.equal(result.removed.water, 0);
+  assert.ok(result.shortfalls.food > 0);
+});
+
+test("one constrained emergency provision slot goes to water", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+  state.survival.freshWater = 0;
+  state.cargo.gold = state.cargoCapacity - crewHoldSpace(state.ship.crew) - state.ship.cannons - 1;
+  state.accounts.cargoCostBasis.gold = 0;
+
+  assert.deepEqual(receiveEmergencyShipAid(state, "one-slot-relief"), { food: 0, water: 1 });
+  assert.equal(cargoUsed(state), state.cargoCapacity);
+});
+
 test("crew, passengers, and livestock all increase food and water burn", () => {
   const stats = shipStatsForSlug("fishing-lugger");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });

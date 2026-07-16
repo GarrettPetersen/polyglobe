@@ -31,8 +31,10 @@ npm run pixel-globe:build
 
 The build output is `apps/pixel-globe/dist`.
 
-Controls: arrow keys or WASD move north/south/east/west. Shift moves faster.
-`[` / `]` step the annual weather day, `,` / `.` step the hour, and Space pauses/resumes the weather clock.
+Controls: arrow keys or WASD steer. Space or Enter activates the available interaction.
+
+Developer weather controls are available only with `?debugWeather=true`.
+`[` / `]` step the annual weather day, `,` / `.` step the hour, and Backslash pauses/resumes the weather clock.
 
 The default terrain variant is `resurrect-64`. Palette and start-location test URLs.
 Available local terrain variants include

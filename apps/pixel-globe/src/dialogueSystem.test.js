@@ -399,6 +399,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.equal(market.optionHeight, 30);
   assert.ok(market.options.some((option) => /\d+ db/.test(option.label)));
   assert.ok(market.options.some((option) => /WORLD/.test(option.detail || "")));
+  assert.ok(market.options.some((option) => /SPACE [1-4]/.test(option.detail || "")));
   assert.ok(market.options.some((option) => /STOCK \d+/.test(option.detail || "")));
   assert.ok(market.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(market.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));

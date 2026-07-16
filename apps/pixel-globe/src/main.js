@@ -265,6 +265,8 @@ import {
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
   heldShipHaulStrength,
+  playerRiverGatewayAssistEligible,
+  rememberCompletedRiverRailPath,
   selectRiverRailPath,
   shipHaulMotionScale,
   steerAlongRiverCenterline
@@ -393,6 +395,10 @@ import {
   INTERACTION_INPUT,
   interactionInputOwner
 } from "./interactionInput.js";
+import {
+  DEBUG_WEATHER_CONTROL,
+  debugWeatherControlForKey
+} from "./debugWeatherControls.js";
 import { fitMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { gameOverStatsLayout } from "./gameOverLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
@@ -1406,6 +1412,7 @@ const START_SHIP_SLUG_OVERRIDE = shipSlugOverrideFromLocation();
 const START_SHIP_SLUG = START_SHIP_SLUG_OVERRIDE || DEFAULT_PLAYER_SHIP_SLUG;
 const SHIP_MENU_SLUGS = SHIP_STATS.map((entry) => entry.slug);
 const DEBUG_STATUS_ENABLED = debugStatusFromLocation();
+const DEBUG_WEATHER_CONTROLS_ENABLED = debugWeatherControlsFromLocation();
 
 const terrainAssets = [
   "water_deep_01_01", "water_deep_01_02", "water_shallow_01", "water_shallow_02",
@@ -1726,9 +1733,10 @@ window.addEventListener("keydown", (event) => {
     openPoliticsMenu();
     return;
   }
-  if (isWeatherControlKey(event.key)) {
+  const weatherControl = debugWeatherControlForKey(event.key, DEBUG_WEATHER_CONTROLS_ENABLED);
+  if (weatherControl) {
     event.preventDefault();
-    handleWeatherControlKey(event.key);
+    handleDebugWeatherControl(weatherControl);
     return;
   }
   if (isCannonKey(event.key)) {
@@ -2897,6 +2905,11 @@ function vehicleSpriteKeyForShipSlug(slug) {
 function debugStatusFromLocation() {
   const params = new URLSearchParams(window.location.search);
   return booleanQueryParam(params, "debugStatus", false);
+}
+
+function debugWeatherControlsFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  return booleanQueryParam(params, "debugWeather", false);
 }
 
 function handleCheatCodeKeyDown(event) {
@@ -8142,7 +8155,7 @@ function updateSailing(dt) {
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
   applyHeldShipHaulAcceleration(dt, inputHeading, haulMotionScale);
   const previousPosition = ship.position;
-  const moveResult = moveShipWithCollision(dt);
+  const moveResult = moveShipWithCollision(dt, inputHeading);
   const movedPx = vectorLength([
     ship.position[0] - previousPosition[0],
     ship.position[1] - previousPosition[1],
@@ -8495,11 +8508,11 @@ function limitShipSpeed(maxSpeed) {
   ship.velocity = scaleVector(ship.velocity, maxSpeed / speed);
 }
 
-function moveShipWithCollision(dt) {
+function moveShipWithCollision(dt, inputHeading) {
   const step = scaleVector(ship.velocity, dt);
   if (vectorLength(step) < 1e-8) return { moved: false, collided: false, normal: null };
 
-  for (const assistedVelocity of playerRiverGatewayVelocities()) {
+  for (const assistedVelocity of playerRiverGatewayVelocities(inputHeading)) {
     const assisted = attemptShipStep(ship.position, ship.tileId, scaleVector(assistedVelocity, dt));
     if (!assisted.ok) continue;
     ship.velocity = projectTangentVector(assistedVelocity, assisted.position);
@@ -8584,12 +8597,12 @@ function addPlayerHaulRecoveryDirection(candidates, direction) {
   candidates.push({ key, direction });
 }
 
-function playerRiverGatewayVelocities() {
+function playerRiverGatewayVelocities(inputHeading) {
   const speed = vectorLength(ship.velocity);
   if (speed < SHIP_MIN_SLIDE_SPEED_RAD || !localLayout || !chart || !camera) return [];
   const travelDirection = tangentToScreenDirection(ship.velocity);
-  const bowDirection = tangentToScreenDirection(ship.heading);
-  if (!travelDirection || !bowDirection) return [];
+  const intentDirection = tangentToScreenDirection(inputHeading || ship.heading);
+  if (!travelDirection || !intentDirection) return [];
   const currentNav = shipNavigabilityAtLocalPoint(
     localLayout.viewX,
     localLayout.viewY,
@@ -8601,9 +8614,15 @@ function playerRiverGatewayVelocities() {
     localLayout.viewX,
     localLayout.viewY,
     currentNav.kind,
-    bowDirection
+    intentDirection
   );
   if (!gateway) return [];
+  if (!playerRiverGatewayAssistEligible({
+    currentKind: currentNav.kind,
+    intentDirection,
+    travelDirection,
+    gatewayDirection: gateway
+  })) return [];
 
   const candidates = [];
   for (const amount of [0.25, 0.45, 0.7, 1]) {
@@ -10469,7 +10488,7 @@ function createNpcVisualState(snapshot, routePoint) {
     tackRemainingPx: 0,
     riverRailPathKey: null,
     riverRailDirectionSign: 0,
-    riverRailExcludedPathKey: null,
+    riverRailCompletedPathKeys: [],
     combatMode: null,
     combatTargetId: null,
     combatEnemyIds: [],
@@ -11774,13 +11793,12 @@ function moveNpcAlongRiverRail(state, desiredDirection, distance, dt) {
     desiredDirection,
     activePathKey: state.riverRailPathKey,
     activeDirectionSign: state.riverRailDirectionSign,
-    excludedPathKey: state.riverRailExcludedPathKey
+    excludedPathKeys: state.riverRailCompletedPathKeys
   });
   if (!selection) return null;
   const centerline = selection.probe;
   state.riverRailPathKey = centerline.pathKey;
   state.riverRailDirectionSign = selection.directionSign;
-  state.riverRailExcludedPathKey = null;
   const target = advanceRiverCenterline(
     centerline.path,
     centerline.pathT,
@@ -11807,7 +11825,10 @@ function moveNpcAlongRiverRail(state, desiredDirection, distance, dt) {
     direction
   );
   if (placement && target.reachedEnd) {
-    state.riverRailExcludedPathKey = state.riverRailPathKey;
+    state.riverRailCompletedPathKeys = rememberCompletedRiverRailPath(
+      state.riverRailCompletedPathKeys,
+      state.riverRailPathKey
+    );
     state.riverRailPathKey = null;
     state.riverRailDirectionSign = 0;
   }
@@ -11835,7 +11856,7 @@ function npcRiverRailPlacement(state, x, y, movementDirection) {
 function clearNpcRiverRail(state) {
   state.riverRailPathKey = null;
   state.riverRailDirectionSign = 0;
-  state.riverRailExcludedPathKey = null;
+  state.riverRailCompletedPathKeys = [];
 }
 
 function npcEscapeClearDistance(state, direction, heading) {
@@ -22043,20 +22064,28 @@ function cannonSideForKey(key) {
   throw new Error(`Unknown cannon key: ${key}`);
 }
 
-function isWeatherControlKey(key) {
-  return key === "[" ||
-    key === "]" ||
-    key === "," ||
-    key === "." ||
-    key === " ";
-}
-
-function handleWeatherControlKey(key) {
-  if (key === "[") adjustWeatherClock(-WEATHER_MINUTES_PER_DAY);
-  if (key === "]") adjustWeatherClock(WEATHER_MINUTES_PER_DAY);
-  if (key === ",") adjustWeatherClock(-60);
-  if (key === ".") adjustWeatherClock(60);
-  if (key === " ") toggleWeatherClock();
+function handleDebugWeatherControl(control) {
+  if (control === DEBUG_WEATHER_CONTROL.PREVIOUS_DAY) {
+    adjustWeatherClock(-WEATHER_MINUTES_PER_DAY);
+    return;
+  }
+  if (control === DEBUG_WEATHER_CONTROL.NEXT_DAY) {
+    adjustWeatherClock(WEATHER_MINUTES_PER_DAY);
+    return;
+  }
+  if (control === DEBUG_WEATHER_CONTROL.PREVIOUS_HOUR) {
+    adjustWeatherClock(-60);
+    return;
+  }
+  if (control === DEBUG_WEATHER_CONTROL.NEXT_HOUR) {
+    adjustWeatherClock(60);
+    return;
+  }
+  if (control === DEBUG_WEATHER_CONTROL.TOGGLE_CLOCK) {
+    toggleWeatherClock();
+    return;
+  }
+  throw new Error(`Unknown debug weather control: ${control}`);
 }
 
 function adjustWeatherClock(deltaMinutes) {

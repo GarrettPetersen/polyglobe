@@ -66,6 +66,23 @@ export function shipLoadoutPlan(stats, loadoutId) {
   });
 }
 
+export function balancedProvisionTargets(foodTarget, waterTarget, availableSpace) {
+  for (const [label, value] of Object.entries({ foodTarget, waterTarget, availableSpace })) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`Invalid balanced provision ${label}: ${value}`);
+    }
+  }
+  const space = Math.min(availableSpace, foodTarget + waterTarget);
+  let waterUnits = Math.min(waterTarget, Math.ceil(space / 2));
+  let foodUnits = Math.min(foodTarget, space - waterUnits);
+  let remaining = space - foodUnits - waterUnits;
+  const extraWater = Math.min(remaining, waterTarget - waterUnits);
+  waterUnits += extraWater;
+  remaining -= extraWater;
+  foodUnits += Math.min(remaining, foodTarget - foodUnits);
+  return Object.freeze({ foodUnits, waterUnits });
+}
+
 function fitStores(desiredFood, desiredWater, availableSpace) {
   const desiredTotal = desiredFood + desiredWater;
   if (desiredTotal <= availableSpace) return { foodUnits: desiredFood, waterUnits: desiredWater };

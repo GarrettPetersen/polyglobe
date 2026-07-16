@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   SHIP_LOADOUT_PRESETS,
+  balancedProvisionTargets,
   crewHoldSpace,
   shipLoadoutPlan
 } from "./shipLoadouts.js";
@@ -40,4 +41,12 @@ test("four crew share one unit of berth and equipment space", () => {
   assert.equal(crewHoldSpace(1), 1);
   assert.equal(crewHoldSpace(4), 1);
   assert.equal(crewHoldSpace(5), 2);
+});
+
+test("constrained provisions split evenly with the odd slot reserved for water", () => {
+  assert.deepEqual(balancedProvisionTargets(8, 8, 7), { foodUnits: 3, waterUnits: 4 });
+  assert.deepEqual(balancedProvisionTargets(3, 8, 8), { foodUnits: 3, waterUnits: 5 });
+  assert.deepEqual(balancedProvisionTargets(8, 3, 8), { foodUnits: 5, waterUnits: 3 });
+  assert.deepEqual(balancedProvisionTargets(8, 8, 0), { foodUnits: 0, waterUnits: 0 });
+  assert.throws(() => balancedProvisionTargets(8, 8, 1.5), /Invalid balanced provision/);
 });

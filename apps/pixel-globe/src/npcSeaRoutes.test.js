@@ -18,6 +18,7 @@ import {
   npcCargoAvailableQuantity,
   npcPortHasMajorProtection,
   reconcileNpcCargoCapacity,
+  routeBetweenPorts,
   npcShipHasCombatGrace,
   npcShipSnapshots,
   restoreNpcSeaRouteSystem,
@@ -63,6 +64,30 @@ const MESOAMERICAN_PORTS = Object.freeze([
 test("every NPC route hull is included in the sprite preload roster", () => {
   assert.ok(NPC_SHIP_SLUGS.includes("small-cog"));
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
+});
+
+test("eastbound Malacca routes go around the Malay Peninsula through Singapore", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const malacca = routes.ports.find((port) => port.city === "Malacca");
+  const guangzhou = routes.ports.find((port) => port.city === "Guangzhou");
+  assert.ok(malacca);
+  assert.ok(guangzhou);
+  assert.deepEqual(malacca.routeAnchors, ["malacca"]);
+
+  const route = routeBetweenPorts(routes, malacca, guangzhou, "small-junk", 0);
+  const sailPairs = route.segments
+    .filter((segment) => segment.kind === "sail")
+    .map((segment) => `${segment.from.id}->${segment.to.id}`);
+
+  assert.ok(sailPairs.includes("malacca->singapore"), sailPairs.join(", "));
+  assert.ok(sailPairs.some((pair) => pair.startsWith("singapore->")), sailPairs.join(", "));
+  assert.ok(sailPairs.every((pair) => ![
+    "malacca->canton",
+    "malacca->manila",
+    "canton->malacca",
+    "manila->malacca"
+  ].includes(pair)), sailPairs.join(", "));
 });
 
 test("a founded American port becomes an NPC sea-lane destination", () => {
@@ -230,6 +255,54 @@ test("NPC route snapshots restore ships, plans, and replacement queues without c
   assert.equal(routes.pirateHideoutDangerUntil.get(PORTS[0].tileId), 5555);
   assert.equal(routes.routeCache.size, 0);
   assert.equal(routes.shipById.size, routes.ships.length);
+});
+
+test("saved routes using removed Malacca crossings are replanned on restore", (t) => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships[0];
+  const malacca = routes.ports.find((port) => port.city === "Malacca");
+  const guangzhou = routes.ports.find((port) => port.city === "Guangzhou");
+  const malaccaNode = routes.laneNodes.get("malacca");
+  const cantonNode = routes.laneNodes.get("canton");
+  assert.ok(malacca);
+  assert.ok(guangzhou);
+  assert.ok(malaccaNode);
+  assert.ok(cantonNode);
+  saved.currentPort = { ...malacca, routeAnchors: ["malacca", "sunda"] };
+  saved.finalDestination = null;
+  saved.plan = {
+    origin: malacca,
+    destination: guangzhou,
+    segments: [{
+      kind: "sail",
+      from: malaccaNode,
+      to: cantonNode,
+      startMinute: 0,
+      endMinute: 1000
+    }],
+    startMinute: 0,
+    endMinute: 1000
+  };
+  saved.visualNavigation = {
+    vector: [1, 0, 0],
+    heading: [0, 1, 0]
+  };
+  const messages = [];
+  t.mock.method(console, "info", (...args) => messages.push(args));
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  const restored = routes.shipById.get(saved.id);
+  const sailPairs = restored.plan.segments
+    .filter((segment) => segment.kind === "sail")
+    .map((segment) => `${segment.from.id}->${segment.to.id}`);
+  assert.ok(sailPairs.includes("malacca->singapore"), sailPairs.join(", "));
+  assert.deepEqual(restored.currentPort.routeAnchors, ["malacca"]);
+  assert.equal(restored.visualNavigation, null);
+  assert.equal(messages.length, 1);
+  assert.match(messages[0][0], /Replanned 1 saved NPC routes/);
 });
 
 test("NPC traders obey diplomacy and the Ming maritime prohibition", () => {

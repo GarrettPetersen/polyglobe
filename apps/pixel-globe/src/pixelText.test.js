@@ -10,6 +10,7 @@ import {
   pixelTextScratchRasterLayout,
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
+import { auditPixelPirateKerning } from "../tools/fix-pixel-pirate-font-kerning.mjs";
 
 test("pixel text origins always land on whole logical canvas pixels", () => {
   for (const align of ["left", "center", "right"]) {
@@ -143,8 +144,20 @@ test("English uses the three Latin pixel fonts while zpix remains isolated for C
   assert.equal(mainSource.includes("zpix"), false);
   assert.match(mainSource, /8px \\"Pixel Pirate\\"/);
   assert.match(stylesSource, /font-family: "Pixel Pirate"/);
+  assert.match(stylesSource, /pixel_pirate\.ttf\?v=r-kern-1/);
   assert.match(credits, /SparklyDest.*Pixel Pirate.*CC BY-SA 3\.0.*DaFont/);
   assert.match(pixelPirateFont.toString("latin1"), /Copyright SparklyDest 2011/);
   assert.match(pixelPirateFont.toString("latin1"), /Creative Commons Attribution Share Alike/);
   assert.equal(stylesSource.includes('font-family: "zpix"'), true);
+});
+
+test("Pixel Pirate lets the ornate R overlap the following letter by three design pixels", async () => {
+  const font = await readFile(new URL("../public/assets/fonts/pixel_pirate.ttf", import.meta.url));
+  const audit = auditPixelPirateKerning(font);
+
+  assert.equal(audit.unitsPerEm, 1024);
+  assert.equal(audit.unitsPerPixel, 128);
+  assert.equal(audit.rAdvancePixels, 11);
+  assert.deepEqual(new Set(Object.values(audit.kerningPixels)), new Set([-3]));
+  assert.equal(audit.checksum, 0xb1b0afba);
 });

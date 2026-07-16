@@ -5,6 +5,7 @@ import {
   buyGood,
   cargoCostBasis,
   cargoFree,
+  cargoFreeForGood,
   cargoReservationUnits,
   cargoRows,
   cargoUsed,
@@ -1592,10 +1593,17 @@ function buyView(session, city, gameState, economy, context) {
         city.purchaseDiscountMultiplier ?? 1
       );
       const comparison = worldMarketPriceComparison(economy, city, row.good.id, "buy");
+      const freeSpace = cargoFreeForGood(gameState, row.good.id);
+      const cannotAfford = gameState.doubloons < displayedPrice;
+      const cannotFit = freeSpace < totalSize;
       return option(`Buy ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
-        detail: `${worldPriceIndicator(comparison)}  STOCK ${row.stock}`,
-        disabled: gameState.doubloons < displayedPrice || cargoFree(gameState) < totalSize,
-        disabledReason: gameState.doubloons < displayedPrice ? "Not enough doubloons." : "Cargo hold is full."
+        detail: `${worldPriceIndicator(comparison)}  SPACE ${totalSize}  STOCK ${row.stock}`,
+        disabled: cannotAfford || cannotFit,
+        disabledReason: cannotAfford
+          ? "Not enough doubloons."
+          : cannotFit
+            ? `Needs ${totalSize} cargo spaces; ${Math.max(0, freeSpace)} free.`
+            : null
       });
     });
   if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));

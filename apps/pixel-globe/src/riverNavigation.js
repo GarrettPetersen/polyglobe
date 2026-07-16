@@ -2,6 +2,9 @@ export const RIVER_GATEWAY_SEARCH_RADIUS_PX = 34;
 export const RIVER_GATEWAY_SAMPLE_STEP_PX = 2;
 export const RIVER_GATEWAY_SAMPLE_DIRECTIONS = 32;
 export const RIVER_GATEWAY_MIN_FORWARD_DOT = Math.cos(Math.PI / 3);
+export const PLAYER_RIVER_GATEWAY_MIN_INTENT_DOT = Math.cos(Math.PI / 4);
+export const PLAYER_RIVER_GATEWAY_MIN_TRAVEL_DOT = 0.15;
+export const RIVER_RAIL_RECENT_PATH_LIMIT = 6;
 export const SHIP_HAUL_HOLD_DELAY_SECONDS = 0.18;
 export const SHIP_HAUL_RAMP_SECONDS = 0.5;
 export const COASTAL_HAUL_MOTION_SCALE = 0.24;
@@ -86,6 +89,25 @@ export function blendRiverNavigationDirections(from, to, amount) {
   });
 }
 
+export function playerRiverGatewayAssistEligible({
+  currentKind,
+  intentDirection,
+  travelDirection,
+  gatewayDirection
+}) {
+  if (currentKind !== "openWater" && currentKind !== "river") {
+    throw new Error(`Invalid player river gateway kind: ${currentKind}`);
+  }
+  const intent = normalize2(intentDirection);
+  const travel = normalize2(travelDirection);
+  const gateway = normalize2(gatewayDirection);
+  if (!intent || !travel || !gateway) return false;
+  if (currentKind === "river") return dot2(intent, gateway) >= RIVER_GATEWAY_MIN_FORWARD_DOT;
+  return dot2(intent, gateway) >= PLAYER_RIVER_GATEWAY_MIN_INTENT_DOT &&
+    dot2(travel, gateway) >= PLAYER_RIVER_GATEWAY_MIN_TRAVEL_DOT &&
+    dot2(intent, travel) > 0;
+}
+
 export function chooseRiverChannelDirection({ x, y, desiredDirection, headingDirection, endpoints }) {
   const desired = normalize2(desiredDirection);
   const heading = normalize2(headingDirection) || desired;
@@ -166,11 +188,21 @@ export function selectRiverRailPath({
   desiredDirection,
   activePathKey = null,
   activeDirectionSign = 0,
-  excludedPathKey = null
+  excludedPathKeys = []
 }) {
   if (!Array.isArray(probes)) throw new Error("River rail selection requires centerline probes");
   const desired = normalize2(desiredDirection);
   if (!desired) return null;
+  if (!Array.isArray(excludedPathKeys)) {
+    throw new Error("River rail excluded path keys must be an array");
+  }
+  const excluded = new Set();
+  for (const pathKey of excludedPathKeys) {
+    if (typeof pathKey !== "string" || pathKey.length === 0) {
+      throw new Error("River rail excluded path keys must be non-empty strings");
+    }
+    excluded.add(pathKey);
+  }
 
   if (activePathKey !== null) {
     if (typeof activePathKey !== "string" || activePathKey.length === 0) {
@@ -188,7 +220,7 @@ export function selectRiverRailPath({
   let best = null;
   for (const probe of probes) {
     validateRiverRailProbe(probe);
-    if (probe.pathKey === excludedPathKey) continue;
+    if (excluded.has(probe.pathKey)) continue;
     if (!best || riverRailProbeIsBetter(probe, best, desired)) best = probe;
   }
   if (!best) return null;
@@ -196,6 +228,24 @@ export function selectRiverRailPath({
     probe: best,
     directionSign: dot2(best.tangent, desired) >= 0 ? 1 : -1
   };
+}
+
+export function rememberCompletedRiverRailPath(
+  completedPathKeys,
+  pathKey,
+  limit = RIVER_RAIL_RECENT_PATH_LIMIT
+) {
+  if (!Array.isArray(completedPathKeys) ||
+      completedPathKeys.some((key) => typeof key !== "string" || key.length === 0)) {
+    throw new Error("Completed river rail path keys must be non-empty strings");
+  }
+  if (typeof pathKey !== "string" || pathKey.length === 0) {
+    throw new Error("Completed river rail path key must be a non-empty string");
+  }
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error(`Invalid completed river rail path limit: ${limit}`);
+  }
+  return [...completedPathKeys.filter((key) => key !== pathKey), pathKey].slice(-limit);
 }
 
 function nearestProbeForPath(probes, pathKey) {

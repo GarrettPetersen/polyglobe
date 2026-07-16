@@ -127,6 +127,7 @@ const LANE_NODES = Object.freeze([
   laneNode("goa", "Goa Coast", 15.1, 73.6),
   laneNode("ceylon", "Ceylon", 6.5, 80.0),
   laneNode("malacca", "Strait of Malacca", 2.2, 101.0),
+  laneNode("singapore", "Singapore Strait", 1.1, 104.1),
   laneNode("sunda", "Sunda Strait", -6.1, 105.8),
   laneNode("manila", "Manila Bay", 14.5, 120.8),
   laneNode("canton", "Pearl River", 22.4, 113.8),
@@ -168,9 +169,10 @@ const LANE_EDGES = Object.freeze([
   laneEdge("arabian-sea", "goa", "monsoon"),
   laneEdge("goa", "ceylon", "coastal"),
   laneEdge("ceylon", "malacca", "monsoon"),
-  laneEdge("malacca", "sunda", "strait"),
-  laneEdge("malacca", "manila", "monsoon"),
-  laneEdge("malacca", "canton", "monsoon"),
+  laneEdge("malacca", "singapore", "strait"),
+  laneEdge("singapore", "sunda", "strait"),
+  laneEdge("singapore", "manila", "monsoon"),
+  laneEdge("singapore", "canton", "monsoon"),
   laneEdge("sunda", "manila", "monsoon"),
   laneEdge("manila", "canton", "coastal"),
   laneEdge("canton", "nagasaki", "coastal"),
@@ -449,6 +451,11 @@ export function restoreNpcSeaRouteSystem(
   }
   system.relationBetween = relationBetween;
   system.mingTradeOpenToFaction = mingTradeOpenToFaction;
+  canonicalizeSavedNpcRoutePorts(system, ships);
+  const replannedRoutes = replanNpcRoutesWithRemovedLaneEdges(system, ships);
+  if (replannedRoutes > 0) {
+    console.info(`Replanned ${replannedRoutes} saved NPC routes for the current sea-lane topology`);
+  }
   system.ships = ships;
   system.shipById = shipById;
   system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
@@ -456,6 +463,65 @@ export function restoreNpcSeaRouteSystem(
   system.routeCache.clear();
   system.edgeCostCache.clear();
   return system;
+}
+
+function canonicalizeSavedNpcRoutePorts(system, ships) {
+  for (const ship of ships) {
+    ship.currentPort = canonicalNpcRouteDestination(system, ship.currentPort);
+    if (ship.finalDestination) {
+      ship.finalDestination = canonicalNpcRouteDestination(system, ship.finalDestination);
+    }
+    if (!ship.plan || typeof ship.plan !== "object") {
+      throw new Error(`Saved NPC ship has no route plan: ${ship.id}`);
+    }
+    ship.plan.origin = canonicalNpcRouteDestination(system, ship.plan.origin);
+    ship.plan.destination = canonicalNpcRouteDestination(system, ship.plan.destination);
+  }
+}
+
+function replanNpcRoutesWithRemovedLaneEdges(system, ships) {
+  const startMinute = system.economy?.lastMinute;
+  if (!Number.isFinite(startMinute)) {
+    throw new Error(`NPC route topology repair requires a finite economy minute: ${startMinute}`);
+  }
+  let replanned = 0;
+  for (const ship of ships) {
+    if (!npcPlanUsesRemovedLaneEdge(system, ship.plan)) continue;
+    const origin = canonicalNpcRouteDestination(system, ship.currentPort);
+    const destination = canonicalNpcRouteDestination(system, ship.plan?.destination);
+    const route = routeBetweenPorts(system, origin, destination, ship.slug, startMinute);
+    ship.currentPort = origin;
+    ship.plan = buildNpcPlan(origin, destination, route, startMinute);
+    ship.clockOffsetMinutes = 0;
+    ship.visualNavigation = null;
+    replanned++;
+  }
+  return replanned;
+}
+
+function npcPlanUsesRemovedLaneEdge(system, plan) {
+  if (!plan || !Array.isArray(plan.segments)) throw new Error("Saved NPC ship has no route segments");
+  for (const segment of plan.segments) {
+    if (segment.kind !== "sail") continue;
+    const fromId = segment.from?.id;
+    const toId = segment.to?.id;
+    if (!system.laneNodes.has(fromId) || !system.laneNodes.has(toId)) continue;
+    const edgeExists = (system.baseEdges.get(fromId) || []).some((edge) => edge.to === toId);
+    if (!edgeExists) return true;
+  }
+  return false;
+}
+
+function canonicalNpcRouteDestination(system, destination) {
+  if (!Number.isInteger(destination?.tileId)) {
+    throw new Error(`Saved NPC route destination requires a tile id: ${destination?.tileId}`);
+  }
+  const canonical = system.ports.find((port) => port.tileId === destination.tileId) ||
+    system.fishingGrounds.find((ground) => ground.tileId === destination.tileId);
+  if (!canonical) {
+    throw new Error(`Saved NPC route destination is absent from the current world: ${destination.tileId}`);
+  }
+  return canonical;
 }
 
 export function applyNpcConquestOwnership(system, portFactionByTileId, collapsedFactionIds) {
@@ -1503,7 +1569,7 @@ function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute
   return null;
 }
 
-function routeBetweenPorts(system, origin, destination, shipSlug, startMinute) {
+export function routeBetweenPorts(system, origin, destination, shipSlug, startMinute) {
   const startMonth = routeMonthIndex(startMinute);
   const key = `${origin.tileId}|${destination.tileId}|${shipSlug}|${startMonth}`;
   const cached = system.routeCache.get(key);
@@ -2049,7 +2115,10 @@ function portRouteRegion(port) {
 function anchorIdsForPort(port) {
   const region = portRouteRegion(port);
   if (region === "east-asia") return nearestAnchors(port, ["canton", "nagasaki", "manila"], 2);
-  if (region === "southeast-asia") return nearestAnchors(port, ["malacca", "sunda", "manila"], 2);
+  if (region === "southeast-asia") {
+    if (portName(port).toLowerCase() === "malacca") return ["malacca"];
+    return nearestAnchors(port, ["malacca", "singapore", "sunda", "manila"], 2);
+  }
   if (region === "south-asia") return nearestAnchors(port, ["goa", "ceylon", "arabian-sea"], 2);
   if (region === "indian-ocean") return nearestAnchors(port, ["aden", "hormuz", "red-sea", "zanzibar", "arabian-sea"], 2);
   if (region === "europe") {

@@ -45,19 +45,19 @@ export const TRADE_GOODS = Object.freeze([
   good("cheese", "Cheese", 14, "food"),
   good("wine", "Wine", 18, "food"),
   good("olive-oil", "Olive Oil", 16, "food"),
-  good("salt", "Salt", 12, "staple"),
+  good("salt", "Salt", 12, "staple", { unitSize: 2 }),
   good("sugar", "Sugar", 20, "food"),
-  good("timber", "Timber", 14, "material"),
-  good("wool", "Wool", 18, "material"),
-  good("cotton", "Cotton", 20, "material"),
-  good("flax", "Flax", 14, "material"),
-  good("iron", "Iron", 26, "material"),
-  good("copper", "Copper", 30, "material"),
-  good("tin", "Tin", 32, "material"),
-  good("arms", "Arms", 50, "manufactured"),
-  good("linen-cloth", "Linen Cloth", 34, "textile"),
-  good("wool-cloth", "Wool Cloth", 38, "textile"),
-  good("cotton-cloth", "Cotton Cloth", 40, "textile"),
+  good("timber", "Timber", 14, "material", { unitSize: 4 }),
+  good("wool", "Wool", 18, "material", { unitSize: 3 }),
+  good("cotton", "Cotton", 20, "material", { unitSize: 3 }),
+  good("flax", "Flax", 14, "material", { unitSize: 3 }),
+  good("iron", "Iron", 26, "material", { unitSize: 3 }),
+  good("copper", "Copper", 30, "material", { unitSize: 3 }),
+  good("tin", "Tin", 32, "material", { unitSize: 3 }),
+  good("arms", "Arms", 50, "manufactured", { unitSize: 2 }),
+  good("linen-cloth", "Linen Cloth", 34, "textile", { unitSize: 2 }),
+  good("wool-cloth", "Wool Cloth", 38, "textile", { unitSize: 2 }),
+  good("cotton-cloth", "Cotton Cloth", 40, "textile", { unitSize: 2 }),
   good("silk", "Silk", 60, "luxury"),
   good("silk-cloth", "Silk Cloth", 85, "luxury"),
   good("pepper", "Pepper", 55, "spice"),
@@ -66,12 +66,12 @@ export const TRADE_GOODS = Object.freeze([
   good("coffee", "Coffee", 40, "luxury"),
   good("cacao", "Cacao", 35, "luxury"),
   good("dyes", "Dyes", 42, "manufactured"),
-  good("porcelain", "Porcelain", 70, "luxury"),
-  good("glassware", "Glassware", 62, "luxury"),
-  good("carpets", "Carpets", 65, "luxury"),
-  good("artwork", "Artwork", 90, "luxury"),
+  good("porcelain", "Porcelain", 70, "luxury", { unitSize: 2 }),
+  good("glassware", "Glassware", 62, "luxury", { unitSize: 2 }),
+  good("carpets", "Carpets", 65, "luxury", { unitSize: 3 }),
+  good("artwork", "Artwork", 90, "luxury", { unitSize: 2 }),
   good("perfume", "Perfume", 58, "luxury"),
-  good("ivory", "Ivory", 95, "luxury"),
+  good("ivory", "Ivory", 95, "luxury", { unitSize: 2 }),
   good("silver", "Silver", 110, "precious"),
   good("gold", "Gold", 180, "precious")
 ]);
@@ -446,6 +446,7 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
   }
 
   candidates.sort((a, b) => (
+    (b.margin / b.good.unitSize) - (a.margin / a.good.unitSize) ||
     (b.margin / b.originPrice) - (a.margin / a.originPrice) ||
     b.margin - a.margin ||
     a.good.id.localeCompare(b.good.id)

@@ -7,7 +7,7 @@
 - YouFulca
 
 ## Fonts
-- SparklyDest - "Pixel Pirate" (CC BY-SA 3.0; via DaFont)
+- SparklyDest - "Pixel Pirate" (CC BY-SA 3.0; via DaFont; locally modified R kerning)
 
 ## Capsule Art
 - Anonymous British School - "The Embarkation of Henry VIII at Dover" (circa 1520-1540, public domain; Royal Collection / Wikimedia Commons)

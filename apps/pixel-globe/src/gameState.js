@@ -25,6 +25,7 @@ import {
   FOOD_PERSON_DAYS_PER_UNIT,
   WATER_PERSON_DAYS_PER_UNIT,
   WATER_RESTOCK_COST,
+  balancedProvisionTargets,
   crewHoldSpace,
   shipLoadoutPlan
 } from "./shipLoadouts.js";
@@ -615,7 +616,7 @@ export function receiveSurrenderedLoot(state, loot, context = {}) {
   }
 
   const receivedCargo = {};
-  let free = state.cargoCapacity - cargoUsed(state);
+  let free = cargoFree(state);
   for (const [goodId, available] of Object.entries(loot.cargo)) {
     const good = goodById(goodId);
     assertQuantity(available, `loot.${goodId}`);
@@ -675,13 +676,19 @@ export function receiveQuestPayment(state, city, amount, description, context = 
 }
 
 export function cargoFree(state) {
-  return state.cargoCapacity - cargoUsed(state);
+  const reservation = loadoutProvisionReservation(state);
+  return state.cargoCapacity - cargoUsed(state) - reservation.missingFood - reservation.missingWater;
+}
+
+export function cargoFreeForGood(state, goodId) {
+  const good = tradeGoodById(goodId);
+  return good.category === "food" ? provisionCargoFree(state, "food") : cargoFree(state);
 }
 
 export function refillFreshWaterFromShore(state) {
   assertGameState(state);
   const missing = Math.max(0, state.survival.freshWaterCapacity - state.survival.freshWater);
-  const availableSpace = Math.max(0, cargoFree(state));
+  const availableSpace = provisionCargoFree(state, "water");
   const filled = Math.min(missing, availableSpace);
   if (filled <= 0) return 0;
   state.survival.freshWater += filled;
@@ -695,7 +702,7 @@ export function stowForagedFood(state, requestedQuantity) {
     throw new Error(`Invalid foraged food quantity: ${requestedQuantity}`);
   }
   const good = tradeGoodById(FORAGED_FOOD_GOOD_ID);
-  const quantity = Math.min(requestedQuantity, Math.floor(Math.max(0, cargoFree(state)) / good.unitSize));
+  const quantity = Math.min(requestedQuantity, Math.floor(provisionCargoFree(state, "food") / good.unitSize));
   if (quantity <= 0) return 0;
   state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
   state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
@@ -758,7 +765,10 @@ export function shipEmergencyAidNeed(state, npcShipId) {
     needsFood,
     needsWater,
     alreadyReceived,
-    available: (needsFood || needsWater) && !alreadyReceived && cargoFree(state) >= 1
+    available: (needsFood || needsWater) && !alreadyReceived && (
+      provisionCargoFree(state, "food") >= 1 ||
+      provisionCargoFree(state, "water") >= 1
+    )
   };
 }
 
@@ -772,11 +782,11 @@ export function receiveEmergencyShipAid(state, npcShipId) {
 
   const desired = { food: EMERGENCY_SHIP_AID_UNITS, water: EMERGENCY_SHIP_AID_UNITS };
   const granted = { food: 0, water: 0 };
-  const order = need.needsFood ? ["food", "water"] : ["water", "food"];
-  while (cargoFree(state) >= 1 && (granted.food < desired.food || granted.water < desired.water)) {
+  const order = ["water", "food"];
+  while (granted.food < desired.food || granted.water < desired.water) {
     let changed = false;
     for (const kind of order) {
-      if (cargoFree(state) < 1 || granted[kind] >= desired[kind]) continue;
+      if (provisionCargoFree(state, kind) < 1 || granted[kind] >= desired[kind]) continue;
       if (kind === "food") {
         state.cargo[HARDTACK_GOOD_ID] = (state.cargo[HARDTACK_GOOD_ID] || 0) + 1;
         granted.food += 1;
@@ -833,12 +843,19 @@ export function restockShipLoadoutAtPort(state, city, stats, loadoutId, context 
   let spent = 0;
   const additions = { crew: 0, cannons: 0, food: 0, water: 0 };
   const priorities = plan.id === "combat"
-    ? ["crew", "cannons", "water", "food"]
-    : ["crew", "water", "food", "cannons"];
+    ? ["crew", "cannons", "provisions"]
+    : ["crew", "provisions", "cannons"];
   for (const kind of priorities) {
-    const result = restockLoadoutKind(state, plan, kind, hardtack);
-    spent += result.spent;
-    additions[kind] += result.quantity;
+    if (kind === "provisions") {
+      const result = restockBalancedProvisions(state, plan, hardtack);
+      spent += result.spent;
+      additions.food += result.food;
+      additions.water += result.water;
+    } else {
+      const result = restockLoadoutKind(state, plan, kind);
+      spent += result.spent;
+      additions[kind] += result.quantity;
+    }
   }
 
   if (spent > 0) {
@@ -943,7 +960,7 @@ export function initializeShipProvisions(state, quantity = STARTING_HARDTACK_UNI
   assertGameState(state);
   assertProvisionQuantity(quantity, "starting hardtack quantity");
   const good = goodById(HARDTACK_GOOD_ID);
-  const stowable = Math.min(quantity, Math.floor(cargoFree(state) / good.unitSize));
+  const stowable = Math.min(quantity, Math.floor(provisionCargoFree(state, "food") / good.unitSize));
   if (stowable <= 0) return { good, quantity: 0 };
   state.cargo[good.id] = (state.cargo[good.id] || 0) + stowable;
   state.accounts.cargoCostBasis[good.id] = roundLedgerMoney(
@@ -960,7 +977,7 @@ export function autoProvisionHardtackAtPort(state, economy, city, context = {}) 
   const targetFood = Math.min(FOOD_TARGET_DAYS * FOOD_UNITS_PER_DAY, state.cargoCapacity);
   const needed = Math.max(0, Math.ceil(targetFood - currentFood));
   if (needed <= 0) return { good, quantity: 0, price: 0 };
-  const freeCargoQuantity = Math.floor(cargoFree(state) / good.unitSize);
+  const freeCargoQuantity = Math.floor(cargoFreeForGood(state, good.id) / good.unitSize);
   if (freeCargoQuantity <= 0 || state.doubloons <= 0) return { good, quantity: 0, price: 0 };
 
   const row = marketRow(economy, city, HARDTACK_GOOD_ID);
@@ -1022,9 +1039,17 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   }
   if (options.freshwater) {
     if (state.survival.freshWater < state.survival.freshWaterCapacity) {
-      state.survival.freshWater = state.survival.freshWaterCapacity;
-      result.freshWaterRefilled = true;
-      result.changed = true;
+      const filled = state.ship
+        ? Math.min(
+          state.survival.freshWaterCapacity - state.survival.freshWater,
+          provisionCargoFree(state, "water")
+        )
+        : state.survival.freshWaterCapacity - state.survival.freshWater;
+      if (filled > 0) {
+        state.survival.freshWater += filled;
+        result.freshWaterRefilled = true;
+        result.changed = true;
+      }
     }
   }
 
@@ -1672,7 +1697,8 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   if (state.doubloons < total) {
     throw new Error(`Not enough doubloons to buy ${quantity} ${row.good.label}`);
   }
-  if (cargoFree(state) < row.good.unitSize * quantity) {
+  const availableCargo = cargoFreeForGood(state, row.good.id);
+  if (availableCargo < row.good.unitSize * quantity) {
     throw new Error(`Not enough cargo space to buy ${quantity} ${row.good.label}`);
   }
   executePortSale(economy, city, goodId, quantity, purchaseMultiplier);
@@ -1963,7 +1989,7 @@ function createSurvivalState(startMinute, freshWaterCapacity = FRESH_WATER_CAPAC
   };
 }
 
-function restockLoadoutKind(state, plan, kind, hardtack) {
+function restockLoadoutKind(state, plan, kind) {
   let spent = 0;
   let quantity = 0;
   if (kind === "crew") {
@@ -1984,31 +2010,75 @@ function restockLoadoutKind(state, plan, kind, hardtack) {
       spent += CANNON_RESTOCK_COST;
       quantity += 1;
     }
-  } else if (kind === "food") {
-    while ((state.cargo[HARDTACK_GOOD_ID] || 0) < plan.foodUnits) {
-      if (state.doubloons < hardtack.basePrice || cargoFree(state) < hardtack.unitSize) break;
-      state.cargo[HARDTACK_GOOD_ID] = (state.cargo[HARDTACK_GOOD_ID] || 0) + 1;
-      state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] = roundLedgerMoney(
-        (state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] || 0) + hardtack.basePrice
-      );
-      state.doubloons -= hardtack.basePrice;
-      spent += hardtack.basePrice;
-      quantity += 1;
-    }
-  } else if (kind === "water") {
-    while (state.survival.freshWater < plan.waterUnits) {
-      const added = Math.min(1, plan.waterUnits - state.survival.freshWater);
-      const space = Math.ceil(state.survival.freshWater + added) - Math.ceil(state.survival.freshWater);
-      if (state.doubloons < WATER_RESTOCK_COST || cargoFree(state) < space) break;
-      state.survival.freshWater += added;
-      state.doubloons -= WATER_RESTOCK_COST;
-      spent += WATER_RESTOCK_COST;
-      quantity += added;
-    }
   } else {
     throw new Error(`Unknown loadout restock kind: ${kind}`);
   }
   return { spent, quantity };
+}
+
+function restockBalancedProvisions(state, plan, hardtack) {
+  if (hardtack.unitSize !== 1) {
+    throw new Error(`Ship loadouts require one-slot hardtack units, received ${hardtack.unitSize}`);
+  }
+  const targets = loadoutRestockProvisionTargets(state, plan);
+  let spent = 0;
+  const additions = { food: 0, water: 0 };
+  while (
+    provisionFoodUnits(state) < targets.food &&
+    Math.ceil(state.survival.freshWater) > targets.water &&
+    provisionCargoFree(state, "food") < hardtack.unitSize &&
+    state.doubloons >= hardtack.basePrice
+  ) {
+    state.survival.freshWater = Math.min(
+      state.survival.freshWater,
+      Math.ceil(state.survival.freshWater) - 1
+    );
+    spent += restockHardtackUnit(state, hardtack);
+    additions.food += 1;
+  }
+
+  while (true) {
+    const currentFood = provisionFoodUnits(state);
+    const currentWater = Math.ceil(state.survival.freshWater);
+    const needsFood = currentFood < targets.food;
+    const needsWater = state.survival.freshWater < targets.water;
+    if (!needsFood && !needsWater) break;
+
+    const preferred = needsWater && (!needsFood || currentWater <= currentFood) ? "water" : "food";
+    const order = preferred === "water" ? ["water", "food"] : ["food", "water"];
+    let changed = false;
+    for (const kind of order) {
+      if (kind === "food" && needsFood && state.doubloons >= hardtack.basePrice &&
+          provisionCargoFree(state, "food") >= hardtack.unitSize) {
+        spent += restockHardtackUnit(state, hardtack);
+        additions.food += 1;
+        changed = true;
+        break;
+      }
+      if (kind === "water" && needsWater && state.doubloons >= WATER_RESTOCK_COST) {
+        const added = Math.min(1, targets.water - state.survival.freshWater);
+        const space = Math.ceil(state.survival.freshWater + added) - Math.ceil(state.survival.freshWater);
+        if (provisionCargoFree(state, "water") < space) continue;
+        state.survival.freshWater += added;
+        state.doubloons -= WATER_RESTOCK_COST;
+        spent += WATER_RESTOCK_COST;
+        additions.water += added;
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) break;
+  }
+  return { spent, ...additions };
+}
+
+function restockHardtackUnit(state, hardtack) {
+  state.cargo[HARDTACK_GOOD_ID] = (state.cargo[HARDTACK_GOOD_ID] || 0) + 1;
+  state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] = roundLedgerMoney(
+    (state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] || 0) + hardtack.basePrice
+  );
+  state.doubloons -= hardtack.basePrice;
+  return hardtack.basePrice;
 }
 
 function trimCargoQuantity(state, goodId, maximumQuantity) {
@@ -2032,18 +2102,76 @@ function shipStoresSnapshot(state) {
   return {
     crew: state.ship?.crew || 0,
     cannons: state.ship?.cannons || 0,
-    food: state.cargo[HARDTACK_GOOD_ID] || 0,
+    food: provisionFoodUnits(state),
     water: state.survival.freshWater
   };
 }
 
 function loadoutShortfalls(state, plan) {
+  const targets = loadoutRestockProvisionTargets(state, plan);
   return {
     crew: Math.max(0, plan.crew - state.ship.crew),
     cannons: Math.max(0, plan.cannons - state.ship.cannons),
-    food: Math.max(0, plan.foodUnits - (state.cargo[HARDTACK_GOOD_ID] || 0)),
-    water: Math.max(0, plan.waterUnits - state.survival.freshWater)
+    food: Math.max(0, targets.food - provisionFoodUnits(state)),
+    water: Math.max(0, targets.water - state.survival.freshWater)
   };
+}
+
+function loadoutRestockProvisionTargets(state, plan) {
+  const allocation = loadoutProvisionAllocation(state, plan);
+  const protectedFood = Math.max(
+    allocation.foodUnits,
+    Math.min(provisionFoodUnits(state), allocation.availableSpace)
+  );
+  return {
+    food: protectedFood,
+    water: Math.min(allocation.waterUnits, Math.max(0, allocation.availableSpace - protectedFood))
+  };
+}
+
+function provisionCargoFree(state, kind) {
+  if (kind !== "food" && kind !== "water") {
+    throw new Error(`Unknown provision cargo kind: ${kind}`);
+  }
+  const reservation = loadoutProvisionReservation(state);
+  const reserved = kind === "food" ? reservation.missingFood : reservation.missingWater;
+  return Math.max(0, cargoFree(state) + reserved);
+}
+
+function loadoutProvisionReservation(state) {
+  const plan = state.ship?.loadoutTargets;
+  if (!plan) return { missingFood: 0, missingWater: 0 };
+  const allocation = loadoutProvisionAllocation(state, plan);
+  return {
+    missingFood: Math.max(0, allocation.foodUnits - provisionFoodUnits(state)),
+    missingWater: Math.max(0, allocation.waterUnits - Math.ceil(state.survival.freshWater))
+  };
+}
+
+function loadoutProvisionAllocation(state, plan) {
+  for (const key of ["foodUnits", "waterUnits", "storesSpace"]) {
+    if (!Number.isInteger(plan?.[key]) || plan[key] < 0) {
+      throw new Error(`Invalid ship loadout provision target ${key}: ${plan?.[key]}`);
+    }
+  }
+  if (plan.storesSpace !== plan.foodUnits + plan.waterUnits) {
+    throw new Error("Ship loadout provision targets do not match their reserved store space");
+  }
+  const actualProvisionSpace = provisionFoodUnits(state) + Math.ceil(state.survival.freshWater);
+  const provisionSpaceAlreadyAboard = Math.min(actualProvisionSpace, plan.storesSpace);
+  const nonProvisionSpace = cargoUsed(state) - provisionSpaceAlreadyAboard;
+  const availableSpace = Math.max(
+    0,
+    Math.min(plan.storesSpace, state.cargoCapacity - nonProvisionSpace)
+  );
+  return {
+    ...balancedProvisionTargets(plan.foodUnits, plan.waterUnits, availableSpace),
+    availableSpace
+  };
+}
+
+function provisionFoodUnits(state) {
+  return edibleCargoRows(state).reduce((total, row) => total + row.good.unitSize * row.quantity, 0);
 }
 
 function requirePlayerShipState(state, stats) {

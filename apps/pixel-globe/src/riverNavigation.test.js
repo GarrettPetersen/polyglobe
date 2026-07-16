@@ -7,6 +7,8 @@ import {
   chooseRiverChannelDirection,
   findRiverGatewayDirection,
   heldShipHaulStrength,
+  playerRiverGatewayAssistEligible,
+  rememberCompletedRiverRailPath,
   selectRiverRailPath,
   shipHaulMotionScale,
   steerAlongRiverCenterline
@@ -103,6 +105,36 @@ test("gateway steering can be blended without changing movement magnitude", () =
   assert.ok(direction.x > 0 && direction.y > 0);
 });
 
+test("player river-mouth help requires open-water intent and travel to agree", () => {
+  assert.equal(playerRiverGatewayAssistEligible({
+    currentKind: "openWater",
+    intentDirection: { x: 1, y: 0 },
+    travelDirection: { x: 0.8, y: 0.2 },
+    gatewayDirection: { x: 0.9, y: 0.1 }
+  }), true);
+  assert.equal(playerRiverGatewayAssistEligible({
+    currentKind: "openWater",
+    intentDirection: { x: -1, y: 0 },
+    travelDirection: { x: 1, y: 0 },
+    gatewayDirection: { x: 1, y: 0 }
+  }), false);
+  assert.equal(playerRiverGatewayAssistEligible({
+    currentKind: "openWater",
+    intentDirection: { x: 1, y: 0 },
+    travelDirection: { x: -1, y: 0 },
+    gatewayDirection: { x: 1, y: 0 }
+  }), false);
+});
+
+test("player river-mouth help remains generous when escaping from inside the river", () => {
+  assert.equal(playerRiverGatewayAssistEligible({
+    currentKind: "river",
+    intentDirection: { x: -1, y: 0 },
+    travelDirection: { x: 1, y: 0 },
+    gatewayDirection: { x: -0.9, y: 0.1 }
+  }), true);
+});
+
 test("NPC river guidance chooses the outgoing arm that advances its route", () => {
   const direction = chooseRiverChannelDirection({
     x: 0,
@@ -191,9 +223,40 @@ test("river rail excludes a completed segment and takes the best outgoing branch
   const selection = selectRiverRailPath({
     probes,
     desiredDirection: { x: 1, y: 0 },
-    excludedPathKey: "incoming"
+    excludedPathKeys: ["incoming"]
   });
 
   assert.equal(selection.probe.pathKey, "route-branch");
   assert.equal(selection.directionSign, 1);
+});
+
+test("river rail excludes several recent segments instead of oscillating backward", () => {
+  const probes = [
+    { pathKey: "two-steps-back", centerlineDistance: 0.05, tangent: { x: 0, y: 1 } },
+    { pathKey: "just-completed", centerlineDistance: 0.1, tangent: { x: 0, y: -1 } },
+    { pathKey: "forward", centerlineDistance: 0.45, tangent: { x: 0.2, y: 1 } }
+  ];
+  const selection = selectRiverRailPath({
+    probes,
+    desiredDirection: { x: 0, y: 1 },
+    excludedPathKeys: ["two-steps-back", "just-completed"]
+  });
+
+  assert.equal(selection.probe.pathKey, "forward");
+  assert.equal(selection.directionSign, 1);
+});
+
+test("river rail completed-path memory is bounded and refreshes repeated keys", () => {
+  assert.deepEqual(
+    rememberCompletedRiverRailPath(["a", "b", "c"], "b", 3),
+    ["a", "c", "b"]
+  );
+  assert.deepEqual(
+    rememberCompletedRiverRailPath(["a", "b", "c"], "d", 3),
+    ["b", "c", "d"]
+  );
+  assert.throws(
+    () => rememberCompletedRiverRailPath(["a"], "", 3),
+    /non-empty string/
+  );
 });
