@@ -80,6 +80,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
         headingDeg: 205
       }
     ]
+  }),
+  "land-trade": scenario({
+    id: "land-trade",
+    title: "Roads and Inland Trade",
+    seed: "land-trade-qa-v1",
+    player: {
+      factionId: "france",
+      shipSlug: "brigantine",
+      lat: 42.9,
+      lon: 5.4,
+      headingDeg: 270,
+      activePlaySeconds: 60
+    },
+    world: { day: 196, hour: 13, minute: 20, timeScale: 7200 },
+    diplomacy: [],
+    encounters: []
   })
 });
 

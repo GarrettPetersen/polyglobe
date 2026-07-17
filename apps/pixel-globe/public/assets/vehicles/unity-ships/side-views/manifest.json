@@ -436,5 +436,6 @@
   "gogiartDhowGenerator": "tools/render-sail-ship-sprites.mjs --gogiart-dhow",
   "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
   "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
-  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader"
+  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
+  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
 }

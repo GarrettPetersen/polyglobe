@@ -5,6 +5,7 @@ import {
   WHALE_PHASE_DEAD,
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_RISING,
+  WHALE_PHASE_SUBMERGED,
   WHALE_PHASE_SURFACED,
   WHALE_PHASE_TETHERED,
   advanceWhaleMemory,
@@ -54,6 +55,10 @@ function candidates(count = 20) {
   });
 }
 
+function whaleNavigation(tileId, canSurface = true) {
+  return { ok: true, canSurface, tileId };
+}
+
 test("whales seed as stable individual entities and surface cyclically", () => {
   const memory = createWhaleMemory();
   seedWhalePopulation(memory, candidates(), 6);
@@ -62,12 +67,30 @@ test("whales seed as stable individual entities and surface cyclically", () => {
 
   const whale = memory.individuals[0];
   whale.phaseElapsedSeconds = whale.phaseDurationSeconds - 0.1;
-  const events = advanceWhaleMemory(memory, 0.2, () => ({ ok: true, tileId: 1 }), 1);
+  const events = advanceWhaleMemory(memory, 0.2, () => whaleNavigation(1), 1);
   assert.equal(whale.phase, WHALE_PHASE_RISING);
   assert.equal(events.length, 0);
   assert.equal(whaleCanBeHarpooned(whale), true);
   assert.ok(whaleSurfaceExposure(whale) > 0);
   validateWhaleMemory(memory);
+});
+
+test("submerged whales swim beneath ice and wait for open water before rising", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const whale = memory.individuals[0];
+  const originalPosition = whale.position.slice();
+  whale.phaseElapsedSeconds = whale.phaseDurationSeconds - 0.1;
+
+  const underIceEvents = advanceWhaleMemory(memory, 0.2, () => whaleNavigation(91, false), 1);
+  assert.equal(whale.phase, WHALE_PHASE_SUBMERGED);
+  assert.equal(whale.tileId, 91);
+  assert.notDeepEqual(whale.position, originalPosition);
+  assert.deepEqual(underIceEvents, []);
+
+  advanceWhaleMemory(memory, 0.01, () => whaleNavigation(92, true), 1);
+  assert.equal(whale.phase, WHALE_PHASE_RISING);
+  assert.equal(whale.tileId, 92);
 });
 
 test("whales cruise deliberately while a tethered whale can still make a fast run", () => {
@@ -91,7 +114,7 @@ test("a secured whale tows until exhausted, then can be killed or released", () 
   tetherWhale(memory, whale.id, harpoon);
   assert.equal(whale.phase, WHALE_PHASE_TETHERED);
   const towSeconds = memory.activeHunt.remainingSeconds;
-  const events = advanceWhaleMemory(memory, towSeconds, () => ({ ok: true, tileId: 2 }), 1);
+  const events = advanceWhaleMemory(memory, towSeconds, () => whaleNavigation(2), 1);
   assert.equal(whale.phase, WHALE_PHASE_EXHAUSTED);
   assert.ok(events.some((event) => event.type === "exhausted" && event.whaleId === whale.id));
   killExhaustedWhale(memory);
@@ -108,6 +131,24 @@ test("a secured whale tows until exhausted, then can be killed or released", () 
   cutWhaleLoose(releasedMemory);
   assert.equal(releasedMemory.activeHunt, null);
   assert.equal(released.phase, "diving");
+});
+
+test("sea ice parts an active harpoon line and lets the whale dive beneath it", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const whale = memory.individuals.find((candidate) => candidate.id !== WHITE_WHALE_ID);
+  whale.phase = WHALE_PHASE_RISING;
+  whale.phaseElapsedSeconds = 1;
+  whale.phaseDurationSeconds = 2;
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+
+  const events = advanceWhaleMemory(memory, 0.2, () => whaleNavigation(93, false), 1);
+
+  assert.equal(memory.activeHunt, null);
+  assert.equal(whale.phase, WHALE_PHASE_SUBMERGED);
+  assert.equal(whale.tileId, 93);
+  assert.equal(whaleCanBeHarpooned(whale), false);
+  assert.ok(events.some((event) => event.type === "ice-line-break" && event.whaleId === whale.id));
 });
 
 test("a tow line keeps the tethered whale within its visible maximum length", () => {
@@ -128,7 +169,7 @@ test("a tow line keeps the tethered whale within its visible maximum length", ()
     whale,
     anchor,
     maximumDistance,
-    () => ({ ok: true, tileId: 77 })
+    () => whaleNavigation(77)
   );
 
   const actualDistance = Math.acos(Math.max(-1, Math.min(1,
@@ -214,12 +255,12 @@ test("adult whales mate and produce a persisted calf that remains with its mothe
   male.position = female.position.slice();
   male.tileId = female.tileId;
   female.nextMatingMinute = 0;
-  advanceWhaleMemory(memory, 0, () => ({ ok: true, tileId: female.tileId }), 1);
+  advanceWhaleMemory(memory, 0, () => whaleNavigation(female.tileId), 1);
   assert.equal(female.mateId, male.id);
   assert.ok(female.pregnancyDueMinute > 1);
 
   const dueMinute = female.pregnancyDueMinute;
-  const events = advanceWhaleMemory(memory, 0, () => ({ ok: true, tileId: female.tileId }), dueMinute);
+  const events = advanceWhaleMemory(memory, 0, () => whaleNavigation(female.tileId), dueMinute);
   const birth = events.find((event) => event.type === "birth" && event.motherId === female.id);
   assert.ok(birth);
   const calf = memory.individuals.find((whale) => whale.id === birth.whaleId);

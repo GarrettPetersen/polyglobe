@@ -106,6 +106,18 @@ export const SPERM_WHALE_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const CARTOON_HORSE_MODEL_CREDIT = Object.freeze({
+  creator: "Jungle Jim",
+  sourceTitle: "Cartoon Horse with animations",
+  license: "CC BY 4.0"
+});
+
+export const WOODEN_CART_MODEL_CREDIT = Object.freeze({
+  creator: "Filip",
+  sourceTitle: "Wooden Cart",
+  license: "CC BY 4.0"
+});
+
 export const MODEL_CREDITS = Object.freeze([
   UNITY_FLEET_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
@@ -124,7 +136,9 @@ export const MODEL_CREDITS = Object.freeze([
   BLUE_WHALE_MODEL_CREDIT,
   HUMPBACK_WHALE_MODEL_CREDIT,
   SOUTHERN_MINKE_WHALE_MODEL_CREDIT,
-  SPERM_WHALE_MODEL_CREDIT
+  SPERM_WHALE_MODEL_CREDIT,
+  CARTOON_HORSE_MODEL_CREDIT,
+  WOODEN_CART_MODEL_CREDIT
 ]);
 
 export function modelCreditMarkdownLine({ creator, sourceTitle, license }) {

@@ -22,6 +22,7 @@ import {
   SHIP_SPRITE_SHEET_WIDTH
 } from "./shipSpriteLayout.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
+import { validateShipFlagAnchorBake } from "./shipFlagAnchors.js";
 import { SHIP_ROWING_FRAME_COUNT } from "./shipRowingAnimation.js";
 import {
   SHIP_WATERLINE_DEPTH_BYTE,
@@ -123,6 +124,63 @@ test("every roster ship has a hull footprint for every sprite heading", async ()
     assert.equal(frames.length, SHIP_SPRITE_HEADINGS, `${slug} heading footprint count`);
     assert.ok(frames.every((frame) => frame.polygon.length >= 3), `${slug} polygon geometry`);
     assert.ok(frames.every((frame) => frame.samples.length >= 3), `${slug} terrain samples`);
+  }
+});
+
+test("every roster ship flag is anchored to one model point across all headings", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const bake = JSON.parse(await readFile(join(shipAssetRoot, "flag-anchors.json"), "utf8"));
+  const rowingFramesBySlug = new Map(manifest.ships.map((entry) => [
+    entry.slug,
+    entry.files.rowingAnimation?.length || 0
+  ]));
+  const anchorsBySlug = validateShipFlagAnchorBake(
+    bake,
+    SHIP_SPRITE_FRAME_SIZE,
+    SHIP_SPRITE_HEADINGS,
+    rowingFramesBySlug
+  );
+
+  for (const entry of manifest.ships) {
+    assert.equal(
+      entry.flagAnchorSelection,
+      "highest-model-point-aftmost-tiebreak",
+      `${entry.slug} flag anchor selection`
+    );
+    assert.ok(
+      [entry.flagAnchorModelPoint?.x, entry.flagAnchorModelPoint?.y, entry.flagAnchorModelPoint?.z]
+        .every(Number.isFinite),
+      `${entry.slug} canonical flag model point`
+    );
+    const image = await loadImage(join(shipAssetRoot, basename(entry.files.sheet)));
+    const pixels = imagePixels(image);
+    for (let frame = 0; frame < SHIP_SPRITE_HEADINGS; frame++) {
+      const anchor = anchorsBySlug.get(entry.slug).base[frame];
+      const originX = frame % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+      const originY = Math.floor(frame / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+      const alpha = pixels[
+        ((originX + anchor.x) + (originY + anchor.y) * image.width) * 4 + 3
+      ];
+      assert.ok(alpha > 0, `${entry.slug} frame ${frame} flag anchor touches the ship`);
+    }
+
+    for (let rowingFrameIndex = 0; rowingFrameIndex < (entry.files.rowingAnimation?.length || 0); rowingFrameIndex++) {
+      const rowingPath = entry.files.rowingAnimation[rowingFrameIndex];
+      const rowingImage = await loadImage(join(shipAssetRoot, basename(rowingPath)));
+      const rowingPixels = imagePixels(rowingImage);
+      for (let frame = 0; frame < SHIP_SPRITE_HEADINGS; frame++) {
+        const anchor = anchorsBySlug.get(entry.slug).rowing[rowingFrameIndex][frame];
+        const originX = frame % SHIP_SPRITE_SHEET_COLS * SHIP_SPRITE_FRAME_SIZE;
+        const originY = Math.floor(frame / SHIP_SPRITE_SHEET_COLS) * SHIP_SPRITE_FRAME_SIZE;
+        const anchorAlpha = rowingPixels[
+          ((originX + anchor.x) + (originY + anchor.y) * rowingImage.width) * 4 + 3
+        ];
+        assert.ok(
+          anchorAlpha > 0,
+          `${entry.slug} rowing frame ${rowingFrameIndex} heading ${frame} flag anchor touches the ship`
+        );
+      }
+    }
   }
 });
 

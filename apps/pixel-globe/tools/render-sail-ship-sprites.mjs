@@ -9,6 +9,7 @@ import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/exam
 import {
   BLUE_WHALE_MODEL_CREDIT,
   BOROBUDUR_SHIP_MODEL_CREDIT,
+  CARTOON_HORSE_MODEL_CREDIT,
   CYC3W_SAILING_SHIP_MODEL_CREDIT,
   GOGIART_DHOW_MODEL_CREDIT,
   HUMPBACK_WHALE_MODEL_CREDIT,
@@ -24,7 +25,8 @@ import {
   PORTUGUESE_CARRACK_MODEL_CREDIT,
   SOUTHERN_MINKE_WHALE_MODEL_CREDIT,
   SPERM_WHALE_MODEL_CREDIT,
-  UNITY_FLEET_MODEL_CREDIT
+  UNITY_FLEET_MODEL_CREDIT,
+  WOODEN_CART_MODEL_CREDIT
 } from "../src/modelCredits.js";
 import { SHIP_STATS, shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
 import { hardEdgeSampleMap } from "../src/hardEdgeDownsample.js";
@@ -54,6 +56,7 @@ import {
   SHIP_SPRITE_SHEET_COLS
 } from "../src/shipSpriteLayout.js";
 import { SHIP_ROWING_FRAME_COUNT, rowingOarPose } from "../src/shipRowingAnimation.js";
+import { selectShipFlagAnchorPoint } from "../src/shipFlagAnchors.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -81,8 +84,11 @@ const blueWhaleSourceRoot = join(shipSourceRoot, "sketchfab/blue-whale");
 const humpbackWhaleSourceRoot = join(shipSourceRoot, "sketchfab/humpback-whale");
 const southernMinkeWhaleSourceRoot = join(shipSourceRoot, "sketchfab/southern-minke-whale");
 const spermWhaleSourceRoot = join(shipSourceRoot, "sketchfab/sperm-whale");
+const cartoonHorseSourceRoot = join(shipSourceRoot, "sketchfab/cartoon-horse-with-animations");
+const woodenCartSourceRoot = join(shipSourceRoot, "sketchfab/wooden-cart");
 const outputRoot = join(appRoot, "public/assets/vehicles");
 const animalOutputRoot = join(appRoot, "public/assets/animals");
+const horseCartOutputRoot = join(outputRoot, "horse-cart");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
@@ -116,9 +122,12 @@ const wakeBowShoulderRatio = 0.68;
 const wakeBowShoulderBandRatio = 0.22;
 const wakeSternClearancePx = 1.5;
 const wakeBowShoulderOutsetPx = 1.25;
+const flagAnchorMaxSnapDistancePx = 4;
 const shipEdgeShadeScale = 0.76;
 const waterlineReviewColor = "#4d9be6";
 const oarPivotReviewColor = "#e83b3b";
+const horseCartWalkFrameCount = 6;
+const horseCartMaxDrawPixels = 31;
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 const mediterraneanGalleyMeshNames = new Set([
   "Object_9",  // stern windows
@@ -495,7 +504,9 @@ function collectTriangles(scene, options = {}) {
           positions.getX(id),
           positions.getY(id),
           positions.getZ(id)
-        ).applyMatrix4(matrix);
+        );
+        if (node.isSkinnedMesh) node.applyBoneTransform(id, point);
+        point.applyMatrix4(matrix);
         return options.transformPoint ? options.transformPoint(point, node) : point;
       });
       const uvs = geometry.attributes.uv
@@ -924,6 +935,56 @@ function makeFrame(rendered, bounds, scale) {
     drawW,
     drawH
   };
+}
+
+function makeFlagAnchors(modelPoint, frames, camera) {
+  return frames.map((frame, headingIndex) => {
+    const modelYaw = modelYawForScreenHeading(headingIndex, camera);
+    const rotation = new THREE.Matrix4().makeRotationY(modelYaw);
+    const rotatedPoint = new THREE.Vector3(modelPoint.x, modelPoint.y, modelPoint.z)
+      .applyMatrix4(rotation);
+    const projected = projectedPoint(rotatedPoint, camera);
+    const preferredX = frame.drawX + clamp(
+      Math.floor((projected.x - frame.bounds.minX) / frame.bounds.width * frame.drawW),
+      0,
+      frame.drawW - 1
+    );
+    const preferredY = frame.drawY + clamp(
+      Math.floor((projected.y - frame.bounds.minY) / frame.bounds.height * frame.drawH),
+      0,
+      frame.drawH - 1
+    );
+    const anchor = nearestOpaqueFlagAnchor(frame, preferredX, preferredY);
+    const snapDistance = Math.hypot(anchor.x - preferredX, anchor.y - preferredY);
+    if (snapDistance > flagAnchorMaxSnapDistancePx) {
+      throw new Error(
+        `Ship flag anchor heading ${headingIndex} is ${snapDistance.toFixed(2)}px from its model point projection`
+      );
+    }
+    return anchor;
+  });
+}
+
+function nearestOpaqueFlagAnchor(frame, preferredX, preferredY) {
+  let best = null;
+  for (let y = 0; y < frameSize; y++) {
+    for (let x = 0; x < frameSize; x++) {
+      if (!frame.alpha[x + y * frameSize]) continue;
+      const distanceSquared = (x - preferredX) ** 2 + (y - preferredY) ** 2;
+      if (
+        !best ||
+        distanceSquared < best.distanceSquared ||
+        (
+          distanceSquared === best.distanceSquared &&
+          (y < best.y || (y === best.y && Math.abs(x - frameSize / 2) < Math.abs(best.x - frameSize / 2)))
+        )
+      ) {
+        best = { x, y, distanceSquared };
+      }
+    }
+  }
+  if (!best) throw new Error("Ship flag anchor projection found a blank sprite frame");
+  return { x: best.x, y: best.y };
 }
 
 function copyFrameToSheet(frame, sheetCtx, frameIndex) {
@@ -1688,6 +1749,7 @@ async function renderShipSpriteSet(config) {
     ...config.collectOptions
   });
   const hullTriangles = model.triangles;
+  const flagAnchorModelPoint = selectShipFlagAnchorPoint(hullTriangles);
   const waterline = estimateWaterlineForConfig(hullTriangles, config);
   const waterlineY = waterline.y;
   const triangles = config.animationTrianglesForFrame
@@ -1709,6 +1771,7 @@ async function renderShipSpriteSet(config) {
   const boundsByHeading = renderedHeadings.map((rendered) => alphaBounds(rendered.canvas));
   const frameScale = config.frameScale ?? fixedFrameScale(boundsByHeading);
   const frames = renderedHeadings.map((rendered, i) => makeFrame(rendered, boundsByHeading[i], frameScale));
+  const baseFlagAnchors = makeFlagAnchors(flagAnchorModelPoint, frames, camera);
   const footprintFrames = config.animationTrianglesForFrame
     ? Array.from({ length: headings }, (_, i) => {
         const rendered = renderHeading(hullTriangles, i, camera, renderOptions);
@@ -1751,14 +1814,20 @@ async function renderShipSpriteSet(config) {
     ? await renderShipAnimationSheets({
       config,
       hullTriangles,
+      flagAnchorModelPoint,
       waterlineY,
       camera,
       renderOptions,
       frameScale,
       firstSheet: sheet,
-      firstFrames: frames
+      firstFrames: frames,
+      firstFlagAnchors: baseFlagAnchors
     })
     : null;
+  const flagAnchors = {
+    base: baseFlagAnchors,
+    ...(animationFiles ? { rowing: animationFiles.flagAnchors } : {})
+  };
   return {
     slug: config.slug || stripShipHeadingSuffix(config.outputPrefix),
     label: config.label || config.outputPrefix,
@@ -1801,6 +1870,11 @@ async function renderShipSpriteSet(config) {
     lightElevationBins,
     wakeAnchors,
     hullFootprints,
+    flagAnchorSelection: "highest-model-point-aftmost-tiebreak",
+    flagAnchorModelPoint: Object.fromEntries(
+      Object.entries(flagAnchorModelPoint).map(([axis, value]) => [axis, Number(value.toFixed(6))])
+    ),
+    flagAnchors,
     ...(config.stats ? { stats: config.stats } : {}),
     files: {
       sheet: portablePath(sheetPath),
@@ -1822,15 +1896,18 @@ async function renderShipSpriteSet(config) {
 async function renderShipAnimationSheets({
   config,
   hullTriangles,
+  flagAnchorModelPoint,
   waterlineY,
   camera,
   renderOptions,
   frameScale,
   firstSheet,
-  firstFrames
+  firstFrames,
+  firstFlagAnchors
 }) {
   const animationSheets = [firstSheet];
   const animationFrames = [firstFrames];
+  const animationFlagAnchors = [firstFlagAnchors];
   const spritePaths = [];
   const sinkDepthPaths = [];
   const basePrefix = stripShipHeadingSuffix(config.outputPrefix);
@@ -1855,6 +1932,7 @@ async function renderShipAnimationSheets({
       }
       animationSheets.push(sheet);
       animationFrames.push(frames);
+      animationFlagAnchors.push(makeFlagAnchors(flagAnchorModelPoint, frames, camera));
     }
     if (!frames) throw new Error(`Missing ship animation geometry for frame ${frameIndex}`);
     const spritePath = join(
@@ -1880,7 +1958,7 @@ async function renderShipAnimationSheets({
     );
     writeFileSync(config.animationContactSheetPath, contactSheet.toBuffer("image/png"));
   }
-  return { spritePaths, sinkDepthPaths };
+  return { spritePaths, sinkDepthPaths, flagAnchors: animationFlagAnchors };
 }
 
 function makeRowingAnimationContactSheet(animationSheets, requestedScale = 6, reviewHeading = 2) {
@@ -2195,7 +2273,7 @@ function nearestResurrectColor(r, g, b) {
   return best;
 }
 
-function shadeEdgesAndQuantizeToResurrect(canvas) {
+function shadeEdgesAndQuantizeToResurrect(canvas, { shadeEdges = true } = {}) {
   const ctx = canvas.getContext("2d");
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const source = new Uint8ClampedArray(image.data);
@@ -2209,7 +2287,7 @@ function shadeEdgesAndQuantizeToResurrect(canvas) {
         image.data[offset + 3] = 0;
         continue;
       }
-      const edgeScale = pixelTouchesTransparency(source, x, y, canvas.width, canvas.height)
+      const edgeScale = shadeEdges && pixelTouchesTransparency(source, x, y, canvas.width, canvas.height)
         ? shipEdgeShadeScale
         : 1;
       const color = nearestResurrectColor(
@@ -2224,6 +2302,202 @@ function shadeEdgesAndQuantizeToResurrect(canvas) {
     }
   }
   ctx.putImageData(image, 0, 0);
+}
+
+async function renderHorseCart() {
+  mkdirSync(horseCartOutputRoot, { recursive: true });
+  const horsePath = join(cartoonHorseSourceRoot, "scene.gltf");
+  const cartPath = join(woodenCartSourceRoot, "scene.gltf");
+  const [horseGltf, cartGltf, horseMaterials, cartMaterials] = await Promise.all([
+    loadGltf(horsePath),
+    loadGltf(cartPath),
+    loadGltfMaterialTextureSamplers(horsePath),
+    loadGltfMaterialTextureSamplers(cartPath)
+  ]);
+  const walkClip = horseWalkClip(horseGltf.animations);
+  const mixer = new THREE.AnimationMixer(horseGltf.scene);
+  const action = mixer.clipAction(walkClip);
+  action.setLoop(THREE.LoopRepeat, Infinity);
+  action.play();
+
+  mixer.setTime(0);
+  updateAnimatedScene(horseGltf.scene);
+  const horseOrientation = horseForwardQuaternion(horseGltf.scene);
+  const horseFrames = [];
+  for (let frameIndex = 0; frameIndex < horseCartWalkFrameCount; frameIndex++) {
+    mixer.setTime(walkClip.duration * frameIndex / horseCartWalkFrameCount);
+    updateAnimatedScene(horseGltf.scene);
+    horseFrames.push(collectTriangles(horseGltf.scene, {
+      targetMaxDim: null,
+      materialTextureSamplers: horseMaterials,
+      transformPoint: (point) => point.clone().applyQuaternion(horseOrientation)
+    }).triangles);
+  }
+  const cartTriangles = collectTriangles(cartGltf.scene, {
+    targetMaxDim: null,
+    materialTextureSamplers: cartMaterials,
+    transformPoint: (point) => vectorFromCoordinates(orientNegativeXForwardYUpToZForward(point))
+  }).triangles;
+  const normalizedHorseFrames = normalizeAnimatedGroundModel(horseFrames, 1.0);
+  const normalizedCart = normalizeGroundModel(cartTriangles, 1.0);
+  const combinedFrames = composeHorseAndCart(normalizedHorseFrames, normalizedCart);
+  const camera = makeCamera();
+  const renderOptions = { collectCasters: false };
+  const renderedByFrame = combinedFrames.map((triangles) => (
+    Array.from({ length: headings }, (_, headingIndex) => (
+      renderHeading(triangles, headingIndex, camera, renderOptions)
+    ))
+  ));
+  const sharedBoundsByHeading = Array.from({ length: headings }, (_, headingIndex) => (
+    unionAlphaBounds(renderedByFrame.map((frames) => alphaBounds(frames[headingIndex].canvas)))
+  ));
+  const maxWidth = Math.max(...sharedBoundsByHeading.map((bounds) => bounds.width));
+  const maxHeight = Math.max(...sharedBoundsByHeading.map((bounds) => bounds.height));
+  const frameScale = Math.min(horseCartMaxDrawPixels / maxWidth, horseCartMaxDrawPixels / maxHeight);
+  const sheets = [];
+  const files = [];
+  for (let frameIndex = 0; frameIndex < horseCartWalkFrameCount; frameIndex++) {
+    const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
+    const sheetCtx = sheet.getContext("2d");
+    sheetCtx.imageSmoothingEnabled = false;
+    for (let headingIndex = 0; headingIndex < headings; headingIndex++) {
+      const frame = makeFrame(
+        renderedByFrame[frameIndex][headingIndex],
+        sharedBoundsByHeading[headingIndex],
+        frameScale
+      );
+      copyFrameToSheet(frame, sheetCtx, headingIndex);
+    }
+    shadeEdgesAndQuantizeToResurrect(sheet, { shadeEdges: false });
+    const filePath = join(
+      horseCartOutputRoot,
+      `horse-cart-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}.png`
+    );
+    writeFileSync(filePath, sheet.toBuffer("image/png"));
+    sheets.push(sheet);
+    files.push(portablePath(filePath));
+  }
+  const contactSheet = makeRowingAnimationContactSheet(sheets, 6, 0);
+  const contactSheetPath = join(appRoot, "docs/ship-reference/horse-cart-walk-frames.png");
+  writeFileSync(contactSheetPath, contactSheet.toBuffer("image/png"));
+  const manifestPath = join(horseCartOutputRoot, "manifest.json");
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --horse-cart",
+    frameSize,
+    headings,
+    sheetCols,
+    animationFrames: horseCartWalkFrameCount,
+    maxDrawPixels: horseCartMaxDrawPixels,
+    frameScale: Number(frameScale.toFixed(4)),
+    horse: {
+      ...CARTOON_HORSE_MODEL_CREDIT,
+      sourceModel: portablePath(horsePath),
+      animation: walkClip.name,
+      durationSeconds: walkClip.duration
+    },
+    cart: {
+      ...WOODEN_CART_MODEL_CREDIT,
+      sourceModel: portablePath(cartPath)
+    },
+    files
+  }, null, 2)}\n`);
+  console.log(manifestPath);
+  console.log(contactSheetPath);
+}
+
+function horseWalkClip(animations) {
+  if (!Array.isArray(animations) || animations.length === 0) {
+    throw new Error("Horse source model contains no animation clips");
+  }
+  const clips = animations.filter((clip) => Number.isFinite(clip.duration) && clip.duration > 0.5);
+  if (clips.length !== 1) {
+    throw new Error(`Horse source must contain exactly one moving clip, found ${clips.length}`);
+  }
+  return clips[0];
+}
+
+function updateAnimatedScene(scene) {
+  scene.updateMatrixWorld(true);
+  scene.traverse((node) => {
+    if (node.isSkinnedMesh) node.skeleton.update();
+  });
+  scene.updateMatrixWorld(true);
+}
+
+function horseForwardQuaternion(scene) {
+  const head = scene.getObjectByName("head0_040");
+  const tail = scene.getObjectByName("tail0_017");
+  if (!head || !tail) throw new Error("Horse rig is missing its head or tail landmark bone");
+  const headPosition = head.getWorldPosition(new THREE.Vector3());
+  const tailPosition = tail.getWorldPosition(new THREE.Vector3());
+  const forward = headPosition.sub(tailPosition);
+  forward.y = 0;
+  if (forward.lengthSq() <= 1e-8) throw new Error("Horse rig cannot resolve a forward direction");
+  forward.normalize();
+  return new THREE.Quaternion().setFromUnitVectors(forward, new THREE.Vector3(0, 0, 1));
+}
+
+function normalizeAnimatedGroundModel(frames, targetMaxDim) {
+  if (!Array.isArray(frames) || frames.length !== horseCartWalkFrameCount) {
+    throw new Error(`Horse walk requires ${horseCartWalkFrameCount} geometry frames`);
+  }
+  const allPoints = frames.flatMap((triangles) => triangles.flatMap((triangle) => triangle.points));
+  const bounds = boundsForPoints(allPoints);
+  return frames.map((triangles) => normalizeGroundTriangles(triangles, bounds, targetMaxDim));
+}
+
+function normalizeGroundModel(triangles, targetMaxDim) {
+  return normalizeGroundTriangles(triangles, boundsForPoints(
+    triangles.flatMap((triangle) => triangle.points)
+  ), targetMaxDim);
+}
+
+function normalizeGroundTriangles(triangles, bounds, targetMaxDim) {
+  if (!Number.isFinite(targetMaxDim) || targetMaxDim <= 0) {
+    throw new Error(`Invalid ground-model target dimension: ${targetMaxDim}`);
+  }
+  const scale = targetMaxDim / bounds.maxDim;
+  return triangles.map((triangle) => ({
+    ...triangle,
+    points: triangle.points.map((point) => new THREE.Vector3(
+      (point.x - bounds.center.x) * scale,
+      (point.y - bounds.box.min.y) * scale,
+      (point.z - bounds.center.z) * scale
+    ))
+  }));
+}
+
+function composeHorseAndCart(horseFrames, cartTriangles) {
+  const cartBounds = boundsForPoints(cartTriangles.flatMap((triangle) => triangle.points));
+  return horseFrames.map((horseTriangles) => {
+    const horseBounds = boundsForPoints(horseTriangles.flatMap((triangle) => triangle.points));
+    const overlap = 0.24;
+    const cartOffsetZ = horseBounds.box.min.z - cartBounds.box.max.z + overlap;
+    const combined = [
+      ...horseTriangles,
+      ...translatedTriangles(cartTriangles, 0, 0, cartOffsetZ)
+    ];
+    const bounds = boundsForPoints(combined.flatMap((triangle) => triangle.points));
+    return translatedTriangles(combined, -bounds.center.x, -bounds.box.min.y, -bounds.center.z);
+  });
+}
+
+function translatedTriangles(triangles, x, y, z) {
+  return triangles.map((triangle) => ({
+    ...triangle,
+    points: triangle.points.map((point) => point.clone().add(new THREE.Vector3(x, y, z)))
+  }));
+}
+
+function unionAlphaBounds(boundsList) {
+  if (!Array.isArray(boundsList) || boundsList.length === 0) {
+    throw new Error("Cannot union an empty set of raster bounds");
+  }
+  const minX = Math.min(...boundsList.map((bounds) => bounds.minX));
+  const minY = Math.min(...boundsList.map((bounds) => bounds.minY));
+  const maxX = Math.max(...boundsList.map((bounds) => bounds.minX + bounds.width - 1));
+  const maxY = Math.max(...boundsList.map((bounds) => bounds.minY + bounds.height - 1));
+  return { minX, minY, width: maxX - minX + 1, height: maxY - minY + 1 };
 }
 
 async function renderShipSideView(config) {
@@ -2657,6 +2931,8 @@ function joseonPanokseonConfig() {
     scaleMode: "joseon-decked-warship",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    // Preserve the visually reviewed waterline when the slice estimator sees the deck as a hull component.
+    waterlineBoundsRatio: 0.249,
     waterlineOffsetY: -0.23,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
@@ -3368,7 +3644,15 @@ async function renderWhales() {
   for (const config of WHALE_RENDER_CONFIGS) {
     console.log(`render ${config.slug}`);
     const rendered = await renderShipSpriteSet(config);
-    const { sheet, wakeAnchors, hullFootprints, ...manifestEntry } = rendered;
+    const {
+      sheet,
+      wakeAnchors,
+      hullFootprints,
+      flagAnchors,
+      flagAnchorSelection,
+      flagAnchorModelPoint,
+      ...manifestEntry
+    } = rendered;
     animals.push(manifestEntry);
     console.log(rendered.files.sheet);
     console.log(rendered.files.sinkDepth);
@@ -3420,7 +3704,7 @@ async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   const rendered = await renderShipSpriteSet(config);
   const manifestPath = join(unityFleetOutputRoot, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  const { sheet, wakeAnchors, hullFootprints, ...entry } = rendered;
+  const { sheet, wakeAnchors, hullFootprints, flagAnchors, ...entry } = rendered;
   manifest.ships = upsertShipEntries(manifest.ships, [entry]);
   manifest.skipped = unityFleetSkippedModels;
   manifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
@@ -3432,7 +3716,20 @@ async function renderStandaloneShip(config, generatorKey, generatorFlag) {
   wakeManifest[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
   writeFileSync(wakePath, `${JSON.stringify(wakeManifest)}\n`);
 
-  upsertHullFootprints(config.slug, hullFootprints, generatorKey, generatorFlag);
+  upsertShipFrameBake(
+    "hull-footprints.json",
+    "hull footprint",
+    [[config.slug, hullFootprints]],
+    generatorKey,
+    generatorFlag
+  );
+  upsertShipFrameBake(
+    "flag-anchors.json",
+    "flag anchor",
+    [[config.slug, flagAnchors]],
+    generatorKey,
+    generatorFlag
+  );
 
   const sideViewPath = join(unityFleetSideViewOutputRoot, "manifest.json");
   const sideViewManifest = JSON.parse(readFileSync(sideViewPath, "utf8"));
@@ -3540,7 +3837,7 @@ async function renderNativeBoats() {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   manifest.ships = upsertShipEntries(
     manifest.ships,
-    rendered.map(({ sheet, wakeAnchors, hullFootprints, ...entry }) => entry)
+    rendered.map(({ sheet, wakeAnchors, hullFootprints, flagAnchors, ...entry }) => entry)
   );
   manifest.nativeBoatGenerator = "tools/render-sail-ship-sprites.mjs --native-boats";
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -3551,9 +3848,20 @@ async function renderNativeBoats() {
   wakeManifest.nativeBoatGenerator = "tools/render-sail-ship-sprites.mjs --native-boats";
   writeFileSync(wakePath, `${JSON.stringify(wakeManifest)}\n`);
 
-  for (const entry of rendered) {
-    upsertHullFootprints(entry.slug, entry.hullFootprints, "nativeBoatGenerator", "--native-boats");
-  }
+  upsertShipFrameBake(
+    "hull-footprints.json",
+    "hull footprint",
+    rendered.map((entry) => [entry.slug, entry.hullFootprints]),
+    "nativeBoatGenerator",
+    "--native-boats"
+  );
+  upsertShipFrameBake(
+    "flag-anchors.json",
+    "flag anchor",
+    rendered.map((entry) => [entry.slug, entry.flagAnchors]),
+    "nativeBoatGenerator",
+    "--native-boats"
+  );
 
   const sideViewPath = join(unityFleetSideViewOutputRoot, "manifest.json");
   const sideViewManifest = JSON.parse(readFileSync(sideViewPath, "utf8"));
@@ -3575,15 +3883,15 @@ function upsertShipEntries(existing, replacements) {
   return [...result, ...replacementBySlug.values()];
 }
 
-function upsertHullFootprints(slug, hullFootprints, generatorKey, generatorFlag) {
-  const footprintPath = join(unityFleetOutputRoot, "hull-footprints.json");
-  const bake = JSON.parse(readFileSync(footprintPath, "utf8"));
+function upsertShipFrameBake(fileName, label, entries, generatorKey, generatorFlag) {
+  const path = join(unityFleetOutputRoot, fileName);
+  const bake = JSON.parse(readFileSync(path, "utf8"));
   if (bake.frameSize !== frameSize || bake.headings !== headings || !bake.ships) {
-    throw new Error("Existing ship hull footprint bake has incompatible dimensions");
+    throw new Error(`Existing ship ${label} bake has incompatible dimensions`);
   }
-  bake.ships[slug] = hullFootprints;
+  for (const [slug, frames] of entries) bake.ships[slug] = frames;
   bake[generatorKey] = `tools/render-sail-ship-sprites.mjs ${generatorFlag}`;
-  writeFileSync(footprintPath, `${JSON.stringify(bake)}\n`);
+  writeFileSync(path, `${JSON.stringify(bake)}\n`);
 }
 
 async function renderUnityFleetSideViews() {
@@ -3666,10 +3974,11 @@ async function renderUnityFleet() {
     console.log(`  ${entry.files.sheet}`);
   }
 
-  const manifestForDisk = manifest.map(({ sheet, wakeAnchors, hullFootprints, ...entry }) => entry);
+  const manifestForDisk = manifest.map(({ sheet, wakeAnchors, hullFootprints, flagAnchors, ...entry }) => entry);
   const manifestPath = join(unityFleetOutputRoot, "manifest.json");
   const wakeAnchorsPath = join(unityFleetOutputRoot, "wake-anchors.json");
   const hullFootprintsPath = join(unityFleetOutputRoot, "hull-footprints.json");
+  const flagAnchorsPath = join(unityFleetOutputRoot, "flag-anchors.json");
   writeFileSync(manifestPath, `${JSON.stringify({
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
     sourceRoot: portablePath(unityShipSourceRoot),
@@ -3693,6 +4002,12 @@ async function renderUnityFleet() {
     headings,
     ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.hullFootprints]))
   })}\n`);
+  writeFileSync(flagAnchorsPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
+    frameSize,
+    headings,
+    ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.flagAnchors]))
+  })}\n`);
 
   const contactSheet = makeFleetContactSheet(manifest);
   const contactSheetPath = join(unityFleetOutputRoot, "unity-ships-contact-sheet.png");
@@ -3700,6 +4015,7 @@ async function renderUnityFleet() {
   console.log(manifestPath);
   console.log(wakeAnchorsPath);
   console.log(hullFootprintsPath);
+  console.log(flagAnchorsPath);
   console.log(contactSheetPath);
 }
 
@@ -3844,6 +4160,10 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.has("--horse-cart")) {
+    await renderHorseCart();
+    return;
+  }
   if (args.has("--whales") || args.has("--north-atlantic-right-whale")) {
     await renderWhales();
     return;

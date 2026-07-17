@@ -19,9 +19,20 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.ok(captureScenarioIds().includes("icosahedron-earth-broll"));
   assert.ok(captureScenarioIds().includes("icosahedron-earth-cape-horn"));
   assert.ok(captureScenarioIds().includes("turtle-ship-war"));
+  assert.ok(captureScenarioIds().includes("land-trade"));
   assert.equal(captureScenarioFromSearch(""), null);
   assert.equal(captureScenarioFromSearch("?capture=turtle-ship-war").player.factionId, "joseon");
   assert.throws(() => captureScenarioFromSearch("?capture=missing"), /Unknown capture scenario/);
+});
+
+test("land-trade capture stages the road-dense western Mediterranean", () => {
+  const scenario = captureScenarioFromSearch("?capture=land-trade");
+  assert.equal(scenario.player.factionId, "france");
+  assert.equal(scenario.player.shipSlug, "brigantine");
+  assert.equal(scenario.player.lat, 42.9);
+  assert.equal(scenario.player.lon, 5.4);
+  assert.equal(scenario.world.timeScale, 7200);
+  assert.deepEqual(scenario.encounters, []);
 });
 
 test("Cape Horn b-roll stages quiet southern-summer sailing", () => {

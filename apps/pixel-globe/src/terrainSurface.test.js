@@ -6,6 +6,8 @@ import {
   isFrozenShoreRow,
   isPermanentSeaIceRow,
   isShipUsableSurfaceWater,
+  isWhaleOpenSurfaceRow,
+  isWhaleSwimmableOceanRow,
   isWaterSurfaceRow,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
@@ -32,6 +34,16 @@ test("permanent polar pack ice is distinct from land ice caps", () => {
   assert.equal(isPermanentSeaIceRow({ t: "ice", l: 40 }), true);
   assert.equal(isPermanentSeaIceRow({ t: "ice_cap", m: 1185 }), false);
   assert.equal(isPermanentSeaIceRow({ t: "water" }), false);
+});
+
+test("whales swim beneath sea ice but only surface in open ocean", () => {
+  assert.equal(isWhaleSwimmableOceanRow({ t: "water" }), true);
+  assert.equal(isWhaleSwimmableOceanRow({ t: "ice" }), true);
+  assert.equal(isWhaleSwimmableOceanRow({ t: "ice_cap" }), false);
+  assert.equal(isWhaleSwimmableOceanRow({ t: "land" }), false);
+  assert.equal(isWhaleOpenSurfaceRow({ t: "water" }, false), true);
+  assert.equal(isWhaleOpenSurfaceRow({ t: "water" }, true), false);
+  assert.equal(isWhaleOpenSurfaceRow({ t: "ice" }, false), false);
 });
 
 test("a ship may leave only the seasonal ice tile it already occupies", () => {

@@ -2,6 +2,21 @@ export const WHALE_BLOW_DURATION_SECONDS = 2.3;
 export const WHALE_BLOW_PARTICLE_COUNT = 52;
 export const WHALE_BLOW_GRAVITY_PX_PER_SECOND = 44;
 
+export function createWhaleBlowBurst(seed, startedAtMs, originPosition) {
+  if (!Number.isFinite(startedAtMs) || startedAtMs < 0) {
+    throw new Error(`Invalid whale blow start time: ${startedAtMs}`);
+  }
+  if (!Array.isArray(originPosition) || originPosition.length !== 3 ||
+      originPosition.some((component) => !Number.isFinite(component))) {
+    throw new Error("Whale blow burst requires a finite globe position");
+  }
+  return Object.freeze({
+    startedAtMs,
+    originPosition: Object.freeze(originPosition.slice()),
+    particles: createWhaleBlowParticles(seed)
+  });
+}
+
 export function createWhaleBlowParticles(seed) {
   if (!Number.isInteger(seed)) throw new Error(`Invalid whale blow seed: ${seed}`);
   return Object.freeze(Array.from({ length: WHALE_BLOW_PARTICLE_COUNT }, (_, index) => {

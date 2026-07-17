@@ -12,6 +12,14 @@ export function isPermanentSeaIceRow(row) {
   return (row?.t || "") === "ice";
 }
 
+export function isWhaleSwimmableOceanRow(row) {
+  return (row?.t || "") === "water" || isPermanentSeaIceRow(row);
+}
+
+export function isWhaleOpenSurfaceRow(row, hasSurfaceIce) {
+  return (row?.t || "") === "water" && hasSurfaceIce !== true;
+}
+
 export function isShipUsableSurfaceWater(row, tileId, occupiedTileId, hasSurfaceIce) {
   if (!Number.isInteger(tileId) || tileId < 0) throw new Error(`Invalid surface ice tile: ${tileId}`);
   if (!Number.isInteger(occupiedTileId) || occupiedTileId < 0) {

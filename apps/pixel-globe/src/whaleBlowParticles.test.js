@@ -5,9 +5,22 @@ import {
   WHALE_BLOW_DURATION_SECONDS,
   WHALE_BLOW_GRAVITY_PX_PER_SECOND,
   WHALE_BLOW_PARTICLE_COUNT,
+  createWhaleBlowBurst,
   createWhaleBlowParticles,
   whaleBlowParticleFrame
 } from "./whaleBlowParticles.js";
+
+test("whale spout bursts keep the globe position where they were emitted", () => {
+  const whalePosition = [0.25, -0.5, 0.75];
+  const burst = createWhaleBlowBurst(1522, 900, whalePosition);
+
+  whalePosition[0] = 1;
+
+  assert.deepEqual(burst.originPosition, [0.25, -0.5, 0.75]);
+  assert.equal(burst.startedAtMs, 900);
+  assert.ok(Object.isFrozen(burst));
+  assert.ok(Object.isFrozen(burst.originPosition));
+});
 
 test("whale spouts blast a dense plume roughly fifty pixels high", () => {
   const particles = createWhaleBlowParticles(0x5748414c);

@@ -20,7 +20,7 @@ import {
   portAccessTileIds,
   portCitiesOnWorld
 } from "../src/worldPortPlacement.js";
-import { EARTH_RADIUS_KM } from "../src/worldDistance.js";
+import { graphEdgeDistanceKm, MinDistanceHeap } from "../src/weightedGraphSearch.js";
 
 const SUBDIVISIONS = 7;
 const toolRoot = dirname(fileURLToPath(import.meta.url));
@@ -187,13 +187,13 @@ function dijkstraToPortTargets({
 }) {
   const distances = new Float64Array(graph.tileCount);
   distances.fill(Infinity);
-  const heap = new MinHeap();
+  const heap = new MinDistanceHeap();
   for (const tileId of sourceTileIds) {
     distances[tileId] = 0;
     heap.push(tileId, 0);
   }
   const targetDistances = new Map();
-  while (heap.tileIds.length > 0 && targetDistances.size < targetCount) {
+  while (heap.size > 0 && targetDistances.size < targetCount) {
     const current = heap.pop();
     if (current.distance !== distances[current.tileId]) continue;
     const targetIndices = targetIndicesByAccessTile.get(current.tileId);
@@ -212,64 +212,11 @@ function dijkstraToPortTargets({
         fromTileId: current.tileId,
         toTileId: neighborId
       })) continue;
-      const candidate = current.distance + edgeDistanceKm(graph, current.tileId, neighborId);
+      const candidate = current.distance + graphEdgeDistanceKm(graph, current.tileId, neighborId);
       if (candidate >= distances[neighborId]) continue;
       distances[neighborId] = candidate;
       heap.push(neighborId, candidate);
     }
   }
   return targetDistances;
-}
-
-function edgeDistanceKm(graph, a, b) {
-  const aOffset = a * 3;
-  const bOffset = b * 3;
-  const dot = Math.max(-1, Math.min(1,
-    graph.centers[aOffset] * graph.centers[bOffset] +
-    graph.centers[aOffset + 1] * graph.centers[bOffset + 1] +
-    graph.centers[aOffset + 2] * graph.centers[bOffset + 2]
-  ));
-  return Math.acos(dot) * EARTH_RADIUS_KM;
-}
-
-function MinHeap() {
-  this.tileIds = [];
-  this.distances = [];
-  this.push = (tileId, distance) => {
-    let index = this.tileIds.length;
-    this.tileIds.push(tileId);
-    this.distances.push(distance);
-    while (index > 0) {
-      const parent = Math.floor((index - 1) / 2);
-      if (this.distances[parent] <= distance) break;
-      this.tileIds[index] = this.tileIds[parent];
-      this.distances[index] = this.distances[parent];
-      index = parent;
-    }
-    this.tileIds[index] = tileId;
-    this.distances[index] = distance;
-  };
-  this.pop = () => {
-    if (this.tileIds.length === 0) throw new Error("Cannot pop an empty sailing-route heap");
-    const tileId = this.tileIds[0];
-    const distance = this.distances[0];
-    const lastTileId = this.tileIds.pop();
-    const lastDistance = this.distances.pop();
-    if (this.tileIds.length > 0) {
-      let index = 0;
-      while (true) {
-        const left = index * 2 + 1;
-        if (left >= this.tileIds.length) break;
-        const right = left + 1;
-        const child = right < this.tileIds.length && this.distances[right] < this.distances[left] ? right : left;
-        if (this.distances[child] >= lastDistance) break;
-        this.tileIds[index] = this.tileIds[child];
-        this.distances[index] = this.distances[child];
-        index = child;
-      }
-      this.tileIds[index] = lastTileId;
-      this.distances[index] = lastDistance;
-    }
-    return { tileId, distance };
-  };
 }

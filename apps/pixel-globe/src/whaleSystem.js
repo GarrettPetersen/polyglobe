@@ -160,9 +160,16 @@ export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinu
     if (whale.phase === WHALE_PHASE_DEAD || whale.phase === WHALE_PHASE_EXHAUSTED) continue;
     whale.lifeSeconds += dt;
     whale.phaseElapsedSeconds += dt;
-    advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById);
+    if (whale.phase === WHALE_PHASE_TETHERED) {
+      const currentNavigation = requireWhaleNavigation(navigationAtPosition(whale.position));
+      if (!currentNavigation.canSurface) breakWhaleTetherUnderIce(memory, whale, events);
+    }
+    const navigation = advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById);
+    if (whale.phase === WHALE_PHASE_TETHERED && !navigation.canSurface) {
+      breakWhaleTetherUnderIce(memory, whale, events);
+    }
     if (whale.phase === WHALE_PHASE_TETHERED) continue;
-    advanceWhalePhase(whale, events);
+    advanceWhalePhase(whale, events, navigation.canSurface);
   }
 
   const hunt = memory.activeHunt;
@@ -230,8 +237,8 @@ export function constrainWhaleTether(whale, anchorPosition, maximumDistanceRad, 
       anchorPosition[1] * Math.cos(constrainedDistance) + towardWhale[1] * Math.sin(constrainedDistance),
       anchorPosition[2] * Math.cos(constrainedDistance) + towardWhale[2] * Math.sin(constrainedDistance)
     ]);
-    const navigation = navigationAtPosition(candidatePosition);
-    if (!navigation?.ok || !Number.isInteger(navigation.tileId)) continue;
+    const navigation = requireWhaleNavigation(navigationAtPosition(candidatePosition));
+    if (!navigation.ok || !navigation.canSurface) continue;
     whale.position = candidatePosition;
     whale.tileId = navigation.tileId;
     whale.heading = normalizeTangent(whale.heading, whale.position);
@@ -630,19 +637,19 @@ function advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById) 
     whale.position[1] + whale.heading[1] * speed * dt,
     whale.position[2] + whale.heading[2] * speed * dt
   ]);
-  const navigation = navigationAtPosition(candidatePosition);
-  if (!navigation?.ok || !Number.isInteger(navigation.tileId) ||
-    !whaleRangeContains(whale.speciesId, candidatePosition)) {
+  const navigation = requireWhaleNavigation(navigationAtPosition(candidatePosition));
+  if (!navigation.ok || !whaleRangeContains(whale.speciesId, candidatePosition)) {
     whale.heading = rotateAroundNormal(
       whale.heading,
       whale.position,
       Math.PI * (0.72 + unit(whale.seed ^ whale.cycle) * 0.5)
     );
-    return;
+    return requireWhaleNavigation(navigationAtPosition(whale.position));
   }
   whale.position = candidatePosition;
   whale.tileId = navigation.tileId;
   whale.heading = normalizeTangent(whale.heading, whale.position);
+  return navigation;
 }
 
 function steerTowardMother(whale, mother, dt) {
@@ -660,7 +667,20 @@ function steerTowardMother(whale, mother, dt) {
   whale.heading = rotateTangentToward(whale.heading, desired, whale.position, maxTurn);
 }
 
-function advanceWhalePhase(whale, events) {
+function advanceWhalePhase(whale, events, canSurface) {
+  if (typeof canSurface !== "boolean") {
+    throw new Error(`Whale navigation omitted surface state for ${whale.id}`);
+  }
+  if (!canSurface) {
+    if (whale.phase !== WHALE_PHASE_SUBMERGED) {
+      whale.phase = WHALE_PHASE_SUBMERGED;
+      whale.phaseElapsedSeconds = 0;
+      whale.phaseDurationSeconds = submergedDuration(whale.seed, whale.cycle, whale.speciesId);
+    } else {
+      whale.phaseElapsedSeconds = Math.min(whale.phaseElapsedSeconds, whale.phaseDurationSeconds);
+    }
+    return;
+  }
   while (whale.phaseElapsedSeconds >= whale.phaseDurationSeconds) {
     whale.phaseElapsedSeconds -= whale.phaseDurationSeconds;
     if (whale.phase === WHALE_PHASE_SUBMERGED) {
@@ -681,6 +701,26 @@ function advanceWhalePhase(whale, events) {
       throw new Error(`Whale phase cannot advance automatically: ${whale.phase}`);
     }
   }
+}
+
+function requireWhaleNavigation(navigation) {
+  if (!navigation || typeof navigation.ok !== "boolean" ||
+    typeof navigation.canSurface !== "boolean" || !Number.isInteger(navigation.tileId)) {
+    throw new Error("Whale navigation resolver returned an invalid result");
+  }
+  if (navigation.canSurface && !navigation.ok) {
+    throw new Error(`Whale navigation marked blocked tile ${navigation.tileId} as surfaceable`);
+  }
+  return navigation;
+}
+
+function breakWhaleTetherUnderIce(memory, whale, events) {
+  if (memory.activeHunt?.whaleId !== whale.id || whale.phase !== WHALE_PHASE_TETHERED) {
+    throw new Error(`Cannot break an inactive whale tether under ice: ${whale.id}`);
+  }
+  memory.activeHunt = null;
+  releaseWhale(whale);
+  events.push(Object.freeze({ type: "ice-line-break", whaleId: whale.id }));
 }
 
 function releaseWhale(whale) {

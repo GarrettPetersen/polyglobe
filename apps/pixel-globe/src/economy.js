@@ -207,8 +207,9 @@ export function tradeGoodById(goodId) {
   return good;
 }
 
-export function createWorldEconomy({ ports, startMinute }) {
+export function createWorldEconomy({ ports, shipyardPorts = ports, startMinute }) {
   if (!Array.isArray(ports) || ports.length === 0) throw new Error("World economy requires ports");
+  if (!Array.isArray(shipyardPorts)) throw new Error("World economy shipyard ports must be an array");
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid economy start minute: ${startMinute}`);
   const portStates = new Map();
   for (const port of ports) {
@@ -216,11 +217,15 @@ export function createWorldEconomy({ ports, startMinute }) {
     if (portStates.has(portId)) throw new Error(`Duplicate economy port tile: ${portId}`);
     portStates.set(portId, createPortState(port));
   }
+  for (const shipyardPort of shipyardPorts) {
+    const portId = requiredPortId(shipyardPort);
+    if (!portStates.has(portId)) throw new Error(`Shipyard city is missing from the economy: ${portId}`);
+  }
   return {
     version: 1,
     lastMinute: startMinute,
     portStates,
-    shipyards: createWorldShipyards({ ports, startMinute })
+    shipyards: createWorldShipyards({ ports: shipyardPorts, startMinute })
   };
 }
 

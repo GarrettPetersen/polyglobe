@@ -49,6 +49,8 @@ sketchfab/blue-whale/scene.gltf
 sketchfab/humpback-whale/scene.gltf
 sketchfab/southern-minke-whale/scene.gltf
 sketchfab/sperm-whale/source/model.fbx
+sketchfab/cartoon-horse-with-animations/scene.gltf
+sketchfab/wooden-cart/scene.gltf
 blendswap/greek-trireme/trireme-bsw.blend
 ```
 
@@ -73,6 +75,7 @@ npm run render:galleon
 npm run render:nusantaran-outrigger
 npm run render:ottoman-coastal-trader
 npm run render:whales
+npm run render:horse-cart
 node --test src/shipInfoAssets.test.js
 ```
 
@@ -94,3 +97,7 @@ Do not copy these source files into `public/`. Unity Asset Store and Sketchfab F
 Standard source files may not be redistributed as standalone assets. Generated ship sprites,
 lighting masks, shadows, and sink-depth maps belong in `public/assets/vehicles/`; generated
 whale assets belong in `public/assets/animals/`.
+
+The horse and cart are combined offline into a small 32-heading ground-trader
+sprite under `public/assets/vehicles/horse-cart/`. The horse's authored walk
+animation is sampled into six hard-edged frames; neither source model is shipped.

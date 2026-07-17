@@ -33,6 +33,8 @@
 - dashkilya - "Humpback Whale" (CC BY 4.0)
 - Bill Nguyen - "Whale Southern Minke Pose" (CC BY 4.0)
 - Bohdan Lvov - "Sperm Whale" (CC BY 4.0)
+- Jungle Jim - "Cartoon Horse with animations" (CC BY 4.0)
+- Filip - "Wooden Cart" (CC BY 4.0)
 
 ## Sound Effects
 - Alex Jauk
