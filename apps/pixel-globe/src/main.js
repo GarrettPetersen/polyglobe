@@ -103,6 +103,7 @@ import {
   attemptPortDisguise,
   awardPlayerShip,
   cargoFree,
+  cargoQuantityCapacityForGood,
   cargoUsed,
   consumePendingDiscoveryPortDialogue,
   createGameState,
@@ -8463,8 +8464,8 @@ function catchFishAtFishery(call) {
     showFishCatchNotice("FISH MOVED OUT OF REACH", "warn");
     return false;
   }
-  const free = cargoFree(gameState);
-  if (!canStartFishing(free)) {
+  const catchCapacity = playerFishCatchCapacity();
+  if (!canStartFishing(catchCapacity)) {
     showFishCatchNotice("HOLD FULL", "warn");
     return false;
   }
@@ -8510,8 +8511,8 @@ function resolveFishingAction(action) {
     return;
   }
 
-  const free = cargoFree(gameState);
-  if (free <= 0) {
+  const catchCapacity = playerFishCatchCapacity();
+  if (!canStartFishing(catchCapacity)) {
     playFishingFailureSound();
     showFishCatchNotice("HOLD FULL", "warn");
     return;
@@ -8519,7 +8520,7 @@ function resolveFishingAction(action) {
   const result = harvestFishery(
     gameState,
     action.fishery,
-    Math.min(fishingNetById(action.fishingNetId).maxCatch, free),
+    Math.min(fishingNetById(action.fishingNetId).maxCatch, catchCapacity),
     Math.floor(weatherClockMinutes),
     { actor: "player" }
   );
@@ -8538,6 +8539,11 @@ function resolveFishingAction(action) {
   showFishCatchNotice(`CAUGHT ${result.speciesLabel.toUpperCase()} x${result.quantity}${depletedText}`, "good");
   saveVoyageNow("fishing catch");
   dirty = true;
+}
+
+function playerFishCatchCapacity() {
+  if (!gameState) throw new Error("Fishing capacity requires game state");
+  return cargoQuantityCapacityForGood(gameState, FISH_CARGO_GOOD_ID);
 }
 
 function showFishCatchNotice(text, tone) {
@@ -13580,7 +13586,7 @@ function drawSelectableInteractionOutlines(nowMs) {
   }
 
   if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
-    const fishingDisabled = !canStartFishing(cargoFree(gameState));
+    const fishingDisabled = !canStartFishing(playerFishCatchCapacity());
     for (const call of fishIndividualDrawCalls(chart, nowMs)) {
       const interaction = fishInteractionCall(call);
       if (!fishInteractionCallIsUsable(interaction)) continue;
@@ -20961,7 +20967,7 @@ function drawInteractionButton() {
     };
     interactionButtonRect.x = whaleReleaseButtonRect.x + releaseWidth + 4;
   }
-  const disabled = target.kind === "fish" && !canStartFishing(cargoFree(gameState));
+  const disabled = target.kind === "fish" && !canStartFishing(playerFishCatchCapacity());
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, interactionButtonRect);
   drawPiratePaperControl(interactionButtonRect, { disabled, hovered });
   let actionLabel;

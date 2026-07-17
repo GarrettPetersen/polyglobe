@@ -57,11 +57,11 @@ export function fishingActionPresentation(speciesLabel, chance) {
   };
 }
 
-export function canStartFishing(freeCargoSpace) {
-  if (!Number.isFinite(freeCargoSpace)) {
-    throw new Error(`Invalid free cargo space: ${freeCargoSpace}`);
+export function canStartFishing(catchCapacity) {
+  if (!Number.isInteger(catchCapacity) || catchCapacity < 0) {
+    throw new Error(`Invalid fishing catch capacity: ${catchCapacity}`);
   }
-  return freeCargoSpace > 0;
+  return catchCapacity > 0;
 }
 
 export function fishingSideForTarget(shipX, targetX) {

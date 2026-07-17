@@ -75,7 +75,8 @@ test("fishing actions keep the verb prominent and the chance secondary", () => {
 test("fishing is disabled when the cargo hold is full", () => {
   assert.equal(canStartFishing(3), true);
   assert.equal(canStartFishing(0), false);
-  assert.equal(canStartFishing(-1), false);
+  assert.throws(() => canStartFishing(-1), /catch capacity/);
+  assert.throws(() => canStartFishing(1 / 3), /catch capacity/);
 });
 
 function pickAnimation(state) {

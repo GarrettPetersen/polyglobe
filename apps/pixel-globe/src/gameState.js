@@ -722,6 +722,13 @@ export function cargoFreeForGood(state, goodId) {
   return good.category === "food" ? provisionCargoFree(state, "food") : cargoFree(state);
 }
 
+export function cargoQuantityCapacityForGood(state, goodId) {
+  assertGameState(state);
+  const good = tradeGoodById(goodId);
+  const availableSpace = cargoFreeForGood(state, goodId);
+  return Math.max(0, Math.floor((availableSpace + 1e-8) / good.unitSize));
+}
+
 export function refillFreshWaterFromShore(state) {
   assertGameState(state);
   const missing = Math.max(0, state.survival.freshWaterCapacity - state.survival.freshWater);
@@ -1897,7 +1904,7 @@ export function receiveFishCatch(state, catchResult, context = {}) {
   const quantity = catchResult.quantity;
   assertQuantity(quantity, "fish catch quantity");
   const good = tradeGoodById(FISH_CARGO_GOOD_ID);
-  if (cargoFree(state) < good.unitSize * quantity) {
+  if (cargoQuantityCapacityForGood(state, good.id) < quantity) {
     throw new Error(`Not enough cargo space to stow ${quantity} ${good.label}`);
   }
   state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;

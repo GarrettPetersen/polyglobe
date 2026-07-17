@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  cargoFree,
+  cargoQuantityCapacityForGood,
   cargoUsed,
   createGameState,
   recordDiscovery,
@@ -64,6 +66,20 @@ test("fish catches enter cargo and the ledger with no cost basis", () => {
     entry.description === "Catch Salmon x3" &&
     entry.amount === 0
   )));
+});
+
+test("fractional ration space cannot be harvested as a fractional fish lot", () => {
+  const state = createGameState({ cargoCapacity: 1, startMinute: 100 });
+  state.cargo.hardtack = 2 / 3;
+  state.accounts.cargoCostBasis.hardtack = 0;
+
+  assert.ok(cargoFree(state) > 0.33 && cargoFree(state) < 0.34);
+  assert.equal(cargoQuantityCapacityForGood(state, "fish"), 0);
+  assert.throws(() => receiveFishCatch(state, {
+    stockKey: "10:cod",
+    speciesLabel: "Cod",
+    quantity: 1
+  }), /Not enough cargo space/);
 });
 
 test("El Dorado fills the remaining hold with zero-basis trade gold exactly once", () => {
