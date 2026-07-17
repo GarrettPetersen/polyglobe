@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import {
   FRESH_WATER_GOOD_ID,
   HARDTACK_GOOD_ID,
   TRADE_GOODS,
   addWorldEconomyPort,
   advanceWorldEconomy,
+  connectNearbyPortMarkets,
   createWorldEconomy,
   executePortPurchase,
   executePortSale,
@@ -44,6 +46,13 @@ const GUANGZHOU = port(4, "Guangzhou", "Ming", "east-asian", 100000);
 const VERACRUZ = port(5, "Veracruz", "New Spain", "mesoamerican", 50000);
 const FIJI = port(6, "Fiji Village", "Fiji", "polynesian", 3500, "village", ["fish", "timber", "sugar"]);
 const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", ["spices", "fish", "timber"]);
+const CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
+  new URL(
+    "../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
+    import.meta.url
+  ),
+  "utf8"
+));
 const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync(
   new URL("../public/assets/data/port-sailing-distances.json", import.meta.url),
   "utf8"
@@ -208,17 +217,24 @@ test("spice-island cargo commands transformative prices in Europe", () => {
 });
 
 test("real Asia-Europe sailing routes pay several strong coastal voyages", () => {
-  const london = matrixPort("London", "United Kingdom", "northern-european", 80000);
-  const lisbon = matrixPort("Lisbon", "Portugal", "mediterranean", 65000);
-  const guangzhou = matrixPort("Guangzhou", "Ming", "east-asian", 100000);
-  const malacca = matrixPort("Malacca", "Malacca Sultanate", "southeast-asian", 50000);
-  const ternate = matrixPort("Ternate", "Ternate Sultanate", "southeast-asian", 45000);
-  const istanbul = matrixPort("Istanbul", "Ottoman Empire", "islamic-desert", 400000);
-  const athens = matrixPort("Athens", "Ottoman Empire", "mediterranean", 30000);
+  const ports = matrixEconomyPorts();
+  const portByName = new Map(ports.map((candidate) => [candidate.displayCity, candidate]));
+  const london = portByName.get("London");
+  const lisbon = portByName.get("Lisbon");
+  const guangzhou = portByName.get("Guangzhou");
+  const malacca = portByName.get("Malacca");
+  const ternate = portByName.get("Ternate");
+  const istanbul = portByName.get("Istanbul");
+  const athens = portByName.get("Athens");
   const economy = createWorldEconomy({
-    ports: [london, lisbon, guangzhou, malacca, ternate, istanbul, athens],
+    ports,
     startMinute: 0
   });
+  connectNearbyPortMarkets(
+    economy,
+    ports,
+    (origin, destination) => portSailingDistanceKm(PORT_SAILING_DISTANCES, origin, destination)
+  );
 
   const spiceIslandsVoyage = planNpcTrade(economy, ternate, london, {
     cargoCapacity: 20,
@@ -232,13 +248,16 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
     quotePortSale(economy, guangzhou, "tea", 20);
   const spiceProfit = quotePortPurchase(economy, lisbon, "spices", 20) -
     quotePortSale(economy, malacca, "spices", 20);
+  const strongestShortVoyage = strongestTradeVoyageWithin(economy, ports, 1500);
 
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, ternate, london) > 24000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, guangzhou, london) > 25000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, istanbul, athens) < 600);
-  assert.ok(spiceIslandsVoyage.expectedProfit >= coastalVoyage.expectedProfit * 3);
-  assert.ok(teaProfit >= 2500, `Guangzhou-London tea profit was only ${teaProfit}`);
-  assert.ok(spiceProfit >= 3000, `Malacca-Lisbon spice profit was only ${spiceProfit}`);
+  assert.ok(coastalVoyage.expectedProfit <= 100, `Istanbul-Athens profit was ${coastalVoyage.expectedProfit}`);
+  assert.ok(strongestShortVoyage.expectedProfit <= 200, JSON.stringify(strongestShortVoyage));
+  assert.ok(spiceIslandsVoyage.expectedProfit >= 3000);
+  assert.ok(teaProfit >= 2200, `Guangzhou-London tea profit was only ${teaProfit}`);
+  assert.ok(spiceProfit >= 2500, `Malacca-Lisbon spice profit was only ${spiceProfit}`);
 });
 
 test("market comparisons describe local prices against the live world median", () => {
@@ -373,8 +392,44 @@ function port(tileId, city, country, cityType, population, settlementType = "cit
   return { tileId, city, displayCity: city, country, cityType, population, settlementType, marketGoods, lat: 0, lon: 0 };
 }
 
-function matrixPort(city, country, cityType, population) {
-  const endpoint = PORT_SAILING_DISTANCES.endpoints.find((candidate) => candidate.name === city);
-  if (!endpoint) throw new Error(`Missing checked-in sailing endpoint: ${city}`);
-  return port(endpoint.tileId, city, country, cityType, population);
+function matrixEconomyPorts() {
+  const catalogByName = new Map();
+  for (const city of CITY_CATALOG) {
+    for (const name of [city.city, city.displayCity, city.portAlias]) {
+      if (name && !catalogByName.has(normalizeName(name))) catalogByName.set(normalizeName(name), city);
+    }
+  }
+  return PORT_SAILING_DISTANCES.endpoints
+    .filter((endpoint) => endpoint.kind === "port")
+    .map((endpoint) => {
+      const city = catalogByName.get(normalizeName(endpoint.name));
+      if (!city) throw new Error(`Sailing endpoint has no 1522 city: ${endpoint.name}`);
+      return { ...city, tileId: endpoint.tileId, displayCity: endpoint.name };
+    });
+}
+
+function strongestTradeVoyageWithin(economy, ports, maximumDistanceKm) {
+  let strongest = null;
+  for (const origin of ports) {
+    for (const destination of ports) {
+      if (origin.tileId === destination.tileId) continue;
+      const distanceKm = portSailingDistanceKm(PORT_SAILING_DISTANCES, origin, destination);
+      if (distanceKm <= 0 || distanceKm > maximumDistanceKm) continue;
+      const plan = planNpcTrade(economy, origin, destination, { cargoCapacity: 20, specie: 10000 });
+      if (!strongest || plan.expectedProfit > strongest.expectedProfit) {
+        strongest = {
+          origin: origin.displayCity,
+          destination: destination.displayCity,
+          distanceKm,
+          expectedProfit: plan.expectedProfit
+        };
+      }
+    }
+  }
+  if (!strongest) throw new Error(`No trade voyage within ${maximumDistanceKm} km`);
+  return strongest;
+}
+
+function normalizeName(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 }

@@ -580,6 +580,7 @@ import {
 import {
   addWorldEconomyPort,
   advanceWorldEconomy,
+  connectNearbyPortMarkets,
   createWorldEconomy,
   restoreWorldEconomy,
   snapshotWorldEconomy,
@@ -2124,6 +2125,7 @@ async function main() {
     shipyardPorts: portCities,
     startMinute: weatherClockMinutes
   });
+  connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
   landTradeSystem = createLandTradeSystem({
     roads: landRoadNetwork,
     economy: worldEconomy,
@@ -8635,6 +8637,7 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
   portCitiesByTileId.set(record.tileId, record);
   if (!worldEconomyHasPort(worldEconomy, record)) {
     addWorldEconomyPort(worldEconomy, record, startMinute);
+    connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
   }
   if (npcSeaRoutes && !npcSeaRouteHasPort(npcSeaRoutes, record)) {
     addNpcSeaRoutePort(npcSeaRoutes, record);

@@ -18,6 +18,8 @@ const NPC_CARGO_LINE_LIMIT = 4;
 const VILLAGE_MARKET_GOOD_LIMIT = 3;
 const VILLAGE_PRODUCTION_MULTIPLIER = 0.58;
 const VILLAGE_CONSUMPTION_MULTIPLIER = 0.62;
+const NEARBY_PORT_MARKET_RADIUS_KM = 2500;
+const NEARBY_PORT_MARKET_INTEGRATION_STRENGTH = 0.65;
 
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
@@ -227,6 +229,67 @@ export function createWorldEconomy({ ports, shipyardPorts = ports, startMinute }
     portStates,
     shipyards: createWorldShipyards({ ports: shipyardPorts, startMinute })
   };
+}
+
+export function connectNearbyPortMarkets(economy, ports, sailingDistanceKm) {
+  assertEconomy(economy);
+  if (!Array.isArray(ports) || ports.length === 0) {
+    throw new Error("Nearby market integration requires ports");
+  }
+  if (typeof sailingDistanceKm !== "function") {
+    throw new Error("Nearby market integration requires sailing distances");
+  }
+  const entries = ports.map((record) => ({
+    record,
+    state: requiredPortState(economy, record)
+  }));
+  if (new Set(entries.map((entry) => entry.state.id)).size !== entries.length) {
+    throw new Error("Nearby market integration contains duplicate ports");
+  }
+  const structuralMultipliers = new Map(entries.map(({ state }) => [
+    state.id,
+    new Map(TRADE_GOODS.map((good) => [
+      good.id,
+      rawMarketMultiplier(state, good, state.goods.get(good.id).targetStock)
+    ]))
+  ]));
+
+  for (const origin of entries) {
+    const weightedNeighbors = [];
+    for (const destination of entries) {
+      if (destination.state.id === origin.state.id) continue;
+      const distanceKm = sailingDistanceKm(origin.record, destination.record);
+      if (distanceKm === null || distanceKm > NEARBY_PORT_MARKET_RADIUS_KM) continue;
+      if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+        throw new Error(
+          `Invalid sailing distance between ${origin.state.name} and ${destination.state.name}: ${distanceKm}`
+        );
+      }
+      weightedNeighbors.push({
+        state: destination.state,
+        weight: 1 - distanceKm / NEARBY_PORT_MARKET_RADIUS_KM
+      });
+    }
+
+    for (const good of TRADE_GOODS) {
+      const localMultiplier = structuralMultipliers.get(origin.state.id).get(good.id);
+      let weightedMultiplier = 0;
+      let totalWeight = 0;
+      for (const neighbor of weightedNeighbors) {
+        weightedMultiplier += structuralMultipliers.get(neighbor.state.id).get(good.id) * neighbor.weight;
+        totalWeight += neighbor.weight;
+      }
+      const integrationWeight = NEARBY_PORT_MARKET_INTEGRATION_STRENGTH * Math.min(1, totalWeight);
+      const integratedMultiplier = totalWeight > 0
+        ? localMultiplier + (weightedMultiplier / totalWeight - localMultiplier) * integrationWeight
+        : localMultiplier;
+      origin.state.marketIntegrationOffsets.set(
+        good.id,
+        integratedMultiplier - localMultiplier
+      );
+    }
+  }
+  return economy;
 }
 
 export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMinute) {
@@ -593,6 +656,7 @@ function createPortState(port) {
     targetSpecie,
     specie: targetSpecie * (0.85 + hashUnit(`${port.tileId}|specie`) * 0.3),
     marketGoodIds,
+    marketIntegrationOffsets: new Map(TRADE_GOODS.map((good) => [good.id, 0])),
     goods
   };
 }
@@ -674,15 +738,12 @@ function marketPrice(port, good, stock) {
       sellPrice: good.sellable === false ? 0 : Math.max(1, Math.floor(good.fixedBuyPrice * PORT_MARKDOWN))
     };
   }
-  const state = port.goods.get(good.id);
-  const balance = (state.consumptionPerDay - state.productionPerDay) /
-    (state.consumptionPerDay + state.productionPerDay + 0.2);
-  const comparativeAdvantage = Math.exp(balance * 0.52);
-  const scarcity = Math.pow((state.targetStock + 3) / (Math.max(0, stock) + 3), 0.72);
-  const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
-  const importPremium = REGION_IMPORT_PREMIUM[port.cityType]?.[good.id] || 1;
+  const rawMultiplier = rawMarketMultiplier(port, good, stock);
+  if (!port.marketIntegrationOffsets.has(good.id)) {
+    throw new Error(`${port.name} market has no integration value for ${good.label}`);
+  }
   const multiplier = clamp(
-    comparativeAdvantage * scarcity * localVariation * importPremium,
+    rawMultiplier + port.marketIntegrationOffsets.get(good.id),
     MIN_PRICE_MULTIPLIER,
     MAX_PRICE_MULTIPLIER
   );
@@ -692,6 +753,21 @@ function marketPrice(port, good, stock) {
     buyPrice: Math.max(1, Math.round(midPrice * PORT_MARKUP)),
     sellPrice: Math.max(1, Math.floor(midPrice * PORT_MARKDOWN))
   };
+}
+
+function rawMarketMultiplier(port, good, stock) {
+  const state = port.goods.get(good.id);
+  const balance = (state.consumptionPerDay - state.productionPerDay) /
+    (state.consumptionPerDay + state.productionPerDay + 0.2);
+  const comparativeAdvantage = Math.exp(balance * 0.52);
+  const scarcity = Math.pow((state.targetStock + 3) / (Math.max(0, stock) + 3), 0.72);
+  const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
+  const importPremium = REGION_IMPORT_PREMIUM[port.cityType]?.[good.id] || 1;
+  return clamp(
+    comparativeAdvantage * scarcity * localVariation * importPremium,
+    MIN_PRICE_MULTIPLIER,
+    MAX_PRICE_MULTIPLIER
+  );
 }
 
 function quoteTransaction(port, good, quantity, stockDirection, priceKey) {
