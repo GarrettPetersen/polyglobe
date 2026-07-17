@@ -18,6 +18,21 @@ export const PLAYER_STARTER_SHIPS = Object.freeze({
   india: "dhow"
 });
 
+export const PLAYER_WHALING_STARTER_SHIPS = Object.freeze({
+  europe: "small-cog",
+  ottoman: "ketch",
+  "east-asia": "small-junk",
+  india: "ketch"
+});
+
+export function whalingStarterShipForRegion(startRegion) {
+  const slug = PLAYER_WHALING_STARTER_SHIPS[startRegion];
+  if (!slug) throw new Error(`No deep-sea whaling starter for region: ${startRegion}`);
+  const stats = shipStatsForSlug(slug);
+  if (stats.seaworthiness < 5) throw new Error(`Whaling starter is not seaworthy: ${slug}`);
+  return slug;
+}
+
 const EUROPEAN_FACTIONS = new Set([
   "england",
   "scotland",

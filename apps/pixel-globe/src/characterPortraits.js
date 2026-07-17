@@ -205,19 +205,22 @@ export function generateCampaignContactCharacter({
   if (!homePort || typeof homePort !== "object") {
     throw new Error("Campaign contact generation requires a home port");
   }
-  if (!["explorer", "family-debt"].includes(goalType)) {
+  if (!["explorer", "family-debt", "white-whale-revenge"].includes(goalType)) {
     throw new Error(`Unknown campaign contact goal type: ${goalType}`);
   }
   if (typeof excludedSourceId !== "string" || excludedSourceId === "") {
     throw new Error("Campaign contact generation requires the home factor portrait source");
   }
+  const reservedNames = new Set(usedNames);
   return generateSpecialPortCharacter({
     identityKey: `campaign-contact|${goalType}|${playerCharacter.id}|${homePort.tileId}`,
     port: homePort,
     excludedSourceIds: [excludedSourceId],
-    role: goalType === "explorer" ? "patron" : "creditor",
+    role: goalType === "explorer"
+      ? "patron"
+      : goalType === "family-debt" ? "creditor" : "old-whaler",
     manifest,
-    usedNames
+    usedNames: reservedNames
   });
 }
 

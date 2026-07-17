@@ -1,0 +1,845 @@
+import {
+  WHITE_WHALE_ID,
+  WHALE_LIFE_STAGE_ADOLESCENT,
+  WHALE_LIFE_STAGE_ADULT,
+  WHALE_LIFE_STAGE_CALF,
+  WHALE_POPULATION_TARGET,
+  WHALE_SPECIES,
+  WHALE_SPECIES_SPERM,
+  whaleRangeContains,
+  whaleRangeContainsCandidate,
+  whaleSpeciesById,
+  whaleSpeciesForIndividual
+} from "./whaleSpecies.js";
+
+export const WHALE_MEMORY_VERSION = 2;
+export const WHALE_PHASE_SUBMERGED = "submerged";
+export const WHALE_PHASE_RISING = "rising";
+export const WHALE_PHASE_SURFACED = "surfaced";
+export const WHALE_PHASE_DIVING = "diving";
+export const WHALE_PHASE_TETHERED = "tethered";
+export const WHALE_PHASE_EXHAUSTED = "exhausted";
+export const WHALE_PHASE_DEAD = "dead";
+
+export { WHALE_POPULATION_TARGET } from "./whaleSpecies.js";
+export const NPC_WHALING_MIN_LIVING_POPULATION = 280;
+
+const MINUTES_PER_DAY = 24 * 60;
+const WHALE_RISING_SECONDS = 1.35;
+const WHALE_SURFACED_SECONDS = 4.2;
+const WHALE_DIVING_SECONDS = 1.8;
+const WHALE_SUBMERGED_MIN_SECONDS = 17;
+const WHALE_SUBMERGED_SPREAD_SECONDS = 31;
+const WHALE_SEED = 0x5748414c;
+const MATING_SEARCH_RADIUS_RAD = 0.22;
+const FAMILY_FOLLOW_DISTANCE_RAD = 0.004;
+const FAMILY_MAX_SEPARATION_RAD = 0.018;
+const WHITE_WHALE_RESISTANCE_MULTIPLIER = 1.45;
+
+const PHASES = new Set([
+  WHALE_PHASE_SUBMERGED,
+  WHALE_PHASE_RISING,
+  WHALE_PHASE_SURFACED,
+  WHALE_PHASE_DIVING,
+  WHALE_PHASE_TETHERED,
+  WHALE_PHASE_EXHAUSTED,
+  WHALE_PHASE_DEAD
+]);
+const SEXES = new Set(["female", "male"]);
+const LIFE_STAGES = new Set([
+  WHALE_LIFE_STAGE_CALF,
+  WHALE_LIFE_STAGE_ADOLESCENT,
+  WHALE_LIFE_STAGE_ADULT
+]);
+const WHALE_HUNT_PROFILE_BY_LIFE_STAGE = Object.freeze({
+  [WHALE_LIFE_STAGE_CALF]: Object.freeze({
+    breakResistanceMultiplier: 0.35,
+    exhaustionMultiplier: 0.3,
+    towingSpeedMultiplier: 0.55,
+    yieldMultiplier: 0.2
+  }),
+  [WHALE_LIFE_STAGE_ADOLESCENT]: Object.freeze({
+    breakResistanceMultiplier: 0.7,
+    exhaustionMultiplier: 0.7,
+    towingSpeedMultiplier: 0.85,
+    yieldMultiplier: 0.7
+  }),
+  [WHALE_LIFE_STAGE_ADULT]: Object.freeze({
+    breakResistanceMultiplier: 1,
+    exhaustionMultiplier: 1,
+    towingSpeedMultiplier: 1,
+    yieldMultiplier: 1
+  })
+});
+
+export function createWhaleMemory() {
+  return {
+    version: WHALE_MEMORY_VERSION,
+    nextId: 1,
+    individuals: [],
+    activeHunt: null,
+    lastEcologyMinute: null
+  };
+}
+
+export function seedWhalePopulation(memory, candidates, count = WHALE_POPULATION_TARGET, {
+  startMinute = 0,
+  avoidPosition = null
+} = {}) {
+  validateWhaleMemory(memory);
+  if (!Array.isArray(candidates)) throw new Error("Whale population seeding requires candidate waters");
+  if (!Number.isInteger(count) || count < 2) throw new Error(`Invalid whale population size: ${count}`);
+  assertSimulationMinute(startMinute);
+  if (avoidPosition !== null) validateVector(avoidPosition, "white whale avoidance position");
+  if (memory.individuals.length > 0) return memory.individuals;
+
+  const waters = candidates.map(validateCandidate);
+  const allocation = populationAllocation(count - 1);
+  for (const species of WHALE_SPECIES) {
+    seedSpeciesPopulation(memory, species, waters, allocation.get(species.id), startMinute);
+  }
+  seedWhiteWhale(memory, waters, startMinute, avoidPosition);
+  if (memory.individuals.length !== count) {
+    throw new Error(`Whale population seeded ${memory.individuals.length}, expected ${count}`);
+  }
+  memory.lastEcologyMinute = startMinute;
+  validateWhaleMemory(memory);
+  return memory.individuals;
+}
+
+export function validateWhaleMemory(memory) {
+  if (!memory || typeof memory !== "object" || memory.version !== WHALE_MEMORY_VERSION) {
+    throw new Error(`Unsupported whale memory version: ${memory?.version ?? "missing"}`);
+  }
+  if (!Number.isInteger(memory.nextId) || memory.nextId <= 0) {
+    throw new Error(`Invalid next whale id: ${memory.nextId}`);
+  }
+  if (!Array.isArray(memory.individuals)) throw new Error("Whale memory requires individuals");
+  if (memory.lastEcologyMinute !== null) assertSimulationMinute(memory.lastEcologyMinute);
+  const ids = new Set();
+  const individualsById = new Map();
+  for (const whale of memory.individuals) {
+    validateWhale(whale);
+    if (ids.has(whale.id)) throw new Error(`Duplicate whale id: ${whale.id}`);
+    ids.add(whale.id);
+    individualsById.set(whale.id, whale);
+  }
+  for (const whale of memory.individuals) {
+    if (whale.motherId === null) continue;
+    const mother = individualsById.get(whale.motherId);
+    if (!mother) throw new Error(`${whale.id} references missing mother ${whale.motherId}`);
+    if (mother.sex !== "female" || mother.speciesId !== whale.speciesId) {
+      throw new Error(`${whale.id} has an invalid mother ${whale.motherId}`);
+    }
+  }
+  if (memory.activeHunt !== null) {
+    const hunt = memory.activeHunt;
+    if (!hunt || typeof hunt !== "object" || !ids.has(hunt.whaleId)) {
+      throw new Error("Active whale hunt references a missing individual");
+    }
+    if (!Number.isFinite(hunt.remainingSeconds) || hunt.remainingSeconds < 0) {
+      throw new Error(`Invalid whale hunt time: ${hunt.remainingSeconds}`);
+    }
+    if (typeof hunt.harpoonId !== "string" || hunt.harpoonId.length === 0) {
+      throw new Error("Active whale hunt requires harpoon equipment");
+    }
+  }
+  return memory;
+}
+
+export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinute) {
+  validateWhaleMemory(memory);
+  if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid whale simulation step: ${dt}`);
+  if (typeof navigationAtPosition !== "function") {
+    throw new Error("Whale simulation requires an ocean navigation resolver");
+  }
+  assertSimulationMinute(currentMinute);
+  const events = advanceWhaleEcology(memory, currentMinute);
+  const individualsById = new Map(memory.individuals.map((whale) => [whale.id, whale]));
+  for (const whale of memory.individuals) {
+    if (whale.phase === WHALE_PHASE_DEAD || whale.phase === WHALE_PHASE_EXHAUSTED) continue;
+    whale.lifeSeconds += dt;
+    whale.phaseElapsedSeconds += dt;
+    advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById);
+    if (whale.phase === WHALE_PHASE_TETHERED) continue;
+    advanceWhalePhase(whale, events);
+  }
+
+  const hunt = memory.activeHunt;
+  if (hunt) {
+    const whale = whaleById(memory, hunt.whaleId);
+    if (whale.phase === WHALE_PHASE_TETHERED) {
+      hunt.remainingSeconds = Math.max(0, hunt.remainingSeconds - dt);
+      if (hunt.remainingSeconds === 0) {
+        whale.phase = WHALE_PHASE_EXHAUSTED;
+        whale.phaseElapsedSeconds = 0;
+        whale.phaseDurationSeconds = 0;
+        events.push(Object.freeze({ type: "exhausted", whaleId: whale.id }));
+      }
+    }
+  }
+  return events;
+}
+
+export function tetherWhale(memory, whaleId, harpoon) {
+  validateWhaleMemory(memory);
+  if (memory.activeHunt) throw new Error(`A whale hunt is already active: ${memory.activeHunt.whaleId}`);
+  const whale = whaleById(memory, whaleId);
+  if (!whaleCanBeHarpooned(whale)) throw new Error(`Whale is not exposed for a harpoon: ${whale.id}`);
+  if (!harpoon || typeof harpoon.id !== "string" || !Number.isFinite(harpoon.exhaustionSeconds)) {
+    throw new Error("Tethering a whale requires valid harpoon equipment");
+  }
+  whale.phase = WHALE_PHASE_TETHERED;
+  whale.phaseElapsedSeconds = 0;
+  whale.phaseDurationSeconds = 0;
+  const lifeStageProfile = whaleHuntProfile(whale);
+  const resistance = whaleSpeciesForIndividual(whale).exhaustionMultiplier *
+    (whale.id === WHITE_WHALE_ID ? WHITE_WHALE_RESISTANCE_MULTIPLIER : 1) *
+    lifeStageProfile.exhaustionMultiplier;
+  memory.activeHunt = {
+    whaleId: whale.id,
+    harpoonId: harpoon.id,
+    remainingSeconds: harpoon.exhaustionSeconds * resistance
+  };
+  return whale;
+}
+
+export function cutWhaleLoose(memory) {
+  validateWhaleMemory(memory);
+  if (!memory.activeHunt) throw new Error("No whale is tethered");
+  const whale = whaleById(memory, memory.activeHunt.whaleId);
+  releaseWhale(whale);
+  memory.activeHunt = null;
+  return whale;
+}
+
+export function killExhaustedWhale(memory) {
+  validateWhaleMemory(memory);
+  if (!memory.activeHunt) throw new Error("No whale hunt is active");
+  const whale = whaleById(memory, memory.activeHunt.whaleId);
+  if (whale.phase !== WHALE_PHASE_EXHAUSTED) throw new Error(`Whale is not exhausted: ${whale.id}`);
+  killWhale(memory, whale);
+  memory.activeHunt = null;
+  return whale;
+}
+
+export function harvestWhaleForNpc(memory, position, {
+  maxDistanceRad,
+  minimumLivingPopulation = NPC_WHALING_MIN_LIVING_POPULATION
+}) {
+  validateWhaleMemory(memory);
+  validateVector(position, "NPC whaling position");
+  if (!Number.isFinite(maxDistanceRad) || maxDistanceRad <= 0 || maxDistanceRad > Math.PI) {
+    throw new Error(`Invalid NPC whaling range: ${maxDistanceRad}`);
+  }
+  if (!Number.isInteger(minimumLivingPopulation) || minimumLivingPopulation < 0) {
+    throw new Error(`Invalid NPC whale population floor: ${minimumLivingPopulation}`);
+  }
+
+  const living = memory.individuals.filter((whale) => whale.phase !== WHALE_PHASE_DEAD);
+  if (living.length <= minimumLivingPopulation) {
+    return Object.freeze({ outcome: "protected-population", whale: null, livingPopulation: living.length });
+  }
+
+  const activeWhaleId = memory.activeHunt?.whaleId || null;
+  const dependentMotherIds = new Set(living
+    .filter((whale) => whale.lifeStage === WHALE_LIFE_STAGE_CALF && whale.motherId !== null)
+    .map((whale) => whale.motherId));
+  const candidates = living
+    .filter((whale) => whale.id !== activeWhaleId && whale.id !== WHITE_WHALE_ID)
+    .filter((whale) => whale.lifeStage !== WHALE_LIFE_STAGE_CALF && !dependentMotherIds.has(whale.id))
+    .filter((whale) => whale.phase !== WHALE_PHASE_TETHERED && whale.phase !== WHALE_PHASE_EXHAUSTED)
+    .map((whale) => ({
+      whale,
+      distanceRad: angularDistance(position, whale.position)
+    }))
+    .filter((candidate) => candidate.distanceRad <= maxDistanceRad)
+    .sort((a, b) => a.distanceRad - b.distanceRad || a.whale.id.localeCompare(b.whale.id));
+  if (candidates.length === 0) {
+    return Object.freeze({ outcome: "no-whale-in-range", whale: null, livingPopulation: living.length });
+  }
+
+  const whale = candidates[0].whale;
+  killWhale(memory, whale);
+  return Object.freeze({ outcome: "caught", whale, livingPopulation: living.length - 1 });
+}
+
+export function whaleById(memory, whaleId) {
+  const whale = memory.individuals.find((candidate) => candidate.id === whaleId);
+  if (!whale) throw new Error(`Unknown whale: ${whaleId}`);
+  return whale;
+}
+
+export function whiteWhale(memory) {
+  return whaleById(memory, WHITE_WHALE_ID);
+}
+
+export function whaleCanBeHarpooned(whale) {
+  validateWhale(whale);
+  return whale.phase === WHALE_PHASE_RISING || whale.phase === WHALE_PHASE_SURFACED;
+}
+
+export function whaleSurfaceExposure(whale) {
+  validateWhale(whale);
+  if (whale.phase === WHALE_PHASE_SUBMERGED || whale.phase === WHALE_PHASE_DEAD) return 0;
+  if (whale.phase === WHALE_PHASE_RISING) {
+    return smootherstep(whale.phaseElapsedSeconds / whale.phaseDurationSeconds);
+  }
+  if (whale.phase === WHALE_PHASE_DIVING) {
+    return 1 - smootherstep(whale.phaseElapsedSeconds / whale.phaseDurationSeconds);
+  }
+  return 1;
+}
+
+export function whaleTowingSpeed(whale) {
+  validateWhale(whale);
+  return whaleSpeciesForIndividual(whale).towingSpeedRad * whaleHuntProfile(whale).towingSpeedMultiplier;
+}
+
+export function whaleHarpoonBreakMultiplier(whale) {
+  validateWhale(whale);
+  return whaleSpeciesForIndividual(whale).harpoonBreakMultiplier *
+    (whale.id === WHITE_WHALE_ID ? WHITE_WHALE_RESISTANCE_MULTIPLIER : 1) *
+    whaleHuntProfile(whale).breakResistanceMultiplier;
+}
+
+export function whaleBlubberYield(whale) {
+  validateWhale(whale);
+  const base = whaleSpeciesForIndividual(whale).blubberYield;
+  return Math.max(1, Math.round(
+    base * whaleHuntProfile(whale).yieldMultiplier * (whale.id === WHITE_WHALE_ID ? 1.25 : 1)
+  ));
+}
+
+function whaleHuntProfile(whale) {
+  const profile = WHALE_HUNT_PROFILE_BY_LIFE_STAGE[whale.lifeStage];
+  if (!profile) throw new Error(`Missing whale hunt profile for life stage: ${whale.lifeStage}`);
+  return profile;
+}
+
+export function underwaterWhaleSongPresence(whale, distancePx, nearPx, farPx) {
+  validateWhale(whale);
+  if (!Number.isFinite(distancePx) || distancePx < 0) {
+    throw new Error(`Invalid whale-song distance: ${distancePx}`);
+  }
+  if (!Number.isFinite(nearPx) || !Number.isFinite(farPx) || nearPx < 0 || farPx <= nearPx) {
+    throw new Error(`Invalid whale-song range: ${nearPx}-${farPx}`);
+  }
+  if ([WHALE_PHASE_TETHERED, WHALE_PHASE_EXHAUSTED, WHALE_PHASE_DEAD].includes(whale.phase)) return 0;
+  const distancePresence = clamp((farPx - distancePx) / (farPx - nearPx), 0, 1);
+  const submergedPresence = 1 - whaleSurfaceExposure(whale);
+  return distancePresence * submergedPresence * submergedPresence;
+}
+
+function populationAllocation(ordinaryCount) {
+  const productionOrdinaryCount = WHALE_POPULATION_TARGET - 1;
+  const allocation = new Map();
+  let assigned = 0;
+  const ranked = [];
+  for (const species of WHALE_SPECIES) {
+    const exact = ordinaryCount * species.population / productionOrdinaryCount;
+    const count = Math.floor(exact);
+    allocation.set(species.id, count);
+    assigned += count;
+    ranked.push({ speciesId: species.id, remainder: exact - count });
+  }
+  ranked.sort((a, b) => b.remainder - a.remainder || a.speciesId.localeCompare(b.speciesId));
+  for (let index = 0; assigned < ordinaryCount; index++, assigned++) {
+    const speciesId = ranked[index % ranked.length].speciesId;
+    allocation.set(speciesId, allocation.get(speciesId) + 1);
+  }
+  return allocation;
+}
+
+function seedSpeciesPopulation(memory, species, waters, count, startMinute) {
+  if (count === 0) return;
+  const eligible = waters
+    .filter((candidate) => whaleRangeContainsCandidate(species.id, candidate))
+    .sort((a, b) => hashInt(a.tileId ^ hashString(species.id)) - hashInt(b.tileId ^ hashString(species.id)));
+  if (eligible.length < count) {
+    throw new Error(`${species.label} population needs ${count} range-valid ocean tiles, got ${eligible.length}`);
+  }
+  const adultCount = Math.min(count, Math.max(2, Math.floor(count * 0.72)));
+  const adults = [];
+  const stride = eligible.length / adultCount;
+  for (let index = 0; index < adultCount; index++) {
+    const candidate = eligible[Math.floor(index * stride)];
+    const idNumber = memory.nextId++;
+    const seed = hashInt(candidate.tileId ^ Math.imul(idNumber, 0x9e3779b1));
+    const sex = index % 2 === 0 ? "female" : "male";
+    const startsPregnant = sex === "female" && unit(seed ^ 0x50524547) < 0.22;
+    const ageDays = species.maturityDays + 365 + unit(seed ^ 0x414745) * 20 * 365;
+    const whale = createWhaleIndividual({
+      id: numberedWhaleId(idNumber),
+      speciesId: species.id,
+      candidate,
+      seed,
+      sex,
+      lifeStage: WHALE_LIFE_STAGE_ADULT,
+      birthMinute: startMinute - ageDays * MINUTES_PER_DAY,
+      motherId: null,
+      nextMatingMinute: sex === "female" && !startsPregnant
+        ? startMinute + (30 + unit(seed ^ 0x4d415445) * species.calvingIntervalDays) * MINUTES_PER_DAY
+        : null
+    });
+    if (startsPregnant) {
+      whale.pregnancyDueMinute = startMinute +
+        (10 + unit(seed ^ 0x445545) * (species.gestationDays - 10)) * MINUTES_PER_DAY;
+    }
+    memory.individuals.push(whale);
+    adults.push(whale);
+  }
+
+  const mothers = adults.filter((whale) => whale.sex === "female");
+  for (let index = adultCount; index < count; index++) {
+    const mother = mothers[(index - adultCount) % mothers.length];
+    const idNumber = memory.nextId++;
+    const seed = hashInt(mother.seed ^ Math.imul(idNumber, 0x85ebca6b));
+    const calf = (index - adultCount) % 3 !== 2;
+    const ageDays = calf
+      ? 10 + unit(seed ^ 0x594f554e) * Math.max(20, species.weaningDays * 0.9)
+      : species.weaningDays + unit(seed ^ 0x41444f4c) * Math.max(30, species.maturityDays - species.weaningDays - 30);
+    const lifeStage = calf ? WHALE_LIFE_STAGE_CALF : WHALE_LIFE_STAGE_ADOLESCENT;
+    const candidate = familyCandidate(mother, seed, FAMILY_FOLLOW_DISTANCE_RAD);
+    memory.individuals.push(createWhaleIndividual({
+      id: numberedWhaleId(idNumber),
+      speciesId: species.id,
+      candidate,
+      seed,
+      sex: unit(seed ^ 0x534558) < 0.5 ? "female" : "male",
+      lifeStage,
+      birthMinute: startMinute - ageDays * MINUTES_PER_DAY,
+      motherId: mother.id,
+      nextMatingMinute: null,
+      heading: mother.heading
+    }));
+  }
+}
+
+function seedWhiteWhale(memory, waters, startMinute, avoidPosition) {
+  const eligible = waters.filter((candidate) => whaleRangeContainsCandidate(WHALE_SPECIES_SPERM, candidate));
+  if (eligible.length === 0) throw new Error("White whale has no range-valid ocean tile");
+  const candidate = [...eligible].sort((a, b) => {
+    if (avoidPosition) {
+      const distanceDifference = angularDistance(avoidPosition, b.position) - angularDistance(avoidPosition, a.position);
+      if (Math.abs(distanceDifference) > 1e-9) return distanceDifference;
+    }
+    return hashInt(a.tileId ^ 0x4d4f4259) - hashInt(b.tileId ^ 0x4d4f4259);
+  })[0];
+  whaleSpeciesById(WHALE_SPECIES_SPERM);
+  const seed = hashInt(candidate.tileId ^ 0x57484954);
+  memory.individuals.push(createWhaleIndividual({
+    id: WHITE_WHALE_ID,
+    speciesId: WHALE_SPECIES_SPERM,
+    candidate,
+    seed,
+    sex: "male",
+    lifeStage: WHALE_LIFE_STAGE_ADULT,
+    birthMinute: startMinute - (30 * 365 + unit(seed) * 25 * 365) * MINUTES_PER_DAY,
+    motherId: null,
+    nextMatingMinute: null,
+    variant: "white"
+  }));
+}
+
+function createWhaleIndividual({
+  id,
+  speciesId,
+  candidate,
+  seed,
+  sex,
+  lifeStage,
+  birthMinute,
+  motherId,
+  nextMatingMinute,
+  heading = null,
+  variant = null
+}) {
+  const position = candidate.position.slice();
+  const initialHeading = heading ? normalizeTangent(heading, position) : randomTangent(position, seed);
+  const phaseDurationSeconds = submergedDuration(seed, 0, speciesId);
+  return {
+    id,
+    speciesId,
+    variant,
+    seed,
+    sex,
+    lifeStage,
+    birthMinute,
+    motherId,
+    pregnancyDueMinute: null,
+    mateId: null,
+    lastCalvingMinute: null,
+    nextMatingMinute,
+    tileId: candidate.tileId,
+    position,
+    heading: initialHeading,
+    lifeSeconds: unit(seed ^ 0x4c494645) * 90,
+    phase: WHALE_PHASE_SUBMERGED,
+    phaseElapsedSeconds: unit(seed ^ 0x454c4150) * phaseDurationSeconds,
+    phaseDurationSeconds,
+    cycle: 0
+  };
+}
+
+function advanceWhaleEcology(memory, currentMinute) {
+  if (memory.lastEcologyMinute === null) {
+    memory.lastEcologyMinute = currentMinute;
+    return [];
+  }
+  if (currentMinute < memory.lastEcologyMinute) {
+    throw new Error(`Whale ecology cannot move backwards: ${currentMinute} < ${memory.lastEcologyMinute}`);
+  }
+  if (currentMinute === memory.lastEcologyMinute) return [];
+  const events = [];
+  updateLifeStages(memory, currentMinute);
+  const adults = memory.individuals.filter((whale) => (
+    whale.phase !== WHALE_PHASE_DEAD && whale.lifeStage === WHALE_LIFE_STAGE_ADULT
+  ));
+  for (const female of adults.filter((whale) => whale.sex === "female")) {
+    const species = whaleSpeciesForIndividual(female);
+    if (female.pregnancyDueMinute !== null && female.pregnancyDueMinute <= currentMinute) {
+      const calf = giveBirth(memory, female, female.pregnancyDueMinute);
+      events.push(Object.freeze({ type: "birth", whaleId: calf.id, motherId: female.id }));
+      female.lastCalvingMinute = female.pregnancyDueMinute;
+      female.pregnancyDueMinute = null;
+      female.mateId = null;
+      female.nextMatingMinute = currentMinute +
+        Math.max(30, species.calvingIntervalDays - species.gestationDays) * MINUTES_PER_DAY;
+      continue;
+    }
+    if (female.pregnancyDueMinute !== null || female.nextMatingMinute === null ||
+      female.nextMatingMinute > currentMinute) continue;
+    const mate = nearestMate(female, adults);
+    if (!mate) {
+      female.nextMatingMinute = currentMinute + 30 * MINUTES_PER_DAY;
+      continue;
+    }
+    female.mateId = mate.id;
+    female.pregnancyDueMinute = currentMinute + species.gestationDays * MINUTES_PER_DAY;
+    female.nextMatingMinute = null;
+  }
+  memory.lastEcologyMinute = currentMinute;
+  return events;
+}
+
+function updateLifeStages(memory, currentMinute) {
+  for (const whale of memory.individuals) {
+    if (whale.phase === WHALE_PHASE_DEAD || whale.lifeStage === WHALE_LIFE_STAGE_ADULT) continue;
+    const species = whaleSpeciesForIndividual(whale);
+    const ageDays = (currentMinute - whale.birthMinute) / MINUTES_PER_DAY;
+    if (ageDays >= species.maturityDays) {
+      whale.lifeStage = WHALE_LIFE_STAGE_ADULT;
+      whale.motherId = null;
+      if (whale.sex === "female") {
+        whale.nextMatingMinute = currentMinute +
+          (30 + unit(whale.seed ^ 0x4d415445) * species.calvingIntervalDays) * MINUTES_PER_DAY;
+      }
+    } else if (ageDays >= species.weaningDays) {
+      whale.lifeStage = WHALE_LIFE_STAGE_ADOLESCENT;
+    }
+  }
+}
+
+function nearestMate(female, adults) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const candidate of adults) {
+    if (candidate.sex !== "male" || candidate.speciesId !== female.speciesId || candidate.id === female.id) continue;
+    const distance = angularDistance(female.position, candidate.position);
+    if (distance <= MATING_SEARCH_RADIUS_RAD && distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function giveBirth(memory, mother, birthMinute) {
+  const idNumber = memory.nextId++;
+  const seed = hashInt(mother.seed ^ Math.imul(idNumber, 0x27d4eb2d));
+  const candidate = familyCandidate(mother, seed, FAMILY_FOLLOW_DISTANCE_RAD * 0.5);
+  const calf = createWhaleIndividual({
+    id: numberedWhaleId(idNumber),
+    speciesId: mother.speciesId,
+    candidate,
+    seed,
+    sex: unit(seed ^ 0x534558) < 0.5 ? "female" : "male",
+    lifeStage: WHALE_LIFE_STAGE_CALF,
+    birthMinute,
+    motherId: mother.id,
+    nextMatingMinute: null,
+    heading: mother.heading
+  });
+  memory.individuals.push(calf);
+  return calf;
+}
+
+function advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById) {
+  const species = whaleSpeciesForIndividual(whale);
+  const stageSpeed = whale.lifeStage === WHALE_LIFE_STAGE_CALF
+    ? 0.82
+    : whale.lifeStage === WHALE_LIFE_STAGE_ADOLESCENT ? 0.95 : 1;
+  const speed = whale.phase === WHALE_PHASE_TETHERED
+    ? species.towingSpeedRad
+    : species.cruiseSpeedRad * stageSpeed;
+  const mother = whale.motherId === null ? null : individualsById.get(whale.motherId);
+  if (mother && mother.phase !== WHALE_PHASE_DEAD) steerTowardMother(whale, mother, dt);
+  else {
+    const turnWave = Math.sin(whale.lifeSeconds * 0.21 + (whale.seed & 1023) * 0.013);
+    whale.heading = rotateAroundNormal(whale.heading, whale.position, turnWave * species.turnRateRad * dt);
+  }
+  const candidatePosition = normalize([
+    whale.position[0] + whale.heading[0] * speed * dt,
+    whale.position[1] + whale.heading[1] * speed * dt,
+    whale.position[2] + whale.heading[2] * speed * dt
+  ]);
+  const navigation = navigationAtPosition(candidatePosition);
+  if (!navigation?.ok || !Number.isInteger(navigation.tileId) ||
+    !whaleRangeContains(whale.speciesId, candidatePosition)) {
+    whale.heading = rotateAroundNormal(
+      whale.heading,
+      whale.position,
+      Math.PI * (0.72 + unit(whale.seed ^ whale.cycle) * 0.5)
+    );
+    return;
+  }
+  whale.position = candidatePosition;
+  whale.tileId = navigation.tileId;
+  whale.heading = normalizeTangent(whale.heading, whale.position);
+}
+
+function steerTowardMother(whale, mother, dt) {
+  const distance = angularDistance(whale.position, mother.position);
+  const towardMother = normalizeTangentOrNull(mother.position, whale.position);
+  const desired = distance > FAMILY_FOLLOW_DISTANCE_RAD && towardMother
+    ? normalizeTangent([
+        mother.heading[0] * 0.45 + towardMother[0] * 0.55,
+        mother.heading[1] * 0.45 + towardMother[1] * 0.55,
+        mother.heading[2] * 0.45 + towardMother[2] * 0.55
+      ], whale.position)
+    : normalizeTangent(mother.heading, whale.position);
+  const maxTurn = whaleSpeciesForIndividual(whale).turnRateRad * dt *
+    (distance > FAMILY_MAX_SEPARATION_RAD ? 3.5 : 1.8);
+  whale.heading = rotateTangentToward(whale.heading, desired, whale.position, maxTurn);
+}
+
+function advanceWhalePhase(whale, events) {
+  while (whale.phaseElapsedSeconds >= whale.phaseDurationSeconds) {
+    whale.phaseElapsedSeconds -= whale.phaseDurationSeconds;
+    if (whale.phase === WHALE_PHASE_SUBMERGED) {
+      whale.phase = WHALE_PHASE_RISING;
+      whale.phaseDurationSeconds = WHALE_RISING_SECONDS;
+    } else if (whale.phase === WHALE_PHASE_RISING) {
+      whale.phase = WHALE_PHASE_SURFACED;
+      whale.phaseDurationSeconds = WHALE_SURFACED_SECONDS;
+      events.push(Object.freeze({ type: "blow", whaleId: whale.id }));
+    } else if (whale.phase === WHALE_PHASE_SURFACED) {
+      whale.phase = WHALE_PHASE_DIVING;
+      whale.phaseDurationSeconds = WHALE_DIVING_SECONDS;
+    } else if (whale.phase === WHALE_PHASE_DIVING) {
+      whale.phase = WHALE_PHASE_SUBMERGED;
+      whale.cycle += 1;
+      whale.phaseDurationSeconds = submergedDuration(whale.seed, whale.cycle, whale.speciesId);
+    } else {
+      throw new Error(`Whale phase cannot advance automatically: ${whale.phase}`);
+    }
+  }
+}
+
+function releaseWhale(whale) {
+  whale.phase = WHALE_PHASE_DIVING;
+  whale.phaseElapsedSeconds = 0;
+  whale.phaseDurationSeconds = WHALE_DIVING_SECONDS;
+}
+
+function killWhale(memory, whale) {
+  whale.phase = WHALE_PHASE_DEAD;
+  whale.phaseElapsedSeconds = 0;
+  whale.phaseDurationSeconds = 0;
+  for (const dependent of memory.individuals) {
+    if (dependent.motherId === whale.id) dependent.motherId = null;
+  }
+}
+
+function submergedDuration(seed, cycle, speciesId) {
+  const species = whaleSpeciesById(speciesId);
+  const diveMultiplier = species.id === WHALE_SPECIES_SPERM
+    ? 2.4
+    : species.id === "southern-minke-whale" ? 0.65
+      : species.id === "blue-whale" ? 1.25
+        : species.id === "humpback-whale" ? 0.9 : 1;
+  return (WHALE_SUBMERGED_MIN_SECONDS +
+    unit(seed ^ Math.imul(cycle + 1, 0x85ebca6b)) * WHALE_SUBMERGED_SPREAD_SECONDS) * diveMultiplier;
+}
+
+function familyCandidate(mother, seed, distanceRad) {
+  const side = normalize(cross(mother.position, mother.heading));
+  const signedDistance = unit(seed ^ 0x53494445) < 0.5 ? -distanceRad : distanceRad;
+  const position = normalize([
+    mother.position[0] + side[0] * signedDistance,
+    mother.position[1] + side[1] * signedDistance,
+    mother.position[2] + side[2] * signedDistance
+  ]);
+  return { tileId: mother.tileId, position };
+}
+
+function validateCandidate(candidate) {
+  if (!candidate || !Number.isInteger(candidate.tileId) || candidate.tileId < 0) {
+    throw new Error("Whale candidate requires a tile id");
+  }
+  if (!Number.isFinite(candidate.latitudeDeg) || !Number.isFinite(candidate.longitudeDeg)) {
+    throw new Error(`Whale candidate ${candidate.tileId} has invalid coordinates`);
+  }
+  validateVector(candidate.position, `whale candidate ${candidate.tileId} position`);
+  return candidate;
+}
+
+function validateWhale(whale) {
+  if (!whale || typeof whale.id !== "string" || whale.id.length === 0) throw new Error("Whale requires an id");
+  whaleSpeciesById(whale.speciesId);
+  if (!SEXES.has(whale.sex)) throw new Error(`Unknown whale sex: ${whale.sex}`);
+  if (!LIFE_STAGES.has(whale.lifeStage)) throw new Error(`Unknown whale life stage: ${whale.lifeStage}`);
+  if (!PHASES.has(whale.phase)) throw new Error(`Unknown whale phase: ${whale.phase}`);
+  if (!Number.isInteger(whale.seed) || !Number.isInteger(whale.tileId)) throw new Error(`Invalid whale identity: ${whale.id}`);
+  validateVector(whale.position, `${whale.id} position`);
+  validateVector(whale.heading, `${whale.id} heading`);
+  for (const [label, value] of Object.entries({
+    birthMinute: whale.birthMinute,
+    lifeSeconds: whale.lifeSeconds,
+    phaseElapsedSeconds: whale.phaseElapsedSeconds,
+    phaseDurationSeconds: whale.phaseDurationSeconds
+  })) {
+    if (!Number.isFinite(value) || (label !== "birthMinute" && value < 0)) {
+      throw new Error(`Invalid whale ${label}: ${whale.id}`);
+    }
+  }
+  for (const key of ["pregnancyDueMinute", "lastCalvingMinute", "nextMatingMinute"]) {
+    if (whale[key] !== null && !Number.isFinite(whale[key])) {
+      throw new Error(`Invalid whale ${key}: ${whale.id}`);
+    }
+  }
+  for (const key of ["motherId", "mateId"]) {
+    if (whale[key] !== null && (typeof whale[key] !== "string" || whale[key] === "")) {
+      throw new Error(`Invalid whale ${key}: ${whale.id}`);
+    }
+  }
+  if (!Number.isInteger(whale.cycle) || whale.cycle < 0) throw new Error(`Invalid whale cycle: ${whale.id}`);
+  return whale;
+}
+
+function randomTangent(position, seed) {
+  const reference = Math.abs(position[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const firstTangent = normalize(cross(position, reference));
+  const secondTangent = normalize(cross(position, firstTangent));
+  const angle = unit(seed) * Math.PI * 2;
+  return normalize([
+    firstTangent[0] * Math.cos(angle) + secondTangent[0] * Math.sin(angle),
+    firstTangent[1] * Math.cos(angle) + secondTangent[1] * Math.sin(angle),
+    firstTangent[2] * Math.cos(angle) + secondTangent[2] * Math.sin(angle)
+  ]);
+}
+
+function numberedWhaleId(idNumber) {
+  return `whale-${String(idNumber).padStart(4, "0")}`;
+}
+
+function validateVector(vector, label) {
+  if (!Array.isArray(vector) || vector.length !== 3 || !vector.every(Number.isFinite)) {
+    throw new Error(`Invalid ${label}`);
+  }
+}
+
+function assertSimulationMinute(value) {
+  if (!Number.isFinite(value)) throw new Error(`Invalid whale simulation minute: ${value}`);
+}
+
+function normalizeTangent(vector, position) {
+  const projection = dot(vector, position);
+  return normalize([
+    vector[0] - position[0] * projection,
+    vector[1] - position[1] * projection,
+    vector[2] - position[2] * projection
+  ]);
+}
+
+function normalizeTangentOrNull(vector, position) {
+  const projection = dot(vector, position);
+  const tangent = [
+    vector[0] - position[0] * projection,
+    vector[1] - position[1] * projection,
+    vector[2] - position[2] * projection
+  ];
+  return Math.hypot(...tangent) <= 1e-9 ? null : normalize(tangent);
+}
+
+function rotateAroundNormal(vector, normal, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const crossed = cross(normal, vector);
+  return normalizeTangent([
+    vector[0] * cos + crossed[0] * sin,
+    vector[1] * cos + crossed[1] * sin,
+    vector[2] * cos + crossed[2] * sin
+  ], normal);
+}
+
+function rotateTangentToward(current, target, normal, maxStep) {
+  const sin = dot(cross(current, target), normal);
+  const cos = clamp(dot(current, target), -1, 1);
+  return rotateAroundNormal(current, normal, clamp(Math.atan2(sin, cos), -maxStep, maxStep));
+}
+
+function angularDistance(a, b) {
+  return Math.acos(clamp(dot(a, b), -1, 1));
+}
+
+function cross(a, b) {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0]
+  ];
+}
+
+function dot(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function normalize(vector) {
+  const length = Math.hypot(...vector);
+  if (length <= 1e-9) throw new Error("Cannot normalize a zero whale vector");
+  return vector.map((value) => value / length);
+}
+
+function smootherstep(value) {
+  const t = clamp(value, 0, 1);
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function unit(value) {
+  return (hashInt(value) >>> 0) / 0x100000000;
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function hashInt(value) {
+  let hash = value | 0;
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x7feb352d);
+  hash ^= hash >>> 15;
+  hash = Math.imul(hash, 0x846ca68b);
+  hash ^= hash >>> 16;
+  return hash >>> 0;
+}

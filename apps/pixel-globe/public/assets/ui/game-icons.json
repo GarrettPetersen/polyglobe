@@ -61,9 +61,20 @@
       "assetPath": null
     },
     {
-      "id": "good:cheese",
+      "id": "good:whale-blubber",
       "rect": {
         "x": 80,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:cheese",
+      "rect": {
+        "x": 96,
         "y": 0,
         "w": 16,
         "h": 16
@@ -74,7 +85,7 @@
     {
       "id": "good:wine",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 0,
         "w": 16,
         "h": 16
@@ -85,7 +96,7 @@
     {
       "id": "good:olive-oil",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 0,
         "w": 16,
         "h": 16
@@ -96,7 +107,7 @@
     {
       "id": "good:salt",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 0,
         "w": 16,
         "h": 16
@@ -107,7 +118,7 @@
     {
       "id": "good:sugar",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 0,
         "w": 16,
         "h": 16
@@ -118,7 +129,7 @@
     {
       "id": "good:timber",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 0,
         "w": 16,
         "h": 16
@@ -129,7 +140,7 @@
     {
       "id": "good:wool",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 0,
         "w": 16,
         "h": 16
@@ -140,7 +151,7 @@
     {
       "id": "good:cotton",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 0,
         "w": 16,
         "h": 16
@@ -151,7 +162,7 @@
     {
       "id": "good:flax",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 0,
         "w": 16,
         "h": 16
@@ -162,7 +173,7 @@
     {
       "id": "good:iron",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 0,
         "w": 16,
         "h": 16
@@ -173,8 +184,8 @@
     {
       "id": "good:copper",
       "rect": {
-        "x": 240,
-        "y": 0,
+        "x": 0,
+        "y": 16,
         "w": 16,
         "h": 16
       },
@@ -184,7 +195,7 @@
     {
       "id": "good:tin",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 16,
         "w": 16,
         "h": 16
@@ -195,7 +206,7 @@
     {
       "id": "good:arms",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 16,
         "w": 16,
         "h": 16
@@ -206,7 +217,7 @@
     {
       "id": "good:linen-cloth",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 16,
         "w": 16,
         "h": 16
@@ -217,7 +228,7 @@
     {
       "id": "good:wool-cloth",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 16,
         "w": 16,
         "h": 16
@@ -228,7 +239,7 @@
     {
       "id": "good:cotton-cloth",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 16,
         "w": 16,
         "h": 16
@@ -239,7 +250,7 @@
     {
       "id": "good:silk",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 16,
         "w": 16,
         "h": 16
@@ -250,7 +261,7 @@
     {
       "id": "good:silk-cloth",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 16,
         "w": 16,
         "h": 16
@@ -261,7 +272,7 @@
     {
       "id": "good:pepper",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 16,
         "w": 16,
         "h": 16
@@ -272,7 +283,7 @@
     {
       "id": "good:spices",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 16,
         "w": 16,
         "h": 16
@@ -283,7 +294,7 @@
     {
       "id": "good:tea",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 16,
         "w": 16,
         "h": 16
@@ -294,7 +305,7 @@
     {
       "id": "good:coffee",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 16,
         "w": 16,
         "h": 16
@@ -305,7 +316,7 @@
     {
       "id": "good:cacao",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 16,
         "w": 16,
         "h": 16
@@ -316,7 +327,7 @@
     {
       "id": "good:dyes",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 16,
         "w": 16,
         "h": 16
@@ -327,7 +338,7 @@
     {
       "id": "good:porcelain",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 16,
         "w": 16,
         "h": 16
@@ -338,7 +349,7 @@
     {
       "id": "good:glassware",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 16,
         "w": 16,
         "h": 16
@@ -349,8 +360,8 @@
     {
       "id": "good:carpets",
       "rect": {
-        "x": 240,
-        "y": 16,
+        "x": 0,
+        "y": 32,
         "w": 16,
         "h": 16
       },
@@ -360,7 +371,7 @@
     {
       "id": "good:artwork",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 32,
         "w": 16,
         "h": 16
@@ -371,7 +382,7 @@
     {
       "id": "good:perfume",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 32,
         "w": 16,
         "h": 16
@@ -382,7 +393,7 @@
     {
       "id": "good:ivory",
       "rect": {
-        "x": 32,
+        "x": 48,
         "y": 32,
         "w": 16,
         "h": 16
@@ -393,7 +404,7 @@
     {
       "id": "good:silver",
       "rect": {
-        "x": 48,
+        "x": 64,
         "y": 32,
         "w": 16,
         "h": 16
@@ -404,7 +415,7 @@
     {
       "id": "good:gold",
       "rect": {
-        "x": 64,
+        "x": 80,
         "y": 32,
         "w": 16,
         "h": 16
@@ -415,7 +426,7 @@
     {
       "id": "menu:continue",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 32,
         "w": 16,
         "h": 16
@@ -426,7 +437,7 @@
     {
       "id": "menu:new-game",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 32,
         "w": 16,
         "h": 16
@@ -437,7 +448,7 @@
     {
       "id": "menu:lake-battle",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 32,
         "w": 16,
         "h": 16
@@ -448,7 +459,7 @@
     {
       "id": "menu:past-voyages",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 32,
         "w": 16,
         "h": 16
@@ -459,7 +470,7 @@
     {
       "id": "menu:options",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 32,
         "w": 16,
         "h": 16
@@ -470,7 +481,7 @@
     {
       "id": "menu:credits",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 32,
         "w": 16,
         "h": 16
@@ -481,7 +492,7 @@
     {
       "id": "menu:captain",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 32,
         "w": 16,
         "h": 16
@@ -492,7 +503,7 @@
     {
       "id": "menu:ship",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 32,
         "w": 16,
         "h": 16
@@ -503,7 +514,7 @@
     {
       "id": "menu:politics",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 32,
         "w": 16,
         "h": 16
@@ -514,7 +525,7 @@
     {
       "id": "menu:discoveries",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 32,
         "w": 16,
         "h": 16
@@ -525,8 +536,8 @@
     {
       "id": "action:dock",
       "rect": {
-        "x": 240,
-        "y": 32,
+        "x": 0,
+        "y": 48,
         "w": 16,
         "h": 16
       },
@@ -536,7 +547,7 @@
     {
       "id": "action:hail",
       "rect": {
-        "x": 0,
+        "x": 16,
         "y": 48,
         "w": 16,
         "h": 16
@@ -547,7 +558,7 @@
     {
       "id": "action:fish",
       "rect": {
-        "x": 16,
+        "x": 32,
         "y": 48,
         "w": 16,
         "h": 16
@@ -556,9 +567,20 @@
       "assetPath": "public/assets/misc/fishing-net-Sheet.png"
     },
     {
+      "id": "action:harpoon",
+      "rect": {
+        "x": 48,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
       "id": "action:scavenge",
       "rect": {
-        "x": 32,
+        "x": 64,
         "y": 48,
         "w": 16,
         "h": 16
@@ -569,7 +591,7 @@
     {
       "id": "action:buy",
       "rect": {
-        "x": 48,
+        "x": 80,
         "y": 48,
         "w": 16,
         "h": 16
@@ -580,7 +602,7 @@
     {
       "id": "action:sell",
       "rect": {
-        "x": 64,
+        "x": 96,
         "y": 48,
         "w": 16,
         "h": 16
@@ -591,7 +613,7 @@
     {
       "id": "action:back",
       "rect": {
-        "x": 80,
+        "x": 112,
         "y": 48,
         "w": 16,
         "h": 16
@@ -602,7 +624,7 @@
     {
       "id": "action:leave",
       "rect": {
-        "x": 96,
+        "x": 128,
         "y": 48,
         "w": 16,
         "h": 16
@@ -613,7 +635,7 @@
     {
       "id": "action:quest",
       "rect": {
-        "x": 112,
+        "x": 144,
         "y": 48,
         "w": 16,
         "h": 16
@@ -624,7 +646,7 @@
     {
       "id": "action:talk",
       "rect": {
-        "x": 128,
+        "x": 160,
         "y": 48,
         "w": 16,
         "h": 16
@@ -635,7 +657,7 @@
     {
       "id": "action:wait",
       "rect": {
-        "x": 144,
+        "x": 176,
         "y": 48,
         "w": 16,
         "h": 16
@@ -646,7 +668,7 @@
     {
       "id": "action:attack",
       "rect": {
-        "x": 160,
+        "x": 192,
         "y": 48,
         "w": 16,
         "h": 16
@@ -657,7 +679,7 @@
     {
       "id": "action:loadout",
       "rect": {
-        "x": 176,
+        "x": 208,
         "y": 48,
         "w": 16,
         "h": 16
@@ -668,7 +690,7 @@
     {
       "id": "action:shipyard",
       "rect": {
-        "x": 192,
+        "x": 224,
         "y": 48,
         "w": 16,
         "h": 16
@@ -679,7 +701,7 @@
     {
       "id": "action:letter",
       "rect": {
-        "x": 208,
+        "x": 240,
         "y": 48,
         "w": 16,
         "h": 16
@@ -690,28 +712,6 @@
     {
       "id": "action:disguise",
       "rect": {
-        "x": 224,
-        "y": 48,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "pirate",
-      "assetPath": null
-    },
-    {
-      "id": "action:surrender",
-      "rect": {
-        "x": 240,
-        "y": 48,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "pirate",
-      "assetPath": null
-    },
-    {
-      "id": "action:passenger",
-      "rect": {
         "x": 0,
         "y": 64,
         "w": 16,
@@ -721,18 +721,18 @@
       "assetPath": null
     },
     {
-      "id": "action:viking",
+      "id": "action:surrender",
       "rect": {
         "x": 16,
         "y": 64,
         "w": 16,
         "h": 16
       },
-      "packId": "glionox",
+      "packId": "pirate",
       "assetPath": null
     },
     {
-      "id": "action:inventory",
+      "id": "action:passenger",
       "rect": {
         "x": 32,
         "y": 64,
@@ -743,18 +743,18 @@
       "assetPath": null
     },
     {
-      "id": "action:resume",
+      "id": "action:viking",
       "rect": {
         "x": 48,
         "y": 64,
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": "glionox",
       "assetPath": null
     },
     {
-      "id": "action:restart",
+      "id": "action:inventory",
       "rect": {
         "x": 64,
         "y": 64,
@@ -765,7 +765,7 @@
       "assetPath": null
     },
     {
-      "id": "action:choose-ships",
+      "id": "action:resume",
       "rect": {
         "x": 80,
         "y": 64,
@@ -776,9 +776,31 @@
       "assetPath": null
     },
     {
-      "id": "action:start-menu",
+      "id": "action:restart",
       "rect": {
         "x": 96,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:choose-ships",
+      "rect": {
+        "x": 112,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:start-menu",
+      "rect": {
+        "x": 128,
         "y": 64,
         "w": 16,
         "h": 16

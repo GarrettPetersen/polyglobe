@@ -1,6 +1,8 @@
 import {
   cargoCostBasis,
+  cargoQuantityLabel,
   cargoRows,
+  cargoSpaceLabel,
   cargoUsed,
   isEnvoyQuest,
   ledgerEntries,
@@ -60,6 +62,7 @@ export function createShipInfoView(ship, gameState) {
       id: good.id,
       label: good.label,
       quantity,
+      quantityLabel: cargoQuantityLabel(good, quantity),
       space: good.unitSize * quantity,
       averageCost: basis.known ? basis.average : null,
       totalCost: basis.known ? basis.total : null
@@ -84,6 +87,7 @@ export function createShipInfoView(ship, gameState) {
     doubloons: gameState.doubloons,
     realizedPnl: realizedTradePnl(gameState),
     cargoUsed: used,
+    cargoUsedLabel: cargoSpaceLabel(used),
     cargoCapacity: stats.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
     propulsion: stats.propulsion,

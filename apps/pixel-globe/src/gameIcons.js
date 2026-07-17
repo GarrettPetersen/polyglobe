@@ -53,6 +53,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:foraged-food": alex("fruit_apple.png"),
   "good:grain": keifoo("grains_png/wheat.png"),
   "good:fish": hollow(4),
+  "good:whale-blubber": glionox(378),
   "good:cheese": alex("cheese_gouda.png"),
   "good:wine": pirate(43),
   "good:olive-oil": glionox(378),
@@ -105,6 +106,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
     w: 26,
     h: 26
   }),
+  "action:harpoon": pirate(22),
   "action:scavenge": hollow(104),
   "action:buy": pirate(31),
   "action:sell": pirate(32),
@@ -164,6 +166,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   equipment: "action:inventory",
   "equipment-nets": "action:fish",
   "equipment-cannons": "action:attack",
+  "equipment-harpoons": "action:harpoon",
   loadout: "action:loadout",
   shipyard: "action:shipyard",
   sell: "action:sell",
@@ -211,6 +214,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "continue-campaign": "action:talk",
   "buy-net": "action:fish",
   "buy-cannon-equipment": "action:attack",
+  "buy-whale-harpoon": "action:harpoon",
   buy: "action:buy",
   "accept-quest": "action:quest",
   "accept-passenger": "action:passenger"

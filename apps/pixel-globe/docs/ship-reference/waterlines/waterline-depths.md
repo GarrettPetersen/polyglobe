@@ -31,7 +31,7 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Xebec | 2 | 86 | 88 | 0.000 |
 | Coastal Pinnace | 1 | 77 | 78 | 0.000 |
 | Fishing Barque | 1 | 68 | 69 | 0.000 |
-| Mesoamerican Dugout Canoe | 1 | 58 | 59 | 0.023 |
+| Dugout Canoe | 1 | 58 | 59 | 0.023 |
 | Sampan | 1 | 73 | 74 | 0.023 |
 | Small Cog | 1 | 79 | 80 | 0.000 |
 | Turtle Ship | 1 | 86 | 87 | -0.050 |

@@ -2,10 +2,12 @@ import { portEconomySummary } from "./economy.js";
 
 export const EQUIPMENT_STOCK_FISHING_NET = "fishing-net";
 export const EQUIPMENT_STOCK_CANNON = "cannon";
+export const EQUIPMENT_STOCK_WHALE_HARPOON = "whale-harpoon";
 
 const EQUIPMENT_STOCK_KINDS = new Set([
   EQUIPMENT_STOCK_FISHING_NET,
-  EQUIPMENT_STOCK_CANNON
+  EQUIPMENT_STOCK_CANNON,
+  EQUIPMENT_STOCK_WHALE_HARPOON
 ]);
 const TIER_PROSPERITY_THRESHOLDS = Object.freeze([0, 0.27, 0.53, 0.8]);
 

@@ -22,6 +22,7 @@ const VILLAGE_CONSUMPTION_MULTIPLIER = 0.62;
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
 export const FORAGED_FOOD_GOOD_ID = "foraged-food";
+export const WHALE_BLUBBER_GOOD_ID = "whale-blubber";
 
 export const TRADE_GOODS = Object.freeze([
   good(HARDTACK_GOOD_ID, "Hardtack", 2, "food", {
@@ -42,6 +43,7 @@ export const TRADE_GOODS = Object.freeze([
   }),
   good("grain", "Grain", 8, "food"),
   good("fish", "Fish", 10, "food"),
+  good(WHALE_BLUBBER_GOOD_ID, "Whale Blubber", 240, "material", { npcTrade: false }),
   good("cheese", "Cheese", 14, "food"),
   good("wine", "Wine", 18, "food"),
   good("olive-oil", "Olive Oil", 16, "food"),

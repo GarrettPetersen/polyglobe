@@ -28,6 +28,11 @@
 - cyc3w - "Sailing ship" (CC BY 4.0)
 - Nisa Nurul Azizah - "Low Poly Borobudur Ship of Sriwijaya" (CC BY 4.0)
 - Polygora - "Ottoman Coastal Trade Tall Ship 3D Model" (CC BY 4.0)
+- VoltVeigh - "North Atlantic right whale" (CC BY 4.0)
+- Erik - "Blue Whale" (CC BY 4.0)
+- dashkilya - "Humpback Whale" (CC BY 4.0)
+- Bill Nguyen - "Whale Southern Minke Pose" (CC BY 4.0)
+- Bohdan Lvov - "Sperm Whale" (CC BY 4.0)
 
 ## Sound Effects
 - Alex Jauk
@@ -41,6 +46,9 @@
 - u_7hpxkdroz2
 - Dominik Braun - "Failure Sound" from "107 Free Retro Game Sounds" (CC BY 4.0)
 - Three Kingdoms Stratagem - fire crackle loop
+- H. Lentfer / National Park Service - "Humpbacks and Murrelets" surface blow excerpt (public domain; cleaned)
+- DRAGON-STUDIO - "Creepy Whale Song" and "Haunting Whale Song" (Pixabay Content License)
+- cclaretc / Freesound Community - "Whale" (Pixabay 45996, Pixabay Content License)
 
 ## Pixel Art Icons
 - Free Game Assets - "Free Pirate Stuff Icons" (CraftPix Freebie License)

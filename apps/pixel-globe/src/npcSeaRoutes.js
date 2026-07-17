@@ -18,6 +18,7 @@ import {
   diplomacyBetween
 } from "./factions.js";
 import {
+  WHALE_BLUBBER_GOOD_ID,
   cargoSaleValue,
   executePortPurchase,
   executePortSale,
@@ -27,6 +28,12 @@ import {
   quotePortPurchase,
   tradeGoodById
 } from "./economy.js";
+import {
+  NPC_WHALING_MIN_LIVING_POPULATION,
+  harvestWhaleForNpc,
+  validateWhaleMemory,
+  whaleBlubberYield
+} from "./whaleSystem.js";
 import {
   fisheryForHabitat,
   harvestFishery
@@ -51,6 +58,7 @@ const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 192;
+export const NPC_WHALER_FLEET_TARGET = 5;
 const NPC_ROUTE_WAIT_HOP_THRESHOLD_DAYS = 34;
 const NPC_ROUTE_HOP_MAX_DAYS = 19;
 const NPC_ROUTE_HOP_MAX_KM = 1650;
@@ -77,9 +85,12 @@ const FISHING_GROUND_MIN_EXPECTED_CATCH = 1;
 const FISHING_GROUND_TRAVEL_COST_PER_KM = 0.035;
 const FISHING_GROUND_LONG_RANGE_COST_PER_KM = 0.018;
 const FISHING_GROUND_CATCH_RATIO = 0.72;
+const NPC_WHALING_COOLDOWN_MINUTES = 60 * WEATHER_MINUTES_PER_DAY;
+const NPC_WHALING_RANGE_RAD = 1200 / EARTH_RADIUS_KM;
 
 export const NPC_ROLE_MERCHANT = "merchant";
 export const NPC_ROLE_FISHERMAN = "fisherman";
+export const NPC_ROLE_WHALER = "whaler";
 export const NPC_ROLE_WARSHIP = "warship";
 export const NPC_ROLE_PIRATE = "pirate";
 
@@ -87,7 +98,13 @@ export function npcPortHasMajorProtection(port) {
   return Boolean(port?.isFactionCapital) || Number(port?.population || 0) >= MAJOR_PORT_PROTECTION_POPULATION;
 }
 
-const NPC_ROLE_SET = new Set([NPC_ROLE_MERCHANT, NPC_ROLE_FISHERMAN, NPC_ROLE_WARSHIP, NPC_ROLE_PIRATE]);
+const NPC_ROLE_SET = new Set([
+  NPC_ROLE_MERCHANT,
+  NPC_ROLE_FISHERMAN,
+  NPC_ROLE_WHALER,
+  NPC_ROLE_WARSHIP,
+  NPC_ROLE_PIRATE
+]);
 export const PIRATE_SHIP_SLUGS = Object.freeze([
   "cutter",
   "brigantine",
@@ -103,6 +120,50 @@ const EAST_ASIAN_FACTION_WARSHIPS = Object.freeze({
   joseon: JOSEON_TURTLE_SHIP_SLUG,
   japan: JAPANESE_ATAKEBUNE_SLUG
 });
+
+const WHALER_PROFILES = Object.freeze([
+  whalerProfile(
+    "north-atlantic-whalers",
+    2,
+    ["fishing-lugger", "cutter", "small-cog"],
+    ["biscay", "norwegian-sea", "north-atlantic", "newfoundland"],
+    isNorthAtlanticWhalingPort,
+    2
+  ),
+  whalerProfile(
+    "japanese-coastal-whalers",
+    2,
+    ["sampan", "small-junk"],
+    ["kii-coast", "sanriku"],
+    isJapaneseWhalingPort,
+    1
+  ),
+  whalerProfile(
+    "northwest-coast-whalers",
+    1,
+    ["mesoamerican-dugout-canoe"],
+    ["nootka-sound"],
+    isNorthwestCoastWhalingPort,
+    2
+  )
+]);
+const WHALER_PROFILE_BY_ID = new Map(WHALER_PROFILES.map((profileSpec) => [profileSpec.id, profileSpec]));
+if (WHALER_PROFILE_BY_ID.size !== WHALER_PROFILES.length) {
+  throw new Error("NPC whaler profile ids must be unique");
+}
+if (WHALER_PROFILES.reduce((total, profileSpec) => total + profileSpec.count, 0) !== NPC_WHALER_FLEET_TARGET) {
+  throw new Error(`NPC whaler profiles must total ${NPC_WHALER_FLEET_TARGET} ships`);
+}
+
+const WHALING_GROUND_SPECS = Object.freeze([
+  Object.freeze({ id: "biscay", label: "Bay of Biscay whaling grounds", lat: 45.8, lon: -8.5, routeRegion: "europe", routeAnchors: ["biscay"] }),
+  Object.freeze({ id: "norwegian-sea", label: "Norwegian Sea whaling grounds", lat: 63.0, lon: 1.5, routeRegion: "europe", routeAnchors: ["north-sea"] }),
+  Object.freeze({ id: "north-atlantic", label: "North Atlantic whaling grounds", lat: 52.0, lon: -25.0, routeRegion: "europe", routeAnchors: ["biscay", "north-sea"] }),
+  Object.freeze({ id: "newfoundland", label: "Newfoundland whaling grounds", lat: 49.5, lon: -48.0, routeRegion: "americas", routeAnchors: ["caribbean", "biscay"] }),
+  Object.freeze({ id: "kii-coast", label: "Kii coast whaling grounds", lat: 33.1, lon: 135.7, routeRegion: "east-asia", routeAnchors: ["nagasaki"] }),
+  Object.freeze({ id: "sanriku", label: "Sanriku whaling grounds", lat: 39.0, lon: 142.5, routeRegion: "east-asia", routeAnchors: ["nagasaki"] }),
+  Object.freeze({ id: "nootka-sound", label: "Nootka Sound whaling grounds", lat: 49.2, lon: -128.0, routeRegion: "americas", routeAnchors: ["yuquot"] })
+]);
 
 const LANE_NODES = Object.freeze([
   laneNode("north-sea", "North Sea", 52.2, 3.4),
@@ -132,6 +193,7 @@ const LANE_NODES = Object.freeze([
   laneNode("manila", "Manila Bay", 14.5, 120.8),
   laneNode("canton", "Pearl River", 22.4, 113.8),
   laneNode("nagasaki", "Nagasaki", 32.7, 129.8),
+  laneNode("yuquot", "Yuquot", 49.6, -126.6),
   laneNode("new-guinea", "New Guinea", -6.0, 147.0),
   laneNode("fiji", "Fiji", -18.0, 178.0),
   laneNode("tahiti", "Tahiti", -17.5, -149.5),
@@ -232,6 +294,7 @@ export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
     ...profileSpec.merchantSlugs,
     ...profileSpec.warshipSlugs
   ]),
+  ...WHALER_PROFILES.flatMap((profileSpec) => profileSpec.whalerSlugs),
   ...PIRATE_SHIP_SLUGS,
   ...Object.values(EAST_ASIAN_FACTION_WARSHIPS),
   PORTUGUESE_CARRACK_SLUG,
@@ -243,6 +306,7 @@ export function createNpcSeaRouteSystem({
   startMinute,
   economy,
   fishState = null,
+  whaleMemory = null,
   relationBetween = diplomacyBetween,
   mingTradeOpenToFaction = defaultMingTradeOpenToFaction,
   onForeignPortCall = null
@@ -251,6 +315,7 @@ export function createNpcSeaRouteSystem({
     throw new Error(`NPC sea routes require a non-negative start minute: ${startMinute}`);
   }
   if (!economy) throw new Error("NPC sea routes require a world economy");
+  if (whaleMemory !== null) validateWhaleMemory(whaleMemory);
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
   if (typeof mingTradeOpenToFaction !== "function") {
     throw new Error("NPC sea routes require a Ming trade-access resolver");
@@ -281,6 +346,8 @@ export function createNpcSeaRouteSystem({
     contactStartMinute: startMinute,
     fishState,
     fishingGrounds: fishState ? buildFishingGrounds(usablePorts, fishState, startMinute) : [],
+    whaleMemory,
+    whalingGrounds: whaleMemory ? buildWhalingGrounds() : [],
     pirateHideouts: choosePirateHideouts(usablePorts),
     pirateHideoutDangerUntil: new Map(),
     ships: [],
@@ -288,6 +355,7 @@ export function createNpcSeaRouteSystem({
     replacementQueue: []
   };
   system.ships = createNpcFleet(system, startMinute);
+  synchronizeNpcWhalerFleet(system, startMinute);
   if (system.ships.length === 0) throw new Error("NPC sea routes created no ships");
   system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
   if (system.shipById.size !== system.ships.length) throw new Error("NPC sea routes created duplicate ship ids");
@@ -416,6 +484,7 @@ export function restoreNpcSeaRouteSystem(
   {
     economy,
     fishState = null,
+    whaleMemory = system?.whaleMemory || null,
     relationBetween = system?.relationBetween || diplomacyBetween,
     mingTradeOpenToFaction = system?.mingTradeOpenToFaction || defaultMingTradeOpenToFaction
   } = {}
@@ -449,6 +518,9 @@ export function restoreNpcSeaRouteSystem(
   }
   system.economy = economy || system.economy;
   system.fishState = fishState;
+  if (whaleMemory !== null) validateWhaleMemory(whaleMemory);
+  system.whaleMemory = whaleMemory;
+  system.whalingGrounds = whaleMemory ? buildWhalingGrounds() : [];
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
   if (typeof mingTradeOpenToFaction !== "function") {
     throw new Error("NPC sea routes require a Ming trade-access resolver");
@@ -461,11 +533,15 @@ export function restoreNpcSeaRouteSystem(
     console.info(`Replanned ${replannedRoutes} saved NPC routes for the current sea-lane topology`);
   }
   system.ships = ships;
-  system.shipById = shipById;
   system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
   system.pirateHideoutDangerUntil = danger;
   system.routeCache.clear();
   system.edgeCostCache.clear();
+  synchronizeNpcWhalerFleet(system, system.economy.lastMinute);
+  system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
+  if (system.shipById.size !== system.ships.length) {
+    throw new Error("NPC route restore created duplicate ship ids");
+  }
   return system;
 }
 
@@ -476,6 +552,7 @@ function canonicalizeSavedNpcRoutePorts(system, ships) {
       ship.finalDestination = canonicalNpcRouteDestination(system, ship.finalDestination);
     }
     if (!ship.plan || typeof ship.plan !== "object") {
+      if (ship.hiddenAtHideout && ship.plan === null) continue;
       throw new Error(`Saved NPC ship has no route plan: ${ship.id}`);
     }
     ship.plan.origin = canonicalNpcRouteDestination(system, ship.plan.origin);
@@ -490,6 +567,7 @@ function replanNpcRoutesWithRemovedLaneEdges(system, ships) {
   }
   let replanned = 0;
   for (const ship of ships) {
+    if (ship.hiddenAtHideout && ship.plan === null) continue;
     if (!npcPlanUsesRemovedLaneEdge(system, ship.plan)) continue;
     const origin = canonicalNpcRouteDestination(system, ship.currentPort);
     const destination = canonicalNpcRouteDestination(system, ship.plan?.destination);
@@ -521,7 +599,8 @@ function canonicalNpcRouteDestination(system, destination) {
     throw new Error(`Saved NPC route destination requires a tile id: ${destination?.tileId}`);
   }
   const canonical = system.ports.find((port) => port.tileId === destination.tileId) ||
-    system.fishingGrounds.find((ground) => ground.tileId === destination.tileId);
+    system.fishingGrounds.find((ground) => ground.tileId === destination.tileId) ||
+    system.whalingGrounds.find((ground) => ground.tileId === destination.tileId);
   if (!canonical) {
     throw new Error(`Saved NPC route destination is absent from the current world: ${destination.tileId}`);
   }
@@ -575,6 +654,24 @@ function choosePirateHideouts(ports) {
       hashString32(`${b.tileId}|${b.city}|pirate-hideout`)
     ))
     .slice(0, count);
+}
+
+function buildWhalingGrounds() {
+  return WHALING_GROUND_SPECS.map((spec, index) => ({
+    tileId: -2100000000 + index,
+    isWhalingGround: true,
+    whalingGroundId: spec.id,
+    city: spec.label,
+    displayCity: spec.label,
+    country: "Open sea",
+    cityType: "northern-european",
+    population: 1000,
+    factionId: NEUTRAL_FACTION_ID,
+    routeRegion: spec.routeRegion,
+    routeAnchors: spec.routeAnchors.slice(),
+    lat: spec.lat,
+    lon: spec.lon
+  }));
 }
 
 function buildFishingGrounds(ports, fishState, startMinute) {
@@ -700,6 +797,7 @@ export function npcShipSnapshots(system, clockMinutes) {
 export function npcRoleLabel(role) {
   if (role === NPC_ROLE_MERCHANT) return "Merchant";
   if (role === NPC_ROLE_FISHERMAN) return "Fisherman";
+  if (role === NPC_ROLE_WHALER) return "Whaler";
   if (role === NPC_ROLE_WARSHIP) return "Warship";
   if (role === NPC_ROLE_PIRATE) return "Pirate";
   throw new Error(`Unknown NPC ship role: ${role}`);
@@ -844,40 +942,16 @@ function createNpcFleet(system, startMinute) {
       }
       const slugs = profileSlugsForRole(profileSpec, role, origin.factionId);
       const slug = npcShipSlugForRole(profileSpec, role, seed, origin.factionId);
-      const stats = shipStatsForSlug(slug);
-      const ship = {
+      const ship = createNpcShipRecord({
         id: `${profileSpec.id}-${i}`,
         factionId: role === NPC_ROLE_PIRATE ? PIRATE_FACTION_ID : origin.factionId,
         role,
-        profileId: profileSpec.id,
-        mode: profileSpec.mode,
-        cultureType: origin.cityType,
+        profileSpec,
         slugs,
         slug,
         seed,
-        hitPoints: stats.hitPoints,
-        maxHitPoints: stats.hitPoints,
-        cargoCapacity: stats.cargoCapacity,
-        fishingNetId: role === NPC_ROLE_FISHERMAN
-          ? npcFishingNetForSeed(seed, stats.cargoCapacity).id
-          : null,
-        cargo: {},
-        cargoCost: {},
-        specie: npcStartingSpecieForRole(role, stats),
-        lifetimeProfit: 0,
-        portVisits: 0,
-        graceUntilPortVisit: 0,
-        seekingHideout: false,
-        hideoutDestinationTileId: null,
-        hiddenAtHideout: false,
-        hiddenUntilMinute: 0,
-        hideoutCooldownUntilPortVisit: 0,
-        currentPort: origin,
-        finalDestination: null,
-        plan: null,
-        clockOffsetMinutes: 0,
-        visualNavigation: null
-      };
+        origin
+      });
       const phaseDays = (seed >>> 12) % 96;
       assignNpcPlan(system, ship, startMinute - phaseDays * WEATHER_MINUTES_PER_DAY);
       settleNpcShipToClock(system, ship, startMinute, 96);
@@ -885,6 +959,103 @@ function createNpcFleet(system, startMinute) {
     }
   }
   return ships.slice(0, NPC_FLEET_TARGET);
+}
+
+function synchronizeNpcWhalerFleet(system, startMinute) {
+  if (!system.whaleMemory) return 0;
+  const desiredIds = new Set(WHALER_PROFILES.flatMap((profileSpec) => (
+    Array.from({ length: profileSpec.count }, (_, index) => `${profileSpec.id}-${index}`)
+  )));
+  const obsoleteIds = new Set([
+    ...system.ships
+      .filter((ship) => ship.role === NPC_ROLE_WHALER && !desiredIds.has(ship.id))
+      .map((ship) => ship.id),
+    ...system.replacementQueue
+      .filter((replacement) => replacement.role === NPC_ROLE_WHALER && !desiredIds.has(replacement.shipId))
+      .map((replacement) => replacement.shipId)
+  ]);
+  if (obsoleteIds.size > 0) {
+    system.ships = system.ships.filter((ship) => !obsoleteIds.has(ship.id));
+    system.replacementQueue = system.replacementQueue.filter((replacement) => !obsoleteIds.has(replacement.shipId));
+    console.info(`Replaced ${obsoleteIds.size} surplus NPC whalers with the current regional fleet`);
+  }
+  const reservedIds = new Set([
+    ...system.ships.map((ship) => ship.id),
+    ...system.replacementQueue.map((replacement) => replacement.shipId)
+  ]);
+  let added = 0;
+  for (const profileSpec of WHALER_PROFILES) {
+    const pool = rankedProfilePorts(system.ports, profileSpec);
+    if (pool.length < profileSpec.minimumPorts) {
+      throw new Error(
+        `NPC whaling profile ${profileSpec.id} needs at least ${profileSpec.minimumPorts} ports, got ${pool.length}`
+      );
+    }
+    for (let index = 0; index < profileSpec.count; index++) {
+      const id = `${profileSpec.id}-${index}`;
+      if (reservedIds.has(id)) continue;
+      const seed = hashString32(`${profileSpec.id}|${index}|npc`);
+      const origin = pool[seed % pool.length];
+      const slugs = profileSlugsForRole(profileSpec, NPC_ROLE_WHALER, origin.factionId);
+      const slug = npcShipSlugForRole(profileSpec, NPC_ROLE_WHALER, seed, origin.factionId);
+      const ship = createNpcShipRecord({
+        id,
+        factionId: origin.factionId,
+        role: NPC_ROLE_WHALER,
+        profileSpec,
+        slugs,
+        slug,
+        seed,
+        origin
+      });
+      const phaseDays = (seed >>> 12) % 96;
+      assignNpcPlan(system, ship, startMinute - phaseDays * WEATHER_MINUTES_PER_DAY);
+      settleNpcShipToClock(system, ship, startMinute, 96);
+      system.ships.push(ship);
+      reservedIds.add(id);
+      added++;
+    }
+  }
+  return added;
+}
+
+function createNpcShipRecord({ id, factionId, role, profileSpec, slugs, slug, seed, origin }) {
+  if (!NPC_ROLE_SET.has(role)) throw new Error(`Unknown NPC ship role: ${role}`);
+  const stats = shipStatsForSlug(slug);
+  return {
+    id,
+    factionId,
+    role,
+    profileId: profileSpec.id,
+    mode: profileSpec.mode,
+    cultureType: origin.cityType,
+    slugs: slugs.slice(),
+    slug,
+    seed,
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints,
+    cargoCapacity: stats.cargoCapacity,
+    fishingNetId: role === NPC_ROLE_FISHERMAN
+      ? npcFishingNetForSeed(seed, stats.cargoCapacity).id
+      : null,
+    lastWhaleHuntMinute: null,
+    cargo: {},
+    cargoCost: {},
+    specie: npcStartingSpecieForRole(role, stats),
+    lifetimeProfit: 0,
+    portVisits: 0,
+    graceUntilPortVisit: 0,
+    seekingHideout: false,
+    hideoutDestinationTileId: null,
+    hiddenAtHideout: false,
+    hiddenUntilMinute: 0,
+    hideoutCooldownUntilPortVisit: 0,
+    currentPort: origin,
+    finalDestination: null,
+    plan: null,
+    clockOffsetMinutes: 0,
+    visualNavigation: null
+  };
 }
 
 function spawnDueNpcReplacements(system, clockMinutes) {
@@ -897,40 +1068,18 @@ function spawnDueNpcReplacements(system, clockMinutes) {
     const origin = system.ports.find((port) => port.tileId === replacement.originPortId);
     if (!origin) throw new Error(`NPC replacement port is missing: ${replacement.originPortId}`);
     const slug = weightedCheapShipSlug(replacement.slugs, replacement.seed);
-    const stats = shipStatsForSlug(slug);
-    const ship = {
+    const profileSpec = fleetProfileForId(replacement.profileId);
+    const ship = createNpcShipRecord({
       id: replacement.shipId,
       factionId: replacement.factionId,
       role: replacement.role,
-      profileId: replacement.profileId,
-      mode: replacement.mode,
-      cultureType: replacement.cultureType || origin.cityType,
-      slugs: replacement.slugs.slice(),
+      profileSpec,
+      slugs: replacement.slugs,
       slug,
       seed: replacement.seed,
-      hitPoints: stats.hitPoints,
-      maxHitPoints: stats.hitPoints,
-      cargoCapacity: stats.cargoCapacity,
-      fishingNetId: replacement.role === NPC_ROLE_FISHERMAN
-        ? npcFishingNetForSeed(replacement.seed, stats.cargoCapacity).id
-        : null,
-      cargo: {},
-      cargoCost: {},
-      specie: npcStartingSpecieForRole(replacement.role, stats),
-      lifetimeProfit: 0,
-      portVisits: 0,
-      graceUntilPortVisit: 0,
-      seekingHideout: false,
-      hideoutDestinationTileId: null,
-      hiddenAtHideout: false,
-      hiddenUntilMinute: 0,
-      hideoutCooldownUntilPortVisit: 0,
-      currentPort: origin,
-      finalDestination: null,
-      plan: null,
-      clockOffsetMinutes: 0,
-      visualNavigation: null
-    };
+      origin
+    });
+    ship.cultureType = replacement.cultureType || origin.cityType;
     assignNpcPlan(system, ship, replacement.readyMinute);
     settleNpcShipToClock(system, ship, clockMinutes, 96);
     system.ships.push(ship);
@@ -947,11 +1096,11 @@ function chooseNpcReplacementPort(system, ship) {
     ));
     if (hideouts.length > 0) return hideouts[0];
   }
-  const profileSpec = FLEET_PROFILES.find((profile) => profile.id === ship.profileId);
+  const profileSpec = fleetProfileForId(ship.profileId);
   let candidates = system.ports.filter((port) => (
     !port.isFishingGround &&
     port.factionId === ship.factionId &&
-    (!profileSpec || profileSpec.portPredicate(port))
+    profileSpec.portPredicate(port)
   ));
   if (candidates.length === 0) {
     candidates = system.ports.filter((port) => !port.isFishingGround && port.factionId === ship.factionId);
@@ -1032,13 +1181,23 @@ function profileSlugsForRole(profileSpec, role, factionId = null) {
       : profileSpec.warshipSlugs;
   }
   if (role === NPC_ROLE_FISHERMAN) return profileSpec.fisherSlugs;
+  if (role === NPC_ROLE_WHALER) return profileSpec.whalerSlugs;
   return profileSpec.merchantSlugs;
 }
 
 function npcStartingSpecieForRole(role, stats) {
   if (role === NPC_ROLE_MERCHANT) return 900 + stats.cargoCapacity * 18;
-  if (role === NPC_ROLE_FISHERMAN) return 120 + stats.cargoCapacity * 4;
+  if (role === NPC_ROLE_FISHERMAN || role === NPC_ROLE_WHALER) {
+    return 120 + stats.cargoCapacity * 4;
+  }
   return 250 + stats.cannons * 12;
+}
+
+function fleetProfileForId(profileId) {
+  const profileSpec = WHALER_PROFILE_BY_ID.get(profileId) ||
+    FLEET_PROFILES.find((profile) => profile.id === profileId);
+  if (!profileSpec) throw new Error(`Unknown NPC fleet profile: ${profileId}`);
+  return profileSpec;
 }
 
 function weightedCheapShipSlug(slugs, seed) {
@@ -1116,7 +1275,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < maxPlans) {
     ship.currentPort = ship.plan.destination;
     ship.portVisits += 1;
-    if (system.onForeignPortCall && !ship.currentPort.isFishingGround &&
+    if (system.onForeignPortCall && !ship.currentPort.isFishingGround && !ship.currentPort.isWhalingGround &&
         ship.plan.endMinute >= system.contactStartMinute) {
       system.onForeignPortCall(ship.factionId, ship.currentPort.factionId, ship.plan.endMinute);
     }
@@ -1141,6 +1300,13 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       else if (npcCargoUnits(ship) > 0 && npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) {
         sellNpcCargo(system, ship, ship.currentPort);
       }
+    } else if (ship.role === NPC_ROLE_WHALER && reachedTradingDestination) {
+      ship.finalDestination = null;
+      if (ship.currentPort.isWhalingGround) {
+        harvestNpcWhalingGround(system, ship, ship.currentPort, ship.plan.endMinute);
+      } else if (npcCargoUnits(ship) > 0 && npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) {
+        sellNpcCargo(system, ship, ship.currentPort);
+      }
     } else if (ship.role === NPC_ROLE_MERCHANT && reachedTradingDestination) {
       ship.finalDestination = null;
       if (npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) {
@@ -1160,8 +1326,8 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
 
 function chooseNpcDestination(system, ship, origin) {
   if (ship.role === NPC_ROLE_FISHERMAN) return chooseFishermanDestination(system, ship, origin);
-  const profileSpec = FLEET_PROFILES.find((item) => item.id === ship.profileId);
-  if (!profileSpec) throw new Error(`Unknown NPC fleet profile: ${ship.profileId}`);
+  if (ship.role === NPC_ROLE_WHALER) return chooseWhalerDestination(system, ship, origin);
+  const profileSpec = fleetProfileForId(ship.profileId);
   const seed = hashString32(`${ship.id}|${origin.tileId}|dest`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
@@ -1170,7 +1336,9 @@ function chooseNpcDestination(system, ship, origin) {
     .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(system, ship, port))
     .filter((port) => profileSpec.mode === "regional"
       ? profileSpec.portPredicate(port) && distanceKm(origin, port) >= NPC_MIN_TRIP_DISTANCE_KM
-      : port.routeRegion !== origin.routeRegion && longRangePairAllowed(origin, port))
+      : !port.npcInterregionalTradeExcluded &&
+        port.routeRegion !== origin.routeRegion &&
+        longRangePairAllowed(origin, port))
     .map((port) => ({
       port,
       economicScore: npcDestinationEconomicScore(system, ship, origin, port)
@@ -1181,6 +1349,50 @@ function chooseNpcDestination(system, ship, origin) {
     ));
   if (candidates.length === 0) {
     throw new Error(`No NPC destination candidates for ${ship.id} from ${portName(origin)}`);
+  }
+  return candidates[0].port;
+}
+
+function chooseWhalerDestination(system, ship, origin) {
+  if (origin.isWhalingGround || npcCargoUnits(ship) > 0) {
+    return chooseWhalerSalePort(system, ship, origin);
+  }
+  if (!system.whaleMemory || system.whalingGrounds.length === 0) {
+    throw new Error(`NPC whaler ${ship.id} has no whaling grounds`);
+  }
+  const profileSpec = fleetProfileForId(ship.profileId);
+  const grounds = system.whalingGrounds.filter((ground) => (
+    profileSpec.groundIds.includes(ground.whalingGroundId)
+  ));
+  if (grounds.length !== profileSpec.groundIds.length) {
+    throw new Error(`NPC whaler profile ${profileSpec.id} has missing hunting grounds`);
+  }
+  const seed = hashString32(`${ship.id}|${origin.tileId}|whaling-ground`);
+  return grounds.sort((a, b) => (
+    distanceKm(origin, a) - distanceKm(origin, b) ||
+    destinationRank(origin, a, seed) - destinationRank(origin, b, seed)
+  ))[0];
+}
+
+function chooseWhalerSalePort(system, ship, origin) {
+  const profileSpec = fleetProfileForId(ship.profileId);
+  const quantity = Math.max(1, ship.cargo[WHALE_BLUBBER_GOOD_ID] || ship.cargoCapacity);
+  const seed = hashString32(`${ship.id}|${origin.tileId}|blubber-sale`);
+  const candidates = system.ports
+    .filter((port) => !samePort(port, origin))
+    .filter(profileSpec.portPredicate)
+    .filter((port) => npcMerchantCanTradeAtPort(system, ship, port))
+    .map((port) => ({
+      port,
+      score: quotePortPurchase(system.economy, port, WHALE_BLUBBER_GOOD_ID, quantity) -
+        distanceKm(origin, port) * FISHING_GROUND_TRAVEL_COST_PER_KM
+    }))
+    .sort((a, b) => (
+      b.score - a.score ||
+      destinationRank(origin, a.port, seed) - destinationRank(origin, b.port, seed)
+    ));
+  if (candidates.length === 0) {
+    throw new Error(`No whale-blubber sale port candidates for ${ship.id} from ${portName(origin)}`);
   }
   return candidates[0].port;
 }
@@ -1281,6 +1493,43 @@ function harvestNpcFishingGround(system, ship, ground, clockMinutes) {
   return result;
 }
 
+function harvestNpcWhalingGround(system, ship, ground, clockMinutes) {
+  if (!system.whaleMemory) throw new Error(`NPC whaler ${ship.id} has no whale population`);
+  if (!ground.isWhalingGround) throw new Error(`NPC whaler ${ship.id} reached an invalid hunting ground`);
+  if (ship.visualNavigation) {
+    return Object.freeze({ outcome: "player-observed", whale: null });
+  }
+  if (ship.lastWhaleHuntMinute !== null) {
+    if (!Number.isFinite(ship.lastWhaleHuntMinute)) {
+      throw new Error(`NPC whaler ${ship.id} has an invalid hunt time: ${ship.lastWhaleHuntMinute}`);
+    }
+    if (clockMinutes - ship.lastWhaleHuntMinute < NPC_WHALING_COOLDOWN_MINUTES) {
+      return Object.freeze({ outcome: "cooldown", whale: null });
+    }
+  }
+  const availableQuantity = npcCargoAvailableQuantity(ship, WHALE_BLUBBER_GOOD_ID);
+  if (availableQuantity <= 0) return Object.freeze({ outcome: "hold-full", whale: null });
+
+  const result = harvestWhaleForNpc(system.whaleMemory, latLonToVector(ground.lat, ground.lon), {
+    maxDistanceRad: NPC_WHALING_RANGE_RAD,
+    minimumLivingPopulation: NPC_WHALING_MIN_LIVING_POPULATION
+  });
+  if (result.outcome !== "caught") return result;
+  const harvestedQuantity = Math.min(availableQuantity, whaleBlubberYield(result.whale));
+  const stored = storeNpcCargo(
+    ship,
+    WHALE_BLUBBER_GOOD_ID,
+    harvestedQuantity,
+    0,
+    "offscreen whaling"
+  );
+  if (stored !== harvestedQuantity) {
+    throw new Error(`NPC whaling capacity changed during harvest: ${ship.id} stored ${stored}/${harvestedQuantity}`);
+  }
+  ship.lastWhaleHuntMinute = clockMinutes;
+  return Object.freeze({ ...result, quantity: stored });
+}
+
 function npcPortIsSafeForShip(system, ship, port) {
   if (port.isFishingGround) return true;
   if (ship.role === NPC_ROLE_PIRATE && system.pirateHideouts.some((hideout) => hideout.tileId === port.tileId)) {
@@ -1335,7 +1584,9 @@ function defaultMingTradeOpenToFaction(factionId) {
 }
 
 function npcNeedsFriendlyTradePort(ship) {
-  return ship.role === NPC_ROLE_MERCHANT || ship.role === NPC_ROLE_FISHERMAN;
+  return ship.role === NPC_ROLE_MERCHANT ||
+    ship.role === NPC_ROLE_FISHERMAN ||
+    ship.role === NPC_ROLE_WHALER;
 }
 
 function shipHasCombatGrace(ship) {
@@ -2070,7 +2321,7 @@ function isPolynesianPort(port) {
 }
 
 function isMesoamericanPort(port) {
-  return port.cityType === "mesoamerican";
+  return port.cityType === "mesoamerican" && port.manualRegion !== "northwest-coast";
 }
 
 function isMediterraneanPort(port) {
@@ -2082,6 +2333,19 @@ function isAtlanticPort(port) {
   if (isNativeCoastalPort(port)) return false;
   return port.cityType === "northern-european" ||
     (port.lon >= -85 && port.lon <= 20 && port.lat >= -36 && port.lat <= 58);
+}
+
+function isNorthAtlanticWhalingPort(port) {
+  if (!isAtlanticPort(port) || port.lat < 35) return false;
+  return port.routeAnchors.includes("north-sea") || port.routeAnchors.includes("biscay");
+}
+
+function isJapaneseWhalingPort(port) {
+  return port.factionId === "japan" && isEastAsiaPort(port);
+}
+
+function isNorthwestCoastWhalingPort(port) {
+  return port.manualRegion === "northwest-coast";
 }
 
 function isLongRangePort(port) {
@@ -2118,6 +2382,7 @@ function portRouteRegion(port) {
 }
 
 function anchorIdsForPort(port) {
+  if (isNorthwestCoastWhalingPort(port)) return ["yuquot"];
   const region = portRouteRegion(port);
   if (region === "east-asia") return nearestAnchors(port, ["canton", "nagasaki", "manila"], 2);
   if (region === "southeast-asia") {
@@ -2180,6 +2445,25 @@ function profile(id, count, shipPools, portPredicate, mode, roleWeights = null) 
   }
   for (const slug of [...fisherSlugs, ...merchantSlugs, ...warshipSlugs]) shipStatsForSlug(slug);
   return Object.freeze({ id, count, fisherSlugs, merchantSlugs, warshipSlugs, portPredicate, mode, roleWeights });
+}
+
+function whalerProfile(id, count, whalerSlugs, groundIds, portPredicate, minimumPorts) {
+  if (!Number.isInteger(count) || count <= 0) throw new Error(`NPC whaler profile ${id} needs a positive count`);
+  if (!Number.isInteger(minimumPorts) || minimumPorts <= 0) {
+    throw new Error(`NPC whaler profile ${id} needs a positive minimum port count`);
+  }
+  if (whalerSlugs.length === 0) throw new Error(`NPC whaler profile ${id} needs at least one hull`);
+  if (groundIds.length === 0) throw new Error(`NPC whaler profile ${id} needs at least one hunting ground`);
+  for (const slug of whalerSlugs) shipStatsForSlug(slug);
+  return Object.freeze({
+    id,
+    count,
+    whalerSlugs: Object.freeze([...whalerSlugs]),
+    groundIds: Object.freeze([...groundIds]),
+    portPredicate,
+    minimumPorts,
+    mode: "regional"
+  });
 }
 
 function nativeCoastalRoleWeights() {
@@ -2357,6 +2641,7 @@ function easeInOut(t) {
 function assertSaveableNpcRouteSystem(system) {
   if (!system || !Array.isArray(system.ships) || !(system.shipById instanceof Map) ||
       !Array.isArray(system.replacementQueue) || !(system.pirateHideoutDangerUntil instanceof Map) ||
+      !Array.isArray(system.whalingGrounds) ||
       !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map) ||
       typeof system.relationBetween !== "function" || typeof system.mingTradeOpenToFaction !== "function") {
     throw new Error("Invalid NPC route system");

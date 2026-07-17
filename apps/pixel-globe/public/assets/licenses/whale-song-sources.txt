@@ -1,0 +1,19 @@
+Whale Song Sources
+
+"Creepy Whale Song"
+Creator: DRAGON-STUDIO
+Source: https://pixabay.com/sound-effects/film-special-effects-creepy-whale-song-323612/
+License: Pixabay Content License
+
+"Haunting Whale Song"
+Creator: DRAGON-STUDIO
+Source: https://pixabay.com/sound-effects/nature-haunting-whale-song-515260/
+License: Pixabay Content License
+
+"Whale"
+Creator: cclaretc (Freesound), distributed by Freesound Community on Pixabay
+Source: https://pixabay.com/sound-effects/nature-whale-45996/
+License: Pixabay Content License
+
+The production Ogg files are normalized stereo derivatives at 48 kHz. They play
+quietly and intermittently when a submerged whale is near the player's ship.

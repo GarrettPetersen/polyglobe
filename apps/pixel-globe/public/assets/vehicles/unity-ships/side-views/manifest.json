@@ -273,7 +273,7 @@
     },
     {
       "slug": "mesoamerican-dugout-canoe",
-      "label": "Mesoamerican Dugout Canoe",
+      "label": "Dugout Canoe",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/mesoamerican-dugout-canoe/scene.gltf",
       "sourceMaxDim": 9.1055,
       "targetModelMaxDim": 1.85,

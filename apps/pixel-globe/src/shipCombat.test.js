@@ -44,6 +44,18 @@ test("pirates trigger many-to-many combat while merchants flee", () => {
   assert.equal(result.intents.get("merchant-b").mode, COMBAT_MODE_FLEE);
 });
 
+test("civilian whalers are valid combatants and flee when attacked", () => {
+  const state = createShipCombatState();
+  forceShipEngagement(state, "player", "whaler");
+  const result = updateShipCombatState(state, [
+    ship("player", "merchant", "england", 0, 0, 40, 8),
+    ship("whaler", "whaler", "france", 20, 0, 24, 2)
+  ], () => "neutral");
+
+  assert.equal(result.engagementCount, 1);
+  assert.equal(result.intents.get("whaler").mode, COMBAT_MODE_FLEE);
+});
+
 test("warships intercept pirates before pirates can close with the player", () => {
   const warshipRange = updateShipCombatState(createShipCombatState(), [
     ship("pirate", "pirate", "pirate", 0, 0, 130, 12),

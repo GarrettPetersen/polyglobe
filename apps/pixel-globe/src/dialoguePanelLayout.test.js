@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  dialogueExitFooterRects,
+  dialogueOptionGroups,
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
+  dialogueOptionStackLayout,
   dialogueOptionTextLayout,
   dialogueOptionWindow,
   dialoguePanelGeometry
@@ -83,6 +86,52 @@ test("dialogue action layout keeps every option visible when room permits", () =
     visibleCount: 3,
     needsScroll: false
   });
+});
+
+test("town exit actions reserve a pinned footer below scrolling choices", () => {
+  const options = [
+    { label: "Buy goods" },
+    { label: "Equipment" },
+    { label: "Back", placement: "port-exit" }
+  ];
+  const groups = dialogueOptionGroups(options);
+  assert.deepEqual(groups.regular.map((entry) => entry.index), [0, 1]);
+  assert.deepEqual(groups.exits.map((entry) => entry.index), [2]);
+
+  const layout = dialogueOptionStackLayout({
+    desiredY: 190,
+    bottom: 241,
+    optionHeight: 24,
+    regularCount: groups.regular.length,
+    exitCount: groups.exits.length
+  });
+  assert.deepEqual(layout, {
+    y: 189,
+    footerY: 217,
+    regularBottom: 213,
+    visibleRegularCount: 1,
+    needsScroll: true
+  });
+  assert.deepEqual(dialogueExitFooterRects({
+    x: 15,
+    y: layout.footerY,
+    width: 220,
+    optionHeight: 24,
+    exitCount: 1
+  }), [{ x: 15, y: 217, w: 220, h: 22 }]);
+});
+
+test("Back and Leave Port share the fixed town footer", () => {
+  assert.deepEqual(dialogueExitFooterRects({
+    x: 15,
+    y: 217,
+    width: 220,
+    optionHeight: 24,
+    exitCount: 2
+  }), [
+    { x: 15, y: 217, w: 108, h: 22 },
+    { x: 127, y: 217, w: 108, h: 22 }
+  ]);
 });
 
 test("one-row dialogue paging keeps previous and next touch targets separate", () => {

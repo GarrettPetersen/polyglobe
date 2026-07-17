@@ -1,5 +1,5 @@
 export const CREW_PER_HOLD_UNIT = 4;
-export const FOOD_PERSON_DAYS_PER_UNIT = 12;
+export const FOOD_RATIONS_PER_HOLD_UNIT = 12;
 export const WATER_PERSON_DAYS_PER_UNIT = 8;
 export const CREW_HIRE_COST = 2;
 export const CANNON_RESTOCK_COST = 8;
@@ -41,10 +41,10 @@ export function shipLoadoutPlan(stats, loadoutId) {
   const reserveSpace = Math.max(0, Math.floor(stats.cargoCapacity * selected.reserveFraction));
   const availableStoreSpace = Math.max(0, stats.cargoCapacity - operationalSpace - reserveSpace);
   const consumers = crew + 1;
-  const desiredFood = Math.ceil(consumers * selected.targetDays / FOOD_PERSON_DAYS_PER_UNIT);
+  const desiredFood = Math.ceil(consumers * selected.targetDays / FOOD_RATIONS_PER_HOLD_UNIT);
   const desiredWater = Math.ceil(consumers * selected.targetDays / WATER_PERSON_DAYS_PER_UNIT);
   const stores = fitStores(desiredFood, desiredWater, availableStoreSpace);
-  const foodDays = stores.foodUnits * FOOD_PERSON_DAYS_PER_UNIT / consumers;
+  const foodDays = stores.foodUnits * FOOD_RATIONS_PER_HOLD_UNIT / consumers;
   const waterDays = stores.waterUnits * WATER_PERSON_DAYS_PER_UNIT / consumers;
 
   return Object.freeze({

@@ -73,7 +73,7 @@ async function normalize(inputPath, outputPath, measured) {
   await runFfmpeg([
     "-hide_banner", "-nostats", "-y", "-i", inputPath,
     "-af", filter,
-    "-ar", "48000", "-c:a", "vorbis", "-strict", "experimental", "-q:a", "5",
+    "-ar", "48000", "-ac", "2", "-c:a", "vorbis", "-strict", "experimental", "-q:a", "5",
     outputPath
   ]);
 }

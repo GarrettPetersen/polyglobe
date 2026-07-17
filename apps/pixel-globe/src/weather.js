@@ -431,12 +431,8 @@ function skipBytes(offset, byteLength, totalBytes, label) {
 function baseWindAtLat(latDeg) {
   const absLat = Math.min(90, Math.abs(latDeg));
   const hemisphere = latDeg >= 0 ? 1 : -1;
-
-  const tradeWeight = 1 - smoothstep(18, 34, absLat);
-  const westerlyWeight = smoothstep(18, 34, absLat) * (1 - smoothstep(52, 68, absLat));
-  const polarWeight = smoothstep(52, 68, absLat);
-
-  const tradeDir = hemisphere > 0 ? Math.PI * 0.25 : -Math.PI * 0.25;
+  const equatorialHemisphere = smoothstep(-8, 8, latDeg) * 2 - 1;
+  const tradeDir = Math.PI * 0.25 * equatorialHemisphere;
   const westerlyDir = hemisphere > 0 ? -Math.PI * 0.75 : Math.PI * 0.75;
   const polarDir = hemisphere > 0 ? Math.PI * 0.12 : -Math.PI * 0.12;
 
@@ -444,24 +440,23 @@ function baseWindAtLat(latDeg) {
   const westerlyStrength = 0.4 + 0.22 * Math.exp(-Math.pow((absLat - 42) / 15, 2));
   const polarStrength = 0.2 + 0.13 * smoothstep(60, 85, absLat);
 
-  let x = 0;
-  let y = 0;
-  x += Math.cos(tradeDir) * tradeWeight * tradeStrength;
-  y += Math.sin(tradeDir) * tradeWeight * tradeStrength;
-  x += Math.cos(westerlyDir) * westerlyWeight * westerlyStrength;
-  y += Math.sin(westerlyDir) * westerlyWeight * westerlyStrength;
-  x += Math.cos(polarDir) * polarWeight * polarStrength;
-  y += Math.sin(polarDir) * polarWeight * polarStrength;
-
-  const strength = Math.hypot(x, y);
-  if (strength < 1e-6) {
-    return { directionRad: hemisphere > 0 ? Math.PI * 0.25 : -Math.PI * 0.25, strength: MIN_WIND_STRENGTH };
+  if (absLat <= 18) return { directionRad: tradeDir, strength: tradeStrength };
+  if (absLat < 34) {
+    const blend = smoothstep(18, 34, absLat);
+    return {
+      directionRad: lerpAngleRad(tradeDir, westerlyDir, blend),
+      strength: lerp(tradeStrength, westerlyStrength, blend)
+    };
   }
-
-  return {
-    directionRad: Math.atan2(y, x),
-    strength: clamp(strength, MIN_WIND_STRENGTH, MAX_BASE_WIND_STRENGTH)
-  };
+  if (absLat <= 52) return { directionRad: westerlyDir, strength: westerlyStrength };
+  if (absLat < 68) {
+    const blend = smoothstep(52, 68, absLat);
+    return {
+      directionRad: lerpAngleRad(westerlyDir, polarDir, blend),
+      strength: lerp(westerlyStrength, polarStrength, blend)
+    };
+  }
+  return { directionRad: polarDir, strength: polarStrength };
 }
 
 function effectiveLatForSeason(latDeg, subsolarLatDeg) {
@@ -480,6 +475,11 @@ function smoothstep(edge0, edge1, value) {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function lerpAngleRad(from, to, t) {
+  const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  return from + delta * t;
 }
 
 function u32Hash(parts) {

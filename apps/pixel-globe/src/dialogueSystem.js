@@ -6,8 +6,10 @@ import {
   cargoCostBasis,
   cargoFree,
   cargoFreeForGood,
+  cargoQuantityLabel,
   cargoReservationUnits,
   cargoRows,
+  cargoSpaceLabel,
   cargoUsed,
   cityLabel,
   completeQuest,
@@ -21,8 +23,10 @@ import {
   portEntryStatus,
   playerCannonEquipment,
   playerFishingNet,
+  playerWhaleHarpoon,
   purchaseCannonEquipment,
   purchaseFishingNet,
+  purchaseWhaleHarpoon,
   questStateForCity,
   receiveQuestPayment,
   releaseCargoSpace,
@@ -48,9 +52,11 @@ import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { FISHING_NETS } from "./fishingNets.js";
 import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
+import { WHALE_HARPOONS } from "./whaleHarpoons.js";
 import {
   EQUIPMENT_STOCK_CANNON,
   EQUIPMENT_STOCK_FISHING_NET,
+  EQUIPMENT_STOCK_WHALE_HARPOON,
   equipmentStockAtPort
 } from "./portEquipment.js";
 import {
@@ -95,6 +101,9 @@ import { greatCircleDistanceKm } from "./worldDistance.js";
 const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
 
 export function createPortDialogueSession(city, options = {}) {
+  if (options.rumorText !== undefined && (typeof options.rumorText !== "string" || options.rumorText === "")) {
+    throw new Error("Port rumor text must be a non-empty string");
+  }
   return {
     kind: "port",
     cityTileId: city.tileId,
@@ -107,6 +116,7 @@ export function createPortDialogueSession(city, options = {}) {
     nextPortNodeId: options.nextPortNodeId || null,
     marketPurchases: {},
     tradeTip: null,
+    rumorText: options.rumorText || null,
     selectedIndex: 0,
     feedback: null
   };
@@ -133,8 +143,10 @@ export function createPortArrivalDialogueSession(city, options = {}) {
     });
   }
   return createPortDialogueSession(city, {
-    initialNodeId: needsLoadout ? "loadout" : "greeting",
-    admittedToPort: true
+    initialNodeId: options.rumorText ? "greeting" : needsLoadout ? "loadout" : "greeting",
+    admittedToPort: true,
+    rumorText: options.rumorText,
+    nextPortNodeId: options.nextPortNodeId
   });
 }
 
@@ -160,9 +172,12 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
   };
 }
 
-export function createShipDialogueSession(ship, { attackReason = null } = {}) {
+export function createShipDialogueSession(ship, { attackReason = null, rumorText = null } = {}) {
   if (attackReason !== null && (typeof attackReason !== "string" || attackReason.trim() === "")) {
     throw new Error("Ship combat hail requires a reason");
+  }
+  if (rumorText !== null && (typeof rumorText !== "string" || rumorText.trim() === "")) {
+    throw new Error("Ship rumor text must be null or a non-empty string");
   }
   return {
     kind: "ship",
@@ -171,7 +186,8 @@ export function createShipDialogueSession(ship, { attackReason = null } = {}) {
     selectedIndex: 0,
     attackReason,
     piracyWarningAccepted: false,
-    pendingPiracyAction: null
+    pendingPiracyAction: null,
+    rumorText
   };
 }
 
@@ -307,9 +323,11 @@ export function shipDialogueView(session, ship) {
   const voyage = ship.destinationName ? ` Bound for ${ship.destinationName}.` : "";
   const cargo = manifest ? ` We carry ${manifest}.` : " Running in ballast.";
   const role = ship.roleLabel || "Merchant";
-  const fishingGear = role === "Fisherman" && ship.fishingNetLabel
+  const workingGear = role === "Fisherman" && ship.fishingNetLabel
     ? ` We work a ${ship.fishingNetLabel.toLowerCase()}.`
-    : "";
+    : role === "Whaler"
+      ? " We hunt whales with hand harpoons."
+      : "";
   const faction = role !== "Pirate" && ship.faction?.adjective ? `${ship.faction.adjective} ` : "";
   const speaker = `${characterName(ship.character)}, ${faction}${role.toLowerCase()} captain`;
   if (session.attackReason) {
@@ -388,6 +406,15 @@ export function shipDialogueView(session, ship) {
     };
   }
   if (session.nodeId !== "root") throw new Error(`Unknown ship dialogue node: ${session.nodeId}`);
+  if (session.rumorText !== null) {
+    return {
+      speaker,
+      expressionId: "attentive",
+      text: session.rumorText,
+      feedback: null,
+      options: [option("Thank the captain", { type: "close" })]
+    };
+  }
   const greeting = role === "Pirate"
     ? "Heave to and keep your hands where I can see them."
     : role === "Warship"
@@ -403,7 +430,7 @@ export function shipDialogueView(session, ship) {
   return {
     speaker,
     expressionId,
-    text: `${greeting}${storm}${voyage}${cargo}${fishingGear}`,
+    text: `${greeting}${storm}${voyage}${cargo}${workingGear}`,
     feedback: null,
     options: [
       ...(ship.canOfferEmergencyAid
@@ -555,7 +582,7 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
 
-  return withBackOptionFirst(portDialogueNodeView(session, city, gameState, economy, portCities, context));
+  return withPortExitFooter(portDialogueNodeView(session, city, gameState, economy, portCities, context));
 }
 
 function portDialogueNodeView(session, city, gameState, economy, portCities, context) {
@@ -569,6 +596,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "equipment") return equipmentView(session, city, gameState, economy);
   if (session.nodeId === "equipment-nets") return fishingNetView(session, city, gameState, economy);
   if (session.nodeId === "equipment-cannons") return cannonEquipmentView(session, city, gameState, economy);
+  if (session.nodeId === "equipment-harpoons") return whaleHarpoonView(session, city, gameState, economy);
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
@@ -580,18 +608,21 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
 
-function withBackOptionFirst(view) {
-  const backIndexes = view.options
-    .map((entry, index) => entry.label === "Back" ? index : -1)
-    .filter((index) => index >= 0);
-  if (backIndexes.length > 1) {
-    throw new Error("Dialogue view contains more than one Back option");
+function withPortExitFooter(view) {
+  const regularOptions = [];
+  const exitOptions = [];
+  for (const entry of view.options) {
+    const isExit = entry.label === "Back" || entry.action.type === "close";
+    (isExit ? exitOptions : regularOptions).push(isExit
+      ? { ...entry, placement: "port-exit" }
+      : entry);
   }
-  if (backIndexes.length === 0 || backIndexes[0] === 0) return view;
-  const options = [...view.options];
-  const [back] = options.splice(backIndexes[0], 1);
-  options.unshift(back);
-  return { ...view, options };
+  if (exitOptions.length > 2) {
+    throw new Error(`Port dialogue footer supports at most two exit actions, received ${exitOptions.length}`);
+  }
+  return exitOptions.length === 0
+    ? view
+    : { ...view, options: [...regularOptions, ...exitOptions] };
 }
 
 export function selectPortDialogueOption(
@@ -800,6 +831,13 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, cannonEquipmentPurchase: result };
   }
+  if (action.type === "buy-whale-harpoon") {
+    const result = purchaseWhaleHarpoon(gameState, economy, city, action.harpoonId, context);
+    session.feedback = `${result.harpoon.label} fitted for ${result.price} db.`;
+    session.nodeId = "equipment-harpoons";
+    session.selectedIndex = 0;
+    return { closed: false, whaleHarpoonPurchase: result };
+  }
   if (action.type === "sell") {
     const result = sellGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
     const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
@@ -952,6 +990,18 @@ function assertPassengerDialogueSubject(session, city, quest) {
 
 function greetingView(session, city, gameState, context) {
   const memory = portMemory(gameState, city);
+  if (session.rumorText !== null) {
+    return {
+      speaker: speakerName(city),
+      expressionId: "attentive",
+      text: session.rumorText,
+      feedback: null,
+      options: [option("Mark the bearing", {
+        type: "node",
+        nodeId: session.nextPortNodeId || "root"
+      })]
+    };
+  }
   if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
   if (city.playerFoundedColony) {
     return {
@@ -1441,14 +1491,19 @@ function colonizationView(session, city, gameState, context) {
 function equipmentView(session, city, gameState, economy) {
   const nets = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS);
   const cannonEquipment = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT);
+  const harpoons = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS);
   const cannonArmed = Boolean(gameState.ship && gameState.ship.cannonCapacity > 0);
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: `Local outfitters carry ${nets.length} net type${nets.length === 1 ? "" : "s"} and ${cannonEquipment.length} cannon fitting${cannonEquipment.length === 1 ? "" : "s"}. Prosperous ports attract rarer equipment.`,
+    text: `Local outfitters carry ${nets.length} net type${nets.length === 1 ? "" : "s"}, ${harpoons.length} whaling harpoon${harpoons.length === 1 ? "" : "s"}, and ${cannonEquipment.length} cannon fitting${cannonEquipment.length === 1 ? "" : "s"}. Prosperous ports attract rarer equipment.`,
     feedback: session.feedback,
     options: [
       option("Fishing nets", { type: "node", nodeId: "equipment-nets" }),
+      option("Whale harpoons", { type: "node", nodeId: "equipment-harpoons" }, {
+        disabled: harpoons.length === 0,
+        disabledReason: "This port has no whaling gear in stock."
+      }),
       option("Cannon battery", { type: "node", nodeId: "equipment-cannons" }, {
         disabled: !cannonArmed,
         disabledReason: "Your ship has no cannon battery to refit."
@@ -1525,6 +1580,40 @@ function cannonEquipmentView(session, city, gameState, economy) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: `Current battery: ${current.label}. Faster locks and longer culverins improve reload, damage, and range. Purse ${gameState.doubloons} db.`,
+    feedback: session.feedback,
+    optionHeight: 34,
+    options: rows
+  };
+}
+
+function whaleHarpoonView(session, city, gameState, economy) {
+  const current = playerWhaleHarpoon(gameState);
+  const stock = equipmentStockAtPort(economy, city, EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS);
+  const rows = stock.map((harpoon) => {
+    const fitted = harpoon.id === current?.id;
+    const inferior = Boolean(current && harpoon.tier < current.tier);
+    const cannotAfford = gameState.doubloons < harpoon.price;
+    const disabledReason = fitted
+      ? "This harpoon is already fitted."
+      : inferior
+        ? `Your ${current.label} is superior.`
+        : cannotAfford
+          ? `Need ${harpoon.price - gameState.doubloons} more doubloons.`
+          : null;
+    return option(`${fitted ? "* " : ""}${harpoon.label}  ${fitted ? "FITTED" : `${harpoon.price} db`}`, {
+      type: "buy-whale-harpoon",
+      harpoonId: harpoon.id
+    }, {
+      detail: `ACCURACY ${Math.round(harpoon.accuracy * 100)}%  LINE BREAK ${Math.round(harpoon.breakChance * 100)}%  RANGE ${harpoon.rangePx}`,
+      disabled: fitted || inferior || cannotAfford,
+      disabledReason
+    });
+  });
+  rows.push(option("Back", { type: "node", nodeId: "equipment" }));
+  return {
+    speaker: speakerName(city),
+    expressionId: feedbackExpressionId(session.feedback),
+    text: `Current harpoon: ${current?.label || "none"}. A stronger line and truer shaft improve the odds of holding a surfaced whale. Purse ${gameState.doubloons} db.`,
     feedback: session.feedback,
     optionHeight: 34,
     options: rows
@@ -1615,8 +1704,8 @@ function buyView(session, city, gameState, economy, context) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: city.isPirateHideout
-      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`
-      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`
+      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
     optionHeight: 30,
     options: rows
@@ -1771,7 +1860,9 @@ function loadoutView(session, city, gameState, context) {
 
 function sellView(session, city, gameState, economy) {
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
-  const rows = cargoRows(gameState).filter((cargo) => cargo.good.sellable !== false).map((cargo) => {
+  const rows = cargoRows(gameState).filter((cargo) => (
+    cargo.good.sellable !== false && cargo.quantity >= 1
+  )).map((cargo) => {
     const row = market.get(cargo.good.id);
     if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${cargo.good.id}`);
     const price = row.sellPrice;
@@ -1782,7 +1873,7 @@ function sellView(session, city, gameState, economy) {
       type: "sell",
       goodId: cargo.good.id
     }, {
-      detail: `${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${cargo.quantity}`,
+      detail: `${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${cargoQuantityLabel(cargo.good, cargo.quantity)}`,
       disabled: row.portSpecie < price,
       disabledReason: "The market is out of specie."
     });
@@ -1798,8 +1889,8 @@ function sellView(session, city, gameState, economy) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: city.isPirateHideout
-      ? `The fences care about value, not provenance. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`
-      : `Buyers here pay port rates. Cargo ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+      ? `The fences care about value, not provenance. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`
+      : `Buyers here pay port rates. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
     optionHeight: 30,
     options: rows
@@ -1809,12 +1900,12 @@ function sellView(session, city, gameState, economy) {
 function cargoView(session, city, gameState) {
   const rows = cargoRows(gameState);
   const cargoText = rows.length > 0
-    ? rows.map((row) => `${row.good.label} x${row.quantity}`).join(", ")
+    ? rows.map((row) => `${row.good.label} ${cargoQuantityLabel(row.good, row.quantity)}`).join(", ")
     : "The hold is empty.";
   return {
     speaker: speakerName(city),
     expressionId: "neutral",
-    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${cargoUsed(gameState)}/${gameState.cargoCapacity}.`,
+    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
     options: [
       option("Back", { type: "node", nodeId: "root" }),
@@ -1901,7 +1992,7 @@ function questView(session, city, gameState, portCities) {
       expressionId: questState.kind === "in-progress-here" ? "attentive" : "concerned",
       text: questState.kind === "in-progress-here"
         ? `${passengerName(quest)} is waiting aboard for passage to ${quest.destinationName}.`
-        : `You are carrying ${passengerName(quest)} from ${quest.originName} to ${quest.destinationName}; finish that passage first.`,
+        : activeTravelMissionBusyText(quest),
       feedback: session.feedback,
       options: [
         option("Back", { type: "node", nodeId: returnNodeId })
@@ -1919,6 +2010,20 @@ function questView(session, city, gameState, portCities) {
       option("Back", { type: "node", nodeId: returnNodeId })
     ]
   };
+}
+
+function activeTravelMissionBusyText(quest) {
+  const traveler = passengerName(quest);
+  if (!isEnvoyQuest(quest)) {
+    return `You are carrying ${traveler} from ${quest.originName} to ${quest.destinationName}; finish that passage first.`;
+  }
+  if (quest.stage === "outbound") {
+    return `${traveler} is aboard on an embassy from ${quest.originName} to ${quest.targetName}; finish that mission first.`;
+  }
+  if (quest.stage === "return") {
+    return `${traveler} is aboard, returning from ${quest.targetName} to ${quest.originName}; finish that embassy first.`;
+  }
+  throw new Error(`Unknown envoy mission stage: ${quest.stage ?? "missing"}`);
 }
 
 function marqueView(session, city, gameState, context) {

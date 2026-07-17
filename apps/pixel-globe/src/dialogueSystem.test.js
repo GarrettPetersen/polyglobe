@@ -47,6 +47,18 @@ test("hailing an NPC ship identifies the captain by name", () => {
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
 });
 
+test("a white-whale rumor is delivered through an ordinary ship hail", () => {
+  const ship = { id: "malacca-merchant", label: "Dhow", character: { name: "Hamid Rahman" } };
+  const session = createShipDialogueSession(ship, {
+    rumorText: "A pale spout was sighted southeast of here."
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.equal(view.text, "A pale spout was sighted southeast of here.");
+  assert.deepEqual(view.options.map((option) => option.label), ["Thank the captain"]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), { closed: true, action: null });
+});
+
 test("a non-enemy ship offers emergency provisions once the player is depleted", () => {
   const ship = {
     id: "relief-ship",
@@ -153,6 +165,21 @@ test("fishermen identify the net fitted to their ship", () => {
   const view = shipDialogueView(session, fisher);
 
   assert.match(view.text, /work a weighted cast net/i);
+});
+
+test("whalers identify their profession and blubber cargo", () => {
+  const whaler = {
+    id: "north-atlantic-whalers-1",
+    label: "Fishing lugger",
+    roleLabel: "Whaler",
+    cargo: { "whale-blubber": 12 },
+    character: { name: "Martin Etxeberria" }
+  };
+  const view = shipDialogueView(createShipDialogueSession(whaler), whaler);
+
+  assert.match(view.speaker, /whaler captain$/i);
+  assert.match(view.text, /Whale Blubber x12/);
+  assert.match(view.text, /hunt whales with hand harpoons/i);
 });
 
 test("warship and pirate captains identify their role and allegiance", () => {
@@ -418,7 +445,8 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.optionHeight, 30);
-  assert.equal(sell.options[0].label, "Back");
+  assert.equal(sell.options.at(-1).label, "Back");
+  assert.equal(sell.options.at(-1).placement, "port-exit");
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
   assert.ok(sell.options.some((option) => /WORLD/.test(option.detail || "")));
 
@@ -432,12 +460,12 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     [city]
   );
   assert.deepEqual(provisionsOnlySell.options.map((option) => option.label), [
-    "Back",
-    "No cargo to sell"
+    "No cargo to sell",
+    "Back"
   ]);
 });
 
-test("port submenus keep Back first and put the infrequent loadout action last", () => {
+test("port menus pin Back and Leave Port after their ordinary actions", () => {
   const city = {
     tileId: 106,
     city: "Lisbon",
@@ -456,13 +484,24 @@ test("port submenus keep Back first and put the infrequent loadout action last",
   for (const nodeId of ["buy", "sell", "equipment", "equipment-nets", "equipment-cannons", "cargo", "loadout"]) {
     const session = createPortDialogueSession(city, { initialNodeId: nodeId });
     const view = portDialogueView(session, city, gameState, economy, [city], context);
-    assert.equal(view.options[0].label, "Back", `${nodeId} should put Back first`);
+    const back = view.options.find((entry) => entry.label === "Back");
+    assert.equal(back?.placement, "port-exit", `${nodeId} should mark Back for the footer`);
+    const firstExitIndex = view.options.findIndex((entry) => entry.placement === "port-exit");
+    assert.ok(
+      view.options.slice(firstExitIndex).every((entry) => entry.placement === "port-exit"),
+      `${nodeId} should keep all footer actions after ordinary actions`
+    );
   }
 
   const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
   const buy = portDialogueView(buySession, city, gameState, economy, [city], context);
-  assert.equal(buy.options.at(-1).label, "Change ship loadout");
-  assert.ok(buy.options.slice(1, -1).every((entry) => entry.action.type === "buy"));
+  assert.equal(buy.options.at(-2).label, "Change ship loadout");
+  assert.ok(buy.options.slice(0, -2).every((entry) => entry.action.type === "buy"));
+
+  const rootSession = createPortDialogueSession(city, { initialNodeId: "root" });
+  const root = portDialogueView(rootSession, city, gameState, economy, [city], context);
+  assert.equal(root.options.at(-1).label, "Leave port");
+  assert.equal(root.options.at(-1).placement, "port-exit");
 });
 
 test("market comparisons use pixel-font-safe directional wording", () => {
@@ -899,15 +938,17 @@ test("ports stock a local selection of fishing net upgrades", () => {
   const view = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(view.optionHeight, 34);
   assert.match(view.text, /Current gear: Basic cast net/);
-  assert.deepEqual(view.options.slice(1, 3).map((entry) => entry.label), [
+  const equipmentOptions = view.options.filter((entry) => entry.placement !== "port-exit");
+  assert.deepEqual(equipmentOptions.slice(0, 2).map((entry) => entry.label), [
     "* Basic cast net  FITTED",
     "Weighted cast net  900 db"
   ]);
-  assert.ok(view.options.slice(1, 3).every((entry) => /MAX HAUL/.test(entry.detail)));
-  assert.equal(view.options[1].disabled, true);
-  assert.equal(view.options[2].disabled, false);
+  assert.ok(equipmentOptions.slice(0, 2).every((entry) => /MAX HAUL/.test(entry.detail)));
+  assert.equal(equipmentOptions[0].disabled, true);
+  assert.equal(equipmentOptions[1].disabled, false);
 
-  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 2, { simMinute: 300 });
+  const weightedIndex = view.options.findIndex((entry) => entry.action.netId === "weighted-cast-net");
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], weightedIndex, { simMinute: 300 });
   assert.equal(result.fishingNetPurchase.net.id, "weighted-cast-net");
   assert.equal(gameState.doubloons, 4100);
   assert.match(session.feedback, /Weighted cast net fitted/);
@@ -931,14 +972,16 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
 
   const view = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(view.optionHeight, 34);
-  assert.deepEqual(view.options.slice(1, 4).map((entry) => entry.label), [
+  const equipmentOptions = view.options.filter((entry) => entry.placement !== "port-exit");
+  assert.deepEqual(equipmentOptions.slice(0, 3).map((entry) => entry.label), [
     "* Standard ordnance  FITTED",
     "Bronze culverins  2400 db",
     "Reinforced culverins  8500 db"
   ]);
-  assert.match(view.options[2].detail, /RELOAD 8\.50S  DAMAGE x1\.15  RANGE x1\.12/);
+  assert.match(equipmentOptions[1].detail, /RELOAD 8\.50S  DAMAGE x1\.15  RANGE x1\.12/);
 
-  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 2, { simMinute: 300 });
+  const bronzeIndex = view.options.findIndex((entry) => entry.action.equipmentId === "bronze-culverins");
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], bronzeIndex, { simMinute: 300 });
   assert.equal(result.cannonEquipmentPurchase.equipment.id, "bronze-culverins");
   assert.equal(gameState.doubloons, 7600);
   assert.match(session.feedback, /Bronze culverins fitted/);
@@ -1139,6 +1182,15 @@ test("passenger dialogue can be declined and accepted later", () => {
 test("envoy dialogue advances from negotiations to a paid return voyage", () => {
   const origin = { tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
   const target = { tileId: 2, city: "London", country: "United Kingdom", factionId: "england" };
+  const otherPort = {
+    tileId: 3,
+    city: "Calais",
+    country: "France",
+    factionId: "france",
+    cityType: "northern-european",
+    population: 12000,
+    character: { name: "Etienne Moreau" }
+  };
   const quest = {
     id: "friendly-envoy-1-2-test",
     kind: "friendly-envoy",
@@ -1190,6 +1242,21 @@ test("envoy dialogue advances from negotiations to a paid return voyage", () => 
   );
   assert.equal(result.action.type, "envoy-negotiated");
   assert.equal(gameState.memory.quests.active.stage, "return");
+
+  const otherPortSession = createPortDialogueSession(otherPort, { initialNodeId: "quest" });
+  const otherPortEconomy = createWorldEconomy({ ports: [otherPort], startMinute: 0 });
+  const busy = portDialogueView(
+    otherPortSession,
+    otherPort,
+    gameState,
+    otherPortEconomy,
+    [origin, target, otherPort]
+  );
+  assert.equal(
+    busy.text,
+    "Duarte de Meneses is aboard, returning from London to Lisbon; finish that embassy first."
+  );
+  assert.doesNotMatch(busy.text, /Lisbon to Lisbon/);
 
   const returnSession = createPassengerDialogueSession(origin, gameState.memory.quests.active);
   const homecoming = passengerDialogueView(returnSession, origin, gameState.memory.quests.active, gameState);

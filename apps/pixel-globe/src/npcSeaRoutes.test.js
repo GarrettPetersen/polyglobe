@@ -7,7 +7,9 @@ import {
   NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
+  NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
+  NPC_WHALER_FLEET_TARGET,
   NPC_SHIP_SLUGS,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
@@ -36,6 +38,7 @@ import {
   fishingNetById,
   npcFishingNetExpectedHaul
 } from "./fishingNets.js";
+import { createWhaleMemory, seedWhalePopulation } from "./whaleSystem.js";
 
 const PORTS = Object.freeze([
   port(1, "Lisbon", "Portugal", "mediterranean", 38.72, -9.14, 70000, "portugal"),
@@ -225,6 +228,49 @@ test("NPC fleets favor merchants and inexpensive role-appropriate hulls", () => 
   assert.ok(cheap > expensive, JSON.stringify({ cheap, expensive }));
 });
 
+test("a sparse dedicated whaling fleet hunts real whales without fishing nets", () => {
+  const ports = [
+    ...PORTS,
+    port(40, "London", "England", "northern-european", 51.5, -0.1, 100000, "england"),
+    port(41, "Reykjavik", "Iceland", "northern-european", 64.15, -21.94, 5000, "denmark-norway"),
+    port(42, "Kyoto", "Japan", "east-asian", 35.01, 135.77, 100000, "japan"),
+    port(43, "Nagasaki", "Japan", "east-asian", 32.75, 129.88, 30000, "japan"),
+    {
+      ...port(44, "Yuquot Village", "Nuu-chah-nulth", "mesoamerican", 49.59, -126.62, 1500, "neutral"),
+      manualRegion: "northwest-coast",
+      npcInterregionalTradeExcluded: true
+    },
+    {
+      ...port(45, "Ozette Village", "Makah", "mesoamerican", 48.15, -124.73, 1000, "neutral"),
+      manualRegion: "northwest-coast",
+      npcInterregionalTradeExcluded: true
+    }
+  ];
+  const whaleMemory = createWhaleMemory();
+  seedWhalePopulation(whaleMemory, whalingCandidates(), 320);
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy, whaleMemory });
+  const whalers = routes.ships.filter((ship) => ship.role === NPC_ROLE_WHALER);
+
+  assert.equal(whalers.length, NPC_WHALER_FLEET_TARGET);
+  assert.equal(whalers.filter((ship) => ship.profileId === "north-atlantic-whalers").length, 2);
+  assert.equal(whalers.filter((ship) => ship.profileId === "japanese-coastal-whalers").length, 2);
+  assert.equal(whalers.filter((ship) => ship.profileId === "northwest-coast-whalers").length, 1);
+  assert.ok(whalers
+    .filter((ship) => ship.profileId === "japanese-coastal-whalers")
+    .every((ship) => ["sampan", "small-junk"].includes(ship.slug)));
+  assert.ok(whalers
+    .filter((ship) => ship.profileId === "northwest-coast-whalers")
+    .every((ship) => ship.slug === "mesoamerican-dugout-canoe"));
+  assert.ok(whalers.every((ship) => ship.fishingNetId === null));
+  assert.ok(whalers.every((ship) => (
+    ship.currentPort.isWhalingGround ||
+    ship.plan.destination.isWhalingGround ||
+    (ship.cargo["whale-blubber"] || 0) > 0
+  )));
+  assert.ok(whaleMemory.individuals.filter((whale) => whale.phase === "dead").length <= NPC_WHALER_FLEET_TARGET);
+});
+
 test("Pacific villages get a small regional fishing and trading fleet", () => {
   const ports = [...PORTS, ...PACIFIC_PORTS];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
@@ -275,6 +321,42 @@ test("NPC route snapshots restore ships, plans, and replacement queues without c
   assert.equal(routes.pirateHideoutDangerUntil.get(PORTS[0].tileId), 5555);
   assert.equal(routes.routeCache.size, 0);
   assert.equal(routes.shipById.size, routes.ships.length);
+});
+
+test("NPC route snapshots preserve planless pirates hidden at a hideout", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const pirate = routes.ships.find((ship) => ship.role === NPC_ROLE_PIRATE);
+  const hideout = routes.pirateHideouts[0];
+  assert.ok(pirate);
+  assert.ok(hideout);
+  pirate.currentPort = hideout;
+  pirate.finalDestination = null;
+  pirate.plan = null;
+  pirate.hiddenAtHideout = true;
+  pirate.hiddenUntilMinute = 5000;
+
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  const restored = routes.shipById.get(pirate.id);
+  assert.equal(restored.hiddenAtHideout, true);
+  assert.equal(restored.plan, null);
+  assert.equal(restored.currentPort.tileId, hideout.tileId);
+});
+
+test("NPC route snapshots reject planless ships outside pirate hideouts", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const ship = snapshot.ships.find((candidate) => !candidate.hiddenAtHideout);
+  assert.ok(ship);
+  ship.plan = null;
+
+  assert.throws(
+    () => restoreNpcSeaRouteSystem(routes, snapshot, { economy }),
+    new RegExp(`Saved NPC ship has no route plan: ${ship.id}`)
+  );
 });
 
 test("saved routes using removed Malacca crossings are replanned on restore", (t) => {
@@ -707,4 +789,30 @@ function port(tileId, city, country, cityType, lat, lon, population, factionId) 
     population,
     factionId
   };
+}
+
+function whalingCandidates() {
+  const grounds = [
+    [45.8, -8.5],
+    [63, 1.5],
+    [52, -25],
+    [49.5, -48],
+    [33.1, 135.7],
+    [39, 142.5],
+    [49.2, -128],
+    [-38, 18],
+    [-46, 70],
+    [-58, -62]
+  ];
+  return Array.from({ length: 320 }, (_, index) => {
+    const [latDeg, lonDeg] = grounds[index % grounds.length];
+    const lat = (latDeg + (index % 5) * 0.01) * Math.PI / 180;
+    const lon = (lonDeg + (index % 7) * 0.01) * Math.PI / 180;
+    return {
+      tileId: 10000 + index,
+      latitudeDeg: latDeg,
+      longitudeDeg: lonDeg,
+      position: [Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)]
+    };
+  });
 }

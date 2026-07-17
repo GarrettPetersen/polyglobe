@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_WHITE_WHALE,
   FAMILY_DEBT_PRINCIPAL,
   createCampaignGoal
 } from "./campaignGoals.js";
@@ -78,6 +79,22 @@ test("home-port creditor settlement leaves the protected purse and records payme
   assert.equal(result.completed, true);
   assert.equal(state.doubloons, 100);
   assert.equal(state.accounts.ledger.at(-1).amount, -FAMILY_DEBT_PRINCIPAL);
+});
+
+test("white-whale captains begin with a harpoon and complete only after returning home", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: PLAYER,
+    campaignGoalType: CAMPAIGN_GOAL_WHITE_WHALE
+  });
+  assert.equal(state.memory.campaignGoal.type, CAMPAIGN_GOAL_WHITE_WHALE);
+  assert.equal(state.inventory.whaleHarpoonId, "ash-shaft-harpoon");
+  state.memory.campaignGoal.whiteWhaleKilled = true;
+  state.memory.campaignGoal.whiteWhaleKilledMinute = 100;
+
+  const result = settleCampaignGoalAtHome(state, HOME, { currentMinute: 120 });
+  assert.equal(result.completed, true);
+  assert.equal(state.memory.campaignGoal.status, "complete");
 });
 
 test("version 14 saves gain colony quest and cargo reservation state", () => {

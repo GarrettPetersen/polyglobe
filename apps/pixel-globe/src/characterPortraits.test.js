@@ -344,6 +344,16 @@ test("campaign contacts are distinct people from the home port factor", () => {
   assert.equal(creditor.role, "creditor");
   assert.notEqual(creditor.sourceId, factor.sourceId);
   assert.notEqual(creditor.name, factor.name);
+
+  const repeatedPatron = generateCampaignContactCharacter({
+    playerCharacter,
+    homePort,
+    goalType: "explorer",
+    excludedSourceId: factor.sourceId,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+  assert.deepEqual(repeatedPatron, patron);
 });
 
 test("return-home passenger generation can use destination culture", () => {

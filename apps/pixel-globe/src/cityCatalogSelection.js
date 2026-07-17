@@ -207,6 +207,18 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "pacific-islands",
     marketGoods: ["fish", "timber", "artwork"]
   }),
+  manualVillage1522("Yuquot Village", "Nuu-chah-nulth", 49.5926, -126.6174, 1500, {
+    cityType: "mesoamerican",
+    manualRegion: "northwest-coast",
+    npcInterregionalTradeExcluded: true,
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
+  manualVillage1522("Ozette Village", "Makah", 48.1533, -124.7331, 1000, {
+    cityType: "mesoamerican",
+    manualRegion: "northwest-coast",
+    npcInterregionalTradeExcluded: true,
+    marketGoods: ["fish", "timber", "artwork"]
+  }),
   manualVillage1522("Guanahani Village", "Bahamas", 24.059, -74.474, 1200, {
     cityType: "mesoamerican",
     manualRegion: "explorer-encounters",

@@ -62,7 +62,7 @@ test("native canoe hulls are small, arrow-armed, and regionally distinct", () =>
   const mesoamerican = shipStatsForSlug("mesoamerican-dugout-canoe");
 
   assert.equal(shipLabelForSlug(polynesian.slug), "Polynesian Voyaging Canoe");
-  assert.equal(shipLabelForSlug(mesoamerican.slug), "Mesoamerican Dugout Canoe");
+  assert.equal(shipLabelForSlug(mesoamerican.slug), "Dugout Canoe");
   assert.equal(polynesian.cannons, 0);
   assert.equal(mesoamerican.cannons, 0);
   assert.equal(polynesian.navalWeaponKind, NAVAL_WEAPON_ARROW);

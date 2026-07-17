@@ -44,7 +44,7 @@ const SHIP_LABELS = Object.freeze({
   "portuguese-carrack": "Portuguese Carrack",
   "viking-longship": "Viking Longship",
   "polynesian-voyaging-canoe": "Polynesian Voyaging Canoe",
-  "mesoamerican-dugout-canoe": "Mesoamerican Dugout Canoe",
+  "mesoamerican-dugout-canoe": "Dugout Canoe",
   "nusantaran-outrigger": "Nusantaran Outrigger",
   "ottoman-coastal-trader": "Ottoman Coastal Trader"
 });

@@ -7,9 +7,11 @@ import * as THREE from "../../../examples/globe-demo/node_modules/three/build/th
 import { FBXLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
 import {
+  BLUE_WHALE_MODEL_CREDIT,
   BOROBUDUR_SHIP_MODEL_CREDIT,
   CYC3W_SAILING_SHIP_MODEL_CREDIT,
   GOGIART_DHOW_MODEL_CREDIT,
+  HUMPBACK_WHALE_MODEL_CREDIT,
   JAPANESE_ATAKEBUNE_MODEL_CREDIT,
   JOSEON_PANOKSEON_MODEL_CREDIT,
   JOSEON_TURTLE_SHIP_MODEL_CREDIT,
@@ -17,8 +19,11 @@ import {
   MESOAMERICAN_CANOE_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
   NAO_VICTORIA_MODEL_CREDIT,
+  NORTH_ATLANTIC_RIGHT_WHALE_MODEL_CREDIT,
   OTTOMAN_COASTAL_TRADER_MODEL_CREDIT,
   PORTUGUESE_CARRACK_MODEL_CREDIT,
+  SOUTHERN_MINKE_WHALE_MODEL_CREDIT,
+  SPERM_WHALE_MODEL_CREDIT,
   UNITY_FLEET_MODEL_CREDIT
 } from "../src/modelCredits.js";
 import { SHIP_STATS, shipStatsForSlug, validateShipStatsForSlugs } from "../src/shipStats.js";
@@ -71,7 +76,13 @@ const gogiartDhowSourceRoot = join(shipSourceRoot, "sketchfab/dhow-gogiart");
 const cyc3wSailingShipSourceRoot = join(shipSourceRoot, "sketchfab/cyc3w-sailing-ship");
 const borobudurShipSourceRoot = join(shipSourceRoot, "sketchfab/borobudur-sriwijaya");
 const ottomanCoastalTraderSourceRoot = join(shipSourceRoot, "sketchfab/ottoman-coastal-trader");
+const northAtlanticRightWhaleSourceRoot = join(shipSourceRoot, "sketchfab/north-atlantic-right-whale");
+const blueWhaleSourceRoot = join(shipSourceRoot, "sketchfab/blue-whale");
+const humpbackWhaleSourceRoot = join(shipSourceRoot, "sketchfab/humpback-whale");
+const southernMinkeWhaleSourceRoot = join(shipSourceRoot, "sketchfab/southern-minke-whale");
+const spermWhaleSourceRoot = join(shipSourceRoot, "sketchfab/sperm-whale");
 const outputRoot = join(appRoot, "public/assets/vehicles");
+const animalOutputRoot = join(appRoot, "public/assets/animals");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
@@ -584,11 +595,13 @@ function fitTrianglesToMaxDimension(triangles, bounds, targetMaxDim) {
 
 function estimateWaterlineForConfig(triangles, config) {
   if (!config?.slug) throw new Error("Ship waterline analysis requires a configured ship slug");
-  const estimated = estimateShipWaterlineY(triangles, {
-    expectedHullCount: config.expectedWaterlineHullCount ?? 1,
-    immersionRatio: config.waterlineImmersionRatio,
-    label: config.slug
-  });
+  const estimated = config.waterlineBoundsRatio === undefined
+    ? estimateShipWaterlineY(triangles, {
+        expectedHullCount: config.expectedWaterlineHullCount ?? 1,
+        immersionRatio: config.waterlineImmersionRatio,
+        label: config.slug
+      })
+    : explicitBoundsWaterline(triangles, config);
   const offsetY = config.waterlineOffsetY ?? 0;
   if (!Number.isFinite(offsetY)) throw new Error(`${config.slug} has invalid waterline offset: ${offsetY}`);
   const y = estimated.y + offsetY;
@@ -606,6 +619,26 @@ function estimateWaterlineForConfig(triangles, config) {
     );
   }
   return { ...estimated, y };
+}
+
+function explicitBoundsWaterline(triangles, config) {
+  const ratio = config.waterlineBoundsRatio;
+  if (!Number.isFinite(ratio) || ratio <= 0 || ratio >= 1) {
+    throw new Error(`${config.slug} has invalid explicit waterline ratio: ${ratio}`);
+  }
+  const points = triangles.flatMap((triangle) => triangle.points);
+  const bounds = boundsForPoints(points);
+  const y = bounds.box.min.y + bounds.size.y * ratio;
+  return {
+    y,
+    expectedHullCount: 1,
+    componentCount: 1,
+    dominantLengthRatio: 1,
+    beam: bounds.size.x,
+    length: bounds.size.z,
+    hullIntervalMinY: bounds.box.min.y,
+    hullIntervalMaxY: bounds.box.max.y
+  };
 }
 
 function makeCamera() {
@@ -898,7 +931,7 @@ function copyFrameToSheet(frame, sheetCtx, frameIndex) {
   sheetCtx.putImageData(edgeShadedFrameImage(frame, sheetCtx), cell.x, cell.y);
 }
 
-function makeSinkDepthSheet(frames, waterlineY) {
+function makeSinkDepthSheet(frames, waterlineY, { exactModelHeight = false } = {}) {
   let minHeight = Infinity;
   let maxHeight = -Infinity;
   for (const frame of frames) {
@@ -930,12 +963,10 @@ function makeSinkDepthSheet(frames, waterlineY) {
     for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
       if (!frame.alpha[pixel]) continue;
       const normalY = frame.normals[pixel * 3 + 1];
-      const height = shipPixelBakeHeight(
-        frame.positions[pixel * 3 + 1],
-        normalY,
-        encodedWaterlineY,
-        waterlineRasterPadding
-      );
+      const modelHeight = frame.positions[pixel * 3 + 1];
+      const height = exactModelHeight
+        ? modelHeight
+        : shipPixelBakeHeight(modelHeight, normalY, encodedWaterlineY, waterlineRasterPadding);
       const level = height < encodedWaterlineY
         ? Math.round(clamp((height - minHeight) / (encodedWaterlineY - minHeight), 0, 1) * (SHIP_WATERLINE_DEPTH_BYTE - 1))
         : SHIP_WATERLINE_DEPTH_BYTE + Math.round(
@@ -1687,7 +1718,9 @@ async function renderShipSpriteSet(config) {
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i);
   }
-  const sinkDepth = makeSinkDepthSheet(frames, waterlineY);
+  const sinkDepth = makeSinkDepthSheet(frames, waterlineY, {
+    exactModelHeight: config.exactSinkDepth === true
+  });
   const wakeAnchors = makeWakeAnchors(frames, waterlineY, config.wakeWaterlineBand);
   const hullFootprints = makeHullFootprints(footprintFrames, waterlineY, config.footprintWaterlineBand);
 
@@ -3257,6 +3290,97 @@ async function renderOttomanCoastalTrader() {
   console.log(result.entry.files.sheet);
 }
 
+const WHALE_RENDER_CONFIGS = Object.freeze([
+  whaleRenderConfig(
+    "north-atlantic-right-whale",
+    "North Atlantic right whale",
+    NORTH_ATLANTIC_RIGHT_WHALE_MODEL_CREDIT,
+    join(northAtlanticRightWhaleSourceRoot, "scene.gltf"),
+    2.3
+  ),
+  whaleRenderConfig(
+    "blue-whale",
+    "Blue whale",
+    BLUE_WHALE_MODEL_CREDIT,
+    join(blueWhaleSourceRoot, "scene.gltf"),
+    2.45
+  ),
+  whaleRenderConfig(
+    "humpback-whale",
+    "Humpback whale",
+    HUMPBACK_WHALE_MODEL_CREDIT,
+    join(humpbackWhaleSourceRoot, "scene.gltf"),
+    2.3
+  ),
+  whaleRenderConfig(
+    "southern-minke-whale",
+    "Southern minke whale",
+    SOUTHERN_MINKE_WHALE_MODEL_CREDIT,
+    join(southernMinkeWhaleSourceRoot, "scene.gltf"),
+    1.72
+  ),
+  whaleRenderConfig(
+    "sperm-whale",
+    "Sperm whale",
+    SPERM_WHALE_MODEL_CREDIT,
+    join(spermWhaleSourceRoot, "source/model.fbx"),
+    2.3,
+    { texturePath: join(spermWhaleSourceRoot, "textures/SpermWhale_albedo.jpeg") }
+  ),
+  whaleRenderConfig(
+    "white-sperm-whale",
+    "White whale",
+    SPERM_WHALE_MODEL_CREDIT,
+    join(spermWhaleSourceRoot, "source/model.fbx"),
+    2.38,
+    {
+      texturePath: join(spermWhaleSourceRoot, "textures/SpermWhale_albedo.jpeg"),
+      colorTransform: whiteWhaleColor
+    }
+  )
+]);
+
+function whaleRenderConfig(slug, label, credit, modelPath, targetModelMaxDim, extra = {}) {
+  return Object.freeze({
+    slug,
+    label,
+    category: "animal",
+    ...credit,
+    modelPath,
+    outputDir: animalOutputRoot,
+    outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
+    targetModelMaxDim,
+    waterlineBoundsRatio: 0.5,
+    exactSinkDepth: true,
+    skipSelfShadowMaps: true,
+    ...extra
+  });
+}
+
+function whiteWhaleColor(color) {
+  const luminance = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+  const value = clamp255(172 + luminance * 0.28);
+  return { r: value, g: clamp255(value + 3), b: clamp255(value + 5), a: color.a ?? 255 };
+}
+
+async function renderWhales() {
+  const animals = [];
+  for (const config of WHALE_RENDER_CONFIGS) {
+    console.log(`render ${config.slug}`);
+    const rendered = await renderShipSpriteSet(config);
+    const { sheet, wakeAnchors, hullFootprints, ...manifestEntry } = rendered;
+    animals.push(manifestEntry);
+    console.log(rendered.files.sheet);
+    console.log(rendered.files.sinkDepth);
+  }
+  const manifestPath = join(animalOutputRoot, "whale-manifest.json");
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --whales",
+    animals
+  }, null, 2)}\n`);
+  console.log(manifestPath);
+}
+
 function standaloneShipConfigForSlug(slug) {
   if (slug === "mediterranean-galley") return mediterraneanGalleyConfig();
   if (slug === "joseon-turtle-ship") return joseonTurtleShipConfig();
@@ -3370,7 +3494,7 @@ function nativeBoatConfigs() {
     },
     {
       slug: "mesoamerican-dugout-canoe",
-      label: "Mesoamerican Dugout Canoe",
+      label: "Dugout Canoe",
       category: "native boat",
       assetLabel: "Low Poly Canoe",
       identifiedType: "open paddled canoe",
@@ -3720,6 +3844,10 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.has("--whales") || args.has("--north-atlantic-right-whale")) {
+    await renderWhales();
+    return;
+  }
   if (args.has("--waterline-review")) {
     await renderShipWaterlineReview();
     return;

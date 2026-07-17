@@ -89,6 +89,104 @@ export function dialogueOptionLayout({
   });
 }
 
+export function dialogueOptionGroups(options) {
+  if (!Array.isArray(options) || options.length === 0) {
+    throw new Error("Dialogue option grouping requires at least one option");
+  }
+  const regular = [];
+  const exits = [];
+  options.forEach((option, index) => {
+    if (!option || typeof option !== "object") throw new Error(`Invalid dialogue option at index ${index}`);
+    if (option.placement !== undefined && option.placement !== "port-exit") {
+      throw new Error(`Unknown dialogue option placement: ${option.placement}`);
+    }
+    const entry = Object.freeze({ index, option });
+    (option.placement === "port-exit" ? exits : regular).push(entry);
+  });
+  if (exits.length > 2) {
+    throw new Error(`Dialogue exit footer supports at most two actions, received ${exits.length}`);
+  }
+  return Object.freeze({
+    regular: Object.freeze(regular),
+    exits: Object.freeze(exits)
+  });
+}
+
+export function dialogueOptionStackLayout({
+  desiredY,
+  bottom,
+  optionHeight,
+  regularCount,
+  exitCount,
+  footerGap = 4
+}) {
+  for (const [label, value] of Object.entries({
+    desiredY,
+    bottom,
+    optionHeight,
+    regularCount,
+    exitCount,
+    footerGap
+  })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid dialogue option stack ${label}`);
+  }
+  if (optionHeight <= 0) throw new Error("Dialogue option stack height must be positive");
+  if (!Number.isInteger(regularCount) || regularCount < 0) {
+    throw new Error("Dialogue option stack requires a non-negative regular option count");
+  }
+  if (!Number.isInteger(exitCount) || exitCount < 0 || exitCount > 2) {
+    throw new Error("Dialogue option stack requires zero, one, or two exit options");
+  }
+  if (regularCount + exitCount === 0) throw new Error("Dialogue option stack cannot be empty");
+  if (footerGap < 0) throw new Error("Dialogue option footer gap cannot be negative");
+
+  const footerY = exitCount > 0 ? bottom - optionHeight : bottom;
+  const regularBottom = exitCount > 0 ? footerY - footerGap : bottom;
+  if (regularCount === 0) {
+    return Object.freeze({
+      y: footerY,
+      footerY,
+      regularBottom,
+      visibleRegularCount: 0,
+      needsScroll: false
+    });
+  }
+  const regularLayout = dialogueOptionLayout({
+    desiredY,
+    bottom: regularBottom,
+    optionHeight,
+    optionCount: regularCount
+  });
+  return Object.freeze({
+    y: regularLayout.y,
+    footerY,
+    regularBottom,
+    visibleRegularCount: regularLayout.visibleCount,
+    needsScroll: regularLayout.needsScroll
+  });
+}
+
+export function dialogueExitFooterRects({ x, y, width, optionHeight, exitCount, gap = 4 }) {
+  for (const [label, value] of Object.entries({ x, y, width, optionHeight, exitCount, gap })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid dialogue exit footer ${label}`);
+  }
+  if (width <= 0 || optionHeight <= 0) throw new Error("Dialogue exit footer dimensions must be positive");
+  if (!Number.isInteger(exitCount) || exitCount < 1 || exitCount > 2) {
+    throw new Error("Dialogue exit footer requires one or two actions");
+  }
+  if (gap < 0 || (exitCount === 2 && width <= gap)) {
+    throw new Error("Dialogue exit footer gap does not fit its width");
+  }
+  if (exitCount === 1) {
+    return Object.freeze([Object.freeze({ x, y, w: width, h: optionHeight - 2 })]);
+  }
+  const leftWidth = Math.floor((width - gap) / 2);
+  return Object.freeze([
+    Object.freeze({ x, y, w: leftWidth, h: optionHeight - 2 }),
+    Object.freeze({ x: x + leftWidth + gap, y, w: width - leftWidth - gap, h: optionHeight - 2 })
+  ]);
+}
+
 export function dialogueOptionNavigationLayout({
   x,
   y,

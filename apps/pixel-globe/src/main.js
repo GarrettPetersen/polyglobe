@@ -82,9 +82,14 @@ import {
 } from "./characterPortraits.js";
 import {
   generatePlayerStartingProfile,
-  resolvePlayerCharacterIdentityKey
+  resolvePlayerCharacterIdentityKey,
+  whalingStarterShipForRegion
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
+import {
+  advanceSmoothedWindState,
+  createSmoothedWindState
+} from "./windSmoothing.js";
 import {
   FISH_CARGO_GOOD_ID,
   SHIP_ITEM_FISHING_NET,
@@ -116,13 +121,16 @@ import {
   migrateGameState,
   playerCannonEquipment,
   playerFishingNet,
+  playerWhaleHarpoon,
   playerShipIsWarship,
   pirateHideoutsVisibleToPlayer,
+  portMemory,
   portEntryStatus,
   refillFreshWaterFromShore,
   receiveDiscoveryCargo,
   receiveEmergencyShipAid,
   receiveFishCatch,
+  receiveWhaleBlubber,
   receivePortConquestPrize,
   receiveSurrenderedLoot,
   reconcileQuestPortTiles,
@@ -145,10 +153,43 @@ import {
   visitPort
 } from "./gameState.js";
 import {
+  resolveWhaleHarpoon,
+  whaleHarpoonHitChance
+} from "./whaleHarpoons.js";
+import {
+  WHALE_PHASE_EXHAUSTED,
+  WHALE_PHASE_DEAD,
+  WHALE_PHASE_TETHERED,
+  advanceWhaleMemory,
+  cutWhaleLoose,
+  killExhaustedWhale,
+  seedWhalePopulation,
+  tetherWhale,
+  underwaterWhaleSongPresence,
+  whaleById,
+  whaleBlubberYield,
+  whaleCanBeHarpooned,
+  whaleHarpoonBreakMultiplier,
+  whaleTowingSpeed,
+  whaleSurfaceExposure,
+  whiteWhale
+} from "./whaleSystem.js";
+import {
+  WHITE_WHALE_ID,
+  WHALE_SPECIES,
+  whaleAssetSlug,
+  whaleDisplayLabel,
+  whaleLifeStageScale,
+  vectorLatLon
+} from "./whaleSpecies.js";
+import {
   CAMPAIGN_DESTINATION_DISCOVERY,
   CAMPAIGN_DESTINATION_HOME,
+  CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_WHITE_WHALE,
+  campaignGoalTypeForCharacter,
   campaignGoalDestination,
   campaignDialogueCharacter,
   campaignDialogueView,
@@ -159,7 +200,10 @@ import {
   createCampaignDialogueSession,
   explorerWonderCatalog,
   isExplorerLeadAssignable,
+  markWhiteWhaleKilled,
   markCampaignGoalIntroSeen,
+  reachWhiteWhaleSighting,
+  recordWhiteWhaleSighting,
   selectCampaignDialogueOption
 } from "./campaignGoals.js";
 import {
@@ -217,6 +261,7 @@ import {
   NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
   NPC_ROLE_PIRATE,
+  NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
   NPC_SHIP_SLUGS,
   addNpcSeaRoutePort,
@@ -384,8 +429,10 @@ import { CaptureRecorder } from "./captureRecorder.js";
 import { createCaptureControls } from "./captureControls.js";
 import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js";
 import {
-  dialogueOptionLayout,
+  dialogueExitFooterRects,
+  dialogueOptionGroups,
   dialogueOptionNavigationLayout,
+  dialogueOptionStackLayout,
   dialogueOptionTextLayout,
   dialogueOptionWindow,
   dialoguePanelGeometry
@@ -1212,24 +1259,19 @@ const SHIP_INFO_DESKTOP_SUMMARY_Y = 36;
 const SHIP_INFO_DESKTOP_HEADER_Y = 52;
 const SHIP_INFO_DESKTOP_FIRST_ROW_Y = 66;
 const SHIP_INFO_PAPER_ROW_H = 21;
-const CAPTAIN_MENU_LABELS = Object.freeze([
-  "SHIP & LEDGER",
-  "POLITICS",
-  "DISCOVERIES",
-  "OPTIONS"
-]);
-const CAPTAIN_MENU_ICON_IDS = Object.freeze([
-  "menu:ship",
-  "menu:politics",
-  "menu:discoveries",
-  "menu:options"
+const CAPTAIN_MENU_ACTIONS = Object.freeze([
+  Object.freeze({ id: "ship", label: "SHIP & LEDGER", iconId: "menu:ship" }),
+  Object.freeze({ id: "politics", label: "POLITICS", iconId: "menu:politics" }),
+  Object.freeze({ id: "discoveries", label: "DISCOVERIES", iconId: "menu:discoveries" }),
+  Object.freeze({ id: "sailing-basics", label: "SAILING BASICS", iconId: "action:quest" }),
+  Object.freeze({ id: "options", label: "OPTIONS", iconId: "menu:options" })
 ]);
 const CAPTAIN_MENU_PANEL_W = 224;
 const CAPTAIN_MENU_PANEL_H = 226;
 const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "fire-crackle-1";
-const ANIMAL_ASSET_VERSION = "fishing-net-2";
+const SFX_ASSET_VERSION = "whale-song-1";
+const ANIMAL_ASSET_VERSION = "whale-species-1";
 const STORM_SHIP_STRIKE_ASSET_VERSION = "infected-tribe-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
 const SFX_DEFAULT_VOLUME = 0.5;
@@ -1335,6 +1377,12 @@ const SFX_FISHING_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_SCAVENGE_SUCCESS_URL = "assets/sfx/freesound_community-item-pickup-37089.ogg";
 const SFX_SCAVENGE_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_FIRE_URL = "assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg";
+const SFX_WHALE_BLOW_URL = "assets/sfx/nps-humpback-whale-surface-blow.ogg";
+const SFX_WHALE_SONG_URLS = Object.freeze([
+  "assets/sfx/dragon-studio-creepy-whale-song-323612.ogg",
+  "assets/sfx/dragon-studio-haunting-whale-song-515260.ogg",
+  "assets/sfx/freesound-community-cclaretc-whale-45996.ogg"
+]);
 const SFX_CANNON_POOL_SIZE = 8;
 const SFX_BOW_FIRE_POOL_SIZE = 6;
 const SFX_ARROW_HIT_POOL_SIZE = 6;
@@ -1349,6 +1397,7 @@ const SFX_FISHING_FAILURE_POOL_SIZE = 2;
 const SFX_SCAVENGE_SUCCESS_POOL_SIZE = 2;
 const SFX_SCAVENGE_FAILURE_POOL_SIZE = 2;
 const SFX_LIGHTNING_POOL_SIZE = 2;
+const SFX_WHALE_BLOW_POOL_SIZE = 3;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_BOW_FIRE_VOLUME = 0.68;
 const SFX_ARROW_HIT_VOLUME = 0.54;
@@ -1362,6 +1411,8 @@ const SFX_FISHING_FAILURE_VOLUME = 0.46;
 const SFX_SCAVENGE_SUCCESS_VOLUME = 0.62;
 const SFX_SCAVENGE_FAILURE_VOLUME = 0.44;
 const SFX_LIGHTNING_VOLUME = 0.72;
+const SFX_WHALE_BLOW_VOLUME = 0.7;
+const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
 const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
@@ -1372,6 +1423,10 @@ const SFX_STORM_MAX_VOLUME = 0.42;
 const SFX_SAIL_FLAP_MAX_VOLUME = 0.52;
 const SFX_UNDERWAY_MAX_VOLUME = 0.065;
 const SFX_FIRE_MAX_VOLUME = 0.2;
+const SFX_WHALE_SONG_NEAR_PX = 18;
+const SFX_WHALE_SONG_FAR_PX = 118;
+const SFX_WHALE_SONG_MIN_GAP_MS = 5500;
+const SFX_WHALE_SONG_MAX_GAP_MS = 14000;
 const SFX_HARBOUR_NEAR_PX = 42;
 const SFX_HARBOUR_FAR_PX = 170;
 const SFX_AMBIENT_FADE_PER_SECOND = 1.35;
@@ -1380,6 +1435,7 @@ const SFX_STORM_FADE_PER_SECOND = 0.35;
 const SFX_SAIL_FLAP_FADE_PER_SECOND = 2.4;
 const SFX_UNDERWAY_FADE_PER_SECOND = 0.018;
 const SFX_FIRE_FADE_PER_SECOND = 0.55;
+const SFX_WHALE_SONG_FADE_PER_SECOND = 0.035;
 const SFX_WIND_TERRAIN_RADIUS_PX = 150;
 const STORM_MUSIC_ENTER_INTENSITY = STORM_ACTIVE_INTENSITY;
 const STORM_MUSIC_EXIT_INTENSITY = STORM_ACTIVE_INTENSITY * 0.72;
@@ -1388,6 +1444,16 @@ const SEAGULL_FLIGHT_URL = "assets/animals/seagull-Sheet.png";
 const SEAGULL_STANDING_URL = "assets/animals/seagull_standing.png";
 const FISH_SPRITE_URL = "assets/animals/fish.png";
 const FISHING_NET_SHEET_URL = "assets/misc/fishing-net-Sheet.png";
+const WHALE_ASSET_SLUGS = Object.freeze([
+  ...WHALE_SPECIES.map((species) => species.assetSlug),
+  "white-sperm-whale"
+]);
+const WHALE_HARPOON_PROJECTILE_SECONDS = 0.52;
+const WHALE_HARPOON_ARC_PX = 3;
+const WHALE_BLOW_DURATION_MS = 2300;
+const WHALE_TARGET_HIT_RADIUS_PX = 18;
+const WHALE_SUBMERGED_ALPHA = 0.34;
+const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
@@ -1520,6 +1586,8 @@ let discoveryNotice = null;
 const discoveryNoticeQueue = [];
 let fishCatchNotice = null;
 let fishingAction = null;
+let whaleHarpoonProjectile = null;
+let whaleBlowBursts = [];
 let survivalNotice = null;
 let images;
 let shipImage;
@@ -1645,6 +1713,7 @@ let creditsMarkdown = "";
 let playerIntroModal = null;
 let interactionButtonRect = null;
 let interactionButtonTarget = null;
+let whaleReleaseButtonRect = null;
 let anchorButtonRect = null;
 let scavengeButtonRect = null;
 let shoreScavengeAction = null;
@@ -1665,6 +1734,7 @@ const portraitPromiseCache = new Map();
 const grayscalePortraitCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
+let playerWindState = null;
 let windIndicatorState = null;
 let shipyardPurchaseListingId = null;
 let surrenderedShipCapturePendingId = null;
@@ -1963,7 +2033,11 @@ async function main() {
   const playerCharacter = CAPTURE_SCENARIO
     ? capturePlayerCharacter(playerProfile.character, CAPTURE_SCENARIO)
     : playerProfile.character;
-  const playerShipSlug = START_SHIP_SLUG_OVERRIDE || playerProfile.starterShipSlug;
+  const campaignGoalType = campaignGoalTypeForCharacter(playerCharacter);
+  const campaignStarterShipSlug = campaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE
+    ? whalingStarterShipForRegion(playerCharacter.startRegion)
+    : playerProfile.starterShipSlug;
+  const playerShipSlug = START_SHIP_SLUG_OVERRIDE || campaignStarterShipSlug;
   const playerStartPosition = START_POSITION_OVERRIDE || {
     lat: playerProfile.homePort.lat,
     lon: playerProfile.homePort.lon
@@ -2042,13 +2116,16 @@ async function main() {
     playerShipSlug,
     playerCharacter.nationalityId
   );
+  resetPlayerWindState();
   if (CAPTURE_SCENARIO) applyCaptureShipHeading(ship, CAPTURE_SCENARIO.player.headingDeg);
   gameState = createGameState({
     cargoCapacity: ship.cargoCapacity,
     startMinute: weatherClockMinutes,
     playerCharacter,
-    shipStats: ship.stats
+    shipStats: ship.stats,
+    campaignGoalType
   });
+  ensureWhalePopulation(gameState.memory.whales);
   assignColonizationTargetTile(gameState.memory.colonization, colonizationTargetTileId);
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   familyDebtReturnReminderDelivered = false;
@@ -2063,6 +2140,7 @@ async function main() {
     startMinute: weatherClockMinutes,
     economy: worldEconomy,
     fishState: gameState,
+    whaleMemory: gameState.memory.whales,
     relationBetween: currentDiplomacyBetween,
     mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(gameState, factionId),
     onForeignPortCall: recordNpcDiplomaticPortCall
@@ -2407,11 +2485,26 @@ function createGameIconOutlineAtlas(image) {
 }
 
 async function loadAnimalImages() {
-  const [seagullFlight, seagullStanding, fish, fishingNet] = await Promise.all([
+  const [seagullFlight, seagullStanding, fish, fishingNet, whaleEntries] = await Promise.all([
     loadAssetImage(`${SEAGULL_FLIGHT_URL}?v=${ANIMAL_ASSET_VERSION}`, "seagull flight sheet"),
     loadAssetImage(`${SEAGULL_STANDING_URL}?v=${ANIMAL_ASSET_VERSION}`, "standing seagull image"),
     loadAssetImage(`${FISH_SPRITE_URL}?v=${ANIMAL_ASSET_VERSION}`, "fish image"),
-    loadAssetImage(`${FISHING_NET_SHEET_URL}?v=${ANIMAL_ASSET_VERSION}`, "fishing net sheet")
+    loadAssetImage(`${FISHING_NET_SHEET_URL}?v=${ANIMAL_ASSET_VERSION}`, "fishing net sheet"),
+    Promise.all(WHALE_ASSET_SLUGS.map(async (slug) => {
+      const [image, sinkDepthImage] = await Promise.all([
+        loadAssetImage(
+          `assets/animals/${slug}-32-headings.png?v=${ANIMAL_ASSET_VERSION}`,
+          `${slug} sprite sheet`
+        ),
+        loadAssetImage(
+          `assets/animals/${slug}-32-headings-sink-depth.png?v=${ANIMAL_ASSET_VERSION}`,
+          `${slug} sink-depth sheet`
+        )
+      ]);
+      validateShipSpriteSheet(image, `${slug} sprite sheet`);
+      validateShipSpriteSheet(sinkDepthImage, `${slug} sink-depth sheet`);
+      return [slug, Object.freeze({ image, sinkDepthImage })];
+    }))
   ]);
   validateImageDimensions(
     seagullFlight,
@@ -2427,7 +2520,7 @@ async function loadAnimalImages() {
     FISHING_NET_FRAME_SIZE * FISHING_NET_FRAME_COUNT,
     FISHING_NET_FRAME_SIZE
   );
-  return { seagullFlight, seagullStanding, fish, fishingNet };
+  return { seagullFlight, seagullStanding, fish, fishingNet, whales: new Map(whaleEntries) };
 }
 
 async function loadStormShipStrikeImage() {
@@ -2601,6 +2694,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
       lakeIntent: manualSpec.lakeIntent,
       requiredTradePort: Boolean(manualSpec.requiredTradePort),
       manualRegion: manualSpec.manualRegion || null,
+      npcInterregionalTradeExcluded: Boolean(manualSpec.npcInterregionalTradeExcluded),
       settlementType: manualSpec.settlementType || "city",
       marketGoods: manualSpec.marketGoods || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
@@ -3361,6 +3455,7 @@ function runFrame(nowMs) {
   }
   if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
     advanceActivePlayTime(gameState, dt);
+    if (updatePlayerWind(dt)) dirty = true;
     if (updateDemoVoyageLimit()) {
       dirty = true;
     } else if (fishingAction) {
@@ -3371,9 +3466,11 @@ function runFrame(nowMs) {
     if (updateFishAnimation(nowMs)) dirty = true;
     if (updateWeather(dt, nowMs)) dirty = true;
     if (updateCampaignGoalReturnReminder()) dirty = true;
+    if (updateWhiteWhaleSightingObjective()) dirty = true;
     if (updateColonizationQuest()) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
     ensureChart();
+    if (updateWhales(dt, nowMs)) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
     if (updateNpcShips(dt)) dirty = true;
     if (updateSeagulls(dt, nowMs)) dirty = true;
@@ -3684,7 +3781,9 @@ function openCampaignGoalIntroDialogue() {
   dialogueState = createCampaignDialogueSession({
     cityTileId: goal.homePortTileId,
     steps,
-    phase: goal.type === CAMPAIGN_GOAL_FAMILY_DEBT ? "family-debt-intro" : "intro"
+    phase: goal.type === CAMPAIGN_GOAL_FAMILY_DEBT
+      ? "family-debt-intro"
+      : goal.type === CAMPAIGN_GOAL_WHITE_WHALE ? "white-whale-intro" : "intro"
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -3735,6 +3834,19 @@ function updateCampaignGoalReturnReminder() {
   return true;
 }
 
+function updateWhiteWhaleSightingObjective() {
+  const goal = gameState?.memory?.campaignGoal;
+  if (!goal || goal.type !== CAMPAIGN_GOAL_WHITE_WHALE || !goal.sighting || goal.sighting.reached) return false;
+  const target = latLonToDirection(goal.sighting.latitudeDeg, goal.sighting.longitudeDeg);
+  const distancePx = Math.acos(clamp(dot3(ship.position, target), -1, 1)) * PIXELS_PER_RADIAN;
+  if (distancePx > 28 || captainAlertModal || dialogueState) return false;
+  const message = reachWhiteWhaleSighting(goal);
+  if (!message) return false;
+  openCaptainAlertModal(message, "stern");
+  saveVoyageNow("reached white whale sighting");
+  return true;
+}
+
 function updateDemoVoyageLimit() {
   if (!demoVoyageLimitReached(gameState.activePlaySeconds, ACTIVE_PLAY_LIMIT_SECONDS)) return false;
   if (BUILD_EDITION_ID !== "demo") {
@@ -3781,14 +3893,19 @@ function createCampaignGoalContact(playerCharacter, goal) {
   if (!homeCity) throw new Error(`Campaign home port is not in the port roster: ${goal.homePortTileId}`);
   const factor = portCityCharacters.get(homeCity.tileId);
   if (!factor) throw new Error(`Campaign home port has no factor: ${cityLabelText(homeCity)}`);
-  return generateCampaignContactCharacter({
+  const reservedNames = new Set([playerCharacter.name]);
+  for (const character of portCityCharacters.values()) reservedNames.add(character.name);
+  if (colonizationOrganizer) reservedNames.add(colonizationOrganizer.name);
+  const contact = generateCampaignContactCharacter({
     playerCharacter,
     homePort: homeCity,
     goalType: goal.type,
     excludedSourceId: factor.sourceId,
     manifest: characterPortraitManifest,
-    usedNames: usedCharacterNames
+    usedNames: reservedNames
   });
+  usedCharacterNames.add(contact.name);
+  return contact;
 }
 
 function closeCaptainAlertModal() {
@@ -4003,6 +4120,8 @@ function setupSoundEffects() {
       SFX_LIGHTNING_POOL_SIZE,
       "storm lightning"
     ),
+    whaleBlow: createSoundPool(SFX_WHALE_BLOW_URL, SFX_WHALE_BLOW_POOL_SIZE, "whale surface blow"),
+    whaleSongs: createAmbientPlaylist(SFX_WHALE_SONG_URLS, "underwater whale song"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
     shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves"),
@@ -4042,11 +4161,37 @@ function createAmbientLoop(url, label) {
   };
 }
 
+function createAmbientPlaylist(urls, label) {
+  if (!Array.isArray(urls) || urls.length === 0) {
+    throw new Error(`${label} requires at least one audio track`);
+  }
+  const tracks = urls.map((url, index) => {
+    const audio = new Audio(`${url}?v=${SFX_ASSET_VERSION}`);
+    audio.preload = "auto";
+    audio.loop = false;
+    audio.volume = 0;
+    audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} track ${index + 1} failed to load`));
+    return audio;
+  });
+  return {
+    tracks,
+    label,
+    currentTrack: null,
+    currentIndex: -1,
+    lastIndex: -1,
+    currentVolume: 0,
+    targetVolume: 0,
+    nextStartMs: 0,
+    startAttempting: false
+  };
+}
+
 function ensureGameAudioStarted(fromUserGesture = false) {
   if (fromUserGesture) gameAudioActivationAllowed = true;
   if (!gameAudioActivationAllowed) return;
   ensureThemeMusicStarted();
   ensureActiveAmbientLoopsStarted();
+  ensureActiveAmbientPlaylistsStarted(performance.now());
 }
 
 function ensureThemeMusicStarted() {
@@ -4096,8 +4241,10 @@ function isCombatMusicTrack(trackKey) {
 
 function updateMusicContext(nowMs) {
   if (!themeMusic) return;
-  if (gameOverReason || dialogueState) return;
-  if (combatMusicIsActive(nowMs)) return;
+  if (gameOverReason || dialogueState || combatMusicIsActive(nowMs)) {
+    ensureThemeMusicContinuity();
+    return;
+  }
   const stormIntensity = playerStormIntensity();
   if (!stormMusicActive && stormIntensity >= STORM_MUSIC_ENTER_INTENSITY) {
     stormMusicActive = true;
@@ -4108,6 +4255,7 @@ function updateMusicContext(nowMs) {
     if (themeMusic.currentTrackKey !== "storm" && themeMusic.requestedTrackKey !== "storm") {
       playMusicTrack("storm", { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS });
     }
+    ensureThemeMusicContinuity();
     return;
   }
   if (
@@ -4120,11 +4268,23 @@ function updateMusicContext(nowMs) {
       crossfadeSeconds: MUSIC_RETURN_CROSSFADE_SECONDS
     });
   }
+  ensureThemeMusicContinuity();
+}
+
+function ensureThemeMusicContinuity() {
+  if (!themeMusic.requestedTrackKey || themeMusic.currentTrackKey || themeMusic.transitionPending) return;
+  themeMusic.ensureRequestedTrack().catch(reportThemeMusicFailure);
 }
 
 function ensureActiveAmbientLoopsStarted() {
   for (const loop of ambientSoundLoops()) {
     if (loop.targetVolume > 0.001) ensureAmbientLoopStarted(loop);
+  }
+}
+
+function ensureActiveAmbientPlaylistsStarted(nowMs) {
+  for (const playlist of ambientSoundPlaylists()) {
+    if (playlist.targetVolume > 0.001) ensureAmbientPlaylistStarted(playlist, nowMs);
   }
 }
 
@@ -4149,6 +4309,38 @@ function ensureAmbientLoopStarted(loop) {
   }
 }
 
+function ensureAmbientPlaylistStarted(playlist, nowMs) {
+  if (!gameAudioActivationAllowed || playlist.currentTrack || playlist.startAttempting) return;
+  if (playlist.targetVolume <= 0.001 || nowMs < playlist.nextStartMs) return;
+  let index = Math.floor(Math.random() * playlist.tracks.length);
+  if (playlist.tracks.length > 1 && index === playlist.lastIndex) {
+    index = (index + 1 + Math.floor(Math.random() * (playlist.tracks.length - 1))) % playlist.tracks.length;
+  }
+  const audio = playlist.tracks[index];
+  playlist.currentTrack = audio;
+  playlist.currentIndex = index;
+  playlist.lastIndex = index;
+  playlist.currentVolume = 0;
+  playlist.startAttempting = true;
+  audio.currentTime = 0;
+  audio.playbackRate = 0.97 + Math.random() * 0.06;
+  applyThemeAudioSettings();
+  const playPromise = audio.play();
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise
+      .catch(() => {
+        playlist.currentTrack = null;
+        playlist.currentIndex = -1;
+        playlist.nextStartMs = nowMs + SFX_WHALE_SONG_MIN_GAP_MS;
+      })
+      .finally(() => {
+        playlist.startAttempting = false;
+      });
+  } else {
+    playlist.startAttempting = false;
+  }
+}
+
 function applyThemeAudioSettings() {
   const musicVolume = CAPTURE_SCENARIO ? 0 : clamp(optionsMenu.musicVolume, 0, 1);
   const sfxVolume = clamp(optionsMenu.sfxVolume, 0, 1);
@@ -4168,13 +4360,22 @@ function applyThemeAudioSettings() {
       ...soundEffects.fishingFailure,
       ...soundEffects.scavengeSuccess,
       ...soundEffects.scavengeFailure,
-      ...soundEffects.lightning
+      ...soundEffects.lightning,
+      ...soundEffects.whaleBlow
     ]) {
       audio.muted = optionsMenu.muted;
     }
     for (const loop of ambientSoundLoops()) {
       loop.audio.muted = optionsMenu.muted;
       loop.audio.volume = optionsMenu.muted ? 0 : sfxVolume * loop.currentVolume;
+    }
+    for (const playlist of ambientSoundPlaylists()) {
+      for (const track of playlist.tracks) {
+        track.muted = optionsMenu.muted;
+        track.volume = optionsMenu.muted || track !== playlist.currentTrack
+          ? 0
+          : sfxVolume * playlist.currentVolume;
+      }
     }
   }
 }
@@ -4203,6 +4404,14 @@ function playCannonShotSound(broadsideCount, distancePx = 0) {
 
 function playLightningStrikeSound() {
   playSoundEffect(soundEffects?.lightning, SFX_LIGHTNING_VOLUME, 1);
+}
+
+function playWhaleBlowSound() {
+  playSoundEffect(soundEffects?.whaleBlow, SFX_WHALE_BLOW_VOLUME, 0.96 + Math.random() * 0.08);
+}
+
+function playWhaleLineBreakSound() {
+  playSoundEffect(soundEffects?.sailDeploy, 0.36, 1.2);
 }
 
 function playBowFireSound() {
@@ -4355,6 +4564,14 @@ function updateAmbientAudio(dt) {
     dt,
     SFX_FIRE_FADE_PER_SECOND
   ) || changed;
+  changed = updateAmbientPlaylist(
+    soundEffects.whaleSongs,
+    visibleUnderwaterWhaleSongPresence() * SFX_WHALE_SONG_MAX_VOLUME,
+    SFX_WHALE_SONG_MAX_VOLUME,
+    dt,
+    lastFrameMs,
+    SFX_WHALE_SONG_FADE_PER_SECOND
+  ) || changed;
   if (changed) applyThemeAudioSettings();
 }
 
@@ -4391,6 +4608,40 @@ function updateAmbientLoop(loop, targetVolume, maxVolume, dt, fadePerSecond = SF
   return changed;
 }
 
+function updateAmbientPlaylist(playlist, targetVolume, maxVolume, dt, nowMs, fadePerSecond) {
+  if (!playlist) return false;
+  playlist.targetVolume = clamp(targetVolume, 0, maxVolume);
+  let changed = false;
+  const maxStep = fadePerSecond * dt;
+  const delta = clamp(playlist.targetVolume - playlist.currentVolume, -maxStep, maxStep);
+  if (Math.abs(delta) > 0.0005) {
+    playlist.currentVolume = clamp(playlist.currentVolume + delta, 0, maxVolume);
+    changed = true;
+  }
+  if (playlist.currentTrack?.ended) {
+    playlist.currentTrack = null;
+    playlist.currentIndex = -1;
+    playlist.nextStartMs = nowMs + randomWhaleSongGapMs();
+    changed = true;
+  }
+  if (playlist.targetVolume <= 0.0005 && playlist.currentVolume <= 0.0005) {
+    if (playlist.currentTrack) {
+      playlist.currentTrack.pause();
+      playlist.currentTrack.currentTime = 0;
+      playlist.currentTrack = null;
+      playlist.currentIndex = -1;
+      playlist.nextStartMs = nowMs + SFX_WHALE_SONG_MIN_GAP_MS;
+      changed = true;
+    }
+    return changed;
+  }
+  if (!playlist.currentTrack && nowMs >= playlist.nextStartMs) {
+    ensureAmbientPlaylistStarted(playlist, nowMs);
+    changed = Boolean(playlist.currentTrack) || changed;
+  }
+  return changed;
+}
+
 function ambientSoundLoops() {
   if (!soundEffects) return [];
   return [
@@ -4405,6 +4656,35 @@ function ambientSoundLoops() {
     soundEffects.underway,
     soundEffects.fire
   ].filter(Boolean);
+}
+
+function ambientSoundPlaylists() {
+  return soundEffects?.whaleSongs ? [soundEffects.whaleSongs] : [];
+}
+
+function randomWhaleSongGapMs() {
+  return SFX_WHALE_SONG_MIN_GAP_MS +
+    Math.random() * (SFX_WHALE_SONG_MAX_GAP_MS - SFX_WHALE_SONG_MIN_GAP_MS);
+}
+
+function visibleUnderwaterWhaleSongPresence() {
+  if (!gameState?.memory?.whales || !chart || !localLayout || !ship) return 0;
+  let presence = 0;
+  for (const whale of gameState.memory.whales.individuals) {
+    const call = whaleInteractionCall(whale);
+    if (!call) continue;
+    const distancePx = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
+    presence = Math.max(
+      presence,
+      underwaterWhaleSongPresence(
+        whale,
+        distancePx,
+        SFX_WHALE_SONG_NEAR_PX,
+        SFX_WHALE_SONG_FAR_PX
+      )
+    );
+  }
+  return presence;
 }
 
 function visibleFireSoundPresence() {
@@ -4425,7 +4705,7 @@ function sailingAmbientTargets(dt) {
   if (!ship || !graph) {
     throw new Error("Cannot update sailing ambience before the ship and globe are initialized");
   }
-  const wind = windForTile(ship.tileId);
+  const wind = windForShip();
   const windFlow = windFlowVectorAtShip(wind);
   const alignment = clamp(dot3(ship.heading, windFlow), -1, 1);
   const angleFromWindRad = Math.acos(clamp(-alignment, -1, 1));
@@ -5377,6 +5657,7 @@ function startNewVoyage() {
   playerBoundaryAssistContact = null;
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   hasStartedVoyage = true;
+  revealMinimapFromChart(chart, chartOffsetPixels(chart));
   closeStartMenu();
   saveVoyageNow("new voyage");
 }
@@ -5432,6 +5713,7 @@ async function restoreSavedVoyage(payload) {
   const savedShip = payload.playerShip;
   const stats = shipStatsForSlug(savedShip.typeSlug);
   const restoredGameState = migrateGameState(payload.gameState, stats);
+  ensureWhalePopulation(restoredGameState.memory.whales);
   factionById(savedShip.factionId);
   if (restoredGameState.cargoCapacity !== stats.cargoCapacity) {
     throw new Error("Saved ship capacity does not match its hull");
@@ -5453,6 +5735,7 @@ async function restoreSavedVoyage(payload) {
   restoreNpcSeaRouteSystem(npcSeaRoutes, payload.npcRoutes, {
     economy: worldEconomy,
     fishState: restoredGameState,
+    whaleMemory: restoredGameState.memory.whales,
     relationBetween: currentDiplomacyBetween,
     mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId)
   });
@@ -5509,6 +5792,8 @@ async function restoreSavedVoyage(payload) {
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
   fishingAction = null;
+  whaleHarpoonProjectile = null;
+  whaleBlowBursts = [];
   shoreScavengeAction = null;
   portWaitState = null;
   portWaitButtonRect = null;
@@ -5541,6 +5826,8 @@ async function restoreSavedVoyage(payload) {
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   refreshWeatherState(true);
+  resetPlayerWindState();
+  windIndicatorState = null;
   setBackgroundMusicTrack("ship", { force: true });
   lastAutosaveMs = performance.now();
   dirty = true;
@@ -5847,7 +6134,7 @@ function handleCaptainMenuKeyDown(event) {
     captainMenu.selectedIndex = stepMenuIndex(
       captainMenu.selectedIndex,
       direction,
-      CAPTAIN_MENU_LABELS.length
+      CAPTAIN_MENU_ACTIONS.length
     );
     dirty = true;
     return;
@@ -5856,10 +6143,18 @@ function handleCaptainMenuKeyDown(event) {
 }
 
 function activateCaptainMenuSelection(index) {
-  if (index === 0) openShipInfoMenu();
-  else if (index === 1) openPoliticsMenu();
-  else if (index === 2) openDiscoveriesMenu();
-  else if (index === 3) openOptionsMenu();
+  const action = CAPTAIN_MENU_ACTIONS[index];
+  if (!action) throw new Error(`Unknown captain menu item: ${index}`);
+  if (action.id === "ship") openShipInfoMenu();
+  else if (action.id === "politics") openPoliticsMenu();
+  else if (action.id === "discoveries") openDiscoveriesMenu();
+  else if (action.id === "sailing-basics") {
+    closeCaptainMenu();
+    if (!openSailingHelpModal(sailingTutorialInputMode)) {
+      throw new Error("Could not open Sailing Basics from the captain menu");
+    }
+  } else if (action.id === "options") openOptionsMenu();
+  else throw new Error(`Unknown captain menu action: ${action.id}`);
 }
 
 function handleOptionsKeyDown(event) {
@@ -6026,6 +6321,12 @@ function handlePointerDown(event) {
     startShoreScavenge();
     return;
   }
+  if (!dialogueState && pointInRect(point, whaleReleaseButtonRect)) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    releaseActiveWhale();
+    return;
+  }
   if (pointInRect(point, interactionButtonRect)) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -6046,6 +6347,13 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     openShipDialogue(clickedShip);
+    return;
+  }
+  const clickedWhale = whaleCallAtPoint(point);
+  if (clickedWhale) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    startWhaleHarpoon(clickedWhale);
     return;
   }
   const clickedFish = fishCallAtPoint(point);
@@ -6535,7 +6843,11 @@ function openActiveInteractionDialogue() {
   });
   if (target.kind === "port") openPortDialogue(target.call);
   else if (target.kind === "fish") return catchFishAtFishery(target.call);
-  else openShipDialogue(target.call);
+  else if (target.kind === "ship") openShipDialogue(target.call);
+  else if (target.kind === "whale") return startWhaleHarpoon(target.call);
+  else if (target.kind === "whale-cut") releaseActiveWhale();
+  else if (target.kind === "whale-finish") landWhaleKillingBlow();
+  else throw new Error(`Unknown interaction target kind: ${target.kind}`);
   return true;
 }
 
@@ -6543,7 +6855,7 @@ function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
   combatMusicUntilMs = 0;
-  setBackgroundMusicTrack(musicTrackForCity(cityCall), { restart: true, force: true });
+  setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   if (isColonizationQuestTarget(cityCall) &&
       cityCall.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
     dialogueState = createPortDialogueSession(cityCall, {
@@ -6585,6 +6897,17 @@ function openPortDialogue(cityCall) {
 }
 
 function createOrdinaryPortArrivalSession(cityCall, needsLoadout) {
+  const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
+  if (rumor) {
+    const nextPortNodeId = needsLoadout
+      ? "loadout"
+      : deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities) ? "quest" : "root";
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      rumorText: rumor.text,
+      nextPortNodeId
+    });
+  }
   const passengerQuest = passengerDialogueQuestForCity(cityCall, { createOffer: true });
   const autoPassengerQuest = passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)
     ? passengerQuest
@@ -6604,6 +6927,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout) {
 function createCampaignHomecomingSession(cityCall, needsLoadout) {
   const goal = gameState.memory.campaignGoal;
   if (!goal || cityCall.tileId !== goal.homePortTileId) return null;
+  if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
   const doubloonsBefore = gameState.doubloons;
   const lead = goal.type === CAMPAIGN_GOAL_EXPLORER
     ? retainedOrNearestExplorerLead(cityCall, goal)
@@ -6818,11 +7142,32 @@ function continuePortDialogueAfterCampaign() {
 
 function openShipDialogue(shipCall, options = {}) {
   if (!shipCall.character) throw new Error(`Cannot hail NPC ship without a captain: ${shipCall.id}`);
-  dialogueState = createShipDialogueSession(shipCall, options);
+  const rumor = options.attackReason ? null : maybeWhiteWhaleRumor(`ship:${shipCall.id}`);
+  dialogueState = createShipDialogueSession(shipCall, {
+    ...options,
+    rumorText: options.attackReason ? null : rumor?.text || null
+  });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
   dirty = true;
+}
+
+function maybeWhiteWhaleRumor(interactionKey) {
+  const goal = gameState?.memory?.campaignGoal;
+  if (!goal || goal.type !== CAMPAIGN_GOAL_WHITE_WHALE || goal.whiteWhaleKilled) return null;
+  const quarry = whiteWhale(gameState.memory.whales);
+  const observer = vectorLatLon(ship.position);
+  const quarryLocation = vectorLatLon(quarry.position);
+  const rumor = recordWhiteWhaleSighting(goal, {
+    interactionKey,
+    observerLatitudeDeg: observer.latitudeDeg,
+    observerLongitudeDeg: observer.longitudeDeg,
+    whaleLatitudeDeg: quarryLocation.latitudeDeg,
+    whaleLongitudeDeg: quarryLocation.longitudeDeg
+  });
+  saveVoyageNow(rumor ? "heard white whale rumor" : "checked white whale rumor");
+  return rumor;
 }
 
 function stopShipForDialogue() {
@@ -7479,7 +7824,7 @@ function portDialogueContext() {
 }
 
 function nearbyPortTraffic(city) {
-  const counts = { merchants: 0, warships: 0, pirates: 0, fishermen: 0 };
+  const counts = { merchants: 0, warships: 0, pirates: 0, fishermen: 0, whalers: 0 };
   if (!city || !chart) return counts;
   const portCall = chart.cityCalls?.find((call) => call.tileId === city.tileId);
   if (!portCall) return counts;
@@ -7489,6 +7834,7 @@ function nearbyPortTraffic(city) {
     if (state.role === NPC_ROLE_PIRATE) counts.pirates += 1;
     else if (state.role === NPC_ROLE_WARSHIP) counts.warships += 1;
     else if (state.role === NPC_ROLE_FISHERMAN) counts.fishermen += 1;
+    else if (state.role === NPC_ROLE_WHALER) counts.whalers += 1;
     else if (state.role === NPC_ROLE_MERCHANT) counts.merchants += 1;
   }
   return counts;
@@ -7627,12 +7973,252 @@ function currentDialoguePassenger() {
 
 function activeInteractionTarget() {
   if (fishingAction) return null;
+  const hunt = gameState?.memory?.whales?.activeHunt;
+  if (hunt) {
+    const whale = whaleById(gameState.memory.whales, hunt.whaleId);
+    if (whale.phase === WHALE_PHASE_TETHERED) return { kind: "whale-cut", call: whaleInteractionCall(whale) };
+    if (whale.phase === WHALE_PHASE_EXHAUSTED) return { kind: "whale-finish", call: whaleInteractionCall(whale) };
+  }
   const port = activePortCall();
   if (port) return { kind: "port", call: port };
+  const whaleCall = activeWhaleCall();
+  if (whaleCall) return { kind: "whale", call: whaleCall };
   const fishCall = activeFishCall();
   if (fishCall) return { kind: "fish", call: fishCall };
   const npcShip = activeNpcShipCall();
   return npcShip ? { kind: "ship", call: npcShip } : null;
+}
+
+function updateWhales(dt, nowMs) {
+  if (!gameState?.memory?.whales || !chart || !localLayout) return false;
+  let changed = false;
+  const events = advanceWhaleMemory(
+    gameState.memory.whales,
+    dt,
+    whaleNavigationAtPosition,
+    weatherClockMinutes
+  );
+  for (const event of events) {
+    if (event.type === "blow") {
+      const whale = whaleById(gameState.memory.whales, event.whaleId);
+      const call = whaleInteractionCall(whale);
+      if (call && pointNearScreen(call, SHIP_SHEET_FRAME_SIZE)) {
+        whaleBlowBursts.push({ whaleId: event.whaleId, startedAtMs: nowMs, seed: whale.seed });
+        playWhaleBlowSound();
+      }
+      changed = true;
+    } else if (event.type === "exhausted") {
+      openCaptainAlertModal("The whale is exhausted! Time to land the killing blow!", "happy");
+      changed = true;
+    } else if (event.type === "birth") {
+      changed = true;
+    } else {
+      throw new Error(`Unknown whale event: ${event.type}`);
+    }
+  }
+  if (whaleHarpoonProjectile) {
+    whaleHarpoonProjectile.elapsedSeconds += dt;
+    if (whaleHarpoonProjectile.elapsedSeconds >= whaleHarpoonProjectile.durationSeconds) {
+      resolveWhaleHarpoonProjectile();
+    }
+    changed = true;
+  }
+  const previousBurstCount = whaleBlowBursts.length;
+  whaleBlowBursts = whaleBlowBursts.filter((burst) => nowMs - burst.startedAtMs < WHALE_BLOW_DURATION_MS);
+  return changed || whaleBlowBursts.length > 0 || whaleBlowBursts.length !== previousBurstCount;
+}
+
+function whaleNavigationAtPosition(position) {
+  const tileId = findNearestTileId(graph, directionIndex, position);
+  return { ok: isShipOceanTile(tileId), tileId };
+}
+
+function activeWhaleCall() {
+  if (!gameState || !localLayout || whaleHarpoonProjectile || gameState.memory.whales.activeHunt) return null;
+  const harpoon = playerWhaleHarpoon(gameState);
+  if (!harpoon) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const whale of gameState.memory.whales.individuals) {
+    if (!whaleCanBeHarpooned(whale)) continue;
+    const call = whaleInteractionCall(whale);
+    if (!call) continue;
+    const distance = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
+    if (distance > harpoon.rangePx || distance >= bestDistance) continue;
+    best = { ...call, distancePx: distance };
+    bestDistance = distance;
+  }
+  return best;
+}
+
+function whaleCallAtPoint(point) {
+  const harpoon = playerWhaleHarpoon(gameState);
+  if (!point || !harpoon || whaleHarpoonProjectile || gameState.memory.whales.activeHunt) {
+    return null;
+  }
+  let best = null;
+  let bestDistance = Infinity;
+  for (const whale of gameState.memory.whales.individuals) {
+    if (!whaleCanBeHarpooned(whale)) continue;
+    const call = whaleInteractionCall(whale);
+    if (!call) continue;
+    const clickDistance = Math.hypot(point.x - call.x, point.y - call.y);
+    const shipDistance = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
+    const hitRadius = WHALE_TARGET_HIT_RADIUS_PX * Math.max(0.6, call.scale);
+    if (clickDistance > hitRadius || shipDistance > harpoon.rangePx || clickDistance >= bestDistance) continue;
+    best = { ...call, distancePx: shipDistance };
+    bestDistance = clickDistance;
+  }
+  return best;
+}
+
+function whaleInteractionCall(whale) {
+  if (!chart || !camera || !localLayout) return null;
+  const localPoint = localPointForGlobeVector(whale.position);
+  if (!localPoint || !chart.visibleSet.has(localPoint.tileId)) return null;
+  const offset = chartOffsetPixels(chart);
+  const heading = tangentToScreenDirection(whale.heading) || { x: 1, y: 0 };
+  return {
+    id: whale.id,
+    label: whaleDisplayLabel(whale),
+    whale,
+    tileId: localPoint.tileId,
+    x: localPoint.x + offset.x,
+    y: localPoint.y + offset.y,
+    frame: headingFrameForScreenHeading(heading),
+    scale: whaleLifeStageScale(whale)
+  };
+}
+
+function startWhaleHarpoon(call) {
+  if (!call?.whale) throw new Error("Whale harpoon requires a visible whale");
+  if (whaleHarpoonProjectile || gameState.memory.whales.activeHunt) return false;
+  const harpoon = playerWhaleHarpoon(gameState);
+  if (!harpoon) throw new Error("Whale hunting requires a fitted harpoon");
+  if (!whaleCanBeHarpooned(call.whale)) return false;
+  const distancePx = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
+  if (distancePx > harpoon.rangePx) return false;
+  if (anchored && !toggleAnchor()) throw new Error("Could not weigh anchor for a whale hunt");
+  whaleHarpoonProjectile = {
+    whaleId: call.id,
+    harpoonId: harpoon.id,
+    startX: SCREEN_W / 2,
+    startY: SCREEN_H / 2,
+    targetX: call.x,
+    targetY: call.y,
+    distancePx,
+    elapsedSeconds: 0,
+    durationSeconds: WHALE_HARPOON_PROJECTILE_SECONDS
+  };
+  showSurvivalNotice("HARPOON AWAY", "good");
+  dirty = true;
+  return true;
+}
+
+function resolveWhaleHarpoonProjectile() {
+  const projectile = whaleHarpoonProjectile;
+  if (!projectile) throw new Error("No whale harpoon is in flight");
+  whaleHarpoonProjectile = null;
+  const whale = whaleById(gameState.memory.whales, projectile.whaleId);
+  if (!whaleCanBeHarpooned(whale)) {
+    showSurvivalNotice("THE WHALE DIVED BEFORE THE HARPOON STRUCK", "warn");
+    return;
+  }
+  const harpoon = playerWhaleHarpoon(gameState);
+  if (!harpoon || harpoon.id !== projectile.harpoonId) throw new Error("Fitted harpoon changed in flight");
+  const result = resolveWhaleHarpoon(harpoon, projectile.distancePx, {
+    hitRoll: Math.random(),
+    breakRoll: Math.random(),
+    resistanceMultiplier: whaleHarpoonBreakMultiplier(whale)
+  });
+  if (result.outcome === "missed") {
+    playFishingSound();
+    showSurvivalNotice("THE HARPOON MISSED", "warn");
+  } else if (result.outcome === "broke") {
+    playArrowHitSound();
+    playWhaleLineBreakSound();
+    showSurvivalNotice("THE ROPE SNAPPED", "warn");
+  } else if (result.outcome === "tethered") {
+    playArrowHitSound();
+    tetherWhale(gameState.memory.whales, whale.id, harpoon);
+    if (whale.id === WHITE_WHALE_ID) {
+      openCaptainAlertModal(
+        "The iron is in the white whale! To the last I grapple with it. Hold fast for the tow!",
+        "stern"
+      );
+    } else {
+      showSurvivalNotice("THE LINE HOLDS - PREPARE FOR THE TOW", "good");
+    }
+  } else {
+    throw new Error(`Unknown whale harpoon outcome: ${result.outcome}`);
+  }
+}
+
+function releaseActiveWhale() {
+  const whale = cutWhaleLoose(gameState.memory.whales);
+  playFishingSound();
+  showSurvivalNotice(`${whaleDisplayLabel(whale).toUpperCase()} RELEASED`, "good");
+  saveVoyageNow("released a whale");
+  dirty = true;
+}
+
+function landWhaleKillingBlow() {
+  const whale = killExhaustedWhale(gameState.memory.whales);
+  playArrowHitSound();
+  playFishingSound();
+  playFishingSuccessSound();
+  const label = whaleDisplayLabel(whale);
+  const result = receiveWhaleBlubber(
+    gameState,
+    whaleBlubberYield(whale),
+    { simMinute: Math.floor(weatherClockMinutes), speciesLabel: label }
+  );
+  showSurvivalNotice(
+    result.quantity > 0
+      ? `${label.toUpperCase()} TAKEN  +${result.quantity} WHALE BLUBBER`
+      : `${label.toUpperCase()} TAKEN  HOLD FULL`,
+    "good"
+  );
+  syncShipCargoFromGameState();
+  if (whale.id === WHITE_WHALE_ID) {
+    const goal = gameState.memory.campaignGoal;
+    if (goal?.type === CAMPAIGN_GOAL_WHITE_WHALE) {
+      markWhiteWhaleKilled(goal, weatherClockMinutes);
+      openCaptainAlertModal(
+        `From hell's heart I struck at it, and the white whale is gone. ` +
+          `Now turn us home to ${gameState.playerCharacter.homePortName}. Let this chase end where my life began.`,
+        "thoughtful"
+      );
+    } else {
+      openCaptainAlertModal(
+        "The white whale is dead. Sailors will argue over this day long after our own wake has vanished.",
+        "thoughtful"
+      );
+    }
+  }
+  saveVoyageNow("completed a whale hunt");
+  dirty = true;
+}
+
+function applyWhaleTowAcceleration(dt) {
+  const hunt = gameState?.memory?.whales?.activeHunt;
+  if (!hunt) return;
+  const whale = whaleById(gameState.memory.whales, hunt.whaleId);
+  if (whale.phase !== WHALE_PHASE_TETHERED) return;
+  const towardWhale = normalizeOrNull(projectTangentVector(whale.position, ship.position));
+  const whaleHeading = normalizeTangentOrFallback(whale.heading, ship.position, ship.heading);
+  const towDirection = normalizeTangentOrFallback([
+    whaleHeading[0] * 0.82 + (towardWhale?.[0] || 0) * 0.18,
+    whaleHeading[1] * 0.82 + (towardWhale?.[1] || 0) * 0.18,
+    whaleHeading[2] * 0.82 + (towardWhale?.[2] || 0) * 0.18
+  ], ship.position, whaleHeading);
+  const response = 1 - Math.exp(-WHALE_TOW_RESPONSE_PER_SECOND * dt);
+  const towVelocity = scaleVector(towDirection, whaleTowingSpeed(whale));
+  ship.velocity = [
+    ship.velocity[0] + (towVelocity[0] - ship.velocity[0]) * response,
+    ship.velocity[1] + (towVelocity[1] - ship.velocity[1]) * response,
+    ship.velocity[2] + (towVelocity[2] - ship.velocity[2]) * response
+  ];
 }
 
 function activePortCall() {
@@ -7799,6 +8385,14 @@ function interactionTargetIsUsable(target) {
   if (target.kind === "ship") {
     const state = npcVisualShips.get(target.call?.id);
     return npcShipInHailRange(state);
+  }
+  if (target.kind === "whale") {
+    if (!target.call?.whale || !whaleCanBeHarpooned(target.call.whale)) return false;
+    const harpoon = playerWhaleHarpoon(gameState);
+    return Boolean(harpoon) && Math.hypot(target.call.x - SCREEN_W / 2, target.call.y - SCREEN_H / 2) <= harpoon.rangePx;
+  }
+  if (target.kind === "whale-cut" || target.kind === "whale-finish") {
+    return Boolean(gameState?.memory?.whales?.activeHunt);
   }
   throw new Error(`Unknown interaction target kind: ${target.kind}`);
 }
@@ -8196,6 +8790,7 @@ function updateSailing(dt) {
   }
 
   applyWindAcceleration(dt);
+  applyWhaleTowAcceleration(dt);
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
   applyHeldShipHaulAcceleration(dt, inputHeading, haulMotionScale);
   const previousPosition = ship.position;
@@ -8302,7 +8897,7 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
   }
 
   const waitingForBasics = !basicsAlreadyShown && earlySailingHelpWindowIsActive(sailingTutorialState);
-  const wind = windForTile(ship.tileId);
+  const wind = windForShip();
   const windFlow = windFlowVectorAtShip(wind);
   const propulsion = shipPropulsionPerformance(ship.stats, {
     windStrength: wind.strength,
@@ -8457,7 +9052,7 @@ function pointerSteeringInputVector() {
 }
 
 function applyWindAcceleration(dt) {
-  const wind = windForTile(ship.tileId);
+  const wind = windForShip();
   const windFlow = windFlowVectorAtShip(wind);
   const efficiency = sailingEfficiency(ship.heading, windFlow);
   const propulsion = shipPropulsionPerformance(ship.stats, {
@@ -9554,6 +10149,21 @@ function navalArcHasEnemy(arc) {
     const point = { x: state.x + offset.x, y: state.y + offset.y };
     if (pointInBroadsideArc(point, arc, 7)) return true;
   }
+
+  const whaleCall = activeWhaleCall();
+  if (whaleCall) {
+    drawSelectableSpriteOutline({
+      image: whaleImageSet(whaleCall.whale).image,
+      sourceX: (whaleCall.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+      sourceY: Math.floor(whaleCall.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+      sourceW: SHIP_SHEET_FRAME_SIZE,
+      sourceH: SHIP_SHEET_FRAME_SIZE,
+      x: Math.round(whaleCall.x - SHIP_SHEET_FRAME_SIZE / 2),
+      y: Math.round(whaleCall.y - SHIP_SHEET_FRAME_SIZE / 2),
+      primary: primaryId === whaleCall.id,
+      pulseBright
+    });
+  }
   for (const battery of activeVisibleShoreBatteries()) {
     if (!battery.engagedTargetIds.has(PLAYER_COMBAT_ID)) continue;
     const localPoint = shoreBatteryPoint(battery.id);
@@ -10054,7 +10664,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   if (status.freshWaterFraction > 0 && status.freshWaterFraction <= 0.12) {
     showSurvivalNotice("FRESH WATER LOW", "warn");
   }
-  if (status.foodUnits > 0 && status.foodDays <= 3) {
+  if (status.foodRations > 0 && status.foodDays <= 3) {
     showSurvivalNotice("FOOD LOW", "warn");
   }
   return result.changed || deprivationChanged;
@@ -10112,7 +10722,7 @@ function updateSurvivalDeprivationLosses(status, currentMinute) {
   });
   const foodLoss = updateSurvivalCrewLossTimer({
     key: "foodNextMinute",
-    active: status.foodUnits <= 0,
+    active: status.foodRations <= 0,
     currentMinute,
     intervalMinutes: SURVIVAL_STARVATION_INTERVAL_MINUTES,
     crewLossPerTick: SURVIVAL_STARVATION_CREW_LOSS,
@@ -10127,7 +10737,7 @@ function updateSurvivalDeprivationLosses(status, currentMinute) {
     return waterLoss.changed || foodLoss.changed;
   }
 
-  const reason = status.freshWater <= 0 && status.foodUnits <= 0
+  const reason = status.freshWater <= 0 && status.foodRations <= 0
     ? "The crew succumbed to thirst and starvation."
     : status.freshWater <= 0
       ? "The crew succumbed to thirst."
@@ -10745,7 +11355,11 @@ function npcCombatAttackReason(state) {
   if (state.role === NPC_ROLE_PIRATE) {
     return "Your cargo and coin are ours. Heave to, or we open fire!";
   }
-  if (state.role === NPC_ROLE_MERCHANT || state.role === NPC_ROLE_FISHERMAN) {
+  if (
+    state.role === NPC_ROLE_MERCHANT ||
+    state.role === NPC_ROLE_FISHERMAN ||
+    state.role === NPC_ROLE_WHALER
+  ) {
     return ship.factionId === PIRATE_FACTION_ID
       ? "You sail under pirate colors. Keep away, or we will defend ourselves!"
       : "Your flag is hostile to ours. Keep away, or we will defend ourselves!";
@@ -12577,6 +13191,7 @@ function handleFullscreenChange() {
 function handleFullscreenVisibilityChange() {
   fitCanvasToDisplay();
   if (document.visibilityState === "hidden") saveVoyageNow("page hidden");
+  else ensureGameAudioStarted();
 }
 
 function northUpCamera(center, fallbackRight = [1, 0, 0]) {
@@ -12637,6 +13252,25 @@ function rotateTangentToward(current, target, normal, maxStepRad) {
 function tileCenterVector(tileId) {
   const k = tileId * 3;
   return [graph.centers[k], graph.centers[k + 1], graph.centers[k + 2]];
+}
+
+function ensureWhalePopulation(memory) {
+  if (memory.individuals.length > 0) return;
+  const candidates = [];
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if (earthById[tileId]?.t !== "water" || oceanReachableNavigationMask[tileId] !== 1) continue;
+    candidates.push({
+      tileId,
+      latitudeDeg: graph.latDeg[tileId],
+      longitudeDeg: graph.lonDeg[tileId],
+      position: tileCenterVector(tileId)
+    });
+  }
+  seedWhalePopulation(memory, candidates, undefined, {
+    startMinute: weatherClockMinutes,
+    avoidPosition: ship?.position || null
+  });
+  console.info(`[pixel-globe] whales: ${memory.individuals.length} multi-species individuals seeded`);
 }
 
 function scaleVector(v, scale) {
@@ -12769,6 +13403,8 @@ function render(nowMs) {
   ctx.restore();
 
   drawShipShadow(chart, shipLight, offset);
+  drawWhales(nowMs);
+  drawWhaleHuntEffects(nowMs);
   drawFishingNetAnimation(nowMs);
   drawNpcFishingNetAnimations(nowMs);
   drawShips(chart, shipLight, nowMs);
@@ -13667,7 +14303,7 @@ function fillMinimapCanvas(mapCtx, color) {
 }
 
 function revealMinimapFromChart(activeChart, offset) {
-  if (!minimap) return;
+  if (!minimap || !hasStartedVoyage) return;
   for (const call of activeChart.tileCalls) {
     if (!tileCallNearViewport(call, offset, TILE_ART_HALF)) continue;
     revealMinimapTile(call.id);
@@ -13844,9 +14480,9 @@ function drawCaptainMenu(nowMs) {
 }
 
 function drawCaptainMenuItemIcon(index, x, y, active) {
-  const iconId = CAPTAIN_MENU_ICON_IDS[index];
-  if (!iconId) throw new Error(`Captain menu item has no icon: ${index}`);
-  drawGameIcon(iconId, x - 1, y - 1, { alpha: active ? 1 : 0.82 });
+  const action = CAPTAIN_MENU_ACTIONS[index];
+  if (!action) throw new Error(`Captain menu item has no action: ${index}`);
+  drawGameIcon(action.iconId, x - 1, y - 1, { alpha: active ? 1 : 0.82 });
 }
 
 function drawGameIcon(iconId, x, y, options = {}) {
@@ -13918,11 +14554,11 @@ function drawCaptainChartNavigation(panel) {
   const gap = 4;
   const navH = 36;
   const availableW = panel.w - 24;
-  const itemW = Math.floor((availableW - gap * (CAPTAIN_MENU_LABELS.length - 1)) / CAPTAIN_MENU_LABELS.length);
-  const totalW = itemW * CAPTAIN_MENU_LABELS.length + gap * (CAPTAIN_MENU_LABELS.length - 1);
+  const itemW = Math.floor((availableW - gap * (CAPTAIN_MENU_ACTIONS.length - 1)) / CAPTAIN_MENU_ACTIONS.length);
+  const totalW = itemW * CAPTAIN_MENU_ACTIONS.length + gap * (CAPTAIN_MENU_ACTIONS.length - 1);
   const startX = panel.x + Math.floor((panel.w - totalW) / 2);
   const y = panel.y + panel.h - navH - 8;
-  captainMenu.itemRects = CAPTAIN_MENU_LABELS.map((_, index) => ({
+  captainMenu.itemRects = CAPTAIN_MENU_ACTIONS.map((_, index) => ({
     x: startX + index * (itemW + gap),
     y,
     w: itemW,
@@ -13944,7 +14580,9 @@ function drawCaptainChartNavigation(panel) {
   });
 
   const labelIndex = hoveredIndex >= 0 ? hoveredIndex : captainMenu.selectedIndex;
-  drawOptionsText(CAPTAIN_MENU_LABELS[labelIndex], panel.x + panel.w / 2, y - 13, {
+  const label = CAPTAIN_MENU_ACTIONS[labelIndex]?.label;
+  if (!label) throw new Error(`Captain menu label is missing: ${labelIndex}`);
+  drawOptionsText(label, panel.x + panel.w / 2, y - 13, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
@@ -14186,7 +14824,7 @@ function drawShipInfoMenu() {
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, cargoY - 3, panel.w - 20, 1);
   drawOptionsText("CARGO HOLD", panel.x + 12, cargoY + 1, { color: PIRATE_MENU_INK });
-  drawOptionsText(`${view.cargoUsed}/${view.cargoCapacity}`, panel.x + 105, cargoY + 1, {
+  drawOptionsText(`${view.cargoUsedLabel}/${view.cargoCapacity}`, panel.x + 105, cargoY + 1, {
     align: "right",
     color: PIRATE_MENU_INK
   });
@@ -14206,7 +14844,7 @@ function drawShipInfoMenu() {
       const y = cargoY + 19 + rowIndex * 17;
       drawGameIcon(tradeGoodIconId(row.id), x, y - 4);
       drawOptionsText(
-        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_SMALL_8, 130),
+        fitPixelText(`${row.label} ${row.quantityLabel}`, PIXEL_FONT_SMALL_8, 130),
         x + GAME_ICON_SIZE + 4,
         y,
         { color: PIRATE_MENU_INK }
@@ -14298,7 +14936,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, y, panel.w - 20, 1);
   drawOptionsText("CARGO HOLD", labelX, y + 6, { color: PIRATE_MENU_INK });
-  drawOptionsText(`${view.cargoUsed}/${view.cargoCapacity}`, labelX + 89, y + 6, {
+  drawOptionsText(`${view.cargoUsedLabel}/${view.cargoCapacity}`, labelX + 89, y + 6, {
     align: "right",
     color: PIRATE_MENU_INK
   });
@@ -14312,7 +14950,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
       const rowY = y + index * 17;
       drawGameIcon(tradeGoodIconId(row.id), labelX, rowY - 4);
       drawOptionsText(
-        fitPixelText(`${row.label} x${row.quantity}`, PIXEL_FONT_SMALL_8, panel.w - 108),
+        fitPixelText(`${row.label} ${row.quantityLabel}`, PIXEL_FONT_SMALL_8, panel.w - 108),
         labelX + GAME_ICON_SIZE + 4,
         rowY,
         { color: PIRATE_MENU_INK }
@@ -16992,7 +17630,7 @@ function drawStormScreenRain(nowMs) {
   const intensity = playerStormIntensity();
   if (intensity < STORM_SCREEN_RAIN_ENTER_INTENSITY) return;
   const t = clamp((intensity - STORM_SCREEN_RAIN_ENTER_INTENSITY) / (1 - STORM_SCREEN_RAIN_ENTER_INTENSITY), 0, 1);
-  const wind = windForTile(ship.tileId);
+  const wind = windForShip();
   const dir = screenWindFlowVector(wind);
   const margin = STORM_SCREEN_RAIN_MARGIN_PX;
   const spanW = SCREEN_W + margin * 2;
@@ -18997,6 +19635,106 @@ function drawShips(activeChart, playerLight, nowMs) {
   for (const call of drawCalls) drawShipCall(call, nowMs);
 }
 
+function drawWhales(nowMs) {
+  if (!gameState?.memory?.whales || !animalImages?.whales) return;
+  for (const whale of gameState.memory.whales.individuals) {
+    if (whale.phase === WHALE_PHASE_DEAD) continue;
+    const call = whaleInteractionCall(whale);
+    if (!call || !pointNearScreen(call, SHIP_SHEET_FRAME_SIZE)) continue;
+    drawWhaleSprite(call, nowMs);
+  }
+}
+
+function whaleImageSet(whale) {
+  const slug = whaleAssetSlug(whale);
+  const images = animalImages?.whales?.get(slug);
+  if (!images) throw new Error(`Missing whale raster assets: ${slug}`);
+  return images;
+}
+
+function drawWhaleSprite(call, nowMs) {
+  const exposure = whaleSurfaceExposure(call.whale);
+  const images = whaleImageSet(call.whale);
+  const pixels = shipSpriteFramePixels(images.image, images.sinkDepthImage, call.frame);
+  const halfFrame = SHIP_SHEET_FRAME_SIZE / 2;
+  const originY = Math.round(call.y + (1 - exposure) * 3);
+  const surfaceThreshold = 0.502 + (1 - exposure) * 0.52;
+  const refractionTime = reducedMotionPreferred ? 0 : nowMs;
+  ctx.save();
+  for (const pixel of pixels) {
+    const aboveWater = pixel.sinkHeight > surfaceThreshold;
+    const offsetX = aboveWater
+      ? 0
+      : liveShipRefractionOffset(pixel.y, refractionTime, call.whale.seed);
+    ctx.globalAlpha = pixel.alpha * (aboveWater ? 1 : WHALE_SUBMERGED_ALPHA);
+    ctx.fillStyle = pixel.color;
+    const x = Math.round(call.x + (pixel.x - halfFrame) * call.scale + offsetX);
+    const y = Math.round(originY + (pixel.y - halfFrame) * call.scale);
+    ctx.fillRect(x, y, 1, 1);
+  }
+  ctx.restore();
+}
+
+function drawWhaleHuntEffects(nowMs) {
+  for (const burst of whaleBlowBursts) drawWhaleBlowBurst(burst, nowMs);
+  if (whaleHarpoonProjectile) drawWhaleHarpoonProjectile(whaleHarpoonProjectile);
+  const hunt = gameState?.memory?.whales?.activeHunt;
+  if (!hunt) return;
+  const whale = whaleById(gameState.memory.whales, hunt.whaleId);
+  const call = whaleInteractionCall(whale);
+  if (!call) return;
+  drawWhaleRope(SCREEN_W / 2, SCREEN_H / 2, call.x, call.y);
+}
+
+function drawWhaleBlowBurst(burst, nowMs) {
+  const whale = whaleById(gameState.memory.whales, burst.whaleId);
+  const call = whaleInteractionCall(whale);
+  if (!call) return;
+  const age = (nowMs - burst.startedAtMs) / 1000;
+  const life = clamp(age / (WHALE_BLOW_DURATION_MS / 1000), 0, 1);
+  const heading = tangentToScreenDirection(whale.heading) || { x: 1, y: 0 };
+  const originX = call.x + heading.x * 11 * call.scale;
+  const originY = call.y + heading.y * 11 * call.scale - 4;
+  ctx.save();
+  for (let index = 0; index < 24; index++) {
+    const hash = hashInt(burst.seed ^ Math.imul(index + 1, 0x9e3779b1));
+    const delay = ((hash >>> 4) & 255) / 255 * 0.65;
+    const particleAge = age - delay;
+    if (particleAge < 0) continue;
+    const side = (((hash >>> 12) & 255) / 255 - 0.5) * 8;
+    const speed = 12 + ((hash >>> 20) & 31) * 0.45;
+    const x = Math.round(originX + side * particleAge);
+    const y = Math.round(originY - speed * particleAge + 9 * particleAge * particleAge);
+    ctx.globalAlpha = Math.max(0, (1 - life) * 0.9);
+    ctx.fillStyle = index % 3 === 0 ? "#c7dcd0" : "#f6f2d4";
+    ctx.fillRect(x, y, 1, 1);
+  }
+  ctx.restore();
+}
+
+function drawWhaleHarpoonProjectile(projectile) {
+  const whale = whaleById(gameState.memory.whales, projectile.whaleId);
+  const call = whaleInteractionCall(whale);
+  const targetX = call?.x ?? projectile.targetX;
+  const targetY = call?.y ?? projectile.targetY;
+  const t = clamp(projectile.elapsedSeconds / projectile.durationSeconds, 0, 1);
+  const x = projectile.startX + (targetX - projectile.startX) * t;
+  const y = projectile.startY + (targetY - projectile.startY) * t + Math.sin(t * Math.PI) * WHALE_HARPOON_ARC_PX;
+  drawWhaleRope(projectile.startX, projectile.startY, x, y);
+  const direction = normalizeScreenVector({ x: targetX - projectile.startX, y: targetY - projectile.startY }) || { x: 1, y: 0 };
+  ctx.fillStyle = "#2e222f";
+  for (let index = -1; index <= 1; index++) {
+    ctx.fillRect(Math.round(x + direction.x * index), Math.round(y + direction.y * index), 1, 1);
+  }
+}
+
+function drawWhaleRope(startX, startY, endX, endY) {
+  const middleX = Math.round((startX + endX) / 2);
+  const middleY = Math.round((startY + endY) / 2 + 2);
+  drawPixelLine(Math.round(startX), Math.round(startY), middleX, middleY, "#6b4932");
+  drawPixelLine(middleX, middleY, Math.round(endX), Math.round(endY), "#6b4932");
+}
+
 function playerShipDrawCall(light) {
   if (!ship || !shipImage || (gameOverReason && gameOverState?.sinkShip !== false)) return null;
   const frame = shipHeadingFrame();
@@ -19364,6 +20102,20 @@ function drawCampaignGoalDestinationArrow(nowMs) {
   if (!destination) return;
   const style = { light: "#30e1b9", dark: "#0eaf9b", shadow: "rgba(19, 45, 48, 0.78)" };
 
+  if (destination.kind === CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING) {
+    const targetVector = latLonToDirection(destination.latitudeDeg, destination.longitudeDeg);
+    drawWorldTargetArrow({
+      id: "campaign:white-whale-sighting",
+      label: "White whale last seen",
+      targetVector,
+      localPoint: localPointForGlobeVector(targetVector),
+      localYOffset: -10,
+      nowMs,
+      style
+    });
+    return;
+  }
+
   if (destination.kind === CAMPAIGN_DESTINATION_DISCOVERY) {
     const discovery = discoveryCatalogById.get(destination.discoveryId);
     if (!discovery) throw new Error(`Campaign goal points to missing discovery: ${destination.discoveryId}`);
@@ -19652,7 +20404,7 @@ function updateWindIndicator(dt) {
 }
 
 function windIndicatorTarget() {
-  const wind = windForTile(centerTileId);
+  const wind = windForShip();
   const flowDirectionRad = normalizeAngleRad(wind.directionRad + Math.PI);
   const directionIndex = windDirectionBucket(flowDirectionRad);
   const windFlow = windFlowVectorAtShip(wind);
@@ -20185,6 +20937,7 @@ function drawDiscoveryNotice(nowMs) {
 function drawInteractionButton() {
   interactionButtonRect = null;
   interactionButtonTarget = null;
+  whaleReleaseButtonRect = null;
   if (dialogueState || menusAreOpen() || fishingAction) return;
   const target = activeInteractionTarget();
   if (!target) return;
@@ -20197,6 +20950,17 @@ function drawInteractionButton() {
     w: INTERACTION_BUTTON_W,
     h: INTERACTION_BUTTON_H
   };
+  if (target.kind === "whale-finish") {
+    const releaseWidth = 116;
+    const totalWidth = releaseWidth + 4 + INTERACTION_BUTTON_W;
+    whaleReleaseButtonRect = {
+      x: Math.floor((SCREEN_W - totalWidth) / 2),
+      y: interactionButtonRect.y,
+      w: releaseWidth,
+      h: INTERACTION_BUTTON_H
+    };
+    interactionButtonRect.x = whaleReleaseButtonRect.x + releaseWidth + 4;
+  }
   const disabled = target.kind === "fish" && !canStartFishing(cargoFree(gameState));
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, interactionButtonRect);
   drawPiratePaperControl(interactionButtonRect, { disabled, hovered });
@@ -20210,6 +20974,14 @@ function drawInteractionButton() {
     secondaryLabel = presentation.chanceLabel;
   } else if (target.kind === "ship") {
     actionLabel = `Hail: ${target.call.label}`;
+  } else if (target.kind === "whale") {
+    const harpoon = playerWhaleHarpoon(gameState);
+    actionLabel = `Harpoon ${target.call.label}`;
+    secondaryLabel = `${Math.round(whaleHarpoonHitChance(harpoon, target.call.distancePx) * 100)}%`;
+  } else if (target.kind === "whale-cut") {
+    actionLabel = "Cut whale loose";
+  } else if (target.kind === "whale-finish") {
+    actionLabel = "Land killing blow";
   } else {
     throw new Error(`Unknown interaction target kind: ${target.kind}`);
   }
@@ -20217,17 +20989,27 @@ function drawInteractionButton() {
     ? "action:dock"
     : target.kind === "fish"
       ? "action:fish"
-      : "action:hail";
+      : target.kind === "ship"
+        ? "action:hail"
+        : "action:harpoon";
   drawControlIconLabel(interactionButtonRect, actionLabel, iconId, {
     disabled,
     secondaryLabel,
     font: target.kind === "fish" ? PIXEL_FONT_SMALL_8 : PIXEL_FONT_DIALOGUE_8
   });
+  if (whaleReleaseButtonRect) {
+    const releaseHovered = pointInRect(optionsMenu.hoverPoint, whaleReleaseButtonRect);
+    drawPiratePaperControl(whaleReleaseButtonRect, { hovered: releaseHovered });
+    drawControlIconLabel(whaleReleaseButtonRect, "Release whale", "action:leave", {
+      font: PIXEL_FONT_SMALL_8
+    });
+  }
 }
 
 function drawAnchorButton() {
   anchorButtonRect = null;
   if (dialogueState || menusAreOpen() || gameOverReason || fishingAction) return;
+  if (gameState?.memory?.whales?.activeHunt) return;
   if (!anchored && !canAnchorAtCurrentShore()) return;
   anchorButtonRect = {
     x: anchored
@@ -21083,7 +21865,12 @@ function drawVictoryStatsScreen(state, elapsedMs) {
     align: "center"
   });
   ctx.fillStyle = PIRATE_MENU_CHART_LINE;
-  drawPixelText(gameState.memory.campaignGoal.type === CAMPAIGN_GOAL_EXPLORER ? "EXPLORER'S VICTORY" : "A DEBT REPAID", SCREEN_W / 2, 29, {
+  const victoryKind = gameState.memory.campaignGoal.type === CAMPAIGN_GOAL_EXPLORER
+    ? "EXPLORER'S VICTORY"
+    : gameState.memory.campaignGoal.type === CAMPAIGN_GOAL_FAMILY_DEBT
+      ? "A DEBT REPAID"
+      : "THE CHASE IS ENDED";
+  drawPixelText(victoryKind, SCREEN_W / 2, 29, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
@@ -21279,19 +22066,26 @@ function drawDialogueOverlay(nowMs) {
     ? factionBlockX - (panelX + textXOffset) - 8
     : optionW;
   const textYOffset = portGreeting ? 52 : 25;
+  const topicLines = view.topic
+    ? [fitPixelText(view.topic.toUpperCase(), dialogueFont, bodyTextW)]
+    : [];
   const optionHeight = dialogueOptionsHeight(view, dialogueFont, optionW);
+  const optionGroups = dialogueOptionGroups(view.options);
+  const optionRowCount = optionGroups.regular.length + (optionGroups.exits.length > 0 ? 1 : 0);
   const maximumPanelHeight = SCREEN_H - 13;
   const feedbackReserve = view.feedback ? dialogueLineHeight * 2 : 0;
   const bodyLineLimit = Math.max(1, Math.floor(
     (maximumPanelHeight - textYOffset - optionHeight - feedbackReserve - 14) / dialogueLineHeight
-  ));
+  ) - topicLines.length);
   let bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
   let feedbackLines = view.feedback
     ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
     : [];
-  const bodyEndOffset = textYOffset + (bodyLines.length + feedbackLines.length) * dialogueLineHeight;
+  const bodyEndOffset = textYOffset +
+    (topicLines.length + bodyLines.length + feedbackLines.length) * dialogueLineHeight;
   const optionYOffset = portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
-  const contentHeight = optionYOffset + view.options.length * optionHeight + 9;
+  const contentHeight = optionYOffset + optionRowCount * optionHeight +
+    (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) + 9;
   const geometry = dialoguePanelGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
@@ -21299,19 +22093,21 @@ function drawDialogueOverlay(nowMs) {
   });
   const panel = geometry.panel;
   const optionBottom = panel.y + panel.h - 9;
-  const safeOptions = dialogueOptionLayout({
+  const safeOptions = dialogueOptionStackLayout({
     desiredY: panel.y + optionYOffset,
     bottom: optionBottom,
     optionHeight,
-    optionCount: view.options.length
+    regularCount: optionGroups.regular.length,
+    exitCount: optionGroups.exits.length
   });
   const textLineCapacity = Math.max(
     0,
     Math.floor((safeOptions.y - 5 - (panel.y + textYOffset)) / dialogueLineHeight)
   );
-  if (bodyLines.length + feedbackLines.length > textLineCapacity) {
-    const feedbackLimit = Math.min(feedbackLines.length, Math.max(0, textLineCapacity - 1));
-    const bodyLimit = Math.max(0, textLineCapacity - feedbackLimit);
+  const bodyTextLineCapacity = Math.max(0, textLineCapacity - topicLines.length);
+  if (bodyLines.length + feedbackLines.length > bodyTextLineCapacity) {
+    const feedbackLimit = Math.min(feedbackLines.length, Math.max(0, bodyTextLineCapacity - 1));
+    const bodyLimit = Math.max(0, bodyTextLineCapacity - feedbackLimit);
     bodyLines = bodyLimit > 0 ? wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLimit) : [];
     feedbackLines = feedbackLimit > 0
       ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, feedbackLimit)
@@ -21346,6 +22142,11 @@ function drawDialogueOverlay(nowMs) {
 
   const textX = panel.x + 12;
   let y = panel.y + textYOffset;
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  for (const line of topicLines) {
+    drawPixelText(line, textX, y, { font: dialogueFont });
+    y += dialogueLineHeight;
+  }
   ctx.fillStyle = PIRATE_MENU_INK;
   for (const line of bodyLines) {
     drawPixelText(line, textX, y, { font: dialogueFont });
@@ -21377,7 +22178,10 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   const compact = SCREEN_H > SCREEN_W;
   const optionWidth = panel.w - 18;
   const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_DIALOGUE_8, optionWidth);
-  const optionY = panel.y + panel.h - dialogueView.options.length * optionHeight - 7;
+  const optionGroups = dialogueOptionGroups(dialogueView.options);
+  const optionRowCount = optionGroups.regular.length + (optionGroups.exits.length > 0 ? 1 : 0);
+  const optionY = panel.y + panel.h - optionRowCount * optionHeight -
+    (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) - 7;
 
   drawPiratePaperModal(panel, 0.9);
 
@@ -21684,82 +22488,71 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
   const optionHeight = dialogueOptionsHeight(view, font, width);
-  const layout = dialogueOptionLayout({
+  const groups = dialogueOptionGroups(view.options);
+  const stack = dialogueOptionStackLayout({
     desiredY: y,
     bottom,
     optionHeight,
-    optionCount: view.options.length
+    regularCount: groups.regular.length,
+    exitCount: groups.exits.length
   });
-  y = layout.y;
-  const maxVisible = layout.visibleCount;
-  const needsScroll = layout.needsScroll;
-  const optionWindow = dialogueOptionWindow({
-    optionCount: view.options.length,
-    visibleCount: maxVisible,
-    selectedIndex: dialogueState.selectedIndex,
-    scrollOffset: dialogueLayout.scrollOffset
-  });
-  dialogueState.selectedIndex = optionWindow.selectedIndex;
-  dialogueLayout.scrollOffset = optionWindow.scrollOffset;
-  const navigation = needsScroll
-    ? dialogueOptionNavigationLayout({
-      x,
-      y,
-      width,
-      visibleCount: maxVisible,
-      optionHeight,
-      buttonWidth: UI_PAGER_BUTTON_W,
-      buttonHeight: UI_PAGER_BUTTON_H
-    })
-    : null;
-  const optionWidth = navigation?.optionWidth || width;
-  const visibleOptions = view.options.slice(optionWindow.start, optionWindow.end);
-  for (let localIndex = 0; localIndex < visibleOptions.length; localIndex++) {
-    const index = optionWindow.start + localIndex;
-    const option = visibleOptions[localIndex];
-    const rect = {
-      x,
-      y: y + localIndex * optionHeight,
-      w: optionWidth,
-      h: optionHeight - 2
-    };
-    dialogueLayout.optionRects.push({ index, rect });
-    const selected = index === dialogueState.selectedIndex;
-    drawPiratePaperInset(rect, selected && !option.disabled);
-    if (selected) {
-      ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
-      ctx.fillRect(rect.x + 2, rect.y + 3, 2, Math.max(2, rect.h - 6));
-    }
-    drawGameIcon(
-      dialogueOptionIconId(option),
-      rect.x + 6,
-      rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2),
-      { alpha: option.disabled ? 0.38 : 1 }
+  let navigation = null;
+  let optionWindow = null;
+  if (groups.regular.length > 0) {
+    const selectedRegularIndex = groups.regular.findIndex((entry) => entry.index === dialogueState.selectedIndex);
+    const fallbackSelectedIndex = Math.min(
+      groups.regular.length - 1,
+      dialogueLayout.scrollOffset + Math.max(0, stack.visibleRegularCount - 1)
     );
-    ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK;
-    const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
-    const multiLine = textLayout.labelLines.length > 1 || textLayout.detailLines.length > 0;
-    const labelY = multiLine ? rect.y + 3 : controlTextY(rect);
-    for (let lineIndex = 0; lineIndex < textLayout.labelLines.length; lineIndex++) {
-      drawPixelText(
-        textLayout.labelLines[lineIndex],
-        rect.x + GAME_ICON_SIZE + 10,
-        labelY + lineIndex * 12,
-        { font }
-      );
+    optionWindow = dialogueOptionWindow({
+      optionCount: groups.regular.length,
+      visibleCount: stack.visibleRegularCount,
+      selectedIndex: selectedRegularIndex >= 0 ? selectedRegularIndex : fallbackSelectedIndex,
+      scrollOffset: dialogueLayout.scrollOffset
+    });
+    if (selectedRegularIndex >= 0) {
+      dialogueState.selectedIndex = groups.regular[optionWindow.selectedIndex].index;
     }
-    if (textLayout.detailLines.length > 0) {
-      ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
-      const detailY = rect.y + 4 + textLayout.labelLines.length * 12;
-      for (let lineIndex = 0; lineIndex < textLayout.detailLines.length; lineIndex++) {
-        drawPixelText(
-          textLayout.detailLines[lineIndex],
-          rect.x + GAME_ICON_SIZE + 10,
-          detailY + lineIndex * 10,
-          { font: PIXEL_FONT_SMALL_8 }
-        );
-      }
+    dialogueLayout.scrollOffset = optionWindow.scrollOffset;
+    navigation = stack.needsScroll
+      ? dialogueOptionNavigationLayout({
+        x,
+        y: stack.y,
+        width,
+        visibleCount: stack.visibleRegularCount,
+        optionHeight,
+        buttonWidth: UI_PAGER_BUTTON_W,
+        buttonHeight: UI_PAGER_BUTTON_H
+      })
+      : null;
+    const optionWidth = navigation?.optionWidth || width;
+    const visibleOptions = groups.regular.slice(optionWindow.start, optionWindow.end);
+    for (let localIndex = 0; localIndex < visibleOptions.length; localIndex++) {
+      const entry = visibleOptions[localIndex];
+      drawDialogueOptionEntry(view, entry, {
+        x,
+        y: stack.y + localIndex * optionHeight,
+        w: optionWidth,
+        h: optionHeight - 2
+      }, font, false);
     }
+  }
+
+  if (groups.exits.length > 0) {
+    if (groups.regular.length > 0) {
+      ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+      ctx.fillRect(x, stack.footerY - 3, width, 1);
+    }
+    const footerRects = dialogueExitFooterRects({
+      x,
+      y: stack.footerY,
+      width,
+      optionHeight,
+      exitCount: groups.exits.length
+    });
+    groups.exits.forEach((entry, index) => {
+      drawDialogueOptionEntry(view, entry, footerRects[index], font, true);
+    });
   }
 
   if (navigation) {
@@ -21777,10 +22570,52 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_
     );
     if (navigation.direction === "vertical") {
       drawOptionsText(
-        `${dialogueState.selectedIndex + 1}/${view.options.length}`,
+        `${optionWindow.selectedIndex + 1}/${groups.regular.length}`,
         dialogueLayout.previousRect.x + UI_PAGER_BUTTON_W / 2,
-        y + Math.floor((maxVisible * optionHeight - 8) / 2),
+        stack.y + Math.floor((stack.visibleRegularCount * optionHeight - 8) / 2),
         { align: "center", color: PIRATE_MENU_INK_MUTED }
+      );
+    }
+  }
+}
+
+function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
+  const { index, option } = entry;
+  dialogueLayout.optionRects.push({ index, rect });
+  const selected = index === dialogueState.selectedIndex;
+  if (isExit && !option.disabled) drawPirateHudButton(rect, selected);
+  else drawPiratePaperInset(rect, selected && !option.disabled);
+  if (selected) {
+    ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
+    ctx.fillRect(rect.x + 2, rect.y + 3, 2, Math.max(2, rect.h - 6));
+  }
+  drawGameIcon(
+    dialogueOptionIconId(option),
+    rect.x + 6,
+    rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2),
+    { alpha: option.disabled ? 0.38 : 1 }
+  );
+  ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK;
+  const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
+  const multiLine = textLayout.labelLines.length > 1 || textLayout.detailLines.length > 0;
+  const labelY = multiLine ? rect.y + 3 : controlTextY(rect);
+  for (let lineIndex = 0; lineIndex < textLayout.labelLines.length; lineIndex++) {
+    drawPixelText(
+      textLayout.labelLines[lineIndex],
+      rect.x + GAME_ICON_SIZE + 10,
+      labelY + lineIndex * 12,
+      { font }
+    );
+  }
+  if (textLayout.detailLines.length > 0) {
+    ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
+    const detailY = rect.y + 4 + textLayout.labelLines.length * 12;
+    for (let lineIndex = 0; lineIndex < textLayout.detailLines.length; lineIndex++) {
+      drawPixelText(
+        textLayout.detailLines[lineIndex],
+        rect.x + GAME_ICON_SIZE + 10,
+        detailY + lineIndex * 10,
+        { font: PIXEL_FONT_SMALL_8 }
       );
     }
   }
@@ -21853,7 +22688,7 @@ function drawTinyStatus(nowMs) {
   const lat = graph.latDeg[centerTileId].toFixed(2);
   const lon = graph.lonDeg[centerTileId].toFixed(2);
   const flags = weatherFlagsForTile(centerTileId);
-  const wind = windForTile(centerTileId);
+  const wind = windForShip();
   const flowDir = wind.directionRad + Math.PI;
   const iced = Boolean(seaIceMask?.[centerTileId] || freshwaterIceMask?.[centerTileId]);
   const shipSpeed = ship ? vectorLength(ship.velocity) * PIXELS_PER_RADIAN : 0;
@@ -21903,20 +22738,51 @@ function terrainStatusLabel(row) {
 }
 
 function windForTile(tileId) {
-  const wind = windAtLatLonDeg(
+  return windAtCoordinates(
     graph.latDeg[tileId],
     graph.lonDeg[tileId],
+    tileId
+  );
+}
+
+function windAtCoordinates(latDeg, lonDeg, stormTileId) {
+  const wind = windAtLatLonDeg(
+    latDeg,
+    lonDeg,
     dateToSubsolarLatDeg(weatherParts.date),
     {
       seed: WEATHER_WIND_SEED,
       simMinute: Math.floor(weatherClockMinutes)
     }
   );
-  const stormIntensity = stormIntensityForTile(tileId);
+  const stormIntensity = stormIntensityForTile(stormTileId);
   return {
     ...wind,
     strength: stormWindStrength(wind.strength, stormIntensity)
   };
+}
+
+function targetWindForShip() {
+  if (!ship) throw new Error("Cannot sample player wind before creating the ship");
+  return windAtCoordinates(
+    latitudeDegForDirection(ship.position),
+    longitudeDegForDirection(ship.position),
+    ship.tileId
+  );
+}
+
+function resetPlayerWindState() {
+  playerWindState = createSmoothedWindState(targetWindForShip());
+}
+
+function updatePlayerWind(dt) {
+  if (!playerWindState) throw new Error("Player wind smoothing state is not initialized");
+  return advanceSmoothedWindState(playerWindState, targetWindForShip(), dt);
+}
+
+function windForShip() {
+  if (!playerWindState) throw new Error("Player wind smoothing state is not initialized");
+  return playerWindState;
 }
 
 function stormIntensityForTile(tileId, simMinute = weatherClockMinutes) {

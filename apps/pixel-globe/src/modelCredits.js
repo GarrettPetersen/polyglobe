@@ -76,6 +76,36 @@ export const OTTOMAN_COASTAL_TRADER_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const NORTH_ATLANTIC_RIGHT_WHALE_MODEL_CREDIT = Object.freeze({
+  creator: "VoltVeigh",
+  sourceTitle: "North Atlantic right whale",
+  license: "CC BY 4.0"
+});
+
+export const BLUE_WHALE_MODEL_CREDIT = Object.freeze({
+  creator: "Erik",
+  sourceTitle: "Blue Whale",
+  license: "CC BY 4.0"
+});
+
+export const HUMPBACK_WHALE_MODEL_CREDIT = Object.freeze({
+  creator: "dashkilya",
+  sourceTitle: "Humpback Whale",
+  license: "CC BY 4.0"
+});
+
+export const SOUTHERN_MINKE_WHALE_MODEL_CREDIT = Object.freeze({
+  creator: "Bill Nguyen",
+  sourceTitle: "Whale Southern Minke Pose",
+  license: "CC BY 4.0"
+});
+
+export const SPERM_WHALE_MODEL_CREDIT = Object.freeze({
+  creator: "Bohdan Lvov",
+  sourceTitle: "Sperm Whale",
+  license: "CC BY 4.0"
+});
+
 export const MODEL_CREDITS = Object.freeze([
   UNITY_FLEET_MODEL_CREDIT,
   POLYNESIAN_CANOE_MODEL_CREDIT,
@@ -89,7 +119,12 @@ export const MODEL_CREDITS = Object.freeze([
   GOGIART_DHOW_MODEL_CREDIT,
   CYC3W_SAILING_SHIP_MODEL_CREDIT,
   BOROBUDUR_SHIP_MODEL_CREDIT,
-  OTTOMAN_COASTAL_TRADER_MODEL_CREDIT
+  OTTOMAN_COASTAL_TRADER_MODEL_CREDIT,
+  NORTH_ATLANTIC_RIGHT_WHALE_MODEL_CREDIT,
+  BLUE_WHALE_MODEL_CREDIT,
+  HUMPBACK_WHALE_MODEL_CREDIT,
+  SOUTHERN_MINKE_WHALE_MODEL_CREDIT,
+  SPERM_WHALE_MODEL_CREDIT
 ]);
 
 export function modelCreditMarkdownLine({ creator, sourceTitle, license }) {

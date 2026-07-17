@@ -1,10 +1,12 @@
 import { explorerReportDialogueForDiscovery } from "./explorerDiscoveryDialogue.js";
 import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDistance.js";
+import { WHITE_WHALE_ID } from "./whaleSpecies.js";
 
 export const CAMPAIGN_GOAL_VERSION = 1;
 export const CAMPAIGN_GOAL_EXPLORER = "explorer";
 export const CAMPAIGN_GOAL_FAMILY_DEBT = "family-debt";
+export const CAMPAIGN_GOAL_WHITE_WHALE = "white-whale-revenge";
 export const CAMPAIGN_GOAL_ACTIVE = "active";
 export const CAMPAIGN_GOAL_COMPLETE = "complete";
 export const EXPLORER_DISCOVERY_REWARD_MIN = 100;
@@ -16,12 +18,14 @@ export const FAMILY_DEBT_PROTECTED_PURSE = 100;
 export const FAMILY_DEBT_RETURN_BUFFER_DAYS = 30;
 export const CAMPAIGN_DESTINATION_DISCOVERY = "discovery";
 export const CAMPAIGN_DESTINATION_HOME = "home";
+export const CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING = "white-whale-sighting";
 
 const MINUTES_PER_DAY = 24 * 60;
 const DAYS_PER_YEAR = 365.25;
 const CAMPAIGN_GOAL_TYPES = new Set([
   CAMPAIGN_GOAL_EXPLORER,
-  CAMPAIGN_GOAL_FAMILY_DEBT
+  CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_WHITE_WHALE
 ]);
 const SOVEREIGN_FACTION_IDS = Object.freeze(FACTIONS
   .map((faction) => faction.id)
@@ -49,13 +53,21 @@ export function createCampaignGoal({ playerCharacter, startMinute = 0, type = nu
         currentLeadDiscoveryId: null,
         totalWonderCount: 0
       }
-    : {
+    : selectedType === CAMPAIGN_GOAL_FAMILY_DEBT ? {
         ...base,
         debtBalance: FAMILY_DEBT_PRINCIPAL,
         annualInterestRate: FAMILY_DEBT_ANNUAL_RATE,
         lastAccruedMinute: startMinute,
         protectedPurse: FAMILY_DEBT_PROTECTED_PURSE,
         totalPaid: 0
+      }
+    : {
+        ...base,
+        whiteWhaleId: WHITE_WHALE_ID,
+        whiteWhaleKilled: false,
+        whiteWhaleKilledMinute: null,
+        sighting: null,
+        checkedInteractionIds: []
       };
   return validateCampaignGoal(goal);
 }
@@ -77,7 +89,8 @@ export function validateCampaignGoal(goal) {
     throw new Error(`Invalid campaign ending variant: ${goal.endingVariant}`);
   }
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) validateExplorerGoal(goal);
-  else validateFamilyDebtGoal(goal);
+  else if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) validateFamilyDebtGoal(goal);
+  else validateWhiteWhaleGoal(goal);
   return goal;
 }
 
@@ -150,6 +163,23 @@ export function campaignGoalDestination(goal, {
           kind: CAMPAIGN_DESTINATION_DISCOVERY,
           discoveryId: goal.currentLeadDiscoveryId
         };
+  }
+
+  if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) {
+    if (goal.whiteWhaleKilled) {
+      return {
+        kind: CAMPAIGN_DESTINATION_HOME,
+        homePortTileId: goal.homePortTileId,
+        reason: "return-after-white-whale"
+      };
+    }
+    if (!goal.sighting || goal.sighting.reached) return null;
+    return {
+      kind: CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
+      latitudeDeg: goal.sighting.latitudeDeg,
+      longitudeDeg: goal.sighting.longitudeDeg,
+      reason: "white-whale-last-seen"
+    };
   }
 
   assertSimulationMinute(currentMinute);
@@ -282,6 +312,98 @@ export function settleFamilyDebtHomecoming(goal, { currentMinute, doubloons }) {
   };
 }
 
+export function settleWhiteWhaleHomecoming(goal) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_WHITE_WHALE) {
+    throw new Error("White whale homecoming requires a white-whale revenge goal");
+  }
+  if (!goal.whiteWhaleKilled) throw new Error("The white whale is still alive");
+  goal.status = CAMPAIGN_GOAL_COMPLETE;
+  return { type: goal.type, completed: true };
+}
+
+export function recordWhiteWhaleSighting(goal, {
+  interactionKey,
+  observerLatitudeDeg,
+  observerLongitudeDeg,
+  whaleLatitudeDeg,
+  whaleLongitudeDeg
+}) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_WHITE_WHALE || goal.whiteWhaleKilled) return null;
+  if (typeof interactionKey !== "string" || interactionKey === "") {
+    throw new Error("White whale sighting requires an interaction key");
+  }
+  for (const [label, value] of Object.entries({
+    observerLatitudeDeg,
+    observerLongitudeDeg,
+    whaleLatitudeDeg,
+    whaleLongitudeDeg
+  })) {
+    if (!Number.isFinite(value)) throw new Error(`White whale sighting has invalid ${label}`);
+  }
+  if (goal.checkedInteractionIds.includes(interactionKey)) return null;
+  goal.checkedInteractionIds.push(interactionKey);
+  if (goal.checkedInteractionIds.length > 128) goal.checkedInteractionIds.shift();
+  const roll = hashString32(`${interactionKey}|white-whale-rumor`) % 20;
+  if (roll !== 0) return null;
+  goal.sighting = {
+    latitudeDeg: whaleLatitudeDeg,
+    longitudeDeg: whaleLongitudeDeg,
+    reached: false,
+    interactionKey
+  };
+  const direction = compassDirection(
+    observerLatitudeDeg,
+    observerLongitudeDeg,
+    whaleLatitudeDeg,
+    whaleLongitudeDeg
+  );
+  const variants = [
+    `I heard of a whale white as a winding sheet, last seen ${direction} of here. The sailors who saw it have stopped laughing at old tales.`,
+    `A pale spout was sighted ${direction} of here, and beneath it a back like a snow-covered reef. If your quarry lives, it passed that way.`,
+    `There are sober men swearing they saw the white whale ${direction} of here. It sounded once and vanished, as though the sea had closed an eye.`,
+    `Word came from ${direction}: a great sperm whale, all white, carrying old iron in its hide. I thought you would want the bearing.`,
+    `A ship from ${direction} reports a white whale that stove their boat with one turn of its flukes. They marked the place before they fled.`,
+    `Look ${direction}. The crews there speak of a white brow rising through black water, terrible and calm. That is the whale you seek.`
+  ];
+  return {
+    text: variants[hashString32(`${interactionKey}|white-whale-prose`) % variants.length],
+    direction,
+    sighting: { ...goal.sighting }
+  };
+}
+
+export function reachWhiteWhaleSighting(goal) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_WHITE_WHALE) throw new Error("Sighting arrival requires a white-whale goal");
+  if (!goal.sighting || goal.sighting.reached) return null;
+  goal.sighting.reached = true;
+  const lines = [
+    "This is the place. The sea keeps no footprints, yet I feel that white shadow beneath every wave.",
+    "Here was the last pale spout. Somewhere beyond this empty water, the white whale still rolls on.",
+    "The bearing ends here. No whale, only the indifferent sea. We will ask again, and follow again.",
+    "This is the spot they marked. The white whale has sounded, but no depth will hide it forever."
+  ];
+  return lines[hashString32(`${goal.sighting.interactionKey}|arrival`) % lines.length];
+}
+
+export function markWhiteWhaleKilled(goal, currentMinute) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_WHITE_WHALE) return false;
+  assertSimulationMinute(currentMinute);
+  if (goal.whiteWhaleKilled) throw new Error("White whale campaign kill was already recorded");
+  goal.whiteWhaleKilled = true;
+  goal.whiteWhaleKilledMinute = currentMinute;
+  goal.sighting = null;
+  return true;
+}
+
+export function campaignGoalTypeForCharacter(playerCharacter) {
+  assertCharacter(playerCharacter);
+  return seededGoalType(playerCharacter.id);
+}
+
 export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) {
   validateCampaignGoal(goal);
   assertCharacter(playerCharacter);
@@ -294,6 +416,14 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
       step("player", "thoughtful", `Since I was a child, I have dreamed of seeing the whole world with my own eyes: every impossible mountain, ancient city, and shore beyond the horizon. ${culture.explorerIntro}`),
       step("contact", "attentive", "Then bring that world home to me. I want to know not merely where each wonder stands, but what makes it worthy of wonder. I will reward every true account, and pay most richly for the rarest wonders at the farthest reaches of your voyage. Each time you return, I will share the nearest rumor still worth chasing."),
       step("player", "determined", "I will follow those rumors to the edge of every chart. When I return, you will know these places as more than names, and I will finally have seen the world I imagined.")
+    ];
+  }
+  if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) {
+    return [
+      step("contact", "concerned", `You still mean to follow that white whale, ${playerCharacter.givenName || playerCharacter.name}? Other captains call it a beast. You speak of it as judgment.`),
+      step("player", "stern", "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it."),
+      step("contact", "attentive", "Then take a hull fit for blue water and a harpoon fit for the work. Ask in every port and hail every passing ship. Sailors repeat strange news when a drink or a listening ear loosens them."),
+      step("player", "determined", "Let the chart be blank and the ocean without end. I know the mark I hunt. Towards that white shape I roll, though all the waves of the world lie between us.")
     ];
   }
   const debtOrigin = familyDebtOriginExchange(playerCharacter);
@@ -328,7 +458,13 @@ export function campaignHomecomingSteps(goal, outcome, playerCharacter, discover
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
     return explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById);
   }
-  return debtHomecomingSteps(goal, outcome, playerCharacter);
+  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) return debtHomecomingSteps(goal, outcome, playerCharacter);
+  return [
+    step("contact", "attentive", "Your ship has returned, but the old fury is gone from your face. Is it finished?"),
+    step("player", "thoughtful", "The white whale is dead. I thought the sea would change when it sank. It did not. The waves closed over it, and for the first time they were only waves."),
+    step("contact", "pleased", "Then come ashore. A life spent chasing one pale shadow is still a life, and yours has not ended with the chase."),
+    step("player", "happy", "No. I have followed vengeance to the end of the chart. What comes next will be chosen in daylight.")
+  ];
 }
 
 export function campaignVictorySummary(goal, playerCharacter) {
@@ -344,6 +480,13 @@ export function campaignVictorySummary(goal, playerCharacter) {
       legacy: `${playerCharacter.name} was remembered as the greatest explorer of the age. ${culture.explorerOutro} ${personal}`
     };
   }
+  if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) {
+    return {
+      title: "THE WHITE WHALE",
+      reason: "Hunted the white whale across the world and returned home alive.",
+      legacy: `${playerCharacter.name} came home with the white whale's story and no need to embellish it. The chase became legend; the captain, having survived the thing that consumed so many dreams, finally learned to live beyond it. ${personal}`
+    };
+  }
   return {
     title: "THE ESTATE IS SAVED",
     reason: "Repaid the family debt in full and reclaimed the estate.",
@@ -353,7 +496,9 @@ export function campaignVictorySummary(goal, playerCharacter) {
 
 export function campaignGoalLabel(goal) {
   validateCampaignGoal(goal);
-  return goal.type === CAMPAIGN_GOAL_EXPLORER ? "Explorer" : "Family Debt";
+  if (goal.type === CAMPAIGN_GOAL_EXPLORER) return "Explorer";
+  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) return "Family Debt";
+  return "The White Whale";
 }
 
 export function createCampaignDialogueSession({
@@ -390,10 +535,13 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
   const speakerCharacter = entry.speaker === "player" ? playerCharacter : contactCharacter;
   const role = entry.speaker === "player"
     ? "captain"
-    : session.phase.startsWith("family-debt") ? "creditor" : "patron";
+    : session.phase.startsWith("family-debt")
+      ? "creditor"
+      : session.phase.startsWith("white-whale") ? "old whaler" : "patron";
   return {
     speaker: `${speakerCharacter.name}, ${role}`,
     expressionId: entry.expressionId,
+    topic: entry.topic || null,
     text: entry.text,
     feedback: null,
     options: [{
@@ -423,7 +571,7 @@ export function selectCampaignDialogueOption(session, optionIndex = session.sele
     closed: true,
     action: session.victoryOnClose
       ? { type: "campaign-victory" }
-      : session.phase === "intro" || session.phase === "family-debt-intro"
+      : session.phase === "intro" || session.phase.endsWith("-intro")
         ? { type: "campaign-intro-complete" }
         : null
   };
@@ -435,12 +583,13 @@ function explorerHomecomingSteps(goal, outcome, playerCharacter, discoveryById) 
   if (outcome.newlyReportedIds.length === 0) {
     steps.push(step("contact", "attentive", "No new wonders for my atlas today. The world has not grown smaller while you were away."));
   } else {
-    for (const discoveryId of outcome.newlyReportedIds) {
+    for (const [index, discoveryId] of outcome.newlyReportedIds.entries()) {
       const discovery = discoveryById.get(discoveryId);
       if (!discovery) throw new Error(`Missing reported discovery: ${discoveryId}`);
       const report = explorerReportDialogueForDiscovery(discovery);
-      steps.push(step("player", "happy", report.player));
-      steps.push(step("contact", "pleased", report.patron));
+      const topic = `REPORT ${index + 1}/${outcome.newlyReportedIds.length}: ${discovery.displayName}`;
+      steps.push(step("player", "happy", report.player, topic));
+      steps.push(step("contact", "pleased", report.patron, topic));
     }
     steps.push(step(
       "contact",
@@ -782,14 +931,16 @@ function personalEnding(character, variant) {
   return endings[variant];
 }
 
-function step(speaker, expressionId, text) {
-  return Object.freeze({ speaker, expressionId, text });
+function step(speaker, expressionId, text, topic = null) {
+  return Object.freeze({ speaker, expressionId, text, ...(topic === null ? {} : { topic }) });
 }
 
 function seededGoalType(identityKey) {
-  return hashString32(`${identityKey}|campaign-goal`) % 2 === 0
-    ? CAMPAIGN_GOAL_EXPLORER
-    : CAMPAIGN_GOAL_FAMILY_DEBT;
+  return [
+    CAMPAIGN_GOAL_EXPLORER,
+    CAMPAIGN_GOAL_FAMILY_DEBT,
+    CAMPAIGN_GOAL_WHITE_WHALE
+  ][hashString32(`${identityKey}|campaign-goal`) % 3];
 }
 
 function validateExplorerGoal(goal) {
@@ -826,6 +977,9 @@ function validateDialogueStep(entry) {
   if (typeof entry.text !== "string" || entry.text.trim() === "") {
     throw new Error("Campaign dialogue requires text");
   }
+  if (entry.topic !== undefined && (typeof entry.topic !== "string" || entry.topic.trim() === "")) {
+    throw new Error("Campaign dialogue topic must be a non-empty string");
+  }
 }
 
 function validateFamilyDebtGoal(goal) {
@@ -842,6 +996,45 @@ function validateFamilyDebtGoal(goal) {
   if (!Number.isInteger(goal.totalPaid) || goal.totalPaid < 0) {
     throw new Error(`Invalid family debt payments: ${goal.totalPaid}`);
   }
+}
+
+function validateWhiteWhaleGoal(goal) {
+  if (goal.whiteWhaleId !== WHITE_WHALE_ID) {
+    throw new Error(`White whale campaign targets an unknown individual: ${goal.whiteWhaleId}`);
+  }
+  if (typeof goal.whiteWhaleKilled !== "boolean") throw new Error("White whale goal requires kill state");
+  if (goal.whiteWhaleKilledMinute !== null) assertSimulationMinute(goal.whiteWhaleKilledMinute);
+  if (goal.whiteWhaleKilled !== (goal.whiteWhaleKilledMinute !== null)) {
+    throw new Error("White whale kill state and time disagree");
+  }
+  if (goal.sighting !== null) {
+    if (!Number.isFinite(goal.sighting.latitudeDeg) || !Number.isFinite(goal.sighting.longitudeDeg)) {
+      throw new Error("White whale sighting has invalid coordinates");
+    }
+    if (typeof goal.sighting.reached !== "boolean" ||
+      typeof goal.sighting.interactionKey !== "string" || goal.sighting.interactionKey === "") {
+      throw new Error("White whale sighting has invalid state");
+    }
+  }
+  if (!Array.isArray(goal.checkedInteractionIds) ||
+    goal.checkedInteractionIds.some((value) => typeof value !== "string" || value === "")) {
+    throw new Error("White whale goal has invalid checked interactions");
+  }
+  if (new Set(goal.checkedInteractionIds).size !== goal.checkedInteractionIds.length) {
+    throw new Error("White whale goal has duplicate checked interactions");
+  }
+}
+
+function compassDirection(fromLatDeg, fromLonDeg, toLatDeg, toLonDeg) {
+  const fromLat = fromLatDeg * Math.PI / 180;
+  const toLat = toLatDeg * Math.PI / 180;
+  const deltaLon = (toLonDeg - fromLonDeg) * Math.PI / 180;
+  const y = Math.sin(deltaLon) * Math.cos(toLat);
+  const x = Math.cos(fromLat) * Math.sin(toLat) -
+    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLon);
+  const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  const directions = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+  return directions[Math.round(bearing / 45) % directions.length];
 }
 
 function assertCharacter(character) {

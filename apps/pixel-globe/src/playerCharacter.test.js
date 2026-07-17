@@ -7,7 +7,8 @@ import {
   generatePlayerStartingProfile,
   playerStartRegionForPort,
   resolvePlayerCharacterIdentityKey,
-  selectPlayerHomePort
+  selectPlayerHomePort,
+  whalingStarterShipForRegion
 } from "./playerCharacter.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -56,6 +57,15 @@ test("starting profiles are deterministic and internally consistent", () => {
   assert.equal("paletteSwapped" in profile.character, false);
   assert.equal("palette" in profile.character, false);
   assert.match(profile.character.birthDateLabel, /^\d{1,2} [A-Z][a-z]+ (?:14|15)\d{2}$/);
+});
+
+test("whaling campaigns receive the cheapest regionally plausible blue-water hull", () => {
+  for (const region of Object.keys(PLAYER_STARTER_SHIPS)) {
+    const starter = shipStatsForSlug(PLAYER_STARTER_SHIPS[region]);
+    const whaler = shipStatsForSlug(whalingStarterShipForRegion(region));
+    assert.ok(whaler.seaworthiness >= 5, `${region}: ${whaler.slug}`);
+    assert.ok(whaler.cargoCapacity >= starter.cargoCapacity, `${region}: ${whaler.slug}`);
+  }
 });
 
 test("player identity seeds use explicit query values or fresh generated values", () => {

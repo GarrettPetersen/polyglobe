@@ -4,12 +4,15 @@ import test from "node:test";
 import {
   CAMPAIGN_DESTINATION_DISCOVERY,
   CAMPAIGN_DESTINATION_HOME,
+  CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
   CAMPAIGN_GOAL_COMPLETE,
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_WHITE_WHALE,
   FAMILY_DEBT_PRINCIPAL,
   FAMILY_DEBT_RETURN_BUFFER_DAYS,
   campaignGoalDestination,
+  campaignDialogueView,
   campaignGoalIntroSteps,
   campaignHomecomingSteps,
   campaignVictorySummary,
@@ -21,9 +24,13 @@ import {
   familyDebtPayoffProjection,
   isExplorerLeadAssignable,
   markCampaignGoalIntroSeen,
+  markWhiteWhaleKilled,
+  reachWhiteWhaleSighting,
+  recordWhiteWhaleSighting,
   selectCampaignDialogueOption,
   settleExplorerHomecoming,
-  settleFamilyDebtHomecoming
+  settleFamilyDebtHomecoming,
+  settleWhiteWhaleHomecoming
 } from "./campaignGoals.js";
 import { CIRCUMNAVIGATION_DISCOVERY, WORLD_DISCOVERY_SPECS } from "./discoveries.js";
 
@@ -339,6 +346,41 @@ test("explorer homecoming gives each discovery a specific captain and patron exc
   assert.match(steps[1].text, /kingdom vanished/i);
   assert.equal(steps[0].speaker, "player");
   assert.equal(steps[1].speaker, "contact");
+  assert.equal(steps[0].topic, "REPORT 1/1: The Great Pyramid");
+  assert.equal(steps[1].topic, "REPORT 1/1: The Great Pyramid");
+});
+
+test("explorer homecoming labels every exchange in a multi-wonder report", () => {
+  const discoveries = [
+    WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-great-pyramid"),
+    WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-grand-canal")
+  ];
+  assert.ok(discoveries.every(Boolean));
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
+  const outcome = settleExplorerHomecoming(goal, {
+    discoveredIds: new Set(discoveries.map((discovery) => discovery.id)),
+    wonderCatalog: discoveries,
+    homePort: HOME
+  });
+  const steps = campaignHomecomingSteps(
+    goal,
+    outcome,
+    CHARACTER,
+    new Map(discoveries.map((discovery) => [discovery.id, discovery]))
+  );
+
+  assert.deepEqual(steps.slice(0, 4).map((entry) => entry.topic), [
+    "REPORT 1/2: The Great Pyramid",
+    "REPORT 1/2: The Great Pyramid",
+    "REPORT 2/2: The Grand Canal",
+    "REPORT 2/2: The Grand Canal"
+  ]);
+  const session = createCampaignDialogueSession({
+    cityTileId: CHARACTER.homePortTileId,
+    phase: CAMPAIGN_GOAL_EXPLORER,
+    steps
+  });
+  assert.equal(campaignDialogueView(session, CHARACTER, CONTACT).topic, "REPORT 1/2: The Great Pyramid");
 });
 
 test("the final homecoming dialogue closes into the campaign victory action", () => {
@@ -357,4 +399,45 @@ test("the final homecoming dialogue closes into the campaign victory action", ()
     closed: true,
     action: { type: "campaign-victory" }
   });
+});
+
+test("white-whale rumors point to a sighting until the captain reaches it", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_WHITE_WHALE });
+  let rumor = null;
+  for (let index = 0; index < 100 && !rumor; index++) {
+    rumor = recordWhiteWhaleSighting(goal, {
+      interactionKey: `test-port-${index}`,
+      observerLatitudeDeg: 1,
+      observerLongitudeDeg: 104,
+      whaleLatitudeDeg: -20,
+      whaleLongitudeDeg: 125
+    });
+  }
+  assert.ok(rumor);
+  assert.match(rumor.text, /white|pale/i);
+  assert.deepEqual(campaignGoalDestination(goal), {
+    kind: CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
+    latitudeDeg: -20,
+    longitudeDeg: 125,
+    reason: "white-whale-last-seen"
+  });
+  assert.match(reachWhiteWhaleSighting(goal), /place|spot|bearing/i);
+  assert.equal(campaignGoalDestination(goal), null);
+});
+
+test("killing the white whale sends the captain home and completes the revenge voyage", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_WHITE_WHALE });
+  const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
+  assert.match(intro.map((entry) => entry.text).join(" "), /white whale|white shape/i);
+
+  assert.equal(markWhiteWhaleKilled(goal, 1200), true);
+  assert.deepEqual(campaignGoalDestination(goal), {
+    kind: CAMPAIGN_DESTINATION_HOME,
+    homePortTileId: CHARACTER.homePortTileId,
+    reason: "return-after-white-whale"
+  });
+  const outcome = settleWhiteWhaleHomecoming(goal);
+  assert.equal(outcome.completed, true);
+  assert.equal(goal.status, CAMPAIGN_GOAL_COMPLETE);
+  assert.match(campaignVictorySummary(goal, CHARACTER).legacy, /chase became legend/i);
 });

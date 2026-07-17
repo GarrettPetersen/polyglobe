@@ -23,8 +23,10 @@ export class SeamlessMusicPlayer {
     this.trackBuffers = new Map();
     this.trackLoads = new Map();
     this.currentInstance = null;
+    this.liveInstances = new Set();
     this.desiredTrackKey = null;
     this.requestSerial = 0;
+    this.pendingTransition = null;
     this.activationPromise = null;
     this.activated = false;
   }
@@ -35,6 +37,11 @@ export class SeamlessMusicPlayer {
 
   get requestedTrackKey() {
     return this.desiredTrackKey;
+  }
+
+  get transitionPending() {
+    return Boolean(this.pendingTransition?.requestId === this.requestSerial &&
+      this.pendingTransition.trackKey === this.desiredTrackKey);
   }
 
   setOutput(volume, muted) {
@@ -48,7 +55,7 @@ export class SeamlessMusicPlayer {
   async activate() {
     if (this.activated) {
       if (this.context.state !== "running") await this.context.resume();
-      return false;
+      return this.ensureRequestedTrack();
     }
     if (this.activationPromise) return this.activationPromise;
     this.activationPromise = (async () => {
@@ -56,7 +63,7 @@ export class SeamlessMusicPlayer {
       this.activated = true;
       if (!this.desiredTrackKey) return false;
       const requestId = ++this.requestSerial;
-      return this.transitionTo(this.desiredTrackKey, requestId, {});
+      return this.beginTransition(this.desiredTrackKey, requestId, {});
     })();
     try {
       return await this.activationPromise;
@@ -80,7 +87,32 @@ export class SeamlessMusicPlayer {
     const requestId = ++this.requestSerial;
     if (!this.activated) return this.preload(trackKey).then(() => false);
     if (!restart && sameCurrent) return Promise.resolve(false);
-    return this.transitionTo(trackKey, requestId, options);
+    return this.beginTransition(trackKey, requestId, options);
+  }
+
+  ensureRequestedTrack() {
+    if (!this.desiredTrackKey || !this.activated || this.context.state !== "running") {
+      return Promise.resolve(false);
+    }
+    if (this.currentInstance && !this.currentInstance.stopping &&
+        this.currentInstance.key === this.desiredTrackKey) {
+      return Promise.resolve(false);
+    }
+    if (this.pendingTransition?.requestId === this.requestSerial &&
+        this.pendingTransition.trackKey === this.desiredTrackKey) {
+      return this.pendingTransition.promise;
+    }
+    const requestId = ++this.requestSerial;
+    return this.beginTransition(this.desiredTrackKey, requestId, { restart: true });
+  }
+
+  beginTransition(trackKey, requestId, options) {
+    let trackedPromise;
+    trackedPromise = this.transitionTo(trackKey, requestId, options).finally(() => {
+      if (this.pendingTransition?.requestId === requestId) this.pendingTransition = null;
+    });
+    this.pendingTransition = { trackKey, requestId, promise: trackedPromise };
+    return trackedPromise;
   }
 
   async transitionTo(trackKey, requestId, options) {
@@ -94,6 +126,7 @@ export class SeamlessMusicPlayer {
       oldInstance ? (options.crossfadeSeconds ?? this.crossfadeSeconds) : this.initialFadeSeconds
     );
     const nextInstance = this.createTrackInstance(trackKey, buffers, startAt);
+    this.stopRetiredInstances(oldInstance, nextInstance, startAt);
     scheduleFadeIn(nextInstance, startAt, fadeSeconds);
     if (oldInstance) this.fadeOutAndStop(oldInstance, startAt, fadeSeconds);
 
@@ -114,8 +147,10 @@ export class SeamlessMusicPlayer {
       introSource: null,
       loopSource: null,
       automation: { from: 0, to: 0, startAt, duration: 0 },
-      stopping: false
+      stopping: false,
+      ended: false
     };
+    this.liveInstances.add(instance);
 
     if (buffers.intro) {
       const introSource = this.context.createBufferSource();
@@ -132,14 +167,13 @@ export class SeamlessMusicPlayer {
     loopSource.loopEnd = buffers.loop.duration;
     loopSource.connect(gain);
     loopSource.start(startAt + (buffers.intro?.duration || 0));
-    loopSource.onended = () => {
-      if (instance.stopping) gain.disconnect();
-    };
+    loopSource.onended = () => this.handleLoopEnded(instance);
     instance.loopSource = loopSource;
     return instance;
   }
 
   fadeOutAndStop(instance, startAt, fadeSeconds) {
+    if (instance.stopping || instance.ended) return;
     const startGain = gainAtTime(instance.automation, startAt);
     const gain = instance.gain.gain;
     gain.cancelScheduledValues(startAt);
@@ -150,6 +184,27 @@ export class SeamlessMusicPlayer {
     const stopAt = startAt + fadeSeconds + 0.05;
     stopAudioSource(instance.introSource, stopAt);
     stopAudioSource(instance.loopSource, stopAt);
+  }
+
+  stopRetiredInstances(oldInstance, nextInstance, stopAt) {
+    for (const instance of this.liveInstances) {
+      if (instance === oldInstance || instance === nextInstance || instance.ended) continue;
+      instance.stopping = true;
+      const gain = instance.gain.gain;
+      gain.cancelScheduledValues(stopAt);
+      gain.setValueAtTime(0, stopAt);
+      instance.automation = { from: 0, to: 0, startAt: stopAt, duration: 0 };
+      stopAudioSource(instance.introSource, stopAt);
+      stopAudioSource(instance.loopSource, stopAt);
+    }
+  }
+
+  handleLoopEnded(instance) {
+    if (instance.ended) return;
+    instance.ended = true;
+    this.liveInstances.delete(instance);
+    instance.gain.disconnect();
+    if (this.currentInstance === instance) this.currentInstance = null;
   }
 
   async loadTrackBuffers(trackKey) {

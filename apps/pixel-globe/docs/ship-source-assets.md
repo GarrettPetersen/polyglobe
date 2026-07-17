@@ -44,6 +44,11 @@ sketchfab/dhow-gogiart/scene.gltf
 sketchfab/cyc3w-sailing-ship/scene.gltf
 sketchfab/borobudur-sriwijaya/scene.gltf
 sketchfab/ottoman-coastal-trader/scene.gltf
+sketchfab/north-atlantic-right-whale/scene.gltf
+sketchfab/blue-whale/scene.gltf
+sketchfab/humpback-whale/scene.gltf
+sketchfab/southern-minke-whale/scene.gltf
+sketchfab/sperm-whale/source/model.fbx
 blendswap/greek-trireme/trireme-bsw.blend
 ```
 
@@ -67,6 +72,7 @@ npm run render:dhow
 npm run render:galleon
 npm run render:nusantaran-outrigger
 npm run render:ottoman-coastal-trader
+npm run render:whales
 node --test src/shipInfoAssets.test.js
 ```
 
@@ -79,6 +85,12 @@ generated runtime files are written under:
 public/assets/vehicles/unity-ships/
 ```
 
+All whales use the same fixed-scale, 32-heading hard-edge rasterizer, but write
+their sprites, exact model-height sink-depth maps, and manifest to
+`public/assets/animals/`. Those exact depth maps drive surfacing and underwater
+refraction at runtime.
+
 Do not copy these source files into `public/`. Unity Asset Store and Sketchfab Free
-Standard source files may not be redistributed as standalone assets. Generated sprites,
-lighting masks, shadows, and sink-depth maps belong in `public/assets/vehicles/`.
+Standard source files may not be redistributed as standalone assets. Generated ship sprites,
+lighting masks, shadows, and sink-depth maps belong in `public/assets/vehicles/`; generated
+whale assets belong in `public/assets/animals/`.

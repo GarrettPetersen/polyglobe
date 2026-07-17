@@ -91,6 +91,43 @@ test("a newer request cancels a replacement that is still loading", async () => 
   assert.equal(context.sources.length, 2);
 });
 
+test("an unexpectedly ended loop is recovered exactly once", async () => {
+  const context = new FakeAudioContext();
+  const player = createPlayer(context);
+  await player.request("ship");
+  await player.activate();
+
+  context.currentTime = 20;
+  context.sources[1].finish();
+  assert.equal(player.currentTrackKey, null);
+
+  const firstRecovery = player.ensureRequestedTrack();
+  const secondRecovery = player.ensureRequestedTrack();
+  assert.equal(firstRecovery, secondRecovery);
+  await firstRecovery;
+
+  assert.equal(player.currentTrackKey, "ship");
+  assert.equal(context.sources.length, 4);
+  assert.equal(player.transitionPending, false);
+});
+
+test("a rapid third transition retires the older crossfade instead of layering three tracks", async () => {
+  const context = new FakeAudioContext();
+  const player = createPlayer(context);
+  await player.request("ship");
+  await player.activate();
+  const shipLoop = context.sources[1];
+
+  context.currentTime = 20;
+  await player.request("city", { crossfadeSeconds: 1.5 });
+  assert.deepEqual(shipLoop.stops, [21.6]);
+
+  context.currentTime = 20.2;
+  await player.request("combat", { crossfadeSeconds: 1 });
+  assert.deepEqual(shipLoop.stops, [21.6, 20.25]);
+  assert.equal(player.currentTrackKey, "combat");
+});
+
 function createPlayer(context, bufferLoader = async (url) => fakeBufferForUrl(url)) {
   return new SeamlessMusicPlayer({
     trackSpecs: TRACK_SPECS,
@@ -210,5 +247,9 @@ class FakeBufferSourceNode {
 
   stop(time) {
     this.stops.push(time);
+  }
+
+  finish() {
+    this.onended?.();
   }
 }

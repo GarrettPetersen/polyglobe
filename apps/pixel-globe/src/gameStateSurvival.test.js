@@ -50,6 +50,18 @@ test("saved game state rejects unsupported schema versions", () => {
   assert.throws(() => migrateGameState({ version: 7 }), /Unsupported game state version/);
 });
 
+test("version 17 food debt migrates from cargo lots to person-day rations", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 17;
+  state.survival.foodDebt = 0.5;
+  delete state.survival.foodRationDebt;
+
+  const migrated = migrateGameState(state);
+
+  assert.equal(migrated.survival.foodRationDebt, 6);
+  assert.equal(Object.prototype.hasOwnProperty.call(migrated.survival, "foodDebt"), false);
+});
+
 test("passengers reserve hold space across every cargo and ship-capacity check", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -80,7 +92,7 @@ test("survival drains water and consumes the cheapest edible cargo first", () =>
   assert.equal(result.dehydrated, false);
   assert.equal(result.starved, false);
   assert.equal(result.foodConsumed[0].goodId, "fish");
-  assert.equal(state.cargo.fish, undefined);
+  assert.equal(state.cargo.fish, 11 / 12);
   assert.equal(state.cargo.grain, 2);
   assert.ok(state.survival.freshWater < FRESH_WATER_CAPACITY);
 });
@@ -95,8 +107,26 @@ test("freshwater refills casks while food still ticks down", () => {
 
   assert.equal(result.freshWaterRefilled, true);
   assert.equal(state.survival.freshWater, FRESH_WATER_CAPACITY);
-  assert.equal(state.cargo.grain, 1);
-  assert.equal(cargoCostBasis(state, "grain").total, 8);
+  assert.equal(state.cargo.grain, 23 / 12);
+  assert.equal(cargoCostBasis(state, "grain").total, 15.3333);
+});
+
+test("small-boat food falls one day at a time and frees ration-sized hold space", () => {
+  const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.cargo = { hardtack: 1 };
+  state.accounts.cargoCostBasis = { hardtack: 2 };
+  state.ship.crew = 1;
+  const usedBefore = cargoUsed(state);
+
+  assert.equal(survivalStatus(state).foodDays, 6);
+  updateSurvival(state, 0, 24 * 60, { freshwater: false });
+
+  assert.equal(survivalStatus(state).foodDays, 5);
+  assert.equal(survivalStatus(state).foodRations, 10);
+  assert.equal(state.cargo.hardtack, 10 / 12);
+  assert.ok(Math.abs((usedBefore - cargoUsed(state)) - 2 / 12) < 1e-8);
 });
 
 test("rainwater silently offsets a tiny share of water consumption", () => {
@@ -122,7 +152,7 @@ test("rainwater silently offsets a tiny share of water consumption", () => {
 test("waiting safely in port advances time without consuming provisions", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.survival.freshWater = 12;
-  state.survival.foodDebt = 0.5;
+  state.survival.foodRationDebt = 0.5;
   state.cargo.grain = 2;
   state.accounts.cargoCostBasis.grain = 16;
 
@@ -132,7 +162,7 @@ test("waiting safely in port advances time without consuming provisions", () => 
   assert.equal(result.dehydrated, false);
   assert.equal(result.starved, false);
   assert.equal(state.survival.freshWater, 12);
-  assert.equal(state.survival.foodDebt, 0.5);
+  assert.equal(state.survival.foodRationDebt, 0.5);
   assert.equal(state.cargo.grain, 2);
   assert.equal(state.survival.lastMinute, 30 * 24 * 60);
 });
@@ -155,14 +185,14 @@ test("reserve water cargo extends a voyage after casks run dry", () => {
 test("exhausted food and water report deprivation instead of ending immediately", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.survival.freshWater = 0;
-  state.survival.foodDebt = 1;
+  state.survival.foodRationDebt = 1;
 
   const result = updateSurvival(state, 0, 60, { freshwater: false });
 
   assert.equal(result.dehydrated, true);
   assert.equal(result.starved, true);
   assert.equal(state.survival.freshWater, 0);
-  assert.equal(survivalStatus(state).foodUnits, 0);
+  assert.equal(survivalStatus(state).foodRations, 0);
 });
 
 test("a friendly ship can give one emergency ration of food and water", () => {
@@ -175,7 +205,7 @@ test("a friendly ship can give one emergency ration of food and water", () => {
 
   assert.equal(shipEmergencyAidNeed(state, "friendly-ship").available, true);
   assert.deepEqual(receiveEmergencyShipAid(state, "friendly-ship"), { food: 3, water: 3 });
-  assert.equal(state.cargo.hardtack, 3);
+  assert.equal(state.cargo.hardtack, 3 / 12);
   assert.equal(state.survival.freshWater, 3);
   assert.equal(state.accounts.cargoCostBasis.hardtack, 0);
   assert.equal(shipEmergencyAidNeed(state, "friendly-ship").alreadyReceived, true);
@@ -194,10 +224,10 @@ test("emergency ship aid respects the remaining hold capacity", () => {
   state.accounts.cargoCostBasis.gold = 0;
 
   const granted = receiveEmergencyShipAid(state, "crowded-relief-ship");
-  assert.equal(granted.food + granted.water, 2);
+  assert.deepEqual(granted, { food: 3, water: 1 });
   assert.ok(granted.food > 0);
   assert.ok(granted.water > 0);
-  assert.equal(cargoUsed(state), state.cargoCapacity);
+  assert.ok(Math.abs(cargoUsed(state) - (state.cargoCapacity - 0.75)) < 1e-8);
 });
 
 test("starting provisions and port auto-provisioning use hardtack cargo", () => {
@@ -206,14 +236,15 @@ test("starting provisions and port auto-provisioning use hardtack cargo", () => 
   const starter = initializeShipProvisions(state, 4);
 
   assert.equal(starter.good.id, "hardtack");
-  assert.equal(state.cargo.hardtack, 4);
+  assert.equal(starter.rations, 4);
+  assert.equal(state.cargo.hardtack, 4 / 12);
 
   const bought = autoProvisionHardtackAtPort(state, economy, LONDON, { simMinute: 120 });
 
-  assert.ok(bought.quantity > 0);
-  assert.equal(state.cargo.hardtack, 4 + bought.quantity);
+  assert.ok(bought.rations > 0);
+  assert.equal(state.cargo.hardtack, (4 + bought.rations) / 12);
   assert.ok(survivalStatus(state).foodDays >= 21);
-  assert.ok(state.accounts.ledger.some((entry) => entry.description.startsWith("Buy Hardtack")));
+  assert.ok(state.accounts.ledger.some((entry) => entry.description.startsWith("Take on Hardtack")));
 });
 
 test("ports automatically fill water casks without using cargo space", () => {
@@ -363,9 +394,9 @@ test("shore scavenging fills available cask space and stows edible food", () => 
   assert.equal(refillFreshWaterFromShore(state), 4);
   assert.equal(state.survival.freshWater, state.survival.freshWaterCapacity);
   assert.equal(stowForagedFood(state, 2), 2);
-  assert.equal(state.cargo[FORAGED_FOOD_GOOD_ID], 2);
+  assert.equal(state.cargo[FORAGED_FOOD_GOOD_ID], 2 / 12);
   assert.equal(state.accounts.cargoCostBasis[FORAGED_FOOD_GOOD_ID], 0);
-  assert.ok(survivalStatus(state).foodUnits >= 2);
+  assert.ok(survivalStatus(state).foodRations >= 2);
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
 });
 

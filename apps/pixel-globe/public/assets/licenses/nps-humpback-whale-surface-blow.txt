@@ -1,0 +1,12 @@
+Humpback Whale Surface Blow
+
+Source recording: "Humpbacks and Murrelets"
+Creator: H. Lentfer / National Park Service
+Source page: https://www.nps.gov/glba/learn/nature/lower-bay-soundscape-gallery.htm
+Original audio: https://www.nps.gov/nps-audiovideo/legacy/mp3/akr/avElement/glba-HumpbacksandMurrelets.mp3
+License: Public domain. The NPS source credits H. Lentfer / NPS and displays no
+copyright restriction.
+
+The production effect is an excerpt of the surface blow beginning near 00:28.37.
+It was converted to centered mono, cleaned using a sampled background-noise
+profile, gently limited to 90-7500 Hz, amplified, and given a short tail fade.
