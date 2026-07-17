@@ -23,8 +23,10 @@ import {
   whaleTowingSpeed
 } from "./whaleSystem.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
+import { shipStatsForSlug } from "./shipStats.js";
 import {
   WHITE_WHALE_ID,
+  WHALE_CRUISE_SPEED_SCALE,
   WHALE_LIFE_STAGE_ADOLESCENT,
   WHALE_LIFE_STAGE_ADULT,
   WHALE_LIFE_STAGE_CALF,
@@ -65,6 +67,15 @@ test("whales seed as stable individual entities and surface cyclically", () => {
   assert.equal(whaleCanBeHarpooned(whale), true);
   assert.ok(whaleSurfaceExposure(whale) > 0);
   validateWhaleMemory(memory);
+});
+
+test("whales cruise deliberately while a tethered whale can still make a fast run", () => {
+  const slowestPlayerBoatSpeed = shipStatsForSlug("mesoamerican-dugout-canoe").topSpeedRad;
+  assert.equal(WHALE_CRUISE_SPEED_SCALE, 0.45);
+  for (const species of WHALE_SPECIES) {
+    assert.ok(species.cruiseSpeedRad < slowestPlayerBoatSpeed, species.label);
+    assert.ok(species.towingSpeedRad > species.cruiseSpeedRad, species.label);
+  }
 });
 
 test("a secured whale tows until exhausted, then can be killed or released", () => {

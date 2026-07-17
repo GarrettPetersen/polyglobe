@@ -10,6 +10,7 @@ export const WHALE_LIFE_STAGE_ADOLESCENT = "adolescent";
 export const WHALE_LIFE_STAGE_ADULT = "adult";
 
 const DAYS_PER_YEAR = 365.25;
+export const WHALE_CRUISE_SPEED_SCALE = 0.45;
 
 export const WHALE_SPECIES = Object.freeze([
   species({
@@ -194,7 +195,10 @@ function species(config) {
     throw new Error(`Whale species ${config.id} population and yield must be integers`);
   }
   if (typeof config.range !== "function") throw new Error(`Whale species ${config.id} has no range`);
-  return Object.freeze({ ...config });
+  return Object.freeze({
+    ...config,
+    cruiseSpeedRad: config.cruiseSpeedRad * WHALE_CRUISE_SPEED_SCALE
+  });
 }
 
 function globalRange(minLatitude, maxLatitude) {
