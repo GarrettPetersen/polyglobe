@@ -12,7 +12,7 @@ const ECONOMY_STEP_DAYS = ECONOMY_STEP_MINUTES / MINUTES_PER_DAY;
 const PORT_MARKUP = 1.08;
 const PORT_MARKDOWN = 0.9;
 const MIN_PRICE_MULTIPLIER = 0.38;
-const MAX_PRICE_MULTIPLIER = 3.8;
+const MAX_PRICE_MULTIPLIER = 5;
 const NPC_SPECIE_RESERVE_RATIO = 0.15;
 const NPC_CARGO_LINE_LIMIT = 4;
 const VILLAGE_MARKET_GOOD_LIMIT = 3;
@@ -64,7 +64,7 @@ export const TRADE_GOODS = Object.freeze([
   good("silk-cloth", "Silk Cloth", 85, "luxury"),
   good("pepper", "Pepper", 55, "spice"),
   good("spices", "Spices", 75, "spice"),
-  good("tea", "Tea", 48, "luxury"),
+  good("tea", "Tea", 60, "luxury"),
   good("coffee", "Coffee", 40, "luxury"),
   good("cacao", "Cacao", 35, "luxury"),
   good("dyes", "Dyes", 42, "manufactured"),
@@ -84,7 +84,7 @@ if (TRADE_GOODS_BY_ID.size !== TRADE_GOODS.length) throw new Error("Trade goods 
 const REGION_PRODUCTION = Object.freeze({
   "northern-european": rates({ hardtack: 0.75, fish: 1.1, timber: 1.1, wool: 1.2, flax: 0.8, iron: 0.55, "wool-cloth": 0.5, "linen-cloth": 0.45, arms: 0.22 }),
   mediterranean: rates({ hardtack: 0.7, grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12 }),
-  "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, spices: 0.2, artwork: 0.12 }),
+  "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, artwork: 0.12 }),
   "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22 }),
   "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, pepper: 0.85, spices: 0.65, dyes: 0.55, sugar: 0.35 }),
   "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, pepper: 0.75, spices: 1.2, sugar: 0.65, dyes: 0.25 }),
@@ -97,7 +97,7 @@ const REGION_PRODUCTION = Object.freeze({
 const REGION_DEMAND = Object.freeze({
   "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, pepper: 0.55, spices: 0.7, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
   mediterranean: rates({ timber: 0.55, iron: 0.35, pepper: 0.35, spices: 0.4, silk: 0.3, ivory: 0.18 }),
-  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
+  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, pepper: 0.12, spices: 0.16, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
   "east-asian": rates({ pepper: 0.25, spices: 0.3, silver: 0.55, glassware: 0.25, wool: 0.2 }),
   "south-asian": rates({ silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18 }),
   "southeast-asian": rates({ cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16 }),
@@ -109,9 +109,9 @@ const REGION_DEMAND = Object.freeze({
 
 const REGION_IMPORT_PREMIUM = Object.freeze({
   "northern-european": rates({
-    pepper: 2.05,
-    spices: 2.35,
-    tea: 1.4,
+    pepper: 2.35,
+    spices: 3.1,
+    tea: 2.7,
     coffee: 1.35,
     cacao: 1.4,
     sugar: 1.25,
@@ -121,9 +121,9 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
     ivory: 1.35
   }),
   mediterranean: rates({
-    pepper: 1.75,
-    spices: 2,
-    tea: 1.25,
+    pepper: 2.05,
+    spices: 2.65,
+    tea: 2.3,
     coffee: 1.25,
     cacao: 1.25,
     silk: 1.4,

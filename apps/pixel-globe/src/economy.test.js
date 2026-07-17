@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -15,11 +16,17 @@ import {
   planNpcTrade,
   portEconomySummary,
   portMarket,
+  quotePortPurchase,
+  quotePortSale,
   restoreWorldEconomy,
   snapshotWorldEconomy,
   tradeGoodById,
   worldMarketPriceComparison
 } from "./economy.js";
+import {
+  parsePortSailingDistances,
+  portSailingDistanceKm
+} from "./portSailingDistances.js";
 import {
   buyGood,
   cargoCostBasis,
@@ -37,6 +44,10 @@ const GUANGZHOU = port(4, "Guangzhou", "Ming", "east-asian", 100000);
 const VERACRUZ = port(5, "Veracruz", "New Spain", "mesoamerican", 50000);
 const FIJI = port(6, "Fiji Village", "Fiji", "polynesian", 3500, "village", ["fish", "timber", "sugar"]);
 const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", ["spices", "fish", "timber"]);
+const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync(
+  new URL("../public/assets/data/port-sailing-distances.json", import.meta.url),
+  "utf8"
+)));
 
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
@@ -184,8 +195,8 @@ test("spice-island cargo commands transformative prices in Europe", () => {
   assert.ok(london.get("pepper").sellPrice >= ternate.get("pepper").buyPrice * 3);
 
   const tradePlan = planNpcTrade(economy, TERNATE, LONDON, { cargoCapacity: 20, specie: 10000 });
-  assert.ok(tradePlan.expectedProfit >= 2000);
-  assert.ok(tradePlan.expectedProfit <= 3500);
+  assert.ok(tradePlan.expectedProfit >= 3000);
+  assert.ok(tradePlan.expectedProfit <= 4500);
   assert.equal(tradePlan.cargoUnits, 20);
   assert.ok(tradePlan.lines.some((line) => line.goodId === "spices"));
 
@@ -194,6 +205,40 @@ test("spice-island cargo commands transformative prices in Europe", () => {
   const sale = executePortPurchase(economy, LONDON, "spices", quantity);
   assert.ok(sale.total >= purchase.total * 2.5);
   assert.ok(sale.total - purchase.total >= 1000);
+});
+
+test("real Asia-Europe sailing routes pay several strong coastal voyages", () => {
+  const london = matrixPort("London", "United Kingdom", "northern-european", 80000);
+  const lisbon = matrixPort("Lisbon", "Portugal", "mediterranean", 65000);
+  const guangzhou = matrixPort("Guangzhou", "Ming", "east-asian", 100000);
+  const malacca = matrixPort("Malacca", "Malacca Sultanate", "southeast-asian", 50000);
+  const ternate = matrixPort("Ternate", "Ternate Sultanate", "southeast-asian", 45000);
+  const istanbul = matrixPort("Istanbul", "Ottoman Empire", "islamic-desert", 400000);
+  const athens = matrixPort("Athens", "Ottoman Empire", "mediterranean", 30000);
+  const economy = createWorldEconomy({
+    ports: [london, lisbon, guangzhou, malacca, ternate, istanbul, athens],
+    startMinute: 0
+  });
+
+  const spiceIslandsVoyage = planNpcTrade(economy, ternate, london, {
+    cargoCapacity: 20,
+    specie: 10000
+  });
+  const coastalVoyage = planNpcTrade(economy, istanbul, athens, {
+    cargoCapacity: 20,
+    specie: 10000
+  });
+  const teaProfit = quotePortPurchase(economy, london, "tea", 20) -
+    quotePortSale(economy, guangzhou, "tea", 20);
+  const spiceProfit = quotePortPurchase(economy, lisbon, "spices", 20) -
+    quotePortSale(economy, malacca, "spices", 20);
+
+  assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, ternate, london) > 24000);
+  assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, guangzhou, london) > 25000);
+  assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, istanbul, athens) < 600);
+  assert.ok(spiceIslandsVoyage.expectedProfit >= coastalVoyage.expectedProfit * 3);
+  assert.ok(teaProfit >= 2500, `Guangzhou-London tea profit was only ${teaProfit}`);
+  assert.ok(spiceProfit >= 3000, `Malacca-Lisbon spice profit was only ${spiceProfit}`);
 });
 
 test("market comparisons describe local prices against the live world median", () => {
@@ -326,4 +371,10 @@ function marketByGood(economy, city) {
 
 function port(tileId, city, country, cityType, population, settlementType = "city", marketGoods = null) {
   return { tileId, city, displayCity: city, country, cityType, population, settlementType, marketGoods, lat: 0, lon: 0 };
+}
+
+function matrixPort(city, country, cityType, population) {
+  const endpoint = PORT_SAILING_DISTANCES.endpoints.find((candidate) => candidate.name === city);
+  if (!endpoint) throw new Error(`Missing checked-in sailing endpoint: ${city}`);
+  return port(endpoint.tileId, city, country, cityType, population);
 }
