@@ -204,6 +204,42 @@ export function tetherWhale(memory, whaleId, harpoon) {
   return whale;
 }
 
+export function constrainWhaleTether(whale, anchorPosition, maximumDistanceRad, navigationAtPosition) {
+  validateWhale(whale);
+  validateVector(anchorPosition, "whale tether anchor");
+  if (whale.phase !== WHALE_PHASE_TETHERED && whale.phase !== WHALE_PHASE_EXHAUSTED) {
+    throw new Error(`Cannot constrain an untethered whale: ${whale.id}`);
+  }
+  if (!Number.isFinite(maximumDistanceRad) || maximumDistanceRad <= 0 || maximumDistanceRad >= Math.PI) {
+    throw new Error(`Invalid whale tether distance: ${maximumDistanceRad}`);
+  }
+  if (typeof navigationAtPosition !== "function") {
+    throw new Error("Whale tether requires an ocean navigation resolver");
+  }
+
+  const distance = angularDistance(anchorPosition, whale.position);
+  if (distance <= maximumDistanceRad) return false;
+  const towardWhale = normalizeTangentOrNull(whale.position, anchorPosition);
+  if (!towardWhale) throw new Error(`Whale tether has no direction: ${whale.id}`);
+
+  const searchSteps = 16;
+  for (let step = searchSteps; step >= 0; step--) {
+    const constrainedDistance = maximumDistanceRad * step / searchSteps;
+    const candidatePosition = normalize([
+      anchorPosition[0] * Math.cos(constrainedDistance) + towardWhale[0] * Math.sin(constrainedDistance),
+      anchorPosition[1] * Math.cos(constrainedDistance) + towardWhale[1] * Math.sin(constrainedDistance),
+      anchorPosition[2] * Math.cos(constrainedDistance) + towardWhale[2] * Math.sin(constrainedDistance)
+    ]);
+    const navigation = navigationAtPosition(candidatePosition);
+    if (!navigation?.ok || !Number.isInteger(navigation.tileId)) continue;
+    whale.position = candidatePosition;
+    whale.tileId = navigation.tileId;
+    whale.heading = normalizeTangent(whale.heading, whale.position);
+    return true;
+  }
+  throw new Error(`Whale tether could not find ocean between ${whale.id} and the player ship`);
+}
+
 export function cutWhaleLoose(memory) {
   validateWhaleMemory(memory);
   if (!memory.activeHunt) throw new Error("No whale is tethered");

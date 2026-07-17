@@ -204,16 +204,29 @@ export function claimShipyardListing(system, port, listingId) {
   return listing;
 }
 
-export function shipyardRumorForPort(system, port, maxDistanceKm = GOSSIP_RADIUS_KM) {
+export function shipyardRumorForPort(system, port, sailingDistanceKm, maxDistanceKm = GOSSIP_RADIUS_KM) {
   assertShipyardSystem(system);
+  assertSailingDistanceResolver(sailingDistanceKm);
   if (!Number.isFinite(maxDistanceKm) || maxDistanceKm <= 0) {
     throw new Error(`Invalid shipyard gossip radius: ${maxDistanceKm}`);
   }
+  const nearest = nearestShipyardListingForPort(system, port, sailingDistanceKm);
+  if (!nearest || nearest.distanceKm > maxDistanceKm) return null;
+  return nearest;
+}
+
+export function nearestShipyardListingForPort(system, port, sailingDistanceKm) {
+  assertShipyardSystem(system);
+  assertSailingDistanceResolver(sailingDistanceKm);
+  const portId = requiredPortId(port);
   const candidates = [];
   for (const yard of system.yards.values()) {
-    if (!yard.listing || yard.portId === port.tileId) continue;
-    const distanceKm = greatCircleDistanceKm(port, yard);
-    if (distanceKm > maxDistanceKm) continue;
+    if (!yard.listing || yard.portId === portId) continue;
+    const distanceKm = sailingDistanceKm(portId, yard.portId);
+    if (distanceKm === null) continue;
+    if (!Number.isInteger(distanceKm) || distanceKm < 0) {
+      throw new Error(`Shipyard sailing distance is invalid: ${distanceKm}`);
+    }
     candidates.push({ yard, listing: yard.listing, distanceKm });
   }
   candidates.sort((a, b) => a.distanceKm - b.distanceKm || a.yard.portId - b.yard.portId);
@@ -336,13 +349,10 @@ function shipyardBuildIntervalDays(yard, buildNumber) {
   return Math.max(240, Math.round(base / wealthFactor * variation));
 }
 
-function greatCircleDistanceKm(a, b) {
-  const lat1 = toRadians(Number(a.lat) || 0);
-  const lat2 = toRadians(Number(b.lat) || 0);
-  const dLat = lat2 - lat1;
-  const dLon = toRadians((Number(b.lon) || 0) - (Number(a.lon) || 0));
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+function assertSailingDistanceResolver(resolver) {
+  if (typeof resolver !== "function") {
+    throw new Error("Shipyard hinting requires the precomputed sailing-distance resolver");
+  }
 }
 
 function requiredPortId(port) {
@@ -358,9 +368,6 @@ function normalizeName(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function toRadians(value) {
-  return value * Math.PI / 180;
-}
 
 function roundToHundred(value) {
   return Math.max(100, Math.round(value / 100) * 100);

@@ -1,5 +1,7 @@
 import {
   FACTION_SAFE_PASSAGE_DAYS,
+  PORT_NAVIGATION_REASON_NEW_SHIP,
+  PORT_NAVIGATION_REASON_TRADE_PRICE,
   acceptQuest,
   adjustFactionReputation,
   buyGood,
@@ -96,8 +98,6 @@ import {
   mingTradeAccess,
   resolveMingIllicitMarketAttempt
 } from "./mingTradeRestrictions.js";
-import { greatCircleDistanceKm } from "./worldDistance.js";
-
 const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
 
 export function createPortDialogueSession(city, options = {}) {
@@ -216,7 +216,7 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
       `Current ${currentStats.slug} hull mismatch: ${currentShip.maxHitPoints}/${currentStats.hitPoints}`
     );
   }
-  if (!Number.isInteger(currentShip?.cargoUsed) || currentShip.cargoUsed < 0) {
+  if (!Number.isFinite(currentShip?.cargoUsed) || currentShip.cargoUsed < 0) {
     throw new Error(`Surrender prize requires current cargo use: ${currentShip?.cargoUsed}`);
   }
   const specie = loot.specie ?? 0;
@@ -450,7 +450,7 @@ function surrenderPrizeView(session, ship) {
   const current = shipLabelForSlug(presentation.currentShipSlug);
   const cargoDoesNotFit = presentation.cargoUsed > shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity;
   const disabledReason = cargoDoesNotFit
-    ? `Your ${presentation.cargoUsed} units of cargo will not fit its ` +
+    ? `Your ${cargoSpaceLabel(presentation.cargoUsed)} units of cargo will not fit its ` +
       `${shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity}-unit hold.`
     : null;
   if (session.nodeId === "capture-confirm") {
@@ -659,7 +659,8 @@ export function selectPortDialogueOption(
       gameState,
       economy,
       portCities,
-      simMinute: context.simMinute ?? 0
+      simMinute: context.simMinute ?? 0,
+      sailingDistanceKm: context.sailingDistanceKm
     });
     session.marketPurchases = {};
     session.selectedIndex = 0;
@@ -671,6 +672,33 @@ export function selectPortDialogueOption(
     session.tradeTip = { ...tip, nextNodeId: action.nodeId };
     session.nodeId = "trade-tip";
     return { closed: false, tradeTip: tip };
+  }
+  if (action.type === "set-port-heading") {
+    if (!Number.isInteger(action.destinationTileId)) {
+      throw new Error(`Port heading requires a destination tile id: ${action.destinationTileId}`);
+    }
+    if (typeof action.destinationName !== "string" || action.destinationName.trim() === "") {
+      throw new Error("Port heading requires a destination name");
+    }
+    if (typeof action.nextNodeId !== "string" || action.nextNodeId === "") {
+      throw new Error("Port heading requires a return dialogue node");
+    }
+    if (typeof action.reason !== "string" || action.reason.trim() === "") {
+      throw new Error("Port heading requires a reason");
+    }
+    if (session.nodeId === "trade-tip") session.tradeTip = null;
+    session.nodeId = action.nextNodeId;
+    session.selectedIndex = 0;
+    session.feedback = `Heading set for ${action.destinationName}.`;
+    return {
+      closed: false,
+      action: {
+        type: "set-port-heading",
+        destinationTileId: action.destinationTileId,
+        destinationName: action.destinationName,
+        reason: action.reason
+      }
+    };
   }
   if (action.type === "open-passenger") {
     return { closed: false, action: { type: "open-passenger", quest: action.quest } };
@@ -1624,16 +1652,31 @@ function shipyardView(session, city, gameState, context) {
   const yard = context.shipyard || null;
   const listing = yard?.listing || null;
   if (!listing) {
+    const nearestListing = context.nearestShipyardListing || null;
+    if (nearestListing && !Number.isInteger(nearestListing.portId)) {
+      throw new Error(`Nearest shipyard listing requires a port tile id: ${nearestListing.portId}`);
+    }
     return {
       speaker: speakerName(city),
       expressionId: "neutral",
-      text: city.isPirateHideout
-        ? "The hidden slips can patch any hull, but there is no captured vessel for sale today."
-        : yard?.famous
-        ? "The master shipwrights have vessels on the stocks, but none ready for sale. New launches are uncommon and word travels quickly."
-        : "The slipways handle repairs and local work, but there is no newly built vessel for sale today.",
+      text: nearestListing
+        ? `I heard a rumour of a new ${nearestListing.shipLabel} for sale at ${nearestListing.portName}.`
+        : city.isPirateHideout
+          ? "The hidden slips can patch any hull, but there is no captured vessel for sale today. No shipyard currently has a vessel for sale."
+          : yard?.famous
+            ? "The master shipwrights have vessels on the stocks, but none ready for sale. No shipyard currently has a vessel for sale."
+            : "The slipways handle repairs and local work, but there is no newly built vessel for sale today. No shipyard currently has a vessel for sale.",
       feedback: session.feedback,
-      options: [option("Back", { type: "node", nodeId: "root" })]
+      options: [
+        ...(nearestListing ? [option(`Set a heading for ${nearestListing.portName}`, {
+          type: "set-port-heading",
+          destinationTileId: nearestListing.portId,
+          destinationName: nearestListing.portName,
+          reason: PORT_NAVIGATION_REASON_NEW_SHIP,
+          nextNodeId: "root"
+        })] : []),
+        option("Back", { type: "node", nodeId: "root" })
+      ]
     };
   }
   const stats = shipStatsForSlug(listing.shipSlug);
@@ -1650,7 +1693,7 @@ function shipyardView(session, city, gameState, context) {
   return {
     speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
-    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons. Your purse holds ${gameState.doubloons}.`,
+    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons.`,
     feedback: session.feedback,
     presentation: { kind: "shipyard", listing },
     options: [
@@ -1720,7 +1763,16 @@ function tradeTipView(session, city) {
     expressionId: "attentive",
     text: `I heard ${tip.destinationName} pays a good price for ${tip.goodLabel}.`,
     feedback: null,
-    options: [option("Continue", { type: "node", nodeId: tip.nextNodeId })]
+    options: [
+      option(`Set a heading for ${tip.destinationName}`, {
+        type: "set-port-heading",
+        destinationTileId: tip.destinationTileId,
+        destinationName: tip.destinationName,
+        reason: PORT_NAVIGATION_REASON_TRADE_PRICE,
+        nextNodeId: tip.nextNodeId
+      }),
+      option("Continue", { type: "node", nodeId: tip.nextNodeId })
+    ]
   };
 }
 
@@ -1730,7 +1782,8 @@ export function bestPurchasedTradeRoute({
   gameState,
   economy,
   portCities,
-  simMinute = 0
+  simMinute = 0,
+  sailingDistanceKm
 }) {
   if (!purchases || typeof purchases !== "object" || Array.isArray(purchases)) {
     throw new Error("Trade-route advice requires a purchase record");
@@ -1739,6 +1792,9 @@ export function bestPurchasedTradeRoute({
     throw new Error("Trade-route advice requires an origin port");
   }
   if (!Array.isArray(portCities)) throw new Error("Trade-route advice requires candidate ports");
+  if (typeof sailingDistanceKm !== "function") {
+    throw new Error("Trade-route advice requires the precomputed sailing-distance resolver");
+  }
 
   let best = null;
   for (const purchase of Object.values(purchases)) {
@@ -1760,7 +1816,11 @@ export function bestPurchasedTradeRoute({
       ) < purchase.quantity) continue;
       const revenue = quotePortPurchase(economy, destination, good.id, purchase.quantity);
       const pnl = revenue - purchase.cost;
-      const distanceKm = greatCircleDistanceKm(originCity, destination);
+      const distanceKm = sailingDistanceKm(originCity, destination);
+      if (distanceKm === null) continue;
+      if (!Number.isInteger(distanceKm) || distanceKm < 0) {
+        throw new Error(`Trade-route sailing distance is invalid: ${distanceKm}`);
+      }
       const candidate = {
         goodId: good.id,
         goodLabel: good.label,
@@ -2106,7 +2166,10 @@ function feedbackExpressionId(feedback) {
 function shipCargoManifest(cargo) {
   const rows = Object.entries(cargo || {})
     .filter(([, quantity]) => quantity > 0)
-    .map(([goodId, quantity]) => `${tradeGoodById(goodId).label} x${quantity}`);
+    .map(([goodId, quantity]) => {
+      const good = tradeGoodById(goodId);
+      return `${good.label} ${cargoQuantityLabel(good, quantity)}`;
+    });
   if (rows.length === 0) return "";
   if (rows.length <= 2) return rows.join(" and ");
   return `${rows.slice(0, 2).join(", ")}, and other goods`;

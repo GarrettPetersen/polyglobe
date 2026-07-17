@@ -137,6 +137,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   );
   const incaPorts = ports.filter((city) => city.factionId === "inca");
   const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
+  const edo = ports.find((city) => city.city === "Edo" && city.country === "Japan");
   const kilwa = ports.find((city) => city.city === "Kilwa" && city.country === "Tanzania");
   const pacificVillages = ports.filter((city) => city.manualRegion === "pacific-islands");
   const encounterVillages = ports.filter((city) => city.manualRegion === "explorer-encounters");
@@ -167,6 +168,10 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
   assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
+  assert.ok(edo, "Edo should be a dockable village in Tokyo Bay");
+  assert.equal(edo.settlementType, "village");
+  assert.equal(edo.factionId, "japan");
+  assert.deepEqual(edo.marketGoods, ["fish", "grain", "timber"]);
   assert.ok(kilwa, "Kilwa should be a dockable Swahili-coast island port");
   assert.equal(kilwa.lon, 39.51);
   assert.ok(

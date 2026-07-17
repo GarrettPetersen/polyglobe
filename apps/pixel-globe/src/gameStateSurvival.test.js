@@ -4,7 +4,7 @@ import test from "node:test";
 import { FORAGED_FOOD_GOOD_ID, FRESH_WATER_GOOD_ID, createWorldEconomy } from "./economy.js";
 import {
   FRESH_WATER_CAPACITY,
-  RAIN_WATER_COLLECTION_PER_DAY,
+  RAIN_WATER_COLLECTION_PER_CONSUMER_DAY,
   SURVIVAL_DEHYDRATION_INTERVAL_MINUTES,
   SURVIVAL_STARVATION_INTERVAL_MINUTES,
   autoProvisionFreshWaterAtPort,
@@ -15,8 +15,10 @@ import {
   cargoCostBasis,
   cargoFree,
   cargoReservationUnits,
+  cargoSpaceLabel,
   cargoUsed,
   createGameState,
+  foodRationsForCargoQuantity,
   initializeProvisionalShipLoadout,
   initializeShipProvisions,
   loseCrew,
@@ -32,6 +34,7 @@ import {
   setPlayerShipStats,
   shipConsumption,
   shipEmergencyAidNeed,
+  shipTravelerManifest,
   stowForagedFood,
   survivalStatus,
   updateSurvival,
@@ -41,6 +44,18 @@ import { crewHoldSpace, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "england");
+
+test("cargo space labels always round to whole hold units", () => {
+  assert.equal(cargoSpaceLabel(12), "12");
+  assert.equal(cargoSpaceLabel(12.333333333333334), "12");
+  assert.equal(cargoSpaceLabel(12.666666666666666), "13");
+});
+
+test("food cargo quantities present as whole rations", () => {
+  assert.equal(foodRationsForCargoQuantity(1 / 12), 1);
+  assert.equal(foodRationsForCargoQuantity(5 / 12), 5);
+  assert.throws(() => foodRationsForCargoQuantity(0.1), /not ration-aligned/);
+});
 
 test("saved game state rejects unsupported schema versions", () => {
   const state = createGameState({ cargoCapacity: 10 });
@@ -129,7 +144,7 @@ test("small-boat food falls one day at a time and frees ration-sized hold space"
   assert.ok(Math.abs((usedBefore - cargoUsed(state)) - 2 / 12) < 1e-8);
 });
 
-test("rainwater silently offsets a tiny share of water consumption", () => {
+test("rainwater silently offsets water consumption", () => {
   const dry = createGameState({ cargoCapacity: 10 });
   const rainy = createGameState({ cargoCapacity: 10 });
   dry.survival.freshWater = 20;
@@ -139,7 +154,7 @@ test("rainwater silently offsets a tiny share of water consumption", () => {
   const rainyResult = updateSurvival(rainy, 0, 24 * 60, { rainfall: 1 });
 
   assert.equal(rainyResult.freshWaterRefilled, false);
-  assert.equal(rainyResult.rainWaterCollected, RAIN_WATER_COLLECTION_PER_DAY);
+  assert.equal(rainyResult.rainWaterCollected, RAIN_WATER_COLLECTION_PER_CONSUMER_DAY);
   assert.equal(dryResult.rainWaterCollected, 0);
   assert.ok(rainy.survival.freshWater > dry.survival.freshWater);
   assert.ok(rainyResult.waterConsumed < dryResult.waterConsumed);
@@ -147,6 +162,40 @@ test("rainwater silently offsets a tiny share of water consumption", () => {
     () => updateSurvival(rainy, 24 * 60, 25 * 60, { rainfall: 1.01 }),
     /Invalid rainfall strength/
   );
+});
+
+test("heavy rain can raise a minimally crewed boat's water supply", () => {
+  const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.ship.crew = 1;
+  state.survival.freshWater -= 1;
+  const waterBefore = state.survival.freshWater;
+
+  const result = updateSurvival(state, 0, 24 * 60, { rainfall: 1 });
+
+  assert.ok(state.survival.freshWater > waterBefore);
+  assert.equal(
+    result.rainWaterCollected,
+    RAIN_WATER_COLLECTION_PER_CONSUMER_DAY * shipConsumption(state).waterConsumers
+  );
+  assert.equal(result.changed, true);
+});
+
+test("the ship traveler manifest distinguishes passengers, envoys, and settlers", () => {
+  const state = createGameState({ cargoCapacity: 100 });
+
+  state.memory.quests.active = { kind: "passenger" };
+  assert.deepEqual(shipTravelerManifest(state), [{ kind: "passenger", count: 1 }]);
+
+  state.memory.quests.active = { kind: "friendly-envoy" };
+  assert.deepEqual(shipTravelerManifest(state), [{ kind: "envoy", count: 1 }]);
+
+  state.memory.quests.active = null;
+  state.memory.colonization.stage = "outbound";
+  state.memory.colonization.fetchStageIndex = 3;
+  state.memory.colonization.targetTileId = 1;
+  assert.deepEqual(shipTravelerManifest(state), [{ kind: "settler", count: 12 }]);
 });
 
 test("waiting safely in port advances time without consuming provisions", () => {

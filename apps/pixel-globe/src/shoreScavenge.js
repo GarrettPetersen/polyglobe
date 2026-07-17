@@ -4,6 +4,7 @@ export const SHORE_SCAVENGE_WATER = "water";
 export const SHORE_SCAVENGE_FOOD = "food";
 export const SHORE_SCAVENGE_NOTHING = "nothing";
 export const SHORE_SCAVENGE_CASUALTY = "casualty";
+export const SHORE_SCAVENGE_SEABIRD = "seabird";
 export const SHORE_SCAVENGE_CASUALTY_CHANCE = 0.01;
 
 export const SHORE_SCAVENGE_TEMPERATE = "temperate";
@@ -16,6 +17,29 @@ const SCAVENGE_PROBABILITIES = Object.freeze({
   [SHORE_SCAVENGE_DESERT]: Object.freeze({ waterMax: 0.04, foodMax: 0.18 }),
   [SHORE_SCAVENGE_ARCTIC]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 }),
   [SHORE_SCAVENGE_ANTARCTIC]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 })
+});
+
+const SEABIRDS_BY_CONTEXT = Object.freeze({
+  [SHORE_SCAVENGE_TEMPERATE]: Object.freeze([
+    seabird("gull", 2),
+    seabird("cormorant", 3),
+    seabird("gannet", 3)
+  ]),
+  [SHORE_SCAVENGE_DESERT]: Object.freeze([
+    seabird("gull", 2),
+    seabird("cormorant", 3),
+    seabird("tern", 1)
+  ]),
+  [SHORE_SCAVENGE_ARCTIC]: Object.freeze([
+    seabird("kittiwake", 2),
+    seabird("gull", 2),
+    seabird("guillemot", 2)
+  ]),
+  [SHORE_SCAVENGE_ANTARCTIC]: Object.freeze([
+    seabird("petrel", 2),
+    seabird("skua", 3),
+    seabird("albatross", 5)
+  ])
 });
 
 const TEMPERATE_NARRATIVES = Object.freeze({
@@ -153,6 +177,30 @@ export function foragedFoodQuantity(random = Math.random) {
   return 1 + Math.floor(roll * 3);
 }
 
+export function replaceFailedScavengeWithSeabird(outcome, hasNearbyLandedSeabird) {
+  if (typeof hasNearbyLandedSeabird !== "boolean") {
+    throw new Error("Seabird scavenging requires an explicit nearby-bird state");
+  }
+  if (![SHORE_SCAVENGE_WATER, SHORE_SCAVENGE_FOOD, SHORE_SCAVENGE_NOTHING, SHORE_SCAVENGE_CASUALTY].includes(outcome)) {
+    throw new Error(`Unknown shore scavenge outcome: ${outcome}`);
+  }
+  if (!hasNearbyLandedSeabird) return outcome;
+  return outcome === SHORE_SCAVENGE_NOTHING || outcome === SHORE_SCAVENGE_CASUALTY
+    ? SHORE_SCAVENGE_SEABIRD
+    : outcome;
+}
+
+export function caughtSeabird(context, random = Math.random) {
+  requireScavengeContext(context);
+  const birds = SEABIRDS_BY_CONTEXT[context];
+  if (!birds || birds.length === 0) throw new Error(`Missing scavenged seabirds for context: ${context}`);
+  const roll = random();
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Invalid scavenged seabird roll: ${roll}`);
+  }
+  return birds[Math.floor(roll * birds.length)];
+}
+
 export function shoreScavengeNoticeLabel(outcome, context) {
   requireScavengeContext(context);
   if (outcome === SHORE_SCAVENGE_WATER) {
@@ -182,4 +230,12 @@ function requireScavengeContext(context) {
   const narratives = NARRATIVES_BY_CONTEXT[context];
   if (!narratives) throw new Error(`Unknown shore scavenge context: ${context}`);
   return narratives;
+}
+
+function seabird(name, foodRations) {
+  if (typeof name !== "string" || name === "") throw new Error("Scavenged seabird requires a name");
+  if (!Number.isInteger(foodRations) || foodRations <= 0) {
+    throw new Error(`Invalid ${name} food ration yield: ${foodRations}`);
+  }
+  return Object.freeze({ name, foodRations });
 }

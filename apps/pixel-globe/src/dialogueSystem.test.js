@@ -138,6 +138,19 @@ test("merchant captains report their destination and visible cargo", () => {
   assert.equal(view.text, "Fair winds, captain. Bound for Hormuz. We carry Pepper x18 and Cotton x9.");
 });
 
+test("ship cargo manifests describe fractional food as whole rations", () => {
+  const ship = {
+    id: "provision-tender-1",
+    label: "Dhow",
+    character: { name: "Yusuf al-Masri" },
+    cargo: { hardtack: 1 / 3 }
+  };
+  const view = shipDialogueView(createShipDialogueSession(ship), ship);
+
+  assert.match(view.text, /Hardtack 4 RATIONS/);
+  assert.doesNotMatch(view.text, /0\.333/);
+});
+
 test("merchant captains report when they are anchored for a storm", () => {
   const ship = {
     id: "atlantic-coast-2",
@@ -300,13 +313,33 @@ test("a surrendered prize cannot replace the player with a hold that is too smal
     slug: "small-cog",
     hitPoints: 7,
     maxHitPoints: 7,
-    cargoUsed: 11
+    cargoUsed: 34 / 3
   });
   const view = shipDialogueView(session, ship);
 
   assert.equal(view.options[0].disabled, true);
   assert.match(view.options[0].disabledReason, /11 units of cargo/);
   assert.throws(() => selectShipDialogueOption(session, ship, 0), /11 units of cargo/);
+});
+
+test("a surrender prize accepts fractional cargo use from daily provisions", () => {
+  const ship = {
+    id: "fractional-prize",
+    slug: "small-cog",
+    hitPoints: 7,
+    maxHitPoints: 7,
+    combatGrace: true,
+    character: { name: "Ines de Castro" }
+  };
+  const session = prepareSurrenderPrizeDialogue(null, ship, {
+    slug: "galleon",
+    hitPoints: 36,
+    maxHitPoints: 36,
+    cargoUsed: 116 / 3
+  });
+
+  assert.equal(session.prize.cargoUsed, 116 / 3);
+  assert.equal(shipDialogueView(session, ship).options[0].disabled, false);
 });
 
 test("a protected surrendered ship cannot be threatened again", () => {
@@ -549,6 +582,10 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
     character: { name: "Fernao da Cunha" }
   };
   const ports = [ternate, london, lisbon];
+  const sailingDistanceKm = testSailingDistances([
+    [ternate, london, 14200],
+    [ternate, lisbon, 15100]
+  ]);
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 200 });
   gameState.doubloons = 1000;
@@ -566,7 +603,8 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
     originCity: ternate,
     gameState,
     economy,
-    portCities: ports
+    portCities: ports,
+    sailingDistanceKm
   });
   assert.deepEqual(
     { good: expected.goodLabel, destination: expected.destinationName },
@@ -575,17 +613,35 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
 
   const market = portDialogueView(session, ternate, gameState, economy, ports);
   const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
-  const result = selectPortDialogueOption(session, ternate, gameState, economy, ports, backIndex);
+  const result = selectPortDialogueOption(
+    session,
+    ternate,
+    gameState,
+    economy,
+    ports,
+    backIndex,
+    { sailingDistanceKm }
+  );
   assert.equal(result.tradeTip.expectedPnl, expected.expectedPnl);
   assert.equal(session.nodeId, "trade-tip");
-  assert.equal(
-    portDialogueView(session, ternate, gameState, economy, ports).text,
-    "I heard London pays a good price for Spices."
+  const tradeTip = portDialogueView(session, ternate, gameState, economy, ports);
+  assert.equal(tradeTip.text, "I heard London pays a good price for Spices.");
+  assert.equal(tradeTip.options[0].label, "Set a heading for London");
+  assert.deepEqual(
+    selectPortDialogueOption(session, ternate, gameState, economy, ports, 0),
+    {
+      closed: false,
+      action: {
+        type: "set-port-heading",
+        destinationTileId: london.tileId,
+        destinationName: "London",
+        reason: "TRADE PRICE TIP"
+      }
+    }
   );
-
-  selectPortDialogueOption(session, ternate, gameState, economy, ports, 0);
   assert.equal(session.nodeId, "root");
   assert.equal(session.tradeTip, null);
+  assert.equal(session.feedback, "Heading set for London.");
 });
 
 test("trade advice prefers a useful regional price over a better transcontinental price", () => {
@@ -627,12 +683,17 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   const purchases = {
     spices: { goodId: "spices", quantity: 1, cost: 60 }
   };
+  const sailingDistanceKm = testSailingDistances([
+    [istanbul, cairo, 1250],
+    [istanbul, wuhan, 10700]
+  ]);
   const route = (destinations) => bestPurchasedTradeRoute({
     purchases,
     originCity: istanbul,
     gameState,
     economy,
-    portCities: [istanbul, ...destinations]
+    portCities: [istanbul, ...destinations],
+    sailingDistanceKm
   });
 
   const cairoOnly = route([cairo]);
@@ -661,7 +722,9 @@ test("leaving the buy screen without a purchase returns directly to port busines
   const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
 
   assert.deepEqual(
-    selectPortDialogueOption(session, city, gameState, economy, [city], backIndex),
+    selectPortDialogueOption(session, city, gameState, economy, [city], backIndex, {
+      sailingDistanceKm: () => 0
+    }),
     { closed: false }
   );
   assert.equal(session.nodeId, "root");
@@ -1048,6 +1111,7 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
   const poorView = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(poorView.presentation.kind, "shipyard");
   assert.equal(poorView.presentation.listing.shipSlug, "brigantine");
+  assert.equal(poorView.text, "A newly built Brigantine is offered for 35000 doubloons.");
   const poorPurchase = poorView.options.find((entry) => entry.action.type === "purchase-ship");
   assert.equal(poorPurchase.disabled, true);
   assert.match(poorPurchase.disabledReason, /more doubloons/);
@@ -1060,6 +1124,57 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     closed: false,
     action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
   });
+});
+
+test("empty shipyards direct captains to the nearest listed vessel", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city], {
+    shipyard: { famous: true, listing: null },
+    nearestShipyardListing: {
+      portId: 11,
+      portName: "Porto",
+      shipLabel: "Brigantine",
+      distanceKm: 312
+    }
+  });
+
+  assert.equal(view.text, "I heard a rumour of a new Brigantine for sale at Porto.");
+  assert.equal(view.options[0].label, "Set a heading for Porto");
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
+      shipyard: { famous: true, listing: null },
+      nearestShipyardListing: {
+        portId: 11,
+        portName: "Porto",
+        shipLabel: "Brigantine",
+        distanceKm: 312
+      }
+    }),
+    {
+      closed: false,
+      action: {
+        type: "set-port-heading",
+        destinationTileId: 11,
+        destinationName: "Porto",
+        reason: "NEW SHIP FOR SALE"
+      }
+    }
+  );
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.feedback, "Heading set for Porto.");
 });
 
 test("the Icelandic enthusiast unlocks the Viking longship after three fetch deliveries", () => {
@@ -1453,3 +1568,16 @@ test("capital port dialogue can grant a letter of marque", () => {
   assert.equal(hasLetterOfMarqueFrom(gameState, "england"), true);
   assert.match(session.feedback, /letter of marque granted/i);
 });
+
+function testSailingDistances(entries) {
+  const distances = new Map();
+  for (const [a, b, distanceKm] of entries) {
+    distances.set(`${Math.min(a.tileId, b.tileId)}:${Math.max(a.tileId, b.tileId)}`, distanceKm);
+  }
+  return (a, b) => {
+    if (a.tileId === b.tileId) return 0;
+    const distance = distances.get(`${Math.min(a.tileId, b.tileId)}:${Math.max(a.tileId, b.tileId)}`);
+    if (distance === undefined) throw new Error(`Missing test sailing distance: ${a.tileId} to ${b.tileId}`);
+    return distance;
+  };
+}

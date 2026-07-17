@@ -78,6 +78,11 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   manualCity1522("Ternate", "Indonesia", 0.7893, 127.3844, 12000, {
     manualRegion: "spice-islands"
   }),
+  manualVillage1522("Edo", "Japan", 35.6896, 139.692, 1500, {
+    cityType: "east-asian",
+    manualRegion: "edo-bay",
+    marketGoods: ["fish", "grain", "timber"]
+  }),
   manualVillage1522("Banda Village", "Indonesia", -4.5234, 129.9002, 3500, {
     cityType: "southeast-asian",
     manualRegion: "spice-islands",

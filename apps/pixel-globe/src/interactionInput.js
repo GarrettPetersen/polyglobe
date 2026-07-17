@@ -10,6 +10,7 @@ export const INTERACTION_INPUT = Object.freeze({
   SHIP_INFO: "ship-info",
   POLITICS: "politics",
   DISCOVERIES: "discoveries",
+  NAVIGATION: "navigation",
   DIALOGUE: "dialogue",
   PORT_WAIT: "port-wait",
   FISHING: "fishing",
@@ -28,6 +29,7 @@ const INPUT_PRIORITY = Object.freeze([
   ["shipInfoActive", INTERACTION_INPUT.SHIP_INFO],
   ["politicsActive", INTERACTION_INPUT.POLITICS],
   ["discoveriesActive", INTERACTION_INPUT.DISCOVERIES],
+  ["navigationActive", INTERACTION_INPUT.NAVIGATION],
   ["dialogueActive", INTERACTION_INPUT.DIALOGUE],
   ["portWaitActive", INTERACTION_INPUT.PORT_WAIT],
   ["fishingActive", INTERACTION_INPUT.FISHING]

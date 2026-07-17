@@ -14,21 +14,27 @@ import {
   pixelMaskKey
 } from "./pixelWaterMask.js";
 import {
+  CREW_STATUS_ICON_HEIGHT,
+  CREW_STATUS_ICON_WIDTH,
+  crewStatusLayout
+} from "./crewStatus.js";
+import {
   CITY_VISUAL_MAX_OFFSET_PX,
   cityBankPreferenceVector,
   selectCityVisualOffset
 } from "./cityVisualPlacement.js";
 import {
-  MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
-  MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
-  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
-  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS,
-  removeBlockedRiverEdgesFromMasks
+  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
 import {
   applyManualTerrainOverrides,
   assertManualShallowWaterReachesOcean
 } from "./manualTerrainOverrides.js";
+import {
+  buildWorldNavigationTopology,
+  edgeIndexTowardNeighbor as worldEdgeIndexTowardNeighbor,
+  riverEdgeSet as worldRiverEdgeSet
+} from "./worldNavigationTopology.js";
 import {
   TILE_DAY_RAIN,
   TILE_DAY_SNOW_FALL,
@@ -92,6 +98,7 @@ import {
 } from "./windSmoothing.js";
 import {
   FISH_CARGO_GOOD_ID,
+  portNavigationReasonLabel,
   SHIP_ITEM_FISHING_NET,
   SURVIVAL_DEHYDRATION_INTERVAL_MINUTES,
   SURVIVAL_STARVATION_INTERVAL_MINUTES,
@@ -104,7 +111,10 @@ import {
   awardPlayerShip,
   cargoFree,
   cargoQuantityCapacityForGood,
+  cargoSpaceLabel,
   cargoUsed,
+  addPortNavigationWaypoint,
+  clearPortNavigationWaypointsAt,
   consumePendingDiscoveryPortDialogue,
   createGameState,
   discoveredEntries,
@@ -112,6 +122,7 @@ import {
   factionReputation,
   factionSafePassageRefusalStatus,
   factionSafePassageToll,
+  foodRationsForCargoQuantity,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
@@ -145,7 +156,9 @@ import {
   purchaseFactionSafePassage,
   setPlayerShipStats,
   shipEmergencyAidNeed,
+  shipTravelerManifest,
   settleCampaignGoalAtHome,
+  removeOptionalNavigationWaypoint,
   stowForagedFood,
   survivalStatus,
   updateCartographyMemory,
@@ -158,10 +171,16 @@ import {
   whaleHarpoonHitChance
 } from "./whaleHarpoons.js";
 import {
+  WHALE_BLOW_DURATION_SECONDS,
+  createWhaleBlowParticles,
+  whaleBlowParticleFrame
+} from "./whaleBlowParticles.js";
+import {
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_DEAD,
   WHALE_PHASE_TETHERED,
   advanceWhaleMemory,
+  constrainWhaleTether,
   cutWhaleLoose,
   killExhaustedWhale,
   seedWhalePopulation,
@@ -350,6 +369,7 @@ import {
   createStormSystem,
   nearestStormShelterTile,
   nextStormShelterTile,
+  rainCollectionStrength,
   stormDamageForHour,
   stormIntensityAtTile,
   stormWindStrength
@@ -429,6 +449,18 @@ import {
 import { CaptureRecorder } from "./captureRecorder.js";
 import { createCaptureControls } from "./captureControls.js";
 import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js";
+import {
+  MINIMAP_LONGITUDE_BIN_COUNT,
+  exploredMinimapViewport,
+  minimapLongitudeBin,
+  minimapProjectLatitude,
+  minimapProjectLongitude,
+  minimapUnprojectLatitude,
+  minimapUnprojectLongitude,
+  minimapViewportContainsPoint,
+  minimapViewportPixel,
+  minimapViewportSample
+} from "./minimapViewport.js";
 import {
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
@@ -511,16 +543,12 @@ import {
   DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
-  FACTION_CAPITALS_1522,
   FACTIONS,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   diplomacyBetween,
   factionById,
-  factionCapitalCityRecords1522,
-  factionCapitalForCity,
   factionHasFlag,
-  factionIdForCity1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
 import {
@@ -567,7 +595,12 @@ import {
   shipLedgerPage,
   shipPapersPage
 } from "./shipInfo.js";
-import { claimShipyardListing, shipyardAtPort, shipyardRumorForPort } from "./shipyards.js";
+import {
+  claimShipyardListing,
+  nearestShipyardListingForPort,
+  shipyardAtPort,
+  shipyardRumorForPort
+} from "./shipyards.js";
 import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
 import {
   appendVoyageRecord,
@@ -585,21 +618,33 @@ import {
   ACTIVE_PLAY_LIMIT_SECONDS,
   BUILD_EDITION_ID
 } from "./buildEdition.js";
+import { COLONIZATION_TARGETS } from "./colonialCities.js";
 import {
-  MANUAL_CITY_RECORDS_1522,
-  cityPopulationObservationAtYear,
-  cityRequiresPortAccess,
-  selectCityCatalogRecords
-} from "./cityCatalogSelection.js";
-import { cityIsLandlocked } from "./cityPortAccess.js";
-import { withColonialFounding } from "./colonialCities.js";
+  CITY_DATA_URL,
+  CITY_DATA_YEAR,
+  CITY_IMAGE_KEYS,
+  CITY_TYPE_ART_KEYS,
+  CITY_TYPE_KEYS,
+  cityLabelText,
+  loadCityCatalogFromCsv
+} from "./cityCatalogData.js";
+import {
+  nearestTileMatching as nearestWorldTileMatching,
+  placeCityCatalogOnWorld,
+  placeColonizationTargetsOnWorld,
+  portCitiesOnWorld
+} from "./worldPortPlacement.js";
+import {
+  assertPortSailingDistanceCoverage,
+  parsePortSailingDistances,
+  portSailingDistanceKm
+} from "./portSailingDistances.js";
 import {
   COLONIZATION_STAGE_ESTABLISHED,
   COLONIZATION_STAGE_FAILED,
   advanceColonizationQuest,
   assignColonizationTargetTile,
   colonizationObjective,
-  colonizationTargetCoordinates,
   colonizationWorldRecord,
   isColonizationQuestOrigin,
   isColonizationQuestTarget
@@ -712,8 +757,11 @@ import {
   SHORE_SCAVENGE_CASUALTY,
   SHORE_SCAVENGE_FOOD,
   SHORE_SCAVENGE_NOTHING,
+  SHORE_SCAVENGE_SEABIRD,
   SHORE_SCAVENGE_WATER,
+  caughtSeabird,
   foragedFoodQuantity,
+  replaceFailedScavengeWithSeabird,
   rollShoreScavenge,
   shoreScavengeContextForTerrain,
   shoreScavengeNoticeLabel,
@@ -925,6 +973,18 @@ const ROWING_SHIP_ANIMATION_SPECS = new Map([
 const CITY_ASSET_VERSION = "city-types-2";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
+const STATUS_HUD_ASSET_VERSION = "crew-dubloon-1";
+const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
+const STATUS_HUD_DOUBLOON_URL = "assets/misc/dubloon.png";
+const STATUS_PERSON_COLORS = Object.freeze({
+  crew: Object.freeze(["#2e222f", "#3e3546"]),
+  passenger: Object.freeze(["#3b5dc9"]),
+  envoy: Object.freeze(["#f9c22b"]),
+  settler: Object.freeze(["#38b764"])
+});
+const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
+const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
+const STATUS_PERSON_PARTICLE_LIMIT = 320;
 const COLONY_DEPARTURE_DISTANCE_PX = 90;
 const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-1";
 const FACTION_FLAG_SOURCE_W = 32;
@@ -936,146 +996,8 @@ const CITY_FLAG_WAVE_SPEED_RAD_PER_MS = 0.002;
 const DIALOGUE_FLAG_W = FACTION_FLAG_SOURCE_W;
 const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
-const CITY_DATA_YEAR = 1522;
-const CITY_MAX_COUNT = 480;
-const CITY_DATA_URL = "shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
-const CITY_DISPLAY_NAME_OVERRIDES = new Map([
-  ["mexico city|mexico", [{ throughYear: 1522, displayCity: "Tenochtitlan" }]],
-  ["texcoco|mexico", [{ throughYear: 1522, displayCity: "Tezcoco" }]],
-  ["merida|mexico", [{ throughYear: 1541, displayCity: "Tiho" }]],
-  ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]]
-]);
-const CITY_TYPE_KEYS = Object.freeze([
-  "northern-european",
-  "mediterranean",
-  "islamic-desert",
-  "east-asian",
-  "south-asian",
-  "southeast-asian",
-  "polynesian",
-  "mesoamerican",
-  "andean",
-  "sub-saharan"
-]);
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
-const CITY_TYPE_ART_KEYS = Object.freeze({
-  polynesian: "village"
-});
-const CITY_IMAGE_KEYS = Object.freeze([...CITY_TYPE_KEYS, "village"]);
-const CITY_TYPE_EAST_ASIAN_COUNTRIES = new Set([
-  "China",
-  "Dem. People's Republic of Korea",
-  "Japan",
-  "Republic of Korea"
-]);
-const CITY_TYPE_SOUTH_ASIAN_COUNTRIES = new Set([
-  "India",
-  "Nepal",
-  "Pakistan",
-  "Sri Lanka"
-]);
-const CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES = new Set([
-  "Brunei",
-  "Cambodia",
-  "Indonesia",
-  "Lao People's Democratic Republic",
-  "Malaysia",
-  "Myanmar",
-  "Thailand",
-  "Vietnam"
-]);
-const CITY_TYPE_POLYNESIAN_COUNTRIES = new Set([
-  "Aotearoa",
-  "Cook Islands",
-  "Fiji",
-  "French Polynesia",
-  "Hawaii",
-  "Kiribati",
-  "Niue",
-  "Rapa Nui",
-  "Samoa",
-  "Tonga"
-]);
-const CITY_TYPE_ANDEAN_COUNTRIES = new Set([
-  "Bolivia",
-  "Columbia",
-  "Ecuador",
-  "Peru"
-]);
-const CITY_TYPE_MESOAMERICAN_COUNTRIES = new Set([
-  "Guatemala",
-  "Mexico",
-  "United States of America"
-]);
-const CITY_TYPE_MEDITERRANEAN_COUNTRIES = new Set([
-  "Albania",
-  "Bulgaria",
-  "Cyprus",
-  "Greece",
-  "Italy",
-  "Portugal",
-  "Romania",
-  "Serbia",
-  "Spain"
-]);
-const CITY_TYPE_NORTHERN_EUROPEAN_COUNTRIES = new Set([
-  "Austria",
-  "Belgium",
-  "Denmark",
-  "France",
-  "Germany",
-  "Hungary",
-  "Iceland",
-  "Ireland",
-  "Lithuania",
-  "Netherlands",
-  "Norway",
-  "Poland",
-  "Russian Federation",
-  "Sweden",
-  "Ukraine",
-  "United Kingdom"
-]);
-const CITY_TYPE_ISLAMIC_DESERT_COUNTRIES = new Set([
-  "Afghanistan",
-  "Algeria",
-  "Armenia",
-  "Egypt",
-  "Georgia",
-  "Iran",
-  "Iraq",
-  "Israel",
-  "Kyrgyzstan",
-  "Lebanon",
-  "Libya",
-  "Mauritania",
-  "Morocco",
-  "Oman",
-  "Saudi Arabia",
-  "Sudan",
-  "Sumer",
-  "Syria",
-  "Syria/Turkey",
-  "Tunisia",
-  "Turkey",
-  "Turkey/Syria",
-  "Turkmenistan",
-  "Uzbekistan",
-  "Yemen"
-]);
-const CITY_TYPE_SUB_SAHARAN_COUNTRIES = new Set([
-  "Angola",
-  "Ethiopia",
-  "Guinea",
-  "Kenya",
-  "Mali",
-  "Mozambique",
-  "Nigeria",
-  "Senegal",
-  "Somalia",
-  "Tanzania",
-  "Zimbabwe"
-]);
+const PORT_SAILING_DISTANCE_URL = "assets/data/port-sailing-distances.json";
 const CITY_SPRITE_W = TILE_ART_SIZE;
 const CITY_SPRITE_H = TILE_ART_SIZE;
 const CITY_SHADOW_SOURCE_Y = Math.floor(CITY_SPRITE_H / 2);
@@ -1101,6 +1023,7 @@ const ANCHOR_BUTTON_H = INTERACTION_BUTTON_H;
 let ANCHOR_BUTTON_X = Math.floor((SCREEN_W - ANCHOR_BUTTON_W - 4 - INTERACTION_BUTTON_W) / 2);
 let ANCHOR_BUTTON_Y = INTERACTION_BUTTON_Y;
 const ANCHOR_SHORE_MAX_PX = 36;
+const SCAVENGE_SEABIRD_MAX_PX = ANCHOR_SHORE_MAX_PX + 8;
 const SCAVENGE_BUTTON_W = 96;
 const SCAVENGE_ACTION_MS = 3000;
 const PORT_WAIT_BUTTON_W = 176;
@@ -1110,6 +1033,26 @@ const QUEST_ARROW_SIZE_PX = 7;
 const QUEST_ARROW_CONTROL_GAP_PX = 4;
 const QUEST_ARROW_TOOLTIP_GAP_PX = 4;
 const QUEST_ARROW_TOOLTIP_H = 14;
+const QUEST_NAVIGATION_STYLE = Object.freeze({
+  light: "#f9c22b",
+  dark: "#e6904e",
+  shadow: "rgba(33, 24, 20, 0.72)"
+});
+const CAMPAIGN_NAVIGATION_STYLE = Object.freeze({
+  light: "#30e1b9",
+  dark: "#0eaf9b",
+  shadow: "rgba(19, 45, 48, 0.78)"
+});
+const COLONIZATION_NAVIGATION_STYLE = Object.freeze({
+  light: "#8bd5ff",
+  dark: "#277bb8",
+  shadow: "rgba(14, 35, 56, 0.78)"
+});
+const OPTIONAL_NAVIGATION_STYLE = Object.freeze({
+  light: "#94b0c2",
+  dark: "#566c86",
+  shadow: "rgba(26, 28, 44, 0.78)"
+});
 const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
 const MOUNTAIN_DISCOVERY_NOTICE_MS = 4600;
 const MOUNTAIN_DISCOVERY_PANEL_W = 230;
@@ -1119,9 +1062,12 @@ const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
 const SURVIVAL_PANEL_W = 120;
-const SURVIVAL_PANEL_H = 44;
+const SURVIVAL_PANEL_H = 58;
 const SURVIVAL_BAR_W = 46;
 const SURVIVAL_BAR_H = 4;
+// Match the visible gap between the Water and Food meter outlines.
+const SURVIVAL_CREW_ROW_Y = 46;
+const SURVIVAL_CREW_ROW_PAD_X = 5;
 const SURVIVAL_NOTICE_MS = 2400;
 const SURVIVAL_DEHYDRATION_CREW_LOSS = 1;
 const SURVIVAL_STARVATION_CREW_LOSS = 1;
@@ -1209,6 +1155,7 @@ const POINTER_TAP_ACTION_MAX_TRAVEL_PX = 5;
 const PIXEL_FONT_SMALL_8 = "8px \"Silkscreen\", monospace";
 const PIXEL_FONT_DIALOGUE_8 = "8px \"Dogica\", monospace";
 const PIXEL_FONT_TITLE_8 = "8px \"Pixel Pirate\", monospace";
+const PIXEL_FONT_SMALL_INK_TOP_OFFSET = 3;
 const PIXEL_TEXT_RASTER_CACHE_LIMIT = 2048;
 const PIRATE_MENU_PAPER = "#ead8b2";
 const PIRATE_MENU_PAPER_BUTTON = "#d6bd8f";
@@ -1223,18 +1170,16 @@ const PIRATE_MENU_SUCCESS = "#547e64";
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
-const MINIMAP_CENTER_X = Math.floor(MINIMAP_W / 2);
 const MINIMAP_MAX_LAT_DEG = 72;
-const MINIMAP_MAX_MERCATOR = mercatorYForLatDeg(MINIMAP_MAX_LAT_DEG);
 let MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 let MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
-const MINIMAP_TILE_OUT_OF_RANGE = 0xffff;
 const MINIMAP_UNKNOWN_COLOR = [74, 66, 55];
 const MINIMAP_WATER_COLOR = [184, 151, 95];
 const MINIMAP_LAND_COLOR = [92, 59, 31];
 const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
+const MINIMAP_SAMPLE_OFFSETS = Object.freeze([1 / 6, 3 / 6, 5 / 6]);
 const OPTIONS_BUTTON_SIZE = 27;
 let OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
@@ -1265,14 +1210,19 @@ const CAPTAIN_MENU_ACTIONS = Object.freeze([
   Object.freeze({ id: "ship", label: "SHIP & LEDGER", iconId: "menu:ship" }),
   Object.freeze({ id: "politics", label: "POLITICS", iconId: "menu:politics" }),
   Object.freeze({ id: "discoveries", label: "DISCOVERIES", iconId: "menu:discoveries" }),
+  Object.freeze({ id: "navigation", label: "NAVIGATION ICONS", iconId: "action:navigation" }),
   Object.freeze({ id: "sailing-basics", label: "SAILING BASICS", iconId: "action:quest" }),
   Object.freeze({ id: "options", label: "OPTIONS", iconId: "menu:options" })
 ]);
 const CAPTAIN_MENU_PANEL_W = 224;
 const CAPTAIN_MENU_PANEL_H = 226;
+const NAVIGATION_MENU_PANEL_W = 420;
+const NAVIGATION_MENU_PANEL_H = 226;
+const NAVIGATION_MENU_ROW_H = 38;
+const NAVIGATION_MENU_PAGE_SIZE = 4;
 const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "whale-song-1";
+const SFX_ASSET_VERSION = "crew-death-1";
 const ANIMAL_ASSET_VERSION = "whale-species-1";
 const STORM_SHIP_STRIKE_ASSET_VERSION = "infected-tribe-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
@@ -1379,6 +1329,7 @@ const SFX_FISHING_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_SCAVENGE_SUCCESS_URL = "assets/sfx/freesound_community-item-pickup-37089.ogg";
 const SFX_SCAVENGE_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_FIRE_URL = "assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg";
+const SFX_CREW_DEATH_URL = "assets/sfx/universfield-dramatic-death-collapse-352720.ogg";
 const SFX_WHALE_BLOW_URL = "assets/sfx/nps-humpback-whale-surface-blow.ogg";
 const SFX_WHALE_SONG_URLS = Object.freeze([
   "assets/sfx/dragon-studio-creepy-whale-song-323612.ogg",
@@ -1399,6 +1350,7 @@ const SFX_FISHING_FAILURE_POOL_SIZE = 2;
 const SFX_SCAVENGE_SUCCESS_POOL_SIZE = 2;
 const SFX_SCAVENGE_FAILURE_POOL_SIZE = 2;
 const SFX_LIGHTNING_POOL_SIZE = 2;
+const SFX_CREW_DEATH_POOL_SIZE = 2;
 const SFX_WHALE_BLOW_POOL_SIZE = 3;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_BOW_FIRE_VOLUME = 0.68;
@@ -1413,6 +1365,7 @@ const SFX_FISHING_FAILURE_VOLUME = 0.46;
 const SFX_SCAVENGE_SUCCESS_VOLUME = 0.62;
 const SFX_SCAVENGE_FAILURE_VOLUME = 0.44;
 const SFX_LIGHTNING_VOLUME = 0.72;
+const SFX_CREW_DEATH_VOLUME = 0.52;
 const SFX_WHALE_BLOW_VOLUME = 0.7;
 const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
@@ -1452,10 +1405,11 @@ const WHALE_ASSET_SLUGS = Object.freeze([
 ]);
 const WHALE_HARPOON_PROJECTILE_SECONDS = 0.52;
 const WHALE_HARPOON_ARC_PX = 3;
-const WHALE_BLOW_DURATION_MS = 2300;
+const WHALE_BLOW_DURATION_MS = WHALE_BLOW_DURATION_SECONDS * 1000;
 const WHALE_TARGET_HIT_RADIUS_PX = 18;
 const WHALE_SUBMERGED_ALPHA = 0.34;
 const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
+const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
 const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
@@ -1608,6 +1562,9 @@ let factionFlagImages;
 let animalImages;
 let stormShipStrikeImage;
 let fireEffectImage;
+let statusHudImages;
+let statusPersonImages;
+let statusPersonOpaquePixels;
 let cityCatalog;
 let cityByTileId;
 let npcShipAssetsBySlug;
@@ -1633,6 +1590,8 @@ let portCityCharacters;
 let campaignGoalContact;
 let colonizationOrganizer;
 let colonizationTargetTileId = null;
+let colonizationTargetPlacements = [];
+let portSailingDistances;
 let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
@@ -1755,16 +1714,20 @@ let fishAnimationDrawTick = -1;
 let precipParticleDrawTick = -1;
 let precipParticles = [];
 let precipParticleSerial = 1;
+let statusPersonParticles = [];
+let statusPersonParticleSerial = 1;
 let visiblePrecipitationLastRender = false;
 let seagulls = [];
 let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
+const consumedLandedSeagullIds = new Set();
 const optionsMenu = createOptionsMenuState();
 const creditsMenu = createCreditsMenuState();
 const pastVoyagesMenu = createPastVoyagesMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
 const shipInfoMenu = createShipInfoMenuState();
 const politicsMenu = createPoliticsMenuState();
+const navigationMenu = createNavigationMenuState();
 const captainMenu = createCaptainMenuState();
 const cheatCodeInput = createCheatCodeInputState();
 
@@ -1874,10 +1837,12 @@ async function main() {
     loadedAnimalImages,
     loadedStormShipStrikeImage,
     loadedFireEffectImage,
+    loadedStatusHudImages,
     loadedCityCatalog,
     loadedCharacterPortraitManifest,
     loadedNamedMountains,
     loadedCreditsMarkdown,
+    loadedPortSailingDistanceData,
     earth,
     discreteWeatherBuffer,
     runtimeWeatherBuffer
@@ -1900,10 +1865,12 @@ async function main() {
     loadAnimalImages(),
     loadStormShipStrikeImage(),
     loadFireEffectImage(),
+    loadStatusHudImages(),
     loadCityCatalog(CITY_DATA_YEAR),
     loadCharacterPortraitManifest(),
     loadNamedMountains(),
     fetchText(CREDITS_MARKDOWN_URL, "credits"),
+    fetchJson(PORT_SAILING_DISTANCE_URL, "port sailing distances"),
     fetchEarthCache(),
     fetchBinary("shared/discrete-weather-bake-7.bin", "discrete weather bake"),
     fetchBinary("shared/globe-runtime-bake-7.bin", "globe runtime bake")
@@ -1925,6 +1892,9 @@ async function main() {
   animalImages = loadedAnimalImages;
   stormShipStrikeImage = loadedStormShipStrikeImage;
   fireEffectImage = loadedFireEffectImage;
+  statusHudImages = loadedStatusHudImages;
+  statusPersonImages = createStatusPersonImages(statusHudImages.crew);
+  statusPersonOpaquePixels = opaqueStatusPersonPixels(statusHudImages.crew);
   cityCatalog = loadedCityCatalog;
   creditsMarkdown = loadedCreditsMarkdown;
   localSaveResult = CAPTURE_SCENARIO
@@ -1972,13 +1942,36 @@ async function main() {
   snowyTerrainImages = new Map();
   snowySpriteColors = new Map();
   riverColors = buildRiverColors(images);
-  const riverData = buildRiverMasksFromCache(earth);
-  riverMasks = riverData.masks;
-  riverToWaterMasks = riverData.toWaterMasks;
-  oceanReachableNavigationMask = buildOceanReachableNavigationMask();
+  const navigationTopology = buildWorldNavigationTopology({
+    graph,
+    earthRows,
+    earthCache: earth,
+    subdivisions: SUBDIVISIONS
+  });
+  riverMasks = navigationTopology.riverMasks;
+  riverToWaterMasks = navigationTopology.riverToWaterMasks;
+  oceanReachableNavigationMask = navigationTopology.reachableNavigationMask;
+  const navigationStats = navigationTopology.stats;
+  console.info(
+    `[pixel-globe] river masks loaded: ${navigationStats.riverTileCount} tiles, ` +
+    `${navigationStats.removedBlockedHalfEdges} blocked base half-edges, ` +
+    `${navigationStats.manualHalfEdges} manual half-edge additions, ` +
+    `${navigationStats.manualMouthHalfEdges} manual mouth half-edges, ` +
+    `${navigationStats.derivedMouthHalfEdges} derived coastal mouth half-edges`
+  );
+  console.info(`[pixel-globe] ocean-reachable navigation: ${navigationStats.navigableTileCount} water/river tiles`);
   assertManualShallowWaterReachesOcean(oceanReachableNavigationMask, SUBDIVISIONS);
-  cityByTileId = placeCityCatalog(cityCatalog);
-  colonizationTargetTileId = findColonizationTargetTile();
+  cityByTileId = placeCityCatalogOnWorld({ ...worldPortPlacementOptions(), cities: cityCatalog });
+  colonizationTargetPlacements = placeColonizationTargetsOnWorld({
+    ...worldPortPlacementOptions(),
+    targets: COLONIZATION_TARGETS,
+    occupiedTileIds: cityByTileId.keys()
+  });
+  const portRoyalTarget = colonizationTargetPlacements.find((target) => (
+    target.city === "Port Royal" && target.country === "Canada"
+  ));
+  if (!portRoyalTarget) throw new Error("Port Royal is missing from the water-accessible colony placements");
+  colonizationTargetTileId = portRoyalTarget.tileId;
   waterDepthBands = buildWaterDepthBands();
   stormSystem = createStormSystem({
     neighbors: graph.neighbors,
@@ -2022,7 +2015,19 @@ async function main() {
     );
   }
   characterPortraitManifest = loadedCharacterPortraitManifest;
-  portCities = portCitiesForCharacters();
+  portCities = portCitiesOnWorld(cityByTileId, worldPortPlacementOptions());
+  portSailingDistances = parsePortSailingDistances(loadedPortSailingDistanceData, {
+    subdivisions: SUBDIVISIONS,
+    earthCacheVersion: String(earth.version)
+  });
+  assertPortSailingDistanceCoverage(
+    portSailingDistances,
+    [...portCities, ...colonizationTargetPlacements]
+  );
+  console.info(
+    `[pixel-globe] port sailing distances: ${portSailingDistances.endpoints.length} ` +
+    "current ports and colony sites"
+  );
   factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
   usedCharacterNames = new Set();
@@ -2127,6 +2132,7 @@ async function main() {
     shipStats: ship.stats,
     campaignGoalType
   });
+  consumedLandedSeagullIds.clear();
   ensureWhalePopulation(gameState.memory.whales);
   assignColonizationTargetTile(gameState.memory.colonization, colonizationTargetTileId);
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
@@ -2189,6 +2195,16 @@ async function fetchEarthCache() {
   const res = await fetch("shared/earth-globe-cache-7.json");
   if (!res.ok) throw new Error(`Failed to load Earth cache: HTTP ${res.status}`);
   return res.json();
+}
+
+async function fetchJson(path, label) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Failed to load ${label}: HTTP ${response.status}`);
+  try {
+    return await response.json();
+  } catch (error) {
+    throw new Error(`Failed to parse ${label}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 async function fetchBinary(path, label) {
@@ -2555,6 +2571,57 @@ async function loadFireEffectImage() {
   return image;
 }
 
+async function loadStatusHudImages() {
+  const [crew, doubloon] = await Promise.all([
+    loadAssetImage(`${STATUS_HUD_CREW_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "crew status icon"),
+    loadAssetImage(`${STATUS_HUD_DOUBLOON_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "doubloon status icon")
+  ]);
+  validateImageDimensions(crew, "crew status icon", CREW_STATUS_ICON_WIDTH, CREW_STATUS_ICON_HEIGHT);
+  validateImageDimensions(doubloon, "doubloon status icon", 6, 6);
+  return Object.freeze({ crew, doubloon });
+}
+
+function createStatusPersonImages(crewImage) {
+  return new Map(Object.entries(STATUS_PERSON_COLORS).map(([kind, colors]) => [
+    kind,
+    Object.freeze(colors.map((color) => tintStatusPersonImage(crewImage, color)))
+  ]));
+}
+
+function tintStatusPersonImage(image, color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = CREW_STATUS_ICON_WIDTH;
+  canvas.height = CREW_STATUS_ICON_HEIGHT;
+  const imageCtx = canvas.getContext("2d");
+  if (!imageCtx) throw new Error("Could not create a crew status color variant");
+  imageCtx.imageSmoothingEnabled = false;
+  imageCtx.drawImage(image, 0, 0);
+  imageCtx.globalCompositeOperation = "source-in";
+  imageCtx.fillStyle = color;
+  imageCtx.fillRect(0, 0, canvas.width, canvas.height);
+  imageCtx.globalCompositeOperation = "source-over";
+  return canvas;
+}
+
+function opaqueStatusPersonPixels(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = CREW_STATUS_ICON_WIDTH;
+  canvas.height = CREW_STATUS_ICON_HEIGHT;
+  const imageCtx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!imageCtx) throw new Error("Could not inspect crew status pixels");
+  imageCtx.imageSmoothingEnabled = false;
+  imageCtx.drawImage(image, 0, 0);
+  const rgba = imageCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const pixels = [];
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      if (rgba[(y * canvas.width + x) * 4 + 3] > 0) pixels.push(Object.freeze({ x, y }));
+    }
+  }
+  if (pixels.length === 0) throw new Error("Crew status sprite contains no opaque pixels");
+  return Object.freeze(pixels);
+}
+
 function validateImageDimensions(img, label, expectedWidth, expectedHeight) {
   if (img.width !== expectedWidth || img.height !== expectedHeight) {
     throw new Error(`${label} has ${img.width}x${img.height}; expected ${expectedWidth}x${expectedHeight}`);
@@ -2612,283 +2679,8 @@ function waitForVisiblePage() {
 }
 
 async function loadCityCatalog(targetYear) {
-  if (targetYear !== CITY_DATA_YEAR) {
-    throw new Error(`No city faction map is defined for ${targetYear}; expected ${CITY_DATA_YEAR}`);
-  }
   const csv = await fetchText(CITY_DATA_URL, `${targetYear} city dataset`);
-  const rows = parseCsvRows(csv);
-  if (rows.length < 2) throw new Error(`City dataset has no city rows: ${CITY_DATA_URL}`);
-
-  const header = rows[0];
-  const cityIndex = requiredCsvIndex(header, "city");
-  const countryIndex = requiredCsvIndex(header, "country");
-  const latIndex = requiredCsvIndex(header, "latitude");
-  const lonIndex = requiredCsvIndex(header, "longitude");
-  const yearIndex = requiredCsvIndex(header, "year");
-  const populationIndex = requiredCsvIndex(header, "population");
-  const coastalIntentIndex = optionalCsvIndex(header, "coastal_intent");
-  const lakeIntentIndex = optionalCsvIndex(header, "lake_intent");
-  const observationsByCity = new Map();
-
-  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-    const row = rows[rowIndex];
-    if (row.length === 1 && row[0] === "") continue;
-    const city = requiredCsvCell(row, cityIndex, rowIndex, "city").trim();
-    const country = requiredCsvCell(row, countryIndex, rowIndex, "country").trim();
-    const lat = requiredCsvNumber(row, latIndex, rowIndex, "latitude");
-    const lon = requiredCsvNumber(row, lonIndex, rowIndex, "longitude");
-    const year = requiredCsvInteger(row, yearIndex, rowIndex, "year");
-    const population = requiredCsvNumber(row, populationIndex, rowIndex, "population");
-    const coastalIntent = optionalCsvBoolean(row, coastalIntentIndex);
-    const lakeIntent = optionalCsvBoolean(row, lakeIntentIndex);
-    if (population <= 0) continue;
-
-    const cityId = normalizeCityKey(city, country);
-    const observations = observationsByCity.get(cityId) || [];
-    observations.push({ cityId, city, country, lat, lon, year, population, coastalIntent, lakeIntent });
-    observationsByCity.set(cityId, observations);
-  }
-
-  const bestByCity = new Map();
-  for (const [cityId, observations] of observationsByCity) {
-    const capitalSpec = factionCapitalForCity(observations[0]);
-    const observation = cityPopulationObservationAtYear(observations, targetYear, {
-      allowStaleObservation: Boolean(capitalSpec)
-    });
-    if (!observation) continue;
-    const cityRecord = withColonialFounding({
-      ...observation,
-      displayCity: cityDisplayName(observation.city, observation.country, targetYear),
-      cityType: cityTypeForCity(observation.country, observation.lat, observation.lon)
-    });
-    bestByCity.set(cityId, {
-      ...cityRecord,
-      factionId: factionIdForCity1522(cityRecord),
-      declaredCapitalFactionId: capitalSpec?.factionId || null
-    });
-  }
-
-  ensureManualCityRecords(bestByCity, targetYear);
-  ensureFactionCapitalCityRecords(bestByCity, targetYear);
-
-  const cities = selectCityCatalogRecords(bestByCity.values(), CITY_MAX_COUNT);
-  ensureFactionCapitalsInCityCatalog(cities, bestByCity);
-  ensureManualCitiesInCityCatalog(cities, bestByCity);
-  if (cities.length === 0) throw new Error(`City dataset produced no cities for year ${targetYear}`);
-  return cities;
-}
-
-function ensureManualCityRecords(bestByCity, targetYear) {
-  for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
-    if (manualSpec.year > targetYear) continue;
-    const cityId = normalizeCityKey(manualSpec.city, manualSpec.country);
-    const cityRecord = withColonialFounding({
-      cityId,
-      city: manualSpec.city,
-      displayCity: manualSpec.displayCity || cityDisplayName(manualSpec.city, manualSpec.country, targetYear),
-      country: manualSpec.country,
-      lat: manualSpec.lat,
-      lon: manualSpec.lon,
-      cityType: manualSpec.cityType || cityTypeForCity(manualSpec.country, manualSpec.lat, manualSpec.lon),
-      year: manualSpec.year,
-      population: manualSpec.population,
-      coastalIntent: manualSpec.coastalIntent,
-      lakeIntent: manualSpec.lakeIntent,
-      requiredTradePort: Boolean(manualSpec.requiredTradePort),
-      manualRegion: manualSpec.manualRegion || null,
-      npcInterregionalTradeExcluded: Boolean(manualSpec.npcInterregionalTradeExcluded),
-      settlementType: manualSpec.settlementType || "city",
-      marketGoods: manualSpec.marketGoods || null,
-      playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
-    });
-    const capitalSpec = factionCapitalForCity(cityRecord);
-    bestByCity.set(cityId, {
-      ...cityRecord,
-      factionId: factionIdForCity1522(cityRecord),
-      declaredCapitalFactionId: capitalSpec?.factionId || null
-    });
-  }
-}
-
-function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
-  for (const capitalSpec of factionCapitalCityRecords1522()) {
-    const cityId = normalizeCityKey(capitalSpec.city, capitalSpec.country);
-    if (bestByCity.has(cityId)) continue;
-    const cityRecord = withColonialFounding({
-      cityId,
-      city: capitalSpec.city,
-      displayCity: cityDisplayName(capitalSpec.city, capitalSpec.country, targetYear),
-      country: capitalSpec.country,
-      lat: capitalSpec.lat,
-      lon: capitalSpec.lon,
-      cityType: cityTypeForCity(capitalSpec.country, capitalSpec.lat, capitalSpec.lon),
-      year: targetYear,
-      population: capitalSpec.population,
-      coastalIntent: true,
-      lakeIntent: false
-    });
-    bestByCity.set(cityId, {
-      ...cityRecord,
-      factionId: factionIdForCity1522(cityRecord),
-      declaredCapitalFactionId: capitalSpec.factionId,
-      requiredFactionCapital: true
-    });
-  }
-}
-
-function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
-  const included = new Set(cities.map((city) => city.cityId));
-  for (const capitalSpec of FACTION_CAPITALS_1522) {
-    const cityId = normalizeCityKey(capitalSpec.city, capitalSpec.country);
-    if (included.has(cityId)) continue;
-    const city = bestByCity.get(cityId);
-    if (!city) {
-      throw new Error(`No city catalog record for faction capital: ${capitalSpec.city}, ${capitalSpec.country}`);
-    }
-    if (city.factionId !== capitalSpec.factionId) {
-      throw new Error(
-        `Faction capital ${capitalSpec.city}, ${capitalSpec.country} belongs to ${city.factionId}, not ${capitalSpec.factionId}`
-      );
-    }
-    cities.push(city);
-    included.add(cityId);
-  }
-}
-
-function ensureManualCitiesInCityCatalog(cities, bestByCity) {
-  const included = new Set(cities.map((city) => city.cityId));
-  for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
-    const cityId = normalizeCityKey(manualSpec.city, manualSpec.country);
-    if (included.has(cityId)) continue;
-    const city = bestByCity.get(cityId);
-    if (!city) throw new Error(`No city catalog record for manual city: ${manualSpec.city}, ${manualSpec.country}`);
-    cities.push(city);
-    included.add(cityId);
-  }
-}
-
-function parseCsvRows(csv) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-
-  for (let i = 0; i < csv.length; i++) {
-    const ch = csv[i];
-    if (quoted) {
-      if (ch === "\"") {
-        if (csv[i + 1] === "\"") {
-          cell += "\"";
-          i++;
-        } else {
-          quoted = false;
-        }
-      } else {
-        cell += ch;
-      }
-      continue;
-    }
-
-    if (ch === "\"") {
-      if (cell.length !== 0) throw new Error("Malformed city CSV: quote inside unquoted cell");
-      quoted = true;
-    } else if (ch === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (ch === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else if (ch !== "\r") {
-      cell += ch;
-    }
-  }
-
-  if (quoted) throw new Error("Malformed city CSV: unterminated quoted cell");
-  if (cell.length > 0 || row.length > 0) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows;
-}
-
-function requiredCsvIndex(header, name) {
-  const index = header.indexOf(name);
-  if (index < 0) throw new Error(`City dataset is missing required column: ${name}`);
-  return index;
-}
-
-function optionalCsvIndex(header, name) {
-  const index = header.indexOf(name);
-  return index >= 0 ? index : null;
-}
-
-function requiredCsvCell(row, index, rowIndex, name) {
-  const value = row[index];
-  if (value == null || value.trim() === "") {
-    throw new Error(`City dataset row ${rowIndex + 1} is missing ${name}`);
-  }
-  return value;
-}
-
-function requiredCsvNumber(row, index, rowIndex, name) {
-  const value = Number(requiredCsvCell(row, index, rowIndex, name));
-  if (!Number.isFinite(value)) {
-    throw new Error(`City dataset row ${rowIndex + 1} has invalid ${name}`);
-  }
-  return value;
-}
-
-function requiredCsvInteger(row, index, rowIndex, name) {
-  const value = Number(requiredCsvCell(row, index, rowIndex, name));
-  if (!Number.isInteger(value)) {
-    throw new Error(`City dataset row ${rowIndex + 1} has invalid ${name}`);
-  }
-  return value;
-}
-
-function optionalCsvBoolean(row, index) {
-  if (index == null) return false;
-  const value = String(row[index] ?? "").trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes";
-}
-
-function normalizeCityKey(city, country) {
-  return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
-}
-
-function cityDisplayName(city, country, targetYear) {
-  const rules = CITY_DISPLAY_NAME_OVERRIDES.get(normalizeCityKey(city, country));
-  if (!rules) return city;
-  const rule = rules.find((item) => targetYear <= item.throughYear);
-  return rule?.displayCity || city;
-}
-
-function cityTypeForCity(country, lat, lon) {
-  if (CITY_TYPE_EAST_ASIAN_COUNTRIES.has(country)) return "east-asian";
-  if (CITY_TYPE_SOUTH_ASIAN_COUNTRIES.has(country)) return "south-asian";
-  if (CITY_TYPE_SOUTHEAST_ASIAN_COUNTRIES.has(country)) return "southeast-asian";
-  if (CITY_TYPE_POLYNESIAN_COUNTRIES.has(country)) return "polynesian";
-  if (CITY_TYPE_ANDEAN_COUNTRIES.has(country)) return "andean";
-  if (CITY_TYPE_MESOAMERICAN_COUNTRIES.has(country)) return "mesoamerican";
-  if (country === "France" && isMediterraneanFrance(lat, lon)) return "mediterranean";
-  if (country === "Mali" && lat < 14) return "sub-saharan";
-  if (country === "Russian Federation" && lat < 47 && lon > 30) return "mediterranean";
-  if (country === "Ukraine" && lat < 46 && lon > 30) return "mediterranean";
-  if (CITY_TYPE_MEDITERRANEAN_COUNTRIES.has(country)) return "mediterranean";
-  if (CITY_TYPE_NORTHERN_EUROPEAN_COUNTRIES.has(country)) return "northern-european";
-  if (CITY_TYPE_ISLAMIC_DESERT_COUNTRIES.has(country)) return "islamic-desert";
-  if (CITY_TYPE_SUB_SAHARAN_COUNTRIES.has(country)) return "sub-saharan";
-  throw new Error(`No city type art bucket for city country: ${country}`);
-}
-
-function isMediterraneanFrance(lat, lon) {
-  return lat < 45.5 && lon > 2;
-}
-
-function cityLabelText(city) {
-  return city.portAlias || city.displayCity || city.city;
+  return loadCityCatalogFromCsv(csv, targetYear);
 }
 
 async function loadShipLightingBake(shipSpriteKey) {
@@ -3145,202 +2937,8 @@ function colorBrightness(color) {
   return color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
 }
 
-function buildRiverMasksFromCache(earth) {
-  if (!earth.riverEdges || typeof earth.riverEdges !== "object") {
-    throw new Error("Earth cache is missing riverEdges; rebuild examples/globe-demo/public/earth-globe-cache-7.json");
-  }
-
-  const masks = new Uint8Array(graph.tileCount);
-  const toWaterMasks = new Uint8Array(graph.tileCount);
-  for (const [rawId, edges] of Object.entries(earth.riverEdges)) {
-    const tileId = Number(rawId);
-    if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
-      throw new Error(`Invalid river tile id in Earth cache: ${rawId}`);
-    }
-    if (!Array.isArray(edges)) {
-      throw new Error(`Invalid river edge list for tile ${tileId}`);
-    }
-    for (const edge of edges) {
-      addRiverEdgeMask(masks, tileId, edge, `Earth cache tile ${tileId}`);
-    }
-  }
-
-  if (earth.riverEdgeToWater != null) {
-    if (typeof earth.riverEdgeToWater !== "object") {
-      throw new Error("Earth cache riverEdgeToWater must be an object when present");
-    }
-    for (const [rawId, edges] of Object.entries(earth.riverEdgeToWater)) {
-      const tileId = Number(rawId);
-      if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
-        throw new Error(`Invalid river-to-water tile id in Earth cache: ${rawId}`);
-      }
-      if (!Array.isArray(edges)) {
-        throw new Error(`Invalid river-to-water edge list for tile ${tileId}`);
-      }
-      for (const edge of edges) {
-        addRiverEdgeMask(toWaterMasks, tileId, edge, `Earth cache river-to-water tile ${tileId}`);
-      }
-    }
-  }
-
-  const removed = removeBlockedRiverEdgesFromMasks(
-    graph,
-    masks,
-    MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []
-  );
-  const added = mergeManualRiverChainsIntoMasks(masks);
-  const manualMouthEdges = mergeManualRiverMouthEdgesIntoMasks(masks, toWaterMasks);
-  const mouthEdges = markRiverEdgesOpeningToWater(masks, toWaterMasks);
-  console.info(
-    `[pixel-globe] river masks loaded: ${countRiverTiles(masks)} tiles, ${removed} blocked base half-edges, ${added} manual half-edge additions, ${manualMouthEdges} manual mouth half-edges, ${mouthEdges} derived coastal mouth half-edges`
-  );
-  return { masks, toWaterMasks };
-}
-
-function buildOceanReachableNavigationMask() {
-  const reachable = new Uint8Array(graph.tileCount);
-  const queue = [];
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
-    if (!isOceanNavigationSeedTile(tileId)) continue;
-    reachable[tileId] = 1;
-    queue.push(tileId);
-  }
-
-  for (let head = 0; head < queue.length; head++) {
-    const tileId = queue[head];
-    for (const neighborId of graph.neighbors[tileId]) {
-      if (reachable[neighborId]) continue;
-      if (!canTraverseOceanReachability(tileId, neighborId)) continue;
-      reachable[neighborId] = 1;
-      queue.push(neighborId);
-    }
-  }
-
-  let navigableCount = 0;
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
-    if (isOceanReachableNavigableTile(reachable, tileId)) navigableCount++;
-  }
-  console.info(`[pixel-globe] ocean-reachable navigation: ${navigableCount} water/river tiles`);
-  return reachable;
-}
-
-function isOceanNavigationSeedTile(tileId) {
-  return earthById[tileId]?.t === "water";
-}
-
-function canTraverseOceanReachability(fromTileId, toTileId) {
-  const fromWater = isWaterSurfaceRow(earthById[fromTileId]);
-  const toWater = isWaterSurfaceRow(earthById[toTileId]);
-  if (fromWater && toWater) return true;
-
-  const edgeA = edgeIndexTowardNeighbor(fromTileId, toTileId);
-  const edgeB = edgeIndexTowardNeighbor(toTileId, fromTileId);
-  if (edgeA === undefined || edgeB === undefined) return false;
-
-  const fromRiver = (riverMasks?.[fromTileId] || 0) !== 0;
-  const toRiver = (riverMasks?.[toTileId] || 0) !== 0;
-  if (fromWater && toRiver) {
-    return riverEdgeSet(riverMasks, toTileId, edgeB) || riverEdgeSet(riverToWaterMasks, toTileId, edgeB);
-  }
-  if (fromRiver && toWater) {
-    return riverEdgeSet(riverMasks, fromTileId, edgeA) || riverEdgeSet(riverToWaterMasks, fromTileId, edgeA);
-  }
-  if (fromRiver && toRiver) {
-    return riverEdgeSet(riverMasks, fromTileId, edgeA) && riverEdgeSet(riverMasks, toTileId, edgeB);
-  }
-  return false;
-}
-
-function isOceanReachableNavigableTile(reachable, tileId) {
-  if (!reachable?.[tileId]) return false;
-  return isWaterSurfaceRow(earthById[tileId]) || (riverMasks?.[tileId] || 0) !== 0;
-}
-
-function markRiverEdgesOpeningToWater(masks, toWaterMasks) {
-  let added = 0;
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
-    const mask = masks[tileId];
-    if (mask === 0 || isWaterSurfaceRow(earthById[tileId])) continue;
-    const edgeCount = graph.edgeCount[tileId];
-    for (let edge = 0; edge < edgeCount; edge++) {
-      if ((mask & (1 << edge)) === 0) continue;
-      const neighborId = graph.edgeNeighbors[tileId]?.[edge];
-      if (neighborId === undefined) {
-        throw new Error(`River edge ${edge} on tile ${tileId} has no edge neighbor`);
-      }
-      if (isWaterSurfaceRow(earthById[neighborId])) {
-        added += addRiverEdgeMask(toWaterMasks, tileId, edge, `derived river-to-water tile ${tileId}`);
-      }
-    }
-  }
-  return added;
-}
-
-function mergeManualRiverChainsIntoMasks(masks) {
-  const chains = MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
-  let added = 0;
-  for (const chain of chains) {
-    for (let i = 0; i < chain.length - 1; i++) {
-      added += addRiverEdgeBetween(masks, chain[i], chain[i + 1], "manual river chain");
-    }
-  }
-  return added;
-}
-
-function mergeManualRiverMouthEdgesIntoMasks(masks, toWaterMasks) {
-  const mouths = MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
-  let added = 0;
-  for (const mouth of mouths) {
-    const { tile, edge } = mouth;
-    const neighborId = graph.edgeNeighbors[tile]?.[edge];
-    if (neighborId === undefined) {
-      throw new Error(`manual river mouth: tile ${tile} has no edge ${edge}`);
-    }
-    if (!isWaterSurfaceRow(earthById[neighborId])) {
-      throw new Error(`manual river mouth: tile ${tile} edge ${edge} does not touch water`);
-    }
-    added += addRiverEdgeMask(masks, tile, edge, `manual river mouth tile ${tile}`);
-    addRiverEdgeMask(toWaterMasks, tile, edge, `manual river mouth tile ${tile}`);
-  }
-  return added;
-}
-
-function addRiverEdgeBetween(masks, a, b, source) {
-  const edgeA = edgeIndexTowardNeighbor(a, b);
-  const edgeB = edgeIndexTowardNeighbor(b, a);
-  if (edgeA === undefined || edgeB === undefined) {
-    throw new Error(`${source}: tiles ${a} and ${b} are not adjacent`);
-  }
-  let added = 0;
-  added += addRiverEdgeMask(masks, a, edgeA, `${source} ${a}->${b}`);
-  added += addRiverEdgeMask(masks, b, edgeB, `${source} ${b}->${a}`);
-  return added;
-}
-
-function addRiverEdgeMask(masks, tileId, edge, source) {
-  const edgeCount = graph.edgeCount[tileId];
-  if (!Number.isInteger(edge) || edge < 0 || edge >= edgeCount) {
-    throw new Error(`${source}: invalid edge ${edge}; tile ${tileId} has ${edgeCount} edges`);
-  }
-  const bit = 1 << edge;
-  if ((masks[tileId] & bit) !== 0) return 0;
-  masks[tileId] |= bit;
-  return 1;
-}
-
 function edgeIndexTowardNeighbor(tileId, neighborId) {
-  const edgeNeighbors = graph.edgeNeighbors[tileId];
-  if (!edgeNeighbors) return undefined;
-  const edge = edgeNeighbors.indexOf(neighborId);
-  return edge >= 0 ? edge : undefined;
-}
-
-function countRiverTiles(masks) {
-  let count = 0;
-  for (const mask of masks) {
-    if (mask !== 0) count++;
-  }
-  return count;
+  return worldEdgeIndexTowardNeighbor(graph, tileId, neighborId);
 }
 
 function buildWaterDepthBands() {
@@ -3486,6 +3084,7 @@ function runFrame(nowMs) {
   }
   if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
+  if (updateStatusPersonParticles(nowMs)) dirty = true;
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
   if (!CAPTURE_SCENARIO && hasStartedVoyage && nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
@@ -3500,6 +3099,7 @@ function runFrame(nowMs) {
   } else if (!startMenu && !creditsMenu.isOpen && !playerIntroModal && nowMs - lastOverlayMs > 250) {
     if (minimapShouldBeVisible()) drawMinimap(nowMs);
     drawSurvivalMeters();
+    drawStatusPersonParticles(nowMs);
     if (portWaitState) drawPortWaitControls();
     else drawCaptainMenuButton();
     lastOverlayMs = nowMs;
@@ -3965,16 +3565,30 @@ function createPoliticsMenuState() {
   };
 }
 
+function createNavigationMenuState() {
+  return {
+    isOpen: false,
+    page: 0,
+    selectedIndex: 0,
+    panelRect: null,
+    closeButtonRect: null,
+    rowRects: [],
+    removeButtonRects: [],
+    previousPageRect: null,
+    nextPageRect: null
+  };
+}
+
 function menusAreOpen() {
   return Boolean(startMenu) || creditsMenu.isOpen || optionsMenu.isOpen ||
     pastVoyagesMenu.isOpen || discoveriesMenu.isOpen || shipInfoMenu.isOpen ||
-    politicsMenu.isOpen || captainMenu.isOpen ||
+    politicsMenu.isOpen || navigationMenu.isOpen || captainMenu.isOpen ||
     Boolean(captainAlertModal);
 }
 
 function captainChildMenuIsOpen() {
   return optionsMenu.isOpen || creditsMenu.isOpen || discoveriesMenu.isOpen ||
-    shipInfoMenu.isOpen || politicsMenu.isOpen;
+    shipInfoMenu.isOpen || politicsMenu.isOpen || navigationMenu.isOpen;
 }
 
 function currentInteractionInputOwner() {
@@ -3990,6 +3604,7 @@ function currentInteractionInputOwner() {
     shipInfoActive: shipInfoMenu.isOpen,
     politicsActive: politicsMenu.isOpen,
     discoveriesActive: discoveriesMenu.isOpen,
+    navigationActive: navigationMenu.isOpen,
     dialogueActive: Boolean(dialogueState),
     portWaitActive: Boolean(portWaitState),
     fishingActive: Boolean(fishingAction)
@@ -4009,6 +3624,7 @@ function dispatchWorldOverlayKey(event) {
   else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoKeyDown(event);
   else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsKeyDown(event);
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesKeyDown(event);
+  else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuKeyDown(event);
   else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialogueKeyDown(event);
   else if (owner === INTERACTION_INPUT.PORT_WAIT) handlePortWaitKeyDown(event);
   else if (owner === INTERACTION_INPUT.FISHING) event.preventDefault();
@@ -4036,6 +3652,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
   else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoPointerDown(point);
   else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsPointerDown(point);
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesPointerDown(point);
+  else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuPointerDown(point);
   else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialoguePointerDown(point);
   else if (owner === INTERACTION_INPUT.PORT_WAIT) {
     if (pointInRect(point, portWaitButtonRect)) stopWaitingInPort();
@@ -4063,6 +3680,9 @@ function dispatchWorldOverlayPointerMove(point) {
     dirty = true;
   } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) {
     updateCaptainMenuSelectionFromPoint(point);
+    dirty = true;
+  } else if (owner === INTERACTION_INPUT.NAVIGATION) {
+    updateNavigationMenuSelectionFromPoint(point);
     dirty = true;
   } else if (owner === INTERACTION_INPUT.DIALOGUE) {
     updateDialogueSelectionFromPoint(point);
@@ -4122,6 +3742,7 @@ function setupSoundEffects() {
       SFX_LIGHTNING_POOL_SIZE,
       "storm lightning"
     ),
+    crewDeath: createSoundPool(SFX_CREW_DEATH_URL, SFX_CREW_DEATH_POOL_SIZE, "crew death"),
     whaleBlow: createSoundPool(SFX_WHALE_BLOW_URL, SFX_WHALE_BLOW_POOL_SIZE, "whale surface blow"),
     whaleSongs: createAmbientPlaylist(SFX_WHALE_SONG_URLS, "underwater whale song"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
@@ -4406,6 +4027,10 @@ function playCannonShotSound(broadsideCount, distancePx = 0) {
 
 function playLightningStrikeSound() {
   playSoundEffect(soundEffects?.lightning, SFX_LIGHTNING_VOLUME, 1);
+}
+
+function playCrewDeathSound() {
+  playSoundEffect(soundEffects?.crewDeath, SFX_CREW_DEATH_VOLUME, 0.97 + Math.random() * 0.06);
 }
 
 function playWhaleBlowSound() {
@@ -5042,6 +4667,7 @@ function openShipInfoMenu() {
   closeOptionsMenu();
   closeDiscoveriesMenu();
   closePoliticsMenu();
+  closeNavigationMenu();
   shipInfoMenu.isOpen = true;
   shipInfoMenu.view = "vessel";
   shipInfoMenu.cargoPage = 0;
@@ -5659,8 +5285,8 @@ function startNewVoyage() {
   playerBoundaryAssistContact = null;
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
   hasStartedVoyage = true;
-  revealMinimapFromChart(chart, chartOffsetPixels(chart));
   closeStartMenu();
+  revealMinimapFromChart(chart, chartOffsetPixels(chart));
   saveVoyageNow("new voyage");
 }
 
@@ -5698,6 +5324,7 @@ async function continueSavedVoyage() {
     await restoreSavedVoyage(localSaveResult.save.payload);
     hasStartedVoyage = true;
     closeStartMenu();
+    revealMinimapFromChart(chart, chartOffsetPixels(chart));
     saveVoyageNow("continued voyage");
   } catch (error) {
     console.warn("[pixel-globe] could not continue the local save", error);
@@ -5743,6 +5370,7 @@ async function restoreSavedVoyage(payload) {
   });
 
   gameState = restoredGameState;
+  consumedLandedSeagullIds.clear();
   familyDebtReturnReminderDelivered = false;
   restoreCartographyFromGameState();
   applyCurrentPortConquestOwnership();
@@ -5923,6 +5551,7 @@ function openCreditsMenu() {
   closeDiscoveriesMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
+  closeNavigationMenu();
   creditsMenu.isOpen = true;
   creditsMenu.page = 0;
   keys.clear();
@@ -5982,6 +5611,7 @@ function openOptionsMenu() {
   closeDiscoveriesMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
+  closeNavigationMenu();
   closeCreditsMenu();
   closePastVoyagesMenu();
   optionsMenu.isOpen = true;
@@ -5997,6 +5627,7 @@ function openDiscoveriesMenu() {
   closeOptionsMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
+  closeNavigationMenu();
   discoveriesMenu.isOpen = true;
   discoveriesMenu.page = 0;
   keys.clear();
@@ -6018,6 +5649,7 @@ function openPoliticsMenu() {
   closeOptionsMenu();
   closeDiscoveriesMenu();
   closeShipInfoMenu();
+  closeNavigationMenu();
   politicsMenu.isOpen = true;
   politicsMenu.page = 0;
   keys.clear();
@@ -6031,6 +5663,33 @@ function closePoliticsMenu() {
   politicsMenu.closeButtonRect = null;
   politicsMenu.previousPageRect = null;
   politicsMenu.nextPageRect = null;
+  dirty = true;
+}
+
+function openNavigationMenu() {
+  if (!gameState) throw new Error("Cannot open navigation icons before the game is ready");
+  closeOptionsMenu();
+  closeDiscoveriesMenu();
+  closeShipInfoMenu();
+  closePoliticsMenu();
+  navigationMenu.isOpen = true;
+  navigationMenu.page = 0;
+  navigationMenu.selectedIndex = 0;
+  navigationMenu.rowRects = [];
+  navigationMenu.removeButtonRects = [];
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeNavigationMenu() {
+  navigationMenu.isOpen = false;
+  navigationMenu.panelRect = null;
+  navigationMenu.closeButtonRect = null;
+  navigationMenu.rowRects = [];
+  navigationMenu.removeButtonRects = [];
+  navigationMenu.previousPageRect = null;
+  navigationMenu.nextPageRect = null;
   dirty = true;
 }
 
@@ -6057,6 +5716,36 @@ function handleDiscoveriesKeyDown(event) {
     stepDiscoveriesPage(-1);
   } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
     stepDiscoveriesPage(1);
+  }
+}
+
+function handleNavigationMenuKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closeNavigationMenu();
+    return;
+  }
+  if (["ArrowLeft", "PageUp"].includes(event.key)) {
+    stepNavigationMenuPage(-1);
+    return;
+  }
+  if (["ArrowRight", "PageDown"].includes(event.key)) {
+    stepNavigationMenuPage(1);
+    return;
+  }
+  const page = navigationMenuPage();
+  if (["ArrowUp", "ArrowDown"].includes(event.key)) {
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    navigationMenu.selectedIndex = stepMenuIndex(
+      navigationMenu.selectedIndex,
+      direction,
+      Math.max(1, page.rows.length)
+    );
+    dirty = true;
+    return;
+  }
+  if (["Enter", " ", "Backspace", "Delete"].includes(event.key)) {
+    removeSelectedNavigationWaypoint();
   }
 }
 
@@ -6108,6 +5797,7 @@ function openCaptainMenu() {
   closeDiscoveriesMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
+  closeNavigationMenu();
   closeCreditsMenu();
   captainMenu.isOpen = true;
   captainMenu.selectedIndex = 0;
@@ -6150,6 +5840,7 @@ function activateCaptainMenuSelection(index) {
   if (action.id === "ship") openShipInfoMenu();
   else if (action.id === "politics") openPoliticsMenu();
   else if (action.id === "discoveries") openDiscoveriesMenu();
+  else if (action.id === "navigation") openNavigationMenu();
   else if (action.id === "sailing-basics") {
     closeCaptainMenu();
     if (!openSailingHelpModal(sailingTutorialInputMode)) {
@@ -6653,6 +6344,36 @@ function handleDiscoveriesPointerDown(point) {
   if (pointInRect(point, discoveriesMenu.nextPageRect)) stepDiscoveriesPage(1);
 }
 
+function handleNavigationMenuPointerDown(point) {
+  if (pointInRect(point, navigationMenu.closeButtonRect)) {
+    closeNavigationMenu();
+    return;
+  }
+  if (pointInRect(point, navigationMenu.previousPageRect)) {
+    stepNavigationMenuPage(-1);
+    return;
+  }
+  if (pointInRect(point, navigationMenu.nextPageRect)) {
+    stepNavigationMenuPage(1);
+    return;
+  }
+  updateNavigationMenuSelectionFromPoint(point);
+  for (let index = 0; index < navigationMenu.removeButtonRects.length; index++) {
+    if (!pointInRect(point, navigationMenu.removeButtonRects[index])) continue;
+    navigationMenu.selectedIndex = index;
+    removeSelectedNavigationWaypoint();
+    return;
+  }
+}
+
+function updateNavigationMenuSelectionFromPoint(point) {
+  for (let index = 0; index < navigationMenu.rowRects.length; index++) {
+    if (!pointInRect(point, navigationMenu.rowRects[index])) continue;
+    navigationMenu.selectedIndex = index;
+    return;
+  }
+}
+
 function handlePoliticsPointerDown(point) {
   if (pointInRect(point, politicsMenu.closeButtonRect)) {
     closePoliticsMenu();
@@ -6856,6 +6577,7 @@ function openActiveInteractionDialogue() {
 function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
+  clearPortNavigationWaypointsAt(gameState, cityCall.tileId);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   if (isColonizationQuestTarget(cityCall) &&
@@ -7024,6 +6746,7 @@ function attemptPlayerPortConquest(cityCall) {
   const outcome = resolvePortConquest(status, Math.random(), Math.random());
   if (!outcome.success) {
     const lost = loseCrew(gameState, outcome.crewLost);
+    presentCrewLoss(lost);
     syncShipCargoFromGameState();
     closeDialogue();
     showSurvivalNotice(`${lost} MARINES LOST`, "warn");
@@ -7090,7 +6813,9 @@ function applyAutomaticPortServices(cityCall) {
   if (loadout?.additions.crew > 0) labels.push(`CREW +${loadout.additions.crew}`);
   if (loadout?.additions.cannons > 0) labels.push(`GUNS +${loadout.additions.cannons}`);
   if (loadout?.additions.water > 0) labels.push(`WATER +${Math.ceil(loadout.additions.water)}`);
-  if (loadout?.additions.food > 0) labels.push(`FOOD +${loadout.additions.food}`);
+  if (loadout?.additions.food > 0) {
+    labels.push(`FOOD +${foodRationsForCargoQuantity(loadout.additions.food)}R`);
+  }
   if (loadout?.spent > 0) playCoinClinkSound();
   syncShipCargoFromGameState();
   if (labels.length > 0) showSurvivalNotice(`PORT: ${labels.join(" ")}`, "good");
@@ -7246,7 +6971,8 @@ function startShoreScavenge() {
   shoreScavengeAction = {
     startedAtMs: lastFrameMs,
     completesAtMs: lastFrameMs + SCAVENGE_ACTION_MS,
-    context: currentShoreScavengeContext()
+    context: currentShoreScavengeContext(),
+    landedSeabirdId: nearestScavengeSeabirdCall()?.id ?? null
   };
   stopShipForDialogue();
   showSurvivalNotice("SCAVENGING ASHORE...", "good");
@@ -7256,9 +6982,37 @@ function startShoreScavenge() {
 
 function updateShoreScavenge(nowMs) {
   if (!shoreScavengeAction || nowMs < shoreScavengeAction.completesAtMs) return false;
-  const context = shoreScavengeAction.context;
+  const action = shoreScavengeAction;
+  const context = action.context;
   shoreScavengeAction = null;
-  const outcome = rollShoreScavenge(context);
+  const outcome = replaceFailedScavengeWithSeabird(
+    rollShoreScavenge(context),
+    Number.isInteger(action.landedSeabirdId)
+  );
+  if (outcome === SHORE_SCAVENGE_SEABIRD) {
+    consumeLandedSeagull(action.landedSeabirdId);
+    const bird = caughtSeabird(context);
+    const article = /^[aeiou]/i.test(bird.name) ? "an" : "a";
+    const found = stowForagedFood(gameState, bird.foodRations);
+    const narrative = `The shore party crept close to ${article} resting ${bird.name} and caught it before it could take wing.`;
+    if (found > 0) {
+      playScavengeSuccessSound();
+      showSurvivalNotice(`CAUGHT ${article.toUpperCase()} ${bird.name.toUpperCase()}  FOOD +${found}`, "good");
+      openCaptainAlertModal(`${narrative} We gained ${found} food.`, "happy");
+    } else {
+      playScavengeFailureSound();
+      showSurvivalNotice(`CAUGHT ${article.toUpperCase()} ${bird.name.toUpperCase()}  HOLD FULL`, "warn");
+      openCaptainAlertModal(`${narrative} There was no room in the hold.`, "concerned");
+    }
+  } else {
+    resolveOrdinaryShoreScavenge(outcome, context);
+  }
+  syncShipCargoFromGameState();
+  saveVoyageNow("shore scavenging");
+  return true;
+}
+
+function resolveOrdinaryShoreScavenge(outcome, context) {
   const narrative = shoreScavengeNarrative(outcome, context);
   if (outcome === SHORE_SCAVENGE_WATER) {
     const noticeLabel = shoreScavengeNoticeLabel(outcome, context);
@@ -7290,6 +7044,7 @@ function updateShoreScavenge(nowMs) {
     openCaptainAlertModal(narrative, "sad");
   } else if (outcome === SHORE_SCAVENGE_CASUALTY) {
     const lost = loseCrew(gameState, 1);
+    presentCrewLoss(lost);
     playScavengeFailureSound();
     syncShipCargoFromGameState();
     showSurvivalNotice(`${lost} CREW LOST ASHORE`, "warn");
@@ -7299,9 +7054,30 @@ function updateShoreScavenge(nowMs) {
       openCaptainAlertModal(narrative, "sad");
     }
   }
-  syncShipCargoFromGameState();
-  saveVoyageNow("shore scavenging");
-  return true;
+}
+
+function nearestScavengeSeabirdCall() {
+  if (!chart || !localLayout) return null;
+  const maxDistance2 = SCAVENGE_SEABIRD_MAX_PX * SCAVENGE_SEABIRD_MAX_PX;
+  let nearest = null;
+  let nearestDistance2 = Infinity;
+  for (const call of landedSeagullCalls(chart)) {
+    const centerX = call.x + Math.floor(SEAGULL_FRAME_SIZE / 2);
+    const centerY = call.y + Math.floor(SEAGULL_FRAME_SIZE / 2);
+    const callDistance2 = distance2(localLayout.viewX, localLayout.viewY, centerX, centerY);
+    if (callDistance2 > maxDistance2 || callDistance2 >= nearestDistance2) continue;
+    nearest = call;
+    nearestDistance2 = callDistance2;
+  }
+  return nearest;
+}
+
+function consumeLandedSeagull(id) {
+  if (!Number.isInteger(id)) throw new Error(`Invalid scavenged seabird id: ${id}`);
+  if (!chart) throw new Error("Cannot consume a landed seabird without an active chart");
+  const exists = landedSeagullCalls(chart).some((call) => call.id === id);
+  if (!exists) throw new Error(`Scavenged seabird ${id} is no longer present`);
+  consumedLandedSeagullIds.add(id);
 }
 
 function startWaitingInPort(city) {
@@ -7433,6 +7209,10 @@ function chooseDialogueOption(optionIndex) {
     if (result.action?.type === "land-marines") {
       attemptPlayerPortConquest(currentDialogueCity());
       return;
+    }
+    if (result.action?.type === "set-port-heading") {
+      addPortNavigationWaypoint(gameState, result.action);
+      saveVoyageNow("set port navigation heading");
     }
   } else if (dialogueState.kind === "passenger") {
     const doubloonsBefore = gameState.doubloons;
@@ -7816,9 +7596,15 @@ function portDialogueContext() {
     rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
     historicalGossip: city ? recentHistoricalGossipForPort(city, simMinute) : null,
     shipyard,
+    sailingDistanceKm: sailingDistanceBetweenPorts,
+    nearestShipyardListing: city && !questOnlyColony
+      ? nearestShipyardListingForPort(worldEconomy.shipyards, city, sailingDistanceBetweenPorts)
+      : null,
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
     portConquestStatus: city && !questOnlyColony ? playerPortConquestStatus(city) : null,
-    shipyardRumor: city && !questOnlyColony ? shipyardRumorForPort(worldEconomy.shipyards, city) : null,
+    shipyardRumor: city && !questOnlyColony
+      ? shipyardRumorForPort(worldEconomy.shipyards, city, sailingDistanceBetweenPorts)
+      : null,
     passengerOffer: city && dialogueState?.kind === "port"
       ? pendingPassengerOfferForCity(gameState, city)
       : null
@@ -7993,19 +7779,23 @@ function activeInteractionTarget() {
 
 function updateWhales(dt, nowMs) {
   if (!gameState?.memory?.whales || !chart || !localLayout) return false;
-  let changed = false;
   const events = advanceWhaleMemory(
     gameState.memory.whales,
     dt,
     whaleNavigationAtPosition,
     weatherClockMinutes
   );
+  let changed = constrainActiveWhaleTether();
   for (const event of events) {
     if (event.type === "blow") {
       const whale = whaleById(gameState.memory.whales, event.whaleId);
       const call = whaleInteractionCall(whale);
       if (call && pointNearScreen(call, SHIP_SHEET_FRAME_SIZE)) {
-        whaleBlowBursts.push({ whaleId: event.whaleId, startedAtMs: nowMs, seed: whale.seed });
+        whaleBlowBursts.push({
+          whaleId: event.whaleId,
+          startedAtMs: nowMs,
+          particles: createWhaleBlowParticles(whale.seed)
+        });
         playWhaleBlowSound();
       }
       changed = true;
@@ -8028,6 +7818,19 @@ function updateWhales(dt, nowMs) {
   const previousBurstCount = whaleBlowBursts.length;
   whaleBlowBursts = whaleBlowBursts.filter((burst) => nowMs - burst.startedAtMs < WHALE_BLOW_DURATION_MS);
   return changed || whaleBlowBursts.length > 0 || whaleBlowBursts.length !== previousBurstCount;
+}
+
+function constrainActiveWhaleTether() {
+  const hunt = gameState?.memory?.whales?.activeHunt;
+  if (!hunt) return false;
+  if (!ship?.position) throw new Error("Active whale hunt requires a player ship position");
+  const whale = whaleById(gameState.memory.whales, hunt.whaleId);
+  return constrainWhaleTether(
+    whale,
+    ship.position,
+    WHALE_TETHER_MAX_DISTANCE_PX / PIXELS_PER_RADIAN,
+    whaleNavigationAtPosition
+  );
 }
 
 function whaleNavigationAtPosition(position) {
@@ -8597,40 +8400,6 @@ function createLocalLayout(centerId) {
   };
 }
 
-function placeCityCatalog(cities) {
-  const placed = new Map();
-  for (const city of cities) {
-    const startId = findNearestTileId(graph, directionIndex, latLonToDirection(city.lat, city.lon));
-    const placementPredicate = cityPlacementPredicate(city);
-    let tileId = placementPredicate(startId) ? startId : nearestTileMatching(startId, placementPredicate);
-    if (tileId === undefined) {
-      throw new Error(`Could not place city on drawable land tile: ${city.city}, ${city.country}`);
-    }
-    if (placed.has(tileId)) {
-      if (!cityRequiresPortAccess(city)) continue;
-      const alternateTileId = nearestTileMatching(tileId, (id) => placementPredicate(id) && !placed.has(id));
-      if (alternateTileId === undefined) {
-        throw new Error(`Could not place required port city on an unoccupied land tile: ${city.city}, ${city.country}`);
-      }
-      tileId = alternateTileId;
-    }
-    placed.set(tileId, { ...city, tileId });
-  }
-  return placed;
-}
-
-function findColonizationTargetTile() {
-  const target = colonizationTargetCoordinates();
-  const startId = findNearestTileId(graph, directionIndex, latLonToDirection(target.lat, target.lon));
-  const tileId = nearestTileMatching(startId, (id) => (
-    isCityDrawableTile(id) &&
-    !cityByTileId.has(id) &&
-    !cityIsLandlocked(cityPortAccessOptions(id))
-  ));
-  if (tileId === undefined) throw new Error("Could not place Port Royal on an empty coastal hex");
-  return tileId;
-}
-
 function syncColonizationWorldState(state, { startMinute = weatherClockMinutes } = {}) {
   if (!state?.memory?.colonization) throw new Error("Cannot sync colonization without quest state");
   if (!Number.isInteger(colonizationTargetTileId)) throw new Error("Port Royal target tile is not assigned");
@@ -8670,29 +8439,18 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
   return record;
 }
 
-function cityPlacementPredicate(city) {
-  if (!cityRequiresPortAccess(city)) return isCityDrawableTile;
-  return (tileId) => isCityDrawableTile(tileId) && !cityIsLandlocked(cityPortAccessOptions(tileId));
-}
-
-function portCitiesForCharacters() {
-  const ports = [...cityByTileId.values()].filter((city) => !cityIsLandlocked(cityPortAccessOptions(city.tileId)));
-  if (ports.length === 0) throw new Error("No port cities found for character portrait assignments");
-  return ports;
-}
-
-function cityPortAccessOptions(tileId) {
+function worldPortPlacementOptions() {
   return {
     graph,
+    directionIndex,
     earthRows: earthById,
     reachableNavigationMask: oceanReachableNavigationMask,
-    riverMasks,
-    tileId
+    riverMasks
   };
 }
 
-function isCityDrawableTile(tileId) {
-  return !isWaterSurfaceRow(earthById[tileId]);
+function sailingDistanceBetweenPorts(origin, destination) {
+  return portSailingDistanceKm(portSailingDistances, origin, destination);
 }
 
 function createShip(latDeg, lonDeg, shipSlug, factionId) {
@@ -8742,19 +8500,7 @@ function nearestShipStartTile(direction) {
 }
 
 function nearestTileMatching(startId, predicate) {
-  const seen = new Set([startId]);
-  const q = [startId];
-  let qi = 0;
-  while (qi < q.length) {
-    const id = q[qi++];
-    if (predicate(id)) return id;
-    for (const nid of graph.neighbors[id]) {
-      if (seen.has(nid)) continue;
-      seen.add(nid);
-      q.push(nid);
-    }
-  }
-  return undefined;
+  return nearestWorldTileMatching(graph, startId, predicate);
 }
 
 function initialShipHeading(position) {
@@ -10739,6 +10485,7 @@ function updateSurvivalDeprivationLosses(status, currentMinute) {
     dehydration: waterLoss.crewLoss,
     starvation: foodLoss.crewLoss
   });
+  presentCrewLoss(deprivation.crewLost);
   if (deprivation.crewLost > 0) syncShipCargoFromGameState();
   if (deprivation.crewLost <= 0) {
     return waterLoss.changed || foodLoss.changed;
@@ -12230,6 +11977,7 @@ function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of
   if (!gameState || damage <= 0 || playerShipIsInvulnerable()) return 0;
   const lost = rollCrewCasualtiesForDamage(gameState, damage);
   if (lost <= 0) return 0;
+  presentCrewLoss(lost);
   syncShipCargoFromGameState();
   showSurvivalNotice(`${lost} CREW LOST`, "warn");
   if (gameState.ship.crew <= 0) sinkPlayerShip(crewLossReason);
@@ -13430,6 +13178,7 @@ function render(nowMs) {
   drawWindIndicator(nowMs);
   if (minimapShouldBeVisible()) drawMinimap(nowMs);
   drawSurvivalMeters();
+  drawStatusPersonParticles(nowMs);
   drawStormStatus(nowMs);
   drawCombatNotice(nowMs);
   drawFishCatchNotice(nowMs);
@@ -13445,6 +13194,7 @@ function render(nowMs) {
   drawQuestDestinationArrow(nowMs);
   drawColonizationDestinationArrow(nowMs);
   drawCampaignGoalDestinationArrow(nowMs);
+  drawPortNavigationHeadingArrow(nowMs);
   drawWaypointArrowTooltip();
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
@@ -13453,6 +13203,7 @@ function render(nowMs) {
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
+  if (navigationMenu.isOpen) drawNavigationMenu();
   if (captainMenu.isOpen && !captainChildMenuIsOpen()) drawCaptainMenu(nowMs);
   if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
@@ -13710,12 +13461,10 @@ function updateDiscoveries(nowMs) {
 
   let nearest = null;
   let nearestDistancePx = Infinity;
-  const explorerCampaign = gameState.memory.campaignGoal?.type === CAMPAIGN_GOAL_EXPLORER;
   for (const discovery of discoveryCatalog) {
     if (
       discovery.kind === "achievement" ||
-      hasDiscovery(gameState, discovery.id) ||
-      (!explorerCampaign && !isDiscoveryNovelToCharacter(discovery, gameState.playerCharacter))
+      hasDiscovery(gameState, discovery.id)
     ) continue;
     const distancePx = discoveryDistancePx(discovery, ship.position);
     if (distancePx > discovery.radiusPx || distancePx >= nearestDistancePx) continue;
@@ -14253,24 +14002,17 @@ function makeRiverConnectorCall(call) {
 }
 
 function riverEdgeSet(masks, tileId, edge) {
-  return ((masks?.[tileId] || 0) & (1 << edge)) !== 0;
+  return worldRiverEdgeSet(masks, tileId, edge);
 }
 
 function buildMinimap() {
-  const tilePixels = new Uint16Array(graph.tileCount);
+  const tileProjectedX = new Float32Array(graph.tileCount);
+  const tileProjectedY = new Float32Array(graph.tileCount);
   const pixelLandWeights = new Float32Array(MINIMAP_W * MINIMAP_H);
   const pixelTileCounts = new Uint16Array(MINIMAP_W * MINIMAP_H);
-  tilePixels.fill(MINIMAP_TILE_OUT_OF_RANGE);
   for (let id = 0; id < graph.tileCount; id++) {
-    if (Math.abs(graph.latDeg[id]) > MINIMAP_MAX_LAT_DEG) continue;
-    const row = earthById[id];
-    const x = minimapX(graph.lonDeg[id]);
-    const y = minimapY(graph.latDeg[id]);
-    const pixel = x + y * MINIMAP_W;
-    const landWeight = minimapLandWeight(row);
-    tilePixels[id] = pixel;
-    pixelLandWeights[pixel] += landWeight;
-    pixelTileCounts[pixel] += 1;
+    tileProjectedX[id] = minimapProjectLongitude(graph.lonDeg[id], MINIMAP_W);
+    tileProjectedY[id] = minimapProjectLatitude(graph.latDeg[id], MINIMAP_MAX_LAT_DEG, MINIMAP_H);
   }
 
   const canvas = document.createElement("canvas");
@@ -14287,18 +14029,32 @@ function buildMinimap() {
     revealedPixels: new Uint8Array(MINIMAP_W * MINIMAP_H),
     pixelLandWeights,
     pixelTileCounts,
-    tilePixels
+    tileProjectedX,
+    tileProjectedY,
+    sampledPixelsByTile: new Map(),
+    longitudeBinCounts: new Uint16Array(MINIMAP_LONGITUDE_BIN_COUNT),
+    minimumSeenY: Infinity,
+    maximumSeenY: -Infinity,
+    viewport: null,
+    viewportDirty: false,
+    fullMapForced: false
   };
 }
 
 function drawMinimap(nowMs) {
   if (!minimap) return;
+  const cartographyActive = voyageCartographyIsActive();
+  if (cartographyActive) ensureMinimapMarkerTile(centerTileId);
+  refreshMinimapViewport();
   ctx.fillStyle = "#2a1c11";
   ctx.fillRect(MINIMAP_X - 1, MINIMAP_Y - 1, MINIMAP_W + 2, MINIMAP_H + 2);
-  drawCenteredMinimapCanvas();
+  ctx.drawImage(minimap.canvas, MINIMAP_X, MINIMAP_Y);
+  if (!minimap.viewport || !cartographyActive) return;
+  drawMinimapNavigationMarkers(MINIMAP_X, MINIMAP_Y, MINIMAP_W, MINIMAP_H);
 
-  const mx = MINIMAP_X + MINIMAP_CENTER_X;
-  const my = MINIMAP_Y + minimapY(graph.latDeg[centerTileId]);
+  const marker = minimapPixelForTile(centerTileId);
+  const mx = MINIMAP_X + marker.x;
+  const my = MINIMAP_Y + marker.y;
   const blinkOn = Math.floor(nowMs / 320) % 2 === 0;
   ctx.fillStyle = blinkOn ? "#fff4a8" : "#151713";
   ctx.fillRect(mx, my, 1, 1);
@@ -14309,8 +14065,12 @@ function fillMinimapCanvas(mapCtx, color) {
   mapCtx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
 }
 
+function voyageCartographyIsActive() {
+  return hasStartedVoyage && startMenu === null;
+}
+
 function revealMinimapFromChart(activeChart, offset) {
-  if (!minimap || !hasStartedVoyage) return;
+  if (!minimap || !voyageCartographyIsActive()) return;
   for (const call of activeChart.tileCalls) {
     if (!tileCallNearViewport(call, offset, TILE_ART_HALF)) continue;
     revealMinimapTile(call.id);
@@ -14318,15 +14078,174 @@ function revealMinimapFromChart(activeChart, offset) {
 }
 
 function revealMinimapTile(tileId) {
-  if (minimap.seenTiles[tileId] !== 0) return;
+  if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
+    throw new Error(`Invalid minimap tile: ${tileId}`);
+  }
+  if (minimap.seenTiles[tileId] !== 0) {
+    if (minimap.viewport && !minimapViewportContainsPoint(
+      minimap.viewport,
+      minimap.tileProjectedX[tileId],
+      minimap.tileProjectedY[tileId],
+      MINIMAP_W
+    )) {
+      minimap.viewportDirty = true;
+    }
+    return false;
+  }
   minimap.seenTiles[tileId] = 1;
   minimap.seenTileCount += 1;
 
-  const pixel = minimap.tilePixels[tileId];
-  if (pixel === MINIMAP_TILE_OUT_OF_RANGE) return;
-  if (minimap.revealedPixels[pixel] !== 0) return;
-  minimap.revealedPixels[pixel] = 1;
-  paintMinimapPixel(pixel);
+  const projectedX = minimap.tileProjectedX[tileId];
+  const projectedY = minimap.tileProjectedY[tileId];
+  const longitudeBin = minimapLongitudeBin(projectedX, MINIMAP_W);
+  if (minimap.longitudeBinCounts[longitudeBin] === 0xffff) {
+    throw new Error(`Minimap longitude bin overflow: ${longitudeBin}`);
+  }
+  minimap.longitudeBinCounts[longitudeBin] += 1;
+  minimap.minimumSeenY = Math.min(minimap.minimumSeenY, projectedY);
+  minimap.maximumSeenY = Math.max(minimap.maximumSeenY, projectedY);
+  if (!minimap.viewport || !minimapViewportContainsPoint(
+    minimap.viewport,
+    projectedX,
+    projectedY,
+    MINIMAP_W
+  )) {
+    minimap.viewportDirty = true;
+    return true;
+  }
+  const sampledPixels = minimap.sampledPixelsByTile.get(tileId);
+  if (!sampledPixels) return true;
+  for (const pixel of sampledPixels) {
+    if (minimap.revealedPixels[pixel] !== 0) continue;
+    minimap.revealedPixels[pixel] = 1;
+    paintMinimapPixel(pixel);
+  }
+  return true;
+}
+
+function ensureMinimapMarkerTile(tileId) {
+  if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
+    throw new Error(`Invalid minimap marker tile: ${tileId}`);
+  }
+  revealMinimapTile(tileId);
+}
+
+function refreshMinimapViewport() {
+  const forceFullMap = Boolean(gameState && hasDiscovery(gameState, CIRCUMNAVIGATION_DISCOVERY.id));
+  if (!minimap.viewportDirty && minimap.fullMapForced === forceFullMap) return;
+  const viewport = exploredMinimapViewport({
+    longitudeBinCounts: minimap.longitudeBinCounts,
+    minimumY: minimap.minimumSeenY,
+    maximumY: minimap.maximumSeenY,
+    worldWidth: MINIMAP_W,
+    worldHeight: MINIMAP_H,
+    forceFullMap
+  });
+  minimap.viewport = viewport;
+  minimap.viewportDirty = false;
+  minimap.fullMapForced = forceFullMap;
+  renderMinimapViewport();
+}
+
+function renderMinimapViewport() {
+  minimap.revealedPixels.fill(0);
+  minimap.pixelLandWeights.fill(0);
+  minimap.pixelTileCounts.fill(0);
+  minimap.sampledPixelsByTile.clear();
+  fillMinimapCanvas(minimap.ctx, MINIMAP_UNKNOWN_COLOR);
+  if (!minimap.viewport) return;
+
+  for (let y = 0; y < MINIMAP_H; y++) {
+    for (let x = 0; x < MINIMAP_W; x++) {
+      const pixel = x + y * MINIMAP_W;
+      for (const sampleY of MINIMAP_SAMPLE_OFFSETS) {
+        for (const sampleX of MINIMAP_SAMPLE_OFFSETS) {
+          const projected = minimapViewportSample({
+            viewport: minimap.viewport,
+            pixelX: x,
+            pixelY: y,
+            sampleX,
+            sampleY,
+            worldWidth: MINIMAP_W,
+            pixelWidth: MINIMAP_W,
+            pixelHeight: MINIMAP_H
+          });
+          const latitudeDeg = minimapUnprojectLatitude(projected.y, MINIMAP_MAX_LAT_DEG, MINIMAP_H);
+          const longitudeDeg = minimapUnprojectLongitude(projected.x, MINIMAP_W);
+          const tileId = findNearestTileId(graph, directionIndex, latLonToDirection(latitudeDeg, longitudeDeg));
+          minimap.pixelLandWeights[pixel] += minimapLandWeight(earthById[tileId]);
+          minimap.pixelTileCounts[pixel] += 1;
+          if (minimap.seenTiles[tileId] !== 0) minimap.revealedPixels[pixel] = 1;
+          let sampledPixels = minimap.sampledPixelsByTile.get(tileId);
+          if (!sampledPixels) {
+            sampledPixels = [];
+            minimap.sampledPixelsByTile.set(tileId, sampledPixels);
+          }
+          if (sampledPixels[sampledPixels.length - 1] !== pixel) sampledPixels.push(pixel);
+        }
+      }
+      if (minimap.pixelTileCounts[pixel] !== MINIMAP_SAMPLE_OFFSETS.length ** 2) {
+        throw new Error(`Incomplete minimap sampling at pixel ${pixel}`);
+      }
+      paintMinimapPixel(pixel);
+    }
+  }
+}
+
+function minimapPixelForTile(tileId) {
+  if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
+    throw new Error(`Invalid minimap marker tile: ${tileId}`);
+  }
+  const point = minimapPixelForProjectedPoint(
+    minimap.tileProjectedX[tileId],
+    minimap.tileProjectedY[tileId]
+  );
+  if (!point) throw new Error(`Minimap marker tile ${tileId} lies outside the explored viewport`);
+  return point;
+}
+
+function minimapPixelForProjectedPoint(projectedX, projectedY) {
+  if (!minimap.viewport) return null;
+  return minimapViewportPixel({
+    viewport: minimap.viewport,
+    projectedX,
+    projectedY,
+    worldWidth: MINIMAP_W,
+    pixelWidth: MINIMAP_W,
+    pixelHeight: MINIMAP_H
+  });
+}
+
+function drawMinimapNavigationMarkers(x, y, width, height) {
+  if (!minimap?.viewport || !gameState) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, width, height);
+  ctx.clip();
+  for (const entry of navigationMenuEntries().slice().reverse()) {
+    const latitudeDeg = latitudeDegForDirection(entry.targetVector);
+    const longitudeDeg = longitudeDegForDirection(entry.targetVector);
+    const point = minimapPixelForProjectedPoint(
+      minimapProjectLongitude(longitudeDeg, MINIMAP_W),
+      minimapProjectLatitude(latitudeDeg, MINIMAP_MAX_LAT_DEG, MINIMAP_H)
+    );
+    if (!point) continue;
+    const markerX = Math.round(x + (point.x + 0.5) / MINIMAP_W * width);
+    const markerY = Math.round(y + (point.y + 0.5) / MINIMAP_H * height);
+    drawMinimapNavigationDiamond(markerX, markerY, entry.style);
+  }
+  ctx.restore();
+}
+
+function drawMinimapNavigationDiamond(centerX, centerY, style) {
+  const left = centerX - 2;
+  const top = centerY - 2;
+  ctx.fillStyle = style.light;
+  ctx.fillRect(left + 1, top, 2, 1);
+  ctx.fillRect(left, top + 1, 4, 1);
+  ctx.fillStyle = style.dark;
+  ctx.fillRect(left, top + 2, 4, 1);
+  ctx.fillRect(left + 1, top + 3, 2, 1);
 }
 
 function paintMinimapPixel(pixel) {
@@ -14353,7 +14272,16 @@ function restoreCartographyFromGameState() {
   const memory = gameState.memory.cartography;
   minimap.seenTiles.fill(0);
   minimap.revealedPixels.fill(0);
+  minimap.pixelLandWeights.fill(0);
+  minimap.pixelTileCounts.fill(0);
+  minimap.sampledPixelsByTile.clear();
+  minimap.longitudeBinCounts.fill(0);
   minimap.seenTileCount = 0;
+  minimap.minimumSeenY = Infinity;
+  minimap.maximumSeenY = -Infinity;
+  minimap.viewport = null;
+  minimap.viewportDirty = false;
+  minimap.fullMapForced = false;
   fillMinimapCanvas(minimap.ctx, MINIMAP_UNKNOWN_COLOR);
   if (memory.seenTilesBase64 === "") {
     if (memory.seenTileCount !== 0) throw new Error("Cartography count has no saved tile mask");
@@ -14370,6 +14298,7 @@ function restoreCartographyFromGameState() {
   if (minimap.seenTileCount !== memory.seenTileCount) {
     throw new Error(`Cartography count mismatch: mask=${minimap.seenTileCount} state=${memory.seenTileCount}`);
   }
+  refreshMinimapViewport();
 }
 
 function mappedPercentForState(state) {
@@ -14394,23 +14323,6 @@ function base64ToBytes(encoded) {
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
   return bytes;
-}
-
-function drawCenteredMinimapCanvas() {
-  const startX = wrapMinimapX(minimapX(graph.lonDeg[centerTileId]) - MINIMAP_CENTER_X);
-  const firstW = MINIMAP_W - startX;
-  ctx.drawImage(
-    minimap.canvas,
-    startX, 0, firstW, MINIMAP_H,
-    MINIMAP_X, MINIMAP_Y, firstW, MINIMAP_H
-  );
-  if (startX > 0) {
-    ctx.drawImage(
-      minimap.canvas,
-      0, 0, startX, MINIMAP_H,
-      MINIMAP_X + firstW, MINIMAP_Y, startX, MINIMAP_H
-    );
-  }
 }
 
 function rgbColor(color) {
@@ -14542,12 +14454,17 @@ function drawCaptainChart(panel, nowMs) {
   ctx.fillRect(mapX - 2, mapY - 2, mapW + 4, mapH + 4);
   ctx.strokeStyle = "#715033";
   ctx.strokeRect(mapX - 1.5, mapY - 1.5, mapW + 3, mapH + 3);
-  drawScaledCenteredMinimap(mapX, mapY, mapW, mapH);
+  refreshMinimapViewport();
+  drawScaledMinimap(mapX, mapY, mapW, mapH);
 
-  const markerX = Math.round(mapX + mapW / 2);
-  const markerY = Math.round(mapY + minimapY(graph.latDeg[centerTileId]) / MINIMAP_H * mapH);
-  ctx.fillStyle = Math.floor(nowMs / 320) % 2 === 0 ? "#fff4a8" : "#5b4627";
-  ctx.fillRect(markerX - 1, markerY - 1, 3, 3);
+  if (minimap?.viewport) {
+    drawMinimapNavigationMarkers(mapX, mapY, mapW, mapH);
+    const marker = minimapPixelForTile(centerTileId);
+    const markerX = Math.round(mapX + (marker.x + 0.5) / MINIMAP_W * mapW);
+    const markerY = Math.round(mapY + (marker.y + 0.5) / MINIMAP_H * mapH);
+    ctx.fillStyle = Math.floor(nowMs / 320) % 2 === 0 ? "#fff4a8" : "#5b4627";
+    ctx.fillRect(markerX - 1, markerY - 1, 3, 3);
+  }
 
   const mapped = minimap ? minimap.seenTileCount / graph.tileCount : 0;
   drawOptionsText(`MAPPED ${(mapped * 100).toFixed(2)}%`, panel.x + panel.w / 2, mapY + mapH + 12, {
@@ -14596,16 +14513,274 @@ function drawCaptainChartNavigation(panel) {
   });
 }
 
-function drawScaledCenteredMinimap(x, y, width, height) {
+function drawScaledMinimap(x, y, width, height) {
   if (!minimap) return;
-  const startX = wrapMinimapX(minimapX(graph.lonDeg[centerTileId]) - MINIMAP_CENTER_X);
-  const firstW = MINIMAP_W - startX;
-  const firstDisplayW = width * firstW / MINIMAP_W;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(minimap.canvas, startX, 0, firstW, MINIMAP_H, x, y, firstDisplayW, height);
-  if (startX > 0) {
-    ctx.drawImage(minimap.canvas, 0, 0, startX, MINIMAP_H, x + firstDisplayW, y, width - firstDisplayW, height);
+  ctx.drawImage(minimap.canvas, 0, 0, MINIMAP_W, MINIMAP_H, x, y, width, height);
+}
+
+function navigationMenuEntries() {
+  if (!gameState) throw new Error("Navigation menu requires an active game state");
+  const entries = [];
+  const questDestination = activeQuestDestinationPort();
+  if (questDestination) {
+    const quest = gameState.memory.quests.active;
+    if (!quest) throw new Error("Quest navigation destination has no active quest");
+    entries.push({
+      id: `quest:${questDestination.tileId}`,
+      destinationName: cityLabelText(questDestination),
+      colorLabel: "GOLD",
+      reason: navigationQuestReason(quest),
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: latLonToDirection(questDestination.lat, questDestination.lon),
+      optionalWaypointId: null
+    });
   }
+
+  const colonizationTarget = colonizationObjective(gameState.memory.colonization);
+  if (colonizationTarget) {
+    const destination = colonizationWorldRecord(gameState.memory.colonization);
+    if (!destination) throw new Error("Colonization navigation destination is missing");
+    entries.push({
+      id: `colonization:${colonizationTarget.kind}:${colonizationTarget.tileId}`,
+      destinationName: cityLabelText(destination),
+      colorLabel: "BLUE",
+      reason: colonizationTarget.kind === "found-colony" ? "FOUND THE COLONY" : "RESUPPLY THE COLONY",
+      style: COLONIZATION_NAVIGATION_STYLE,
+      targetVector: tileCenterVector(colonizationTarget.tileId),
+      optionalWaypointId: null
+    });
+  }
+
+  const campaignDestination = activeCampaignGoalDestination();
+  if (campaignDestination) entries.push(campaignNavigationMenuEntry(campaignDestination));
+
+  for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
+    const destination = portWaypointDestination(waypoint);
+    entries.push({
+      id: waypoint.id,
+      destinationName: waypoint.destinationName,
+      colorLabel: "GRAY",
+      reason: portNavigationReasonLabel(waypoint.reason),
+      style: OPTIONAL_NAVIGATION_STYLE,
+      targetVector: latLonToDirection(destination.lat, destination.lon),
+      optionalWaypointId: waypoint.id
+    });
+  }
+  return entries;
+}
+
+function navigationQuestReason(quest) {
+  if (isEnvoyQuest(quest)) return "DIPLOMATIC MISSION";
+  if (quest.kind === "passenger") return "PASSENGER MISSION";
+  if (quest.kind === "delivery") return "DELIVERY MISSION";
+  return "ACTIVE MISSION";
+}
+
+function campaignNavigationMenuEntry(destination) {
+  if (destination.kind === CAMPAIGN_DESTINATION_DISCOVERY) {
+    const discovery = discoveryCatalogById.get(destination.discoveryId);
+    if (!discovery) throw new Error(`Campaign navigation points to missing discovery: ${destination.discoveryId}`);
+    return {
+      id: `campaign:discovery:${discovery.id}`,
+      destinationName: discovery.displayName,
+      colorLabel: "TEAL",
+      reason: "EXPLORER'S LEAD",
+      style: CAMPAIGN_NAVIGATION_STYLE,
+      targetVector: nearestDiscoveryDirection(discovery, ship.position),
+      optionalWaypointId: null
+    };
+  }
+  if (destination.kind === CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING) {
+    return {
+      id: "campaign:white-whale-sighting",
+      destinationName: "White whale sighting",
+      colorLabel: "TEAL",
+      reason: "WHITE WHALE LAST SEEN",
+      style: CAMPAIGN_NAVIGATION_STYLE,
+      targetVector: latLonToDirection(destination.latitudeDeg, destination.longitudeDeg),
+      optionalWaypointId: null
+    };
+  }
+  if (destination.kind !== CAMPAIGN_DESTINATION_HOME) {
+    throw new Error(`Unknown campaign navigation destination: ${destination.kind}`);
+  }
+  const home = campaignGoalHomeCity();
+  const reason = destination.reason === "report-discovery"
+    ? "REPORT TO YOUR PATRON"
+    : destination.reason === "pay-family-debt"
+      ? "PAY THE FAMILY DEBT"
+      : destination.reason === "return-after-white-whale"
+        ? "RETURN HOME VICTORIOUS"
+        : "RETURN HOME";
+  return {
+    id: `campaign:home:${home.tileId}`,
+    destinationName: cityLabelText(home),
+    colorLabel: "TEAL",
+    reason,
+    style: CAMPAIGN_NAVIGATION_STYLE,
+    targetVector: latLonToDirection(home.lat, home.lon),
+    optionalWaypointId: null
+  };
+}
+
+function portWaypointDestination(waypoint) {
+  const destination = portCitiesByTileId?.get(waypoint.destinationTileId) ||
+    cityByTileId?.get(waypoint.destinationTileId);
+  if (!destination) {
+    throw new Error(`Port waypoint points to missing city tile: ${waypoint.destinationTileId}`);
+  }
+  if (!Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) {
+    throw new Error(`Port waypoint destination has no coordinates: ${waypoint.destinationName}`);
+  }
+  return destination;
+}
+
+function navigationMenuPage() {
+  const entries = navigationMenuEntries();
+  const pageCount = Math.max(1, Math.ceil(entries.length / NAVIGATION_MENU_PAGE_SIZE));
+  navigationMenu.page = clamp(navigationMenu.page, 0, pageCount - 1);
+  const start = navigationMenu.page * NAVIGATION_MENU_PAGE_SIZE;
+  const rows = entries.slice(start, start + NAVIGATION_MENU_PAGE_SIZE);
+  navigationMenu.selectedIndex = clamp(navigationMenu.selectedIndex, 0, Math.max(0, rows.length - 1));
+  return { entries, rows, page: navigationMenu.page, pageCount };
+}
+
+function stepNavigationMenuPage(direction) {
+  const page = navigationMenuPage();
+  navigationMenu.page = clamp(page.page + direction, 0, page.pageCount - 1);
+  navigationMenu.selectedIndex = 0;
+  dirty = true;
+}
+
+function removeSelectedNavigationWaypoint() {
+  const page = navigationMenuPage();
+  const entry = page.rows[navigationMenu.selectedIndex];
+  if (!entry?.optionalWaypointId) return false;
+  if (!removeOptionalNavigationWaypoint(gameState, entry.optionalWaypointId)) {
+    throw new Error(`Optional navigation waypoint disappeared before removal: ${entry.optionalWaypointId}`);
+  }
+  if (selectedWaypointArrowId === entry.id) selectedWaypointArrowId = null;
+  saveVoyageNow("removed optional navigation waypoint");
+  const updatedPage = navigationMenuPage();
+  navigationMenu.selectedIndex = clamp(
+    navigationMenu.selectedIndex,
+    0,
+    Math.max(0, updatedPage.rows.length - 1)
+  );
+  dirty = true;
+  return true;
+}
+
+function drawNavigationMenu() {
+  const panel = {
+    x: Math.floor((SCREEN_W - Math.min(NAVIGATION_MENU_PANEL_W, SCREEN_W - 12)) / 2),
+    y: Math.floor((SCREEN_H - Math.min(NAVIGATION_MENU_PANEL_H, SCREEN_H - 12)) / 2),
+    w: Math.min(NAVIGATION_MENU_PANEL_W, SCREEN_W - 12),
+    h: Math.min(NAVIGATION_MENU_PANEL_H, SCREEN_H - 12)
+  };
+  navigationMenu.panelRect = panel;
+  navigationMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
+  const page = navigationMenuPage();
+  const listX = panel.x + 10;
+  const listY = panel.y + 38;
+  const listW = panel.w - 20;
+
+  ctx.save();
+  drawPiratePaperModal(panel, 0.86);
+  drawOptionsCloseButton(
+    navigationMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, navigationMenu.closeButtonRect)
+  );
+  drawOptionsText("NAVIGATION ICONS", panel.x + panel.w / 2, panel.y + 10, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+
+  navigationMenu.rowRects = page.rows.map((_, index) => ({
+    x: listX,
+    y: listY + index * NAVIGATION_MENU_ROW_H,
+    w: listW,
+    h: NAVIGATION_MENU_ROW_H - 3
+  }));
+  navigationMenu.removeButtonRects = page.rows.map((entry, index) => entry.optionalWaypointId ? ({
+    x: listX + listW - UI_ICON_BUTTON_SIZE - 5,
+    y: listY + index * NAVIGATION_MENU_ROW_H + 5,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  }) : null);
+
+  if (page.rows.length === 0) {
+    drawOptionsText("NO ACTIVE NAVIGATION ICONS", panel.x + panel.w / 2, listY + 44, {
+      align: "center",
+      color: PIRATE_MENU_INK_MUTED
+    });
+  }
+  page.rows.forEach((entry, index) => {
+    const rect = navigationMenu.rowRects[index];
+    const selected = navigationMenu.selectedIndex === index;
+    const hovered = pointInRect(optionsMenu.hoverPoint, rect);
+    drawPiratePaperInset(rect, selected || hovered);
+    drawQuestArrowGlyph(
+      { x: rect.x + 23, y: rect.y + Math.floor(rect.h / 2) },
+      { x: 1, y: 0 },
+      0,
+      entry.style
+    );
+    const removeRect = navigationMenu.removeButtonRects[index];
+    const textX = rect.x + 42;
+    const textRight = removeRect ? removeRect.x - 6 : rect.x + rect.w - 8;
+    drawOptionsText(
+      fitPixelText(entry.destinationName.toUpperCase(), PIXEL_FONT_DIALOGUE_8, textRight - textX),
+      textX,
+      rect.y + 7,
+      { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
+    );
+    drawOptionsText(
+      fitPixelText(`${entry.colorLabel} / ${entry.reason}`, PIXEL_FONT_SMALL_8, textRight - textX),
+      textX,
+      rect.y + 21,
+      { color: PIRATE_MENU_INK_MUTED }
+    );
+    if (removeRect) {
+      drawShipInfoCloseButton(removeRect, pointInRect(optionsMenu.hoverPoint, removeRect));
+    }
+  });
+
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
+  if (page.pageCount > 1) {
+    navigationMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+    navigationMenu.nextPageRect = {
+      x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
+      y: pagerY,
+      w: UI_PAGER_BUTTON_W,
+      h: UI_PAGER_BUTTON_H
+    };
+    drawOptionsArrowButton(
+      navigationMenu.previousPageRect,
+      "<",
+      pointInRect(optionsMenu.hoverPoint, navigationMenu.previousPageRect)
+    );
+    drawOptionsArrowButton(
+      navigationMenu.nextPageRect,
+      ">",
+      pointInRect(optionsMenu.hoverPoint, navigationMenu.nextPageRect)
+    );
+  } else {
+    navigationMenu.previousPageRect = null;
+    navigationMenu.nextPageRect = null;
+  }
+  drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 3, {
+    align: "center",
+    color: PIRATE_MENU_INK_MUTED
+  });
+  ctx.restore();
 }
 
 function getShipInfoButtonRect() {
@@ -17049,25 +17224,6 @@ function lerpRgbColor(a, b, t) {
   ];
 }
 
-function minimapX(lonDeg) {
-  const lon = ((((lonDeg + 180) % 360) + 360) % 360) - 180;
-  return clamp(Math.floor(((lon + 180) / 360) * MINIMAP_W), 0, MINIMAP_W - 1);
-}
-
-function wrapMinimapX(x) {
-  return ((x % MINIMAP_W) + MINIMAP_W) % MINIMAP_W;
-}
-
-function minimapY(latDeg) {
-  const mercator = mercatorYForLatDeg(clamp(latDeg, -MINIMAP_MAX_LAT_DEG, MINIMAP_MAX_LAT_DEG));
-  return clamp(Math.floor(((MINIMAP_MAX_MERCATOR - mercator) / (MINIMAP_MAX_MERCATOR * 2)) * MINIMAP_H), 0, MINIMAP_H - 1);
-}
-
-function mercatorYForLatDeg(latDeg) {
-  const lat = latDeg * Math.PI / 180;
-  return Math.log(Math.tan(Math.PI / 4 + lat / 2));
-}
-
 function collectChartTiles(chartCamera, chartCenterTileId) {
   const visible = [];
   const seen = new Set([chartCenterTileId]);
@@ -19293,10 +19449,12 @@ function landedSeagullCalls(activeChart) {
     const count = 1 + (seed % 3);
     for (let i = 0; i < count; i++) {
       const birdSeed = hashInt(seed ^ Math.imul(i + 1, 0x85ebca6b));
+      const birdId = call.id * 8 + i;
+      if (consumedLandedSeagullIds.has(birdId)) continue;
       const x = Math.round(call.drawSurfaceX - 4 + (((birdSeed >>> 4) & 15) - 7));
       const y = Math.round(call.drawSurfaceY - 9 + (((birdSeed >>> 9) & 7) - 3));
       calls.push({
-        id: call.id * 8 + i,
+        id: birdId,
         img: animalImages?.seagullStanding || null,
         frame: 0,
         x,
@@ -19698,23 +19856,23 @@ function drawWhaleBlowBurst(burst, nowMs) {
   const call = whaleInteractionCall(whale);
   if (!call) return;
   const age = (nowMs - burst.startedAtMs) / 1000;
-  const life = clamp(age / (WHALE_BLOW_DURATION_MS / 1000), 0, 1);
   const heading = tangentToScreenDirection(whale.heading) || { x: 1, y: 0 };
   const originX = call.x + heading.x * 11 * call.scale;
   const originY = call.y + heading.y * 11 * call.scale - 4;
   ctx.save();
-  for (let index = 0; index < 24; index++) {
-    const hash = hashInt(burst.seed ^ Math.imul(index + 1, 0x9e3779b1));
-    const delay = ((hash >>> 4) & 255) / 255 * 0.65;
-    const particleAge = age - delay;
-    if (particleAge < 0) continue;
-    const side = (((hash >>> 12) & 255) / 255 - 0.5) * 8;
-    const speed = 12 + ((hash >>> 20) & 31) * 0.45;
-    const x = Math.round(originX + side * particleAge);
-    const y = Math.round(originY - speed * particleAge + 9 * particleAge * particleAge);
-    ctx.globalAlpha = Math.max(0, (1 - life) * 0.9);
+  for (let index = 0; index < burst.particles.length; index++) {
+    const frame = whaleBlowParticleFrame(burst.particles[index], age);
+    if (!frame) continue;
+    const x = Math.round(originX + frame.x);
+    const y = Math.round(originY + frame.y);
+    ctx.globalAlpha = frame.alpha;
     ctx.fillStyle = index % 3 === 0 ? "#c7dcd0" : "#f6f2d4";
     ctx.fillRect(x, y, 1, 1);
+    if (frame.mist > 0.18) {
+      ctx.globalAlpha = frame.alpha * frame.mist * 0.32;
+      ctx.fillRect(x + frame.hazeOffsetX, y + frame.hazeOffsetY, 1, 1);
+      if ((index & 3) === 0) ctx.fillRect(x - frame.hazeOffsetX, y, 1, 1);
+    }
   }
   ctx.restore();
 }
@@ -20099,7 +20257,8 @@ function drawQuestDestinationArrow(nowMs) {
     targetVector: destinationVector,
     localPoint: visibleCity || localPointForGlobeVector(destinationVector),
     localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
-    nowMs
+    nowMs,
+    style: QUEST_NAVIGATION_STYLE
   });
 }
 
@@ -20107,7 +20266,7 @@ function drawCampaignGoalDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout) return;
   const destination = activeCampaignGoalDestination();
   if (!destination) return;
-  const style = { light: "#30e1b9", dark: "#0eaf9b", shadow: "rgba(19, 45, 48, 0.78)" };
+  const style = CAMPAIGN_NAVIGATION_STYLE;
 
   if (destination.kind === CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING) {
     const targetVector = latLonToDirection(destination.latitudeDeg, destination.longitudeDeg);
@@ -20158,6 +20317,24 @@ function drawCampaignGoalDestinationArrow(nowMs) {
   });
 }
 
+function drawPortNavigationHeadingArrow(nowMs) {
+  if (!ship || !chart || !localLayout || !gameState) return;
+  for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
+    const destination = portWaypointDestination(waypoint);
+    const targetVector = latLonToDirection(destination.lat, destination.lon);
+    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    drawWorldTargetArrow({
+      id: waypoint.id,
+      label: waypoint.destinationName,
+      targetVector,
+      localPoint: visibleCity || localPointForGlobeVector(targetVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: OPTIONAL_NAVIGATION_STYLE
+    });
+  }
+}
+
 function drawColonizationDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout || !gameState) return;
   const objective = colonizationObjective(gameState.memory.colonization);
@@ -20173,7 +20350,7 @@ function drawColonizationDestinationArrow(nowMs) {
     localPoint: visibleCity || localPointForGlobeVector(targetVector),
     localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
     nowMs,
-    style: { light: "#8bd5ff", dark: "#277bb8", shadow: "rgba(14, 35, 56, 0.78)" }
+    style: COLONIZATION_NAVIGATION_STYLE
   });
 }
 
@@ -21195,20 +21372,123 @@ function drawSurvivalMeters() {
     x + 5,
     y + 33
   );
+  drawSurvivalCrewRow(x, y);
 }
 
 function drawSurvivalPanelTitle(x, y) {
+  if (!statusHudImages?.doubloon) throw new Error("Doubloon status icon is not loaded");
   const title = shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]);
+  const textY = y + 3;
   const titleX = x + 5;
   const right = x + SURVIVAL_PANEL_W - 5;
-  const availablePurseWidth = right - (titleX + measurePixelTextWidth(title, PIXEL_FONT_SMALL_8)) - 4;
   const amount = formatCompactNumber(gameState.doubloons);
-  const purse = `DB ${amount}`;
-  if (measurePixelTextWidth(purse, PIXEL_FONT_SMALL_8) > availablePurseWidth) {
-    throw new Error(`Doubloon HUD value does not fit ship status title row: ${purse}`);
+  const amountWidth = measurePixelTextWidth(amount, PIXEL_FONT_SMALL_8);
+  const iconX = right - amountWidth - 2 - statusHudImages.doubloon.width;
+  const titleRight = titleX + measurePixelTextWidth(title, PIXEL_FONT_SMALL_8);
+  if (iconX - titleRight < 3) {
+    throw new Error(`Doubloon HUD value does not fit ship status title row: ${amount}`);
   }
-  drawPixelText(title, titleX, y + 3, { font: PIXEL_FONT_SMALL_8 });
-  drawPixelText(purse, right, y + 3, { font: PIXEL_FONT_SMALL_8, align: "right" });
+  drawPixelText(title, titleX, textY, { font: PIXEL_FONT_SMALL_8 });
+  ctx.drawImage(statusHudImages.doubloon, iconX, textY + PIXEL_FONT_SMALL_INK_TOP_OFFSET);
+  drawPixelText(amount, right, textY, { font: PIXEL_FONT_SMALL_8, align: "right" });
+}
+
+function drawSurvivalCrewRow(x, y) {
+  const layout = survivalCrewStatusLayout(gameState.ship.crew, x, y);
+  for (const entry of layout.entries) {
+    const variants = statusPersonImages?.get(entry.kind);
+    const image = variants?.[entry.variant];
+    if (!image) throw new Error(`Missing ${entry.kind} crew status image variant ${entry.variant}`);
+    ctx.drawImage(image, entry.x, entry.y);
+  }
+}
+
+function survivalCrewStatusLayout(
+  crewCount,
+  panelX = SURVIVAL_PANEL_X,
+  panelY = SURVIVAL_PANEL_Y
+) {
+  return crewStatusLayout({
+    crewCount,
+    travelerGroups: shipTravelerManifest(gameState),
+    x: panelX + SURVIVAL_CREW_ROW_PAD_X,
+    y: panelY + SURVIVAL_CREW_ROW_Y,
+    width: SURVIVAL_PANEL_W - SURVIVAL_CREW_ROW_PAD_X * 2
+  });
+}
+
+function presentCrewLoss(lost) {
+  if (!Number.isInteger(lost) || lost < 0) throw new Error(`Invalid status crew loss: ${lost}`);
+  if (lost === 0) return;
+  if (!gameState?.ship) throw new Error("Cannot animate crew loss without a player ship");
+  if (!statusPersonOpaquePixels) throw new Error("Crew status particle pixels are not loaded");
+  playCrewDeathSound();
+  const survivingCrew = gameState.ship.crew;
+  const previousLayout = survivalCrewStatusLayout(survivingCrew + lost);
+  const lostEntries = previousLayout.entries.filter((entry) => (
+    entry.kind === "crew" && entry.kindIndex >= survivingCrew
+  ));
+  if (lostEntries.length !== lost) {
+    throw new Error(`Crew status lost ${lost} people but found ${lostEntries.length} icons`);
+  }
+  for (const entry of lostEntries) spawnStatusPersonIconParticles(entry);
+  if (statusPersonParticles.length > STATUS_PERSON_PARTICLE_LIMIT) {
+    statusPersonParticles.splice(0, statusPersonParticles.length - STATUS_PERSON_PARTICLE_LIMIT);
+  }
+  dirty = true;
+}
+
+function spawnStatusPersonIconParticles(entry) {
+  const color = statusPersonColor(entry.kind, entry.variant);
+  for (const pixel of statusPersonOpaquePixels) {
+    const serial = statusPersonParticleSerial++;
+    const seed = hashInt(Math.imul(serial, 0x9e3779b1) ^ Math.imul(entry.rowIndex + 1, 0x85ebca6b));
+    const horizontal = ((seed & 0xff) / 255 - 0.5) * 22;
+    const vertical = -7 - ((seed >>> 8) & 0xff) / 255 * 15;
+    statusPersonParticles.push({
+      bornAtMs: lastFrameMs,
+      x: entry.x + pixel.x,
+      y: entry.y + pixel.y,
+      vx: horizontal,
+      vy: vertical,
+      color
+    });
+  }
+}
+
+function statusPersonColor(kind, variant) {
+  const colors = STATUS_PERSON_COLORS[kind];
+  const color = colors?.[variant];
+  if (!color) throw new Error(`Missing ${kind} crew status color variant ${variant}`);
+  return color;
+}
+
+function updateStatusPersonParticles(nowMs) {
+  const previousCount = statusPersonParticles.length;
+  statusPersonParticles = statusPersonParticles.filter(
+    (particle) => nowMs - particle.bornAtMs < STATUS_PERSON_PARTICLE_DURATION_MS
+  );
+  return statusPersonParticles.length > 0 || statusPersonParticles.length !== previousCount;
+}
+
+function drawStatusPersonParticles(nowMs) {
+  for (const particle of statusPersonParticles) {
+    const elapsedMs = nowMs - particle.bornAtMs;
+    if (elapsedMs < 0 || elapsedMs >= STATUS_PERSON_PARTICLE_DURATION_MS) continue;
+    const elapsedSeconds = elapsedMs / 1000;
+    ctx.globalAlpha = 1 - elapsedMs / STATUS_PERSON_PARTICLE_DURATION_MS;
+    ctx.fillStyle = particle.color;
+    ctx.fillRect(
+      Math.round(particle.x + particle.vx * elapsedSeconds),
+      Math.round(
+        particle.y + particle.vy * elapsedSeconds +
+        STATUS_PERSON_PARTICLE_GRAVITY_PX * elapsedSeconds * elapsedSeconds / 2
+      ),
+      1,
+      1
+    );
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawSurvivalMeterRow(label, value, fraction, fill, x, y) {
@@ -22038,7 +22318,7 @@ function gameOverStatRows(state) {
     ["QUESTS COMPLETED", String(stats.completedQuests)],
     ["DOUBLOONS EARNED", formatDoubloons(stats.doubloonsEarned)],
     ["LETTERS", String(stats.lettersOfMarque)],
-    ["CARGO", `${stats.cargo}/${stats.cargoCapacity}`],
+    ["CARGO", `${cargoSpaceLabel(stats.cargo)}/${stats.cargoCapacity}`],
     ["DOUBLOONS", String(stats.doubloons)]
   ];
 }
@@ -22264,30 +22544,14 @@ function drawLandscapeShipyardStats(panel, vessel, listing) {
   drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, panel.y + 116);
   drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, panel.y + 128);
   drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, panel.y + 140);
-  drawOptionsText(`${listing.price} DOUBLOONS`, panel.x + 12, panel.y + 149, {
-    font: PIXEL_FONT_DIALOGUE_8,
-    color: PIRATE_MENU_INK
-  });
-  drawOptionsText(`PURSE ${gameState.doubloons}`, panel.x + 12, panel.y + 163, {
-    font: PIXEL_FONT_DIALOGUE_8,
-    color: gameState.doubloons >= listing.price ? "#91db69" : "#f68181"
-  });
+  drawShipyardPriceRow(panel, listing.price, panel.y + 149);
 }
 
 function drawCompactShipyardStats(panel, vessel, listing, artY) {
-  drawOptionsText(`${listing.price} DOUBLOONS`, panel.x + panel.w / 2, artY + SHIP_INFO_SIDE_VIEW_H + 8, {
-    font: PIXEL_FONT_DIALOGUE_8,
-    align: "center",
-    color: PIRATE_MENU_INK
-  });
-  drawOptionsText(`PURSE ${gameState.doubloons}`, panel.x + panel.w / 2, artY + SHIP_INFO_SIDE_VIEW_H + 22, {
-    font: PIXEL_FONT_DIALOGUE_8,
-    align: "center",
-    color: gameState.doubloons >= listing.price ? "#91db69" : "#f68181"
-  });
+  drawShipyardPriceRow(panel, listing.price, artY + SHIP_INFO_SIDE_VIEW_H + 8);
   const statsX = panel.x + 12;
   const valueX = panel.x + panel.w - 12;
-  let y = artY + SHIP_INFO_SIDE_VIEW_H + 43;
+  let y = artY + SHIP_INFO_SIDE_VIEW_H + 29;
   drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, y);
   drawShipInfoValueRow(
     `CREW / ${vessel.armamentLabel}`,
@@ -22304,6 +22568,18 @@ function drawCompactShipyardStats(panel, vessel, listing, artY) {
   drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, y + 24);
   drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, y + 36);
   drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, y + 48);
+}
+
+function drawShipyardPriceRow(panel, price, y) {
+  drawOptionsText(`${price} DOUBLOONS`, panel.x + 12, y, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText(`PURSE ${gameState.doubloons}`, panel.x + panel.w - 12, y, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "right",
+    color: gameState.doubloons >= price ? "#91db69" : "#f68181"
+  });
 }
 
 function drawLandscapeShipCaptureStats(panel, comparison, presentation) {
@@ -22808,18 +23084,11 @@ function playerStormIntensity() {
 function playerRainfallStrength() {
   if (!ship) return 0;
   const flags = weatherFlagsForTile(ship.tileId);
-  if ((flags & TILE_DAY_SNOW_FALL) !== 0) return 0;
-  let strength = (flags & TILE_DAY_RAIN) !== 0 ? 0.35 : 0;
-  const storm = playerStormIntensity();
-  if (storm >= STORM_SCREEN_RAIN_ENTER_INTENSITY) {
-    const stormRain = 0.35 + 0.65 * clamp(
-      (storm - STORM_SCREEN_RAIN_ENTER_INTENSITY) / (1 - STORM_SCREEN_RAIN_ENTER_INTENSITY),
-      0,
-      1
-    );
-    strength = Math.max(strength, stormRain);
-  }
-  return strength;
+  return rainCollectionStrength({
+    raining: (flags & TILE_DAY_RAIN) !== 0,
+    snowing: (flags & TILE_DAY_SNOW_FALL) !== 0,
+    stormIntensity: playerStormIntensity()
+  });
 }
 
 function weatherDateLabel() {

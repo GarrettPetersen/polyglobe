@@ -1,14 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  STORM_ACTIVE_INTENSITY,
   buildStormExposure,
   buildStormShelterRoutes,
   nearestStormShelterTile,
   nextStormShelterTile,
+  rainCollectionStrength,
   stormDamageForHour,
   stormIntensityAtPosition,
   stormWindStrength
 } from "./stormSystem.js";
+
+test("every active storm supplies collectible rainwater", () => {
+  assert.equal(rainCollectionStrength({ raining: false, snowing: false, stormIntensity: 0 }), 0);
+  assert.equal(rainCollectionStrength({ raining: true, snowing: false, stormIntensity: 0 }), 0.35);
+  assert.equal(rainCollectionStrength({ raining: false, snowing: true, stormIntensity: 0 }), 0);
+  assert.equal(rainCollectionStrength({
+    raining: false,
+    snowing: true,
+    stormIntensity: STORM_ACTIVE_INTENSITY
+  }), 0.8);
+  assert.equal(rainCollectionStrength({ raining: false, snowing: false, stormIntensity: 1 }), 1);
+});
 
 test("open ocean is more storm-exposed than an enclosed bay", () => {
   const neighbors = [

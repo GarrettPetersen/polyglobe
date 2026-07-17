@@ -77,12 +77,16 @@ import {
   validateCampaignGoal
 } from "./campaignGoals.js";
 import {
+  COLONIZATION_SETTLER_COUNT,
+  COLONIZATION_STAGE_OUTBOUND,
   createColonizationQuestMemory,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 18;
+export const GAME_STATE_VERSION = 20;
+export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
+export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
 export const HOME_FACTION_START_REPUTATION = 8;
@@ -108,7 +112,7 @@ export const SHIP_ITEM_WHALE_HARPOON = "whale-harpoon";
 export const FRESH_WATER_CAPACITY = 100;
 export const FRESH_WATER_DAYS = 21;
 export const FRESH_WATER_CARGO_DAYS = 1;
-export const RAIN_WATER_COLLECTION_PER_DAY = 0.08;
+export const RAIN_WATER_COLLECTION_PER_CONSUMER_DAY = 0.16;
 export const FOOD_TARGET_DAYS = 21;
 export const STARTING_HARDTACK_RATIONS = 10;
 export const EMERGENCY_SHIP_AID_UNITS = 3;
@@ -222,7 +226,8 @@ export function createGameState({
       pendingDiscoveryPortDialogueIds: [],
       navigation: {
         lastLongitudeDeg: null,
-        cumulativeLongitudeDeg: 0
+        cumulativeLongitudeDeg: 0,
+        optionalWaypoints: []
       },
       quests: {
         active: null,
@@ -252,7 +257,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -271,6 +276,8 @@ export function migrateGameState(state, shipStats) {
         startMinute: savedGameStartMinute(state),
         seedKey: worldDiplomacySeedKey(state.playerCharacter, savedGameStartMinute(state))
       });
+  const legacyPortHeading = state.memory?.navigation?.portHeading || null;
+  const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
   const migrated = {
     ...state,
     version: GAME_STATE_VERSION,
@@ -296,6 +303,15 @@ export function migrateGameState(state, shipStats) {
     },
     memory: {
       ...state.memory,
+      navigation: {
+        ...legacyNavigation,
+        optionalWaypoints: state.memory?.navigation?.optionalWaypoints || (legacyPortHeading ? [{
+          id: `port:${legacyPortHeading.destinationTileId}`,
+          destinationTileId: legacyPortHeading.destinationTileId,
+          destinationName: legacyPortHeading.destinationName,
+          reason: legacyPortHeading.reason || PORT_NAVIGATION_REASON_NEW_SHIP
+        }] : [])
+      },
       cargoReservations: state.memory?.cargoReservations || {},
       colonization: state.memory?.colonization || createColonizationQuestMemory(),
       conquest: state.memory?.conquest || createPortConquestMemory(),
@@ -308,6 +324,51 @@ export function migrateGameState(state, shipStats) {
   };
   delete migrated.survival.foodDebt;
   return validateGameState(migrated);
+}
+
+export function addPortNavigationWaypoint(state, { destinationTileId, destinationName, reason }) {
+  assertGameState(state);
+  const waypoint = {
+    id: `port:${destinationTileId}`,
+    destinationTileId,
+    destinationName,
+    reason
+  };
+  assertOptionalNavigationWaypoint(waypoint);
+  const waypoints = state.memory.navigation.optionalWaypoints;
+  const existingIndex = waypoints.findIndex((entry) => entry.id === waypoint.id);
+  if (existingIndex >= 0) waypoints[existingIndex] = waypoint;
+  else waypoints.push(waypoint);
+  return waypoint;
+}
+
+export function portNavigationReasonLabel(reason) {
+  if (reason === "PLAYER HEADING" || reason === "SHIPYARD RUMOUR") {
+    return PORT_NAVIGATION_REASON_NEW_SHIP;
+  }
+  return reason;
+}
+
+export function removeOptionalNavigationWaypoint(state, waypointId) {
+  assertGameState(state);
+  if (typeof waypointId !== "string" || waypointId === "") {
+    throw new Error("Optional navigation waypoint removal requires an id");
+  }
+  const waypoints = state.memory.navigation.optionalWaypoints;
+  const index = waypoints.findIndex((entry) => entry.id === waypointId);
+  if (index < 0) return false;
+  waypoints.splice(index, 1);
+  return true;
+}
+
+export function clearPortNavigationWaypointsAt(state, portTileId) {
+  assertGameState(state);
+  if (!Number.isInteger(portTileId)) throw new Error(`Invalid arrival port tile id: ${portTileId}`);
+  const waypoints = state.memory.navigation.optionalWaypoints;
+  const remaining = waypoints.filter((entry) => entry.destinationTileId !== portTileId);
+  const removed = remaining.length !== waypoints.length;
+  if (removed) state.memory.navigation.optionalWaypoints = remaining;
+  return removed;
 }
 
 export function advanceActivePlayTime(state, elapsedSeconds) {
@@ -777,8 +838,7 @@ export function cargoQuantityLabel(good, quantity) {
 
 export function cargoSpaceLabel(space) {
   if (!Number.isFinite(space) || space < 0) throw new Error(`Invalid cargo space: ${space}`);
-  if (Number.isInteger(space)) return String(space);
-  return space.toFixed(1).replace(/\.0$/, "");
+  return String(Math.round(space));
 }
 
 export function survivalStatus(state) {
@@ -1004,9 +1064,7 @@ export function shipConsumption(state) {
     return { crew: 0, passengers: 0, livestock: 0, foodConsumers: 1, waterConsumers: 1 };
   }
   const quest = state.memory.quests?.active || null;
-  const passengers = quest?.kind === "passenger" || isEnvoyQuest(quest)
-    ? 1
-    : Math.max(0, Number(quest?.passengerCount || quest?.passengers?.length || 0));
+  const passengers = activeQuestTravelerGroup(quest)?.count || 0;
   const livestock = Math.max(0, Number(quest?.livestockCount || quest?.livestock?.count || 0));
   const baseConsumers = 1 + state.ship.crew + passengers;
   const questFood = Math.max(0, Number(quest?.consumption?.food || 0));
@@ -1018,6 +1076,28 @@ export function shipConsumption(state) {
     foodConsumers: Math.max(1, baseConsumers + livestock * 2 + questFood),
     waterConsumers: Math.max(1, baseConsumers + livestock * 2 + questWater)
   };
+}
+
+export function shipTravelerManifest(state) {
+  assertGameState(state);
+  const groups = [];
+  const questGroup = activeQuestTravelerGroup(state.memory.quests?.active || null);
+  if (questGroup) groups.push(questGroup);
+  if (state.memory.colonization.stage === COLONIZATION_STAGE_OUTBOUND) {
+    groups.push(Object.freeze({ kind: "settler", count: COLONIZATION_SETTLER_COUNT }));
+  }
+  return Object.freeze(groups);
+}
+
+function activeQuestTravelerGroup(quest) {
+  if (!quest) return null;
+  if (quest.kind === "passenger") return Object.freeze({ kind: "passenger", count: 1 });
+  if (isEnvoyQuest(quest)) return Object.freeze({ kind: "envoy", count: 1 });
+  const count = quest.passengerCount ?? quest.passengers?.length ?? 0;
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`Invalid quest passenger count: ${count}`);
+  }
+  return count > 0 ? Object.freeze({ kind: "passenger", count }) : null;
 }
 
 export function initializeShipProvisions(state, rationCount = STARTING_HARDTACK_RATIONS) {
@@ -1143,9 +1223,19 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     const waterUse = state.ship
       ? elapsedDays * consumption.waterConsumers / WATER_PERSON_DAYS_PER_UNIT
       : elapsedDays * FRESH_WATER_USE_PER_DAY;
-    const rainWater = elapsedDays * rainfall * RAIN_WATER_COLLECTION_PER_DAY;
-    const water = consumeFreshWater(state, Math.max(0, waterUse - rainWater), !state.ship);
-    result.rainWaterCollected = Math.min(waterUse, rainWater);
+    const availableRainWater = elapsedDays * rainfall *
+      RAIN_WATER_COLLECTION_PER_CONSUMER_DAY * consumption.waterConsumers;
+    const rainWaterUsed = Math.min(waterUse, availableRainWater);
+    const water = consumeFreshWater(state, waterUse - rainWaterUsed, !state.ship);
+    const rainWaterStored = Math.min(
+      state.survival.freshWaterCapacity - state.survival.freshWater,
+      availableRainWater - rainWaterUsed
+    );
+    if (rainWaterStored > 0) {
+      state.survival.freshWater += rainWaterStored;
+      result.changed = true;
+    }
+    result.rainWaterCollected = rainWaterUsed + rainWaterStored;
     result.waterConsumed = water.waterConsumed;
     result.waterCargoConsumed = water.cargoConsumed;
     if (water.changed) {
@@ -2328,7 +2418,7 @@ function affordableHardtackRations(good, requestedRations, budget) {
   return low;
 }
 
-function foodRationsForCargoQuantity(quantity) {
+export function foodRationsForCargoQuantity(quantity) {
   if (!Number.isFinite(quantity) || quantity < 0) throw new Error(`Invalid food cargo quantity: ${quantity}`);
   const rations = Math.round(quantity * FOOD_RATIONS_PER_HOLD_UNIT);
   if (Math.abs(quantity - rations / FOOD_RATIONS_PER_HOLD_UNIT) > 1e-8) {
@@ -2621,6 +2711,24 @@ function whaleHarpoonItemRow(state) {
   };
 }
 
+function assertOptionalNavigationWaypoint(waypoint) {
+  if (!waypoint || typeof waypoint !== "object" || Array.isArray(waypoint)) {
+    throw new Error("Optional navigation waypoint must be an object");
+  }
+  if (typeof waypoint.id !== "string" || waypoint.id === "") {
+    throw new Error("Optional navigation waypoint requires an id");
+  }
+  if (!Number.isInteger(waypoint.destinationTileId)) {
+    throw new Error(`Invalid navigation waypoint tile id: ${waypoint.destinationTileId}`);
+  }
+  if (typeof waypoint.destinationName !== "string" || waypoint.destinationName.trim() === "") {
+    throw new Error("Optional navigation waypoint requires a destination name");
+  }
+  if (typeof waypoint.reason !== "string" || waypoint.reason.trim() === "") {
+    throw new Error("Optional navigation waypoint requires a reason");
+  }
+}
+
 function assertGameState(state) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
   if (!Number.isFinite(state.activePlaySeconds) || state.activePlaySeconds < 0) {
@@ -2695,12 +2803,20 @@ function assertGameState(state) {
   if (!state.memory.navigation || typeof state.memory.navigation !== "object") {
     throw new Error("Game state navigation memory must be an object");
   }
-  const { lastLongitudeDeg, cumulativeLongitudeDeg } = state.memory.navigation;
+  const { lastLongitudeDeg, cumulativeLongitudeDeg, optionalWaypoints } = state.memory.navigation;
   if (lastLongitudeDeg !== null && !Number.isFinite(lastLongitudeDeg)) {
     throw new Error(`Invalid last navigation longitude: ${lastLongitudeDeg}`);
   }
   if (!Number.isFinite(cumulativeLongitudeDeg)) {
     throw new Error(`Invalid cumulative navigation longitude: ${cumulativeLongitudeDeg}`);
+  }
+  if (!Array.isArray(optionalWaypoints)) {
+    throw new Error("Game state optional navigation waypoints must be an array");
+  }
+  for (const waypoint of optionalWaypoints) assertOptionalNavigationWaypoint(waypoint);
+  const waypointIds = optionalWaypoints.map((waypoint) => waypoint.id);
+  if (new Set(waypointIds).size !== waypointIds.length) {
+    throw new Error("Game state contains duplicate optional navigation waypoint ids");
   }
 }
 

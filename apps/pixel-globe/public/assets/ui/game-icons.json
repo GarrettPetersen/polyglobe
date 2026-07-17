@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-2",
+  "version": "resurrect-icons-3",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 80,
@@ -806,6 +806,17 @@
         "h": 16
       },
       "packId": "pirate",
+      "assetPath": null
+    },
+    {
+      "id": "action:navigation",
+      "rect": {
+        "x": 144,
+        "y": 64,
+        "w": 16,
+        "h": 16
+      },
+      "packId": null,
       "assetPath": null
     }
   ],

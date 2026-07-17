@@ -35,6 +35,7 @@
     "render:ship-waterline-review": "node tools/render-sail-ship-sprites.mjs --waterline-review",
     "render:faction-flags": "node tools/render-faction-flags.mjs",
     "render:game-icons": "node tools/build-game-icon-atlas.mjs",
+    "render:port-sailing-distances": "node tools/build-port-sailing-distances.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
     "render:capsules": "node tools/generate-capsule-art.mjs",
     "render:capsule-title-comparison": "node tools/generate-capsule-title-comparison.mjs",

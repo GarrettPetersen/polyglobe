@@ -8,6 +8,7 @@ import {
   WHALE_PHASE_SURFACED,
   WHALE_PHASE_TETHERED,
   advanceWhaleMemory,
+  constrainWhaleTether,
   createWhaleMemory,
   cutWhaleLoose,
   harvestWhaleForNpc,
@@ -107,6 +108,35 @@ test("a secured whale tows until exhausted, then can be killed or released", () 
   cutWhaleLoose(releasedMemory);
   assert.equal(releasedMemory.activeHunt, null);
   assert.equal(released.phase, "diving");
+});
+
+test("a tow line keeps the tethered whale within its visible maximum length", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const whale = memory.individuals.find((candidate) => candidate.id !== WHITE_WHALE_ID);
+  whale.phase = WHALE_PHASE_RISING;
+  whale.phaseElapsedSeconds = 1;
+  whale.phaseDurationSeconds = 2;
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+
+  const anchor = [1, 0, 0];
+  const separation = 0.1;
+  whale.position = [Math.cos(separation), 0, Math.sin(separation)];
+  whale.heading = [-Math.sin(separation), 0, Math.cos(separation)];
+  const maximumDistance = 0.03;
+  const changed = constrainWhaleTether(
+    whale,
+    anchor,
+    maximumDistance,
+    () => ({ ok: true, tileId: 77 })
+  );
+
+  const actualDistance = Math.acos(Math.max(-1, Math.min(1,
+    anchor[0] * whale.position[0] + anchor[1] * whale.position[1] + anchor[2] * whale.position[2]
+  )));
+  assert.equal(changed, true);
+  assert.ok(Math.abs(actualDistance - maximumDistance) < 1e-9);
+  assert.equal(whale.tileId, 77);
 });
 
 test("whale song is a quiet proximity cue only while the whale is underwater", () => {

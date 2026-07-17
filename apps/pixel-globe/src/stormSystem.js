@@ -8,6 +8,21 @@ const STORM_DURATION_SPREAD_MINUTES = 30 * 60;
 export const STORM_ACTIVE_INTENSITY = 0.28;
 export const STORM_DAMAGE_INTENSITY = 0.42;
 
+export function rainCollectionStrength({ raining, snowing, stormIntensity }) {
+  if (typeof raining !== "boolean" || typeof snowing !== "boolean") {
+    throw new Error("Rain collection requires boolean precipitation flags");
+  }
+  if (!Number.isFinite(stormIntensity) || stormIntensity < 0 || stormIntensity > 1) {
+    throw new Error(`Invalid rain collection storm intensity: ${stormIntensity}`);
+  }
+  if (stormIntensity >= STORM_ACTIVE_INTENSITY) {
+    const stormProgress = (stormIntensity - STORM_ACTIVE_INTENSITY) / (1 - STORM_ACTIVE_INTENSITY);
+    return Math.max(raining ? 0.35 : 0, 0.8 + stormProgress * 0.2);
+  }
+  if (snowing) return 0;
+  return raining ? 0.35 : 0;
+}
+
 export function createStormSystem({
   neighbors,
   latDeg,

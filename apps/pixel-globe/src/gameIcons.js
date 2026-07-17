@@ -1,6 +1,6 @@
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-2";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-3";
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -127,7 +127,8 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:resume": pirate(47),
   "action:restart": pirate(12),
   "action:choose-ships": pirate(47),
-  "action:start-menu": pirate(4)
+  "action:start-menu": pirate(4),
+  "action:navigation": generatedIcon("gray-waypoint-arrow")
 });
 
 const GAME_ICON_IDS = Object.freeze(Object.keys(GAME_ICON_SOURCES));
@@ -181,6 +182,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   close: "action:leave",
   "wait-in-port": "action:wait",
   "leave-buy": "action:back",
+  "set-port-heading": "action:navigation",
   "open-port": "action:dock",
   "open-passenger": "action:passenger",
   "complete-quest": "action:quest",
@@ -301,6 +303,13 @@ function projectAsset(assetPath, crop = null) {
     throw new Error(`Invalid project icon asset: ${assetPath}`);
   }
   return Object.freeze({ packId: null, assetPath, crop });
+}
+
+function generatedIcon(generatedId) {
+  if (typeof generatedId !== "string" || generatedId === "") {
+    throw new Error("Generated game icon requires an id");
+  }
+  return Object.freeze({ packId: null, generatedId });
 }
 
 function pirate(number) {

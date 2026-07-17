@@ -59,6 +59,7 @@ async function main() {
 }
 
 async function loadIconSource(source) {
+  if (source.generatedId) return generateIcon(source.generatedId);
   if (source.assetPath) {
     const assetPath = join(appRoot, source.assetPath);
     if (!existsSync(assetPath)) throw new Error(`Missing project icon asset: ${assetPath}`);
@@ -71,6 +72,30 @@ async function loadIconSource(source) {
   const bytes = execFileSync("unzip", ["-p", archivePath, source.entry], { maxBuffer: 8 * 1024 * 1024 });
   if (bytes.length === 0) throw new Error(`Icon source is empty: ${pack.archive}/${source.entry}`);
   return loadImage(bytes);
+}
+
+function generateIcon(generatedId) {
+  if (generatedId !== "gray-waypoint-arrow") {
+    throw new Error(`Unknown generated game icon: ${generatedId}`);
+  }
+  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const ctx = canvas.getContext("2d", { alpha: true });
+  const columns = [6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1];
+  ctx.fillStyle = "#1a1c2c";
+  for (let index = 0; index < columns.length; index++) {
+    const x = 4 + index;
+    const halfHeight = columns[index];
+    ctx.fillRect(x + 1, 9 - halfHeight, 1, halfHeight * 2 + 1);
+  }
+  for (let index = 0; index < columns.length; index++) {
+    const x = 3 + index;
+    const halfHeight = columns[index];
+    ctx.fillStyle = "#94b0c2";
+    ctx.fillRect(x, 8 - halfHeight, 1, halfHeight + 1);
+    ctx.fillStyle = "#566c86";
+    ctx.fillRect(x, 9, 1, halfHeight);
+  }
+  return canvas;
 }
 
 function quantizeToResurrect(ctx, width, height) {

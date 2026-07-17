@@ -7,6 +7,7 @@ import {
   claimShipyardListing,
   createWorldShipyards,
   generateShipyardListing,
+  nearestShipyardListingForPort,
   restoreWorldShipyards,
   shipConstructionPrice,
   shipyardAtPort,
@@ -189,11 +190,27 @@ test("nearby factors can gossip about an active shipyard listing", () => {
   const system = createWorldShipyards({ ports: [LISBON, PORTO], startMinute: 0 });
   const lisbonYard = shipyardAtPort(system, LISBON);
   lisbonYard.listing = generateShipyardListing(lisbonYard, 99, 0);
-  const rumor = shipyardRumorForPort(system, PORTO);
+  const rumor = shipyardRumorForPort(system, PORTO, testSailingDistanceKm);
 
   assert.equal(rumor.portName, "Lisbon");
   assert.equal(rumor.shipSlug, lisbonYard.listing.shipSlug);
   assert.ok(rumor.distanceKm < 400);
+});
+
+test("empty shipyards can name the nearest active vessel sale worldwide", () => {
+  const system = createWorldShipyards({ ports: [LISBON, PORTO, FIJI], startMinute: 0 });
+  const lisbonYard = shipyardAtPort(system, LISBON);
+  const portoYard = shipyardAtPort(system, PORTO);
+  const fijiYard = shipyardAtPort(system, FIJI);
+  lisbonYard.listing = null;
+  portoYard.listing = generateShipyardListing(portoYard, 99, 0);
+  fijiYard.listing = generateShipyardListing(fijiYard, 99, 0);
+
+  const listing = nearestShipyardListingForPort(system, LISBON, testSailingDistanceKm);
+
+  assert.equal(listing.portName, "Porto");
+  assert.equal(listing.shipSlug, portoYard.listing.shipSlug);
+  assert.ok(listing.distanceKm < 400);
 });
 
 test("new listings spawn over time and purchased listings disappear", () => {
@@ -262,4 +279,14 @@ function generatedHulls(yard, count) {
     hulls.add(generateShipyardListing(yard, build, build * 1000).shipSlug);
   }
   return hulls;
+}
+
+function testSailingDistanceKm(a, b) {
+  const aTileId = Number.isInteger(a) ? a : a.tileId;
+  const bTileId = Number.isInteger(b) ? b : b.tileId;
+  if (aTileId === bTileId) return 0;
+  const pair = new Set([aTileId, bTileId]);
+  if (pair.has(LISBON.tileId) && pair.has(PORTO.tileId)) return 280;
+  if (pair.has(LISBON.tileId) && pair.has(FIJI.tileId)) return 19200;
+  throw new Error(`Missing test sailing distance: ${aTileId} to ${bTileId}`);
 }

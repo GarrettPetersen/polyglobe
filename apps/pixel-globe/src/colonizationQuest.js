@@ -8,6 +8,7 @@ export const COLONIZATION_TARGET_COUNTRY = "Canada";
 export const COLONIZATION_TARGET_PORT_ID = "colony-port-royal";
 export const COLONIZATION_CARGO_RESERVATION_ID = "port-royal-colonists";
 export const COLONIZATION_EXPEDITION_CARGO_UNITS = 24;
+export const COLONIZATION_SETTLER_COUNT = 12;
 export const COLONIZATION_MIN_CARGO_CAPACITY = 90;
 export const COLONIZATION_MIN_SEAWORTHINESS = 7;
 export const COLONIZATION_RESUPPLY_DAYS = 365;

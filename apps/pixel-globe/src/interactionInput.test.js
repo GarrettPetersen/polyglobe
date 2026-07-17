@@ -15,6 +15,7 @@ const inactive = Object.freeze({
   shipInfoActive: false,
   politicsActive: false,
   discoveriesActive: false,
+  navigationActive: false,
   dialogueActive: false,
   portWaitActive: false,
   fishingActive: false
@@ -37,6 +38,7 @@ test("input follows the complete top-to-bottom order of rendered overlays", () =
     ["shipInfoActive", INTERACTION_INPUT.SHIP_INFO],
     ["politicsActive", INTERACTION_INPUT.POLITICS],
     ["discoveriesActive", INTERACTION_INPUT.DISCOVERIES],
+    ["navigationActive", INTERACTION_INPUT.NAVIGATION],
     ["dialogueActive", INTERACTION_INPUT.DIALOGUE],
     ["portWaitActive", INTERACTION_INPUT.PORT_WAIT],
     ["fishingActive", INTERACTION_INPUT.FISHING]

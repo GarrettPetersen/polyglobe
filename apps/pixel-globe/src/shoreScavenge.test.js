@@ -9,9 +9,12 @@ import {
   SHORE_SCAVENGE_DESERT,
   SHORE_SCAVENGE_FOOD,
   SHORE_SCAVENGE_NOTHING,
+  SHORE_SCAVENGE_SEABIRD,
   SHORE_SCAVENGE_TEMPERATE,
   SHORE_SCAVENGE_WATER,
+  caughtSeabird,
   foragedFoodQuantity,
+  replaceFailedScavengeWithSeabird,
   rollShoreScavenge,
   shoreScavengeContextForTerrain,
   shoreScavengeNoticeLabel,
@@ -43,6 +46,20 @@ test("found food is a small one-to-three unit haul", () => {
   assert.equal(foragedFoodQuantity(() => 0), 1);
   assert.equal(foragedFoodQuantity(() => 0.5), 2);
   assert.equal(foragedFoodQuantity(() => 0.9999), 3);
+});
+
+test("a nearby landed seabird replaces only failed or fatal scavenging", () => {
+  assert.equal(replaceFailedScavengeWithSeabird(SHORE_SCAVENGE_NOTHING, true), SHORE_SCAVENGE_SEABIRD);
+  assert.equal(replaceFailedScavengeWithSeabird(SHORE_SCAVENGE_CASUALTY, true), SHORE_SCAVENGE_SEABIRD);
+  assert.equal(replaceFailedScavengeWithSeabird(SHORE_SCAVENGE_WATER, true), SHORE_SCAVENGE_WATER);
+  assert.equal(replaceFailedScavengeWithSeabird(SHORE_SCAVENGE_FOOD, true), SHORE_SCAVENGE_FOOD);
+  assert.equal(replaceFailedScavengeWithSeabird(SHORE_SCAVENGE_NOTHING, false), SHORE_SCAVENGE_NOTHING);
+});
+
+test("scavenged seabirds vary by climate and provide whole food rations", () => {
+  assert.deepEqual(caughtSeabird(SHORE_SCAVENGE_TEMPERATE, () => 0), { name: "gull", foodRations: 2 });
+  assert.deepEqual(caughtSeabird(SHORE_SCAVENGE_ARCTIC, () => 0), { name: "kittiwake", foodRations: 2 });
+  assert.deepEqual(caughtSeabird(SHORE_SCAVENGE_ANTARCTIC, () => 0.9999), { name: "albatross", foodRations: 5 });
 });
 
 test("every shore and outcome has varied descriptive text", () => {

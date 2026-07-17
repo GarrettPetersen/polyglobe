@@ -156,7 +156,7 @@ test("captains react to discoveries outside their home region", () => {
   assert.equal(captainDialogueForDiscovery(CIRCUMNAVIGATION_DISCOVERY, { startRegion: "europe" }), null);
 });
 
-test("home-region landmarks are familiar rather than player discoveries", () => {
+test("home-region landmarks suppress redundant captain dialogue", () => {
   const stonehenge = WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-stonehenge");
   const greatWall = WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-great-wall");
 
