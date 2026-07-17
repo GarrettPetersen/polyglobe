@@ -25,6 +25,15 @@ export function dialoguePanelGeometry({
   });
 }
 
+export function dialogueFeedbackSlotCount({ visibleLineCount, reservedLineCount = 0 }) {
+  for (const [label, value] of Object.entries({ visibleLineCount, reservedLineCount })) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`Invalid dialogue feedback ${label}: ${value}`);
+    }
+  }
+  return Math.max(visibleLineCount, reservedLineCount);
+}
+
 export function dialogueOptionTextLayout({
   label,
   detail = "",

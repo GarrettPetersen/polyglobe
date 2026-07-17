@@ -5,7 +5,7 @@ export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 export const SHIP_PROPULSION_SAIL = "sail";
 export const SHIP_PROPULSION_OAR = "oar";
 export const SHIP_PROPULSION_OAR_SAIL = "oar-sail";
-export const SHIP_UPWIND_FORGIVENESS_DEG = 5;
+export const SHIP_UPWIND_FORGIVENESS_DEG = 8;
 
 const SHIP_PROPULSIONS = new Set([
   SHIP_PROPULSION_SAIL,

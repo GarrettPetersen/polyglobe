@@ -444,6 +444,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   const sell = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
+  assert.equal(sell.feedbackLineReserve, 2);
   assert.equal(sell.optionHeight, 30);
   assert.equal(sell.options.at(-1).label, "Back");
   assert.equal(sell.options.at(-1).placement, "port-exit");

@@ -431,6 +431,7 @@ import { createCaptureControls } from "./captureControls.js";
 import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js";
 import {
   dialogueExitFooterRects,
+  dialogueFeedbackSlotCount,
   dialogueOptionGroups,
   dialogueOptionNavigationLayout,
   dialogueOptionStackLayout,
@@ -22079,16 +22080,20 @@ function drawDialogueOverlay(nowMs) {
   const optionGroups = dialogueOptionGroups(view.options);
   const optionRowCount = optionGroups.regular.length + (optionGroups.exits.length > 0 ? 1 : 0);
   const maximumPanelHeight = SCREEN_H - 13;
-  const feedbackReserve = view.feedback ? dialogueLineHeight * 2 : 0;
+  let feedbackLines = view.feedback
+    ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
+    : [];
+  const feedbackSlotCount = dialogueFeedbackSlotCount({
+    visibleLineCount: feedbackLines.length,
+    reservedLineCount: view.feedbackLineReserve ?? 0
+  });
+  const feedbackReserve = dialogueLineHeight * feedbackSlotCount;
   const bodyLineLimit = Math.max(1, Math.floor(
     (maximumPanelHeight - textYOffset - optionHeight - feedbackReserve - 14) / dialogueLineHeight
   ) - topicLines.length);
   let bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
-  let feedbackLines = view.feedback
-    ? wrapPixelText(view.feedback, dialogueFont, bodyTextW, 2)
-    : [];
   const bodyEndOffset = textYOffset +
-    (topicLines.length + bodyLines.length + feedbackLines.length) * dialogueLineHeight;
+    (topicLines.length + bodyLines.length + feedbackSlotCount) * dialogueLineHeight;
   const optionYOffset = portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
   const contentHeight = optionYOffset + optionRowCount * optionHeight +
     (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) + 9;

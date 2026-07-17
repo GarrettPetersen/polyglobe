@@ -4,6 +4,8 @@ import test from "node:test";
 import { shipStatsForSlug } from "./shipStats.js";
 import {
   HYBRID_ROWING_SPEED_RATIO,
+  SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD,
+  SAIL_CLOSE_HAULED_EFFICIENCY,
   SHIP_DRAG_PER_SECOND,
   SHIP_STALLED_DRAG_MULTIPLIER,
   sailingEfficiencyForAlignment,
@@ -30,11 +32,22 @@ test("the shared sail curve stalls upwind and peaks across the wind", () => {
 
 test("ships now make progress inside their former upwind boundary", () => {
   const brigantine = shipStatsForSlug("brigantine");
-  const oldBoundaryAngle = 38 * Math.PI / 180;
+  const oldBoundaryAngle = 35 * Math.PI / 180;
   const currentBoundaryAngle = brigantine.upwindStallAngleRad;
 
   assert.ok(sailingEfficiencyForAlignment(brigantine, -Math.cos(oldBoundaryAngle)) > 0);
   assert.equal(sailingEfficiencyForAlignment(brigantine, -Math.cos(currentBoundaryAngle)), 0);
+});
+
+test("close-hauled ships reach useful power soon after clearing the no-go zone", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const courseAngle = brigantine.upwindStallAngleRad + 6 * Math.PI / 180;
+  const efficiency = sailingEfficiencyForAlignment(brigantine, -Math.cos(courseAngle));
+
+  assert.equal(SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD, Math.PI / 15);
+  assert.equal(SAIL_CLOSE_HAULED_EFFICIENCY, 0.46);
+  assert.ok(efficiency >= 0.22);
+  assert.ok(efficiency < SAIL_CLOSE_HAULED_EFFICIENCY);
 });
 
 test("paddled canoes have no dead zone and keep their low speed into the wind", () => {

@@ -10,8 +10,8 @@ export const HYBRID_ROUTE_PROGRESS_FLOOR = 0.34;
 export const SHIP_DRAG_PER_SECOND = 0.62;
 export const SHIP_STALLED_DRAG_MULTIPLIER = 1.35;
 export const SHIP_MINIMUM_POWERED_SPEED_RAD = 0.006;
-export const SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD = Math.PI / 12;
-export const SAIL_CLOSE_HAULED_EFFICIENCY = 0.34;
+export const SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD = Math.PI / 15;
+export const SAIL_CLOSE_HAULED_EFFICIENCY = 0.46;
 
 export function sailingEfficiencyForAlignment(stats, alignment) {
   if (!stats || !Number.isFinite(stats.upwindStallAngleRad)) {

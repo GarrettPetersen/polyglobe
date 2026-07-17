@@ -75,19 +75,19 @@ test("native canoe hulls are small, arrow-armed, and regionally distinct", () =>
   assert.equal(polynesian.propulsion, SHIP_PROPULSION_SAIL);
   assert.ok(polynesian.upwindStallAngleDeg > 0);
   assert.equal(shipStatsForSlug("sampan").propulsion, SHIP_PROPULSION_SAIL);
-  assert.equal(SHIP_UPWIND_FORGIVENESS_DEG, 5);
-  assert.equal(shipStatsForSlug("sampan").upwindStallAngleDeg, 40);
+  assert.equal(SHIP_UPWIND_FORGIVENESS_DEG, 8);
+  assert.equal(shipStatsForSlug("sampan").upwindStallAngleDeg, 37);
   const fishingBarque = shipStatsForSlug("fishing-lugger");
   assert.equal(mesoamerican.topSpeedRad, 0.010 * SHIP_TOP_SPEED_SCALE);
   assert.ok(mesoamerican.topSpeedRad < fishingBarque.topSpeedRad * 0.4);
   assert.ok(mesoamerican.accelerationRad < fishingBarque.accelerationRad);
 });
 
-test("every sail plan receives the shared five-degree close-hauled allowance", () => {
-  assert.equal(shipStatsForSlug("felucca").upwindStallAngleDeg, 25);
-  assert.equal(shipStatsForSlug("brigantine").upwindStallAngleDeg, 35);
-  assert.equal(shipStatsForSlug("carrack").upwindStallAngleDeg, 55);
-  assert.equal(shipStatsForSlug("polynesian-voyaging-canoe").upwindStallAngleDeg, 23);
+test("every sail plan receives the shared eight-degree close-hauled allowance", () => {
+  assert.equal(shipStatsForSlug("felucca").upwindStallAngleDeg, 22);
+  assert.equal(shipStatsForSlug("brigantine").upwindStallAngleDeg, 32);
+  assert.equal(shipStatsForSlug("carrack").upwindStallAngleDeg, 52);
+  assert.equal(shipStatsForSlug("polynesian-voyaging-canoe").upwindStallAngleDeg, 20);
   assert.equal(shipStatsForSlug("mesoamerican-dugout-canoe").upwindStallAngleDeg, 0);
 });
 

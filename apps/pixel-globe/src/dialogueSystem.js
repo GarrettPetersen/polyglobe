@@ -1892,6 +1892,7 @@ function sellView(session, city, gameState, economy) {
       ? `The fences care about value, not provenance. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`
       : `Buyers here pay port rates. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`,
     feedback: session.feedback,
+    feedbackLineReserve: 2,
     optionHeight: 30,
     options: rows
   };

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   dialogueExitFooterRects,
+  dialogueFeedbackSlotCount,
   dialogueOptionGroups,
   dialogueOptionLayout,
   dialogueOptionNavigationLayout,
@@ -11,6 +12,16 @@ import {
   dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
+
+test("reserved feedback slots keep action positions stable as messages appear", () => {
+  assert.equal(dialogueFeedbackSlotCount({ visibleLineCount: 0, reservedLineCount: 2 }), 2);
+  assert.equal(dialogueFeedbackSlotCount({ visibleLineCount: 1, reservedLineCount: 2 }), 2);
+  assert.equal(dialogueFeedbackSlotCount({ visibleLineCount: 2, reservedLineCount: 2 }), 2);
+  assert.throws(
+    () => dialogueFeedbackSlotCount({ visibleLineCount: 0.5, reservedLineCount: 2 }),
+    /visibleLineCount/
+  );
+});
 
 test("portrait greetings use a compact content-height panel", () => {
   const layout = dialoguePanelGeometry({
