@@ -69,6 +69,14 @@ The sixteen `trailer-*` scenarios provide two clips apiece for exploration, trad
 
 Automated recording never reads or writes the normal voyage save. It samples the native `270x480` canvas inside the game loop and records a semantic event sidecar. The game's SFX and ambient loops are mixed onto a dedicated capture bus; music is excluded. Each scenario emits a lossless native WebM, a nearest-neighbour `1080x1920` MP4, and a separate `.sfx.ogg` stem. The capture fails if the stem is silent or the delivery video lacks audio. Outputs and `manifest.json` are written to `apps/pixel-globe/.captures/trailer-clips/`. Pass `--ids trailer-fish-cod,trailer-whale-right` to `npm run capture:trailer --` to record a subset.
 
+For a Steam trailer, record the same scenarios on the native `480x270` landscape canvas and export nearest-neighbour `1920x1080` clips:
+
+```sh
+make pixel-globe-steam-trailer-clips
+```
+
+These clips are written to `apps/pixel-globe/.captures/trailer-clips-steam/`. Both capture formats validate their native frame size, sidecar viewport, output dimensions, frame rate, and audio stream before completing.
+
 ## 6. Build the Short
 
 ```sh

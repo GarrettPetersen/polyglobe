@@ -2,8 +2,19 @@ import { factionById } from "./factions.js";
 import { NPC_SHIP_SLUGS } from "./npcSeaRoutes.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
-export const CAPTURE_VIEWPORT = Object.freeze({ width: 270, height: 480 });
+export const CAPTURE_VIEWPORTS = Object.freeze({
+  shorts: Object.freeze({ width: 270, height: 480 }),
+  steam: Object.freeze({ width: 480, height: 270 })
+});
+export const CAPTURE_FORMAT_QUERY_PARAM = "captureFormat";
 export const CAPTURE_MAX_SECONDS = 10 * 60;
+
+export function captureViewportFromSearch(search) {
+  const value = new URLSearchParams(search).get(CAPTURE_FORMAT_QUERY_PARAM) || "shorts";
+  const viewport = CAPTURE_VIEWPORTS[value];
+  if (!viewport) throw new Error(`Unknown capture format: ${value}`);
+  return viewport;
+}
 
 const CAPTURE_SCENARIOS = Object.freeze({
   "icosahedron-earth": scenario({

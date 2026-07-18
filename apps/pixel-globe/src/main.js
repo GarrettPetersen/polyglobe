@@ -476,8 +476,8 @@ import {
 import { responsiveLogicalViewport } from "./responsiveViewport.js";
 import {
   CAPTURE_MAX_SECONDS,
-  CAPTURE_VIEWPORT,
-  captureScenarioFromSearch
+  captureScenarioFromSearch,
+  captureViewportFromSearch
 } from "./captureScenarios.js";
 import { CaptureRecorder } from "./captureRecorder.js";
 import {
@@ -1548,6 +1548,7 @@ const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const CAPTURE_SCENARIO = captureScenarioFromSearch(window.location.search);
 const CAPTURE_AUTOMATIC = automaticCaptureRequested(window.location.search);
+const CAPTURE_VIEWPORT = captureViewportFromSearch(window.location.search);
 if (CAPTURE_AUTOMATIC && !CAPTURE_SCENARIO) {
   throw new Error("Automatic capture requires a named capture scenario");
 }

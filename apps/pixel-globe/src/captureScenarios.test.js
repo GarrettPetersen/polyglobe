@@ -2,15 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CAPTURE_MAX_SECONDS,
-  CAPTURE_VIEWPORT,
+  CAPTURE_VIEWPORTS,
   captureScenarioFromSearch,
   captureScenarioIds,
+  captureViewportFromSearch,
   validateCaptureScenario
 } from "./captureScenarios.js";
 
-test("capture scenarios use a native 9:16 frame and a ten-minute cap", () => {
-  assert.deepEqual(CAPTURE_VIEWPORT, { width: 270, height: 480 });
-  assert.equal(CAPTURE_VIEWPORT.width / CAPTURE_VIEWPORT.height, 9 / 16);
+test("capture scenarios expose explicit Shorts and Steam frames", () => {
+  assert.deepEqual(CAPTURE_VIEWPORTS.shorts, { width: 270, height: 480 });
+  assert.equal(CAPTURE_VIEWPORTS.shorts.width / CAPTURE_VIEWPORTS.shorts.height, 9 / 16);
+  assert.deepEqual(CAPTURE_VIEWPORTS.steam, { width: 480, height: 270 });
+  assert.equal(CAPTURE_VIEWPORTS.steam.width / CAPTURE_VIEWPORTS.steam.height, 16 / 9);
+  assert.deepEqual(captureViewportFromSearch("?capture=turtle-ship-war"), CAPTURE_VIEWPORTS.shorts);
+  assert.deepEqual(
+    captureViewportFromSearch("?capture=turtle-ship-war&captureFormat=steam"),
+    CAPTURE_VIEWPORTS.steam
+  );
+  assert.throws(() => captureViewportFromSearch("?captureFormat=square"), /Unknown capture format/);
   assert.equal(CAPTURE_MAX_SECONDS, 600);
 });
 

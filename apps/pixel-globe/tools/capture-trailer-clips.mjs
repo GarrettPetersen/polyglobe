@@ -5,12 +5,32 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { captureScenarioIds } from "../src/captureScenarios.js";
 
 const require = createRequire(import.meta.url);
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CANVAS_CAPTURE_FPS = 10;
+const CAPTURE_FORMATS = Object.freeze({
+  shorts: Object.freeze({
+    queryValue: "shorts",
+    logicalWidth: 270,
+    logicalHeight: 480,
+    outputWidth: 1080,
+    outputHeight: 1920
+  }),
+  steam: Object.freeze({
+    queryValue: "steam",
+    logicalWidth: 480,
+    logicalHeight: 270,
+    outputWidth: 1920,
+    outputHeight: 1080
+  })
+});
 const playwright = loadPlaywright();
 const args = parseArgs(process.argv.slice(2));
+const captureFormat = CAPTURE_FORMATS[args.format];
+if (!captureFormat) throw new Error(`Unknown trailer capture format: ${args.format}`);
 const scenarioIds = args.ids.length > 0
   ? args.ids
   : captureScenarioIds().filter((id) => id.startsWith("trailer-"));
@@ -19,7 +39,7 @@ if (scenarioIds.length === 0) throw new Error("No trailer capture scenarios were
 const unknown = scenarioIds.filter((id) => !captureScenarioIds().includes(id));
 if (unknown.length > 0) throw new Error(`Unknown capture scenarios: ${unknown.join(", ")}`);
 
-const outputRoot = path.resolve(args.output);
+const outputRoot = path.resolve(APP_ROOT, args.output);
 await mkdir(outputRoot, { recursive: true });
 await assertServerReady(args.baseUrl);
 
@@ -42,6 +62,15 @@ const manifestPath = path.join(outputRoot, "manifest.json");
 await writeFile(manifestPath, `${JSON.stringify({
   version: 1,
   generatedAt: new Date().toISOString(),
+  format: args.format,
+  logicalViewport: {
+    width: captureFormat.logicalWidth,
+    height: captureFormat.logicalHeight
+  },
+  outputViewport: {
+    width: captureFormat.outputWidth,
+    height: captureFormat.outputHeight
+  },
   clips: manifest
 }, null, 2)}\n`);
 process.stdout.write(`Trailer clips: ${outputRoot}\nManifest: ${manifestPath}\n`);
@@ -55,7 +84,10 @@ async function recordScenario(browser, scenarioId) {
   await mkdir(frameDir, { recursive: true });
   const context = await browser.newContext({
     acceptDownloads: true,
-    viewport: { width: 540, height: 960 },
+    viewport: {
+      width: captureFormat.logicalWidth * 2,
+      height: captureFormat.logicalHeight * 2
+    },
     deviceScaleFactor: 1
   });
   const page = await context.newPage();
@@ -74,7 +106,8 @@ async function recordScenario(browser, scenarioId) {
   });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
 
-  const url = `${args.baseUrl}/?capture=${encodeURIComponent(scenarioId)}&autocapture=1`;
+  const url = `${args.baseUrl}/?capture=${encodeURIComponent(scenarioId)}` +
+    `&captureFormat=${encodeURIComponent(captureFormat.queryValue)}&autocapture=1`;
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: args.loadTimeoutMs });
     await page.waitForFunction(() => (
@@ -85,7 +118,7 @@ async function recordScenario(browser, scenarioId) {
     if (failure) throw new Error(failure);
     const frames = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_FRAMES__ || null);
     if (!frames) throw new Error(`${scenarioId} did not expose captured canvas frames`);
-    await writeCapturedFrames(frameDir, frames);
+    await writeCapturedFrames(frameDir, frames, captureFormat);
     await waitFor(() => downloads.length === 2, args.downloadTimeoutMs, `SFX and event downloads for ${scenarioId}`);
     await Promise.all(downloadTasks);
   } catch (error) {
@@ -103,16 +136,17 @@ async function recordScenario(browser, scenarioId) {
   const videoPath = path.join(categoryDir, `${scenarioId}.webm`);
   const mp4Path = path.join(categoryDir, `${scenarioId}.mp4`);
   const sidecar = JSON.parse(await readFile(eventsPath, "utf8"));
-  verifySidecar(sidecar, scenarioId);
+  verifySidecar(sidecar, scenarioId, captureFormat);
   sanitizeCaptureSfx(rawSfxPath, sfxPath);
   await rm(rawSfxPath, { force: true });
   const audioPeakDb = audibleAudioPeakDb(sfxPath, scenarioId);
   await padCanvasFrames(frameDir, sidecar.durationMs);
   encodeNativeTrailerWebm(frameDir, sfxPath, videoPath);
-  encodeTrailerMp4(frameDir, sfxPath, mp4Path);
+  encodeTrailerMp4(frameDir, sfxPath, mp4Path, captureFormat);
   await rm(frameDir, { recursive: true, force: true });
   const probe = probeVideo(mp4Path);
-  if (probe.width !== 1080 || probe.height !== 1920 || probe.frameRate !== 30 || !probe.hasAudio) {
+  if (probe.width !== captureFormat.outputWidth || probe.height !== captureFormat.outputHeight ||
+      probe.frameRate !== 30 || !probe.hasAudio) {
     throw new Error(
       `${scenarioId} encoded incorrectly: ${probe.width}x${probe.height} at ${probe.frameRate} fps, audio=${probe.hasAudio}`
     );
@@ -120,6 +154,7 @@ async function recordScenario(browser, scenarioId) {
   return {
     scenarioId,
     category,
+    format: args.format,
     durationSeconds: Math.round(sidecar.durationMs / 10) / 100,
     video: path.relative(outputRoot, mp4Path),
     nativeVideo: path.relative(outputRoot, videoPath),
@@ -133,7 +168,7 @@ async function recordScenario(browser, scenarioId) {
   };
 }
 
-async function writeCapturedFrames(frameDir, capture) {
+async function writeCapturedFrames(frameDir, capture, format) {
   if (capture?.frameRate !== CANVAS_CAPTURE_FPS || !Array.isArray(capture.frames) || capture.frames.length < 2) {
     throw new Error(`Invalid automatic canvas capture: ${JSON.stringify(capture)?.slice(0, 200)}`);
   }
@@ -148,12 +183,31 @@ async function writeCapturedFrames(frameDir, capture) {
       throw new Error(`Invalid captured PNG at ${sourceIndex}`);
     }
     const data = Buffer.from(frame.pngDataUrl.slice("data:image/png;base64,".length), "base64");
+    const dimensions = pngDimensions(data);
+    if (dimensions.width !== format.logicalWidth || dimensions.height !== format.logicalHeight) {
+      throw new Error(
+        `Captured PNG is ${dimensions.width}x${dimensions.height}; expected ` +
+        `${format.logicalWidth}x${format.logicalHeight}`
+      );
+    }
     const endIndex = Math.max(outputIndex + 1, Math.ceil(nextTime * CANVAS_CAPTURE_FPS / 1000));
     while (outputIndex < endIndex) {
       await writeCanvasFrame(frameDir, outputIndex, data);
       outputIndex += 1;
     }
   }
+}
+
+function pngDimensions(data) {
+  const pngSignature = "89504e470d0a1a0a";
+  if (data.length < 24 || data.subarray(0, 8).toString("hex") !== pngSignature ||
+      data.subarray(12, 16).toString("ascii") !== "IHDR") {
+    throw new Error("Automatic capture frame is not a valid PNG header");
+  }
+  return {
+    width: data.readUInt32BE(16),
+    height: data.readUInt32BE(20)
+  };
 }
 
 async function padCanvasFrames(frameDir, durationMs) {
@@ -193,14 +247,14 @@ function sanitizeCaptureSfx(input, output) {
   ], { stdio: "inherit" });
 }
 
-function encodeTrailerMp4(frameDir, sfxInput, output) {
+function encodeTrailerMp4(frameDir, sfxInput, output, format) {
   execFileSync("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
     "-framerate", String(CANVAS_CAPTURE_FPS),
     "-i", path.join(frameDir, "frame-%05d.png"),
     "-i", sfxInput,
     "-map", "0:v:0", "-map", "1:a:0",
-    "-vf", "fps=30,scale=1080:1920:flags=neighbor",
+    "-vf", `fps=30,scale=${format.outputWidth}:${format.outputHeight}:flags=neighbor`,
     "-c:v", "libx264", "-preset", "slow", "-crf", "12",
     "-c:a", "aac", "-b:a", "160k", "-af", "apad", "-shortest",
     "-pix_fmt", "yuv420p", "-movflags", "+faststart",
@@ -243,7 +297,7 @@ function audibleAudioPeakDb(audioPath, scenarioId) {
   return peakDb;
 }
 
-function verifySidecar(sidecar, scenarioId) {
+function verifySidecar(sidecar, scenarioId, format) {
   if (sidecar?.scenario?.id !== scenarioId) {
     throw new Error(`${scenarioId} sidecar identifies ${sidecar?.scenario?.id || "nothing"}`);
   }
@@ -255,6 +309,14 @@ function verifySidecar(sidecar, scenarioId) {
     if (!types.has(required)) throw new Error(`${scenarioId} sidecar is missing ${required}`);
   }
   if (!types.has("capture-beat")) throw new Error(`${scenarioId} sidecar has no capture beats`);
+  const captureStart = sidecar.events.find((event) => event.type === "capture-start");
+  const viewport = captureStart?.data?.viewport;
+  if (viewport?.width !== format.logicalWidth || viewport?.height !== format.logicalHeight) {
+    throw new Error(
+      `${scenarioId} sidecar viewport is ${viewport?.width}x${viewport?.height}; expected ` +
+      `${format.logicalWidth}x${format.logicalHeight}`
+    );
+  }
 }
 
 function requiredDownloadedPath(downloads, extension, scenarioId) {
@@ -321,7 +383,8 @@ function browserExecutablePath() {
 function parseArgs(argv) {
   const parsed = {
     baseUrl: "http://127.0.0.1:5184",
-    output: "apps/pixel-globe/.captures/trailer-clips",
+    output: ".captures/trailer-clips",
+    format: "shorts",
     ids: [],
     headless: true,
     loadTimeoutMs: 120_000,
@@ -333,6 +396,7 @@ function parseArgs(argv) {
     if (arg === "--base-url") parsed.baseUrl = requiredValue(argv, ++index, arg).replace(/\/$/, "");
     else if (arg === "--output") parsed.output = requiredValue(argv, ++index, arg);
     else if (arg === "--ids") parsed.ids = requiredValue(argv, ++index, arg).split(",").filter(Boolean);
+    else if (arg === "--format") parsed.format = requiredValue(argv, ++index, arg);
     else if (arg === "--headed") parsed.headless = false;
     else throw new Error(`Unknown trailer capture argument: ${arg}`);
   }
