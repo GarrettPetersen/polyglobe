@@ -3,8 +3,9 @@ import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 export const FISH_MIN_CATCHABLE_POPULATION = 1;
 
 const FISH_MEMORY_VERSION = 2;
-const RIVER_SPAWN_START_DAY = 245;
-const RIVER_SPAWN_END_DAY = 335;
+const SALMON_RIVER_RUN_START_DAY = 245;
+const SALMON_RIVER_RUN_END_DAY = 335;
+const SALMON_APPROACH_DAYS = 30;
 
 export const FISH_SPECIES = Object.freeze([
   species("salmon", "Salmon", "#db6b4f", "#f0b28c", "#743f39", {
@@ -309,10 +310,7 @@ function speciesHabitatScore(speciesId, habitat, dayOfYear) {
   const tropical = absLat < 28;
   const cold = absLat >= 42;
   if (speciesId === "salmon") {
-    if (!["river", "river-mouth"].includes(habitat.kind) || absLat < 30 || absLat > 68) return 0;
-    return salmonRunActive(habitat.lat, dayOfYear)
-      ? (habitat.kind === "river" ? 1.3 : 0.72)
-      : (habitat.kind === "river-mouth" ? 0.12 : 0.04);
+    return salmonMigrationProfile(habitat, dayOfYear)?.score || 0;
   }
   if (speciesId === "herring") {
     if (!["coastal", "river-mouth", "open-ocean"].includes(habitat.kind) || absLat < 22 || absLat > 66) return 0;
@@ -339,9 +337,7 @@ function speciesHabitatScore(speciesId, habitat, dayOfYear) {
 
 function fisheryPresenceChance(speciesId, habitat, dayOfYear) {
   if (speciesId === "salmon") {
-    return salmonRunActive(habitat.lat, dayOfYear)
-      ? (habitat.kind === "river" ? 0.52 : 0.34)
-      : 0.08;
+    return salmonMigrationProfile(habitat, dayOfYear)?.presenceChance || 0;
   }
   if (habitat.kind === "lake") {
     const region = lakeFishRegion(habitat);
@@ -365,10 +361,40 @@ function habitatCapacityMultiplier(speciesDef, habitat) {
 }
 
 function salmonRunActive(lat, dayOfYear) {
-  if (Math.abs(lat) < 30 || Math.abs(lat) > 68) return false;
-  if (lat >= 0) return dayOfYear >= RIVER_SPAWN_START_DAY && dayOfYear <= RIVER_SPAWN_END_DAY;
-  const southernDay = positiveModulo(dayOfYear + Math.floor(WEATHER_DAYS / 2), WEATHER_DAYS);
-  return southernDay >= RIVER_SPAWN_START_DAY && southernDay <= RIVER_SPAWN_END_DAY;
+  if (lat < 30 || lat > 68) return false;
+  return dayOfYear >= SALMON_RIVER_RUN_START_DAY && dayOfYear <= SALMON_RIVER_RUN_END_DAY;
+}
+
+function salmonMigrationProfile(habitat, dayOfYear) {
+  if (!salmonNativeRange(habitat)) return null;
+  if (salmonRunActive(habitat.lat, dayOfYear)) {
+    if (habitat.kind === "river") return { score: 1.3, presenceChance: 0.52 };
+    if (habitat.kind === "river-mouth") return { score: 0.82, presenceChance: 0.42 };
+    if (habitat.kind === "coastal") return { score: 0.12, presenceChance: 0.08 };
+    return null;
+  }
+  if (salmonApproachActive(dayOfYear)) {
+    if (habitat.kind === "river-mouth") return { score: 0.92, presenceChance: 0.44 };
+    if (habitat.kind === "coastal") return { score: 0.64, presenceChance: 0.3 };
+    if (habitat.kind === "open-ocean") return { score: 0.1, presenceChance: 0.04 };
+    return null;
+  }
+  if (habitat.kind === "coastal") return { score: 0.46, presenceChance: 0.2 };
+  if (habitat.kind === "open-ocean") return { score: 0.24, presenceChance: 0.08 };
+  return null;
+}
+
+function salmonApproachActive(dayOfYear) {
+  return dayOfYear >= SALMON_RIVER_RUN_START_DAY - SALMON_APPROACH_DAYS &&
+    dayOfYear < SALMON_RIVER_RUN_START_DAY;
+}
+
+function salmonNativeRange(habitat) {
+  if (habitat.lat < 30 || habitat.lat > 68) return false;
+  const northPacific = habitat.lon <= -105 || habitat.lon >= 120;
+  const openNorthAtlantic = habitat.lat >= 38 && habitat.lon >= -85 && habitat.lon <= -5;
+  const northernEuropeanAtlantic = habitat.lat >= 48 && habitat.lon > -5 && habitat.lon <= 30;
+  return northPacific || openNorthAtlantic || northernEuropeanAtlantic;
 }
 
 function lakeSpeciesHabitatScore(speciesId, habitat) {

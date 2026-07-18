@@ -24,6 +24,32 @@ test("temperate rivers can produce seasonal salmon runs", () => {
   assert.ok(fishery.areaRadiusPx > 0);
 });
 
+test("salmon feed at sea outside the spawning run instead of lingering in rivers", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const feedingMinute = 140 * MINUTE;
+  const coastalFishery = findFishery(state, "coastal", 48, -123, feedingMinute, "salmon");
+
+  assert.equal(coastalFishery.speciesId, "salmon");
+  assert.equal(coastalFishery.habitatKind, "coastal");
+  assertNoSpecies(state, "river", 48, -123, feedingMinute, "salmon");
+});
+
+test("salmon gather at river mouths before moving upriver", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const approachMinute = 230 * MINUTE;
+  const mouthFishery = findFishery(state, "river-mouth", 48, -123, approachMinute, "salmon");
+
+  assert.equal(mouthFishery.speciesId, "salmon");
+  assertNoSpecies(state, "river", 48, -123, approachMinute, "salmon");
+});
+
+test("salmon remain in their native Northern Hemisphere range in 1522", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+
+  assertNoSpecies(state, "river", -48, -73, 280 * MINUTE, "salmon");
+  assertNoSpecies(state, "coastal", -48, -73, 140 * MINUTE, "salmon");
+});
+
 test("Lake Victoria has only native 1522 freshwater fisheries", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const minute = 140 * MINUTE;
@@ -171,4 +197,11 @@ function findHabitatWithFishery(state, kind, lat, lon, simMinute, speciesId = nu
     if (fishery && (!speciesId || fishery.speciesId === speciesId)) return habitat;
   }
   throw new Error(`Could not find ${speciesId || "any"} ${kind} fishery for test`);
+}
+
+function assertNoSpecies(state, kind, lat, lon, simMinute, speciesId) {
+  for (let tileId = 1; tileId < 8000; tileId++) {
+    const fishery = fisheryForHabitat(state, { tileId, kind, lat, lon }, simMinute);
+    assert.notEqual(fishery?.speciesId, speciesId);
+  }
 }
