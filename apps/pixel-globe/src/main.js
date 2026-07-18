@@ -437,10 +437,10 @@ import {
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
 import {
-  LANGUAGE_CHINESE_SIMPLIFIED,
   LANGUAGE_ENGLISH,
   languageFontProfile,
   languageHasCjkMetrics,
+  languageNativeLabel,
   localizeText,
   nextLanguage,
   normalizeLanguage,
@@ -2438,7 +2438,7 @@ async function loadPixelFonts() {
     { label: "Silkscreen", font: "8px \"Silkscreen\"", sample },
     { label: "Dogica", font: "8px \"Dogica\"", sample },
     { label: "Pixel Pirate", font: PIXEL_FONT_TITLE_8, sample: "MARQUE & REPRISAL" },
-    { label: "zpix", font: '12px "zpix"', sample: "简体中文 1522" }
+    { label: "zpix", font: '12px "zpix"', sample: "简体中文 日本語 カタカナ 1522" }
   ];
   const loadedFaces = await Promise.all(
     requiredFonts.map(({ font, sample: fontSample }) => document.fonts.load(font, fontSample))
@@ -13894,13 +13894,12 @@ function applyResponsiveViewport(width, height) {
 }
 
 function syncCanvasAriaLabel() {
-  const surface = currentLanguage === LANGUAGE_CHINESE_SIMPLIFIED
-    ? (lakeBattleMode ? "海战水域" : "世界地图")
-    : (lakeBattleMode ? "ship battle lake" : "world map");
-  const dimensions = currentLanguage === LANGUAGE_CHINESE_SIMPLIFIED
-    ? `${SCREEN_W}乘${SCREEN_H}`
-    : `${SCREEN_W} by ${SCREEN_H}`;
-  canvas.setAttribute("aria-label", `Marque & Reprisal ${surface}, ${dimensions}`);
+  const surface = uiText(lakeBattleMode ? "aria.shipBattleLake" : "aria.worldMap");
+  canvas.setAttribute("aria-label", uiText("aria.canvas", {
+    surface,
+    width: SCREEN_W,
+    height: SCREEN_H
+  }));
 }
 
 function coarsePointerIsPrimary() {
@@ -18113,10 +18112,7 @@ function drawOptionsLanguageRow(rowRect, highlighted) {
     font: PIXEL_FONT_DIALOGUE_8,
     color: PIRATE_MENU_INK
   });
-  const valueKey = currentLanguage === LANGUAGE_CHINESE_SIMPLIFIED
-    ? "language.chineseSimplified"
-    : "language.english";
-  drawOptionsText(uiText(valueKey), rowRect.x + rowRect.w - 8, controlTextY(rowRect), {
+  drawOptionsText(`< ${languageNativeLabel(currentLanguage)} >`, rowRect.x + rowRect.w - 8, controlTextY(rowRect), {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "right",
     color: PIRATE_MENU_CHART_LINE

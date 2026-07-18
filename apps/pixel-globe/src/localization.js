@@ -1,14 +1,17 @@
 export const LANGUAGE_ENGLISH = "en";
 export const LANGUAGE_CHINESE_SIMPLIFIED = "zh-Hans";
+export const LANGUAGE_JAPANESE = "ja";
 
 export const SUPPORTED_LANGUAGES = Object.freeze([
   Object.freeze({ id: LANGUAGE_ENGLISH, label: "English", nativeLabel: "English" }),
-  Object.freeze({ id: LANGUAGE_CHINESE_SIMPLIFIED, label: "Chinese (Simplified)", nativeLabel: "简体中文" })
+  Object.freeze({ id: LANGUAGE_CHINESE_SIMPLIFIED, label: "Chinese (Simplified)", nativeLabel: "简体中文" }),
+  Object.freeze({ id: LANGUAGE_JAPANESE, label: "Japanese", nativeLabel: "日本語" })
 ]);
 
 const ENGLISH = Object.freeze({
   "language.english": "ENGLISH",
   "language.chineseSimplified": "简体中文",
+  "language.japanese": "日本語",
   "options.title": "OPTIONS",
   "options.language": "LANGUAGE",
   "options.music": "MUSIC",
@@ -267,12 +270,16 @@ const ENGLISH = Object.freeze({
   "dialogue.accept": "ACCEPT",
   "dialogue.capital": "CAPITAL",
   "status.mapped": "MAPPED",
-  "status.loading": "Loading Marque & Reprisal..."
+  "status.loading": "Loading Marque & Reprisal...",
+  "aria.worldMap": "world map",
+  "aria.shipBattleLake": "ship battle lake",
+  "aria.canvas": "Marque & Reprisal {surface}, {width} by {height}"
 });
 
 const CHINESE_SIMPLIFIED = Object.freeze({
   "language.english": "英文",
   "language.chineseSimplified": "简体中文",
+  "language.japanese": "日语",
   "options.title": "选项",
   "options.language": "语言",
   "options.music": "音乐",
@@ -531,12 +538,284 @@ const CHINESE_SIMPLIFIED = Object.freeze({
   "dialogue.accept": "接受",
   "dialogue.capital": "首都",
   "status.mapped": "已测绘",
-  "status.loading": "《Marque & Reprisal》读取中……"
+  "status.loading": "《Marque & Reprisal》读取中……",
+  "aria.worldMap": "世界地图",
+  "aria.shipBattleLake": "海战水域",
+  "aria.canvas": "Marque & Reprisal {surface}，{width}乘{height}"
+});
+
+const JAPANESE = Object.freeze({
+  "language.english": "英語",
+  "language.chineseSimplified": "簡体字中国語",
+  "language.japanese": "日本語",
+  "options.title": "オプション",
+  "options.language": "言語",
+  "options.music": "音楽",
+  "options.sfx": "効果音",
+  "options.mute": "ミュート",
+  "options.enterFullscreen": "全画面にする",
+  "options.exitFullscreen": "全画面を終了",
+  "options.fullscreenUnavailable": "全画面は使用不可",
+  "options.returnToMainMenu": "メインメニューへ",
+  "start.continue": "航海を続ける",
+  "start.loading": "読み込み中……",
+  "start.newGame": "ニューゲーム",
+  "start.startGame": "ゲーム開始",
+  "start.shipBattle": "海戦",
+  "start.pastVoyages": "過去の航海",
+  "start.credits": "クレジット",
+  "start.saveUnreadable": "セーブを読めません",
+  "start.confirmNewGame": "新しいゲームを始めますか？",
+  "start.confirmWarning": "現在の航海は終了します。",
+  "common.yes": "はい",
+  "common.no": "いいえ",
+  "common.next": "次へ",
+  "common.back": "戻る",
+  "common.continue": "続ける",
+  "common.decline": "断る",
+  "common.close": "閉じる",
+  "common.page": "ページ",
+  "common.days": "日",
+  "common.day": "日",
+  "common.loadingShip": "船を読み込み中……",
+  "captain.chart": "船長の海図",
+  "captain.shipLedger": "船と帳簿",
+  "captain.politics": "外交情勢",
+  "captain.discoveries": "発見",
+  "captain.navigation": "航路マーカー",
+  "captain.sailingBasics": "航海の基本",
+  "navigation.none": "有効な航路マーカーなし",
+  "navigation.gold": "金",
+  "navigation.blue": "青",
+  "navigation.gray": "灰",
+  "navigation.teal": "青緑",
+  "navigation.foundColony": "植民地を建設",
+  "navigation.resupplyColony": "植民地へ補給",
+  "navigation.diplomaticMission": "外交任務",
+  "navigation.passengerMission": "旅客任務",
+  "navigation.deliveryMission": "配達任務",
+  "navigation.activeMission": "現在の任務",
+  "navigation.explorerLead": "探検の手掛かり",
+  "navigation.whiteWhaleSeen": "白鯨の最終目撃地",
+  "navigation.reportPatron": "後援者に報告",
+  "navigation.payFamilyDebt": "家の借金を返済",
+  "navigation.returnVictorious": "勝利して帰郷",
+  "navigation.returnHome": "帰郷",
+  "ship.vessel": "船",
+  "ship.ledger": "帳簿",
+  "ship.inventory": "所持品",
+  "ship.captainLedger": "船長の帳簿",
+  "ship.shipInventory": "船の所持品",
+  "ship.hull": "船体",
+  "ship.crew": "船員",
+  "ship.propulsion": "推進",
+  "ship.speed": "速力",
+  "ship.acceleration": "加速",
+  "ship.turning": "旋回",
+  "ship.windward": "風上性能",
+  "ship.seaworthy": "耐航性",
+  "ship.water": "水",
+  "ship.food": "食料",
+  "ship.cargoHold": "船倉",
+  "ship.holdEmpty": "船倉は空",
+  "ship.itemsDocuments": "品物と書類",
+  "ship.inventoryEmpty": "所持品なし",
+  "ship.realizedPnl": "確定損益",
+  "ship.cash": "現金",
+  "ship.date": "日付",
+  "ship.port": "港",
+  "ship.entry": "内容",
+  "ship.amount": "金額",
+  "ship.balance": "残高",
+  "ship.pnl": "損益",
+  "ship.type": "種別",
+  "ship.detail": "詳細",
+  "ship.manifest": "積荷",
+  "ship.held": "所持",
+  "ship.average": "平均",
+  "ship.doubloons": "ダブロン",
+  "ship.armament": "武装",
+  "ship.current": "現在",
+  "ship.new": "新船",
+  "ship.prize": "戦利船",
+  "ship.guns": "大砲",
+  "ship.arrows": "矢",
+  "ship.atWill": "射撃可能",
+  "ship.oarNoDeadZone": "櫂走／風上死角なし",
+  "ship.oarSailUpwind": "櫂帆併用／風上では櫂",
+  "ship.item": "品物",
+  "ship.equipment": "装備",
+  "ship.delivery": "配達",
+  "ship.passenger": "乗客",
+  "ship.openingBalance": "開始残高",
+  "ship.aboard": "船上",
+  "ship.shipyardNew": "造船所／新船",
+  "ship.surrenderedPrize": "降伏した戦利船",
+  "discoveries.title": "発見",
+  "discoveries.found": "発見数",
+  "discoveries.globeMapped": "世界踏破",
+  "discoveries.none": "まだ発見なし",
+  "politics.title": "外交情勢",
+  "politics.ally": "同盟",
+  "politics.war": "戦争",
+  "politics.neutral": "中立",
+  "politics.noContact": "未接触",
+  "politics.stanceToward": "各国の姿勢",
+  "politics.playerStanding": "あなたへの評価",
+  "politics.power": "勢力",
+  "politics.status": "関係",
+  "politics.you": "自分",
+  "politics.latest": "最新",
+  "politics.marque": "私掠免許",
+  "politics.legendAlly": "A 同盟",
+  "politics.legendWar": "W 戦争",
+  "politics.legendNeutral": "- 中立  . 未接触",
+  "politics.legendCompact": "- 中立  . 不明",
+  "politics.hostile": "敵対",
+  "politics.angry": "激怒",
+  "politics.cold": "冷淡",
+  "politics.warm": "好意",
+  "politics.favored": "厚遇",
+  "politics.trusted": "信頼",
+  "faction.pirate": "海賊",
+  "faction.england": "イングランド",
+  "faction.scotland": "スコットランド",
+  "faction.france": "フランス",
+  "faction.spain": "スペイン",
+  "faction.portugal": "ポルトガル",
+  "faction.habsburg": "ハプスブルク",
+  "faction.hungary": "ハンガリー",
+  "faction.ottoman": "オスマン",
+  "faction.venice": "ヴェネツィア",
+  "faction.genoa": "ジェノヴァ",
+  "faction.papalStates": "教皇領",
+  "faction.ming": "明",
+  "faction.aztec": "アステカ",
+  "faction.inca": "インカ",
+  "faction.safavid": "サファヴィー",
+  "faction.muscovy": "モスクワ大公国",
+  "faction.polandLithuania": "ポーランド・リトアニア",
+  "faction.denmarkNorway": "デンマーク・ノルウェー",
+  "faction.songhai": "ソンガイ",
+  "faction.morocco": "モロッコ",
+  "faction.ethiopia": "エチオピア",
+  "faction.vijayanagara": "ヴィジャヤナガル",
+  "faction.gujarat": "グジャラート",
+  "faction.bengal": "ベンガル",
+  "faction.delhi": "デリー",
+  "faction.ayutthaya": "アユタヤ",
+  "faction.japan": "日本",
+  "faction.joseon": "朝鮮",
+  "good.hardtack": "乾パン",
+  "good.freshWater": "真水",
+  "good.foragedFood": "採集食料",
+  "good.grain": "穀物",
+  "good.fish": "魚",
+  "good.whaleBlubber": "鯨脂",
+  "good.beaverPelts": "ビーバー毛皮",
+  "good.cheese": "チーズ",
+  "good.wine": "ワイン",
+  "good.oliveOil": "オリーブ油",
+  "good.salt": "塩",
+  "good.sugar": "砂糖",
+  "good.timber": "木材",
+  "good.wool": "羊毛",
+  "good.cotton": "綿",
+  "good.flax": "亜麻",
+  "good.iron": "鉄",
+  "good.copper": "銅",
+  "good.tin": "錫",
+  "good.arms": "武器",
+  "good.linenCloth": "リネン布",
+  "good.woolCloth": "毛織物",
+  "good.cottonCloth": "綿布",
+  "good.silk": "生糸",
+  "good.silkCloth": "絹織物",
+  "good.pepper": "胡椒",
+  "good.cinnamon": "シナモン",
+  "good.cloves": "クローブ",
+  "good.nutmeg": "ナツメグ",
+  "good.tea": "茶",
+  "good.coffee": "コーヒー",
+  "good.cacao": "カカオ",
+  "good.dyes": "染料",
+  "good.porcelain": "磁器",
+  "good.glassware": "ガラス器",
+  "good.carpets": "絨毯",
+  "good.artwork": "美術品",
+  "good.perfume": "香水",
+  "good.ivory": "象牙",
+  "good.silver": "銀",
+  "good.gold": "金",
+  "voyages.title": "過去の航海",
+  "voyages.register": "歴代船長名簿",
+  "voyages.voyages": "航海回数",
+  "voyages.totalDays": "合計日数",
+  "voyages.longest": "最長航海",
+  "voyages.totalEarned": "総収入",
+  "voyages.mostEarned": "最高収入",
+  "voyages.richestEnding": "最高残高",
+  "voyages.mostDiscoveries": "最多発見",
+  "voyages.winDeathQuitDemo": "勝利／死亡／中断／体験版",
+  "voyages.none": "過去の航海なし",
+  "voyages.home": "故郷",
+  "voyages.resultGoal": "結果／目標",
+  "voyages.lastVessel": "最後の船",
+  "voyages.daysMapped": "日数／世界踏破",
+  "voyages.earnedNet": "収入／純益",
+  "voyages.finalTradePnl": "残高／交易損益",
+  "voyages.discoveryPortsWorld": "発見／港／世界",
+  "voyages.questsMarques": "任務／私掠免許",
+  "voyages.crewLostPiracy": "船員喪失／海賊行為",
+  "voyages.fate": "運命",
+  "intro.papers": "船長の書類",
+  "intro.homePort": "母港",
+  "intro.nationality": "国籍",
+  "intro.born": "生年月日",
+  "intro.age": "年齢",
+  "intro.sex": "性別",
+  "intro.male": "男",
+  "intro.female": "女",
+  "intro.begin": "出航",
+  "tutorial.turnSail": "方向転換と帆走",
+  "tutorial.upwind": "風上へ進む",
+  "tutorial.escapeShore": "岸から脱出",
+  "tutorial.takeHelm": "舵を取る",
+  "tutorial.pressHold": "長押し",
+  "tutorial.tiltHold": "スティックを倒す",
+  "tutorial.touchHold": "タッチ長押し",
+  "tutorial.clickHold": "クリック長押し",
+  "tutorial.turnBow": "船首を回す",
+  "tutorial.wind": "風向",
+  "tutorial.tack": "タッキング",
+  "tutorial.haul": "曳航",
+  "tutorial.openWater": "開水面",
+  "tutorial.touchSteer": "船の周囲をタッチして長押しします。船首が指の方向へ向きます。航行中も押し続けてください。",
+  "tutorial.mouseSteer": "船の周囲をクリックして長押しします。船首がポインターの方向へ向きます。航行中も押し続けてください。",
+  "tutorial.keyboardSteer": "WASDまたは矢印キーを長押しします。船首がその方向へ向きます。航行中も押し続けてください。",
+  "tutorial.controllerSteer": "左スティックを倒したままにします。船首がその方向へ向きます。航行中も倒し続けてください。",
+  "tutorial.tacking": "ほとんどの帆船は風上へ直進できません。風向の左右どちらかへ進み、交互に切り返してください。このジグザグ航法をタッキングと呼びます。",
+  "tutorial.touchHaul": "風で川岸や海岸に押し付けられたら、開水面の方向をタッチして長押しします。船員が岸沿いにゆっくり船を曳きます。",
+  "tutorial.mouseHaul": "風で川岸や海岸に押し付けられたら、開水面の方向をクリックして長押しします。船員が岸沿いにゆっくり船を曳きます。",
+  "tutorial.keyboardHaul": "風で川岸や海岸に押し付けられたら、開水面へ向かう方向キーを長押しします。船員が岸沿いにゆっくり船を曳きます。",
+  "tutorial.controllerHaul": "風で川岸や海岸に押し付けられたら、左スティックを開水面へ倒し続けます。船員が岸沿いにゆっくり船を曳きます。",
+  "dialogue.leavePort": "出港",
+  "dialogue.buy": "購入",
+  "dialogue.sell": "売却",
+  "dialogue.trade": "交易",
+  "dialogue.accept": "引き受ける",
+  "dialogue.capital": "首都",
+  "status.mapped": "踏破済み",
+  "status.loading": "『Marque & Reprisal』読み込み中……",
+  "aria.worldMap": "世界地図",
+  "aria.shipBattleLake": "海戦水域",
+  "aria.canvas": "Marque & Reprisal {surface}、{width}×{height}"
 });
 
 const CATALOGS = Object.freeze({
   [LANGUAGE_ENGLISH]: ENGLISH,
-  [LANGUAGE_CHINESE_SIMPLIFIED]: CHINESE_SIMPLIFIED
+  [LANGUAGE_CHINESE_SIMPLIFIED]: CHINESE_SIMPLIFIED,
+  [LANGUAGE_JAPANESE]: JAPANESE
 });
 
 const ENGLISH_PHRASE_KEYS = Object.freeze(new Map(
@@ -554,34 +833,92 @@ const EMBEDDED_PHRASES = Object.freeze(
 );
 
 const DYNAMIC_PATTERNS = Object.freeze([
-  dynamicPattern(/^PAGE (\d+)\/(\d+)$/, (_match, current, total) => `第${current}/${total}页`),
-  dynamicPattern(/^VOYAGE (\d+)$/, (_match, number) => `第${number}次航程`),
-  dynamicPattern(/^MAPPED (.+)$/, (_match, value) => `已测绘 ${value}`),
-  dynamicPattern(/^MANIFEST (\d+)\/(\d+)$/, (_match, current, total) => `货单 ${current}/${total}`),
-  dynamicPattern(/^LEDGER (\d+)\/(\d+)$/, (_match, current, total) => `账簿 ${current}/${total}`),
-  dynamicPattern(/^INVENTORY (\d+)\/(\d+)$/, (_match, current, total) => `物品 ${current}/${total}`),
-  dynamicPattern(/^WATER (.+)D$/, (_match, value) => `淡水 ${value}天`),
-  dynamicPattern(/^FOOD (.+)D$/, (_match, value) => `食物 ${value}天`),
-  dynamicPattern(/^(\d+) DAYS$/, (_match, value) => `${value}天`),
-  dynamicPattern(/^(\d+) HELD$/, (_match, value) => `持有 ${value}`),
-  dynamicPattern(/^CASH (.+) DB$/, (_match, value) => `现款 ${value}`),
-  dynamicPattern(/^P\/L (.+) DB$/, (_match, value) => `盈亏 ${value}`),
-  dynamicPattern(/^REALIZED P\/L (.+) DB$/, (_match, value) => `已结盈亏 ${value}`),
-  dynamicPattern(/^AVG --$/, () => "均价 --"),
-  dynamicPattern(/^AVG (.+) DB$/, (_match, value) => `均价 ${value}`),
-  dynamicPattern(/^(.+) RATIONS$/, (_match, value) => `${value}份口粮`),
-  dynamicPattern(/^SAIL \/ (.+) DEG$/, (_match, value) => `风帆／迎风死区${value}度`),
-  dynamicPattern(/^(.+) DOUBLOONS$/, (_match, value) => `${value} 达布隆`),
-  dynamicPattern(/^LATEST (.+)$/, (_match, value) => `最新：${value}`)
+  dynamicPattern(/^PAGE (\d+)\/(\d+)$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `第${current}/${total}页`,
+    [LANGUAGE_JAPANESE]: (_match, current, total) => `${current}/${total}頁`
+  }),
+  dynamicPattern(/^VOYAGE (\d+)$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, number) => `第${number}次航程`,
+    [LANGUAGE_JAPANESE]: (_match, number) => `第${number}航海`
+  }),
+  dynamicPattern(/^MAPPED (.+)$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `已测绘 ${value}`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `踏破済み ${value}`
+  }),
+  dynamicPattern(/^MANIFEST (\d+)\/(\d+)$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `货单 ${current}/${total}`,
+    [LANGUAGE_JAPANESE]: (_match, current, total) => `積荷 ${current}/${total}`
+  }),
+  dynamicPattern(/^LEDGER (\d+)\/(\d+)$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `账簿 ${current}/${total}`,
+    [LANGUAGE_JAPANESE]: (_match, current, total) => `帳簿 ${current}/${total}`
+  }),
+  dynamicPattern(/^INVENTORY (\d+)\/(\d+)$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `物品 ${current}/${total}`,
+    [LANGUAGE_JAPANESE]: (_match, current, total) => `所持品 ${current}/${total}`
+  }),
+  dynamicPattern(/^WATER (.+)D$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `淡水 ${value}天`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `水 ${value}日`
+  }),
+  dynamicPattern(/^FOOD (.+)D$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `食物 ${value}天`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `食料 ${value}日`
+  }),
+  dynamicPattern(/^(\d+) DAYS$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `${value}天`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `${value}日`
+  }),
+  dynamicPattern(/^(\d+) HELD$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `持有 ${value}`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `${value}点`
+  }),
+  dynamicPattern(/^CASH (.+) DB$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `现款 ${value}`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `現金 ${value}`
+  }),
+  dynamicPattern(/^P\/L (.+) DB$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `盈亏 ${value}`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `損益 ${value}`
+  }),
+  dynamicPattern(/^REALIZED P\/L (.+) DB$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `已结盈亏 ${value}`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `確定損益 ${value}`
+  }),
+  dynamicPattern(/^AVG --$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: () => "均价 --",
+    [LANGUAGE_JAPANESE]: () => "平均 --"
+  }),
+  dynamicPattern(/^AVG (.+) DB$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `均价 ${value}`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `平均 ${value}`
+  }),
+  dynamicPattern(/^(.+) RATIONS$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `${value}份口粮`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `${value}食`
+  }),
+  dynamicPattern(/^SAIL \/ (.+) DEG$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `风帆／迎风死区${value}度`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `帆走／風上死角${value}度`
+  }),
+  dynamicPattern(/^(.+) DOUBLOONS$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `${value} 达布隆`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `${value}ダブロン`
+  }),
+  dynamicPattern(/^LATEST (.+)$/, {
+    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `最新：${value}`,
+    [LANGUAGE_JAPANESE]: (_match, value) => `最新：${value}`
+  })
 ]);
 
 export function normalizeLanguage(value, fallback = LANGUAGE_ENGLISH) {
-  if (value === LANGUAGE_ENGLISH || value === LANGUAGE_CHINESE_SIMPLIFIED) return value;
+  if (SUPPORTED_LANGUAGES.some((entry) => entry.id === value)) return value;
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
     if (normalized === "zh" || normalized === "zh-cn" || normalized === "zh-sg" || normalized === "zh-hans") {
       return LANGUAGE_CHINESE_SIMPLIFIED;
     }
+    if (normalized === "ja" || normalized.startsWith("ja-")) return LANGUAGE_JAPANESE;
     if (normalized === "en" || normalized.startsWith("en-")) return LANGUAGE_ENGLISH;
   }
   if (fallback === value) return LANGUAGE_ENGLISH;
@@ -603,14 +940,15 @@ export function localizeText(language, text) {
   if (exactKey) return translate(locale, exactKey);
   for (const pattern of DYNAMIC_PATTERNS) {
     const match = text.match(pattern.expression);
-    if (match) return localizeEmbeddedPhrases(locale, pattern.chinese(...match));
+    const renderer = pattern.renderers[locale];
+    if (match && renderer) return localizeEmbeddedPhrases(locale, renderer(...match));
   }
   return localizeEmbeddedPhrases(locale, text);
 }
 
 export function languageFontProfile(language) {
   const locale = normalizeLanguage(language);
-  if (locale === LANGUAGE_CHINESE_SIMPLIFIED) {
+  if (locale === LANGUAGE_CHINESE_SIMPLIFIED || locale === LANGUAGE_JAPANESE) {
     return Object.freeze({
       smallFont: '12px "zpix", monospace',
       dialogueFont: '12px "zpix", monospace',
@@ -631,7 +969,8 @@ export function languageFontProfile(language) {
 }
 
 export function languageHasCjkMetrics(language) {
-  return normalizeLanguage(language) === LANGUAGE_CHINESE_SIMPLIFIED;
+  const locale = normalizeLanguage(language);
+  return locale === LANGUAGE_CHINESE_SIMPLIFIED || locale === LANGUAGE_JAPANESE;
 }
 
 export function textContainsCjk(text) {
@@ -652,8 +991,15 @@ export function localizationCatalog(language) {
   return CATALOGS[normalizeLanguage(language)];
 }
 
-function dynamicPattern(expression, chinese) {
-  return Object.freeze({ expression, chinese });
+export function languageNativeLabel(language) {
+  const locale = normalizeLanguage(language);
+  const entry = SUPPORTED_LANGUAGES.find((candidate) => candidate.id === locale);
+  if (!entry) throw new Error(`Supported language is missing metadata: ${locale}`);
+  return entry.nativeLabel;
+}
+
+function dynamicPattern(expression, renderers) {
+  return Object.freeze({ expression, renderers: Object.freeze(renderers) });
 }
 
 function localizeEmbeddedPhrases(locale, text) {
