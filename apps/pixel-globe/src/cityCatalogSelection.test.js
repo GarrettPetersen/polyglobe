@@ -144,6 +144,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const spiceIslandVillages = ports.filter((city) =>
     city.manualRegion === "spice-islands" && city.settlementType === "village"
   );
+  const northwestCoastVillages = ports.filter((city) => city.manualRegion === "northwest-coast");
   const manualPortFailures = MANUAL_CITY_RECORDS_1522
     .filter((manualSpec) => !ports.some((city) =>
       city.city === manualSpec.city &&
@@ -242,7 +243,12 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
       "Makian Village": "cloves"
     }
   );
-  assert.ok([...pacificVillages, ...encounterVillages, ...spiceIslandVillages].every((city) =>
+  assert.deepEqual(
+    northwestCoastVillages.map((city) => city.city).sort(),
+    ["Ozette Village", "Yuquot Village"]
+  );
+  assert.ok(northwestCoastVillages.every((city) => city.marketGoods.includes("beaver-pelts")));
+  assert.ok([...pacificVillages, ...encounterVillages, ...spiceIslandVillages, ...northwestCoastVillages].every((city) =>
     city.marketGoods.length === 3 && city.marketGoods.every((goodId) => typeof goodId === "string")
   ));
   assert.deepEqual(manualPortFailures, [], "expected every manual 1522 trade port to survive selection as dockable");

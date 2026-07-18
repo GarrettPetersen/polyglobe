@@ -77,6 +77,7 @@ async function loadIconSource(source) {
 function generateIcon(generatedId) {
   if (generatedId === "gray-waypoint-arrow") return generateGrayWaypointArrow();
   if (generatedId === "cinnamon-sticks") return generateCinnamonSticks();
+  if (generatedId === "beaver-pelt") return generateBeaverPelt();
   throw new Error(`Unknown generated game icon: ${generatedId}`);
 }
 
@@ -126,6 +127,43 @@ function drawCinnamonStick(ctx, startX, startY, endX, endY) {
   ctx.fillRect(endX - 1, endY - 1, 3, 3);
   ctx.fillStyle = "#d3a068";
   ctx.fillRect(endX, endY, 1, 1);
+}
+
+function generateBeaverPelt() {
+  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const ctx = canvas.getContext("2d", { alpha: true });
+  ctx.imageSmoothingEnabled = false;
+
+  ctx.fillStyle = "#3b2027";
+  for (const [x, y, width] of [
+    [6, 1, 4],
+    [5, 2, 6],
+    [4, 3, 8],
+    [2, 4, 12],
+    [1, 5, 14],
+    [2, 6, 12],
+    [2, 7, 12],
+    [2, 8, 12],
+    [2, 9, 12],
+    [1, 10, 14],
+    [2, 11, 12],
+    [4, 12, 8],
+    [5, 13, 6],
+    [6, 14, 4]
+  ]) ctx.fillRect(x, y, width, 1);
+
+  ctx.fillStyle = "#663931";
+  ctx.fillRect(5, 3, 6, 9);
+  ctx.fillRect(3, 5, 10, 6);
+  ctx.fillStyle = "#8f563b";
+  ctx.fillRect(6, 3, 4, 9);
+  ctx.fillRect(4, 6, 8, 4);
+  ctx.fillStyle = "#d3a068";
+  ctx.fillRect(6, 4, 2, 1);
+  ctx.fillRect(5, 6, 2, 2);
+  ctx.fillRect(8, 9, 3, 2);
+  ctx.fillRect(7, 12, 2, 1);
+  return canvas;
 }
 
 function quantizeToResurrect(ctx, width, height) {

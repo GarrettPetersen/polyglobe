@@ -2018,14 +2018,38 @@ export function receiveFishCatch(state, catchResult, context = {}) {
 export function receiveWhaleBlubber(state, requestedQuantity, context = {}) {
   assertGameState(state);
   assertQuantity(requestedQuantity, "whale blubber yield");
-  const good = tradeGoodById(WHALE_BLUBBER_GOOD_ID);
-  const quantity = Math.min(requestedQuantity, Math.floor(cargoFree(state) / good.unitSize));
+  return receiveZeroCostCargo(state, WHALE_BLUBBER_GOOD_ID, requestedQuantity, context, {
+    kind: "catch",
+    description: (quantity) => `Process ${context.speciesLabel || "whale"} blubber x${quantity}`
+  });
+}
+
+export function receiveScavengedTradeGood(state, goodId, requestedQuantity, sourceLabel, context = {}) {
+  assertGameState(state);
+  assertQuantity(requestedQuantity, `${goodId} scavenge yield`);
+  if (typeof sourceLabel !== "string" || sourceLabel.trim() === "") {
+    throw new Error("Scavenged cargo requires a source label");
+  }
+  return receiveZeroCostCargo(state, goodId, requestedQuantity, context, {
+    kind: "catch",
+    description: (quantity, good) => `Scavenge ${sourceLabel}: ${good.label} x${quantity}`,
+    decisionKey: `scavenge.good.${goodId}`
+  });
+}
+
+function receiveZeroCostCargo(state, goodId, requestedQuantity, context, options) {
+  const good = tradeGoodById(goodId);
+  if (!options || typeof options.kind !== "string" || typeof options.description !== "function") {
+    throw new Error(`Zero-cost ${good.label} cargo requires ledger options`);
+  }
+  const quantity = Math.min(requestedQuantity, cargoQuantityCapacityForGood(state, good.id));
   if (quantity <= 0) return { good, quantity: 0 };
   state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
   state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
+  if (options.decisionKey) recordDecision(state, options.decisionKey, quantity);
   recordLedgerEntry(state, null, context, {
-    kind: "catch",
-    description: `Process ${context.speciesLabel || "whale"} blubber x${quantity}`,
+    kind: options.kind,
+    description: options.description(quantity, good),
     goodId: good.id,
     quantity,
     amount: 0,

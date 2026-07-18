@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { FORAGED_FOOD_GOOD_ID, FRESH_WATER_GOOD_ID, createWorldEconomy } from "./economy.js";
+import {
+  BEAVER_PELTS_GOOD_ID,
+  FORAGED_FOOD_GOOD_ID,
+  FRESH_WATER_GOOD_ID,
+  createWorldEconomy
+} from "./economy.js";
 import {
   FRESH_WATER_CAPACITY,
   RAIN_WATER_COLLECTION_PER_CONSUMER_DAY,
@@ -25,6 +30,7 @@ import {
   migrateGameState,
   purchasePlayerShip,
   receiveEmergencyShipAid,
+  receiveScavengedTradeGood,
   releaseCargoSpace,
   reserveCargoSpace,
   restockShipLoadoutAtPort,
@@ -446,6 +452,21 @@ test("shore scavenging fills available cask space and stows edible food", () => 
   assert.equal(state.cargo[FORAGED_FOOD_GOOD_ID], 2 / 12);
   assert.equal(state.accounts.cargoCostBasis[FORAGED_FOOD_GOOD_ID], 0);
   assert.ok(survivalStatus(state).foodRations >= 2);
+  assert.ok(cargoUsed(state) <= state.cargoCapacity);
+});
+
+test("a scavenged beaver pelt enters cargo at zero cost without exceeding the hold", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const before = cargoUsed(state);
+
+  const result = receiveScavengedTradeGood(state, BEAVER_PELTS_GOOD_ID, 1, "river beaver", { simMinute: 100 });
+
+  assert.equal(result.quantity, 1);
+  assert.equal(state.cargo[BEAVER_PELTS_GOOD_ID], 1);
+  assert.equal(state.accounts.cargoCostBasis[BEAVER_PELTS_GOOD_ID], 0);
+  assert.equal(cargoUsed(state), before + 1);
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
 });
 

@@ -5,6 +5,7 @@ import {
   restoreWorldShipyards,
   snapshotWorldShipyards
 } from "./shipyards.js";
+import { beaverSettlementProductionRate } from "./beaverEcology.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const ECONOMY_STEP_MINUTES = 6 * 60;
@@ -25,6 +26,7 @@ export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
 export const FORAGED_FOOD_GOOD_ID = "foraged-food";
 export const WHALE_BLUBBER_GOOD_ID = "whale-blubber";
+export const BEAVER_PELTS_GOOD_ID = "beaver-pelts";
 export const CINNAMON_GOOD_ID = "cinnamon";
 export const CLOVE_GOOD_ID = "cloves";
 export const NUTMEG_GOOD_ID = "nutmeg";
@@ -49,6 +51,7 @@ export const TRADE_GOODS = Object.freeze([
   good("grain", "Grain", 8, "food"),
   good("fish", "Fish", 10, "food"),
   good(WHALE_BLUBBER_GOOD_ID, "Whale Blubber", 240, "material", { npcTrade: false }),
+  good(BEAVER_PELTS_GOOD_ID, "Beaver Pelts", 120, "luxury"),
   good("cheese", "Cheese", 14, "food"),
   good("wine", "Wine", 18, "food"),
   good("olive-oil", "Olive Oil", 16, "food"),
@@ -102,10 +105,10 @@ const REGION_PRODUCTION = Object.freeze({
 });
 
 const REGION_DEMAND = Object.freeze({
-  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
-  mediterranean: rates({ timber: 0.55, iron: 0.35, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, silk: 0.3, ivory: 0.18 }),
-  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
-  "east-asian": rates({ pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2 }),
+  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
+  mediterranean: rates({ timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, silk: 0.3, ivory: 0.18 }),
+  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, "beaver-pelts": 0.18, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
+  "east-asian": rates({ "beaver-pelts": 0.3, pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2 }),
   "south-asian": rates({ cloves: 0.12, nutmeg: 0.12, silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18 }),
   "southeast-asian": rates({ pepper: 0.12, cinnamon: 0.16, cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16 }),
   polynesian: rates({ iron: 0.65, arms: 0.45, "cotton-cloth": 0.45, glassware: 0.35, salt: 0.25 }),
@@ -116,6 +119,7 @@ const REGION_DEMAND = Object.freeze({
 
 const REGION_IMPORT_PREMIUM = Object.freeze({
   "northern-european": rates({
+    "beaver-pelts": 2.6,
     pepper: 2.35,
     cinnamon: 4.2,
     cloves: 3.5,
@@ -130,6 +134,7 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
     ivory: 1.35
   }),
   mediterranean: rates({
+    "beaver-pelts": 2.05,
     pepper: 2.05,
     cinnamon: 3.9,
     cloves: 3.15,
@@ -143,6 +148,7 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
     ivory: 1.25
   }),
   "islamic-desert": rates({
+    "beaver-pelts": 1.3,
     pepper: 1.9,
     cinnamon: 3.65,
     cloves: 2.9,
@@ -152,7 +158,7 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
     silver: 1.2,
     glassware: 1.15
   }),
-  "east-asian": rates({ silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
+  "east-asian": rates({ "beaver-pelts": 1.5, silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
   "south-asian": rates({ silver: 1.45, gold: 1.15, arms: 1.2, glassware: 1.25, porcelain: 1.15 }),
   "southeast-asian": rates({ silver: 1.5, gold: 1.15, arms: 1.25, glassware: 1.25, "cotton-cloth": 1.15 }),
   polynesian: rates({ iron: 1.4, arms: 1.35, glassware: 1.35, "cotton-cloth": 1.3, salt: 1.2 }),
@@ -616,14 +622,17 @@ function createPortState(port) {
   const demandProfile = REGION_DEMAND[port.cityType];
   if (!productionProfile || !demandProfile) throw new Error(`No economy profile for city type: ${port.cityType}`);
   const specialties = CITY_SPECIALTIES.get(normalizeName(port.city)) || [];
+  const beaverPeltProduction = beaverSettlementProductionRate(port);
   const goods = new Map();
 
   for (const good of TRADE_GOODS) {
     const stapleDemand = stapleDemandRate(good.category);
     const regionalProduction = productionProfile[good.id] || 0;
     const villageLocalProduction = declaredMarketGoodIds?.has(good.id) ? 0.45 : 0;
+    const localWildProduction = good.id === BEAVER_PELTS_GOOD_ID ? beaverPeltProduction : 0;
     const productionRate = populationScale * productionMultiplier *
-      (Math.max(regionalProduction, villageLocalProduction) + (specialties.includes(good.id) ? 1.35 : 0));
+      (Math.max(regionalProduction, villageLocalProduction, localWildProduction) +
+        (specialties.includes(good.id) ? 1.35 : 0));
     const householdConsumptionPerDay = populationScale * consumptionMultiplier *
       (stapleDemand + (demandProfile[good.id] || 0));
     goods.set(good.id, {

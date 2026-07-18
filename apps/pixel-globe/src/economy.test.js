@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import {
+  BEAVER_PELTS_GOOD_ID,
   CINNAMON_GOOD_ID,
   CLOVE_GOOD_ID,
   FRESH_WATER_GOOD_ID,
@@ -67,7 +68,7 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [
     "hardtack", "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
-    CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
+    BEAVER_PELTS_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
     "fresh-water", "tea", "porcelain", "ivory", "silver", "gold"
   ]) {
     assert.ok(ids.has(goodId), goodId);
@@ -79,15 +80,18 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
 test("cargo lots create a clear value-per-hold hierarchy without inflating nominal prices", () => {
   const timber = tradeGoodById("timber");
   const cotton = tradeGoodById("cotton");
+  const beaverPelts = tradeGoodById(BEAVER_PELTS_GOOD_ID);
   const nutmeg = tradeGoodById(NUTMEG_GOOD_ID);
   const gold = tradeGoodById("gold");
 
   assert.equal(timber.unitSize, 4);
   assert.equal(cotton.unitSize, 3);
+  assert.equal(beaverPelts.unitSize, 1);
   assert.equal(nutmeg.unitSize, 1);
   assert.equal(gold.unitSize, 1);
   const valuePerHold = (good) => good.basePrice / good.unitSize;
   assert.ok(valuePerHold(cotton) > valuePerHold(timber));
+  assert.ok(valuePerHold(beaverPelts) > valuePerHold(cotton) * 10);
   assert.ok(valuePerHold(nutmeg) >= valuePerHold(cotton) * 10);
   assert.ok(valuePerHold(gold) > valuePerHold(nutmeg));
 });
@@ -165,6 +169,37 @@ test("Polynesian villages support a fish-rich island economy", () => {
   assert.ok(fiji.get("fish").productionPerDay < city.get("fish").productionPerDay);
   assert.ok(portEconomySummary(economy, FIJI).targetSpecie < portEconomySummary(economy, islandCity).targetSpecie / 3);
   assert.equal(maximumPortSaleQuantity(economy, FIJI, "artwork", 1, 1000), 0);
+});
+
+test("beaver-country villages and player-founded colonies supply valuable pelts", () => {
+  const yuquot = {
+    ...port(70, "Yuquot Village", "Nuu-chah-nulth", "mesoamerican", 1500, "village", [BEAVER_PELTS_GOOD_ID, "fish", "timber"]),
+    lat: 49.5926,
+    lon: -126.6174
+  };
+  const portRoyal = {
+    ...port(71, "Port Royal", "Canada", "northern-european", 2400),
+    lat: 44.741944,
+    lon: -65.515556,
+    playerFoundedColony: true
+  };
+  const ordinaryPort = { ...portRoyal, tileId: 72, playerFoundedColony: false };
+  const economy = createWorldEconomy({ ports: [LONDON, yuquot, portRoyal, ordinaryPort], startMinute: 0 });
+  const yuquotMarket = marketByGood(economy, yuquot);
+  const londonPelts = marketByGood(economy, LONDON).get(BEAVER_PELTS_GOOD_ID);
+  const yuquotPelts = yuquotMarket.get(BEAVER_PELTS_GOOD_ID);
+
+  assert.deepEqual(
+    [...yuquotMarket.values()]
+      .filter((row) => row.listedForSale && row.good.sellable !== false)
+      .map((row) => row.good.id)
+      .sort(),
+    [BEAVER_PELTS_GOOD_ID, "fish", "timber"].sort()
+  );
+  assert.ok(yuquotPelts.productionPerDay > 0);
+  assert.ok(marketByGood(economy, portRoyal).get(BEAVER_PELTS_GOOD_ID).productionPerDay > 0);
+  assert.equal(marketByGood(economy, ordinaryPort).get(BEAVER_PELTS_GOOD_ID).productionPerDay, 0);
+  assert.ok(londonPelts.sellPrice >= yuquotPelts.buyPrice * 2);
 });
 
 test("small spice-island villages offer narrow but valuable local markets", () => {

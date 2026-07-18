@@ -142,6 +142,7 @@ import {
   receiveDiscoveryCargo,
   receiveEmergencyShipAid,
   receiveFishCatch,
+  receiveScavengedTradeGood,
   receiveWhaleBlubber,
   receivePortConquestPrize,
   receiveSurrenderedLoot,
@@ -578,6 +579,7 @@ import {
   politicsRowsPage
 } from "./politics.js";
 import {
+  BEAVER_PELTS_GOOD_ID,
   addWorldEconomyPort,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
@@ -777,6 +779,12 @@ import {
   vikingLongshipRewardDisposition,
   vikingLongshipUnlocked
 } from "./vikingLongshipQuest.js";
+import {
+  beaverCatchNarrative,
+  beaverCatchYield,
+  beaverRiverHabitat,
+  rollBeaverCatch
+} from "./beaverEcology.js";
 import {
   SHORE_SCAVENGE_CASUALTY,
   SHORE_SCAVENGE_FOOD,
@@ -7141,14 +7149,30 @@ function nearestScavengeShoreCall() {
   return nearest;
 }
 
-function currentShoreScavengeContext() {
+function currentShoreScavengeSite() {
   const shoreCall = nearestScavengeShoreCall();
   if (!shoreCall) throw new Error("Anchored shore scavenging requires a nearby shore tile");
-  return shoreScavengeContextForTerrain(
+  const context = shoreScavengeContextForTerrain(
     shoreCall.row,
     graph.latDeg[shoreCall.id],
     Boolean(snowGroundMask?.[shoreCall.id])
   );
+  const navigation = shipNavigabilityAtLocalPoint(
+    localLayout.viewX,
+    localLayout.viewY,
+    ship.tileId,
+    ship.position
+  );
+  const riverTileId = navigation.ok && navigation.kind === "river" ? navigation.riverTileId : null;
+  const beaverRange = Number.isInteger(riverTileId)
+    ? beaverRiverHabitat({
+      isRiver: true,
+      latitudeDeg: graph.latDeg[riverTileId],
+      longitudeDeg: graph.lonDeg[riverTileId],
+      terrain: shoreCall.row.t || ""
+    })
+    : null;
+  return { context, beaverRange };
 }
 
 function startShoreScavenge() {
@@ -7157,10 +7181,12 @@ function startShoreScavenge() {
     showSurvivalNotice("TOO DANGEROUS TO GO ASHORE", "warn");
     return false;
   }
+  const site = currentShoreScavengeSite();
   shoreScavengeAction = {
     startedAtMs: lastFrameMs,
     completesAtMs: lastFrameMs + SCAVENGE_ACTION_MS,
-    context: currentShoreScavengeContext(),
+    context: site.context,
+    beaverRange: site.beaverRange,
     landedSeabirdId: nearestScavengeSeabirdCall()?.id ?? null
   };
   stopShipForDialogue();
@@ -7174,6 +7200,12 @@ function updateShoreScavenge(nowMs) {
   const action = shoreScavengeAction;
   const context = action.context;
   shoreScavengeAction = null;
+  if (action.beaverRange && rollBeaverCatch(action.beaverRange)) {
+    resolveBeaverScavenge();
+    syncShipCargoFromGameState();
+    saveVoyageNow("river beaver scavenging");
+    return true;
+  }
   const outcome = replaceFailedScavengeWithSeabird(
     rollShoreScavenge(context),
     Number.isInteger(action.landedSeabirdId)
@@ -7199,6 +7231,48 @@ function updateShoreScavenge(nowMs) {
   syncShipCargoFromGameState();
   saveVoyageNow("shore scavenging");
   return true;
+}
+
+function resolveBeaverScavenge() {
+  const result = beaverCatchYield();
+  const pelts = receiveScavengedTradeGood(
+    gameState,
+    BEAVER_PELTS_GOOD_ID,
+    result.pelts,
+    "river beaver",
+    { simMinute: Math.floor(weatherClockMinutes) }
+  ).quantity;
+  const food = stowForagedFood(gameState, result.foodRations);
+  const narrative = beaverCatchNarrative();
+  const rewards = [];
+  if (pelts > 0) rewards.push(`${pelts} beaver ${pelts === 1 ? "pelt" : "pelts"}`);
+  if (food > 0) rewards.push(`${food} food`);
+
+  if (rewards.length > 0) {
+    playScavengeSuccessSound();
+    const notice = [
+      "TRAPPED BEAVER",
+      pelts > 0 ? `PELT +${pelts}` : null,
+      food > 0 ? `FOOD +${food}` : null
+    ].filter(Boolean).join("  ");
+    showSurvivalNotice(notice, "good");
+    const discarded = [
+      pelts === 0 ? "The pelt would not fit in the hold." : null,
+      food === 0 ? "There was no room to stow the meat." : null
+    ].filter(Boolean).join(" ");
+    openCaptainAlertModal(`${narrative} We brought back ${joinRewardLabels(rewards)}.${discarded ? ` ${discarded}` : ""}`, "happy");
+    return;
+  }
+
+  playScavengeFailureSound();
+  showSurvivalNotice("TRAPPED BEAVER  HOLD FULL", "warn");
+  openCaptainAlertModal(`${narrative} There was no room to carry back either meat or pelt.`, "concerned");
+}
+
+function joinRewardLabels(labels) {
+  if (!Array.isArray(labels) || labels.length === 0) throw new Error("Scavenge rewards are required");
+  if (labels.length === 1) return labels[0];
+  return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
 }
 
 function resolveOrdinaryShoreScavenge(outcome, context) {
