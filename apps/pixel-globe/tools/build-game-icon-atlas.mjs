@@ -75,9 +75,12 @@ async function loadIconSource(source) {
 }
 
 function generateIcon(generatedId) {
-  if (generatedId !== "gray-waypoint-arrow") {
-    throw new Error(`Unknown generated game icon: ${generatedId}`);
-  }
+  if (generatedId === "gray-waypoint-arrow") return generateGrayWaypointArrow();
+  if (generatedId === "cinnamon-sticks") return generateCinnamonSticks();
+  throw new Error(`Unknown generated game icon: ${generatedId}`);
+}
+
+function generateGrayWaypointArrow() {
   const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
   const ctx = canvas.getContext("2d", { alpha: true });
   const columns = [6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1];
@@ -96,6 +99,33 @@ function generateIcon(generatedId) {
     ctx.fillRect(x, 9, 1, halfHeight);
   }
   return canvas;
+}
+
+function generateCinnamonSticks() {
+  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const ctx = canvas.getContext("2d", { alpha: true });
+  ctx.imageSmoothingEnabled = false;
+  drawCinnamonStick(ctx, 2, 11, 11, 2);
+  drawCinnamonStick(ctx, 5, 14, 14, 5);
+  return canvas;
+}
+
+function drawCinnamonStick(ctx, startX, startY, endX, endY) {
+  const steps = Math.max(Math.abs(endX - startX), Math.abs(endY - startY));
+  for (let step = 0; step <= steps; step++) {
+    const x = Math.round(startX + (endX - startX) * step / steps);
+    const y = Math.round(startY + (endY - startY) * step / steps);
+    ctx.fillStyle = "#3b2027";
+    ctx.fillRect(x - 1, y - 1, 3, 3);
+    ctx.fillStyle = "#8f563b";
+    ctx.fillRect(x, y - 1, 2, 2);
+    ctx.fillStyle = "#d3a068";
+    ctx.fillRect(x, y - 1, 1, 1);
+  }
+  ctx.fillStyle = "#3b2027";
+  ctx.fillRect(endX - 1, endY - 1, 3, 3);
+  ctx.fillStyle = "#d3a068";
+  ctx.fillRect(endX, endY, 1, 1);
 }
 
 function quantizeToResurrect(ctx, width, height) {

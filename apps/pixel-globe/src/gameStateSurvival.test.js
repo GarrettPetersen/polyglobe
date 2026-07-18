@@ -355,8 +355,8 @@ test("consumed loadout provisions remain reserved against ordinary trade cargo",
 
   assert.ok(cargoUsed(state) < stockedCargo);
   assert.equal(cargoFree(state), freeTradeSpace);
-  state.cargo.spices = freeTradeSpace;
-  state.accounts.cargoCostBasis.spices = 0;
+  state.cargo.cloves = freeTradeSpace;
+  state.accounts.cargoCostBasis.cloves = 0;
   assert.equal(cargoFree(state), 0);
   assert.throws(() => buyGood(state, economy, LONDON, "timber", 1), /Not enough cargo space/);
   assert.equal(buyGood(state, economy, LONDON, "hardtack", 1).quantity, 1);

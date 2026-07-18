@@ -6,6 +6,13 @@
   "animationFrames": 6,
   "maxDrawPixels": 31,
   "frameScale": 0.5962,
+  "lighting": {
+    "azimuthBins": 16,
+    "elevationBins": 2,
+    "shadowFrameSize": 95,
+    "selfShadowed": true,
+    "groundY": 0
+  },
   "horse": {
     "creator": "Jungle Jim",
     "sourceTitle": "Cartoon Horse with animations",
@@ -22,10 +29,36 @@
   },
   "files": [
     "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-0-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-0-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-0-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-0-32-headings-shadow.png",
     "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-1-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-1-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-1-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-1-32-headings-shadow.png",
     "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-2-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-2-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-2-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-2-32-headings-shadow.png",
     "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-3-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-3-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-3-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-3-32-headings-shadow.png",
     "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-4-32-headings.png",
-    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-5-32-headings.png"
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-4-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-4-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-4-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-5-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-5-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-5-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/horse-cart/horse-cart-walk-5-32-headings-shadow.png"
+  ],
+  "reviewFiles": [
+    "apps/pixel-globe/docs/ship-reference/horse-cart-walk-0-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/horse-cart-walk-1-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/horse-cart-walk-2-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/horse-cart-walk-3-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/horse-cart-walk-4-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/horse-cart-walk-5-32-headings-lighting-preview.png"
   ]
 }

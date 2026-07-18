@@ -529,11 +529,11 @@ test("NPC cargo storage accepts only the remaining hull capacity", () => {
     cargoCost: { fish: 30 }
   };
 
-  const stored = storeNpcCargo(ship, "spices", 5, 500, "capacity test");
+  const stored = storeNpcCargo(ship, "cloves", 5, 500, "capacity test");
 
   assert.equal(stored, 1);
-  assert.deepEqual(ship.cargo, { fish: 3, spices: 1 });
-  assert.equal(ship.cargoCost.spices, 100);
+  assert.deepEqual(ship.cargo, { fish: 3, cloves: 1 });
+  assert.equal(ship.cargoCost.cloves, 100);
   assert.equal(cargoUnits(ship), ship.cargoCapacity);
 });
 
@@ -544,8 +544,8 @@ test("over-capacity NPC cargo is jettisoned with a visible diagnostic", (t) => {
     id: "overflow-test",
     slug: "small-cog",
     cargoCapacity: 4,
-    cargo: { fish: 3, spices: 4 },
-    cargoCost: { fish: 30, spices: 400 }
+    cargo: { fish: 3, cloves: 4 },
+    cargoCost: { fish: 30, cloves: 400 }
   };
 
   const report = reconcileNpcCargoCapacity(ship, "test overflow");

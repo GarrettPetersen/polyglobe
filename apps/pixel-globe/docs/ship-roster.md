@@ -15,7 +15,7 @@ For development, `?ship={slug}` starts with any roster ship. In normal gameplay 
 | Game name | Filename slug | Source asset label | Identification | Confidence | Notes |
 |---|---|---|---|---|---|
 | Fishing Barque | `fishing-lugger` | Boat 1 | small fishing barque | Medium | Small single-mast coastal working boat. |
-| Small Cog | `small-cog` | Boat 3 | small cog / roundship | Medium | Broad little hull with a simple square-sail profile. Uses an explicit scale because the source model units made it read as a rowboat. |
+| Small Cog | `small-cog` | Boat 3 | small cog / roundship | Medium | Broad little hull with a simple square-sail profile. Its tuned scale keeps it above open boats but below the small-junk and medium-ship tier. |
 | Dhow | `dhow` | Dhow by gogiart | small coastal dhow / fishing craft | High | Purpose-built one-person coastal dhow used as a light fishing and trading craft. |
 | Sampan | `sampan` | Chinese Boat | small junk / sampan | High | Small Chinese-rigged vessel; good for river/coastal Asian traffic. |
 | Large Junk | `large-junk` | Chinese Ship Large | large junk | High | Multiple battened sails. |
@@ -30,8 +30,8 @@ For development, `?ship={slug}` starts with any roster ship. In normal gameplay 
 | Square-Rigged Caravel | `square-rigged-caravel` | Ship Medium 4 | square-rigged caravel / small trader | Medium | Single square sail and compact explorer-trader hull read closer to a small caravel than a ketch. |
 | Brigantine | `brigantine` | Ship Medium 5 | Mediterranean brigantine | Medium | Light trader or raider interpreted in the older Mediterranean sense. |
 | Small Junk | `small-junk` | Chinese Ship Small | junk | High | Small battened-sail Chinese vessel. |
-| Felucca | `felucca` | Ship Small 2 | dhow / felucca | High | Small single-lateen craft. |
-| Coastal Pinnace | `cutter` | Ship Small 3 | small pinnace | Medium | Small European fore-and-aft silhouette used as a coastal pinnace. |
+| Felucca | `felucca` | Ship Small 2 | dhow / felucca | High | Small single-lateen craft, scaled with the other low-capacity coastal starters. |
+| Coastal Pinnace | `cutter` | Ship Small 3 | small pinnace | Medium | Small European fore-and-aft silhouette used as a coastal pinnace, between the starter boats and compact cargo upgrades. |
 | Lateen Barque | `ketch` | Ship Small 5 | two-masted lateen barque | Medium | Two triangular sails interpreted as a small Mediterranean lateen trader. |
 | Turtle Ship | `joseon-turtle-ship` | Geobukseon (Turtle Ship) | early Joseon armored oar-and-sail warship | High | Joseon-specific cannon warship with procedurally baked working oars. |
 | Panokseon | `joseon-panokseon` | Panok ship (Panokseon) | Joseon decked oar-and-sail warship lineage | Medium | Available from 1522 as a representative of earlier Joseon decked oar-and-sail predecessors; the mature named type is documented later. The source model's static paddles are replaced with procedurally baked working oars. |

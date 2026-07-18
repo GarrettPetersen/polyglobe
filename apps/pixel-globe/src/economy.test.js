@@ -4,8 +4,11 @@ import test from "node:test";
 
 import { loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import {
+  CINNAMON_GOOD_ID,
+  CLOVE_GOOD_ID,
   FRESH_WATER_GOOD_ID,
   HARDTACK_GOOD_ID,
+  NUTMEG_GOOD_ID,
   TRADE_GOODS,
   addWorldEconomyPort,
   advanceWorldEconomy,
@@ -45,7 +48,9 @@ const TERNATE = port(3, "Ternate", "Spice Islands", "southeast-asian", 45000);
 const GUANGZHOU = port(4, "Guangzhou", "Ming", "east-asian", 100000);
 const VERACRUZ = port(5, "Veracruz", "New Spain", "mesoamerican", 50000);
 const FIJI = port(6, "Fiji Village", "Fiji", "polynesian", 3500, "village", ["fish", "timber", "sugar"]);
-const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", ["spices", "fish", "timber"]);
+const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", [NUTMEG_GOOD_ID, "fish", "timber"]);
+const COLOMBO = port(9, "Colombo", "Sri Lanka", "south-asian", 12000);
+const MALACCA = port(10, "Malacca", "Malaysia", "southeast-asian", 90000);
 const CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
   new URL(
     "../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
@@ -62,27 +67,29 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [
     "hardtack", "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
+    CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
     "fresh-water", "tea", "porcelain", "ivory", "silver", "gold"
   ]) {
     assert.ok(ids.has(goodId), goodId);
   }
+  assert.equal(ids.has("spices"), false);
   assert.equal(ids.size, TRADE_GOODS.length);
 });
 
 test("cargo lots create a clear value-per-hold hierarchy without inflating nominal prices", () => {
   const timber = tradeGoodById("timber");
   const cotton = tradeGoodById("cotton");
-  const spices = tradeGoodById("spices");
+  const nutmeg = tradeGoodById(NUTMEG_GOOD_ID);
   const gold = tradeGoodById("gold");
 
   assert.equal(timber.unitSize, 4);
   assert.equal(cotton.unitSize, 3);
-  assert.equal(spices.unitSize, 1);
+  assert.equal(nutmeg.unitSize, 1);
   assert.equal(gold.unitSize, 1);
   const valuePerHold = (good) => good.basePrice / good.unitSize;
   assert.ok(valuePerHold(cotton) > valuePerHold(timber));
-  assert.ok(valuePerHold(spices) >= valuePerHold(cotton) * 10);
-  assert.ok(valuePerHold(gold) > valuePerHold(spices));
+  assert.ok(valuePerHold(nutmeg) >= valuePerHold(cotton) * 10);
+  assert.ok(valuePerHold(gold) > valuePerHold(nutmeg));
 });
 
 test("a founded port joins the economy and its save snapshot", () => {
@@ -167,8 +174,8 @@ test("small spice-island villages offer narrow but valuable local markets", () =
     row.listedForSale && row.good.id !== HARDTACK_GOOD_ID && row.good.id !== FRESH_WATER_GOOD_ID
   );
 
-  assert.deepEqual(listedTradeGoods.map((row) => row.good.id).sort(), ["fish", "spices", "timber"]);
-  assert.ok(marketByGood(economy, BANDA).get("spices").stock > 0);
+  assert.deepEqual(listedTradeGoods.map((row) => row.good.id).sort(), ["fish", "nutmeg", "timber"]);
+  assert.ok(marketByGood(economy, BANDA).get(NUTMEG_GOOD_ID).stock > 0);
   assert.ok(portEconomySummary(economy, BANDA).targetSpecie < portEconomySummary(economy, TERNATE).targetSpecie / 3);
   assert.equal(maximumPortSaleQuantity(economy, BANDA, "pepper", 1, 1000), 0);
 });
@@ -195,25 +202,34 @@ test("a city can declare a narrow market for a fetch-quest port", () => {
   )));
 });
 
-test("spice-island cargo commands transformative prices in Europe", () => {
-  const economy = createWorldEconomy({ ports: [LONDON, TERNATE], startMinute: 0 });
+test("historical spice origins are local while their cargo commands transformative prices in Europe", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, TERNATE, BANDA, COLOMBO, MALACCA], startMinute: 0 });
   const london = marketByGood(economy, LONDON);
   const ternate = marketByGood(economy, TERNATE);
+  const banda = marketByGood(economy, BANDA);
+  const colombo = marketByGood(economy, COLOMBO);
+  const malacca = marketByGood(economy, MALACCA);
 
-  assert.ok(london.get("spices").sellPrice >= ternate.get("spices").buyPrice * 3);
-  assert.ok(london.get("pepper").sellPrice >= ternate.get("pepper").buyPrice * 3);
+  assert.ok(ternate.get(CLOVE_GOOD_ID).productionPerDay > malacca.get(CLOVE_GOOD_ID).productionPerDay);
+  assert.ok(banda.get(NUTMEG_GOOD_ID).productionPerDay > malacca.get(NUTMEG_GOOD_ID).productionPerDay);
+  assert.ok(colombo.get(CINNAMON_GOOD_ID).productionPerDay > malacca.get(CINNAMON_GOOD_ID).productionPerDay);
+  assert.equal(malacca.get(CLOVE_GOOD_ID).productionPerDay, 0);
+  assert.equal(malacca.get(NUTMEG_GOOD_ID).productionPerDay, 0);
+  assert.equal(malacca.get(CINNAMON_GOOD_ID).productionPerDay, 0);
+  assert.ok(london.get(CLOVE_GOOD_ID).sellPrice >= ternate.get(CLOVE_GOOD_ID).buyPrice * 4);
+  assert.ok(london.get(NUTMEG_GOOD_ID).sellPrice >= banda.get(NUTMEG_GOOD_ID).buyPrice * 4);
+  assert.ok(london.get(CINNAMON_GOOD_ID).sellPrice >= colombo.get(CINNAMON_GOOD_ID).buyPrice * 4);
 
   const tradePlan = planNpcTrade(economy, TERNATE, LONDON, { cargoCapacity: 20, specie: 10000 });
   assert.ok(tradePlan.expectedProfit >= 3000);
-  assert.ok(tradePlan.expectedProfit <= 4500);
-  assert.equal(tradePlan.cargoUnits, 20);
-  assert.ok(tradePlan.lines.some((line) => line.goodId === "spices"));
+  assert.ok(tradePlan.cargoUnits >= 18);
+  assert.ok(tradePlan.lines.some((line) => line.goodId === CLOVE_GOOD_ID));
 
-  const quantity = Math.min(10, ternate.get("spices").stock);
-  const purchase = executePortSale(economy, TERNATE, "spices", quantity);
-  const sale = executePortPurchase(economy, LONDON, "spices", quantity);
-  assert.ok(sale.total >= purchase.total * 2.5);
-  assert.ok(sale.total - purchase.total >= 1000);
+  const quantity = Math.min(10, ternate.get(CLOVE_GOOD_ID).stock);
+  const purchase = executePortSale(economy, TERNATE, CLOVE_GOOD_ID, quantity);
+  const sale = executePortPurchase(economy, LONDON, CLOVE_GOOD_ID, quantity);
+  assert.ok(sale.total >= purchase.total * 3.5);
+  assert.ok(sale.total - purchase.total >= 1500);
 });
 
 test("real Asia-Europe sailing routes pay several strong coastal voyages", () => {
@@ -222,7 +238,8 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
   const london = portByName.get("London");
   const lisbon = portByName.get("Lisbon");
   const guangzhou = portByName.get("Guangzhou");
-  const malacca = portByName.get("Malacca");
+  const banda = portByName.get("Banda Village");
+  const colombo = portByName.get("Colombo");
   const ternate = portByName.get("Ternate");
   const istanbul = portByName.get("Istanbul");
   const athens = portByName.get("Athens");
@@ -246,31 +263,36 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
   });
   const teaProfit = quotePortPurchase(economy, london, "tea", 20) -
     quotePortSale(economy, guangzhou, "tea", 20);
-  const spiceProfit = quotePortPurchase(economy, lisbon, "spices", 20) -
-    quotePortSale(economy, malacca, "spices", 20);
+  const nutmegProfit = quotePortPurchase(economy, lisbon, NUTMEG_GOOD_ID, 20) -
+    quotePortSale(economy, banda, NUTMEG_GOOD_ID, 20);
+  const cinnamonProfit = quotePortPurchase(economy, lisbon, CINNAMON_GOOD_ID, 20) -
+    quotePortSale(economy, colombo, CINNAMON_GOOD_ID, 20);
   const strongestShortVoyage = strongestTradeVoyageWithin(economy, ports, 1500);
 
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, ternate, london) > 24000);
+  assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, banda, lisbon) > 20000);
+  assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, colombo, lisbon) > 15000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, guangzhou, london) > 25000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, istanbul, athens) < 600);
   assert.ok(coastalVoyage.expectedProfit <= 100, `Istanbul-Athens profit was ${coastalVoyage.expectedProfit}`);
-  assert.ok(strongestShortVoyage.expectedProfit <= 200, JSON.stringify(strongestShortVoyage));
+  assert.ok(strongestShortVoyage.expectedProfit <= 250, JSON.stringify(strongestShortVoyage));
   assert.ok(spiceIslandsVoyage.expectedProfit >= 3000);
   assert.ok(teaProfit >= 2200, `Guangzhou-London tea profit was only ${teaProfit}`);
-  assert.ok(spiceProfit >= 2500, `Malacca-Lisbon spice profit was only ${spiceProfit}`);
+  assert.ok(nutmegProfit >= 3000, `Banda-Lisbon nutmeg profit was only ${nutmegProfit}`);
+  assert.ok(cinnamonProfit >= 2500, `Colombo-Lisbon cinnamon profit was only ${cinnamonProfit}`);
 });
 
 test("market comparisons describe local prices against the live world median", () => {
   const economy = createWorldEconomy({ ports: [LONDON, TERNATE, GOA], startMinute: 0 });
-  const islandBuy = worldMarketPriceComparison(economy, TERNATE, "spices", "buy");
-  const europeanSale = worldMarketPriceComparison(economy, LONDON, "spices", "sell");
+  const islandBuy = worldMarketPriceComparison(economy, TERNATE, CLOVE_GOOD_ID, "buy");
+  const europeanSale = worldMarketPriceComparison(economy, LONDON, CLOVE_GOOD_ID, "sell");
 
   assert.equal(islandBuy.direction, "low");
   assert.ok(islandBuy.percent < 0);
   assert.equal(europeanSale.direction, "high");
   assert.ok(europeanSale.percent > 0);
   assert.throws(
-    () => worldMarketPriceComparison(economy, LONDON, "spices", "barter"),
+    () => worldMarketPriceComparison(economy, LONDON, CLOVE_GOOD_ID, "barter"),
     /Unknown market comparison side/
   );
 });

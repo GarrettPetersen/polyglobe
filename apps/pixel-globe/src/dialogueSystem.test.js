@@ -591,7 +591,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   gameState.doubloons = 1000;
   const session = createPortDialogueSession(ternate, { initialNodeId: "buy" });
 
-  for (const goodId of ["pepper", "spices"]) {
+  for (const goodId of ["fish", "cloves"]) {
     const market = portDialogueView(session, ternate, gameState, economy, ports);
     const index = market.options.findIndex((entry) => entry.action.goodId === goodId);
     assert.ok(index >= 0, `${goodId} must be offered in Ternate`);
@@ -608,7 +608,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   });
   assert.deepEqual(
     { good: expected.goodLabel, destination: expected.destinationName },
-    { good: "Spices", destination: "London" }
+    { good: "Cloves", destination: "London" }
   );
 
   const market = portDialogueView(session, ternate, gameState, economy, ports);
@@ -625,7 +625,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   assert.equal(result.tradeTip.expectedPnl, expected.expectedPnl);
   assert.equal(session.nodeId, "trade-tip");
   const tradeTip = portDialogueView(session, ternate, gameState, economy, ports);
-  assert.equal(tradeTip.text, "I heard London pays a good price for Spices.");
+  assert.equal(tradeTip.text, "I heard London pays a good price for Cloves.");
   assert.equal(tradeTip.options[0].label, "Set a heading for London");
   assert.deepEqual(
     selectPortDialogueOption(session, ternate, gameState, economy, ports, 0),
@@ -677,11 +677,11 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   };
   const ports = [istanbul, cairo, wuhan];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  economy.portStates.get(cairo.tileId).goods.get("spices").stock = 0;
-  economy.portStates.get(wuhan.tileId).goods.get("spices").stock = 0;
+  economy.portStates.get(cairo.tileId).goods.get("silver").stock = 0;
+  economy.portStates.get(wuhan.tileId).goods.get("silver").stock = 0;
   const gameState = createGameState({ cargoCapacity: 20 });
   const purchases = {
-    spices: { goodId: "spices", quantity: 1, cost: 60 }
+    silver: { goodId: "silver", quantity: 1, cost: 60 }
   };
   const sailingDistanceKm = testSailingDistances([
     [istanbul, cairo, 1250],
@@ -703,7 +703,7 @@ test("trade advice prefers a useful regional price over a better transcontinenta
 
   const recommended = route([cairo, wuhan]);
   assert.equal(recommended.destinationName, "Cairo");
-  assert.equal(recommended.goodLabel, "Spices");
+  assert.equal(recommended.goodLabel, "Silver");
 });
 
 test("leaving the buy screen without a purchase returns directly to port business", () => {

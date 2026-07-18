@@ -415,6 +415,12 @@ test("the Joseon Panokseon replaces its static paddles with six working phases",
     parentName: "Object_4",
     positionCount: 2544
   }]);
+  const sideView = await loadImage(join(sideViewRoot, `${JOSEON_PANOKSEON_SLUG}.png`));
+  const sideViewBounds = opaqueImageBounds(sideView);
+  assert.ok(
+    sideViewBounds.width > sideViewBounds.height,
+    "Panokseon hull must remain horizontal rather than standing on its stern"
+  );
   assert.equal(entry.files.rowingAnimation.length, SHIP_ROWING_FRAME_COUNT);
   const frames = [];
   for (let frameIndex = 0; frameIndex < SHIP_ROWING_FRAME_COUNT; frameIndex++) {
@@ -518,12 +524,34 @@ test("the Dhow uses the credited purpose-built source model", async () => {
 });
 
 test("the Small Cog reads as a roundship rather than a rowboat", async () => {
-  const [smallCog, dugoutCanoe] = await Promise.all([
+  const [smallCog, dugoutCanoe, smallJunk, xebec] = await Promise.all([
     loadImage(join(shipAssetRoot, headingAssetFile("small-cog"))),
-    loadImage(join(shipAssetRoot, headingAssetFile(MESOAMERICAN_CANOE_SLUG)))
+    loadImage(join(shipAssetRoot, headingAssetFile(MESOAMERICAN_CANOE_SLUG))),
+    loadImage(join(shipAssetRoot, headingAssetFile("small-junk"))),
+    loadImage(join(shipAssetRoot, headingAssetFile("xebec")))
   ]);
 
   assert.ok(opaquePixelCount(smallCog) > opaquePixelCount(dugoutCanoe));
+  assert.ok(maxOpaqueFrameDimension(smallCog) < maxOpaqueFrameDimension(smallJunk));
+  assert.ok(maxOpaqueFrameDimension(smallCog) < maxOpaqueFrameDimension(xebec));
+});
+
+test("low-capacity Unity coastal craft remain in the small visual tier", async () => {
+  const manifest = JSON.parse(await readFile(join(shipAssetRoot, "manifest.json"), "utf8"));
+  const targetMaxDim = Object.fromEntries(manifest.ships.map((entry) => [entry.slug, entry.targetModelMaxDim]));
+  assert.equal(targetMaxDim.felucca, 0.98);
+  assert.equal(targetMaxDim.cutter, 1.2);
+  assert.equal(targetMaxDim["small-cog"], 1.3);
+
+  const [felucca, cutter, smallCog, ketch] = await Promise.all([
+    loadImage(join(shipAssetRoot, headingAssetFile("felucca"))),
+    loadImage(join(shipAssetRoot, headingAssetFile("cutter"))),
+    loadImage(join(shipAssetRoot, headingAssetFile("small-cog"))),
+    loadImage(join(shipAssetRoot, headingAssetFile("ketch")))
+  ]);
+  assert.ok(opaquePixelCount(felucca) < opaquePixelCount(cutter));
+  assert.ok(opaquePixelCount(cutter) < opaquePixelCount(ketch));
+  assert.ok(maxOpaqueFrameDimension(smallCog) < maxOpaqueFrameDimension(ketch));
 });
 
 test("the Galleon uses the credited detailed sailing ship model", async () => {
@@ -689,6 +717,28 @@ function opaquePixelCount(image) {
     if (pixels[offset] > 0) count += 1;
   }
   return count;
+}
+
+function opaqueImageBounds(image) {
+  const pixels = imagePixels(image);
+  let minX = image.width;
+  let minY = image.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      if (pixels[(x + y * image.width) * 4 + 3] === 0) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  assert.ok(maxX >= minX && maxY >= minY, "opaque image bounds require a nonblank image");
+  return {
+    width: maxX - minX + 1,
+    height: maxY - minY + 1
+  };
 }
 
 function maxOpaqueFrameDimension(image) {

@@ -234,7 +234,14 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     spiceIslandVillages.map((city) => city.city).sort(),
     ["Banda Village", "Hitu Village", "Makian Village"]
   );
-  assert.ok(spiceIslandVillages.every((city) => city.marketGoods.includes("spices")));
+  assert.deepEqual(
+    Object.fromEntries(spiceIslandVillages.map((city) => [city.city, city.marketGoods[0]])),
+    {
+      "Banda Village": "nutmeg",
+      "Hitu Village": "sugar",
+      "Makian Village": "cloves"
+    }
+  );
   assert.ok([...pacificVillages, ...encounterVillages, ...spiceIslandVillages].every((city) =>
     city.marketGoods.length === 3 && city.marketGoods.every((goodId) => typeof goodId === "string")
   ));

@@ -8,6 +8,7 @@ import {
   LAND_CART_CARGO_CAPACITY,
   LAND_CART_SPEED_KM_PER_DAY,
   createLandTradeSystem,
+  landCartCountForCityCount,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
   updateLandTradeSystem
@@ -38,6 +39,14 @@ test("carts move visibly while remaining slower than every player ship", () => {
   assert.ok(cartKmPerSecond < slowestShipKmPerSecond);
 });
 
+test("land trade seeds three carts for every five-city group", () => {
+  assert.equal(landCartCountForCityCount(1), 3);
+  assert.equal(landCartCountForCityCount(5), 3);
+  assert.equal(landCartCountForCityCount(6), 6);
+  assert.equal(landCartCountForCityCount(500), 192);
+  assert.throws(() => landCartCountForCityCount(0), /Invalid land-trade city count/);
+});
+
 test("low-capacity carts trade, advance, and restore exactly", () => {
   const roads = syntheticRoads();
   const economy = createWorldEconomy({
@@ -51,7 +60,7 @@ test("low-capacity carts trade, advance, and restore exactly", () => {
     cities: [LONDON, ANTIOCH, ALEPPO],
     startMinute: 0
   });
-  assert.equal(system.carts.length, 1);
+  assert.equal(system.carts.length, 3);
   assert.equal(system.carts[0].cargoCapacity, LAND_CART_CARGO_CAPACITY);
   assert.ok(cargoUse(system.carts[0]) <= LAND_CART_CARGO_CAPACITY);
 
@@ -74,6 +83,20 @@ test("low-capacity carts trade, advance, and restore exactly", () => {
   });
   restoreLandTradeSystem(restored, snapshot);
   assert.deepEqual(snapshotLandTradeSystem(restored), snapshot);
+
+  const expanded = createLandTradeSystem({
+    roads,
+    economy: createWorldEconomy({
+      ports: [LONDON, ANTIOCH, ALEPPO],
+      shipyardPorts: [LONDON],
+      startMinute: 0
+    }),
+    cities: [LONDON, ANTIOCH, ALEPPO],
+    startMinute: 0
+  });
+  restoreLandTradeSystem(expanded, { version: 1, carts: snapshot.carts.slice(0, 1) });
+  assert.equal(expanded.carts.length, 3);
+  assert.deepEqual(expanded.carts[0], snapshot.carts[0]);
 });
 
 function syntheticRoads() {

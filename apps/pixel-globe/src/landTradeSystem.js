@@ -10,9 +10,17 @@ import {
 export const LAND_CART_CARGO_CAPACITY = 4;
 export const LAND_CART_SPEED_KM_PER_DAY = 120;
 export const LAND_CART_WALK_FRAME_COUNT = 6;
-const MAX_CARTS = 64;
-const CITIES_PER_CART = 5;
+const MAX_CARTS = 192;
+const CITY_GROUP_SIZE = 5;
+const CARTS_PER_CITY_GROUP = 3;
 const CART_SPECIE = 600;
+
+export function landCartCountForCityCount(cityCount) {
+  if (!Number.isInteger(cityCount) || cityCount < 1) {
+    throw new Error(`Invalid land-trade city count: ${cityCount}`);
+  }
+  return Math.min(MAX_CARTS, Math.ceil(cityCount / CITY_GROUP_SIZE) * CARTS_PER_CITY_GROUP);
+}
 
 export function createLandTradeSystem({ roads, economy, cities, startMinute }) {
   assertSystemInputs({ roads, economy, cities, startMinute });
@@ -21,7 +29,7 @@ export function createLandTradeSystem({ roads, economy, cities, startMinute }) {
     cityByTileId.has(route.fromTileId) && cityByTileId.has(route.toTileId)
   ));
   if (activeRoutes.length === 0) throw new Error("Land trade has no active road routes");
-  const cartCount = Math.min(MAX_CARTS, Math.max(1, Math.ceil(cityByTileId.size / CITIES_PER_CART)));
+  const cartCount = landCartCountForCityCount(cityByTileId.size);
   const seededRoutes = [...activeRoutes]
     .sort((a, b) => hashString32(a.id) - hashString32(b.id) || a.id.localeCompare(b.id));
   const system = {
@@ -101,19 +109,22 @@ export function restoreLandTradeSystem(system, snapshot) {
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.carts)) {
     throw new Error("Unsupported land trade save data");
   }
+  const seededCarts = system.carts;
+  const seededById = new Map(seededCarts.map((cart) => [cart.id, cart]));
   const ids = new Set();
-  const carts = snapshot.carts.map((raw) => {
+  const restoredById = new Map(snapshot.carts.map((raw) => {
     validateSavedCart(system, raw);
     if (ids.has(raw.id)) throw new Error(`Duplicate saved land cart: ${raw.id}`);
+    if (!seededById.has(raw.id)) throw new Error(`Saved land cart is outside the current population: ${raw.id}`);
     ids.add(raw.id);
-    return {
+    return [raw.id, {
       ...raw,
       cargo: { ...raw.cargo },
       cargoCost: { ...raw.cargoCost }
-    };
-  });
-  if (carts.length === 0) throw new Error("Land trade save contains no carts");
-  system.carts = carts;
+    }];
+  }));
+  if (restoredById.size === 0) throw new Error("Land trade save contains no carts");
+  system.carts = seededCarts.map((seeded) => restoredById.get(seeded.id) || seeded);
   return system;
 }
 

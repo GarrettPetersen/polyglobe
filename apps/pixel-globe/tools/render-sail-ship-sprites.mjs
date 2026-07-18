@@ -44,7 +44,6 @@ import {
   orientNegativeXForwardYUpToZForward,
   orientPositiveXForwardToZForward,
   orientPositiveXForwardZUpToZForward,
-  orientYForwardZDownToZForward,
   rotateY
 } from "../src/shipModelOrientation.js";
 import {
@@ -204,7 +203,7 @@ const unityShipRoster = new Map([
     identifiedType: "small cog / roundship",
     confidence: "medium",
     notes: "Broad little hull with a simple square-sail profile.",
-    targetModelMaxDim: 1.55
+    targetModelMaxDim: 1.3
   }],
   ["boats/chinese boat.fbx", {
     label: "Sampan",
@@ -298,14 +297,16 @@ const unityShipRoster = new Map([
     identifiedType: "dhow / felucca",
     confidence: "high",
     notes: "Small single-lateen craft.",
-    waterlineOffsetY: -0.455
+    targetModelMaxDim: 0.98,
+    waterlineOffsetY: -0.352
   }],
   ["ships small/ship small 3.fbx", {
     label: "Coastal Pinnace",
     slug: "cutter",
     identifiedType: "small pinnace",
     confidence: "medium",
-    notes: "Small European fore-and-aft silhouette used as a coastal pinnace."
+    notes: "Small European fore-and-aft silhouette used as a coastal pinnace.",
+    targetModelMaxDim: 1.2
   }],
   ["ships small/ship small 5.fbx", {
     label: "Lateen Barque",
@@ -2342,7 +2343,7 @@ async function renderHorseCart() {
   const normalizedCart = normalizeGroundModel(cartTriangles, 1.0);
   const combinedFrames = composeHorseAndCart(normalizedHorseFrames, normalizedCart);
   const camera = makeCamera();
-  const renderOptions = { collectCasters: false };
+  const renderOptions = { collectCasters: true };
   const renderedByFrame = combinedFrames.map((triangles) => (
     Array.from({ length: headings }, (_, headingIndex) => (
       renderHeading(triangles, headingIndex, camera, renderOptions)
@@ -2354,28 +2355,48 @@ async function renderHorseCart() {
   const maxWidth = Math.max(...sharedBoundsByHeading.map((bounds) => bounds.width));
   const maxHeight = Math.max(...sharedBoundsByHeading.map((bounds) => bounds.height));
   const frameScale = Math.min(horseCartMaxDrawPixels / maxWidth, horseCartMaxDrawPixels / maxHeight);
+  const framesByAnimation = renderedByFrame.map((renderedFrames) => (
+    renderedFrames.map((rendered, headingIndex) => (
+      makeFrame(rendered, sharedBoundsByHeading[headingIndex], frameScale)
+    ))
+  ));
+  const lightDirections = makeLightingDirections();
   const sheets = [];
   const files = [];
+  const reviewFiles = [];
   for (let frameIndex = 0; frameIndex < horseCartWalkFrameCount; frameIndex++) {
+    const frames = framesByAnimation[frameIndex];
     const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
     const sheetCtx = sheet.getContext("2d");
     sheetCtx.imageSmoothingEnabled = false;
     for (let headingIndex = 0; headingIndex < headings; headingIndex++) {
-      const frame = makeFrame(
-        renderedByFrame[frameIndex][headingIndex],
-        sharedBoundsByHeading[headingIndex],
-        frameScale
-      );
-      copyFrameToSheet(frame, sheetCtx, headingIndex);
+      copyFrameToSheet(frames[headingIndex], sheetCtx, headingIndex);
     }
     shadeEdgesAndQuantizeToResurrect(sheet, { shadeEdges: false });
-    const filePath = join(
-      horseCartOutputRoot,
-      `horse-cart-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}.png`
-    );
+    const selfShadowMaps = makeSelfShadowMaps(frames, lightDirections, camera);
+    const lightMask = makeLightingMaskSheet(frames, lightDirections, "light", selfShadowMaps);
+    const shadeMask = makeLightingMaskSheet(frames, lightDirections, "shade", selfShadowMaps);
+    const shadowMask = makeShadowMaskSheet(frames, lightDirections, camera, 0);
+    const lightingPreview = makeLightingPreview(sheet, lightMask, shadeMask, shadowMask);
+    const prefix = `horse-cart-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+    const filePath = join(horseCartOutputRoot, `${prefix}.png`);
+    const lightPath = join(horseCartOutputRoot, `${prefix}-light.png`);
+    const shadePath = join(horseCartOutputRoot, `${prefix}-shade.png`);
+    const shadowPath = join(horseCartOutputRoot, `${prefix}-shadow.png`);
+    const lightingPreviewPath = join(appRoot, "docs/ship-reference", `${prefix}-lighting-preview.png`);
     writeFileSync(filePath, sheet.toBuffer("image/png"));
+    writeFileSync(lightPath, lightMask.toBuffer("image/png"));
+    writeFileSync(shadePath, shadeMask.toBuffer("image/png"));
+    writeFileSync(shadowPath, shadowMask.toBuffer("image/png"));
+    writeFileSync(lightingPreviewPath, lightingPreview.toBuffer("image/png"));
     sheets.push(sheet);
-    files.push(portablePath(filePath));
+    files.push(
+      portablePath(filePath),
+      portablePath(lightPath),
+      portablePath(shadePath),
+      portablePath(shadowPath)
+    );
+    reviewFiles.push(portablePath(lightingPreviewPath));
   }
   const contactSheet = makeRowingAnimationContactSheet(sheets, 6, 0);
   const contactSheetPath = join(appRoot, "docs/ship-reference/horse-cart-walk-frames.png");
@@ -2389,6 +2410,13 @@ async function renderHorseCart() {
     animationFrames: horseCartWalkFrameCount,
     maxDrawPixels: horseCartMaxDrawPixels,
     frameScale: Number(frameScale.toFixed(4)),
+    lighting: {
+      azimuthBins: lightAzimuthBins,
+      elevationBins: lightElevationBins,
+      shadowFrameSize,
+      selfShadowed: true,
+      groundY: 0
+    },
     horse: {
       ...CARTOON_HORSE_MODEL_CREDIT,
       sourceModel: portablePath(horsePath),
@@ -2399,7 +2427,8 @@ async function renderHorseCart() {
       ...WOODEN_CART_MODEL_CREDIT,
       sourceModel: portablePath(cartPath)
     },
-    files
+    files,
+    reviewFiles
   }, null, 2)}\n`);
   console.log(manifestPath);
   console.log(contactSheetPath);
@@ -2931,9 +2960,9 @@ function joseonPanokseonConfig() {
     scaleMode: "joseon-decked-warship",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
-    // Preserve the visually reviewed waterline when the slice estimator sees the deck as a hull component.
+    // Keep the shallow, flat-bottomed hull seated three raster pixels into the water.
     waterlineBoundsRatio: 0.249,
-    waterlineOffsetY: -0.23,
+    waterlineOffsetY: -0.354,
     wakeWaterlineBand: 0.22,
     skipSelfShadowMaps: true,
     collectOptions: {
@@ -3177,7 +3206,8 @@ function orientTurtleShipPoint(point) {
 }
 
 function orientPanokseonPoint(point) {
-  return vectorFromCoordinates(orientYForwardZDownToZForward(point));
+  // This source is already Y-up with its bow on positive Z.
+  return vectorFromCoordinates(point);
 }
 
 function orientPortugueseCarrackPoint(point) {

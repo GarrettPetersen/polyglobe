@@ -110,22 +110,22 @@
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 3.fbx",
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 645.6119,
-      "targetModelMaxDim": 1.55,
+      "targetModelMaxDim": 1.3,
       "frameScale": 0.6615,
       "scaleMode": "source-relative-fleet",
-      "waterlineY": -0.5517766243621313,
+      "waterlineY": -0.4627803946263036,
       "waterlineOffsetY": 0,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 1,
         "dominantLengthRatio": 1,
-        "hullIntervalMinY": -0.570017,
-        "hullIntervalMaxY": -0.515296
+        "hullIntervalMinY": -0.478079,
+        "hullIntervalMaxY": -0.432183
       },
-      "encodedWaterlineY": -0.518668,
+      "encodedWaterlineY": -0.435529,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.527394,
-      "sinkHeightMax": 0.580846,
+      "sinkHeightMin": -0.442851,
+      "sinkHeightMax": 0.487122,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -135,9 +135,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": -0.000163,
-        "y": 0.583698,
-        "z": 0.099295
+        "x": -0.000137,
+        "y": 0.489553,
+        "z": 0.083279
       },
       "stats": {
         "slug": "small-cog",
@@ -1007,22 +1007,22 @@
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 2.fbx",
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 1609.0532,
-      "targetModelMaxDim": 1.2657,
+      "targetModelMaxDim": 0.98,
       "frameScale": 0.6615,
       "scaleMode": "source-relative-fleet",
-      "waterlineY": -0.45952065924647184,
-      "waterlineOffsetY": -0.455,
+      "waterlineY": -0.35550026463023854,
+      "waterlineOffsetY": -0.352,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 3,
         "dominantLengthRatio": 0.9311,
-        "hullIntervalMinY": -0.158223,
-        "hullIntervalMaxY": 0.257678
+        "hullIntervalMinY": -0.122509,
+        "hullIntervalMaxY": 0.199515
       },
-      "encodedWaterlineY": -0.459521,
+      "encodedWaterlineY": -0.3555,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.537492,
-      "sinkHeightMax": 0.578392,
+      "sinkHeightMin": -0.413963,
+      "sinkHeightMax": 0.446536,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1032,9 +1032,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": 0.5291,
-        "y": 0.578644,
-        "z": 0.537561
+        "x": 0.409673,
+        "y": 0.448034,
+        "z": 0.416224
       },
       "stats": {
         "slug": "felucca",
@@ -1076,22 +1076,22 @@
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 3.fbx",
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 1941.4077,
-      "targetModelMaxDim": 1.3903,
+      "targetModelMaxDim": 1.2,
       "frameScale": 0.6615,
       "scaleMode": "source-relative-fleet",
-      "waterlineY": -0.5050682202365155,
+      "waterlineY": -0.435944446360453,
       "waterlineOffsetY": 0,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 1,
         "dominantLengthRatio": 1,
-        "hullIntervalMinY": -0.539603,
-        "hullIntervalMaxY": -0.444633
+        "hullIntervalMinY": -0.465753,
+        "hullIntervalMaxY": -0.38378
       },
-      "encodedWaterlineY": -0.493565,
+      "encodedWaterlineY": -0.424883,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.501866,
-      "sinkHeightMax": 0.55236,
+      "sinkHeightMin": -0.432026,
+      "sinkHeightMax": 0.475161,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1101,9 +1101,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": -0.078964,
-        "y": 0.552553,
-        "z": -0.111797
+        "x": -0.068157,
+        "y": 0.476931,
+        "z": -0.096496
       },
       "stats": {
         "slug": "cutter",
@@ -1633,19 +1633,19 @@
       "targetModelMaxDim": 2.3,
       "frameScale": 0.58,
       "scaleMode": "joseon-decked-warship",
-      "waterlineY": -0.8072999999999999,
-      "waterlineOffsetY": -0.23,
+      "waterlineY": -0.8118416173605141,
+      "waterlineOffsetY": -0.354,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 1,
         "dominantLengthRatio": 1,
-        "hullIntervalMinY": -1.15,
-        "hullIntervalMaxY": 1.15
+        "hullIntervalMinY": -0.912035,
+        "hullIntervalMaxY": 0.912035
       },
-      "encodedWaterlineY": -0.8073,
+      "encodedWaterlineY": -0.811842,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -1.143553,
-      "sinkHeightMax": 1.149886,
+      "sinkHeightMin": -0.903743,
+      "sinkHeightMax": 0.912035,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1655,9 +1655,9 @@
       "lightElevationBins": 2,
       "flagAnchorSelection": "highest-model-point-aftmost-tiebreak",
       "flagAnchorModelPoint": {
-        "x": -0.176858,
-        "y": 1.15,
-        "z": 0.671241
+        "x": -0.005012,
+        "y": 0.912035,
+        "z": 0.630488
       },
       "stats": {
         "slug": "joseon-panokseon",
@@ -2219,5 +2219,6 @@
   "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
   "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
   "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
-  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
+  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
+  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog"
 }

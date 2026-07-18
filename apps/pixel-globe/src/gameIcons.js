@@ -1,6 +1,6 @@
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-3";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-4";
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -73,7 +73,9 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:silk": glionox(580),
   "good:silk-cloth": glionox(592),
   "good:pepper": keifoo("spices_png/pepper.png"),
-  "good:spices": keifoo("spices_png/saffron.png"),
+  "good:cinnamon": generatedIcon("cinnamon-sticks"),
+  "good:cloves": keifoo("spices_png/cloves.png"),
+  "good:nutmeg": keifoo("spices_png/nutmeg.png"),
   "good:tea": alex("coffee_greentea.png"),
   "good:coffee": alex("coffee_darkroast.png"),
   "good:cacao": glionox(395),

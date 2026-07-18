@@ -25,6 +25,9 @@ export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
 export const FORAGED_FOOD_GOOD_ID = "foraged-food";
 export const WHALE_BLUBBER_GOOD_ID = "whale-blubber";
+export const CINNAMON_GOOD_ID = "cinnamon";
+export const CLOVE_GOOD_ID = "cloves";
+export const NUTMEG_GOOD_ID = "nutmeg";
 
 export const TRADE_GOODS = Object.freeze([
   good(HARDTACK_GOOD_ID, "Hardtack", 2, "food", {
@@ -65,7 +68,9 @@ export const TRADE_GOODS = Object.freeze([
   good("silk", "Silk", 60, "luxury"),
   good("silk-cloth", "Silk Cloth", 85, "luxury"),
   good("pepper", "Pepper", 55, "spice"),
-  good("spices", "Spices", 75, "spice"),
+  good(CINNAMON_GOOD_ID, "Cinnamon", 80, "spice"),
+  good(CLOVE_GOOD_ID, "Cloves", 90, "spice"),
+  good(NUTMEG_GOOD_ID, "Nutmeg", 100, "spice"),
   good("tea", "Tea", 60, "luxury"),
   good("coffee", "Coffee", 40, "luxury"),
   good("cacao", "Cacao", 35, "luxury"),
@@ -88,8 +93,8 @@ const REGION_PRODUCTION = Object.freeze({
   mediterranean: rates({ hardtack: 0.7, grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12 }),
   "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, artwork: 0.12 }),
   "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22 }),
-  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, pepper: 0.85, spices: 0.65, dyes: 0.55, sugar: 0.35 }),
-  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, pepper: 0.75, spices: 1.2, sugar: 0.65, dyes: 0.25 }),
+  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, dyes: 0.55, sugar: 0.35 }),
+  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, sugar: 0.65, dyes: 0.25 }),
   polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
   mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55, silver: 0.3, gold: 0.12 }),
   andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, silver: 0.8, gold: 0.22, dyes: 0.2 }),
@@ -97,12 +102,12 @@ const REGION_PRODUCTION = Object.freeze({
 });
 
 const REGION_DEMAND = Object.freeze({
-  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, pepper: 0.55, spices: 0.7, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
-  mediterranean: rates({ timber: 0.55, iron: 0.35, pepper: 0.35, spices: 0.4, silk: 0.3, ivory: 0.18 }),
-  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, pepper: 0.12, spices: 0.16, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
-  "east-asian": rates({ pepper: 0.25, spices: 0.3, silver: 0.55, glassware: 0.25, wool: 0.2 }),
-  "south-asian": rates({ silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18 }),
-  "southeast-asian": rates({ cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16 }),
+  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
+  mediterranean: rates({ timber: 0.55, iron: 0.35, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, silk: 0.3, ivory: 0.18 }),
+  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
+  "east-asian": rates({ pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2 }),
+  "south-asian": rates({ cloves: 0.12, nutmeg: 0.12, silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18 }),
+  "southeast-asian": rates({ pepper: 0.12, cinnamon: 0.16, cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16 }),
   polynesian: rates({ iron: 0.65, arms: 0.45, "cotton-cloth": 0.45, glassware: 0.35, salt: 0.25 }),
   mesoamerican: rates({ iron: 0.7, arms: 0.55, "cotton-cloth": 0.3, glassware: 0.3, wine: 0.2 }),
   andean: rates({ iron: 0.55, arms: 0.5, "cotton-cloth": 0.3, wine: 0.2, salt: 0.2 }),
@@ -112,7 +117,9 @@ const REGION_DEMAND = Object.freeze({
 const REGION_IMPORT_PREMIUM = Object.freeze({
   "northern-european": rates({
     pepper: 2.35,
-    spices: 3.1,
+    cinnamon: 4.2,
+    cloves: 3.5,
+    nutmeg: 3.8,
     tea: 2.7,
     coffee: 1.35,
     cacao: 1.4,
@@ -124,7 +131,9 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
   }),
   mediterranean: rates({
     pepper: 2.05,
-    spices: 2.65,
+    cinnamon: 3.9,
+    cloves: 3.15,
+    nutmeg: 3.45,
     tea: 2.3,
     coffee: 1.25,
     cacao: 1.25,
@@ -133,7 +142,16 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
     porcelain: 1.35,
     ivory: 1.25
   }),
-  "islamic-desert": rates({ tea: 1.2, porcelain: 1.25, silver: 1.2, glassware: 1.15 }),
+  "islamic-desert": rates({
+    pepper: 1.9,
+    cinnamon: 3.65,
+    cloves: 2.9,
+    nutmeg: 3.15,
+    tea: 1.2,
+    porcelain: 1.25,
+    silver: 1.2,
+    glassware: 1.15
+  }),
   "east-asian": rates({ silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
   "south-asian": rates({ silver: 1.45, gold: 1.15, arms: 1.2, glassware: 1.25, porcelain: 1.15 }),
   "southeast-asian": rates({ silver: 1.5, gold: 1.15, arms: 1.25, glassware: 1.25, "cotton-cloth": 1.15 }),
@@ -152,22 +170,20 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Alexandria", ["cotton-cloth"]),
   specialty("Istanbul", ["carpets"]),
   specialty("Cairo", ["artwork"]),
-  specialty("Goa", ["spices", "pepper"]),
-  specialty("Hormuz", ["spices"]),
-  specialty("Aden", ["coffee", "spices"]),
-  specialty("Jeddah", ["coffee", "spices"]),
-  specialty("Muscat", ["spices"]),
+  specialty("Goa", ["pepper"]),
+  specialty("Colombo", [CINNAMON_GOOD_ID]),
+  specialty("Aden", ["coffee"]),
+  specialty("Jeddah", ["coffee"]),
   specialty("Calicut", ["pepper"]),
   specialty("Cochin", ["pepper"]),
-  specialty("Diu", ["cotton-cloth", "spices"]),
+  specialty("Diu", ["cotton-cloth"]),
   specialty("Surat", ["cotton-cloth"]),
-  specialty("Malacca", ["spices"]),
   specialty("Aceh", ["pepper"]),
-  specialty("Patani", ["pepper", "spices"]),
-  specialty("Ternate", ["spices"]),
-  specialty("Banda Village", ["spices"]),
-  specialty("Hitu Village", ["spices"]),
-  specialty("Makian Village", ["spices"]),
+  specialty("Quilon", ["pepper"]),
+  specialty("Patani", ["pepper"]),
+  specialty("Ternate", [CLOVE_GOOD_ID]),
+  specialty("Banda Village", [NUTMEG_GOOD_ID]),
+  specialty("Makian Village", [CLOVE_GOOD_ID]),
   specialty("Sofala", ["gold"]),
   specialty("Mozambique Island", ["gold", "ivory"]),
   specialty("Mombasa", ["ivory"]),

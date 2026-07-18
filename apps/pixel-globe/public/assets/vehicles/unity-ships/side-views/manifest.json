@@ -24,7 +24,7 @@
       "label": "Small Cog",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 3.fbx",
       "sourceMaxDim": 645.6119,
-      "targetModelMaxDim": 1.55,
+      "targetModelMaxDim": 1.3,
       "width": 192,
       "height": 104,
       "palette": "Resurrect 64",
@@ -206,7 +206,7 @@
       "label": "Felucca",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 2.fbx",
       "sourceMaxDim": 1609.0532,
-      "targetModelMaxDim": 1.2657,
+      "targetModelMaxDim": 0.98,
       "width": 192,
       "height": 104,
       "palette": "Resurrect 64",
@@ -220,7 +220,7 @@
       "label": "Coastal Pinnace",
       "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 3.fbx",
       "sourceMaxDim": 1941.4077,
-      "targetModelMaxDim": 1.3903,
+      "targetModelMaxDim": 1.2,
       "width": 192,
       "height": 104,
       "palette": "Resurrect 64",
@@ -437,5 +437,6 @@
   "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
   "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
   "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
-  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
+  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
+  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship small-cog"
 }

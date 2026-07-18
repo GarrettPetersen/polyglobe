@@ -1028,7 +1028,7 @@ const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
 const PORT_SAILING_DISTANCE_URL = "assets/data/port-sailing-distances.json";
 const LAND_ROAD_URL = "assets/data/land-roads.json";
-const HORSE_CART_ASSET_VERSION = "horse-cart-1";
+const HORSE_CART_ASSET_VERSION = "horse-cart-2";
 const CITY_SPRITE_W = TILE_ART_SIZE;
 const CITY_SPRITE_H = TILE_ART_SIZE;
 const CITY_SHADOW_SOURCE_Y = Math.floor(CITY_SPRITE_H / 2);
@@ -1628,7 +1628,7 @@ let colonizationTargetPlacements = [];
 let portSailingDistances;
 let landRoadNetwork;
 let landTradeSystem;
-let horseCartImages;
+let horseCartAssets;
 let portCitiesByTileId;
 let portCities = [];
 let factionCapitalPorts;
@@ -1875,7 +1875,7 @@ async function main() {
     loadedCityImages,
     loadedFactionFlagImages,
     loadedAnimalImages,
-    loadedHorseCartImages,
+    loadedHorseCartAssets,
     loadedStormShipStrikeImage,
     loadedFireEffectImage,
     loadedStatusHudImages,
@@ -1906,7 +1906,7 @@ async function main() {
     loadCityImages(),
     loadFactionFlagImages(),
     loadAnimalImages(),
-    loadHorseCartImages(),
+    loadHorseCartAssets(),
     loadStormShipStrikeImage(),
     loadFireEffectImage(),
     loadStatusHudImages(),
@@ -1936,7 +1936,7 @@ async function main() {
   cityImages = loadedCityImages;
   factionFlagImages = loadedFactionFlagImages;
   animalImages = loadedAnimalImages;
-  horseCartImages = loadedHorseCartImages;
+  horseCartAssets = loadedHorseCartAssets;
   stormShipStrikeImage = loadedStormShipStrikeImage;
   fireEffectImage = loadedFireEffectImage;
   statusHudImages = loadedStatusHudImages;
@@ -2643,19 +2643,28 @@ async function loadAnimalImages() {
   return { seagullFlight, seagullStanding, fish, fishingNet, whales: new Map(whaleEntries) };
 }
 
-async function loadHorseCartImages() {
-  const sheets = await Promise.all(Array.from(
+async function loadHorseCartAssets() {
+  return Object.freeze(await Promise.all(Array.from(
     { length: LAND_CART_WALK_FRAME_COUNT },
-    (_, frameIndex) => loadAssetImage(
-      `assets/vehicles/horse-cart/horse-cart-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}.png` +
-        `?v=${HORSE_CART_ASSET_VERSION}`,
-      `horse cart walk frame ${frameIndex}`
-    )
-  ));
-  for (let frameIndex = 0; frameIndex < sheets.length; frameIndex++) {
-    validateShipSpriteSheet(sheets[frameIndex], `horse cart walk frame ${frameIndex}`);
-  }
-  return Object.freeze(sheets);
+    async (_, frameIndex) => {
+      const prefix = `assets/vehicles/horse-cart/horse-cart-walk-${frameIndex}-${SHIP_SPRITE_HEADING_SUFFIX}`;
+      const [image, lightImage, shadeImage, shadowImage] = await Promise.all([
+        loadAssetImage(`${prefix}.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart walk frame ${frameIndex}`),
+        loadAssetImage(`${prefix}-light.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart light frame ${frameIndex}`),
+        loadAssetImage(`${prefix}-shade.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart shade frame ${frameIndex}`),
+        loadAssetImage(`${prefix}-shadow.png?v=${HORSE_CART_ASSET_VERSION}`, `horse cart shadow frame ${frameIndex}`)
+      ]);
+      validateShipSpriteSheet(image, `horse cart walk frame ${frameIndex}`);
+      return Object.freeze({
+        image,
+        lighting: Object.freeze({
+          light: decodeDirectionalLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, `horse cart light frame ${frameIndex}`),
+          shade: decodeDirectionalLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, `horse cart shade frame ${frameIndex}`),
+          shadow: decodeDirectionalLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, `horse cart shadow frame ${frameIndex}`)
+        })
+      });
+    }
+  )));
 }
 
 async function loadStormShipStrikeImage() {
@@ -2821,13 +2830,13 @@ async function loadShipLightingBake(shipSpriteKey) {
     loadVehicleImage(`${shipSpriteKey}-${SHIP_SPRITE_HEADING_SUFFIX}-shadow`)
   ]);
   return {
-    light: decodeShipLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, "ship light mask"),
-    shade: decodeShipLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, "ship shade mask"),
-    shadow: decodeShipLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, "ship water shadow mask")
+    light: decodeDirectionalLightingMask(lightImage, SHIP_SHEET_FRAME_SIZE, "ship light mask"),
+    shade: decodeDirectionalLightingMask(shadeImage, SHIP_SHEET_FRAME_SIZE, "ship shade mask"),
+    shadow: decodeDirectionalLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, "ship water shadow mask")
   };
 }
 
-function decodeShipLightingMask(img, frameSize, label) {
+function decodeDirectionalLightingMask(img, frameSize, label) {
   const rows = Math.ceil(SHIP_HEADING_COUNT / SHIP_SHEET_COLS);
   const expectedWidth = frameSize * SHIP_SHEET_COLS;
   const expectedHeight = frameSize * rows * SHIP_LIGHT_ELEVATION_BINS;
@@ -13368,7 +13377,7 @@ function render(nowMs) {
   drawCityShadows(chart, shipLight);
   drawSeagulls(chart, nowMs);
   drawWorldDiscoverySprites(chart);
-  drawLandCarts(chart, nowMs);
+  drawLandCarts(chart, nowMs, shipLight);
   drawCitySprites(chart, nowMs);
   ctx.restore();
 
@@ -17786,11 +17795,12 @@ function drawLandRoadSegment(path, segmentId) {
   });
 }
 
-function drawLandCarts(activeChart, nowMs) {
+function drawLandCarts(activeChart, nowMs, light) {
   if (!landTradeSystem) throw new Error("Land trade system is not initialized");
-  if (!Array.isArray(horseCartImages) || horseCartImages.length !== LAND_CART_WALK_FRAME_COUNT) {
-    throw new Error("Horse-cart walk frames are not initialized");
+  if (!Array.isArray(horseCartAssets) || horseCartAssets.length !== LAND_CART_WALK_FRAME_COUNT) {
+    throw new Error("Horse-cart walk and lighting assets are not initialized");
   }
+  if (!light) throw new Error("Horse-cart lighting requires the current sun state");
   for (const cart of landCartSnapshots(landTradeSystem, weatherClockMinutes)) {
     const a = activeChart.tileById.get(cart.tileA);
     const b = activeChart.tileById.get(cart.tileB);
@@ -17803,10 +17813,40 @@ function drawLandCarts(activeChart, nowMs) {
     const walkFrame = (Math.floor(nowMs / LAND_CART_WALK_FRAME_MS) + walkOffset) % LAND_CART_WALK_FRAME_COUNT;
     const x = Math.round(point.x - SHIP_SHEET_FRAME_SIZE / 2);
     const y = Math.round(point.y - SHIP_SHEET_FRAME_SIZE / 2);
-    ctx.fillStyle = "rgba(59, 45, 45, 0.45)";
-    ctx.fillRect(Math.round(point.x) - 5, Math.round(point.y) + 3, 10, 2);
-    drawLakeBattleSpriteFrame(horseCartImages[walkFrame], headingFrame, x, y);
+    const asset = horseCartAssets[walkFrame];
+    drawLandCartShadow(asset.lighting, headingFrame, point, light);
+    drawLakeBattleSpriteFrame(asset.image, headingFrame, x, y);
+    drawLandCartLighting(asset.lighting, headingFrame, x, y, light);
   }
+}
+
+function drawLandCartShadow(lighting, frame, point, light) {
+  if (light.shadow <= 0.01) return;
+  const points = directionalLightingPoints(lighting, "shadow", frame, light.bin, "horse cart");
+  const x = Math.round(point.x - SHIP_SHADOW_FRAME_SIZE / 2);
+  const y = Math.round(point.y - SHIP_SHADOW_FRAME_SIZE / 2);
+  drawDirectionalMaskPoints(
+    points,
+    x,
+    y,
+    `rgba(12, 9, 24, ${(SHIP_LIGHT_SHADOW_ALPHA * light.shadow).toFixed(3)})`
+  );
+}
+
+function drawLandCartLighting(lighting, frame, x, y, light) {
+  if (light.direct <= 0.01) return;
+  drawDirectionalMaskPoints(
+    directionalLightingPoints(lighting, "shade", frame, light.bin, "horse cart"),
+    x,
+    y,
+    `rgba(26, 18, 44, ${(SHIP_LIGHT_SHADE_ALPHA * light.direct).toFixed(3)})`
+  );
+  drawDirectionalMaskPoints(
+    directionalLightingPoints(lighting, "light", frame, light.bin, "horse cart"),
+    x,
+    y,
+    `rgba(255, 240, 188, ${(SHIP_LIGHT_HIGHLIGHT_ALPHA * light.direct).toFixed(3)})`
+  );
 }
 
 function landRoadSegmentPath(a, b, aTileId, bTileId) {
@@ -20515,14 +20555,14 @@ function shipScreenOrigin(frameSize) {
 
 function drawShipLighting(frame, x, y, light, abovePointSet) {
   if (!shipLighting || !light || light.direct <= 0.01) return;
-  drawShipMaskPoints(
+  drawDirectionalMaskPoints(
     shipLightingPoints("shade", frame, light.bin),
     x,
     y,
     `rgba(26, 18, 44, ${(SHIP_LIGHT_SHADE_ALPHA * light.direct).toFixed(3)})`,
     abovePointSet
   );
-  drawShipMaskPoints(
+  drawDirectionalMaskPoints(
     shipLightingPoints("light", frame, light.bin),
     x,
     y,
@@ -20532,17 +20572,23 @@ function drawShipLighting(frame, x, y, light, abovePointSet) {
 }
 
 function shipLightingPoints(kind, frame, bin) {
-  const points = shipLighting?.[kind]?.[frame]?.[bin];
-  if (!points) throw new Error(`Missing ship ${kind} lighting mask for frame ${frame}, bin ${bin}`);
+  return directionalLightingPoints(shipLighting, kind, frame, bin, "ship");
+}
+
+function directionalLightingPoints(lighting, kind, frame, bin, label) {
+  const points = lighting?.[kind]?.[frame]?.[bin];
+  if (!points) throw new Error(`Missing ${label} ${kind} lighting mask for frame ${frame}, bin ${bin}`);
   return points;
 }
 
-function drawShipMaskPoints(points, x, y, color, allowedPoints) {
+function drawDirectionalMaskPoints(points, x, y, color, allowedPoints = null) {
   if (points.length === 0) return;
-  if (!(allowedPoints instanceof Set)) throw new Error("Ship lighting requires an above-water pixel mask");
+  if (allowedPoints !== null && !(allowedPoints instanceof Set)) {
+    throw new Error("Directional lighting pixel filter must be a Set or null");
+  }
   ctx.fillStyle = color;
   for (const point of points) {
-    if (!allowedPoints.has(point)) continue;
+    if (allowedPoints !== null && !allowedPoints.has(point)) continue;
     ctx.fillRect(x + (point & 0xff), y + (point >> 8), 1, 1);
   }
 }
