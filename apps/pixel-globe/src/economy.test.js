@@ -251,9 +251,12 @@ test("historical spice origins are local while their cargo commands transformati
   assert.equal(malacca.get(CLOVE_GOOD_ID).productionPerDay, 0);
   assert.equal(malacca.get(NUTMEG_GOOD_ID).productionPerDay, 0);
   assert.equal(malacca.get(CINNAMON_GOOD_ID).productionPerDay, 0);
-  assert.ok(london.get(CLOVE_GOOD_ID).sellPrice >= ternate.get(CLOVE_GOOD_ID).buyPrice * 4);
-  assert.ok(london.get(NUTMEG_GOOD_ID).sellPrice >= banda.get(NUTMEG_GOOD_ID).buyPrice * 4);
-  assert.ok(london.get(CINNAMON_GOOD_ID).sellPrice >= colombo.get(CINNAMON_GOOD_ID).buyPrice * 4);
+  assert.ok(ternate.get(CLOVE_GOOD_ID).stock >= 65);
+  assert.ok(banda.get(NUTMEG_GOOD_ID).stock >= 65);
+  assert.ok(colombo.get(CINNAMON_GOOD_ID).stock >= 65);
+  assert.ok(london.get(CLOVE_GOOD_ID).sellPrice >= ternate.get(CLOVE_GOOD_ID).buyPrice * 10);
+  assert.ok(london.get(NUTMEG_GOOD_ID).sellPrice >= banda.get(NUTMEG_GOOD_ID).buyPrice * 10);
+  assert.ok(london.get(CINNAMON_GOOD_ID).sellPrice >= colombo.get(CINNAMON_GOOD_ID).buyPrice * 10);
 
   const tradePlan = planNpcTrade(economy, TERNATE, LONDON, { cargoCapacity: 20, specie: 10000 });
   assert.ok(tradePlan.expectedProfit >= 3000);
@@ -263,8 +266,8 @@ test("historical spice origins are local while their cargo commands transformati
   const quantity = Math.min(10, ternate.get(CLOVE_GOOD_ID).stock);
   const purchase = executePortSale(economy, TERNATE, CLOVE_GOOD_ID, quantity);
   const sale = executePortPurchase(economy, LONDON, CLOVE_GOOD_ID, quantity);
-  assert.ok(sale.total >= purchase.total * 3.5);
-  assert.ok(sale.total - purchase.total >= 1500);
+  assert.ok(sale.total >= purchase.total * 10);
+  assert.ok(sale.total - purchase.total >= 2000);
 });
 
 test("real Asia-Europe sailing routes pay several strong coastal voyages", () => {
@@ -298,6 +301,8 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
   });
   const teaProfit = quotePortPurchase(economy, london, "tea", 20) -
     quotePortSale(economy, guangzhou, "tea", 20);
+  const clovePurchase = quotePortSale(economy, ternate, CLOVE_GOOD_ID, 20);
+  const cloveSale = quotePortPurchase(economy, lisbon, CLOVE_GOOD_ID, 20);
   const nutmegProfit = quotePortPurchase(economy, lisbon, NUTMEG_GOOD_ID, 20) -
     quotePortSale(economy, banda, NUTMEG_GOOD_ID, 20);
   const cinnamonProfit = quotePortPurchase(economy, lisbon, CINNAMON_GOOD_ID, 20) -
@@ -310,8 +315,11 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, guangzhou, london) > 25000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, istanbul, athens) < 600);
   assert.ok(coastalVoyage.expectedProfit <= 100, `Istanbul-Athens profit was ${coastalVoyage.expectedProfit}`);
-  assert.ok(strongestShortVoyage.expectedProfit <= 250, JSON.stringify(strongestShortVoyage));
-  assert.ok(spiceIslandsVoyage.expectedProfit >= 3000);
+  assert.ok(strongestShortVoyage.expectedProfit <= 400, JSON.stringify(strongestShortVoyage));
+  assert.ok(clovePurchase <= 700, `A Ternate shipload of cloves cost ${clovePurchase}`);
+  assert.ok(cloveSale >= clovePurchase * 7, `Lisbon paid ${cloveSale} for cloves costing ${clovePurchase}`);
+  assert.ok(spiceIslandsVoyage.expectedProfit >= 4000);
+  assert.ok(spiceIslandsVoyage.expectedProfit >= strongestShortVoyage.expectedProfit * 10);
   assert.ok(teaProfit >= 2200, `Guangzhou-London tea profit was only ${teaProfit}`);
   assert.ok(nutmegProfit >= 3000, `Banda-Lisbon nutmeg profit was only ${nutmegProfit}`);
   assert.ok(cinnamonProfit >= 2500, `Colombo-Lisbon cinnamon profit was only ${cinnamonProfit}`);

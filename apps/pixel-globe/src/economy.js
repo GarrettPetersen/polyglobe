@@ -13,6 +13,7 @@ const ECONOMY_STEP_DAYS = ECONOMY_STEP_MINUTES / MINUTES_PER_DAY;
 const PORT_MARKUP = 1.08;
 const PORT_MARKDOWN = 0.9;
 const MIN_PRICE_MULTIPLIER = 0.38;
+const MIN_INTEGRATED_PRICE_MULTIPLIER = 0.1;
 const MAX_PRICE_MULTIPLIER = 5;
 const NPC_SPECIE_RESERVE_RATIO = 0.15;
 const NPC_CARGO_LINE_LIMIT = 4;
@@ -21,6 +22,8 @@ const VILLAGE_PRODUCTION_MULTIPLIER = 0.58;
 const VILLAGE_CONSUMPTION_MULTIPLIER = 0.62;
 const NEARBY_PORT_MARKET_RADIUS_KM = 2500;
 const NEARBY_PORT_MARKET_INTEGRATION_STRENGTH = 0.65;
+const SOURCE_SPICE_ABUNDANCE_PRICE_MULTIPLIER = 0.22;
+const SOURCE_SPICE_MINIMUM_TARGET_STOCK = 80;
 
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
@@ -117,7 +120,7 @@ const REGION_DEMAND = Object.freeze({
   "sub-saharan": rates({ "cotton-cloth": 0.5, iron: 0.45, arms: 0.35, salt: 0.35, glassware: 0.3 })
 });
 
-const REGION_IMPORT_PREMIUM = Object.freeze({
+const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
   "northern-european": rates({
     "beaver-pelts": 2.6,
     pepper: 2.35,
@@ -158,9 +161,9 @@ const REGION_IMPORT_PREMIUM = Object.freeze({
     silver: 1.2,
     glassware: 1.15
   }),
-  "east-asian": rates({ "beaver-pelts": 1.5, silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
-  "south-asian": rates({ silver: 1.45, gold: 1.15, arms: 1.2, glassware: 1.25, porcelain: 1.15 }),
-  "southeast-asian": rates({ silver: 1.5, gold: 1.15, arms: 1.25, glassware: 1.25, "cotton-cloth": 1.15 }),
+  "east-asian": rates({ "beaver-pelts": 1.5, pepper: 0.75, cinnamon: 0.75, cloves: 0.7, nutmeg: 0.7, silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
+  "south-asian": rates({ pepper: 0.52, cinnamon: 0.3, silver: 1.45, gold: 1.15, arms: 1.2, glassware: 1.25, porcelain: 1.15 }),
+  "southeast-asian": rates({ pepper: 0.5, cinnamon: 0.65, cloves: 0.48, nutmeg: 0.48, silver: 1.5, gold: 1.15, arms: 1.25, glassware: 1.25, "cotton-cloth": 1.15 }),
   polynesian: rates({ iron: 1.4, arms: 1.35, glassware: 1.35, "cotton-cloth": 1.3, salt: 1.2 }),
   mesoamerican: rates({ arms: 1.35, iron: 1.25, glassware: 1.25, "cotton-cloth": 1.2, wine: 1.15 }),
   andean: rates({ arms: 1.35, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
@@ -622,6 +625,9 @@ function createPortState(port) {
   const demandProfile = REGION_DEMAND[port.cityType];
   if (!productionProfile || !demandProfile) throw new Error(`No economy profile for city type: ${port.cityType}`);
   const specialties = CITY_SPECIALTIES.get(normalizeName(port.city)) || [];
+  const localSpiceSourceIds = new Set(specialties.filter(
+    (goodId) => tradeGoodById(goodId).category === "spice"
+  ));
   const beaverPeltProduction = beaverSettlementProductionRate(port);
   const goods = new Map();
 
@@ -640,7 +646,10 @@ function createPortState(port) {
       householdConsumptionPerDay,
       consumptionPerDay: householdConsumptionPerDay,
       targetStock: 0,
-      stock: 0
+      stock: 0,
+      localAbundancePriceMultiplier: localSpiceSourceIds.has(good.id)
+        ? SOURCE_SPICE_ABUNDANCE_PRICE_MULTIPLIER
+        : 1
     });
   }
 
@@ -653,7 +662,10 @@ function createPortState(port) {
 
   for (const good of TRADE_GOODS) {
     const state = goods.get(good.id);
-    state.targetStock = Math.max(3, state.productionPerDay * 28 + state.consumptionPerDay * 22);
+    const ordinaryTargetStock = Math.max(3, state.productionPerDay * 28 + state.consumptionPerDay * 22);
+    state.targetStock = state.localAbundancePriceMultiplier < 1
+      ? Math.max(SOURCE_SPICE_MINIMUM_TARGET_STOCK, ordinaryTargetStock)
+      : ordinaryTargetStock;
     const stockVariance = 0.82 + hashUnit(`${port.tileId}|${good.id}|stock`) * 0.36;
     state.stock = state.targetStock * stockVariance;
   }
@@ -767,9 +779,15 @@ function marketPrice(port, good, stock) {
   if (!port.marketIntegrationOffsets.has(good.id)) {
     throw new Error(`${port.name} market has no integration value for ${good.label}`);
   }
-  const multiplier = clamp(
+  const integratedMultiplier = clamp(
     rawMultiplier + port.marketIntegrationOffsets.get(good.id),
-    MIN_PRICE_MULTIPLIER,
+    MIN_INTEGRATED_PRICE_MULTIPLIER,
+    MAX_PRICE_MULTIPLIER
+  );
+  const state = port.goods.get(good.id);
+  const multiplier = clamp(
+    integratedMultiplier * state.localAbundancePriceMultiplier,
+    MIN_INTEGRATED_PRICE_MULTIPLIER * state.localAbundancePriceMultiplier,
     MAX_PRICE_MULTIPLIER
   );
   const midPrice = Math.max(1, good.basePrice * multiplier);
@@ -787,10 +805,10 @@ function rawMarketMultiplier(port, good, stock) {
   const comparativeAdvantage = Math.exp(balance * 0.52);
   const scarcity = Math.pow((state.targetStock + 3) / (Math.max(0, stock) + 3), 0.72);
   const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
-  const importPremium = REGION_IMPORT_PREMIUM[port.cityType]?.[good.id] || 1;
+  const regionalTradePriceMultiplier = REGION_TRADE_PRICE_MULTIPLIER[port.cityType]?.[good.id] || 1;
   return clamp(
-    comparativeAdvantage * scarcity * localVariation * importPremium,
-    MIN_PRICE_MULTIPLIER,
+    comparativeAdvantage * scarcity * localVariation * regionalTradePriceMultiplier,
+    MIN_PRICE_MULTIPLIER * Math.min(1, regionalTradePriceMultiplier),
     MAX_PRICE_MULTIPLIER
   );
 }
