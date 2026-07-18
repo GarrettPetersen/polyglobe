@@ -30,6 +30,16 @@ test("every trade good has a unique semantic icon mapping", () => {
   assert.equal(iconIds.length, TRADE_GOODS.length);
   assert.equal(new Set(iconIds).size, TRADE_GOODS.length);
   for (const iconId of iconIds) assert.ok(GAME_ICON_SOURCES[iconId], iconId);
+
+  const sourceKeys = iconIds.map((iconId) => {
+    const { paperOutline: _paperOutline, ...artSource } = GAME_ICON_SOURCES[iconId];
+    return JSON.stringify(artSource);
+  });
+  assert.equal(
+    new Set(sourceKeys).size,
+    sourceKeys.length,
+    "trade goods must not reuse source artwork"
+  );
 });
 
 test("every current dialogue and start-menu action resolves to an icon", async () => {
@@ -70,6 +80,19 @@ test("fishing actions use the widest repo-local casting-net frame", () => {
   assert.equal(source.packId, null);
   assert.equal(source.assetPath, "public/assets/misc/fishing-net-Sheet.png");
   assert.deepEqual(source.crop, { x: 150, y: 4, w: 26, h: 26 });
+  assert.equal(source.paperOutline, true);
+});
+
+test("frequently confused controls use distinct readable source art", () => {
+  for (const [left, right] of [
+    ["menu:captain", "menu:ship"],
+    ["action:dock", "action:leave"],
+    ["action:harpoon", "action:attack"],
+    ["action:disguise", "action:passenger"],
+    ["action:inventory", "action:viking"]
+  ]) {
+    assert.notDeepEqual(GAME_ICON_SOURCES[left], GAME_ICON_SOURCES[right], `${left} / ${right}`);
+  }
 });
 
 test("runtime icons always draw at the native atlas size", () => {

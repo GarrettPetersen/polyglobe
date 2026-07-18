@@ -5,7 +5,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-trailer-clips pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
 
 help:
 	@echo "Targets:"
@@ -26,6 +26,7 @@ help:
 	@echo "  make pixel-globe-dev    Run Pixel Globe locally on PIXEL_GLOBE_PORT (default: 5184)"
 	@echo "  make pixel-globe-demo-itch Build the two-hour HTML5 demo ZIP for itch.io"
 	@echo "  make pixel-globe-capture Run a disposable 9:16 capture scenario"
+	@echo "  make pixel-globe-trailer-clips Record all scripted trailer clips"
 	@echo "  make pixel-globe-shorts-setup Install the local Whisper environment"
 	@echo "  make pixel-globe-transcribe AUDIO=... OUT=... Transcribe narration"
 	@echo "  make pixel-globe-short VIDEO=... EVENTS=... NARRATION=... TRANSCRIPT=... OUTPUT=..."
@@ -85,6 +86,9 @@ pixel-globe-demo-itch:
 pixel-globe-capture:
 	@echo "Capture URL: http://127.0.0.1:$(PIXEL_GLOBE_PORT)/?capture=$(PIXEL_GLOBE_CAPTURE_SCENARIO)"
 	PORT=$(PIXEL_GLOBE_PORT) npm --prefix $(PIXEL_GLOBE_DIR) run dev
+
+pixel-globe-trailer-clips:
+	npm --prefix $(PIXEL_GLOBE_DIR) run capture:trailer -- --base-url http://127.0.0.1:$(PIXEL_GLOBE_PORT)
 
 pixel-globe-shorts-setup:
 	python3 -m venv $(PIXEL_GLOBE_DIR)/.venv-shorts

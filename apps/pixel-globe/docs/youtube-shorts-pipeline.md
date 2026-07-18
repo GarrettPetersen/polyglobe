@@ -57,7 +57,19 @@ When the browser asks what to share, choose the current tab and enable **Share t
 
 The event sidecar records simulation time and elapsed milliseconds for positions, dialogue interactions, discoveries, weapons, hits, sinking, storms, and lightning.
 
-## 5. Build the Short
+## 5. Record scripted trailer clips
+
+Keep the Pixel Globe dev server running, then record the complete unattended trailer roster:
+
+```sh
+make pixel-globe-trailer-clips
+```
+
+The sixteen `trailer-*` scenarios provide two clips apiece for exploration, trade, fishing, whaling, fighting, pillaging, colonization, and survival. The player ship follows an authored goal with the normal sailing and combat systems; exact trailer beats such as a lightning strike or successful colony landing are deterministic.
+
+Automated recording never reads or writes the normal voyage save. It samples the native `270x480` canvas inside the game loop and records a semantic event sidecar. The game's SFX and ambient loops are mixed onto a dedicated capture bus; music is excluded. Each scenario emits a lossless native WebM, a nearest-neighbour `1080x1920` MP4, and a separate `.sfx.ogg` stem. The capture fails if the stem is silent or the delivery video lacks audio. Outputs and `manifest.json` are written to `apps/pixel-globe/.captures/trailer-clips/`. Pass `--ids trailer-fish-cod,trailer-whale-right` to `npm run capture:trailer --` to record a subset.
+
+## 6. Build the Short
 
 ```sh
 make pixel-globe-short \

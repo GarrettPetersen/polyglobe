@@ -6,8 +6,7 @@ export const STORM_SHIP_STRIKE_FRAME_COUNT = 30;
 export const STORM_SHIP_STRIKE_FLASH_FRAME = 3;
 export const STORM_SHIP_STRIKE_COOLDOWN_MS = 10000;
 
-const STORM_SHIP_STRIKE_DURATION_MS = 1000;
-const STORM_SHIP_STRIKE_FRAME_MS = STORM_SHIP_STRIKE_DURATION_MS / STORM_SHIP_STRIKE_FRAME_COUNT;
+export const STORM_SHIP_STRIKE_DURATION_MS = 1000;
 const STORM_SHIP_STRIKE_IMPACT_X = 98;
 const STORM_SHIP_STRIKE_IMPACT_Y = 217;
 
@@ -62,8 +61,12 @@ export function consumeStormLightningFlash(state) {
   return true;
 }
 
-export function createStormShipStrikeState() {
+export function createStormShipStrikeState({ durationMs = STORM_SHIP_STRIKE_DURATION_MS } = {}) {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    throw new Error(`Invalid storm ship strike duration: ${durationMs}`);
+  }
   return {
+    durationMs,
     startedAtMs: null,
     cooldownUntilMs: null,
     sequence: 0,
@@ -87,7 +90,7 @@ export function updateStormShipStrike(state, nowMs) {
   if (!Number.isFinite(nowMs)) throw new Error(`Storm ship strike requires finite time: ${nowMs}`);
   if (state.startedAtMs === null) return false;
   if (nowMs < state.startedAtMs) throw new Error("Storm ship strike cannot run before it starts");
-  if (nowMs - state.startedAtMs < STORM_SHIP_STRIKE_DURATION_MS) {
+  if (nowMs - state.startedAtMs < state.durationMs) {
     return true;
   }
   state.startedAtMs = null;
@@ -101,7 +104,8 @@ export function stormShipStrikeFrame(state, nowMs) {
   if (state.startedAtMs === null) return null;
   const elapsedMs = nowMs - state.startedAtMs;
   if (elapsedMs < 0) throw new Error("Storm ship strike cannot render before it starts");
-  const index = Math.floor(elapsedMs / STORM_SHIP_STRIKE_FRAME_MS);
+  const frameMs = state.durationMs / STORM_SHIP_STRIKE_FRAME_COUNT;
+  const index = Math.floor(elapsedMs / frameMs);
   if (index >= STORM_SHIP_STRIKE_FRAME_COUNT) return null;
   return {
     index,
@@ -156,7 +160,7 @@ function validateStormLightningState(state) {
 }
 
 function validateStormShipStrikeState(state) {
-  if (!state || !Number.isInteger(state.sequence) ||
+  if (!state || !Number.isFinite(state.durationMs) || state.durationMs <= 0 || !Number.isInteger(state.sequence) ||
       (state.startedAtMs !== null && !Number.isFinite(state.startedAtMs)) ||
       (state.cooldownUntilMs !== null && !Number.isFinite(state.cooldownUntilMs)) ||
       typeof state.flashPending !== "boolean") {

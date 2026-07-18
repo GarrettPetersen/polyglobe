@@ -191,14 +191,30 @@ export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinu
     if (whale.phase === WHALE_PHASE_TETHERED) {
       hunt.remainingSeconds = Math.max(0, hunt.remainingSeconds - dt);
       if (hunt.remainingSeconds === 0) {
-        whale.phase = WHALE_PHASE_EXHAUSTED;
-        whale.phaseElapsedSeconds = 0;
-        whale.phaseDurationSeconds = 0;
+        markWhaleExhausted(whale, hunt);
         events.push(Object.freeze({ type: "exhausted", whaleId: whale.id }));
       }
     }
   }
   return events;
+}
+
+export function exhaustTetheredWhale(memory) {
+  validateWhaleMemory(memory);
+  if (!memory.activeHunt) throw new Error("No whale hunt is active");
+  const whale = whaleById(memory, memory.activeHunt.whaleId);
+  if (whale.phase !== WHALE_PHASE_TETHERED) {
+    throw new Error(`Whale is not tethered: ${whale.id}`);
+  }
+  markWhaleExhausted(whale, memory.activeHunt);
+  return whale;
+}
+
+function markWhaleExhausted(whale, hunt) {
+  hunt.remainingSeconds = 0;
+  whale.phase = WHALE_PHASE_EXHAUSTED;
+  whale.phaseElapsedSeconds = 0;
+  whale.phaseDurationSeconds = 0;
 }
 
 export function tetherWhale(memory, whaleId, harpoon) {

@@ -157,6 +157,8 @@ import {
   recordAttackAgainstFaction,
   recordDiscovery,
   recordPiracyAgainstFaction,
+  releaseCargoSpace,
+  reserveCargoSpace,
   refuseFactionSafePassage,
   restockSelectedShipLoadoutAtPort,
   rollCrewCasualtiesForDamage,
@@ -175,6 +177,7 @@ import {
   visitPort
 } from "./gameState.js";
 import {
+  BASIC_WHALE_HARPOON_ID,
   resolveWhaleHarpoon,
   whaleHarpoonHitChance
 } from "./whaleHarpoons.js";
@@ -193,10 +196,12 @@ import { selectWhaleTargetAtPoint } from "./whaleTargeting.js";
 import {
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_DEAD,
+  WHALE_PHASE_SURFACED,
   WHALE_PHASE_TETHERED,
   advanceWhaleMemory,
   constrainWhaleTether,
   cutWhaleLoose,
+  exhaustTetheredWhale,
   killExhaustedWhale,
   seedWhalePopulation,
   tetherWhale,
@@ -463,7 +468,29 @@ import {
   captureScenarioFromSearch
 } from "./captureScenarios.js";
 import { CaptureRecorder } from "./captureRecorder.js";
+import {
+  activateCaptureSfxBus,
+  createCaptureSfxBus,
+  playCaptureSfx,
+  registerCaptureSfxAudio,
+  setCaptureSfxAmbientVolume,
+  startCaptureSfxAmbient
+} from "./captureSfxBus.js";
 import { createCaptureControls } from "./captureControls.js";
+import {
+  advanceCaptureDirectorClock,
+  automaticCaptureRequested,
+  captureDirectorComplete,
+  captureDirectorCue,
+  createCaptureDirector
+} from "./captureDirector.js";
+import {
+  captureFrameDue,
+  captureFrameSamplerSnapshot,
+  createCaptureFrameSampler,
+  recordCaptureFrame,
+  startCaptureFrameSampler
+} from "./captureFrames.js";
 import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js";
 import {
   MINIMAP_LONGITUDE_BIN_COUNT,
@@ -671,14 +698,21 @@ import {
   visibleLandCartSnapshots
 } from "./landTradeSystem.js";
 import {
+  COLONIZATION_CARGO_RESERVATION_ID,
+  COLONIZATION_FETCH_STAGES,
+  COLONIZATION_RESUPPLY,
   COLONIZATION_STAGE_ESTABLISHED,
   COLONIZATION_STAGE_FAILED,
+  COLONIZATION_STAGE_READY,
   advanceColonizationQuest,
   assignColonizationTargetTile,
+  beginColonizationExpedition,
   colonizationObjective,
   colonizationWorldRecord,
+  completeColonizationFetchStage,
   isColonizationQuestOrigin,
-  isColonizationQuestTarget
+  isColonizationQuestTarget,
+  landColonists
 } from "./colonizationQuest.js";
 import { formatCompactNumber } from "./compactNumber.js";
 import { EARTH_RADIUS_KM } from "./worldDistance.js";
@@ -1489,6 +1523,10 @@ const SEAGULL_FLAP_SPREAD_MS = 260;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const CAPTURE_SCENARIO = captureScenarioFromSearch(window.location.search);
+const CAPTURE_AUTOMATIC = automaticCaptureRequested(window.location.search);
+if (CAPTURE_AUTOMATIC && !CAPTURE_SCENARIO) {
+  throw new Error("Automatic capture requires a named capture scenario");
+}
 const START_POSITION_OVERRIDE = startPositionOverrideFromLocation();
 const START_WEATHER = startWeatherFromLocation();
 const START_SHIP_SLUG_OVERRIDE = shipSlugOverrideFromLocation();
@@ -1693,8 +1731,11 @@ let localLayout;
 let minimap;
 let themeMusic = null;
 let soundEffects = null;
+let captureSfxBus = null;
 const stormLightningState = createStormLightningState();
-const stormShipStrikeState = createStormShipStrikeState();
+const stormShipStrikeState = createStormShipStrikeState({
+  durationMs: CAPTURE_AUTOMATIC ? 5000 : undefined
+});
 const sailingAudioState = createSailingAudioState();
 const rowingCadenceState = createRowingCadenceState();
 let sailingTutorialState = createSailingTutorialState();
@@ -1719,6 +1760,8 @@ let hasStartedVoyage = false;
 let captureRecorder = null;
 let capturePlaybackPaused = Boolean(CAPTURE_SCENARIO);
 let captureLastPositionEventMs = -Infinity;
+let captureDirector = null;
+let captureFrameSampler = null;
 let lastAutosaveMs = 0;
 let captainAlertModal = null;
 let familyDebtReturnReminderDelivered = false;
@@ -2278,6 +2321,7 @@ async function main() {
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   setupThemeMusic();
+  if (CAPTURE_AUTOMATIC) captureSfxBus = createCaptureSfxBus();
   setupSoundEffects();
   if (CAPTURE_SCENARIO) setupCaptureMode();
   requestAnimationFrame(loop);
@@ -3191,8 +3235,12 @@ function easeInOut(t) {
 function loop(nowMs) {
   try {
     runFrame(nowMs);
+    sampleAutomaticCaptureFrame(nowMs);
   } catch (error) {
     console.error(error);
+    if (CAPTURE_AUTOMATIC) {
+      window.__PIXEL_GLOBE_CAPTURE_ERROR__ = error instanceof Error ? error.message : String(error);
+    }
     drawFatalError(error, "Prototype runtime failure");
   }
 }
@@ -3201,6 +3249,7 @@ function runFrame(nowMs) {
   pollGamepadControls();
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   lastFrameMs = nowMs;
+  if (captureDirector && !capturePlaybackPaused) updateCaptureDirectorFrame(nowMs);
   if (lakeBattleMode) {
     updateWaterAnimation(nowMs);
     updateLakeBattleModeFrame(dt, nowMs);
@@ -3237,7 +3286,8 @@ function runFrame(nowMs) {
     if (updatePrecipitationAnimation(nowMs)) dirty = true;
     if (updateStormLightning(stormLightningState, {
       nowMs,
-      intensity: playerStormIntensity()
+      intensity: playerStormIntensity(),
+      enabled: !captureUsesScriptedShipLightning()
     })) dirty = true;
     recordCapturePosition(nowMs);
   }
@@ -3940,6 +3990,7 @@ function createSoundPool(url, count, label) {
     const audio = new Audio(`${url}?v=${SFX_ASSET_VERSION}`);
     audio.preload = "auto";
     audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
+    routeCaptureSfx(audio);
     return audio;
   });
 }
@@ -3950,6 +4001,7 @@ function createAmbientLoop(url, label) {
   audio.loop = true;
   audio.volume = 0;
   audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
+  routeCaptureSfx(audio);
   return {
     audio,
     label,
@@ -3970,6 +4022,7 @@ function createAmbientPlaylist(urls, label) {
     audio.loop = false;
     audio.volume = 0;
     audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} track ${index + 1} failed to load`));
+    routeCaptureSfx(audio);
     return audio;
   });
   return {
@@ -3983,6 +4036,10 @@ function createAmbientPlaylist(urls, label) {
     nextStartMs: 0,
     startAttempting: false
   };
+}
+
+function routeCaptureSfx(audio) {
+  if (captureSfxBus) registerCaptureSfxAudio(captureSfxBus, audio);
 }
 
 function ensureGameAudioStarted(fromUserGesture = false) {
@@ -4094,6 +4151,7 @@ function ensureAmbientLoopStarted(loop) {
   loop.startAttempting = true;
   loop.audio.currentTime = 0;
   applyThemeAudioSettings();
+  startCaptureSfxAmbient(captureSfxBus, loop.audio, { loop: true });
   const playPromise = loop.audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
@@ -4124,6 +4182,7 @@ function ensureAmbientPlaylistStarted(playlist, nowMs) {
   audio.currentTime = 0;
   audio.playbackRate = 0.97 + Math.random() * 0.06;
   applyThemeAudioSettings();
+  startCaptureSfxAmbient(captureSfxBus, audio, { loop: false });
   const playPromise = audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
@@ -4167,6 +4226,7 @@ function applyThemeAudioSettings() {
     for (const loop of ambientSoundLoops()) {
       loop.audio.muted = optionsMenu.muted;
       loop.audio.volume = optionsMenu.muted ? 0 : sfxVolume * loop.currentVolume;
+      setCaptureSfxAmbientVolume(captureSfxBus, loop.audio, loop.audio.volume);
     }
     for (const playlist of ambientSoundPlaylists()) {
       for (const track of playlist.tracks) {
@@ -4174,6 +4234,7 @@ function applyThemeAudioSettings() {
         track.volume = optionsMenu.muted || track !== playlist.currentTrack
           ? 0
           : sfxVolume * playlist.currentVolume;
+        setCaptureSfxAmbientVolume(captureSfxBus, track, track.volume);
       }
     }
   }
@@ -4187,6 +4248,10 @@ function playSoundEffect(pool, volume, playbackRate = 1) {
   audio.playbackRate = clamp(playbackRate, 0.75, 1.25);
   audio.volume = clamp(optionsMenu.sfxVolume * volume, 0, 1);
   audio.muted = optionsMenu.muted;
+  playCaptureSfx(captureSfxBus, audio, {
+    volume: audio.volume,
+    playbackRate: audio.playbackRate
+  });
   const playPromise = audio.play();
   if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
 }
@@ -4689,21 +4754,50 @@ function setupCaptureMode() {
     maxSeconds: CAPTURE_MAX_SECONDS,
     simMinute: () => weatherClockMinutes
   });
+  if (CAPTURE_SCENARIO.sequence) {
+    captureDirector = createCaptureDirector(CAPTURE_SCENARIO.sequence);
+    stageCaptureSequence();
+  }
+  if (CAPTURE_AUTOMATIC) {
+    if (!captureDirector) throw new Error("Automatic capture requires a scripted capture sequence");
+    captureRecorder.onStateChange = (snapshot) => {
+      window.__PIXEL_GLOBE_CAPTURE_STATE__ = snapshot;
+    };
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      void startAutomaticCapture().catch((error) => {
+        window.__PIXEL_GLOBE_CAPTURE_ERROR__ = error instanceof Error ? error.message : String(error);
+        console.error("[capture] automatic recording failed", error);
+      });
+    }));
+    return;
+  }
   createCaptureControls({
     shell,
     scenario: CAPTURE_SCENARIO,
     recorder: captureRecorder,
-    onRecordingStarted: () => {
-      capturePlaybackPaused = false;
-      ensureGameAudioStarted(true);
-      emitCaptureEvent("scenario-start", {
-        playerShip: ship.typeSlug,
-        playerFaction: ship.factionId,
-        encounterIds: CAPTURE_SCENARIO.encounters.map((encounter) => encounter.id)
-      });
-      dirty = true;
-    }
+    onRecordingStarted: captureRecordingStarted
   });
+}
+
+async function startAutomaticCapture() {
+  const sfxStream = await activateCaptureSfxBus(captureSfxBus);
+  await captureRecorder.startSfx(sfxStream);
+  captureRecordingStarted();
+}
+
+function captureRecordingStarted() {
+  capturePlaybackPaused = false;
+  if (CAPTURE_AUTOMATIC) {
+    captureFrameSampler = createCaptureFrameSampler();
+  }
+  ensureGameAudioStarted(true);
+  emitCaptureEvent("scenario-start", {
+    playerShip: ship.typeSlug,
+    playerFaction: ship.factionId,
+    encounterIds: CAPTURE_SCENARIO.encounters.map((encounter) => encounter.id),
+    sequence: CAPTURE_SCENARIO.sequence || null
+  });
+  dirty = true;
 }
 
 function emitCaptureEvent(type, data = {}) {
@@ -4722,6 +4816,448 @@ function recordCapturePosition(nowMs) {
     speed: Math.round(Math.hypot(...ship.velocity) * 1e7) / 1e7,
     heading: shipHeadingFrame()
   });
+}
+
+function sampleAutomaticCaptureFrame(nowMs) {
+  if (!CAPTURE_AUTOMATIC || !captureFrameSampler) return;
+  if (captureFrameSampler.startedAtMs === null) startCaptureFrameSampler(captureFrameSampler, nowMs);
+  if (!captureFrameDue(captureFrameSampler, nowMs)) return;
+  recordCaptureFrame(captureFrameSampler, nowMs, canvas.toDataURL("image/png"));
+}
+
+function stageCaptureSequence() {
+  if (!captureDirector) throw new Error("Cannot stage capture without a director");
+  const sequence = captureDirector.sequence;
+  gameState.memory.flags.sailingBasicsTutorialShown = true;
+  gameState.memory.flags.tackingTutorialShown = true;
+  stageCaptureDiscoveryMemory(sequence);
+  if (sequence.kind === "explore") {
+    const discovery = captureDiscoveryByName(sequence.discoveryName);
+    captureDirector.steeringTarget = discoveryDirection(discovery);
+  } else if (sequence.kind === "trade") {
+    const city = captureCityByName(sequence.cityName);
+    placeCapturePlayerNearTile(city.tileId);
+    gameState.doubloons = 12_000;
+    if (sequence.variant === "sell") {
+      const good = tradeGoodById(sequence.goodId);
+      const quantity = Math.min(4, Math.floor(cargoFree(gameState) / good.unitSize));
+      if (quantity < 1) throw new Error(`Capture ship has no room for ${good.label}`);
+      gameState.cargo[good.id] = quantity;
+      gameState.accounts.cargoCostBasis[good.id] = quantity * Math.max(1, Math.round(good.basePrice * 0.2));
+    }
+    syncShipCargoFromGameState();
+  } else if (sequence.kind === "fish") {
+    stageCaptureFishingGround();
+  } else if (sequence.kind === "whale") {
+    stageCaptureWhale(sequence);
+  } else if (sequence.kind === "fight") {
+    maximizeCaptureCombatLoadout();
+  } else if (sequence.kind === "pillage") {
+    stageCapturePillage(sequence);
+  } else if (sequence.kind === "colonize") {
+    stageCaptureColonization(sequence);
+  } else if (sequence.kind === "survive") {
+    stageCaptureSurvival(sequence);
+  } else {
+    throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
+  }
+  dirty = true;
+}
+
+function stageCaptureDiscoveryMemory(sequence) {
+  const featuredDiscovery = sequence.kind === "explore"
+    ? captureDiscoveryByName(sequence.discoveryName)
+    : null;
+  for (const discovery of discoveryCatalog) {
+    if (discovery.id === featuredDiscovery?.id) continue;
+    recordDiscovery(gameState, discovery);
+  }
+}
+
+function updateCaptureDirectorFrame(nowMs) {
+  advanceCaptureDirectorClock(captureDirector, nowMs);
+  const sequence = captureDirector.sequence;
+  if (sequence.kind === "explore") updateCaptureExplore(sequence, nowMs);
+  else if (sequence.kind === "trade") updateCaptureTrade(sequence);
+  else if (sequence.kind === "fish") updateCaptureFishing(sequence);
+  else if (sequence.kind === "whale") updateCaptureWhale(sequence);
+  else if (sequence.kind === "fight") updateCaptureFight(sequence);
+  else if (sequence.kind === "pillage") updateCapturePillage(sequence);
+  else if (sequence.kind === "colonize") updateCaptureColonization(sequence);
+  else if (sequence.kind === "survive") updateCaptureSurvival(sequence);
+  else throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
+
+  if (!captureDirector.stopping && captureDirectorComplete(captureDirector)) {
+    captureDirector.stopping = true;
+    capturePlaybackPaused = true;
+    void captureRecorder.stop("sequence-complete").then(() => {
+      window.__PIXEL_GLOBE_CAPTURE_FRAMES__ = captureFrameSamplerSnapshot(captureFrameSampler);
+      window.__PIXEL_GLOBE_CAPTURE_COMPLETE__ = true;
+    });
+  }
+}
+
+function updateCaptureExplore(sequence, nowMs) {
+  if (captureCue("approach", 0.3)) {
+    emitCaptureEvent("capture-beat", { action: "approach-discovery", name: sequence.discoveryName });
+  }
+  if (captureCue("discover", 3.2)) {
+    const discovery = captureDiscoveryByName(sequence.discoveryName);
+    if (!queueDiscovery(discovery, nowMs)) {
+      throw new Error(`Capture discovery was already recorded: ${sequence.discoveryName}`);
+    }
+  }
+  if (captureCue("dismiss-discovery", 6.4) && captainAlertModal) closeCaptainAlertModal();
+}
+
+function updateCaptureTrade(sequence) {
+  if (captureCue("open-market", 0.7)) {
+    const cityCall = capturePortCallByName(sequence.cityName);
+    dialogueState = createPortDialogueSession(cityCall, {
+      initialNodeId: sequence.variant === "buy" ? "buy" : "sell",
+      admittedToPort: true
+    });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    emitCaptureEvent("capture-beat", { action: `market-${sequence.variant}`, city: sequence.cityName });
+    dirty = true;
+  }
+  if (captureCue("trade-once", 2.2)) captureChooseTradeGood(sequence);
+  if (captureCue("trade-twice", 4.4)) captureChooseTradeGood(sequence);
+}
+
+function updateCaptureFishing(sequence) {
+  if (!captureCue("cast-net", 1.0)) return;
+  const call = activeFishCall();
+  if (!call) throw new Error(`Capture ${sequence.variant} fishing ground has no fish in reach`);
+  if (!catchFishAtFishery(call)) throw new Error(`Capture ${sequence.variant} fishing cast could not start`);
+  fishingAction.catchSucceeded = true;
+  emitCaptureEvent("capture-beat", { action: "fish", species: call.label, variant: sequence.variant });
+}
+
+function updateCaptureWhale(sequence) {
+  if (sequence.variant === "harpoon") {
+    if (captureCue("harpoon", 1.1)) {
+      const call = activeWhaleCall();
+      if (!call) throw new Error(`Capture whale is not harpoonable: ${sequence.speciesId}`);
+      if (!startWhaleHarpoon(call)) throw new Error(`Capture harpoon could not be thrown: ${sequence.speciesId}`);
+      emitCaptureEvent("capture-beat", { action: "harpoon-whale", speciesId: sequence.speciesId });
+    }
+    if (captureCue("dismiss-tow", 5.2) && captainAlertModal) closeCaptainAlertModal();
+    return;
+  }
+  if (captureCue("exhaust-whale", 2.2)) {
+    const whale = exhaustTetheredWhale(gameState.memory.whales);
+    openCaptainAlertModal("The whale is exhausted! Time to land the killing blow!", "happy");
+    emitCaptureEvent("capture-beat", { action: "exhaust-whale", speciesId: whale.speciesId });
+  }
+  if (captureCue("dismiss-exhausted", 3.2) && captainAlertModal) closeCaptainAlertModal();
+  if (captureCue("killing-blow", 4.0)) {
+    const hunt = gameState.memory.whales.activeHunt;
+    if (!hunt) throw new Error("Capture finishing shot lost its whale hunt");
+    const whale = whaleById(gameState.memory.whales, hunt.whaleId);
+    if (whale.phase !== WHALE_PHASE_EXHAUSTED) {
+      throw new Error(`Capture whale did not exhaust on cue: ${whale.phase}`);
+    }
+    landWhaleKillingBlow();
+    emitCaptureEvent("capture-beat", { action: "land-whale-killing-blow", speciesId: sequence.speciesId });
+  }
+  if (captureCue("dismiss-kill", 7.0) && captainAlertModal) closeCaptainAlertModal();
+}
+
+function updateCaptureFight(sequence) {
+  if (dialogueState || captainAlertModal) {
+    if (captureDirector.elapsedSeconds >= 1.2) {
+      dialogueState = null;
+      dialogueLayout = createDialogueLayoutState();
+      captainAlertModal = null;
+      dirty = true;
+    }
+  }
+  const target = npcVisualShips.get(sequence.encounterId);
+  if (!target) return;
+  if (captureCue("engage", 0.8)) {
+    forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, target.id);
+    emitCaptureEvent("capture-beat", { action: "engage-ship", targetId: target.id });
+  }
+  captureDirector.steeringTarget = captureCombatOrbitTarget(target);
+  if (captureDirector.elapsedSeconds >= 1.4) {
+    fireBroadside("port");
+    fireBroadside("starboard");
+  }
+}
+
+function updateCapturePillage(sequence) {
+  const cityCall = capturePortCallByName(sequence.cityName);
+  const battery = ensureShoreBatteryState(cityCall);
+  if (sequence.variant === "bombard") {
+    if (captureCue("fire-on-port", 1.0)) {
+      fireBroadside("port");
+      fireBroadside("starboard");
+      emitCaptureEvent("capture-beat", { action: "bombard-port", city: sequence.cityName });
+    }
+    if (captureCue("disable-battery", 2.6)) {
+      damageShoreBattery(
+        battery,
+        gameState.memory.flags,
+        Math.max(1, battery.hitPoints),
+        Math.floor(weatherClockMinutes)
+      );
+      showSurvivalNotice(shoreBatteryDisabledNotice(battery), "good");
+      dirty = true;
+    }
+    return;
+  }
+  if (captureCue("open-assault", 0.8)) openPortDialogue(cityCall);
+  if (captureCue("land-marines", 2.8)) {
+    attemptPlayerPortConquest(cityCall, () => 0);
+    emitCaptureEvent("capture-beat", { action: "land-marines", city: sequence.cityName });
+  }
+  if (captureCue("dismiss-conquest", 7.0) && captainAlertModal) closeCaptainAlertModal();
+}
+
+function updateCaptureColonization(sequence) {
+  if (captureCue("open-colony", 0.8)) openPortDialogue(capturePortCallByName(sequence.cityName));
+  if (captureCue("complete-colony-action", 3.0)) {
+    const actionType = sequence.variant === "found" ? "land-colonists" : "deliver-colony-resupply";
+    captureChooseDialogueAction(actionType);
+    emitCaptureEvent("capture-beat", { action: actionType, city: sequence.cityName });
+  }
+  if (captureCue("reveal-colony", 5.5)) closeDialogue();
+}
+
+function updateCaptureSurvival(sequence) {
+  if (sequence.variant === "lightning") {
+    if (captureCue("clear-warning", 0.8) && captainAlertModal) closeCaptainAlertModal();
+    if (captureCue("lightning-strike", 1.7)) {
+      if (!triggerStormShipStrike(stormShipStrikeState, lastFrameMs)) {
+        throw new Error("Capture lightning strike was still on cooldown");
+      }
+      const damage = Math.max(1, Math.round(ship.maxHitPoints * 0.16));
+      ship.hitPoints = Math.max(1, ship.hitPoints - damage);
+      stormDamageNotice = {
+        damage,
+        intensity: 0.96,
+        expiresAtMs: lastFrameMs + STORM_DAMAGE_NOTICE_MS
+      };
+      emitCaptureEvent("storm-damage", {
+        damage,
+        intensity: 0.96,
+        remainingHitPoints: ship.hitPoints
+      });
+      emitCaptureEvent("capture-beat", { action: "lightning-strike" });
+      dirty = true;
+    }
+    if (captureCue("steady-after-strike", 6.0) && captainAlertModal) closeCaptainAlertModal();
+    return;
+  }
+  if (captureCue("out-of-water", 0.3)) {
+    showSurvivalNotice("NO FRESH WATER", "warn");
+    emitCaptureEvent("capture-beat", { action: "fresh-water-empty" });
+  }
+  if (captureDirector.elapsedSeconds >= 1.0 && captainAlertModal) closeCaptainAlertModal();
+}
+
+function captureCue(id, atSeconds) {
+  return captureDirectorCue(captureDirector, id, atSeconds);
+}
+
+function captureAutopilotHeading() {
+  const target = captureDirector?.steeringTarget;
+  if (!target || !ship?.position) return null;
+  const toward = projectTangentVector([
+    target[0] - ship.position[0],
+    target[1] - ship.position[1],
+    target[2] - ship.position[2]
+  ], ship.position);
+  return normalizeTangentOrFallback(toward, ship.position, ship.heading);
+}
+
+function captureCombatOrbitTarget(target) {
+  const toward = normalizeOrNull(projectTangentVector([
+    target.vector[0] - ship.position[0],
+    target.vector[1] - ship.position[1],
+    target.vector[2] - ship.position[2]
+  ], ship.position));
+  if (!toward) return target.vector;
+  const port = normalizeOrNull(cross3(ship.position, toward));
+  if (!port) return target.vector;
+  const starboard = scaleVector(port, -1);
+  const orbitHeading = dot3(ship.heading, port) >= dot3(ship.heading, starboard) ? port : starboard;
+  return normalize3([
+    ship.position[0] + orbitHeading[0] * 0.08,
+    ship.position[1] + orbitHeading[1] * 0.08,
+    ship.position[2] + orbitHeading[2] * 0.08
+  ]);
+}
+
+function captureDiscoveryByName(name) {
+  const matches = discoveryCatalog.filter((entry) => entry.displayName === name);
+  if (matches.length !== 1) throw new Error(`Capture discovery ${name} matched ${matches.length} entries`);
+  return matches[0];
+}
+
+function captureCityByName(name) {
+  const matches = portCities.filter((city) => cityLabelText(city) === name || city.city === name);
+  if (matches.length !== 1) throw new Error(`Capture city ${name} matched ${matches.length} ports`);
+  return matches[0];
+}
+
+function capturePortCallByName(name) {
+  const matches = (chart?.cityCalls || []).filter((city) => cityLabelText(city) === name || city.city === name);
+  if (matches.length !== 1) throw new Error(`Capture city ${name} matched ${matches.length} visible calls`);
+  return matches[0];
+}
+
+function placeCapturePlayerNearTile(tileId) {
+  if (!Number.isInteger(tileId)) throw new Error(`Invalid capture destination tile: ${tileId}`);
+  const candidates = [tileId, ...(graph.neighbors[tileId] || [])];
+  const navigableTileId = candidates.find((candidate) => isShipBaseNavigableTile(candidate));
+  if (!Number.isInteger(navigableTileId)) {
+    throw new Error(`Capture destination has no navigable tile: ${tileId}`);
+  }
+  ship.position = tileCenterVector(navigableTileId);
+  ship.tileId = navigableTileId;
+  ship.velocity = [0, 0, 0];
+  applyCaptureShipHeading(ship, CAPTURE_SCENARIO.player.headingDeg);
+  camera = northUpCamera(ship.position);
+  centerTileId = ship.tileId;
+  localLayout = createLocalLayout(centerTileId);
+  chart = buildChart(camera);
+  refreshWeatherState(true);
+  resetPlayerWindState();
+}
+
+function stageCaptureFishingGround() {
+  const fishingTile = chart.tileCalls.find((call) => fisheryForTileCall(call));
+  if (!fishingTile) throw new Error("Capture location has no visible fishery");
+  placeCapturePlayerNearTile(fishingTile.id);
+  if (!hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
+    throw new Error("Capture fishing ship has no fishing net");
+  }
+}
+
+function stageCaptureWhale(sequence) {
+  gameState.inventory.whaleHarpoonId = BASIC_WHALE_HARPOON_ID;
+  const whale = gameState.memory.whales.individuals.find((entry) => (
+    entry.speciesId === sequence.speciesId && entry.lifeStage === "adult" && entry.id !== WHITE_WHALE_ID
+  ));
+  if (!whale) throw new Error(`Capture whale species is unavailable: ${sequence.speciesId}`);
+  const placement = captureWhalePlacement();
+  whale.position = placement.position;
+  whale.tileId = placement.tileId;
+  whale.heading = normalizeTangentOrFallback(scaleVector(camera.right, -1), whale.position, ship.heading);
+  whale.phase = WHALE_PHASE_SURFACED;
+  whale.phaseElapsedSeconds = 0;
+  whale.phaseDurationSeconds = 30;
+  captureDirector.steeringTarget = whale.position;
+  if (sequence.variant === "finish") {
+    const harpoon = playerWhaleHarpoon(gameState);
+    tetherWhale(gameState.memory.whales, whale.id, harpoon);
+    gameState.memory.whales.activeHunt.remainingSeconds = 2.1;
+  }
+}
+
+function captureWhalePlacement() {
+  const directions = [camera.right, scaleVector(camera.right, -1), camera.up, scaleVector(camera.up, -1)];
+  for (const radiusPx of [24, 20, 16, 28, 32]) {
+    for (const direction of directions) {
+      const position = normalize3([
+        ship.position[0] + direction[0] * radiusPx / PIXELS_PER_RADIAN,
+        ship.position[1] + direction[1] * radiusPx / PIXELS_PER_RADIAN,
+        ship.position[2] + direction[2] * radiusPx / PIXELS_PER_RADIAN
+      ]);
+      const navigation = whaleNavigationAtPosition(position);
+      if (navigation.ok && navigation.canSurface) return { position, tileId: navigation.tileId };
+    }
+  }
+  throw new Error("Capture whale could not be placed in visible open water");
+}
+
+function maximizeCaptureCombatLoadout() {
+  gameState.ship.crew = gameState.ship.crewCapacity;
+  gameState.ship.cannons = gameState.ship.cannonCapacity;
+  syncShipCargoFromGameState();
+}
+
+function stageCapturePillage(sequence) {
+  const city = captureCityByName(sequence.cityName);
+  placeCapturePlayerNearTile(city.tileId);
+  maximizeCaptureCombatLoadout();
+  const call = capturePortCallByName(sequence.cityName);
+  const battery = ensureShoreBatteryState(call);
+  markPlayerPortAssault(gameState.memory.flags, call, weatherClockMinutes + WEATHER_MINUTES_PER_DAY);
+  if (sequence.variant === "assault") {
+    damageShoreBattery(battery, gameState.memory.flags, battery.maxHitPoints, Math.floor(weatherClockMinutes));
+    const status = playerPortConquestStatus(call);
+    if (!status.canAttempt) {
+      throw new Error(
+        `Capture assault is ineligible at ${sequence.cityName}: ` +
+        `crew ${gameState.ship.crew}/${gameState.ship.crewCapacity}, battery disabled ${status.batteryDisabled}`
+      );
+    }
+  }
+}
+
+function stageCaptureColonization(sequence) {
+  const memory = gameState.memory.colonization;
+  for (const stage of COLONIZATION_FETCH_STAGES) completeColonizationFetchStage(memory, stage.id);
+  if (memory.stage !== COLONIZATION_STAGE_READY) {
+    throw new Error(`Capture colonization fetch setup ended at ${memory.stage}`);
+  }
+  reserveCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID, 24);
+  beginColonizationExpedition(memory);
+  if (sequence.variant === "establish") {
+    releaseCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID);
+    landColonists(memory, Math.floor(weatherClockMinutes) - WEATHER_MINUTES_PER_DAY * 30);
+    advanceColonizationQuest(memory, Math.floor(weatherClockMinutes), { awayFromColony: true });
+    gameState.cargo[COLONIZATION_RESUPPLY.goodId] = COLONIZATION_RESUPPLY.quantity;
+    gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 120;
+  }
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  placeCapturePlayerNearTile(colonizationTargetTileId);
+  syncShipCargoFromGameState();
+}
+
+function stageCaptureSurvival(sequence) {
+  if (sequence.variant === "lightning") {
+    captureDirector.steeringTarget = normalize3([
+      ship.position[0] + ship.heading[0] * 0.1,
+      ship.position[1] + ship.heading[1] * 0.1,
+      ship.position[2] + ship.heading[2] * 0.1
+    ]);
+    return;
+  }
+  gameState.survival.freshWater = 0;
+  gameState.ship.crew = Math.min(6, gameState.ship.crewCapacity);
+  survivalDeprivationTimers.waterNextMinute = weatherClockMinutes + SURVIVAL_DEHYDRATION_INTERVAL_MINUTES;
+  syncShipCargoFromGameState();
+}
+
+function captureChooseTradeGood(sequence) {
+  if (!dialogueState) throw new Error("Capture trade menu closed before the transaction");
+  const view = currentDialogueView();
+  const index = view.options.findIndex((entry) => (
+    entry.action?.type === sequence.variant && entry.action.goodId === sequence.goodId && !entry.disabled
+  ));
+  if (index < 0) {
+    throw new Error(`Capture market has no enabled ${sequence.variant} action for ${sequence.goodId}`);
+  }
+  chooseDialogueOption(index);
+  emitCaptureEvent("capture-beat", {
+    action: sequence.variant,
+    city: sequence.cityName,
+    goodId: sequence.goodId
+  });
+}
+
+function captureChooseDialogueAction(actionType) {
+  if (!dialogueState) throw new Error(`Capture dialogue closed before ${actionType}`);
+  const view = currentDialogueView();
+  const index = view.options.findIndex((entry) => entry.action?.type === actionType && !entry.disabled);
+  if (index < 0) throw new Error(`Capture dialogue has no enabled ${actionType} action`);
+  chooseDialogueOption(index);
 }
 
 function randomPlayerCharacterIdentitySeed() {
@@ -6930,9 +7466,10 @@ function playerPortConquestStatus(cityCall) {
   };
 }
 
-function attemptPlayerPortConquest(cityCall) {
+function attemptPlayerPortConquest(cityCall, random = Math.random) {
+  if (typeof random !== "function") throw new Error("Port conquest requires a random source");
   const status = playerPortConquestStatus(cityCall);
-  const outcome = resolvePortConquest(status, Math.random(), Math.random());
+  const outcome = resolvePortConquest(status, random(), random());
   if (!outcome.success) {
     const lost = loseCrew(gameState, outcome.crewLost);
     presentCrewLoss(lost);
@@ -8290,8 +8827,8 @@ function resolveWhaleHarpoonProjectile() {
   const harpoon = playerWhaleHarpoon(gameState);
   if (!harpoon || harpoon.id !== projectile.harpoonId) throw new Error("Fitted harpoon changed in flight");
   const result = resolveWhaleHarpoon(harpoon, projectile.distancePx, {
-    hitRoll: Math.random(),
-    breakRoll: Math.random(),
+    hitRoll: captureDirector?.sequence.kind === "whale" ? 0 : Math.random(),
+    breakRoll: captureDirector?.sequence.kind === "whale" ? 0.999 : Math.random(),
     resistanceMultiplier: whaleHarpoonBreakMultiplier(whale)
   });
   if (result.outcome === "missed") {
@@ -9034,6 +9571,8 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
 }
 
 function inputHeadingForShip() {
+  const captureHeading = captureAutopilotHeading();
+  if (captureHeading) return captureHeading;
   let dx = 0;
   let dy = 0;
   if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) dx -= 1;
@@ -10774,6 +11313,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
 
 function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   if (!ship || gameOverReason || currentMinute <= previousMinute) return false;
+  if (captureUsesScriptedShipLightning()) return false;
   const intensity = playerStormIntensity();
   const transition = updateStormPassage(stormPassageState, intensity, {
     enterIntensity: STORM_CAPTAIN_ALERT_ENTER_INTENSITY,
@@ -10799,6 +11339,12 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   const opened = openCaptainAlertModal(stormCaptainAlertMessage(intensity), "concerned");
   if (opened) markStormWarningDelivered(stormPassageState);
   return changed || opened;
+}
+
+function captureUsesScriptedShipLightning() {
+  return CAPTURE_AUTOMATIC &&
+    captureDirector?.sequence.kind === "survive" &&
+    captureDirector.sequence.variant === "lightning";
 }
 
 function stormCaptainAlertMessage(intensity) {
@@ -11379,8 +11925,11 @@ function updateNpcCombat(dt) {
   const initiatingNpcId = firstPlayerEngagement
     ? (firstPlayerEngagement.aId === PLAYER_COMBAT_ID ? firstPlayerEngagement.bId : firstPlayerEngagement.aId)
     : null;
-  const combatHailOpened = initiatingNpcId ? openNpcCombatHail(initiatingNpcId) : false;
-  const batteryCombat = updateShoreBatteryCombat(dt, combatHailOpened);
+  const suppressCaptureHails = captureSuppressesCombatHails();
+  const combatHailOpened = initiatingNpcId && !suppressCaptureHails
+    ? openNpcCombatHail(initiatingNpcId)
+    : false;
+  const batteryCombat = updateShoreBatteryCombat(dt, combatHailOpened || suppressCaptureHails);
   changed ||= batteryCombat.changed;
 
   for (const state of npcVisualShips.values()) {
@@ -11409,6 +11958,11 @@ function updateNpcCombat(dt) {
     startCombatMusicForThreat(hostileCannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   }
   return changed;
+}
+
+function captureSuppressesCombatHails() {
+  const kind = captureDirector?.sequence.kind;
+  return CAPTURE_AUTOMATIC && (kind === "fight" || kind === "pillage");
 }
 
 function playerHasCombatEngagement() {
@@ -13840,7 +14394,8 @@ function updateDiscoveries(nowMs) {
   for (const discovery of discoveryCatalog) {
     if (
       discovery.kind === "achievement" ||
-      hasDiscovery(gameState, discovery.id)
+      hasDiscovery(gameState, discovery.id) ||
+      captureDiscoveryIsDeferred(discovery)
     ) continue;
     const distancePx = discoveryDistancePx(discovery, ship.position);
     if (distancePx > discovery.radiusPx || distancePx >= nearestDistancePx) continue;
@@ -13849,6 +14404,12 @@ function updateDiscoveries(nowMs) {
   }
   if (nearest) changed = queueDiscovery(nearest, nowMs) || changed;
   return changed;
+}
+
+function captureDiscoveryIsDeferred(discovery) {
+  return captureDirector?.sequence.kind === "explore" &&
+    captureDirector.sequence.discoveryName === discovery.displayName &&
+    !captureDirector.firedCues.has("discover");
 }
 
 function discoveryDistancePx(discovery, position) {
@@ -23686,6 +24247,9 @@ function stormIntensityForTile(tileId, simMinute = weatherClockMinutes) {
 }
 
 function playerStormIntensity() {
+  if (captureDirector?.sequence.kind === "survive" && captureDirector.sequence.variant === "lightning") {
+    return 0.96;
+  }
   return ship ? stormIntensityForTile(ship.tileId) : 0;
 }
 

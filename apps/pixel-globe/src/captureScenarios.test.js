@@ -25,6 +25,27 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.throws(() => captureScenarioFromSearch("?capture=missing"), /Unknown capture scenario/);
 });
 
+test("the trailer roster has exactly two scripted shots for every requested feature", () => {
+  const trailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-"));
+  assert.equal(trailerIds.length, 16);
+  const counts = new Map();
+  for (const id of trailerIds) {
+    const capture = captureScenarioFromSearch(`?capture=${id}`);
+    counts.set(capture.sequence.kind, (counts.get(capture.sequence.kind) || 0) + 1);
+    assert.ok(capture.sequence.durationSeconds <= 10);
+  }
+  assert.deepEqual(Object.fromEntries(counts), {
+    explore: 2,
+    trade: 2,
+    fish: 2,
+    whale: 2,
+    fight: 2,
+    pillage: 2,
+    colonize: 2,
+    survive: 2
+  });
+});
+
 test("land-trade capture stages the road-dense western Mediterranean", () => {
   const scenario = captureScenarioFromSearch("?capture=land-trade");
   assert.equal(scenario.player.factionId, "france");
@@ -75,4 +96,11 @@ test("capture validation rejects unknown vessels and malformed clocks", () => {
   valid.world.hour = 12;
   valid.player.shipSlug = "not-a-ship";
   assert.throws(() => validateCaptureScenario(valid), /Missing ship stats/);
+
+  const unsupportedEncounter = structuredClone(captureScenarioFromSearch("?capture=turtle-ship-war"));
+  unsupportedEncounter.encounters[0].shipSlug = "spanish-nao";
+  assert.throws(
+    () => validateCaptureScenario(unsupportedEncounter),
+    /has no NPC sprite asset: spanish-nao/
+  );
 });

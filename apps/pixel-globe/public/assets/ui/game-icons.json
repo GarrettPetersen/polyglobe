@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-5",
+  "version": "resurrect-icons-6",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 80,
@@ -47,7 +47,8 @@
         "h": 16
       },
       "packId": "keifoo",
-      "assetPath": null
+      "assetPath": null,
+      "paperOutline": true
     },
     {
       "id": "good:fish",
@@ -68,7 +69,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "glionox",
+      "packId": "pirate",
       "assetPath": null
     },
     {
@@ -124,7 +125,8 @@
         "h": 16
       },
       "packId": "lethe",
-      "assetPath": null
+      "assetPath": null,
+      "paperOutline": true
     },
     {
       "id": "good:sugar",
@@ -135,7 +137,8 @@
         "h": 16
       },
       "packId": "lethe",
-      "assetPath": null
+      "assetPath": null,
+      "paperOutline": true
     },
     {
       "id": "good:timber",
@@ -234,7 +237,8 @@
         "h": 16
       },
       "packId": "glionox",
-      "assetPath": null
+      "assetPath": null,
+      "paperOutline": true
     },
     {
       "id": "good:wool-cloth",
@@ -387,7 +391,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "glionox",
+      "packId": "keifoo",
       "assetPath": null
     },
     {
@@ -420,7 +424,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "glionox",
+      "packId": "lethe",
       "assetPath": null
     },
     {
@@ -464,7 +468,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": null,
       "assetPath": null
     },
     {
@@ -597,7 +601,8 @@
         "h": 16
       },
       "packId": null,
-      "assetPath": "public/assets/misc/fishing-net-Sheet.png"
+      "assetPath": "public/assets/misc/fishing-net-Sheet.png",
+      "paperOutline": true
     },
     {
       "id": "action:harpoon",
@@ -607,7 +612,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": "glionox",
       "assetPath": null
     },
     {
@@ -618,7 +623,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "hollow",
+      "packId": "pirate",
       "assetPath": null
     },
     {
@@ -651,7 +656,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": null,
       "assetPath": null
     },
     {
@@ -695,7 +700,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": "glionox",
       "assetPath": null
     },
     {
@@ -728,7 +733,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": "glionox",
       "assetPath": null
     },
     {
@@ -761,7 +766,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": null,
       "assetPath": null
     },
     {
@@ -772,7 +777,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": "glionox",
       "assetPath": null
     },
     {
@@ -805,7 +810,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": null,
       "assetPath": null
     },
     {
@@ -816,7 +821,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "pirate",
+      "packId": null,
       "assetPath": null
     },
     {

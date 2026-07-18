@@ -1,6 +1,6 @@
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-5";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-6";
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -51,15 +51,15 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:hardtack": alex("pastry_bread.png"),
   "good:fresh-water": keifoo("water_png/water_bottled.png"),
   "good:foraged-food": alex("fruit_apple.png"),
-  "good:grain": keifoo("grains_png/wheat.png"),
+  "good:grain": paperOutlined(keifoo("grains_png/wheat.png")),
   "good:fish": hollow(4),
-  "good:whale-blubber": glionox(378),
+  "good:whale-blubber": pirate(9),
   "good:beaver-pelts": generatedIcon("beaver-pelt"),
   "good:cheese": alex("cheese_gouda.png"),
   "good:wine": pirate(43),
   "good:olive-oil": glionox(378),
-  "good:salt": lethe(1, 7),
-  "good:sugar": lethe(2, 7),
+  "good:salt": paperOutlined(lethe(1, 7)),
+  "good:sugar": paperOutlined(lethe(2, 7)),
   "good:timber": glionox(991),
   "good:wool": glionox(780),
   "good:cotton": glionox(1121),
@@ -68,9 +68,9 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:copper": glionox(564),
   "good:tin": glionox(566),
   "good:arms": pirate(45),
-  "good:linen-cloth": glionox(785),
-  "good:wool-cloth": glionox(786),
-  "good:cotton-cloth": glionox(788),
+  "good:linen-cloth": paperOutlined(glionox(785)),
+  "good:wool-cloth": glionox(581),
+  "good:cotton-cloth": glionox(582),
   "good:silk": glionox(580),
   "good:silk-cloth": glionox(592),
   "good:pepper": keifoo("spices_png/pepper.png"),
@@ -82,54 +82,54 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:cacao": glionox(395),
   "good:dyes": lethe(10, 7),
   "good:porcelain": glionox(810),
-  "good:glassware": glionox(651),
+  "good:glassware": keifoo("water_png/water_glass.png"),
   "good:carpets": glionox(660),
   "good:artwork": lethe(4, 14),
-  "good:perfume": glionox(716),
-  "good:ivory": glionox(670),
+  "good:perfume": lethe(12, 2),
+  "good:ivory": glionox(1164),
   "good:silver": glionox(570),
   "good:gold": glionox(567),
 
-  "menu:continue": pirate(47),
-  "menu:new-game": pirate(44),
+  "menu:continue": generatedIcon("play-arrow"),
+  "menu:new-game": pirate(12),
   "menu:lake-battle": pirate(22),
-  "menu:past-voyages": pirate(19),
+  "menu:past-voyages": pirate(48),
   "menu:options": glionox(934),
   "menu:credits": glionox(625),
-  "menu:captain": pirate(47),
-  "menu:ship": pirate(47),
+  "menu:captain": pirate(29),
+  "menu:ship": pirate(19),
   "menu:politics": pirate(23),
   "menu:discoveries": pirate(27),
 
   "action:dock": pirate(44),
   "action:hail": pirate(14),
-  "action:fish": projectAsset("public/assets/misc/fishing-net-Sheet.png", {
+  "action:fish": paperOutlined(projectAsset("public/assets/misc/fishing-net-Sheet.png", {
     x: 5 * 30,
     y: 4,
     w: 26,
     h: 26
-  }),
-  "action:harpoon": pirate(22),
-  "action:scavenge": hollow(104),
+  })),
+  "action:harpoon": glionox(119),
+  "action:scavenge": pirate(40),
   "action:buy": pirate(31),
   "action:sell": pirate(32),
-  "action:back": pirate(27),
-  "action:leave": pirate(44),
+  "action:back": generatedIcon("back-arrow"),
+  "action:leave": pirate(19),
   "action:quest": pirate(7),
-  "action:talk": glionox(659),
-  "action:wait": pirate(12),
+  "action:talk": glionox(652),
+  "action:wait": glionox(941),
   "action:attack": pirate(22),
-  "action:loadout": glionox(927),
-  "action:shipyard": pirate(47),
+  "action:loadout": glionox(934),
+  "action:shipyard": glionox(695),
   "action:letter": lethe(5, 14),
   "action:disguise": pirate(35),
-  "action:surrender": pirate(24),
-  "action:passenger": pirate(35),
-  "action:viking": glionox(625),
+  "action:surrender": generatedIcon("surrender-flag"),
+  "action:passenger": glionox(782),
+  "action:viking": glionox(202),
   "action:inventory": pirate(10),
-  "action:resume": pirate(47),
-  "action:restart": pirate(12),
-  "action:choose-ships": pirate(47),
+  "action:resume": generatedIcon("play-arrow"),
+  "action:restart": generatedIcon("restart-arrow"),
+  "action:choose-ships": pirate(19),
   "action:start-menu": pirate(4),
   "action:navigation": generatedIcon("gray-waypoint-arrow")
 });
@@ -314,6 +314,13 @@ function generatedIcon(generatedId) {
     throw new Error("Generated game icon requires an id");
   }
   return Object.freeze({ packId: null, generatedId });
+}
+
+function paperOutlined(source) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw new Error("Paper-outlined game icon requires a source");
+  }
+  return Object.freeze({ ...source, paperOutline: true });
 }
 
 function pirate(number) {

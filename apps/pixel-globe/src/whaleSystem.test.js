@@ -12,6 +12,7 @@ import {
   constrainWhaleTether,
   createWhaleMemory,
   cutWhaleLoose,
+  exhaustTetheredWhale,
   harvestWhaleForNpc,
   killExhaustedWhale,
   seedWhalePopulation,
@@ -153,6 +154,20 @@ test("a secured whale tows until exhausted, then can be killed or released", () 
   cutWhaleLoose(releasedMemory);
   assert.equal(releasedMemory.activeHunt, null);
   assert.equal(released.phase, "diving");
+});
+
+test("an authored hunt can use the same exhausted state transition as a completed tow", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const whale = memory.individuals.find((candidate) => candidate.id !== WHITE_WHALE_ID);
+  whale.phase = WHALE_PHASE_RISING;
+  whale.phaseElapsedSeconds = 1;
+  whale.phaseDurationSeconds = 2;
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+
+  assert.equal(exhaustTetheredWhale(memory), whale);
+  assert.equal(whale.phase, WHALE_PHASE_EXHAUSTED);
+  assert.equal(memory.activeHunt.remainingSeconds, 0);
 });
 
 test("the tow line eases shorter near the end of a whale chase", () => {

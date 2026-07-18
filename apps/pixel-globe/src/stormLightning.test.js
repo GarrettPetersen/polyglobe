@@ -72,6 +72,15 @@ test("storm damage animates all thirty lightning frames and flashes at impact", 
   assert.equal(stormShipStrikeFrame(state, 2000), null);
 });
 
+test("capture playback can lengthen the same complete strike without changing its frames", () => {
+  const state = createStormShipStrikeState({ durationMs: 5000 });
+  triggerStormShipStrike(state, 1000);
+  assert.equal(stormShipStrikeFrame(state, 1000).index, 0);
+  assert.equal(stormShipStrikeFrame(state, 3500).index, 15);
+  assert.equal(stormShipStrikeFrame(state, 5999).index, STORM_SHIP_STRIKE_FRAME_COUNT - 1);
+  assert.equal(stormShipStrikeFrame(state, 6000), null);
+});
+
 test("ship lightning cannot strike twice during its cooldown", () => {
   const state = createStormShipStrikeState();
   assert.equal(triggerStormShipStrike(state, 1000), true);

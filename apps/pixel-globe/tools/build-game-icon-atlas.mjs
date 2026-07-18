@@ -13,12 +13,15 @@ import {
   gameIconAtlasDimensions,
   gameIconAtlasRect
 } from "../src/gameIcons.js";
+import { buildPixelIconOutlinePixels } from "../src/pixelIconContrast.js";
 import { nearestResurrect64Hex } from "../src/waterLatitudePalette.js";
 
 const appRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outputPath = join(appRoot, "public/assets/ui/game-icons.png");
 const manifestPath = join(appRoot, "public/assets/ui/game-icons.json");
 const sourceRoot = resolve(process.env.PIXEL_GLOBE_ICON_PACK_DIR || join(homedir(), "Downloads"));
+const PAPER_ICON_OUTLINE = Object.freeze({ r: 59, g: 32, b: 39, a: 255 });
+const PAPER_ICON_OUTLINE_HEX = "#3b2027";
 
 async function main() {
   const dimensions = gameIconAtlasDimensions();
@@ -33,8 +36,7 @@ async function main() {
     if (crop.x < 0 || crop.y < 0 || crop.x + crop.w > image.width || crop.y + crop.h > image.height) {
       throw new Error(`Icon crop is outside source image: ${iconId}`);
     }
-    const rect = gameIconAtlasRect(iconId);
-    ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, rect.x, rect.y, GAME_ICON_SIZE, GAME_ICON_SIZE);
+    drawIconSource(ctx, image, crop, gameIconAtlasRect(iconId), source);
   }
 
   quantizeToResurrect(ctx, dimensions.width, dimensions.height);
@@ -51,7 +53,8 @@ async function main() {
       id,
       rect: gameIconAtlasRect(id),
       packId: source.packId,
-      assetPath: source.assetPath || null
+      assetPath: source.assetPath || null,
+      paperOutline: source.paperOutline === true || undefined
     })),
     packs: GAME_ICON_PACKS
   }, null, 2)}\n`);
@@ -74,16 +77,113 @@ async function loadIconSource(source) {
   return loadImage(bytes);
 }
 
+function drawIconSource(ctx, image, crop, rect, source) {
+  if (!source.paperOutline) {
+    ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, rect.x, rect.y, GAME_ICON_SIZE, GAME_ICON_SIZE);
+    return;
+  }
+
+  const sourceCanvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const sourceCtx = sourceCanvas.getContext("2d", { alpha: true, willReadFrequently: true });
+  sourceCtx.imageSmoothingEnabled = false;
+  sourceCtx.drawImage(image, crop.x, crop.y, crop.w, crop.h, 0, 0, GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const sourcePixels = sourceCtx.getImageData(0, 0, GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const outlinePixels = buildPixelIconOutlinePixels({
+    sourcePixels: sourcePixels.data,
+    width: GAME_ICON_SIZE,
+    height: GAME_ICON_SIZE,
+    cells: [{ x: 0, y: 0, w: GAME_ICON_SIZE, h: GAME_ICON_SIZE }],
+    color: PAPER_ICON_OUTLINE
+  });
+  const outlinedCanvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const outlinedCtx = outlinedCanvas.getContext("2d", { alpha: true });
+  const outlineImage = outlinedCtx.createImageData(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  outlineImage.data.set(outlinePixels);
+  outlinedCtx.putImageData(outlineImage, 0, 0);
+  outlinedCtx.drawImage(sourceCanvas, 0, 0);
+  ctx.drawImage(outlinedCanvas, rect.x, rect.y);
+}
+
 function generateIcon(generatedId) {
   if (generatedId === "gray-waypoint-arrow") return generateGrayWaypointArrow();
   if (generatedId === "cinnamon-sticks") return generateCinnamonSticks();
   if (generatedId === "beaver-pelt") return generateBeaverPelt();
+  if (generatedId === "back-arrow") return generateBackArrow();
+  if (generatedId === "play-arrow") return generatePlayArrow();
+  if (generatedId === "restart-arrow") return generateRestartArrow();
+  if (generatedId === "surrender-flag") return generateSurrenderFlag();
   throw new Error(`Unknown generated game icon: ${generatedId}`);
 }
 
-function generateGrayWaypointArrow() {
+function generateBackArrow() {
+  const { canvas, ctx } = generatedIconCanvas();
+  drawOutlinedPixels(ctx, [
+    [4, 8], [5, 7], [5, 8], [5, 9], [6, 6], [6, 7], [6, 8], [6, 9], [6, 10],
+    [7, 5], [7, 6], [7, 7], [7, 8], [7, 9], [7, 10], [7, 11],
+    [8, 7], [8, 8], [8, 9], [9, 7], [9, 8], [9, 9], [10, 7], [10, 8], [10, 9],
+    [11, 7], [11, 8], [11, 9], [12, 7], [12, 8], [12, 9]
+  ], "#d9a066");
+  return canvas;
+}
+
+function generatePlayArrow() {
+  const { canvas, ctx } = generatedIconCanvas();
+  const pixels = [];
+  const halfHeights = [4, 3, 3, 2, 2, 1, 0];
+  for (let index = 0; index < halfHeights.length; index++) {
+    const x = 5 + index;
+    for (let y = 8 - halfHeights[index]; y <= 8 + halfHeights[index]; y++) pixels.push([x, y]);
+  }
+  drawOutlinedPixels(ctx, pixels, "#4b7c66");
+  return canvas;
+}
+
+function generateRestartArrow() {
+  const { canvas, ctx } = generatedIconCanvas();
+  drawOutlinedPixels(ctx, [
+    [4, 5], [5, 4], [6, 3], [7, 3], [8, 3], [9, 3], [10, 4], [11, 5], [12, 6],
+    [12, 7], [12, 8], [12, 9], [11, 10], [10, 11], [9, 12], [8, 12], [7, 12],
+    [6, 11], [5, 10], [4, 9], [4, 8], [4, 7], [3, 5], [3, 6], [4, 6], [5, 6]
+  ], "#d9a066");
+  return canvas;
+}
+
+function generateSurrenderFlag() {
+  const { canvas, ctx } = generatedIconCanvas();
+  drawOutlinedPixels(ctx, [
+    [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [9, 3], [10, 4], [11, 4],
+    [4, 4], [5, 4], [6, 4], [7, 4], [8, 4], [9, 4], [10, 5], [11, 5],
+    [4, 5], [5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 6],
+    [4, 6], [5, 6], [6, 6], [7, 6], [8, 6], [9, 6],
+    [4, 7], [5, 7], [6, 7], [7, 7], [8, 7]
+  ], "#f4e4bc");
+  ctx.fillStyle = PAPER_ICON_OUTLINE_HEX;
+  ctx.fillRect(3, 2, 1, 12);
+  ctx.fillRect(2, 13, 4, 1);
+  return canvas;
+}
+
+function drawOutlinedPixels(ctx, pixels, fill) {
+  const keys = new Set(pixels.map(([x, y]) => `${x},${y}`));
+  ctx.fillStyle = PAPER_ICON_OUTLINE_HEX;
+  for (const [x, y] of pixels) {
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      if (!keys.has(`${x + dx},${y + dy}`)) ctx.fillRect(x + dx, y + dy, 1, 1);
+    }
+  }
+  ctx.fillStyle = fill;
+  for (const [x, y] of pixels) ctx.fillRect(x, y, 1, 1);
+}
+
+function generatedIconCanvas() {
   const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
   const ctx = canvas.getContext("2d", { alpha: true });
+  ctx.imageSmoothingEnabled = false;
+  return { canvas, ctx };
+}
+
+function generateGrayWaypointArrow() {
+  const { canvas, ctx } = generatedIconCanvas();
   const columns = [6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1];
   ctx.fillStyle = "#1a1c2c";
   for (let index = 0; index < columns.length; index++) {
@@ -103,9 +203,7 @@ function generateGrayWaypointArrow() {
 }
 
 function generateCinnamonSticks() {
-  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
-  const ctx = canvas.getContext("2d", { alpha: true });
-  ctx.imageSmoothingEnabled = false;
+  const { canvas, ctx } = generatedIconCanvas();
   drawCinnamonStick(ctx, 2, 11, 11, 2);
   drawCinnamonStick(ctx, 5, 14, 14, 5);
   return canvas;
@@ -130,9 +228,7 @@ function drawCinnamonStick(ctx, startX, startY, endX, endY) {
 }
 
 function generateBeaverPelt() {
-  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
-  const ctx = canvas.getContext("2d", { alpha: true });
-  ctx.imageSmoothingEnabled = false;
+  const { canvas, ctx } = generatedIconCanvas();
 
   ctx.fillStyle = "#3b2027";
   for (const [x, y, width] of [
