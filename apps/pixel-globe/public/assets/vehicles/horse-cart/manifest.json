@@ -6,6 +6,10 @@
   "animationFrames": 6,
   "maxDrawPixels": 31,
   "frameScale": 0.5962,
+  "colorGrade": {
+    "exposure": 2.2,
+    "lift": 6
+  },
   "lighting": {
     "azimuthBins": 16,
     "elevationBins": 2,

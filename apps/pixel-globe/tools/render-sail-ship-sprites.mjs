@@ -127,6 +127,8 @@ const waterlineReviewColor = "#4d9be6";
 const oarPivotReviewColor = "#e83b3b";
 const horseCartWalkFrameCount = 6;
 const horseCartMaxDrawPixels = 31;
+const horseCartColorExposure = 2.2;
+const horseCartColorLift = 6;
 const lightElevationAngles = [Math.PI / 9, Math.PI / 4.1];
 const mediterraneanGalleyMeshNames = new Set([
   "Object_9",  // stern windows
@@ -2274,7 +2276,15 @@ function nearestResurrectColor(r, g, b) {
   return best;
 }
 
-function shadeEdgesAndQuantizeToResurrect(canvas, { shadeEdges = true } = {}) {
+function shadeEdgesAndQuantizeToResurrect(canvas, {
+  shadeEdges = true,
+  exposure = 1,
+  lift = 0
+} = {}) {
+  if (!Number.isFinite(exposure) || exposure <= 0) {
+    throw new Error(`Invalid sprite color exposure: ${exposure}`);
+  }
+  if (!Number.isFinite(lift)) throw new Error(`Invalid sprite color lift: ${lift}`);
   const ctx = canvas.getContext("2d");
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const source = new Uint8ClampedArray(image.data);
@@ -2292,9 +2302,9 @@ function shadeEdgesAndQuantizeToResurrect(canvas, { shadeEdges = true } = {}) {
         ? shipEdgeShadeScale
         : 1;
       const color = nearestResurrectColor(
-        source[offset] * edgeScale,
-        source[offset + 1] * edgeScale,
-        source[offset + 2] * edgeScale
+        (source[offset] * exposure + lift) * edgeScale,
+        (source[offset + 1] * exposure + lift) * edgeScale,
+        (source[offset + 2] * exposure + lift) * edgeScale
       );
       image.data[offset] = color.r;
       image.data[offset + 1] = color.g;
@@ -2372,7 +2382,11 @@ async function renderHorseCart() {
     for (let headingIndex = 0; headingIndex < headings; headingIndex++) {
       copyFrameToSheet(frames[headingIndex], sheetCtx, headingIndex);
     }
-    shadeEdgesAndQuantizeToResurrect(sheet, { shadeEdges: false });
+    shadeEdgesAndQuantizeToResurrect(sheet, {
+      shadeEdges: false,
+      exposure: horseCartColorExposure,
+      lift: horseCartColorLift
+    });
     const selfShadowMaps = makeSelfShadowMaps(frames, lightDirections, camera);
     const lightMask = makeLightingMaskSheet(frames, lightDirections, "light", selfShadowMaps);
     const shadeMask = makeLightingMaskSheet(frames, lightDirections, "shade", selfShadowMaps);
@@ -2410,6 +2424,10 @@ async function renderHorseCart() {
     animationFrames: horseCartWalkFrameCount,
     maxDrawPixels: horseCartMaxDrawPixels,
     frameScale: Number(frameScale.toFixed(4)),
+    colorGrade: {
+      exposure: horseCartColorExposure,
+      lift: horseCartColorLift
+    },
     lighting: {
       azimuthBins: lightAzimuthBins,
       elevationBins: lightElevationBins,

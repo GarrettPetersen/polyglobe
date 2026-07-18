@@ -17,6 +17,7 @@ test("horse-cart bake provides six distinct hard-edged Resurrect walk frames", a
   assert.equal(manifest.frameSize, FRAME_SIZE);
   assert.equal(manifest.headings, HEADING_COUNT);
   assert.equal(manifest.animationFrames, 6);
+  assert.deepEqual(manifest.colorGrade, { exposure: 2.2, lift: 6 });
   assert.deepEqual(manifest.lighting, {
     azimuthBins: 16,
     elevationBins: 2,
@@ -40,6 +41,8 @@ test("horse-cart bake provides six distinct hard-edged Resurrect walk frames", a
     ctx.drawImage(image, 0, 0);
     const pixels = ctx.getImageData(0, 0, image.width, image.height).data;
     let opaquePixels = 0;
+    let darkestPixels = 0;
+    let totalLuminance = 0;
     for (let offset = 0; offset < pixels.length; offset += 4) {
       const alpha = pixels[offset + 3];
       assert.ok(alpha === 0 || alpha === 255, `walk ${frameIndex} has partial alpha ${alpha}`);
@@ -48,9 +51,13 @@ test("horse-cart bake provides six distinct hard-edged Resurrect walk frames", a
         .map((value) => value.toString(16).padStart(2, "0"))
         .join("");
       assert.ok(palette.has(hex), `walk ${frameIndex} contains non-Resurrect color #${hex}`);
+      if (hex === "2e222f") darkestPixels++;
+      totalLuminance += pixels[offset] * 0.2126 + pixels[offset + 1] * 0.7152 + pixels[offset + 2] * 0.0722;
       opaquePixels++;
     }
     assert.ok(opaquePixels > 1000, `walk ${frameIndex} is blank`);
+    assert.ok(totalLuminance / opaquePixels >= 60, `walk ${frameIndex} is too dark`);
+    assert.ok(darkestPixels / opaquePixels <= 0.4, `walk ${frameIndex} collapses into the darkest palette color`);
     frameSignatures.add(frameSignature(ctx.getImageData(0, 0, FRAME_SIZE, FRAME_SIZE).data));
 
     await assertPackedLightingMask(frameIndex, "light", FRAME_SIZE);

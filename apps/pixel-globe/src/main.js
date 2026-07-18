@@ -14,6 +14,13 @@ import {
   pixelMaskKey
 } from "./pixelWaterMask.js";
 import {
+  bezierPathLength,
+  forEachPixelOnBezier,
+  forEachTwoPixelBezierPoint,
+  quadraticBezierPoint,
+  quadraticBezierTangent
+} from "./pixelBezier.js";
+import {
   CREW_STATUS_ICON_HEIGHT,
   CREW_STATUS_ICON_WIDTH,
   crewStatusLayout
@@ -834,6 +841,7 @@ const RIVER_JOIN_MIN_LENGTH_PX = 5;
 const RIVER_SPRITE_CACHE_LIMIT = 4096;
 const LAND_ROAD_COLOR = "#d3a068";
 const LAND_ROAD_DARK_COLOR = "#8f563b";
+const LAND_ROAD_WIDTH_PX = 2;
 const LAND_CART_WALK_FRAME_MS = 150;
 const VIEW_MARGIN = 58;
 const CHART_REBUILD_RADIUS_PX = 28;
@@ -1036,7 +1044,7 @@ const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
 const PORT_SAILING_DISTANCE_URL = "assets/data/port-sailing-distances.json";
 const LAND_ROAD_URL = "assets/data/land-roads.json";
-const HORSE_CART_ASSET_VERSION = "horse-cart-2";
+const HORSE_CART_ASSET_VERSION = "horse-cart-3";
 const CITY_SPRITE_W = TILE_ART_SIZE;
 const CITY_SPRITE_H = TILE_ART_SIZE;
 const CITY_SHADOW_SOURCE_Y = Math.floor(CITY_SPRITE_H / 2);
@@ -17861,10 +17869,15 @@ function drawLandRoads(activeChart) {
 
 function drawLandRoadSegment(path, segmentId) {
   const seed = spriteKeyHash(segmentId);
+  if (LAND_ROAD_WIDTH_PX !== 2) throw new Error(`Unsupported land road width: ${LAND_ROAD_WIDTH_PX}`);
+  ctx.fillStyle = LAND_ROAD_COLOR;
+  forEachTwoPixelBezierPoint(path, (x, y) => ctx.fillRect(x, y, 1, 1));
   let index = 0;
   forEachPixelOnBezier(path, (x, y) => {
-    ctx.fillStyle = ((index + seed) % 9 === 0) ? LAND_ROAD_DARK_COLOR : LAND_ROAD_COLOR;
-    ctx.fillRect(x, y, 1, 1);
+    if ((index + seed) % 9 === 0) {
+      ctx.fillStyle = LAND_ROAD_DARK_COLOR;
+      ctx.fillRect(x, y, 1, 1);
+    }
     index++;
   });
 }
@@ -17880,8 +17893,8 @@ function drawLandCarts(activeChart, nowMs, light) {
     const b = activeChart.tileById.get(cart.tileB);
     if (!a || !b) continue;
     const path = landRoadSegmentPath(a, b, cart.tileA, cart.tileB);
-    const point = pointOnRiverBezier(path, cart.segmentT);
-    const heading = tangentOnPixelBezier(path, cart.segmentT);
+    const point = quadraticBezierPoint(path, cart.segmentT);
+    const heading = quadraticBezierTangent(path, cart.segmentT);
     const headingFrame = headingFrameForScreenHeading(heading);
     const walkOffset = spriteKeyHash(cart.id) % LAND_CART_WALK_FRAME_COUNT;
     const walkFrame = (Math.floor(nowMs / LAND_CART_WALK_FRAME_MS) + walkOffset) % LAND_CART_WALK_FRAME_COUNT;
@@ -17935,14 +17948,6 @@ function landRoadSegmentPath(a, b, aTileId, bTileId) {
     x: (start.x + end.x) * 0.5,
     y: (start.y + end.y) * 0.5
   }, signedBend * directionSign);
-}
-
-function tangentOnPixelBezier(path, t) {
-  const dx = 2 * (1 - t) * (path.cx - path.x0) + 2 * t * (path.x1 - path.cx);
-  const dy = 2 * (1 - t) * (path.cy - path.y0) + 2 * t * (path.y1 - path.cy);
-  const length = Math.hypot(dx, dy);
-  if (length < 1e-6) throw new Error("Cannot orient a cart on a zero-length road tangent");
-  return { x: dx / length, y: dy / length };
 }
 
 function beachOffsetPoint(ax, ay, mx, my, bx, by, nx, ny, t, side) {
@@ -18781,18 +18786,10 @@ function forEachRiverMouthFlareSample(path, wideAtStart, visit, narrowRadius = R
     const mouthProgress = wideAtStart ? 1 - t : t;
     if (mouthProgress < RIVER_MOUTH_FLARE_START) continue;
     const flare = smoothstep(RIVER_MOUTH_FLARE_START, 1, mouthProgress);
-    const point = pointOnRiverBezier(path, t);
+    const point = quadraticBezierPoint(path, t);
     const radius = narrowRadius + (RIVER_MOUTH_RADIUS_PX - narrowRadius) * flare;
     visit(point.x, point.y, radius);
   }
-}
-
-function pointOnRiverBezier(path, t) {
-  const omt = 1 - t;
-  return {
-    x: omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1,
-    y: omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1
-  };
 }
 
 function drawRiverSparkles(targetCtx, path, frame, seed, color) {
@@ -18804,37 +18801,6 @@ function drawRiverSparkles(targetCtx, path, frame, seed, color) {
     const p = points[i];
     targetCtx.fillRect(p.x, p.y, 1, 1);
   }
-}
-
-function forEachPixelOnBezier(path, visit) {
-  const steps = Math.max(10, Math.ceil(bezierPathLength(path) * 1.6));
-  const seen = new Set();
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const omt = 1 - t;
-    const x = Math.round(omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1);
-    const y = Math.round(omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1);
-    const key = `${x},${y}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    visit(x, y);
-  }
-}
-
-function bezierPathLength(path) {
-  let length = 0;
-  let px = path.x0;
-  let py = path.y0;
-  for (let i = 1; i <= 12; i++) {
-    const t = i / 12;
-    const omt = 1 - t;
-    const x = omt * omt * path.x0 + 2 * omt * t * path.cx + t * t * path.x1;
-    const y = omt * omt * path.y0 + 2 * omt * t * path.cy + t * t * path.y1;
-    length += Math.hypot(x - px, y - py);
-    px = x;
-    py = y;
-  }
-  return length;
 }
 
 function drawPixelBrush(targetCtx, x, y, radius, color) {
