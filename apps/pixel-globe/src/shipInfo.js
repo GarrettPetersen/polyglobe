@@ -204,30 +204,38 @@ export function shipInfoCargoPage(view, page) {
   };
 }
 
-export function shipLedgerPage(gameState, page) {
+export function shipLedgerPage(gameState, page, rowsPerPage = SHIP_LEDGER_ROWS_PER_PAGE) {
+  assertRowsPerPage(rowsPerPage, "ship ledger");
   const rows = ledgerEntries(gameState).reverse();
-  const pageCount = Math.max(1, Math.ceil(rows.length / SHIP_LEDGER_ROWS_PER_PAGE));
+  const pageCount = Math.max(1, Math.ceil(rows.length / rowsPerPage));
   if (!Number.isInteger(page)) throw new Error(`Invalid ship ledger page: ${page}`);
   const normalizedPage = clampMenuIndex(page, pageCount);
-  const start = normalizedPage * SHIP_LEDGER_ROWS_PER_PAGE;
+  const start = normalizedPage * rowsPerPage;
   return {
     page: normalizedPage,
     pageCount,
-    rows: rows.slice(start, start + SHIP_LEDGER_ROWS_PER_PAGE)
+    rows: rows.slice(start, start + rowsPerPage)
   };
 }
 
-export function shipPapersPage(view, page) {
+export function shipPapersPage(view, page, rowsPerPage = SHIP_PAPERS_ROWS_PER_PAGE) {
+  assertRowsPerPage(rowsPerPage, "ship papers");
   if (!view || !Array.isArray(view.papers)) throw new Error("Invalid ship papers view");
-  const pageCount = Math.max(1, Math.ceil(view.papers.length / SHIP_PAPERS_ROWS_PER_PAGE));
+  const pageCount = Math.max(1, Math.ceil(view.papers.length / rowsPerPage));
   if (!Number.isInteger(page)) throw new Error(`Invalid ship papers page: ${page}`);
   const normalizedPage = clampMenuIndex(page, pageCount);
-  const start = normalizedPage * SHIP_PAPERS_ROWS_PER_PAGE;
+  const start = normalizedPage * rowsPerPage;
   return {
     page: normalizedPage,
     pageCount,
-    rows: view.papers.slice(start, start + SHIP_PAPERS_ROWS_PER_PAGE)
+    rows: view.papers.slice(start, start + rowsPerPage)
   };
+}
+
+function assertRowsPerPage(value, label) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} requires a positive rows-per-page value: ${value}`);
+  }
 }
 
 export function shipLedgerDateLabel(simMinute) {

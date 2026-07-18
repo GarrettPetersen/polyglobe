@@ -122,7 +122,7 @@ test("runtime text can only enter the canvas through the pixel raster helper", a
   assert.deepEqual(mainSource.match(/\b[a-zA-Z]+Ctx\.fillText\(/g), ["scratchCtx.fillText("]);
 });
 
-test("English uses the three Latin pixel fonts while zpix remains isolated for Chinese", async () => {
+test("English keeps the Latin pixel fonts while Chinese uses zpix at native scale", async () => {
   const fontFiles = (await readdir(new URL("../public/assets/fonts/", import.meta.url)))
     .filter((filename) => filename.endsWith(".ttf"))
     .sort();
@@ -133,15 +133,17 @@ test("English uses the three Latin pixel fonts while zpix remains isolated for C
     "zpix.ttf"
   ]);
 
-  const [mainSource, stylesSource, credits, pixelPirateFont] = await Promise.all([
+  const [mainSource, localizationSource, stylesSource, credits, pixelPirateFont] = await Promise.all([
     readFile(new URL("./main.js", import.meta.url), "utf8"),
+    readFile(new URL("./localization.js", import.meta.url), "utf8"),
     readFile(new URL("./styles.css", import.meta.url), "utf8"),
     readFile(new URL("../public/assets/CREDITS.md", import.meta.url), "utf8"),
     readFile(new URL("../public/assets/fonts/pixel_pirate.ttf", import.meta.url))
   ]);
   assert.equal(mainSource.includes("Tiny5"), false);
   assert.equal(stylesSource.includes("Tiny5"), false);
-  assert.equal(mainSource.includes("zpix"), false);
+  assert.match(mainSource, /12px \"zpix\"/);
+  assert.match(localizationSource, /smallFont: '12px "zpix", monospace'/);
   assert.match(mainSource, /8px \\"Pixel Pirate\\"/);
   assert.match(stylesSource, /font-family: "Pixel Pirate"/);
   assert.match(stylesSource, /pixel_pirate\.ttf\?v=r-kern-1/);

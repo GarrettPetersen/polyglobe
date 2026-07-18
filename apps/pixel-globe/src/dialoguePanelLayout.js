@@ -43,7 +43,9 @@ export function dialogueOptionTextLayout({
   measureDetail = measureLabel,
   minimumHeight = 24,
   maximumLabelLines = 2,
-  maximumDetailLines = 2
+  maximumDetailLines = 2,
+  labelLineHeight = 12,
+  detailLineHeight = 10
 }) {
   if (typeof measureLabel !== "function" || typeof measureDetail !== "function") {
     throw new Error("Dialogue option text layout requires text measurement functions");
@@ -53,7 +55,9 @@ export function dialogueOptionTextLayout({
     detailWidth,
     minimumHeight,
     maximumLabelLines,
-    maximumDetailLines
+    maximumDetailLines,
+    labelLineHeight,
+    detailLineHeight
   })) {
     if (!Number.isFinite(value) || value <= 0) throw new Error(`Invalid dialogue option text ${name}`);
   }
@@ -62,8 +66,8 @@ export function dialogueOptionTextLayout({
   const detailLines = detail
     ? wrapMeasuredText(detail, detailWidth, maximumDetailLines, measureDetail)
     : [];
-  const requiredHeight = 3 + labelLines.length * 12 + (detailLines.length > 0
-    ? 1 + detailLines.length * 10
+  const requiredHeight = 3 + labelLines.length * labelLineHeight + (detailLines.length > 0
+    ? 1 + detailLines.length * detailLineHeight
     : 0) + 4;
   const height = Math.max(minimumHeight, Math.ceil(requiredHeight / 2) * 2);
   return Object.freeze({

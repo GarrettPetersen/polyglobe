@@ -206,6 +206,22 @@ test("short dialogue options keep their compact minimum height", () => {
   assert.equal(layout.height, 24);
 });
 
+test("CJK dialogue options reserve the taller zpix line cadence", () => {
+  const layout = dialogueOptionTextLayout({
+    label: "购买一批香料",
+    detail: "货舱需要十二格空间",
+    labelWidth: 60,
+    detailWidth: 60,
+    measureLabel: (text) => Array.from(text).length * 12,
+    labelLineHeight: 14,
+    detailLineHeight: 14
+  });
+
+  assert.deepEqual(layout.labelLines, ["购买一批香", "料"]);
+  assert.deepEqual(layout.detailLines, ["货舱需要十", "二格空间"]);
+  assert.equal(layout.height, 64);
+});
+
 test("a submenu cannot inherit an out-of-range selection and render no options", () => {
   const window = dialogueOptionWindow({
     optionCount: 2,

@@ -430,11 +430,23 @@ import {
 import { canvasDisplayLayout } from "./displayScaling.js";
 import {
   hardenPixelTextAlpha,
+  pixelFontSizePx,
   pixelTextOrigin,
   pixelTextRasterHeight,
   pixelTextScratchRasterLayout,
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
+import {
+  LANGUAGE_CHINESE_SIMPLIFIED,
+  LANGUAGE_ENGLISH,
+  languageFontProfile,
+  languageHasCjkMetrics,
+  localizeText,
+  nextLanguage,
+  normalizeLanguage,
+  textContainsCjk,
+  translate
+} from "./localization.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import {
   globeWaterHexWaveFrame,
@@ -1170,8 +1182,8 @@ const POLITICS_PANEL_Y = 8;
 let POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
 let POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
 const POLITICS_ROWS_PER_PAGE = 18;
-const POLITICS_MATRIX_CELL_W = 7;
-const POLITICS_MATRIX_ROW_H = 11;
+const POLITICS_MATRIX_CELL_W = 8;
+let POLITICS_MATRIX_ROW_H = 11;
 const SHIP_INFO_SIDE_VIEW_W = 192;
 const SHIP_INFO_SIDE_VIEW_H = 104;
 const DIALOGUE_PORTRAIT_SIZE = 64;
@@ -1238,10 +1250,21 @@ let GAME_OVER_PANEL_Y = Math.floor((SCREEN_H - GAME_OVER_PANEL_H) / 2);
 const POINTER_STEERING_DEADZONE_PX = 6;
 const POINTER_TAP_ACTION_MAX_MS = 220;
 const POINTER_TAP_ACTION_MAX_TRAVEL_PX = 5;
-const PIXEL_FONT_SMALL_8 = "8px \"Silkscreen\", monospace";
-const PIXEL_FONT_DIALOGUE_8 = "8px \"Dogica\", monospace";
+const LANGUAGE_STORAGE_KEY = "pixel_globe_language";
+let currentLanguage = normalizeLanguage(
+  new URLSearchParams(window.location.search).get("lang") ||
+  readLocalStorage(LANGUAGE_STORAGE_KEY) ||
+  LANGUAGE_ENGLISH
+);
+let currentLanguageProfile = languageFontProfile(currentLanguage);
+const PIXEL_FONT_LATIN_SMALL_8 = "8px \"Silkscreen\", monospace";
+const PIXEL_FONT_LATIN_DIALOGUE_8 = "8px \"Dogica\", monospace";
+let PIXEL_FONT_SMALL_8 = currentLanguageProfile.smallFont;
+let PIXEL_FONT_DIALOGUE_8 = currentLanguageProfile.dialogueFont;
 const PIXEL_FONT_TITLE_8 = "8px \"Pixel Pirate\", monospace";
-const PIXEL_FONT_SMALL_INK_TOP_OFFSET = 3;
+let PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageHasCjkMetrics(currentLanguage) ? 1 : 3;
+POLITICS_MATRIX_ROW_H = currentLanguageProfile.tableRowHeight;
+document.documentElement.lang = currentLanguage;
 const PIXEL_TEXT_RASTER_CACHE_LIMIT = 2048;
 const PIRATE_MENU_PAPER = "#ead8b2";
 const PIRATE_MENU_PAPER_BUTTON = "#d6bd8f";
@@ -1277,13 +1300,14 @@ let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 228;
-const OPTIONS_ROW_H = 34;
-const OPTIONS_ROW_COUNT = 5;
+const OPTIONS_ROW_H = 30;
+const OPTIONS_ROW_COUNT = 6;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
-const OPTIONS_ROW_START_MENU = 4;
+const OPTIONS_ROW_LANGUAGE = 4;
+const OPTIONS_ROW_START_MENU = 5;
 const UI_ICON_BUTTON_SIZE = 24;
 const UI_PAGER_BUTTON_W = 30;
 const UI_PAGER_BUTTON_H = 24;
@@ -2412,7 +2436,8 @@ async function loadPixelFonts() {
   const requiredFonts = [
     { label: "Silkscreen", font: "8px \"Silkscreen\"", sample },
     { label: "Dogica", font: "8px \"Dogica\"", sample },
-    { label: "Pixel Pirate", font: PIXEL_FONT_TITLE_8, sample: "MARQUE & REPRISAL" }
+    { label: "Pixel Pirate", font: PIXEL_FONT_TITLE_8, sample: "MARQUE & REPRISAL" },
+    { label: "zpix", font: '12px "zpix"', sample: "简体中文 1522" }
   ];
   const loadedFaces = await Promise.all(
     requiredFonts.map(({ font, sample: fontSample }) => document.fonts.load(font, fontSample))
@@ -3327,6 +3352,7 @@ function updateWorldSpriteAnimation(nowMs) {
 function createOptionsMenuState() {
   return {
     isOpen: false,
+    language: currentLanguage,
     musicVolume: loadStoredVolume(MUSIC_VOLUME_STORAGE_KEY, MUSIC_DEFAULT_VOLUME),
     sfxVolume: loadStoredVolume(SFX_VOLUME_STORAGE_KEY, SFX_DEFAULT_VOLUME),
     muted: loadStoredAudioMuted(),
@@ -3370,16 +3396,19 @@ function createStartMenuState() {
 function startMenuActions() {
   const actions = [];
   if (localSaveResult.status === "ready") {
-    actions.push({ id: START_MENU_ACTION_CONTINUE, label: startMenu?.isLoading ? "LOADING..." : "CONTINUE" });
+    actions.push({
+      id: START_MENU_ACTION_CONTINUE,
+      label: startMenu?.isLoading ? uiText("start.loading") : uiText("start.continue")
+    });
   }
   actions.push({
     id: START_MENU_ACTION_NEW_GAME,
-    label: localSaveResult.status === "ready" ? "NEW GAME" : "START GAME"
+    label: localSaveResult.status === "ready" ? uiText("start.newGame") : uiText("start.startGame")
   });
-  actions.push({ id: START_MENU_ACTION_LAKE_BATTLE, label: "SHIP BATTLE" });
-  actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: "PAST VOYAGES" });
-  actions.push({ id: START_MENU_ACTION_OPTIONS, label: "OPTIONS" });
-  actions.push({ id: START_MENU_ACTION_CREDITS, label: "CREDITS" });
+  actions.push({ id: START_MENU_ACTION_LAKE_BATTLE, label: uiText("start.shipBattle") });
+  actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: uiText("start.pastVoyages") });
+  actions.push({ id: START_MENU_ACTION_OPTIONS, label: uiText("options.title") });
+  actions.push({ id: START_MENU_ACTION_CREDITS, label: uiText("start.credits") });
   return actions;
 }
 
@@ -4702,6 +4731,46 @@ function writeLocalStorage(key, value) {
   }
 }
 
+function uiText(key, replacements = {}) {
+  return translate(currentLanguage, key, replacements);
+}
+
+function renderedUiText(text) {
+  return localizeText(currentLanguage, text);
+}
+
+function setInterfaceLanguage(language, { persist = true } = {}) {
+  const normalized = normalizeLanguage(language);
+  currentLanguage = normalized;
+  currentLanguageProfile = languageFontProfile(normalized);
+  PIXEL_FONT_SMALL_8 = currentLanguageProfile.smallFont;
+  PIXEL_FONT_DIALOGUE_8 = currentLanguageProfile.dialogueFont;
+  PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageHasCjkMetrics(normalized) ? 1 : 3;
+  POLITICS_MATRIX_ROW_H = currentLanguageProfile.tableRowHeight;
+  optionsMenu.language = normalized;
+  optionsMenu.fullscreenError = null;
+  optionsMenu.returnError = null;
+  document.documentElement.lang = normalized;
+  if (persist) writeLocalStorage(LANGUAGE_STORAGE_KEY, normalized);
+  pixelTextRasterCache.clear();
+  syncCanvasAriaLabel();
+  dirty = true;
+}
+
+function localizedLineHeight(englishHeight = 10) {
+  return languageHasCjkMetrics(currentLanguage)
+    ? Math.max(englishHeight, currentLanguageProfile.lineHeight)
+    : englishHeight;
+}
+
+function resolvedPixelFont(font, text) {
+  if (!languageHasCjkMetrics(currentLanguage) || !font.includes('"zpix"')) return font;
+  if (textContainsCjk(text) || !/[A-Za-z]/.test(text)) return font;
+  return font === currentLanguageProfile.dialogueFont
+    ? PIXEL_FONT_LATIN_DIALOGUE_8
+    : PIXEL_FONT_LATIN_SMALL_8;
+}
+
 function playerCharacterIdentityKey() {
   if (CAPTURE_SCENARIO) return CAPTURE_SCENARIO.seed;
   const querySeed = new URLSearchParams(window.location.search).get("captainSeed");
@@ -5449,14 +5518,14 @@ function handleShipInfoKeyDown(event) {
 
 function stepShipInfoPage(direction) {
   if (shipInfoMenu.view === "ledger") {
-    const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage + direction);
+    const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage + direction, shipLedgerRowsPerPage());
     shipInfoMenu.ledgerPage = page.page;
     dirty = true;
     return;
   }
   const view = createShipInfoView(ship, gameState);
   if (shipInfoMenu.view === "papers") {
-    const page = shipPapersPage(view, shipInfoMenu.papersPage + direction);
+    const page = shipPapersPage(view, shipInfoMenu.papersPage + direction, shipPapersRowsPerPage());
     shipInfoMenu.papersPage = page.page;
     dirty = true;
     return;
@@ -5464,6 +5533,14 @@ function stepShipInfoPage(direction) {
   const page = shipInfoCargoPage(view, shipInfoMenu.cargoPage + direction);
   shipInfoMenu.cargoPage = page.page;
   dirty = true;
+}
+
+function shipLedgerRowsPerPage() {
+  return languageHasCjkMetrics(currentLanguage) && SCREEN_W < 400 ? 8 : 10;
+}
+
+function shipPapersRowsPerPage() {
+  return languageHasCjkMetrics(currentLanguage) ? 5 : 7;
 }
 
 function createLakeBattleModeState() {
@@ -6592,12 +6669,17 @@ function handleOptionsKeyDown(event) {
       setMusicVolume(optionsMenu.musicVolume + direction * 0.05);
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_SFX) {
       setSfxVolume(optionsMenu.sfxVolume + direction * 0.05);
+    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
+      setInterfaceLanguage(nextLanguage(currentLanguage, direction));
     }
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
     if (optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN) void toggleFullscreenMode();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_MUTE) toggleAudioMuted();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
+      setInterfaceLanguage(nextLanguage(currentLanguage));
+    }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) returnToStartMenuFromOptions();
     return;
   }
@@ -6936,6 +7018,11 @@ function handleOptionsPointerDown(point) {
   if (pointInRect(point, optionsMenu.muteRect) || pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_MUTE])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_MUTE;
     toggleAudioMuted();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_LANGUAGE])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_LANGUAGE;
+    setInterfaceLanguage(nextLanguage(currentLanguage));
     return;
   }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_START_MENU])) {
@@ -13806,8 +13893,13 @@ function applyResponsiveViewport(width, height) {
 }
 
 function syncCanvasAriaLabel() {
-  const surface = lakeBattleMode ? "ship battle lake" : "world map";
-  canvas.setAttribute("aria-label", `Marque & Reprisal ${surface}, ${SCREEN_W} by ${SCREEN_H}`);
+  const surface = currentLanguage === LANGUAGE_CHINESE_SIMPLIFIED
+    ? (lakeBattleMode ? "海战水域" : "世界地图")
+    : (lakeBattleMode ? "ship battle lake" : "world map");
+  const dimensions = currentLanguage === LANGUAGE_CHINESE_SIMPLIFIED
+    ? `${SCREEN_W}乘${SCREEN_H}`
+    : `${SCREEN_W} by ${SCREEN_H}`;
+  canvas.setAttribute("aria-label", `Marque & Reprisal ${surface}, ${dimensions}`);
 }
 
 function coarsePointerIsPrimary() {
@@ -15680,7 +15772,11 @@ function drawNavigationMenu() {
       { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
     );
     drawOptionsText(
-      fitPixelText(`${entry.colorLabel} / ${entry.reason}`, PIXEL_FONT_SMALL_8, textRight - textX),
+      fitPixelText(
+        `${renderedUiText(entry.colorLabel)} / ${renderedUiText(entry.reason)}`,
+        PIXEL_FONT_SMALL_8,
+        textRight - textX
+      ),
       textX,
       rect.y + 21,
       { color: PIRATE_MENU_INK_MUTED }
@@ -15919,7 +16015,7 @@ function drawShipInfoMenu() {
   drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, statsX, valueX, panel.y + 31);
   drawShipInfoBar(statsX, panel.y + 43, valueX - statsX, view.hull / view.maxHull, "#91db69");
   drawShipInfoValueRow(
-    `CREW / ${view.armamentLabel}`,
+    `${renderedUiText("CREW")} / ${renderedUiText(view.armamentLabel)}`,
     `${view.crew}/${view.crewCapacity}  ${view.armamentSummary}`,
     statsX,
     valueX,
@@ -16023,7 +16119,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   drawShipInfoBar(labelX + 62, y + 1, Math.max(30, panel.w - 112), view.hull / view.maxHull, "#91db69");
   y += 13;
   drawShipInfoValueRow(
-    `CREW / ${view.armamentLabel}`,
+    `${renderedUiText("CREW")} / ${renderedUiText(view.armamentLabel)}`,
     `${view.crew}/${view.crewCapacity}  ${view.armamentSummary}`,
     labelX,
     valueX,
@@ -16092,7 +16188,7 @@ function drawCompactShipRating(label, rating, x, valueX, y) {
 }
 
 function drawCompactShipLedger(panel, view) {
-  const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage);
+  const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage, shipLedgerRowsPerPage());
   shipInfoMenu.ledgerPage = page.page;
   const left = panel.x + 12;
   const right = panel.x + panel.w - 12;
@@ -16107,18 +16203,19 @@ function drawCompactShipLedger(panel, view) {
     ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowH - 1);
     drawOptionsText(shipLedgerDateLabel(entry.simMinute), left, y, { color: PIRATE_MENU_INK_MUTED });
-    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 125), left + 70, y, {
+    drawOptionsText(fitPixelText(entry.location.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 131), left + 76, y, {
       color: PIRATE_MENU_CHART_LINE
     });
     drawOptionsText(formatSignedLedgerMoney(entry.amount), right, y, {
       align: "right",
       color: entry.amount < 0 ? "#f68181" : "#91db69"
     });
-    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 82), left, y + 9, {
+    const detailOffset = localizedLineHeight(9);
+    drawOptionsText(fitPixelText(entry.description.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 82), left, y + detailOffset, {
       color: PIRATE_MENU_INK
     });
     const pnl = entry.pnl === null ? `BAL ${Math.round(entry.balance)}` : `P/L ${formatSignedLedgerMoney(entry.pnl)}`;
-    drawOptionsText(pnl, right, y + 9, {
+    drawOptionsText(pnl, right, y + detailOffset, {
       align: "right",
       color: entry.pnl === null ? "#f9c22b" : ledgerPnlColor(entry.pnl)
     });
@@ -16127,7 +16224,7 @@ function drawCompactShipLedger(panel, view) {
 }
 
 function drawCompactShipPapers(panel, view) {
-  const page = shipPapersPage(view, shipInfoMenu.papersPage);
+  const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage());
   shipInfoMenu.papersPage = page.page;
   const left = panel.x + 12;
   const right = panel.x + panel.w - 12;
@@ -16136,17 +16233,18 @@ function drawCompactShipPapers(panel, view) {
   drawOptionsText(`${view.papers.length} HELD`, right, top, { align: "right", color: PIRATE_MENU_INK_MUTED });
   if (page.rows.length === 0) drawOptionsText("INVENTORY IS EMPTY", left, top + 21, { color: PIRATE_MENU_INK_MUTED });
   const availableH = panel.y + panel.h - UI_PAGER_BUTTON_H - 7 - (top + 14);
-  const rowH = Math.max(26, Math.floor(availableH / Math.max(1, page.rows.length)));
+  const detailOffset = localizedLineHeight(9);
+  const rowH = Math.max(detailOffset * 3 + 4, Math.floor(availableH / Math.max(1, page.rows.length)));
   page.rows.forEach((paper, index) => {
     const y = top + 16 + index * rowH;
     ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowH - 1);
     drawOptionsText(paper.kind.toUpperCase(), left, y, { color: paper.kind === "marque" ? "#91db69" : "#fbb954" });
     drawOptionsText(shipLedgerDateLabel(paper.simMinute), right, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
-    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + 9, {
+    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + detailOffset, {
       color: PIRATE_MENU_INK
     });
-    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + 18, {
+    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + detailOffset * 2, {
       color: PIRATE_MENU_CHART_LINE
     });
   });
@@ -16184,19 +16282,19 @@ function drawShipInfoTabs(panel) {
   shipInfoMenu.papersTabRect = { x: panel.x + 113, y: panel.y + 6, w: 66, h: UI_TAB_H };
   drawShipInfoTab(
     shipInfoMenu.vesselTabRect,
-    "VESSEL",
+    uiText("ship.vessel"),
     shipInfoMenu.view === "vessel",
     pointInRect(optionsMenu.hoverPoint, shipInfoMenu.vesselTabRect)
   );
   drawShipInfoTab(
     shipInfoMenu.ledgerTabRect,
-    "LEDGER",
+    uiText("ship.ledger"),
     shipInfoMenu.view === "ledger",
     pointInRect(optionsMenu.hoverPoint, shipInfoMenu.ledgerTabRect)
   );
   drawShipInfoTab(
     shipInfoMenu.papersTabRect,
-    "INVENTORY",
+    uiText("ship.inventory"),
     shipInfoMenu.view === "papers",
     pointInRect(optionsMenu.hoverPoint, shipInfoMenu.papersTabRect)
   );
@@ -16204,14 +16302,14 @@ function drawShipInfoTabs(panel) {
 
 function drawShipInfoTab(rect, label, selected, hovered) {
   drawPiratePaperInset(rect, selected || hovered);
-  drawOptionsText(label, rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
+  drawOptionsText(label, rect.x + rect.w / 2, controlTextY(rect, PIXEL_FONT_SMALL_8), {
     align: "center",
     color: PIRATE_MENU_INK
   });
 }
 
 function drawShipLedger(panel, view) {
-  const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage);
+  const page = shipLedgerPage(gameState, shipInfoMenu.ledgerPage, shipLedgerRowsPerPage());
   shipInfoMenu.ledgerPage = page.page;
   const summaryY = panel.y + SHIP_INFO_DESKTOP_SUMMARY_Y;
   const realized = Math.round(view.realizedPnl);
@@ -16289,7 +16387,7 @@ function drawShipLedger(panel, view) {
 }
 
 function drawShipPapers(panel, view) {
-  const page = shipPapersPage(view, shipInfoMenu.papersPage);
+  const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage());
   shipInfoMenu.papersPage = page.page;
   const summaryY = panel.y + SHIP_INFO_DESKTOP_SUMMARY_Y;
   drawOptionsText("ITEMS & DOCUMENTS", panel.x + 12, summaryY, { color: PIRATE_MENU_INK });
@@ -16316,9 +16414,11 @@ function drawShipPapers(panel, view) {
     });
   }
   page.rows.forEach((paper, index) => {
-    const y = panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * SHIP_INFO_PAPER_ROW_H;
+    const rowHeight = languageHasCjkMetrics(currentLanguage) ? 28 : SHIP_INFO_PAPER_ROW_H;
+    const detailOffset = localizedLineHeight(9);
+    const y = panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * rowHeight;
     ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
-    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, SHIP_INFO_PAPER_ROW_H - 1);
+    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowHeight - 1);
     const typeColor = paper.kind === "marque"
       ? PIRATE_MENU_SUCCESS
       : paper.kind === "delivery"
@@ -16330,13 +16430,13 @@ function drawShipPapers(panel, view) {
     drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y, {
       color: PIRATE_MENU_INK
     });
-    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y + 9, {
+    drawOptionsText(fitPixelText(paper.issuer.toUpperCase(), PIXEL_FONT_SMALL_8, 126), entryX, y + detailOffset, {
       color: PIRATE_MENU_INK_MUTED
     });
     drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y, {
       color: PIRATE_MENU_CHART_LINE
     });
-    drawOptionsText(fitPixelText(paper.detail.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y + 9, {
+    drawOptionsText(fitPixelText(paper.detail.toUpperCase(), PIXEL_FONT_SMALL_8, 145), detailX, y + detailOffset, {
       color: PIRATE_MENU_INK_MUTED
     });
     drawOptionsText(shipLedgerDateLabel(paper.simMinute), dateX, y, {
@@ -16697,7 +16797,7 @@ function compactPoliticsPagination(view) {
   const newsHeight = view.recentEvents.length > 0 ? 12 : 0;
   const rowsPerPage = Math.max(
     6,
-    Math.min(20, Math.floor((panelH - 92 - newsHeight) / POLITICS_MATRIX_ROW_H))
+    Math.min(20, Math.floor((panelH - 100 - newsHeight) / POLITICS_MATRIX_ROW_H))
   );
   const columnPageCount = Math.max(1, Math.ceil(view.powers.length / columnsPerPage));
   const rowPageCount = Math.max(1, Math.ceil(view.rows.length / rowsPerPage));
@@ -16755,15 +16855,15 @@ function drawCompactPoliticsMenu() {
   const labelX = panel.x + 10;
   const matrixX = panel.x + 91;
   const statusX = panel.x + panel.w - 31;
-  const headerY = panel.y + 44;
-  const matrixY = panel.y + 63;
+  const headerY = panel.y + 48;
+  const matrixY = panel.y + 70;
   drawOptionsText("POWER", labelX, headerY, { color: PIRATE_MENU_INK_MUTED });
   drawOptionsText("YOU", statusX, headerY, { color: PIRATE_MENU_INK });
   powers.forEach((power, index) => {
     drawPoliticsColumnCode(
       power.code,
       matrixX + index * POLITICS_MATRIX_CELL_W,
-      headerY + 13,
+      headerY + 16,
       politicsFactionColor(power.id)
     );
   });
@@ -17892,7 +17992,7 @@ function drawOptionsMenu() {
   optionsMenu.closeButtonRect = { x: closeX, y: closeY, w: closeSize, h: closeSize };
   drawOptionsCloseButton(optionsMenu.closeButtonRect, pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect));
 
-  drawOptionsText("OPTIONS", panelX + OPTIONS_PANEL_W / 2, panelY + 9, {
+  drawOptionsText(uiText("options.title"), panelX + OPTIONS_PANEL_W / 2, panelY + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
@@ -17906,13 +18006,15 @@ function drawOptionsMenu() {
   const musicRow = { x: rowX, y: firstRowY + rowStep, w: rowW, h: OPTIONS_ROW_H - 2 };
   const sfxRow = { x: rowX, y: firstRowY + rowStep * 2, w: rowW, h: OPTIONS_ROW_H - 2 };
   const muteRow = { x: rowX, y: firstRowY + rowStep * 3, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 4, w: rowW, h: OPTIONS_ROW_H - 2 };
-  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, startMenuRow];
+  const languageRow = { x: rowX, y: firstRowY + rowStep * 4, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 5, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, languageRow, startMenuRow];
 
   drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
-  drawOptionsVolumeRow(musicRow, "MUSIC", "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
-  drawOptionsVolumeRow(sfxRow, "SFX", "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
+  drawOptionsVolumeRow(musicRow, uiText("options.music"), "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
+  drawOptionsVolumeRow(sfxRow, uiText("options.sfx"), "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
   drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
+  drawOptionsLanguageRow(languageRow, optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE);
   drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
   ctx.restore();
 }
@@ -17922,8 +18024,8 @@ function drawOptionsFullscreenRow(rowRect, highlighted) {
   const isFullscreen = document.fullscreenElement === shell;
   const label = optionsMenu.fullscreenError || (
     fullscreenAvailable()
-      ? (isFullscreen ? "EXIT FULLSCREEN" : "ENTER FULLSCREEN")
-      : "FULLSCREEN UNAVAILABLE"
+      ? (isFullscreen ? uiText("options.exitFullscreen") : uiText("options.enterFullscreen"))
+      : uiText("options.fullscreenUnavailable")
   );
   drawOptionsText(fitPixelText(label, PIXEL_FONT_DIALOGUE_8, rowRect.w - 16), rowRect.x + 8, controlTextY(rowRect), {
     font: PIXEL_FONT_DIALOGUE_8,
@@ -17979,7 +18081,7 @@ function drawOptionsVolumeRow(rowRect, label, sliderKey, value, highlighted) {
 
 function drawOptionsMuteRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText("MUTE", rowRect.x + 8, controlTextY(rowRect), {
+  drawOptionsText(uiText("options.mute"), rowRect.x + 8, controlTextY(rowRect), {
     font: PIXEL_FONT_DIALOGUE_8,
     color: PIRATE_MENU_INK
   });
@@ -18004,12 +18106,28 @@ function drawOptionsMuteRow(rowRect, highlighted) {
   }
 }
 
+function drawOptionsLanguageRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  drawOptionsText(uiText("options.language"), rowRect.x + 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_DIALOGUE_8,
+    color: PIRATE_MENU_INK
+  });
+  const valueKey = currentLanguage === LANGUAGE_CHINESE_SIMPLIFIED
+    ? "language.chineseSimplified"
+    : "language.english";
+  drawOptionsText(uiText(valueKey), rowRect.x + rowRect.w - 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "right",
+    color: PIRATE_MENU_CHART_LINE
+  });
+}
+
 function drawOptionsStartMenuRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
   const iconX = rowRect.x + 8;
   const iconY = rowRect.y + Math.floor((rowRect.h - GAME_ICON_SIZE) / 2);
   drawGameIcon("action:start-menu", iconX, iconY, { alpha: optionsMenu.returnError ? 0.5 : 1 });
-  const label = optionsMenu.returnError || "RETURN TO MAIN MENU";
+  const label = optionsMenu.returnError || uiText("options.returnToMainMenu");
   drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, rowRect.w - 38), rowRect.x + 31, controlTextY(rowRect), {
     font: PIXEL_FONT_SMALL_8,
     color: optionsMenu.returnError ? PIRATE_MENU_DANGER : PIRATE_MENU_INK
@@ -18028,12 +18146,12 @@ function drawOptionsRowFrame(rect, highlighted) {
   drawPiratePaperInset(rect, highlighted);
 }
 
-function rowTextY(rect) {
-  return rect.y + Math.floor((rect.h - 8) / 2);
+function rowTextY(rect, font = PIXEL_FONT_SMALL_8) {
+  return rect.y + Math.floor((rect.h - pixelFontSizePx(font)) / 2);
 }
 
-function controlTextY(rect) {
-  return rect.y + Math.floor((rect.h - 10) / 2);
+function controlTextY(rect, font = PIXEL_FONT_DIALOGUE_8) {
+  return rect.y + Math.floor((rect.h - pixelFontSizePx(font) - 2) / 2);
 }
 
 function drawOptionsText(text, x, y, options = {}) {
@@ -18045,23 +18163,25 @@ function drawOptionsText(text, x, y, options = {}) {
 }
 
 function fitPixelText(text, font, maxWidth) {
-  return fitMeasuredText(text, maxWidth, (entry) => measurePixelTextWidth(entry, font));
+  const localized = renderedUiText(text);
+  return fitMeasuredText(localized, maxWidth, (entry) => measurePixelTextWidth(entry, font));
 }
 
 function drawPixelText(text, x, y, options = {}) {
   if (typeof text !== "string") throw new Error(`Pixel text must be a string: ${text}`);
-  const font = options.font || PIXEL_FONT_SMALL_8;
+  const renderedText = renderedUiText(text);
+  const font = resolvedPixelFont(options.font || PIXEL_FONT_SMALL_8, renderedText);
   const align = options.align || "left";
   ctx.font = font;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  const textW = measurePixelTextWidth(text, font);
+  const textW = measurePixelTextWidth(renderedText, font);
   const alignedOrigin = pixelTextOrigin({ x, y, width: textW, align });
   const origin = snapPointToTransformedPixelGrid(alignedOrigin, ctx.getTransform());
   if (typeof ctx.fillStyle !== "string") {
     throw new Error("Pixel text requires a solid CSS fill color");
   }
-  const raster = pixelTextRaster(text, font, ctx.fillStyle, textW);
+  const raster = pixelTextRaster(renderedText, font, ctx.fillStyle, textW);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(raster, origin.x, origin.y);
@@ -18127,10 +18247,12 @@ function pixelTextFontLayout(font) {
 }
 
 function measurePixelTextWidth(text, font = PIXEL_FONT_SMALL_8) {
-  ctx.font = font;
+  const renderedText = renderedUiText(text);
+  const resolvedFont = resolvedPixelFont(font, renderedText);
+  ctx.font = resolvedFont;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  return Math.ceil(ctx.measureText(text).width);
+  return Math.ceil(ctx.measureText(renderedText).width);
 }
 
 function minimapLandWeight(row) {
@@ -22785,7 +22907,17 @@ function drawPlayerIntroModal(nowMs) {
     ["VESSEL", shipLabelForSlug(ship?.typeSlug || character.starterShipSlug)]
   ];
   for (let i = 0; i < rows.length; i++) {
-    const y = panel.y + 47 + i * 21;
+    const y = panel.y + 47 + i * (languageHasCjkMetrics(currentLanguage) ? 19 : 21);
+    if (languageHasCjkMetrics(currentLanguage)) {
+      ctx.fillStyle = PIRATE_MENU_INK;
+      drawPixelText(
+        fitPixelText(`${renderedUiText(rows[i][0])}：${renderedUiText(rows[i][1])}`, PIXEL_FONT_SMALL_8, detailW),
+        detailX,
+        y,
+        { font: PIXEL_FONT_SMALL_8 }
+      );
+      continue;
+    }
     ctx.fillStyle = PIRATE_MENU_INK_MUTED;
     drawPixelText(rows[i][0], detailX, y, { font: PIXEL_FONT_SMALL_8 });
     ctx.fillStyle = PIRATE_MENU_INK;
@@ -22847,7 +22979,7 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
   drawPixelText(
     fitPixelText(character.nationalityAdjective, PIXEL_FONT_SMALL_8, panel.w - 121),
     flagX,
-    nationalityLabelY + 9,
+    nationalityLabelY + localizedLineHeight(9),
     { font: PIXEL_FONT_SMALL_8 }
   );
 
@@ -22864,7 +22996,7 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
     ctx.fillStyle = PIRATE_MENU_INK_MUTED;
     drawPixelText(row[0], detailX, y, { font: PIXEL_FONT_SMALL_8 });
     ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText(fitPixelText(row[1], PIXEL_FONT_SMALL_8, detailW), detailX, y + 10, {
+    drawPixelText(fitPixelText(row[1], PIXEL_FONT_SMALL_8, detailW), detailX, y + localizedLineHeight(10), {
       font: PIXEL_FONT_SMALL_8
     });
   });
@@ -22916,7 +23048,7 @@ function drawCaptainAlertModal() {
   }
   for (const line of pages[modal.page]) {
     drawPixelText(line, textX, y, { font: PIXEL_FONT_SMALL_8 });
-    y += 10;
+    y += localizedLineHeight(10);
   }
 
   const button = modal.buttonRect;
@@ -22933,7 +23065,10 @@ function captainAlertPages(modal, textWidth = CAPTAIN_ALERT_PANEL_W - 110) {
   if (!modal || typeof modal.message !== "string") throw new Error("Character alert has no message");
   const lines = wrapPixelTextAll(modal.message.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
   const pages = [];
-  for (let index = 0; index < lines.length; index += 4) pages.push(lines.slice(index, index + 4));
+  const linesPerPage = languageHasCjkMetrics(currentLanguage) ? 3 : 4;
+  for (let index = 0; index < lines.length; index += linesPerPage) {
+    pages.push(lines.slice(index, index + linesPerPage));
+  }
   return pages;
 }
 
@@ -22956,7 +23091,7 @@ function drawSailingHelpModal(modal) {
 
   const diagram = {
     x: panel.x + 12,
-    y: panel.y + 39,
+    y: panel.y + (languageHasCjkMetrics(currentLanguage) ? 46 : 39),
     w: panel.w - 24,
     h: 70
   };
@@ -22965,10 +23100,11 @@ function drawSailingHelpModal(modal) {
   const bodyX = panel.x + 14;
   const bodyY = diagram.y + diagram.h + 9;
   const bodyW = panel.w - 28;
-  const lineHeight = 10;
+  const lineHeight = localizedLineHeight(10);
   const maxLines = Math.max(1, Math.floor((modal.buttonRect.y - bodyY - 5) / lineHeight));
   ctx.fillStyle = PIRATE_MENU_INK;
-  const body = page.body.toUpperCase();
+  const localizedBody = renderedUiText(page.body);
+  const body = languageHasCjkMetrics(currentLanguage) ? localizedBody : localizedBody.toUpperCase();
   const lines = wrapPixelText(body, PIXEL_FONT_SMALL_8, bodyW, maxLines);
   for (let index = 0; index < lines.length; index++) {
     drawPixelText(lines[index], bodyX, bodyY + index * lineHeight, { font: PIXEL_FONT_SMALL_8 });
@@ -23478,7 +23614,7 @@ function drawDialogueOverlay(nowMs) {
     return;
   }
   const dialogueFont = PIXEL_FONT_DIALOGUE_8;
-  const dialogueLineHeight = 12;
+  const dialogueLineHeight = localizedLineHeight(12);
   const portFaction = dialogueState.kind === "port" ? factionById(subject.factionId) : null;
   const portGreeting = dialogueState.kind === "port" && dialogueState.nodeId === "greeting";
   const panelX = 6;
@@ -23852,9 +23988,10 @@ function shipComparisonDifferenceColor(difference) {
 function drawVesselDecisionStatus(dialogueView, panel, optionY) {
   const status = dialogueView.feedback || dialogueView.text;
   const lines = wrapPixelText(status.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 20, 2);
-  const startY = optionY - lines.length * 10 - 2;
+  const lineHeight = localizedLineHeight(10);
+  const startY = optionY - lines.length * lineHeight - 2;
   lines.forEach((line, index) => {
-    drawOptionsText(line, panel.x + 10, startY + index * 10, {
+    drawOptionsText(line, panel.x + 10, startY + index * lineHeight, {
       font: PIXEL_FONT_SMALL_8,
       color: dialogueView.feedback ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
     });
@@ -24051,22 +24188,24 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
   const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
   const multiLine = textLayout.labelLines.length > 1 || textLayout.detailLines.length > 0;
   const labelY = multiLine ? rect.y + 3 : controlTextY(rect);
+  const labelLineHeight = localizedLineHeight(12);
+  const detailLineHeight = localizedLineHeight(10);
   for (let lineIndex = 0; lineIndex < textLayout.labelLines.length; lineIndex++) {
     drawPixelText(
       textLayout.labelLines[lineIndex],
       rect.x + GAME_ICON_SIZE + 10,
-      labelY + lineIndex * 12,
+      labelY + lineIndex * labelLineHeight,
       { font }
     );
   }
   if (textLayout.detailLines.length > 0) {
     ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
-    const detailY = rect.y + 4 + textLayout.labelLines.length * 12;
+    const detailY = rect.y + 4 + textLayout.labelLines.length * labelLineHeight;
     for (let lineIndex = 0; lineIndex < textLayout.detailLines.length; lineIndex++) {
       drawPixelText(
         textLayout.detailLines[lineIndex],
         rect.x + GAME_ICON_SIZE + 10,
-        detailY + lineIndex * 10,
+        detailY + lineIndex * detailLineHeight,
         { font: PIXEL_FONT_SMALL_8 }
       );
     }
@@ -24085,22 +24224,33 @@ function dialogueOptionsHeight(view, font, width) {
 function dialogueOptionTextMetrics(option, font, width, minimumHeight) {
   const iconReserve = GAME_ICON_SIZE + 13;
   return dialogueOptionTextLayout({
-    label: option.label,
-    detail: option.detail || "",
+    label: renderedUiText(option.label),
+    detail: renderedUiText(option.detail || ""),
     labelWidth: Math.max(1, width - iconReserve),
     detailWidth: Math.max(1, width - iconReserve),
     measureLabel: (text) => measurePixelTextWidth(text, font),
     measureDetail: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8),
-    minimumHeight
+    minimumHeight,
+    labelLineHeight: localizedLineHeight(12),
+    detailLineHeight: localizedLineHeight(10)
   });
 }
 
 function wrapPixelText(text, font, maxWidth, maxLines) {
-  return wrapMeasuredText(text, maxWidth, maxLines, (entry) => measurePixelTextWidth(entry, font));
+  return wrapMeasuredText(
+    renderedUiText(text),
+    maxWidth,
+    maxLines,
+    (entry) => measurePixelTextWidth(entry, font)
+  );
 }
 
 function wrapPixelTextAll(text, font, maxWidth) {
-  return wrapAllMeasuredText(text, maxWidth, (entry) => measurePixelTextWidth(entry, font));
+  return wrapAllMeasuredText(
+    renderedUiText(text),
+    maxWidth,
+    (entry) => measurePixelTextWidth(entry, font)
+  );
 }
 
 function ensureDialoguePortraitLoaded() {

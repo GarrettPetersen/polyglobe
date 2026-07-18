@@ -25,6 +25,7 @@ export function wrapMeasuredText(text, maxWidth, maxLines, measureText) {
 
 export function wrapAllMeasuredText(text, maxWidth, measureText) {
   validateTextLayoutInputs(text, maxWidth, measureText);
+  if (containsCjk(text)) return wrapCjkText(text, maxWidth, measureText);
   const words = text.split(/\s+/).filter(Boolean);
   const wrapped = [];
   let line = "";
@@ -41,6 +42,28 @@ export function wrapAllMeasuredText(text, maxWidth, measureText) {
   return wrapped.length > 0
     ? wrapped.map((entry) => fitMeasuredText(entry, maxWidth, measureText))
     : [""];
+}
+
+function wrapCjkText(text, maxWidth, measureText) {
+  const wrapped = [];
+  let line = "";
+  for (const character of text) {
+    const next = line + character;
+    if (line && measureText(next) > maxWidth) {
+      wrapped.push(line.trimEnd());
+      line = character.trimStart();
+      continue;
+    }
+    line = next;
+  }
+  if (line) wrapped.push(line.trimEnd());
+  return wrapped.length > 0
+    ? wrapped.map((entry) => fitMeasuredText(entry, maxWidth, measureText))
+    : [""];
+}
+
+function containsCjk(text) {
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text);
 }
 
 function validateTextLayoutInputs(text, maxWidth, measureText) {
