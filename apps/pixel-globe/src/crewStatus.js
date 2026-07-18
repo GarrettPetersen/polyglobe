@@ -15,15 +15,10 @@ export function crewStatusLayout({ crewCount, travelerGroups = [], x, y, width }
 
   const total = crewCount + travelerGroups.reduce((sum, group) => sum + group.count, 0);
   if (total === 0) return Object.freeze({ entries: Object.freeze([]), pitch: CREW_STATUS_NORMAL_PITCH });
-  const pitch = total === 1
+  const availablePitch = total === 1
     ? CREW_STATUS_NORMAL_PITCH
-    : Math.min(
-      CREW_STATUS_NORMAL_PITCH,
-      Math.floor((width - CREW_STATUS_ICON_WIDTH) / (total - 1))
-    );
-  if (pitch < 1) {
-    throw new Error(`Crew status cannot fit ${total} people into ${width}px`);
-  }
+    : Math.min(CREW_STATUS_NORMAL_PITCH, (width - CREW_STATUS_ICON_WIDTH) / (total - 1));
+  const pitch = availablePitch >= 1 ? Math.floor(availablePitch) : availablePitch;
 
   const compressed = pitch < CREW_STATUS_NORMAL_PITCH;
   const entries = [];
@@ -44,7 +39,7 @@ function personEntry(kind, kindIndex, rowIndex, x, y, pitch, variant) {
     kindIndex,
     rowIndex,
     variant,
-    x: x + rowIndex * pitch,
+    x: x + Math.round(rowIndex * pitch),
     y
   });
 }

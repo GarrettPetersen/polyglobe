@@ -11,6 +11,7 @@ import {
   HARDTACK_GOOD_ID,
   NUTMEG_GOOD_ID,
   TRADE_GOODS,
+  WINE_GOOD_ID,
   addWorldEconomyPort,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
@@ -75,6 +76,11 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   }
   assert.equal(ids.has("spices"), false);
   assert.equal(ids.size, TRADE_GOODS.length);
+});
+
+test("wine is a drink rather than edible cargo", () => {
+  assert.equal(tradeGoodById(WINE_GOOD_ID).category, "drink");
+  assert.notEqual(tradeGoodById(WINE_GOOD_ID).category, "food");
 });
 
 test("cargo lots create a clear value-per-hold hierarchy without inflating nominal prices", () => {

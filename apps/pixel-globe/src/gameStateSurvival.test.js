@@ -5,6 +5,7 @@ import {
   BEAVER_PELTS_GOOD_ID,
   FORAGED_FOOD_GOOD_ID,
   FRESH_WATER_GOOD_ID,
+  WINE_GOOD_ID,
   createWorldEconomy
 } from "./economy.js";
 import {
@@ -40,6 +41,7 @@ import {
   setPlayerShipStats,
   shipConsumption,
   shipEmergencyAidNeed,
+  shipPeopleAboard,
   shipTravelerManifest,
   stowForagedFood,
   survivalStatus,
@@ -115,7 +117,41 @@ test("survival drains water and consumes the cheapest edible cargo first", () =>
   assert.equal(result.foodConsumed[0].goodId, "fish");
   assert.equal(state.cargo.fish, 11 / 12);
   assert.equal(state.cargo.grain, 2);
+  assert.equal(state.cargo.wine, 1);
   assert.ok(state.survival.freshWater < FRESH_WATER_CAPACITY);
+});
+
+test("a ship drinks wine only after water runs out and tracks full wine-only days", () => {
+  const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.ship.crew = 1;
+  state.survival.freshWater = 0;
+  state.cargo = { hardtack: 1, [WINE_GOOD_ID]: 1 };
+  state.accounts.cargoCostBasis = { hardtack: 2, [WINE_GOOD_ID]: 18 };
+
+  const initial = survivalStatus(state);
+  assert.equal(initial.freshWaterDays, 0);
+  assert.equal(initial.wineDays, 4);
+  assert.equal(initial.drinkDays, 4);
+
+  const firstHalfDay = updateSurvival(state, 0, 12 * 60, { freshwater: false });
+  assert.equal(firstHalfDay.dehydrated, false);
+  assert.equal(firstHalfDay.wineDrinkingStarted, true);
+  assert.equal(firstHalfDay.wineOnlyDaysElapsed, 0);
+  assert.equal(firstHalfDay.wineConsumed, 0.125);
+  assert.equal(state.survival.wineOnlyMinutes, 12 * 60);
+  assert.equal(state.cargo[WINE_GOOD_ID], 0.875);
+
+  const secondHalfDay = updateSurvival(state, 12 * 60, 24 * 60, { freshwater: false });
+  assert.equal(secondHalfDay.wineDrinkingStarted, false);
+  assert.equal(secondHalfDay.wineOnlyDaysElapsed, 1);
+  assert.equal(state.survival.wineOnlyMinutes, 24 * 60);
+  assert.equal(cargoCostBasis(state, WINE_GOOD_ID).total, 13.5);
+
+  state.survival.freshWater = 1;
+  updateSurvival(state, 24 * 60, 25 * 60, { freshwater: false });
+  assert.equal(state.survival.wineOnlyMinutes, 0);
 });
 
 test("freshwater refills casks while food still ticks down", () => {
@@ -189,10 +225,14 @@ test("heavy rain can raise a minimally crewed boat's water supply", () => {
 });
 
 test("the ship traveler manifest distinguishes passengers, envoys, and settlers", () => {
-  const state = createGameState({ cargoCapacity: 100 });
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const crewAndCaptain = state.ship.crew + 1;
 
   state.memory.quests.active = { kind: "passenger" };
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "passenger", count: 1 }]);
+  assert.equal(shipPeopleAboard(state), crewAndCaptain + 1);
 
   state.memory.quests.active = { kind: "friendly-envoy" };
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "envoy", count: 1 }]);
@@ -202,6 +242,8 @@ test("the ship traveler manifest distinguishes passengers, envoys, and settlers"
   state.memory.colonization.fetchStageIndex = 3;
   state.memory.colonization.targetTileId = 1;
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "settler", count: 12 }]);
+  assert.equal(shipPeopleAboard(state), crewAndCaptain + 12);
+  assert.equal(shipConsumption(state).passengers, 12);
 });
 
 test("waiting safely in port advances time without consuming provisions", () => {

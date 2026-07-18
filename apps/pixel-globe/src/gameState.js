@@ -2,6 +2,7 @@ import {
   FORAGED_FOOD_GOOD_ID,
   FRESH_WATER_GOOD_ID,
   HARDTACK_GOOD_ID,
+  WINE_GOOD_ID,
   WHALE_BLUBBER_GOOD_ID,
   TRADE_GOODS,
   executePortPurchase,
@@ -113,6 +114,7 @@ export const FRESH_WATER_CAPACITY = 100;
 export const FRESH_WATER_DAYS = 21;
 export const FRESH_WATER_CARGO_DAYS = 1;
 export const RAIN_WATER_COLLECTION_PER_CONSUMER_DAY = 0.16;
+export const WINE_PERSON_DAYS_PER_UNIT = WATER_PERSON_DAYS_PER_UNIT;
 export const FOOD_TARGET_DAYS = 21;
 export const STARTING_HARDTACK_RATIONS = 10;
 export const EMERGENCY_SHIP_AID_UNITS = 3;
@@ -840,6 +842,9 @@ export function cargoQuantityLabel(good, quantity) {
   if (good.category === "food") {
     return `${foodRationsForCargoQuantity(quantity)} RATIONS`;
   }
+  if (good.category === "drink") {
+    return `${Math.max(1, Math.round(quantity * WINE_PERSON_DAYS_PER_UNIT))} DRINKS`;
+  }
   if (!Number.isInteger(quantity) || quantity < 0) {
     throw new Error(`Invalid ${good.id || "unknown"} cargo quantity: ${quantity}`);
   }
@@ -864,6 +869,11 @@ export function survivalStatus(state) {
   const freshWaterReserveUnits = state.ship ? 0 : state.cargo[FRESH_WATER_GOOD_ID] || 0;
   const freshWaterReserveDays = state.ship ? 0 : freshWaterReserveUnits * FRESH_WATER_CARGO_DAYS;
   const freshWaterDays = freshWaterCaskDays + freshWaterReserveDays;
+  const wineUnits = state.cargo[WINE_GOOD_ID] || 0;
+  const wineDays = state.ship
+    ? wineUnits * WINE_PERSON_DAYS_PER_UNIT / consumption.waterConsumers
+    : wineUnits * WINE_PERSON_DAYS_PER_UNIT;
+  const drinkDays = freshWaterDays + wineDays;
   const targetDays = state.ship?.loadoutTargets
     ? Math.max(1, Math.min(state.ship.loadoutTargets.foodDays, state.ship.loadoutTargets.waterDays))
     : FOOD_TARGET_DAYS;
@@ -876,6 +886,10 @@ export function survivalStatus(state) {
     freshWaterReserveDays,
     freshWaterTargetDays: state.ship?.loadoutTargets?.waterDays || FRESH_WATER_DAYS,
     freshWaterFraction: clamp01(freshWaterDays / (state.ship?.loadoutTargets?.waterDays || FRESH_WATER_DAYS)),
+    wineUnits,
+    wineDays,
+    drinkDays,
+    drinkFraction: clamp01(drinkDays / (state.ship?.loadoutTargets?.waterDays || FRESH_WATER_DAYS)),
     foodRations,
     storedFoodRations,
     foodCargoUnits,
@@ -892,7 +906,7 @@ export function shipEmergencyAidNeed(state, npcShipId) {
   assertNpcShipId(npcShipId);
   const status = survivalStatus(state);
   const needsFood = status.foodRations <= 0;
-  const needsWater = status.freshWater <= 0;
+  const needsWater = status.drinkDays <= 0;
   const alreadyReceived = (state.memory.decisions[emergencyShipAidKey(npcShipId)] || 0) > 0;
   return {
     needsFood,
@@ -1074,7 +1088,7 @@ export function shipConsumption(state) {
     return { crew: 0, passengers: 0, livestock: 0, foodConsumers: 1, waterConsumers: 1 };
   }
   const quest = state.memory.quests?.active || null;
-  const passengers = activeQuestTravelerGroup(quest)?.count || 0;
+  const passengers = travelerManifestCount(shipTravelerManifest(state));
   const livestock = Math.max(0, Number(quest?.livestockCount || quest?.livestock?.count || 0));
   const baseConsumers = 1 + state.ship.crew + passengers;
   const questFood = Math.max(0, Number(quest?.consumption?.food || 0));
@@ -1097,6 +1111,16 @@ export function shipTravelerManifest(state) {
     groups.push(Object.freeze({ kind: "settler", count: COLONIZATION_SETTLER_COUNT }));
   }
   return Object.freeze(groups);
+}
+
+export function shipPeopleAboard(state) {
+  assertGameState(state);
+  if (!state.ship) return 0;
+  return 1 + state.ship.crew + travelerManifestCount(shipTravelerManifest(state));
+}
+
+function travelerManifestCount(groups) {
+  return groups.reduce((total, group) => total + group.count, 0);
 }
 
 function activeQuestTravelerGroup(quest) {
@@ -1197,11 +1221,16 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     rainWaterCollected: 0,
     waterConsumed: 0,
     waterCargoConsumed: 0,
+    wineConsumed: 0,
+    wineDrinkingStarted: false,
+    wineOnlyMinutes: 0,
+    wineOnlyDaysElapsed: 0,
     foodConsumed: [],
     dehydrated: false,
     starved: false
   };
   if (options.safePort) {
+    resetWineOnlySurvivalState(state);
     state.survival.lastMinute = currentMinute;
     return result;
   }
@@ -1236,7 +1265,10 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     const availableRainWater = elapsedDays * rainfall *
       RAIN_WATER_COLLECTION_PER_CONSUMER_DAY * consumption.waterConsumers;
     const rainWaterUsed = Math.min(waterUse, availableRainWater);
-    const water = consumeFreshWater(state, waterUse - rainWaterUsed, !state.ship);
+    const water = consumeDrinkSupply(state, waterUse - rainWaterUsed, {
+      allowCargoReserve: !state.ship,
+      allowWine: Boolean(state.ship)
+    });
     const rainWaterStored = Math.min(
       state.survival.freshWaterCapacity - state.survival.freshWater,
       availableRainWater - rainWaterUsed
@@ -1248,10 +1280,21 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     result.rainWaterCollected = rainWaterUsed + rainWaterStored;
     result.waterConsumed = water.waterConsumed;
     result.waterCargoConsumed = water.cargoConsumed;
+    result.wineConsumed = water.wineConsumed;
     if (water.changed) {
       result.changed = true;
     }
     if (water.dehydrated) result.dehydrated = true;
+    const wineOnlyMinutes = waterUse > 0
+      ? elapsedMinutes * water.wineConsumed / waterUse
+      : 0;
+    const wineInterrupted = water.waterConsumed > 0 || rainWaterUsed > 0;
+    const wineState = updateWineOnlySurvivalState(state, wineOnlyMinutes, wineInterrupted);
+    result.wineDrinkingStarted = wineState.started;
+    result.wineOnlyMinutes = wineOnlyMinutes;
+    result.wineOnlyDaysElapsed = wineState.daysElapsed;
+  } else {
+    resetWineOnlySurvivalState(state);
   }
 
   state.survival.foodRationDebt += elapsedDays * consumption.foodConsumers;
@@ -2239,6 +2282,7 @@ function createSurvivalState(startMinute, freshWaterCapacity = FRESH_WATER_CAPAC
     freshWater,
     freshWaterCapacity,
     foodRationDebt: 0,
+    wineOnlyMinutes: 0,
     lastMinute: startMinute
   };
 }
@@ -2526,10 +2570,11 @@ function consumeCheapestFoodRation(state) {
   };
 }
 
-function consumeFreshWater(state, waterUse, allowCargoReserve = true) {
+function consumeDrinkSupply(state, waterUse, { allowCargoReserve = true, allowWine = false } = {}) {
   let remainingUse = Math.max(0, waterUse);
   let waterConsumed = 0;
   let cargoConsumed = 0;
+  let wineConsumed = 0;
   let changed = false;
 
   const caskUse = Math.min(state.survival.freshWater, remainingUse);
@@ -2555,12 +2600,65 @@ function consumeFreshWater(state, waterUse, allowCargoReserve = true) {
     changed = true;
   }
 
+  if (allowWine && remainingUse > 1e-8 && (state.cargo[WINE_GOOD_ID] || 0) > 0) {
+    const held = state.cargo[WINE_GOOD_ID];
+    const unitUse = Math.min(held, remainingUse);
+    consumeDrinkQuantity(state, WINE_GOOD_ID, unitUse);
+    wineConsumed += unitUse;
+    remainingUse -= unitUse;
+    changed = true;
+  }
+
   return {
     changed,
     waterConsumed,
     cargoConsumed,
+    wineConsumed,
     dehydrated: remainingUse > 1e-8
   };
+}
+
+function consumeDrinkQuantity(state, goodId, quantity) {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error(`Invalid drink quantity for ${goodId}: ${quantity}`);
+  }
+  const held = state.cargo[goodId] || 0;
+  if (quantity > held + 1e-8) throw new Error(`Cannot drink ${quantity} ${goodId}; hold has ${held}`);
+  const basis = cargoCostBasis(state, goodId);
+  const consumedCost = basis.known ? basis.total * quantity / held : 0;
+  const remaining = Math.max(0, held - quantity);
+  if (remaining > 1e-8) {
+    state.cargo[goodId] = remaining;
+    if (basis.known) {
+      state.accounts.cargoCostBasis[goodId] = roundLedgerMoney(basis.total - consumedCost);
+    }
+  } else {
+    delete state.cargo[goodId];
+    delete state.accounts.cargoCostBasis[goodId];
+  }
+  recordDecision(state, `provisions.consume.${goodId}`, quantity);
+  return { goodId, quantity, costBasis: consumedCost };
+}
+
+function updateWineOnlySurvivalState(state, elapsedMinutes, interrupted) {
+  if (!Number.isFinite(elapsedMinutes) || elapsedMinutes < 0) {
+    throw new Error(`Invalid wine-only survival time: ${elapsedMinutes}`);
+  }
+  if (elapsedMinutes <= 1e-8) {
+    resetWineOnlySurvivalState(state);
+    return { started: false, daysElapsed: 0 };
+  }
+  const previous = interrupted ? 0 : state.survival.wineOnlyMinutes;
+  const current = previous + elapsedMinutes;
+  state.survival.wineOnlyMinutes = current;
+  return {
+    started: previous <= 1e-8,
+    daysElapsed: Math.floor(current / MINUTES_PER_DAY) - Math.floor(previous / MINUTES_PER_DAY)
+  };
+}
+
+function resetWineOnlySurvivalState(state) {
+  state.survival.wineOnlyMinutes = 0;
 }
 
 function consumeCargoUnit(state, goodId) {
@@ -3091,6 +3189,12 @@ function assertCargoQuantity(good, quantity) {
     }
     return;
   }
+  if (good.category === "drink") {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error(`Invalid cargo.${good.id}: ${quantity}`);
+    }
+    return;
+  }
   assertQuantity(quantity, `cargo.${good.id}`);
 }
 
@@ -3111,6 +3215,10 @@ function ensureSurvivalState(state) {
   state.survival.freshWater = Math.min(state.survival.freshWater, state.survival.freshWaterCapacity);
   if (!Number.isFinite(state.survival.foodRationDebt) || state.survival.foodRationDebt < 0) {
     throw new Error(`Invalid food ration debt: ${state.survival.foodRationDebt}`);
+  }
+  if (state.survival.wineOnlyMinutes === undefined) state.survival.wineOnlyMinutes = 0;
+  if (!Number.isFinite(state.survival.wineOnlyMinutes) || state.survival.wineOnlyMinutes < 0) {
+    throw new Error(`Invalid wine-only survival time: ${state.survival.wineOnlyMinutes}`);
   }
   if (!Number.isFinite(state.survival.lastMinute)) {
     state.survival.lastMinute = 0;

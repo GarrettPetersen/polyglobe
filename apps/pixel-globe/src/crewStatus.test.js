@@ -40,11 +40,14 @@ test("travelers follow the crew with their semantic kind", () => {
   ]);
 });
 
-test("crew status fails loudly when its people cannot fit", () => {
-  assert.throws(
-    () => crewStatusLayout({ crewCount: 9, x: 0, y: 0, width: 10 }),
-    /cannot fit/
-  );
+test("very large crews share integer columns without leaving the row", () => {
+  const layout = crewStatusLayout({ crewCount: 120, x: 10, y: 20, width: 90 });
+
+  assert.ok(layout.pitch < 1);
+  assert.equal(layout.entries.length, 120);
+  assert.equal(layout.entries[0].x, 10);
+  assert.equal(layout.entries.at(-1).x, 97);
+  assert.ok(layout.entries.every((entry) => Number.isInteger(entry.x)));
 });
 
 test("crew deaths use the normalized credited sound effect", async () => {

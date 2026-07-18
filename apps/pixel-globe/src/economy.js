@@ -31,6 +31,7 @@ const SOURCE_SPICE_MINIMUM_TARGET_STOCK = 80;
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
 export const FORAGED_FOOD_GOOD_ID = "foraged-food";
+export const WINE_GOOD_ID = "wine";
 export const WHALE_BLUBBER_GOOD_ID = "whale-blubber";
 export const BEAVER_PELTS_GOOD_ID = "beaver-pelts";
 export const CINNAMON_GOOD_ID = "cinnamon";
@@ -59,7 +60,7 @@ export const TRADE_GOODS = Object.freeze([
   good(WHALE_BLUBBER_GOOD_ID, "Whale Blubber", 240, "material", { npcTrade: false }),
   good(BEAVER_PELTS_GOOD_ID, "Beaver Pelts", 120, "luxury"),
   good("cheese", "Cheese", 14, "food"),
-  good("wine", "Wine", 18, "food"),
+  good(WINE_GOOD_ID, "Wine", 18, "drink"),
   good("olive-oil", "Olive Oil", 16, "food"),
   good("salt", "Salt", 12, "staple", { unitSize: 2 }),
   good("sugar", "Sugar", 20, "food"),
@@ -930,6 +931,7 @@ function assertCargoCapacity(cargoCapacity) {
 
 function stapleDemandRate(category) {
   if (category === "food") return 0.42;
+  if (category === "drink") return 0.42;
   if (category === "supply") return 0;
   if (category === "staple") return 0.25;
   if (category === "material") return 0.13;
