@@ -407,18 +407,23 @@ test("white-whale rumors point to a sighting until the captain reaches it", () =
   for (let index = 0; index < 100 && !rumor; index++) {
     rumor = recordWhiteWhaleSighting(goal, {
       interactionKey: `test-port-${index}`,
-      observerLatitudeDeg: 1,
-      observerLongitudeDeg: 104,
+      referenceCityName: "Makassar",
+      referenceCityLatitudeDeg: -5.1,
+      referenceCityLongitudeDeg: 119.4,
       whaleLatitudeDeg: -20,
-      whaleLongitudeDeg: 125
+      whaleLongitudeDeg: 125,
+      reportedLatitudeDeg: -18.2,
+      reportedLongitudeDeg: 127.7
     });
   }
   assert.ok(rumor);
   assert.match(rumor.text, /white|pale/i);
+  assert.match(rumor.text, /Makassar/);
+  assert.equal(rumor.referenceCityName, "Makassar");
   assert.deepEqual(campaignGoalDestination(goal), {
     kind: CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
-    latitudeDeg: -20,
-    longitudeDeg: 125,
+    latitudeDeg: -18.2,
+    longitudeDeg: 127.7,
     reason: "white-whale-last-seen"
   });
   assert.match(reachWhiteWhaleSighting(goal), /place|spot|bearing/i);

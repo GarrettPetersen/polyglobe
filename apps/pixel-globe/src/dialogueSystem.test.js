@@ -1126,10 +1126,20 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
   const poorView = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(poorView.presentation.kind, "shipyard");
   assert.equal(poorView.presentation.listing.shipSlug, "brigantine");
-  assert.equal(poorView.text, "A newly built Brigantine is offered for 35000 doubloons.");
+  assert.equal(poorView.presentation.currentShipSlug, "fishing-lugger");
+  assert.deepEqual(poorView.presentation.purchaseTerms, {
+    listingPrice: 35000,
+    tradeInValue: 900,
+    netPrice: 34100
+  });
+  assert.equal(
+    poorView.text,
+    "A newly built Brigantine is offered for 35000 doubloons. Your Fishing Barque is worth 900 in trade."
+  );
   const poorPurchase = poorView.options.find((entry) => entry.action.type === "purchase-ship");
   assert.equal(poorPurchase.disabled, true);
-  assert.match(poorPurchase.disabledReason, /more doubloons/);
+  assert.equal(poorPurchase.label, "Buy Brigantine  34100 db");
+  assert.equal(poorPurchase.disabledReason, "You need 33740 more doubloons.");
 
   gameState.doubloons = 40000;
   const richView = portDialogueView(session, city, gameState, economy, [city], context);

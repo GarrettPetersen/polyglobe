@@ -110,11 +110,12 @@ test("a founded port joins the economy and its save snapshot", () => {
 test("a founder discount changes both the quoted and executed market price", () => {
   const colony = { ...LONDON, tileId: 98, city: "Port Royal", displayCity: "Port Royal", purchaseDiscountMultiplier: 0.85 };
   const economy = createWorldEconomy({ ports: [LONDON, colony], startMinute: 0 });
-  const base = executePortSale(economy, LONDON, "wool", 1).total;
+  const base = quotePortSale(economy, colony, "wool", 1);
+  const quoted = quotePortSale(economy, colony, "wool", 1, colony.purchaseDiscountMultiplier);
   const discounted = executePortSale(economy, colony, "wool", 1, colony.purchaseDiscountMultiplier).total;
 
-  assert.ok(discounted < base);
-  assert.equal(discounted, Math.round(base * 0.85));
+  assert.equal(quoted, Math.round(base * 0.85));
+  assert.equal(discounted, quoted);
 });
 
 test("ship supplies are cheap, available everywhere, and not bought back", () => {
@@ -407,6 +408,49 @@ test("bulk trading moves prices and cannot exceed market inventory or specie", (
   assert.ok(affordable < 1000);
   if (affordable > 0) executePortPurchase(economy, GOA, "gold", affordable);
   assert.ok(portEconomySummary(economy, GOA).specie <= goaSpecie);
+});
+
+test("local price levels fall with specie scarcity and rise with specie abundance", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const londonState = [...economy.portStates.values()][0];
+  const targetSpecie = londonState.targetSpecie;
+
+  londonState.specie = targetSpecie;
+  const balanced = marketByGood(economy, LONDON);
+  londonState.specie = targetSpecie * 0.1;
+  const scarce = marketByGood(economy, LONDON);
+  londonState.specie = targetSpecie * 4;
+  const abundant = marketByGood(economy, LONDON);
+
+  assert.ok(scarce.get("wool").buyPrice < balanced.get("wool").buyPrice);
+  assert.ok(scarce.get("wool").sellPrice < balanced.get("wool").sellPrice);
+  assert.ok(abundant.get("wool").buyPrice > balanced.get("wool").buyPrice);
+  assert.ok(abundant.get("wool").sellPrice > balanced.get("wool").sellPrice);
+  assert.ok(scarce.get(HARDTACK_GOOD_ID).buyPrice < abundant.get(HARDTACK_GOOD_ID).buyPrice);
+});
+
+test("specie price pressure gives NPC merchants a balancing trade direction", () => {
+  const lowCashPort = { ...LONDON, tileId: 41, city: "Low Cash", displayCity: "Low Cash" };
+  const highCashPort = { ...LONDON, tileId: 42, city: "High Cash", displayCity: "High Cash" };
+  const economy = createWorldEconomy({ ports: [lowCashPort, highCashPort], startMinute: 0 });
+  const [lowState, highState] = [...economy.portStates.values()];
+  for (const good of TRADE_GOODS) {
+    highState.goods.get(good.id).stock = lowState.goods.get(good.id).stock;
+  }
+  lowState.specie = lowState.targetSpecie * 0.1;
+  highState.specie = highState.targetSpecie * 4;
+
+  const towardRichPort = planNpcTrade(economy, lowCashPort, highCashPort, {
+    cargoCapacity: 20,
+    specie: 10000
+  });
+  const towardPoorPort = planNpcTrade(economy, highCashPort, lowCashPort, {
+    cargoCapacity: 20,
+    specie: 10000
+  });
+
+  assert.ok(towardRichPort.expectedProfit > 0);
+  assert.ok(towardRichPort.expectedProfit > towardPoorPort.expectedProfit);
 });
 
 test("production and consumption advance in coarse simulation steps", () => {

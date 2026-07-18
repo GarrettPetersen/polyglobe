@@ -7,11 +7,13 @@ import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_CARGO_CAPACITY,
   LAND_CART_SPEED_KM_PER_DAY,
+  MAX_VISIBLE_LAND_CARTS_PER_SEGMENT,
   createLandTradeSystem,
   landCartCountForCityCount,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
-  updateLandTradeSystem
+  updateLandTradeSystem,
+  visibleLandCartSnapshots
 } from "./landTradeSystem.js";
 import { SHIP_STATS } from "./shipStats.js";
 import { EARTH_RADIUS_KM } from "./worldDistance.js";
@@ -97,6 +99,121 @@ test("low-capacity carts trade, advance, and restore exactly", () => {
   restoreLandTradeSystem(expanded, { version: 1, carts: snapshot.carts.slice(0, 1) });
   assert.equal(expanded.carts.length, 3);
   assert.deepEqual(expanded.carts[0], snapshot.carts[0]);
+});
+
+test("carts continue through connected cities instead of shuttling across one short road", () => {
+  const roads = syntheticRoads();
+  const economy = createWorldEconomy({
+    ports: [LONDON, ANTIOCH, ALEPPO],
+    shipyardPorts: [LONDON],
+    startMinute: 0
+  });
+  const system = createLandTradeSystem({
+    roads,
+    economy,
+    cities: [LONDON, ANTIOCH, ALEPPO],
+    startMinute: 0
+  });
+  const cart = system.carts[0];
+  Object.assign(cart, {
+    originTileId: LONDON.tileId,
+    destinationTileId: ANTIOCH.tileId,
+    routeId: "road-1-2",
+    departureMinute: 0,
+    arrivalMinute: 1,
+    cargo: {},
+    cargoCost: {},
+    specie: 600,
+    journeySerial: 0
+  });
+
+  updateLandTradeSystem(system, 1);
+
+  assert.equal(cart.originTileId, ANTIOCH.tileId);
+  assert.equal(cart.destinationTileId, ALEPPO.tileId);
+  assert.equal(cart.routeId, "road-2-3");
+});
+
+test("cart route choice favors an open onward road over a crowded one", () => {
+  const cities = [
+    city(1, "Westhaven", "northern-european", 50000),
+    city(2, "Crossroads", "northern-european", 50000),
+    city(3, "Eastmarket", "northern-european", 50000),
+    city(4, "Southmarket", "northern-european", 50000)
+  ];
+  const roads = parseLandRoadNetwork({
+    format: "pixel-globe-land-roads",
+    version: 1,
+    subdivisions: 7,
+    earthCacheVersion: "test",
+    cities: cities.map((entry) => ({ tileId: entry.tileId, name: entry.city })),
+    routes: [
+      { id: "road-1-2", fromTileId: 1, toTileId: 2, distanceKm: 100, weightedCost: 100, tileIds: [1, 2] },
+      { id: "road-2-3", fromTileId: 2, toTileId: 3, distanceKm: 100, weightedCost: 100, tileIds: [2, 3] },
+      { id: "road-2-4", fromTileId: 2, toTileId: 4, distanceKm: 100, weightedCost: 100, tileIds: [2, 4] }
+    ]
+  }, { subdivisions: 7, earthCacheVersion: "test" });
+  const economy = createWorldEconomy({ ports: cities, shipyardPorts: [cities[0]], startMinute: 0 });
+  const system = createLandTradeSystem({ roads, economy, cities, startMinute: 0 });
+  Object.assign(system.carts[0], {
+    originTileId: 1,
+    destinationTileId: 2,
+    routeId: "road-1-2",
+    departureMinute: 0,
+    arrivalMinute: 1,
+    cargo: {},
+    cargoCost: {},
+    specie: 600,
+    journeySerial: 0
+  });
+  for (const [index, cart] of system.carts.slice(1).entries()) {
+    Object.assign(cart, {
+      originTileId: index % 2 === 0 ? 2 : 3,
+      destinationTileId: index % 2 === 0 ? 3 : 2,
+      routeId: "road-2-3",
+      departureMinute: 0,
+      arrivalMinute: 100,
+      cargo: {},
+      cargoCost: {},
+      specie: 600,
+      journeySerial: 0
+    });
+  }
+
+  updateLandTradeSystem(system, 1);
+
+  assert.equal(system.carts[0].routeId, "road-2-4");
+  assert.equal(system.carts[0].destinationTileId, 4);
+});
+
+test("cart rendering caps a road pileup without removing strategic traders", () => {
+  const roads = syntheticRoads();
+  const economy = createWorldEconomy({
+    ports: [LONDON, ANTIOCH, ALEPPO],
+    shipyardPorts: [LONDON],
+    startMinute: 0
+  });
+  const system = createLandTradeSystem({
+    roads,
+    economy,
+    cities: [LONDON, ANTIOCH, ALEPPO],
+    startMinute: 0
+  });
+  for (const cart of system.carts) {
+    Object.assign(cart, {
+      originTileId: LONDON.tileId,
+      destinationTileId: ANTIOCH.tileId,
+      routeId: "road-1-2",
+      departureMinute: 0,
+      arrivalMinute: 100
+    });
+  }
+
+  const snapshots = visibleLandCartSnapshots(system, 10, new Set([1, 10, 2]));
+
+  assert.equal(system.carts.length, 3);
+  assert.equal(snapshots.length, MAX_VISIBLE_LAND_CARTS_PER_SEGMENT);
+  assert.deepEqual(visibleLandCartSnapshots(system, 10, new Set([3])), []);
 });
 
 function syntheticRoads() {

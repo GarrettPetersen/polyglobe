@@ -15,6 +15,16 @@ export function wrapMeasuredText(text, maxWidth, maxLines, measureText) {
   if (!Number.isInteger(maxLines) || maxLines <= 0) {
     throw new Error(`Measured text requires a positive line limit: ${maxLines}`);
   }
+  const wrapped = wrapAllMeasuredText(text, maxWidth, measureText);
+  const lines = wrapped.slice(0, maxLines);
+  if (wrapped.length > maxLines && lines.length > 0) {
+    lines[lines.length - 1] = fitMeasuredText(`${lines[lines.length - 1]} ...`, maxWidth, measureText);
+  }
+  return lines.length > 0 ? lines : [""];
+}
+
+export function wrapAllMeasuredText(text, maxWidth, measureText) {
+  validateTextLayoutInputs(text, maxWidth, measureText);
   const words = text.split(/\s+/).filter(Boolean);
   const wrapped = [];
   let line = "";
@@ -28,12 +38,9 @@ export function wrapMeasuredText(text, maxWidth, maxLines, measureText) {
     line = word;
   }
   if (line) wrapped.push(line);
-
-  const lines = wrapped.slice(0, maxLines).map((entry) => fitMeasuredText(entry, maxWidth, measureText));
-  if (wrapped.length > maxLines && lines.length > 0) {
-    lines[lines.length - 1] = fitMeasuredText(`${lines[lines.length - 1]} ...`, maxWidth, measureText);
-  }
-  return lines.length > 0 ? lines : [""];
+  return wrapped.length > 0
+    ? wrapped.map((entry) => fitMeasuredText(entry, maxWidth, measureText))
+    : [""];
 }
 
 function validateTextLayoutInputs(text, maxWidth, measureText) {

@@ -542,13 +542,53 @@ test("buying a ship spends specie, changes capacity, and enters the ledger", () 
   initializeProvisionalShipLoadout(state, brigantine);
   state.doubloons = 60000;
 
-  const result = purchasePlayerShip(state, LONDON, carrack, 50000, { simMinute: 240 });
+  const result = purchasePlayerShip(state, LONDON, carrack, {
+    listingPrice: 50000,
+    tradeInValue: 0
+  }, { simMinute: 240 });
 
   assert.equal(result.slug, "carrack");
   assert.equal(state.doubloons, 10000);
   assert.equal(state.cargoCapacity, carrack.cargoCapacity);
   assert.equal(state.accounts.ledger.at(-1).kind, "ship");
   assert.equal(state.accounts.ledger.at(-1).amount, -50000);
+});
+
+test("trading in a ship charges only the net price", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const carrack = shipStatsForSlug("carrack");
+  const state = createGameState({ cargoCapacity: brigantine.cargoCapacity, shipStats: brigantine });
+  initializeProvisionalShipLoadout(state, brigantine);
+  state.doubloons = 50000;
+
+  const result = purchasePlayerShip(state, LONDON, carrack, {
+    listingPrice: 50000,
+    tradeInValue: 10000
+  }, { simMinute: 240 });
+
+  assert.equal(result.listingPrice, 50000);
+  assert.equal(result.tradeInValue, 10000);
+  assert.equal(result.netPrice, 40000);
+  assert.equal(state.doubloons, 10000);
+  assert.equal(state.accounts.ledger.at(-1).amount, -40000);
+  assert.match(state.accounts.ledger.at(-1).description, /10000 doubloon vessel trade-in/);
+});
+
+test("a more valuable trade-in pays the difference without hiding the credit", () => {
+  const carrack = shipStatsForSlug("carrack");
+  const felucca = shipStatsForSlug("felucca");
+  const state = createGameState({ cargoCapacity: carrack.cargoCapacity, shipStats: carrack });
+  initializeProvisionalShipLoadout(state, carrack);
+  state.doubloons = 100;
+
+  const result = purchasePlayerShip(state, LONDON, felucca, {
+    listingPrice: 5000,
+    tradeInValue: 7000
+  }, { simMinute: 240 });
+
+  assert.equal(result.netPrice, -2000);
+  assert.equal(state.doubloons, 2100);
+  assert.equal(state.accounts.ledger.at(-1).amount, 2000);
 });
 
 test("awarding a ship replaces the hull without charging the player", () => {
@@ -586,7 +626,10 @@ test("a rejected ship replacement changes neither money nor the ledger", () => {
   const ledgerLength = state.accounts.ledger.length;
 
   assert.throws(
-    () => purchasePlayerShip(state, LONDON, felucca, 50000, { simMinute: 240 }),
+    () => purchasePlayerShip(state, LONDON, felucca, {
+      listingPrice: 50000,
+      tradeInValue: 0
+    }, { simMinute: 240 }),
     /current hold will not fit/
   );
   assert.equal(state.doubloons, 60000);

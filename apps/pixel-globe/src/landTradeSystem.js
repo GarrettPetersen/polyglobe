@@ -10,6 +10,8 @@ import {
 export const LAND_CART_CARGO_CAPACITY = 4;
 export const LAND_CART_SPEED_KM_PER_DAY = 120;
 export const LAND_CART_WALK_FRAME_COUNT = 6;
+export const MAX_VISIBLE_LAND_CARTS = 14;
+export const MAX_VISIBLE_LAND_CARTS_PER_SEGMENT = 2;
 const MAX_CARTS = 192;
 const CITY_GROUP_SIZE = 5;
 const CARTS_PER_CITY_GROUP = 3;
@@ -92,6 +94,26 @@ export function landCartSnapshots(system, simMinute) {
   });
 }
 
+export function visibleLandCartSnapshots(system, simMinute, visibleTileIds) {
+  if (!(visibleTileIds instanceof Set)) throw new Error("Visible land carts require a tile-id set");
+  const candidates = landCartSnapshots(system, simMinute)
+    .filter((cart) => visibleTileIds.has(cart.tileA) && visibleTileIds.has(cart.tileB))
+    .sort((a, b) => hashString32(a.id) - hashString32(b.id) || a.id.localeCompare(b.id));
+  const segmentCounts = new Map();
+  const visible = [];
+  for (const cart of candidates) {
+    const segmentId = cart.tileA < cart.tileB
+      ? `${cart.tileA}:${cart.tileB}`
+      : `${cart.tileB}:${cart.tileA}`;
+    const count = segmentCounts.get(segmentId) || 0;
+    if (count >= MAX_VISIBLE_LAND_CARTS_PER_SEGMENT) continue;
+    visible.push(cart);
+    segmentCounts.set(segmentId, count + 1);
+    if (visible.length >= MAX_VISIBLE_LAND_CARTS) break;
+  }
+  return visible;
+}
+
 export function snapshotLandTradeSystem(system) {
   assertLandTradeSystem(system);
   return {
@@ -161,11 +183,14 @@ function arriveAndDepartCart(system, cart, departureMinute) {
 }
 
 function chooseNextRoute(system, cart, originTileId) {
-  const routes = system.roads.neighborRoutesByCityTileId.get(originTileId)
+  const connectedRoutes = system.roads.neighborRoutesByCityTileId.get(originTileId)
     ?.filter((route) => (
       system.cityByTileId.has(route.fromTileId) && system.cityByTileId.has(route.toTileId)
     )) || [];
-  if (routes.length === 0) throw new Error(`Land cart reached disconnected city tile ${originTileId}`);
+  if (connectedRoutes.length === 0) throw new Error(`Land cart reached disconnected city tile ${originTileId}`);
+  const onwardRoutes = connectedRoutes.filter((route) => otherRouteEndpoint(route, originTileId) !== cart.originTileId);
+  const routes = onwardRoutes.length > 0 ? onwardRoutes : connectedRoutes;
+  const routeTraffic = countRouteTraffic(system.carts, cart.id);
   const origin = system.cityByTileId.get(originTileId);
   const ranked = routes.map((route) => {
     const destinationTileId = otherRouteEndpoint(route, originTileId);
@@ -175,16 +200,30 @@ function chooseNextRoute(system, cart, originTileId) {
       specie: cart.specie
     });
     const retainedCargoValue = cargoSaleValue(system.economy, destination, cart.cargo);
-    const backtrackPenalty = destinationTileId === cart.originTileId ? 0.82 : 1;
+    const traffic = routeTraffic.get(route.id) || 0;
+    const congestionMultiplier = 1 / (traffic + 1);
     const jitter = 0.96 + hashUnit(`${cart.id}|${cart.journeySerial}|${route.id}`) * 0.08;
     return {
       route,
-      score: (plan.expectedProfit + retainedCargoValue) * backtrackPenalty * jitter /
+      traffic,
+      score: (plan.expectedProfit + retainedCargoValue) * congestionMultiplier * jitter /
         Math.max(80, route.distanceKm)
     };
   });
-  ranked.sort((a, b) => b.score - a.score || a.route.distanceKm - b.route.distanceKm || a.route.id.localeCompare(b.route.id));
-  return ranked[0].route;
+  const minimumTraffic = Math.min(...ranked.map((entry) => entry.traffic));
+  const routesWithCapacity = ranked.filter((entry) => entry.traffic <= minimumTraffic + 1);
+  routesWithCapacity.sort((a, b) => b.score - a.score || a.traffic - b.traffic ||
+    a.route.distanceKm - b.route.distanceKm || a.route.id.localeCompare(b.route.id));
+  return routesWithCapacity[0].route;
+}
+
+function countRouteTraffic(carts, ignoredCartId) {
+  const counts = new Map();
+  for (const cart of carts) {
+    if (cart.id === ignoredCartId) continue;
+    counts.set(cart.routeId, (counts.get(cart.routeId) || 0) + 1);
+  }
+  return counts;
 }
 
 function buyCartCargo(system, cart) {

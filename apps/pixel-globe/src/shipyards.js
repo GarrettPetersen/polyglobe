@@ -308,6 +308,22 @@ export function shipConstructionPrice(slug) {
   );
 }
 
+export function shipTradeInValue(slug) {
+  return roundToHundred(shipConstructionPrice(slug) * 0.5);
+}
+
+export function shipyardPurchaseTerms(listingPrice, currentShipSlug) {
+  if (!Number.isInteger(listingPrice) || listingPrice <= 0) {
+    throw new Error(`Invalid shipyard listing price: ${listingPrice}`);
+  }
+  const tradeInValue = shipTradeInValue(currentShipSlug);
+  return Object.freeze({
+    listingPrice,
+    tradeInValue,
+    netPrice: listingPrice - tradeInValue
+  });
+}
+
 export function shipyardQualityBudget(yard) {
   const famousBonus = yard.famous ? 26000 : 0;
   return 7000 + yard.wealthScale * 22000 + famousBonus;

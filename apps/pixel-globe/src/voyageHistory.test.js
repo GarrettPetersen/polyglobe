@@ -7,6 +7,7 @@ import {
   appendVoyageRecord,
   grossDoubloonsEarned,
   readVoyageHistory,
+  voyageBiographyRow,
   voyageHistorySummary
 } from "./voyageHistory.js";
 
@@ -72,6 +73,16 @@ test("gross earnings count income but not the opening purse", () => {
     { kind: "buy", amount: -120 },
     { kind: "income", amount: 80 }
   ]), 405);
+});
+
+test("past voyage biographies reserve death dates for fatal outcomes", () => {
+  const death = completedRecord(voyageRecord({ outcomeType: "death" }), 1);
+  const victory = completedRecord(voyageRecord({ outcomeType: "victory" }), 2);
+  const quit = completedRecord(voyageRecord({ outcomeType: "quit" }), 3);
+
+  assert.deepEqual(voyageBiographyRow(death), ["LIFETIME", "1 JAN 1490 - 2 FEB 1523"]);
+  assert.deepEqual(voyageBiographyRow(victory), ["BORN", "1 JAN 1490"]);
+  assert.deepEqual(voyageBiographyRow(quit), ["BORN", "1 JAN 1490"]);
 });
 
 test("history remains bounded and malformed storage fails closed", () => {

@@ -90,6 +90,13 @@ export function grossDoubloonsEarned(ledger) {
   }, 0);
 }
 
+export function voyageBiographyRow(record) {
+  validateVoyageRecord(record);
+  return record.outcomeType === "death"
+    ? ["LIFETIME", `${record.birthDateLabel} - ${record.endDateLabel}`]
+    : ["BORN", record.birthDateLabel];
+}
+
 function validateVoyageHistory(history) {
   if (!history || typeof history !== "object" || history.version !== VOYAGE_HISTORY_VERSION) {
     throw new Error(`Unsupported voyage history version: ${history?.version ?? "missing"}`);

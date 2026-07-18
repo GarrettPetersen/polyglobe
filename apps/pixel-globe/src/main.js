@@ -189,6 +189,7 @@ import {
   createWhaleBlowBurst,
   whaleBlowParticleFrame
 } from "./whaleBlowParticles.js";
+import { selectWhaleTargetAtPoint } from "./whaleTargeting.js";
 import {
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_DEAD,
@@ -495,7 +496,7 @@ import {
   DEBUG_WEATHER_CONTROL,
   debugWeatherControlForKey
 } from "./debugWeatherControls.js";
-import { fitMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
+import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { gameOverStatsLayout } from "./gameOverLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import {
@@ -617,6 +618,7 @@ import {
   claimShipyardListing,
   nearestShipyardListingForPort,
   shipyardAtPort,
+  shipyardPurchaseTerms,
   shipyardRumorForPort
 } from "./shipyards.js";
 import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
@@ -625,6 +627,7 @@ import {
   grossDoubloonsEarned,
   readVoyageHistory,
   VOYAGE_OUTCOME_TYPES,
+  voyageBiographyRow,
   voyageHistorySummary
 } from "./voyageHistory.js";
 import {
@@ -662,10 +665,10 @@ import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_WALK_FRAME_COUNT,
   createLandTradeSystem,
-  landCartSnapshots,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
-  updateLandTradeSystem
+  updateLandTradeSystem,
+  visibleLandCartSnapshots
 } from "./landTradeSystem.js";
 import {
   COLONIZATION_STAGE_ESTABLISHED,
@@ -1455,7 +1458,6 @@ const WHALE_ASSET_SLUGS = Object.freeze([
 const WHALE_HARPOON_PROJECTILE_SECONDS = 0.52;
 const WHALE_HARPOON_ARC_PX = 3;
 const WHALE_BLOW_DURATION_MS = WHALE_BLOW_DURATION_SECONDS * 1000;
-const WHALE_TARGET_HIT_RADIUS_PX = 18;
 const WHALE_SUBMERGED_ALPHA = 0.34;
 const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
@@ -3389,6 +3391,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
     message,
     expressionId,
     buttonLabel,
+    page: 0,
     hovered: false,
     buttonRect: captainAlertButtonRect()
   };
@@ -3474,7 +3477,8 @@ function handleCaptainAlertKeyDown(event) {
     }
     return;
   }
-  if (event.key === "Enter" || event.key === " " || event.key === "Escape") closeCaptainAlertModal();
+  if (event.key === "Escape") closeCaptainAlertModal();
+  else if (event.key === "Enter" || event.key === " ") advanceCaptainAlertModal();
 }
 
 function handleGameOverKeyDown(event) {
@@ -3489,7 +3493,20 @@ function handlePlayerIntroPointerDown(point) {
 function handleCaptainAlertPointerDown(point) {
   if (!pointInRect(point, captainAlertModal?.buttonRect)) return;
   if (captainAlertModal.kind === "sailing-help") stepSailingHelpPage(1);
-  else closeCaptainAlertModal();
+  else advanceCaptainAlertModal();
+}
+
+function advanceCaptainAlertModal() {
+  const modal = captainAlertModal;
+  if (!modal || modal.kind === "sailing-help") throw new Error("No character alert is available to advance");
+  const pageCount = captainAlertPages(modal).length;
+  if (modal.page + 1 >= pageCount) {
+    closeCaptainAlertModal();
+    return;
+  }
+  modal.page += 1;
+  modal.hovered = false;
+  dirty = true;
 }
 
 function stepSailingHelpPage(direction) {
@@ -6197,15 +6214,6 @@ function handlePointerDown(event) {
     openActiveInteractionDialogue();
     return;
   }
-  const broadside = navalBroadsideSideAtPoint(point);
-  if (broadside) {
-    event.preventDefault();
-    beginPointerSteering(event.pointerId, point, {
-      type: "world-broadside",
-      sideName: broadside
-    });
-    return;
-  }
   const clickedShip = npcShipCallAtPoint(point);
   if (clickedShip) {
     event.preventDefault();
@@ -6218,6 +6226,15 @@ function handlePointerDown(event) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
     startWhaleHarpoon(clickedWhale);
+    return;
+  }
+  const broadside = navalBroadsideSideAtPoint(point);
+  if (broadside) {
+    event.preventDefault();
+    beginPointerSteering(event.pointerId, point, {
+      type: "world-broadside",
+      sideName: broadside
+    });
     return;
   }
   const clickedFish = fishCallAtPoint(point);
@@ -7056,17 +7073,65 @@ function maybeWhiteWhaleRumor(interactionKey) {
   const goal = gameState?.memory?.campaignGoal;
   if (!goal || goal.type !== CAMPAIGN_GOAL_WHITE_WHALE || goal.whiteWhaleKilled) return null;
   const quarry = whiteWhale(gameState.memory.whales);
-  const observer = vectorLatLon(ship.position);
   const quarryLocation = vectorLatLon(quarry.position);
+  const referenceCity = nearestCityToPosition(quarry.position);
+  const reportedLocation = approximateWhiteWhaleSightingLocation(quarry.position, interactionKey);
   const rumor = recordWhiteWhaleSighting(goal, {
     interactionKey,
-    observerLatitudeDeg: observer.latitudeDeg,
-    observerLongitudeDeg: observer.longitudeDeg,
+    referenceCityName: cityLabelText(referenceCity),
+    referenceCityLatitudeDeg: referenceCity.lat,
+    referenceCityLongitudeDeg: referenceCity.lon,
     whaleLatitudeDeg: quarryLocation.latitudeDeg,
-    whaleLongitudeDeg: quarryLocation.longitudeDeg
+    whaleLongitudeDeg: quarryLocation.longitudeDeg,
+    reportedLatitudeDeg: reportedLocation.latitudeDeg,
+    reportedLongitudeDeg: reportedLocation.longitudeDeg
   });
   saveVoyageNow(rumor ? "heard white whale rumor" : "checked white whale rumor");
   return rumor;
+}
+
+function nearestCityToPosition(position) {
+  if (!(cityByTileId instanceof Map) || cityByTileId.size === 0) {
+    throw new Error("White whale rumor requires the placed city catalog");
+  }
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const city of cityByTileId.values()) {
+    if (!Number.isFinite(city.lat) || !Number.isFinite(city.lon)) {
+      throw new Error(`City has invalid rumor coordinates: ${cityLabelText(city)}`);
+    }
+    const distance = Math.acos(clamp(dot3(position, latLonToDirection(city.lat, city.lon)), -1, 1));
+    if (distance >= nearestDistance) continue;
+    nearest = city;
+    nearestDistance = distance;
+  }
+  if (!nearest) throw new Error("White whale rumor could not find a reference city");
+  return nearest;
+}
+
+function approximateWhiteWhaleSightingLocation(position, interactionKey) {
+  const north = normalizeTangentOrFallback(WORLD_NORTH, position, [1, 0, 0]);
+  const east = normalizeTangentOrFallback(cross3(north, position), position, [1, 0, 0]);
+  const seed = spriteKeyHash(`${interactionKey}|white-whale-search-area`);
+  for (let index = 0; index < 24; index++) {
+    const bearing = ((seed % 360) + index * 137.508) * Math.PI / 180;
+    const distanceKm = 180 + ((seed >>> 9) + index * 47) % 181;
+    const distanceRad = distanceKm / EARTH_RADIUS_KM;
+    const tangent = [
+      north[0] * Math.cos(bearing) + east[0] * Math.sin(bearing),
+      north[1] * Math.cos(bearing) + east[1] * Math.sin(bearing),
+      north[2] * Math.cos(bearing) + east[2] * Math.sin(bearing)
+    ];
+    const candidate = normalize3([
+      position[0] * Math.cos(distanceRad) + tangent[0] * Math.sin(distanceRad),
+      position[1] * Math.cos(distanceRad) + tangent[1] * Math.sin(distanceRad),
+      position[2] * Math.cos(distanceRad) + tangent[2] * Math.sin(distanceRad)
+    ]);
+    const tileId = findNearestTileId(graph, directionIndex, candidate);
+    if (!isWhaleSwimmableOceanRow(earthById[tileId])) continue;
+    return vectorLatLon(tileCenterVector(tileId));
+  }
+  throw new Error("White whale rumor could not place an approximate ocean search area");
 }
 
 function stopShipForDialogue() {
@@ -7591,12 +7656,15 @@ async function purchaseShipyardShip(action) {
     const stats = shipStatsForSlug(listing.shipSlug);
     const assets = await loadShipAssetSet(listing.shipSlug);
     if (dialogueState !== session || session.nodeId !== "shipyard") return;
-    purchasePlayerShip(gameState, city, stats, listing.price, { simMinute: Math.floor(weatherClockMinutes) });
+    const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
+    purchasePlayerShip(gameState, city, stats, purchaseTerms, { simMinute: Math.floor(weatherClockMinutes) });
     claimShipyardListing(worldEconomy.shipyards, city, listing.id);
     applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     playCoinClinkSound();
-    session.feedback = `Purchased ${listing.shipLabel} for ${listing.price} doubloons.`;
+    session.feedback = purchaseTerms.netPrice >= 0
+      ? `Purchased ${listing.shipLabel} for ${purchaseTerms.netPrice} doubloons after trade-in.`
+      : `Traded for ${listing.shipLabel} and received ${-purchaseTerms.netPrice} doubloons.`;
     session.selectedIndex = 0;
     saveVoyageNow("ship purchase");
   } catch (error) {
@@ -7645,7 +7713,10 @@ async function acquireVikingLongship(action) {
       );
       acceptVikingLongshipReward(gameState);
     } else {
-      purchasePlayerShip(gameState, city, stats, VIKING_LONGSHIP_PRICE, transactionContext);
+      purchasePlayerShip(gameState, city, stats, {
+        listingPrice: VIKING_LONGSHIP_PRICE,
+        tradeInValue: 0
+      }, transactionContext);
       markVikingLongshipPurchased(gameState);
     }
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
@@ -8126,42 +8197,29 @@ function whaleNavigationAtPosition(position) {
 }
 
 function activeWhaleCall() {
-  if (!gameState || !localLayout || whaleHarpoonProjectile || gameState.memory.whales.activeHunt) return null;
-  const harpoon = playerWhaleHarpoon(gameState);
-  if (!harpoon) return null;
-  let best = null;
-  let bestDistance = Infinity;
-  for (const whale of gameState.memory.whales.individuals) {
-    if (!whaleCanBeHarpooned(whale)) continue;
-    const call = whaleInteractionCall(whale);
-    if (!call) continue;
-    const distance = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
-    if (distance > harpoon.rangePx || distance >= bestDistance) continue;
-    best = { ...call, distancePx: distance };
-    bestDistance = distance;
-  }
-  return best;
+  return harpoonableWhaleCalls()
+    .sort((a, b) => a.distancePx - b.distancePx || a.id.localeCompare(b.id))[0] || null;
 }
 
 function whaleCallAtPoint(point) {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+  return selectWhaleTargetAtPoint(harpoonableWhaleCalls(), point, SHIP_SHEET_FRAME_SIZE);
+}
+
+function harpoonableWhaleCalls() {
+  if (!gameState || !localLayout || whaleHarpoonProjectile || gameState.memory.whales.activeHunt) return [];
   const harpoon = playerWhaleHarpoon(gameState);
-  if (!point || !harpoon || whaleHarpoonProjectile || gameState.memory.whales.activeHunt) {
-    return null;
-  }
-  let best = null;
-  let bestDistance = Infinity;
+  if (!harpoon) return [];
+  const calls = [];
   for (const whale of gameState.memory.whales.individuals) {
     if (!whaleCanBeHarpooned(whale)) continue;
     const call = whaleInteractionCall(whale);
     if (!call) continue;
-    const clickDistance = Math.hypot(point.x - call.x, point.y - call.y);
     const shipDistance = Math.hypot(call.x - SCREEN_W / 2, call.y - SCREEN_H / 2);
-    const hitRadius = WHALE_TARGET_HIT_RADIUS_PX * Math.max(0.6, call.scale);
-    if (clickDistance > hitRadius || shipDistance > harpoon.rangePx || clickDistance >= bestDistance) continue;
-    best = { ...call, distancePx: shipDistance };
-    bestDistance = clickDistance;
+    if (shipDistance > harpoon.rangePx) continue;
+    calls.push({ ...call, distancePx: shipDistance });
   }
-  return best;
+  return calls;
 }
 
 function whaleInteractionCall(whale) {
@@ -10208,20 +10266,6 @@ function navalArcHasEnemy(arc) {
     if (pointInBroadsideArc(point, arc, 7)) return true;
   }
 
-  const whaleCall = activeWhaleCall();
-  if (whaleCall) {
-    drawSelectableSpriteOutline({
-      image: whaleImageSet(whaleCall.whale).image,
-      sourceX: (whaleCall.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
-      sourceY: Math.floor(whaleCall.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
-      sourceW: SHIP_SHEET_FRAME_SIZE,
-      sourceH: SHIP_SHEET_FRAME_SIZE,
-      x: Math.round(whaleCall.x - SHIP_SHEET_FRAME_SIZE / 2),
-      y: Math.round(whaleCall.y - SHIP_SHEET_FRAME_SIZE / 2),
-      primary: primaryId === whaleCall.id,
-      pulseBright
-    });
-  }
   for (const battery of activeVisibleShoreBatteries()) {
     if (!battery.engagedTargetIds.has(PLAYER_COMBAT_ID)) continue;
     const localPoint = shoreBatteryPoint(battery.id);
@@ -11311,6 +11355,7 @@ function updateNpcFishermenHarvest() {
     };
     changed = true;
   }
+
   return changed;
 }
 
@@ -13645,6 +13690,21 @@ function drawSelectableInteractionOutlines(nowMs) {
     });
   }
 
+  for (const call of harpoonableWhaleCalls()) {
+    drawSelectableSpriteOutline({
+      image: whaleImageSet(call.whale).image,
+      sourceX: (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+      sourceY: Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
+      sourceW: SHIP_SHEET_FRAME_SIZE,
+      sourceH: SHIP_SHEET_FRAME_SIZE,
+      x: call.x - SHIP_SHEET_FRAME_SIZE * call.scale / 2,
+      y: call.y - SHIP_SHEET_FRAME_SIZE * call.scale / 2,
+      scale: call.scale,
+      primary: primaryId === call.id,
+      pulseBright
+    });
+  }
+
   if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
     const fishingDisabled = !canStartFishing(playerFishCatchCapacity());
     for (const call of fishIndividualDrawCalls(chart, nowMs)) {
@@ -13676,10 +13736,12 @@ function drawSelectableSpriteOutline({
   x,
   y,
   flip = false,
+  scale = 1,
   primary,
   pulseBright,
   disabled = false
 }) {
+  if (!Number.isFinite(scale) || scale <= 0) throw new Error(`Invalid selectable outline scale: ${scale}`);
   const color = disabled ? "#756c62" : primary && pulseBright ? "#fff4a8" : "#f9c22b";
   const outline = selectableSpriteOutlineCanvas(
     image,
@@ -13690,7 +13752,13 @@ function drawSelectableSpriteOutline({
     flip,
     color
   );
-  ctx.drawImage(outline, Math.round(x) - 1, Math.round(y) - 1);
+  ctx.drawImage(
+    outline,
+    Math.round(x - scale),
+    Math.round(y - scale),
+    Math.max(1, Math.round(outline.width * scale)),
+    Math.max(1, Math.round(outline.height * scale))
+  );
 }
 
 function selectableSpriteOutlineCanvas(image, sourceX, sourceY, sourceW, sourceH, flip, color) {
@@ -17088,7 +17156,7 @@ function drawPastVoyageRecordPage(panel, record, voyageNumber) {
     { align: "center", color: PIRATE_MENU_CHART_LINE }
   );
   drawPastVoyageRows(panel, [
-    ["LIFETIME", `${record.birthDateLabel} - ${record.endDateLabel}`],
+    voyageBiographyRow(record),
     ["HOME", record.home],
     ["RESULT / GOAL", `${record.outcomeType.toUpperCase()} / ${record.goal.toUpperCase()}`],
     ["LAST VESSEL", record.vessel],
@@ -17890,7 +17958,11 @@ function drawLandCarts(activeChart, nowMs, light) {
     throw new Error("Horse-cart walk and lighting assets are not initialized");
   }
   if (!light) throw new Error("Horse-cart lighting requires the current sun state");
-  for (const cart of landCartSnapshots(landTradeSystem, weatherClockMinutes)) {
+  for (const cart of visibleLandCartSnapshots(
+    landTradeSystem,
+    weatherClockMinutes,
+    activeChart.visibleSet
+  )) {
     const a = activeChart.tileById.get(cart.tileA);
     const b = activeChart.tileById.get(cart.tileB);
     if (!a || !b) continue;
@@ -22277,7 +22349,11 @@ function drawCaptainAlertModal() {
   });
   ctx.fillStyle = PIRATE_MENU_INK;
   let y = panel.y + 31;
-  for (const line of wrapPixelText(modal.message.toUpperCase(), PIXEL_FONT_SMALL_8, textW, 4)) {
+  const pages = captainAlertPages(modal, textW);
+  if (!Number.isInteger(modal.page) || modal.page < 0 || modal.page >= pages.length) {
+    throw new Error(`Character alert page is invalid: ${modal.page}`);
+  }
+  for (const line of pages[modal.page]) {
     drawPixelText(line, textX, y, { font: PIXEL_FONT_SMALL_8 });
     y += 10;
   }
@@ -22285,10 +22361,19 @@ function drawCaptainAlertModal() {
   const button = modal.buttonRect;
   drawPiratePaperInset(button, modal.hovered);
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText(modal.buttonLabel, button.x + button.w / 2, controlTextY(button), {
+  const buttonLabel = modal.page + 1 < pages.length ? "NEXT" : modal.buttonLabel;
+  drawPixelText(buttonLabel, button.x + button.w / 2, controlTextY(button), {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
+}
+
+function captainAlertPages(modal, textWidth = CAPTAIN_ALERT_PANEL_W - 110) {
+  if (!modal || typeof modal.message !== "string") throw new Error("Character alert has no message");
+  const lines = wrapPixelTextAll(modal.message.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
+  const pages = [];
+  for (let index = 0; index < lines.length; index += 4) pages.push(lines.slice(index, index + 4));
+  return pages;
 }
 
 function drawSailingHelpModal(modal) {
@@ -22953,9 +23038,7 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   const listing = shipyard ? presentation.listing : null;
   const candidateSlug = shipyard ? listing.shipSlug : presentation.candidateShipSlug;
   const vessel = createShipyardShipView(candidateSlug);
-  const comparison = shipyard
-    ? null
-    : createShipComparisonView(presentation.currentShipSlug, candidateSlug);
+  const comparison = createShipComparisonView(presentation.currentShipSlug, candidateSlug);
   ensureShipyardSideViewLoaded(candidateSlug);
   const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
   const compact = SCREEN_H > SCREEN_W;
@@ -22970,7 +23053,7 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
 
   const heading = shipyard ? "SHIPYARD / NEW VESSEL" : "SURRENDERED PRIZE";
   const headingLayout = shipyard
-    ? drawShipyardPurchaseBalance(panel, listing.price, heading)
+    ? drawShipyardPurchaseBalance(panel, presentation.purchaseTerms.netPrice, heading)
     : { x: panel.x + panel.w / 2, align: "center" };
   drawOptionsText(heading, headingLayout.x, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
@@ -23003,14 +23086,16 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   }
 
   if (compact) {
-    if (shipyard) drawCompactShipyardStats(panel, vessel, listing, artY);
+    if (shipyard) drawCompactShipyardStats(panel, comparison, presentation.purchaseTerms, artY);
     else drawCompactShipCaptureStats(panel, comparison, presentation, artY);
   } else if (shipyard) {
-    drawLandscapeShipyardStats(panel, vessel, listing);
+    drawLandscapeShipyardStats(panel, comparison, presentation.purchaseTerms);
   } else {
     drawLandscapeShipCaptureStats(panel, comparison, presentation);
   }
-  drawVesselDecisionStatus(dialogueView, panel, optionY);
+  if (!shipyard || dialogueView.feedback) {
+    drawVesselDecisionStatus(dialogueView, panel, optionY);
+  }
 
   drawDialogueOptions(
     dialogueView,
@@ -23022,60 +23107,53 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   );
 }
 
-function drawLandscapeShipyardStats(panel, vessel, listing) {
-  const statsX = panel.x + 214;
-  const valueX = panel.x + panel.w - 12;
-  drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, panel.y + 40);
-  drawShipInfoValueRow(
-    `CREW / ${vessel.armamentLabel}`,
-    `${vessel.crewCapacity} / ${vessel.armamentSummary}`,
-    statsX,
-    valueX,
-    panel.y + 52
+function drawLandscapeShipyardStats(panel, comparison, purchaseTerms) {
+  drawShipComparison(
+    comparison,
+    shipyardComparisonColumns(comparison),
+    panel.x + 214,
+    panel.x + panel.w - 12,
+    panel.y + 40
   );
-  drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, panel.y + 64);
-  drawShipInfoValueRow("PROPULSION", vessel.propulsionSummary, statsX, valueX, panel.y + 76);
-  drawShipInfoRating("SPEED", vessel.ratings.speed, statsX, panel.y + 92);
-  drawShipInfoRating("ACCEL", vessel.ratings.acceleration, statsX, panel.y + 104);
-  drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, panel.y + 116);
-  drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, panel.y + 128);
-  drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, panel.y + 140);
-  drawShipyardPriceRow(panel, listing.price, panel.y + 149);
+  drawShipyardPriceRow(panel, purchaseTerms, panel.y + 160);
 }
 
-function drawCompactShipyardStats(panel, vessel, listing, artY) {
-  drawShipyardPriceRow(panel, listing.price, artY + SHIP_INFO_SIDE_VIEW_H + 8);
-  const statsX = panel.x + 12;
-  const valueX = panel.x + panel.w - 12;
-  let y = artY + SHIP_INFO_SIDE_VIEW_H + 29;
-  drawShipInfoValueRow("HULL", `${vessel.hull}`, statsX, valueX, y);
-  drawShipInfoValueRow(
-    `CREW / ${vessel.armamentLabel}`,
-    `${vessel.crewCapacity} / ${vessel.armamentSummary}`,
-    statsX,
-    valueX,
-    y + 12
+function drawCompactShipyardStats(panel, comparison, purchaseTerms, artY) {
+  const comparisonY = artY + SHIP_INFO_SIDE_VIEW_H + 9;
+  drawShipComparison(
+    comparison,
+    shipyardComparisonColumns(comparison),
+    panel.x + 12,
+    panel.x + panel.w - 12,
+    comparisonY
   );
-  drawShipInfoValueRow("CARGO HOLD", `${vessel.cargoCapacity}`, statsX, valueX, y + 24);
-  drawShipInfoValueRow("PROPULSION", vessel.propulsionSummary, statsX, valueX, y + 36);
-  y += 56;
-  drawShipInfoRating("SPEED", vessel.ratings.speed, statsX, y);
-  drawShipInfoRating("ACCEL", vessel.ratings.acceleration, statsX, y + 12);
-  drawShipInfoRating("TURNING", vessel.ratings.turning, statsX, y + 24);
-  drawShipInfoRating("WINDWARD", vessel.ratings.windward, statsX, y + 36);
-  drawShipInfoRating("SEAWORTHY", vessel.seaworthiness, statsX, y + 48);
+  drawShipyardPriceRow(panel, purchaseTerms, comparisonY + 120);
 }
 
-function drawShipyardPriceRow(panel, price, y) {
-  drawOptionsText(`${price} DOUBLOONS`, panel.x + 12, y, {
-    font: PIXEL_FONT_DIALOGUE_8,
+function shipyardComparisonColumns(comparison) {
+  return {
+    candidateHeading: "NEW",
+    currentHeading: "CURRENT",
+    candidateHull: String(comparison.candidate.maxHull),
+    currentHull: String(comparison.current.maxHull)
+  };
+}
+
+function drawShipyardPriceRow(panel, purchaseTerms, y) {
+  const { listingPrice, tradeInValue, netPrice } = purchaseTerms;
+  if (![listingPrice, tradeInValue, netPrice].every(Number.isInteger)) {
+    throw new Error("Shipyard price row requires integer purchase terms");
+  }
+  const text = `${listingPrice} DOUBLOONS - ${tradeInValue} FOR CURRENT SHIP = ${netPrice}`;
+  drawOptionsText(fitPixelText(text, PIXEL_FONT_SMALL_8, panel.w - 24), panel.x + 12, y, {
+    font: PIXEL_FONT_SMALL_8,
     color: PIRATE_MENU_INK
   });
 }
 
 function drawShipyardPurchaseBalance(panel, price, heading) {
   if (!statusDoubloonImages) throw new Error("Shipyard purchase requires loaded doubloon status icons");
-  if (!Number.isFinite(price) || price < 0) throw new Error(`Invalid shipyard purchase price: ${price}`);
+  if (!Number.isInteger(price)) throw new Error(`Invalid shipyard net price: ${price}`);
   const affordable = gameState.doubloons >= price;
   const color = affordable ? PIRATE_MENU_INK : PIRATE_MENU_DANGER;
   const amount = formatCompactNumber(gameState.doubloons);
@@ -23099,9 +23177,14 @@ function drawShipyardPurchaseBalance(panel, price, heading) {
 }
 
 function drawLandscapeShipCaptureStats(panel, comparison, presentation) {
-  drawShipCaptureComparison(
+  drawShipComparison(
     comparison,
-    presentation,
+    {
+      candidateHeading: "PRIZE",
+      currentHeading: "CURRENT",
+      candidateHull: `${presentation.candidateHitPoints}/${presentation.candidateMaxHitPoints}`,
+      currentHull: `${presentation.currentHitPoints}/${presentation.currentMaxHitPoints}`
+    },
     panel.x + 214,
     panel.x + panel.w - 12,
     panel.y + 40
@@ -23109,23 +23192,28 @@ function drawLandscapeShipCaptureStats(panel, comparison, presentation) {
 }
 
 function drawCompactShipCaptureStats(panel, comparison, presentation, artY) {
-  drawShipCaptureComparison(
+  drawShipComparison(
     comparison,
-    presentation,
+    {
+      candidateHeading: "PRIZE",
+      currentHeading: "CURRENT",
+      candidateHull: `${presentation.candidateHitPoints}/${presentation.candidateMaxHitPoints}`,
+      currentHull: `${presentation.currentHitPoints}/${presentation.currentMaxHitPoints}`
+    },
     panel.x + 12,
     panel.x + panel.w - 12,
     artY + SHIP_INFO_SIDE_VIEW_H + 9
   );
 }
 
-function drawShipCaptureComparison(comparison, presentation, x, valueX, y) {
+function drawShipComparison(comparison, columns, x, valueX, y) {
   const candidateX = valueX - 72;
-  drawOptionsText("PRIZE", candidateX, y, {
+  drawOptionsText(columns.candidateHeading, candidateX, y, {
     font: PIXEL_FONT_SMALL_8,
     align: "right",
     color: PIRATE_MENU_INK
   });
-  drawOptionsText("CURRENT", valueX, y, {
+  drawOptionsText(columns.currentHeading, valueX, y, {
     font: PIXEL_FONT_SMALL_8,
     align: "right",
     color: PIRATE_MENU_INK_MUTED
@@ -23136,8 +23224,8 @@ function drawShipCaptureComparison(comparison, presentation, x, valueX, y) {
   if (!hullMetric) throw new Error("Ship comparison is missing hull metrics");
   drawShipComparisonRow(
     "HULL",
-    `${presentation.candidateHitPoints}/${presentation.candidateMaxHitPoints}`,
-    `${presentation.currentHitPoints}/${presentation.currentMaxHitPoints}`,
+    columns.candidateHull,
+    columns.currentHull,
     hullMetric.difference,
     x,
     candidateX,
@@ -23448,6 +23536,10 @@ function dialogueOptionTextMetrics(option, font, width, minimumHeight) {
 
 function wrapPixelText(text, font, maxWidth, maxLines) {
   return wrapMeasuredText(text, maxWidth, maxLines, (entry) => measurePixelTextWidth(entry, font));
+}
+
+function wrapPixelTextAll(text, font, maxWidth) {
+  return wrapAllMeasuredText(text, maxWidth, (entry) => measurePixelTextWidth(entry, font));
 }
 
 function ensureDialoguePortraitLoaded() {

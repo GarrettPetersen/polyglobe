@@ -15,6 +15,9 @@ const PORT_MARKDOWN = 0.9;
 const MIN_PRICE_MULTIPLIER = 0.38;
 const MIN_INTEGRATED_PRICE_MULTIPLIER = 0.1;
 const MAX_PRICE_MULTIPLIER = 5;
+const MIN_SPECIE_PRICE_MULTIPLIER = 0.5;
+const MAX_SPECIE_PRICE_MULTIPLIER = 1.75;
+const SPECIE_PRICE_ELASTICITY = 0.35;
 const NPC_SPECIE_RESERVE_RATIO = 0.15;
 const NPC_CARGO_LINE_LIMIT = 4;
 const VILLAGE_MARKET_GOOD_LIMIT = 3;
@@ -768,11 +771,13 @@ function marketRow(port, good) {
 }
 
 function marketPrice(port, good, stock) {
+  const specieMultiplier = speciePriceMultiplier(port);
   if (Number.isFinite(good.fixedBuyPrice)) {
+    const midPrice = Math.max(1, good.fixedBuyPrice * specieMultiplier);
     return {
-      midPrice: good.fixedBuyPrice,
-      buyPrice: good.fixedBuyPrice,
-      sellPrice: good.sellable === false ? 0 : Math.max(1, Math.floor(good.fixedBuyPrice * PORT_MARKDOWN))
+      midPrice,
+      buyPrice: Math.max(1, Math.round(midPrice)),
+      sellPrice: good.sellable === false ? 0 : Math.max(1, Math.floor(midPrice * PORT_MARKDOWN))
     };
   }
   const rawMultiplier = rawMarketMultiplier(port, good, stock);
@@ -786,9 +791,9 @@ function marketPrice(port, good, stock) {
   );
   const state = port.goods.get(good.id);
   const multiplier = clamp(
-    integratedMultiplier * state.localAbundancePriceMultiplier,
-    MIN_INTEGRATED_PRICE_MULTIPLIER * state.localAbundancePriceMultiplier,
-    MAX_PRICE_MULTIPLIER
+    integratedMultiplier * state.localAbundancePriceMultiplier * specieMultiplier,
+    MIN_INTEGRATED_PRICE_MULTIPLIER * state.localAbundancePriceMultiplier * MIN_SPECIE_PRICE_MULTIPLIER,
+    MAX_PRICE_MULTIPLIER * MAX_SPECIE_PRICE_MULTIPLIER
   );
   const midPrice = Math.max(1, good.basePrice * multiplier);
   return {
@@ -796,6 +801,19 @@ function marketPrice(port, good, stock) {
     buyPrice: Math.max(1, Math.round(midPrice * PORT_MARKUP)),
     sellPrice: Math.max(1, Math.floor(midPrice * PORT_MARKDOWN))
   };
+}
+
+function speciePriceMultiplier(port) {
+  if (!Number.isFinite(port.specie) || port.specie < 0 ||
+      !Number.isFinite(port.targetSpecie) || port.targetSpecie <= 0) {
+    throw new Error(`${port.name} has invalid specie price inputs`);
+  }
+  const ratio = port.specie / port.targetSpecie;
+  return clamp(
+    Math.pow(ratio, SPECIE_PRICE_ELASTICITY),
+    MIN_SPECIE_PRICE_MULTIPLIER,
+    MAX_SPECIE_PRICE_MULTIPLIER
+  );
 }
 
 function rawMarketMultiplier(port, good, stock) {
@@ -815,9 +833,6 @@ function rawMarketMultiplier(port, good, stock) {
 
 function quoteTransaction(port, good, quantity, stockDirection, priceKey) {
   if (quantity <= 0) return 0;
-  if (priceKey === "buyPrice" && Number.isFinite(good.fixedBuyPrice)) {
-    return good.fixedBuyPrice * quantity;
-  }
   if (priceKey === "sellPrice" && good.sellable === false) {
     throw new Error(`${port.name} does not buy ${good.label}`);
   }

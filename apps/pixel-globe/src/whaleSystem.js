@@ -9,7 +9,8 @@ import {
   whaleRangeContains,
   whaleRangeContainsCandidate,
   whaleSpeciesById,
-  whaleSpeciesForIndividual
+  whaleSpeciesForIndividual,
+  vectorLatLon
 } from "./whaleSpecies.js";
 import { whaleHarpoonById } from "./whaleHarpoons.js";
 
@@ -36,6 +37,9 @@ const MATING_SEARCH_RADIUS_RAD = 0.22;
 const FAMILY_FOLLOW_DISTANCE_RAD = 0.004;
 const FAMILY_MAX_SEPARATION_RAD = 0.018;
 const WHITE_WHALE_RESISTANCE_MULTIPLIER = 1.45;
+const WHITE_WHALE_MIGRATION_TURN_MULTIPLIER = 1.8;
+const WHITE_WHALE_MIGRATION_LATITUDE_MIN_DEG = 16;
+const WHITE_WHALE_MIGRATION_LATITUDE_SPREAD_DEG = 34;
 const WHALE_TETHER_HAUL_START_PROGRESS = 0.65;
 const WHALE_TETHER_FINAL_LENGTH_SCALE = 0.36;
 
@@ -167,7 +171,13 @@ export function advanceWhaleMemory(memory, dt, navigationAtPosition, currentMinu
       const currentNavigation = requireWhaleNavigation(navigationAtPosition(whale.position));
       if (!currentNavigation.canSurface) breakWhaleTetherUnderIce(memory, whale, events);
     }
-    const navigation = advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById);
+    const navigation = advanceWhaleMovement(
+      whale,
+      dt,
+      navigationAtPosition,
+      individualsById,
+      currentMinute
+    );
     if (whale.phase === WHALE_PHASE_TETHERED && !navigation.canSurface) {
       breakWhaleTetherUnderIce(memory, whale, events);
     }
@@ -643,7 +653,7 @@ function giveBirth(memory, mother, birthMinute) {
   return calf;
 }
 
-function advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById) {
+function advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById, currentMinute) {
   const species = whaleSpeciesForIndividual(whale);
   const stageSpeed = whale.lifeStage === WHALE_LIFE_STAGE_CALF
     ? 0.82
@@ -653,17 +663,19 @@ function advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById) 
     : species.cruiseSpeedRad * stageSpeed;
   const mother = whale.motherId === null ? null : individualsById.get(whale.motherId);
   if (mother && mother.phase !== WHALE_PHASE_DEAD) steerTowardMother(whale, mother, dt);
-  else {
+  else if (whale.id === WHITE_WHALE_ID && whale.phase !== WHALE_PHASE_TETHERED) {
+    steerWhiteWhaleMigration(whale, dt, currentMinute);
+  } else {
     const turnWave = Math.sin(whale.lifeSeconds * 0.21 + (whale.seed & 1023) * 0.013);
     whale.heading = rotateAroundNormal(whale.heading, whale.position, turnWave * species.turnRateRad * dt);
   }
-  const candidatePosition = normalize([
-    whale.position[0] + whale.heading[0] * speed * dt,
-    whale.position[1] + whale.heading[1] * speed * dt,
-    whale.position[2] + whale.heading[2] * speed * dt
-  ]);
-  const navigation = requireWhaleNavigation(navigationAtPosition(candidatePosition));
-  if (!navigation.ok || !whaleRangeContains(whale.speciesId, candidatePosition)) {
+  const step = whaleMovementStep(
+    whale,
+    speed * dt,
+    navigationAtPosition,
+    whale.id === WHITE_WHALE_ID
+  );
+  if (!step) {
     whale.heading = rotateAroundNormal(
       whale.heading,
       whale.position,
@@ -671,10 +683,57 @@ function advanceWhaleMovement(whale, dt, navigationAtPosition, individualsById) 
     );
     return requireWhaleNavigation(navigationAtPosition(whale.position));
   }
-  whale.position = candidatePosition;
-  whale.tileId = navigation.tileId;
+  whale.position = step.position;
+  whale.tileId = step.navigation.tileId;
+  whale.heading = step.heading;
   whale.heading = normalizeTangent(whale.heading, whale.position);
-  return navigation;
+  return step.navigation;
+}
+
+function steerWhiteWhaleMigration(whale, dt, currentMinute) {
+  const { latitudeDeg } = vectorLatLon(whale.position);
+  const hemisphere = (whale.seed & 1) === 0 ? 1 : -1;
+  const annualPhase = currentMinute / (365.25 * MINUTES_PER_DAY) * Math.PI * 2 + unit(whale.seed) * Math.PI * 2;
+  const targetLatitudeDeg = hemisphere * (
+    WHITE_WHALE_MIGRATION_LATITUDE_MIN_DEG +
+    WHITE_WHALE_MIGRATION_LATITUDE_SPREAD_DEG * (0.5 + Math.sin(annualPhase) * 0.5)
+  );
+  const north = normalizeTangentOrNull([0, 1, 0], whale.position) || randomTangent(whale.position, whale.seed);
+  const east = normalizeTangent(cross([0, 1, 0], whale.position), whale.position);
+  const latitudeSteer = clamp((targetLatitudeDeg - latitudeDeg) / 24, -0.7, 0.7);
+  const migration = normalizeTangent([
+    east[0] + north[0] * latitudeSteer,
+    east[1] + north[1] * latitudeSteer,
+    east[2] + north[2] * latitudeSteer
+  ], whale.position);
+  const wander = Math.sin(whale.lifeSeconds * 0.075 + unit(whale.seed ^ 0x57414e44) * Math.PI * 2) * 0.08;
+  const desired = rotateAroundNormal(migration, whale.position, wander);
+  whale.heading = rotateTangentToward(
+    whale.heading,
+    desired,
+    whale.position,
+    whaleSpeciesForIndividual(whale).turnRateRad * WHITE_WHALE_MIGRATION_TURN_MULTIPLIER * dt
+  );
+}
+
+function whaleMovementStep(whale, distanceRad, navigationAtPosition, steerAroundCoast) {
+  const offsets = steerAroundCoast
+    ? [0, Math.PI / 12, -Math.PI / 12, Math.PI / 6, -Math.PI / 6, Math.PI / 3, -Math.PI / 3, Math.PI / 2, -Math.PI / 2]
+    : [0];
+  for (const offset of offsets) {
+    const heading = offset === 0
+      ? whale.heading
+      : rotateAroundNormal(whale.heading, whale.position, offset);
+    const position = normalize([
+      whale.position[0] + heading[0] * distanceRad,
+      whale.position[1] + heading[1] * distanceRad,
+      whale.position[2] + heading[2] * distanceRad
+    ]);
+    const navigation = requireWhaleNavigation(navigationAtPosition(position));
+    if (!navigation.ok || !whaleRangeContains(whale.speciesId, position)) continue;
+    return { position, heading, navigation };
+  }
+  return null;
 }
 
 function steerTowardMother(whale, mother, dt) {

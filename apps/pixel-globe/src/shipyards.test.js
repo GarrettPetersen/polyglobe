@@ -10,7 +10,9 @@ import {
   nearestShipyardListingForPort,
   restoreWorldShipyards,
   shipConstructionPrice,
+  shipTradeInValue,
   shipyardAtPort,
+  shipyardPurchaseTerms,
   shipyardQualityBudget,
   shipyardRumorForPort,
   snapshotWorldShipyards
@@ -40,6 +42,15 @@ test("new-build listings are uncommon but available across a useful share of por
   assert.equal(system.yards.size, ports.length);
   assert.ok(active.length >= ports.length * 0.06, `${active.length} active listings`);
   assert.ok(active.length < ports.length * 0.15, `${active.length} active listings`);
+});
+
+test("shipyard purchase terms apply half the standard value of the current hull", () => {
+  assert.equal(shipTradeInValue("fishing-lugger"), 900);
+  assert.deepEqual(shipyardPurchaseTerms(35000, "fishing-lugger"), {
+    listingPrice: 35000,
+    tradeInValue: 900,
+    netPrice: 34100
+  });
 });
 
 test("a newly founded port receives a normal regional shipyard", () => {

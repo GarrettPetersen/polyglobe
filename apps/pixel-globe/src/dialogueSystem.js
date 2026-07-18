@@ -52,6 +52,7 @@ import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import { shipyardPurchaseTerms } from "./shipyards.js";
 import { FISHING_NETS } from "./fishingNets.js";
 import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
@@ -1694,24 +1695,31 @@ function shipyardView(session, city, gameState, context) {
     };
   }
   const stats = shipStatsForSlug(listing.shipSlug);
+  const currentShipSlug = context.shipStats?.slug;
+  if (!currentShipSlug) throw new Error("Shipyard purchase requires the current ship type");
+  const purchaseTerms = shipyardPurchaseTerms(listing.price, currentShipSlug);
   const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
-  const alreadyOwned = context.shipStats?.slug === listing.shipSlug;
-  const cannotAfford = gameState.doubloons < listing.price;
+  const alreadyOwned = currentShipSlug === listing.shipSlug;
+  const cannotAfford = gameState.doubloons < purchaseTerms.netPrice;
   const disabledReason = alreadyOwned
     ? "You already command this type of vessel."
     : cargoDoesNotFit
       ? `Your current cargo will not fit its ${stats.cargoCapacity}-unit hold.`
       : cannotAfford
-        ? `You need ${listing.price - gameState.doubloons} more doubloons.`
+        ? `You need ${purchaseTerms.netPrice - gameState.doubloons} more doubloons.`
         : null;
+  const currentShipLabel = shipLabelForSlug(currentShipSlug);
+  const purchaseLabel = purchaseTerms.netPrice >= 0
+    ? `Buy ${listing.shipLabel}  ${purchaseTerms.netPrice} db`
+    : `Trade for ${listing.shipLabel}  +${-purchaseTerms.netPrice} db`;
   return {
     speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
-    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons.`,
+    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${currentShipLabel} is worth ${purchaseTerms.tradeInValue} in trade.`,
     feedback: session.feedback,
-    presentation: { kind: "shipyard", listing },
+    presentation: { kind: "shipyard", listing, currentShipSlug, purchaseTerms },
     options: [
-      option(`Buy ${listing.shipLabel}  ${listing.price} db`, {
+      option(purchaseLabel, {
         type: "purchase-ship",
         listingId: listing.id,
         shipSlug: listing.shipSlug

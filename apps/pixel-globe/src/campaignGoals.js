@@ -324,21 +324,29 @@ export function settleWhiteWhaleHomecoming(goal) {
 
 export function recordWhiteWhaleSighting(goal, {
   interactionKey,
-  observerLatitudeDeg,
-  observerLongitudeDeg,
+  referenceCityName,
+  referenceCityLatitudeDeg,
+  referenceCityLongitudeDeg,
   whaleLatitudeDeg,
-  whaleLongitudeDeg
+  whaleLongitudeDeg,
+  reportedLatitudeDeg,
+  reportedLongitudeDeg
 }) {
   validateCampaignGoal(goal);
   if (goal.type !== CAMPAIGN_GOAL_WHITE_WHALE || goal.whiteWhaleKilled) return null;
   if (typeof interactionKey !== "string" || interactionKey === "") {
     throw new Error("White whale sighting requires an interaction key");
   }
+  if (typeof referenceCityName !== "string" || referenceCityName.trim() === "") {
+    throw new Error("White whale sighting requires a reference city");
+  }
   for (const [label, value] of Object.entries({
-    observerLatitudeDeg,
-    observerLongitudeDeg,
+    referenceCityLatitudeDeg,
+    referenceCityLongitudeDeg,
     whaleLatitudeDeg,
-    whaleLongitudeDeg
+    whaleLongitudeDeg,
+    reportedLatitudeDeg,
+    reportedLongitudeDeg
   })) {
     if (!Number.isFinite(value)) throw new Error(`White whale sighting has invalid ${label}`);
   }
@@ -348,28 +356,30 @@ export function recordWhiteWhaleSighting(goal, {
   const roll = hashString32(`${interactionKey}|white-whale-rumor`) % 20;
   if (roll !== 0) return null;
   goal.sighting = {
-    latitudeDeg: whaleLatitudeDeg,
-    longitudeDeg: whaleLongitudeDeg,
+    latitudeDeg: reportedLatitudeDeg,
+    longitudeDeg: reportedLongitudeDeg,
     reached: false,
     interactionKey
   };
   const direction = compassDirection(
-    observerLatitudeDeg,
-    observerLongitudeDeg,
+    referenceCityLatitudeDeg,
+    referenceCityLongitudeDeg,
     whaleLatitudeDeg,
     whaleLongitudeDeg
   );
+  const city = referenceCityName.trim();
   const variants = [
-    `I heard of a whale white as a winding sheet, last seen ${direction} of here. The sailors who saw it have stopped laughing at old tales.`,
-    `A pale spout was sighted ${direction} of here, and beneath it a back like a snow-covered reef. If your quarry lives, it passed that way.`,
-    `There are sober men swearing they saw the white whale ${direction} of here. It sounded once and vanished, as though the sea had closed an eye.`,
-    `Word came from ${direction}: a great sperm whale, all white, carrying old iron in its hide. I thought you would want the bearing.`,
-    `A ship from ${direction} reports a white whale that stove their boat with one turn of its flukes. They marked the place before they fled.`,
-    `Look ${direction}. The crews there speak of a white brow rising through black water, terrible and calm. That is the whale you seek.`
+    `I heard of a whale white as a winding sheet, last seen ${direction} of ${city}. The sailors who saw it have stopped laughing at old tales.`,
+    `A pale spout was sighted ${direction} of ${city}, and beneath it a back like a snow-covered reef. If your quarry lives, it passed that way.`,
+    `There are sober men in ${city} swearing they saw the white whale to the ${direction}. It sounded once and vanished, as though the sea had closed an eye.`,
+    `Word came from waters ${direction} of ${city}: a great sperm whale, all white, carrying old iron in its hide. I thought you would want the bearing.`,
+    `A ship ${direction} of ${city} reports a white whale that stove their boat with one turn of its flukes. They marked the waters before they fled.`,
+    `Look ${direction} of ${city}. The crews there speak of a white brow rising through black water, terrible and calm. That is the whale you seek.`
   ];
   return {
     text: variants[hashString32(`${interactionKey}|white-whale-prose`) % variants.length],
     direction,
+    referenceCityName: city,
     sighting: { ...goal.sighting }
   };
 }

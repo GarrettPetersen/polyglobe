@@ -36,6 +36,7 @@ import {
   WHALE_SPECIES,
   WHALE_SPECIES_BLUE,
   WHALE_SPECIES_MINKE,
+  vectorLatLon,
   whaleDisplayLabel,
   whaleSpeciesById
 } from "./whaleSpecies.js";
@@ -101,6 +102,26 @@ test("whales cruise deliberately while a tethered whale can still make a fast ru
     assert.ok(species.cruiseSpeedRad < slowestPlayerBoatSpeed, species.label);
     assert.ok(species.towingSpeedRad > species.cruiseSpeedRad, species.label);
   }
+});
+
+test("the white whale follows a persistent ocean-scale migration instead of circling its sighting", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const quarry = memory.individuals.find((whale) => whale.id === WHITE_WHALE_ID);
+  quarry.position = [1, 0, 0];
+  quarry.heading = [0, 0, 1];
+  quarry.tileId = 50;
+  const start = quarry.position.slice();
+
+  for (let second = 1; second <= 90; second++) {
+    advanceWhaleMemory(memory, 1, () => whaleNavigation(50), second);
+  }
+
+  const distance = Math.acos(Math.max(-1, Math.min(1,
+    start[0] * quarry.position[0] + start[1] * quarry.position[1] + start[2] * quarry.position[2]
+  )));
+  assert.ok(distance > 0.15, `white whale migrated only ${distance} radians`);
+  assert.ok(vectorLatLon(quarry.position).longitudeDeg > 5);
 });
 
 test("a secured whale tows until exhausted, then can be killed or released", () => {

@@ -598,21 +598,31 @@ export function setPlayerShipStats(state, stats) {
   return plan;
 }
 
-export function purchasePlayerShip(state, city, stats, price, context = {}) {
+export function purchasePlayerShip(state, city, stats, payment, context = {}) {
   assertGameState(state);
   if (!stats || typeof stats.slug !== "string") throw new Error("Ship purchase requires valid ship stats");
-  if (!Number.isInteger(price) || price <= 0) throw new Error(`Invalid ship purchase price: ${price}`);
-  if (state.doubloons < price) throw new Error(`Not enough doubloons to buy ${shipLabelForSlug(stats.slug)}`);
+  if (!payment || typeof payment !== "object") throw new Error("Ship purchase requires payment terms");
+  const { listingPrice, tradeInValue } = payment;
+  if (!Number.isInteger(listingPrice) || listingPrice <= 0) {
+    throw new Error(`Invalid ship purchase listing price: ${listingPrice}`);
+  }
+  if (!Number.isInteger(tradeInValue) || tradeInValue < 0) {
+    throw new Error(`Invalid ship trade-in value: ${tradeInValue}`);
+  }
+  const netPrice = listingPrice - tradeInValue;
+  if (state.doubloons < netPrice) throw new Error(`Not enough doubloons to buy ${shipLabelForSlug(stats.slug)}`);
   const label = shipLabelForSlug(stats.slug);
   const plan = replacePlayerShipAndRecord(state, city, stats, context, {
-    description: `Purchase ${label}`,
-    amount: -price,
-    costBasis: price
+    description: tradeInValue > 0
+      ? `Purchase ${label}; ${tradeInValue} doubloon vessel trade-in`
+      : `Purchase ${label}`,
+    amount: -netPrice,
+    costBasis: Math.max(0, netPrice)
   }, () => {
-    state.doubloons -= price;
+    state.doubloons -= netPrice;
     recordDecision(state, `ship.purchase.${cityKey(city)}.${stats.slug}`, 1);
   });
-  return { slug: stats.slug, label, price, plan };
+  return { slug: stats.slug, label, listingPrice, tradeInValue, netPrice, plan };
 }
 
 export function awardPlayerShip(state, city, stats, description, context = {}) {
