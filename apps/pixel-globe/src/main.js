@@ -204,6 +204,7 @@ import {
   whaleBlubberYield,
   whaleCanBeHarpooned,
   whaleHarpoonBreakMultiplier,
+  whaleTetherLengthScale,
   whaleTowingSpeed,
   whaleSurfaceExposure,
   whiteWhale
@@ -8105,10 +8106,11 @@ function constrainActiveWhaleTether() {
   if (!hunt) return false;
   if (!ship?.position) throw new Error("Active whale hunt requires a player ship position");
   const whale = whaleById(gameState.memory.whales, hunt.whaleId);
+  const tetherLengthScale = whaleTetherLengthScale(whale, hunt);
   return constrainWhaleTether(
     whale,
     ship.position,
-    WHALE_TETHER_MAX_DISTANCE_PX / PIXELS_PER_RADIAN,
+    WHALE_TETHER_MAX_DISTANCE_PX * tetherLengthScale / PIXELS_PER_RADIAN,
     whaleNavigationAtPosition
   );
 }

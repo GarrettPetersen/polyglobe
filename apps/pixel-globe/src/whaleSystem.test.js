@@ -22,6 +22,7 @@ import {
   whaleBlubberYield,
   whaleHarpoonBreakMultiplier,
   whaleSurfaceExposure,
+  whaleTetherLengthScale,
   whaleTowingSpeed
 } from "./whaleSystem.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
@@ -131,6 +132,30 @@ test("a secured whale tows until exhausted, then can be killed or released", () 
   cutWhaleLoose(releasedMemory);
   assert.equal(releasedMemory.activeHunt, null);
   assert.equal(released.phase, "diving");
+});
+
+test("the tow line eases shorter near the end of a whale chase", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const whale = memory.individuals.find((candidate) => candidate.id !== WHITE_WHALE_ID);
+  whale.phase = WHALE_PHASE_RISING;
+  whale.phaseElapsedSeconds = 1;
+  whale.phaseDurationSeconds = 2;
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+
+  const towSeconds = memory.activeHunt.remainingSeconds;
+  assert.equal(whaleTetherLengthScale(whale, memory.activeHunt), 1);
+
+  advanceWhaleMemory(memory, towSeconds * 0.6, () => whaleNavigation(2), 1);
+  assert.equal(whaleTetherLengthScale(whale, memory.activeHunt), 1);
+
+  advanceWhaleMemory(memory, towSeconds * 0.2, () => whaleNavigation(2), 1);
+  const finalStretchScale = whaleTetherLengthScale(whale, memory.activeHunt);
+  assert.ok(finalStretchScale < 1 && finalStretchScale > 0.36);
+
+  advanceWhaleMemory(memory, towSeconds * 0.2, () => whaleNavigation(2), 1);
+  assert.equal(whale.phase, WHALE_PHASE_EXHAUSTED);
+  assert.equal(whaleTetherLengthScale(whale, memory.activeHunt), 0.36);
 });
 
 test("sea ice parts an active harpoon line and lets the whale dive beneath it", () => {

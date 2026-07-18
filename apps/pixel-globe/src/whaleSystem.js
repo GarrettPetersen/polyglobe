@@ -11,6 +11,7 @@ import {
   whaleSpeciesById,
   whaleSpeciesForIndividual
 } from "./whaleSpecies.js";
+import { whaleHarpoonById } from "./whaleHarpoons.js";
 
 export const WHALE_MEMORY_VERSION = 2;
 export const WHALE_PHASE_SUBMERGED = "submerged";
@@ -35,6 +36,8 @@ const MATING_SEARCH_RADIUS_RAD = 0.22;
 const FAMILY_FOLLOW_DISTANCE_RAD = 0.004;
 const FAMILY_MAX_SEPARATION_RAD = 0.018;
 const WHITE_WHALE_RESISTANCE_MULTIPLIER = 1.45;
+const WHALE_TETHER_HAUL_START_PROGRESS = 0.65;
+const WHALE_TETHER_FINAL_LENGTH_SCALE = 0.36;
 
 const PHASES = new Set([
   WHALE_PHASE_SUBMERGED,
@@ -199,16 +202,28 @@ export function tetherWhale(memory, whaleId, harpoon) {
   whale.phase = WHALE_PHASE_TETHERED;
   whale.phaseElapsedSeconds = 0;
   whale.phaseDurationSeconds = 0;
-  const lifeStageProfile = whaleHuntProfile(whale);
-  const resistance = whaleSpeciesForIndividual(whale).exhaustionMultiplier *
-    (whale.id === WHITE_WHALE_ID ? WHITE_WHALE_RESISTANCE_MULTIPLIER : 1) *
-    lifeStageProfile.exhaustionMultiplier;
   memory.activeHunt = {
     whaleId: whale.id,
     harpoonId: harpoon.id,
-    remainingSeconds: harpoon.exhaustionSeconds * resistance
+    remainingSeconds: whaleHuntDurationSeconds(whale, harpoon)
   };
   return whale;
+}
+
+export function whaleTetherLengthScale(whale, hunt) {
+  validateWhale(whale);
+  if (!hunt || hunt.whaleId !== whale.id || !Number.isFinite(hunt.remainingSeconds) || hunt.remainingSeconds < 0) {
+    throw new Error(`Invalid tether state for whale: ${whale.id}`);
+  }
+  const totalSeconds = whaleHuntDurationSeconds(whale, whaleHarpoonById(hunt.harpoonId));
+  if (hunt.remainingSeconds > totalSeconds + 1e-9) {
+    throw new Error(`Whale hunt time exceeds its initial duration: ${whale.id}`);
+  }
+  const chaseProgress = 1 - hunt.remainingSeconds / totalSeconds;
+  const haulProgress = smootherstep(
+    (chaseProgress - WHALE_TETHER_HAUL_START_PROGRESS) / (1 - WHALE_TETHER_HAUL_START_PROGRESS)
+  );
+  return 1 - haulProgress * (1 - WHALE_TETHER_FINAL_LENGTH_SCALE);
 }
 
 export function constrainWhaleTether(whale, anchorPosition, maximumDistanceRad, navigationAtPosition) {
@@ -358,6 +373,16 @@ function whaleHuntProfile(whale) {
   const profile = WHALE_HUNT_PROFILE_BY_LIFE_STAGE[whale.lifeStage];
   if (!profile) throw new Error(`Missing whale hunt profile for life stage: ${whale.lifeStage}`);
   return profile;
+}
+
+function whaleHuntDurationSeconds(whale, harpoon) {
+  if (!harpoon || typeof harpoon.id !== "string" || !Number.isFinite(harpoon.exhaustionSeconds)) {
+    throw new Error("Whale hunt duration requires valid harpoon equipment");
+  }
+  return harpoon.exhaustionSeconds *
+    whaleSpeciesForIndividual(whale).exhaustionMultiplier *
+    (whale.id === WHITE_WHALE_ID ? WHITE_WHALE_RESISTANCE_MULTIPLIER : 1) *
+    whaleHuntProfile(whale).exhaustionMultiplier;
 }
 
 export function underwaterWhaleSongPresence(whale, distancePx, nearPx, farPx) {
