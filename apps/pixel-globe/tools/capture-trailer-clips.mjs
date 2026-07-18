@@ -1,16 +1,16 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
 import { captureScenarioIds } from "../src/captureScenarios.js";
 
 const require = createRequire(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CANVAS_CAPTURE_FPS = 10;
 const CAPTURE_FORMATS = Object.freeze({
   shorts: Object.freeze({
     queryValue: "shorts",
@@ -48,12 +48,19 @@ const browser = await playwright.chromium.launch({
   executablePath: browserExecutablePath(),
   args: ["--autoplay-policy=no-user-gesture-required"]
 });
-const manifest = [];
+const manifest = new Array(scenarioIds.length);
 try {
-  for (const [index, scenarioId] of scenarioIds.entries()) {
-    process.stdout.write(`[${index + 1}/${scenarioIds.length}] ${scenarioId}\n`);
-    manifest.push(await recordScenario(browser, scenarioId));
-  }
+  let nextScenarioIndex = 0;
+  const workerCount = Math.min(args.jobs, scenarioIds.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextScenarioIndex < scenarioIds.length) {
+      const index = nextScenarioIndex;
+      nextScenarioIndex += 1;
+      const scenarioId = scenarioIds[index];
+      process.stdout.write(`[${index + 1}/${scenarioIds.length}] ${scenarioId}\n`);
+      manifest[index] = await recordScenario(browser, scenarioId);
+    }
+  }));
 } finally {
   await browser.close();
 }
@@ -82,80 +89,36 @@ async function recordScenario(browser, scenarioId) {
   await mkdir(categoryDir, { recursive: true });
   await rm(frameDir, { recursive: true, force: true });
   await mkdir(frameDir, { recursive: true });
-  const context = await browser.newContext({
-    acceptDownloads: true,
-    viewport: {
-      width: captureFormat.logicalWidth * 2,
-      height: captureFormat.logicalHeight * 2
-    },
-    deviceScaleFactor: 1
-  });
-  const page = await context.newPage();
-  const downloads = [];
-  const downloadTasks = [];
-  page.on("download", (download) => {
-    const suggested = download.suggestedFilename();
-    const suffix = suggested.endsWith(".sfx.webm") ? ".sfx.webm" : path.extname(suggested);
-    const destination = path.join(categoryDir, `${scenarioId}${suffix}`);
-    downloads.push(destination);
-    downloadTasks.push(download.saveAs(destination));
-  });
-  const consoleErrors = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
-  });
-  page.on("pageerror", (error) => consoleErrors.push(error.message));
+  const { sidecar, frameCount } = await recordFramePass(browser, scenarioId, categoryDir, frameDir);
+  verifySidecar(sidecar, scenarioId, captureFormat);
 
-  const url = `${args.baseUrl}/?capture=${encodeURIComponent(scenarioId)}` +
-    `&captureFormat=${encodeURIComponent(captureFormat.queryValue)}&autocapture=1`;
-  try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: args.loadTimeoutMs });
-    await page.waitForFunction(() => (
-      window.__PIXEL_GLOBE_CAPTURE_COMPLETE__ === true ||
-      typeof window.__PIXEL_GLOBE_CAPTURE_ERROR__ === "string"
-    ), null, { timeout: args.captureTimeoutMs });
-    const failure = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_ERROR__ || null);
-    if (failure) throw new Error(failure);
-    const frames = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_FRAMES__ || null);
-    if (!frames) throw new Error(`${scenarioId} did not expose captured canvas frames`);
-    await writeCapturedFrames(frameDir, frames, captureFormat);
-    await waitFor(() => downloads.length === 2, args.downloadTimeoutMs, `SFX and event downloads for ${scenarioId}`);
-    await Promise.all(downloadTasks);
-  } catch (error) {
-    const screenshotPath = path.join(categoryDir, `${scenarioId}.failure.png`);
-    await page.screenshot({ path: screenshotPath, fullPage: true });
-    const consoleText = consoleErrors.length > 0 ? `\nBrowser errors:\n${consoleErrors.join("\n")}` : "";
-    throw new Error(`${scenarioId} failed: ${error.message}${consoleText}\nScreenshot: ${screenshotPath}`);
-  } finally {
-    await context.close();
-  }
-
-  const eventsPath = requiredDownloadedPath(downloads, ".json", scenarioId);
-  const rawSfxPath = requiredDownloadedPath(downloads, ".sfx.webm", scenarioId);
+  const eventsPath = path.join(categoryDir, `${scenarioId}.json`);
   const sfxPath = path.join(categoryDir, `${scenarioId}.sfx.ogg`);
   const videoPath = path.join(categoryDir, `${scenarioId}.webm`);
   const mp4Path = path.join(categoryDir, `${scenarioId}.mp4`);
-  const sidecar = JSON.parse(await readFile(eventsPath, "utf8"));
-  verifySidecar(sidecar, scenarioId, captureFormat);
-  sanitizeCaptureSfx(rawSfxPath, sfxPath);
-  await rm(rawSfxPath, { force: true });
+  await writeFile(eventsPath, `${JSON.stringify(sidecar, null, 2)}\n`);
+  renderCaptureSfx(sidecar, sfxPath, scenarioId);
   const audioPeakDb = audibleAudioPeakDb(sfxPath, scenarioId);
-  await padCanvasFrames(frameDir, sidecar.durationMs);
   encodeNativeTrailerWebm(frameDir, sfxPath, videoPath);
   encodeTrailerMp4(frameDir, sfxPath, mp4Path, captureFormat);
   await rm(frameDir, { recursive: true, force: true });
   const probe = probeVideo(mp4Path);
+  const durationSeconds = frameCount / AUTOMATIC_CAPTURE_FRAME_RATE;
   if (probe.width !== captureFormat.outputWidth || probe.height !== captureFormat.outputHeight ||
-      probe.frameRate !== 30 || !probe.hasAudio) {
+      probe.frameRate !== AUTOMATIC_CAPTURE_FRAME_RATE || !probe.hasAudio ||
+      Math.abs(probe.durationSeconds - durationSeconds) > 0.04) {
     throw new Error(
-      `${scenarioId} encoded incorrectly: ${probe.width}x${probe.height} at ${probe.frameRate} fps, audio=${probe.hasAudio}`
+      `${scenarioId} encoded incorrectly: ${probe.width}x${probe.height} at ${probe.frameRate} fps, ` +
+      `duration=${probe.durationSeconds}, audio=${probe.hasAudio}`
     );
   }
   return {
     scenarioId,
     category,
     format: args.format,
-    durationSeconds: Math.round(sidecar.durationMs / 10) / 100,
+    captureMethod: "deterministic-frame-step",
+    durationSeconds,
+    frameCount,
     video: path.relative(outputRoot, mp4Path),
     nativeVideo: path.relative(outputRoot, videoPath),
     sfxAudio: path.relative(outputRoot, sfxPath),
@@ -168,34 +131,94 @@ async function recordScenario(browser, scenarioId) {
   };
 }
 
-async function writeCapturedFrames(frameDir, capture, format) {
-  if (capture?.frameRate !== CANVAS_CAPTURE_FPS || !Array.isArray(capture.frames) || capture.frames.length < 2) {
-    throw new Error(`Invalid automatic canvas capture: ${JSON.stringify(capture)?.slice(0, 200)}`);
+async function recordFramePass(browser, scenarioId, categoryDir, frameDir) {
+  const context = await browser.newContext({
+    viewport: {
+      width: captureFormat.logicalWidth,
+      height: captureFormat.logicalHeight
+    },
+    deviceScaleFactor: 1
+  });
+  const page = await context.newPage();
+  const consoleErrors = [];
+  collectPageErrors(page, consoleErrors);
+  try {
+    await page.goto(captureUrl(scenarioId), {
+      waitUntil: "domcontentloaded",
+      timeout: args.loadTimeoutMs
+    });
+    await page.waitForFunction(() => (
+      window.__PIXEL_GLOBE_CAPTURE_READY__ === true ||
+      typeof window.__PIXEL_GLOBE_CAPTURE_ERROR__ === "string"
+    ), null, { timeout: args.captureTimeoutMs });
+    const failure = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_ERROR__ || null);
+    if (failure) throw new Error(failure);
+    const frameCount = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_TOTAL_FRAMES__);
+    if (!Number.isInteger(frameCount) || frameCount < 2) {
+      throw new Error(`${scenarioId} exposed invalid frame total: ${frameCount}`);
+    }
+    const canvas = page.locator("#view");
+    for (let index = 0; index < frameCount; index += 1) {
+      const frame = await page.evaluate((frameIndex) => (
+        window.__PIXEL_GLOBE_CAPTURE_STEP__(frameIndex)
+      ), index);
+      if (frame?.frameIndex !== index || frame?.totalFrames !== frameCount ||
+          frame.complete !== (index === frameCount - 1)) {
+        throw new Error(`${scenarioId} returned malformed deterministic frame ${index}`);
+      }
+      const framePath = canvasFramePath(frameDir, index);
+      await canvas.screenshot({ path: framePath, type: "png", animations: "disabled" });
+      validateCapturedFrame(await readFile(framePath), index, captureFormat);
+      if ((index + 1) % AUTOMATIC_CAPTURE_FRAME_RATE === 0) {
+        process.stdout.write(`  ${scenarioId}: frames ${index + 1}/${frameCount}\n`);
+      }
+    }
+    const sidecar = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_SIDECAR__ || null);
+    if (!sidecar) throw new Error(`${scenarioId} did not expose a deterministic event sidecar`);
+    if (captureFrameCount(sidecar, scenarioId) !== frameCount) {
+      throw new Error(`${scenarioId} sidecar frame total disagrees with its frame pass`);
+    }
+    return { sidecar, frameCount };
+  } catch (error) {
+    const screenshotPath = path.join(categoryDir, `${scenarioId}.frames.failure.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    const consoleText = consoleErrors.length > 0 ? `\nBrowser errors:\n${consoleErrors.join("\n")}` : "";
+    throw new Error(`${scenarioId} frame pass failed: ${error.message}${consoleText}\nScreenshot: ${screenshotPath}`);
+  } finally {
+    await context.close();
   }
-  let outputIndex = 0;
-  for (let sourceIndex = 0; sourceIndex < capture.frames.length; sourceIndex += 1) {
-    const frame = capture.frames[sourceIndex];
-    const nextTime = capture.frames[sourceIndex + 1]?.t ?? frame.t + 1000 / CANVAS_CAPTURE_FPS;
-    if (!Number.isFinite(frame.t) || !Number.isFinite(nextTime) || nextTime < frame.t) {
-      throw new Error(`Invalid captured frame timing at ${sourceIndex}`);
-    }
-    if (typeof frame.pngDataUrl !== "string" || !frame.pngDataUrl.startsWith("data:image/png;base64,")) {
-      throw new Error(`Invalid captured PNG at ${sourceIndex}`);
-    }
-    const data = Buffer.from(frame.pngDataUrl.slice("data:image/png;base64,".length), "base64");
-    const dimensions = pngDimensions(data);
-    if (dimensions.width !== format.logicalWidth || dimensions.height !== format.logicalHeight) {
-      throw new Error(
-        `Captured PNG is ${dimensions.width}x${dimensions.height}; expected ` +
-        `${format.logicalWidth}x${format.logicalHeight}`
-      );
-    }
-    const endIndex = Math.max(outputIndex + 1, Math.ceil(nextTime * CANVAS_CAPTURE_FPS / 1000));
-    while (outputIndex < endIndex) {
-      await writeCanvasFrame(frameDir, outputIndex, data);
-      outputIndex += 1;
-    }
+}
+
+function validateCapturedFrame(data, index, format) {
+  const dimensions = pngDimensions(data);
+  if (dimensions.width !== format.logicalWidth || dimensions.height !== format.logicalHeight) {
+    throw new Error(
+      `Captured frame ${index} is ${dimensions.width}x${dimensions.height}; expected ` +
+      `${format.logicalWidth}x${format.logicalHeight}`
+    );
   }
+}
+
+function captureUrl(scenarioId) {
+  return `${args.baseUrl}/?capture=${encodeURIComponent(scenarioId)}` +
+    `&captureFormat=${encodeURIComponent(captureFormat.queryValue)}` +
+    "&autocapture=frames";
+}
+
+function collectPageErrors(page, errors) {
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+}
+
+function captureFrameCount(sidecar, scenarioId) {
+  const durationSeconds = sidecar?.scenario?.sequence?.durationSeconds;
+  const exactFrames = durationSeconds * AUTOMATIC_CAPTURE_FRAME_RATE;
+  if (!Number.isInteger(exactFrames) || exactFrames < 2) {
+    throw new Error(`${scenarioId} has invalid deterministic frame total: ${exactFrames}`);
+  }
+  return exactFrames;
 }
 
 function pngDimensions(data) {
@@ -210,27 +233,17 @@ function pngDimensions(data) {
   };
 }
 
-async function padCanvasFrames(frameDir, durationMs) {
-  const expectedFrames = Math.max(2, Math.ceil(durationMs * CANVAS_CAPTURE_FPS / 1000));
-  const names = (await readdir(frameDir)).filter((name) => name.endsWith(".png")).sort();
-  if (names.length === 0) throw new Error("Cannot pad an empty canvas-frame sequence");
-  const latestFrame = await readFile(path.join(frameDir, names.at(-1)));
-  for (let index = names.length; index < expectedFrames; index += 1) {
-    await writeCanvasFrame(frameDir, index, latestFrame);
-  }
-}
-
-function writeCanvasFrame(frameDir, index, data) {
-  return writeFile(path.join(frameDir, `frame-${String(index).padStart(5, "0")}.png`), data);
+function canvasFramePath(frameDir, index) {
+  return path.join(frameDir, `frame-${String(index).padStart(5, "0")}.png`);
 }
 
 function encodeNativeTrailerWebm(frameDir, sfxInput, output) {
   execFileSync("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
-    "-framerate", String(CANVAS_CAPTURE_FPS),
+    "-framerate", String(AUTOMATIC_CAPTURE_FRAME_RATE),
     "-i", path.join(frameDir, "frame-%05d.png"),
     "-i", sfxInput,
-    "-vf", "fps=30",
+    "-vf", `fps=${AUTOMATIC_CAPTURE_FRAME_RATE}`,
     "-map", "0:v:0", "-map", "1:a:0",
     "-c:v", "libvpx-vp9", "-lossless", "1", "-pix_fmt", "yuv420p",
     "-c:a", "libopus", "-b:a", "160k", "-af", "apad", "-shortest",
@@ -238,11 +251,45 @@ function encodeNativeTrailerWebm(frameDir, sfxInput, output) {
   ], { stdio: "inherit" });
 }
 
-function sanitizeCaptureSfx(input, output) {
+function renderCaptureSfx(sidecar, output, scenarioId) {
+  const events = sidecar.events.filter((event) => event.type === "capture-sfx");
+  if (events.length === 0) throw new Error(`${scenarioId} emitted no deterministic SFX events`);
+  const publicRoot = path.resolve(APP_ROOT, "public");
+  const inputs = [];
+  const filters = [];
+  const labels = [];
+  for (const [index, event] of events.entries()) {
+    const { assetPath, volume, playbackRate } = event.data || {};
+    if (typeof assetPath !== "string" || !assetPath.startsWith("assets/sfx/") ||
+        !Number.isFinite(volume) || volume <= 0 || volume > 1 ||
+        !Number.isFinite(playbackRate) || playbackRate < 0.5 || playbackRate > 2 ||
+        !Number.isFinite(event.t) || event.t < 0 || event.t > sidecar.durationMs) {
+      throw new Error(`${scenarioId} emitted malformed SFX event ${index}`);
+    }
+    const asset = path.resolve(publicRoot, assetPath);
+    if (!asset.startsWith(`${publicRoot}${path.sep}`) || !existsSync(asset)) {
+      throw new Error(`${scenarioId} references missing SFX asset: ${assetPath}`);
+    }
+    inputs.push("-i", asset);
+    const label = `fx${index}`;
+    filters.push(
+      `[${index}:a]aresample=48000,atempo=${playbackRate},volume=${volume},` +
+      `asetpts=PTS+${event.t / 1000}/TB[${label}]`
+    );
+    labels.push(`[${label}]`);
+  }
+  const durationSeconds = sidecar.durationMs / 1000;
+  filters.push(`aevalsrc=0:d=${durationSeconds}:s=48000:c=stereo[silence]`);
+  filters.push(
+    `[silence]${labels.join("")}amix=inputs=${labels.length + 1}:duration=first:normalize=0,` +
+    `atrim=duration=${durationSeconds}[audio]`
+  );
   execFileSync("ffmpeg", [
-    "-hide_banner", "-loglevel", "fatal", "-y",
-    "-i", input,
-    "-vn", "-c:a", "libopus", "-b:a", "160k",
+    "-hide_banner", "-loglevel", "error", "-y",
+    ...inputs,
+    "-filter_complex", filters.join(";"),
+    "-map", "[audio]", "-t", String(durationSeconds),
+    "-c:a", "libopus", "-b:a", "160k", "-ar", "48000", "-ac", "2",
     output
   ], { stdio: "inherit" });
 }
@@ -250,7 +297,7 @@ function sanitizeCaptureSfx(input, output) {
 function encodeTrailerMp4(frameDir, sfxInput, output, format) {
   execFileSync("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
-    "-framerate", String(CANVAS_CAPTURE_FPS),
+    "-framerate", String(AUTOMATIC_CAPTURE_FRAME_RATE),
     "-i", path.join(frameDir, "frame-%05d.png"),
     "-i", sfxInput,
     "-map", "0:v:0", "-map", "1:a:0",
@@ -265,11 +312,12 @@ function encodeTrailerMp4(frameDir, sfxInput, output, format) {
 function probeVideo(videoPath) {
   const output = execFileSync("ffprobe", [
     "-v", "error",
-    "-show_entries", "stream=codec_type,width,height,r_frame_rate",
+    "-show_entries", "format=duration:stream=codec_type,width,height,r_frame_rate",
     "-of", "json",
     videoPath
   ], { encoding: "utf8" });
-  const streams = JSON.parse(output).streams || [];
+  const probe = JSON.parse(output);
+  const streams = probe.streams || [];
   const video = streams.find((stream) => stream.codec_type === "video");
   if (!video) throw new Error(`No video stream in ${videoPath}`);
   const [numerator, denominator] = video.r_frame_rate.split("/").map(Number);
@@ -277,7 +325,8 @@ function probeVideo(videoPath) {
     width: video.width,
     height: video.height,
     frameRate: numerator / denominator,
-    hasAudio: streams.some((stream) => stream.codec_type === "audio")
+    hasAudio: streams.some((stream) => stream.codec_type === "audio"),
+    durationSeconds: Number(probe.format?.duration)
   };
 }
 
@@ -317,14 +366,12 @@ function verifySidecar(sidecar, scenarioId, format) {
       `${format.logicalWidth}x${format.logicalHeight}`
     );
   }
-}
-
-function requiredDownloadedPath(downloads, extension, scenarioId) {
-  const matches = downloads.filter((entry) => entry.endsWith(extension));
-  if (matches.length !== 1) {
-    throw new Error(`${scenarioId} produced ${matches.length} ${extension} downloads`);
+  if (captureStart.data.frameRate !== AUTOMATIC_CAPTURE_FRAME_RATE) {
+    throw new Error(
+      `${scenarioId} frame pass reports ${captureStart.data.frameRate} fps; expected ` +
+      `${AUTOMATIC_CAPTURE_FRAME_RATE}`
+    );
   }
-  return matches[0];
 }
 
 async function assertServerReady(baseUrl) {
@@ -336,15 +383,6 @@ async function assertServerReady(baseUrl) {
   }
   if (!response.ok) throw new Error(`Pixel globe server returned HTTP ${response.status} at ${baseUrl}`);
 }
-
-async function waitFor(predicate, timeoutMs, label) {
-  const startedAt = Date.now();
-  while (!predicate()) {
-    if (Date.now() - startedAt >= timeoutMs) throw new Error(`Timed out waiting for ${label}`);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-}
-
 
 function loadPlaywright() {
   const candidates = [
@@ -387,9 +425,9 @@ function parseArgs(argv) {
     format: "shorts",
     ids: [],
     headless: true,
+    jobs: 2,
     loadTimeoutMs: 120_000,
-    captureTimeoutMs: 120_000,
-    downloadTimeoutMs: 15_000
+    captureTimeoutMs: 120_000
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -397,8 +435,12 @@ function parseArgs(argv) {
     else if (arg === "--output") parsed.output = requiredValue(argv, ++index, arg);
     else if (arg === "--ids") parsed.ids = requiredValue(argv, ++index, arg).split(",").filter(Boolean);
     else if (arg === "--format") parsed.format = requiredValue(argv, ++index, arg);
+    else if (arg === "--jobs") parsed.jobs = Number(requiredValue(argv, ++index, arg));
     else if (arg === "--headed") parsed.headless = false;
     else throw new Error(`Unknown trailer capture argument: ${arg}`);
+  }
+  if (!Number.isInteger(parsed.jobs) || parsed.jobs < 1 || parsed.jobs > 4) {
+    throw new Error(`--jobs must be an integer from 1 to 4, got ${parsed.jobs}`);
   }
   return parsed;
 }

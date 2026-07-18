@@ -67,7 +67,7 @@ make pixel-globe-trailer-clips
 
 The sixteen `trailer-*` scenarios provide two clips apiece for exploration, trade, fishing, whaling, fighting, pillaging, colonization, and survival. The player ship follows an authored goal with the normal sailing and combat systems; exact trailer beats such as a lightning strike or successful colony landing are deterministic.
 
-Automated recording never reads or writes the normal voyage save. It samples the native `270x480` canvas inside the game loop and records a semantic event sidecar. The game's SFX and ambient loops are mixed onto a dedicated capture bus; music is excluded. Each scenario emits a lossless native WebM, a nearest-neighbour `1080x1920` MP4, and a separate `.sfx.ogg` stem. The capture fails if the stem is silent or the delivery video lacks audio. Outputs and `manifest.json` are written to `apps/pixel-globe/.captures/trailer-clips/`. Pass `--ids trailer-fish-cod,trailer-whale-right` to `npm run capture:trailer --` to record a subset.
+Automated recording never reads or writes the normal voyage save. The game clock advances by exactly one thirtieth of a simulated second, renders one native canvas frame, and waits until Playwright has saved that frame before advancing again. One-shot SFX are recorded as timestamped events and rebuilt into an audio stem with FFmpeg after the frame pass; music is excluded. Each scenario emits a lossless native WebM, a nearest-neighbour `1080x1920` MP4, and a separate `.sfx.ogg` stem. The capture fails if frames are skipped, the stem is silent, or the delivery video lacks audio. Outputs and `manifest.json` are written to `apps/pixel-globe/.captures/trailer-clips/`. Pass `--ids trailer-fish-cod,trailer-whale-right` to `npm run capture:trailer --` to record a subset, or `--jobs 1` to reduce parallel memory use.
 
 For a Steam trailer, record the same scenarios on the native `480x270` landscape canvas and export nearest-neighbour `1920x1080` clips:
 
@@ -76,6 +76,14 @@ make pixel-globe-steam-trailer-clips
 ```
 
 These clips are written to `apps/pixel-globe/.captures/trailer-clips-steam/`. Both capture formats validate their native frame size, sidecar viewport, output dimensions, frame rate, and audio stream before completing.
+
+Build the final Steam trailer after all sixteen landscape clips have been captured:
+
+```bash
+make pixel-globe-steam-trailer
+```
+
+The tracked edit plan, Pirata One heading font, and builder live in `tools/trailer/`. The builder keeps required trade interfaces on screen for five seconds, favors unobstructed gameplay for every other chapter, mixes the captured SFX under one continuous music track, and writes `apps/pixel-globe/.captures/trailer/marque-and-reprisal-steam-trailer-v2.mp4`.
 
 ## 6. Build the Short
 

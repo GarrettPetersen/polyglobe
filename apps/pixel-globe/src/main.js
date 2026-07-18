@@ -480,29 +480,17 @@ import {
   captureViewportFromSearch
 } from "./captureScenarios.js";
 import { CaptureRecorder } from "./captureRecorder.js";
-import {
-  activateCaptureSfxBus,
-  createCaptureSfxBus,
-  playCaptureSfx,
-  registerCaptureSfxAudio,
-  setCaptureSfxAmbientVolume,
-  startCaptureSfxAmbient
-} from "./captureSfxBus.js";
 import { createCaptureControls } from "./captureControls.js";
 import {
+  AUTOMATIC_CAPTURE_FRAME_PASS,
+  advanceAutomaticFrameStepper,
   advanceCaptureDirectorClock,
-  automaticCaptureRequested,
+  automaticCaptureMode,
   captureDirectorComplete,
   captureDirectorCue,
+  createAutomaticFrameStepper,
   createCaptureDirector
 } from "./captureDirector.js";
-import {
-  captureFrameDue,
-  captureFrameSamplerSnapshot,
-  createCaptureFrameSampler,
-  recordCaptureFrame,
-  startCaptureFrameSampler
-} from "./captureFrames.js";
 import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js";
 import {
   MINIMAP_LONGITUDE_BIN_COUNT,
@@ -1547,7 +1535,9 @@ const SEAGULL_FLAP_SPREAD_MS = 260;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const CAPTURE_SCENARIO = captureScenarioFromSearch(window.location.search);
-const CAPTURE_AUTOMATIC = automaticCaptureRequested(window.location.search);
+const CAPTURE_AUTOMATIC_MODE = automaticCaptureMode(window.location.search);
+const CAPTURE_AUTOMATIC = CAPTURE_AUTOMATIC_MODE !== null;
+const CAPTURE_FRAME_PASS = CAPTURE_AUTOMATIC_MODE === AUTOMATIC_CAPTURE_FRAME_PASS;
 const CAPTURE_VIEWPORT = captureViewportFromSearch(window.location.search);
 if (CAPTURE_AUTOMATIC && !CAPTURE_SCENARIO) {
   throw new Error("Automatic capture requires a named capture scenario");
@@ -1756,11 +1746,8 @@ let localLayout;
 let minimap;
 let themeMusic = null;
 let soundEffects = null;
-let captureSfxBus = null;
 const stormLightningState = createStormLightningState();
-const stormShipStrikeState = createStormShipStrikeState({
-  durationMs: CAPTURE_AUTOMATIC ? 5000 : undefined
-});
+const stormShipStrikeState = createStormShipStrikeState();
 const sailingAudioState = createSailingAudioState();
 const rowingCadenceState = createRowingCadenceState();
 let sailingTutorialState = createSailingTutorialState();
@@ -1786,7 +1773,8 @@ let captureRecorder = null;
 let capturePlaybackPaused = Boolean(CAPTURE_SCENARIO);
 let captureLastPositionEventMs = -Infinity;
 let captureDirector = null;
-let captureFrameSampler = null;
+let captureFrameStepper = null;
+let deterministicCaptureEvents = null;
 let lastAutosaveMs = 0;
 let captainAlertModal = null;
 let familyDebtReturnReminderDelivered = false;
@@ -2346,10 +2334,9 @@ async function main() {
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   setupThemeMusic();
-  if (CAPTURE_AUTOMATIC) captureSfxBus = createCaptureSfxBus();
   setupSoundEffects();
   if (CAPTURE_SCENARIO) setupCaptureMode();
-  requestAnimationFrame(loop);
+  if (!CAPTURE_FRAME_PASS) requestAnimationFrame(loop);
   ensureGameAudioStarted();
 }
 
@@ -3261,7 +3248,6 @@ function easeInOut(t) {
 function loop(nowMs) {
   try {
     runFrame(nowMs);
-    sampleAutomaticCaptureFrame(nowMs);
   } catch (error) {
     console.error(error);
     if (CAPTURE_AUTOMATIC) {
@@ -3271,7 +3257,7 @@ function loop(nowMs) {
   }
 }
 
-function runFrame(nowMs) {
+function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {}) {
   pollGamepadControls();
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   lastFrameMs = nowMs;
@@ -3284,7 +3270,7 @@ function runFrame(nowMs) {
     dirty = false;
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
-    requestAnimationFrame(loop);
+    if (scheduleNextFrame) requestAnimationFrame(loop);
     return;
   }
   if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
@@ -3327,7 +3313,7 @@ function runFrame(nowMs) {
     saveVoyageNow("periodic autosave");
   }
   if (updateWorldSpriteAnimation(nowMs)) dirty = true;
-  if (dirty || menusAreOpen() || dialogueState || gameOverReason || nowMs - lastStatusMs > 1000) {
+  if (forceRender || dirty || menusAreOpen() || dialogueState || gameOverReason || nowMs - lastStatusMs > 1000) {
     render(nowMs);
     dirty = false;
     lastStatusMs = nowMs;
@@ -3340,7 +3326,7 @@ function runFrame(nowMs) {
     else drawCaptainMenuButton();
     lastOverlayMs = nowMs;
   }
-  requestAnimationFrame(loop);
+  if (scheduleNextFrame) requestAnimationFrame(loop);
 }
 
 function updateWorldSpriteAnimation(nowMs) {
@@ -4020,7 +4006,6 @@ function createSoundPool(url, count, label) {
     const audio = new Audio(`${url}?v=${SFX_ASSET_VERSION}`);
     audio.preload = "auto";
     audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
-    routeCaptureSfx(audio);
     return audio;
   });
 }
@@ -4031,7 +4016,6 @@ function createAmbientLoop(url, label) {
   audio.loop = true;
   audio.volume = 0;
   audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} failed to load`));
-  routeCaptureSfx(audio);
   return {
     audio,
     label,
@@ -4052,7 +4036,6 @@ function createAmbientPlaylist(urls, label) {
     audio.loop = false;
     audio.volume = 0;
     audio.addEventListener("error", () => console.warn(`[pixel-globe] ${label} track ${index + 1} failed to load`));
-    routeCaptureSfx(audio);
     return audio;
   });
   return {
@@ -4066,10 +4049,6 @@ function createAmbientPlaylist(urls, label) {
     nextStartMs: 0,
     startAttempting: false
   };
-}
-
-function routeCaptureSfx(audio) {
-  if (captureSfxBus) registerCaptureSfxAudio(captureSfxBus, audio);
 }
 
 function ensureGameAudioStarted(fromUserGesture = false) {
@@ -4181,7 +4160,6 @@ function ensureAmbientLoopStarted(loop) {
   loop.startAttempting = true;
   loop.audio.currentTime = 0;
   applyThemeAudioSettings();
-  startCaptureSfxAmbient(captureSfxBus, loop.audio, { loop: true });
   const playPromise = loop.audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
@@ -4212,7 +4190,6 @@ function ensureAmbientPlaylistStarted(playlist, nowMs) {
   audio.currentTime = 0;
   audio.playbackRate = 0.97 + Math.random() * 0.06;
   applyThemeAudioSettings();
-  startCaptureSfxAmbient(captureSfxBus, audio, { loop: false });
   const playPromise = audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
@@ -4256,7 +4233,6 @@ function applyThemeAudioSettings() {
     for (const loop of ambientSoundLoops()) {
       loop.audio.muted = optionsMenu.muted;
       loop.audio.volume = optionsMenu.muted ? 0 : sfxVolume * loop.currentVolume;
-      setCaptureSfxAmbientVolume(captureSfxBus, loop.audio, loop.audio.volume);
     }
     for (const playlist of ambientSoundPlaylists()) {
       for (const track of playlist.tracks) {
@@ -4264,7 +4240,6 @@ function applyThemeAudioSettings() {
         track.volume = optionsMenu.muted || track !== playlist.currentTrack
           ? 0
           : sfxVolume * playlist.currentVolume;
-        setCaptureSfxAmbientVolume(captureSfxBus, track, track.volume);
       }
     }
   }
@@ -4278,12 +4253,24 @@ function playSoundEffect(pool, volume, playbackRate = 1) {
   audio.playbackRate = clamp(playbackRate, 0.75, 1.25);
   audio.volume = clamp(optionsMenu.sfxVolume * volume, 0, 1);
   audio.muted = optionsMenu.muted;
-  playCaptureSfx(captureSfxBus, audio, {
-    volume: audio.volume,
-    playbackRate: audio.playbackRate
-  });
+  if (CAPTURE_FRAME_PASS) {
+    emitCaptureEvent("capture-sfx", {
+      assetPath: captureSfxAssetPath(audio),
+      volume: audio.volume,
+      playbackRate: audio.playbackRate
+    });
+    return;
+  }
   const playPromise = audio.play();
   if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
+}
+
+function captureSfxAssetPath(audio) {
+  const url = new URL(audio.currentSrc || audio.src, window.location.href);
+  if (url.origin !== window.location.origin || !url.pathname.startsWith("/assets/sfx/")) {
+    throw new Error(`Capture SFX must be a local game asset: ${url}`);
+  }
+  return url.pathname.slice(1);
 }
 
 function playCannonShotSound(broadsideCount, distancePx = 0) {
@@ -4818,29 +4805,21 @@ function setupCaptureMode() {
   if (!CAPTURE_SCENARIO) throw new Error("Capture mode requires a scenario");
   applyResponsiveViewport(CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height);
   document.body.classList.add("capture-mode");
+  if (CAPTURE_SCENARIO.sequence) {
+    captureDirector = createCaptureDirector(CAPTURE_SCENARIO.sequence);
+    stageCaptureSequence();
+  }
+  if (CAPTURE_FRAME_PASS) {
+    if (!captureDirector) throw new Error("Automatic frame capture requires a scripted sequence");
+    setupAutomaticFramePass();
+    return;
+  }
   captureRecorder = new CaptureRecorder({
     canvas,
     scenario: CAPTURE_SCENARIO,
     maxSeconds: CAPTURE_MAX_SECONDS,
     simMinute: () => weatherClockMinutes
   });
-  if (CAPTURE_SCENARIO.sequence) {
-    captureDirector = createCaptureDirector(CAPTURE_SCENARIO.sequence);
-    stageCaptureSequence();
-  }
-  if (CAPTURE_AUTOMATIC) {
-    if (!captureDirector) throw new Error("Automatic capture requires a scripted capture sequence");
-    captureRecorder.onStateChange = (snapshot) => {
-      window.__PIXEL_GLOBE_CAPTURE_STATE__ = snapshot;
-    };
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      void startAutomaticCapture().catch((error) => {
-        window.__PIXEL_GLOBE_CAPTURE_ERROR__ = error instanceof Error ? error.message : String(error);
-        console.error("[capture] automatic recording failed", error);
-      });
-    }));
-    return;
-  }
   createCaptureControls({
     shell,
     scenario: CAPTURE_SCENARIO,
@@ -4849,29 +4828,39 @@ function setupCaptureMode() {
   });
 }
 
-async function startAutomaticCapture() {
-  const sfxStream = await activateCaptureSfxBus(captureSfxBus);
-  await captureRecorder.startSfx(sfxStream);
-  captureRecordingStarted();
-}
-
 function captureRecordingStarted() {
   capturePlaybackPaused = false;
-  if (CAPTURE_AUTOMATIC) {
-    captureFrameSampler = createCaptureFrameSampler();
-  }
   ensureGameAudioStarted(true);
-  emitCaptureEvent("scenario-start", {
-    playerShip: ship.typeSlug,
-    playerFaction: ship.factionId,
-    encounterIds: CAPTURE_SCENARIO.encounters.map((encounter) => encounter.id),
-    sequence: CAPTURE_SCENARIO.sequence || null
-  });
+  emitCaptureEvent("scenario-start", captureScenarioStartEventData());
   dirty = true;
 }
 
 function emitCaptureEvent(type, data = {}) {
+  if (deterministicCaptureEvents) {
+    if (typeof type !== "string" || type.trim() === "") {
+      throw new Error("Capture event type is required");
+    }
+    const elapsedMs = captureFrameStepper
+      ? Math.round(captureFrameStepper.nextIndex * 1000 / captureFrameStepper.frameRate)
+      : 0;
+    deterministicCaptureEvents.push(Object.freeze({
+      t: elapsedMs,
+      simMinute: Math.round(weatherClockMinutes * 100) / 100,
+      type,
+      data: JSON.parse(JSON.stringify(data))
+    }));
+    return true;
+  }
   return captureRecorder?.recordEvent(type, data) || false;
+}
+
+function captureScenarioStartEventData() {
+  return {
+    playerShip: ship.typeSlug,
+    playerFaction: ship.factionId,
+    encounterIds: CAPTURE_SCENARIO.encounters.map((encounter) => encounter.id),
+    sequence: CAPTURE_SCENARIO.sequence || null
+  };
 }
 
 function recordCapturePosition(nowMs) {
@@ -4888,11 +4877,39 @@ function recordCapturePosition(nowMs) {
   });
 }
 
-function sampleAutomaticCaptureFrame(nowMs) {
-  if (!CAPTURE_AUTOMATIC || !captureFrameSampler) return;
-  if (captureFrameSampler.startedAtMs === null) startCaptureFrameSampler(captureFrameSampler, nowMs);
-  if (!captureFrameDue(captureFrameSampler, nowMs)) return;
-  recordCaptureFrame(captureFrameSampler, nowMs, canvas.toDataURL("image/png"));
+function setupAutomaticFramePass() {
+  capturePlaybackPaused = false;
+  captureFrameStepper = createAutomaticFrameStepper(captureDirector.sequence.durationSeconds);
+  deterministicCaptureEvents = [];
+  lastFrameMs = 0;
+  captureDirector.lastWallClockMs = 0;
+  emitCaptureEvent("capture-start", {
+    viewport: { width: canvas.width, height: canvas.height },
+    frameRate: captureFrameStepper.frameRate,
+    method: "deterministic-frame-step"
+  });
+  emitCaptureEvent("scenario-start", captureScenarioStartEventData());
+  window.__PIXEL_GLOBE_CAPTURE_TOTAL_FRAMES__ = captureFrameStepper.totalFrames;
+  window.__PIXEL_GLOBE_CAPTURE_STEP__ = stepAutomaticCaptureFrame;
+  window.__PIXEL_GLOBE_CAPTURE_READY__ = true;
+}
+
+function stepAutomaticCaptureFrame(frameIndex) {
+  if (!CAPTURE_FRAME_PASS) throw new Error("Frame stepping is unavailable outside the frame pass");
+  const step = advanceAutomaticFrameStepper(captureFrameStepper, frameIndex);
+  runFrame(step.nowMs, { scheduleNextFrame: false, forceRender: true });
+  const complete = captureDirectorComplete(captureDirector);
+  if (complete !== step.complete) {
+    throw new Error(
+      `Capture completion mismatch at ${captureFrameStepper.nextIndex}/` +
+      `${captureFrameStepper.totalFrames}: ${complete}`
+    );
+  }
+  return Object.freeze({
+    frameIndex,
+    totalFrames: captureFrameStepper.totalFrames,
+    complete
+  });
 }
 
 function stageCaptureSequence() {
@@ -4945,7 +4962,12 @@ function stageCaptureDiscoveryMemory(sequence) {
 }
 
 function updateCaptureDirectorFrame(nowMs) {
-  advanceCaptureDirectorClock(captureDirector, nowMs);
+  if (CAPTURE_FRAME_PASS) {
+    captureDirector.elapsedSeconds = captureFrameStepper.nextIndex / captureFrameStepper.frameRate;
+    captureDirector.lastWallClockMs = nowMs;
+  } else {
+    advanceCaptureDirectorClock(captureDirector, nowMs);
+  }
   const sequence = captureDirector.sequence;
   if (sequence.kind === "explore") updateCaptureExplore(sequence, nowMs);
   else if (sequence.kind === "trade") updateCaptureTrade(sequence);
@@ -4960,10 +4982,18 @@ function updateCaptureDirectorFrame(nowMs) {
   if (!captureDirector.stopping && captureDirectorComplete(captureDirector)) {
     captureDirector.stopping = true;
     capturePlaybackPaused = true;
-    void captureRecorder.stop("sequence-complete").then(() => {
-      window.__PIXEL_GLOBE_CAPTURE_FRAMES__ = captureFrameSamplerSnapshot(captureFrameSampler);
+    if (CAPTURE_FRAME_PASS) {
+      emitCaptureEvent("capture-stop", { reason: "sequence-complete" });
+      window.__PIXEL_GLOBE_CAPTURE_SIDECAR__ = Object.freeze({
+        version: 2,
+        scenario: CAPTURE_SCENARIO,
+        durationMs: Math.round(captureDirector.sequence.durationSeconds * 1000),
+        events: deterministicCaptureEvents.slice()
+      });
       window.__PIXEL_GLOBE_CAPTURE_COMPLETE__ = true;
-    });
+      return;
+    }
+    throw new Error("Scripted capture completed outside deterministic frame mode");
   }
 }
 
@@ -4977,7 +5007,7 @@ function updateCaptureExplore(sequence, nowMs) {
       throw new Error(`Capture discovery was already recorded: ${sequence.discoveryName}`);
     }
   }
-  if (captureCue("dismiss-discovery", 6.4) && captainAlertModal) closeCaptainAlertModal();
+  if (captureCue("dismiss-discovery", 5.4) && captainAlertModal) closeCaptainAlertModal();
 }
 
 function updateCaptureTrade(sequence) {
@@ -4998,6 +5028,7 @@ function updateCaptureTrade(sequence) {
 }
 
 function updateCaptureFishing(sequence) {
+  if (captainAlertModal) closeCaptainAlertModal();
   if (!captureCue("cast-net", 1.0)) return;
   const call = activeFishCall();
   if (!call) throw new Error(`Capture ${sequence.variant} fishing ground has no fish in reach`);
@@ -5079,22 +5110,29 @@ function updateCapturePillage(sequence) {
     }
     return;
   }
-  if (captureCue("open-assault", 0.8)) openPortDialogue(cityCall);
-  if (captureCue("land-marines", 2.8)) {
+  if (captureCue("open-assault", 2.2)) openPortDialogue(cityCall);
+  if (captureCue("land-marines", 2.3)) {
     attemptPlayerPortConquest(cityCall, () => 0);
     emitCaptureEvent("capture-beat", { action: "land-marines", city: sequence.cityName });
   }
-  if (captureCue("dismiss-conquest", 7.0) && captainAlertModal) closeCaptainAlertModal();
+  if (captureCue("dismiss-conquest", 4.3)) {
+    if (captainAlertModal) closeCaptainAlertModal();
+    if (dialogueState) closeDialogue();
+  }
 }
 
 function updateCaptureColonization(sequence) {
-  if (captureCue("open-colony", 0.8)) openPortDialogue(capturePortCallByName(sequence.cityName));
-  if (captureCue("complete-colony-action", 3.0)) {
+  if (captureCue("open-colony", 2.2)) openPortDialogue(capturePortCallByName(sequence.cityName));
+  if (captureCue("complete-colony-action", 2.3)) {
     const actionType = sequence.variant === "found" ? "land-colonists" : "deliver-colony-resupply";
     captureChooseDialogueAction(actionType);
+    playSoundEffect(soundEffects?.discoverySuccess, 0.68, 1);
     emitCaptureEvent("capture-beat", { action: actionType, city: sequence.cityName });
   }
-  if (captureCue("reveal-colony", 5.5)) closeDialogue();
+  if (captureCue("reveal-colony", 4.3)) {
+    if (captainAlertModal) closeCaptainAlertModal();
+    if (dialogueState) closeDialogue();
+  }
 }
 
 function updateCaptureSurvival(sequence) {
@@ -5124,6 +5162,7 @@ function updateCaptureSurvival(sequence) {
   }
   if (captureCue("out-of-water", 0.3)) {
     showSurvivalNotice("NO FRESH WATER", "warn");
+    playSoundEffect(soundEffects?.scavengeFailure, 0.55, 0.9);
     emitCaptureEvent("capture-beat", { action: "fresh-water-empty" });
   }
   if (captureDirector.elapsedSeconds >= 1.0 && captainAlertModal) closeCaptainAlertModal();
@@ -5225,7 +5264,7 @@ function stageCaptureWhale(sequence) {
   if (sequence.variant === "finish") {
     const harpoon = playerWhaleHarpoon(gameState);
     tetherWhale(gameState.memory.whales, whale.id, harpoon);
-    gameState.memory.whales.activeHunt.remainingSeconds = 2.1;
+    gameState.memory.whales.activeHunt.remainingSeconds = 8;
   }
 }
 

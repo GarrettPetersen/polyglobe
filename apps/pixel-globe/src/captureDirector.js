@@ -1,13 +1,15 @@
 export const CAPTURE_AUTOPLAY_QUERY_PARAM = "autocapture";
+export const AUTOMATIC_CAPTURE_FRAME_PASS = "frames";
+export const AUTOMATIC_CAPTURE_FRAME_RATE = 30;
 
-export function automaticCaptureRequested(search) {
+export function automaticCaptureMode(search) {
   const params = new URLSearchParams(search);
   const value = params.get(CAPTURE_AUTOPLAY_QUERY_PARAM);
-  if (value === null) return false;
-  if (value !== "1") {
+  if (value === null) return null;
+  if (value !== AUTOMATIC_CAPTURE_FRAME_PASS) {
     throw new Error(`Invalid ${CAPTURE_AUTOPLAY_QUERY_PARAM} query value: ${value}`);
   }
-  return true;
+  return value;
 }
 
 export function createCaptureDirector(sequence) {
@@ -23,6 +25,43 @@ export function createCaptureDirector(sequence) {
     stopping: false,
     steeringTarget: null
   };
+}
+
+export function createAutomaticFrameStepper(durationSeconds, frameRate = AUTOMATIC_CAPTURE_FRAME_RATE) {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error(`Invalid automatic capture duration: ${durationSeconds}`);
+  }
+  if (!Number.isInteger(frameRate) || frameRate <= 0) {
+    throw new Error(`Invalid automatic capture frame rate: ${frameRate}`);
+  }
+  const exactFrames = durationSeconds * frameRate;
+  if (!Number.isInteger(exactFrames) || exactFrames < 2) {
+    throw new Error(`Capture duration does not resolve to whole frames: ${exactFrames}`);
+  }
+  return {
+    frameRate,
+    totalFrames: exactFrames,
+    nextIndex: 0
+  };
+}
+
+export function advanceAutomaticFrameStepper(stepper, frameIndex) {
+  if (!stepper || !Number.isInteger(stepper.frameRate) || !Number.isInteger(stepper.totalFrames) ||
+      !Number.isInteger(stepper.nextIndex)) {
+    throw new Error("Invalid automatic frame stepper");
+  }
+  if (!Number.isInteger(frameIndex) || frameIndex !== stepper.nextIndex) {
+    throw new Error(`Expected capture frame ${stepper.nextIndex}, got ${frameIndex}`);
+  }
+  if (frameIndex >= stepper.totalFrames) {
+    throw new Error(`Capture frame ${frameIndex} exceeds ${stepper.totalFrames}`);
+  }
+  stepper.nextIndex += 1;
+  return Object.freeze({
+    frameIndex,
+    nowMs: stepper.nextIndex * 1000 / stepper.frameRate,
+    complete: stepper.nextIndex === stepper.totalFrames
+  });
 }
 
 export function advanceCaptureDirectorClock(director, nowMs) {

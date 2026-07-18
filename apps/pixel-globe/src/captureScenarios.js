@@ -240,7 +240,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     title: "Out of Fresh Water",
     seed: "trailer-survive-dehydration-v1",
     player: capturePlayer("portugal", "caravel", 18.5, 39.5, 330),
-    world: captureWorld(130, 12, 20, 86400),
+    world: captureWorld(130, 12, 20, 14400),
     sequence: trailerSequence("survive", "dehydration", { durationSeconds: 9 })
   })
 });
