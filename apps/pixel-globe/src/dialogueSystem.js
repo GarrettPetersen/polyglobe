@@ -224,7 +224,7 @@ export function prepareSurrenderPrizeDialogue(session, ship, currentShip, loot =
   if (!Number.isInteger(specie) || specie < 0 || !Number.isInteger(cargoQuantity) || cargoQuantity < 0) {
     throw new Error("Surrender prize requires a valid loot summary");
   }
-  target.nodeId = "prize-choice";
+  target.nodeId = "surrendered";
   target.selectedIndex = 0;
   target.feedback = null;
   target.prize = Object.freeze({
@@ -363,6 +363,15 @@ export function shipDialogueView(session, ship) {
       ]
     };
   }
+  if (session.nodeId === "surrendered") {
+    return {
+      speaker,
+      expressionId: "afraid",
+      text: "Enough. Our colors are struck. Spare my crew, and your people may take the cargo and inspect the ship.",
+      feedback: null,
+      options: [option("Review the prize", { type: "review-surrendered-prize" })]
+    };
+  }
   if (session.nodeId === "prize-choice" || session.nodeId === "capture-confirm") {
     return surrenderPrizeView(session, ship);
   }
@@ -478,7 +487,7 @@ function surrenderPrizeView(session, ship) {
   return {
     speaker: `${candidate}, surrendered prize`,
     expressionId: "afraid",
-    text: `The defeated captain has struck their colors.${lootSummary}`,
+    text: `The surrendered vessel is ready for inspection.${lootSummary}`,
     feedback: session.feedback,
     presentation,
     options: [
@@ -544,6 +553,11 @@ function applyShipDialogueAction(session, ship, action) {
     session.nodeId = "surrender-resolving";
     session.selectedIndex = 0;
     return { closed: false, action: { type: "surrender" } };
+  }
+  if (action.type === "review-surrendered-prize") {
+    session.nodeId = "prize-choice";
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
   }
   if (action.type === "inspect-surrendered-ship") {
     session.nodeId = "capture-confirm";

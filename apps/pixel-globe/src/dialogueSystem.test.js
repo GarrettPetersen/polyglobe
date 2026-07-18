@@ -274,6 +274,16 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
     specie: 75,
     cargoQuantity: 3
   });
+  const struckColors = shipDialogueView(acceptingSession, ship);
+  assert.equal(struckColors.speaker, "Teresa de la Vega, Spanish merchant captain");
+  assert.equal(struckColors.expressionId, "afraid");
+  assert.match(struckColors.text, /colors are struck/);
+  assert.deepEqual(struckColors.options.map((option) => option.label), ["Review the prize"]);
+  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
+    closed: false,
+    action: null
+  });
+
   const prize = shipDialogueView(acceptingSession, ship);
   assert.equal(prize.presentation.kind, "ship-capture");
   assert.equal(prize.presentation.candidateShipSlug, "small-cog");
@@ -315,6 +325,10 @@ test("a surrendered prize cannot replace the player with a hold that is too smal
     maxHitPoints: 7,
     cargoUsed: 34 / 3
   });
+  const surrender = shipDialogueView(session, ship);
+  assert.equal(surrender.speaker, "Salim Reis, merchant captain");
+  assert.deepEqual(surrender.options.map((option) => option.label), ["Review the prize"]);
+  selectShipDialogueOption(session, ship, 0);
   const view = shipDialogueView(session, ship);
 
   assert.equal(view.options[0].disabled, true);
@@ -339,6 +353,7 @@ test("a surrender prize accepts fractional cargo use from daily provisions", () 
   });
 
   assert.equal(session.prize.cargoUsed, 116 / 3);
+  selectShipDialogueOption(session, ship, 0);
   assert.equal(shipDialogueView(session, ship).options[0].disabled, false);
 });
 
