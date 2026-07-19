@@ -4886,13 +4886,17 @@ function recordCapturePosition(nowMs) {
     return;
   }
   captureLastPositionEventMs = nowMs;
-  emitCaptureEvent("position", {
+  emitCaptureEvent("position", capturePositionEventData());
+}
+
+function capturePositionEventData() {
+  return {
     lat: Math.round(latitudeDegForDirection(ship.position) * 10000) / 10000,
     lon: Math.round(longitudeDegForDirection(ship.position) * 10000) / 10000,
     tileId: ship.tileId,
     speed: Math.round(Math.hypot(...ship.velocity) * 1e7) / 1e7,
     heading: shipHeadingFrame()
-  });
+  };
 }
 
 function setupAutomaticFramePass() {
@@ -4916,6 +4920,9 @@ function stepAutomaticCaptureFrame(frameIndex) {
   if (!CAPTURE_FRAME_PASS) throw new Error("Frame stepping is unavailable outside the frame pass");
   const step = advanceAutomaticFrameStepper(captureFrameStepper, frameIndex);
   runFrame(step.nowMs, { scheduleNextFrame: false, forceRender: true });
+  if (!step.complete && captureFrameStepper.nextIndex % captureFrameStepper.frameRate === 0) {
+    emitCaptureEvent("position", capturePositionEventData());
+  }
   const complete = captureDirectorComplete(captureDirector);
   if (complete !== step.complete) {
     throw new Error(
@@ -4938,7 +4945,8 @@ function stageCaptureSequence() {
   stageCaptureDiscoveryMemory(sequence);
   if (sequence.kind === "explore") {
     const discovery = captureDiscoveryByName(sequence.discoveryName);
-    captureDirector.steeringTarget = discoveryDirection(discovery);
+    if (sequence.riverStart) placeCapturePlayerNearRiverCoordinates(sequence.riverStart);
+    captureDirector.steeringTarget = captureSequenceSailingTarget(sequence) || discoveryDirection(discovery);
   } else if (sequence.kind === "trade") {
     const city = captureCityByName(sequence.cityName);
     placeCapturePlayerNearTile(city.tileId);
@@ -4967,6 +4975,11 @@ function stageCaptureSequence() {
     throw new Error(`Unknown capture sequence kind: ${sequence.kind}`);
   }
   dirty = true;
+}
+
+function captureSequenceSailingTarget(sequence) {
+  const target = sequence.sailingTarget;
+  return target ? latLonToDirection(target.lat, target.lon) : null;
 }
 
 function stageCaptureDiscoveryMemory(sequence) {
@@ -5243,6 +5256,29 @@ function placeCapturePlayerNearTile(tileId) {
   const navigableTileId = candidates.find((candidate) => isShipBaseNavigableTile(candidate));
   if (!Number.isInteger(navigableTileId)) {
     throw new Error(`Capture destination has no navigable tile: ${tileId}`);
+  }
+  placeCapturePlayerOnTile(navigableTileId);
+}
+
+function placeCapturePlayerNearRiverCoordinates(coordinates) {
+  const requested = latLonToDirection(coordinates.lat, coordinates.lon);
+  const requestedTileId = findNearestTileId(graph, directionIndex, requested);
+  const riverTileId = nearestTileMatching(requestedTileId, shipTileHasRiver);
+  if (!Number.isInteger(riverTileId)) {
+    throw new Error(`Capture river start has no river tile near ${coordinates.lat}, ${coordinates.lon}`);
+  }
+  const distancePx = vectorArcDistance(requested, tileCenterVector(riverTileId)) * PIXELS_PER_RADIAN;
+  if (distancePx > 48) {
+    throw new Error(
+      `Capture river start resolved ${distancePx.toFixed(1)}px from ${coordinates.lat}, ${coordinates.lon}`
+    );
+  }
+  placeCapturePlayerOnTile(riverTileId);
+}
+
+function placeCapturePlayerOnTile(navigableTileId) {
+  if (!isShipBaseNavigableTile(navigableTileId)) {
+    throw new Error(`Capture player tile is not navigable: ${navigableTileId}`);
   }
   ship.position = tileCenterVector(navigableTileId);
   ship.tileId = navigableTileId;

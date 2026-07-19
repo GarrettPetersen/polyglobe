@@ -55,6 +55,15 @@ test("the trailer roster has exactly two scripted shots for every requested feat
   });
 });
 
+test("the Nubian pyramid trailer shot follows the Nile south instead of steering onto land", () => {
+  const scenario = captureScenarioFromSearch("?capture=trailer-explore-pyramid");
+  assert.equal(scenario.title, "Discover the Pyramids of Meroe");
+  assert.equal(scenario.player.headingDeg, 270);
+  assert.equal(scenario.sequence.discoveryName, "The Pyramids of Meroe");
+  assert.deepEqual(scenario.sequence.riverStart, { lat: 17.82, lon: 33.63 });
+  assert.ok(scenario.sequence.sailingTarget.lat < scenario.player.lat);
+});
+
 test("land-trade capture stages the road-dense western Mediterranean", () => {
   const scenario = captureScenarioFromSearch("?capture=land-trade");
   assert.equal(scenario.player.factionId, "france");
@@ -112,4 +121,12 @@ test("capture validation rejects unknown vessels and malformed clocks", () => {
     () => validateCaptureScenario(unsupportedEncounter),
     /has no NPC sprite asset: spanish-nao/
   );
+
+  const malformedTarget = structuredClone(captureScenarioFromSearch("?capture=trailer-explore-pyramid"));
+  malformedTarget.sequence.sailingTarget.lat = -91;
+  assert.throws(() => validateCaptureScenario(malformedTarget), /sailing target latitude/);
+
+  const malformedRiverStart = structuredClone(captureScenarioFromSearch("?capture=trailer-explore-pyramid"));
+  malformedRiverStart.sequence.riverStart.lon = 181;
+  assert.throws(() => validateCaptureScenario(malformedRiverStart), /river start longitude/);
 });

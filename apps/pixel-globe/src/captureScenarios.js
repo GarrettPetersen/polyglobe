@@ -119,11 +119,15 @@ const CAPTURE_SCENARIOS = Object.freeze({
   }),
   "trailer-explore-pyramid": trailerScenario({
     id: "trailer-explore-pyramid",
-    title: "Discover the Great Pyramid",
-    seed: "trailer-explore-pyramid-v1",
-    player: capturePlayer("ottoman", "felucca", 29.74, 31.22, 45),
+    title: "Discover the Pyramids of Meroe",
+    seed: "trailer-explore-pyramid-v2",
+    player: capturePlayer("ottoman", "felucca", 17.82, 33.63, 270),
     world: captureWorld(68, 16, 50),
-    sequence: trailerSequence("explore", "pyramid", { discoveryName: "The Great Pyramid" })
+    sequence: trailerSequence("explore", "pyramid", {
+      discoveryName: "The Pyramids of Meroe",
+      riverStart: { lat: 17.82, lon: 33.63 },
+      sailingTarget: { lat: 15.6, lon: 32.55 }
+    })
   }),
   "trailer-trade-ternate": trailerScenario({
     id: "trailer-trade-ternate",
@@ -323,6 +327,20 @@ function validateCaptureSequence(value) {
     survive: []
   };
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
+  if (value.sailingTarget !== undefined) {
+    if (!value.sailingTarget || typeof value.sailingTarget !== "object") {
+      throw new Error("Capture sequence sailing target must be an object");
+    }
+    numberInRange(value.sailingTarget.lat, -89.999, 89.999, "capture sequence sailing target latitude");
+    numberInRange(value.sailingTarget.lon, -180, 180, "capture sequence sailing target longitude");
+  }
+  if (value.riverStart !== undefined) {
+    if (!value.riverStart || typeof value.riverStart !== "object") {
+      throw new Error("Capture sequence river start must be an object");
+    }
+    numberInRange(value.riverStart.lat, -89.999, 89.999, "capture sequence river start latitude");
+    numberInRange(value.riverStart.lon, -180, 180, "capture sequence river start longitude");
+  }
 }
 
 function trailerScenario(value) {

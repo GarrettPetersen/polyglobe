@@ -31,6 +31,13 @@
       ]
     },
     {
+      "heading": "Colonize",
+      "clips": [
+        { "source": "colonize/trailer-colonize-found.mp4", "start": 4.3, "duration": 4.0 },
+        { "source": "colonize/trailer-colonize-establish.mp4", "start": 4.3, "duration": 4.0 }
+      ]
+    },
+    {
       "heading": "Fight",
       "clips": [
         { "source": "fight/trailer-fight-turtle.mp4", "start": 1.2, "duration": 4.0 },
@@ -45,22 +52,11 @@
       ]
     },
     {
-      "heading": "Colonize",
-      "clips": [
-        { "source": "colonize/trailer-colonize-found.mp4", "start": 4.3, "duration": 4.0 },
-        { "source": "colonize/trailer-colonize-establish.mp4", "start": 4.3, "duration": 4.0 }
-      ]
-    },
-    {
       "heading": "Survive",
       "clips": [
         { "source": "survive/trailer-survive-dehydration.mp4", "start": 0.0, "duration": 4.0 },
         { "source": "survive/trailer-survive-lightning.mp4", "start": 1.2, "duration": 4.0 }
       ]
     }
-  ],
-  "outro": {
-    "source": "fight/trailer-fight-atlantic.mp4",
-    "start": 1.5
-  }
+  ]
 }
