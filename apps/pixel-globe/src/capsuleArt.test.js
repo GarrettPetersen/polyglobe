@@ -55,8 +55,11 @@ test("capsule art documents and preserves its authored layer order", async () =>
   );
   assert.match(generator, /const ARTWORK_LAYER_ORDER = Object\.freeze\(\["background", "ship"\]\)/);
   assert.match(generator, /const TEXT_LAYER_ORDER = Object\.freeze\(\["upperText", "lowerText"\]\)/);
+  assert.match(generator, /sourcePointToCanvas\([\s\S]*sourceShipAnchor/);
+  assert.match(generator, /assertVerticalAnchorAlignment/);
   assert.match(readme, /background\.png[\s\S]*upper_text\.png[\s\S]*ship\.png[\s\S]*lower_text\.png/);
   assert.match(readme, /library_logo_en\.png.*only the two text layers/);
+  assert.match(readme, /original waterline/);
 });
 
 test("main capsule is the exact authored four-layer composition", async () => {

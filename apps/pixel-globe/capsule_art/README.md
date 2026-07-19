@@ -18,7 +18,7 @@ Generated files are written to `capsule_art/generated/`.
 All resizing uses nearest-neighbor sampling to keep the pixel art crisp. Standard
 formats crop the aligned source canvas as one composition. Tall and exceptionally
 wide formats fit the foreground lockup over a separately cropped background so
-none of the title is lost.
+none of the title is lost, while anchoring the ship to its original waterline.
 
 ## Layer Modes
 

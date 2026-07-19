@@ -40,14 +40,12 @@ const OUTPUTS = Object.freeze([
   capsule("capsule_main_en.png", 1232, 706),
   capsule("capsule_vertical_en.png", 748, 896, {
     layout: "fitted-lockup",
-    lockupWidth: 0.92,
-    lockupTop: 0.08
+    lockupWidth: 0.92
   }),
   artwork("capsule_background.png", 1438, 810),
   capsule("library_capsule_en.png", 600, 900, {
     layout: "fitted-lockup",
-    lockupWidth: 0.92,
-    lockupTop: 0.08
+    lockupWidth: 0.92
   }),
   capsule("library_header_en.png", 920, 430),
   artwork("library_hero.png", 3840, 1240, { focalY: 0.36 }),
@@ -65,9 +63,7 @@ const OUTPUTS = Object.freeze([
     layout: "fitted-lockup",
     focalY: 0.38,
     lockupWidth: 0.52,
-    lockupHeight: 0.88,
-    lockupCenterX: 0.7,
-    lockupTop: 0.06
+    lockupHeight: 0.55
   }),
   capsule("social_share_en.png", 1200, 630),
   capsule("itchio_cover_en.png", 630, 500, { focalX: 0.48, focalY: 0.5 })
@@ -123,9 +119,7 @@ function capsule(name, width, height, options = {}) {
     focalX: options.focalX ?? 0.5,
     focalY: options.focalY ?? 0.5,
     lockupWidth: options.lockupWidth,
-    lockupHeight: options.lockupHeight,
-    lockupCenterX: options.lockupCenterX,
-    lockupTop: options.lockupTop
+    lockupHeight: options.lockupHeight
   });
 }
 
@@ -150,11 +144,26 @@ async function main() {
 
   const layers = await loadSourceLayers();
   const sourceSize = validateLayerDimensions(layers);
+  const textComposition = trimTransparentComposition(
+    composeLayers(sourceSize, layers, TEXT_LAYER_ORDER)
+  );
+  const lockupComposition = trimTransparentComposition(
+    composeLayers(sourceSize, layers, LOCKUP_LAYER_ORDER)
+  );
   const composites = Object.freeze({
     full: composeLayers(sourceSize, layers, FULL_LAYER_ORDER),
     artwork: composeLayers(sourceSize, layers, ARTWORK_LAYER_ORDER),
-    text: trimTransparentImage(composeLayers(sourceSize, layers, TEXT_LAYER_ORDER)),
-    lockup: trimTransparentImage(composeLayers(sourceSize, layers, LOCKUP_LAYER_ORDER))
+    text: textComposition.image,
+    lockup: lockupComposition.image
+  });
+  const shipBounds = opaqueBounds(layers.ship);
+  const sourceShipAnchor = Object.freeze({
+    x: (shipBounds.minX + shipBounds.maxX + 1) / 2,
+    y: shipBounds.maxY + 1
+  });
+  const lockupShipAnchor = Object.freeze({
+    x: sourceShipAnchor.x - lockupComposition.bounds.minX,
+    y: sourceShipAnchor.y - lockupComposition.bounds.minY
   });
   const needsClientIcon = selectedOutputs.some((output) => output.kind === "client-icon");
   const clientIconWater = needsClientIcon
@@ -190,13 +199,24 @@ async function main() {
     } else if (output.kind === "artwork") {
       drawCover(context, canvas, composites.artwork, output.focalX, output.focalY);
     } else if (output.layout === "fitted-lockup") {
-      drawCover(context, canvas, layers.background, output.focalX, output.focalY);
-      drawContained(context, canvas, composites.lockup, {
+      const backgroundTransform = drawCover(
+        context,
+        canvas,
+        layers.background,
+        output.focalX,
+        output.focalY
+      );
+      const targetShipAnchor = sourcePointToCanvas(
+        backgroundTransform,
+        sourceShipAnchor
+      );
+      const lockupTransform = drawContained(context, canvas, composites.lockup, {
         widthRatio: output.lockupWidth,
         heightRatio: output.lockupHeight,
-        centerXRatio: output.lockupCenterX,
-        topRatio: output.lockupTop
+        imageAnchor: lockupShipAnchor,
+        targetAnchor: targetShipAnchor
       });
+      assertVerticalAnchorAlignment(output.name, lockupTransform, lockupShipAnchor, targetShipAnchor);
     } else {
       drawCover(context, canvas, composites.full, output.focalX, output.focalY);
     }
@@ -265,6 +285,7 @@ function drawCover(context, canvas, image, focalX, focalY) {
     canvas.width,
     canvas.height
   );
+  return Object.freeze({ scale, sourceX, sourceY });
 }
 
 function drawContained(context, canvas, image, options = {}) {
@@ -276,12 +297,35 @@ function drawContained(context, canvas, image, options = {}) {
   );
   const width = Math.max(1, Math.round(image.width * scale));
   const height = Math.max(1, Math.round(image.height * scale));
-  const centerX = canvas.width * (options.centerXRatio ?? 0.5);
-  const x = Math.round(clamp(centerX - width / 2, 0, canvas.width - width));
-  const y = options.topRatio === undefined
-    ? Math.round((canvas.height - height) / 2)
-    : Math.round(clamp(canvas.height * options.topRatio, 0, canvas.height - height));
+  const scaleX = width / image.width;
+  const scaleY = height / image.height;
+  const anchored = options.imageAnchor !== undefined && options.targetAnchor !== undefined;
+  const idealX = anchored
+    ? options.targetAnchor.x - options.imageAnchor.x * scaleX
+    : canvas.width * (options.centerXRatio ?? 0.5) - width / 2;
+  const idealY = anchored
+    ? options.targetAnchor.y - options.imageAnchor.y * scaleY
+    : (canvas.height - height) / 2;
+  const x = Math.round(clamp(idealX, 0, canvas.width - width));
+  const y = Math.round(clamp(idealY, 0, canvas.height - height));
   context.drawImage(image, x, y, width, height);
+  return Object.freeze({ x, y, scaleX, scaleY });
+}
+
+function sourcePointToCanvas(coverTransform, point) {
+  return Object.freeze({
+    x: (point.x - coverTransform.sourceX) * coverTransform.scale,
+    y: (point.y - coverTransform.sourceY) * coverTransform.scale
+  });
+}
+
+function assertVerticalAnchorAlignment(name, transform, imageAnchor, targetAnchor) {
+  const renderedY = transform.y + imageAnchor.y * transform.scaleY;
+  if (Math.abs(renderedY - targetAnchor.y) > 1) {
+    throw new Error(
+      `${name} cannot align its fitted ship to the source waterline without clipping`
+    );
+  }
 }
 
 async function loadClientIconShips() {
@@ -384,6 +428,32 @@ function fittedComparisonLabelFont(context, label, maxWidth) {
 }
 
 function trimTransparentImage(image) {
+  return trimTransparentComposition(image).image;
+}
+
+function trimTransparentComposition(image) {
+  const bounds = opaqueBounds(image);
+  const source = createCanvas(image.width, image.height);
+  const context = source.getContext("2d");
+  context.drawImage(image, 0, 0);
+  const width = bounds.maxX - bounds.minX + 1;
+  const height = bounds.maxY - bounds.minY + 1;
+  const trimmed = createCanvas(width, height);
+  trimmed.getContext("2d").drawImage(
+    source,
+    bounds.minX,
+    bounds.minY,
+    width,
+    height,
+    0,
+    0,
+    width,
+    height
+  );
+  return Object.freeze({ image: trimmed, bounds });
+}
+
+function opaqueBounds(image) {
   const source = createCanvas(image.width, image.height);
   const context = source.getContext("2d", { willReadFrequently: true });
   context.drawImage(image, 0, 0);
@@ -404,21 +474,7 @@ function trimTransparentImage(image) {
   if (maxX < minX || maxY < minY) {
     throw new Error("Capsule layer composition contains no opaque pixels");
   }
-  const width = maxX - minX + 1;
-  const height = maxY - minY + 1;
-  const trimmed = createCanvas(width, height);
-  trimmed.getContext("2d").drawImage(
-    source,
-    minX,
-    minY,
-    width,
-    height,
-    0,
-    0,
-    width,
-    height
-  );
-  return trimmed;
+  return Object.freeze({ minX, minY, maxX, maxY });
 }
 
 async function writeContactSheet(rendered) {
