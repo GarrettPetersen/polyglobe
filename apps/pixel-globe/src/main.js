@@ -4285,10 +4285,14 @@ function playSoundEffect(pool, volume, playbackRate = 1) {
 
 function captureSfxAssetPath(audio) {
   const url = new URL(audio.currentSrc || audio.src, window.location.href);
-  if (url.origin !== window.location.origin || !url.pathname.startsWith("/assets/sfx/")) {
+  const appUrl = new URL("./", window.location.href);
+  const assetPath = url.pathname.startsWith(appUrl.pathname)
+    ? url.pathname.slice(appUrl.pathname.length)
+    : "";
+  if (url.origin !== appUrl.origin || !assetPath.startsWith("assets/sfx/")) {
     throw new Error(`Capture SFX must be a local game asset: ${url}`);
   }
-  return url.pathname.slice(1);
+  return assetPath;
 }
 
 function playCannonShotSound(broadsideCount, distancePx = 0) {
