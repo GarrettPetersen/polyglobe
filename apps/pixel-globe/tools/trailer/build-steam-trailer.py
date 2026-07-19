@@ -3,10 +3,11 @@
 import json
 import math
 import shutil
-import subprocess
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+from trailer_support import draw_shadowed_text, probe_duration, require_file, run
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -18,7 +19,7 @@ PLAN_PATH = TOOL / "steam-trailer-plan.json"
 TEMP = WORK / "render"
 OVERLAYS = TEMP / "overlays"
 SEGMENTS = TEMP / "segments"
-OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v4.mp4"
+OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v5.mp4"
 FONT_PATH = TOOL / "assets" / "PirataOne-Regular.ttf"
 TITLE_PATH = APP / "public" / "assets" / "capsule" / "detailed_title.png"
 SAILING_MUSIC_INTRO = APP / "public" / "assets" / "music" / "ship-theme-intro.ogg"
@@ -35,43 +36,13 @@ HEADING_CRUISE_SPEED_PX_PER_SECOND = 28
 MUSIC_CROSSFADE_SECONDS = 1.6
 OUTRO_BLUR_SECONDS = 1.1
 OUTRO_TITLE_START_SECONDS = 0.25
-
-
-def run(command):
-    print("+", " ".join(str(part) for part in command), flush=True)
-    subprocess.run([str(part) for part in command], check=True)
-
-
-def require_file(path):
-    if not path.is_file():
-        raise FileNotFoundError(f"Required trailer asset is missing: {path}")
-
-
-def draw_centered_text(image, text, font, center, shadow_offset=(10, 12), shadow_blur=10):
-    shadow = (20, 12, 9, 225)
-    white = (255, 252, 238, 255)
-    x, y = center
-    shadow_mask = Image.new("L", image.size, 0)
-    shadow_draw = ImageDraw.Draw(shadow_mask)
-    shadow_draw.text(
-        (x + shadow_offset[0], y + shadow_offset[1]),
-        text,
-        font=font,
-        fill=shadow[3],
-        anchor="mm",
-    )
-    blurred_mask = shadow_mask.filter(ImageFilter.GaussianBlur(shadow_blur))
-    shadow_layer = Image.new("RGBA", image.size, shadow[:3] + (0,))
-    shadow_layer.putalpha(blurred_mask)
-    image.alpha_composite(shadow_layer)
-    draw = ImageDraw.Draw(image)
-    draw.text((x, y), text, font=font, fill=white, anchor="mm")
+OUTRO_SOURCE_MAX_SECONDS = 5.0
 
 
 def make_heading_sprite(heading):
     overlay = Image.new("RGBA", (WIDTH, 360), (0, 0, 0, 0))
     font = ImageFont.truetype(str(FONT_PATH), 220)
-    draw_centered_text(overlay, heading, font, (WIDTH // 2, overlay.height // 2))
+    draw_shadowed_text(overlay, heading, font, (WIDTH // 2, overlay.height // 2))
     bounds = overlay.getchannel("A").getbbox()
     if not bounds:
         raise RuntimeError(f"Trailer heading has no opaque pixels: {heading}")
@@ -113,7 +84,7 @@ def make_outro_sprite():
 
     overlay.alpha_composite(shadowed_image(title), (title_x + 10, title_y + 12))
     overlay.alpha_composite(title, (title_x, title_y))
-    draw_centered_text(
+    draw_shadowed_text(
         overlay,
         subtitle,
         subtitle_font,
@@ -219,10 +190,13 @@ def render_segment(
     ])
 
 
-def render_outro_hold(source, frame_time, duration, overlay, output):
+def render_outro_motion(source, source_start, source_duration, duration, overlay, output):
     require_file(source)
     require_file(overlay)
-    frame_duration = 1 / FPS
+    playback_rate = source_duration / duration
+    if not 0.5 <= playback_rate <= 2:
+        raise RuntimeError(f"Outro playback rate is unsupported by FFmpeg atempo: {playback_rate}")
+    video_stretch = duration / source_duration
     blur_mix = f"min(T/{OUTRO_BLUR_SECONDS},1)"
     blend_expression = f"A*(1-{blur_mix})+B*{blur_mix}"
     pop_time = f"(t-{OUTRO_TITLE_START_SECONDS})"
@@ -233,10 +207,10 @@ def render_outro_hold(source, frame_time, duration, overlay, output):
     scale_width = f"max(2,trunc(iw*({title_scale})/2)*2)"
     scale_height = f"max(2,trunc(ih*({title_scale})/2)*2)"
     filters = (
-        f"[0:v]trim=start={frame_time}:duration={frame_duration},setpts=PTS-STARTPTS,"
-        f"fps={FPS},scale={WIDTH}:{HEIGHT}:flags=neighbor,setsar=1,"
-        f"tpad=stop_mode=clone:stop_duration={duration},trim=duration={duration}[hold];"
-        "[hold]split=2[sharp][blur-source];"
+        f"[0:v]trim=start={source_start}:duration={source_duration},"
+        f"setpts=(PTS-STARTPTS)*{video_stretch},fps={FPS},"
+        f"scale={WIDTH}:{HEIGHT}:flags=neighbor,setsar=1,trim=duration={duration}[motion];"
+        "[motion]split=2[sharp][blur-source];"
         "[blur-source]gblur=sigma=18:steps=3[blurred];"
         f"[sharp][blurred]blend=all_expr='{escape_filter_expression(blend_expression)}'[base];"
         "[1:v]format=rgba,"
@@ -245,14 +219,14 @@ def render_outro_hold(source, frame_time, duration, overlay, output):
         "[base][overlay]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':"
         f"enable='gte(t,{OUTRO_TITLE_START_SECONDS})':shortest=1:format=auto,"
         "format=yuv420p[video];"
-        f"[2:a]atrim=duration={duration},asetpts=PTS-STARTPTS,"
+        f"[0:a]atrim=start={source_start}:duration={source_duration},asetpts=PTS-STARTPTS,"
+        f"atempo={playback_rate},atrim=duration={duration},"
         "aformat=sample_fmts=s16:channel_layouts=stereo[audio]"
     )
     run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-i", source,
         "-loop", "1", "-framerate", str(FPS), "-i", overlay,
-        "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
         "-filter_complex", filters,
         "-map", "[video]", "-map", "[audio]",
         "-t", str(duration),
@@ -264,19 +238,6 @@ def render_outro_hold(source, frame_time, duration, overlay, output):
 
 def escape_filter_expression(value):
     return value.replace(",", "\\,")
-
-
-def probe_duration(path):
-    result = subprocess.run(
-        [
-            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=nw=1:nk=1", str(path),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return float(result.stdout.strip())
 
 
 def main():
@@ -373,11 +334,18 @@ def main():
     final_source_duration = probe_duration(final_source)
     if final_source_end > final_source_duration + 0.04:
         raise RuntimeError("Final trailer clip exceeds its source")
-    final_frame_time = max(0, final_source_end - 1 / FPS)
+    outro_source_start = max(0, final_source_end - 1 / FPS)
+    outro_source_duration = min(
+        OUTRO_SOURCE_MAX_SECONDS,
+        final_source_duration - outro_source_start,
+    )
+    if outro_source_duration <= 0:
+        raise RuntimeError("Final trailer clip has no footage available for its moving outro")
     outro_path = SEGMENTS / f"{segment_index:02d}-outro.mkv"
-    render_outro_hold(
+    render_outro_motion(
         final_source,
-        final_frame_time,
+        outro_source_start,
+        outro_source_duration,
         outro_seconds,
         make_outro_sprite(),
         outro_path,
@@ -385,7 +353,9 @@ def main():
     segment_paths.append(outro_path)
     edit["outro"] = {
         "source": str(final_source),
-        "heldFrameTime": final_frame_time,
+        "sourceStart": outro_source_start,
+        "sourceDuration": outro_source_duration,
+        "playbackRate": outro_source_duration / outro_seconds,
         "duration": outro_seconds,
         "blurSeconds": OUTRO_BLUR_SECONDS,
         "titleAnimation": "damped-pop",
@@ -464,7 +434,7 @@ def main():
             f"Final trailer is {final_duration:.3f}s; expected {expected_duration:.3f}s"
         )
     edit["durationSeconds"] = final_duration
-    (WORK / "marque-and-reprisal-steam-trailer-v4.edit.json").write_text(
+    OUTPUT.with_suffix(".edit.json").write_text(
         json.dumps(edit, indent=2) + "\n"
     )
     print(f"Rendered {OUTPUT} ({final_duration:.2f}s)")

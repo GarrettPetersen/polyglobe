@@ -6,7 +6,13 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const toolDir = path.dirname(fileURLToPath(import.meta.url));
-const builder = path.join(toolDir, "build-steam-trailer.py");
+const scriptName = process.argv[2];
+if (!scriptName || path.basename(scriptName) !== scriptName || !scriptName.endsWith(".py")) {
+  throw new Error("A Python trailer tool filename is required");
+}
+const builder = path.join(toolDir, scriptName);
+if (!existsSync(builder)) throw new Error(`Unknown Python trailer tool: ${scriptName}`);
+
 const bundledPython = path.join(
   homedir(),
   ".cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3.12"
@@ -27,7 +33,7 @@ const python = candidates.find((command) => {
 
 if (!python) {
   throw new Error(
-    "Steam trailer build requires Python 3 with Pillow. " +
+    "Trailer media builds require Python 3 with Pillow. " +
     "Install Pillow or set PIXEL_GLOBE_PYTHON to a compatible interpreter."
   );
 }

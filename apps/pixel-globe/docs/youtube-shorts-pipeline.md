@@ -83,7 +83,15 @@ Build the final Steam trailer after all sixteen landscape clips have been captur
 make pixel-globe-steam-trailer
 ```
 
-The tracked edit plan, Pirata One heading font, and builder live in `tools/trailer/`. The builder keeps required trade interfaces on screen for five seconds, favors unobstructed gameplay for every other chapter, mixes the captured SFX under the sailing score, crossfades into the combat score as Fight begins, and animates chapter labels through the lower third. The final survival frame holds while the gameplay eases into Gaussian blur and the title performs a damped pop. The builder writes `apps/pixel-globe/.captures/trailer/marque-and-reprisal-steam-trailer-v4.mp4`.
+The tracked edit plan, Pirata One heading font, and builder live in `tools/trailer/`. The builder keeps brief trade actions readable, centers the other cuts on decisive gameplay beats, mixes the captured SFX under the sailing score, crossfades into the combat score as Fight begins, and animates chapter labels through the lower third. The final storm footage continues in slow motion while the gameplay eases into Gaussian blur and the title performs a damped pop. The builder writes `apps/pixel-globe/.captures/trailer/marque-and-reprisal-steam-trailer-v5.mp4`.
+
+Build the looping feature banners for Steam's About This Game description from the same landscape captures:
+
+```sh
+make pixel-globe-steam-inline-videos
+```
+
+[Steam's extra-asset guidance](https://partner.steamgames.com/doc/store/page/assets) recommends a width of `1170px`, accepts WebM, and limits animations to 12 seconds. The tracked plan produces eight silent, 8.5-second VP9 WebMs at `1170x270` with BT.709 metadata. Each video takes the native canvas's central `390x90` band and scales it exactly 3x, preserving the pixel grid while leaving its Pirata One feature heading fixed at the left. Outputs and their manifest are written to `apps/pixel-globe/.captures/steam-inline-videos/`.
 
 ## 6. Build the Short
 

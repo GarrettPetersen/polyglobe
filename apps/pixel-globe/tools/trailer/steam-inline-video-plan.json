@@ -1,0 +1,64 @@
+{
+  "width": 1170,
+  "height": 270,
+  "sourceCrop": { "x": 45, "y": 90, "width": 390, "height": 90 },
+  "clips": [
+    {
+      "heading": "Explore",
+      "output": "explore.webm",
+      "segments": [
+        { "source": "explore/trailer-explore-fuji.webm", "start": 0.5, "duration": 8.5 }
+      ]
+    },
+    {
+      "heading": "Trade",
+      "output": "trade.webm",
+      "segments": [
+        { "source": "trade/trailer-trade-lisbon.webm", "start": 0.7, "duration": 8.5 }
+      ]
+    },
+    {
+      "heading": "Fish",
+      "output": "fish.webm",
+      "segments": [
+        { "source": "fish/trailer-fish-cod.webm", "start": 0.5, "duration": 8.5 }
+      ]
+    },
+    {
+      "heading": "Whale",
+      "output": "whale.webm",
+      "segments": [
+        { "source": "whale/trailer-whale-sperm.webm", "start": 1.0, "duration": 8.5 }
+      ]
+    },
+    {
+      "heading": "Colonize",
+      "output": "colonize.webm",
+      "segments": [
+        { "source": "colonize/trailer-colonize-found.webm", "start": 4.3, "duration": 4.25 },
+        { "source": "colonize/trailer-colonize-establish.webm", "start": 4.3, "duration": 4.25 }
+      ]
+    },
+    {
+      "heading": "Fight",
+      "output": "fight.webm",
+      "segments": [
+        { "source": "fight/trailer-fight-atlantic.webm", "start": 0.0, "duration": 8.5 }
+      ]
+    },
+    {
+      "heading": "Pillage",
+      "output": "pillage.webm",
+      "segments": [
+        { "source": "pillage/trailer-pillage-alexandria.webm", "start": 1.2, "duration": 8.5 }
+      ]
+    },
+    {
+      "heading": "Survive",
+      "output": "survive.webm",
+      "segments": [
+        { "source": "survive/trailer-survive-lightning.webm", "start": 0.5, "duration": 8.5 }
+      ]
+    }
+  ]
+}
