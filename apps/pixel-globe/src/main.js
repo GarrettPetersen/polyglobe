@@ -428,7 +428,8 @@ import {
   terrainBaseSpriteKey,
   terrainConnectorNeedsSlopeDetail,
   TERRAIN_MOUNTAIN_LEVEL,
-  terrainSpriteDrawLayer
+  terrainSpriteDrawLayer,
+  terrainSpriteOccludesShips
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
 import {
@@ -19710,14 +19711,27 @@ function terrainImageForTile(row, id) {
 }
 
 function terrainLayerImagesForTile(row, id) {
+  return terrainLayerSpecsForTile(row, id).map((layer) => layer.image);
+}
+
+function terrainLayerSpecsForTile(row, id) {
   const spriteKey = spriteForTerrain(row, id);
   const baseSpriteKey = terrainBaseSpriteKey(spriteKey);
   const foregroundImage = terrainImageForTile(row, id);
-  if (baseSpriteKey === spriteKey) return [foregroundImage];
+  if (baseSpriteKey === spriteKey) return [{ spriteKey, image: foregroundImage }];
   return [
-    terrainBaseImageForTile(row, id, baseSpriteKey),
-    foregroundImage
+    {
+      spriteKey: baseSpriteKey,
+      image: terrainBaseImageForTile(row, id, baseSpriteKey)
+    },
+    { spriteKey, image: foregroundImage }
   ];
+}
+
+function terrainOccludingLayerImagesForTile(row, id) {
+  return terrainLayerSpecsForTile(row, id)
+    .filter((layer) => terrainSpriteOccludesShips(layer.spriteKey))
+    .map((layer) => layer.image);
 }
 
 function terrainBaseImageForTile(row, id, baseSpriteKey) {
@@ -21080,7 +21094,7 @@ function shipForegroundTerrainOcclusion(activeChart) {
   const occluders = [];
   for (const call of activeChart.tileCalls) {
     if (isWaterSurfaceRow(call.row)) continue;
-    for (const image of terrainLayerImagesForTile(call.row, call.id)) {
+    for (const image of terrainOccludingLayerImagesForTile(call.row, call.id)) {
       const mask = spriteAlphaMask(image);
       occluders.push({
         x: Math.round(call.drawSurfaceX - TILE_ART_HALF + offset.x),
