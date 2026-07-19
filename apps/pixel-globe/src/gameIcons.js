@@ -165,6 +165,7 @@ const MENU_LABEL_ICON_IDS = Object.freeze({
 });
 
 const DIALOGUE_NODE_ICON_IDS = Object.freeze({
+  "drunk-factor": "action:talk",
   root: "action:back",
   buy: "action:buy",
   equipment: "action:inventory",

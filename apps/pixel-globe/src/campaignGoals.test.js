@@ -18,6 +18,7 @@ import {
   campaignVictorySummary,
   createCampaignDialogueSession,
   createCampaignGoal,
+  drunkenCampaignHomecomingSteps,
   explorerDiscoveryReward,
   explorerPatronOutlook,
   familyDebtOriginExchange,
@@ -55,6 +56,16 @@ const EXPLORER_OBJECTIVES = Object.freeze([
   ...WONDERS.slice(0, 2),
   CIRCUMNAVIGATION_DISCOVERY
 ]);
+
+test("drunk homecomings open with role-specific captain banter", () => {
+  const explorer = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
+  const debt = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
+  const whale = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_WHITE_WHALE });
+  assert.match(drunkenCampaignHomecomingSteps(explorer, CHARACTER)[1].text, /atlas/i);
+  assert.match(drunkenCampaignHomecomingSteps(debt, CHARACTER)[1].text, /purse/i);
+  assert.match(drunkenCampaignHomecomingSteps(whale, CHARACTER)[1].text, /whales/i);
+  assert.equal(drunkenCampaignHomecomingSteps(explorer, CHARACTER)[0].speaker, "player");
+});
 
 test("explorer reports each wonder once and uses the dynamic catalog total", () => {
   const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });

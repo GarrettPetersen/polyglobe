@@ -1457,6 +1457,31 @@ test("a quest character precedes the loadout and factor during port arrival", ()
   assert.equal(futureQuestSession.nextPortNodeId, "greeting");
 });
 
+test("a drunk captain and factor exchange remarks before ordinary port dialogue", () => {
+  const city = {
+    tileId: 81,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    character: { name: "Fernao da Cunha", personalityId: "vigilant" }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.playerCharacter = { name: "Ines Pereira" };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortArrivalDialogueSession(city, { arrivedDrunk: true, drunkVariant: 2 });
+
+  const captain = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(captain.speaker, "Ines Pereira, captain");
+  assert.match(captain.text, /barely moves/i);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0);
+
+  const factor = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(factor.speaker, "Fernao da Cunha, Lisbon factor");
+  assert.match(factor.text, /stationary/i);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0);
+  assert.equal(session.nodeId, "greeting");
+});
+
 test("an active package mission opens its factor before the port menu", () => {
   const origin = {
     tileId: 71,

@@ -477,6 +477,27 @@ export function campaignHomecomingSteps(goal, outcome, playerCharacter, discover
   ];
 }
 
+export function drunkenCampaignHomecomingSteps(goal, playerCharacter) {
+  validateCampaignGoal(goal);
+  assertCharacter(playerCharacter);
+  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) {
+    return [
+      step("player", "happy", "Good news: I have come to settle accounts. Better news: the floor has stopped listing to port."),
+      step("contact", "annoyed", "That is the floor. It has never moved. Hand me the purse before you misplace gravity.")
+    ];
+  }
+  if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
+    return [
+      step("player", "happy", "I have returned with discoveries. Some of them are currently moving, but I wrote them down while they were still."),
+      step("contact", "concerned", "Sit down, captain. I shall separate geography from wine before adding either to the atlas.")
+    ];
+  }
+  return [
+    step("player", "happy", "I found the white whale. Or a white whale. Or an extremely judgmental wave."),
+    step("contact", "concerned", "Coffee first. Then bearings. Then whales.")
+  ];
+}
+
 export function campaignVictorySummary(goal, playerCharacter) {
   validateCampaignGoal(goal);
   assertCharacter(playerCharacter);

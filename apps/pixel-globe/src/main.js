@@ -26,7 +26,16 @@ import {
   crewStatusLayout
 } from "./crewStatus.js";
 import { specialStatusIconCount, statusIconRowLayout } from "./statusIconRow.js";
-import { drunkenWineDialogue, wineEmergencyDialogue } from "./wineSurvival.js";
+import {
+  captainIsDrunkAtPort,
+  drunkenWineDialogue,
+  wineEmergencyDialogue
+} from "./wineSurvival.js";
+import {
+  statusHudTooltipTargetAtPoint,
+  statusHudTooltipTargets,
+  statusHudTooltipText
+} from "./statusHudTooltips.js";
 import {
   CITY_VISUAL_MAX_OFFSET_PX,
   cityBankPreferenceVector,
@@ -242,6 +251,7 @@ import {
   campaignHomecomingSteps,
   campaignVictorySummary,
   createCampaignDialogueSession,
+  drunkenCampaignHomecomingSteps,
   explorerWonderCatalog,
   isExplorerLeadAssignable,
   markWhiteWhaleKilled,
@@ -1805,6 +1815,8 @@ let departureControlFeedback = null;
 let waypointArrowTargets = [];
 let selectedWaypointArrowId = null;
 let waypointArrowHoverPoint = null;
+let selectedStatusHudTooltipId = null;
+let statusHudHoverPoint = null;
 let stormMusicActive = false;
 let stormDamageNotice = null;
 let combatNotice = null;
@@ -3340,6 +3352,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   } else if (!startMenu && !creditsMenu.isOpen && !playerIntroModal && nowMs - lastOverlayMs > 250) {
     if (minimapShouldBeVisible()) drawMinimap(nowMs);
     drawSurvivalMeters();
+    drawSurvivalHudTooltip();
     drawStatusPersonParticles(nowMs);
     if (portWaitState) drawPortWaitControls(nowMs);
     else drawCaptainMenuButton();
@@ -6870,6 +6883,7 @@ function activateStartMenuSelection() {
 function handlePointerDown(event) {
   const point = canvasPointFromEvent(event);
   waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
+  statusHudHoverPoint = event.pointerType === "touch" ? null : point;
   sailingTutorialInputMode = event.pointerType === "touch" || event.pointerType === "pen"
     ? "touch"
     : "mouse";
@@ -6889,6 +6903,17 @@ function handlePointerDown(event) {
     return;
   }
   if (dispatchWorldOverlayPointerDown(event, point)) return;
+  const statusTarget = statusHudTooltipTargetForPoint(point);
+  if (statusTarget) {
+    event.preventDefault();
+    selectedStatusHudTooltipId = selectedStatusHudTooltipId === statusTarget.id ? null : statusTarget.id;
+    dirty = true;
+    return;
+  }
+  if (selectedStatusHudTooltipId !== null) {
+    selectedStatusHudTooltipId = null;
+    dirty = true;
+  }
   if (!dialogueState && pointInRect(point, expandedRect(getCaptainMenuButtonRect(), 8))) {
     event.preventDefault();
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
@@ -6977,6 +7002,7 @@ function handlePointerDown(event) {
 function handlePointerMove(event) {
   const point = canvasPointFromEvent(event);
   waypointArrowHoverPoint = event.pointerType === "touch" ? null : point;
+  statusHudHoverPoint = event.pointerType === "touch" ? null : point;
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
   if (lakeBattleMode && optionsMenu.isOpen) {
@@ -7001,6 +7027,7 @@ function handlePointerMove(event) {
 function handlePointerLeave(event) {
   if (event.pointerType === "touch") return;
   waypointArrowHoverPoint = null;
+  statusHudHoverPoint = null;
   dirty = true;
 }
 
@@ -7517,12 +7544,13 @@ function openPortDialogue(cityCall) {
     return;
   }
 
+  const arrivedDrunk = captainIsDrunkAtPort(gameState);
   const needsLoadout = admitPlayerToPort(cityCall);
-  const campaignSession = createCampaignHomecomingSession(cityCall, needsLoadout);
+  const campaignSession = createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk);
   if (campaignSession) {
     dialogueState = campaignSession;
   } else {
-    dialogueState = createOrdinaryPortArrivalSession(cityCall, needsLoadout);
+    dialogueState = createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk);
   }
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -7532,7 +7560,10 @@ function openPortDialogue(cityCall) {
   dirty = true;
 }
 
-function createOrdinaryPortArrivalSession(cityCall, needsLoadout) {
+function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk = false) {
+  const drunkVariant = spriteKeyHash(
+    `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
+  );
   const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
   if (rumor) {
     const nextPortNodeId = needsLoadout
@@ -7540,6 +7571,8 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout) {
       : deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities) ? "quest" : "root";
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
       rumorText: rumor.text,
       nextPortNodeId
     });
@@ -7555,12 +7588,14 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout) {
   }
   return createPortArrivalDialogueSession(cityCall, {
     needsLoadout,
+    arrivedDrunk,
+    drunkVariant,
     questCharacterSession,
     openDeliveryMission: deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities)
   });
 }
 
-function createCampaignHomecomingSession(cityCall, needsLoadout) {
+function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = false) {
   const goal = gameState.memory.campaignGoal;
   if (!goal || cityCall.tileId !== goal.homePortTileId) return null;
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
@@ -7574,12 +7609,15 @@ function createCampaignHomecomingSession(cityCall, needsLoadout) {
     nextLeadDiscoveryId: lead?.id || null
   });
   if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
-  const steps = campaignHomecomingSteps(
+  const ordinarySteps = campaignHomecomingSteps(
     goal,
     outcome,
     gameState.playerCharacter,
     discoveryCatalogById
   );
+  const steps = arrivedDrunk
+    ? [...drunkenCampaignHomecomingSteps(goal, gameState.playerCharacter), ...ordinarySteps]
+    : ordinarySteps;
   const session = createCampaignDialogueSession({
     cityTileId: cityCall.tileId,
     steps,
@@ -7762,7 +7800,9 @@ function continuePortDialogueAfterQuestCharacter() {
   const initialNodeId = dialogueState.nextPortNodeId || "greeting";
   dialogueState = createPortDialogueSession(city, {
     initialNodeId,
-    admittedToPort: dialogueState.admittedToPort === true
+    admittedToPort: dialogueState.admittedToPort === true,
+    postDrunkNodeId: dialogueState.postDrunkNodeId,
+    drunkVariant: dialogueState.drunkVariant
   });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
@@ -8592,7 +8632,16 @@ function currentDialogueCity() {
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
     if (portCall) {
-      if (dialogueState.nodeId !== "colonization") return portCall;
+      if (dialogueState.nodeId !== "colonization") {
+        if (dialogueState.nodeId !== "drunk-captain") return portCall;
+        const character = gameState.playerCharacter;
+        if (!character) throw new Error("Drunk port dialogue has no player captain");
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
+      }
       const character = portCall.colonizationQuestStage === COLONIZATION_STAGE_FAILED
         ? gameState.playerCharacter
         : colonizationOrganizer;
@@ -11493,7 +11542,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   const deprivationChanged = updateSurvivalDeprivationLosses(status, currentMinute);
   if (gameOverReason) return true;
   if (status.drinkFraction > 0 && status.drinkFraction <= 0.12) {
-    showSurvivalNotice("DRINKS LOW", "warn");
+    showSurvivalNotice(uiText("status.drinkableWaterLow"), "warn");
   }
   if (status.foodRations > 0 && status.foodDays <= 3) {
     showSurvivalNotice("FOOD LOW", "warn");
@@ -14328,6 +14377,7 @@ function render(nowMs) {
   drawCampaignGoalDestinationArrow(nowMs);
   drawPortNavigationHeadingArrow(nowMs);
   drawWaypointArrowTooltip();
+  drawSurvivalHudTooltip();
   drawDiscoveryNotice(nowMs);
   if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
   if (dialogueState) drawDialogueOverlay(nowMs);
@@ -22770,6 +22820,72 @@ function drawSurvivalMeters() {
     y + 33
   );
   drawSurvivalCrewRow(x, y);
+}
+
+function statusHudTooltipGeometry() {
+  return {
+    x: SURVIVAL_PANEL_X,
+    y: SURVIVAL_PANEL_Y,
+    width: SURVIVAL_PANEL_W,
+    height: SURVIVAL_PANEL_H,
+    titleSplitX: SURVIVAL_PANEL_X + 72
+  };
+}
+
+function statusHudTooltipsAvailable() {
+  return Boolean(
+    gameState && ship && !gameOverReason && !dialogueState && !playerIntroModal &&
+    !captainAlertModal && !startMenu && !menusAreOpen()
+  );
+}
+
+function statusHudTooltipTargetForPoint(point) {
+  if (!statusHudTooltipsAvailable()) return null;
+  return statusHudTooltipTargetAtPoint(point, statusHudTooltipGeometry());
+}
+
+function drawSurvivalHudTooltip() {
+  if (!statusHudTooltipsAvailable()) return;
+  const geometry = statusHudTooltipGeometry();
+  const hovered = statusHudTooltipTargetAtPoint(statusHudHoverPoint, geometry);
+  const selected = selectedStatusHudTooltipId
+    ? statusHudTooltipTargets(geometry).find((entry) => entry.id === selectedStatusHudTooltipId)
+    : null;
+  const target = hovered || selected;
+  if (!target?.rect) return;
+
+  const status = survivalStatus(gameState);
+  const passengers = shipTravelerManifest(gameState).reduce((total, group) => total + group.count, 0);
+  const text = statusHudTooltipText(currentLanguage, target.id, {
+    date: shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]),
+    doubloons: gameState.doubloons.toLocaleString(currentLanguage),
+    hull: Math.max(0, Math.ceil(ship.hitPoints)),
+    maxHull: Math.ceil(ship.maxHitPoints),
+    days: target.id === "water" ? Math.ceil(status.drinkDays) : Math.max(0, Math.floor(status.foodDays)),
+    crew: gameState.ship.crew,
+    passengers
+  });
+  const maxTextWidth = SCREEN_W - 18;
+  const lines = wrapPixelText(text, PIXEL_FONT_SMALL_8, maxTextWidth, 2);
+  const width = Math.min(
+    SCREEN_W - 10,
+    Math.max(...lines.map((line) => measurePixelTextWidth(line, PIXEL_FONT_SMALL_8))) + 8
+  );
+  const lineHeight = localizedLineHeight(10);
+  const height = lines.length * lineHeight + 5;
+  const x = SURVIVAL_PANEL_X;
+  const y = SURVIVAL_PANEL_Y + SURVIVAL_PANEL_H + 3;
+
+  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
+  ctx.strokeRect(target.rect.x + 0.5, target.rect.y + 0.5, target.rect.w - 1, target.rect.h - 1);
+  ctx.fillStyle = PIRATE_MENU_PAPER;
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  lines.forEach((line, index) => {
+    drawPixelText(line, x + 4, y + 3 + index * lineHeight, { font: PIXEL_FONT_SMALL_8 });
+  });
 }
 
 function drawSurvivalPanelTitle(x, y) {

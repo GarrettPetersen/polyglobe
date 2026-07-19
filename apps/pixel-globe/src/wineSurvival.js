@@ -5,6 +5,8 @@ const DRUNKEN_WINE_DIALOGUES = Object.freeze([
   "I counted every star twice. That's... very thorough navigation."
 ]);
 
+export const DRUNK_PORT_ARRIVAL_MINUTES = 6 * 60;
+
 export function wineEmergencyDialogue() {
   return "The water casks are dry. We have no choice but to issue wine to the crew.";
 }
@@ -14,4 +16,12 @@ export function drunkenWineDialogue(dayNumber) {
     throw new Error(`Invalid wine-only day: ${dayNumber}`);
   }
   return DRUNKEN_WINE_DIALOGUES[(dayNumber - 1) % DRUNKEN_WINE_DIALOGUES.length];
+}
+
+export function captainIsDrunkAtPort(gameState) {
+  const minutes = gameState?.survival?.wineOnlyMinutes;
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    throw new Error(`Invalid wine-only time for port arrival: ${minutes}`);
+  }
+  return minutes >= DRUNK_PORT_ARRIVAL_MINUTES;
 }

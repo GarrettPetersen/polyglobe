@@ -101,9 +101,31 @@ import {
 } from "./mingTradeRestrictions.js";
 const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
 
+const DRUNK_PORT_EXCHANGES = Object.freeze([
+  Object.freeze({
+    captain: "Good factor! Your harbor has two quays today, and I have docked at both of them.",
+    factor: "You have docked at one quay, captain, and apologized to a bollard. Let us discuss business slowly."
+  }),
+  Object.freeze({
+    captain: "Put every barrel on my account. Except the wine. I believe the wine has already put me on its account.",
+    factor: "I see. I shall keep the ledger upright while you attempt the same."
+  }),
+  Object.freeze({
+    captain: "A splendid port! It barely moves at all.",
+    factor: "The port is stationary, captain. Please stop correcting its course."
+  }),
+  Object.freeze({
+    captain: "I bring cargo, coin, and an entirely reliable sense of direction.",
+    factor: "You entered my office through the sailcloth store. We shall rely on the cargo and coin."
+  })
+]);
+
 export function createPortDialogueSession(city, options = {}) {
   if (options.rumorText !== undefined && (typeof options.rumorText !== "string" || options.rumorText === "")) {
     throw new Error("Port rumor text must be a non-empty string");
+  }
+  if (options.drunkVariant !== undefined && (!Number.isInteger(options.drunkVariant) || options.drunkVariant < 0)) {
+    throw new Error(`Invalid drunk port dialogue variant: ${options.drunkVariant}`);
   }
   return {
     kind: "port",
@@ -115,6 +137,8 @@ export function createPortDialogueSession(city, options = {}) {
     mingIllicitTradeAccess: options.mingIllicitTradeAccess === true,
     mingIllicitTradeAttempted: options.mingIllicitTradeAttempted === true,
     nextPortNodeId: options.nextPortNodeId || null,
+    postDrunkNodeId: options.postDrunkNodeId || null,
+    drunkVariant: options.drunkVariant || 0,
     marketPurchases: {},
     tradeTip: null,
     rumorText: options.rumorText || null,
@@ -125,29 +149,42 @@ export function createPortDialogueSession(city, options = {}) {
 
 export function createPortArrivalDialogueSession(city, options = {}) {
   const needsLoadout = options.needsLoadout === true;
+  const arrivedDrunk = options.arrivedDrunk === true;
+  const drunkVariant = options.drunkVariant || 0;
+  if (!Number.isInteger(drunkVariant) || drunkVariant < 0) {
+    throw new Error(`Invalid drunk port dialogue variant: ${drunkVariant}`);
+  }
   if (options.questCharacterSession) {
     if (options.questCharacterSession.cityTileId !== city.tileId) {
       throw new Error("Port-arrival quest character does not belong to this city");
     }
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
     return {
       ...options.questCharacterSession,
       admittedToPort: true,
       continueToPortOnClose: true,
-      nextPortNodeId: needsLoadout ? "loadout" : "greeting"
+      nextPortNodeId: arrivedDrunk ? "drunk-captain" : nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? nextPortNodeId : null,
+      drunkVariant
     };
   }
   if (options.openDeliveryMission === true) {
     return createPortDialogueSession(city, {
-      initialNodeId: "quest",
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "quest",
       nextPortNodeId: needsLoadout ? "loadout" : "root",
+      postDrunkNodeId: arrivedDrunk ? "quest" : null,
+      drunkVariant,
       admittedToPort: true
     });
   }
+  const initialNodeId = options.rumorText ? "greeting" : needsLoadout ? "loadout" : "greeting";
   return createPortDialogueSession(city, {
-    initialNodeId: options.rumorText ? "greeting" : needsLoadout ? "loadout" : "greeting",
+    initialNodeId: arrivedDrunk ? "drunk-captain" : initialNodeId,
     admittedToPort: true,
     rumorText: options.rumorText,
-    nextPortNodeId: options.nextPortNodeId
+    nextPortNodeId: options.nextPortNodeId,
+    postDrunkNodeId: arrivedDrunk ? initialNodeId : null,
+    drunkVariant
   });
 }
 
@@ -601,6 +638,8 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
 }
 
 function portDialogueNodeView(session, city, gameState, economy, portCities, context) {
+  if (session.nodeId === "drunk-captain") return drunkCaptainArrivalView(session, gameState);
+  if (session.nodeId === "drunk-factor") return drunkFactorArrivalView(session, city);
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
   if (session.nodeId === "barred") return barredPortView(city, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
@@ -621,6 +660,33 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
+}
+
+function drunkCaptainArrivalView(session, gameState) {
+  const captain = gameState.playerCharacter;
+  if (!captain?.name) throw new Error("Drunk port arrival requires the player captain");
+  return {
+    speaker: `${captain.name}, captain`,
+    expressionId: "happy",
+    text: drunkPortExchange(session).captain,
+    feedback: null,
+    options: [option("Continue", { type: "node", nodeId: "drunk-factor" })]
+  };
+}
+
+function drunkFactorArrivalView(session, city) {
+  if (!session.postDrunkNodeId) throw new Error("Drunk port arrival has no following dialogue node");
+  return {
+    speaker: speakerName(city),
+    expressionId: "annoyed",
+    text: drunkPortExchange(session).factor,
+    feedback: null,
+    options: [option("Continue", { type: "node", nodeId: session.postDrunkNodeId })]
+  };
+}
+
+function drunkPortExchange(session) {
+  return DRUNK_PORT_EXCHANGES[session.drunkVariant % DRUNK_PORT_EXCHANGES.length];
 }
 
 function withPortExitFooter(view) {
