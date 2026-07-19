@@ -3,7 +3,10 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import { loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import {
+  createCanvas,
+  loadImage
+} from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 const generatedRoot = new URL("../capsule_art/generated/", import.meta.url);
 const expectedOutputs = Object.freeze(new Map([
@@ -41,19 +44,81 @@ test("capsule generator produces the active ship client icon comparison", async 
   assert.equal(image.height, 780);
 });
 
-test("capsule art keeps its title fonts and public-domain painting documented", async () => {
-  const [generator, readme, credits] = await Promise.all([
-    readFile(new URL("../tools/generate-capsule-art.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../capsule_art/README.md", import.meta.url), "utf8"),
-    readFile(new URL("../public/assets/CREDITS.md", import.meta.url), "utf8")
+test("capsule art documents and preserves its authored layer order", async () => {
+  const [generator, readme] = await Promise.all([
+    readFile(new URL("../tools/generate-layered-capsule-art.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../capsule_art/README.md", import.meta.url), "utf8")
   ]);
-  assert.match(generator, /public\/assets\/capsule\/detailed_title\.png/);
-  assert.match(generator, /embarkation-of-henry-viii-at-dover\.jpg/);
-  assert.match(readme, /Pirata One/);
-  assert.match(readme, /Party LET/);
-  assert.match(credits, /Pirata One - capsule title lettering/);
-  assert.match(credits, /Party LET - capsule title ampersand/);
-  assert.match(readme, /31 May 1520/);
-  assert.match(readme, /public domain/i);
-  assert.match(credits, /Embarkation of Henry VIII at Dover.*public domain/i);
+  assert.match(
+    generator,
+    /const FULL_LAYER_ORDER = Object\.freeze\(\[\s*"background",\s*"upperText",\s*"ship",\s*"lowerText"/s
+  );
+  assert.match(generator, /const ARTWORK_LAYER_ORDER = Object\.freeze\(\["background", "ship"\]\)/);
+  assert.match(generator, /const TEXT_LAYER_ORDER = Object\.freeze\(\["upperText", "lowerText"\]\)/);
+  assert.match(readme, /background\.png[\s\S]*upper_text\.png[\s\S]*ship\.png[\s\S]*lower_text\.png/);
+  assert.match(readme, /library_logo_en\.png.*only the two text layers/);
 });
+
+test("main capsule is the exact authored four-layer composition", async () => {
+  const sourceNames = ["background", "upper_text", "ship", "lower_text"];
+  const sourceImages = await Promise.all(sourceNames.map((name) => loadImage(
+    fileURLToPath(new URL(`../capsule_art/source/${name}.png`, import.meta.url))
+  )));
+  const generated = await loadImage(
+    fileURLToPath(new URL("capsule_main_en.png", generatedRoot))
+  );
+  for (const source of sourceImages) {
+    assert.equal(source.width, generated.width);
+    assert.equal(source.height, generated.height);
+  }
+
+  const expectedCanvas = createCanvas(generated.width, generated.height);
+  const expectedContext = expectedCanvas.getContext("2d");
+  for (const source of sourceImages) expectedContext.drawImage(source, 0, 0);
+  const generatedCanvas = createCanvas(generated.width, generated.height);
+  generatedCanvas.getContext("2d").drawImage(generated, 0, 0);
+  assert.deepEqual(
+    expectedCanvas.toBuffer("image/png"),
+    generatedCanvas.toBuffer("image/png")
+  );
+});
+
+test("library logo is transparent text while artwork files contain no title", async () => {
+  const [logo, artwork] = await Promise.all([
+    loadImage(fileURLToPath(new URL("library_logo_en.png", generatedRoot))),
+    loadImage(fileURLToPath(new URL("capsule_background.png", generatedRoot)))
+  ]);
+  const logoPixels = imagePixels(logo);
+  const artworkPixels = imagePixels(artwork);
+  let opaqueLogoPixels = 0;
+  let transparentLogoPixels = 0;
+  for (let offset = 0; offset < logoPixels.length; offset += 4) {
+    if (logoPixels[offset + 3] === 0) {
+      transparentLogoPixels++;
+      continue;
+    }
+    opaqueLogoPixels++;
+    assert.equal(logoPixels[offset], 255);
+    assert.equal(logoPixels[offset + 1], 255);
+    assert.equal(logoPixels[offset + 2], 255);
+  }
+  assert.ok(opaqueLogoPixels > 0);
+  assert.ok(transparentLogoPixels > 0);
+  let whiteArtworkPixels = 0;
+  for (let offset = 0; offset < artworkPixels.length; offset += 4) {
+    if (
+      artworkPixels[offset] === 255 &&
+      artworkPixels[offset + 1] === 255 &&
+      artworkPixels[offset + 2] === 255 &&
+      artworkPixels[offset + 3] === 255
+    ) whiteArtworkPixels++;
+  }
+  assert.equal(whiteArtworkPixels, 0);
+});
+
+function imagePixels(image) {
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  return context.getImageData(0, 0, image.width, image.height).data;
+}

@@ -6,32 +6,30 @@ Run:
 npm --prefix apps/pixel-globe run render:capsules
 ```
 
-The generator combines:
+The generator combines the four aligned 1232x706 source layers in this order:
 
-- `public/assets/capsule/detailed_title.png`
-- `capsule_art/source/embarkation-of-henry-viii-at-dover.jpg`
+1. `capsule_art/source/background.png`
+2. `capsule_art/source/upper_text.png`
+3. `capsule_art/source/ship.png`
+4. `capsule_art/source/lower_text.png`
 
 Generated files are written to `capsule_art/generated/`.
 
-## Title Lettering
+All resizing uses nearest-neighbor sampling to keep the pixel art crisp. Standard
+formats crop the aligned source canvas as one composition. Tall and exceptionally
+wide formats fit the foreground lockup over a separately cropped background so
+none of the title is lost.
 
-The rasterized title uses **Pirata One** for the lettering and **Party LET**
-for the ampersand. Font binaries are not packaged with the capsule output.
+## Layer Modes
 
-Pirata One source:
+- Standard capsules use all four layers. The ship therefore passes in front of
+  `upper_text.png` and behind `lower_text.png`.
+- Artwork-only files use `background.png` and `ship.png`.
+- `library_logo_en.png` is transparent and uses only the two text layers.
+- `client_icon_32.png` remains the purpose-built in-game ship icon.
 
-`https://fonts.google.com/specimen/Pirata+One`
-
-## Painting
-
-**The Embarkation of Henry VIII at Dover**, anonymous British School,
-circa 1520-1540. The scene commemorates Henry VIII and his fleet leaving
-Dover for Calais on 31 May 1520.
-
-The painting and faithful photographic reproduction are public domain.
-Source:
-
-`https://commons.wikimedia.org/wiki/File:Embarkation_of_Henry_VIII_at_Dover_mg_0310.jpg`
+Use `--only=filename.png` to render one registered output, or `--source-dir`
+and `--output-dir` to work from alternate directories.
 
 ## Output Sizes
 

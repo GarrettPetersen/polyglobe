@@ -42,7 +42,7 @@
     "render:port-sailing-distances": "node tools/build-port-sailing-distances.mjs",
     "render:land-roads": "node tools/build-land-roads.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
-    "render:capsules": "node tools/generate-capsule-art.mjs",
+    "render:capsules": "node tools/generate-layered-capsule-art.mjs",
     "render:capsule-title-comparison": "node tools/generate-capsule-title-comparison.mjs",
     "test": "node --test src/*.test.js",
     "test:characters": "node --test src/characterPortraits.test.js",

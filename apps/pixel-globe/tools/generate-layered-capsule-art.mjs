@@ -11,40 +11,83 @@ import {
 import { SHIP_STATS, shipLabelForSlug } from "../src/shipStats.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const paintingPath = join(
-  appRoot,
-  "capsule_art/source/embarkation-of-henry-viii-at-dover.jpg"
-);
 const generatorOptions = parseGeneratorOptions(process.argv.slice(2));
-const titlePath = resolve(appRoot, generatorOptions.titlePath);
-const clientIconWaterPath = join(
-  appRoot,
-  "public/assets/terrain/resurrect-64/water_depth_03_01.png"
-);
+const sourceDir = resolve(appRoot, generatorOptions.sourceDir);
 const outputDir = resolve(appRoot, generatorOptions.outputDir);
 const CLIENT_ICON_SHIP_SLUG = "carrack";
 const CLIENT_ICON_HEADING_FRAME = 28;
 const CLIENT_ICON_BACKGROUND = "#3b7180";
-const PAINTING_GRADE = Object.freeze({
-  saturation: 1.34,
-  contrast: 1.14,
-  shadowDepth: 0.16,
-  deepShadowThreshold: 90,
-  deepShadowDepth: 0.13
+
+const LAYER_FILES = Object.freeze({
+  background: "background.png",
+  upperText: "upper_text.png",
+  ship: "ship.png",
+  lowerText: "lower_text.png"
 });
+const FULL_LAYER_ORDER = Object.freeze([
+  "background",
+  "upperText",
+  "ship",
+  "lowerText"
+]);
+const ARTWORK_LAYER_ORDER = Object.freeze(["background", "ship"]);
+const TEXT_LAYER_ORDER = Object.freeze(["upperText", "lowerText"]);
+const LOCKUP_LAYER_ORDER = Object.freeze(["upperText", "ship", "lowerText"]);
+
+const OUTPUTS = Object.freeze([
+  capsule("capsule_header_en.png", 920, 430),
+  capsule("capsule_small_en.png", 462, 174, { focalY: 0.47 }),
+  capsule("capsule_main_en.png", 1232, 706),
+  capsule("capsule_vertical_en.png", 748, 896, {
+    layout: "fitted-lockup",
+    lockupWidth: 0.92,
+    lockupTop: 0.08
+  }),
+  artwork("capsule_background.png", 1438, 810),
+  capsule("library_capsule_en.png", 600, 900, {
+    layout: "fitted-lockup",
+    lockupWidth: 0.92,
+    lockupTop: 0.08
+  }),
+  capsule("library_header_en.png", 920, 430),
+  artwork("library_hero.png", 3840, 1240, { focalY: 0.36 }),
+  Object.freeze({
+    name: "library_logo_en.png",
+    width: 1280,
+    height: 720,
+    kind: "text-only"
+  }),
+  artwork("community_icon_184.png", 184, 184, { focalX: 0.63, focalY: 0.48 }),
+  Object.freeze({ name: "client_icon_32.png", width: 32, height: 32, kind: "client-icon" }),
+  artwork("shortcut_icon_256.png", 256, 256, { focalX: 0.63, focalY: 0.48 }),
+  capsule("event_cover_en.png", 800, 450),
+  capsule("event_header_en.png", 1920, 622, {
+    layout: "fitted-lockup",
+    focalY: 0.38,
+    lockupWidth: 0.52,
+    lockupHeight: 0.88,
+    lockupCenterX: 0.7,
+    lockupTop: 0.06
+  }),
+  capsule("social_share_en.png", 1200, 630),
+  capsule("itchio_cover_en.png", 630, 500, { focalX: 0.48, focalY: 0.5 })
+]);
 
 function parseGeneratorOptions(args) {
   const options = {
-    titlePath: "public/assets/capsule/detailed_title.png",
+    sourceDir: "capsule_art/source",
     outputDir: "capsule_art/generated",
     onlyName: null
   };
   for (let index = 0; index < args.length; index++) {
     const argument = args[index];
-    if (argument === "--title") {
-      options.titlePath = requiredOptionValue(args[++index], "--title");
-    } else if (argument.startsWith("--title=")) {
-      options.titlePath = requiredOptionValue(argument.slice("--title=".length), "--title");
+    if (argument === "--source-dir") {
+      options.sourceDir = requiredOptionValue(args[++index], "--source-dir");
+    } else if (argument.startsWith("--source-dir=")) {
+      options.sourceDir = requiredOptionValue(
+        argument.slice("--source-dir=".length),
+        "--source-dir"
+      );
     } else if (argument === "--output-dir") {
       options.outputDir = requiredOptionValue(args[++index], "--output-dir");
     } else if (argument.startsWith("--output-dir=")) {
@@ -70,87 +113,19 @@ function requiredOptionValue(value, optionName) {
   return value;
 }
 
-const OUTPUTS = Object.freeze([
-  capsule("capsule_header_en.png", 920, 430, {
-    titleWidth: 0.52,
-    titleCenterX: 0.72,
-    titleTop: 0.12
-  }),
-  capsule("capsule_small_en.png", 462, 174, {
-    titleWidth: 0.56,
-    titleCenterX: 0.72,
-    titleTop: 0.06
-  }),
-  capsule("capsule_main_en.png", 1232, 706, {
-    titleWidth: 0.54,
-    titleCenterX: 0.71,
-    titleTop: 0.11
-  }),
-  capsule("capsule_vertical_en.png", 748, 896, {
-    focalX: 0.5,
-    focalY: 0.48,
-    titleWidth: 0.78,
-    titleCenterX: 0.5,
-    titleTop: 0.07
-  }),
-  artwork("capsule_background.png", 1438, 810),
-  capsule("library_capsule_en.png", 600, 900, {
-    focalX: 0.5,
-    focalY: 0.47,
-    titleWidth: 0.8,
-    titleCenterX: 0.5,
-    titleTop: 0.06
-  }),
-  capsule("library_header_en.png", 920, 430, {
-    titleWidth: 0.52,
-    titleCenterX: 0.72,
-    titleTop: 0.12
-  }),
-  artwork("library_hero.png", 3840, 1240, { focalX: 0.5, focalY: 0.48 }),
-  Object.freeze({
-    name: "library_logo_en.png",
-    width: 1280,
-    height: 720,
-    kind: "logo"
-  }),
-  artwork("community_icon_184.png", 184, 184, { focalX: 0.47, focalY: 0.48 }),
-  Object.freeze({ name: "client_icon_32.png", width: 32, height: 32, kind: "client-icon" }),
-  artwork("shortcut_icon_256.png", 256, 256, { focalX: 0.47, focalY: 0.48 }),
-  capsule("event_cover_en.png", 800, 450, {
-    titleWidth: 0.58,
-    titleCenterX: 0.7,
-    titleTop: 0.1
-  }),
-  capsule("event_header_en.png", 1920, 622, {
-    titleWidth: 0.48,
-    titleCenterX: 0.72,
-    titleTop: 0.08
-  }),
-  capsule("social_share_en.png", 1200, 630, {
-    titleWidth: 0.54,
-    titleCenterX: 0.71,
-    titleTop: 0.1
-  }),
-  capsule("itchio_cover_en.png", 630, 500, {
-    focalX: 0.5,
-    focalY: 0.48,
-    titleWidth: 0.76,
-    titleCenterX: 0.5,
-    titleTop: 0.07
-  })
-]);
-
 function capsule(name, width, height, options = {}) {
   return Object.freeze({
     name,
     width,
     height,
     kind: "capsule",
+    layout: options.layout ?? "cover",
     focalX: options.focalX ?? 0.5,
     focalY: options.focalY ?? 0.5,
-    titleWidth: options.titleWidth,
-    titleCenterX: options.titleCenterX,
-    titleTop: options.titleTop
+    lockupWidth: options.lockupWidth,
+    lockupHeight: options.lockupHeight,
+    lockupCenterX: options.lockupCenterX,
+    lockupTop: options.lockupTop
   });
 }
 
@@ -172,12 +147,22 @@ async function main() {
   if (selectedOutputs.length === 0) {
     throw new Error(`Unknown capsule output requested by --only: ${generatorOptions.onlyName}`);
   }
+
+  const layers = await loadSourceLayers();
+  const sourceSize = validateLayerDimensions(layers);
+  const composites = Object.freeze({
+    full: composeLayers(sourceSize, layers, FULL_LAYER_ORDER),
+    artwork: composeLayers(sourceSize, layers, ARTWORK_LAYER_ORDER),
+    text: trimTransparentImage(composeLayers(sourceSize, layers, TEXT_LAYER_ORDER)),
+    lockup: trimTransparentImage(composeLayers(sourceSize, layers, LOCKUP_LAYER_ORDER))
+  });
   const needsClientIcon = selectedOutputs.some((output) => output.kind === "client-icon");
-  const [painting, titleImage] = await Promise.all([
-    loadImage(paintingPath),
-    loadImage(titlePath)
-  ]);
-  const clientIconWater = needsClientIcon ? await loadImage(clientIconWaterPath) : null;
+  const clientIconWater = needsClientIcon
+    ? await loadImage(join(
+      appRoot,
+      "public/assets/terrain/resurrect-64/water_depth_03_01.png"
+    ))
+    : null;
   const clientIconShips = needsClientIcon ? await loadClientIconShips() : [];
   const selectedClientIconShip = needsClientIcon
     ? clientIconShips.find((entry) => entry.slug === CLIENT_ICON_SHIP_SLUG)
@@ -187,24 +172,33 @@ async function main() {
       `Client icon ship is absent from the active roster: ${CLIENT_ICON_SHIP_SLUG}`
     );
   }
-  const gradedPainting = gradePainting(painting, PAINTING_GRADE);
-  const title = trimTransparentImage(titleImage);
-  await mkdir(outputDir, { recursive: true });
 
+  await mkdir(outputDir, { recursive: true });
   const rendered = [];
   for (const output of selectedOutputs) {
     const canvas = createCanvas(output.width, output.height);
     const context = canvas.getContext("2d");
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
+    context.imageSmoothingEnabled = false;
 
-    if (output.kind === "logo") {
-      drawLogo(context, canvas, title);
+    if (output.kind === "text-only") {
+      drawContained(context, canvas, composites.text, {
+        widthRatio: 0.9,
+        heightRatio: 0.86
+      });
     } else if (output.kind === "client-icon") {
       drawClientIcon(context, canvas, selectedClientIconShip.image, clientIconWater);
+    } else if (output.kind === "artwork") {
+      drawCover(context, canvas, composites.artwork, output.focalX, output.focalY);
+    } else if (output.layout === "fitted-lockup") {
+      drawCover(context, canvas, layers.background, output.focalX, output.focalY);
+      drawContained(context, canvas, composites.lockup, {
+        widthRatio: output.lockupWidth,
+        heightRatio: output.lockupHeight,
+        centerXRatio: output.lockupCenterX,
+        topRatio: output.lockupTop
+      });
     } else {
-      drawPainting(context, canvas, gradedPainting, output);
-      if (output.kind === "capsule") drawCapsuleTitle(context, canvas, title, output);
+      drawCover(context, canvas, composites.full, output.focalX, output.focalY);
     }
 
     const path = join(outputDir, output.name);
@@ -218,25 +212,32 @@ async function main() {
   }
 }
 
-async function loadClientIconShips() {
-  return Promise.all(SHIP_STATS.map(async ({ slug }) => ({
-    slug,
-    label: shipLabelForSlug(slug),
-    image: await loadImage(join(
-      appRoot,
-      `public/assets/vehicles/unity-ships/${slug}-32-headings.png`
-    ))
-  })));
+async function loadSourceLayers() {
+  const entries = await Promise.all(Object.entries(LAYER_FILES).map(async ([name, filename]) => [
+    name,
+    await loadImage(join(sourceDir, filename))
+  ]));
+  return Object.freeze(Object.fromEntries(entries));
 }
 
-function drawPainting(context, canvas, image, output) {
-  drawCover(
-    context,
-    canvas,
-    image,
-    output.focalX,
-    output.focalY
-  );
+function validateLayerDimensions(layers) {
+  const { width, height } = layers.background;
+  for (const [name, image] of Object.entries(layers)) {
+    if (image.width !== width || image.height !== height) {
+      throw new Error(
+        `${LAYER_FILES[name]} is ${image.width}x${image.height}; expected ${width}x${height}`
+      );
+    }
+  }
+  return Object.freeze({ width, height });
+}
+
+function composeLayers(size, layers, order) {
+  const canvas = createCanvas(size.width, size.height);
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  for (const layerName of order) context.drawImage(layers[layerName], 0, 0);
+  return canvas;
 }
 
 function drawCover(context, canvas, image, focalX, focalY) {
@@ -266,32 +267,32 @@ function drawCover(context, canvas, image, focalX, focalY) {
   );
 }
 
-function drawCapsuleTitle(context, canvas, title, output) {
-  const maxWidth = canvas.width * output.titleWidth;
-  const maxHeight = canvas.height * 0.7;
-  const scale = Math.min(maxWidth / title.width, maxHeight / title.height);
-  const width = Math.round(title.width * scale);
-  const height = Math.round(title.height * scale);
-  const x = Math.round(clamp(
-    canvas.width * output.titleCenterX - width / 2,
-    canvas.width * 0.025,
-    canvas.width * 0.975 - width
-  ));
-  const y = Math.round(canvas.height * output.titleTop);
-  drawTitleWithShadow(context, title, x, y, width, height, canvas.width, canvas.height);
+function drawContained(context, canvas, image, options = {}) {
+  const widthRatio = options.widthRatio ?? 0.9;
+  const heightRatio = options.heightRatio ?? 0.86;
+  const scale = Math.min(
+    canvas.width * widthRatio / image.width,
+    canvas.height * heightRatio / image.height
+  );
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const centerX = canvas.width * (options.centerXRatio ?? 0.5);
+  const x = Math.round(clamp(centerX - width / 2, 0, canvas.width - width));
+  const y = options.topRatio === undefined
+    ? Math.round((canvas.height - height) / 2)
+    : Math.round(clamp(canvas.height * options.topRatio, 0, canvas.height - height));
+  context.drawImage(image, x, y, width, height);
 }
 
-function drawLogo(context, canvas, title) {
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  const scale = Math.min(
-    canvas.width * 0.9 / title.width,
-    canvas.height * 0.86 / title.height
-  );
-  const width = Math.round(title.width * scale);
-  const height = Math.round(title.height * scale);
-  const x = Math.round((canvas.width - width) / 2);
-  const y = Math.round((canvas.height - height) / 2);
-  drawTitleWithShadow(context, title, x, y, width, height, canvas.width, canvas.height);
+async function loadClientIconShips() {
+  return Promise.all(SHIP_STATS.map(async ({ slug }) => ({
+    slug,
+    label: shipLabelForSlug(slug),
+    image: await loadImage(join(
+      appRoot,
+      `public/assets/vehicles/unity-ships/${slug}-32-headings.png`
+    ))
+  })));
 }
 
 function drawClientIcon(context, canvas, shipSheet, water) {
@@ -382,86 +383,6 @@ function fittedComparisonLabelFont(context, label, maxWidth) {
   throw new Error(`Client icon comparison label is too wide: ${label}`);
 }
 
-function drawTitleWithShadow(context, title, x, y, width, height, canvasWidth, canvasHeight) {
-  const shadowOffset = Math.max(2, Math.round(Math.min(canvasWidth, canvasHeight) * 0.007));
-
-  context.save();
-  context.shadowColor = "rgba(0, 0, 0, 0.98)";
-  context.shadowBlur = Math.max(1, Math.round(shadowOffset * 0.5));
-  context.shadowOffsetX = shadowOffset;
-  context.shadowOffsetY = shadowOffset;
-  context.drawImage(title, x, y, width, height);
-  context.restore();
-
-  context.save();
-  context.shadowColor = "rgba(0, 0, 0, 0.82)";
-  context.shadowBlur = shadowOffset * 4;
-  context.shadowOffsetX = shadowOffset;
-  context.shadowOffsetY = shadowOffset;
-  context.drawImage(title, x, y, width, height);
-  context.restore();
-}
-
-function gradePainting(image, grade) {
-  const {
-    saturation,
-    contrast,
-    shadowDepth,
-    deepShadowThreshold,
-    deepShadowDepth
-  } = grade;
-  if (!Number.isFinite(saturation) || saturation <= 0) {
-    throw new Error(`Invalid capsule painting saturation: ${saturation}`);
-  }
-  if (!Number.isFinite(contrast) || contrast <= 0) {
-    throw new Error(`Invalid capsule painting contrast: ${contrast}`);
-  }
-  if (!Number.isFinite(shadowDepth) || shadowDepth < 0 || shadowDepth > 1) {
-    throw new Error(`Invalid capsule painting shadow depth: ${shadowDepth}`);
-  }
-  if (
-    !Number.isFinite(deepShadowThreshold) ||
-    deepShadowThreshold <= 0 ||
-    deepShadowThreshold > 255
-  ) {
-    throw new Error(`Invalid capsule painting deep-shadow threshold: ${deepShadowThreshold}`);
-  }
-  if (!Number.isFinite(deepShadowDepth) || deepShadowDepth < 0 || deepShadowDepth > 1) {
-    throw new Error(`Invalid capsule painting deep-shadow depth: ${deepShadowDepth}`);
-  }
-  const canvas = createCanvas(image.width, image.height);
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  context.drawImage(image, 0, 0);
-  const imageData = context.getImageData(0, 0, image.width, image.height);
-  const pixels = imageData.data;
-  for (let offset = 0; offset < pixels.length; offset += 4) {
-    const red = pixels[offset];
-    const green = pixels[offset + 1];
-    const blue = pixels[offset + 2];
-    const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
-    const shadowWeight = clamp((128 - luminance) / 128, 0, 1);
-    const deepShadowWeight = clamp(
-      (deepShadowThreshold - luminance) / deepShadowThreshold,
-      0,
-      1
-    );
-    const shadowScale =
-      (1 - shadowDepth * shadowWeight) *
-      (1 - deepShadowDepth * deepShadowWeight);
-    pixels[offset] = gradeChannel(red, luminance, saturation, contrast, shadowScale);
-    pixels[offset + 1] = gradeChannel(green, luminance, saturation, contrast, shadowScale);
-    pixels[offset + 2] = gradeChannel(blue, luminance, saturation, contrast, shadowScale);
-  }
-  context.putImageData(imageData, 0, 0);
-  return canvas;
-}
-
-function gradeChannel(channel, luminance, saturation, contrast, shadowScale) {
-  const saturated = luminance + (channel - luminance) * saturation;
-  const contrasted = (saturated - 128) * contrast + 128;
-  return clampByte(contrasted * shadowScale);
-}
-
 function trimTransparentImage(image) {
   const source = createCanvas(image.width, image.height);
   const context = source.getContext("2d", { willReadFrequently: true });
@@ -473,15 +394,16 @@ function trimTransparentImage(image) {
   let maxY = -1;
   for (let y = 0; y < image.height; y++) {
     for (let x = 0; x < image.width; x++) {
-      const alpha = pixels[(y * image.width + x) * 4 + 3];
-      if (alpha === 0) continue;
+      if (pixels[(y * image.width + x) * 4 + 3] === 0) continue;
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
       maxX = Math.max(maxX, x);
       maxY = Math.max(maxY, y);
     }
   }
-  if (maxX < minX || maxY < minY) throw new Error("Detailed capsule title contains no opaque pixels");
+  if (maxX < minX || maxY < minY) {
+    throw new Error("Capsule layer composition contains no opaque pixels");
+  }
   const width = maxX - minX + 1;
   const height = maxY - minY + 1;
   const trimmed = createCanvas(width, height);
@@ -527,6 +449,7 @@ async function writeContactSheet(rendered) {
     const height = Math.max(1, Math.round(canvas.height * scale));
     const x = cellX + Math.round((cellWidth - width) / 2);
     const y = cellY + 14 + Math.round((availableHeight - height) / 2);
+    context.imageSmoothingEnabled = false;
     context.drawImage(canvas, x, y, width, height);
     context.fillStyle = "#f0ddb1";
     context.fillText(
@@ -543,10 +466,6 @@ async function writeContactSheet(rendered) {
 
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
-}
-
-function clampByte(value) {
-  return Math.max(0, Math.min(255, Math.round(value)));
 }
 
 main().catch((error) => {
