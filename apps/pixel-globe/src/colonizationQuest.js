@@ -1,4 +1,9 @@
 import { colonizationTargetForCity } from "./colonialCities.js";
+import {
+  CARGO_SPACE_TICKS_PER_UNIT,
+  availableCargoTicks,
+  cargoUnitsFromTicks
+} from "./cargoSpace.js";
 
 export const COLONIZATION_QUEST_VERSION = 1;
 export const COLONIZATION_ORIGIN_CITY = "Bordeaux";
@@ -194,9 +199,13 @@ export function colonizationQuestView(
 
 export function colonizationShipEligibility(shipStats, freeCargoUnits) {
   if (!shipStats || typeof shipStats !== "object") throw new Error("Colonization voyage requires ship stats");
-  if (!Number.isInteger(freeCargoUnits) || freeCargoUnits < 0) {
+  if (!Number.isFinite(freeCargoUnits)) {
     throw new Error(`Invalid free cargo space for colonists: ${freeCargoUnits}`);
   }
+  const freeCargoTicks = availableCargoTicks(
+    Math.max(0, freeCargoUnits),
+    "free cargo space for colonists"
+  );
   const cargoCapacity = shipStats.cargoCapacity;
   const seaworthiness = shipStats.seaworthiness;
   if (!Number.isInteger(cargoCapacity) || !Number.isInteger(seaworthiness)) {
@@ -209,7 +218,7 @@ export function colonizationShipEligibility(shipStats, freeCargoUnits) {
   if (seaworthiness < COLONIZATION_MIN_SEAWORTHINESS) {
     missing.push(`seaworthiness ${COLONIZATION_MIN_SEAWORTHINESS}+`);
   }
-  if (freeCargoUnits < COLONIZATION_EXPEDITION_CARGO_UNITS) {
+  if (freeCargoTicks < COLONIZATION_EXPEDITION_CARGO_UNITS * CARGO_SPACE_TICKS_PER_UNIT) {
     missing.push(`${COLONIZATION_EXPEDITION_CARGO_UNITS} free cargo`);
   }
   return Object.freeze({
@@ -217,7 +226,7 @@ export function colonizationShipEligibility(shipStats, freeCargoUnits) {
     missing,
     cargoCapacity,
     seaworthiness,
-    freeCargoUnits
+    freeCargoUnits: cargoUnitsFromTicks(freeCargoTicks)
   });
 }
 

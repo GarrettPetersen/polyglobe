@@ -140,6 +140,7 @@ export function createPortDialogueSession(city, options = {}) {
     postDrunkNodeId: options.postDrunkNodeId || null,
     drunkVariant: options.drunkVariant || 0,
     marketPurchases: {},
+    marketSaleGoodIds: [],
     tradeTip: null,
     rumorText: options.rumorText || null,
     selectedIndex: 0,
@@ -2008,22 +2009,29 @@ function loadoutView(session, city, gameState, context) {
 
 function sellView(session, city, gameState, economy) {
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
-  const rows = cargoRows(gameState).filter((cargo) => (
-    cargo.good.sellable !== false && cargo.quantity >= 1
-  )).map((cargo) => {
-    const row = market.get(cargo.good.id);
-    if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${cargo.good.id}`);
+  const rows = marketSaleGoodIds(session, gameState).map((goodId) => {
+    const good = tradeGoodById(goodId);
+    const quantity = gameState.cargo[goodId] || 0;
+    const heldLots = marketTradeLotCount(quantity);
+    const soldOut = heldLots === 0;
+    const row = market.get(goodId);
+    if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${goodId}`);
     const price = row.sellPrice;
-    const basis = cargoCostBasis(gameState, cargo.good.id);
+    const basis = cargoCostBasis(gameState, goodId);
     const pnlLabel = basis.known ? signedDoubloons(price - basis.average) : "--";
-    const comparison = worldMarketPriceComparison(economy, city, cargo.good.id, "sell");
-    return option(`Sell ${cargo.good.label}  ${price} db`, {
+    const comparison = worldMarketPriceComparison(economy, city, goodId, "sell");
+    const marketOutOfSpecie = row.portSpecie < price;
+    return option(`Sell ${good.label}  ${price} db`, {
       type: "sell",
-      goodId: cargo.good.id
+      goodId
     }, {
-      detail: `${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${cargoQuantityLabel(cargo.good, cargo.quantity)}`,
-      disabled: row.portSpecie < price,
-      disabledReason: "The market is out of specie."
+      detail: `${worldPriceIndicator(comparison)}  P/L ${pnlLabel}  HELD ${heldLots}`,
+      disabled: soldOut || marketOutOfSpecie,
+      disabledReason: soldOut
+        ? `No ${good.label.toLowerCase()} remaining.`
+        : marketOutOfSpecie
+          ? "The market is out of specie."
+          : null
     });
   });
   if (rows.length === 0) {
@@ -2044,6 +2052,26 @@ function sellView(session, city, gameState, economy) {
     optionHeight: 30,
     options: rows
   };
+}
+
+function marketSaleGoodIds(session, gameState) {
+  if (!Array.isArray(session.marketSaleGoodIds)) {
+    throw new Error("Port dialogue session has no stable market sale roster");
+  }
+  const knownIds = new Set(session.marketSaleGoodIds);
+  for (const cargo of cargoRows(gameState)) {
+    if (cargo.good.sellable === false || cargo.quantity < 1 || knownIds.has(cargo.good.id)) continue;
+    session.marketSaleGoodIds.push(cargo.good.id);
+    knownIds.add(cargo.good.id);
+  }
+  return session.marketSaleGoodIds;
+}
+
+function marketTradeLotCount(quantity) {
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    throw new Error(`Invalid market cargo quantity: ${quantity}`);
+  }
+  return Math.floor(quantity + 1e-8);
 }
 
 function cargoView(session, city, gameState) {

@@ -19,7 +19,7 @@ PLAN_PATH = TOOL / "steam-trailer-plan.json"
 TEMP = WORK / "render"
 OVERLAYS = TEMP / "overlays"
 SEGMENTS = TEMP / "segments"
-OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v5.mp4"
+OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v6.mp4"
 FONT_PATH = TOOL / "assets" / "PirataOne-Regular.ttf"
 TITLE_PATH = APP / "public" / "assets" / "capsule" / "detailed_title.png"
 SAILING_MUSIC_INTRO = APP / "public" / "assets" / "music" / "ship-theme-intro.ogg"
@@ -29,7 +29,9 @@ COMBAT_MUSIC_LOOP = APP / "public" / "assets" / "music" / "combat-theme-loop.ogg
 WIDTH = 1920
 HEIGHT = 1080
 FPS = 30
-HEADING_CENTER_Y = round(HEIGHT * 2 / 3)
+NATIVE_CAPTURE_HEIGHT = 270
+NATIVE_ACTION_BUTTON_TOP = 237
+HEADING_BOTTOM_Y = round(HEIGHT * NATIVE_ACTION_BUTTON_TOP / NATIVE_CAPTURE_HEIGHT)
 HEADING_ENTER_SECONDS = 0.8
 HEADING_EXIT_SECONDS = 0.8
 HEADING_CRUISE_SPEED_PX_PER_SECOND = 28
@@ -162,7 +164,7 @@ def render_segment(
         )
         overlay_options = (
             f"x='{escape_filter_expression(x_position)}':"
-            f"y='{HEADING_CENTER_Y}-overlay_h/2'"
+            f"y='{HEADING_BOTTOM_Y}-overlay_h'"
         )
     overlay_filter += "[overlay]"
     trim_filter = (

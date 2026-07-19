@@ -5,6 +5,7 @@ import {
   cargoFree,
   cargoQuantityCapacityForGood,
   cargoUsed,
+  cargoUsedTicks,
   createGameState,
   recordDiscovery,
   receiveDiscoveryCargo,
@@ -80,6 +81,17 @@ test("fractional ration space cannot be harvested as a fractional fish lot", () 
     speciesLabel: "Cod",
     quantity: 1
   }), /Not enough cargo space/);
+});
+
+test("cargo capacity uses integer ration-sized ticks for arbitrary fractional goods", () => {
+  const state = createGameState({ cargoCapacity: 2, startMinute: 100 });
+  state.cargo.wine = 0.123456789;
+  state.accounts.cargoCostBasis.wine = 1;
+
+  assert.equal(cargoUsedTicks(state), 2);
+  assert.equal(cargoUsed(state), 2 / 12);
+  assert.equal(cargoFree(state), 22 / 12);
+  assert.equal(cargoQuantityCapacityForGood(state, "fish"), 1);
 });
 
 test("El Dorado fills the remaining hold with zero-basis trade gold exactly once", () => {

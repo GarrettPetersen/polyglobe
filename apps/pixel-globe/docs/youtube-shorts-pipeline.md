@@ -83,7 +83,7 @@ Build the final Steam trailer after all sixteen landscape clips have been captur
 make pixel-globe-steam-trailer
 ```
 
-The tracked edit plan, Pirata One heading font, and builder live in `tools/trailer/`. The builder keeps brief trade actions readable, centers the other cuts on decisive gameplay beats, mixes the captured SFX under the sailing score, crossfades into the combat score as Fight begins, and animates chapter labels through the lower third. The final storm footage continues in slow motion while the gameplay eases into Gaussian blur and the title performs a damped pop. The builder writes `apps/pixel-globe/.captures/trailer/marque-and-reprisal-steam-trailer-v5.mp4`.
+The tracked edit plan, Pirata One heading font, and builder live in `tools/trailer/`. The builder keeps brief trade actions readable, centers the other cuts on decisive gameplay beats, mixes the captured SFX under the sailing score, crossfades into the combat score as Fight begins, and animates chapter labels through the quiet band immediately above the lower action buttons. The final storm footage continues in slow motion while the gameplay eases into Gaussian blur and the title performs a damped pop. The builder writes `apps/pixel-globe/.captures/trailer/marque-and-reprisal-steam-trailer-v6.mp4`.
 
 Build the looping feature banners for Steam's About This Game description from the same landscape captures:
 

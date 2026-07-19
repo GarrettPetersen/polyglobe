@@ -83,6 +83,13 @@ import {
   createColonizationQuestMemory,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
+import {
+  CARGO_SPACE_TICKS_PER_UNIT,
+  availableCargoTicks,
+  cargoUnitsFromTicks,
+  occupiedCargoTicks,
+  wholeCargoUnitsAvailable
+} from "./cargoSpace.js";
 
 export const STARTING_DOUBLOONS = 360;
 export const GAME_STATE_VERSION = 20;
@@ -555,9 +562,11 @@ export function updateCircumnavigationProgress(state, longitudeDeg) {
 export function setCargoCapacity(state, cargoCapacity) {
   assertGameState(state);
   assertCargoCapacity(cargoCapacity);
-  const used = cargoUsed(state);
-  if (used > cargoCapacity) {
-    throw new Error(`Cannot switch to cargo capacity ${cargoCapacity}; current cargo uses ${used}`);
+  const usedTicks = cargoUsedTicks(state);
+  if (usedTicks > cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT) {
+    throw new Error(
+      `Cannot switch to cargo capacity ${cargoCapacity}; current cargo uses ${cargoUnitsFromTicks(usedTicks)}`
+    );
   }
   state.cargoCapacity = cargoCapacity;
 }
@@ -585,7 +594,7 @@ export function setPlayerShipStats(state, stats) {
   state.survival.freshWaterCapacity = plan.waterUnits;
   state.survival.freshWater = Math.min(state.survival.freshWater, plan.waterUnits);
   trimCargoQuantity(state, HARDTACK_GOOD_ID, plan.foodUnits);
-  if (cargoUsed(state) > stats.cargoCapacity) {
+  if (cargoUsedTicks(state) > stats.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT) {
     state.cargoCapacity = previous.cargoCapacity;
     state.ship = previous.ship;
     state.survival.freshWater = previous.freshWater;
@@ -657,20 +666,26 @@ function replacePlayerShipAndRecord(state, city, stats, context, ledger, beforeL
   return plan;
 }
 
-export function cargoUsed(state) {
+export function cargoUsedTicks(state) {
   assertGameState(state);
-  let used = 0;
+  let usedTicks = 0;
   for (const [goodId, quantity] of Object.entries(state.cargo)) {
     const good = goodById(goodId);
-    used += good.unitSize * quantity;
+    usedTicks += occupiedCargoTicks(good.unitSize * quantity, `cargo.${goodId} space`);
   }
   if (state.ship) {
-    used += crewHoldSpace(state.ship.crew);
-    used += state.ship.cannons;
-    used += Math.ceil(state.survival.freshWater);
+    usedTicks += crewHoldSpace(state.ship.crew) * CARGO_SPACE_TICKS_PER_UNIT;
+    usedTicks += state.ship.cannons * CARGO_SPACE_TICKS_PER_UNIT;
+    usedTicks += Math.ceil(state.survival.freshWater) * CARGO_SPACE_TICKS_PER_UNIT;
   }
-  for (const units of Object.values(state.memory.cargoReservations)) used += units;
-  return used;
+  for (const units of Object.values(state.memory.cargoReservations)) {
+    usedTicks += units * CARGO_SPACE_TICKS_PER_UNIT;
+  }
+  return usedTicks;
+}
+
+export function cargoUsed(state) {
+  return cargoUnitsFromTicks(cargoUsedTicks(state));
 }
 
 export function reserveCargoSpace(state, reservationId, units) {
@@ -682,7 +697,7 @@ export function reserveCargoSpace(state, reservationId, units) {
   if (Object.prototype.hasOwnProperty.call(state.memory.cargoReservations, reservationId)) {
     throw new Error(`Cargo reservation already exists: ${reservationId}`);
   }
-  if (cargoFree(state) < units) {
+  if (cargoFreeTicks(state) < units * CARGO_SPACE_TICKS_PER_UNIT) {
     throw new Error(`Cannot reserve ${units} cargo units; only ${cargoFree(state)} remain`);
   }
   state.memory.cargoReservations[reservationId] = units;
@@ -726,16 +741,17 @@ export function receiveSurrenderedLoot(state, loot, context = {}) {
   }
 
   const receivedCargo = {};
-  let free = cargoFree(state);
+  let freeTicks = cargoFreeTicks(state);
   for (const [goodId, available] of Object.entries(loot.cargo)) {
     const good = goodById(goodId);
     assertQuantity(available, `loot.${goodId}`);
-    const quantity = Math.min(available, Math.floor(free / good.unitSize));
+    const goodTicks = good.unitSize * CARGO_SPACE_TICKS_PER_UNIT;
+    const quantity = Math.min(available, Math.floor(freeTicks / goodTicks));
     if (quantity <= 0) continue;
     state.cargo[goodId] = (state.cargo[goodId] || 0) + quantity;
     state.accounts.cargoCostBasis[goodId] = state.accounts.cargoCostBasis[goodId] || 0;
     receivedCargo[goodId] = quantity;
-    free -= quantity * good.unitSize;
+    freeTicks -= quantity * goodTicks;
     recordLedgerEntry(state, null, context, {
       kind: "prize",
       description: `Prize cargo ${good.label} x${quantity}`,
@@ -785,9 +801,18 @@ export function receiveQuestPayment(state, city, amount, description, context = 
   return { amount, balance: state.doubloons };
 }
 
-export function cargoFree(state) {
+export function cargoFreeTicks(state) {
   const reservation = loadoutProvisionReservation(state);
-  return state.cargoCapacity - cargoUsed(state) - reservation.missingFood - reservation.missingWater;
+  const capacityTicks = state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT;
+  const reservedProvisionTicks = occupiedCargoTicks(
+    reservation.missingFood + reservation.missingWater,
+    "reserved provision cargo space"
+  );
+  return capacityTicks - cargoUsedTicks(state) - reservedProvisionTicks;
+}
+
+export function cargoFree(state) {
+  return cargoUnitsFromTicks(cargoFreeTicks(state));
 }
 
 export function cargoFreeForGood(state, goodId) {
@@ -799,7 +824,8 @@ export function cargoQuantityCapacityForGood(state, goodId) {
   assertGameState(state);
   const good = tradeGoodById(goodId);
   const availableSpace = cargoFreeForGood(state, goodId);
-  return Math.max(0, Math.floor((availableSpace + 1e-8) / good.unitSize));
+  const availableTicks = availableCargoTicks(Math.max(0, availableSpace));
+  return Math.max(0, Math.floor(availableTicks / (good.unitSize * CARGO_SPACE_TICKS_PER_UNIT)));
 }
 
 export function refillFreshWaterFromShore(state) {
@@ -2448,10 +2474,7 @@ function loadoutProvisionAllocation(state, plan) {
     0,
     Math.min(plan.storesSpace, state.cargoCapacity - nonProvisionSpace)
   );
-  const availableSpace = Math.round(availableSpaceRaw);
-  if (Math.abs(availableSpaceRaw - availableSpace) > 1e-8) {
-    throw new Error(`Ship loadout available store space is not whole: ${availableSpaceRaw}`);
-  }
+  const availableSpace = wholeCargoUnitsAvailable(availableSpaceRaw);
   return {
     ...balancedProvisionTargets(plan.foodUnits, plan.waterUnits, availableSpace),
     availableSpace

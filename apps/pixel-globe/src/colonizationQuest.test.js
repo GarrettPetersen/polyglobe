@@ -53,6 +53,12 @@ test("only capacious ocean-going ships can carry the colonists", () => {
   );
   assert.equal(colonizationShipEligibility(brigantine, COLONIZATION_EXPEDITION_CARGO_UNITS - 1).eligible, false);
   assert.equal(colonizationShipEligibility(fishingBarque, fishingBarque.cargoCapacity).eligible, false);
+  assert.doesNotThrow(() => colonizationShipEligibility(brigantine, 1.3333333333333357));
+  assert.equal(colonizationShipEligibility(brigantine, 1.3333333333333357).freeCargoUnits, 4 / 3);
+  assert.equal(
+    colonizationShipEligibility(brigantine, COLONIZATION_EXPEDITION_CARGO_UNITS + 1e-12).eligible,
+    true
+  );
 });
 
 test("landing creates a village and a one-year resupply objective after departure", () => {

@@ -8907,7 +8907,12 @@ function updateWhales(dt, nowMs) {
     whaleNavigationAtPosition,
     weatherClockMinutes
   );
-  let changed = constrainActiveWhaleTether();
+  let changed;
+  try {
+    changed = constrainActiveWhaleTether();
+  } catch (error) {
+    changed = snapFailedWhaleTether(error);
+  }
   for (const event of events) {
     if (event.type === "blow") {
       const whale = whaleById(gameState.memory.whales, event.whaleId);
@@ -8943,6 +8948,17 @@ function updateWhales(dt, nowMs) {
   const previousBurstCount = whaleBlowBursts.length;
   whaleBlowBursts = whaleBlowBursts.filter((burst) => nowMs - burst.startedAtMs < WHALE_BLOW_DURATION_MS);
   return changed || whaleBlowBursts.length > 0 || whaleBlowBursts.length !== previousBurstCount;
+}
+
+function snapFailedWhaleTether(error) {
+  const hunt = gameState?.memory?.whales?.activeHunt;
+  if (!hunt) throw error;
+  console.error(`Whale tether failed for ${hunt.whaleId}; snapping the rope`, error);
+  cutWhaleLoose(gameState.memory.whales);
+  playWhaleLineBreakSound();
+  showSurvivalNotice("THE ROPE SNAPPED - THE WHALE ESCAPED", "warn");
+  saveVoyageNow("whale tether snapped after a navigation failure");
+  return true;
 }
 
 function constrainActiveWhaleTether() {

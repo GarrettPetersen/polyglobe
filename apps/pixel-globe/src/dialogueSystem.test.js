@@ -514,6 +514,67 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   ]);
 });
 
+test("selling the final unit disables its stable market row instead of moving later goods", () => {
+  const city = {
+    tileId: 107,
+    city: "Porto",
+    displayCity: "Porto",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 50000,
+    character: { name: "Ines Carvalho", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.wool = 1;
+  gameState.cargo.timber = 2;
+  gameState.accounts.cargoCostBasis.wool = 10;
+  gameState.accounts.cargoCostBasis.timber = 20;
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+
+  const before = portDialogueView(session, city, gameState, economy, [city]);
+  const woolIndex = before.options.findIndex((entry) => entry.action.goodId === "wool");
+  const timberIndex = before.options.findIndex((entry) => entry.action.goodId === "timber");
+  assert.ok(woolIndex >= 0);
+  assert.ok(timberIndex >= 0);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], woolIndex, { simMinute: 10 });
+  const after = portDialogueView(session, city, gameState, economy, [city]);
+
+  assert.equal(after.options[woolIndex].action.goodId, "wool");
+  assert.equal(after.options[woolIndex].disabled, true);
+  assert.match(after.options[woolIndex].detail, /HELD 0$/);
+  assert.equal(after.options[timberIndex].action.goodId, "timber");
+  assert.equal(after.options[timberIndex].disabled, false);
+});
+
+test("edible cargo market rows show remaining sale clicks instead of rations", () => {
+  const city = {
+    tileId: 108,
+    city: "Porto",
+    displayCity: "Porto",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 50000,
+    character: { name: "Ines Carvalho", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.fish = 61 / 12;
+  gameState.accounts.cargoCostBasis.fish = 50;
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+
+  const before = portDialogueView(session, city, gameState, economy, [city]);
+  const fishIndex = before.options.findIndex((entry) => entry.action.goodId === "fish");
+  assert.ok(fishIndex >= 0);
+  assert.match(before.options[fishIndex].detail, /HELD 5$/);
+  assert.doesNotMatch(before.options[fishIndex].detail, /RATION/);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], fishIndex, { simMinute: 10 });
+  const after = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(after.options[fishIndex].detail, /HELD 4$/);
+});
+
 test("port menus pin Back and Leave Port after their ordinary actions", () => {
   const city = {
     tileId: 106,
