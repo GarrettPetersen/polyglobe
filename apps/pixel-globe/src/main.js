@@ -1823,6 +1823,7 @@ let camera;
 let chart;
 let localLayout;
 let minimap;
+let captainChartMinimap;
 let themeMusic = null;
 let soundEffects = null;
 const stormLightningState = createStormLightningState();
@@ -2326,6 +2327,7 @@ async function main() {
   cloudSprites = buildCloudSprites();
   refreshWeatherState(true);
   minimap = buildMinimap();
+  captainChartMinimap = null;
   ship = createShip(
     playerStartPosition.lat,
     playerStartPosition.lon,
@@ -15900,36 +15902,48 @@ function riverEdgeSet(masks, tileId, edge) {
 function buildMinimap() {
   const tileProjectedX = new Float32Array(graph.tileCount);
   const tileProjectedY = new Float32Array(graph.tileCount);
-  const pixelLandWeights = new Float32Array(MINIMAP_W * MINIMAP_H);
-  const pixelTileCounts = new Uint16Array(MINIMAP_W * MINIMAP_H);
   for (let id = 0; id < graph.tileCount; id++) {
     tileProjectedX[id] = minimapProjectLongitude(graph.lonDeg[id], MINIMAP_W);
     tileProjectedY[id] = minimapProjectLatitude(graph.latDeg[id], MINIMAP_MAX_LAT_DEG, MINIMAP_H);
   }
 
-  const canvas = document.createElement("canvas");
-  canvas.width = MINIMAP_W;
-  canvas.height = MINIMAP_H;
-  const mapCtx = canvas.getContext("2d", { alpha: false });
-  mapCtx.imageSmoothingEnabled = false;
-  fillMinimapCanvas(mapCtx, MINIMAP_UNKNOWN_COLOR);
   return {
-    canvas,
-    ctx: mapCtx,
+    ...buildMinimapRaster(MINIMAP_W, MINIMAP_H, true),
     seenTiles: new Uint8Array(graph.tileCount),
     seenTileCount: 0,
-    revealedPixels: new Uint8Array(MINIMAP_W * MINIMAP_H),
-    pixelLandWeights,
-    pixelTileCounts,
     tileProjectedX,
     tileProjectedY,
-    sampledPixelsByTile: new Map(),
     longitudeBinCounts: new Uint16Array(MINIMAP_LONGITUDE_BIN_COUNT),
     minimumSeenY: Infinity,
     maximumSeenY: -Infinity,
     viewport: null,
     viewportDirty: false,
-    fullMapForced: false
+    fullMapForced: false,
+    rasterRevision: 0
+  };
+}
+
+function buildMinimapRaster(width, height, trackSampledTiles = false) {
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw new Error(`Invalid minimap raster dimensions: ${width}x${height}`);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const mapCtx = canvas.getContext("2d", { alpha: false });
+  if (!mapCtx) throw new Error(`Could not create minimap raster context: ${width}x${height}`);
+  mapCtx.imageSmoothingEnabled = false;
+  fillMinimapCanvas(mapCtx, width, height, MINIMAP_UNKNOWN_COLOR);
+  return {
+    width,
+    height,
+    canvas,
+    ctx: mapCtx,
+    revealedPixels: new Uint8Array(width * height),
+    pixelLandWeights: new Float32Array(width * height),
+    pixelTileCounts: new Uint16Array(width * height),
+    sampledPixelsByTile: trackSampledTiles ? new Map() : null,
+    sourceRevision: -1
   };
 }
 
@@ -15942,7 +15956,7 @@ function drawMinimap(nowMs) {
   ctx.fillRect(MINIMAP_X - 1, MINIMAP_Y - 1, MINIMAP_W + 2, MINIMAP_H + 2);
   ctx.drawImage(minimap.canvas, MINIMAP_X, MINIMAP_Y);
   if (!minimap.viewport || !cartographyActive) return;
-  drawMinimapNavigationMarkers(MINIMAP_X, MINIMAP_Y, MINIMAP_W, MINIMAP_H);
+  drawMinimapNavigationMarkers(MINIMAP_X, MINIMAP_Y, minimap);
 
   const marker = minimapPixelForTile(centerTileId);
   const mx = MINIMAP_X + marker.x;
@@ -15952,9 +15966,9 @@ function drawMinimap(nowMs) {
   ctx.fillRect(mx, my, 1, 1);
 }
 
-function fillMinimapCanvas(mapCtx, color) {
+function fillMinimapCanvas(mapCtx, width, height, color) {
   mapCtx.fillStyle = rgbColor(color);
-  mapCtx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
+  mapCtx.fillRect(0, 0, width, height);
 }
 
 function voyageCartographyIsActive() {
@@ -15986,6 +16000,7 @@ function revealMinimapTile(tileId) {
   }
   minimap.seenTiles[tileId] = 1;
   minimap.seenTileCount += 1;
+  minimap.rasterRevision += 1;
 
   const projectedX = minimap.tileProjectedX[tileId];
   const projectedY = minimap.tileProjectedY[tileId];
@@ -16010,7 +16025,7 @@ function revealMinimapTile(tileId) {
   for (const pixel of sampledPixels) {
     if (minimap.revealedPixels[pixel] !== 0) continue;
     minimap.revealedPixels[pixel] = 1;
-    paintMinimapPixel(pixel);
+    paintMinimapPixel(minimap, pixel);
   }
   return true;
 }
@@ -16036,20 +16051,28 @@ function refreshMinimapViewport() {
   minimap.viewport = viewport;
   minimap.viewportDirty = false;
   minimap.fullMapForced = forceFullMap;
+  minimap.rasterRevision += 1;
   renderMinimapViewport();
 }
 
 function renderMinimapViewport() {
-  minimap.revealedPixels.fill(0);
-  minimap.pixelLandWeights.fill(0);
-  minimap.pixelTileCounts.fill(0);
-  minimap.sampledPixelsByTile.clear();
-  fillMinimapCanvas(minimap.ctx, MINIMAP_UNKNOWN_COLOR);
-  if (!minimap.viewport) return;
+  renderMinimapRaster(minimap);
+}
 
-  for (let y = 0; y < MINIMAP_H; y++) {
-    for (let x = 0; x < MINIMAP_W; x++) {
-      const pixel = x + y * MINIMAP_W;
+function renderMinimapRaster(raster) {
+  raster.revealedPixels.fill(0);
+  raster.pixelLandWeights.fill(0);
+  raster.pixelTileCounts.fill(0);
+  if (raster.sampledPixelsByTile) raster.sampledPixelsByTile.clear();
+  fillMinimapCanvas(raster.ctx, raster.width, raster.height, MINIMAP_UNKNOWN_COLOR);
+  if (!minimap.viewport) {
+    raster.sourceRevision = minimap.rasterRevision;
+    return;
+  }
+
+  for (let y = 0; y < raster.height; y++) {
+    for (let x = 0; x < raster.width; x++) {
+      const pixel = x + y * raster.width;
       for (const sampleY of MINIMAP_SAMPLE_OFFSETS) {
         for (const sampleX of MINIMAP_SAMPLE_OFFSETS) {
           const projected = minimapViewportSample({
@@ -16059,71 +16082,76 @@ function renderMinimapViewport() {
             sampleX,
             sampleY,
             worldWidth: MINIMAP_W,
-            pixelWidth: MINIMAP_W,
-            pixelHeight: MINIMAP_H
+            pixelWidth: raster.width,
+            pixelHeight: raster.height
           });
           const latitudeDeg = minimapUnprojectLatitude(projected.y, MINIMAP_MAX_LAT_DEG, MINIMAP_H);
           const longitudeDeg = minimapUnprojectLongitude(projected.x, MINIMAP_W);
           const tileId = findNearestTileId(graph, directionIndex, latLonToDirection(latitudeDeg, longitudeDeg));
-          minimap.pixelLandWeights[pixel] += minimapLandWeight(earthById[tileId]);
-          minimap.pixelTileCounts[pixel] += 1;
-          if (minimap.seenTiles[tileId] !== 0) minimap.revealedPixels[pixel] = 1;
-          let sampledPixels = minimap.sampledPixelsByTile.get(tileId);
-          if (!sampledPixels) {
-            sampledPixels = [];
-            minimap.sampledPixelsByTile.set(tileId, sampledPixels);
+          raster.pixelLandWeights[pixel] += minimapLandWeight(earthById[tileId]);
+          raster.pixelTileCounts[pixel] += 1;
+          if (minimap.seenTiles[tileId] !== 0) raster.revealedPixels[pixel] = 1;
+          if (raster.sampledPixelsByTile) {
+            let sampledPixels = raster.sampledPixelsByTile.get(tileId);
+            if (!sampledPixels) {
+              sampledPixels = [];
+              raster.sampledPixelsByTile.set(tileId, sampledPixels);
+            }
+            if (sampledPixels[sampledPixels.length - 1] !== pixel) sampledPixels.push(pixel);
           }
-          if (sampledPixels[sampledPixels.length - 1] !== pixel) sampledPixels.push(pixel);
         }
       }
-      if (minimap.pixelTileCounts[pixel] !== MINIMAP_SAMPLE_OFFSETS.length ** 2) {
+      if (raster.pixelTileCounts[pixel] !== MINIMAP_SAMPLE_OFFSETS.length ** 2) {
         throw new Error(`Incomplete minimap sampling at pixel ${pixel}`);
       }
-      paintMinimapPixel(pixel);
+      paintMinimapPixel(raster, pixel);
     }
   }
+  raster.sourceRevision = minimap.rasterRevision;
 }
 
-function minimapPixelForTile(tileId) {
+function minimapPixelForTile(tileId, raster = minimap) {
   if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
     throw new Error(`Invalid minimap marker tile: ${tileId}`);
   }
   const point = minimapPixelForProjectedPoint(
     minimap.tileProjectedX[tileId],
-    minimap.tileProjectedY[tileId]
+    minimap.tileProjectedY[tileId],
+    raster
   );
   if (!point) throw new Error(`Minimap marker tile ${tileId} lies outside the explored viewport`);
   return point;
 }
 
-function minimapPixelForProjectedPoint(projectedX, projectedY) {
+function minimapPixelForProjectedPoint(projectedX, projectedY, raster = minimap) {
   if (!minimap.viewport) return null;
   return minimapViewportPixel({
     viewport: minimap.viewport,
     projectedX,
     projectedY,
     worldWidth: MINIMAP_W,
-    pixelWidth: MINIMAP_W,
-    pixelHeight: MINIMAP_H
+    pixelWidth: raster.width,
+    pixelHeight: raster.height
   });
 }
 
-function drawMinimapNavigationMarkers(x, y, width, height) {
+function drawMinimapNavigationMarkers(x, y, raster) {
   if (!minimap?.viewport || !gameState) return;
   ctx.save();
   ctx.beginPath();
-  ctx.rect(x, y, width, height);
+  ctx.rect(x, y, raster.width, raster.height);
   ctx.clip();
   for (const entry of navigationMenuEntries().slice().reverse()) {
     const latitudeDeg = latitudeDegForDirection(entry.targetVector);
     const longitudeDeg = longitudeDegForDirection(entry.targetVector);
     const point = minimapPixelForProjectedPoint(
       minimapProjectLongitude(longitudeDeg, MINIMAP_W),
-      minimapProjectLatitude(latitudeDeg, MINIMAP_MAX_LAT_DEG, MINIMAP_H)
+      minimapProjectLatitude(latitudeDeg, MINIMAP_MAX_LAT_DEG, MINIMAP_H),
+      raster
     );
     if (!point) continue;
-    const markerX = Math.round(x + (point.x + 0.5) / MINIMAP_W * width);
-    const markerY = Math.round(y + (point.y + 0.5) / MINIMAP_H * height);
+    const markerX = x + point.x;
+    const markerY = y + point.y;
     drawMinimapNavigationDiamond(markerX, markerY, entry.style);
   }
   ctx.restore();
@@ -16140,14 +16168,14 @@ function drawMinimapNavigationDiamond(centerX, centerY, style) {
   ctx.fillRect(left + 1, top + 3, 2, 1);
 }
 
-function paintMinimapPixel(pixel) {
-  const color = minimap.revealedPixels[pixel] !== 0
-    ? minimapColor(minimapPixelLandFraction(pixel), pixel)
+function paintMinimapPixel(raster, pixel) {
+  const color = raster.revealedPixels[pixel] !== 0
+    ? minimapColor(minimapPixelLandFraction(raster, pixel), pixel)
     : MINIMAP_UNKNOWN_COLOR;
-  const x = pixel % MINIMAP_W;
-  const y = Math.floor(pixel / MINIMAP_W);
-  minimap.ctx.fillStyle = rgbColor(color);
-  minimap.ctx.fillRect(x, y, 1, 1);
+  const x = pixel % raster.width;
+  const y = Math.floor(pixel / raster.width);
+  raster.ctx.fillStyle = rgbColor(color);
+  raster.ctx.fillRect(x, y, 1, 1);
 }
 
 function syncCartographyToGameState() {
@@ -16174,7 +16202,8 @@ function restoreCartographyFromGameState() {
   minimap.viewport = null;
   minimap.viewportDirty = false;
   minimap.fullMapForced = false;
-  fillMinimapCanvas(minimap.ctx, MINIMAP_UNKNOWN_COLOR);
+  minimap.rasterRevision += 1;
+  fillMinimapCanvas(minimap.ctx, minimap.width, minimap.height, MINIMAP_UNKNOWN_COLOR);
   if (memory.seenTilesBase64 === "") {
     if (memory.seenTileCount !== 0) throw new Error("Cartography count has no saved tile mask");
     return;
@@ -16579,7 +16608,9 @@ function drawCaptainChart(panel, nowMs) {
   ctx.strokeStyle = "#715033";
   ctx.strokeRect(mapX - 1.5, mapY - 1.5, mapW + 3, mapH + 3);
   refreshMinimapViewport();
-  drawScaledMinimap(mapX, mapY, mapW, mapH);
+  const chartMinimap = nativeCaptainChartMinimap(mapW, mapH);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(chartMinimap.canvas, mapX, mapY);
 
   const mapped = minimap ? minimap.seenTileCount / graph.tileCount : 0;
   drawOptionsText(`${uiText("status.mapped")} ${(mapped * 100).toFixed(2)}%`, mapX, header.mappedY, {
@@ -16587,10 +16618,10 @@ function drawCaptainChart(panel, nowMs) {
   });
 
   if (minimap?.viewport) {
-    drawMinimapNavigationMarkers(mapX, mapY, mapW, mapH);
-    const marker = minimapPixelForTile(centerTileId);
-    const markerX = Math.round(mapX + (marker.x + 0.5) / MINIMAP_W * mapW);
-    const markerY = Math.round(mapY + (marker.y + 0.5) / MINIMAP_H * mapH);
+    drawMinimapNavigationMarkers(mapX, mapY, chartMinimap);
+    const marker = minimapPixelForTile(centerTileId, chartMinimap);
+    const markerX = mapX + marker.x;
+    const markerY = mapY + marker.y;
     ctx.fillStyle = Math.floor(nowMs / 320) % 2 === 0 ? "#fff4a8" : "#5b4627";
     ctx.fillRect(markerX - 1, markerY - 1, 3, 3);
   }
@@ -16752,10 +16783,15 @@ function drawCaptainChartNavigation(panel) {
   });
 }
 
-function drawScaledMinimap(x, y, width, height) {
-  if (!minimap) return;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(minimap.canvas, 0, 0, MINIMAP_W, MINIMAP_H, x, y, width, height);
+function nativeCaptainChartMinimap(width, height) {
+  if (!captainChartMinimap ||
+      captainChartMinimap.width !== width || captainChartMinimap.height !== height) {
+    captainChartMinimap = buildMinimapRaster(width, height);
+  }
+  if (captainChartMinimap.sourceRevision !== minimap.rasterRevision) {
+    renderMinimapRaster(captainChartMinimap);
+  }
+  return captainChartMinimap;
 }
 
 function navigationMenuEntries() {
@@ -19567,10 +19603,10 @@ function minimapLandWeight(row) {
   return 1;
 }
 
-function minimapPixelLandFraction(pixel) {
-  const total = minimap.pixelTileCounts[pixel];
+function minimapPixelLandFraction(raster, pixel) {
+  const total = raster.pixelTileCounts[pixel];
   if (total === 0) return 0;
-  return clamp(minimap.pixelLandWeights[pixel] / total, 0, 1);
+  return clamp(raster.pixelLandWeights[pixel] / total, 0, 1);
 }
 
 function minimapColor(fraction, pixel) {
