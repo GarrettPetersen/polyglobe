@@ -1176,7 +1176,7 @@ const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
 const SURVIVAL_PANEL_MIN_W = 120;
-const SURVIVAL_PANEL_MAX_W = 280;
+const SURVIVAL_PANEL_MAX_W = 320;
 const SURVIVAL_CREW_ROW_Y = 34;
 const SURVIVAL_CREW_ROW_PAD_X = 5;
 const SURVIVAL_CRATE_ROW_Y = 43;
@@ -22984,19 +22984,21 @@ function drawSurvivalMeters() {
 
 function survivalHudLayout() {
   if (!gameState) throw new Error("Ship status HUD requires game state");
+  const capacity = gameState.cargoCapacity;
   const maximumPanelWidth = Math.max(
     SURVIVAL_PANEL_MIN_W,
     Math.min(SURVIVAL_PANEL_MAX_W, OPTIONS_BUTTON_X - SURVIVAL_PANEL_X - 3)
   );
   return cargoCrateStatusLayout({
     used: cargoUsed(gameState),
-    capacity: gameState.cargoCapacity,
+    capacity,
     panelX: SURVIVAL_PANEL_X,
     panelY: SURVIVAL_PANEL_Y,
     minimumPanelWidth: SURVIVAL_PANEL_MIN_W,
     maximumPanelWidth,
     iconSize: SURVIVAL_CRATE_SIZE,
-    crateTop: SURVIVAL_CRATE_ROW_Y
+    crateTop: SURVIVAL_CRATE_ROW_Y,
+    valueWidth: measurePixelTextWidth(`${capacity}/${capacity}`, PIXEL_FONT_LATIN_SMALL_8)
   });
 }
 
@@ -23015,6 +23017,11 @@ function drawCargoCrateRows(layout) {
       SURVIVAL_CRATE_SIZE
     );
   }
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText(layout.value.text, layout.value.right, layout.value.y, {
+    font: PIXEL_FONT_LATIN_SMALL_8,
+    align: "right"
+  });
 }
 
 function statusHudTooltipGeometry() {
