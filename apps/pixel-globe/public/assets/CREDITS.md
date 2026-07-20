@@ -8,6 +8,7 @@
 
 ## Fonts
 - SparklyDest - "Pixel Pirate" (CC BY-SA 3.0; via DaFont; locally modified R kerning)
+- Lee Minseo - "Galmuri11" (SIL Open Font License 1.1)
 - Pirata One - capsule title lettering
 - Party LET - capsule title ampersand
 

@@ -3,15 +3,26 @@ import test from "node:test";
 
 import {
   LANGUAGE_CHINESE_SIMPLIFIED,
+  LANGUAGE_CHINESE_TRADITIONAL,
   LANGUAGE_ENGLISH,
+  LANGUAGE_FRENCH,
+  LANGUAGE_GERMAN,
   LANGUAGE_JAPANESE,
+  LANGUAGE_KOREAN,
+  LANGUAGE_POLISH,
+  LANGUAGE_PORTUGUESE_BRAZIL,
+  LANGUAGE_RUSSIAN,
+  LANGUAGE_SPANISH,
+  SUPPORTED_LANGUAGES,
   localizationCatalog,
   languageFontProfile,
   languageNativeLabel,
+  languageUsesTallPixelMetrics,
   localizeText,
   nextLanguage,
   normalizeLanguage,
   textContainsCjk,
+  textUsesLocaleGlyphs,
   translate
 } from "./localization.js";
 import { pixelFontSizePx } from "./pixelText.js";
@@ -20,25 +31,42 @@ test("language aliases normalize to the supported locales", () => {
   assert.equal(normalizeLanguage("en-CA"), LANGUAGE_ENGLISH);
   assert.equal(normalizeLanguage("zh-CN"), LANGUAGE_CHINESE_SIMPLIFIED);
   assert.equal(normalizeLanguage("zh-Hans"), LANGUAGE_CHINESE_SIMPLIFIED);
+  assert.equal(normalizeLanguage("zh-TW"), LANGUAGE_CHINESE_TRADITIONAL);
+  assert.equal(normalizeLanguage("ru-RU"), LANGUAGE_RUSSIAN);
+  assert.equal(normalizeLanguage("es-MX"), LANGUAGE_SPANISH);
+  assert.equal(normalizeLanguage("pt"), LANGUAGE_PORTUGUESE_BRAZIL);
+  assert.equal(normalizeLanguage("pt-BR"), LANGUAGE_PORTUGUESE_BRAZIL);
   assert.equal(normalizeLanguage("ja-JP"), LANGUAGE_JAPANESE);
+  assert.equal(normalizeLanguage("de-DE"), LANGUAGE_GERMAN);
+  assert.equal(normalizeLanguage("fr-CA"), LANGUAGE_FRENCH);
+  assert.equal(normalizeLanguage("pl-PL"), LANGUAGE_POLISH);
+  assert.equal(normalizeLanguage("ko-KR"), LANGUAGE_KOREAN);
   assert.equal(normalizeLanguage("missing"), LANGUAGE_ENGLISH);
   assert.equal(nextLanguage(LANGUAGE_ENGLISH), LANGUAGE_CHINESE_SIMPLIFIED);
-  assert.equal(nextLanguage(LANGUAGE_CHINESE_SIMPLIFIED), LANGUAGE_JAPANESE);
-  assert.equal(nextLanguage(LANGUAGE_JAPANESE), LANGUAGE_ENGLISH);
-  assert.equal(nextLanguage(LANGUAGE_ENGLISH, -1), LANGUAGE_JAPANESE);
+  assert.equal(nextLanguage(LANGUAGE_CHINESE_SIMPLIFIED), LANGUAGE_RUSSIAN);
+  assert.equal(nextLanguage(LANGUAGE_KOREAN), LANGUAGE_ENGLISH);
+  assert.equal(nextLanguage(LANGUAGE_ENGLISH, -1), LANGUAGE_KOREAN);
   assert.equal(languageNativeLabel(LANGUAGE_JAPANESE), "日本語");
+  assert.equal(languageNativeLabel(LANGUAGE_KOREAN), "한국어");
 });
 
 test("every translated catalog covers the complete English key set", () => {
   const englishKeys = Object.keys(localizationCatalog(LANGUAGE_ENGLISH)).sort();
-  const chineseKeys = Object.keys(localizationCatalog(LANGUAGE_CHINESE_SIMPLIFIED)).sort();
-  const japaneseKeys = Object.keys(localizationCatalog(LANGUAGE_JAPANESE)).sort();
-  assert.deepEqual(chineseKeys, englishKeys);
-  assert.deepEqual(japaneseKeys, englishKeys);
+  assert.equal(SUPPORTED_LANGUAGES.length, 11);
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    const translatedKeys = Object.keys(localizationCatalog(id)).sort();
+    assert.deepEqual(translatedKeys, englishKeys, `${id} catalog differs from English`);
+  }
   assert.equal(translate(LANGUAGE_CHINESE_SIMPLIFIED, "options.language"), "语言");
-  assert.equal(translate(LANGUAGE_CHINESE_SIMPLIFIED, "start.pastVoyages"), "往昔航程");
+  assert.equal(translate(LANGUAGE_CHINESE_TRADITIONAL, "options.language"), "語言");
+  assert.equal(translate(LANGUAGE_RUSSIAN, "options.language"), "ЯЗЫК");
+  assert.equal(translate(LANGUAGE_SPANISH, "options.language"), "IDIOMA");
+  assert.equal(translate(LANGUAGE_PORTUGUESE_BRAZIL, "options.language"), "IDIOMA");
   assert.equal(translate(LANGUAGE_JAPANESE, "options.language"), "言語");
-  assert.equal(translate(LANGUAGE_JAPANESE, "start.pastVoyages"), "過去の航海");
+  assert.equal(translate(LANGUAGE_GERMAN, "options.language"), "SPRACHE");
+  assert.equal(translate(LANGUAGE_FRENCH, "options.language"), "LANGUE");
+  assert.equal(translate(LANGUAGE_POLISH, "options.language"), "JĘZYK");
+  assert.equal(translate(LANGUAGE_KOREAN, "options.language"), "언어");
 });
 
 test("existing canvas phrases and templates localize without changing proper names", () => {
@@ -60,17 +88,60 @@ test("existing canvas phrases and templates localize without changing proper nam
   assert.equal(localizeText(LANGUAGE_ENGLISH, "PAGE 2/7"), "PAGE 2/7");
 });
 
-test("Chinese and Japanese use zpix only at its exact 12px design scale", () => {
-  for (const language of [LANGUAGE_CHINESE_SIMPLIFIED, LANGUAGE_JAPANESE]) {
+test("each writing system uses a pixel font at its exact native scale", () => {
+  const zpixLanguages = [
+    LANGUAGE_CHINESE_SIMPLIFIED,
+    LANGUAGE_CHINESE_TRADITIONAL,
+    LANGUAGE_JAPANESE,
+    LANGUAGE_RUSSIAN,
+    LANGUAGE_POLISH
+  ];
+  for (const language of zpixLanguages) {
     const profile = languageFontProfile(language);
     assert.equal(pixelFontSizePx(profile.smallFont), 12);
     assert.equal(pixelFontSizePx(profile.dialogueFont), 12);
     assert.equal(profile.lineHeight, 14);
     assert.ok(profile.lineHeight > profile.fontSize);
+    assert.equal(languageUsesTallPixelMetrics(language), true);
+  }
+  const koreanProfile = languageFontProfile(LANGUAGE_KOREAN);
+  assert.equal(pixelFontSizePx(koreanProfile.smallFont), 11);
+  assert.equal(pixelFontSizePx(koreanProfile.dialogueFont), 11);
+  assert.equal(koreanProfile.lineHeight, 13);
+  assert.equal(languageUsesTallPixelMetrics(LANGUAGE_KOREAN), true);
+
+  for (const language of [
+    LANGUAGE_ENGLISH,
+    LANGUAGE_SPANISH,
+    LANGUAGE_PORTUGUESE_BRAZIL,
+    LANGUAGE_GERMAN,
+    LANGUAGE_FRENCH
+  ]) {
+    assert.equal(pixelFontSizePx(languageFontProfile(language).smallFont), 8);
+    assert.equal(languageUsesTallPixelMetrics(language), false);
   }
   assert.equal(textContainsCjk("简体中文"), true);
   assert.equal(textContainsCjk("日本語カタカナ"), true);
+  assert.equal(textContainsCjk("한국어"), true);
   assert.equal(textContainsCjk("Marque & Reprisal"), false);
+  assert.equal(textUsesLocaleGlyphs(LANGUAGE_RUSSIAN, "НАСТРОЙКИ"), true);
+  assert.equal(textUsesLocaleGlyphs(LANGUAGE_POLISH, "JĘZYK"), true);
+  assert.equal(textUsesLocaleGlyphs(LANGUAGE_SPANISH, "ESPAÑOL"), false);
+});
+
+test("dynamic canvas templates localize in every target language", () => {
+  for (const { id } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
+    const page = localizeText(id, "PAGE 2/7");
+    const water = localizeText(id, "WATER 16D");
+    const rations = localizeText(id, "Hardtack 12 RATIONS");
+    assert.equal(page.includes("{0}"), false, `${id} left a page placeholder`);
+    assert.equal(water.includes("{0}"), false, `${id} left a water placeholder`);
+    assert.equal(rations.includes("Hardtack"), false, `${id} left an English good name`);
+    assert.match(page, /2.*7/);
+    assert.match(water, /16/);
+    assert.match(rations, /12/);
+    assert.equal(localizeText(id, "Lisbon"), "Lisbon");
+  }
 });
 
 test("the longest dense-menu translations fit their conservative pixel budgets", () => {
@@ -83,10 +154,12 @@ test("the longest dense-menu translations fit their conservative pixel budgets",
     ["politics.playerStanding", 112],
     ["ship.itemsDocuments", 170]
   ];
-  for (const language of [LANGUAGE_CHINESE_SIMPLIFIED, LANGUAGE_JAPANESE]) {
+  for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     for (const [key, maxWidth] of cases) {
       const text = translate(language, key);
-      const conservativeWidth = Array.from(text).length * 12;
+      const profile = languageFontProfile(language);
+      const glyphWidth = textContainsCjk(text) ? profile.fontSize : Math.ceil(profile.fontSize * 0.625);
+      const conservativeWidth = Array.from(text).length * glyphWidth;
       assert.ok(
         conservativeWidth <= maxWidth,
         `${language} ${key} needs ${conservativeWidth}px, has ${maxWidth}px`

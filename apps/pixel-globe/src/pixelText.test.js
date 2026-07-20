@@ -47,9 +47,11 @@ test("pixel font sizes occupy whole logical canvas pixels", () => {
   assert.equal(pixelTextRasterHeight('8px "Dogica", monospace'), 16);
   assert.equal(pixelFontSizePx('8px "Pixel Pirate", monospace'), 8);
   assert.equal(pixelFontSizePx('12px "zpix", monospace'), 12);
+  assert.equal(pixelFontSizePx('11px "Galmuri11", monospace'), 11);
   assert.throws(() => pixelFontSizePx('10px "Silkscreen"'), /multiple of 8px/);
   assert.throws(() => pixelFontSizePx('12px "Pixel Pirate"'), /multiple of 8px/);
   assert.throws(() => pixelFontSizePx('8px "zpix"'), /multiple of 12px/);
+  assert.throws(() => pixelFontSizePx('12px "Galmuri11"'), /multiple of 11px/);
   assert.throws(() => pixelFontSizePx('8px "Tiny5"'), /Unsupported pixel font family/);
   assert.throws(() => pixelFontSizePx('small "Dogica"'), /no px size/);
 });
@@ -122,11 +124,12 @@ test("runtime text can only enter the canvas through the pixel raster helper", a
   assert.deepEqual(mainSource.match(/\b[a-zA-Z]+Ctx\.fillText\(/g), ["scratchCtx.fillText("]);
 });
 
-test("English keeps the Latin pixel fonts while Chinese uses zpix at native scale", async () => {
+test("the Latin, CJK, Cyrillic, Polish, and Korean pixel fonts ship at native scale", async () => {
   const fontFiles = (await readdir(new URL("../public/assets/fonts/", import.meta.url)))
-    .filter((filename) => filename.endsWith(".ttf"))
+    .filter((filename) => /\.(?:ttf|woff2)$/.test(filename))
     .sort();
   assert.deepEqual(fontFiles, [
+    "Galmuri11.woff2",
     "Silkscreen-Regular.ttf",
     "dogicapixel.ttf",
     "pixel_pirate.ttf",
@@ -143,14 +146,18 @@ test("English keeps the Latin pixel fonts while Chinese uses zpix at native scal
   assert.equal(mainSource.includes("Tiny5"), false);
   assert.equal(stylesSource.includes("Tiny5"), false);
   assert.match(mainSource, /12px \"zpix\"/);
+  assert.match(mainSource, /11px \"Galmuri11\"/);
   assert.match(localizationSource, /smallFont: '12px "zpix", monospace'/);
+  assert.match(localizationSource, /smallFont: '11px "Galmuri11", monospace'/);
   assert.match(mainSource, /8px \\"Pixel Pirate\\"/);
   assert.match(stylesSource, /font-family: "Pixel Pirate"/);
   assert.match(stylesSource, /pixel_pirate\.ttf\?v=r-kern-1/);
   assert.match(credits, /SparklyDest.*Pixel Pirate.*CC BY-SA 3\.0.*DaFont/);
+  assert.match(credits, /Lee Minseo.*Galmuri11.*SIL Open Font License 1\.1/);
   assert.match(pixelPirateFont.toString("latin1"), /Copyright SparklyDest 2011/);
   assert.match(pixelPirateFont.toString("latin1"), /Creative Commons Attribution Share Alike/);
   assert.equal(stylesSource.includes('font-family: "zpix"'), true);
+  assert.equal(stylesSource.includes('font-family: "Galmuri11"'), true);
 });
 
 test("Pixel Pirate lets the ornate R overlap the following letter by three design pixels", async () => {

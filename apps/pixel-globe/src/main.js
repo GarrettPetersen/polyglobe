@@ -453,12 +453,13 @@ import {
 import {
   LANGUAGE_ENGLISH,
   languageFontProfile,
-  languageHasCjkMetrics,
   languageNativeLabel,
+  languageUsesTallPixelMetrics,
   localizeText,
   nextLanguage,
   normalizeLanguage,
   textContainsCjk,
+  textUsesLocaleGlyphs,
   translate
 } from "./localization.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
@@ -1267,7 +1268,7 @@ const PIXEL_FONT_LATIN_DIALOGUE_8 = "8px \"Dogica\", monospace";
 let PIXEL_FONT_SMALL_8 = currentLanguageProfile.smallFont;
 let PIXEL_FONT_DIALOGUE_8 = currentLanguageProfile.dialogueFont;
 const PIXEL_FONT_TITLE_8 = "8px \"Pixel Pirate\", monospace";
-let PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageHasCjkMetrics(currentLanguage) ? 1 : 3;
+let PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageUsesTallPixelMetrics(currentLanguage) ? 1 : 3;
 POLITICS_MATRIX_ROW_H = currentLanguageProfile.tableRowHeight;
 document.documentElement.lang = currentLanguage;
 const PIXEL_TEXT_RASTER_CACHE_LIMIT = 2048;
@@ -2446,7 +2447,8 @@ async function loadPixelFonts() {
     { label: "Silkscreen", font: "8px \"Silkscreen\"", sample },
     { label: "Dogica", font: "8px \"Dogica\"", sample },
     { label: "Pixel Pirate", font: PIXEL_FONT_TITLE_8, sample: "MARQUE & REPRISAL" },
-    { label: "zpix", font: '12px "zpix"', sample: "简体中文 日本語 カタカナ 1522" }
+    { label: "zpix", font: '12px "zpix"', sample: "简体中文 繁體中文 日本語 Русский Polski 1522" },
+    { label: "Galmuri11", font: '11px "Galmuri11"', sample: "한국어 조선 항해 1522" }
   ];
   const loadedFaces = await Promise.all(
     requiredFonts.map(({ font, sample: fontSample }) => document.fonts.load(font, fontSample))
@@ -4769,7 +4771,7 @@ function setInterfaceLanguage(language, { persist = true } = {}) {
   currentLanguageProfile = languageFontProfile(normalized);
   PIXEL_FONT_SMALL_8 = currentLanguageProfile.smallFont;
   PIXEL_FONT_DIALOGUE_8 = currentLanguageProfile.dialogueFont;
-  PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageHasCjkMetrics(normalized) ? 1 : 3;
+  PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageUsesTallPixelMetrics(normalized) ? 1 : 3;
   POLITICS_MATRIX_ROW_H = currentLanguageProfile.tableRowHeight;
   optionsMenu.language = normalized;
   optionsMenu.fullscreenError = null;
@@ -4782,14 +4784,14 @@ function setInterfaceLanguage(language, { persist = true } = {}) {
 }
 
 function localizedLineHeight(englishHeight = 10) {
-  return languageHasCjkMetrics(currentLanguage)
+  return languageUsesTallPixelMetrics(currentLanguage)
     ? Math.max(englishHeight, currentLanguageProfile.lineHeight)
     : englishHeight;
 }
 
 function resolvedPixelFont(font, text) {
-  if (!languageHasCjkMetrics(currentLanguage) || !font.includes('"zpix"')) return font;
-  if (textContainsCjk(text) || !/[A-Za-z]/.test(text)) return font;
+  if (currentLanguageProfile.fontSize === 8 || !font.includes(`"${currentLanguageProfile.fontFamily}"`)) return font;
+  if (textUsesLocaleGlyphs(currentLanguage, text) || !/[A-Za-z]/.test(text)) return font;
   return font === currentLanguageProfile.dialogueFont
     ? PIXEL_FONT_LATIN_DIALOGUE_8
     : PIXEL_FONT_LATIN_SMALL_8;
@@ -5648,11 +5650,11 @@ function stepShipInfoPage(direction) {
 }
 
 function shipLedgerRowsPerPage() {
-  return languageHasCjkMetrics(currentLanguage) && SCREEN_W < 400 ? 8 : 10;
+  return languageUsesTallPixelMetrics(currentLanguage) && SCREEN_W < 400 ? 8 : 10;
 }
 
 function shipPapersRowsPerPage() {
-  return languageHasCjkMetrics(currentLanguage) ? 5 : 7;
+  return languageUsesTallPixelMetrics(currentLanguage) ? 5 : 7;
 }
 
 function createLakeBattleModeState() {
@@ -16613,7 +16615,7 @@ function drawShipPapers(panel, view) {
     });
   }
   page.rows.forEach((paper, index) => {
-    const rowHeight = languageHasCjkMetrics(currentLanguage) ? 28 : SHIP_INFO_PAPER_ROW_H;
+    const rowHeight = languageUsesTallPixelMetrics(currentLanguage) ? 28 : SHIP_INFO_PAPER_ROW_H;
     const detailOffset = localizedLineHeight(9);
     const y = panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * rowHeight;
     ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
@@ -18226,12 +18228,19 @@ function drawOptionsFullscreenRow(rowRect, highlighted) {
       ? (isFullscreen ? uiText("options.exitFullscreen") : uiText("options.enterFullscreen"))
       : uiText("options.fullscreenUnavailable")
   );
-  drawOptionsText(fitPixelText(label, PIXEL_FONT_DIALOGUE_8, rowRect.w - 16), rowRect.x + 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_DIALOGUE_8,
-    color: optionsMenu.fullscreenError
-      ? PIRATE_MENU_DANGER
-      : (fullscreenAvailable() ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED)
-  });
+  const font = PIXEL_FONT_DIALOGUE_8;
+  const lines = wrapPixelText(label, font, rowRect.w - 16, 2);
+  const lineHeight = localizedLineHeight(10);
+  const contentHeight = pixelFontSizePx(font) + (lines.length - 1) * lineHeight;
+  const startY = rowRect.y + Math.floor((rowRect.h - contentHeight) / 2);
+  for (let index = 0; index < lines.length; index += 1) {
+    drawOptionsText(lines[index], rowRect.x + 8, startY + index * lineHeight, {
+      font,
+      color: optionsMenu.fullscreenError
+        ? PIRATE_MENU_DANGER
+        : (fullscreenAvailable() ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED)
+    });
+  }
 }
 
 function drawOptionsCloseButton(rect, hovered) {
@@ -18307,12 +18316,21 @@ function drawOptionsMuteRow(rowRect, highlighted) {
 
 function drawOptionsLanguageRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
-  drawOptionsText(uiText("options.language"), rowRect.x + 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_DIALOGUE_8,
+  const font = PIXEL_FONT_DIALOGUE_8;
+  const label = uiText("options.language");
+  const value = `< ${languageNativeLabel(currentLanguage)} >`;
+  const innerWidth = rowRect.w - 16;
+  const splitLines = measurePixelTextWidth(label, font) + measurePixelTextWidth(value, font) + 6 > innerWidth;
+  const labelY = splitLines ? rowRect.y + 1 : controlTextY(rowRect, font);
+  const valueY = splitLines
+    ? rowRect.y + rowRect.h - pixelFontSizePx(font) - 2
+    : controlTextY(rowRect, font);
+  drawOptionsText(label, rowRect.x + 8, labelY, {
+    font,
     color: PIRATE_MENU_INK
   });
-  drawOptionsText(`< ${languageNativeLabel(currentLanguage)} >`, rowRect.x + rowRect.w - 8, controlTextY(rowRect), {
-    font: PIXEL_FONT_DIALOGUE_8,
+  drawOptionsText(fitPixelText(value, font, innerWidth), rowRect.x + rowRect.w - 8, valueY, {
+    font,
     align: "right",
     color: PIRATE_MENU_CHART_LINE
   });
@@ -23220,8 +23238,8 @@ function drawPlayerIntroModal(nowMs) {
     ["VESSEL", shipLabelForSlug(ship?.typeSlug || character.starterShipSlug)]
   ];
   for (let i = 0; i < rows.length; i++) {
-    const y = panel.y + 47 + i * (languageHasCjkMetrics(currentLanguage) ? 19 : 21);
-    if (languageHasCjkMetrics(currentLanguage)) {
+    const y = panel.y + 47 + i * (languageUsesTallPixelMetrics(currentLanguage) ? 19 : 21);
+    if (languageUsesTallPixelMetrics(currentLanguage)) {
       ctx.fillStyle = PIRATE_MENU_INK;
       drawPixelText(
         fitPixelText(`${renderedUiText(rows[i][0])}：${renderedUiText(rows[i][1])}`, PIXEL_FONT_SMALL_8, detailW),
@@ -23378,7 +23396,7 @@ function captainAlertPages(modal, textWidth = CAPTAIN_ALERT_PANEL_W - 110) {
   if (!modal || typeof modal.message !== "string") throw new Error("Character alert has no message");
   const lines = wrapPixelTextAll(modal.message.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
   const pages = [];
-  const linesPerPage = languageHasCjkMetrics(currentLanguage) ? 3 : 4;
+  const linesPerPage = languageUsesTallPixelMetrics(currentLanguage) ? 3 : 4;
   for (let index = 0; index < lines.length; index += linesPerPage) {
     pages.push(lines.slice(index, index + linesPerPage));
   }
@@ -23404,7 +23422,7 @@ function drawSailingHelpModal(modal) {
 
   const diagram = {
     x: panel.x + 12,
-    y: panel.y + (languageHasCjkMetrics(currentLanguage) ? 46 : 39),
+    y: panel.y + (languageUsesTallPixelMetrics(currentLanguage) ? 46 : 39),
     w: panel.w - 24,
     h: 70
   };
@@ -23417,7 +23435,7 @@ function drawSailingHelpModal(modal) {
   const maxLines = Math.max(1, Math.floor((modal.buttonRect.y - bodyY - 5) / lineHeight));
   ctx.fillStyle = PIRATE_MENU_INK;
   const localizedBody = renderedUiText(page.body);
-  const body = languageHasCjkMetrics(currentLanguage) ? localizedBody : localizedBody.toUpperCase();
+  const body = textContainsCjk(localizedBody) ? localizedBody : localizedBody.toUpperCase();
   const lines = wrapPixelText(body, PIXEL_FONT_SMALL_8, bodyW, maxLines);
   for (let index = 0; index < lines.length; index++) {
     drawPixelText(lines[index], bodyX, bodyY + index * lineHeight, { font: PIXEL_FONT_SMALL_8 });

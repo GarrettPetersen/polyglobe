@@ -1,17 +1,50 @@
+import GERMAN from "./locales/de.js";
+import SPANISH from "./locales/es.js";
+import FRENCH from "./locales/fr.js";
+import KOREAN from "./locales/ko.js";
+import POLISH from "./locales/pl.js";
+import PORTUGUESE_BRAZIL from "./locales/pt-BR.js";
+import RUSSIAN from "./locales/ru.js";
+import CHINESE_TRADITIONAL from "./locales/zh-Hant.js";
+
 export const LANGUAGE_ENGLISH = "en";
 export const LANGUAGE_CHINESE_SIMPLIFIED = "zh-Hans";
+export const LANGUAGE_RUSSIAN = "ru";
+export const LANGUAGE_SPANISH = "es";
+export const LANGUAGE_PORTUGUESE_BRAZIL = "pt-BR";
 export const LANGUAGE_JAPANESE = "ja";
+export const LANGUAGE_GERMAN = "de";
+export const LANGUAGE_FRENCH = "fr";
+export const LANGUAGE_POLISH = "pl";
+export const LANGUAGE_CHINESE_TRADITIONAL = "zh-Hant";
+export const LANGUAGE_KOREAN = "ko";
 
 export const SUPPORTED_LANGUAGES = Object.freeze([
   Object.freeze({ id: LANGUAGE_ENGLISH, label: "English", nativeLabel: "English" }),
   Object.freeze({ id: LANGUAGE_CHINESE_SIMPLIFIED, label: "Chinese (Simplified)", nativeLabel: "简体中文" }),
-  Object.freeze({ id: LANGUAGE_JAPANESE, label: "Japanese", nativeLabel: "日本語" })
+  Object.freeze({ id: LANGUAGE_RUSSIAN, label: "Russian", nativeLabel: "Русский" }),
+  Object.freeze({ id: LANGUAGE_SPANISH, label: "Spanish", nativeLabel: "Español" }),
+  Object.freeze({ id: LANGUAGE_PORTUGUESE_BRAZIL, label: "Portuguese (Brazil)", nativeLabel: "Português (Brasil)" }),
+  Object.freeze({ id: LANGUAGE_JAPANESE, label: "Japanese", nativeLabel: "日本語" }),
+  Object.freeze({ id: LANGUAGE_GERMAN, label: "German", nativeLabel: "Deutsch" }),
+  Object.freeze({ id: LANGUAGE_FRENCH, label: "French", nativeLabel: "Français" }),
+  Object.freeze({ id: LANGUAGE_POLISH, label: "Polish", nativeLabel: "Polski" }),
+  Object.freeze({ id: LANGUAGE_CHINESE_TRADITIONAL, label: "Chinese (Traditional)", nativeLabel: "繁體中文" }),
+  Object.freeze({ id: LANGUAGE_KOREAN, label: "Korean", nativeLabel: "한국어" })
 ]);
 
 const ENGLISH = Object.freeze({
   "language.english": "ENGLISH",
   "language.chineseSimplified": "简体中文",
+  "language.russian": "РУССКИЙ",
+  "language.spanish": "ESPAÑOL",
+  "language.portugueseBrazil": "PORTUGUÊS (BRASIL)",
   "language.japanese": "日本語",
+  "language.german": "DEUTSCH",
+  "language.french": "FRANÇAIS",
+  "language.polish": "POLSKI",
+  "language.chineseTraditional": "繁體中文",
+  "language.korean": "한국어",
   "options.title": "OPTIONS",
   "options.language": "LANGUAGE",
   "options.music": "MUSIC",
@@ -293,7 +326,15 @@ const ENGLISH = Object.freeze({
 const CHINESE_SIMPLIFIED = Object.freeze({
   "language.english": "英文",
   "language.chineseSimplified": "简体中文",
+  "language.russian": "俄语",
+  "language.spanish": "西班牙语",
+  "language.portugueseBrazil": "巴西葡萄牙语",
   "language.japanese": "日语",
+  "language.german": "德语",
+  "language.french": "法语",
+  "language.polish": "波兰语",
+  "language.chineseTraditional": "繁体中文",
+  "language.korean": "韩语",
   "options.title": "选项",
   "options.language": "语言",
   "options.music": "音乐",
@@ -575,7 +616,15 @@ const CHINESE_SIMPLIFIED = Object.freeze({
 const JAPANESE = Object.freeze({
   "language.english": "英語",
   "language.chineseSimplified": "簡体字中国語",
+  "language.russian": "ロシア語",
+  "language.spanish": "スペイン語",
+  "language.portugueseBrazil": "ブラジルポルトガル語",
   "language.japanese": "日本語",
+  "language.german": "ドイツ語",
+  "language.french": "フランス語",
+  "language.polish": "ポーランド語",
+  "language.chineseTraditional": "繁体字中国語",
+  "language.korean": "韓国語",
   "options.title": "オプション",
   "options.language": "言語",
   "options.music": "音楽",
@@ -857,7 +906,15 @@ const JAPANESE = Object.freeze({
 const CATALOGS = Object.freeze({
   [LANGUAGE_ENGLISH]: ENGLISH,
   [LANGUAGE_CHINESE_SIMPLIFIED]: CHINESE_SIMPLIFIED,
-  [LANGUAGE_JAPANESE]: JAPANESE
+  [LANGUAGE_RUSSIAN]: Object.freeze(RUSSIAN),
+  [LANGUAGE_SPANISH]: Object.freeze(SPANISH),
+  [LANGUAGE_PORTUGUESE_BRAZIL]: Object.freeze(PORTUGUESE_BRAZIL),
+  [LANGUAGE_JAPANESE]: JAPANESE,
+  [LANGUAGE_GERMAN]: Object.freeze(GERMAN),
+  [LANGUAGE_FRENCH]: Object.freeze(FRENCH),
+  [LANGUAGE_POLISH]: Object.freeze(POLISH),
+  [LANGUAGE_CHINESE_TRADITIONAL]: Object.freeze(CHINESE_TRADITIONAL),
+  [LANGUAGE_KOREAN]: Object.freeze(KOREAN)
 });
 
 const ENGLISH_PHRASE_KEYS = Object.freeze(new Map(
@@ -874,93 +931,133 @@ const EMBEDDED_PHRASES = Object.freeze(
     }))
 );
 
+const DYNAMIC_TEMPLATE_KEYS = Object.freeze([
+  "page",
+  "voyage",
+  "mapped",
+  "manifest",
+  "ledger",
+  "inventory",
+  "waterDays",
+  "foodDays",
+  "days",
+  "held",
+  "cash",
+  "pnl",
+  "realizedPnl",
+  "averageEmpty",
+  "average",
+  "rations",
+  "sailDeadZone",
+  "doubloons",
+  "latest"
+]);
+
+const DYNAMIC_TEMPLATES = Object.freeze({
+  [LANGUAGE_CHINESE_SIMPLIFIED]: dynamicTemplates([
+    "第{0}/{1}页", "第{0}次航程", "已测绘 {0}", "货单 {0}/{1}", "账簿 {0}/{1}",
+    "物品 {0}/{1}", "淡水 {0}天", "食物 {0}天", "{0}天", "持有 {0}",
+    "现款 {0}", "盈亏 {0}", "已结盈亏 {0}", "均价 --", "均价 {0}",
+    "{0}份口粮", "风帆／迎风死区{0}度", "{0} 达布隆", "最新：{0}"
+  ]),
+  [LANGUAGE_RUSSIAN]: dynamicTemplates([
+    "СТР. {0}/{1}", "ПЛАВАНИЕ {0}", "КАРТА {0}", "МАНИФЕСТ {0}/{1}", "КНИГА {0}/{1}",
+    "ИНВЕНТАРЬ {0}/{1}", "ВОДА {0} ДН.", "ЕДА {0} ДН.", "{0} ДН.", "В ТРЮМЕ {0}",
+    "НАЛИЧНЫЕ {0}", "П/У {0}", "ПОЛУЧЕННАЯ П/У {0}", "СРЕД. --", "СРЕД. {0}",
+    "{0} ПАЙКОВ", "ПАРУС / МЁРТВАЯ ЗОНА {0}°", "{0} ДУБЛОНОВ", "ПОСЛЕДНЕЕ: {0}"
+  ]),
+  [LANGUAGE_SPANISH]: dynamicTemplates([
+    "PÁG. {0}/{1}", "VIAJE {0}", "MAPA {0}", "MANIFIESTO {0}/{1}", "LIBRO {0}/{1}",
+    "INVENTARIO {0}/{1}", "AGUA {0} DÍAS", "COMIDA {0} DÍAS", "{0} DÍAS", "EN BODEGA {0}",
+    "EFECTIVO {0}", "G/P {0}", "G/P REALIZADA {0}", "PROM. --", "PROM. {0}",
+    "{0} RACIONES", "VELA / ZONA MUERTA {0}°", "{0} DOBLONES", "ÚLTIMO: {0}"
+  ]),
+  [LANGUAGE_PORTUGUESE_BRAZIL]: dynamicTemplates([
+    "PÁG. {0}/{1}", "VIAGEM {0}", "MAPEADO {0}", "MANIFESTO {0}/{1}", "LIVRO {0}/{1}",
+    "INVENTÁRIO {0}/{1}", "ÁGUA {0} DIAS", "COMIDA {0} DIAS", "{0} DIAS", "EM POSSE {0}",
+    "DINHEIRO {0}", "L/P {0}", "L/P REALIZADO {0}", "MÉDIA --", "MÉDIA {0}",
+    "{0} RAÇÕES", "VELA / ZONA MORTA {0}°", "{0} DOBRÕES", "RECENTE: {0}"
+  ]),
+  [LANGUAGE_JAPANESE]: dynamicTemplates([
+    "{0}/{1}頁", "第{0}航海", "踏破済み {0}", "積荷 {0}/{1}", "帳簿 {0}/{1}",
+    "所持品 {0}/{1}", "水 {0}日", "食料 {0}日", "{0}日", "{0}点",
+    "現金 {0}", "損益 {0}", "確定損益 {0}", "平均 --", "平均 {0}",
+    "{0}食", "帆走／風上死角{0}度", "{0}ダブロン", "最新：{0}"
+  ]),
+  [LANGUAGE_GERMAN]: dynamicTemplates([
+    "SEITE {0}/{1}", "REISE {0}", "KARTIERT {0}", "MANIFEST {0}/{1}", "JOURNAL {0}/{1}",
+    "INVENTAR {0}/{1}", "WASSER {0} TAGE", "PROVIANT {0} TAGE", "{0} TAGE", "AN BORD {0}",
+    "BARGELD {0}", "G/V {0}", "REALISIERTER G/V {0}", "Ø --", "Ø {0}",
+    "{0} RATIONEN", "SEGEL / TOTWINKEL {0}°", "{0} DUBLONEN", "NEUESTES: {0}"
+  ]),
+  [LANGUAGE_FRENCH]: dynamicTemplates([
+    "PAGE {0}/{1}", "VOYAGE {0}", "CARTOGRAPHIÉ {0}", "MANIFESTE {0}/{1}", "LIVRE {0}/{1}",
+    "INVENTAIRE {0}/{1}", "EAU {0} JOURS", "VIVRES {0} JOURS", "{0} JOURS", "DÉTENU {0}",
+    "ESPÈCES {0}", "B/P {0}", "B/P RÉALISÉ {0}", "MOY. --", "MOY. {0}",
+    "{0} RATIONS", "VOILE / ANGLE MORT {0}°", "{0} DOUBLONS", "DERNIER : {0}"
+  ]),
+  [LANGUAGE_POLISH]: dynamicTemplates([
+    "STR. {0}/{1}", "REJS {0}", "ZMAPOWANO {0}", "MANIFEST {0}/{1}", "KSIĘGA {0}/{1}",
+    "INWENTARZ {0}/{1}", "WODA {0} DNI", "ŻYWNOŚĆ {0} DNI", "{0} DNI", "W ŁADOWNI {0}",
+    "GOTÓWKA {0}", "Z/S {0}", "ZREALIZOWANY Z/S {0}", "ŚR. --", "ŚR. {0}",
+    "{0} RACJI", "ŻAGIEL / MARTWA STREFA {0}°", "{0} DUBLONÓW", "OSTATNIE: {0}"
+  ]),
+  [LANGUAGE_CHINESE_TRADITIONAL]: dynamicTemplates([
+    "第{0}/{1}頁", "第{0}次航程", "已測繪 {0}", "貨單 {0}/{1}", "帳簿 {0}/{1}",
+    "物品 {0}/{1}", "淡水 {0}天", "食物 {0}天", "{0}天", "持有 {0}",
+    "現款 {0}", "盈虧 {0}", "已結盈虧 {0}", "均價 --", "均價 {0}",
+    "{0}份口糧", "風帆／迎風死角{0}度", "{0} 達布隆", "最新：{0}"
+  ]),
+  [LANGUAGE_KOREAN]: dynamicTemplates([
+    "{0}/{1}쪽", "항해 {0}", "지도 {0}", "적하 {0}/{1}", "원장 {0}/{1}",
+    "소지품 {0}/{1}", "식수 {0}일", "식량 {0}일", "{0}일", "보유 {0}",
+    "현금 {0}", "손익 {0}", "실현 손익 {0}", "평균 --", "평균 {0}",
+    "{0}식", "돛 / 맞바람 사각 {0}도", "두블룬 {0}개", "최근: {0}"
+  ])
+});
+
 const DYNAMIC_PATTERNS = Object.freeze([
-  dynamicPattern(/^PAGE (\d+)\/(\d+)$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `第${current}/${total}页`,
-    [LANGUAGE_JAPANESE]: (_match, current, total) => `${current}/${total}頁`
-  }),
-  dynamicPattern(/^VOYAGE (\d+)$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, number) => `第${number}次航程`,
-    [LANGUAGE_JAPANESE]: (_match, number) => `第${number}航海`
-  }),
-  dynamicPattern(/^MAPPED (.+)$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `已测绘 ${value}`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `踏破済み ${value}`
-  }),
-  dynamicPattern(/^MANIFEST (\d+)\/(\d+)$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `货单 ${current}/${total}`,
-    [LANGUAGE_JAPANESE]: (_match, current, total) => `積荷 ${current}/${total}`
-  }),
-  dynamicPattern(/^LEDGER (\d+)\/(\d+)$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `账簿 ${current}/${total}`,
-    [LANGUAGE_JAPANESE]: (_match, current, total) => `帳簿 ${current}/${total}`
-  }),
-  dynamicPattern(/^INVENTORY (\d+)\/(\d+)$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, current, total) => `物品 ${current}/${total}`,
-    [LANGUAGE_JAPANESE]: (_match, current, total) => `所持品 ${current}/${total}`
-  }),
-  dynamicPattern(/^WATER (.+)D$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `淡水 ${value}天`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `水 ${value}日`
-  }),
-  dynamicPattern(/^FOOD (.+)D$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `食物 ${value}天`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `食料 ${value}日`
-  }),
-  dynamicPattern(/^(\d+) DAYS$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `${value}天`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `${value}日`
-  }),
-  dynamicPattern(/^(\d+) HELD$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `持有 ${value}`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `${value}点`
-  }),
-  dynamicPattern(/^CASH (.+) DB$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `现款 ${value}`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `現金 ${value}`
-  }),
-  dynamicPattern(/^P\/L (.+) DB$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `盈亏 ${value}`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `損益 ${value}`
-  }),
-  dynamicPattern(/^REALIZED P\/L (.+) DB$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `已结盈亏 ${value}`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `確定損益 ${value}`
-  }),
-  dynamicPattern(/^AVG --$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: () => "均价 --",
-    [LANGUAGE_JAPANESE]: () => "平均 --"
-  }),
-  dynamicPattern(/^AVG (.+) DB$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `均价 ${value}`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `平均 ${value}`
-  }),
-  dynamicPattern(/^(.+) RATIONS$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `${value}份口粮`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `${value}食`
-  }),
-  dynamicPattern(/^SAIL \/ (.+) DEG$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `风帆／迎风死区${value}度`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `帆走／風上死角${value}度`
-  }),
-  dynamicPattern(/^(.+) DOUBLOONS$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `${value} 达布隆`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `${value}ダブロン`
-  }),
-  dynamicPattern(/^LATEST (.+)$/, {
-    [LANGUAGE_CHINESE_SIMPLIFIED]: (_match, value) => `最新：${value}`,
-    [LANGUAGE_JAPANESE]: (_match, value) => `最新：${value}`
-  })
+  dynamicPattern(/^PAGE (\d+)\/(\d+)$/, "page"),
+  dynamicPattern(/^VOYAGE (\d+)$/, "voyage"),
+  dynamicPattern(/^MAPPED (.+)$/, "mapped"),
+  dynamicPattern(/^MANIFEST (\d+)\/(\d+)$/, "manifest"),
+  dynamicPattern(/^LEDGER (\d+)\/(\d+)$/, "ledger"),
+  dynamicPattern(/^INVENTORY (\d+)\/(\d+)$/, "inventory"),
+  dynamicPattern(/^WATER (.+)D$/, "waterDays"),
+  dynamicPattern(/^FOOD (.+)D$/, "foodDays"),
+  dynamicPattern(/^(\d+) DAYS$/, "days"),
+  dynamicPattern(/^(\d+) HELD$/, "held"),
+  dynamicPattern(/^CASH (.+) DB$/, "cash"),
+  dynamicPattern(/^P\/L (.+) DB$/, "pnl"),
+  dynamicPattern(/^REALIZED P\/L (.+) DB$/, "realizedPnl"),
+  dynamicPattern(/^AVG --$/, "averageEmpty"),
+  dynamicPattern(/^AVG (.+) DB$/, "average"),
+  dynamicPattern(/^(.+) RATIONS$/, "rations"),
+  dynamicPattern(/^SAIL \/ (.+) DEG$/, "sailDeadZone"),
+  dynamicPattern(/^(.+) DOUBLOONS$/, "doubloons"),
+  dynamicPattern(/^LATEST (.+)$/, "latest")
 ]);
 
 export function normalizeLanguage(value, fallback = LANGUAGE_ENGLISH) {
   if (SUPPORTED_LANGUAGES.some((entry) => entry.id === value)) return value;
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
+    if (normalized === "zh-tw" || normalized === "zh-hk" || normalized === "zh-mo" || normalized === "zh-hant") {
+      return LANGUAGE_CHINESE_TRADITIONAL;
+    }
     if (normalized === "zh" || normalized === "zh-cn" || normalized === "zh-sg" || normalized === "zh-hans") {
       return LANGUAGE_CHINESE_SIMPLIFIED;
     }
+    if (normalized === "pt" || normalized === "pt-br" || normalized === "pt_br") {
+      return LANGUAGE_PORTUGUESE_BRAZIL;
+    }
+    if (normalized === "ru" || normalized.startsWith("ru-")) return LANGUAGE_RUSSIAN;
+    if (normalized === "es" || normalized.startsWith("es-")) return LANGUAGE_SPANISH;
     if (normalized === "ja" || normalized.startsWith("ja-")) return LANGUAGE_JAPANESE;
+    if (normalized === "de" || normalized.startsWith("de-")) return LANGUAGE_GERMAN;
+    if (normalized === "fr" || normalized.startsWith("fr-")) return LANGUAGE_FRENCH;
+    if (normalized === "pl" || normalized.startsWith("pl-")) return LANGUAGE_POLISH;
+    if (normalized === "ko" || normalized.startsWith("ko-")) return LANGUAGE_KOREAN;
     if (normalized === "en" || normalized.startsWith("en-")) return LANGUAGE_ENGLISH;
   }
   if (fallback === value) return LANGUAGE_ENGLISH;
@@ -982,18 +1079,38 @@ export function localizeText(language, text) {
   if (exactKey) return translate(locale, exactKey);
   for (const pattern of DYNAMIC_PATTERNS) {
     const match = text.match(pattern.expression);
-    const renderer = pattern.renderers[locale];
-    if (match && renderer) return localizeEmbeddedPhrases(locale, renderer(...match));
+    const template = DYNAMIC_TEMPLATES[locale]?.[pattern.templateKey];
+    if (match && template) {
+      return localizeEmbeddedPhrases(locale, formatDynamicTemplate(template, match.slice(1)));
+    }
   }
   return localizeEmbeddedPhrases(locale, text);
 }
 
 export function languageFontProfile(language) {
   const locale = normalizeLanguage(language);
-  if (locale === LANGUAGE_CHINESE_SIMPLIFIED || locale === LANGUAGE_JAPANESE) {
+  if (locale === LANGUAGE_KOREAN) {
+    return Object.freeze({
+      smallFont: '11px "Galmuri11", monospace',
+      dialogueFont: '11px "Galmuri11", monospace',
+      fontFamily: "Galmuri11",
+      fontSize: 11,
+      lineHeight: 13,
+      detailLineHeight: 13,
+      tableRowHeight: 13
+    });
+  }
+  if (new Set([
+    LANGUAGE_CHINESE_SIMPLIFIED,
+    LANGUAGE_CHINESE_TRADITIONAL,
+    LANGUAGE_JAPANESE,
+    LANGUAGE_RUSSIAN,
+    LANGUAGE_POLISH
+  ]).has(locale)) {
     return Object.freeze({
       smallFont: '12px "zpix", monospace',
       dialogueFont: '12px "zpix", monospace',
+      fontFamily: "zpix",
       fontSize: 12,
       lineHeight: 14,
       detailLineHeight: 14,
@@ -1003,6 +1120,7 @@ export function languageFontProfile(language) {
   return Object.freeze({
     smallFont: '8px "Silkscreen", monospace',
     dialogueFont: '8px "Dogica", monospace',
+    fontFamily: "Silkscreen",
     fontSize: 8,
     lineHeight: 10,
     detailLineHeight: 10,
@@ -1012,11 +1130,29 @@ export function languageFontProfile(language) {
 
 export function languageHasCjkMetrics(language) {
   const locale = normalizeLanguage(language);
-  return locale === LANGUAGE_CHINESE_SIMPLIFIED || locale === LANGUAGE_JAPANESE;
+  return new Set([
+    LANGUAGE_CHINESE_SIMPLIFIED,
+    LANGUAGE_CHINESE_TRADITIONAL,
+    LANGUAGE_JAPANESE,
+    LANGUAGE_KOREAN
+  ]).has(locale);
+}
+
+export function languageUsesTallPixelMetrics(language) {
+  return languageFontProfile(language).fontSize > 8;
 }
 
 export function textContainsCjk(text) {
-  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(String(text));
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(String(text));
+}
+
+export function textUsesLocaleGlyphs(language, text) {
+  const locale = normalizeLanguage(language);
+  const value = String(text);
+  if (languageHasCjkMetrics(locale)) return textContainsCjk(value);
+  if (locale === LANGUAGE_RUSSIAN) return /\p{Script=Cyrillic}/u.test(value);
+  if (locale === LANGUAGE_POLISH) return /[ĄĆĘŁŃÓŚŹŻąćęłńóśźż]/u.test(value);
+  return false;
 }
 
 export function nextLanguage(language, direction = 1) {
@@ -1040,8 +1176,28 @@ export function languageNativeLabel(language) {
   return entry.nativeLabel;
 }
 
-function dynamicPattern(expression, renderers) {
-  return Object.freeze({ expression, renderers: Object.freeze(renderers) });
+function dynamicTemplates(values) {
+  if (!Array.isArray(values) || values.length !== DYNAMIC_TEMPLATE_KEYS.length) {
+    throw new Error(`Expected ${DYNAMIC_TEMPLATE_KEYS.length} dynamic localization templates`);
+  }
+  return Object.freeze(Object.fromEntries(
+    DYNAMIC_TEMPLATE_KEYS.map((key, index) => [key, values[index]])
+  ));
+}
+
+function dynamicPattern(expression, templateKey) {
+  if (!DYNAMIC_TEMPLATE_KEYS.includes(templateKey)) {
+    throw new Error(`Unknown dynamic localization template: ${templateKey}`);
+  }
+  return Object.freeze({ expression, templateKey });
+}
+
+function formatDynamicTemplate(template, values) {
+  return template.replace(/\{(\d+)\}/g, (_match, index) => {
+    const value = values[Number(index)];
+    if (value === undefined) throw new Error(`Missing dynamic localization replacement: ${index}`);
+    return value;
+  });
 }
 
 function localizeEmbeddedPhrases(locale, text) {
