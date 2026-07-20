@@ -1,6 +1,6 @@
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-7";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-8";
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -67,7 +67,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:iron": glionox(562),
   "good:copper": glionox(564),
   "good:tin": glionox(566),
-  "good:arms": pirate(45),
+  "good:arms": pirate(34),
   "good:linen-cloth": paperOutlined(glionox(785)),
   "good:wool-cloth": glionox(581),
   "good:cotton-cloth": glionox(582),
@@ -133,8 +133,8 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:start-menu": pirate(4),
   "action:navigation": generatedIcon("gray-waypoint-arrow"),
 
-  "good:gunpowder": generatedIcon("gunpowder-keg"),
-  "good:matchlocks": generatedIcon("matchlock")
+  "good:gunpowder": pirate(42),
+  "good:matchlocks": pirate(45)
 });
 
 const GAME_ICON_IDS = Object.freeze(Object.keys(GAME_ICON_SOURCES));
