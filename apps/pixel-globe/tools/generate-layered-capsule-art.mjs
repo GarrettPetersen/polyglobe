@@ -20,17 +20,19 @@ const CLIENT_ICON_BACKGROUND = "#3b7180";
 
 const LAYER_FILES = Object.freeze({
   background: "background.png",
+  reflection: "reflection.png",
   upperText: "upper_text.png",
   ship: "ship.png",
   lowerText: "lower_text.png"
 });
 const FULL_LAYER_ORDER = Object.freeze([
   "background",
+  "reflection",
   "upperText",
   "ship",
   "lowerText"
 ]);
-const ARTWORK_LAYER_ORDER = Object.freeze(["background", "ship"]);
+const ARTWORK_LAYER_ORDER = Object.freeze(["background", "reflection", "ship"]);
 const TEXT_LAYER_ORDER = Object.freeze(["upperText", "lowerText"]);
 const LOCKUP_LAYER_ORDER = Object.freeze(["upperText", "ship", "lowerText"]);
 
@@ -40,12 +42,14 @@ const OUTPUTS = Object.freeze([
   capsule("capsule_main_en.png", 1232, 706),
   capsule("capsule_vertical_en.png", 748, 896, {
     layout: "fitted-lockup",
-    lockupWidth: 0.92
+    lockupWidth: 0.92,
+    centerLockupText: true
   }),
   artwork("capsule_background.png", 1438, 810),
   capsule("library_capsule_en.png", 600, 900, {
     layout: "fitted-lockup",
-    lockupWidth: 0.92
+    lockupWidth: 0.92,
+    centerLockupText: true
   }),
   capsule("library_header_en.png", 920, 430),
   artwork("library_hero.png", 3840, 1240, { focalY: 0.36 }),
@@ -119,7 +123,8 @@ function capsule(name, width, height, options = {}) {
     focalX: options.focalX ?? 0.5,
     focalY: options.focalY ?? 0.5,
     lockupWidth: options.lockupWidth,
-    lockupHeight: options.lockupHeight
+    lockupHeight: options.lockupHeight,
+    centerLockupText: options.centerLockupText ?? false
   });
 }
 
@@ -150,6 +155,7 @@ async function main() {
   const lockupComposition = trimTransparentComposition(
     composeLayers(sourceSize, layers, LOCKUP_LAYER_ORDER)
   );
+  const reflectionComposition = trimTransparentComposition(layers.reflection);
   const composites = Object.freeze({
     full: composeLayers(sourceSize, layers, FULL_LAYER_ORDER),
     artwork: composeLayers(sourceSize, layers, ARTWORK_LAYER_ORDER),
@@ -164,6 +170,10 @@ async function main() {
   const lockupShipAnchor = Object.freeze({
     x: sourceShipAnchor.x - lockupComposition.bounds.minX,
     y: sourceShipAnchor.y - lockupComposition.bounds.minY
+  });
+  const lockupTextHorizontalBounds = Object.freeze({
+    minX: textComposition.bounds.minX - lockupComposition.bounds.minX,
+    maxX: textComposition.bounds.maxX - lockupComposition.bounds.minX
   });
   const needsClientIcon = selectedOutputs.some((output) => output.kind === "client-icon");
   const clientIconWater = needsClientIcon
@@ -210,12 +220,22 @@ async function main() {
         backgroundTransform,
         sourceShipAnchor
       );
-      const lockupTransform = drawContained(context, canvas, composites.lockup, {
+      const lockupTransform = containedTransform(canvas, composites.lockup, {
         widthRatio: output.lockupWidth,
         heightRatio: output.lockupHeight,
         imageAnchor: lockupShipAnchor,
-        targetAnchor: targetShipAnchor
+        targetAnchor: targetShipAnchor,
+        centeredHorizontalBounds: output.centerLockupText
+          ? lockupTextHorizontalBounds
+          : undefined
       });
+      drawSourceAlignedComposition(
+        context,
+        reflectionComposition,
+        lockupComposition.bounds,
+        lockupTransform
+      );
+      drawWithTransform(context, composites.lockup, lockupTransform);
       assertVerticalAnchorAlignment(output.name, lockupTransform, lockupShipAnchor, targetShipAnchor);
     } else {
       drawCover(context, canvas, composites.full, output.focalX, output.focalY);
@@ -289,6 +309,12 @@ function drawCover(context, canvas, image, focalX, focalY) {
 }
 
 function drawContained(context, canvas, image, options = {}) {
+  const transform = containedTransform(canvas, image, options);
+  drawWithTransform(context, image, transform);
+  return transform;
+}
+
+function containedTransform(canvas, image, options = {}) {
   const widthRatio = options.widthRatio ?? 0.9;
   const heightRatio = options.heightRatio ?? 0.86;
   const scale = Math.min(
@@ -300,16 +326,48 @@ function drawContained(context, canvas, image, options = {}) {
   const scaleX = width / image.width;
   const scaleY = height / image.height;
   const anchored = options.imageAnchor !== undefined && options.targetAnchor !== undefined;
-  const idealX = anchored
-    ? options.targetAnchor.x - options.imageAnchor.x * scaleX
-    : canvas.width * (options.centerXRatio ?? 0.5) - width / 2;
+  let idealX;
+  if (options.centeredHorizontalBounds !== undefined) {
+    const left = options.centeredHorizontalBounds.minX * scaleX;
+    const right = (options.centeredHorizontalBounds.maxX + 1) * scaleX;
+    idealX = (canvas.width - (right - left)) / 2 - left;
+  } else {
+    idealX = anchored
+      ? options.targetAnchor.x - options.imageAnchor.x * scaleX
+      : canvas.width * (options.centerXRatio ?? 0.5) - width / 2;
+  }
   const idealY = anchored
     ? options.targetAnchor.y - options.imageAnchor.y * scaleY
     : (canvas.height - height) / 2;
   const x = Math.round(clamp(idealX, 0, canvas.width - width));
   const y = Math.round(clamp(idealY, 0, canvas.height - height));
-  context.drawImage(image, x, y, width, height);
-  return Object.freeze({ x, y, scaleX, scaleY });
+  return Object.freeze({ x, y, width, height, scaleX, scaleY });
+}
+
+function drawWithTransform(context, image, transform) {
+  context.drawImage(
+    image,
+    transform.x,
+    transform.y,
+    transform.width,
+    transform.height
+  );
+}
+
+function drawSourceAlignedComposition(context, composition, referenceBounds, transform) {
+  const left = Math.round(
+    transform.x + (composition.bounds.minX - referenceBounds.minX) * transform.scaleX
+  );
+  const top = Math.round(
+    transform.y + (composition.bounds.minY - referenceBounds.minY) * transform.scaleY
+  );
+  const right = Math.round(
+    transform.x + (composition.bounds.maxX + 1 - referenceBounds.minX) * transform.scaleX
+  );
+  const bottom = Math.round(
+    transform.y + (composition.bounds.maxY + 1 - referenceBounds.minY) * transform.scaleY
+  );
+  context.drawImage(composition.image, left, top, right - left, bottom - top);
 }
 
 function sourcePointToCanvas(coverTransform, point) {

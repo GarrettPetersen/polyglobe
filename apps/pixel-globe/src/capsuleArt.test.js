@@ -51,19 +51,20 @@ test("capsule art documents and preserves its authored layer order", async () =>
   ]);
   assert.match(
     generator,
-    /const FULL_LAYER_ORDER = Object\.freeze\(\[\s*"background",\s*"upperText",\s*"ship",\s*"lowerText"/s
+    /const FULL_LAYER_ORDER = Object\.freeze\(\[\s*"background",\s*"reflection",\s*"upperText",\s*"ship",\s*"lowerText"/s
   );
-  assert.match(generator, /const ARTWORK_LAYER_ORDER = Object\.freeze\(\["background", "ship"\]\)/);
+  assert.match(generator, /const ARTWORK_LAYER_ORDER = Object\.freeze\(\["background", "reflection", "ship"\]\)/);
   assert.match(generator, /const TEXT_LAYER_ORDER = Object\.freeze\(\["upperText", "lowerText"\]\)/);
   assert.match(generator, /sourcePointToCanvas\([\s\S]*sourceShipAnchor/);
   assert.match(generator, /assertVerticalAnchorAlignment/);
-  assert.match(readme, /background\.png[\s\S]*upper_text\.png[\s\S]*ship\.png[\s\S]*lower_text\.png/);
+  assert.match(generator, /drawSourceAlignedComposition\([\s\S]*reflectionComposition/);
+  assert.match(readme, /background\.png[\s\S]*reflection\.png[\s\S]*upper_text\.png[\s\S]*ship\.png[\s\S]*lower_text\.png/);
   assert.match(readme, /library_logo_en\.png.*only the two text layers/);
   assert.match(readme, /original waterline/);
 });
 
-test("main capsule is the exact authored four-layer composition", async () => {
-  const sourceNames = ["background", "upper_text", "ship", "lower_text"];
+test("main capsule is the exact authored five-layer composition", async () => {
+  const sourceNames = ["background", "reflection", "upper_text", "ship", "lower_text"];
   const sourceImages = await Promise.all(sourceNames.map((name) => loadImage(
     fileURLToPath(new URL(`../capsule_art/source/${name}.png`, import.meta.url))
   )));
@@ -119,9 +120,38 @@ test("library logo is transparent text while artwork files contain no title", as
   assert.equal(whiteArtworkPixels, 0);
 });
 
+test("tall capsules give their opaque title equal left and right margins", async () => {
+  for (const filename of ["capsule_vertical_en.png", "library_capsule_en.png"]) {
+    const image = await loadImage(fileURLToPath(new URL(filename, generatedRoot)));
+    const bounds = whitePixelHorizontalBounds(image);
+    assert.equal(bounds.minX, image.width - bounds.maxX - 1, filename);
+  }
+});
+
 function imagePixels(image) {
   const canvas = createCanvas(image.width, image.height);
   const context = canvas.getContext("2d", { willReadFrequently: true });
   context.drawImage(image, 0, 0);
   return context.getImageData(0, 0, image.width, image.height).data;
+}
+
+function whitePixelHorizontalBounds(image) {
+  const pixels = imagePixels(image);
+  let minX = image.width;
+  let maxX = -1;
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const offset = (y * image.width + x) * 4;
+      if (
+        pixels[offset] !== 255 ||
+        pixels[offset + 1] !== 255 ||
+        pixels[offset + 2] !== 255 ||
+        pixels[offset + 3] !== 255
+      ) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+    }
+  }
+  assert.ok(maxX >= minX, "expected opaque white title pixels");
+  return Object.freeze({ minX, maxX });
 }

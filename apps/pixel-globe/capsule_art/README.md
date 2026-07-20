@@ -6,12 +6,13 @@ Run:
 npm --prefix apps/pixel-globe run render:capsules
 ```
 
-The generator combines the four aligned 1232x706 source layers in this order:
+The generator combines the five aligned 1232x706 source layers in this order:
 
 1. `capsule_art/source/background.png`
-2. `capsule_art/source/upper_text.png`
-3. `capsule_art/source/ship.png`
-4. `capsule_art/source/lower_text.png`
+2. `capsule_art/source/reflection.png`
+3. `capsule_art/source/upper_text.png`
+4. `capsule_art/source/ship.png`
+5. `capsule_art/source/lower_text.png`
 
 Generated files are written to `capsule_art/generated/`.
 
@@ -22,9 +23,10 @@ none of the title is lost, while anchoring the ship to its original waterline.
 
 ## Layer Modes
 
-- Standard capsules use all four layers. The ship therefore passes in front of
+- Standard capsules use all five layers. The ship therefore passes in front of
   `upper_text.png` and behind `lower_text.png`.
-- Artwork-only files use `background.png` and `ship.png`.
+- Artwork-only files use `background.png`, `reflection.png`, and `ship.png`.
+- Fitted capsules transform `reflection.png` with the ship so the two remain aligned.
 - `library_logo_en.png` is transparent and uses only the two text layers.
 - `client_icon_32.png` remains the purpose-built in-game ship icon.
 
