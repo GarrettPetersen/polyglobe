@@ -36,12 +36,12 @@ export function wrapAllMeasuredText(text, maxWidth, measureText) {
       continue;
     }
     if (line) wrapped.push(line);
-    line = word;
+    const segments = splitMeasuredToken(word, maxWidth, measureText);
+    wrapped.push(...segments.slice(0, -1));
+    line = segments.at(-1) || "";
   }
   if (line) wrapped.push(line);
-  return wrapped.length > 0
-    ? wrapped.map((entry) => fitMeasuredText(entry, maxWidth, measureText))
-    : [""];
+  return wrapped.length > 0 ? wrapped : [""];
 }
 
 function wrapCjkText(text, maxWidth, measureText) {
@@ -58,8 +58,27 @@ function wrapCjkText(text, maxWidth, measureText) {
   }
   if (line) wrapped.push(line.trimEnd());
   return wrapped.length > 0
-    ? wrapped.map((entry) => fitMeasuredText(entry, maxWidth, measureText))
+    ? wrapped
     : [""];
+}
+
+function splitMeasuredToken(token, maxWidth, measureText) {
+  if (measureText(token) <= maxWidth) return [token];
+  const segments = [];
+  let segment = "";
+  for (const character of token) {
+    if (segment && measureText(segment + character) > maxWidth) {
+      segments.push(segment);
+      segment = character;
+      continue;
+    }
+    segment += character;
+    if (measureText(segment) > maxWidth) {
+      throw new Error(`Measured text character cannot fit within ${maxWidth}px: ${character}`);
+    }
+  }
+  if (segment) segments.push(segment);
+  return segments;
 }
 
 function containsCjk(text) {

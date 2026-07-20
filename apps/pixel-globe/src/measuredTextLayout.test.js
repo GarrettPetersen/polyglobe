@@ -14,6 +14,15 @@ test("unbounded measured wrapping preserves every word for paged dialogue", () =
   assert.ok(lines.every((line) => line.length <= 18));
 });
 
+test("unbounded measured wrapping splits long words without adding ellipses", () => {
+  const text = "Wolcrastemwunderbar COLONY";
+  const lines = wrapAllMeasuredText(text, 8, measure);
+
+  assert.deepEqual(lines, ["Wolcrast", "emwunder", "bar", "COLONY"]);
+  assert.equal(lines.join(""), text.replace(" ", ""));
+  assert.ok(lines.every((line) => !line.includes("...")));
+});
+
 test("bounded measured wrapping still marks intentionally truncated text", () => {
   const lines = wrapMeasuredText("ONE TWO THREE FOUR FIVE SIX SEVEN", 9, 2, measure);
 

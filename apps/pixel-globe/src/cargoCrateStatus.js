@@ -78,6 +78,10 @@ export function cargoCrateStatusLayout({
       y: panelY + crateTop + row * iconSize
     });
   });
+  const drawEntries = Object.freeze([
+    ...entries.filter((entry) => !entry.full),
+    ...entries.filter((entry) => entry.full)
+  ]);
   const panelHeight = crateTop + rowCount * iconSize + panelBottomPadding;
 
   return Object.freeze({
@@ -89,6 +93,7 @@ export function cargoCrateStatusLayout({
       text: `${occupiedCount}/${capacity}`
     }),
     entries: Object.freeze(entries),
+    drawEntries,
     occupiedCount,
     rowCapacity,
     rowCount,

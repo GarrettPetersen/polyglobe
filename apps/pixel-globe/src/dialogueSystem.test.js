@@ -22,6 +22,7 @@ import {
   worldPriceIndicator
 } from "./dialogueSystem.js";
 import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, createWorldEconomy } from "./economy.js";
+import { dialogueOptionIconId } from "./gameIcons.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
@@ -580,6 +581,41 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     "No cargo to sell",
     "Back"
   ]);
+});
+
+test("buying the final unit disables its stable market row instead of moving later goods", () => {
+  const city = {
+    tileId: 109,
+    city: "Porto",
+    displayCity: "Porto",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 50000,
+    character: { name: "Ines Carvalho", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 200 });
+  gameState.doubloons = 1000000;
+  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+
+  const initial = portDialogueView(session, city, gameState, economy, [city]);
+  const buyIndexes = initial.options
+    .map((entry, index) => entry.action.type === "buy" ? index : -1)
+    .filter((index) => index >= 0);
+  assert.ok(buyIndexes.length >= 2);
+  const purchaseIndex = buyIndexes[0];
+  const followingIndex = buyIndexes[1];
+  const goodId = initial.options[purchaseIndex].action.goodId;
+  const followingGoodId = initial.options[followingIndex].action.goodId;
+  economy.portStates.get(city.tileId).goods.get(goodId).stock = 1;
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], purchaseIndex, { simMinute: 10 });
+  const after = portDialogueView(session, city, gameState, economy, [city]);
+
+  assert.equal(after.options[purchaseIndex].action.goodId, goodId);
+  assert.equal(after.options[purchaseIndex].disabled, true);
+  assert.match(after.options[purchaseIndex].detail, /STOCK 0$/);
+  assert.equal(after.options[followingIndex].action.goodId, followingGoodId);
 });
 
 test("selling the final unit disables its stable market row instead of moving later goods", () => {
@@ -1578,6 +1614,8 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   const firstView = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(firstView.speaker, "Leif Eriksen, historical enthusiast");
   assert.match(firstView.text, /historical enthusiast/i);
+  assert.match(firstView.text, /would you be willing to help/i);
+  assert.doesNotMatch(firstView.text, /bring me 8 wool\.?$/i);
   assert.equal(firstView.options.find((entry) => entry.action.type === "deliver-viking-material").disabled, true);
 
   gameState.cargo = { wool: 8, timber: 6, iron: 3 };
@@ -1825,11 +1863,13 @@ test("a drunk captain and factor exchange remarks before ordinary port dialogue"
   const captain = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(captain.speaker, "Ines Pereira, captain");
   assert.match(captain.text, /barely moves/i);
+  assert.equal(dialogueOptionIconId(captain.options[0]), "action:talk");
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
 
   const factor = portDialogueView(session, city, gameState, economy, [city]);
   assert.equal(factor.speaker, "Fernao da Cunha, Lisbon factor");
   assert.match(factor.text, /stationary/i);
+  assert.equal(dialogueOptionIconId(factor.options[0]), "action:talk");
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   assert.equal(session.nodeId, "greeting");
 });

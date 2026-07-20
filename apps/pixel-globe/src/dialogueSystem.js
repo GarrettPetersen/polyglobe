@@ -150,6 +150,7 @@ export function createPortDialogueSession(city, options = {}) {
     drunkVariant: options.drunkVariant || 0,
     marketPurchases: {},
     marketSales: 0,
+    marketBuyGoodIds: [],
     marketSaleGoodIds: [],
     tradeTip: null,
     shipHandover: null,
@@ -1528,15 +1529,15 @@ function vikingLongshipView(session, city, gameState, context) {
     : option("Back", { type: "node", nodeId: "root" });
   if (!quest.unlocked) {
     const stage = quest.stage;
-    const introductions = [
-      "I am a historical enthusiast, reconstructing a seaworthy Norse longship from the old sagas. First I need enough wool for",
-      "The striped sail is ready. Next I need straight, seasoned timber for",
-      "The oar bank is fitted. One last material remains: iron for"
+    const requests = [
+      `I am a historical enthusiast, reconstructing a seaworthy Norse longship from the old sagas. Would you be willing to help me find ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}?`,
+      `The striped sail is ready, and I am grateful for your help. If your voyages allow, could you bring me ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}?`,
+      `The oar bank is fitted, thanks to you. May I ask one last favor? I still need ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}.`
     ];
     return {
       speaker,
       expressionId: quest.canDeliver ? "pleased" : "attentive",
-      text: `${introductions[quest.stageIndex]} ${stage.purpose}. Bring me ${stage.quantity} ${stage.goodLabel.toLowerCase()}.`,
+      text: requests[quest.stageIndex],
       feedback: session.feedback,
       options: [
         option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
@@ -2072,12 +2073,12 @@ function shipHandoverView(session, city) {
 }
 
 function buyView(session, city, gameState, economy, context) {
-  const marketRows = portMarket(economy, city).filter((row) => row.listedForSale && row.stock > 0);
-  const supplyIds = new Set([FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID]);
-  const tradeRows = marketRows
-    .filter((row) => !supplyIds.has(row.good.id))
-    .sort((a, b) => b.productionPerDay - a.productionPerDay || a.buyPrice - b.buyPrice)
-    .slice(0, 5);
+  const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+  const tradeRows = marketBuyGoodIds(session, market).map((goodId) => {
+    const row = market.get(goodId);
+    if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${goodId}`);
+    return row;
+  });
   const rows = tradeRows
     .map((row) => {
       const totalSize = row.good.unitSize;
@@ -2090,16 +2091,19 @@ function buyView(session, city, gameState, economy, context) {
       );
       const comparison = worldMarketPriceComparison(economy, city, row.good.id, "buy");
       const freeSpace = cargoFreeForGood(gameState, row.good.id);
+      const outOfStock = row.stock < 1;
       const cannotAfford = gameState.doubloons < displayedPrice;
       const cannotFit = freeSpace < totalSize;
       return option(`Buy ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
         detail: `${worldPriceIndicator(comparison)}  SPACE ${totalSize}  STOCK ${row.stock}`,
-        disabled: cannotAfford || cannotFit,
-        disabledReason: cannotAfford
-          ? "Not enough doubloons."
-          : cannotFit
-            ? `Needs ${totalSize} cargo spaces; ${Math.max(0, freeSpace)} free.`
-            : null
+        disabled: outOfStock || cannotAfford || cannotFit,
+        disabledReason: outOfStock
+          ? `No ${row.good.label.toLowerCase()} remaining.`
+          : cannotAfford
+            ? "Not enough doubloons."
+            : cannotFit
+              ? `Needs ${totalSize} cargo spaces; ${Math.max(0, freeSpace)} free.`
+              : null
       });
     });
   if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
@@ -2114,6 +2118,15 @@ function buyView(session, city, gameState, economy, context) {
     optionHeight: 30,
     options: rows
   };
+}
+
+function marketBuyGoodIds(session, market) {
+  const supplyIds = new Set([FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID]);
+  const availableGoodIds = [...market.values()]
+    .filter((row) => row.listedForSale && row.stock > 0 && !supplyIds.has(row.good.id))
+    .sort((a, b) => b.productionPerDay - a.productionPerDay || a.good.id.localeCompare(b.good.id))
+    .map((row) => row.good.id);
+  return stableMarketGoodIds(session, "marketBuyGoodIds", availableGoodIds, 5);
 }
 
 function tradeTipView(session, city) {
@@ -2361,16 +2374,28 @@ function sellView(session, city, gameState, economy) {
 }
 
 function marketSaleGoodIds(session, gameState) {
-  if (!Array.isArray(session.marketSaleGoodIds)) {
-    throw new Error("Port dialogue session has no stable market sale roster");
+  const saleGoodIds = cargoRows(gameState)
+    .filter((cargo) => cargo.good.sellable !== false && cargo.quantity >= 1)
+    .map((cargo) => cargo.good.id);
+  return stableMarketGoodIds(session, "marketSaleGoodIds", saleGoodIds);
+}
+
+function stableMarketGoodIds(session, rosterKey, candidateGoodIds, limit = Number.POSITIVE_INFINITY) {
+  const roster = session[rosterKey];
+  if (!Array.isArray(roster)) throw new Error(`Port dialogue session has no stable market roster: ${rosterKey}`);
+  if (!Array.isArray(candidateGoodIds)) throw new Error(`Market roster candidates must be an array: ${rosterKey}`);
+  if (limit !== Number.POSITIVE_INFINITY && (!Number.isInteger(limit) || limit <= 0)) {
+    throw new Error(`Market roster limit must be a positive integer: ${limit}`);
   }
-  const knownIds = new Set(session.marketSaleGoodIds);
-  for (const cargo of cargoRows(gameState)) {
-    if (cargo.good.sellable === false || cargo.quantity < 1 || knownIds.has(cargo.good.id)) continue;
-    session.marketSaleGoodIds.push(cargo.good.id);
-    knownIds.add(cargo.good.id);
+  const knownIds = new Set(roster);
+  for (const goodId of candidateGoodIds) {
+    if (typeof goodId !== "string" || goodId === "") throw new Error(`Invalid market roster good: ${goodId}`);
+    if (knownIds.has(goodId)) continue;
+    if (roster.length >= limit) break;
+    roster.push(goodId);
+    knownIds.add(goodId);
   }
-  return session.marketSaleGoodIds;
+  return roster;
 }
 
 function marketTradeLotCount(quantity) {

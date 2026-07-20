@@ -11,6 +11,7 @@ test("small holds leave crates readable until compression is needed", () => {
   assert.equal(layout.pitch, 7);
   assert.deepEqual(layout.value, { right: 120, y: 47, width: 35, text: "4/10" });
   assert.equal(layout.entries.filter((entry) => entry.full).length, 4);
+  assert.deepEqual(layout.drawEntries.map((entry) => entry.index), [4, 5, 6, 7, 8, 9, 0, 1, 2, 3]);
   assert.deepEqual(layout.entries.slice(0, 3).map(({ x, y }) => [x, y]), [
     [10, 48],
     [17, 48],
@@ -28,6 +29,8 @@ test("the 520-unit Urca keeps two touching rows and a value column in the landsc
   assert.equal(layout.pitch, 1);
   assert.equal(layout.entries.length, 520);
   assert.equal(layout.entries.filter((entry) => entry.full).length, 320);
+  assert.equal(layout.drawEntries[0].index, 320);
+  assert.equal(layout.drawEntries.at(-1).index, 319);
   assert.equal(layout.entries[259].y, 48);
   assert.equal(layout.entries[260].y, 54);
   assert.ok(layout.entries.every((entry) => Number.isInteger(entry.x) && Number.isInteger(entry.y)));
