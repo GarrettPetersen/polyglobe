@@ -224,6 +224,7 @@ export function npcShouldOfferSurrender(npc, player) {
 }
 
 function combatMode(entity, enemies) {
+  if (entity.forceAttack === true) return COMBAT_MODE_ATTACK;
   if (
     entity.role === NPC_ROLE_MERCHANT ||
     entity.role === NPC_ROLE_FISHERMAN ||
@@ -265,6 +266,9 @@ function validateEntity(entity) {
   if (!Number.isInteger(entity.cannons) || entity.cannons < 0) throw new Error(`Invalid cannon count: ${entity.id}`);
   if (typeof entity.npcAttackProtected !== "boolean") {
     throw new Error(`Invalid NPC attack protection for ${entity.id}: ${entity.npcAttackProtected}`);
+  }
+  if (entity.forceAttack !== undefined && typeof entity.forceAttack !== "boolean") {
+    throw new Error(`Invalid forced-attack flag for ${entity.id}: ${entity.forceAttack}`);
   }
   if (entity.id === PLAYER_COMBAT_ID) {
     if (!Array.isArray(entity.safePassageFactionIds) ||

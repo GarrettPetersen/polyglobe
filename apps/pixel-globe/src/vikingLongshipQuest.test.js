@@ -6,6 +6,7 @@ import { shipStatsForSlug } from "./shipStats.js";
 import {
   VIKING_LONGSHIP_FETCH_STAGES,
   VIKING_LONGSHIP_PORT_CITY,
+  VIKING_LONGSHIP_ROLL_PERIOD_MINUTES,
   VIKING_LONGSHIP_REWARD_ACCEPTED,
   VIKING_LONGSHIP_REWARD_DECLINED,
   VIKING_LONGSHIP_REWARD_PENDING,
@@ -15,6 +16,9 @@ import {
   deliverVikingLongshipQuestCargo,
   isVikingLongshipQuestPort,
   markVikingLongshipPurchased,
+  markVikingLongshipOfferSeen,
+  maybeSpawnVikingLongshipQuest,
+  vikingLongshipOfferShouldApproach,
   vikingLongshipQuestState,
   vikingLongshipRewardDisposition,
   vikingLongshipUnlocked
@@ -34,6 +38,8 @@ test("the longship unlock requires three ordered historical material deliveries"
   state.accounts.cargoCostBasis = { wool: 90, timber: 60, iron: 45 };
 
   assert.equal(isVikingLongshipQuestPort(HAFNARFJORDUR), true);
+  assert.equal(vikingLongshipQuestState(state, HAFNARFJORDUR), null);
+  maybeSpawnVikingLongshipQuest(state, HAFNARFJORDUR, { spawnChance: 1, simMinute: 0 });
   assert.equal(vikingLongshipQuestState(state, HAFNARFJORDUR).stage.id, "wool-sail");
   assert.equal(vikingLongshipUnlocked(state), false);
   assert.throws(
@@ -62,6 +68,7 @@ test("the longship unlock requires three ordered historical material deliveries"
 test("the completed longship reward records one durable choice", () => {
   const stats = shipStatsForSlug("brigantine");
   const accepted = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  maybeSpawnVikingLongshipQuest(accepted, HAFNARFJORDUR, { spawnChance: 1, simMinute: 0 });
   accepted.cargo = { wool: 8, timber: 6, iron: 3 };
   accepted.accounts.cargoCostBasis = { wool: 80, timber: 60, iron: 30 };
   for (const stage of VIKING_LONGSHIP_FETCH_STAGES) {
@@ -72,6 +79,7 @@ test("the completed longship reward records one durable choice", () => {
   assert.throws(() => declineVikingLongshipReward(accepted), /is accepted; expected pending/);
 
   const declined = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  maybeSpawnVikingLongshipQuest(declined, HAFNARFJORDUR, { spawnChance: 1, simMinute: 0 });
   declined.cargo = { wool: 8, timber: 6, iron: 3 };
   declined.accounts.cargoCostBasis = { wool: 80, timber: 60, iron: 30 };
   for (const stage of VIKING_LONGSHIP_FETCH_STAGES) {
@@ -95,4 +103,31 @@ test("longship materials cannot be delivered at another port", () => {
     () => deliverVikingLongshipQuestCargo(state, { city: "Bergen", country: "Norway" }, "wool-sail"),
     /only be delivered in Hafnarfjordur/
   );
+});
+
+test("the historical enthusiast appears only after a persistent random spawn", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+
+  assert.equal(maybeSpawnVikingLongshipQuest(state, HAFNARFJORDUR, {
+    spawnChance: 0,
+    simMinute: 0
+  }), null);
+  assert.equal(maybeSpawnVikingLongshipQuest(state, HAFNARFJORDUR, {
+    spawnChance: 1,
+    simMinute: 1
+  }), null);
+  const offer = maybeSpawnVikingLongshipQuest(state, HAFNARFJORDUR, {
+    spawnChance: 1,
+    simMinute: VIKING_LONGSHIP_ROLL_PERIOD_MINUTES
+  });
+
+  assert.equal(offer.stage.id, "wool-sail");
+  assert.equal(vikingLongshipOfferShouldApproach(state, HAFNARFJORDUR), true);
+  markVikingLongshipOfferSeen(state);
+  assert.equal(vikingLongshipOfferShouldApproach(state, HAFNARFJORDUR), false);
+  assert.equal(maybeSpawnVikingLongshipQuest(state, HAFNARFJORDUR, {
+    spawnChance: 0,
+    simMinute: VIKING_LONGSHIP_ROLL_PERIOD_MINUTES * 2
+  }).stage.id, "wool-sail");
 });

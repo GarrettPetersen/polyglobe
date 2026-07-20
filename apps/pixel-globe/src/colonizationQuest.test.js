@@ -1,27 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { COLONIZATION_TARGETS, colonizationTargetForCity } from "./colonialCities.js";
 import {
   COLONIZATION_EXPEDITION_CARGO_UNITS,
   COLONIZATION_FETCH_STAGES,
   COLONIZATION_RESUPPLY,
   COLONIZATION_RESUPPLY_DAYS,
   COLONIZATION_STAGE_AWAITING_RESUPPLY,
+  COLONIZATION_STAGE_DEFEND,
   COLONIZATION_STAGE_ESTABLISHED,
   COLONIZATION_STAGE_FAILED,
   COLONIZATION_STAGE_OUTBOUND,
+  COLONIZATION_STAGE_REPORT_DEFENSE,
   COLONIZATION_STAGE_READY,
   advanceColonizationQuest,
-  assignColonizationTargetTile,
+  assignColonizationQuest,
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
   colonizationObjective,
+  colonizationOfferForCity,
   colonizationOrganizerShouldApproach,
+  colonizationQuestView,
   colonizationShipEligibility,
   colonizationWorldRecord,
+  completeColonizationDefense,
   completeColonizationFetchStage,
   createColonizationQuestMemory,
+  defeatColonizationAttacker,
+  eligibleColonizationTargetsForOrigin,
   establishColony,
+  grantColonizationApproval,
   landColonists,
   markColonizationOrganizerApproached,
   validateColonizationQuestMemory
@@ -29,10 +38,22 @@ import {
 import { shipStatsForSlug } from "./shipStats.js";
 
 const DAY = 24 * 60;
+const BORDEAUX = Object.freeze({
+  tileId: 10,
+  city: "Bordeaux",
+  country: "France",
+  factionId: "france",
+  lat: 44.84,
+  lon: -0.58
+});
+const PORT_ROYAL = Object.freeze({
+  ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
+  tileId: 123
+});
 
-test("the Port Royal expedition requires three ordered paid material stages", () => {
+test("a colonization expedition requires three ordered paid material stages", () => {
   const memory = createColonizationQuestMemory();
-  assignColonizationTargetTile(memory, 123);
+  assignColonizationQuest(memory, { target: PORT_ROYAL, origin: BORDEAUX });
 
   assert.throws(
     () => completeColonizationFetchStage(memory, COLONIZATION_FETCH_STAGES[1].id),
@@ -45,19 +66,170 @@ test("the Port Royal expedition requires three ordered paid material stages", ()
   assert.equal(validateColonizationQuestMemory(memory), memory);
 });
 
-test("the Bordeaux organizer approaches once before waiting in the port menu", () => {
+test("a spawned organizer approaches once before waiting in the port menu", () => {
   const state = {
     memory: {
       colonization: createColonizationQuestMemory(),
       flags: {}
     }
   };
-  const bordeaux = { city: "Bordeaux", country: "France" };
+  assignColonizationQuest(state.memory.colonization, { target: PORT_ROYAL, origin: BORDEAUX });
 
-  assert.equal(colonizationOrganizerShouldApproach(state, bordeaux), true);
+  assert.equal(colonizationOrganizerShouldApproach(state, BORDEAUX), true);
   assert.equal(colonizationOrganizerShouldApproach(state, { city: "Lisbon", country: "Portugal" }), false);
   assert.equal(markColonizationOrganizerApproached(state), true);
-  assert.equal(colonizationOrganizerShouldApproach(state, bordeaux), false);
+  assert.equal(colonizationOrganizerShouldApproach(state, BORDEAUX), false);
+});
+
+test("all water-accessible colony sites can enter a constrained sailing offer pool", () => {
+  const sailingTargets = COLONIZATION_TARGETS
+    .filter((target) => target.waterAccess !== "inland")
+    .map((target, index) => ({ ...target, tileId: 1000 + index }));
+  const inlandTargets = COLONIZATION_TARGETS.filter((target) => target.waterAccess === "inland");
+
+  assert.equal(COLONIZATION_TARGETS.length, 35);
+  assert.equal(sailingTargets.length, 29);
+  assert.equal(inlandTargets.length, 6);
+  for (const target of sailingTargets) {
+    const origin = {
+      tileId: 9000,
+      city: "Sponsor Port",
+      country: target.originCountry || "Sponsor Realm",
+      factionId: target.originFactionId,
+      lat: -target.lat,
+      lon: ((target.lon + 540) % 360) - 180
+    };
+    assert.ok(
+      eligibleColonizationTargetsForOrigin(origin, sailingTargets).some((candidate) => candidate.tileId === target.tileId),
+      target.city
+    );
+  }
+  const inlandWithTiles = inlandTargets.map((target, index) => ({ ...target, tileId: 2000 + index }));
+  assert.ok(inlandWithTiles.every((target) => (
+    eligibleColonizationTargetsForOrigin(
+      { ...BORDEAUX, factionId: target.originFactionId, lat: 45, lon: 170 },
+      inlandWithTiles
+    ).every((candidate) => candidate.tileId !== target.tileId)
+  )));
+});
+
+test("colonization offers roll infrequently, persist after being seen, and select a requested eligible site", () => {
+  const state = {
+    playerCharacter: { name: "Test Captain", identityKey: "colonization-roll-test" },
+    memory: { colonization: createColonizationQuestMemory(), flags: {} }
+  };
+  const target = PORT_ROYAL;
+  const periodMinutes = 14 * DAY;
+
+  assert.equal(colonizationOfferForCity(state, BORDEAUX, [BORDEAUX], [target], {
+    simMinute: 0,
+    spawnChance: 0
+  }), null);
+  assert.equal(colonizationOfferForCity(state, BORDEAUX, [BORDEAUX], [target], {
+    simMinute: 0,
+    spawnChance: 1,
+    targetTileId: target.tileId
+  }), null);
+  const offer = colonizationOfferForCity(state, BORDEAUX, [BORDEAUX], [target], {
+    simMinute: periodMinutes,
+    spawnChance: 1,
+    targetTileId: target.tileId
+  });
+
+  assert.equal(offer.targetCity, "Port Royal");
+  assert.equal(offer.originCity, "Bordeaux");
+  markColonizationOrganizerApproached(state);
+  assert.equal(colonizationOfferForCity(state, BORDEAUX, [BORDEAUX], [target], {
+    simMinute: periodMinutes * 2,
+    spawnChance: 1
+  }), offer);
+  assert.equal(colonizationOrganizerShouldApproach(state, BORDEAUX), false);
+});
+
+test("existing Port Royal quest saves bind to the generalized quest model", () => {
+  const legacy = createColonizationQuestMemory();
+  for (const key of [
+    "targetCity",
+    "targetCountry",
+    "originTileId",
+    "originCity",
+    "originCountry",
+    "approvalTileId",
+    "approvalCity",
+    "approvalCountry",
+    "approvalGranted",
+    "distanceKm",
+    "offerSeen",
+    "spawnRolls"
+  ]) delete legacy[key];
+  legacy.targetTileId = PORT_ROYAL.tileId;
+
+  assert.equal(validateColonizationQuestMemory(legacy), legacy);
+  assignColonizationQuest(legacy, { target: PORT_ROYAL, origin: BORDEAUX });
+  assert.equal(legacy.targetCity, "Port Royal");
+  assert.equal(legacy.originCity, "Bordeaux");
+});
+
+test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continues to Japan", () => {
+  const nagasaki = {
+    ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
+    tileId: 777
+  };
+  const kyoto = {
+    tileId: 20,
+    city: "Kyoto",
+    country: "Japan",
+    factionId: "japan",
+    capitalOfFactionId: "japan",
+    lat: 35.01,
+    lon: 135.77
+  };
+  const lisbon = {
+    tileId: 21,
+    city: "Lisbon",
+    country: "Portugal",
+    factionId: "portugal",
+    lat: 38.72,
+    lon: -9.14
+  };
+
+  assert.equal(nagasaki.originFactionId, "portugal");
+  assert.equal(nagasaki.originCountry, "Portugal");
+  assert.equal(nagasaki.approvalFactionId, "japan");
+  assert.deepEqual(nagasaki.approvalCargo, [
+    { goodId: "matchlocks", quantity: 4 },
+    { goodId: "gunpowder", quantity: 3 }
+  ]);
+  assert.deepEqual(eligibleColonizationTargetsForOrigin(lisbon, [nagasaki]).map((target) => target.city), ["Nagasaki"]);
+  assert.deepEqual(eligibleColonizationTargetsForOrigin(kyoto, [nagasaki]), []);
+
+  const state = {
+    playerCharacter: { identityKey: "nagasaki-route-test" },
+    memory: { colonization: createColonizationQuestMemory(), flags: {} }
+  };
+  const offer = colonizationOfferForCity(state, lisbon, [lisbon, kyoto], [nagasaki], {
+    simMinute: 14 * DAY,
+    spawnChance: 1,
+    targetTileId: nagasaki.tileId,
+    approvalTileId: kyoto.tileId
+  });
+  assert.equal(offer.originCity, "Lisbon");
+  assert.equal(offer.approvalCity, "Kyoto");
+
+  for (const stage of colonizationQuestView(state).history.fetchStages) {
+    completeColonizationFetchStage(offer, stage.id);
+  }
+  beginColonizationExpedition(offer);
+  assert.equal(colonizationQuestView(state).approvalCargoReady, false);
+  assert.throws(() => grantColonizationApproval(offer), /requires its trade demonstration cargo/);
+  state.cargo = { matchlocks: 4, gunpowder: 3 };
+  assert.equal(colonizationQuestView(state).approvalCargoReady, true);
+  assert.deepEqual(colonizationObjective(offer), { tileId: kyoto.tileId, kind: "negotiate-colony" });
+  assert.throws(() => landColonists(offer, 1000), /requires government approval in Kyoto/);
+  grantColonizationApproval(offer, { approvalCargoDelivered: true });
+  assert.deepEqual(colonizationObjective(offer), { tileId: nagasaki.tileId, kind: "found-colony" });
+  landColonists(offer, 1000);
+  assert.equal(offer.stage, COLONIZATION_STAGE_AWAITING_RESUPPLY);
 });
 
 test("only capacious ocean-going ships can carry the colonists", () => {
@@ -111,6 +283,53 @@ test("timely resupply creates a discounted French city", () => {
   assert.equal(colonizationObjective(memory), null);
 });
 
+test("historically attacked colonies upgrade, survive a canoe defense, and await a victory report", () => {
+  const target = {
+    ...colonizationTargetForCity({ city: "Jamestown", country: "United States of America" }),
+    tileId: 456
+  };
+  const origin = {
+    ...BORDEAUX,
+    city: "London",
+    country: "United Kingdom",
+    factionId: "england",
+    lat: 51.5,
+    lon: -0.12
+  };
+  const memory = createColonizationQuestMemory();
+  assignColonizationQuest(memory, { target, origin });
+  for (const stage of colonizationQuestView({ memory: { colonization: memory }, cargo: {} }).history.fetchStages) {
+    completeColonizationFetchStage(memory, stage.id);
+  }
+  beginColonizationExpedition(memory);
+  landColonists(memory, 1000);
+  advanceColonizationQuest(memory, 1100, { awayFromColony: true });
+  establishColony(memory, 1200);
+
+  assert.equal(memory.stage, COLONIZATION_STAGE_DEFEND);
+  assert.ok(memory.defenseShipIds.length >= 2 && memory.defenseShipIds.length <= 4);
+  assert.equal(new Set(memory.defenseShipIds).size, memory.defenseShipIds.length);
+  assert.equal(colonizationWorldRecord(memory).settlementType, "city");
+  assert.deepEqual(colonizationObjective(memory), {
+    tileId: target.tileId,
+    kind: "defend-colony",
+    attackerName: "Powhatan"
+  });
+
+  for (const [index, shipId] of memory.defenseShipIds.entries()) {
+    assert.equal(defeatColonizationAttacker(memory, shipId, 1210 + index), true);
+  }
+  assert.equal(memory.stage, COLONIZATION_STAGE_REPORT_DEFENSE);
+  assert.deepEqual(colonizationObjective(memory), {
+    tileId: target.tileId,
+    kind: "report-colony-defense"
+  });
+
+  completeColonizationDefense(memory, 1300);
+  assert.equal(memory.stage, COLONIZATION_STAGE_ESTABLISHED);
+  assert.equal(colonizationObjective(memory), null);
+});
+
 test("late resupply leaves a burning dead village", () => {
   const memory = awaitingResupplyMemory();
   const lateMinute = memory.resupplyDeadlineMinute + 1;
@@ -127,7 +346,7 @@ test("late resupply leaves a burning dead village", () => {
 
 function readyMemory() {
   const memory = createColonizationQuestMemory();
-  assignColonizationTargetTile(memory, 123);
+  assignColonizationQuest(memory, { target: PORT_ROYAL, origin: BORDEAUX });
   for (const stage of COLONIZATION_FETCH_STAGES) completeColonizationFetchStage(memory, stage.id);
   return memory;
 }

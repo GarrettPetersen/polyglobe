@@ -15,6 +15,7 @@ import {
   addNpcSeaRoutePort,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
+  configureNpcEncounter,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
@@ -697,6 +698,40 @@ test("sunk NPC ships are replaced after a rare shipyard delay", () => {
   assert.equal(replacement.factionId, originalFaction);
   assert.equal(replacement.hitPoints, replacement.maxHitPoints);
   assert.equal(routes.replacementQueue.length, 0);
+});
+
+test("temporary quest encounters persist in saves but never enter the replacement queue", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const replacementCount = routes.replacementQueue.length;
+  const encounter = configureNpcEncounter(routes, {
+    id: "colony-defense:test:1",
+    factionId: "neutral",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "mesoamerican-dugout-canoe",
+    lat: 37,
+    lon: -76,
+    headingDeg: 180,
+    cultureType: "mesoamerican",
+    routeRegion: "americas",
+    specie: 0,
+    replaceOnSink: false,
+    encounter: { kind: "colonization-defense", forceAttack: true }
+  }, 1000);
+
+  assert.equal(encounter.specie, 0);
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  assert.equal(snapshot.ships.find((ship) => ship.id === encounter.id).encounter.kind, "colonization-defense");
+  const restored = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  restoreNpcSeaRouteSystem(restored, snapshot, { economy });
+  assert.equal(restored.shipById.get(encounter.id).encounter.kind, "colonization-defense");
+  assert.equal(restored.shipById.get(encounter.id).replaceOnSink, false);
+  damageNpcShip(routes, encounter.id, encounter.maxHitPoints);
+  const removed = sinkNpcShip(routes, encounter.id, 1001);
+
+  assert.equal(removed.replacement, null);
+  assert.equal(routes.shipById.has(encounter.id), false);
+  assert.equal(routes.replacementQueue.length, replacementCount);
 });
 
 test("pirate hideouts are a deterministic invisible subset of coastal ports", () => {

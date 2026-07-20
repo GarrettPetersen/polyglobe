@@ -108,9 +108,9 @@ export const COLONIAL_CITY_FOUNDINGS = Object.freeze([
     precolonialName: "Maynila",
     note: "Existing Tagalog port conquered and made capital of the Spanish East Indies."
   }),
-  colonialFounding("Nagasaki", "Japan", COLONIAL_FOUNDING_NEGOTIATED, 1571, "portugal", {
-    label: "Portuguese negotiated trade port",
-    note: "Opened through local/Jesuit arrangements rather than direct sovereign conquest."
+  colonialFounding("Nagasaki", "Japan", COLONIAL_FOUNDING_NEGOTIATED, 1571, "japan", {
+    label: "Japanese port opened to Portuguese trade",
+    note: "Planned by Jesuits and Omura Sumitada under Japanese authority for the Portuguese China trade."
   }),
   colonialFounding("Huancavelica", "Peru", COLONIAL_FOUNDING_SETTLER, 1572, "spain", {
     label: "Spanish mining colony",
@@ -246,8 +246,15 @@ export const COLONIZATION_TARGETS = Object.freeze([
     datasetFirstPopulation: 12000,
     datasetSource: "chandler"
   }),
-  colonizationTarget("Nagasaki", "Japan", 32.752558, 129.878192, COLONIAL_FOUNDING_NEGOTIATED, 1571, "portugal", {
-    label: "Portuguese negotiated trade port",
+  colonizationTarget("Nagasaki", "Japan", 32.752558, 129.878192, COLONIAL_FOUNDING_NEGOTIATED, 1571, "japan", {
+    label: "Japanese port opened to Portuguese trade",
+    originFactionId: "portugal",
+    originCountry: "Portugal",
+    approvalFactionId: "japan",
+    approvalCargo: [
+      { goodId: "matchlocks", quantity: 4 },
+      { goodId: "gunpowder", quantity: 3 }
+    ],
     region: "japan",
     waterAccess: "coastal",
     datasetFirstYear: 1583,
@@ -317,7 +324,7 @@ export const COLONIZATION_TARGETS = Object.freeze([
     datasetFirstYear: null,
     datasetSource: "manual-colonization-target"
   }),
-  colonizationTarget("Fort Orange", "United States of America", 42.652578, -73.756233, COLONIAL_FOUNDING_NEGOTIATED, 1614, "habsburg", {
+  colonizationTarget("Fort Orange", "United States of America", 42.652578, -73.756233, COLONIAL_FOUNDING_NEGOTIATED, 1624, "habsburg", {
     label: "Dutch negotiated trade post",
     historicalPower: "Dutch/Low Countries",
     region: "hudson-river",
@@ -489,6 +496,10 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     year,
     canFoundFromYear: details.canFoundFromYear || 1522,
     factionId,
+    originFactionId: details.originFactionId || factionId,
+    originCountry: details.originCountry || null,
+    approvalFactionId: details.approvalFactionId || null,
+    approvalCargo: colonizationApprovalCargo(details.approvalCargo),
     historicalPower: details.historicalPower || null,
     label: details.label || type,
     region: details.region || null,
@@ -502,6 +513,21 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     datasetSource: details.datasetSource || null,
     note: details.note || ""
   });
+}
+
+function colonizationApprovalCargo(value) {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value)) throw new Error("Colonization approval cargo must be an array");
+  const seen = new Set();
+  return Object.freeze(value.map((entry) => {
+    if (!entry || !/^[a-z0-9][a-z0-9-]*$/.test(entry.goodId) ||
+        !Number.isInteger(entry.quantity) || entry.quantity <= 0) {
+      throw new Error(`Invalid colonization approval cargo: ${entry?.goodId || "missing"}`);
+    }
+    if (seen.has(entry.goodId)) throw new Error(`Duplicate colonization approval cargo: ${entry.goodId}`);
+    seen.add(entry.goodId);
+    return Object.freeze({ goodId: entry.goodId, quantity: entry.quantity });
+  }));
 }
 
 function buildColonizationTargetMap() {

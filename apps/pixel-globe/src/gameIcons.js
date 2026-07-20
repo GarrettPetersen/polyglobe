@@ -1,6 +1,6 @@
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-6";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-7";
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -131,7 +131,10 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:restart": generatedIcon("restart-arrow"),
   "action:choose-ships": pirate(19),
   "action:start-menu": pirate(4),
-  "action:navigation": generatedIcon("gray-waypoint-arrow")
+  "action:navigation": generatedIcon("gray-waypoint-arrow"),
+
+  "good:gunpowder": generatedIcon("gunpowder-keg"),
+  "good:matchlocks": generatedIcon("matchlock")
 });
 
 const GAME_ICON_IDS = Object.freeze(Object.keys(GAME_ICON_SOURCES));
@@ -211,9 +214,11 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "purchase-ship": "action:shipyard",
   "deliver-viking-material": "action:quest",
   "deliver-colonization-material": "action:quest",
+  "grant-colony-permission": "action:letter",
   "embark-colonists": "action:passenger",
   "land-colonists": "action:dock",
   "deliver-colony-resupply": "action:quest",
+  "report-colony-defense": "action:quest",
   "confirm-piracy": "action:attack",
   "receive-aid": "good:fresh-water",
   "complete-passenger": "action:passenger",

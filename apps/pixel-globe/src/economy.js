@@ -43,6 +43,8 @@ export const BEAVER_PELTS_GOOD_ID = "beaver-pelts";
 export const CINNAMON_GOOD_ID = "cinnamon";
 export const CLOVE_GOOD_ID = "cloves";
 export const NUTMEG_GOOD_ID = "nutmeg";
+export const GUNPOWDER_GOOD_ID = "gunpowder";
+export const MATCHLOCKS_GOOD_ID = "matchlocks";
 
 export const TRADE_GOODS = Object.freeze([
   good(HARDTACK_GOOD_ID, "Hardtack", 2, "food", {
@@ -78,6 +80,8 @@ export const TRADE_GOODS = Object.freeze([
   good("copper", "Copper", 30, "material", { unitSize: 3 }),
   good("tin", "Tin", 32, "material", { unitSize: 3 }),
   good("arms", "Arms", 50, "manufactured", { unitSize: 2 }),
+  good(GUNPOWDER_GOOD_ID, "Gunpowder", 44, "manufactured", { unitSize: 2 }),
+  good(MATCHLOCKS_GOOD_ID, "Matchlocks", 88, "manufactured", { unitSize: 2 }),
   good("linen-cloth", "Linen Cloth", 34, "textile", { unitSize: 2 }),
   good("wool-cloth", "Wool Cloth", 38, "textile", { unitSize: 2 }),
   good("cotton-cloth", "Cotton Cloth", 40, "textile", { unitSize: 2 }),
@@ -105,12 +109,12 @@ const TRADE_GOODS_BY_ID = new Map(TRADE_GOODS.map((item) => [item.id, item]));
 if (TRADE_GOODS_BY_ID.size !== TRADE_GOODS.length) throw new Error("Trade goods contain duplicate ids");
 
 const REGION_PRODUCTION = Object.freeze({
-  "northern-european": rates({ hardtack: 0.75, fish: 1.1, timber: 1.1, wool: 1.2, flax: 0.8, iron: 0.55, "wool-cloth": 0.5, "linen-cloth": 0.45, arms: 0.22 }),
-  mediterranean: rates({ hardtack: 0.7, grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12 }),
-  "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, artwork: 0.12 }),
-  "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22 }),
-  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, dyes: 0.55, sugar: 0.35 }),
-  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, sugar: 0.65, dyes: 0.25 }),
+  "northern-european": rates({ hardtack: 0.75, fish: 1.1, timber: 1.1, wool: 1.2, flax: 0.8, iron: 0.55, "wool-cloth": 0.5, "linen-cloth": 0.45, arms: 0.22, gunpowder: 0.18, matchlocks: 0.12 }),
+  mediterranean: rates({ hardtack: 0.7, grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12, gunpowder: 0.14, matchlocks: 0.08 }),
+  "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, artwork: 0.12, gunpowder: 0.12 }),
+  "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22, gunpowder: 0.16 }),
+  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, dyes: 0.55, sugar: 0.35, gunpowder: 0.08 }),
+  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, sugar: 0.65, dyes: 0.25, gunpowder: 0.05 }),
   polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
   mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55, silver: 0.3, gold: 0.12 }),
   andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, silver: 0.8, gold: 0.22, dyes: 0.2 }),
@@ -121,13 +125,13 @@ const REGION_DEMAND = Object.freeze({
   "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
   mediterranean: rates({ timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, silk: 0.3, ivory: 0.18 }),
   "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, "beaver-pelts": 0.18, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
-  "east-asian": rates({ "beaver-pelts": 0.3, pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2 }),
-  "south-asian": rates({ cloves: 0.12, nutmeg: 0.12, silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18 }),
-  "southeast-asian": rates({ pepper: 0.12, cinnamon: 0.16, cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16 }),
-  polynesian: rates({ iron: 0.65, arms: 0.45, "cotton-cloth": 0.45, glassware: 0.35, salt: 0.25 }),
-  mesoamerican: rates({ iron: 0.7, arms: 0.55, "cotton-cloth": 0.3, glassware: 0.3, wine: 0.2 }),
-  andean: rates({ iron: 0.55, arms: 0.5, "cotton-cloth": 0.3, wine: 0.2, salt: 0.2 }),
-  "sub-saharan": rates({ "cotton-cloth": 0.5, iron: 0.45, arms: 0.35, salt: 0.35, glassware: 0.3 })
+  "east-asian": rates({ "beaver-pelts": 0.3, pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2, gunpowder: 0.12, matchlocks: 0.42 }),
+  "south-asian": rates({ cloves: 0.12, nutmeg: 0.12, silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18, gunpowder: 0.1, matchlocks: 0.18 }),
+  "southeast-asian": rates({ pepper: 0.12, cinnamon: 0.16, cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16, gunpowder: 0.12, matchlocks: 0.22 }),
+  polynesian: rates({ iron: 0.65, arms: 0.45, matchlocks: 0.4, gunpowder: 0.35, "cotton-cloth": 0.45, glassware: 0.35, salt: 0.25 }),
+  mesoamerican: rates({ iron: 0.7, arms: 0.55, matchlocks: 0.5, gunpowder: 0.4, "cotton-cloth": 0.3, glassware: 0.3, wine: 0.2 }),
+  andean: rates({ iron: 0.55, arms: 0.5, matchlocks: 0.45, gunpowder: 0.4, "cotton-cloth": 0.3, wine: 0.2, salt: 0.2 }),
+  "sub-saharan": rates({ "cotton-cloth": 0.5, iron: 0.45, arms: 0.35, matchlocks: 0.3, gunpowder: 0.25, salt: 0.35, glassware: 0.3 })
 });
 
 const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
@@ -171,19 +175,19 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
     silver: 1.2,
     glassware: 1.15
   }),
-  "east-asian": rates({ "beaver-pelts": 1.5, pepper: 0.75, cinnamon: 0.75, cloves: 0.7, nutmeg: 0.7, silver: 1.55, gold: 1.15, arms: 1.2, glassware: 1.35, "wool-cloth": 1.2 }),
-  "south-asian": rates({ pepper: 0.52, cinnamon: 0.3, silver: 1.45, gold: 1.15, arms: 1.2, glassware: 1.25, porcelain: 1.15 }),
-  "southeast-asian": rates({ pepper: 0.5, cinnamon: 0.65, cloves: 0.48, nutmeg: 0.48, silver: 1.5, gold: 1.15, arms: 1.25, glassware: 1.25, "cotton-cloth": 1.15 }),
-  polynesian: rates({ iron: 1.4, arms: 1.35, glassware: 1.35, "cotton-cloth": 1.3, salt: 1.2 }),
-  mesoamerican: rates({ arms: 1.35, iron: 1.25, glassware: 1.25, "cotton-cloth": 1.2, wine: 1.15 }),
-  andean: rates({ arms: 1.35, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
-  "sub-saharan": rates({ arms: 1.25, iron: 1.2, glassware: 1.2, "cotton-cloth": 1.2, salt: 1.15 })
+  "east-asian": rates({ "beaver-pelts": 1.5, pepper: 0.75, cinnamon: 0.75, cloves: 0.7, nutmeg: 0.7, silver: 1.55, gold: 1.15, arms: 1.2, gunpowder: 1.15, matchlocks: 1.75, glassware: 1.35, "wool-cloth": 1.2 }),
+  "south-asian": rates({ pepper: 0.52, cinnamon: 0.3, silver: 1.45, gold: 1.15, arms: 1.2, gunpowder: 1.15, matchlocks: 1.35, glassware: 1.25, porcelain: 1.15 }),
+  "southeast-asian": rates({ pepper: 0.5, cinnamon: 0.65, cloves: 0.48, nutmeg: 0.48, silver: 1.5, gold: 1.15, arms: 1.25, gunpowder: 1.2, matchlocks: 1.45, glassware: 1.25, "cotton-cloth": 1.15 }),
+  polynesian: rates({ iron: 1.4, arms: 1.35, gunpowder: 1.4, matchlocks: 1.65, glassware: 1.35, "cotton-cloth": 1.3, salt: 1.2 }),
+  mesoamerican: rates({ arms: 1.35, gunpowder: 1.45, matchlocks: 1.7, iron: 1.25, glassware: 1.25, "cotton-cloth": 1.2, wine: 1.15 }),
+  andean: rates({ arms: 1.35, gunpowder: 1.4, matchlocks: 1.65, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
+  "sub-saharan": rates({ arms: 1.25, gunpowder: 1.3, matchlocks: 1.5, iron: 1.2, glassware: 1.2, "cotton-cloth": 1.2, salt: 1.15 })
 });
 
 const CITY_SPECIALTIES = uniqueMap([
-  specialty("Lisbon", ["salt"]),
+  specialty("Lisbon", ["salt", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
   specialty("London", ["wool", "wool-cloth"]),
-  specialty("Venice", ["glassware"]),
+  specialty("Venice", ["glassware", GUNPOWDER_GOOD_ID]),
   specialty("Genova", ["silver"]),
   specialty("Genoa", ["silver"]),
   specialty("Alexandria", ["cotton-cloth"]),
@@ -231,6 +235,7 @@ const CITY_SPECIALTIES = uniqueMap([
 
 const PRODUCTION_INPUTS = Object.freeze({
   arms: rates({ iron: 0.8, timber: 0.25 }),
+  matchlocks: rates({ iron: 0.75, timber: 0.2, gunpowder: 0.05 }),
   "linen-cloth": rates({ flax: 0.8 }),
   "wool-cloth": rates({ wool: 0.8 }),
   "cotton-cloth": rates({ cotton: 0.8 }),

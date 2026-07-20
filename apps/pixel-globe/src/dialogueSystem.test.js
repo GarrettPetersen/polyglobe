@@ -30,12 +30,14 @@ import {
   attemptPortDisguise,
   cargoUsed,
   createGameState,
+  deliveryOfferForCity,
   hasLetterOfMarqueFrom,
   initializeProvisionalShipLoadout,
   portEntryStatus,
   questStateForCity
 } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
@@ -1330,6 +1332,7 @@ test("package job offers show the destination distance", () => {
   };
   const economy = createWorldEconomy({ ports: [lisbon, porto], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
+  deliveryOfferForCity(gameState, lisbon, [lisbon, porto], { spawnChance: 1, simMinute: 0 });
   const session = createPortDialogueSession(lisbon, { initialNodeId: "quest" });
 
   const view = portDialogueView(session, lisbon, gameState, economy, [lisbon, porto]);
@@ -1560,6 +1563,13 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
   const context = { shipStats: currentStats };
   const session = createPortDialogueSession(city, { initialNodeId: "root" });
 
+  const hiddenRoot = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(hiddenRoot.options.some((entry) => entry.action.nodeId === "viking-longship"), false);
+  maybeSpawnVikingLongshipQuest(gameState, city, { spawnChance: 1, simMinute: 0 });
+  const arrival = createPortArrivalDialogueSession(city, { vikingLongshipApproach: true });
+  assert.equal(arrival.nodeId, "viking-longship");
+  const arrivalView = portDialogueView(arrival, city, gameState, economy, [city], context);
+  assert.ok(arrivalView.options.some((entry) => entry.label === "Not now"));
   const root = portDialogueView(session, city, gameState, economy, [city], context);
   const enthusiastIndex = root.options.findIndex((entry) => entry.action.nodeId === "viking-longship");
   assert.ok(enthusiastIndex >= 0);
@@ -1856,6 +1866,7 @@ test("an active package mission opens its factor before the port menu", () => {
   };
   const ports = [origin, destination, unrelated];
   const gameState = createGameState({ cargoCapacity: 20 });
+  deliveryOfferForCity(gameState, origin, ports, { spawnChance: 1, simMinute: 0 });
   const available = questStateForCity(gameState, origin, ports);
   assert.equal(available.kind, "available");
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), false);
@@ -1895,6 +1906,7 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
   };
   const ports = [origin, destination];
   const gameState = createGameState({ cargoCapacity: 20 });
+  deliveryOfferForCity(gameState, origin, ports, { spawnChance: 1, simMinute: 0 });
   const quest = questStateForCity(gameState, origin, ports).quest;
   acceptQuest(gameState, quest);
   const economy = createWorldEconomy({ ports, startMinute: 0 });

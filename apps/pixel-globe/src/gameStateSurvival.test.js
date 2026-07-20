@@ -50,6 +50,13 @@ import {
 } from "./gameState.js";
 import { crewHoldSpace, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { colonizationTargetForCity } from "./colonialCities.js";
+import {
+  COLONIZATION_FETCH_STAGES,
+  assignColonizationQuest,
+  beginColonizationExpedition,
+  completeColonizationFetchStage
+} from "./colonizationQuest.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "england");
 
@@ -252,9 +259,24 @@ test("the ship traveler manifest distinguishes passengers, envoys, and settlers"
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "envoy", count: 1 }]);
 
   state.memory.quests.active = null;
-  state.memory.colonization.stage = "outbound";
-  state.memory.colonization.fetchStageIndex = 3;
-  state.memory.colonization.targetTileId = 1;
+  assignColonizationQuest(state.memory.colonization, {
+    target: {
+      ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
+      tileId: 1
+    },
+    origin: {
+      tileId: 2,
+      city: "Bordeaux",
+      country: "France",
+      factionId: "france",
+      lat: 44.84,
+      lon: -0.58
+    }
+  });
+  for (const stage of COLONIZATION_FETCH_STAGES) {
+    completeColonizationFetchStage(state.memory.colonization, stage.id);
+  }
+  beginColonizationExpedition(state.memory.colonization);
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "settler", count: 12 }]);
   assert.equal(shipPeopleAboard(state), crewAndCaptain + 12);
   assert.equal(shipConsumption(state).passengers, 12);

@@ -166,7 +166,7 @@ test("a special envoy from the player capital opens Ming trade during negotiatio
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const startingDoubloons = state.doubloons;
   const offer = envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], {
-    envoySpawnChance: 0,
+    envoySpawnChance: 1,
     relationBetween: diplomacyBetween,
     simMinute: 0,
     createCharacter: () => ({ name: "Thomas Moreton" })
@@ -191,6 +191,22 @@ test("a special envoy from the player capital opens Ming trade during negotiatio
   completeQuest(state, LONDON, { simMinute: 2000 });
   assert.equal(state.doubloons, startingDoubloons + offer.reward);
   assert.equal(mingTradeOpenToFaction(state, "england"), true);
+});
+
+test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const context = {
+    envoySpawnChance: 0,
+    relationBetween: diplomacyBetween,
+    simMinute: 0,
+    createCharacter: () => ({ name: "Thomas Moreton" })
+  };
+
+  assert.equal(envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], context), null);
+  assert.equal(envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], {
+    ...context,
+    envoySpawnChance: 1
+  }), null);
 });
 
 test("a hostile envoy worsens relations and the player's standing with the foreign court", () => {

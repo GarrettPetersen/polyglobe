@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DELIVERY_ROLL_PERIOD_MINUTES,
   DELIVERY_REPUTATION_GAIN,
   acceptQuest,
   completeQuest,
   createGameState,
+  deliveryOfferForCity,
   deliveryQuestForCity,
   factionReputation,
   questStateForCity,
@@ -41,6 +43,26 @@ test("ports without an intra-faction regional destination offer no delivery ques
     kind: "unavailable",
     quest: null
   });
+});
+
+test("delivery work must spawn before the factor can offer it", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const ports = [LISBON, PORTO, GOA, CADIZ];
+
+  assert.deepEqual(questStateForCity(state, LISBON, ports), { kind: "unavailable", quest: null });
+  assert.equal(deliveryOfferForCity(state, LISBON, ports, { simMinute: 0, spawnChance: 0 }), null);
+  assert.equal(deliveryOfferForCity(state, LISBON, ports, { simMinute: 1, spawnChance: 1 }), null);
+
+  const offer = deliveryOfferForCity(state, LISBON, ports, {
+    simMinute: DELIVERY_ROLL_PERIOD_MINUTES,
+    spawnChance: 1
+  });
+  assert.equal(offer.kind, "delivery");
+  assert.equal(questStateForCity(state, LISBON, ports).quest, offer);
+  assert.equal(deliveryOfferForCity(state, LISBON, ports, {
+    simMinute: DELIVERY_ROLL_PERIOD_MINUTES,
+    spawnChance: 0
+  }), offer);
 });
 
 test("completed package deliveries increase faction standing", () => {

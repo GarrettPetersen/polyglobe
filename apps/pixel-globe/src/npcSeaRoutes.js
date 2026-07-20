@@ -387,25 +387,46 @@ export function npcSeaRouteHasPort(system, port) {
 }
 
 export function configureCaptureEncounter(system, spec, clockMinutes) {
+  return configureNpcEncounter(system, spec, clockMinutes);
+}
+
+export function configureNpcEncounter(system, spec, clockMinutes) {
   assertSaveableNpcRouteSystem(system);
-  if (!spec || typeof spec !== "object") throw new Error("Capture encounter specification is required");
-  if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid capture encounter clock: ${clockMinutes}`);
-  if (system.shipById.has(spec.id)) throw new Error(`Capture encounter id already exists: ${spec.id}`);
+  if (!spec || typeof spec !== "object") throw new Error("NPC encounter specification is required");
+  if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid NPC encounter clock: ${clockMinutes}`);
+  if (typeof spec.id !== "string" || spec.id.trim() === "") throw new Error("NPC encounter requires an id");
+  if (!Number.isFinite(spec.headingDeg)) throw new Error(`Invalid NPC encounter heading: ${spec.id}`);
+  if (system.shipById.has(spec.id)) throw new Error(`NPC encounter id already exists: ${spec.id}`);
   assertFactionId(spec.factionId);
-  if (!NPC_ROLE_SET.has(spec.role)) throw new Error(`Unknown capture encounter role: ${spec.role}`);
+  if (!NPC_ROLE_SET.has(spec.role)) throw new Error(`Unknown NPC encounter role: ${spec.role}`);
+  if (spec.encounter !== undefined && (!spec.encounter || typeof spec.encounter !== "object")) {
+    throw new Error(`Invalid NPC encounter metadata: ${spec.id}`);
+  }
+  if (spec.specie !== undefined && (!Number.isFinite(spec.specie) || spec.specie < 0)) {
+    throw new Error(`Invalid NPC encounter specie: ${spec.id}`);
+  }
+  if (spec.durationDays !== undefined && (!Number.isFinite(spec.durationDays) || spec.durationDays <= 0)) {
+    throw new Error(`Invalid NPC encounter duration: ${spec.id}`);
+  }
   const stats = shipStatsForSlug(spec.shipSlug);
-  const origin = capturePoint(spec.lat, spec.lon, `${spec.id}-origin`);
+  const origin = capturePoint(spec.lat, spec.lon, `${spec.id}-origin`, {
+    routeRegion: spec.routeRegion,
+    cityType: spec.cultureType
+  });
   const destination = destinationPoint(origin, spec.headingDeg * DEG_TO_RAD, 900);
-  const destinationNode = capturePoint(destination.lat, destination.lon, `${spec.id}-destination`);
+  const destinationNode = capturePoint(destination.lat, destination.lon, `${spec.id}-destination`, {
+    routeRegion: spec.routeRegion,
+    cityType: spec.cultureType
+  });
   const startMinute = clockMinutes - 60;
-  const endMinute = clockMinutes + 30 * WEATHER_MINUTES_PER_DAY;
+  const endMinute = clockMinutes + (spec.durationDays ?? 30) * WEATHER_MINUTES_PER_DAY;
   const vector = latLonToVector(origin.lat, origin.lon);
   const heading = headingVectorAt(origin, origin, destinationNode);
   const ship = {
     id: spec.id,
     factionId: spec.factionId,
     role: spec.role,
-    profileId: "wide-world",
+    profileId: spec.profileId || "wide-world",
     mode: "interregional",
     cultureType: spec.cultureType || null,
     slugs: [spec.shipSlug],
@@ -417,7 +438,9 @@ export function configureCaptureEncounter(system, spec, clockMinutes) {
     fishingNetId: null,
     cargo: {},
     cargoCost: {},
-    specie: npcStartingSpecieForRole(spec.role, stats),
+    specie: spec.specie === undefined
+      ? npcStartingSpecieForRole(spec.role, stats)
+      : Math.max(0, Math.floor(spec.specie)),
     lifetimeProfit: 0,
     portVisits: 0,
     graceUntilPortVisit: 0,
@@ -436,14 +459,16 @@ export function configureCaptureEncounter(system, spec, clockMinutes) {
       endMinute
     },
     clockOffsetMinutes: 0,
-    visualNavigation: { vector, heading }
+    visualNavigation: { vector, heading },
+    encounter: spec.encounter ? cloneJsonData(spec.encounter) : null,
+    replaceOnSink: spec.replaceOnSink !== false
   };
   system.ships.push(ship);
   system.shipById.set(ship.id, ship);
   return ship;
 }
 
-function capturePoint(lat, lon, label) {
+function capturePoint(lat, lon, label, { routeRegion = "wide-world", cityType = "northern-european" } = {}) {
   if (!Number.isFinite(lat) || lat < -89.999 || lat > 89.999) {
     throw new Error(`Invalid capture encounter latitude: ${lat}`);
   }
@@ -456,10 +481,10 @@ function capturePoint(lat, lon, label) {
     city: label,
     displayCity: label,
     country: "Capture scenario",
-    cityType: "northern-european",
+    cityType,
     population: 1,
     factionId: NEUTRAL_FACTION_ID,
-    routeRegion: "wide-world",
+    routeRegion,
     routeAnchors: [],
     tileId: -1 - hashString32(label),
     lat,
@@ -601,10 +626,18 @@ function canonicalNpcRouteDestination(system, destination) {
   const canonical = system.ports.find((port) => port.tileId === destination.tileId) ||
     system.fishingGrounds.find((ground) => ground.tileId === destination.tileId) ||
     system.whalingGrounds.find((ground) => ground.tileId === destination.tileId);
+  if (!canonical && isSavedEncounterPoint(destination)) return destination;
   if (!canonical) {
     throw new Error(`Saved NPC route destination is absent from the current world: ${destination.tileId}`);
   }
   return canonical;
+}
+
+function isSavedEncounterPoint(destination) {
+  return typeof destination?.id === "string" && destination.id.startsWith("capture:") &&
+    destination.tileId < 0 && Number.isFinite(destination.lat) && Number.isFinite(destination.lon) &&
+    destination.lat >= -89.999 && destination.lat <= 89.999 &&
+    destination.lon >= -180 && destination.lon <= 180;
 }
 
 export function applyNpcConquestOwnership(system, portFactionByTileId, collapsedFactionIds) {
@@ -842,6 +875,11 @@ export function captureSurrenderedNpcShip(system, shipId, clockMinutes) {
 
 function removeNpcShipForReplacement(system, ship, clockMinutes) {
   if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid NPC replacement minute: ${clockMinutes}`);
+  if (ship.replaceOnSink === false) {
+    system.ships = system.ships.filter((entry) => entry.id !== ship.id);
+    system.shipById.delete(ship.id);
+    return { ship, replacement: null, delayDays: null, port: null };
+  }
   const replacementPort = chooseNpcReplacementPort(system, ship);
   const yard = system.economy.shipyards?.yards?.get(replacementPort.tileId) || null;
   const yardSpeed = clamp((yard?.wealthScale || 0.75) + (yard?.famous ? 0.8 : 0), 0.65, 3.4);

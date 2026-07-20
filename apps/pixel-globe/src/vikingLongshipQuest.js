@@ -4,6 +4,8 @@ export const VIKING_LONGSHIP_SLUG = "viking-longship";
 export const VIKING_LONGSHIP_PORT_CITY = "Hafnarfjordur";
 export const VIKING_LONGSHIP_PORT_COUNTRY = "Iceland";
 export const VIKING_LONGSHIP_PRICE = 42000;
+export const VIKING_LONGSHIP_SPAWN_CHANCE = 0.2;
+export const VIKING_LONGSHIP_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
 export const VIKING_LONGSHIP_CHARACTER_SOURCE_ID =
   "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-9";
 export const VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID =
@@ -17,6 +19,8 @@ export const VIKING_LONGSHIP_FETCH_STAGES = Object.freeze([
 
 const QUEST_STAGE_FLAG = "vikingLongshipQuestStage";
 const QUEST_REWARD_FLAG = "vikingLongshipRewardDisposition";
+const QUEST_OFFERED_FLAG = "vikingLongshipQuestOffered";
+const QUEST_OFFER_SEEN_FLAG = "vikingLongshipQuestOfferSeen";
 export const VIKING_LONGSHIP_REWARD_PENDING = "pending";
 export const VIKING_LONGSHIP_REWARD_ACCEPTED = "accepted";
 export const VIKING_LONGSHIP_REWARD_DECLINED = "declined";
@@ -31,9 +35,45 @@ export function isVikingLongshipQuestPort(city) {
   return city?.city === VIKING_LONGSHIP_PORT_CITY && city?.country === VIKING_LONGSHIP_PORT_COUNTRY;
 }
 
+export function maybeSpawnVikingLongshipQuest(state, city, context = {}) {
+  if (!isVikingLongshipQuestPort(city)) return null;
+  const memory = vikingQuestMemory(state);
+  const existing = vikingLongshipQuestState(state, city);
+  if (existing) return existing;
+
+  const period = vikingRollPeriod(context.simMinute);
+  const rollKey = `${city.portId || city.tileId}|${period}`;
+  if (memory.rolls[rollKey]) return null;
+  memory.rolls[rollKey] = true;
+  pruneRolls(memory.rolls);
+
+  const chance = vikingSpawnChance(context.spawnChance);
+  const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
+  if (chance < 1 && seededFraction(`${identityKey}|${rollKey}|viking-longship`) >= chance) return null;
+  memory.flags[QUEST_OFFERED_FLAG] = true;
+  return vikingLongshipQuestState(state, city);
+}
+
+export function vikingLongshipOfferShouldApproach(state, city) {
+  if (!vikingLongshipQuestState(state, city)) return false;
+  return state.memory.flags[QUEST_OFFER_SEEN_FLAG] !== true;
+}
+
+export function markVikingLongshipOfferSeen(state) {
+  const memory = vikingQuestMemory(state);
+  if (memory.flags[QUEST_OFFERED_FLAG] !== true && currentStageIndex(memory.flags) === 0) {
+    throw new Error("Viking longship offer has not spawned");
+  }
+  memory.flags[QUEST_OFFER_SEEN_FLAG] = true;
+}
+
 export function vikingLongshipQuestState(state, city) {
   if (!isVikingLongshipQuestPort(city)) return null;
-  const stageIndex = state?.memory?.flags?.[QUEST_STAGE_FLAG] ?? 0;
+  const flags = state?.memory?.flags;
+  if (!flags || typeof flags !== "object") throw new Error("Viking longship quest requires game flags");
+  const stageIndex = currentStageIndex(flags);
+  const offered = flags[QUEST_OFFERED_FLAG] === true || stageIndex > 0 || flags[QUEST_REWARD_FLAG] !== undefined;
+  if (!offered) return null;
   if (!Number.isInteger(stageIndex) || stageIndex < 0 || stageIndex > VIKING_LONGSHIP_FETCH_STAGES.length) {
     throw new Error(`Invalid Viking longship quest stage: ${stageIndex}`);
   }
@@ -73,7 +113,7 @@ export function deliverVikingLongshipQuestCargo(state, city, stageId, context = 
 }
 
 export function vikingLongshipUnlocked(state) {
-  const stageIndex = state?.memory?.flags?.[QUEST_STAGE_FLAG] ?? 0;
+  const stageIndex = currentStageIndex(state?.memory?.flags);
   if (!Number.isInteger(stageIndex) || stageIndex < 0 || stageIndex > VIKING_LONGSHIP_FETCH_STAGES.length) {
     throw new Error(`Invalid Viking longship quest stage: ${stageIndex}`);
   }
@@ -127,4 +167,60 @@ function setVikingLongshipRewardDisposition(state, expected, disposition) {
 
 function fetchStage(id, goodId, goodLabel, quantity, purpose) {
   return Object.freeze({ id, goodId, goodLabel, quantity, purpose });
+}
+
+function vikingQuestMemory(state) {
+  if (!state?.memory || typeof state.memory !== "object") {
+    throw new Error("Viking longship quest requires game state memory");
+  }
+  if (!state.memory.flags || typeof state.memory.flags !== "object") {
+    throw new Error("Viking longship quest requires game flags");
+  }
+  if (!state.memory.quests || typeof state.memory.quests !== "object") {
+    state.memory.quests = { active: null, completed: {} };
+  }
+  if (!state.memory.quests.vikingLongshipRolls ||
+      typeof state.memory.quests.vikingLongshipRolls !== "object") {
+    state.memory.quests.vikingLongshipRolls = {};
+  }
+  return {
+    flags: state.memory.flags,
+    rolls: state.memory.quests.vikingLongshipRolls
+  };
+}
+
+function currentStageIndex(flags) {
+  return flags?.[QUEST_STAGE_FLAG] ?? 0;
+}
+
+function vikingRollPeriod(simMinute) {
+  if (!Number.isFinite(simMinute)) return 0;
+  if (simMinute < 0) throw new Error(`Invalid Viking longship offer minute: ${simMinute}`);
+  return Math.floor(simMinute / VIKING_LONGSHIP_ROLL_PERIOD_MINUTES);
+}
+
+function vikingSpawnChance(value) {
+  const chance = value ?? VIKING_LONGSHIP_SPAWN_CHANCE;
+  if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
+    throw new Error(`Invalid Viking longship spawn chance: ${chance}`);
+  }
+  return chance;
+}
+
+function seededFraction(value) {
+  return hashString32(value) / 0x100000000;
+}
+
+function pruneRolls(rolls) {
+  const keys = Object.keys(rolls);
+  for (const key of keys.slice(0, Math.max(0, keys.length - 64))) delete rolls[key];
+}
+
+function hashString32(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }

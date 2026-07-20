@@ -79,23 +79,6 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
     throw new Error("Envoy missions require a diplomacy resolver");
   }
 
-  const mingTradeTarget = mingTradeOpeningTarget(state, city, portCities);
-  if (mingTradeTarget) {
-    const distanceKm = greatCircleDistanceKm(city, mingTradeTarget);
-    const quest = buildEnvoyQuest(
-      city,
-      mingTradeTarget,
-      "friendly-envoy",
-      distanceKm,
-      passengerRollPeriod(context.simMinute),
-      context.simMinute ?? 0,
-      { mingTradeOpeningFactionId: state.playerCharacter.nationalityId }
-    );
-    attachEnvoyCharacter(quest, city, mingTradeTarget, context);
-    quests.passengerOffers[cityKey(city)] = quest;
-    return quest;
-  }
-
   const period = passengerRollPeriod(context.simMinute);
   const originKey = cityKey(city);
   const rollKey = `${originKey}|${period}|envoy`;
@@ -104,6 +87,23 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
 
   const spawnChance = passengerSpawnChance(context.envoySpawnChance ?? ENVOY_SPAWN_CHANCE);
   if (spawnChance < 1 && seededFraction(`${rollKey}|spawn`) >= spawnChance) return null;
+
+  const mingTradeTarget = mingTradeOpeningTarget(state, city, portCities);
+  if (mingTradeTarget) {
+    const distanceKm = greatCircleDistanceKm(city, mingTradeTarget);
+    const quest = buildEnvoyQuest(
+      city,
+      mingTradeTarget,
+      "friendly-envoy",
+      distanceKm,
+      period,
+      context.simMinute ?? 0,
+      { mingTradeOpeningFactionId: state.playerCharacter.nationalityId }
+    );
+    attachEnvoyCharacter(quest, city, mingTradeTarget, context);
+    quests.passengerOffers[cityKey(city)] = quest;
+    return quest;
+  }
   const missionKind = chooseEnvoyKind(`${rollKey}|kind`, context.envoyKind);
   const destination = chooseEnvoyDestination(city, portCities, missionKind, context);
   if (!destination) return null;

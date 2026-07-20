@@ -137,6 +137,7 @@ import {
   clearPortNavigationWaypointsAt,
   consumePendingDiscoveryPortDialogue,
   createGameState,
+  deliveryOfferForCity,
   discoveredEntries,
   diplomacyBetweenForState,
   factionReputation,
@@ -335,6 +336,7 @@ import {
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
   configureCaptureEncounter,
+  configureNpcEncounter,
   createNpcSeaRouteSystem,
   damageNpcShip,
   npcCargoAvailableQuantity,
@@ -553,6 +555,11 @@ import {
   debugWeatherControlForKey
 } from "./debugWeatherControls.js";
 import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
+import {
+  advanceFetchQuestReadiness,
+  fetchQuestRequirements,
+  readyFetchQuestDestinations
+} from "./fetchQuestObjectives.js";
 import { gameOverStatsLayout } from "./gameOverLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
 import {
@@ -565,6 +572,7 @@ import { DEFAULT_GAME_TIME_SCALE } from "./gamePacing.js";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
+  COMBAT_DETECTION_RADIUS_PX,
   PLAYER_COMBAT_ID,
   createShipCombatState,
   engagementKey,
@@ -730,17 +738,24 @@ import {
   COLONIZATION_CARGO_RESERVATION_ID,
   COLONIZATION_FETCH_STAGES,
   COLONIZATION_RESUPPLY,
+  COLONIZATION_STAGE_DEFEND,
   COLONIZATION_STAGE_ESTABLISHED,
   COLONIZATION_STAGE_FAILED,
+  COLONIZATION_STAGE_REPORT_DEFENSE,
   COLONIZATION_STAGE_READY,
   advanceColonizationQuest,
-  assignColonizationTargetTile,
+  assignColonizationQuest,
   beginColonizationExpedition,
   colonizationObjective,
+  colonizationDefenseShipIds,
+  colonizationOfferForCity,
   colonizationOrganizerShouldApproach,
+  colonizationQuestView,
   colonizationWorldRecord,
   completeColonizationFetchStage,
-  isColonizationQuestOrigin,
+  defeatColonizationAttacker,
+  isColonizationDefenseShip,
+  isColonizationQuestApproval,
   isColonizationQuestTarget,
   landColonists,
   markColonizationOrganizerApproached
@@ -852,7 +867,11 @@ import {
   VIKING_LONGSHIP_SLUG,
   acceptVikingLongshipReward,
   isVikingLongshipQuestPort,
+  markVikingLongshipOfferSeen,
   markVikingLongshipPurchased,
+  maybeSpawnVikingLongshipQuest,
+  vikingLongshipOfferShouldApproach,
+  vikingLongshipQuestState,
   vikingLongshipRewardDisposition,
   vikingLongshipUnlocked
 } from "./vikingLongshipQuest.js";
@@ -1349,7 +1368,7 @@ const CAPTAIN_MENU_ACTIONS = Object.freeze([
   Object.freeze({ id: "options", label: "OPTIONS", iconId: "menu:options" })
 ]);
 const CAPTAIN_MENU_PANEL_W = 224;
-const CAPTAIN_MENU_PANEL_H = 226;
+const CAPTAIN_MENU_PANEL_H = 420;
 const NAVIGATION_MENU_PANEL_W = 420;
 const NAVIGATION_MENU_PANEL_H = 226;
 const NAVIGATION_MENU_ROW_H = 38;
@@ -1825,6 +1844,9 @@ const survivalDeprivationTimers = {
   foodNextMinute: null
 };
 const pendingWineCaptainDialogues = [];
+const pendingFetchQuestCaptainDialogues = [];
+let fetchQuestReadiness = new Map();
+const FETCH_QUEST_READY_FLAG_PREFIX = "fetchQuestReadyDelivered:";
 let creditsMarkdown = "";
 let playerIntroModal = null;
 let interactionButtonRect = null;
@@ -2148,11 +2170,9 @@ async function main() {
     targets: COLONIZATION_TARGETS,
     occupiedTileIds: cityByTileId.keys()
   });
-  const portRoyalTarget = colonizationTargetPlacements.find((target) => (
-    target.city === "Port Royal" && target.country === "Canada"
-  ));
-  if (!portRoyalTarget) throw new Error("Port Royal is missing from the water-accessible colony placements");
-  colonizationTargetTileId = portRoyalTarget.tileId;
+  if (colonizationTargetPlacements.some((target) => target.waterAccess === "inland")) {
+    throw new Error("Inland cities cannot enter the sailing colonization target roster");
+  }
   waterDepthBands = buildWaterDepthBands();
   stormSystem = createStormSystem({
     neighbors: graph.neighbors,
@@ -2304,10 +2324,11 @@ async function main() {
     campaignGoalType
   });
   pendingWineCaptainDialogues.length = 0;
+  pendingFetchQuestCaptainDialogues.length = 0;
   consumedLandedSeagullIds.clear();
   ensureWhalePopulation(gameState.memory.whales);
-  assignColonizationTargetTile(gameState.memory.colonization, colonizationTargetTileId);
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  initializeFetchQuestReadiness();
   familyDebtReturnReminderDelivered = false;
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
   if (CAPTURE_SCENARIO) gameState.activePlaySeconds = CAPTURE_SCENARIO.player.activePlaySeconds;
@@ -3761,10 +3782,97 @@ function updateColonizationQuest() {
   });
   if (!changed) return false;
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  const targetName = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  }).target?.city || "colony";
   saveVoyageNow(memory.stage === COLONIZATION_STAGE_FAILED
-    ? "Port Royal colony failed"
-    : "departed Port Royal colony");
+    ? `${targetName} colony failed`
+    : `departed ${targetName} colony`);
   return true;
+}
+
+function ensureColonizationDefenseEncounter({ assignCaptains = true } = {}) {
+  const memory = gameState?.memory?.colonization;
+  if (!memory || memory.stage !== COLONIZATION_STAGE_DEFEND || !npcSeaRoutes) return [];
+  const quest = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  });
+  if (!quest.target || !quest.defense) {
+    throw new Error("Active colony defense has no target or historical encounter");
+  }
+  const defeated = new Set(memory.defenseDefeatedShipIds || []);
+  const shipIds = colonizationDefenseShipIds(memory);
+  const added = [];
+  for (const [index, shipId] of shipIds.entries()) {
+    if (defeated.has(shipId)) continue;
+    const existing = npcSeaRoutes.shipById.get(shipId);
+    if (existing) {
+      if (existing.encounter?.kind !== "colonization-defense") {
+        throw new Error(`Colony defense ship id is occupied by ordinary traffic: ${shipId}`);
+      }
+      continue;
+    }
+    const bearingDeg = (28 + index * 360 / shipIds.length) % 360;
+    const spawn = colonyDefenseSpawnPoint(
+      quest.target,
+      bearingDeg,
+      24 + index % 2 * 7
+    );
+    added.push(configureNpcEncounter(npcSeaRoutes, {
+      id: shipId,
+      factionId: NEUTRAL_FACTION_ID,
+      role: NPC_ROLE_WARSHIP,
+      shipSlug: "mesoamerican-dugout-canoe",
+      lat: spawn.lat,
+      lon: spawn.lon,
+      headingDeg: (bearingDeg + 180) % 360,
+      cultureType: "mesoamerican",
+      routeRegion: "americas",
+      profileId: "mesoamerican-coast",
+      specie: 0,
+      durationDays: 36500,
+      replaceOnSink: false,
+      encounter: {
+        kind: "colonization-defense",
+        colonyTileId: memory.targetTileId,
+        colonyCity: quest.target.city,
+        attackerName: quest.defense.attackerName,
+        objectiveName: quest.defense.objectiveName,
+        challenge: quest.defense.challenge,
+        forceAttack: true
+      }
+    }, weatherClockMinutes));
+  }
+  if (assignCaptains && added.length > 0) {
+    const assignments = assignNpcShipCaptains(
+      added,
+      characterPortraitManifest,
+      usedCharacterNames,
+      { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+    );
+    if (!npcShipCaptains) npcShipCaptains = new Map();
+    for (const [shipId, captain] of assignments) npcShipCaptains.set(shipId, captain);
+  }
+  return added;
+}
+
+function colonyDefenseSpawnPoint(target, bearingDeg, distancePx) {
+  const angularDistance = distancePx / PIXELS_PER_RADIAN;
+  const bearing = bearingDeg * Math.PI / 180;
+  const lat1 = target.lat * Math.PI / 180;
+  const lon1 = target.lon * Math.PI / 180;
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angularDistance) +
+    Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
+  );
+  const lon2 = lon1 + Math.atan2(
+    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
+    Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+  );
+  return {
+    lat: lat2 * 180 / Math.PI,
+    lon: ((lon2 * 180 / Math.PI + 540) % 360) - 180
+  };
 }
 
 function campaignGoalContactCharacter() {
@@ -3781,6 +3889,7 @@ function playerPortraitSourceExclusions(playerCharacter) {
 
 function assignPortCharactersForPlayer(playerCharacter) {
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
+  colonizationOrganizer = null;
   usedCharacterNames = new Set([playerCharacter.name]);
   portCityCharacters = assignPortCityCharacters(
     portCities,
@@ -3805,18 +3914,6 @@ function assignPortCharactersForPlayer(playerCharacter) {
     { excludedSourceIds: playerSourceIds }
   ));
 
-  const colonizationOrigin = portCities.find(isColonizationQuestOrigin);
-  if (!colonizationOrigin) throw new Error("Bordeaux is missing from the dockable 1522 port roster");
-  const bordeauxFactor = portCityCharacters.get(colonizationOrigin.tileId);
-  if (!bordeauxFactor) throw new Error("Bordeaux has no generated port factor");
-  colonizationOrganizer = generateSpecialPortCharacter({
-    identityKey: "port-royal-colonial-organizer",
-    port: colonizationOrigin,
-    excludedSourceIds: [bordeauxFactor.sourceId, ...playerSourceIds],
-    role: "colonial-organizer",
-    manifest: characterPortraitManifest,
-    usedNames: usedCharacterNames
-  });
 }
 
 function createCampaignGoalContact(playerCharacter, goal) {
@@ -5447,6 +5544,14 @@ function stageCapturePillage(sequence) {
 
 function stageCaptureColonization(sequence) {
   const memory = gameState.memory.colonization;
+  if (!colonizationQuestView(gameState, { currentMinute: weatherClockMinutes }).target) {
+    const target = colonizationTargetPlacements.find((candidate) => candidate.city === sequence.cityName);
+    const origin = portCities.find((candidate) => candidate.city === "Bordeaux" && candidate.country === "France");
+    if (!target || !origin) throw new Error("Capture colonization requires Port Royal and Bordeaux");
+    assignColonizationQuest(memory, { target, origin });
+    colonizationTargetTileId = target.tileId;
+    ensureColonizationOrganizer(gameState, origin);
+  }
   for (const stage of COLONIZATION_FETCH_STAGES) completeColonizationFetchStage(memory, stage.id);
   if (memory.stage !== COLONIZATION_STAGE_READY) {
     throw new Error(`Capture colonization fetch setup ended at ${memory.stage}`);
@@ -5461,7 +5566,7 @@ function stageCaptureColonization(sequence) {
     gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 120;
   }
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
-  placeCapturePlayerNearTile(colonizationTargetTileId);
+  placeCapturePlayerNearTile(memory.targetTileId);
   syncShipCargoFromGameState();
 }
 
@@ -6322,7 +6427,6 @@ async function restoreSavedVoyage(payload) {
   if (Math.hypot(...savedShip.position) < 0.5 || Math.hypot(...savedShip.heading) < 0.5) {
     throw new Error("Saved player navigation vectors are invalid");
   }
-  assignColonizationTargetTile(restoredGameState.memory.colonization, colonizationTargetTileId);
   syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
   const assets = await loadShipAssetSet(savedShip.typeSlug);
   restoreWorldEconomy(worldEconomy, payload.economy);
@@ -6346,7 +6450,10 @@ async function restoreSavedVoyage(payload) {
   });
 
   gameState = restoredGameState;
+  ensureColonizationDefenseEncounter({ assignCaptains: false });
   pendingWineCaptainDialogues.length = 0;
+  pendingFetchQuestCaptainDialogues.length = 0;
+  initializeFetchQuestReadiness();
   consumedLandedSeagullIds.clear();
   familyDebtReturnReminderDelivered = false;
   restoreCartographyFromGameState();
@@ -7590,7 +7697,7 @@ function openPortDialogue(cityCall) {
   clearPortNavigationWaypointsAt(gameState, cityCall.tileId);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
-  if (isColonizationQuestTarget(cityCall) &&
+  if (isColonizationQuestTarget(gameState.memory.colonization, cityCall) &&
       cityCall.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
     dialogueState = createPortDialogueSession(cityCall, {
       initialNodeId: "colonization",
@@ -7599,7 +7706,7 @@ function openPortDialogue(cityCall) {
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
     ensureDialoguePortraitLoaded();
-    saveVoyageNow("visited Port Royal colony site");
+    saveVoyageNow(`visited ${cityCall.city} colony site`);
     dirty = true;
     return;
   }
@@ -7635,7 +7742,31 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   const drunkVariant = spriteKeyHash(
     `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
   );
-  if (colonizationOrganizerShouldApproach(gameState, cityCall)) {
+  const colonizationQuest = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  });
+  if (isColonizationQuestApproval(gameState.memory.colonization, cityCall) &&
+      colonizationQuest.stage === COLONIZATION_STAGE_OUTBOUND &&
+      colonizationQuest.approvalGranted !== true) {
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      colonizationApproach: true
+    });
+  }
+  const colonizationOffer = colonizationOfferForCity(
+    gameState,
+    cityCall,
+    portCities,
+    colonizationTargetPlacements,
+    { simMinute: Math.floor(weatherClockMinutes) }
+  );
+  if (colonizationOffer) {
+    const binding = bindColonizationQuestSelection(gameState);
+    ensureColonizationOrganizer(gameState, binding.origin);
+  }
+  if (colonizationOffer && colonizationOrganizerShouldApproach(gameState, cityCall)) {
     markColonizationOrganizerApproached(gameState);
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
@@ -7644,11 +7775,26 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       colonizationApproach: true
     });
   }
+  const simMinute = Math.floor(weatherClockMinutes);
+  deliveryOfferForCity(gameState, cityCall, portCities, { simMinute });
+  const openDeliveryMission = deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities);
+  const vikingLongshipOffer = maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });
+  if (vikingLongshipOffer &&
+      vikingLongshipOfferShouldApproach(gameState, cityCall) &&
+      !openDeliveryMission) {
+    markVikingLongshipOfferSeen(gameState);
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      vikingLongshipApproach: true
+    });
+  }
   const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
   if (rumor) {
     const nextPortNodeId = needsLoadout
       ? "loadout"
-      : deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities) ? "quest" : "root";
+      : openDeliveryMission ? "quest" : "root";
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
       arrivedDrunk,
@@ -7671,7 +7817,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     arrivedDrunk,
     drunkVariant,
     questCharacterSession,
-    openDeliveryMission: deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities)
+    openDeliveryMission
   });
 }
 
@@ -8379,6 +8525,7 @@ function chooseDialogueOption(optionIndex) {
     if (result.colonizationChanged) {
       syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
     }
+    if (result.colonizationDefenseStarted) ensureColonizationDefenseEncounter();
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
     if (result.marketPurchase) {
@@ -8739,6 +8886,7 @@ function beginPlayerInitiatedCombat(npcShipId) {
 
 function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   if (!gameState) return;
+  if (npcSeaRoutes?.shipById?.get(npcShipId)?.encounter?.kind === "colonization-defense") return;
   const state = npcVisualShips.get(npcShipId);
   const factionId = state?.factionId || npcSeaRoutes?.shipById?.get(npcShipId)?.factionId || fallbackFactionId;
   if (!factionId || factionId === PIRATE_FACTION_ID) return;
@@ -8779,9 +8927,13 @@ function currentDialogueCity() {
           portrait: characterExpression(character)
         };
       }
+      const approvalOfficial = isColonizationQuestApproval(gameState.memory.colonization, portCall) &&
+        gameState.memory.colonization.approvalGranted !== true;
       const character = portCall.colonizationQuestStage === COLONIZATION_STAGE_FAILED
         ? gameState.playerCharacter
-        : colonizationOrganizer;
+        : approvalOfficial
+          ? portCityCharacters.get(portCall.tileId)
+          : colonizationOrganizer;
       if (!character) throw new Error("Colonization dialogue has no character");
       return {
         ...portCall,
@@ -8792,10 +8944,14 @@ function currentDialogueCity() {
   }
   const city = cityByTileId.get(dialogueState.cityTileId);
   if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
+  const approvalOfficial = isColonizationQuestApproval(gameState.memory.colonization, city) &&
+    gameState.memory.colonization.approvalGranted !== true;
   const questCharacter = dialogueState.kind === "port" && dialogueState.nodeId === "colonization"
     ? city.colonizationQuestStage === COLONIZATION_STAGE_FAILED
       ? gameState.playerCharacter
-      : colonizationOrganizer
+      : approvalOfficial
+        ? portCityCharacters.get(city.tileId)
+        : colonizationOrganizer
     : null;
   const character = questCharacter || portCityCharacters?.get(city.tileId);
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
@@ -8950,11 +9106,12 @@ function dialogueShipForId(npcShipId) {
   const visualState = npcVisualShips.get(npcShip.id);
   if (!visualState) throw new Error(`Dialogue NPC ship is no longer visible: ${npcShip.id}`);
   const combatGrace = npcShip.graceUntilPortVisit > npcShip.portVisits;
+  const encounter = npcShip.encounter?.kind === "colonization-defense" ? npcShip.encounter : null;
   const inCombatWithPlayer = shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShip.id));
   const enemy = inCombatWithPlayer || npcShip.role === NPC_ROLE_PIRATE ||
     currentDiplomacyBetween(ship.factionId, npcShip.factionId) === DIPLOMACY_WAR;
   const emergencyAid = shipEmergencyAidNeed(gameState, npcShip.id);
-  const playerAttackIsPiracy = npcShip.factionId !== PIRATE_FACTION_ID &&
+  const playerAttackIsPiracy = !encounter && npcShip.factionId !== PIRATE_FACTION_ID &&
     !hasPrivateeringAuthorityAgainst(gameState, npcShip.factionId);
   const stormStatus = visualState?.stormMode === "anchored"
     ? "We are anchored until the storm passes."
@@ -8970,9 +9127,11 @@ function dialogueShipForId(npcShipId) {
     hitPoints: npcShip.hitPoints,
     maxHitPoints: npcShip.maxHitPoints,
     role: npcShip.role,
-    roleLabel: npcRoleLabel(npcShip.role),
+    roleLabel: encounter ? "War-canoe" : npcRoleLabel(npcShip.role),
     fishingNetLabel: npcShip.fishingNetId ? fishingNetById(npcShip.fishingNetId).label : null,
-    faction: factionById(npcShip.factionId),
+    faction: encounter
+      ? { ...factionById(npcShip.factionId), adjective: encounter.objectiveName }
+      : factionById(npcShip.factionId),
     cargo: { ...npcShip.cargo },
     specie: Math.floor(npcShip.specie),
     destinationName: npcShip.plan?.destination
@@ -9709,9 +9868,10 @@ function createLocalLayout(centerId) {
 
 function syncColonizationWorldState(state, { startMinute = weatherClockMinutes } = {}) {
   if (!state?.memory?.colonization) throw new Error("Cannot sync colonization without quest state");
-  if (!Number.isInteger(colonizationTargetTileId)) throw new Error("Port Royal target tile is not assigned");
-  if (!colonizationOrganizer) throw new Error("Port Royal colonial organizer is not assigned");
-  assignColonizationTargetTile(state.memory.colonization, colonizationTargetTileId);
+  const binding = bindColonizationQuestSelection(state);
+  if (!binding) return null;
+  colonizationTargetTileId = binding.target.tileId;
+  ensureColonizationOrganizer(state, binding.origin);
   const record = colonizationWorldRecord(state.memory.colonization);
   const existing = cityByTileId.get(colonizationTargetTileId);
   if (!record) {
@@ -9720,12 +9880,16 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
     return null;
   }
   if (existing && !existing.colonizationQuestSite) {
-    throw new Error(`Port Royal target tile is occupied by ${cityLabelText(existing)}`);
+    throw new Error(`${binding.target.city} target tile is occupied by ${cityLabelText(existing)}`);
   }
 
   cityByTileId.set(record.tileId, record);
   portCityCharacters.set(record.tileId, colonizationOrganizer);
-  if (record.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
+  if (![
+    COLONIZATION_STAGE_DEFEND,
+    COLONIZATION_STAGE_REPORT_DEFENSE,
+    COLONIZATION_STAGE_ESTABLISHED
+  ].includes(record.colonizationQuestStage)) {
     chart = null;
     dirty = true;
     return record;
@@ -9745,6 +9909,49 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
   chart = null;
   dirty = true;
   return record;
+}
+
+function bindColonizationQuestSelection(state) {
+  const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
+  if (!quest.target) return null;
+  const target = colonizationTargetPlacements.find((candidate) => (
+    candidate.city === quest.target.city && candidate.country === quest.target.country
+  ));
+  if (!target) {
+    throw new Error(`Saved colony is not a water-accessible sailing target: ${quest.target.city}`);
+  }
+  const origin = portCities.find((candidate) => (
+    Number.isInteger(quest.origin?.tileId)
+      ? candidate.tileId === quest.origin.tileId
+      : candidate.city === quest.origin?.city && candidate.country === quest.origin?.country
+  ));
+  if (!origin) throw new Error(`Saved colony origin is not a dockable port: ${quest.origin?.city || "unknown"}`);
+  const approvalPort = quest.approval
+    ? portCities.find((candidate) => candidate.tileId === quest.approval.tileId)
+    : null;
+  if (quest.approval && !approvalPort) {
+    throw new Error(`Saved colony approval port is not dockable: ${quest.approval.city}`);
+  }
+  assignColonizationQuest(state.memory.colonization, { target, origin, approvalPort });
+  return { target, origin, approvalPort };
+}
+
+function ensureColonizationOrganizer(state, origin = null) {
+  if (colonizationOrganizer) return colonizationOrganizer;
+  const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
+  const organizerPort = origin || portCities.find((candidate) => candidate.tileId === quest.origin?.tileId);
+  if (!quest.target || !organizerPort) throw new Error("Colonization organizer requires a selected target and origin");
+  const factor = portCityCharacters.get(organizerPort.tileId);
+  if (!factor) throw new Error(`${cityLabelText(organizerPort)} has no generated port factor`);
+  colonizationOrganizer = generateSpecialPortCharacter({
+    identityKey: `colonial-organizer-${quest.target.city}-${quest.target.country}-${organizerPort.tileId}`,
+    port: organizerPort,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    role: "colonial-organizer",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  return colonizationOrganizer;
 }
 
 function worldPortPlacementOptions() {
@@ -11666,6 +11873,8 @@ function updateWeather(dt, nowMs) {
     stormCaptainChanged = updateStormCaptainAlert(previousClockMinutes, weatherClockMinutes, nowMs);
     diplomacyChanged = updateWorldDiplomacy();
   }
+  const fetchReadinessChanged = updateFetchQuestReadinessAlerts();
+  const fetchCaptainChanged = presentPendingFetchQuestCaptainDialogue();
   const wineCaptainChanged = presentPendingWineCaptainDialogue();
 
   const dayChanged = refreshWeatherState(false);
@@ -11673,10 +11882,11 @@ function updateWeather(dt, nowMs) {
   if (tick !== weatherDrawTick) {
     weatherDrawTick = tick;
     return weatherTimeScale > 0 || dayChanged || stormDamageChanged || survivalChanged ||
-      stormCaptainChanged || diplomacyChanged || wineCaptainChanged;
+      stormCaptainChanged || diplomacyChanged || fetchReadinessChanged || fetchCaptainChanged ||
+      wineCaptainChanged;
   }
   return dayChanged || stormDamageChanged || survivalChanged || stormCaptainChanged || diplomacyChanged ||
-    wineCaptainChanged;
+    fetchReadinessChanged || fetchCaptainChanged || wineCaptainChanged;
 }
 
 function updateWorldDiplomacy() {
@@ -11742,6 +11952,57 @@ function queueWineCaptainDialogues(result) {
       expressionId: "happy"
     });
   }
+}
+
+function initializeFetchQuestReadiness() {
+  pendingFetchQuestCaptainDialogues.length = 0;
+  fetchQuestReadiness = new Map(
+    currentFetchQuestRequirements().map((entry) => [
+      entry.id,
+      entry.ready && gameState.memory.flags[fetchQuestReadyFlag(entry.id)] === true
+    ])
+  );
+}
+
+function updateFetchQuestReadinessAlerts() {
+  if (!gameState || gameOverReason) return false;
+  const transition = advanceFetchQuestReadiness(
+    fetchQuestReadiness,
+    currentFetchQuestRequirements()
+  );
+  fetchQuestReadiness = transition.next;
+  for (const entry of currentFetchQuestRequirements()) {
+    if (!entry.ready) delete gameState.memory.flags[fetchQuestReadyFlag(entry.id)];
+  }
+  for (const entry of transition.newlyReady) {
+    pendingFetchQuestCaptainDialogues.push({
+      requirementId: entry.id,
+      message: uiText("quest.fetchReadyDialogue", {
+        good: renderedUiText(entry.goodLabel),
+        city: entry.destination.city
+      }),
+      expressionId: "happy"
+    });
+  }
+  return transition.newlyReady.length > 0;
+}
+
+function presentPendingFetchQuestCaptainDialogue() {
+  if (pendingFetchQuestCaptainDialogues.length === 0 || !gameState?.playerCharacter) return false;
+  if (startMenu || menusAreOpen() || dialogueState || playerIntroModal || captainAlertModal ||
+      portWaitState || gameOverReason) {
+    return false;
+  }
+  const next = pendingFetchQuestCaptainDialogues[0];
+  if (!openCaptainAlertModal(next.message, next.expressionId)) return false;
+  pendingFetchQuestCaptainDialogues.shift();
+  gameState.memory.flags[fetchQuestReadyFlag(next.requirementId)] = true;
+  saveVoyageNow("reported completed fetch cargo");
+  return true;
+}
+
+function fetchQuestReadyFlag(requirementId) {
+  return `${FETCH_QUEST_READY_FLAG_PREFIX}${requirementId}`;
 }
 
 function presentPendingWineCaptainDialogue() {
@@ -12100,6 +12361,8 @@ function closeMenusForGameOver() {
   politicsMenu.isOpen = false;
   captainAlertModal = null;
   pendingWineCaptainDialogues.length = 0;
+  pendingFetchQuestCaptainDialogues.length = 0;
+  fetchQuestReadiness = new Map();
 }
 
 function gameOverElapsedMs(nowMs) {
@@ -12354,6 +12617,7 @@ function updateNpcFishermenHarvest() {
 function updateNpcCombat(dt) {
   if (!ship || gameOverReason) return false;
   const playerWasInCombat = playerHasCombatEngagement();
+  const colonizationDefenseInitiator = forceColonizationDefenseEngagements(playerWasInCombat);
   const participantsBefore = combatParticipantIds();
   const entities = [playerCombatEntity(), ...[...npcVisualShips.values()].map(npcCombatEntity)];
   const result = updateShipCombatState(shipCombatState, entities, currentDiplomacyBetween);
@@ -12368,9 +12632,9 @@ function updateNpcCombat(dt) {
         engagement.aId === PLAYER_COMBAT_ID || engagement.bId === PLAYER_COMBAT_ID
       ))
     : null;
-  const initiatingNpcId = firstPlayerEngagement
+  const initiatingNpcId = colonizationDefenseInitiator || (firstPlayerEngagement
     ? (firstPlayerEngagement.aId === PLAYER_COMBAT_ID ? firstPlayerEngagement.bId : firstPlayerEngagement.aId)
-    : null;
+    : null);
   const suppressCaptureHails = captureSuppressesCombatHails();
   const combatHailOpened = initiatingNpcId && !suppressCaptureHails
     ? openNpcCombatHail(initiatingNpcId)
@@ -12404,6 +12668,24 @@ function updateNpcCombat(dt) {
     startCombatMusicForThreat(hostileCannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   }
   return changed;
+}
+
+function forceColonizationDefenseEngagements(playerWasInCombat) {
+  const memory = gameState?.memory?.colonization;
+  if (!memory || memory.stage !== COLONIZATION_STAGE_DEFEND || dialogueState || menusAreOpen()) return null;
+  const defeated = new Set(memory.defenseDefeatedShipIds || []);
+  let initiator = null;
+  for (const state of npcVisualShips.values()) {
+    if (defeated.has(state.id)) continue;
+    const encounter = npcSeaRoutes.shipById.get(state.id)?.encounter;
+    if (encounter?.kind !== "colonization-defense" || encounter.forceAttack !== true) continue;
+    if (Math.hypot(state.x - localLayout.viewX, state.y - localLayout.viewY) > COMBAT_DETECTION_RADIUS_PX) continue;
+    if (!forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, state.id)) continue;
+    shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
+    shipCombatEntryCollisionGrace.set(state.id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
+    if (!playerWasInCombat && !initiator) initiator = state.id;
+  }
+  return initiator;
 }
 
 function captureSuppressesCombatHails() {
@@ -12461,6 +12743,8 @@ function attemptEnvoyIntercession(factionId) {
 }
 
 function npcCombatAttackReason(state) {
+  const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
+  if (encounter?.kind === "colonization-defense") return encounter.challenge;
   if (state.role === NPC_ROLE_PIRATE) {
     return "Your cargo and coin are ours. Heave to, or we open fire!";
   }
@@ -12723,6 +13007,7 @@ function npcPirateMajorPortAvoidance(state) {
 function npcCombatEntity(state) {
   const stats = shipStatsForSlug(state.slug);
   const weapon = npcNavalWeapon(state, stats);
+  const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
   return {
     id: state.id,
     factionId: state.factionId,
@@ -12734,7 +13019,8 @@ function npcCombatEntity(state) {
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? stats.cannons : 0,
     topSpeedRad: stats.topSpeedRad,
     combatGrace: state.combatGrace,
-    npcAttackProtected: false
+    npcAttackProtected: false,
+    forceAttack: encounter?.forceAttack === true
   };
 }
 
@@ -13050,6 +13336,11 @@ function addNpcCombatSplash(ball) {
 }
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
+  if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
+    surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
+    resolveColonizationDefenseAttacker(loserId, "CANOE DRIVEN OFF");
+    return;
+  }
   let playerPrizeSummary = null;
   const npcWinnerId = npcPrizeRecipientId(
     winnerId,
@@ -13137,6 +13428,9 @@ function handleNpcSinking(loserId, winnerId) {
   if (!strategic) return false;
   const visualState = npcVisualShips.get(loserId);
   if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
+  if (strategic.encounter?.kind === "colonization-defense") {
+    return resolveColonizationDefenseAttacker(loserId, "CANOE SUNK");
+  }
   const factionId = strategic.factionId;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerAttackConsequences(loserId, factionId);
@@ -13148,6 +13442,52 @@ function handleNpcSinking(loserId, winnerId) {
     text: "SHIP SUNK",
     expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
   };
+  return true;
+}
+
+function resolveColonizationDefenseAttacker(loserId, noticeText) {
+  const strategic = npcSeaRoutes?.shipById?.get(loserId);
+  const memory = gameState?.memory?.colonization;
+  if (!strategic || strategic.encounter?.kind !== "colonization-defense" ||
+      !memory || !isColonizationDefenseShip(memory, loserId)) {
+    return false;
+  }
+  const targetName = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  }).target.city;
+  sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
+  clearCombatForShip(loserId);
+  npcVisualShips.delete(loserId);
+  npcShipCaptains?.delete(loserId);
+  if (dialogueState?.kind === "ship" && dialogueState.npcShipId === loserId) {
+    dialogueState = null;
+    dialogueLayout = createDialogueLayoutState();
+  }
+  shipCombatEntryCollisionGrace.delete(loserId);
+  npcCombatProjectiles = npcCombatProjectiles.filter(
+    (ball) => ball.ownerId !== loserId && ball.targetId !== loserId
+  );
+  if (!defeatColonizationAttacker(memory, loserId, Math.floor(weatherClockMinutes))) {
+    throw new Error(`Active colony attacker was not recorded as defeated: ${loserId}`);
+  }
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  const quest = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  });
+  const defenseComplete = quest.stage === COLONIZATION_STAGE_REPORT_DEFENSE;
+  combatNotice = {
+    text: noticeText,
+    expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
+  };
+  showSurvivalNotice(
+    defenseComplete
+      ? `ATTACKERS DEFEATED - RETURN TO ${targetName.toUpperCase()}`
+      : `${quest.defenseRemaining} ${quest.defense.objectiveName.toUpperCase()} CANOE${quest.defenseRemaining === 1 ? "" : "S"} REMAIN`,
+    "good"
+  );
+  saveVoyageNow(defenseComplete
+    ? `defended ${targetName} colony`
+    : `defeated a ${quest.defense.objectiveName} canoe`);
   return true;
 }
 
@@ -14553,6 +14893,7 @@ function render(nowMs) {
   }
   beginWaypointArrowFrame();
   drawQuestDestinationArrow(nowMs);
+  drawFetchQuestDestinationArrows(nowMs);
   drawColonizationDestinationArrow(nowMs);
   drawCampaignGoalDestinationArrow(nowMs);
   drawPortNavigationHeadingArrow(nowMs);
@@ -15761,11 +16102,15 @@ function drawCaptainMenuButton() {
 }
 
 function drawCaptainMenu(nowMs) {
+  const panelWidth = Math.min(CAPTAIN_MENU_PANEL_W, SCREEN_W - 12);
+  const naturalMapHeight = Math.floor((panelWidth - 24) * MINIMAP_H / MINIMAP_W);
+  const journalLineCount = Math.max(1, questJournalEntries().length) + 1;
+  const contentHeight = 120 + naturalMapHeight + journalLineCount * localizedLineHeight(10);
   const panel = {
-    x: Math.floor((SCREEN_W - Math.min(CAPTAIN_MENU_PANEL_W, SCREEN_W - 12)) / 2),
-    y: Math.floor((SCREEN_H - Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12)) / 2),
-    w: Math.min(CAPTAIN_MENU_PANEL_W, SCREEN_W - 12),
-    h: Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12)
+    x: Math.floor((SCREEN_W - panelWidth) / 2),
+    y: Math.floor((SCREEN_H - Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12, contentHeight)) / 2),
+    w: panelWidth,
+    h: Math.min(CAPTAIN_MENU_PANEL_H, SCREEN_H - 12, contentHeight)
   };
   captainMenu.panelRect = panel;
   captainMenu.closeButtonRect = {
@@ -15846,11 +16191,183 @@ function drawItemAcquisitionEffects(nowMs) {
   }
 }
 
+function vikingLongshipQuestPort() {
+  return portCities.find((city) => isVikingLongshipQuestPort(city)) || null;
+}
+
+function currentFetchQuestRequirements() {
+  if (!gameState) return [];
+  const vikingPort = vikingLongshipQuestPort();
+  return fetchQuestRequirements({
+    colonization: colonizationQuestView(gameState, {
+      currentMinute: Math.max(0, weatherClockMinutes)
+    }),
+    viking: vikingPort ? vikingLongshipQuestState(gameState, vikingPort) : null,
+    vikingPort
+  });
+}
+
+function currentReadyFetchQuestDestinations() {
+  return readyFetchQuestDestinations(currentFetchQuestRequirements());
+}
+
+function questJournalEntries() {
+  if (!gameState) return [];
+  const entries = [];
+  const campaignDestination = activeCampaignGoalDestination();
+  if (campaignDestination) {
+    const navigation = campaignNavigationMenuEntry(campaignDestination);
+    entries.push({
+      id: "campaign",
+      title: uiText("quest.mainVoyage"),
+      nextStep: uiText("quest.actionAt", {
+        action: renderedUiText(navigation.reason),
+        city: navigation.destinationName
+      }),
+      style: CAMPAIGN_NAVIGATION_STYLE
+    });
+  }
+
+  const activeQuest = gameState.memory.quests.active;
+  const activeDestination = activeQuestDestinationPort();
+  if (activeQuest && activeDestination) {
+    const titleKey = activeQuest.kind === "passenger"
+      ? "quest.passenger"
+      : activeQuest.kind === "delivery"
+        ? "quest.delivery"
+        : isEnvoyQuest(activeQuest) ? "quest.diplomacy" : "quest.mission";
+    entries.push({
+      id: `travel:${activeQuest.id}`,
+      title: uiText(titleKey),
+      nextStep: uiText("quest.sailTo", { city: cityLabelText(activeDestination) }),
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
+
+  const colonization = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  });
+  const colonyEntry = colonizationJournalEntry(colonization);
+  if (colonyEntry) entries.push(colonyEntry);
+
+  const vikingPort = vikingLongshipQuestPort();
+  const viking = vikingPort ? vikingLongshipQuestState(gameState, vikingPort) : null;
+  const vikingEntry = vikingLongshipJournalEntry(viking, vikingPort);
+  if (vikingEntry) entries.push(vikingEntry);
+  return entries;
+}
+
+function colonizationJournalEntry(quest) {
+  if (!quest?.target || [COLONIZATION_STAGE_FAILED, COLONIZATION_STAGE_ESTABLISHED].includes(quest.stage)) {
+    return null;
+  }
+  const title = uiText("quest.colony", { city: quest.target.city });
+  let nextStep = null;
+  if (quest.stage === "fetch" && quest.fetchStage) {
+    nextStep = fetchQuestJournalStep({
+      held: quest.held,
+      quantity: quest.fetchStage.quantity,
+      goodLabel: quest.fetchStage.goodLabel,
+      destination: quest.origin
+    });
+  } else if (quest.stage === COLONIZATION_STAGE_READY) {
+    nextStep = uiText("quest.returnToEmbark", { city: quest.origin.city });
+  } else if (quest.stage === "outbound") {
+    if (quest.approval && quest.approvalGranted !== true) {
+      const missing = quest.approvalCargo.find((entry) => entry.missing > 0);
+      nextStep = missing
+        ? fetchQuestJournalStep({
+            held: missing.held,
+            quantity: missing.quantity,
+            goodLabel: missing.goodLabel,
+            destination: quest.approval
+          })
+        : uiText("quest.actionAt", {
+            action: uiText("navigation.securePermission"),
+            city: quest.approval.city
+          });
+    } else {
+      nextStep = uiText("quest.actionAt", {
+        action: uiText("navigation.foundColony"),
+        city: quest.target.city
+      });
+    }
+  } else if (quest.stage === "awaiting-resupply") {
+    nextStep = quest.leftSinceFounding
+      ? fetchQuestJournalStep({
+          held: quest.resupplyHeld,
+          quantity: quest.resupply.quantity,
+          goodLabel: quest.resupply.goodLabel,
+          destination: quest.target
+        })
+      : uiText("quest.leaveAndReturn", {
+          city: quest.target.city,
+          quantity: quest.resupply.quantity,
+          good: renderedUiText(quest.resupply.goodLabel)
+        });
+  } else if (quest.stage === COLONIZATION_STAGE_DEFEND) {
+    nextStep = uiText("quest.defeatAt", {
+      count: quest.defenseRemaining,
+      enemy: quest.defense.objectiveName,
+      city: quest.target.city
+    });
+  } else if (quest.stage === COLONIZATION_STAGE_REPORT_DEFENSE) {
+    nextStep = uiText("quest.returnTo", { city: quest.target.city });
+  }
+  return nextStep ? {
+    id: "colonization",
+    title,
+    nextStep,
+    style: COLONIZATION_NAVIGATION_STYLE
+  } : null;
+}
+
+function vikingLongshipJournalEntry(quest, port) {
+  if (!quest || !port) return null;
+  let nextStep = null;
+  if (quest.stage) {
+    nextStep = fetchQuestJournalStep({
+      held: quest.held,
+      quantity: quest.stage.quantity,
+      goodLabel: quest.stage.goodLabel,
+      destination: port
+    });
+  } else if (quest.rewardDisposition === VIKING_LONGSHIP_REWARD_PENDING) {
+    nextStep = uiText("quest.claimAt", { city: port.city });
+  } else if (quest.rewardDisposition === VIKING_LONGSHIP_REWARD_DECLINED) {
+    nextStep = uiText("quest.buyAt", { city: port.city });
+  }
+  return nextStep ? {
+    id: "viking-longship",
+    title: uiText("quest.longship"),
+    nextStep,
+    style: QUEST_NAVIGATION_STYLE
+  } : null;
+}
+
+function fetchQuestJournalStep({ held, quantity, goodLabel, destination }) {
+  const replacements = {
+    held,
+    quantity,
+    good: renderedUiText(goodLabel),
+    city: destination.city
+  };
+  return held >= quantity
+    ? uiText("quest.bringTo", replacements)
+    : uiText("quest.acquireFor", replacements);
+}
+
 function drawCaptainChart(panel, nowMs) {
+  const journal = questJournalEntries();
   const mapW = panel.w - 24;
-  const mapH = Math.min(Math.floor(mapW * MINIMAP_H / MINIMAP_W), panel.h - 82);
   const mapX = panel.x + 12;
   const mapY = panel.y + 34;
+  const navY = captainChartNavigationY(panel);
+  const journalLineHeight = localizedLineHeight(10);
+  const journalHeight = journalLineHeight * (Math.max(1, journal.length) + 1);
+  const journalBottom = navY - localizedLineHeight(20);
+  const mapHeightLimit = Math.max(34, journalBottom - journalHeight - mapY - localizedLineHeight(18));
+  const mapH = Math.min(Math.floor(mapW * MINIMAP_H / MINIMAP_W), mapHeightLimit);
   ctx.fillStyle = "#1a1511";
   ctx.fillRect(mapX - 2, mapY - 2, mapW + 4, mapH + 4);
   ctx.strokeStyle = "#715033";
@@ -15872,7 +16389,31 @@ function drawCaptainChart(panel, nowMs) {
     align: "center",
     color: PIRATE_MENU_INK_MUTED
   });
+  drawQuestJournal(panel, journal, mapY + mapH + localizedLineHeight(22));
   drawCaptainChartNavigation(panel);
+}
+
+function drawQuestJournal(panel, entries, y) {
+  const x = panel.x + 13;
+  const width = panel.w - 26;
+  const lineHeight = localizedLineHeight(10);
+  drawOptionsText(uiText("quest.journal"), x, y, { color: PIRATE_MENU_INK });
+  const rows = entries.length > 0
+    ? entries
+    : [{ id: "none", title: "", nextStep: uiText("quest.none"), style: OPTIONAL_NAVIGATION_STYLE }];
+  rows.forEach((entry, index) => {
+    const rowY = y + lineHeight * (index + 1);
+    ctx.fillStyle = entry.style.dark;
+    ctx.fillRect(x, rowY + Math.floor((pixelFontSizePx(PIXEL_FONT_SMALL_8) - 3) / 2), 3, 3);
+    const text = entry.title ? `${entry.title}: ${entry.nextStep}` : entry.nextStep;
+    drawOptionsText(fitPixelText(text, PIXEL_FONT_SMALL_8, width - 7), x + 7, rowY, {
+      color: PIRATE_MENU_INK_MUTED
+    });
+  });
+}
+
+function captainChartNavigationY(panel) {
+  return panel.y + panel.h - 36 - 8;
 }
 
 function drawCaptainChartNavigation(panel) {
@@ -15882,7 +16423,7 @@ function drawCaptainChartNavigation(panel) {
   const itemW = Math.floor((availableW - gap * (CAPTAIN_MENU_ACTIONS.length - 1)) / CAPTAIN_MENU_ACTIONS.length);
   const totalW = itemW * CAPTAIN_MENU_ACTIONS.length + gap * (CAPTAIN_MENU_ACTIONS.length - 1);
   const startX = panel.x + Math.floor((panel.w - totalW) / 2);
-  const y = panel.y + panel.h - navH - 8;
+  const y = captainChartNavigationY(panel);
   captainMenu.itemRects = CAPTAIN_MENU_ACTIONS.map((_, index) => ({
     x: startX + index * (itemW + gap),
     y,
@@ -15938,17 +16479,31 @@ function navigationMenuEntries() {
     });
   }
 
-  const colonizationTarget = colonizationObjective(gameState.memory.colonization);
+  const colonizationTarget = activeColonizationObjective();
   if (colonizationTarget) {
-    const destination = colonizationWorldRecord(gameState.memory.colonization);
+    const destination = colonizationObjectiveDestination(gameState, colonizationTarget);
     if (!destination) throw new Error("Colonization navigation destination is missing");
     entries.push({
       id: `colonization:${colonizationTarget.kind}:${colonizationTarget.tileId}`,
       destinationName: cityLabelText(destination),
       colorLabel: "BLUE",
-      reason: colonizationTarget.kind === "found-colony" ? "FOUND THE COLONY" : "RESUPPLY THE COLONY",
+      reason: colonizationNavigationReason(colonizationTarget),
       style: COLONIZATION_NAVIGATION_STYLE,
       targetVector: tileCenterVector(colonizationTarget.tileId),
+      optionalWaypointId: null
+    });
+  }
+
+  for (const fetchTarget of currentReadyFetchQuestDestinations()) {
+    if (fetchTarget.questId === "colonization") continue;
+    const destination = fetchQuestWorldDestination(fetchTarget);
+    entries.push({
+      id: `fetch:${fetchTarget.id}`,
+      destinationName: cityLabelText(destination),
+      colorLabel: "GOLD",
+      reason: uiText("navigation.deliverLongshipMaterials"),
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: latLonToDirection(destination.lat, destination.lon),
       optionalWaypointId: null
     });
   }
@@ -15969,6 +16524,59 @@ function navigationMenuEntries() {
     });
   }
   return entries;
+}
+
+function activeColonizationObjective() {
+  const quest = colonizationQuestView(gameState, {
+    currentMinute: Math.max(0, weatherClockMinutes)
+  });
+  const objective = colonizationObjective(gameState.memory.colonization);
+  if (objective?.kind === "negotiate-colony" && !quest.approvalCargoReady) return null;
+  if (objective?.kind === "resupply-colony" && quest.resupplyHeld < quest.resupply.quantity) return null;
+  if (objective) return objective;
+  if (quest.stage === "fetch" && quest.canDeliverFetch) {
+    return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
+  }
+  return null;
+}
+
+function fetchQuestWorldDestination(fetchTarget) {
+  const destination = portCitiesByTileId?.get(fetchTarget.destination.tileId) ||
+    cityByTileId?.get(fetchTarget.destination.tileId);
+  if (!destination || !Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) {
+    throw new Error(`Fetch quest destination is not a placed port: ${fetchTarget.destination.city}`);
+  }
+  return destination;
+}
+
+function colonizationObjectiveDestination(state, objective) {
+  if (objective.kind === "deliver-colony-materials") {
+    const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
+    if (!quest.origin || quest.origin.tileId !== objective.tileId) {
+      throw new Error("Colonization material objective has no sponsor port");
+    }
+    return portCitiesByTileId.get(objective.tileId) || quest.origin;
+  }
+  if (objective.kind === "negotiate-colony") {
+    const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
+    if (!quest.approval || quest.approval.tileId !== objective.tileId) {
+      throw new Error("Colonization negotiation objective has no approval port");
+    }
+    return quest.approval;
+  }
+  return colonizationWorldRecord(state.memory.colonization);
+}
+
+function colonizationNavigationReason(objective) {
+  if (objective.kind === "deliver-colony-materials") return uiText("navigation.deliverColonyMaterials");
+  if (objective.kind === "negotiate-colony") return "SECURE PERMISSION";
+  if (objective.kind === "found-colony") return "FOUND THE COLONY";
+  if (objective.kind === "resupply-colony") return "RESUPPLY THE COLONY";
+  if (objective.kind === "defend-colony") {
+    return `DEFEAT THE ATTACKING ${objective.attackerName.toUpperCase()}`;
+  }
+  if (objective.kind === "report-colony-defense") return "REPORT THE COLONY'S DEFENSE";
+  throw new Error(`Unknown colonization objective: ${objective.kind}`);
 }
 
 function navigationQuestReason(quest) {
@@ -22023,9 +22631,9 @@ function drawPortNavigationHeadingArrow(nowMs) {
 
 function drawColonizationDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout || !gameState) return;
-  const objective = colonizationObjective(gameState.memory.colonization);
+  const objective = activeColonizationObjective();
   if (!objective) return;
-  const destination = colonizationWorldRecord(gameState.memory.colonization);
+  const destination = colonizationObjectiveDestination(gameState, objective);
   if (!destination) throw new Error("Colonization objective has no world destination");
   const targetVector = tileCenterVector(objective.tileId);
   const visibleCity = chart.cityCalls?.find((call) => call.tileId === objective.tileId);
@@ -22038,6 +22646,25 @@ function drawColonizationDestinationArrow(nowMs) {
     nowMs,
     style: COLONIZATION_NAVIGATION_STYLE
   });
+}
+
+function drawFetchQuestDestinationArrows(nowMs) {
+  if (!ship || !chart || !localLayout || !gameState) return;
+  for (const fetchTarget of currentReadyFetchQuestDestinations()) {
+    if (fetchTarget.questId === "colonization") continue;
+    const destination = fetchQuestWorldDestination(fetchTarget);
+    const targetVector = latLonToDirection(destination.lat, destination.lon);
+    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    drawWorldTargetArrow({
+      id: `fetch:${fetchTarget.id}`,
+      label: cityLabelText(destination),
+      targetVector,
+      localPoint: visibleCity || localPointForGlobeVector(targetVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
 }
 
 function beginWaypointArrowFrame() {

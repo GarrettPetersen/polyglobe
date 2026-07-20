@@ -202,7 +202,7 @@ export function declareDiplomaticWar(state, attackerId, defenderId, simMinute, i
       kind: "war",
       factionAId: attackerId,
       factionBId: defenderId,
-      reason: playerInfluenceReason(influence, attackerId, defenderId),
+      reason: diplomacyEventReason(influence, attackerId, defenderId),
       headline: `${factionName(attackerId)} declares war on ${factionName(defenderId)}.`
     }));
   }
@@ -247,7 +247,7 @@ export function makeDiplomaticPeace(state, factionAId, factionBId, simMinute, in
     kind: "peace",
     factionAId,
     factionBId,
-    reason: playerInfluenceReason(influence, factionAId, factionBId),
+    reason: diplomacyEventReason(influence, factionAId, factionBId),
     headline: `${factionName(factionAId)} and ${factionName(factionBId)} make peace.`
   })];
   recordDiplomacyEvents(state, events);
@@ -283,7 +283,7 @@ export function adjustDiplomaticStance(
     factionBId,
     previousRelation: previous,
     relation,
-    reason: playerInfluenceReason(influence, factionAId, factionBId),
+    reason: diplomacyEventReason(influence, factionAId, factionBId),
     headline: stanceHeadline(kind, factionAId, factionBId)
   })];
   recordDiplomacyEvents(state, events);
@@ -447,6 +447,13 @@ function playerInfluenceReason(influence, factionAId, factionBId) {
   const warBias = playerDiplomacyBias(influence, factionAId, factionBId, "war");
   const peaceBias = playerDiplomacyBias(influence, factionAId, factionBId, "peace");
   return warBias !== 1 || peaceBias !== 1 ? "player-influenced" : "world";
+}
+
+function diplomacyEventReason(influence, factionAId, factionBId) {
+  if (typeof influence?.eventReason === "string" && influence.eventReason.trim() !== "") {
+    return influence.eventReason.trim();
+  }
+  return playerInfluenceReason(influence, factionAId, factionBId);
 }
 
 function decisionCount(decisions, key) {

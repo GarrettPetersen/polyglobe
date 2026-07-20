@@ -158,6 +158,17 @@ test("damaged ships flee and sufficient distance ends combat", () => {
   assert.deepEqual(escaped.startedEngagements, []);
 });
 
+test("quest attackers press their attack even when badly outmatched", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "merchant", "england", 0, 0, 100, 20);
+  const canoe = ship("quest-canoe", "warship", "neutral", 20, 0, 2, 0);
+  canoe.forceAttack = true;
+  forceShipEngagement(state, player.id, canoe.id);
+
+  const result = updateShipCombatState(state, [player, canoe], () => "neutral");
+  assert.equal(result.intents.get(canoe.id).mode, COMBAT_MODE_ATTACK);
+});
+
 test("player combat allegiance distinguishes enemies, allies, and neutral ships", () => {
   assert.equal(playerCombatAllegiance("england", "france", true), "enemy");
   assert.equal(playerCombatAllegiance("england", "spain", true), "friendly");

@@ -8,7 +8,9 @@ import {
   CINNAMON_GOOD_ID,
   CLOVE_GOOD_ID,
   FRESH_WATER_GOOD_ID,
+  GUNPOWDER_GOOD_ID,
   HARDTACK_GOOD_ID,
+  MATCHLOCKS_GOOD_ID,
   NUTMEG_GOOD_ID,
   TRADE_GOODS,
   WINE_GOOD_ID,
@@ -70,7 +72,7 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   for (const goodId of [
     "hardtack", "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
     BEAVER_PELTS_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
-    "fresh-water", "tea", "porcelain", "ivory", "silver", "gold"
+    GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID, "fresh-water", "tea", "porcelain", "ivory", "silver", "gold"
   ]) {
     assert.ok(ids.has(goodId), goodId);
   }
@@ -81,6 +83,20 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
 test("wine is a drink rather than edible cargo", () => {
   assert.equal(tradeGoodById(WINE_GOOD_ID).category, "drink");
   assert.notEqual(tradeGoodById(WINE_GOOD_ID).category, "food");
+});
+
+test("European matchlocks and Eurasian gunpowder support a valuable Japan trade", () => {
+  const lisbon = port(70, "Lisbon", "Portugal", "mediterranean", 65000);
+  const kyoto = port(71, "Kyoto", "Japan", "east-asian", 100000);
+  const economy = createWorldEconomy({ ports: [lisbon, kyoto], startMinute: 0 });
+  const lisbonMarket = marketByGood(economy, lisbon);
+  const kyotoMarket = marketByGood(economy, kyoto);
+
+  assert.ok(lisbonMarket.get(GUNPOWDER_GOOD_ID).productionPerDay > 0);
+  assert.ok(kyotoMarket.get(GUNPOWDER_GOOD_ID).productionPerDay > 0);
+  assert.ok(lisbonMarket.get(MATCHLOCKS_GOOD_ID).productionPerDay > 0);
+  assert.equal(kyotoMarket.get(MATCHLOCKS_GOOD_ID).productionPerDay, 0);
+  assert.ok(lisbonMarket.get(MATCHLOCKS_GOOD_ID).buyPrice < kyotoMarket.get(MATCHLOCKS_GOOD_ID).sellPrice);
 });
 
 test("cargo lots create a clear value-per-hold hierarchy without inflating nominal prices", () => {

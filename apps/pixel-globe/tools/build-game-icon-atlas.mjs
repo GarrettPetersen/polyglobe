@@ -29,8 +29,18 @@ async function main() {
   const ctx = canvas.getContext("2d", { alpha: true, willReadFrequently: true });
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const appendGeneratedOnly = process.env.PIXEL_GLOBE_APPEND_GENERATED_ICONS === "1";
+  if (appendGeneratedOnly) {
+    if (!existsSync(outputPath)) throw new Error(`Missing existing game icon atlas: ${outputPath}`);
+    const existing = await loadImage(outputPath);
+    if (existing.width !== dimensions.width || existing.height !== dimensions.height) {
+      throw new Error(`Existing game icon atlas has stale dimensions: ${existing.width}x${existing.height}`);
+    }
+    ctx.drawImage(existing, 0, 0);
+  }
 
   for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
+    if (appendGeneratedOnly && !source.generatedId) continue;
     const image = await loadIconSource(source);
     const crop = source.crop || { x: 0, y: 0, w: image.width, h: image.height };
     if (crop.x < 0 || crop.y < 0 || crop.x + crop.w > image.width || crop.y + crop.h > image.height) {
@@ -108,11 +118,52 @@ function generateIcon(generatedId) {
   if (generatedId === "gray-waypoint-arrow") return generateGrayWaypointArrow();
   if (generatedId === "cinnamon-sticks") return generateCinnamonSticks();
   if (generatedId === "beaver-pelt") return generateBeaverPelt();
+  if (generatedId === "gunpowder-keg") return generateGunpowderKeg();
+  if (generatedId === "matchlock") return generateMatchlock();
   if (generatedId === "back-arrow") return generateBackArrow();
   if (generatedId === "play-arrow") return generatePlayArrow();
   if (generatedId === "restart-arrow") return generateRestartArrow();
   if (generatedId === "surrender-flag") return generateSurrenderFlag();
   throw new Error(`Unknown generated game icon: ${generatedId}`);
+}
+
+function generateGunpowderKeg() {
+  const { canvas, ctx } = generatedIconCanvas();
+  const body = [];
+  for (let y = 3; y <= 13; y++) {
+    const inset = y === 3 || y === 13 ? 1 : 0;
+    for (let x = 4 + inset; x <= 11 - inset; x++) body.push([x, y]);
+  }
+  drawOutlinedPixels(ctx, body, "#8f563b");
+  ctx.fillStyle = "#3b2027";
+  ctx.fillRect(4, 5, 8, 1);
+  ctx.fillRect(4, 11, 8, 1);
+  ctx.fillRect(7, 7, 2, 3);
+  ctx.fillStyle = "#1a1c2c";
+  ctx.fillRect(7, 8, 2, 1);
+  ctx.fillStyle = "#d3a068";
+  ctx.fillRect(5, 6, 1, 4);
+  return canvas;
+}
+
+function generateMatchlock() {
+  const { canvas, ctx } = generatedIconCanvas();
+  const barrel = [
+    [2, 3], [3, 3], [3, 4], [4, 4], [5, 4], [5, 5], [6, 5], [7, 5],
+    [7, 6], [8, 6], [9, 6], [9, 7], [10, 7]
+  ];
+  const stock = [
+    [8, 7], [9, 8], [10, 8], [10, 9], [11, 9], [12, 9], [12, 10],
+    [13, 10], [12, 11], [11, 11], [11, 10], [10, 10], [9, 9]
+  ];
+  drawOutlinedPixels(ctx, [...barrel, ...stock, [8, 8], [7, 8]], "#94b0c2");
+  ctx.fillStyle = "#8f563b";
+  for (const [x, y] of stock) ctx.fillRect(x, y, 1, 1);
+  ctx.fillStyle = "#d3a068";
+  ctx.fillRect(9, 8, 1, 1);
+  ctx.fillStyle = "#fbb954";
+  ctx.fillRect(7, 8, 1, 1);
+  return canvas;
 }
 
 function generateBackArrow() {

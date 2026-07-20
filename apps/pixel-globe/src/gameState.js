@@ -104,6 +104,8 @@ export const PIRATE_REPUTATION_GAIN_PER_PIRACY = 8;
 export const PIRATE_HIDEOUT_REPUTATION_REQUIRED = -25;
 export const TRADE_REPUTATION_GAIN = 0.2;
 export const DELIVERY_REPUTATION_GAIN = 2;
+export const DELIVERY_SPAWN_CHANCE = 0.32;
+export const DELIVERY_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
 export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
 export const PIRACY_REPUTATION_PENALTY = -3;
 export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
@@ -241,8 +243,11 @@ export function createGameState({
       quests: {
         active: null,
         completed: {},
+        deliveryOffers: {},
+        deliveryRolls: {},
         passengerOffers: {},
-        passengerRolls: {}
+        passengerRolls: {},
+        vikingLongshipRolls: {}
       },
       cargoReservations: {},
       colonization: createColonizationQuestMemory(),
@@ -2192,7 +2197,10 @@ export function portMemory(state, city) {
   return memory;
 }
 
-export function deliveryQuestForCity(city, portCities) {
+export function deliveryQuestForCity(city, portCities, { offerPeriod = 0 } = {}) {
+  if (!Number.isInteger(offerPeriod) || offerPeriod < 0) {
+    throw new Error(`Invalid delivery offer period: ${offerPeriod}`);
+  }
   const factionId = deliveryFactionId(city);
   const regionKey = deliveryRegionKey(city);
   if (!factionId || !regionKey) return null;
@@ -2204,12 +2212,15 @@ export function deliveryQuestForCity(city, portCities) {
     ))
     .sort((a, b) => cityKey(a).localeCompare(cityKey(b)));
   if (candidates.length === 0) return null;
-  const index = hashString32(`delivery|${cityKey(city)}`) % candidates.length;
+  const index = hashString32(`delivery|${cityKey(city)}|${offerPeriod}`) % candidates.length;
   const destination = candidates[index];
-  const reward = 65 + (hashString32(`reward|${cityKey(city)}|${cityKey(destination)}`) % 96);
+  const reward = 65 + (hashString32(
+    `reward|${cityKey(city)}|${cityKey(destination)}|${offerPeriod}`
+  ) % 96);
   return {
-    id: `delivery-${city.tileId}-${destination.tileId}`,
+    id: `delivery-${city.tileId}-${destination.tileId}-${offerPeriod}`,
     kind: "delivery",
+    offerPeriod,
     originKey: cityKey(city),
     originTileId: city.tileId,
     originName: cityLabel(city),
@@ -2223,6 +2234,43 @@ export function deliveryQuestForCity(city, portCities) {
     distanceKm: Math.round(greatCircleDistanceKm(city, destination)),
     reward
   };
+}
+
+export function deliveryOfferForCity(state, city, portCities, context = {}) {
+  assertGameState(state);
+  const quests = questMemory(state);
+  const existing = pendingDeliveryOfferForCity(state, city);
+  if (existing || quests.active) return existing;
+
+  const offerPeriod = deliveryRollPeriod(context.simMinute);
+  const candidate = deliveryQuestForCity(city, portCities, { offerPeriod });
+  if (!candidate) return null;
+
+  const rollKey = `${candidate.originKey}|${offerPeriod}`;
+  if (quests.deliveryRolls[rollKey]) return null;
+  quests.deliveryRolls[rollKey] = true;
+  pruneQuestRolls(quests.deliveryRolls);
+
+  const spawnChance = deliverySpawnChance(context.spawnChance);
+  const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
+  if (spawnChance < 1 && seededFraction(`${identityKey}|${rollKey}|delivery`) >= spawnChance) {
+    return null;
+  }
+  quests.deliveryOffers[candidate.originKey] = candidate;
+  return candidate;
+}
+
+export function pendingDeliveryOfferForCity(state, city) {
+  if (!state || !city) return null;
+  const quests = questMemory(state);
+  const originKey = cityKey(city);
+  const offer = quests.deliveryOffers[originKey];
+  if (!offer) return null;
+  if (quests.completed[offer.id]) {
+    delete quests.deliveryOffers[originKey];
+    return null;
+  }
+  return offer;
 }
 
 export function reconcileQuestPortTiles(state, portCities) {
@@ -2239,6 +2287,12 @@ export function reconcileQuestPortTiles(state, portCities) {
   };
 
   reconcile(quests.active);
+  const deliveryOffers = {};
+  for (const [storedKey, offer] of Object.entries(quests.deliveryOffers)) {
+    reconcile(offer);
+    deliveryOffers[offer?.originKey || storedKey] = offer;
+  }
+  quests.deliveryOffers = deliveryOffers;
   const offers = {};
   for (const [storedKey, offer] of Object.entries(quests.passengerOffers)) {
     reconcile(offer);
@@ -2257,10 +2311,10 @@ export function questStateForCity(state, city, portCities) {
     if (active.originTileId === city.tileId) return { kind: "in-progress-here", quest: active };
     return { kind: "busy", quest: active };
   }
-  const quest = deliveryQuestForCity(city, portCities);
-  if (!quest) return { kind: "unavailable", quest: null };
-  if (quests.completed[quest.id]) return { kind: "completed", quest };
-  return { kind: "available", quest };
+  const offer = pendingDeliveryOfferForCity(state, city);
+  return offer
+    ? { kind: "available", quest: offer }
+    : { kind: "unavailable", quest: null };
 }
 
 export function acceptQuest(state, quest) {
@@ -2272,6 +2326,7 @@ export function acceptQuest(state, quest) {
   if ((quest.kind === "passenger" || isEnvoyQuest(quest)) && quest.originKey) {
     delete quests.passengerOffers[quest.originKey];
   }
+  if (quest.kind === "delivery" && quest.originKey) delete quests.deliveryOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
 }
 
@@ -3062,9 +3117,34 @@ function questMemory(state) {
   }
   const quests = state.memory.quests;
   if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
+  if (!quests.deliveryOffers || typeof quests.deliveryOffers !== "object") quests.deliveryOffers = {};
+  if (!quests.deliveryRolls || typeof quests.deliveryRolls !== "object") quests.deliveryRolls = {};
   if (!quests.passengerOffers || typeof quests.passengerOffers !== "object") quests.passengerOffers = {};
   if (!quests.passengerRolls || typeof quests.passengerRolls !== "object") quests.passengerRolls = {};
   return quests;
+}
+
+function deliveryRollPeriod(simMinute) {
+  if (!Number.isFinite(simMinute)) return 0;
+  if (simMinute < 0) throw new Error(`Invalid delivery offer minute: ${simMinute}`);
+  return Math.floor(simMinute / DELIVERY_ROLL_PERIOD_MINUTES);
+}
+
+function deliverySpawnChance(value) {
+  const chance = value ?? DELIVERY_SPAWN_CHANCE;
+  if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
+    throw new Error(`Invalid delivery spawn chance: ${chance}`);
+  }
+  return chance;
+}
+
+function seededFraction(value) {
+  return hashString32(value) / 0x100000000;
+}
+
+function pruneQuestRolls(rolls) {
+  const keys = Object.keys(rolls);
+  for (const key of keys.slice(0, Math.max(0, keys.length - 256))) delete rolls[key];
 }
 
 function assertPlayerCharacter(character) {
