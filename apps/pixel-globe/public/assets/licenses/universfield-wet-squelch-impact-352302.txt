@@ -1,0 +1,12 @@
+Title: Wet Squelch Impact
+Creator: Universfield
+Source: Pixabay
+Sound effect ID: 352302
+Source page: https://pixabay.com/sound-effects/film-special-effects-wet-squelch-impact-352302/
+License: Pixabay Content License
+Downloaded: 2026-07-19
+
+The unmodified downloaded MP3 is preserved at:
+assets-source/sfx/universfield-wet-squelch-impact-352302.mp3
+
+The production Ogg Vorbis file was converted locally with metadata removed.

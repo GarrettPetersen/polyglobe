@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "전체 화면 끄기",
   "options.fullscreenUnavailable": "전체 화면 사용 불가",
   "options.returnToMainMenu": "주 메뉴로 돌아가기",
+  "start.title": "사략과 보복",
   "start.continue": "계속하기",
   "start.loading": "불러오는 중...",
   "start.newGame": "새 게임",

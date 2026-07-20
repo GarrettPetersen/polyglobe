@@ -52,6 +52,7 @@ import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import { shipyardPurchaseTerms } from "./shipyards.js";
 import { FISHING_NETS } from "./fishingNets.js";
 import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
@@ -142,6 +143,7 @@ export function createPortDialogueSession(city, options = {}) {
     marketPurchases: {},
     marketSaleGoodIds: [],
     tradeTip: null,
+    shipHandover: null,
     rumorText: options.rumorText || null,
     selectedIndex: 0,
     feedback: null
@@ -638,6 +640,21 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   return withPortExitFooter(portDialogueNodeView(session, city, gameState, economy, portCities, context));
 }
 
+export function beginShipHandoverDialogue(session, { shipSlug, transactionText, sellerTitle }) {
+  if (!session || session.kind !== "port") throw new Error("Ship handover requires a port dialogue session");
+  shipStatsForSlug(shipSlug);
+  if (typeof transactionText !== "string" || transactionText.trim() === "") {
+    throw new Error("Ship handover requires a transaction message");
+  }
+  if (typeof sellerTitle !== "string" || sellerTitle.trim() === "") {
+    throw new Error("Ship handover requires a seller title");
+  }
+  session.shipHandover = { shipSlug, transactionText: transactionText.trim(), sellerTitle: sellerTitle.trim() };
+  session.nodeId = "ship-handover";
+  session.selectedIndex = 0;
+  session.feedback = null;
+}
+
 function portDialogueNodeView(session, city, gameState, economy, portCities, context) {
   if (session.nodeId === "drunk-captain") return drunkCaptainArrivalView(session, gameState);
   if (session.nodeId === "drunk-factor") return drunkFactorArrivalView(session, city);
@@ -657,6 +674,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
+  if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
@@ -729,6 +747,7 @@ export function selectPortDialogueOption(
   if (action.type === "node") {
     if (action.nodeId === "buy") session.marketPurchases = {};
     if (session.nodeId === "trade-tip") session.tradeTip = null;
+    if (session.nodeId === "ship-handover") session.shipHandover = null;
     session.nodeId = action.nodeId;
     session.selectedIndex = 0;
     session.feedback = null;
@@ -1796,6 +1815,18 @@ function shipyardView(session, city, gameState, context) {
       }),
       option("Back", { type: "node", nodeId: "root" })
     ]
+  };
+}
+
+function shipHandoverView(session, city) {
+  const handover = session.shipHandover;
+  if (!handover) throw new Error("Ship handover dialogue has no vessel");
+  return {
+    speaker: `${characterName(city.character)}, ${handover.sellerTitle}`,
+    expressionId: "pleased",
+    text: `${handover.transactionText} ${shipHandoverHistoryForSlug(handover.shipSlug)}`,
+    feedback: null,
+    options: [option("Continue", { type: "node", nodeId: "root" })]
   };
 }
 

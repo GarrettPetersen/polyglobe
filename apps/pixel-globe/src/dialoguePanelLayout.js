@@ -281,7 +281,9 @@ export function dialogueOptionWindow({
     selectedIndex: safeSelectedIndex,
     scrollOffset: safeScrollOffset,
     start: safeScrollOffset,
-    end: safeScrollOffset + safeVisibleCount
+    end: safeScrollOffset + safeVisibleCount,
+    canScrollUp: safeScrollOffset > 0,
+    canScrollDown: safeScrollOffset + safeVisibleCount < optionCount
   });
 }
 

@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "QUITTER LE PLEIN ÉCRAN",
   "options.fullscreenUnavailable": "PLEIN ÉCRAN INDISPONIBLE",
   "options.returnToMainMenu": "RETOUR AU MENU PRINCIPAL",
+  "start.title": "MARQUE ET REPRÉSAILLES",
   "start.continue": "CONTINUER",
   "start.loading": "CHARGEMENT...",
   "start.newGame": "NOUVELLE PARTIE",

@@ -204,6 +204,11 @@ import {
   createWhaleBlowBurst,
   whaleBlowParticleFrame
 } from "./whaleBlowParticles.js";
+import {
+  createWhaleKillEffect,
+  whaleKillEffectComplete,
+  whaleKillEffectFrame
+} from "./whaleKillParticles.js";
 import { selectWhaleTargetAtPoint } from "./whaleTargeting.js";
 import {
   WHALE_PHASE_EXHAUSTED,
@@ -295,6 +300,7 @@ import {
 } from "./discoveries.js";
 import { validateExplorerReportDialogueCatalog } from "./explorerDiscoveryDialogue.js";
 import {
+  beginShipHandoverDialogue,
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
@@ -454,6 +460,7 @@ import {
   LANGUAGE_ENGLISH,
   languageFontProfile,
   languageNativeLabel,
+  languageTitleFont,
   languageUsesTallPixelMetrics,
   localizeText,
   nextLanguage,
@@ -1338,7 +1345,7 @@ const NAVIGATION_MENU_ROW_H = 38;
 const NAVIGATION_MENU_PAGE_SIZE = 4;
 const SHIP_INFO_ASSET_VERSION = "native-boats-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "crew-death-1";
+const SFX_ASSET_VERSION = "whale-kill-1";
 const ANIMAL_ASSET_VERSION = "whale-species-1";
 const STORM_SHIP_STRIKE_ASSET_VERSION = "infected-tribe-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
@@ -1447,6 +1454,7 @@ const SFX_SCAVENGE_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_FIRE_URL = "assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg";
 const SFX_CREW_DEATH_URL = "assets/sfx/universfield-dramatic-death-collapse-352720.ogg";
 const SFX_WHALE_BLOW_URL = "assets/sfx/nps-humpback-whale-surface-blow.ogg";
+const SFX_WHALE_KILL_URL = "assets/sfx/universfield-wet-squelch-impact-352302.ogg";
 const SFX_WHALE_SONG_URLS = Object.freeze([
   "assets/sfx/dragon-studio-creepy-whale-song-323612.ogg",
   "assets/sfx/dragon-studio-haunting-whale-song-515260.ogg",
@@ -1468,6 +1476,7 @@ const SFX_SCAVENGE_FAILURE_POOL_SIZE = 2;
 const SFX_LIGHTNING_POOL_SIZE = 2;
 const SFX_CREW_DEATH_POOL_SIZE = 2;
 const SFX_WHALE_BLOW_POOL_SIZE = 3;
+const SFX_WHALE_KILL_POOL_SIZE = 2;
 const SFX_CANNON_VOLUME = 0.76;
 const SFX_BOW_FIRE_VOLUME = 0.68;
 const SFX_ARROW_HIT_VOLUME = 0.54;
@@ -1483,6 +1492,7 @@ const SFX_SCAVENGE_FAILURE_VOLUME = 0.44;
 const SFX_LIGHTNING_VOLUME = 0.72;
 const SFX_CREW_DEATH_VOLUME = 0.52;
 const SFX_WHALE_BLOW_VOLUME = 0.7;
+const SFX_WHALE_KILL_VOLUME = 0.86;
 const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
@@ -1666,6 +1676,7 @@ let fishCatchNotice = null;
 let fishingAction = null;
 let whaleHarpoonProjectile = null;
 let whaleBlowBursts = [];
+let whaleKillEffects = [];
 let survivalNotice = null;
 let images;
 let shipImage;
@@ -4020,6 +4031,7 @@ function setupSoundEffects() {
     ),
     crewDeath: createSoundPool(SFX_CREW_DEATH_URL, SFX_CREW_DEATH_POOL_SIZE, "crew death"),
     whaleBlow: createSoundPool(SFX_WHALE_BLOW_URL, SFX_WHALE_BLOW_POOL_SIZE, "whale surface blow"),
+    whaleKill: createSoundPool(SFX_WHALE_KILL_URL, SFX_WHALE_KILL_POOL_SIZE, "whale killing blow"),
     whaleSongs: createAmbientPlaylist(SFX_WHALE_SONG_URLS, "underwater whale song"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
@@ -4260,7 +4272,8 @@ function applyThemeAudioSettings() {
       ...soundEffects.scavengeSuccess,
       ...soundEffects.scavengeFailure,
       ...soundEffects.lightning,
-      ...soundEffects.whaleBlow
+      ...soundEffects.whaleBlow,
+      ...soundEffects.whaleKill
     ]) {
       audio.muted = optionsMenu.muted;
     }
@@ -4331,6 +4344,10 @@ function playCrewDeathSound() {
 
 function playWhaleBlowSound() {
   playSoundEffect(soundEffects?.whaleBlow, SFX_WHALE_BLOW_VOLUME, 0.96 + Math.random() * 0.08);
+}
+
+function playWhaleKillSound() {
+  playSoundEffect(soundEffects?.whaleKill, SFX_WHALE_KILL_VOLUME, 0.97 + Math.random() * 0.05);
 }
 
 function playWhaleLineBreakSound() {
@@ -6339,6 +6356,7 @@ async function restoreSavedVoyage(payload) {
   fishingAction = null;
   whaleHarpoonProjectile = null;
   whaleBlowBursts = [];
+  whaleKillEffects = [];
   shoreScavengeAction = null;
   portWaitState = null;
   portWaitButtonRect = null;
@@ -8428,10 +8446,14 @@ async function purchaseShipyardShip(action) {
     applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     playCoinClinkSound();
-    session.feedback = purchaseTerms.netPrice >= 0
-      ? `Purchased ${listing.shipLabel} for ${purchaseTerms.netPrice} doubloons after trade-in.`
-      : `Traded for ${listing.shipLabel} and received ${-purchaseTerms.netPrice} doubloons.`;
-    session.selectedIndex = 0;
+    beginShipHandoverDialogue(session, {
+      shipSlug: listing.shipSlug,
+      transactionText: purchaseTerms.netPrice >= 0
+        ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
+        : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`,
+      sellerTitle: city.isPirateHideout ? "hidden-yard broker" : "shipwright"
+    });
+    dialogueLayout.scrollOffset = 0;
     saveVoyageNow("ship purchase");
   } catch (error) {
     console.error(new Error(`Failed to purchase ${listing.shipLabel}`, { cause: error }));
@@ -8488,10 +8510,15 @@ async function acquireVikingLongship(action) {
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     if (purchasing) playCoinClinkSound();
-    session.feedback = acceptingReward
-      ? `Accepted ${shipLabelForSlug(VIKING_LONGSHIP_SLUG)} as the reconstruction reward.`
-      : `Purchased ${shipLabelForSlug(VIKING_LONGSHIP_SLUG)} for ${VIKING_LONGSHIP_PRICE} doubloons.`;
-    session.selectedIndex = 0;
+    const longshipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
+    beginShipHandoverDialogue(session, {
+      shipSlug: VIKING_LONGSHIP_SLUG,
+      transactionText: acceptingReward
+        ? `The ${longshipLabel} is yours as the reward for your help with the reconstruction.`
+        : `The ${longshipLabel} is yours for ${VIKING_LONGSHIP_PRICE} doubloons.`,
+      sellerTitle: "historical enthusiast"
+    });
+    dialogueLayout.scrollOffset = 0;
     saveVoyageNow(acceptingReward ? "accepted Viking longship reward" : "Viking longship purchase");
   } catch (error) {
     console.error(new Error("Failed to acquire Viking Longship", { cause: error }));
@@ -8949,7 +8976,13 @@ function updateWhales(dt, nowMs) {
   }
   const previousBurstCount = whaleBlowBursts.length;
   whaleBlowBursts = whaleBlowBursts.filter((burst) => nowMs - burst.startedAtMs < WHALE_BLOW_DURATION_MS);
-  return changed || whaleBlowBursts.length > 0 || whaleBlowBursts.length !== previousBurstCount;
+  const previousKillEffectCount = whaleKillEffects.length;
+  whaleKillEffects = whaleKillEffects.filter((effect) => !whaleKillEffectComplete(effect, nowMs));
+  return changed ||
+    whaleBlowBursts.length > 0 ||
+    whaleBlowBursts.length !== previousBurstCount ||
+    whaleKillEffects.length > 0 ||
+    whaleKillEffects.length !== previousKillEffectCount;
 }
 
 function snapFailedWhaleTether(error) {
@@ -9117,10 +9150,13 @@ function releaseActiveWhale() {
 }
 
 function landWhaleKillingBlow() {
+  const hunt = gameState.memory.whales.activeHunt;
+  if (!hunt) throw new Error("Cannot land a killing blow without an active whale hunt");
+  const quarry = whaleById(gameState.memory.whales, hunt.whaleId);
+  spawnWhaleKillEffect(quarry, lastFrameMs);
   const whale = killExhaustedWhale(gameState.memory.whales);
-  playArrowHitSound();
-  playFishingSound();
-  playFishingSuccessSound();
+  if (whale !== quarry) throw new Error(`Whale hunt changed during the killing blow: ${hunt.whaleId}`);
+  playWhaleKillSound();
   const label = whaleDisplayLabel(whale);
   const result = receiveWhaleBlubber(
     gameState,
@@ -9152,6 +9188,19 @@ function landWhaleKillingBlow() {
   }
   saveVoyageNow("completed a whale hunt");
   dirty = true;
+}
+
+function spawnWhaleKillEffect(whale, nowMs) {
+  const call = whaleInteractionCall(whale);
+  if (!call) throw new Error(`Cannot animate an off-screen whale killing blow: ${whale.id}`);
+  whaleKillEffects.push(createWhaleKillEffect({
+    id: whale.id,
+    pixels: whaleRenderedPixels(call, nowMs),
+    centerX: call.x,
+    centerY: call.y,
+    startedAtMs: nowMs,
+    seed: whale.seed
+  }));
 }
 
 function applyWhaleTowAcceleration(dt) {
@@ -17708,8 +17757,9 @@ function drawStartMenu(nowMs) {
   ctx.strokeRect(panel.x + 4.5, panel.y + 4.5, panel.w - 9, panel.h - 9);
 
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText("MARQUE & REPRISAL", panel.x + panel.w / 2, panel.y + 24, {
-    font: PIXEL_FONT_TITLE_8,
+  const localizedTitle = uiText("start.title");
+  drawPixelText(localizedTitle, panel.x + panel.w / 2, panel.y + 24, {
+    font: languageTitleFont(currentLanguage, localizedTitle),
     align: "center"
   });
   if (START_MENU_EDITION_LABEL) {
@@ -18354,6 +18404,20 @@ function drawOptionsArrowButton(rect, label, highlighted) {
     align: "center",
     color: PIRATE_MENU_INK
   });
+}
+
+function drawMenuScrollTriangle(centerX, topY, direction) {
+  if (direction !== "up" && direction !== "down") {
+    throw new Error(`Unknown menu scroll triangle direction: ${direction}`);
+  }
+  const x = Math.round(centerX);
+  const y = Math.round(topY);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  const widths = direction === "up" ? [1, 3, 5] : [5, 3, 1];
+  for (let row = 0; row < widths.length; row++) {
+    const width = widths[row];
+    ctx.fillRect(x - Math.floor(width / 2), y + row, width, 1);
+  }
 }
 
 function drawOptionsRowFrame(rect, highlighted) {
@@ -21230,6 +21294,17 @@ function whaleImageSet(whale) {
 }
 
 function drawWhaleSprite(call, nowMs) {
+  const pixels = whaleRenderedPixels(call, nowMs);
+  ctx.save();
+  for (const pixel of pixels) {
+    ctx.globalAlpha = pixel.alpha;
+    ctx.fillStyle = pixel.color;
+    ctx.fillRect(pixel.x, pixel.y, 1, 1);
+  }
+  ctx.restore();
+}
+
+function whaleRenderedPixels(call, nowMs) {
   const exposure = whaleSurfaceExposure(call.whale);
   const images = whaleImageSet(call.whale);
   const pixels = shipSpriteFramePixels(images.image, images.sinkDepthImage, call.frame);
@@ -21237,23 +21312,26 @@ function drawWhaleSprite(call, nowMs) {
   const originY = Math.round(call.y + (1 - exposure) * 3);
   const surfaceThreshold = 0.502 + (1 - exposure) * 0.52;
   const refractionTime = reducedMotionPreferred ? 0 : nowMs;
-  ctx.save();
+  const rendered = [];
   for (const pixel of pixels) {
     const aboveWater = pixel.sinkHeight > surfaceThreshold;
     const offsetX = aboveWater
       ? 0
       : liveShipRefractionOffset(pixel.y, refractionTime, call.whale.seed);
-    ctx.globalAlpha = pixel.alpha * (aboveWater ? 1 : WHALE_SUBMERGED_ALPHA);
-    ctx.fillStyle = pixel.color;
-    const x = Math.round(call.x + (pixel.x - halfFrame) * call.scale + offsetX);
-    const y = Math.round(originY + (pixel.y - halfFrame) * call.scale);
-    ctx.fillRect(x, y, 1, 1);
+    rendered.push(Object.freeze({
+      x: Math.round(call.x + (pixel.x - halfFrame) * call.scale + offsetX),
+      y: Math.round(originY + (pixel.y - halfFrame) * call.scale),
+      color: pixel.color,
+      alpha: pixel.alpha * (aboveWater ? 1 : WHALE_SUBMERGED_ALPHA)
+    }));
   }
-  ctx.restore();
+  if (rendered.length === 0) throw new Error(`Whale sprite contains no visible pixels: ${call.whale.id}`);
+  return rendered;
 }
 
 function drawWhaleHuntEffects(nowMs) {
   for (const burst of whaleBlowBursts) drawWhaleBlowBurst(burst, nowMs);
+  for (const effect of whaleKillEffects) drawWhaleKillEffect(effect, nowMs);
   if (whaleHarpoonProjectile) drawWhaleHarpoonProjectile(whaleHarpoonProjectile);
   const hunt = gameState?.memory?.whales?.activeHunt;
   if (!hunt) return;
@@ -21261,6 +21339,19 @@ function drawWhaleHuntEffects(nowMs) {
   const call = whaleInteractionCall(whale);
   if (!call) return;
   drawWhaleRope(SCREEN_W / 2, SCREEN_H / 2, call.x, call.y);
+}
+
+function drawWhaleKillEffect(effect, nowMs) {
+  const frame = whaleKillEffectFrame(effect, nowMs, { x: SCREEN_W / 2, y: SCREEN_H / 2 });
+  if (frame.complete) return;
+  ctx.save();
+  for (const particle of frame.particles) {
+    if (particle.alpha <= 0) continue;
+    ctx.globalAlpha = particle.alpha;
+    ctx.fillStyle = particle.color;
+    ctx.fillRect(particle.x, particle.y, 1, 1);
+  }
+  ctx.restore();
 }
 
 function drawWhaleBlowBurst(burst, nowMs) {
@@ -24455,6 +24546,17 @@ function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_
         w: optionWidth,
         h: optionHeight - 2
       }, font, false);
+    }
+    const indicatorX = x + optionWidth / 2;
+    if (optionWindow.canScrollUp) {
+      drawMenuScrollTriangle(indicatorX, stack.y - 3, "up");
+    }
+    if (optionWindow.canScrollDown) {
+      drawMenuScrollTriangle(
+        indicatorX,
+        stack.y + stack.visibleRegularCount * optionHeight - 2,
+        "down"
+      );
     }
   }
 

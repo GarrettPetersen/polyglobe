@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "SAIR DA TELA CHEIA",
   "options.fullscreenUnavailable": "TELA CHEIA INDISPONÍVEL",
   "options.returnToMainMenu": "VOLTAR AO MENU PRINCIPAL",
+  "start.title": "CORSO E REPRESÁLIA",
   "start.continue": "CONTINUAR",
   "start.loading": "CARREGANDO...",
   "start.newGame": "NOVO JOGO",

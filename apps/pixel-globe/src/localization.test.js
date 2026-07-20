@@ -17,6 +17,7 @@ import {
   localizationCatalog,
   languageFontProfile,
   languageNativeLabel,
+  languageTitleFont,
   languageUsesTallPixelMetrics,
   localizeText,
   nextLanguage,
@@ -67,6 +68,37 @@ test("every translated catalog covers the complete English key set", () => {
   assert.equal(translate(LANGUAGE_FRENCH, "options.language"), "LANGUE");
   assert.equal(translate(LANGUAGE_POLISH, "options.language"), "JĘZYK");
   assert.equal(translate(LANGUAGE_KOREAN, "options.language"), "언어");
+});
+
+test("the start-menu title is translated in every supported language with a complete pixel font", () => {
+  const expectedTitles = new Map([
+    [LANGUAGE_ENGLISH, "MARQUE & REPRISAL"],
+    [LANGUAGE_CHINESE_SIMPLIFIED, "私掠与报复"],
+    [LANGUAGE_RUSSIAN, "КАПЕРСТВО И ВОЗМЕЗДИЕ"],
+    [LANGUAGE_SPANISH, "CORSO Y REPRESALIA"],
+    [LANGUAGE_PORTUGUESE_BRAZIL, "CORSO E REPRESÁLIA"],
+    [LANGUAGE_JAPANESE, "私掠と報復"],
+    [LANGUAGE_GERMAN, "KAPERBRIEF & VERGELTUNG"],
+    [LANGUAGE_FRENCH, "MARQUE ET REPRÉSAILLES"],
+    [LANGUAGE_POLISH, "KAPERSTWO I ODWET"],
+    [LANGUAGE_CHINESE_TRADITIONAL, "私掠與報復"],
+    [LANGUAGE_KOREAN, "사략과 보복"]
+  ]);
+  assert.equal(expectedTitles.size, SUPPORTED_LANGUAGES.length);
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    const title = translate(id, "start.title");
+    const font = languageTitleFont(id, title);
+    assert.equal(title, expectedTitles.get(id));
+    if (id !== LANGUAGE_ENGLISH) {
+      assert.doesNotMatch(title, /Marque & Reprisal/i, `${id} retained the English title`);
+    }
+    const expectedFamily = /^[\x20-\x7e]+$/.test(title)
+      ? "Pixel Pirate"
+      : languageFontProfile(id).fontFamily;
+    assert.ok(font.includes(expectedFamily), `${id} title did not use ${expectedFamily}`);
+  }
+  assert.throws(() => languageTitleFont(LANGUAGE_ENGLISH, ""), /non-empty string/);
+  assert.throws(() => languageTitleFont(LANGUAGE_ENGLISH, null), /non-empty string/);
 });
 
 test("existing canvas phrases and templates localize without changing proper names", () => {

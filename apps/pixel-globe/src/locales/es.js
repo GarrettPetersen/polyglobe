@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "SALIR DE PANTALLA COMPLETA",
   "options.fullscreenUnavailable": "PANTALLA COMPLETA NO DISPONIBLE",
   "options.returnToMainMenu": "VOLVER AL MENÚ PRINCIPAL",
+  "start.title": "CORSO Y REPRESALIA",
   "start.continue": "CONTINUAR",
   "start.loading": "CARGANDO...",
   "start.newGame": "NUEVA PARTIDA",

@@ -60,3 +60,30 @@ test("underwater whale songs keep normalized production files and exact attribut
   assert.match(provenance, /haunting-whale-song-515260/);
   assert.match(provenance, /nature-whale-45996/);
 });
+
+test("the whale killing blow keeps its downloaded source, production asset, and provenance", () => {
+  const source = readFileSync(
+    new URL("assets-source/sfx/universfield-wet-squelch-impact-352302.mp3", APP_ROOT)
+  );
+  const hasId3Tag = source.toString("ascii", 0, 3) === "ID3";
+  const hasMpegFrameSync = source[0] === 0xff && (source[1] & 0xe0) === 0xe0;
+  assert.ok(hasId3Tag || hasMpegFrameSync, "whale killing blow source is not an MP3");
+
+  const production = readFileSync(
+    new URL("public/assets/sfx/universfield-wet-squelch-impact-352302.ogg", APP_ROOT)
+  );
+  assert.equal(production.toString("ascii", 0, 4), "OggS");
+
+  const credits = readFileSync(new URL("public/assets/CREDITS.md", APP_ROOT), "utf8");
+  assert.match(
+    credits,
+    /Universfield - "Wet Squelch Impact" \(Pixabay 352302, Pixabay Content License\)/
+  );
+
+  const provenance = readFileSync(
+    new URL("public/assets/licenses/universfield-wet-squelch-impact-352302.txt", APP_ROOT),
+    "utf8"
+  );
+  assert.match(provenance, /sound-effects\/film-special-effects-wet-squelch-impact-352302/);
+  assert.match(provenance, /Pixabay Content License/);
+});

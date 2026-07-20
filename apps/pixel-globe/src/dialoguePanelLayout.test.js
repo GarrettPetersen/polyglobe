@@ -234,7 +234,9 @@ test("a submenu cannot inherit an out-of-range selection and render no options",
     selectedIndex: 1,
     scrollOffset: 0,
     start: 0,
-    end: 2
+    end: 2,
+    canScrollUp: false,
+    canScrollDown: false
   });
 });
 
@@ -250,6 +252,30 @@ test("a stale scroll offset is clamped before slicing submenu options", () => {
     selectedIndex: 0,
     scrollOffset: 0,
     start: 0,
-    end: 1
+    end: 1,
+    canScrollUp: false,
+    canScrollDown: true
   });
+});
+
+test("scroll affordances follow the visible dialogue window bounds", () => {
+  const middle = dialogueOptionWindow({
+    optionCount: 5,
+    visibleCount: 2,
+    selectedIndex: 2,
+    scrollOffset: 1
+  });
+  assert.equal(middle.canScrollUp, true);
+  assert.equal(middle.canScrollDown, true);
+
+  const bottom = dialogueOptionWindow({
+    optionCount: 5,
+    visibleCount: 2,
+    selectedIndex: 4,
+    scrollOffset: 3
+  });
+  assert.equal(bottom.start, 3);
+  assert.equal(bottom.end, 5);
+  assert.equal(bottom.canScrollUp, true);
+  assert.equal(bottom.canScrollDown, false);
 });

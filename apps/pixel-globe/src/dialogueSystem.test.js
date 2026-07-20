@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   bestPurchasedTradeRoute,
+  beginShipHandoverDialogue,
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
@@ -1261,6 +1262,43 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
   );
   assert.equal(session.nodeId, "root");
   assert.equal(session.feedback, "Heading set for Porto.");
+});
+
+test("a completed ship sale gets a named historical handover before returning to port", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const currentStats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
+
+  beginShipHandoverDialogue(session, {
+    shipSlug: "galleon",
+    transactionText: "The Galleon is yours for 90000 doubloons after trade-in.",
+    sellerTitle: "shipwright"
+  });
+
+  const handover = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(handover.speaker, "Fernao da Cunha, shipwright");
+  assert.equal(handover.expressionId, "pleased");
+  assert.match(handover.text, /^The Galleon is yours for 90000 doubloons after trade-in\./);
+  assert.match(handover.text, /sixteenth-century development of the carrack/);
+  assert.deepEqual(handover.options.map((entry) => entry.label), ["Continue"]);
+  assert.doesNotMatch(handover.text, /rumou?r|for sale at/i);
+
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], 0),
+    { closed: false }
+  );
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.shipHandover, null);
 });
 
 test("the Icelandic enthusiast unlocks the Viking longship after three fetch deliveries", () => {

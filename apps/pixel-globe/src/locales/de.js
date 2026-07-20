@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "VOLLBILD BEENDEN",
   "options.fullscreenUnavailable": "VOLLBILD NICHT VERFÜGBAR",
   "options.returnToMainMenu": "ZURÜCK ZUM HAUPTMENÜ",
+  "start.title": "KAPERBRIEF & VERGELTUNG",
   "start.continue": "FORTSETZEN",
   "start.loading": "LÄDT ...",
   "start.newGame": "NEUES SPIEL",

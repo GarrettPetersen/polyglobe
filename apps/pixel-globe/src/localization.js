@@ -54,6 +54,7 @@ const ENGLISH = Object.freeze({
   "options.exitFullscreen": "EXIT FULLSCREEN",
   "options.fullscreenUnavailable": "FULLSCREEN UNAVAILABLE",
   "options.returnToMainMenu": "RETURN TO MAIN MENU",
+  "start.title": "MARQUE & REPRISAL",
   "start.continue": "CONTINUE",
   "start.loading": "LOADING...",
   "start.newGame": "NEW GAME",
@@ -344,6 +345,7 @@ const CHINESE_SIMPLIFIED = Object.freeze({
   "options.exitFullscreen": "退出全屏",
   "options.fullscreenUnavailable": "无法使用全屏",
   "options.returnToMainMenu": "返回主菜单",
+  "start.title": "私掠与报复",
   "start.continue": "继续航行",
   "start.loading": "读取中……",
   "start.newGame": "新游戏",
@@ -634,6 +636,7 @@ const JAPANESE = Object.freeze({
   "options.exitFullscreen": "全画面を終了",
   "options.fullscreenUnavailable": "全画面は使用不可",
   "options.returnToMainMenu": "メインメニューへ",
+  "start.title": "私掠と報復",
   "start.continue": "航海を続ける",
   "start.loading": "読み込み中……",
   "start.newGame": "ニューゲーム",
@@ -1126,6 +1129,15 @@ export function languageFontProfile(language) {
     detailLineHeight: 10,
     tableRowHeight: 11
   });
+}
+
+export function languageTitleFont(language, text) {
+  if (typeof text !== "string" || text.length === 0) {
+    throw new Error("Localized title must be a non-empty string");
+  }
+  return /^[\x20-\x7e]+$/.test(text)
+    ? '8px "Pixel Pirate", monospace'
+    : languageFontProfile(language).smallFont;
 }
 
 export function languageHasCjkMetrics(language) {

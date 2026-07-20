@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "ВЫЙТИ ИЗ ПОЛНОГО ЭКРАНА",
   "options.fullscreenUnavailable": "НЕТ ПОЛНОГО ЭКРАНА",
   "options.returnToMainMenu": "В ГЛАВНОЕ МЕНЮ",
+  "start.title": "КАПЕРСТВО И ВОЗМЕЗДИЕ",
   "start.continue": "ПРОДОЛЖИТЬ",
   "start.loading": "ЗАГРУЗКА...",
   "start.newGame": "НОВАЯ ИГРА",

@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "離開全螢幕",
   "options.fullscreenUnavailable": "無法使用全螢幕",
   "options.returnToMainMenu": "返回主選單",
+  "start.title": "私掠與報復",
   "start.continue": "繼續航行",
   "start.loading": "讀取中……",
   "start.newGame": "新遊戲",

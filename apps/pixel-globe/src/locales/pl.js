@@ -19,6 +19,7 @@ export default {
   "options.exitFullscreen": "WYŁĄCZ PEŁNY EKRAN",
   "options.fullscreenUnavailable": "BRAK PEŁNEGO EKRANU",
   "options.returnToMainMenu": "DO MENU GŁÓWNEGO",
+  "start.title": "KAPERSTWO I ODWET",
   "start.continue": "KONTYNUUJ",
   "start.loading": "WCZYTYWANIE...",
   "start.newGame": "NOWA GRA",
