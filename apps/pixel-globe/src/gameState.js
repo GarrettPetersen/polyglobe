@@ -19,16 +19,20 @@ import {
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   assertFactionId,
-  diplomacyBetween
+  diplomacyBetween,
+  migrateFactionIdTo1522
 } from "./factions.js";
 import {
   CANNON_RESTOCK_COST,
   CREW_HIRE_COST,
+  CUSTOM_LOADOUT_ID,
   FOOD_RATIONS_PER_HOLD_UNIT,
   WATER_PERSON_DAYS_PER_UNIT,
   WATER_RESTOCK_COST,
   balancedProvisionTargets,
   crewHoldSpace,
+  fitShipCustomLoadoutPlan,
+  shipCustomLoadoutPlan,
   shipLoadoutPlan
 } from "./shipLoadouts.js";
 import { shipLabelForSlug } from "./shipStats.js";
@@ -94,9 +98,13 @@ import {
   createJapaneseMatchlockQuestMemory,
   validateJapaneseMatchlockQuestMemory
 } from "./japaneseMatchlockQuest.js";
+import {
+  createCaribbeanGingerQuestMemory,
+  validateCaribbeanGingerQuestMemory
+} from "./caribbeanGingerQuest.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 21;
+export const GAME_STATE_VERSION = 23;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -252,7 +260,8 @@ export function createGameState({
         passengerOffers: {},
         passengerRolls: {},
         vikingLongshipRolls: {},
-        japaneseMatchlocks: createJapaneseMatchlockQuestMemory()
+        japaneseMatchlocks: createJapaneseMatchlockQuestMemory(),
+        caribbeanGinger: createCaribbeanGingerQuestMemory()
       },
       cargoReservations: {},
       colonization: createColonizationQuestMemory(),
@@ -276,7 +285,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -297,12 +306,19 @@ export function migrateGameState(state, shipStats) {
       });
   const legacyPortHeading = state.memory?.navigation?.portHeading || null;
   const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
+  const migratedPlayerCharacter = state.playerCharacter ? {
+    ...state.playerCharacter,
+    nationalityId: migrateFactionIdTo1522(state.playerCharacter.nationalityId)
+  } : state.playerCharacter;
   const migrated = {
     ...state,
     version: GAME_STATE_VERSION,
+    playerCharacter: migratedPlayerCharacter,
     survival: {
       ...state.survival,
-      foodRationDebt: (state.survival?.foodDebt || 0) * FOOD_RATIONS_PER_HOLD_UNIT
+      foodRationDebt: Number.isFinite(state.survival?.foodRationDebt)
+        ? state.survival.foodRationDebt
+        : (state.survival?.foodDebt || 0) * FOOD_RATIONS_PER_HOLD_UNIT
     },
     ship: state.ship ? {
       ...state.ship,
@@ -315,7 +331,11 @@ export function migrateGameState(state, shipStats) {
     },
     relations: {
       ...state.relations,
-      safePassageUntilMinute: state.version === 8 ? {} : state.relations.safePassageUntilMinute,
+      factionReputation: migrateFactionReputationTable(state.relations.factionReputation),
+      lettersOfMarque: removeRetiredFactionKeys(state.relations.lettersOfMarque),
+      safePassageUntilMinute: state.version === 8
+        ? {}
+        : migrateSafePassageTable(state.relations.safePassageUntilMinute),
       safePassageRefusalUntilMinute: {},
       mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
       diplomacy: migratedDiplomacy
@@ -323,9 +343,11 @@ export function migrateGameState(state, shipStats) {
     memory: {
       ...state.memory,
       quests: {
-        ...state.memory?.quests,
+        ...migrateRetiredFactionReferences(state.memory?.quests),
         japaneseMatchlocks: state.memory?.quests?.japaneseMatchlocks ||
-          createJapaneseMatchlockQuestMemory()
+          createJapaneseMatchlockQuestMemory(),
+        caribbeanGinger: state.memory?.quests?.caribbeanGinger ||
+          createCaribbeanGingerQuestMemory()
       },
       navigation: {
         ...legacyNavigation,
@@ -338,16 +360,52 @@ export function migrateGameState(state, shipStats) {
       },
       cargoReservations: state.memory?.cargoReservations || {},
       colonization: state.memory?.colonization || createColonizationQuestMemory(),
-      conquest: state.memory?.conquest || createPortConquestMemory(),
+      conquest: migrateConquestFactionReferences(state.memory?.conquest || createPortConquestMemory()),
       whales: state.memory?.whales?.version === 2 ? state.memory.whales : createWhaleMemory(),
-      campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(state.playerCharacter)
-        ? createCampaignGoal({ playerCharacter: state.playerCharacter, startMinute: savedGameStartMinute(state) })
+      campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(migratedPlayerCharacter)
+        ? createCampaignGoal({ playerCharacter: migratedPlayerCharacter, startMinute: savedGameStartMinute(state) })
         : null),
       cartography: state.memory?.cartography || createCartographyMemory()
     }
   };
   delete migrated.survival.foodDebt;
   return validateGameState(migrated);
+}
+
+function migrateFactionReputationTable(reputation) {
+  if (!reputation || typeof reputation !== "object" || Array.isArray(reputation)) return reputation;
+  return Object.fromEntries(FACTIONS.map((faction) => [faction.id, reputation[faction.id] ?? 0]));
+}
+
+function removeRetiredFactionKeys(table) {
+  if (!table || typeof table !== "object" || Array.isArray(table)) return table;
+  return Object.fromEntries(Object.entries(table).filter(([factionId]) => factionId !== "aztec"));
+}
+
+function migrateSafePassageTable(table) {
+  if (!table || typeof table !== "object" || Array.isArray(table)) return table;
+  const migrated = removeRetiredFactionKeys(table);
+  if (Number.isFinite(table.aztec)) {
+    migrated.spain = Math.max(migrated.spain || 0, table.aztec);
+  }
+  return migrated;
+}
+
+function migrateRetiredFactionReferences(value) {
+  if (value === "aztec") return "spain";
+  if (Array.isArray(value)) return value.map(migrateRetiredFactionReferences);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, migrateRetiredFactionReferences(entry)]));
+}
+
+function migrateConquestFactionReferences(memory) {
+  const migrated = migrateRetiredFactionReferences(memory);
+  migrated.collapsedFactionIds = memory.collapsedFactionIds.filter((factionId) => factionId !== "aztec");
+  migrated.events = memory.events.map((event) => ({
+    ...migrateRetiredFactionReferences(event),
+    collapsedFactionId: event.collapsedFactionId === "aztec" ? null : event.collapsedFactionId
+  }));
+  return migrated;
 }
 
 export function addPortNavigationWaypoint(state, { destinationTileId, destinationName, reason }) {
@@ -586,6 +644,13 @@ export function setCargoCapacity(state, cargoCapacity) {
   state.cargoCapacity = cargoCapacity;
 }
 
+function selectedShipLoadoutPlan(state, stats) {
+  const loadoutId = state.ship?.loadoutId || "short-haul";
+  if (loadoutId !== CUSTOM_LOADOUT_ID) return shipLoadoutPlan(stats, loadoutId);
+  if (!state.ship.loadoutTargets) throw new Error("Custom ship loadout has no saved targets");
+  return fitShipCustomLoadoutPlan(stats, state.ship.loadoutTargets);
+}
+
 export function setPlayerShipStats(state, stats) {
   assertGameState(state);
   if (!state.ship) throw new Error("Cannot change stats without player ship state");
@@ -604,8 +669,7 @@ export function setPlayerShipStats(state, stats) {
     hardtack: state.cargo[HARDTACK_GOOD_ID] || 0,
     hardtackBasis: state.accounts.cargoCostBasis[HARDTACK_GOOD_ID]
   };
-  const loadoutId = state.ship.loadoutId || "short-haul";
-  const plan = shipLoadoutPlan(stats, loadoutId);
+  const plan = selectedShipLoadoutPlan(state, stats);
   state.ship.crewCapacity = stats.crewCapacity;
   state.ship.cannonCapacity = stats.cannons;
   state.ship.mass = stats.mass;
@@ -634,8 +698,7 @@ export function setPlayerShipStats(state, stats) {
 export function playerShipReplacementCargoUsed(state, stats) {
   assertGameState(state);
   if (!state.ship) throw new Error("Cannot preview a ship change without player ship state");
-  const loadoutId = state.ship.loadoutId || "short-haul";
-  const plan = shipLoadoutPlan(stats, loadoutId);
+  const plan = selectedShipLoadoutPlan(state, stats);
   let usedTicks = 0;
   for (const [goodId, heldQuantity] of Object.entries(state.cargo)) {
     const good = goodById(goodId);
@@ -930,7 +993,8 @@ export function survivalStatus(state) {
   assertGameState(state);
   const foodCargoUnits = edibleCargoRows(state).reduce((total, row) => total + row.quantity, 0);
   const storedFoodRations = Math.round(foodCargoUnits * FOOD_RATIONS_PER_HOLD_UNIT);
-  const foodRations = Math.max(0, storedFoodRations - state.survival.foodRationDebt);
+  const foodRationDebt = foodRationDebtRemainder(state.survival.foodRationDebt);
+  const foodRations = Math.max(0, storedFoodRations - foodRationDebt);
   const consumption = shipConsumption(state);
   const foodDays = foodRations / consumption.foodConsumers;
   const freshWaterCaskDays = state.ship
@@ -965,7 +1029,7 @@ export function survivalStatus(state) {
     foodCargoUnits,
     foodDays,
     foodFraction: clamp01(foodDays / targetDays),
-    foodRationDebt: state.survival.foodRationDebt,
+    foodRationDebt,
     foodTargetDays: state.ship?.loadoutTargets?.foodDays || FOOD_TARGET_DAYS,
     consumers: consumption
   };
@@ -1047,6 +1111,17 @@ export function restockShipLoadoutAtPort(state, city, stats, loadoutId, context 
   assertGameState(state);
   requirePlayerShipState(state, stats);
   const plan = shipLoadoutPlan(stats, loadoutId);
+  return restockShipLoadoutPlanAtPort(state, city, plan, context);
+}
+
+export function restockCustomShipLoadoutAtPort(state, city, stats, draft, context = {}) {
+  assertGameState(state);
+  requirePlayerShipState(state, stats);
+  const plan = shipCustomLoadoutPlan(stats, draft);
+  return restockShipLoadoutPlanAtPort(state, city, plan, context);
+}
+
+function restockShipLoadoutPlanAtPort(state, city, plan, context) {
   const hardtack = tradeGoodById(HARDTACK_GOOD_ID);
   const before = shipStoresSnapshot(state);
 
@@ -1106,6 +1181,9 @@ export function restockShipLoadoutAtPort(state, city, stats, loadoutId, context 
 export function restockSelectedShipLoadoutAtPort(state, city, stats, context = {}) {
   assertGameState(state);
   if (!state.ship?.loadoutId) return null;
+  if (state.ship.loadoutId === CUSTOM_LOADOUT_ID) {
+    return restockCustomShipLoadoutAtPort(state, city, stats, state.ship.loadoutTargets, context);
+  }
   return restockShipLoadoutAtPort(state, city, stats, state.ship.loadoutId, context);
 }
 
@@ -1299,6 +1377,7 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     dehydrated: false,
     starved: false
   };
+  result.changed = clearMissedFoodRationDebt(state) || result.changed;
   if (options.safePort) {
     resetWineOnlySurvivalState(state);
     state.survival.lastMinute = currentMinute;
@@ -1372,6 +1451,7 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     const consumed = consumeCheapestFoodRation(state);
     if (!consumed) {
       result.starved = true;
+      result.changed = clearMissedFoodRationDebt(state) || result.changed;
       break;
     }
     state.survival.foodRationDebt -= 1;
@@ -2627,6 +2707,18 @@ function normalizeFoodCargoQuantity(quantity) {
   return rations / FOOD_RATIONS_PER_HOLD_UNIT;
 }
 
+function clearMissedFoodRationDebt(state) {
+  const remainder = foodRationDebtRemainder(state.survival.foodRationDebt);
+  if (remainder === state.survival.foodRationDebt) return false;
+  state.survival.foodRationDebt = remainder;
+  return true;
+}
+
+function foodRationDebtRemainder(debt) {
+  if (!Number.isFinite(debt) || debt < 0) throw new Error(`Invalid food ration debt: ${debt}`);
+  return debt - Math.floor(debt);
+}
+
 function requirePlayerShipState(state, stats) {
   if (!state.ship) throw new Error("Ship loadouts require player ship state");
   if (!stats || stats.cargoCapacity !== state.cargoCapacity) {
@@ -3016,6 +3108,7 @@ function assertGameState(state) {
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
   assertCargoReservations(state.memory.cargoReservations);
   validateJapaneseMatchlockQuestMemory(state.memory.quests?.japaneseMatchlocks);
+  validateCaribbeanGingerQuestMemory(state.memory.quests?.caribbeanGinger);
   validateColonizationQuestMemory(state.memory.colonization);
   validatePortConquestMemory(state.memory.conquest);
   validateWhaleMemory(state.memory.whales);

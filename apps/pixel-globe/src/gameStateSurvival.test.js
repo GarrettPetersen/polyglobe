@@ -31,9 +31,11 @@ import {
   migrateGameState,
   purchasePlayerShip,
   receiveEmergencyShipAid,
+  receiveFishCatch,
   receiveScavengedTradeGood,
   releaseCargoSpace,
   reserveCargoSpace,
+  restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
   refillFreshWaterFromShore,
   rollCrewCasualtiesForDamage,
@@ -318,14 +320,42 @@ test("reserve water cargo extends a voyage after casks run dry", () => {
 test("exhausted food and water report deprivation instead of ending immediately", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.survival.freshWater = 0;
-  state.survival.foodRationDebt = 1;
 
-  const result = updateSurvival(state, 0, 60, { freshwater: false });
+  const result = updateSurvival(state, 0, 24 * 60, { freshwater: false });
 
   assert.equal(result.dehydrated, true);
   assert.equal(result.starved, true);
   assert.equal(state.survival.freshWater, 0);
   assert.equal(survivalStatus(state).foodRations, 0);
+  assert.equal(state.survival.foodRationDebt, 0);
+});
+
+test("missed meals never consume scavenged food or fish acquired after starvation", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.survival.foodRationDebt = 24.5;
+
+  assert.equal(stowForagedFood(state, 2), 2);
+  const rescued = survivalStatus(state);
+  assert.equal(rescued.storedFoodRations, 2);
+  assert.equal(rescued.foodRationDebt, 0.5);
+  assert.equal(rescued.foodRations, 1.5);
+
+  const result = updateSurvival(state, 0, 0, { freshwater: false });
+  assert.equal(result.starved, false);
+  assert.equal(result.changed, true);
+  assert.equal(state.survival.foodRationDebt, 0.5);
+  assert.equal(state.cargo[FORAGED_FOOD_GOOD_ID], 2 / 12);
+
+  const fishingState = createGameState({ cargoCapacity: 10 });
+  fishingState.survival.foodRationDebt = 24.5;
+  receiveFishCatch(fishingState, {
+    quantity: 1,
+    speciesLabel: "Cod",
+    stockKey: "test-cod"
+  });
+  assert.equal(survivalStatus(fishingState).foodRations, 11.5);
+  updateSurvival(fishingState, 0, 0, { freshwater: false });
+  assert.equal(fishingState.cargo.fish, 1);
 });
 
 test("a friendly ship can give one emergency ration of food and water", () => {
@@ -468,6 +498,30 @@ test("port restocking dumps excess water and fills constrained stores evenly", (
   assert.equal(result.removed.water, 3);
   assert.equal(cargoUsed(state), state.cargoCapacity);
   assert.equal(cargoFree(state), 0);
+});
+
+test("a smaller custom loadout dumps excess hardtack and water without refunding it", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.cargo.hardtack = 10;
+  state.accounts.cargoCostBasis.hardtack = 100;
+  state.survival.freshWaterCapacity = 10;
+  state.survival.freshWater = 10;
+  const doubloonsBefore = state.doubloons;
+  const result = restockCustomShipLoadoutAtPort(state, LONDON, stats, {
+    crew: state.ship.crew,
+    cannons: state.ship.cannons,
+    foodUnits: 2,
+    waterUnits: 3
+  }, { simMinute: 240 });
+
+  assert.equal(state.ship.loadoutId, "custom");
+  assert.equal(state.cargo.hardtack, 2);
+  assert.equal(state.survival.freshWaterCapacity, 3);
+  assert.equal(state.survival.freshWater, 3);
+  assert.deepEqual(result.removed, { crew: 0, cannons: 0, food: 8, water: 7 });
+  assert.equal(state.doubloons, doubloonsBefore);
 });
 
 test("port restocking never dumps water that the player cannot replace with food", () => {

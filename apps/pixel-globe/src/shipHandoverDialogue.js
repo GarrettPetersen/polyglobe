@@ -38,7 +38,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   cutter:
     "a small pinnace suited to coasting, scouting, and carrying messages, the kind of useful tender a larger fleet always finds work for",
   ketch:
-    "a practical lateen barque whose divided sail plan can be shortened by a small crew when a sudden coastal squall comes down",
+    "a practical coastal trader whose divided lateen sail plan can be shortened by a small crew when a sudden squall comes down",
   "mediterranean-galley":
     "the oared warship that still ruled much of the sixteenth-century Mediterranean, able to advance in a calm or drive straight into the wind",
   "joseon-turtle-ship":

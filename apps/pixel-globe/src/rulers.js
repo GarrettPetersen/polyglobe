@@ -37,7 +37,6 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1550, 2, 7, "Julius III", "Pope")
   ],
   ming: [ruler(1522, 1, 1, "Jiajing", "Emperor"), ruler(1567, 2, 4, "Longqing", "Emperor")],
-  aztec: [ruler(1522, 1, 1, "Cuauhtemoc", "Huey Tlatoani")],
   inca: [
     ruler(1522, 1, 1, "Huayna Capac", "Sapa Inca"),
     yearRuler(1527, "Huascar", "Sapa Inca"),
@@ -120,7 +119,6 @@ const REGIONAL_GROUPS = Object.freeze([
   ["vijayanagara", "gujarat", "bengal", "delhi", "portugal", "safavid"],
   ["ayutthaya", "ming", "bengal", "portugal"],
   ["ming", "japan", "joseon", "ayutthaya"],
-  ["aztec", "spain"],
   ["inca", "spain", "portugal"]
 ]);
 

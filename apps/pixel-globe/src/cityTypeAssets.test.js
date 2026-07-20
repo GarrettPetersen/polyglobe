@@ -4,10 +4,48 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import { CITY_IMAGE_KEYS, cityArtKeyForCity } from "./cityCatalogData.js";
 const cityArtRoot = join(dirname(fileURLToPath(import.meta.url)), "../public/assets/buildings/city-types");
 
 test("the shared village placeholder is a nonblank transparent 36px sprite", async () => {
-  const image = await loadImage(join(cityArtRoot, "city-village.png"));
+  await assertNonblankTransparentCitySprite("city-village.png");
+});
+
+test("substantial northern Native American settlements use their own city art", async () => {
+  assert.ok(CITY_IMAGE_KEYS.includes("native-american"));
+  assert.equal(cityArtKeyForCity({
+    city: "Cincinnati",
+    country: "United States of America",
+    cityType: "mesoamerican",
+    population: 10000,
+    settlementType: "city"
+  }), "native-american");
+  assert.equal(cityArtKeyForCity({
+    city: "Chillicothe",
+    country: "United States of America",
+    cityType: "mesoamerican",
+    population: 18000,
+    settlementType: "city"
+  }), "native-american");
+  assert.equal(cityArtKeyForCity({
+    city: "Yuquot Village",
+    country: "Nuu-chah-nulth",
+    cityType: "mesoamerican",
+    population: 1500,
+    settlementType: "village"
+  }), "village");
+  assert.equal(cityArtKeyForCity({
+    city: "Cempoala",
+    country: "Mexico",
+    cityType: "mesoamerican",
+    population: 20000,
+    settlementType: "city"
+  }), "mesoamerican");
+  await assertNonblankTransparentCitySprite("city-native-american.png");
+});
+
+async function assertNonblankTransparentCitySprite(filename) {
+  const image = await loadImage(join(cityArtRoot, filename));
   assert.equal(image.width, 36);
   assert.equal(image.height, 36);
   const canvas = createCanvas(image.width, image.height);
@@ -22,4 +60,4 @@ test("the shared village placeholder is a nonblank transparent 36px sprite", asy
   }
   assert.ok(opaquePixels > 0);
   assert.ok(transparentPixels > 0);
-});
+}

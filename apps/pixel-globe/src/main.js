@@ -20,13 +20,20 @@ import {
   quadraticBezierPoint,
   quadraticBezierTangent
 } from "./pixelBezier.js";
+import { projectedRiverEdgeDirection } from "./riverEdgeProjection.js";
 import {
   CREW_STATUS_ICON_HEIGHT,
   CREW_STATUS_ICON_WIDTH,
+  crewStatusCount,
   crewStatusLayout
 } from "./crewStatus.js";
 import { cargoCrateStatusLayout } from "./cargoCrateStatus.js";
-import { specialStatusIconCount, statusIconRowLayout } from "./statusIconRow.js";
+import {
+  remainingSupplyDayCount,
+  specialStatusIconCount,
+  statusIconRowLayout
+} from "./statusIconRow.js";
+import { seagullScreenPresence } from "./seagullAudio.js";
 import { shipHullBarLayout, shipHullIsDamaged } from "./shipHullBar.js";
 import {
   captainIsDrunkAtPort,
@@ -112,6 +119,7 @@ import {
   whalingStarterShipForRegion
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
+import { randomizedSfxPlaybackRate } from "./sfxPitch.js";
 import {
   advanceSmoothedWindState,
   createSmoothedWindState
@@ -180,7 +188,6 @@ import {
   purchaseFactionSafePassage,
   setPlayerShipStats,
   shipEmergencyAidNeed,
-  shipPeopleAboard,
   shipTravelerManifest,
   settleCampaignGoalAtHome,
   removeOptionalNavigationWaypoint,
@@ -213,11 +220,17 @@ import {
   whaleKillEffectFrame
 } from "./whaleKillParticles.js";
 import {
+  createItemAcquisitionBurst,
   createItemAcquisitionEffect,
   itemAcquisitionEffectComplete,
+  itemAcquisitionEffectEndMs,
   itemAcquisitionEffectFrame
 } from "./itemAcquisitionEffect.js";
-import { selectWhaleTargetAtPoint } from "./whaleTargeting.js";
+import {
+  pointHitsOpaqueSpritePixel,
+  selectPixelInteractionCandidate
+} from "./pixelInteraction.js";
+import { whaleTargetRect } from "./whaleTargeting.js";
 import {
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_DEAD,
@@ -319,6 +332,7 @@ import {
   portDialogueView,
   prepareSurrenderPrizeDialogue,
   selectPassengerDialogueOption,
+  setPortCustomLoadoutValue,
   selectPortDialogueOption,
   selectShoreBatteryDialogueOption,
   selectShipDialogueOption,
@@ -454,7 +468,8 @@ import {
   terrainConnectorNeedsSlopeDetail,
   TERRAIN_MOUNTAIN_LEVEL,
   terrainSpriteDrawLayer,
-  terrainSpriteOccludesShips
+  terrainSpriteOccludesShips,
+  terrainSpriteReceivesShipShadow
 } from "./terrainDrawOrder.js";
 import { canvasDisplayLayout } from "./displayScaling.js";
 import {
@@ -504,6 +519,7 @@ import {
   gameIconDrawRect,
   gameIconIds,
   menuLabelIconId,
+  shipMenuIconId,
   startMenuIconId,
   tradeGoodIconId
 } from "./gameIcons.js";
@@ -599,6 +615,7 @@ import {
   shoreBatteryIsDisabled,
   shoreBatteryMayDemandToll,
   shoreBatteryPlayerResponse,
+  shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
@@ -635,6 +652,7 @@ import {
   diplomacyBetween,
   factionById,
   factionHasFlag,
+  migrateFactionIdTo1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
 import {
@@ -658,6 +676,7 @@ import {
 } from "./politics.js";
 import {
   BEAVER_PELTS_GOOD_ID,
+  GINGER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   addWorldEconomyPort,
   advanceWorldEconomy,
@@ -718,6 +737,7 @@ import {
   CITY_IMAGE_KEYS,
   CITY_TYPE_ART_KEYS,
   CITY_TYPE_KEYS,
+  cityArtKeyForCity,
   cityLabelText,
   loadCityCatalogFromCsv
 } from "./cityCatalogData.js";
@@ -892,6 +912,15 @@ import {
   markJapaneseMatchlockOfferSeen,
   maybeSpawnJapaneseMatchlockQuest
 } from "./japaneseMatchlockQuest.js";
+import {
+  CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
+  caribbeanGingerIndustryCompleted,
+  caribbeanGingerOfferShouldApproach,
+  caribbeanGingerQuestPort,
+  caribbeanGingerQuestState,
+  markCaribbeanGingerOfferSeen,
+  maybeSpawnCaribbeanGingerQuest
+} from "./caribbeanGingerQuest.js";
 import {
   beaverCatchNarrative,
   beaverCatchYield,
@@ -1121,7 +1150,7 @@ const ROWING_SHIP_ANIMATION_SPECS = new Map([
   ["viking-longship", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 117, volume: 0.14, playbackRate: 0.96 })],
   ["mesoamerican-dugout-canoe", Object.freeze({ frames: SHIP_ROWING_FRAME_COUNT, frameMs: 110, volume: 0.11, playbackRate: 1.08 })]
 ]);
-const CITY_ASSET_VERSION = "city-types-2";
+const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
 const STATUS_HUD_ASSET_VERSION = "cargo-crates-1";
@@ -1171,7 +1200,16 @@ const CITY_LABEL_GAP_PX = 2;
 const PORT_INTERACTION_RADIUS_PX = 34;
 const PORT_DIALOGUE_TRAFFIC_RADIUS_PX = 120;
 const FISH_INTERACTION_RADIUS_PX = 22;
+const FISH_CLICK_PAD_PX = 5;
 const PORT_CITY_CLICK_PAD_PX = 3;
+const WORLD_INTERACTION_VISUAL_PRIORITY = Object.freeze({
+  fish: 10,
+  port: 20,
+  whale: 30,
+  ship: 40,
+  raisedPort: 50,
+  portLabel: 60
+});
 const INTERACTION_BUTTON_W = 156;
 const INTERACTION_BUTTON_H = 28;
 let INTERACTION_BUTTON_X = Math.floor((SCREEN_W - INTERACTION_BUTTON_W) / 2);
@@ -1377,7 +1415,7 @@ const SHIP_INFO_DESKTOP_HEADER_Y = 52;
 const SHIP_INFO_DESKTOP_FIRST_ROW_Y = 66;
 const SHIP_INFO_PAPER_ROW_H = 21;
 const CAPTAIN_MENU_ACTIONS = Object.freeze([
-  Object.freeze({ id: "ship", label: "SHIP & LEDGER", iconId: "menu:ship" }),
+  Object.freeze({ id: "ship", label: "SHIP & LEDGER" }),
   Object.freeze({ id: "politics", label: "POLITICS", iconId: "menu:politics" }),
   Object.freeze({ id: "discoveries", label: "DISCOVERIES", iconId: "menu:discoveries" }),
   Object.freeze({ id: "navigation", label: "NAVIGATION ICONS", iconId: "action:navigation" }),
@@ -1481,7 +1519,7 @@ const SFX_ARROW_HIT_URL = "assets/sfx/arrow-hit.ogg";
 const SFX_HARBOUR_URL = "assets/sfx/freesound_community-harboursoundsanno1811-24015.ogg";
 const SFX_IMPACT_URL = "assets/sfx/dragon-studio-boulder-impact-487673.ogg";
 const SFX_SEAGULLS_URL = "assets/sfx/dragon-studio-seagull-calls-339723.ogg";
-const SFX_SHORE_GULLS_URL = "assets/sfx/freesound_community-sea-and-seagull-wave-5932.ogg";
+const SFX_SHORE_WAVES_URL = "assets/sfx/soundsforyou-ocean-sea-soft-waves-121349.ogg";
 const SFX_HARSH_WIND_URL = "assets/sfx/dragon-studio-harsh-wind-515272.ogg";
 const SFX_WINTER_WIND_URL = "assets/sfx/dragon-studio-winter-wind-402331.ogg";
 const SFX_DESERT_WIND_URL = "assets/sfx/tanweraman-desert-wind-1-350398.ogg";
@@ -1513,7 +1551,7 @@ const SFX_ARROW_HIT_POOL_SIZE = 6;
 const SFX_IMPACT_POOL_SIZE = 6;
 const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
-const SFX_COIN_CLINK_POOL_SIZE = 4;
+const SFX_COIN_CLINK_POOL_SIZE = 8;
 const SFX_FISHING_POOL_SIZE = 3;
 const SFX_ROWING_POOL_SIZE = 2;
 const SFX_FISHING_SUCCESS_POOL_SIZE = 2;
@@ -1545,7 +1583,7 @@ const SFX_WHALE_KILL_VOLUME = 0.86;
 const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
 const SFX_HARBOUR_MAX_VOLUME = 0.08;
 const SFX_SEAGULLS_MAX_VOLUME = 0.1;
-const SFX_SHORE_GULLS_MAX_VOLUME = 0.16;
+const SFX_SHORE_WAVES_MAX_VOLUME = 0.16;
 const SFX_HARSH_WIND_MAX_VOLUME = 0.12;
 const SFX_WINTER_WIND_MAX_VOLUME = 0.11;
 const SFX_DESERT_WIND_MAX_VOLUME = 0.1;
@@ -1560,6 +1598,7 @@ const SFX_WHALE_SONG_MAX_GAP_MS = 14000;
 const SFX_HARBOUR_NEAR_PX = 42;
 const SFX_HARBOUR_FAR_PX = 170;
 const SFX_AMBIENT_FADE_PER_SECOND = 1.35;
+const SFX_SEAGULL_FADE_PER_SECOND = 0.08;
 const SFX_WIND_FADE_PER_SECOND = 0.035;
 const SFX_STORM_FADE_PER_SECOND = 0.35;
 const SFX_SAIL_FLAP_FADE_PER_SECOND = 2.4;
@@ -1598,7 +1637,8 @@ const FISH_SCATTER_PUSH_PX = 5;
 const FISH_ANIMATION_REDRAW_MS = 120;
 const SEAGULL_FLIGHT_FRAMES = 6;
 const SEAGULL_MAX_FLYING = 14;
-const SEAGULL_LANDED_FULL_PRESENCE = 26;
+const SEAGULL_AUDIO_FULL_PRESENCE_COUNT = 4;
+const SEAGULL_AUDIO_FADE_MARGIN_PX = 18;
 const SEAGULL_SPAWN_CHECK_MS = 900;
 const SEAGULL_SPAWN_MARGIN_PX = 22;
 const SEAGULL_DESPAWN_MARGIN_PX = 38;
@@ -1699,6 +1739,7 @@ const pixelTextFontLayoutCache = new Map();
 let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
+const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
 
 const keys = new Set();
 const pointerSteering = {
@@ -1728,6 +1769,7 @@ let whaleHarpoonProjectile = null;
 let whaleBlowBursts = [];
 let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
+let elDoradoTreasureSequence = null;
 let survivalNotice = null;
 let images;
 let shipImage;
@@ -1776,6 +1818,7 @@ let portCityCharacters;
 let campaignGoalContact;
 let colonizationOrganizer;
 let japaneseMatchlockGunsmith;
+let caribbeanGingerPlanter;
 let colonizationTargetTileId = null;
 let colonizationTargetPlacements = [];
 let portSailingDistances;
@@ -1961,6 +2004,10 @@ window.addEventListener("keydown", (event) => {
   }
   if (lakeBattleMode) {
     handleLakeBattleKeyDown(event);
+    return;
+  }
+  if (elDoradoTreasureSequence) {
+    event.preventDefault();
     return;
   }
   if (dispatchWorldOverlayKey(event)) return;
@@ -2932,16 +2979,15 @@ async function loadCityImages() {
   return new Map(entries);
 }
 
-async function loadCityTypeImage(cityType) {
-  const artKey = CITY_TYPE_ART_KEYS[cityType] || cityType;
+async function loadCityTypeImage(artKey) {
   const img = await loadAssetImage(
     `assets/buildings/city-types/city-${artKey}.png?v=${CITY_ASSET_VERSION}`,
-    `city type image: ${cityType}`
+    `city type image: ${artKey}`
   );
   if (img.width !== CITY_SPRITE_W || img.height !== CITY_SPRITE_H) {
-    throw new Error(`City type image ${cityType} must be ${CITY_SPRITE_W}x${CITY_SPRITE_H}, got ${img.width}x${img.height}`);
+    throw new Error(`City type image ${artKey} must be ${CITY_SPRITE_W}x${CITY_SPRITE_H}, got ${img.width}x${img.height}`);
   }
-  return [cityType, img];
+  return [artKey, img];
 }
 
 async function loadFactionFlagImages() {
@@ -3356,7 +3402,8 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (scheduleNextFrame) requestAnimationFrame(loop);
     return;
   }
-  if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
+  if (!capturePlaybackPaused && !menusAreOpen() && !dialogueState && !playerIntroModal &&
+      !gameOverReason && !elDoradoTreasureSequence) {
     advanceActivePlayTime(gameState, dt);
     if (updatePlayerWind(dt)) dirty = true;
     if (updateDemoVoyageLimit()) {
@@ -3919,6 +3966,7 @@ function assignPortCharactersForPlayer(playerCharacter) {
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
   colonizationOrganizer = null;
   japaneseMatchlockGunsmith = null;
+  caribbeanGingerPlanter = null;
   usedCharacterNames = new Set([playerCharacter.name]);
   portCityCharacters = assignPortCityCharacters(
     portCities,
@@ -4143,7 +4191,15 @@ function dispatchWorldOverlayPointerMove(point) {
     updateNavigationMenuSelectionFromPoint(point);
     dirty = true;
   } else if (owner === INTERACTION_INPUT.DIALOGUE) {
-    updateDialogueSelectionFromPoint(point);
+    if (dialogueLayout.activeCustomLoadoutSliderKey) {
+      const entry = dialogueLayout.customLoadoutSliderRects.find(
+        (candidate) => candidate.key === dialogueLayout.activeCustomLoadoutSliderKey
+      );
+      if (!entry) throw new Error(`Missing active custom loadout slider: ${dialogueLayout.activeCustomLoadoutSliderKey}`);
+      setCustomLoadoutFromPoint(entry, point);
+    } else {
+      updateDialogueSelectionFromPoint(point);
+    }
     dirty = true;
   } else if (owner !== INTERACTION_INPUT.FISHING) {
     dirty = true;
@@ -4211,7 +4267,7 @@ function setupSoundEffects() {
     whaleSongs: createAmbientPlaylist(SFX_WHALE_SONG_URLS, "underwater whale song"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
     seagulls: createAmbientLoop(SFX_SEAGULLS_URL, "seagull calls"),
-    shoreGulls: createAmbientLoop(SFX_SHORE_GULLS_URL, "shore gulls and waves"),
+    shoreWaves: createAmbientLoop(SFX_SHORE_WAVES_URL, "shore waves"),
     harshWind: createAmbientLoop(SFX_HARSH_WIND_URL, "open-water wind"),
     winterWind: createAmbientLoop(SFX_WINTER_WIND_URL, "winter wind"),
     desertWind: createAmbientLoop(SFX_DESERT_WIND_URL, "desert wind"),
@@ -4381,6 +4437,7 @@ function ensureAmbientLoopStarted(loop) {
   loop.started = true;
   loop.startAttempting = true;
   loop.audio.currentTime = 0;
+  loop.audio.playbackRate = randomizedSfxPlaybackRate();
   applyThemeAudioSettings();
   const playPromise = loop.audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
@@ -4410,7 +4467,7 @@ function ensureAmbientPlaylistStarted(playlist, nowMs) {
   playlist.currentVolume = 0;
   playlist.startAttempting = true;
   audio.currentTime = 0;
-  audio.playbackRate = 0.97 + Math.random() * 0.06;
+  audio.playbackRate = randomizedSfxPlaybackRate();
   applyThemeAudioSettings();
   const playPromise = audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
@@ -4473,7 +4530,7 @@ function playSoundEffect(pool, volume, playbackRate = 1) {
   const audio = pool.find((item) => item.paused || item.ended) || pool[0];
   audio.pause();
   audio.currentTime = 0;
-  audio.playbackRate = clamp(playbackRate, 0.75, 1.25);
+  audio.playbackRate = clamp(randomizedSfxPlaybackRate(playbackRate), 0.75, 1.25);
   audio.volume = clamp(optionsMenu.sfxVolume * volume, 0, 1);
   audio.muted = optionsMenu.muted;
   if (CAPTURE_FRAME_PASS) {
@@ -4505,8 +4562,7 @@ function playCannonShotSound(broadsideCount, distancePx = 0) {
   const distanceGain = cannonShotDistanceGain(distancePx);
   playSoundEffect(
     soundEffects?.cannon,
-    SFX_CANNON_VOLUME * countGain * distanceGain,
-    0.94 + Math.random() * 0.1
+    SFX_CANNON_VOLUME * countGain * distanceGain
   );
 }
 
@@ -4515,15 +4571,15 @@ function playLightningStrikeSound() {
 }
 
 function playCrewDeathSound() {
-  playSoundEffect(soundEffects?.crewDeath, SFX_CREW_DEATH_VOLUME, 0.97 + Math.random() * 0.06);
+  playSoundEffect(soundEffects?.crewDeath, SFX_CREW_DEATH_VOLUME);
 }
 
 function playWhaleBlowSound() {
-  playSoundEffect(soundEffects?.whaleBlow, SFX_WHALE_BLOW_VOLUME, 0.96 + Math.random() * 0.08);
+  playSoundEffect(soundEffects?.whaleBlow, SFX_WHALE_BLOW_VOLUME);
 }
 
 function playWhaleKillSound() {
-  playSoundEffect(soundEffects?.whaleKill, SFX_WHALE_KILL_VOLUME, 0.97 + Math.random() * 0.05);
+  playSoundEffect(soundEffects?.whaleKill, SFX_WHALE_KILL_VOLUME);
 }
 
 function playWhaleLineBreakSound() {
@@ -4531,11 +4587,11 @@ function playWhaleLineBreakSound() {
 }
 
 function playBowFireSound() {
-  playSoundEffect(soundEffects?.bowFire, SFX_BOW_FIRE_VOLUME, 0.94 + Math.random() * 0.1);
+  playSoundEffect(soundEffects?.bowFire, SFX_BOW_FIRE_VOLUME);
 }
 
 function playArrowHitSound() {
-  playSoundEffect(soundEffects?.arrowHit, SFX_ARROW_HIT_VOLUME, 0.95 + Math.random() * 0.08);
+  playSoundEffect(soundEffects?.arrowHit, SFX_ARROW_HIT_VOLUME);
 }
 
 function playNavalAttackSound(weapon, broadsideCount, distancePx = 0) {
@@ -4563,47 +4619,47 @@ function playNavalImpactSound(projectile) {
 
 function playCannonImpactSound(distancePx = 0) {
   const distanceGain = clamp(1 - distancePx / CANNON_RANGE_PX, 0.35, 1);
-  playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * distanceGain, 0.9 + Math.random() * 0.12);
+  playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * distanceGain, 0.96);
 }
 
 function playSailDeploySound() {
-  playSoundEffect(soundEffects?.sailDeploy, SFX_SAIL_DEPLOY_VOLUME, 0.98 + Math.random() * 0.04);
+  playSoundEffect(soundEffects?.sailDeploy, SFX_SAIL_DEPLOY_VOLUME);
 }
 
 function playDiscoverySuccessSound() {
-  playSoundEffect(soundEffects?.discoverySuccess, SFX_DISCOVERY_SUCCESS_VOLUME, 0.98 + Math.random() * 0.04);
+  playSoundEffect(soundEffects?.discoverySuccess, SFX_DISCOVERY_SUCCESS_VOLUME);
 }
 
 function playCoinClinkSound() {
-  playSoundEffect(soundEffects?.coinClink, SFX_COIN_CLINK_VOLUME, 0.98 + Math.random() * 0.04);
+  playSoundEffect(soundEffects?.coinClink, SFX_COIN_CLINK_VOLUME);
 }
 
 function playFishingSound() {
-  playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME, 0.94 + Math.random() * 0.12);
+  playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME);
 }
 
 function playRowingStrokeSound(spec) {
   playSoundEffect(
     soundEffects?.rowing,
     spec.volume,
-    spec.playbackRate * (0.97 + Math.random() * 0.06)
+    spec.playbackRate
   );
 }
 
 function playFishingSuccessSound() {
-  playSoundEffect(soundEffects?.fishingSuccess, SFX_FISHING_SUCCESS_VOLUME, 0.98 + Math.random() * 0.04);
+  playSoundEffect(soundEffects?.fishingSuccess, SFX_FISHING_SUCCESS_VOLUME);
 }
 
 function playFishingFailureSound() {
-  playSoundEffect(soundEffects?.fishingFailure, SFX_FISHING_FAILURE_VOLUME, 0.98 + Math.random() * 0.04);
+  playSoundEffect(soundEffects?.fishingFailure, SFX_FISHING_FAILURE_VOLUME);
 }
 
 function playScavengeSuccessSound() {
-  playSoundEffect(soundEffects?.scavengeSuccess, SFX_SCAVENGE_SUCCESS_VOLUME, 0.96 + Math.random() * 0.06);
+  playSoundEffect(soundEffects?.scavengeSuccess, SFX_SCAVENGE_SUCCESS_VOLUME);
 }
 
 function playScavengeFailureSound() {
-  playSoundEffect(soundEffects?.scavengeFailure, SFX_SCAVENGE_FAILURE_VOLUME, 0.98 + Math.random() * 0.04);
+  playSoundEffect(soundEffects?.scavengeFailure, SFX_SCAVENGE_FAILURE_VOLUME);
 }
 
 function playCollectionDingSound() {
@@ -4624,14 +4680,15 @@ function updateAmbientAudio(dt) {
   ) || changed;
   changed = updateAmbientLoop(
     soundEffects.seagulls,
-    seagullAmbientPresence(shore) * SFX_SEAGULLS_MAX_VOLUME,
+    seagullAmbientPresence() * SFX_SEAGULLS_MAX_VOLUME,
     SFX_SEAGULLS_MAX_VOLUME,
-    dt
+    dt,
+    SFX_SEAGULL_FADE_PER_SECOND
   ) || changed;
   changed = updateAmbientLoop(
-    soundEffects.shoreGulls,
-    shore * SFX_SHORE_GULLS_MAX_VOLUME,
-    SFX_SHORE_GULLS_MAX_VOLUME,
+    soundEffects.shoreWaves,
+    shore * SFX_SHORE_WAVES_MAX_VOLUME,
+    SFX_SHORE_WAVES_MAX_VOLUME,
     dt
   ) || changed;
   changed = updateAmbientLoop(
@@ -4767,7 +4824,7 @@ function ambientSoundLoops() {
   return [
     soundEffects.harbour,
     soundEffects.seagulls,
-    soundEffects.shoreGulls,
+    soundEffects.shoreWaves,
     soundEffects.harshWind,
     soundEffects.winterWind,
     soundEffects.desertWind,
@@ -4894,10 +4951,20 @@ function nearestLandForWindContext() {
   return nearest;
 }
 
-function seagullAmbientPresence(shore) {
-  const flying = Math.min(1, seagulls.length / Math.max(1, SEAGULL_MAX_FLYING));
-  const landed = chart ? Math.min(1, landedSeagullCalls(chart).length / SEAGULL_LANDED_FULL_PRESENCE) : 0;
-  return clamp(Math.max(shore * 0.72, flying * 0.5, landed * 0.42), 0, 1);
+function seagullAmbientPresence() {
+  if (!chart || !animalImages) return 0;
+  const offset = chartOffsetPixels(chart);
+  const calls = seagullDrawCalls(chart, lastFrameMs).map((call) => ({
+    x: call.x + offset.x,
+    y: call.y + offset.y
+  }));
+  return seagullScreenPresence(calls, {
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    spriteSize: SEAGULL_FRAME_SIZE,
+    fadeMargin: SEAGULL_AUDIO_FADE_MARGIN_PX,
+    fullPresenceCount: SEAGULL_AUDIO_FULL_PRESENCE_COUNT
+  });
 }
 
 function shoreProximity() {
@@ -5351,7 +5418,8 @@ function updateCapturePillage(sequence) {
         battery,
         gameState.memory.flags,
         Math.max(1, battery.hitPoints),
-        Math.floor(weatherClockMinutes)
+        Math.floor(weatherClockMinutes),
+        shoreBatteryAttackerShipLabel(PLAYER_COMBAT_ID)
       );
       showSurvivalNotice(shoreBatteryDisabledNotice(battery), "good");
       dirty = true;
@@ -5569,7 +5637,13 @@ function stageCapturePillage(sequence) {
   const battery = ensureShoreBatteryState(call);
   markPlayerPortAssault(gameState.memory.flags, call, weatherClockMinutes + WEATHER_MINUTES_PER_DAY);
   if (sequence.variant === "assault") {
-    damageShoreBattery(battery, gameState.memory.flags, battery.maxHitPoints, Math.floor(weatherClockMinutes));
+    damageShoreBattery(
+      battery,
+      gameState.memory.flags,
+      battery.maxHitPoints,
+      Math.floor(weatherClockMinutes),
+      shoreBatteryAttackerShipLabel(PLAYER_COMBAT_ID)
+    );
     const status = playerPortConquestStatus(call);
     if (!status.canAttempt) {
       throw new Error(
@@ -6447,7 +6521,10 @@ async function continueSavedVoyage() {
 }
 
 async function restoreSavedVoyage(payload) {
-  const savedShip = payload.playerShip;
+  const savedShip = {
+    ...payload.playerShip,
+    factionId: migrateFactionIdTo1522(payload.playerShip.factionId)
+  };
   const stats = shipStatsForSlug(savedShip.typeSlug);
   const restoredGameState = migrateGameState(payload.gameState, stats);
   ensureWhalePopulation(restoredGameState.memory.whales);
@@ -6469,6 +6546,7 @@ async function restoreSavedVoyage(payload) {
   const assets = await loadShipAssetSet(savedShip.typeSlug);
   restoreWorldEconomy(worldEconomy, payload.economy);
   syncJapaneseMatchlockIndustry(restoredGameState);
+  syncCaribbeanGingerIndustry(restoredGameState);
   if (payload.landTrade) {
     restoreLandTradeSystem(landTradeSystem, payload.landTrade);
   } else {
@@ -6549,6 +6627,7 @@ async function restoreSavedVoyage(payload) {
   whaleBlowBursts = [];
   whaleKillEffects = [];
   itemAcquisitionEffects = [];
+  elDoradoTreasureSequence = null;
   shoreScavengeAction = null;
   portWaitState = null;
   portWaitButtonRect = null;
@@ -7141,6 +7220,10 @@ function handlePointerDown(event) {
     handleLakeBattlePointerDown(event.pointerId, point);
     return;
   }
+  if (elDoradoTreasureSequence) {
+    event.preventDefault();
+    return;
+  }
   if (dispatchWorldOverlayPointerDown(event, point)) return;
   const statusTarget = statusHudTooltipTargetForPoint(point);
   if (statusTarget) {
@@ -7196,18 +7279,9 @@ function handlePointerDown(event) {
     openActiveInteractionDialogue();
     return;
   }
-  const clickedShip = npcShipCallAtPoint(point);
-  if (clickedShip) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openShipDialogue(clickedShip);
-    return;
-  }
-  const clickedWhale = whaleCallAtPoint(point);
-  if (clickedWhale) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    startWhaleHarpoon(clickedWhale);
+  const clickedWorldTarget = worldInteractionTargetAtPoint(point);
+  if (clickedWorldTarget?.exact) {
+    activatePointerWorldInteraction(event, clickedWorldTarget.target);
     return;
   }
   const broadside = navalBroadsideSideAtPoint(point);
@@ -7219,23 +7293,23 @@ function handlePointerDown(event) {
     });
     return;
   }
-  const clickedFish = fishCallAtPoint(point);
-  if (clickedFish) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    catchFishAtFishery(clickedFish);
-    return;
-  }
-  const clickedPort = portCallAtPoint(point);
-  if (clickedPort) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    openPortDialogue(clickedPort);
+  if (clickedWorldTarget) {
+    activatePointerWorldInteraction(event, clickedWorldTarget.target);
     return;
   }
   event.preventDefault();
   if (signalBlockedDepartureControl()) return;
   beginPointerSteering(event.pointerId, point);
+}
+
+function activatePointerWorldInteraction(event, target) {
+  event.preventDefault();
+  if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+  if (target.kind === "port") openPortDialogue(target.call);
+  else if (target.kind === "ship") openShipDialogue(target.call);
+  else if (target.kind === "whale") startWhaleHarpoon(target.call);
+  else if (target.kind === "fish") catchFishAtFishery(target.call);
+  else throw new Error(`Unknown pointer interaction target kind: ${target.kind}`);
 }
 
 function handlePointerMove(event) {
@@ -7282,6 +7356,10 @@ function handlePointerUp(event) {
   if (tapAction) activatePointerTapAction(tapAction);
   if (optionsMenu.activeSliderKey) {
     optionsMenu.activeSliderKey = null;
+    dirty = true;
+  }
+  if (dialogueLayout.activeCustomLoadoutSliderKey) {
+    dialogueLayout.activeCustomLoadoutSliderKey = null;
     dirty = true;
   }
 }
@@ -7661,7 +7739,9 @@ function createDialogueLayoutState() {
     optionRects: [],
     scrollOffset: 0,
     previousRect: null,
-    nextRect: null
+    nextRect: null,
+    customLoadoutSliderRects: [],
+    activeCustomLoadoutSliderKey: null
   };
 }
 
@@ -7669,10 +7749,15 @@ function invalidateDialogueOptionGeometry() {
   dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
+  dialogueLayout.customLoadoutSliderRects = [];
 }
 
 function handleDialogueKeyDown(event) {
   event.preventDefault();
+  if (dialogueIsCustomLoadoutEditor()) {
+    handleCustomLoadoutKeyDown(event);
+    return;
+  }
   if (event.key === "Escape") {
     if (dialogueState.kind === "campaign-goal") return;
     closeDialogue();
@@ -7706,6 +7791,15 @@ function handleDialogueKeyDown(event) {
 }
 
 function handleDialoguePointerDown(point) {
+  if (dialogueIsCustomLoadoutEditor()) {
+    for (const entry of dialogueLayout.customLoadoutSliderRects) {
+      if (!pointInRect(point, entry.hitRect)) continue;
+      dialogueState.customLoadoutFieldIndex = entry.index;
+      dialogueLayout.activeCustomLoadoutSliderKey = entry.key;
+      setCustomLoadoutFromPoint(entry, point);
+      return;
+    }
+  }
   if (pointInRect(point, dialogueLayout.previousRect)) {
     stepDialogueSelection(-1);
     return;
@@ -7720,6 +7814,54 @@ function handleDialoguePointerDown(point) {
     chooseDialogueOption(entry.index);
     return;
   }
+}
+
+function dialogueIsCustomLoadoutEditor() {
+  return dialogueState?.kind === "port" && dialogueState.nodeId === "custom-loadout";
+}
+
+function handleCustomLoadoutKeyDown(event) {
+  const view = currentDialogueView();
+  const fields = view.presentation?.fields;
+  if (!Array.isArray(fields) || fields.length === 0) throw new Error("Custom loadout screen has no fields");
+  if (event.key === "Escape") {
+    dialogueState.nodeId = "loadout";
+    dialogueState.selectedIndex = 0;
+    dialogueState.feedback = null;
+    invalidateDialogueOptionGeometry();
+    dirty = true;
+    return;
+  }
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    dialogueState.customLoadoutFieldIndex = stepMenuIndex(
+      dialogueState.customLoadoutFieldIndex || 0,
+      direction,
+      fields.length
+    );
+    dirty = true;
+    return;
+  }
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    const index = clamp(dialogueState.customLoadoutFieldIndex || 0, 0, fields.length - 1);
+    const field = fields[index];
+    setPortCustomLoadoutValue(
+      dialogueState,
+      portDialogueContext().shipStats,
+      field.key,
+      field.value + (event.key === "ArrowRight" ? 1 : -1)
+    );
+    dirty = true;
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") chooseDialogueOption(0);
+}
+
+function setCustomLoadoutFromPoint(entry, point) {
+  const ratio = clamp((point.x - entry.trackRect.x) / Math.max(1, entry.trackRect.w - 1), 0, 1);
+  const value = entry.min + Math.round(ratio * (entry.max - entry.min));
+  setPortCustomLoadoutValue(dialogueState, portDialogueContext().shipStats, entry.key, value);
+  dirty = true;
 }
 
 function updateDialogueSelectionFromPoint(point) {
@@ -7795,8 +7937,22 @@ function openPortDialogue(cityCall) {
     return;
   }
   const entryStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
+  const recoveryStatus = shoreBatteryRecoveryStatus(
+    ensureShoreBatteryState(cityCall),
+    Math.floor(weatherClockMinutes)
+  );
   const conquestStatus = playerPortConquestStatus(cityCall);
-  if (!entryStatus.allowed || conquestStatus.canAttempt || conquestStatus.playerAssaultActive) {
+  if (recoveryStatus && !entryStatus.hostile) {
+    dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "recovering" });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow("turned away from recovering port");
+    dirty = true;
+    return;
+  }
+  if (!entryStatus.allowed || (recoveryStatus && entryStatus.hostile) ||
+      conquestStatus.canAttempt || conquestStatus.playerAssaultActive) {
     dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "barred" });
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
@@ -7889,6 +8045,23 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       arrivedDrunk,
       drunkVariant,
       japaneseMatchlockApproach: true
+    });
+  }
+  const caribbeanGingerOffer = maybeSpawnCaribbeanGingerQuest(
+    gameState,
+    cityCall,
+    { simMinute }
+  );
+  if (caribbeanGingerOffer &&
+      caribbeanGingerOfferShouldApproach(gameState, cityCall) &&
+      !openDeliveryMission) {
+    ensureCaribbeanGingerPlanter(gameState);
+    markCaribbeanGingerOfferSeen(gameState);
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      caribbeanGingerApproach: true
     });
   }
   const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
@@ -8776,11 +8949,30 @@ function spawnItemAcquisitionEffect(goodId, origin, nowMs) {
 }
 
 function updateItemAcquisitionEffects(nowMs) {
-  const previousCount = itemAcquisitionEffects.length;
-  itemAcquisitionEffects = itemAcquisitionEffects.filter(
-    (effect) => !itemAcquisitionEffectComplete(effect, nowMs)
-  );
-  return itemAcquisitionEffects.length > 0 || itemAcquisitionEffects.length !== previousCount;
+  let changed = false;
+  const activeEffects = [];
+  for (const effect of itemAcquisitionEffects) {
+    if (!itemAcquisitionEffectComplete(effect, nowMs)) {
+      activeEffects.push(effect);
+      continue;
+    }
+    changed = true;
+    if (effect.arrivalSoundId === ITEM_ARRIVAL_SOUND_COIN_CLINK) playCoinClinkSound();
+    else if (effect.arrivalSoundId !== null) {
+      throw new Error(`Unknown item acquisition arrival sound: ${effect.arrivalSoundId}`);
+    }
+  }
+  itemAcquisitionEffects = activeEffects;
+
+  if (elDoradoTreasureSequence && nowMs >= elDoradoTreasureSequence.completeAtMs) {
+    const { captainMessage } = elDoradoTreasureSequence;
+    elDoradoTreasureSequence = null;
+    if (captainMessage && !openCaptainAlertModal(captainMessage, "happy")) {
+      throw new Error("El Dorado treasure sequence could not open its captain dialogue");
+    }
+    changed = true;
+  }
+  return itemAcquisitionEffects.length > 0 || changed;
 }
 
 async function purchaseShipyardShip(action) {
@@ -9031,6 +9223,14 @@ function currentDialogueCity() {
           portrait: characterExpression(character)
         };
       }
+      if (dialogueState.nodeId === "caribbean-ginger") {
+        const character = ensureCaribbeanGingerPlanter(gameState);
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
+      }
       if (dialogueState.nodeId !== "colonization") {
         if (dialogueState.nodeId !== "drunk-captain") return portCall;
         const character = gameState.playerCharacter;
@@ -9064,6 +9264,8 @@ function currentDialogueCity() {
     ? null
     : dialogueState.nodeId === "japanese-matchlocks"
       ? ensureJapaneseMatchlockGunsmith(gameState)
+      : dialogueState.nodeId === "caribbean-ginger"
+        ? ensureCaribbeanGingerPlanter(gameState)
       : dialogueState.nodeId === "colonization"
         ? city.colonizationQuestStage === COLONIZATION_STAGE_FAILED
           ? gameState.playerCharacter
@@ -9134,6 +9336,9 @@ function portDialogueContext() {
       ? nearestShipyardListingForPort(worldEconomy.shipyards, city, sailingDistanceBetweenPorts)
       : null,
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
+    portRecoveryStatus: city && !questOnlyColony
+      ? shoreBatteryRecoveryStatus(ensureShoreBatteryState(city), simMinute)
+      : null,
     portConquestStatus: city && !questOnlyColony ? playerPortConquestStatus(city) : null,
     shipyardRumor: city && !questOnlyColony
       ? shipyardRumorForPort(worldEconomy.shipyards, city, sailingDistanceBetweenPorts)
@@ -9413,11 +9618,6 @@ function activeWhaleCall() {
     .sort((a, b) => a.distancePx - b.distancePx || a.id.localeCompare(b.id))[0] || null;
 }
 
-function whaleCallAtPoint(point) {
-  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
-  return selectWhaleTargetAtPoint(harpoonableWhaleCalls(), point, SHIP_SHEET_FRAME_SIZE);
-}
-
 function harpoonableWhaleCalls() {
   if (!gameState || !localLayout || whaleHarpoonProjectile || gameState.memory.whales.activeHunt) return [];
   const harpoon = playerWhaleHarpoon(gameState);
@@ -9689,28 +9889,178 @@ function fishingChanceForCall(call) {
   return fishingCatchChance(call.fishery.visibleIndividualCount, net.catchRateMultiplier);
 }
 
-function npcShipCallAtPoint(point) {
-  if (!point || !chart || !localLayout || !npcShipCaptains) return null;
+function worldInteractionTargetAtPoint(point) {
+  if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+    throw new Error("World interaction hit testing requires a finite pointer position");
+  }
+  if (!chart || !localLayout) return null;
   const offset = chartOffsetPixels(chart);
-  let best = null;
-  let bestDistance = Infinity;
+  const candidates = [];
+  let order = 0;
+  const addCandidate = (target, exact, visualPriority, centerX, centerY) => {
+    candidates.push({
+      target,
+      exact,
+      visualPriority,
+      distanceSquared: distance2(point.x, point.y, centerX, centerY),
+      order: order++
+    });
+  };
+
+  for (const call of chart.cityCalls || []) {
+    if (call.hiddenSettlement || !portCallInInteractionRange(call)) continue;
+    const rect = cityScreenRect(call, offset);
+    if (!pointInRect(point, expandedRect(rect, PORT_CITY_CLICK_PAD_PX))) continue;
+    const exact = pointHitsOpaqueSpritePixel({
+      point,
+      mask: spriteAlphaMask(cityImageForCity(call)),
+      sourceRect: { x: 0, y: 0, w: call.spriteW, h: call.spriteH },
+      destinationRect: rect
+    });
+    addCandidate(
+      { kind: "port", call },
+      exact,
+      citySpriteShouldDrawAboveShip(call, offset)
+        ? WORLD_INTERACTION_VISUAL_PRIORITY.raisedPort
+        : WORLD_INTERACTION_VISUAL_PRIORITY.port,
+      call.x + offset.x,
+      call.y + offset.y
+    );
+  }
+
+  for (const { call, box } of cityLabelBoxes(chart.cityCalls || [], chart)) {
+    if (!portCallInInteractionRange(call)) continue;
+    const screenRect = chartRectToScreenRect(box, offset);
+    if (!pointInRect(point, screenRect)) continue;
+    addCandidate(
+      { kind: "port", call },
+      true,
+      WORLD_INTERACTION_VISUAL_PRIORITY.portLabel,
+      call.x + offset.x,
+      call.y + offset.y
+    );
+  }
+
   for (const state of npcVisualShips.values()) {
     if (!npcShipInHailRange(state)) continue;
-    const screenX = state.x + offset.x;
-    const screenY = state.y + offset.y;
+    const drawCall = currentNpcShipDrawCall(state, lastFrameMs);
+    if (!drawCall) continue;
     const rect = expandedRect({
-      x: screenX - SHIP_SHEET_FRAME_SIZE / 2,
-      y: screenY - SHIP_SHEET_FRAME_SIZE / 2,
+      x: drawCall.x,
+      y: drawCall.y,
       w: SHIP_SHEET_FRAME_SIZE,
       h: SHIP_SHEET_FRAME_SIZE
     }, NPC_HAIL_CLICK_PAD_PX);
     if (!pointInRect(point, rect)) continue;
-    const distance = distance2(point.x, point.y, screenX, screenY);
-    if (distance >= bestDistance) continue;
-    best = npcShipInteractionCall(state);
-    bestDistance = distance;
+    addCandidate(
+      { kind: "ship", call: npcShipInteractionCall(state) },
+      pointHitsRenderedShipPixel(point, drawCall, lastFrameMs),
+      WORLD_INTERACTION_VISUAL_PRIORITY.ship,
+      drawCall.x + SHIP_SHEET_FRAME_SIZE / 2,
+      drawCall.y + SHIP_SHEET_FRAME_SIZE / 2
+    );
   }
-  return best;
+
+  for (const call of harpoonableWhaleCalls()) {
+    if (!pointInRect(point, whaleTargetRect(call, SHIP_SHEET_FRAME_SIZE))) continue;
+    addCandidate(
+      { kind: "whale", call },
+      pointHitsRenderedWhalePixel(point, call, lastFrameMs),
+      WORLD_INTERACTION_VISUAL_PRIORITY.whale,
+      call.x,
+      call.y
+    );
+  }
+
+  if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
+    for (const call of fishIndividualDrawCalls(chart, lastFrameMs)) {
+      const interaction = fishInteractionCall(call);
+      if (!fishInteractionCallIsUsable(interaction)) continue;
+      const drawX = call.x + offset.x;
+      const drawY = call.y + offset.y;
+      const rect = expandedRect({
+        x: drawX,
+        y: drawY,
+        w: FISH_SPRITE_SIZE,
+        h: FISH_SPRITE_SIZE
+      }, FISH_CLICK_PAD_PX);
+      if (!pointInRect(point, rect)) continue;
+      const exact = pointHitsOpaqueSpritePixel({
+        point,
+        mask: spriteAlphaMask(tintedFishSprite(call.colors)),
+        sourceRect: { x: 0, y: 0, w: FISH_SPRITE_SIZE, h: FISH_SPRITE_SIZE },
+        destinationRect: { x: drawX, y: drawY, w: FISH_SPRITE_SIZE, h: FISH_SPRITE_SIZE },
+        flipX: call.flip
+      }) && wakeMapPointIsWater(
+        Math.floor(point.x - offset.x),
+        Math.floor(point.y - offset.y),
+        chart
+      );
+      addCandidate(
+        { kind: "fish", call: interaction },
+        exact,
+        WORLD_INTERACTION_VISUAL_PRIORITY.fish,
+        call.centerX + offset.x,
+        call.centerY + offset.y
+      );
+    }
+  }
+
+  return selectPixelInteractionCandidate(candidates);
+}
+
+function currentNpcShipDrawCall(state, nowMs) {
+  const baseCall = npcShipDrawCall(state, chart);
+  if (!baseCall) return null;
+  const frameAsset = rowingShipFrameAsset(baseCall, nowMs);
+  return stormBobbedShipCall({
+    ...baseCall,
+    img: frameAsset.image,
+    sinkDepthImg: frameAsset.sinkDepthImage
+  }, nowMs);
+}
+
+function pointHitsRenderedShipPixel(point, call, nowMs) {
+  const layers = shipWaterlineLayers(call.img, call.sinkDepthImg, call.frame, call.slug);
+  const frameRect = { x: 0, y: 0, w: SHIP_SHEET_FRAME_SIZE, h: SHIP_SHEET_FRAME_SIZE };
+  const destinationRect = {
+    x: call.x,
+    y: call.y,
+    w: SHIP_SHEET_FRAME_SIZE,
+    h: SHIP_SHEET_FRAME_SIZE
+  };
+  if (pointHitsOpaqueSpritePixel({
+    point,
+    mask: spriteAlphaMask(layers.aboveCanvas),
+    sourceRect: frameRect,
+    destinationRect
+  })) return true;
+
+  const refractionTime = reducedMotionPreferred ? 0 : nowMs;
+  const submergedMask = spriteAlphaMask(layers.submergedCanvas);
+  for (let y = 0; y < SHIP_SHEET_FRAME_SIZE; y += SHIP_REFRACTION_BAND_HEIGHT) {
+    const bandHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, SHIP_SHEET_FRAME_SIZE - y);
+    if (pointHitsOpaqueSpritePixel({
+      point,
+      mask: submergedMask,
+      sourceRect: { x: 0, y, w: SHIP_SHEET_FRAME_SIZE, h: bandHeight },
+      destinationRect: {
+        x: call.x + liveShipRefractionOffset(y, refractionTime, call.bobSeed),
+        y: call.y + y,
+        w: SHIP_SHEET_FRAME_SIZE,
+        h: bandHeight
+      }
+    })) return true;
+  }
+  return false;
+}
+
+function pointHitsRenderedWhalePixel(point, call, nowMs) {
+  const pixelX = Math.floor(point.x);
+  const pixelY = Math.floor(point.y);
+  return whaleRenderedPixels(call, nowMs).some((pixel) => (
+    pixel.alpha > 0 && pixel.x === pixelX && pixel.y === pixelY
+  ));
 }
 
 function npcShipInteractionCall(state) {
@@ -9729,32 +10079,6 @@ function npcShipInteractionCall(state) {
 function npcShipInHailRange(state) {
   if (!state || !localLayout) return false;
   return distance2(localLayout.viewX, localLayout.viewY, state.x, state.y) <= NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX;
-}
-
-function portCallAtPoint(point) {
-  if (!chart || !localLayout || !point) return null;
-  const offset = chartOffsetPixels(chart);
-  let best = null;
-  let bestDistance = Infinity;
-
-  const consider = (call) => {
-    const distance = distance2(point.x, point.y, call.x + offset.x, call.y + offset.y);
-    if (distance >= bestDistance) return;
-    best = call;
-    bestDistance = distance;
-  };
-
-  for (const call of chart.cityCalls || []) {
-    if (!portCallInInteractionRange(call)) continue;
-    if (pointHitsPortCitySprite(point, call, offset)) consider(call);
-  }
-
-  for (const { call, box } of cityLabelBoxes(chart.cityCalls || [], chart)) {
-    if (!portCallInInteractionRange(call)) continue;
-    if (pointInRect(point, chartRectToScreenRect(box, offset))) consider(call);
-  }
-
-  return best;
 }
 
 function portCallInInteractionRange(call) {
@@ -9794,35 +10118,6 @@ function fishInteractionCallIsUsable(call) {
   if (!localLayout) return false;
   return distance2(localLayout.viewX, localLayout.viewY, call.x, call.y) <=
     FISH_INTERACTION_RADIUS_PX * FISH_INTERACTION_RADIUS_PX;
-}
-
-function fishCallAtPoint(point) {
-  if (!point || !chart || !localLayout || !gameState || !hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) return null;
-  const offset = chartOffsetPixels(chart);
-  let best = null;
-  let bestDistance = Infinity;
-  for (const call of fishIndividualDrawCalls(chart, lastFrameMs)) {
-    const interaction = fishInteractionCall(call);
-    if (!fishInteractionCallIsUsable(interaction)) continue;
-    const screenX = call.centerX + offset.x;
-    const screenY = call.centerY + offset.y;
-    const rect = {
-      x: screenX - FISH_SPRITE_SIZE / 2 - 5,
-      y: screenY - FISH_SPRITE_SIZE / 2 - 5,
-      w: FISH_SPRITE_SIZE + 10,
-      h: FISH_SPRITE_SIZE + 10
-    };
-    if (!pointInRect(point, rect)) continue;
-    const distance = distance2(point.x, point.y, screenX, screenY);
-    if (distance >= bestDistance) continue;
-    best = interaction;
-    bestDistance = distance;
-  }
-  return best;
-}
-
-function pointHitsPortCitySprite(point, call, offset) {
-  return pointInRect(point, expandedRect(cityScreenRect(call, offset), PORT_CITY_CLICK_PAD_PX));
 }
 
 function chartRectToScreenRect(rect, offset) {
@@ -10108,6 +10403,40 @@ function syncJapaneseMatchlockIndustry(state) {
     workshopPort,
     MATCHLOCKS_GOOD_ID,
     JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY,
+    { initialStock: 0 }
+  );
+}
+
+function currentCaribbeanGingerPort(state) {
+  return caribbeanGingerQuestPort(state, portCities);
+}
+
+function ensureCaribbeanGingerPlanter(state) {
+  if (caribbeanGingerPlanter) return caribbeanGingerPlanter;
+  const cultivationPort = currentCaribbeanGingerPort(state);
+  if (!cultivationPort) throw new Error("Caribbean ginger planter requires an active cultivation port");
+  const factor = portCityCharacters.get(cultivationPort.tileId);
+  if (!factor) throw new Error(`${cityLabelText(cultivationPort)} has no generated port factor`);
+  caribbeanGingerPlanter = generateSpecialPortCharacter({
+    identityKey: `caribbean-ginger-planter-${cultivationPort.tileId}`,
+    port: cultivationPort,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    role: "planter",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  return caribbeanGingerPlanter;
+}
+
+function syncCaribbeanGingerIndustry(state) {
+  if (!caribbeanGingerIndustryCompleted(state)) return null;
+  const cultivationPort = currentCaribbeanGingerPort(state);
+  if (!cultivationPort) throw new Error("Completed Caribbean ginger industry has no port");
+  return establishPortIndustry(
+    worldEconomy,
+    cultivationPort,
+    GINGER_GOOD_ID,
+    CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
     { initialStock: 0 }
   );
 }
@@ -11738,7 +12067,8 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     battery,
     gameState.memory.flags,
     ball.damage,
-    Math.floor(weatherClockMinutes)
+    Math.floor(weatherClockMinutes),
+    shoreBatteryAttackerShipLabel(ball.ownerId)
   );
   addHullSplinterBurst(ball, point);
   if (!result.newlyDisabled) return;
@@ -11756,6 +12086,19 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
   };
   saveVoyageNow("shore battery disabled");
+}
+
+function shoreBatteryAttackerShipLabel(ownerId) {
+  if (ownerId === PLAYER_COMBAT_ID) {
+    if (!ship?.typeSlug) throw new Error("Player shore bombardment requires an active ship");
+    return `your ${shipLabelForSlug(ship.typeSlug)}`;
+  }
+  const strategic = npcSeaRoutes?.shipById.get(ownerId);
+  if (!strategic) throw new Error(`Shore bombardment has no attacking NPC ship: ${ownerId}`);
+  const captain = npcShipCaptains?.get(ownerId);
+  if (!captain?.name) throw new Error(`Shore bombardment ship has no captain: ${ownerId}`);
+  const faction = factionById(strategic.factionId);
+  return `the ${faction.adjective} ${shipLabelForSlug(strategic.slug)} commanded by ${captain.name}`;
 }
 
 function attemptNpcPortConquest(battery, npcShipId) {
@@ -15173,7 +15516,7 @@ function drawSelectableInteractionOutlines(nowMs) {
     if (call.hiddenSettlement) continue;
     if (!portCallInInteractionRange(call)) continue;
     drawSelectableSpriteOutline({
-      image: cityImageForType(call.cityType, call.settlementType),
+      image: cityImageForCity(call),
       sourceX: 0,
       sourceY: 0,
       sourceW: call.spriteW,
@@ -15187,9 +15530,8 @@ function drawSelectableInteractionOutlines(nowMs) {
 
   for (const state of npcVisualShips.values()) {
     if (!npcShipInHailRange(state)) continue;
-    const baseCall = npcShipDrawCall(state, chart);
-    if (!baseCall) continue;
-    const call = stormBobbedShipCall(baseCall, nowMs);
+    const call = currentNpcShipDrawCall(state, nowMs);
+    if (!call) continue;
     drawSelectableSpriteOutline({
       image: call.img,
       sourceX: (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
@@ -15399,7 +15741,9 @@ function latitudeDegForDirection(direction) {
 function queueDiscovery(discovery, nowMs) {
   if (!recordDiscovery(gameState, discovery)) return false;
   const cargoReward = applyDiscoveryCargoReward(discovery);
-  openDiscoveryCaptainDialogue(discovery, cargoReward);
+  if (!startElDoradoTreasureSequence(discovery, cargoReward, nowMs)) {
+    openDiscoveryCaptainDialogue(discovery, cargoReward);
+  }
   playDiscoverySuccessSound();
   emitCaptureEvent("discovery", {
     id: discovery.id,
@@ -15409,6 +15753,38 @@ function queueDiscovery(discovery, nowMs) {
   discoveryNoticeQueue.push(discovery);
   updateDiscoveryNotice(nowMs);
   saveVoyageNow("discovery");
+  return true;
+}
+
+function startElDoradoTreasureSequence(discovery, cargoReward, nowMs) {
+  if (discovery.id !== EL_DORADO_DISCOVERY_ID || !cargoReward || cargoReward.quantity <= 0) return false;
+  if (!Number.isInteger(cargoReward.quantity)) {
+    throw new Error(`El Dorado awarded a fractional gold quantity: ${cargoReward.quantity}`);
+  }
+  if (elDoradoTreasureSequence) throw new Error("El Dorado treasure sequence is already active");
+  if (!chart) throw new Error("El Dorado treasure sequence requires an active chart");
+  const sourcePoint = worldDiscoveryLocalPoint(discovery, chart);
+  if (!sourcePoint) throw new Error("El Dorado treasure sequence cannot find the landmark on screen");
+  const chartOffset = chartOffsetPixels(chart);
+  const shipOrigin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
+  const effects = createItemAcquisitionBurst({
+    iconId: tradeGoodIconId(cargoReward.good.id),
+    count: cargoReward.quantity,
+    startCenterX: sourcePoint.x + chartOffset.x,
+    startCenterY: sourcePoint.y + chartOffset.y,
+    targetCenterX: shipOrigin.x + SHIP_SHEET_FRAME_SIZE / 2,
+    targetCenterY: shipOrigin.y + SHIP_SHEET_FRAME_SIZE / 2,
+    startedAtMs: nowMs,
+    iconSize: GAME_ICON_SIZE,
+    arrivalSoundId: ITEM_ARRIVAL_SOUND_COIN_CLINK
+  });
+  itemAcquisitionEffects.push(...effects);
+  elDoradoTreasureSequence = {
+    completeAtMs: itemAcquisitionEffectEndMs(effects.at(-1)),
+    captainMessage: discoveryCaptainDialogueMessage(discovery, cargoReward)
+  };
+  stopShipForDialogue();
+  dirty = true;
   return true;
 }
 
@@ -15426,8 +15802,14 @@ function applyDiscoveryCargoReward(discovery) {
 }
 
 function openDiscoveryCaptainDialogue(discovery, cargoReward) {
+  const message = discoveryCaptainDialogueMessage(discovery, cargoReward);
+  if (!message) return false;
+  return openCaptainAlertModal(message, "happy");
+}
+
+function discoveryCaptainDialogueMessage(discovery, cargoReward) {
   const dialogue = captainDialogueForDiscovery(discovery, gameState?.playerCharacter);
-  if (!dialogue) return false;
+  if (!dialogue) return null;
   let message = dialogue;
   if (discovery.id === EL_DORADO_DISCOVERY_ID && cargoReward) {
     const cargoMessage = cargoReward.quantity > 0
@@ -15435,7 +15817,7 @@ function openDiscoveryCaptainDialogue(discovery, cargoReward) {
       : "But our hold is full; we cannot carry its treasure.";
     message = `${message} ${cargoMessage}`;
   }
-  return openCaptainAlertModal(message, "happy");
+  return message;
 }
 
 function updateDiscoveryNotice(nowMs) {
@@ -15716,7 +16098,7 @@ function cityVisualOffset(city, tileCall, activeChart) {
   const cached = cityVisualOffsets.get(key);
   if (cached) return cached;
 
-  const image = cityImageForType(city.cityType, city.settlementType);
+  const image = cityImageForCity(city);
   const opaquePixels = cityOpaquePixels(image);
   const riverPixels = riverPixelsForCityPlacement(tileCall, activeChart);
   const baseSpriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF);
@@ -16343,7 +16725,14 @@ function drawCaptainMenu(nowMs) {
 function drawCaptainMenuItemIcon(index, x, y, active) {
   const action = CAPTAIN_MENU_ACTIONS[index];
   if (!action) throw new Error(`Captain menu item has no action: ${index}`);
-  drawGameIcon(action.iconId, x - 1, y - 1, { alpha: active ? 1 : 0.82 });
+  const iconId = action.id === "ship" ? activeShipMenuIconId() : action.iconId;
+  if (!iconId) throw new Error(`Captain menu item has no icon: ${action.id}`);
+  drawGameIcon(iconId, x - 1, y - 1, { alpha: active ? 1 : 0.82 });
+}
+
+function activeShipMenuIconId() {
+  if (!ship?.typeSlug) throw new Error("Ship & Ledger icon requires an active player ship");
+  return shipMenuIconId(ship.typeSlug);
 }
 
 function drawGameIcon(iconId, x, y, options = {}) {
@@ -16390,7 +16779,7 @@ function drawGameIcon(iconId, x, y, options = {}) {
 function drawItemAcquisitionEffects(nowMs) {
   for (const effect of itemAcquisitionEffects) {
     const frame = itemAcquisitionEffectFrame(effect, nowMs);
-    if (frame.complete) continue;
+    if (frame.complete || frame.pending) continue;
     drawGameIcon(effect.iconId, frame.x, frame.y, { contrastOutline: true });
   }
 }
@@ -16403,6 +16792,7 @@ function currentFetchQuestRequirements() {
   if (!gameState) return [];
   const vikingPort = vikingLongshipQuestPort();
   const japaneseMatchlockPort = japaneseMatchlockWorkshopPort();
+  const caribbeanGingerPort = currentCaribbeanGingerPort(gameState);
   return fetchQuestRequirements({
     colonization: colonizationQuestView(gameState, {
       currentMinute: Math.max(0, weatherClockMinutes)
@@ -16412,7 +16802,11 @@ function currentFetchQuestRequirements() {
     japaneseMatchlocks: japaneseMatchlockPort
       ? japaneseMatchlockQuestState(gameState, japaneseMatchlockPort)
       : null,
-    japaneseMatchlockPort
+    japaneseMatchlockPort,
+    caribbeanGinger: caribbeanGingerPort
+      ? caribbeanGingerQuestState(gameState, caribbeanGingerPort)
+      : null,
+    caribbeanGingerPort
   });
 }
 
@@ -16472,6 +16866,15 @@ function questJournalEntries() {
     japaneseMatchlockPort
   );
   if (japaneseMatchlockEntry) entries.push(japaneseMatchlockEntry);
+  const caribbeanGingerPort = currentCaribbeanGingerPort(gameState);
+  const caribbeanGinger = caribbeanGingerPort
+    ? caribbeanGingerQuestState(gameState, caribbeanGingerPort)
+    : null;
+  const caribbeanGingerEntry = caribbeanGingerJournalEntry(
+    caribbeanGinger,
+    caribbeanGingerPort
+  );
+  if (caribbeanGingerEntry) entries.push(caribbeanGingerEntry);
   return entries;
 }
 
@@ -16568,6 +16971,21 @@ function japaneseMatchlockJournalEntry(quest, port) {
   return {
     id: "japanese-matchlocks",
     title: uiText("quest.matchlockIndustry"),
+    nextStep: fetchQuestJournalStep({
+      held: quest.held,
+      quantity: quest.fetchStage.quantity,
+      goodLabel: quest.fetchStage.goodLabel,
+      destination: port
+    }),
+    style: QUEST_NAVIGATION_STYLE
+  };
+}
+
+function caribbeanGingerJournalEntry(quest, port) {
+  if (!quest?.fetchStage || !port) return null;
+  return {
+    id: "caribbean-ginger",
+    title: uiText("quest.caribbeanGinger"),
     nextStep: fetchQuestJournalStep({
       held: quest.held,
       quantity: quest.fetchStage.quantity,
@@ -16866,6 +17284,9 @@ function fetchQuestNavigationReason(fetchTarget) {
   }
   if (fetchTarget.questId === "japanese-matchlocks") {
     return uiText("navigation.deliverWorkshopMaterials");
+  }
+  if (fetchTarget.questId === "caribbean-ginger") {
+    return uiText("navigation.deliverGingerRoots");
   }
   throw new Error(`Unknown fetch quest navigation reason: ${fetchTarget.questId}`);
 }
@@ -17167,7 +17588,11 @@ function drawShipInfoButton() {
 
   ctx.save();
   drawPirateHudButton(rect, hovered);
-  drawGameIcon("menu:ship", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
+  drawGameIcon(
+    activeShipMenuIconId(),
+    rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2),
+    rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2)
+  );
   if (hovered) {
     const label = "SHIP";
     const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 6;
@@ -20236,7 +20661,15 @@ function waterHexWaveFrameForTile(call, activeChart) {
 
 function cityImageForType(cityType, settlementType = "city") {
   if (!CITY_TYPE_KEY_SET.has(cityType)) throw new Error(`Unknown city type: ${cityType}`);
-  const imageKey = settlementType === "village" ? "village" : cityType;
+  const imageKey = settlementType === "village" ? "village" : CITY_TYPE_ART_KEYS[cityType] || cityType;
+  return cityImageForArtKey(imageKey);
+}
+
+function cityImageForCity(city) {
+  return cityImageForArtKey(cityArtKeyForCity(city));
+}
+
+function cityImageForArtKey(imageKey) {
   const img = cityImages?.get(imageKey);
   if (!img) throw new Error(`Missing loaded city image: ${imageKey}`);
   return img;
@@ -20740,24 +21173,29 @@ function riverEdgeScreenDirection(call, activeChart, edge) {
   }
 
   const neighbor = activeChart.tileById.get(neighborId);
-  let dx;
-  let dy;
-  if (neighbor) {
-    dx = neighbor.drawSurfaceX - call.drawSurfaceX;
-    dy = neighbor.drawSurfaceY - call.drawSurfaceY;
-  } else {
-    if (!activeChart.right || !activeChart.up) {
-      throw new Error(`Cannot project offscreen river edge ${edge} on tile ${call.id} without chart axes`);
-    }
-    dx = dotTile(neighborId, activeChart.right) - dotTile(call.id, activeChart.right);
-    dy = -(dotTile(neighborId, activeChart.up) - dotTile(call.id, activeChart.up));
+  if (!activeChart.right || !activeChart.up) {
+    throw new Error(`Cannot project river edge ${edge} on tile ${call.id} without chart axes`);
   }
-
-  const len = Math.hypot(dx, dy);
-  if (len < 1e-6) {
-    throw new Error(`Could not project river edge ${edge} on tile ${call.id}`);
-  }
-  return { x: dx / len, y: dy / len };
+  return projectedRiverEdgeDirection({
+    surfaceDelta: neighbor
+      ? {
+          x: neighbor.drawSurfaceX - call.drawSurfaceX,
+          y: neighbor.drawSurfaceY - call.drawSurfaceY
+        }
+      : null,
+    layoutDelta: neighbor
+      ? {
+          x: neighbor.x - call.x,
+          y: neighbor.y - call.y
+        }
+      : null,
+    globeDelta: {
+      x: dotTile(neighborId, activeChart.right) - dotTile(call.id, activeChart.right),
+      y: -(dotTile(neighborId, activeChart.up) - dotTile(call.id, activeChart.up))
+    },
+    tileId: call.id,
+    edge
+  });
 }
 
 function generateRiverSprite(endpoints, frame, variant, latitudeBand) {
@@ -21601,9 +22039,27 @@ function drawShipShadow(activeChart, light, offset) {
     const screenPy = origin.y + py;
     const localPx = screenPx - offset.x;
     const localPy = screenPy - offset.y;
-    if (!wakeMapPointIsWater(localPx, localPy, activeChart)) continue;
+    if (!shipShadowPointHasSurface(localPx, localPy, activeChart)) continue;
     ctx.fillRect(screenPx, screenPy, 1, 1);
   }
+}
+
+function shipShadowPointHasSurface(x, y, activeChart) {
+  if (wakeMapPointIsWater(x, y, activeChart)) return true;
+  if (!activeChart?.waterIndex) return false;
+
+  let topmostTerrain = null;
+  for (const entry of wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex)) {
+    if (entry.kind !== "tile") continue;
+    if (!tileTerrainSpriteOpaqueAtMapPoint(entry.call, x, y)) continue;
+    if (!topmostTerrain || compareTerrainDrawCalls(topmostTerrain, entry.call) < 0) {
+      topmostTerrain = entry.call;
+    }
+  }
+
+  return topmostTerrain !== null && terrainSpriteReceivesShipShadow(
+    spriteForTerrain(topmostTerrain.row, topmostTerrain.id)
+  );
 }
 
 function drawFishingNetAnimation(nowMs) {
@@ -21922,11 +22378,14 @@ function hexToRgb(hex) {
 
 function drawSeagulls(activeChart, nowMs) {
   if (!animalImages) return;
-  const calls = [
+  for (const call of seagullDrawCalls(activeChart, nowMs)) drawSeagullSprite(call);
+}
+
+function seagullDrawCalls(activeChart, nowMs) {
+  return [
     ...landedSeagullCalls(activeChart),
     ...flyingSeagullCalls(nowMs)
   ].sort((a, b) => a.sortY - b.sortY || a.id - b.id);
-  for (const call of calls) drawSeagullSprite(call);
 }
 
 function landedSeagullCalls(activeChart) {
@@ -23385,7 +23844,7 @@ function cityShadowDirection() {
 
 function drawCityShadow(call, direction, stretch) {
   if (call.hiddenSettlement) return;
-  const img = cityShadowSpriteForType(call.cityType, call.settlementType);
+  const img = cityShadowSpriteForCity(call);
   const px = -direction.y;
   const py = direction.x;
   const anchorX = call.spriteX + CITY_SPRITE_W / 2;
@@ -23404,16 +23863,16 @@ function drawCityShadow(call, direction, stretch) {
   ctx.restore();
 }
 
-function cityShadowSpriteForType(cityType, settlementType = "city") {
-  const cacheKey = settlementType === "village" ? "village" : cityType;
+function cityShadowSpriteForCity(city) {
+  const cacheKey = cityArtKeyForCity(city);
   let canvas = cityShadowSpriteCache.get(cacheKey);
   if (canvas) return canvas;
-  const img = cityImageForType(cityType, settlementType);
+  const img = cityImageForCity(city);
   canvas = document.createElement("canvas");
   canvas.width = CITY_SPRITE_W;
   canvas.height = CITY_SHADOW_SOURCE_H;
   const shadowCtx = canvas.getContext("2d");
-  if (!shadowCtx) throw new Error(`Could not create city shadow sprite: ${cityType}`);
+  if (!shadowCtx) throw new Error(`Could not create city shadow sprite: ${city.cityType}`);
   shadowCtx.drawImage(
     img,
     0,
@@ -23446,7 +23905,7 @@ function drawCitySpritesAboveShip(activeChart, offset, nowMs) {
 
 function drawCitySprite(call, nowMs) {
   if (call.hiddenSettlement) return;
-  const img = cityImageForType(call.cityType, call.settlementType);
+  const img = cityImageForCity(call);
   const battery = shoreBatteryStates.get(shoreBatteryId(call));
   const batteryDisabled = battery && shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes));
   const fireSource = fireSourceForCity(call, batteryDisabled);
@@ -24008,7 +24467,7 @@ function drawStormStatus(nowMs) {
 function drawSurvivalMeters() {
   if (!gameState || !ship || gameOverReason) return;
   const status = survivalStatus(gameState);
-  const foodIconCount = Math.max(0, Math.floor(status.foodDays));
+  const foodIconCount = remainingSupplyDayCount(status.foodDays);
   const fishRations = foodRationsForCargoQuantity(gameState.cargo[FISH_CARGO_GOOD_ID] || 0);
   const fishIconCount = specialStatusIconCount(
     foodIconCount,
@@ -24133,7 +24592,9 @@ function drawSurvivalHudTooltip() {
     doubloons: gameState.doubloons.toLocaleString(currentLanguage),
     used: hud.occupiedCount,
     capacity: gameState.cargoCapacity,
-    days: target.id === "water" ? Math.ceil(status.drinkDays) : Math.max(0, Math.floor(status.foodDays)),
+    days: target.id === "water"
+      ? remainingSupplyDayCount(status.drinkDays)
+      : remainingSupplyDayCount(status.foodDays),
     crew: gameState.ship.crew,
     passengers
   });
@@ -24179,7 +24640,6 @@ function drawSurvivalPanelTitle(x, y, panelWidth) {
 }
 
 function drawSurvivalCrewRow(x, y, panelWidth) {
-  const peopleAboard = shipPeopleAboard(gameState);
   const layout = survivalCrewStatusLayout(gameState.ship.crew, x, y, panelWidth);
   for (const entry of layout.entries) {
     const variants = statusPersonImages?.get(entry.kind);
@@ -24188,7 +24648,7 @@ function drawSurvivalCrewRow(x, y, panelWidth) {
     ctx.drawImage(image, entry.x, entry.y);
   }
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText(`${peopleAboard}`, x + panelWidth - 5, y + SURVIVAL_CREW_ROW_Y - 1, {
+  drawPixelText(`${layout.count}`, x + panelWidth - 5, y + SURVIVAL_CREW_ROW_Y - 1, {
     font: PIXEL_FONT_LATIN_SMALL_8,
     align: "right"
   });
@@ -24201,7 +24661,7 @@ function survivalCrewStatusLayout(
   panelWidth = survivalHudLayout().panel.width
 ) {
   const travelerGroups = shipTravelerManifest(gameState);
-  const peopleAboard = 1 + crewCount + travelerGroups.reduce((total, group) => total + group.count, 0);
+  const peopleAboard = crewStatusCount({ crewCount, travelerGroups });
   const rowX = panelX + SURVIVAL_CREW_ROW_PAD_X;
   const valueRight = panelX + panelWidth - 5;
   const valueLeft = valueRight - measurePixelTextWidth(`${peopleAboard}`, PIXEL_FONT_LATIN_SMALL_8);
@@ -25179,6 +25639,10 @@ function formatCoordinate(value, positiveSuffix, negativeSuffix) {
 function drawDialogueOverlay(nowMs) {
   const subject = currentDialogueSubject();
   const view = currentDialogueView();
+  if (view.presentation?.kind === "custom-loadout") {
+    drawCustomLoadoutDialogueOverlay(view);
+    return;
+  }
   if (view.presentation?.kind === "shipyard" || view.presentation?.kind === "ship-capture") {
     drawVesselDecisionDialogueOverlay(view);
     return;
@@ -25297,6 +25761,100 @@ function drawDialogueOverlay(nowMs) {
 
   const optionX = textX;
   drawDialogueOptions(view, optionX, safeOptions.y, optionW, optionBottom, dialogueFont);
+}
+
+function drawCustomLoadoutDialogueOverlay(dialogueView) {
+  const presentation = dialogueView.presentation;
+  const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
+  const compactWidth = panel.w < 320;
+  const left = panel.x + 10;
+  const right = panel.x + panel.w - 10;
+  const titleY = panel.y + 10;
+  const descriptionY = titleY + 15;
+  const descriptionLines = wrapPixelText(dialogueView.text, PIXEL_FONT_SMALL_8, panel.w - 20, 2);
+  const fieldsTop = descriptionY + descriptionLines.length * 10 + 5;
+  const optionWidth = panel.w - 20;
+  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_SMALL_8, optionWidth);
+  const optionGroups = dialogueOptionGroups(dialogueView.options);
+  const optionRows = optionGroups.regular.length + (optionGroups.exits.length > 0 ? 1 : 0);
+  const optionBottom = panel.y + panel.h - 8;
+  const optionY = optionBottom - optionRows * optionHeight -
+    (optionGroups.regular.length > 0 && optionGroups.exits.length > 0 ? 4 : 0);
+  const summaryY = optionY - 15;
+  const availableFieldHeight = summaryY - fieldsTop - 3;
+  const rowHeight = Math.max(20, Math.min(29, Math.floor(availableFieldHeight / presentation.fields.length)));
+  const labelWidth = compactWidth ? 46 : 62;
+  const valueWidth = compactWidth ? 54 : 76;
+  const trackX = left + labelWidth;
+  const trackW = Math.max(28, right - valueWidth - trackX - 5);
+
+  drawPiratePaperModal(panel, 0.86);
+  drawOptionsText("CUSTOM LOADOUT", panel.x + panel.w / 2, titleY, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  descriptionLines.forEach((line, index) => {
+    drawOptionsText(line, left, descriptionY + index * 10, {
+      font: PIXEL_FONT_SMALL_8,
+      color: PIRATE_MENU_INK_MUTED
+    });
+  });
+
+  dialogueLayout.customLoadoutSliderRects = [];
+  const selectedFieldIndex = clamp(dialogueState.customLoadoutFieldIndex || 0, 0, presentation.fields.length - 1);
+  presentation.fields.forEach((field, index) => {
+    const row = { x: left, y: fieldsTop + index * rowHeight, w: panel.w - 20, h: rowHeight - 2 };
+    const trackRect = {
+      x: trackX,
+      y: row.y + Math.floor((row.h - 5) / 2),
+      w: trackW,
+      h: 5
+    };
+    const selected = index === selectedFieldIndex;
+    drawPiratePaperInset(row, selected);
+    drawOptionsText(field.label.toUpperCase(), row.x + 5, row.y + Math.floor((row.h - 8) / 2), {
+      font: PIXEL_FONT_SMALL_8,
+      color: PIRATE_MENU_INK
+    });
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    ctx.fillRect(trackRect.x, trackRect.y, trackRect.w, trackRect.h);
+    const range = field.bounds.max - field.bounds.min;
+    const ratio = range <= 0 ? 0 : (field.value - field.bounds.min) / range;
+    const fillW = Math.round((trackRect.w - 1) * ratio);
+    ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+    ctx.fillRect(trackRect.x, trackRect.y, fillW + 1, trackRect.h);
+    const knobX = trackRect.x + fillW;
+    ctx.fillStyle = selected ? PIRATE_MENU_INK : PIRATE_MENU_PAPER;
+    ctx.fillRect(knobX - 1, trackRect.y - 2, 3, trackRect.h + 4);
+    const value = customLoadoutFieldValue(field, presentation.plan, compactWidth);
+    drawOptionsText(value, right - 4, row.y + Math.floor((row.h - 8) / 2), {
+      font: PIXEL_FONT_SMALL_8,
+      align: "right",
+      color: PIRATE_MENU_INK
+    });
+    dialogueLayout.customLoadoutSliderRects.push({
+      key: field.key,
+      index,
+      min: field.bounds.min,
+      max: field.bounds.max,
+      trackRect,
+      hitRect: { x: trackRect.x - 4, y: row.y, w: trackRect.w + 8, h: row.h }
+    });
+  });
+
+  drawOptionsText(`TRADE HOLD  ${presentation.plan.reserveSpace} SPACE`, left, summaryY, {
+    font: PIXEL_FONT_SMALL_8,
+    color: PIRATE_MENU_CHART_LINE
+  });
+  drawDialogueOptions(dialogueView, left, optionY, optionWidth, optionBottom, PIXEL_FONT_SMALL_8);
+}
+
+function customLoadoutFieldValue(field, plan, compact) {
+  if (field.key === "crew") return `${field.value}/${plan.crewCapacity}`;
+  if (field.key === "cannons") return `${field.value}/${plan.cannonCapacity}`;
+  const days = field.key === "foodUnits" ? plan.foodDays : plan.waterDays;
+  return compact ? `${field.value} / ${Math.floor(days)}D` : `${field.value} SPACE / ${Math.floor(days)}D`;
 }
 
 function drawVesselDecisionDialogueOverlay(dialogueView) {

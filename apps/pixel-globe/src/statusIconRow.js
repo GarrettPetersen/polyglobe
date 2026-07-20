@@ -53,3 +53,10 @@ export function specialStatusIconCount(totalIcons, specialAmount, totalAmount) {
     Math.round(totalIcons * specialAmount / totalAmount)
   ));
 }
+
+export function remainingSupplyDayCount(days) {
+  if (!Number.isFinite(days) || days < 0) {
+    throw new Error(`Remaining supply days must be non-negative: ${days}`);
+  }
+  return Math.ceil(days);
+}

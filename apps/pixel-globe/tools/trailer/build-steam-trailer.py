@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import math
 import shutil
@@ -19,7 +20,8 @@ PLAN_PATH = TOOL / "steam-trailer-plan.json"
 TEMP = WORK / "render"
 OVERLAYS = TEMP / "overlays"
 SEGMENTS = TEMP / "segments"
-OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v6.mp4"
+OUTPUT_WITH_CHAPTER_TEXT = WORK / "marque-and-reprisal-steam-trailer-v6.mp4"
+OUTPUT_WITHOUT_CHAPTER_TEXT = WORK / "marque-and-reprisal-steam-trailer-v6-no-chapter-text.mp4"
 FONT_PATH = TOOL / "assets" / "PirataOne-Regular.ttf"
 TITLE_PATH = APP / "public" / "assets" / "capsule" / "detailed_title.png"
 SAILING_MUSIC_INTRO = APP / "public" / "assets" / "music" / "ship-theme-intro.ogg"
@@ -51,6 +53,12 @@ def make_heading_sprite(heading):
     overlay = overlay.crop(bounds)
     path = OVERLAYS / f"heading-{heading.lower()}.png"
     overlay.save(path)
+    return path
+
+
+def make_transparent_heading_sprite():
+    path = OVERLAYS / "heading-transparent.png"
+    Image.new("RGBA", (2, 2), (0, 0, 0, 0)).save(path)
     return path
 
 
@@ -242,7 +250,19 @@ def escape_filter_expression(value):
     return value.replace(",", "\\,")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Build the Marque & Reprisal Steam trailer")
+    parser.add_argument(
+        "--no-chapter-text",
+        action="store_true",
+        help="omit the animated feature headings while preserving the title outro",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    output = OUTPUT_WITHOUT_CHAPTER_TEXT if args.no_chapter_text else OUTPUT_WITH_CHAPTER_TEXT
     for required in (
         PLAN_PATH,
         FONT_PATH,
@@ -286,15 +306,17 @@ def main():
             "crossfadeSeconds": MUSIC_CROSSFADE_SECONDS,
             "fightStartSeconds": fight_start_seconds,
         },
-        "output": str(OUTPUT),
+        "chapterText": not args.no_chapter_text,
+        "output": str(output),
     }
 
     segment_index = 0
     final_source = None
     final_source_end = None
+    transparent_heading = make_transparent_heading_sprite() if args.no_chapter_text else None
     for chapter in chapters:
         heading = chapter["heading"]
-        heading_overlay = make_heading_sprite(heading)
+        heading_overlay = transparent_heading or make_heading_sprite(heading)
         chapter_seconds = sum(float(clip["duration"]) for clip in chapter["clips"])
         chapter_offset = 0.0
         edit_chapter = {"heading": heading, "clips": []}
@@ -317,7 +339,7 @@ def main():
                 duration,
                 heading_overlay,
                 segment_path,
-                heading_timeline=(chapter_seconds, chapter_offset),
+                heading_timeline=None if args.no_chapter_text else (chapter_seconds, chapter_offset),
             )
             segment_paths.append(segment_path)
             final_source = source
@@ -427,19 +449,19 @@ def main():
         "-x264-params", "nal-hrd=cbr:force-cfr=1",
         "-pix_fmt", "yuv420p", "-r", str(FPS),
         "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2",
-        "-movflags", "+faststart", "-t", str(expected_duration), OUTPUT,
+        "-movflags", "+faststart", "-t", str(expected_duration), output,
     ])
 
-    final_duration = probe_duration(OUTPUT)
+    final_duration = probe_duration(output)
     if not math.isclose(final_duration, expected_duration, abs_tol=0.08):
         raise RuntimeError(
             f"Final trailer is {final_duration:.3f}s; expected {expected_duration:.3f}s"
         )
     edit["durationSeconds"] = final_duration
-    OUTPUT.with_suffix(".edit.json").write_text(
+    output.with_suffix(".edit.json").write_text(
         json.dumps(edit, indent=2) + "\n"
     )
-    print(f"Rendered {OUTPUT} ({final_duration:.2f}s)")
+    print(f"Rendered {output} ({final_duration:.2f}s)")
 
 
 if __name__ == "__main__":

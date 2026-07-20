@@ -1,0 +1,428 @@
+{
+  "generatedBy": "tools/build-ship-menu-icons.mjs",
+  "iconSize": 16,
+  "sourceFrameSize": 47,
+  "sourceHeadingFrame": 28,
+  "ships": [
+    {
+      "slug": "fishing-lugger",
+      "label": "Fishing Barque",
+      "source": "public/assets/vehicles/unity-ships/fishing-lugger-32-headings.png",
+      "output": "public/assets/ui/ship-icons/fishing-lugger.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 19,
+        "y": 15,
+        "w": 9,
+        "h": 17
+      },
+      "opaquePixels": 62
+    },
+    {
+      "slug": "small-cog",
+      "label": "Small Cog",
+      "source": "public/assets/vehicles/unity-ships/small-cog-32-headings.png",
+      "output": "public/assets/ui/ship-icons/small-cog.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 15,
+        "y": 14,
+        "w": 17,
+        "h": 19
+      },
+      "opaquePixels": 145
+    },
+    {
+      "slug": "dhow",
+      "label": "Dhow",
+      "source": "public/assets/vehicles/unity-ships/dhow-32-headings.png",
+      "output": "public/assets/ui/ship-icons/dhow.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 18,
+        "y": 16,
+        "w": 11,
+        "h": 14
+      },
+      "opaquePixels": 98
+    },
+    {
+      "slug": "sampan",
+      "label": "Sampan",
+      "source": "public/assets/vehicles/unity-ships/sampan-32-headings.png",
+      "output": "public/assets/ui/ship-icons/sampan.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 18,
+        "y": 15,
+        "w": 11,
+        "h": 16
+      },
+      "opaquePixels": 96
+    },
+    {
+      "slug": "large-junk",
+      "label": "Large Junk",
+      "source": "public/assets/vehicles/unity-ships/large-junk-32-headings.png",
+      "output": "public/assets/ui/ship-icons/large-junk.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 9,
+        "w": 22,
+        "h": 28
+      },
+      "opaquePixels": 111
+    },
+    {
+      "slug": "pirate-brig",
+      "label": "Heavy Caravel",
+      "source": "public/assets/vehicles/unity-ships/pirate-brig-32-headings.png",
+      "output": "public/assets/ui/ship-icons/pirate-brig.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 5,
+        "w": 23,
+        "h": 37
+      },
+      "opaquePixels": 96
+    },
+    {
+      "slug": "galleon",
+      "label": "Galleon",
+      "source": "public/assets/vehicles/unity-ships/galleon-32-headings.png",
+      "output": "public/assets/ui/ship-icons/galleon.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 11,
+        "y": 8,
+        "w": 25,
+        "h": 30
+      },
+      "opaquePixels": 111
+    },
+    {
+      "slug": "fluyt",
+      "label": "Urca",
+      "source": "public/assets/vehicles/unity-ships/fluyt-32-headings.png",
+      "output": "public/assets/ui/ship-icons/fluyt.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 10,
+        "y": 6,
+        "w": 27,
+        "h": 34
+      },
+      "opaquePixels": 96
+    },
+    {
+      "slug": "carrack",
+      "label": "Carrack",
+      "source": "public/assets/vehicles/unity-ships/carrack-32-headings.png",
+      "output": "public/assets/ui/ship-icons/carrack.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 11,
+        "y": 8,
+        "w": 24,
+        "h": 30
+      },
+      "opaquePixels": 103
+    },
+    {
+      "slug": "ship-of-the-line",
+      "label": "Great Carrack",
+      "source": "public/assets/vehicles/unity-ships/ship-of-the-line-32-headings.png",
+      "output": "public/assets/ui/ship-icons/ship-of-the-line.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 11,
+        "y": 8,
+        "w": 25,
+        "h": 31
+      },
+      "opaquePixels": 114
+    },
+    {
+      "slug": "medium-junk",
+      "label": "Medium Junk",
+      "source": "public/assets/vehicles/unity-ships/medium-junk-32-headings.png",
+      "output": "public/assets/ui/ship-icons/medium-junk.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 13,
+        "y": 10,
+        "w": 20,
+        "h": 26
+      },
+      "opaquePixels": 122
+    },
+    {
+      "slug": "xebec",
+      "label": "Xebec",
+      "source": "public/assets/vehicles/unity-ships/xebec-32-headings.png",
+      "output": "public/assets/ui/ship-icons/xebec.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 7,
+        "w": 23,
+        "h": 33
+      },
+      "opaquePixels": 90
+    },
+    {
+      "slug": "caravel",
+      "label": "Caravel",
+      "source": "public/assets/vehicles/unity-ships/caravel-32-headings.png",
+      "output": "public/assets/ui/ship-icons/caravel.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 8,
+        "w": 22,
+        "h": 30
+      },
+      "opaquePixels": 81
+    },
+    {
+      "slug": "square-rigged-caravel",
+      "label": "Square-Rigged Caravel",
+      "source": "public/assets/vehicles/unity-ships/square-rigged-caravel-32-headings.png",
+      "output": "public/assets/ui/ship-icons/square-rigged-caravel.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 13,
+        "y": 9,
+        "w": 20,
+        "h": 28
+      },
+      "opaquePixels": 122
+    },
+    {
+      "slug": "brigantine",
+      "label": "Brigantine",
+      "source": "public/assets/vehicles/unity-ships/brigantine-32-headings.png",
+      "output": "public/assets/ui/ship-icons/brigantine.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 11,
+        "w": 22,
+        "h": 25
+      },
+      "opaquePixels": 146
+    },
+    {
+      "slug": "small-junk",
+      "label": "Small Junk",
+      "source": "public/assets/vehicles/unity-ships/small-junk-32-headings.png",
+      "output": "public/assets/ui/ship-icons/small-junk.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 15,
+        "y": 10,
+        "w": 17,
+        "h": 26
+      },
+      "opaquePixels": 89
+    },
+    {
+      "slug": "felucca",
+      "label": "Felucca",
+      "source": "public/assets/vehicles/unity-ships/felucca-32-headings.png",
+      "output": "public/assets/ui/ship-icons/felucca.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 14,
+        "y": 15,
+        "w": 19,
+        "h": 16
+      },
+      "opaquePixels": 132
+    },
+    {
+      "slug": "cutter",
+      "label": "Coastal Pinnace",
+      "source": "public/assets/vehicles/unity-ships/cutter-32-headings.png",
+      "output": "public/assets/ui/ship-icons/cutter.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 15,
+        "y": 13,
+        "w": 17,
+        "h": 21
+      },
+      "opaquePixels": 123
+    },
+    {
+      "slug": "ketch",
+      "label": "Lateen Barque",
+      "source": "public/assets/vehicles/unity-ships/ketch-32-headings.png",
+      "output": "public/assets/ui/ship-icons/ketch.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 13,
+        "y": 11,
+        "w": 20,
+        "h": 24
+      },
+      "opaquePixels": 101
+    },
+    {
+      "slug": "mediterranean-galley",
+      "label": "Mediterranean Galley",
+      "source": "public/assets/vehicles/unity-ships/mediterranean-galley-32-headings.png",
+      "output": "public/assets/ui/ship-icons/mediterranean-galley.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 5,
+        "y": 6,
+        "w": 37,
+        "h": 34
+      },
+      "opaquePixels": 134
+    },
+    {
+      "slug": "joseon-turtle-ship",
+      "label": "Turtle Ship",
+      "source": "public/assets/vehicles/unity-ships/joseon-turtle-ship-32-headings.png",
+      "output": "public/assets/ui/ship-icons/joseon-turtle-ship.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 7,
+        "y": 8,
+        "w": 32,
+        "h": 31
+      },
+      "opaquePixels": 160
+    },
+    {
+      "slug": "joseon-panokseon",
+      "label": "Panokseon",
+      "source": "public/assets/vehicles/unity-ships/joseon-panokseon-32-headings.png",
+      "output": "public/assets/ui/ship-icons/joseon-panokseon.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 8,
+        "y": 7,
+        "w": 31,
+        "h": 32
+      },
+      "opaquePixels": 152
+    },
+    {
+      "slug": "japanese-atakebune",
+      "label": "Atakebune",
+      "source": "public/assets/vehicles/unity-ships/japanese-atakebune-32-headings.png",
+      "output": "public/assets/ui/ship-icons/japanese-atakebune.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 8,
+        "y": 9,
+        "w": 31,
+        "h": 28
+      },
+      "opaquePixels": 138
+    },
+    {
+      "slug": "spanish-nao",
+      "label": "Spanish Nao",
+      "source": "public/assets/vehicles/unity-ships/spanish-nao-32-headings.png",
+      "output": "public/assets/ui/ship-icons/spanish-nao.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 11,
+        "y": 9,
+        "w": 24,
+        "h": 29
+      },
+      "opaquePixels": 118
+    },
+    {
+      "slug": "portuguese-carrack",
+      "label": "Portuguese Carrack",
+      "source": "public/assets/vehicles/unity-ships/portuguese-carrack-32-headings.png",
+      "output": "public/assets/ui/ship-icons/portuguese-carrack.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 6,
+        "y": 7,
+        "w": 35,
+        "h": 33
+      },
+      "opaquePixels": 123
+    },
+    {
+      "slug": "viking-longship",
+      "label": "Viking Longship",
+      "source": "public/assets/vehicles/unity-ships/viking-longship-32-headings.png",
+      "output": "public/assets/ui/ship-icons/viking-longship.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 4,
+        "y": 7,
+        "w": 39,
+        "h": 32
+      },
+      "opaquePixels": 120
+    },
+    {
+      "slug": "polynesian-voyaging-canoe",
+      "label": "Polynesian Voyaging Canoe",
+      "source": "public/assets/vehicles/unity-ships/polynesian-voyaging-canoe-32-headings.png",
+      "output": "public/assets/ui/ship-icons/polynesian-voyaging-canoe.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 8,
+        "y": 5,
+        "w": 31,
+        "h": 37
+      },
+      "opaquePixels": 102
+    },
+    {
+      "slug": "mesoamerican-dugout-canoe",
+      "label": "Dugout Canoe",
+      "source": "public/assets/vehicles/unity-ships/mesoamerican-dugout-canoe-32-headings.png",
+      "output": "public/assets/ui/ship-icons/mesoamerican-dugout-canoe.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 12,
+        "y": 13,
+        "w": 23,
+        "h": 21
+      },
+      "opaquePixels": 87
+    },
+    {
+      "slug": "nusantaran-outrigger",
+      "label": "Nusantaran Outrigger",
+      "source": "public/assets/vehicles/unity-ships/nusantaran-outrigger-32-headings.png",
+      "output": "public/assets/ui/ship-icons/nusantaran-outrigger.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 9,
+        "y": 11,
+        "w": 29,
+        "h": 25
+      },
+      "opaquePixels": 143
+    },
+    {
+      "slug": "ottoman-coastal-trader",
+      "label": "Ottoman Coastal Trader",
+      "source": "public/assets/vehicles/unity-ships/ottoman-coastal-trader-32-headings.png",
+      "output": "public/assets/ui/ship-icons/ottoman-coastal-trader.png",
+      "headingFrame": 28,
+      "sourceBounds": {
+        "x": 13,
+        "y": 9,
+        "w": 21,
+        "h": 29
+      },
+      "opaquePixels": 113
+    }
+  ]
+}

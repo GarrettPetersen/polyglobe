@@ -32,6 +32,7 @@ const VILLAGE_CONSUMPTION_MULTIPLIER = 0.62;
 const NEARBY_PORT_MARKET_RADIUS_KM = 2500;
 const NEARBY_PORT_MARKET_INTEGRATION_STRENGTH = 0.65;
 const SOURCE_SPICE_ABUNDANCE_PRICE_MULTIPLIER = 0.22;
+const SOURCE_GINGER_ABUNDANCE_PRICE_MULTIPLIER = 0.4;
 const SOURCE_SPICE_MINIMUM_TARGET_STOCK = 80;
 
 export const HARDTACK_GOOD_ID = "hardtack";
@@ -43,6 +44,8 @@ export const BEAVER_PELTS_GOOD_ID = "beaver-pelts";
 export const CINNAMON_GOOD_ID = "cinnamon";
 export const CLOVE_GOOD_ID = "cloves";
 export const NUTMEG_GOOD_ID = "nutmeg";
+export const GINGER_GOOD_ID = "ginger";
+export const INDIGO_GOOD_ID = "indigo";
 export const GUNPOWDER_GOOD_ID = "gunpowder";
 export const MATCHLOCKS_GOOD_ID = "matchlocks";
 
@@ -97,10 +100,12 @@ export const TRADE_GOODS = Object.freeze([
   good(CINNAMON_GOOD_ID, "Cinnamon", 80, "spice"),
   good(CLOVE_GOOD_ID, "Cloves", 90, "spice"),
   good(NUTMEG_GOOD_ID, "Nutmeg", 100, "spice"),
+  good(GINGER_GOOD_ID, "Ginger", 20, "spice"),
   good("tea", "Tea", 60, "luxury"),
   good("coffee", "Coffee", 40, "luxury"),
   good("cacao", "Cacao", 35, "luxury"),
   good("dyes", "Dyes", 42, "manufactured"),
+  good(INDIGO_GOOD_ID, "Indigo", 58, "luxury"),
   good("porcelain", "Porcelain", 70, "luxury", { unitSize: 2 }),
   good("glassware", "Glassware", 62, "luxury", { unitSize: 2 }),
   good("carpets", "Carpets", 65, "luxury", { unitSize: 3 }),
@@ -119,8 +124,8 @@ const REGION_PRODUCTION = Object.freeze({
   mediterranean: rates({ hardtack: 0.7, grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12, gunpowder: 0.14, matchlocks: 0.08 }),
   "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, artwork: 0.12, gunpowder: 0.12 }),
   "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22, gunpowder: 0.16 }),
-  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, dyes: 0.55, sugar: 0.35, gunpowder: 0.08 }),
-  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, sugar: 0.65, dyes: 0.25, gunpowder: 0.05 }),
+  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, ginger: 0.4, dyes: 0.55, sugar: 0.35, gunpowder: 0.08 }),
+  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, sugar: 0.65, ginger: 0.7, dyes: 0.25, indigo: 0.2, gunpowder: 0.05 }),
   polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
   mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55, silver: 0.3, gold: 0.12 }),
   andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, silver: 0.8, gold: 0.22, dyes: 0.2 }),
@@ -128,9 +133,9 @@ const REGION_PRODUCTION = Object.freeze({
 });
 
 const REGION_DEMAND = Object.freeze({
-  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
-  mediterranean: rates({ timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, silk: 0.3, ivory: 0.18 }),
-  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, "beaver-pelts": 0.18, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
+  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, ginger: 0.38, indigo: 0.34, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
+  mediterranean: rates({ timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, ginger: 0.24, indigo: 0.2, silk: 0.3, ivory: 0.18 }),
+  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, "beaver-pelts": 0.18, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, ginger: 0.08, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
   "east-asian": rates({ "beaver-pelts": 0.3, pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2, gunpowder: 0.12, matchlocks: 0.42 }),
   "south-asian": rates({ cloves: 0.12, nutmeg: 0.12, silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18, gunpowder: 0.1, matchlocks: 0.18 }),
   "southeast-asian": rates({ pepper: 0.12, cinnamon: 0.16, cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16, gunpowder: 0.12, matchlocks: 0.22 }),
@@ -147,6 +152,7 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
     cinnamon: 4.2,
     cloves: 3.5,
     nutmeg: 3.8,
+    ginger: 2.35,
     tea: 2.7,
     coffee: 1.35,
     cacao: 1.4,
@@ -162,6 +168,7 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
     cinnamon: 3.9,
     cloves: 3.15,
     nutmeg: 3.45,
+    ginger: 2.05,
     tea: 2.3,
     coffee: 1.25,
     cacao: 1.25,
@@ -176,6 +183,7 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
     cinnamon: 3.65,
     cloves: 2.9,
     nutmeg: 3.15,
+    ginger: 0.3,
     tea: 1.2,
     porcelain: 1.25,
     silver: 1.2,
@@ -183,7 +191,7 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
   }),
   "east-asian": rates({ "beaver-pelts": 1.5, pepper: 0.75, cinnamon: 0.75, cloves: 0.7, nutmeg: 0.7, silver: 1.55, gold: 1.15, arms: 1.2, gunpowder: 1.15, matchlocks: 1.75, glassware: 1.35, "wool-cloth": 1.2 }),
   "south-asian": rates({ pepper: 0.52, cinnamon: 0.3, silver: 1.45, gold: 1.15, arms: 1.2, gunpowder: 1.15, matchlocks: 1.35, glassware: 1.25, porcelain: 1.15 }),
-  "southeast-asian": rates({ pepper: 0.5, cinnamon: 0.65, cloves: 0.48, nutmeg: 0.48, silver: 1.5, gold: 1.15, arms: 1.25, gunpowder: 1.2, matchlocks: 1.45, glassware: 1.25, "cotton-cloth": 1.15 }),
+  "southeast-asian": rates({ pepper: 0.5, cinnamon: 0.65, cloves: 0.48, nutmeg: 0.48, ginger: 0.42, silver: 1.5, gold: 1.15, arms: 1.25, gunpowder: 1.2, matchlocks: 1.45, glassware: 1.25, "cotton-cloth": 1.15 }),
   polynesian: rates({ iron: 1.4, arms: 1.35, gunpowder: 1.4, matchlocks: 1.65, glassware: 1.35, "cotton-cloth": 1.3, salt: 1.2 }),
   mesoamerican: rates({ arms: 1.35, gunpowder: 1.45, matchlocks: 1.7, iron: 1.25, glassware: 1.25, "cotton-cloth": 1.2, wine: 1.15 }),
   andean: rates({ arms: 1.35, gunpowder: 1.4, matchlocks: 1.65, iron: 1.25, glassware: 1.2, "cotton-cloth": 1.2, wine: 1.15 }),
@@ -208,9 +216,10 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Cochin", ["pepper"]),
   specialty("Diu", ["cotton-cloth"]),
   specialty("Surat", ["cotton-cloth"]),
-  specialty("Aceh", ["pepper"]),
+  specialty("Malacca", [GINGER_GOOD_ID]),
+  specialty("Aceh", ["pepper", GINGER_GOOD_ID]),
   specialty("Quilon", ["pepper"]),
-  specialty("Patani", ["pepper"]),
+  specialty("Patani", ["pepper", GINGER_GOOD_ID]),
   specialty("Ternate", [CLOVE_GOOD_ID]),
   specialty("Banda Village", [NUTMEG_GOOD_ID]),
   specialty("Makian Village", [CLOVE_GOOD_ID]),
@@ -218,14 +227,14 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Mozambique Island", ["gold", "ivory"]),
   specialty("Mombasa", ["ivory"]),
   specialty("Mogadishu", ["cotton-cloth", "ivory"]),
-  specialty("Santo Domingo", ["sugar"]),
-  specialty("Havana", ["sugar"]),
+  specialty("Santo Domingo", ["sugar", INDIGO_GOOD_ID]),
+  specialty("Havana", ["sugar", INDIGO_GOOD_ID]),
   specialty("Veracruz", ["cacao", "gold"]),
   specialty("Nombre de Dios", ["gold"]),
   specialty("Panama City", ["gold"]),
   specialty("Beijing", ["porcelain", GUNPOWDER_GOOD_ID]),
   specialty("Hangzhou", ["silk", "silk-cloth"]),
-  specialty("Guangzhou", ["porcelain", "tea", GUNPOWDER_GOOD_ID]),
+  specialty("Guangzhou", ["porcelain", "tea", GINGER_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Nanjing", ["silk-cloth", "porcelain", GUNPOWDER_GOOD_ID]),
   specialty("Kyoto", ["silk-cloth"]),
   specialty("Nagasaki", ["silver"]),
@@ -690,9 +699,12 @@ function createPortState(port) {
   const demandProfile = REGION_DEMAND[port.cityType];
   if (!productionProfile || !demandProfile) throw new Error(`No economy profile for city type: ${port.cityType}`);
   const specialties = CITY_SPECIALTIES.get(normalizeName(port.city)) || [];
-  const localSpiceSourceIds = new Set(specialties.filter(
-    (goodId) => tradeGoodById(goodId).category === "spice"
-  ));
+  const localSpiceSourceIds = new Set(TRADE_GOODS
+    .filter((good) => good.category === "spice" && (
+      specialties.includes(good.id) ||
+      (good.id === GINGER_GOOD_ID && ["south-asian", "southeast-asian"].includes(port.cityType))
+    ))
+    .map((good) => good.id));
   const beaverPeltProduction = beaverSettlementProductionRate(port);
   const goods = new Map();
 
@@ -714,7 +726,9 @@ function createPortState(port) {
       targetStock: 0,
       stock: 0,
       localAbundancePriceMultiplier: localSpiceSourceIds.has(good.id)
-        ? SOURCE_SPICE_ABUNDANCE_PRICE_MULTIPLIER
+        ? good.id === GINGER_GOOD_ID
+          ? SOURCE_GINGER_ABUNDANCE_PRICE_MULTIPLIER
+          : SOURCE_SPICE_ABUNDANCE_PRICE_MULTIPLIER
         : 1
     });
   }

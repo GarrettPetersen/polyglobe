@@ -4,22 +4,29 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { buildGeodesicGraph } from "./geodesic.js";
+import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
 import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { roadTileIsPassable } from "./roadTerrain.js";
 import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
+import { placeCityCatalogOnWorld } from "./worldPortPlacement.js";
 
 const srcRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = join(srcRoot, "..");
 const repoRoot = join(srcRoot, "../../..");
 const roadPath = join(appRoot, "public/assets/data/land-roads.json");
 const earthPath = join(repoRoot, "examples/globe-demo/public/earth-globe-cache-7.json");
+const cityPath = join(
+  repoRoot,
+  "examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
+);
 
 test("baked land roads use adjacent, passable land tiles and connect Aleppo westward", async () => {
-  const [roadSource, earthSource] = await Promise.all([
+  const [roadSource, earthSource, cityCsv] = await Promise.all([
     readFile(roadPath, "utf8"),
-    readFile(earthPath, "utf8")
+    readFile(earthPath, "utf8"),
+    readFile(cityPath, "utf8")
   ]);
   const roadData = JSON.parse(roadSource);
   const earth = JSON.parse(earthSource);
@@ -35,8 +42,21 @@ test("baked land roads use adjacent, passable land tiles and connect Aleppo west
     subdivisions: earth.subdivisions,
     earthCacheVersion: String(earth.version)
   });
+  const cityByTileId = placeCityCatalogOnWorld({
+    graph,
+    directionIndex: createDirectionIndex(graph),
+    earthRows,
+    reachableNavigationMask: navigation.reachableNavigationMask,
+    riverMasks: navigation.riverMasks,
+    cities: loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR)
+  });
   const namedPeaks = new Set((earth.peaks || []).map((entry) => entry[0]));
 
+  assert.deepEqual(
+    roads.cities.map((city) => city.tileId).sort((a, b) => a - b),
+    [...cityByTileId.keys()].sort((a, b) => a - b),
+    "land-road city endpoints must match the live placed city catalog"
+  );
   assert.ok(roads.routes.length >= 250);
   for (const route of roads.routes) {
     for (let index = 1; index < route.tileIds.length; index++) {

@@ -70,10 +70,7 @@ const REGION_SHIP_POOLS = Object.freeze({
   ]),
   polynesian: Object.freeze(["polynesian-voyaging-canoe"]),
   mesoamerican: Object.freeze(["mesoamerican-dugout-canoe"]),
-  andean: Object.freeze([
-    "fishing-lugger", "small-cog", "small-cog", "cutter", "ketch", "square-rigged-caravel",
-    "caravel", "caravel", "brigantine", "carrack", "galleon"
-  ]),
+  andean: Object.freeze(["mesoamerican-dugout-canoe"]),
   "sub-saharan": Object.freeze([
     "fishing-lugger", "felucca", "dhow", "dhow", "felucca", "dhow", "ketch", "caravel",
     "caravel", "carrack"
@@ -142,15 +139,7 @@ export function restoreWorldShipyards(system, snapshot) {
   for (const saved of snapshot.yards) {
     const yard = system.yards.get(saved.portId);
     yard.buildNumber = saved.buildNumber;
-    yard.listing = saved.listing
-      ? {
-          ...saved.listing,
-          price: shipyardListingPrice(
-            saved.listing.shipSlug,
-            shipyardListingSeed(yard, saved.buildNumber)
-          )
-        }
-      : null;
+    yard.listing = restoreShipyardListing(yard, saved);
     yard.nextBuildMinute = snapshot.version === 1 && saved.nextBuildMinute > snapshot.lastMinute
       ? Math.round(
           snapshot.lastMinute +
@@ -160,6 +149,22 @@ export function restoreWorldShipyards(system, snapshot) {
   }
   system.lastMinute = snapshot.lastMinute;
   return system;
+}
+
+function restoreShipyardListing(yard, saved) {
+  if (!saved.listing) return null;
+  const regionalPool = shipPoolForYard(yard);
+  if (!regionalPool) throw new Error(`No shipyard hull pool for region: ${yard.cityType}`);
+  if (!regionalPool.includes(saved.listing.shipSlug)) {
+    return generateShipyardListing(yard, saved.buildNumber, saved.listing.builtMinute);
+  }
+  return {
+    ...saved.listing,
+    price: shipyardListingPrice(
+      saved.listing.shipSlug,
+      shipyardListingSeed(yard, saved.buildNumber)
+    )
+  };
 }
 
 export function advanceWorldShipyards(system, simMinute) {

@@ -14,6 +14,7 @@ import {
   portDialogueView,
   prepareSurrenderPrizeDialogue,
   selectPassengerDialogueOption,
+  setPortCustomLoadoutValue,
   selectPortDialogueOption,
   selectShoreBatteryDialogueOption,
   selectShipDialogueOption,
@@ -23,6 +24,7 @@ import {
 } from "./dialogueSystem.js";
 import {
   FRESH_WATER_GOOD_ID,
+  GINGER_GOOD_ID,
   GUNPOWDER_GOOD_ID,
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
@@ -62,6 +64,11 @@ import {
   JAPANESE_MATCHLOCK_FETCH_STAGES,
   maybeSpawnJapaneseMatchlockQuest
 } from "./japaneseMatchlockQuest.js";
+import {
+  CARIBBEAN_GINGER_COMPLETION_REWARD,
+  CARIBBEAN_GINGER_FETCH_STAGE,
+  maybeSpawnCaribbeanGingerQuest
+} from "./caribbeanGingerQuest.js";
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
@@ -1093,9 +1100,13 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
     "LONG HAUL",
     "SHORT HAUL",
     "COMBAT FOCUSED",
-    "BALANCED"
+    "BALANCED",
+    "CUSTOM"
   ]);
-  assert.ok(view.options.every((option) => /CREW \d+  GUNS \d+  FOOD \d+D  WATER \d+D/.test(option.detail)));
+  assert.ok(view.options.slice(0, 4).every(
+    (option) => /CREW \d+  GUNS \d+  FOOD \d+D  WATER \d+D/.test(option.detail)
+  ));
+  assert.equal(view.options[4].detail, "SET CREW, GUNS, FOOD, AND WATER");
 
   const before = gameState.doubloons;
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], 3, context);
@@ -1104,6 +1115,48 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.ok(result.loadoutResult.plan.totalSpace <= stats.cargoCapacity);
   assert.ok(gameState.doubloons <= before);
   assert.match(session.feedback, /Balanced targets set/);
+});
+
+test("custom loadout opens a slider model and reports discarded provisions", () => {
+  const city = {
+    tileId: 9,
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60000,
+    character: { name: "Isabel Mendez" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "loadout" });
+  const context = { shipStats: stats, simMinute: 120 };
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 4, context);
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(session.nodeId, "custom-loadout");
+  assert.equal(view.presentation.kind, "custom-loadout");
+  assert.deepEqual(view.presentation.fields.map((field) => field.key), [
+    "crew", "cannons", "foodUnits", "waterUnits"
+  ]);
+
+  setPortCustomLoadoutValue(session, stats, "foodUnits", 1);
+  setPortCustomLoadoutValue(session, stats, "waterUnits", 2);
+  gameState.cargo.hardtack = 5;
+  gameState.survival.freshWaterCapacity = 6;
+  gameState.survival.freshWater = 6;
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.presentation.plan.reserveSpace, stats.cargoCapacity - view.presentation.plan.totalSpace);
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+
+  assert.equal(gameState.ship.loadoutId, "custom");
+  assert.equal(gameState.cargo.hardtack, 1);
+  assert.equal(gameState.survival.freshWater, 2);
+  assert.equal(result.loadoutResult.plan.foodUnits, 1);
+  assert.equal(result.loadoutResult.plan.waterUnits, 2);
+  assert.match(session.feedback, /Dumped 4 hardtack and 4 water/);
 });
 
 test("enemy port guards bar resupply and offer one risky disguise route", () => {
@@ -1165,6 +1218,11 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
   const session = createPortDialogueSession(city, { initialNodeId: "barred" });
   const context = {
     portEntryStatus: portEntryStatus(gameState, city, 100),
+    portRecoveryStatus: {
+      attackerShipLabel: "your Armed Galleon",
+      disabledUntilMinute: 3000,
+      daysRemaining: 2
+    },
     portConquestStatus: {
       canAttempt: true,
       capital: false,
@@ -1181,6 +1239,76 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
     closed: false,
     action: { type: "land-marines" }
   });
+});
+
+test("a disabled enemy harbor never admits an ineligible captain in disguise", () => {
+  const city = {
+    tileId: 12,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    factionId: "france",
+    population: 18000,
+    character: { name: "Etienne Moreau" }
+  };
+  const playerCharacter = { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] };
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "barred" });
+  const context = {
+    portEntryStatus: portEntryStatus(gameState, city, 100),
+    portRecoveryStatus: {
+      attackerShipLabel: "the Portuguese Carrack commanded by Tomas Silva",
+      disabledUntilMinute: 3000,
+      daysRemaining: 2
+    },
+    portConquestStatus: {
+      canAttempt: false,
+      playerAssaultActive: false,
+      minimumCrew: 20
+    }
+  };
+
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(view.text, /need at least 20 crew/);
+  assert.deepEqual(view.options.map((entry) => entry.label), ["Leave"]);
+});
+
+test("a recovering non-enemy port refuses business and names the bombarding ship", () => {
+  const city = {
+    tileId: 17,
+    city: "Porto",
+    displayCity: "Porto",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 14000,
+    character: { name: "Beatriz Ferreira" }
+  };
+  const playerCharacter = {
+    name: "Joana Ferreira",
+    nationalityId: "portugal",
+    expressions: ["neutral", "sad"]
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
+  const session = createPortDialogueSession(city, { initialNodeId: "recovering" });
+  const context = {
+    portEntryStatus: portEntryStatus(gameState, city, 100),
+    portRecoveryStatus: {
+      attackerShipLabel: "the French Brigantine commanded by Jean Moreau",
+      disabledUntilMinute: 3000,
+      daysRemaining: 2
+    }
+  };
+
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.speaker, "Beatriz Ferreira, Porto factor");
+  assert.match(view.text, /French Brigantine commanded by Jean Moreau/);
+  assert.match(view.text, /still recovering/);
+  assert.match(view.text, /quays will remain closed for 2 more days/);
+  assert.deepEqual(view.options.map((entry) => entry.label), ["Leave"]);
 });
 
 test("a successful disguise opens commerce but not faction business", () => {
@@ -1765,6 +1893,45 @@ test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki 
     [city],
     gunsmithIndex
   ));
+});
+
+test("a Caribbean planter pays for ginger roots and establishes local production", () => {
+  const city = {
+    tileId: 68,
+    city: "Havana",
+    displayCity: "Havana",
+    country: "Cuba",
+    cityType: "mediterranean",
+    population: 8000,
+    character: { name: "Isabel de Rojas" }
+  };
+  const gameState = createGameState({ cargoCapacity: 50 });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const startingDoubloons = gameState.doubloons;
+
+  maybeSpawnCaribbeanGingerQuest(gameState, city, { spawnChance: 1, simMinute: 0 });
+  const arrival = createPortArrivalDialogueSession(city, { caribbeanGingerApproach: true });
+  assert.equal(arrival.nodeId, "caribbean-ginger");
+  assert.match(portDialogueView(arrival, city, gameState, economy, [city]).text, /Southeast Asia/);
+
+  const session = createPortDialogueSession(city, { initialNodeId: "caribbean-ginger" });
+  gameState.cargo[GINGER_GOOD_ID] = CARIBBEAN_GINGER_FETCH_STAGE.quantity;
+  gameState.accounts.cargoCostBasis[GINGER_GOOD_ID] = 60;
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  const deliveryIndex = view.options.findIndex(
+    (entry) => entry.action.type === "deliver-caribbean-ginger"
+  );
+  assert.equal(dialogueOptionIconId(view.options[deliveryIndex]), `good:${GINGER_GOOD_ID}`);
+  selectPortDialogueOption(session, city, gameState, economy, [city], deliveryIndex, {
+    simMinute: 500
+  });
+
+  const completed = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(completed.text, /ginger has taken beautifully/i);
+  assert.equal(gameState.doubloons, startingDoubloons + CARIBBEAN_GINGER_COMPLETION_REWARD);
+  const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+  assert.equal(market.get(GINGER_GOOD_ID).productionPerDay, 1.25);
+  assert.ok(market.get(GINGER_GOOD_ID).listedForSale);
 });
 
 function establishNagasakiQuest(gameState, kyoto) {

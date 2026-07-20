@@ -25,6 +25,10 @@ export function terrainSpriteOccludesShips(spriteKey) {
   return terrainSpriteDrawLayer(spriteKey) >= TERRAIN_DRAW_LAYER_ROUGH_GROUND;
 }
 
+export function terrainSpriteReceivesShipShadow(spriteKey) {
+  return !terrainSpriteOccludesShips(spriteKey);
+}
+
 export function terrainBaseSpriteKey(spriteKey) {
   if (typeof spriteKey !== "string" || spriteKey === "") {
     throw new Error("Terrain base composition requires a sprite key");

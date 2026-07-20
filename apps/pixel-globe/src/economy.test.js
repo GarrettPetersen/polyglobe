@@ -8,10 +8,12 @@ import {
   CINNAMON_GOOD_ID,
   CLOVE_GOOD_ID,
   FRESH_WATER_GOOD_ID,
+  GINGER_GOOD_ID,
   GUNPOWDER_GOOD_ID,
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   NUTMEG_GOOD_ID,
+  INDIGO_GOOD_ID,
   TRADE_GOODS,
   WINE_GOOD_ID,
   addWorldEconomyPort,
@@ -57,6 +59,8 @@ const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "vi
 const COLOMBO = port(9, "Colombo", "Sri Lanka", "south-asian", 12000);
 const MALACCA = port(10, "Malacca", "Malaysia", "southeast-asian", 90000);
 const KYOTO = port(11, "Kyoto", "Japan", "east-asian", 100000);
+const HAVANA = port(12, "Havana", "Cuba", "mediterranean", 8000);
+const SANTO_DOMINGO = port(13, "Santo Domingo", "Dominican Republic", "mediterranean", 20000);
 const CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
   new URL(
     "../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
@@ -74,12 +78,32 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
   for (const goodId of [
     "hardtack", "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
     BEAVER_PELTS_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
+    GINGER_GOOD_ID, INDIGO_GOOD_ID,
     GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID, "fresh-water", "tea", "porcelain", "ivory", "silver", "gold"
   ]) {
     assert.ok(ids.has(goodId), goodId);
   }
   assert.equal(ids.has("spices"), false);
   assert.equal(ids.size, TRADE_GOODS.length);
+});
+
+test("Southeast Asia exports ginger and Caribbean colonies export indigo", () => {
+  const economy = createWorldEconomy({
+    ports: [MALACCA, TERNATE, HAVANA, SANTO_DOMINGO, LONDON],
+    startMinute: 0
+  });
+  const malacca = marketByGood(economy, MALACCA);
+  const ternate = marketByGood(economy, TERNATE);
+  const havana = marketByGood(economy, HAVANA);
+  const santoDomingo = marketByGood(economy, SANTO_DOMINGO);
+  const london = marketByGood(economy, LONDON);
+
+  assert.ok(malacca.get(GINGER_GOOD_ID).productionPerDay > 0);
+  assert.ok(ternate.get(GINGER_GOOD_ID).productionPerDay > 0);
+  assert.ok(malacca.get(GINGER_GOOD_ID).buyPrice < london.get(GINGER_GOOD_ID).sellPrice);
+  assert.ok(havana.get(INDIGO_GOOD_ID).productionPerDay > 0);
+  assert.ok(santoDomingo.get(INDIGO_GOOD_ID).productionPerDay > 0);
+  assert.ok(havana.get(INDIGO_GOOD_ID).listedForSale);
 });
 
 test("wine is a drink rather than edible cargo", () => {

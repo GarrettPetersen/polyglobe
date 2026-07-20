@@ -1,6 +1,8 @@
+import { SHIP_STATS } from "./shipStats.js";
+
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-8";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-13";
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -47,6 +49,17 @@ export const GAME_ICON_PACKS = Object.freeze({
   })
 });
 
+export const SHIP_MENU_ICON_IDS = Object.freeze(Object.fromEntries(
+  SHIP_STATS.map(({ slug }) => [slug, `ship:${slug}`])
+));
+
+const SHIP_MENU_ICON_SOURCES = Object.freeze(Object.fromEntries(
+  SHIP_STATS.map(({ slug }) => [
+    SHIP_MENU_ICON_IDS[slug],
+    projectAsset(`public/assets/ui/ship-icons/${slug}.png`)
+  ])
+));
+
 export const GAME_ICON_SOURCES = Object.freeze({
   "good:hardtack": alex("pastry_bread.png"),
   "good:fresh-water": keifoo("water_png/water_bottled.png"),
@@ -77,10 +90,12 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:cinnamon": generatedIcon("cinnamon-sticks"),
   "good:cloves": keifoo("spices_png/cloves.png"),
   "good:nutmeg": keifoo("spices_png/nutmeg.png"),
+  "good:ginger": alex("vegetable_ginger.png"),
   "good:tea": alex("coffee_greentea.png"),
   "good:coffee": alex("coffee_darkroast.png"),
   "good:cacao": glionox(395),
   "good:dyes": lethe(10, 7),
+  "good:indigo": lethe(1, 1),
   "good:porcelain": glionox(810),
   "good:glassware": keifoo("water_png/water_glass.png"),
   "good:carpets": glionox(660),
@@ -97,18 +112,19 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "menu:options": glionox(934),
   "menu:credits": glionox(625),
   "menu:captain": pirate(29),
-  "menu:ship": pirate(19),
   "menu:politics": pirate(23),
-  "menu:discoveries": pirate(27),
+  "menu:discoveries": projectAsset("public/assets/terrain/resurrect-64/egyptian_pyramid.png", {
+    x: 2,
+    y: 0,
+    w: 32,
+    h: 32
+  }),
+
+  ...SHIP_MENU_ICON_SOURCES,
 
   "action:dock": pirate(44),
   "action:hail": pirate(14),
-  "action:fish": paperOutlined(projectAsset("public/assets/misc/fishing-net-Sheet.png", {
-    x: 5 * 30,
-    y: 4,
-    w: 26,
-    h: 26
-  })),
+  "action:fish": hollow(7),
   "action:harpoon": glionox(119),
   "action:scavenge": pirate(40),
   "action:buy": pirate(31),
@@ -182,6 +198,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   quest: "action:quest",
   "viking-longship": "action:viking",
   "japanese-matchlocks": "good:matchlocks",
+  "caribbean-ginger": "good:ginger",
   colonization: "action:quest",
   marque: "action:letter",
   cargo: "action:inventory"
@@ -206,6 +223,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "inspect-surrendered-ship": "action:shipyard",
   "capture-surrendered-ship": "action:surrender",
   sell: "action:sell",
+  "open-custom-loadout": "action:loadout",
+  "select-custom-loadout": "action:loadout",
   "select-loadout": "action:loadout",
   "request-marque": "action:letter",
   "purchase-safe-passage": "action:buy",
@@ -216,6 +235,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "purchase-ship": "action:shipyard",
   "deliver-viking-material": "action:quest",
   "deliver-japanese-matchlock-material": "action:quest",
+  "deliver-caribbean-ginger": "good:ginger",
   "deliver-colonization-material": "action:quest",
   "grant-colony-permission": "action:letter",
   "embark-colonists": "action:passenger",
@@ -279,6 +299,12 @@ export function tradeGoodIconId(goodId) {
 export function startMenuIconId(actionId) {
   const iconId = START_MENU_ICON_IDS[actionId];
   if (!iconId) throw new Error(`Start menu action has no icon: ${actionId}`);
+  return iconId;
+}
+
+export function shipMenuIconId(shipSlug) {
+  const iconId = SHIP_MENU_ICON_IDS[shipSlug];
+  if (!iconId) throw new Error(`Ship has no menu icon: ${shipSlug}`);
   return iconId;
 }
 

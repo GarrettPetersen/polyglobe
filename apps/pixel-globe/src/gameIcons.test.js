@@ -11,14 +11,17 @@ import {
   GAME_ICON_PACKS,
   GAME_ICON_SIZE,
   GAME_ICON_SOURCES,
+  SHIP_MENU_ICON_IDS,
   dialogueOptionIconId,
   gameIconAtlasDimensions,
   gameIconAtlasRect,
   gameIconDrawRect,
   gameIconIds,
+  shipMenuIconId,
   startMenuIconId,
   tradeGoodIconId
 } from "./gameIcons.js";
+import { SHIP_STATS } from "./shipStats.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -75,17 +78,43 @@ test("all downloaded icon packs are used and fully attributed", async () => {
   }
 });
 
-test("fishing actions use the widest repo-local casting-net frame", () => {
+test("fishing actions use a legible native-size fishing rod", () => {
   const source = GAME_ICON_SOURCES["action:fish"];
+  assert.equal(source.packId, "hollow");
+  assert.equal(source.entry, "Separated Sprites/16x16/fishing_icons_16x16_7.png");
+  assert.equal(source.crop, null);
+  assert.equal(source.paperOutline, undefined);
+});
+
+test("ship and ledger has native 16x16 artwork for every roster vessel", async () => {
+  const iconIds = SHIP_STATS.map(({ slug }) => shipMenuIconId(slug));
+  assert.equal(iconIds.length, SHIP_STATS.length);
+  assert.equal(new Set(iconIds).size, SHIP_STATS.length);
+  assert.deepEqual(Object.keys(SHIP_MENU_ICON_IDS), SHIP_STATS.map(({ slug }) => slug));
+
+  for (const { slug } of SHIP_STATS) {
+    const iconId = shipMenuIconId(slug);
+    const source = GAME_ICON_SOURCES[iconId];
+    assert.equal(source.packId, null, slug);
+    assert.equal(source.assetPath, `public/assets/ui/ship-icons/${slug}.png`, slug);
+    assert.equal(source.crop, null, slug);
+    const image = await loadImage(join(appRoot, source.assetPath));
+    assert.equal(image.width, GAME_ICON_SIZE, `${slug} width`);
+    assert.equal(image.height, GAME_ICON_SIZE, `${slug} height`);
+  }
+  assert.throws(() => shipMenuIconId("missing-ship"), /Ship has no menu icon/);
+});
+
+test("discoveries uses a tip-preserving crop of the Great Pyramid sprite", () => {
+  const source = GAME_ICON_SOURCES["menu:discoveries"];
   assert.equal(source.packId, null);
-  assert.equal(source.assetPath, "public/assets/misc/fishing-net-Sheet.png");
-  assert.deepEqual(source.crop, { x: 150, y: 4, w: 26, h: 26 });
-  assert.equal(source.paperOutline, true);
+  assert.equal(source.assetPath, "public/assets/terrain/resurrect-64/egyptian_pyramid.png");
+  assert.deepEqual(source.crop, { x: 2, y: 0, w: 32, h: 32 });
 });
 
 test("frequently confused controls use distinct readable source art", () => {
   for (const [left, right] of [
-    ["menu:captain", "menu:ship"],
+    ["menu:captain", shipMenuIconId("brigantine")],
     ["action:dock", "action:leave"],
     ["action:harpoon", "action:attack"],
     ["action:disguise", "action:passenger"],

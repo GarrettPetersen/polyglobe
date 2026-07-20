@@ -5,6 +5,9 @@ export const LAKE_VICTORIA_DISCOVERY_ID = "landmark-lake-victoria";
 export const LAKE_VICTORIA_DISCOVERY_RADIUS_PX = 60;
 export const GRAND_CANAL_DISCOVERY_ID = "landmark-grand-canal";
 export const EL_DORADO_DISCOVERY_ID = "legend-el-dorado";
+export const EL_DORADO_DISCOVERY_LAT = -3.7437;
+export const EL_DORADO_DISCOVERY_LON = -73.2516;
+export const EL_DORADO_DISCOVERY_RADIUS_PX = 54;
 export const CIRCUMNAVIGATION_DISCOVERY_ID = "achievement-circumnavigation";
 export const MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY = "mountain_snowy_01";
 export const WATER_DISCOVERY_MENU_SPRITE_KEY = "water_shallow_01";
@@ -118,10 +121,10 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     kind: "legend",
     displayName: "El Dorado",
     notice: "You have discovered El Dorado",
-    detail: "The legend of the golden city",
-    lat: 4.9770,
-    lon: -73.7740,
-    radiusPx: 280,
+    detail: "Deep in the upper Amazon",
+    lat: EL_DORADO_DISCOVERY_LAT,
+    lon: EL_DORADO_DISCOVERY_LON,
+    radiusPx: EL_DORADO_DISCOVERY_RADIUS_PX,
     spriteKey: "landmark_el_dorado",
     historicity: "legendary",
     region: "americas",

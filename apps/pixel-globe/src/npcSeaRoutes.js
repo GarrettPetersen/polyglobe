@@ -15,7 +15,8 @@ import {
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   assertFactionId,
-  diplomacyBetween
+  diplomacyBetween,
+  migrateFactionIdTo1522
 } from "./factions.js";
 import {
   WHALE_BLUBBER_GOOD_ID,
@@ -56,6 +57,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 2;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 192;
 export const NPC_WHALER_FLEET_TARGET = 5;
@@ -251,11 +253,11 @@ const FLEET_PROFILES = Object.freeze([
     merchants: ["polynesian-voyaging-canoe"],
     warships: ["polynesian-voyaging-canoe"]
   }, isPolynesianPort, "regional", nativeCoastalRoleWeights()),
-  profile("mesoamerican-coast", 5, {
+  profile("mesoamerican-coast", 7, {
     fishers: ["mesoamerican-dugout-canoe"],
     merchants: ["mesoamerican-dugout-canoe"],
     warships: ["mesoamerican-dugout-canoe"]
-  }, isMesoamericanPort, "regional", nativeCoastalRoleWeights()),
+  }, isMesoamericanVillagePort, "regional", mesoamericanVillageRoleWeights()),
   profile("east-asia", 34, {
     fishers: ["sampan", "small-junk"],
     merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
@@ -496,7 +498,7 @@ export function snapshotNpcSeaRouteSystem(system) {
   assertSaveableNpcRouteSystem(system);
   reconcileNpcFleetCargo(system, "route snapshot");
   return {
-    version: 1,
+    version: NPC_SEA_ROUTE_SNAPSHOT_VERSION,
     ships: cloneJsonData(system.ships),
     replacementQueue: cloneJsonData(system.replacementQueue),
     pirateHideoutDangerUntil: [...system.pirateHideoutDangerUntil.entries()]
@@ -515,11 +517,13 @@ export function restoreNpcSeaRouteSystem(
   } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
-  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil)) {
     throw new Error("Unsupported NPC route save data");
   }
   const ships = cloneJsonData(snapshot.ships);
+  const replacementQueue = cloneJsonData(snapshot.replacementQueue);
+  if (snapshot.version === 1) migrateNpcRouteFactionsTo1522(ships, replacementQueue);
   const shipById = new Map();
   for (const ship of ships) {
     if (!ship || typeof ship.id !== "string" || ship.id === "" || shipById.has(ship.id)) {
@@ -530,6 +534,7 @@ export function restoreNpcSeaRouteSystem(
       throw new Error(`Invalid saved NPC hull: ${ship.id}`);
     }
     ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;
+    assertFactionId(ship.factionId);
     shipStatsForSlug(ship.slug);
     reconcileNpcCargoCapacity(ship, "save restore");
     shipById.set(ship.id, ship);
@@ -558,7 +563,7 @@ export function restoreNpcSeaRouteSystem(
     console.info(`Replanned ${replannedRoutes} saved NPC routes for the current sea-lane topology`);
   }
   system.ships = ships;
-  system.replacementQueue = cloneJsonData(snapshot.replacementQueue);
+  system.replacementQueue = replacementQueue;
   system.pirateHideoutDangerUntil = danger;
   system.routeCache.clear();
   system.edgeCostCache.clear();
@@ -568,6 +573,13 @@ export function restoreNpcSeaRouteSystem(
     throw new Error("NPC route restore created duplicate ship ids");
   }
   return system;
+}
+
+function migrateNpcRouteFactionsTo1522(ships, replacementQueue) {
+  for (const ship of ships) ship.factionId = migrateFactionIdTo1522(ship.factionId);
+  for (const replacement of replacementQueue) {
+    replacement.factionId = migrateFactionIdTo1522(replacement.factionId);
+  }
 }
 
 function canonicalizeSavedNpcRoutePorts(system, ships) {
@@ -2358,8 +2370,10 @@ function isPolynesianPort(port) {
   return port.cityType === "polynesian";
 }
 
-function isMesoamericanPort(port) {
-  return port.cityType === "mesoamerican" && port.manualRegion !== "northwest-coast";
+function isMesoamericanVillagePort(port) {
+  return port.cityType === "mesoamerican" &&
+    port.settlementType === "village" &&
+    port.manualRegion !== "northwest-coast";
 }
 
 function isMediterraneanPort(port) {
@@ -2506,6 +2520,10 @@ function whalerProfile(id, count, whalerSlugs, groundIds, portPredicate, minimum
 
 function nativeCoastalRoleWeights() {
   return Object.freeze({ merchant: 45, fisherman: 50, warship: 5, pirate: 0 });
+}
+
+function mesoamericanVillageRoleWeights() {
+  return Object.freeze({ merchant: 30, fisherman: 70, warship: 0, pirate: 0 });
 }
 
 function portNodeId(port, role) {

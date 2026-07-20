@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { specialStatusIconCount, statusIconRowLayout } from "./statusIconRow.js";
+import {
+  remainingSupplyDayCount,
+  specialStatusIconCount,
+  statusIconRowLayout
+} from "./statusIconRow.js";
 
 test("small status counts leave a pixel between icons", () => {
   const layout = statusIconRowLayout({ count: 3, x: 10, y: 20, width: 40, iconWidth: 6 });
@@ -38,6 +42,14 @@ test("special status icons stay visible without adding another HUD count", () =>
   assert.equal(specialStatusIconCount(12, 12, 12), 12);
   assert.equal(specialStatusIconCount(0, 3, 12), 0);
   assert.throws(() => specialStatusIconCount(4, 5, 4), /exceeds total/);
+});
+
+test("positive partial supply days remain visible in the HUD", () => {
+  assert.equal(remainingSupplyDayCount(0), 0);
+  assert.equal(remainingSupplyDayCount(0.01), 1);
+  assert.equal(remainingSupplyDayCount(1), 1);
+  assert.equal(remainingSupplyDayCount(1.01), 2);
+  assert.throws(() => remainingSupplyDayCount(-0.1), /must be non-negative/);
 });
 
 test("empty and malformed status rows are handled explicitly", () => {

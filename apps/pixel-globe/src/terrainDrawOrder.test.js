@@ -5,7 +5,8 @@ import {
   terrainBaseSpriteKey,
   terrainConnectorNeedsSlopeDetail,
   terrainSpriteDrawLayer,
-  terrainSpriteOccludesShips
+  terrainSpriteOccludesShips,
+  terrainSpriteReceivesShipShadow
 } from "./terrainDrawOrder.js";
 
 test("mountains compose over ordinary rocky ground", () => {
@@ -66,7 +67,7 @@ test("screen Y always outranks biome height", () => {
   assert.ok(compareTerrainDrawCalls(grassInFront, mountainBehind) > 0);
 });
 
-test("only raised or rough terrain can draw over ships", () => {
+test("flat terrain stays below ships and receives their shadows", () => {
   for (const spriteKey of [
     "grass_01",
     "grass_flowers",
@@ -76,6 +77,7 @@ test("only raised or rough terrain can draw over ships", () => {
     "mud_02"
   ]) {
     assert.equal(terrainSpriteOccludesShips(spriteKey), false, spriteKey);
+    assert.equal(terrainSpriteReceivesShipShadow(spriteKey), true, spriteKey);
   }
   for (const spriteKey of [
     "earth_rocky",
@@ -90,6 +92,8 @@ test("only raised or rough terrain can draw over ships", () => {
     "mountain_snowy_02"
   ]) {
     assert.equal(terrainSpriteOccludesShips(spriteKey), true, spriteKey);
+    assert.equal(terrainSpriteReceivesShipShadow(spriteKey), false, spriteKey);
   }
   assert.throws(() => terrainSpriteOccludesShips(""), /requires a sprite key/);
+  assert.throws(() => terrainSpriteReceivesShipShadow(""), /requires a sprite key/);
 });

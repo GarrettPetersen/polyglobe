@@ -4,6 +4,9 @@ import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
 import {
   CIRCUMNAVIGATION_DISCOVERY,
   EL_DORADO_DISCOVERY_ID,
+  EL_DORADO_DISCOVERY_LAT,
+  EL_DORADO_DISCOVERY_LON,
+  EL_DORADO_DISCOVERY_RADIUS_PX,
   GRAND_CANAL_DISCOVERY_ID,
   GREAT_PYRAMID_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_ID,
@@ -61,6 +64,9 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.ok(elDorado);
   assert.equal(elDorado.kind, "legend");
   assert.equal(elDorado.historicity, "legendary");
+  assert.equal(elDorado.lat, EL_DORADO_DISCOVERY_LAT);
+  assert.equal(elDorado.lon, EL_DORADO_DISCOVERY_LON);
+  assert.equal(elDorado.radiusPx, EL_DORADO_DISCOVERY_RADIUS_PX);
   assert.match(elDorado.captainDialogue, /legendary city of gold/i);
   assert.deepEqual(elDorado.cargoReward, {
     goodId: "gold",
@@ -76,6 +82,19 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.countsTowardExplorerGoal, true);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.explorerLeadAssignable, false);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.explorerRewardDoubloons, 3000);
+});
+
+test("El Dorado requires a close upper-Amazon approach", () => {
+  const elDorado = WORLD_DISCOVERY_SPECS.find((item) => item.id === EL_DORADO_DISCOVERY_ID);
+  const panama = { lat: 8.9824, lon: -79.5199 };
+  const panamaDistancePx = greatCircleDistancePx(panama, elDorado, 2450);
+
+  assert.ok(elDorado.lat < 0, "El Dorado should be south of the equator in the upper Amazon");
+  assert.ok(elDorado.lon < -70, "El Dorado should remain far upriver in the western Amazon");
+  assert.ok(
+    panamaDistancePx > elDorado.radiusPx * 10,
+    "El Dorado must not be discoverable from Panama"
+  );
 });
 
 test("world discovery registry is unique, complete, and explicit about historicity", () => {
@@ -177,3 +196,14 @@ test("mountain accessibility requires ocean-connected navigation within viewing 
   mask[nearbyTileId] = 1;
   assert.equal(mountainIsAccessibleFromNavigation(mountainTileId, graph, mask, 0.5), true);
 });
+
+function greatCircleDistancePx(a, b, pixelsPerRadian) {
+  const radians = Math.PI / 180;
+  const latA = a.lat * radians;
+  const latB = b.lat * radians;
+  const deltaLat = (b.lat - a.lat) * radians;
+  const deltaLon = (b.lon - a.lon) * radians;
+  const haversine = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(latA) * Math.cos(latB) * Math.sin(deltaLon / 2) ** 2;
+  return 2 * Math.asin(Math.min(1, Math.sqrt(haversine))) * pixelsPerRadian;
+}

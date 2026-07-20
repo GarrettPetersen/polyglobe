@@ -30,7 +30,6 @@ export const FACTIONS = Object.freeze([
   faction("genoa", "Republic of Genoa", "Genoese", "republic"),
   faction("papal-states", "Papal States", "Papal", "state"),
   faction("ming", "Ming Empire", "Ming", "empire"),
-  faction("aztec", "Aztec Empire", "Aztec", "empire"),
   faction("inca", "Inca Empire", "Inca", "empire"),
   faction("safavid", "Safavid Empire", "Safavid", "empire"),
   faction("muscovy", "Grand Duchy of Muscovy", "Muscovite", "duchy"),
@@ -49,6 +48,7 @@ export const FACTIONS = Object.freeze([
 ]);
 
 const FACTIONS_BY_ID = new Map(FACTIONS.map((item) => [item.id, item]));
+const RETIRED_FACTION_SUCCESSORS_1522 = Object.freeze({ aztec: "spain" });
 
 if (FACTIONS_BY_ID.size !== FACTIONS.length) {
   throw new Error("Faction registry contains duplicate ids");
@@ -67,7 +67,6 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("genoa", "Genova", "Italy"),
   capital("papal-states", "Rome", "Italy"),
   capital("ming", "Beijing", "China"),
-  capital("aztec", "Zempoala", "Mexico"),
   capital("inca", "Cuzco", "Peru"),
   capital("safavid", "Siraf", "Iran"),
   capital("muscovy", "Kholmogory", "Russian Federation", {
@@ -156,7 +155,6 @@ const WARS_1522 = Object.freeze([
   ["portugal", "ming"],
   ["portugal", "gujarat"],
   ["portugal", "morocco"],
-  ["spain", "aztec"],
   ["muscovy", "poland-lithuania"]
 ]);
 
@@ -202,11 +200,11 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Tsinkiang", "China", NEUTRAL_FACTION_ID),
   cityRule("Turpan", "China", NEUTRAL_FACTION_ID),
 
-  cityRule("Mexico City", "Mexico", "aztec"),
-  cityRule("Texcoco", "Mexico", "aztec"),
-  cityRule("Tenayuca", "Mexico", "aztec"),
-  cityRule("Cholula", "Mexico", "aztec"),
-  cityRule("Zempoala", "Mexico", "aztec"),
+  cityRule("Mexico City", "Mexico", "spain"),
+  cityRule("Texcoco", "Mexico", "spain"),
+  cityRule("Tenayuca", "Mexico", "spain"),
+  cityRule("Cholula", "Mexico", "spain"),
+  cityRule("Zempoala", "Mexico", "spain"),
   cityRule("Veracruz", "Mexico", "spain"),
 
   cityRule("Baghdad", "Iraq", "safavid"),
@@ -286,6 +284,11 @@ export function factionById(factionId) {
   const faction = FACTIONS_BY_ID.get(factionId);
   if (!faction) throw new Error(`Unknown faction: ${factionId}`);
   return faction;
+}
+
+export function migrateFactionIdTo1522(factionId) {
+  const successorId = RETIRED_FACTION_SUCCESSORS_1522[factionId];
+  return successorId || assertFactionId(factionId);
 }
 
 export function factionHasFlag(factionId) {

@@ -11,7 +11,7 @@ import {
   diplomacyBetween
 } from "./factions.js";
 
-export const WORLD_DIPLOMACY_VERSION = 3;
+export const WORLD_DIPLOMACY_VERSION = 4;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -85,14 +85,26 @@ export function migrateWorldDiplomacy(state) {
     throw new Error("World diplomacy migration requires a saved state");
   }
   if (state.version === WORLD_DIPLOMACY_VERSION) return validateWorldDiplomacy(state);
-  if (state.version !== 1 && state.version !== 2) {
+  if (![1, 2, 3].includes(state.version)) {
     throw new Error(`Unsupported world diplomacy version: ${state.version ?? "missing"}`);
   }
   return validateWorldDiplomacy({
     ...state,
     version: WORLD_DIPLOMACY_VERSION,
-    contacts: {}
+    overrides: removeRetiredFactionPairs(state.overrides),
+    pairLastChangedMinute: removeRetiredFactionPairs(state.pairLastChangedMinute),
+    contacts: state.version < 3 ? {} : removeRetiredFactionPairs(state.contacts),
+    history: state.history.filter((event) => !diplomacyEventUsesRetiredFaction(event))
   });
+}
+
+function removeRetiredFactionPairs(table) {
+  if (!table || typeof table !== "object" || Array.isArray(table)) return table;
+  return Object.fromEntries(Object.entries(table).filter(([key]) => !key.split("|").includes("aztec")));
+}
+
+function diplomacyEventUsesRetiredFaction(event) {
+  return [event?.factionAId, event?.factionBId, event?.causeFactionAId, event?.causeFactionBId].includes("aztec");
 }
 
 export function recordDiplomaticPortCall(state, visitingFactionId, portFactionId, simMinute) {

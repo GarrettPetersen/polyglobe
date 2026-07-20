@@ -9,6 +9,7 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
+  NPC_SEA_ROUTE_SNAPSHOT_VERSION,
   NPC_WHALER_FLEET_TARGET,
   NPC_SHIP_SLUGS,
   PIRATE_SHIP_SLUGS,
@@ -61,8 +62,11 @@ const PACIFIC_PORTS = Object.freeze([
 ]);
 
 const MESOAMERICAN_PORTS = Object.freeze([
-  port(30, "Guanahani Village", "Bahamas", "mesoamerican", 24.06, -74.47, 1200, "neutral"),
-  port(31, "Coroa Vermelha Village", "Brazil", "mesoamerican", -16.33, -39.01, 1600, "neutral")
+  nativeVillage(port(30, "Xicalango", "Mexico", "mesoamerican", 18.65, -91.82, 2800, "neutral")),
+  nativeVillage(port(31, "Chakan Putum", "Mexico", "mesoamerican", 19.35, -90.72, 2400, "neutral")),
+  nativeVillage(port(32, "Cuzamil", "Mexico", "mesoamerican", 20.43, -86.92, 1800, "neutral")),
+  nativeVillage(port(33, "Guanahani Village", "Bahamas", "mesoamerican", 24.06, -74.47, 1200, "neutral")),
+  nativeVillage(port(34, "Coroa Vermelha Village", "Brazil", "mesoamerican", -16.33, -39.01, 1600, "neutral"))
 ]);
 
 test("every NPC route hull is included in the sprite preload roster", () => {
@@ -288,17 +292,25 @@ test("Pacific villages get a small regional fishing and trading fleet", () => {
   assert.ok(pacificShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
 });
 
-test("Mesoamerican ports get a sparse coastal fishing and trading fleet", () => {
-  const ports = [...PORTS, ...MESOAMERICAN_PORTS];
+test("independent Mesoamerican villages get a sparse dugout-canoe fishing fleet", () => {
+  const conqueredCity = port(35, "Mexico City", "Mexico", "mesoamerican", 19.43, -99.13, 70000, "spain");
+  const ports = [...PORTS, ...MESOAMERICAN_PORTS, conqueredCity];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
   const nativeShips = routes.ships.filter((ship) => ship.profileId === "mesoamerican-coast");
 
   assert.ok(nativeShips.length > 0);
-  assert.ok(nativeShips.length <= 5);
+  assert.ok(nativeShips.length <= 7);
   assert.ok(nativeShips.every((ship) => ship.slug === "mesoamerican-dugout-canoe"));
   assert.ok(nativeShips.every((ship) => ship.cultureType === "mesoamerican"));
-  assert.ok(routes.ships.filter((ship) => ship.currentPort?.cityType === "mesoamerican").every((ship) => ship.profileId === "mesoamerican-coast"));
+  assert.ok(nativeShips.every((ship) => ship.factionId === "neutral"));
+  assert.ok(
+    nativeShips.filter((ship) => ship.role === NPC_ROLE_MERCHANT).every((ship) =>
+      [ship.currentPort, ship.plan.destination].every((stop) =>
+        stop.isFishingGround || stop.settlementType === "village"
+      )
+    )
+  );
   assert.ok(nativeShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
   assert.ok(nativeShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
   assert.ok(nativeShips.every((ship) => ship.role !== NPC_ROLE_PIRATE));
@@ -311,6 +323,7 @@ test("NPC route snapshots restore ships, plans, and replacement queues without c
   sinkNpcShip(routes, lost.id, 1000);
   routes.pirateHideoutDangerUntil.set(PORTS[0].tileId, 5555);
   const snapshot = snapshotNpcSeaRouteSystem(routes);
+  assert.equal(snapshot.version, NPC_SEA_ROUTE_SNAPSHOT_VERSION);
 
   updateNpcSeaRouteSystem(routes, 2000);
   routes.pirateHideoutDangerUntil.clear();
@@ -322,6 +335,18 @@ test("NPC route snapshots restore ships, plans, and replacement queues without c
   assert.equal(routes.pirateHideoutDangerUntil.get(PORTS[0].tileId), 5555);
   assert.equal(routes.routeCache.size, 0);
   assert.equal(routes.shipById.size, routes.ships.length);
+});
+
+test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  snapshot.version = 1;
+  snapshot.ships[0].factionId = "aztec";
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  assert.equal(routes.shipById.get(snapshot.ships[0].id).factionId, "spain");
 });
 
 test("NPC route snapshots preserve planless pirates hidden at a hideout", () => {
@@ -824,6 +849,14 @@ function port(tileId, city, country, cityType, lat, lon, population, factionId) 
     population,
     factionId
   };
+}
+
+function nativeVillage(value) {
+  return Object.freeze({
+    ...value,
+    settlementType: "village",
+    manualRegion: "mesoamerican-villages"
+  });
 }
 
 function whalingCandidates() {

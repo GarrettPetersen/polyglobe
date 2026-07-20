@@ -41,7 +41,7 @@ import {
   recordPiracyAgainstFaction,
   validateGameState
 } from "./gameState.js";
-import { makeDiplomaticPeace } from "./worldDiplomacy.js";
+import { WORLD_DIPLOMACY_VERSION, makeDiplomaticPeace } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 const PLAYER = {
@@ -111,7 +111,7 @@ test("version 8 game states retain version 1 diplomacy history during migration"
 
   const restored = migrateGameState(saved, stats);
 
-  assert.equal(restored.relations.diplomacy.version, 3);
+  assert.equal(restored.relations.diplomacy.version, WORLD_DIPLOMACY_VERSION);
   const { contacts, ...withoutContacts } = restored.relations.diplomacy;
   assert.deepEqual({ ...withoutContacts, version: 1 }, before);
 });
@@ -175,6 +175,30 @@ test("version 12 voyages gain empty persistent safe-passage refusals", () => {
 
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.relations.safePassageRefusalUntilMinute, {});
+});
+
+test("version 21 voyages retire Aztec faction references into Spanish Mexico", () => {
+  const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  saved.version = 21;
+  saved.relations.factionReputation.aztec = 12;
+  saved.relations.safePassageUntilMinute.aztec = 5000;
+  saved.relations.lettersOfMarque.aztec = { factionId: "aztec", simMinute: null };
+  saved.relations.diplomacy.version = 3;
+  saved.relations.diplomacy.contacts["aztec|spain"] = {
+    firstContactMinute: 100,
+    lastContactMinute: 200,
+    portCalls: 2
+  };
+  saved.memory.conquest.portFactionOverrides["city-99"] = "aztec";
+  saved.memory.conquest.collapsedFactionIds.push("aztec");
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.relations.safePassageUntilMinute.spain, 5000);
+  assert.equal(restored.memory.conquest.portFactionOverrides["city-99"], "spain");
+  assert.deepEqual(restored.memory.conquest.collapsedFactionIds, []);
+  assert.equal(JSON.stringify(restored).includes("aztec"), false);
 });
 
 test("successful trade gives only a tiny faction reputation gain", () => {

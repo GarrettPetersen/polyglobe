@@ -2,6 +2,8 @@ export function fetchQuestRequirements({
   colonization = null,
   japaneseMatchlocks = null,
   japaneseMatchlockPort = null,
+  caribbeanGinger = null,
+  caribbeanGingerPort = null,
   viking = null,
   vikingPort = null
 } = {}) {
@@ -61,6 +63,17 @@ export function fetchQuestRequirements({
       good: japaneseMatchlocks.fetchStage,
       held: japaneseMatchlocks.held,
       destination: japaneseMatchlockPort
+    }));
+  }
+
+  if (caribbeanGinger?.fetchStage && caribbeanGingerPort) {
+    requirements.push(requirement({
+      id: `caribbean-ginger:${caribbeanGinger.fetchStage.id}`,
+      questId: "caribbean-ginger",
+      stageId: caribbeanGinger.fetchStage.id,
+      good: caribbeanGinger.fetchStage,
+      held: caribbeanGinger.held,
+      destination: caribbeanGingerPort
     }));
   }
 

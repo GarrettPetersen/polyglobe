@@ -5,6 +5,7 @@ import test from "node:test";
 import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import {
   FACTION_CAPITALS_1522,
+  NEUTRAL_FACTION_ID,
   factionCapitalCityRecords1522,
   factionCapitalForCity,
   factionIdForCity1522
@@ -166,6 +167,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     city.manualRegion === "spice-islands" && city.settlementType === "village"
   );
   const northwestCoastVillages = ports.filter((city) => city.manualRegion === "northwest-coast");
+  const mesoamericanVillages = ports.filter((city) => city.manualRegion === "mesoamerican-villages");
   const manualPortFailures = MANUAL_CITY_RECORDS_1522
     .filter((manualSpec) => !ports.some((city) =>
       city.city === manualSpec.city &&
@@ -275,7 +277,21 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     ["Ozette Village", "Yuquot Village"]
   );
   assert.ok(northwestCoastVillages.every((city) => city.marketGoods.includes("beaver-pelts")));
-  assert.ok([...pacificVillages, ...encounterVillages, ...spiceIslandVillages, ...northwestCoastVillages].every((city) =>
+  assert.deepEqual(
+    mesoamericanVillages.map((city) => city.city).sort(),
+    ["Chakan Putum", "Cuzamil", "Xicalango"]
+  );
+  assert.ok(mesoamericanVillages.every((city) => city.cityType === "mesoamerican"));
+  assert.ok(mesoamericanVillages.every((city) => city.settlementType === "village"));
+  assert.ok(mesoamericanVillages.every((city) => city.factionId === NEUTRAL_FACTION_ID));
+  assert.ok(mesoamericanVillages.every((city) => city.marketGoods.includes("fish")));
+  assert.ok([
+    ...pacificVillages,
+    ...encounterVillages,
+    ...spiceIslandVillages,
+    ...northwestCoastVillages,
+    ...mesoamericanVillages
+  ].every((city) =>
     city.marketGoods.length === 3 && city.marketGoods.every((goodId) => typeof goodId === "string")
   ));
   assert.deepEqual(manualPortFailures, [], "expected every manual 1522 trade port to survive selection as dockable");
@@ -334,19 +350,19 @@ test("colonization targets cover accelerated history hooks", () => {
   assert.equal(nagasaki.type, COLONIAL_FOUNDING_NEGOTIATED);
 });
 
-test("1522 catalog records carry colonial metadata without changing current allegiance", async () => {
+test("1522 catalog records apply completed conquests to current allegiance", async () => {
   const csv = await readFile(
     new URL("examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv", repoRoot),
     "utf8"
   );
   const cityRecords = buildCityRecords1522(csv);
-  const tenochtitlan = cityRecords.get(cityKey("Mexico City", "Mexico"));
+  const mexicoCity = cityRecords.get(cityKey("Mexico City", "Mexico"));
   const havana = cityRecords.get(cityKey("Havana", "Cuba"));
 
-  assert.equal(tenochtitlan.displayCity, "Tenochtitlan");
-  assert.equal(tenochtitlan.factionId, "aztec");
-  assert.equal(tenochtitlan.colonialFounding.type, COLONIAL_FOUNDING_CONQUERED);
-  assert.equal(tenochtitlan.colonialFounding.factionId, "spain");
+  assert.equal(mexicoCity.displayCity, "Mexico City");
+  assert.equal(mexicoCity.factionId, "spain");
+  assert.equal(mexicoCity.colonialFounding.type, COLONIAL_FOUNDING_CONQUERED);
+  assert.equal(mexicoCity.colonialFounding.factionId, "spain");
   assert.equal(havana.factionId, "spain");
   assert.equal(havana.colonialFounding.type, COLONIAL_FOUNDING_SETTLER);
 });
@@ -694,7 +710,6 @@ function cityLabel(city) {
 }
 
 function displayName(city, country) {
-  if (city === "Mexico City" && country === "Mexico") return "Tenochtitlan";
   if (city === "Texcoco" && country === "Mexico") return "Tezcoco";
   if (city === "Zempoala" && country === "Mexico") return "Cempoala";
   return city;

@@ -48,11 +48,12 @@
   "dependencies": {
     "earcut": "^2.2.4",
     "polygon-clipping": "^0.15.7",
-    "three": "^0.170.0"
+    "three": ">=0.160.0"
   },
   "devDependencies": {
     "@types/earcut": "^2.1.4",
     "@types/three": "^0.170.0",
+    "esbuild": "^0.28.1",
     "typescript": "^5.7.2"
   },
   "peerDependencies": {

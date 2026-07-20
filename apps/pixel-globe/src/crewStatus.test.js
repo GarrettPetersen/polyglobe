@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { crewStatusLayout } from "./crewStatus.js";
+import { crewStatusCount, crewStatusLayout } from "./crewStatus.js";
+
+test("crew status count includes visible travelers but not the captain", () => {
+  assert.equal(crewStatusCount({
+    crewCount: 2,
+    travelerGroups: [{ kind: "passenger", count: 1 }]
+  }), 3);
+});
 
 test("crew status leaves one pixel between people when room permits", () => {
   const layout = crewStatusLayout({ crewCount: 3, x: 10, y: 20, width: 20 });
@@ -38,6 +45,7 @@ test("travelers follow the crew with their semantic kind", () => {
   assert.deepEqual(layout.entries.map((entry) => entry.kind), [
     "crew", "crew", "envoy", "settler", "settler"
   ]);
+  assert.equal(layout.count, 5);
 });
 
 test("very large crews share integer columns without leaving the row", () => {

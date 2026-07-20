@@ -226,22 +226,6 @@
       ]
     },
     {
-      "id": "aztec",
-      "factionName": "Aztec Empire",
-      "width": 32,
-      "height": 20,
-      "file": "aztec.png",
-      "evidence": "period-emblem",
-      "representation": "Eagle and cactus of Tenochtitlan",
-      "accuracyNote": "The Nahua-made Codex Mendoza preserves the eagle-on-cactus city emblem. No European-style Aztec national flag is implied.",
-      "sources": [
-        {
-          "label": "Codex Mendoza frontispiece",
-          "url": "https://smarthistory.org/frontispiece-of-the-codex-mendoza/"
-        }
-      ]
-    },
-    {
       "id": "inca",
       "factionName": "Inca Empire",
       "width": 32,

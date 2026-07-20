@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 import { DEMO_VOYAGE_LIMIT_SECONDS } from "../src/demoVoyage.js";
 
@@ -20,10 +21,15 @@ const edition = buildEditionFromArgs(process.argv.slice(2));
 const distRoot = join(appRoot, edition === BUILD_EDITION_DEMO ? "dist-demo" : "dist");
 const maxPagesFileBytes = 24 * 1024 * 1024;
 
-const appEntries = [
-  ["index.html", "index.html"],
-  ["src", "src"]
-];
+const appEntries = edition === BUILD_EDITION_DEMO
+  ? [
+      ["index.html", "index.html"],
+      ["src/styles.css", "src/styles.css"]
+    ]
+  : [
+      ["index.html", "index.html"],
+      ["src", "src"]
+    ];
 
 const publicEntries = [
   ["assets", "assets"]
@@ -221,6 +227,31 @@ function buildEditionModuleSource() {
   ].join("\n");
 }
 
+async function bundleDemoRuntime() {
+  await build({
+    entryPoints: [join(appRoot, "src/main.js")],
+    outfile: join(distRoot, "src/main.js"),
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: "es2022",
+    legalComments: "none",
+    plugins: [{
+      name: "pixel-globe-build-edition",
+      setup(buildContext) {
+        buildContext.onResolve({ filter: /^\.\/buildEdition\.js$/ }, () => ({
+          path: "buildEdition.js",
+          namespace: "pixel-globe-build"
+        }));
+        buildContext.onLoad({ filter: /.*/, namespace: "pixel-globe-build" }, () => ({
+          contents: buildEditionModuleSource(),
+          loader: "js"
+        }));
+      }
+    }]
+  });
+}
+
 await rm(distRoot, { recursive: true, force: true });
 await mkdir(distRoot, { recursive: true });
 
@@ -229,6 +260,7 @@ for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopy
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 
 await writeFile(join(distRoot, "src/buildEdition.js"), buildEditionModuleSource());
+if (edition === BUILD_EDITION_DEMO) await bundleDemoRuntime();
 if (demoCharacterManifest) {
   await writeFile(
     join(distRoot, CHARACTER_MANIFEST_PATH),

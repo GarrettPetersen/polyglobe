@@ -12,5 +12,6 @@ These 36x36 PNGs are copied from the default Resurrect 64 terrain hexes so city 
 | `city-southeast-asian.png` | `resurrect-64/jungle_palm_01.png` |
 | `city-village.png` | Shared tropical village placeholder for Polynesian ports |
 | `city-mesoamerican.png` | `resurrect-64/jungle_dense_01.png` |
+| `city-native-american.png` | Substantial pre-contact settlements in northern North America |
 | `city-andean.png` | `resurrect-64/earth_rocky.png` |
 | `city-sub-saharan.png` | `resurrect-64/grass_04.png` |

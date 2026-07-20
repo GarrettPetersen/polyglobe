@@ -5,6 +5,11 @@ import {
   SHIP_LOADOUT_PRESETS,
   balancedProvisionTargets,
   crewHoldSpace,
+  fitShipCustomLoadoutPlan,
+  setShipCustomLoadoutValue,
+  shipCustomLoadoutBounds,
+  shipCustomLoadoutDraft,
+  shipCustomLoadoutPlan,
   shipLoadoutPlan
 } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -49,4 +54,49 @@ test("constrained provisions split evenly with the odd slot reserved for water",
   assert.deepEqual(balancedProvisionTargets(8, 3, 8), { foodUnits: 5, waterUnits: 3 });
   assert.deepEqual(balancedProvisionTargets(8, 8, 0), { foodUnits: 0, waterUnits: 0 });
   assert.throws(() => balancedProvisionTargets(8, 8, 1.5), /Invalid balanced provision/);
+});
+
+test("custom loadouts preserve exact integer targets and expose remaining trade space", () => {
+  const stats = shipStatsForSlug("brigantine");
+  let draft = shipCustomLoadoutDraft(stats);
+  draft = setShipCustomLoadoutValue(stats, draft, "crew", 9);
+  draft = setShipCustomLoadoutValue(stats, draft, "cannons", 3);
+  draft = setShipCustomLoadoutValue(stats, draft, "foodUnits", 4);
+  draft = setShipCustomLoadoutValue(stats, draft, "waterUnits", 5);
+  const plan = shipCustomLoadoutPlan(stats, draft);
+
+  assert.equal(plan.id, "custom");
+  assert.equal(plan.crew, 9);
+  assert.equal(plan.cannons, 3);
+  assert.equal(plan.foodUnits, 4);
+  assert.equal(plan.waterUnits, 5);
+  assert.equal(plan.reserveSpace, stats.cargoCapacity - plan.totalSpace);
+  assert.equal(plan.foodDays, 4 * 12 / 10);
+  assert.equal(plan.waterDays, 5 * 8 / 10);
+});
+
+test("custom slider bounds prevent any field from overflowing the hold", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const draft = shipCustomLoadoutDraft(stats);
+  for (const key of ["crew", "cannons", "foodUnits", "waterUnits"]) {
+    const bounds = shipCustomLoadoutBounds(stats, draft, key);
+    const adjusted = setShipCustomLoadoutValue(stats, draft, key, bounds.max + 100);
+    assert.equal(adjusted[key], bounds.max);
+    assert.ok(shipCustomLoadoutPlan(stats, adjusted).totalSpace <= stats.cargoCapacity);
+  }
+  assert.throws(
+    () => shipCustomLoadoutPlan(stats, { crew: 1, cannons: 0, foodUnits: stats.cargoCapacity, waterUnits: 1 }),
+    /Custom loadout uses/
+  );
+});
+
+test("custom loadouts fit smaller replacement hulls while preserving water on tied stores", () => {
+  const stats = { cargoCapacity: 4, cannons: 0, mass: 12, crewCapacity: 2 };
+  const plan = fitShipCustomLoadoutPlan(stats, { crew: 2, cannons: 0, foodUnits: 2, waterUnits: 2 });
+
+  assert.deepEqual(
+    { crew: plan.crew, foodUnits: plan.foodUnits, waterUnits: plan.waterUnits },
+    { crew: 2, foodUnits: 1, waterUnits: 2 }
+  );
+  assert.equal(plan.totalSpace, 4);
 });

@@ -18,6 +18,7 @@ import {
   factionCapitalForId,
   factionHasFlag,
   factionIdForCity1522,
+  migrateFactionIdTo1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
 
@@ -60,7 +61,7 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("ming", "japan"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("portugal", "ming"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("venice", "genoa"), DIPLOMACY_HOSTILE);
-  assert.equal(diplomacyBetween("aztec", "muscovy"), DIPLOMACY_NEUTRAL);
+  assert.equal(diplomacyBetween("inca", "muscovy"), DIPLOMACY_NEUTRAL);
   for (const faction of FACTIONS) {
     if (faction.id !== PIRATE_FACTION_ID) {
       assert.equal(diplomacyBetween(PIRATE_FACTION_ID, faction.id), DIPLOMACY_WAR);
@@ -78,7 +79,7 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Genova", "Italy", "genoa"],
     ["Lisbon", "Portugal", "portugal"],
     ["Beijing", "China", "ming"],
-    ["Mexico City", "Mexico", "aztec"],
+    ["Mexico City", "Mexico", "spain"],
     ["Cuzco", "Peru", "inca"],
     ["Cairo", "Egypt", "ottoman"],
     ["Hafnarfjordur", "Iceland", "denmark-norway"]
@@ -94,6 +95,16 @@ test("overseas possessions and uncertain small powers are handled explicitly", (
   assert.equal(factionIdForCity1522({ city: "Avignon", country: "France" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Chiang Mai", country: "Thailand" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Unknown", country: "Unknown" }), NEUTRAL_FACTION_ID);
+});
+
+test("the defeated Aztec Empire is not a sovereign power in 1522", () => {
+  assert.equal(FACTIONS.some((faction) => faction.id === "aztec"), false);
+  assert.equal(migrateFactionIdTo1522("aztec"), "spain");
+  assert.equal(migrateFactionIdTo1522("inca"), "inca");
+  for (const city of ["Mexico City", "Texcoco", "Tenayuca", "Cholula", "Zempoala"]) {
+    assert.equal(factionIdForCity1522({ city, country: "Mexico" }), "spain", city);
+  }
+  assert.equal(factionIdForCity1522({ city: "Tzintzuntzan", country: "Mexico" }), NEUTRAL_FACTION_ID);
 });
 
 test("every sovereign faction has one declared water-accessible capital", () => {
@@ -140,14 +151,14 @@ test("capital resolver annotates only water-accessible ports and fails loudly ot
   }
 
   assert.throws(
-    () => markFactionCapitalsOnPorts(ports.filter((port) => port.factionId !== "aztec")),
-    /aztec capital Zempoala, Mexico is not water accessible/
+    () => markFactionCapitalsOnPorts(ports.filter((port) => port.factionId !== "england")),
+    /england capital London, United Kingdom is not water accessible/
   );
 
   assert.throws(
     () => markFactionCapitalsOnPorts(ports.map((port) => (
-      port.factionId === "aztec" ? { ...port, factionId: "neutral" } : port
+      port.factionId === "england" ? { ...port, factionId: "neutral" } : port
     ))),
-    /Zempoala, Mexico belongs to neutral, not aztec/
+    /London, United Kingdom belongs to neutral, not england/
   );
 });

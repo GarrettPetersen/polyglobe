@@ -34,11 +34,13 @@ import {
   receiveQuestPayment,
   releaseCargoSpace,
   reserveCargoSpace,
+  restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
   sellGood
 } from "./gameState.js";
 import {
   FRESH_WATER_GOOD_ID,
+  GINGER_GOOD_ID,
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   establishPortIndustry,
@@ -54,7 +56,16 @@ import { DIPLOMACY_ALLY, DIPLOMACY_FRIENDLY, factionById } from "./factions.js";
 import { adjustDiplomaticStance, worldDiplomacyBetween } from "./worldDiplomacy.js";
 import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
-import { SHIP_LOADOUT_PRESETS, shipLoadoutPlan } from "./shipLoadouts.js";
+import {
+  CUSTOM_LOADOUT_FIELDS,
+  CUSTOM_LOADOUT_ID,
+  SHIP_LOADOUT_PRESETS,
+  setShipCustomLoadoutValue,
+  shipCustomLoadoutBounds,
+  shipCustomLoadoutDraft,
+  shipCustomLoadoutPlan,
+  shipLoadoutPlan
+} from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import { shipyardPurchaseTerms } from "./shipyards.js";
@@ -114,6 +125,15 @@ import {
   markJapaneseMatchlockOfferSeen
 } from "./japaneseMatchlockQuest.js";
 import {
+  CARIBBEAN_GINGER_COMPLETION_REWARD,
+  CARIBBEAN_GINGER_INITIAL_STOCK,
+  CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
+  assertCaribbeanGingerDelivery,
+  caribbeanGingerQuestState,
+  completeCaribbeanGingerQuest,
+  markCaribbeanGingerOfferSeen
+} from "./caribbeanGingerQuest.js";
+import {
   MING_FACTION_ID,
   MING_ILLICIT_MARKET_REPUTATION_PENALTY,
   mingTradeAccess,
@@ -168,6 +188,7 @@ export function createPortDialogueSession(city, options = {}) {
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
     japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
+    caribbeanGingerArrival: options.caribbeanGingerArrival === true,
     vikingLongshipArrival: options.vikingLongshipArrival === true,
     selectedIndex: 0,
     feedback: null
@@ -223,6 +244,17 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       postDrunkNodeId: arrivedDrunk ? "japanese-matchlocks" : null,
       drunkVariant,
       japaneseMatchlockArrival: true,
+      admittedToPort: true
+    });
+  }
+  if (options.caribbeanGingerApproach === true) {
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    return createPortDialogueSession(city, {
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "caribbean-ginger",
+      nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? "caribbean-ginger" : null,
+      drunkVariant,
+      caribbeanGingerArrival: true,
       admittedToPort: true
     });
   }
@@ -734,6 +766,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "drunk-captain") return drunkCaptainArrivalView(session, gameState);
   if (session.nodeId === "drunk-factor") return drunkFactorArrivalView(session, city);
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
+  if (session.nodeId === "recovering") return recoveringPortView(city, context);
   if (session.nodeId === "barred") return barredPortView(city, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
   if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
@@ -749,14 +782,36 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
+  if (session.nodeId === "custom-loadout") return customLoadoutView(session, city, gameState, context);
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
   if (session.nodeId === "japanese-matchlocks") {
     return japaneseMatchlockView(session, city, gameState);
   }
+  if (session.nodeId === "caribbean-ginger") {
+    return caribbeanGingerView(session, city, gameState);
+  }
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
+}
+
+function recoveringPortView(city, context) {
+  const recovery = context.portRecoveryStatus;
+  if (!recovery || typeof recovery.attackerShipLabel !== "string" || !recovery.attackerShipLabel.trim()) {
+    throw new Error("Recovering port dialogue requires the attacking ship");
+  }
+  if (!Number.isInteger(recovery.daysRemaining) || recovery.daysRemaining < 1) {
+    throw new Error(`Recovering port dialogue requires remaining recovery days: ${recovery.daysRemaining}`);
+  }
+  const dayLabel = `${recovery.daysRemaining} more day${recovery.daysRemaining === 1 ? "" : "s"}`;
+  return {
+    speaker: speakerName(city),
+    expressionId: "sad",
+    text: `We are still recovering after ${recovery.attackerShipLabel} bombarded ${cityLabel(city)} and silenced the harbor guns. Fires are still being put out, and the quays will remain closed for ${dayLabel}. You must put back to sea.`,
+    feedback: null,
+    options: [option("Leave", { type: "close" })]
+  };
 }
 
 function drunkCaptainArrivalView(session, gameState) {
@@ -828,6 +883,7 @@ export function selectPortDialogueOption(
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
     if (action.nodeId === "viking-longship") markVikingLongshipOfferSeen(gameState);
     if (action.nodeId === "japanese-matchlocks") markJapaneseMatchlockOfferSeen(gameState);
+    if (action.nodeId === "caribbean-ginger") markCaribbeanGingerOfferSeen(gameState);
     if (session.nodeId === "colonization" && action.nodeId !== "colonization") {
       session.colonizationArrival = false;
     }
@@ -836,6 +892,9 @@ export function selectPortDialogueOption(
     }
     if (session.nodeId === "japanese-matchlocks" && action.nodeId !== "japanese-matchlocks") {
       session.japaneseMatchlockArrival = false;
+    }
+    if (session.nodeId === "caribbean-ginger" && action.nodeId !== "caribbean-ginger") {
+      session.caribbeanGingerArrival = false;
     }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
@@ -1010,6 +1069,45 @@ export function selectPortDialogueOption(
       japaneseMatchlockPayment: payment
     };
   }
+  if (action.type === "deliver-caribbean-ginger") {
+    const stage = assertCaribbeanGingerDelivery(gameState, city);
+    const delivery = deliverQuestCargo(
+      gameState,
+      city,
+      stage.goodId,
+      stage.quantity,
+      `caribbean-ginger.${stage.id}`,
+      context
+    );
+    const quest = completeCaribbeanGingerQuest(
+      gameState,
+      city,
+      context.simMinute ?? 0
+    );
+    const industry = establishPortIndustry(
+      economy,
+      city,
+      GINGER_GOOD_ID,
+      CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
+      { initialStock: CARIBBEAN_GINGER_INITIAL_STOCK }
+    );
+    const payment = receiveQuestPayment(
+      gameState,
+      city,
+      CARIBBEAN_GINGER_COMPLETION_REWARD,
+      "Caribbean ginger cultivation",
+      context
+    );
+    session.feedback = `The first ginger beds have taken. Paid ${payment.amount} db.`;
+    session.selectedIndex = 0;
+    return {
+      closed: false,
+      caribbeanGingerDelivery: delivery,
+      caribbeanGingerQuest: quest,
+      caribbeanGingerIndustry: industry,
+      caribbeanGingerPayment: payment
+    };
+  }
   if (action.type === "deliver-colonization-material") {
     const quest = colonizationQuestView(gameState, { currentMinute: context.simMinute ?? 0 });
     const targetName = quest.target.city;
@@ -1168,7 +1266,38 @@ export function selectPortDialogueOption(
     const result = restockShipLoadoutAtPort(gameState, city, context.shipStats, action.loadoutId, context);
     const shortages = Object.values(result.shortfalls).reduce((sum, value) => sum + value, 0);
     session.feedback = `${result.plan.label} targets set. Crew ${gameState.ship.crew}/${result.plan.crew}, ` +
+      `guns ${gameState.ship.cannons}/${result.plan.cannons}.` + loadoutRemovalSummary(result.removed) +
+      (shortages > 0 ? " Some stores could not be fitted or afforded." : " Ship fully provisioned.");
+    session.nodeId = "root";
+    session.selectedIndex = 0;
+    return { closed: false, loadoutResult: result };
+  }
+  if (action.type === "open-custom-loadout") {
+    if (!context.shipStats) throw new Error("Custom loadout editor requires player ship stats");
+    session.customLoadoutDraft = shipCustomLoadoutDraft(
+      context.shipStats,
+      gameState.ship?.loadoutTargets || null
+    );
+    session.customLoadoutFieldIndex = 0;
+    session.nodeId = "custom-loadout";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "select-custom-loadout") {
+    if (!context.shipStats) throw new Error("Selecting a custom loadout requires player ship stats");
+    if (!session.customLoadoutDraft) throw new Error("Custom loadout editor has no draft");
+    const result = restockCustomShipLoadoutAtPort(
+      gameState,
+      city,
+      context.shipStats,
+      session.customLoadoutDraft,
+      context
+    );
+    const shortages = Object.values(result.shortfalls).reduce((sum, value) => sum + value, 0);
+    session.feedback = `Custom targets set. Crew ${gameState.ship.crew}/${result.plan.crew}, ` +
       `guns ${gameState.ship.cannons}/${result.plan.cannons}.` +
+      loadoutRemovalSummary(result.removed) +
       (shortages > 0 ? " Some stores could not be fitted or afforded." : " Ship fully provisioned.");
     session.nodeId = "root";
     session.selectedIndex = 0;
@@ -1429,6 +1558,7 @@ function pirateHideoutGreetingView(city, memory, context) {
 function barredPortView(city, context) {
   const status = context.portEntryStatus;
   const conquest = context.portConquestStatus || null;
+  const batteryDisabled = context.portRecoveryStatus !== null && context.portRecoveryStatus !== undefined;
   if (!status?.hostile && !conquest?.canAttempt && !conquest?.playerAssaultActive) {
     throw new Error("Barred port dialogue requires hostility or an exposed foreign port");
   }
@@ -1454,7 +1584,7 @@ function barredPortView(city, context) {
       }
     ));
   }
-  if (status.hostile && !status.locked && !conquest?.playerAssaultActive) {
+  if (status.hostile && !status.locked && !batteryDisabled && !conquest?.playerAssaultActive) {
     options.push(option("Try to enter in disguise", { type: "attempt-disguise" }));
   }
   options.push(option("Leave", { type: "close" }));
@@ -1463,7 +1593,7 @@ function barredPortView(city, context) {
     expressionId: "stern",
     text: conquest?.canAttempt
       ? `The harbor guns are silent. ${cityLabel(city)} is exposed, but ${conquest.capital ? "the capital garrison" : "the garrison"} still bars the quays.`
-      : conquest?.playerAssaultActive
+      : batteryDisabled || conquest?.playerAssaultActive
       ? `The harbor guns are silent, but you need at least ${conquest.minimumCrew} crew aboard a large warship to land a viable assault force.`
       : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
     feedback: null,
@@ -1539,6 +1669,12 @@ function rootView(session, city, gameState, economy, context) {
     options.splice(4, 0, option("Speak with the gunsmith", {
       type: "node",
       nodeId: "japanese-matchlocks"
+    }));
+  }
+  if (caribbeanGingerQuestState(gameState, city) && !session.disguisedEntry) {
+    options.splice(4, 0, option("Speak with the planter", {
+      type: "node",
+      nodeId: "caribbean-ginger"
     }));
   }
   if (isColonizationQuestOrigin(gameState.memory.colonization, city) && !session.disguisedEntry) {
@@ -1755,6 +1891,43 @@ function japaneseMatchlockView(session, city, gameState) {
     options: [
       option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
         type: "deliver-japanese-matchlock-material",
+        stageId: stage.id,
+        goodId: stage.goodId
+      }, {
+        disabled: !quest.canDeliver,
+        disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
+      }),
+      back
+    ]
+  };
+}
+
+function caribbeanGingerView(session, city, gameState) {
+  const quest = caribbeanGingerQuestState(gameState, city);
+  if (!quest) throw new Error("Caribbean ginger dialogue opened before its offer spawned");
+  const speaker = `${characterName(city.character)}, planter`;
+  const back = session.caribbeanGingerArrival
+    ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    : option("Back", { type: "node", nodeId: "root" });
+  if (quest.completed) {
+    return {
+      speaker,
+      expressionId: "pleased",
+      text: `The ginger has taken beautifully. These islands now grow a spice that once had to cross half the world, and ${cityLabel(city)} has a new crop for every eastbound hold.`,
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  const stage = quest.fetchStage;
+  return {
+    speaker,
+    expressionId: quest.canDeliver ? "pleased" : "attentive",
+    text: "Feel this soil: warm, damp, and rich. I am certain ginger would thrive here, but sound planting roots must come from the ports of Southeast Asia. Bring me six, and I will pay well for the risk of carrying them across the world.",
+    feedback: session.feedback,
+    options: [
+      option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+        type: "deliver-caribbean-ginger",
         stageId: stage.id,
         goodId: stage.goodId
       }, {
@@ -2437,6 +2610,15 @@ function loadoutView(session, city, gameState, context) {
       detail: `CREW ${plan.crew}  GUNS ${plan.cannons}  FOOD ${Math.floor(plan.foodDays)}D  WATER ${Math.floor(plan.waterDays)}D`
     });
   });
+  const customSelected = currentId === CUSTOM_LOADOUT_ID;
+  const customPlan = customSelected
+    ? shipCustomLoadoutPlan(context.shipStats, gameState.ship.loadoutTargets)
+    : null;
+  rows.push(option(`${customSelected ? "* " : ""}CUSTOM`, { type: "open-custom-loadout" }, {
+    detail: customPlan
+      ? `CREW ${customPlan.crew}  GUNS ${customPlan.cannons}  FOOD ${Math.floor(customPlan.foodDays)}D  WATER ${Math.floor(customPlan.waterDays)}D`
+      : "SET CREW, GUNS, FOOD, AND WATER"
+  }));
   if (currentId) rows.push(option("Back", { type: "node", nodeId: "root" }));
   return {
     speaker: speakerName(city),
@@ -2448,6 +2630,58 @@ function loadoutView(session, city, gameState, context) {
     optionHeight: 34,
     options: rows
   };
+}
+
+export function setPortCustomLoadoutValue(session, stats, key, value) {
+  if (!session || session.kind !== "port" || session.nodeId !== "custom-loadout") {
+    throw new Error("Custom loadout controls require the custom loadout screen");
+  }
+  if (!session.customLoadoutDraft) throw new Error("Custom loadout editor has no draft");
+  session.customLoadoutDraft = setShipCustomLoadoutValue(stats, session.customLoadoutDraft, key, value);
+  return shipCustomLoadoutPlan(stats, session.customLoadoutDraft);
+}
+
+function customLoadoutView(session, city, gameState, context) {
+  if (!context.shipStats) throw new Error("Custom loadout view requires player ship stats");
+  if (!session.customLoadoutDraft) {
+    session.customLoadoutDraft = shipCustomLoadoutDraft(
+      context.shipStats,
+      gameState.ship?.loadoutTargets || null
+    );
+  }
+  const plan = shipCustomLoadoutPlan(context.shipStats, session.customLoadoutDraft);
+  const labels = { crew: "Crew", cannons: "Guns", foodUnits: "Food", waterUnits: "Water" };
+  return {
+    speaker: speakerName(city),
+    expressionId: "attentive",
+    text: "Set crew, guns, and stores. Smaller stores dump excess provisions without refund.",
+    feedback: session.feedback,
+    presentation: {
+      kind: "custom-loadout",
+      plan,
+      fields: CUSTOM_LOADOUT_FIELDS.map((key) => ({
+        key,
+        label: labels[key],
+        value: session.customLoadoutDraft[key],
+        bounds: shipCustomLoadoutBounds(context.shipStats, session.customLoadoutDraft, key)
+      }))
+    },
+    options: [
+      option("Apply custom loadout", { type: "select-custom-loadout" }),
+      option("Back", { type: "node", nodeId: "loadout" })
+    ]
+  };
+}
+
+function loadoutRemovalSummary(removed) {
+  const phrases = [];
+  if (removed.food > 0) phrases.push(`${removed.food} hardtack`);
+  if (removed.water > 0) phrases.push(`${removed.water} water`);
+  const dumped = phrases.length > 0 ? ` Dumped ${phrases.join(" and ")}.` : "";
+  const reductions = [];
+  if (removed.crew > 0) reductions.push(`${removed.crew} crew`);
+  if (removed.cannons > 0) reductions.push(`${removed.cannons} guns`);
+  return dumped + (reductions.length > 0 ? ` Removed ${reductions.join(" and ")}.` : "");
 }
 
 function sellView(session, city, gameState, economy) {

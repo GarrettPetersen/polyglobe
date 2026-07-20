@@ -6,6 +6,7 @@ export const SHORE_BATTERY_HIT_POINTS_PER_GUN = 8;
 export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
 
 const DISABLED_UNTIL_PREFIX = "shoreBatteryDisabledUntil:";
+const DISABLED_BY_SHIP_PREFIX = "shoreBatteryDisabledByShip:";
 
 export function shoreBatteryId(city) {
   assertCity(city);
@@ -29,6 +30,7 @@ export function createShoreBatteryState(city, flags, simMinute) {
   const gunCount = shoreBatteryGunCount(city);
   const maxHitPoints = gunCount * SHORE_BATTERY_HIT_POINTS_PER_GUN;
   const disabledUntilMinute = readDisabledUntil(flags, city);
+  const disabled = disabledUntilMinute > simMinute;
   return {
     id: shoreBatteryId(city),
     cityTileId: city.tileId,
@@ -38,8 +40,9 @@ export function createShoreBatteryState(city, flags, simMinute) {
     cultureType: city.cityType || null,
     gunCount,
     maxHitPoints,
-    hitPoints: disabledUntilMinute > simMinute ? 0 : maxHitPoints,
-    disabledUntilMinute: disabledUntilMinute > simMinute ? disabledUntilMinute : null,
+    hitPoints: disabled ? 0 : maxHitPoints,
+    disabledUntilMinute: disabled ? disabledUntilMinute : null,
+    disabledByShipLabel: disabled ? readDisabledByShip(flags, city) : null,
     cooldownSeconds: 0,
     shotSequence: 0,
     engagedTargetIds: new Set(),
@@ -55,28 +58,44 @@ export function updateShoreBatteryState(state, flags, simMinute, dt) {
   state.cooldownSeconds = Math.max(0, state.cooldownSeconds - dt);
   if (state.disabledUntilMinute === null || simMinute < state.disabledUntilMinute) return false;
   delete flags[disabledFlagKey(state.portId)];
+  delete flags[disabledByShipFlagKey(state.portId)];
   state.disabledUntilMinute = null;
+  state.disabledByShipLabel = null;
   state.hitPoints = state.maxHitPoints;
   state.engagedTargetIds.clear();
   state.playerHailed = false;
   return true;
 }
 
-export function damageShoreBattery(state, flags, damage, simMinute) {
+export function damageShoreBattery(state, flags, damage, simMinute, attackerShipLabel) {
   assertState(state);
   assertFlags(flags);
   assertMinute(simMinute);
   if (!Number.isFinite(damage) || damage <= 0) throw new Error(`Invalid shore battery damage: ${damage}`);
+  assertAttackerShipLabel(attackerShipLabel);
   if (shoreBatteryIsDisabled(state, simMinute)) {
     return { hitPoints: 0, disabled: true, newlyDisabled: false };
   }
   state.hitPoints = Math.max(0, state.hitPoints - damage);
   if (state.hitPoints > 0) return { hitPoints: state.hitPoints, disabled: false, newlyDisabled: false };
   state.disabledUntilMinute = simMinute + SHORE_BATTERY_DISABLE_MINUTES;
+  state.disabledByShipLabel = attackerShipLabel.trim();
   flags[disabledFlagKey(state.portId)] = state.disabledUntilMinute;
+  flags[disabledByShipFlagKey(state.portId)] = state.disabledByShipLabel;
   state.engagedTargetIds.clear();
   state.playerHailed = false;
   return { hitPoints: 0, disabled: true, newlyDisabled: true };
+}
+
+export function shoreBatteryRecoveryStatus(state, simMinute) {
+  assertState(state);
+  assertMinute(simMinute);
+  if (!shoreBatteryIsDisabled(state, simMinute)) return null;
+  return {
+    attackerShipLabel: state.disabledByShipLabel || "an unidentified warship",
+    disabledUntilMinute: state.disabledUntilMinute,
+    daysRemaining: Math.max(1, Math.ceil((state.disabledUntilMinute - simMinute) / (24 * 60)))
+  };
 }
 
 export function shoreBatteryIsDisabled(state, simMinute) {
@@ -163,8 +182,25 @@ function readDisabledUntil(flags, city) {
   return value;
 }
 
+function readDisabledByShip(flags, city) {
+  const value = flags[disabledByShipFlagKey(city.portId || `city-${city.tileId}`)];
+  if (value === undefined) return null;
+  assertAttackerShipLabel(value);
+  return value.trim();
+}
+
 function disabledFlagKey(portId) {
   return `${DISABLED_UNTIL_PREFIX}${portId}`;
+}
+
+function disabledByShipFlagKey(portId) {
+  return `${DISABLED_BY_SHIP_PREFIX}${portId}`;
+}
+
+function assertAttackerShipLabel(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("Shore battery damage requires a specific attacking ship label");
+  }
 }
 
 function assertCity(city) {

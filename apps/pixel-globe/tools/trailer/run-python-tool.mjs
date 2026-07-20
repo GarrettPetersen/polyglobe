@@ -38,6 +38,10 @@ if (!python) {
   );
 }
 
-const result = spawnSync(python[0], [...python.slice(1), builder], { stdio: "inherit" });
+const result = spawnSync(
+  python[0],
+  [...python.slice(1), builder, ...process.argv.slice(3)],
+  { stdio: "inherit" }
+);
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);

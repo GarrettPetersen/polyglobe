@@ -16,7 +16,6 @@ export const CITY_MAX_COUNT = 480;
 export const CITY_DATA_URL = "shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv";
 
 const CITY_DISPLAY_NAME_OVERRIDES = new Map([
-  ["mexico city|mexico", [{ throughYear: 1522, displayCity: "Tenochtitlan" }]],
   ["texcoco|mexico", [{ throughYear: 1522, displayCity: "Tezcoco" }]],
   ["merida|mexico", [{ throughYear: 1541, displayCity: "Tiho" }]],
   ["zempoala|mexico", [{ throughYear: 1522, displayCity: "Cempoala" }]]
@@ -35,7 +34,16 @@ export const CITY_TYPE_KEYS = Object.freeze([
   "sub-saharan"
 ]);
 export const CITY_TYPE_ART_KEYS = Object.freeze({ polynesian: "village" });
-export const CITY_IMAGE_KEYS = Object.freeze([...CITY_TYPE_KEYS, "village"]);
+export const CITY_IMAGE_KEYS = Object.freeze([...new Set([
+  ...CITY_TYPE_KEYS.map((cityType) => CITY_TYPE_ART_KEYS[cityType] || cityType),
+  "native-american",
+  "village"
+])]);
+
+const NATIVE_AMERICAN_CITY_ART_COUNTRIES = new Set([
+  "Canada",
+  "United States of America"
+]);
 
 const EAST_ASIAN = new Set(["China", "Dem. People's Republic of Korea", "Japan", "Republic of Korea"]);
 const SOUTH_ASIAN = new Set(["India", "Nepal", "Pakistan", "Sri Lanka"]);
@@ -313,6 +321,17 @@ export function cityTypeForCity(country, lat, lon) {
   if (ISLAMIC_DESERT.has(country)) return "islamic-desert";
   if (SUB_SAHARAN.has(country)) return "sub-saharan";
   throw new Error(`No city type art bucket for city country: ${country}`);
+}
+
+export function cityArtKeyForCity(city) {
+  if (!city || typeof city !== "object") throw new Error("City art requires a city record");
+  if (!CITY_TYPE_KEYS.includes(city.cityType)) throw new Error(`Unknown city type: ${city.cityType}`);
+  if (city.settlementType === "village") return "village";
+  if (
+    city.cityType === "mesoamerican" &&
+    NATIVE_AMERICAN_CITY_ART_COUNTRIES.has(city.country)
+  ) return "native-american";
+  return CITY_TYPE_ART_KEYS[city.cityType] || city.cityType;
 }
 
 export function cityLabelText(city) {

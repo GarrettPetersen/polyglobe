@@ -15,6 +15,7 @@ import {
   shoreBatteryGunCount,
   shoreBatteryMayDemandToll,
   shoreBatteryPlayerResponse,
+  shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
   updateShoreBatteryState
 } from "./shoreBatteries.js";
@@ -45,14 +46,28 @@ test("only fortified ports demand empire-wide passage tolls", () => {
 test("disabled shore batteries recover after three in-game days", () => {
   const flags = {};
   const battery = createShoreBatteryState(city, flags, 100);
-  const result = damageShoreBattery(battery, flags, battery.maxHitPoints, 100);
+  const result = damageShoreBattery(
+    battery,
+    flags,
+    battery.maxHitPoints,
+    100,
+    "your Armed Galleon"
+  );
   assert.equal(result.newlyDisabled, true);
   assert.equal(SHORE_BATTERY_DISABLE_DAYS, 3);
   assert.equal(shoreBatteryDisabledNotice(battery), "ALEXANDRIA BATTERY DISABLED (3 DAYS)");
   assert.equal(battery.disabledUntilMinute, 100 + SHORE_BATTERY_DISABLE_MINUTES);
+  assert.deepEqual(shoreBatteryRecoveryStatus(battery, 101), {
+    attackerShipLabel: "your Armed Galleon",
+    disabledUntilMinute: 100 + SHORE_BATTERY_DISABLE_MINUTES,
+    daysRemaining: 3
+  });
+  const restored = createShoreBatteryState(city, flags, 101);
+  assert.equal(restored.disabledByShipLabel, "your Armed Galleon");
   assert.equal(updateShoreBatteryState(battery, flags, battery.disabledUntilMinute - 1, 1), false);
   assert.equal(updateShoreBatteryState(battery, flags, battery.disabledUntilMinute, 1), true);
   assert.equal(battery.hitPoints, battery.maxHitPoints);
+  assert.equal(shoreBatteryRecoveryStatus(battery, battery.disabledUntilMinute || 0), null);
 });
 
 test("shore battery reload prevents immediate repeat fire", () => {

@@ -4,17 +4,23 @@ export const CREW_STATUS_ICON_HEIGHT = 6;
 const CREW_STATUS_NORMAL_PITCH = CREW_STATUS_ICON_WIDTH + 1;
 const TRAVELER_KINDS = new Set(["passenger", "envoy", "settler"]);
 
-export function crewStatusLayout({ crewCount, travelerGroups = [], x, y, width }) {
+export function crewStatusCount({ crewCount, travelerGroups = [] }) {
   assertCount(crewCount, "crew");
   if (!Array.isArray(travelerGroups)) throw new Error("Crew status travelers must be an array");
   for (const group of travelerGroups) validateTravelerGroup(group);
+  return crewCount + travelerGroups.reduce((sum, group) => sum + group.count, 0);
+}
+
+export function crewStatusLayout({ crewCount, travelerGroups = [], x, y, width }) {
+  const total = crewStatusCount({ crewCount, travelerGroups });
   for (const [label, value] of Object.entries({ x, y, width })) {
     if (!Number.isInteger(value)) throw new Error(`Crew status ${label} must be an integer: ${value}`);
   }
   if (width < CREW_STATUS_ICON_WIDTH) throw new Error(`Crew status row is too narrow: ${width}`);
 
-  const total = crewCount + travelerGroups.reduce((sum, group) => sum + group.count, 0);
-  if (total === 0) return Object.freeze({ entries: Object.freeze([]), pitch: CREW_STATUS_NORMAL_PITCH });
+  if (total === 0) {
+    return Object.freeze({ count: 0, entries: Object.freeze([]), pitch: CREW_STATUS_NORMAL_PITCH });
+  }
   const availablePitch = total === 1
     ? CREW_STATUS_NORMAL_PITCH
     : Math.min(CREW_STATUS_NORMAL_PITCH, (width - CREW_STATUS_ICON_WIDTH) / (total - 1));
@@ -30,7 +36,7 @@ export function crewStatusLayout({ crewCount, travelerGroups = [], x, y, width }
       entries.push(personEntry(group.kind, index, entries.length, x, y, pitch, 0));
     }
   }
-  return Object.freeze({ entries: Object.freeze(entries), pitch });
+  return Object.freeze({ count: total, entries: Object.freeze(entries), pitch });
 }
 
 function personEntry(kind, kindIndex, rowIndex, x, y, pitch, variant) {

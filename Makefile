@@ -5,7 +5,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-trailer-no-chapter-text pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
 
 help:
 	@echo "Targets:"
@@ -29,6 +29,7 @@ help:
 	@echo "  make pixel-globe-trailer-clips Record all scripted 9:16 trailer clips"
 	@echo "  make pixel-globe-steam-trailer-clips Record all scripted 16:9 Steam trailer clips"
 	@echo "  make pixel-globe-steam-trailer Build the 16:9 Steam trailer from captured clips"
+	@echo "  make pixel-globe-steam-trailer-no-chapter-text Build the Steam trailer without feature headings"
 	@echo "  make pixel-globe-steam-inline-videos Build About This Game feature videos"
 	@echo "  make pixel-globe-shorts-setup Install the local Whisper environment"
 	@echo "  make pixel-globe-transcribe AUDIO=... OUT=... Transcribe narration"
@@ -98,6 +99,9 @@ pixel-globe-steam-trailer-clips:
 
 pixel-globe-steam-trailer:
 	npm --prefix $(PIXEL_GLOBE_DIR) run build:steam-trailer
+
+pixel-globe-steam-trailer-no-chapter-text:
+	npm --prefix $(PIXEL_GLOBE_DIR) run build:steam-trailer:no-chapter-text
 
 pixel-globe-steam-inline-videos:
 	npm --prefix $(PIXEL_GLOBE_DIR) run build:steam-inline-videos

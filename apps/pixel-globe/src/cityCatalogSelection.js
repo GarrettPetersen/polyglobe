@@ -149,6 +149,21 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "spanish-main",
     playerHomeExcluded: true
   }),
+  manualVillage1522("Xicalango", "Mexico", 18.65, -91.82, 2800, {
+    cityType: "mesoamerican",
+    manualRegion: "mesoamerican-villages",
+    marketGoods: ["fish", "cacao", "cotton"]
+  }),
+  manualVillage1522("Chakan Putum", "Mexico", 19.35, -90.72, 2400, {
+    cityType: "mesoamerican",
+    manualRegion: "mesoamerican-villages",
+    marketGoods: ["fish", "cotton", "salt"]
+  }),
+  manualVillage1522("Cuzamil", "Mexico", 20.43, -86.92, 1800, {
+    cityType: "mesoamerican",
+    manualRegion: "mesoamerican-villages",
+    marketGoods: ["fish", "salt", "cotton"]
+  }),
   manualCity1522("Nombre de Dios", "Panama", 9.5833, -79.4667, 5000, {
     cityType: "mediterranean",
     manualRegion: "spanish-main",

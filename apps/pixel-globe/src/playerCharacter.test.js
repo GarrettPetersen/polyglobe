@@ -27,7 +27,7 @@ const PORTS = [
   port(7, "Vijayanagar", "India", "south-asian", "vijayanagara", 15.34, 76.46),
   port(8, "Cambay", "India", "south-asian", "gujarat", 22.31, 72.62),
   port(9, "Kilwa", "Tanzania", "sub-saharan", "neutral", -8.96, 39.51),
-  port(10, "Tenochtitlan", "Mexico", "mesoamerican", "aztec", 19.43, -99.13),
+  port(10, "Mexico City", "Mexico", "mesoamerican", "spain", 19.43, -99.13),
   port(11, "Goa", "India", "south-asian", "portugal", 15.49, 73.83),
   {
     ...port(12, "Veracruz", "Mexico", "mediterranean", "spain", 19.17, -96.13),
@@ -94,7 +94,7 @@ test("home selection balances the four allowed regions and excludes implausible 
     const selection = selectPlayerHomePort(`captain-${i}`, PORTS);
     seenRegions.add(selection.startRegion);
     seenCities.add(selection.homePort.city);
-    assert.ok(!["Kilwa", "Tenochtitlan", "Goa", "Veracruz"].includes(selection.homePort.city));
+    assert.ok(!["Kilwa", "Mexico City", "Goa", "Veracruz"].includes(selection.homePort.city));
   }
 
   assert.deepEqual([...seenRegions].sort(), ["east-asia", "europe", "india", "ottoman"]);

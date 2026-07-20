@@ -819,10 +819,6 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "The court struck your uncle from the rebels' roll. It did not strike your family seal from this note.",
     "His name appeared among the Prince of Ning's papers. Proving his innocence cost the family nearly everything."
   ),
-  aztec: debtOrigin(
-    "Causeways can be rebuilt. Debts survive even fire.",
-    "When the causeways closed and the lake city burned, our stores fed three households. We borrowed to rebuild them."
-  ),
   inca: debtOrigin(
     "Imperial tallies are excellent promises, provided one does not need payment.",
     "The northern campaign took our llamas, grain, and sons. The tallies came back honored; the goods did not."
@@ -898,7 +894,6 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   genoa: "A Genoese sailor crossed the western ocean beneath Castile's flag. The next great account should not leave our harbor under another name.",
   "papal-states": "Reports from lands beyond the Atlantic reach Rome mixed with conversion, gold, and boasting. I want an account concerned first with truth.",
   ming: "The court lets Admiral Zheng's sea roads fade because no treasure fleet now follows them. I do not share that lack of curiosity.",
-  aztec: "Strangers came from an eastern horizon our painted books did not contain. We must know the world that sent them.",
   inca: "The Sapa Inca's roads bind mountains beyond counting, yet every official map stops at the sea. Mine need not.",
   safavid: "Ottoman armies close one road and Portuguese cannon command another at Hormuz. Knowledge may reveal a third.",
   muscovy: "Novgorod's merchants know the Baltic by price and rumor. I want bearings that reach beyond their counting houses.",

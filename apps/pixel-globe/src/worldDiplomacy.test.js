@@ -13,6 +13,7 @@ import {
 import {
   DIPLOMACY_HISTORY_LIMIT,
   DIPLOMACY_MIN_EVENT_DAYS,
+  WORLD_DIPLOMACY_VERSION,
   advanceWorldDiplomacy,
   adjustDiplomaticStance,
   createWorldDiplomacy,
@@ -49,7 +50,7 @@ test("version 1 diplomacy migrates without changing its simulation state", () =>
 
   const migrated = migrateWorldDiplomacy(saved);
 
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, WORLD_DIPLOMACY_VERSION);
   assert.deepEqual(migrated.contacts, {});
   const { contacts, ...withoutContacts } = migrated;
   assert.deepEqual({ ...withoutContacts, version: 1 }, before);
@@ -63,8 +64,29 @@ test("version 2 diplomacy gains an empty contact ledger", () => {
 
   const migrated = migrateWorldDiplomacy(saved);
 
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, WORLD_DIPLOMACY_VERSION);
   assert.deepEqual(migrated.contacts, {});
+});
+
+test("version 3 diplomacy drops the defeated Aztec state's dynamic records", () => {
+  const saved = createWorldDiplomacy({ startMinute: 100, seedKey: "conquest-voyage" });
+  saved.version = 3;
+  saved.overrides["aztec|spain"] = DIPLOMACY_WAR;
+  saved.pairLastChangedMinute["aztec|spain"] = 200;
+  saved.contacts["aztec|spain"] = { firstContactMinute: 120, lastContactMinute: 180, portCalls: 2 };
+  saved.history.push({
+    id: "legacy-aztec-war",
+    kind: "war",
+    factionAId: "aztec",
+    factionBId: "spain",
+    simMinute: 200,
+    headline: "Spain declares war on the Aztec Empire."
+  });
+
+  const migrated = migrateWorldDiplomacy(saved);
+
+  assert.equal(migrated.version, WORLD_DIPLOMACY_VERSION);
+  assert.equal(JSON.stringify(migrated).includes("aztec"), false);
 });
 
 test("procedural diplomacy changes slowly and deterministically per voyage", () => {
@@ -102,7 +124,7 @@ test("only foreign port calls activate bilateral political change", () => {
 
   assert.deepEqual(contact, { firstContactMinute: 20, lastContactMinute: 35, portCalls: 2 });
   assert.equal(diplomaticContactBetween(state, "gujarat", "muscovy"), null);
-  assert.equal(diplomaticContactBetween(state, "gujarat", "aztec"), null);
+  assert.equal(diplomaticContactBetween(state, "gujarat", "inca"), null);
 });
 
 test("no port contact means no procedural diplomatic events", () => {

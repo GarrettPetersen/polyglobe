@@ -82,7 +82,7 @@ test("politics distinguishes contacted neutral powers from powers with no intera
   const england = view.rows.find((row) => row.faction.id === "england");
 
   assert.equal(england.stances.find((stance) => stance.factionId === "venice").contact.portCalls, 1);
-  assert.equal(england.stances.find((stance) => stance.factionId === "aztec").contact, null);
+  assert.equal(england.stances.find((stance) => stance.factionId === "inca").contact, null);
 });
 
 test("politics view marks factions that granted letters of marque", () => {

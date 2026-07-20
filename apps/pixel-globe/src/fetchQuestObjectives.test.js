@@ -10,6 +10,7 @@ const LISBON = Object.freeze({ tileId: 10, city: "Lisbon", country: "Portugal" }
 const KYOTO = Object.freeze({ tileId: 20, city: "Kyoto", country: "Japan" });
 const NAGASAKI = Object.freeze({ tileId: 30, city: "Nagasaki", country: "Japan" });
 const HAFNARFJORDUR = Object.freeze({ tileId: 40, city: "Hafnarfjordur", country: "Iceland" });
+const HAVANA = Object.freeze({ tileId: 50, city: "Havana", country: "Cuba" });
 
 test("colonization fetch cargo points back to the sponsor only when complete", () => {
   const colonization = colonizationView({
@@ -99,6 +100,24 @@ test("Japanese workshop materials point to Kyoto only when the current request i
   const destination = readyFetchQuestDestinations(requirements)[0];
   assert.equal(destination.questId, "japanese-matchlocks");
   assert.equal(destination.destination.city, "Kyoto");
+});
+
+test("ginger roots point back to the selected Caribbean cultivation port", () => {
+  const requirements = fetchQuestRequirements({
+    caribbeanGinger: {
+      fetchStage: {
+        id: "plant-ginger",
+        goodId: "ginger",
+        goodLabel: "Ginger",
+        quantity: 6
+      },
+      held: 6
+    },
+    caribbeanGingerPort: HAVANA
+  });
+  const destination = readyFetchQuestDestinations(requirements)[0];
+  assert.equal(destination.questId, "caribbean-ginger");
+  assert.equal(destination.destination.city, "Havana");
 });
 
 test("readiness transitions announce once per threshold crossing", () => {

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -76,9 +76,6 @@ const RESEARCH = Object.freeze([
   ]),
   research("ming", "period-ceremonial-reconstruction", "Ming imperial dragon identifier", "Ming records separately enumerate dragon flags and yellow ceremonial standards. Combining them here creates a legible imperial identifier, not a documented exact flag or a national flag.", [
     source("History of Ming, Ceremonial Guards", "https://ctext.org/wiki.pl?chapter=429783&if=en&remap=gb")
-  ]),
-  research("aztec", "period-emblem", "Eagle and cactus of Tenochtitlan", "The Nahua-made Codex Mendoza preserves the eagle-on-cactus city emblem. No European-style Aztec national flag is implied.", [
-    source("Codex Mendoza frontispiece", "https://smarthistory.org/frontispiece-of-the-codex-mendoza/")
   ]),
   research("inca", "documented-royal-standard", "Inca royal standard", "A rigid square royal standard with the rainbow and paired serpents, following colonial-era descriptions of Inca regalia rather than the modern rainbow flag.", [
     source("The Rainbow Flag of the Incas", "https://www.fiav.org/wp-content/uploads/2021/06/ICV23-15-Tracchia-TheRainbowFlagOfTheIncas.pdf")
@@ -356,13 +353,6 @@ const DRAWERS = Object.freeze({
     const s = base(C.gold);
     dragon(s, C.red);
     s.circle(25, 5, 2, C.white);
-    return s;
-  },
-  aztec: () => {
-    const s = base(C.teal);
-    s.rect(0, 16, FLAG_W, 4, C.blue);
-    cactus(s, 16, 13, C.paleGreen);
-    eagle(s, 16, 7, C.gold);
     return s;
   },
   inca: () => {
@@ -709,6 +699,7 @@ function researchMarkdown(entries) {
 function main() {
   validateResearchCoverage();
   mkdirSync(outputRoot, { recursive: true });
+  removeObsoleteFlagFiles();
   const entries = [];
   for (const faction of FLAG_FACTIONS) {
     const researchEntry = RESEARCH_BY_ID.get(faction.id);
@@ -756,6 +747,14 @@ function main() {
   writeFileSync(join(outputRoot, "contact-sheet.png"), renderContactSheet(entries).toBuffer("image/png"));
   writeFileSync(join(docsRoot, "faction-flags.md"), `${researchMarkdown(manifest)}\n`);
   console.log(`Rendered ${entries.length} faction flags to ${outputRoot}`);
+}
+
+function removeObsoleteFlagFiles() {
+  const expectedFiles = new Set(FLAG_FACTIONS.map((faction) => `${faction.id}.png`));
+  for (const entry of readdirSync(outputRoot, { withFileTypes: true })) {
+    if (!entry.isFile() || entry.name === "contact-sheet.png" || !entry.name.endsWith(".png")) continue;
+    if (!expectedFiles.has(entry.name)) unlinkSync(join(outputRoot, entry.name));
+  }
 }
 
 main();

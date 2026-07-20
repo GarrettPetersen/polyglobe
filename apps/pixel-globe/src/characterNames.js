@@ -172,7 +172,6 @@ const FACTION_CULTURES = new Map([
   ["genoa", "italian"],
   ["papal-states", "italian"],
   ["ming", "chinese"],
-  ["aztec", "nahua"],
   ["inca", "andean"],
   ["safavid", "persian"],
   ["muscovy", "slavic"],

@@ -31,6 +31,7 @@ const VENICE = port(10, "Venice", "mediterranean", 120000, 45.44, 12.32, "venice
 const ISTANBUL = port(11, "Istanbul", "islamic-desert", 180000, 41.01, 28.98, "ottoman");
 const MALACCA = port(12, "Malacca", "southeast-asian", 45000, 2.19, 102.25, "neutral");
 const GOA = port(13, "Goa", "south-asian", 75000, 15.49, 73.83, "portugal");
+const CHANCHAN = port(14, "Chanchan", "andean", 25000, -8.106, -79.075, "inca");
 
 test("new-build listings are uncommon but available across a useful share of ports", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
@@ -93,6 +94,31 @@ test("native villages build their own modest regional hulls", () => {
     const listing = generateShipyardListing(mesoamericanYard, build, build * 1000);
     assert.equal(listing.shipSlug, "mesoamerican-dugout-canoe");
   }
+
+  const andeanSystem = createWorldShipyards({ ports: [CHANCHAN], startMinute: 0 });
+  const andeanYard = shipyardAtPort(andeanSystem, CHANCHAN);
+  for (let build = 0; build < 40; build++) {
+    const listing = generateShipyardListing(andeanYard, build, build * 1000);
+    assert.equal(listing.shipSlug, "mesoamerican-dugout-canoe");
+  }
+});
+
+test("restoring an Inca voyage replaces an incompatible European ship listing", () => {
+  const system = createWorldShipyards({ ports: [CHANCHAN], startMinute: 0 });
+  const yard = shipyardAtPort(system, CHANCHAN);
+  yard.buildNumber = 7;
+  yard.listing = {
+    ...generateShipyardListing(yard, yard.buildNumber, 1000),
+    shipSlug: "fishing-lugger",
+    shipLabel: "Fishing Barque",
+    price: 1800
+  };
+  const snapshot = snapshotWorldShipyards(system);
+
+  restoreWorldShipyards(system, snapshot);
+
+  assert.equal(yard.listing.shipSlug, "mesoamerican-dugout-canoe");
+  assert.equal(yard.listing.shipLabel, "Dugout Canoe");
 });
 
 test("East Asian national warships stay exclusive to their own shipyards", () => {
