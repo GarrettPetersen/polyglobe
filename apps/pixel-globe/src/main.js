@@ -25,7 +25,9 @@ import {
   CREW_STATUS_ICON_WIDTH,
   crewStatusLayout
 } from "./crewStatus.js";
+import { cargoCrateStatusLayout } from "./cargoCrateStatus.js";
 import { specialStatusIconCount, statusIconRowLayout } from "./statusIconRow.js";
+import { shipHullBarLayout, shipHullIsDamaged } from "./shipHullBar.js";
 import {
   captainIsDrunkAtPort,
   drunkenWineDialogue,
@@ -1078,14 +1080,14 @@ const ROWING_SHIP_ANIMATION_SPECS = new Map([
 const CITY_ASSET_VERSION = "city-types-2";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
-const STATUS_HUD_ASSET_VERSION = "survival-icons-2";
+const STATUS_HUD_ASSET_VERSION = "cargo-crates-1";
 const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
 const STATUS_HUD_DOUBLOON_URL = "assets/misc/dubloon.png";
-const STATUS_HUD_HULL_URL = "assets/misc/hull.png";
 const STATUS_HUD_WATER_URL = "assets/misc/water.png";
 const STATUS_HUD_FOOD_URL = "assets/misc/food.png";
 const STATUS_HUD_FISH_URL = "assets/misc/fish.png";
 const STATUS_HUD_WINE_URL = "assets/misc/wine.png";
+const STATUS_HUD_CRATE_SHEET_URL = "assets/misc/crate-Sheet.png";
 const STATUS_PERSON_COLORS = Object.freeze({
   crew: Object.freeze(["#2e222f", "#3e3546"]),
   passenger: Object.freeze(["#3b5dc9"]),
@@ -1173,11 +1175,12 @@ let MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL
 const MOUNTAIN_DISCOVERY_PANEL_Y = 5;
 const SURVIVAL_PANEL_X = 5;
 const SURVIVAL_PANEL_Y = 5;
-const SURVIVAL_PANEL_W = 120;
-const SURVIVAL_PANEL_H = 58;
-// Keep the crew manifest visually separated from the three supply rows.
-const SURVIVAL_CREW_ROW_Y = 46;
+const SURVIVAL_PANEL_MIN_W = 120;
+const SURVIVAL_PANEL_MAX_W = 280;
+const SURVIVAL_CREW_ROW_Y = 34;
 const SURVIVAL_CREW_ROW_PAD_X = 5;
+const SURVIVAL_CRATE_ROW_Y = 43;
+const SURVIVAL_CRATE_SIZE = 6;
 const SURVIVAL_NOTICE_MS = 2400;
 const SURVIVAL_DEHYDRATION_CREW_LOSS = 1;
 const SURVIVAL_STARVATION_CREW_LOSS = 1;
@@ -2808,23 +2811,23 @@ async function loadFireEffectImage() {
 }
 
 async function loadStatusHudImages() {
-  const [crew, doubloon, hull, water, food, fish, wine] = await Promise.all([
+  const [crew, doubloon, water, food, fish, wine, crates] = await Promise.all([
     loadAssetImage(`${STATUS_HUD_CREW_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "crew status icon"),
     loadAssetImage(`${STATUS_HUD_DOUBLOON_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "doubloon status icon"),
-    loadAssetImage(`${STATUS_HUD_HULL_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "hull status icon"),
     loadAssetImage(`${STATUS_HUD_WATER_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "water status icon"),
     loadAssetImage(`${STATUS_HUD_FOOD_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "food status icon"),
     loadAssetImage(`${STATUS_HUD_FISH_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "fish status icon"),
-    loadAssetImage(`${STATUS_HUD_WINE_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "wine status icon")
+    loadAssetImage(`${STATUS_HUD_WINE_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "wine status icon"),
+    loadAssetImage(`${STATUS_HUD_CRATE_SHEET_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "cargo crate status sheet")
   ]);
   validateImageDimensions(crew, "crew status icon", CREW_STATUS_ICON_WIDTH, CREW_STATUS_ICON_HEIGHT);
   validateImageDimensions(doubloon, "doubloon status icon", 6, 6);
-  validateImageDimensions(hull, "hull status icon", 6, 6);
   validateImageDimensions(water, "water status icon", 6, 6);
   validateImageDimensions(food, "food status icon", 6, 6);
   validateImageDimensions(fish, "fish status icon", 6, 6);
   validateImageDimensions(wine, "wine status icon", 6, 6);
-  return Object.freeze({ crew, doubloon, hull, water, food, fish, wine });
+  validateImageDimensions(crates, "cargo crate status sheet", SURVIVAL_CRATE_SIZE * 2, SURVIVAL_CRATE_SIZE);
+  return Object.freeze({ crew, doubloon, water, food, fish, wine, crates });
 }
 
 function createStatusPersonImages(crewImage) {
@@ -21441,6 +21444,8 @@ function playerShipDrawCall(light) {
     frame,
     x: origin.x,
     y: origin.y,
+    hitPoints: ship.hitPoints,
+    maxHitPoints: ship.maxHitPoints,
     depthY: origin.y + SHIP_SHEET_FRAME_SIZE / 2,
     sortY: origin.y + SHIP_SHEET_FRAME_SIZE,
     light
@@ -21527,6 +21532,9 @@ function drawShipCall(call, nowMs, terrainOcclusion) {
     drawNpcShipFlag(drawCall, nowMs);
   }
   ctx.restore();
+  if (drawCall.kind === "player" && shipHullIsDamaged(drawCall.hitPoints, drawCall.maxHitPoints)) {
+    drawShipHullBar(drawCall, "#e83b3b");
+  }
   if (drawCall.kind === "npc" && drawCall.stormAnchored) drawNpcAnchorMarker(drawCall);
   if (drawCall.kind === "npc" && drawCall.combatMode) drawNpcCombatHull(drawCall);
 }
@@ -21662,14 +21670,21 @@ function drawNpcShipFlag(call, nowMs) {
 }
 
 function drawNpcCombatHull(call) {
-  const width = 20;
-  const x = call.x + Math.round((SHIP_SHEET_FRAME_SIZE - width) / 2);
-  const y = call.y + SHIP_SHEET_FRAME_SIZE - 2;
-  const ratio = clamp(call.hitPoints / call.maxHitPoints, 0, 1);
+  drawShipHullBar(call, call.combatMode === COMBAT_MODE_FLEE ? "#f9c22b" : "#e83b3b");
+}
+
+function drawShipHullBar(call, color) {
+  const layout = shipHullBarLayout({
+    x: call.x,
+    y: call.y,
+    frameSize: SHIP_SHEET_FRAME_SIZE,
+    hitPoints: call.hitPoints,
+    maxHitPoints: call.maxHitPoints
+  });
   ctx.fillStyle = "#2e222f";
-  ctx.fillRect(x, y, width, 3);
-  ctx.fillStyle = call.combatMode === COMBAT_MODE_FLEE ? "#f9c22b" : "#e83b3b";
-  ctx.fillRect(x + 1, y + 1, Math.round((width - 2) * ratio), 1);
+  ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
+  ctx.fillStyle = color;
+  ctx.fillRect(layout.x + 1, layout.y + 1, layout.fillWidth, 1);
 }
 
 function drawNpcAnchorMarker(call) {
@@ -22938,17 +22953,11 @@ function drawSurvivalMeters() {
     status.wineDays,
     status.drinkDays
   );
-  const x = SURVIVAL_PANEL_X;
-  const y = SURVIVAL_PANEL_Y;
-  drawPirateHudPanel({ x, y, w: SURVIVAL_PANEL_W, h: SURVIVAL_PANEL_H });
+  const hud = survivalHudLayout();
+  const { x, y, width, height } = hud.panel;
+  drawPirateHudPanel({ x, y, w: width, h: height });
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawSurvivalPanelTitle(x, y);
-  drawSurvivalMeterRow(
-    [{ icon: statusHudImages.hull, count: Math.max(0, Math.ceil(ship.hitPoints)) }],
-    `${Math.max(0, Math.ceil(ship.hitPoints))}/${Math.ceil(ship.maxHitPoints)}`,
-    x + 5,
-    y + 13
-  );
+  drawSurvivalPanelTitle(x, y, width);
   drawSurvivalMeterRow(
     [
       { icon: statusHudImages.water, count: drinkIconCount - wineIconCount },
@@ -22956,7 +22965,8 @@ function drawSurvivalMeters() {
     ],
     `${drinkIconCount}`,
     x + 5,
-    y + 23
+    y + 13,
+    width
   );
   drawSurvivalMeterRow(
     [
@@ -22965,18 +22975,56 @@ function drawSurvivalMeters() {
     ],
     `${foodIconCount}`,
     x + 5,
-    y + 33
+    y + 23,
+    width
   );
-  drawSurvivalCrewRow(x, y);
+  drawSurvivalCrewRow(x, y, width);
+  drawCargoCrateRows(hud);
+}
+
+function survivalHudLayout() {
+  if (!gameState) throw new Error("Ship status HUD requires game state");
+  const maximumPanelWidth = Math.max(
+    SURVIVAL_PANEL_MIN_W,
+    Math.min(SURVIVAL_PANEL_MAX_W, OPTIONS_BUTTON_X - SURVIVAL_PANEL_X - 3)
+  );
+  return cargoCrateStatusLayout({
+    used: cargoUsed(gameState),
+    capacity: gameState.cargoCapacity,
+    panelX: SURVIVAL_PANEL_X,
+    panelY: SURVIVAL_PANEL_Y,
+    minimumPanelWidth: SURVIVAL_PANEL_MIN_W,
+    maximumPanelWidth,
+    iconSize: SURVIVAL_CRATE_SIZE,
+    crateTop: SURVIVAL_CRATE_ROW_Y
+  });
+}
+
+function drawCargoCrateRows(layout) {
+  if (!statusHudImages?.crates) throw new Error("Cargo crate status sheet is not loaded");
+  for (const entry of layout.entries) {
+    ctx.drawImage(
+      statusHudImages.crates,
+      entry.full ? 0 : SURVIVAL_CRATE_SIZE,
+      0,
+      SURVIVAL_CRATE_SIZE,
+      SURVIVAL_CRATE_SIZE,
+      entry.x,
+      entry.y,
+      SURVIVAL_CRATE_SIZE,
+      SURVIVAL_CRATE_SIZE
+    );
+  }
 }
 
 function statusHudTooltipGeometry() {
+  const { panel } = survivalHudLayout();
   return {
-    x: SURVIVAL_PANEL_X,
-    y: SURVIVAL_PANEL_Y,
-    width: SURVIVAL_PANEL_W,
-    height: SURVIVAL_PANEL_H,
-    titleSplitX: SURVIVAL_PANEL_X + 72
+    x: panel.x,
+    y: panel.y,
+    width: panel.width,
+    height: panel.height,
+    titleSplitX: panel.x + 72
   };
 }
 
@@ -23002,13 +23050,14 @@ function drawSurvivalHudTooltip() {
   const target = hovered || selected;
   if (!target?.rect) return;
 
+  const hud = survivalHudLayout();
   const status = survivalStatus(gameState);
   const passengers = shipTravelerManifest(gameState).reduce((total, group) => total + group.count, 0);
   const text = statusHudTooltipText(currentLanguage, target.id, {
     date: shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]),
     doubloons: gameState.doubloons.toLocaleString(currentLanguage),
-    hull: Math.max(0, Math.ceil(ship.hitPoints)),
-    maxHull: Math.ceil(ship.maxHitPoints),
+    used: hud.occupiedCount,
+    capacity: gameState.cargoCapacity,
     days: target.id === "water" ? Math.ceil(status.drinkDays) : Math.max(0, Math.floor(status.foodDays)),
     crew: gameState.ship.crew,
     passengers
@@ -23021,8 +23070,8 @@ function drawSurvivalHudTooltip() {
   );
   const lineHeight = localizedLineHeight(10);
   const height = lines.length * lineHeight + 5;
-  const x = SURVIVAL_PANEL_X;
-  const y = SURVIVAL_PANEL_Y + SURVIVAL_PANEL_H + 3;
+  const x = geometry.x;
+  const y = geometry.y + geometry.height + 3;
 
   ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
   ctx.strokeRect(target.rect.x + 0.5, target.rect.y + 0.5, target.rect.w - 1, target.rect.h - 1);
@@ -23036,12 +23085,12 @@ function drawSurvivalHudTooltip() {
   });
 }
 
-function drawSurvivalPanelTitle(x, y) {
+function drawSurvivalPanelTitle(x, y, panelWidth) {
   if (!statusHudImages?.doubloon) throw new Error("Doubloon status icon is not loaded");
   const title = shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]);
   const textY = y + 3;
   const titleX = x + 5;
-  const right = x + SURVIVAL_PANEL_W - 5;
+  const right = x + panelWidth - 5;
   const amount = formatCompactNumber(gameState.doubloons);
   const amountWidth = measurePixelTextWidth(amount, PIXEL_FONT_LATIN_SMALL_8);
   const iconX = right - amountWidth - 2 - statusHudImages.doubloon.width;
@@ -23054,9 +23103,9 @@ function drawSurvivalPanelTitle(x, y) {
   drawPixelText(amount, right, textY, { font: PIXEL_FONT_LATIN_SMALL_8, align: "right" });
 }
 
-function drawSurvivalCrewRow(x, y) {
+function drawSurvivalCrewRow(x, y, panelWidth) {
   const peopleAboard = shipPeopleAboard(gameState);
-  const layout = survivalCrewStatusLayout(gameState.ship.crew, x, y);
+  const layout = survivalCrewStatusLayout(gameState.ship.crew, x, y, panelWidth);
   for (const entry of layout.entries) {
     const variants = statusPersonImages?.get(entry.kind);
     const image = variants?.[entry.variant];
@@ -23064,7 +23113,7 @@ function drawSurvivalCrewRow(x, y) {
     ctx.drawImage(image, entry.x, entry.y);
   }
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText(`${peopleAboard}`, x + SURVIVAL_PANEL_W - 5, y + SURVIVAL_CREW_ROW_Y - 1, {
+  drawPixelText(`${peopleAboard}`, x + panelWidth - 5, y + SURVIVAL_CREW_ROW_Y - 1, {
     font: PIXEL_FONT_LATIN_SMALL_8,
     align: "right"
   });
@@ -23073,12 +23122,13 @@ function drawSurvivalCrewRow(x, y) {
 function survivalCrewStatusLayout(
   crewCount,
   panelX = SURVIVAL_PANEL_X,
-  panelY = SURVIVAL_PANEL_Y
+  panelY = SURVIVAL_PANEL_Y,
+  panelWidth = survivalHudLayout().panel.width
 ) {
   const travelerGroups = shipTravelerManifest(gameState);
   const peopleAboard = 1 + crewCount + travelerGroups.reduce((total, group) => total + group.count, 0);
   const rowX = panelX + SURVIVAL_CREW_ROW_PAD_X;
-  const valueRight = panelX + SURVIVAL_PANEL_W - 5;
+  const valueRight = panelX + panelWidth - 5;
   const valueLeft = valueRight - measurePixelTextWidth(`${peopleAboard}`, PIXEL_FONT_LATIN_SMALL_8);
   return crewStatusLayout({
     crewCount,
@@ -23163,7 +23213,7 @@ function drawStatusPersonParticles(nowMs) {
   ctx.globalAlpha = 1;
 }
 
-function drawSurvivalMeterRow(segments, value, x, y) {
+function drawSurvivalMeterRow(segments, value, x, y, panelWidth) {
   if (!Array.isArray(segments) || segments.length === 0) {
     throw new Error("Survival meter row requires icon segments");
   }
@@ -23178,7 +23228,7 @@ function drawSurvivalMeterRow(segments, value, x, y) {
   if (segments.some((segment) => segment.icon.width !== iconWidth)) {
     throw new Error("Survival meter row icons must share a width");
   }
-  const valueRight = SURVIVAL_PANEL_X + SURVIVAL_PANEL_W - 5;
+  const valueRight = SURVIVAL_PANEL_X + panelWidth - 5;
   const valueLeft = valueRight - measurePixelTextWidth(value, PIXEL_FONT_LATIN_SMALL_8);
   const layout = statusIconRowLayout({
     count,

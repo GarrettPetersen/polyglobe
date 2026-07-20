@@ -2,14 +2,15 @@ import { LANGUAGE_ENGLISH, translate } from "./localization.js";
 
 export const STATUS_HUD_TOOLTIP_DATE = "date";
 export const STATUS_HUD_TOOLTIP_DOUBLOONS = "doubloons";
-export const STATUS_HUD_TOOLTIP_HULL = "hull";
 export const STATUS_HUD_TOOLTIP_WATER = "water";
 export const STATUS_HUD_TOOLTIP_FOOD = "food";
 export const STATUS_HUD_TOOLTIP_CREW = "crew";
+export const STATUS_HUD_TOOLTIP_CARGO = "cargo";
 
 const STATUS_ROW_HEIGHT = 10;
 const STATUS_TITLE_HEIGHT = 13;
-const STATUS_CREW_TOP = 43;
+const STATUS_CREW_TOP = 33;
+const STATUS_CARGO_TOP = 43;
 
 export function statusHudTooltipTargets({ x, y, width, height, titleSplitX = x + 72 }) {
   if (![x, y, width, height, titleSplitX].every(Number.isFinite) || width <= 0 || height <= 0) {
@@ -21,10 +22,10 @@ export function statusHudTooltipTargets({ x, y, width, height, titleSplitX = x +
   return Object.freeze([
     target(STATUS_HUD_TOOLTIP_DATE, x, y, titleSplitX - x, STATUS_TITLE_HEIGHT),
     target(STATUS_HUD_TOOLTIP_DOUBLOONS, titleSplitX, y, x + width - titleSplitX, STATUS_TITLE_HEIGHT),
-    target(STATUS_HUD_TOOLTIP_HULL, x, y + 13, width, STATUS_ROW_HEIGHT),
-    target(STATUS_HUD_TOOLTIP_WATER, x, y + 23, width, STATUS_ROW_HEIGHT),
-    target(STATUS_HUD_TOOLTIP_FOOD, x, y + 33, width, STATUS_ROW_HEIGHT),
-    target(STATUS_HUD_TOOLTIP_CREW, x, y + STATUS_CREW_TOP, width, height - STATUS_CREW_TOP)
+    target(STATUS_HUD_TOOLTIP_WATER, x, y + 13, width, STATUS_ROW_HEIGHT),
+    target(STATUS_HUD_TOOLTIP_FOOD, x, y + 23, width, STATUS_ROW_HEIGHT),
+    target(STATUS_HUD_TOOLTIP_CREW, x, y + STATUS_CREW_TOP, width, STATUS_ROW_HEIGHT),
+    target(STATUS_HUD_TOOLTIP_CARGO, x, y + STATUS_CARGO_TOP, width, height - STATUS_CARGO_TOP)
   ]);
 }
 
@@ -43,12 +44,6 @@ export function statusHudTooltipText(language = LANGUAGE_ENGLISH, id, values) {
   }
   if (id === STATUS_HUD_TOOLTIP_DOUBLOONS) {
     return translate(language, "hud.tooltip.doubloons", { count: values.doubloons });
-  }
-  if (id === STATUS_HUD_TOOLTIP_HULL) {
-    return translate(language, "hud.tooltip.hull", {
-      current: values.hull,
-      maximum: values.maxHull
-    });
   }
   if (id === STATUS_HUD_TOOLTIP_WATER || id === STATUS_HUD_TOOLTIP_FOOD) {
     const days = normalizedWholeCount(values.days, `${id} days`);
@@ -69,6 +64,12 @@ export function statusHudTooltipText(language = LANGUAGE_ENGLISH, id, values) {
       crew: crewLabel,
       passengers: passengerLabel
     });
+  }
+  if (id === STATUS_HUD_TOOLTIP_CARGO) {
+    const used = normalizedWholeCount(values.used, "cargo used");
+    const capacity = normalizedWholeCount(values.capacity, "cargo capacity");
+    if (used > capacity) throw new Error(`Invalid status HUD cargo: ${used}/${capacity}`);
+    return `${translate(language, "ship.cargoHold")}: ${used}/${capacity}`;
   }
   throw new Error(`Unknown status HUD tooltip: ${id}`);
 }
