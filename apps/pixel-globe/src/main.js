@@ -8065,7 +8065,7 @@ function updateShoreScavenge(nowMs) {
     return true;
   }
   const outcome = replaceFailedScavengeWithSeabird(
-    rollShoreScavenge(context),
+    rollShoreScavenge(context, shoreScavengeNeeds()),
     Number.isInteger(action.landedSeabirdId)
   );
   if (outcome === SHORE_SCAVENGE_SEABIRD) {
@@ -8089,6 +8089,14 @@ function updateShoreScavenge(nowMs) {
   syncShipCargoFromGameState();
   saveVoyageNow("shore scavenging");
   return true;
+}
+
+function shoreScavengeNeeds() {
+  const status = survivalStatus(gameState);
+  return {
+    water: 1 - status.freshWaterFraction,
+    food: 1 - status.foodFraction
+  };
 }
 
 function resolveBeaverScavenge() {
@@ -12329,6 +12337,10 @@ function openNpcCombatHail(npcShipId) {
   const state = npcVisualShips.get(npcShipId);
   const character = npcShipCaptains?.get(npcShipId);
   if (!state || !character) throw new Error(`Cannot open combat hail for NPC ship ${npcShipId}`);
+  if (state.combatGrace ||
+      !shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShipId))) {
+    return false;
+  }
   if (attemptEnvoyIntercession(state.factionId)) return true;
   openShipDialogue({ id: npcShipId, character }, { attackReason: npcCombatAttackReason(state) });
   return true;
@@ -21346,6 +21358,17 @@ function drawWhaleKillEffect(effect, nowMs) {
   if (frame.complete) return;
   ctx.save();
   for (const particle of frame.particles) {
+    if (particle.trailAlpha > 0) {
+      ctx.globalAlpha = particle.trailAlpha;
+      ctx.fillStyle = particle.color;
+      ctx.fillRect(particle.trailX, particle.trailY, 1, 1);
+    }
+    if (particle.accentAlpha > 0) {
+      ctx.globalAlpha = particle.accentAlpha * 0.82;
+      ctx.fillStyle = "#f6f2d4";
+      ctx.fillRect(particle.x - 1, particle.y, 3, 1);
+      ctx.fillRect(particle.x, particle.y - 1, 1, 3);
+    }
     if (particle.alpha <= 0) continue;
     ctx.globalAlpha = particle.alpha;
     ctx.fillStyle = particle.color;

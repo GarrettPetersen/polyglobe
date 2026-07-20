@@ -18,6 +18,7 @@ import {
 } from "./manualRiverHexChains.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
+  CITY_COASTAL_REPLACEMENT_RADIUS_KM,
   CITY_OBSERVATION_RELEVANCE_YEARS,
   MANUAL_CITY_RECORDS_1522,
   cityCatalogSelectionScore,
@@ -49,6 +50,25 @@ test("water-access intent gives small gameplay ports selection weight", () => {
   assert.deepEqual(
     selectCityCatalogRecords([inland, port], 1).map((city) => city.city),
     ["Small Port"]
+  );
+});
+
+test("a nearby larger coastal city replaces a minor inland city", () => {
+  const nara = { city: "Nara City", country: "Japan", lat: 34.685333, lon: 135.832742, population: 10000 };
+  const sakai = {
+    city: "Sakai",
+    country: "Japan",
+    lat: 34.573333,
+    lon: 135.483056,
+    population: 30000,
+    coastalIntent: true
+  };
+  const kyoto = { city: "Kyoto", country: "Japan", lat: 35.02107, lon: 135.75385, population: 66400 };
+
+  assert.equal(CITY_COASTAL_REPLACEMENT_RADIUS_KM, 50);
+  assert.deepEqual(
+    selectCityCatalogRecords([nara, sakai, kyoto], 3).map((city) => city.city),
+    ["Sakai", "Kyoto"]
   );
 });
 
@@ -138,6 +158,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const incaPorts = ports.filter((city) => city.factionId === "inca");
   const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
   const edo = ports.find((city) => city.city === "Edo" && city.country === "Japan");
+  const sakai = ports.find((city) => city.city === "Sakai" && city.country === "Japan");
   const kilwa = ports.find((city) => city.city === "Kilwa" && city.country === "Tanzania");
   const pacificVillages = ports.filter((city) => city.manualRegion === "pacific-islands");
   const encounterVillages = ports.filter((city) => city.manualRegion === "explorer-encounters");
@@ -169,6 +190,12 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
   assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
+  assert.ok(sakai, "Sakai should replace nearby landlocked Nara as the Osaka Bay port");
+  assert.equal(
+    selected.some((city) => city.city === "Nara City" && city.country === "Japan"),
+    false,
+    "minor inland Nara should not displace more populous coastal Sakai"
+  );
   assert.ok(edo, "Edo should be a dockable village in Tokyo Bay");
   assert.equal(edo.settlementType, "village");
   assert.equal(edo.factionId, "japan");

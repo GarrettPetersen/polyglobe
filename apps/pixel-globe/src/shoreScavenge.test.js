@@ -22,24 +22,54 @@ import {
 } from "./shoreScavenge.js";
 
 test("shore scavenging can find supplies, nothing, or a rare casualty", () => {
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0), SHORE_SCAVENGE_WATER);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.2799), SHORE_SCAVENGE_WATER);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.28), SHORE_SCAVENGE_FOOD);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.6799), SHORE_SCAVENGE_FOOD);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.68), SHORE_SCAVENGE_NOTHING);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.9899), SHORE_SCAVENGE_NOTHING);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.99), SHORE_SCAVENGE_CASUALTY);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, () => 0.9999), SHORE_SCAVENGE_CASUALTY);
+  const balanced = { water: 0.5, food: 0.5 };
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.2799), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.28), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.6799), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.68), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.9899), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.99), SHORE_SCAVENGE_CASUALTY);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.9999), SHORE_SCAVENGE_CASUALTY);
   assert.equal(SHORE_SCAVENGE_CASUALTY_CHANCE, 0.01);
 });
 
 test("desert scavenging rarely finds water and usually finds nothing", () => {
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.0399), SHORE_SCAVENGE_WATER);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.04), SHORE_SCAVENGE_FOOD);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.1799), SHORE_SCAVENGE_FOOD);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.18), SHORE_SCAVENGE_NOTHING);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.9899), SHORE_SCAVENGE_NOTHING);
-  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, () => 0.99), SHORE_SCAVENGE_CASUALTY);
+  const balanced = { water: 0.5, food: 0.5 };
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, balanced, () => 0.0399), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, balanced, () => 0.04), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, balanced, () => 0.1799), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, balanced, () => 0.18), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, balanced, () => 0.9899), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, balanced, () => 0.99), SHORE_SCAVENGE_CASUALTY);
+});
+
+test("ordinary shores favor whichever provision is needed most", () => {
+  const waterDesperate = { water: 1, food: 0 };
+  const foodDesperate = { water: 0, food: 1 };
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, waterDesperate, () => 0.5), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, waterDesperate, () => 0.6), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, foodDesperate, () => 0.1), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_ARCTIC, waterDesperate, () => 0.5), SHORE_SCAVENGE_WATER);
+});
+
+test("need cannot make desert water common or alter the overall success rate", () => {
+  const waterDesperate = { water: 1, food: 0 };
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, waterDesperate, () => 0.06), SHORE_SCAVENGE_WATER);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, waterDesperate, () => 0.07), SHORE_SCAVENGE_FOOD);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, waterDesperate, () => 0.18), SHORE_SCAVENGE_NOTHING);
+  assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, waterDesperate, () => 0.99), SHORE_SCAVENGE_CASUALTY);
+});
+
+test("shore scavenging rejects malformed provision needs", () => {
+  assert.throws(
+    () => rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, { water: -0.1, food: 0.5 }),
+    /invalid shore scavenge water need/i
+  );
+  assert.throws(
+    () => rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, { water: 0.5, food: NaN }),
+    /invalid shore scavenge food need/i
+  );
 });
 
 test("found food is a small one-to-three unit haul", () => {

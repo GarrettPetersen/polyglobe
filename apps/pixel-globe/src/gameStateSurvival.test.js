@@ -647,6 +647,31 @@ test("a more valuable trade-in pays the difference without hiding the credit", (
   assert.equal(state.accounts.ledger.at(-1).amount, 2000);
 });
 
+test("a smaller ship accepts cargo after reducing the old ship's loadout", () => {
+  const galleon = shipStatsForSlug("galleon");
+  const felucca = shipStatsForSlug("felucca");
+  const state = createGameState({ cargoCapacity: galleon.cargoCapacity, shipStats: galleon });
+  initializeProvisionalShipLoadout(state, galleon);
+  state.ship.loadoutId = "short-haul";
+  state.ship.crew = 20;
+  state.ship.cannons = 9;
+  state.survival.freshWaterCapacity = 20;
+  state.survival.freshWater = 20;
+  state.cargo.hardtack = 10;
+  state.doubloons = 100;
+
+  assert.ok(cargoUsed(state) > felucca.cargoCapacity);
+  const result = purchasePlayerShip(state, LONDON, felucca, {
+    listingPrice: 5000,
+    tradeInValue: 7000
+  }, { simMinute: 240 });
+
+  assert.equal(result.netPrice, -2000);
+  assert.equal(state.doubloons, 2100);
+  assert.equal(state.cargoCapacity, felucca.cargoCapacity);
+  assert.ok(cargoUsed(state) <= felucca.cargoCapacity);
+});
+
 test("awarding a ship replaces the hull without charging the player", () => {
   const brigantine = shipStatsForSlug("brigantine");
   const longship = shipStatsForSlug("viking-longship");

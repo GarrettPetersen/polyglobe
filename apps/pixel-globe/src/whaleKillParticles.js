@@ -1,8 +1,11 @@
-export const WHALE_KILL_EFFECT_DURATION_MS = 1900;
+export const WHALE_KILL_EFFECT_DURATION_MS = 2600;
 
-const WHALE_KILL_BLAST_MS = 320;
-const WHALE_KILL_SUCTION_START_MS = 220;
-const WHALE_KILL_MAX_SUCTION_DELAY_MS = 560;
+const WHALE_KILL_BLAST_MS = 480;
+const WHALE_KILL_IMPACT_HIGHLIGHT_MS = 720;
+const WHALE_KILL_SUCTION_START_MS = 620;
+const WHALE_KILL_MAX_SUCTION_DELAY_MS = 680;
+const WHALE_KILL_MIN_VISIBLE_ALPHA = 0.74;
+const WHALE_KILL_TRAIL_PROGRESS = 0.075;
 
 export function createWhaleKillEffect({
   id,
@@ -56,7 +59,7 @@ export function whaleKillEffectFrame(effect, nowMs, target) {
   const blastProgress = smootherstep(clamp(elapsedMs / WHALE_KILL_BLAST_MS, 0, 1));
   const particles = effect.particles.map((particle) => {
     const blastX = particle.x + particle.blastX * blastProgress;
-    const blastY = particle.y + particle.blastY * blastProgress + 4 * blastProgress * blastProgress;
+    const blastY = particle.y + particle.blastY * blastProgress + 6 * blastProgress * blastProgress;
     const suctionStartMs = WHALE_KILL_SUCTION_START_MS + particle.suctionDelayMs;
     const rawSuctionProgress = clamp(
       (elapsedMs - suctionStartMs) / (WHALE_KILL_EFFECT_DURATION_MS - suctionStartMs),
@@ -64,18 +67,31 @@ export function whaleKillEffectFrame(effect, nowMs, target) {
       1
     );
     const suctionProgress = smootherstep(Math.pow(rawSuctionProgress, particle.suctionPower));
-    const targetDx = targetX - blastX;
-    const targetDy = targetY - blastY;
-    const targetDistance = Math.max(1, Math.hypot(targetDx, targetDy));
-    const curl = Math.sin(suctionProgress * Math.PI) * particle.curl * (1 - suctionProgress * 0.35);
-    const x = lerp(blastX, targetX, suctionProgress) - targetDy / targetDistance * curl;
-    const y = lerp(blastY, targetY, suctionProgress) + targetDx / targetDistance * curl;
+    const position = suctionPosition(particle, blastX, blastY, targetX, targetY, suctionProgress);
+    const trailRawProgress = clamp(rawSuctionProgress - WHALE_KILL_TRAIL_PROGRESS, 0, 1);
+    const trailSuctionProgress = smootherstep(Math.pow(trailRawProgress, particle.suctionPower));
+    const trailPosition = suctionPosition(
+      particle,
+      blastX,
+      blastY,
+      targetX,
+      targetY,
+      trailSuctionProgress
+    );
     const arrivalFade = 1 - smoothstep(clamp((suctionProgress - 0.9) / 0.1, 0, 1));
+    const visibleAlpha = Math.max(particle.alpha, WHALE_KILL_MIN_VISIBLE_ALPHA) * arrivalFade;
+    const hasTrail = rawSuctionProgress > WHALE_KILL_TRAIL_PROGRESS && suctionProgress < 0.96;
     return Object.freeze({
-      x: Math.round(x),
-      y: Math.round(y),
+      x: Math.round(position.x),
+      y: Math.round(position.y),
       color: particle.color,
-      alpha: particle.alpha * arrivalFade
+      alpha: visibleAlpha,
+      accentAlpha: particle.accent
+        ? 1 - smootherstep(clamp(elapsedMs / WHALE_KILL_IMPACT_HIGHLIGHT_MS, 0, 1))
+        : 0,
+      trailX: Math.round(trailPosition.x),
+      trailY: Math.round(trailPosition.y),
+      trailAlpha: hasTrail ? visibleAlpha * 0.42 : 0
     });
   });
 
@@ -92,19 +108,31 @@ function createParticle(pixel, index, centerX, centerY, seed) {
   const sourceDx = pixel.x - centerX;
   const sourceDy = pixel.y - centerY;
   const baseAngle = Math.atan2(sourceDy, sourceDx);
-  const angle = baseAngle + (unitRandom(seed, pixel.x, pixel.y, index, 0x4a495454) - 0.5) * 1.25;
-  const distance = 5 + unitRandom(seed, pixel.x, pixel.y, index, 0x44495354) * 13;
+  const angle = baseAngle + (unitRandom(seed, pixel.x, pixel.y, index, 0x4a495454) - 0.5) * 3.2;
+  const distance = 9 + unitRandom(seed, pixel.x, pixel.y, index, 0x44495354) * 25;
   const curlDirection = unitRandom(seed, pixel.x, pixel.y, index, 0x4355524c) < 0.5 ? -1 : 1;
   return Object.freeze({
     ...pixel,
     blastX: Math.cos(angle) * distance,
-    blastY: Math.sin(angle) * distance - 3 - unitRandom(seed, pixel.x, pixel.y, index, 0x4c494654) * 4,
-    curl: curlDirection * (2 + unitRandom(seed, pixel.x, pixel.y, index, 0x5350494e) * 7),
+    blastY: Math.sin(angle) * distance - 4 - unitRandom(seed, pixel.x, pixel.y, index, 0x4c494654) * 7,
+    curl: curlDirection * (3 + unitRandom(seed, pixel.x, pixel.y, index, 0x5350494e) * 10),
     suctionPower: 0.7 + unitRandom(seed, pixel.x, pixel.y, index, 0x50554c4c) * 1.1,
     suctionDelayMs: Math.floor(
       unitRandom(seed, pixel.x, pixel.y, index, 0x44454c59) * WHALE_KILL_MAX_SUCTION_DELAY_MS
-    )
+    ),
+    accent: index % 13 === 0
   });
+}
+
+function suctionPosition(particle, startX, startY, targetX, targetY, progress) {
+  const targetDx = targetX - startX;
+  const targetDy = targetY - startY;
+  const targetDistance = Math.max(1, Math.hypot(targetDx, targetDy));
+  const curl = Math.sin(progress * Math.PI) * particle.curl * (1 - progress * 0.35);
+  return {
+    x: lerp(startX, targetX, progress) - targetDy / targetDistance * curl,
+    y: lerp(startY, targetY, progress) + targetDx / targetDistance * curl
+  };
 }
 
 function validatePixel(pixel, index, id) {

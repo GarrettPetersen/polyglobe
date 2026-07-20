@@ -186,6 +186,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   close: "action:leave",
   "wait-in-port": "action:wait",
   "leave-buy": "action:back",
+  "leave-sell": "action:back",
   "set-port-heading": "action:navigation",
   "open-port": "action:dock",
   "open-passenger": "action:passenger",
@@ -283,7 +284,7 @@ export function dialogueOptionIconId(option) {
   if (!option?.action?.type) throw new Error("Dialogue option has no action type");
   if (option.action.goodId) return tradeGoodIconId(option.action.goodId);
   if (option.action.type === "node" || (
-    option.action.type === "leave-buy" && option.action.nodeId
+    (option.action.type === "leave-buy" || option.action.type === "leave-sell") && option.action.nodeId
   )) {
     const iconId = DIALOGUE_NODE_ICON_IDS[option.action.nodeId];
     if (!iconId) throw new Error(`Dialogue node has no icon: ${option.action.nodeId}`);

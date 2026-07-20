@@ -1,7 +1,9 @@
 import { withColonialFounding } from "./colonialCities.js";
+import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const CITY_WATER_ACCESS_SCORE_BONUS = 45000;
 export const CITY_OBSERVATION_RELEVANCE_YEARS = 100;
+export const CITY_COASTAL_REPLACEMENT_RADIUS_KM = 50;
 
 export function cityPopulationObservationAtYear(observations, targetYear, options = {}) {
   if (!Array.isArray(observations)) throw new Error("City population observations must be an array");
@@ -264,9 +266,21 @@ export function selectCityCatalogRecords(records, maxCount) {
   if (!Number.isInteger(maxCount) || maxCount <= 0) {
     throw new Error(`Invalid city catalog max count: ${maxCount}`);
   }
-  return [...records]
+  const candidates = [...records];
+  const coastalCities = candidates.filter((city) => city?.coastalIntent);
+  return candidates
+    .filter((city) => !nearbyCoastalCitySupersedes(city, coastalCities))
     .sort(compareCityCatalogSelection)
     .slice(0, maxCount);
+}
+
+function nearbyCoastalCitySupersedes(city, coastalCities) {
+  if (cityHasWaterAccessIntent(city)) return false;
+  return coastalCities.some((coastal) => (
+    coastal.country === city.country &&
+    coastal.population >= city.population &&
+    greatCircleDistanceKm(city, coastal) <= CITY_COASTAL_REPLACEMENT_RADIUS_KM
+  ));
 }
 
 export function compareCityCatalogSelection(a, b) {

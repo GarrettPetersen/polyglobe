@@ -23,6 +23,7 @@ import {
   negotiateEnvoyQuest,
   portMemory,
   portEntryStatus,
+  playerShipReplacementCargoUsed,
   playerCannonEquipment,
   playerFishingNet,
   playerWhaleHarpoon,
@@ -141,6 +142,7 @@ export function createPortDialogueSession(city, options = {}) {
     postDrunkNodeId: options.postDrunkNodeId || null,
     drunkVariant: options.drunkVariant || 0,
     marketPurchases: {},
+    marketSales: 0,
     marketSaleGoodIds: [],
     tradeTip: null,
     shipHandover: null,
@@ -371,6 +373,24 @@ export function shipDialogueView(session, ship) {
       : "";
   const faction = role !== "Pirate" && ship.faction?.adjective ? `${ship.faction.adjective} ` : "";
   const speaker = `${characterName(ship.character)}, ${faction}${role.toLowerCase()} captain`;
+  if (session.attackReason && ship.combatGrace) {
+    return {
+      speaker,
+      expressionId: "afraid",
+      text: "Hold! Our colors are struck. We have surrendered and are making for a safe port. This fight is over.",
+      feedback: null,
+      options: [option("Leave", { type: "close" })]
+    };
+  }
+  if (session.attackReason && ship.inCombatWithPlayer === false) {
+    return {
+      speaker,
+      expressionId: "concerned",
+      text: "Stand down. The challenge has ended, and we are breaking off.",
+      feedback: null,
+      options: [option("Leave", { type: "close" })]
+    };
+  }
   if (session.attackReason) {
     return {
       speaker,
@@ -746,6 +766,7 @@ export function selectPortDialogueOption(
   if (action.type === "close") return { closed: true };
   if (action.type === "node") {
     if (action.nodeId === "buy") session.marketPurchases = {};
+    if (action.nodeId === "sell") session.marketSales = 0;
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
     session.nodeId = action.nodeId;
@@ -764,6 +785,28 @@ export function selectPortDialogueOption(
       sailingDistanceKm: context.sailingDistanceKm
     });
     session.marketPurchases = {};
+    session.selectedIndex = 0;
+    session.feedback = null;
+    if (!tip) {
+      session.nodeId = action.nodeId;
+      return { closed: false };
+    }
+    session.tradeTip = { ...tip, nextNodeId: action.nodeId };
+    session.nodeId = "trade-tip";
+    return { closed: false, tradeTip: tip };
+  }
+  if (action.type === "leave-sell") {
+    const tip = session.marketSales === 0
+      ? bestHeldCargoTradeRoute({
+          originCity: city,
+          gameState,
+          economy,
+          portCities,
+          simMinute: context.simMinute ?? 0,
+          sailingDistanceKm: context.sailingDistanceKm
+        })
+      : null;
+    session.marketSales = 0;
     session.selectedIndex = 0;
     session.feedback = null;
     if (!tip) {
@@ -969,6 +1012,7 @@ export function selectPortDialogueOption(
   }
   if (action.type === "sell") {
     const result = sellGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
+    session.marketSales += result.quantity;
     const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
     session.feedback = `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`;
     return { closed: false };
@@ -1784,13 +1828,15 @@ function shipyardView(session, city, gameState, context) {
   const currentShipSlug = context.shipStats?.slug;
   if (!currentShipSlug) throw new Error("Shipyard purchase requires the current ship type");
   const purchaseTerms = shipyardPurchaseTerms(listing.price, currentShipSlug);
-  const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
+  const transferredCargoUsed = playerShipReplacementCargoUsed(gameState, stats);
+  const cargoDoesNotFit = transferredCargoUsed > stats.cargoCapacity;
   const alreadyOwned = currentShipSlug === listing.shipSlug;
   const cannotAfford = gameState.doubloons < purchaseTerms.netPrice;
   const disabledReason = alreadyOwned
     ? "You already command this type of vessel."
     : cargoDoesNotFit
-      ? `Your current cargo will not fit its ${stats.cargoCapacity}-unit hold.`
+      ? `Your transferred cargo uses ${cargoSpaceLabel(transferredCargoUsed)} units and will not fit its ` +
+        `${stats.cargoCapacity}-unit hold.`
       : cannotAfford
         ? `You need ${purchaseTerms.netPrice - gameState.doubloons} more doubloons.`
         : null;
@@ -1921,8 +1967,8 @@ export function bestPurchasedTradeRoute({
     if (!purchase || !Number.isInteger(purchase.quantity) || purchase.quantity <= 0) {
       throw new Error("Trade-route purchase quantity must be a positive integer");
     }
-    if (!Number.isFinite(purchase.cost) || purchase.cost <= 0) {
-      throw new Error("Trade-route purchase cost must be positive");
+    if (!Number.isFinite(purchase.cost) || purchase.cost < 0) {
+      throw new Error("Trade-route purchase cost must be non-negative");
     }
     const good = tradeGoodById(purchase.goodId);
     for (const destination of portCities) {
@@ -1955,6 +2001,40 @@ export function bestPurchasedTradeRoute({
     }
   }
   return best?.expectedPnl > 0 ? best : null;
+}
+
+function bestHeldCargoTradeRoute({
+  originCity,
+  gameState,
+  economy,
+  portCities,
+  simMinute,
+  sailingDistanceKm
+}) {
+  const purchases = {};
+  for (const row of cargoRows(gameState)) {
+    if (row.good.sellable === false) continue;
+    const quantity = marketTradeLotCount(row.quantity);
+    if (quantity <= 0) continue;
+    const basis = cargoCostBasis(gameState, row.good.id);
+    purchases[row.good.id] = {
+      goodId: row.good.id,
+      quantity,
+      cost: basis.known
+        ? basis.total * quantity / row.quantity
+        : quotePortPurchase(economy, originCity, row.good.id, quantity)
+    };
+  }
+  if (Object.keys(purchases).length === 0) return null;
+  return bestPurchasedTradeRoute({
+    purchases,
+    originCity,
+    gameState,
+    economy,
+    portCities,
+    simMinute,
+    sailingDistanceKm
+  });
 }
 
 function recordMarketPurchase(session, result) {
@@ -2071,7 +2151,7 @@ function sellView(session, city, gameState, economy) {
       disabledReason: "The hold has no cargo buyers will take."
     }));
   }
-  rows.push(option("Back", { type: "node", nodeId: "root" }));
+  rows.push(option("Back", { type: "leave-sell", nodeId: "root" }));
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
@@ -2315,7 +2395,10 @@ function shipCargoManifest(cargo) {
     .filter(([, quantity]) => quantity > 0)
     .map(([goodId, quantity]) => {
       const good = tradeGoodById(goodId);
-      return `${good.label} ${cargoQuantityLabel(good, quantity)}`;
+      if (!Number.isInteger(quantity)) {
+        throw new Error(`NPC ship cargo must use whole trade lots: ${good.id} ${quantity}`);
+      }
+      return `${good.label} x${quantity}`;
     });
   if (rows.length === 0) return "";
   if (rows.length <= 2) return rows.join(" and ");

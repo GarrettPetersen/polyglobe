@@ -19,6 +19,13 @@ const SCAVENGE_PROBABILITIES = Object.freeze({
   [SHORE_SCAVENGE_ANTARCTIC]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 })
 });
 
+const SCAVENGE_WATER_SHARE_BOUNDS = Object.freeze({
+  [SHORE_SCAVENGE_TEMPERATE]: Object.freeze({ min: 0.12, max: 0.82 }),
+  [SHORE_SCAVENGE_DESERT]: Object.freeze({ min: 0.05, max: 0.38 }),
+  [SHORE_SCAVENGE_ARCTIC]: Object.freeze({ min: 0.12, max: 0.82 }),
+  [SHORE_SCAVENGE_ANTARCTIC]: Object.freeze({ min: 0.12, max: 0.82 })
+});
+
 const SEABIRDS_BY_CONTEXT = Object.freeze({
   [SHORE_SCAVENGE_TEMPERATE]: Object.freeze([
     seabird("gull", 2),
@@ -155,15 +162,25 @@ export function shoreScavengeContextForTerrain(row, latitudeDeg, hasSnowGround) 
   return SHORE_SCAVENGE_TEMPERATE;
 }
 
-export function rollShoreScavenge(context, random = Math.random) {
+export function rollShoreScavenge(context, needs = { water: 0, food: 0 }, random = Math.random) {
   requireScavengeContext(context);
   const probabilities = SCAVENGE_PROBABILITIES[context];
   if (!probabilities) throw new Error(`Missing shore scavenge probabilities: ${context}`);
+  const waterNeed = requireNeedFraction(needs?.water, "water");
+  const foodNeed = requireNeedFraction(needs?.food, "food");
+  const supplyChance = probabilities.foodMax;
+  const baseWaterShare = probabilities.waterMax / supplyChance;
+  const waterShareBounds = SCAVENGE_WATER_SHARE_BOUNDS[context];
+  const needDifference = waterNeed - foodNeed;
+  const waterShare = needDifference >= 0
+    ? lerp(baseWaterShare, waterShareBounds.max, needDifference)
+    : lerp(baseWaterShare, waterShareBounds.min, -needDifference);
+  const waterMax = supplyChance * waterShare;
   const roll = random();
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
     throw new Error(`Invalid shore scavenge roll: ${roll}`);
   }
-  if (roll < probabilities.waterMax) return SHORE_SCAVENGE_WATER;
+  if (roll < waterMax) return SHORE_SCAVENGE_WATER;
   if (roll < probabilities.foodMax) return SHORE_SCAVENGE_FOOD;
   if (roll < 1 - SHORE_SCAVENGE_CASUALTY_CHANCE) return SHORE_SCAVENGE_NOTHING;
   return SHORE_SCAVENGE_CASUALTY;
@@ -230,6 +247,17 @@ function requireScavengeContext(context) {
   const narratives = NARRATIVES_BY_CONTEXT[context];
   if (!narratives) throw new Error(`Unknown shore scavenge context: ${context}`);
   return narratives;
+}
+
+function requireNeedFraction(value, label) {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`Invalid shore scavenge ${label} need: ${value}`);
+  }
+  return value;
+}
+
+function lerp(start, end, amount) {
+  return start + (end - start) * amount;
 }
 
 function seabird(name, foodRations) {

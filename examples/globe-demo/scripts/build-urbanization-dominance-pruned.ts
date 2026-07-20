@@ -35,7 +35,8 @@ const DEFAULT_SUBDIVISIONS = 7;
 const DOMINANCE_MAX_RINGS = 10;
 const DOMINANCE_MIN_RINGS = 2;
 const ISOLATION_KEEP_RINGS = 3;
-const COASTAL_PORT_KEEP_RINGS = 8;
+const COASTAL_PORT_KEEP_DISTANCE_KM = 250;
+const EARTH_RADIUS_KM = 6371;
 
 type CsvRow = {
   city: string;
@@ -59,11 +60,24 @@ type CitySeries = {
 type Candidate = {
   id: string;
   city: string;
+  lat: number;
+  lon: number;
   population: number;
   tileId: number;
   originalTileId: number;
   landmassId?: number;
 };
+
+function candidateDistanceKm(a: Candidate, b: Candidate): number {
+  const latA = (a.lat * Math.PI) / 180;
+  const latB = (b.lat * Math.PI) / 180;
+  const deltaLat = latB - latA;
+  const deltaLon = ((b.lon - a.lon) * Math.PI) / 180;
+  const sinLat = Math.sin(deltaLat / 2);
+  const sinLon = Math.sin(deltaLon / 2);
+  const h = sinLat * sinLat + Math.cos(latA) * Math.cos(latB) * sinLon * sinLon;
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+}
 
 function parseReasonableYear(raw: string): number | null {
   const y = Number.parseInt(raw ?? "", 10);
@@ -497,6 +511,7 @@ function loadOptionalOverrideRows(path: string): CsvRow[] {
 
 function main(): void {
   const subdivisions = parseSubdivisionArg();
+  const useStadester = !process.argv.includes("--reba-only");
   const cachePath = join(PUBLIC, `earth-globe-cache-${subdivisions}.json`);
   const cache = JSON.parse(readFileSync(cachePath, "utf8")) as {
     tileCount: number;
@@ -581,7 +596,7 @@ function main(): void {
     if (year < minYear) minYear = year;
     if (year > maxYear) maxYear = year;
   }
-  const stadesterRows = loadOptionalOverrideRows(STADESTER_INPUT_CSV);
+  const stadesterRows = useStadester ? loadOptionalOverrideRows(STADESTER_INPUT_CSV) : [];
   if (stadesterRows.length > 0) {
     const keptPreCutoff = allRows.filter((r) => r.year < REPLACE_FROM_YEAR);
     allRows = [...keptPreCutoff, ...stadesterRows];
@@ -599,7 +614,7 @@ function main(): void {
       stadesterRows: stadesterRows.length,
       mergedRows: allRows.length,
     });
-  } else {
+  } else if (useStadester) {
     console.warn(
       "[urbanization-prune] Stadester input missing/unreadable; using input CSV as-is",
       {
@@ -874,6 +889,8 @@ function main(): void {
       activeCandidates.push({
         id: s.id,
         city: s.city,
+        lat: s.lat,
+        lon: s.lon,
         population: p,
         tileId: mapped.tileId,
         originalTileId: mapped.originalTileId,
@@ -910,12 +927,16 @@ function main(): void {
       .sort((a, b) => b.population - a.population);
     for (const c of remaining) {
       let dominated = false;
+      const candidateIsCoastal = coastalIntentByCityId.get(c.id) === true;
       const near = getNeighborhood(c.tileId);
       for (const [tid, d] of near) {
         const keepers = selectedByTile.get(tid);
         if (!keepers) continue;
         for (const k of keepers) {
           if (!canDominanceCompareLandmass(c.landmassId, k.landmassId)) continue;
+          // A sailing-game port must not disappear merely because an older inland
+          // settlement was carried forward first. Coastal peers may still prune it.
+          if (candidateIsCoastal && coastalIntentByCityId.get(k.id) !== true) continue;
           const radius = dominanceInfluenceRings(k.population);
           if (d > radius) continue;
           const ratio = c.population / Math.max(1, k.population);
@@ -941,20 +962,12 @@ function main(): void {
         }
         if (!nearKept) dominated = false;
       }
-      if (dominated && isCoastalTile(c.tileId)) {
-        let hasNearbySelectedCoastal = false;
-        for (const [tid, d] of near) {
-          if (d > COASTAL_PORT_KEEP_RINGS) continue;
-          const keepers = selectedByTile.get(tid);
-          if (!keepers) continue;
-          for (const k of keepers) {
-            if (!canDominanceCompareLandmass(c.landmassId, k.landmassId)) continue;
-            if (!isCoastalTile(k.tileId)) continue;
-            hasNearbySelectedCoastal = true;
-            break;
-          }
-          if (hasNearbySelectedCoastal) break;
-        }
+      if (dominated && candidateIsCoastal) {
+        const hasNearbySelectedCoastal = selected.some((k) => (
+          canDominanceCompareLandmass(c.landmassId, k.landmassId) &&
+          coastalIntentByCityId.get(k.id) === true &&
+          candidateDistanceKm(c, k) <= COASTAL_PORT_KEEP_DISTANCE_KM
+        ));
         if (!hasNearbySelectedCoastal) dominated = false;
       }
       if (!dominated) addSelected(c);
@@ -1007,8 +1020,12 @@ function main(): void {
   const readme = [
     "# Dominance-Pruned Urbanization Dataset",
     "",
-    `- Source (< ${REPLACE_FROM_YEAR}): \`datasets/urbanization-reba-2016/urbanization-merged.csv\``,
-    `- Source (>= ${REPLACE_FROM_YEAR}): \`datasets/urbanization-stadester-1/urbanization-stadester-merged.csv\` (when available)`,
+    useStadester
+      ? `- Source (< ${REPLACE_FROM_YEAR}): \`datasets/urbanization-reba-2016/urbanization-merged.csv\``
+      : "- Source: `datasets/urbanization-reba-2016/urbanization-merged.csv`",
+    ...(useStadester
+      ? [`- Source (>= ${REPLACE_FROM_YEAR}): \`datasets/urbanization-stadester-1/urbanization-stadester-merged.csv\` (when available)`]
+      : []),
     `- Tile map: \`earth-globe-cache-${subdivisions}.json\` landmass IDs`,
     "- Method: year-by-year city selection with carry-forward inclusion and local dominance pruning.",
     "",

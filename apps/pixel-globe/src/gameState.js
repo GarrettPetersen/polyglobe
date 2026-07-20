@@ -574,6 +574,13 @@ export function setCargoCapacity(state, cargoCapacity) {
 export function setPlayerShipStats(state, stats) {
   assertGameState(state);
   if (!state.ship) throw new Error("Cannot change stats without player ship state");
+  const projectedCargoUsed = playerShipReplacementCargoUsed(state, stats);
+  if (projectedCargoUsed > stats.cargoCapacity) {
+    throw new Error(
+      `Cannot switch to cargo capacity ${stats.cargoCapacity}; current hold will not fit because ` +
+      `transferred cargo uses ${projectedCargoUsed}`
+    );
+  }
   const previous = {
     cargoCapacity: state.cargoCapacity,
     ship: { ...state.ship },
@@ -607,6 +614,28 @@ export function setPlayerShipStats(state, stats) {
   }
   state.cargoCapacity = stats.cargoCapacity;
   return plan;
+}
+
+export function playerShipReplacementCargoUsed(state, stats) {
+  assertGameState(state);
+  if (!state.ship) throw new Error("Cannot preview a ship change without player ship state");
+  const loadoutId = state.ship.loadoutId || "short-haul";
+  const plan = shipLoadoutPlan(stats, loadoutId);
+  let usedTicks = 0;
+  for (const [goodId, heldQuantity] of Object.entries(state.cargo)) {
+    const good = goodById(goodId);
+    const quantity = goodId === HARDTACK_GOOD_ID
+      ? Math.min(heldQuantity, plan.foodUnits)
+      : heldQuantity;
+    usedTicks += occupiedCargoTicks(good.unitSize * quantity, `cargo.${goodId} space`);
+  }
+  usedTicks += crewHoldSpace(Math.min(state.ship.crew, plan.crew)) * CARGO_SPACE_TICKS_PER_UNIT;
+  usedTicks += Math.min(state.ship.cannons, plan.cannons) * CARGO_SPACE_TICKS_PER_UNIT;
+  usedTicks += Math.ceil(Math.min(state.survival.freshWater, plan.waterUnits)) * CARGO_SPACE_TICKS_PER_UNIT;
+  for (const units of Object.values(state.memory.cargoReservations)) {
+    usedTicks += units * CARGO_SPACE_TICKS_PER_UNIT;
+  }
+  return cargoUnitsFromTicks(usedTicks);
 }
 
 export function purchasePlayerShip(state, city, stats, payment, context = {}) {

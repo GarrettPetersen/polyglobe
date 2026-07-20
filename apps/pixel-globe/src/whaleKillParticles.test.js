@@ -41,12 +41,17 @@ test("every visible whale pixel becomes a deterministic kill particle", () => {
 test("whale pixels burst outward and then converge on the ship", () => {
   const state = effect();
   const target = { x: 100, y: 80 };
-  const burst = whaleKillEffectFrame(state, 1360, target);
-  const stream = whaleKillEffectFrame(state, 1900, target);
-  const suction = whaleKillEffectFrame(state, 2750, target);
+  const burst = whaleKillEffectFrame(state, 1480, target);
+  const stream = whaleKillEffectFrame(state, 2300, target);
+  const suction = whaleKillEffectFrame(state, 3400, target);
   assert.ok(burst.particles.some((particle, index) => (
     particle.x !== PIXELS[index].x || particle.y !== PIXELS[index].y
   )));
+  assert.ok(
+    Math.max(...burst.particles.map((particle) => particle.x)) -
+      Math.min(...burst.particles.map((particle) => particle.x)) > 10,
+    "the opening burst should break apart the whale silhouette"
+  );
   const burstDistance = averageDistance(burst.particles, target);
   const streamDistances = stream.particles.map((particle) => (
     Math.hypot(particle.x - target.x, particle.y - target.y)
@@ -56,14 +61,30 @@ test("whale pixels burst outward and then converge on the ship", () => {
     Math.max(...streamDistances) - Math.min(...streamDistances) > 15,
     "particles should form a staggered stream during suction"
   );
+  assert.ok(stream.particles.some((particle) => particle.trailAlpha > 0));
   assert.ok(suctionDistance < burstDistance * 0.25, `${suctionDistance} is not close enough to ${target.x},${target.y}`);
   assert.ok(suction.particles.every((particle) => Number.isInteger(particle.x) && Number.isInteger(particle.y)));
 });
 
+test("submerged pixels become visible and foam accents mark the impact", () => {
+  const state = createWhaleKillEffect({
+    id: "submerged-whale",
+    pixels: [{ x: 10, y: 10, color: "#111111", alpha: 0.34 }],
+    centerX: 10,
+    centerY: 10,
+    startedAtMs: 1000,
+    seed: 1522
+  });
+  const opening = whaleKillEffectFrame(state, 1000, { x: 100, y: 80 }).particles[0];
+  assert.ok(opening.alpha >= 0.7);
+  assert.equal(opening.accentAlpha, 1);
+  assert.equal(opening.trailAlpha, 0);
+});
+
 test("the suction target follows the player ship and completes on time", () => {
   const state = effect();
-  const left = whaleKillEffectFrame(state, 2750, { x: 80, y: 80 });
-  const right = whaleKillEffectFrame(state, 2750, { x: 120, y: 80 });
+  const left = whaleKillEffectFrame(state, 3400, { x: 80, y: 80 });
+  const right = whaleKillEffectFrame(state, 3400, { x: 120, y: 80 });
   assert.ok(averageX(right.particles) > averageX(left.particles) + 20);
   assert.equal(whaleKillEffectComplete(state, 1000 + WHALE_KILL_EFFECT_DURATION_MS - 1), false);
   assert.equal(whaleKillEffectComplete(state, 1000 + WHALE_KILL_EFFECT_DURATION_MS), true);

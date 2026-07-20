@@ -28,6 +28,7 @@ import {
   acceptQuest,
   adjustFactionReputation,
   attemptPortDisguise,
+  cargoUsed,
   createGameState,
   hasLetterOfMarqueFrom,
   initializeProvisionalShipLoadout,
@@ -139,17 +140,31 @@ test("merchant captains report their destination and visible cargo", () => {
   assert.equal(view.text, "Fair winds, captain. Bound for Hormuz. We carry Pepper x18 and Cotton x9.");
 });
 
-test("ship cargo manifests describe fractional food as whole rations", () => {
+test("ship cargo manifests describe edible goods as commercial trade lots", () => {
   const ship = {
     id: "provision-tender-1",
     label: "Dhow",
     character: { name: "Yusuf al-Masri" },
-    cargo: { hardtack: 1 / 3 }
+    cargo: { fish: 4, grain: 3 }
   };
   const view = shipDialogueView(createShipDialogueSession(ship), ship);
 
-  assert.match(view.text, /Hardtack 4 RATIONS/);
-  assert.doesNotMatch(view.text, /0\.333/);
+  assert.match(view.text, /Fish x4 and Grain x3/);
+  assert.doesNotMatch(view.text, /RATIONS/);
+});
+
+test("ship cargo manifests reject fractional NPC trade lots", () => {
+  const ship = {
+    id: "malformed-provision-tender",
+    label: "Dhow",
+    character: { name: "Yusuf al-Masri" },
+    cargo: { fish: 0.5 }
+  };
+
+  assert.throws(
+    () => shipDialogueView(createShipDialogueSession(ship), ship),
+    /NPC ship cargo must use whole trade lots/
+  );
 });
 
 test("merchant captains report when they are anchored for a storm", () => {
@@ -235,6 +250,46 @@ test("an attacking captain hails with a reason before combat", () => {
   assert.equal(view.expressionId, "angry");
   assert.equal(view.text, "You sail under outlaw colors. Strike them, or we open fire!");
   assert.deepEqual(view.options.map((option) => option.label), ["To arms"]);
+});
+
+test("a combat challenge is withdrawn if its attacker surrenders during the hail", () => {
+  const attacker = {
+    id: "pirate-challenger",
+    roleLabel: "Pirate",
+    faction: { adjective: "Pirate" },
+    character: { name: "Anne Flint" },
+    combatGrace: true,
+    inCombatWithPlayer: false
+  };
+  const session = createShipDialogueSession(attacker, {
+    attackReason: "Your cargo and coin are ours. Heave to, or we open fire!"
+  });
+  const view = shipDialogueView(session, attacker);
+
+  assert.equal(view.expressionId, "afraid");
+  assert.match(view.text, /colors are struck/i);
+  assert.match(view.text, /fight is over/i);
+  assert.deepEqual(view.options.map((option) => option.label), ["Leave"]);
+  assert.doesNotMatch(view.text, /cargo and coin are ours/i);
+});
+
+test("a combat challenge cannot remain actionable after its engagement ends", () => {
+  const attacker = {
+    id: "warship-challenger",
+    roleLabel: "Warship",
+    faction: { adjective: "Portuguese" },
+    character: { name: "Ines Vaz" },
+    combatGrace: false,
+    inCombatWithPlayer: false
+  };
+  const session = createShipDialogueSession(attacker, {
+    attackReason: "Strike your colors, or we open fire!"
+  });
+  const view = shipDialogueView(session, attacker);
+
+  assert.match(view.text, /challenge has ended/i);
+  assert.deepEqual(view.options.map((option) => option.label), ["Leave"]);
+  assert.doesNotMatch(view.text, /strike your colors/i);
 });
 
 test("an outmatched ship offers surrender and the player may refuse it", () => {
@@ -807,6 +862,118 @@ test("leaving the buy screen without a purchase returns directly to port busines
   assert.equal(session.nodeId, "root");
 });
 
+test("leaving the sell screen without a sale recommends a market for held trade goods", () => {
+  const ternate = {
+    tileId: 105,
+    city: "Ternate",
+    displayCity: "Ternate",
+    country: "Ternate",
+    cityType: "southeast-asian",
+    lat: 0.79,
+    lon: 127.38,
+    population: 25000,
+    character: { name: "Hamza Darwis" }
+  };
+  const london = {
+    tileId: 106,
+    city: "London",
+    displayCity: "London",
+    country: "England",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000
+  };
+  const ports = [ternate, london];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.cloves = 2;
+  gameState.accounts.cargoCostBasis.cloves = 0;
+  const session = createPortDialogueSession(ternate, { initialNodeId: "sell" });
+  const market = portDialogueView(session, ternate, gameState, economy, ports);
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+
+  const result = selectPortDialogueOption(session, ternate, gameState, economy, ports, backIndex, {
+    sailingDistanceKm: testSailingDistances([[ternate, london, 14200]])
+  });
+
+  assert.equal(result.tradeTip.goodLabel, "Cloves");
+  assert.equal(result.tradeTip.destinationName, "London");
+  assert.equal(session.nodeId, "trade-tip");
+  assert.equal(
+    portDialogueView(session, ternate, gameState, economy, ports).text,
+    "I heard London pays a good price for Cloves."
+  );
+});
+
+test("leaving the sell screen with no sellable cargo returns directly to port business", () => {
+  const city = {
+    tileId: 109,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.hardtack = 1;
+  gameState.accounts.cargoCostBasis.hardtack = 2;
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const market = portDialogueView(session, city, gameState, economy, [city]);
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], backIndex),
+    { closed: false }
+  );
+  assert.equal(session.nodeId, "root");
+});
+
+test("leaving the sell screen after a completed sale does not offer trade advice", () => {
+  const porto = {
+    tileId: 107,
+    city: "Porto",
+    displayCity: "Porto",
+    country: "Portugal",
+    cityType: "mediterranean",
+    lat: 41.16,
+    lon: -8.63,
+    population: 50000,
+    character: { name: "Ines Carvalho" }
+  };
+  const london = {
+    tileId: 108,
+    city: "London",
+    displayCity: "London",
+    country: "England",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000
+  };
+  const ports = [porto, london];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.cloves = 2;
+  gameState.accounts.cargoCostBasis.cloves = 20;
+  const session = createPortDialogueSession(porto, { initialNodeId: "sell" });
+  let market = portDialogueView(session, porto, gameState, economy, ports);
+  const sellIndex = market.options.findIndex((entry) => entry.action.goodId === "cloves");
+  selectPortDialogueOption(session, porto, gameState, economy, ports, sellIndex);
+  market = portDialogueView(session, porto, gameState, economy, ports);
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+
+  assert.deepEqual(
+    selectPortDialogueOption(session, porto, gameState, economy, ports, backIndex, {
+      sailingDistanceKm: testSailingDistances([[porto, london, 1800]])
+    }),
+    { closed: false }
+  );
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.tradeTip, null);
+});
+
 test("the first port requires a chunky loadout choice and provisions the ship", () => {
   const city = {
     tileId: 9,
@@ -1211,6 +1378,72 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     closed: false,
     action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
   });
+});
+
+test("shipyards allow a profitable downgrade after projecting the smaller loadout", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const currentStats = shipStatsForSlug("galleon");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  gameState.ship.loadoutId = "short-haul";
+  gameState.ship.crew = 20;
+  gameState.ship.cannons = 9;
+  gameState.survival.freshWaterCapacity = 20;
+  gameState.survival.freshWater = 20;
+  gameState.cargo.hardtack = 10;
+  const listing = {
+    id: "shipyard-10-downgrade",
+    shipSlug: "felucca",
+    shipLabel: "Felucca",
+    price: 5000
+  };
+  const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
+
+  assert.ok(cargoUsed(gameState) > shipStatsForSlug("felucca").cargoCapacity);
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+
+  assert.equal(purchase.disabled, false);
+  assert.match(purchase.label, /^Trade for Felucca  \+\d+ db$/);
+});
+
+test("shipyards still block a smaller ship when transferred trade cargo cannot fit", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const currentStats = shipStatsForSlug("galleon");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  gameState.cargo.gold = 21;
+  const listing = {
+    id: "shipyard-10-overloaded",
+    shipSlug: "felucca",
+    shipLabel: "Felucca",
+    price: 5000
+  };
+  const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+
+  assert.equal(purchase.disabled, true);
+  assert.match(purchase.disabledReason, /transferred cargo uses/);
 });
 
 test("empty shipyards direct captains to the nearest listed vessel", () => {

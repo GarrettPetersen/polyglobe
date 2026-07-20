@@ -91,6 +91,17 @@ test("major-port protection ends an existing pirate attack", () => {
   assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
 });
 
+test("a surrendered pirate cannot initiate or retain combat with the player", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "merchant", "portugal", 0, 0, 30, 9);
+  const pirate = ship("pirate", "pirate", "pirate", 20, 0, 130, 12);
+
+  assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 1);
+  pirate.combatGrace = true;
+  assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
+  assert.equal(updateShipCombatState(createShipCombatState(), [player, pirate]).engagementCount, 0);
+});
+
 test("waiting inside any port prevents and ends combat", () => {
   const state = createShipCombatState();
   const player = ship("player", "merchant", "england", 0, 0, 30, 4);
