@@ -101,7 +101,7 @@ test("passengers reserve hold space across every cargo and ship-capacity check",
   assert.throws(() => releaseCargoSpace(state, "test-passengers"), /does not exist/);
 });
 
-test("survival drains water and consumes the cheapest edible cargo first", () => {
+test("survival drains water and consumes the cheapest edible cargo after hardtack", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.cargo.fish = 1;
   state.cargo.grain = 2;
@@ -119,6 +119,20 @@ test("survival drains water and consumes the cheapest edible cargo first", () =>
   assert.equal(state.cargo.grain, 2);
   assert.equal(state.cargo.wine, 1);
   assert.ok(state.survival.freshWater < FRESH_WATER_CAPACITY);
+});
+
+test("the crew eats hardtack before zero-cost caught fish", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.cargo.hardtack = 1;
+  state.cargo.fish = 1;
+  state.accounts.cargoCostBasis.hardtack = 2;
+  state.accounts.cargoCostBasis.fish = 0;
+
+  const result = updateSurvival(state, 0, 24 * 60, { freshwater: false });
+
+  assert.equal(result.foodConsumed[0].goodId, "hardtack");
+  assert.equal(state.cargo.hardtack, 11 / 12);
+  assert.equal(state.cargo.fish, 1);
 });
 
 test("a ship drinks wine only after water runs out and tracks full wine-only days", () => {
