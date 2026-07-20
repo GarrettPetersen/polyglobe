@@ -21,7 +21,14 @@ import {
   shipDialogueView,
   worldPriceIndicator
 } from "./dialogueSystem.js";
-import { FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID, createWorldEconomy } from "./economy.js";
+import {
+  FRESH_WATER_GOOD_ID,
+  GUNPOWDER_GOOD_ID,
+  HARDTACK_GOOD_ID,
+  MATCHLOCKS_GOOD_ID,
+  createWorldEconomy,
+  portMarket
+} from "./economy.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
 import {
   LETTER_OF_MARQUE_POWER_REQUIRED,
@@ -39,6 +46,22 @@ import {
 } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
+import { colonizationTargetForCity } from "./colonialCities.js";
+import {
+  advanceColonizationQuest,
+  assignColonizationQuest,
+  beginColonizationExpedition,
+  colonizationQuestView,
+  completeColonizationFetchStage,
+  establishColony,
+  grantColonizationApproval,
+  landColonists
+} from "./colonizationQuest.js";
+import {
+  JAPANESE_MATCHLOCK_COMPLETION_REWARD,
+  JAPANESE_MATCHLOCK_FETCH_STAGES,
+  maybeSpawnJapaneseMatchlockQuest
+} from "./japaneseMatchlockQuest.js";
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
@@ -616,6 +639,31 @@ test("buying the final unit disables its stable market row instead of moving lat
   assert.equal(after.options[purchaseIndex].disabled, true);
   assert.match(after.options[purchaseIndex].detail, /STOCK 0$/);
   assert.equal(after.options[followingIndex].action.goodId, followingGoodId);
+});
+
+test("Ming markets visibly offer domestic gunpowder but not scarce imported matchlocks", () => {
+  const city = {
+    tileId: 110,
+    city: "Guangzhou",
+    displayCity: "Guangzhou",
+    country: "Ming",
+    cityType: "east-asian",
+    factionId: "ming",
+    population: 120000,
+    character: { name: "Li Wen", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 200 });
+  gameState.doubloons = 100000;
+  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+
+  const market = portDialogueView(session, city, gameState, economy, [city]);
+  const goodIds = market.options
+    .filter((entry) => entry.action.type === "buy")
+    .map((entry) => entry.action.goodId);
+
+  assert.ok(goodIds.includes(GUNPOWDER_GOOD_ID));
+  assert.equal(goodIds.includes(MATCHLOCKS_GOOD_ID), false);
 });
 
 test("selling the final unit disables its stable market row instead of moving later goods", () => {
@@ -1655,6 +1703,97 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
     { closed: false, action: { type: "purchase-viking-longship", shipSlug: "viking-longship" } }
   );
 });
+
+test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki opens", () => {
+  const city = {
+    tileId: 65,
+    city: "Kyoto",
+    displayCity: "Kyoto",
+    country: "Japan",
+    cityType: "east-asian",
+    population: 100000,
+    character: { name: "Sato Masanobu" }
+  };
+  const gameState = createGameState({ cargoCapacity: 50 });
+  establishNagasakiQuest(gameState, city);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const startingDoubloons = gameState.doubloons;
+
+  maybeSpawnJapaneseMatchlockQuest(gameState, city, { spawnChance: 1, simMinute: 0 });
+  const arrival = createPortArrivalDialogueSession(city, { japaneseMatchlockApproach: true });
+  assert.equal(arrival.nodeId, "japanese-matchlocks");
+  assert.match(portDialogueView(arrival, city, gameState, economy, [city]).text, /Nagasaki/);
+
+  const session = createPortDialogueSession(city, { initialNodeId: "japanese-matchlocks" });
+  gameState.cargo = Object.fromEntries(JAPANESE_MATCHLOCK_FETCH_STAGES.map((stage) => [
+    stage.goodId,
+    stage.quantity
+  ]));
+  gameState.accounts.cargoCostBasis = Object.fromEntries(JAPANESE_MATCHLOCK_FETCH_STAGES.map((stage) => [
+    stage.goodId,
+    stage.quantity * 10
+  ]));
+  for (const stage of JAPANESE_MATCHLOCK_FETCH_STAGES) {
+    const view = portDialogueView(session, city, gameState, economy, [city]);
+    const deliveryIndex = view.options.findIndex(
+      (entry) => entry.action.type === "deliver-japanese-matchlock-material"
+    );
+    assert.match(view.options[deliveryIndex].label, new RegExp(stage.goodLabel));
+    assert.equal(dialogueOptionIconId(view.options[deliveryIndex]), `good:${stage.goodId}`);
+    selectPortDialogueOption(session, city, gameState, economy, [city], deliveryIndex, {
+      simMinute: 500
+    });
+  }
+
+  const completed = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(completed.text, /Kyoto's smiths can make matchlocks of our own/i);
+  assert.equal(gameState.doubloons, startingDoubloons + JAPANESE_MATCHLOCK_COMPLETION_REWARD);
+  const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+  assert.equal(market.get(MATCHLOCKS_GOOD_ID).productionPerDay, 1.5);
+  assert.ok(market.get(MATCHLOCKS_GOOD_ID).listedForSale);
+
+  const root = createPortDialogueSession(city, { initialNodeId: "root" });
+  const gunsmithIndex = portDialogueView(root, city, gameState, economy, [city]).options.findIndex(
+    (entry) => entry.action.nodeId === "japanese-matchlocks"
+  );
+  assert.ok(gunsmithIndex >= 0);
+  assert.doesNotThrow(() => selectPortDialogueOption(
+    root,
+    city,
+    gameState,
+    economy,
+    [city],
+    gunsmithIndex
+  ));
+});
+
+function establishNagasakiQuest(gameState, kyoto) {
+  const target = {
+    ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
+    tileId: 66
+  };
+  const origin = {
+    tileId: 67,
+    city: "Lisbon",
+    country: "Portugal",
+    factionId: "portugal",
+    lat: 38.72,
+    lon: -9.14
+  };
+  assignColonizationQuest(gameState.memory.colonization, {
+    target,
+    origin,
+    approvalPort: { ...kyoto, factionId: "japan", lat: 35.01, lon: 135.77 }
+  });
+  for (const stage of colonizationQuestView(gameState).history.fetchStages) {
+    completeColonizationFetchStage(gameState.memory.colonization, stage.id);
+  }
+  beginColonizationExpedition(gameState.memory.colonization);
+  grantColonizationApproval(gameState.memory.colonization, { approvalCargoDelivered: true });
+  landColonists(gameState.memory.colonization, 100);
+  advanceColonizationQuest(gameState.memory.colonization, 101, { awayFromColony: true });
+  establishColony(gameState.memory.colonization, 102);
+}
 
 test("passenger dialogue can be declined and accepted later", () => {
   const origin = {

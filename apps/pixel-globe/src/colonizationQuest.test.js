@@ -200,6 +200,9 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
     { goodId: "matchlocks", quantity: 4 },
     { goodId: "gunpowder", quantity: 3 }
   ]);
+  assert.deepEqual(nagasaki.initialImports, [
+    { goodId: "matchlocks", quantity: 8 }
+  ]);
   assert.deepEqual(eligibleColonizationTargetsForOrigin(lisbon, [nagasaki]).map((target) => target.city), ["Nagasaki"]);
   assert.deepEqual(eligibleColonizationTargetsForOrigin(kyoto, [nagasaki]), []);
 

@@ -656,10 +656,12 @@ import {
 } from "./politics.js";
 import {
   BEAVER_PELTS_GOOD_ID,
+  MATCHLOCKS_GOOD_ID,
   addWorldEconomyPort,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
   createWorldEconomy,
+  establishPortIndustry,
   restoreWorldEconomy,
   snapshotWorldEconomy,
   tradeGoodById,
@@ -878,6 +880,16 @@ import {
   vikingLongshipRewardDisposition,
   vikingLongshipUnlocked
 } from "./vikingLongshipQuest.js";
+import {
+  JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY,
+  JAPANESE_MATCHLOCK_WORKSHOP_CITY,
+  japaneseMatchlockIndustryCompleted,
+  japaneseMatchlockOfferShouldApproach,
+  japaneseMatchlockQuestState,
+  isJapaneseMatchlockWorkshopCity,
+  markJapaneseMatchlockOfferSeen,
+  maybeSpawnJapaneseMatchlockQuest
+} from "./japaneseMatchlockQuest.js";
 import {
   beaverCatchNarrative,
   beaverCatchYield,
@@ -1761,6 +1773,7 @@ let usedCharacterNames = new Set();
 let portCityCharacters;
 let campaignGoalContact;
 let colonizationOrganizer;
+let japaneseMatchlockGunsmith;
 let colonizationTargetTileId = null;
 let colonizationTargetPlacements = [];
 let portSailingDistances;
@@ -3901,6 +3914,7 @@ function playerPortraitSourceExclusions(playerCharacter) {
 function assignPortCharactersForPlayer(playerCharacter) {
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
   colonizationOrganizer = null;
+  japaneseMatchlockGunsmith = null;
   usedCharacterNames = new Set([playerCharacter.name]);
   portCityCharacters = assignPortCityCharacters(
     portCities,
@@ -6450,6 +6464,7 @@ async function restoreSavedVoyage(payload) {
   syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
   const assets = await loadShipAssetSet(savedShip.typeSlug);
   restoreWorldEconomy(worldEconomy, payload.economy);
+  syncJapaneseMatchlockIndustry(restoredGameState);
   if (payload.landTrade) {
     restoreLandTradeSystem(landTradeSystem, payload.landTrade);
   } else {
@@ -7855,6 +7870,23 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       vikingLongshipApproach: true
     });
   }
+  const japaneseMatchlockOffer = maybeSpawnJapaneseMatchlockQuest(
+    gameState,
+    cityCall,
+    { simMinute }
+  );
+  if (japaneseMatchlockOffer &&
+      japaneseMatchlockOfferShouldApproach(gameState, cityCall) &&
+      !openDeliveryMission) {
+    ensureJapaneseMatchlockGunsmith(gameState);
+    markJapaneseMatchlockOfferSeen(gameState);
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      japaneseMatchlockApproach: true
+    });
+  }
   const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
   if (rumor) {
     const nextPortNodeId = needsLoadout
@@ -8987,6 +9019,14 @@ function currentDialogueCity() {
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
     if (portCall) {
+      if (dialogueState.nodeId === "japanese-matchlocks") {
+        const character = ensureJapaneseMatchlockGunsmith(gameState);
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
+      }
       if (dialogueState.nodeId !== "colonization") {
         if (dialogueState.nodeId !== "drunk-captain") return portCall;
         const character = gameState.playerCharacter;
@@ -9016,13 +9056,17 @@ function currentDialogueCity() {
   if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
   const approvalOfficial = isColonizationQuestApproval(gameState.memory.colonization, city) &&
     gameState.memory.colonization.approvalGranted !== true;
-  const questCharacter = dialogueState.kind === "port" && dialogueState.nodeId === "colonization"
-    ? city.colonizationQuestStage === COLONIZATION_STAGE_FAILED
-      ? gameState.playerCharacter
-      : approvalOfficial
-        ? portCityCharacters.get(city.tileId)
-        : colonizationOrganizer
-    : null;
+  const questCharacter = dialogueState.kind !== "port"
+    ? null
+    : dialogueState.nodeId === "japanese-matchlocks"
+      ? ensureJapaneseMatchlockGunsmith(gameState)
+      : dialogueState.nodeId === "colonization"
+        ? city.colonizationQuestStage === COLONIZATION_STAGE_FAILED
+          ? gameState.playerCharacter
+          : approvalOfficial
+            ? portCityCharacters.get(city.tileId)
+            : colonizationOrganizer
+        : null;
   const character = questCharacter || portCityCharacters?.get(city.tileId);
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
   return {
@@ -10024,6 +10068,44 @@ function ensureColonizationOrganizer(state, origin = null) {
     usedNames: usedCharacterNames
   });
   return colonizationOrganizer;
+}
+
+function japaneseMatchlockWorkshopPort() {
+  return portCities.find(isJapaneseMatchlockWorkshopCity) || null;
+}
+
+function ensureJapaneseMatchlockGunsmith(state) {
+  if (japaneseMatchlockGunsmith) return japaneseMatchlockGunsmith;
+  const workshopPort = japaneseMatchlockWorkshopPort();
+  if (!workshopPort) {
+    throw new Error(`${JAPANESE_MATCHLOCK_WORKSHOP_CITY} is missing from the dockable port roster`);
+  }
+  const factor = portCityCharacters.get(workshopPort.tileId);
+  if (!factor) throw new Error(`${cityLabelText(workshopPort)} has no generated port factor`);
+  japaneseMatchlockGunsmith = generateSpecialPortCharacter({
+    identityKey: `japanese-matchlock-gunsmith-${workshopPort.tileId}`,
+    port: workshopPort,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    role: "gunsmith",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  return japaneseMatchlockGunsmith;
+}
+
+function syncJapaneseMatchlockIndustry(state) {
+  if (!japaneseMatchlockIndustryCompleted(state)) return null;
+  const workshopPort = japaneseMatchlockWorkshopPort();
+  if (!workshopPort) {
+    throw new Error(`${JAPANESE_MATCHLOCK_WORKSHOP_CITY} is missing from the economy`);
+  }
+  return establishPortIndustry(
+    worldEconomy,
+    workshopPort,
+    MATCHLOCKS_GOOD_ID,
+    JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY,
+    { initialStock: 0 }
+  );
 }
 
 function worldPortPlacementOptions() {
@@ -16286,12 +16368,17 @@ function vikingLongshipQuestPort() {
 function currentFetchQuestRequirements() {
   if (!gameState) return [];
   const vikingPort = vikingLongshipQuestPort();
+  const japaneseMatchlockPort = japaneseMatchlockWorkshopPort();
   return fetchQuestRequirements({
     colonization: colonizationQuestView(gameState, {
       currentMinute: Math.max(0, weatherClockMinutes)
     }),
     viking: vikingPort ? vikingLongshipQuestState(gameState, vikingPort) : null,
-    vikingPort
+    vikingPort,
+    japaneseMatchlocks: japaneseMatchlockPort
+      ? japaneseMatchlockQuestState(gameState, japaneseMatchlockPort)
+      : null,
+    japaneseMatchlockPort
   });
 }
 
@@ -16342,6 +16429,15 @@ function questJournalEntries() {
   const viking = vikingPort ? vikingLongshipQuestState(gameState, vikingPort) : null;
   const vikingEntry = vikingLongshipJournalEntry(viking, vikingPort);
   if (vikingEntry) entries.push(vikingEntry);
+  const japaneseMatchlockPort = japaneseMatchlockWorkshopPort();
+  const japaneseMatchlocks = japaneseMatchlockPort
+    ? japaneseMatchlockQuestState(gameState, japaneseMatchlockPort)
+    : null;
+  const japaneseMatchlockEntry = japaneseMatchlockJournalEntry(
+    japaneseMatchlocks,
+    japaneseMatchlockPort
+  );
+  if (japaneseMatchlockEntry) entries.push(japaneseMatchlockEntry);
   return entries;
 }
 
@@ -16431,6 +16527,21 @@ function vikingLongshipJournalEntry(quest, port) {
     nextStep,
     style: QUEST_NAVIGATION_STYLE
   } : null;
+}
+
+function japaneseMatchlockJournalEntry(quest, port) {
+  if (!quest?.fetchStage || !port) return null;
+  return {
+    id: "japanese-matchlocks",
+    title: uiText("quest.matchlockIndustry"),
+    nextStep: fetchQuestJournalStep({
+      held: quest.held,
+      quantity: quest.fetchStage.quantity,
+      goodLabel: quest.fetchStage.goodLabel,
+      destination: port
+    }),
+    style: QUEST_NAVIGATION_STYLE
+  };
 }
 
 function fetchQuestJournalStep({ held, quantity, goodLabel, destination }) {
@@ -16684,7 +16795,7 @@ function navigationMenuEntries() {
     entries.push({
       id: `fetch:${fetchTarget.id}`,
       destinationName: cityLabelText(destination),
-      reason: uiText("navigation.deliverLongshipMaterials"),
+      reason: fetchQuestNavigationReason(fetchTarget),
       style: QUEST_NAVIGATION_STYLE,
       targetVector: latLonToDirection(destination.lat, destination.lon),
       optionalWaypointId: null
@@ -16706,6 +16817,16 @@ function navigationMenuEntries() {
     });
   }
   return entries;
+}
+
+function fetchQuestNavigationReason(fetchTarget) {
+  if (fetchTarget.questId === "viking-longship") {
+    return uiText("navigation.deliverLongshipMaterials");
+  }
+  if (fetchTarget.questId === "japanese-matchlocks") {
+    return uiText("navigation.deliverWorkshopMaterials");
+  }
+  throw new Error(`Unknown fetch quest navigation reason: ${fetchTarget.questId}`);
 }
 
 function activeColonizationObjective() {

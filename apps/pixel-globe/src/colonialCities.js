@@ -255,6 +255,9 @@ export const COLONIZATION_TARGETS = Object.freeze([
       { goodId: "matchlocks", quantity: 4 },
       { goodId: "gunpowder", quantity: 3 }
     ],
+    initialImports: [
+      { goodId: "matchlocks", quantity: 8 }
+    ],
     region: "japan",
     waterAccess: "coastal",
     datasetFirstYear: 1583,
@@ -500,6 +503,7 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     originCountry: details.originCountry || null,
     approvalFactionId: details.approvalFactionId || null,
     approvalCargo: colonizationApprovalCargo(details.approvalCargo),
+    initialImports: colonizationInitialImports(details.initialImports),
     historicalPower: details.historicalPower || null,
     label: details.label || type,
     region: details.region || null,
@@ -525,6 +529,21 @@ function colonizationApprovalCargo(value) {
       throw new Error(`Invalid colonization approval cargo: ${entry?.goodId || "missing"}`);
     }
     if (seen.has(entry.goodId)) throw new Error(`Duplicate colonization approval cargo: ${entry.goodId}`);
+    seen.add(entry.goodId);
+    return Object.freeze({ goodId: entry.goodId, quantity: entry.quantity });
+  }));
+}
+
+function colonizationInitialImports(value) {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value)) throw new Error("Colonization initial imports must be an array");
+  const seen = new Set();
+  return Object.freeze(value.map((entry) => {
+    if (!entry || !/^[a-z0-9][a-z0-9-]*$/.test(entry.goodId) ||
+        !Number.isInteger(entry.quantity) || entry.quantity <= 0) {
+      throw new Error(`Invalid colonization initial import: ${entry?.goodId || "missing"}`);
+    }
+    if (seen.has(entry.goodId)) throw new Error(`Duplicate colonization initial import: ${entry.goodId}`);
     seen.add(entry.goodId);
     return Object.freeze({ goodId: entry.goodId, quantity: entry.quantity });
   }));

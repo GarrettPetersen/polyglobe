@@ -181,6 +181,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   sell: "action:sell",
   quest: "action:quest",
   "viking-longship": "action:viking",
+  "japanese-matchlocks": "good:matchlocks",
   colonization: "action:quest",
   marque: "action:letter",
   cargo: "action:inventory"
@@ -214,6 +215,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "decline-viking-longship-reward": "action:leave",
   "purchase-ship": "action:shipyard",
   "deliver-viking-material": "action:quest",
+  "deliver-japanese-matchlock-material": "action:quest",
   "deliver-colonization-material": "action:quest",
   "grant-colony-permission": "action:letter",
   "embark-colonists": "action:passenger",

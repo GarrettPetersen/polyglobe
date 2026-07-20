@@ -18,6 +18,7 @@ import {
   advanceWorldEconomy,
   connectNearbyPortMarkets,
   createWorldEconomy,
+  establishPortIndustry,
   executePortPurchase,
   executePortSale,
   maximumPortPurchaseQuantity,
@@ -55,6 +56,7 @@ const FIJI = port(6, "Fiji Village", "Fiji", "polynesian", 3500, "village", ["fi
 const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", [NUTMEG_GOOD_ID, "fish", "timber"]);
 const COLOMBO = port(9, "Colombo", "Sri Lanka", "south-asian", 12000);
 const MALACCA = port(10, "Malacca", "Malaysia", "southeast-asian", 90000);
+const KYOTO = port(11, "Kyoto", "Japan", "east-asian", 100000);
 const CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
   new URL(
     "../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
@@ -85,18 +87,60 @@ test("wine is a drink rather than edible cargo", () => {
   assert.notEqual(tradeGoodById(WINE_GOOD_ID).category, "food");
 });
 
-test("European matchlocks and Eurasian gunpowder support a valuable Japan trade", () => {
+test("1522 arms markets separate domestic gunpowder from imported matchlocks", () => {
   const lisbon = port(70, "Lisbon", "Portugal", "mediterranean", 65000);
   const kyoto = port(71, "Kyoto", "Japan", "east-asian", 100000);
-  const economy = createWorldEconomy({ ports: [lisbon, kyoto], startMinute: 0 });
+  const guangzhou = port(72, "Guangzhou", "Ming", "east-asian", 100000);
+  const istanbul = port(73, "Istanbul", "Ottoman Empire", "mediterranean", 140000);
+  const goa = port(74, "Goa", "Portugal", "south-asian", 65000);
+  const economy = createWorldEconomy({
+    ports: [lisbon, kyoto, guangzhou, istanbul, goa],
+    startMinute: 0
+  });
   const lisbonMarket = marketByGood(economy, lisbon);
   const kyotoMarket = marketByGood(economy, kyoto);
+  const guangzhouMarket = marketByGood(economy, guangzhou);
+  const istanbulMarket = marketByGood(economy, istanbul);
+  const goaMarket = marketByGood(economy, goa);
 
   assert.ok(lisbonMarket.get(GUNPOWDER_GOOD_ID).productionPerDay > 0);
   assert.ok(kyotoMarket.get(GUNPOWDER_GOOD_ID).productionPerDay > 0);
+  assert.ok(guangzhouMarket.get(GUNPOWDER_GOOD_ID).productionPerDay > 0);
+  assert.equal(guangzhouMarket.get(GUNPOWDER_GOOD_ID).listedForSale, true);
   assert.ok(lisbonMarket.get(MATCHLOCKS_GOOD_ID).productionPerDay > 0);
+  assert.ok(istanbulMarket.get(MATCHLOCKS_GOOD_ID).productionPerDay > 0);
+  assert.ok(goaMarket.get(MATCHLOCKS_GOOD_ID).productionPerDay > 0);
   assert.equal(kyotoMarket.get(MATCHLOCKS_GOOD_ID).productionPerDay, 0);
+  assert.equal(guangzhouMarket.get(MATCHLOCKS_GOOD_ID).productionPerDay, 0);
+  assert.equal(kyotoMarket.get(MATCHLOCKS_GOOD_ID).listedForSale, false);
+  assert.equal(guangzhouMarket.get(MATCHLOCKS_GOOD_ID).listedForSale, false);
   assert.ok(lisbonMarket.get(MATCHLOCKS_GOOD_ID).buyPrice < kyotoMarket.get(MATCHLOCKS_GOOD_ID).sellPrice);
+  assert.ok(lisbonMarket.get(MATCHLOCKS_GOOD_ID).buyPrice < guangzhouMarket.get(MATCHLOCKS_GOOD_ID).sellPrice);
+
+  executePortPurchase(economy, guangzhou, MATCHLOCKS_GOOD_ID, 10);
+  assert.equal(marketByGood(economy, guangzhou).get(MATCHLOCKS_GOOD_ID).listedForSale, true);
+});
+
+test("a completed Kyoto workshop creates persistent matchlock production and input demand", () => {
+  const economy = createWorldEconomy({ ports: [KYOTO], startMinute: 0 });
+  const before = marketByGood(economy, KYOTO);
+  const result = establishPortIndustry(economy, KYOTO, MATCHLOCKS_GOOD_ID, 1.5, {
+    initialStock: 6
+  });
+  const after = marketByGood(economy, KYOTO);
+
+  assert.equal(result.created, true);
+  assert.equal(after.get(MATCHLOCKS_GOOD_ID).productionPerDay, 1.5);
+  assert.ok(after.get(MATCHLOCKS_GOOD_ID).stock >= before.get(MATCHLOCKS_GOOD_ID).stock + 6);
+  assert.ok(after.get("iron").consumptionPerDay > before.get("iron").consumptionPerDay);
+  assert.ok(after.get("timber").consumptionPerDay > before.get("timber").consumptionPerDay);
+  assert.ok(after.get(GUNPOWDER_GOOD_ID).consumptionPerDay > before.get(GUNPOWDER_GOOD_ID).consumptionPerDay);
+
+  const snapshot = snapshotWorldEconomy(economy);
+  const restored = createWorldEconomy({ ports: [KYOTO], startMinute: 0 });
+  restoreWorldEconomy(restored, snapshot);
+  assert.equal(marketByGood(restored, KYOTO).get(MATCHLOCKS_GOOD_ID).productionPerDay, 1.5);
+  assert.equal(establishPortIndustry(restored, KYOTO, MATCHLOCKS_GOOD_ID, 1.5).created, false);
 });
 
 test("cargo lots create a clear value-per-hold hierarchy without inflating nominal prices", () => {

@@ -40,6 +40,8 @@ import {
 import {
   FRESH_WATER_GOOD_ID,
   HARDTACK_GOOD_ID,
+  MATCHLOCKS_GOOD_ID,
+  establishPortIndustry,
   maximumPortPurchaseQuantity,
   portEconomySummary,
   portMarket,
@@ -103,6 +105,15 @@ import {
   markColonizationOrganizerApproached
 } from "./colonizationQuest.js";
 import {
+  JAPANESE_MATCHLOCK_COMPLETION_REWARD,
+  JAPANESE_MATCHLOCK_INITIAL_STOCK,
+  JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY,
+  assertJapaneseMatchlockDelivery,
+  completeJapaneseMatchlockFetchStage,
+  japaneseMatchlockQuestState,
+  markJapaneseMatchlockOfferSeen
+} from "./japaneseMatchlockQuest.js";
+import {
   MING_FACTION_ID,
   MING_ILLICIT_MARKET_REPUTATION_PENALTY,
   mingTradeAccess,
@@ -156,6 +167,7 @@ export function createPortDialogueSession(city, options = {}) {
     shipHandover: null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
+    japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
     vikingLongshipArrival: options.vikingLongshipArrival === true,
     selectedIndex: 0,
     feedback: null
@@ -200,6 +212,17 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       postDrunkNodeId: arrivedDrunk ? "viking-longship" : null,
       drunkVariant,
       vikingLongshipArrival: true,
+      admittedToPort: true
+    });
+  }
+  if (options.japaneseMatchlockApproach === true) {
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    return createPortDialogueSession(city, {
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "japanese-matchlocks",
+      nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? "japanese-matchlocks" : null,
+      drunkVariant,
+      japaneseMatchlockArrival: true,
       admittedToPort: true
     });
   }
@@ -729,6 +752,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
+  if (session.nodeId === "japanese-matchlocks") {
+    return japaneseMatchlockView(session, city, gameState);
+  }
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
@@ -801,11 +827,15 @@ export function selectPortDialogueOption(
     if (action.nodeId === "sell") session.marketSales = 0;
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
     if (action.nodeId === "viking-longship") markVikingLongshipOfferSeen(gameState);
+    if (action.nodeId === "japanese-matchlocks") markJapaneseMatchlockOfferSeen(gameState);
     if (session.nodeId === "colonization" && action.nodeId !== "colonization") {
       session.colonizationArrival = false;
     }
     if (session.nodeId === "viking-longship" && action.nodeId !== "viking-longship") {
       session.vikingLongshipArrival = false;
+    }
+    if (session.nodeId === "japanese-matchlocks" && action.nodeId !== "japanese-matchlocks") {
+      session.japaneseMatchlockArrival = false;
     }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
@@ -934,6 +964,51 @@ export function selectPortDialogueOption(
     session.feedback = `Delivered ${result.completedStage.goodLabel} x${result.completedStage.quantity}.`;
     session.selectedIndex = 0;
     return { closed: false, vikingLongshipDelivery: result };
+  }
+  if (action.type === "deliver-japanese-matchlock-material") {
+    const stage = assertJapaneseMatchlockDelivery(gameState, city, action.stageId);
+    const delivery = deliverQuestCargo(
+      gameState,
+      city,
+      stage.goodId,
+      stage.quantity,
+      `japanese-matchlocks.${stage.id}`,
+      context
+    );
+    const result = completeJapaneseMatchlockFetchStage(
+      gameState,
+      city,
+      action.stageId,
+      context.simMinute ?? 0
+    );
+    let industry = null;
+    let payment = null;
+    if (result.quest.completed) {
+      industry = establishPortIndustry(
+        economy,
+        city,
+        MATCHLOCKS_GOOD_ID,
+        JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY,
+        { initialStock: JAPANESE_MATCHLOCK_INITIAL_STOCK }
+      );
+      payment = receiveQuestPayment(
+        gameState,
+        city,
+        JAPANESE_MATCHLOCK_COMPLETION_REWARD,
+        "Japanese matchlock workshop",
+        context
+      );
+      session.feedback = `The Kyoto workshop is producing matchlocks. Paid ${payment.amount} db.`;
+    } else {
+      session.feedback = `Delivered ${stage.goodLabel} x${stage.quantity}.`;
+    }
+    session.selectedIndex = 0;
+    return {
+      closed: false,
+      japaneseMatchlockDelivery: delivery,
+      japaneseMatchlockIndustry: industry,
+      japaneseMatchlockPayment: payment
+    };
   }
   if (action.type === "deliver-colonization-material") {
     const quest = colonizationQuestView(gameState, { currentMinute: context.simMinute ?? 0 });
@@ -1460,6 +1535,12 @@ function rootView(session, city, gameState, economy, context) {
       nodeId: "viking-longship"
     }));
   }
+  if (japaneseMatchlockQuestState(gameState, city) && !session.disguisedEntry) {
+    options.splice(4, 0, option("Speak with the gunsmith", {
+      type: "node",
+      nodeId: "japanese-matchlocks"
+    }));
+  }
   if (isColonizationQuestOrigin(gameState.memory.colonization, city) && !session.disguisedEntry) {
     const sponsorRole = colonizationQuestView(gameState).history?.sponsorRole || "expedition sponsor";
     options.splice(4, 0, option(`Speak with the ${sponsorRole}`, {
@@ -1636,6 +1717,49 @@ function vikingLongshipView(session, city, gameState, context) {
       }, {
         disabled: Boolean(disabledReason),
         disabledReason
+      }),
+      back
+    ]
+  };
+}
+
+function japaneseMatchlockView(session, city, gameState) {
+  const quest = japaneseMatchlockQuestState(gameState, city);
+  if (!quest) throw new Error("Japanese matchlock dialogue opened before its offer spawned");
+  const speaker = `${characterName(city.character)}, gunsmith`;
+  const back = session.japaneseMatchlockArrival
+    ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    : option("Back", { type: "node", nodeId: "root" });
+  if (quest.completed) {
+    return {
+      speaker,
+      expressionId: "pleased",
+      text: "The proof barrels held. We no longer depend on every gun crossing the sea through Nagasaki; Kyoto's smiths can make matchlocks of our own now.",
+      feedback: session.feedback,
+      options: [back]
+    };
+  }
+
+  const stage = quest.fetchStage;
+  const requests = [
+    "The Portuguese pieces brought through Nagasaki are ingenious, but an imported weapon teaches little from behind glass. Bring me two matchlocks. I will take their locks apart and learn every screw and spring.",
+    "The lock is simpler than its makers pretend. The barrel is the true test. Bring me good iron, and our forges will answer it.",
+    "The first barrels have survived proof. Now we need seasoned timber for stocks and straight ramrods before a soldier can shoulder them.",
+    "The first workshop batch is ready for proof. Bring gunpowder, and we shall learn whether Kyoto can make a matchlock worthy of battle."
+  ];
+  return {
+    speaker,
+    expressionId: quest.canDeliver ? "pleased" : "attentive",
+    text: requests[quest.fetchStageIndex],
+    feedback: session.feedback,
+    options: [
+      option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {
+        type: "deliver-japanese-matchlock-material",
+        stageId: stage.id,
+        goodId: stage.goodId
+      }, {
+        disabled: !quest.canDeliver,
+        disabledReason: `Need ${stage.quantity} ${stage.goodLabel.toLowerCase()}; hold has ${quest.held}.`
       }),
       back
     ]

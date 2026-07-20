@@ -80,8 +80,14 @@ export const TRADE_GOODS = Object.freeze([
   good("copper", "Copper", 30, "material", { unitSize: 3 }),
   good("tin", "Tin", 32, "material", { unitSize: 3 }),
   good("arms", "Arms", 50, "manufactured", { unitSize: 2 }),
-  good(GUNPOWDER_GOOD_ID, "Gunpowder", 44, "manufactured", { unitSize: 2 }),
-  good(MATCHLOCKS_GOOD_ID, "Matchlocks", 88, "manufactured", { unitSize: 2 }),
+  good(GUNPOWDER_GOOD_ID, "Gunpowder", 44, "manufactured", {
+    unitSize: 2,
+    initialImportStockRatio: 0.08
+  }),
+  good(MATCHLOCKS_GOOD_ID, "Matchlocks", 88, "manufactured", {
+    unitSize: 2,
+    initialImportStockRatio: 0.08
+  }),
   good("linen-cloth", "Linen Cloth", 34, "textile", { unitSize: 2 }),
   good("wool-cloth", "Wool Cloth", 38, "textile", { unitSize: 2 }),
   good("cotton-cloth", "Cotton Cloth", 40, "textile", { unitSize: 2 }),
@@ -191,9 +197,10 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Genova", ["silver"]),
   specialty("Genoa", ["silver"]),
   specialty("Alexandria", ["cotton-cloth"]),
-  specialty("Istanbul", ["carpets"]),
+  specialty("Istanbul", ["carpets", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
+  specialty("Tabriz", ["carpets", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
   specialty("Cairo", ["artwork"]),
-  specialty("Goa", ["pepper"]),
+  specialty("Goa", ["pepper", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
   specialty("Colombo", [CINNAMON_GOOD_ID]),
   specialty("Aden", ["coffee"]),
   specialty("Jeddah", ["coffee"]),
@@ -216,10 +223,10 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Veracruz", ["cacao", "gold"]),
   specialty("Nombre de Dios", ["gold"]),
   specialty("Panama City", ["gold"]),
-  specialty("Beijing", ["porcelain"]),
+  specialty("Beijing", ["porcelain", GUNPOWDER_GOOD_ID]),
   specialty("Hangzhou", ["silk", "silk-cloth"]),
-  specialty("Guangzhou", ["porcelain", "tea"]),
-  specialty("Nanjing", ["silk-cloth", "porcelain"]),
+  specialty("Guangzhou", ["porcelain", "tea", GUNPOWDER_GOOD_ID]),
+  specialty("Nanjing", ["silk-cloth", "porcelain", GUNPOWDER_GOOD_ID]),
   specialty("Kyoto", ["silk-cloth"]),
   specialty("Nagasaki", ["silver"]),
   specialty("Mexico City", ["cacao", "gold"]),
@@ -343,6 +350,24 @@ export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMi
   return { port: state, shipyard: yard };
 }
 
+export function establishPortIndustry(
+  economy,
+  city,
+  goodId,
+  productionPerDay,
+  { initialStock = 0 } = {}
+) {
+  assertEconomy(economy);
+  if (!Number.isFinite(productionPerDay) || productionPerDay <= 0) {
+    throw new Error(`Invalid port industry production: ${goodId}=${productionPerDay}`);
+  }
+  if (!Number.isInteger(initialStock) || initialStock < 0) {
+    throw new Error(`Invalid port industry initial stock: ${goodId}=${initialStock}`);
+  }
+  const port = requiredPortState(economy, city);
+  return establishIndustryAtPort(port, goodId, productionPerDay, initialStock);
+}
+
 export function worldEconomyHasPort(economy, port) {
   assertEconomy(economy);
   return economy.portStates.has(requiredPortId(port));
@@ -357,6 +382,9 @@ export function snapshotWorldEconomy(economy) {
       id: port.id,
       specie: port.specie,
       targetSpecie: port.targetSpecie,
+      industries: [...port.goods.entries()]
+        .filter(([, state]) => state.industryProductionPerDay > 0)
+        .map(([goodId, state]) => [goodId, state.industryProductionPerDay]),
       stocks: [...port.goods.entries()].map(([goodId, state]) => [goodId, state.stock])
     })),
     shipyards: snapshotWorldShipyards(economy.shipyards)
@@ -382,6 +410,7 @@ export function restoreWorldEconomy(economy, snapshot) {
     if (saved.stocks.length !== port.goods.size) {
       throw new Error(`Saved economy goods do not match port: ${saved.id}`);
     }
+    validateSavedIndustries(saved.industries, saved.id);
     for (const [goodId, stock] of saved.stocks) {
       const good = port.goods.get(goodId);
       if (!good) throw new Error(`Saved economy good is missing: ${saved.id}/${goodId}`);
@@ -393,6 +422,9 @@ export function restoreWorldEconomy(economy, snapshot) {
   restoreWorldShipyards(economy.shipyards, snapshot.shipyards);
   for (const saved of snapshot.ports) {
     const port = economy.portStates.get(saved.id);
+    for (const [goodId, productionPerDay] of saved.industries || []) {
+      establishIndustryAtPort(port, goodId, productionPerDay, 0);
+    }
     for (const [goodId, stock] of saved.stocks) port.goods.get(goodId).stock = stock;
     const savedTargetSpecie = saved.targetSpecie ?? legacyTargetSpecie(port);
     port.specie = saved.specie * port.targetSpecie / savedTargetSpecie;
@@ -676,6 +708,7 @@ function createPortState(port) {
       (stapleDemand + (demandProfile[good.id] || 0));
     goods.set(good.id, {
       productionPerDay: productionRate,
+      industryProductionPerDay: 0,
       householdConsumptionPerDay,
       consumptionPerDay: householdConsumptionPerDay,
       targetStock: 0,
@@ -695,13 +728,12 @@ function createPortState(port) {
 
   for (const good of TRADE_GOODS) {
     const state = goods.get(good.id);
-    const ordinaryTargetStock = Math.max(3, state.productionPerDay * 28 + state.consumptionPerDay * 22);
-    state.targetStock = state.localAbundancePriceMultiplier < 1
-      ? Math.max(SOURCE_SPICE_MINIMUM_TARGET_STOCK, ordinaryTargetStock)
-      : ordinaryTargetStock;
+    state.targetStock = targetStockForState(state);
     const stockVariance = 0.82 + hashUnit(`${port.tileId}|${good.id}|stock`) * 0.36;
-    state.stock = state.targetStock * stockVariance;
+    const initialStockRatio = state.productionPerDay > 0 ? 1 : good.initialImportStockRatio;
+    state.stock = state.targetStock * stockVariance * initialStockRatio;
   }
+  applyInitialPortImports(goods, port.initialImports, port.displayCity || port.city);
 
   const marketGoodIds = declaredMarketGoodIds || (settlementType === "village"
     ? new Set([...goods.entries()]
@@ -978,11 +1010,97 @@ function stapleDemandRate(category) {
   throw new Error(`Unknown trade category: ${category}`);
 }
 
+function establishIndustryAtPort(port, goodId, productionPerDay, initialStock) {
+  const good = tradeGoodById(goodId);
+  if (good.alwaysAvailable) throw new Error(`${port.name} cannot establish an industry for ${good.label}`);
+  const state = port.goods.get(goodId);
+  if (!state) throw new Error(`${port.name} has no economy state for ${good.label}`);
+  if (state.industryProductionPerDay > 0) {
+    if (Math.abs(state.industryProductionPerDay - productionPerDay) > 1e-9) {
+      throw new Error(
+        `${port.name} ${good.label} industry is ${state.industryProductionPerDay}; ` +
+        `cannot replace it with ${productionPerDay}`
+      );
+    }
+    return Object.freeze({
+      created: false,
+      good,
+      productionPerDay: state.industryProductionPerDay,
+      stock: Math.floor(state.stock)
+    });
+  }
+
+  state.industryProductionPerDay = productionPerDay;
+  state.productionPerDay += productionPerDay;
+  state.targetStock = targetStockForState(state);
+  for (const [inputGoodId, unitsPerOutput] of Object.entries(PRODUCTION_INPUTS[goodId] || {})) {
+    const inputState = port.goods.get(inputGoodId);
+    inputState.consumptionPerDay += productionPerDay * unitsPerOutput;
+    inputState.targetStock = targetStockForState(inputState);
+  }
+  state.stock += initialStock;
+  return Object.freeze({
+    created: true,
+    good,
+    productionPerDay,
+    stock: Math.floor(state.stock)
+  });
+}
+
+function targetStockForState(state) {
+  const ordinaryTargetStock = Math.max(
+    3,
+    state.productionPerDay * 28 + state.consumptionPerDay * 22
+  );
+  return state.localAbundancePriceMultiplier < 1
+    ? Math.max(SOURCE_SPICE_MINIMUM_TARGET_STOCK, ordinaryTargetStock)
+    : ordinaryTargetStock;
+}
+
+function applyInitialPortImports(goods, imports, portName) {
+  if (imports === undefined) return;
+  if (!Array.isArray(imports)) throw new Error(`${portName} initial imports must be an array`);
+  const seen = new Set();
+  for (const entry of imports) {
+    if (!entry || typeof entry.goodId !== "string" ||
+        !Number.isInteger(entry.quantity) || entry.quantity <= 0) {
+      throw new Error(`Invalid initial import at ${portName}: ${entry?.goodId || "missing"}`);
+    }
+    if (seen.has(entry.goodId)) throw new Error(`Duplicate initial import at ${portName}: ${entry.goodId}`);
+    seen.add(entry.goodId);
+    tradeGoodById(entry.goodId);
+    const state = goods.get(entry.goodId);
+    state.stock = Math.max(state.stock, entry.quantity);
+  }
+}
+
+function validateSavedIndustries(industries, portId) {
+  if (industries === undefined) return;
+  if (!Array.isArray(industries)) throw new Error(`Invalid saved industries for port: ${portId}`);
+  const seen = new Set();
+  for (const entry of industries) {
+    if (!Array.isArray(entry) || entry.length !== 2) {
+      throw new Error(`Invalid saved industry for port: ${portId}`);
+    }
+    const [goodId, productionPerDay] = entry;
+    const good = tradeGoodById(goodId);
+    if (good.alwaysAvailable || !Number.isFinite(productionPerDay) || productionPerDay <= 0) {
+      throw new Error(`Invalid saved industry: ${portId}/${goodId}=${productionPerDay}`);
+    }
+    if (seen.has(goodId)) throw new Error(`Duplicate saved industry: ${portId}/${goodId}`);
+    seen.add(goodId);
+  }
+}
+
 function good(id, label, basePrice, category, options = {}) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`Invalid trade good id: ${id}`);
   if (!Number.isInteger(basePrice) || basePrice <= 0) throw new Error(`Invalid base price for ${id}`);
   const unitSize = options.unitSize ?? 1;
   if (!Number.isInteger(unitSize) || unitSize <= 0) throw new Error(`Invalid unit size for ${id}`);
+  const initialImportStockRatio = options.initialImportStockRatio ?? 1;
+  if (!Number.isFinite(initialImportStockRatio) || initialImportStockRatio < 0 || initialImportStockRatio > 1) {
+    throw new Error(`Invalid initial import stock ratio for ${id}: ${initialImportStockRatio}`);
+  }
   return Object.freeze({
     id,
     label,
@@ -991,6 +1109,7 @@ function good(id, label, basePrice, category, options = {}) {
     unitSize,
     alwaysAvailable: options.alwaysAvailable === true,
     fixedBuyPrice: Number.isFinite(options.fixedBuyPrice) ? options.fixedBuyPrice : null,
+    initialImportStockRatio,
     npcTrade: options.npcTrade !== false,
     sellable: options.sellable !== false
   });

@@ -638,7 +638,8 @@ export function colonizationWorldRecord(memory) {
     hiddenSettlement: outbound,
     colonyBurning: failed,
     playerFoundedColony: upgraded,
-    purchaseDiscountMultiplier: upgraded ? COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER : 1
+    purchaseDiscountMultiplier: upgraded ? COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER : 1,
+    initialImports: upgraded ? target.initialImports : []
   };
 }
 

@@ -1,4 +1,10 @@
-export function fetchQuestRequirements({ colonization = null, viking = null, vikingPort = null } = {}) {
+export function fetchQuestRequirements({
+  colonization = null,
+  japaneseMatchlocks = null,
+  japaneseMatchlockPort = null,
+  viking = null,
+  vikingPort = null
+} = {}) {
   const requirements = [];
 
   if (colonization?.target) {
@@ -44,6 +50,17 @@ export function fetchQuestRequirements({ colonization = null, viking = null, vik
       good: viking.stage,
       held: viking.held,
       destination: vikingPort
+    }));
+  }
+
+  if (japaneseMatchlocks?.fetchStage && japaneseMatchlockPort) {
+    requirements.push(requirement({
+      id: `japanese-matchlocks:${japaneseMatchlocks.fetchStage.id}`,
+      questId: "japanese-matchlocks",
+      stageId: japaneseMatchlocks.fetchStage.id,
+      good: japaneseMatchlocks.fetchStage,
+      held: japaneseMatchlocks.held,
+      destination: japaneseMatchlockPort
     }));
   }
 

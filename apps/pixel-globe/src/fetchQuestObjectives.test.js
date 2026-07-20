@@ -75,6 +75,32 @@ test("colonization resupply and Viking materials become independent fetch destin
   assert.deepEqual(destinations.map((entry) => entry.destination.city), ["Nagasaki", "Hafnarfjordur"]);
 });
 
+test("Japanese workshop materials point to Kyoto only when the current request is complete", () => {
+  const japaneseMatchlocks = {
+    fetchStage: {
+      id: "study-portuguese-locks",
+      goodId: "matchlocks",
+      goodLabel: "Matchlocks",
+      quantity: 2
+    },
+    held: 1
+  };
+  let requirements = fetchQuestRequirements({
+    japaneseMatchlocks,
+    japaneseMatchlockPort: KYOTO
+  });
+  assert.equal(requirements[0].routeReady, false);
+  assert.deepEqual(readyFetchQuestDestinations(requirements), []);
+
+  requirements = fetchQuestRequirements({
+    japaneseMatchlocks: { ...japaneseMatchlocks, held: 2 },
+    japaneseMatchlockPort: KYOTO
+  });
+  const destination = readyFetchQuestDestinations(requirements)[0];
+  assert.equal(destination.questId, "japanese-matchlocks");
+  assert.equal(destination.destination.city, "Kyoto");
+});
+
 test("readiness transitions announce once per threshold crossing", () => {
   const requirement = (held) => fetchQuestRequirements({
     viking: {
