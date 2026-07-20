@@ -13,6 +13,7 @@
 
 ## Capsule Art
 - Anonymous British School - "The Embarkation of Henry VIII at Dover" (circa 1520-1540, public domain; Royal Collection / Wikimedia Commons)
+- CraftPix / Free Game Assets - "Free Sky with Clouds Background Pixel Art Set" (CraftPix Freebie License; heavily modified for capsule art)
 
 ## 3D Models
 - Palmov Island - "Low Poly Cartoon Sailing Ships" (Standard Unity Asset Store EULA)

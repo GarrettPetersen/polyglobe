@@ -45,9 +45,10 @@ test("capsule generator produces the active ship client icon comparison", async 
 });
 
 test("capsule art documents and preserves its authored layer order", async () => {
-  const [generator, readme] = await Promise.all([
+  const [generator, readme, credits] = await Promise.all([
     readFile(new URL("../tools/generate-layered-capsule-art.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../capsule_art/README.md", import.meta.url), "utf8")
+    readFile(new URL("../capsule_art/README.md", import.meta.url), "utf8"),
+    readFile(new URL("../public/assets/CREDITS.md", import.meta.url), "utf8")
   ]);
   assert.match(
     generator,
@@ -61,6 +62,10 @@ test("capsule art documents and preserves its authored layer order", async () =>
   assert.match(readme, /background\.png[\s\S]*reflection\.png[\s\S]*upper_text\.png[\s\S]*ship\.png[\s\S]*lower_text\.png/);
   assert.match(readme, /library_logo_en\.png.*only the two text layers/);
   assert.match(readme, /original waterline/);
+  assert.match(
+    credits,
+    /CraftPix \/ Free Game Assets - "Free Sky with Clouds Background Pixel Art Set" \(CraftPix Freebie License; heavily modified for capsule art\)/
+  );
 });
 
 test("main capsule is the exact authored five-layer composition", async () => {
