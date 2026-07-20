@@ -1325,7 +1325,7 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
 
   state.survival.foodRationDebt += elapsedDays * consumption.foodConsumers;
   while (state.survival.foodRationDebt >= 1) {
-    const consumed = consumePreferredFoodRation(state);
+    const consumed = consumeCheapestFoodRation(state);
     if (!consumed) {
       result.starved = true;
       break;
@@ -2553,19 +2553,9 @@ function edibleCargoRows(state) {
     .filter((row) => row.quantity > 0);
 }
 
-function consumePreferredFoodRation(state) {
+function consumeCheapestFoodRation(state) {
   const candidates = edibleCargoRows(state)
-    .map((row) => {
-      const basis = cargoCostBasis(state, row.good.id);
-      return {
-        ...row,
-        consumptionPriority: row.good.id === HARDTACK_GOOD_ID ? 0 : 1,
-        averageCost: basis.known ? basis.average : row.good.basePrice
-      };
-    })
     .sort((a, b) => (
-      a.consumptionPriority - b.consumptionPriority ||
-      a.averageCost - b.averageCost ||
       a.good.basePrice - b.good.basePrice ||
       a.good.label.localeCompare(b.good.label)
     ));
