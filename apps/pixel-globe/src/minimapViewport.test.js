@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   MINIMAP_LONGITUDE_BIN_COUNT,
   exploredMinimapViewport,
+  minimapLandWeight,
   minimapLongitudeBin,
   minimapProjectLatitude,
   minimapProjectLongitude,
@@ -17,6 +18,12 @@ import {
 const WORLD_W = 80;
 const WORLD_H = 26;
 const MAX_LAT = 72;
+
+test("river terrain is water on every minimap raster", () => {
+  assert.equal(minimapLandWeight({ t: "grass" }, false), 1);
+  assert.equal(minimapLandWeight({ t: "grass" }, true), 0);
+  assert.equal(minimapLandWeight({ t: "water" }, false), 0);
+});
 
 test("a Mediterranean voyage produces a local aspect-correct minimap", () => {
   const exploration = explorationFor([

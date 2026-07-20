@@ -1,5 +1,16 @@
 export const MINIMAP_LONGITUDE_BIN_COUNT = 720;
 
+export function minimapLandWeight(row, containsRiver = false) {
+  if (typeof containsRiver !== "boolean") {
+    throw new Error(`Invalid minimap river flag: ${containsRiver}`);
+  }
+  if (containsRiver) return 0;
+  const terrain = row?.t || "";
+  if (terrain === "water" || terrain === "lake" || terrain === "beach") return 0;
+  if (terrain === "ice" && row.m == null) return 0.15;
+  return 1;
+}
+
 export function minimapProjectLongitude(lonDeg, worldWidth) {
   assertFinitePositive("minimap world width", worldWidth);
   if (!Number.isFinite(lonDeg)) throw new Error(`Invalid minimap longitude: ${lonDeg}`);

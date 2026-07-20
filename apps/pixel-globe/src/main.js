@@ -480,6 +480,7 @@ import {
 } from "./localization.js";
 import { localizePlaceNames } from "./placeNameLocalization.js";
 import { captainChartHeaderLayout } from "./captainChartLayout.js";
+import { politicsChartHeaderLayout } from "./politicsChartLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import {
   globeWaterHexWaveFrame,
@@ -528,6 +529,7 @@ import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js
 import {
   MINIMAP_LONGITUDE_BIN_COUNT,
   exploredMinimapViewport,
+  minimapLandWeight,
   minimapLongitudeBin,
   minimapProjectLatitude,
   minimapProjectLongitude,
@@ -16088,7 +16090,10 @@ function renderMinimapRaster(raster) {
           const latitudeDeg = minimapUnprojectLatitude(projected.y, MINIMAP_MAX_LAT_DEG, MINIMAP_H);
           const longitudeDeg = minimapUnprojectLongitude(projected.x, MINIMAP_W);
           const tileId = findNearestTileId(graph, directionIndex, latLonToDirection(latitudeDeg, longitudeDeg));
-          raster.pixelLandWeights[pixel] += minimapLandWeight(earthById[tileId]);
+          raster.pixelLandWeights[pixel] += minimapLandWeight(
+            earthById[tileId],
+            (riverMasks?.[tileId] || 0) !== 0
+          );
           raster.pixelTileCounts[pixel] += 1;
           if (minimap.seenTiles[tileId] !== 0) raster.revealedPixels[pixel] = 1;
           if (raster.sampledPixelsByTile) {
@@ -17997,8 +18002,12 @@ function drawPoliticsMenu() {
   };
   const view = createPoliticsView(gameState);
   const newsHeight = view.recentEvents.length > 0 ? 12 : 0;
+  const header = politicsChartHeaderLayout({
+    panelY: panel.y,
+    fontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
+  });
   const availableRows = Math.floor(
-    (panel.h - 58 - UI_PAGER_BUTTON_H - 8 - newsHeight) / POLITICS_MATRIX_ROW_H
+    (panel.h - header.matrixTopOffset - UI_PAGER_BUTTON_H - 8 - newsHeight) / POLITICS_MATRIX_ROW_H
   );
   const page = politicsRowsPage(
     view,
@@ -18021,7 +18030,7 @@ function drawPoliticsMenu() {
     politicsMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, politicsMenu.closeButtonRect)
   );
-  drawOptionsText("POLITICAL CHART", panel.x + panel.w / 2, panel.y + 9, {
+  drawOptionsText(uiText("politics.title"), panel.x + panel.w / 2, header.titleY, {
     align: "center",
     color: PIRATE_MENU_INK
   });
@@ -18029,29 +18038,30 @@ function drawPoliticsMenu() {
   const rowLabelX = panel.x + 12;
   const matrixX = panel.x + 124;
   const matrixW = view.powers.length * POLITICS_MATRIX_CELL_W;
-  const legendY = panel.y + 27;
-  drawOptionsText("A ALLY", panel.x + 12, legendY, { color: "#91db69" });
-  drawOptionsText("W WAR", panel.x + 62, legendY, { color: "#f68181" });
-  drawOptionsText("- NEUTRAL  . NO CONTACT", panel.x + 108, legendY, { color: PIRATE_MENU_INK_MUTED });
-  drawOptionsText("STANCE TOWARD", matrixX + matrixW / 2, legendY, {
+  const statusX = matrixX + matrixW + 8;
+  const statusW = panel.x + panel.w - statusX - 12;
+  const legendY = header.legendY;
+  drawOptionsText(uiText("politics.legendAlly"), panel.x + 12, legendY, { color: "#91db69" });
+  drawOptionsText(uiText("politics.legendWar"), panel.x + 62, legendY, { color: "#f68181" });
+  drawOptionsText(uiText("politics.legendNeutral"), panel.x + 108, legendY, { color: PIRATE_MENU_INK_MUTED });
+
+  const sectionY = header.sectionY;
+  drawOptionsText(uiText("politics.stanceToward"), matrixX + matrixW / 2, sectionY, {
     align: "center",
     color: PIRATE_MENU_INK_MUTED
   });
-  drawOptionsText("PLAYER STANDING", panel.x + panel.w - 12, legendY, {
+  drawOptionsText(uiText("politics.playerStanding"), panel.x + panel.w - 24, sectionY, {
     align: "right",
     color: PIRATE_MENU_INK
   });
 
-  const headerY = panel.y + 42;
-  const matrixY = panel.y + 58;
-  const statusX = matrixX + matrixW + 8;
-  const statusW = panel.x + panel.w - statusX - 12;
-  drawOptionsText("POWER", rowLabelX, headerY + 5, { color: PIRATE_MENU_INK_MUTED });
-  drawOptionsText("STATUS", statusX, headerY + 5, { color: PIRATE_MENU_INK_MUTED });
+  const matrixY = header.matrixY;
+  drawOptionsText(uiText("politics.power"), rowLabelX, header.headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText(uiText("politics.status"), statusX, header.headerY, { color: PIRATE_MENU_INK_MUTED });
 
   view.powers.forEach((power, index) => {
     const x = matrixX + index * POLITICS_MATRIX_CELL_W;
-    drawPoliticsColumnCode(power.code, x, headerY + 12, politicsFactionColor(power.id));
+    drawPoliticsColumnCode(power.code, x, header.columnCodeY, politicsFactionColor(power.id));
   });
 
   page.rows.forEach((row, rowIndex) => {
@@ -18156,21 +18166,21 @@ function drawCompactPoliticsMenu() {
     politicsMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, politicsMenu.closeButtonRect)
   );
-  drawOptionsText("POLITICAL CHART", panel.x + panel.w / 2, panel.y + 9, {
+  drawOptionsText(uiText("politics.title"), panel.x + panel.w / 2, panel.y + 9, {
     align: "center",
     color: PIRATE_MENU_INK
   });
-  drawOptionsText("A ALLY", panel.x + 10, panel.y + 27, { color: "#91db69" });
-  drawOptionsText("W WAR", panel.x + 58, panel.y + 27, { color: "#f68181" });
-  drawOptionsText("- NEUT  . NONE", panel.x + 104, panel.y + 27, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText(uiText("politics.legendAlly"), panel.x + 10, panel.y + 27, { color: "#91db69" });
+  drawOptionsText(uiText("politics.legendWar"), panel.x + 58, panel.y + 27, { color: "#f68181" });
+  drawOptionsText(uiText("politics.legendCompact"), panel.x + 104, panel.y + 27, { color: PIRATE_MENU_INK_MUTED });
 
   const labelX = panel.x + 10;
   const matrixX = panel.x + 91;
   const statusX = panel.x + panel.w - 31;
   const headerY = panel.y + 48;
   const matrixY = panel.y + 70;
-  drawOptionsText("POWER", labelX, headerY, { color: PIRATE_MENU_INK_MUTED });
-  drawOptionsText("YOU", statusX, headerY, { color: PIRATE_MENU_INK });
+  drawOptionsText(uiText("politics.power"), labelX, headerY, { color: PIRATE_MENU_INK_MUTED });
+  drawOptionsText(uiText("politics.you"), statusX, headerY, { color: PIRATE_MENU_INK });
   powers.forEach((power, index) => {
     drawPoliticsColumnCode(
       power.code,
@@ -19593,14 +19603,6 @@ function measurePixelTextWidth(text, font = PIXEL_FONT_SMALL_8) {
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   return Math.ceil(ctx.measureText(renderedText).width);
-}
-
-function minimapLandWeight(row) {
-  const t = row?.t || "";
-  if (t === "water" || t === "lake") return 0;
-  if (t === "beach") return 0;
-  if (t === "ice" && row.m == null) return 0.15;
-  return 1;
 }
 
 function minimapPixelLandFraction(raster, pixel) {
