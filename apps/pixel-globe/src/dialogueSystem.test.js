@@ -541,7 +541,17 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     option.action.goodId !== FRESH_WATER_GOOD_ID
   ));
   assert.ok(buyIndex >= 0);
-  selectPortDialogueOption(session, city, gameState, economy, [city], buyIndex, { simMinute: 115200 });
+  const purchase = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    buyIndex,
+    { simMinute: 115200 }
+  );
+  assert.equal(purchase.marketPurchase.good.id, market.options[buyIndex].action.goodId);
+  assert.equal(purchase.marketPurchase.quantity, 1);
   assert.equal(portDialogueView(session, city, gameState, economy, [city]).expressionId, "pleased");
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, { simMinute: 115201 });
   session.nodeId = "sell";

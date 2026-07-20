@@ -40,15 +40,55 @@ test("player portrait selection uses a directly authored regional captain sprite
   assert.equal(character.homePortName, "Cadiz");
   assert.equal(character.nameCulture, "spanish");
   assert.equal(character.sex, character.gender);
-  assert.ok(character.sourceRoles.includes("captain"));
+  assert.ok(character.sourceRoles.some((role) => role === "captain" || role === "factor"));
   assert.ok(character.sourceRegions.includes("mediterranean"));
+  assert.ok(!character.sourceRoles.includes("pirate"));
   assert.notEqual(character.id, character.sourceId);
   assert.equal("paletteSwapped" in character, false);
   assert.equal("palette" in character, false);
   assert.ok(character.age >= character.minAge && character.age <= character.maxAge);
-  assert.ok(character.expressions.length >= 1);
+  assert.ok(character.expressions.length > 1);
   assert.ok(character.expressions.every((expression) => expression.src.startsWith("assets/characters/")));
   assert.ok(character.expressions.every((expression) => expression.width === 64 && expression.height === 64));
+});
+
+test("European players draw from all twenty expressive regional portraits", () => {
+  const expectedSourceIds = GENERATED_MANIFEST.sourceCharacters
+    .filter((source) => (
+      source.regions.includes("mediterranean") &&
+      source.expressions.length > 1 &&
+      !source.roles.includes("pirate") &&
+      source.roles.some((role) => role === "captain" || role === "factor")
+    ))
+    .map((source) => source.id)
+    .sort();
+  assert.equal(expectedSourceIds.length, 20);
+
+  for (const [cityType, city] of [
+    ["mediterranean", "Cadiz"],
+    ["northern-european", "London"]
+  ]) {
+    const observedSourceIds = new Set();
+    for (let index = 0; index < 2000 && observedSourceIds.size < expectedSourceIds.length; index++) {
+      const character = generatePlayerCharacter({
+        identityKey: `european-player-${cityType}-${index}`,
+        homePort: {
+          tileId: 100 + index,
+          city,
+          displayCity: city,
+          country: city === "Cadiz" ? "Spain" : "United Kingdom",
+          cityType,
+          factionId: city === "Cadiz" ? "spain" : "england"
+        },
+        manifest: GENERATED_MANIFEST,
+        usedNames: new Set()
+      });
+      assert.ok(character.expressions.length > 1);
+      assert.ok(!character.sourceRoles.includes("pirate"));
+      observedSourceIds.add(character.sourceId);
+    }
+    assert.deepEqual([...observedSourceIds].sort(), expectedSourceIds, cityType);
+  }
 });
 test("every portrait identity has a visually authored age range", () => {
   assert.ok(GENERATED_MANIFEST.sourceCharacters.every((source) => (
@@ -468,4 +508,62 @@ test("ship captains use pirate portraits only for pirate crews", () => {
   assert.equal(regional, 30);
   assert.equal(new Set(values.map((captain) => captain.name)).size, values.length);
   assert.ok(values.every((captain) => captain.nameCulture === "nahua"));
+});
+
+test("a reserved player portrait source is never reused by NPC generators", () => {
+  const reservedSourceId = "knight-portrait-pack-by-captainskeleto-knight-portrait";
+  const exclusions = { excludedSourceIds: [reservedSourceId] };
+  const ports = Array.from({ length: 70 }, (_, index) => ({
+    tileId: 1000 + index,
+    city: `Mediterranean Port ${index}`,
+    displayCity: `Mediterranean Port ${index}`,
+    country: "Spain",
+    cityType: "mediterranean",
+    factionId: "spain",
+    lat: 36,
+    lon: -6
+  }));
+  const factors = assignPortCityCharacters(ports, GENERATED_MANIFEST, new Set(), exclusions);
+  assert.ok([...factors.values()].every((character) => character.sourceId !== reservedSourceId));
+
+  const ships = Array.from({ length: 20 }, (_, index) => ({
+    id: `mediterranean-reservation-${index}`,
+    slug: "caravel",
+    role: "merchant",
+    profileId: "mediterranean",
+    currentPort: {
+      routeRegion: "europe",
+      city: "Cadiz",
+      country: "Spain",
+      cityType: "mediterranean",
+      factionId: "spain",
+      lat: 36.53,
+      lon: -6.29
+    }
+  }));
+  const captains = assignNpcShipCaptains(ships, GENERATED_MANIFEST, new Set(), exclusions);
+  assert.ok([...captains.values()].every((character) => character.sourceId !== reservedSourceId));
+
+  for (let index = 0; index < 100; index++) {
+    const passenger = generatePassengerCharacter({
+      identityKey: `reserved-passenger-${index}`,
+      originPort: ports[0],
+      destinationPort: ports[1],
+      excludedSourceIds: [reservedSourceId],
+      manifest: GENERATED_MANIFEST,
+      usedNames: new Set()
+    });
+    assert.notEqual(passenger.sourceId, reservedSourceId);
+  }
+
+  assert.throws(
+    () => assignPortCityCharacterFromSource(
+      ports[0],
+      reservedSourceId,
+      GENERATED_MANIFEST,
+      new Set(),
+      exclusions
+    ),
+    /portrait source is reserved/
+  );
 });

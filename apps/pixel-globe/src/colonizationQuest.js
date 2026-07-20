@@ -18,6 +18,7 @@ export const COLONIZATION_MIN_CARGO_CAPACITY = 90;
 export const COLONIZATION_MIN_SEAWORTHINESS = 7;
 export const COLONIZATION_RESUPPLY_DAYS = 365;
 export const COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER = 0.85;
+export const COLONIZATION_ORGANIZER_APPROACHED_FLAG = "colonizationOrganizerApproached";
 
 export const COLONIZATION_STAGE_FETCH = "fetch";
 export const COLONIZATION_STAGE_READY = "ready";
@@ -164,6 +165,26 @@ export function isColonizationQuestTarget(city) {
   return city?.portId === COLONIZATION_TARGET_PORT_ID || (
     city?.city === COLONIZATION_TARGET_CITY && city?.country === COLONIZATION_TARGET_COUNTRY
   );
+}
+
+export function colonizationOrganizerShouldApproach(state, city) {
+  const memory = colonizationQuestMemory(state);
+  if (!state.memory.flags || typeof state.memory.flags !== "object") {
+    throw new Error("Colonization organizer approach requires game flags");
+  }
+  return isColonizationQuestOrigin(city) &&
+    memory.stage === COLONIZATION_STAGE_FETCH &&
+    memory.fetchStageIndex === 0 &&
+    state.memory.flags[COLONIZATION_ORGANIZER_APPROACHED_FLAG] !== true;
+}
+
+export function markColonizationOrganizerApproached(state) {
+  colonizationQuestMemory(state);
+  if (!state.memory.flags || typeof state.memory.flags !== "object") {
+    throw new Error("Colonization organizer approach requires game flags");
+  }
+  state.memory.flags[COLONIZATION_ORGANIZER_APPROACHED_FLAG] = true;
+  return true;
 }
 
 export function colonizationTargetCoordinates() {

@@ -93,7 +93,8 @@ import {
   establishColony,
   isColonizationQuestOrigin,
   isColonizationQuestTarget,
-  landColonists
+  landColonists,
+  markColonizationOrganizerApproached
 } from "./colonizationQuest.js";
 import {
   MING_FACTION_ID,
@@ -147,6 +148,7 @@ export function createPortDialogueSession(city, options = {}) {
     tradeTip: null,
     shipHandover: null,
     rumorText: options.rumorText || null,
+    colonizationArrival: options.colonizationArrival === true,
     selectedIndex: 0,
     feedback: null
   };
@@ -179,6 +181,17 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       nextPortNodeId: needsLoadout ? "loadout" : "root",
       postDrunkNodeId: arrivedDrunk ? "quest" : null,
       drunkVariant,
+      admittedToPort: true
+    });
+  }
+  if (options.colonizationApproach === true) {
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    return createPortDialogueSession(city, {
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "colonization",
+      nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? "colonization" : null,
+      drunkVariant,
+      colonizationArrival: true,
       admittedToPort: true
     });
   }
@@ -767,6 +780,10 @@ export function selectPortDialogueOption(
   if (action.type === "node") {
     if (action.nodeId === "buy") session.marketPurchases = {};
     if (action.nodeId === "sell") session.marketSales = 0;
+    if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
+    if (session.nodeId === "colonization" && action.nodeId !== "colonization") {
+      session.colonizationArrival = false;
+    }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
     session.nodeId = action.nodeId;
@@ -987,7 +1004,7 @@ export function selectPortDialogueOption(
     const result = buyGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
     recordMarketPurchase(session, result);
     session.feedback = `Bought ${result.good.label} for ${result.price} db.`;
-    return { closed: false };
+    return { closed: false, marketPurchase: result };
   }
   if (action.type === "buy-net") {
     const result = purchaseFishingNet(gameState, economy, city, action.netId, context);
@@ -1533,7 +1550,9 @@ function colonizationView(session, city, gameState, context) {
   });
   const organizer = characterName(city.character);
   const back = atOrigin
-    ? option("Back", { type: "node", nodeId: "root" })
+    ? session.colonizationArrival
+      ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+      : option("Back", { type: "node", nodeId: "root" })
     : option("Put to sea", { type: "close" });
 
   if (quest.stage === COLONIZATION_STAGE_FETCH) {
@@ -1544,10 +1563,13 @@ function colonizationView(session, city, gameState, context) {
       "The families have made tents and sea-cloaks from your cloth. A settlement cannot live beneath canvas forever. Now we need",
       "The frames and palisade are laid out in the yard. One last cargo stands between these people and a fair chance abroad:"
     ];
+    const introduction = session.colonizationArrival && quest.fetchStageIndex === 0
+      ? "Captain, a word before you see the factor. Twelve French families need passage beyond the reach of religious inquiry. We hope to found a settlement across the Atlantic, but first we need"
+      : introductions[quest.fetchStageIndex];
     return {
       speaker: `${organizer}, colonial organizer`,
       expressionId: quest.canDeliverFetch ? "pleased" : "attentive",
-      text: `${introductions[quest.fetchStageIndex]} ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}. I will pay ${stage.reward} doubloons for this delivery.`,
+      text: `${introduction} ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ${stage.purpose}. I will pay ${stage.reward} doubloons for this delivery.`,
       feedback: session.feedback,
       options: [
         option(`Deliver ${stage.goodLabel} x${stage.quantity}`, {

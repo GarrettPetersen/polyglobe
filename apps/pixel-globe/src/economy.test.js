@@ -416,6 +416,34 @@ test("bulk trading moves prices and cannot exceed market inventory or specie", (
   assert.ok(portEconomySummary(economy, GOA).specie <= goaSpecie);
 });
 
+test("major city markets absorb an ordinary shipload without collapsing its price", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
+  const londonClovesBefore = marketByGood(economy, LONDON).get(CLOVE_GOOD_ID).sellPrice;
+  const goaClothBefore = marketByGood(economy, GOA).get("wool-cloth").sellPrice;
+
+  const cloveRevenue = sellToPortOneLotAtATime(economy, LONDON, CLOVE_GOOD_ID, 100);
+  const clothRevenue = sellToPortOneLotAtATime(economy, GOA, "wool-cloth", 100);
+  const londonClovesAfter = marketByGood(economy, LONDON).get(CLOVE_GOOD_ID).sellPrice;
+  const goaClothAfter = marketByGood(economy, GOA).get("wool-cloth").sellPrice;
+
+  assert.ok(cloveRevenue / 100 >= londonClovesBefore * 0.8, `London paid ${cloveRevenue}`);
+  assert.ok(clothRevenue / 100 >= goaClothBefore * 0.8, `Goa paid ${clothRevenue}`);
+  assert.ok(londonClovesAfter >= londonClovesBefore * 0.7,
+    `London cloves fell from ${londonClovesBefore} to ${londonClovesAfter}`);
+  assert.ok(goaClothAfter >= goaClothBefore * 0.7,
+    `Goa cloth fell from ${goaClothBefore} to ${goaClothAfter}`);
+});
+
+test("very large deliveries still create a glut in a major city", () => {
+  const economy = createWorldEconomy({ ports: [GOA], startMinute: 0 });
+  const before = marketByGood(economy, GOA).get("wool-cloth").sellPrice;
+
+  executePortPurchase(economy, GOA, "wool-cloth", 500);
+  const after = marketByGood(economy, GOA).get("wool-cloth").sellPrice;
+
+  assert.ok(after <= before * 0.65, `Goa cloth only fell from ${before} to ${after}`);
+});
+
 test("local price levels fall with specie scarcity and rise with specie abundance", () => {
   const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
   const londonState = [...economy.portStates.values()][0];
@@ -486,6 +514,20 @@ test("economy snapshots restore stocks, specie, clocks, and shipyards", () => {
   assert.equal(economy.shipyards.lastMinute, snapshot.shipyards.lastMinute);
 });
 
+test("legacy economy saves preserve each port's relative cash health", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const snapshot = snapshotWorldEconomy(economy);
+  const savedLondon = snapshot.ports[0];
+  const currentTarget = portEconomySummary(economy, LONDON).targetSpecie;
+  const legacyTarget = Math.round(1200 + Math.sqrt(80000 / 30000) * 4200);
+  savedLondon.specie = legacyTarget * 0.5;
+  delete savedLondon.targetSpecie;
+
+  restoreWorldEconomy(economy, snapshot);
+
+  assert.ok(Math.abs(portEconomySummary(economy, LONDON).specie - currentTarget * 0.5) <= 1);
+});
+
 test("older economy snapshots leave newly added ports at current defaults", () => {
   const oldEconomy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
   executePortSale(oldEconomy, LONDON, "wool", 3);
@@ -501,6 +543,14 @@ test("older economy snapshots leave newly added ports at current defaults", () =
 
 function marketByGood(economy, city) {
   return new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+}
+
+function sellToPortOneLotAtATime(economy, city, goodId, quantity) {
+  let total = 0;
+  for (let index = 0; index < quantity; index += 1) {
+    total += executePortPurchase(economy, city, goodId, 1).total;
+  }
+  return total;
 }
 
 function port(tileId, city, country, cityType, population, settlementType = "city", marketGoods = null) {

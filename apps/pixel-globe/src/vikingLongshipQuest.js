@@ -6,6 +6,8 @@ export const VIKING_LONGSHIP_PORT_COUNTRY = "Iceland";
 export const VIKING_LONGSHIP_PRICE = 42000;
 export const VIKING_LONGSHIP_CHARACTER_SOURCE_ID =
   "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-9";
+export const VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID =
+  "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-8";
 
 export const VIKING_LONGSHIP_FETCH_STAGES = Object.freeze([
   fetchStage("wool-sail", "wool", "Wool", 8, "a bright striped square sail"),

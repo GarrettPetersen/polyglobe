@@ -16,12 +16,14 @@ import {
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
   colonizationObjective,
+  colonizationOrganizerShouldApproach,
   colonizationShipEligibility,
   colonizationWorldRecord,
   completeColonizationFetchStage,
   createColonizationQuestMemory,
   establishColony,
   landColonists,
+  markColonizationOrganizerApproached,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -41,6 +43,21 @@ test("the Port Royal expedition requires three ordered paid material stages", ()
   assert.equal(memory.stage, COLONIZATION_STAGE_READY);
   assert.equal(memory.fetchStageIndex, COLONIZATION_FETCH_STAGES.length);
   assert.equal(validateColonizationQuestMemory(memory), memory);
+});
+
+test("the Bordeaux organizer approaches once before waiting in the port menu", () => {
+  const state = {
+    memory: {
+      colonization: createColonizationQuestMemory(),
+      flags: {}
+    }
+  };
+  const bordeaux = { city: "Bordeaux", country: "France" };
+
+  assert.equal(colonizationOrganizerShouldApproach(state, bordeaux), true);
+  assert.equal(colonizationOrganizerShouldApproach(state, { city: "Lisbon", country: "Portugal" }), false);
+  assert.equal(markColonizationOrganizerApproached(state), true);
+  assert.equal(colonizationOrganizerShouldApproach(state, bordeaux), false);
 });
 
 test("only capacious ocean-going ships can carry the colonists", () => {

@@ -6,9 +6,11 @@ import {
   COLONIZATION_RESUPPLY,
   advanceColonizationQuest,
   assignColonizationTargetTile,
+  colonizationOrganizerShouldApproach,
   colonizationWorldRecord
 } from "./colonizationQuest.js";
 import {
+  createPortArrivalDialogueSession,
   createPortDialogueSession,
   portDialogueView,
   selectPortDialogueOption
@@ -30,6 +32,40 @@ const BORDEAUX = Object.freeze({
   lat: 44.84,
   lon: -0.58,
   character: CHARACTER
+});
+
+test("the colonial organizer approaches before first-port business", () => {
+  const shipStats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
+  assignColonizationTargetTile(gameState.memory.colonization, 99);
+  const economy = createWorldEconomy({ ports: [BORDEAUX], startMinute: 0 });
+  const session = createPortArrivalDialogueSession(BORDEAUX, {
+    colonizationApproach: true,
+    needsLoadout: true
+  });
+
+  assert.equal(session.nodeId, "colonization");
+  assert.equal(session.colonizationArrival, true);
+  assert.equal(session.nextPortNodeId, "loadout");
+  const view = portDialogueView(session, BORDEAUX, gameState, economy, [BORDEAUX], {
+    simMinute: 1000,
+    shipStats
+  });
+  assert.match(view.text, /Captain, a word before you see the factor/);
+  const notNowIndex = view.options.findIndex((option) => option.label === "Not now");
+  assert.notEqual(notNowIndex, -1);
+  selectPortDialogueOption(
+    session,
+    BORDEAUX,
+    gameState,
+    economy,
+    [BORDEAUX],
+    notNowIndex,
+    { simMinute: 1000, shipStats }
+  );
+  assert.equal(session.nodeId, "loadout");
+  assert.equal(session.colonizationArrival, false);
+  assert.equal(colonizationOrganizerShouldApproach(gameState, BORDEAUX), true);
 });
 
 test("the colonial organizer runs the paid expedition through a permanent founded port", () => {

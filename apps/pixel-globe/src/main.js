@@ -211,6 +211,11 @@ import {
   whaleKillEffectComplete,
   whaleKillEffectFrame
 } from "./whaleKillParticles.js";
+import {
+  createItemAcquisitionEffect,
+  itemAcquisitionEffectComplete,
+  itemAcquisitionEffectFrame
+} from "./itemAcquisitionEffect.js";
 import { selectWhaleTargetAtPoint } from "./whaleTargeting.js";
 import {
   WHALE_PHASE_EXHAUSTED,
@@ -732,11 +737,13 @@ import {
   assignColonizationTargetTile,
   beginColonizationExpedition,
   colonizationObjective,
+  colonizationOrganizerShouldApproach,
   colonizationWorldRecord,
   completeColonizationFetchStage,
   isColonizationQuestOrigin,
   isColonizationQuestTarget,
-  landColonists
+  landColonists,
+  markColonizationOrganizerApproached
 } from "./colonizationQuest.js";
 import { formatCompactNumber } from "./compactNumber.js";
 import { EARTH_RADIUS_KM } from "./worldDistance.js";
@@ -837,6 +844,7 @@ import {
 } from "./lakeBattle.js";
 import { lakeBattleHudLayout } from "./lakeBattleHud.js";
 import {
+  VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID,
   VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
   VIKING_LONGSHIP_PRICE,
   VIKING_LONGSHIP_REWARD_DECLINED,
@@ -1652,6 +1660,7 @@ const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
 let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
+const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
 
 const keys = new Set();
 const pointerSteering = {
@@ -1680,6 +1689,7 @@ let fishingAction = null;
 let whaleHarpoonProjectile = null;
 let whaleBlowBursts = [];
 let whaleKillEffects = [];
+let itemAcquisitionEffects = [];
 let survivalNotice = null;
 let images;
 let shipImage;
@@ -2261,30 +2271,7 @@ async function main() {
     shipLighting = playerShipAssets.lighting;
     shipWakeAnchors = requiredShipWakeAnchors(playerShipSlug);
   }
-  portCityCharacters = assignPortCityCharacters(portCities, characterPortraitManifest, usedCharacterNames);
-  const vikingLongshipPort = portCities.find(isVikingLongshipQuestPort);
-  if (!vikingLongshipPort) throw new Error("Hafnarfjordur is missing from the dockable 1522 port roster");
-  const replacedVikingPortFactor = portCityCharacters.get(vikingLongshipPort.tileId);
-  if (!replacedVikingPortFactor) throw new Error("Hafnarfjordur has no generated port factor to replace");
-  usedCharacterNames.delete(replacedVikingPortFactor.name);
-  portCityCharacters.set(vikingLongshipPort.tileId, assignPortCityCharacterFromSource(
-    vikingLongshipPort,
-    VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
-    characterPortraitManifest,
-    usedCharacterNames
-  ));
-  const colonizationOrigin = portCities.find(isColonizationQuestOrigin);
-  if (!colonizationOrigin) throw new Error("Bordeaux is missing from the dockable 1522 port roster");
-  const bordeauxFactor = portCityCharacters.get(colonizationOrigin.tileId);
-  if (!bordeauxFactor) throw new Error("Bordeaux has no generated port factor");
-  colonizationOrganizer = generateSpecialPortCharacter({
-    identityKey: "port-royal-colonial-organizer",
-    port: colonizationOrigin,
-    excludedSourceIds: [bordeauxFactor.sourceId],
-    role: "colonial-organizer",
-    manifest: characterPortraitManifest,
-    usedNames: usedCharacterNames
-  });
+  assignPortCharactersForPlayer(playerCharacter);
   console.info(
     `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
     `${characterPortraitManifest.sourceCharacters.length} authored portraits`
@@ -2354,9 +2341,15 @@ async function main() {
   pirateHideoutCharacters = assignNpcShipCaptains(
     pirateHideoutHosts,
     characterPortraitManifest,
-    usedCharacterNames
+    usedCharacterNames,
+    { excludedSourceIds: playerPortraitSourceExclusions(playerCharacter) }
   );
-  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
+  npcShipCaptains = assignNpcShipCaptains(
+    npcSeaRoutes.ships,
+    characterPortraitManifest,
+    usedCharacterNames,
+    { excludedSourceIds: playerPortraitSourceExclusions(playerCharacter) }
+  );
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
   console.info(`[pixel-globe] NPC ship captains: ${npcShipCaptains.size} assigned portraits`);
   console.info(`[pixel-globe] named characters: ${usedCharacterNames.size} unique people`);
@@ -3353,6 +3346,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   if (updateStatusPersonParticles(nowMs)) dirty = true;
+  if (updateItemAcquisitionEffects(nowMs)) dirty = true;
   if (updateDepartureControlFeedback(nowMs)) dirty = true;
   updateAmbientAudio(dt);
   updateMusicContext(nowMs);
@@ -3778,6 +3772,53 @@ function campaignGoalContactCharacter() {
   return campaignGoalContact;
 }
 
+function playerPortraitSourceExclusions(playerCharacter) {
+  if (typeof playerCharacter?.sourceId !== "string" || playerCharacter.sourceId === "") {
+    throw new Error("Player character has no portrait source to reserve");
+  }
+  return [playerCharacter.sourceId];
+}
+
+function assignPortCharactersForPlayer(playerCharacter) {
+  const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
+  usedCharacterNames = new Set([playerCharacter.name]);
+  portCityCharacters = assignPortCityCharacters(
+    portCities,
+    characterPortraitManifest,
+    usedCharacterNames,
+    { excludedSourceIds: playerSourceIds }
+  );
+
+  const vikingLongshipPort = portCities.find(isVikingLongshipQuestPort);
+  if (!vikingLongshipPort) throw new Error("Hafnarfjordur is missing from the dockable 1522 port roster");
+  const replacedVikingPortFactor = portCityCharacters.get(vikingLongshipPort.tileId);
+  if (!replacedVikingPortFactor) throw new Error("Hafnarfjordur has no generated port factor to replace");
+  usedCharacterNames.delete(replacedVikingPortFactor.name);
+  const vikingCharacterSourceId = playerSourceIds.includes(VIKING_LONGSHIP_CHARACTER_SOURCE_ID)
+    ? VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID
+    : VIKING_LONGSHIP_CHARACTER_SOURCE_ID;
+  portCityCharacters.set(vikingLongshipPort.tileId, assignPortCityCharacterFromSource(
+    vikingLongshipPort,
+    vikingCharacterSourceId,
+    characterPortraitManifest,
+    usedCharacterNames,
+    { excludedSourceIds: playerSourceIds }
+  ));
+
+  const colonizationOrigin = portCities.find(isColonizationQuestOrigin);
+  if (!colonizationOrigin) throw new Error("Bordeaux is missing from the dockable 1522 port roster");
+  const bordeauxFactor = portCityCharacters.get(colonizationOrigin.tileId);
+  if (!bordeauxFactor) throw new Error("Bordeaux has no generated port factor");
+  colonizationOrganizer = generateSpecialPortCharacter({
+    identityKey: "port-royal-colonial-organizer",
+    port: colonizationOrigin,
+    excludedSourceIds: [bordeauxFactor.sourceId, ...playerSourceIds],
+    role: "colonial-organizer",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+}
+
 function createCampaignGoalContact(playerCharacter, goal) {
   if (!goal) throw new Error("Cannot assign a campaign contact without a campaign goal");
   const homeCity = portCitiesByTileId.get(goal.homePortTileId);
@@ -3792,6 +3833,7 @@ function createCampaignGoalContact(playerCharacter, goal) {
     homePort: homeCity,
     goalType: goal.type,
     excludedSourceId: factor.sourceId,
+    excludedSourceIds: playerPortraitSourceExclusions(playerCharacter),
     manifest: characterPortraitManifest,
     usedNames: reservedNames
   });
@@ -6360,6 +6402,7 @@ async function restoreSavedVoyage(payload) {
   whaleHarpoonProjectile = null;
   whaleBlowBursts = [];
   whaleKillEffects = [];
+  itemAcquisitionEffects = [];
   shoreScavengeAction = null;
   portWaitState = null;
   portWaitButtonRect = null;
@@ -6381,10 +6424,15 @@ async function restoreSavedVoyage(payload) {
   keys.clear();
   clearPointerSteering();
 
-  usedCharacterNames = new Set([gameState.playerCharacter.name]);
-  for (const character of portCityCharacters.values()) usedCharacterNames.add(character.name);
+  assignPortCharactersForPlayer(gameState.playerCharacter);
+  for (const character of pirateHideoutCharacters.values()) usedCharacterNames.add(character.name);
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
-  npcShipCaptains = assignNpcShipCaptains(npcSeaRoutes.ships, characterPortraitManifest, usedCharacterNames);
+  npcShipCaptains = assignNpcShipCaptains(
+    npcSeaRoutes.ships,
+    characterPortraitManifest,
+    usedCharacterNames,
+    { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+  );
   await ensureCharacterPortraitLoaded(gameState.playerCharacter, characterExpression(gameState.playerCharacter));
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
@@ -7587,6 +7635,15 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   const drunkVariant = spriteKeyHash(
     `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
   );
+  if (colonizationOrganizerShouldApproach(gameState, cityCall)) {
+    markColonizationOrganizerApproached(gameState);
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      colonizationApproach: true
+    });
+  }
   const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
   if (rumor) {
     const nextPortNodeId = needsLoadout
@@ -8308,6 +8365,7 @@ function chooseDialogueOption(optionIndex) {
   let dialogueNpcShipId = null;
   const previousNodeId = dialogueState.nodeId || null;
   if (dialogueState.kind === "port") {
+    const purchaseIconOrigin = dialogueOptionIconOrigin(optionIndex);
     const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueOption(
       dialogueState,
@@ -8323,6 +8381,9 @@ function chooseDialogueOption(optionIndex) {
     }
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
+    if (result.marketPurchase) {
+      spawnItemAcquisitionEffect(result.marketPurchase.good.id, purchaseIconOrigin, lastFrameMs);
+    }
     saveVoyageNow("port transaction");
     if (result.action?.type === "open-passenger") {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
@@ -8431,6 +8492,42 @@ function chooseDialogueOption(optionIndex) {
   clampDialogueSelection();
   ensureDialoguePortraitLoaded();
   dirty = true;
+}
+
+function dialogueOptionIconOrigin(optionIndex) {
+  const entry = dialogueLayout.optionRects.find((candidate) => candidate.index === optionIndex);
+  if (!entry) {
+    return {
+      x: Math.round(SCREEN_W / 2 - GAME_ICON_SIZE / 2),
+      y: Math.round(SCREEN_H / 2 - GAME_ICON_SIZE / 2)
+    };
+  }
+  return {
+    x: entry.rect.x + 6,
+    y: entry.rect.y + Math.floor((entry.rect.h - GAME_ICON_SIZE) / 2)
+  };
+}
+
+function spawnItemAcquisitionEffect(goodId, origin, nowMs) {
+  itemAcquisitionEffects.push(createItemAcquisitionEffect({
+    iconId: tradeGoodIconId(goodId),
+    startX: origin.x,
+    startY: origin.y,
+    startedAtMs: nowMs,
+    iconSize: GAME_ICON_SIZE
+  }));
+  if (itemAcquisitionEffects.length > ITEM_ACQUISITION_EFFECT_LIMIT) {
+    itemAcquisitionEffects.splice(0, itemAcquisitionEffects.length - ITEM_ACQUISITION_EFFECT_LIMIT);
+  }
+  dirty = true;
+}
+
+function updateItemAcquisitionEffects(nowMs) {
+  const previousCount = itemAcquisitionEffects.length;
+  itemAcquisitionEffects = itemAcquisitionEffects.filter(
+    (effect) => !itemAcquisitionEffectComplete(effect, nowMs)
+  );
+  return itemAcquisitionEffects.length > 0 || itemAcquisitionEffects.length !== previousCount;
 }
 
 async function purchaseShipyardShip(action) {
@@ -8829,6 +8926,7 @@ function createPassengerCharacterForQuest({ quest, origin, destination, scenario
     destinationPort: destination,
     scenarioId: scenario.id,
     namePortPreference: scenario.namePort,
+    excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
@@ -14476,6 +14574,7 @@ function render(nowMs) {
   if (pastVoyagesMenu.isOpen) drawPastVoyagesMenu();
   if (creditsMenu.isOpen) drawCreditsMenu();
   if (optionsMenu.isOpen) drawOptionsMenu();
+  drawItemAcquisitionEffects(nowMs);
   drawStormLightningFlash(nowMs);
 }
 
@@ -15737,6 +15836,14 @@ function drawGameIcon(iconId, x, y, options = {}) {
     destination.h
   );
   ctx.restore();
+}
+
+function drawItemAcquisitionEffects(nowMs) {
+  for (const effect of itemAcquisitionEffects) {
+    const frame = itemAcquisitionEffectFrame(effect, nowMs);
+    if (frame.complete) continue;
+    drawGameIcon(effect.iconId, frame.x, frame.y, { contrastOutline: true });
+  }
 }
 
 function drawCaptainChart(panel, nowMs) {

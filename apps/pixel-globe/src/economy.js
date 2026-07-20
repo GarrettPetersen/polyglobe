@@ -17,7 +17,13 @@ const MIN_INTEGRATED_PRICE_MULTIPLIER = 0.1;
 const MAX_PRICE_MULTIPLIER = 5;
 const MIN_SPECIE_PRICE_MULTIPLIER = 0.5;
 const MAX_SPECIE_PRICE_MULTIPLIER = 1.75;
-const SPECIE_PRICE_ELASTICITY = 0.35;
+const SPECIE_PRICE_ELASTICITY = 0.16;
+const CITY_MARKET_PRICE_DEPTH_PER_POPULATION_SCALE = 180;
+const VILLAGE_MARKET_PRICE_DEPTH_PER_POPULATION_SCALE = 18;
+const LEGACY_CITY_TARGET_SPECIE_BASE = 1200;
+const LEGACY_CITY_TARGET_SPECIE_PER_POPULATION_SCALE = 4200;
+const LEGACY_VILLAGE_TARGET_SPECIE_BASE = 250;
+const LEGACY_VILLAGE_TARGET_SPECIE_PER_POPULATION_SCALE = 900;
 const NPC_SPECIE_RESERVE_RATIO = 0.15;
 const NPC_CARGO_LINE_LIMIT = 4;
 const VILLAGE_MARKET_GOOD_LIMIT = 3;
@@ -345,6 +351,7 @@ export function snapshotWorldEconomy(economy) {
     ports: [...economy.portStates.values()].map((port) => ({
       id: port.id,
       specie: port.specie,
+      targetSpecie: port.targetSpecie,
       stocks: [...port.goods.entries()].map(([goodId, state]) => [goodId, state.stock])
     })),
     shipyards: snapshotWorldShipyards(economy.shipyards)
@@ -363,6 +370,10 @@ export function restoreWorldEconomy(economy, snapshot) {
     if (!Number.isFinite(saved.specie) || saved.specie < 0 || !Array.isArray(saved.stocks)) {
       throw new Error(`Invalid saved economy state for port: ${saved.id}`);
     }
+    if (saved.targetSpecie !== undefined &&
+        (!Number.isFinite(saved.targetSpecie) || saved.targetSpecie <= 0)) {
+      throw new Error(`Invalid saved target specie for port: ${saved.id}`);
+    }
     if (saved.stocks.length !== port.goods.size) {
       throw new Error(`Saved economy goods do not match port: ${saved.id}`);
     }
@@ -378,10 +389,23 @@ export function restoreWorldEconomy(economy, snapshot) {
   for (const saved of snapshot.ports) {
     const port = economy.portStates.get(saved.id);
     for (const [goodId, stock] of saved.stocks) port.goods.get(goodId).stock = stock;
-    port.specie = saved.specie;
+    const savedTargetSpecie = saved.targetSpecie ?? legacyTargetSpecie(port);
+    port.specie = saved.specie * port.targetSpecie / savedTargetSpecie;
   }
   economy.lastMinute = snapshot.lastMinute;
   return economy;
+}
+
+function legacyTargetSpecie(port) {
+  return port.settlementType === "village"
+    ? Math.round(
+      LEGACY_VILLAGE_TARGET_SPECIE_BASE +
+        port.populationScale * LEGACY_VILLAGE_TARGET_SPECIE_PER_POPULATION_SCALE
+    )
+    : Math.round(
+      LEGACY_CITY_TARGET_SPECIE_BASE +
+        port.populationScale * LEGACY_CITY_TARGET_SPECIE_PER_POPULATION_SCALE
+    );
 }
 
 export function advanceWorldEconomy(economy, clockMinute) {
@@ -686,14 +710,18 @@ function createPortState(port) {
       .map(([goodId]) => goodId))
     : null);
   const targetSpecie = settlementType === "village"
-    ? Math.round(250 + populationScale * 900)
-    : Math.round(1200 + populationScale * 4200);
+    ? Math.round(700 + populationScale * 1800)
+    : Math.round(8000 + populationScale * 38000);
+  const marketPriceDepth = populationScale * (settlementType === "village"
+    ? VILLAGE_MARKET_PRICE_DEPTH_PER_POPULATION_SCALE
+    : CITY_MARKET_PRICE_DEPTH_PER_POPULATION_SCALE);
   return {
     id: requiredPortId(port),
     name: port.displayCity || port.city,
     cityType: port.cityType,
     settlementType,
     populationScale,
+    marketPriceDepth,
     targetSpecie,
     specie: targetSpecie * (0.85 + hashUnit(`${port.tileId}|specie`) * 0.3),
     marketGoodIds,
@@ -822,7 +850,11 @@ function rawMarketMultiplier(port, good, stock) {
   const balance = (state.consumptionPerDay - state.productionPerDay) /
     (state.consumptionPerDay + state.productionPerDay + 0.2);
   const comparativeAdvantage = Math.exp(balance * 0.52);
-  const scarcity = Math.pow((state.targetStock + 3) / (Math.max(0, stock) + 3), 0.72);
+  const scarcity = Math.pow(
+    (state.targetStock + port.marketPriceDepth) /
+      (Math.max(0, stock) + port.marketPriceDepth),
+    0.72
+  );
   const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
   const regionalTradePriceMultiplier = REGION_TRADE_PRICE_MULTIPLIER[port.cityType]?.[good.id] || 1;
   return clamp(

@@ -83,7 +83,12 @@ function validateAgeRange(minAge, maxAge, label) {
   }
 }
 
-export function assignPortCityCharacters(portCities, manifest, usedNames) {
+export function assignPortCityCharacters(
+  portCities,
+  manifest,
+  usedNames,
+  { excludedSourceIds = [] } = {}
+) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
   const cities = [...portCities].sort((a, b) => stableCityKey(a).localeCompare(stableCityKey(b)));
@@ -92,7 +97,7 @@ export function assignPortCityCharacters(portCities, manifest, usedNames) {
   for (const city of cities) {
     const key = stableCityKey(city);
     const region = portraitRegionForCity(city);
-    const sourcePool = characterSourcesForRole(manifest, "factor", region);
+    const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
     const character = assignCharacterSprite(key, region, sourcePool, used);
     assignments.set(city.tileId, {
       ...character,
@@ -110,10 +115,19 @@ export function assignPortCityCharacters(portCities, manifest, usedNames) {
   return assignments;
 }
 
-export function assignPortCityCharacterFromSource(city, sourceId, manifest, usedNames) {
+export function assignPortCityCharacterFromSource(
+  city,
+  sourceId,
+  manifest,
+  usedNames,
+  { excludedSourceIds = [] } = {}
+) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
   if (!city || typeof city !== "object") throw new Error("Fixed port character requires a city");
+  if (sourceIdExclusionSet(excludedSourceIds).has(sourceId)) {
+    throw new Error(`Fixed port portrait source is reserved: ${sourceId}`);
+  }
   const source = manifest.sourceCharacters.find((entry) => entry.id === sourceId);
   if (!source) throw new Error(`Missing fixed port portrait source: ${sourceId}`);
   const key = stableCityKey(city);
@@ -133,20 +147,30 @@ export function assignPortCityCharacterFromSource(city, sourceId, manifest, used
   };
 }
 
-export function assignNpcShipCaptains(npcShips, manifest, usedNames) {
+export function assignNpcShipCaptains(
+  npcShips,
+  manifest,
+  usedNames,
+  { excludedSourceIds = [] } = {}
+) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
   const assignments = new Map();
   const used = new Set();
+  const excluded = sourceIdExclusionSet(excludedSourceIds);
   const piratePool = manifest.sourceCharacters.filter((source) => (
-    source.roles.includes("captain") && source.roles.includes("pirate")
+    source.roles.includes("captain") && source.roles.includes("pirate") &&
+    !excluded.has(source.id)
   ));
   if (piratePool.length === 0) throw new Error("Character portrait manifest has no pirate captains");
   for (const ship of [...npcShips].sort((a, b) => a.id.localeCompare(b.id))) {
     const region = portraitRegionForNpcShip(ship);
     const sourcePool = ship.role === "pirate"
       ? piratePool
-      : characterSourcesForRole(manifest, "captain", region, { excludePirates: true });
+      : characterSourcesForRole(manifest, "captain", region, {
+        excludePirates: true,
+        excludedSourceIds
+      });
     const identityKey = `captain|${ship.id}`;
     const character = assignCharacterSprite(identityKey, region, sourcePool, used);
     assignments.set(ship.id, {
@@ -174,7 +198,7 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
     throw new Error("Player character generation requires a home port");
   }
   const region = portraitRegionForCity(homePort);
-  const sourcePool = characterSourcesForRole(manifest, "captain", region, { excludePirates: true });
+  const sourcePool = characterSourcesForPlayer(manifest, region);
   const character = assignCharacterSprite(`player|${identityKey}`, region, sourcePool, new Set());
   const name = assignRegionalCharacterName({
     identityKey: `player|${identityKey}`,
@@ -196,6 +220,7 @@ export function generateCampaignContactCharacter({
   homePort,
   goalType,
   excludedSourceId,
+  excludedSourceIds = [],
   manifest,
   usedNames
 }) {
@@ -215,7 +240,7 @@ export function generateCampaignContactCharacter({
   return generateSpecialPortCharacter({
     identityKey: `campaign-contact|${goalType}|${playerCharacter.id}|${homePort.tileId}`,
     port: homePort,
-    excludedSourceIds: [excludedSourceId],
+    excludedSourceIds: [excludedSourceId, ...excludedSourceIds],
     role: goalType === "explorer"
       ? "patron"
       : goalType === "family-debt" ? "creditor" : "old-whaler",
@@ -240,19 +265,11 @@ export function generateSpecialPortCharacter({
   if (!port || typeof port !== "object") {
     throw new Error("Special port character generation requires a port");
   }
-  if (!Array.isArray(excludedSourceIds) || excludedSourceIds.some((id) => typeof id !== "string" || id === "")) {
-    throw new Error("Special port character exclusions must be portrait source ids");
-  }
   if (typeof role !== "string" || role.trim() === "") {
     throw new Error("Special port character generation requires a role");
   }
-  const excluded = new Set(excludedSourceIds);
   const region = portraitRegionForCity(port);
-  const sourcePool = characterSourcesForRole(manifest, "factor", region)
-    .filter((source) => !excluded.has(source.id));
-  if (sourcePool.length === 0) {
-    throw new Error(`Special character has no distinct portrait at ${port.displayCity || port.city}`);
-  }
+  const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
   const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
   return Object.freeze({
     ...character,
@@ -273,6 +290,7 @@ export function generatePassengerCharacter({
   destinationPort,
   scenarioId = "",
   namePortPreference = "origin",
+  excludedSourceIds = [],
   manifest,
   usedNames
 }) {
@@ -290,7 +308,7 @@ export function generatePassengerCharacter({
   const namePort = namePortPreference === "destination" ? destinationPort : originPort;
   const regionPort = scenarioId === "return-home" ? destinationPort : namePort;
   const region = portraitRegionForCity(regionPort);
-  const sourcePool = characterSourcesForRole(manifest, "factor", region);
+  const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
   const key = `passenger|${identityKey}`;
   const character = assignCharacterSprite(key, region, sourcePool, new Set());
   const name = assignRegionalCharacterName({
@@ -355,16 +373,46 @@ function assignedCharacter(id, region, source, age) {
   };
 }
 
-function characterSourcesForRole(manifest, role, region, { excludePirates = false } = {}) {
+function characterSourcesForPlayer(manifest, region) {
+  if (region !== "northern-europe" && region !== "mediterranean") {
+    return characterSourcesForRole(manifest, "captain", region, { excludePirates: true });
+  }
+  const expressive = manifest.sourceCharacters.filter((source) => (
+    source.regions.includes(region) &&
+    source.expressions.length > 1 &&
+    !source.roles.includes("pirate") &&
+    (source.roles.includes("captain") || source.roles.includes("factor"))
+  ));
+  if (expressive.length === 0) {
+    throw new Error(`Character portrait manifest has no expressive ${region} player sources`);
+  }
+  return expressive;
+}
+
+function characterSourcesForRole(
+  manifest,
+  role,
+  region,
+  { excludePirates = false, excludedSourceIds = [] } = {}
+) {
+  const excluded = sourceIdExclusionSet(excludedSourceIds);
   const regional = manifest.sourceCharacters.filter((source) => (
     source.roles.includes(role)
       && source.regions.includes(region)
       && (!excludePirates || !source.roles.includes("pirate"))
+      && !excluded.has(source.id)
   ));
   if (regional.length === 0) {
     throw new Error(`Character portrait manifest has no ${region} sources for role ${role}`);
   }
   return regional;
+}
+
+function sourceIdExclusionSet(sourceIds) {
+  if (!Array.isArray(sourceIds) || sourceIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("Character portrait exclusions must be source ids");
+  }
+  return new Set(sourceIds);
 }
 
 function portraitRegionForCity(city) {

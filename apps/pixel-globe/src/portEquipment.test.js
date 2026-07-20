@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
-import { createWorldEconomy, executePortSale } from "./economy.js";
+import { createWorldEconomy, executePortSale, portEconomySummary } from "./economy.js";
 import {
   EQUIPMENT_STOCK_CANNON,
   equipmentAvailableAtPort,
@@ -52,8 +52,9 @@ test("trade wealth can unlock top-tier equipment at a specialist port", () => {
   assert.ok(city);
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const before = portEquipmentProsperity(economy, city);
+  const targetSpecie = portEconomySummary(economy, city).targetSpecie;
 
-  for (let index = 0; index < 1000; index++) executePortSale(economy, city, "hardtack", 1);
+  executePortSale(economy, city, "hardtack", Math.ceil(targetSpecie * 0.45 / 2));
 
   assert.ok(portEquipmentProsperity(economy, city) > before);
   assert.equal(equipmentAvailableAtPort(
