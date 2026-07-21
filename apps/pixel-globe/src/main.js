@@ -25048,7 +25048,7 @@ function drawAnchorButton(nowMs) {
     attention: departureControlAttention(DEPARTURE_CONTROL_FEEDBACK_KINDS.ANCHOR, nowMs)
   });
   const label = disabled ? "HOLD FAST" : anchored ? "WEIGH ANCHOR" : "DROP ANCHOR";
-  drawControlIconLabel(anchorButtonRect, label, "action:dock", { disabled });
+  drawControlIconLabel(anchorButtonRect, label, "action:anchor", { disabled });
 }
 
 function drawScavengeButton() {

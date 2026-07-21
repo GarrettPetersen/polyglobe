@@ -100,7 +100,7 @@ test("interface controls use a varied Resurrect duotone language without replaci
       assert.equal(source.packId, "nikoichu", iconId);
     }
     if (iconId.startsWith("action:") || (iconId.startsWith("menu:") && source.packId === "nikoichu")) {
-      assert.equal(source.packId, "nikoichu", iconId);
+      if (iconId !== "action:anchor") assert.equal(source.packId, "nikoichu", iconId);
       assert.ok(palette.has(source.duotone.dark), `${iconId} dark color`);
       assert.ok(palette.has(source.duotone.light), `${iconId} light color`);
       assert.notEqual(source.duotone.dark, source.duotone.light, iconId);
@@ -109,6 +109,14 @@ test("interface controls use a varied Resurrect duotone language without replaci
     if (iconId.startsWith("good:")) assert.notEqual(source.packId, "nikoichu", iconId);
   }
   assert.ok(lightColors.size >= 8, `only ${lightColors.size} interface accent colors`);
+});
+
+test("literal anchor controls use the dedicated period anchor art", () => {
+  const source = GAME_ICON_SOURCES["action:anchor"];
+  assert.equal(source.packId, null);
+  assert.equal(source.assetPath, "public/assets/ui/anchor.png");
+  assert.deepEqual(source.duotone, { dark: "#2e222f", light: "#0eaf9b" });
+  assert.notDeepEqual(source, GAME_ICON_SOURCES["action:dock"]);
 });
 
 test("fresh water uses the period cask instead of modern bottled-water artwork", () => {
@@ -155,6 +163,7 @@ test("discoveries uses a tip-preserving crop of the Great Pyramid sprite", () =>
 test("frequently confused controls use distinct readable source art", () => {
   for (const [left, right] of [
     ["menu:captain", shipMenuIconId("brigantine")],
+    ["action:anchor", "action:dock"],
     ["action:dock", "action:leave"],
     ["action:harpoon", "action:attack"],
     ["action:disguise", "action:passenger"],

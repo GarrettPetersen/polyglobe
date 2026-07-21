@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-15";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-16";
 
 const ICON_INK = "#2e222f";
 const ICON_TINT = Object.freeze({
@@ -147,6 +147,9 @@ export const GAME_ICON_SOURCES = Object.freeze({
   ...SHIP_MENU_ICON_SOURCES,
 
   "action:dock": nikoichu("Travel_Ship_Dock.png", ICON_TINT.sea),
+  "action:anchor": projectAsset("public/assets/ui/anchor.png", null, {
+    duotone: Object.freeze({ dark: ICON_INK, light: ICON_TINT.sea })
+  }),
   "action:hail": nikoichu("Software_Speech_Bubble_Three_Dots_Dialogue.png", ICON_TINT.dialogue),
   "action:fish": nikoichu("Tools_Crafting_Fishing_Rod.png", ICON_TINT.navigation),
   "action:harpoon": nikoichu("Tools_Crafting_Fishing_Harpoon_Spear.png", ICON_TINT.steel),
@@ -363,11 +366,11 @@ function iconSource(packId, entry, crop = null, options = {}) {
   return Object.freeze({ packId, entry, crop, ...options });
 }
 
-function projectAsset(assetPath, crop = null) {
+function projectAsset(assetPath, crop = null, options = {}) {
   if (typeof assetPath !== "string" || !assetPath.startsWith("public/assets/")) {
     throw new Error(`Invalid project icon asset: ${assetPath}`);
   }
-  return Object.freeze({ packId: null, assetPath, crop });
+  return Object.freeze({ packId: null, assetPath, crop, ...options });
 }
 
 function generatedIcon(generatedId) {
