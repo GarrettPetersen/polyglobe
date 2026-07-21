@@ -2228,7 +2228,7 @@ test("an active package mission opens its factor before the port menu", () => {
   deliveryOfferForCity(gameState, origin, ports, { spawnChance: 1, simMinute: 0 });
   const available = questStateForCity(gameState, origin, ports);
   assert.equal(available.kind, "available");
-  assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), false);
+  assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), true);
 
   acceptQuest(gameState, available.quest);
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), true);

@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   DELIVERY_ROLL_PERIOD_MINUTES,
   DELIVERY_REPUTATION_GAIN,
+  ONBOARDING_DELIVERY_COUNT,
+  ONBOARDING_DELIVERY_SCENARIOS,
   acceptQuest,
   completeQuest,
   createGameState,
@@ -33,6 +35,50 @@ test("delivery quests stay inside the same faction and region", () => {
   assert.equal(quest.regionKey, "mediterranean");
   assert.equal(quest.destinationTileId, PORTO.tileId);
   assert.ok(quest.distanceKm >= 270 && quest.distanceKm <= 280);
+});
+
+test("new captains receive four guaranteed nearby courier jobs with varied purposes", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const faro = port(6, "Faro", "Portugal", "mediterranean", "portugal", 37.02, -7.93);
+  const ports = [LISBON, PORTO, faro, GOA, CADIZ];
+  const scenarioIds = [];
+  let origin = LISBON;
+
+  for (let index = 0; index < ONBOARDING_DELIVERY_COUNT; index++) {
+    const offer = deliveryOfferForCity(state, origin, ports, {
+      simMinute: index * DELIVERY_ROLL_PERIOD_MINUTES
+    });
+    assert.ok(offer, `onboarding offer ${index + 1}`);
+    assert.equal(offer.onboarding, true);
+    assert.equal(offer.onboardingIndex, index);
+    assert.match(offer.offerText, /chart will mark the way/i);
+    scenarioIds.push(offer.scenarioId);
+
+    const expectedNearest = origin.tileId === LISBON.tileId ? faro : LISBON;
+    assert.equal(offer.destinationTileId, expectedNearest.tileId);
+    acceptQuest(state, offer);
+    completeQuest(state, expectedNearest, { simMinute: (index + 1) * 100 });
+    origin = expectedNearest;
+  }
+
+  assert.deepEqual(scenarioIds, ONBOARDING_DELIVERY_SCENARIOS.map((scenario) => scenario.id));
+  assert.equal(state.memory.quests.onboardingDeliveriesCompleted, ONBOARDING_DELIVERY_COUNT);
+  assert.equal(deliveryOfferForCity(state, origin, ports, {
+    simMinute: ONBOARDING_DELIVERY_COUNT * DELIVERY_ROLL_PERIOD_MINUTES,
+    spawnChance: 0
+  }), null);
+});
+
+test("established saves do not restart the new-captain courier sequence", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  delete state.memory.quests.onboardingDeliveriesCompleted;
+  state.activePlaySeconds = 30 * 60;
+
+  assert.equal(deliveryOfferForCity(state, LISBON, [LISBON, PORTO], {
+    simMinute: 0,
+    spawnChance: 0
+  }), null);
+  assert.equal(state.memory.quests.onboardingDeliveriesCompleted, ONBOARDING_DELIVERY_COUNT);
 });
 
 test("ports without an intra-faction regional destination offer no delivery quest", () => {

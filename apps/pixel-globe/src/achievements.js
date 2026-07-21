@@ -42,17 +42,17 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.WELL_ROUNDED, "Well Rounded",
     "Sail every ship type across any number of voyages.", "lifetime", "ship:caravel", "WELL_ROUNDED"),
   achievement(ACHIEVEMENT_IDS.HISTORY_ENTHUSIAST, "History Enthusiast",
-    "Unlock the Viking longship.", "voyage", "action:viking", "HISTORY_ENTHUSIAST"),
+    "Unlock the Viking longship.", "voyage", "action:viking", "HISTORY_ENTHUSIAST", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.CAPTAIN_AHAB, "Captain Ahab",
-    "Kill the white whale.", "voyage", "action:harpoon", "CAPTAIN_AHAB"),
+    "Kill the white whale.", "voyage", "action:harpoon", "CAPTAIN_AHAB", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.GOLDEN, "Golden",
-    "Discover El Dorado.", "voyage", "good:gold", "GOLDEN"),
+    "Discover El Dorado.", "voyage", "good:gold", "GOLDEN", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.DRUNKEN_SAILOR, "Drunken Sailor",
     "Arrive in port drunk.", "voyage", "good:wine", "DRUNKEN_SAILOR"),
   achievement(ACHIEVEMENT_IDS.TEPPO, "Teppo",
-    "Create a domestic matchlock industry in Japan.", "voyage", "good:matchlocks", "TEPPO"),
+    "Create a domestic matchlock industry in Japan.", "voyage", "good:matchlocks", "TEPPO", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.GINGER_FARMER, "Ginger Farmer",
-    "Transplant Old World ginger into the New World.", "voyage", "good:ginger", "GINGER_FARMER")
+    "Transplant Old World ginger into the New World.", "voyage", "good:ginger", "GINGER_FARMER", { hidden: true })
 ]);
 
 export const ACHIEVEMENT_CATALOG_BY_ID = new Map(
@@ -257,6 +257,20 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
   return Object.freeze({ unlocked, value: Math.min(value, target), target });
 }
 
+export function achievementPresentation(entry, unlocked) {
+  if (!entry || !ACHIEVEMENT_CATALOG_BY_ID.has(entry.id)) {
+    throw new Error(`Unknown achievement presentation: ${entry?.id ?? "missing"}`);
+  }
+  if (typeof unlocked !== "boolean") throw new Error("Achievement presentation requires unlock state");
+  const concealed = entry.hidden && !unlocked;
+  return Object.freeze({
+    concealed,
+    title: concealed ? "Hidden Achievement" : entry.title,
+    description: concealed ? "Keep exploring to reveal this." : entry.description,
+    iconId: concealed ? "action:quest" : entry.iconId
+  });
+}
+
 export function achievementPlatformAdapter(root = globalThis) {
   const adapter = root?.marqueAchievementPlatform;
   if (adapter === undefined || adapter === null) return null;
@@ -291,13 +305,14 @@ export async function syncAchievementProfileToPlatform(profile, adapter) {
   return { changed: syncedIds.length > 0, syncedIds };
 }
 
-function achievement(id, title, description, scope, iconId, steamId) {
+function achievement(id, title, description, scope, iconId, steamId, { hidden = false } = {}) {
   return Object.freeze({
     id,
     title,
     description,
     scope,
     iconId,
+    hidden,
     platformIds: Object.freeze({ steam: steamId })
   });
 }

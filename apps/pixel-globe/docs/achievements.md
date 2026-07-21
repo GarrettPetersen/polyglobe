@@ -20,3 +20,7 @@ window.marqueAchievementPlatform = {
 The game calls `unlockAchievement` once for every locally unlocked achievement not yet acknowledged by that platform. A successful call is recorded in `profile.platformUnlocks`; a rejected call is logged and retried on a later synchronization. The web build requires no adapter and continues to track local achievements normally.
 
 Steam achievement identifiers are the uppercase values in each catalog entry, such as `GREAT_EXPLORER` and `CAPTAIN_AHAB`. Those same identifiers must be configured in Steamworks.
+
+Catalog entries with `hidden: true` conceal their title, description, icon, and
+progress in the in-game list until they unlock. Configure those same entries as
+hidden in Steamworks so the platform UI does not reveal quest spoilers.

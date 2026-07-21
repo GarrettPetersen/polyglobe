@@ -285,7 +285,8 @@ export function createPortArrivalDialogueSession(city, options = {}) {
 export function deliveryMissionShouldOpenOnArrival(gameState, city, portCities) {
   const state = questStateForCity(gameState, city, portCities);
   return state.quest?.kind === "delivery" &&
-    (state.kind === "ready-to-complete" || state.kind === "in-progress-here");
+    (state.kind === "ready-to-complete" || state.kind === "in-progress-here" ||
+      (state.kind === "available" && state.quest.onboarding === true));
 }
 
 export function createPassengerDialogueSession(city, quest, options = {}) {
@@ -2811,10 +2812,15 @@ function questView(session, city, gameState, portCities) {
     return {
       speaker: speakerName(city),
       expressionId: "pleased",
-      text: `That packet bears our seal. Hand it over and I will pay ${questState.quest.reward} db.`,
+      text: questState.quest.completionText
+        ? `${questState.quest.completionText} Hand over the ${questState.quest.cargoLabel}, ` +
+          `and I will pay ${questState.quest.reward} db.`
+        : `That packet bears our seal. Hand it over and I will pay ${questState.quest.reward} db.`,
       feedback: session.feedback,
       options: [
-        option(`Complete delivery  ${questState.quest.reward} db`, { type: "complete-quest" }),
+        option(`Deliver ${questState.quest.cargoLabel || "packet"}  ${questState.quest.reward} db`, {
+          type: "complete-quest"
+        }),
         option("Back", { type: "node", nodeId: returnNodeId })
       ]
     };
@@ -2823,10 +2829,13 @@ function questView(session, city, gameState, portCities) {
     return {
       speaker: speakerName(city),
       expressionId: "attentive",
-      text: `A sealed packet needs passage to ${questState.quest.destinationName}, ${formatDistanceKm(questState.quest.distanceKm)} away. Payment is ${questState.quest.reward} db on delivery.`,
+      text: questState.quest.offerText ||
+        `A sealed packet needs passage to ${questState.quest.destinationName}, ` +
+        `${formatDistanceKm(questState.quest.distanceKm)} away. ` +
+        `Payment is ${questState.quest.reward} db on delivery.`,
       feedback: session.feedback,
       options: [
-        option(`Accept delivery to ${questState.quest.destinationName}`, {
+        option(`Take ${questState.quest.cargoLabel || "packet"} to ${questState.quest.destinationName}`, {
           type: "accept-quest",
           quest: questState.quest
         }, {

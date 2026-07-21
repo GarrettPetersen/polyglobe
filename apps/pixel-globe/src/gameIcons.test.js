@@ -89,16 +89,32 @@ test("fishing actions use a legible native-size fishing rod", () => {
   assert.equal(source.entry, "Sprites/Tools_Crafting_Fishing_Rod.png");
   assert.equal(source.crop, null);
   assert.equal(source.paperOutline, undefined);
+  assert.deepEqual(source.duotone, { dark: "#2e222f", light: "#4d9be6" });
 });
 
-test("interface controls use the dedicated one-bit icon language without replacing trade goods", () => {
+test("interface controls use a varied Resurrect duotone language without replacing trade goods", () => {
+  const palette = new Set(RESURRECT_64_HEX.map((hex) => `#${hex}`));
+  const lightColors = new Set();
   for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
     if (iconId.startsWith("menu:") && iconId !== "menu:discoveries") {
       assert.equal(source.packId, "nikoichu", iconId);
     }
-    if (iconId.startsWith("action:")) assert.equal(source.packId, "nikoichu", iconId);
+    if (iconId.startsWith("action:") || (iconId.startsWith("menu:") && source.packId === "nikoichu")) {
+      assert.equal(source.packId, "nikoichu", iconId);
+      assert.ok(palette.has(source.duotone.dark), `${iconId} dark color`);
+      assert.ok(palette.has(source.duotone.light), `${iconId} light color`);
+      assert.notEqual(source.duotone.dark, source.duotone.light, iconId);
+      lightColors.add(source.duotone.light);
+    }
     if (iconId.startsWith("good:")) assert.notEqual(source.packId, "nikoichu", iconId);
   }
+  assert.ok(lightColors.size >= 8, `only ${lightColors.size} interface accent colors`);
+});
+
+test("fresh water uses the period cask instead of modern bottled-water artwork", () => {
+  const source = GAME_ICON_SOURCES["good:fresh-water"];
+  assert.equal(source.packId, null);
+  assert.equal(source.assetPath, "public/assets/misc/water.png");
 });
 
 test("every non-vendored pack icon has a checked-in source fallback", async () => {

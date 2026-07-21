@@ -123,6 +123,33 @@ export const TRADE_REPUTATION_GAIN = 0.2;
 export const DELIVERY_REPUTATION_GAIN = 2;
 export const DELIVERY_SPAWN_CHANCE = 0.32;
 export const DELIVERY_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
+export const ONBOARDING_DELIVERY_COUNT = 4;
+export const ONBOARDING_DELIVERY_SCENARIOS = Object.freeze([
+  Object.freeze({
+    id: "harbor-dispatch",
+    cargoLabel: "harbor dispatch",
+    offer: "A routine harbor dispatch needs a reliable captain.",
+    completion: "The harbor seal is intact. A tidy first commission."
+  }),
+  Object.freeze({
+    id: "pilot-soundings",
+    cargoLabel: "pilot's soundings",
+    offer: "Our pilots have copied their newest notes on shoals, currents, and safe approaches.",
+    completion: "These soundings may save a hull before the season is out."
+  }),
+  Object.freeze({
+    id: "market-tallies",
+    cargoLabel: "market tallies",
+    offer: "The neighboring factor needs our latest prices before committing another cargo.",
+    completion: "Fresh prices are worth more than old promises. The factor will be pleased."
+  }),
+  Object.freeze({
+    id: "shipyard-measurements",
+    cargoLabel: "shipyard measurements",
+    offer: "A shipwright is waiting on these spar and sail measurements.",
+    completion: "Good. The shipwright can cut timber without guessing now."
+  })
+]);
 export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
 export const PIRACY_REPUTATION_PENALTY = -3;
 export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
@@ -260,6 +287,7 @@ export function createGameState({
       quests: {
         active: null,
         completed: {},
+        onboardingDeliveriesCompleted: 0,
         deliveryOffers: {},
         deliveryRolls: {},
         passengerOffers: {},
@@ -2298,9 +2326,17 @@ export function portMemory(state, city) {
   return memory;
 }
 
-export function deliveryQuestForCity(city, portCities, { offerPeriod = 0 } = {}) {
+export function deliveryQuestForCity(city, portCities, {
+  offerPeriod = 0,
+  onboardingIndex = null
+} = {}) {
   if (!Number.isInteger(offerPeriod) || offerPeriod < 0) {
     throw new Error(`Invalid delivery offer period: ${offerPeriod}`);
+  }
+  if (onboardingIndex !== null &&
+      (!Number.isInteger(onboardingIndex) || onboardingIndex < 0 ||
+       onboardingIndex >= ONBOARDING_DELIVERY_COUNT)) {
+    throw new Error(`Invalid onboarding delivery index: ${onboardingIndex}`);
   }
   const factionId = deliveryFactionId(city);
   const regionKey = deliveryRegionKey(city);
@@ -2313,14 +2349,31 @@ export function deliveryQuestForCity(city, portCities, { offerPeriod = 0 } = {})
     ))
     .sort((a, b) => cityKey(a).localeCompare(cityKey(b)));
   if (candidates.length === 0) return null;
-  const index = hashString32(`delivery|${cityKey(city)}|${offerPeriod}`) % candidates.length;
-  const destination = candidates[index];
+  const onboarding = onboardingIndex !== null;
+  const destination = onboarding
+    ? [...candidates].sort((a, b) => (
+        greatCircleDistanceKm(city, a) - greatCircleDistanceKm(city, b) ||
+        cityKey(a).localeCompare(cityKey(b))
+      ))[0]
+    : candidates[hashString32(`delivery|${cityKey(city)}|${offerPeriod}`) % candidates.length];
+  const scenario = onboarding ? ONBOARDING_DELIVERY_SCENARIOS[onboardingIndex] : null;
   const reward = 65 + (hashString32(
     `reward|${cityKey(city)}|${cityKey(destination)}|${offerPeriod}`
-  ) % 96);
+  ) % 96) + (onboarding ? 50 : 0);
+  const distanceKm = Math.round(greatCircleDistanceKm(city, destination));
   return {
     id: `delivery-${city.tileId}-${destination.tileId}-${offerPeriod}`,
     kind: "delivery",
+    onboarding,
+    onboardingIndex,
+    scenarioId: scenario?.id || "sealed-packet",
+    cargoLabel: scenario?.cargoLabel || "sealed packet",
+    offerText: scenario
+      ? `${scenario.offer} Take the ${scenario.cargoLabel} to ${cityLabel(destination)}, ` +
+        `${distanceKm.toLocaleString("en-US")} km away. Your chart will mark the way. ` +
+        `Payment is ${reward} db.`
+      : null,
+    completionText: scenario?.completion || null,
     offerPeriod,
     originKey: cityKey(city),
     originTileId: city.tileId,
@@ -2332,7 +2385,7 @@ export function deliveryQuestForCity(city, portCities, { offerPeriod = 0 } = {})
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
     destinationCountry: destination.country || "",
-    distanceKm: Math.round(greatCircleDistanceKm(city, destination)),
+    distanceKm,
     reward
   };
 }
@@ -2344,7 +2397,10 @@ export function deliveryOfferForCity(state, city, portCities, context = {}) {
   if (existing || quests.active) return existing;
 
   const offerPeriod = deliveryRollPeriod(context.simMinute);
-  const candidate = deliveryQuestForCity(city, portCities, { offerPeriod });
+  const onboardingIndex = quests.onboardingDeliveriesCompleted < ONBOARDING_DELIVERY_COUNT
+    ? quests.onboardingDeliveriesCompleted
+    : null;
+  const candidate = deliveryQuestForCity(city, portCities, { offerPeriod, onboardingIndex });
   if (!candidate) return null;
 
   const rollKey = `${candidate.originKey}|${offerPeriod}`;
@@ -2352,7 +2408,9 @@ export function deliveryOfferForCity(state, city, portCities, context = {}) {
   quests.deliveryRolls[rollKey] = true;
   pruneQuestRolls(quests.deliveryRolls);
 
-  const spawnChance = deliverySpawnChance(context.spawnChance);
+  const spawnChance = context.spawnChance === undefined && candidate.onboarding
+    ? 1
+    : deliverySpawnChance(context.spawnChance);
   const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
   if (spawnChance < 1 && seededFraction(`${identityKey}|${rollKey}|delivery`) >= spawnChance) {
     return null;
@@ -2445,6 +2503,12 @@ export function completeQuest(state, city, context = {}) {
   state.doubloons += active.reward;
   quests.completed[active.id] = true;
   quests.active = null;
+  if (active.kind === "delivery" && active.onboarding === true) {
+    quests.onboardingDeliveriesCompleted = Math.min(
+      ONBOARDING_DELIVERY_COUNT,
+      quests.onboardingDeliveriesCompleted + 1
+    );
+  }
   recordDecision(state, `quest.complete.${active.id}`, 1);
   if (active.kind === "delivery" && active.factionId) recordDeliveryForFaction(state, active.factionId);
   if (isEnvoyQuest(active)) {
@@ -3243,11 +3307,29 @@ function questMemory(state) {
   }
   const quests = state.memory.quests;
   if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
+  if (!Number.isInteger(quests.onboardingDeliveriesCompleted) || quests.onboardingDeliveriesCompleted < 0) {
+    quests.onboardingDeliveriesCompleted = inferredOnboardingDeliveryProgress(state, quests);
+  }
+  quests.onboardingDeliveriesCompleted = Math.min(
+    ONBOARDING_DELIVERY_COUNT,
+    quests.onboardingDeliveriesCompleted
+  );
   if (!quests.deliveryOffers || typeof quests.deliveryOffers !== "object") quests.deliveryOffers = {};
   if (!quests.deliveryRolls || typeof quests.deliveryRolls !== "object") quests.deliveryRolls = {};
   if (!quests.passengerOffers || typeof quests.passengerOffers !== "object") quests.passengerOffers = {};
   if (!quests.passengerRolls || typeof quests.passengerRolls !== "object") quests.passengerRolls = {};
   return quests;
+}
+
+function inferredOnboardingDeliveryProgress(state, quests) {
+  const completedDeliveries = Object.keys(quests.completed || {})
+    .filter((questId) => questId.startsWith("delivery-")).length;
+  if (completedDeliveries > 0) return Math.min(ONBOARDING_DELIVERY_COUNT, completedDeliveries);
+  const visitedPortCount = Object.values(state.memory.visitedPorts || {})
+    .filter((memory) => Number.isInteger(memory?.visits) && memory.visits > 0).length;
+  return state.activePlaySeconds >= 30 * 60 || visitedPortCount >= ONBOARDING_DELIVERY_COUNT
+    ? ONBOARDING_DELIVERY_COUNT
+    : 0;
 }
 
 function deliveryRollPeriod(simMinute) {

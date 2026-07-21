@@ -75,6 +75,7 @@ async function main() {
       rect: gameIconAtlasRect(id),
       packId: source.packId,
       assetPath: source.assetPath || null,
+      duotone: source.duotone || undefined,
       paperOutline: source.paperOutline === true || undefined
     })),
     packs: GAME_ICON_PACKS
@@ -125,6 +126,11 @@ async function loadVendoredPackFallback(iconId) {
 }
 
 function drawIconSource(ctx, image, crop, rect, source) {
+  if (source.duotone) {
+    const recolored = duotoneIconCanvas(image, crop, source.duotone);
+    ctx.drawImage(recolored, rect.x, rect.y);
+    return;
+  }
   if (!source.paperOutline) {
     ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, rect.x, rect.y, GAME_ICON_SIZE, GAME_ICON_SIZE);
     return;
@@ -149,6 +155,38 @@ function drawIconSource(ctx, image, crop, rect, source) {
   outlinedCtx.putImageData(outlineImage, 0, 0);
   outlinedCtx.drawImage(sourceCanvas, 0, 0);
   ctx.drawImage(outlinedCanvas, rect.x, rect.y);
+}
+
+function duotoneIconCanvas(image, crop, duotone) {
+  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const ctx = canvas.getContext("2d", { alpha: true, willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, 0, 0, GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const pixels = ctx.getImageData(0, 0, GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const dark = parseIconHex(duotone.dark);
+  const light = parseIconHex(duotone.light);
+  for (let offset = 0; offset < pixels.data.length; offset += 4) {
+    if (pixels.data[offset + 3] === 0) continue;
+    const brightness = pixels.data[offset] + pixels.data[offset + 1] + pixels.data[offset + 2];
+    const color = brightness >= 384 ? light : dark;
+    pixels.data[offset] = color[0];
+    pixels.data[offset + 1] = color[1];
+    pixels.data[offset + 2] = color[2];
+    pixels.data[offset + 3] = 255;
+  }
+  ctx.putImageData(pixels, 0, 0);
+  return canvas;
+}
+
+function parseIconHex(value) {
+  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) {
+    throw new Error(`Invalid duotone icon color: ${value}`);
+  }
+  return [
+    Number.parseInt(value.slice(1, 3), 16),
+    Number.parseInt(value.slice(3, 5), 16),
+    Number.parseInt(value.slice(5, 7), 16)
+  ];
 }
 
 function generateIcon(generatedId) {

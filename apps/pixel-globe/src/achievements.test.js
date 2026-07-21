@@ -6,6 +6,7 @@ import {
   ACHIEVEMENT_IDS,
   ACHIEVEMENT_PROFILE_STORAGE_KEY,
   achievementPlatformAdapter,
+  achievementPresentation,
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
@@ -52,6 +53,30 @@ test("achievement profile persists independently from a voyage save", () => {
   writeAchievementProfile(profile, { storage });
   assert.ok(storage.getItem(ACHIEVEMENT_PROFILE_STORAGE_KEY));
   assert.deepEqual(readAchievementProfile({ storage }).profile, profile);
+});
+
+test("quest and discovery spoilers remain hidden until they unlock", () => {
+  const hiddenIds = ACHIEVEMENT_CATALOG
+    .filter((achievement) => achievement.hidden)
+    .map((achievement) => achievement.id);
+
+  assert.deepEqual(hiddenIds, [
+    ACHIEVEMENT_IDS.HISTORY_ENTHUSIAST,
+    ACHIEVEMENT_IDS.CAPTAIN_AHAB,
+    ACHIEVEMENT_IDS.GOLDEN,
+    ACHIEVEMENT_IDS.TEPPO,
+    ACHIEVEMENT_IDS.GINGER_FARMER
+  ]);
+
+  const teppo = ACHIEVEMENT_CATALOG.find((achievement) => achievement.id === ACHIEVEMENT_IDS.TEPPO);
+  assert.deepEqual(achievementPresentation(teppo, false), {
+    concealed: true,
+    title: "Hidden Achievement",
+    description: "Keep exploring to reveal this.",
+    iconId: "action:quest"
+  });
+  assert.equal(achievementPresentation(teppo, true).title, "Teppo");
+  assert.equal(achievementPresentation(teppo, true).iconId, "good:matchlocks");
 });
 
 test("same-voyage achievements unlock from accumulated progress", () => {

@@ -730,6 +730,7 @@ import {
 import {
   ACHIEVEMENT_CATALOG,
   achievementPlatformAdapter,
+  achievementPresentation,
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
@@ -1176,7 +1177,7 @@ const ROWING_SHIP_ANIMATION_SPECS = new Map([
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
-const STATUS_HUD_ASSET_VERSION = "cargo-crates-1";
+const STATUS_HUD_ASSET_VERSION = "water-cask-1";
 const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
 const STATUS_HUD_DOUBLOON_URL = "assets/misc/dubloon.png";
 const STATUS_HUD_WATER_URL = "assets/misc/water.png";
@@ -8355,7 +8356,8 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
   }
   const simMinute = Math.floor(weatherClockMinutes);
   deliveryOfferForCity(gameState, cityCall, portCities, { simMinute });
-  const openDeliveryMission = deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities);
+  const openDeliveryMission = !needsLoadout &&
+    deliveryMissionShouldOpenOnArrival(gameState, cityCall, portCities);
   const vikingLongshipOffer = maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });
   if (vikingLongshipOffer &&
       vikingLongshipOfferShouldApproach(gameState, cityCall) &&
@@ -18972,19 +18974,27 @@ function drawAchievementsMenu() {
 
   entries.forEach((entry, index) => {
     const progress = achievementProgress(achievementProfile, voyageProgress, snapshot, entry.id);
+    const presentation = achievementPresentation(entry, progress.unlocked);
+    const concealed = presentation.concealed;
     const row = { x: listX, y: listY + index * rowH, w: rowW, h: rowH - 2 };
     ctx.fillStyle = progress.unlocked ? "#dec99e" : PIRATE_MENU_PAPER_INSET;
     ctx.fillRect(row.x, row.y, row.w, row.h);
     ctx.fillStyle = progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED;
     ctx.fillRect(row.x, row.y, 2, row.h);
-    drawGameIcon(entry.iconId, row.x + 6, row.y + 9, { alpha: progress.unlocked ? 1 : 0.48 });
+    drawGameIcon(presentation.iconId, row.x + 6, row.y + 9, {
+      alpha: progress.unlocked ? 1 : 0.48
+    });
 
     const textX = row.x + 27;
-    const progressLabel = achievementProgressLabel(entry, progress);
+    const progressLabel = concealed ? "HIDDEN" : achievementProgressLabel(entry, progress);
     const progressWidth = measurePixelTextWidth(progressLabel, PIXEL_FONT_SMALL_8);
     const titleWidth = Math.max(24, row.w - (textX - row.x) - progressWidth - 13);
     drawOptionsText(
-      fitPixelText(entry.title.toUpperCase(), PIXEL_FONT_DIALOGUE_8, titleWidth),
+      fitPixelText(
+        presentation.title.toUpperCase(),
+        PIXEL_FONT_DIALOGUE_8,
+        titleWidth
+      ),
       textX,
       row.y + 2,
       { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
@@ -18994,7 +19004,7 @@ function drawAchievementsMenu() {
       color: progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
     });
     const descriptionLines = wrapPixelText(
-      entry.description.toUpperCase(),
+      presentation.description.toUpperCase(),
       PIXEL_FONT_SMALL_8,
       row.w - (textX - row.x) - 7,
       2
@@ -19005,7 +19015,7 @@ function drawAchievementsMenu() {
       row.y + 14 + lineIndex * 8,
       { font: PIXEL_FONT_SMALL_8, color: PIRATE_MENU_INK_MUTED }
     ));
-    const fraction = progress.target > 0 ? clamp(progress.value / progress.target, 0, 1) : 0;
+    const fraction = concealed || progress.target <= 0 ? 0 : clamp(progress.value / progress.target, 0, 1);
     ctx.fillStyle = "#b99a67";
     ctx.fillRect(textX, row.y + row.h - 4, row.w - (textX - row.x) - 7, 2);
     if (fraction > 0) {

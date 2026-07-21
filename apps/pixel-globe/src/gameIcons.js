@@ -2,7 +2,22 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-14";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-15";
+
+const ICON_INK = "#2e222f";
+const ICON_TINT = Object.freeze({
+  danger: "#e83b3b",
+  dialogue: "#8fd3ff",
+  gold: "#f9c22b",
+  navigation: "#4d9be6",
+  parchment: "#fbb954",
+  purple: "#a884f3",
+  sea: "#0eaf9b",
+  steel: "#9babb2",
+  success: "#91db69",
+  timber: "#e6904e",
+  warm: "#fca790"
+});
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -71,7 +86,7 @@ const SHIP_MENU_ICON_SOURCES = Object.freeze(Object.fromEntries(
 
 export const GAME_ICON_SOURCES = Object.freeze({
   "good:hardtack": alex("pastry_bread.png"),
-  "good:fresh-water": keifoo("water_png/water_bottled.png"),
+  "good:fresh-water": projectAsset("public/assets/misc/water.png"),
   "good:foraged-food": alex("fruit_apple.png"),
   "good:grain": paperOutlined(keifoo("grains_png/wheat.png")),
   "good:fish": hollow(4),
@@ -114,14 +129,14 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:silver": glionox(570),
   "good:gold": glionox(567),
 
-  "menu:continue": nikoichu("Arrows_Media_Controls_Play_Triangle.png"),
-  "menu:new-game": nikoichu("Travel_Ship_Medieval_Caravel.png"),
-  "menu:lake-battle": nikoichu("RPG_Crossed_Swords_Duel_PvP_Combat_Battle_War.png"),
-  "menu:past-voyages": nikoichu("Map_Markers_Treasure_Map_Paper_Parchment.png"),
-  "menu:options": nikoichu("Software_Options_Settings_Sliders_Knobs_Audio.png"),
-  "menu:credits": nikoichu("Software_Text_Document_Credits_Roll_Attributions.png"),
-  "menu:captain": nikoichu("Travel_Person_Player_Character_Single.png"),
-  "menu:politics": nikoichu("RPG_Trade_Libra_Scales_Balanced_Even_Fair_Law_Justice_Judge.png"),
+  "menu:continue": nikoichu("Arrows_Media_Controls_Play_Triangle.png", ICON_TINT.success),
+  "menu:new-game": nikoichu("Travel_Ship_Medieval_Caravel.png", ICON_TINT.sea),
+  "menu:lake-battle": nikoichu("RPG_Crossed_Swords_Duel_PvP_Combat_Battle_War.png", ICON_TINT.danger),
+  "menu:past-voyages": nikoichu("Map_Markers_Treasure_Map_Paper_Parchment.png", ICON_TINT.parchment),
+  "menu:options": nikoichu("Software_Options_Settings_Sliders_Knobs_Audio.png", ICON_TINT.purple),
+  "menu:credits": nikoichu("Software_Text_Document_Credits_Roll_Attributions.png", ICON_TINT.dialogue),
+  "menu:captain": nikoichu("Travel_Person_Player_Character_Single.png", ICON_TINT.warm),
+  "menu:politics": nikoichu("RPG_Trade_Libra_Scales_Balanced_Even_Fair_Law_Justice_Judge.png", ICON_TINT.gold),
   "menu:discoveries": projectAsset("public/assets/terrain/resurrect-64/egyptian_pyramid.png", {
     x: 2,
     y: 0,
@@ -131,32 +146,32 @@ export const GAME_ICON_SOURCES = Object.freeze({
 
   ...SHIP_MENU_ICON_SOURCES,
 
-  "action:dock": nikoichu("Travel_Ship_Dock.png"),
-  "action:hail": nikoichu("Software_Speech_Bubble_Three_Dots_Dialogue.png"),
-  "action:fish": nikoichu("Tools_Crafting_Fishing_Rod.png"),
-  "action:harpoon": nikoichu("Tools_Crafting_Fishing_Harpoon_Spear.png"),
-  "action:scavenge": nikoichu("Travel_Backpack_Bag_Bedroll.png"),
-  "action:buy": nikoichu("Software_Shopping_Basket.png"),
-  "action:sell": nikoichu("RPG_Trade_Handshake_Deal_Exchange.png"),
-  "action:back": nikoichu("Arrows_Go_Back_Return_Previous.png"),
-  "action:leave": nikoichu("Software_Exit_Quit_Doorway_Button.png"),
-  "action:quest": nikoichu("Software_Speech_Bubble_Exclaimation_Mark_Quest_New.png"),
-  "action:talk": nikoichu("Software_Speech_Bubble_Three_Dots_Dialogue.png"),
-  "action:wait": nikoichu("Software_Clock_Time_Wait_1.png"),
-  "action:attack": nikoichu("Warfare_Medieval_Siege_Engine_Cannon_Gunpowder.png"),
-  "action:loadout": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png"),
-  "action:shipyard": nikoichu("Tools_Crafting_Smithing_Anvil_Hammer.png"),
-  "action:letter": nikoichu("Tools_Crafting_Writing_Parchment_Scroll_Document_Sealed.png"),
-  "action:disguise": nikoichu("Hats_Domino_Mask_Incognito_Private_Privacy.png"),
-  "action:surrender": nikoichu("Map_Markers_Flagpole.png"),
-  "action:passenger": nikoichu("Travel_Person_People_Two.png"),
-  "action:viking": nikoichu("Hats_Viking_Helmet_Armor.png"),
-  "action:inventory": nikoichu("Tools_Crafting_Chest_Locked_Loot_2.png"),
-  "action:resume": nikoichu("Arrows_Media_Controls_Play_Triangle.png"),
-  "action:restart": nikoichu("Arrows_Reload_Refresh_Rotate_Clockwise.png"),
-  "action:choose-ships": nikoichu("Travel_Ship_Sailing_Boat.png"),
-  "action:start-menu": nikoichu("Map_Markers_Building_Home_House.png"),
-  "action:navigation": nikoichu("Map_Markers_Compass_Rose_1.png"),
+  "action:dock": nikoichu("Travel_Ship_Dock.png", ICON_TINT.sea),
+  "action:hail": nikoichu("Software_Speech_Bubble_Three_Dots_Dialogue.png", ICON_TINT.dialogue),
+  "action:fish": nikoichu("Tools_Crafting_Fishing_Rod.png", ICON_TINT.navigation),
+  "action:harpoon": nikoichu("Tools_Crafting_Fishing_Harpoon_Spear.png", ICON_TINT.steel),
+  "action:scavenge": nikoichu("Travel_Backpack_Bag_Bedroll.png", ICON_TINT.timber),
+  "action:buy": nikoichu("Software_Shopping_Basket.png", ICON_TINT.success),
+  "action:sell": nikoichu("RPG_Trade_Handshake_Deal_Exchange.png", ICON_TINT.gold),
+  "action:back": nikoichu("Arrows_Go_Back_Return_Previous.png", ICON_TINT.steel),
+  "action:leave": nikoichu("Software_Exit_Quit_Doorway_Button.png", ICON_TINT.warm),
+  "action:quest": nikoichu("Software_Speech_Bubble_Exclaimation_Mark_Quest_New.png", ICON_TINT.gold),
+  "action:talk": nikoichu("Software_Speech_Bubble_Three_Dots_Dialogue.png", ICON_TINT.dialogue),
+  "action:wait": nikoichu("Software_Clock_Time_Wait_1.png", ICON_TINT.steel),
+  "action:attack": nikoichu("Warfare_Medieval_Siege_Engine_Cannon_Gunpowder.png", ICON_TINT.danger),
+  "action:loadout": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png", ICON_TINT.navigation),
+  "action:shipyard": nikoichu("Tools_Crafting_Smithing_Anvil_Hammer.png", ICON_TINT.timber),
+  "action:letter": nikoichu("Tools_Crafting_Writing_Parchment_Scroll_Document_Sealed.png", ICON_TINT.parchment),
+  "action:disguise": nikoichu("Hats_Domino_Mask_Incognito_Private_Privacy.png", ICON_TINT.purple),
+  "action:surrender": nikoichu("Map_Markers_Flagpole.png", ICON_TINT.steel),
+  "action:passenger": nikoichu("Travel_Person_People_Two.png", ICON_TINT.sea),
+  "action:viking": nikoichu("Hats_Viking_Helmet_Armor.png", ICON_TINT.steel),
+  "action:inventory": nikoichu("Tools_Crafting_Chest_Locked_Loot_2.png", ICON_TINT.timber),
+  "action:resume": nikoichu("Arrows_Media_Controls_Play_Triangle.png", ICON_TINT.success),
+  "action:restart": nikoichu("Arrows_Reload_Refresh_Rotate_Clockwise.png", ICON_TINT.timber),
+  "action:choose-ships": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_TINT.sea),
+  "action:start-menu": nikoichu("Map_Markers_Building_Home_House.png", ICON_TINT.warm),
+  "action:navigation": nikoichu("Map_Markers_Compass_Rose_1.png", ICON_TINT.navigation),
 
   "good:gunpowder": pirate(42),
   "good:matchlocks": pirate(45)
@@ -343,9 +358,9 @@ function iconPack(pack) {
   return Object.freeze(pack);
 }
 
-function iconSource(packId, entry, crop = null) {
+function iconSource(packId, entry, crop = null, options = {}) {
   if (!GAME_ICON_PACKS[packId]) throw new Error(`Unknown game icon pack: ${packId}`);
-  return Object.freeze({ packId, entry, crop });
+  return Object.freeze({ packId, entry, crop, ...options });
 }
 
 function projectAsset(assetPath, crop = null) {
@@ -393,6 +408,8 @@ function hollow(number) {
   return iconSource("hollow", `Separated Sprites/16x16/fishing_icons_16x16_${number}.png`);
 }
 
-function nikoichu(filename) {
-  return iconSource("nikoichu", `Sprites/${filename}`);
+function nikoichu(filename, light) {
+  return iconSource("nikoichu", `Sprites/${filename}`, null, {
+    duotone: Object.freeze({ dark: ICON_INK, light })
+  });
 }
