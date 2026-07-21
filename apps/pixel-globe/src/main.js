@@ -1431,10 +1431,7 @@ const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
 const MINIMAP_SAMPLE_OFFSETS = Object.freeze([1 / 6, 3 / 6, 5 / 6]);
-const MINIMAP_ZOOM_LEVELS = Object.freeze([1, 2, 4]);
 const CAPTAIN_CHART_ZOOM_LEVELS = Object.freeze([1, 2, 4, 8]);
-const MAP_ZOOM_BUTTON_SIZE = 16;
-const MAP_ZOOM_BUTTON_GAP = 2;
 const OPTIONS_BUTTON_SIZE = 27;
 let OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
@@ -1933,9 +1930,6 @@ let chart;
 let localLayout;
 let minimap;
 let captainChartMinimap;
-let mainMinimapZoomIndex = 0;
-let mainMinimapZoomOutRect = null;
-let mainMinimapZoomInRect = null;
 let themeMusic = null;
 let soundEffects = null;
 const stormLightningState = createStormLightningState();
@@ -2084,16 +2078,6 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (dispatchWorldOverlayKey(event)) return;
-  if (["+", "=", "]"].includes(event.key)) {
-    event.preventDefault();
-    stepMainMinimapZoom(1);
-    return;
-  }
-  if (["-", "_", "["].includes(event.key)) {
-    event.preventDefault();
-    stepMainMinimapZoom(-1);
-    return;
-  }
   if (event.key === "Escape") {
     event.preventDefault();
     openCaptainMenu();
@@ -7742,7 +7726,6 @@ function handlePointerDown(event) {
     return;
   }
   if (dispatchWorldOverlayPointerDown(event, point)) return;
-  if (handleMainMinimapPointerDown(event, point)) return;
   const statusTarget = statusHudTooltipTargetForPoint(point);
   if (statusTarget) {
     event.preventDefault();
@@ -8478,14 +8461,7 @@ function stepDialogueSelection(direction) {
 function handleCanvasWheel(event) {
   if (Math.abs(event.deltaY) < 1) return;
   const owner = currentInteractionInputOwner();
-  if (owner === INTERACTION_INPUT.WORLD) {
-    const point = canvasPointFromEvent(event);
-    if (!minimapShouldBeVisible() || !voyageCartographyIsActive() ||
-        !pointInRect(point, expandedRect(mainMinimapInteractiveRect(), 3))) return;
-    event.preventDefault();
-    stepMainMinimapZoom(event.deltaY < 0 ? 1 : -1);
-    return;
-  }
+  if (owner === INTERACTION_INPUT.WORLD) return;
   if (owner === INTERACTION_INPUT.CAPTAIN_MENU) {
     const point = canvasPointFromEvent(event);
     if (captainMenu.mapRect && pointInRect(point, captainMenu.mapRect)) {
@@ -8500,33 +8476,6 @@ function handleCanvasWheel(event) {
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
   event.preventDefault();
   stepDialogueSelection(event.deltaY > 0 ? 1 : -1);
-}
-
-function handleMainMinimapPointerDown(event, point) {
-  if (!minimapShouldBeVisible() || !voyageCartographyIsActive()) return false;
-  if (mainMinimapZoomOutRect && pointInRect(point, expandedRect(mainMinimapZoomOutRect, 4))) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    stepMainMinimapZoom(-1);
-    return true;
-  }
-  if (mainMinimapZoomInRect && pointInRect(point, expandedRect(mainMinimapZoomInRect, 4))) {
-    event.preventDefault();
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-    stepMainMinimapZoom(1);
-    return true;
-  }
-  return false;
-}
-
-function mainMinimapInteractiveRect() {
-  const controlsTop = mainMinimapZoomInRect?.y ?? MINIMAP_Y;
-  return {
-    x: MINIMAP_X - 1,
-    y: controlsTop,
-    w: MINIMAP_W + 2,
-    h: MINIMAP_Y + MINIMAP_H + 1 - controlsTop
-  };
 }
 
 function openActiveInteractionDialogue() {
@@ -17156,13 +17105,11 @@ function buildMinimapRaster(width, height, trackSampledTiles = false) {
 }
 
 function drawMinimap(nowMs) {
-  mainMinimapZoomOutRect = null;
-  mainMinimapZoomInRect = null;
   if (!minimap) return;
   const cartographyActive = voyageCartographyIsActive();
   if (cartographyActive) ensureMinimapMarkerTile(centerTileId);
   refreshMinimapViewport();
-  const displayViewport = mainMinimapDisplayViewport();
+  const displayViewport = minimap.viewport;
   ensureMinimapRaster(minimap, displayViewport);
   ctx.fillStyle = "#2a1c11";
   ctx.fillRect(MINIMAP_X - 1, MINIMAP_Y - 1, MINIMAP_W + 2, MINIMAP_H + 2);
@@ -17177,65 +17124,6 @@ function drawMinimap(nowMs) {
   const blinkOn = Math.floor(nowMs / 320) % 2 === 0;
   ctx.fillStyle = blinkOn ? "#fff4a8" : "#151713";
   ctx.fillRect(mx, my, 1, 1);
-  drawMainMinimapZoomControls();
-}
-
-function mainMinimapDisplayViewport() {
-  if (!minimap?.viewport) return null;
-  const zoom = MINIMAP_ZOOM_LEVELS[mainMinimapZoomIndex];
-  if (!zoom) throw new Error(`Invalid sailing minimap zoom index: ${mainMinimapZoomIndex}`);
-  if (zoom === 1) return minimap.viewport;
-  return zoomedMinimapViewport({
-    baseViewport: minimap.viewport,
-    zoom,
-    centerX: minimap.tileProjectedX[centerTileId],
-    centerY: minimap.tileProjectedY[centerTileId],
-    worldWidth: MINIMAP_W,
-    worldHeight: MINIMAP_H
-  });
-}
-
-function stepMainMinimapZoom(direction) {
-  const nextIndex = clamp(
-    mainMinimapZoomIndex + Math.sign(direction),
-    0,
-    MINIMAP_ZOOM_LEVELS.length - 1
-  );
-  if (nextIndex === mainMinimapZoomIndex) return false;
-  mainMinimapZoomIndex = nextIndex;
-  dirty = true;
-  return true;
-}
-
-function drawMainMinimapZoomControls() {
-  const y = MINIMAP_Y - MAP_ZOOM_BUTTON_SIZE - 3;
-  mainMinimapZoomInRect = {
-    x: MINIMAP_X + MINIMAP_W - MAP_ZOOM_BUTTON_SIZE,
-    y,
-    w: MAP_ZOOM_BUTTON_SIZE,
-    h: MAP_ZOOM_BUTTON_SIZE
-  };
-  mainMinimapZoomOutRect = {
-    x: mainMinimapZoomInRect.x - MAP_ZOOM_BUTTON_GAP - MAP_ZOOM_BUTTON_SIZE,
-    y,
-    w: MAP_ZOOM_BUTTON_SIZE,
-    h: MAP_ZOOM_BUTTON_SIZE
-  };
-  drawMapZoomButton(
-    mainMinimapZoomOutRect,
-    -1,
-    mainMinimapZoomIndex > 0,
-    pointInRect(captainMenu.hoverPoint, expandedRect(mainMinimapZoomOutRect, 2))
-  );
-  drawMapZoomButton(
-    mainMinimapZoomInRect,
-    1,
-    mainMinimapZoomIndex < MINIMAP_ZOOM_LEVELS.length - 1,
-    pointInRect(captainMenu.hoverPoint, expandedRect(mainMinimapZoomInRect, 2))
-  );
-  drawOptionsText(`${MINIMAP_ZOOM_LEVELS[mainMinimapZoomIndex]}X`, MINIMAP_X, y + 3, {
-    color: "#fff4a8"
-  });
 }
 
 function drawMapZoomButton(rect, direction, enabled, hovered) {
@@ -17340,7 +17228,7 @@ function refreshMinimapViewport() {
 }
 
 function renderMinimapViewport() {
-  ensureMinimapRaster(minimap, mainMinimapDisplayViewport());
+  ensureMinimapRaster(minimap, minimap?.viewport);
 }
 
 function ensureMinimapRaster(raster, viewport) {
