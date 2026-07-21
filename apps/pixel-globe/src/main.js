@@ -558,9 +558,11 @@ import {
   minimapProjectLongitude,
   minimapUnprojectLatitude,
   minimapUnprojectLongitude,
+  minimapViewportCenter,
   minimapViewportContainsPoint,
   minimapViewportPixel,
-  minimapViewportSample
+  minimapViewportSample,
+  zoomedMinimapViewport
 } from "./minimapViewport.js";
 import {
   dialogueExitFooterRects,
@@ -1427,6 +1429,10 @@ const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
 const MINIMAP_SAMPLE_OFFSETS = Object.freeze([1 / 6, 3 / 6, 5 / 6]);
+const MINIMAP_ZOOM_LEVELS = Object.freeze([1, 2, 4]);
+const CAPTAIN_CHART_ZOOM_LEVELS = Object.freeze([1, 2, 4, 8]);
+const MAP_ZOOM_BUTTON_SIZE = 16;
+const MAP_ZOOM_BUTTON_GAP = 2;
 const OPTIONS_BUTTON_SIZE = 27;
 let OPTIONS_BUTTON_X = SCREEN_W - OPTIONS_BUTTON_SIZE - 5;
 const OPTIONS_BUTTON_Y = 5;
@@ -1465,6 +1471,8 @@ const CAPTAIN_MENU_ACTIONS = Object.freeze([
 ]);
 const CAPTAIN_MENU_PANEL_W = 300;
 const CAPTAIN_MENU_PANEL_H = 420;
+const CAPTAIN_MAP_CONTROL_SIZE = 18;
+const CAPTAIN_MAP_PAN_FRACTION = 0.2;
 const NAVIGATION_MENU_PANEL_W = 420;
 const NAVIGATION_MENU_PANEL_H = 226;
 const NAVIGATION_MENU_ROW_H = 38;
@@ -1921,6 +1929,9 @@ let chart;
 let localLayout;
 let minimap;
 let captainChartMinimap;
+let mainMinimapZoomIndex = 0;
+let mainMinimapZoomOutRect = null;
+let mainMinimapZoomInRect = null;
 let themeMusic = null;
 let soundEffects = null;
 const stormLightningState = createStormLightningState();
@@ -2069,6 +2080,16 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (dispatchWorldOverlayKey(event)) return;
+  if (["+", "=", "]"].includes(event.key)) {
+    event.preventDefault();
+    stepMainMinimapZoom(1);
+    return;
+  }
+  if (["-", "_", "["].includes(event.key)) {
+    event.preventDefault();
+    stepMainMinimapZoom(-1);
+    return;
+  }
   if (event.key === "Escape") {
     event.preventDefault();
     openCaptainMenu();
@@ -3595,7 +3616,18 @@ function createCaptainMenuState() {
     journalVisibleLineCount: 1,
     journalRect: null,
     journalPreviousRect: null,
-    journalNextRect: null
+    journalNextRect: null,
+    mapZoomIndex: 0,
+    mapCenterX: null,
+    mapCenterY: null,
+    mapRect: null,
+    mapZoomOutRect: null,
+    mapZoomInRect: null,
+    mapRecenterRect: null,
+    mapPanRects: null,
+    mapDragPointerId: null,
+    mapDragStartPoint: null,
+    mapDragStartCenter: null
   };
 }
 
@@ -4258,7 +4290,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
   else if (owner === INTERACTION_INPUT.PLAYER_INTRO) handlePlayerIntroPointerDown(point);
   else if (owner === INTERACTION_INPUT.GAME_OVER) {
     if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
-  } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) handleCaptainMenuPointerDown(point);
+  } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) handleCaptainMenuPointerDown(event, point);
   else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoPointerDown(point);
   else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsPointerDown(point);
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesPointerDown(point);
@@ -4274,7 +4306,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
   return true;
 }
 
-function dispatchWorldOverlayPointerMove(point) {
+function dispatchWorldOverlayPointerMove(event, point) {
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.WORLD) return false;
   if (owner === INTERACTION_INPUT.OPTIONS) {
@@ -4291,7 +4323,12 @@ function dispatchWorldOverlayPointerMove(point) {
     playerIntroModal.hovered = pointInRect(point, playerIntroModal.buttonRect);
     dirty = true;
   } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) {
-    updateCaptainMenuSelectionFromPoint(point);
+    if (captainMenu.mapDragPointerId === event.pointerId) {
+      event.preventDefault();
+      updateCaptainChartMapDrag(point);
+    } else {
+      updateCaptainMenuSelectionFromPoint(point);
+    }
     dirty = true;
   } else if (owner === INTERACTION_INPUT.NAVIGATION) {
     updateNavigationMenuSelectionFromPoint(point);
@@ -7315,6 +7352,19 @@ function returnToStartMenuFromOptions() {
   return true;
 }
 
+function resetCaptainChartView() {
+  captainMenu.mapZoomIndex = 0;
+  recenterCaptainChartMap();
+}
+
+function recenterCaptainChartMap() {
+  if (!minimap || !Number.isInteger(centerTileId)) return false;
+  captainMenu.mapCenterX = minimap.tileProjectedX[centerTileId];
+  captainMenu.mapCenterY = minimap.tileProjectedY[centerTileId];
+  dirty = true;
+  return true;
+}
+
 function openCaptainMenu() {
   if (startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
   closeOptionsMenu();
@@ -7328,6 +7378,7 @@ function openCaptainMenu() {
   captainMenu.selectedIndex = 0;
   captainMenu.itemRects = [];
   captainMenu.journalScrollLine = 0;
+  resetCaptainChartView();
   keys.clear();
   clearPointerSteering();
   dirty = true;
@@ -7341,6 +7392,14 @@ function closeCaptainMenu() {
   captainMenu.journalRect = null;
   captainMenu.journalPreviousRect = null;
   captainMenu.journalNextRect = null;
+  captainMenu.mapRect = null;
+  captainMenu.mapZoomOutRect = null;
+  captainMenu.mapZoomInRect = null;
+  captainMenu.mapRecenterRect = null;
+  captainMenu.mapPanRects = null;
+  captainMenu.mapDragPointerId = null;
+  captainMenu.mapDragStartPoint = null;
+  captainMenu.mapDragStartCenter = null;
   dirty = true;
 }
 
@@ -7348,6 +7407,31 @@ function handleCaptainMenuKeyDown(event) {
   event.preventDefault();
   if (event.key === "Escape") {
     closeCaptainMenu();
+    return;
+  }
+  if (["+", "=", "]"].includes(event.key)) {
+    stepCaptainChartZoom(1);
+    return;
+  }
+  if (["-", "_", "["].includes(event.key)) {
+    stepCaptainChartZoom(-1);
+    return;
+  }
+  if (event.key === "r" || event.key === "R" || event.key === "Home") {
+    recenterCaptainChartMap();
+    return;
+  }
+  const panDirection = event.key === "a" || event.key === "A"
+    ? { x: -1, y: 0 }
+    : event.key === "d" || event.key === "D"
+      ? { x: 1, y: 0 }
+      : event.key === "w" || event.key === "W"
+        ? { x: 0, y: -1 }
+        : event.key === "s" || event.key === "S"
+          ? { x: 0, y: 1 }
+          : null;
+  if (panDirection) {
+    panCaptainChartMap(panDirection.x, panDirection.y);
     return;
   }
   if (event.key === "PageUp" || event.key === "PageDown") {
@@ -7377,6 +7461,66 @@ function stepCaptainJournalScroll(direction, page = false) {
   });
   if (nextScrollLine === captainMenu.journalScrollLine) return false;
   captainMenu.journalScrollLine = nextScrollLine;
+  dirty = true;
+  return true;
+}
+
+function captainChartDisplayViewport() {
+  if (!minimap?.viewport) return null;
+  if (!Number.isFinite(captainMenu.mapCenterX) || !Number.isFinite(captainMenu.mapCenterY)) {
+    recenterCaptainChartMap();
+  }
+  const zoom = CAPTAIN_CHART_ZOOM_LEVELS[captainMenu.mapZoomIndex];
+  if (!zoom) throw new Error(`Invalid captain chart zoom index: ${captainMenu.mapZoomIndex}`);
+  return zoomedMinimapViewport({
+    baseViewport: minimap.viewport,
+    zoom,
+    centerX: captainMenu.mapCenterX,
+    centerY: captainMenu.mapCenterY,
+    worldWidth: MINIMAP_W,
+    worldHeight: MINIMAP_H
+  });
+}
+
+function stepCaptainChartZoom(direction) {
+  const nextIndex = clamp(
+    captainMenu.mapZoomIndex + Math.sign(direction),
+    0,
+    CAPTAIN_CHART_ZOOM_LEVELS.length - 1
+  );
+  if (nextIndex === captainMenu.mapZoomIndex) return false;
+  captainMenu.mapZoomIndex = nextIndex;
+  const viewport = captainChartDisplayViewport();
+  if (viewport) {
+    const center = minimapViewportCenter(viewport, MINIMAP_W);
+    captainMenu.mapCenterX = center.x;
+    captainMenu.mapCenterY = center.y;
+  }
+  dirty = true;
+  return true;
+}
+
+function panCaptainChartMap(directionX, directionY, fraction = CAPTAIN_MAP_PAN_FRACTION) {
+  if (captainMenu.mapZoomIndex === 0) return false;
+  if (!Number.isFinite(directionX) || !Number.isFinite(directionY) ||
+      !Number.isFinite(fraction) || fraction <= 0) {
+    throw new Error("Invalid captain chart pan");
+  }
+  const viewport = captainChartDisplayViewport();
+  if (!viewport) return false;
+  const center = minimapViewportCenter(viewport, MINIMAP_W);
+  const nextViewport = zoomedMinimapViewport({
+    baseViewport: minimap.viewport,
+    zoom: CAPTAIN_CHART_ZOOM_LEVELS[captainMenu.mapZoomIndex],
+    centerX: center.x + viewport.spanX * directionX * fraction,
+    centerY: center.y + viewport.spanY * directionY * fraction,
+    worldWidth: MINIMAP_W,
+    worldHeight: MINIMAP_H
+  });
+  const nextCenter = minimapViewportCenter(nextViewport, MINIMAP_W);
+  if (Math.abs(nextCenter.x - center.x) < 1e-9 && Math.abs(nextCenter.y - center.y) < 1e-9) return false;
+  captainMenu.mapCenterX = nextCenter.x;
+  captainMenu.mapCenterY = nextCenter.y;
   dirty = true;
   return true;
 }
@@ -7545,6 +7689,7 @@ function handlePointerDown(event) {
     return;
   }
   if (dispatchWorldOverlayPointerDown(event, point)) return;
+  if (handleMainMinimapPointerDown(event, point)) return;
   const statusTarget = statusHudTooltipTargetForPoint(point);
   if (statusTarget) {
     event.preventDefault();
@@ -7648,7 +7793,7 @@ function handlePointerMove(event) {
     handleLakeBattlePointerMove(event, point);
     return;
   }
-  if (dispatchWorldOverlayPointerMove(point)) return;
+  if (dispatchWorldOverlayPointerMove(event, point)) return;
   if (pointerSteering.active && pointerSteering.pointerId === event.pointerId) {
     event.preventDefault();
     updatePointerSteering(point);
@@ -7674,6 +7819,12 @@ function handlePointerUp(event) {
   }
   const tapAction = endPointerSteering(event?.pointerId);
   if (tapAction) activatePointerTapAction(tapAction);
+  if (captainMenu.mapDragPointerId === event?.pointerId) {
+    captainMenu.mapDragPointerId = null;
+    captainMenu.mapDragStartPoint = null;
+    captainMenu.mapDragStartCenter = null;
+    dirty = true;
+  }
   if (optionsMenu.activeSliderKey) {
     optionsMenu.activeSliderKey = null;
     dirty = true;
@@ -7684,9 +7835,39 @@ function handlePointerUp(event) {
   }
 }
 
-function handleCaptainMenuPointerDown(point) {
+function handleCaptainMenuPointerDown(event, point) {
   if (pointInRect(point, captainMenu.closeButtonRect)) {
     closeCaptainMenu();
+    return;
+  }
+  if (captainMenu.mapZoomOutRect && pointInRect(point, expandedRect(captainMenu.mapZoomOutRect, 3))) {
+    stepCaptainChartZoom(-1);
+    return;
+  }
+  if (captainMenu.mapZoomInRect && pointInRect(point, expandedRect(captainMenu.mapZoomInRect, 3))) {
+    stepCaptainChartZoom(1);
+    return;
+  }
+  if (captainMenu.mapRecenterRect && pointInRect(point, expandedRect(captainMenu.mapRecenterRect, 3))) {
+    recenterCaptainChartMap();
+    return;
+  }
+  const panButtons = [
+    { rect: captainMenu.mapPanRects?.left, x: -1, y: 0 },
+    { rect: captainMenu.mapPanRects?.right, x: 1, y: 0 },
+    { rect: captainMenu.mapPanRects?.up, x: 0, y: -1 },
+    { rect: captainMenu.mapPanRects?.down, x: 0, y: 1 }
+  ];
+  for (const button of panButtons) {
+    if (!button.rect || !pointInRect(point, expandedRect(button.rect, 3))) continue;
+    panCaptainChartMap(button.x, button.y);
+    return;
+  }
+  if (captainMenu.mapRect && pointInRect(point, captainMenu.mapRect) && captainMenu.mapZoomIndex > 0) {
+    const viewport = captainChartDisplayViewport();
+    captainMenu.mapDragPointerId = event.pointerId;
+    captainMenu.mapDragStartPoint = { ...point };
+    captainMenu.mapDragStartCenter = minimapViewportCenter(viewport, MINIMAP_W);
     return;
   }
   if (captainMenu.journalPreviousRect && pointInRect(point, captainMenu.journalPreviousRect)) {
@@ -7703,6 +7884,27 @@ function handleCaptainMenuPointerDown(point) {
     activateCaptainMenuSelection(index);
     return;
   }
+}
+
+function updateCaptainChartMapDrag(point) {
+  if (!captainMenu.mapRect || !captainMenu.mapDragStartPoint || !captainMenu.mapDragStartCenter) return false;
+  const viewport = captainChartDisplayViewport();
+  if (!viewport) return false;
+  const deltaX = point.x - captainMenu.mapDragStartPoint.x;
+  const deltaY = point.y - captainMenu.mapDragStartPoint.y;
+  const nextViewport = zoomedMinimapViewport({
+    baseViewport: minimap.viewport,
+    zoom: CAPTAIN_CHART_ZOOM_LEVELS[captainMenu.mapZoomIndex],
+    centerX: captainMenu.mapDragStartCenter.x - deltaX / captainMenu.mapRect.w * viewport.spanX,
+    centerY: captainMenu.mapDragStartCenter.y - deltaY / captainMenu.mapRect.h * viewport.spanY,
+    worldWidth: MINIMAP_W,
+    worldHeight: MINIMAP_H
+  });
+  const nextCenter = minimapViewportCenter(nextViewport, MINIMAP_W);
+  captainMenu.mapCenterX = nextCenter.x;
+  captainMenu.mapCenterY = nextCenter.y;
+  dirty = true;
+  return true;
 }
 
 function updateCaptainMenuSelectionFromPoint(point) {
@@ -8223,16 +8425,55 @@ function stepDialogueSelection(direction) {
 function handleCanvasWheel(event) {
   if (Math.abs(event.deltaY) < 1) return;
   const owner = currentInteractionInputOwner();
+  if (owner === INTERACTION_INPUT.WORLD) {
+    const point = canvasPointFromEvent(event);
+    if (!minimapShouldBeVisible() || !voyageCartographyIsActive() ||
+        !pointInRect(point, expandedRect(mainMinimapInteractiveRect(), 3))) return;
+    event.preventDefault();
+    stepMainMinimapZoom(event.deltaY < 0 ? 1 : -1);
+    return;
+  }
   if (owner === INTERACTION_INPUT.CAPTAIN_MENU) {
     const point = canvasPointFromEvent(event);
-    if (!captainMenu.journalRect || !pointInRect(point, captainMenu.journalRect)) return;
-    event.preventDefault();
-    stepCaptainJournalScroll(event.deltaY > 0 ? 1 : -1);
+    if (captainMenu.mapRect && pointInRect(point, captainMenu.mapRect)) {
+      event.preventDefault();
+      stepCaptainChartZoom(event.deltaY < 0 ? 1 : -1);
+    } else if (captainMenu.journalRect && pointInRect(point, captainMenu.journalRect)) {
+      event.preventDefault();
+      stepCaptainJournalScroll(event.deltaY > 0 ? 1 : -1);
+    }
     return;
   }
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
   event.preventDefault();
   stepDialogueSelection(event.deltaY > 0 ? 1 : -1);
+}
+
+function handleMainMinimapPointerDown(event, point) {
+  if (!minimapShouldBeVisible() || !voyageCartographyIsActive()) return false;
+  if (mainMinimapZoomOutRect && pointInRect(point, expandedRect(mainMinimapZoomOutRect, 4))) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    stepMainMinimapZoom(-1);
+    return true;
+  }
+  if (mainMinimapZoomInRect && pointInRect(point, expandedRect(mainMinimapZoomInRect, 4))) {
+    event.preventDefault();
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+    stepMainMinimapZoom(1);
+    return true;
+  }
+  return false;
+}
+
+function mainMinimapInteractiveRect() {
+  const controlsTop = mainMinimapZoomInRect?.y ?? MINIMAP_Y;
+  return {
+    x: MINIMAP_X - 1,
+    y: controlsTop,
+    w: MINIMAP_W + 2,
+    h: MINIMAP_Y + MINIMAP_H + 1 - controlsTop
+  };
 }
 
 function openActiveInteractionDialogue() {
@@ -11066,6 +11307,16 @@ function pollGamepadControls() {
   const frame = gamepadControlFrame(gamepad, controllerButtons);
   controllerButtons = frame.buttons;
   controllerSteering = frame.steering;
+  if (captainMenu.isOpen && !shipInfoMenu.isOpen && !politicsMenu.isOpen &&
+      !discoveriesMenu.isOpen && !achievementsMenu.isOpen && !navigationMenu.isOpen &&
+      frame.steering && captainMenu.mapZoomIndex > 0) {
+    panCaptainChartMap(
+      frame.steering.dx,
+      -frame.steering.dy,
+      0.035 * frame.steering.strength
+    );
+    controllerSteering = null;
+  }
   if (controllerSteering && signalBlockedDepartureControl()) controllerSteering = null;
   if (frame.steering || frame.actions.length > 0) sailingTutorialInputMode = "controller";
   for (const action of frame.actions) handleControllerAction(action);
@@ -11082,6 +11333,10 @@ function handleControllerAction(action) {
     }
     if (shipInfoMenu.isOpen) {
       stepShipInfoView(action === "firePort" ? -1 : 1);
+      return;
+    }
+    if (captainMenu.isOpen) {
+      stepCaptainChartZoom(action === "firePort" ? -1 : 1);
       return;
     }
     if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) {
@@ -16823,27 +17078,105 @@ function buildMinimapRaster(width, height, trackSampledTiles = false) {
     pixelLandWeights: new Float32Array(width * height),
     pixelTileCounts: new Uint16Array(width * height),
     sampledPixelsByTile: trackSampledTiles ? new Map() : null,
-    sourceRevision: -1
+    sourceRevision: -1,
+    renderedViewport: null,
+    renderedViewportKey: ""
   };
 }
 
 function drawMinimap(nowMs) {
+  mainMinimapZoomOutRect = null;
+  mainMinimapZoomInRect = null;
   if (!minimap) return;
   const cartographyActive = voyageCartographyIsActive();
   if (cartographyActive) ensureMinimapMarkerTile(centerTileId);
   refreshMinimapViewport();
+  const displayViewport = mainMinimapDisplayViewport();
+  ensureMinimapRaster(minimap, displayViewport);
   ctx.fillStyle = "#2a1c11";
   ctx.fillRect(MINIMAP_X - 1, MINIMAP_Y - 1, MINIMAP_W + 2, MINIMAP_H + 2);
   ctx.drawImage(minimap.canvas, MINIMAP_X, MINIMAP_Y);
-  if (!minimap.viewport || !cartographyActive) return;
+  if (!displayViewport || !cartographyActive) return;
   drawMinimapNavigationMarkers(MINIMAP_X, MINIMAP_Y, minimap);
 
   const marker = minimapPixelForTile(centerTileId);
+  if (!marker) throw new Error("Player marker is outside the sailing minimap viewport");
   const mx = MINIMAP_X + marker.x;
   const my = MINIMAP_Y + marker.y;
   const blinkOn = Math.floor(nowMs / 320) % 2 === 0;
   ctx.fillStyle = blinkOn ? "#fff4a8" : "#151713";
   ctx.fillRect(mx, my, 1, 1);
+  drawMainMinimapZoomControls();
+}
+
+function mainMinimapDisplayViewport() {
+  if (!minimap?.viewport) return null;
+  const zoom = MINIMAP_ZOOM_LEVELS[mainMinimapZoomIndex];
+  if (!zoom) throw new Error(`Invalid sailing minimap zoom index: ${mainMinimapZoomIndex}`);
+  if (zoom === 1) return minimap.viewport;
+  return zoomedMinimapViewport({
+    baseViewport: minimap.viewport,
+    zoom,
+    centerX: minimap.tileProjectedX[centerTileId],
+    centerY: minimap.tileProjectedY[centerTileId],
+    worldWidth: MINIMAP_W,
+    worldHeight: MINIMAP_H
+  });
+}
+
+function stepMainMinimapZoom(direction) {
+  const nextIndex = clamp(
+    mainMinimapZoomIndex + Math.sign(direction),
+    0,
+    MINIMAP_ZOOM_LEVELS.length - 1
+  );
+  if (nextIndex === mainMinimapZoomIndex) return false;
+  mainMinimapZoomIndex = nextIndex;
+  dirty = true;
+  return true;
+}
+
+function drawMainMinimapZoomControls() {
+  const y = MINIMAP_Y - MAP_ZOOM_BUTTON_SIZE - 3;
+  mainMinimapZoomInRect = {
+    x: MINIMAP_X + MINIMAP_W - MAP_ZOOM_BUTTON_SIZE,
+    y,
+    w: MAP_ZOOM_BUTTON_SIZE,
+    h: MAP_ZOOM_BUTTON_SIZE
+  };
+  mainMinimapZoomOutRect = {
+    x: mainMinimapZoomInRect.x - MAP_ZOOM_BUTTON_GAP - MAP_ZOOM_BUTTON_SIZE,
+    y,
+    w: MAP_ZOOM_BUTTON_SIZE,
+    h: MAP_ZOOM_BUTTON_SIZE
+  };
+  drawMapZoomButton(
+    mainMinimapZoomOutRect,
+    -1,
+    mainMinimapZoomIndex > 0,
+    pointInRect(captainMenu.hoverPoint, expandedRect(mainMinimapZoomOutRect, 2))
+  );
+  drawMapZoomButton(
+    mainMinimapZoomInRect,
+    1,
+    mainMinimapZoomIndex < MINIMAP_ZOOM_LEVELS.length - 1,
+    pointInRect(captainMenu.hoverPoint, expandedRect(mainMinimapZoomInRect, 2))
+  );
+  drawOptionsText(`${MINIMAP_ZOOM_LEVELS[mainMinimapZoomIndex]}X`, MINIMAP_X, y + 3, {
+    color: "#fff4a8"
+  });
+}
+
+function drawMapZoomButton(rect, direction, enabled, hovered) {
+  ctx.save();
+  if (!enabled) ctx.globalAlpha = 0.45;
+  drawPirateHudButton(rect, enabled && hovered);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  const centerX = rect.x + Math.floor(rect.w / 2);
+  const centerY = rect.y + Math.floor(rect.h / 2);
+  ctx.fillRect(centerX - 3, centerY, 7, 1);
+  if (direction > 0) ctx.fillRect(centerX, centerY - 3, 1, 7);
+  ctx.restore();
 }
 
 function fillMinimapCanvas(mapCtx, width, height, color) {
@@ -16936,16 +17269,24 @@ function refreshMinimapViewport() {
 }
 
 function renderMinimapViewport() {
-  renderMinimapRaster(minimap);
+  ensureMinimapRaster(minimap, mainMinimapDisplayViewport());
 }
 
-function renderMinimapRaster(raster) {
+function ensureMinimapRaster(raster, viewport) {
+  const viewportKey = minimapViewportRenderKey(viewport);
+  if (raster.sourceRevision === minimap.rasterRevision && raster.renderedViewportKey === viewportKey) return;
+  renderMinimapRaster(raster, viewport);
+}
+
+function renderMinimapRaster(raster, viewport) {
   raster.revealedPixels.fill(0);
   raster.pixelLandWeights.fill(0);
   raster.pixelTileCounts.fill(0);
   if (raster.sampledPixelsByTile) raster.sampledPixelsByTile.clear();
   fillMinimapCanvas(raster.ctx, raster.width, raster.height, MINIMAP_UNKNOWN_COLOR);
-  if (!minimap.viewport) {
+  raster.renderedViewport = viewport;
+  raster.renderedViewportKey = minimapViewportRenderKey(viewport);
+  if (!viewport) {
     raster.sourceRevision = minimap.rasterRevision;
     return;
   }
@@ -16956,7 +17297,7 @@ function renderMinimapRaster(raster) {
       for (const sampleY of MINIMAP_SAMPLE_OFFSETS) {
         for (const sampleX of MINIMAP_SAMPLE_OFFSETS) {
           const projected = minimapViewportSample({
-            viewport: minimap.viewport,
+            viewport,
             pixelX: x,
             pixelY: y,
             sampleX,
@@ -16993,6 +17334,13 @@ function renderMinimapRaster(raster) {
   raster.sourceRevision = minimap.rasterRevision;
 }
 
+function minimapViewportRenderKey(viewport) {
+  if (!viewport) return "none";
+  return [viewport.startX, viewport.startY, viewport.spanX, viewport.spanY]
+    .map((value) => value.toFixed(6))
+    .join(":");
+}
+
 function minimapPixelForTile(tileId, raster = minimap) {
   if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
     throw new Error(`Invalid minimap marker tile: ${tileId}`);
@@ -17002,14 +17350,13 @@ function minimapPixelForTile(tileId, raster = minimap) {
     minimap.tileProjectedY[tileId],
     raster
   );
-  if (!point) throw new Error(`Minimap marker tile ${tileId} lies outside the explored viewport`);
   return point;
 }
 
 function minimapPixelForProjectedPoint(projectedX, projectedY, raster = minimap) {
-  if (!minimap.viewport) return null;
+  if (!raster.renderedViewport) return null;
   return minimapViewportPixel({
-    viewport: minimap.viewport,
+    viewport: raster.renderedViewport,
     projectedX,
     projectedY,
     worldWidth: MINIMAP_W,
@@ -17019,7 +17366,7 @@ function minimapPixelForProjectedPoint(projectedX, projectedY, raster = minimap)
 }
 
 function drawMinimapNavigationMarkers(x, y, raster) {
-  if (!minimap?.viewport || !gameState) return;
+  if (!raster?.renderedViewport || !gameState) return;
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, raster.width, raster.height);
@@ -17521,13 +17868,15 @@ function drawCaptainChart(panel, nowMs) {
   const journalBottom = navY - localizedLineHeight(20);
   const mapHeightLimit = Math.max(34, journalBottom - journalHeight - mapY - localizedLineHeight(10));
   const mapH = Math.min(Math.floor(mapW * MINIMAP_H / MINIMAP_W), mapHeightLimit);
+  captainMenu.mapRect = { x: mapX, y: mapY, w: mapW, h: mapH };
 
   ctx.fillStyle = "#1a1511";
   ctx.fillRect(mapX - 2, mapY - 2, mapW + 4, mapH + 4);
   ctx.strokeStyle = "#715033";
   ctx.strokeRect(mapX - 1.5, mapY - 1.5, mapW + 3, mapH + 3);
   refreshMinimapViewport();
-  const chartMinimap = nativeCaptainChartMinimap(mapW, mapH);
+  const displayViewport = captainChartDisplayViewport();
+  const chartMinimap = nativeCaptainChartMinimap(mapW, mapH, displayViewport);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(chartMinimap.canvas, mapX, mapY);
 
@@ -17536,14 +17885,17 @@ function drawCaptainChart(panel, nowMs) {
     color: PIRATE_MENU_INK_MUTED
   });
 
-  if (minimap?.viewport) {
+  if (displayViewport) {
     drawMinimapNavigationMarkers(mapX, mapY, chartMinimap);
     const marker = minimapPixelForTile(centerTileId, chartMinimap);
-    const markerX = mapX + marker.x;
-    const markerY = mapY + marker.y;
-    ctx.fillStyle = Math.floor(nowMs / 320) % 2 === 0 ? "#fff4a8" : "#5b4627";
-    ctx.fillRect(markerX - 1, markerY - 1, 3, 3);
+    if (marker) {
+      const markerX = mapX + marker.x;
+      const markerY = mapY + marker.y;
+      ctx.fillStyle = Math.floor(nowMs / 320) % 2 === 0 ? "#fff4a8" : "#5b4627";
+      ctx.fillRect(markerX - 1, markerY - 1, 3, 3);
+    }
   }
+  drawCaptainChartMapControls(captainMenu.mapRect);
 
   drawQuestJournal(panel, journalLines, mapY + mapH + localizedLineHeight(10));
   drawCaptainChartNavigation(panel);
@@ -17702,14 +18054,107 @@ function drawCaptainChartNavigation(panel) {
   });
 }
 
-function nativeCaptainChartMinimap(width, height) {
+function drawCaptainChartMapControls(mapRect) {
+  const size = CAPTAIN_MAP_CONTROL_SIZE;
+  const gap = 2;
+  const top = mapRect.y + 3;
+  captainMenu.mapZoomInRect = {
+    x: mapRect.x + mapRect.w - size - 3,
+    y: top,
+    w: size,
+    h: size
+  };
+  captainMenu.mapZoomOutRect = {
+    x: captainMenu.mapZoomInRect.x - gap - size,
+    y: top,
+    w: size,
+    h: size
+  };
+  captainMenu.mapRecenterRect = {
+    x: captainMenu.mapZoomOutRect.x - gap - size,
+    y: top,
+    w: size,
+    h: size
+  };
+  const centeredX = mapRect.x + Math.floor((mapRect.w - size) / 2);
+  const centeredY = mapRect.y + Math.floor((mapRect.h - size) / 2);
+  captainMenu.mapPanRects = {
+    left: { x: mapRect.x + 3, y: centeredY, w: size, h: size },
+    right: { x: mapRect.x + mapRect.w - size - 3, y: centeredY, w: size, h: size },
+    up: { x: centeredX, y: mapRect.y + 3, w: size, h: size },
+    down: { x: centeredX, y: mapRect.y + mapRect.h - size - 3, w: size, h: size }
+  };
+
+  drawMapZoomButton(
+    captainMenu.mapZoomOutRect,
+    -1,
+    captainMenu.mapZoomIndex > 0,
+    pointInRect(captainMenu.hoverPoint, captainMenu.mapZoomOutRect)
+  );
+  drawMapZoomButton(
+    captainMenu.mapZoomInRect,
+    1,
+    captainMenu.mapZoomIndex < CAPTAIN_CHART_ZOOM_LEVELS.length - 1,
+    pointInRect(captainMenu.hoverPoint, captainMenu.mapZoomInRect)
+  );
+  drawCaptainMapRecenterButton(
+    captainMenu.mapRecenterRect,
+    pointInRect(captainMenu.hoverPoint, captainMenu.mapRecenterRect)
+  );
+  const panEnabled = captainMenu.mapZoomIndex > 0;
+  drawCaptainMapPanButton(captainMenu.mapPanRects.left, -1, 0, panEnabled);
+  drawCaptainMapPanButton(captainMenu.mapPanRects.right, 1, 0, panEnabled);
+  drawCaptainMapPanButton(captainMenu.mapPanRects.up, 0, -1, panEnabled);
+  drawCaptainMapPanButton(captainMenu.mapPanRects.down, 0, 1, panEnabled);
+
+  const zoomLabel = `${CAPTAIN_CHART_ZOOM_LEVELS[captainMenu.mapZoomIndex]}X`;
+  ctx.fillStyle = PIRATE_MENU_PAPER;
+  ctx.fillRect(mapRect.x + 3, mapRect.y + mapRect.h - 13, 21, 10);
+  drawOptionsText(zoomLabel, mapRect.x + 6, mapRect.y + mapRect.h - 12, {
+    color: PIRATE_MENU_INK_MUTED
+  });
+}
+
+function drawCaptainMapRecenterButton(rect, hovered) {
+  drawPirateHudButton(rect, hovered);
+  const centerX = rect.x + Math.floor(rect.w / 2);
+  const centerY = rect.y + Math.floor(rect.h / 2);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  ctx.fillRect(centerX, centerY - 5, 1, 3);
+  ctx.fillRect(centerX, centerY + 3, 1, 3);
+  ctx.fillRect(centerX - 5, centerY, 3, 1);
+  ctx.fillRect(centerX + 3, centerY, 3, 1);
+  ctx.fillRect(centerX - 1, centerY - 1, 3, 3);
+}
+
+function drawCaptainMapPanButton(rect, directionX, directionY, enabled) {
+  const hovered = enabled && pointInRect(captainMenu.hoverPoint, rect);
+  ctx.save();
+  if (!enabled) ctx.globalAlpha = 0.38;
+  drawPirateHudButton(rect, hovered);
+  const centerX = rect.x + Math.floor(rect.w / 2);
+  const centerY = rect.y + Math.floor(rect.h / 2);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  if (directionX !== 0) {
+    const tipX = centerX + directionX * 3;
+    ctx.fillRect(tipX, centerY, 1, 1);
+    ctx.fillRect(tipX - directionX, centerY - 1, 1, 3);
+    ctx.fillRect(tipX - directionX * 2, centerY - 2, 1, 5);
+  } else {
+    const tipY = centerY + directionY * 3;
+    ctx.fillRect(centerX, tipY, 1, 1);
+    ctx.fillRect(centerX - 1, tipY - directionY, 3, 1);
+    ctx.fillRect(centerX - 2, tipY - directionY * 2, 5, 1);
+  }
+  ctx.restore();
+}
+
+function nativeCaptainChartMinimap(width, height, viewport) {
   if (!captainChartMinimap ||
       captainChartMinimap.width !== width || captainChartMinimap.height !== height) {
     captainChartMinimap = buildMinimapRaster(width, height);
   }
-  if (captainChartMinimap.sourceRevision !== minimap.rasterRevision) {
-    renderMinimapRaster(captainChartMinimap);
-  }
+  ensureMinimapRaster(captainChartMinimap, viewport);
   return captainChartMinimap;
 }
 

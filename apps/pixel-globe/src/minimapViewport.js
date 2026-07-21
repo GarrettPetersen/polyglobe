@@ -156,6 +156,56 @@ function fullWorldViewport(worldWidth, worldHeight) {
   return Object.freeze({ startX: 0, startY: 0, spanX: worldWidth, spanY: worldHeight });
 }
 
+export function zoomedMinimapViewport({
+  baseViewport,
+  zoom,
+  centerX,
+  centerY,
+  worldWidth,
+  worldHeight
+}) {
+  validateViewport(baseViewport, worldWidth);
+  assertFinitePositive("minimap world height", worldHeight);
+  if (baseViewport.startY + baseViewport.spanY > worldHeight + 1e-6) {
+    throw new Error("Minimap base viewport exceeds world height");
+  }
+  if (!Number.isFinite(zoom) || zoom < 1) throw new Error(`Invalid minimap zoom: ${zoom}`);
+  if (!Number.isFinite(centerX) || !Number.isFinite(centerY)) {
+    throw new Error("Minimap zoom center must be finite");
+  }
+  if (zoom === 1) {
+    return Object.freeze({
+      startX: baseViewport.startX,
+      startY: baseViewport.startY,
+      spanX: baseViewport.spanX,
+      spanY: baseViewport.spanY
+    });
+  }
+
+  const spanX = baseViewport.spanX / zoom;
+  const spanY = baseViewport.spanY / zoom;
+  const centerOffsetX = boundedWrappedCenterOffset(centerX, baseViewport, spanX, worldWidth);
+  const boundedCenterY = clamp(
+    centerY,
+    baseViewport.startY + spanY / 2,
+    baseViewport.startY + baseViewport.spanY - spanY / 2
+  );
+  return Object.freeze({
+    startX: wrap(baseViewport.startX + centerOffsetX - spanX / 2, worldWidth),
+    startY: boundedCenterY - spanY / 2,
+    spanX,
+    spanY
+  });
+}
+
+export function minimapViewportCenter(viewport, worldWidth) {
+  validateViewport(viewport, worldWidth);
+  return Object.freeze({
+    x: wrap(viewport.startX + viewport.spanX / 2, worldWidth),
+    y: viewport.startY + viewport.spanY / 2
+  });
+}
+
 export function minimapViewportContainsPoint(viewport, projectedX, projectedY, worldWidth) {
   validateViewport(viewport, worldWidth);
   if (!Number.isFinite(projectedX) || !Number.isFinite(projectedY)) {
@@ -221,6 +271,17 @@ function validateViewport(viewport, worldWidth) {
   if (viewport.startY < 0 || viewport.spanX <= 0 || viewport.spanY <= 0 || viewport.spanX > worldWidth) {
     throw new Error("Minimap viewport has invalid bounds");
   }
+}
+
+function boundedWrappedCenterOffset(centerX, baseViewport, spanX, worldWidth) {
+  if (baseViewport.spanX >= worldWidth - 1e-6) return wrap(centerX, worldWidth);
+  let offset = wrap(centerX - baseViewport.startX, worldWidth);
+  if (offset > baseViewport.spanX) {
+    const distanceBeforeStart = worldWidth - offset;
+    const distanceAfterEnd = offset - baseViewport.spanX;
+    offset = distanceBeforeStart < distanceAfterEnd ? 0 : baseViewport.spanX;
+  }
+  return clamp(offset, spanX / 2, baseViewport.spanX - spanX / 2);
 }
 
 function mercatorY(latDeg) {

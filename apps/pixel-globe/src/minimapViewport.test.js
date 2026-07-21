@@ -10,9 +10,11 @@ import {
   minimapProjectLongitude,
   minimapUnprojectLatitude,
   minimapUnprojectLongitude,
+  minimapViewportCenter,
   minimapViewportContainsPoint,
   minimapViewportPixel,
-  minimapViewportSample
+  minimapViewportSample,
+  zoomedMinimapViewport
 } from "./minimapViewport.js";
 
 const WORLD_W = 80;
@@ -162,6 +164,51 @@ test("minimap projection and unprojection round trip", () => {
     assert.ok(Math.abs(minimapUnprojectLongitude(projectedX, WORLD_W) - lon) < 1e-9);
     assert.ok(Math.abs(minimapUnprojectLatitude(projectedY, MAX_LAT, WORLD_H) - lat) < 1e-9);
   }
+});
+
+test("zoomed minimap viewport preserves aspect and stays centered on the requested point", () => {
+  const baseViewport = { startX: 10, startY: 4, spanX: 40, spanY: 13 };
+  const viewport = zoomedMinimapViewport({
+    baseViewport,
+    zoom: 4,
+    centerX: 30,
+    centerY: 10.5,
+    worldWidth: WORLD_W,
+    worldHeight: WORLD_H
+  });
+
+  assert.deepEqual(viewport, { startX: 25, startY: 8.875, spanX: 10, spanY: 3.25 });
+  assert.deepEqual(minimapViewportCenter(viewport, WORLD_W), { x: 30, y: 10.5 });
+  assert.equal(viewport.spanX / viewport.spanY, WORLD_W / WORLD_H);
+});
+
+test("zoomed minimap viewport clamps panning to explored latitude and longitude", () => {
+  const baseViewport = { startX: 10, startY: 4, spanX: 40, spanY: 13 };
+  const viewport = zoomedMinimapViewport({
+    baseViewport,
+    zoom: 2,
+    centerX: 60,
+    centerY: -10,
+    worldWidth: WORLD_W,
+    worldHeight: WORLD_H
+  });
+
+  assert.deepEqual(viewport, { startX: 30, startY: 4, spanX: 20, spanY: 6.5 });
+});
+
+test("zoomed minimap viewport remains local when its explored area crosses the date line", () => {
+  const baseViewport = { startX: 75, startY: 8, spanX: 10, spanY: 3.25 };
+  const viewport = zoomedMinimapViewport({
+    baseViewport,
+    zoom: 2,
+    centerX: 2,
+    centerY: 9.625,
+    worldWidth: WORLD_W,
+    worldHeight: WORLD_H
+  });
+
+  assert.deepEqual(viewport, { startX: 79.5, startY: 8.8125, spanX: 5, spanY: 1.625 });
+  assert.deepEqual(minimapViewportCenter(viewport, WORLD_W), { x: 2, y: 9.625 });
 });
 
 function explorationFor(coordinates) {
