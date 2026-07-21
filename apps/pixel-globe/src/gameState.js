@@ -13,6 +13,11 @@ import {
   tradeGoodById
 } from "./economy.js";
 import {
+  createVoyageAchievementProgress,
+  migrateVoyageAchievementProgress,
+  validateVoyageAchievementProgress
+} from "./achievements.js";
+import {
   DIPLOMACY_HOSTILE,
   DIPLOMACY_WAR,
   FACTIONS,
@@ -104,7 +109,7 @@ import {
 } from "./caribbeanGingerQuest.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 23;
+export const GAME_STATE_VERSION = 24;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -266,6 +271,7 @@ export function createGameState({
       cargoReservations: {},
       colonization: createColonizationQuestMemory(),
       conquest: createPortConquestMemory(),
+      achievements: createVoyageAchievementProgress(),
       whales: createWhaleMemory(),
       campaignGoal: playerCharacterSupportsCampaignGoal(playerCharacter)
         ? createCampaignGoal({ playerCharacter, startMinute, type: resolvedCampaignGoalType })
@@ -285,7 +291,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -361,6 +367,7 @@ export function migrateGameState(state, shipStats) {
       cargoReservations: state.memory?.cargoReservations || {},
       colonization: state.memory?.colonization || createColonizationQuestMemory(),
       conquest: migrateConquestFactionReferences(state.memory?.conquest || createPortConquestMemory()),
+      achievements: migrateVoyageAchievementProgress(state.memory?.achievements),
       whales: state.memory?.whales?.version === 2 ? state.memory.whales : createWhaleMemory(),
       campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(migratedPlayerCharacter)
         ? createCampaignGoal({ playerCharacter: migratedPlayerCharacter, startMinute: savedGameStartMinute(state) })
@@ -3111,6 +3118,7 @@ function assertGameState(state) {
   validateCaribbeanGingerQuestMemory(state.memory.quests?.caribbeanGinger);
   validateColonizationQuestMemory(state.memory.colonization);
   validatePortConquestMemory(state.memory.conquest);
+  validateVoyageAchievementProgress(state.memory.achievements);
   validateWhaleMemory(state.memory.whales);
   if (state.memory.campaignGoal === null) {
     if (playerCharacterSupportsCampaignGoal(state.playerCharacter)) {

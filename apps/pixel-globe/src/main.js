@@ -721,6 +721,18 @@ import {
   voyageHistorySummary
 } from "./voyageHistory.js";
 import {
+  ACHIEVEMENT_CATALOG,
+  achievementPlatformAdapter,
+  achievementProgress,
+  createAchievementProfile,
+  createVoyageAchievementProgress,
+  readAchievementProfile,
+  recordVoyageAchievementEvent,
+  syncAchievementProfileToPlatform,
+  synchronizeAchievements,
+  writeAchievementProfile
+} from "./achievements.js";
+import {
   DEMO_LIMIT_MESSAGE,
   DEMO_VOYAGE_OUTCOME,
   demoVoyageLimitReached,
@@ -1269,6 +1281,9 @@ const SURVIVAL_STARVATION_CREW_LOSS = 1;
 const DISCOVERIES_BUTTON_SIZE = 24;
 let DISCOVERIES_PANEL_W = 300;
 let DISCOVERIES_PANEL_H = 214;
+let ACHIEVEMENTS_PANEL_W = 338;
+let ACHIEVEMENTS_PANEL_H = 238;
+const ACHIEVEMENTS_PAGE_SIZE = 4;
 const SHIP_INFO_BUTTON_SIZE = 24;
 const POLITICS_BUTTON_SIZE = 24;
 const SHIP_INFO_PANEL_X = 10;
@@ -1313,6 +1328,7 @@ const START_MENU_ACTION_CONTINUE = "continue";
 const START_MENU_ACTION_NEW_GAME = "new-game";
 const START_MENU_ACTION_LAKE_BATTLE = "lake-battle";
 const START_MENU_ACTION_PAST_VOYAGES = "past-voyages";
+const START_MENU_ACTION_ACHIEVEMENTS = "achievements";
 const START_MENU_ACTION_OPTIONS = "options";
 const START_MENU_ACTION_CREDITS = "credits";
 const START_MENU_EDITION_LABEL = startMenuEditionLabel(BUILD_EDITION_ID);
@@ -1418,6 +1434,7 @@ const CAPTAIN_MENU_ACTIONS = Object.freeze([
   Object.freeze({ id: "ship", label: "SHIP & LEDGER" }),
   Object.freeze({ id: "politics", label: "POLITICS", iconId: "menu:politics" }),
   Object.freeze({ id: "discoveries", label: "DISCOVERIES", iconId: "menu:discoveries" }),
+  Object.freeze({ id: "achievements", label: "ACHIEVEMENTS", iconId: "good:gold" }),
   Object.freeze({ id: "navigation", label: "NAVIGATION ICONS", iconId: "action:navigation" }),
   Object.freeze({ id: "sailing-basics", label: "SAILING BASICS", iconId: "action:quest" }),
   Object.freeze({ id: "options", label: "OPTIONS", iconId: "menu:options" })
@@ -1893,6 +1910,9 @@ const lakeBattleShipAssets = new Map();
 const lakeBattleShipAssetPromises = new Map();
 let localSaveResult = { status: "empty", save: null, error: null };
 let voyageHistoryResult = { status: "ready", records: [], error: null };
+let achievementProfileResult = { status: "ready", profile: createAchievementProfile(), error: null };
+let achievementProfile = achievementProfileResult.profile;
+let achievementPlatformSyncPromise = Promise.resolve();
 let hasStartedVoyage = false;
 let captureRecorder = null;
 let capturePlaybackPaused = Boolean(CAPTURE_SCENARIO);
@@ -1969,6 +1989,7 @@ const optionsMenu = createOptionsMenuState();
 const creditsMenu = createCreditsMenuState();
 const pastVoyagesMenu = createPastVoyagesMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
+const achievementsMenu = createAchievementsMenuState();
 const shipInfoMenu = createShipInfoMenuState();
 const politicsMenu = createPoliticsMenuState();
 const navigationMenu = createNavigationMenuState();
@@ -2166,6 +2187,15 @@ async function main() {
     : readVoyageHistory();
   if (voyageHistoryResult.status === "invalid") {
     console.warn("[pixel-globe] past voyage history is unavailable", voyageHistoryResult.error);
+  }
+  achievementProfileResult = CAPTURE_SCENARIO
+    ? { status: "ready", profile: createAchievementProfile(), error: null }
+    : readAchievementProfile();
+  achievementProfile = achievementProfileResult.profile;
+  if (achievementProfileResult.status === "invalid") {
+    console.error("[pixel-globe] achievement profile is unavailable", achievementProfileResult.error);
+  } else {
+    queueAchievementPlatformSync();
   }
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -3532,6 +3562,7 @@ function startMenuActions() {
   });
   actions.push({ id: START_MENU_ACTION_LAKE_BATTLE, label: uiText("start.shipBattle") });
   actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: uiText("start.pastVoyages") });
+  actions.push({ id: START_MENU_ACTION_ACHIEVEMENTS, label: uiText("start.achievements") });
   actions.push({ id: START_MENU_ACTION_OPTIONS, label: uiText("options.title") });
   actions.push({ id: START_MENU_ACTION_CREDITS, label: uiText("start.credits") });
   return actions;
@@ -4039,6 +4070,17 @@ function createDiscoveriesMenuState() {
   };
 }
 
+function createAchievementsMenuState() {
+  return {
+    isOpen: false,
+    page: 0,
+    panelRect: null,
+    closeButtonRect: null,
+    previousPageRect: null,
+    nextPageRect: null
+  };
+}
+
 function createShipInfoMenuState() {
   return {
     isOpen: false,
@@ -4086,14 +4128,14 @@ function createNavigationMenuState() {
 
 function menusAreOpen() {
   return Boolean(startMenu) || creditsMenu.isOpen || optionsMenu.isOpen ||
-    pastVoyagesMenu.isOpen || discoveriesMenu.isOpen || shipInfoMenu.isOpen ||
+    pastVoyagesMenu.isOpen || discoveriesMenu.isOpen || achievementsMenu.isOpen || shipInfoMenu.isOpen ||
     politicsMenu.isOpen || navigationMenu.isOpen || captainMenu.isOpen ||
     Boolean(captainAlertModal);
 }
 
 function captainChildMenuIsOpen() {
   return optionsMenu.isOpen || creditsMenu.isOpen || discoveriesMenu.isOpen ||
-    shipInfoMenu.isOpen || politicsMenu.isOpen || navigationMenu.isOpen;
+    achievementsMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen || navigationMenu.isOpen;
 }
 
 function currentInteractionInputOwner() {
@@ -4109,6 +4151,7 @@ function currentInteractionInputOwner() {
     shipInfoActive: shipInfoMenu.isOpen,
     politicsActive: politicsMenu.isOpen,
     discoveriesActive: discoveriesMenu.isOpen,
+    achievementsActive: achievementsMenu.isOpen,
     navigationActive: navigationMenu.isOpen,
     dialogueActive: Boolean(dialogueState),
     portWaitActive: Boolean(portWaitState),
@@ -4129,6 +4172,7 @@ function dispatchWorldOverlayKey(event) {
   else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoKeyDown(event);
   else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsKeyDown(event);
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesKeyDown(event);
+  else if (owner === INTERACTION_INPUT.ACHIEVEMENTS) handleAchievementsKeyDown(event);
   else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuKeyDown(event);
   else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialogueKeyDown(event);
   else if (owner === INTERACTION_INPUT.PORT_WAIT) handlePortWaitKeyDown(event);
@@ -4157,6 +4201,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
   else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoPointerDown(point);
   else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsPointerDown(point);
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesPointerDown(point);
+  else if (owner === INTERACTION_INPUT.ACHIEVEMENTS) handleAchievementsPointerDown(point);
   else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuPointerDown(point);
   else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialoguePointerDown(point);
   else if (owner === INTERACTION_INPUT.PORT_WAIT) {
@@ -5840,6 +5885,7 @@ function openShipInfoMenu() {
   if (!ship || !gameState) throw new Error("Cannot open ship information before the game is ready");
   closeOptionsMenu();
   closeDiscoveriesMenu();
+  closeAchievementsMenu();
   closePoliticsMenu();
   closeNavigationMenu();
   shipInfoMenu.isOpen = true;
@@ -6677,6 +6723,7 @@ function saveVoyageNow(reason) {
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
   try {
     syncCartographyToGameState();
+    syncAchievementsFromGameState();
     const save = writeLocalSave({
       gameState,
       playerShip: snapshotPlayerShip(),
@@ -6701,6 +6748,79 @@ function saveVoyageNow(reason) {
     console.warn(`[pixel-globe] local save failed (${reason})`, error);
     return false;
   }
+}
+
+function currentAchievementSnapshot() {
+  const state = gameState && hasStartedVoyage ? gameState : null;
+  const colony = state?.memory?.colonization;
+  const foundedCityIds = colony?.stage === COLONIZATION_STAGE_ESTABLISHED && colony.targetCity
+    ? [`${colony.targetCity}|${colony.targetCountry || ""}`]
+    : [];
+  const soldGoodIds = state
+    ? [...new Set(state.accounts.ledger
+      .filter((entry) => entry.kind === "sell" && typeof entry.goodId === "string")
+      .map((entry) => entry.goodId))]
+    : [];
+  const currentShipSlug = state ? ship?.stats?.slug || ship?.typeSlug || null : null;
+  return {
+    discoveryIds: state ? [...state.memory.discoveryOrder] : [],
+    discoveryCatalogIds: discoveryCatalog.map((entry) => entry.id),
+    circumnavigationDiscoveryId: CIRCUMNAVIGATION_DISCOVERY.id,
+    elDoradoDiscoveryId: EL_DORADO_DISCOVERY_ID,
+    soldGoodIds,
+    foundedCityIds,
+    sailedShipSlugs: currentShipSlug ? [currentShipSlug] : [],
+    shipCatalogSlugs: SHIP_STATS.map((entry) => entry.slug),
+    collapsedFactionIds: state ? [...state.memory.conquest.collapsedFactionIds] : [],
+    grossDoubloonsEarned: state ? grossDoubloonsEarned(state.accounts.ledger) : 0,
+    vikingLongshipUnlocked: state ? vikingLongshipUnlocked(state) : false,
+    whiteWhaleKilled: state?.memory?.campaignGoal?.whiteWhaleKilled === true,
+    arrivedInPortDrunk: state?.memory?.achievements?.arrivedInPortDrunk === true,
+    japaneseMatchlockIndustryCreated: state ? japaneseMatchlockIndustryCompleted(state) : false,
+    caribbeanGingerIndustryCreated: state ? caribbeanGingerIndustryCompleted(state) : false
+  };
+}
+
+function syncAchievementsFromGameState(event = null) {
+  if (!gameState || !achievementProfile) return [];
+  const progress = gameState.memory.achievements;
+  if (event) recordVoyageAchievementEvent(progress, event);
+  const result = synchronizeAchievements(
+    achievementProfile,
+    progress,
+    currentAchievementSnapshot()
+  );
+  if (!result.changed) return result.newlyUnlocked;
+  writeAchievementProfile(achievementProfile);
+  achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
+  if (result.newlyUnlocked.length > 0 && hasStartedVoyage && !startMenu) {
+    const notice = result.newlyUnlocked.length === 1
+      ? `ACHIEVEMENT  ${result.newlyUnlocked[0].title.toUpperCase()}`
+      : `${result.newlyUnlocked.length} ACHIEVEMENTS UNLOCKED`;
+    showSurvivalNotice(notice, "good");
+  }
+  queueAchievementPlatformSync();
+  return result.newlyUnlocked;
+}
+
+function queueAchievementPlatformSync() {
+  if (!achievementProfile) return;
+  let adapter;
+  try {
+    adapter = achievementPlatformAdapter(window);
+  } catch (error) {
+    console.error("[pixel-globe] invalid achievement platform adapter", error);
+    return;
+  }
+  if (!adapter) return;
+  achievementPlatformSyncPromise = achievementPlatformSyncPromise
+    .then(async () => {
+      const result = await syncAchievementProfileToPlatform(achievementProfile, adapter);
+      if (result.changed) writeAchievementProfile(achievementProfile);
+    })
+    .catch((error) => {
+      console.error(`[pixel-globe] ${adapter.platformId} achievement sync failed`, error);
+    });
 }
 
 function applyCurrentPortConquestOwnership() {
@@ -6759,6 +6879,7 @@ function openCreditsMenu() {
   closeOptionsMenu();
   closePastVoyagesMenu();
   closeDiscoveriesMenu();
+  closeAchievementsMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
@@ -6772,6 +6893,7 @@ function openCreditsMenu() {
 function openPastVoyagesMenu() {
   closeOptionsMenu();
   closeCreditsMenu();
+  closeAchievementsMenu();
   pastVoyagesMenu.isOpen = true;
   pastVoyagesMenu.page = 0;
   keys.clear();
@@ -6819,6 +6941,7 @@ function stepCreditsPage(direction) {
 
 function openOptionsMenu() {
   closeDiscoveriesMenu();
+  closeAchievementsMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
@@ -6835,6 +6958,7 @@ function openOptionsMenu() {
 
 function openDiscoveriesMenu() {
   closeOptionsMenu();
+  closeAchievementsMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
@@ -6842,6 +6966,31 @@ function openDiscoveriesMenu() {
   discoveriesMenu.page = 0;
   keys.clear();
   clearPointerSteering();
+  dirty = true;
+}
+
+function openAchievementsMenu() {
+  closeOptionsMenu();
+  closeCreditsMenu();
+  closePastVoyagesMenu();
+  closeDiscoveriesMenu();
+  closeShipInfoMenu();
+  closePoliticsMenu();
+  closeNavigationMenu();
+  achievementsMenu.isOpen = true;
+  achievementsMenu.page = 0;
+  if (gameState && achievementProfile) syncAchievementsFromGameState();
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeAchievementsMenu() {
+  achievementsMenu.isOpen = false;
+  achievementsMenu.panelRect = null;
+  achievementsMenu.closeButtonRect = null;
+  achievementsMenu.previousPageRect = null;
+  achievementsMenu.nextPageRect = null;
   dirty = true;
 }
 
@@ -6858,6 +7007,7 @@ function openPoliticsMenu() {
   if (!gameState) throw new Error("Cannot open politics before the game is ready");
   closeOptionsMenu();
   closeDiscoveriesMenu();
+  closeAchievementsMenu();
   closeShipInfoMenu();
   closeNavigationMenu();
   politicsMenu.isOpen = true;
@@ -6880,6 +7030,7 @@ function openNavigationMenu() {
   if (!gameState) throw new Error("Cannot open navigation icons before the game is ready");
   closeOptionsMenu();
   closeDiscoveriesMenu();
+  closeAchievementsMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
   navigationMenu.isOpen = true;
@@ -6926,6 +7077,19 @@ function handleDiscoveriesKeyDown(event) {
     stepDiscoveriesPage(-1);
   } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
     stepDiscoveriesPage(1);
+  }
+}
+
+function handleAchievementsKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closeAchievementsMenu();
+    return;
+  }
+  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+    stepAchievementsPage(-1);
+  } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+    stepAchievementsPage(1);
   }
 }
 
@@ -7005,6 +7169,7 @@ function openCaptainMenu() {
   if (startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
   closeOptionsMenu();
   closeDiscoveriesMenu();
+  closeAchievementsMenu();
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
@@ -7072,6 +7237,7 @@ function activateCaptainMenuSelection(index) {
   if (action.id === "ship") openShipInfoMenu();
   else if (action.id === "politics") openPoliticsMenu();
   else if (action.id === "discoveries") openDiscoveriesMenu();
+  else if (action.id === "achievements") openAchievementsMenu();
   else if (action.id === "navigation") openNavigationMenu();
   else if (action.id === "sailing-basics") {
     closeCaptainMenu();
@@ -7189,6 +7355,10 @@ function activateStartMenuSelection() {
   }
   if (action.id === START_MENU_ACTION_PAST_VOYAGES) {
     openPastVoyagesMenu();
+    return;
+  }
+  if (action.id === START_MENU_ACTION_ACHIEVEMENTS) {
+    openAchievementsMenu();
     return;
   }
   if (action.id === START_MENU_ACTION_OPTIONS) {
@@ -7608,6 +7778,18 @@ function handleDiscoveriesPointerDown(point) {
   if (pointInRect(point, discoveriesMenu.nextPageRect)) stepDiscoveriesPage(1);
 }
 
+function handleAchievementsPointerDown(point) {
+  if (pointInRect(point, achievementsMenu.closeButtonRect)) {
+    closeAchievementsMenu();
+    return;
+  }
+  if (pointInRect(point, achievementsMenu.previousPageRect)) {
+    stepAchievementsPage(-1);
+    return;
+  }
+  if (pointInRect(point, achievementsMenu.nextPageRect)) stepAchievementsPage(1);
+}
+
 function handleNavigationMenuPointerDown(point) {
   if (pointInRect(point, navigationMenu.closeButtonRect)) {
     closeNavigationMenu();
@@ -7681,6 +7863,12 @@ function stepDiscoveriesPage(direction) {
   const count = discoveredEntries(gameState).length;
   const pageCount = Math.max(1, Math.ceil(count / discoveriesPageSize()));
   discoveriesMenu.page = stepMenuIndex(discoveriesMenu.page, direction, pageCount);
+  dirty = true;
+}
+
+function stepAchievementsPage(direction) {
+  const pageCount = Math.max(1, Math.ceil(ACHIEVEMENT_CATALOG.length / ACHIEVEMENTS_PAGE_SIZE));
+  achievementsMenu.page = stepMenuIndex(achievementsMenu.page, direction, pageCount);
   dirty = true;
 }
 
@@ -7963,6 +8151,7 @@ function openPortDialogue(cityCall) {
   }
 
   const arrivedDrunk = captainIsDrunkAtPort(gameState);
+  if (arrivedDrunk) syncAchievementsFromGameState({ type: "arrived-in-port-drunk" });
   const needsLoadout = admitPlayerToPort(cityCall);
   const campaignSession = createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk);
   if (campaignSession) {
@@ -9759,6 +9948,7 @@ function landWhaleKillingBlow() {
   );
   syncShipCargoFromGameState();
   if (whale.id === WHITE_WHALE_ID) {
+    syncAchievementsFromGameState({ type: "white-whale-killed" });
     const goal = gameState.memory.campaignGoal;
     if (goal?.type === CAMPAIGN_GOAL_WHITE_WHALE) {
       markWhiteWhaleKilled(goal, weatherClockMinutes);
@@ -12862,6 +13052,7 @@ function closeMenusForGameOver() {
   optionsMenu.activeSliderKey = null;
   pastVoyagesMenu.isOpen = false;
   discoveriesMenu.isOpen = false;
+  achievementsMenu.isOpen = false;
   shipInfoMenu.isOpen = false;
   politicsMenu.isOpen = false;
   captainAlertModal = null;
@@ -15059,6 +15250,8 @@ function applyResponsiveViewport(width, height) {
   MOUNTAIN_DISCOVERY_PANEL_X = Math.floor((SCREEN_W - MOUNTAIN_DISCOVERY_PANEL_W) / 2);
   DISCOVERIES_PANEL_W = Math.min(300, SCREEN_W - 12);
   DISCOVERIES_PANEL_H = Math.min(214, SCREEN_H - 12);
+  ACHIEVEMENTS_PANEL_W = Math.min(338, SCREEN_W - 12);
+  ACHIEVEMENTS_PANEL_H = Math.min(238, SCREEN_H - 12);
   SHIP_INFO_PANEL_W = SCREEN_W - SHIP_INFO_PANEL_X * 2;
   SHIP_INFO_PANEL_H = SCREEN_H - SHIP_INFO_PANEL_Y * 2;
   POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
@@ -15418,6 +15611,7 @@ function render(nowMs) {
   if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal();
   if (startMenu) drawStartMenu(nowMs);
   if (pastVoyagesMenu.isOpen) drawPastVoyagesMenu();
+  if (achievementsMenu.isOpen) drawAchievementsMenu();
   if (creditsMenu.isOpen) drawCreditsMenu();
   if (optionsMenu.isOpen) drawOptionsMenu();
   drawItemAcquisitionEffects(nowMs);
@@ -18414,6 +18608,149 @@ function discoveryKindColor(kind) {
   throw new Error(`Unknown discovery kind: ${kind}`);
 }
 
+function drawAchievementsMenu() {
+  const panelX = Math.floor((SCREEN_W - ACHIEVEMENTS_PANEL_W) / 2);
+  const panelY = Math.floor((SCREEN_H - ACHIEVEMENTS_PANEL_H) / 2);
+  const panel = { x: panelX, y: panelY, w: ACHIEVEMENTS_PANEL_W, h: ACHIEVEMENTS_PANEL_H };
+  achievementsMenu.panelRect = panel;
+
+  ctx.save();
+  drawPiratePaperModal(panel, 0.82);
+  achievementsMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
+  drawOptionsCloseButton(
+    achievementsMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, achievementsMenu.closeButtonRect)
+  );
+  drawOptionsText("ACHIEVEMENTS", panel.x + panel.w / 2, panel.y + 9, {
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+
+  if (!achievementProfile) {
+    const message = wrapPixelText(
+      "ACHIEVEMENT PROFILE COULD NOT BE READ",
+      PIXEL_FONT_DIALOGUE_8,
+      panel.w - 32,
+      3
+    );
+    message.forEach((line, index) => drawOptionsText(
+      line,
+      panel.x + panel.w / 2,
+      panel.y + 74 + index * 12,
+      { align: "center", color: PIRATE_MENU_DANGER }
+    ));
+    achievementsMenu.previousPageRect = null;
+    achievementsMenu.nextPageRect = null;
+    ctx.restore();
+    return;
+  }
+
+  const unlockedCount = Object.keys(achievementProfile.unlocked).length;
+  drawOptionsText(
+    `UNLOCKED ${unlockedCount}/${ACHIEVEMENT_CATALOG.length}`,
+    panel.x + 12,
+    panel.y + 29,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+  const pageCount = Math.max(1, Math.ceil(ACHIEVEMENT_CATALOG.length / ACHIEVEMENTS_PAGE_SIZE));
+  achievementsMenu.page = clamp(achievementsMenu.page, 0, pageCount - 1);
+  const pageStart = achievementsMenu.page * ACHIEVEMENTS_PAGE_SIZE;
+  const entries = ACHIEVEMENT_CATALOG.slice(pageStart, pageStart + ACHIEVEMENTS_PAGE_SIZE);
+  const voyageProgress = gameState && hasStartedVoyage
+    ? gameState.memory.achievements
+    : createVoyageAchievementProgress();
+  const snapshot = currentAchievementSnapshot();
+  const listX = panel.x + 10;
+  const listY = panel.y + 43;
+  const rowW = panel.w - 20;
+  const rowH = 39;
+
+  entries.forEach((entry, index) => {
+    const progress = achievementProgress(achievementProfile, voyageProgress, snapshot, entry.id);
+    const row = { x: listX, y: listY + index * rowH, w: rowW, h: rowH - 2 };
+    ctx.fillStyle = progress.unlocked ? "#dec99e" : PIRATE_MENU_PAPER_INSET;
+    ctx.fillRect(row.x, row.y, row.w, row.h);
+    ctx.fillStyle = progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED;
+    ctx.fillRect(row.x, row.y, 2, row.h);
+    drawGameIcon(entry.iconId, row.x + 6, row.y + 9, { alpha: progress.unlocked ? 1 : 0.48 });
+
+    const textX = row.x + 27;
+    const progressLabel = achievementProgressLabel(entry, progress);
+    const progressWidth = measurePixelTextWidth(progressLabel, PIXEL_FONT_SMALL_8);
+    const titleWidth = Math.max(24, row.w - (textX - row.x) - progressWidth - 13);
+    drawOptionsText(
+      fitPixelText(entry.title.toUpperCase(), PIXEL_FONT_DIALOGUE_8, titleWidth),
+      textX,
+      row.y + 2,
+      { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
+    );
+    drawOptionsText(progressLabel, row.x + row.w - 6, row.y + 3, {
+      align: "right",
+      color: progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
+    });
+    const descriptionLines = wrapPixelText(
+      entry.description.toUpperCase(),
+      PIXEL_FONT_SMALL_8,
+      row.w - (textX - row.x) - 7,
+      2
+    );
+    descriptionLines.forEach((line, lineIndex) => drawPixelText(
+      line,
+      textX,
+      row.y + 14 + lineIndex * 8,
+      { font: PIXEL_FONT_SMALL_8, color: PIRATE_MENU_INK_MUTED }
+    ));
+    const fraction = progress.target > 0 ? clamp(progress.value / progress.target, 0, 1) : 0;
+    ctx.fillStyle = "#b99a67";
+    ctx.fillRect(textX, row.y + row.h - 4, row.w - (textX - row.x) - 7, 2);
+    if (fraction > 0) {
+      ctx.fillStyle = progress.unlocked ? PIRATE_MENU_SUCCESS : "#d6a84f";
+      ctx.fillRect(
+        textX,
+        row.y + row.h - 4,
+        Math.max(1, Math.round((row.w - (textX - row.x) - 7) * fraction)),
+        2
+      );
+    }
+  });
+
+  const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
+  achievementsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
+  achievementsMenu.nextPageRect = {
+    x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
+    y: pagerY,
+    w: UI_PAGER_BUTTON_W,
+    h: UI_PAGER_BUTTON_H
+  };
+  drawOptionsArrowButton(
+    achievementsMenu.previousPageRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, achievementsMenu.previousPageRect)
+  );
+  drawOptionsArrowButton(
+    achievementsMenu.nextPageRect,
+    ">",
+    pointInRect(optionsMenu.hoverPoint, achievementsMenu.nextPageRect)
+  );
+  drawOptionsText(`PAGE ${achievementsMenu.page + 1}/${pageCount}`, panel.x + panel.w / 2, pagerY + 3, {
+    align: "center",
+    color: PIRATE_MENU_INK_MUTED
+  });
+  ctx.restore();
+}
+
+function achievementProgressLabel(entry, progress) {
+  if (progress.unlocked) return "UNLOCKED";
+  if (entry.id === "millionaire") return `${formatCompactNumber(progress.value)}/1M`;
+  if (progress.target > 1) return `${progress.value}/${progress.target}`;
+  return "LOCKED";
+}
+
 function drawPoliticsMenu() {
   if (SCREEN_W < 380) {
     drawCompactPoliticsMenu();
@@ -19276,8 +19613,14 @@ function drawStartMenu(nowMs) {
 
   const labels = actions.map((action) => action.label);
   const firstButtonY = panel.y + (denseActions ? 68 : 76);
-  const buttonGap = denseActions ? 3 : START_MENU_BUTTON_GAP;
-  const buttonHeight = denseActions ? 24 : START_MENU_BUTTON_H;
+  const buttonGap = denseActions ? (actions.length >= 7 ? 2 : 3) : START_MENU_BUTTON_GAP;
+  const availableButtonHeight = panel.y + panel.h - 8 - firstButtonY - buttonGap * (actions.length - 1);
+  const buttonHeight = denseActions
+    ? Math.min(24, Math.floor(availableButtonHeight / actions.length))
+    : START_MENU_BUTTON_H;
+  if (buttonHeight < GAME_ICON_SIZE + 2) {
+    throw new Error(`Start menu cannot fit ${actions.length} actions at ${SCREEN_W}x${SCREEN_H}`);
+  }
   startMenu.buttonRects = labels.map((_, index) => ({
     x: panel.x + Math.floor((panel.w - START_MENU_BUTTON_W) / 2),
     y: firstButtonY + index * (buttonHeight + buttonGap),

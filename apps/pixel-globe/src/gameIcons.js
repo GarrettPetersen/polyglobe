@@ -168,6 +168,7 @@ const START_MENU_ICON_IDS = Object.freeze({
   "new-game": "menu:new-game",
   "lake-battle": "menu:lake-battle",
   "past-voyages": "menu:past-voyages",
+  achievements: "good:gold",
   options: "menu:options",
   credits: "menu:credits"
 });

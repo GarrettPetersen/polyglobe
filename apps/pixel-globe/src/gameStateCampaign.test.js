@@ -110,6 +110,25 @@ test("version 14 saves gain colony quest and cargo reservation state", () => {
   assert.deepEqual(restored.memory.cargoReservations, {});
 });
 
+test("version 23 saves gain per-voyage achievement progress", () => {
+  const legacy = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  legacy.version = 23;
+  delete legacy.memory.achievements;
+
+  const restored = migrateGameState(legacy, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.deepEqual(restored.memory.achievements, {
+    version: 1,
+    soldSpiceGoodIds: [],
+    foundedCityIds: [],
+    sailedShipSlugs: [],
+    grossDoubloonsEarned: 0,
+    whiteWhaleKilled: false,
+    arrivedInPortDrunk: false
+  });
+});
+
 test("cartography snapshots validate and persist their packed mask", () => {
   const state = createGameState({ cargoCapacity: 20 });
   updateCartographyMemory(state, "AQI=", 2);

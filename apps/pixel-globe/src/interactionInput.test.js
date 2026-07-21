@@ -15,6 +15,7 @@ const inactive = Object.freeze({
   shipInfoActive: false,
   politicsActive: false,
   discoveriesActive: false,
+  achievementsActive: false,
   navigationActive: false,
   dialogueActive: false,
   portWaitActive: false,
@@ -30,6 +31,7 @@ test("input follows the complete top-to-bottom order of rendered overlays", () =
     ["optionsActive", INTERACTION_INPUT.OPTIONS],
     ["creditsActive", INTERACTION_INPUT.CREDITS],
     ["pastVoyagesActive", INTERACTION_INPUT.PAST_VOYAGES],
+    ["achievementsActive", INTERACTION_INPUT.ACHIEVEMENTS],
     ["startMenuActive", INTERACTION_INPUT.START_MENU],
     ["captainAlertActive", INTERACTION_INPUT.CAPTAIN_ALERT],
     ["playerIntroActive", INTERACTION_INPUT.PLAYER_INTRO],
@@ -47,6 +49,13 @@ test("input follows the complete top-to-bottom order of rendered overlays", () =
     const active = Object.fromEntries(priority.slice(index).map(([key]) => [key, true]));
     assert.equal(ownerFor(active), priority[index][1]);
   }
+});
+
+test("achievements retain input over the main menu they cover", () => {
+  assert.equal(ownerFor({
+    achievementsActive: true,
+    startMenuActive: true
+  }), INTERACTION_INPUT.ACHIEVEMENTS);
 });
 
 test("world input is restored when no overlay or action owns it", () => {
