@@ -208,6 +208,16 @@ export function validateAchievementProfile(profile) {
   return profile;
 }
 
+export function orderedAchievementCatalog(profile) {
+  validateAchievementProfile(profile);
+  const completed = [];
+  const incomplete = [];
+  for (const achievement of ACHIEVEMENT_CATALOG) {
+    (profile.unlocked[achievement.id] ? completed : incomplete).push(achievement);
+  }
+  return Object.freeze([...completed, ...incomplete]);
+}
+
 export function recordVoyageAchievementEvent(progress, event) {
   validateVoyageAchievementProgress(progress);
   if (!event || typeof event !== "object" || typeof event.type !== "string") {

@@ -1,3 +1,89 @@
+export const RIVER_BANK_NONE = 0;
+export const RIVER_BANK_UPPER = 1;
+export const RIVER_BANK_LOWER = 2;
+
+export function splitRiverTerrainBanks(riverAlpha, width, height) {
+  if (!(riverAlpha instanceof Uint8Array) || !Number.isInteger(width) || !Number.isInteger(height) ||
+    width <= 0 || height <= 0 || riverAlpha.length !== width * height) {
+    throw new Error("River terrain bank split requires a matching alpha mask and dimensions");
+  }
+
+  const centerYByColumn = new Float64Array(width);
+  centerYByColumn.fill(Number.NaN);
+  const occupiedColumns = [];
+  for (let x = 0; x < width; x++) {
+    let yTotal = 0;
+    let count = 0;
+    for (let y = 0; y < height; y++) {
+      if (riverAlpha[x + y * width] === 0) continue;
+      yTotal += y + 0.5;
+      count++;
+    }
+    if (count === 0) continue;
+    centerYByColumn[x] = yTotal / count;
+    occupiedColumns.push(x);
+  }
+  if (occupiedColumns.length === 0) throw new Error("River terrain bank split received an empty river mask");
+
+  fillRiverCenterlineGaps(centerYByColumn, occupiedColumns);
+  const banks = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = x + y * width;
+      if (riverAlpha[index] !== 0) continue;
+      banks[index] = y + 0.5 < centerYByColumn[x]
+        ? RIVER_BANK_UPPER
+        : RIVER_BANK_LOWER;
+    }
+  }
+  return Object.freeze({ width, height, banks });
+}
+
+function fillRiverCenterlineGaps(centerYByColumn, occupiedColumns) {
+  const firstX = occupiedColumns[0];
+  const lastX = occupiedColumns[occupiedColumns.length - 1];
+  const sampleOffset = Math.min(4, occupiedColumns.length - 1);
+  const leftSampleX = occupiedColumns[sampleOffset];
+  const rightSampleX = occupiedColumns[occupiedColumns.length - 1 - sampleOffset];
+  const leftSlope = riverCenterlineSlope(centerYByColumn, firstX, leftSampleX);
+  const rightSlope = riverCenterlineSlope(centerYByColumn, rightSampleX, lastX);
+  for (let x = 0; x < firstX; x++) {
+    centerYByColumn[x] = clampRiverCenterY(
+      centerYByColumn[firstX] + leftSlope * (x - firstX),
+      centerYByColumn.length
+    );
+  }
+  for (let x = lastX + 1; x < centerYByColumn.length; x++) {
+    centerYByColumn[x] = clampRiverCenterY(
+      centerYByColumn[lastX] + rightSlope * (x - lastX),
+      centerYByColumn.length
+    );
+  }
+
+  for (let index = 1; index < occupiedColumns.length; index++) {
+    const leftX = occupiedColumns[index - 1];
+    const rightX = occupiedColumns[index];
+    const gap = rightX - leftX;
+    if (gap <= 1) continue;
+    const leftY = centerYByColumn[leftX];
+    const rightY = centerYByColumn[rightX];
+    for (let x = leftX + 1; x < rightX; x++) {
+      const progress = (x - leftX) / gap;
+      centerYByColumn[x] = leftY + (rightY - leftY) * progress;
+    }
+  }
+}
+
+function riverCenterlineSlope(centerYByColumn, leftX, rightX) {
+  if (leftX === rightX) return 0;
+  const slope = (centerYByColumn[rightX] - centerYByColumn[leftX]) / (rightX - leftX);
+  return Math.max(-2, Math.min(2, slope));
+}
+
+function clampRiverCenterY(value, height) {
+  return Math.max(0.5, Math.min(height - 0.5, value));
+}
+
 export function createTerrainOcclusionIndex(occluders, bucketSize = 48) {
   if (!Array.isArray(occluders)) throw new Error("Terrain occlusion index requires an occluder list");
   if (!Number.isInteger(bucketSize) || bucketSize < 1) {

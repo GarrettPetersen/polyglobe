@@ -128,10 +128,10 @@ test("literal anchor controls use the dedicated period anchor art", () => {
   assert.notDeepEqual(source, GAME_ICON_SOURCES["action:dock"]);
 });
 
-test("selling cargo uses outline-free bidirectional exchange arrows", () => {
+test("selling cargo uses the flowing two-arrow icon from row 5, column 5", () => {
   const source = GAME_ICON_SOURCES["action:sell"];
   assert.equal(source.packId, "nikoichu");
-  assert.equal(source.entry, "Sprites/Arrows_Double_Horizontal_Left_Right.png");
+  assert.equal(source.entry, "Sprites/Arrows_Media_Controls_Loop_Reload_Refresh.png");
   assert.equal(source.lightMonotone, "#9e4539");
 });
 

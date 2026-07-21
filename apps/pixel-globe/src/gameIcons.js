@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-21";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-22";
 
 const ICON_COLOR = Object.freeze({
   danger: "#6e2727",
@@ -151,7 +151,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:harpoon": nikoichu("Tools_Crafting_Fishing_Harpoon_Spear.png", ICON_COLOR.steel),
   "action:scavenge": nikoichu("Travel_Backpack_Bag_Bedroll.png", ICON_COLOR.timber),
   "action:buy": nikoichu("Software_Shopping_Basket.png", ICON_COLOR.success),
-  "action:sell": nikoichu("Arrows_Double_Horizontal_Left_Right.png", ICON_COLOR.gold),
+  "action:sell": nikoichu("Arrows_Media_Controls_Loop_Reload_Refresh.png", ICON_COLOR.gold),
   "action:back": nikoichu("Arrows_Go_Back_Return_Previous.png", ICON_COLOR.steel),
   "action:leave": nikoichu("Software_Exit_Quit_Doorway_Button.png", ICON_COLOR.warm),
   "action:quest": nikoichu("Software_Speech_Bubble_Exclaimation_Mark_Quest_New.png", ICON_COLOR.gold),

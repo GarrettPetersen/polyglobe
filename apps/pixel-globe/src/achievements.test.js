@@ -10,6 +10,7 @@ import {
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
+  orderedAchievementCatalog,
   readAchievementProfile,
   recordVoyageAchievementEvent,
   syncAchievementProfileToPlatform,
@@ -58,6 +59,24 @@ test("achievement profile persists independently from a voyage save", () => {
   writeAchievementProfile(profile, { storage });
   assert.ok(storage.getItem(ACHIEVEMENT_PROFILE_STORAGE_KEY));
   assert.deepEqual(readAchievementProfile({ storage }).profile, profile);
+});
+
+test("completed achievements appear first while preserving catalog order", () => {
+  const profile = createAchievementProfile();
+  profile.unlocked[ACHIEVEMENT_IDS.SPICE_TRADER] = { unlockedAt: 3000 };
+  profile.unlocked[ACHIEVEMENT_IDS.MAGELLAN] = { unlockedAt: 4000 };
+
+  const orderedIds = orderedAchievementCatalog(profile).map((entry) => entry.id);
+  assert.deepEqual(orderedIds.slice(0, 2), [
+    ACHIEVEMENT_IDS.MAGELLAN,
+    ACHIEVEMENT_IDS.SPICE_TRADER
+  ]);
+  assert.deepEqual(
+    orderedIds.slice(2),
+    ACHIEVEMENT_CATALOG
+      .filter((entry) => !profile.unlocked[entry.id])
+      .map((entry) => entry.id)
+  );
 });
 
 test("quest and discovery spoilers remain hidden until they unlock", () => {

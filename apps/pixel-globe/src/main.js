@@ -509,6 +509,13 @@ import {
 } from "./localization.js";
 import { localizePlaceNames } from "./placeNameLocalization.js";
 import { captainChartHeaderLayout } from "./captainChartLayout.js";
+import {
+  captainChartHexPixelSpan,
+  captainChartHousePixels,
+  captainChartPanAvailability,
+  captainChartPannedViewport,
+  captainChartSettlementMarkerSize
+} from "./captainChartMap.js";
 import { politicsChartHeaderLayout } from "./politicsChartLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import {
@@ -604,6 +611,7 @@ import {
 } from "./fetchQuestObjectives.js";
 import { gameOverStatsLayout } from "./gameOverLayout.js";
 import { flagWaveColumnOffsets } from "./flagAnimation.js";
+import { shipFlagLayout } from "./shipFlagLayout.js";
 import {
   windVFlowDirectionForScreenVector,
   windVGeometry,
@@ -748,6 +756,7 @@ import {
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
+  orderedAchievementCatalog,
   readAchievementProfile,
   recordVoyageAchievementEvent,
   syncAchievementProfileToPlatform,
@@ -865,7 +874,10 @@ import {
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
+  RIVER_BANK_LOWER,
+  RIVER_BANK_UPPER,
   shipOcclusionDepthY,
+  splitRiverTerrainBanks,
   terrainOccludersForScreenBounds
 } from "./terrainShipOcclusion.js";
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
@@ -1110,6 +1122,7 @@ const NPC_COLLISION_VELOCITY_DAMPING = 2.6;
 const NPC_COLLISION_VELOCITY_MIN_PX = 0.12;
 const NPC_SHIP_FLAG_W = 10;
 const NPC_SHIP_FLAG_H = 6;
+const NPC_SHIP_FLAG_POLE_H = 10;
 const NPC_VISUAL_MAX_ACCUMULATED_SECONDS = 0.15;
 const NPC_HAIL_RADIUS_PX = 28;
 const NPC_HAIL_CLICK_PAD_PX = 4;
@@ -1912,6 +1925,7 @@ const spriteAlphaMasks = new WeakMap();
 const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
+const shipTerrainRiverBankCache = new WeakMap();
 const npcOffshoreClearanceCache = new Map();
 let npcOffshoreClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
@@ -7632,24 +7646,24 @@ function stepCaptainChartZoom(direction) {
 }
 
 function panCaptainChartMap(directionX, directionY, fraction = CAPTAIN_MAP_PAN_FRACTION) {
-  if (captainMenu.mapZoomIndex === 0) return false;
   if (!Number.isFinite(directionX) || !Number.isFinite(directionY) ||
       !Number.isFinite(fraction) || fraction <= 0) {
     throw new Error("Invalid captain chart pan");
   }
   const viewport = captainChartDisplayViewport();
   if (!viewport) return false;
-  const center = minimapViewportCenter(viewport, MINIMAP_W);
-  const nextViewport = zoomedMinimapViewport({
+  const nextViewport = captainChartPannedViewport({
     baseViewport: minimap.viewport,
+    viewport,
     zoom: CAPTAIN_CHART_ZOOM_LEVELS[captainMenu.mapZoomIndex],
-    centerX: center.x + viewport.spanX * directionX * fraction,
-    centerY: center.y + viewport.spanY * directionY * fraction,
+    directionX,
+    directionY,
+    fraction,
     worldWidth: MINIMAP_W,
     worldHeight: MINIMAP_H
   });
+  if (!nextViewport) return false;
   const nextCenter = minimapViewportCenter(nextViewport, MINIMAP_W);
-  if (Math.abs(nextCenter.x - center.x) < 1e-9 && Math.abs(nextCenter.y - center.y) < 1e-9) return false;
   captainMenu.mapCenterX = nextCenter.x;
   captainMenu.mapCenterY = nextCenter.y;
   dirty = true;
@@ -17478,8 +17492,11 @@ function drawMinimapNavigationMarkers(x, y, raster) {
   ctx.restore();
 }
 
-function drawMinimapSettlementMarkers(x, y, raster) {
+function drawMinimapSettlementMarkers(x, y, raster, markerSize = 1) {
   if (!raster?.renderedViewport || !gameState || !cityByTileId) return;
+  if (!Number.isInteger(markerSize) || markerSize <= 0 || markerSize % 2 === 0) {
+    throw new Error(`Invalid minimap settlement marker size: ${markerSize}`);
+  }
   const settlements = [...cityByTileId.values()];
   if (npcSeaRoutes && pirateHideoutsVisibleToPlayer(gameState)) {
     settlements.push(...pirateHideoutPortsByTileId.values());
@@ -17494,7 +17511,15 @@ function drawMinimapSettlementMarkers(x, y, raster) {
   ctx.clip();
   for (const marker of markers) {
     ctx.fillStyle = minimapSettlementColor(marker.kind);
-    ctx.fillRect(x + marker.x, y + marker.y, 1, 1);
+    if (markerSize === 1) {
+      ctx.fillRect(x + marker.x, y + marker.y, 1, 1);
+      continue;
+    }
+    const left = x + marker.x - Math.floor(markerSize / 2);
+    const top = y + marker.y - Math.floor(markerSize / 2);
+    for (const pixel of captainChartHousePixels(markerSize)) {
+      ctx.fillRect(left + pixel.x, top + pixel.y, 1, 1);
+    }
   }
   ctx.restore();
 }
@@ -17986,7 +18011,17 @@ function drawCaptainChart(panel, nowMs) {
   const chartMinimap = nativeCaptainChartMinimap(mapW, mapH, displayViewport);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(chartMinimap.canvas, mapX, mapY);
-  drawMinimapSettlementMarkers(mapX, mapY, chartMinimap);
+  const settlementMarkerSize = displayViewport
+    ? captainChartSettlementMarkerSize(captainChartHexPixelSpan({
+      viewport: displayViewport,
+      pixelWidth: mapW,
+      pixelHeight: mapH,
+      tileCount: graph.tileCount,
+      worldWidth: MINIMAP_W,
+      worldHeight: MINIMAP_H
+    }))
+    : 1;
+  drawMinimapSettlementMarkers(mapX, mapY, chartMinimap, settlementMarkerSize);
 
   const mapped = minimap ? minimap.seenTileCount / graph.tileCount : 0;
   drawOptionsText(`${uiText("status.mapped")} ${(mapped * 100).toFixed(2)}%`, mapX, header.mappedY, {
@@ -18187,11 +18222,22 @@ function drawCaptainChartMapControls(mapRect) {
   };
   const centeredX = mapRect.x + Math.floor((mapRect.w - size) / 2);
   const centeredY = mapRect.y + Math.floor((mapRect.h - size) / 2);
+  const viewport = captainChartDisplayViewport();
+  const panAvailability = viewport
+    ? captainChartPanAvailability({
+      baseViewport: minimap.viewport,
+      viewport,
+      zoom: CAPTAIN_CHART_ZOOM_LEVELS[captainMenu.mapZoomIndex],
+      fraction: CAPTAIN_MAP_PAN_FRACTION,
+      worldWidth: MINIMAP_W,
+      worldHeight: MINIMAP_H
+    })
+    : { left: false, right: false, up: false, down: false };
   captainMenu.mapPanRects = {
-    left: { x: mapRect.x + 3, y: centeredY, w: size, h: size },
-    right: { x: mapRect.x + mapRect.w - size - 3, y: centeredY, w: size, h: size },
-    up: { x: centeredX, y: mapRect.y + 3, w: size, h: size },
-    down: { x: centeredX, y: mapRect.y + mapRect.h - size - 3, w: size, h: size }
+    left: panAvailability.left ? { x: mapRect.x + 3, y: centeredY, w: size, h: size } : null,
+    right: panAvailability.right ? { x: mapRect.x + mapRect.w - size - 3, y: centeredY, w: size, h: size } : null,
+    up: panAvailability.up ? { x: centeredX, y: mapRect.y + 3, w: size, h: size } : null,
+    down: panAvailability.down ? { x: centeredX, y: mapRect.y + mapRect.h - size - 3, w: size, h: size } : null
   };
 
   drawMapZoomButton(
@@ -18210,11 +18256,10 @@ function drawCaptainChartMapControls(mapRect) {
     captainMenu.mapRecenterRect,
     pointInRect(captainMenu.hoverPoint, captainMenu.mapRecenterRect)
   );
-  const panEnabled = captainMenu.mapZoomIndex > 0;
-  drawCaptainMapPanButton(captainMenu.mapPanRects.left, -1, 0, panEnabled);
-  drawCaptainMapPanButton(captainMenu.mapPanRects.right, 1, 0, panEnabled);
-  drawCaptainMapPanButton(captainMenu.mapPanRects.up, 0, -1, panEnabled);
-  drawCaptainMapPanButton(captainMenu.mapPanRects.down, 0, 1, panEnabled);
+  if (captainMenu.mapPanRects.left) drawCaptainMapPanButton(captainMenu.mapPanRects.left, -1, 0);
+  if (captainMenu.mapPanRects.right) drawCaptainMapPanButton(captainMenu.mapPanRects.right, 1, 0);
+  if (captainMenu.mapPanRects.up) drawCaptainMapPanButton(captainMenu.mapPanRects.up, 0, -1);
+  if (captainMenu.mapPanRects.down) drawCaptainMapPanButton(captainMenu.mapPanRects.down, 0, 1);
 
   const zoomLabel = `${CAPTAIN_CHART_ZOOM_LEVELS[captainMenu.mapZoomIndex]}X`;
   ctx.fillStyle = PIRATE_MENU_PAPER;
@@ -18236,10 +18281,8 @@ function drawCaptainMapRecenterButton(rect, hovered) {
   ctx.fillRect(centerX - 1, centerY - 1, 3, 3);
 }
 
-function drawCaptainMapPanButton(rect, directionX, directionY, enabled) {
-  const hovered = enabled && pointInRect(captainMenu.hoverPoint, rect);
-  ctx.save();
-  if (!enabled) ctx.globalAlpha = 0.38;
+function drawCaptainMapPanButton(rect, directionX, directionY) {
+  const hovered = pointInRect(captainMenu.hoverPoint, rect);
   drawPirateHudButton(rect, hovered);
   const centerX = rect.x + Math.floor(rect.w / 2);
   const centerY = rect.y + Math.floor(rect.h / 2);
@@ -18255,7 +18298,6 @@ function drawCaptainMapPanButton(rect, directionX, directionY, enabled) {
     ctx.fillRect(centerX - 1, tipY - directionY, 3, 1);
     ctx.fillRect(centerX - 2, tipY - directionY * 2, 5, 1);
   }
-  ctx.restore();
 }
 
 function nativeCaptainChartMinimap(width, height, viewport) {
@@ -19740,10 +19782,11 @@ function drawAchievementsMenu() {
     panel.y + 29,
     { color: PIRATE_MENU_INK_MUTED }
   );
-  const pageCount = Math.max(1, Math.ceil(ACHIEVEMENT_CATALOG.length / ACHIEVEMENTS_PAGE_SIZE));
+  const orderedAchievements = orderedAchievementCatalog(achievementProfile);
+  const pageCount = Math.max(1, Math.ceil(orderedAchievements.length / ACHIEVEMENTS_PAGE_SIZE));
   achievementsMenu.page = clamp(achievementsMenu.page, 0, pageCount - 1);
   const pageStart = achievementsMenu.page * ACHIEVEMENTS_PAGE_SIZE;
-  const entries = ACHIEVEMENT_CATALOG.slice(pageStart, pageStart + ACHIEVEMENTS_PAGE_SIZE);
+  const entries = orderedAchievements.slice(pageStart, pageStart + ACHIEVEMENTS_PAGE_SIZE);
   const voyageProgress = gameState && hasStartedVoyage
     ? gameState.memory.achievements
     : createVoyageAchievementProgress();
@@ -24227,8 +24270,8 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
-  const containsRiver = ((riverMasks?.[call.id] || 0) | (riverToWaterMasks?.[call.id] || 0)) !== 0;
-  if (!containsRiver) {
+  const riverMask = riverMasks?.[call.id] || 0;
+  if (riverMask === 0) {
     return [{
       x,
       y,
@@ -24239,7 +24282,10 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
     }];
   }
 
-  const splitY = Math.round(call.drawSurfaceY);
+  const bankSplit = terrainRiverBankSplit(call, activeChart, riverMask);
+  if (bankSplit.width !== width || bankSplit.height !== height) {
+    throw new Error(`River bank and terrain sprite dimensions disagree on tile ${call.id}`);
+  }
   return [
     {
       x,
@@ -24247,7 +24293,7 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
       depthY: call.sortY,
       width,
       height,
-      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, "upper", splitY)
+      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, RIVER_BANK_UPPER, bankSplit)
     },
     {
       x,
@@ -24255,20 +24301,38 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
       depthY: call.sortY + TILE_ART_HALF,
       width,
       height,
-      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, "lower", splitY)
+      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, RIVER_BANK_LOWER, bankSplit)
     }
   ];
 }
 
-function terrainForegroundRiverBankDrawLayer(call, image, activeChart, bank, splitY) {
+function terrainRiverBankSplit(call, activeChart, riverMask) {
+  let splitsByTileId = shipTerrainRiverBankCache.get(activeChart);
+  if (!splitsByTileId) {
+    splitsByTileId = new Map();
+    shipTerrainRiverBankCache.set(activeChart, splitsByTileId);
+  }
+  const cached = splitsByTileId.get(call.id);
+  if (cached) return cached;
+  const riverSprite = riverSpriteForTile(call, activeChart, riverMask);
+  if (!riverSprite) throw new Error(`Could not split terrain around river on tile ${call.id}`);
+  const alphaMask = spriteAlphaMask(riverSprite);
+  const split = splitRiverTerrainBanks(alphaMask.alpha, alphaMask.width, alphaMask.height);
+  splitsByTileId.set(call.id, split);
+  return split;
+}
+
+function terrainForegroundRiverBankDrawLayer(call, image, activeChart, bank, bankSplit) {
   return {
     image: null,
-    create: () => createTerrainForegroundRiverBankImage(call, image, activeChart, bank, splitY)
+    create: () => createTerrainForegroundRiverBankImage(call, image, activeChart, bank, bankSplit)
   };
 }
 
-function createTerrainForegroundRiverBankImage(call, image, activeChart, bank, splitY) {
-  if (bank !== "upper" && bank !== "lower") throw new Error(`Unknown river bank layer: ${bank}`);
+function createTerrainForegroundRiverBankImage(call, image, activeChart, bank, bankSplit) {
+  if (bank !== RIVER_BANK_UPPER && bank !== RIVER_BANK_LOWER) {
+    throw new Error(`Unknown river bank layer: ${bank}`);
+  }
   const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const canvas = document.createElement("canvas");
@@ -24281,11 +24345,10 @@ function createTerrainForegroundRiverBankImage(call, image, activeChart, bank, s
   const imageData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
   for (let py = 0; py < canvas.height; py++) {
     const localY = y + py;
-    const keepBank = bank === "upper" ? localY < splitY : localY >= splitY;
     for (let px = 0; px < canvas.width; px++) {
       const pixelIndex = py * canvas.width + px;
       const dataIndex = pixelIndex * 4;
-      const keep = keepBank && imageData.data[dataIndex + 3] !== 0 &&
+      const keep = bankSplit.banks[pixelIndex] === bank && imageData.data[dataIndex + 3] !== 0 &&
         !wakeMapPointIsWater(x + px, localY, activeChart);
       if (!keep) imageData.data[dataIndex + 3] = 0;
     }
@@ -24672,16 +24735,21 @@ function drawShipCombatOutline(call, layers) {
 function drawNpcShipFlag(call, nowMs) {
   if (!factionHasFlag(call.factionId)) return;
   if (!call.flagAnchor) throw new Error(`NPC ship ${call.slug} is missing its flag anchor`);
-  const poleX = call.x + call.flagAnchor.x;
-  const poleY = call.y + call.flagAnchor.y;
+  const layout = shipFlagLayout({
+    anchorX: call.x + call.flagAnchor.x,
+    anchorY: call.y + call.flagAnchor.y,
+    poleHeight: NPC_SHIP_FLAG_POLE_H,
+    flagWidth: NPC_SHIP_FLAG_W,
+    flagHeight: NPC_SHIP_FLAG_H
+  });
   ctx.fillStyle = "#4c3e24";
-  ctx.fillRect(poleX, poleY, 1, 10);
+  ctx.fillRect(layout.pole.x, layout.pole.y, layout.pole.w, layout.pole.h);
   drawWavingFactionFlag(
     call.factionId,
-    poleX + 1,
-    poleY,
-    NPC_SHIP_FLAG_W,
-    NPC_SHIP_FLAG_H,
+    layout.flag.x,
+    layout.flag.y,
+    layout.flag.w,
+    layout.flag.h,
     flagWavePhase(nowMs, call.flagSeed)
   );
 }
