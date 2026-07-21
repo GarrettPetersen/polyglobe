@@ -75,7 +75,7 @@ async function main() {
       rect: gameIconAtlasRect(id),
       packId: source.packId,
       assetPath: source.assetPath || null,
-      duotone: source.duotone || undefined,
+      lightMonotone: source.lightMonotone || undefined,
       paperOutline: source.paperOutline === true || undefined
     })),
     packs: GAME_ICON_PACKS
@@ -126,8 +126,8 @@ async function loadVendoredPackFallback(iconId) {
 }
 
 function drawIconSource(ctx, image, crop, rect, source) {
-  if (source.duotone) {
-    const recolored = duotoneIconCanvas(image, crop, source.duotone);
+  if (source.lightMonotone) {
+    const recolored = lightMonotoneIconCanvas(image, crop, source.lightMonotone);
     ctx.drawImage(recolored, rect.x, rect.y);
     return;
   }
@@ -157,18 +157,19 @@ function drawIconSource(ctx, image, crop, rect, source) {
   ctx.drawImage(outlinedCanvas, rect.x, rect.y);
 }
 
-function duotoneIconCanvas(image, crop, duotone) {
+function lightMonotoneIconCanvas(image, crop, colorHex) {
   const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
   const ctx = canvas.getContext("2d", { alpha: true, willReadFrequently: true });
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, 0, 0, GAME_ICON_SIZE, GAME_ICON_SIZE);
   const pixels = ctx.getImageData(0, 0, GAME_ICON_SIZE, GAME_ICON_SIZE);
-  const dark = parseIconHex(duotone.dark);
-  const light = parseIconHex(duotone.light);
+  const color = parseIconHex(colorHex);
   for (let offset = 0; offset < pixels.data.length; offset += 4) {
-    if (pixels.data[offset + 3] === 0) continue;
     const brightness = pixels.data[offset] + pixels.data[offset + 1] + pixels.data[offset + 2];
-    const color = brightness >= 384 ? light : dark;
+    if (pixels.data[offset + 3] === 0 || brightness < 384) {
+      pixels.data[offset + 3] = 0;
+      continue;
+    }
     pixels.data[offset] = color[0];
     pixels.data[offset + 1] = color[1];
     pixels.data[offset + 2] = color[2];
@@ -180,7 +181,7 @@ function duotoneIconCanvas(image, crop, duotone) {
 
 function parseIconHex(value) {
   if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) {
-    throw new Error(`Invalid duotone icon color: ${value}`);
+    throw new Error(`Invalid icon color: ${value}`);
   }
   return [
     Number.parseInt(value.slice(1, 3), 16),
@@ -197,7 +198,22 @@ function generateIcon(generatedId) {
   if (generatedId === "play-arrow") return generatePlayArrow();
   if (generatedId === "restart-arrow") return generateRestartArrow();
   if (generatedId === "surrender-flag") return generateSurrenderFlag();
+  if (generatedId === "exchange-arrows") return generateExchangeArrows();
   throw new Error(`Unknown generated game icon: ${generatedId}`);
+}
+
+function generateExchangeArrows() {
+  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#9e4539";
+  const pixels = [
+    [2, 5], [3, 5], [4, 5], [5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5],
+    [10, 3], [11, 4], [11, 6], [10, 7],
+    [2, 10], [3, 10], [4, 10], [5, 10], [6, 10], [7, 10], [8, 10], [9, 10], [10, 10], [11, 10], [12, 10], [13, 10],
+    [5, 8], [4, 9], [4, 11], [5, 12]
+  ];
+  for (const [x, y] of pixels) ctx.fillRect(x, y, 1, 1);
+  return canvas;
 }
 
 function generateBackArrow() {

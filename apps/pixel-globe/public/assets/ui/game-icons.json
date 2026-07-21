@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-16",
+  "version": "resurrect-icons-17",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 112,
@@ -492,10 +492,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#91db69"
-      }
+      "lightMonotone": "#547e64"
     },
     {
       "id": "menu:new-game",
@@ -507,10 +504,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#0eaf9b"
-      }
+      "lightMonotone": "#0b5e65"
     },
     {
       "id": "menu:lake-battle",
@@ -522,10 +516,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#e83b3b"
-      }
+      "lightMonotone": "#6e2727"
     },
     {
       "id": "menu:past-voyages",
@@ -537,10 +528,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#fbb954"
-      }
+      "lightMonotone": "#676633"
     },
     {
       "id": "menu:options",
@@ -552,10 +540,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#a884f3"
-      }
+      "lightMonotone": "#6b3e75"
     },
     {
       "id": "menu:credits",
@@ -567,10 +552,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#8fd3ff"
-      }
+      "lightMonotone": "#4d65b4"
     },
     {
       "id": "menu:captain",
@@ -582,10 +564,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#fca790"
-      }
+      "lightMonotone": "#694f62"
     },
     {
       "id": "menu:politics",
@@ -597,10 +576,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#f9c22b"
-      }
+      "lightMonotone": "#9e4539"
     },
     {
       "id": "menu:discoveries",
@@ -953,10 +929,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#0eaf9b"
-      }
+      "lightMonotone": "#0b5e65"
     },
     {
       "id": "action:anchor",
@@ -968,10 +941,7 @@
       },
       "packId": null,
       "assetPath": "public/assets/ui/anchor.png",
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#0eaf9b"
-      }
+      "lightMonotone": "#0b5e65"
     },
     {
       "id": "action:hail",
@@ -983,10 +953,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#8fd3ff"
-      }
+      "lightMonotone": "#4d65b4"
     },
     {
       "id": "action:fish",
@@ -998,10 +965,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#4d9be6"
-      }
+      "lightMonotone": "#484a77"
     },
     {
       "id": "action:harpoon",
@@ -1013,10 +977,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#9babb2"
-      }
+      "lightMonotone": "#625565"
     },
     {
       "id": "action:scavenge",
@@ -1028,10 +989,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#e6904e"
-      }
+      "lightMonotone": "#4c3e24"
     },
     {
       "id": "action:buy",
@@ -1043,10 +1001,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#91db69"
-      }
+      "lightMonotone": "#547e64"
     },
     {
       "id": "action:sell",
@@ -1056,12 +1011,8 @@
         "w": 16,
         "h": 16
       },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#f9c22b"
-      }
+      "packId": null,
+      "assetPath": null
     },
     {
       "id": "action:back",
@@ -1073,10 +1024,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#9babb2"
-      }
+      "lightMonotone": "#625565"
     },
     {
       "id": "action:leave",
@@ -1088,10 +1036,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#fca790"
-      }
+      "lightMonotone": "#694f62"
     },
     {
       "id": "action:quest",
@@ -1103,10 +1048,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#f9c22b"
-      }
+      "lightMonotone": "#9e4539"
     },
     {
       "id": "action:talk",
@@ -1118,10 +1060,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#8fd3ff"
-      }
+      "lightMonotone": "#4d65b4"
     },
     {
       "id": "action:wait",
@@ -1133,10 +1072,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#9babb2"
-      }
+      "lightMonotone": "#625565"
     },
     {
       "id": "action:attack",
@@ -1148,10 +1084,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#e83b3b"
-      }
+      "lightMonotone": "#6e2727"
     },
     {
       "id": "action:loadout",
@@ -1163,10 +1096,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#4d9be6"
-      }
+      "lightMonotone": "#484a77"
     },
     {
       "id": "action:shipyard",
@@ -1178,10 +1108,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#e6904e"
-      }
+      "lightMonotone": "#4c3e24"
     },
     {
       "id": "action:letter",
@@ -1193,10 +1120,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#fbb954"
-      }
+      "lightMonotone": "#676633"
     },
     {
       "id": "action:disguise",
@@ -1208,10 +1132,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#a884f3"
-      }
+      "lightMonotone": "#6b3e75"
     },
     {
       "id": "action:surrender",
@@ -1223,10 +1144,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#9babb2"
-      }
+      "lightMonotone": "#625565"
     },
     {
       "id": "action:passenger",
@@ -1238,10 +1156,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#0eaf9b"
-      }
+      "lightMonotone": "#0b5e65"
     },
     {
       "id": "action:viking",
@@ -1253,10 +1168,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#9babb2"
-      }
+      "lightMonotone": "#625565"
     },
     {
       "id": "action:inventory",
@@ -1268,10 +1180,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#e6904e"
-      }
+      "lightMonotone": "#4c3e24"
     },
     {
       "id": "action:resume",
@@ -1283,10 +1192,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#91db69"
-      }
+      "lightMonotone": "#547e64"
     },
     {
       "id": "action:restart",
@@ -1298,10 +1204,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#e6904e"
-      }
+      "lightMonotone": "#4c3e24"
     },
     {
       "id": "action:choose-ships",
@@ -1313,10 +1216,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#0eaf9b"
-      }
+      "lightMonotone": "#0b5e65"
     },
     {
       "id": "action:start-menu",
@@ -1328,10 +1228,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#fca790"
-      }
+      "lightMonotone": "#694f62"
     },
     {
       "id": "action:navigation",
@@ -1343,10 +1240,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "duotone": {
-        "dark": "#2e222f",
-        "light": "#4d9be6"
-      }
+      "lightMonotone": "#484a77"
     },
     {
       "id": "good:gunpowder",

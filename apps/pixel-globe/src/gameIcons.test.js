@@ -89,34 +89,66 @@ test("fishing actions use a legible native-size fishing rod", () => {
   assert.equal(source.entry, "Sprites/Tools_Crafting_Fishing_Rod.png");
   assert.equal(source.crop, null);
   assert.equal(source.paperOutline, undefined);
-  assert.deepEqual(source.duotone, { dark: "#2e222f", light: "#4d9be6" });
+  assert.equal(source.duotone, undefined);
+  assert.equal(source.lightMonotone, "#484a77");
 });
 
-test("interface controls use a varied Resurrect duotone language without replacing trade goods", () => {
+test("interface controls use varied dark Resurrect colors without outlines", () => {
   const palette = new Set(RESURRECT_64_HEX.map((hex) => `#${hex}`));
-  const lightColors = new Set();
+  const iconColors = new Set();
   for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
     if (iconId.startsWith("menu:") && iconId !== "menu:discoveries") {
       assert.equal(source.packId, "nikoichu", iconId);
     }
     if (iconId.startsWith("action:") || (iconId.startsWith("menu:") && source.packId === "nikoichu")) {
-      if (iconId !== "action:anchor") assert.equal(source.packId, "nikoichu", iconId);
-      assert.ok(palette.has(source.duotone.dark), `${iconId} dark color`);
-      assert.ok(palette.has(source.duotone.light), `${iconId} light color`);
-      assert.notEqual(source.duotone.dark, source.duotone.light, iconId);
-      lightColors.add(source.duotone.light);
+      assert.equal(source.duotone, undefined, `${iconId} still has an outline treatment`);
+      if (iconId === "action:sell") {
+        assert.equal(source.generatedId, "exchange-arrows");
+      } else {
+        if (iconId !== "action:anchor") assert.equal(source.packId, "nikoichu", iconId);
+        assert.ok(palette.has(source.lightMonotone), `${iconId} icon color`);
+        iconColors.add(source.lightMonotone);
+      }
     }
     if (iconId.startsWith("good:")) assert.notEqual(source.packId, "nikoichu", iconId);
   }
-  assert.ok(lightColors.size >= 8, `only ${lightColors.size} interface accent colors`);
+  assert.ok(iconColors.size >= 8, `only ${iconColors.size} interface colors`);
 });
 
 test("literal anchor controls use the dedicated period anchor art", () => {
   const source = GAME_ICON_SOURCES["action:anchor"];
   assert.equal(source.packId, null);
   assert.equal(source.assetPath, "public/assets/ui/anchor.png");
-  assert.deepEqual(source.duotone, { dark: "#2e222f", light: "#0eaf9b" });
+  assert.equal(source.duotone, undefined);
+  assert.equal(source.lightMonotone, "#0b5e65");
   assert.notDeepEqual(source, GAME_ICON_SOURCES["action:dock"]);
+});
+
+test("selling cargo uses outline-free bidirectional exchange arrows", () => {
+  const source = GAME_ICON_SOURCES["action:sell"];
+  assert.equal(source.packId, null);
+  assert.equal(source.generatedId, "exchange-arrows");
+});
+
+test("rendered interface icons contain one semantic color and no outline color", async () => {
+  const image = await loadImage(atlasPath);
+  const canvas = createCanvas(image.width, image.height);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(image, 0, 0);
+  for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
+    const expected = source.lightMonotone || (iconId === "action:sell" ? "#9e4539" : null);
+    if (!expected) continue;
+    const rect = gameIconAtlasRect(iconId);
+    const pixels = ctx.getImageData(rect.x, rect.y, rect.w, rect.h).data;
+    const colors = new Set();
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      if (pixels[offset + 3] === 0) continue;
+      colors.add(`#${[pixels[offset], pixels[offset + 1], pixels[offset + 2]]
+        .map((value) => value.toString(16).padStart(2, "0"))
+        .join("")}`);
+    }
+    assert.deepEqual([...colors], [expected], iconId);
+  }
 });
 
 test("fresh water uses the period cask instead of modern bottled-water artwork", () => {

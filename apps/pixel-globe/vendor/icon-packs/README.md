@@ -9,9 +9,10 @@
 - License: Creative Commons Zero v1.0 Universal (CC0 1.0)
 
 The game icon atlas uses the uncropped `Sprites/` files at their native 16x16
-size. Black source pixels become a shared dark outline, while white source
-pixels receive semantic Resurrect 64 accents for navigation, combat, trade,
-dialogue, and tools. The complete original archive is kept here so the
+size. Black source pixels are discarded, while white source pixels receive
+darker semantic Resurrect 64 colors for navigation, combat, trade, dialogue,
+and tools. This keeps the parchment controls crisp without heavy outlines.
+The complete original archive is kept here so the
 checked-in atlas can be rebuilt without a copy in Downloads.
 
 ## alexkovacsart - 100 Free Pixel Art Foods!
