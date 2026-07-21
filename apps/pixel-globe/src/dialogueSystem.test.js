@@ -1138,6 +1138,7 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
   let view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(session.nodeId, "custom-loadout");
   assert.equal(view.presentation.kind, "custom-loadout");
+  assert.equal(view.presentation.shipLabel, "Brigantine");
   assert.ok(view.presentation.crewWorkMultiplier > 1);
   assert.equal(view.presentation.cannonReloadPercent, 100);
   assert.deepEqual(view.presentation.fields.map((field) => field.key), [

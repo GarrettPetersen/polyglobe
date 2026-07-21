@@ -1392,6 +1392,18 @@ const PIRATE_MENU_PAPER_INSET = "#d6bd8f";
 const PIRATE_MENU_PAPER_INSET_ALT = "#c9aa78";
 const PIRATE_MENU_DANGER = "#9e3e36";
 const PIRATE_MENU_SUCCESS = "#547e64";
+const CUSTOM_LOADOUT_FIELD_ICONS = Object.freeze({
+  crew: "action:passenger",
+  cannons: "action:attack",
+  foodUnits: "good:hardtack",
+  waterUnits: "good:fresh-water"
+});
+const CUSTOM_LOADOUT_FIELD_COLORS = Object.freeze({
+  crew: "#547e64",
+  cannons: "#715033",
+  foodUnits: "#c9aa78",
+  waterUnits: "#3b5dc9"
+});
 const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
@@ -26141,14 +26153,21 @@ function drawDialogueOverlay(nowMs) {
 
 function drawCustomLoadoutDialogueOverlay(dialogueView) {
   const presentation = dialogueView.presentation;
-  const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
+  const panelW = Math.min(420, SCREEN_W - 12);
+  const panelH = Math.min(244, SCREEN_H - 12);
+  const panel = {
+    x: Math.floor((SCREEN_W - panelW) / 2),
+    y: Math.floor((SCREEN_H - panelH) / 2),
+    w: panelW,
+    h: panelH
+  };
   const compactWidth = panel.w < 320;
   const left = panel.x + 10;
   const right = panel.x + panel.w - 10;
   const titleY = panel.y + 10;
-  const descriptionY = titleY + 15;
-  const descriptionLines = wrapPixelText(dialogueView.text, PIXEL_FONT_SMALL_8, panel.w - 20, 2);
-  const fieldsTop = descriptionY + descriptionLines.length * 10 + 5;
+  const shipY = titleY + 14;
+  const dividerY = shipY + 12;
+  const fieldsTop = dividerY + 6;
   const optionWidth = panel.w - 20;
   const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_SMALL_8, optionWidth);
   const optionGroups = dialogueOptionGroups(dialogueView.options);
@@ -26156,13 +26175,10 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
   const optionBottom = panel.y + panel.h - 8;
   const optionY = optionBottom - optionRows * optionHeight -
     (optionGroups.regular.length > 0 && optionGroups.exits.length > 0 ? 4 : 0);
-  const summaryY = optionY - 15;
+  const summaryY = optionY - 27;
   const availableFieldHeight = summaryY - fieldsTop - 3;
-  const rowHeight = Math.max(20, Math.min(29, Math.floor(availableFieldHeight / presentation.fields.length)));
-  const labelWidth = compactWidth ? 46 : 62;
-  const valueWidth = compactWidth ? 54 : 76;
-  const trackX = left + labelWidth;
-  const trackW = Math.max(28, right - valueWidth - trackX - 5);
+  const rowHeight = Math.max(24, Math.min(29, Math.floor(availableFieldHeight / presentation.fields.length)));
+  const rowValueWidth = compactWidth ? 70 : 82;
 
   drawPiratePaperModal(panel, 0.86);
   drawOptionsText("CUSTOM LOADOUT", panel.x + panel.w / 2, titleY, {
@@ -26170,49 +26186,73 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
     align: "center",
     color: PIRATE_MENU_INK
   });
-  descriptionLines.forEach((line, index) => {
-    drawOptionsText(line, left, descriptionY + index * 10, {
+  drawOptionsText(
+    fitPixelText(
+      `${presentation.shipLabel.toUpperCase()} / ${presentation.plan.totalSpace + presentation.plan.reserveSpace} HOLD`,
+      PIXEL_FONT_SMALL_8,
+      panel.w - 28
+    ),
+    panel.x + panel.w / 2,
+    shipY,
+    {
       font: PIXEL_FONT_SMALL_8,
+      align: "center",
       color: PIRATE_MENU_INK_MUTED
-    });
-  });
+    }
+  );
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(left, dividerY, panel.w - 20, 1);
 
   dialogueLayout.customLoadoutSliderRects = [];
   const selectedFieldIndex = clamp(dialogueState.customLoadoutFieldIndex || 0, 0, presentation.fields.length - 1);
   presentation.fields.forEach((field, index) => {
     const row = { x: left, y: fieldsTop + index * rowHeight, w: panel.w - 20, h: rowHeight - 2 };
+    const iconId = CUSTOM_LOADOUT_FIELD_ICONS[field.key];
+    const accent = CUSTOM_LOADOUT_FIELD_COLORS[field.key];
+    if (!iconId || !accent) throw new Error(`Custom loadout field has no visual treatment: ${field.key}`);
+    const iconX = row.x + 5;
+    const iconY = row.y + Math.floor((row.h - GAME_ICON_SIZE) / 2);
+    const labelX = iconX + GAME_ICON_SIZE + 5;
     const trackRect = {
-      x: trackX,
-      y: row.y + Math.floor((row.h - 5) / 2),
-      w: trackW,
-      h: 5
+      x: labelX,
+      y: row.y + row.h - 8,
+      w: Math.max(26, right - rowValueWidth - labelX - 5),
+      h: 4
     };
     const selected = index === selectedFieldIndex;
     drawPiratePaperInset(row, selected);
-    drawOptionsText(field.label.toUpperCase(), row.x + 5, row.y + Math.floor((row.h - 8) / 2), {
+    drawGameIcon(iconId, iconX, iconY, { alpha: selected ? 1 : 0.88 });
+    drawOptionsText(customLoadoutFieldLabel(field.key), labelX, row.y + 4, {
       font: PIXEL_FONT_SMALL_8,
       color: PIRATE_MENU_INK
     });
-    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    ctx.fillStyle = PIRATE_MENU_PAPER;
     ctx.fillRect(trackRect.x, trackRect.y, trackRect.w, trackRect.h);
+    ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+    ctx.strokeRect(trackRect.x + 0.5, trackRect.y + 0.5, trackRect.w - 1, trackRect.h - 1);
     const range = field.bounds.max - field.bounds.min;
     const ratio = range <= 0 ? 0 : (field.value - field.bounds.min) / range;
-    const fillW = Math.round((trackRect.w - 1) * ratio);
-    ctx.fillStyle = PIRATE_MENU_CHART_LINE;
-    ctx.fillRect(trackRect.x, trackRect.y, fillW + 1, trackRect.h);
-    const knobX = trackRect.x + fillW;
-    ctx.fillStyle = selected ? PIRATE_MENU_INK : PIRATE_MENU_PAPER;
-    ctx.fillRect(knobX - 1, trackRect.y - 2, 3, trackRect.h + 4);
-    const value = customLoadoutFieldValue(
+    const fillW = Math.round((trackRect.w - 2) * ratio);
+    ctx.fillStyle = accent;
+    ctx.fillRect(trackRect.x + 1, trackRect.y + 1, fillW, trackRect.h - 2);
+    const knobX = trackRect.x + 1 + fillW;
+    ctx.fillStyle = selected ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
+    ctx.fillRect(clamp(knobX - 1, trackRect.x, trackRect.x + trackRect.w - 3), trackRect.y - 2, 3, trackRect.h + 4);
+    const display = customLoadoutFieldDisplay(
       field,
       presentation.plan,
       presentation.crewWorkMultiplier,
-      compactWidth
+      presentation.cannonReloadPercent
     );
-    drawOptionsText(value, right - 4, row.y + Math.floor((row.h - 8) / 2), {
+    drawOptionsText(display.value, right - 4, row.y + 4, {
       font: PIXEL_FONT_SMALL_8,
       align: "right",
       color: PIRATE_MENU_INK
+    });
+    drawOptionsText(display.detail, right - 4, row.y + row.h - 9, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "right",
+      color: field.key === "crew" ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED
     });
     dialogueLayout.customLoadoutSliderRects.push({
       key: field.key,
@@ -26224,28 +26264,79 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
     });
   });
 
-  drawOptionsText(`TRADE HOLD  ${presentation.plan.reserveSpace} SPACE`, left, summaryY, {
+  const usedSpace = presentation.plan.totalSpace;
+  const holdCapacity = usedSpace + presentation.plan.reserveSpace;
+  drawOptionsText("HOLD PLAN", left, summaryY, {
     font: PIXEL_FONT_SMALL_8,
-    color: PIRATE_MENU_CHART_LINE
+    color: PIRATE_MENU_INK
   });
-  if (presentation.cannonReloadPercent !== null) {
-    drawOptionsText(`GUN RELOAD  ${presentation.cannonReloadPercent}%`, right, summaryY, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "right",
-      color: presentation.cannonReloadPercent < 100 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
-    });
-  }
+  drawOptionsText(`${usedSpace}/${holdCapacity} USED`, right, summaryY, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "right",
+    color: PIRATE_MENU_INK_MUTED
+  });
+  drawCustomLoadoutHoldBar(
+    { x: left, y: summaryY + 11, w: panel.w - 20, h: 7 },
+    presentation.plan
+  );
   drawDialogueOptions(dialogueView, left, optionY, optionWidth, optionBottom, PIXEL_FONT_SMALL_8);
 }
 
-function customLoadoutFieldValue(field, plan, crewMultiplier, compact) {
+function customLoadoutFieldLabel(key) {
+  if (key === "crew") return "CREW";
+  if (key === "cannons") return "CANNONS";
+  if (key === "foodUnits") return "HARDTACK";
+  if (key === "waterUnits") return "WATER";
+  throw new Error(`Unknown custom loadout field label: ${key}`);
+}
+
+function customLoadoutFieldDisplay(field, plan, crewMultiplier, cannonReloadPercent) {
   if (field.key === "crew") {
-    const multiplierLabel = `${crewMultiplier.toFixed(compact ? 1 : 2)}X`;
-    return compact ? `${field.value}  ${multiplierLabel}` : `${field.value}/${plan.crewCapacity}  ${multiplierLabel}`;
+    return Object.freeze({
+      value: `${field.value}/${plan.crewCapacity}`,
+      detail: `WORK ${crewMultiplier.toFixed(2)}X`
+    });
   }
-  if (field.key === "cannons") return `${field.value}/${plan.cannonCapacity}`;
+  if (field.key === "cannons") {
+    return Object.freeze({
+      value: `${field.value}/${plan.cannonCapacity}`,
+      detail: cannonReloadPercent === null ? "NO GUNS" : `RELOAD ${cannonReloadPercent}%`
+    });
+  }
+  if (field.key !== "foodUnits" && field.key !== "waterUnits") {
+    throw new Error(`Unknown custom loadout field display: ${field.key}`);
+  }
   const days = field.key === "foodUnits" ? plan.foodDays : plan.waterDays;
-  return compact ? `${field.value} / ${Math.floor(days)}D` : `${field.value} SPACE / ${Math.floor(days)}D`;
+  return Object.freeze({
+    value: `${field.value} SPACE`,
+    detail: `${Math.floor(days)} DAYS`
+  });
+}
+
+function drawCustomLoadoutHoldBar(rect, plan) {
+  const crewSpace = plan.operationalSpace - plan.cannons;
+  const allocations = [
+    [crewSpace, CUSTOM_LOADOUT_FIELD_COLORS.crew],
+    [plan.cannons, CUSTOM_LOADOUT_FIELD_COLORS.cannons],
+    [plan.foodUnits, CUSTOM_LOADOUT_FIELD_COLORS.foodUnits],
+    [plan.waterUnits, CUSTOM_LOADOUT_FIELD_COLORS.waterUnits],
+    [plan.reserveSpace, PIRATE_MENU_PAPER]
+  ];
+  const capacity = allocations.reduce((sum, [amount]) => sum + amount, 0);
+  if (capacity <= 0) throw new Error("Custom loadout hold bar requires positive capacity");
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  let consumed = 0;
+  for (const [amount, color] of allocations) {
+    const start = Math.round(consumed / capacity * (rect.w - 2));
+    consumed += amount;
+    const end = Math.round(consumed / capacity * (rect.w - 2));
+    if (end <= start) continue;
+    ctx.fillStyle = color;
+    ctx.fillRect(rect.x + 1 + start, rect.y + 1, end - start, rect.h - 2);
+  }
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 }
 
 function drawVesselDecisionDialogueOverlay(dialogueView) {

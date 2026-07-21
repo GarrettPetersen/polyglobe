@@ -2660,6 +2660,7 @@ function customLoadoutView(session, city, gameState, context) {
     feedback: session.feedback,
     presentation: {
       kind: "custom-loadout",
+      shipLabel: shipLabelForSlug(context.shipStats.slug),
       plan,
       crewWorkMultiplier: crewWorkMultiplier(plan.crew),
       cannonReloadPercent: plan.cannons > 0
