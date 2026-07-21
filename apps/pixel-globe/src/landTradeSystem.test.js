@@ -12,6 +12,7 @@ import {
   landCartCountForCityCount,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
+  stageVisibleLandCartTraffic,
   updateLandTradeSystem,
   visibleLandCartSnapshots
 } from "./landTradeSystem.js";
@@ -214,6 +215,26 @@ test("cart rendering caps a road pileup without removing strategic traders", () 
   assert.equal(system.carts.length, 3);
   assert.equal(snapshots.length, MAX_VISIBLE_LAND_CARTS_PER_SEGMENT);
   assert.deepEqual(visibleLandCartSnapshots(system, 10, new Set([3])), []);
+});
+
+test("benchmark traffic staging places the requested carts on visible road segments", () => {
+  const roads = syntheticRoads();
+  const economy = createWorldEconomy({
+    ports: [LONDON, ANTIOCH, ALEPPO],
+    shipyardPorts: [LONDON],
+    startMinute: 0
+  });
+  const system = createLandTradeSystem({
+    roads,
+    economy,
+    cities: [LONDON, ANTIOCH, ALEPPO],
+    startMinute: 0
+  });
+
+  assert.equal(stageVisibleLandCartTraffic(system, new Set([1, 10, 2, 11, 3]), 50, 3), 3);
+  const visible = visibleLandCartSnapshots(system, 50, new Set([1, 10, 2, 11, 3]));
+  assert.equal(visible.length, 3);
+  assert.ok(visible.every((cart) => cart.segmentT >= 0 && cart.segmentT <= 1));
 });
 
 function syntheticRoads() {

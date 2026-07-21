@@ -530,6 +530,12 @@ import {
   captureScenarioFromSearch,
   captureViewportFromSearch
 } from "./captureScenarios.js";
+import {
+  createPerformanceBenchmarkState,
+  performanceBenchmarkFromSearch,
+  recordPerformanceBenchmarkFrame,
+  recordPerformanceBenchmarkStage
+} from "./performanceBenchmark.js";
 import { CaptureRecorder } from "./captureRecorder.js";
 import { createCaptureControls } from "./captureControls.js";
 import {
@@ -771,6 +777,7 @@ import {
   createLandTradeSystem,
   restoreLandTradeSystem,
   snapshotLandTradeSystem,
+  stageVisibleLandCartTraffic,
   updateLandTradeSystem,
   visibleLandCartSnapshots
 } from "./landTradeSystem.js";
@@ -842,8 +849,9 @@ import {
 } from "./terrainSurface.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
-  foregroundTerrainOcclusionSpans,
-  shipOcclusionDepthY
+  createTerrainOcclusionIndex,
+  shipOcclusionDepthY,
+  terrainOccludersForScreenBounds
 } from "./terrainShipOcclusion.js";
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
@@ -1070,6 +1078,7 @@ const NPC_RIVER_RAIL_MIN_SPEED_PX = 10;
 const NPC_RIVER_RAIL_CENTERING_SPEED_PX = 18;
 const NPC_VISUAL_ESCAPE_PROBE_DISTANCES_PX = [6, 12, 24, 36, 54];
 const NPC_VISUAL_UPDATE_INTERVAL_SECONDS = 1 / 30;
+const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 1 / 5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
 const NPC_MAJOR_PORT_AVOID_RADIUS_PX = 132;
@@ -1683,12 +1692,19 @@ const SEAGULL_FLAP_SPREAD_MS = 260;
 const WORLD_NORTH = [0, 1, 0];
 const TERRAIN_VARIANT = terrainVariantFromLocation();
 const CAPTURE_SCENARIO = captureScenarioFromSearch(window.location.search);
+const PERFORMANCE_BENCHMARK = performanceBenchmarkFromSearch(window.location.search);
 const CAPTURE_AUTOMATIC_MODE = automaticCaptureMode(window.location.search);
 const CAPTURE_AUTOMATIC = CAPTURE_AUTOMATIC_MODE !== null;
 const CAPTURE_FRAME_PASS = CAPTURE_AUTOMATIC_MODE === AUTOMATIC_CAPTURE_FRAME_PASS;
 const CAPTURE_VIEWPORT = captureViewportFromSearch(window.location.search);
 if (CAPTURE_AUTOMATIC && !CAPTURE_SCENARIO) {
   throw new Error("Automatic capture requires a named capture scenario");
+}
+if (PERFORMANCE_BENCHMARK && CAPTURE_SCENARIO?.id !== PERFORMANCE_BENCHMARK.captureScenarioId) {
+  throw new Error(
+    `Performance benchmark ${PERFORMANCE_BENCHMARK.id} requires capture scenario ` +
+      PERFORMANCE_BENCHMARK.captureScenarioId
+  );
 }
 const START_POSITION_OVERRIDE = startPositionOverrideFromLocation();
 const START_WEATHER = startWeatherFromLocation();
@@ -1843,6 +1859,7 @@ let npcCombatSplashes = [];
 let cannonSmokeBursts = [];
 let hullSplinterBursts = [];
 let npcVisualUpdateAccumulator = 0;
+let shoreBatteryUpdateAccumulator = 0;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
 let portCityCharacters;
@@ -1862,6 +1879,9 @@ let factionCapitalPorts;
 const spriteAlphaMasks = new WeakMap();
 const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
+const shipTerrainOcclusionIndexCache = new WeakMap();
+const npcOffshoreClearanceCache = new Map();
+let npcOffshoreClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
 let spriteColors;
@@ -1929,7 +1949,7 @@ let achievementProfile = achievementProfileResult.profile;
 let achievementPlatformSyncPromise = Promise.resolve();
 let hasStartedVoyage = false;
 let captureRecorder = null;
-let capturePlaybackPaused = Boolean(CAPTURE_SCENARIO);
+let capturePlaybackPaused = Boolean(CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK);
 let captureLastPositionEventMs = -Infinity;
 let captureDirector = null;
 let captureFrameStepper = null;
@@ -1980,6 +2000,8 @@ let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
+let performanceBenchmarkState = null;
+let worldRenderCount = 0;
 let lastStatusMs = 0;
 let lastOverlayMs = 0;
 let worldSpriteAnimationTick = -1;
@@ -2498,7 +2520,8 @@ async function main() {
   chart = buildChart(camera);
   setupThemeMusic();
   setupSoundEffects();
-  if (CAPTURE_SCENARIO) setupCaptureMode();
+  if (PERFORMANCE_BENCHMARK) setupPerformanceBenchmark();
+  else if (CAPTURE_SCENARIO) setupCaptureMode();
   if (!CAPTURE_FRAME_PASS) requestAnimationFrame(loop);
   ensureGameAudioStarted();
 }
@@ -3419,14 +3442,27 @@ function easeInOut(t) {
 }
 
 function loop(nowMs) {
+  const benchmarkCpuStartMs = performanceBenchmarkState ? performance.now() : 0;
   try {
     runFrame(nowMs);
   } catch (error) {
     console.error(error);
-    if (CAPTURE_AUTOMATIC) {
+    if (CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
       window.__PIXEL_GLOBE_CAPTURE_ERROR__ = error instanceof Error ? error.message : String(error);
     }
+    if (PERFORMANCE_BENCHMARK) setPerformanceBenchmarkDomStatus({ error: error instanceof Error ? error.message : String(error) });
     drawFatalError(error, "Prototype runtime failure");
+  } finally {
+    if (performanceBenchmarkState) {
+      try {
+        updatePerformanceBenchmark(nowMs, performance.now() - benchmarkCpuStartMs);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        window.__PIXEL_GLOBE_CAPTURE_ERROR__ = message;
+        setPerformanceBenchmarkDomStatus({ error: message });
+        console.error(error);
+      }
+    }
   }
 }
 
@@ -3458,18 +3494,18 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateNavalWeapons(dt)) dirty = true;
     if (updateWaterAnimation(nowMs)) dirty = true;
     if (updateFishAnimation(nowMs)) dirty = true;
-    if (updateWeather(dt, nowMs)) dirty = true;
+    if (measurePerformanceBenchmarkStage("weather", () => updateWeather(dt, nowMs))) dirty = true;
     if (updateCampaignGoalReturnReminder()) dirty = true;
     if (updateWhiteWhaleSightingObjective()) dirty = true;
     if (updateColonizationQuest()) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
-    ensureChart();
-    if (updateWhales(dt, nowMs)) dirty = true;
+    measurePerformanceBenchmarkStage("chart", () => ensureChart());
+    if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
-    if (updateNpcShips(dt)) dirty = true;
+    if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
     if (updateSeagulls(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
-    if (updatePrecipitationAnimation(nowMs)) dirty = true;
+    if (measurePerformanceBenchmarkStage("precipitation", () => updatePrecipitationAnimation(nowMs))) dirty = true;
     if (updateStormLightning(stormLightningState, {
       nowMs,
       intensity: playerStormIntensity(),
@@ -3489,7 +3525,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   }
   if (updateWorldSpriteAnimation(nowMs)) dirty = true;
   if (forceRender || dirty || menusAreOpen() || dialogueState || gameOverReason || nowMs - lastStatusMs > 1000) {
-    render(nowMs);
+    measurePerformanceBenchmarkStage("render", () => render(nowMs));
     dirty = false;
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
@@ -3503,6 +3539,16 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     lastOverlayMs = nowMs;
   }
   if (scheduleNextFrame) requestAnimationFrame(loop);
+}
+
+function measurePerformanceBenchmarkStage(name, callback) {
+  if (!performanceBenchmarkState) return callback();
+  const startedAtMs = performance.now();
+  try {
+    return callback();
+  } finally {
+    recordPerformanceBenchmarkStage(performanceBenchmarkState, name, performance.now() - startedAtMs);
+  }
 }
 
 function updateWorldSpriteAnimation(nowMs) {
@@ -5162,6 +5208,93 @@ function applyCaptureDiplomacy(state, relations) {
   validateWorldDiplomacy(diplomacy);
 }
 
+function setupPerformanceBenchmark() {
+  if (!PERFORMANCE_BENCHMARK || !CAPTURE_SCENARIO) {
+    throw new Error("Performance benchmark requires a capture scenario");
+  }
+  applyResponsiveViewport(CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height);
+  document.body.classList.add("capture-mode", "performance-benchmark-mode");
+  chart = buildChart(camera);
+  const stagedCartCount = stageVisibleLandCartTraffic(
+    landTradeSystem,
+    chart.visibleSet,
+    weatherClockMinutes,
+    PERFORMANCE_BENCHMARK.targetLandCarts
+  );
+  ship.velocity = scaleVector(ship.heading, ship.stats.topSpeedRad * 0.62);
+  lastFrameMs = performance.now();
+  performanceBenchmarkState = createPerformanceBenchmarkState(PERFORMANCE_BENCHMARK, lastFrameMs);
+  performanceBenchmarkState.stagedCartCount = stagedCartCount;
+  window.__PIXEL_GLOBE_BENCHMARK_READY__ = true;
+  window.__PIXEL_GLOBE_BENCHMARK_RESULT__ = null;
+  setPerformanceBenchmarkDomStatus({ ready: true });
+  console.info(
+    `[pixel-globe] benchmark ${PERFORMANCE_BENCHMARK.id}: ` +
+      `${CAPTURE_SCENARIO.encounters.length} seeded ships, ${stagedCartCount} staged carts`
+  );
+}
+
+function updatePerformanceBenchmark(nowMs, cpuMs) {
+  const state = performanceBenchmarkState;
+  if (!state || state.result) return;
+  const result = recordPerformanceBenchmarkFrame(
+    state,
+    nowMs,
+    cpuMs,
+    worldRenderCount,
+    performanceBenchmarkSceneSnapshot(state)
+  );
+  if (!result) return;
+  window.__PIXEL_GLOBE_BENCHMARK_RESULT__ = Object.freeze({
+    ...result,
+    viewport: Object.freeze({ width: SCREEN_W, height: SCREEN_H }),
+    environment: Object.freeze({
+      hardwareConcurrency: navigator.hardwareConcurrency || null,
+      deviceMemoryGb: navigator.deviceMemory || null,
+      userAgent: navigator.userAgent
+    })
+  });
+  capturePlaybackPaused = true;
+  setPerformanceBenchmarkDomStatus({ result: window.__PIXEL_GLOBE_BENCHMARK_RESULT__ });
+  console.info("[pixel-globe] performance benchmark complete", window.__PIXEL_GLOBE_BENCHMARK_RESULT__);
+}
+
+function setPerformanceBenchmarkDomStatus({ ready = false, result = null, error = null }) {
+  let status = document.getElementById("pixel-globe-performance-benchmark");
+  if (!status) {
+    status = document.createElement("script");
+    status.id = "pixel-globe-performance-benchmark";
+    status.type = "application/json";
+    status.hidden = true;
+    document.body.appendChild(status);
+  }
+  if (ready) status.dataset.ready = "true";
+  if (error) status.dataset.error = error;
+  if (result) status.textContent = JSON.stringify(result);
+}
+
+function performanceBenchmarkSceneSnapshot(state) {
+  const offset = chartOffsetPixels(chart);
+  return {
+    configuredNpcShips: CAPTURE_SCENARIO.encounters.length,
+    activeVisualNpcShips: npcVisualShips.size,
+    stagedLandCarts: state.stagedCartCount,
+    totalLandCarts: landTradeSystem.carts.length,
+    chartTiles: chart.tileCalls.length,
+    renderedChartTiles: chart.tileCalls.reduce(
+      (count, call) => count + (chartTileCallNearViewport(call, offset) ? 1 : 0),
+      0
+    ),
+    chartFaces: chart.faceCalls.length,
+    visibleCities: chart.cityCalls.length,
+    precipitationParticles: precipParticles.length,
+    flyingSeagulls: seagulls.length,
+    wakeParticles: ship.wakeParticles.length,
+    navalProjectiles: ship.navalProjectiles.length + npcCombatProjectiles.length,
+    smokeBursts: cannonSmokeBursts.length
+  };
+}
+
 function setupCaptureMode() {
   if (!CAPTURE_SCENARIO) throw new Error("Capture mode requires a scenario");
   applyResponsiveViewport(CAPTURE_VIEWPORT.width, CAPTURE_VIEWPORT.height);
@@ -6698,6 +6831,7 @@ async function restoreSavedVoyage(payload) {
   gameOverState = null;
   npcVisualShips.clear();
   shoreBatteryStates.clear();
+  shoreBatteryUpdateAccumulator = 0;
   npcCombatProjectiles = [];
   npcCombatSplashes = [];
   shipCombatState.engagements.clear();
@@ -6861,6 +6995,7 @@ function applyCurrentPortConquestOwnership() {
     }
   }
   shoreBatteryStates.clear();
+  shoreBatteryUpdateAccumulator = 0;
   return factionByTileId;
 }
 
@@ -13122,14 +13257,23 @@ function restartAfterGameOver() {
 
 function updateNpcShips(dt) {
   if (!npcSeaRoutes) return false;
-  const economyChanged = advanceWorldEconomy(worldEconomy, weatherClockMinutes);
-  const landTradeChanged = updateLandTradeSystem(landTradeSystem, weatherClockMinutes);
-  const hideoutDangerChanged = updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
+  const economyChanged = measurePerformanceBenchmarkStage(
+    "npcShips.economy",
+    () => advanceWorldEconomy(worldEconomy, weatherClockMinutes)
+  );
+  const landTradeChanged = measurePerformanceBenchmarkStage(
+    "npcShips.landTrade",
+    () => updateLandTradeSystem(landTradeSystem, weatherClockMinutes)
+  );
+  const hideoutDangerChanged = measurePerformanceBenchmarkStage("npcShips.hideouts", () => updateNpcPirateHideoutPlayerThreat(npcSeaRoutes, {
     lat: latitudeDegForDirection(ship.position),
     lon: longitudeDegForDirection(ship.position),
     clockMinutes: weatherClockMinutes
-  });
-  const strategicChanged = updateNpcSeaRouteSystem(npcSeaRoutes, weatherClockMinutes);
+  }));
+  const strategicChanged = measurePerformanceBenchmarkStage(
+    "npcShips.strategic",
+    () => updateNpcSeaRouteSystem(npcSeaRoutes, weatherClockMinutes)
+  );
   npcVisualUpdateAccumulator = Math.min(
     NPC_VISUAL_MAX_ACCUMULATED_SECONDS,
     npcVisualUpdateAccumulator + dt
@@ -13139,13 +13283,19 @@ function updateNpcShips(dt) {
   }
   const visualDt = npcVisualUpdateAccumulator;
   npcVisualUpdateAccumulator = 0;
-  const visualChanged = updateNpcVisualShips(visualDt);
+  const visualChanged = measurePerformanceBenchmarkStage(
+    "npcShips.visual",
+    () => updateNpcVisualShips(visualDt)
+  );
   return strategicChanged || economyChanged || landTradeChanged || hideoutDangerChanged || visualChanged;
 }
 
 function updateNpcVisualShips(dt) {
   if (!chart || !localLayout || !camera || !directionIndex) return false;
-  const snapshots = npcShipSnapshots(npcSeaRoutes, weatherClockMinutes);
+  const snapshots = measurePerformanceBenchmarkStage(
+    "npcShips.visual.snapshots",
+    () => npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)
+  );
   const snapshotIds = new Set();
   const offset = chartOffsetPixels(chart);
   for (const snapshot of snapshots) {
@@ -13156,8 +13306,9 @@ function updateNpcVisualShips(dt) {
     }
     if (state) syncNpcVisualStateFromSnapshot(state, snapshot);
   }
-  let changed = updateNpcCombat(dt);
+  let changed = measurePerformanceBenchmarkStage("npcShips.visual.combat", () => updateNpcCombat(dt));
 
+  const movementStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
   for (const snapshot of snapshots) {
     snapshotIds.add(snapshot.id);
     if (snapshot.hidden) continue;
@@ -13187,25 +13338,35 @@ function updateNpcVisualShips(dt) {
     }
     syncNpcVisualStateFromSnapshot(state, snapshot);
 
-    const placement = nearestNpcNavigableVisualPoint(
-      { x: state.x, y: state.y },
-      state.heading,
-      NPC_VISUAL_RECOVERY_SEARCH_PX,
-      state.slug
-    ) || nearestNpcNavigableVisualPoint(
-      routePoint,
-      snapshot.routeHeading,
-      NPC_VISUAL_RECOVERY_SEARCH_PX,
-      state.slug
-    );
-    if (!placement) {
-      releaseNpcVisualState(state);
-      changed = true;
-      continue;
+    const currentNavigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+    if (!currentNavigation.ok) {
+      const placement = nearestNpcNavigableVisualPoint(
+        { x: state.x, y: state.y },
+        state.heading,
+        NPC_VISUAL_RECOVERY_SEARCH_PX,
+        state.slug
+      ) || nearestNpcNavigableVisualPoint(
+        routePoint,
+        snapshot.routeHeading,
+        NPC_VISUAL_RECOVERY_SEARCH_PX,
+        state.slug
+      );
+      if (!placement) {
+        releaseNpcVisualState(state);
+        changed = true;
+        continue;
+      }
+      if (applyNpcVisualPlacement(state, placement)) changed = true;
     }
-    if (applyNpcVisualPlacement(state, placement)) changed = true;
     if (advanceNpcVisualState(state, snapshot, routePoint, dt)) changed = true;
     setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
+  }
+  if (performanceBenchmarkState) {
+    recordPerformanceBenchmarkStage(
+      performanceBenchmarkState,
+      "npcShips.visual.movement",
+      performance.now() - movementStartedAtMs
+    );
   }
 
   for (const state of [...npcVisualShips.values()]) {
@@ -13214,9 +13375,9 @@ function updateNpcVisualShips(dt) {
     releaseNpcVisualState(state);
     changed = true;
   }
-  if (updateCombatShipCollisions(dt)) changed = true;
-  if (updateNpcCombatProjectiles(dt)) changed = true;
-  if (updateNpcFishermenHarvest()) changed = true;
+  if (measurePerformanceBenchmarkStage("npcShips.visual.collisions", () => updateCombatShipCollisions(dt))) changed = true;
+  if (measurePerformanceBenchmarkStage("npcShips.visual.projectiles", () => updateNpcCombatProjectiles(dt))) changed = true;
+  if (measurePerformanceBenchmarkStage("npcShips.visual.fishing", () => updateNpcFishermenHarvest())) changed = true;
   return changed;
 }
 
@@ -13352,8 +13513,14 @@ function updateNpcCombat(dt) {
   const playerWasInCombat = playerHasCombatEngagement();
   const colonizationDefenseInitiator = forceColonizationDefenseEngagements(playerWasInCombat);
   const participantsBefore = combatParticipantIds();
-  const entities = [playerCombatEntity(), ...[...npcVisualShips.values()].map(npcCombatEntity)];
-  const result = updateShipCombatState(shipCombatState, entities, currentDiplomacyBetween);
+  const entities = measurePerformanceBenchmarkStage(
+    "npcShips.visual.combat.entities",
+    () => [playerCombatEntity(), ...[...npcVisualShips.values()].map(npcCombatEntity)]
+  );
+  const result = measurePerformanceBenchmarkStage(
+    "npcShips.visual.combat.engagements",
+    () => updateShipCombatState(shipCombatState, entities, currentDiplomacyBetween)
+  );
   for (const id of combatParticipantIds()) {
     if (!participantsBefore.has(id)) {
       shipCombatEntryCollisionGrace.set(id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
@@ -13372,9 +13539,23 @@ function updateNpcCombat(dt) {
   const combatHailOpened = initiatingNpcId && !suppressCaptureHails
     ? openNpcCombatHail(initiatingNpcId)
     : false;
-  const batteryCombat = updateShoreBatteryCombat(dt, combatHailOpened || suppressCaptureHails);
+  shoreBatteryUpdateAccumulator = Math.min(
+    SHORE_BATTERY_UPDATE_INTERVAL_SECONDS * 2,
+    shoreBatteryUpdateAccumulator + dt
+  );
+  const batteryCombat = shoreBatteryUpdateAccumulator >= SHORE_BATTERY_UPDATE_INTERVAL_SECONDS
+    ? measurePerformanceBenchmarkStage(
+        "npcShips.visual.combat.batteries",
+        () => {
+          const elapsed = shoreBatteryUpdateAccumulator;
+          shoreBatteryUpdateAccumulator = 0;
+          return updateShoreBatteryCombat(elapsed, combatHailOpened || suppressCaptureHails);
+        }
+      )
+    : { changed: false, hailOpened: false };
   changed ||= batteryCombat.changed;
 
+  const intentsStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
   for (const state of npcVisualShips.values()) {
     const stats = shipStatsForSlug(state.slug);
     const weapon = npcNavalWeapon(state, stats);
@@ -13396,6 +13577,13 @@ function updateNpcCombat(dt) {
     if (!combatHailOpened && !batteryCombat.hailOpened && intent?.mode === COMBAT_MODE_ATTACK && fireNpcWeaponAtTarget(state, intent.targetId)) {
       changed = true;
     }
+  }
+  if (performanceBenchmarkState) {
+    recordPerformanceBenchmarkStage(
+      performanceBenchmarkState,
+      "npcShips.visual.combat.intents",
+      performance.now() - intentsStartedAtMs
+    );
   }
 
   if (result.intents.has(PLAYER_COMBAT_ID) || playerHasShoreBatteryEngagement()) {
@@ -13504,6 +13692,7 @@ function npcCombatAttackReason(state) {
 function updateShoreBatteryCombat(dt, anotherHailOpened) {
   if (!chart || !gameState || !ship || !localLayout) return { changed: false, hailOpened: false };
   const simMinute = Math.floor(weatherClockMinutes);
+  const chartOffset = chartOffsetPixels(chart);
   const flags = gameState.memory.flags;
   let changed = false;
   let hailOpened = false;
@@ -13511,12 +13700,15 @@ function updateShoreBatteryCombat(dt, anotherHailOpened) {
 
   for (const city of chart.cityCalls || []) {
     if (!city.character || !factionHasFlag(city.factionId)) continue;
+    const point = { x: city.x, y: city.y - 2 };
+    if (!pointNearScreen(
+      { x: point.x + chartOffset.x, y: point.y + chartOffset.y },
+      SHORE_BATTERY_RANGE_PX + NPC_VISUAL_AUTHORITY_MARGIN_PX
+    )) continue;
     const state = ensureShoreBatteryState(city);
     visibleIds.add(state.id);
     if (updateShoreBatteryState(state, flags, simMinute, dt)) changed = true;
     if (shoreBatteryIsDisabled(state, simMinute)) continue;
-    const point = shoreBatteryPoint(state.id);
-    if (!point) throw new Error(`Visible shore battery has no draw point: ${state.id}`);
     const weapon = shoreBatteryWeapon(state);
     const range = SHORE_BATTERY_RANGE_PX * weapon.rangeScale;
     const nextTargets = new Set();
@@ -13547,8 +13739,9 @@ function updateShoreBatteryCombat(dt, anotherHailOpened) {
     }
 
     for (const npc of npcVisualShips.values()) {
-      if (npc.combatGrace || npc.hitPoints <= 0 || !shoreBatteryHostileToFaction(city, npc.factionId)) continue;
-      if (Math.hypot(point.x - npc.x, point.y - npc.y) <= range) nextTargets.add(npc.id);
+      if (npc.combatGrace || npc.hitPoints <= 0) continue;
+      if (Math.hypot(point.x - npc.x, point.y - npc.y) > range) continue;
+      if (shoreBatteryHostileToFaction(city, npc.factionId)) nextTargets.add(npc.id);
     }
     if (setContentsDiffer(state.engagedTargetIds, nextTargets)) changed = true;
     state.engagedTargetIds = nextTargets;
@@ -14897,13 +15090,45 @@ function attemptNpcVisualStep(state, direction, distance, heading) {
     if (!movementCanUseDrawnNavigation(previousTileId, tileId, previousNavKind, nav.kind, movementHeading)) {
       return { ok: false };
     }
-    const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
-    if (!occupancy.ok) return { ok: false };
+    if (!npcTileHasOffshoreHullClearance(tileId)) {
+      const occupancy = vesselOccupancyAtPosition(vector, tileId, { x, y }, nav, localHeading);
+      if (!occupancy.ok) return { ok: false };
+    }
     result = { ok: true, x, y, tileId, vector, heading: localHeading };
     previousTileId = tileId;
     previousNavKind = nav.kind;
   }
   return result || { ok: false };
+}
+
+function npcTileHasOffshoreHullClearance(tileId) {
+  if (npcOffshoreClearanceCacheDay !== weatherMaskDayIndex) {
+    npcOffshoreClearanceCache.clear();
+    npcOffshoreClearanceCacheDay = weatherMaskDayIndex;
+  }
+  const cached = npcOffshoreClearanceCache.get(tileId);
+  if (cached !== undefined) return cached;
+  const visited = new Set([tileId]);
+  let frontier = [tileId];
+  let clear = true;
+  for (let ring = 0; ring <= 2 && clear; ring++) {
+    const next = [];
+    for (const id of frontier) {
+      if (!isShipOpenWaterTile(id)) {
+        clear = false;
+        break;
+      }
+      if (ring === 2) continue;
+      for (const neighborId of graph.neighbors[id] || []) {
+        if (visited.has(neighborId)) continue;
+        visited.add(neighborId);
+        next.push(neighborId);
+      }
+    }
+    frontier = next;
+  }
+  npcOffshoreClearanceCache.set(tileId, clear);
+  return clear;
 }
 
 function nearestNpcNavigableVisualPoint(routePoint, heading, searchRadiusPx, slug) {
@@ -15559,6 +15784,7 @@ function smoothstep(edge0, edge1, x) {
 }
 
 function render(nowMs) {
+  worldRenderCount++;
   if (lakeBattleMode) {
     drawLakeBattleMode(nowMs);
     if (optionsMenu.isOpen) drawOptionsMenu();
@@ -15569,50 +15795,67 @@ function render(nowMs) {
 
   ensureChart();
   const offset = chartOffsetPixels(chart);
+  const renderTileCalls = chart.tileCalls.filter((call) => chartTileCallNearViewport(call, offset));
+  const renderTileIds = new Set(renderTileCalls.map((call) => call.id));
+  const renderFaceCalls = new Set(
+    chart.faceCalls.filter((call) => chartEdgeCallNearViewport(call, offset))
+  );
+  const renderRiverConnectorCalls = chart.riverConnectorCalls.filter(
+    (call) => chartEdgeCallNearViewport(call, offset)
+  );
   revealMinimapFromChart(chart, offset);
 
   ctx.save();
   ctx.translate(offset.x, offset.y);
-  drawTerrainConnectorFaces(chart.faceCalls, chart);
+  measurePerformanceBenchmarkStage("render.terrain", () => {
+    drawTerrainConnectorFaces(chart.faceCalls, chart, { visibleDetailCalls: renderFaceCalls });
+    for (const call of renderTileCalls) {
+      drawTile(call, chart);
+      drawIceSurface(call);
+    }
+  });
 
-  for (const call of chart.tileCalls) {
-    drawTile(call, chart);
-    drawIceSurface(call);
-  }
-
-  for (const call of chart.tileCalls) drawWeatherSurface(call);
-  drawLandRoads(chart);
-  for (const call of chart.tileCalls) drawRiver(call, chart);
-  for (const call of chart.riverConnectorCalls) drawRiverConnector(call, chart);
+  measurePerformanceBenchmarkStage("render.surfaceDetails", () => {
+    for (const call of renderTileCalls) drawWeatherSurface(call);
+    drawLandRoads(chart, renderTileIds);
+    for (const call of renderTileCalls) drawRiver(call, chart);
+    for (const call of renderRiverConnectorCalls) drawRiverConnector(call, chart);
+  });
   const shipLight = shipSunLightState();
-  drawFishIndividuals(chart, nowMs);
-  drawPrecipitation(chart, nowMs, offset);
-  drawCloudLayer(chart);
-  drawShipWake(chart);
-  drawNavalEffects(chart);
-  drawCityShadows(chart, shipLight);
-  drawSeagulls(chart, nowMs);
-  drawWorldDiscoverySprites(chart);
-  drawLandCarts(chart, nowMs, shipLight);
-  drawCitySprites(chart, nowMs);
+  measurePerformanceBenchmarkStage("render.worldEffects", () => {
+    drawFishIndividuals(chart, nowMs);
+    drawPrecipitation(chart, nowMs, offset);
+    drawCloudLayer(chart);
+    drawShipWake(chart);
+    drawNavalEffects(chart);
+    drawCityShadows(chart, shipLight);
+    drawSeagulls(chart, nowMs);
+    drawWorldDiscoverySprites(chart);
+    drawLandCarts(chart, nowMs, shipLight, renderTileIds);
+    drawCitySprites(chart, nowMs);
+  });
   ctx.restore();
 
-  drawShipShadow(chart, shipLight, offset);
-  drawWhales(nowMs);
-  drawWhaleHuntEffects(nowMs);
-  drawFishingNetAnimation(nowMs);
-  drawNpcFishingNetAnimations(nowMs);
-  drawShips(chart, shipLight, nowMs);
+  measurePerformanceBenchmarkStage("render.vessels", () => {
+    drawShipShadow(chart, shipLight, offset);
+    drawWhales(nowMs);
+    drawWhaleHuntEffects(nowMs);
+    drawFishingNetAnimation(nowMs);
+    drawNpcFishingNetAnimations(nowMs);
+    drawShips(chart, shipLight, nowMs);
+  });
   ctx.save();
   ctx.translate(offset.x, offset.y);
   drawHullSplinterBursts(hullSplinterBursts);
   drawCitySpritesAboveShip(chart, offset, nowMs);
   drawCityLabels(chart.cityCalls, chart);
   ctx.restore();
-  drawDayNightPaletteGrade();
-  drawStormScreenRain(nowMs);
-  drawStormEdgeFog(nowMs);
-  drawStormShipStrike(nowMs);
+  measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
+    drawDayNightPaletteGrade();
+    drawStormScreenRain(nowMs);
+    drawStormEdgeFog(nowMs);
+    drawStormShipStrike(nowMs);
+  });
   drawCombatBroadsideControls();
   drawSelectableInteractionOutlines(nowMs);
   drawWindIndicator(nowMs);
@@ -15657,6 +15900,22 @@ function render(nowMs) {
   if (optionsMenu.isOpen) drawOptionsMenu();
   drawItemAcquisitionEffects(nowMs);
   drawStormLightningFlash(nowMs);
+}
+
+function chartTileCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
+  const x = call.drawSurfaceX + offset.x;
+  const y = call.drawSurfaceY + offset.y;
+  return x >= -margin && x <= SCREEN_W + margin && y >= -margin && y <= SCREEN_H + margin;
+}
+
+function chartEdgeCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
+  return segmentNearScreen(
+    call.ax + offset.x,
+    call.ay + offset.y,
+    call.bx + offset.x,
+    call.by + offset.y,
+    margin
+  );
 }
 
 function drawStormShipStrike(nowMs) {
@@ -20496,7 +20755,10 @@ const terrainConnectorLayerCache = new WeakMap();
 function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
   const layer = terrainConnectorLayer(faceCalls, activeChart);
   ctx.drawImage(layer.canvas, layer.x, layer.y);
-  for (const entry of layer.entries) drawTerrainConnectorDetails(entry, options);
+  for (const entry of layer.entries) {
+    if (options.visibleDetailCalls && !options.visibleDetailCalls.has(entry.call)) continue;
+    drawTerrainConnectorDetails(entry, options);
+  }
 }
 
 function terrainConnectorLayer(faceCalls, activeChart) {
@@ -20756,10 +21018,10 @@ function roundedBeachWaveT(fromT, targetT, side, lineHalfWidth) {
   return fromT + (targetT - fromT) * reachScale;
 }
 
-function drawLandRoads(activeChart) {
+function drawLandRoads(activeChart, visibleTileIds = activeChart.visibleSet) {
   if (!landRoadNetwork?.segmentsByTileId) throw new Error("Land road network is not initialized");
   const visibleSegmentIds = new Set();
-  for (const tileId of activeChart.visibleSet) {
+  for (const tileId of visibleTileIds) {
     for (const segment of landRoadNetwork.segmentsByTileId.get(tileId) || []) {
       if (visibleSegmentIds.has(segment.id)) continue;
       visibleSegmentIds.add(segment.id);
@@ -20786,7 +21048,7 @@ function drawLandRoadSegment(path, segmentId) {
   });
 }
 
-function drawLandCarts(activeChart, nowMs, light) {
+function drawLandCarts(activeChart, nowMs, light, visibleTileIds = activeChart.visibleSet) {
   if (!landTradeSystem) throw new Error("Land trade system is not initialized");
   if (!Array.isArray(horseCartAssets) || horseCartAssets.length !== LAND_CART_WALK_FRAME_COUNT) {
     throw new Error("Horse-cart walk and lighting assets are not initialized");
@@ -20795,7 +21057,7 @@ function drawLandCarts(activeChart, nowMs, light) {
   for (const cart of visibleLandCartSnapshots(
     landTradeSystem,
     weatherClockMinutes,
-    activeChart.visibleSet
+    visibleTileIds
   )) {
     const a = activeChart.tileById.get(cart.tileA);
     const b = activeChart.tileById.get(cart.tileB);
@@ -23118,7 +23380,7 @@ function drawShipSinkPixel(pixel, drawOffset) {
 
 function drawShips(activeChart, playerLight, nowMs) {
   const drawCalls = [];
-  const terrainOcclusion = shipForegroundTerrainOcclusion(activeChart);
+  const terrainForeground = shipForegroundTerrainDrawOrder(activeChart);
   const playerCall = playerShipDrawCall(playerLight);
   if (playerCall) drawCalls.push(playerCall);
   if (npcSeaRoutes && npcShipAssetsBySlug && camera && directionIndex) {
@@ -23138,49 +23400,106 @@ function drawShips(activeChart, playerLight, nowMs) {
     });
   }
   drawCalls.sort(compareShipDrawCalls);
-  for (const call of drawCalls) drawShipCall(call, nowMs, terrainOcclusion);
+  for (const call of drawCalls) drawShipCall(call, nowMs, terrainForeground);
 }
 
-function shipForegroundTerrainOcclusion(activeChart) {
+function shipForegroundTerrainDrawOrder(activeChart) {
   if (!activeChart || !Array.isArray(activeChart.tileCalls) || !activeChart.waterIndex) {
     throw new Error("Ship foreground terrain requires chart tiles and a water index");
   }
   const offset = chartOffsetPixels(activeChart);
-  const occluders = [];
-  for (const call of activeChart.tileCalls) {
-    if (isWaterSurfaceRow(call.row)) continue;
-    for (const image of terrainOccludingLayerImagesForTile(call.row, call.id)) {
-      const mask = spriteAlphaMask(image);
-      occluders.push({
-        x: Math.round(call.drawSurfaceX - TILE_ART_HALF + offset.x),
-        y: Math.round(call.drawSurfaceY - TILE_ART_HALF + offset.y),
-        depthY: call.sortY + offset.y,
-        containsRiver: (riverMasks?.[call.id] || 0) !== 0,
-        width: mask.width,
-        height: mask.height,
-        alpha: mask.alpha
-      });
+  let cached = shipTerrainOcclusionIndexCache.get(activeChart);
+  if (!cached || cached.weatherDayIndex !== weatherMaskDayIndex) {
+    const occluders = [];
+    for (const call of activeChart.tileCalls) {
+      if (isWaterSurfaceRow(call.row)) continue;
+      for (const image of terrainOccludingLayerImagesForTile(call.row, call.id)) {
+        occluders.push(...terrainForegroundDrawLayers(call, image, activeChart));
+      }
     }
+    cached = {
+      weatherDayIndex: weatherMaskDayIndex,
+      index: createTerrainOcclusionIndex(occluders)
+    };
+    shipTerrainOcclusionIndexCache.set(activeChart, cached);
   }
   return {
-    occluders,
-    isWater: (screenX, screenY) => wakeMapPointIsWater(
-      screenX - offset.x,
-      screenY - offset.y,
-      activeChart
-    ),
-    riverDepthYForShip: (call) => shipRiverScreenDepthY(call, activeChart, offset)
+    occludersForBounds: (bounds) => terrainOccludersForScreenBounds(cached.index, bounds, offset),
+    offset
   };
 }
 
-function shipRiverScreenDepthY(call, activeChart, offset) {
-  const localX = call.x + SHIP_SHEET_FRAME_SIZE / 2 - offset.x;
-  const localY = call.depthY - offset.y;
-  const waterInfo = riverWaterInfoAtLocalPoint(localX, localY, activeChart);
-  if (!waterInfo?.ok) return null;
-  const centerline = nearestRiverCenterlineInfoAtLocalPoint(localX, localY, activeChart);
-  if (!centerline) throw new Error(`River ship ${call.id} has no rendered centerline`);
-  return centerline.centerlineY + offset.y;
+function terrainForegroundDrawLayers(call, image, activeChart) {
+  const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
+  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const containsRiver = ((riverMasks?.[call.id] || 0) | (riverToWaterMasks?.[call.id] || 0)) !== 0;
+  if (!containsRiver) {
+    return [{
+      x,
+      y,
+      depthY: call.sortY,
+      width,
+      height,
+      drawLayer: { image }
+    }];
+  }
+
+  const splitY = Math.round(call.drawSurfaceY);
+  return [
+    {
+      x,
+      y,
+      depthY: call.sortY,
+      width,
+      height,
+      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, "upper", splitY)
+    },
+    {
+      x,
+      y,
+      depthY: call.sortY + TILE_ART_HALF,
+      width,
+      height,
+      drawLayer: terrainForegroundRiverBankDrawLayer(call, image, activeChart, "lower", splitY)
+    }
+  ];
+}
+
+function terrainForegroundRiverBankDrawLayer(call, image, activeChart, bank, splitY) {
+  return {
+    image: null,
+    create: () => createTerrainForegroundRiverBankImage(call, image, activeChart, bank, splitY)
+  };
+}
+
+function createTerrainForegroundRiverBankImage(call, image, activeChart, bank, splitY) {
+  if (bank !== "upper" && bank !== "lower") throw new Error(`Unknown river bank layer: ${bank}`);
+  const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
+  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const layerCtx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!layerCtx) throw new Error(`Could not create terrain foreground layer for tile ${call.id}`);
+  layerCtx.imageSmoothingEnabled = false;
+  layerCtx.drawImage(image, 0, 0);
+  const imageData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
+  for (let py = 0; py < canvas.height; py++) {
+    const localY = y + py;
+    const keepBank = bank === "upper" ? localY < splitY : localY >= splitY;
+    for (let px = 0; px < canvas.width; px++) {
+      const pixelIndex = py * canvas.width + px;
+      const dataIndex = pixelIndex * 4;
+      const keep = keepBank && imageData.data[dataIndex + 3] !== 0 &&
+        !wakeMapPointIsWater(x + px, localY, activeChart);
+      if (!keep) imageData.data[dataIndex + 3] = 0;
+    }
+  }
+  layerCtx.clearRect(0, 0, canvas.width, canvas.height);
+  layerCtx.putImageData(imageData, 0, 0);
+  return canvas;
 }
 
 function drawWhales(nowMs) {
@@ -23393,7 +23712,7 @@ function pointNearScreen(point, margin) {
     point.y <= SCREEN_H + margin;
 }
 
-function drawShipCall(call, nowMs, terrainOcclusion) {
+function drawShipCall(call, nowMs, terrainForeground) {
   if (call.kind === "sinking") {
     drawWorldShipSinkEffect(call.entry, call.activeChart, nowMs);
     return;
@@ -23414,7 +23733,6 @@ function drawShipCall(call, nowMs, terrainOcclusion) {
     drawCall.slug
   );
   ctx.save();
-  clipShipBehindForegroundTerrain(drawCall, layers, terrainOcclusion);
   if (drawCall.combatAllegiance) drawShipCombatOutline(drawCall, layers);
   drawFloatingShipSprite(drawCall, layers, nowMs);
   if (drawCall.kind === "player") {
@@ -23424,6 +23742,7 @@ function drawShipCall(call, nowMs, terrainOcclusion) {
     drawNpcShipFlag(drawCall, nowMs);
   }
   ctx.restore();
+  drawTerrainForegroundOverShip(drawCall, layers, terrainForeground);
   if (drawCall.kind === "player" && shipHullIsDamaged(drawCall.hitPoints, drawCall.maxHitPoints)) {
     drawShipHullBar(drawCall, "#e83b3b");
   }
@@ -23431,25 +23750,38 @@ function drawShipCall(call, nowMs, terrainOcclusion) {
   if (drawCall.kind === "npc" && drawCall.combatMode) drawNpcCombatHull(drawCall);
 }
 
-function clipShipBehindForegroundTerrain(call, layers, terrainOcclusion) {
+function drawTerrainForegroundOverShip(call, layers, terrainForeground) {
   if (!Number.isFinite(call.depthY)) throw new Error(`Ship ${call.id} is missing its terrain depth`);
-  const riverDepthY = terrainOcclusion.riverDepthYForShip(call);
   const terrainDepthY = shipOcclusionDepthY(
     call.y,
     layers.bottomOpaqueY,
     SHIP_TERRAIN_OCCLUSION_CLEARANCE_PX
   );
-  const spans = foregroundTerrainOcclusionSpans({
+  const shipBounds = {
     x: call.x - 1,
     y: call.y - 1,
     w: SHIP_SHEET_FRAME_SIZE + 2,
     h: SHIP_SHEET_FRAME_SIZE + 2
-  }, terrainDepthY, terrainOcclusion.occluders, terrainOcclusion.isWater, riverDepthY);
-  if (spans.length === 0) return;
+  };
+  const foreground = terrainForeground.occludersForBounds(shipBounds)
+    .filter((entry) => entry.depthY > terrainDepthY)
+    .sort((a, b) => a.depthY - b.depthY || a.y - b.y || a.x - b.x);
+  if (foreground.length === 0) return;
+  ctx.save();
   ctx.beginPath();
-  ctx.rect(-1, -1, SCREEN_W + 2, SCREEN_H + 2);
-  for (const span of spans) ctx.rect(span.x, span.y, span.width, 1);
-  ctx.clip("evenodd");
+  ctx.rect(shipBounds.x, shipBounds.y, shipBounds.w, shipBounds.h);
+  ctx.clip();
+  for (const entry of foreground) {
+    if (!entry.drawLayer?.image) {
+      if (typeof entry.drawLayer?.create !== "function") {
+        throw new Error(`Terrain foreground layer at ${entry.x},${entry.y} has no image factory`);
+      }
+      entry.drawLayer.image = entry.drawLayer.create();
+      entry.drawLayer.create = null;
+    }
+    ctx.drawImage(entry.drawLayer.image, entry.x, entry.y);
+  }
+  ctx.restore();
 }
 
 function rowingShipFrameAsset(call, nowMs) {

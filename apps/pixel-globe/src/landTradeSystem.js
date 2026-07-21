@@ -114,6 +114,55 @@ export function visibleLandCartSnapshots(system, simMinute, visibleTileIds) {
   return visible;
 }
 
+export function stageVisibleLandCartTraffic(system, visibleTileIds, simMinute, targetCount) {
+  assertLandTradeSystem(system);
+  if (!(visibleTileIds instanceof Set)) throw new Error("Staged land carts require a visible tile-id set");
+  if (!Number.isFinite(simMinute)) throw new Error(`Invalid staged land-cart minute: ${simMinute}`);
+  if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > MAX_VISIBLE_LAND_CARTS) {
+    throw new Error(`Invalid staged visible land-cart count: ${targetCount}`);
+  }
+  const placements = visibleRoutePlacements(system.activeRoutes, visibleTileIds);
+  if (placements.length === 0) throw new Error("Benchmark view contains no visible land-road segments");
+  if (system.carts.length < targetCount) {
+    throw new Error(`Land-trade system has only ${system.carts.length} carts; ${targetCount} required`);
+  }
+
+  for (let index = 0; index < targetCount; index++) {
+    const cart = system.carts[index];
+    const placement = placements[index % placements.length];
+    const route = placement.route;
+    const duration = routeDurationMinutes(route);
+    const segmentT = 0.2 + (index % 4) * 0.2;
+    const progress = (placement.segmentIndex + segmentT) / (route.tileIds.length - 1);
+    cart.originTileId = route.fromTileId;
+    cart.destinationTileId = route.toTileId;
+    cart.routeId = route.id;
+    cart.departureMinute = simMinute - duration * progress;
+    cart.arrivalMinute = cart.departureMinute + duration;
+    cart.journeySerial++;
+  }
+  return targetCount;
+}
+
+function visibleRoutePlacements(routes, visibleTileIds) {
+  const placements = [];
+  const segmentUse = new Map();
+  for (const route of routes) {
+    for (let segmentIndex = 0; segmentIndex < route.tileIds.length - 1; segmentIndex++) {
+      const a = route.tileIds[segmentIndex];
+      const b = route.tileIds[segmentIndex + 1];
+      if (!visibleTileIds.has(a) || !visibleTileIds.has(b)) continue;
+      const segmentId = a < b ? `${a}:${b}` : `${b}:${a}`;
+      const count = segmentUse.get(segmentId) || 0;
+      if (count >= MAX_VISIBLE_LAND_CARTS_PER_SEGMENT) continue;
+      placements.push({ route, segmentIndex });
+      segmentUse.set(segmentId, count + 1);
+      if (placements.length >= MAX_VISIBLE_LAND_CARTS) return placements;
+    }
+  }
+  return placements;
+}
+
 export function snapshotLandTradeSystem(system) {
   assertLandTradeSystem(system);
   return {

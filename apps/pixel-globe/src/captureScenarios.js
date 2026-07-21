@@ -109,6 +109,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: []
   }),
+  "benchmark-busy-world": scenario({
+    id: "benchmark-busy-world",
+    title: "Busy World Performance Benchmark",
+    seed: "benchmark-busy-world-v1",
+    player: {
+      factionId: "ming",
+      shipSlug: "medium-junk",
+      lat: 31.1,
+      lon: 121.9,
+      headingDeg: 90,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: busyWorldBenchmarkEncounters()
+  }),
   "trailer-explore-fuji": trailerScenario({
     id: "trailer-explore-fuji",
     title: "Discover Mount Fuji",
@@ -370,6 +386,33 @@ function trailerSequence(kind, variant, values = {}) {
 
 function captureEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {
   return { id, factionId, shipSlug, role: "warship", lat, lon, headingDeg };
+}
+
+function busyWorldBenchmarkEncounters() {
+  const slugs = [
+    "sampan",
+    "small-junk",
+    "medium-junk",
+    "large-junk",
+    "joseon-turtle-ship",
+    "japanese-atakebune"
+  ];
+  const encounters = [];
+  for (let row = 0; row < 4; row++) {
+    for (let column = 0; column < 6; column++) {
+      const index = row * 6 + column;
+      encounters.push({
+        id: `benchmark-ship-${String(index + 1).padStart(2, "0")}`,
+        factionId: "ming",
+        shipSlug: slugs[index % slugs.length],
+        role: "merchant",
+        lat: 30.58 + row * 0.34,
+        lon: 122.1 + column * 0.26,
+        headingDeg: (index * 47) % 360
+      });
+    }
+  }
+  return encounters;
 }
 
 function validateVessel(value, label) {

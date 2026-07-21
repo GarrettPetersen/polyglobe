@@ -1,52 +1,60 @@
-export function foregroundTerrainOcclusionSpans(shipBounds, shipDepthY, occluders, isWater, riverDepthY) {
-  validateBounds(shipBounds);
-  if (!Number.isFinite(shipDepthY)) throw new Error(`Invalid ship terrain depth: ${shipDepthY}`);
-  if (!Array.isArray(occluders)) throw new Error("Ship terrain occlusion requires an occluder list");
-  if (typeof isWater !== "function") throw new Error("Ship terrain occlusion requires a water-mask callback");
-  if (riverDepthY !== null && !Number.isFinite(riverDepthY)) {
-    throw new Error(`Invalid ship river depth: ${riverDepthY}`);
+export function createTerrainOcclusionIndex(occluders, bucketSize = 48) {
+  if (!Array.isArray(occluders)) throw new Error("Terrain occlusion index requires an occluder list");
+  if (!Number.isInteger(bucketSize) || bucketSize < 1) {
+    throw new Error(`Invalid terrain occlusion bucket size: ${bucketSize}`);
   }
-
-  const occupied = new Uint8Array(shipBounds.w * shipBounds.h);
+  const buckets = new Map();
   for (const occluder of occluders) {
     validateOccluder(occluder);
-    const splitByRiverBank = riverDepthY !== null && occluder.containsRiver;
-    if (!splitByRiverBank && occluder.depthY <= shipDepthY) continue;
-    const left = Math.max(shipBounds.x, occluder.x);
-    const top = Math.max(shipBounds.y, occluder.y);
-    const right = Math.min(shipBounds.x + shipBounds.w, occluder.x + occluder.width);
-    const bottom = Math.min(shipBounds.y + shipBounds.h, occluder.y + occluder.height);
-    if (left >= right || top >= bottom) continue;
-
-    for (let y = top; y < bottom; y++) {
-      const sourceRow = (y - occluder.y) * occluder.width;
-      const targetRow = (y - shipBounds.y) * shipBounds.w;
-      for (let x = left; x < right; x++) {
-        if (occluder.alpha[sourceRow + x - occluder.x] === 0) continue;
-        if (isWater(x, y)) continue;
-        if (splitByRiverBank && y < riverDepthY) continue;
-        occupied[targetRow + x - shipBounds.x] = 1;
+    const minBucketX = Math.floor(occluder.x / bucketSize);
+    const maxBucketX = Math.floor((occluder.x + occluder.width - 1) / bucketSize);
+    const minBucketY = Math.floor(occluder.y / bucketSize);
+    const maxBucketY = Math.floor((occluder.y + occluder.height - 1) / bucketSize);
+    for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
+      for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
+        const key = `${bucketX}:${bucketY}`;
+        const entries = buckets.get(key);
+        if (entries) entries.push(occluder);
+        else buckets.set(key, [occluder]);
       }
     }
   }
+  return Object.freeze({ bucketSize, buckets });
+}
 
-  const spans = [];
-  for (let localY = 0; localY < shipBounds.h; localY++) {
-    const row = localY * shipBounds.w;
-    let localX = 0;
-    while (localX < shipBounds.w) {
-      while (localX < shipBounds.w && occupied[row + localX] === 0) localX++;
-      if (localX >= shipBounds.w) break;
-      const startX = localX;
-      while (localX < shipBounds.w && occupied[row + localX] !== 0) localX++;
-      spans.push({
-        x: shipBounds.x + startX,
-        y: shipBounds.y + localY,
-        width: localX - startX
-      });
+export function terrainOccludersForScreenBounds(index, screenBounds, offset) {
+  if (!index?.buckets || !(index.buckets instanceof Map) || !Number.isInteger(index.bucketSize)) {
+    throw new Error("Invalid terrain occlusion index");
+  }
+  validateBounds(screenBounds);
+  if (!offset || !Number.isInteger(offset.x) || !Number.isInteger(offset.y)) {
+    throw new Error("Terrain occlusion query requires an integer screen offset");
+  }
+  const localBounds = {
+    x: screenBounds.x - offset.x,
+    y: screenBounds.y - offset.y,
+    w: screenBounds.w,
+    h: screenBounds.h
+  };
+  const minBucketX = Math.floor(localBounds.x / index.bucketSize);
+  const maxBucketX = Math.floor((localBounds.x + localBounds.w - 1) / index.bucketSize);
+  const minBucketY = Math.floor(localBounds.y / index.bucketSize);
+  const maxBucketY = Math.floor((localBounds.y + localBounds.h - 1) / index.bucketSize);
+  const nearby = new Set();
+  for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
+    for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
+      for (const occluder of index.buckets.get(`${bucketX}:${bucketY}`) || []) {
+        if (!rectanglesOverlap(localBounds, occluder)) continue;
+        nearby.add(occluder);
+      }
     }
   }
-  return spans;
+  return [...nearby].map((occluder) => ({
+    ...occluder,
+    x: occluder.x + offset.x,
+    y: occluder.y + offset.y,
+    depthY: occluder.depthY + offset.y
+  }));
 }
 
 export function shipOcclusionDepthY(spriteY, bottomOpaqueY, clearancePixels) {
@@ -68,9 +76,15 @@ function validateOccluder(occluder) {
   if (!occluder || !Number.isInteger(occluder.x) || !Number.isInteger(occluder.y) ||
     !Number.isInteger(occluder.width) || !Number.isInteger(occluder.height) ||
     occluder.width <= 0 || occluder.height <= 0 || !Number.isFinite(occluder.depthY) ||
-    typeof occluder.containsRiver !== "boolean" ||
-    !(occluder.alpha instanceof Uint8Array) ||
-    occluder.alpha.length !== occluder.width * occluder.height) {
-    throw new Error("Ship terrain occlusion received an invalid terrain mask");
+    !occluder.drawLayer ||
+    (!occluder.drawLayer.image && typeof occluder.drawLayer.create !== "function")) {
+    throw new Error("Ship terrain occlusion received an invalid draw layer");
   }
+}
+
+function rectanglesOverlap(a, b) {
+  return a.x < b.x + b.width &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.h > b.y;
 }

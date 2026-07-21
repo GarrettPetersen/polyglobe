@@ -55,7 +55,7 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     for (let j = i + 1; j < entities.length; j++) {
       const a = entities[i];
       const b = entities[j];
-      if (!shipsTriggerCombat(a, b, relationBetween) || distance(a, b) > combatDetectionRadius(a, b)) continue;
+      if (!validatedShipsTriggerCombat(a, b, relationBetween) || distance(a, b) > combatDetectionRadius(a, b)) continue;
       const key = engagementKey(a.id, b.id);
       if (state.engagements.has(key)) continue;
       const engagement = { aId: a.id, bId: b.id };
@@ -92,6 +92,10 @@ export function shipsTriggerCombat(a, b, relationBetween = diplomacyBetween) {
   validateEntity(a);
   validateEntity(b);
   assertRelationResolver(relationBetween);
+  return validatedShipsTriggerCombat(a, b, relationBetween);
+}
+
+function validatedShipsTriggerCombat(a, b, relationBetween) {
   if (a.id === b.id || a.combatGrace || b.combatGrace || a.factionId === b.factionId) return false;
   if (relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) return false;
   if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {

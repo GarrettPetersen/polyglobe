@@ -5,7 +5,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-trailer-no-chapter-text pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-trailer-no-chapter-text pixel-globe-steam-inline-videos pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules
 
 help:
 	@echo "Targets:"
@@ -26,6 +26,7 @@ help:
 	@echo "  make pixel-globe-dev    Run Pixel Globe locally on PIXEL_GLOBE_PORT (default: 5184)"
 	@echo "  make pixel-globe-demo-itch Build the two-hour HTML5 demo ZIP for itch.io"
 	@echo "  make pixel-globe-capture Run a disposable 9:16 capture scenario"
+	@echo "  make pixel-globe-benchmark Run the deterministic busy-world performance benchmark"
 	@echo "  make pixel-globe-trailer-clips Record all scripted 9:16 trailer clips"
 	@echo "  make pixel-globe-steam-trailer-clips Record all scripted 16:9 Steam trailer clips"
 	@echo "  make pixel-globe-steam-trailer Build the 16:9 Steam trailer from captured clips"
@@ -90,6 +91,9 @@ pixel-globe-demo-itch:
 pixel-globe-capture:
 	@echo "Capture URL: http://127.0.0.1:$(PIXEL_GLOBE_PORT)/?capture=$(PIXEL_GLOBE_CAPTURE_SCENARIO)"
 	PORT=$(PIXEL_GLOBE_PORT) npm --prefix $(PIXEL_GLOBE_DIR) run dev
+
+pixel-globe-benchmark:
+	npm --prefix $(PIXEL_GLOBE_DIR) run benchmark:busy
 
 pixel-globe-trailer-clips:
 	npm --prefix $(PIXEL_GLOBE_DIR) run capture:trailer -- --base-url http://127.0.0.1:$(PIXEL_GLOBE_PORT)
