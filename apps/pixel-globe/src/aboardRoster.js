@@ -14,15 +14,18 @@ const TRAVELER_ROLE = Object.freeze({
 export function aboardRoster({
   captain,
   crewCount,
+  namedCrew = [],
   travelerGroups = [],
-  namedTraveler = null,
+  namedTravelers = [],
   colonyLeader = null
 }) {
   if (!captain || typeof captain !== "object" || !captain.name) {
     throw new Error("Aboard roster requires a named captain");
   }
   assertCount(crewCount, "crew");
+  if (!Array.isArray(namedCrew)) throw new Error("Named aboard crew must be an array");
   if (!Array.isArray(travelerGroups)) throw new Error("Aboard travelers must be an array");
+  if (!Array.isArray(namedTravelers)) throw new Error("Named aboard travelers must be an array");
 
   const remainingTravelers = new Map();
   for (const group of travelerGroups) {
@@ -37,7 +40,13 @@ export function aboardRoster({
   }
 
   const named = [namedEntry("captain", captain, ABOARD_ROLE_CAPTAIN)];
-  if (namedTraveler) {
+  for (const character of namedCrew) {
+    if (!character || typeof character !== "object" || !character.name) {
+      throw new Error("Named aboard crewmate requires a character");
+    }
+    named.push(namedEntry(`crew:${character.id}`, character, ABOARD_ROLE_CREWMATE));
+  }
+  for (const namedTraveler of namedTravelers) {
     const { character, kind } = namedTraveler;
     if (!character || typeof character !== "object" || !character.name) {
       throw new Error("Named aboard traveler requires a character");
@@ -46,7 +55,7 @@ export function aboardRoster({
       throw new Error(`Named aboard traveler has invalid kind: ${kind}`);
     }
     consumeTraveler(remainingTravelers, kind);
-    named.push(namedEntry(`traveler:${kind}`, character, TRAVELER_ROLE[kind]));
+    named.push(namedEntry(`traveler:${kind}:${character.id}`, character, TRAVELER_ROLE[kind]));
   }
   if (colonyLeader) {
     if (typeof colonyLeader !== "object" || !colonyLeader.name) {
@@ -56,8 +65,12 @@ export function aboardRoster({
     named.push(namedEntry("colony-leader", colonyLeader, ABOARD_ROLE_COLONY_LEADER));
   }
 
+  const genericCrewCount = crewCount - 1 - namedCrew.length;
+  if (genericCrewCount < 0 && crewCount !== 0) {
+    throw new Error(`Crew ${crewCount} cannot contain captain and ${namedCrew.length} named crewmates`);
+  }
   const generic = [];
-  for (let index = 0; index < crewCount; index++) {
+  for (let index = 0; index < Math.max(0, genericCrewCount); index++) {
     generic.push(genericEntry(`crew:${index}`, ABOARD_ROLE_CREWMATE));
   }
   for (const kind of ["passenger", "envoy", "settler"]) {

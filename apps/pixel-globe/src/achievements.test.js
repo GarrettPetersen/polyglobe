@@ -10,6 +10,7 @@ import {
   achievementProgress,
   createAchievementProfile,
   createVoyageAchievementProgress,
+  migrateVoyageAchievementProgress,
   orderedAchievementCatalog,
   readAchievementProfile,
   recordVoyageAchievementEvent,
@@ -17,6 +18,7 @@ import {
   synchronizeAchievements,
   writeAchievementProfile
 } from "./achievements.js";
+import { gameIconIds } from "./gameIcons.js";
 
 function snapshot(overrides = {}) {
   return {
@@ -40,6 +42,16 @@ function snapshot(overrides = {}) {
     acquiredShips: 0,
     shoreScavengeCompleted: false,
     defeatedShip: false,
+    mappedPercent: 0,
+    hawaiiVisited: false,
+    pirateCaptivesBroughtHome: 0,
+    castawaysBroughtHome: 0,
+    visitedPortCount: 0,
+    capturedPortCount: 0,
+    namedCrewCount: 0,
+    specialEquipmentCount: 0,
+    fullCrew: false,
+    campaignVictory: false,
     ...overrides
   };
 }
@@ -89,7 +101,10 @@ test("quest and discovery spoilers remain hidden until they unlock", () => {
     ACHIEVEMENT_IDS.CAPTAIN_AHAB,
     ACHIEVEMENT_IDS.GOLDEN,
     ACHIEVEMENT_IDS.TEPPO,
-    ACHIEVEMENT_IDS.GINGER_FARMER
+    ACHIEVEMENT_IDS.GINGER_FARMER,
+    ACHIEVEMENT_IDS.NO_ONE_LEFT_IN_CHAINS,
+    ACHIEVEMENT_IDS.NOT_FORGOTTEN,
+    ACHIEVEMENT_IDS.TWO_HEARTS_ONE_HORIZON
   ]);
 
   const teppo = ACHIEVEMENT_CATALOG.find((achievement) => achievement.id === ACHIEVEMENT_IDS.TEPPO);
@@ -101,6 +116,33 @@ test("quest and discovery spoilers remain hidden until they unlock", () => {
   });
   assert.equal(achievementPresentation(teppo, true).title, "Teppo");
   assert.equal(achievementPresentation(teppo, true).iconId, "good:matchlocks");
+
+  const marriage = ACHIEVEMENT_CATALOG.find(
+    (achievement) => achievement.id === ACHIEVEMENT_IDS.TWO_HEARTS_ONE_HORIZON
+  );
+  assert.equal(achievementPresentation(marriage, false).title, "Hidden Achievement");
+  assert.equal(achievementPresentation(marriage, false).description, "Keep exploring to reveal this.");
+  assert.equal(achievementPresentation(marriage, true).title, "Two Hearts, One Horizon");
+});
+
+test("exploration and settlement achievements use distinct semantic icons", () => {
+  const icons = Object.fromEntries(ACHIEVEMENT_CATALOG.map((entry) => [entry.id, entry.iconId]));
+  assert.equal(icons[ACHIEVEMENT_IDS.MAGELLAN], "achievement:magellan");
+  assert.equal(icons[ACHIEVEMENT_IDS.FOUNDER], "achievement:founder");
+  assert.equal(icons[ACHIEVEMENT_IDS.EXPANSIONIST], "achievement:expansionist");
+  assert.equal(icons[ACHIEVEMENT_IDS.COLONIST], "achievement:colonist");
+  assert.equal(new Set([
+    icons[ACHIEVEMENT_IDS.FOUNDER],
+    icons[ACHIEVEMENT_IDS.EXPANSIONIST],
+    icons[ACHIEVEMENT_IDS.COLONIST]
+  ]).size, 3);
+});
+
+test("every achievement has a renderable icon", () => {
+  const iconIds = new Set(gameIconIds());
+  for (const achievement of ACHIEVEMENT_CATALOG) {
+    assert.ok(iconIds.has(achievement.iconId), `${achievement.id}: ${achievement.iconId}`);
+  }
 });
 
 test("same-voyage achievements unlock from accumulated progress", () => {
@@ -132,8 +174,8 @@ test("same-voyage achievements unlock from accumulated progress", () => {
   assert.equal(result.newlyUnlocked.length, 18);
 });
 
-test("the 30-entry catalog includes approachable voyage milestones", () => {
-  assert.equal(ACHIEVEMENT_CATALOG.length, 30);
+test("the 50-entry catalog includes approachable voyage milestones", () => {
+  assert.equal(ACHIEVEMENT_CATALOG.length, 50);
   const profile = createAchievementProfile();
   const progress = createVoyageAchievementProgress();
   const discoveryIds = Array.from({ length: 10 }, (_, index) => `discovery-${index}`);
@@ -188,6 +230,72 @@ test("event-only achievements survive later synchronization", () => {
   assert.ok(profile.unlocked[ACHIEVEMENT_IDS.CAPTAIN_AHAB]);
 });
 
+test("the new achievements cover exploration, rescue, company, commerce, and danger", () => {
+  const profile = createAchievementProfile();
+  const progress = createVoyageAchievementProgress();
+  recordVoyageAchievementEvent(progress, { type: "married" });
+  for (let index = 0; index < 10; index += 1) {
+    recordVoyageAchievementEvent(progress, { type: "enemy-ship-defeated" });
+  }
+  recordVoyageAchievementEvent(progress, { type: "whale-killed" });
+  recordVoyageAchievementEvent(progress, { type: "survived-lightning-strike" });
+  const soldGoodIds = Array.from({ length: 15 }, (_, index) => `good-${index}`);
+  const result = synchronizeAchievements(profile, progress, snapshot({
+    soldGoodIds,
+    mappedPercent: 70,
+    hawaiiVisited: true,
+    pirateCaptivesBroughtHome: 1,
+    castawaysBroughtHome: 1,
+    visitedPortCount: 50,
+    fishCaughtQuantity: 100,
+    passengerDeliveries: 5,
+    capturedPortCount: 1,
+    namedCrewCount: 3,
+    specialEquipmentCount: 3,
+    fullCrew: true,
+    campaignVictory: true
+  }), { unlockedAt: 6500 });
+  const expected = [
+    ACHIEVEMENT_IDS.COASTAL_SURVEYOR,
+    ACHIEVEMENT_IDS.HALF_THE_WORLD,
+    ACHIEVEMENT_IDS.FEWER_DRAGONS,
+    ACHIEVEMENT_IDS.ALOHA_SAILOR,
+    ACHIEVEMENT_IDS.NO_ONE_LEFT_IN_CHAINS,
+    ACHIEVEMENT_IDS.NOT_FORGOTTEN,
+    ACHIEVEMENT_IDS.TWO_HEARTS_ONE_HORIZON,
+    ACHIEVEMENT_IDS.PORT_OF_CALL,
+    ACHIEVEMENT_IDS.SEVEN_SEAS,
+    ACHIEVEMENT_IDS.FISHER_KING,
+    ACHIEVEMENT_IDS.CARGO_OF_EVERY_KIND,
+    ACHIEVEMENT_IDS.PACKET_CAPTAIN,
+    ACHIEVEMENT_IDS.TERROR_OF_THE_SEAS,
+    ACHIEVEMENT_IDS.THERE_SHE_BLOWS,
+    ACHIEVEMENT_IDS.BOLT_FROM_THE_BLUE,
+    ACHIEVEMENT_IDS.RAISE_OUR_COLORS,
+    ACHIEVEMENT_IDS.A_FINE_COMPANY,
+    ACHIEVEMENT_IDS.SHIPSHAPE,
+    ACHIEVEMENT_IDS.ALL_HANDS,
+    ACHIEVEMENT_IDS.VOYAGE_FULFILLED
+  ];
+  assert.deepEqual(
+    result.newlyUnlocked.map((entry) => entry.id).filter((id) => expected.includes(id)),
+    expected
+  );
+});
+
+test("version 1 voyage progress migrates without inventing unearned achievements", () => {
+  const migrated = migrateVoyageAchievementProgress({
+    version: 1,
+    soldSpiceGoodIds: [],
+    foundedCityIds: [],
+    sailedShipSlugs: [],
+    grossDoubloonsEarned: 0,
+    whiteWhaleKilled: false,
+    arrivedInPortDrunk: false
+  });
+  assert.deepEqual(migrated, createVoyageAchievementProgress());
+});
+
 test("well rounded combines ships sailed across voyages", () => {
   const profile = createAchievementProfile();
   synchronizeAchievements(profile, createVoyageAchievementProgress(), snapshot({
@@ -230,7 +338,7 @@ test("platform adapter sync uses stable Steam ids once", async () => {
 });
 
 test("catalog has stable unique platform ids", () => {
-  assert.equal(ACHIEVEMENT_CATALOG.length, 30);
+  assert.equal(ACHIEVEMENT_CATALOG.length, 50);
   assert.equal(new Set(ACHIEVEMENT_CATALOG.map((entry) => entry.id)).size, ACHIEVEMENT_CATALOG.length);
   assert.equal(new Set(ACHIEVEMENT_CATALOG.map((entry) => entry.platformIds.steam)).size,
     ACHIEVEMENT_CATALOG.length);

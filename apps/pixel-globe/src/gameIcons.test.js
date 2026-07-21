@@ -12,6 +12,7 @@ import {
   GAME_ICON_SIZE,
   GAME_ICON_SOURCES,
   SHIP_MENU_ICON_IDS,
+  achievementStatusIconId,
   dialogueOptionIconId,
   gameIconAtlasDimensions,
   gameIconAtlasRect,
@@ -133,6 +134,26 @@ test("selling cargo uses the flowing two-arrow icon from row 5, column 5", () =>
   assert.equal(source.packId, "nikoichu");
   assert.equal(source.entry, "Sprites/Arrows_Media_Controls_Loop_Reload_Refresh.png");
   assert.equal(source.lightMonotone, "#9e4539");
+});
+
+test("achievement status uses the matched one-bit lock pair", () => {
+  const lockedId = achievementStatusIconId(false);
+  const unlockedId = achievementStatusIconId(true);
+  assert.equal(lockedId, "status:achievement-locked");
+  assert.equal(unlockedId, "status:achievement-unlocked");
+  assert.deepEqual(GAME_ICON_SOURCES[lockedId], {
+    packId: "nikoichu",
+    entry: "Sprites/Tools_Crafting_Padlock_Locked.png",
+    crop: null,
+    lightMonotone: "#966c6c"
+  });
+  assert.deepEqual(GAME_ICON_SOURCES[unlockedId], {
+    packId: "nikoichu",
+    entry: "Sprites/Tools_Crafting_Padlock_Unlocked_1.png",
+    crop: null,
+    lightMonotone: "#966c6c"
+  });
+  assert.throws(() => achievementStatusIconId("yes"), /requires a boolean/);
 });
 
 test("rendered interface icons contain one semantic color and no outline color", async () => {

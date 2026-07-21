@@ -7,12 +7,15 @@ import {
   cargoUsed,
   cargoUsedTicks,
   createGameState,
+  fishCatchCargoCapacity,
+  initializeProvisionalShipLoadout,
   recordDiscovery,
   receiveDiscoveryCargo,
   receiveFishCatch,
   receivePortConquestPrize,
   receiveSurrenderedLoot
 } from "./gameState.js";
+import { shipStatsForSlug } from "./shipStats.js";
 
 test("surrendered loot credits money and accepts only cargo that fits", () => {
   const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
@@ -69,6 +72,29 @@ test("fish catches enter cargo and the ledger with no cost basis", () => {
   )));
 });
 
+test("fishing can partially fill physical hold space reserved for later provisions", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const initiallyFree = cargoFree(state);
+  state.cargo.gold = initiallyFree;
+  state.accounts.cargoCostBasis.gold = 0;
+  state.survival.freshWater -= 5;
+
+  assert.equal(cargoUsed(state), state.cargoCapacity - 5);
+  assert.equal(cargoFree(state), 0);
+  assert.equal(cargoQuantityCapacityForGood(state, "fish"), 0);
+  assert.equal(fishCatchCargoCapacity(state), 5);
+
+  const received = receiveFishCatch(state, {
+    stockKey: "10:cod",
+    speciesLabel: "Cod",
+    quantity: 5
+  });
+  assert.equal(received.quantity, 5);
+  assert.equal(cargoUsed(state), state.cargoCapacity);
+});
+
 test("fractional ration space cannot be harvested as a fractional fish lot", () => {
   const state = createGameState({ cargoCapacity: 1, startMinute: 100 });
   state.cargo.hardtack = 2 / 3;
@@ -76,6 +102,7 @@ test("fractional ration space cannot be harvested as a fractional fish lot", () 
 
   assert.ok(cargoFree(state) > 0.33 && cargoFree(state) < 0.34);
   assert.equal(cargoQuantityCapacityForGood(state, "fish"), 0);
+  assert.equal(fishCatchCargoCapacity(state), 0);
   assert.throws(() => receiveFishCatch(state, {
     stockKey: "10:cod",
     speciesLabel: "Cod",

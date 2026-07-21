@@ -14,6 +14,7 @@ import {
   campaignGoalDestination,
   campaignDialogueView,
   campaignGoalIntroSteps,
+  campaignGoalPresentation,
   campaignHomecomingSteps,
   campaignVictorySummary,
   createCampaignDialogueSession,
@@ -56,6 +57,23 @@ const EXPLORER_OBJECTIVES = Object.freeze([
   ...WONDERS.slice(0, 2),
   CIRCUMNAVIGATION_DISCOVERY
 ]);
+
+test("every campaign goal exposes a persistent journal and character objective", () => {
+  const presentations = [
+    CAMPAIGN_GOAL_EXPLORER,
+    CAMPAIGN_GOAL_FAMILY_DEBT,
+    CAMPAIGN_GOAL_WHITE_WHALE
+  ].map((type) => campaignGoalPresentation(createCampaignGoal({ playerCharacter: CHARACTER, type })));
+
+  assert.deepEqual(presentations.map((entry) => entry.label), [
+    "Explorer",
+    "Family Debt",
+    "The White Whale"
+  ]);
+  assert.match(presentations[0].objective, /discover every wonder/i);
+  assert.match(presentations[1].objective, /pay off the family debt/i);
+  assert.match(presentations[2].objective, /kill the white whale/i);
+});
 
 test("drunk homecomings open with role-specific captain banter", () => {
   const explorer = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });

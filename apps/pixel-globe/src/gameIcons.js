@@ -2,9 +2,10 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-22";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-27";
 
 const ICON_COLOR = Object.freeze({
+  achievementStatus: "#966c6c",
   danger: "#6e2727",
   dialogue: "#4d65b4",
   gold: "#9e4539",
@@ -140,6 +141,16 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "menu:politics": nikoichu("Map_Markers_Flagpole_Triangle_Minesweeper.png", ICON_COLOR.gold),
   "menu:discoveries": nikoichu("Map_Markers_Building_Bank_Greek_Temple.png", ICON_COLOR.parchment),
 
+  "achievement:magellan": nikoichu("Software_Planet_Geography_Localization_Global_Language_Translation_2.png", ICON_COLOR.sea),
+  "achievement:founder": nikoichu("Map_Markers_Building_Home_House.png", ICON_COLOR.warm),
+  "achievement:expansionist": nikoichu("Map_Markers_Flagpole.png", ICON_COLOR.gold),
+  "achievement:colonist": nikoichu("Map_Markers_Buildings_Houses_Homes_Village_Town.png", ICON_COLOR.success),
+  "achievement:hawaii": nikoichu("Map_Markers_Tree_Forest_Palm_Beach.png", ICON_COLOR.success),
+  "achievement:married": nikoichu("Boardgames_Suit_Hearts.png", ICON_COLOR.danger),
+  "achievement:lightning": nikoichu("Alchemy_Potion_Vial_Bottle_Lightning_Bolt_Zap_Speed_Full.png", ICON_COLOR.gold),
+  "status:achievement-locked": nikoichu("Tools_Crafting_Padlock_Locked.png", ICON_COLOR.achievementStatus),
+  "status:achievement-unlocked": nikoichu("Tools_Crafting_Padlock_Unlocked_1.png", ICON_COLOR.achievementStatus),
+
   ...SHIP_MENU_ICON_SOURCES,
 
   "action:dock": nikoichu("Travel_Ship_Dock.png", ICON_COLOR.sea),
@@ -171,6 +182,21 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:choose-ships": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_COLOR.sea),
   "action:start-menu": nikoichu("Map_Markers_Building_Home_House.png", ICON_COLOR.warm),
   "action:navigation": nikoichu("Map_Markers_Compass_Rose_1.png", ICON_COLOR.navigation),
+
+  "item:sturdy-barrels": nikoichu("Travel_Petrol_Oil_Barrel_Fuel.png", ICON_COLOR.timber),
+  "item:shore-party-kit": nikoichu("Travel_Backpack_Bag_Bedroll.png", ICON_COLOR.timber),
+  "item:tarred-hemp-rigging": nikoichu("Software_Network_Cable_Internet_Connection_Ethernet_RJ45.png", ICON_COLOR.timber),
+  "item:coir-cordage": nikoichu("Software_Hardware_USB_Cable_Connector.png", ICON_COLOR.warm),
+  "item:flemish-sailcloth": nikoichu("Tools_Crafting_Tailoring_Cloth_Sewing_Materials.png", ICON_COLOR.sea),
+  "item:lateen-sailcloth": nikoichu("RPG_Item_Accessory_Armor_Equipment_Slot_Cape_Cloak_Clothing.png", ICON_COLOR.gold),
+  "item:lead-sheathing": nikoichu("RPG_Item_Stat_Shield_Defense_Armor.png", ICON_COLOR.steel),
+  "item:surgeons-chest": nikoichu("Misc_Stethoscope_Doctor_Medic_Tool.png", ICON_COLOR.danger),
+  "item:pilots-instruments": nikoichu("Map_Markers_Compass_Rose_2.png", ICON_COLOR.navigation),
+  "item:longsword": nikoichu("RPG_Item_Weapon_Sword_Attack_Melee_Slashing_Damage.png", ICON_COLOR.steel),
+  "item:tulwar": nikoichu("RPG_Item_Weapon_Shortsword_Melee.png", ICON_COLOR.gold),
+  "item:katana": nikoichu("RPG_Skill_Strike_Attack_Sword_Slash_Cleave.png", ICON_COLOR.danger),
+  "item:wheellock-pistol": nikoichu("RPG_Item_Weapon_Pistol_Gun_Ranged.png", ICON_COLOR.danger),
+  "item:bronze-fish-hooks": nikoichu("Tools_Crafting_Fishing_Rod_Hook.png", ICON_COLOR.gold),
 
   "good:gunpowder": pirate(42),
   "good:matchlocks": pirate(45)
@@ -223,6 +249,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   "viking-longship": "action:viking",
   "japanese-matchlocks": "good:matchlocks",
   "caribbean-ginger": "good:ginger",
+  "chef-quest": "action:talk",
   colonization: "action:quest",
   marque: "action:letter",
   cargo: "action:inventory"
@@ -260,6 +287,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "deliver-viking-material": "action:quest",
   "deliver-japanese-matchlock-material": "action:quest",
   "deliver-caribbean-ginger": "good:ginger",
+  "deliver-chef-ingredients": "action:quest",
+  "recruit-chef": "action:passenger",
   "deliver-colonization-material": "action:quest",
   "grant-colony-permission": "action:letter",
   "embark-colonists": "action:passenger",
@@ -275,9 +304,17 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "buy-net": "action:fish",
   "buy-cannon-equipment": "action:attack",
   "buy-whale-harpoon": "action:harpoon",
+  "buy-perk-item": "action:inventory",
+  "decline-special-equipment": "action:back",
   buy: "action:buy",
   "accept-quest": "action:quest",
-  "accept-passenger": "action:passenger"
+  "accept-passenger": "action:passenger",
+  "accept-rescued-traveler": "action:passenger",
+  "decline-rescued-traveler": "action:leave",
+  "finish-rescued-traveler-offer": "action:quest",
+  "continue-rescued-traveler-homecoming": "action:talk",
+  "complete-rescued-traveler-reunion": "action:passenger",
+  "recruit-rescued-traveler": "action:passenger"
 });
 
 export function gameIconIds() {
@@ -332,6 +369,13 @@ export function shipMenuIconId(shipSlug) {
   return iconId;
 }
 
+export function achievementStatusIconId(unlocked) {
+  if (typeof unlocked !== "boolean") {
+    throw new Error(`Achievement status requires a boolean: ${unlocked}`);
+  }
+  return unlocked ? "status:achievement-unlocked" : "status:achievement-locked";
+}
+
 export function menuLabelIconId(label) {
   const iconId = MENU_LABEL_ICON_IDS[label];
   if (!iconId) throw new Error(`Menu label has no icon: ${label}`);
@@ -341,6 +385,7 @@ export function menuLabelIconId(label) {
 export function dialogueOptionIconId(option) {
   if (!option?.action?.type) throw new Error("Dialogue option has no action type");
   if (option.action.goodId) return tradeGoodIconId(option.action.goodId);
+  if (option.action.itemId) return perkItemIconId(option.action.itemId);
   if (option.action.type === "node" || (
     (option.action.type === "leave-buy" || option.action.type === "leave-sell") && option.action.nodeId
   )) {
@@ -350,6 +395,12 @@ export function dialogueOptionIconId(option) {
   }
   const iconId = DIALOGUE_ACTION_ICON_IDS[option.action.type];
   if (!iconId) throw new Error(`Dialogue action has no icon: ${option.action.type}`);
+  return iconId;
+}
+
+export function perkItemIconId(itemId) {
+  const iconId = `item:${itemId}`;
+  if (!GAME_ICON_INDEX.has(iconId)) throw new Error(`Perk item has no icon: ${itemId}`);
   return iconId;
 }
 

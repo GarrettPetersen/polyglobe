@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
+import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
+import { isWaterSurfaceRow } from "./terrainSurface.js";
+import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 import {
   CIRCUMNAVIGATION_DISCOVERY,
   EL_DORADO_DISCOVERY_ID,
@@ -12,6 +16,8 @@ import {
   LAKE_VICTORIA_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
   MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY,
+  VICTORIA_FALLS_DISCOVERY_ID,
+  VICTORIA_FALLS_DISCOVERY_RADIUS_PX,
   WATER_DISCOVERY_MENU_SPRITE_KEY,
   WORLD_DISCOVERY_SPECS,
   WORLD_DISCOVERY_SPRITE_KEYS,
@@ -32,6 +38,10 @@ import {
   recordDiscovery,
   validateGameState
 } from "./gameState.js";
+
+const PRODUCTION_SUBDIVISIONS = 7;
+const PRODUCTION_PIXELS_PER_RADIAN = 2450;
+const repoRoot = new URL("../../../", import.meta.url);
 
 test("world wonders map onto globe tiles and visual landmarks get dedicated art tiles", () => {
   const graph = buildGeodesicGraph(5);
@@ -95,6 +105,39 @@ test("El Dorado requires a close upper-Amazon approach", () => {
     panamaDistancePx > elDorado.radiusPx * 10,
     "El Dorado must not be discoverable from Panama"
   );
+});
+
+test("Victoria Falls requires the Zambezi approach but remains reachable", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  earth.tiles = applyManualTerrainOverrides(earth.tiles, PRODUCTION_SUBDIVISIONS);
+  const graph = buildGeodesicGraph(PRODUCTION_SUBDIVISIONS);
+  const topology = buildWorldNavigationTopology({
+    graph,
+    earthRows: earth.tiles,
+    earthCache: earth,
+    subdivisions: PRODUCTION_SUBDIVISIONS
+  });
+  const discoveries = buildWorldDiscoveries(graph, createDirectionIndex(graph), {
+    landMask: Uint8Array.from(earth.tiles, (row) => isWaterSurfaceRow(row) ? 0 : 1),
+    cityTileIds: [],
+    riverMasks: topology.riverMasks,
+    riverToWaterMasks: topology.riverToWaterMasks,
+    navigationMask: topology.reachableNavigationMask,
+    pixelsPerRadian: PRODUCTION_PIXELS_PER_RADIAN
+  });
+  const falls = discoveries.find((item) => item.id === VICTORIA_FALLS_DISCOVERY_ID);
+  const sofalaDistancePx = greatCircleDistancePx(
+    { lat: -20.1653, lon: 34.7153 },
+    falls,
+    PRODUCTION_PIXELS_PER_RADIAN
+  );
+
+  assert.equal(falls.radiusPx, VICTORIA_FALLS_DISCOVERY_RADIUS_PX);
+  assert.ok(falls.navigationDistancePx < falls.radiusPx, "the navigable Zambezi must reach discovery range");
+  assert.ok(sofalaDistancePx > falls.radiusPx * 7, "Victoria Falls must not be visible from Sofala");
 });
 
 test("world discovery registry is unique, complete, and explicit about historicity", () => {

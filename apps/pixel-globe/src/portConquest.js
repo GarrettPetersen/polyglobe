@@ -43,12 +43,22 @@ export function validatePortConquestMemory(memory) {
   return memory;
 }
 
-export function portConquestStatus({ city, batteryDisabled, crew, crewCapacity, attackerFactionId }) {
+export function portConquestStatus({
+  city,
+  batteryDisabled,
+  crew,
+  crewCapacity,
+  attackerFactionId,
+  assaultChanceBonus = 0
+}) {
   assertCity(city);
   assertFactionId(attackerFactionId);
   assertCrew(crew, "crew");
   assertCrew(crewCapacity, "crew capacity");
   if (crew > crewCapacity) throw new Error("Port conquest crew exceeds ship capacity");
+  if (!Number.isFinite(assaultChanceBonus) || assaultChanceBonus < 0 || assaultChanceBonus > 0.5) {
+    throw new Error(`Invalid port assault chance bonus: ${assaultChanceBonus}`);
+  }
 
   const alreadyOwned = city.factionId === attackerFactionId;
   const largeWarship = crewCapacity >= PORT_CONQUEST_MIN_CREW;
@@ -60,11 +70,12 @@ export function portConquestStatus({ city, batteryDisabled, crew, crewCapacity, 
   if (!Number.isFinite(population)) throw new Error(`Invalid conquest port population: ${city.population}`);
   const populationPenalty = clamp((Math.log10(population) - 3.3) * 0.08, 0, 0.16);
   const crewChance = (capital ? 0.24 : 0.48) + crewAdvantage * (capital ? 0.003 : 0.005);
-  const successChance = clamp(
+  const baseSuccessChance = clamp(
     crewChance - populationPenalty,
     capital ? 0.15 : 0.32,
     capital ? 0.42 : 0.72
   );
+  const successChance = clamp(baseSuccessChance + assaultChanceBonus, 0, 0.9);
   const lossRange = capital
     ? crewLossRange(crew, 0.42, 0.66)
     : crewLossRange(crew, 0.27, 0.48);
@@ -78,6 +89,7 @@ export function portConquestStatus({ city, batteryDisabled, crew, crewCapacity, 
     capital,
     minimumCrew: PORT_CONQUEST_MIN_CREW,
     populationPenalty,
+    assaultChanceBonus,
     successChance,
     successPercent: Math.round(successChance * 100),
     failureCrewLossMin: lossRange.min,

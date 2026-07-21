@@ -8,6 +8,7 @@ import {
   fishingActionPresentation,
   fishingAnimationState,
   fishingCatchChance,
+  fishingCatchQuantity,
   fishingCatchSucceeds,
   fishingSideForTarget
 } from "./fishingAction.js";
@@ -87,6 +88,13 @@ test("fishing is disabled when the cargo hold is full", () => {
   assert.equal(canStartFishing(0), false);
   assert.throws(() => canStartFishing(-1), /catch capacity/);
   assert.throws(() => canStartFishing(1 / 3), /catch capacity/);
+});
+
+test("a net takes a partial catch when the hold cannot fit its full haul", () => {
+  assert.equal(fishingCatchQuantity(8, 5), 5);
+  assert.equal(fishingCatchQuantity(3, 5), 3);
+  assert.equal(fishingCatchQuantity(8, 0), 0);
+  assert.throws(() => fishingCatchQuantity(0, 5), /maximum fishing catch/);
 });
 
 function pickAnimation(state) {

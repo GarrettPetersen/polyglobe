@@ -479,7 +479,7 @@ function factionName(factionId) {
 
 function factionShortName(factionId) {
   const faction = FACTIONS_BY_ID.get(factionId);
-  return faction?.adjective || faction?.name || factionId;
+  return faction?.shortName || faction?.name || factionId;
 }
 
 function assertSovereignPair(factionAId, factionBId) {

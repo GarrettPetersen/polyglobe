@@ -146,6 +146,13 @@ test("wars can end in peace and later relation changes obey pair cooldowns", () 
   validateWorldDiplomacy(JSON.parse(JSON.stringify(state)));
 });
 
+test("diplomacy notices use country nouns rather than nationality adjectives", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "country-nouns" });
+  const [event] = makeDiplomaticPeace(state, "portugal", "morocco", 200 * DAY);
+
+  assert.equal(diplomacyEventNotice(event), "PEACE: PORTUGAL / MOROCCO");
+});
+
 test("diplomatic relations improve and worsen one stance at a time", () => {
   const state = createWorldDiplomacy({ startMinute: 0, seedKey: "stances" });
   makeDiplomaticPeace(state, "england", "france", 200 * DAY);

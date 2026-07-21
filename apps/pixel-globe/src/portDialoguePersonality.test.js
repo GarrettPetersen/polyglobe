@@ -30,7 +30,7 @@ test("urgent nearby pirate traffic overrides ordinary port chatter", () => {
     cityName: "Lisbon",
     localFlavor: "The harbor is busy.",
     nearbyShips: { pirates: 1, merchants: 4 },
-    rivalLabel: "Castile"
+    rivalTerms: rivalTerms("Castile", "Castilian")
   });
   assert.match(presentation.text, /Pirates/);
   assert.doesNotMatch(presentation.text, /merchant sails/i);
@@ -42,11 +42,41 @@ test("factors can comment on their faction's current rival", () => {
     personalityId: "reflective",
     cityName: "Lisbon",
     localFlavor: "The harbor is busy.",
-    rivalLabel: "Ottoman"
+    rivalTerms: rivalTerms("the Ottoman Empire", "Ottoman")
   });
   assert.match(presentation.text, /Ottoman/);
   assert.equal(presentation.expressionId, "stern");
 });
+
+test("political gossip uses country nouns rather than adjectives", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "gossipy",
+    cityName: "Lisbon",
+    localFlavor: "The harbor is busy.",
+    rivalTerms: rivalTerms("Morocco", "Moroccan")
+  });
+  assert.match(presentation.text, /trouble with Morocco/);
+  assert.doesNotMatch(presentation.text, /Moroccan/);
+});
+
+test("political security gossip uses nationality adjectives", () => {
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "vigilant",
+    cityName: "Lisbon",
+    localFlavor: "The harbor is busy.",
+    rivalTerms: rivalTerms("Morocco", "Moroccan")
+  });
+  assert.match(presentation.text, /Moroccan agents/);
+  assert.doesNotMatch(presentation.text, /Morocco agents/);
+});
+
+function rivalTerms(noun, adjective) {
+  return Object.freeze({
+    noun,
+    sentenceNoun: noun.charAt(0).toUpperCase() + noun.slice(1),
+    adjective
+  });
+}
 
 test("friendly port chatter requests a matching positive expression", () => {
   const presentation = portGreetingPresentationForPersonality({

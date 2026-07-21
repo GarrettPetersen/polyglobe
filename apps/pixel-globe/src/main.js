@@ -36,6 +36,25 @@ import {
   ABOARD_ROLE_PASSENGER,
   aboardRoster
 } from "./aboardRoster.js";
+import { stepAboardGridIndex } from "./aboardGridSelection.js";
+import {
+  captainCharacterGoal,
+  colonyLeaderCharacterGoal,
+  namedCrewCharacterGoal,
+  travelerCharacterGoal
+} from "./characterGoals.js";
+import {
+  characterAgeAtMinute,
+  characterBirthdayLabel,
+  characterNationalityLabel,
+  characterWithBiography,
+  gameCalendarDateAtMinute
+} from "./characterBiography.js";
+import {
+  consumeBirthdayDialogueLine,
+  observeAboardBirthdays,
+  pendingBirthdayDialogueLine
+} from "./birthdayEvents.js";
 import {
   minimapSettlementColor,
   minimapSettlementMarkers
@@ -117,15 +136,22 @@ import {
 } from "./shipPropulsion.js";
 import {
   assignNpcShipCaptains,
+  assignMissingNpcShipCaptains,
   assignPortCityCharacterFromSource,
   assignPortCityCharacters,
   CHARACTER_PORTRAIT_ASSET_VERSION,
   characterExpression,
+  generateCastawayCharacter,
+  generateCastawayFamilyMember,
   generateCampaignContactCharacter,
   generatePassengerCharacter,
+  generatePirateCaptiveCharacter,
+  generatePirateCaptiveFamilyMember,
   generateSpecialPortCharacter,
-  loadCharacterPortraitManifest
+  loadCharacterPortraitManifest,
+  reconcileCharacterPortraitSexes
 } from "./characterPortraits.js";
+import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import {
   generatePlayerStartingProfile,
   playerStarterShipForFaction,
@@ -151,20 +177,23 @@ import {
   attemptPortDisguise,
   awardPlayerShip,
   cargoFree,
-  cargoQuantityCapacityForGood,
+  fishCatchCargoCapacity,
   cargoSpaceLabel,
   cargoUsed,
+  castawayEmergencyAidNeed,
   addPortNavigationWaypoint,
   clearPortNavigationWaypointsAt,
+  consumeNamedCrewDeathNotice,
   consumePendingDiscoveryPortDialogue,
+  createPortEntryStatusContext,
   createGameState,
   deliveryOfferForCity,
   discoveredEntries,
   diplomacyBetweenForState,
   factionReputation,
-  factionSafePassageRefusalStatus,
   factionSafePassageToll,
   foodRationsForCargoQuantity,
+  futurePermanentCrewFloor,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
@@ -173,11 +202,13 @@ import {
   isEnvoyQuest,
   loseCrew,
   migrateGameState,
-  playerCannonEquipment,
+  playerAssaultCargoBonus,
   playerFishingNet,
   playerWhaleHarpoon,
   playerShipIsWarship,
+  pendingNamedCrewDeathNotice,
   pirateHideoutsVisibleToPlayer,
+  prepareHighValueMissionPerkItem,
   portMemory,
   portEntryStatus,
   refillFreshWaterFromShore,
@@ -187,6 +218,8 @@ import {
   receiveScavengedTradeGood,
   receiveWhaleBlubber,
   receivePortConquestPrize,
+  receiveCastawayShoreAid,
+  receiveRescuedTravelerReunionReward,
   receiveSurrenderedLoot,
   reconcileQuestPortTiles,
   recordAttackAgainstFaction,
@@ -212,6 +245,46 @@ import {
   visitPort
 } from "./gameState.js";
 import {
+  characterSkillIdsForIdentity,
+  characterSkillSummary,
+  characterSkills
+} from "./characterSkills.js";
+import { gameStatePerkTotals } from "./playerPerks.js";
+import { effectiveShipStats } from "./perkSystem.js";
+import {
+  NAMED_CREW_ROLE_CHEF,
+  NAMED_CREW_ROLE_HISTORIAN,
+  addNamedCrewMember,
+  hasPermanentCrewBerth,
+  namedCrewMembers,
+  permanentCrewFloor
+} from "./namedCrew.js";
+import {
+  activePirateCaptiveQuest,
+  createPirateCaptiveQuest,
+  pirateCaptiveRescueAppears
+} from "./pirateCaptiveQuest.js";
+import {
+  activeCastawayQuest,
+  castawayRescueAppears,
+  createCastawayQuest,
+  markCastawayEmergencyAidReceived
+} from "./castawayQuest.js";
+import {
+  RESCUED_TRAVELER_STAGE_ABOARD,
+  RESCUED_TRAVELER_STAGE_HOMECOMING,
+  RESCUED_TRAVELER_TYPE_CASTAWAY,
+  RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
+  completeRescuedTravelerQuest,
+  createRescuedTravelerDialogueSession,
+  prepareRescuedTravelerHomecoming,
+  rescuedTravelerDialogueCharacter,
+  rescuedTravelerDialogueView,
+  rescuedTravelerLabel,
+  selectRescuedTravelerDialogueOption
+} from "./rescuedTravelerQuest.js";
+import { isRemoteCastawayShore } from "./remoteShore.js";
+import {
   BASIC_WHALE_HARPOON_ID,
   resolveWhaleHarpoon,
   whaleHarpoonHitChance
@@ -236,6 +309,7 @@ import {
 import {
   createItemAcquisitionBurst,
   createItemAcquisitionEffect,
+  createItemDepartureEffect,
   itemAcquisitionEffectComplete,
   itemAcquisitionEffectEndMs,
   itemAcquisitionEffectFrame
@@ -281,6 +355,7 @@ import {
   CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_COMPLETE,
   CAMPAIGN_GOAL_WHITE_WHALE,
   campaignGoalTypeForCharacter,
   campaignGoalDestination,
@@ -288,6 +363,7 @@ import {
   campaignDialogueView,
   campaignGoalIntroSteps,
   campaignGoalLabel,
+  campaignGoalPresentation,
   campaignHomecomingSteps,
   campaignVictorySummary,
   createCampaignDialogueSession,
@@ -300,6 +376,10 @@ import {
   recordWhiteWhaleSighting,
   selectCampaignDialogueOption
 } from "./campaignGoals.js";
+import {
+  campaignRomanceDialogueSteps,
+  createCampaignVictoryRomance
+} from "./campaignRomance.js";
 import {
   CHEAT_COMMAND_DISCOVER_ALL,
   CHEAT_COMMAND_MILLION_DOUBLOONS,
@@ -534,12 +614,14 @@ import {
 import {
   GAME_ICON_ASSET_VERSION,
   GAME_ICON_SIZE,
+  achievementStatusIconId,
   dialogueOptionIconId,
   gameIconAtlasDimensions,
   gameIconAtlasRect,
   gameIconDrawRect,
   gameIconIds,
   menuLabelIconId,
+  perkItemIconId,
   startMenuIconId,
   tradeGoodIconId
 } from "./gameIcons.js";
@@ -567,7 +649,23 @@ import {
   createAutomaticFrameStepper,
   createCaptureDirector
 } from "./captureDirector.js";
-import { isShareScreenshotKey, saveShareScreenshot } from "./screenshotExport.js";
+import { saveShareScreenshot } from "./screenshotExport.js";
+import {
+  KEY_ACTION,
+  KEY_ACTION_DEFINITIONS,
+  KEY_BINDING_SLOT_COUNT,
+  clearKeyBinding,
+  createDefaultKeyBindings,
+  createHeldKeyActions,
+  isSteeringKeyAction,
+  keyActionDefinition,
+  keyActionForEvent,
+  keyBindingLabel,
+  keyboardBindingToken,
+  loadKeyBindings,
+  rebindKey,
+  saveKeyBindings
+} from "./keyBindings.js";
 import {
   MINIMAP_LONGITUDE_BIN_COUNT,
   exploredMinimapViewport,
@@ -681,6 +779,7 @@ import {
   diplomacyBetween,
   factionById,
   factionHasFlag,
+  factionNounPhrase,
   migrateFactionIdTo1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
@@ -812,6 +911,7 @@ import {
   COLONIZATION_STAGE_DEFEND,
   COLONIZATION_STAGE_ESTABLISHED,
   COLONIZATION_STAGE_FAILED,
+  COLONIZATION_STAGE_OUTBOUND,
   COLONIZATION_STAGE_REPORT_DEFENSE,
   COLONIZATION_STAGE_READY,
   advanceColonizationQuest,
@@ -858,6 +958,7 @@ import {
   fishingActionPresentation,
   fishingAnimationState,
   fishingCatchChance,
+  fishingCatchQuantity,
   fishingCatchSucceeds,
   fishingSideForTarget
 } from "./fishingAction.js";
@@ -970,6 +1071,15 @@ import {
   markCaribbeanGingerOfferSeen,
   maybeSpawnCaribbeanGingerQuest
 } from "./caribbeanGingerQuest.js";
+import {
+  CHEF_QUEST_STAGE_RECRUITED,
+  CHEF_QUEST_STAGE_RECRUITMENT,
+  chefQuestOfferShouldApproach,
+  chefQuestState,
+  markChefQuestOfferSeen,
+  maybeSpawnChefQuest,
+  recruitChef
+} from "./chefQuest.js";
 import {
   beaverCatchNarrative,
   beaverCatchYield,
@@ -1137,6 +1247,7 @@ const CANNON_SPEED_PX = 88;
 const CANNON_AIM_SPREAD_RAD = 0.18;
 const CANNON_ARC_HEIGHT_PX = 13;
 const CANNON_TRAIL_MAX_PX = 3;
+const CANNONBALL_SIZE_PX = 2;
 const CANNON_SPLASH_TTL_SECONDS = 0.46;
 const CANNON_SPLASH_DROP_COUNT = 6;
 const NAVAL_MAX_PROJECTILES = 160;
@@ -1343,7 +1454,7 @@ const SHIP_INFO_SIDE_VIEW_H = 104;
 const DIALOGUE_PORTRAIT_SIZE = 64;
 const DIALOGUE_OPTION_H = 24;
 let PLAYER_INTRO_PANEL_W = 326;
-let PLAYER_INTRO_PANEL_H = 194;
+let PLAYER_INTRO_PANEL_H = 220;
 let PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
 let PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
 const PLAYER_INTRO_BUTTON_W = 150;
@@ -1467,15 +1578,20 @@ const SHIP_INFO_BUTTON_Y = OPTIONS_BUTTON_Y;
 let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
-const OPTIONS_PANEL_H = 228;
-const OPTIONS_ROW_H = 30;
-const OPTIONS_ROW_COUNT = 6;
+const OPTIONS_PANEL_H = 246;
+const OPTIONS_ROW_H = 27;
+const OPTIONS_ROW_COUNT = 7;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_LANGUAGE = 4;
-const OPTIONS_ROW_START_MENU = 5;
+const OPTIONS_ROW_CONTROLS = 5;
+const OPTIONS_ROW_START_MENU = 6;
+const KEY_BINDINGS_PANEL_MAX_W = 410;
+const KEY_BINDINGS_PANEL_H = 246;
+const KEY_BINDINGS_ROW_H = 23;
+const KEY_BINDINGS_PAGE_SIZE = 7;
 const UI_ICON_BUTTON_SIZE = 24;
 const UI_PAGER_BUTTON_W = 30;
 const UI_PAGER_BUTTON_H = 24;
@@ -1499,7 +1615,7 @@ const CAPTAIN_MENU_PANEL_H = 420;
 const ABOARD_MENU_PANEL_W = 420;
 const ABOARD_MENU_PANEL_H = 420;
 const ABOARD_NAMED_TILE_MIN_W = 76;
-const ABOARD_NAMED_TILE_H = 86;
+const ABOARD_NAMED_TILE_H = 106;
 const ABOARD_GENERIC_TILE_MIN_W = 52;
 const ABOARD_GENERIC_TILE_H = 42;
 const ABOARD_GENERIC_FRAME_SIZE = 22;
@@ -1831,7 +1947,8 @@ const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: red
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
 const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
 
-const keys = new Set();
+let keyBindings = loadKeyBindings(window.localStorage);
+const keys = createHeldKeyActions();
 const pointerSteering = {
   active: false,
   pointerId: null,
@@ -1908,10 +2025,12 @@ let shoreBatteryUpdateAccumulator = 0;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
 let portCityCharacters;
+let vikingLongshipPortFactor = null;
 let campaignGoalContact;
 let colonizationOrganizer;
 let japaneseMatchlockGunsmith;
 let caribbeanGingerPlanter;
+let banquetChef;
 let colonizationTargetTileId = null;
 let colonizationTargetPlacements = [];
 let portSailingDistances;
@@ -1926,6 +2045,7 @@ const cityOpaquePixelCache = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
+const landRoadLayerCache = new WeakMap();
 const npcOffshoreClearanceCache = new Map();
 let npcOffshoreClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
@@ -1980,6 +2100,9 @@ let backgroundMusicTrackKey = "ship";
 let combatMusicUntilMs = 0;
 let gameAudioActivationAllowed = false;
 let gameState = null;
+let playerPerkTotalsCache = null;
+let playerEffectiveShipStatsCache = null;
+let playerNavalWeaponCache = null;
 let dialogueState = null;
 let dialogueLayout = createDialogueLayoutState();
 let startMenu = null;
@@ -2034,7 +2157,7 @@ let combatNotice = null;
 let gameOverReason = null;
 let gameOverState = null;
 let worldShipSinkEffects = [];
-const portraitCanvasCache = new Map();
+const portraitFrameStore = createPortraitFrameStore();
 const portraitPromiseCache = new Map();
 const grayscalePortraitCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
@@ -2087,7 +2210,13 @@ document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
 screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 
 window.addEventListener("keydown", (event) => {
-  if (isShareScreenshotKey(event)) {
+  if (optionsMenu.isOpen && optionsMenu.bindingCapture) {
+    ensureGameAudioStarted(true);
+    handleOptionsKeyDown(event);
+    return;
+  }
+  const keyAction = keyActionForEvent(keyBindings, event);
+  if (keyAction === KEY_ACTION.SCREENSHOT) {
     event.preventDefault();
     if (!event.repeat) {
       void saveShareScreenshot(canvas)
@@ -2101,13 +2230,13 @@ window.addEventListener("keydown", (event) => {
   }
   if (handleCheatCodeKeyDown(event)) return;
   ensureGameAudioStarted(true);
-  if (isControlKey(event.key)) sailingTutorialInputMode = "keyboard";
+  if (isSteeringKeyAction(keyAction)) sailingTutorialInputMode = "keyboard";
   if (lakeBattleMode && optionsMenu.isOpen) {
     handleOptionsKeyDown(event);
     return;
   }
   if (lakeBattleMode) {
-    handleLakeBattleKeyDown(event);
+    handleLakeBattleKeyDown(event, keyAction);
     return;
   }
   if (elDoradoTreasureSequence) {
@@ -2115,17 +2244,17 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (dispatchWorldOverlayKey(event)) return;
-  if (event.key === "Escape") {
+  if (keyAction === KEY_ACTION.CAPTAIN_MENU) {
     event.preventDefault();
     openCaptainMenu();
     return;
   }
-  if (event.key === "i" || event.key === "I") {
+  if (keyAction === KEY_ACTION.SHIP_INFO) {
     event.preventDefault();
     openShipInfoMenu();
     return;
   }
-  if (event.key === "p" || event.key === "P") {
+  if (keyAction === KEY_ACTION.POLITICS) {
     event.preventDefault();
     openPoliticsMenu();
     return;
@@ -2136,26 +2265,27 @@ window.addEventListener("keydown", (event) => {
     handleDebugWeatherControl(weatherControl);
     return;
   }
-  if (isCannonKey(event.key)) {
+  if (keyAction === KEY_ACTION.FIRE_PORT || keyAction === KEY_ACTION.FIRE_STARBOARD) {
     event.preventDefault();
-    if (!event.repeat) fireBroadside(cannonSideForKey(event.key));
+    if (!event.repeat) fireBroadside(
+      keyAction === KEY_ACTION.FIRE_PORT ? "port" : "starboard"
+    );
     return;
   }
-  if (isInteractionKey(event.key)) {
+  if (keyAction === KEY_ACTION.INTERACT) {
     if (openActiveInteractionDialogue()) event.preventDefault();
     return;
   }
-  if (isControlKey(event.key)) {
+  if (isSteeringKeyAction(keyAction)) {
     event.preventDefault();
     if (signalBlockedDepartureControl()) return;
-    keys.add(event.key);
+    keys.press(event.code, keyAction);
   }
 });
 
 window.addEventListener("keyup", (event) => {
-  if (isControlKey(event.key)) {
+  if (keys.release(event.code)) {
     event.preventDefault();
-    keys.delete(event.key);
   }
 });
 
@@ -3608,6 +3738,7 @@ function updateWorldSpriteAnimation(nowMs) {
 function createOptionsMenuState() {
   return {
     isOpen: false,
+    view: "settings",
     language: currentLanguage,
     musicVolume: loadStoredVolume(MUSIC_VOLUME_STORAGE_KEY, MUSIC_DEFAULT_VOLUME),
     sfxVolume: loadStoredVolume(SFX_VOLUME_STORAGE_KEY, SFX_DEFAULT_VOLUME),
@@ -3623,7 +3754,17 @@ function createOptionsMenuState() {
     rowRects: [],
     sliderRects: {},
     sliderHitRects: {},
-    muteRect: null
+    muteRect: null,
+    bindingPage: 0,
+    bindingSelectedIndex: 0,
+    bindingSelectedSlot: 0,
+    bindingCapture: null,
+    bindingFeedback: null,
+    bindingSlotRects: [],
+    bindingBackRect: null,
+    bindingResetRect: null,
+    bindingPreviousRect: null,
+    bindingNextRect: null
   };
 }
 
@@ -3659,11 +3800,15 @@ function createCaptainMenuState() {
 function createAboardMenuState() {
   return {
     isOpen: false,
+    selectedNamedId: null,
+    focusedNamedId: null,
     scrollY: 0,
     maxScrollY: 0,
     viewportHeight: 1,
     panelRect: null,
     closeButtonRect: null,
+    backButtonRect: null,
+    namedEntryRects: [],
     scrollUpRect: null,
     scrollDownRect: null
   };
@@ -3747,7 +3892,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
   buttonLabel = "CONTINUE"
 } = {}) {
   if (!character) throw new Error("Character alert requires a character");
-  if (!["alert", "demo-limit"].includes(kind)) throw new Error(`Unknown character alert kind: ${kind}`);
+  if (!["alert", "birthday", "demo-limit"].includes(kind)) throw new Error(`Unknown character alert kind: ${kind}`);
   if (typeof buttonLabel !== "string" || buttonLabel.trim() === "") {
     throw new Error("Character alert requires a button label");
   }
@@ -3809,9 +3954,29 @@ function openCaptainAlertModal(message, expressionId = "neutral") {
   return openCharacterAlertModal(gameState?.playerCharacter || null, message, expressionId);
 }
 
-function openCharacterAlertModal(character, message, expressionId = "neutral") {
+function openCrewAlertModal(message, expressionId = "neutral") {
+  if (!gameState) return false;
+  const speakers = [gameState.playerCharacter, ...namedCrewMembers(gameState)].filter(Boolean);
+  if (speakers.length === 0) return false;
+  return openCharacterAlertModal(
+    speakers[Math.floor(Math.random() * speakers.length)],
+    message,
+    expressionId
+  );
+}
+
+function presentPendingNamedCrewDeathNotice() {
+  if (!gameState || captainAlertModal || gameOverReason) return false;
+  const notice = pendingNamedCrewDeathNotice(gameState);
+  if (!notice) return false;
+  const opened = openCharacterAlertModal(notice.character, notice.lastWords, "sad");
+  if (opened) consumeNamedCrewDeathNotice(gameState);
+  return opened;
+}
+
+function openCharacterAlertModal(character, message, expressionId = "neutral", options = {}) {
   if (!character || captainAlertModal || gameOverReason) return false;
-  captainAlertModal = createCharacterAlertModal(character, message, expressionId);
+  captainAlertModal = createCharacterAlertModal(character, message, expressionId, options);
   stopShipForDialogue();
   const expression = characterExpression(character, expressionId);
   void ensureCharacterPortraitLoaded(character, expression);
@@ -4124,11 +4289,13 @@ function playerPortraitSourceExclusions(playerCharacter) {
   return [playerCharacter.sourceId];
 }
 
-function assignPortCharactersForPlayer(playerCharacter) {
+function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = []) {
+  if (!Array.isArray(permanentNamedCrew)) throw new Error("Port character assignment requires named crew");
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
   colonizationOrganizer = null;
   japaneseMatchlockGunsmith = null;
   caribbeanGingerPlanter = null;
+  banquetChef = null;
   usedCharacterNames = new Set([playerCharacter.name]);
   portCityCharacters = assignPortCityCharacters(
     portCities,
@@ -4139,19 +4306,34 @@ function assignPortCharactersForPlayer(playerCharacter) {
 
   const vikingLongshipPort = portCities.find(isVikingLongshipQuestPort);
   if (!vikingLongshipPort) throw new Error("Hafnarfjordur is missing from the dockable 1522 port roster");
-  const replacedVikingPortFactor = portCityCharacters.get(vikingLongshipPort.tileId);
-  if (!replacedVikingPortFactor) throw new Error("Hafnarfjordur has no generated port factor to replace");
-  usedCharacterNames.delete(replacedVikingPortFactor.name);
+  vikingLongshipPortFactor = portCityCharacters.get(vikingLongshipPort.tileId);
+  if (!vikingLongshipPortFactor) throw new Error("Hafnarfjordur has no generated port factor to replace");
+  usedCharacterNames.delete(vikingLongshipPortFactor.name);
   const vikingCharacterSourceId = playerSourceIds.includes(VIKING_LONGSHIP_CHARACTER_SOURCE_ID)
     ? VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID
     : VIKING_LONGSHIP_CHARACTER_SOURCE_ID;
-  portCityCharacters.set(vikingLongshipPort.tileId, assignPortCityCharacterFromSource(
+  const vikingEnthusiast = assignPortCityCharacterFromSource(
     vikingLongshipPort,
     vikingCharacterSourceId,
     characterPortraitManifest,
     usedCharacterNames,
     { excludedSourceIds: playerSourceIds }
-  ));
+  );
+  const enthusiast = Object.freeze({
+    ...vikingEnthusiast,
+    role: "historical-enthusiast",
+    skillIds: characterSkillIdsForIdentity(
+      `viking-enthusiast|${vikingLongshipPort.tileId}|${vikingEnthusiast.id}`,
+      { traveler: true }
+    )
+  });
+  const enthusiastAboard = permanentNamedCrew.some((member) => member.id === enthusiast.id);
+  if (enthusiastAboard) {
+    portCityCharacters.set(vikingLongshipPort.tileId, vikingLongshipPortFactor);
+    usedCharacterNames.add(vikingLongshipPortFactor.name);
+  } else {
+    portCityCharacters.set(vikingLongshipPort.tileId, enthusiast);
+  }
 
 }
 
@@ -4182,10 +4364,13 @@ function closeCaptainAlertModal() {
   captainAlertModal = null;
   keys.clear();
   clearPointerSteering();
+  if (closedKind === "birthday") consumeBirthdayDialogueLine(gameState.memory.birthdays);
   if (closedKind === "demo-limit") {
     completeDemoVoyage();
     return;
   }
+  if (presentPendingNamedCrewDeathNotice()) return;
+  if (presentPendingBirthdayDialogue()) return;
   dirty = true;
 }
 
@@ -4371,6 +4556,9 @@ function dispatchWorldOverlayPointerMove(event, point) {
     } else {
       updateCaptainMenuSelectionFromPoint(point);
     }
+    dirty = true;
+  } else if (owner === INTERACTION_INPUT.ABOARD) {
+    updateAboardMenuSelectionFromPoint(point);
     dirty = true;
   } else if (owner === INTERACTION_INPUT.NAVIGATION) {
     updateNavigationMenuSelectionFromPoint(point);
@@ -5085,7 +5273,7 @@ function sailingAmbientTargets(dt) {
     windStrength: wind.strength,
     windContext: sailingWindContext(),
     angleFromWindRad,
-    stallAngleRad: ship.stats.upwindStallAngleRad
+    stallAngleRad: currentPlayerEffectiveShipStats().upwindStallAngleRad
   });
   const paused = Boolean(dialogueState || menusAreOpen() || gameOverReason);
   const rowing = !paused && playerShipIsRowing();
@@ -5306,7 +5494,7 @@ function setupPerformanceBenchmark() {
     weatherClockMinutes,
     PERFORMANCE_BENCHMARK.targetLandCarts
   );
-  ship.velocity = scaleVector(ship.heading, ship.stats.topSpeedRad * 0.62);
+  ship.velocity = scaleVector(ship.heading, currentPlayerEffectiveShipStats().topSpeedRad * 0.62);
   lastFrameMs = performance.now();
   performanceBenchmarkState = createPerformanceBenchmarkState(PERFORMANCE_BENCHMARK, lastFrameMs);
   performanceBenchmarkState.stagedCartCount = stagedCartCount;
@@ -5327,7 +5515,7 @@ function updatePerformanceBenchmark(nowMs, cpuMs) {
     nowMs,
     cpuMs,
     worldRenderCount,
-    performanceBenchmarkSceneSnapshot(state)
+    () => performanceBenchmarkSceneSnapshot(state)
   );
   if (!result) return;
   window.__PIXEL_GLOBE_BENCHMARK_RESULT__ = Object.freeze({
@@ -6450,10 +6638,10 @@ function lakeBattleInputHeading() {
   if (!battle) return null;
   let dx = 0;
   let dy = 0;
-  if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) dx -= 1;
-  if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) dx += 1;
-  if (keys.has("ArrowUp") || keys.has("w") || keys.has("W")) dy -= 1;
-  if (keys.has("ArrowDown") || keys.has("s") || keys.has("S")) dy += 1;
+  if (keys.has(KEY_ACTION.STEER_LEFT)) dx -= 1;
+  if (keys.has(KEY_ACTION.STEER_RIGHT)) dx += 1;
+  if (keys.has(KEY_ACTION.STEER_UP)) dy -= 1;
+  if (keys.has(KEY_ACTION.STEER_DOWN)) dy += 1;
   if (pointerSteering.active && pointerSteering.point) {
     const px = pointerSteering.point.x - battle.player.x;
     const py = pointerSteering.point.y - battle.player.y;
@@ -6602,7 +6790,7 @@ function lakeBattleBroadsideSideAtPoint(point) {
   return null;
 }
 
-function handleLakeBattleKeyDown(event) {
+function handleLakeBattleKeyDown(event, keyAction) {
   if (!lakeBattleMode) return;
   event.preventDefault();
   if (lakeBattleMode.loading) return;
@@ -6612,15 +6800,17 @@ function handleLakeBattleKeyDown(event) {
     return;
   }
   if (lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
-    if (event.key === "Escape") {
+    if (keyAction === KEY_ACTION.CAPTAIN_MENU) {
       lakeBattleMode.screen = LAKE_BATTLE_SCREEN_PAUSED;
       lakeBattleMode.selectedIndex = 0;
       keys.clear();
       clearPointerSteering();
-    } else if (isCannonKey(event.key)) {
-      if (!event.repeat) fireLakeBattlePlayerBroadside(cannonSideForKey(event.key));
-    } else if (isControlKey(event.key)) {
-      keys.add(event.key);
+    } else if (keyAction === KEY_ACTION.FIRE_PORT || keyAction === KEY_ACTION.FIRE_STARBOARD) {
+      if (!event.repeat) fireLakeBattlePlayerBroadside(
+        keyAction === KEY_ACTION.FIRE_PORT ? "port" : "starboard"
+      );
+    } else if (isSteeringKeyAction(keyAction)) {
+      keys.press(event.code, keyAction);
     }
     dirty = true;
     return;
@@ -6805,9 +6995,16 @@ async function restoreSavedVoyage(payload) {
   };
   const stats = shipStatsForSlug(savedShip.typeSlug);
   const restoredGameState = migrateGameState(payload.gameState, stats);
+  const correctedPortraitSexCount = reconcileCharacterPortraitSexes(
+    restoredGameState,
+    characterPortraitManifest
+  );
+  if (correctedPortraitSexCount > 0) {
+    console.info("[pixel-globe] corrected portrait sex metadata for saved characters:", correctedPortraitSexCount);
+  }
   ensureWhalePopulation(restoredGameState.memory.whales);
   factionById(savedShip.factionId);
-  if (restoredGameState.cargoCapacity !== stats.cargoCapacity) {
+  if (restoredGameState.ship.baseCargoCapacity !== stats.cargoCapacity) {
     throw new Error("Saved ship capacity does not match its hull");
   }
   if (!Number.isInteger(savedShip.tileId) || !isShipBaseNavigableTile(savedShip.tileId)) {
@@ -6930,7 +7127,7 @@ async function restoreSavedVoyage(payload) {
   keys.clear();
   clearPointerSteering();
 
-  assignPortCharactersForPlayer(gameState.playerCharacter);
+  assignPortCharactersForPlayer(gameState.playerCharacter, namedCrewMembers(gameState));
   for (const character of pirateHideoutCharacters.values()) usedCharacterNames.add(character.name);
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
   npcShipCaptains = assignNpcShipCaptains(
@@ -6998,6 +7195,7 @@ function currentAchievementSnapshot() {
       .map((entry) => entry.goodId))]
     : [];
   const currentShipSlug = state ? ship?.stats?.slug || ship?.typeSlug || null : null;
+  const visitedPortCount = state ? achievementVisitedPortCount(state) : 0;
   return {
     discoveryIds: state ? [...state.memory.discoveryOrder] : [],
     discoveryCatalogIds: discoveryCatalog.map((entry) => entry.id),
@@ -7022,8 +7220,39 @@ function currentAchievementSnapshot() {
     )).length,
     acquiredShips: ledger.filter((entry) => entry.kind === "ship").length,
     shoreScavengeCompleted: state?.memory?.flags?.achievementShoreScavengeCompleted === true,
-    defeatedShip: state?.memory?.flags?.achievementDefeatedShip === true
+    defeatedShip: state?.memory?.flags?.achievementDefeatedShip === true,
+    mappedPercent: state ? Math.floor(mappedPercentForState(state)) : 0,
+    hawaiiVisited: state ? achievementHawaiiVisited(state) : false,
+    pirateCaptivesBroughtHome: state?.memory?.quests?.pirateCaptive?.completedCount || 0,
+    castawaysBroughtHome: state?.memory?.quests?.castaway?.completedCount || 0,
+    visitedPortCount,
+    capturedPortCount: state
+      ? state.memory.conquest.events.filter((entry) => entry.source === "player").length
+      : 0,
+    namedCrewCount: state ? namedCrewMembers(state).length : 0,
+    specialEquipmentCount: state
+      ? Object.values(state.inventory.items).filter((quantity) => quantity === 1).length
+      : 0,
+    fullCrew: Boolean(
+      state?.ship &&
+      state.ship.crewCapacity >= 10 &&
+      state.ship.crew === state.ship.crewCapacity
+    ),
+    campaignVictory: state?.memory?.campaignGoal?.status === CAMPAIGN_GOAL_COMPLETE
   };
+}
+
+function achievementVisitedPortCount(state) {
+  return Object.values(state.memory.visitedPorts)
+    .filter((memory) => Number.isInteger(memory?.visits) && memory.visits > 0)
+    .length;
+}
+
+function achievementHawaiiVisited(state) {
+  const hawaii = portCities.find((city) => city.city === "Hawaii Village" && city.country === "Hawaii");
+  if (!hawaii) throw new Error("Hawaii Village is missing from the 1522 port catalog");
+  const portId = hawaii.portId || `city-${hawaii.tileId}`;
+  return (state.memory.visitedPorts[portId]?.visits || 0) > 0;
 }
 
 function syncAchievementsFromGameState(event = null) {
@@ -7226,8 +7455,11 @@ function openOptionsMenu() {
   closeCreditsMenu();
   closePastVoyagesMenu();
   optionsMenu.isOpen = true;
+  optionsMenu.view = "settings";
   optionsMenu.selectedIndex = 0;
   optionsMenu.activeSliderKey = null;
+  optionsMenu.bindingCapture = null;
+  optionsMenu.bindingFeedback = null;
   optionsMenu.returnError = null;
   keys.clear();
   clearPointerSteering();
@@ -7374,20 +7606,42 @@ function handleAchievementsKeyDown(event) {
 function handleAboardMenuKeyDown(event) {
   event.preventDefault();
   if (event.key === "Escape") {
+    if (aboardMenu.selectedNamedId) {
+      aboardMenu.selectedNamedId = null;
+      aboardMenu.backButtonRect = null;
+      dirty = true;
+      return;
+    }
     closeAboardMenu();
     return;
   }
+  if (aboardMenu.selectedNamedId) return;
+  if (event.key === "Enter" || event.key === " ") {
+    openFocusedAboardCharacter();
+    return;
+  }
   if (event.key === "Home") {
-    setAboardMenuScroll(0);
+    focusAboardCharacterAtIndex(0);
     return;
   }
   if (event.key === "End") {
-    setAboardMenuScroll(aboardMenu.maxScrollY);
+    focusAboardCharacterAtIndex(currentAboardRoster().named.length - 1);
     return;
   }
-  if (["ArrowUp", "ArrowDown", "PageUp", "PageDown"].includes(event.key)) {
-    const direction = event.key === "ArrowDown" || event.key === "PageDown" ? 1 : -1;
+  if (["PageUp", "PageDown"].includes(event.key)) {
+    const direction = event.key === "PageDown" ? 1 : -1;
     scrollAboardMenu(direction, event.key === "PageUp" || event.key === "PageDown");
+    return;
+  }
+  const direction = event.key === "ArrowLeft"
+    ? "left"
+    : event.key === "ArrowRight"
+      ? "right"
+      : event.key === "ArrowUp"
+        ? "up"
+        : event.key === "ArrowDown" ? "down" : null;
+  if (direction) {
+    stepAboardCharacterFocus(direction);
   }
 }
 
@@ -7423,13 +7677,21 @@ function handleNavigationMenuKeyDown(event) {
 
 function closeOptionsMenu() {
   optionsMenu.isOpen = false;
+  optionsMenu.view = "settings";
   optionsMenu.activeSliderKey = null;
+  optionsMenu.bindingCapture = null;
+  optionsMenu.bindingFeedback = null;
   optionsMenu.panelRect = null;
   optionsMenu.closeButtonRect = null;
   optionsMenu.rowRects = [];
   optionsMenu.sliderRects = {};
   optionsMenu.sliderHitRects = {};
   optionsMenu.muteRect = null;
+  optionsMenu.bindingSlotRects = [];
+  optionsMenu.bindingBackRect = null;
+  optionsMenu.bindingResetRect = null;
+  optionsMenu.bindingPreviousRect = null;
+  optionsMenu.bindingNextRect = null;
   optionsMenu.returnError = null;
   dirty = true;
 }
@@ -7507,11 +7769,16 @@ function openAboardMenu() {
   closePoliticsMenu();
   closeNavigationMenu();
   aboardMenu.isOpen = true;
+  aboardMenu.selectedNamedId = null;
   aboardMenu.scrollY = 0;
   aboardMenu.maxScrollY = 0;
   aboardMenu.scrollUpRect = null;
   aboardMenu.scrollDownRect = null;
+  aboardMenu.backButtonRect = null;
+  aboardMenu.namedEntryRects = [];
   const roster = currentAboardRoster();
+  if (roster.named.length === 0) throw new Error("Aboard roster has no named characters");
+  aboardMenu.focusedNamedId = roster.named[0].id;
   for (const entry of roster.named) {
     dialoguePortraitImage(entry.character, characterExpression(entry.character, "neutral"));
   }
@@ -7522,8 +7789,12 @@ function openAboardMenu() {
 
 function closeAboardMenu() {
   aboardMenu.isOpen = false;
+  aboardMenu.selectedNamedId = null;
+  aboardMenu.focusedNamedId = null;
   aboardMenu.panelRect = null;
   aboardMenu.closeButtonRect = null;
+  aboardMenu.backButtonRect = null;
+  aboardMenu.namedEntryRects = [];
   aboardMenu.scrollUpRect = null;
   aboardMenu.scrollDownRect = null;
   dirty = true;
@@ -7690,6 +7961,10 @@ function activateCaptainMenuSelection(index) {
 
 function handleOptionsKeyDown(event) {
   event.preventDefault();
+  if (optionsMenu.view === "bindings") {
+    handleKeyBindingsKeyDown(event);
+    return;
+  }
   if (event.key === "Escape") {
     closeOptionsMenu();
     return;
@@ -7717,12 +7992,151 @@ function handleOptionsKeyDown(event) {
     if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
       setInterfaceLanguage(nextLanguage(currentLanguage));
     }
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS) openKeyBindingsMenu();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) returnToStartMenuFromOptions();
     return;
   }
   if (event.key === "m" || event.key === "M") {
     toggleAudioMuted();
   }
+}
+
+function handleKeyBindingsKeyDown(event) {
+  if (optionsMenu.bindingCapture) {
+    if (event.repeat) return;
+    assignCapturedKeyBinding(event);
+    return;
+  }
+  if (event.key === "Escape") {
+    closeKeyBindingsMenu();
+    return;
+  }
+  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    stepKeyBindingSelection(event.key === "ArrowDown" ? 1 : -1);
+    return;
+  }
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    optionsMenu.bindingSelectedSlot = event.key === "ArrowRight" ? 1 : 0;
+    dirty = true;
+    return;
+  }
+  if (event.key === "PageUp" || event.key === "PageDown") {
+    stepKeyBindingsPage(event.key === "PageDown" ? 1 : -1);
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    startKeyBindingCapture(optionsMenu.bindingSelectedIndex, optionsMenu.bindingSelectedSlot);
+    return;
+  }
+  if (event.key === "Backspace" || event.key === "Delete") {
+    clearSelectedKeyBinding();
+    return;
+  }
+  if (event.key === "r" || event.key === "R") resetAllKeyBindings();
+}
+
+function openKeyBindingsMenu() {
+  optionsMenu.view = "bindings";
+  optionsMenu.bindingPage = Math.floor(optionsMenu.bindingSelectedIndex / KEY_BINDINGS_PAGE_SIZE);
+  optionsMenu.bindingCapture = null;
+  optionsMenu.bindingFeedback = null;
+  optionsMenu.activeSliderKey = null;
+  keys.clear();
+  dirty = true;
+}
+
+function closeKeyBindingsMenu() {
+  optionsMenu.view = "settings";
+  optionsMenu.bindingCapture = null;
+  optionsMenu.bindingFeedback = null;
+  optionsMenu.bindingSlotRects = [];
+  optionsMenu.bindingBackRect = null;
+  optionsMenu.bindingResetRect = null;
+  optionsMenu.bindingPreviousRect = null;
+  optionsMenu.bindingNextRect = null;
+  dirty = true;
+}
+
+function keyBindingsPageCount() {
+  return Math.max(1, Math.ceil(KEY_ACTION_DEFINITIONS.length / KEY_BINDINGS_PAGE_SIZE));
+}
+
+function stepKeyBindingSelection(direction) {
+  optionsMenu.bindingSelectedIndex = stepMenuIndex(
+    optionsMenu.bindingSelectedIndex,
+    direction,
+    KEY_ACTION_DEFINITIONS.length
+  );
+  optionsMenu.bindingPage = Math.floor(optionsMenu.bindingSelectedIndex / KEY_BINDINGS_PAGE_SIZE);
+  optionsMenu.bindingFeedback = null;
+  dirty = true;
+}
+
+function stepKeyBindingsPage(direction) {
+  optionsMenu.bindingPage = stepMenuIndex(
+    optionsMenu.bindingPage,
+    direction,
+    keyBindingsPageCount()
+  );
+  optionsMenu.bindingSelectedIndex = Math.min(
+    KEY_ACTION_DEFINITIONS.length - 1,
+    optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE
+  );
+  optionsMenu.bindingFeedback = null;
+  dirty = true;
+}
+
+function startKeyBindingCapture(actionIndex, slotIndex) {
+  const definition = KEY_ACTION_DEFINITIONS[actionIndex];
+  if (!definition) throw new Error(`Cannot capture key for unknown action row: ${actionIndex}`);
+  if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= KEY_BINDING_SLOT_COUNT) {
+    throw new Error(`Cannot capture invalid key slot: ${slotIndex}`);
+  }
+  optionsMenu.bindingSelectedIndex = actionIndex;
+  optionsMenu.bindingSelectedSlot = slotIndex;
+  optionsMenu.bindingCapture = { actionId: definition.id, slotIndex };
+  optionsMenu.bindingFeedback = "PRESS ANY KEY";
+  keys.clear();
+  dirty = true;
+}
+
+function assignCapturedKeyBinding(event) {
+  const capture = optionsMenu.bindingCapture;
+  if (!capture) throw new Error("Cannot assign a key without an active binding capture");
+  const token = keyboardBindingToken(event);
+  const result = rebindKey(keyBindings, capture.actionId, capture.slotIndex, token);
+  persistKeyBindings(result.bindings);
+  optionsMenu.bindingCapture = null;
+  if (result.displaced) {
+    const displaced = keyActionDefinition(result.displaced.actionId);
+    optionsMenu.bindingFeedback = `MOVED FROM ${displaced.label}`;
+  } else {
+    optionsMenu.bindingFeedback = `${keyBindingLabel(token, navigator.platform)} ASSIGNED`;
+  }
+  dirty = true;
+}
+
+function clearSelectedKeyBinding() {
+  const definition = KEY_ACTION_DEFINITIONS[optionsMenu.bindingSelectedIndex];
+  if (!definition) throw new Error("Cannot clear an unknown key action");
+  const next = clearKeyBinding(keyBindings, definition.id, optionsMenu.bindingSelectedSlot);
+  persistKeyBindings(next);
+  optionsMenu.bindingFeedback = "BINDING CLEARED";
+  keys.clear();
+  dirty = true;
+}
+
+function resetAllKeyBindings() {
+  persistKeyBindings(createDefaultKeyBindings());
+  optionsMenu.bindingCapture = null;
+  optionsMenu.bindingFeedback = "DEFAULTS RESTORED";
+  keys.clear();
+  dirty = true;
+}
+
+function persistKeyBindings(nextBindings) {
+  saveKeyBindings(window.localStorage, nextBindings);
+  keyBindings = nextBindings;
 }
 
 function handleStartMenuKeyDown(event) {
@@ -8118,6 +8532,10 @@ function clearPointerSteering() {
 }
 
 function handleOptionsPointerDown(point) {
+  if (optionsMenu.view === "bindings") {
+    handleKeyBindingsPointerDown(point);
+    return;
+  }
   updateOptionsSelectionFromPoint(point);
   if (pointInRect(point, optionsMenu.closeButtonRect)) {
     closeOptionsMenu();
@@ -8144,9 +8562,43 @@ function handleOptionsPointerDown(point) {
     setInterfaceLanguage(nextLanguage(currentLanguage));
     return;
   }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROLS])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_CONTROLS;
+    openKeyBindingsMenu();
+    return;
+  }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_START_MENU])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_START_MENU;
     returnToStartMenuFromOptions();
+  }
+}
+
+function handleKeyBindingsPointerDown(point) {
+  updateOptionsSelectionFromPoint(point);
+  if (pointInRect(point, optionsMenu.closeButtonRect)) {
+    closeOptionsMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.bindingBackRect)) {
+    closeKeyBindingsMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.bindingResetRect)) {
+    resetAllKeyBindings();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.bindingPreviousRect)) {
+    stepKeyBindingsPage(-1);
+    return;
+  }
+  if (pointInRect(point, optionsMenu.bindingNextRect)) {
+    stepKeyBindingsPage(1);
+    return;
+  }
+  for (const entry of optionsMenu.bindingSlotRects) {
+    if (!pointInRect(point, entry.rect)) continue;
+    startKeyBindingCapture(entry.actionIndex, entry.slotIndex);
+    return;
   }
 }
 
@@ -8292,11 +8744,81 @@ function handleAboardMenuPointerDown(point) {
     closeAboardMenu();
     return;
   }
+  if (aboardMenu.selectedNamedId) {
+    if (pointInRect(point, aboardMenu.backButtonRect)) {
+      aboardMenu.selectedNamedId = null;
+      aboardMenu.backButtonRect = null;
+      dirty = true;
+    }
+    return;
+  }
   if (pointInRect(point, aboardMenu.scrollUpRect)) {
     scrollAboardMenu(-1, true);
     return;
   }
-  if (pointInRect(point, aboardMenu.scrollDownRect)) scrollAboardMenu(1, true);
+  if (pointInRect(point, aboardMenu.scrollDownRect)) {
+    scrollAboardMenu(1, true);
+    return;
+  }
+  const characterEntry = aboardMenu.namedEntryRects.find((entry) => pointInRect(point, entry.rect));
+  if (!characterEntry) return;
+  aboardMenu.focusedNamedId = characterEntry.entryId;
+  aboardMenu.selectedNamedId = characterEntry.entryId;
+  aboardMenu.backButtonRect = null;
+  dirty = true;
+}
+
+function updateAboardMenuSelectionFromPoint(point) {
+  if (aboardMenu.selectedNamedId) return;
+  const characterEntry = aboardMenu.namedEntryRects.find((entry) => pointInRect(point, entry.rect));
+  if (characterEntry) aboardMenu.focusedNamedId = characterEntry.entryId;
+}
+
+function openFocusedAboardCharacter() {
+  if (!aboardMenu.focusedNamedId) throw new Error("Aboard character focus is missing");
+  const roster = currentAboardRoster();
+  if (!roster.named.some((entry) => entry.id === aboardMenu.focusedNamedId)) {
+    throw new Error("Focused aboard character is no longer present: " + aboardMenu.focusedNamedId);
+  }
+  aboardMenu.selectedNamedId = aboardMenu.focusedNamedId;
+  aboardMenu.backButtonRect = null;
+  dirty = true;
+}
+
+function stepAboardCharacterFocus(direction) {
+  const roster = currentAboardRoster();
+  const layout = aboardRosterLayout(roster, aboardMenuBodyWidth());
+  const currentIndex = Math.max(
+    0,
+    layout.named.findIndex((entry) => entry.id === aboardMenu.focusedNamedId)
+  );
+  const nextIndex = stepAboardGridIndex(
+    currentIndex,
+    direction,
+    layout.named.length,
+    layout.namedColumns
+  );
+  focusAboardCharacterAtIndex(nextIndex, layout);
+}
+
+function focusAboardCharacterAtIndex(index, suppliedLayout = null) {
+  const roster = currentAboardRoster();
+  const layout = suppliedLayout || aboardRosterLayout(roster, aboardMenuBodyWidth());
+  const entry = layout.named[index];
+  if (!entry) throw new Error("Cannot focus aboard character index: " + index);
+  aboardMenu.focusedNamedId = entry.id;
+  const viewportHeight = Math.max(1, aboardMenu.viewportHeight);
+  if (entry.y < aboardMenu.scrollY) {
+    setAboardMenuScroll(entry.y);
+  } else if (entry.y + ABOARD_NAMED_TILE_H > aboardMenu.scrollY + viewportHeight) {
+    setAboardMenuScroll(entry.y + ABOARD_NAMED_TILE_H - viewportHeight);
+  } else {
+    dirty = true;
+  }
+}
+
+function aboardMenuBodyWidth() {
+  return Math.min(ABOARD_MENU_PANEL_W, SCREEN_W - 12) - 20;
 }
 
 function scrollAboardMenu(direction, page = false) {
@@ -8414,6 +8936,16 @@ function stepPoliticsPage(direction) {
 }
 
 function updateOptionsSelectionFromPoint(point) {
+  if (optionsMenu.view === "bindings") {
+    for (const entry of optionsMenu.bindingSlotRects) {
+      if (!pointInRect(point, entry.rect)) continue;
+      optionsMenu.bindingSelectedIndex = entry.actionIndex;
+      optionsMenu.bindingSelectedSlot = entry.slotIndex;
+      dirty = true;
+      return;
+    }
+    return;
+  }
   for (let i = 0; i < optionsMenu.rowRects.length; i++) {
     if (pointInRect(point, optionsMenu.rowRects[i])) {
       optionsMenu.selectedIndex = i;
@@ -8561,7 +9093,8 @@ function handleCustomLoadoutKeyDown(event) {
       dialogueState,
       portDialogueContext().shipStats,
       field.key,
-      field.value + (event.key === "ArrowRight" ? 1 : -1)
+      field.value + (event.key === "ArrowRight" ? 1 : -1),
+      permanentCrewFloor(gameState)
     );
     dirty = true;
     return;
@@ -8572,7 +9105,13 @@ function handleCustomLoadoutKeyDown(event) {
 function setCustomLoadoutFromPoint(entry, point) {
   const ratio = clamp((point.x - entry.trackRect.x) / Math.max(1, entry.trackRect.w - 1), 0, 1);
   const value = entry.min + Math.round(ratio * (entry.max - entry.min));
-  setPortCustomLoadoutValue(dialogueState, portDialogueContext().shipStats, entry.key, value);
+  setPortCustomLoadoutValue(
+    dialogueState,
+    portDialogueContext().shipStats,
+    entry.key,
+    value,
+    permanentCrewFloor(gameState)
+  );
   dirty = true;
 }
 
@@ -8664,6 +9203,22 @@ function openPortDialogue(cityCall) {
     Math.floor(weatherClockMinutes)
   );
   const conquestStatus = playerPortConquestStatus(cityCall);
+  const portUnavailable = Boolean(
+    recoveryStatus || !entryStatus.allowed || conquestStatus.canAttempt || conquestStatus.playerAssaultActive
+  );
+  const rescuedTravelerHomecoming = rescuedTravelerAtHome(cityCall);
+  if (rescuedTravelerHomecoming && portUnavailable) {
+    dialogueState = createRescuedTravelerHomecomingSession(cityCall, {
+      admittedToPort: false,
+      continueToPortOnClose: false
+    });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow("returned rescued traveler to inaccessible home port");
+    dirty = true;
+    return;
+  }
   if (recoveryStatus && !entryStatus.hostile) {
     dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "recovering" });
     dialogueLayout = createDialogueLayoutState();
@@ -8687,18 +9242,59 @@ function openPortDialogue(cityCall) {
   const arrivedDrunk = captainIsDrunkAtPort(gameState);
   if (arrivedDrunk) syncAchievementsFromGameState({ type: "arrived-in-port-drunk" });
   const needsLoadout = admitPlayerToPort(cityCall);
-  const campaignSession = createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk);
-  if (campaignSession) {
-    dialogueState = campaignSession;
+  const rescuedTravelerSession = createRescuedTravelerHomecomingSession(cityCall, {
+    admittedToPort: true,
+    continueToPortOnClose: true,
+    nextPortNodeId: needsLoadout ? "loadout" : "greeting"
+  });
+  const campaignSession = rescuedTravelerSession
+    ? null
+    : createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk);
+  if (rescuedTravelerSession || campaignSession) {
+    dialogueState = rescuedTravelerSession || campaignSession;
   } else {
     dialogueState = createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk);
   }
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
-  if (!campaignSession) openPendingDiscoveryPortDialogue();
+  if (!rescuedTravelerSession && !campaignSession) openPendingDiscoveryPortDialogue();
   saveVoyageNow("port arrival");
   dirty = true;
+}
+
+function createRescuedTravelerHomecomingSession(cityCall, {
+  admittedToPort,
+  continueToPortOnClose,
+  nextPortNodeId = "greeting"
+}) {
+  const quest = rescuedTravelerAtHome(cityCall);
+  if (!quest) return null;
+  if (quest.stage !== RESCUED_TRAVELER_STAGE_ABOARD && quest.stage !== RESCUED_TRAVELER_STAGE_HOMECOMING) {
+    throw new Error(`Rescued traveler reached home from invalid stage: ${quest.stage}`);
+  }
+  const memory = rescuedTravelerMemoryForType(quest.rescueType);
+  if (quest.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
+    const rewardItem = quest.familySurvived
+      ? prepareHighValueMissionPerkItem(gameState, cityCall, quest.id)
+      : null;
+    prepareRescuedTravelerHomecoming(memory, quest.id, rewardItem);
+  }
+  return createRescuedTravelerDialogueSession(quest, {
+    phase: "homecoming",
+    cityTileId: cityCall.tileId,
+    admittedToPort,
+    continueToPortOnClose,
+    nextPortNodeId
+  });
+}
+
+function rescuedTravelerAtHome(cityCall) {
+  if (!cityCall || !Number.isInteger(cityCall.tileId)) return null;
+  return activeRescuedTravelers().find((quest) => (
+    quest.homePortTileId === cityCall.tileId &&
+    (quest.stage === RESCUED_TRAVELER_STAGE_ABOARD || quest.stage === RESCUED_TRAVELER_STAGE_HOMECOMING)
+  )) || null;
 }
 
 function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk = false) {
@@ -8788,6 +9384,17 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       caribbeanGingerApproach: true
     });
   }
+  const chefOffer = maybeSpawnChefQuest(gameState, cityCall, { simMinute });
+  if (chefOffer && chefQuestOfferShouldApproach(gameState, cityCall) && !openDeliveryMission) {
+    ensureBanquetChef(gameState, cityCall);
+    markChefQuestOfferSeen(gameState);
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      chefQuestApproach: true
+    });
+  }
   const rumor = maybeWhiteWhaleRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
   if (rumor) {
     const nextPortNodeId = needsLoadout
@@ -8839,9 +9446,20 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
     gameState.playerCharacter,
     discoveryCatalogById
   );
-  const steps = arrivedDrunk
+  const romance = outcome.completed
+    ? createCampaignVictoryRomance({
+        captain: gameState.playerCharacter,
+        namedCrew: namedCrewMembers(gameState),
+        currentMinute: weatherClockMinutes,
+        homeLongitudeDeg: cityCall.lon
+      })
+    : null;
+  const homecomingSteps = arrivedDrunk
     ? [...drunkenCampaignHomecomingSteps(goal, gameState.playerCharacter), ...ordinarySteps]
     : ordinarySteps;
+  const steps = romance
+    ? [...homecomingSteps, ...campaignRomanceDialogueSteps(romance)]
+    : homecomingSteps;
   const session = createCampaignDialogueSession({
     cityTileId: cityCall.tileId,
     steps,
@@ -8850,9 +9468,11 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
       : goal.type,
     continueToPortOnClose: !outcome.completed,
     nextPortNodeId: needsLoadout ? "loadout" : "greeting",
-    victoryOnClose: outcome.completed
+    victoryOnClose: outcome.completed,
+    companionCharacter: romance?.companion || null
   });
   session.needsLoadout = needsLoadout;
+  session.victoryRomance = romance;
   return session;
 }
 
@@ -8865,6 +9485,7 @@ function openPendingDiscoveryPortDialogue() {
 function admitPlayerToPort(cityCall) {
   const needsLoadout = !gameState.ship?.loadoutId;
   visitPort(gameState, cityCall, Math.floor(weatherClockMinutes));
+  syncAchievementsFromGameState();
   if (needsLoadout) repairPlayerShipAtPort();
   else applyAutomaticPortServices(cityCall);
   return needsLoadout;
@@ -8899,13 +9520,16 @@ function attemptHostilePortEntry(cityCall) {
 function playerPortConquestStatus(cityCall) {
   if (!gameState?.ship || !ship) throw new Error("Port conquest requires the player ship");
   const battery = ensureShoreBatteryState(cityCall);
+  const assaultChanceBonus = currentPlayerPerkTotals().assaultChanceBonus +
+    playerAssaultCargoBonus(gameState);
   return {
     ...portConquestStatus({
     city: cityCall,
     batteryDisabled: shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes)),
     crew: gameState.ship.crew,
     crewCapacity: gameState.ship.crewCapacity,
-    attackerFactionId: ship.factionId
+      attackerFactionId: ship.factionId,
+      assaultChanceBonus
     }),
     playerAssaultActive: playerPortAssaultIsActive(
       gameState.memory.flags,
@@ -8922,12 +9546,13 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   if (!outcome.success) {
     const lost = loseCrew(gameState, outcome.crewLost);
     presentCrewLoss(lost);
+    const namedDeathPresented = presentPendingNamedCrewDeathNotice();
     syncShipCargoFromGameState();
     closeDialogue();
     showSurvivalNotice(`${lost} MARINES LOST`, "warn");
     if (gameState.ship.crew <= 0) {
       sinkPlayerShip(`The landing force was destroyed during the assault on ${cityLabelText(cityCall)}.`);
-    } else {
+    } else if (!namedDeathPresented) {
       openCaptainAlertModal(
         `${cityLabelText(cityCall)} repelled the landing. We lost ${lost} crew in the fighting.`,
         "sad"
@@ -9173,12 +9798,14 @@ function departureControlAttention(kind, nowMs) {
 function toggleAnchor() {
   if (!ship || gameOverReason || shoreScavengeAction) return false;
   if (anchored) {
+    const departureShore = nearestScavengeShoreCall();
+    if (!departureShore) throw new Error("Anchored ship has no shore when weighing anchor");
     anchored = false;
     departureControlFeedback = null;
     keys.clear();
     clearPointerSteering();
     playSailDeploySound();
-    saveVoyageNow("weighed anchor");
+    if (!maybeOpenCastawayQuest(departureShore)) saveVoyageNow("weighed anchor");
     dirty = true;
     return true;
   }
@@ -9261,7 +9888,8 @@ function updateShoreScavenge(nowMs) {
   if (!shoreScavengeAction || nowMs < shoreScavengeAction.completesAtMs) return false;
   const action = shoreScavengeAction;
   const context = action.context;
-  const crewMultiplier = playerCrewWorkMultiplier();
+  const perks = currentPlayerPerkTotals();
+  const crewMultiplier = playerCrewWorkMultiplier() * perks.scavengingChanceMultiplier;
   shoreScavengeAction = null;
   if (action.beaverRange && rollBeaverCatch(action.beaverRange, Math.random, crewMultiplier)) {
     resolveBeaverScavenge();
@@ -9283,11 +9911,11 @@ function updateShoreScavenge(nowMs) {
     if (found > 0) {
       playScavengeSuccessSound();
       showSurvivalNotice(`CAUGHT ${article.toUpperCase()} ${bird.name.toUpperCase()}  FOOD +${found}`, "good");
-      openCaptainAlertModal(`${narrative} We gained ${found} food.`, "happy");
+      openCrewAlertModal(`${narrative} We gained ${found} food.`, "happy");
     } else {
       playScavengeFailureSound();
       showSurvivalNotice(`CAUGHT ${article.toUpperCase()} ${bird.name.toUpperCase()}  HOLD FULL`, "warn");
-      openCaptainAlertModal(`${narrative} There was no room in the hold.`, "concerned");
+      openCrewAlertModal(`${narrative} There was no room in the hold.`, "concerned");
     }
   } else {
     resolveOrdinaryShoreScavenge(outcome, context);
@@ -9313,14 +9941,15 @@ function shoreScavengeNeeds() {
 
 function resolveBeaverScavenge() {
   const result = beaverCatchYield();
+  const yieldMultiplier = currentPlayerPerkTotals().scavengingYieldMultiplier;
   const pelts = receiveScavengedTradeGood(
     gameState,
     BEAVER_PELTS_GOOD_ID,
-    result.pelts,
+    Math.max(1, Math.round(result.pelts * yieldMultiplier)),
     "river beaver",
     { simMinute: Math.floor(weatherClockMinutes) }
   ).quantity;
-  const food = stowForagedFood(gameState, result.foodRations);
+  const food = stowForagedFood(gameState, Math.max(1, Math.round(result.foodRations * yieldMultiplier)));
   const narrative = beaverCatchNarrative();
   const rewards = [];
   if (pelts > 0) rewards.push(`${pelts} beaver ${pelts === 1 ? "pelt" : "pelts"}`);
@@ -9338,13 +9967,13 @@ function resolveBeaverScavenge() {
       pelts === 0 ? "The pelt would not fit in the hold." : null,
       food === 0 ? "There was no room to stow the meat." : null
     ].filter(Boolean).join(" ");
-    openCaptainAlertModal(`${narrative} We brought back ${joinRewardLabels(rewards)}.${discarded ? ` ${discarded}` : ""}`, "happy");
+    openCrewAlertModal(`${narrative} We brought back ${joinRewardLabels(rewards)}.${discarded ? ` ${discarded}` : ""}`, "happy");
     return;
   }
 
   playScavengeFailureSound();
   showSurvivalNotice("TRAPPED BEAVER  HOLD FULL", "warn");
-  openCaptainAlertModal(`${narrative} There was no room to carry back either meat or pelt.`, "concerned");
+  openCrewAlertModal(`${narrative} There was no room to carry back either meat or pelt.`, "concerned");
 }
 
 function joinRewardLabels(labels) {
@@ -9361,38 +9990,41 @@ function resolveOrdinaryShoreScavenge(outcome, context) {
     if (filled > 0) {
       playScavengeSuccessSound();
       showSurvivalNotice(`${noticeLabel}  WATER +${Math.ceil(filled)}`, "good");
-      openCaptainAlertModal(`${narrative} We filled the casks.`, "happy");
+      openCrewAlertModal(`${narrative} We filled the casks.`, "happy");
     } else {
       playScavengeFailureSound();
       showSurvivalNotice(`${noticeLabel}  CASKS CANNOT TAKE MORE`, "warn");
-      openCaptainAlertModal(`${narrative} Every cask was already full.`, "concerned");
+      openCrewAlertModal(`${narrative} Every cask was already full.`, "concerned");
     }
   } else if (outcome === SHORE_SCAVENGE_FOOD) {
     const noticeLabel = shoreScavengeNoticeLabel(outcome, context);
-    const found = stowForagedFood(gameState, foragedFoodQuantity());
+    const found = stowForagedFood(gameState, Math.max(1, Math.round(
+      foragedFoodQuantity() * currentPlayerPerkTotals().scavengingYieldMultiplier
+    )));
     if (found > 0) {
       playScavengeSuccessSound();
       showSurvivalNotice(`${noticeLabel}  FOOD +${found}`, "good");
-      openCaptainAlertModal(`${narrative} We gained ${found} food.`, "happy");
+      openCrewAlertModal(`${narrative} We gained ${found} food.`, "happy");
     } else {
       playScavengeFailureSound();
       showSurvivalNotice(`${noticeLabel}  HOLD FULL`, "warn");
-      openCaptainAlertModal(`${narrative} There was no room in the hold.`, "concerned");
+      openCrewAlertModal(`${narrative} There was no room in the hold.`, "concerned");
     }
   } else if (outcome === SHORE_SCAVENGE_NOTHING) {
     playScavengeFailureSound();
     showSurvivalNotice("FOUND NOTHING", "warn");
-    openCaptainAlertModal(narrative, "sad");
+    openCrewAlertModal(narrative, "sad");
   } else if (outcome === SHORE_SCAVENGE_CASUALTY) {
     const lost = loseCrew(gameState, 1);
     presentCrewLoss(lost);
+    const namedDeathPresented = presentPendingNamedCrewDeathNotice();
     playScavengeFailureSound();
     syncShipCargoFromGameState();
     showSurvivalNotice(`${lost} CREW LOST ASHORE`, "warn");
     if (gameState.ship.crew <= 0) {
       sinkPlayerShip("The last of the crew died while scavenging ashore.");
-    } else {
-      openCaptainAlertModal(narrative, "sad");
+    } else if (!namedDeathPresented) {
+      openCrewAlertModal(narrative, "sad");
     }
   }
 }
@@ -9487,7 +10119,7 @@ function stopWaitingInPort() {
 
 function handlePortWaitKeyDown(event) {
   event.preventDefault();
-  if (isControlKey(event.key)) {
+  if (isSteeringKeyAction(keyActionForEvent(keyBindings, event))) {
     signalBlockedDepartureControl();
     return;
   }
@@ -9496,6 +10128,7 @@ function handlePortWaitKeyDown(event) {
 
 function closeDialogue() {
   const wasPortDialogue = dialogueState?.kind === "port" || dialogueState?.kind === "passenger" ||
+    (dialogueState?.kind === "rescued-traveler" && dialogueState.phase === "homecoming") ||
     (dialogueState?.kind === "campaign-goal" && dialogueState.admittedToPort === true);
   const departureCity = wasPortDialogue && dialogueState.admittedToPort === true
     ? currentDialogueCity()
@@ -9515,6 +10148,7 @@ function closeDialogue() {
 function chooseDialogueOption(optionIndex) {
   let result;
   let dialogueNpcShipId = null;
+  let missionGiftCharacter = null;
   const previousNodeId = dialogueState.nodeId || null;
   const purchaseIconOrigin = dialogueState.kind === "port"
     ? dialogueOptionIconOrigin(optionIndex)
@@ -9542,6 +10176,18 @@ function chooseDialogueOption(optionIndex) {
       updateFetchQuestReadinessAlerts();
       presentPendingFetchQuestCaptainDialogue({ allowPortMarket: true });
     }
+    if (result.marketSale) {
+      spawnItemDepartureEffect(result.marketSale.good.id, purchaseIconOrigin, lastFrameMs);
+    }
+    if (result.perkItemPurchase) {
+      playCollectionDingSound();
+      spawnIconAcquisitionEffect(
+        perkItemIconId(result.perkItemPurchase.item.id),
+        purchaseIconOrigin,
+        lastFrameMs
+      );
+      showSurvivalNotice(`${result.perkItemPurchase.item.label.toUpperCase()} ACQUIRED`, "good");
+    }
     saveVoyageNow("port transaction");
     if (result.action?.type === "open-passenger") {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
@@ -9554,6 +10200,18 @@ function chooseDialogueOption(optionIndex) {
     if (["purchase-viking-longship", "accept-viking-longship-reward"].includes(result.action?.type)) {
       void acquireVikingLongship(result.action);
       return;
+    }
+    if (result.action?.type === "recruit-chef") {
+      const city = currentDialogueCity();
+      const character = ensureBanquetChef(gameState, city);
+      addNamedCrewMember(gameState, character, NAMED_CREW_ROLE_CHEF);
+      recruitChef(gameState, city);
+      dialogueState.feedback = `${character.name} joined the crew as Master Chef.`;
+      dialogueState.selectedIndex = 0;
+      syncShipCargoFromGameState();
+      playCollectionDingSound();
+      showSurvivalNotice(`${character.name.toUpperCase()} JOINED THE CREW`, "good");
+      saveVoyageNow("recruited master chef");
     }
     if (result.action?.type === "wait-in-port") {
       startWaitingInPort(currentDialogueCity());
@@ -9572,6 +10230,7 @@ function chooseDialogueOption(optionIndex) {
       saveVoyageNow("set port navigation heading");
     }
   } else if (dialogueState.kind === "passenger") {
+    missionGiftCharacter = currentDialoguePassenger().character;
     const doubloonsBefore = gameState.doubloons;
     result = selectPassengerDialogueOption(
       dialogueState,
@@ -9622,8 +10281,68 @@ function chooseDialogueOption(optionIndex) {
     }
   } else if (dialogueState.kind === "campaign-goal") {
     result = selectCampaignDialogueOption(dialogueState, optionIndex);
+  } else if (dialogueState.kind === "rescued-traveler") {
+    const { memory, quest } = activeRescuedTravelerForType(dialogueState.rescueType);
+    result = selectRescuedTravelerDialogueOption(
+      dialogueState,
+      quest,
+      memory,
+      optionIndex
+    );
+    if (result.action?.type === "accept-rescued-traveler") {
+      const aidLabels = [];
+      if (quest.rescueType === RESCUED_TRAVELER_TYPE_CASTAWAY && quest.emergencyAid) {
+        const aid = receiveCastawayShoreAid(gameState, quest.emergencyAid);
+        markCastawayEmergencyAidReceived(memory, quest.id);
+        syncShipCargoFromGameState();
+        aidLabels.push(...[
+          aid.water > 0 ? `WATER +${Math.ceil(aid.water)}` : null,
+          aid.food > 0 ? `FOOD +${aid.food}` : null
+        ].filter(Boolean));
+        if (aidLabels.length > 0) {
+          playScavengeSuccessSound();
+        }
+      }
+      showSurvivalNotice(
+        `${quest.character.name.toUpperCase()} ABOARD${aidLabels.length > 0 ? `  ${aidLabels.join("  ")}` : ""}`,
+        "good"
+      );
+      saveVoyageNow(`rescued ${rescuedTravelerLabel(quest).toLowerCase()}`);
+    } else if (result.action?.type === "decline-rescued-traveler") {
+      saveVoyageNow(`declined ${rescuedTravelerLabel(quest).toLowerCase()} rescue`);
+    } else if (result.action?.type === "complete-rescued-traveler-reunion") {
+      const city = currentDialogueCity();
+      const reward = receiveRescuedTravelerReunionReward(gameState, city, {
+        missionId: quest.id,
+        rewardDoubloons: quest.rewardDoubloons,
+        itemId: quest.rewardItemId,
+        context: { simMinute: Math.floor(weatherClockMinutes) }
+      });
+      completeRescuedTravelerQuest(memory, quest.id);
+      syncShipCargoFromGameState();
+      playCoinClinkSound();
+      presentMissionItemGift({ item: reward.item }, null, null);
+      showSurvivalNotice(`${rescuedTravelerLabel(quest)} FAMILY REUNITED  +${reward.rewardDoubloons} DB`, "good");
+      saveVoyageNow(`reunited ${rescuedTravelerLabel(quest).toLowerCase()} with family`);
+    } else if (result.action?.type === "recruit-rescued-traveler") {
+      const recruitedCharacter = {
+        ...quest.character,
+        goal: "Build a new life with this crew"
+      };
+      addNamedCrewMember(gameState, recruitedCharacter, undefined, {
+        replaceGenericWhenFull: true
+      });
+      completeRescuedTravelerQuest(memory, quest.id);
+      syncShipCargoFromGameState();
+      playCollectionDingSound();
+      showSurvivalNotice(`${quest.character.name.toUpperCase()} JOINED THE CREW`, "good");
+      saveVoyageNow(`${rescuedTravelerLabel(quest).toLowerCase()} joined crew`);
+    }
   } else {
     throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
+  }
+  if (result.missionItemGift) {
+    presentMissionItemGift(result.missionItemGift, missionGiftCharacter, purchaseIconOrigin);
   }
   if (result.action && dialogueNpcShipId) applyShipDialogueAction(dialogueNpcShipId, result.action);
   if (result.action?.type === "campaign-intro-complete") {
@@ -9635,6 +10354,28 @@ function chooseDialogueOption(optionIndex) {
     return;
   }
   if (result.closed) {
+    if (dialogueState.kind === "rescued-traveler" && dialogueState.surrenderPrize) {
+      const { npcShipId, lootSummary } = dialogueState.surrenderPrize;
+      dialogueState = null;
+      dialogueLayout = createDialogueLayoutState();
+      openSurrenderPrizeDecision(npcShipId, lootSummary);
+      return;
+    }
+    if (dialogueState.kind === "rescued-traveler" && dialogueState.phase === "homecoming") {
+      const city = currentDialogueCity();
+      const nextHomecoming = createRescuedTravelerHomecomingSession(city, {
+        admittedToPort: dialogueState.admittedToPort === true,
+        continueToPortOnClose: dialogueState.continueToPortOnClose === true,
+        nextPortNodeId: dialogueState.nextPortNodeId || "greeting"
+      });
+      if (nextHomecoming) {
+        dialogueState = nextHomecoming;
+        dialogueLayout = createDialogueLayoutState();
+        ensureDialoguePortraitLoaded();
+        dirty = true;
+        return;
+      }
+    }
     if (dialogueState.kind === "campaign-goal" && dialogueState.continueToPortOnClose) {
       continuePortDialogueAfterCampaign();
       return;
@@ -9667,17 +10408,57 @@ function dialogueOptionIconOrigin(optionIndex) {
 }
 
 function spawnItemAcquisitionEffect(goodId, origin, nowMs) {
-  itemAcquisitionEffects.push(createItemAcquisitionEffect({
+  spawnIconAcquisitionEffect(tradeGoodIconId(goodId), origin, nowMs);
+}
+
+function spawnItemDepartureEffect(goodId, origin, nowMs) {
+  itemAcquisitionEffects.push(createItemDepartureEffect({
     iconId: tradeGoodIconId(goodId),
+    startX: origin.x,
+    startY: origin.y,
+    startedAtMs: nowMs,
+    iconSize: GAME_ICON_SIZE,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H
+  }));
+  trimItemAcquisitionEffects();
+  dirty = true;
+}
+
+function spawnIconAcquisitionEffect(iconId, origin, nowMs) {
+  itemAcquisitionEffects.push(createItemAcquisitionEffect({
+    iconId,
     startX: origin.x,
     startY: origin.y,
     startedAtMs: nowMs,
     iconSize: GAME_ICON_SIZE
   }));
+  trimItemAcquisitionEffects();
+  dirty = true;
+}
+
+function trimItemAcquisitionEffects() {
   if (itemAcquisitionEffects.length > ITEM_ACQUISITION_EFFECT_LIMIT) {
     itemAcquisitionEffects.splice(0, itemAcquisitionEffects.length - ITEM_ACQUISITION_EFFECT_LIMIT);
   }
-  dirty = true;
+}
+
+function presentMissionItemGift(gift, character, origin) {
+  if (!gift?.item) throw new Error("Mission item gift presentation requires an item");
+  playCollectionDingSound();
+  showSurvivalNotice(`${gift.item.label.toUpperCase()} ACQUIRED`, "good");
+  spawnIconAcquisitionEffect(
+    perkItemIconId(gift.item.id),
+    origin || { x: SCREEN_W / 2, y: SCREEN_H / 2 },
+    lastFrameMs
+  );
+  if (character) {
+    openCharacterAlertModal(
+      character,
+      `You have done me a great service. Please take this ${gift.item.label}; it may serve you as well as you served me.`,
+      "happy"
+    );
+  }
 }
 
 function updateItemAcquisitionEffects(nowMs) {
@@ -9792,6 +10573,12 @@ async function acquireVikingLongship(action) {
       }, transactionContext);
       markVikingLongshipPurchased(gameState);
     }
+    addNamedCrewMember(gameState, city.character, NAMED_CREW_ROLE_HISTORIAN, {
+      replaceGenericWhenFull: true
+    });
+    if (!vikingLongshipPortFactor) throw new Error("Viking longship handover lost the Hafnarfjordur factor");
+    portCityCharacters.set(city.tileId, vikingLongshipPortFactor);
+    usedCharacterNames.add(vikingLongshipPortFactor.name);
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     if (purchasing) playCoinClinkSound();
@@ -9799,8 +10586,8 @@ async function acquireVikingLongship(action) {
     beginShipHandoverDialogue(session, {
       shipSlug: VIKING_LONGSHIP_SLUG,
       transactionText: acceptingReward
-        ? `The ${longshipLabel} is yours as the reward for your help with the reconstruction.`
-        : `The ${longshipLabel} is yours for ${VIKING_LONGSHIP_PRICE} doubloons.`,
+        ? `The ${longshipLabel} is yours as the reward for your help. The enthusiast comes aboard with her.`
+        : `The ${longshipLabel} is yours for ${VIKING_LONGSHIP_PRICE} doubloons, and the enthusiast comes aboard with her.`,
       sellerTitle: "historical enthusiast"
     });
     dialogueLayout.scrollOffset = 0;
@@ -9963,6 +10750,14 @@ function currentDialogueCity() {
           portrait: characterExpression(character)
         };
       }
+      if (dialogueState.nodeId === "chef-quest") {
+        const character = ensureBanquetChef(gameState, portCall);
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
+      }
       if (dialogueState.nodeId !== "colonization") {
         if (dialogueState.nodeId !== "drunk-captain") return portCall;
         const character = gameState.playerCharacter;
@@ -9998,6 +10793,8 @@ function currentDialogueCity() {
       ? ensureJapaneseMatchlockGunsmith(gameState)
       : dialogueState.nodeId === "caribbean-ginger"
         ? ensureCaribbeanGingerPlanter(gameState)
+      : dialogueState.nodeId === "chef-quest"
+        ? ensureBanquetChef(gameState, city)
       : dialogueState.nodeId === "colonization"
         ? city.colonizationQuestStage === COLONIZATION_STAGE_FAILED
           ? gameState.playerCharacter
@@ -10039,6 +10836,10 @@ function currentDialogueView() {
       campaignGoalContactCharacter()
     );
   }
+  if (dialogueState.kind === "rescued-traveler") {
+    const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
+    return rescuedTravelerDialogueView(dialogueState, quest);
+  }
   throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
 }
 
@@ -10052,14 +10853,15 @@ function portDialogueContext() {
   const simMinute = Math.floor(weatherClockMinutes);
   return {
     random: Math.random,
+    missionGiftRandom: Math.random,
     simMinute,
     dayIndex: weatherParts.dayIndex,
     shipPower: playerShipPrivateeringPower(),
-    shipStats: ship?.stats || null,
+    shipStats: ship ? currentPlayerEffectiveShipStats() : null,
     nearbyShips: nearbyPortTraffic(city),
     stormy: city ? stormIntensityForTile(city.tileId) >= STORM_ACTIVE_INTENSITY * 0.62 : false,
     playerStanding: city?.factionId ? factionReputation(gameState, city.factionId) : 0,
-    rivalLabel: portPoliticalRivalLabel(city),
+    rivalTerms: portPoliticalRivalTerms(city),
     rulerRumor: city?.factionId ? recentRegionalRulerChange(city.factionId, simMinute) : null,
     historicalGossip: city ? recentHistoricalGossipForPort(city, simMinute) : null,
     shipyard,
@@ -10098,7 +10900,7 @@ function nearbyPortTraffic(city) {
   return counts;
 }
 
-function portPoliticalRivalLabel(city) {
+function portPoliticalRivalTerms(city) {
   if (!city?.factionId || city.factionId === PIRATE_FACTION_ID) return null;
   const rivals = FACTIONS
     .filter((faction) => faction.id !== PIRATE_FACTION_ID && faction.id !== city.factionId)
@@ -10106,7 +10908,11 @@ function portPoliticalRivalLabel(city) {
     .sort((a, b) => a.id.localeCompare(b.id));
   if (rivals.length === 0) return null;
   const rival = rivals[hashInt(city.tileId) % rivals.length];
-  return rival.adjective || rival.name;
+  return Object.freeze({
+    noun: factionNounPhrase(rival.id),
+    sentenceNoun: factionNounPhrase(rival.id, { sentenceStart: true }),
+    adjective: rival.adjective
+  });
 }
 
 function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
@@ -10205,6 +11011,15 @@ function dialogueShipForId(npcShipId) {
 function currentDialogueSubject() {
   if (dialogueState?.kind === "ship") return currentDialogueShip();
   if (dialogueState?.kind === "passenger") return currentDialoguePassenger();
+  if (dialogueState?.kind === "rescued-traveler") {
+    const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
+    const character = rescuedTravelerDialogueCharacter(dialogueState, quest);
+    return {
+      ...(dialogueState.cityTileId === null ? {} : currentDialogueCity()),
+      character,
+      portrait: characterExpression(character)
+    };
+  }
   if (dialogueState?.kind === "campaign-goal") {
     const character = campaignDialogueCharacter(
       dialogueState,
@@ -10437,7 +11252,7 @@ function resolveWhaleHarpoonProjectile() {
     hitRoll: captureDirector?.sequence.kind === "whale" ? 0 : Math.random(),
     breakRoll: captureDirector?.sequence.kind === "whale" ? 0.999 : Math.random(),
     resistanceMultiplier: whaleHarpoonBreakMultiplier(whale),
-    crewMultiplier: playerCrewWorkMultiplier()
+    crewMultiplier: playerCrewWorkMultiplier() * currentPlayerPerkTotals().whalingChanceMultiplier
   });
   if (result.outcome === "missed") {
     playFishingSound();
@@ -10491,6 +11306,7 @@ function landWhaleKillingBlow() {
     "good"
   );
   syncShipCargoFromGameState();
+  syncAchievementsFromGameState({ type: "whale-killed" });
   if (whale.id === WHITE_WHALE_ID) {
     syncAchievementsFromGameState({ type: "white-whale-killed" });
     const goal = gameState.memory.campaignGoal;
@@ -10620,16 +11436,70 @@ function fishingChanceForCall(call) {
   if (!gameState) throw new Error("Cannot calculate fishing chance before game state is ready");
   if (!call?.fishery) throw new Error("Cannot calculate fishing chance without a fishery");
   const net = playerFishingNet(gameState);
+  const perks = currentPlayerPerkTotals();
   return fishingCatchChance(
     call.fishery.visibleIndividualCount,
     net.catchRateMultiplier,
-    playerCrewWorkMultiplier()
+    playerCrewWorkMultiplier() * perks.fishingChanceMultiplier
   );
 }
 
 function playerCrewWorkMultiplier() {
   if (!gameState?.ship || !ship?.stats) throw new Error("Cannot calculate crew work before the player ship is ready");
   return crewWorkMultiplier(gameState.ship.crew);
+}
+
+function currentPlayerPerkCharacters() {
+  if (!gameState?.ship) return [];
+  const hasColonists = gameState.memory?.colonization?.stage === COLONIZATION_STAGE_OUTBOUND;
+  return hasColonists ? [ensureColonizationOrganizer(gameState)] : [];
+}
+
+function currentPlayerPerkTotals() {
+  if (!gameState) throw new Error("Cannot calculate player perks before game state is ready");
+  const additionalCharacters = currentPlayerPerkCharacters();
+  const signature = playerPerkTotalsSignature(gameState, additionalCharacters);
+  if (
+    playerPerkTotalsCache?.state === gameState &&
+    playerPerkTotalsCache.signature === signature
+  ) return playerPerkTotalsCache.totals;
+  const totals = gameStatePerkTotals(gameState, { additionalCharacters });
+  playerPerkTotalsCache = { state: gameState, signature, totals };
+  return totals;
+}
+
+function currentPlayerEffectiveShipStats() {
+  if (!ship?.stats) throw new Error("Cannot calculate effective ship stats before the ship is ready");
+  const perks = currentPlayerPerkTotals();
+  if (
+    playerEffectiveShipStatsCache?.baseStats === ship.stats &&
+    playerEffectiveShipStatsCache.perks === perks
+  ) return playerEffectiveShipStatsCache.stats;
+  const stats = effectiveShipStats(ship.stats, perks);
+  playerEffectiveShipStatsCache = { baseStats: ship.stats, perks, stats };
+  return stats;
+}
+
+function playerPerkTotalsSignature(state, additionalCharacters) {
+  if (!Array.isArray(state.namedCrew)) throw new Error("Player perks require named crew");
+  if (!Array.isArray(additionalCharacters)) throw new Error("Player perks require additional characters");
+  const items = state.inventory?.items;
+  if (!items || typeof items !== "object" || Array.isArray(items)) {
+    throw new Error("Player perks require inventory items");
+  }
+  const traveler = state.memory?.quests?.active?.passenger || null;
+  const characters = [state.playerCharacter, ...state.namedCrew, traveler, ...additionalCharacters]
+    .filter(Boolean)
+    .map((character) => {
+      if (!Array.isArray(character.skillIds)) {
+        throw new Error(`Player perk character lacks skills: ${character.id || character.name || "unknown"}`);
+      }
+      return `${character.id || character.name}:${character.skillIds.join(",")}`;
+    });
+  const itemEntries = Object.entries(items)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([itemId, quantity]) => `${itemId}:${quantity}`);
+  return `${characters.join("|")}#${itemEntries.join("|")}`;
 }
 
 function worldInteractionTargetAtPoint(point) {
@@ -10945,10 +11815,14 @@ function resolveFishingAction(action) {
     showFishCatchNotice("HOLD FULL", "warn");
     return;
   }
+  const haulMultiplier = currentPlayerPerkTotals().fishingHaulMultiplier;
+  const maximumCatch = Math.max(1, Math.round(
+    fishingNetById(action.fishingNetId).maxCatch * haulMultiplier
+  ));
   const result = harvestFishery(
     gameState,
     action.fishery,
-    Math.min(fishingNetById(action.fishingNetId).maxCatch, catchCapacity),
+    fishingCatchQuantity(maximumCatch, catchCapacity),
     Math.floor(weatherClockMinutes),
     { actor: "player" }
   );
@@ -10971,7 +11845,7 @@ function resolveFishingAction(action) {
 
 function playerFishCatchCapacity() {
   if (!gameState) throw new Error("Fishing capacity requires game state");
-  return cargoQuantityCapacityForGood(gameState, FISH_CARGO_GOOD_ID);
+  return fishCatchCargoCapacity(gameState);
 }
 
 function showFishCatchNotice(text, tone) {
@@ -11171,6 +12045,26 @@ function ensureCaribbeanGingerPlanter(state) {
   return caribbeanGingerPlanter;
 }
 
+function ensureBanquetChef(state, port) {
+  const recruited = namedCrewMembers(state).find((member) => member.role === NAMED_CREW_ROLE_CHEF);
+  if (recruited) return recruited;
+  if (banquetChef) return banquetChef;
+  const quest = chefQuestState(state, port);
+  if (!quest) throw new Error("Banquet chef requires an active quest at this port");
+  const factor = portCityCharacters.get(port.tileId);
+  if (!factor) throw new Error(`${cityLabelText(port)} has no generated port factor`);
+  const character = generateSpecialPortCharacter({
+    identityKey: `banquet-chef-${port.tileId}`,
+    port,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    role: "chef",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  banquetChef = Object.freeze({ ...character, skillIds: Object.freeze(["master-chef"]) });
+  return banquetChef;
+}
+
 function syncCaribbeanGingerIndustry(state) {
   if (!caribbeanGingerIndustryCompleted(state)) return null;
   const cultivationPort = currentCaribbeanGingerPort(state);
@@ -11254,6 +12148,7 @@ function initialShipHeading(position) {
 
 function updateSailing(dt) {
   if (!ship || !camera) return false;
+  const effectiveStats = currentPlayerEffectiveShipStats();
   const inputHeading = inputHeadingForShip();
   const inRiver = shipIsInRiverWater();
   playerSteeringHoldSeconds = inputHeading ? playerSteeringHoldSeconds + dt : 0;
@@ -11270,9 +12165,9 @@ function updateSailing(dt) {
   if (inputHeading) {
     ship.targetHeading = inputHeading;
     const turnRate = shipTurnRate({
-      turnRateRad: ship.stats.turnRateRad,
+      turnRateRad: effectiveStats.turnRateRad,
       speedRad: vectorLength(ship.velocity),
-      topSpeedRad: ship.stats.topSpeedRad,
+      topSpeedRad: effectiveStats.topSpeedRad,
       assistedPivot: Boolean(boundaryContact),
       assistedMultiplier: inRiver ? SHIP_RIVER_TURN_RATE_MULTIPLIER : 1,
       minimumRudderAuthority: SHIP_MINIMUM_RUDDER_AUTHORITY
@@ -11287,7 +12182,7 @@ function updateSailing(dt) {
     ship.targetHeading = ship.heading;
   }
 
-  applyWindAcceleration(dt);
+  applyWindAcceleration(dt, effectiveStats);
   applyWhaleTowAcceleration(dt);
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
   applyHeldShipHaulAcceleration(dt, inputHeading, haulMotionScale);
@@ -11411,7 +12306,7 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
   });
   if (!shouldPrompt) return false;
 
-  const opened = openCaptainAlertModal(
+  const opened = openCrewAlertModal(
     "We're head to wind. Turn until the wind V sits outside the bow, then zigzag back upwind. That's tacking.",
     "concerned"
   );
@@ -11424,10 +12319,10 @@ function inputHeadingForShip() {
   if (captureHeading) return captureHeading;
   let dx = 0;
   let dy = 0;
-  if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) dx -= 1;
-  if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) dx += 1;
-  if (keys.has("ArrowUp") || keys.has("w") || keys.has("W")) dy += 1;
-  if (keys.has("ArrowDown") || keys.has("s") || keys.has("S")) dy -= 1;
+  if (keys.has(KEY_ACTION.STEER_LEFT)) dx -= 1;
+  if (keys.has(KEY_ACTION.STEER_RIGHT)) dx += 1;
+  if (keys.has(KEY_ACTION.STEER_UP)) dy += 1;
+  if (keys.has(KEY_ACTION.STEER_DOWN)) dy -= 1;
   const pointerVector = pointerSteeringInputVector();
   if (pointerVector) {
     dx += pointerVector.dx;
@@ -11545,7 +12440,7 @@ function stepShipInfoView(direction) {
 
 function controllerUiIsActive() {
   return Boolean(gameOverReason || shipInfoMenu.isOpen || politicsMenu.isOpen || discoveriesMenu.isOpen ||
-    optionsMenu.isOpen || creditsMenu.isOpen || pastVoyagesMenu.isOpen || captainMenu.isOpen ||
+    optionsMenu.isOpen || creditsMenu.isOpen || pastVoyagesMenu.isOpen || captainMenu.isOpen || aboardMenu.isOpen ||
     startMenu || lakeBattleMode || playerIntroModal ||
     captainAlertModal || dialogueState || portWaitState);
 }
@@ -11569,17 +12464,17 @@ function pointerSteeringInputVector() {
   };
 }
 
-function applyWindAcceleration(dt) {
+function applyWindAcceleration(dt, effectiveStats = currentPlayerEffectiveShipStats()) {
   const wind = windForShip();
   const windFlow = windFlowVectorAtShip(wind);
-  const efficiency = sailingEfficiency(ship.heading, windFlow);
-  const propulsion = shipPropulsionPerformance(ship.stats, {
+  const efficiency = sailingEfficiencyForStats(effectiveStats, ship.heading, windFlow);
+  const propulsion = shipPropulsionPerformance(effectiveStats, {
     windStrength: wind.strength,
     sailEfficiency: efficiency,
     minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
     rowerRatio: playerRowerRatio()
   });
-  const propulsionAccel = ship.stats.accelerationRad * propulsion.accelerationFactor;
+  const propulsionAccel = effectiveStats.accelerationRad * propulsion.accelerationFactor;
 
   ship.velocity = [
     ship.velocity[0] + ship.heading[0] * propulsionAccel * dt,
@@ -11637,7 +12532,7 @@ function shipIsInFreshWater() {
 }
 
 function sailingEfficiency(heading, windFlow) {
-  return sailingEfficiencyForStats(ship.stats, heading, windFlow);
+  return sailingEfficiencyForStats(currentPlayerEffectiveShipStats(), heading, windFlow);
 }
 
 function sailingEfficiencyForStats(stats, heading, windFlow) {
@@ -12683,13 +13578,23 @@ function shipBroadsideCannonCount() {
 
 function playerNavalWeapon() {
   const homePort = portCitiesByTileId?.get(gameState?.character?.homePortTileId);
-  const weapon = navalWeaponForShip({
-    cultureType: homePort?.cityType || null,
-    cannons: gameState?.ship?.cannons || 0,
-    weaponKind: ship?.stats?.navalWeaponKind || null
+  const cultureType = homePort?.cityType || null;
+  const cannons = gameState?.ship?.cannons || 0;
+  const weaponKind = ship?.stats?.navalWeaponKind || null;
+  const cannonEquipmentId = gameState?.inventory?.cannonEquipmentId;
+  const signature = `${cultureType || "none"}|${cannons}|${weaponKind || "none"}|${cannonEquipmentId || "none"}`;
+  if (playerNavalWeaponCache?.signature === signature) return playerNavalWeaponCache.weapon;
+  let weapon = navalWeaponForShip({
+    cultureType,
+    cannons,
+    weaponKind
   });
-  if (!weapon || weapon.kind !== NAVAL_WEAPON_CANNON) return weapon;
-  return cannonWeaponWithEquipment(weapon, playerCannonEquipment(gameState).id);
+  if (weapon?.kind === NAVAL_WEAPON_CANNON) {
+    if (typeof cannonEquipmentId !== "string") throw new Error("Player cannon equipment is missing");
+    weapon = cannonWeaponWithEquipment(weapon, cannonEquipmentId);
+  }
+  playerNavalWeaponCache = { signature, weapon };
+  return weapon;
 }
 
 function cannonMuzzleForeAftSpan(broadsideCount) {
@@ -12700,15 +13605,17 @@ function updateNavalWeapons(dt) {
   if (!ship) return false;
   const activeCrew = gameState?.ship?.crew || 0;
   const installedCannons = gameState?.ship?.cannons || 0;
+  const reloadMultiplier = currentPlayerPerkTotals().cannonReloadMultiplier;
+  const reloadDt = dt / reloadMultiplier;
   ship.cannonCooldowns.port = advanceCannonReload(
     ship.cannonCooldowns.port,
-    dt,
+    reloadDt,
     activeCrew,
     installedCannons
   );
   ship.cannonCooldowns.starboard = advanceCannonReload(
     ship.cannonCooldowns.starboard,
-    dt,
+    reloadDt,
     activeCrew,
     installedCannons
   );
@@ -12995,7 +13902,12 @@ function drawNavalProjectile(projectile, point) {
   }
   drawCannonTrail(projectile);
   ctx.fillStyle = "rgba(18, 14, 12, 0.95)";
-  ctx.fillRect(Math.round(point.x), Math.round(point.y - point.z), 1, 1);
+  ctx.fillRect(
+    Math.round(point.x) - 1,
+    Math.round(point.y - point.z) - 1,
+    CANNONBALL_SIZE_PX,
+    CANNONBALL_SIZE_PX
+  );
 }
 
 function addCannonSmokeBurst(projectile) {
@@ -13146,6 +14058,8 @@ function updateWeather(dt, nowMs) {
   const fetchReadinessChanged = updateFetchQuestReadinessAlerts();
   const fetchCaptainChanged = presentPendingFetchQuestCaptainDialogue();
   const wineCaptainChanged = presentPendingWineCaptainDialogue();
+  const birthdayChanged = updateAboardBirthdayEvents();
+  const birthdayPresented = presentPendingBirthdayDialogue();
 
   const dayChanged = refreshWeatherState(false);
   const tick = Math.floor(nowMs / WEATHER_REDRAW_MS);
@@ -13153,10 +14067,35 @@ function updateWeather(dt, nowMs) {
     weatherDrawTick = tick;
     return weatherTimeScale > 0 || dayChanged || stormDamageChanged || survivalChanged ||
       stormCaptainChanged || diplomacyChanged || fetchReadinessChanged || fetchCaptainChanged ||
-      wineCaptainChanged;
+      wineCaptainChanged || birthdayChanged || birthdayPresented;
   }
   return dayChanged || stormDamageChanged || survivalChanged || stormCaptainChanged || diplomacyChanged ||
-    fetchReadinessChanged || fetchCaptainChanged || wineCaptainChanged;
+    fetchReadinessChanged || fetchCaptainChanged || wineCaptainChanged || birthdayChanged || birthdayPresented;
+}
+
+function updateAboardBirthdayEvents() {
+  if (!gameState?.memory?.birthdays || !ship || !Number.isInteger(ship.tileId)) return false;
+  const characters = currentAboardRoster().named.map((entry) => entry.character);
+  const localDate = gameCalendarDateAtMinute(weatherClockMinutes, graph.lonDeg[ship.tileId]);
+  return observeAboardBirthdays(gameState.memory.birthdays, characters, localDate);
+}
+
+function presentPendingBirthdayDialogue() {
+  if (!birthdayDialogueOpportunity()) return false;
+  const characters = currentAboardRoster().named.map((entry) => entry.character);
+  const line = pendingBirthdayDialogueLine(gameState.memory.birthdays, characters);
+  if (!line) return false;
+  return openCharacterAlertModal(line.character, line.message, line.expressionId, { kind: "birthday" });
+}
+
+function birthdayDialogueOpportunity() {
+  if (!gameState?.memory?.birthdays || !ship || startMenu || gameOverReason || lakeBattleMode) return false;
+  if (menusAreOpen() || dialogueState || playerIntroModal || captainAlertModal || portWaitState || fishingAction) {
+    return false;
+  }
+  if (shipCombatState.engagements.size > 0 || playerStormIntensity() >= STORM_ACTIVE_INTENSITY) return false;
+  if (gameState.memory.whales.activeHunt || whaleHarpoonProjectile) return false;
+  return localDayNightLight().sunAltitude > 0.08;
 }
 
 function updateWorldDiplomacy() {
@@ -13185,7 +14124,8 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   const result = updateSurvival(gameState, previousMinute, currentMinute, {
     freshwater: shipIsInFreshWater(),
     rainfall: playerRainfallStrength(),
-    safePort
+    safePort,
+    foodDurationMultiplier: currentPlayerPerkTotals().foodDurationMultiplier
   });
   if (safePort) {
     resetSurvivalDamageTimers();
@@ -13268,7 +14208,7 @@ function presentPendingFetchQuestCaptainDialogue({ allowPortMarket = false } = {
     return false;
   }
   const next = pendingFetchQuestCaptainDialogues[0];
-  if (!openCaptainAlertModal(next.message, next.expressionId)) return false;
+  if (!openCrewAlertModal(next.message, next.expressionId)) return false;
   pendingFetchQuestCaptainDialogues.shift();
   gameState.memory.flags[fetchQuestReadyFlag(next.requirementId)] = true;
   saveVoyageNow("reported completed fetch cargo");
@@ -13286,7 +14226,7 @@ function presentPendingWineCaptainDialogue() {
     return false;
   }
   const next = pendingWineCaptainDialogues[0];
-  if (!openCaptainAlertModal(next.message, next.expressionId)) return false;
+  if (!openCrewAlertModal(next.message, next.expressionId)) return false;
   pendingWineCaptainDialogues.shift();
   return true;
 }
@@ -13306,7 +14246,7 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
     showSurvivalNotice("STORM PASSED - SAFE TO SAIL", "good");
   }
   if (stormPassageState.clearancePending) {
-    const opened = openCaptainAlertModal(stormClearanceMessage(), "happy");
+    const opened = openCrewAlertModal(stormClearanceMessage(), "happy");
     if (opened) markStormClearanceDelivered(stormPassageState);
     return changed || opened;
   }
@@ -13316,7 +14256,7 @@ function updateStormCaptainAlert(previousMinute, currentMinute, nowMs) {
   if (portWaitState || intensity < STORM_CAPTAIN_ALERT_ENTER_INTENSITY) return changed;
   if (!stormPassageState.warningPending) return changed;
 
-  const opened = openCaptainAlertModal(stormCaptainAlertMessage(intensity), "concerned");
+  const opened = openCrewAlertModal(stormCaptainAlertMessage(intensity), "concerned");
   if (opened) markStormWarningDelivered(stormPassageState);
   return changed || opened;
 }
@@ -13346,7 +14286,7 @@ function updateSurvivalDeprivationLosses(status, currentMinute) {
     currentMinute,
     intervalMinutes: SURVIVAL_DEHYDRATION_INTERVAL_MINUTES,
     crewLossPerTick: SURVIVAL_DEHYDRATION_CREW_LOSS,
-    alert: () => openCaptainAlertModal("So thirsty... We need fresh water.", "sad")
+    alert: () => openCrewAlertModal("So thirsty... We need fresh water.", "sad")
   });
   const foodLoss = updateSurvivalCrewLossTimer({
     key: "foodNextMinute",
@@ -13361,6 +14301,7 @@ function updateSurvivalDeprivationLosses(status, currentMinute) {
     starvation: foodLoss.crewLoss
   });
   presentCrewLoss(deprivation.crewLost);
+  presentPendingNamedCrewDeathNotice();
   if (deprivation.crewLost > 0) syncShipCargoFromGameState();
   if (deprivation.crewLost <= 0) {
     return waterLoss.changed || foodLoss.changed;
@@ -13428,7 +14369,7 @@ function updateStormDamage(previousMinute, currentMinute) {
     strongestIntensity = Math.max(strongestIntensity, intensity);
     totalDamage += stormDamageForHour({
       intensity,
-      seaworthiness: ship.stats.seaworthiness,
+      seaworthiness: currentPlayerEffectiveShipStats().seaworthiness,
       maxHull: ship.maxHitPoints,
       hourIndex: hour,
       seed: hashInt(ship.tileId ^ Math.imul(ship.typeSlug.length + 1, 0x9e3779b1))
@@ -13437,6 +14378,10 @@ function updateStormDamage(previousMinute, currentMinute) {
   if (totalDamage <= 0) return false;
 
   if (!triggerStormShipStrike(stormShipStrikeState, lastFrameMs)) return false;
+  if (playerHullDamageWasResisted("LIGHTNING")) {
+    syncAchievementsFromGameState({ type: "survived-lightning-strike" });
+    return true;
+  }
   ship.hitPoints = Math.max(0, ship.hitPoints - totalDamage);
   emitCaptureEvent("storm-damage", {
     damage: totalDamage,
@@ -13450,6 +14395,7 @@ function updateStormDamage(previousMinute, currentMinute) {
     expiresAtMs: lastFrameMs + STORM_DAMAGE_NOTICE_MS
   };
   if (ship.hitPoints <= 0) sinkPlayerShip("Your ship foundered in the storm.");
+  else syncAchievementsFromGameState({ type: "survived-lightning-strike" });
   return true;
 }
 
@@ -13461,7 +14407,14 @@ function sinkPlayerShip(reason) {
 function completeCampaignVoyage() {
   const goal = gameState?.memory?.campaignGoal;
   if (!goal) throw new Error("Campaign victory requires a campaign goal");
-  const victory = campaignVictorySummary(goal, gameState.playerCharacter);
+  const romance = dialogueState?.kind === "campaign-goal"
+    ? dialogueState.victoryRomance || null
+    : null;
+  if (romance) {
+    recordVoyageAchievementEvent(gameState.memory.achievements, { type: "married" });
+  }
+  syncAchievementsFromGameState();
+  const victory = campaignVictorySummary(goal, gameState.playerCharacter, { romance });
   endPlayerVoyage(victory.reason, {
     sinkShip: false,
     outcomeType: "victory",
@@ -13629,6 +14582,8 @@ function storePastVoyage(record) {
 function closeMenusForGameOver() {
   optionsMenu.isOpen = false;
   optionsMenu.activeSliderKey = null;
+  optionsMenu.view = "settings";
+  optionsMenu.bindingCapture = null;
   pastVoyagesMenu.isOpen = false;
   discoveriesMenu.isOpen = false;
   achievementsMenu.isOpen = false;
@@ -13748,7 +14703,7 @@ function updateNpcVisualShips(dt) {
     }
     syncNpcVisualStateFromSnapshot(state, snapshot);
 
-    const currentNavigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+    let currentNavigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
     if (!currentNavigation.ok) {
       const placement = nearestNpcNavigableVisualPoint(
         { x: state.x, y: state.y },
@@ -13767,8 +14722,9 @@ function updateNpcVisualShips(dt) {
         continue;
       }
       if (applyNpcVisualPlacement(state, placement)) changed = true;
+      currentNavigation = { ok: true, kind: placement.navKind };
     }
-    if (advanceNpcVisualState(state, snapshot, routePoint, dt)) changed = true;
+    if (advanceNpcVisualState(state, snapshot, routePoint, dt, currentNavigation)) changed = true;
     setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   }
   if (performanceBenchmarkState) {
@@ -13799,6 +14755,7 @@ function createNpcVisualState(snapshot, routePoint) {
     snapshot.slug
   );
   if (!initial) return null;
+  ensureNpcShipCaptain(snapshot.id);
   const state = {
     id: snapshot.id,
     slug: snapshot.slug,
@@ -13920,16 +14877,31 @@ function updateNpcFishermenHarvest() {
 
 function updateNpcCombat(dt) {
   if (!ship || gameOverReason) return false;
+  const simMinute = Math.floor(weatherClockMinutes);
+  const portEntryContext = measurePerformanceBenchmarkStage(
+    "npcShips.visual.combat.portContext",
+    () => createPortEntryStatusContext(gameState, simMinute)
+  );
   const playerWasInCombat = playerHasCombatEngagement();
   const colonizationDefenseInitiator = forceColonizationDefenseEngagements(playerWasInCombat);
   const participantsBefore = combatParticipantIds();
   const entities = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.entities",
-    () => [playerCombatEntity(), ...[...npcVisualShips.values()].map(npcCombatEntity)]
+    () => [playerCombatEntity(portEntryContext), ...[...npcVisualShips.values()].map(npcCombatEntity)]
   );
+  const diplomacyByFactionPair = new Map();
+  const cachedDiplomacyBetween = (aFactionId, bFactionId) => {
+    const key = aFactionId < bFactionId
+      ? `${aFactionId}|${bFactionId}`
+      : `${bFactionId}|${aFactionId}`;
+    if (diplomacyByFactionPair.has(key)) return diplomacyByFactionPair.get(key);
+    const relation = currentDiplomacyBetween(aFactionId, bFactionId);
+    diplomacyByFactionPair.set(key, relation);
+    return relation;
+  };
   const result = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.engagements",
-    () => updateShipCombatState(shipCombatState, entities, currentDiplomacyBetween)
+    () => updateShipCombatState(shipCombatState, entities, cachedDiplomacyBetween)
   );
   for (const id of combatParticipantIds()) {
     if (!participantsBefore.has(id)) {
@@ -13959,7 +14931,11 @@ function updateNpcCombat(dt) {
         () => {
           const elapsed = shoreBatteryUpdateAccumulator;
           shoreBatteryUpdateAccumulator = 0;
-          return updateShoreBatteryCombat(elapsed, combatHailOpened || suppressCaptureHails);
+          return updateShoreBatteryCombat(
+            elapsed,
+            combatHailOpened || suppressCaptureHails,
+            portEntryContext
+          );
         }
       )
     : { changed: false, hailOpened: false };
@@ -14053,8 +15029,8 @@ function combatParticipantIds() {
 
 function openNpcCombatHail(npcShipId) {
   const state = npcVisualShips.get(npcShipId);
-  const character = npcShipCaptains?.get(npcShipId);
-  if (!state || !character) throw new Error(`Cannot open combat hail for NPC ship ${npcShipId}`);
+  if (!state) throw new Error(`Cannot open combat hail without a visual NPC ship: ${npcShipId}`);
+  const character = ensureNpcShipCaptain(npcShipId);
   if (state.combatGrace ||
       !shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShipId))) {
     return false;
@@ -14062,6 +15038,25 @@ function openNpcCombatHail(npcShipId) {
   if (attemptEnvoyIntercession(state.factionId)) return true;
   openShipDialogue({ id: npcShipId, character }, { attackReason: npcCombatAttackReason(state) });
   return true;
+}
+
+function ensureNpcShipCaptain(npcShipId) {
+  const existing = npcShipCaptains?.get(npcShipId);
+  if (existing) return existing;
+  const strategic = npcSeaRoutes?.shipById?.get(npcShipId);
+  if (!strategic) throw new Error(`Cannot assign a captain to missing NPC ship: ${npcShipId}`);
+  if (!npcShipCaptains) npcShipCaptains = new Map();
+  const additions = assignMissingNpcShipCaptains(
+    [strategic],
+    npcShipCaptains,
+    characterPortraitManifest,
+    usedCharacterNames,
+    { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+  );
+  const character = additions.get(npcShipId);
+  if (!character) throw new Error(`NPC captain reconciliation produced no captain: ${npcShipId}`);
+  console.warn(`[pixel-globe] reconciled missing NPC captain: ${npcShipId}`);
+  return character;
 }
 
 function attemptEnvoyIntercession(factionId) {
@@ -14099,14 +15094,21 @@ function npcCombatAttackReason(state) {
   return `${faction.name} is at war with your flag. Heave to, or we open fire!`;
 }
 
-function updateShoreBatteryCombat(dt, anotherHailOpened) {
+function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext) {
   if (!chart || !gameState || !ship || !localLayout) return { changed: false, hailOpened: false };
   const simMinute = Math.floor(weatherClockMinutes);
   const chartOffset = chartOffsetPixels(chart);
   const flags = gameState.memory.flags;
+  if (portEntryContext?.state !== gameState || portEntryContext?.simMinute !== simMinute) {
+    throw new Error("Shore battery combat requires the current port-entry context");
+  }
   let changed = false;
   let hailOpened = false;
   const visibleIds = new Set();
+  const targetableNpcs = [...npcVisualShips.values()].filter((npc) => (
+    !npc.combatGrace && npc.hitPoints > 0
+  ));
+  const hostilityByFactionPair = new Map();
 
   for (const city of chart.cityCalls || []) {
     if (!city.character || !factionHasFlag(city.factionId)) continue;
@@ -14123,39 +15125,49 @@ function updateShoreBatteryCombat(dt, anotherHailOpened) {
     const range = SHORE_BATTERY_RANGE_PX * weapon.rangeScale;
     const nextTargets = new Set();
     const playerDistance = Math.hypot(point.x - localLayout.viewX, point.y - localLayout.viewY);
-    const entryStatus = portEntryStatus(gameState, city, simMinute);
-    const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile;
-    const passageRefusalActive = playerHostile &&
-      factionSafePassageRefusalStatus(gameState, city.factionId, simMinute).active;
-    const playerResponse = shoreBatteryPlayerResponse({
-      playerHostile,
-      hostileByWar: entryStatus.hostileByWar,
-      withinWeaponRange: playerDistance <= range,
-      withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
-      tollDemandEligible: shoreBatteryMayDemandToll(city),
-      playerHailed: state.playerHailed,
-      passageRefusalActive
-    });
-    if (playerResponse.shouldHail) {
-      if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
-        if (!attemptEnvoyIntercession(city.factionId)) openShoreBatteryCombatHail(city, state);
-        hailOpened = true;
-        changed = true;
+    if (playerDistance <= range) {
+      const entryStatus = measurePerformanceBenchmarkStage(
+        "npcShips.visual.combat.batteries.portStatus",
+        () => portEntryStatus(gameState, city, simMinute, portEntryContext)
+      );
+      const playerHostile = !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile;
+      const passageRefusalActive = playerHostile && entryStatus.passageRefusalActive;
+      const playerResponse = shoreBatteryPlayerResponse({
+        playerHostile,
+        hostileByWar: entryStatus.hostileByWar,
+        withinWeaponRange: true,
+        withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
+        tollDemandEligible: shoreBatteryMayDemandToll(city),
+        playerHailed: state.playerHailed,
+        passageRefusalActive
+      });
+      if (playerResponse.shouldHail) {
+        if (!anotherHailOpened && !hailOpened && !dialogueState && !menusAreOpen()) {
+          if (!attemptEnvoyIntercession(city.factionId)) openShoreBatteryCombatHail(city, state);
+          hailOpened = true;
+          changed = true;
+        }
       }
+      if (playerResponse.shouldEngage) nextTargets.add(PLAYER_COMBAT_ID);
     }
-    if (playerResponse.shouldEngage) nextTargets.add(PLAYER_COMBAT_ID);
     if (playerDistance > range + 20) {
       state.playerHailed = false;
     }
 
-    for (const npc of npcVisualShips.values()) {
-      if (npc.combatGrace || npc.hitPoints <= 0) continue;
-      if (Math.hypot(point.x - npc.x, point.y - npc.y) > range) continue;
-      if (shoreBatteryHostileToFaction(city, npc.factionId)) nextTargets.add(npc.id);
-    }
+    measurePerformanceBenchmarkStage("npcShips.visual.combat.batteries.targetScan", () => {
+      for (const npc of targetableNpcs) {
+        if (Math.hypot(point.x - npc.x, point.y - npc.y) > range) continue;
+        if (shoreBatteryHostileToFaction(city, npc.factionId, hostilityByFactionPair)) {
+          nextTargets.add(npc.id);
+        }
+      }
+    });
     if (setContentsDiffer(state.engagedTargetIds, nextTargets)) changed = true;
     state.engagedTargetIds = nextTargets;
-    if (shoreBatteryCanFire(state, simMinute) && fireShoreBatteryAtNearestTarget(state)) changed = true;
+    if (shoreBatteryCanFire(state, simMinute) && measurePerformanceBenchmarkStage(
+      "npcShips.visual.combat.batteries.fire",
+      () => fireShoreBatteryAtNearestTarget(state)
+    )) changed = true;
   }
 
   for (const state of shoreBatteryStates.values()) {
@@ -14174,9 +15186,13 @@ function ensureShoreBatteryState(city) {
   return state;
 }
 
-function shoreBatteryHostileToFaction(city, factionId) {
+function shoreBatteryHostileToFaction(city, factionId, cache = null) {
   if (!factionId || city.factionId === factionId) return false;
-  return currentDiplomacyBetween(city.factionId, factionId) === DIPLOMACY_WAR;
+  const key = `${city.factionId}|${factionId}`;
+  if (cache?.has(key)) return cache.get(key);
+  const hostile = currentDiplomacyBetween(city.factionId, factionId) === DIPLOMACY_WAR;
+  if (cache) cache.set(key, hostile);
+  return hostile;
 }
 
 function openShoreBatteryCombatHail(city, state) {
@@ -14287,8 +15303,12 @@ function setContentsDiffer(a, b) {
   return false;
 }
 
-function playerCombatEntity() {
+function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
+  gameState,
+  Math.floor(weatherClockMinutes)
+)) {
   const weapon = playerNavalWeapon();
+  const effectiveStats = currentPlayerEffectiveShipStats();
   return {
     id: PLAYER_COMBAT_ID,
     factionId: ship.factionId,
@@ -14298,12 +15318,16 @@ function playerCombatEntity() {
     hitPoints: Math.max(1, ship.hitPoints),
     maxHitPoints: ship.maxHitPoints,
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? gameState?.ship?.cannons || 0 : 0,
-    topSpeedRad: ship.stats.topSpeedRad,
+    topSpeedRad: effectiveStats.topSpeedRad,
     combatGrace: false,
     npcAttackProtected: playerNpcAttackGraceIsActive(gameState.activePlaySeconds),
     portProtected: playerShipIsInvulnerable(),
     majorPortProtected: playerHasMajorPortProtection(),
-    safePassageFactionIds: activeFactionSafePassageIds(gameState, Math.floor(weatherClockMinutes))
+    safePassageFactionIds: activeFactionSafePassageIds(
+      gameState,
+      portEntryContext.simMinute,
+      portEntryContext
+    )
   };
 }
 
@@ -14524,10 +15548,14 @@ function npcNavalWeapon(state, stats = shipStatsForSlug(state.slug)) {
 function updateNpcCombatProjectiles(dt) {
   let changed = false;
   const kept = [];
+  const cannonShipTargets = npcCombatProjectiles.some((ball) => ball.kind === NAVAL_WEAPON_CANNON)
+    ? npcCannonShipCollisionTargets()
+    : [];
   for (const ball of npcCombatProjectiles) {
     const previousAge = ball.age;
     ball.age = Math.min(ball.duration, ball.age + dt);
-    if (ball.kind === NAVAL_WEAPON_CANNON && resolveNpcCannonPathHit(ball, previousAge)) {
+    if (ball.kind === NAVAL_WEAPON_CANNON &&
+        resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets)) {
       changed = true;
       continue;
     }
@@ -14552,12 +15580,9 @@ function updateNpcCombatProjectiles(dt) {
   return changed;
 }
 
-function resolveNpcCannonPathHit(ball, previousAge) {
+function npcCannonShipCollisionTargets() {
   const targets = [];
-  if (
-    ball.ownerId !== PLAYER_COMBAT_ID &&
-    ship && ship.hitPoints > 0
-  ) {
+  if (ship && ship.hitPoints > 0) {
     targets.push({
       id: PLAYER_COMBAT_ID,
       x: localLayout.viewX,
@@ -14566,13 +15591,21 @@ function resolveNpcCannonPathHit(ball, previousAge) {
     });
   }
   for (const state of npcVisualShips.values()) {
-    if (state.id === ball.ownerId || state.hitPoints <= 0 || state.combatGrace) continue;
+    if (state.hitPoints <= 0 || state.combatGrace) continue;
     targets.push({
       id: state.id,
       x: state.x,
       y: state.y,
       footprint: combatShipFootprint(state.id)
     });
+  }
+  return targets;
+}
+
+function resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets) {
+  const targets = [];
+  for (const target of cannonShipTargets) {
+    if (target.id !== ball.ownerId) targets.push(target);
   }
   for (const battery of activeVisibleShoreBatteries()) {
     if (battery.id === ball.ownerId) continue;
@@ -14628,6 +15661,7 @@ function applyNpcCombatHit(ball, targetId, point) {
   if (targetId === PLAYER_COMBAT_ID && playerShipIsInvulnerable()) return;
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   if (targetId === PLAYER_COMBAT_ID) {
+    if (ball.kind === NAVAL_WEAPON_CANNON && playerHullDamageWasResisted("CANNONBALL")) return;
     ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
     emitCaptureEvent("projectile-hit", {
       ownerId: ball.ownerId,
@@ -14676,6 +15710,7 @@ function addNpcCombatSplash(ball) {
 }
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
+  const loserWasPirate = npcSeaRoutes.shipById.get(loserId)?.role === NPC_ROLE_PIRATE;
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
   if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
     surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
@@ -14741,7 +15776,13 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     state.combatEnemyIds = [];
   }
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
-  if (playerPrizeSummary) openSurrenderPrizeDecision(loserId, playerPrizeSummary);
+  if (playerPrizeSummary) {
+    const captiveOpened = loserWasPirate && maybeOpenPirateCaptiveQuest(loserId, {
+      npcShipId: loserId,
+      lootSummary: playerPrizeSummary
+    });
+    if (!captiveOpened) openSurrenderPrizeDecision(loserId, playerPrizeSummary);
+  }
 }
 
 function openSurrenderPrizeDecision(npcShipId, lootSummary) {
@@ -14767,6 +15808,7 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
 function handleNpcSinking(loserId, winnerId) {
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
+  const loserWasPirate = strategic.role === NPC_ROLE_PIRATE;
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
   const visualState = npcVisualShips.get(loserId);
   if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
@@ -14784,15 +15826,171 @@ function handleNpcSinking(loserId, winnerId) {
     text: "SHIP SUNK",
     expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
   };
+  if (winnerId === PLAYER_COMBAT_ID && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
   return true;
+}
+
+function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
+  const memory = gameState?.memory?.quests?.pirateCaptive;
+  if (!memory) throw new Error("Cannot create pirate captive quest without quest memory");
+  if (memory.active) return false;
+  const reservedBerths = futurePermanentCrewFloor(gameState) - permanentCrewFloor(gameState);
+  if (!hasPermanentCrewBerth(gameState, reservedBerths)) return false;
+  if (!pirateCaptiveRescueAppears(Math.random(), memory.completedCount)) return false;
+  if (dialogueState && dialogueState.kind !== "ship") {
+    throw new Error(`Cannot open pirate captive dialogue while ${dialogueState.kind} dialogue is active`);
+  }
+  const homePort = rescuedTravelerHomePort(pirateShipId);
+  const distanceKm = EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(homePort.tileId));
+  const familySurvivedRoll = Math.random();
+  const captive = generatePirateCaptiveCharacter({
+    identityKey: pirateShipId,
+    homePort,
+    excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  const familyMember = familySurvivedRoll < 0.5
+    ? generatePirateCaptiveFamilyMember({
+        identityKey: pirateShipId,
+        captive,
+        homePort,
+        excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+        manifest: characterPortraitManifest,
+        usedNames: usedCharacterNames
+      })
+    : null;
+  const quest = createPirateCaptiveQuest(memory, {
+    pirateShipId,
+    homePort,
+    character: captive,
+    familyMember,
+    distanceKm,
+    familySurvivedRoll
+  });
+  if (!quest) return false;
+  dialogueState = createRescuedTravelerDialogueSession(quest, {
+    phase: "offer",
+    surrenderPrize
+  });
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  saveVoyageNow("pirate captive rescued from defeated ship");
+  dirty = true;
+  return true;
+}
+
+function maybeOpenCastawayQuest(shoreCall) {
+  if (!shoreCall || !Number.isInteger(shoreCall.id)) {
+    throw new Error("Castaway encounter requires the departure shore tile");
+  }
+  const memory = gameState?.memory?.quests?.castaway;
+  if (!memory) throw new Error("Cannot create castaway quest without quest memory");
+  if (memory.active) return false;
+  if (dialogueState) throw new Error(`Cannot find a castaway while ${dialogueState.kind} dialogue is active`);
+  const reservedBerths = futurePermanentCrewFloor(gameState) - permanentCrewFloor(gameState);
+  if (!hasPermanentCrewBerth(gameState, reservedBerths)) return false;
+  if (!isRemoteCastawayShore({
+    graph,
+    earthRows: earthById,
+    settlementTileIds: cityByTileId.keys(),
+    shoreTileId: shoreCall.id
+  })) return false;
+  if (!castawayRescueAppears(Math.random(), memory.completedCount)) return false;
+
+  const encounterId = `shore-${shoreCall.id}-${memory.completedCount + memory.declinedCount}`;
+  const homePort = rescuedTravelerHomePort(encounterId);
+  const distanceKm = EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(homePort.tileId));
+  const familySurvivedRoll = Math.random();
+  const castaway = generateCastawayCharacter({
+    identityKey: encounterId,
+    homePort,
+    excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  const familyMember = familySurvivedRoll < 0.5
+    ? generateCastawayFamilyMember({
+        identityKey: encounterId,
+        castaway,
+        homePort,
+        excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+        manifest: characterPortraitManifest,
+        usedNames: usedCharacterNames
+      })
+    : null;
+  const quest = createCastawayQuest(memory, {
+    shoreId: encounterId,
+    homePort,
+    character: castaway,
+    familyMember,
+    distanceKm,
+    familySurvivedRoll,
+    emergencyAid: castawayEmergencyAidNeed(gameState)
+  });
+  if (!quest) return false;
+  dialogueState = createRescuedTravelerDialogueSession(quest, { phase: "offer" });
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  saveVoyageNow("found castaway while weighing anchor");
+  dirty = true;
+  return true;
+}
+
+function rescuedTravelerHomePort(identityKey) {
+  const candidates = portCities
+    .filter((city) => city.factionId !== PIRATE_FACTION_ID)
+    .filter((city) => city.cityType === "northern-european" || city.cityType === "mediterranean")
+    .map((city) => ({
+      city,
+      distanceKm: EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(city.tileId)),
+      jitter: (spriteKeyHash(`${identityKey}|${city.tileId}|rescued-traveler-home`) % 401) - 200
+    }))
+    .filter((entry) => entry.distanceKm >= 500)
+    .sort((a, b) => (
+      Math.abs(a.distanceKm - 2200) + a.jitter -
+      (Math.abs(b.distanceKm - 2200) + b.jitter)
+    ));
+  if (candidates.length === 0) {
+    throw new Error(`No European home port is available for rescued traveler ${identityKey}`);
+  }
+  return candidates[0].city;
+}
+
+function activeRescuedTravelers() {
+  return [
+    activePirateCaptiveQuest(gameState),
+    activeCastawayQuest(gameState)
+  ].filter(Boolean);
+}
+
+function rescuedTravelerMemoryForType(rescueType) {
+  if (rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE) {
+    return gameState.memory.quests.pirateCaptive;
+  }
+  if (rescueType === RESCUED_TRAVELER_TYPE_CASTAWAY) {
+    return gameState.memory.quests.castaway;
+  }
+  throw new Error(`Unknown rescued traveler memory type: ${rescueType}`);
+}
+
+function activeRescuedTravelerForType(rescueType) {
+  const memory = rescuedTravelerMemoryForType(rescueType);
+  const quest = memory.active;
+  if (!quest || quest.rescueType !== rescueType) {
+    throw new Error(`Rescued traveler dialogue lost its ${rescueType} quest`);
+  }
+  return { memory, quest };
 }
 
 function recordPlayerShipVictory() {
   if (!gameState?.memory?.flags) throw new Error("Combat achievement requires voyage flags");
-  if (gameState.memory.flags.achievementDefeatedShip === true) return false;
+  const firstVictory = gameState.memory.flags.achievementDefeatedShip !== true;
   gameState.memory.flags.achievementDefeatedShip = true;
-  syncAchievementsFromGameState();
-  return true;
+  syncAchievementsFromGameState({ type: "enemy-ship-defeated" });
+  return firstVictory;
 }
 
 function resolveColonizationDefenseAttacker(loserId, noticeText) {
@@ -14996,6 +16194,7 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   if (amount <= 0) return;
   if (id === PLAYER_COMBAT_ID) {
     if (playerShipIsInvulnerable()) return;
+    if (playerHullDamageWasResisted("COLLISION")) return;
     ship.hitPoints = Math.max(0, ship.hitPoints - amount);
     applyCrewCasualtiesFromHullDamage(amount, "The last of the crew died after a collision.");
     combatNotice = {
@@ -15020,13 +16219,25 @@ function applyCombatCollisionDamage(id, amount, otherId) {
 
 function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of the crew was lost at sea.") {
   if (!gameState || damage <= 0 || playerShipIsInvulnerable()) return 0;
+  if (Math.random() < currentPlayerPerkTotals().crewCasualtyResistanceChance) {
+    showSurvivalNotice("CREW PROTECTED", "good");
+    return 0;
+  }
   const lost = rollCrewCasualtiesForDamage(gameState, damage);
   if (lost <= 0) return 0;
   presentCrewLoss(lost);
+  presentPendingNamedCrewDeathNotice();
   syncShipCargoFromGameState();
   showSurvivalNotice(`${lost} CREW LOST`, "warn");
   if (gameState.ship.crew <= 0) sinkPlayerShip(crewLossReason);
   return lost;
+}
+
+function playerHullDamageWasResisted(sourceLabel) {
+  const chance = currentPlayerPerkTotals().damageResistanceChance;
+  if (chance <= 0 || Math.random() >= chance) return false;
+  showSurvivalNotice(`${sourceLabel} GLANCED OFF`, "good");
+  return true;
 }
 
 function applyNpcVisualPlacement(state, placement) {
@@ -15042,7 +16253,8 @@ function applyNpcVisualPlacement(state, placement) {
   return changed;
 }
 
-function advanceNpcVisualState(state, snapshot, routePoint, dt) {
+function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigation) {
+  if (!initialNavigation?.ok) throw new Error(`NPC ship ${state.id} requires valid initial navigation`);
   const collisionChanged = applyNpcCollisionDrift(state, dt);
   const routeChanged = state.routeKey !== snapshot.routeKey;
   const routeAdvancePx = state.routeKey === snapshot.routeKey
@@ -15076,7 +16288,9 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
     ? NPC_STORM_SHELTER_SPEED_PX * dt
     : 0;
   const combatResponsePx = combatNavigation || portAvoidance ? NPC_COMBAT_RESPONSE_SPEED_PX * dt : 0;
-  const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+  const startNav = collisionChanged
+    ? shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector)
+    : initialNavigation;
   const riverRailDistance = startNav.ok && startNav.kind === "river"
     ? NPC_RIVER_RAIL_MIN_SPEED_PX * dt
     : 0;
@@ -15128,7 +16342,7 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt) {
     state.vector,
     stats.turnRateRad * dt
   );
-  const move = moveNpcVisualShip(state, direction, stepDistance, collisionHeading, dt);
+  const move = moveNpcVisualShip(state, direction, stepDistance, collisionHeading, dt, startNav);
   if (!move) return collisionChanged;
 
   state.x = move.x;
@@ -15170,8 +16384,7 @@ function applyNpcCollisionDrift(state, dt) {
   return applyNpcVisualPlacement(state, move);
 }
 
-function moveNpcVisualShip(state, direction, distance, heading, dt) {
-  const startNav = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+function moveNpcVisualShip(state, direction, distance, heading, dt, startNav) {
   if (!startNav.ok) throw new Error(`NPC ship ${state.id} started outside drawn navigation`);
   if (startNav.kind === "river") {
     const railMove = moveNpcAlongRiverRail(state, direction, distance, dt);
@@ -15943,7 +17156,7 @@ function applyResponsiveViewport(width, height) {
   POLITICS_PANEL_W = SCREEN_W - POLITICS_PANEL_X * 2;
   POLITICS_PANEL_H = SCREEN_H - POLITICS_PANEL_Y * 2;
   PLAYER_INTRO_PANEL_W = Math.min(326, SCREEN_W - 12);
-  PLAYER_INTRO_PANEL_H = Math.min(SCREEN_W < 400 ? 320 : 194, SCREEN_H - 12);
+  PLAYER_INTRO_PANEL_H = Math.min(SCREEN_W < 400 ? 350 : 220, SCREEN_H - 12);
   PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
   PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
   CAPTAIN_ALERT_PANEL_W = Math.min(286, SCREEN_W - 12);
@@ -17792,16 +19005,22 @@ function currentReadyFetchQuestDestinations() {
 function questJournalEntries() {
   if (!gameState) return [];
   const entries = [];
+  const campaignGoal = gameState.memory.campaignGoal;
   const campaignDestination = activeCampaignGoalDestination();
-  if (campaignDestination) {
-    const navigation = campaignNavigationMenuEntry(campaignDestination);
+  if (campaignGoal) {
+    const presentation = campaignGoalPresentation(campaignGoal);
+    const navigation = campaignDestination
+      ? campaignNavigationMenuEntry(campaignDestination)
+      : null;
     entries.push({
       id: "campaign",
-      title: uiText("quest.mainVoyage"),
-      nextStep: uiText("quest.actionAt", {
-        action: renderedUiText(navigation.reason),
-        city: navigation.destinationName
-      }),
+      title: `${uiText("quest.mainVoyage")} - ${presentation.label.toUpperCase()}`,
+      nextStep: navigation
+        ? uiText("quest.actionAt", {
+            action: renderedUiText(navigation.reason),
+            city: navigation.destinationName
+          })
+        : presentation.objective.toUpperCase(),
       style: CAMPAIGN_NAVIGATION_STYLE
     });
   }
@@ -17822,6 +19041,17 @@ function questJournalEntries() {
     });
   }
 
+  for (const traveler of activeRescuedTravelers().filter((quest) => (
+    quest.stage === RESCUED_TRAVELER_STAGE_ABOARD
+  ))) {
+    entries.push({
+      id: `rescued-traveler:${traveler.id}`,
+      title: rescuedTravelerLabel(traveler),
+      nextStep: `SAIL TO ${traveler.homePortName.toUpperCase()}`,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
+
   const colonization = colonizationQuestView(gameState, {
     currentMinute: Math.max(0, weatherClockMinutes)
   });
@@ -17832,6 +19062,10 @@ function questJournalEntries() {
   const viking = vikingPort ? vikingLongshipQuestState(gameState, vikingPort) : null;
   const vikingEntry = vikingLongshipJournalEntry(viking, vikingPort);
   if (vikingEntry) entries.push(vikingEntry);
+  const chefPort = chefQuestJournalPort(gameState);
+  const chef = chefPort ? chefQuestState(gameState, chefPort) : null;
+  const chefEntry = chefQuestJournalEntry(chef);
+  if (chefEntry) entries.push(chefEntry);
   const japaneseMatchlockPort = japaneseMatchlockWorkshopPort();
   const japaneseMatchlocks = japaneseMatchlockPort
     ? japaneseMatchlockQuestState(gameState, japaneseMatchlockPort)
@@ -17939,6 +19173,36 @@ function vikingLongshipJournalEntry(quest, port) {
     nextStep,
     style: QUEST_NAVIGATION_STYLE
   } : null;
+}
+
+function chefQuestJournalPort(state) {
+  const memory = state?.memory?.quests?.chef;
+  if (!Number.isInteger(memory?.portTileId)) return null;
+  return cityByTileId.get(memory.portTileId) || portCities.find((port) => port.tileId === memory.portTileId) || null;
+}
+
+function chefQuestJournalEntry(quest) {
+  if (!quest || quest.stage === CHEF_QUEST_STAGE_RECRUITED) return null;
+  if (quest.stage === CHEF_QUEST_STAGE_RECRUITMENT) {
+    return {
+      id: "banquet-chef",
+      title: "Banquet Chef",
+      nextStep: `Offer the chef a berth at ${quest.port.city}.`,
+      style: QUEST_NAVIGATION_STYLE
+    };
+  }
+  const missing = quest.ingredients.filter((ingredient) => !ingredient.ready);
+  const ingredientList = missing.length > 0
+    ? missing.map((ingredient) => ingredient.label).join(", ")
+    : "all ingredients";
+  return {
+    id: "banquet-chef",
+    title: "Banquet Chef",
+    nextStep: missing.length > 0
+      ? `Acquire one each: ${ingredientList}.`
+      : `Bring all ingredients to ${quest.port.city}.`,
+    style: QUEST_NAVIGATION_STYLE
+  };
 }
 
 function japaneseMatchlockJournalEntry(quest, port) {
@@ -18322,6 +19586,24 @@ function navigationMenuEntries() {
       reason: navigationQuestReason(quest),
       style: QUEST_NAVIGATION_STYLE,
       targetVector: latLonToDirection(questDestination.lat, questDestination.lon),
+      optionalWaypointId: null
+    });
+  }
+
+  for (const traveler of activeRescuedTravelers().filter((quest) => (
+    quest.stage === RESCUED_TRAVELER_STAGE_ABOARD
+  ))) {
+    const destination = cityByTileId.get(traveler.homePortTileId) ||
+      portCities.find((city) => city.tileId === traveler.homePortTileId);
+    if (!destination) {
+      throw new Error(`Rescued traveler home port is missing: ${traveler.homePortTileId}`);
+    }
+    entries.push({
+      id: `rescued-traveler:${traveler.id}`,
+      destinationName: traveler.homePortName,
+      reason: `RETURN ${rescuedTravelerLabel(traveler)} HOME`,
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: latLonToDirection(destination.lat, destination.lon),
       optionalWaypointId: null
     });
   }
@@ -19518,14 +20800,70 @@ function currentAboardRoster() {
   const namedTraveler = namedTravelerKind && activeQuest?.passenger
     ? { kind: namedTravelerKind, character: activeQuest.passenger }
     : null;
+  const rescuedTravelers = activeRescuedTravelers();
+  const namedTravelers = [];
+  if (namedTraveler) namedTravelers.push(namedTraveler);
+  for (const traveler of rescuedTravelers) {
+    if (traveler.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
+      namedTravelers.push({ kind: "passenger", character: traveler.character });
+    }
+  }
   const hasColonists = travelerGroups.some((group) => group.kind === "settler" && group.count > 0);
   const colonyLeader = hasColonists ? ensureColonizationOrganizer(gameState) : null;
-  return aboardRoster({
-    captain: gameState.playerCharacter,
+  const colonization = hasColonists
+    ? colonizationQuestView(gameState, { currentMinute: Math.max(0, weatherClockMinutes) })
+    : null;
+  const roster = aboardRoster({
+    captain: aboardCharacterWithBiography(gameState.playerCharacter),
     crewCount: gameState.ship.crew,
+    namedCrew: namedCrewMembers(gameState).map(aboardCharacterWithBiography),
     travelerGroups,
-    namedTraveler,
-    colonyLeader
+    namedTravelers: namedTravelers.map((traveler) => ({
+      ...traveler,
+      character: aboardCharacterWithBiography(traveler.character)
+    })),
+    colonyLeader: colonyLeader ? aboardCharacterWithBiography(colonyLeader) : null
+  });
+  const named = roster.named.map((entry) => Object.freeze({
+    ...entry,
+    goal: aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
+  }));
+  return Object.freeze({ ...roster, named: Object.freeze(named) });
+}
+
+function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers) {
+  if (entry.role === ABOARD_ROLE_CAPTAIN) {
+    return captainCharacterGoal(gameState.memory.campaignGoal);
+  }
+  if (entry.role === ABOARD_ROLE_PASSENGER || entry.role === ABOARD_ROLE_EMISSARY) {
+    if (rescuedTravelers.some((traveler) => entry.character.id === traveler.character?.id)) {
+      return entry.character.goal;
+    }
+    return travelerCharacterGoal(activeQuest);
+  }
+  if (entry.role === ABOARD_ROLE_COLONY_LEADER) {
+    return colonyLeaderCharacterGoal(colonization?.target?.city);
+  }
+  if (entry.role === ABOARD_ROLE_CREWMATE) return namedCrewCharacterGoal(entry.character);
+  throw new Error(`Named aboard character has no goal resolver: ${entry.role}`);
+}
+
+function aboardCharacterWithBiography(character) {
+  if (!character || typeof character !== "object") throw new Error("Aboard biography requires a character");
+  const homeTileId = Number.isInteger(character.homePortTileId)
+    ? character.homePortTileId
+    : Number.isInteger(character.originPortTileId) ? character.originPortTileId : null;
+  const homePort = homeTileId === null ? null : portCitiesByTileId.get(homeTileId) || null;
+  const nationality = homePort?.factionId ? factionById(homePort.factionId) : null;
+  const sovereign = nationality && nationality.id !== NEUTRAL_FACTION_ID;
+  return characterWithBiography({
+    ...character,
+    homePortCountry: character.homePortCountry || homePort?.country || null
+  }, {
+    identityKey: character.id || character.name,
+    nationalityId: character.nationalityId ?? nationality?.id ?? null,
+    nationalityName: character.nationalityName ?? (sovereign ? nationality.name : null),
+    nationalityAdjective: character.nationalityAdjective ?? (sovereign ? nationality.adjective : null)
   });
 }
 
@@ -19556,6 +20894,10 @@ function drawAboardMenu() {
     w: UI_ICON_BUTTON_SIZE,
     h: UI_ICON_BUTTON_SIZE
   };
+  if (aboardMenu.selectedNamedId) {
+    drawAboardCharacterDetail(roster, panel);
+    return;
+  }
 
   ctx.save();
   drawPiratePaperModal(panel, 0.84);
@@ -19574,10 +20916,17 @@ function drawAboardMenu() {
   ctx.beginPath();
   ctx.rect(body.x, body.y, body.w, body.h);
   ctx.clip();
+  aboardMenu.namedEntryRects = [];
   for (const entry of layout.named) {
     const drawY = body.y + entry.y - aboardMenu.scrollY;
     if (drawY + ABOARD_NAMED_TILE_H < body.y || drawY > body.y + body.h) continue;
-    drawAboardNamedEntry(entry, body.x + entry.x, drawY);
+    const entryRect = drawAboardNamedEntry(
+      entry,
+      body.x + entry.x,
+      drawY,
+      entry.id === aboardMenu.focusedNamedId
+    );
+    aboardMenu.namedEntryRects.push({ entryId: entry.id, rect: entryRect });
   }
   for (const entry of layout.generic) {
     const drawY = body.y + entry.y - aboardMenu.scrollY;
@@ -19651,15 +21000,28 @@ function aboardRosterLayout(roster, width) {
   });
   return {
     named,
+    namedColumns,
     generic,
     height: genericStartY + genericRows * ABOARD_GENERIC_TILE_H
   };
 }
 
-function drawAboardNamedEntry(entry, x, y) {
+function drawAboardNamedEntry(entry, x, y, selected) {
+  const cardRect = {
+    x: Math.round(x + 1),
+    y: Math.round(y),
+    w: Math.max(1, Math.round(entry.w - 2)),
+    h: ABOARD_NAMED_TILE_H - 2
+  };
+  const hovered = pointInRect(captainMenu.hoverPoint, cardRect);
+  drawPiratePaperInset(cardRect, selected || hovered);
+  if (selected || hovered) {
+    ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+    ctx.fillRect(cardRect.x + 2, cardRect.y + 3, 2, cardRect.h - 6);
+  }
   const frameSize = DIALOGUE_PORTRAIT_SIZE + 2;
   const frameX = Math.round(x + (entry.w - frameSize) / 2);
-  const frameY = Math.round(y);
+  const frameY = Math.round(y + 3);
   const color = aboardRoleColor(entry.role);
   ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
   ctx.fillRect(frameX, frameY, frameSize, frameSize);
@@ -19670,15 +21032,174 @@ function drawAboardNamedEntry(entry, x, y) {
   drawOptionsText(
     fitPixelText(entry.character.name.toUpperCase(), PIXEL_FONT_SMALL_8, entry.w - 2),
     x + entry.w / 2,
-    y + 68,
+    y + 71,
     { align: "center", color: PIRATE_MENU_INK }
   );
   drawOptionsText(
     fitPixelText(aboardRoleLabel(entry.role), PIXEL_FONT_SMALL_8, entry.w - 2),
     x + entry.w / 2,
-    y + 77,
+    y + 80,
     { align: "center", color }
   );
+  const skillLines = wrapPixelText(
+    characterSkills(entry.character).map((skill) => skill.label).join(" / ").toUpperCase(),
+    PIXEL_FONT_SMALL_8,
+    entry.w - 4,
+    2
+  );
+  skillLines.forEach((line, index) => drawOptionsText(
+    line,
+    x + entry.w / 2,
+    y + 90 + index * 8,
+    { align: "center", color: PIRATE_MENU_INK_MUTED }
+  ));
+  drawOptionsText(
+    ">",
+    cardRect.x + cardRect.w - 4,
+    cardRect.y + cardRect.h - 10,
+    {
+      align: "right",
+      color: selected || hovered ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED
+    }
+  );
+  return cardRect;
+}
+
+function drawAboardCharacterDetail(roster, panel) {
+  const entry = roster.named.find((candidate) => candidate.id === aboardMenu.selectedNamedId);
+  if (!entry) throw new Error(`Selected aboard character is no longer present: ${aboardMenu.selectedNamedId}`);
+  const character = entry.character;
+  const homeLongitude = ship && Number.isInteger(ship.tileId) ? graph.lonDeg[ship.tileId] : 0;
+  const age = characterAgeAtMinute(character, weatherClockMinutes, homeLongitude);
+  const compact = panel.w < 320 || panel.h < 300;
+  const contentY = panel.y + 38;
+  aboardMenu.backButtonRect = {
+    x: panel.x + 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
+  aboardMenu.namedEntryRects = [];
+  aboardMenu.scrollUpRect = null;
+  aboardMenu.scrollDownRect = null;
+
+  ctx.save();
+  drawPiratePaperModal(panel, 0.84);
+  drawOptionsArrowButton(
+    aboardMenu.backButtonRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, aboardMenu.backButtonRect)
+  );
+  drawOptionsCloseButton(
+    aboardMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, aboardMenu.closeButtonRect)
+  );
+  drawOptionsText(
+    fitPixelText(character.name.toUpperCase(), PIXEL_FONT_DIALOGUE_8, panel.w - 92),
+    panel.x + panel.w / 2,
+    panel.y + 10,
+    { font: PIXEL_FONT_DIALOGUE_8, align: "center", color: PIRATE_MENU_INK }
+  );
+
+  const portraitFrame = {
+    x: panel.x + 14,
+    y: contentY,
+    w: DIALOGUE_PORTRAIT_SIZE + 2,
+    h: DIALOGUE_PORTRAIT_SIZE + 2
+  };
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
+  ctx.fillRect(portraitFrame.x, portraitFrame.y, portraitFrame.w, portraitFrame.h);
+  ctx.strokeStyle = aboardRoleColor(entry.role);
+  ctx.strokeRect(portraitFrame.x + 0.5, portraitFrame.y + 0.5, portraitFrame.w - 1, portraitFrame.h - 1);
+  drawDialoguePortrait(character, "neutral", portraitFrame.x + 1, portraitFrame.y + 1);
+
+  const detailsX = portraitFrame.x + portraitFrame.w + 12;
+  const detailsW = panel.x + panel.w - 14 - detailsX;
+  const detailRows = [
+    ["ROLE", aboardRoleLabel(entry.role)],
+    ["NATIONALITY", characterNationalityLabel(character)],
+    ["SEX", character.sex === "female" ? "FEMALE" : "MALE"],
+    ["BORN", compact
+      ? `${characterBirthdayLabel(character)} ${character.birthDate.year}`
+      : character.birthDateLabel],
+    ["AGE", String(age)]
+  ];
+  const rowStep = compact ? 13 : 15;
+  detailRows.forEach(([label, value], index) => {
+    const y = contentY + index * rowStep;
+    drawOptionsText(label, detailsX, y, { color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText(
+      fitPixelText(String(value).toUpperCase(), PIXEL_FONT_SMALL_8, Math.max(20, detailsW - 76)),
+      detailsX + 76,
+      y,
+      { color: PIRATE_MENU_INK }
+    );
+  });
+  drawOptionsText(
+    `BIRTHDAY ${characterBirthdayLabel(character)}`,
+    portraitFrame.x + portraitFrame.w / 2,
+    portraitFrame.y + portraitFrame.h + 5,
+    { align: "center", color: PIRATE_MENU_INK_MUTED }
+  );
+
+  const goal = entry.goal;
+  if (!goal) throw new Error(`Aboard character ${character.name} has no goal`);
+  const goalLabelY = Math.max(
+    portraitFrame.y + portraitFrame.h + 19,
+    contentY + detailRows.length * rowStep + 5
+  );
+  drawOptionsText("GOAL", panel.x + 14, goalLabelY, { color: PIRATE_MENU_INK_MUTED });
+  const goalLines = wrapPixelText(
+    goal.text.toUpperCase(),
+    PIXEL_FONT_SMALL_8,
+    panel.w - 40,
+    compact ? 2 : 3
+  );
+  const goalBoxY = goalLabelY + 11;
+  const goalBoxH = 8 + goalLines.length * localizedLineHeight(9);
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
+  ctx.fillRect(panel.x + 14, goalBoxY, panel.w - 28, goalBoxH);
+  ctx.fillStyle = aboardRoleColor(entry.role);
+  ctx.fillRect(panel.x + 14, goalBoxY, 2, goalBoxH);
+  goalLines.forEach((line, index) => drawOptionsText(
+    line,
+    panel.x + 20,
+    goalBoxY + 4 + index * localizedLineHeight(9),
+    { color: PIRATE_MENU_INK }
+  ));
+
+  const skills = characterSkills(character).map((skill) => characterSkillSummary(skill.id));
+  const skillsY = goalBoxY + goalBoxH + 7;
+  drawOptionsText(skills.length === 1 ? "SKILL" : "SKILLS", panel.x + 14, skillsY, {
+    color: PIRATE_MENU_INK_MUTED
+  });
+  let skillY = skillsY + 12;
+  const skillW = panel.w - 28;
+  for (const skill of skills) {
+    const effectText = skill.effectLabels.join(" / ").toUpperCase();
+    const effectLines = wrapPixelTextAll(effectText, PIXEL_FONT_SMALL_8, skillW - 8);
+    const detailLines = compact
+      ? []
+      : wrapPixelTextAll(skill.detail.toUpperCase(), PIXEL_FONT_SMALL_8, skillW - 8).slice(0, 2);
+    const rowH = 8 + (1 + effectLines.length + detailLines.length) * localizedLineHeight(9);
+    if (skillY + rowH > panel.y + panel.h - 8) break;
+    ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
+    ctx.fillRect(panel.x + 14, skillY, skillW, rowH);
+    ctx.fillStyle = aboardRoleColor(entry.role);
+    ctx.fillRect(panel.x + 14, skillY, 2, rowH);
+    drawOptionsText(skill.label.toUpperCase(), panel.x + 20, skillY + 4, { color: PIRATE_MENU_INK });
+    let textY = skillY + 4 + localizedLineHeight(9);
+    for (const line of effectLines) {
+      drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_SUCCESS });
+      textY += localizedLineHeight(9);
+    }
+    for (const line of detailLines) {
+      drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_INK_MUTED });
+      textY += localizedLineHeight(9);
+    }
+    skillY += rowH + 5;
+  }
+  ctx.restore();
 }
 
 function drawAboardGenericEntry(entry, x, y) {
@@ -19812,7 +21333,13 @@ function drawAchievementsMenu() {
     const textX = row.x + 27;
     const progressLabel = concealed ? "HIDDEN" : achievementProgressLabel(entry, progress);
     const progressWidth = measurePixelTextWidth(progressLabel, PIXEL_FONT_SMALL_8);
-    const titleWidth = Math.max(24, row.w - (textX - row.x) - progressWidth - 13);
+    const statusX = row.x + row.w - GAME_ICON_SIZE - 4;
+    const progressRightX = statusX - 3;
+    const progressSpace = progressLabel ? progressWidth + 4 : 0;
+    const titleWidth = Math.max(
+      24,
+      row.w - (textX - row.x) - GAME_ICON_SIZE - progressSpace - 8
+    );
     drawOptionsText(
       fitPixelText(
         presentation.title.toUpperCase(),
@@ -19823,10 +21350,13 @@ function drawAchievementsMenu() {
       row.y + 2,
       { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
     );
-    drawOptionsText(progressLabel, row.x + row.w - 6, row.y + 3, {
-      align: "right",
-      color: progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
-    });
+    if (progressLabel) {
+      drawOptionsText(progressLabel, progressRightX, row.y + 3, {
+        align: "right",
+        color: progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
+      });
+    }
+    drawGameIcon(achievementStatusIconId(progress.unlocked), statusX, row.y + 1);
     const descriptionLines = wrapPixelText(
       presentation.description.toUpperCase(),
       PIXEL_FONT_SMALL_8,
@@ -19879,12 +21409,12 @@ function drawAchievementsMenu() {
 }
 
 function achievementProgressLabel(entry, progress) {
-  if (progress.unlocked) return "UNLOCKED";
+  if (progress.unlocked) return "";
   if (["merchant-adventurer", "merchant-prince", "millionaire"].includes(entry.id)) {
     return `${formatCompactNumber(progress.value)}/${formatCompactNumber(progress.target)}`;
   }
   if (progress.target > 1) return `${progress.value}/${progress.target}`;
-  return "LOCKED";
+  return "";
 }
 
 function drawPoliticsMenu() {
@@ -19967,7 +21497,7 @@ function drawPoliticsMenu() {
     ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 10, y - 1, panel.w - 20, POLITICS_MATRIX_ROW_H);
     drawOptionsText(
-      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_SMALL_8, 104),
+      fitPixelText(row.faction.shortName.toUpperCase(), PIXEL_FONT_SMALL_8, 104),
       rowLabelX,
       y,
       { color: politicsFactionColor(row.faction.id) }
@@ -20093,7 +21623,7 @@ function drawCompactPoliticsMenu() {
     ctx.fillStyle = rowIndex % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
     ctx.fillRect(panel.x + 8, y - 1, panel.w - 16, POLITICS_MATRIX_ROW_H);
     drawOptionsText(
-      fitPixelText(row.faction.adjective.toUpperCase(), PIXEL_FONT_SMALL_8, 76),
+      fitPixelText(row.faction.shortName.toUpperCase(), PIXEL_FONT_SMALL_8, 76),
       labelX,
       y,
       { color: politicsFactionColor(row.faction.id) }
@@ -21206,6 +22736,10 @@ function creditsDisplayLines() {
 }
 
 function drawOptionsMenu() {
+  if (optionsMenu.view === "bindings") {
+    drawKeyBindingsMenu();
+    return;
+  }
   const panelX = Math.floor((SCREEN_W - OPTIONS_PANEL_W) / 2);
   const panelY = Math.floor((SCREEN_H - OPTIONS_PANEL_H) / 2);
   optionsMenu.panelRect = { x: panelX, y: panelY, w: OPTIONS_PANEL_W, h: OPTIONS_PANEL_H };
@@ -21234,15 +22768,140 @@ function drawOptionsMenu() {
   const sfxRow = { x: rowX, y: firstRowY + rowStep * 2, w: rowW, h: OPTIONS_ROW_H - 2 };
   const muteRow = { x: rowX, y: firstRowY + rowStep * 3, w: rowW, h: OPTIONS_ROW_H - 2 };
   const languageRow = { x: rowX, y: firstRowY + rowStep * 4, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 5, w: rowW, h: OPTIONS_ROW_H - 2 };
-  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, languageRow, startMenuRow];
+  const controlsRow = { x: rowX, y: firstRowY + rowStep * 5, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 6, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, languageRow, controlsRow, startMenuRow];
 
   drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
   drawOptionsVolumeRow(musicRow, uiText("options.music"), "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
   drawOptionsVolumeRow(sfxRow, uiText("options.sfx"), "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
   drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
   drawOptionsLanguageRow(languageRow, optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE);
+  drawOptionsControlsRow(controlsRow, optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS);
   drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
+  ctx.restore();
+}
+
+function drawKeyBindingsMenu() {
+  const panelW = Math.min(KEY_BINDINGS_PANEL_MAX_W, SCREEN_W - 8);
+  const panelX = Math.floor((SCREEN_W - panelW) / 2);
+  const panelY = Math.floor((SCREEN_H - KEY_BINDINGS_PANEL_H) / 2);
+  optionsMenu.panelRect = { x: panelX, y: panelY, w: panelW, h: KEY_BINDINGS_PANEL_H };
+
+  ctx.save();
+  drawPiratePaperModal(optionsMenu.panelRect, 0.78);
+
+  const closeSize = UI_ICON_BUTTON_SIZE;
+  optionsMenu.closeButtonRect = {
+    x: panelX + panelW - closeSize - 6,
+    y: panelY + 6,
+    w: closeSize,
+    h: closeSize
+  };
+  drawOptionsCloseButton(
+    optionsMenu.closeButtonRect,
+    pointInRect(optionsMenu.hoverPoint, optionsMenu.closeButtonRect)
+  );
+  drawOptionsText("KEY MAPPING", panelX + panelW / 2, panelY + 9, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+
+  const rowX = panelX + 8;
+  const rowW = panelW - 16;
+  const actionW = Math.min(132, Math.max(100, Math.floor(rowW * 0.35)));
+  const slotGap = 4;
+  const slotW = Math.floor((rowW - actionW - slotGap * 2) / 2);
+  const firstRowY = panelY + 35;
+  const firstIndex = optionsMenu.bindingPage * KEY_BINDINGS_PAGE_SIZE;
+  const definitions = KEY_ACTION_DEFINITIONS.slice(firstIndex, firstIndex + KEY_BINDINGS_PAGE_SIZE);
+  optionsMenu.bindingSlotRects = [];
+
+  for (let pageIndex = 0; pageIndex < definitions.length; pageIndex += 1) {
+    const actionIndex = firstIndex + pageIndex;
+    const definition = definitions[pageIndex];
+    const rowY = firstRowY + pageIndex * KEY_BINDINGS_ROW_H;
+    if (pageIndex % 2 === 1) {
+      ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
+      ctx.fillRect(rowX, rowY, rowW, KEY_BINDINGS_ROW_H - 1);
+    }
+    drawOptionsText(
+      fitPixelText(definition.label, PIXEL_FONT_LATIN_SMALL_8, actionW - 6),
+      rowX + 3,
+      rowY + Math.floor((KEY_BINDINGS_ROW_H - 8) / 2),
+      { font: PIXEL_FONT_LATIN_SMALL_8, color: PIRATE_MENU_INK }
+    );
+    for (let slotIndex = 0; slotIndex < KEY_BINDING_SLOT_COUNT; slotIndex += 1) {
+      const rect = {
+        x: rowX + actionW + slotGap + slotIndex * (slotW + slotGap),
+        y: rowY + 2,
+        w: slotW,
+        h: KEY_BINDINGS_ROW_H - 5
+      };
+      const selected = actionIndex === optionsMenu.bindingSelectedIndex &&
+        slotIndex === optionsMenu.bindingSelectedSlot;
+      const capturing = selected && optionsMenu.bindingCapture !== null;
+      drawPiratePaperInset(rect, selected);
+      const token = keyBindings.actions[definition.id][slotIndex];
+      const label = capturing ? "PRESS KEY..." : keyBindingLabel(token, navigator.platform);
+      drawOptionsText(
+        fitPixelText(label, PIXEL_FONT_LATIN_SMALL_8, rect.w - 6),
+        rect.x + rect.w / 2,
+        rect.y + Math.floor((rect.h - 8) / 2),
+        {
+          font: PIXEL_FONT_LATIN_SMALL_8,
+          align: "center",
+          color: token === null && !capturing ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK
+        }
+      );
+      optionsMenu.bindingSlotRects.push({ actionIndex, slotIndex, rect });
+    }
+  }
+
+  const feedback = optionsMenu.bindingFeedback || "ENTER OR CLICK TO REBIND  DEL CLEARS";
+  drawOptionsText(
+    fitPixelText(feedback, PIXEL_FONT_LATIN_SMALL_8, rowW),
+    panelX + panelW / 2,
+    panelY + 199,
+    {
+      font: PIXEL_FONT_LATIN_SMALL_8,
+      align: "center",
+      color: optionsMenu.bindingCapture ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+    }
+  );
+
+  const buttonY = panelY + KEY_BINDINGS_PANEL_H - 31;
+  optionsMenu.bindingBackRect = { x: panelX + 8, y: buttonY, w: 68, h: 24 };
+  optionsMenu.bindingResetRect = { x: panelX + 82, y: buttonY, w: 82, h: 24 };
+  optionsMenu.bindingPreviousRect = { x: panelX + panelW - 72, y: buttonY, w: 28, h: 24 };
+  optionsMenu.bindingNextRect = { x: panelX + panelW - 36, y: buttonY, w: 28, h: 24 };
+  drawOptionsArrowButton(
+    optionsMenu.bindingBackRect,
+    "BACK",
+    pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingBackRect)
+  );
+  drawOptionsArrowButton(
+    optionsMenu.bindingResetRect,
+    "DEFAULTS",
+    pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingResetRect)
+  );
+  drawOptionsArrowButton(
+    optionsMenu.bindingPreviousRect,
+    "<",
+    pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingPreviousRect)
+  );
+  drawOptionsArrowButton(
+    optionsMenu.bindingNextRect,
+    ">",
+    pointInRect(optionsMenu.hoverPoint, optionsMenu.bindingNextRect)
+  );
+  drawOptionsText(
+    `PAGE ${optionsMenu.bindingPage + 1}/${keyBindingsPageCount()}`,
+    panelX + panelW - 108,
+    buttonY + 8,
+    { font: PIXEL_FONT_LATIN_SMALL_8, align: "right", color: PIRATE_MENU_INK_MUTED }
+  );
   ctx.restore();
 }
 
@@ -21357,6 +23016,19 @@ function drawOptionsLanguageRow(rowRect, highlighted) {
   });
   drawOptionsText(fitPixelText(value, font, innerWidth), rowRect.x + rowRect.w - 8, valueY, {
     font,
+    align: "right",
+    color: PIRATE_MENU_CHART_LINE
+  });
+}
+
+function drawOptionsControlsRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  drawOptionsText("KEY MAPPING", rowRect.x + 8, controlTextY(rowRect), {
+    font: PIXEL_FONT_DIALOGUE_8,
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText(">", rowRect.x + rowRect.w - 10, controlTextY(rowRect), {
+    font: PIXEL_FONT_DIALOGUE_8,
     align: "right",
     color: PIRATE_MENU_CHART_LINE
   });
@@ -21856,29 +23528,94 @@ function roundedBeachWaveT(fromT, targetT, side, lineHalfWidth) {
 
 function drawLandRoads(activeChart, visibleTileIds = activeChart.visibleSet) {
   if (!landRoadNetwork?.segmentsByTileId) throw new Error("Land road network is not initialized");
+  if (!(visibleTileIds instanceof Set)) throw new Error("Land road drawing requires visible tile ids");
+  const layer = cachedLandRoadLayer(activeChart);
+  ctx.drawImage(layer.canvas, layer.x, layer.y);
+}
+
+function cachedLandRoadLayer(activeChart) {
+  const cached = landRoadLayerCache.get(activeChart);
+  if (cached) return cached;
+  if (!Array.isArray(activeChart?.tileCalls) || !(activeChart.tileById instanceof Map)) {
+    throw new Error("Land road layer requires a complete chart");
+  }
+  if (activeChart.tileCalls.length === 0) throw new Error("Land road layer requires chart tiles");
+
+  const offset = chartOffsetPixels(activeChart);
+  const cacheMargin = TILE_ART_SIZE + CHART_REBUILD_RADIUS_PX + LAND_ROAD_WIDTH_PX + 3;
+  const cacheTileIds = new Set(activeChart.tileCalls
+    .filter((call) => chartTileCallNearViewport(call, offset, cacheMargin))
+    .map((call) => call.id));
+  const roadSegments = [];
   const visibleSegmentIds = new Set();
-  for (const tileId of visibleTileIds) {
+  for (const tileId of cacheTileIds) {
     for (const segment of landRoadNetwork.segmentsByTileId.get(tileId) || []) {
       if (visibleSegmentIds.has(segment.id)) continue;
       visibleSegmentIds.add(segment.id);
       const a = activeChart.tileById.get(segment.a);
       const b = activeChart.tileById.get(segment.b);
       if (!a || !b) continue;
-      drawLandRoadSegment(landRoadSegmentPath(a, b, segment.a, segment.b), segment.id);
+      roadSegments.push({
+        id: segment.id,
+        path: landRoadSegmentPath(a, b, segment.a, segment.b)
+      });
     }
   }
+  if (roadSegments.length === 0) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const layer = Object.freeze({ canvas, x: 0, y: 0 });
+    landRoadLayerCache.set(activeChart, layer);
+    return layer;
+  }
+
+  let roadMinX = Infinity;
+  let roadMinY = Infinity;
+  let roadMaxX = -Infinity;
+  let roadMaxY = -Infinity;
+  for (const { path } of roadSegments) {
+    roadMinX = Math.min(roadMinX, path.x0, path.cx, path.x1);
+    roadMinY = Math.min(roadMinY, path.y0, path.cy, path.y1);
+    roadMaxX = Math.max(roadMaxX, path.x0, path.cx, path.x1);
+    roadMaxY = Math.max(roadMaxY, path.y0, path.cy, path.y1);
+  }
+  const padding = LAND_ROAD_WIDTH_PX + 3;
+  const minX = Math.floor(roadMinX) - padding;
+  const minY = Math.floor(roadMinY) - padding;
+  const maxX = Math.ceil(roadMaxX) + padding;
+  const maxY = Math.ceil(roadMaxY) + padding;
+  const width = maxX - minX + 1;
+  const height = maxY - minY + 1;
+  if (width <= 0 || height <= 0 || width > 8192 || height > 8192) {
+    throw new Error(`Invalid land road layer dimensions: ${width}x${height}`);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const roadCtx = canvas.getContext("2d", { alpha: true });
+  if (!roadCtx) throw new Error("Could not create land road rendering context");
+  roadCtx.imageSmoothingEnabled = false;
+  roadCtx.translate(-minX, -minY);
+
+  for (const segment of roadSegments) {
+    drawLandRoadSegment(roadCtx, segment.path, segment.id);
+  }
+  const layer = Object.freeze({ canvas, x: minX, y: minY });
+  landRoadLayerCache.set(activeChart, layer);
+  return layer;
 }
 
-function drawLandRoadSegment(path, segmentId) {
-  const seed = spriteKeyHash(segmentId);
+function drawLandRoadSegment(targetCtx, path, segmentId) {
   if (LAND_ROAD_WIDTH_PX !== 2) throw new Error(`Unsupported land road width: ${LAND_ROAD_WIDTH_PX}`);
-  ctx.fillStyle = LAND_ROAD_COLOR;
-  forEachTwoPixelBezierPoint(path, (x, y) => ctx.fillRect(x, y, 1, 1));
+  targetCtx.fillStyle = LAND_ROAD_COLOR;
+  forEachTwoPixelBezierPoint(path, (x, y) => targetCtx.fillRect(x, y, 1, 1));
+  const seed = spriteKeyHash(segmentId);
   let index = 0;
+  targetCtx.fillStyle = LAND_ROAD_DARK_COLOR;
   forEachPixelOnBezier(path, (x, y) => {
     if ((index + seed) % 9 === 0) {
-      ctx.fillStyle = LAND_ROAD_DARK_COLOR;
-      ctx.fillRect(x, y, 1, 1);
+      targetCtx.fillRect(x, y, 1, 1);
     }
     index++;
   });
@@ -24865,7 +26602,7 @@ function drawWindIndicator(nowMs) {
     centerX: SCREEN_W / 2,
     centerY: SCREEN_H / 2,
     flowDirectionRad: state.flowDirectionRad,
-    deadZoneHalfAngleRad: ship.stats.upwindStallAngleRad,
+    deadZoneHalfAngleRad: currentPlayerEffectiveShipStats().upwindStallAngleRad,
     strength: state.strength,
     warning: state.stallWarning || 0,
     nowMs
@@ -25282,7 +27019,7 @@ function windIndicatorTarget() {
     directionIndex,
     strength: wind.strength,
     stallWarning: shipHasWindDeadZone(ship.stats)
-      ? sailingStallWarningStrength(angleFromWind, ship.stats.upwindStallAngleRad)
+      ? sailingStallWarningStrength(angleFromWind, currentPlayerEffectiveShipStats().upwindStallAngleRad)
       : 0
   };
 }
@@ -25847,7 +27584,7 @@ function drawInteractionButton() {
     secondaryLabel = `${Math.round(whaleHarpoonHitChance(
       harpoon,
       target.call.distancePx,
-      playerCrewWorkMultiplier()
+      playerCrewWorkMultiplier() * currentPlayerPerkTotals().whalingChanceMultiplier
     ) * 100)}%`;
   } else if (target.kind === "whale-cut") {
     actionLabel = "Cut whale loose";
@@ -26542,6 +28279,7 @@ function drawPlayerIntroModal(nowMs) {
       flagWavePhase(nowMs, character.homePortTileId)
     );
   }
+  drawCharacterSkillBadge(character, portraitX - 6, portraitY + DIALOGUE_PORTRAIT_SIZE + 34, 76);
 
   const detailX = panel.x + 104;
   const detailW = panel.w - 122;
@@ -26647,6 +28385,8 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
     });
   });
 
+  drawCharacterSkillBadge(character, detailX, panel.y + 246, detailW);
+
   const button = modal.buttonRect;
   drawPiratePaperInset(button, modal.hovered);
   ctx.fillStyle = PIRATE_MENU_INK;
@@ -26654,6 +28394,28 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center"
   });
+}
+
+function drawCharacterSkillBadge(character, x, y, width) {
+  const skills = characterSkills(character);
+  const skill = characterSkillSummary(skills[0].id);
+  const rect = { x: Math.round(x), y: Math.round(y), w: Math.round(width), h: 24 };
+  ctx.fillStyle = "#f2d492";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  drawPixelText("SKILL", rect.x + rect.w / 2, rect.y + 3, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "center"
+  });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText(
+    fitPixelText(skill.label.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 6),
+    rect.x + rect.w / 2,
+    rect.y + 12,
+    { font: PIXEL_FONT_SMALL_8, align: "center" }
+  );
 }
 
 function drawCaptainAlertModal() {
@@ -26899,7 +28661,7 @@ function drawSailingTackingDiagram(rect) {
     centerX: shipX,
     centerY: shipY,
     flowDirectionRad: -Math.PI / 2,
-    deadZoneHalfAngleRad: ship.stats.upwindStallAngleRad,
+    deadZoneHalfAngleRad: currentPlayerEffectiveShipStats().upwindStallAngleRad,
     strength: 0.9,
     warning: 1,
     nowMs: lastFrameMs
@@ -26933,7 +28695,7 @@ function drawSailingHaulingDiagram(rect) {
     centerX: shipX,
     centerY: shipY,
     flowDirectionRad: Math.PI,
-    deadZoneHalfAngleRad: ship.stats.upwindStallAngleRad,
+    deadZoneHalfAngleRad: currentPlayerEffectiveShipStats().upwindStallAngleRad,
     strength: 0.9,
     warning: 1,
     nowMs: lastFrameMs
@@ -27081,7 +28843,7 @@ function drawVictoryStatsScreen(state, elapsedMs) {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
-  const legacyLines = wrapPixelText(victory.legacy.toUpperCase(), PIXEL_FONT_SMALL_8, SCREEN_W - 48, 5);
+  const legacyLines = wrapPixelText(victory.legacy.toUpperCase(), PIXEL_FONT_SMALL_8, SCREEN_W - 48, 6);
   ctx.fillStyle = PIRATE_MENU_INK;
   legacyLines.forEach((line, index) => {
     drawPixelText(line, SCREEN_W / 2, 46 + index * 10, {
@@ -28120,13 +29882,13 @@ async function ensureCharacterPortraitLoaded(character, expression) {
 function dialoguePortraitImage(character, expression) {
   if (!character || !expression) return null;
   const key = `${character.id}|${expression.id}`;
-  const cached = portraitCanvasCache.get(key);
-  if (cached) return cached;
+  const displayFrame = portraitFrameStore.display(character.id, key);
+  if (portraitFrameStore.has(key)) return displayFrame;
   if (!portraitPromiseCache.has(key)) {
     const sourceUrl = `${expression.src}?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
     const promise = loadAssetImage(sourceUrl, `portrait ${character.id}.${expression.id}`)
       .then((sourceImage) => {
-        portraitCanvasCache.set(key, sourceImage);
+        portraitFrameStore.store(character.id, key, sourceImage);
         dirty = true;
       })
       .catch((error) => {
@@ -28135,7 +29897,7 @@ function dialoguePortraitImage(character, expression) {
       });
     portraitPromiseCache.set(key, promise);
   }
-  return null;
+  return displayFrame;
 }
 
 function drawTinyStatus(nowMs) {
@@ -28462,38 +30224,6 @@ function latLonToDirection(latDeg, lonDeg) {
   const lon = lonDeg * Math.PI / 180;
   const c = Math.cos(lat);
   return [c * Math.cos(lon), Math.sin(lat), -c * Math.sin(lon)];
-}
-
-function isControlKey(key) {
-  return key === "ArrowLeft" ||
-    key === "ArrowRight" ||
-    key === "ArrowUp" ||
-    key === "ArrowDown" ||
-    key === "w" ||
-    key === "W" ||
-    key === "a" ||
-    key === "A" ||
-    key === "s" ||
-    key === "S" ||
-    key === "d" ||
-    key === "D";
-}
-
-function isInteractionKey(key) {
-  return key === "Enter" || key === " ";
-}
-
-function isCannonKey(key) {
-  return key === "q" ||
-    key === "Q" ||
-    key === "e" ||
-    key === "E";
-}
-
-function cannonSideForKey(key) {
-  if (key === "q" || key === "Q") return "port";
-  if (key === "e" || key === "E") return "starboard";
-  throw new Error(`Unknown cannon key: ${key}`);
 }
 
 function handleDebugWeatherControl(control) {

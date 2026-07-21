@@ -44,6 +44,7 @@ import {
   hasLetterOfMarqueFrom,
   initializeProvisionalShipLoadout,
   portEntryStatus,
+  purchasePerkItem,
   questStateForCity
 } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -69,6 +70,11 @@ import {
   CARIBBEAN_GINGER_FETCH_STAGE,
   maybeSpawnCaribbeanGingerQuest
 } from "./caribbeanGingerQuest.js";
+import {
+  completeChefBanquet,
+  maybeSpawnChefQuest
+} from "./chefQuest.js";
+import { NAMED_CREW_ROLE_CHEF, addNamedCrewMember } from "./namedCrew.js";
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
@@ -697,9 +703,19 @@ test("selling the final unit disables its stable market row instead of moving la
   assert.ok(woolIndex >= 0);
   assert.ok(timberIndex >= 0);
 
-  selectPortDialogueOption(session, city, gameState, economy, [city], woolIndex, { simMinute: 10 });
+  const sale = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    woolIndex,
+    { simMinute: 10 }
+  );
   const after = portDialogueView(session, city, gameState, economy, [city]);
 
+  assert.equal(sale.marketSale.good.id, "wool");
+  assert.equal(sale.marketSale.quantity, 1);
   assert.equal(after.options[woolIndex].action.goodId, "wool");
   assert.equal(after.options[woolIndex].disabled, true);
   assert.match(after.options[woolIndex].detail, /HELD 0$/);
@@ -1172,6 +1188,43 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
   assert.match(session.feedback, /Dumped 4 hardtack and 4 water/);
 });
 
+test("an already active banquet chef waits for a permanent berth before joining", () => {
+  const city = {
+    tileId: 44,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Ottoman Empire",
+    cityType: "islamic-desert",
+    population: 100000,
+    character: { name: "Kemal Aydin" }
+  };
+  const stats = {
+    slug: "two-berth-craft",
+    cargoCapacity: 20,
+    crewCapacity: 2,
+    cannons: 0,
+    mass: 10,
+    navalWeaponKind: null
+  };
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const quest = maybeSpawnChefQuest(gameState, city, { simMinute: 0, spawnChance: 1 });
+  gameState.ship.crew = gameState.ship.crewCapacity;
+  addNamedCrewMember(gameState, {
+    id: "existing-chef",
+    name: "Existing Chef",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, NAMED_CREW_ROLE_CHEF, { replaceGenericWhenFull: true });
+  for (const ingredient of quest.ingredients) gameState.cargo[ingredient.goodId] = 1;
+  completeChefBanquet(gameState, city, 100);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "chef-quest" });
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  const recruit = view.options.find((entry) => entry.action.type === "recruit-chef");
+  assert.equal(recruit.disabled, true);
+  assert.match(recruit.disabledReason, /no berth/);
+});
+
 test("enemy port guards bar resupply and offer one risky disguise route", () => {
   const city = {
     tileId: 12,
@@ -1530,6 +1583,58 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
   assert.equal(result.cannonEquipmentPurchase.equipment.id, "bronze-culverins");
   assert.equal(gameState.doubloons, 7600);
   assert.match(session.feedback, /Bronze culverins fitted/);
+});
+
+test("a rare equipment offer persists after declining and remembers the player", () => {
+  const city = {
+    tileId: 17,
+    city: "Porto Novo",
+    displayCity: "Porto Novo",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.doubloons = 5000;
+  const session = createPortDialogueSession(city, { initialNodeId: "root" });
+
+  const root = portDialogueView(session, city, gameState, economy, [city]);
+  const equipmentIndex = root.options.findIndex((entry) => entry.action.nodeId === "equipment");
+  assert.ok(equipmentIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], equipmentIndex);
+
+  const firstOffer = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(firstOffer.text, /a rare Bronze Fish Hooks came into my hands/i);
+  assert.deepEqual(firstOffer.options.map((entry) => entry.label), ["Buy it - 650 db", "No, thank you"]);
+  assert.match(firstOffer.options[0].detail, /Fishing odds \+8%/);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 1);
+  const equipment = portDialogueView(session, city, gameState, economy, [city]);
+  assert.ok(equipment.options.every((entry) => entry.label !== "Special equipment"));
+  const backIndex = equipment.options.findIndex((entry) => entry.action.nodeId === "root");
+  selectPortDialogueOption(session, city, gameState, economy, [city], backIndex);
+
+  const revisitedRoot = portDialogueView(session, city, gameState, economy, [city]);
+  const revisitedEquipmentIndex = revisitedRoot.options.findIndex((entry) => entry.action.nodeId === "equipment");
+  selectPortDialogueOption(session, city, gameState, economy, [city], revisitedEquipmentIndex);
+  const repeatedOffer = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(repeatedOffer.text, /Have you reconsidered buying the Bronze Fish Hooks/i);
+
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
+    simMinute: 300
+  });
+  assert.equal(result.perkItemPurchase.item.id, "bronze-fish-hooks");
+  assert.equal(gameState.inventory.items["bronze-fish-hooks"], 1);
+  assert.equal(gameState.doubloons, 4350);
+  assert.match(session.feedback, /Bronze Fish Hooks brought aboard/);
+  assert.throws(
+    () => purchasePerkItem(gameState, city, "bronze-fish-hooks"),
+    /already aboard/
+  );
 });
 
 test("package job offers show the destination distance", () => {

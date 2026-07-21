@@ -4,16 +4,8 @@ import test from "node:test";
 import {
   SHARE_SCREENSHOT_SCALE,
   createShareScreenshotCanvas,
-  isShareScreenshotKey,
   shareScreenshotFilename
 } from "./screenshotExport.js";
-
-test("the share screenshot shortcut supports macOS and other desktop keyboards", () => {
-  assert.equal(isShareScreenshotKey({ code: "KeyS", shiftKey: true, metaKey: true }), true);
-  assert.equal(isShareScreenshotKey({ code: "KeyS", shiftKey: true, ctrlKey: true }), true);
-  assert.equal(isShareScreenshotKey({ code: "KeyS", shiftKey: false, metaKey: true }), false);
-  assert.equal(isShareScreenshotKey({ code: "KeyS", shiftKey: true }), false);
-});
 
 test("share screenshots upscale the logical canvas five times without smoothing", () => {
   const drawCalls = [];

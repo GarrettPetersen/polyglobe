@@ -1,14 +1,22 @@
-import { assignRegionalCharacterName } from "./characterNames.js";
+import {
+  assignRegionalCharacterName,
+  assignRegionalFamilyMemberName
+} from "./characterNames.js";
+import { characterWithBiography } from "./characterBiography.js";
+import { characterSkillIdsForIdentity } from "./characterSkills.js";
+import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-9";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-10";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
   angry: Object.freeze(["stern", "shouting", "annoyed", "determined"]),
   afraid: Object.freeze(["worried", "surprised", "concerned", "wary"]),
   happy: Object.freeze(["laughing", "pleased", "smile", "soft-smile"]),
+  overjoyed: Object.freeze(["laughing", "happy", "pleased", "smile", "soft-smile"]),
   sad: Object.freeze(["worried", "concerned", "pained", "hurt", "weary"]),
+  crying: Object.freeze(["sad", "worried", "pained", "hurt", "concerned"]),
   concerned: Object.freeze(["worried", "wary", "afraid", "sad", "serious"]),
   wary: Object.freeze(["concerned", "skeptical", "stern", "serious", "afraid"]),
   stern: Object.freeze(["serious", "determined", "skeptical", "angry"]),
@@ -64,6 +72,41 @@ export function validateCharacterPortraitManifest(manifest) {
       }
     }
   }
+}
+
+export function reconcileCharacterPortraitSexes(root, manifest) {
+  if (!root || typeof root !== "object") {
+    throw new Error("Portrait sex reconciliation requires an object graph");
+  }
+  validateCharacterPortraitManifest(manifest);
+  const sourceSexById = new Map(
+    manifest.sourceCharacters.map((character) => [character.id, character.sex])
+  );
+  const visited = new WeakSet();
+  let correctedCount = 0;
+
+  function visit(value) {
+    if (!value || typeof value !== "object" || ArrayBuffer.isView(value) || visited.has(value)) return;
+    visited.add(value);
+    if (typeof value.sourceId === "string" && (value.sex === "female" || value.sex === "male")) {
+      const reviewedSex = sourceSexById.get(value.sourceId);
+      if (!reviewedSex) {
+        throw new Error("Character uses an unknown portrait source: " + value.sourceId);
+      }
+      if (value.sex !== reviewedSex) {
+        if (Object.isFrozen(value)) {
+          throw new Error("Cannot reconcile frozen character portrait metadata: " + value.sourceId);
+        }
+        value.sex = reviewedSex;
+        correctedCount += 1;
+      }
+    }
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] !== "object") return;
+    for (const child of Object.values(value)) visit(child);
+  }
+
+  visit(root);
+  return correctedCount;
 }
 
 function assertSlug(value, label) {
@@ -188,6 +231,21 @@ export function assignNpcShipCaptains(
   return assignments;
 }
 
+export function assignMissingNpcShipCaptains(
+  npcShips,
+  assignments,
+  manifest,
+  usedNames,
+  options = {}
+) {
+  if (!(assignments instanceof Map)) throw new Error("NPC captain reconciliation requires an assignment Map");
+  const missingShips = [...npcShips].filter((ship) => !assignments.has(ship.id));
+  if (missingShips.length === 0) return new Map();
+  const additions = assignNpcShipCaptains(missingShips, manifest, usedNames, options);
+  for (const [shipId, captain] of additions) assignments.set(shipId, captain);
+  return additions;
+}
+
 export function generatePlayerCharacter({ identityKey, homePort, manifest, usedNames }) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
@@ -206,13 +264,14 @@ export function generatePlayerCharacter({ identityKey, homePort, manifest, usedN
     sex: character.sex,
     usedNames
   });
-  return Object.freeze({
+  return Object.freeze(characterWithBiography({
     ...character,
     ...name,
+    skillIds: characterSkillIdsForIdentity(`player|${identityKey}`),
     role: "player-captain",
     homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city
-  });
+  }, portBiographyOptions(`player|${identityKey}`, homePort)));
 }
 
 export function generateCampaignContactCharacter({
@@ -271,7 +330,7 @@ export function generateSpecialPortCharacter({
   const region = portraitRegionForCity(port);
   const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
   const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
-  return Object.freeze({
+  return Object.freeze(characterWithBiography({
     ...character,
     ...assignRegionalCharacterName({
       identityKey,
@@ -279,9 +338,10 @@ export function generateSpecialPortCharacter({
       sex: character.sex,
       usedNames
     }),
+    skillIds: characterSkillIdsForIdentity(identityKey, { traveler: true }),
     role,
     homePortTileId: port.tileId
-  });
+  }, portBiographyOptions(identityKey, port)));
 }
 
 export function generatePassengerCharacter({
@@ -317,13 +377,182 @@ export function generatePassengerCharacter({
     sex: character.sex,
     usedNames
   });
-  return Object.freeze({
+  return Object.freeze(characterWithBiography({
     ...character,
     ...name,
+    skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: "passenger",
     originPortTileId: originPort.tileId,
     destinationPortTileId: destinationPort.tileId
+  }, portBiographyOptions(key, namePort)));
+}
+
+export function generatePirateCaptiveCharacter({
+  identityKey,
+  homePort,
+  excludedSourceIds = [],
+  manifest,
+  usedNames
+}) {
+  return generateRescuedTravelerCharacter({
+    identityKey,
+    homePort,
+    excludedSourceIds,
+    manifest,
+    usedNames,
+    rescueType: "pirate-captive"
   });
+}
+
+export function generateCastawayCharacter({
+  identityKey,
+  homePort,
+  excludedSourceIds = [],
+  manifest,
+  usedNames
+}) {
+  return generateRescuedTravelerCharacter({
+    identityKey,
+    homePort,
+    excludedSourceIds,
+    manifest,
+    usedNames,
+    rescueType: "castaway"
+  });
+}
+
+function generateRescuedTravelerCharacter({
+  identityKey,
+  homePort,
+  excludedSourceIds,
+  manifest,
+  usedNames,
+  rescueType
+}) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (typeof identityKey !== "string" || identityKey.trim() === "") {
+    throw new Error("Rescued traveler generation requires an identity key");
+  }
+  if (!homePort || typeof homePort !== "object") {
+    throw new Error("Rescued traveler generation requires a home port");
+  }
+  if (rescueType !== "pirate-captive" && rescueType !== "castaway") {
+    throw new Error(`Unknown rescued traveler character type: ${rescueType}`);
+  }
+  const region = portraitRegionForCity(homePort);
+  const sourcePool = expressiveCivilianSources(manifest, excludedSourceIds);
+  const key = `${rescueType}|${identityKey}`;
+  const character = assignCharacterSprite(key, region, sourcePool, new Set());
+  const name = assignRegionalCharacterName({
+    identityKey: key,
+    city: homePort,
+    sex: character.sex,
+    usedNames
+  });
+  return Object.freeze(characterWithBiography({
+    ...character,
+    ...name,
+    skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
+    role: rescueType,
+    homePortTileId: homePort.tileId,
+    homePortName: homePort.displayCity || homePort.city,
+    homePortCountry: homePort.country,
+    goal: `Reunite with family in ${homePort.displayCity || homePort.city}`
+  }, portBiographyOptions(key, homePort)));
+}
+
+export function generatePirateCaptiveFamilyMember({
+  identityKey,
+  captive,
+  homePort,
+  excludedSourceIds = [],
+  manifest,
+  usedNames
+}) {
+  return generateRescuedTravelerFamilyMember({
+    identityKey,
+    captive,
+    homePort,
+    excludedSourceIds,
+    manifest,
+    usedNames,
+    rescueType: "pirate-captive"
+  });
+}
+
+export function generateCastawayFamilyMember({
+  identityKey,
+  castaway,
+  homePort,
+  excludedSourceIds = [],
+  manifest,
+  usedNames
+}) {
+  return generateRescuedTravelerFamilyMember({
+    identityKey,
+    captive: castaway,
+    homePort,
+    excludedSourceIds,
+    manifest,
+    usedNames,
+    rescueType: "castaway"
+  });
+}
+
+function generateRescuedTravelerFamilyMember({
+  identityKey,
+  captive,
+  homePort,
+  excludedSourceIds,
+  manifest,
+  usedNames,
+  rescueType
+}) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (typeof identityKey !== "string" || identityKey.trim() === "") {
+    throw new Error("Rescued traveler family generation requires an identity key");
+  }
+  if (!captive || typeof captive !== "object") {
+    throw new Error("Rescued traveler family generation requires the traveler");
+  }
+  if (!homePort || typeof homePort !== "object") {
+    throw new Error("Rescued traveler family generation requires a home port");
+  }
+  if (rescueType !== "pirate-captive" && rescueType !== "castaway") {
+    throw new Error(`Unknown rescued traveler family type: ${rescueType}`);
+  }
+  const region = portraitRegionForCity(homePort);
+  const sourcePool = expressiveCivilianSources(manifest, [captive.sourceId, ...excludedSourceIds]);
+  const key = `${rescueType}-family|${identityKey}`;
+  const character = assignCharacterSprite(key, region, sourcePool, new Set());
+  const name = assignRegionalFamilyMemberName({
+    identityKey: key,
+    relative: captive,
+    sex: character.sex,
+    usedNames
+  });
+  return Object.freeze(characterWithBiography({
+    ...character,
+    ...name,
+    skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
+    role: "family",
+    homePortTileId: homePort.tileId,
+    homePortName: homePort.displayCity || homePort.city,
+    homePortCountry: homePort.country
+  }, portBiographyOptions(key, homePort)));
+}
+
+function portBiographyOptions(identityKey, port) {
+  const faction = typeof port.factionId === "string" ? factionById(port.factionId) : null;
+  const sovereign = faction && faction.id !== NEUTRAL_FACTION_ID;
+  return {
+    identityKey,
+    nationalityId: faction?.id || null,
+    nationalityName: sovereign ? faction.name : null,
+    nationalityAdjective: sovereign ? faction.adjective : null
+  };
 }
 
 function assertUsedNames(usedNames) {
@@ -387,6 +616,22 @@ function characterSourcesForPlayer(manifest, region) {
     throw new Error(`Character portrait manifest has no expressive ${region} player sources`);
   }
   return expressive;
+}
+
+function expressiveCivilianSources(manifest, excludedSourceIds) {
+  const excluded = sourceIdExclusionSet(excludedSourceIds);
+  const sources = manifest.sourceCharacters.filter((source) => {
+    if (excluded.has(source.id) || source.roles.includes("pirate")) return false;
+    if (!source.roles.includes("civilian") && !source.roles.includes("factor")) return false;
+    const expressions = new Set(source.expressions.map((expression) => expression.id));
+    const hasSad = ["sad", "worried", "pained", "hurt", "concerned"].some((id) => expressions.has(id));
+    const hasHappy = ["laughing", "happy", "pleased", "smile", "soft-smile"].some((id) => expressions.has(id));
+    return source.expressions.length > 1 && hasSad && hasHappy;
+  });
+  if (sources.length === 0) {
+    throw new Error("Character portrait manifest has no expressive pirate captive sources");
+  }
+  return sources;
 }
 
 function characterSourcesForRole(

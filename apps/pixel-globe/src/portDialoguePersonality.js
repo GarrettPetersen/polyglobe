@@ -128,12 +128,12 @@ const CONTEXT_LINES = Object.freeze({
     reflective: "Trust travels slowly between ports, but yours has arrived."
   },
   politics: {
-    cordial: (rival) => `Relations with ${rival} are strained. I would rather see their merchants than their guns.`,
-    vigilant: (rival) => `${rival} agents are watched closely here. These are unsettled times.`,
-    gossipy: (rival) => `Half the quay expects trouble with ${rival}; the other half is selling supplies for it.`,
-    austere: (rival) => `${rival} remains an enemy power. Speak carefully.`,
-    enterprising: (rival) => `Conflict with ${rival} closes one market and opens three less respectable ones.`,
-    reflective: (rival) => `Our quarrel with ${rival} began before this tide and may outlast many more.`
+    cordial: ({ noun }) => `Relations with ${noun} are strained. I would rather see their merchants than their guns.`,
+    vigilant: ({ adjective }) => `${adjective} agents are watched closely here. These are unsettled times.`,
+    gossipy: ({ noun }) => `Half the quay expects trouble with ${noun}; the other half is selling supplies for it.`,
+    austere: ({ sentenceNoun }) => `${sentenceNoun} remains an enemy power. Speak carefully.`,
+    enterprising: ({ noun }) => `Conflict with ${noun} closes one market and opens three less respectable ones.`,
+    reflective: ({ noun }) => `Our quarrel with ${noun} began before this tide and may outlast many more.`
   }
 });
 
@@ -180,7 +180,7 @@ export function portGreetingPresentationForPersonality({
   nearbyShips = {},
   stormy = false,
   playerStanding = 0,
-  rivalLabel = null,
+  rivalTerms = null,
   shipyardRumor = null,
   rulerRumor = null,
   historicalGossip = null
@@ -192,7 +192,7 @@ export function portGreetingPresentationForPersonality({
   const seed = `${personalityId}|${cityName}|${visitCount}|${dayIndex}`;
   const baseFactory = choose(BASE_LINES[personalityId][phase], `${seed}|base`);
   const base = baseFactory(cityName);
-  const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalLabel, seed });
+  const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalTerms, seed });
   const rulerLine = shouldTellRulerRumor(topic, rulerRumor)
     ? rulerRumorLine(personalityId, rulerRumor)
     : null;
@@ -203,7 +203,7 @@ export function portGreetingPresentationForPersonality({
     ? shipyardRumorLine(personalityId, shipyardRumor)
     : null;
   const rumorLine = rulerLine || historyLine || shipyardLine;
-  const contextLine = rumorLine || (topic ? contextLineFor(topic, personalityId, rivalLabel) : localFlavor);
+  const contextLine = rumorLine || (topic ? contextLineFor(topic, personalityId, rivalTerms) : localFlavor);
   return Object.freeze({
     text: `${base} ${contextLine}`.trim(),
     expressionId: rulerLine
@@ -274,7 +274,7 @@ function lowerFirst(value) {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
-function portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalLabel, seed }) {
+function portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalTerms, seed }) {
   if ((nearbyShips.pirates || 0) > 0) return "pirates";
   const candidates = [];
   if (stormy) candidates.push("storm");
@@ -283,14 +283,25 @@ function portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalLabel, se
   if ((nearbyShips.fishermen || 0) > 0) candidates.push("fishermen");
   if (playerStanding <= -15) candidates.push("disliked");
   else if (playerStanding >= 10) candidates.push("liked");
-  if (rivalLabel) candidates.push("politics");
+  if (rivalTerms) candidates.push("politics");
   return candidates.length > 0 ? choose(candidates, `${seed}|topic`) : null;
 }
 
-function contextLineFor(topic, personalityId, rivalLabel) {
+function contextLineFor(topic, personalityId, rivalTerms) {
   const line = CONTEXT_LINES[topic]?.[personalityId];
   if (!line) throw new Error(`Missing ${topic} line for ${personalityId}`);
-  return typeof line === "function" ? line(rivalLabel) : line;
+  if (typeof line !== "function") return line;
+  assertRivalTerms(rivalTerms);
+  return line(rivalTerms);
+}
+
+function assertRivalTerms(rivalTerms) {
+  if (!rivalTerms || typeof rivalTerms !== "object") throw new Error("Political gossip requires rival terms");
+  for (const form of ["noun", "sentenceNoun", "adjective"]) {
+    if (typeof rivalTerms[form] !== "string" || rivalTerms[form].trim() === "") {
+      throw new Error(`Political gossip requires rival ${form}`);
+    }
+  }
 }
 
 function choose(values, key) {

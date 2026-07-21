@@ -125,6 +125,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: busyWorldBenchmarkEncounters()
   }),
+  "benchmark-combat-hotspot": scenario({
+    id: "benchmark-combat-hotspot",
+    title: "Eastern Mediterranean Combat Performance Benchmark",
+    seed: "benchmark-combat-hotspot-v1",
+    player: {
+      factionId: "venice",
+      shipSlug: "brigantine",
+      lat: 34.65,
+      lon: 25.4,
+      headingDeg: 90,
+      activePlaySeconds: 20
+    },
+    world: { day: 196, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: combatHotspotBenchmarkEncounters()
+  }),
   "trailer-explore-fuji": trailerScenario({
     id: "trailer-explore-fuji",
     title: "Discover Mount Fuji",
@@ -320,6 +336,15 @@ export function validateCaptureScenario(value) {
     if (!["merchant", "fisherman", "warship", "pirate"].includes(encounter.role)) {
       throw new Error(`Invalid capture encounter role: ${encounter.role}`);
     }
+    const encounterStats = shipStatsForSlug(encounter.shipSlug);
+    if (encounter.hitPoints !== undefined &&
+        (!Number.isFinite(encounter.hitPoints) || encounter.hitPoints <= 0 ||
+         encounter.hitPoints > encounterStats.hitPoints)) {
+      throw new Error(`Invalid capture encounter hit points: ${encounter.id}`);
+    }
+    if (encounter.replaceOnSink !== undefined && typeof encounter.replaceOnSink !== "boolean") {
+      throw new Error(`Invalid capture encounter replacement flag: ${encounter.id}`);
+    }
   }
   if (value.sequence !== undefined) validateCaptureSequence(value.sequence);
   return value;
@@ -413,6 +438,52 @@ function busyWorldBenchmarkEncounters() {
     }
   }
   return encounters;
+}
+
+function combatHotspotBenchmarkEncounters() {
+  return [
+    {
+      id: "benchmark-med-pirate",
+      factionId: "pirate",
+      shipSlug: "xebec",
+      role: "pirate",
+      lat: 34.68,
+      lon: 25.63,
+      headingDeg: 180,
+      replaceOnSink: false
+    },
+    {
+      id: "benchmark-med-damaged",
+      factionId: "ottoman",
+      shipSlug: "felucca",
+      role: "merchant",
+      lat: 34.62,
+      lon: 25.58,
+      headingDeg: 210,
+      hitPoints: 2,
+      replaceOnSink: false
+    },
+    {
+      id: "benchmark-med-escort",
+      factionId: "ottoman",
+      shipSlug: "xebec",
+      role: "warship",
+      lat: 34.57,
+      lon: 25.55,
+      headingDeg: 135,
+      replaceOnSink: false
+    },
+    {
+      id: "benchmark-med-merchant",
+      factionId: "venice",
+      shipSlug: "small-cog",
+      role: "merchant",
+      lat: 34.74,
+      lon: 25.52,
+      headingDeg: 45,
+      replaceOnSink: false
+    }
+  ];
 }
 
 function validateVessel(value, label) {

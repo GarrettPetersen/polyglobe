@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { createGameState } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { NAMED_CREW_ROLE_HISTORIAN, addNamedCrewMember } from "./namedCrew.js";
 import {
   VIKING_LONGSHIP_FETCH_STAGES,
   VIKING_LONGSHIP_PORT_CITY,
@@ -130,4 +131,38 @@ test("the historical enthusiast appears only after a persistent random spawn", (
     spawnChance: 0,
     simMinute: VIKING_LONGSHIP_ROLL_PERIOD_MINUTES * 2
   }).stage.id, "wool-sail");
+});
+
+test("the longship mission waits for a named crew berth but never cancels an active quest", () => {
+  const oneBerthStats = {
+    slug: "one-berth-test",
+    cargoCapacity: 10,
+    crewCapacity: 1,
+    cannons: 0,
+    mass: 5,
+    navalWeaponKind: null
+  };
+  const fullState = createGameState({ cargoCapacity: oneBerthStats.cargoCapacity, shipStats: oneBerthStats });
+  assert.equal(maybeSpawnVikingLongshipQuest(fullState, HAFNARFJORDUR, {
+    spawnChance: 1,
+    simMinute: 0
+  }), null);
+
+  const twoBerthStats = { ...oneBerthStats, slug: "two-berth-test", crewCapacity: 2 };
+  const activeState = createGameState({ cargoCapacity: twoBerthStats.cargoCapacity, shipStats: twoBerthStats });
+  const activeQuest = maybeSpawnVikingLongshipQuest(activeState, HAFNARFJORDUR, {
+    spawnChance: 1,
+    simMinute: 0
+  });
+  activeState.ship.crew = activeState.ship.crewCapacity;
+  addNamedCrewMember(activeState, {
+    id: "existing-crew",
+    name: "Existing Crew",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, NAMED_CREW_ROLE_HISTORIAN, { replaceGenericWhenFull: true });
+  assert.deepEqual(maybeSpawnVikingLongshipQuest(activeState, HAFNARFJORDUR, {
+    spawnChance: 0,
+    simMinute: 1
+  }), activeQuest);
 });

@@ -4,6 +4,8 @@ export const GREAT_PYRAMID_DISCOVERY_ID = "landmark-great-pyramid";
 export const LAKE_VICTORIA_DISCOVERY_ID = "landmark-lake-victoria";
 export const LAKE_VICTORIA_DISCOVERY_RADIUS_PX = 60;
 export const GRAND_CANAL_DISCOVERY_ID = "landmark-grand-canal";
+export const VICTORIA_FALLS_DISCOVERY_ID = "landmark-victoria-falls";
+export const VICTORIA_FALLS_DISCOVERY_RADIUS_PX = 48;
 export const EL_DORADO_DISCOVERY_ID = "legend-el-dorado";
 export const EL_DORADO_DISCOVERY_LAT = -3.7437;
 export const EL_DORADO_DISCOVERY_LON = -73.2516;
@@ -108,7 +110,8 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     region: "americas",
     captainDialogue: "The river falls away in thunder. I can feel it through the deck."
   }),
-  waterFeature("victoria-falls", "Victoria Falls", "The smoke that thunders", -17.9243, 25.8572, 380, {
+  waterFeature("victoria-falls", "Victoria Falls", "The smoke that thunders", -17.9243, 25.8572,
+    VICTORIA_FALLS_DISCOVERY_RADIUS_PX, {
     region: "africa",
     captainDialogue: "Smoke that thunders indeed! The whole river vanishes into mist."
   }),

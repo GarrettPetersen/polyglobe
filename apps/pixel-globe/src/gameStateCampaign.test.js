@@ -122,14 +122,39 @@ test("version 23 saves gain per-voyage achievement progress", () => {
 
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.memory.achievements, {
-    version: 1,
+    version: 2,
     soldSpiceGoodIds: [],
     foundedCityIds: [],
     sailedShipSlugs: [],
     grossDoubloonsEarned: 0,
     whiteWhaleKilled: false,
-    arrivedInPortDrunk: false
+    arrivedInPortDrunk: false,
+    married: false,
+    defeatedShipCount: 0,
+    whalesKilled: 0,
+    survivedLightningStrike: false
   });
+});
+
+test("version 31 saves migrate voyage achievement counters", () => {
+  const legacy = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  legacy.version = 31;
+  legacy.memory.achievements = {
+    version: 1,
+    soldSpiceGoodIds: [],
+    foundedCityIds: [],
+    sailedShipSlugs: [],
+    grossDoubloonsEarned: 0,
+    whiteWhaleKilled: true,
+    arrivedInPortDrunk: false
+  };
+
+  const restored = migrateGameState(legacy, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.memory.achievements.version, 2);
+  assert.equal(restored.memory.achievements.whalesKilled, 1);
+  assert.equal(restored.memory.achievements.married, false);
 });
 
 test("version 24 custom loadouts migrate one-crew targets to the hull minimum", () => {

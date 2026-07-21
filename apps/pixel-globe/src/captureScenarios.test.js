@@ -29,9 +29,20 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.ok(captureScenarioIds().includes("icosahedron-earth-cape-horn"));
   assert.ok(captureScenarioIds().includes("turtle-ship-war"));
   assert.ok(captureScenarioIds().includes("land-trade"));
+  assert.ok(captureScenarioIds().includes("benchmark-combat-hotspot"));
   assert.equal(captureScenarioFromSearch(""), null);
   assert.equal(captureScenarioFromSearch("?capture=turtle-ship-war").player.factionId, "joseon");
   assert.throws(() => captureScenarioFromSearch("?capture=missing"), /Unknown capture scenario/);
+});
+
+test("combat benchmark stages a damaged merchant amid eastern Mediterranean fighting", () => {
+  const scenario = captureScenarioFromSearch("?capture=benchmark-combat-hotspot");
+  assert.equal(scenario.player.lat, 34.65);
+  assert.equal(scenario.encounters.length, 4);
+  const damaged = scenario.encounters.find((encounter) => encounter.id === "benchmark-med-damaged");
+  assert.equal(damaged.hitPoints, 2);
+  assert.equal(damaged.replaceOnSink, false);
+  assert.ok(scenario.encounters.some((encounter) => encounter.role === "pirate"));
 });
 
 test("the trailer roster has exactly two scripted shots for every requested feature", () => {

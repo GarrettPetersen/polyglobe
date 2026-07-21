@@ -67,6 +67,16 @@ export function canStartFishing(catchCapacity) {
   return catchCapacity > 0;
 }
 
+export function fishingCatchQuantity(maximumCatch, catchCapacity) {
+  if (!Number.isInteger(maximumCatch) || maximumCatch <= 0) {
+    throw new Error(`Invalid maximum fishing catch: ${maximumCatch}`);
+  }
+  if (!Number.isInteger(catchCapacity) || catchCapacity < 0) {
+    throw new Error(`Invalid fishing catch capacity: ${catchCapacity}`);
+  }
+  return Math.min(maximumCatch, catchCapacity);
+}
+
 export function fishingSideForTarget(shipX, targetX) {
   if (!Number.isFinite(shipX) || !Number.isFinite(targetX)) {
     throw new Error("Fishing side requires finite screen positions");

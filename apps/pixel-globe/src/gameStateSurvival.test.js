@@ -23,6 +23,7 @@ import {
   cargoReservationUnits,
   cargoSpaceLabel,
   cargoUsed,
+  castawayEmergencyAidNeed,
   createGameState,
   foodRationsForCargoQuantity,
   initializeProvisionalShipLoadout,
@@ -31,6 +32,7 @@ import {
   migrateGameState,
   purchasePlayerShip,
   receiveEmergencyShipAid,
+  receiveCastawayShoreAid,
   receiveFishCatch,
   receiveScavengedTradeGood,
   releaseCargoSpace,
@@ -59,6 +61,15 @@ import {
   beginColonizationExpedition,
   completeColonizationFetchStage
 } from "./colonizationQuest.js";
+import {
+  acceptPirateCaptiveQuest,
+  createPirateCaptiveQuest
+} from "./pirateCaptiveQuest.js";
+import {
+  acceptCastawayQuest,
+  createCastawayQuest,
+  markCastawayEmergencyAidReceived
+} from "./castawayQuest.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "england");
 
@@ -80,6 +91,69 @@ test("saved game state rejects unsupported schema versions", () => {
   state.version += 1;
   assert.throws(() => validateGameState(state), /Unsupported game state version/);
   assert.throws(() => migrateGameState({ version: 7 }), /Unsupported game state version/);
+});
+
+test("version 27 saves gain persistent birthday event memory", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 27;
+  delete state.memory.birthdays;
+
+  const migrated = migrateGameState(state);
+
+  assert.equal(migrated.memory.birthdays.version, 1);
+  assert.equal(migrated.memory.birthdays.lastObservedDateKey, null);
+  assert.deepEqual(migrated.memory.birthdays.pendingEvents, []);
+  assert.deepEqual(migrated.memory.birthdays.celebratedEventIds, []);
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 28 saves gain persistent special equipment offers", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 28;
+  delete state.memory.specialEquipmentOffers;
+
+  const migrated = migrateGameState(state);
+
+  assert.equal(migrated.memory.specialEquipmentOffers.version, 1);
+  assert.deepEqual(migrated.memory.specialEquipmentOffers.byPort, {});
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 30 saves gain persistent castaway rescue memory", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 30;
+  delete state.memory.quests.castaway;
+  const migrated = migrateGameState(state);
+
+  assert.deepEqual(migrated.memory.quests.castaway, {
+    version: 1,
+    active: null,
+    completedCount: 0,
+    declinedCount: 0
+  });
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 27 ship saves migrate before named crew memory exists", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    shipStats: stats,
+    playerCharacter: {
+      id: "migration-captain",
+      name: "Migration Captain",
+      nationalityId: "england",
+      expressions: [{ id: "neutral" }],
+      skillIds: ["organized"]
+    }
+  });
+  state.version = 27;
+  delete state.namedCrew;
+
+  const migrated = migrateGameState(state, stats);
+
+  assert.deepEqual(migrated.namedCrew, []);
+  assert.equal(validateGameState(migrated), migrated);
 });
 
 test("version 17 food debt migrates from cargo lots to person-day rations", () => {
@@ -144,6 +218,20 @@ test("the crew eats low-base-price hardtack before zero-cost caught fish", () =>
   assert.equal(state.cargo.fish, 1);
 });
 
+test("the crew finishes an opened fish stack before eating unopened provisions", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.cargo.hardtack = 1;
+  state.cargo.fish = 5 / 12;
+  state.accounts.cargoCostBasis.hardtack = 2;
+  state.accounts.cargoCostBasis.fish = 0;
+
+  const result = updateSurvival(state, 0, 24 * 60, { freshwater: false });
+
+  assert.equal(result.foodConsumed[0].goodId, "fish");
+  assert.equal(state.cargo.fish, 4 / 12);
+  assert.equal(state.cargo.hardtack, 1);
+});
+
 test("a ship drinks wine only after water runs out and tracks full wine-only days", () => {
   const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -155,22 +243,22 @@ test("a ship drinks wine only after water runs out and tracks full wine-only day
 
   const initial = survivalStatus(state);
   assert.equal(initial.freshWaterDays, 0);
-  assert.equal(initial.wineDays, 4);
-  assert.equal(initial.drinkDays, 4);
+  assert.equal(initial.wineDays, 8);
+  assert.equal(initial.drinkDays, 8);
 
   const firstHalfDay = updateSurvival(state, 0, 12 * 60, { freshwater: false });
   assert.equal(firstHalfDay.dehydrated, false);
   assert.equal(firstHalfDay.wineDrinkingStarted, true);
   assert.equal(firstHalfDay.wineOnlyDaysElapsed, 0);
-  assert.equal(firstHalfDay.wineConsumed, 0.125);
+  assert.equal(firstHalfDay.wineConsumed, 0.0625);
   assert.equal(state.survival.wineOnlyMinutes, 12 * 60);
-  assert.equal(state.cargo[WINE_GOOD_ID], 0.875);
+  assert.equal(state.cargo[WINE_GOOD_ID], 0.9375);
 
   const secondHalfDay = updateSurvival(state, 12 * 60, 24 * 60, { freshwater: false });
   assert.equal(secondHalfDay.wineDrinkingStarted, false);
   assert.equal(secondHalfDay.wineOnlyDaysElapsed, 1);
   assert.equal(state.survival.wineOnlyMinutes, 24 * 60);
-  assert.equal(cargoCostBasis(state, WINE_GOOD_ID).total, 13.5);
+  assert.equal(cargoCostBasis(state, WINE_GOOD_ID).total, 15.75);
 
   state.survival.freshWater = 1;
   updateSurvival(state, 24 * 60, 25 * 60, { freshwater: false });
@@ -200,13 +288,13 @@ test("small-boat food falls one day at a time and frees ration-sized hold space"
   state.ship.crew = 1;
   const usedBefore = cargoUsed(state);
 
-  assert.equal(survivalStatus(state).foodDays, 6);
+  assert.equal(survivalStatus(state).foodDays, 12);
   updateSurvival(state, 0, 24 * 60, { freshwater: false });
 
-  assert.equal(survivalStatus(state).foodDays, 5);
-  assert.equal(survivalStatus(state).foodRations, 10);
-  assert.equal(state.cargo.hardtack, 10 / 12);
-  assert.ok(Math.abs((usedBefore - cargoUsed(state)) - 2 / 12) < 1e-8);
+  assert.equal(survivalStatus(state).foodDays, 11);
+  assert.equal(survivalStatus(state).foodRations, 11);
+  assert.equal(state.cargo.hardtack, 11 / 12);
+  assert.ok(Math.abs((usedBefore - cargoUsed(state)) - 1 / 12) < 1e-8);
 });
 
 test("rainwater silently offsets water consumption", () => {
@@ -251,7 +339,7 @@ test("the ship traveler manifest distinguishes passengers, envoys, and settlers"
   const stats = shipStatsForSlug("fishing-lugger");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
-  const crewAndCaptain = state.ship.crew + 1;
+  const crewAndCaptain = state.ship.crew;
 
   state.memory.quests.active = { kind: "passenger" };
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "passenger", count: 1 }]);
@@ -282,6 +370,57 @@ test("the ship traveler manifest distinguishes passengers, envoys, and settlers"
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "settler", count: 12 }]);
   assert.equal(shipPeopleAboard(state), crewAndCaptain + 12);
   assert.equal(shipConsumption(state).passengers, 12);
+});
+
+test("an accepted pirate captive is an additional named passenger and provision consumer", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const crewAndCaptain = state.ship.crew;
+  const quest = createPirateCaptiveQuest(state.memory.quests.pirateCaptive, {
+    pirateShipId: "pirate-23",
+    homePort: LONDON,
+    character: pirateCaptiveTestCharacter(),
+    familyMember: null,
+    distanceKm: 1200,
+    familySurvivedRoll: 0.75
+  });
+  acceptPirateCaptiveQuest(state.memory.quests.pirateCaptive, quest.id);
+
+  assert.deepEqual(shipTravelerManifest(state), [{ kind: "passenger", count: 1 }]);
+  assert.equal(shipPeopleAboard(state), crewAndCaptain + 1);
+  assert.equal(shipConsumption(state).passengers, 1);
+  validateGameState(state);
+});
+
+test("an accepted castaway consumes provisions and can reveal emergency shore supplies", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.survival.freshWater = 0;
+  for (const goodId of Object.keys(state.cargo)) delete state.cargo[goodId];
+  const aid = castawayEmergencyAidNeed(state);
+  assert.deepEqual(aid, { water: true, food: true });
+
+  const quest = createCastawayQuest(state.memory.quests.castaway, {
+    shoreId: "shore-91",
+    homePort: LONDON,
+    character: pirateCaptiveTestCharacter(),
+    familyMember: null,
+    distanceKm: 1500,
+    familySurvivedRoll: 0.75,
+    emergencyAid: aid
+  });
+  acceptCastawayQuest(state.memory.quests.castaway, quest.id);
+  const received = receiveCastawayShoreAid(state, quest.emergencyAid);
+  markCastawayEmergencyAidReceived(state.memory.quests.castaway, quest.id);
+
+  assert.ok(received.water > 0);
+  assert.ok(received.food > 0);
+  assert.deepEqual(shipTravelerManifest(state), [{ kind: "passenger", count: 1 }]);
+  assert.ok(survivalStatus(state).freshWaterDays > 0);
+  assert.ok(survivalStatus(state).foodDays >= 3);
+  validateGameState(state);
 });
 
 test("waiting safely in port advances time without consuming provisions", () => {
@@ -793,6 +932,25 @@ test("a rejected ship replacement changes neither money nor the ledger", () => {
   assert.equal(state.cargoCapacity, carrack.cargoCapacity);
   assert.equal(state.accounts.ledger.length, ledgerLength);
 });
+
+function pirateCaptiveTestCharacter() {
+  return {
+    id: "pirate-captive-test",
+    name: "Alice Hawkins",
+    givenName: "Alice",
+    familyName: "Hawkins",
+    sex: "female",
+    age: 25,
+    birthDate: { year: 1496, month: 5, day: 9 },
+    birthDateLabel: "9 May 1496",
+    nameCulture: "english",
+    skillIds: ["able-seaman"],
+    expressions: [
+      { id: "sad", src: "assets/characters/sad.png", width: 64, height: 64 },
+      { id: "happy", src: "assets/characters/happy.png", width: 64, height: 64 }
+    ]
+  };
+}
 
 function port(tileId, city, country, cityType, population, factionId = null) {
   return {

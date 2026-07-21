@@ -38,19 +38,25 @@ export function crewHoldSpace(crew) {
   return Math.ceil(crew / CREW_PER_HOLD_UNIT);
 }
 
-export function shipLoadoutPlan(stats, loadoutId) {
+export function shipLoadoutPlan(stats, loadoutId, options = {}) {
   requireShipStats(stats);
   const selected = shipLoadoutPreset(loadoutId);
   const crewCapacity = shipCrewCapacity(stats);
+  const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
   const crew = Math.max(
-    shipMinimumCrew(stats),
+    minimumCrew,
     Math.min(crewCapacity, Math.round(crewCapacity * selected.crewRatio))
   );
   const cannons = Math.max(0, Math.min(stats.cannons, Math.round(stats.cannons * selected.cannonRatio)));
   const operationalSpace = crewHoldSpace(crew) + cannons;
+  if (operationalSpace > stats.cargoCapacity) {
+    throw new Error(
+      `${selected.label} cannot fit ${crew} permanent crew and ${cannons} guns in ${stats.cargoCapacity} spaces`
+    );
+  }
   const reserveSpace = Math.max(0, Math.floor(stats.cargoCapacity * selected.reserveFraction));
   const availableStoreSpace = Math.max(0, stats.cargoCapacity - operationalSpace - reserveSpace);
-  const consumers = crew + 1;
+  const consumers = crew;
   const desiredFood = Math.ceil(consumers * selected.targetDays / FOOD_RATIONS_PER_HOLD_UNIT);
   const desiredWater = Math.ceil(consumers * selected.targetDays / WATER_PERSON_DAYS_PER_UNIT);
   const stores = fitStores(desiredFood, desiredWater, availableStoreSpace);
@@ -76,37 +82,37 @@ export function shipLoadoutPlan(stats, loadoutId) {
   });
 }
 
-export function shipCustomLoadoutDraft(stats, currentPlan = null) {
+export function shipCustomLoadoutDraft(stats, currentPlan = null, options = {}) {
   requireShipStats(stats);
   const base = currentPlan || shipLoadoutPlan(stats, "balanced");
-  const minimumCrew = shipMinimumCrew(stats);
+  const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
   const draft = {
     crew: clampInteger(base.crew, minimumCrew, shipCrewCapacity(stats), "custom crew"),
     cannons: clampInteger(base.cannons, 0, stats.cannons, "custom cannons"),
     foodUnits: nonNegativeInteger(base.foodUnits, "custom food stores"),
     waterUnits: nonNegativeInteger(base.waterUnits, "custom water stores")
   };
-  return fitShipCustomLoadoutDraft(stats, draft);
+  return fitShipCustomLoadoutDraft(stats, draft, { minimumCrew });
 }
 
-export function setShipCustomLoadoutValue(stats, draft, key, value) {
+export function setShipCustomLoadoutValue(stats, draft, key, value, options = {}) {
   requireCustomDraft(draft);
   if (!CUSTOM_LOADOUT_FIELDS.includes(key)) throw new Error(`Unknown custom loadout field: ${key}`);
   if (!Number.isFinite(value)) throw new Error(`Invalid custom loadout ${key}: ${value}`);
-  const bounds = shipCustomLoadoutBounds(stats, draft, key);
+  const bounds = shipCustomLoadoutBounds(stats, draft, key, options);
   return Object.freeze({
     ...draft,
     [key]: Math.max(bounds.min, Math.min(bounds.max, Math.round(value)))
   });
 }
 
-export function shipCustomLoadoutBounds(stats, draft, key) {
+export function shipCustomLoadoutBounds(stats, draft, key, options = {}) {
   requireShipStats(stats);
   requireCustomDraft(draft);
   if (!CUSTOM_LOADOUT_FIELDS.includes(key)) throw new Error(`Unknown custom loadout field: ${key}`);
   const cargoCapacity = stats.cargoCapacity;
   if (key === "crew") {
-    const minimumCrew = shipMinimumCrew(stats);
+    const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
     let max = minimumCrew;
     for (let crew = minimumCrew; crew <= shipCrewCapacity(stats); crew++) {
       if (crewHoldSpace(crew) + draft.cannons + draft.foodUnits + draft.waterUnits > cargoCapacity) break;
@@ -128,11 +134,11 @@ export function shipCustomLoadoutBounds(stats, draft, key) {
   });
 }
 
-export function shipCustomLoadoutPlan(stats, draft) {
+export function shipCustomLoadoutPlan(stats, draft, options = {}) {
   requireShipStats(stats);
   requireCustomDraft(draft);
   const crewCapacity = shipCrewCapacity(stats);
-  const minimumCrew = shipMinimumCrew(stats);
+  const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
   if (draft.crew < minimumCrew || draft.crew > crewCapacity) {
     throw new Error(`Custom loadout crew must be ${minimumCrew}-${crewCapacity}: ${draft.crew}`);
   }
@@ -145,7 +151,7 @@ export function shipCustomLoadoutPlan(stats, draft) {
   if (totalSpace > stats.cargoCapacity) {
     throw new Error(`Custom loadout uses ${totalSpace}/${stats.cargoCapacity} hold spaces`);
   }
-  const consumers = draft.crew + 1;
+  const consumers = draft.crew;
   return Object.freeze({
     id: CUSTOM_LOADOUT_ID,
     label: "Custom",
@@ -165,8 +171,8 @@ export function shipCustomLoadoutPlan(stats, draft) {
   });
 }
 
-export function fitShipCustomLoadoutPlan(stats, currentPlan) {
-  return shipCustomLoadoutPlan(stats, shipCustomLoadoutDraft(stats, currentPlan));
+export function fitShipCustomLoadoutPlan(stats, currentPlan, options = {}) {
+  return shipCustomLoadoutPlan(stats, shipCustomLoadoutDraft(stats, currentPlan, options), options);
 }
 
 export function balancedProvisionTargets(foodTarget, waterTarget, availableSpace) {
@@ -207,8 +213,8 @@ function preset(id, label, detail, crewRatio, cannonRatio, targetDays, reserveFr
   return Object.freeze({ id, label, detail, crewRatio, cannonRatio, targetDays, reserveFraction });
 }
 
-function fitShipCustomLoadoutDraft(stats, draft) {
-  const minimumCrew = shipMinimumCrew(stats);
+function fitShipCustomLoadoutDraft(stats, draft, options = {}) {
+  const minimumCrew = resolvedMinimumCrew(stats, options.minimumCrew);
   let crew = Math.max(minimumCrew, Math.min(draft.crew, shipCrewCapacity(stats)));
   let cannons = Math.min(draft.cannons, stats.cannons);
   let foodUnits = draft.foodUnits;
@@ -225,6 +231,14 @@ function fitShipCustomLoadoutDraft(stats, draft) {
     throw new Error(`Ship cargo capacity cannot hold its minimum custom loadout: ${stats.cargoCapacity}`);
   }
   return Object.freeze({ crew, cannons, foodUnits, waterUnits });
+}
+
+function resolvedMinimumCrew(stats, requestedMinimum) {
+  const minimum = requestedMinimum ?? shipMinimumCrew(stats);
+  if (!Number.isInteger(minimum) || minimum < 1 || minimum > shipCrewCapacity(stats)) {
+    throw new Error(`Invalid custom loadout minimum crew: ${minimum}`);
+  }
+  return Math.max(shipMinimumCrew(stats), minimum);
 }
 
 function requireCustomDraft(draft) {

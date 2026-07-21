@@ -5,6 +5,7 @@ import {
   ITEM_ACQUISITION_EFFECT_DURATION_MS,
   createItemAcquisitionBurst,
   createItemAcquisitionEffect,
+  createItemDepartureEffect,
   itemAcquisitionEffectComplete,
   itemAcquisitionEffectEndMs,
   itemAcquisitionEffectFrame
@@ -52,6 +53,29 @@ test("item acquisition effects stay active for their full flight", () => {
   assert.equal(
     itemAcquisitionEffectComplete(state, 1000 + ITEM_ACQUISITION_EFFECT_DURATION_MS),
     true
+  );
+});
+
+test("item departure icons leave through the bottom-right", () => {
+  const state = createItemDepartureEffect({
+    iconId: "good:cloves",
+    startX: 120,
+    startY: 90,
+    startedAtMs: 1000,
+    iconSize: 16,
+    viewportWidth: 455,
+    viewportHeight: 256
+  });
+
+  const middle = itemAcquisitionEffectFrame(
+    state,
+    1000 + ITEM_ACQUISITION_EFFECT_DURATION_MS / 2
+  );
+  assert.ok(middle.x > state.startX);
+  assert.ok(middle.y > state.startY);
+  assert.deepEqual(
+    itemAcquisitionEffectFrame(state, 1000 + ITEM_ACQUISITION_EFFECT_DURATION_MS),
+    { complete: true, x: 457, y: 258 }
   );
 });
 
@@ -112,4 +136,13 @@ test("item acquisition effects reject malformed input", () => {
     startedAtMs: 0,
     iconSize: 16
   }), /positive integer count/);
+  assert.throws(() => createItemDepartureEffect({
+    iconId: "good:fish",
+    startX: 0,
+    startY: 0,
+    startedAtMs: 0,
+    iconSize: 16,
+    viewportWidth: 0,
+    viewportHeight: 256
+  }), /positive integer viewportWidth/);
 });

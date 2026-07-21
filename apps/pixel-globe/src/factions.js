@@ -16,35 +16,35 @@ const DIPLOMACY_RELATIONS = new Set([
 ]);
 
 export const FACTIONS = Object.freeze([
-  faction(NEUTRAL_FACTION_ID, "Neutral", "Neutral", "neutral"),
-  faction(PIRATE_FACTION_ID, "Pirates", "Pirate", "special"),
-  faction("england", "Kingdom of England", "English", "kingdom"),
-  faction("scotland", "Kingdom of Scotland", "Scottish", "kingdom"),
-  faction("france", "Kingdom of France", "French", "kingdom"),
-  faction("spain", "Spanish Monarchy", "Spanish", "monarchy"),
-  faction("portugal", "Kingdom of Portugal", "Portuguese", "kingdom"),
-  faction("habsburg", "Habsburg Monarchy", "Habsburg", "monarchy"),
-  faction("hungary", "Kingdom of Hungary", "Hungarian", "kingdom"),
-  faction("ottoman", "Ottoman Empire", "Ottoman", "empire"),
-  faction("venice", "Republic of Venice", "Venetian", "republic"),
-  faction("genoa", "Republic of Genoa", "Genoese", "republic"),
-  faction("papal-states", "Papal States", "Papal", "state"),
-  faction("ming", "Ming Empire", "Ming", "empire"),
-  faction("inca", "Inca Empire", "Inca", "empire"),
-  faction("safavid", "Safavid Empire", "Safavid", "empire"),
-  faction("muscovy", "Grand Duchy of Muscovy", "Muscovite", "duchy"),
-  faction("poland-lithuania", "Polish-Lithuanian Union", "Polish-Lithuanian", "union"),
-  faction("denmark-norway", "Denmark-Norway", "Dano-Norwegian", "union"),
-  faction("songhai", "Songhai Empire", "Songhai", "empire"),
-  faction("morocco", "Wattasid Morocco", "Moroccan", "sultanate"),
-  faction("ethiopia", "Ethiopian Empire", "Ethiopian", "empire"),
-  faction("vijayanagara", "Vijayanagara Empire", "Vijayanagaran", "empire"),
-  faction("gujarat", "Gujarat Sultanate", "Gujarati", "sultanate"),
-  faction("bengal", "Bengal Sultanate", "Bengali", "sultanate"),
-  faction("delhi", "Delhi Sultanate", "Delhi", "sultanate"),
-  faction("ayutthaya", "Ayutthaya Kingdom", "Ayutthayan", "kingdom"),
-  faction("japan", "Ashikaga Japan", "Japanese", "shogunate"),
-  faction("joseon", "Joseon", "Joseon", "kingdom")
+  faction(NEUTRAL_FACTION_ID, "Neutral", "Neutral", "Neutral", "neutral"),
+  faction(PIRATE_FACTION_ID, "Pirates", "Pirates", "Pirate", "special"),
+  faction("england", "Kingdom of England", "England", "English", "kingdom"),
+  faction("scotland", "Kingdom of Scotland", "Scotland", "Scottish", "kingdom"),
+  faction("france", "Kingdom of France", "France", "French", "kingdom"),
+  faction("spain", "Spanish Monarchy", "Spain", "Spanish", "monarchy"),
+  faction("portugal", "Kingdom of Portugal", "Portugal", "Portuguese", "kingdom"),
+  faction("habsburg", "Habsburg Monarchy", "Habsburg Monarchy", "Habsburg", "monarchy", "the"),
+  faction("hungary", "Kingdom of Hungary", "Hungary", "Hungarian", "kingdom"),
+  faction("ottoman", "Ottoman Empire", "Ottoman Empire", "Ottoman", "empire", "the"),
+  faction("venice", "Republic of Venice", "Venice", "Venetian", "republic"),
+  faction("genoa", "Republic of Genoa", "Genoa", "Genoese", "republic"),
+  faction("papal-states", "Papal States", "Papal States", "Papal", "state", "the"),
+  faction("ming", "Ming Empire", "Ming China", "Ming", "empire"),
+  faction("inca", "Inca Empire", "Tawantinsuyu", "Inca", "empire"),
+  faction("safavid", "Safavid Empire", "Safavid Persia", "Safavid", "empire"),
+  faction("muscovy", "Grand Duchy of Muscovy", "Muscovy", "Muscovite", "duchy"),
+  faction("poland-lithuania", "Polish-Lithuanian Union", "Poland-Lithuania", "Polish-Lithuanian", "union"),
+  faction("denmark-norway", "Denmark-Norway", "Denmark-Norway", "Dano-Norwegian", "union"),
+  faction("songhai", "Songhai Empire", "Songhai", "Songhai", "empire"),
+  faction("morocco", "Wattasid Morocco", "Morocco", "Moroccan", "sultanate"),
+  faction("ethiopia", "Ethiopian Empire", "Ethiopia", "Ethiopian", "empire"),
+  faction("vijayanagara", "Vijayanagara Empire", "Vijayanagara", "Vijayanagaran", "empire"),
+  faction("gujarat", "Gujarat Sultanate", "Gujarat", "Gujarati", "sultanate"),
+  faction("bengal", "Bengal Sultanate", "Bengal", "Bengali", "sultanate"),
+  faction("delhi", "Delhi Sultanate", "Delhi", "Delhi", "sultanate"),
+  faction("ayutthaya", "Ayutthaya Kingdom", "Ayutthaya", "Ayutthayan", "kingdom"),
+  faction("japan", "Ashikaga Japan", "Japan", "Japanese", "shogunate"),
+  faction("joseon", "Joseon", "Joseon", "Joseon", "kingdom")
 ]);
 
 const FACTIONS_BY_ID = new Map(FACTIONS.map((item) => [item.id, item]));
@@ -286,6 +286,12 @@ export function factionById(factionId) {
   return faction;
 }
 
+export function factionNounPhrase(factionId, { sentenceStart = false } = {}) {
+  const faction = factionById(factionId);
+  const phrase = faction.article ? `${faction.article} ${faction.shortName}` : faction.shortName;
+  return sentenceStart ? phrase.charAt(0).toUpperCase() + phrase.slice(1) : phrase;
+}
+
 export function migrateFactionIdTo1522(factionId) {
   const successorId = RETIRED_FACTION_SUCCESSORS_1522[factionId];
   return successorId || assertFactionId(factionId);
@@ -366,8 +372,12 @@ export function factionIdForCity1522(city) {
   return COUNTRY_FACTIONS.get(city.country.trim()) || NEUTRAL_FACTION_ID;
 }
 
-function faction(id, name, adjective, kind) {
-  return Object.freeze({ id, name, adjective, kind });
+function faction(id, name, shortName, adjective, kind, article = null) {
+  for (const [label, value] of Object.entries({ id, name, shortName, adjective, kind })) {
+    if (!nonEmptyString(value)) throw new Error(`Faction has no ${label}: ${id || "missing"}`);
+  }
+  if (article !== null && article !== "the") throw new Error(`Invalid faction article: ${id}=${article}`);
+  return Object.freeze({ id, name, shortName, adjective, kind, article });
 }
 
 function capital(factionId, city, country, details = {}) {

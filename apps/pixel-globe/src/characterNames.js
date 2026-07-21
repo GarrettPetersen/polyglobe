@@ -216,6 +216,45 @@ export function assignRegionalCharacterName({ identityKey, city, ship, sex, used
   throw new Error(`Exhausted ${gender} names for ${cultureId}`);
 }
 
+export function assignRegionalFamilyMemberName({ identityKey, relative, sex, usedNames }) {
+  if (typeof identityKey !== "string" || identityKey === "") {
+    throw new Error("Family member name requires an identity key");
+  }
+  if (!(usedNames instanceof Set)) {
+    throw new Error("Family member name assignment requires a shared used-name Set");
+  }
+  if (sex !== "female" && sex !== "male") {
+    throw new Error(`Family member name requires an explicit sex: ${sex}`);
+  }
+  if (!relative || typeof relative.familyName !== "string" || relative.familyName.trim() === "") {
+    throw new Error("Family member name assignment requires a relative with a family name");
+  }
+  const cultureId = relative.nameCulture;
+  const nameCulture = CULTURES[cultureId];
+  if (!nameCulture) throw new Error(`Unknown relative name culture: ${cultureId}`);
+  if (!nameCulture.family.includes(relative.familyName)) {
+    throw new Error(`${relative.familyName} is not a ${cultureId} family name`);
+  }
+  const givenNames = sex === "female" ? nameCulture.female : nameCulture.male;
+  const startIndex = hashString32(`${identityKey}|${cultureId}|${sex}|relative`) % givenNames.length;
+  for (let attempt = 0; attempt < givenNames.length; attempt++) {
+    const givenName = givenNames[(startIndex + attempt) % givenNames.length];
+    const name = nameCulture.order === "family-first"
+      ? `${relative.familyName} ${givenName}`
+      : `${givenName} ${relative.familyName}`;
+    if (usedNames.has(name)) continue;
+    usedNames.add(name);
+    return {
+      name,
+      givenName,
+      familyName: relative.familyName,
+      gender: sex,
+      nameCulture: cultureId
+    };
+  }
+  throw new Error(`Exhausted ${sex} relatives for ${relative.name}`);
+}
+
 export function nameCultureForSubject(subject) {
   return nameCultureCandidatesForSubject(subject)[0];
 }

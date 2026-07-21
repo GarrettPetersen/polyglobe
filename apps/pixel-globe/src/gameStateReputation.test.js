@@ -20,6 +20,7 @@ import {
   adjustFactionReputation,
   attemptPortDisguise,
   buyGood,
+  createPortEntryStatusContext,
   createGameState,
   diplomacyBetweenForState,
   factionReputation,
@@ -65,6 +66,21 @@ test("player reputation starts from nationality, wars, and pirates", () => {
   assert.equal(factionReputation(state, "france"), ENEMY_FACTION_START_REPUTATION);
   assert.equal(factionReputation(state, "spain"), 0);
   assert.equal(factionReputation(state, "pirate"), PIRATE_START_REPUTATION);
+});
+
+test("port entry evaluation context can be reused across an armed-port combat tick", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const simMinute = 100;
+  const context = createPortEntryStatusContext(state, simMinute);
+
+  assert.deepEqual(
+    portEntryStatus(state, CALAIS, simMinute, context),
+    portEntryStatus(state, CALAIS, simMinute)
+  );
+  assert.throws(
+    () => portEntryStatus(state, CALAIS, simMinute + 1, context),
+    /does not match/
+  );
 });
 
 test("version 8 game states migrate diplomacy and ship classification without losing the voyage", () => {

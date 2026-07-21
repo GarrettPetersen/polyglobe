@@ -21,6 +21,7 @@ import {
 } from "./shipStats.js";
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 import { clampMenuIndex } from "./menuNavigation.js";
+import { effectivePlayerShipStats } from "./playerPerks.js";
 
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
 export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
@@ -46,14 +47,20 @@ const RATING_RANGES = Object.freeze(Object.fromEntries(
 export function createShipInfoView(ship, gameState) {
   if (!ship || typeof ship !== "object") throw new Error("Ship information requires the player ship");
   if (!gameState || typeof gameState !== "object") throw new Error("Ship information requires game state");
-  const stats = shipStatsForSlug(ship.typeSlug);
+  const baseStats = shipStatsForSlug(ship.typeSlug);
+  const stats = gameState.ship ? effectivePlayerShipStats(gameState, baseStats) : baseStats;
   if (!Number.isFinite(ship.hitPoints) || !Number.isFinite(ship.maxHitPoints)) {
     throw new Error(`Ship ${ship.typeSlug} has invalid hull points`);
   }
   const used = cargoUsed(gameState);
-  if (gameState.cargoCapacity !== stats.cargoCapacity) {
+  if (gameState.ship && gameState.ship.baseCargoCapacity !== baseStats.cargoCapacity) {
     throw new Error(
-      `Ship ${ship.typeSlug} cargo capacity mismatch: state=${gameState.cargoCapacity} stats=${stats.cargoCapacity}`
+      `Ship ${ship.typeSlug} base cargo capacity mismatch: state=${gameState.ship?.baseCargoCapacity} stats=${baseStats.cargoCapacity}`
+    );
+  }
+  if (!gameState.ship && gameState.cargoCapacity !== baseStats.cargoCapacity) {
+    throw new Error(
+      `Ship ${ship.typeSlug} cargo capacity mismatch: state=${gameState.cargoCapacity} stats=${baseStats.cargoCapacity}`
     );
   }
   const manifest = cargoRows(gameState).map(({ good, quantity }) => {
@@ -78,17 +85,17 @@ export function createShipInfoView(ship, gameState) {
     hull: Math.max(0, Math.round(ship.hitPoints)),
     maxHull: Math.round(ship.maxHitPoints),
     cannons: activeCannons,
-    maxCannons: stats.cannons,
+    maxCannons: baseStats.cannons,
     armamentLabel: armament.label,
     armamentSummary: armament.summary,
     crew: activeCrew,
-    crewCapacity: stats.crewCapacity,
+    crewCapacity: baseStats.crewCapacity,
     loadoutId: gameState.ship?.loadoutId || null,
     doubloons: gameState.doubloons,
     realizedPnl: realizedTradePnl(gameState),
     cargoUsed: used,
     cargoUsedLabel: cargoSpaceLabel(used),
-    cargoCapacity: stats.cargoCapacity,
+    cargoCapacity: gameState.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
     propulsion: stats.propulsion,
     propulsionSummary: shipPropulsionSummary(stats),

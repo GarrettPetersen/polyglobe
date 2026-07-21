@@ -2,15 +2,6 @@ import { downloadBlob } from "./browserDownload.js";
 
 export const SHARE_SCREENSHOT_SCALE = 5;
 
-export function isShareScreenshotKey(event) {
-  return Boolean(
-    event &&
-    event.code === "KeyS" &&
-    event.shiftKey &&
-    (event.metaKey || event.ctrlKey)
-  );
-}
-
 export function createShareScreenshotCanvas(sourceCanvas, options = {}) {
   validateSourceCanvas(sourceCanvas);
   const scale = options.scale ?? SHARE_SCREENSHOT_SCALE;

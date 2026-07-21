@@ -6,6 +6,15 @@ weather, and terrain so renderer and simulation regressions are easier to spot.
 It is available only through the benchmark query parameters and does not appear
 in the normal game UI or saved voyages.
 
+The combat-hotspot benchmark stages a pirate, a badly damaged merchant, an
+escort, and another merchant in the eastern Mediterranean. It catches costs
+that exist only while NPC combat, shore batteries, damage effects, projectiles,
+and sinking are active:
+
+```sh
+npm --prefix apps/pixel-globe run benchmark:combat
+```
+
 Run the desktop baseline from the repository root:
 
 ```sh
@@ -33,8 +42,9 @@ npm run benchmark:busy -- --base-url http://127.0.0.1:5184
 
 `--min-fps` makes the command exit unsuccessfully below the requested sampled
 frame rate, which is useful for CI or before/after optimization checks. Other
-options are `--cpu-throttle`, `--headless`, `--output`, `--port`, `--profile`,
-and `--timeout-ms`.
+options are `--cpu-throttle`, `--cpu-profile`, `--headless`, `--output`, `--port`,
+`--profile`, and `--timeout-ms`. A CPU profile can be opened in Chrome DevTools
+to inspect the JavaScript call stacks inside the named benchmark stages.
 
 The report records sampled and rendered FPS, frame and main-loop CPU latency
 distributions, long-frame counts, estimated skipped 60 Hz frames, scene counts,

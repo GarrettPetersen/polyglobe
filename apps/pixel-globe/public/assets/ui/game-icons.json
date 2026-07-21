@@ -1,8 +1,8 @@
 {
-  "version": "resurrect-icons-22",
+  "version": "resurrect-icons-27",
   "palette": "Resurrect 64",
   "width": 256,
-  "height": 128,
+  "height": 144,
   "iconSize": 16,
   "icons": [
     {
@@ -615,9 +615,117 @@
       "lightMonotone": "#676633"
     },
     {
-      "id": "ship:fishing-lugger",
+      "id": "achievement:magellan",
       "rect": {
         "x": 96,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#0b5e65"
+    },
+    {
+      "id": "achievement:founder",
+      "rect": {
+        "x": 112,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#694f62"
+    },
+    {
+      "id": "achievement:expansionist",
+      "rect": {
+        "x": 128,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "achievement:colonist",
+      "rect": {
+        "x": 144,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#547e64"
+    },
+    {
+      "id": "achievement:hawaii",
+      "rect": {
+        "x": 160,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#547e64"
+    },
+    {
+      "id": "achievement:married",
+      "rect": {
+        "x": 176,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#6e2727"
+    },
+    {
+      "id": "achievement:lightning",
+      "rect": {
+        "x": 192,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "status:achievement-locked",
+      "rect": {
+        "x": 208,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#966c6c"
+    },
+    {
+      "id": "status:achievement-unlocked",
+      "rect": {
+        "x": 224,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#966c6c"
+    },
+    {
+      "id": "ship:fishing-lugger",
+      "rect": {
+        "x": 240,
         "y": 48,
         "w": 16,
         "h": 16
@@ -628,8 +736,8 @@
     {
       "id": "ship:small-cog",
       "rect": {
-        "x": 112,
-        "y": 48,
+        "x": 0,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -639,8 +747,8 @@
     {
       "id": "ship:dhow",
       "rect": {
-        "x": 128,
-        "y": 48,
+        "x": 16,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -650,8 +758,8 @@
     {
       "id": "ship:sampan",
       "rect": {
-        "x": 144,
-        "y": 48,
+        "x": 32,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -661,8 +769,8 @@
     {
       "id": "ship:large-junk",
       "rect": {
-        "x": 160,
-        "y": 48,
+        "x": 48,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -672,8 +780,8 @@
     {
       "id": "ship:pirate-brig",
       "rect": {
-        "x": 176,
-        "y": 48,
+        "x": 64,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -683,8 +791,8 @@
     {
       "id": "ship:galleon",
       "rect": {
-        "x": 192,
-        "y": 48,
+        "x": 80,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -694,8 +802,8 @@
     {
       "id": "ship:fluyt",
       "rect": {
-        "x": 208,
-        "y": 48,
+        "x": 96,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -705,8 +813,8 @@
     {
       "id": "ship:carrack",
       "rect": {
-        "x": 224,
-        "y": 48,
+        "x": 112,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -716,8 +824,8 @@
     {
       "id": "ship:ship-of-the-line",
       "rect": {
-        "x": 240,
-        "y": 48,
+        "x": 128,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -727,7 +835,7 @@
     {
       "id": "ship:medium-junk",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 64,
         "w": 16,
         "h": 16
@@ -738,7 +846,7 @@
     {
       "id": "ship:xebec",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 64,
         "w": 16,
         "h": 16
@@ -749,7 +857,7 @@
     {
       "id": "ship:caravel",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 64,
         "w": 16,
         "h": 16
@@ -760,7 +868,7 @@
     {
       "id": "ship:square-rigged-caravel",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 64,
         "w": 16,
         "h": 16
@@ -771,7 +879,7 @@
     {
       "id": "ship:brigantine",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 64,
         "w": 16,
         "h": 16
@@ -782,7 +890,7 @@
     {
       "id": "ship:small-junk",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 64,
         "w": 16,
         "h": 16
@@ -793,7 +901,7 @@
     {
       "id": "ship:felucca",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 64,
         "w": 16,
         "h": 16
@@ -804,8 +912,8 @@
     {
       "id": "ship:cutter",
       "rect": {
-        "x": 112,
-        "y": 64,
+        "x": 0,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -815,8 +923,8 @@
     {
       "id": "ship:ketch",
       "rect": {
-        "x": 128,
-        "y": 64,
+        "x": 16,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -826,8 +934,8 @@
     {
       "id": "ship:mediterranean-galley",
       "rect": {
-        "x": 144,
-        "y": 64,
+        "x": 32,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -837,8 +945,8 @@
     {
       "id": "ship:joseon-turtle-ship",
       "rect": {
-        "x": 160,
-        "y": 64,
+        "x": 48,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -848,8 +956,8 @@
     {
       "id": "ship:joseon-panokseon",
       "rect": {
-        "x": 176,
-        "y": 64,
+        "x": 64,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -859,8 +967,8 @@
     {
       "id": "ship:japanese-atakebune",
       "rect": {
-        "x": 192,
-        "y": 64,
+        "x": 80,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -870,8 +978,8 @@
     {
       "id": "ship:spanish-nao",
       "rect": {
-        "x": 208,
-        "y": 64,
+        "x": 96,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -881,8 +989,8 @@
     {
       "id": "ship:portuguese-carrack",
       "rect": {
-        "x": 224,
-        "y": 64,
+        "x": 112,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -892,8 +1000,8 @@
     {
       "id": "ship:viking-longship",
       "rect": {
-        "x": 240,
-        "y": 64,
+        "x": 128,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -903,7 +1011,7 @@
     {
       "id": "ship:polynesian-voyaging-canoe",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 80,
         "w": 16,
         "h": 16
@@ -914,7 +1022,7 @@
     {
       "id": "ship:mesoamerican-dugout-canoe",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 80,
         "w": 16,
         "h": 16
@@ -925,7 +1033,7 @@
     {
       "id": "ship:nusantaran-outrigger",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 80,
         "w": 16,
         "h": 16
@@ -936,7 +1044,7 @@
     {
       "id": "ship:ottoman-coastal-trader",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 80,
         "w": 16,
         "h": 16
@@ -947,7 +1055,7 @@
     {
       "id": "action:dock",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 80,
         "w": 16,
         "h": 16
@@ -959,7 +1067,7 @@
     {
       "id": "action:anchor",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 80,
         "w": 16,
         "h": 16
@@ -971,7 +1079,7 @@
     {
       "id": "action:hail",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 80,
         "w": 16,
         "h": 16
@@ -983,8 +1091,8 @@
     {
       "id": "action:fish",
       "rect": {
-        "x": 112,
-        "y": 80,
+        "x": 0,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -995,8 +1103,8 @@
     {
       "id": "action:harpoon",
       "rect": {
-        "x": 128,
-        "y": 80,
+        "x": 16,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1007,8 +1115,8 @@
     {
       "id": "action:scavenge",
       "rect": {
-        "x": 144,
-        "y": 80,
+        "x": 32,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1019,8 +1127,8 @@
     {
       "id": "action:buy",
       "rect": {
-        "x": 160,
-        "y": 80,
+        "x": 48,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1031,8 +1139,8 @@
     {
       "id": "action:sell",
       "rect": {
-        "x": 176,
-        "y": 80,
+        "x": 64,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1043,8 +1151,8 @@
     {
       "id": "action:back",
       "rect": {
-        "x": 192,
-        "y": 80,
+        "x": 80,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1055,8 +1163,8 @@
     {
       "id": "action:leave",
       "rect": {
-        "x": 208,
-        "y": 80,
+        "x": 96,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1067,8 +1175,8 @@
     {
       "id": "action:quest",
       "rect": {
-        "x": 224,
-        "y": 80,
+        "x": 112,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1079,8 +1187,8 @@
     {
       "id": "action:talk",
       "rect": {
-        "x": 240,
-        "y": 80,
+        "x": 128,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1091,7 +1199,7 @@
     {
       "id": "action:wait",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1103,7 +1211,7 @@
     {
       "id": "action:attack",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1115,7 +1223,7 @@
     {
       "id": "action:loadout",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1127,7 +1235,7 @@
     {
       "id": "action:shipyard",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1139,7 +1247,7 @@
     {
       "id": "action:letter",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1151,7 +1259,7 @@
     {
       "id": "action:disguise",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1163,7 +1271,7 @@
     {
       "id": "action:surrender",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1175,8 +1283,8 @@
     {
       "id": "action:passenger",
       "rect": {
-        "x": 112,
-        "y": 96,
+        "x": 0,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1187,8 +1295,8 @@
     {
       "id": "action:viking",
       "rect": {
-        "x": 128,
-        "y": 96,
+        "x": 16,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1199,8 +1307,8 @@
     {
       "id": "action:inventory",
       "rect": {
-        "x": 144,
-        "y": 96,
+        "x": 32,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1211,8 +1319,8 @@
     {
       "id": "action:resume",
       "rect": {
-        "x": 160,
-        "y": 96,
+        "x": 48,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1223,8 +1331,8 @@
     {
       "id": "action:restart",
       "rect": {
-        "x": 176,
-        "y": 96,
+        "x": 64,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1235,8 +1343,8 @@
     {
       "id": "action:choose-ships",
       "rect": {
-        "x": 192,
-        "y": 96,
+        "x": 80,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1247,8 +1355,8 @@
     {
       "id": "action:start-menu",
       "rect": {
-        "x": 208,
-        "y": 96,
+        "x": 96,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1259,8 +1367,8 @@
     {
       "id": "action:navigation",
       "rect": {
-        "x": 224,
-        "y": 96,
+        "x": 112,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1269,10 +1377,178 @@
       "lightMonotone": "#484a77"
     },
     {
-      "id": "good:gunpowder",
+      "id": "item:sturdy-barrels",
+      "rect": {
+        "x": 128,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:shore-party-kit",
+      "rect": {
+        "x": 144,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:tarred-hemp-rigging",
+      "rect": {
+        "x": 160,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:coir-cordage",
+      "rect": {
+        "x": 176,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#694f62"
+    },
+    {
+      "id": "item:flemish-sailcloth",
+      "rect": {
+        "x": 192,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#0b5e65"
+    },
+    {
+      "id": "item:lateen-sailcloth",
+      "rect": {
+        "x": 208,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "item:lead-sheathing",
+      "rect": {
+        "x": 224,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "item:surgeons-chest",
       "rect": {
         "x": 240,
-        "y": 96,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#6e2727"
+    },
+    {
+      "id": "item:pilots-instruments",
+      "rect": {
+        "x": 0,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#484a77"
+    },
+    {
+      "id": "item:longsword",
+      "rect": {
+        "x": 16,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "item:tulwar",
+      "rect": {
+        "x": 32,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "item:katana",
+      "rect": {
+        "x": 48,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#6e2727"
+    },
+    {
+      "id": "item:wheellock-pistol",
+      "rect": {
+        "x": 64,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#6e2727"
+    },
+    {
+      "id": "item:bronze-fish-hooks",
+      "rect": {
+        "x": 80,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "good:gunpowder",
+      "rect": {
+        "x": 96,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1282,8 +1558,8 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 0,
-        "y": 112,
+        "x": 112,
+        "y": 128,
         "w": 16,
         "h": 16
       },

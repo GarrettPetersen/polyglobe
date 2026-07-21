@@ -2,6 +2,7 @@ import { explorerReportDialogueForDiscovery } from "./explorerDiscoveryDialogue.
 import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDistance.js";
 import { WHITE_WHALE_ID } from "./whaleSpecies.js";
+import { campaignRomanceEpilogue, validateCampaignVictoryRomance } from "./campaignRomance.js";
 
 export const CAMPAIGN_GOAL_VERSION = 1;
 export const CAMPAIGN_GOAL_EXPLORER = "explorer";
@@ -22,11 +23,45 @@ export const CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING = "white-whale-sighting";
 
 const MINUTES_PER_DAY = 24 * 60;
 const DAYS_PER_YEAR = 365.25;
-const CAMPAIGN_GOAL_TYPES = new Set([
-  CAMPAIGN_GOAL_EXPLORER,
-  CAMPAIGN_GOAL_FAMILY_DEBT,
-  CAMPAIGN_GOAL_WHITE_WHALE
-]);
+const CAMPAIGN_GOAL_DEFINITIONS = Object.freeze({
+  [CAMPAIGN_GOAL_EXPLORER]: Object.freeze({
+    label: "Explorer",
+    objective: () => "Discover every wonder and report them to your patron",
+    createFields: () => ({
+      reportedDiscoveryIds: [],
+      currentLeadDiscoveryId: null,
+      totalWonderCount: 0
+    }),
+    validate: validateExplorerGoal
+  }),
+  [CAMPAIGN_GOAL_FAMILY_DEBT]: Object.freeze({
+    label: "Family Debt",
+    objective: () => "Pay off the family debt",
+    createFields: (startMinute) => ({
+      debtBalance: FAMILY_DEBT_PRINCIPAL,
+      annualInterestRate: FAMILY_DEBT_ANNUAL_RATE,
+      lastAccruedMinute: startMinute,
+      protectedPurse: FAMILY_DEBT_PROTECTED_PURSE,
+      totalPaid: 0
+    }),
+    validate: validateFamilyDebtGoal
+  }),
+  [CAMPAIGN_GOAL_WHITE_WHALE]: Object.freeze({
+    label: "The White Whale",
+    objective: (goal) => goal.whiteWhaleKilled
+      ? "Return home after killing the white whale"
+      : "Hunt and kill the white whale",
+    createFields: () => ({
+      whiteWhaleId: WHITE_WHALE_ID,
+      whiteWhaleKilled: false,
+      whiteWhaleKilledMinute: null,
+      sighting: null,
+      checkedInteractionIds: []
+    }),
+    validate: validateWhiteWhaleGoal
+  })
+});
+const CAMPAIGN_GOAL_TYPES = new Set(Object.keys(CAMPAIGN_GOAL_DEFINITIONS));
 const SOVEREIGN_FACTION_IDS = Object.freeze(FACTIONS
   .map((faction) => faction.id)
   .filter((factionId) => ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(factionId)));
@@ -38,6 +73,7 @@ export function createCampaignGoal({ playerCharacter, startMinute = 0, type = nu
   if (!CAMPAIGN_GOAL_TYPES.has(selectedType)) {
     throw new Error(`Unknown campaign goal type: ${selectedType}`);
   }
+  const definition = campaignGoalDefinition(selectedType);
   const base = {
     version: CAMPAIGN_GOAL_VERSION,
     type: selectedType,
@@ -46,29 +82,7 @@ export function createCampaignGoal({ playerCharacter, startMinute = 0, type = nu
     introSeen: false,
     endingVariant: hashString32(`${playerCharacter.id}|campaign-ending`) % 4
   };
-  const goal = selectedType === CAMPAIGN_GOAL_EXPLORER
-    ? {
-        ...base,
-        reportedDiscoveryIds: [],
-        currentLeadDiscoveryId: null,
-        totalWonderCount: 0
-      }
-    : selectedType === CAMPAIGN_GOAL_FAMILY_DEBT ? {
-        ...base,
-        debtBalance: FAMILY_DEBT_PRINCIPAL,
-        annualInterestRate: FAMILY_DEBT_ANNUAL_RATE,
-        lastAccruedMinute: startMinute,
-        protectedPurse: FAMILY_DEBT_PROTECTED_PURSE,
-        totalPaid: 0
-      }
-    : {
-        ...base,
-        whiteWhaleId: WHITE_WHALE_ID,
-        whiteWhaleKilled: false,
-        whiteWhaleKilledMinute: null,
-        sighting: null,
-        checkedInteractionIds: []
-      };
+  const goal = { ...base, ...definition.createFields(startMinute) };
   return validateCampaignGoal(goal);
 }
 
@@ -88,9 +102,7 @@ export function validateCampaignGoal(goal) {
   if (!Number.isInteger(goal.endingVariant) || goal.endingVariant < 0 || goal.endingVariant > 3) {
     throw new Error(`Invalid campaign ending variant: ${goal.endingVariant}`);
   }
-  if (goal.type === CAMPAIGN_GOAL_EXPLORER) validateExplorerGoal(goal);
-  else if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) validateFamilyDebtGoal(goal);
-  else validateWhiteWhaleGoal(goal);
+  campaignGoalDefinition(goal.type).validate(goal);
   return goal;
 }
 
@@ -498,38 +510,51 @@ export function drunkenCampaignHomecomingSteps(goal, playerCharacter) {
   ];
 }
 
-export function campaignVictorySummary(goal, playerCharacter) {
+export function campaignVictorySummary(goal, playerCharacter, { romance = null } = {}) {
   validateCampaignGoal(goal);
   assertCharacter(playerCharacter);
   if (goal.status !== CAMPAIGN_GOAL_COMPLETE) throw new Error("Campaign victory requires a completed goal");
+  if (romance) validateCampaignVictoryRomance(romance);
   const culture = culturalStory(playerCharacter);
-  const personal = personalEnding(playerCharacter, goal.endingVariant);
+  const personal = personalEnding(playerCharacter, goal.endingVariant, Boolean(romance));
+  const romanceEnding = romance ? ` ${campaignRomanceEpilogue(romance, playerCharacter)}` : "";
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
     return {
       title: "THE GREATEST EXPLORER",
       reason: `Reported every known wonder to the patron of ${playerCharacter.homePortName}.`,
-      legacy: `${playerCharacter.name} was remembered as the greatest explorer of the age. ${culture.explorerOutro} ${personal}`
+      legacy: `${playerCharacter.name} was remembered as the greatest explorer of the age. ${culture.explorerOutro} ${personal}${romanceEnding}`
     };
   }
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) {
     return {
       title: "THE WHITE WHALE",
       reason: "Hunted the white whale across the world and returned home alive.",
-      legacy: `${playerCharacter.name} came home with the white whale's story and no need to embellish it. The chase became legend; the captain, having survived the thing that consumed so many dreams, finally learned to live beyond it. ${personal}`
+      legacy: `${playerCharacter.name} came home with the white whale's story and no need to embellish it. The chase became legend; the captain, having survived the thing that consumed so many dreams, finally learned to live beyond it. ${personal}${romanceEnding}`
     };
   }
   return {
     title: "THE ESTATE IS SAVED",
     reason: "Repaid the family debt in full and reclaimed the estate.",
-    legacy: `${playerCharacter.name} returned home free of debt and kept the family estate. ${culture.debtOutro} ${personal}`
+    legacy: `${playerCharacter.name} returned home free of debt and kept the family estate. ${culture.debtOutro} ${personal}${romanceEnding}`
   };
 }
 
 export function campaignGoalLabel(goal) {
+  return campaignGoalPresentation(goal).label;
+}
+
+export function campaignGoalPresentation(goal) {
   validateCampaignGoal(goal);
-  if (goal.type === CAMPAIGN_GOAL_EXPLORER) return "Explorer";
-  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) return "Family Debt";
-  return "The White Whale";
+  const definition = campaignGoalDefinition(goal.type);
+  const objective = definition.objective(goal);
+  if (typeof objective !== "string" || objective.trim() === "") {
+    throw new Error(`Campaign goal ${goal.type} has no objective text`);
+  }
+  return Object.freeze({
+    type: goal.type,
+    label: definition.label,
+    objective
+  });
 }
 
 export function createCampaignDialogueSession({
@@ -538,12 +563,14 @@ export function createCampaignDialogueSession({
   phase,
   continueToPortOnClose = false,
   nextPortNodeId = null,
-  victoryOnClose = false
+  victoryOnClose = false,
+  companionCharacter = null
 }) {
   if (!Number.isInteger(cityTileId) || cityTileId < 0) throw new Error(`Invalid campaign dialogue city: ${cityTileId}`);
   if (!Array.isArray(steps) || steps.length === 0) throw new Error("Campaign dialogue requires at least one step");
   if (typeof phase !== "string" || phase === "") throw new Error("Campaign dialogue requires a phase");
-  for (const entry of steps) validateDialogueStep(entry);
+  if (companionCharacter !== null) assertPerson(companionCharacter);
+  for (const entry of steps) validateDialogueStep(entry, companionCharacter);
   return {
     kind: "campaign-goal",
     cityTileId,
@@ -554,7 +581,8 @@ export function createCampaignDialogueSession({
     admittedToPort: continueToPortOnClose,
     continueToPortOnClose,
     nextPortNodeId,
-    victoryOnClose
+    victoryOnClose,
+    companionCharacter
   };
 }
 
@@ -563,9 +591,11 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
   assertCharacter(playerCharacter);
   assertPerson(contactCharacter);
   const entry = session.steps[session.stepIndex];
-  const speakerCharacter = entry.speaker === "player" ? playerCharacter : contactCharacter;
+  const speakerCharacter = campaignDialogueSpeaker(session, entry, playerCharacter, contactCharacter);
   const role = entry.speaker === "player"
     ? "captain"
+    : entry.speaker === "companion"
+      ? "crewmate"
     : session.phase.startsWith("family-debt")
       ? "creditor"
       : session.phase.startsWith("white-whale") ? "old whaler" : "patron";
@@ -587,7 +617,7 @@ export function campaignDialogueView(session, playerCharacter, contactCharacter)
 export function campaignDialogueCharacter(session, playerCharacter, contactCharacter) {
   assertCampaignDialogueSession(session);
   const entry = session.steps[session.stepIndex];
-  return entry.speaker === "player" ? playerCharacter : contactCharacter;
+  return campaignDialogueSpeaker(session, entry, playerCharacter, contactCharacter);
 }
 
 export function selectCampaignDialogueOption(session, optionIndex = session.selectedIndex) {
@@ -944,12 +974,14 @@ function assertExactKeys(label, actualKeys, expectedKeys) {
   }
 }
 
-function personalEnding(character, variant) {
-  const pronouns = character.gender === "female"
+function personalEnding(character, variant, hasRomance = false) {
+  const pronouns = (character.sex || character.gender) === "female"
     ? { subject: "She", possessive: "her" }
     : { subject: "He", possessive: "his" };
   const endings = [
-    `${pronouns.subject} later married and filled ${pronouns.possessive} home with children, charts, and loud stories of the sea.`,
+    hasRomance
+      ? `${pronouns.subject} filled ${pronouns.possessive} home with charts and loud stories of the sea.`
+      : `${pronouns.subject} later married and filled ${pronouns.possessive} home with children, charts, and loud stories of the sea.`,
     `${pronouns.subject} never stopped traveling entirely, but every later voyage ended at a home chosen freely.`,
     `${pronouns.subject} trained young captains and lived long enough to see them return with discoveries of their own.`,
     `${pronouns.subject} spent later years writing a plain account of the voyage, which became far more famous than intended.`
@@ -990,12 +1022,18 @@ function assertCampaignDialogueSession(session) {
   if (!Number.isInteger(session.stepIndex) || session.stepIndex < 0 || session.stepIndex >= session.steps.length) {
     throw new Error(`Invalid campaign dialogue step: ${session.stepIndex}`);
   }
-  validateDialogueStep(session.steps[session.stepIndex]);
+  if (session.companionCharacter !== null && session.companionCharacter !== undefined) {
+    assertPerson(session.companionCharacter);
+  }
+  validateDialogueStep(session.steps[session.stepIndex], session.companionCharacter || null);
 }
 
-function validateDialogueStep(entry) {
-  if (!entry || !["player", "contact"].includes(entry.speaker)) {
+function validateDialogueStep(entry, companionCharacter = null) {
+  if (!entry || !["player", "contact", "companion"].includes(entry.speaker)) {
     throw new Error(`Invalid campaign dialogue speaker: ${entry?.speaker}`);
+  }
+  if (entry.speaker === "companion" && !companionCharacter) {
+    throw new Error("Campaign companion dialogue requires a named crewmate");
   }
   if (typeof entry.expressionId !== "string" || entry.expressionId === "") {
     throw new Error("Campaign dialogue requires an expression");
@@ -1006,6 +1044,19 @@ function validateDialogueStep(entry) {
   if (entry.topic !== undefined && (typeof entry.topic !== "string" || entry.topic.trim() === "")) {
     throw new Error("Campaign dialogue topic must be a non-empty string");
   }
+}
+
+function campaignDialogueSpeaker(session, entry, playerCharacter, contactCharacter) {
+  if (entry.speaker === "player") return playerCharacter;
+  if (entry.speaker === "contact") return contactCharacter;
+  if (!session.companionCharacter) throw new Error("Campaign dialogue lost its companion character");
+  return session.companionCharacter;
+}
+
+function campaignGoalDefinition(type) {
+  const definition = CAMPAIGN_GOAL_DEFINITIONS[type];
+  if (!definition) throw new Error(`Unknown campaign goal type: ${type}`);
+  return definition;
 }
 
 function validateFamilyDebtGoal(goal) {

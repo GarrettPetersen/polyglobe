@@ -43,6 +43,31 @@ export function createItemAcquisitionEffect({
   });
 }
 
+export function createItemDepartureEffect({
+  iconId,
+  startX,
+  startY,
+  startedAtMs,
+  iconSize,
+  viewportWidth,
+  viewportHeight
+}) {
+  for (const [label, value] of Object.entries({ viewportWidth, viewportHeight })) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`Item departure effect requires a positive integer ${label}: ${value}`);
+    }
+  }
+  return createItemAcquisitionEffect({
+    iconId,
+    startX,
+    startY,
+    startedAtMs,
+    iconSize,
+    targetX: viewportWidth + ITEM_ACQUISITION_EDGE_MARGIN_PX,
+    targetY: viewportHeight + ITEM_ACQUISITION_EDGE_MARGIN_PX
+  });
+}
+
 export function createItemAcquisitionBurst({
   iconId,
   count,

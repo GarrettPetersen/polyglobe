@@ -18,6 +18,7 @@ import {
   factionCapitalForId,
   factionHasFlag,
   factionIdForCity1522,
+  factionNounPhrase,
   migrateFactionIdTo1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
@@ -27,6 +28,24 @@ test("neutral allegiance has no flag while real factions do", () => {
   assert.equal(factionHasFlag(PIRATE_FACTION_ID), true);
   assert.equal(factionHasFlag("england"), true);
   assert.throws(() => factionHasFlag("missing-faction"), /Unknown faction/);
+});
+
+test("every faction separates its noun and adjective forms", () => {
+  for (const faction of FACTIONS) {
+    assert.ok(faction.name.length > 0, faction.id);
+    assert.ok(faction.shortName.length > 0, faction.id);
+    assert.ok(faction.adjective.length > 0, faction.id);
+  }
+  const portugal = FACTIONS.find((faction) => faction.id === "portugal");
+  const morocco = FACTIONS.find((faction) => faction.id === "morocco");
+  assert.equal(portugal.shortName, "Portugal");
+  assert.equal(portugal.adjective, "Portuguese");
+  assert.equal(morocco.shortName, "Morocco");
+  assert.equal(morocco.adjective, "Moroccan");
+  assert.equal(factionNounPhrase("portugal"), "Portugal");
+  assert.equal(factionNounPhrase("morocco"), "Morocco");
+  assert.equal(factionNounPhrase("ottoman"), "the Ottoman Empire");
+  assert.equal(factionNounPhrase("ottoman", { sentenceStart: true }), "The Ottoman Empire");
 });
 
 test("1522 diplomacy matrix is complete and symmetric", () => {

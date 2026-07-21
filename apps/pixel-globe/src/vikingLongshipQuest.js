@@ -1,4 +1,5 @@
 import { deliverQuestCargo } from "./gameState.js";
+import { hasPermanentCrewBerth } from "./namedCrew.js";
 
 export const VIKING_LONGSHIP_SLUG = "viking-longship";
 export const VIKING_LONGSHIP_PORT_CITY = "Hafnarfjordur";
@@ -40,6 +41,7 @@ export function maybeSpawnVikingLongshipQuest(state, city, context = {}) {
   const memory = vikingQuestMemory(state);
   const existing = vikingLongshipQuestState(state, city);
   if (existing) return existing;
+  if (!hasPermanentCrewBerth(state)) return null;
 
   const period = vikingRollPeriod(context.simMinute);
   const rollKey = `${city.portId || city.tileId}|${period}`;

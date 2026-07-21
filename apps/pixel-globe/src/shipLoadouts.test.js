@@ -56,6 +56,14 @@ test("the standard short-haul complement is each hull's minimum selectable crew"
   }
 });
 
+test("preset loadouts preserve a larger permanent named crew floor", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const permanentCrew = shipMinimumCrew(stats) + 2;
+  for (const preset of SHIP_LOADOUT_PRESETS) {
+    assert.ok(shipLoadoutPlan(stats, preset.id, { minimumCrew: permanentCrew }).crew >= permanentCrew);
+  }
+});
+
 test("constrained provisions split evenly with the odd slot reserved for water", () => {
   assert.deepEqual(balancedProvisionTargets(8, 8, 7), { foodUnits: 3, waterUnits: 4 });
   assert.deepEqual(balancedProvisionTargets(3, 8, 8), { foodUnits: 3, waterUnits: 5 });
@@ -80,8 +88,8 @@ test("custom loadouts preserve exact integer targets and expose remaining trade 
   assert.equal(plan.foodUnits, 4);
   assert.equal(plan.waterUnits, 5);
   assert.equal(plan.reserveSpace, stats.cargoCapacity - plan.totalSpace);
-  assert.equal(plan.foodDays, 4 * 12 / (crew + 1));
-  assert.equal(plan.waterDays, 5 * 8 / (crew + 1));
+  assert.equal(plan.foodDays, 4 * 12 / crew);
+  assert.equal(plan.waterDays, 5 * 8 / crew);
 });
 
 test("custom slider bounds prevent any field from overflowing the hold", () => {

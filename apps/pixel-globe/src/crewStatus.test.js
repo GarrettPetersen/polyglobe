@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { crewStatusCount, crewStatusLayout } from "./crewStatus.js";
 
-test("crew status count includes visible travelers but not the captain", () => {
+test("crew status count treats the captain as crew and adds visible travelers", () => {
   assert.equal(crewStatusCount({
     crewCount: 2,
     travelerGroups: [{ kind: "passenger", count: 1 }]

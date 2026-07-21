@@ -434,7 +434,7 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
     slugs: [spec.shipSlug],
     slug: spec.shipSlug,
     seed: hashString32(`${spec.id}|capture`),
-    hitPoints: stats.hitPoints,
+    hitPoints: spec.hitPoints ?? stats.hitPoints,
     maxHitPoints: stats.hitPoints,
     cargoCapacity: stats.cargoCapacity,
     fishingNetId: null,

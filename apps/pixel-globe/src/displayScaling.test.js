@@ -69,6 +69,24 @@ test("a high-DPR portrait phone uses an integer physical pixel scale", () => {
   assert.equal(layout.height * 3, 455 * 4);
 });
 
+test("a 32:9 canvas remains centered and pixel-snapped on an ultrawide monitor", () => {
+  const layout = canvasDisplayLayout({
+    viewportWidth: 5120,
+    viewportHeight: 1440,
+    canvasWidth: 910,
+    canvasHeight: 256,
+    devicePixelRatio: 2,
+    fitScreen: true
+  });
+
+  assert.equal(layout.physicalScale, 11);
+  assert.equal(layout.scale, 5.5);
+  assert.equal(layout.width, 5005);
+  assert.equal(layout.height, 1408);
+  assert.equal(layout.left, 57.5);
+  assert.equal(layout.top, 16);
+});
+
 test("canvas display scaling rejects invalid geometry", () => {
   assert.throws(() => canvasDisplayLayout({
     viewportWidth: 0,

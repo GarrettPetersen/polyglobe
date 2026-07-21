@@ -1,16 +1,26 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { PORT_PERSONALITY_IDS } from "./portDialoguePersonality.js";
 
 import {
   assignNpcShipCaptains,
+  assignMissingNpcShipCaptains,
   assignPortCityCharacterFromSource,
   assignPortCityCharacters,
   characterExpression,
+  generateCastawayCharacter,
+  generateCastawayFamilyMember,
   generateCampaignContactCharacter,
   generatePassengerCharacter,
+  generatePirateCaptiveCharacter,
+  generatePirateCaptiveFamilyMember,
   generatePlayerCharacter,
+  reconcileCharacterPortraitSexes,
   validateCharacterPortraitManifest
 } from "./characterPortraits.js";
 
@@ -18,6 +28,10 @@ const GENERATED_MANIFEST = JSON.parse(readFileSync(
   new URL("../public/assets/characters/generated/character-portraits.json", import.meta.url),
   "utf8"
 ));
+const CHARACTER_ASSET_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../public/assets/characters"
+);
 test("player portrait selection uses a directly authored regional captain sprite", () => {
   const usedNames = new Set();
   const homePort = {
@@ -121,8 +135,8 @@ test("mixed portrait sheets retain their visually reviewed sex assignments", () 
     ["Indian Ocean Portrait Pack by OpenAI", [2, 7, 9, 12, 14]],
     ["Ming Chinese Portrait Pack by OpenAI", [5, 10, 15]],
     ["Native Americain Portrait Pack by Captainskeleto", [1, 2, 3, 4, 9, 10, 13, 14]],
-    ["Polynesian Portrait Pack by OpenAI", [2, 4, 6, 8, 9, 12, 14]],
-    ["South Asian Portrait Pack by OpenAI", [2, 4, 9, 14, 16]],
+    ["Polynesian Portrait Pack by OpenAI", [2, 4, 6, 8, 10, 12, 14]],
+    ["South Asian Portrait Pack by OpenAI", [2, 4, 9, 11, 14, 16]],
     ["Southeast Asian Portrait Pack by OpenAI", [2, 4, 9, 11, 12, 14]],
     ["Sub-Saharan African Portrait Pack by OpenAI", [2, 4, 6, 8, 10, 12, 14, 16]]
   ]);
@@ -134,6 +148,45 @@ test("mixed portrait sheets retain their visually reviewed sex assignments", () 
       .sort((a, b) => a - b);
     assert.deepEqual(actualNumbers, expectedNumbers, directory);
   }
+});
+
+test("saved characters inherit corrected sex metadata from their reviewed portrait", () => {
+  const southAsianWoman = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.label === "South Asian 11"
+  );
+  const polynesianMan = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.label === "Polynesian 9"
+  );
+  assert.equal(southAsianWoman.sex, "female");
+  assert.equal(polynesianMan.sex, "male");
+
+  const savedVoyage = {
+    playerCharacter: {
+      sourceId: southAsianWoman.id,
+      sex: "male"
+    },
+    people: [{
+      sourceId: polynesianMan.id,
+      sex: "female"
+    }],
+    unrelatedEntity: {
+      sourceId: "npc-ship-1"
+    }
+  };
+
+  assert.equal(
+    reconcileCharacterPortraitSexes(savedVoyage, GENERATED_MANIFEST),
+    2
+  );
+  assert.equal(savedVoyage.playerCharacter.sex, "female");
+  assert.equal(savedVoyage.people[0].sex, "male");
+});
+
+test("portrait sex reconciliation rejects unknown character sources", () => {
+  assert.throws(
+    () => reconcileCharacterPortraitSexes({ sourceId: "missing-portrait", sex: "male" }, GENERATED_MANIFEST),
+    /unknown portrait source/
+  );
 });
 
 test("East Asian players use the authored Ming portrait group", () => {
@@ -180,6 +233,25 @@ test("generated culture packs contain sixteen native authored sprites apiece", (
     assert.ok(portraits.every((source) => source.regions.length === 1 && source.regions[0] === region));
     assert.ok(portraits.every((source) => source.expressions.length === 1));
     assert.ok(portraits.every((source) => source.expressions[0].width === 64 && source.expressions[0].height === 64));
+  }
+});
+
+test("Indian portrait crops contain no detached pixels from neighboring sheet cells", async () => {
+  for (const [directory, stem] of [
+    ["South Asian Portrait Pack by OpenAI", "south-asian"],
+    ["Indian Ocean Portrait Pack by OpenAI", "indian-ocean"]
+  ]) {
+    for (let number = 1; number <= 16; number += 1) {
+      const filename = `${stem}-${String(number).padStart(2, "0")}.png`;
+      const image = await loadImage(join(CHARACTER_ASSET_ROOT, directory, filename));
+      assert.equal(image.width, 64, `${filename} width`);
+      assert.equal(image.height, 64, `${filename} height`);
+      const canvas = createCanvas(image.width, image.height);
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, image.width, image.height).data;
+      assert.equal(opaqueComponentCount(pixels, image.width, image.height), 1, filename);
+    }
   }
 });
 
@@ -431,6 +503,57 @@ test("return-home passenger generation can use destination culture", () => {
   assert.equal("palette" in passenger, false);
 });
 
+test("pirate captives use expressive portraits and reunite with the same family name", () => {
+  const homePort = {
+    tileId: 8,
+    city: "Porto",
+    displayCity: "Porto",
+    country: "Portugal",
+    factionId: "portugal",
+    cityType: "mediterranean",
+    lat: 41.15,
+    lon: -8.61
+  };
+  const usedNames = new Set();
+  const captive = generatePirateCaptiveCharacter({
+    identityKey: "pirate-19",
+    homePort,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+  const familyMember = generatePirateCaptiveFamilyMember({
+    identityKey: "pirate-19",
+    captive,
+    homePort,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+
+  assert.ok(captive.expressions.length > 1);
+  assert.notEqual(characterExpression(captive, "crying").id, characterExpression(captive, "overjoyed").id);
+  assert.equal(familyMember.familyName, captive.familyName);
+  assert.notEqual(familyMember.name, captive.name);
+  assert.notEqual(familyMember.sourceId, captive.sourceId);
+
+  const castaway = generateCastawayCharacter({
+    identityKey: "shore-91",
+    homePort,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+  const castawayFamily = generateCastawayFamilyMember({
+    identityKey: "shore-91",
+    castaway,
+    homePort,
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+  assert.equal(castaway.role, "castaway");
+  assert.notEqual(characterExpression(castaway, "crying").id, characterExpression(castaway, "overjoyed").id);
+  assert.equal(castawayFamily.familyName, castaway.familyName);
+  assert.notEqual(castawayFamily.sourceId, castaway.sourceId);
+});
+
 test("port assignments use their authored culture-group portrait pools", () => {
   const usedNames = new Set();
   const assignments = assignPortCityCharacters([
@@ -510,6 +633,42 @@ test("ship captains use pirate portraits only for pirate crews", () => {
   assert.ok(values.every((captain) => captain.nameCulture === "nahua"));
 });
 
+test("missing NPC captain assignments are reconciled without replacing existing captains", () => {
+  const ships = Array.from({ length: 3 }, (_, index) => ({
+    id: `indian-ocean-${index}`,
+    slug: "dhow",
+    role: "merchant",
+    profileId: "indian-ocean",
+    currentPort: {
+      routeRegion: "indian-ocean",
+      city: "Cambay",
+      country: "India",
+      cityType: "islamic-desert",
+      lat: 22.3,
+      lon: 72.6
+    }
+  }));
+  const usedNames = new Set();
+  const assignments = assignNpcShipCaptains(ships.slice(0, 2), GENERATED_MANIFEST, usedNames);
+  const firstCaptain = assignments.get("indian-ocean-0");
+
+  const additions = assignMissingNpcShipCaptains(
+    ships,
+    assignments,
+    GENERATED_MANIFEST,
+    usedNames
+  );
+
+  assert.deepEqual([...additions.keys()], ["indian-ocean-2"]);
+  assert.equal(assignments.get("indian-ocean-0"), firstCaptain);
+  assert.equal(assignments.get("indian-ocean-2").npcShipId, "indian-ocean-2");
+  assert.equal(new Set([...assignments.values()].map((captain) => captain.name)).size, 3);
+  assert.throws(
+    () => assignMissingNpcShipCaptains(ships, {}, GENERATED_MANIFEST, usedNames),
+    /assignment Map/
+  );
+});
+
 test("a reserved player portrait source is never reused by NPC generators", () => {
   const reservedSourceId = "knight-portrait-pack-by-captainskeleto-knight-portrait";
   const exclusions = { excludedSourceIds: [reservedSourceId] };
@@ -567,3 +726,31 @@ test("a reserved player portrait source is never reused by NPC generators", () =
     /portrait source is reserved/
   );
 });
+
+function opaqueComponentCount(pixels, width, height) {
+  const seen = new Uint8Array(width * height);
+  let count = 0;
+  for (let start = 0; start < width * height; start += 1) {
+    if (seen[start] || pixels[start * 4 + 3] === 0) continue;
+    count += 1;
+    const stack = [start];
+    seen[start] = 1;
+    while (stack.length > 0) {
+      const pixel = stack.pop();
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+          const nextX = x + offsetX;
+          const nextY = y + offsetY;
+          if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height) continue;
+          const next = nextY * width + nextX;
+          if (seen[next] || pixels[next * 4 + 3] === 0) continue;
+          seen[next] = 1;
+          stack.push(next);
+        }
+      }
+    }
+  }
+  return count;
+}

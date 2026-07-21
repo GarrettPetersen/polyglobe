@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   BUSY_WORLD_CAPTURE_SCENARIO_ID,
+  COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
   recordPerformanceBenchmarkFrame,
@@ -29,6 +30,16 @@ test("benchmark query accepts bounded timing overrides", () => {
     () => performanceBenchmarkFromSearch("?benchmark=busy-world&benchmarkDuration=0"),
     /benchmarkDuration/
   );
+});
+
+test("combat-hotspot benchmark selects the eastern Mediterranean combat scene", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=combat-hotspot"), {
+    id: "combat-hotspot",
+    captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 2
+  });
 });
 
 test("benchmark report includes frame percentiles and skipped frame estimates", () => {
@@ -58,6 +69,27 @@ test("benchmark report includes frame percentiles and skipped frame estimates", 
   assert.equal(result.longFrames.over33Ms, 1);
   assert.equal(result.estimatedSkippedFrames, 1);
   assert.deepEqual(result.scene, { ships: 12 });
+});
+
+test("benchmark evaluates a lazy scene snapshot only when measurement completes", () => {
+  const state = createPerformanceBenchmarkState({
+    id: "combat-hotspot",
+    warmupSeconds: 0.01,
+    durationSeconds: 0.02
+  }, 0);
+  let snapshotCalls = 0;
+  const scene = () => {
+    snapshotCalls++;
+    return { ships: 4 };
+  };
+  recordPerformanceBenchmarkFrame(state, 0, 2, 0, scene);
+  recordPerformanceBenchmarkFrame(state, 10, 2, 1, scene);
+  recordPerformanceBenchmarkFrame(state, 20, 2, 2, scene);
+  recordPerformanceBenchmarkFrame(state, 30, 2, 3, scene);
+  assert.equal(snapshotCalls, 0);
+  const result = recordPerformanceBenchmarkFrame(state, 40, 2, 4, scene);
+  assert.equal(snapshotCalls, 1);
+  assert.deepEqual(result.scene, { ships: 4 });
 });
 
 test("unknown benchmarks fail loudly", () => {

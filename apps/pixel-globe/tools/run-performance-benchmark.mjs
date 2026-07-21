@@ -31,14 +31,17 @@ try {
   });
   try {
     const page = context.pages()[0] || await context.newPage();
+    let cdp = null;
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error" && !message.text().startsWith("Failed to load resource:")) {
         errors.push(message.text());
       }
     });
+    if (args.cpuThrottle > 1 || args.cpuProfile) {
+      cdp = await context.newCDPSession(page);
+    }
     if (args.cpuThrottle > 1) {
-      const cdp = await context.newCDPSession(page);
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: args.cpuThrottle });
     }
     const url = benchmarkUrl(baseUrl, args);
@@ -54,6 +57,10 @@ try {
     await page.bringToFront();
     const readyMs = performance.now() - loadStartedAt;
     process.stdout.write(`  Scene ready in ${Math.round(readyMs)} ms; collecting frames...\n`);
+    if (args.cpuProfile) {
+      await cdp.send("Profiler.enable");
+      await cdp.send("Profiler.start");
+    }
     await page.waitForFunction(
       () => window.__PIXEL_GLOBE_BENCHMARK_RESULT__ !== null || Boolean(window.__PIXEL_GLOBE_CAPTURE_ERROR__),
       null,
@@ -61,6 +68,11 @@ try {
     );
     await throwPageError(page);
     const result = await page.evaluate(() => window.__PIXEL_GLOBE_BENCHMARK_RESULT__);
+    if (args.cpuProfile) {
+      const { profile } = await cdp.send("Profiler.stop");
+      await mkdir(path.dirname(args.cpuProfile), { recursive: true });
+      await writeFile(args.cpuProfile, `${JSON.stringify(profile)}\n`);
+    }
     if (errors.length > 0) throw new Error(`Browser errors:\n${errors.join("\n")}`);
     const report = {
       ...result,
@@ -73,6 +85,7 @@ try {
     await mkdir(path.dirname(args.output), { recursive: true });
     await writeFile(args.output, `${JSON.stringify(report, null, 2)}\n`);
     printReport(report, args.output);
+    if (args.cpuProfile) process.stdout.write(`  CPU profile: ${args.cpuProfile}\n`);
     if (args.minFps !== null && report.framesPerSecond < args.minFps) {
       throw new Error(`Benchmark FPS ${report.framesPerSecond} is below required ${args.minFps}`);
     }
@@ -90,9 +103,11 @@ async function throwPageError(page) {
 
 function benchmarkUrl(baseUrl, options) {
   const params = new URLSearchParams({
-    capture: "benchmark-busy-world",
+    capture: options.benchmark === "combat-hotspot"
+      ? "benchmark-combat-hotspot"
+      : "benchmark-busy-world",
     captureFormat: "steam",
-    benchmark: "busy-world",
+    benchmark: options.benchmark,
     benchmarkWarmup: String(options.warmupSeconds),
     benchmarkDuration: String(options.durationSeconds)
   });
@@ -102,7 +117,7 @@ function benchmarkUrl(baseUrl, options) {
 function printReport(report, output) {
   process.stdout.write(
     [
-      "Busy-world performance benchmark",
+      `${report.id} performance benchmark`,
       `  Scene: ${report.scene.activeVisualNpcShips}/${report.scene.configuredNpcShips} NPC ships, ` +
         `${report.scene.stagedLandCarts} carts, ${report.scene.chartTiles} terrain tiles`,
       `  FPS: ${report.framesPerSecond} (${report.renderFramesPerSecond} rendered fps)`,
@@ -182,30 +197,40 @@ function browserExecutablePath() {
 
 function parseArgs(argv) {
   const parsed = {
+    benchmark: "busy-world",
     baseUrl: null,
     port: 5191,
     warmupSeconds: 2,
     durationSeconds: 8,
     cpuThrottle: 1,
+    cpuProfile: null,
     headless: false,
     minFps: null,
     timeoutMs: 120_000,
     profileDir: path.join(APP_ROOT, "build/performance/browser-profile"),
-    output: path.join(APP_ROOT, "build/performance/busy-world-latest.json")
+    output: null
   };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
-    if (arg === "--base-url") parsed.baseUrl = requiredValue(argv, ++index, arg).replace(/\/$/, "");
+    if (arg === "--benchmark") parsed.benchmark = requiredValue(argv, ++index, arg);
+    else if (arg === "--base-url") parsed.baseUrl = requiredValue(argv, ++index, arg).replace(/\/$/, "");
     else if (arg === "--port") parsed.port = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--warmup") parsed.warmupSeconds = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--duration") parsed.durationSeconds = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--cpu-throttle") parsed.cpuThrottle = positiveNumber(requiredValue(argv, ++index, arg), arg);
+    else if (arg === "--cpu-profile") parsed.cpuProfile = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));
     else if (arg === "--headless") parsed.headless = true;
     else if (arg === "--min-fps") parsed.minFps = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--timeout-ms") parsed.timeoutMs = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--profile") parsed.profileDir = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));
     else if (arg === "--output") parsed.output = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));
     else throw new Error(`Unknown benchmark argument: ${arg}`);
+  }
+  if (!["busy-world", "combat-hotspot"].includes(parsed.benchmark)) {
+    throw new Error(`Unknown performance benchmark: ${parsed.benchmark}`);
+  }
+  if (!parsed.output) {
+    parsed.output = path.join(APP_ROOT, `build/performance/${parsed.benchmark}-latest.json`);
   }
   return parsed;
 }

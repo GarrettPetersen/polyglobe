@@ -1,0 +1,198 @@
+import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
+
+export const CHARACTER_BIOGRAPHY_REFERENCE_YEAR = 1522;
+export const CHARACTER_BIOGRAPHY_REFERENCE_MONTH = 3;
+export const CHARACTER_BIOGRAPHY_REFERENCE_DAY = 21;
+
+const MONTH_NAMES = Object.freeze([
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+]);
+const MONTH_LENGTHS = Object.freeze([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
+const CULTURE_NATIONALITIES = Object.freeze({
+  english: "English",
+  scottish: "Scottish",
+  french: "French",
+  spanish: "Spanish",
+  portuguese: "Portuguese",
+  italian: "Italian",
+  germanic: "German",
+  nordic: "Norse",
+  slavic: "Slavic",
+  greek: "Greek",
+  ottoman: "Ottoman",
+  arabic: "Arab",
+  persian: "Persian",
+  southAsian: "South Asian",
+  southeastAsian: "Southeast Asian",
+  polynesian: "Polynesian",
+  chinese: "Chinese",
+  japanese: "Japanese",
+  korean: "Korean",
+  westAfrican: "West African",
+  eastAfrican: "East African",
+  nahua: "Nahua",
+  andean: "Andean",
+  maritime: "Maritime"
+});
+
+export function characterWithBiography(character, {
+  identityKey = character?.id || character?.name,
+  referenceYear = CHARACTER_BIOGRAPHY_REFERENCE_YEAR,
+  referenceMonth = CHARACTER_BIOGRAPHY_REFERENCE_MONTH,
+  referenceDay = CHARACTER_BIOGRAPHY_REFERENCE_DAY,
+  nationalityId = character?.nationalityId ?? null,
+  nationalityName = character?.nationalityName ?? null,
+  nationalityAdjective = character?.nationalityAdjective ?? null
+} = {}) {
+  if (!character || typeof character !== "object") throw new Error("Character biography requires a character");
+  if (typeof identityKey !== "string" || identityKey.trim() === "") {
+    throw new Error("Character biography requires an identity key");
+  }
+  assertCalendarDate({ year: referenceYear, month: referenceMonth, day: referenceDay }, "biography reference");
+  const sex = character.sex || character.gender;
+  if (sex !== "female" && sex !== "male") {
+    throw new Error(`Character biography requires an explicit sex: ${sex}`);
+  }
+  const ageEstimate = character.age;
+  if (!Number.isInteger(ageEstimate) || ageEstimate < 5 || ageEstimate > 90) {
+    throw new Error(`Character biography has invalid portrait age estimate: ${ageEstimate}`);
+  }
+  const birthDate = character.birthDate
+    ? normalizeBirthDate(character.birthDate)
+    : generateBirthDate(identityKey, ageEstimate, { year: referenceYear, month: referenceMonth, day: referenceDay });
+  const age = characterAgeOnDate({ ...character, birthDate }, {
+    year: referenceYear,
+    month: referenceMonth,
+    day: referenceDay
+  });
+  if (age !== ageEstimate) {
+    throw new Error(`Character birth date disagrees with portrait age estimate: ${age} != ${ageEstimate}`);
+  }
+  return {
+    ...character,
+    sex,
+    birthDate,
+    birthDateLabel: formatCharacterBirthDate(birthDate),
+    age,
+    nationalityId,
+    nationalityName,
+    nationalityAdjective
+  };
+}
+
+export function characterAgeAtMinute(character, simMinute, longitudeDeg = 0) {
+  return characterAgeOnDate(character, gameCalendarDateAtMinute(simMinute, longitudeDeg));
+}
+
+export function characterAgeOnDate(character, date) {
+  if (!character?.birthDate) throw new Error("Character age requires a birth date");
+  const birthDate = normalizeBirthDate(character.birthDate);
+  assertCalendarDate(date, "character age");
+  const birthdayPassed = date.month > birthDate.month ||
+    (date.month === birthDate.month && date.day >= birthDate.day);
+  const age = date.year - birthDate.year - (birthdayPassed ? 0 : 1);
+  if (!Number.isInteger(age) || age < 0) throw new Error(`Invalid character age: ${age}`);
+  return age;
+}
+
+export function gameCalendarDateAtMinute(simMinute, longitudeDeg = 0) {
+  if (!Number.isFinite(simMinute)) throw new Error(`Invalid game calendar minute: ${simMinute}`);
+  if (!Number.isFinite(longitudeDeg) || longitudeDeg < -180 || longitudeDeg > 180) {
+    throw new Error(`Invalid game calendar longitude: ${longitudeDeg}`);
+  }
+  const localMinute = Math.floor(simMinute + longitudeDeg * 4);
+  const totalDay = Math.floor(localMinute / WEATHER_MINUTES_PER_DAY);
+  const year = CHARACTER_BIOGRAPHY_REFERENCE_YEAR + Math.floor(totalDay / WEATHER_DAYS);
+  const dayIndex = positiveModulo(totalDay, WEATHER_DAYS);
+  const date = new Date(Date.UTC(2001, 0, 1 + dayIndex));
+  return Object.freeze({
+    year,
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    dayIndex
+  });
+}
+
+export function characterBirthdayLabel(character, { abbreviated = true } = {}) {
+  if (!character?.birthDate) throw new Error("Character birthday label requires a birth date");
+  const birthDate = normalizeBirthDate(character.birthDate);
+  const month = abbreviated ? MONTH_NAMES[birthDate.month - 1].slice(0, 3).toUpperCase() : MONTH_NAMES[birthDate.month - 1];
+  return `${String(birthDate.day).padStart(2, "0")} ${month}`;
+}
+
+export function formatCharacterBirthDate(birthDate) {
+  const normalized = normalizeBirthDate(birthDate);
+  return `${normalized.day} ${MONTH_NAMES[normalized.month - 1]} ${normalized.year}`;
+}
+
+export function characterNationalityLabel(character) {
+  if (!character || typeof character !== "object") throw new Error("Character nationality requires a character");
+  if (typeof character.nationalityAdjective === "string" &&
+      character.nationalityAdjective.trim() !== "" && character.nationalityAdjective !== "Neutral") {
+    return character.nationalityAdjective;
+  }
+  const cultural = CULTURE_NATIONALITIES[character.nameCulture];
+  if (cultural) return cultural;
+  if (typeof character.nationalityName === "string" && character.nationalityName.trim() !== "") {
+    return character.nationalityName;
+  }
+  if (typeof character.homePortCountry === "string" && character.homePortCountry.trim() !== "") {
+    return character.homePortCountry;
+  }
+  throw new Error(`Character has no nationality label: ${character.id || character.name || "unknown"}`);
+}
+
+export function validateCharacterBiography(character) {
+  if (!character || typeof character !== "object") throw new Error("Character biography must be an object");
+  if (character.sex !== "female" && character.sex !== "male") {
+    throw new Error(`Invalid character sex: ${character.sex}`);
+  }
+  normalizeBirthDate(character.birthDate);
+  if (typeof character.birthDateLabel !== "string" || character.birthDateLabel.trim() === "") {
+    throw new Error("Character biography requires a birth date label");
+  }
+  return character;
+}
+
+function generateBirthDate(identityKey, age, referenceDate) {
+  const month = hashString32(`${identityKey}|birth-month`) % 12 + 1;
+  const day = hashString32(`${identityKey}|birth-day`) % MONTH_LENGTHS[month - 1] + 1;
+  const birthdayPassed = referenceDate.month > month ||
+    (referenceDate.month === month && referenceDate.day >= day);
+  const year = referenceDate.year - age - (birthdayPassed ? 0 : 1);
+  return Object.freeze({ year, month, day });
+}
+
+function normalizeBirthDate(birthDate) {
+  const normalized = {
+    year: birthDate?.year,
+    month: birthDate?.month,
+    day: birthDate?.day
+  };
+  assertCalendarDate(normalized, "birth date");
+  return Object.freeze(normalized);
+}
+
+function assertCalendarDate(date, label) {
+  if (!Number.isInteger(date?.year)) throw new Error(`Invalid ${label} year: ${date?.year}`);
+  if (!Number.isInteger(date.month) || date.month < 1 || date.month > 12) {
+    throw new Error(`Invalid ${label} month: ${date.month}`);
+  }
+  if (!Number.isInteger(date.day) || date.day < 1 || date.day > MONTH_LENGTHS[date.month - 1]) {
+    throw new Error(`Invalid ${label} day: ${date.day}`);
+  }
+}
+
+function positiveModulo(value, modulus) {
+  return ((value % modulus) + modulus) % modulus;
+}
+
+function hashString32(value) {
+  let hash = 0x811c9dc5;
+  for (const character of String(value)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}

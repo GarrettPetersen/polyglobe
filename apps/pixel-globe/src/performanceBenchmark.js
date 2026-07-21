@@ -1,6 +1,19 @@
 export const PERFORMANCE_BENCHMARK_QUERY_PARAM = "benchmark";
 export const BUSY_WORLD_BENCHMARK_ID = "busy-world";
 export const BUSY_WORLD_CAPTURE_SCENARIO_ID = "benchmark-busy-world";
+export const COMBAT_HOTSPOT_BENCHMARK_ID = "combat-hotspot";
+export const COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-combat-hotspot";
+
+const BENCHMARKS = Object.freeze({
+  [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 14
+  }),
+  [COMBAT_HOTSPOT_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2
+  })
+});
 
 const FRAME_BUDGET_MS = 1000 / 60;
 const DEFAULT_WARMUP_SECONDS = 2;
@@ -10,13 +23,14 @@ export function performanceBenchmarkFromSearch(search) {
   const params = new URLSearchParams(search);
   const id = params.get(PERFORMANCE_BENCHMARK_QUERY_PARAM);
   if (!id) return null;
-  if (id !== BUSY_WORLD_BENCHMARK_ID) throw new Error(`Unknown performance benchmark: ${id}`);
+  const definition = BENCHMARKS[id];
+  if (!definition) throw new Error(`Unknown performance benchmark: ${id}`);
   return Object.freeze({
     id,
-    captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
+    captureScenarioId: definition.captureScenarioId,
     warmupSeconds: positiveQueryNumber(params, "benchmarkWarmup", DEFAULT_WARMUP_SECONDS),
     durationSeconds: positiveQueryNumber(params, "benchmarkDuration", DEFAULT_DURATION_SECONDS),
-    targetLandCarts: 14
+    targetLandCarts: definition.targetLandCarts
   });
 }
 
@@ -92,6 +106,10 @@ export function recordPerformanceBenchmarkFrame(state, frameAtMs, cpuMs, renderC
     throw new Error(`Benchmark collected too few frames: ${state.frameIntervalsMs.length}`);
   }
 
+  const resolvedScene = typeof scene === "function" ? scene() : scene;
+  if (!resolvedScene || typeof resolvedScene !== "object" || Array.isArray(resolvedScene)) {
+    throw new Error("Benchmark scene snapshot must be an object or an object-producing function");
+  }
   const elapsedMs = state.frameIntervalsMs.reduce((sum, value) => sum + value, 0);
   const renderFrames = renderCount - (state.renderCountAtStart ?? renderCount);
   state.result = Object.freeze({
@@ -119,7 +137,7 @@ export function recordPerformanceBenchmarkFrame(state, frameAtMs, cpuMs, renderC
       (sum, value) => sum + Math.max(0, Math.round(value / FRAME_BUDGET_MS) - 1),
       0
     ),
-    scene: Object.freeze({ ...scene })
+    scene: Object.freeze({ ...resolvedScene })
   });
   return state.result;
 }

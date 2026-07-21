@@ -3908,7 +3908,7 @@
       "label": "Polynesian 10",
       "groupingMode": "single-portrait",
       "sourceDirectory": "Polynesian Portrait Pack by OpenAI",
-      "sex": "male",
+      "sex": "female",
       "roles": [
         "captain",
         "factor",
@@ -4314,7 +4314,7 @@
       "label": "Polynesian 9",
       "groupingMode": "single-portrait",
       "sourceDirectory": "Polynesian Portrait Pack by OpenAI",
-      "sex": "female",
+      "sex": "male",
       "roles": [
         "captain",
         "factor",
@@ -4401,7 +4401,7 @@
       "label": "South Asian 11",
       "groupingMode": "single-portrait",
       "sourceDirectory": "South Asian Portrait Pack by OpenAI",
-      "sex": "male",
+      "sex": "female",
       "roles": [
         "captain",
         "factor",

@@ -16,10 +16,12 @@ import {
   cityLabel,
   completeQuest,
   deliverQuestCargo,
+  enterSpecialEquipmentStore,
   grantLetterOfMarque,
   isEnvoyQuest,
   letterOfMarqueStatus,
   mingTradeOpenToFaction,
+  maybeGrantMissionPerkItem,
   negotiateEnvoyQuest,
   portMemory,
   portEntryStatus,
@@ -29,6 +31,7 @@ import {
   playerWhaleHarpoon,
   purchaseCannonEquipment,
   purchaseFishingNet,
+  purchasePerkItem,
   purchaseWhaleHarpoon,
   questStateForCity,
   receiveQuestPayment,
@@ -80,6 +83,17 @@ import {
   EQUIPMENT_STOCK_WHALE_HARPOON,
   equipmentStockAtPort
 } from "./portEquipment.js";
+import { perkItemSummary } from "./perkItems.js";
+import { canAddNamedCrewMember, permanentCrewFloor } from "./namedCrew.js";
+import {
+  CHEF_QUEST_REWARD,
+  CHEF_QUEST_STAGE_GATHERING,
+  CHEF_QUEST_STAGE_RECRUITED,
+  CHEF_QUEST_STAGE_RECRUITMENT,
+  chefQuestState,
+  completeChefBanquet,
+  markChefQuestOfferSeen
+} from "./chefQuest.js";
 import {
   VIKING_LONGSHIP_PRICE,
   VIKING_LONGSHIP_REWARD_ACCEPTED,
@@ -187,10 +201,12 @@ export function createPortDialogueSession(city, options = {}) {
     marketSaleGoodIds: [],
     tradeTip: null,
     shipHandover: null,
+    specialEquipmentOffer: null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
     japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
     caribbeanGingerArrival: options.caribbeanGingerArrival === true,
+    chefQuestArrival: options.chefQuestArrival === true,
     vikingLongshipArrival: options.vikingLongshipArrival === true,
     selectedIndex: 0,
     feedback: null
@@ -257,6 +273,17 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       postDrunkNodeId: arrivedDrunk ? "caribbean-ginger" : null,
       drunkVariant,
       caribbeanGingerArrival: true,
+      admittedToPort: true
+    });
+  }
+  if (options.chefQuestApproach === true) {
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    return createPortDialogueSession(city, {
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "chef-quest",
+      nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? "chef-quest" : null,
+      drunkVariant,
+      chefQuestArrival: true,
       admittedToPort: true
     });
   }
@@ -780,6 +807,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "equipment-nets") return fishingNetView(session, city, gameState, economy);
   if (session.nodeId === "equipment-cannons") return cannonEquipmentView(session, city, gameState, economy);
   if (session.nodeId === "equipment-harpoons") return whaleHarpoonView(session, city, gameState, economy);
+  if (session.nodeId === "equipment-special-offer") {
+    return specialEquipmentOfferView(session, city, gameState);
+  }
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy);
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
@@ -795,6 +825,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "caribbean-ginger") {
     return caribbeanGingerView(session, city, gameState);
   }
+  if (session.nodeId === "chef-quest") return chefQuestView(session, city, gameState);
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
   throw new Error(`Unknown dialogue node: ${session.nodeId}`);
 }
@@ -887,6 +918,7 @@ export function selectPortDialogueOption(
     if (action.nodeId === "viking-longship") markVikingLongshipOfferSeen(gameState);
     if (action.nodeId === "japanese-matchlocks") markJapaneseMatchlockOfferSeen(gameState);
     if (action.nodeId === "caribbean-ginger") markCaribbeanGingerOfferSeen(gameState);
+    if (action.nodeId === "chef-quest") markChefQuestOfferSeen(gameState);
     if (session.nodeId === "colonization" && action.nodeId !== "colonization") {
       session.colonizationArrival = false;
     }
@@ -899,8 +931,24 @@ export function selectPortDialogueOption(
     if (session.nodeId === "caribbean-ginger" && action.nodeId !== "caribbean-ginger") {
       session.caribbeanGingerArrival = false;
     }
+    if (session.nodeId === "chef-quest" && action.nodeId !== "chef-quest") {
+      session.chefQuestArrival = false;
+    }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
+    if (action.nodeId === "equipment" && session.nodeId === "root") {
+      const offer = enterSpecialEquipmentStore(gameState, economy, city);
+      if (offer) {
+        session.specialEquipmentOffer = {
+          itemId: offer.item.id,
+          reconsidered: offer.reconsidered
+        };
+        session.nodeId = "equipment-special-offer";
+        session.selectedIndex = 0;
+        session.feedback = null;
+        return { closed: false, specialEquipmentOffer: offer };
+      }
+    }
     session.nodeId = action.nodeId;
     session.selectedIndex = 0;
     session.feedback = null;
@@ -1024,8 +1072,34 @@ export function selectPortDialogueOption(
   if (action.type === "deliver-viking-material") {
     const result = deliverVikingLongshipQuestCargo(gameState, city, action.stageId, context);
     session.feedback = `Delivered ${result.completedStage.goodLabel} x${result.completedStage.quantity}.`;
+    const missionItemGift = result.quest.unlocked
+      ? maybeGrantMissionPerkItem(gameState, city, {
+        missionId: "viking-longship-complete",
+        distanceKm: 3500,
+        reward: VIKING_LONGSHIP_PRICE,
+        random: context.missionGiftRandom || neverGrantMissionItem,
+        context
+      })
+      : null;
+    if (missionItemGift) session.feedback += ` Your host also gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
-    return { closed: false, vikingLongshipDelivery: result };
+    return { closed: false, vikingLongshipDelivery: result, missionItemGift };
+  }
+  if (action.type === "deliver-chef-ingredients") {
+    const result = completeChefBanquet(gameState, city, context.simMinute ?? 0);
+    const payment = receiveQuestPayment(
+      gameState,
+      city,
+      CHEF_QUEST_REWARD,
+      `${result.event.eventLabel} provisions`,
+      context
+    );
+    session.feedback = `${result.event.successText} The household paid ${payment.amount} db.`;
+    session.selectedIndex = 0;
+    return { closed: false, chefBanquetCompleted: result, payment };
+  }
+  if (action.type === "recruit-chef") {
+    return { closed: false, action, chefRecruitmentRequested: true };
   }
   if (action.type === "deliver-japanese-matchlock-material") {
     const stage = assertJapaneseMatchlockDelivery(gameState, city, action.stageId);
@@ -1064,12 +1138,23 @@ export function selectPortDialogueOption(
     } else {
       session.feedback = `Delivered ${stage.goodLabel} x${stage.quantity}.`;
     }
+    const missionItemGift = result.quest.completed
+      ? maybeGrantMissionPerkItem(gameState, city, {
+        missionId: "japanese-matchlock-industry-complete",
+        distanceKm: 4500,
+        reward: JAPANESE_MATCHLOCK_COMPLETION_REWARD,
+        random: context.missionGiftRandom || neverGrantMissionItem,
+        context
+      })
+      : null;
+    if (missionItemGift) session.feedback += ` The gunsmith presents you with ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return {
       closed: false,
       japaneseMatchlockDelivery: delivery,
       japaneseMatchlockIndustry: industry,
-      japaneseMatchlockPayment: payment
+      japaneseMatchlockPayment: payment,
+      missionItemGift
     };
   }
   if (action.type === "deliver-caribbean-ginger") {
@@ -1102,13 +1187,22 @@ export function selectPortDialogueOption(
       context
     );
     session.feedback = `The first ginger beds have taken. Paid ${payment.amount} db.`;
+    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
+      missionId: "caribbean-ginger-industry-complete",
+      distanceKm: 7000,
+      reward: CARIBBEAN_GINGER_COMPLETION_REWARD,
+      random: context.missionGiftRandom || neverGrantMissionItem,
+      context
+    });
+    if (missionItemGift) session.feedback += ` The planter adds ${missionItemGift.item.label} to your reward.`;
     session.selectedIndex = 0;
     return {
       closed: false,
       caribbeanGingerDelivery: delivery,
       caribbeanGingerQuest: quest,
       caribbeanGingerIndustry: industry,
-      caribbeanGingerPayment: payment
+      caribbeanGingerPayment: payment,
+      missionItemGift
     };
   }
   if (action.type === "deliver-colonization-material") {
@@ -1231,13 +1325,24 @@ export function selectPortDialogueOption(
     session.feedback = defenseStarted
       ? `${quest.target.city} has become a city. Resupply paid ${payment.amount} db, but the harbor is under attack.`
       : `${quest.target.city} is secure. Paid ${payment.amount} db.`;
+    const missionItemGift = !defenseStarted
+      ? maybeGrantMissionPerkItem(gameState, city, {
+        missionId: `${colonizationLedgerKey(quest.target)}.complete`,
+        distanceKm: quest.distanceKm || 8000,
+        reward: resupply.reward,
+        random: context.missionGiftRandom || neverGrantMissionItem,
+        context
+      })
+      : null;
+    if (missionItemGift) session.feedback += ` The colonists press ${missionItemGift.item.label} upon you.`;
     session.selectedIndex = 0;
     return {
       closed: false,
       colonizationChanged: true,
       colonyEstablished: !defenseStarted,
       colonizationDefenseStarted: defenseStarted,
-      colonizationDelivery: delivery
+      colonizationDelivery: delivery,
+      missionItemGift
     };
   }
   if (action.type === "report-colony-defense") {
@@ -1256,12 +1361,21 @@ export function selectPortDialogueOption(
       context
     );
     session.feedback = `${quest.defense.report} Paid ${payment.amount} db.`;
+    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
+      missionId: `${colonizationLedgerKey(quest.target)}.defense-complete`,
+      distanceKm: quest.distanceKm || 9000,
+      reward: quest.defense.reward,
+      random: context.missionGiftRandom || neverGrantMissionItem,
+      context
+    });
+    if (missionItemGift) session.feedback += ` The settlement gifts you ${missionItemGift.item.label}.`;
     session.selectedIndex = 0;
     return {
       closed: false,
       colonizationChanged: true,
       colonyEstablished: true,
-      colonizationDefenseReward: payment
+      colonizationDefenseReward: payment,
+      missionItemGift
     };
   }
   if (action.type === "select-loadout") {
@@ -1279,7 +1393,8 @@ export function selectPortDialogueOption(
     if (!context.shipStats) throw new Error("Custom loadout editor requires player ship stats");
     session.customLoadoutDraft = shipCustomLoadoutDraft(
       context.shipStats,
-      gameState.ship?.loadoutTargets || null
+      gameState.ship?.loadoutTargets || null,
+      { minimumCrew: permanentCrewFloor(gameState) }
     );
     session.customLoadoutFieldIndex = 0;
     session.nodeId = "custom-loadout";
@@ -1333,12 +1448,27 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, whaleHarpoonPurchase: result };
   }
+  if (action.type === "buy-perk-item") {
+    const result = purchasePerkItem(gameState, city, action.itemId, context);
+    session.feedback = `${result.item.label} brought aboard for ${result.price} db.`;
+    session.specialEquipmentOffer = null;
+    session.nodeId = "equipment";
+    session.selectedIndex = 0;
+    return { closed: false, perkItemPurchase: result };
+  }
+  if (action.type === "decline-special-equipment") {
+    session.specialEquipmentOffer = null;
+    session.nodeId = "equipment";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
   if (action.type === "sell") {
     const result = sellGood(gameState, economy, city, action.goodId, 1, tradeContext(session, context));
     session.marketSales += result.quantity;
     const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
     session.feedback = `Sold ${result.good.label} for ${result.price} db. P/L ${pnl}.`;
-    return { closed: false };
+    return { closed: false, marketSale: result };
   }
   if (action.type === "accept-quest") {
     acceptQuest(gameState, action.quest);
@@ -1351,13 +1481,21 @@ export function selectPortDialogueOption(
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
+    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
+      missionId: quest.id,
+      distanceKm: quest.distanceKm || 0,
+      reward: quest.reward || 0,
+      random: context.missionGiftRandom || neverGrantMissionItem,
+      context
+    });
     session.feedback = quest.kind === "passenger"
       ? `${passengerName(quest)} went ashore. Earned ${quest.reward} db.`
       : `Delivered. Earned ${quest.reward} db. Standing improved.`;
+    if (missionItemGift) session.feedback += ` Gift: ${missionItemGift.item.label}.`;
     session.nodeId = session.nextPortNodeId || "root";
     session.nextPortNodeId = null;
     session.selectedIndex = 0;
-    return { closed: false };
+    return { closed: false, missionItemGift };
   }
   if (action.type === "request-marque") {
     const result = grantLetterOfMarque(gameState, city, context.shipPower || 0, context);
@@ -1467,8 +1605,19 @@ export function selectPassengerDialogueOption(
     return { closed: true, action: { type: "envoy-negotiated", negotiation } };
   }
   if (action.type === "complete-passenger") {
-    completeQuest(gameState, city, context);
-    return { closed: true, action: null };
+    const completed = completeQuest(gameState, city, context);
+    const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
+      missionId: completed.id,
+      distanceKm: completed.distanceKm || 0,
+      reward: completed.reward || 0,
+      random: context.missionGiftRandom || neverGrantMissionItem,
+      context
+    });
+    return {
+      closed: true,
+      action: null,
+      ...(missionItemGift ? { missionItemGift } : {})
+    };
   }
   throw new Error(`Unknown passenger dialogue action: ${action.type}`);
 }
@@ -1522,7 +1671,7 @@ function greetingView(session, city, gameState, context) {
     nearbyShips: context.nearbyShips,
     stormy: context.stormy === true,
     playerStanding: context.playerStanding || 0,
-    rivalLabel: context.rivalLabel || null,
+    rivalTerms: context.rivalTerms || null,
     shipyardRumor: context.shipyardRumor || null,
     rulerRumor: context.rulerRumor || null,
     historicalGossip: context.historicalGossip || null
@@ -1680,6 +1829,13 @@ function rootView(session, city, gameState, economy, context) {
       nodeId: "caribbean-ginger"
     }));
   }
+  const chefQuest = chefQuestState(gameState, city);
+  if (chefQuest && chefQuest.stage !== CHEF_QUEST_STAGE_RECRUITED && !session.disguisedEntry) {
+    options.splice(4, 0, option("Speak with the banquet chef", {
+      type: "node",
+      nodeId: "chef-quest"
+    }));
+  }
   if (isColonizationQuestOrigin(gameState.memory.colonization, city) && !session.disguisedEntry) {
     const sponsorRole = colonizationQuestView(gameState).history?.sponsorRole || "expedition sponsor";
     options.splice(4, 0, option(`Speak with the ${sponsorRole}`, {
@@ -1788,7 +1944,7 @@ function vikingLongshipView(session, city, gameState, context) {
     return {
       speaker,
       expressionId: "happy",
-      text: `The longship is complete, and you supplied everything that made her possible. Take her as your reward. Warning: accepting will replace your ${currentShipLabel}; the current vessel will be left behind.`,
+      text: `The longship is complete, and you supplied everything that made her possible. I will give her to you on one condition: take me aboard. I have spent long enough studying voyages from shore. Warning: accepting will replace your ${currentShipLabel}; the current vessel will be left behind.`,
       feedback: session.feedback,
       presentation: {
         kind: "shipyard",
@@ -1818,7 +1974,7 @@ function vikingLongshipView(session, city, gameState, context) {
       speaker,
       expressionId: "pleased",
       text: quest.rewardDisposition === VIKING_LONGSHIP_REWARD_ACCEPTED
-        ? "The reconstructed longship is yours now. May her striped sail carry our old seafaring craft into a new age."
+        ? "Our reconstructed longship is ready. I have stowed my sea chest and joined your crew; let us see whether the old craft still knows the ocean."
         : "The reconstructed longship has already left this yard in your service. There will never be another quite like her.",
       feedback: session.feedback,
       options: [back]
@@ -1859,6 +2015,61 @@ function vikingLongshipView(session, city, gameState, context) {
       }),
       back
     ]
+  };
+}
+
+function chefQuestView(session, city, gameState) {
+  const quest = chefQuestState(gameState, city);
+  if (!quest) throw new Error("Chef dialogue opened outside its origin port");
+  const speaker = `${characterName(city.character)}, chef`;
+  const back = session.chefQuestArrival
+    ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    : option("Back", { type: "node", nodeId: "root" });
+  if (quest.stage === CHEF_QUEST_STAGE_GATHERING) {
+    const list = quest.ingredients.map((ingredient) => ingredient.label).join(", ");
+    const missing = quest.ingredients
+      .filter((ingredient) => !ingredient.ready)
+      .map((ingredient) => ingredient.label)
+      .join(", ");
+    return {
+      speaker,
+      expressionId: quest.canDeliver ? "pleased" : "attentive",
+      text: `I have been entrusted with ${quest.event.eventLabel}, and ordinary fare will not do. I need one each of ${list}. Bring me the whole list and I can make a table worthy of the occasion.`,
+      feedback: session.feedback,
+      options: [
+        option("Deliver all ingredients", { type: "deliver-chef-ingredients" }, {
+          disabled: !quest.canDeliver,
+          disabledReason: missing ? `Still need: ${missing}.` : "The ingredients are not ready."
+        }),
+        back
+      ]
+    };
+  }
+  if (quest.stage === CHEF_QUEST_STAGE_RECRUITMENT) {
+    const hasBerth = canAddNamedCrewMember(gameState);
+    return {
+      speaker,
+      expressionId: "happy",
+      text: `${quest.event.successText} I have cooked for grand tables; now I want to see what lies beyond the harbor. Give me a berth and I will make your provisions last farther than you thought possible.`,
+      feedback: session.feedback,
+      options: [
+        option("Welcome aboard", { type: "recruit-chef" }, {
+          disabled: !hasBerth,
+          disabledReason: "This ship has no berth for another permanent crewmate."
+        }),
+        back
+      ]
+    };
+  }
+  if (quest.stage !== CHEF_QUEST_STAGE_RECRUITED) {
+    throw new Error(`Unknown chef quest stage: ${quest.stage}`);
+  }
+  return {
+    speaker,
+    expressionId: "pleased",
+    text: "The galley is provisioned, the knives are sharp, and I am ready to sail whenever you are.",
+    feedback: session.feedback,
+    options: [back]
   };
 }
 
@@ -2165,7 +2376,7 @@ function equipmentView(session, city, gameState, economy) {
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: `Local outfitters carry ${nets.length} net type${nets.length === 1 ? "" : "s"}, ${harpoons.length} whaling harpoon${harpoons.length === 1 ? "" : "s"}, and ${cannonEquipment.length} cannon fitting${cannonEquipment.length === 1 ? "" : "s"}. Prosperous ports attract rarer equipment.`,
+    text: `Local outfitters carry ship gear, weapons, and working equipment. Prosperous ports attract rarer wares.`,
     feedback: session.feedback,
     options: [
       option("Fishing nets", { type: "node", nodeId: "equipment-nets" }),
@@ -2178,6 +2389,32 @@ function equipmentView(session, city, gameState, economy) {
         disabledReason: "Your ship has no cannon battery to refit."
       }),
       option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function specialEquipmentOfferView(session, city, gameState) {
+  const activeOffer = session.specialEquipmentOffer;
+  if (!activeOffer) throw new Error("Special equipment dialogue has no active offer");
+  const item = perkItemSummary(activeOffer.itemId);
+  const cannotAfford = gameState.doubloons < item.price;
+  return {
+    speaker: speakerName(city),
+    expressionId: "happy",
+    text: activeOffer.reconsidered
+      ? `Have you reconsidered buying the ${item.label}? ${item.detail} My price remains ${item.price} doubloons.`
+      : `Captain, a rare ${item.label} came into my hands. ${item.detail} I could part with it for ${item.price} doubloons.`,
+    feedback: null,
+    options: [
+      option(`Buy it - ${item.price} db`, {
+        type: "buy-perk-item",
+        itemId: item.id
+      }, {
+        detail: item.effectLabels.join(" / "),
+        disabled: cannotAfford,
+        disabledReason: `Need ${item.price - gameState.doubloons} more doubloons.`
+      }),
+      option("No, thank you", { type: "decline-special-equipment" })
     ]
   };
 }
@@ -2604,7 +2841,9 @@ function loadoutView(session, city, gameState, context) {
   if (!context.shipStats) throw new Error("Loadout view requires player ship stats");
   const currentId = gameState.ship?.loadoutId || null;
   const rows = SHIP_LOADOUT_PRESETS.map((preset) => {
-    const plan = shipLoadoutPlan(context.shipStats, preset.id);
+    const plan = shipLoadoutPlan(context.shipStats, preset.id, {
+      minimumCrew: permanentCrewFloor(gameState)
+    });
     const selected = currentId === preset.id;
     return option(`${selected ? "* " : ""}${preset.label.toUpperCase()}`, {
       type: "select-loadout",
@@ -2615,7 +2854,9 @@ function loadoutView(session, city, gameState, context) {
   });
   const customSelected = currentId === CUSTOM_LOADOUT_ID;
   const customPlan = customSelected
-    ? shipCustomLoadoutPlan(context.shipStats, gameState.ship.loadoutTargets)
+    ? shipCustomLoadoutPlan(context.shipStats, gameState.ship.loadoutTargets, {
+      minimumCrew: permanentCrewFloor(gameState)
+    })
     : null;
   rows.push(option(`${customSelected ? "* " : ""}CUSTOM`, { type: "open-custom-loadout" }, {
     detail: customPlan
@@ -2635,13 +2876,19 @@ function loadoutView(session, city, gameState, context) {
   };
 }
 
-export function setPortCustomLoadoutValue(session, stats, key, value) {
+export function setPortCustomLoadoutValue(session, stats, key, value, minimumCrew = 1) {
   if (!session || session.kind !== "port" || session.nodeId !== "custom-loadout") {
     throw new Error("Custom loadout controls require the custom loadout screen");
   }
   if (!session.customLoadoutDraft) throw new Error("Custom loadout editor has no draft");
-  session.customLoadoutDraft = setShipCustomLoadoutValue(stats, session.customLoadoutDraft, key, value);
-  return shipCustomLoadoutPlan(stats, session.customLoadoutDraft);
+  session.customLoadoutDraft = setShipCustomLoadoutValue(
+    stats,
+    session.customLoadoutDraft,
+    key,
+    value,
+    { minimumCrew }
+  );
+  return shipCustomLoadoutPlan(stats, session.customLoadoutDraft, { minimumCrew });
 }
 
 function customLoadoutView(session, city, gameState, context) {
@@ -2649,10 +2896,12 @@ function customLoadoutView(session, city, gameState, context) {
   if (!session.customLoadoutDraft) {
     session.customLoadoutDraft = shipCustomLoadoutDraft(
       context.shipStats,
-      gameState.ship?.loadoutTargets || null
+      gameState.ship?.loadoutTargets || null,
+      { minimumCrew: permanentCrewFloor(gameState) }
     );
   }
-  const plan = shipCustomLoadoutPlan(context.shipStats, session.customLoadoutDraft);
+  const minimumCrew = permanentCrewFloor(gameState);
+  const plan = shipCustomLoadoutPlan(context.shipStats, session.customLoadoutDraft, { minimumCrew });
   const labels = { crew: "Crew", cannons: "Guns", foodUnits: "Food", waterUnits: "Water" };
   return {
     speaker: speakerName(city),
@@ -2671,7 +2920,7 @@ function customLoadoutView(session, city, gameState, context) {
         key,
         label: labels[key],
         value: session.customLoadoutDraft[key],
-        bounds: shipCustomLoadoutBounds(context.shipStats, session.customLoadoutDraft, key)
+        bounds: shipCustomLoadoutBounds(context.shipStats, session.customLoadoutDraft, key, { minimumCrew })
       }))
     },
     options: [
@@ -3066,6 +3315,10 @@ function questExpressionId(quest) {
   if (quest?.scenarioId === "shipwrecked-sailor") return "afraid";
   if (quest?.scenarioId === "return-home" || quest?.scenarioId === "family-letter") return "sad";
   return "neutral";
+}
+
+function neverGrantMissionItem() {
+  return 1 - Number.EPSILON;
 }
 
 function portFlavor(city) {

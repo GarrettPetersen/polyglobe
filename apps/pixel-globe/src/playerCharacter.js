@@ -1,4 +1,5 @@
 import { generatePlayerCharacter } from "./characterPortraits.js";
+import { characterWithBiography } from "./characterBiography.js";
 import { factionById } from "./factions.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -42,12 +43,6 @@ const EUROPEAN_FACTIONS = new Set([
 ]);
 const EAST_ASIAN_FACTIONS = new Set(["ming", "japan", "joseon"]);
 const INDIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi"]);
-const DAYS_PER_MONTH = Object.freeze([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
-const PLAYER_START_DAY_OF_YEAR = 80;
-const MONTH_NAMES = Object.freeze([
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-]);
 
 export function playerStartRegionForFaction(factionId) {
   factionById(factionId);
@@ -101,13 +96,8 @@ export function generatePlayerStartingProfile({
     manifest,
     usedNames
   });
-  const birthDate = generateBirthDate(identityKey, startYear, baseCharacter.age);
-  const character = Object.freeze({
+  const character = Object.freeze(characterWithBiography({
     ...baseCharacter,
-    sex: baseCharacter.gender,
-    birthDate,
-    birthDateLabel: birthDate.label,
-    age: birthDate.age,
     nationalityId: nationality.id,
     nationalityName: nationality.name,
     nationalityAdjective: nationality.adjective,
@@ -117,7 +107,13 @@ export function generatePlayerStartingProfile({
     homePortLon: homePort.lon,
     startRegion,
     starterShipSlug
-  });
+  }, {
+    identityKey,
+    referenceYear: startYear,
+    nationalityId: nationality.id,
+    nationalityName: nationality.name,
+    nationalityAdjective: nationality.adjective
+  }));
 
   return Object.freeze({ character, homePort, nationality, startRegion, starterShipSlug });
 }
@@ -174,23 +170,6 @@ export function playerHomePortPools(ports) {
     portsInRegion.sort((a, b) => stablePortKey(a).localeCompare(stablePortKey(b)));
   }
   return pools;
-}
-
-function generateBirthDate(identityKey, startYear, age) {
-  if (!Number.isInteger(age) || age < 5 || age > 90) throw new Error(`Invalid player age: ${age}`);
-  const month = hashString32(`${identityKey}|birth-month`) % 12 + 1;
-  const day = hashString32(`${identityKey}|birth-day`) % DAYS_PER_MONTH[month - 1] + 1;
-  const birthdayDayOfYear = DAYS_PER_MONTH
-    .slice(0, month - 1)
-    .reduce((total, days) => total + days, day);
-  const year = startYear - age - (birthdayDayOfYear > PLAYER_START_DAY_OF_YEAR ? 1 : 0);
-  return Object.freeze({
-    year,
-    month,
-    day,
-    age,
-    label: `${day} ${MONTH_NAMES[month - 1]} ${year}`
-  });
 }
 
 function chooseSeeded(items, key) {

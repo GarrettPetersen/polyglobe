@@ -57,8 +57,8 @@ const reviewedSexSequences = new Map([
   ["Indian Ocean Portrait Pack by OpenAI", sexSequence("mfmmmmfmfmmfmfmm")],
   ["Ming Chinese Portrait Pack by OpenAI", sexSequence("mmmmfmmmmfmmmmfm")],
   ["Native Americain Portrait Pack by Captainskeleto", sexSequence("ffffmmmmffmmffmm")],
-  ["Polynesian Portrait Pack by OpenAI", sexSequence("mfmfmfmffmmfmfmm")],
-  ["South Asian Portrait Pack by OpenAI", sexSequence("mfmfmmmmfmmmmfmf")],
+  ["Polynesian Portrait Pack by OpenAI", sexSequence("mfmfmfmfmfmfmfmm")],
+  ["South Asian Portrait Pack by OpenAI", sexSequence("mfmfmmmmfmfmmfmf")],
   ["Southeast Asian Portrait Pack by OpenAI", sexSequence("mfmfmmmmfmffmfmm")],
   ["Sub-Saharan African Portrait Pack by OpenAI", sexSequence("mfmfmfmfmfmfmfmf")]
 ]);
