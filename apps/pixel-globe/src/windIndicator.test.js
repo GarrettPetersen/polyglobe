@@ -59,9 +59,11 @@ test("better windward ships draw a narrower wind V", () => {
   assert.equal(narrow.armLengthPx, broad.armLengthPx);
 });
 
-test("wind V arms lengthen with wind speed and cap in extreme storms", () => {
-  assert.ok(windVArmLengthPx(0.8) > windVArmLengthPx(0.2));
-  assert.ok(windVArmLengthPx(1.25) > windVArmLengthPx(0.8));
+test("wind V arms exaggerate the difference between calm and storm winds", () => {
+  assert.ok(windVArmLengthPx(0.2) <= 5);
+  assert.ok(windVArmLengthPx(0.8) >= 18);
+  assert.ok(windVArmLengthPx(1.25) >= 35);
+  assert.ok(windVArmLengthPx(1.25) >= windVArmLengthPx(0.2) * 7);
   assert.equal(windVArmLengthPx(5), windVArmLengthPx(1.25));
 });
 

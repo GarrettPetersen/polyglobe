@@ -1,6 +1,7 @@
 const MAX_DISPLAY_WIND_STRENGTH = 1.25;
-const MIN_ARM_LENGTH_PX = 6;
-const ARM_LENGTH_PER_WIND_STRENGTH_PX = 12;
+const MIN_ARM_LENGTH_PX = 3;
+const MAX_ARM_LENGTH_PX = 35;
+const ARM_LENGTH_CURVE_EXPONENT = 1.5;
 const APEX_ARM_OFFSET_RATIO = 0.7;
 
 export function windVOpacity(windStrength, stallWarning = 0, pulse = 0) {
@@ -15,8 +16,11 @@ export function windVArmLengthPx(windStrength) {
   if (!Number.isFinite(windStrength) || windStrength < 0) {
     throw new Error(`Invalid wind strength: ${windStrength}`);
   }
+  const normalizedStrength = Math.min(MAX_DISPLAY_WIND_STRENGTH, windStrength) /
+    MAX_DISPLAY_WIND_STRENGTH;
   return MIN_ARM_LENGTH_PX + Math.round(
-    Math.min(MAX_DISPLAY_WIND_STRENGTH, windStrength) * ARM_LENGTH_PER_WIND_STRENGTH_PX
+    Math.pow(normalizedStrength, ARM_LENGTH_CURVE_EXPONENT) *
+      (MAX_ARM_LENGTH_PX - MIN_ARM_LENGTH_PX)
   );
 }
 

@@ -15,7 +15,24 @@ export const ACHIEVEMENT_IDS = Object.freeze({
   GOLDEN: "golden",
   DRUNKEN_SAILOR: "drunken-sailor",
   TEPPO: "teppo",
-  GINGER_FARMER: "ginger-farmer"
+  GINGER_FARMER: "ginger-farmer",
+  NEW_HORIZONS: "new-horizons",
+  CHART_MAKER: "chart-maker",
+  FAIR_EXCHANGE: "fair-exchange",
+  GENERAL_MERCHANT: "general-merchant",
+  SPICE_OF_LIFE: "spice-of-life",
+  MERCHANT_ADVENTURER: "merchant-adventurer",
+  MERCHANT_PRINCE: "merchant-prince",
+  FOUNDER: "founder",
+  EXPANSIONIST: "expansionist",
+  NEW_COMMAND: "new-command",
+  SHIP_COLLECTOR: "ship-collector",
+  GONE_FISHING: "gone-fishing",
+  GOOD_HAUL: "good-haul",
+  PASSAGE_COMPLETE: "passage-complete",
+  SHORE_LEAVE: "shore-leave",
+  PRIZE_TAKEN: "prize-taken",
+  FIRST_VICTORY: "first-victory"
 });
 
 export const SPICE_TRADER_GOOD_IDS = Object.freeze([
@@ -52,7 +69,41 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.TEPPO, "Teppo",
     "Create a domestic matchlock industry in Japan.", "voyage", "good:matchlocks", "TEPPO", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.GINGER_FARMER, "Ginger Farmer",
-    "Transplant Old World ginger into the New World.", "voyage", "good:ginger", "GINGER_FARMER", { hidden: true })
+    "Transplant Old World ginger into the New World.", "voyage", "good:ginger", "GINGER_FARMER", { hidden: true }),
+  achievement(ACHIEVEMENT_IDS.NEW_HORIZONS, "New Horizons",
+    "Make your first discovery.", "voyage", "menu:discoveries", "NEW_HORIZONS"),
+  achievement(ACHIEVEMENT_IDS.CHART_MAKER, "Chart Maker",
+    "Make 10 discoveries in one voyage.", "voyage", "action:navigation", "CHART_MAKER"),
+  achievement(ACHIEVEMENT_IDS.FAIR_EXCHANGE, "A Fair Exchange",
+    "Sell your first cargo.", "voyage", "action:sell", "FAIR_EXCHANGE"),
+  achievement(ACHIEVEMENT_IDS.GENERAL_MERCHANT, "General Merchant",
+    "Sell five different kinds of goods in one voyage.", "voyage", "action:inventory", "GENERAL_MERCHANT"),
+  achievement(ACHIEVEMENT_IDS.SPICE_OF_LIFE, "Spice of Life",
+    "Sell any spice.", "voyage", "good:cloves", "SPICE_OF_LIFE"),
+  achievement(ACHIEVEMENT_IDS.MERCHANT_ADVENTURER, "Merchant Adventurer",
+    "Earn 10,000 doubloons in one voyage.", "voyage", "good:gold", "MERCHANT_ADVENTURER"),
+  achievement(ACHIEVEMENT_IDS.MERCHANT_PRINCE, "Merchant Prince",
+    "Earn 100,000 doubloons in one voyage.", "voyage", "good:gold", "MERCHANT_PRINCE"),
+  achievement(ACHIEVEMENT_IDS.FOUNDER, "Founder",
+    "Found your first new city.", "voyage", "action:dock", "FOUNDER"),
+  achievement(ACHIEVEMENT_IDS.EXPANSIONIST, "Expansionist",
+    "Found three new cities in one voyage.", "voyage", "action:dock", "EXPANSIONIST"),
+  achievement(ACHIEVEMENT_IDS.NEW_COMMAND, "New Command",
+    "Sail two different ship types across any number of voyages.", "lifetime", "ship:caravel", "NEW_COMMAND"),
+  achievement(ACHIEVEMENT_IDS.SHIP_COLLECTOR, "Ship Collector",
+    "Sail five different ship types across any number of voyages.", "lifetime", "action:shipyard", "SHIP_COLLECTOR"),
+  achievement(ACHIEVEMENT_IDS.GONE_FISHING, "Gone Fishing",
+    "Catch your first fish.", "voyage", "action:fish", "GONE_FISHING"),
+  achievement(ACHIEVEMENT_IDS.GOOD_HAUL, "A Good Haul",
+    "Catch 20 fish in one voyage.", "voyage", "good:fish", "GOOD_HAUL"),
+  achievement(ACHIEVEMENT_IDS.PASSAGE_COMPLETE, "Passage Complete",
+    "Deliver a passenger safely to their destination.", "voyage", "action:passenger", "PASSAGE_COMPLETE"),
+  achievement(ACHIEVEMENT_IDS.SHORE_LEAVE, "Shore Leave",
+    "Complete a shore scavenging expedition.", "voyage", "action:scavenge", "SHORE_LEAVE"),
+  achievement(ACHIEVEMENT_IDS.PRIZE_TAKEN, "Prize Taken",
+    "Acquire a new ship.", "voyage", "action:shipyard", "PRIZE_TAKEN"),
+  achievement(ACHIEVEMENT_IDS.FIRST_VICTORY, "First Victory",
+    "Sink or force the surrender of an enemy ship.", "voyage", "action:attack", "FIRST_VICTORY")
 ]);
 
 export const ACHIEVEMENT_CATALOG_BY_ID = new Map(
@@ -223,6 +274,24 @@ export function synchronizeAchievements(profile, progress, snapshot, { unlockedA
   unlockWhen(ACHIEVEMENT_IDS.DRUNKEN_SAILOR, progress.arrivedInPortDrunk);
   unlockWhen(ACHIEVEMENT_IDS.TEPPO, snapshot.japaneseMatchlockIndustryCreated);
   unlockWhen(ACHIEVEMENT_IDS.GINGER_FARMER, snapshot.caribbeanGingerIndustryCreated);
+  unlockWhen(ACHIEVEMENT_IDS.NEW_HORIZONS, snapshot.discoveryIds.length >= 1);
+  unlockWhen(ACHIEVEMENT_IDS.CHART_MAKER, snapshot.discoveryIds.length >= 10);
+  unlockWhen(ACHIEVEMENT_IDS.FAIR_EXCHANGE, snapshot.soldGoodIds.length >= 1);
+  unlockWhen(ACHIEVEMENT_IDS.GENERAL_MERCHANT, snapshot.soldGoodIds.length >= 5);
+  unlockWhen(ACHIEVEMENT_IDS.SPICE_OF_LIFE,
+    snapshot.soldGoodIds.some((id) => SPICE_TRADER_GOOD_IDS.includes(id)));
+  unlockWhen(ACHIEVEMENT_IDS.MERCHANT_ADVENTURER, progress.grossDoubloonsEarned >= 10_000);
+  unlockWhen(ACHIEVEMENT_IDS.MERCHANT_PRINCE, progress.grossDoubloonsEarned >= 100_000);
+  unlockWhen(ACHIEVEMENT_IDS.FOUNDER, progress.foundedCityIds.length >= 1);
+  unlockWhen(ACHIEVEMENT_IDS.EXPANSIONIST, progress.foundedCityIds.length >= 3);
+  unlockWhen(ACHIEVEMENT_IDS.NEW_COMMAND, profile.lifetime.sailedShipSlugs.length >= 2);
+  unlockWhen(ACHIEVEMENT_IDS.SHIP_COLLECTOR, profile.lifetime.sailedShipSlugs.length >= 5);
+  unlockWhen(ACHIEVEMENT_IDS.GONE_FISHING, snapshot.fishCaughtQuantity >= 1);
+  unlockWhen(ACHIEVEMENT_IDS.GOOD_HAUL, snapshot.fishCaughtQuantity >= 20);
+  unlockWhen(ACHIEVEMENT_IDS.PASSAGE_COMPLETE, snapshot.passengerDeliveries >= 1);
+  unlockWhen(ACHIEVEMENT_IDS.SHORE_LEAVE, snapshot.shoreScavengeCompleted);
+  unlockWhen(ACHIEVEMENT_IDS.PRIZE_TAKEN, snapshot.acquiredShips >= 1);
+  unlockWhen(ACHIEVEMENT_IDS.FIRST_VICTORY, snapshot.defeatedShip);
 
   validateAchievementProfile(profile);
   validateVoyageAchievementProgress(progress);
@@ -253,6 +322,48 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
   } else if (achievementId === ACHIEVEMENT_IDS.WELL_ROUNDED) {
     value = snapshot.shipCatalogSlugs.filter((slug) => profile.lifetime.sailedShipSlugs.includes(slug)).length;
     target = snapshot.shipCatalogSlugs.length;
+  } else if (achievementId === ACHIEVEMENT_IDS.NEW_HORIZONS) {
+    value = snapshot.discoveryIds.length;
+  } else if (achievementId === ACHIEVEMENT_IDS.CHART_MAKER) {
+    value = snapshot.discoveryIds.length;
+    target = 10;
+  } else if (achievementId === ACHIEVEMENT_IDS.FAIR_EXCHANGE) {
+    value = snapshot.soldGoodIds.length;
+  } else if (achievementId === ACHIEVEMENT_IDS.GENERAL_MERCHANT) {
+    value = snapshot.soldGoodIds.length;
+    target = 5;
+  } else if (achievementId === ACHIEVEMENT_IDS.SPICE_OF_LIFE) {
+    value = snapshot.soldGoodIds.some((id) => SPICE_TRADER_GOOD_IDS.includes(id)) ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.MERCHANT_ADVENTURER) {
+    value = progress.grossDoubloonsEarned;
+    target = 10_000;
+  } else if (achievementId === ACHIEVEMENT_IDS.MERCHANT_PRINCE) {
+    value = progress.grossDoubloonsEarned;
+    target = 100_000;
+  } else if (achievementId === ACHIEVEMENT_IDS.FOUNDER) {
+    value = progress.foundedCityIds.length;
+  } else if (achievementId === ACHIEVEMENT_IDS.EXPANSIONIST) {
+    value = progress.foundedCityIds.length;
+    target = 3;
+  } else if (achievementId === ACHIEVEMENT_IDS.NEW_COMMAND) {
+    value = profile.lifetime.sailedShipSlugs.length;
+    target = 2;
+  } else if (achievementId === ACHIEVEMENT_IDS.SHIP_COLLECTOR) {
+    value = profile.lifetime.sailedShipSlugs.length;
+    target = 5;
+  } else if (achievementId === ACHIEVEMENT_IDS.GONE_FISHING) {
+    value = snapshot.fishCaughtQuantity;
+  } else if (achievementId === ACHIEVEMENT_IDS.GOOD_HAUL) {
+    value = snapshot.fishCaughtQuantity;
+    target = 20;
+  } else if (achievementId === ACHIEVEMENT_IDS.PASSAGE_COMPLETE) {
+    value = snapshot.passengerDeliveries;
+  } else if (achievementId === ACHIEVEMENT_IDS.SHORE_LEAVE) {
+    value = snapshot.shoreScavengeCompleted ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.PRIZE_TAKEN) {
+    value = snapshot.acquiredShips;
+  } else if (achievementId === ACHIEVEMENT_IDS.FIRST_VICTORY) {
+    value = snapshot.defeatedShip ? 1 : 0;
   }
   return Object.freeze({ unlocked, value: Math.min(value, target), target });
 }
@@ -334,12 +445,19 @@ function validateAchievementSnapshot(snapshot) {
   if (!Number.isFinite(snapshot.grossDoubloonsEarned) || snapshot.grossDoubloonsEarned < 0) {
     throw new Error(`Invalid achievement snapshot earnings: ${snapshot.grossDoubloonsEarned}`);
   }
+  for (const key of ["fishCaughtQuantity", "passengerDeliveries", "acquiredShips"]) {
+    if (!Number.isInteger(snapshot[key]) || snapshot[key] < 0) {
+      throw new Error(`Invalid achievement snapshot count ${key}: ${snapshot[key]}`);
+    }
+  }
   for (const key of [
     "vikingLongshipUnlocked",
     "whiteWhaleKilled",
     "arrivedInPortDrunk",
     "japaneseMatchlockIndustryCreated",
-    "caribbeanGingerIndustryCreated"
+    "caribbeanGingerIndustryCreated",
+    "shoreScavengeCompleted",
+    "defeatedShip"
   ]) {
     if (typeof snapshot[key] !== "boolean") throw new Error(`Invalid achievement snapshot flag: ${key}`);
   }

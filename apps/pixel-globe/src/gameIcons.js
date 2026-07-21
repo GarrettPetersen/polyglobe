@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-17";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-18";
 
 const ICON_COLOR = Object.freeze({
   danger: "#6e2727",
@@ -132,6 +132,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "menu:new-game": nikoichu("Travel_Ship_Medieval_Caravel.png", ICON_COLOR.sea),
   "menu:lake-battle": nikoichu("RPG_Crossed_Swords_Duel_PvP_Combat_Battle_War.png", ICON_COLOR.danger),
   "menu:past-voyages": nikoichu("Map_Markers_Treasure_Map_Paper_Parchment.png", ICON_COLOR.parchment),
+  "menu:achievements": nikoichu("Sports_Winner_Award_Cup_Achievement_Trophy.png", ICON_COLOR.gold),
   "menu:options": nikoichu("Software_Options_Settings_Sliders_Knobs_Audio.png", ICON_COLOR.purple),
   "menu:credits": nikoichu("Software_Text_Document_Credits_Roll_Attributions.png", ICON_COLOR.dialogue),
   "menu:captain": nikoichu("Travel_Person_Player_Character_Single.png", ICON_COLOR.warm),
@@ -194,7 +195,7 @@ const START_MENU_ICON_IDS = Object.freeze({
   "new-game": "menu:new-game",
   "lake-battle": "menu:lake-battle",
   "past-voyages": "menu:past-voyages",
-  achievements: "good:gold",
+  achievements: "menu:achievements",
   options: "menu:options",
   credits: "menu:credits"
 });

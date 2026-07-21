@@ -1290,6 +1290,8 @@ const SURVIVAL_CREW_ROW_PAD_X = 5;
 const SURVIVAL_CRATE_ROW_Y = 43;
 const SURVIVAL_CRATE_SIZE = 6;
 const SURVIVAL_NOTICE_MS = 2400;
+const ACHIEVEMENT_NOTICE_MS = 3800;
+const ACHIEVEMENT_NOTICE_BATCH_THRESHOLD = 4;
 const SURVIVAL_DEHYDRATION_CREW_LOSS = 1;
 const SURVIVAL_STARVATION_CREW_LOSS = 1;
 const DISCOVERIES_BUTTON_SIZE = 24;
@@ -1464,7 +1466,7 @@ const CAPTAIN_MENU_ACTIONS = Object.freeze([
   Object.freeze({ id: "ship", label: "SHIP & LEDGER" }),
   Object.freeze({ id: "politics", label: "POLITICS", iconId: "menu:politics" }),
   Object.freeze({ id: "discoveries", label: "DISCOVERIES", iconId: "menu:discoveries" }),
-  Object.freeze({ id: "achievements", label: "ACHIEVEMENTS", iconId: "good:gold" }),
+  Object.freeze({ id: "achievements", label: "ACHIEVEMENTS", iconId: "menu:achievements" }),
   Object.freeze({ id: "navigation", label: "NAVIGATION ICONS", iconId: "action:navigation" }),
   Object.freeze({ id: "sailing-basics", label: "SAILING BASICS", iconId: "action:quest" }),
   Object.freeze({ id: "options", label: "OPTIONS", iconId: "menu:options" })
@@ -1827,6 +1829,8 @@ let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
 let elDoradoTreasureSequence = null;
 let survivalNotice = null;
+let achievementNotice = null;
+const achievementNoticeQueue = [];
 let images;
 let shipImage;
 let shipSinkDepthImage;
@@ -4647,6 +4651,7 @@ function applyThemeAudioSettings() {
       ...soundEffects.fishingFailure,
       ...soundEffects.scavengeSuccess,
       ...soundEffects.scavengeFailure,
+      ...soundEffects.collection,
       ...soundEffects.lightning,
       ...soundEffects.whaleBlow,
       ...soundEffects.whaleKill
@@ -4807,6 +4812,10 @@ function playScavengeFailureSound() {
 
 function playCollectionDingSound() {
   playSoundEffect(soundEffects?.collection, SFX_COLLECTION_VOLUME, 1.02);
+}
+
+function playAchievementDingSound() {
+  playSoundEffect(soundEffects?.collection, 0.78, 1.12);
 }
 
 function updateAmbientAudio(dt) {
@@ -6865,6 +6874,8 @@ async function restoreSavedVoyage(payload) {
   discoveryNotice = null;
   discoveryNoticeQueue.length = 0;
   fishCatchNotice = null;
+  achievementNotice = null;
+  achievementNoticeQueue.length = 0;
   gameOverReason = null;
   gameOverState = null;
   npcVisualShips.clear();
@@ -6938,12 +6949,13 @@ function saveVoyageNow(reason) {
 
 function currentAchievementSnapshot() {
   const state = gameState && hasStartedVoyage ? gameState : null;
+  const ledger = state?.accounts?.ledger || [];
   const colony = state?.memory?.colonization;
   const foundedCityIds = colony?.stage === COLONIZATION_STAGE_ESTABLISHED && colony.targetCity
     ? [`${colony.targetCity}|${colony.targetCountry || ""}`]
     : [];
   const soldGoodIds = state
-    ? [...new Set(state.accounts.ledger
+    ? [...new Set(ledger
       .filter((entry) => entry.kind === "sell" && typeof entry.goodId === "string")
       .map((entry) => entry.goodId))]
     : [];
@@ -6963,7 +6975,16 @@ function currentAchievementSnapshot() {
     whiteWhaleKilled: state?.memory?.campaignGoal?.whiteWhaleKilled === true,
     arrivedInPortDrunk: state?.memory?.achievements?.arrivedInPortDrunk === true,
     japaneseMatchlockIndustryCreated: state ? japaneseMatchlockIndustryCompleted(state) : false,
-    caribbeanGingerIndustryCreated: state ? caribbeanGingerIndustryCompleted(state) : false
+    caribbeanGingerIndustryCreated: state ? caribbeanGingerIndustryCompleted(state) : false,
+    fishCaughtQuantity: ledger
+      .filter((entry) => entry.kind === "catch" && entry.goodId === FISH_CARGO_GOOD_ID)
+      .reduce((sum, entry) => sum + entry.quantity, 0),
+    passengerDeliveries: ledger.filter((entry) => (
+      entry.kind === "income" && entry.description === "Passenger fare"
+    )).length,
+    acquiredShips: ledger.filter((entry) => entry.kind === "ship").length,
+    shoreScavengeCompleted: state?.memory?.flags?.achievementShoreScavengeCompleted === true,
+    defeatedShip: state?.memory?.flags?.achievementDefeatedShip === true
   };
 }
 
@@ -6980,13 +7001,45 @@ function syncAchievementsFromGameState(event = null) {
   writeAchievementProfile(achievementProfile);
   achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
   if (result.newlyUnlocked.length > 0 && hasStartedVoyage && !startMenu) {
-    const notice = result.newlyUnlocked.length === 1
-      ? `ACHIEVEMENT  ${result.newlyUnlocked[0].title.toUpperCase()}`
-      : `${result.newlyUnlocked.length} ACHIEVEMENTS UNLOCKED`;
-    showSurvivalNotice(notice, "good");
+    queueAchievementNotices(result.newlyUnlocked);
   }
   queueAchievementPlatformSync();
   return result.newlyUnlocked;
+}
+
+function queueAchievementNotices(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) return false;
+  if (entries.length >= ACHIEVEMENT_NOTICE_BATCH_THRESHOLD) {
+    achievementNoticeQueue.push({
+      heading: `${entries.length} ACHIEVEMENTS UNLOCKED`,
+      title: "CHECK THE ACHIEVEMENT LIST",
+      iconId: "menu:achievements"
+    });
+  } else {
+    for (const entry of entries) {
+      achievementNoticeQueue.push({
+        heading: "ACHIEVEMENT UNLOCKED",
+        title: entry.title.toUpperCase(),
+        iconId: entry.iconId
+      });
+    }
+  }
+  dirty = true;
+  return true;
+}
+
+function updateAchievementNotice(nowMs) {
+  if (achievementNotice && nowMs < achievementNotice.expiresAtMs) return achievementNotice;
+  achievementNotice = null;
+  const next = achievementNoticeQueue.shift();
+  if (!next) return null;
+  achievementNotice = {
+    ...next,
+    startedAtMs: nowMs,
+    expiresAtMs: nowMs + ACHIEVEMENT_NOTICE_MS
+  };
+  playAchievementDingSound();
+  return achievementNotice;
 }
 
 function queueAchievementPlatformSync() {
@@ -9123,6 +9176,7 @@ function updateShoreScavenge(nowMs) {
   if (action.beaverRange && rollBeaverCatch(action.beaverRange, Math.random, crewMultiplier)) {
     resolveBeaverScavenge();
     syncShipCargoFromGameState();
+    recordShoreScavengeCompletion();
     saveVoyageNow("river beaver scavenging");
     return true;
   }
@@ -9149,8 +9203,14 @@ function updateShoreScavenge(nowMs) {
     resolveOrdinaryShoreScavenge(outcome, context);
   }
   syncShipCargoFromGameState();
+  recordShoreScavengeCompletion();
   saveVoyageNow("shore scavenging");
   return true;
+}
+
+function recordShoreScavengeCompletion() {
+  if (!gameState?.memory?.flags) throw new Error("Scavenging achievement requires voyage flags");
+  gameState.memory.flags.achievementShoreScavengeCompleted = true;
 }
 
 function shoreScavengeNeeds() {
@@ -14523,6 +14583,7 @@ function addNpcCombatSplash(ball) {
 }
 
 function handleNpcSurrender(loserId, winnerId, options = {}) {
+  if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
   if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
     surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
     resolveColonizationDefenseAttacker(loserId, "CANOE DRIVEN OFF");
@@ -14613,6 +14674,7 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
 function handleNpcSinking(loserId, winnerId) {
   const strategic = npcSeaRoutes.shipById.get(loserId);
   if (!strategic) return false;
+  if (winnerId === PLAYER_COMBAT_ID) recordPlayerShipVictory();
   const visualState = npcVisualShips.get(loserId);
   if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
   if (strategic.encounter?.kind === "colonization-defense") {
@@ -14629,6 +14691,14 @@ function handleNpcSinking(loserId, winnerId) {
     text: "SHIP SUNK",
     expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
   };
+  return true;
+}
+
+function recordPlayerShipVictory() {
+  if (!gameState?.memory?.flags) throw new Error("Combat achievement requires voyage flags");
+  if (gameState.memory.flags.achievementDefeatedShip === true) return false;
+  gameState.memory.flags.achievementDefeatedShip = true;
+  syncAchievementsFromGameState();
   return true;
 }
 
@@ -16156,6 +16226,7 @@ function render(nowMs) {
   if (creditsMenu.isOpen) drawCreditsMenu();
   if (optionsMenu.isOpen) drawOptionsMenu();
   drawItemAcquisitionEffects(nowMs);
+  drawAchievementNotice(nowMs);
   drawStormLightningFlash(nowMs);
 }
 
@@ -19501,7 +19572,9 @@ function drawAchievementsMenu() {
 
 function achievementProgressLabel(entry, progress) {
   if (progress.unlocked) return "UNLOCKED";
-  if (entry.id === "millionaire") return `${formatCompactNumber(progress.value)}/1M`;
+  if (["merchant-adventurer", "merchant-prince", "millionaire"].includes(entry.id)) {
+    return `${formatCompactNumber(progress.value)}/${formatCompactNumber(progress.target)}`;
+  }
   if (progress.target > 1) return `${progress.value}/${progress.target}`;
   return "LOCKED";
 }
@@ -25987,6 +26060,41 @@ function drawSurvivalNotice(nowMs) {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
+}
+
+function drawAchievementNotice(nowMs) {
+  const notice = updateAchievementNotice(nowMs);
+  if (!notice) return;
+  const width = Math.min(260, SCREEN_W - 12);
+  const height = 38;
+  const x = Math.round((SCREEN_W - width) / 2);
+  const statusPanel = gameState && ship && !gameOverReason ? survivalHudLayout().panel : null;
+  const statusBottom = statusPanel ? statusPanel.y + statusPanel.height : 0;
+  const y = Math.max(6, statusBottom + 4);
+  const fadeIn = clamp((nowMs - notice.startedAtMs) / 180, 0, 1);
+  const fadeOut = clamp((notice.expiresAtMs - nowMs) / 260, 0, 1);
+  const alpha = Math.min(fadeIn, fadeOut);
+  const offsetY = Math.round((1 - fadeIn) * -6);
+  const textX = x + 31;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(0, offsetY);
+  drawPirateHudPanel({ x, y, w: width, h: height });
+  drawGameIcon(notice.iconId, x + 8, y + 11);
+  drawOptionsText(
+    fitPixelText(notice.heading, PIXEL_FONT_SMALL_8, width - 40),
+    textX,
+    y + 6,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+  drawOptionsText(
+    fitPixelText(notice.title, PIXEL_FONT_DIALOGUE_8, width - 40),
+    textX,
+    y + 19,
+    { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
+  );
+  ctx.restore();
 }
 
 function drawCombatNotice(nowMs) {

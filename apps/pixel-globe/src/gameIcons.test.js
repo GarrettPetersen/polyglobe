@@ -47,7 +47,15 @@ test("every trade good has a unique semantic icon mapping", () => {
 });
 
 test("every current dialogue and start-menu action resolves to an icon", async () => {
-  for (const actionId of ["continue", "new-game", "lake-battle", "past-voyages", "options", "credits"]) {
+  for (const actionId of [
+    "continue",
+    "new-game",
+    "lake-battle",
+    "past-voyages",
+    "achievements",
+    "options",
+    "credits"
+  ]) {
     assert.ok(GAME_ICON_SOURCES[startMenuIconId(actionId)], actionId);
   }
 

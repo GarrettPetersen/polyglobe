@@ -34,6 +34,11 @@ function snapshot(overrides = {}) {
     arrivedInPortDrunk: false,
     japaneseMatchlockIndustryCreated: false,
     caribbeanGingerIndustryCreated: false,
+    fishCaughtQuantity: 0,
+    passengerDeliveries: 0,
+    acquiredShips: 0,
+    shoreScavengeCompleted: false,
+    defeatedShip: false,
     ...overrides
   };
 }
@@ -105,7 +110,53 @@ test("same-voyage achievements unlock from accumulated progress", () => {
     ACHIEVEMENT_IDS.TEPPO,
     ACHIEVEMENT_IDS.GINGER_FARMER
   ]) assert.ok(profile.unlocked[id], id);
-  assert.equal(result.newlyUnlocked.length, 10);
+  assert.equal(result.newlyUnlocked.length, 18);
+});
+
+test("the 30-entry catalog includes approachable voyage milestones", () => {
+  assert.equal(ACHIEVEMENT_CATALOG.length, 30);
+  const profile = createAchievementProfile();
+  const progress = createVoyageAchievementProgress();
+  const discoveryIds = Array.from({ length: 10 }, (_, index) => `discovery-${index}`);
+  const result = synchronizeAchievements(profile, progress, snapshot({
+    discoveryIds,
+    discoveryCatalogIds: [...discoveryIds, "circumnavigated-globe", "legend-el-dorado"],
+    soldGoodIds: ["grain", "fish", "timber", "wool", "pepper"],
+    foundedCityIds: ["a", "b", "c"],
+    sailedShipSlugs: ["caravel", "junk", "carrack", "xebec", "brigantine"],
+    shipCatalogSlugs: ["caravel", "junk", "carrack", "xebec", "brigantine", "galleon"],
+    grossDoubloonsEarned: 100_000,
+    fishCaughtQuantity: 20,
+    passengerDeliveries: 1,
+    acquiredShips: 1,
+    shoreScavengeCompleted: true,
+    defeatedShip: true
+  }), { unlockedAt: 5500 });
+
+  const expected = [
+    ACHIEVEMENT_IDS.NEW_HORIZONS,
+    ACHIEVEMENT_IDS.CHART_MAKER,
+    ACHIEVEMENT_IDS.FAIR_EXCHANGE,
+    ACHIEVEMENT_IDS.GENERAL_MERCHANT,
+    ACHIEVEMENT_IDS.SPICE_OF_LIFE,
+    ACHIEVEMENT_IDS.MERCHANT_ADVENTURER,
+    ACHIEVEMENT_IDS.MERCHANT_PRINCE,
+    ACHIEVEMENT_IDS.FOUNDER,
+    ACHIEVEMENT_IDS.EXPANSIONIST,
+    ACHIEVEMENT_IDS.NEW_COMMAND,
+    ACHIEVEMENT_IDS.SHIP_COLLECTOR,
+    ACHIEVEMENT_IDS.GONE_FISHING,
+    ACHIEVEMENT_IDS.GOOD_HAUL,
+    ACHIEVEMENT_IDS.PASSAGE_COMPLETE,
+    ACHIEVEMENT_IDS.SHORE_LEAVE,
+    ACHIEVEMENT_IDS.PRIZE_TAKEN,
+    ACHIEVEMENT_IDS.FIRST_VICTORY
+  ];
+  assert.deepEqual(
+    result.newlyUnlocked.map((entry) => entry.id).filter((id) => expected.includes(id)),
+    expected
+  );
+  for (const id of expected) assert.ok(profile.unlocked[id], id);
 });
 
 test("event-only achievements survive later synchronization", () => {
@@ -160,6 +211,7 @@ test("platform adapter sync uses stable Steam ids once", async () => {
 });
 
 test("catalog has stable unique platform ids", () => {
+  assert.equal(ACHIEVEMENT_CATALOG.length, 30);
   assert.equal(new Set(ACHIEVEMENT_CATALOG.map((entry) => entry.id)).size, ACHIEVEMENT_CATALOG.length);
   assert.equal(new Set(ACHIEVEMENT_CATALOG.map((entry) => entry.platformIds.steam)).size,
     ACHIEVEMENT_CATALOG.length);
