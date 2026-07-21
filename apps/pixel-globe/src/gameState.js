@@ -109,7 +109,7 @@ import {
 } from "./caribbeanGingerQuest.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 24;
+export const GAME_STATE_VERSION = 25;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -291,7 +291,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -316,6 +316,9 @@ export function migrateGameState(state, shipStats) {
     ...state.playerCharacter,
     nationalityId: migrateFactionIdTo1522(state.playerCharacter.nationalityId)
   } : state.playerCharacter;
+  const migratedLoadoutTargets = state.ship?.loadoutId === CUSTOM_LOADOUT_ID
+    ? fitShipCustomLoadoutPlan(shipStats, state.ship.loadoutTargets)
+    : state.ship?.loadoutTargets;
   const migrated = {
     ...state,
     version: GAME_STATE_VERSION,
@@ -328,6 +331,7 @@ export function migrateGameState(state, shipStats) {
     },
     ship: state.ship ? {
       ...state.ship,
+      loadoutTargets: migratedLoadoutTargets,
       mass: shipStats.mass,
       navalWeaponKind: shipStats.navalWeaponKind
     } : state.ship,
@@ -3082,7 +3086,17 @@ function assertGameState(state) {
   if (!state.cargo || typeof state.cargo !== "object") throw new Error("Game state cargo must be an object");
   assertCargoState(state.cargo);
   ensureSurvivalState(state);
-  if (state.ship !== null && state.ship !== undefined) assertPlayerShipState(state.ship);
+  if (state.ship !== null && state.ship !== undefined) {
+    assertPlayerShipState(state.ship);
+    if (state.ship.loadoutId === CUSTOM_LOADOUT_ID) {
+      shipCustomLoadoutPlan({
+        cargoCapacity: state.cargoCapacity,
+        cannons: state.ship.cannonCapacity,
+        mass: state.ship.mass,
+        crewCapacity: state.ship.crewCapacity
+      }, state.ship.loadoutTargets);
+    }
+  }
   if (!state.inventory || typeof state.inventory !== "object") throw new Error("Game state inventory must be an object");
   if (!state.inventory.items || typeof state.inventory.items !== "object") {
     throw new Error("Game state inventory items must be an object");

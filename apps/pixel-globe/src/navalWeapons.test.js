@@ -5,6 +5,8 @@ import test from "node:test";
 import {
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
+  advanceCannonReload,
+  cannonReloadWorkRate,
   isPreGunpowderCulture,
   navalArrowVolleyCount,
   navalWeaponForShip,
@@ -12,6 +14,30 @@ import {
   navalWeaponUsesBroadside,
   navalWeaponSpec
 } from "./navalWeapons.js";
+
+test("cannon reload work scales with active crew per installed gun", () => {
+  assert.equal(cannonReloadWorkRate(10, 10), 1);
+  assert.equal(cannonReloadWorkRate(20, 10), 1);
+  assert.equal(cannonReloadWorkRate(5, 10), 0.5);
+  assert.equal(cannonReloadWorkRate(1, 10), 0.1);
+  assert.equal(cannonReloadWorkRate(0, 10), 0);
+});
+
+test("a lone crew member takes ten times as long to reload ten cannons", () => {
+  assert.equal(advanceCannonReload(10, 10, 1, 10), 9);
+  assert.equal(advanceCannonReload(9, 90, 1, 10), 0);
+  assert.equal(advanceCannonReload(10, 10, 5, 10), 5);
+  assert.equal(advanceCannonReload(10, 10, 10, 10), 0);
+  assert.equal(advanceCannonReload(10, 1, 0, 10), 10);
+  assert.equal(advanceCannonReload(10, 1, 1, 0), 0);
+});
+
+test("cannon reload staffing rejects malformed combat state", () => {
+  assert.throws(() => cannonReloadWorkRate(1.5, 10), /active cannon crew/);
+  assert.throws(() => cannonReloadWorkRate(1, -1), /installed cannon count/);
+  assert.throws(() => advanceCannonReload(-1, 1, 1, 1), /reload work/);
+  assert.throws(() => advanceCannonReload(1, -1, 1, 1), /timestep/);
+});
 
 test("pre-gunpowder cultures use arrows even when their stand-in hull has cannon stats", () => {
   for (const cultureType of ["polynesian", "mesoamerican", "andean"]) {

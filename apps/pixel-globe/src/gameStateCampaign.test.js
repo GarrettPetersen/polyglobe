@@ -13,8 +13,11 @@ import {
   createGameState,
   migrateGameState,
   settleCampaignGoalAtHome,
-  updateCartographyMemory
+  updateCartographyMemory,
+  validateGameState
 } from "./gameState.js";
+import { shipMinimumCrew } from "./shipLoadouts.js";
+import { shipStatsForSlug } from "./shipStats.js";
 
 const PLAYER = Object.freeze({
   id: "player-campaign-test",
@@ -127,6 +130,36 @@ test("version 23 saves gain per-voyage achievement progress", () => {
     whiteWhaleKilled: false,
     arrivedInPortDrunk: false
   });
+});
+
+test("version 24 custom loadouts migrate one-crew targets to the hull minimum", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const legacy = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  legacy.version = 24;
+  legacy.ship.crew = 1;
+  legacy.ship.loadoutId = "custom";
+  legacy.ship.loadoutTargets = {
+    id: "custom",
+    crew: 1,
+    cannons: 3,
+    foodUnits: 4,
+    waterUnits: 5
+  };
+
+  const restored = migrateGameState(legacy, stats);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.ship.loadoutTargets.crew, shipMinimumCrew(stats));
+  assert.equal(restored.ship.crew, 1);
+  assert.ok(restored.ship.loadoutTargets.totalSpace <= stats.cargoCapacity);
+
+  const malformed = structuredClone(restored);
+  malformed.ship.loadoutTargets.crew = 1;
+  assert.throws(() => validateGameState(malformed), /crew must be/);
 });
 
 test("cartography snapshots validate and persist their packed mask", () => {

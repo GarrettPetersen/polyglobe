@@ -28,3 +28,23 @@ test("harpoon resolution distinguishes misses, broken ropes, and secure tethers"
   assert.equal(resolveWhaleHarpoon(harpoon, 20, { hitRoll: 0, breakRoll: 0.99 }).outcome, "tethered");
   assert.equal(whaleHarpoonHitChance(harpoon, harpoon.rangePx + 1), 0);
 });
+
+test("larger crews improve harpoon aim and line handling", () => {
+  const harpoon = WHALE_HARPOONS[0];
+  const undercrewedHitChance = whaleHarpoonHitChance(harpoon, 20, 0.5);
+  const standardHitChance = whaleHarpoonHitChance(harpoon, 20, 1);
+  const fullCrewHitChance = whaleHarpoonHitChance(harpoon, 20, 2);
+
+  assert.equal(undercrewedHitChance, standardHitChance * 0.5);
+  assert.ok(fullCrewHitChance > standardHitChance);
+  assert.equal(resolveWhaleHarpoon(harpoon, 20, {
+    hitRoll: 0,
+    breakRoll: 0.5,
+    crewMultiplier: 0.5
+  }).outcome, "broke");
+  assert.equal(resolveWhaleHarpoon(harpoon, 20, {
+    hitRoll: 0,
+    breakRoll: 0.5,
+    crewMultiplier: 2
+  }).outcome, "tethered");
+});

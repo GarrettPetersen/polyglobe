@@ -1138,12 +1138,23 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
   let view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(session.nodeId, "custom-loadout");
   assert.equal(view.presentation.kind, "custom-loadout");
+  assert.equal(view.presentation.crewWorkMultiplier, 1);
+  assert.equal(view.presentation.cannonReloadPercent, 100);
   assert.deepEqual(view.presentation.fields.map((field) => field.key), [
     "crew", "cannons", "foodUnits", "waterUnits"
   ]);
 
+  const crewBounds = view.presentation.fields.find((field) => field.key === "crew").bounds;
+  setPortCustomLoadoutValue(session, stats, "crew", crewBounds.max);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.presentation.crewWorkMultiplier, 2);
+  setPortCustomLoadoutValue(session, stats, "crew", crewBounds.min);
+
   setPortCustomLoadoutValue(session, stats, "foodUnits", 1);
   setPortCustomLoadoutValue(session, stats, "waterUnits", 2);
+  setPortCustomLoadoutValue(session, stats, "cannons", stats.cannons);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.ok(view.presentation.cannonReloadPercent < 100);
   gameState.cargo.hardtack = 5;
   gameState.survival.freshWaterCapacity = 6;
   gameState.survival.freshWater = 6;

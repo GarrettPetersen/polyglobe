@@ -44,6 +44,26 @@ test("desert scavenging rarely finds water and usually finds nothing", () => {
   assert.equal(rollShoreScavenge(SHORE_SCAVENGE_DESERT, balanced, () => 0.99), SHORE_SCAVENGE_CASUALTY);
 });
 
+test("larger shore parties find supplies more often without removing risk", () => {
+  const balanced = { water: 0.5, food: 0.5 };
+  assert.equal(
+    rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.5, 0.5),
+    SHORE_SCAVENGE_NOTHING
+  );
+  assert.equal(
+    rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.5, 1),
+    SHORE_SCAVENGE_FOOD
+  );
+  assert.equal(
+    rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.8, 2),
+    SHORE_SCAVENGE_FOOD
+  );
+  assert.equal(
+    rollShoreScavenge(SHORE_SCAVENGE_TEMPERATE, balanced, () => 0.995, 2),
+    SHORE_SCAVENGE_CASUALTY
+  );
+});
+
 test("ordinary shores favor whichever provision is needed most", () => {
   const waterDesperate = { water: 1, food: 0 };
   const foodDesperate = { water: 0, food: 1 };

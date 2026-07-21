@@ -1,3 +1,5 @@
+import { crewScaledSuccessChance } from "./crewEffectiveness.js";
+
 export const FISHING_NET_FRAME_SIZE = 30;
 export const FISHING_NET_FRAME_COUNT = 15;
 export const FISHING_NET_FRAME_MS = 75;
@@ -23,7 +25,7 @@ export function fishingAnimationState(startMs, nowMs) {
   };
 }
 
-export function fishingCatchChance(visibleFishCount, netCatchRateMultiplier = 1) {
+export function fishingCatchChance(visibleFishCount, netCatchRateMultiplier = 1, crewMultiplier = 1) {
   if (!Number.isInteger(visibleFishCount) || visibleFishCount <= 0) {
     throw new Error(`Invalid visible fish count: ${visibleFishCount}`);
   }
@@ -31,7 +33,8 @@ export function fishingCatchChance(visibleFishCount, netCatchRateMultiplier = 1)
     throw new Error(`Invalid fishing net catch rate: ${netCatchRateMultiplier}`);
   }
   const fishPopulationChance = clamp(0.16 + Math.min(8, visibleFishCount) * 0.0825, 0.24, 0.82);
-  return clamp(fishPopulationChance * netCatchRateMultiplier, 0.12, 0.95);
+  const equipmentChance = clamp(fishPopulationChance * netCatchRateMultiplier, 0.12, 0.95);
+  return crewScaledSuccessChance(equipmentChance, crewMultiplier, 0.06, 0.98);
 }
 
 export function fishingCatchSucceeds(randomValue, chance) {

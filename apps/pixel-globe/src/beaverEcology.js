@@ -1,3 +1,5 @@
+import { crewScaledSuccessChance } from "./crewEffectiveness.js";
+
 export const BEAVER_RANGE_NORTH_AMERICA = "north-america";
 export const BEAVER_RANGE_SIBERIA = "siberia";
 
@@ -58,11 +60,11 @@ export function beaverSettlementProductionRate(port) {
   return 0;
 }
 
-export function rollBeaverCatch(range, random = Math.random) {
+export function rollBeaverCatch(range, random = Math.random, crewMultiplier = 1) {
   const chance = CATCH_CHANCE_BY_RANGE[range];
   if (!Number.isFinite(chance)) throw new Error(`Unknown beaver range: ${range}`);
   const roll = validRandomRoll(random(), "beaver catch");
-  return roll < chance;
+  return roll < crewScaledSuccessChance(chance, crewMultiplier);
 }
 
 export function beaverCatchYield(random = Math.random) {

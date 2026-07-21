@@ -1,4 +1,5 @@
 import { isPermanentSeaIceRow } from "./terrainSurface.js";
+import { crewScaledSuccessChance } from "./crewEffectiveness.js";
 
 export const SHORE_SCAVENGE_WATER = "water";
 export const SHORE_SCAVENGE_FOOD = "food";
@@ -162,14 +163,20 @@ export function shoreScavengeContextForTerrain(row, latitudeDeg, hasSnowGround) 
   return SHORE_SCAVENGE_TEMPERATE;
 }
 
-export function rollShoreScavenge(context, needs = { water: 0, food: 0 }, random = Math.random) {
+export function rollShoreScavenge(
+  context,
+  needs = { water: 0, food: 0 },
+  random = Math.random,
+  crewMultiplier = 1
+) {
   requireScavengeContext(context);
   const probabilities = SCAVENGE_PROBABILITIES[context];
   if (!probabilities) throw new Error(`Missing shore scavenge probabilities: ${context}`);
   const waterNeed = requireNeedFraction(needs?.water, "water");
   const foodNeed = requireNeedFraction(needs?.food, "food");
-  const supplyChance = probabilities.foodMax;
-  const baseWaterShare = probabilities.waterMax / supplyChance;
+  const baseSupplyChance = probabilities.foodMax;
+  const supplyChance = crewScaledSuccessChance(baseSupplyChance, crewMultiplier, 0, 0.95);
+  const baseWaterShare = probabilities.waterMax / baseSupplyChance;
   const waterShareBounds = SCAVENGE_WATER_SHARE_BOUNDS[context];
   const needDifference = waterNeed - foodNeed;
   const waterShare = needDifference >= 0
@@ -181,7 +188,7 @@ export function rollShoreScavenge(context, needs = { water: 0, food: 0 }, random
     throw new Error(`Invalid shore scavenge roll: ${roll}`);
   }
   if (roll < waterMax) return SHORE_SCAVENGE_WATER;
-  if (roll < probabilities.foodMax) return SHORE_SCAVENGE_FOOD;
+  if (roll < supplyChance) return SHORE_SCAVENGE_FOOD;
   if (roll < 1 - SHORE_SCAVENGE_CASUALTY_CHANCE) return SHORE_SCAVENGE_NOTHING;
   return SHORE_SCAVENGE_CASUALTY;
 }

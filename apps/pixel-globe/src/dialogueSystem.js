@@ -66,6 +66,8 @@ import {
   shipCustomLoadoutPlan,
   shipLoadoutPlan
 } from "./shipLoadouts.js";
+import { cannonReloadWorkRate } from "./navalWeapons.js";
+import { crewWorkMultiplier } from "./crewEffectiveness.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import { shipyardPurchaseTerms } from "./shipyards.js";
@@ -2654,11 +2656,15 @@ function customLoadoutView(session, city, gameState, context) {
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
-    text: "Set crew, guns, and stores. Smaller stores dump excess provisions without refund.",
+    text: "Set crew, guns, and stores. Extra hands improve field work and gun loading. Smaller stores dump excess provisions without refund.",
     feedback: session.feedback,
     presentation: {
       kind: "custom-loadout",
       plan,
+      crewWorkMultiplier: crewWorkMultiplier(plan.crew, context.shipStats),
+      cannonReloadPercent: plan.cannons > 0
+        ? Math.round(cannonReloadWorkRate(plan.crew, plan.cannons) * 100)
+        : null,
       fields: CUSTOM_LOADOUT_FIELDS.map((key) => ({
         key,
         label: labels[key],

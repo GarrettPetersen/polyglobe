@@ -10,7 +10,8 @@ import {
   shipCustomLoadoutBounds,
   shipCustomLoadoutDraft,
   shipCustomLoadoutPlan,
-  shipLoadoutPlan
+  shipLoadoutPlan,
+  shipMinimumCrew
 } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -20,7 +21,7 @@ test("every loadout fits small and large ship holds", () => {
     for (const preset of SHIP_LOADOUT_PRESETS) {
       const plan = shipLoadoutPlan(stats, preset.id);
       assert.ok(plan.totalSpace <= stats.cargoCapacity, `${slug} ${preset.id}`);
-      assert.ok(plan.crew >= 1 && plan.crew <= plan.crewCapacity);
+      assert.ok(plan.crew >= shipMinimumCrew(stats) && plan.crew <= plan.crewCapacity);
       assert.ok(plan.cannons >= 0 && plan.cannons <= stats.cannons);
     }
   }
@@ -48,6 +49,13 @@ test("four crew share one unit of berth and equipment space", () => {
   assert.equal(crewHoldSpace(5), 2);
 });
 
+test("the standard short-haul complement is each hull's minimum selectable crew", () => {
+  for (const slug of ["fishing-lugger", "brigantine", "ship-of-the-line"]) {
+    const stats = shipStatsForSlug(slug);
+    assert.equal(shipMinimumCrew(stats), shipLoadoutPlan(stats, "short-haul").crew);
+  }
+});
+
 test("constrained provisions split evenly with the odd slot reserved for water", () => {
   assert.deepEqual(balancedProvisionTargets(8, 8, 7), { foodUnits: 3, waterUnits: 4 });
   assert.deepEqual(balancedProvisionTargets(3, 8, 8), { foodUnits: 3, waterUnits: 5 });
@@ -58,26 +66,28 @@ test("constrained provisions split evenly with the odd slot reserved for water",
 
 test("custom loadouts preserve exact integer targets and expose remaining trade space", () => {
   const stats = shipStatsForSlug("brigantine");
+  const crew = shipMinimumCrew(stats);
   let draft = shipCustomLoadoutDraft(stats);
-  draft = setShipCustomLoadoutValue(stats, draft, "crew", 9);
+  draft = setShipCustomLoadoutValue(stats, draft, "crew", crew);
   draft = setShipCustomLoadoutValue(stats, draft, "cannons", 3);
   draft = setShipCustomLoadoutValue(stats, draft, "foodUnits", 4);
   draft = setShipCustomLoadoutValue(stats, draft, "waterUnits", 5);
   const plan = shipCustomLoadoutPlan(stats, draft);
 
   assert.equal(plan.id, "custom");
-  assert.equal(plan.crew, 9);
+  assert.equal(plan.crew, crew);
   assert.equal(plan.cannons, 3);
   assert.equal(plan.foodUnits, 4);
   assert.equal(plan.waterUnits, 5);
   assert.equal(plan.reserveSpace, stats.cargoCapacity - plan.totalSpace);
-  assert.equal(plan.foodDays, 4 * 12 / 10);
-  assert.equal(plan.waterDays, 5 * 8 / 10);
+  assert.equal(plan.foodDays, 4 * 12 / (crew + 1));
+  assert.equal(plan.waterDays, 5 * 8 / (crew + 1));
 });
 
 test("custom slider bounds prevent any field from overflowing the hold", () => {
   const stats = shipStatsForSlug("brigantine");
   const draft = shipCustomLoadoutDraft(stats);
+  assert.equal(shipCustomLoadoutBounds(stats, draft, "crew").min, shipMinimumCrew(stats));
   for (const key of ["crew", "cannons", "foodUnits", "waterUnits"]) {
     const bounds = shipCustomLoadoutBounds(stats, draft, key);
     const adjusted = setShipCustomLoadoutValue(stats, draft, key, bounds.max + 100);
@@ -85,8 +95,17 @@ test("custom slider bounds prevent any field from overflowing the hold", () => {
     assert.ok(shipCustomLoadoutPlan(stats, adjusted).totalSpace <= stats.cargoCapacity);
   }
   assert.throws(
-    () => shipCustomLoadoutPlan(stats, { crew: 1, cannons: 0, foodUnits: stats.cargoCapacity, waterUnits: 1 }),
+    () => shipCustomLoadoutPlan(stats, {
+      crew: shipMinimumCrew(stats),
+      cannons: 0,
+      foodUnits: stats.cargoCapacity,
+      waterUnits: 1
+    }),
     /Custom loadout uses/
+  );
+  assert.throws(
+    () => shipCustomLoadoutPlan(stats, { crew: 1, cannons: 0, foodUnits: 0, waterUnits: 0 }),
+    /crew must be/
   );
 });
 

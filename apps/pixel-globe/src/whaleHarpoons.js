@@ -1,3 +1,5 @@
+import { crewScaledFailureChance, crewScaledSuccessChance } from "./crewEffectiveness.js";
+
 export const BASIC_WHALE_HARPOON_ID = "ash-shaft-harpoon";
 
 export const WHALE_HARPOONS = Object.freeze([
@@ -14,22 +16,24 @@ export function whaleHarpoonById(harpoonId) {
   return harpoon;
 }
 
-export function whaleHarpoonHitChance(harpoon, distancePx) {
+export function whaleHarpoonHitChance(harpoon, distancePx, crewMultiplier = 1) {
   assertHarpoon(harpoon);
   if (!Number.isFinite(distancePx) || distancePx < 0) {
     throw new Error(`Invalid whale harpoon distance: ${distancePx}`);
   }
   if (distancePx > harpoon.rangePx) return 0;
   const rangeFraction = distancePx / harpoon.rangePx;
-  return clamp(harpoon.accuracy * (1 - rangeFraction * 0.32), 0.12, 0.95);
+  const equipmentChance = clamp(harpoon.accuracy * (1 - rangeFraction * 0.32), 0.12, 0.95);
+  return crewScaledSuccessChance(equipmentChance, crewMultiplier, 0.06, 0.98);
 }
 
 export function resolveWhaleHarpoon(harpoon, distancePx, {
   hitRoll,
   breakRoll,
-  resistanceMultiplier = 1
+  resistanceMultiplier = 1,
+  crewMultiplier = 1
 }) {
-  const hitChance = whaleHarpoonHitChance(harpoon, distancePx);
+  const hitChance = whaleHarpoonHitChance(harpoon, distancePx, crewMultiplier);
   for (const [label, value] of Object.entries({ hitRoll, breakRoll })) {
     if (!Number.isFinite(value) || value < 0 || value >= 1) {
       throw new Error(`Invalid whale harpoon ${label}: ${value}`);
@@ -38,7 +42,8 @@ export function resolveWhaleHarpoon(harpoon, distancePx, {
   if (!Number.isFinite(resistanceMultiplier) || resistanceMultiplier <= 0) {
     throw new Error(`Invalid whale resistance multiplier: ${resistanceMultiplier}`);
   }
-  const breakChance = clamp(harpoon.breakChance * resistanceMultiplier, 0.02, 0.95);
+  const equipmentBreakChance = clamp(harpoon.breakChance * resistanceMultiplier, 0.02, 0.95);
+  const breakChance = crewScaledFailureChance(equipmentBreakChance, crewMultiplier, 0.01, 0.98);
   if (hitRoll >= hitChance) return Object.freeze({ outcome: "missed", hitChance });
   if (breakRoll < breakChance) return Object.freeze({ outcome: "broke", hitChance, breakChance });
   return Object.freeze({ outcome: "tethered", hitChance, breakChance });

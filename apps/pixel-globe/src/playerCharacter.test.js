@@ -5,10 +5,10 @@ import test from "node:test";
 import {
   PLAYER_STARTER_SHIPS,
   generatePlayerStartingProfile,
+  playerStarterShipForFaction,
   playerStartRegionForPort,
   resolvePlayerCharacterIdentityKey,
-  selectPlayerHomePort,
-  whalingStarterShipForRegion
+  selectPlayerHomePort
 } from "./playerCharacter.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -60,12 +60,27 @@ test("starting profiles are deterministic and internally consistent", () => {
 });
 
 test("whaling campaigns receive the cheapest regionally plausible blue-water hull", () => {
-  for (const region of Object.keys(PLAYER_STARTER_SHIPS)) {
-    const starter = shipStatsForSlug(PLAYER_STARTER_SHIPS[region]);
-    const whaler = shipStatsForSlug(whalingStarterShipForRegion(region));
-    assert.ok(whaler.seaworthiness >= 5, `${region}: ${whaler.slug}`);
-    assert.ok(whaler.cargoCapacity >= starter.cargoCapacity, `${region}: ${whaler.slug}`);
+  for (const factionId of ["england", "ottoman", "ming", "vijayanagara"]) {
+    const starter = shipStatsForSlug(playerStarterShipForFaction(factionId));
+    const whaler = shipStatsForSlug(playerStarterShipForFaction(factionId, { whaling: true }));
+    assert.ok(whaler.seaworthiness >= 5, `${factionId}: ${whaler.slug}`);
+    assert.ok(whaler.cargoCapacity >= starter.cargoCapacity, `${factionId}: ${whaler.slug}`);
   }
+});
+
+test("Ming captains always receive Chinese starter vessels", () => {
+  const profile = generatePlayerStartingProfile({
+    identityKey: "ming-starter-regression",
+    ports: [PORTS[4]],
+    manifest: MANIFEST,
+    usedNames: new Set()
+  });
+  assert.equal(profile.character.nationalityId, "ming");
+  assert.equal(profile.character.starterShipSlug, "sampan");
+  assert.equal(playerStarterShipForFaction("ming"), "sampan");
+  assert.equal(playerStarterShipForFaction("ming", { whaling: true }), "small-junk");
+  assert.notEqual(playerStarterShipForFaction("ming"), "ketch");
+  assert.notEqual(playerStarterShipForFaction("ming", { whaling: true }), "ketch");
 });
 
 test("player identity seeds use explicit query values or fresh generated values", () => {

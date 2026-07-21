@@ -29,6 +29,12 @@ test("only suitable rivers inside a historical range can produce a beaver catch"
   assert.equal(beaverRiverHabitat({ ...base, isRiver: false, terrain: "humid_continental" }), null);
 });
 
+test("larger trapping parties improve the chance of catching a beaver", () => {
+  assert.equal(rollBeaverCatch(BEAVER_RANGE_NORTH_AMERICA, () => 0.2, 0.5), false);
+  assert.equal(rollBeaverCatch(BEAVER_RANGE_NORTH_AMERICA, () => 0.2, 1), true);
+  assert.equal(rollBeaverCatch(BEAVER_RANGE_NORTH_AMERICA, () => 0.7, 2), true);
+});
+
 test("North American catches are common while Siberian catches are somewhat rarer", () => {
   assert.equal(rollBeaverCatch(BEAVER_RANGE_NORTH_AMERICA, () => 0.3799), true);
   assert.equal(rollBeaverCatch(BEAVER_RANGE_NORTH_AMERICA, () => 0.38), false);

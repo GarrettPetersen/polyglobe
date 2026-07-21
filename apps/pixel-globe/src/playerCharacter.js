@@ -25,14 +25,6 @@ export const PLAYER_WHALING_STARTER_SHIPS = Object.freeze({
   india: "ketch"
 });
 
-export function whalingStarterShipForRegion(startRegion) {
-  const slug = PLAYER_WHALING_STARTER_SHIPS[startRegion];
-  if (!slug) throw new Error(`No deep-sea whaling starter for region: ${startRegion}`);
-  const stats = shipStatsForSlug(slug);
-  if (stats.seaworthiness < 5) throw new Error(`Whaling starter is not seaworthy: ${slug}`);
-  return slug;
-}
-
 const EUROPEAN_FACTIONS = new Set([
   "england",
   "scotland",
@@ -57,6 +49,27 @@ const MONTH_NAMES = Object.freeze([
   "July", "August", "September", "October", "November", "December"
 ]);
 
+export function playerStartRegionForFaction(factionId) {
+  factionById(factionId);
+  if (factionId === "ottoman") return "ottoman";
+  if (EAST_ASIAN_FACTIONS.has(factionId)) return "east-asia";
+  if (INDIAN_FACTIONS.has(factionId)) return "india";
+  if (EUROPEAN_FACTIONS.has(factionId)) return "europe";
+  throw new Error(`Faction cannot provide a player starter ship: ${factionId}`);
+}
+
+export function playerStarterShipForFaction(factionId, { whaling = false } = {}) {
+  if (typeof whaling !== "boolean") throw new Error(`Invalid whaling starter flag: ${whaling}`);
+  const region = playerStartRegionForFaction(factionId);
+  const slug = (whaling ? PLAYER_WHALING_STARTER_SHIPS : PLAYER_STARTER_SHIPS)[region];
+  if (!slug) throw new Error(`No ${whaling ? "whaling " : ""}starter ship for ${factionId}`);
+  const stats = shipStatsForSlug(slug);
+  if (whaling && stats.seaworthiness < 5) {
+    throw new Error(`Whaling starter is not seaworthy: ${slug}`);
+  }
+  return slug;
+}
+
 export function generatePlayerStartingProfile({
   identityKey,
   ports,
@@ -74,8 +87,13 @@ export function generatePlayerStartingProfile({
 
   const { homePort, startRegion } = selectPlayerHomePort(identityKey, ports);
   const nationality = factionById(homePort.factionId);
-  const starterShipSlug = PLAYER_STARTER_SHIPS[startRegion];
-  shipStatsForSlug(starterShipSlug);
+  const factionStartRegion = playerStartRegionForFaction(nationality.id);
+  if (factionStartRegion !== startRegion) {
+    throw new Error(
+      `Player start region disagrees with ${nationality.id} allegiance: ${startRegion} != ${factionStartRegion}`
+    );
+  }
+  const starterShipSlug = playerStarterShipForFaction(nationality.id);
 
   const baseCharacter = generatePlayerCharacter({
     identityKey,

@@ -1,4 +1,5 @@
 import {
+  advanceCannonReload,
   navalArrowVolleyCount,
   navalWeaponFiresAtWill,
   navalWeaponForShip,
@@ -444,6 +445,7 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId) {
     slug,
     kind: slug === LAKE_BATTLE_CITY_SLUG ? "city" : "ship",
     stats,
+    crew: stats.crewCapacity,
     weapon,
     x,
     y,
@@ -890,8 +892,13 @@ function sailingEfficiencyForStats(stats, heading, windFlow) {
 }
 
 function updateCooldowns(ship, dt) {
-  ship.cooldowns.port = Math.max(0, ship.cooldowns.port - dt);
-  ship.cooldowns.starboard = Math.max(0, ship.cooldowns.starboard - dt);
+  if (navalWeaponUsesBroadside(ship.weapon)) {
+    ship.cooldowns.port = advanceCannonReload(ship.cooldowns.port, dt, ship.crew, ship.stats.cannons);
+    ship.cooldowns.starboard = advanceCannonReload(ship.cooldowns.starboard, dt, ship.crew, ship.stats.cannons);
+  } else {
+    ship.cooldowns.port = Math.max(0, ship.cooldowns.port - dt);
+    ship.cooldowns.starboard = Math.max(0, ship.cooldowns.starboard - dt);
+  }
   ship.cooldowns.atWill = Math.max(0, ship.cooldowns.atWill - dt);
 }
 
@@ -999,6 +1006,11 @@ function validateBattleState(state) {
   }
   if (!Number.isFinite(state.wind.directionRad) || !Number.isFinite(state.wind.strength)) {
     throw new Error("Lake battle wind is invalid");
+  }
+  for (const combatant of [state.player, state.enemy]) {
+    if (!Number.isInteger(combatant.crew) || combatant.crew < 0) {
+      throw new Error(`Invalid lake battle crew: ${combatant.crew}`);
+    }
   }
 }
 

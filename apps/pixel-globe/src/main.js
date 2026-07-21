@@ -115,8 +115,8 @@ import {
 } from "./characterPortraits.js";
 import {
   generatePlayerStartingProfile,
-  resolvePlayerCharacterIdentityKey,
-  whalingStarterShipForRegion
+  playerStarterShipForFaction,
+  resolvePlayerCharacterIdentityKey
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
 import { randomizedSfxPlaybackRate } from "./sfxPitch.js";
@@ -203,6 +203,7 @@ import {
   resolveWhaleHarpoon,
   whaleHarpoonHitChance
 } from "./whaleHarpoons.js";
+import { crewWorkMultiplier } from "./crewEffectiveness.js";
 import {
   DEPARTURE_CONTROL_FEEDBACK_KINDS,
   departureControlFeedbackAttention,
@@ -853,6 +854,7 @@ import {
   pointInBroadsideArc
 } from "./broadsideControls.js";
 import {
+  advanceCannonReload,
   navalArrowVolleyCount,
   navalWeaponFiresAtWill,
   NAVAL_WEAPON_ARROW,
@@ -2340,10 +2342,10 @@ async function main() {
     ? capturePlayerCharacter(playerProfile.character, CAPTURE_SCENARIO)
     : playerProfile.character;
   const campaignGoalType = campaignGoalTypeForCharacter(playerCharacter);
-  const campaignStarterShipSlug = campaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE
-    ? whalingStarterShipForRegion(playerCharacter.startRegion)
-    : playerProfile.starterShipSlug;
-  const playerShipSlug = START_SHIP_SLUG_OVERRIDE || campaignStarterShipSlug;
+  const playerShipSlug = START_SHIP_SLUG_OVERRIDE || playerStarterShipForFaction(
+    playerCharacter.nationalityId,
+    { whaling: campaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE }
+  );
   const playerStartPosition = START_POSITION_OVERRIDE || {
     lat: playerProfile.homePort.lat,
     lon: playerProfile.homePort.lon
@@ -8726,15 +8728,16 @@ function updateShoreScavenge(nowMs) {
   if (!shoreScavengeAction || nowMs < shoreScavengeAction.completesAtMs) return false;
   const action = shoreScavengeAction;
   const context = action.context;
+  const crewMultiplier = playerCrewWorkMultiplier();
   shoreScavengeAction = null;
-  if (action.beaverRange && rollBeaverCatch(action.beaverRange)) {
+  if (action.beaverRange && rollBeaverCatch(action.beaverRange, Math.random, crewMultiplier)) {
     resolveBeaverScavenge();
     syncShipCargoFromGameState();
     saveVoyageNow("river beaver scavenging");
     return true;
   }
   const outcome = replaceFailedScavengeWithSeabird(
-    rollShoreScavenge(context, shoreScavengeNeeds()),
+    rollShoreScavenge(context, shoreScavengeNeeds(), Math.random, crewMultiplier),
     Number.isInteger(action.landedSeabirdId)
   );
   if (outcome === SHORE_SCAVENGE_SEABIRD) {
@@ -9893,7 +9896,8 @@ function resolveWhaleHarpoonProjectile() {
   const result = resolveWhaleHarpoon(harpoon, projectile.distancePx, {
     hitRoll: captureDirector?.sequence.kind === "whale" ? 0 : Math.random(),
     breakRoll: captureDirector?.sequence.kind === "whale" ? 0.999 : Math.random(),
-    resistanceMultiplier: whaleHarpoonBreakMultiplier(whale)
+    resistanceMultiplier: whaleHarpoonBreakMultiplier(whale),
+    crewMultiplier: playerCrewWorkMultiplier()
   });
   if (result.outcome === "missed") {
     playFishingSound();
@@ -10076,7 +10080,16 @@ function fishingChanceForCall(call) {
   if (!gameState) throw new Error("Cannot calculate fishing chance before game state is ready");
   if (!call?.fishery) throw new Error("Cannot calculate fishing chance without a fishery");
   const net = playerFishingNet(gameState);
-  return fishingCatchChance(call.fishery.visibleIndividualCount, net.catchRateMultiplier);
+  return fishingCatchChance(
+    call.fishery.visibleIndividualCount,
+    net.catchRateMultiplier,
+    playerCrewWorkMultiplier()
+  );
+}
+
+function playerCrewWorkMultiplier() {
+  if (!gameState?.ship || !ship?.stats) throw new Error("Cannot calculate crew work before the player ship is ready");
+  return crewWorkMultiplier(gameState.ship.crew, ship.stats);
 }
 
 function worldInteractionTargetAtPoint(point) {
@@ -12131,8 +12144,20 @@ function cannonMuzzleForeAftSpan(broadsideCount) {
 
 function updateNavalWeapons(dt) {
   if (!ship) return false;
-  ship.cannonCooldowns.port = Math.max(0, ship.cannonCooldowns.port - dt);
-  ship.cannonCooldowns.starboard = Math.max(0, ship.cannonCooldowns.starboard - dt);
+  const activeCrew = gameState?.ship?.crew || 0;
+  const installedCannons = gameState?.ship?.cannons || 0;
+  ship.cannonCooldowns.port = advanceCannonReload(
+    ship.cannonCooldowns.port,
+    dt,
+    activeCrew,
+    installedCannons
+  );
+  ship.cannonCooldowns.starboard = advanceCannonReload(
+    ship.cannonCooldowns.starboard,
+    dt,
+    activeCrew,
+    installedCannons
+  );
   ship.arrowCooldown = Math.max(0, ship.arrowCooldown - dt);
 
   let changed = firePlayerArrowVolleyAtWill();
@@ -13339,7 +13364,11 @@ function updateNpcCombat(dt) {
   changed ||= batteryCombat.changed;
 
   for (const state of npcVisualShips.values()) {
-    state.weaponCooldown = Math.max(0, state.weaponCooldown - dt);
+    const stats = shipStatsForSlug(state.slug);
+    const weapon = npcNavalWeapon(state, stats);
+    state.weaponCooldown = navalWeaponUsesBroadside(weapon)
+      ? advanceCannonReload(state.weaponCooldown, dt, stats.crewCapacity, stats.cannons)
+      : Math.max(0, state.weaponCooldown - dt);
     const intent = result.intents.get(state.id) || shoreBatteryIntentForNpc(state);
     const nextMode = intent?.mode || null;
     const nextTargetId = intent?.targetId || null;
@@ -24610,7 +24639,11 @@ function drawInteractionButton() {
   } else if (target.kind === "whale") {
     const harpoon = playerWhaleHarpoon(gameState);
     actionLabel = `Harpoon ${target.call.label}`;
-    secondaryLabel = `${Math.round(whaleHarpoonHitChance(harpoon, target.call.distancePx) * 100)}%`;
+    secondaryLabel = `${Math.round(whaleHarpoonHitChance(
+      harpoon,
+      target.call.distancePx,
+      playerCrewWorkMultiplier()
+    ) * 100)}%`;
   } else if (target.kind === "whale-cut") {
     actionLabel = "Cut whale loose";
   } else if (target.kind === "whale-finish") {
@@ -26170,7 +26203,12 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
     const knobX = trackRect.x + fillW;
     ctx.fillStyle = selected ? PIRATE_MENU_INK : PIRATE_MENU_PAPER;
     ctx.fillRect(knobX - 1, trackRect.y - 2, 3, trackRect.h + 4);
-    const value = customLoadoutFieldValue(field, presentation.plan, compactWidth);
+    const value = customLoadoutFieldValue(
+      field,
+      presentation.plan,
+      presentation.crewWorkMultiplier,
+      compactWidth
+    );
     drawOptionsText(value, right - 4, row.y + Math.floor((row.h - 8) / 2), {
       font: PIXEL_FONT_SMALL_8,
       align: "right",
@@ -26190,11 +26228,21 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
     font: PIXEL_FONT_SMALL_8,
     color: PIRATE_MENU_CHART_LINE
   });
+  if (presentation.cannonReloadPercent !== null) {
+    drawOptionsText(`GUN RELOAD  ${presentation.cannonReloadPercent}%`, right, summaryY, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "right",
+      color: presentation.cannonReloadPercent < 100 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+    });
+  }
   drawDialogueOptions(dialogueView, left, optionY, optionWidth, optionBottom, PIXEL_FONT_SMALL_8);
 }
 
-function customLoadoutFieldValue(field, plan, compact) {
-  if (field.key === "crew") return `${field.value}/${plan.crewCapacity}`;
+function customLoadoutFieldValue(field, plan, crewMultiplier, compact) {
+  if (field.key === "crew") {
+    const multiplierLabel = `${crewMultiplier.toFixed(compact ? 1 : 2)}X`;
+    return compact ? `${field.value}  ${multiplierLabel}` : `${field.value}/${plan.crewCapacity}  ${multiplierLabel}`;
+  }
   if (field.key === "cannons") return `${field.value}/${plan.cannonCapacity}`;
   const days = field.key === "foodUnits" ? plan.foodDays : plan.waterDays;
   return compact ? `${field.value} / ${Math.floor(days)}D` : `${field.value} SPACE / ${Math.floor(days)}D`;
