@@ -105,18 +105,14 @@ test("interface controls use varied dark Resurrect colors without outlines", () 
   const palette = new Set(RESURRECT_64_HEX.map((hex) => `#${hex}`));
   const iconColors = new Set();
   for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
-    if (iconId.startsWith("menu:") && iconId !== "menu:discoveries") {
+    if (iconId.startsWith("menu:")) {
       assert.equal(source.packId, "nikoichu", iconId);
     }
     if (iconId.startsWith("action:") || (iconId.startsWith("menu:") && source.packId === "nikoichu")) {
       assert.equal(source.duotone, undefined, `${iconId} still has an outline treatment`);
-      if (iconId === "action:sell") {
-        assert.equal(source.generatedId, "exchange-arrows");
-      } else {
-        if (iconId !== "action:anchor") assert.equal(source.packId, "nikoichu", iconId);
-        assert.ok(palette.has(source.lightMonotone), `${iconId} icon color`);
-        iconColors.add(source.lightMonotone);
-      }
+      if (iconId !== "action:anchor") assert.equal(source.packId, "nikoichu", iconId);
+      assert.ok(palette.has(source.lightMonotone), `${iconId} icon color`);
+      iconColors.add(source.lightMonotone);
     }
     if (iconId.startsWith("good:")) assert.notEqual(source.packId, "nikoichu", iconId);
   }
@@ -134,8 +130,9 @@ test("literal anchor controls use the dedicated period anchor art", () => {
 
 test("selling cargo uses outline-free bidirectional exchange arrows", () => {
   const source = GAME_ICON_SOURCES["action:sell"];
-  assert.equal(source.packId, null);
-  assert.equal(source.generatedId, "exchange-arrows");
+  assert.equal(source.packId, "nikoichu");
+  assert.equal(source.entry, "Sprites/Arrows_Double_Horizontal_Left_Right.png");
+  assert.equal(source.lightMonotone, "#9e4539");
 });
 
 test("rendered interface icons contain one semantic color and no outline color", async () => {
@@ -144,7 +141,7 @@ test("rendered interface icons contain one semantic color and no outline color",
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0);
   for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
-    const expected = source.lightMonotone || (iconId === "action:sell" ? "#9e4539" : null);
+    const expected = source.lightMonotone || null;
     if (!expected) continue;
     const rect = gameIconAtlasRect(iconId);
     const pixels = ctx.getImageData(rect.x, rect.y, rect.w, rect.h).data;
@@ -193,16 +190,27 @@ test("ship and ledger has native 16x16 artwork for every roster vessel", async (
   assert.throws(() => shipMenuIconId("missing-ship"), /Ship has no menu icon/);
 });
 
-test("discoveries uses a tip-preserving crop of the Great Pyramid sprite", () => {
-  const source = GAME_ICON_SOURCES["menu:discoveries"];
-  assert.equal(source.packId, null);
-  assert.equal(source.assetPath, "public/assets/terrain/resurrect-64/egyptian_pyramid.png");
-  assert.deepEqual(source.crop, { x: 2, y: 0, w: 32, h: 32 });
+test("ship, politics, and wonders menus use consistent one-bit icons", () => {
+  const ship = GAME_ICON_SOURCES["menu:ship"];
+  assert.equal(ship.packId, "nikoichu");
+  assert.equal(ship.entry, "Sprites/Travel_Ship_Sailing_Boat.png");
+  assert.equal(ship.lightMonotone, "#0b5e65");
+
+  const wonders = GAME_ICON_SOURCES["menu:discoveries"];
+  assert.equal(wonders.packId, "nikoichu");
+  assert.equal(wonders.entry, "Sprites/Map_Markers_Building_Bank_Greek_Temple.png");
+  assert.equal(wonders.lightMonotone, "#676633");
+
+  const politics = GAME_ICON_SOURCES["menu:politics"];
+  assert.equal(politics.packId, "nikoichu");
+  assert.equal(politics.entry, "Sprites/Map_Markers_Flagpole_Triangle_Minesweeper.png");
+  assert.equal(politics.lightMonotone, "#9e4539");
 });
 
 test("frequently confused controls use distinct readable source art", () => {
   for (const [left, right] of [
     ["menu:captain", shipMenuIconId("brigantine")],
+    ["menu:politics", "action:surrender"],
     ["action:anchor", "action:dock"],
     ["action:dock", "action:leave"],
     ["action:harpoon", "action:attack"],

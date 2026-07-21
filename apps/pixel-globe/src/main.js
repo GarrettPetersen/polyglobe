@@ -27,6 +27,19 @@ import {
   crewStatusCount,
   crewStatusLayout
 } from "./crewStatus.js";
+import {
+  ABOARD_ROLE_CAPTAIN,
+  ABOARD_ROLE_COLONIST,
+  ABOARD_ROLE_COLONY_LEADER,
+  ABOARD_ROLE_CREWMATE,
+  ABOARD_ROLE_EMISSARY,
+  ABOARD_ROLE_PASSENGER,
+  aboardRoster
+} from "./aboardRoster.js";
+import {
+  minimapSettlementColor,
+  minimapSettlementMarkers
+} from "./minimapSettlements.js";
 import { cargoCrateStatusLayout } from "./cargoCrateStatus.js";
 import {
   remainingSupplyDayCount,
@@ -520,7 +533,6 @@ import {
   gameIconDrawRect,
   gameIconIds,
   menuLabelIconId,
-  shipMenuIconId,
   startMenuIconId,
   tradeGoodIconId
 } from "./gameIcons.js";
@@ -1460,16 +1472,26 @@ const SHIP_INFO_DESKTOP_HEADER_Y = 52;
 const SHIP_INFO_DESKTOP_FIRST_ROW_Y = 66;
 const SHIP_INFO_PAPER_ROW_H = 21;
 const CAPTAIN_MENU_ACTIONS = Object.freeze([
-  Object.freeze({ id: "ship", label: "SHIP & LEDGER" }),
+  Object.freeze({ id: "ship", label: "SHIP & LEDGER", iconId: "menu:ship" }),
+  Object.freeze({ id: "aboard", labelKey: "captain.aboard", iconId: "menu:captain" }),
   Object.freeze({ id: "politics", label: "POLITICS", iconId: "menu:politics" }),
   Object.freeze({ id: "discoveries", label: "DISCOVERIES", iconId: "menu:discoveries" }),
   Object.freeze({ id: "achievements", label: "ACHIEVEMENTS", iconId: "menu:achievements" }),
-  Object.freeze({ id: "navigation", label: "NAVIGATION ICONS", iconId: "action:navigation" }),
+  Object.freeze({ id: "navigation", labelKey: "captain.navigation", iconId: "action:navigation" }),
   Object.freeze({ id: "sailing-basics", label: "SAILING BASICS", iconId: "action:quest" }),
   Object.freeze({ id: "options", label: "OPTIONS", iconId: "menu:options" })
 ]);
 const CAPTAIN_MENU_PANEL_W = 300;
 const CAPTAIN_MENU_PANEL_H = 420;
+const ABOARD_MENU_PANEL_W = 420;
+const ABOARD_MENU_PANEL_H = 420;
+const ABOARD_NAMED_TILE_MIN_W = 76;
+const ABOARD_NAMED_TILE_H = 86;
+const ABOARD_GENERIC_TILE_MIN_W = 52;
+const ABOARD_GENERIC_TILE_H = 42;
+const ABOARD_GENERIC_FRAME_SIZE = 22;
+const ABOARD_CONTENT_SECTION_GAP = 8;
+const ABOARD_SCROLL_STEP = ABOARD_GENERIC_TILE_H;
 const CAPTAIN_MAP_CONTROL_SIZE = 18;
 const CAPTAIN_MAP_PAN_FRACTION = 0.2;
 const NAVIGATION_MENU_PANEL_W = 420;
@@ -2039,6 +2061,7 @@ const achievementsMenu = createAchievementsMenuState();
 const shipInfoMenu = createShipInfoMenuState();
 const politicsMenu = createPoliticsMenuState();
 const navigationMenu = createNavigationMenuState();
+const aboardMenu = createAboardMenuState();
 const captainMenu = createCaptainMenuState();
 const cheatCodeInput = createCheatCodeInputState();
 
@@ -3619,6 +3642,19 @@ function createCaptainMenuState() {
   };
 }
 
+function createAboardMenuState() {
+  return {
+    isOpen: false,
+    scrollY: 0,
+    maxScrollY: 0,
+    viewportHeight: 1,
+    panelRect: null,
+    closeButtonRect: null,
+    scrollUpRect: null,
+    scrollDownRect: null
+  };
+}
+
 function createStartMenuState() {
   return {
     selectedIndex: 0,
@@ -4210,13 +4246,14 @@ function createNavigationMenuState() {
 function menusAreOpen() {
   return Boolean(startMenu) || creditsMenu.isOpen || optionsMenu.isOpen ||
     pastVoyagesMenu.isOpen || discoveriesMenu.isOpen || achievementsMenu.isOpen || shipInfoMenu.isOpen ||
-    politicsMenu.isOpen || navigationMenu.isOpen || captainMenu.isOpen ||
+    politicsMenu.isOpen || navigationMenu.isOpen || aboardMenu.isOpen || captainMenu.isOpen ||
     Boolean(captainAlertModal);
 }
 
 function captainChildMenuIsOpen() {
   return optionsMenu.isOpen || creditsMenu.isOpen || discoveriesMenu.isOpen ||
-    achievementsMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen || navigationMenu.isOpen;
+    achievementsMenu.isOpen || shipInfoMenu.isOpen || politicsMenu.isOpen || navigationMenu.isOpen ||
+    aboardMenu.isOpen;
 }
 
 function currentInteractionInputOwner() {
@@ -4229,6 +4266,7 @@ function currentInteractionInputOwner() {
     playerIntroActive: Boolean(playerIntroModal),
     gameOverActive: Boolean(gameOverReason),
     captainMenuActive: captainMenu.isOpen && !captainChildMenuIsOpen(),
+    aboardActive: aboardMenu.isOpen,
     shipInfoActive: shipInfoMenu.isOpen,
     politicsActive: politicsMenu.isOpen,
     discoveriesActive: discoveriesMenu.isOpen,
@@ -4250,6 +4288,7 @@ function dispatchWorldOverlayKey(event) {
   else if (owner === INTERACTION_INPUT.PLAYER_INTRO) handlePlayerIntroKeyDown(event);
   else if (owner === INTERACTION_INPUT.GAME_OVER) handleGameOverKeyDown(event);
   else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) handleCaptainMenuKeyDown(event);
+  else if (owner === INTERACTION_INPUT.ABOARD) handleAboardMenuKeyDown(event);
   else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoKeyDown(event);
   else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsKeyDown(event);
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesKeyDown(event);
@@ -4279,6 +4318,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
   else if (owner === INTERACTION_INPUT.GAME_OVER) {
     if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
   } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) handleCaptainMenuPointerDown(event, point);
+  else if (owner === INTERACTION_INPUT.ABOARD) handleAboardMenuPointerDown(point);
   else if (owner === INTERACTION_INPUT.SHIP_INFO) handleShipInfoPointerDown(point);
   else if (owner === INTERACTION_INPUT.POLITICS) handlePoliticsPointerDown(point);
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesPointerDown(point);
@@ -7251,7 +7291,7 @@ function closePoliticsMenu() {
 }
 
 function openNavigationMenu() {
-  if (!gameState) throw new Error("Cannot open navigation icons before the game is ready");
+  if (!gameState) throw new Error("Cannot open waypoints before the game is ready");
   closeOptionsMenu();
   closeDiscoveriesMenu();
   closeAchievementsMenu();
@@ -7314,6 +7354,26 @@ function handleAchievementsKeyDown(event) {
     stepAchievementsPage(-1);
   } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
     stepAchievementsPage(1);
+  }
+}
+
+function handleAboardMenuKeyDown(event) {
+  event.preventDefault();
+  if (event.key === "Escape") {
+    closeAboardMenu();
+    return;
+  }
+  if (event.key === "Home") {
+    setAboardMenuScroll(0);
+    return;
+  }
+  if (event.key === "End") {
+    setAboardMenuScroll(aboardMenu.maxScrollY);
+    return;
+  }
+  if (["ArrowUp", "ArrowDown", "PageUp", "PageDown"].includes(event.key)) {
+    const direction = event.key === "ArrowDown" || event.key === "PageDown" ? 1 : -1;
+    scrollAboardMenu(direction, event.key === "PageUp" || event.key === "PageDown");
   }
 }
 
@@ -7410,6 +7470,7 @@ function openCaptainMenu() {
   closeShipInfoMenu();
   closePoliticsMenu();
   closeNavigationMenu();
+  closeAboardMenu();
   closeCreditsMenu();
   captainMenu.isOpen = true;
   captainMenu.selectedIndex = 0;
@@ -7418,6 +7479,39 @@ function openCaptainMenu() {
   resetCaptainChartView();
   keys.clear();
   clearPointerSteering();
+  dirty = true;
+}
+
+function openAboardMenu() {
+  if (!gameState?.ship || !gameState.playerCharacter) {
+    throw new Error("Cannot open the aboard roster before the player ship is ready");
+  }
+  closeOptionsMenu();
+  closeDiscoveriesMenu();
+  closeAchievementsMenu();
+  closeShipInfoMenu();
+  closePoliticsMenu();
+  closeNavigationMenu();
+  aboardMenu.isOpen = true;
+  aboardMenu.scrollY = 0;
+  aboardMenu.maxScrollY = 0;
+  aboardMenu.scrollUpRect = null;
+  aboardMenu.scrollDownRect = null;
+  const roster = currentAboardRoster();
+  for (const entry of roster.named) {
+    dialoguePortraitImage(entry.character, characterExpression(entry.character, "neutral"));
+  }
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeAboardMenu() {
+  aboardMenu.isOpen = false;
+  aboardMenu.panelRect = null;
+  aboardMenu.closeButtonRect = null;
+  aboardMenu.scrollUpRect = null;
+  aboardMenu.scrollDownRect = null;
   dirty = true;
 }
 
@@ -7566,6 +7660,7 @@ function activateCaptainMenuSelection(index) {
   const action = CAPTAIN_MENU_ACTIONS[index];
   if (!action) throw new Error(`Unknown captain menu item: ${index}`);
   if (action.id === "ship") openShipInfoMenu();
+  else if (action.id === "aboard") openAboardMenu();
   else if (action.id === "politics") openPoliticsMenu();
   else if (action.id === "discoveries") openDiscoveriesMenu();
   else if (action.id === "achievements") openAchievementsMenu();
@@ -8178,6 +8273,33 @@ function handleAchievementsPointerDown(point) {
   if (pointInRect(point, achievementsMenu.nextPageRect)) stepAchievementsPage(1);
 }
 
+function handleAboardMenuPointerDown(point) {
+  if (pointInRect(point, aboardMenu.closeButtonRect)) {
+    closeAboardMenu();
+    return;
+  }
+  if (pointInRect(point, aboardMenu.scrollUpRect)) {
+    scrollAboardMenu(-1, true);
+    return;
+  }
+  if (pointInRect(point, aboardMenu.scrollDownRect)) scrollAboardMenu(1, true);
+}
+
+function scrollAboardMenu(direction, page = false) {
+  const distance = page
+    ? Math.max(ABOARD_SCROLL_STEP, aboardMenu.viewportHeight - ABOARD_GENERIC_TILE_H)
+    : ABOARD_SCROLL_STEP;
+  return setAboardMenuScroll(aboardMenu.scrollY + Math.sign(direction) * distance);
+}
+
+function setAboardMenuScroll(scrollY) {
+  const next = clamp(Math.round(scrollY), 0, aboardMenu.maxScrollY);
+  if (next === aboardMenu.scrollY) return false;
+  aboardMenu.scrollY = next;
+  dirty = true;
+  return true;
+}
+
 function handleNavigationMenuPointerDown(point) {
   if (pointInRect(point, navigationMenu.closeButtonRect)) {
     closeNavigationMenu();
@@ -8471,6 +8593,11 @@ function handleCanvasWheel(event) {
       event.preventDefault();
       stepCaptainJournalScroll(event.deltaY > 0 ? 1 : -1);
     }
+    return;
+  }
+  if (owner === INTERACTION_INPUT.ABOARD) {
+    event.preventDefault();
+    scrollAboardMenu(event.deltaY > 0 ? 1 : -1);
     return;
   }
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
@@ -13493,6 +13620,9 @@ function closeMenusForGameOver() {
   achievementsMenu.isOpen = false;
   shipInfoMenu.isOpen = false;
   politicsMenu.isOpen = false;
+  navigationMenu.isOpen = false;
+  aboardMenu.isOpen = false;
+  captainMenu.isOpen = false;
   captainAlertModal = null;
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
@@ -16165,6 +16295,7 @@ function render(nowMs) {
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
   if (politicsMenu.isOpen) drawPoliticsMenu();
   if (navigationMenu.isOpen) drawNavigationMenu();
+  if (aboardMenu.isOpen) drawAboardMenu();
   if (captainMenu.isOpen && !captainChildMenuIsOpen()) drawCaptainMenu(nowMs);
   if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
@@ -17115,6 +17246,7 @@ function drawMinimap(nowMs) {
   ctx.fillRect(MINIMAP_X - 1, MINIMAP_Y - 1, MINIMAP_W + 2, MINIMAP_H + 2);
   ctx.drawImage(minimap.canvas, MINIMAP_X, MINIMAP_Y);
   if (!displayViewport || !cartographyActive) return;
+  drawMinimapSettlementMarkers(MINIMAP_X, MINIMAP_Y, minimap);
   drawMinimapNavigationMarkers(MINIMAP_X, MINIMAP_Y, minimap);
 
   const marker = minimapPixelForTile(centerTileId);
@@ -17346,6 +17478,27 @@ function drawMinimapNavigationMarkers(x, y, raster) {
   ctx.restore();
 }
 
+function drawMinimapSettlementMarkers(x, y, raster) {
+  if (!raster?.renderedViewport || !gameState || !cityByTileId) return;
+  const settlements = [...cityByTileId.values()];
+  if (npcSeaRoutes && pirateHideoutsVisibleToPlayer(gameState)) {
+    settlements.push(...pirateHideoutPortsByTileId.values());
+  }
+  const markers = minimapSettlementMarkers(settlements, {
+    isRevealed: (settlement) => minimap.seenTiles[settlement.tileId] !== 0,
+    project: (settlement) => minimapPixelForTile(settlement.tileId, raster)
+  });
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, raster.width, raster.height);
+  ctx.clip();
+  for (const marker of markers) {
+    ctx.fillStyle = minimapSettlementColor(marker.kind);
+    ctx.fillRect(x + marker.x, y + marker.y, 1, 1);
+  }
+  ctx.restore();
+}
+
 function drawMinimapNavigationDiamond(centerX, centerY, style) {
   const left = centerX - 2;
   const top = centerY - 2;
@@ -17527,14 +17680,9 @@ function drawCaptainMenu(nowMs) {
 function drawCaptainMenuItemIcon(index, x, y, active) {
   const action = CAPTAIN_MENU_ACTIONS[index];
   if (!action) throw new Error(`Captain menu item has no action: ${index}`);
-  const iconId = action.id === "ship" ? activeShipMenuIconId() : action.iconId;
+  const iconId = action.iconId;
   if (!iconId) throw new Error(`Captain menu item has no icon: ${action.id}`);
   drawGameIcon(iconId, x - 1, y - 1, { alpha: active ? 1 : 0.82 });
-}
-
-function activeShipMenuIconId() {
-  if (!ship?.typeSlug) throw new Error("Ship & Ledger icon requires an active player ship");
-  return shipMenuIconId(ship.typeSlug);
 }
 
 function drawGameIcon(iconId, x, y, options = {}) {
@@ -17838,6 +17986,7 @@ function drawCaptainChart(panel, nowMs) {
   const chartMinimap = nativeCaptainChartMinimap(mapW, mapH, displayViewport);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(chartMinimap.canvas, mapX, mapY);
+  drawMinimapSettlementMarkers(mapX, mapY, chartMinimap);
 
   const mapped = minimap ? minimap.seenTileCount / graph.tileCount : 0;
   drawOptionsText(`${uiText("status.mapped")} ${(mapped * 100).toFixed(2)}%`, mapX, header.mappedY, {
@@ -18004,7 +18153,8 @@ function drawCaptainChartNavigation(panel) {
   });
 
   const labelIndex = hoveredIndex >= 0 ? hoveredIndex : captainMenu.selectedIndex;
-  const label = CAPTAIN_MENU_ACTIONS[labelIndex]?.label;
+  const action = CAPTAIN_MENU_ACTIONS[labelIndex];
+  const label = action?.labelKey ? uiText(action.labelKey) : action?.label;
   if (!label) throw new Error(`Captain menu label is missing: ${labelIndex}`);
   drawOptionsText(label, panel.x + panel.w / 2, y - 13, {
     font: PIXEL_FONT_DIALOGUE_8,
@@ -18368,7 +18518,7 @@ function drawNavigationMenu() {
     navigationMenu.closeButtonRect,
     pointInRect(optionsMenu.hoverPoint, navigationMenu.closeButtonRect)
   );
-  drawOptionsText("NAVIGATION ICONS", panel.x + panel.w / 2, panel.y + 10, {
+  drawOptionsText(uiText("captain.navigation"), panel.x + panel.w / 2, panel.y + 10, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
@@ -18388,7 +18538,7 @@ function drawNavigationMenu() {
   }) : null);
 
   if (page.rows.length === 0) {
-    drawOptionsText("NO ACTIVE NAVIGATION ICONS", panel.x + panel.w / 2, listY + 44, {
+    drawOptionsText(uiText("navigation.none"), panel.x + panel.w / 2, listY + 44, {
       align: "center",
       color: PIRATE_MENU_INK_MUTED
     });
@@ -18489,7 +18639,7 @@ function drawShipInfoButton() {
   ctx.save();
   drawPirateHudButton(rect, hovered);
   drawGameIcon(
-    activeShipMenuIconId(),
+    "menu:ship",
     rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2),
     rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2)
   );
@@ -19312,6 +19462,233 @@ function discoveryKindColor(kind) {
   if (kind === "legend") return "#f04f78";
   if (kind === "achievement") return "#6aa6a1";
   throw new Error(`Unknown discovery kind: ${kind}`);
+}
+
+function currentAboardRoster() {
+  if (!gameState?.ship || !gameState.playerCharacter) {
+    throw new Error("Cannot build the aboard roster before the player ship is ready");
+  }
+  const travelerGroups = shipTravelerManifest(gameState);
+  const activeQuest = gameState.memory.quests?.active || null;
+  const namedTravelerKind = activeQuest?.kind === "passenger"
+    ? "passenger"
+    : isEnvoyQuest(activeQuest) ? "envoy" : null;
+  const namedTraveler = namedTravelerKind && activeQuest?.passenger
+    ? { kind: namedTravelerKind, character: activeQuest.passenger }
+    : null;
+  const hasColonists = travelerGroups.some((group) => group.kind === "settler" && group.count > 0);
+  const colonyLeader = hasColonists ? ensureColonizationOrganizer(gameState) : null;
+  return aboardRoster({
+    captain: gameState.playerCharacter,
+    crewCount: gameState.ship.crew,
+    travelerGroups,
+    namedTraveler,
+    colonyLeader
+  });
+}
+
+function drawAboardMenu() {
+  const roster = currentAboardRoster();
+  const panelW = Math.min(ABOARD_MENU_PANEL_W, SCREEN_W - 12);
+  const panelH = Math.min(ABOARD_MENU_PANEL_H, SCREEN_H - 12);
+  const panel = {
+    x: Math.floor((SCREEN_W - panelW) / 2),
+    y: Math.floor((SCREEN_H - panelH) / 2),
+    w: panelW,
+    h: panelH
+  };
+  const body = {
+    x: panel.x + 10,
+    y: panel.y + 37,
+    w: panel.w - 20,
+    h: panel.h - 72
+  };
+  const layout = aboardRosterLayout(roster, body.w);
+  aboardMenu.panelRect = panel;
+  aboardMenu.viewportHeight = body.h;
+  aboardMenu.maxScrollY = Math.max(0, layout.height - body.h);
+  aboardMenu.scrollY = clamp(aboardMenu.scrollY, 0, aboardMenu.maxScrollY);
+  aboardMenu.closeButtonRect = {
+    x: panel.x + panel.w - UI_ICON_BUTTON_SIZE - 6,
+    y: panel.y + 6,
+    w: UI_ICON_BUTTON_SIZE,
+    h: UI_ICON_BUTTON_SIZE
+  };
+
+  ctx.save();
+  drawPiratePaperModal(panel, 0.84);
+  drawOptionsCloseButton(
+    aboardMenu.closeButtonRect,
+    pointInRect(captainMenu.hoverPoint, aboardMenu.closeButtonRect)
+  );
+  drawOptionsText(
+    fitPixelText(uiText("aboard.title"), PIXEL_FONT_DIALOGUE_8, panel.w - 86),
+    panel.x + panel.w / 2,
+    panel.y + 10,
+    { font: PIXEL_FONT_DIALOGUE_8, align: "center", color: PIRATE_MENU_INK }
+  );
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(body.x, body.y, body.w, body.h);
+  ctx.clip();
+  for (const entry of layout.named) {
+    const drawY = body.y + entry.y - aboardMenu.scrollY;
+    if (drawY + ABOARD_NAMED_TILE_H < body.y || drawY > body.y + body.h) continue;
+    drawAboardNamedEntry(entry, body.x + entry.x, drawY);
+  }
+  for (const entry of layout.generic) {
+    const drawY = body.y + entry.y - aboardMenu.scrollY;
+    if (drawY + ABOARD_GENERIC_TILE_H < body.y || drawY > body.y + body.h) continue;
+    drawAboardGenericEntry(entry, body.x + entry.x, drawY);
+  }
+  ctx.restore();
+
+  const canScrollUp = aboardMenu.scrollY > 0;
+  const canScrollDown = aboardMenu.scrollY < aboardMenu.maxScrollY;
+  const footerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
+  aboardMenu.scrollUpRect = canScrollUp
+    ? { x: panel.x + 12, y: footerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H }
+    : null;
+  aboardMenu.scrollDownRect = canScrollDown
+    ? { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: footerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H }
+    : null;
+  if (aboardMenu.scrollUpRect) {
+    drawOptionsArrowButton(
+      aboardMenu.scrollUpRect,
+      "^",
+      pointInRect(captainMenu.hoverPoint, aboardMenu.scrollUpRect)
+    );
+    drawMenuScrollTriangle(body.x + body.w / 2, body.y - 4, "up");
+  }
+  if (aboardMenu.scrollDownRect) {
+    drawOptionsArrowButton(
+      aboardMenu.scrollDownRect,
+      "v",
+      pointInRect(captainMenu.hoverPoint, aboardMenu.scrollDownRect)
+    );
+    drawMenuScrollTriangle(body.x + body.w / 2, body.y + body.h + 1, "down");
+  }
+  drawOptionsText(`${roster.count}`, panel.x + panel.w / 2, footerY + 3, {
+    align: "center",
+    color: PIRATE_MENU_INK_MUTED
+  });
+  ctx.restore();
+}
+
+function aboardRosterLayout(roster, width) {
+  const namedColumns = Math.max(1, Math.min(
+    roster.named.length,
+    Math.floor(width / ABOARD_NAMED_TILE_MIN_W)
+  ));
+  const namedCellW = Math.floor(width / namedColumns);
+  const namedRows = Math.ceil(roster.named.length / namedColumns);
+  const named = roster.named.map((entry, index) => ({
+    ...entry,
+    x: (index % namedColumns) * namedCellW,
+    y: Math.floor(index / namedColumns) * ABOARD_NAMED_TILE_H,
+    w: namedCellW
+  }));
+
+  const genericStartY = namedRows * ABOARD_NAMED_TILE_H +
+    (roster.generic.length > 0 ? ABOARD_CONTENT_SECTION_GAP : 0);
+  const genericColumns = Math.max(1, Math.floor(width / ABOARD_GENERIC_TILE_MIN_W));
+  const genericCellW = Math.floor(width / genericColumns);
+  const genericRows = Math.ceil(roster.generic.length / genericColumns);
+  const generic = roster.generic.map((entry, index) => {
+    const row = Math.floor(index / genericColumns);
+    const column = index % genericColumns;
+    const rowCount = Math.min(genericColumns, roster.generic.length - row * genericColumns);
+    const rowOffset = Math.floor((width - rowCount * genericCellW) / 2);
+    return {
+      ...entry,
+      x: rowOffset + column * genericCellW,
+      y: genericStartY + row * ABOARD_GENERIC_TILE_H,
+      w: genericCellW
+    };
+  });
+  return {
+    named,
+    generic,
+    height: genericStartY + genericRows * ABOARD_GENERIC_TILE_H
+  };
+}
+
+function drawAboardNamedEntry(entry, x, y) {
+  const frameSize = DIALOGUE_PORTRAIT_SIZE + 2;
+  const frameX = Math.round(x + (entry.w - frameSize) / 2);
+  const frameY = Math.round(y);
+  const color = aboardRoleColor(entry.role);
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
+  ctx.fillRect(frameX, frameY, frameSize, frameSize);
+  ctx.strokeStyle = color;
+  ctx.strokeRect(frameX + 0.5, frameY + 0.5, frameSize - 1, frameSize - 1);
+  drawDialoguePortrait(entry.character, "neutral", frameX + 1, frameY + 1);
+
+  drawOptionsText(
+    fitPixelText(entry.character.name.toUpperCase(), PIXEL_FONT_SMALL_8, entry.w - 2),
+    x + entry.w / 2,
+    y + 68,
+    { align: "center", color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    fitPixelText(aboardRoleLabel(entry.role), PIXEL_FONT_SMALL_8, entry.w - 2),
+    x + entry.w / 2,
+    y + 77,
+    { align: "center", color }
+  );
+}
+
+function drawAboardGenericEntry(entry, x, y) {
+  const frameX = Math.round(x + (entry.w - ABOARD_GENERIC_FRAME_SIZE) / 2);
+  const frameY = Math.round(y);
+  const color = aboardRoleColor(entry.role);
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
+  ctx.fillRect(frameX, frameY, ABOARD_GENERIC_FRAME_SIZE, ABOARD_GENERIC_FRAME_SIZE);
+  ctx.strokeStyle = color;
+  ctx.strokeRect(
+    frameX + 0.5,
+    frameY + 0.5,
+    ABOARD_GENERIC_FRAME_SIZE - 1,
+    ABOARD_GENERIC_FRAME_SIZE - 1
+  );
+  drawGameIcon("menu:captain", frameX + 3, frameY + 3, { alpha: 0.9 });
+  const labelLines = wrapPixelText(
+    aboardRoleLabel(entry.role),
+    PIXEL_FONT_SMALL_8,
+    entry.w - 1,
+    2
+  );
+  labelLines.forEach((line, index) => drawOptionsText(
+    line,
+    x + entry.w / 2,
+    y + 25 + index * 8,
+    { align: "center", color }
+  ));
+}
+
+function aboardRoleLabel(role) {
+  const key = {
+    [ABOARD_ROLE_CAPTAIN]: "aboard.captain",
+    [ABOARD_ROLE_PASSENGER]: "aboard.passenger",
+    [ABOARD_ROLE_EMISSARY]: "aboard.emissary",
+    [ABOARD_ROLE_COLONY_LEADER]: "aboard.colonyLeader",
+    [ABOARD_ROLE_CREWMATE]: "aboard.crewmate",
+    [ABOARD_ROLE_COLONIST]: "aboard.colonist"
+  }[role];
+  if (!key) throw new Error(`Unknown aboard role: ${role}`);
+  return uiText(key);
+}
+
+function aboardRoleColor(role) {
+  if (role === ABOARD_ROLE_CAPTAIN) return PIRATE_MENU_CHART_LINE;
+  if (role === ABOARD_ROLE_PASSENGER) return STATUS_PERSON_COLORS.passenger[0];
+  if (role === ABOARD_ROLE_EMISSARY) return STATUS_PERSON_COLORS.envoy[0];
+  if (role === ABOARD_ROLE_COLONY_LEADER || role === ABOARD_ROLE_COLONIST) {
+    return STATUS_PERSON_COLORS.settler[0];
+  }
+  if (role === ABOARD_ROLE_CREWMATE) return PIRATE_MENU_INK_MUTED;
+  throw new Error(`Unknown aboard role color: ${role}`);
 }
 
 function drawAchievementsMenu() {

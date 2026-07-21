@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-18";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-21";
 
 const ICON_COLOR = Object.freeze({
   danger: "#6e2727",
@@ -136,13 +136,9 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "menu:options": nikoichu("Software_Options_Settings_Sliders_Knobs_Audio.png", ICON_COLOR.purple),
   "menu:credits": nikoichu("Software_Text_Document_Credits_Roll_Attributions.png", ICON_COLOR.dialogue),
   "menu:captain": nikoichu("Travel_Person_Player_Character_Single.png", ICON_COLOR.warm),
-  "menu:politics": nikoichu("RPG_Trade_Libra_Scales_Balanced_Even_Fair_Law_Justice_Judge.png", ICON_COLOR.gold),
-  "menu:discoveries": projectAsset("public/assets/terrain/resurrect-64/egyptian_pyramid.png", {
-    x: 2,
-    y: 0,
-    w: 32,
-    h: 32
-  }),
+  "menu:ship": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_COLOR.sea),
+  "menu:politics": nikoichu("Map_Markers_Flagpole_Triangle_Minesweeper.png", ICON_COLOR.gold),
+  "menu:discoveries": nikoichu("Map_Markers_Building_Bank_Greek_Temple.png", ICON_COLOR.parchment),
 
   ...SHIP_MENU_ICON_SOURCES,
 
@@ -155,7 +151,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:harpoon": nikoichu("Tools_Crafting_Fishing_Harpoon_Spear.png", ICON_COLOR.steel),
   "action:scavenge": nikoichu("Travel_Backpack_Bag_Bedroll.png", ICON_COLOR.timber),
   "action:buy": nikoichu("Software_Shopping_Basket.png", ICON_COLOR.success),
-  "action:sell": generatedIcon("exchange-arrows"),
+  "action:sell": nikoichu("Arrows_Double_Horizontal_Left_Right.png", ICON_COLOR.gold),
   "action:back": nikoichu("Arrows_Go_Back_Return_Previous.png", ICON_COLOR.steel),
   "action:leave": nikoichu("Software_Exit_Quit_Doorway_Button.png", ICON_COLOR.warm),
   "action:quest": nikoichu("Software_Speech_Bubble_Exclaimation_Mark_Quest_New.png", ICON_COLOR.gold),

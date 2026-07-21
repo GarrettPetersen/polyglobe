@@ -198,22 +198,7 @@ function generateIcon(generatedId) {
   if (generatedId === "play-arrow") return generatePlayArrow();
   if (generatedId === "restart-arrow") return generateRestartArrow();
   if (generatedId === "surrender-flag") return generateSurrenderFlag();
-  if (generatedId === "exchange-arrows") return generateExchangeArrows();
   throw new Error(`Unknown generated game icon: ${generatedId}`);
-}
-
-function generateExchangeArrows() {
-  const canvas = createCanvas(GAME_ICON_SIZE, GAME_ICON_SIZE);
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#9e4539";
-  const pixels = [
-    [2, 5], [3, 5], [4, 5], [5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5],
-    [10, 3], [11, 4], [11, 6], [10, 7],
-    [2, 10], [3, 10], [4, 10], [5, 10], [6, 10], [7, 10], [8, 10], [9, 10], [10, 10], [11, 10], [12, 10], [13, 10],
-    [5, 8], [4, 9], [4, 11], [5, 12]
-  ];
-  for (const [x, y] of pixels) ctx.fillRect(x, y, 1, 1);
-  return canvas;
 }
 
 function generateBackArrow() {
