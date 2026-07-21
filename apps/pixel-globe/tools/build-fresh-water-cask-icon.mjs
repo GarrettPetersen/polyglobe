@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createCanvas } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 const appRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const outputPath = join(appRoot, "public/assets/misc/water.png");
+const outputPath = join(appRoot, "public/assets/misc/fresh-water-cask.png");
 const canvas = createCanvas(6, 6);
 const ctx = canvas.getContext("2d");
 const palette = Object.freeze({
@@ -35,4 +35,4 @@ for (let y = 0; y < rows.length; y++) {
 }
 
 writeFileSync(outputPath, canvas.toBuffer("image/png"));
-console.log(`Built 1522 water cask icon at ${outputPath}`);
+console.log(`Built 1522 fresh-water cask icon at ${outputPath}`);

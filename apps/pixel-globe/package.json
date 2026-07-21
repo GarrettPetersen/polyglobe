@@ -44,7 +44,7 @@
     "render:ship-menu-icons": "node tools/build-ship-menu-icons.mjs",
     "render:game-icons": "npm run render:ship-menu-icons && node tools/build-game-icon-atlas.mjs",
     "render:port-sailing-distances": "node tools/build-port-sailing-distances.mjs",
-    "render:status-water": "node tools/build-status-water-icon.mjs",
+    "render:fresh-water-cask": "node tools/build-fresh-water-cask-icon.mjs",
     "render:land-roads": "node tools/build-land-roads.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
     "render:capsules": "node tools/generate-layered-capsule-art.mjs",

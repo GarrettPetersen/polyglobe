@@ -86,7 +86,7 @@ const SHIP_MENU_ICON_SOURCES = Object.freeze(Object.fromEntries(
 
 export const GAME_ICON_SOURCES = Object.freeze({
   "good:hardtack": alex("pastry_bread.png"),
-  "good:fresh-water": projectAsset("public/assets/misc/water.png"),
+  "good:fresh-water": projectAsset("public/assets/misc/fresh-water-cask.png"),
   "good:foraged-food": alex("fruit_apple.png"),
   "good:grain": paperOutlined(keifoo("grains_png/wheat.png")),
   "good:fish": hollow(4),

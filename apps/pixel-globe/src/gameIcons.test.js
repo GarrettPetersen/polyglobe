@@ -122,7 +122,7 @@ test("literal anchor controls use the dedicated period anchor art", () => {
 test("fresh water uses the period cask instead of modern bottled-water artwork", () => {
   const source = GAME_ICON_SOURCES["good:fresh-water"];
   assert.equal(source.packId, null);
-  assert.equal(source.assetPath, "public/assets/misc/water.png");
+  assert.equal(source.assetPath, "public/assets/misc/fresh-water-cask.png");
 });
 
 test("every non-vendored pack icon has a checked-in source fallback", async () => {
