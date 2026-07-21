@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +27,7 @@ import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const atlasPath = join(appRoot, "public/assets/ui/game-icons.png");
 const manifestPath = join(appRoot, "public/assets/ui/game-icons.json");
+const fallbackManifestPath = join(appRoot, "vendor/icon-packs/game-icon-source-fallbacks-v14.json");
 
 test("every trade good has a unique semantic icon mapping", () => {
   const iconIds = TRADE_GOODS.map((good) => tradeGoodIconId(good.id));
@@ -75,15 +76,38 @@ test("all downloaded icon packs are used and fully attributed", async () => {
     assert.match(pack.sourceUrl, /^https:\/\//, `${packId} source URL`);
     assert.ok(pack.license, `${packId} license`);
     assert.match(credits, new RegExp(escapeRegExp(pack.creator)), `${packId} credit`);
+    if (pack.repoArchive) {
+      const archive = await stat(join(appRoot, pack.repoArchive));
+      assert.ok(archive.size > 0, `${packId} repo archive`);
+    }
   }
 });
 
 test("fishing actions use a legible native-size fishing rod", () => {
   const source = GAME_ICON_SOURCES["action:fish"];
-  assert.equal(source.packId, "hollow");
-  assert.equal(source.entry, "Separated Sprites/16x16/fishing_icons_16x16_7.png");
+  assert.equal(source.packId, "nikoichu");
+  assert.equal(source.entry, "Sprites/Tools_Crafting_Fishing_Rod.png");
   assert.equal(source.crop, null);
   assert.equal(source.paperOutline, undefined);
+});
+
+test("interface controls use the dedicated one-bit icon language without replacing trade goods", () => {
+  for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
+    if (iconId.startsWith("menu:") && iconId !== "menu:discoveries") {
+      assert.equal(source.packId, "nikoichu", iconId);
+    }
+    if (iconId.startsWith("action:")) assert.equal(source.packId, "nikoichu", iconId);
+    if (iconId.startsWith("good:")) assert.notEqual(source.packId, "nikoichu", iconId);
+  }
+});
+
+test("every non-vendored pack icon has a checked-in source fallback", async () => {
+  const manifest = JSON.parse(await readFile(fallbackManifestPath, "utf8"));
+  const fallbackIds = new Set(manifest.icons.map((icon) => icon.id));
+  for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
+    if (!source.packId || GAME_ICON_PACKS[source.packId].repoArchive) continue;
+    assert.ok(fallbackIds.has(iconId), iconId);
+  }
 });
 
 test("ship and ledger has native 16x16 artwork for every roster vessel", async () => {

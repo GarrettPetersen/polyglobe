@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,9 +18,15 @@ import { nearestResurrect64Hex } from "../src/waterLatitudePalette.js";
 const appRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outputPath = join(appRoot, "public/assets/ui/game-icons.png");
 const manifestPath = join(appRoot, "public/assets/ui/game-icons.json");
-const sourceRoot = resolve(process.env.PIXEL_GLOBE_ICON_PACK_DIR || join(homedir(), "Downloads"));
+const sourceRoot = process.env.PIXEL_GLOBE_ICON_PACK_DIR
+  ? resolve(process.env.PIXEL_GLOBE_ICON_PACK_DIR)
+  : null;
+const fallbackAtlasPath = join(appRoot, "vendor/icon-packs/game-icon-source-fallbacks-v14.png");
+const fallbackManifestPath = join(appRoot, "vendor/icon-packs/game-icon-source-fallbacks-v14.json");
 const PAPER_ICON_OUTLINE = Object.freeze({ r: 59, g: 32, b: 39, a: 255 });
 const PAPER_ICON_OUTLINE_HEX = "#3b2027";
+let fallbackAtlasPromise = null;
+let fallbackManifest = null;
 
 async function main() {
   const dimensions = gameIconAtlasDimensions();
@@ -41,12 +46,18 @@ async function main() {
 
   for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
     if (appendGeneratedOnly && !source.generatedId) continue;
-    const image = await loadIconSource(source);
-    const crop = source.crop || { x: 0, y: 0, w: image.width, h: image.height };
+    const loaded = await loadIconSource(iconId, source);
+    const { image } = loaded;
+    const crop = loaded.crop || source.crop || { x: 0, y: 0, w: image.width, h: image.height };
     if (crop.x < 0 || crop.y < 0 || crop.x + crop.w > image.width || crop.y + crop.h > image.height) {
       throw new Error(`Icon crop is outside source image: ${iconId}`);
     }
-    drawIconSource(ctx, image, crop, gameIconAtlasRect(iconId), source);
+    const rect = gameIconAtlasRect(iconId);
+    if (loaded.finalized) {
+      ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, rect.x, rect.y, GAME_ICON_SIZE, GAME_ICON_SIZE);
+    } else {
+      drawIconSource(ctx, image, crop, rect, source);
+    }
   }
 
   quantizeToResurrect(ctx, dimensions.width, dimensions.height);
@@ -71,20 +82,46 @@ async function main() {
   console.log(`Built ${Object.keys(GAME_ICON_SOURCES).length} game icons at ${outputPath}`);
 }
 
-async function loadIconSource(source) {
-  if (source.generatedId) return generateIcon(source.generatedId);
+async function loadIconSource(iconId, source) {
+  if (source.generatedId) return { image: generateIcon(source.generatedId) };
   if (source.assetPath) {
     const assetPath = join(appRoot, source.assetPath);
     if (!existsSync(assetPath)) throw new Error(`Missing project icon asset: ${assetPath}`);
-    return loadImage(assetPath);
+    return { image: await loadImage(assetPath) };
   }
   const pack = GAME_ICON_PACKS[source.packId];
   if (!pack) throw new Error(`Unknown icon source pack: ${source.packId}`);
-  const archivePath = join(sourceRoot, pack.archive);
-  if (!existsSync(archivePath)) throw new Error(`Missing icon pack archive: ${archivePath}`);
+  const archivePath = iconPackArchivePath(source.packId);
+  if (!archivePath) return loadVendoredPackFallback(iconId);
   const bytes = execFileSync("unzip", ["-p", archivePath, source.entry], { maxBuffer: 8 * 1024 * 1024 });
   if (bytes.length === 0) throw new Error(`Icon source is empty: ${pack.archive}/${source.entry}`);
-  return loadImage(bytes);
+  return { image: await loadImage(bytes) };
+}
+
+function iconPackArchivePath(packId) {
+  const pack = GAME_ICON_PACKS[packId];
+  if (!pack) throw new Error(`Unknown icon source pack: ${packId}`);
+  const repoArchivePath = pack.repoArchive ? join(appRoot, pack.repoArchive) : null;
+  if (repoArchivePath && existsSync(repoArchivePath)) return repoArchivePath;
+  const externalArchivePath = sourceRoot ? join(sourceRoot, pack.archive) : null;
+  return externalArchivePath && existsSync(externalArchivePath) ? externalArchivePath : null;
+}
+
+async function loadVendoredPackFallback(iconId) {
+  if (!existsSync(fallbackAtlasPath) || !existsSync(fallbackManifestPath)) {
+    throw new Error(`Missing vendored icon source fallback for ${iconId}`);
+  }
+  if (!fallbackManifest) {
+    fallbackManifest = JSON.parse(readFileSync(fallbackManifestPath, "utf8"));
+  }
+  const icon = fallbackManifest.icons.find((entry) => entry.id === iconId);
+  if (!icon) throw new Error(`Vendored icon source fallback has no entry for ${iconId}`);
+  fallbackAtlasPromise ||= loadImage(fallbackAtlasPath);
+  return {
+    image: await fallbackAtlasPromise,
+    crop: icon.rect,
+    finalized: true
+  };
 }
 
 function drawIconSource(ctx, image, crop, rect, source) {

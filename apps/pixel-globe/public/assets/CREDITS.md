@@ -63,6 +63,7 @@
 - alexkovacsart - "100 Free Pixel Art Foods!" (CC BY 4.0)
 - KeifooPX - "99 various ingredients +" (itch.io asset license)
 - Hollow Dolphin - "Fishing Icon Pack 16x16" (itch.io asset license)
+- Nikoichu - "1-bit Pixel Icons" (CC0 1.0)
 - Selected icons were modified and palette-adapted to Resurrect 64. Source links are recorded in the public game icon manifest.
 
 ## Pixel Art Effects

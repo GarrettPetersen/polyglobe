@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-13";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-14";
 
 export const GAME_ICON_PACKS = Object.freeze({
   pirate: iconPack({
@@ -31,7 +31,8 @@ export const GAME_ICON_PACKS = Object.freeze({
     title: "100 Free Pixel Art Foods!",
     sourceUrl: "https://alexkovacsart.itch.io/free-pixel-art-foods",
     license: "CC BY 4.0",
-    archive: "Free_pixel_food_16x16.zip"
+    archive: "Free_pixel_food_16x16.zip",
+    repoArchive: "vendor/icon-packs/alexkovacsart-free-pixel-art-foods.zip"
   }),
   keifoo: iconPack({
     creator: "KeifooPX",
@@ -46,6 +47,14 @@ export const GAME_ICON_PACKS = Object.freeze({
     sourceUrl: "https://hollowdolphin.itch.io/fishing-icon-pack",
     license: "Hollow Dolphin itch.io asset license",
     archive: "Hollow Dolphin Fishing Icon Pack.zip"
+  }),
+  nikoichu: iconPack({
+    creator: "Nikoichu",
+    title: "1-bit Pixel Icons",
+    sourceUrl: "https://nikoichu.itch.io/pixel-icons",
+    license: "CC0 1.0",
+    archive: "1-bit_Pixel_Icons.zip",
+    repoArchive: "vendor/icon-packs/nikoichu-1-bit-pixel-icons-v1.2.zip"
   })
 });
 
@@ -105,14 +114,14 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:silver": glionox(570),
   "good:gold": glionox(567),
 
-  "menu:continue": generatedIcon("play-arrow"),
-  "menu:new-game": pirate(12),
-  "menu:lake-battle": pirate(22),
-  "menu:past-voyages": pirate(48),
-  "menu:options": glionox(934),
-  "menu:credits": glionox(625),
-  "menu:captain": pirate(29),
-  "menu:politics": pirate(23),
+  "menu:continue": nikoichu("Arrows_Media_Controls_Play_Triangle.png"),
+  "menu:new-game": nikoichu("Travel_Ship_Medieval_Caravel.png"),
+  "menu:lake-battle": nikoichu("RPG_Crossed_Swords_Duel_PvP_Combat_Battle_War.png"),
+  "menu:past-voyages": nikoichu("Map_Markers_Treasure_Map_Paper_Parchment.png"),
+  "menu:options": nikoichu("Software_Options_Settings_Sliders_Knobs_Audio.png"),
+  "menu:credits": nikoichu("Software_Text_Document_Credits_Roll_Attributions.png"),
+  "menu:captain": nikoichu("Travel_Person_Player_Character_Single.png"),
+  "menu:politics": nikoichu("RPG_Trade_Libra_Scales_Balanced_Even_Fair_Law_Justice_Judge.png"),
   "menu:discoveries": projectAsset("public/assets/terrain/resurrect-64/egyptian_pyramid.png", {
     x: 2,
     y: 0,
@@ -122,32 +131,32 @@ export const GAME_ICON_SOURCES = Object.freeze({
 
   ...SHIP_MENU_ICON_SOURCES,
 
-  "action:dock": pirate(44),
-  "action:hail": pirate(14),
-  "action:fish": hollow(7),
-  "action:harpoon": glionox(119),
-  "action:scavenge": pirate(40),
-  "action:buy": pirate(31),
-  "action:sell": pirate(32),
-  "action:back": generatedIcon("back-arrow"),
-  "action:leave": pirate(19),
-  "action:quest": pirate(7),
-  "action:talk": glionox(652),
-  "action:wait": glionox(941),
-  "action:attack": pirate(22),
-  "action:loadout": glionox(934),
-  "action:shipyard": glionox(695),
-  "action:letter": lethe(5, 14),
-  "action:disguise": pirate(35),
-  "action:surrender": generatedIcon("surrender-flag"),
-  "action:passenger": glionox(782),
-  "action:viking": glionox(202),
-  "action:inventory": pirate(10),
-  "action:resume": generatedIcon("play-arrow"),
-  "action:restart": generatedIcon("restart-arrow"),
-  "action:choose-ships": pirate(19),
-  "action:start-menu": pirate(4),
-  "action:navigation": generatedIcon("gray-waypoint-arrow"),
+  "action:dock": nikoichu("Travel_Ship_Dock.png"),
+  "action:hail": nikoichu("Software_Speech_Bubble_Three_Dots_Dialogue.png"),
+  "action:fish": nikoichu("Tools_Crafting_Fishing_Rod.png"),
+  "action:harpoon": nikoichu("Tools_Crafting_Fishing_Harpoon_Spear.png"),
+  "action:scavenge": nikoichu("Travel_Backpack_Bag_Bedroll.png"),
+  "action:buy": nikoichu("Software_Shopping_Basket.png"),
+  "action:sell": nikoichu("RPG_Trade_Handshake_Deal_Exchange.png"),
+  "action:back": nikoichu("Arrows_Go_Back_Return_Previous.png"),
+  "action:leave": nikoichu("Software_Exit_Quit_Doorway_Button.png"),
+  "action:quest": nikoichu("Software_Speech_Bubble_Exclaimation_Mark_Quest_New.png"),
+  "action:talk": nikoichu("Software_Speech_Bubble_Three_Dots_Dialogue.png"),
+  "action:wait": nikoichu("Software_Clock_Time_Wait_1.png"),
+  "action:attack": nikoichu("Warfare_Medieval_Siege_Engine_Cannon_Gunpowder.png"),
+  "action:loadout": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png"),
+  "action:shipyard": nikoichu("Tools_Crafting_Smithing_Anvil_Hammer.png"),
+  "action:letter": nikoichu("Tools_Crafting_Writing_Parchment_Scroll_Document_Sealed.png"),
+  "action:disguise": nikoichu("Hats_Domino_Mask_Incognito_Private_Privacy.png"),
+  "action:surrender": nikoichu("Map_Markers_Flagpole.png"),
+  "action:passenger": nikoichu("Travel_Person_People_Two.png"),
+  "action:viking": nikoichu("Hats_Viking_Helmet_Armor.png"),
+  "action:inventory": nikoichu("Tools_Crafting_Chest_Locked_Loot_2.png"),
+  "action:resume": nikoichu("Arrows_Media_Controls_Play_Triangle.png"),
+  "action:restart": nikoichu("Arrows_Reload_Refresh_Rotate_Clockwise.png"),
+  "action:choose-ships": nikoichu("Travel_Ship_Sailing_Boat.png"),
+  "action:start-menu": nikoichu("Map_Markers_Building_Home_House.png"),
+  "action:navigation": nikoichu("Map_Markers_Compass_Rose_1.png"),
 
   "good:gunpowder": pirate(42),
   "good:matchlocks": pirate(45)
@@ -382,4 +391,8 @@ function keifoo(path) {
 
 function hollow(number) {
   return iconSource("hollow", `Separated Sprites/16x16/fishing_icons_16x16_${number}.png`);
+}
+
+function nikoichu(filename) {
+  return iconSource("nikoichu", `Sprites/${filename}`);
 }
