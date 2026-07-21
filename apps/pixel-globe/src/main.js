@@ -10089,7 +10089,7 @@ function fishingChanceForCall(call) {
 
 function playerCrewWorkMultiplier() {
   if (!gameState?.ship || !ship?.stats) throw new Error("Cannot calculate crew work before the player ship is ready");
-  return crewWorkMultiplier(gameState.ship.crew, ship.stats);
+  return crewWorkMultiplier(gameState.ship.crew);
 }
 
 function worldInteractionTargetAtPoint(point) {

@@ -1,38 +1,33 @@
-import { shipCrewCapacity, shipMinimumCrew } from "./shipLoadouts.js";
+import { SHIP_STATS } from "./shipStats.js";
 
 export const MINIMUM_CREW_WORK_MULTIPLIER = 0.5;
 export const STANDARD_CREW_WORK_MULTIPLIER = 1;
 export const MAXIMUM_CREW_WORK_MULTIPLIER = 2;
+export const STANDARD_CREW_WORK_COUNT = 5;
+export const MAXIMUM_CREW_WORK_COUNT = Math.max(...SHIP_STATS.map((stats) => stats.crewCapacity));
 
-export function crewWorkMultiplier(activeCrew, stats) {
+export function crewWorkMultiplier(activeCrew) {
   if (!Number.isInteger(activeCrew) || activeCrew < 0) {
     throw new Error(`Invalid active crew for ship work: ${activeCrew}`);
   }
-  const crewCapacity = shipCrewCapacity(stats);
-  if (activeCrew > crewCapacity) {
-    throw new Error(`Active crew exceeds ship work capacity: ${activeCrew}/${crewCapacity}`);
+  if (activeCrew > MAXIMUM_CREW_WORK_COUNT) {
+    throw new Error(`Active crew exceeds world ship capacity: ${activeCrew}/${MAXIMUM_CREW_WORK_COUNT}`);
   }
   if (activeCrew === 0) return 0;
-  const standardCrew = shipMinimumCrew(stats);
-  if (crewCapacity === 1) return STANDARD_CREW_WORK_MULTIPLIER;
-  if (standardCrew === 1) {
-    return lerp(
-      STANDARD_CREW_WORK_MULTIPLIER,
-      MAXIMUM_CREW_WORK_MULTIPLIER,
-      smoothstep((activeCrew - 1) / (crewCapacity - 1))
-    );
-  }
-  if (activeCrew <= standardCrew) {
+  if (activeCrew <= STANDARD_CREW_WORK_COUNT) {
     return lerp(
       MINIMUM_CREW_WORK_MULTIPLIER,
       STANDARD_CREW_WORK_MULTIPLIER,
-      smoothstep((activeCrew - 1) / (standardCrew - 1))
+      smoothstep((activeCrew - 1) / (STANDARD_CREW_WORK_COUNT - 1))
     );
   }
   return lerp(
     STANDARD_CREW_WORK_MULTIPLIER,
     MAXIMUM_CREW_WORK_MULTIPLIER,
-    smoothstep((activeCrew - standardCrew) / (crewCapacity - standardCrew))
+    smoothstep(
+      (activeCrew - STANDARD_CREW_WORK_COUNT)
+      / (MAXIMUM_CREW_WORK_COUNT - STANDARD_CREW_WORK_COUNT)
+    )
   );
 }
 

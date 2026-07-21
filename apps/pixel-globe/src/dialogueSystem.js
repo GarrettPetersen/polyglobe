@@ -2661,7 +2661,7 @@ function customLoadoutView(session, city, gameState, context) {
     presentation: {
       kind: "custom-loadout",
       plan,
-      crewWorkMultiplier: crewWorkMultiplier(plan.crew, context.shipStats),
+      crewWorkMultiplier: crewWorkMultiplier(plan.crew),
       cannonReloadPercent: plan.cannons > 0
         ? Math.round(cannonReloadWorkRate(plan.crew, plan.cannons) * 100)
         : null,
