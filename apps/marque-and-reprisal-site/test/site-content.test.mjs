@@ -11,7 +11,7 @@ import {
   site,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
-import { homePage } from "../tools/pages.mjs";
+import { homePage, pressPage } from "../tools/pages.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -138,7 +138,15 @@ test("code assets bypass stale browser caches", async () => {
   );
 });
 
-test("the gameplay trailer bypasses stale browser caches", () => {
-  const page = homePage();
-  assert.match(page, /src='\/assets\/video\/gameplay-trailer\.mp4\?v=[0-9a-f]{12}'/);
+test("the exclusive trailer is not published by the site or press kit", async () => {
+  const buildSource = await readFile(path.join(appRoot, "tools/build.mjs"), "utf8");
+  const pressReadme = await readFile(
+    path.join(appRoot, "src/assets/press/README.txt"),
+    "utf8"
+  );
+
+  assert.doesNotMatch(homePage() + pressPage() + buildSource + pressReadme, /trailer/i);
+  await assert.rejects(
+    access(path.join(appRoot, "src/assets/video/gameplay-trailer.mp4"))
+  );
 });

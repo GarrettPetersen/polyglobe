@@ -19,8 +19,8 @@ npm run marque-site:deploy
 
 The build is written to `apps/marque-and-reprisal-site/dist`. The build also
 generates `downloads/marque-and-reprisal-press-kit.zip` from the fact sheet,
-logos, full-resolution screenshots, gameplay trailer, and the aligned capsule
-art layers and Aseprite source.
+logos, full-resolution screenshots, and the aligned capsule art layers and
+Aseprite source.
 
 ## Social sharing
 

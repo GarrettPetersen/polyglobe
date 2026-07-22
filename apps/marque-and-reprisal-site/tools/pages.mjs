@@ -12,7 +12,6 @@ const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
 const codeAssetVersion = "2026-07-22";
-const trailerAssetVersion = "0e47753cd4d8";
 
 export function homePage() {
   const featureRows = features.map((feature) => [
@@ -65,18 +64,6 @@ export function homePage() {
     "<div><span>Conditions</span><strong>Wind, weather, hunger, thirst</strong></div>",
     "<div><span>Economy</span><strong>Reactive ports and NPC trade</strong></div>",
     "<div><span>Stakes</span><strong>One captain. One life.</strong></div>",
-    "</div>",
-    "</section>",
-    "<section class='trailer-section' aria-labelledby='trailer-title'>",
-    "<div class='trailer-heading reveal'>",
-    "<p class='eyebrow'>Gameplay trailer</p>",
-    "<h2 id='trailer-title'>A whole world under sail.</h2>",
-    "</div>",
-    "<div class='trailer-frame reveal'>",
-    "<video controls playsinline preload='metadata' poster='/assets/press/screenshots/06-fight-off-iberia.png'>",
-    "<source src='/assets/video/gameplay-trailer.mp4?v=" + trailerAssetVersion + "' type='video/mp4'>",
-    "Your browser does not support embedded video.",
-    "</video>",
     "</div>",
     "</section>",
     "<section class='feature-course' aria-label='Ways to play'>",
@@ -193,7 +180,7 @@ export function pressPage() {
 
   return layout({
     title: "Press kit — " + site.title,
-    description: "Official Marque & Reprisal fact sheet, screenshots, logos, trailer, and press downloads.",
+    description: "Official Marque & Reprisal fact sheet, screenshots, logos, artwork, and press downloads.",
     canonicalPath: "/press/",
     bodyClass: "press",
     main

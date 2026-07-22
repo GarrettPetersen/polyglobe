@@ -384,7 +384,6 @@ textarea {
 }
 
 .section-heading h2,
-.trailer-heading h2,
 .final-call h2,
 .press-copy h2,
 .press-assets h2,
@@ -441,72 +440,6 @@ textarea {
   color: var(--foam);
   font-size: 15px;
   font-weight: 500;
-}
-
-.trailer-section {
-  padding: clamp(50px, 8vw, 100px) var(--gutter) clamp(110px, 13vw, 180px);
-  background: var(--night-soft);
-}
-
-.trailer-heading {
-  display: flex;
-  max-width: var(--content);
-  align-items: end;
-  justify-content: space-between;
-  gap: 30px;
-  margin: 0 auto 34px;
-}
-
-.trailer-heading .eyebrow {
-  flex: 0 0 auto;
-}
-
-.trailer-heading h2 {
-  max-width: 780px;
-  font-size: clamp(39px, 5vw, 68px);
-  text-align: right;
-}
-
-.trailer-frame {
-  position: relative;
-  max-width: var(--content);
-  margin: 0 auto;
-  padding: 8px;
-  border: 1px solid rgba(226, 173, 79, 0.65);
-  background: var(--night);
-  box-shadow: 17px 17px 0 rgba(167, 47, 60, 0.35);
-}
-
-.trailer-frame::before,
-.trailer-frame::after {
-  position: absolute;
-  z-index: 2;
-  width: 16px;
-  height: 16px;
-  border-color: var(--brass);
-  content: "";
-  pointer-events: none;
-}
-
-.trailer-frame::before {
-  top: -5px;
-  left: -5px;
-  border-top: 2px solid;
-  border-left: 2px solid;
-}
-
-.trailer-frame::after {
-  right: -5px;
-  bottom: -5px;
-  border-right: 2px solid;
-  border-bottom: 2px solid;
-}
-
-.trailer-frame video {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background: var(--ink);
-  image-rendering: pixelated;
 }
 
 .feature-course {
@@ -1309,20 +1242,6 @@ textarea {
   .manifest-ledger div {
     grid-template-columns: 1fr;
     gap: 5px;
-  }
-
-  .trailer-heading {
-    display: block;
-  }
-
-  .trailer-heading h2 {
-    font-size: 42px;
-    text-align: left;
-  }
-
-  .trailer-frame {
-    padding: 4px;
-    box-shadow: 8px 8px 0 rgba(167, 47, 60, 0.35);
   }
 
   .feature-course {

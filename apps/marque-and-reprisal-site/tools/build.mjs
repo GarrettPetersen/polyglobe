@@ -65,8 +65,7 @@ async function buildPressKitArchive() {
       ["assets/press/factsheet.txt", "factsheet.txt"],
       ["assets/press/screenshots", "screenshots"],
       ["assets/press/logos", "logos"],
-      ["assets/press/capsule-art", "capsule-art"],
-      ["assets/video/gameplay-trailer.mp4", "trailer/marque-and-reprisal-gameplay-trailer.mp4"]
+      ["assets/press/capsule-art", "capsule-art"]
     ]);
     for (const [source, target] of entries) {
       const targetPath = path.join(bundleRoot, target);
@@ -94,7 +93,6 @@ async function validateBuild() {
     "privacy/index.html",
     "404.html",
     "downloads/marque-and-reprisal-press-kit.zip",
-    "assets/video/gameplay-trailer.mp4",
     "assets/art/social-share.png",
     "assets/press/capsule-art/capsule-source.aseprite",
     "assets/press/capsule-art/title-with-ship.png"
