@@ -8,8 +8,10 @@ import {
   languages,
   pressCapsuleArt,
   screenshots,
-  site
+  site,
+  WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
+import { homePage } from "../tools/pages.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -37,6 +39,38 @@ test("published links and localization claims are explicit", () => {
   assert.equal(site.steamStatus, "Page coming soon");
   assert.equal(languages.length, 11);
   assert.equal(new Set(languages).size, languages.length);
+});
+
+test("world copy uses the exact subdivision-7 map-cell count", async () => {
+  assert.equal(WORLD_MAP_CELL_COUNT, 163_842);
+  assert.match(features[0].copy, /163,842-cell map/);
+
+  const pagesSource = await readFile(
+    path.join(appRoot, "tools/pages.mjs"),
+    "utf8"
+  );
+  assert.match(pagesSource, /WORLD_MAP_CELL_COUNT\.toLocaleString\("en-US"\)/);
+  assert.doesNotMatch(features[0].copy + pagesSource, /164k|164,000/);
+});
+
+test("social sharing uses the 1200 × 630 capsule card", async () => {
+  const card = await readFile(path.join(appRoot, "src/assets/art/social-share.png"));
+  assert.deepEqual(
+    [...card.subarray(0, 8)],
+    [137, 80, 78, 71, 13, 10, 26, 10]
+  );
+  assert.equal(card.readUInt32BE(16), 1200);
+  assert.equal(card.readUInt32BE(20), 630);
+
+  const page = homePage();
+  assert.match(page, /<meta property='og:image' content='https:\/\/marque-and-reprisal\.com\/assets\/art\/social-share\.png'>/);
+  assert.match(page, /<meta property='og:image:type' content='image\/png'>/);
+  assert.match(page, /<meta property='og:image:width' content='1200'>/);
+  assert.match(page, /<meta property='og:image:height' content='630'>/);
+  assert.match(page, /<meta property='og:image:alt' content='[^']+'>/);
+  assert.match(page, /<meta name='twitter:card' content='summary_large_image'>/);
+  assert.match(page, /<meta name='twitter:image' content='https:\/\/marque-and-reprisal\.com\/assets\/art\/social-share\.png'>/);
+  assert.match(page, /<meta name='twitter:image:alt' content='[^']+'>/);
 });
 
 test("press kit exposes the aligned capsule components and authored lockup", async () => {
@@ -70,4 +104,22 @@ test("Steam inline videos retain their full banner aspect ratio on every viewpor
   const featureVideoBlocks = [...css.matchAll(/\.feature-window video\s*\{([^}]*)\}/g)];
   assert.equal(featureVideoBlocks.length, 1);
   assert.match(featureVideoBlocks[0][1], /aspect-ratio:\s*1170\s*\/\s*270/);
+});
+
+test("feature videos serve as the visible section headings", () => {
+  const page = homePage();
+
+  for (const feature of features) {
+    const start = page.indexOf(`<section class='feature-row reveal' id='${feature.id}'`);
+    const end = page.indexOf("</section>", start);
+    const section = page.slice(start, end);
+
+    assert.notEqual(start, -1);
+    assert.match(
+      section,
+      new RegExp(`<h2 class='visually-hidden' id='${feature.id}-title'>${feature.title}</h2>`)
+    );
+    assert.ok(section.indexOf("class='feature-window'") < section.indexOf("class='feature-copy'"));
+    assert.doesNotMatch(section, /<div class='feature-copy'>[\s\S]*<h2/);
+  }
 });

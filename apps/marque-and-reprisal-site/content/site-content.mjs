@@ -1,3 +1,6 @@
+// A subdivision-7 icosphere has 10 × 4⁷ + 2 dual cells.
+export const WORLD_MAP_CELL_COUNT = 163_842;
+
 export const site = Object.freeze({
   title: "Marque & Reprisal",
   domain: "https://marque-and-reprisal.com",
@@ -35,7 +38,7 @@ export const features = Object.freeze([
     id: "explore",
     title: "Explore",
     eyebrow: "A globe without edges",
-    copy: "The world of Marque & Reprisal is a fully realized, 164k-hex map of the entire Earth, complete with accurate geography, navigable rivers and lakes, mountains, a detailed weather simulation, and many ancient and natural wonders to discover.",
+    copy: `The world of Marque & Reprisal is a fully realized, ${WORLD_MAP_CELL_COUNT.toLocaleString("en-US")}-cell map of the entire Earth, complete with accurate geography, navigable rivers and lakes, mountains, a detailed weather simulation, and many ancient and natural wonders to discover.`,
     video: "/assets/video/explore.webm",
     poster: "/assets/press/screenshots/01-explore-the-pyramids.png"
   }),

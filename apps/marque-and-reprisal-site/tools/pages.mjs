@@ -4,24 +4,26 @@ import {
   pressCapsuleArt,
   pressLogos,
   screenshots,
-  site
+  site,
+  WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
 
 const description = site.shortDescription;
+const socialImage = site.domain + "/assets/art/social-share.png";
+const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
 
 export function homePage() {
-  const featureRows = features.map((feature, index) => [
-    "<section class='feature-row reveal' id='", feature.id, "'>",
-    "<div class='feature-copy'>",
-    "<p class='eyebrow'>", escapeHtml(feature.eyebrow), "</p>",
-    "<h2><span aria-hidden='true'>", String(index + 1).padStart(2, "0"), "</span>", escapeHtml(feature.title), "</h2>",
-    "<p>", escapeHtml(feature.copy), "</p>",
-    "</div>",
+  const featureRows = features.map((feature) => [
+    "<section class='feature-row reveal' id='", feature.id, "' aria-labelledby='", feature.id, "-title'>",
+    "<h2 class='visually-hidden' id='", feature.id, "-title'>", escapeHtml(feature.title), "</h2>",
     "<div class='feature-window'>",
     "<video class='feature-video' muted loop playsinline preload='none' poster='", feature.poster, "' aria-label='", escapeHtml(feature.title), " gameplay'>",
     "<source data-src='", feature.video, "' type='video/webm'>",
     "</video>",
-    "<span class='window-label' aria-hidden='true'>", escapeHtml(feature.title), " / 1522</span>",
+    "</div>",
+    "<div class='feature-copy'>",
+    "<p class='eyebrow'>", escapeHtml(feature.eyebrow), "</p>",
+    "<p>", escapeHtml(feature.copy), "</p>",
     "</div>",
     "</section>"
   ].join("")).join("\n");
@@ -54,11 +56,11 @@ export function homePage() {
     "<section class='manifest' id='voyage' aria-labelledby='manifest-title'>",
     "<div class='section-heading reveal'>",
     "<p class='eyebrow'>Your commission</p>",
-    "<h2 id='manifest-title'>The whole world is open.<br>The wind is not.</h2>",
+    "<h2 id='manifest-title'><span>The whole world is open.</span><span>The wind is not.</span></h2>",
     "<p>Read the weather, ration food and water, work each market, and decide what kind of captain this voyage will make you. Complete your captain's special objective to win the run—or lose everything at sea.</p>",
     "</div>",
     "<div class='manifest-ledger reveal' aria-label='Core voyage systems'>",
-    "<div><span>World</span><strong>164,000 hexes</strong></div>",
+    "<div><span>World</span><strong>", WORLD_MAP_CELL_COUNT.toLocaleString("en-US"), " map cells</strong></div>",
     "<div><span>Conditions</span><strong>Wind, weather, hunger, thirst</strong></div>",
     "<div><span>Economy</span><strong>Reactive ports and NPC trade</strong></div>",
     "<div><span>Stakes</span><strong>One captain. One life.</strong></div>",
@@ -333,10 +335,16 @@ function layout({
     "<meta property='og:title' content='", escapeHtml(title), "'>",
     "<meta property='og:description' content='", escapeHtml(pageDescription), "'>",
     "<meta property='og:url' content='", canonical, "'>",
-    "<meta property='og:image' content='", site.domain, "/assets/art/social-share.png'>",
+    "<meta property='og:image' content='", socialImage, "'>",
+    "<meta property='og:image:type' content='image/png'>",
     "<meta property='og:image:width' content='1200'>",
     "<meta property='og:image:height' content='630'>",
+    "<meta property='og:image:alt' content='", escapeHtml(socialImageAlt), "'>",
     "<meta name='twitter:card' content='summary_large_image'>",
+    "<meta name='twitter:title' content='", escapeHtml(title), "'>",
+    "<meta name='twitter:description' content='", escapeHtml(pageDescription), "'>",
+    "<meta name='twitter:image' content='", socialImage, "'>",
+    "<meta name='twitter:image:alt' content='", escapeHtml(socialImageAlt), "'>",
     "<link rel='stylesheet' href='/assets/styles/site.css'>",
     "</head>",
     "<body class='", bodyClass, "'>",
