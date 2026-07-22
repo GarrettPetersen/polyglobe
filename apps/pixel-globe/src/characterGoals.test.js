@@ -50,3 +50,14 @@ test("named crewmates can carry an explicit future quest goal", () => {
   }).text, "Chart the currents of the Indian Ocean");
   assert.equal(namedCrewCharacterGoal({ id: "chef-1", role: "chef" }).text, "Keep the crew well fed");
 });
+
+test("rescued travelers normalize their explicit homecoming goal for the people screen", () => {
+  const goal = namedCrewCharacterGoal({
+    id: "pirate-captive:copenhagen",
+    role: "pirate-captive",
+    goal: "Reunite with family in Copenhagen"
+  });
+
+  assert.equal(goal.id, "character:pirate-captive:copenhagen");
+  assert.equal(goal.text, "Reunite with family in Copenhagen");
+});

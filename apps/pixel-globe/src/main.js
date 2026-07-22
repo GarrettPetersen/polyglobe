@@ -21638,7 +21638,7 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
   }
   if (entry.role === ABOARD_ROLE_PASSENGER || entry.role === ABOARD_ROLE_EMISSARY) {
     if (rescuedTravelers.some((traveler) => entry.character.id === traveler.character?.id)) {
-      return entry.character.goal;
+      return namedCrewCharacterGoal(entry.character);
     }
     return travelerCharacterGoal(activeQuest);
   }
