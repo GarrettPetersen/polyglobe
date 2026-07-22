@@ -1,0 +1,77 @@
+"In Game Actions"
+{
+  "actions"
+  {
+    "Sailing"
+    {
+      "title" "#Set_Sailing"
+      "legacy_set" "0"
+      "StickPadGyro"
+      {
+        "steer"
+        {
+          "title" "#Action_Steer"
+          "input_mode" "joystick_move"
+        }
+      }
+      "Button"
+      {
+        "confirm" { "title" "#Action_Confirm" }
+        "back" { "title" "#Action_Back" }
+        "anchor" { "title" "#Action_Anchor" }
+        "secondary" { "title" "#Action_Secondary" }
+        "cycle_target" { "title" "#Action_CycleTarget" }
+        "captain_menu" { "title" "#Action_CaptainMenu" }
+        "fire_port" { "title" "#Action_FirePort" }
+        "fire_starboard" { "title" "#Action_FireStarboard" }
+      }
+    }
+    "Menus"
+    {
+      "title" "#Set_Menus"
+      "legacy_set" "0"
+      "StickPadGyro"
+      {
+        "navigate"
+        {
+          "title" "#Action_Navigate"
+          "input_mode" "joystick_move"
+        }
+        "scroll"
+        {
+          "title" "#Action_Scroll"
+          "input_mode" "joystick_move"
+        }
+      }
+      "Button"
+      {
+        "confirm" { "title" "#Action_Confirm" }
+        "back" { "title" "#Action_Back" }
+        "secondary" { "title" "#Action_Secondary" }
+        "previous_page" { "title" "#Action_PreviousPage" }
+        "next_page" { "title" "#Action_NextPage" }
+      }
+    }
+  }
+  "localization"
+  {
+    "english"
+    {
+      "#Set_Sailing" "Sailing"
+      "#Set_Menus" "Menus"
+      "#Action_Steer" "Steer"
+      "#Action_Confirm" "Confirm / interact"
+      "#Action_Back" "Back"
+      "#Action_Anchor" "Drop / weigh anchor"
+      "#Action_Secondary" "Secondary action"
+      "#Action_CycleTarget" "Cycle nearby target"
+      "#Action_CaptainMenu" "Captain's chart"
+      "#Action_FirePort" "Fire port broadside"
+      "#Action_FireStarboard" "Fire starboard broadside"
+      "#Action_Navigate" "Navigate menu"
+      "#Action_Scroll" "Scroll page"
+      "#Action_PreviousPage" "Previous page"
+      "#Action_NextPage" "Next page"
+    }
+  }
+}

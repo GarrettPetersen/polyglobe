@@ -24,6 +24,7 @@ import {
 } from "./gameIcons.js";
 import { SHIP_STATS } from "./shipStats.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
+import { CONTROLLER_FAMILY, controllerGlyphIconId } from "./controllerPrompts.js";
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const atlasPath = join(appRoot, "public/assets/ui/game-icons.png");
@@ -71,6 +72,23 @@ test("every current dialogue and start-menu action resolves to an icon", async (
     assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "node", nodeId } })], nodeId);
   }
   assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "continue-campaign" } })]);
+});
+
+test("every controller family has native-size semantic action glyphs", () => {
+  for (const family of Object.values(CONTROLLER_FAMILY)) {
+    for (const action of [
+      "confirm", "back", "anchor", "secondary", "firePort", "fireStarboard",
+      "cycleTarget", "menu", "navigate", "scroll"
+    ]) {
+      const iconId = controllerGlyphIconId(action, family);
+      assert.ok(GAME_ICON_SOURCES[iconId], `${family}:${action}`);
+    }
+  }
+  for (const [iconId, source] of Object.entries(GAME_ICON_SOURCES)) {
+    if (!iconId.startsWith("input:") || source.generatedId) continue;
+    assert.equal(source.packId, "nikoichu", iconId);
+    assert.match(source.entry, /^Sprites\/Controller_/, iconId);
+  }
 });
 
 test("all downloaded icon packs are used and fully attributed", async () => {

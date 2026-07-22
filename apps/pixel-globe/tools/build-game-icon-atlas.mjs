@@ -198,7 +198,35 @@ function generateIcon(generatedId) {
   if (generatedId === "play-arrow") return generatePlayArrow();
   if (generatedId === "restart-arrow") return generateRestartArrow();
   if (generatedId === "surrender-flag") return generateSurrenderFlag();
+  if (generatedId === "nintendo-zl") return generateNintendoTrigger("L");
+  if (generatedId === "nintendo-zr") return generateNintendoTrigger("R");
   throw new Error(`Unknown generated game icon: ${generatedId}`);
+}
+
+function generateNintendoTrigger(side) {
+  if (side !== "L" && side !== "R") throw new Error(`Invalid Nintendo trigger side: ${side}`);
+  const { canvas, ctx } = generatedIconCanvas();
+  ctx.fillStyle = "#2f241c";
+  ctx.fillRect(4, 3, 8, 1);
+  ctx.fillRect(2, 4, 12, 1);
+  ctx.fillRect(1, 5, 1, 7);
+  ctx.fillRect(14, 5, 1, 7);
+  ctx.fillRect(2, 12, 12, 1);
+  ctx.fillRect(4, 13, 8, 1);
+
+  const pixels = [
+    [4, 6], [5, 6], [6, 6], [6, 7], [5, 8], [4, 9], [4, 10], [5, 10], [6, 10]
+  ];
+  if (side === "L") {
+    pixels.push([9, 6], [9, 7], [9, 8], [9, 9], [9, 10], [10, 10], [11, 10]);
+  } else {
+    pixels.push(
+      [9, 6], [10, 6], [11, 6], [9, 7], [11, 7], [9, 8], [10, 8],
+      [9, 9], [11, 9], [9, 10], [11, 10]
+    );
+  }
+  for (const [x, y] of pixels) ctx.fillRect(x, y, 1, 1);
+  return canvas;
 }
 
 function generateBackArrow() {

@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-27";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-28";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -182,6 +182,35 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:choose-ships": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_COLOR.sea),
   "action:start-menu": nikoichu("Map_Markers_Building_Home_House.png", ICON_COLOR.warm),
   "action:navigation": nikoichu("Map_Markers_Compass_Rose_1.png", ICON_COLOR.navigation),
+
+  "input:xbox:a": nikoichu("Controller_Button_A.png", ICON_COLOR.success),
+  "input:xbox:b": nikoichu("Controller_Button_B.png", ICON_COLOR.danger),
+  "input:xbox:x": nikoichu("Controller_Button_X.png", ICON_COLOR.dialogue),
+  "input:xbox:y": nikoichu("Controller_Button_Y.png", ICON_COLOR.gold),
+  "input:xbox:lt": nikoichu("Controller_Buttons_Left_Trigger_LT.png", ICON_COLOR.timber),
+  "input:xbox:rt": nikoichu("Controller_Buttons_Right_Trigger_RT.png", ICON_COLOR.timber),
+  "input:playstation:cross": nikoichu("Controller_Button_Cross.png", ICON_COLOR.dialogue),
+  "input:playstation:circle": nikoichu("Controller_Button_Circle.png", ICON_COLOR.danger),
+  "input:playstation:square": nikoichu("Controller_Button_Square.png", ICON_COLOR.purple),
+  "input:playstation:triangle": nikoichu("Controller_Button_Triangle.png", ICON_COLOR.success),
+  "input:playstation:l2": nikoichu("Controller_Buttons_Left_Trigger_L2.png", ICON_COLOR.timber),
+  "input:playstation:r2": nikoichu("Controller_Buttons_Right_Trigger_R2.png", ICON_COLOR.timber),
+  "input:nintendo:a": nikoichu("Controller_Face_Buttons_Nintendo_A.png", ICON_COLOR.timber),
+  "input:nintendo:b": nikoichu("Controller_Face_Buttons_Nintendo_B.png", ICON_COLOR.timber),
+  "input:nintendo:x": nikoichu("Controller_Face_Buttons_Nintendo_X.png", ICON_COLOR.timber),
+  "input:nintendo:y": nikoichu("Controller_Face_Buttons_Nintendo_Y.png", ICON_COLOR.timber),
+  "input:nintendo:zl": generatedIcon("nintendo-zl"),
+  "input:nintendo:zr": generatedIcon("nintendo-zr"),
+  "input:generic:south": nikoichu("Controller_Face_Buttons_Blank_Down.png", ICON_COLOR.timber),
+  "input:generic:east": nikoichu("Controller_Face_Buttons_Blank_Right.png", ICON_COLOR.timber),
+  "input:generic:west": nikoichu("Controller_Face_Buttons_Blank_Left.png", ICON_COLOR.timber),
+  "input:generic:north": nikoichu("Controller_Face_Buttons_Blank_Up.png", ICON_COLOR.timber),
+  "input:generic:left-trigger": nikoichu("Controller_Buttons_Left_Trigger_LT.png", ICON_COLOR.timber),
+  "input:generic:right-trigger": nikoichu("Controller_Buttons_Right_Trigger_RT.png", ICON_COLOR.timber),
+  "input:common:view": nikoichu("Controller_Buttons_View_Window_Cast.png", ICON_COLOR.steel),
+  "input:common:menu": nikoichu("Controller_Buttons_Menu_Options_Settings.png", ICON_COLOR.steel),
+  "input:common:left-stick": nikoichu("Controller_Stick_L_Center.png", ICON_COLOR.steel),
+  "input:common:right-stick": nikoichu("Controller_Stick_R_Center.png", ICON_COLOR.steel),
 
   "item:sturdy-barrels": nikoichu("Travel_Petrol_Oil_Barrel_Fuel.png", ICON_COLOR.timber),
   "item:shore-party-kit": nikoichu("Travel_Backpack_Bag_Bedroll.png", ICON_COLOR.timber),

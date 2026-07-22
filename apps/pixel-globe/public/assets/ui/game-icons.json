@@ -1,8 +1,8 @@
 {
-  "version": "resurrect-icons-27",
+  "version": "resurrect-icons-28",
   "palette": "Resurrect 64",
   "width": 256,
-  "height": 144,
+  "height": 176,
   "iconSize": 16,
   "icons": [
     {
@@ -1377,7 +1377,7 @@
       "lightMonotone": "#484a77"
     },
     {
-      "id": "item:sturdy-barrels",
+      "id": "input:xbox:a",
       "rect": {
         "x": 128,
         "y": 112,
@@ -1386,10 +1386,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#4c3e24"
+      "lightMonotone": "#547e64"
     },
     {
-      "id": "item:shore-party-kit",
+      "id": "input:xbox:b",
       "rect": {
         "x": 144,
         "y": 112,
@@ -1398,10 +1398,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#4c3e24"
+      "lightMonotone": "#6e2727"
     },
     {
-      "id": "item:tarred-hemp-rigging",
+      "id": "input:xbox:x",
       "rect": {
         "x": 160,
         "y": 112,
@@ -1410,36 +1410,12 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#4c3e24"
+      "lightMonotone": "#4d65b4"
     },
     {
-      "id": "item:coir-cordage",
+      "id": "input:xbox:y",
       "rect": {
         "x": 176,
-        "y": 112,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#694f62"
-    },
-    {
-      "id": "item:flemish-sailcloth",
-      "rect": {
-        "x": 192,
-        "y": 112,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#0b5e65"
-    },
-    {
-      "id": "item:lateen-sailcloth",
-      "rect": {
-        "x": 208,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1449,7 +1425,31 @@
       "lightMonotone": "#9e4539"
     },
     {
-      "id": "item:lead-sheathing",
+      "id": "input:xbox:lt",
+      "rect": {
+        "x": 192,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:xbox:rt",
+      "rect": {
+        "x": 208,
+        "y": 112,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:playstation:cross",
       "rect": {
         "x": 224,
         "y": 112,
@@ -1458,10 +1458,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#625565"
+      "lightMonotone": "#4d65b4"
     },
     {
-      "id": "item:surgeons-chest",
+      "id": "input:playstation:circle",
       "rect": {
         "x": 240,
         "y": 112,
@@ -1473,10 +1473,344 @@
       "lightMonotone": "#6e2727"
     },
     {
-      "id": "item:pilots-instruments",
+      "id": "input:playstation:square",
       "rect": {
         "x": 0,
         "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#6b3e75"
+    },
+    {
+      "id": "input:playstation:triangle",
+      "rect": {
+        "x": 16,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#547e64"
+    },
+    {
+      "id": "input:playstation:l2",
+      "rect": {
+        "x": 32,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:playstation:r2",
+      "rect": {
+        "x": 48,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:nintendo:a",
+      "rect": {
+        "x": 64,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:nintendo:b",
+      "rect": {
+        "x": 80,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:nintendo:x",
+      "rect": {
+        "x": 96,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:nintendo:y",
+      "rect": {
+        "x": 112,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:nintendo:zl",
+      "rect": {
+        "x": 128,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": null,
+      "assetPath": null
+    },
+    {
+      "id": "input:nintendo:zr",
+      "rect": {
+        "x": 144,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": null,
+      "assetPath": null
+    },
+    {
+      "id": "input:generic:south",
+      "rect": {
+        "x": 160,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:generic:east",
+      "rect": {
+        "x": 176,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:generic:west",
+      "rect": {
+        "x": 192,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:generic:north",
+      "rect": {
+        "x": 208,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:generic:left-trigger",
+      "rect": {
+        "x": 224,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:generic:right-trigger",
+      "rect": {
+        "x": 240,
+        "y": 128,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "input:common:view",
+      "rect": {
+        "x": 0,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "input:common:menu",
+      "rect": {
+        "x": 16,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "input:common:left-stick",
+      "rect": {
+        "x": 32,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "input:common:right-stick",
+      "rect": {
+        "x": 48,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "item:sturdy-barrels",
+      "rect": {
+        "x": 64,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:shore-party-kit",
+      "rect": {
+        "x": 80,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:tarred-hemp-rigging",
+      "rect": {
+        "x": 96,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:coir-cordage",
+      "rect": {
+        "x": 112,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#694f62"
+    },
+    {
+      "id": "item:flemish-sailcloth",
+      "rect": {
+        "x": 128,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#0b5e65"
+    },
+    {
+      "id": "item:lateen-sailcloth",
+      "rect": {
+        "x": 144,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "item:lead-sheathing",
+      "rect": {
+        "x": 160,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "item:surgeons-chest",
+      "rect": {
+        "x": 176,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#6e2727"
+    },
+    {
+      "id": "item:pilots-instruments",
+      "rect": {
+        "x": 192,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1487,8 +1821,8 @@
     {
       "id": "item:longsword",
       "rect": {
-        "x": 16,
-        "y": 128,
+        "x": 208,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1499,8 +1833,8 @@
     {
       "id": "item:tulwar",
       "rect": {
-        "x": 32,
-        "y": 128,
+        "x": 224,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1511,8 +1845,8 @@
     {
       "id": "item:katana",
       "rect": {
-        "x": 48,
-        "y": 128,
+        "x": 240,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1523,8 +1857,8 @@
     {
       "id": "item:wheellock-pistol",
       "rect": {
-        "x": 64,
-        "y": 128,
+        "x": 0,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1535,8 +1869,8 @@
     {
       "id": "item:bronze-fish-hooks",
       "rect": {
-        "x": 80,
-        "y": 128,
+        "x": 16,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1547,8 +1881,8 @@
     {
       "id": "good:gunpowder",
       "rect": {
-        "x": 96,
-        "y": 128,
+        "x": 32,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1558,8 +1892,8 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 112,
-        "y": 128,
+        "x": 48,
+        "y": 160,
         "w": 16,
         "h": 16
       },

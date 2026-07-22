@@ -992,6 +992,16 @@ import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMas
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 import { gamepadControlFrame, gamepadMenuNavigationFrame } from "./controllerInput.js";
 import {
+  CONTROLLER_FAMILY,
+  CONTROLLER_GLYPH_PREFERENCE,
+  controllerFamilyForGamepad,
+  controllerGlyphIconId,
+  controllerGlyphPreferenceLabel,
+  nextControllerGlyphPreference,
+  normalizeControllerGlyphPreference,
+  steamInputTypeFromBridge
+} from "./controllerPrompts.js";
+import {
   broadsideArcGeometry,
   broadsideReloadGeometry,
   pointInBroadsideArc
@@ -1522,6 +1532,7 @@ const POINTER_STEERING_DEADZONE_PX = 6;
 const POINTER_TAP_ACTION_MAX_MS = 220;
 const POINTER_TAP_ACTION_MAX_TRAVEL_PX = 5;
 const LANGUAGE_STORAGE_KEY = "pixel_globe_language";
+const CONTROLLER_GLYPH_STORAGE_KEY = "pixel_globe_controller_glyphs";
 let currentLanguage = normalizeLanguage(
   new URLSearchParams(window.location.search).get("lang") ||
   readLocalStorage(LANGUAGE_STORAGE_KEY) ||
@@ -1584,15 +1595,16 @@ let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 246;
-const OPTIONS_ROW_H = 27;
-const OPTIONS_ROW_COUNT = 7;
+const OPTIONS_ROW_H = 24;
+const OPTIONS_ROW_COUNT = 8;
 const OPTIONS_ROW_FULLSCREEN = 0;
 const OPTIONS_ROW_MUSIC = 1;
 const OPTIONS_ROW_SFX = 2;
 const OPTIONS_ROW_MUTE = 3;
 const OPTIONS_ROW_LANGUAGE = 4;
-const OPTIONS_ROW_CONTROLS = 5;
-const OPTIONS_ROW_START_MENU = 6;
+const OPTIONS_ROW_CONTROLLER_ICONS = 5;
+const OPTIONS_ROW_CONTROLS = 6;
+const OPTIONS_ROW_START_MENU = 7;
 const KEY_BINDINGS_PANEL_MAX_W = 410;
 const KEY_BINDINGS_PANEL_H = 246;
 const KEY_BINDINGS_ROW_H = 23;
@@ -1968,6 +1980,8 @@ let controllerButtons = [];
 let controllerNavigationState = null;
 let controllerScrollState = null;
 let controllerInteractionTargetKey = null;
+let activeControllerGamepad = null;
+let activeControllerFamily = CONTROLLER_FAMILY.GENERIC;
 let graph;
 let directionIndex;
 let earthRows;
@@ -2200,6 +2214,7 @@ let seagullNextSpawnMs = 0;
 let seagullSerial = 1;
 const consumedLandedSeagullIds = new Set();
 const optionsMenu = createOptionsMenuState();
+activeControllerFamily = controllerFamilyForGamepad(null, optionsMenu.controllerGlyphPreference);
 const creditsMenu = createCreditsMenuState();
 const pastVoyagesMenu = createPastVoyagesMenuState();
 const discoveriesMenu = createDiscoveriesMenuState();
@@ -2220,10 +2235,12 @@ screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 
 window.addEventListener("keydown", (event) => {
   if (optionsMenu.isOpen && optionsMenu.bindingCapture) {
+    sailingTutorialInputMode = "keyboard";
     ensureGameAudioStarted(true);
     handleOptionsKeyDown(event);
     return;
   }
+  sailingTutorialInputMode = "keyboard";
   const keyAction = keyActionForEvent(keyBindings, event);
   if (keyAction === KEY_ACTION.SCREENSHOT) {
     event.preventDefault();
@@ -2239,7 +2256,6 @@ window.addEventListener("keydown", (event) => {
   }
   if (handleCheatCodeKeyDown(event)) return;
   ensureGameAudioStarted(true);
-  if (isSteeringKeyAction(keyAction)) sailingTutorialInputMode = "keyboard";
   if (lakeBattleMode && optionsMenu.isOpen) {
     handleOptionsKeyDown(event);
     return;
@@ -3752,6 +3768,9 @@ function createOptionsMenuState() {
     musicVolume: loadStoredVolume(MUSIC_VOLUME_STORAGE_KEY, MUSIC_DEFAULT_VOLUME),
     sfxVolume: loadStoredVolume(SFX_VOLUME_STORAGE_KEY, SFX_DEFAULT_VOLUME),
     muted: loadStoredAudioMuted(),
+    controllerGlyphPreference: normalizeControllerGlyphPreference(
+      readLocalStorage(CONTROLLER_GLYPH_STORAGE_KEY) || CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC
+    ),
     fullscreenError: null,
     returnError: null,
     selectedIndex: 0,
@@ -6298,6 +6317,20 @@ function setSfxVolume(value) {
   dirty = true;
 }
 
+function setControllerGlyphPreference(value) {
+  const normalized = normalizeControllerGlyphPreference(value);
+  optionsMenu.controllerGlyphPreference = normalized;
+  writeLocalStorage(CONTROLLER_GLYPH_STORAGE_KEY, normalized);
+  activeControllerFamily = controllerFamilyForGamepad(
+    activeControllerGamepad,
+    normalized,
+    activeControllerGamepad
+      ? steamInputTypeFromBridge(window.marqueSteamInput ?? null, activeControllerGamepad.index)
+      : null
+  );
+  dirty = true;
+}
+
 function setAudioMuted(muted) {
   optionsMenu.muted = !!muted;
   writeLocalStorage(AUDIO_MUTED_STORAGE_KEY, String(optionsMenu.muted));
@@ -8172,6 +8205,11 @@ function handleOptionsKeyDown(event) {
       setSfxVolume(optionsMenu.sfxVolume + direction * 0.05);
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
       setInterfaceLanguage(nextLanguage(currentLanguage, direction));
+    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS) {
+      setControllerGlyphPreference(nextControllerGlyphPreference(
+        optionsMenu.controllerGlyphPreference,
+        direction
+      ));
     }
     return;
   }
@@ -8180,6 +8218,9 @@ function handleOptionsKeyDown(event) {
     if (optionsMenu.selectedIndex === OPTIONS_ROW_MUTE) toggleAudioMuted();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
       setInterfaceLanguage(nextLanguage(currentLanguage));
+    }
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS) {
+      setControllerGlyphPreference(nextControllerGlyphPreference(optionsMenu.controllerGlyphPreference));
     }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS) openKeyBindingsMenu();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) returnToStartMenuFromOptions();
@@ -8759,6 +8800,11 @@ function handleOptionsPointerDown(point) {
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_LANGUAGE])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_LANGUAGE;
     setInterfaceLanguage(nextLanguage(currentLanguage));
+    return;
+  }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROLLER_ICONS])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_CONTROLLER_ICONS;
+    setControllerGlyphPreference(nextControllerGlyphPreference(optionsMenu.controllerGlyphPreference));
     return;
   }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROLS])) {
@@ -12612,11 +12658,27 @@ function pollGamepadControls(nowMs) {
   const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
   const gamepad = Array.from(pads || []).find((pad) => pad?.connected !== false) || null;
   if (!gamepad) {
+    activeControllerGamepad = null;
+    const nextFamily = controllerFamilyForGamepad(null, optionsMenu.controllerGlyphPreference);
+    if (nextFamily !== activeControllerFamily) {
+      activeControllerFamily = nextFamily;
+      dirty = true;
+    }
     controllerSteering = null;
     controllerButtons = [];
     controllerNavigationState = null;
     controllerScrollState = null;
     return;
+  }
+  activeControllerGamepad = gamepad;
+  const nextFamily = controllerFamilyForGamepad(
+    gamepad,
+    optionsMenu.controllerGlyphPreference,
+    steamInputTypeFromBridge(window.marqueSteamInput ?? null, gamepad.index)
+  );
+  if (nextFamily !== activeControllerFamily) {
+    activeControllerFamily = nextFamily;
+    dirty = true;
   }
   const frame = gamepadControlFrame(gamepad, controllerButtons);
   controllerButtons = frame.buttons;
@@ -12646,7 +12708,10 @@ function pollGamepadControls(nowMs) {
     allowStick: !captainChartPanning
   });
   controllerNavigationState = navigation.state;
-  if (navigation.action) handleControllerAction(navigation.action);
+  if (navigation.action) {
+    sailingTutorialInputMode = "controller";
+    handleControllerAction(navigation.action);
+  }
 
   const scrolling = gamepadMenuNavigationFrame(gamepad, controllerScrollState, nowMs, {
     allowDpad: false,
@@ -12654,6 +12719,7 @@ function pollGamepadControls(nowMs) {
   });
   controllerScrollState = scrolling.state;
   if (scrolling.action === "up" || scrolling.action === "down") {
+    sailingTutorialInputMode = "controller";
     dispatchControllerKey(scrolling.action === "up" ? "PageUp" : "PageDown");
   }
 }
@@ -12681,6 +12747,10 @@ function handleControllerAction(action) {
     return;
   }
   if (action === "anchor") {
+    if (optionsMenu.isOpen && optionsMenu.view === "bindings" && !optionsMenu.bindingCapture) {
+      clearSelectedKeyBinding();
+      return;
+    }
     if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason &&
       (anchored || canAnchorAtCurrentShore())) toggleAnchor();
     return;
@@ -13810,11 +13880,17 @@ function drawCombatBroadsideControls() {
     const arc = navalBroadsideArc(sideName, weapon);
     const cooldown = ship.cannonCooldowns[sideName] || 0;
     const hasTarget = navalArcHasEnemy(arc);
-    drawBroadsideReloadIndicator(arc, cooldown, weapon.reloadSeconds, hasTarget);
+    drawBroadsideReloadIndicator(
+      arc,
+      cooldown,
+      weapon.reloadSeconds,
+      hasTarget,
+      sideName === "port" ? "firePort" : "fireStarboard"
+    );
   }
 }
 
-function drawBroadsideReloadIndicator(arc, cooldown, reloadSeconds, hasTarget) {
+function drawBroadsideReloadIndicator(arc, cooldown, reloadSeconds, hasTarget, controllerAction = null) {
   if (!Number.isFinite(reloadSeconds) || reloadSeconds <= 0) {
     throw new Error(`Invalid broadside reload time: ${reloadSeconds}`);
   }
@@ -13852,6 +13928,21 @@ function drawBroadsideReloadIndicator(arc, cooldown, reloadSeconds, hasTarget) {
     ctx.stroke();
   }
   ctx.restore();
+  if (controllerAction && controllerPromptsVisible()) {
+    const angle = (arc.startAngle + arc.endAngle) / 2;
+    const radius = arc.outerRadius + 9;
+    const glyphX = clamp(
+      Math.round(arc.origin.x + Math.cos(angle) * radius - GAME_ICON_SIZE / 2),
+      1,
+      SCREEN_W - GAME_ICON_SIZE - 1
+    );
+    const glyphY = clamp(
+      Math.round(arc.origin.y + Math.sin(angle) * radius - GAME_ICON_SIZE / 2),
+      1,
+      SCREEN_H - GAME_ICON_SIZE - 1
+    );
+    drawControllerActionGlyph(controllerAction, glyphX, glyphY, { contrastOutline: true });
+  }
 }
 
 function traceBroadsideSector(arc, outerRadius) {
@@ -19264,6 +19355,15 @@ function drawCaptainMenuButton() {
   const hovered = !menusAreOpen() && pointInRect(captainMenu.hoverPoint, expandedRect(rect, 3));
   ctx.save();
   drawPirateHudButton(rect, hovered);
+  if (controllerPromptsVisible()) {
+    drawControllerActionGlyph(
+      "menu",
+      rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2),
+      rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2)
+    );
+    ctx.restore();
+    return;
+  }
   ctx.fillStyle = PIRATE_MENU_INK;
   const menuLineX = rect.x + Math.floor((rect.w - 15) / 2);
   const menuLineY = rect.y + Math.floor((rect.h - 12) / 2);
@@ -19367,6 +19467,15 @@ function drawGameIcon(iconId, x, y, options = {}) {
     destination.h
   );
   ctx.restore();
+}
+
+function controllerPromptsVisible() {
+  return sailingTutorialInputMode === "controller";
+}
+
+function drawControllerActionGlyph(action, x, y, options = {}) {
+  if (!controllerPromptsVisible()) return;
+  drawGameIcon(controllerGlyphIconId(action, activeControllerFamily), x, y, options);
 }
 
 function drawItemAcquisitionEffects(nowMs) {
@@ -22762,7 +22871,8 @@ function drawLakeBattleBroadsideControls(battle) {
       arc,
       cooldown,
       battle.player.weapon.reloadSeconds,
-      targetInArc
+      targetInArc,
+      sideName === "port" ? "firePort" : "fireStarboard"
     );
   }
 }
@@ -22774,6 +22884,14 @@ function drawLakeBattlePauseButton(rect) {
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = hovered ? "#ffffff" : "#9babb2";
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  if (controllerPromptsVisible()) {
+    drawControllerActionGlyph(
+      "menu",
+      rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2),
+      rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2)
+    );
+    return;
+  }
   ctx.fillStyle = "#c7dcd0";
   ctx.fillRect(rect.x + 7, rect.y + 6, 2, 10);
   ctx.fillRect(rect.x + 13, rect.y + 6, 2, 10);
@@ -22971,7 +23089,7 @@ function drawStartMenuButton(rect, label, highlighted, iconId = null) {
     ctx.fillStyle = PIRATE_MENU_CHART_LINE;
     const markerY = rect.y + Math.floor((rect.h - 3) / 2);
     ctx.fillRect(rect.x + 4, markerY, 3, 3);
-    ctx.fillRect(rect.x + rect.w - 7, markerY, 3, 3);
+    if (!controllerPromptsVisible()) ctx.fillRect(rect.x + rect.w - 7, markerY, 3, 3);
   }
   ctx.fillStyle = PIRATE_MENU_INK;
   if (iconId) {
@@ -22988,6 +23106,9 @@ function drawStartMenuButton(rect, label, highlighted, iconId = null) {
       font: PIXEL_FONT_DIALOGUE_8,
       align: "center"
     });
+  }
+  if (highlighted) {
+    drawControllerActionGlyph("confirm", rect.x + rect.w - GAME_ICON_SIZE - 3, rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
   }
 }
 
@@ -23350,15 +23471,29 @@ function drawOptionsMenu() {
   const sfxRow = { x: rowX, y: firstRowY + rowStep * 2, w: rowW, h: OPTIONS_ROW_H - 2 };
   const muteRow = { x: rowX, y: firstRowY + rowStep * 3, w: rowW, h: OPTIONS_ROW_H - 2 };
   const languageRow = { x: rowX, y: firstRowY + rowStep * 4, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const controlsRow = { x: rowX, y: firstRowY + rowStep * 5, w: rowW, h: OPTIONS_ROW_H - 2 };
-  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 6, w: rowW, h: OPTIONS_ROW_H - 2 };
-  optionsMenu.rowRects = [fullscreenRow, musicRow, sfxRow, muteRow, languageRow, controlsRow, startMenuRow];
+  const controllerIconsRow = { x: rowX, y: firstRowY + rowStep * 5, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const controlsRow = { x: rowX, y: firstRowY + rowStep * 6, w: rowW, h: OPTIONS_ROW_H - 2 };
+  const startMenuRow = { x: rowX, y: firstRowY + rowStep * 7, w: rowW, h: OPTIONS_ROW_H - 2 };
+  optionsMenu.rowRects = [
+    fullscreenRow,
+    musicRow,
+    sfxRow,
+    muteRow,
+    languageRow,
+    controllerIconsRow,
+    controlsRow,
+    startMenuRow
+  ];
 
   drawOptionsFullscreenRow(fullscreenRow, optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN);
   drawOptionsVolumeRow(musicRow, uiText("options.music"), "music", optionsMenu.musicVolume, optionsMenu.selectedIndex === OPTIONS_ROW_MUSIC);
   drawOptionsVolumeRow(sfxRow, uiText("options.sfx"), "sfx", optionsMenu.sfxVolume, optionsMenu.selectedIndex === OPTIONS_ROW_SFX);
   drawOptionsMuteRow(muteRow, optionsMenu.selectedIndex === OPTIONS_ROW_MUTE);
   drawOptionsLanguageRow(languageRow, optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE);
+  drawOptionsControllerIconsRow(
+    controllerIconsRow,
+    optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS
+  );
   drawOptionsControlsRow(controlsRow, optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLS);
   drawOptionsStartMenuRow(startMenuRow, optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU);
   ctx.restore();
@@ -23441,17 +23576,24 @@ function drawKeyBindingsMenu() {
     }
   }
 
-  const feedback = optionsMenu.bindingFeedback || "ENTER OR CLICK TO REBIND  DEL CLEARS";
-  drawOptionsText(
-    fitPixelText(feedback, PIXEL_FONT_LATIN_SMALL_8, rowW),
-    panelX + panelW / 2,
-    panelY + 199,
-    {
-      font: PIXEL_FONT_LATIN_SMALL_8,
-      align: "center",
-      color: optionsMenu.bindingCapture ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
-    }
-  );
+  const feedbackY = panelY + 199;
+  if (controllerPromptsVisible() && !optionsMenu.bindingFeedback) {
+    drawControllerBindingHint("confirm", "REBIND", panelX + 18, feedbackY - 4);
+    drawControllerBindingHint("anchor", "CLEAR", panelX + Math.floor(panelW / 2) - 34, feedbackY - 4);
+    drawControllerBindingHint("secondary", "DEFAULTS", panelX + panelW - 84, feedbackY - 4);
+  } else {
+    const feedback = optionsMenu.bindingFeedback || "ENTER OR CLICK TO REBIND  DEL CLEARS";
+    drawOptionsText(
+      fitPixelText(feedback, PIXEL_FONT_LATIN_SMALL_8, rowW),
+      panelX + panelW / 2,
+      feedbackY,
+      {
+        font: PIXEL_FONT_LATIN_SMALL_8,
+        align: "center",
+        color: optionsMenu.bindingCapture ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+      }
+    );
+  }
 
   const buttonY = panelY + KEY_BINDINGS_PANEL_H - 31;
   optionsMenu.bindingBackRect = { x: panelX + 8, y: buttonY, w: 68, h: 24 };
@@ -23487,6 +23629,14 @@ function drawKeyBindingsMenu() {
   ctx.restore();
 }
 
+function drawControllerBindingHint(action, label, x, y) {
+  drawControllerActionGlyph(action, x, y);
+  drawOptionsText(label, x + GAME_ICON_SIZE + 2, y + 4, {
+    font: PIXEL_FONT_LATIN_SMALL_8,
+    color: PIRATE_MENU_INK_MUTED
+  });
+}
+
 function drawOptionsFullscreenRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
   const isFullscreen = document.fullscreenElement === shell;
@@ -23512,6 +23662,10 @@ function drawOptionsFullscreenRow(rowRect, highlighted) {
 
 function drawOptionsCloseButton(rect, hovered) {
   drawPiratePaperInset(rect, hovered);
+  if (controllerPromptsVisible()) {
+    drawControllerActionGlyph("back", rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2), rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2));
+    return;
+  }
   drawOptionsText("X", rect.x + rect.w / 2, rect.y + Math.floor((rect.h - 8) / 2), {
     align: "center",
     color: PIRATE_MENU_INK
@@ -23597,6 +23751,23 @@ function drawOptionsLanguageRow(rowRect, highlighted) {
     color: PIRATE_MENU_INK
   });
   drawOptionsText(fitPixelText(value, font, innerWidth), rowRect.x + rowRect.w - 8, valueY, {
+    font,
+    align: "right",
+    color: PIRATE_MENU_CHART_LINE
+  });
+}
+
+function drawOptionsControllerIconsRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  const font = PIXEL_FONT_SMALL_8;
+  const label = uiText("options.controllerIcons");
+  const value = `< ${controllerGlyphPreferenceLabel(optionsMenu.controllerGlyphPreference)} >`;
+  const valueWidth = Math.min(78, Math.max(42, measurePixelTextWidth(value, font)));
+  drawOptionsText(fitPixelText(label, font, rowRect.w - valueWidth - 22), rowRect.x + 8, controlTextY(rowRect, font), {
+    font,
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText(fitPixelText(value, font, valueWidth), rowRect.x + rowRect.w - 8, controlTextY(rowRect, font), {
     font,
     align: "right",
     color: PIRATE_MENU_CHART_LINE
@@ -28185,13 +28356,32 @@ function drawInteractionButton() {
   drawControlIconLabel(interactionButtonRect, actionLabel, iconId, {
     disabled,
     secondaryLabel,
-    font: target.kind === "fish" ? PIXEL_FONT_SMALL_8 : PIXEL_FONT_DIALOGUE_8
+    font: target.kind === "fish" ? PIXEL_FONT_SMALL_8 : PIXEL_FONT_DIALOGUE_8,
+    controllerAction: "confirm"
   });
   if (whaleReleaseButtonRect) {
     const releaseHovered = pointInRect(optionsMenu.hoverPoint, whaleReleaseButtonRect);
     drawPiratePaperControl(whaleReleaseButtonRect, { hovered: releaseHovered });
     drawControlIconLabel(whaleReleaseButtonRect, "Release whale", "action:leave", {
-      font: PIXEL_FONT_SMALL_8
+      font: PIXEL_FONT_SMALL_8,
+      controllerAction: "secondary"
+    });
+  }
+  if (controllerPromptsVisible() && activeInteractionTargets().length > 1) {
+    const hintRect = {
+      x: interactionButtonRect.x + interactionButtonRect.w - 62,
+      y: interactionButtonRect.y - 18,
+      w: 62,
+      h: 16
+    };
+    ctx.fillStyle = PIRATE_MENU_PAPER;
+    ctx.fillRect(hintRect.x, hintRect.y, hintRect.w, hintRect.h);
+    ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+    ctx.strokeRect(hintRect.x + 0.5, hintRect.y + 0.5, hintRect.w - 1, hintRect.h - 1);
+    drawControllerActionGlyph("cycleTarget", hintRect.x + 1, hintRect.y);
+    drawOptionsText("TARGET", hintRect.x + 20, hintRect.y + 4, {
+      font: PIXEL_FONT_SMALL_8,
+      color: PIRATE_MENU_INK
     });
   }
 }
@@ -28218,7 +28408,7 @@ function drawAnchorButton(nowMs) {
     attention: departureControlAttention(DEPARTURE_CONTROL_FEEDBACK_KINDS.ANCHOR, nowMs)
   });
   const label = disabled ? "HOLD FAST" : anchored ? "WEIGH ANCHOR" : "DROP ANCHOR";
-  drawControlIconLabel(anchorButtonRect, label, "action:anchor", { disabled });
+  drawControlIconLabel(anchorButtonRect, label, "action:anchor", { disabled, controllerAction: "anchor" });
 }
 
 function drawScavengeButton() {
@@ -28235,19 +28425,21 @@ function drawScavengeButton() {
   const hovered = !disabled && pointInRect(optionsMenu.hoverPoint, scavengeButtonRect);
   drawPiratePaperControl(scavengeButtonRect, { disabled, hovered });
   const label = shoreScavengeAction ? "SEARCHING..." : stormy ? "STORM" : "SCAVENGE";
-  drawControlIconLabel(scavengeButtonRect, label, "action:scavenge", { disabled });
+  drawControlIconLabel(scavengeButtonRect, label, "action:scavenge", { disabled, controllerAction: "secondary" });
 }
 
 function drawControlIconLabel(rect, label, iconId, {
   disabled = false,
   secondaryLabel = null,
-  font = PIXEL_FONT_DIALOGUE_8
+  font = PIXEL_FONT_DIALOGUE_8,
+  controllerAction = null
 } = {}) {
   const iconX = rect.x + 5;
   const iconY = rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2);
   drawGameIcon(iconId, iconX, iconY, { alpha: disabled ? 0.4 : 1 });
   const textLeft = iconX + GAME_ICON_SIZE + 4;
-  const textWidth = rect.x + rect.w - textLeft - 4;
+  const controllerWidth = controllerAction && controllerPromptsVisible() ? GAME_ICON_SIZE + 3 : 0;
+  const textWidth = rect.x + rect.w - textLeft - 4 - controllerWidth;
   const secondaryWidth = secondaryLabel
     ? measurePixelTextWidth(secondaryLabel, PIXEL_FONT_SMALL_8) + 4
     : 0;
@@ -28274,6 +28466,14 @@ function drawControlIconLabel(rect, label, iconId, {
       font: PIXEL_FONT_SMALL_8,
       align: "right"
     });
+  }
+  if (controllerAction) {
+    drawControllerActionGlyph(
+      controllerAction,
+      rect.x + rect.w - GAME_ICON_SIZE - 2,
+      rect.y + rect.h - GAME_ICON_SIZE - 1,
+      { alpha: disabled ? 0.4 : 1 }
+    );
   }
 }
 
@@ -28340,7 +28540,7 @@ function drawPortWaitControls(nowMs) {
     active: true,
     attention: departureControlAttention(DEPARTURE_CONTROL_FEEDBACK_KINDS.PORT, nowMs)
   });
-  drawControlIconLabel(portWaitButtonRect, "RETURN TO PORT", "action:dock");
+  drawControlIconLabel(portWaitButtonRect, "RETURN TO PORT", "action:dock", { controllerAction: "confirm" });
 }
 
 function drawStormStatus(nowMs) {
@@ -29221,6 +29421,9 @@ function drawSailingSteeringDiagram(rect, inputMode) {
       ? "TOUCH + HOLD"
         : "CLICK + HOLD";
   drawTutorialLabel(modeLabel, rect.x + 7, rect.y + 6);
+  if (inputMode === "controller") {
+    drawControllerActionGlyph("navigate", rect.x + 7, rect.y + 17);
+  }
   drawTutorialLabel("TURN THE BOW", rect.x + 7, rect.y + rect.h - 14);
   ctx.fillStyle = "#f9c22b";
   ctx.fillRect(targetX - 2, targetY - 2, 5, 5);
@@ -30371,6 +30574,13 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
     rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2),
     { alpha: option.disabled ? 0.38 : 1 }
   );
+  if (selected && !option.disabled) {
+    drawControllerActionGlyph(
+      "confirm",
+      rect.x + rect.w - GAME_ICON_SIZE - 3,
+      rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2)
+    );
+  }
   ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK;
   const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
   const multiLine = textLayout.labelLines.length > 1 || textLayout.detailLines.length > 0;
@@ -30410,11 +30620,12 @@ function dialogueOptionsHeight(view, font, width) {
 
 function dialogueOptionTextMetrics(option, font, width, minimumHeight) {
   const iconReserve = GAME_ICON_SIZE + 13;
+  const controllerReserve = controllerPromptsVisible() ? GAME_ICON_SIZE + 4 : 0;
   return dialogueOptionTextLayout({
     label: renderedUiText(option.label),
     detail: renderedUiText(option.detail || ""),
-    labelWidth: Math.max(1, width - iconReserve),
-    detailWidth: Math.max(1, width - iconReserve),
+    labelWidth: Math.max(1, width - iconReserve - controllerReserve),
+    detailWidth: Math.max(1, width - iconReserve - controllerReserve),
     measureLabel: (text) => measurePixelTextWidth(text, font),
     measureDetail: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8),
     minimumHeight,

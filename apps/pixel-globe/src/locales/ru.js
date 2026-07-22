@@ -12,6 +12,7 @@ export default {
   "language.korean": "Корейский",
   "options.title": "НАСТРОЙКИ",
   "options.language": "ЯЗЫК",
+  "options.controllerIcons": "ЗНАЧКИ ГЕЙМПАДА",
   "options.music": "МУЗЫКА",
   "options.sfx": "ЗВУКИ",
   "options.mute": "БЕЗ ЗВУКА",

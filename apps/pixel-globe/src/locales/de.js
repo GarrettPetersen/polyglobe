@@ -12,6 +12,7 @@ export default {
   "language.korean": "Koreanisch",
   "options.title": "OPTIONEN",
   "options.language": "SPRACHE",
+  "options.controllerIcons": "CONTROLLER-SYMBOLE",
   "options.music": "MUSIK",
   "options.sfx": "EFFEKTE",
   "options.mute": "STUMM",
