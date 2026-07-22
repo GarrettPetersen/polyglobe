@@ -1,3 +1,5 @@
+import { gameStorage } from "./gameStorage.js";
+
 export const ACHIEVEMENT_PROFILE_STORAGE_KEY = "marque-and-reprisal.achievements";
 export const ACHIEVEMENT_PROFILE_VERSION = 2;
 export const VOYAGE_ACHIEVEMENT_PROGRESS_VERSION = 2;
@@ -72,11 +74,11 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.SPICE_TRADER, "Spice Trader",
     "Sell cinnamon, nutmeg, pepper, cloves, and ginger in one voyage.", "voyage", "good:cloves", "SPICE_TRADER"),
   achievement(ACHIEVEMENT_IDS.MILLIONAIRE, "Millionaire",
-    "Earn 1,000,000 doubloons in a single voyage.", "voyage", "good:gold", "MILLIONAIRE"),
+    "Earn 1,000,000 doubloons in a single voyage.", "voyage", "good:silver", "MILLIONAIRE"),
   achievement(ACHIEVEMENT_IDS.COLONIST, "Colonist",
     "Found five new cities in a single voyage.", "voyage", "achievement:colonist", "COLONIST"),
   achievement(ACHIEVEMENT_IDS.CONQUEROR, "Conqueror",
-    "Destroy an empire by taking its capital.", "voyage", "action:attack", "CONQUEROR"),
+    "Destroy an empire by taking its capital.", "voyage", "item:longsword", "CONQUEROR"),
   achievement(ACHIEVEMENT_IDS.WELL_ROUNDED, "Well Rounded",
     "Sail every ship type across any number of voyages.", "lifetime", "ship:caravel", "WELL_ROUNDED"),
   achievement(ACHIEVEMENT_IDS.HISTORY_ENTHUSIAST, "History Enthusiast",
@@ -92,25 +94,25 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.GINGER_FARMER, "Ginger Farmer",
     "Transplant Old World ginger into the New World.", "voyage", "good:ginger", "GINGER_FARMER", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.NEW_HORIZONS, "New Horizons",
-    "Make your first discovery.", "voyage", "menu:discoveries", "NEW_HORIZONS"),
+    "Make your first discovery.", "voyage", "action:quest", "NEW_HORIZONS"),
   achievement(ACHIEVEMENT_IDS.CHART_MAKER, "Chart Maker",
-    "Make 10 discoveries in one voyage.", "voyage", "action:navigation", "CHART_MAKER"),
+    "Make 10 discoveries in one voyage.", "voyage", "item:pilots-instruments", "CHART_MAKER"),
   achievement(ACHIEVEMENT_IDS.FAIR_EXCHANGE, "A Fair Exchange",
     "Sell your first cargo.", "voyage", "action:sell", "FAIR_EXCHANGE"),
   achievement(ACHIEVEMENT_IDS.GENERAL_MERCHANT, "General Merchant",
     "Sell five different kinds of goods in one voyage.", "voyage", "action:inventory", "GENERAL_MERCHANT"),
   achievement(ACHIEVEMENT_IDS.SPICE_OF_LIFE, "Spice of Life",
-    "Sell any spice.", "voyage", "good:cloves", "SPICE_OF_LIFE"),
+    "Sell any spice.", "voyage", "good:cinnamon", "SPICE_OF_LIFE"),
   achievement(ACHIEVEMENT_IDS.MERCHANT_ADVENTURER, "Merchant Adventurer",
-    "Earn 10,000 doubloons in one voyage.", "voyage", "good:gold", "MERCHANT_ADVENTURER"),
+    "Earn 10,000 doubloons in one voyage.", "voyage", "good:silk", "MERCHANT_ADVENTURER"),
   achievement(ACHIEVEMENT_IDS.MERCHANT_PRINCE, "Merchant Prince",
-    "Earn 100,000 doubloons in one voyage.", "voyage", "good:gold", "MERCHANT_PRINCE"),
+    "Earn 100,000 doubloons in one voyage.", "voyage", "good:artwork", "MERCHANT_PRINCE"),
   achievement(ACHIEVEMENT_IDS.FOUNDER, "Founder",
     "Found your first new city.", "voyage", "achievement:founder", "FOUNDER"),
   achievement(ACHIEVEMENT_IDS.EXPANSIONIST, "Expansionist",
     "Found three new cities in one voyage.", "voyage", "achievement:expansionist", "EXPANSIONIST"),
   achievement(ACHIEVEMENT_IDS.NEW_COMMAND, "New Command",
-    "Sail two different ship types across any number of voyages.", "lifetime", "ship:caravel", "NEW_COMMAND"),
+    "Sail two different ship types across any number of voyages.", "lifetime", "ship:brigantine", "NEW_COMMAND"),
   achievement(ACHIEVEMENT_IDS.SHIP_COLLECTOR, "Ship Collector",
     "Sail five different ship types across any number of voyages.", "lifetime", "action:shipyard", "SHIP_COLLECTOR"),
   achievement(ACHIEVEMENT_IDS.GONE_FISHING, "Gone Fishing",
@@ -122,22 +124,22 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.SHORE_LEAVE, "Shore Leave",
     "Complete a shore scavenging expedition.", "voyage", "action:scavenge", "SHORE_LEAVE"),
   achievement(ACHIEVEMENT_IDS.PRIZE_TAKEN, "Prize Taken",
-    "Acquire a new ship.", "voyage", "action:shipyard", "PRIZE_TAKEN"),
+    "Acquire a new ship.", "voyage", "ship:galleon", "PRIZE_TAKEN"),
   achievement(ACHIEVEMENT_IDS.FIRST_VICTORY, "First Victory",
     "Sink or force the surrender of an enemy ship.", "voyage", "action:attack", "FIRST_VICTORY"),
   achievement(ACHIEVEMENT_IDS.COASTAL_SURVEYOR, "Coastal Surveyor",
     "Map 30% of the globe in one voyage.", "voyage", "action:navigation", "COASTAL_SURVEYOR"),
   achievement(ACHIEVEMENT_IDS.HALF_THE_WORLD, "Half the World",
-    "Map 50% of the globe in one voyage.", "voyage", "achievement:magellan", "HALF_THE_WORLD"),
+    "Map 50% of the globe in one voyage.", "voyage", "ship:polynesian-voyaging-canoe", "HALF_THE_WORLD"),
   achievement(ACHIEVEMENT_IDS.FEWER_DRAGONS, "Here Be Fewer Dragons",
-    "Map 70% of the globe in one voyage.", "voyage", "menu:discoveries", "FEWER_DRAGONS"),
+    "Map 70% of the globe in one voyage.", "voyage", "ship:carrack", "FEWER_DRAGONS"),
   achievement(ACHIEVEMENT_IDS.ALOHA_SAILOR, "Aloha, Sailor",
     "Dock at the remote village of Hawaii.", "voyage", "achievement:hawaii", "ALOHA_SAILOR"),
   achievement(ACHIEVEMENT_IDS.NO_ONE_LEFT_IN_CHAINS, "No One Left in Chains",
-    "Bring a rescued pirate captive back to their home port.", "voyage", "action:passenger",
+    "Bring a rescued pirate captive back to their home port.", "voyage", "action:hail",
     "NO_ONE_LEFT_IN_CHAINS", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.NOT_FORGOTTEN, "Not Forgotten",
-    "Bring a rescued castaway back to their home port.", "voyage", "action:scavenge", "NOT_FORGOTTEN",
+    "Bring a rescued castaway back to their home port.", "voyage", "action:anchor", "NOT_FORGOTTEN",
     { hidden: true }),
   achievement(ACHIEVEMENT_IDS.TWO_HEARTS_ONE_HORIZON, "Two Hearts, One Horizon",
     "Marry a named crewmate after a victorious voyage.", "voyage", "achievement:married",
@@ -145,18 +147,18 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.PORT_OF_CALL, "Port of Call",
     "Visit 25 different ports in one voyage.", "voyage", "action:dock", "PORT_OF_CALL"),
   achievement(ACHIEVEMENT_IDS.SEVEN_SEAS, "Seven Seas",
-    "Visit 50 different ports in one voyage.", "voyage", "menu:ship", "SEVEN_SEAS"),
+    "Visit 50 different ports in one voyage.", "voyage", "ship:spanish-nao", "SEVEN_SEAS"),
   achievement(ACHIEVEMENT_IDS.FISHER_KING, "Fisher King",
-    "Catch 100 fish in one voyage.", "voyage", "good:fish", "FISHER_KING"),
+    "Catch 100 fish in one voyage.", "voyage", "item:bronze-fish-hooks", "FISHER_KING"),
   achievement(ACHIEVEMENT_IDS.CARGO_OF_EVERY_KIND, "Cargo of Every Kind",
-    "Sell 15 different kinds of goods in one voyage.", "voyage", "action:inventory",
+    "Sell 15 different kinds of goods in one voyage.", "voyage", "good:porcelain",
     "CARGO_OF_EVERY_KIND"),
   achievement(ACHIEVEMENT_IDS.PACKET_CAPTAIN, "Packet Captain",
-    "Deliver five passengers safely in one voyage.", "voyage", "action:passenger", "PACKET_CAPTAIN"),
+    "Deliver five passengers safely in one voyage.", "voyage", "ship:small-cog", "PACKET_CAPTAIN"),
   achievement(ACHIEVEMENT_IDS.TERROR_OF_THE_SEAS, "Terror of the Seas",
-    "Defeat 10 enemy ships in one voyage.", "voyage", "action:attack", "TERROR_OF_THE_SEAS"),
+    "Defeat 10 enemy ships in one voyage.", "voyage", "good:gunpowder", "TERROR_OF_THE_SEAS"),
   achievement(ACHIEVEMENT_IDS.THERE_SHE_BLOWS, "There She Blows",
-    "Successfully hunt a whale.", "voyage", "action:harpoon", "THERE_SHE_BLOWS"),
+    "Successfully hunt a whale.", "voyage", "good:whale-blubber", "THERE_SHE_BLOWS"),
   achievement(ACHIEVEMENT_IDS.BOLT_FROM_THE_BLUE, "Bolt from the Blue",
     "Survive a lightning strike at sea.", "voyage", "achievement:lightning", "BOLT_FROM_THE_BLUE"),
   achievement(ACHIEVEMENT_IDS.RAISE_OUR_COLORS, "Raise Our Colors",
@@ -164,13 +166,13 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.A_FINE_COMPANY, "A Fine Company",
     "Have three named crewmates aboard at once.", "voyage", "menu:captain", "A_FINE_COMPANY"),
   achievement(ACHIEVEMENT_IDS.SHIPSHAPE, "Shipshape",
-    "Own three pieces of special equipment at once.", "voyage", "action:inventory", "SHIPSHAPE"),
+    "Own three pieces of special equipment at once.", "voyage", "item:sturdy-barrels", "SHIPSHAPE"),
   achievement(ACHIEVEMENT_IDS.ALL_HANDS, "All Hands",
-    "Fill every crew berth on a ship that holds at least 10 sailors.", "voyage", "action:passenger", "ALL_HANDS"),
+    "Fill every crew berth on a ship that holds at least 10 sailors.", "voyage", "ship:mediterranean-galley", "ALL_HANDS"),
   achievement(ACHIEVEMENT_IDS.VOYAGE_FULFILLED, "Voyage Fulfilled",
     "Complete a captain's main goal and return home.", "voyage", "menu:achievements", "VOYAGE_FULFILLED"),
   achievement(ACHIEVEMENT_IDS.GREAT_BESTIARY, "The Great Bestiary",
-    "Encounter every documented animal across any number of voyages.", "lifetime", "menu:discoveries", "GREAT_BESTIARY")
+    "Encounter every documented animal across any number of voyages.", "lifetime", "good:beaver-pelts", "GREAT_BESTIARY")
 ]);
 
 export const ACHIEVEMENT_CATALOG_BY_ID = new Map(
@@ -720,8 +722,7 @@ function requiredString(value, label) {
 }
 
 function defaultStorage() {
-  if (typeof localStorage === "undefined") throw new Error("Local storage is unavailable");
-  return localStorage;
+  return gameStorage;
 }
 
 function asError(value) {

@@ -1,0 +1,517 @@
+{
+  "appId": 4516500,
+  "generatedFrom": "src/achievements.js",
+  "count": 51,
+  "achievements": [
+    {
+      "gameId": "great-explorer",
+      "apiName": "GREAT_EXPLORER",
+      "displayName": "Great Explorer",
+      "description": "Make every discovery in a single voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/GREAT_EXPLORER.jpg",
+      "unachievedIcon": "locked/GREAT_EXPLORER.jpg"
+    },
+    {
+      "gameId": "magellan",
+      "apiName": "MAGELLAN",
+      "displayName": "Magellan",
+      "description": "Circumnavigate the globe.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/MAGELLAN.jpg",
+      "unachievedIcon": "locked/MAGELLAN.jpg"
+    },
+    {
+      "gameId": "spice-trader",
+      "apiName": "SPICE_TRADER",
+      "displayName": "Spice Trader",
+      "description": "Sell cinnamon, nutmeg, pepper, cloves, and ginger in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/SPICE_TRADER.jpg",
+      "unachievedIcon": "locked/SPICE_TRADER.jpg"
+    },
+    {
+      "gameId": "millionaire",
+      "apiName": "MILLIONAIRE",
+      "displayName": "Millionaire",
+      "description": "Earn 1,000,000 doubloons in a single voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/MILLIONAIRE.jpg",
+      "unachievedIcon": "locked/MILLIONAIRE.jpg"
+    },
+    {
+      "gameId": "colonist",
+      "apiName": "COLONIST",
+      "displayName": "Colonist",
+      "description": "Found five new cities in a single voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/COLONIST.jpg",
+      "unachievedIcon": "locked/COLONIST.jpg"
+    },
+    {
+      "gameId": "conqueror",
+      "apiName": "CONQUEROR",
+      "displayName": "Conqueror",
+      "description": "Destroy an empire by taking its capital.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/CONQUEROR.jpg",
+      "unachievedIcon": "locked/CONQUEROR.jpg"
+    },
+    {
+      "gameId": "well-rounded",
+      "apiName": "WELL_ROUNDED",
+      "displayName": "Well Rounded",
+      "description": "Sail every ship type across any number of voyages.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/WELL_ROUNDED.jpg",
+      "unachievedIcon": "locked/WELL_ROUNDED.jpg"
+    },
+    {
+      "gameId": "history-enthusiast",
+      "apiName": "HISTORY_ENTHUSIAST",
+      "displayName": "History Enthusiast",
+      "description": "Unlock the Viking longship.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/HISTORY_ENTHUSIAST.jpg",
+      "unachievedIcon": "locked/HISTORY_ENTHUSIAST.jpg"
+    },
+    {
+      "gameId": "captain-ahab",
+      "apiName": "CAPTAIN_AHAB",
+      "displayName": "Captain Ahab",
+      "description": "Kill the white whale.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/CAPTAIN_AHAB.jpg",
+      "unachievedIcon": "locked/CAPTAIN_AHAB.jpg"
+    },
+    {
+      "gameId": "golden",
+      "apiName": "GOLDEN",
+      "displayName": "Golden",
+      "description": "Discover El Dorado.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/GOLDEN.jpg",
+      "unachievedIcon": "locked/GOLDEN.jpg"
+    },
+    {
+      "gameId": "drunken-sailor",
+      "apiName": "DRUNKEN_SAILOR",
+      "displayName": "Drunken Sailor",
+      "description": "Arrive in port drunk.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/DRUNKEN_SAILOR.jpg",
+      "unachievedIcon": "locked/DRUNKEN_SAILOR.jpg"
+    },
+    {
+      "gameId": "teppo",
+      "apiName": "TEPPO",
+      "displayName": "Teppo",
+      "description": "Create a domestic matchlock industry in Japan.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/TEPPO.jpg",
+      "unachievedIcon": "locked/TEPPO.jpg"
+    },
+    {
+      "gameId": "ginger-farmer",
+      "apiName": "GINGER_FARMER",
+      "displayName": "Ginger Farmer",
+      "description": "Transplant Old World ginger into the New World.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/GINGER_FARMER.jpg",
+      "unachievedIcon": "locked/GINGER_FARMER.jpg"
+    },
+    {
+      "gameId": "new-horizons",
+      "apiName": "NEW_HORIZONS",
+      "displayName": "New Horizons",
+      "description": "Make your first discovery.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/NEW_HORIZONS.jpg",
+      "unachievedIcon": "locked/NEW_HORIZONS.jpg"
+    },
+    {
+      "gameId": "chart-maker",
+      "apiName": "CHART_MAKER",
+      "displayName": "Chart Maker",
+      "description": "Make 10 discoveries in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/CHART_MAKER.jpg",
+      "unachievedIcon": "locked/CHART_MAKER.jpg"
+    },
+    {
+      "gameId": "fair-exchange",
+      "apiName": "FAIR_EXCHANGE",
+      "displayName": "A Fair Exchange",
+      "description": "Sell your first cargo.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/FAIR_EXCHANGE.jpg",
+      "unachievedIcon": "locked/FAIR_EXCHANGE.jpg"
+    },
+    {
+      "gameId": "general-merchant",
+      "apiName": "GENERAL_MERCHANT",
+      "displayName": "General Merchant",
+      "description": "Sell five different kinds of goods in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/GENERAL_MERCHANT.jpg",
+      "unachievedIcon": "locked/GENERAL_MERCHANT.jpg"
+    },
+    {
+      "gameId": "spice-of-life",
+      "apiName": "SPICE_OF_LIFE",
+      "displayName": "Spice of Life",
+      "description": "Sell any spice.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/SPICE_OF_LIFE.jpg",
+      "unachievedIcon": "locked/SPICE_OF_LIFE.jpg"
+    },
+    {
+      "gameId": "merchant-adventurer",
+      "apiName": "MERCHANT_ADVENTURER",
+      "displayName": "Merchant Adventurer",
+      "description": "Earn 10,000 doubloons in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/MERCHANT_ADVENTURER.jpg",
+      "unachievedIcon": "locked/MERCHANT_ADVENTURER.jpg"
+    },
+    {
+      "gameId": "merchant-prince",
+      "apiName": "MERCHANT_PRINCE",
+      "displayName": "Merchant Prince",
+      "description": "Earn 100,000 doubloons in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/MERCHANT_PRINCE.jpg",
+      "unachievedIcon": "locked/MERCHANT_PRINCE.jpg"
+    },
+    {
+      "gameId": "founder",
+      "apiName": "FOUNDER",
+      "displayName": "Founder",
+      "description": "Found your first new city.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/FOUNDER.jpg",
+      "unachievedIcon": "locked/FOUNDER.jpg"
+    },
+    {
+      "gameId": "expansionist",
+      "apiName": "EXPANSIONIST",
+      "displayName": "Expansionist",
+      "description": "Found three new cities in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/EXPANSIONIST.jpg",
+      "unachievedIcon": "locked/EXPANSIONIST.jpg"
+    },
+    {
+      "gameId": "new-command",
+      "apiName": "NEW_COMMAND",
+      "displayName": "New Command",
+      "description": "Sail two different ship types across any number of voyages.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/NEW_COMMAND.jpg",
+      "unachievedIcon": "locked/NEW_COMMAND.jpg"
+    },
+    {
+      "gameId": "ship-collector",
+      "apiName": "SHIP_COLLECTOR",
+      "displayName": "Ship Collector",
+      "description": "Sail five different ship types across any number of voyages.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/SHIP_COLLECTOR.jpg",
+      "unachievedIcon": "locked/SHIP_COLLECTOR.jpg"
+    },
+    {
+      "gameId": "gone-fishing",
+      "apiName": "GONE_FISHING",
+      "displayName": "Gone Fishing",
+      "description": "Catch your first fish.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/GONE_FISHING.jpg",
+      "unachievedIcon": "locked/GONE_FISHING.jpg"
+    },
+    {
+      "gameId": "good-haul",
+      "apiName": "GOOD_HAUL",
+      "displayName": "A Good Haul",
+      "description": "Catch 20 fish in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/GOOD_HAUL.jpg",
+      "unachievedIcon": "locked/GOOD_HAUL.jpg"
+    },
+    {
+      "gameId": "passage-complete",
+      "apiName": "PASSAGE_COMPLETE",
+      "displayName": "Passage Complete",
+      "description": "Deliver a passenger safely to their destination.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/PASSAGE_COMPLETE.jpg",
+      "unachievedIcon": "locked/PASSAGE_COMPLETE.jpg"
+    },
+    {
+      "gameId": "shore-leave",
+      "apiName": "SHORE_LEAVE",
+      "displayName": "Shore Leave",
+      "description": "Complete a shore scavenging expedition.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/SHORE_LEAVE.jpg",
+      "unachievedIcon": "locked/SHORE_LEAVE.jpg"
+    },
+    {
+      "gameId": "prize-taken",
+      "apiName": "PRIZE_TAKEN",
+      "displayName": "Prize Taken",
+      "description": "Acquire a new ship.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/PRIZE_TAKEN.jpg",
+      "unachievedIcon": "locked/PRIZE_TAKEN.jpg"
+    },
+    {
+      "gameId": "first-victory",
+      "apiName": "FIRST_VICTORY",
+      "displayName": "First Victory",
+      "description": "Sink or force the surrender of an enemy ship.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/FIRST_VICTORY.jpg",
+      "unachievedIcon": "locked/FIRST_VICTORY.jpg"
+    },
+    {
+      "gameId": "coastal-surveyor",
+      "apiName": "COASTAL_SURVEYOR",
+      "displayName": "Coastal Surveyor",
+      "description": "Map 30% of the globe in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/COASTAL_SURVEYOR.jpg",
+      "unachievedIcon": "locked/COASTAL_SURVEYOR.jpg"
+    },
+    {
+      "gameId": "half-the-world",
+      "apiName": "HALF_THE_WORLD",
+      "displayName": "Half the World",
+      "description": "Map 50% of the globe in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/HALF_THE_WORLD.jpg",
+      "unachievedIcon": "locked/HALF_THE_WORLD.jpg"
+    },
+    {
+      "gameId": "fewer-dragons",
+      "apiName": "FEWER_DRAGONS",
+      "displayName": "Here Be Fewer Dragons",
+      "description": "Map 70% of the globe in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/FEWER_DRAGONS.jpg",
+      "unachievedIcon": "locked/FEWER_DRAGONS.jpg"
+    },
+    {
+      "gameId": "aloha-sailor",
+      "apiName": "ALOHA_SAILOR",
+      "displayName": "Aloha, Sailor",
+      "description": "Dock at the remote village of Hawaii.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/ALOHA_SAILOR.jpg",
+      "unachievedIcon": "locked/ALOHA_SAILOR.jpg"
+    },
+    {
+      "gameId": "no-one-left-in-chains",
+      "apiName": "NO_ONE_LEFT_IN_CHAINS",
+      "displayName": "No One Left in Chains",
+      "description": "Bring a rescued pirate captive back to their home port.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/NO_ONE_LEFT_IN_CHAINS.jpg",
+      "unachievedIcon": "locked/NO_ONE_LEFT_IN_CHAINS.jpg"
+    },
+    {
+      "gameId": "not-forgotten",
+      "apiName": "NOT_FORGOTTEN",
+      "displayName": "Not Forgotten",
+      "description": "Bring a rescued castaway back to their home port.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/NOT_FORGOTTEN.jpg",
+      "unachievedIcon": "locked/NOT_FORGOTTEN.jpg"
+    },
+    {
+      "gameId": "two-hearts-one-horizon",
+      "apiName": "TWO_HEARTS_ONE_HORIZON",
+      "displayName": "Two Hearts, One Horizon",
+      "description": "Marry a named crewmate after a victorious voyage.",
+      "hidden": true,
+      "setBy": "Client",
+      "achievedIcon": "achieved/TWO_HEARTS_ONE_HORIZON.jpg",
+      "unachievedIcon": "locked/TWO_HEARTS_ONE_HORIZON.jpg"
+    },
+    {
+      "gameId": "port-of-call",
+      "apiName": "PORT_OF_CALL",
+      "displayName": "Port of Call",
+      "description": "Visit 25 different ports in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/PORT_OF_CALL.jpg",
+      "unachievedIcon": "locked/PORT_OF_CALL.jpg"
+    },
+    {
+      "gameId": "seven-seas",
+      "apiName": "SEVEN_SEAS",
+      "displayName": "Seven Seas",
+      "description": "Visit 50 different ports in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/SEVEN_SEAS.jpg",
+      "unachievedIcon": "locked/SEVEN_SEAS.jpg"
+    },
+    {
+      "gameId": "fisher-king",
+      "apiName": "FISHER_KING",
+      "displayName": "Fisher King",
+      "description": "Catch 100 fish in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/FISHER_KING.jpg",
+      "unachievedIcon": "locked/FISHER_KING.jpg"
+    },
+    {
+      "gameId": "cargo-of-every-kind",
+      "apiName": "CARGO_OF_EVERY_KIND",
+      "displayName": "Cargo of Every Kind",
+      "description": "Sell 15 different kinds of goods in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/CARGO_OF_EVERY_KIND.jpg",
+      "unachievedIcon": "locked/CARGO_OF_EVERY_KIND.jpg"
+    },
+    {
+      "gameId": "packet-captain",
+      "apiName": "PACKET_CAPTAIN",
+      "displayName": "Packet Captain",
+      "description": "Deliver five passengers safely in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/PACKET_CAPTAIN.jpg",
+      "unachievedIcon": "locked/PACKET_CAPTAIN.jpg"
+    },
+    {
+      "gameId": "terror-of-the-seas",
+      "apiName": "TERROR_OF_THE_SEAS",
+      "displayName": "Terror of the Seas",
+      "description": "Defeat 10 enemy ships in one voyage.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/TERROR_OF_THE_SEAS.jpg",
+      "unachievedIcon": "locked/TERROR_OF_THE_SEAS.jpg"
+    },
+    {
+      "gameId": "there-she-blows",
+      "apiName": "THERE_SHE_BLOWS",
+      "displayName": "There She Blows",
+      "description": "Successfully hunt a whale.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/THERE_SHE_BLOWS.jpg",
+      "unachievedIcon": "locked/THERE_SHE_BLOWS.jpg"
+    },
+    {
+      "gameId": "bolt-from-the-blue",
+      "apiName": "BOLT_FROM_THE_BLUE",
+      "displayName": "Bolt from the Blue",
+      "description": "Survive a lightning strike at sea.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/BOLT_FROM_THE_BLUE.jpg",
+      "unachievedIcon": "locked/BOLT_FROM_THE_BLUE.jpg"
+    },
+    {
+      "gameId": "raise-our-colors",
+      "apiName": "RAISE_OUR_COLORS",
+      "displayName": "Raise Our Colors",
+      "description": "Conquer a port for your nation.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/RAISE_OUR_COLORS.jpg",
+      "unachievedIcon": "locked/RAISE_OUR_COLORS.jpg"
+    },
+    {
+      "gameId": "a-fine-company",
+      "apiName": "A_FINE_COMPANY",
+      "displayName": "A Fine Company",
+      "description": "Have three named crewmates aboard at once.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/A_FINE_COMPANY.jpg",
+      "unachievedIcon": "locked/A_FINE_COMPANY.jpg"
+    },
+    {
+      "gameId": "shipshape",
+      "apiName": "SHIPSHAPE",
+      "displayName": "Shipshape",
+      "description": "Own three pieces of special equipment at once.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/SHIPSHAPE.jpg",
+      "unachievedIcon": "locked/SHIPSHAPE.jpg"
+    },
+    {
+      "gameId": "all-hands",
+      "apiName": "ALL_HANDS",
+      "displayName": "All Hands",
+      "description": "Fill every crew berth on a ship that holds at least 10 sailors.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/ALL_HANDS.jpg",
+      "unachievedIcon": "locked/ALL_HANDS.jpg"
+    },
+    {
+      "gameId": "voyage-fulfilled",
+      "apiName": "VOYAGE_FULFILLED",
+      "displayName": "Voyage Fulfilled",
+      "description": "Complete a captain's main goal and return home.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/VOYAGE_FULFILLED.jpg",
+      "unachievedIcon": "locked/VOYAGE_FULFILLED.jpg"
+    },
+    {
+      "gameId": "great-bestiary",
+      "apiName": "GREAT_BESTIARY",
+      "displayName": "The Great Bestiary",
+      "description": "Encounter every documented animal across any number of voyages.",
+      "hidden": false,
+      "setBy": "Client",
+      "achievedIcon": "achieved/GREAT_BESTIARY.jpg",
+      "unachievedIcon": "locked/GREAT_BESTIARY.jpg"
+    }
+  ]
+}

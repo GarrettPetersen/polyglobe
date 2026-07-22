@@ -147,6 +147,11 @@ test("every achievement has a renderable icon", () => {
   }
 });
 
+test("every achievement has distinct artwork", () => {
+  const iconIds = ACHIEVEMENT_CATALOG.map((achievement) => achievement.iconId);
+  assert.equal(new Set(iconIds).size, ACHIEVEMENT_CATALOG.length);
+});
+
 test("same-voyage achievements unlock from accumulated progress", () => {
   const profile = createAchievementProfile();
   const progress = createVoyageAchievementProgress();

@@ -20,6 +20,15 @@ const LISBON = Object.freeze({
   population: 70000
 });
 
+const FUNCHAL = Object.freeze({
+  tileId: 11,
+  city: "Funchal",
+  displayCity: "Funchal",
+  country: "Portugal",
+  cityType: "mediterranean",
+  population: 8000
+});
+
 test("players begin with standard ordnance recorded in ship equipment", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -55,10 +64,10 @@ test("cannon upgrades spend doubloons and enter the ledger", () => {
 test("ports enforce cannon stock and unarmed ships cannot buy cannon equipment", () => {
   const armed = shipStatsForSlug("brigantine");
   const armedState = createGameState({ cargoCapacity: armed.cargoCapacity, shipStats: armed });
-  const economy = createWorldEconomy({ ports: [LISBON], startMinute: 0 });
+  const economy = createWorldEconomy({ ports: [FUNCHAL], startMinute: 0 });
   armedState.doubloons = 50000;
   assert.throws(
-    () => purchaseCannonEquipment(armedState, economy, LISBON, "royal-foundry-battery"),
+    () => purchaseCannonEquipment(armedState, economy, FUNCHAL, "royal-foundry-battery"),
     /not stocked/
   );
 

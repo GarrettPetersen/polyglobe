@@ -1,0 +1,16 @@
+"lang"
+{
+  "english"
+  {
+    "tokens"
+    {
+      "#Status_MainMenu" "In the main menu"
+      "#Status_ShipBattle" "Fighting a ship battle"
+      "#Status_VoyageEnded" "Reviewing a completed voyage"
+      "#Status_InPort" "In port at %place%"
+      "#Status_InCombat" "Fighting at sea"
+      "#Status_Anchored" "Anchored aboard a %ship%"
+      "#Status_Sailing" "Sailing a %ship%"
+    }
+  }
+}

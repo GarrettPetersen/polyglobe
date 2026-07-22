@@ -231,8 +231,8 @@ function buildEditionModuleSource() {
 
 async function bundleDemoRuntime() {
   await build({
-    entryPoints: [join(appRoot, "src/main.js")],
-    outfile: join(distRoot, "src/main.js"),
+    entryPoints: [join(appRoot, "src/bootstrap.js")],
+    outfile: join(distRoot, "src/bootstrap.js"),
     bundle: true,
     format: "esm",
     platform: "browser",

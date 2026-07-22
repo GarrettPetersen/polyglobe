@@ -1,0 +1,155 @@
+const { app, BrowserWindow, ipcMain } = require("electron");
+const { join, resolve } = require("node:path");
+const steamworks = require("steamworks.js");
+
+const { startStaticServer } = require("./staticServer.cjs");
+const { createSteamNativeApi } = require("./steamNativeApi.cjs");
+const { createSteamInputService } = require("./steamInput.cjs");
+
+const APP_ID = requiredAppId(process.env.MARQUE_STEAM_APP_ID || "4516500");
+const GAME_ROOT = resolve(__dirname, process.env.MARQUE_STEAM_GAME_ROOT || "../dist");
+const INPUT_MANIFEST = resolve(__dirname, "../steam-input/game_actions.vdf");
+const PRESENCE_KEYS = Object.freeze(["steam_display", "status", "place", "ship"]);
+const CAPABILITIES = Object.freeze({
+  achievements: true,
+  cloud: true,
+  input: true,
+  richPresence: true,
+  screenshots: true,
+  timeline: true
+});
+
+steamworks.electronEnableSteamOverlay();
+
+let client = null;
+let nativeApi = null;
+let steamInput = null;
+let steamInputTimer = null;
+let staticServer = null;
+
+app.whenReady().then(async () => {
+  if (process.env.MARQUE_STEAM_REQUIRE_RELAUNCH === "1" && steamworks.restartAppIfNecessary(APP_ID)) {
+    app.quit();
+    return;
+  }
+  client = steamworks.init(APP_ID);
+  assertSteamCloudEnabled(client);
+  client.input.init();
+  nativeApi = createSteamNativeApi();
+  nativeApi.setInputActionManifest(INPUT_MANIFEST);
+  steamInput = createSteamInputService(client.input);
+  installIpcHandlers();
+  staticServer = await startStaticServer(GAME_ROOT);
+  await createGameWindow(staticServer.url);
+}).catch((error) => {
+  console.error("[steam] desktop host failed to start", error);
+  app.exit(1);
+});
+
+app.on("window-all-closed", () => app.quit());
+app.on("before-quit", () => {
+  try {
+    client?.input.shutdown();
+  } catch (error) {
+    console.error("[steam] Steam Input shutdown failed", error);
+  }
+  if (steamInputTimer) clearInterval(steamInputTimer);
+  if (staticServer) void staticServer.close().catch((error) => console.error("[steam] server shutdown failed", error));
+});
+
+async function createGameWindow(url) {
+  const window = new BrowserWindow({
+    width: 1280,
+    height: 720,
+    minWidth: 720,
+    minHeight: 405,
+    backgroundColor: "#101811",
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: join(__dirname, "preload.cjs"),
+      sandbox: true
+    }
+  });
+  window.setMenuBarVisibility(false);
+  window.once("ready-to-show", () => window.show());
+  await window.loadURL(url);
+  steamInputTimer = setInterval(() => {
+    if (!window.isDestroyed()) window.webContents.send("steam:input-frame", steamInput.snapshot());
+  }, 16);
+}
+
+function installIpcHandlers() {
+  ipcMain.handle("steam:get-capabilities", () => CAPABILITIES);
+  ipcMain.handle("steam:unlock-achievement", (_event, id) => unlockAchievement(id));
+  ipcMain.handle("steam:cloud-read", (_event, name) => readCloudFile(name));
+  ipcMain.handle("steam:cloud-write", (_event, name, contents) => writeCloudFile(name, contents));
+  ipcMain.handle("steam:set-rich-presence", (_event, presence) => setRichPresence(presence));
+  ipcMain.handle("steam:set-timeline-state", (_event, state) => nativeApi.setTimelineState(state));
+  ipcMain.handle("steam:add-timeline-event", (_event, event) => nativeApi.addTimelineEvent(event));
+  ipcMain.handle("steam:trigger-screenshot", () => nativeApi.triggerScreenshot());
+  ipcMain.handle("steam:set-input-action-set", (_event, name) => steamInput.setActionSet(name));
+}
+
+function unlockAchievement(id) {
+  const achievementId = requiredString(id, "achievement id");
+  if (client.achievement.isActivated(achievementId)) return true;
+  if (!client.achievement.activate(achievementId)) {
+    throw new Error(`Steam rejected achievement ${achievementId}`);
+  }
+  if (!client.stats.store()) throw new Error(`Steam could not store achievement ${achievementId}`);
+  return true;
+}
+
+function readCloudFile(name) {
+  const fileName = requiredCloudFileName(name);
+  return client.cloud.fileExists(fileName) ? client.cloud.readFile(fileName) : null;
+}
+
+function writeCloudFile(name, contents) {
+  const fileName = requiredCloudFileName(name);
+  if (typeof contents !== "string" || contents.length === 0) {
+    throw new Error(`Steam Cloud write is empty: ${fileName}`);
+  }
+  if (!client.cloud.writeFile(fileName, contents)) {
+    throw new Error(`Steam Cloud rejected ${fileName}`);
+  }
+  return true;
+}
+
+function setRichPresence(presence) {
+  if (!presence || typeof presence !== "object" || Array.isArray(presence)) {
+    throw new Error("Steam Rich Presence payload is invalid");
+  }
+  for (const key of PRESENCE_KEYS) client.localplayer.setRichPresence(key, null);
+  for (const [key, value] of Object.entries(presence)) {
+    if (!PRESENCE_KEYS.includes(key) || typeof value !== "string") {
+      throw new Error(`Steam Rich Presence entry is invalid: ${key}`);
+    }
+    client.localplayer.setRichPresence(key, value);
+  }
+  return true;
+}
+
+function assertSteamCloudEnabled(steamClient) {
+  if (!steamClient.cloud.isEnabledForAccount()) throw new Error("Steam Cloud is disabled for this account");
+  if (!steamClient.cloud.isEnabledForApp()) throw new Error(`Steam Cloud is disabled for App ${APP_ID}`);
+}
+
+function requiredCloudFileName(value) {
+  const name = requiredString(value, "Steam Cloud filename");
+  if (!/^[a-z0-9][a-z0-9._-]{0,127}$/i.test(name)) throw new Error(`Invalid Steam Cloud filename: ${name}`);
+  return name;
+}
+
+function requiredString(value, label) {
+  if (typeof value !== "string" || value.trim() === "") throw new Error(`Missing ${label}`);
+  return value;
+}
+
+function requiredAppId(value) {
+  const appId = Number(value);
+  if (!Number.isInteger(appId) || appId <= 0) throw new Error(`Invalid Steam App ID: ${value}`);
+  return appId;
+}

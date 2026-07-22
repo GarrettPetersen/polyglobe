@@ -1,0 +1,16 @@
+{
+  "name": "marque-and-reprisal-steam-host",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Steam desktop host for Marque & Reprisal",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check main.cjs && node --check preload.cjs && node --check steamNativeApi.cjs && node --check staticServer.cjs && node --test *.test.cjs"
+  },
+  "dependencies": {
+    "electron": "43.2.0",
+    "koffi": "3.1.2",
+    "steamworks.js": "0.4.0"
+  }
+}

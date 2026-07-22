@@ -1,3 +1,5 @@
+import { gameStorage } from "./gameStorage.js";
+
 export const VOYAGE_HISTORY_STORAGE_KEY = "marque-and-reprisal.voyage-history";
 export const VOYAGE_HISTORY_VERSION = 2;
 export const MAX_PAST_VOYAGES = 50;
@@ -168,8 +170,7 @@ function validateVoyageRecord(record) {
 }
 
 function defaultStorage() {
-  if (typeof localStorage === "undefined") throw new Error("Local storage is unavailable");
-  return localStorage;
+  return gameStorage;
 }
 
 function asError(value) {

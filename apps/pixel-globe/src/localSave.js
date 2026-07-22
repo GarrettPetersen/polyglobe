@@ -1,3 +1,5 @@
+import { gameStorage } from "./gameStorage.js";
+
 export const LOCAL_SAVE_STORAGE_KEY = "marque-and-reprisal.save";
 export const LOCAL_SAVE_VERSION = 1;
 
@@ -75,8 +77,7 @@ function isFiniteVector(value) {
 }
 
 function defaultStorage() {
-  if (typeof localStorage === "undefined") throw new Error("Local storage is unavailable");
-  return localStorage;
+  return gameStorage;
 }
 
 function asError(value) {

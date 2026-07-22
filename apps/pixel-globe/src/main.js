@@ -695,6 +695,15 @@ import {
   createCaptureDirector
 } from "./captureDirector.js";
 import { saveShareScreenshot } from "./screenshotExport.js";
+import { gameStorage } from "./gameStorage.js";
+import {
+  PLATFORM_CLIP_PRIORITY,
+  PLATFORM_TIMELINE_MODE,
+  addPlatformTimelineEvent,
+  createPlatformActivityPublisher,
+  platformServicesAdapter,
+  triggerPlatformScreenshot
+} from "./platformServices.js";
 import {
   KEY_ACTION,
   KEY_ACTION_DEFINITIONS,
@@ -2022,7 +2031,9 @@ const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: red
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
 const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
 
-let keyBindings = loadKeyBindings(window.localStorage);
+const steamPlatformBridge = platformServicesAdapter(window);
+const platformActivityPublisher = createPlatformActivityPublisher(steamPlatformBridge);
+let keyBindings = loadKeyBindings(gameStorage);
 const keys = createHeldKeyActions();
 const pointerSteering = {
   active: false,
@@ -2040,6 +2051,7 @@ let controllerScrollState = null;
 let controllerInteractionTargetKey = null;
 let activeControllerGamepad = null;
 let activeControllerFamily = CONTROLLER_FAMILY.GENERIC;
+let activeSteamInputActionSet = null;
 let graph;
 let directionIndex;
 let earthRows;
@@ -2307,7 +2319,7 @@ window.addEventListener("keydown", (event) => {
   if (keyAction === KEY_ACTION.SCREENSHOT) {
     event.preventDefault();
     if (!event.repeat) {
-      void saveShareScreenshot(canvas)
+      void saveRequestedScreenshot()
         .then(({ width, height }) => showSurvivalNotice(`SCREENSHOT SAVED  ${width}X${height}`, "good"))
         .catch((error) => {
           console.error("Could not save share screenshot", error);
@@ -3746,6 +3758,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     dirty = false;
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
+    updatePlatformActivity();
     if (scheduleNextFrame) requestAnimationFrame(loop);
     return;
   }
@@ -3806,7 +3819,70 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     else drawCaptainMenuButton();
     lastOverlayMs = nowMs;
   }
+  updatePlatformActivity();
   if (scheduleNextFrame) requestAnimationFrame(loop);
+}
+
+function updatePlatformActivity() {
+  if (!steamPlatformBridge) return;
+  const activity = currentPlatformActivity();
+  void platformActivityPublisher.publish(activity).catch((error) => {
+    console.error("[steam] could not update activity", error);
+  });
+}
+
+function currentPlatformActivity() {
+  if (startMenu) return platformActivity("#Status_MainMenu", "In the main menu", PLATFORM_TIMELINE_MODE.MENUS);
+  if (lakeBattleMode) {
+    return platformActivity("#Status_ShipBattle", "Fighting a ship battle", PLATFORM_TIMELINE_MODE.PLAYING);
+  }
+  if (gameOverReason) {
+    return platformActivity("#Status_VoyageEnded", "Reviewing a completed voyage", PLATFORM_TIMELINE_MODE.MENUS);
+  }
+  const port = platformActivityPort();
+  if (port) {
+    const place = cityLabelText(port);
+    return platformActivity("#Status_InPort", `In port at ${place}`, PLATFORM_TIMELINE_MODE.MENUS, { place });
+  }
+  if (playerHasCombatEngagement()) {
+    return platformActivity("#Status_InCombat", "Fighting at sea", PLATFORM_TIMELINE_MODE.PLAYING);
+  }
+  const vessel = ship?.typeSlug ? shipLabelForSlug(ship.typeSlug) : "ship";
+  if (anchored) {
+    return platformActivity("#Status_Anchored", `Anchored aboard a ${vessel}`, PLATFORM_TIMELINE_MODE.STAGING, {
+      ship: vessel
+    });
+  }
+  return platformActivity("#Status_Sailing", `Sailing a ${vessel}`, PLATFORM_TIMELINE_MODE.PLAYING, {
+    ship: vessel
+  });
+}
+
+function platformActivity(displayToken, description, mode, parameters = {}) {
+  return {
+    presence: {
+      steam_display: displayToken,
+      status: description,
+      ...Object.fromEntries(Object.entries(parameters).map(([key, value]) => [key, String(value)]))
+    },
+    timeline: { description, mode }
+  };
+}
+
+function platformActivityPort() {
+  if (portWaitState) {
+    return chartPortCallById(portWaitState.portId) || cityByTileId.get(portWaitState.cityTileId) || null;
+  }
+  if (dialogueState?.kind === "port") {
+    return chartPortCallById(dialogueState.portId) || cityByTileId.get(dialogueState.cityTileId) || null;
+  }
+  return null;
+}
+
+function publishPlatformTimelineEvent(event) {
+  void addPlatformTimelineEvent(steamPlatformBridge, event).catch((error) => {
+    console.error("[steam] could not add timeline event", error);
+  });
 }
 
 function measurePerformanceBenchmarkStage(name, callback) {
@@ -5677,19 +5753,18 @@ function loadStoredAudioMuted() {
 }
 
 function readLocalStorage(key) {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage.getItem(key);
-  } catch (_) {
-    return null;
-  }
+  return gameStorage.getItem(key);
 }
 
 function writeLocalStorage(key, value) {
-  try {
-    if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
-  } catch (_) {
-    // Storage can be disabled in private or embedded browsing contexts.
+  gameStorage.setItem(key, value);
+}
+
+async function saveRequestedScreenshot() {
+  if (await triggerPlatformScreenshot(steamPlatformBridge)) {
+    return { width: canvas.width, height: canvas.height };
   }
+  return saveShareScreenshot(canvas);
 }
 
 function uiText(key, replacements = {}) {
@@ -7796,6 +7871,16 @@ function syncAchievementsFromGameState(event = null) {
   achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
   if (result.newlyUnlocked.length > 0 && hasStartedVoyage && !startMenu) {
     queueAchievementNotices(result.newlyUnlocked);
+    for (const entry of result.newlyUnlocked) {
+      publishPlatformTimelineEvent({
+        title: `Achievement unlocked: ${entry.title}`,
+        description: entry.description,
+        icon: "steam_achievement",
+        priority: 650,
+        durationSeconds: 0,
+        clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
+      });
+    }
   }
   queueAchievementPlatformSync();
   return result.newlyUnlocked;
@@ -8674,7 +8759,7 @@ function resetAllKeyBindings() {
 }
 
 function persistKeyBindings(nextBindings) {
-  saveKeyBindings(window.localStorage, nextBindings);
+  saveKeyBindings(gameStorage, nextBindings);
   keyBindings = nextBindings;
 }
 
@@ -10408,6 +10493,16 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
       `The captured treasury yields ${prize.amount} doubloons.${collapseText}`,
     "happy"
   );
+  publishPlatformTimelineEvent({
+    title: `${cityLabelText(capturedCity)} captured`,
+    description: event.collapsedFactionId
+      ? `${oldFaction.name} collapsed after its capital fell.`
+      : `${cityLabelText(capturedCity)} now flies the ${newFaction.adjective} flag.`,
+    icon: "steam_flag",
+    priority: event.collapsedFactionId ? 1000 : 800,
+    durationSeconds: 0,
+    clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
+  });
   saveVoyageNow("port conquered");
   dirty = true;
   return true;
@@ -11644,6 +11739,14 @@ function beginPlayerInitiatedCombat(npcShipId) {
   shipCombatEntryCollisionGrace.set(npcShipId, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
   const cannons = shipStatsForSlug(state.slug).cannons;
   startCombatMusicForThreat(cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  publishPlatformTimelineEvent({
+    title: "Battle joined",
+    description: `Attacked a ${shipLabelForSlug(state.slug)}`,
+    icon: "steam_attack",
+    priority: 600,
+    durationSeconds: 0,
+    clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
+  });
 }
 
 function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
@@ -12286,6 +12389,18 @@ function landWhaleKillingBlow() {
   );
   syncShipCargoFromGameState();
   syncAchievementsFromGameState({ type: "whale-killed" });
+  publishPlatformTimelineEvent({
+    title: whale.id === WHITE_WHALE_ID ? "The white whale is dead" : `${label} taken`,
+    description: result.quantity > 0
+      ? `The crew secured ${result.quantity} whale blubber.`
+      : "The hunt ended with the hold already full.",
+    icon: "steam_star",
+    priority: whale.id === WHITE_WHALE_ID ? 1000 : 700,
+    durationSeconds: 0,
+    clipPriority: whale.id === WHITE_WHALE_ID
+      ? PLATFORM_CLIP_PRIORITY.FEATURED
+      : PLATFORM_CLIP_PRIORITY.STANDARD
+  });
   if (whale.id === WHITE_WHALE_ID) {
     syncAchievementsFromGameState({ type: "white-whale-killed" });
     const goal = gameState.memory.campaignGoal;
@@ -13311,8 +13426,13 @@ function inputHeadingForShip() {
 }
 
 function pollGamepadControls(nowMs) {
+  const steamInputBridge = window.marqueSteamInput ?? null;
+  syncSteamInputActionSet(steamInputBridge, controllerDirectionalUiIsActive() ? "Menus" : "Sailing");
+  const steamInputFrame = steamInputBridge?.getFrame?.() ?? null;
   const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
-  const gamepad = Array.from(pads || []).find((pad) => pad?.connected !== false) || null;
+  const gamepad = steamInputFrame?.connected === true
+    ? steamInputFrame
+    : Array.from(pads || []).find((pad) => pad?.connected !== false) || null;
   if (!gamepad) {
     activeControllerGamepad = null;
     const nextFamily = controllerFamilyForGamepad(null, optionsMenu.controllerGlyphPreference);
@@ -13330,7 +13450,7 @@ function pollGamepadControls(nowMs) {
   const nextFamily = controllerFamilyForGamepad(
     gamepad,
     optionsMenu.controllerGlyphPreference,
-    steamInputTypeFromBridge(window.marqueSteamInput ?? null, gamepad.index)
+    steamInputTypeFromBridge(steamInputBridge, gamepad.index)
   );
   if (nextFamily !== activeControllerFamily) {
     activeControllerFamily = nextFamily;
@@ -13378,6 +13498,19 @@ function pollGamepadControls(nowMs) {
     sailingTutorialInputMode = "controller";
     dispatchControllerKey(scrolling.action === "up" ? "PageUp" : "PageDown");
   }
+}
+
+function syncSteamInputActionSet(bridge, actionSet) {
+  if (!bridge) return;
+  if (typeof bridge.getFrame !== "function" || typeof bridge.setActionSet !== "function") {
+    throw new Error("Steam Input bridge must provide getFrame() and setActionSet(name)");
+  }
+  if (activeSteamInputActionSet === actionSet) return;
+  activeSteamInputActionSet = actionSet;
+  void bridge.setActionSet(actionSet).catch((error) => {
+    if (activeSteamInputActionSet === actionSet) activeSteamInputActionSet = null;
+    console.error(`[steam] could not activate ${actionSet} input`, error);
+  });
 }
 
 function handleControllerAction(action) {
@@ -15498,6 +15631,14 @@ function updateStormDamage(previousMinute, currentMinute) {
   if (totalDamage <= 0) return false;
 
   if (!triggerStormShipStrike(stormShipStrikeState, lastFrameMs)) return false;
+  publishPlatformTimelineEvent({
+    title: "Lightning strike",
+    description: "Lightning struck the ship during a storm.",
+    icon: "steam_bolt",
+    priority: 850,
+    durationSeconds: 0,
+    clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
+  });
   if (playerHullDamageWasResisted("LIGHTNING")) {
     syncAchievementsFromGameState({ type: "survived-lightning-strike" });
     return true;
@@ -15563,6 +15704,14 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   }
   if (gameOverReason || (outcomeType === "death" && playerShipIsInvulnerable())) return;
   if (sinkShip) spawnPlayerShipSinkEffect(lastFrameMs);
+  publishPlatformTimelineEvent({
+    title: outcomeType === "victory" ? "Voyage fulfilled" : "Voyage ended",
+    description: reason,
+    icon: outcomeType === "victory" ? "steam_trophy" : "steam_caution",
+    priority: 1000,
+    durationSeconds: 0,
+    clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
+  });
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs, sinkShip, outcomeType, victory);
   storePastVoyage(createPastVoyageRecord({
@@ -16046,7 +16195,20 @@ function updateNpcCombat(dt) {
   const initiatingNpcId = colonizationDefenseInitiator || (firstPlayerEngagement
     ? (firstPlayerEngagement.aId === PLAYER_COMBAT_ID ? firstPlayerEngagement.bId : firstPlayerEngagement.aId)
     : null);
-  if (initiatingNpcId && !pendingNpcCombatHailId) pendingNpcCombatHailId = initiatingNpcId;
+  if (initiatingNpcId && !pendingNpcCombatHailId) {
+    pendingNpcCombatHailId = initiatingNpcId;
+    const attacker = npcVisualShips.get(initiatingNpcId);
+    publishPlatformTimelineEvent({
+      title: "Battle joined",
+      description: attacker
+        ? `Engaged by a ${shipLabelForSlug(attacker.slug)}`
+        : "An enemy opened fire.",
+      icon: "steam_attack",
+      priority: 600,
+      durationSeconds: 0,
+      clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
+    });
+  }
   const suppressCaptureHails = captureSuppressesCombatHails();
   let combatHailOpened = false;
   if (pendingNpcCombatHailId) {
@@ -17168,6 +17330,14 @@ function recordPlayerShipVictory() {
   const firstVictory = gameState.memory.flags.achievementDefeatedShip !== true;
   gameState.memory.flags.achievementDefeatedShip = true;
   syncAchievementsFromGameState({ type: "enemy-ship-defeated" });
+  publishPlatformTimelineEvent({
+    title: "Enemy ship defeated",
+    description: "An enemy vessel was sunk or forced to surrender.",
+    icon: "steam_attack",
+    priority: 750,
+    durationSeconds: 0,
+    clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
+  });
   return firstVictory;
 }
 
@@ -19066,6 +19236,16 @@ function queueDiscovery(discovery, nowMs) {
     id: discovery.id,
     name: discovery.displayName || discovery.name || discovery.id,
     kind: discovery.kind
+  });
+  publishPlatformTimelineEvent({
+    title: `Discovered ${discovery.displayName || discovery.name || discovery.id}`,
+    description: discovery.kind === "achievement" ? "A rare feat was completed." : "A new wonder was added to the chart.",
+    icon: "steam_star",
+    priority: discovery.kind === "achievement" ? 850 : 550,
+    durationSeconds: 0,
+    clipPriority: discovery.kind === "achievement"
+      ? PLATFORM_CLIP_PRIORITY.FEATURED
+      : PLATFORM_CLIP_PRIORITY.STANDARD
   });
   discoveryNoticeQueue.push(discovery);
   updateDiscoveryNotice(nowMs);

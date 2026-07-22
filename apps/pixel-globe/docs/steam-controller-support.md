@@ -33,6 +33,10 @@ window.marqueSteamInput = {
 };
 ```
 
+The shipping implementation is installed by `steam-host/preload.cjs`. The host
+initializes Steam Input and sets `steam-input/game_actions.vdf` as the action
+manifest before the game window opens.
+
 The browser build does not require the bridge.
 
 ## Steamworks setup
