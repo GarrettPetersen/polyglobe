@@ -11,11 +11,11 @@ import {
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
+const codeAssetVersion = "2026-07-22";
 
 export function homePage() {
   const featureRows = features.map((feature) => [
-    "<section class='feature-row reveal' id='", feature.id, "' aria-labelledby='", feature.id, "-title'>",
-    "<h2 class='visually-hidden' id='", feature.id, "-title'>", escapeHtml(feature.title), "</h2>",
+    "<section class='feature-row reveal' id='", feature.id, "' aria-label='", escapeHtml(feature.title), "'>",
     "<div class='feature-window'>",
     "<video class='feature-video' muted loop playsinline preload='none' poster='", feature.poster, "' aria-label='", escapeHtml(feature.title), " gameplay'>",
     "<source data-src='", feature.video, "' type='video/webm'>",
@@ -345,14 +345,14 @@ function layout({
     "<meta name='twitter:description' content='", escapeHtml(pageDescription), "'>",
     "<meta name='twitter:image' content='", socialImage, "'>",
     "<meta name='twitter:image:alt' content='", escapeHtml(socialImageAlt), "'>",
-    "<link rel='stylesheet' href='/assets/styles/site.css'>",
+    "<link rel='stylesheet' href='/assets/styles/site.css?v=", codeAssetVersion, "'>",
     "</head>",
     "<body class='", bodyClass, "'>",
     "<a class='skip-link' href='#main-content'>Skip to content</a>",
     navigation(),
     "<div id='main-content'>", main, "</div>",
     footer(),
-    "<script src='/assets/scripts/site.js' defer></script>",
+    "<script src='/assets/scripts/site.js?v=", codeAssetVersion, "' defer></script>",
     "</body>",
     "</html>",
     ""

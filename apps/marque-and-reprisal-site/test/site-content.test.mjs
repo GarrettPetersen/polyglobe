@@ -110,16 +110,30 @@ test("feature videos serve as the visible section headings", () => {
   const page = homePage();
 
   for (const feature of features) {
-    const start = page.indexOf(`<section class='feature-row reveal' id='${feature.id}'`);
+    const start = page.indexOf(
+      `<section class='feature-row reveal' id='${feature.id}' aria-label='${feature.title}'>`
+    );
     const end = page.indexOf("</section>", start);
     const section = page.slice(start, end);
 
     assert.notEqual(start, -1);
-    assert.match(
-      section,
-      new RegExp(`<h2 class='visually-hidden' id='${feature.id}-title'>${feature.title}</h2>`)
-    );
+    assert.doesNotMatch(section, /<h2/);
     assert.ok(section.indexOf("class='feature-window'") < section.indexOf("class='feature-copy'"));
-    assert.doesNotMatch(section, /<div class='feature-copy'>[\s\S]*<h2/);
   }
+});
+
+test("code assets bypass stale browser caches", async () => {
+  const page = homePage();
+  const headers = await readFile(path.join(appRoot, "src/_headers"), "utf8");
+
+  assert.match(page, /href='\/assets\/styles\/site\.css\?v=[^']+'/);
+  assert.match(page, /src='\/assets\/scripts\/site\.js\?v=[^']+'/);
+  assert.match(
+    headers,
+    /\/assets\/styles\/\*[\s\S]*?Cache-Control: public, max-age=0, must-revalidate/
+  );
+  assert.match(
+    headers,
+    /\/assets\/scripts\/\*[\s\S]*?Cache-Control: public, max-age=0, must-revalidate/
+  );
 });

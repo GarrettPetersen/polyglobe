@@ -179,18 +179,6 @@ textarea {
   text-transform: uppercase;
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 .button {
   display: inline-flex;
   min-height: 50px;
@@ -1278,7 +1266,7 @@ textarea {
 
   .hero h1 {
     width: 108%;
-    margin: 0 0 8px -4%;
+    margin: 0 0 clamp(16px, 3vw, 22px) -4%;
   }
 
   .hero-deck {

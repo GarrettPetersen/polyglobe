@@ -8,5 +8,11 @@
 /assets/*
   Cache-Control: public, max-age=604800
 
+/assets/styles/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/assets/scripts/*
+  Cache-Control: public, max-age=0, must-revalidate
+
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
