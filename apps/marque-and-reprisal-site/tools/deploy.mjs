@@ -9,7 +9,6 @@ const envPath = path.join(repoRoot, ".env");
 const wranglerPath = path.join(appRoot, "node_modules/.bin/wrangler");
 const distPath = path.join(appRoot, "dist");
 
-if (!existsSync(envPath)) throw new Error("Missing repository .env at " + envPath);
 if (!existsSync(wranglerPath)) {
   throw new Error("Wrangler is not installed. Run npm install in " + appRoot);
 }
@@ -17,9 +16,17 @@ if (!existsSync(path.join(distPath, "index.html"))) {
   throw new Error("Website build is missing. Run npm run build first.");
 }
 
-const credentials = parseEnv(readFileSync(envPath, "utf8"));
-const accountId = required(credentials, "PRODUCTION_CLOUDFLARE_ACCOUNT_ID");
-const apiToken = required(credentials, "PRODUCTION_CLOUDFLARE_API_TOKEN");
+const fileCredentials = existsSync(envPath)
+  ? parseEnv(readFileSync(envPath, "utf8"))
+  : {};
+const accountId = requiredCredential(
+  "PRODUCTION_CLOUDFLARE_ACCOUNT_ID",
+  fileCredentials
+);
+const apiToken = requiredCredential(
+  "PRODUCTION_CLOUDFLARE_API_TOKEN",
+  fileCredentials
+);
 
 const deployment = spawnSync(
   wranglerPath,
@@ -68,8 +75,12 @@ function parseEnv(contents) {
   return values;
 }
 
-function required(values, key) {
-  const value = values[key];
-  if (!value) throw new Error("Missing " + key + " in repository .env");
+function requiredCredential(key, fileCredentials) {
+  const value = process.env[key] || fileCredentials[key];
+  if (!value) {
+    throw new Error(
+      "Missing " + key + " in the environment or repository .env"
+    );
+  }
   return value;
 }

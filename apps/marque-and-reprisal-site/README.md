@@ -33,6 +33,12 @@ Deployment uses the ignored root `.env` credentials and maps
 environment variable names expected by Wrangler. No Cloudflare credential is
 stored in this app.
 
+Pushes to `master` that change this app automatically run
+`.github/workflows/deploy-marque-site.yml`. The workflow checks and builds the
+site, then deploys it to the existing Cloudflare Pages project. It reads the
+same two credential names from encrypted GitHub Actions secrets; the local
+`.env` remains the fallback for manual deployments.
+
 ## Cloudflare Pages
 
 - Project: `marque-and-reprisal`
