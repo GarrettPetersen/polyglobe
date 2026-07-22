@@ -81,14 +81,16 @@ test("pirates cannot ambush the player inside protected major-port waters", () =
   assert.equal(result.engagementCount, 0);
 });
 
-test("major-port protection ends an existing pirate attack", () => {
+test("major-port protection does not end an existing pirate attack", () => {
   const state = createShipCombatState();
   const player = ship("player", "pirate", "portugal", 0, 0, 30, 4);
   const pirate = ship("pirate", "pirate", "pirate", 20, 0, 130, 12);
   assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 1);
 
   player.majorPortProtected = true;
-  assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
+  const result = updateShipCombatState(state, [player, pirate]);
+  assert.equal(result.engagementCount, 1);
+  assert.equal(result.intents.get(player.id).targetId, pirate.id);
 });
 
 test("major-port protection does not cancel combat deliberately started by the player", () => {
