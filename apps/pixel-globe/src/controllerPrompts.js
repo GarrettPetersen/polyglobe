@@ -109,13 +109,13 @@ export function nextControllerGlyphPreference(value, direction = 1) {
   ];
 }
 
-export function controllerGlyphPreferenceLabel(value) {
+export function controllerGlyphPreferenceLocalizationKey(value) {
   const normalized = normalizeControllerGlyphPreference(value);
-  if (normalized === CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC) return "AUTO";
-  if (normalized === CONTROLLER_GLYPH_PREFERENCE.XBOX) return "XBOX";
-  if (normalized === CONTROLLER_GLYPH_PREFERENCE.PLAYSTATION) return "PLAYSTATION";
-  if (normalized === CONTROLLER_GLYPH_PREFERENCE.NINTENDO) return "NINTENDO";
-  if (normalized === CONTROLLER_GLYPH_PREFERENCE.GENERIC) return "GENERIC";
+  if (normalized === CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC) return "options.controllerIcons.automatic";
+  if (normalized === CONTROLLER_GLYPH_PREFERENCE.XBOX) return "options.controllerIcons.xbox";
+  if (normalized === CONTROLLER_GLYPH_PREFERENCE.PLAYSTATION) return "options.controllerIcons.playstation";
+  if (normalized === CONTROLLER_GLYPH_PREFERENCE.NINTENDO) return "options.controllerIcons.nintendo";
+  if (normalized === CONTROLLER_GLYPH_PREFERENCE.GENERIC) return "options.controllerIcons.generic";
   throw new Error(`Unknown controller glyph preference: ${normalized}`);
 }
 

@@ -8,7 +8,7 @@ import {
   controllerFamilyForId,
   controllerFamilyForSteamInputType,
   controllerGlyphIconId,
-  controllerGlyphPreferenceLabel,
+  controllerGlyphPreferenceLocalizationKey,
   nextControllerGlyphPreference,
   normalizeControllerGlyphPreference,
   steamInputTypeFromBridge
@@ -39,7 +39,10 @@ test("manual controller glyph preferences always win", () => {
   assert.equal(normalizeControllerGlyphPreference("bad-save-value"), CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC);
   assert.equal(nextControllerGlyphPreference(CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC), CONTROLLER_GLYPH_PREFERENCE.XBOX);
   assert.equal(nextControllerGlyphPreference(CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC, -1), CONTROLLER_GLYPH_PREFERENCE.GENERIC);
-  assert.equal(controllerGlyphPreferenceLabel(CONTROLLER_GLYPH_PREFERENCE.PLAYSTATION), "PLAYSTATION");
+  assert.equal(
+    controllerGlyphPreferenceLocalizationKey(CONTROLLER_GLYPH_PREFERENCE.PLAYSTATION),
+    "options.controllerIcons.playstation"
+  );
 });
 
 test("semantic actions resolve to family-correct glyphs", () => {

@@ -1004,7 +1004,7 @@ import {
   CONTROLLER_GLYPH_PREFERENCE,
   controllerFamilyForGamepad,
   controllerGlyphIconId,
-  controllerGlyphPreferenceLabel,
+  controllerGlyphPreferenceLocalizationKey,
   nextControllerGlyphPreference,
   normalizeControllerGlyphPreference,
   steamInputTypeFromBridge
@@ -23794,7 +23794,7 @@ function drawOptionsControllerIconsRow(rowRect, highlighted) {
   drawOptionsRowFrame(rowRect, highlighted);
   const font = PIXEL_FONT_SMALL_8;
   const label = uiText("options.controllerIcons");
-  const value = `< ${controllerGlyphPreferenceLabel(optionsMenu.controllerGlyphPreference)} >`;
+  const value = `< ${uiText(controllerGlyphPreferenceLocalizationKey(optionsMenu.controllerGlyphPreference))} >`;
   const valueWidth = Math.min(78, Math.max(42, measurePixelTextWidth(value, font)));
   drawOptionsText(fitPixelText(label, font, rowRect.w - valueWidth - 22), rowRect.x + 8, controlTextY(rowRect, font), {
     font,

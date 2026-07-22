@@ -70,6 +70,32 @@ test("every translated catalog covers the complete English key set", () => {
   assert.equal(translate(LANGUAGE_KOREAN, "options.language"), "언어");
 });
 
+test("controller icon preferences use localized mode and platform labels", () => {
+  const expected = new Map([
+    [LANGUAGE_ENGLISH, ["AUTOMATIC", "NINTENDO", "GENERIC"]],
+    [LANGUAGE_CHINESE_SIMPLIFIED, ["自动", "任天堂", "通用"]],
+    [LANGUAGE_RUSSIAN, ["АВТО", "NINTENDO", "ОБЩ."]],
+    [LANGUAGE_SPANISH, ["AUTOMÁTICO", "NINTENDO", "GENÉRICO"]],
+    [LANGUAGE_PORTUGUESE_BRAZIL, ["AUTOMÁTICO", "NINTENDO", "GENÉRICO"]],
+    [LANGUAGE_JAPANESE, ["自動", "任天堂", "汎用"]],
+    [LANGUAGE_GERMAN, ["AUTOMATIK", "NINTENDO", "ALLGEMEIN"]],
+    [LANGUAGE_FRENCH, ["AUTOMATIQUE", "NINTENDO", "GÉNÉRIQUE"]],
+    [LANGUAGE_POLISH, ["AUTOMAT.", "NINTENDO", "OGÓLNE"]],
+    [LANGUAGE_CHINESE_TRADITIONAL, ["自動", "任天堂", "通用"]],
+    [LANGUAGE_KOREAN, ["자동", "닌텐도", "범용"]]
+  ]);
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    assert.deepEqual([
+      translate(id, "options.controllerIcons.automatic"),
+      translate(id, "options.controllerIcons.nintendo"),
+      translate(id, "options.controllerIcons.generic")
+    ], expected.get(id), `${id} controller labels fell back to English`);
+    for (const key of ["xbox", "playstation"]) {
+      assert.ok(translate(id, `options.controllerIcons.${key}`).length > 0);
+    }
+  }
+});
+
 test("the start-menu title is translated in every supported language with a complete pixel font", () => {
   const expectedTitles = new Map([
     [LANGUAGE_ENGLISH, "MARQUE & REPRISAL"],
