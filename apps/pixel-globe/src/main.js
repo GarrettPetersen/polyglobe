@@ -818,11 +818,14 @@ import {
 import {
   BEAVER_PELTS_GOOD_ID,
   GINGER_GOOD_ID,
+  GUNPOWDER_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   addWorldEconomyPort,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
+  consumePortGoodStock,
   createWorldEconomy,
+  destroyPortGoodStock,
   establishPortIndustry,
   restoreWorldEconomy,
   snapshotWorldEconomy,
@@ -1855,6 +1858,7 @@ const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const SEAGULL_FRAME_SIZE = 9;
 const FISH_SPRITE_SIZE = 9;
+const FISH_SELECTION_OUTLINE_ALPHA = 0.42;
 const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
@@ -7283,6 +7287,11 @@ async function restoreSavedVoyage(payload) {
   };
   const stats = shipStatsForSlug(savedShip.typeSlug);
   const restoredGameState = migrateGameState(payload.gameState, stats);
+  if (restoredGameState.ship?.slug !== savedShip.typeSlug) {
+    throw new Error(
+      `Saved vessel ${savedShip.typeSlug} does not match game-state hull ${restoredGameState.ship?.slug || "missing"}`
+    );
+  }
   const correctedPortraitSexCount = reconcileCharacterPortraitSexes(
     restoredGameState,
     characterPortraitManifest
@@ -9609,7 +9618,7 @@ function openPortDialogue(cityCall) {
 
   const arrivedDrunk = captainIsDrunkAtPort(gameState);
   if (arrivedDrunk) syncAchievementsFromGameState({ type: "arrived-in-port-drunk" });
-  const needsLoadout = admitPlayerToPort(cityCall);
+  const needsLoadout = admitPlayerToPort(cityCall, { arrivedDrunk });
   const rescuedTravelerSession = createRescuedTravelerHomecomingSession(cityCall, {
     admittedToPort: true,
     continueToPortOnClose: true,
@@ -9850,9 +9859,9 @@ function openPendingDiscoveryPortDialogue() {
   return openCaptainAlertModal(discoveryDialogue.message, discoveryDialogue.expressionId);
 }
 
-function admitPlayerToPort(cityCall) {
+function admitPlayerToPort(cityCall, { arrivedDrunk = false } = {}) {
   const needsLoadout = !gameState.ship?.loadoutId;
-  visitPort(gameState, cityCall, Math.floor(weatherClockMinutes));
+  visitPort(gameState, cityCall, Math.floor(weatherClockMinutes), { arrivedDrunk });
   syncAchievementsFromGameState();
   if (needsLoadout) repairPlayerShipAtPort();
   else applyAutomaticPortServices(cityCall);
@@ -9975,7 +9984,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
 function applyAutomaticPortServices(cityCall) {
   const context = portDialogueContext();
   const repaired = repairPlayerShipAtPort();
-  const loadout = restockSelectedShipLoadoutAtPort(gameState, cityCall, ship.stats, context);
+  const loadout = restockSelectedShipLoadoutAtPort(gameState, cityCall, context);
   const labels = [];
   if (repaired > 0) labels.push(`HULL +${repaired}`);
   if (loadout?.additions.crew > 0) labels.push(`CREW +${loadout.additions.crew}`);
@@ -11182,7 +11191,9 @@ function currentDialogueCity() {
 
 function chartPortCallById(portId) {
   if (!portId || !chart?.cityCalls) return null;
-  return chart.cityCalls.find((call) => call.portId === portId) || null;
+  return chart.cityCalls.find((call) => (
+    (call.portId || `city-${call.tileId}`) === portId
+  )) || null;
 }
 
 function currentDialogueView() {
@@ -14274,6 +14285,7 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   );
   addHullSplinterBurst(ball, point);
   if (!result.newlyDisabled) return;
+  destroyShoreBatteryGunpowderStore(battery);
   if (hitByPlayer) {
     const city = chartPortCallById(battery.portId);
     if (!city) throw new Error(`Disabled player target has no port: ${battery.portId}`);
@@ -15786,7 +15798,7 @@ function shoreBatteryWeapon(state) {
 function shoreBatteryPoint(batteryId) {
   const state = shoreBatteryStates.get(batteryId);
   if (!state || !chart) return null;
-  const call = chart.cityCalls?.find((city) => (city.portId || `city-${city.tileId}`) === state.portId);
+  const call = chartPortCallById(state.portId);
   if (!call) return null;
   return { x: call.x, y: call.y - 2 };
 }
@@ -15824,6 +15836,7 @@ function fireShoreBatteryAtNearestTarget(state) {
   }
   if (!target) return false;
   const weapon = shoreBatteryWeapon(state);
+  consumeShoreBatteryGunpowder(state, weapon);
   emitCaptureEvent("weapon-fired", {
     ownerId: state.id,
     targetId,
@@ -15857,6 +15870,20 @@ function fireShoreBatteryAtNearestTarget(state) {
     if (weapon.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
   }
   return true;
+}
+
+function consumeShoreBatteryGunpowder(state, weapon) {
+  if (weapon.kind !== NAVAL_WEAPON_CANNON) return null;
+  const city = chartPortCallById(state.portId);
+  if (!city) throw new Error(`Firing shore battery has no economy port: ${state.portId}`);
+  return consumePortGoodStock(worldEconomy, city, GUNPOWDER_GOOD_ID, state.gunCount);
+}
+
+function destroyShoreBatteryGunpowderStore(state) {
+  if (shoreBatteryWeapon(state).kind !== NAVAL_WEAPON_CANNON) return null;
+  const city = chartPortCallById(state.portId);
+  if (!city) throw new Error(`Disabled shore battery has no economy port: ${state.portId}`);
+  return destroyPortGoodStock(worldEconomy, city, GUNPOWDER_GOOD_ID);
 }
 
 function setContentsDiffer(a, b) {
@@ -16390,6 +16417,11 @@ function handleNpcSinking(loserId, winnerId) {
     return resolveColonizationDefenseAttacker(loserId, "CANOE SUNK");
   }
   const factionId = strategic.factionId;
+  const captain = npcShipCaptains?.get(loserId);
+  if (!captain?.name) throw new Error(`Sinking NPC ship has no captain: ${loserId}`);
+  const faction = factionById(factionId);
+  const sinkingNotice = `${faction.adjective.toUpperCase()} ` +
+    `${shipLabelForSlug(strategic.slug).toUpperCase()} SUNK - CAPT. ${captain.name.toUpperCase()}`;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
   if (winnerId === PLAYER_COMBAT_ID) recordPlayerAttackConsequences(loserId, factionId);
   clearCombatForShip(loserId);
@@ -16397,7 +16429,7 @@ function handleNpcSinking(loserId, winnerId) {
   shipCombatEntryCollisionGrace.delete(loserId);
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
   combatNotice = {
-    text: "SHIP SUNK",
+    text: sinkingNotice,
     expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
   };
   if (winnerId === PLAYER_COMBAT_ID && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
@@ -18019,7 +18051,8 @@ function render(nowMs) {
   });
   const shipLight = shipSunLightState();
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
-    drawFishIndividuals(chart, nowMs);
+    const fishCalls = drawFishIndividuals(chart, nowMs);
+    drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
     drawPrecipitation(chart, nowMs, offset);
     drawCloudLayer(chart);
     drawShipWake(chart);
@@ -18198,7 +18231,7 @@ function drawWorldDiscoverySprites(activeChart) {
 }
 
 function drawSelectableInteractionOutlines(nowMs) {
-  if (!chart || !localLayout || portWaitState || dialogueState || menusAreOpen() || fishingAction || gameOverReason) return;
+  if (!selectableInteractionOutlinesShouldDraw()) return;
   const offset = chartOffsetPixels(chart);
   const primary = activeInteractionTarget();
   const primaryId = primary?.call?.id ?? primary?.call?.tileId ?? null;
@@ -18252,26 +18285,44 @@ function drawSelectableInteractionOutlines(nowMs) {
     });
   }
 
-  if (gameState && hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
-    const fishingDisabled = !canStartFishing(playerFishCatchCapacity());
-    for (const call of fishIndividualDrawCalls(chart, nowMs)) {
-      const interaction = fishInteractionCall(call);
-      if (!fishInteractionCallIsUsable(interaction)) continue;
-      drawSelectableSpriteOutline({
-        image: tintedFishSprite(call.colors),
-        sourceX: 0,
-        sourceY: 0,
-        sourceW: FISH_SPRITE_SIZE,
-        sourceH: FISH_SPRITE_SIZE,
-        x: Math.round(call.x + offset.x),
-        y: Math.round(call.y + offset.y),
-        flip: call.flip,
-        primary: primaryId === call.id,
-        pulseBright,
-        disabled: fishingDisabled
-      });
-    }
+}
+
+function drawUnderwaterFishSelectionOutlines(nowMs, fishCalls) {
+  if (!selectableInteractionOutlinesShouldDraw() ||
+      !gameState || !hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) return;
+  if (!Array.isArray(fishCalls)) throw new Error("Fish selection outlines require visible fish calls");
+  const primary = activeInteractionTarget();
+  const primaryId = primary?.kind === "fish" ? primary.call.id : null;
+  const pulseBright = reducedMotionPreferred || Math.floor(nowMs / 420) % 2 === 0;
+  const fishingDisabled = !canStartFishing(playerFishCatchCapacity());
+
+  ctx.save();
+  ctx.globalAlpha = FISH_SELECTION_OUTLINE_ALPHA;
+  for (const call of fishCalls) {
+    const interaction = fishInteractionCall(call);
+    if (!fishInteractionCallIsUsable(interaction)) continue;
+    drawSelectableSpriteOutline({
+      image: tintedFishSprite(call.colors),
+      sourceX: 0,
+      sourceY: 0,
+      sourceW: FISH_SPRITE_SIZE,
+      sourceH: FISH_SPRITE_SIZE,
+      x: Math.round(call.x),
+      y: Math.round(call.y),
+      flip: call.flip,
+      primary: primaryId === call.id,
+      pulseBright,
+      disabled: fishingDisabled
+    });
   }
+  ctx.restore();
+}
+
+function selectableInteractionOutlinesShouldDraw() {
+  return Boolean(
+    chart && localLayout && !portWaitState && !dialogueState &&
+    !menusAreOpen() && !fishingAction && !gameOverReason
+  );
 }
 
 function drawSelectableSpriteOutline({
@@ -26245,9 +26296,10 @@ function drawNpcFishingNetAnimations(nowMs) {
 }
 
 function drawFishIndividuals(activeChart, nowMs) {
-  if (!animalImages?.fish || !gameState) return;
+  if (!animalImages?.fish || !gameState) return [];
   const calls = fishIndividualDrawCalls(activeChart, nowMs);
   for (const call of calls) drawFishSprite(call);
+  return calls;
 }
 
 function fishIndividualDrawCalls(activeChart, nowMs) {

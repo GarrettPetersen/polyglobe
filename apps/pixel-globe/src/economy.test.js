@@ -19,7 +19,9 @@ import {
   addWorldEconomyPort,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
+  consumePortGoodStock,
   createWorldEconomy,
+  destroyPortGoodStock,
   establishPortIndustry,
   executePortPurchase,
   executePortSale,
@@ -143,6 +145,30 @@ test("1522 arms markets separate domestic gunpowder from imported matchlocks", (
 
   executePortPurchase(economy, guangzhou, MATCHLOCKS_GOOD_ID, 10);
   assert.equal(marketByGood(economy, guangzhou).get(MATCHLOCKS_GOOD_ID).listedForSale, true);
+});
+
+test("shore battery volleys deplete gunpowder and a disabled battery creates maximum scarcity", () => {
+  const batteryPort = port(75, "Alexandria", "Egypt", "mediterranean", 80000);
+  const economy = createWorldEconomy({ ports: [batteryPort], startMinute: 0 });
+  const portState = economy.portStates.get(batteryPort.tileId);
+  portState.specie = portState.targetSpecie;
+  const before = marketByGood(economy, batteryPort).get(GUNPOWDER_GOOD_ID);
+
+  const volley = consumePortGoodStock(economy, batteryPort, GUNPOWDER_GOOD_ID, 2);
+  const afterVolley = marketByGood(economy, batteryPort).get(GUNPOWDER_GOOD_ID);
+  assert.equal(volley.consumedQuantity, Math.min(2, before.stock));
+  assert.equal(afterVolley.stock, Math.max(0, before.stock - 2));
+  assert.ok(afterVolley.buyPrice > before.buyPrice);
+
+  const destroyed = destroyPortGoodStock(economy, batteryPort, GUNPOWDER_GOOD_ID);
+  const depleted = marketByGood(economy, batteryPort).get(GUNPOWDER_GOOD_ID);
+  assert.equal(destroyed.remainingStock, 0);
+  assert.equal(depleted.stock, 0);
+  assert.equal(depleted.buyPrice, Math.round(tradeGoodById(GUNPOWDER_GOOD_ID).basePrice * 5 * 1.08));
+
+  const reserveVolley = consumePortGoodStock(economy, batteryPort, GUNPOWDER_GOOD_ID, 2);
+  assert.equal(reserveVolley.consumedQuantity, 0);
+  assert.equal(reserveVolley.remainingStock, 0);
 });
 
 test("a completed Kyoto workshop creates persistent matchlock production and input demand", () => {

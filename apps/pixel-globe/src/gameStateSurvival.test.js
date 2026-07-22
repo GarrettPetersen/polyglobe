@@ -38,6 +38,7 @@ import {
   releaseCargoSpace,
   reserveCargoSpace,
   restockCustomShipLoadoutAtPort,
+  restockSelectedShipLoadoutAtPort,
   restockShipLoadoutAtPort,
   refillFreshWaterFromShore,
   rollCrewCasualtiesForDamage,
@@ -132,6 +133,44 @@ test("version 30 saves gain persistent castaway rescue memory", () => {
     declinedCount: 0
   });
   assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 32 port visits gain explicit drunken-arrival memory", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 32;
+  state.memory.visitedPorts.Porto = { visits: 3 };
+
+  const migrated = migrateGameState(state);
+
+  assert.deepEqual(migrated.memory.visitedPorts.Porto, {
+    visits: 3,
+    drunkArrivals: 0,
+    lastDrunkVisit: null,
+    lastDrunkArrivalMinute: null
+  });
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("a saved Xebec repairs a stale Lateen Barque crew target", () => {
+  const lateenBarque = shipStatsForSlug("ketch");
+  const xebec = shipStatsForSlug("xebec");
+  const legacy = createGameState({ cargoCapacity: xebec.cargoCapacity, shipStats: xebec });
+  initializeProvisionalShipLoadout(legacy, xebec);
+  restockShipLoadoutAtPort(legacy, LONDON, xebec, "short-haul", { simMinute: 120 });
+  legacy.version = 33;
+  delete legacy.ship.slug;
+  legacy.ship.loadoutTargets = shipLoadoutPlan(lateenBarque, "short-haul");
+  legacy.ship.crew = 4;
+  legacy.doubloons = 56000;
+
+  const restored = migrateGameState(legacy, xebec);
+  assert.equal(restored.ship.slug, "xebec");
+  assert.equal(restored.ship.loadoutTargets.crew, 12);
+
+  const result = restockSelectedShipLoadoutAtPort(restored, LONDON, { simMinute: 240 });
+  assert.equal(result.additions.crew, 8);
+  assert.equal(restored.ship.crew, 12);
+  assert.equal(restored.doubloons, 55984);
 });
 
 test("version 27 ship saves migrate before named crew memory exists", () => {
@@ -807,6 +846,22 @@ test("shore scavenging fills available cask space and stows edible food", () => 
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
 });
 
+test("scavenged food uses physically empty hold space reserved for depleted water", () => {
+  const stats = shipStatsForSlug("xebec");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.cargo.gold = 46;
+  state.accounts.cargoCostBasis.gold = 0;
+  state.survival.freshWater -= 9;
+
+  assert.equal(cargoUsed(state), 76);
+  assert.equal(cargoFree(state), 0);
+  assert.equal(stowForagedFood(state, 3), 3);
+  assert.equal(state.cargo[FORAGED_FOOD_GOOD_ID], 3 / 12);
+  assert.equal(cargoUsed(state), 76.25);
+  assert.equal(validateGameState(state), state);
+});
+
 test("a scavenged beaver pelt enters cargo at zero cost without exceeding the hold", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -883,7 +938,9 @@ test("changing hulls updates crew, gun, and loadout capacities together", () => 
   assert.equal(state.cargoCapacity, carrack.cargoCapacity);
   assert.equal(state.ship.crewCapacity, carrack.crewCapacity);
   assert.equal(state.ship.cannonCapacity, carrack.cannons);
+  assert.equal(state.ship.slug, "carrack");
   assert.equal(state.ship.loadoutTargets.id, "balanced");
+  assert.equal(state.ship.loadoutTargets.crew, shipLoadoutPlan(carrack, "balanced").crew);
   assert.equal(plan.id, "balanced");
 });
 

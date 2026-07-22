@@ -43,9 +43,11 @@ import {
   deliveryOfferForCity,
   hasLetterOfMarqueFrom,
   initializeProvisionalShipLoadout,
+  portMemory,
   portEntryStatus,
   purchasePerkItem,
-  questStateForCity
+  questStateForCity,
+  visitPort
 } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
@@ -2280,7 +2282,11 @@ test("a drunk captain and factor exchange remarks before ordinary port dialogue"
     character: { name: "Fernao da Cunha", personalityId: "vigilant" }
   };
   const gameState = createGameState({ cargoCapacity: 20 });
-  gameState.playerCharacter = { name: "Ines Pereira" };
+  gameState.playerCharacter = {
+    name: "Ines Pereira",
+    expressions: ["neutral", "happy"],
+    skillIds: ["able-seaman"]
+  };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortArrivalDialogueSession(city, { arrivedDrunk: true, drunkVariant: 2 });
 
@@ -2296,6 +2302,43 @@ test("a drunk captain and factor exchange remarks before ordinary port dialogue"
   assert.equal(dialogueOptionIconId(factor.options[0]), "action:talk");
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   assert.equal(session.nodeId, "greeting");
+});
+
+test("a port factor remembers the captain's drunken arrivals on later visits", () => {
+  const city = {
+    tileId: 82,
+    city: "Porto",
+    country: "Portugal",
+    cityType: "mediterranean",
+    character: { name: "Tomas Velho", personalityId: "cordial" }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.playerCharacter = {
+    name: "Ines Pereira",
+    expressions: ["neutral", "happy"],
+    skillIds: ["able-seaman"]
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+
+  visitPort(gameState, city, 100, { arrivedDrunk: true });
+  assert.deepEqual(portMemory(gameState, city), {
+    visits: 1,
+    drunkArrivals: 1,
+    lastDrunkVisit: 1,
+    lastDrunkArrivalMinute: 100
+  });
+
+  visitPort(gameState, city, 200);
+  const soberReturn = createPortArrivalDialogueSession(city, { drunkVariant: 1 });
+  const greeting = portDialogueView(soberReturn, city, gameState, economy, [city]);
+  assert.match(greeting.text, /steadier step|correct door|horizon|steer my office/i);
+
+  visitPort(gameState, city, 300, { arrivedDrunk: true });
+  const repeatArrival = createPortArrivalDialogueSession(city, { arrivedDrunk: true, drunkVariant: 2 });
+  selectPortDialogueOption(repeatArrival, city, gameState, economy, [city], 0);
+  const repeatFactor = portDialogueView(repeatArrival, city, gameState, economy, [city]);
+  assert.match(repeatFactor.text, /again|last entrance|harbor still|seen you arrive/i);
+  assert.equal(portMemory(gameState, city).drunkArrivals, 2);
 });
 
 test("an active package mission opens its factor before the port menu", () => {

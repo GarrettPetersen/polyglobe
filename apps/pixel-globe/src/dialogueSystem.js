@@ -181,6 +181,27 @@ const DRUNK_PORT_EXCHANGES = Object.freeze([
   })
 ]);
 
+const REPEAT_DRUNK_FACTOR_LINES = Object.freeze([
+  (count) => `Again, captain? This makes ${count} arrivals under wine. The quaymaster has begun keeping score.`,
+  () => "I remember your last entrance, captain. The same bollard does too.",
+  () => "We kept the harbor still for you, just as before. Kindly return the favor.",
+  (count) => `The watch has now seen you arrive in this condition ${count} times. At least you are consistent.`
+]);
+
+const REMEMBERED_DRUNK_FACTOR_LINES = Object.freeze([
+  () => "You have found the correct door today, captain. That is already an improvement on your memorable arrival.",
+  () => "A steadier step this time. The quaymaster and his bollards will be relieved.",
+  () => "I see the horizon has stopped moving for you. Good. Perhaps the ledger will do the same.",
+  () => "No need to steer my office today, captain. We kept it where you left it."
+]);
+
+const REMEMBERED_REPEAT_DRUNK_FACTOR_LINES = Object.freeze([
+  (count) => `Sober today, captain? After ${count} memorable arrivals, the harbor watch will be relieved.`,
+  (count) => `A steady entrance at last. Your other ${count} arrivals are still discussed along the quay.`,
+  () => "You recognized both the harbor and my office today. I shall record the improvement.",
+  () => "The bollards are safe, the ledger is upright, and so are you. A promising beginning."
+]);
+
 export function createPortDialogueSession(city, options = {}) {
   if (options.rumorText !== undefined && (typeof options.rumorText !== "string" || options.rumorText === "")) {
     throw new Error("Port rumor text must be a non-empty string");
@@ -800,7 +821,7 @@ export function beginShipHandoverDialogue(session, { shipSlug, transactionText, 
 
 function portDialogueNodeView(session, city, gameState, economy, portCities, context) {
   if (session.nodeId === "drunk-captain") return drunkCaptainArrivalView(session, gameState);
-  if (session.nodeId === "drunk-factor") return drunkFactorArrivalView(session, city);
+  if (session.nodeId === "drunk-factor") return drunkFactorArrivalView(session, city, gameState);
   if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
   if (session.nodeId === "recovering") return recoveringPortView(city, context);
   if (session.nodeId === "barred") return barredPortView(city, context);
@@ -866,12 +887,15 @@ function drunkCaptainArrivalView(session, gameState) {
   };
 }
 
-function drunkFactorArrivalView(session, city) {
+function drunkFactorArrivalView(session, city, gameState) {
   if (!session.postDrunkNodeId) throw new Error("Drunk port arrival has no following dialogue node");
+  const memory = portMemory(gameState, city);
   return {
     speaker: speakerName(city),
     expressionId: "annoyed",
-    text: drunkPortExchange(session).factor,
+    text: memory.drunkArrivals > 1
+      ? repeatDrunkFactorLine(session, memory.drunkArrivals)
+      : drunkPortExchange(session).factor,
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: session.postDrunkNodeId })]
   };
@@ -879,6 +903,13 @@ function drunkFactorArrivalView(session, city) {
 
 function drunkPortExchange(session) {
   return DRUNK_PORT_EXCHANGES[session.drunkVariant % DRUNK_PORT_EXCHANGES.length];
+}
+
+function repeatDrunkFactorLine(session, drunkArrivals) {
+  const line = REPEAT_DRUNK_FACTOR_LINES[
+    (session.drunkVariant + drunkArrivals) % REPEAT_DRUNK_FACTOR_LINES.length
+  ];
+  return line(drunkArrivals);
 }
 
 function withPortExitFooter(view) {
@@ -1683,13 +1714,25 @@ function greetingView(session, city, gameState, context) {
     rulerRumor: context.rulerRumor || null,
     historicalGossip: context.historicalGossip || null
   });
+  const drunkMemoryRemark = rememberedDrunkFactorLine(session, memory);
   return {
     speaker: speakerName(city),
     expressionId: greeting.expressionId,
-    text: greeting.text,
+    text: drunkMemoryRemark ? `${drunkMemoryRemark} ${greeting.text}` : greeting.text,
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: "root" })]
   };
+}
+
+function rememberedDrunkFactorLine(session, memory) {
+  if (memory.drunkArrivals <= 0 || memory.lastDrunkVisit === memory.visits) return null;
+  const lines = memory.drunkArrivals > 1
+    ? REMEMBERED_REPEAT_DRUNK_FACTOR_LINES
+    : REMEMBERED_DRUNK_FACTOR_LINES;
+  const line = lines[
+    (session.drunkVariant + memory.visits + memory.drunkArrivals) % lines.length
+  ];
+  return line(memory.drunkArrivals);
 }
 
 function pirateHideoutGreetingView(city, memory, context) {

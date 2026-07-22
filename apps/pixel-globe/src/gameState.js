@@ -43,7 +43,7 @@ import {
   shipCustomLoadoutPlan,
   shipLoadoutPlan
 } from "./shipLoadouts.js";
-import { shipLabelForSlug } from "./shipStats.js";
+import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import {
   BASIC_FISHING_NET_ID,
@@ -150,7 +150,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 32;
+export const GAME_STATE_VERSION = 34;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -381,8 +381,8 @@ export function validateGameState(state) {
 }
 
 export function migrateGameState(state, shipStats) {
-  if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31].includes(state?.version)) {
+  if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -422,9 +422,6 @@ export function migrateGameState(state, shipStats) {
       state.playerCharacter.id || state.playerCharacter.name
     )
   } : state.playerCharacter;
-  const migratedLoadoutTargets = state.ship?.loadoutId === CUSTOM_LOADOUT_ID
-    ? fitShipCustomLoadoutPlan(shipStats, state.ship.loadoutTargets)
-    : state.ship?.loadoutTargets;
   const migrated = {
     ...state,
     version: GAME_STATE_VERSION,
@@ -438,8 +435,8 @@ export function migrateGameState(state, shipStats) {
     },
     ship: state.ship ? {
       ...state.ship,
+      slug: shipStats.slug,
       baseCargoCapacity: shipStats.cargoCapacity,
-      loadoutTargets: migratedLoadoutTargets,
       mass: shipStats.mass,
       navalWeaponKind: shipStats.navalWeaponKind
     } : state.ship,
@@ -460,6 +457,7 @@ export function migrateGameState(state, shipStats) {
     },
     memory: {
       ...state.memory,
+      visitedPorts: migrateVisitedPortMemories(state.memory?.visitedPorts),
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
       birthdays: state.memory?.birthdays || createBirthdayMemory(),
       specialEquipmentOffers: state.memory?.specialEquipmentOffers || createSpecialEquipmentOfferMemory(),
@@ -494,21 +492,35 @@ export function migrateGameState(state, shipStats) {
       cartography: state.memory?.cartography || createCartographyMemory()
     }
   };
-  if (migrated.ship) migrated.cargoCapacity = effectivePlayerShipStats(migrated, shipStats).cargoCapacity;
+  if (migrated.ship) {
+    migrated.cargoCapacity = effectivePlayerShipStats(migrated, shipStats).cargoCapacity;
+    migrated.ship.loadoutTargets = selectedShipLoadoutPlan(migrated, shipStats);
+  }
   delete migrated.survival.foodDebt;
-  return restoreLoadedGameState(migrated);
+  return restoreLoadedGameState(migrated, shipStats);
 }
 
-function restoreLoadedGameState(state) {
+function restoreLoadedGameState(state, shipStats = null) {
   if (state?.version !== GAME_STATE_VERSION) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   assertGameState(state);
+  reconcileLoadedShipLoadout(state, shipStats);
   const repair = repairPlayerCargoOverflow(state);
   if (repair) {
     console.warn("Player cargo exceeded capacity; excess cargo was jettisoned while restoring the voyage", repair);
   }
   return validateGameState(state);
+}
+
+function reconcileLoadedShipLoadout(state, shipStats) {
+  if (!state.ship) return null;
+  if (!shipStats || shipStats.slug !== state.ship.slug) {
+    throw new Error(`Saved loadout hull does not match canonical stats: ${state.ship.slug}`);
+  }
+  const plan = selectedShipLoadoutPlan(state, shipStats);
+  state.ship.loadoutTargets = plan;
+  return plan;
 }
 
 function migrateFactionReputationTable(reputation) {
@@ -528,6 +540,16 @@ function migrateSafePassageTable(table) {
     migrated.spain = Math.max(migrated.spain || 0, table.aztec);
   }
   return migrated;
+}
+
+function migrateVisitedPortMemories(memories) {
+  if (!memories || typeof memories !== "object" || Array.isArray(memories)) return memories;
+  return Object.fromEntries(Object.entries(memories).map(([portKey, memory]) => [portKey, {
+    ...memory,
+    drunkArrivals: memory?.drunkArrivals ?? 0,
+    lastDrunkVisit: memory?.lastDrunkVisit ?? null,
+    lastDrunkArrivalMinute: memory?.lastDrunkArrivalMinute ?? null
+  }]));
 }
 
 function migrateRetiredFactionReferences(value) {
@@ -842,6 +864,7 @@ export function setPlayerShipStats(state, stats) {
   };
   const plan = selectedShipLoadoutPlan(state, stats);
   state.cargoCapacity = effectiveStats.cargoCapacity;
+  state.ship.slug = stats.slug;
   state.ship.crewCapacity = stats.crewCapacity;
   state.ship.cannonCapacity = stats.cannons;
   state.ship.baseCargoCapacity = stats.cargoCapacity;
@@ -981,6 +1004,13 @@ export function cargoUsedTicks(state) {
 
 export function cargoUsed(state) {
   return cargoUnitsFromTicks(cargoUsedTicks(state));
+}
+
+function physicalCargoFreeTicks(state) {
+  return Math.max(
+    0,
+    state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT - cargoUsedTicks(state)
+  );
 }
 
 export function repairPlayerCargoOverflow(state) {
@@ -1207,10 +1237,7 @@ export function cargoQuantityCapacityForGood(state, goodId) {
 export function fishCatchCargoCapacity(state) {
   assertGameState(state);
   const fish = tradeGoodById(FISH_CARGO_GOOD_ID);
-  const physicalFreeTicks = Math.max(
-    0,
-    state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT - cargoUsedTicks(state)
-  );
+  const physicalFreeTicks = physicalCargoFreeTicks(state);
   return Math.floor(physicalFreeTicks / (fish.unitSize * CARGO_SPACE_TICKS_PER_UNIT));
 }
 
@@ -1229,10 +1256,11 @@ export function stowForagedFood(state, requestedQuantity) {
     throw new Error(`Invalid foraged food quantity: ${requestedQuantity}`);
   }
   const good = tradeGoodById(FORAGED_FOOD_GOOD_ID);
-  const rationSpace = good.unitSize / FOOD_RATIONS_PER_HOLD_UNIT;
-  const rations = Math.min(requestedQuantity, Math.floor((provisionCargoFree(state, "food") + 1e-8) / rationSpace));
+  const rationCapacity = Math.floor(physicalCargoFreeTicks(state) / good.unitSize);
+  const rations = Math.min(requestedQuantity, rationCapacity);
   if (rations <= 0) return 0;
   addFoodRations(state, good.id, rations, 0);
+  assertPlayerCargoWithinCapacity(state);
   recordDecision(state, "scavenge.food", rations);
   return rations;
 }
@@ -1490,9 +1518,10 @@ function restockShipLoadoutPlanAtPort(state, city, plan, context) {
   };
 }
 
-export function restockSelectedShipLoadoutAtPort(state, city, stats, context = {}) {
+export function restockSelectedShipLoadoutAtPort(state, city, context = {}) {
   assertGameState(state);
   if (!state.ship?.loadoutId) return null;
+  const stats = shipStatsForSlug(state.ship.slug);
   if (state.ship.loadoutId === CUSTOM_LOADOUT_ID) {
     return restockCustomShipLoadoutAtPort(state, city, stats, state.ship.loadoutTargets, context);
   }
@@ -2383,12 +2412,7 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   const passageRefusalActive = state.relations.safePassageRefusalUntilMinute[factionId] > simMinute;
   const hostileByStanding = state.relations.factionReputation[factionId] <= HOSTILE_PORT_REPUTATION_THRESHOLD;
   const hostile = ((hostileByWar || hostileByStance) && !safePassage) || hostileByStanding;
-  const portKey = city.portId || cityKey(city);
-  let memory = state.memory.visitedPorts[portKey];
-  if (!memory) {
-    memory = { visits: 0 };
-    state.memory.visitedPorts[portKey] = memory;
-  }
+  const memory = requiredPortMemory(state, city);
   const storedLock = Number.isFinite(memory.disguiseLockUntilMinute)
     ? memory.disguiseLockUntilMinute
     : null;
@@ -2856,11 +2880,19 @@ function receiveZeroCostCargo(state, goodId, requestedQuantity, context, options
   return { good, quantity };
 }
 
-export function visitPort(state, city, simMinute) {
+export function visitPort(state, city, simMinute, { arrivedDrunk = false } = {}) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
+  if (typeof arrivedDrunk !== "boolean") {
+    throw new Error(`Invalid drunk port arrival flag: ${arrivedDrunk}`);
+  }
   const memory = portMemory(state, city);
   memory.visits += 1;
+  if (arrivedDrunk) {
+    memory.drunkArrivals += 1;
+    memory.lastDrunkVisit = memory.visits;
+    memory.lastDrunkArrivalMinute = simMinute;
+  }
   const playerFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   return recordDiplomaticPortCall(
     state.relations.diplomacy,
@@ -2872,10 +2904,14 @@ export function visitPort(state, city, simMinute) {
 
 export function portMemory(state, city) {
   assertGameState(state);
+  return requiredPortMemory(state, city);
+}
+
+function requiredPortMemory(state, city) {
   const key = city.portId || cityKey(city);
   let memory = state.memory.visitedPorts[key];
   if (!memory) {
-    memory = { visits: 0 };
+    memory = createPortVisitMemory();
     state.memory.visitedPorts[key] = memory;
   }
   return memory;
@@ -3103,6 +3139,7 @@ export function cityLabel(city) {
 
 function createPlayerShipState(stats) {
   return {
+    slug: stats.slug,
     loadoutId: null,
     loadoutTargets: null,
     crew: 0,
@@ -3393,7 +3430,7 @@ function foodRationDebtRemainder(debt) {
 
 function requirePlayerShipState(state, stats) {
   if (!state.ship) throw new Error("Ship loadouts require player ship state");
-  if (!stats || stats.cargoCapacity !== state.ship.baseCargoCapacity ||
+  if (!stats || stats.slug !== state.ship.slug || stats.cargoCapacity !== state.ship.baseCargoCapacity ||
       effectivePlayerShipStats(state, stats).cargoCapacity !== state.cargoCapacity) {
     throw new Error("Ship loadout stats do not match game state");
   }
@@ -3824,6 +3861,7 @@ function assertGameState(state) {
     throw new Error(`Invalid next ledger entry id: ${state.accounts.nextEntryId}`);
   }
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
+  validateVisitedPortMemories(state.memory.visitedPorts);
   validateNamedCrewDeathNotices(state.memory.namedCrewDeathNotices);
   validateBirthdayMemory(state.memory.birthdays);
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
@@ -3917,6 +3955,9 @@ function assertCargoReservationId(reservationId) {
 
 function assertPlayerShipState(ship) {
   if (!ship || typeof ship !== "object") throw new Error("Invalid player ship state");
+  if (typeof ship.slug !== "string" || ship.slug.trim() === "") {
+    throw new Error(`Invalid player ship slug: ${ship.slug}`);
+  }
   for (const key of ["crew", "crewCapacity", "cannons", "cannonCapacity"]) {
     if (!Number.isInteger(ship[key]) || ship[key] < 0) throw new Error(`Invalid ship ${key}: ${ship[key]}`);
   }
@@ -4036,6 +4077,49 @@ function savedGameStartMinute(state) {
 
 function createCartographyMemory() {
   return { seenTilesBase64: "", seenTileCount: 0 };
+}
+
+function createPortVisitMemory() {
+  return {
+    visits: 0,
+    drunkArrivals: 0,
+    lastDrunkVisit: null,
+    lastDrunkArrivalMinute: null
+  };
+}
+
+function validateVisitedPortMemories(memories) {
+  if (!memories || typeof memories !== "object" || Array.isArray(memories)) {
+    throw new Error("Game state visited-port memory must be an object");
+  }
+  for (const [portKey, memory] of Object.entries(memories)) {
+    if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+      throw new Error(`Invalid visited-port memory: ${portKey}`);
+    }
+    if (!Number.isInteger(memory.visits) || memory.visits < 0) {
+      throw new Error(`Invalid port visit count: ${portKey}=${memory.visits}`);
+    }
+    if (!Number.isInteger(memory.drunkArrivals) ||
+        memory.drunkArrivals < 0 || memory.drunkArrivals > memory.visits) {
+      throw new Error(`Invalid drunk port arrival count: ${portKey}=${memory.drunkArrivals}`);
+    }
+    const hasDrunkArrival = memory.drunkArrivals > 0;
+    if (hasDrunkArrival !== (memory.lastDrunkVisit !== null)) {
+      throw new Error(`Port drunk visit marker does not match its count: ${portKey}`);
+    }
+    if (memory.lastDrunkVisit !== null &&
+        (!Number.isInteger(memory.lastDrunkVisit) || memory.lastDrunkVisit < 1 ||
+         memory.lastDrunkVisit > memory.visits)) {
+      throw new Error(`Invalid latest drunk port visit: ${portKey}=${memory.lastDrunkVisit}`);
+    }
+    if (hasDrunkArrival !== (memory.lastDrunkArrivalMinute !== null)) {
+      throw new Error(`Port drunk arrival time does not match its count: ${portKey}`);
+    }
+    if (memory.lastDrunkArrivalMinute !== null &&
+        (!Number.isFinite(memory.lastDrunkArrivalMinute) || memory.lastDrunkArrivalMinute < 0)) {
+      throw new Error(`Invalid latest drunk port arrival time: ${portKey}=${memory.lastDrunkArrivalMinute}`);
+    }
+  }
 }
 
 function validateCartographyMemory(cartography) {

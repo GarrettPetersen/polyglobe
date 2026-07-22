@@ -34,6 +34,8 @@ const NEARBY_PORT_MARKET_INTEGRATION_STRENGTH = 0.65;
 const SOURCE_SPICE_ABUNDANCE_PRICE_MULTIPLIER = 0.22;
 const SOURCE_GINGER_ABUNDANCE_PRICE_MULTIPLIER = 0.4;
 const SOURCE_SPICE_MINIMUM_TARGET_STOCK = 80;
+const CRITICAL_STOCK_PRICE_THRESHOLD_RATIO = 0.75;
+const CRITICAL_STOCK_PRICE_EXPONENT = 1.25;
 
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
@@ -85,7 +87,8 @@ export const TRADE_GOODS = Object.freeze([
   good("arms", "Arms", 50, "manufactured", { unitSize: 2 }),
   good(GUNPOWDER_GOOD_ID, "Gunpowder", 44, "manufactured", {
     unitSize: 2,
-    initialImportStockRatio: 0.08
+    initialImportStockRatio: 0.08,
+    criticalStockPricing: true
   }),
   good(MATCHLOCKS_GOOD_ID, "Matchlocks", 88, "manufactured", {
     unitSize: 2,
@@ -485,6 +488,17 @@ export function portEconomySummary(economy, city) {
   };
 }
 
+export function consumePortGoodStock(economy, city, goodId, quantity) {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error(`Invalid port stock consumption: ${goodId}=${quantity}`);
+  }
+  return removePortGoodStock(economy, city, goodId, quantity);
+}
+
+export function destroyPortGoodStock(economy, city, goodId) {
+  return removePortGoodStock(economy, city, goodId, null);
+}
+
 export function worldMarketPriceComparison(economy, city, goodId, side) {
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
@@ -864,11 +878,13 @@ function marketPrice(port, good, stock) {
   if (!port.marketIntegrationOffsets.has(good.id)) {
     throw new Error(`${port.name} market has no integration value for ${good.label}`);
   }
-  const integratedMultiplier = clamp(
-    rawMultiplier + port.marketIntegrationOffsets.get(good.id),
-    MIN_INTEGRATED_PRICE_MULTIPLIER,
-    MAX_PRICE_MULTIPLIER
-  );
+  const integratedMultiplier = good.criticalStockPricing && stock <= 0
+    ? MAX_PRICE_MULTIPLIER
+    : clamp(
+      rawMultiplier + port.marketIntegrationOffsets.get(good.id),
+      MIN_INTEGRATED_PRICE_MULTIPLIER,
+      MAX_PRICE_MULTIPLIER
+    );
   const state = port.goods.get(good.id);
   const multiplier = clamp(
     integratedMultiplier * state.localAbundancePriceMultiplier * specieMultiplier,
@@ -908,11 +924,23 @@ function rawMarketMultiplier(port, good, stock) {
   );
   const localVariation = 0.94 + hashUnit(`${port.id}|${good.id}|price`) * 0.12;
   const regionalTradePriceMultiplier = REGION_TRADE_PRICE_MULTIPLIER[port.cityType]?.[good.id] || 1;
-  return clamp(
+  const ordinaryMultiplier = clamp(
     comparativeAdvantage * scarcity * localVariation * regionalTradePriceMultiplier,
     MIN_PRICE_MULTIPLIER * Math.min(1, regionalTradePriceMultiplier),
     MAX_PRICE_MULTIPLIER
   );
+  return Math.max(
+    ordinaryMultiplier,
+    criticalStockPriceMultiplier(good, state, stock)
+  );
+}
+
+function criticalStockPriceMultiplier(good, state, stock) {
+  if (!good.criticalStockPricing) return MIN_PRICE_MULTIPLIER;
+  const stockRatio = Math.max(0, stock) / state.targetStock;
+  if (stockRatio >= CRITICAL_STOCK_PRICE_THRESHOLD_RATIO) return MIN_PRICE_MULTIPLIER;
+  const shortage = 1 - stockRatio / CRITICAL_STOCK_PRICE_THRESHOLD_RATIO;
+  return 1 + (MAX_PRICE_MULTIPLIER - 1) * Math.pow(shortage, CRITICAL_STOCK_PRICE_EXPONENT);
 }
 
 function quoteTransaction(port, good, quantity, stockDirection, priceKey) {
@@ -975,6 +1003,23 @@ function requiredPortState(economy, city) {
   const port = economy.portStates.get(portId);
   if (!port) throw new Error(`No economy exists for port tile: ${portId}`);
   return port;
+}
+
+function removePortGoodStock(economy, city, goodId, requestedQuantity) {
+  const port = requiredPortState(economy, city);
+  const good = tradeGoodById(goodId);
+  if (good.alwaysAvailable) throw new Error(`Cannot deplete always-available port good: ${good.label}`);
+  const state = port.goods.get(goodId);
+  const consumedQuantity = requestedQuantity === null
+    ? state.stock
+    : Math.min(state.stock, requestedQuantity);
+  state.stock = Math.max(0, state.stock - consumedQuantity);
+  return Object.freeze({
+    good,
+    requestedQuantity,
+    consumedQuantity,
+    remainingStock: state.stock
+  });
 }
 
 function median(sortedValues) {
@@ -1124,6 +1169,7 @@ function good(id, label, basePrice, category, options = {}) {
     alwaysAvailable: options.alwaysAvailable === true,
     fixedBuyPrice: Number.isFinite(options.fixedBuyPrice) ? options.fixedBuyPrice : null,
     initialImportStockRatio,
+    criticalStockPricing: options.criticalStockPricing === true,
     npcTrade: options.npcTrade !== false,
     sellable: options.sellable !== false
   });
