@@ -46,13 +46,20 @@ test("extra-tall displays extend the world view vertically", () => {
 test("pathological browser dimensions cannot allocate an unbounded canvas", () => {
   assert.deepEqual(
     responsiveLogicalViewport({ viewportWidth: 100, viewportHeight: 1 }),
-    { width: 2048, height: 256 }
+    { width: 910, height: 256 }
   );
   assert.throws(() => responsiveLogicalViewport({
     viewportWidth: 16,
     viewportHeight: 9,
     maximumExtendedDimension: 400
   }), /maximumExtendedDimension/);
+});
+
+test("extreme portrait windows stop extending at the reciprocal 32:9 cap", () => {
+  assert.deepEqual(
+    responsiveLogicalViewport({ viewportWidth: 1, viewportHeight: 100 }),
+    { width: 256, height: 910 }
+  );
 });
 
 test("logical viewport validation rejects malformed dimensions", () => {

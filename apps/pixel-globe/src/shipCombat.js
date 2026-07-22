@@ -180,7 +180,12 @@ export function forceShipEngagement(state, aId, bId) {
   }
   if (aId === bId) throw new Error(`Cannot engage ship ${aId} with itself`);
   const key = engagementKey(aId, bId);
-  if (state.engagements.has(key)) return false;
+  const existing = state.engagements.get(key);
+  if (existing) {
+    if (existing.playerInitiated === true) return false;
+    existing.playerInitiated = true;
+    return true;
+  }
   state.engagements.set(key, { aId, bId, playerInitiated: true });
   return true;
 }

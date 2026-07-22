@@ -11061,6 +11061,7 @@ function beginPlayerInitiatedCombat(npcShipId) {
   const state = npcVisualShips.get(npcShipId);
   if (!state) throw new Error(`Cannot attack NPC ship that is no longer visible: ${npcShipId}`);
   if (state.combatGrace) throw new Error(`Cannot attack protected NPC ship: ${npcShipId}`);
+  if (pendingNpcCombatHailId === npcShipId) pendingNpcCombatHailId = null;
   if (!forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, npcShipId)) return;
   recordPlayerAttackConsequences(npcShipId);
   shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
@@ -17695,9 +17696,7 @@ function fitCanvasToDisplay() {
     viewportWidth,
     viewportHeight,
     canvasWidth: SCREEN_W,
-    canvasHeight: SCREEN_H,
-    devicePixelRatio: safeDevicePixelRatio(),
-    fitScreen: document.fullscreenElement === shell || coarsePointerIsPrimary()
+    canvasHeight: SCREEN_H
   });
   canvas.style.left = `${layout.left}px`;
   canvas.style.top = `${layout.top}px`;
@@ -17772,15 +17771,6 @@ function syncCanvasAriaLabel() {
     width: SCREEN_W,
     height: SCREEN_H
   }));
-}
-
-function coarsePointerIsPrimary() {
-  return window.matchMedia?.("(pointer: coarse)")?.matches === true;
-}
-
-function safeDevicePixelRatio() {
-  const ratio = window.devicePixelRatio || 1;
-  return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
 }
 
 function fullscreenAvailable() {
@@ -23214,8 +23204,19 @@ function drawPiratePaperPanel(panel) {
 }
 
 function drawPiratePaperModal(panel, overlayAlpha = 0.76) {
+  drawModalDimmingVeil(overlayAlpha);
+  drawPiratePaperModalPanel(panel);
+}
+
+function drawModalDimmingVeil(overlayAlpha) {
+  if (!Number.isFinite(overlayAlpha) || overlayAlpha < 0 || overlayAlpha > 1) {
+    throw new Error(`Invalid modal overlay alpha: ${overlayAlpha}`);
+  }
   ctx.fillStyle = `rgba(16, 20, 23, ${overlayAlpha})`;
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+}
+
+function drawPiratePaperModalPanel(panel) {
   drawPiratePaperPanel(panel);
   ctx.strokeStyle = PIRATE_MENU_INK;
   ctx.lineWidth = 1;
@@ -29343,13 +29344,14 @@ function drawCaptainAlertModal() {
   const geometry = captainAlertGeometry();
   const panel = geometry.panel;
 
+  drawModalDimmingVeil(0.72);
   drawDialoguePortrait(
     modal.character,
     modal.expressionId,
     geometry.portrait.x,
     geometry.portrait.y
   );
-  drawPiratePaperModal(panel, 0.72);
+  drawPiratePaperModalPanel(panel);
 
   const textX = panel.x + 12;
   const textW = panel.w - 24;

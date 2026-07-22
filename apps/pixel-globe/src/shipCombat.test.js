@@ -237,6 +237,20 @@ test("the player can force an engagement regardless of diplomacy", () => {
   assert.equal(state.engagements.get("friendly|player").playerInitiated, true);
 });
 
+test("a player attack takes ownership of an NPC-initiated engagement", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "pirate", "netherlands", 0, 0, 30, 14);
+  const pirate = ship("pirate", "pirate", "pirate", 20, 0, 25, 8);
+
+  const started = updateShipCombatState(state, [player, pirate], () => "war");
+  assert.equal(started.engagementCount, 1);
+  assert.equal(state.engagements.get("pirate|player").playerInitiated, undefined);
+
+  assert.equal(forceShipEngagement(state, "player", "pirate"), true);
+  assert.equal(state.engagements.get("pirate|player").playerInitiated, true);
+  assert.equal(updateShipCombatState(state, [player, pirate], () => "neutral").engagementCount, 1);
+});
+
 test("surrender judgment weighs combat power, damage, and escape speed", () => {
   const player = threatShip("player", 30, 14, 0.04);
   assert.equal(npcShouldOfferSurrender(threatShip("slow-weak", 8, 0, 0.03), player), true);

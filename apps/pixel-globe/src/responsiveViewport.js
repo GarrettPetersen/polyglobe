@@ -1,6 +1,6 @@
 const DEFAULT_WIDTH = 455;
 const DEFAULT_HEIGHT = 256;
-const DEFAULT_MAXIMUM_EXTENDED_DIMENSION = 2048;
+const DEFAULT_MAXIMUM_EXTENDED_DIMENSION = 910;
 
 export function responsiveLogicalViewport({
   viewportWidth,

@@ -2,39 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { canvasDisplayLayout } from "./displayScaling.js";
 
-test("windowed canvas scaling stays on an integer pixel multiple", () => {
+test("windowed canvas continuously fills the available display", () => {
+  const layout = canvasDisplayLayout({
+    viewportWidth: 1920,
+    viewportHeight: 1080,
+    canvasWidth: 455,
+    canvasHeight: 256
+  });
+
+  assert.equal(layout.scale, 1080 / 256);
+  assert.equal(layout.width, 1919.53125);
+  assert.equal(layout.height, 1080);
+  assert.equal(layout.left, 0.234375);
+  assert.equal(layout.top, 0);
+});
+
+test("responsive logical geometry leaves less than one CSS pixel unused", () => {
   const layout = canvasDisplayLayout({
     viewportWidth: 1100,
     viewportHeight: 700,
-    canvasWidth: 455,
-    canvasHeight: 256,
-    devicePixelRatio: 2,
-    fitScreen: false
+    canvasWidth: 428,
+    canvasHeight: 272
   });
 
-  assert.equal(layout.scale, 2);
-  assert.equal(layout.physicalScale, 4);
-  assert.equal(layout.width, 910);
-  assert.equal(layout.height, 512);
-});
-
-test("fullscreen fit scaling snaps the canvas box to physical pixels", () => {
-  const dpr = 1.5;
-  const layout = canvasDisplayLayout({
-    viewportWidth: 1280,
-    viewportHeight: 720,
-    canvasWidth: 455,
-    canvasHeight: 256,
-    devicePixelRatio: dpr,
-    fitScreen: true
-  });
-
-  assert.ok(layout.scale > 2 && layout.scale < 3);
-  assert.equal(Number.isInteger(layout.scale * dpr), true);
-  assert.equal(layout.physicalScale, layout.scale * dpr);
-  for (const value of [layout.width, layout.height, layout.left, layout.top]) {
-    assert.ok(Math.abs(value * dpr - Math.round(value * dpr)) < 1e-9);
-  }
+  assert.equal(layout.width, 1100);
+  assert.ok(700 - layout.height < 1);
+  assert.equal(layout.left, 0);
+  assert.ok(layout.top > 0 && layout.top < 0.5);
 });
 
 test("a canvas larger than the viewport scales down instead of overflowing", () => {
@@ -42,49 +36,40 @@ test("a canvas larger than the viewport scales down instead of overflowing", () 
     viewportWidth: 390,
     viewportHeight: 700,
     canvasWidth: 455,
-    canvasHeight: 256,
-    devicePixelRatio: 3,
-    fitScreen: false
+    canvasHeight: 256
   });
 
   assert.ok(layout.scale < 1);
-  assert.equal(Number.isInteger(layout.scale * 3), true);
   assert.ok(layout.width <= 390);
   assert.ok(layout.height <= 700);
 });
 
-test("a high-DPR portrait phone uses an integer physical pixel scale", () => {
+test("portrait layouts use the same continuous scaling policy", () => {
   const layout = canvasDisplayLayout({
     viewportWidth: 390,
     viewportHeight: 700,
     canvasWidth: 256,
-    canvasHeight: 455,
-    devicePixelRatio: 3,
-    fitScreen: true
+    canvasHeight: 459
   });
 
-  assert.equal(layout.physicalScale, 4);
-  assert.equal(layout.scale, 4 / 3);
-  assert.equal(layout.width * 3, 256 * 4);
-  assert.equal(layout.height * 3, 455 * 4);
+  assert.equal(layout.scale, 390 / 256);
+  assert.equal(layout.width, 390);
+  assert.ok(700 - layout.height < 1);
 });
 
-test("a 32:9 canvas remains centered and pixel-snapped on an ultrawide monitor", () => {
+test("a 32:9 canvas continuously fills an ultrawide monitor", () => {
   const layout = canvasDisplayLayout({
     viewportWidth: 5120,
     viewportHeight: 1440,
     canvasWidth: 910,
-    canvasHeight: 256,
-    devicePixelRatio: 2,
-    fitScreen: true
+    canvasHeight: 256
   });
 
-  assert.equal(layout.physicalScale, 11);
-  assert.equal(layout.scale, 5.5);
-  assert.equal(layout.width, 5005);
-  assert.equal(layout.height, 1408);
-  assert.equal(layout.left, 57.5);
-  assert.equal(layout.top, 16);
+  assert.equal(layout.scale, 1440 / 256);
+  assert.equal(layout.width, 5118.75);
+  assert.equal(layout.height, 1440);
+  assert.equal(layout.left, 0.625);
+  assert.equal(layout.top, 0);
 });
 
 test("canvas display scaling rejects invalid geometry", () => {

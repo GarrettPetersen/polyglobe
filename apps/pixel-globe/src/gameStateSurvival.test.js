@@ -701,6 +701,25 @@ test("port restocking dumps excess water and fills constrained stores evenly", (
   assert.equal(cargoFree(state), 0);
 });
 
+test("edible trade cargo does not suppress automatic water refills", () => {
+  const stats = shipStatsForSlug("ketch");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 120 });
+
+  state.cargo = { fish: 40 };
+  state.accounts.cargoCostBasis = { fish: 0 };
+  state.survival.freshWater = 0;
+
+  assert.equal(cargoUsed(state), 44);
+  const result = restockShipLoadoutAtPort(state, LONDON, stats, "balanced", { simMinute: 240 });
+
+  assert.equal(result.additions.food, 0);
+  assert.equal(result.additions.water, 16);
+  assert.equal(state.survival.freshWater, 16);
+  assert.equal(cargoUsed(state), 60);
+});
+
 test("a smaller custom loadout dumps excess hardtack and water without refunding it", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });

@@ -3247,7 +3247,7 @@ function loadoutRestockProvisionTargets(state, plan) {
   );
   return {
     food: protectedFood,
-    water: Math.min(allocation.waterUnits, Math.max(0, allocation.availableSpace - protectedFood))
+    water: allocation.waterUnits
   };
 }
 
