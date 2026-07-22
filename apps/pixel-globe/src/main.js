@@ -111,6 +111,12 @@ import {
   windAtLatLonDeg
 } from "./weather.js";
 import {
+  PRECIPITATION_RAIN,
+  PRECIPITATION_SNOW,
+  precipitationKindForConditions,
+  snowWaveOffset
+} from "./precipitation.js";
+import {
   DEFAULT_PLAYER_SHIP_SLUG,
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_SAIL,
@@ -1287,9 +1293,9 @@ const WATER_DEPTH_GRADATION_COUNT = 4;
 const WEATHER_REDRAW_MS = 250;
 const PRECIP_PARTICLE_REDRAW_MS = 80;
 const RAIN_PARTICLE_LIMIT = 340;
-const SNOW_PARTICLE_LIMIT = 240;
+const SNOW_PARTICLE_LIMIT = 300;
 const RAIN_PARTICLES_PER_TILE = 3;
-const SNOW_PARTICLES_PER_TILE = 2;
+const SNOW_PARTICLES_PER_TILE = 3;
 const PRECIP_PARTICLE_VIEW_MARGIN = 30;
 const WEATHER_DEFAULT_TIME_SCALE = DEFAULT_GAME_TIME_SCALE;
 const WEATHER_WIND_SEED = 90210;
@@ -17981,7 +17987,7 @@ function render(nowMs) {
   ctx.restore();
   measurePerformanceBenchmarkStage("render.gradeAndStorm", () => {
     drawDayNightPaletteGrade();
-    drawStormScreenRain(nowMs);
+    drawStormScreenPrecipitation(nowMs);
     drawStormEdgeFog(nowMs);
     drawStormShipStrike(nowMs);
   });
@@ -24694,15 +24700,23 @@ function drawPrecipitation(activeChart, nowMs, offset) {
   for (const particle of precipParticles) {
     const call = weatherTiles.callsByParticleKey.get(precipParticleKey(particle.kind, particle.tileId));
     if (!call) continue;
-    if (particle.kind === "rain") drawRainParticle(particle, call, nowMs);
+    if (particle.kind === PRECIPITATION_RAIN) drawRainParticle(particle, call, nowMs);
     else drawSnowParticle(particle, call, nowMs);
   }
 }
 
-function drawStormScreenRain(nowMs) {
+function drawStormScreenPrecipitation(nowMs) {
   if (!ship) return;
   const intensity = playerStormIntensity();
   if (intensity < STORM_SCREEN_RAIN_ENTER_INTENSITY) return;
+  if ((weatherFlagsForTile(ship.tileId) & TILE_DAY_SNOW_FALL) !== 0) {
+    drawStormScreenSnow(nowMs, intensity);
+    return;
+  }
+  drawStormScreenRain(nowMs, intensity);
+}
+
+function drawStormScreenRain(nowMs, intensity) {
   const t = clamp((intensity - STORM_SCREEN_RAIN_ENTER_INTENSITY) / (1 - STORM_SCREEN_RAIN_ENTER_INTENSITY), 0, 1);
   const wind = windForShip();
   const dir = screenWindFlowVector(wind);
@@ -24726,6 +24740,40 @@ function drawStormScreenRain(nowMs) {
     const tailY = Math.round(y - dir.y * length);
     const alpha = 0.18 + t * 0.22 + stormRainUnit(seed, 0x5555) * 0.12;
     drawPixelLine(tailX, tailY, x, y, `rgba(155, 198, 216, ${alpha.toFixed(3)})`);
+  }
+}
+
+function drawStormScreenSnow(nowMs, intensity) {
+  const t = clamp((intensity - STORM_SCREEN_RAIN_ENTER_INTENSITY) / (1 - STORM_SCREEN_RAIN_ENTER_INTENSITY), 0, 1);
+  const wind = windForShip();
+  const flowDir = wind.directionRad + Math.PI;
+  const windX = Math.cos(flowDir) * clamp(wind.strength, 0.15, 1.1);
+  const margin = 8;
+  const spanW = SCREEN_W + margin * 2;
+  const spanH = SCREEN_H + margin * 2;
+  const count = Math.round(48 + t * 72);
+  const daySalt = Math.imul(weatherParts.dayIndex + 1, 0x534e4f57);
+
+  for (let i = 0; i < count; i++) {
+    const seed = hashInt(daySalt ^ Math.imul(i + 1, 0x9e3779b1));
+    const fallDurationMs = 14500 + stormRainUnit(seed, 0x1111) * 9000;
+    const progress = ((nowMs + stormRainUnit(seed, 0x2222) * fallDurationMs) % fallDurationMs) /
+      fallDurationMs;
+    const baseX = -margin + stormRainUnit(seed, 0x3333) * spanW;
+    const waveAmplitude = 2 + stormRainUnit(seed, 0x4444) * 4;
+    const wavePeriodMs = 1500 + stormRainUnit(seed, 0x5555) * 1800;
+    const wavePhase = stormRainUnit(seed, 0x6666) * Math.PI * 2;
+    const x = Math.round(baseX + windX * progress * 14 + snowWaveOffset(
+      nowMs,
+      wavePhase,
+      waveAmplitude,
+      wavePeriodMs
+    ));
+    const y = Math.round(-margin + progress * spanH);
+    const alpha = 0.58 + t * 0.18 + stormRainUnit(seed, 0x7777) * 0.2;
+    ctx.fillStyle = `rgba(251, 245, 239, ${alpha.toFixed(3)})`;
+    ctx.fillRect(x, y, 1, 1);
+    if ((seed & 7) === 0) ctx.fillRect(x + 1, y, 1, 1);
   }
 }
 
@@ -24788,13 +24836,17 @@ function collectPrecipitationTileCalls(activeChart, offset) {
   for (const call of activeChart.tileCalls) {
     if (!tileCallNearViewport(call, offset, PRECIP_PARTICLE_VIEW_MARGIN)) continue;
     const flags = weatherFlagsForTile(call.id);
-    if ((flags & TILE_DAY_RAIN) !== 0 || stormIntensityForTile(call.id) >= STORM_ACTIVE_INTENSITY * 0.72) {
+    const kind = precipitationKindForConditions({
+      raining: (flags & TILE_DAY_RAIN) !== 0,
+      snowing: (flags & TILE_DAY_SNOW_FALL) !== 0,
+      storming: stormIntensityForTile(call.id) >= STORM_ACTIVE_INTENSITY * 0.72
+    });
+    if (kind === PRECIPITATION_RAIN) {
       rain.push(call);
-      callsByParticleKey.set(precipParticleKey("rain", call.id), call);
-    }
-    if ((flags & TILE_DAY_SNOW_FALL) !== 0) {
+      callsByParticleKey.set(precipParticleKey(PRECIPITATION_RAIN, call.id), call);
+    } else if (kind === PRECIPITATION_SNOW) {
       snow.push(call);
-      callsByParticleKey.set(precipParticleKey("snow", call.id), call);
+      callsByParticleKey.set(precipParticleKey(PRECIPITATION_SNOW, call.id), call);
     }
   }
   return { rain, snow, callsByParticleKey };
@@ -24819,8 +24871,8 @@ function syncPrecipitationParticles(weatherTiles) {
   precipParticles = precipParticles.filter((particle) => (
     activeKeys.has(precipParticleKey(particle.kind, particle.tileId))
   ));
-  syncPrecipitationKind("rain", weatherTiles.rain, RAIN_PARTICLE_LIMIT, RAIN_PARTICLES_PER_TILE);
-  syncPrecipitationKind("snow", weatherTiles.snow, SNOW_PARTICLE_LIMIT, SNOW_PARTICLES_PER_TILE);
+  syncPrecipitationKind(PRECIPITATION_RAIN, weatherTiles.rain, RAIN_PARTICLE_LIMIT, RAIN_PARTICLES_PER_TILE);
+  syncPrecipitationKind(PRECIPITATION_SNOW, weatherTiles.snow, SNOW_PARTICLE_LIMIT, SNOW_PARTICLES_PER_TILE);
 }
 
 function syncPrecipitationKind(kind, calls, limit, perTile) {
@@ -24845,18 +24897,18 @@ function syncPrecipitationKind(kind, calls, limit, perTile) {
 
   while (count < target && calls.length > 0) {
     const serial = precipParticleSerial++;
-    const pick = hashInt(serial ^ (kind === "rain" ? 0x5241494e : 0x534e4f57)) % calls.length;
+    const pick = hashInt(serial ^ (kind === PRECIPITATION_RAIN ? 0x5241494e : 0x534e4f57)) % calls.length;
     precipParticles.push(makePrecipitationParticle(kind, calls[pick], serial));
     count++;
   }
 }
 
 function makePrecipitationParticle(kind, call, serial) {
-  const salt = kind === "rain" ? 0x85ebca6b : 0xc2b2ae35;
+  const salt = kind === PRECIPITATION_RAIN ? 0x85ebca6b : 0xc2b2ae35;
   const seed = hashInt(call.id ^ Math.imul(serial, salt));
-  const lifeMs = kind === "rain"
+  const lifeMs = kind === PRECIPITATION_RAIN
     ? 460 + (seed & 0xff)
-    : 1700 + ((seed >>> 8) & 0x3ff);
+    : 2800 + ((seed >>> 8) & 0x5ff);
   return {
     kind,
     tileId: call.id,
@@ -24865,10 +24917,12 @@ function makePrecipitationParticle(kind, call, serial) {
     phaseMs: hashInt(seed ^ 0x27d4eb2d) % lifeMs,
     offsetX: particleRange(seed, 0, -12, 12),
     offsetY: particleRange(seed, 8, -4, 4),
-    alpha: kind === "rain"
+    alpha: kind === PRECIPITATION_RAIN
       ? particleRange(seed, 16, 0.46, 0.72)
-      : particleRange(seed, 16, 0.58, 0.86),
-    driftAmp: kind === "snow" ? particleRange(seed, 24, 1, 4) : 0
+      : particleRange(seed, 16, 0.72, 0.98),
+    driftAmp: kind === PRECIPITATION_SNOW ? particleRange(seed, 24, 2, 5) : 0,
+    wavePeriodMs: kind === PRECIPITATION_SNOW ? particleRange(hashInt(seed ^ 0x51ed270b), 0, 1400, 2600) : 0,
+    wavePhase: kind === PRECIPITATION_SNOW ? particleRange(hashInt(seed ^ 0x94d049bb), 0, 0, Math.PI * 2) : 0
   };
 }
 
@@ -24906,11 +24960,11 @@ function drawSnowParticle(particle, call, nowMs) {
   const wind = windForTile(call.id);
   const flowDir = wind.directionRad + Math.PI;
   const windX = Math.cos(flowDir) * clamp(wind.strength, 0.15, 1.1);
-  const wobble = Math.sin((nowMs + particle.phaseMs) * 0.004 + particle.seed) * particle.driftAmp;
-  const x = Math.round(call.drawSurfaceX + particle.offsetX + windX * progress * 5 + wobble);
-  const y = Math.round(call.drawSurfaceY - 14 + particle.offsetY + progress * 28);
+  const wobble = snowWaveOffset(nowMs, particle.wavePhase, particle.driftAmp, particle.wavePeriodMs);
+  const x = Math.round(call.drawSurfaceX + particle.offsetX + windX * progress * 4 + wobble);
+  const y = Math.round(call.drawSurfaceY - 13 + particle.offsetY + progress * 24);
 
-  ctx.fillStyle = `rgba(235, 241, 232, ${particle.alpha.toFixed(3)})`;
+  ctx.fillStyle = `rgba(251, 245, 239, ${particle.alpha.toFixed(3)})`;
   ctx.fillRect(x, y, 1, 1);
   if (((particle.seed + Math.floor(nowMs / 240)) & 15) === 0) {
     ctx.fillRect(x + 1, y, 1, 1);
