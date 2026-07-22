@@ -183,6 +183,7 @@ import {
   attemptPortDisguise,
   awardPlayerShip,
   cargoFree,
+  cargoHoldStatus,
   fishCatchCargoCapacity,
   cargoSpaceLabel,
   cargoUsed,
@@ -10453,7 +10454,7 @@ function startWaitingInPort(city) {
 }
 
 function playerShipIsInvulnerable() {
-  return Boolean(portWaitState);
+  return Boolean(portWaitState || dialogueState?.admittedToPort === true);
 }
 
 function resetSurvivalDamageTimers() {
@@ -20784,10 +20785,10 @@ function drawShipInfoMenu() {
   drawShipInfoRating("WINDWARD", view.ratings.windward, statsX, panel.y + 119);
   drawShipInfoRating("SEAWORTHY", view.seaworthiness, statsX, panel.y + 132);
   const provisionY = artY + SHIP_INFO_SIDE_VIEW_H + 2;
-  drawOptionsText(`DRINK ${Math.ceil(view.survival.drinkDays)}D`, artX, provisionY, {
+  drawOptionsText(`DRINK ${remainingSupplyDayCount(view.survival.drinkDays)}D`, artX, provisionY, {
     color: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
   });
-  drawOptionsText(`FOOD ${Math.floor(view.survival.foodDays)}D`, artX + 91, provisionY, {
+  drawOptionsText(`FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`, artX + 91, provisionY, {
     color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
 
@@ -20895,10 +20896,10 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     drawCompactShipRating(label, rating, labelX, valueX, y);
     y += 12;
   }
-  drawOptionsText(`DRINK ${Math.ceil(view.survival.drinkDays)}D`, labelX, y + 1, {
+  drawOptionsText(`DRINK ${remainingSupplyDayCount(view.survival.drinkDays)}D`, labelX, y + 1, {
     color: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE
   });
-  drawOptionsText(`FOOD ${Math.floor(view.survival.foodDays)}D`, valueX, y + 1, {
+  drawOptionsText(`FOOD ${remainingSupplyDayCount(view.survival.foodDays)}D`, valueX, y + 1, {
     align: "right",
     color: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
@@ -28797,13 +28798,14 @@ function drawSurvivalMeters() {
 
 function survivalHudLayout() {
   if (!gameState) throw new Error("Ship status HUD requires game state");
-  const capacity = gameState.cargoCapacity;
+  const hold = cargoHoldStatus(gameState);
+  const capacity = hold.capacity;
   const maximumPanelWidth = Math.max(
     SURVIVAL_PANEL_MIN_W,
     Math.min(SURVIVAL_PANEL_MAX_W, OPTIONS_BUTTON_X - SURVIVAL_PANEL_X - 3)
   );
   return cargoCrateStatusLayout({
-    used: cargoUsed(gameState),
+    used: hold.committedUsed,
     capacity,
     panelX: SURVIVAL_PANEL_X,
     panelY: SURVIVAL_PANEL_Y,

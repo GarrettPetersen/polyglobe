@@ -1,9 +1,8 @@
 import {
   cargoCostBasis,
+  cargoHoldStatus,
   cargoQuantityLabel,
   cargoRows,
-  cargoSpaceLabel,
-  cargoUsed,
   isEnvoyQuest,
   ledgerEntries,
   realizedTradePnl,
@@ -53,7 +52,7 @@ export function createShipInfoView(ship, gameState) {
   if (!Number.isFinite(ship.hitPoints) || !Number.isFinite(ship.maxHitPoints)) {
     throw new Error(`Ship ${ship.typeSlug} has invalid hull points`);
   }
-  const used = cargoUsed(gameState);
+  const hold = cargoHoldStatus(gameState);
   if (gameState.ship && gameState.ship.baseCargoCapacity !== baseStats.cargoCapacity) {
     throw new Error(
       `Ship ${ship.typeSlug} base cargo capacity mismatch: state=${gameState.ship?.baseCargoCapacity} stats=${baseStats.cargoCapacity}`
@@ -94,8 +93,10 @@ export function createShipInfoView(ship, gameState) {
     loadoutId: gameState.ship?.loadoutId || null,
     doubloons: gameState.doubloons,
     realizedPnl: realizedTradePnl(gameState),
-    cargoUsed: used,
-    cargoUsedLabel: cargoSpaceLabel(used),
+    cargoUsed: hold.committedUsed,
+    cargoUsedLabel: String(hold.committedWholeUnits),
+    cargoPhysicalUsed: hold.physicalUsed,
+    cargoReservedForLoadout: hold.reservedForLoadout,
     cargoCapacity: gameState.cargoCapacity,
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
     propulsion: stats.propulsion,

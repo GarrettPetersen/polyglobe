@@ -8,6 +8,7 @@ import {
   cargoCostBasis,
   cargoFree,
   cargoFreeForGood,
+  cargoHoldStatus,
   cargoQuantityLabel,
   cargoReservationUnits,
   cargoRows,
@@ -2660,6 +2661,7 @@ function shipHandoverView(session, city) {
 }
 
 function buyView(session, city, gameState, economy, context) {
+  const hold = cargoHoldStatus(gameState);
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
   const tradeRows = marketBuyGoodIds(session, market).map((goodId) => {
     const row = market.get(goodId);
@@ -2689,7 +2691,7 @@ function buyView(session, city, gameState, economy, context) {
           : cannotAfford
             ? "Not enough doubloons."
             : cannotFit
-              ? `Needs ${totalSize} cargo spaces; ${Math.max(0, freeSpace)} free.`
+              ? `Needs ${totalSize} cargo spaces; ${hold.freeWholeUnits} free.`
               : null
       });
     });
@@ -2699,8 +2701,8 @@ function buyView(session, city, gameState, economy, context) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: city.isPirateHideout
-      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`
-      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`,
+      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`
+      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     optionHeight: 30,
     options: rows
@@ -2992,6 +2994,7 @@ function loadoutRemovalSummary(removed) {
 }
 
 function sellView(session, city, gameState, economy) {
+  const hold = cargoHoldStatus(gameState);
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
   const rows = marketSaleGoodIds(session, gameState).map((goodId) => {
     const good = tradeGoodById(goodId);
@@ -3029,8 +3032,8 @@ function sellView(session, city, gameState, economy) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: city.isPirateHideout
-      ? `The fences care about value, not provenance. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`
-      : `Buyers here pay port rates. Cargo ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`,
+      ? `The fences care about value, not provenance. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`
+      : `Buyers here pay port rates. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     feedbackLineReserve: 2,
     optionHeight: 30,
@@ -3071,6 +3074,7 @@ function marketTradeLotCount(quantity) {
 }
 
 function cargoView(session, city, gameState) {
+  const hold = cargoHoldStatus(gameState);
   const rows = cargoRows(gameState);
   const cargoText = rows.length > 0
     ? rows.map((row) => `${row.good.label} ${cargoQuantityLabel(row.good, row.quantity)}`).join(", ")
@@ -3078,7 +3082,7 @@ function cargoView(session, city, gameState) {
   return {
     speaker: speakerName(city),
     expressionId: "neutral",
-    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${cargoSpaceLabel(cargoUsed(gameState))}/${gameState.cargoCapacity}.`,
+    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${hold.committedWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     options: [
       option("Back", { type: "node", nodeId: "root" }),

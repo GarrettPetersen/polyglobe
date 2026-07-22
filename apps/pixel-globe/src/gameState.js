@@ -1221,6 +1221,24 @@ export function cargoFree(state) {
   return cargoUnitsFromTicks(cargoFreeTicks(state));
 }
 
+export function cargoHoldStatus(state) {
+  assertGameState(state);
+  const capacityTicks = state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT;
+  const physicalUsedTicks = cargoUsedTicks(state);
+  const freeForTradeTicks = Math.max(0, cargoFreeTicks(state));
+  const committedUsedTicks = capacityTicks - freeForTradeTicks;
+  const freeWholeUnits = Math.floor(freeForTradeTicks / CARGO_SPACE_TICKS_PER_UNIT);
+  return Object.freeze({
+    capacity: state.cargoCapacity,
+    physicalUsed: cargoUnitsFromTicks(physicalUsedTicks),
+    reservedForLoadout: cargoUnitsFromTicks(Math.max(0, committedUsedTicks - physicalUsedTicks)),
+    committedUsed: cargoUnitsFromTicks(committedUsedTicks),
+    freeForTrade: cargoUnitsFromTicks(freeForTradeTicks),
+    freeWholeUnits,
+    committedWholeUnits: state.cargoCapacity - freeWholeUnits
+  });
+}
+
 export function cargoFreeForGood(state, goodId) {
   const good = tradeGoodById(goodId);
   return good.category === "food" ? provisionCargoFree(state, "food") : cargoFree(state);

@@ -15,11 +15,13 @@ import {
   SURVIVAL_STARVATION_INTERVAL_MINUTES,
   autoProvisionFreshWaterAtPort,
   autoProvisionHardtackAtPort,
+  acceptQuest,
   applySurvivalDeprivation,
   awardPlayerShip,
   buyGood,
   cargoCostBasis,
   cargoFree,
+  cargoHoldStatus,
   cargoReservationUnits,
   cargoSpaceLabel,
   cargoUsed,
@@ -715,6 +717,54 @@ test("consumed loadout provisions remain reserved against ordinary trade cargo",
   assert.throws(() => buyGood(state, economy, LONDON, "timber", 1), /Not enough cargo space/);
   assert.equal(buyGood(state, economy, LONDON, "hardtack", 1).quantity, 1);
   assert.equal(cargoFree(state), 0);
+});
+
+test("passenger provisions report the same trade capacity that the market enforces", () => {
+  const stats = shipStatsForSlug("mediterranean-galley");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  restockCustomShipLoadoutAtPort(state, LONDON, stats, {
+    crew: 14,
+    cannons: 0,
+    foodUnits: 24,
+    waterUnits: 35
+  }, { simMinute: 120 });
+  acceptQuest(state, {
+    id: "passenger-cargo-report",
+    kind: "passenger",
+    originTileId: 1,
+    originName: "London",
+    destinationTileId: 2,
+    destinationName: "Porto",
+    passenger: { name: "Municipal Orrery" },
+    passengerName: "Municipal Orrery",
+    reward: 100
+  });
+  state.cargo.hardtack = 235 / 12;
+  state.accounts.cargoCostBasis.hardtack = 235;
+  state.cargo.fish = 29;
+  state.accounts.cargoCostBasis.fish = 0;
+  state.cargo.wine = 7 / 8;
+  state.accounts.cargoCostBasis.wine = 0;
+  state.survival.freshWater = 30.5;
+
+  const before = cargoHoldStatus(state);
+  assert.equal(before.physicalUsed, 1014 / 12);
+  assert.equal(before.reservedForLoadout, 4);
+  assert.equal(before.freeForTrade, 1.5);
+  assert.equal(before.freeWholeUnits, 1);
+  assert.equal(before.committedWholeUnits, 89);
+
+  const result = restockCustomShipLoadoutAtPort(state, LONDON, stats, state.ship.loadoutTargets, {
+    simMinute: 240
+  });
+  const after = cargoHoldStatus(state);
+  assert.equal(result.additions.water, 4.5);
+  assert.equal(state.survival.freshWater, 35);
+  assert.equal(after.reservedForLoadout, 0);
+  assert.equal(after.freeForTrade, before.freeForTrade);
+  assert.equal(after.committedWholeUnits, before.committedWholeUnits);
+  assert.ok(survivalStatus(state).drinkDays > 19);
 });
 
 test("port restocking dumps excess water and fills constrained stores evenly", () => {
