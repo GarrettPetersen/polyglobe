@@ -44,7 +44,7 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     if (!a || !b || a.combatGrace || b.combatGrace ||
         (!engagement.playerInitiated && playerSafePassageApplies(a, b)) ||
         (!engagement.playerInitiated && relationBetween(a.factionId, b.factionId) !== DIPLOMACY_WAR) ||
-        protectedPortEndsPlayerAttack(a, b) ||
+        playerPortProtectionEndsEngagement(a, b, engagement.playerInitiated === true) ||
         distance(a, b) > combatDisengageRadius(a, b)) {
       state.engagements.delete(key);
       changed = true;
@@ -166,11 +166,11 @@ function isPlayerPiratePair(a, b) {
   return npc.role === NPC_ROLE_PIRATE;
 }
 
-function protectedPortEndsPlayerAttack(a, b) {
+function playerPortProtectionEndsEngagement(a, b, playerInitiated) {
   if (a.id !== PLAYER_COMBAT_ID && b.id !== PLAYER_COMBAT_ID) return false;
   const player = a.id === PLAYER_COMBAT_ID ? a : b;
   if (player.portProtected) return true;
-  return isPlayerPiratePair(a, b) && Boolean(player.majorPortProtected);
+  return !playerInitiated && isPlayerPiratePair(a, b) && Boolean(player.majorPortProtected);
 }
 
 export function forceShipEngagement(state, aId, bId) {

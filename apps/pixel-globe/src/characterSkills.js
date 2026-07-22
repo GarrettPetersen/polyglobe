@@ -1,7 +1,19 @@
 import { perkEffectLabels, validatePerkSource } from "./perkSystem.js";
 
-function skill(id, label, detail, perks, { travelerEligible = true } = {}) {
-  const value = Object.freeze({ id, label, detail, perks: Object.freeze(perks), travelerEligible });
+function skill(id, label, detail, perks, {
+  travelerEligible = true,
+  assignable = true,
+  effectLabels = null
+} = {}) {
+  const value = Object.freeze({
+    id,
+    label,
+    detail,
+    perks: Object.freeze(perks),
+    travelerEligible,
+    assignable,
+    effectLabels: effectLabels === null ? null : Object.freeze(effectLabels)
+  });
   validatePerkSource(value);
   return value;
 }
@@ -61,6 +73,13 @@ export const CHARACTER_SKILLS = Object.freeze([
   skill("navigator", "Navigator", "Turns observations and soundings into a cleaner passage.", {
     topSpeedMultiplier: 1.03,
     windwardAngleReductionDeg: 1
+  }),
+  skill("useless", "Useless", "Eats enthusiastically and contributes nothing to the work of the ship.", {
+    cargoCapacityFlat: 0
+  }, {
+    travelerEligible: false,
+    assignable: false,
+    effectLabels: ["No crew work"]
   })
 ]);
 
@@ -84,7 +103,9 @@ export function characterSkillIdsForIdentity(identityKey, { traveler = false, co
     throw new Error("Character skill assignment requires an identity key");
   }
   if (!Number.isInteger(count) || count <= 0) throw new Error(`Invalid character skill count: ${count}`);
-  const pool = traveler ? CHARACTER_SKILLS.filter((entry) => entry.travelerEligible) : CHARACTER_SKILLS;
+  const pool = CHARACTER_SKILLS.filter((entry) => (
+    entry.assignable && (!traveler || entry.travelerEligible)
+  ));
   if (count > pool.length) throw new Error(`Cannot assign ${count} distinct skills from ${pool.length}`);
   const remaining = [...pool];
   const result = [];
@@ -112,7 +133,7 @@ export function characterSkillSummary(skillId) {
   const value = characterSkillById(skillId);
   return Object.freeze({
     ...value,
-    effectLabels: perkEffectLabels(value.perks)
+    effectLabels: value.effectLabels || perkEffectLabels(value.perks)
   });
 }
 

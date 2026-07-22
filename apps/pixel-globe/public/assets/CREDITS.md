@@ -10,6 +10,7 @@
 - Dan Gant (@dgant)
 - Zachariah Schwab (@ZachariahSchwab)
 - QuantumObserver (@QuantumWitness)
+- Pro-Kodos (@neokodosian)
 
 ## Music
 - YouFulca
@@ -76,3 +77,7 @@
 ## Pixel Art Effects
 - InfectedTribe - "Pixel Animated Lightning Strike Effect" (itch.io asset license)
 - DevKidd - "Pixel Fire Asset Pack" (itch.io asset license)
+
+## Character Portraits
+- CaptainSkolot - "Ultimate Portrait Pack" and related portrait packs (itch.io asset license; selected and curated for the 1522 setting)
+- CaptainSkolot - "Wild Animal Portrait Pack," "Panda Portrait," "Racoon Portrait," and "Penguin Portraits" (itch.io asset license)

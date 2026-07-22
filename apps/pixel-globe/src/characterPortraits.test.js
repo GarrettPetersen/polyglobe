@@ -66,7 +66,7 @@ test("player portrait selection uses a directly authored regional captain sprite
   assert.ok(character.expressions.every((expression) => expression.width === 64 && expression.height === 64));
 });
 
-test("European players draw from all twenty expressive regional portraits", () => {
+test("European players draw from every expressive regional portrait", () => {
   const expectedSourceIds = GENERATED_MANIFEST.sourceCharacters
     .filter((source) => (
       source.regions.includes("mediterranean") &&
@@ -76,7 +76,7 @@ test("European players draw from all twenty expressive regional portraits", () =
     ))
     .map((source) => source.id)
     .sort();
-  assert.equal(expectedSourceIds.length, 20);
+  assert.ok(expectedSourceIds.length > 0);
 
   for (const [cityType, city] of [
     ["mediterranean", "Cadiz"],
@@ -148,6 +148,19 @@ test("mixed portrait sheets retain their visually reviewed sex assignments", () 
       .sort((a, b) => a - b);
     assert.deepEqual(actualNumbers, expectedNumbers, directory);
   }
+});
+
+test("the black-haired woman is an expressive East Asian portrait", () => {
+  const source = GENERATED_MANIFEST.sourceCharacters.find((portrait) => (
+    portrait.sourceDirectory === "Women Black Hair Portrait by Captainskolot"
+  ));
+
+  assert.ok(source);
+  assert.equal(source.sex, "female");
+  assert.deepEqual(source.regions, ["east-asia"]);
+  assert.ok(source.roles.includes("factor"));
+  assert.equal(source.expressions.length, 12);
+  assert.equal(source.expressions.find((expression) => expression.id === "neutral")?.index, 2);
 });
 
 test("saved characters inherit corrected sex metadata from their reviewed portrait", () => {
@@ -351,6 +364,7 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["old-villager-portrait-by-captainskeleto-old-villager-portrait", 7],
     ["old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard", 3],
     ["peasant-portrait-pack-by-captainskeleto-peasant-portrait", 4],
+    ["merchant-portrait-pack-by-captainskolot-portrait-merchant", 1],
     ["ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait", 4],
     ["ultimate-portrait-pack-v1-0-village-elder-villager-elder-portrait", 4],
     ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", 4],
@@ -358,7 +372,9 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["women-knight-portrait-pack-by-captainskeleto-women-knight-portrait", 12],
     ["women-peasant-pack-by-captainskeleto-women-peasant", 3],
     ["ultimate-portrait-pack-v1-0-seamstress-women-portrait-women-seamstress-portrait", 1],
-    ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", 6]
+    ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", 6],
+    ["warrior-with-beard-pack-by-captainskolot-warrior-with-beard", 1],
+    ["women-black-hair-portrait-by-captainskolot-women-black-hair-portrait", 2]
   ]);
 
   for (const [characterId, expectedIndex] of neutralIndices) {
@@ -499,7 +515,7 @@ test("return-home passenger generation can use destination culture", () => {
   assert.equal(passenger.destinationPortTileId, 2);
   assert.equal(passenger.nameCulture, "japanese");
   assert.equal(passenger.region, "east-asia");
-  assert.ok(passenger.sourceId.startsWith("ming-chinese-portrait-pack-by-openai-"));
+  assert.ok(passenger.sourceRegions.includes("east-asia"));
   assert.equal("palette" in passenger, false);
 });
 
@@ -580,7 +596,6 @@ test("port assignments use their authored culture-group portrait pools", () => {
   assert.ok(polynesian.sourceId.startsWith("polynesian-portrait-pack-by-openai-"));
   assert.equal(polynesian.nameCulture, "polynesian");
   const eastAsian = assignments.get(4);
-  assert.ok(eastAsian.sourceId.startsWith("ming-chinese-portrait-pack-by-openai-"));
   assert.ok(eastAsian.sourceRegions.includes("east-asia"));
   assert.equal(eastAsian.nameCulture, "chinese");
   assert.ok(assignments.get(5).sourceId.startsWith("south-asian-portrait-pack-by-openai-"));

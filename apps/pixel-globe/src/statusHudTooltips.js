@@ -53,14 +53,23 @@ export function statusHudTooltipText(language = LANGUAGE_ENGLISH, id, values) {
   if (id === STATUS_HUD_TOOLTIP_CREW) {
     const crew = normalizedWholeCount(values.crew, "crew");
     const passengers = normalizedWholeCount(values.passengers, "passengers");
+    const pandas = normalizedWholeCount(values.pandas ?? 0, "pandas");
+    if (pandas > 1) throw new Error(`Invalid status HUD panda count: ${pandas}`);
     const crewLabel = translate(language, `hud.tooltip.crewCount${crew === 1 ? "One" : "Many"}`, { count: crew });
-    if (passengers === 0) return translate(language, "hud.tooltip.aboardCrew", { crew: crewLabel });
+    if (passengers === 0 && pandas === 0) {
+      return translate(language, "hud.tooltip.aboardCrew", { crew: crewLabel });
+    }
+    if (passengers === 0) {
+      return translate(language, "hud.tooltip.aboardCrewPanda", { crew: crewLabel });
+    }
     const passengerLabel = translate(
       language,
       `hud.tooltip.passengerCount${passengers === 1 ? "One" : "Many"}`,
       { count: passengers }
     );
-    return translate(language, "hud.tooltip.aboardCrewPassengers", {
+    return translate(language, pandas === 0
+      ? "hud.tooltip.aboardCrewPassengers"
+      : "hud.tooltip.aboardCrewPassengersPanda", {
       crew: crewLabel,
       passengers: passengerLabel
     });

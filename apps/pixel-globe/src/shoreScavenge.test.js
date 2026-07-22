@@ -8,6 +8,7 @@ import {
   SHORE_SCAVENGE_CASUALTY_CHANCE,
   SHORE_SCAVENGE_DESERT,
   SHORE_SCAVENGE_FOOD,
+  SHORE_SCAVENGE_FROZEN,
   SHORE_SCAVENGE_NOTHING,
   SHORE_SCAVENGE_SEABIRD,
   SHORE_SCAVENGE_TEMPERATE,
@@ -137,6 +138,8 @@ test("every shore and outcome has varied descriptive text", () => {
 test("frozen terrain selects the correct polar scavenging context", () => {
   assert.equal(shoreScavengeContextForTerrain({ t: "ice" }, 78, false), SHORE_SCAVENGE_ARCTIC);
   assert.equal(shoreScavengeContextForTerrain({ t: "ice_cap" }, -74, false), SHORE_SCAVENGE_ANTARCTIC);
+  assert.equal(shoreScavengeContextForTerrain({ t: "water" }, -63, false, true), SHORE_SCAVENGE_ANTARCTIC);
+  assert.equal(shoreScavengeContextForTerrain({ t: "lake" }, 48, false, true), SHORE_SCAVENGE_FROZEN);
   assert.equal(shoreScavengeContextForTerrain({ t: "grass" }, 64, true), SHORE_SCAVENGE_ARCTIC);
   assert.equal(shoreScavengeContextForTerrain({ t: "grass" }, 45, true), SHORE_SCAVENGE_TEMPERATE);
   assert.equal(shoreScavengeContextForTerrain({ t: "grass" }, 50, false), SHORE_SCAVENGE_TEMPERATE);
@@ -165,6 +168,17 @@ test("polar supply notices and narratives never claim to find woodland springs",
         const narrative = shoreScavengeNarrative(outcome, context, () => roll).toLowerCase();
         assert.doesNotMatch(narrative, /spring|tree/);
       }
+    }
+  }
+});
+
+test("ordinary frozen shores use ice-specific supplies without polar wildlife", () => {
+  assert.equal(shoreScavengeNoticeLabel(SHORE_SCAVENGE_WATER, SHORE_SCAVENGE_FROZEN), "MELTED ICE");
+  assert.equal(shoreScavengeNoticeLabel(SHORE_SCAVENGE_FOOD, SHORE_SCAVENGE_FROZEN), "FOUND WINTER FOOD");
+  for (const outcome of [SHORE_SCAVENGE_WATER, SHORE_SCAVENGE_FOOD, SHORE_SCAVENGE_NOTHING]) {
+    for (const roll of [0, 0.5, 0.9999]) {
+      const narrative = shoreScavengeNarrative(outcome, SHORE_SCAVENGE_FROZEN, () => roll).toLowerCase();
+      assert.doesNotMatch(narrative, /polar bear|seal colony|root|spring/);
     }
   }
 });

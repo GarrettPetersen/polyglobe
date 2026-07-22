@@ -4,6 +4,7 @@ export const ABOARD_ROLE_EMISSARY = "emissary";
 export const ABOARD_ROLE_COLONY_LEADER = "colony-leader";
 export const ABOARD_ROLE_CREWMATE = "crewmate";
 export const ABOARD_ROLE_COLONIST = "colonist";
+export const ABOARD_ROLE_ANIMAL = "animal";
 
 const TRAVELER_ROLE = Object.freeze({
   passenger: ABOARD_ROLE_PASSENGER,
@@ -17,7 +18,8 @@ export function aboardRoster({
   namedCrew = [],
   travelerGroups = [],
   namedTravelers = [],
-  colonyLeader = null
+  colonyLeader = null,
+  animalCompanions = []
 }) {
   if (!captain || typeof captain !== "object" || !captain.name) {
     throw new Error("Aboard roster requires a named captain");
@@ -26,6 +28,7 @@ export function aboardRoster({
   if (!Array.isArray(namedCrew)) throw new Error("Named aboard crew must be an array");
   if (!Array.isArray(travelerGroups)) throw new Error("Aboard travelers must be an array");
   if (!Array.isArray(namedTravelers)) throw new Error("Named aboard travelers must be an array");
+  if (!Array.isArray(animalCompanions)) throw new Error("Aboard animal companions must be an array");
 
   const remainingTravelers = new Map();
   for (const group of travelerGroups) {
@@ -64,6 +67,12 @@ export function aboardRoster({
     consumeTraveler(remainingTravelers, "settler");
     named.push(namedEntry("colony-leader", colonyLeader, ABOARD_ROLE_COLONY_LEADER));
   }
+  for (const character of animalCompanions) {
+    if (!character || typeof character !== "object" || !character.name) {
+      throw new Error("Aboard animal companion requires a character");
+    }
+    named.push(namedEntry(`animal:${character.id}`, character, ABOARD_ROLE_ANIMAL));
+  }
 
   const genericCrewCount = crewCount - 1 - namedCrew.length;
   if (genericCrewCount < 0 && crewCount !== 0) {
@@ -81,10 +90,53 @@ export function aboardRoster({
   }
 
   return Object.freeze({
-    count: named.length + generic.length,
+    count: named.length + generic.length - animalCompanions.length,
     named: Object.freeze(named),
     generic: Object.freeze(generic)
   });
+}
+
+export function aboardCharacterHomePortTileId(entry, {
+  activeTravelQuest = null,
+  rescuedTravelers = [],
+  historianHomePortTileId = null
+} = {}) {
+  if (!entry || entry.kind !== "named" || !entry.character) {
+    throw new Error("Aboard home port requires a named character entry");
+  }
+  if (!Array.isArray(rescuedTravelers)) {
+    throw new Error("Aboard home port requires a rescued traveler list");
+  }
+
+  const character = entry.character;
+  const rescuedTraveler = rescuedTravelers.find((traveler) => (
+    traveler?.character?.id === character.id
+  ));
+  if (rescuedTraveler) {
+    return requiredTileId(rescuedTraveler.homePortTileId, `${character.name} rescued traveler home port`);
+  }
+
+  if (entry.role === ABOARD_ROLE_PASSENGER) {
+    return firstTileId([
+      character.destinationPortTileId,
+      activeTravelQuest?.destinationTileId,
+      character.homePortTileId
+    ], `${character.name} passenger home port`);
+  }
+  if (entry.role === ABOARD_ROLE_EMISSARY) {
+    return firstTileId([
+      character.originPortTileId,
+      activeTravelQuest?.originTileId,
+      character.homePortTileId
+    ], `${character.name} emissary home port`);
+  }
+
+  return firstTileId([
+    character.homePortTileId,
+    entry.role === ABOARD_ROLE_CREWMATE && character.role === "historian"
+      ? historianHomePortTileId
+      : null
+  ], `${character.name} home port`);
 }
 
 function consumeTraveler(groups, kind) {
@@ -103,4 +155,14 @@ function genericEntry(id, role) {
 
 function assertCount(value, label) {
   if (!Number.isInteger(value) || value < 0) throw new Error(`Invalid aboard ${label} count: ${value}`);
+}
+
+function firstTileId(candidates, label) {
+  const tileId = candidates.find((candidate) => Number.isInteger(candidate) && candidate >= 0);
+  return requiredTileId(tileId, label);
+}
+
+function requiredTileId(tileId, label) {
+  if (!Number.isInteger(tileId) || tileId < 0) throw new Error(`Missing ${label}`);
+  return tileId;
 }

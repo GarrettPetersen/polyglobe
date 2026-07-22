@@ -22,6 +22,14 @@ test("travelers cannot grant temporary cargo capacity", () => {
   }
 });
 
+test("the panda's useless skill is registered but never randomly assigned", () => {
+  assert.equal(characterSkillById("useless").assignable, false);
+  for (let index = 0; index < 500; index++) {
+    assert.notEqual(characterSkillIdsForIdentity(`ordinary-${index}`)[0], "useless");
+    assert.notEqual(characterSkillIdsForIdentity(`traveler-${index}`, { traveler: true })[0], "useless");
+  }
+});
+
 test("the fishing skill ramp improves both odds and haul", () => {
   const ramp = ["skilled-fisher", "expert-fisher", "master-fisher"].map(characterSkillById);
   assert.ok(ramp[0].perks.fishingChanceMultiplier < ramp[1].perks.fishingChanceMultiplier);

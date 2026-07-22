@@ -1,5 +1,5 @@
 export const ACHIEVEMENT_PROFILE_STORAGE_KEY = "marque-and-reprisal.achievements";
-export const ACHIEVEMENT_PROFILE_VERSION = 1;
+export const ACHIEVEMENT_PROFILE_VERSION = 2;
 export const VOYAGE_ACHIEVEMENT_PROGRESS_VERSION = 2;
 
 export const ACHIEVEMENT_IDS = Object.freeze({
@@ -52,7 +52,8 @@ export const ACHIEVEMENT_IDS = Object.freeze({
   A_FINE_COMPANY: "a-fine-company",
   SHIPSHAPE: "shipshape",
   ALL_HANDS: "all-hands",
-  VOYAGE_FULFILLED: "voyage-fulfilled"
+  VOYAGE_FULFILLED: "voyage-fulfilled",
+  GREAT_BESTIARY: "great-bestiary"
 });
 
 export const SPICE_TRADER_GOOD_IDS = Object.freeze([
@@ -167,7 +168,9 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.ALL_HANDS, "All Hands",
     "Fill every crew berth on a ship that holds at least 10 sailors.", "voyage", "action:passenger", "ALL_HANDS"),
   achievement(ACHIEVEMENT_IDS.VOYAGE_FULFILLED, "Voyage Fulfilled",
-    "Complete a captain's main goal and return home.", "voyage", "menu:achievements", "VOYAGE_FULFILLED")
+    "Complete a captain's main goal and return home.", "voyage", "menu:achievements", "VOYAGE_FULFILLED"),
+  achievement(ACHIEVEMENT_IDS.GREAT_BESTIARY, "The Great Bestiary",
+    "Encounter every documented animal across any number of voyages.", "lifetime", "menu:discoveries", "GREAT_BESTIARY")
 ]);
 
 export const ACHIEVEMENT_CATALOG_BY_ID = new Map(
@@ -181,7 +184,7 @@ export function createAchievementProfile() {
   return {
     version: ACHIEVEMENT_PROFILE_VERSION,
     unlocked: {},
-    lifetime: { sailedShipSlugs: [] },
+    lifetime: { sailedShipSlugs: [], seenAnimalIds: [] },
     platformUnlocks: {}
   };
 }
@@ -245,12 +248,27 @@ export function readAchievementProfile({ storage = defaultStorage() } = {}) {
     if (serialized === null) {
       return { status: "ready", profile: createAchievementProfile(), error: null };
     }
-    const profile = JSON.parse(serialized);
+    const profile = migrateAchievementProfile(JSON.parse(serialized));
     validateAchievementProfile(profile);
     return { status: "ready", profile, error: null };
   } catch (error) {
     return { status: "invalid", profile: null, error: asError(error) };
   }
+}
+
+export function migrateAchievementProfile(profile) {
+  if (profile?.version === ACHIEVEMENT_PROFILE_VERSION) return profile;
+  if (profile?.version !== 1) {
+    throw new Error(`Unsupported achievement profile: ${profile?.version ?? "missing"}`);
+  }
+  return {
+    ...profile,
+    version: ACHIEVEMENT_PROFILE_VERSION,
+    lifetime: {
+      ...profile.lifetime,
+      seenAnimalIds: []
+    }
+  };
 }
 
 export function writeAchievementProfile(profile, { storage = defaultStorage() } = {}) {
@@ -276,6 +294,7 @@ export function validateAchievementProfile(profile) {
     throw new Error("Achievement profile lifetime progress is missing");
   }
   validateUniqueStringList(profile.lifetime.sailedShipSlugs, "lifetime sailed ships");
+  validateUniqueStringList(profile.lifetime.seenAnimalIds, "lifetime animal sightings");
   if (!profile.platformUnlocks || typeof profile.platformUnlocks !== "object" ||
       Array.isArray(profile.platformUnlocks)) {
     throw new Error("Achievement platform unlocks must be an object");
@@ -342,6 +361,7 @@ export function synchronizeAchievements(profile, progress, snapshot, { unlockedA
   changed = addAll(progress.foundedCityIds, snapshot.foundedCityIds) || changed;
   changed = addAll(progress.sailedShipSlugs, snapshot.sailedShipSlugs) || changed;
   changed = addAll(profile.lifetime.sailedShipSlugs, snapshot.sailedShipSlugs) || changed;
+  changed = addAll(profile.lifetime.seenAnimalIds, snapshot.animalIds) || changed;
   if (snapshot.grossDoubloonsEarned > progress.grossDoubloonsEarned) {
     progress.grossDoubloonsEarned = snapshot.grossDoubloonsEarned;
     changed = true;
@@ -413,6 +433,9 @@ export function synchronizeAchievements(profile, progress, snapshot, { unlockedA
   unlockWhen(ACHIEVEMENT_IDS.SHIPSHAPE, snapshot.specialEquipmentCount >= 3);
   unlockWhen(ACHIEVEMENT_IDS.ALL_HANDS, snapshot.fullCrew);
   unlockWhen(ACHIEVEMENT_IDS.VOYAGE_FULFILLED, snapshot.campaignVictory);
+  unlockWhen(ACHIEVEMENT_IDS.GREAT_BESTIARY,
+    snapshot.animalCatalogIds.length > 0 &&
+    snapshot.animalCatalogIds.every((id) => profile.lifetime.seenAnimalIds.includes(id)));
 
   validateAchievementProfile(profile);
   validateVoyageAchievementProgress(progress);
@@ -536,6 +559,9 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
     value = snapshot.fullCrew ? 1 : 0;
   } else if (achievementId === ACHIEVEMENT_IDS.VOYAGE_FULFILLED) {
     value = snapshot.campaignVictory ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.GREAT_BESTIARY) {
+    value = snapshot.animalCatalogIds.filter((id) => profile.lifetime.seenAnimalIds.includes(id)).length;
+    target = snapshot.animalCatalogIds.length;
   }
   return Object.freeze({ unlocked, value: Math.min(value, target), target });
 }
@@ -605,6 +631,8 @@ function validateAchievementSnapshot(snapshot) {
   for (const key of [
     "discoveryIds",
     "discoveryCatalogIds",
+    "animalIds",
+    "animalCatalogIds",
     "soldGoodIds",
     "foundedCityIds",
     "sailedShipSlugs",

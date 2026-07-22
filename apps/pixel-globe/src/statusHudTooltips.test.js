@@ -47,6 +47,14 @@ test("status HUD tooltip copy is fully localized", () => {
     "6 crew + 1 passenger aboard"
   );
   assert.equal(
+    statusHudTooltipText(LANGUAGE_ENGLISH, STATUS_HUD_TOOLTIP_CREW, { crew: 9, passengers: 0, pandas: 1 }),
+    "9 crew + 1 panda aboard"
+  );
+  assert.equal(
+    statusHudTooltipText(LANGUAGE_ENGLISH, STATUS_HUD_TOOLTIP_CREW, { crew: 9, passengers: 1, pandas: 1 }),
+    "9 crew + 1 passenger + 1 panda aboard"
+  );
+  assert.equal(
     statusHudTooltipText(LANGUAGE_CHINESE_SIMPLIFIED, STATUS_HUD_TOOLTIP_CREW, { crew: 6, passengers: 1 }),
     "船上有6名船员＋1名乘客"
   );

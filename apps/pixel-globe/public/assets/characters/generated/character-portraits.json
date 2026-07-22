@@ -5,6 +5,64 @@
   "sourceRoot": "assets/characters",
   "sourceCharacters": [
     {
+      "id": "curated-historical-portraits-by-captainskolot-armored-soldier",
+      "label": "Armored Soldier",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Curated Historical Portraits by CaptainSkolot",
+      "sex": "male",
+      "roles": [
+        "captain",
+        "warrior"
+      ],
+      "regions": [
+        "global",
+        "europe",
+        "northern-europe",
+        "mediterranean"
+      ],
+      "minAge": 24,
+      "maxAge": 40,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Curated%20Historical%20Portraits%20by%20CaptainSkolot/Armored%20Soldier.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "curated-historical-portraits-by-captainskolot-bald-monk",
+      "label": "Bald Monk",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Curated Historical Portraits by CaptainSkolot",
+      "sex": "male",
+      "roles": [
+        "factor",
+        "civilian",
+        "clergy"
+      ],
+      "regions": [
+        "east-asia"
+      ],
+      "minAge": 25,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Curated%20Historical%20Portraits%20by%20CaptainSkolot/Bald%20Monk.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "blacksmith-portrait-pack-by-captainskeleto-blacksmith-portrait",
       "label": "Blacksmith Portrait",
       "groupingMode": "expression-set",
@@ -1793,6 +1851,37 @@
       ]
     },
     {
+      "id": "curated-historical-portraits-by-captainskolot-mercenary-warrior",
+      "label": "Mercenary Warrior",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Curated Historical Portraits by CaptainSkolot",
+      "sex": "male",
+      "roles": [
+        "factor",
+        "captain",
+        "warrior"
+      ],
+      "regions": [
+        "global",
+        "europe",
+        "northern-europe",
+        "mediterranean"
+      ],
+      "minAge": 36,
+      "maxAge": 52,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Curated%20Historical%20Portraits%20by%20CaptainSkolot/Mercenary%20Warrior.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "ming-chinese-portrait-pack-by-openai-ming-chinese-1",
       "label": "Ming Chinese 1",
       "groupingMode": "single-portrait",
@@ -2839,6 +2928,36 @@
           "label": "Neutral",
           "index": 6,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Noblewomen/Noblewomen%20portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "curated-historical-portraits-by-captainskolot-old-scholar",
+      "label": "Old Scholar",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Curated Historical Portraits by CaptainSkolot",
+      "sex": "male",
+      "roles": [
+        "factor",
+        "civilian"
+      ],
+      "regions": [
+        "global",
+        "europe",
+        "northern-europe",
+        "mediterranean"
+      ],
+      "minAge": 58,
+      "maxAge": 78,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Curated%20Historical%20Portraits%20by%20CaptainSkolot/Old%20Scholar.png",
           "width": 64,
           "height": 64
         }
@@ -4333,6 +4452,124 @@
           "label": "Neutral",
           "index": 0,
           "src": "assets/characters/Polynesian%20Portrait%20Pack%20by%20OpenAI/polynesian-09.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "merchant-portrait-pack-by-captainskolot-portrait-merchant",
+      "label": "Portrait Merchant",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Merchant Portrait Pack by Captainskolot",
+      "sex": "male",
+      "roles": [
+        "factor",
+        "civilian"
+      ],
+      "regions": [
+        "global",
+        "europe",
+        "northern-europe",
+        "mediterranean"
+      ],
+      "minAge": 32,
+      "maxAge": 48,
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "weary",
+          "label": "Weary",
+          "index": 2,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "soft-smile",
+          "label": "Soft Smile",
+          "index": 3,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "concerned",
+          "label": "Concerned",
+          "index": 4,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "angry",
+          "label": "Angry",
+          "index": 5,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "sad",
+          "label": "Sad",
+          "index": 6,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "surprised",
+          "label": "Surprised",
+          "index": 7,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "laughing",
+          "label": "Laughing",
+          "index": 8,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "pained",
+          "label": "Pained",
+          "index": 9,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "pleased",
+          "label": "Pleased",
+          "index": 10,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "shouting",
+          "label": "Shouting",
+          "index": 11,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "happy",
+          "label": "Happy",
+          "index": 12,
+          "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_12.png",
           "width": 64,
           "height": 64
         }
@@ -6638,6 +6875,125 @@
       ]
     },
     {
+      "id": "warrior-with-beard-pack-by-captainskolot-warrior-with-beard",
+      "label": "Warrior With Beard",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Warrior with Beard Pack by Captainskolot",
+      "sex": "male",
+      "roles": [
+        "factor",
+        "captain",
+        "warrior"
+      ],
+      "regions": [
+        "global",
+        "europe",
+        "northern-europe",
+        "mediterranean"
+      ],
+      "minAge": 35,
+      "maxAge": 52,
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 1,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "worried",
+          "label": "Worried",
+          "index": 2,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "soft-smile",
+          "label": "Soft Smile",
+          "index": 3,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "stern",
+          "label": "Stern",
+          "index": 4,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "angry",
+          "label": "Angry",
+          "index": 5,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "sad",
+          "label": "Sad",
+          "index": 6,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "surprised",
+          "label": "Surprised",
+          "index": 7,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "laughing",
+          "label": "Laughing",
+          "index": 8,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "pained",
+          "label": "Pained",
+          "index": 9,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "pleased",
+          "label": "Pleased",
+          "index": 10,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "shouting",
+          "label": "Shouting",
+          "index": 11,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "happy",
+          "label": "Happy",
+          "index": 12,
+          "src": "assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait",
       "label": "Women Baker Portrait",
       "groupingMode": "expression-set",
@@ -6702,6 +7058,122 @@
           "label": "Neutral",
           "index": 6,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Women%20Baker/Women%20Baker%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "women-black-hair-portrait-by-captainskolot-women-black-hair-portrait",
+      "label": "Women Black Hair Portrait",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Women Black Hair Portrait by Captainskolot",
+      "sex": "female",
+      "roles": [
+        "factor",
+        "civilian",
+        "noble"
+      ],
+      "regions": [
+        "east-asia"
+      ],
+      "minAge": 20,
+      "maxAge": 34,
+      "expressionCount": 12,
+      "expressions": [
+        {
+          "id": "soft-smile",
+          "label": "Soft Smile",
+          "index": 1,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_1.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 2,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_2.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "concerned",
+          "label": "Concerned",
+          "index": 3,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_3.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "happy",
+          "label": "Happy",
+          "index": 4,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_4.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "angry",
+          "label": "Angry",
+          "index": 5,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_5.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "wary",
+          "label": "Wary",
+          "index": 6,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_6.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "embarrassed",
+          "label": "Embarrassed",
+          "index": 7,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_7.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "laughing",
+          "label": "Laughing",
+          "index": 8,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_8.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "stern",
+          "label": "Stern",
+          "index": 9,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_9.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "pleased",
+          "label": "Pleased",
+          "index": 10,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_10.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "shouting",
+          "label": "Shouting",
+          "index": 11,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_11.png",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "id": "sad",
+          "label": "Sad",
+          "index": 12,
+          "src": "assets/characters/Women%20Black%20Hair%20Portrait%20by%20Captainskolot/women%20black%20hair%20portrait_12.png",
           "width": 64,
           "height": 64
         }
@@ -8651,6 +9123,37 @@
           "label": "Neutral",
           "index": 6,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Young%20Peasant%20Boy/Young%20Peasant%20Boy%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "curated-historical-portraits-by-captainskolot-young-warrior",
+      "label": "Young Warrior",
+      "groupingMode": "expression-set",
+      "sourceDirectory": "Curated Historical Portraits by CaptainSkolot",
+      "sex": "male",
+      "roles": [
+        "factor",
+        "captain",
+        "warrior"
+      ],
+      "regions": [
+        "global",
+        "europe",
+        "northern-europe",
+        "mediterranean"
+      ],
+      "minAge": 24,
+      "maxAge": 38,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Curated%20Historical%20Portraits%20by%20CaptainSkolot/Young%20Warrior.png",
           "width": 64,
           "height": 64
         }

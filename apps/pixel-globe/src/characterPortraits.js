@@ -7,7 +7,7 @@ import { characterSkillIdsForIdentity } from "./characterSkills.js";
 import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-10";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-11";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({

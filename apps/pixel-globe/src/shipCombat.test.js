@@ -91,6 +91,29 @@ test("major-port protection ends an existing pirate attack", () => {
   assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
 });
 
+test("major-port protection does not cancel combat deliberately started by the player", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "pirate", "portugal", 0, 0, 30, 4);
+  const pirate = ship("pirate", "pirate", "pirate", 20, 0, 130, 12);
+  player.majorPortProtected = true;
+
+  forceShipEngagement(state, player.id, pirate.id);
+  const result = updateShipCombatState(state, [player, pirate]);
+
+  assert.equal(result.engagementCount, 1);
+  assert.equal(result.intents.get(player.id).targetId, pirate.id);
+});
+
+test("entering a port ends even a player-initiated engagement", () => {
+  const state = createShipCombatState();
+  const player = ship("player", "pirate", "portugal", 0, 0, 30, 4);
+  const pirate = ship("pirate", "pirate", "pirate", 20, 0, 130, 12);
+  forceShipEngagement(state, player.id, pirate.id);
+  player.portProtected = true;
+
+  assert.equal(updateShipCombatState(state, [player, pirate]).engagementCount, 0);
+});
+
 test("a surrendered pirate cannot initiate or retain combat with the player", () => {
   const state = createShipCombatState();
   const player = ship("player", "merchant", "portugal", 0, 0, 30, 9);

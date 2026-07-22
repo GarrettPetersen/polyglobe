@@ -87,6 +87,7 @@ import {
   EQUIPMENT_STOCK_CANNON,
   EQUIPMENT_STOCK_FISHING_NET,
   EQUIPMENT_STOCK_WHALE_HARPOON,
+  equipmentSpecialistAtPort,
   equipmentStockAtPort
 } from "./portEquipment.js";
 import { perkItemSummary } from "./perkItems.js";
@@ -2427,21 +2428,41 @@ function equipmentView(session, city, gameState, economy) {
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: `Local outfitters carry ship gear, weapons, and working equipment. Prosperous ports attract rarer wares.`,
+    text: `Local outfitters carry ship gear, weapons, and working equipment. Stock changes with a port's fortunes, while specialist workshops keep every grade on hand.`,
     feedback: session.feedback,
     options: [
-      option("Fishing nets", { type: "node", nodeId: "equipment-nets" }),
+      option("Fishing nets", { type: "node", nodeId: "equipment-nets" }, {
+        detail: equipmentStockLabel(nets, FISHING_NETS, equipmentSpecialistAtPort(
+          city,
+          EQUIPMENT_STOCK_FISHING_NET
+        ))
+      }),
       option("Whale harpoons", { type: "node", nodeId: "equipment-harpoons" }, {
+        detail: equipmentStockLabel(harpoons, WHALE_HARPOONS, equipmentSpecialistAtPort(
+          city,
+          EQUIPMENT_STOCK_WHALE_HARPOON
+        )),
         disabled: harpoons.length === 0,
         disabledReason: "This port has no whaling gear in stock."
       }),
       option("Cannon battery", { type: "node", nodeId: "equipment-cannons" }, {
+        detail: equipmentStockLabel(cannonEquipment, CANNON_EQUIPMENT, equipmentSpecialistAtPort(
+          city,
+          EQUIPMENT_STOCK_CANNON
+        )),
         disabled: !cannonArmed,
         disabledReason: "Your ship has no cannon battery to refit."
       }),
       option("Back", { type: "node", nodeId: "root" })
     ]
   };
+}
+
+function equipmentStockLabel(stock, catalog, specialist) {
+  if (!Array.isArray(stock) || !Array.isArray(catalog) || catalog.length === 0) {
+    throw new Error("Equipment stock label requires stock and catalog choices");
+  }
+  return `STOCK ${stock.length}/${catalog.length} LEVELS${specialist ? "  SPECIALIST" : ""}`;
 }
 
 function specialEquipmentOfferView(session, city, gameState) {

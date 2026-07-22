@@ -3,11 +3,13 @@ import test from "node:test";
 
 import {
   ABOARD_ROLE_CAPTAIN,
+  ABOARD_ROLE_ANIMAL,
   ABOARD_ROLE_COLONIST,
   ABOARD_ROLE_COLONY_LEADER,
   ABOARD_ROLE_CREWMATE,
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
+  aboardCharacterHomePortTileId,
   aboardRoster
 } from "./aboardRoster.js";
 
@@ -63,6 +65,19 @@ test("the colony leader occupies one of the settler places aboard", () => {
   assert.equal(roster.generic.filter((entry) => entry.role === ABOARD_ROLE_COLONIST).length, 11);
 });
 
+test("an animal companion gets a named card without counting as a person or sailor", () => {
+  const panda = Object.freeze({ id: "panda", name: "Panda" });
+  const roster = aboardRoster({
+    captain,
+    crewCount: 3,
+    animalCompanions: [panda]
+  });
+  assert.equal(roster.count, 3);
+  assert.equal(roster.named.at(-1).role, ABOARD_ROLE_ANIMAL);
+  assert.equal(roster.named.at(-1).character, panda);
+  assert.equal(roster.generic.length, 2);
+});
+
 test("a named traveler must match somebody in the manifest", () => {
   assert.throws(() => aboardRoster({
     captain,
@@ -85,4 +100,57 @@ test("ordinary missions and a rescued pirate captive can travel together", () =>
   });
   assert.equal(roster.named.filter((entry) => entry.role === ABOARD_ROLE_PASSENGER).length, 2);
   assert.equal(roster.count, 5);
+});
+
+test("aboard characters resolve home ports according to their role", () => {
+  const roster = aboardRoster({
+    captain: { ...captain, homePortTileId: 10 },
+    crewCount: 2,
+    namedCrew: [{ id: "chef", name: "Lucia Costa", homePortTileId: 11 }],
+    travelerGroups: [
+      { kind: "passenger", count: 1 },
+      { kind: "envoy", count: 1 }
+    ],
+    namedTravelers: [
+      {
+        kind: "passenger",
+        character: { ...passenger, originPortTileId: 12, destinationPortTileId: 13 }
+      },
+      {
+        kind: "envoy",
+        character: { ...envoy, originPortTileId: 14, destinationPortTileId: 15 }
+      }
+    ]
+  });
+  const [captainEntry, crewEntry, passengerEntry, envoyEntry] = roster.named;
+  assert.equal(aboardCharacterHomePortTileId(captainEntry), 10);
+  assert.equal(aboardCharacterHomePortTileId(crewEntry), 11);
+  assert.equal(aboardCharacterHomePortTileId(passengerEntry), 13);
+  assert.equal(aboardCharacterHomePortTileId(envoyEntry), 14);
+});
+
+test("rescued travelers retain their stated home and old historians retain Iceland", () => {
+  const rescued = { id: "rescued", name: "Brites Pereira" };
+  const historian = { id: "historian", name: "Leif", role: "historian" };
+  const roster = aboardRoster({
+    captain: { ...captain, homePortTileId: 10 },
+    crewCount: 2,
+    namedCrew: [historian],
+    travelerGroups: [{ kind: "passenger", count: 1 }],
+    namedTravelers: [{ kind: "passenger", character: rescued }]
+  });
+  assert.equal(aboardCharacterHomePortTileId(roster.named[1], {
+    historianHomePortTileId: 20
+  }), 20);
+  assert.equal(aboardCharacterHomePortTileId(roster.named[2], {
+    rescuedTravelers: [{ character: rescued, homePortTileId: 21 }]
+  }), 21);
+});
+
+test("a named character without a resolvable home port fails loudly", () => {
+  const roster = aboardRoster({ captain, crewCount: 1 });
+  assert.throws(
+    () => aboardCharacterHomePortTileId(roster.named[0]),
+    /Missing Ana Costa home port/
+  );
 });

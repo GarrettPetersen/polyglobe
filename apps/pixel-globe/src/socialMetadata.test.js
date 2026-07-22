@@ -47,7 +47,8 @@ test("credits thank the community playtesters", () => {
     "@StuffForSisters",
     "@dgant",
     "@ZachariahSchwab",
-    "@QuantumWitness"
+    "@QuantumWitness",
+    "@neokodosian"
   ]) {
     assert.ok(credits.includes(handle), `missing playtester credit for ${handle}`);
   }

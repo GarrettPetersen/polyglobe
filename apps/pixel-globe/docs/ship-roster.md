@@ -10,7 +10,7 @@ High-resolution review rasters live in `apps/pixel-globe/docs/ship-reference/hig
 
 The fleet bake preserves source-relative ship sizes with a compressed readability curve, so boats remain smaller than large ocean-going ships without disappearing in the 47px production frames. Standalone historical models use explicit shared-scale values: the long Mediterranean galley is largest by rendered length, while the broad East Asian warships remain substantial without filling the frame. Mediterranean galley oars remain proportionally longer than the shorter East Asian oars.
 
-For development, `?ship={slug}` starts with any roster ship. In normal gameplay the Viking Longship is available only after its Hafnarfjordur reconstruction quest.
+For development, `?startShip={slug}` starts a new voyage with any roster ship. The separate `ship` query parameter only mirrors the current vessel for debugging and does not affect a new voyage. In normal gameplay the Viking Longship is available only after its Hafnarfjordur reconstruction quest.
 
 | Game name | Filename slug | Source asset label | Identification | Confidence | Notes |
 |---|---|---|---|---|---|

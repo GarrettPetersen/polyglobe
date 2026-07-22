@@ -73,6 +73,10 @@ import {
   createCastawayQuest,
   markCastawayEmergencyAidReceived
 } from "./castawayQuest.js";
+import {
+  acceptPandaCompanion,
+  beginPandaRecruitment
+} from "./pandaCompanion.js";
 
 const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "england");
 
@@ -149,6 +153,45 @@ test("version 32 port visits gain explicit drunken-arrival memory", () => {
     drunkArrivals: 0,
     lastDrunkVisit: null,
     lastDrunkArrivalMinute: null
+  });
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 35 saves gain persistent panda companion memory", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 35;
+  delete state.memory.panda;
+
+  const migrated = migrateGameState(state);
+
+  assert.deepEqual(migrated.memory.panda, {
+    version: 2,
+    status: "unmet",
+    joinedMinute: null,
+    naturalistOffer: "unresolved",
+    npcReactionKeys: []
+  });
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 36 saves preserve an aboard panda and gain the naturalist offer", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 36;
+  state.memory.panda = {
+    version: 1,
+    status: "aboard",
+    joinedMinute: 123,
+    npcReactionKeys: []
+  };
+
+  const migrated = migrateGameState(state);
+
+  assert.deepEqual(migrated.memory.panda, {
+    version: 2,
+    status: "aboard",
+    joinedMinute: 123,
+    naturalistOffer: "unresolved",
+    npcReactionKeys: []
   });
   assert.equal(validateGameState(migrated), migrated);
 });
@@ -877,6 +920,22 @@ test("crew, passengers, and livestock all increase food and water burn", () => {
   assert.equal(voyage.livestock, 2);
   assert.equal(voyage.foodConsumers, crewOnly.foodConsumers + 5);
   assert.equal(voyage.waterConsumers, crewOnly.waterConsumers + 5);
+});
+
+test("an aboard panda eats for three but drinks for one without joining the crew", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  const before = shipConsumption(state);
+  beginPandaRecruitment(state.memory.panda);
+  acceptPandaCompanion(state.memory.panda, 20);
+  const after = shipConsumption(state);
+
+  assert.equal(after.crew, before.crew);
+  assert.equal(after.pandas, 1);
+  assert.equal(after.foodConsumers, before.foodConsumers + 3);
+  assert.equal(after.waterConsumers, before.waterConsumers + 1);
+  validateGameState(state);
 });
 
 test("shore scavenging fills available cask space and stows edible food", () => {

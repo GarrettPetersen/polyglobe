@@ -10,6 +10,11 @@ const EQUIPMENT_STOCK_KINDS = new Set([
   EQUIPMENT_STOCK_WHALE_HARPOON
 ]);
 const TIER_PROSPERITY_THRESHOLDS = Object.freeze([0, 0.27, 0.53, 0.8]);
+const EQUIPMENT_SPECIALIST_PORT_NAMES = Object.freeze({
+  [EQUIPMENT_STOCK_FISHING_NET]: Object.freeze(["brugge", "guangzhou", "lubeck"]),
+  [EQUIPMENT_STOCK_CANNON]: Object.freeze(["goa", "istanbul", "lisbon"]),
+  [EQUIPMENT_STOCK_WHALE_HARPOON]: Object.freeze(["bordeaux"])
+});
 
 export function equipmentStockAtPort(economy, city, kind, equipment) {
   if (!Array.isArray(equipment) || equipment.length === 0) {
@@ -22,11 +27,21 @@ export function equipmentAvailableAtPort(economy, city, kind, equipment) {
   assertEquipmentKind(kind);
   assertEquipment(equipment);
   if (equipment.tier === 0) return true;
+  if (equipmentSpecialistAtPort(city, kind)) return true;
   const threshold = TIER_PROSPERITY_THRESHOLDS[equipment.tier];
   if (threshold === undefined) throw new Error(`No port equipment threshold for tier: ${equipment.tier}`);
   const prosperity = portEquipmentProsperity(economy, city);
   const specialty = (hashUnit(`${requiredPortId(city)}|${kind}|${equipment.id}`) - 0.5) * 0.34;
   return prosperity + specialty >= threshold;
+}
+
+export function equipmentSpecialistAtPort(city, kind) {
+  assertEquipmentKind(kind);
+  const cityName = city?.city || city?.displayCity;
+  if (typeof cityName !== "string" || cityName.trim() === "") {
+    throw new Error("Port equipment specialist lookup requires a city name");
+  }
+  return EQUIPMENT_SPECIALIST_PORT_NAMES[kind].includes(normalizedPortName(cityName));
 }
 
 export function portEquipmentProsperity(economy, city) {
@@ -63,6 +78,14 @@ function hashUnit(value) {
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0) / 0x100000000;
+}
+
+function normalizedPortName(value) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 function clamp(value, minimum, maximum) {

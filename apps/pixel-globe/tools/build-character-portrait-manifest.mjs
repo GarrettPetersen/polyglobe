@@ -26,10 +26,12 @@ const singleSexPortraitDirectories = new Map([
   ["Blacksmith Portrait Pack by Captainskeleto", "male"],
   ["Blond Villager Portrait Pack by Captainskeleto", "male"],
   ["Blond Villager Women Portrait Pack by Captainskeleto", "female"],
+  ["Curated Historical Portraits by CaptainSkolot", "male"],
   ["Knight Portrait Pack by Captainskeleto", "male"],
   ["Little Girl Portrait pack by Captainskeleto", "female"],
   ["Lumberjack Portrait by Captainskeleto", "male"],
   ["Master Chef Portrait Pack by Captainskolot", "male"],
+  ["Merchant Portrait Pack by Captainskolot", "male"],
   ["Old Villager Portrait by Captainskeleto", "male"],
   ["Old Warrior Grey Beard by Captainskolot", "male"],
   ["Peasant Portrait Pack by Captainskeleto", "male"],
@@ -47,6 +49,8 @@ const singleSexPortraitDirectories = new Map([
   ["Ultimate Portrait Pack V1.0/Young Peasant Boy", "male"],
   ["Ultimate Portrait Pack V1.0/Young Peasant Girl", "female"],
   ["Viking Men Portrait Pack by Captainskeleto", "male"],
+  ["Warrior with Beard Pack by Captainskolot", "male"],
+  ["Women Black Hair Portrait by Captainskolot", "female"],
   ["Women Knight Portrait Pack by Captainskeleto", "female"],
   ["Women Peasant Pack by Captainskeleto", "female"],
   ["Women Pirates Portrait Pack by Captainskeleto", "female"],
@@ -74,6 +78,48 @@ const expressionLabelOverrides = new Map([
     ["pleased", "Pleased"],
     ["afraid", "Afraid"],
     ["angry", "Angry"]
+  ]),
+  labels("Merchant Portrait Pack by Captainskolot/Portrait Merchant", [
+    ["neutral", "Neutral"],
+    ["weary", "Weary"],
+    ["soft-smile", "Soft Smile"],
+    ["concerned", "Concerned"],
+    ["angry", "Angry"],
+    ["sad", "Sad"],
+    ["surprised", "Surprised"],
+    ["laughing", "Laughing"],
+    ["pained", "Pained"],
+    ["pleased", "Pleased"],
+    ["shouting", "Shouting"],
+    ["happy", "Happy"]
+  ]),
+  labels("Warrior with Beard Pack by Captainskolot/Warrior With Beard", [
+    ["neutral", "Neutral"],
+    ["worried", "Worried"],
+    ["soft-smile", "Soft Smile"],
+    ["stern", "Stern"],
+    ["angry", "Angry"],
+    ["sad", "Sad"],
+    ["surprised", "Surprised"],
+    ["laughing", "Laughing"],
+    ["pained", "Pained"],
+    ["pleased", "Pleased"],
+    ["shouting", "Shouting"],
+    ["happy", "Happy"]
+  ]),
+  labels("Women Black Hair Portrait by Captainskolot/Women Black Hair Portrait", [
+    ["soft-smile", "Soft Smile"],
+    ["neutral", "Neutral"],
+    ["concerned", "Concerned"],
+    ["happy", "Happy"],
+    ["angry", "Angry"],
+    ["wary", "Wary"],
+    ["embarrassed", "Embarrassed"],
+    ["laughing", "Laughing"],
+    ["stern", "Stern"],
+    ["pleased", "Pleased"],
+    ["shouting", "Shouting"],
+    ["sad", "Sad"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Blacksmith/Blacksmith Portrait", [
     ["grimace", "Grimace"],
@@ -315,6 +361,11 @@ const expressionLabelOverrides = new Map([
 
 const portraitAgeRanges = new Map([
   ["Blacksmith Portrait Pack by Captainskeleto/Blacksmith Portrait", ageRange(32, 48)],
+  ["Curated Historical Portraits by CaptainSkolot/Armored Soldier", ageRange(24, 40)],
+  ["Curated Historical Portraits by CaptainSkolot/Bald Monk", ageRange(25, 45)],
+  ["Curated Historical Portraits by CaptainSkolot/Mercenary Warrior", ageRange(36, 52)],
+  ["Curated Historical Portraits by CaptainSkolot/Old Scholar", ageRange(58, 78)],
+  ["Curated Historical Portraits by CaptainSkolot/Young Warrior", ageRange(24, 38)],
   ["Ultimate Portrait Pack V1.0/Blacksmith/Blacksmith Portrait", ageRange(50, 70)],
   ["Blond Villager Portrait Pack by Captainskeleto/Blond Villager Portrait", ageRange(28, 42)],
   ["Blond Villager Women Portrait Pack by Captainskeleto/Blond Villager Women", ageRange(20, 34)],
@@ -323,6 +374,7 @@ const portraitAgeRanges = new Map([
   ["Knight Portrait Pack by Captainskeleto/Knight Portrait", ageRange(18, 30)],
   ["Little Girl Portrait pack by Captainskeleto/Little Girl Portrait", ageRange(8, 13)],
   ["Lumberjack Portrait by Captainskeleto/Lumberjack Portrait", ageRange(35, 52)],
+  ["Merchant Portrait Pack by Captainskolot/Portrait Merchant", ageRange(32, 48)],
   ["Ultimate Portrait Pack V1.0/Man Knight/Man Knight Portrait", ageRange(18, 30)],
   ["Ultimate Portrait Pack V1.0/Monk/Monk Portrait", ageRange(35, 55)],
   ["Ultimate Portrait Pack V1.0/Noblewomen/Noblewomen Portrait", ageRange(22, 38)],
@@ -332,6 +384,8 @@ const portraitAgeRanges = new Map([
   ["Ultimate Portrait Pack V1.0/Tavern Keeper/Tavern Keeper Portrait", ageRange(35, 52)],
   ["Ultimate Portrait Pack V1.0/Village Elder/Villager Elder Portrait", ageRange(60, 80)],
   ["Ultimate Portrait Pack V1.0/Young Peasant Girl/Villager Young Girl Portrait", ageRange(15, 21)],
+  ["Warrior with Beard Pack by Captainskolot/Warrior With Beard", ageRange(35, 52)],
+  ["Women Black Hair Portrait by Captainskolot/Women Black Hair Portrait", ageRange(20, 34)],
   ["Ultimate Portrait Pack V1.0/Women Baker/Women Baker Portrait", ageRange(28, 44)],
   ["Women Knight Portrait Pack by Captainskeleto/Women Knight Portrait", ageRange(18, 30)],
   ["Women Peasant Pack by Captainskeleto/Women Peasant", ageRange(18, 32)],
@@ -681,7 +735,24 @@ function expressionLabelsForGroup(group, expressionCount) {
   throw new Error(`Missing semantic expression labels for ${key}`);
 }
 
+const portraitMetadataOverrides = new Map([
+  ["Curated Historical Portraits by CaptainSkolot/Armored Soldier", {
+    roles: ["captain", "warrior"],
+    regions: ["global", "europe", "northern-europe", "mediterranean"]
+  }],
+  ["Curated Historical Portraits by CaptainSkolot/Bald Monk", {
+    roles: ["factor", "civilian", "clergy"],
+    regions: ["east-asia"]
+  }],
+  ["Women Black Hair Portrait by Captainskolot/Women Black Hair Portrait", {
+    roles: ["factor", "civilian", "noble"],
+    regions: ["east-asia"]
+  }]
+]);
+
 function portraitMetadata(label, sourceDirectory) {
+  const override = portraitMetadataOverrides.get(`${sourceDirectory}/${label}`);
+  if (override) return override;
   const text = `${label} ${sourceDirectory}`.toLowerCase();
   if (text.includes("pirate")) {
     return { roles: ["captain", "pirate"], regions: ["global"] };

@@ -3,12 +3,17 @@ import test from "node:test";
 
 import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
 import { createWorldEconomy, executePortSale, portEconomySummary } from "./economy.js";
+import { FISHING_NETS } from "./fishingNets.js";
 import {
   EQUIPMENT_STOCK_CANNON,
+  EQUIPMENT_STOCK_FISHING_NET,
+  EQUIPMENT_STOCK_WHALE_HARPOON,
   equipmentAvailableAtPort,
+  equipmentSpecialistAtPort,
   equipmentStockAtPort,
   portEquipmentProsperity
 } from "./portEquipment.js";
+import { WHALE_HARPOONS } from "./whaleHarpoons.js";
 
 const PORTS = Object.freeze(Array.from({ length: 12 }, (_, index) => ({
   tileId: 300 + index,
@@ -39,7 +44,32 @@ test("equipment stock is deterministic and varies between ports", () => {
   assert.ok(stocks.some((stock) => stock.length < CANNON_EQUIPMENT.length));
 });
 
-test("trade wealth can unlock top-tier equipment at a specialist port", () => {
+test("historical specialist ports permanently stock every grade of their craft", () => {
+  const specialists = [
+    ["Lisbon", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
+    ["Istanbul", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
+    ["Goa", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
+    ["Brugge", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
+    ["Lubeck", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
+    ["Guangzhou", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
+    ["Bordeaux", EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS]
+  ];
+
+  for (const [cityName, kind, catalog] of specialists) {
+    const city = {
+      tileId: 900 + specialists.findIndex((entry) => entry[0] === cityName),
+      city: cityName,
+      country: "Test",
+      cityType: "northern-european",
+      population: 1000
+    };
+    const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+    assert.equal(equipmentSpecialistAtPort(city, kind), true);
+    assert.deepEqual(equipmentStockAtPort(economy, city, kind, catalog), catalog);
+  }
+});
+
+test("trade wealth can unlock top-tier equipment at an ordinary port", () => {
   const city = PORTS.find((candidate) => {
     const economy = createWorldEconomy({ ports: [candidate], startMinute: 0 });
     return !equipmentAvailableAtPort(

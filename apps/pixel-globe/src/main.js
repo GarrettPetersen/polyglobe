@@ -28,12 +28,14 @@ import {
   crewStatusLayout
 } from "./crewStatus.js";
 import {
+  ABOARD_ROLE_ANIMAL,
   ABOARD_ROLE_CAPTAIN,
   ABOARD_ROLE_COLONIST,
   ABOARD_ROLE_COLONY_LEADER,
   ABOARD_ROLE_CREWMATE,
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
+  aboardCharacterHomePortTileId,
   aboardRoster
 } from "./aboardRoster.js";
 import { stepAboardGridIndex } from "./aboardGridSelection.js";
@@ -125,6 +127,7 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
+import { startShipSlugFromSearch } from "./shipLaunchParams.js";
 import {
   SHIP_SHADOW_FRAME_SIZE,
   SHIP_SPRITE_FRAME_SIZE,
@@ -207,6 +210,7 @@ import {
   initializeProvisionalShipLoadout,
   mingTradeOpenToFaction,
   isEnvoyQuest,
+  loseFoodRations,
   loseCrew,
   migrateGameState,
   playerAssaultCargoBonus,
@@ -223,6 +227,7 @@ import {
   receiveDiscoveryCargo,
   receiveEmergencyShipAid,
   receiveFishCatch,
+  receiveQuestPayment,
   receiveScavengedTradeGood,
   receiveWhaleBlubber,
   receivePortConquestPrize,
@@ -252,6 +257,35 @@ import {
   updateSurvival,
   visitPort
 } from "./gameState.js";
+import {
+  ANIMAL_CATALOG,
+  ANIMAL_CATALOG_BY_ID,
+  animalDialogueCharacter,
+  encounteredAnimalEntries,
+  recordAnimalEncounter,
+  rollAnchoredAnimalEncounter
+} from "./animalEncounters.js";
+import {
+  acceptPandaCompanion,
+  beginPandaRecruitment,
+  declinePandaCompanion,
+  declinePandaNaturalistOffer,
+  PANDA_NATURALIST_PAYMENT,
+  pandaCompanionCharacter,
+  pandaCompanionIsAboard,
+  pandaNaturalistOfferIsAvailable,
+  pandaNpcReaction,
+  pandaRecruitmentIsPending,
+  placePandaWithNaturalist,
+  recordPandaNpcReaction
+} from "./pandaCompanion.js";
+import {
+  assignNaturalistPort,
+  meetNaturalist,
+  naturalistQuestView,
+  naturalistShouldApproach,
+  reportAnimalsToNaturalist
+} from "./naturalistQuest.js";
 import {
   characterSkillIdsForIdentity,
   characterSkillSummary,
@@ -1352,6 +1386,7 @@ const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
 const STATUS_HUD_ASSET_VERSION = "water-drop-2";
 const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
+const STATUS_HUD_PANDA_URL = "assets/misc/panda.png";
 const STATUS_HUD_DOUBLOON_URL = "assets/misc/dubloon.png";
 const STATUS_HUD_WATER_URL = "assets/misc/water.png";
 const STATUS_HUD_FOOD_URL = "assets/misc/food.png";
@@ -1445,6 +1480,11 @@ const OPTIONAL_NAVIGATION_STYLE = Object.freeze({
   light: "#94b0c2",
   dark: "#566c86",
   shadow: "rgba(26, 28, 44, 0.78)"
+});
+const NATURALIST_NAVIGATION_STYLE = Object.freeze({
+  light: "#91db69",
+  dark: "#4f8f5b",
+  shadow: "rgba(24, 47, 37, 0.78)"
 });
 const MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
 const MOUNTAIN_DISCOVERY_NOTICE_MS = 4600;
@@ -2072,6 +2112,10 @@ let colonizationOrganizer;
 let japaneseMatchlockGunsmith;
 let caribbeanGingerPlanter;
 let banquetChef;
+let naturalistCharacter;
+let queuedCharacterAlertSteps = [];
+let characterAlertSequenceCompletion = null;
+let animalNoiseAudioContext = null;
 let colonizationTargetTileId = null;
 let colonizationTargetPlacements = [];
 let portSailingDistances;
@@ -2679,6 +2723,7 @@ async function main() {
     shipStats: ship.stats,
     campaignGoalType
   });
+  ensureNaturalistCharacter(gameState);
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
   consumedLandedSeagullIds.clear();
@@ -3189,8 +3234,9 @@ async function loadFireEffectImage() {
 }
 
 async function loadStatusHudImages() {
-  const [crew, doubloon, water, food, fish, wine, crates] = await Promise.all([
+  const [crew, panda, doubloon, water, food, fish, wine, crates] = await Promise.all([
     loadAssetImage(`${STATUS_HUD_CREW_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "crew status icon"),
+    loadAssetImage(`${STATUS_HUD_PANDA_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "panda status icon"),
     loadAssetImage(`${STATUS_HUD_DOUBLOON_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "doubloon status icon"),
     loadAssetImage(`${STATUS_HUD_WATER_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "water status icon"),
     loadAssetImage(`${STATUS_HUD_FOOD_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "food status icon"),
@@ -3199,13 +3245,14 @@ async function loadStatusHudImages() {
     loadAssetImage(`${STATUS_HUD_CRATE_SHEET_URL}?v=${STATUS_HUD_ASSET_VERSION}`, "cargo crate status sheet")
   ]);
   validateImageDimensions(crew, "crew status icon", CREW_STATUS_ICON_WIDTH, CREW_STATUS_ICON_HEIGHT);
+  validateImageDimensions(panda, "panda status icon", 5, 9);
   validateImageDimensions(doubloon, "doubloon status icon", 6, 6);
   validateImageDimensions(water, "water status icon", 6, 6);
   validateImageDimensions(food, "food status icon", 6, 6);
   validateImageDimensions(fish, "fish status icon", 6, 6);
   validateImageDimensions(wine, "wine status icon", 6, 6);
   validateImageDimensions(crates, "cargo crate status sheet", SURVIVAL_CRATE_SIZE * 2, SURVIVAL_CRATE_SIZE);
-  return Object.freeze({ crew, doubloon, water, food, fish, wine, crates });
+  return Object.freeze({ crew, panda, doubloon, water, food, fish, wine, crates });
 }
 
 function createStatusPersonImages(crewImage) {
@@ -3424,15 +3471,7 @@ function startWeatherFromLocation() {
 
 function shipSlugOverrideFromLocation() {
   if (CAPTURE_SCENARIO) return CAPTURE_SCENARIO.player.shipSlug;
-  const requested = new URLSearchParams(window.location.search).get("ship");
-  if (!requested) return null;
-  if (!/^[a-z0-9][a-z0-9-]*$/i.test(requested)) {
-    throw new Error(`Invalid ship type: ${requested}`);
-  }
-  if (!SHIP_STATS_BY_SLUG.has(requested)) {
-    throw new Error(`Unknown ship type: ${requested}`);
-  }
-  return requested;
+  return startShipSlugFromSearch(window.location.search, SHIP_STATS_BY_SLUG);
 }
 
 function vehicleSpriteKeyForShipSlug(slug) {
@@ -3727,6 +3766,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateWhiteWhaleSightingObjective()) dirty = true;
     if (updateColonizationQuest()) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
+    if (updateAnchoredAnimalEncounter()) dirty = true;
     measurePerformanceBenchmarkStage("chart", () => ensureChart());
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
@@ -3943,12 +3983,24 @@ function createCaptainAlertModal(message, expressionId = "neutral") {
 
 function createCharacterAlertModal(character, message, expressionId = "neutral", {
   kind = "alert",
-  buttonLabel = "CONTINUE"
+  buttonLabel = "CONTINUE",
+  choices = null
 } = {}) {
   if (!character) throw new Error("Character alert requires a character");
-  if (!["alert", "birthday", "demo-limit"].includes(kind)) throw new Error(`Unknown character alert kind: ${kind}`);
+  if (!["alert", "birthday", "demo-limit", "sequence", "choice"].includes(kind)) {
+    throw new Error(`Unknown character alert kind: ${kind}`);
+  }
   if (typeof buttonLabel !== "string" || buttonLabel.trim() === "") {
     throw new Error("Character alert requires a button label");
+  }
+  if (kind === "choice") {
+    if (!Array.isArray(choices) || choices.length !== 2 || choices.some((choice) => (
+      typeof choice?.label !== "string" || choice.label.trim() === "" || typeof choice.onSelect !== "function"
+    ))) {
+      throw new Error("Character choice alert requires exactly two actionable choices");
+    }
+  } else if (choices !== null) {
+    throw new Error(`Character alert kind ${kind} cannot have choices`);
   }
   return {
     kind,
@@ -3958,7 +4010,10 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
     buttonLabel,
     page: 0,
     hovered: false,
-    buttonRect: captainAlertButtonRect()
+    buttonRect: captainAlertButtonRect(),
+    choices: choices ? Object.freeze(choices.map((choice) => Object.freeze({ ...choice }))) : null,
+    selectedChoiceIndex: 0,
+    choiceRects: choices ? captainAlertChoiceRects() : null
   };
 }
 
@@ -4005,6 +4060,17 @@ function captainAlertButtonRect() {
   };
 }
 
+function captainAlertChoiceRects() {
+  const panel = captainAlertGeometry().panel;
+  const gap = 6;
+  const width = Math.floor((panel.w - 28 - gap) / 2);
+  const y = panel.y + panel.h - CAPTAIN_ALERT_BUTTON_H - 11;
+  return Object.freeze([
+    Object.freeze({ x: panel.x + 11, y, w: width, h: CAPTAIN_ALERT_BUTTON_H }),
+    Object.freeze({ x: panel.x + 11 + width + gap, y, w: width, h: CAPTAIN_ALERT_BUTTON_H })
+  ]);
+}
+
 function captainAlertGeometry() {
   return characterAlertGeometry({
     screenWidth: SCREEN_W,
@@ -4049,6 +4115,13 @@ function openCharacterAlertModal(character, message, expressionId = "neutral", o
   return true;
 }
 
+function openCharacterChoiceAlertModal(character, message, choices, expressionId = "neutral") {
+  return openCharacterAlertModal(character, message, expressionId, {
+    kind: "choice",
+    choices
+  });
+}
+
 function openSailingHelpModal(inputMode) {
   if (!gameState?.playerCharacter || captainAlertModal || gameOverReason) return false;
   captainAlertModal = createSailingHelpModal(inputMode);
@@ -4073,6 +4146,12 @@ function handleCaptainAlertKeyDown(event) {
     }
     return;
   }
+  if (captainAlertModal?.kind === "choice") {
+    if (["ArrowLeft", "ArrowUp"].includes(event.key)) selectCaptainAlertChoiceIndex(-1);
+    else if (["ArrowRight", "ArrowDown", "Tab"].includes(event.key)) selectCaptainAlertChoiceIndex(1);
+    else if (event.key === "Enter" || event.key === " ") activateCaptainAlertChoice();
+    return;
+  }
   if (event.key === "Escape") closeCaptainAlertModal();
   else if (event.key === "Enter" || event.key === " ") advanceCaptainAlertModal();
 }
@@ -4087,6 +4166,14 @@ function handlePlayerIntroPointerDown(point) {
 }
 
 function handleCaptainAlertPointerDown(point) {
+  if (captainAlertModal?.kind === "choice") {
+    const index = captainAlertModal.choiceRects.findIndex((rect) => pointInRect(point, rect));
+    if (index >= 0) {
+      captainAlertModal.selectedChoiceIndex = index;
+      activateCaptainAlertChoice();
+    }
+    return;
+  }
   if (!pointInRect(point, captainAlertModal?.buttonRect)) return;
   if (captainAlertModal.kind === "sailing-help") stepSailingHelpPage(1);
   else advanceCaptainAlertModal();
@@ -4094,7 +4181,9 @@ function handleCaptainAlertPointerDown(point) {
 
 function advanceCaptainAlertModal() {
   const modal = captainAlertModal;
-  if (!modal || modal.kind === "sailing-help") throw new Error("No character alert is available to advance");
+  if (!modal || modal.kind === "sailing-help" || modal.kind === "choice") {
+    throw new Error("No character alert is available to advance");
+  }
   const pageCount = captainAlertPages(modal).length;
   if (modal.page + 1 >= pageCount) {
     closeCaptainAlertModal();
@@ -4102,6 +4191,24 @@ function advanceCaptainAlertModal() {
   }
   modal.page += 1;
   modal.hovered = false;
+  dirty = true;
+}
+
+function selectCaptainAlertChoiceIndex(direction) {
+  const modal = captainAlertModal;
+  if (modal?.kind !== "choice") throw new Error("No character choice is available to select");
+  modal.selectedChoiceIndex = (modal.selectedChoiceIndex + direction + modal.choices.length) % modal.choices.length;
+  dirty = true;
+}
+
+function activateCaptainAlertChoice() {
+  const modal = captainAlertModal;
+  if (modal?.kind !== "choice") throw new Error("No character choice is available to activate");
+  const choice = modal.choices[modal.selectedChoiceIndex];
+  captainAlertModal = null;
+  keys.clear();
+  clearPointerSteering();
+  choice.onSelect();
   dirty = true;
 }
 
@@ -4361,6 +4468,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   japaneseMatchlockGunsmith = null;
   caribbeanGingerPlanter = null;
   banquetChef = null;
+  naturalistCharacter = null;
   usedCharacterNames = new Set([playerCharacter.name]);
   portCityCharacters = assignPortCityCharacters(
     portCities,
@@ -4387,6 +4495,9 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   const enthusiast = Object.freeze({
     ...vikingEnthusiast,
     role: "historical-enthusiast",
+    homePortTileId: vikingLongshipPort.tileId,
+    homePortName: cityLabelText(vikingLongshipPort),
+    homePortCountry: vikingLongshipPort.country,
     skillIds: characterSkillIdsForIdentity(
       `viking-enthusiast|${vikingLongshipPort.tileId}|${vikingEnthusiast.id}`,
       { traveler: true }
@@ -4399,7 +4510,32 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   } else {
     portCityCharacters.set(vikingLongshipPort.tileId, enthusiast);
   }
+}
 
+function naturalistPort() {
+  const tileId = gameState?.memory?.quests?.naturalist?.portTileId;
+  return Number.isInteger(tileId) ? portCitiesByTileId.get(tileId) || null : null;
+}
+
+function ensureNaturalistCharacter(state) {
+  if (naturalistCharacter) return naturalistCharacter;
+  const memory = state?.memory?.quests?.naturalist;
+  if (!memory) throw new Error("Naturalist character requires quest memory");
+  const startMinute = state.accounts?.ledger?.[0]?.simMinute ?? 0;
+  const tileId = assignNaturalistPort(memory, portCities, `${state.playerCharacter.id}|${startMinute}`);
+  const port = portCitiesByTileId.get(tileId);
+  if (!port) throw new Error(`Naturalist quest points to a missing port: ${tileId}`);
+  const factor = portCityCharacters.get(tileId);
+  if (!factor) throw new Error(`${cityLabelText(port)} has no factor to distinguish from the naturalist`);
+  naturalistCharacter = generateSpecialPortCharacter({
+    identityKey: `natural-philosopher-${tileId}`,
+    port,
+    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    role: "natural-philosopher",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  return naturalistCharacter;
 }
 
 function createCampaignGoalContact(playerCharacter, goal) {
@@ -4434,20 +4570,93 @@ function closeCaptainAlertModal() {
     completeDemoVoyage();
     return;
   }
+  if (closedKind === "sequence") {
+    if (presentNextCharacterAlertSequenceStep()) return;
+    const completion = characterAlertSequenceCompletion;
+    characterAlertSequenceCompletion = null;
+    if (completion) completion();
+  }
   if (presentPendingNamedCrewDeathNotice()) return;
   if (presentPendingBirthdayDialogue()) return;
   dirty = true;
 }
 
+function startCharacterAlertSequence(steps, onComplete = null) {
+  if (!Array.isArray(steps) || steps.length === 0) throw new Error("Character alert sequence requires steps");
+  if (queuedCharacterAlertSteps.length > 0 || characterAlertSequenceCompletion) {
+    throw new Error("A character alert sequence is already pending");
+  }
+  queuedCharacterAlertSteps = steps.map((step) => {
+    if (!step?.character || typeof step.message !== "string" || step.message.trim() === "") {
+      throw new Error("Character alert sequence contains an invalid step");
+    }
+    return { ...step };
+  });
+  characterAlertSequenceCompletion = onComplete;
+  return presentNextCharacterAlertSequenceStep();
+}
+
+function presentNextCharacterAlertSequenceStep() {
+  const step = queuedCharacterAlertSteps.shift();
+  if (!step) return false;
+  const opened = openCharacterAlertModal(
+    step.character,
+    step.message,
+    step.expressionId || "neutral",
+    { kind: "sequence", buttonLabel: step.buttonLabel || "CONTINUE" }
+  );
+  if (!opened) {
+    queuedCharacterAlertSteps.unshift(step);
+    return false;
+  }
+  if (step.animalSoundKind) playAnimalEncounterNoise(step.animalSoundKind);
+  return true;
+}
+
+function playAnimalEncounterNoise(kind) {
+  if (optionsMenu.muted || optionsMenu.sfxVolume <= 0 || CAPTURE_FRAME_PASS) return false;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return false;
+  if (!animalNoiseAudioContext) animalNoiseAudioContext = new AudioContextClass();
+  if (animalNoiseAudioContext.state === "suspended") void animalNoiseAudioContext.resume();
+  const now = animalNoiseAudioContext.currentTime;
+  const gain = animalNoiseAudioContext.createGain();
+  const oscillator = animalNoiseAudioContext.createOscillator();
+  const profile = animalNoiseProfile(kind);
+  oscillator.type = profile.type;
+  oscillator.frequency.setValueAtTime(profile.startHz, now);
+  oscillator.frequency.exponentialRampToValueAtTime(profile.endHz, now + profile.duration);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(optionsMenu.sfxVolume * profile.volume, now + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + profile.duration);
+  oscillator.connect(gain);
+  gain.connect(animalNoiseAudioContext.destination);
+  oscillator.start(now);
+  oscillator.stop(now + profile.duration + 0.02);
+  return true;
+}
+
+function animalNoiseProfile(kind) {
+  if (["roar", "growl"].includes(kind)) return { type: "sawtooth", startHz: 105, endHz: 54, duration: 0.7, volume: 0.06 };
+  if (kind === "trumpet") return { type: "square", startHz: 220, endHz: 510, duration: 0.55, volume: 0.045 };
+  if (["squawk", "screech", "bray"].includes(kind)) return { type: "square", startHz: 720, endHz: 280, duration: 0.34, volume: 0.035 };
+  if (["chirp", "chitter"].includes(kind)) return { type: "sine", startHz: 620, endHz: 1050, duration: 0.2, volume: 0.04 };
+  if (kind === "bark") return { type: "square", startHz: 260, endHz: 145, duration: 0.22, volume: 0.04 };
+  if (["bleat", "hum"].includes(kind)) return { type: "triangle", startHz: 310, endHz: 190, duration: 0.5, volume: 0.035 };
+  return { type: "triangle", startHz: 170, endHz: 95, duration: 0.32, volume: 0.04 };
+}
+
 function createDiscoveriesMenuState() {
   return {
     isOpen: false,
+    tab: "wonders",
     page: 0,
     buttonRect: null,
     panelRect: null,
     closeButtonRect: null,
     previousPageRect: null,
-    nextPageRect: null
+    nextPageRect: null,
+    tabRects: []
   };
 }
 
@@ -4618,7 +4827,12 @@ function dispatchWorldOverlayPointerMove(event, point) {
     if (startMenu.newGameConfirmation) updateNewGameConfirmationSelectionFromPoint(point);
     else updateStartMenuSelectionFromPoint(point);
   } else if (owner === INTERACTION_INPUT.CAPTAIN_ALERT) {
-    captainAlertModal.hovered = pointInRect(point, captainAlertModal.buttonRect);
+    if (captainAlertModal.kind === "choice") {
+      const index = captainAlertModal.choiceRects.findIndex((rect) => pointInRect(point, rect));
+      if (index >= 0) captainAlertModal.selectedChoiceIndex = index;
+    } else {
+      captainAlertModal.hovered = pointInRect(point, captainAlertModal.buttonRect);
+    }
     dirty = true;
   } else if (owner === INTERACTION_INPUT.PLAYER_INTRO) {
     playerIntroModal.hovered = pointInRect(point, playerIntroModal.buttonRect);
@@ -5972,6 +6186,7 @@ function updateCapturePillage(sequence) {
   const cityCall = capturePortCallByName(sequence.cityName);
   const battery = ensureShoreBatteryState(cityCall);
   if (sequence.variant === "bombard") {
+    battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     if (captureCue("fire-on-port", 1.0)) {
       fireBroadside("port");
       fireBroadside("starboard");
@@ -7427,6 +7642,7 @@ async function restoreSavedVoyage(payload) {
   clearPointerSteering();
 
   assignPortCharactersForPlayer(gameState.playerCharacter, namedCrewMembers(gameState));
+  ensureNaturalistCharacter(gameState);
   for (const character of pirateHideoutCharacters.values()) usedCharacterNames.add(character.name);
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
   npcShipCaptains = assignNpcShipCaptains(
@@ -7508,6 +7724,8 @@ function currentAchievementSnapshot() {
   return {
     discoveryIds: state ? [...state.memory.discoveryOrder] : [],
     discoveryCatalogIds: discoveryCatalog.map((entry) => entry.id),
+    animalIds: state ? [...state.memory.animals.encounterOrder] : [],
+    animalCatalogIds: ANIMAL_CATALOG.map((entry) => entry.id),
     circumnavigationDiscoveryId: CIRCUMNAVIGATION_DISCOVERY.id,
     elDoradoDiscoveryId: EL_DORADO_DISCOVERY_ID,
     soldGoodIds,
@@ -7782,6 +8000,7 @@ function openDiscoveriesMenu() {
   closePoliticsMenu();
   closeNavigationMenu();
   discoveriesMenu.isOpen = true;
+  discoveriesMenu.tab = discoveriesMenu.tab || "wonders";
   discoveriesMenu.page = 0;
   keys.clear();
   clearPointerSteering();
@@ -7819,6 +8038,7 @@ function closeDiscoveriesMenu() {
   discoveriesMenu.closeButtonRect = null;
   discoveriesMenu.previousPageRect = null;
   discoveriesMenu.nextPageRect = null;
+  discoveriesMenu.tabRects = [];
   dirty = true;
 }
 
@@ -7892,9 +8112,11 @@ function handleDiscoveriesKeyDown(event) {
     closeDiscoveriesMenu();
     return;
   }
-  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+  if (["ArrowLeft", "ArrowRight", "Tab"].includes(event.key)) {
+    switchDiscoveriesTab(discoveriesMenu.tab === "wonders" ? "animals" : "wonders");
+  } else if (["ArrowUp", "PageUp"].includes(event.key)) {
     stepDiscoveriesPage(-1);
-  } else if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+  } else if (["ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
     stepDiscoveriesPage(1);
   }
 }
@@ -9052,6 +9274,12 @@ function handleDiscoveriesPointerDown(point) {
     closeDiscoveriesMenu();
     return;
   }
+  for (const tab of discoveriesMenu.tabRects) {
+    if (pointInRect(point, tab.rect)) {
+      switchDiscoveriesTab(tab.id);
+      return;
+    }
+  }
   if (pointInRect(point, discoveriesMenu.previousPageRect)) {
     stepDiscoveriesPage(-1);
     return;
@@ -9278,9 +9506,18 @@ function handleShipInfoPointerDown(point) {
 }
 
 function stepDiscoveriesPage(direction) {
-  const count = discoveredEntries(gameState).length;
+  const count = discoveriesMenu.tab === "animals"
+    ? encounteredAnimalEntries(gameState.memory.animals).length
+    : discoveredEntries(gameState).length;
   const pageCount = Math.max(1, Math.ceil(count / discoveriesPageSize()));
   discoveriesMenu.page = stepMenuIndex(discoveriesMenu.page, direction, pageCount);
+  dirty = true;
+}
+
+function switchDiscoveriesTab(tab) {
+  if (!["wonders", "animals"].includes(tab)) throw new Error(`Unknown discoveries tab: ${tab}`);
+  discoveriesMenu.tab = tab;
+  discoveriesMenu.page = 0;
   dirty = true;
 }
 
@@ -9291,7 +9528,7 @@ function stepAchievementsPage(direction) {
 }
 
 function discoveriesPageSize() {
-  return SCREEN_W < 300 ? 2 : 3;
+  return 2;
 }
 
 function stepPoliticsPage(direction) {
@@ -9636,7 +9873,14 @@ function openPortDialogue(cityCall) {
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
-  if (!rescuedTravelerSession && !campaignSession) openPendingDiscoveryPortDialogue();
+  if (!rescuedTravelerSession && !campaignSession) {
+    const openedNaturalist = maybeOpenNaturalistPortDialogue(cityCall);
+    const openedPandaReaction = !openedNaturalist && maybeOpenPandaNpcReaction(
+      `port:${cityCall.tileId}`,
+      cityCall.character
+    );
+    if (!openedNaturalist && !openedPandaReaction) openPendingDiscoveryPortDialogue();
+  }
   saveVoyageNow("port arrival");
   dirty = true;
 }
@@ -9802,6 +10046,193 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     questCharacterSession,
     openDeliveryMission
   });
+}
+
+function maybeOpenNaturalistPortDialogue(cityCall) {
+  const memory = gameState?.memory?.quests?.naturalist;
+  const pandaOfferAvailable = pandaNaturalistOfferIsAvailable(gameState.memory.panda);
+  if (!memory || !naturalistShouldApproach(memory, gameState.memory.animals, cityCall.tileId, {
+    pandaOfferAvailable
+  })) return false;
+  const naturalist = ensureNaturalistCharacter(gameState);
+  const before = naturalistQuestView(memory, gameState.memory.animals);
+  const steps = [];
+  if (!before.met) {
+    meetNaturalist(memory);
+    steps.push({
+      character: naturalist,
+      expressionId: "happy",
+      message: "I am compiling a book of living creatures. Aristotle and Pliny wrote much, but sailors have seen what scholars have not. Bring me honest accounts of exotic beasts, and I shall pay 100 doubloons for each."
+    });
+  }
+  const report = reportAnimalsToNaturalist(memory, gameState.memory.animals);
+  if (report.animalIds.length > 0) {
+    const names = report.animalIds.map((id) => ANIMAL_CATALOG_BY_ID.get(id).displayName);
+    receiveQuestPayment(
+      gameState,
+      cityCall,
+      report.reward,
+      report.completedNow ? "Completed the great bestiary" : `Natural history reports: ${names.join(", ")}`,
+      portDialogueContext()
+    );
+    steps.push({
+      character: naturalist,
+      expressionId: "attentive",
+      message: `You documented ${naturalistAnimalList(names)}. These observations are worth ${report.reward.toLocaleString("en-US")} doubloons to my work.`
+    });
+  }
+  if (report.completedNow) {
+    steps.push({
+      character: naturalist,
+      expressionId: "happy",
+      message: "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary founded upon witnesses. Your name shall stand beside mine on its first page."
+    });
+  } else {
+    const after = naturalistQuestView(memory, gameState.memory.animals);
+    steps.push({
+      character: naturalist,
+      expressionId: "neutral",
+      message: `${after.reportedCount} of ${after.totalCount} creatures now have a place in my book. Keep watch whenever you make landfall.`
+    });
+  }
+  if (pandaOfferAvailable) {
+    const panda = pandaCompanionCharacter();
+    steps.push(
+      {
+        character: naturalist,
+        expressionId: "attentive",
+        message: "And this is the panda from your account? Aristotle never prepared me for a bear that eats all day and refuses every useful occupation."
+      },
+      {
+        character: panda,
+        expressionId: "amused",
+        message: "Hrrmph.",
+        animalSoundKind: "bleat"
+      },
+      {
+        character: naturalist,
+        expressionId: "happy",
+        message: `A decisive rebuttal! Leave the panda in my care and I shall pay you ${PANDA_NATURALIST_PAYMENT.toLocaleString("en-US")} doubloons. Imagine the observations!`
+      }
+    );
+  }
+  if (steps.length === 0) return false;
+  startCharacterAlertSequence(steps, () => {
+    syncAchievementsFromGameState();
+    saveVoyageNow("reported animals to naturalist");
+    if (pandaOfferAvailable) {
+      openPandaNaturalistOfferChoice(naturalist, cityCall);
+      return;
+    }
+    dirty = true;
+  });
+  return true;
+}
+
+function openPandaNaturalistOfferChoice(naturalist, cityCall) {
+  if (!pandaNaturalistOfferIsAvailable(gameState.memory.panda)) {
+    throw new Error("Naturalist panda offer became unavailable before the decision");
+  }
+  const opened = openCharacterChoiceAlertModal(
+    naturalist,
+    "Will you leave the panda with me?",
+    [
+      { label: "LEAVE THE PANDA", onSelect: () => acceptPandaNaturalistOffer(naturalist, cityCall) },
+      { label: "TOO ATTACHED", onSelect: () => rejectPandaNaturalistOffer(naturalist) }
+    ],
+    "happy"
+  );
+  if (!opened) throw new Error("Naturalist panda offer could not open its decision");
+  return true;
+}
+
+function acceptPandaNaturalistOffer(naturalist, cityCall) {
+  placePandaWithNaturalist(gameState.memory.panda);
+  receiveQuestPayment(
+    gameState,
+    cityCall,
+    PANDA_NATURALIST_PAYMENT,
+    "Placed the panda in the naturalist's care",
+    portDialogueContext()
+  );
+  playCoinClinkSound();
+  saveVoyageNow("placed panda with naturalist");
+  startCharacterAlertSequence([
+    {
+      character: naturalist,
+      expressionId: "happy",
+      message: "Splendid! I shall provide bamboo, patience, and absolutely no employment. It should feel perfectly at home."
+    },
+    {
+      character: pandaCompanionCharacter(),
+      expressionId: "happy",
+      message: "Meee-eh!",
+      animalSoundKind: "bleat"
+    },
+    {
+      character: gameState.playerCharacter,
+      expressionId: "neutral",
+      message: "Take good care of it. It was a useless sailor, but a remarkably memorable one."
+    }
+  ]);
+  showSurvivalNotice(`PANDA ADOPTED: +${PANDA_NATURALIST_PAYMENT.toLocaleString("en-US")} DB`, "good");
+  dirty = true;
+}
+
+function rejectPandaNaturalistOffer(naturalist) {
+  declinePandaNaturalistOffer(gameState.memory.panda);
+  saveVoyageNow("kept panda aboard");
+  startCharacterAlertSequence([
+    {
+      character: gameState.playerCharacter,
+      expressionId: "amused",
+      message: "No bargain. Against all reason, we have grown too attached to the creature."
+    },
+    {
+      character: naturalist,
+      expressionId: "attentive",
+      message: "A lamentable failure of scholarly detachment. I confess I understand completely."
+    },
+    {
+      character: pandaCompanionCharacter(),
+      expressionId: "happy",
+      message: "Hrrmph.",
+      animalSoundKind: "bleat"
+    }
+  ]);
+  dirty = true;
+}
+
+function naturalistAnimalList(names) {
+  if (names.length === 0) throw new Error("Naturalist report list cannot be empty");
+  if (names.length === 1) return `the ${names[0]}`;
+  if (names.length === 2) return `the ${names[0]} and the ${names[1]}`;
+  return `${names.slice(0, -1).map((name) => `the ${name}`).join(", ")}, and the ${names.at(-1)}`;
+}
+
+function maybeOpenPandaNpcReaction(interactionKey, npcCharacter) {
+  const reaction = pandaNpcReaction(gameState.memory.panda, interactionKey, npcCharacter);
+  if (!reaction) return false;
+  recordPandaNpcReaction(gameState.memory.panda, reaction.key);
+  const panda = pandaCompanionCharacter();
+  const opened = startCharacterAlertSequence([
+    {
+      character: npcCharacter,
+      expressionId: "neutral",
+      message: reaction.npcText
+    },
+    {
+      character: panda,
+      expressionId: reaction.familiar ? "happy" : "amused",
+      message: reaction.pandaText,
+      animalSoundKind: "bleat"
+    }
+  ], () => {
+    saveVoyageNow("heard a comment about the panda");
+    dirty = true;
+  });
+  if (!opened) throw new Error("Panda NPC reaction could not open its dialogue");
+  return true;
 }
 
 function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = false) {
@@ -10057,6 +10488,7 @@ function openShipDialogue(shipCall, options = {}) {
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
+  if (!options.attackReason) maybeOpenPandaNpcReaction(`ship:${shipCall.id}`, shipCall.character);
   dirty = true;
 }
 
@@ -10177,13 +10609,12 @@ function toggleAnchor() {
   if (!ship || gameOverReason || shoreScavengeAction) return false;
   if (anchored) {
     const departureShore = nearestScavengeShoreCall();
-    if (!departureShore) throw new Error("Anchored ship has no shore when weighing anchor");
     anchored = false;
     departureControlFeedback = null;
     keys.clear();
     clearPointerSteering();
     playSailDeploySound();
-    if (!maybeOpenCastawayQuest(departureShore)) saveVoyageNow("weighed anchor");
+    if (!departureShore || !maybeOpenCastawayQuest(departureShore)) saveVoyageNow("weighed anchor");
     dirty = true;
     return true;
   }
@@ -10207,7 +10638,7 @@ function nearestScavengeShoreCall() {
   let nearest = null;
   let nearestDistance2 = Infinity;
   for (const call of chart.tileCalls) {
-    if (isWaterSurfaceRow(call.row)) continue;
+    if (isWaterSurfaceRow(call.row) && !tileHasSurfaceIce(call.id)) continue;
     const callDistance2 = distance2(localLayout.viewX, localLayout.viewY, call.x, call.y);
     if (callDistance2 > maxDistance2 || callDistance2 >= nearestDistance2) continue;
     nearest = call;
@@ -10222,7 +10653,8 @@ function currentShoreScavengeSite() {
   const context = shoreScavengeContextForTerrain(
     shoreCall.row,
     graph.latDeg[shoreCall.id],
-    Boolean(snowGroundMask?.[shoreCall.id])
+    Boolean(snowGroundMask?.[shoreCall.id]),
+    tileHasSurfaceIce(shoreCall.id)
   );
   const navigation = shipNavigabilityAtLocalPoint(
     localLayout.viewX,
@@ -10239,11 +10671,145 @@ function currentShoreScavengeSite() {
       terrain: shoreCall.row.t || ""
     })
     : null;
-  return { context, beaverRange };
+  return { context, beaverRange, shoreCall };
+}
+
+function updateAnchoredAnimalEncounter() {
+  if (!anchored || shoreScavengeAction || captainAlertModal || dialogueState || menusAreOpen() ||
+      portWaitState || gameOverReason) {
+    return false;
+  }
+  if (pandaRecruitmentIsPending(gameState.memory.panda)) {
+    return openPandaRecruitmentChoice();
+  }
+  if (!nearestScavengeShoreCall()) return false;
+  const site = currentShoreScavengeSite();
+  const call = site.shoreCall;
+  const terrain = call.row.t || "";
+  const animalEntry = rollAnchoredAnimalEncounter(
+    gameState.memory.animals,
+    {
+      latitudeDeg: graph.latDeg[call.id],
+      longitudeDeg: graph.lonDeg[call.id],
+      terrain,
+      isSurfaceIce: tileHasSurfaceIce(call.id) || isPermanentSeaIceRow(call.row) || terrain === "ice_cap",
+      isRiver: Boolean(riverMasks?.[call.id]),
+      isLake: terrain === "lake",
+      isCoast: true
+    },
+    weatherClockMinutes
+  );
+  if (!animalEntry) return false;
+  if (!recordAnimalEncounter(gameState.memory.animals, animalEntry.id)) {
+    throw new Error(`Animal encounter repeated within a voyage: ${animalEntry.id}`);
+  }
+  if (animalEntry.id === "panda") beginPandaRecruitment(gameState.memory.panda);
+
+  const animalCharacter = animalDialogueCharacter(animalEntry);
+  const speaker = animalEncounterSpeaker();
+  let commentary = animalEntry.commentary[Math.floor(Math.random() * animalEntry.commentary.length)];
+  if (animalEntry.effect === "steal-food") {
+    const stolen = loseFoodRations(gameState, 1);
+    commentary = stolen > 0
+      ? `${commentary} It escaped with one ration.`
+      : `${commentary} It searched every cask, found nothing, and looked personally insulted.`;
+    syncShipCargoFromGameState();
+  }
+  syncAchievementsFromGameState();
+  saveVoyageNow(`encountered ${animalEntry.displayName}`);
+  const steps = [
+    {
+      character: animalCharacter,
+      expressionId: "neutral",
+      message: animalEntry.callText,
+      animalSoundKind: animalEntry.soundKind
+    },
+    {
+      character: speaker,
+      expressionId: "amused",
+      message: commentary
+    }
+  ];
+  if (animalEntry.reaction) {
+    steps.push({
+      character: animalCharacter,
+      expressionId: animalEntry.reaction.expressionId,
+      message: animalEntry.reaction.text
+    });
+  }
+  startCharacterAlertSequence(steps, animalEntry.id === "panda"
+    ? openPandaRecruitmentChoice
+    : () => {
+        dirty = true;
+      });
+  showSurvivalNotice(`NEW ANIMAL: ${animalEntry.displayName.toUpperCase()}`, "good");
+  playDiscoverySuccessSound();
+  return true;
+}
+
+function openPandaRecruitmentChoice() {
+  if (!pandaRecruitmentIsPending(gameState.memory.panda)) return false;
+  return openCharacterChoiceAlertModal(
+    gameState.playerCharacter,
+    "The panda climbs into our boat and refuses to leave. Let it stay aboard?",
+    [
+      { label: "LET IT STAY", onSelect: acceptPandaAboard },
+      { label: "SEND IT ASHORE", onSelect: rejectPandaAboard }
+    ],
+    "amused"
+  );
+}
+
+function acceptPandaAboard() {
+  acceptPandaCompanion(gameState.memory.panda, weatherClockMinutes);
+  const panda = pandaCompanionCharacter();
+  saveVoyageNow("welcomed panda aboard");
+  startCharacterAlertSequence([
+    {
+      character: panda,
+      expressionId: "happy",
+      message: "Meee-eh!",
+      animalSoundKind: "bleat"
+    },
+    {
+      character: gameState.playerCharacter,
+      expressionId: "amused",
+      message: "Very well. But I am not listing it as an able seaman."
+    }
+  ]);
+  showSurvivalNotice("PANDA ABOARD", "good");
+  dirty = true;
+}
+
+function rejectPandaAboard() {
+  declinePandaCompanion(gameState.memory.panda);
+  const panda = pandaCompanionCharacter();
+  saveVoyageNow("sent panda ashore");
+  startCharacterAlertSequence([
+    {
+      character: panda,
+      expressionId: "sad",
+      message: "Meee-eh...",
+      animalSoundKind: "bleat"
+    },
+    {
+      character: gameState.playerCharacter,
+      expressionId: "neutral",
+      message: "Back to the bamboo hills with you. A ship is no place for a bear."
+    }
+  ]);
+  dirty = true;
+}
+
+function animalEncounterSpeaker() {
+  const speakers = [gameState.playerCharacter, ...namedCrewMembers(gameState)].filter(Boolean);
+  if (speakers.length === 0) throw new Error("Animal encounter has nobody aboard to speak");
+  return speakers[Math.floor(Math.random() * speakers.length)];
 }
 
 function startShoreScavenge() {
   if (!anchored || shoreScavengeAction || gameOverReason) return false;
+  if (!nearestScavengeShoreCall()) return false;
   if (playerStormIntensity() >= STORM_ACTIVE_INTENSITY) {
     showSurvivalNotice("TOO DANGEROUS TO GO ASHORE", "warn");
     return false;
@@ -13824,6 +14390,7 @@ function fireBroadside(sideName) {
   if (sideName !== "port" && sideName !== "starboard") {
     throw new Error(`Unknown cannon broadside: ${sideName}`);
   }
+  if (!playerHasCombatEngagement()) return false;
   const weapon = playerNavalWeapon();
   if (!navalWeaponUsesBroadside(weapon)) return false;
   const broadsideCount = shipBroadsideCannonCount();
@@ -14614,14 +15181,18 @@ function updateWeather(dt, nowMs) {
 
 function updateAboardBirthdayEvents() {
   if (!gameState?.memory?.birthdays || !ship || !Number.isInteger(ship.tileId)) return false;
-  const characters = currentAboardRoster().named.map((entry) => entry.character);
+  const characters = currentAboardRoster().named
+    .filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
+    .map((entry) => entry.character);
   const localDate = gameCalendarDateAtMinute(weatherClockMinutes, graph.lonDeg[ship.tileId]);
   return observeAboardBirthdays(gameState.memory.birthdays, characters, localDate);
 }
 
 function presentPendingBirthdayDialogue() {
   if (!birthdayDialogueOpportunity()) return false;
-  const characters = currentAboardRoster().named.map((entry) => entry.character);
+  const characters = currentAboardRoster().named
+    .filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
+    .map((entry) => entry.character);
   const line = pendingBirthdayDialogueLine(gameState.memory.birthdays, characters);
   if (!line) return false;
   return openCharacterAlertModal(line.character, line.message, line.expressionId, { kind: "birthday" });
@@ -17793,6 +18364,7 @@ function applyResponsiveViewport(width, height) {
     captainAlertModal.buttonRect = captainAlertModal.kind === "sailing-help"
       ? sailingHelpButtonRect()
       : captainAlertButtonRect();
+    if (captainAlertModal.kind === "choice") captainAlertModal.choiceRects = captainAlertChoiceRects();
   }
   dirty = true;
 }
@@ -18108,6 +18680,7 @@ function render(nowMs) {
   drawFetchQuestDestinationArrows(nowMs);
   drawColonizationDestinationArrow(nowMs);
   drawCampaignGoalDestinationArrow(nowMs);
+  drawNaturalistDestinationArrow(nowMs);
   drawPortNavigationHeadingArrow(nowMs);
   drawWaypointArrowTooltip();
   drawSurvivalHudTooltip();
@@ -19717,7 +20290,25 @@ function questJournalEntries() {
     caribbeanGingerPort
   );
   if (caribbeanGingerEntry) entries.push(caribbeanGingerEntry);
+  const naturalistEntry = naturalistJournalEntry();
+  if (naturalistEntry) entries.push(naturalistEntry);
   return entries;
+}
+
+function naturalistJournalEntry() {
+  const memory = gameState.memory.quests.naturalist;
+  const view = naturalistQuestView(memory, gameState.memory.animals);
+  if (!view.met || view.complete) return null;
+  const port = naturalistPort();
+  if (!port) throw new Error("Met naturalist has no port");
+  return {
+    id: "naturalist",
+    title: "THE GREAT BESTIARY",
+    nextStep: view.hasUnreportedAnimals
+      ? `REPORT ${view.unreportedAnimalIds.length} NEW ${view.unreportedAnimalIds.length === 1 ? "ANIMAL" : "ANIMALS"} AT ${cityLabelText(port).toUpperCase()}`
+      : `DOCUMENT EXOTIC ANIMALS (${view.reportedCount}/${view.totalCount})`,
+    style: NATURALIST_NAVIGATION_STYLE
+  };
 }
 
 function colonizationJournalEntry(quest) {
@@ -20271,6 +20862,18 @@ function navigationMenuEntries() {
   const campaignDestination = activeCampaignGoalDestination();
   if (campaignDestination) entries.push(campaignNavigationMenuEntry(campaignDestination));
 
+  const naturalistDestination = activeNaturalistReportDestination();
+  if (naturalistDestination) {
+    entries.push({
+      id: `naturalist:${naturalistDestination.tileId}`,
+      destinationName: cityLabelText(naturalistDestination),
+      reason: "REPORT ANIMAL SIGHTINGS",
+      style: NATURALIST_NAVIGATION_STYLE,
+      targetVector: latLonToDirection(naturalistDestination.lat, naturalistDestination.lon),
+      optionalWaypointId: null
+    });
+  }
+
   for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
     const destination = portWaypointDestination(waypoint);
     entries.push({
@@ -20283,6 +20886,12 @@ function navigationMenuEntries() {
     });
   }
   return entries;
+}
+
+function activeNaturalistReportDestination() {
+  if (!gameState) return null;
+  const view = naturalistQuestView(gameState.memory.quests.naturalist, gameState.memory.animals);
+  return view.met && view.hasUnreportedAnimals ? naturalistPort() : null;
 }
 
 function fetchQuestNavigationReason(fetchTarget) {
@@ -21465,32 +22074,60 @@ function drawDiscoveriesMenu() {
     color: PIRATE_MENU_INK
   });
 
-  const entries = discoveredEntries(gameState);
-  const total = discoveryCatalog.length;
-  const discoveryFraction = total > 0 ? entries.length / total : 0;
+  const tabY = panelY + 27;
+  const tabW = Math.floor((DISCOVERIES_PANEL_W - 27) / 2);
+  discoveriesMenu.tabRects = [
+    { id: "wonders", rect: { x: panelX + 12, y: tabY, w: tabW, h: UI_TAB_H } },
+    { id: "animals", rect: { x: panelX + 15 + tabW, y: tabY, w: tabW, h: UI_TAB_H } }
+  ];
+  for (const tab of discoveriesMenu.tabRects) {
+    drawShipInfoTab(
+      tab.rect,
+      tab.id === "wonders" ? "WONDERS" : "ANIMALS",
+      discoveriesMenu.tab === tab.id,
+      pointInRect(optionsMenu.hoverPoint, tab.rect)
+    );
+  }
+
+  const wonderEntries = discoveredEntries(gameState);
+  const animalEntries = encounteredAnimalEntries(gameState.memory.animals);
+  const entries = discoveriesMenu.tab === "animals" ? animalEntries : wonderEntries;
+  const total = discoveriesMenu.tab === "animals" ? ANIMAL_CATALOG.length : discoveryCatalog.length;
+  const foundFraction = total > 0 ? entries.length / total : 0;
   const mappedFraction = minimap ? minimap.seenTileCount / graph.tileCount : 0;
-  const compact = DISCOVERIES_PANEL_W < 280;
   const progressWidth = DISCOVERIES_PANEL_W - 24;
   drawDiscoveryProgressRow(
     panelX + 12,
-    panelY + 31,
-    "FOUND",
+    panelY + 53,
+    discoveriesMenu.tab === "animals" ? "SEEN" : "FOUND",
     `${entries.length}/${total}`,
-    discoveryFraction,
-    "#d6a84f",
+    foundFraction,
+    discoveriesMenu.tab === "animals" ? "#91db69" : "#d6a84f",
     progressWidth,
-    compact
+    false
   );
-  drawDiscoveryProgressRow(
-    panelX + 12,
-    panelY + (compact ? 57 : 51),
-    "GLOBE MAPPED",
-    `${(mappedFraction * 100).toFixed(2)}%`,
-    mappedFraction,
-    "#6aa6a1",
-    progressWidth,
-    compact
-  );
+  if (discoveriesMenu.tab === "wonders") {
+    drawDiscoveryProgressRow(
+      panelX + 12,
+      panelY + 70,
+      "GLOBE MAPPED",
+      `${(mappedFraction * 100).toFixed(2)}%`,
+      mappedFraction,
+      "#6aa6a1",
+      progressWidth,
+      false
+    );
+  } else {
+    const naturalist = naturalistQuestView(gameState.memory.quests.naturalist, gameState.memory.animals);
+    drawOptionsText(
+      naturalist.met
+        ? `BESTIARY REPORTED ${naturalist.reportedCount}/${naturalist.totalCount}`
+        : "A NATURAL PHILOSOPHER MAY VALUE THESE NOTES",
+      panelX + 12,
+      panelY + 72,
+      { color: PIRATE_MENU_INK_MUTED, font: PIXEL_FONT_SMALL_8 }
+    );
+  }
 
   const pageSize = discoveriesPageSize();
   const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
@@ -21498,16 +22135,18 @@ function drawDiscoveriesMenu() {
   const pageStart = discoveriesMenu.page * pageSize;
   const pageEntries = entries.slice(pageStart, pageStart + pageSize);
   const listX = panelX + 13;
-  const listY = panelY + (compact ? 91 : 79);
+  const listY = panelY + 91;
   if (pageEntries.length === 0) {
     drawOptionsText("NO DISCOVERIES YET", listX, listY, { color: PIRATE_MENU_INK_MUTED });
   } else {
     pageEntries.forEach((entry, index) => {
       const y = listY + index * 36;
-      const sprite = discoverySpriteImage(entry);
+      const sprite = discoveriesMenu.tab === "animals"
+        ? animalDiscoveryPortrait(entry)
+        : discoverySpriteImage(entry);
       if (sprite) {
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(sprite, listX, y);
+        ctx.drawImage(sprite, listX, y, 32, 32);
       } else {
         ctx.fillStyle = discoveryKindColor(entry.kind);
         ctx.fillRect(listX + 15, y + 14, 6, 6);
@@ -21551,6 +22190,11 @@ function drawDiscoveriesMenu() {
     color: PIRATE_MENU_INK_MUTED
   });
   ctx.restore();
+}
+
+function animalDiscoveryPortrait(entry) {
+  const character = animalDialogueCharacter(entry);
+  return dialoguePortraitImage(character, characterExpression(character, "neutral"));
 }
 
 function discoverySpriteImage(entry) {
@@ -21624,13 +22268,44 @@ function currentAboardRoster() {
       ...traveler,
       character: aboardCharacterWithBiography(traveler.character)
     })),
-    colonyLeader: colonyLeader ? aboardCharacterWithBiography(colonyLeader) : null
+    colonyLeader: colonyLeader ? aboardCharacterWithBiography(colonyLeader) : null,
+    animalCompanions: pandaCompanionIsAboard(gameState.memory.panda)
+      ? [aboardCharacterWithBiography(pandaCompanionCharacter())]
+      : []
   });
+  const historianHomePort = portCities.find(isVikingLongshipQuestPort);
+  if (!historianHomePort) throw new Error("Aboard roster cannot resolve the Viking historian's home port");
   const named = roster.named.map((entry) => Object.freeze({
     ...entry,
-    goal: aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
+    goal: aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers),
+    homePortName: aboardCharacterHomePortName(entry, {
+      activeQuest,
+      rescuedTravelers,
+      historianHomePortTileId: historianHomePort.tileId
+    })
   }));
   return Object.freeze({ ...roster, named: Object.freeze(named) });
+}
+
+function aboardCharacterHomePortName(entry, {
+  activeQuest,
+  rescuedTravelers,
+  historianHomePortTileId
+}) {
+  if (entry.role === ABOARD_ROLE_ANIMAL) {
+    if (typeof entry.character.homePortName !== "string" || entry.character.homePortName.trim() === "") {
+      throw new Error(`${entry.character.name} animal companion has no home region`);
+    }
+    return entry.character.homePortName;
+  }
+  const tileId = aboardCharacterHomePortTileId(entry, {
+    activeTravelQuest: activeQuest,
+    rescuedTravelers,
+    historianHomePortTileId
+  });
+  const port = portCitiesByTileId.get(tileId) || cityByTileId.get(tileId);
+  if (!port) throw new Error(`Aboard character home port is not placed: ${tileId}`);
+  return cityLabelText(port);
 }
 
 function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers) {
@@ -21647,6 +22322,10 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
     return colonyLeaderCharacterGoal(colonization?.target?.city);
   }
   if (entry.role === ABOARD_ROLE_CREWMATE) return namedCrewCharacterGoal(entry.character);
+  if (entry.role === ABOARD_ROLE_ANIMAL) {
+    if (!entry.character.goal?.text) throw new Error(`${entry.character.name} animal companion has no goal`);
+    return entry.character.goal;
+  }
   throw new Error(`Named aboard character has no goal resolver: ${entry.role}`);
 }
 
@@ -21920,6 +22599,7 @@ function drawAboardCharacterDetail(roster, panel) {
   const detailRows = [
     ["ROLE", aboardRoleLabel(entry.role)],
     ["NATIONALITY", characterNationalityLabel(character)],
+    [uiText("intro.homePort"), entry.homePortName],
     ["SEX", character.sex === "female" ? "FEMALE" : "MALE"],
     ["BORN", compact
       ? `${characterBirthdayLabel(character)} ${character.birthDate.year}`
@@ -22039,7 +22719,8 @@ function aboardRoleLabel(role) {
     [ABOARD_ROLE_EMISSARY]: "aboard.emissary",
     [ABOARD_ROLE_COLONY_LEADER]: "aboard.colonyLeader",
     [ABOARD_ROLE_CREWMATE]: "aboard.crewmate",
-    [ABOARD_ROLE_COLONIST]: "aboard.colonist"
+    [ABOARD_ROLE_COLONIST]: "aboard.colonist",
+    [ABOARD_ROLE_ANIMAL]: "aboard.animal"
   }[role];
   if (!key) throw new Error(`Unknown aboard role: ${role}`);
   return uiText(key);
@@ -22053,6 +22734,7 @@ function aboardRoleColor(role) {
     return STATUS_PERSON_COLORS.settler[0];
   }
   if (role === ABOARD_ROLE_CREWMATE) return PIRATE_MENU_INK_MUTED;
+  if (role === ABOARD_ROLE_ANIMAL) return PIRATE_MENU_SUCCESS;
   throw new Error(`Unknown aboard role color: ${role}`);
 }
 
@@ -27676,6 +28358,23 @@ function drawPortNavigationHeadingArrow(nowMs) {
   }
 }
 
+function drawNaturalistDestinationArrow(nowMs) {
+  if (!ship || !chart || !localLayout) return;
+  const destination = activeNaturalistReportDestination();
+  if (!destination) return;
+  const targetVector = latLonToDirection(destination.lat, destination.lon);
+  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+  drawWorldTargetArrow({
+    id: `naturalist:${destination.tileId}`,
+    label: cityLabelText(destination),
+    targetVector,
+    localPoint: visibleCity || localPointForGlobeVector(targetVector),
+    localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+    nowMs,
+    style: NATURALIST_NAVIGATION_STYLE
+  });
+}
+
 function drawColonizationDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout || !gameState) return;
   const objective = activeColonizationObjective();
@@ -28601,6 +29300,7 @@ function drawAnchorButton(nowMs) {
 function drawScavengeButton() {
   scavengeButtonRect = null;
   if (!anchored || dialogueState || menusAreOpen() || gameOverReason || fishingAction) return;
+  if (!nearestScavengeShoreCall()) return;
   scavengeButtonRect = {
     x: anchorButtonRect.x + anchorButtonRect.w + 4,
     y: ANCHOR_BUTTON_Y,
@@ -28884,7 +29584,8 @@ function drawSurvivalHudTooltip() {
       ? remainingSupplyDayCount(status.drinkDays)
       : remainingSupplyDayCount(status.foodDays),
     crew: gameState.ship.crew,
-    passengers
+    passengers,
+    pandas: pandaCompanionIsAboard(gameState.memory.panda) ? 1 : 0
   });
   const maxTextWidth = SCREEN_W - 18;
   const lines = wrapPixelText(text, PIXEL_FONT_SMALL_8, maxTextWidth, 2);
@@ -28935,6 +29636,10 @@ function drawSurvivalCrewRow(x, y, panelWidth) {
     if (!image) throw new Error(`Missing ${entry.kind} crew status image variant ${entry.variant}`);
     ctx.drawImage(image, entry.x, entry.y);
   }
+  if (layout.panda) {
+    if (!statusHudImages?.panda) throw new Error("Panda status icon is not loaded");
+    ctx.drawImage(statusHudImages.panda, layout.panda.x, layout.panda.y);
+  }
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText(`${layout.count}`, x + panelWidth - 5, y + SURVIVAL_CREW_ROW_Y - 1, {
     font: PIXEL_FONT_LATIN_SMALL_8,
@@ -28953,12 +29658,25 @@ function survivalCrewStatusLayout(
   const rowX = panelX + SURVIVAL_CREW_ROW_PAD_X;
   const valueRight = panelX + panelWidth - 5;
   const valueLeft = valueRight - measurePixelTextWidth(`${peopleAboard}`, PIXEL_FONT_LATIN_SMALL_8);
-  return crewStatusLayout({
+  const hasPanda = pandaCompanionIsAboard(gameState.memory.panda);
+  const pandaSpace = hasPanda ? statusHudImages.panda.width + 1 : 0;
+  const layout = crewStatusLayout({
     crewCount,
     travelerGroups,
     x: rowX,
     y: panelY + SURVIVAL_CREW_ROW_Y,
-    width: valueLeft - rowX - 4
+    width: valueLeft - rowX - 4 - pandaSpace
+  });
+  if (!hasPanda) return layout;
+  const humanEnd = layout.entries.length > 0
+    ? layout.entries.at(-1).x + CREW_STATUS_ICON_WIDTH
+    : rowX;
+  return Object.freeze({
+    ...layout,
+    panda: Object.freeze({
+      x: humanEnd + 1,
+      y: panelY + SURVIVAL_CREW_ROW_Y + CREW_STATUS_ICON_HEIGHT - statusHudImages.panda.height
+    })
   });
 }
 
@@ -29281,6 +29999,20 @@ function drawPlayerIntroModal(nowMs) {
   }
 
   const button = modal.buttonRect;
+  if (modal.kind === "choice") {
+    if (pages.length !== 1) throw new Error("Character choice alert text must fit on one page");
+    modal.choiceRects.forEach((rect, index) => {
+      drawPiratePaperInset(rect, index === modal.selectedChoiceIndex);
+      ctx.fillStyle = PIRATE_MENU_INK;
+      drawPixelText(
+        fitPixelText(modal.choices[index].label.toUpperCase(), PIXEL_FONT_DIALOGUE_8, rect.w - 6),
+        rect.x + rect.w / 2,
+        controlTextY(rect),
+        { font: PIXEL_FONT_DIALOGUE_8, align: "center" }
+      );
+    });
+    return;
+  }
   drawPiratePaperInset(button, modal.hovered);
   ctx.fillStyle = PIRATE_MENU_INK;
   drawPixelText("BEGIN VOYAGE", button.x + button.w / 2, controlTextY(button), {

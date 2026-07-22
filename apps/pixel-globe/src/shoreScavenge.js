@@ -10,12 +10,14 @@ export const SHORE_SCAVENGE_CASUALTY_CHANCE = 0.01;
 
 export const SHORE_SCAVENGE_TEMPERATE = "temperate";
 export const SHORE_SCAVENGE_DESERT = "desert";
+export const SHORE_SCAVENGE_FROZEN = "frozen";
 export const SHORE_SCAVENGE_ARCTIC = "arctic";
 export const SHORE_SCAVENGE_ANTARCTIC = "antarctic";
 
 const SCAVENGE_PROBABILITIES = Object.freeze({
   [SHORE_SCAVENGE_TEMPERATE]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 }),
   [SHORE_SCAVENGE_DESERT]: Object.freeze({ waterMax: 0.04, foodMax: 0.18 }),
+  [SHORE_SCAVENGE_FROZEN]: Object.freeze({ waterMax: 0.28, foodMax: 0.58 }),
   [SHORE_SCAVENGE_ARCTIC]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 }),
   [SHORE_SCAVENGE_ANTARCTIC]: Object.freeze({ waterMax: 0.28, foodMax: 0.68 })
 });
@@ -23,6 +25,7 @@ const SCAVENGE_PROBABILITIES = Object.freeze({
 const SCAVENGE_WATER_SHARE_BOUNDS = Object.freeze({
   [SHORE_SCAVENGE_TEMPERATE]: Object.freeze({ min: 0.12, max: 0.82 }),
   [SHORE_SCAVENGE_DESERT]: Object.freeze({ min: 0.05, max: 0.38 }),
+  [SHORE_SCAVENGE_FROZEN]: Object.freeze({ min: 0.16, max: 0.86 }),
   [SHORE_SCAVENGE_ARCTIC]: Object.freeze({ min: 0.12, max: 0.82 }),
   [SHORE_SCAVENGE_ANTARCTIC]: Object.freeze({ min: 0.12, max: 0.82 })
 });
@@ -37,6 +40,11 @@ const SEABIRDS_BY_CONTEXT = Object.freeze({
     seabird("gull", 2),
     seabird("cormorant", 3),
     seabird("tern", 1)
+  ]),
+  [SHORE_SCAVENGE_FROZEN]: Object.freeze([
+    seabird("gull", 2),
+    seabird("duck", 2),
+    seabird("goose", 3)
   ]),
   [SHORE_SCAVENGE_ARCTIC]: Object.freeze([
     seabird("kittiwake", 2),
@@ -96,6 +104,29 @@ const ARCTIC_NARRATIVES = Object.freeze({
   ])
 });
 
+const FROZEN_NARRATIVES = Object.freeze({
+  [SHORE_SCAVENGE_WATER]: Object.freeze([
+    "The shore party cut clean ice from the frozen water and melted it into the casks.",
+    "Fresh snow had gathered in sheltered drifts. The party carried it aboard to melt over the galley fire.",
+    "The party chipped clear freshwater ice and hauled it back to the ship for melting."
+  ]),
+  [SHORE_SCAVENGE_FOOD]: Object.freeze([
+    "The shore party cut a hole through the ice and returned with a small catch of fish.",
+    "Hunters followed tracks along the snowy bank and returned with winter game.",
+    "A flock of waterfowl resting beside open water provided meat for the stores."
+  ]),
+  [SHORE_SCAVENGE_NOTHING]: Object.freeze([
+    "The party searched the frozen shore until dusk and returned with empty sledges.",
+    "They found only wind-polished ice and old tracks beneath the snow.",
+    "Thin ice and gathering snow forced the party back before they found usable supplies."
+  ]),
+  [SHORE_SCAVENGE_CASUALTY]: Object.freeze([
+    "Thin ice broke beneath a sailor before the party could pull them free.",
+    "A sailor vanished into deep snow beside the frozen shore. The search found no trace.",
+    "A sailor succumbed to the cold before the party could carry them back to the ship."
+  ])
+});
+
 const DESERT_NARRATIVES = Object.freeze({
   [SHORE_SCAVENGE_WATER]: Object.freeze([
     "After hours probing a dry wadi, the shore party uncovered a muddy seep and filled the casks slowly.",
@@ -145,11 +176,12 @@ const ANTARCTIC_NARRATIVES = Object.freeze({
 const NARRATIVES_BY_CONTEXT = Object.freeze({
   [SHORE_SCAVENGE_TEMPERATE]: TEMPERATE_NARRATIVES,
   [SHORE_SCAVENGE_DESERT]: DESERT_NARRATIVES,
+  [SHORE_SCAVENGE_FROZEN]: FROZEN_NARRATIVES,
   [SHORE_SCAVENGE_ARCTIC]: ARCTIC_NARRATIVES,
   [SHORE_SCAVENGE_ANTARCTIC]: ANTARCTIC_NARRATIVES
 });
 
-export function shoreScavengeContextForTerrain(row, latitudeDeg, hasSnowGround) {
+export function shoreScavengeContextForTerrain(row, latitudeDeg, hasSnowGround, hasSurfaceIce = false) {
   if (!row || typeof row !== "object") throw new Error("Shore scavenge terrain row is required");
   if (!Number.isFinite(latitudeDeg)) throw new Error(`Invalid shore scavenge latitude: ${latitudeDeg}`);
   const terrain = row.t || "";
@@ -157,8 +189,10 @@ export function shoreScavengeContextForTerrain(row, latitudeDeg, hasSnowGround) 
   const polarFrozenTerrain = Math.abs(latitudeDeg) >= 60 && (
     hasSnowGround === true || terrain.includes("snow") || terrain.includes("tundra") || terrain.includes("cold")
   );
-  const frozen = permanentIce || polarFrozenTerrain;
-  if (frozen) return latitudeDeg >= 0 ? SHORE_SCAVENGE_ARCTIC : SHORE_SCAVENGE_ANTARCTIC;
+  if (typeof hasSurfaceIce !== "boolean") throw new Error("Shore scavenge surface ice flag must be boolean");
+  const polarFrozen = permanentIce || polarFrozenTerrain || (hasSurfaceIce && Math.abs(latitudeDeg) >= 60);
+  if (polarFrozen) return latitudeDeg >= 0 ? SHORE_SCAVENGE_ARCTIC : SHORE_SCAVENGE_ANTARCTIC;
+  if (hasSurfaceIce) return SHORE_SCAVENGE_FROZEN;
   if (terrain.includes("desert")) return SHORE_SCAVENGE_DESERT;
   return SHORE_SCAVENGE_TEMPERATE;
 }
@@ -230,11 +264,13 @@ export function shoreScavengeNoticeLabel(outcome, context) {
   if (outcome === SHORE_SCAVENGE_WATER) {
     if (context === SHORE_SCAVENGE_TEMPERATE) return "FOUND A SPRING";
     if (context === SHORE_SCAVENGE_DESERT) return "FOUND A SEEP";
+    if (context === SHORE_SCAVENGE_FROZEN) return "MELTED ICE";
     return "MELTED SNOW";
   }
   if (outcome === SHORE_SCAVENGE_FOOD) {
     if (context === SHORE_SCAVENGE_TEMPERATE) return "FOUND WILD GAME";
     if (context === SHORE_SCAVENGE_DESERT) return "FOUND COASTAL FOOD";
+    if (context === SHORE_SCAVENGE_FROZEN) return "FOUND WINTER FOOD";
     return "FOUND POLAR GAME";
   }
   throw new Error(`Shore scavenge outcome has no supply label: ${outcome}`);

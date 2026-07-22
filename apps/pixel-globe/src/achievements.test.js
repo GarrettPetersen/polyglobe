@@ -24,6 +24,8 @@ function snapshot(overrides = {}) {
   return {
     discoveryIds: [],
     discoveryCatalogIds: ["one", "circumnavigated-globe", "legend-el-dorado"],
+    animalIds: [],
+    animalCatalogIds: ["tiger", "penguin"],
     circumnavigationDiscoveryId: "circumnavigated-globe",
     elDoradoDiscoveryId: "legend-el-dorado",
     soldGoodIds: [],
@@ -174,8 +176,8 @@ test("same-voyage achievements unlock from accumulated progress", () => {
   assert.equal(result.newlyUnlocked.length, 18);
 });
 
-test("the 50-entry catalog includes approachable voyage milestones", () => {
-  assert.equal(ACHIEVEMENT_CATALOG.length, 50);
+test("the 51-entry catalog includes approachable voyage milestones", () => {
+  assert.equal(ACHIEVEMENT_CATALOG.length, 51);
   const profile = createAchievementProfile();
   const progress = createVoyageAchievementProgress();
   const discoveryIds = Array.from({ length: 10 }, (_, index) => `discovery-${index}`);
@@ -310,6 +312,19 @@ test("well rounded combines ships sailed across voyages", () => {
   assert.deepEqual(profile.lifetime.sailedShipSlugs.sort(), ["caravel", "junk"]);
 });
 
+test("the great bestiary combines animal sightings across voyages", () => {
+  const profile = createAchievementProfile();
+  synchronizeAchievements(profile, createVoyageAchievementProgress(), snapshot({
+    animalIds: ["tiger"]
+  }), { unlockedAt: 8100 });
+  assert.equal(profile.unlocked[ACHIEVEMENT_IDS.GREAT_BESTIARY], undefined);
+  synchronizeAchievements(profile, createVoyageAchievementProgress(), snapshot({
+    animalIds: ["penguin"]
+  }), { unlockedAt: 8200 });
+  assert.ok(profile.unlocked[ACHIEVEMENT_IDS.GREAT_BESTIARY]);
+  assert.deepEqual(profile.lifetime.seenAnimalIds.sort(), ["penguin", "tiger"]);
+});
+
 test("achievement progress reports partial requirements", () => {
   const profile = createAchievementProfile();
   const progress = createVoyageAchievementProgress();
@@ -338,7 +353,7 @@ test("platform adapter sync uses stable Steam ids once", async () => {
 });
 
 test("catalog has stable unique platform ids", () => {
-  assert.equal(ACHIEVEMENT_CATALOG.length, 50);
+  assert.equal(ACHIEVEMENT_CATALOG.length, 51);
   assert.equal(new Set(ACHIEVEMENT_CATALOG.map((entry) => entry.id)).size, ACHIEVEMENT_CATALOG.length);
   assert.equal(new Set(ACHIEVEMENT_CATALOG.map((entry) => entry.platformIds.steam)).size,
     ACHIEVEMENT_CATALOG.length);

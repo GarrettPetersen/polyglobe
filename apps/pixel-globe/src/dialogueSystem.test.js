@@ -1554,6 +1554,31 @@ test("ports stock a local selection of fishing net upgrades", () => {
   assert.match(session.feedback, /Weighted cast net fitted/);
 });
 
+test("the equipment overview shows stocked levels and identifies specialist markets", () => {
+  const city = {
+    tileId: 14,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const session = createPortDialogueSession(city, { initialNodeId: "equipment" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  const nets = view.options.find((entry) => entry.label === "Fishing nets");
+  const harpoons = view.options.find((entry) => entry.label === "Whale harpoons");
+  const cannons = view.options.find((entry) => entry.label === "Cannon battery");
+
+  assert.match(nets.detail, /^STOCK \d\/4 LEVELS$/);
+  assert.match(harpoons.detail, /^STOCK \d\/3 LEVELS$/);
+  assert.equal(cannons.detail, "STOCK 4/4 LEVELS  SPECIALIST");
+});
+
 test("the equipment store exposes stocked cannon upgrades and their complete firing profile", () => {
   const city = {
     tileId: 10,
