@@ -990,7 +990,7 @@ import {
 } from "./terrainShipOcclusion.js";
 import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
-import { gamepadControlFrame } from "./controllerInput.js";
+import { gamepadControlFrame, gamepadMenuNavigationFrame } from "./controllerInput.js";
 import {
   broadsideArcGeometry,
   broadsideReloadGeometry,
@@ -1965,6 +1965,9 @@ const pointerSteering = {
 };
 let controllerSteering = null;
 let controllerButtons = [];
+let controllerNavigationState = null;
+let controllerScrollState = null;
+let controllerInteractionTargetKey = null;
 let graph;
 let directionIndex;
 let earthRows;
@@ -3650,7 +3653,7 @@ function loop(nowMs) {
 }
 
 function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {}) {
-  pollGamepadControls();
+  pollGamepadControls(nowMs);
   const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
   lastFrameMs = nowMs;
   if (captureDirector && !capturePlaybackPaused) updateCaptureDirectorFrame(nowMs);
@@ -11283,21 +11286,53 @@ function currentDialoguePassenger() {
 }
 
 function activeInteractionTarget() {
-  if (fishingAction) return null;
+  const targets = activeInteractionTargets();
+  if (controllerInteractionTargetKey) {
+    const selected = targets.find((target) => interactionTargetKey(target) === controllerInteractionTargetKey);
+    if (selected) return selected;
+    controllerInteractionTargetKey = null;
+  }
+  return targets[0] || null;
+}
+
+function activeInteractionTargets() {
+  if (fishingAction) return [];
   const hunt = gameState?.memory?.whales?.activeHunt;
   if (hunt) {
     const whale = whaleById(gameState.memory.whales, hunt.whaleId);
-    if (whale.phase === WHALE_PHASE_TETHERED) return { kind: "whale-cut", call: whaleInteractionCall(whale) };
-    if (whale.phase === WHALE_PHASE_EXHAUSTED) return { kind: "whale-finish", call: whaleInteractionCall(whale) };
+    if (whale.phase === WHALE_PHASE_TETHERED) return [{ kind: "whale-cut", call: whaleInteractionCall(whale) }];
+    if (whale.phase === WHALE_PHASE_EXHAUSTED) return [{ kind: "whale-finish", call: whaleInteractionCall(whale) }];
   }
-  const port = activePortCall();
-  if (port) return { kind: "port", call: port };
-  const whaleCall = activeWhaleCall();
-  if (whaleCall) return { kind: "whale", call: whaleCall };
+  const targets = activePortCalls().map((call) => ({ kind: "port", call }));
+  targets.push(...harpoonableWhaleCalls()
+    .sort((a, b) => a.distancePx - b.distancePx || a.id.localeCompare(b.id))
+    .map((call) => ({ kind: "whale", call })));
   const fishCall = activeFishCall();
-  if (fishCall) return { kind: "fish", call: fishCall };
-  const npcShip = activeNpcShipCall();
-  return npcShip ? { kind: "ship", call: npcShip } : null;
+  if (fishCall) targets.push({ kind: "fish", call: fishCall });
+  targets.push(...activeNpcShipCalls().map((call) => ({ kind: "ship", call })));
+  return targets;
+}
+
+function interactionTargetKey(target) {
+  if (!target?.kind || !target.call) throw new Error("Controller interaction target requires a kind and call");
+  const id = target.call.portId ?? target.call.id ?? target.call.tileId;
+  if (id === undefined || id === null) throw new Error(`Controller ${target.kind} target has no identity`);
+  return `${target.kind}:${id}`;
+}
+
+function cycleControllerInteractionTarget() {
+  const targets = activeInteractionTargets();
+  if (targets.length === 0) {
+    controllerInteractionTargetKey = null;
+    return false;
+  }
+  const currentIndex = targets.findIndex(
+    (target) => interactionTargetKey(target) === controllerInteractionTargetKey
+  );
+  const nextIndex = currentIndex < 0 ? Math.min(1, targets.length - 1) : (currentIndex + 1) % targets.length;
+  controllerInteractionTargetKey = interactionTargetKey(targets[nextIndex]);
+  dirty = true;
+  return true;
 }
 
 function updateWhales(dt, nowMs) {
@@ -11596,36 +11631,34 @@ function applyWhaleTowAcceleration(dt) {
   ];
 }
 
-function activePortCall() {
-  if (!chart || !localLayout) return null;
+function activePortCalls() {
+  if (!chart || !localLayout) return [];
   const currentTileId = ship?.tileId ?? centerTileId;
   const currentPortCalls = (chart.cityCalls || []).filter((call) => call.tileId === currentTileId && call.character);
   if (currentPortCalls.length > 0) {
-    return currentPortCalls.find((call) => call.isPirateHideout) || currentPortCalls[0];
+    currentPortCalls.sort((a, b) => Number(b.isPirateHideout) - Number(a.isPirateHideout) || a.tileId - b.tileId);
   }
-  let best = null;
-  let bestDistance = Infinity;
-  for (const call of chart.cityCalls || []) {
-    if (!portCallInInteractionRange(call)) continue;
-    const distance = distance2(localLayout.viewX, localLayout.viewY, call.x, call.y);
-    if (distance >= bestDistance) continue;
-    best = call;
-    bestDistance = distance;
-  }
-  return best;
+  const nearbyCalls = (chart.cityCalls || [])
+    .filter((call) => call.tileId !== currentTileId && portCallInInteractionRange(call))
+    .sort((a, b) => (
+      distance2(localLayout.viewX, localLayout.viewY, a.x, a.y) -
+        distance2(localLayout.viewX, localLayout.viewY, b.x, b.y) ||
+      a.tileId - b.tileId
+    ));
+  return [...currentPortCalls, ...nearbyCalls];
 }
 
-function activeNpcShipCall() {
-  if (!localLayout || !npcShipCaptains) return null;
-  let best = null;
-  let bestDistance = Infinity;
+function activeNpcShipCalls() {
+  if (!localLayout || !npcShipCaptains) return [];
+  const calls = [];
   for (const state of npcVisualShips.values()) {
     const distance = distance2(localLayout.viewX, localLayout.viewY, state.x, state.y);
-    if (distance > NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX || distance >= bestDistance) continue;
-    best = npcShipInteractionCall(state);
-    bestDistance = distance;
+    if (distance > NPC_HAIL_RADIUS_PX * NPC_HAIL_RADIUS_PX) continue;
+    calls.push({ call: npcShipInteractionCall(state), distance });
   }
-  return best;
+  return calls
+    .sort((a, b) => a.distance - b.distance || a.call.id.localeCompare(b.call.id))
+    .map((entry) => entry.call);
 }
 
 function activeFishCall() {
@@ -12575,20 +12608,24 @@ function inputHeadingForShip() {
   ], ship.position, ship.heading);
 }
 
-function pollGamepadControls() {
+function pollGamepadControls(nowMs) {
   const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
   const gamepad = Array.from(pads || []).find((pad) => pad?.connected !== false) || null;
   if (!gamepad) {
     controllerSteering = null;
     controllerButtons = [];
+    controllerNavigationState = null;
+    controllerScrollState = null;
     return;
   }
   const frame = gamepadControlFrame(gamepad, controllerButtons);
   controllerButtons = frame.buttons;
   controllerSteering = frame.steering;
-  if (captainMenu.isOpen && !shipInfoMenu.isOpen && !politicsMenu.isOpen &&
+  const captainChartPanning = frame.steeringSource === "stick" &&
+    captainMenu.isOpen && !shipInfoMenu.isOpen && !politicsMenu.isOpen &&
       !discoveriesMenu.isOpen && !achievementsMenu.isOpen && !navigationMenu.isOpen &&
-      frame.steering && captainMenu.mapZoomIndex > 0) {
+      frame.steering && captainMenu.mapZoomIndex > 0;
+  if (captainChartPanning) {
     panCaptainChartMap(
       frame.steering.dx,
       -frame.steering.dy,
@@ -12599,6 +12636,26 @@ function pollGamepadControls() {
   if (controllerSteering && signalBlockedDepartureControl()) controllerSteering = null;
   if (frame.steering || frame.actions.length > 0) sailingTutorialInputMode = "controller";
   for (const action of frame.actions) handleControllerAction(action);
+
+  if (!controllerDirectionalUiIsActive()) {
+    controllerNavigationState = null;
+    controllerScrollState = null;
+    return;
+  }
+  const navigation = gamepadMenuNavigationFrame(gamepad, controllerNavigationState, nowMs, {
+    allowStick: !captainChartPanning
+  });
+  controllerNavigationState = navigation.state;
+  if (navigation.action) handleControllerAction(navigation.action);
+
+  const scrolling = gamepadMenuNavigationFrame(gamepad, controllerScrollState, nowMs, {
+    allowDpad: false,
+    stickAxes: [2, 3]
+  });
+  controllerScrollState = scrolling.state;
+  if (scrolling.action === "up" || scrolling.action === "down") {
+    dispatchControllerKey(scrolling.action === "up" ? "PageUp" : "PageDown");
+  }
 }
 
 function handleControllerAction(action) {
@@ -12628,9 +12685,35 @@ function handleControllerAction(action) {
       (anchored || canAnchorAtCurrentShore())) toggleAnchor();
     return;
   }
+  if (action === "secondary") {
+    if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
+      recenterCaptainChartMap();
+      return;
+    }
+    if (optionsMenu.isOpen && optionsMenu.view === "bindings" && !optionsMenu.bindingCapture) {
+      resetAllKeyBindings();
+      return;
+    }
+    if (menusAreOpen() || dialogueState || playerIntroModal || gameOverReason || lakeBattleMode) return;
+    if (gameState?.memory?.whales?.activeHunt) {
+      releaseActiveWhale();
+      return;
+    }
+    if (anchored) startShoreScavenge();
+    return;
+  }
+  if (action === "cycleTarget") {
+    if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason && !lakeBattleMode) {
+      cycleControllerInteractionTarget();
+    }
+    return;
+  }
   if (action === "menu") {
     if (lakeBattleMode) {
-      dispatchControllerKey("Escape");
+      dispatchControllerKey(
+        "Escape",
+        lakeBattleMode.screen === LAKE_BATTLE_SCREEN_ACTIVE ? KEY_ACTION.CAPTAIN_MENU : null
+      );
       return;
     }
     if (!menusAreOpen() && !dialogueState && !playerIntroModal && !gameOverReason) openCaptainMenu();
@@ -12638,11 +12721,20 @@ function handleControllerAction(action) {
     return;
   }
   if (action === "confirm") {
+    if (optionsMenu.isOpen && optionsMenu.view === "bindings" && optionsMenu.bindingCapture) return;
     if (controllerUiIsActive()) dispatchControllerKey("Enter");
     else openActiveInteractionDialogue();
     return;
   }
   if (action === "back") {
+    if (optionsMenu.isOpen && optionsMenu.view === "bindings" && optionsMenu.bindingCapture) {
+      cancelControllerKeyBindingCapture();
+      return;
+    }
+    if (lakeBattleMode?.screen === LAKE_BATTLE_SCREEN_ACTIVE) {
+      dispatchControllerKey("Escape", KEY_ACTION.CAPTAIN_MENU);
+      return;
+    }
     dispatchControllerKey("Escape");
     return;
   }
@@ -12672,17 +12764,28 @@ function stepShipInfoView(direction) {
 }
 
 function controllerUiIsActive() {
-  return Boolean(gameOverReason || shipInfoMenu.isOpen || politicsMenu.isOpen || discoveriesMenu.isOpen ||
-    optionsMenu.isOpen || creditsMenu.isOpen || pastVoyagesMenu.isOpen || captainMenu.isOpen || aboardMenu.isOpen ||
-    startMenu || lakeBattleMode || playerIntroModal ||
-    captainAlertModal || dialogueState || portWaitState);
+  const owner = currentInteractionInputOwner();
+  return Boolean(lakeBattleMode) || (owner !== INTERACTION_INPUT.WORLD && owner !== INTERACTION_INPUT.FISHING);
 }
 
-function dispatchControllerKey(key) {
+function controllerDirectionalUiIsActive() {
+  if (!controllerUiIsActive()) return false;
+  return !(lakeBattleMode?.screen === LAKE_BATTLE_SCREEN_ACTIVE && !optionsMenu.isOpen);
+}
+
+function dispatchControllerKey(key, keyAction = null) {
   const event = { key, preventDefault() {} };
   if (lakeBattleMode && optionsMenu.isOpen) handleOptionsKeyDown(event);
-  else if (lakeBattleMode) handleLakeBattleKeyDown(event);
+  else if (lakeBattleMode) handleLakeBattleKeyDown(event, keyAction);
   else dispatchWorldOverlayKey(event);
+}
+
+function cancelControllerKeyBindingCapture() {
+  if (!optionsMenu.bindingCapture) return false;
+  optionsMenu.bindingCapture = null;
+  optionsMenu.bindingFeedback = "BINDING CANCELLED";
+  dirty = true;
+  return true;
 }
 
 function pointerSteeringInputVector() {

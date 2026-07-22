@@ -45,6 +45,12 @@ limits before packaging.
 
 Controls: arrow keys or WASD steer. Space or Enter activates the available interaction.
 
+Standard gamepads are fully supported. The left stick or D-pad steers and navigates,
+the south face button confirms or interacts, the east face button goes back, the west
+face button anchors, and the north face button scavenges or releases a tethered whale.
+Shoulders or triggers fire the corresponding broadside, Start opens the captain's chart
+or pauses battle, and the right stick scrolls long panels.
+
 Developer weather controls are available only with `?debugWeather=true`.
 `[` / `]` step the annual weather day, `,` / `.` step the hour, and Backslash pauses/resumes the weather clock.
 
