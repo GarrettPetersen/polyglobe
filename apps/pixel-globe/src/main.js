@@ -212,6 +212,7 @@ import {
   portMemory,
   portEntryStatus,
   refillFreshWaterFromShore,
+  repairPlayerCargoOverflow,
   receiveDiscoveryCargo,
   receiveEmergencyShipAid,
   receiveFishCatch,
@@ -4420,6 +4421,10 @@ function createShipInfoMenuState() {
     cargoPage: 0,
     ledgerPage: 0,
     papersPage: 0,
+    paperSelectedIndex: 0,
+    paperDetailIndex: null,
+    paperDetailScrollY: 0,
+    paperDetailMaxScrollY: 0,
     loadingSlug: null,
     error: null,
     buttonRect: null,
@@ -4427,6 +4432,10 @@ function createShipInfoMenuState() {
     vesselTabRect: null,
     ledgerTabRect: null,
     papersTabRect: null,
+    paperRowRects: [],
+    paperDetailBackRect: null,
+    paperDetailUpRect: null,
+    paperDetailDownRect: null,
     previousPageRect: null,
     nextPageRect: null
   };
@@ -6329,6 +6338,10 @@ function openShipInfoMenu() {
   shipInfoMenu.cargoPage = 0;
   shipInfoMenu.ledgerPage = 0;
   shipInfoMenu.papersPage = 0;
+  shipInfoMenu.paperSelectedIndex = 0;
+  shipInfoMenu.paperDetailIndex = null;
+  shipInfoMenu.paperDetailScrollY = 0;
+  shipInfoMenu.paperDetailMaxScrollY = 0;
   shipInfoMenu.error = null;
   keys.clear();
   clearPointerSteering();
@@ -6350,10 +6363,15 @@ function openShipInfoMenu() {
 
 function closeShipInfoMenu() {
   shipInfoMenu.isOpen = false;
+  canvas.style.cursor = "default";
   shipInfoMenu.closeButtonRect = null;
   shipInfoMenu.vesselTabRect = null;
   shipInfoMenu.ledgerTabRect = null;
   shipInfoMenu.papersTabRect = null;
+  shipInfoMenu.paperRowRects = [];
+  shipInfoMenu.paperDetailBackRect = null;
+  shipInfoMenu.paperDetailUpRect = null;
+  shipInfoMenu.paperDetailDownRect = null;
   shipInfoMenu.previousPageRect = null;
   shipInfoMenu.nextPageRect = null;
   dirty = true;
@@ -6362,6 +6380,10 @@ function closeShipInfoMenu() {
 function handleShipInfoKeyDown(event) {
   event.preventDefault();
   if (event.key === "Escape" || event.key === "i" || event.key === "I") {
+    if (shipInfoMenu.paperDetailIndex !== null) {
+      closeShipPaperDetail();
+      return;
+    }
     closeShipInfoMenu();
     return;
   }
@@ -6370,19 +6392,36 @@ function handleShipInfoKeyDown(event) {
     return;
   }
   if (event.key === "l" || event.key === "L") {
-    shipInfoMenu.view = "ledger";
-    dirty = true;
+    setShipInfoView("ledger");
     return;
   }
   if (event.key === "v" || event.key === "V") {
-    shipInfoMenu.view = "vessel";
-    dirty = true;
+    setShipInfoView("vessel");
     return;
   }
   if (event.key === "p" || event.key === "P") {
-    shipInfoMenu.view = "papers";
-    dirty = true;
+    setShipInfoView("papers");
     return;
+  }
+  if (shipInfoMenu.view === "papers") {
+    if (shipInfoMenu.paperDetailIndex !== null) {
+      if (event.key === "ArrowUp" || event.key === "PageUp") scrollShipPaperDetail(-1);
+      else if (event.key === "ArrowDown" || event.key === "PageDown") scrollShipPaperDetail(1);
+      else if (event.key === "Backspace" || event.key === "Enter" || event.key === " ") closeShipPaperDetail();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      openSelectedShipPaperDetail();
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      stepShipPaperSelection(-1);
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      stepShipPaperSelection(1);
+      return;
+    }
   }
   if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
     stepShipInfoPage(-1);
@@ -6402,6 +6441,8 @@ function stepShipInfoPage(direction) {
   if (shipInfoMenu.view === "papers") {
     const page = shipPapersPage(view, shipInfoMenu.papersPage + direction, shipPapersRowsPerPage());
     shipInfoMenu.papersPage = page.page;
+    shipInfoMenu.paperSelectedIndex = clamp(shipInfoMenu.paperSelectedIndex, 0, Math.max(0, page.rows.length - 1));
+    shipInfoMenu.paperDetailIndex = null;
     dirty = true;
     return;
   }
@@ -6416,6 +6457,69 @@ function shipLedgerRowsPerPage() {
 
 function shipPapersRowsPerPage() {
   return languageUsesTallPixelMetrics(currentLanguage) ? 5 : 7;
+}
+
+function setShipInfoView(view) {
+  if (!["vessel", "ledger", "papers"].includes(view)) throw new Error(`Unknown ship information view: ${view}`);
+  shipInfoMenu.view = view;
+  if (view !== "papers") {
+    shipInfoMenu.paperDetailIndex = null;
+    shipInfoMenu.paperDetailScrollY = 0;
+    shipInfoMenu.paperDetailMaxScrollY = 0;
+  }
+  shipInfoMenu.paperRowRects = [];
+  shipInfoMenu.paperDetailBackRect = null;
+  dirty = true;
+}
+
+function stepShipPaperSelection(direction) {
+  if (!Number.isInteger(direction) || direction === 0) throw new Error(`Invalid inventory selection direction: ${direction}`);
+  const view = createShipInfoView(ship, gameState);
+  if (view.papers.length === 0) return;
+  const rowsPerPage = shipPapersRowsPerPage();
+  const current = Math.min(
+    view.papers.length - 1,
+    shipInfoMenu.papersPage * rowsPerPage + shipInfoMenu.paperSelectedIndex
+  );
+  const next = clamp(current + Math.sign(direction), 0, view.papers.length - 1);
+  shipInfoMenu.papersPage = Math.floor(next / rowsPerPage);
+  shipInfoMenu.paperSelectedIndex = next % rowsPerPage;
+  dirty = true;
+}
+
+function openSelectedShipPaperDetail() {
+  const view = createShipInfoView(ship, gameState);
+  if (view.papers.length === 0) return;
+  const rowsPerPage = shipPapersRowsPerPage();
+  const index = shipInfoMenu.papersPage * rowsPerPage + shipInfoMenu.paperSelectedIndex;
+  if (!view.papers[index]) throw new Error(`Selected inventory entry does not exist: ${index}`);
+  shipInfoMenu.paperDetailIndex = index;
+  shipInfoMenu.paperDetailScrollY = 0;
+  shipInfoMenu.paperDetailMaxScrollY = 0;
+  shipInfoMenu.paperRowRects = [];
+  dirty = true;
+}
+
+function closeShipPaperDetail() {
+  shipInfoMenu.paperDetailIndex = null;
+  shipInfoMenu.paperDetailScrollY = 0;
+  shipInfoMenu.paperDetailMaxScrollY = 0;
+  shipInfoMenu.paperDetailBackRect = null;
+  shipInfoMenu.paperDetailUpRect = null;
+  shipInfoMenu.paperDetailDownRect = null;
+  dirty = true;
+}
+
+function scrollShipPaperDetail(direction) {
+  if (!Number.isInteger(direction) || direction === 0) throw new Error(`Invalid inventory detail scroll: ${direction}`);
+  const next = clamp(
+    shipInfoMenu.paperDetailScrollY + Math.sign(direction) * localizedLineHeight(18),
+    0,
+    shipInfoMenu.paperDetailMaxScrollY
+  );
+  if (next === shipInfoMenu.paperDetailScrollY) return;
+  shipInfoMenu.paperDetailScrollY = next;
+  dirty = true;
 }
 
 function createLakeBattleModeState() {
@@ -7171,6 +7275,7 @@ function saveVoyageNow(reason) {
   if (CAPTURE_SCENARIO) return true;
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
   try {
+    repairLivePlayerCargoOverflow(`before save: ${reason}`);
     syncCartographyToGameState();
     syncAchievementsFromGameState();
     const save = writeLocalSave({
@@ -7197,6 +7302,15 @@ function saveVoyageNow(reason) {
     console.warn(`[pixel-globe] local save failed (${reason})`, error);
     return false;
   }
+}
+
+function repairLivePlayerCargoOverflow(reason) {
+  const repair = repairPlayerCargoOverflow(gameState);
+  if (!repair) return null;
+  console.warn(`[pixel-globe] repaired live player cargo overflow (${reason})`, repair);
+  syncShipCargoFromGameState();
+  dirty = true;
+  return repair;
 }
 
 function currentAchievementSnapshot() {
@@ -8365,6 +8479,9 @@ function handlePointerMove(event) {
   statusHudHoverPoint = event.pointerType === "touch" ? null : point;
   optionsMenu.hoverPoint = point;
   captainMenu.hoverPoint = point;
+  canvas.style.cursor = event.pointerType !== "touch" && shipInfoPointerIsActionable(point)
+    ? "pointer"
+    : "default";
   if (lakeBattleMode && optionsMenu.isOpen) {
     updateOptionsSelectionFromPoint(point);
     if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
@@ -8388,6 +8505,7 @@ function handlePointerLeave(event) {
   if (event.pointerType === "touch") return;
   waypointArrowHoverPoint = null;
   statusHudHoverPoint = null;
+  canvas.style.cursor = "default";
   dirty = true;
 }
 
@@ -8901,24 +9019,56 @@ function handlePoliticsPointerDown(point) {
   if (pointInRect(point, politicsMenu.nextPageRect)) stepPoliticsPage(1);
 }
 
+function shipInfoPointerIsActionable(point) {
+  if (!shipInfoMenu.isOpen) return false;
+  const controls = [
+    shipInfoMenu.closeButtonRect,
+    shipInfoMenu.vesselTabRect,
+    shipInfoMenu.ledgerTabRect,
+    shipInfoMenu.papersTabRect,
+    shipInfoMenu.paperDetailBackRect,
+    shipInfoMenu.paperDetailUpRect,
+    shipInfoMenu.paperDetailDownRect,
+    shipInfoMenu.previousPageRect,
+    shipInfoMenu.nextPageRect,
+    ...shipInfoMenu.paperRowRects
+  ];
+  return controls.some((rect) => rect && pointInRect(point, rect));
+}
+
 function handleShipInfoPointerDown(point) {
   if (pointInRect(point, shipInfoMenu.closeButtonRect)) {
     closeShipInfoMenu();
     return;
   }
   if (pointInRect(point, shipInfoMenu.vesselTabRect)) {
-    shipInfoMenu.view = "vessel";
-    dirty = true;
+    setShipInfoView("vessel");
     return;
   }
   if (pointInRect(point, shipInfoMenu.ledgerTabRect)) {
-    shipInfoMenu.view = "ledger";
-    dirty = true;
+    setShipInfoView("ledger");
     return;
   }
   if (pointInRect(point, shipInfoMenu.papersTabRect)) {
-    shipInfoMenu.view = "papers";
-    dirty = true;
+    setShipInfoView("papers");
+    return;
+  }
+  if (pointInRect(point, shipInfoMenu.paperDetailBackRect)) {
+    closeShipPaperDetail();
+    return;
+  }
+  if (pointInRect(point, shipInfoMenu.paperDetailUpRect)) {
+    scrollShipPaperDetail(-1);
+    return;
+  }
+  if (pointInRect(point, shipInfoMenu.paperDetailDownRect)) {
+    scrollShipPaperDetail(1);
+    return;
+  }
+  for (let index = 0; index < shipInfoMenu.paperRowRects.length; index++) {
+    if (!pointInRect(point, shipInfoMenu.paperRowRects[index])) continue;
+    shipInfoMenu.paperSelectedIndex = index;
+    openSelectedShipPaperDetail();
     return;
   }
   if (pointInRect(point, shipInfoMenu.previousPageRect)) {
@@ -9175,6 +9325,11 @@ function handleCanvasWheel(event) {
   if (owner === INTERACTION_INPUT.ABOARD) {
     event.preventDefault();
     scrollAboardMenu(event.deltaY > 0 ? 1 : -1);
+    return;
+  }
+  if (owner === INTERACTION_INPUT.SHIP_INFO && shipInfoMenu.paperDetailIndex !== null) {
+    event.preventDefault();
+    scrollShipPaperDetail(event.deltaY > 0 ? 1 : -1);
     return;
   }
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
@@ -12458,8 +12613,7 @@ function handleControllerAction(action) {
 function stepShipInfoView(direction) {
   const views = ["vessel", "ledger", "papers"];
   const index = views.indexOf(shipInfoMenu.view);
-  shipInfoMenu.view = views[stepMenuIndex(index, direction, views.length)];
-  dirty = true;
+  setShipInfoView(views[stepMenuIndex(index, direction, views.length)]);
 }
 
 function controllerUiIsActive() {
@@ -20117,6 +20271,10 @@ function drawShipInfoMenu() {
   const view = createShipInfoView(ship, gameState);
   const cargoPage = shipInfoCargoPage(view, shipInfoMenu.cargoPage);
   shipInfoMenu.cargoPage = cargoPage.page;
+  shipInfoMenu.paperRowRects = [];
+  shipInfoMenu.paperDetailBackRect = null;
+  shipInfoMenu.paperDetailUpRect = null;
+  shipInfoMenu.paperDetailDownRect = null;
 
   ctx.save();
   drawPiratePaperModal(panel, 0.9);
@@ -20146,7 +20304,10 @@ function drawShipInfoMenu() {
       { align: "center", color: PIRATE_MENU_INK }
     );
     if (shipInfoMenu.view === "ledger") drawCompactShipLedger(panel, view);
-    else if (shipInfoMenu.view === "papers") drawCompactShipPapers(panel, view);
+    else if (shipInfoMenu.view === "papers") {
+      if (shipInfoMenu.paperDetailIndex !== null) drawShipPaperDetail(panel, view);
+      else drawCompactShipPapers(panel, view);
+    }
     else drawCompactShipVessel(panel, view, cargoPage);
     ctx.restore();
     return;
@@ -20174,7 +20335,8 @@ function drawShipInfoMenu() {
     return;
   }
   if (shipInfoMenu.view === "papers") {
-    drawShipPapers(panel, view);
+    if (shipInfoMenu.paperDetailIndex !== null) drawShipPaperDetail(panel, view);
+    else drawShipPapers(panel, view);
     ctx.restore();
     return;
   }
@@ -20413,6 +20575,11 @@ function drawCompactShipLedger(panel, view) {
 function drawCompactShipPapers(panel, view) {
   const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage());
   shipInfoMenu.papersPage = page.page;
+  shipInfoMenu.paperSelectedIndex = clamp(
+    shipInfoMenu.paperSelectedIndex,
+    0,
+    Math.max(0, page.rows.length - 1)
+  );
   const left = panel.x + 12;
   const right = panel.x + panel.w - 12;
   const top = panel.y + 43;
@@ -20422,12 +20589,22 @@ function drawCompactShipPapers(panel, view) {
   const availableH = panel.y + panel.h - UI_PAGER_BUTTON_H - 7 - (top + 14);
   const detailOffset = localizedLineHeight(9);
   const rowH = Math.max(detailOffset * 3 + 4, Math.floor(availableH / Math.max(1, page.rows.length)));
+  shipInfoMenu.paperRowRects = page.rows.map((_, index) => ({
+    x: panel.x + 10,
+    y: top + 13 + index * rowH,
+    w: panel.w - 20,
+    h: rowH - 1
+  }));
   page.rows.forEach((paper, index) => {
     const y = top + 16 + index * rowH;
-    ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
-    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowH - 1);
+    const rect = shipInfoMenu.paperRowRects[index];
+    const hovered = drawShipPaperRowBackground(rect, index, shipInfoMenu.paperSelectedIndex === index);
     drawOptionsText(paper.kind.toUpperCase(), left, y, { color: paper.kind === "marque" ? "#91db69" : "#fbb954" });
-    drawOptionsText(shipLedgerDateLabel(paper.simMinute), right, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText(shipLedgerDateLabel(paper.simMinute), right - 10, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText(">", right + (hovered ? 1 : 0), y + detailOffset, {
+      align: "right",
+      color: hovered ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE
+    });
     drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + detailOffset, {
       color: PIRATE_MENU_INK
     });
@@ -20576,6 +20753,11 @@ function drawShipLedger(panel, view) {
 function drawShipPapers(panel, view) {
   const page = shipPapersPage(view, shipInfoMenu.papersPage, shipPapersRowsPerPage());
   shipInfoMenu.papersPage = page.page;
+  shipInfoMenu.paperSelectedIndex = clamp(
+    shipInfoMenu.paperSelectedIndex,
+    0,
+    Math.max(0, page.rows.length - 1)
+  );
   const summaryY = panel.y + SHIP_INFO_DESKTOP_SUMMARY_Y;
   drawOptionsText("ITEMS & DOCUMENTS", panel.x + 12, summaryY, { color: PIRATE_MENU_INK });
   drawOptionsText(`${view.papers.length} HELD`, panel.x + panel.w - 12, summaryY, {
@@ -20586,7 +20768,7 @@ function drawShipPapers(panel, view) {
   const typeX = panel.x + 12;
   const entryX = panel.x + 78;
   const detailX = panel.x + 218;
-  const dateX = panel.x + panel.w - 12;
+  const dateX = panel.x + panel.w - 23;
   const headerY = panel.y + SHIP_INFO_DESKTOP_HEADER_Y;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, headerY - 4, panel.w - 20, 1);
@@ -20600,12 +20782,18 @@ function drawShipPapers(panel, view) {
       color: PIRATE_MENU_INK_MUTED
     });
   }
+  const rowHeight = languageUsesTallPixelMetrics(currentLanguage) ? 28 : SHIP_INFO_PAPER_ROW_H;
+  shipInfoMenu.paperRowRects = page.rows.map((_, index) => ({
+    x: panel.x + 10,
+    y: panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * rowHeight - 3,
+    w: panel.w - 20,
+    h: rowHeight - 1
+  }));
   page.rows.forEach((paper, index) => {
-    const rowHeight = languageUsesTallPixelMetrics(currentLanguage) ? 28 : SHIP_INFO_PAPER_ROW_H;
     const detailOffset = localizedLineHeight(9);
     const y = panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * rowHeight;
-    ctx.fillStyle = index % 2 === 0 ? "rgba(113, 80, 51, 0.18)" : "rgba(113, 80, 51, 0.07)";
-    ctx.fillRect(panel.x + 10, y - 3, panel.w - 20, rowHeight - 1);
+    const rect = shipInfoMenu.paperRowRects[index];
+    const hovered = drawShipPaperRowBackground(rect, index, shipInfoMenu.paperSelectedIndex === index);
     const typeColor = paper.kind === "marque"
       ? PIRATE_MENU_SUCCESS
       : paper.kind === "delivery"
@@ -20630,6 +20818,10 @@ function drawShipPapers(panel, view) {
       align: "right",
       color: PIRATE_MENU_INK_MUTED
     });
+    drawOptionsText(">", panel.x + panel.w - 12 + (hovered ? 1 : 0), y + detailOffset, {
+      align: "right",
+      color: hovered ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE
+    });
   });
 
   const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
@@ -20652,6 +20844,134 @@ function drawShipPapers(panel, view) {
   }
   drawOptionsText(`PAGE ${page.page + 1}/${page.pageCount}`, panel.x + panel.w / 2, pagerY + 2, {
     align: "center",
+    color: PIRATE_MENU_INK_MUTED
+  });
+}
+
+function drawShipPaperRowBackground(rect, index, selected) {
+  const hovered = pointInRect(optionsMenu.hoverPoint, rect);
+  ctx.fillStyle = selected || hovered
+    ? PIRATE_MENU_PAPER_SELECTED
+    : index % 2 === 0
+      ? "rgba(113, 80, 51, 0.18)"
+      : "rgba(113, 80, 51, 0.07)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  if (!selected && !hovered) return false;
+  ctx.strokeStyle = hovered ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(rect.x + 1, rect.y + 1, hovered ? 3 : 2, rect.h - 2);
+  return hovered;
+}
+
+function drawShipPaperDetail(panel, view) {
+  const index = shipInfoMenu.paperDetailIndex;
+  if (!Number.isInteger(index) || index < 0 || index >= view.papers.length) {
+    throw new Error(`Expanded inventory entry does not exist: ${index}`);
+  }
+  shipInfoMenu.previousPageRect = null;
+  shipInfoMenu.nextPageRect = null;
+  const paper = view.papers[index];
+  const left = panel.x + 13;
+  const contentRight = panel.x + panel.w - 13;
+  const controlsW = UI_ICON_BUTTON_SIZE + 4;
+  const contentW = contentRight - left - controlsW;
+  const lineHeight = localizedLineHeight(9);
+  const titleLineHeight = localizedLineHeight(10);
+  const labelW = Math.min(70, Math.floor(contentW * 0.3));
+  const valueX = left + labelW;
+  const valueW = Math.max(40, contentW - labelW);
+  const titleLines = wrapPixelTextAll(paper.title.toUpperCase(), PIXEL_FONT_DIALOGUE_8, contentW);
+  const fields = [
+    ["TYPE", paper.kind],
+    ["ISSUER", paper.issuer],
+    ["ROUTE", paper.route],
+    ["DETAIL", paper.detail],
+    ["DATE", shipLedgerDateLabel(paper.simMinute)]
+  ].map(([label, value]) => ({
+    label,
+    lines: wrapPixelTextAll(String(value).toUpperCase(), PIXEL_FONT_SMALL_8, valueW)
+  }));
+
+  const viewport = {
+    x: left,
+    y: panel.y + 43,
+    w: contentRight - left,
+    h: panel.h - 43 - UI_PAGER_BUTTON_H - 13
+  };
+  const titleHeight = titleLines.length * titleLineHeight;
+  const fieldsHeight = fields.reduce((sum, field) => sum + Math.max(1, field.lines.length) * lineHeight + 5, 0);
+  const contentHeight = titleHeight + 13 + fieldsHeight;
+  shipInfoMenu.paperDetailMaxScrollY = Math.max(0, contentHeight - viewport.h);
+  shipInfoMenu.paperDetailScrollY = clamp(
+    shipInfoMenu.paperDetailScrollY,
+    0,
+    shipInfoMenu.paperDetailMaxScrollY
+  );
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(viewport.x, viewport.y, viewport.w, viewport.h);
+  ctx.clip();
+  let y = viewport.y - shipInfoMenu.paperDetailScrollY;
+  titleLines.forEach((line) => {
+    drawOptionsText(line, left, y, { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK });
+    y += titleLineHeight;
+  });
+  y += 5;
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  ctx.fillRect(left, y, contentW, 1);
+  y += 8;
+  fields.forEach((field) => {
+    drawOptionsText(field.label, left, y, { color: PIRATE_MENU_INK_MUTED });
+    field.lines.forEach((line, lineIndex) => {
+      drawOptionsText(line, valueX, y + lineIndex * lineHeight, {
+        color: field.label === "DETAIL" ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK
+      });
+    });
+    y += Math.max(1, field.lines.length) * lineHeight + 5;
+  });
+  ctx.restore();
+
+  const controlsX = panel.x + panel.w - UI_ICON_BUTTON_SIZE - 7;
+  if (shipInfoMenu.paperDetailMaxScrollY > 0) {
+    shipInfoMenu.paperDetailUpRect = {
+      x: controlsX,
+      y: viewport.y,
+      w: UI_ICON_BUTTON_SIZE,
+      h: UI_ICON_BUTTON_SIZE
+    };
+    shipInfoMenu.paperDetailDownRect = {
+      x: controlsX,
+      y: viewport.y + viewport.h - UI_ICON_BUTTON_SIZE,
+      w: UI_ICON_BUTTON_SIZE,
+      h: UI_ICON_BUTTON_SIZE
+    };
+    drawShipInfoArrowButton(
+      shipInfoMenu.paperDetailUpRect,
+      "^",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.paperDetailUpRect)
+    );
+    drawShipInfoArrowButton(
+      shipInfoMenu.paperDetailDownRect,
+      "v",
+      pointInRect(optionsMenu.hoverPoint, shipInfoMenu.paperDetailDownRect)
+    );
+  }
+
+  shipInfoMenu.paperDetailBackRect = {
+    x: panel.x + 12,
+    y: panel.y + panel.h - UI_PAGER_BUTTON_H - 5,
+    w: 92,
+    h: UI_PAGER_BUTTON_H
+  };
+  drawShipInfoArrowButton(
+    shipInfoMenu.paperDetailBackRect,
+    "< BACK",
+    pointInRect(optionsMenu.hoverPoint, shipInfoMenu.paperDetailBackRect)
+  );
+  drawOptionsText(`ENTRY ${index + 1}/${view.papers.length}`, panel.x + panel.w - 12, panel.y + panel.h - 18, {
+    align: "right",
     color: PIRATE_MENU_INK_MUTED
   });
 }

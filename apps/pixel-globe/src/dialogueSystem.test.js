@@ -2434,7 +2434,19 @@ test("capital port dialogue can grant a letter of marque", () => {
 
   selectPortDialogueOption(session, city, gameState, economy, [city], requestIndex, context);
   assert.equal(hasLetterOfMarqueFrom(gameState, "england"), true);
-  assert.match(session.feedback, /letter of marque granted/i);
+  const issued = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(issued.text, /King Henry VIII grants you authority/);
+  assert.doesNotMatch(issued.text, /already carry/i);
+  assert.equal(issued.feedback, null);
+
+  const backIndex = issued.options.findIndex((entry) => entry.action.nodeId === "root");
+  selectPortDialogueOption(session, city, gameState, economy, [city], backIndex, context);
+  const revisitedRoot = portDialogueView(session, city, gameState, economy, [city], context);
+  const revisitIndex = revisitedRoot.options.findIndex((entry) => entry.action.nodeId === "marque");
+  selectPortDialogueOption(session, city, gameState, economy, [city], revisitIndex, context);
+  const alreadyHeld = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(alreadyHeld.text, /already carry King Henry VIII's authority/i);
+  assert.equal(alreadyHeld.feedback, null);
 });
 
 function testSailingDistances(entries) {

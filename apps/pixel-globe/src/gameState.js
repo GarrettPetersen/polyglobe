@@ -883,7 +883,9 @@ export function playerShipReplacementCargoUsed(state, stats) {
   }
   usedTicks += crewHoldSpace(Math.max(crewFloor, Math.min(state.ship.crew, plan.crew))) * CARGO_SPACE_TICKS_PER_UNIT;
   usedTicks += Math.min(state.ship.cannons, plan.cannons) * CARGO_SPACE_TICKS_PER_UNIT;
-  usedTicks += Math.ceil(Math.min(state.survival.freshWater, plan.waterUnits)) * CARGO_SPACE_TICKS_PER_UNIT;
+  usedTicks += freshWaterHoldUnits(
+    Math.min(state.survival.freshWater, plan.waterUnits)
+  ) * CARGO_SPACE_TICKS_PER_UNIT;
   for (const units of Object.values(state.memory.cargoReservations)) {
     usedTicks += units * CARGO_SPACE_TICKS_PER_UNIT;
   }
@@ -969,7 +971,7 @@ export function cargoUsedTicks(state) {
   if (state.ship) {
     usedTicks += crewHoldSpace(state.ship.crew) * CARGO_SPACE_TICKS_PER_UNIT;
     usedTicks += state.ship.cannons * CARGO_SPACE_TICKS_PER_UNIT;
-    usedTicks += Math.ceil(state.survival.freshWater) * CARGO_SPACE_TICKS_PER_UNIT;
+    usedTicks += freshWaterHoldUnits(state.survival.freshWater) * CARGO_SPACE_TICKS_PER_UNIT;
   }
   for (const units of Object.values(state.memory.cargoReservations)) {
     usedTicks += units * CARGO_SPACE_TICKS_PER_UNIT;
@@ -1215,10 +1217,8 @@ export function fishCatchCargoCapacity(state) {
 export function refillFreshWaterFromShore(state) {
   assertGameState(state);
   const missing = Math.max(0, state.survival.freshWaterCapacity - state.survival.freshWater);
-  const availableSpace = provisionCargoFree(state, "water");
-  const filled = Math.min(missing, availableSpace);
+  const filled = stowFreshWater(state, missing);
   if (filled <= 0) return 0;
-  state.survival.freshWater += filled;
   recordDecision(state, "scavenge.water", Math.ceil(filled));
   return filled;
 }
@@ -1382,8 +1382,9 @@ export function receiveEmergencyShipAid(state, npcShipId) {
       } else {
         const missingWater = Math.floor(state.survival.freshWaterCapacity - state.survival.freshWater);
         if (missingWater <= 0) continue;
-        state.survival.freshWater += 1;
-        granted.water += 1;
+        const filled = stowFreshWater(state, 1);
+        if (filled < 1) continue;
+        granted.water += filled;
       }
       changed = true;
     }
@@ -1684,21 +1685,25 @@ export function autoProvisionFreshWaterAtPort(state, city, context = {}) {
   const neededUnits = Math.ceil(missing / FRESH_WATER_USE_PER_DAY);
   const quantity = Math.min(neededUnits, Math.floor(state.doubloons / good.basePrice));
   if (quantity <= 0) return { good, quantity: 0, price: 0, filled: 0 };
-  const filled = Math.min(missing, quantity * FRESH_WATER_USE_PER_DAY);
-  const price = quantity * good.basePrice;
-  state.survival.freshWater = Math.min(state.survival.freshWaterCapacity, state.survival.freshWater + filled);
+  const filled = stowFreshWater(
+    state,
+    Math.min(missing, quantity * FRESH_WATER_USE_PER_DAY)
+  );
+  if (filled <= 0) return { good, quantity: 0, price: 0, filled: 0 };
+  const purchasedQuantity = Math.ceil(filled / FRESH_WATER_USE_PER_DAY);
+  const price = purchasedQuantity * good.basePrice;
   state.doubloons -= price;
-  recordDecision(state, `provisions.water.${good.id}`, quantity);
+  recordDecision(state, `provisions.water.${good.id}`, purchasedQuantity);
   recordLedgerEntry(state, city, context, {
     kind: "provision",
-    description: `Take on ${good.label} x${quantity}`,
+    description: `Take on ${good.label} x${purchasedQuantity}`,
     goodId: good.id,
-    quantity,
+    quantity: purchasedQuantity,
     amount: -price,
     costBasis: null,
     pnl: null
   });
-  return { good, quantity, price, filled };
+  return { good, quantity: purchasedQuantity, price, filled };
 }
 
 export function updateSurvival(state, previousMinute, currentMinute, options = {}) {
@@ -1735,14 +1740,11 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   }
   if (options.freshwater) {
     if (state.survival.freshWater < state.survival.freshWaterCapacity) {
-      const filled = state.ship
-        ? Math.min(
-          state.survival.freshWaterCapacity - state.survival.freshWater,
-          provisionCargoFree(state, "water")
-        )
-        : state.survival.freshWaterCapacity - state.survival.freshWater;
+      const filled = stowFreshWater(
+        state,
+        state.survival.freshWaterCapacity - state.survival.freshWater
+      );
       if (filled > 0) {
-        state.survival.freshWater += filled;
         result.freshWaterRefilled = true;
         result.changed = true;
       }
@@ -1769,12 +1771,8 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
       allowCargoReserve: !state.ship,
       allowWine: Boolean(state.ship)
     });
-    const rainWaterStored = Math.min(
-      state.survival.freshWaterCapacity - state.survival.freshWater,
-      availableRainWater - rainWaterUsed
-    );
+    const rainWaterStored = stowFreshWater(state, availableRainWater - rainWaterUsed);
     if (rainWaterStored > 0) {
-      state.survival.freshWater += rainWaterStored;
       result.changed = true;
     }
     result.rainWaterCollected = rainWaterUsed + rainWaterStored;
@@ -3170,7 +3168,7 @@ function restockBalancedProvisions(state, plan, hardtack) {
     (provisionCargoFree(state, "food") + 1e-8) * FOOD_RATIONS_PER_HOLD_UNIT / hardtack.unitSize
   );
   const blockedRations = Math.max(0, affordableRations - freeFoodRations);
-  const excessWater = Math.max(0, Math.ceil(state.survival.freshWater) - targets.water);
+  const excessWater = Math.max(0, freshWaterHoldUnits(state.survival.freshWater) - targets.water);
   const waterToDump = Math.min(
     excessWater,
     Math.ceil(blockedRations * hardtack.unitSize / FOOD_RATIONS_PER_HOLD_UNIT)
@@ -3178,7 +3176,7 @@ function restockBalancedProvisions(state, plan, hardtack) {
   if (waterToDump > 0) {
     state.survival.freshWater = Math.min(
       state.survival.freshWater,
-      Math.ceil(state.survival.freshWater) - waterToDump
+      freshWaterHoldUnits(state.survival.freshWater) - waterToDump
     );
   }
 
@@ -3196,12 +3194,11 @@ function restockBalancedProvisions(state, plan, hardtack) {
 
   while (state.survival.freshWater < targets.water && state.doubloons >= WATER_RESTOCK_COST) {
     const added = Math.min(1, targets.water - state.survival.freshWater);
-    const space = Math.ceil(state.survival.freshWater + added) - Math.ceil(state.survival.freshWater);
-    if (provisionCargoFree(state, "water") + 1e-8 < space) break;
-    state.survival.freshWater += added;
+    const filled = stowFreshWater(state, added);
+    if (filled <= 0) break;
     state.doubloons -= WATER_RESTOCK_COST;
     spent += WATER_RESTOCK_COST;
-    additions.water += added;
+    additions.water += filled;
   }
   return { spent, ...additions };
 }
@@ -3263,13 +3260,47 @@ function provisionCargoFree(state, kind) {
   return Math.max(0, cargoFree(state) + reserved);
 }
 
+function stowFreshWater(state, requested) {
+  if (!Number.isFinite(requested) || requested < 0) {
+    throw new Error(`Invalid fresh water storage request: ${requested}`);
+  }
+  if (requested <= 0) return 0;
+  const current = state.survival.freshWater;
+  const missing = Math.max(0, state.survival.freshWaterCapacity - current);
+  if (missing <= 0) return 0;
+  const available = state.ship
+    ? Math.max(
+      0,
+      freshWaterHoldUnits(current) - current +
+        wholeCargoUnitsAvailable(provisionCargoFree(state, "water"))
+    )
+    : missing;
+  const filled = Math.min(requested, missing, available);
+  if (filled <= 0) return 0;
+  state.survival.freshWater = normalizeFreshWater(current + filled);
+  assertPlayerCargoWithinCapacity(state);
+  return filled;
+}
+
+function freshWaterHoldUnits(quantity) {
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    throw new Error(`Invalid fresh water hold quantity: ${quantity}`);
+  }
+  return Math.max(0, Math.ceil(quantity - 1e-8));
+}
+
+function normalizeFreshWater(quantity) {
+  const nearest = Math.round(quantity);
+  return Math.abs(quantity - nearest) <= 1e-8 ? nearest : quantity;
+}
+
 function loadoutProvisionReservation(state) {
   const plan = state.ship?.loadoutTargets;
   if (!plan) return { missingFood: 0, missingWater: 0 };
   const allocation = loadoutProvisionAllocation(state, plan);
   return {
     missingFood: Math.max(0, allocation.foodUnits - provisionFoodUnits(state)),
-    missingWater: Math.max(0, allocation.waterUnits - Math.ceil(state.survival.freshWater))
+    missingWater: Math.max(0, allocation.waterUnits - freshWaterHoldUnits(state.survival.freshWater))
   };
 }
 
@@ -3282,7 +3313,7 @@ function loadoutProvisionAllocation(state, plan) {
   if (plan.storesSpace !== plan.foodUnits + plan.waterUnits) {
     throw new Error("Ship loadout provision targets do not match their reserved store space");
   }
-  const actualProvisionSpace = provisionFoodUnits(state) + Math.ceil(state.survival.freshWater);
+  const actualProvisionSpace = provisionFoodUnits(state) + freshWaterHoldUnits(state.survival.freshWater);
   const provisionSpaceAlreadyAboard = Math.min(actualProvisionSpace, plan.storesSpace);
   const nonProvisionSpace = cargoUsed(state) - provisionSpaceAlreadyAboard;
   const availableSpaceRaw = Math.max(

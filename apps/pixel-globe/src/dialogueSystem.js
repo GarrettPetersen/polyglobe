@@ -55,7 +55,12 @@ import {
   tradeGoodById,
   worldMarketPriceComparison
 } from "./economy.js";
-import { DIPLOMACY_ALLY, DIPLOMACY_FRIENDLY, factionById } from "./factions.js";
+import {
+  DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
+  factionById,
+  factionNounPhrase
+} from "./factions.js";
 import { adjustDiplomaticStance, worldDiplomacyBetween } from "./worldDiplomacy.js";
 import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
@@ -208,6 +213,7 @@ export function createPortDialogueSession(city, options = {}) {
     caribbeanGingerArrival: options.caribbeanGingerArrival === true,
     chefQuestArrival: options.chefQuestArrival === true,
     vikingLongshipArrival: options.vikingLongshipArrival === true,
+    marqueGrantedFactionId: null,
     selectedIndex: 0,
     feedback: null
   };
@@ -936,6 +942,9 @@ export function selectPortDialogueOption(
     }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
+    if (session.nodeId === "marque" && action.nodeId !== "marque") {
+      session.marqueGrantedFactionId = null;
+    }
     if (action.nodeId === "equipment" && session.nodeId === "root") {
       const offer = enterSpecialEquipmentStore(gameState, economy, city);
       if (offer) {
@@ -1499,10 +1508,8 @@ export function selectPortDialogueOption(
   }
   if (action.type === "request-marque") {
     const result = grantLetterOfMarque(gameState, city, context.shipPower || 0, context);
-    const faction = factionById(result.factionId);
-    session.feedback = result.grantedNow
-      ? `${faction.adjective} letter of marque granted.`
-      : `${faction.adjective} letter of marque already held.`;
+    session.marqueGrantedFactionId = result.grantedNow ? result.factionId : null;
+    session.feedback = null;
     session.nodeId = "marque";
     session.selectedIndex = 0;
     return { closed: false };
@@ -3170,11 +3177,13 @@ function marqueView(session, city, gameState, context) {
       ]
     };
   }
-  const faction = factionById(status.factionId);
   const ruler = rulerAtMinute(status.factionId, context.simMinute ?? 0);
   if (!ruler) throw new Error(`Letter of marque faction has no ruler: ${status.factionId}`);
-  const text = status.granted
-    ? `You already carry ${ruler.displayName}'s authority to prize enemies of ${faction.name}.`
+  const newlyGranted = session.marqueGrantedFactionId === status.factionId;
+  const text = newlyGranted
+    ? `${ruler.displayName} grants you authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
+    : status.granted
+    ? `You already carry ${ruler.displayName}'s authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
     : `${ruler.displayName}'s court will issue a letter if your standing and fighting ship are sufficient. Standing ${signedReputation(status.reputation)}/${signedReputation(status.reputationRequired)}. Ship strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
   const disabledReason = status.missing.length > 0
     ? `Need ${status.missing.join(" and ")}.`

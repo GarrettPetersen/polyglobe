@@ -374,6 +374,29 @@ test("heavy rain can raise a minimally crewed boat's water supply", () => {
   assert.equal(result.changed, true);
 });
 
+test("rain cannot refill casks through cargo caught in their former hold space", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.cargo.gold = state.cargoCapacity - cargoUsed(state) - 1;
+  state.accounts.cargoCostBasis.gold = 0;
+  state.survival.freshWater -= 1;
+  receiveFishCatch(state, {
+    stockKey: "10:cod",
+    speciesLabel: "Cod",
+    quantity: 2
+  });
+  const waterBefore = state.survival.freshWater;
+
+  assert.equal(cargoUsed(state), state.cargoCapacity);
+  const result = updateSurvival(state, 0, 2 * 60, { rainfall: 1 });
+
+  assert.equal(state.survival.freshWater, waterBefore);
+  assert.equal(result.rainWaterCollected, 0.125);
+  assert.ok(cargoUsed(state) < state.cargoCapacity);
+  assert.doesNotThrow(() => validateGameState(state));
+});
+
 test("the ship traveler manifest distinguishes passengers, envoys, and settlers", () => {
   const stats = shipStatsForSlug("fishing-lugger");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
