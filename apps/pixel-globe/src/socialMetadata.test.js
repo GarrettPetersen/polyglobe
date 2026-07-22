@@ -38,6 +38,21 @@ test("credits contain attribution text without hyperlinks", () => {
   assert.doesNotMatch(credits, /\[[^\]]+\]\([^)]+\)/);
 });
 
+test("credits thank the community playtesters", () => {
+  const credits = readFileSync(new URL("public/assets/CREDITS.md", appRoot), "utf8");
+  assert.match(credits, /^## Playtesting$/m);
+  for (const handle of [
+    "@MunicipleOrrery",
+    "@J_K_Chesterton",
+    "@StuffForSisters",
+    "@dgant",
+    "@ZachariahSchwab",
+    "@QuantumWitness"
+  ]) {
+    assert.ok(credits.includes(handle), `missing playtester credit for ${handle}`);
+  }
+});
+
 function pngDimensions(url) {
   const bytes = readFileSync(url);
   assert.equal(bytes.toString("ascii", 1, 4), "PNG");

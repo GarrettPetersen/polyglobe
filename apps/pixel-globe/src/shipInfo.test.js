@@ -11,6 +11,7 @@ import {
 } from "./gameState.js";
 import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
+  SHIP_PAPER_ROW_CONTENT_INSET,
   SHIP_PAPERS_ROWS_PER_PAGE,
   createShipComparisonView,
   createShipInfoView,
@@ -20,7 +21,8 @@ import {
   shipLedgerDateLabel,
   shipLedgerPage,
   shipPapersPage,
-  shipPerformanceRating
+  shipPerformanceRating,
+  stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -230,6 +232,31 @@ test("ship papers pages stop at either end", () => {
   assert.equal(shipPapersPage(view, 1).rows.length, 1);
   assert.equal(shipPapersPage(view, -1).page, 0);
   assert.equal(shipPapersPage(view, 2).page, 1);
+});
+
+test("ship paper focus activates on the edge nearest the navigation direction", () => {
+  assert.equal(stepShipPaperSelectionIndex({
+    currentIndex: 3,
+    direction: 1,
+    minIndex: 3,
+    maxIndex: 5,
+    active: false
+  }), 3);
+  assert.equal(stepShipPaperSelectionIndex({
+    currentIndex: 3,
+    direction: -1,
+    minIndex: 3,
+    maxIndex: 5,
+    active: false
+  }), 5);
+  assert.equal(stepShipPaperSelectionIndex({
+    currentIndex: 3,
+    direction: 1,
+    minIndex: 0,
+    maxIndex: 5,
+    active: true
+  }), 4);
+  assert.equal(SHIP_PAPER_ROW_CONTENT_INSET, 6);
 });
 
 test("cargo capacity disagreement fails loudly", () => {

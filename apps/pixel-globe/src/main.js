@@ -836,6 +836,7 @@ import {
 } from "./waterLatitudePalette.js";
 import { applyDayNightPaletteGrade } from "./dayNightPalette.js";
 import {
+  SHIP_PAPER_ROW_CONTENT_INSET,
   createShipComparisonView,
   createShipInfoView,
   createShipyardShipView,
@@ -843,7 +844,8 @@ import {
   shipLocalDateLabel,
   shipLedgerDateLabel,
   shipLedgerPage,
-  shipPapersPage
+  shipPapersPage,
+  stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import {
   claimShipyardListing,
@@ -4450,6 +4452,7 @@ function createShipInfoMenuState() {
     ledgerPage: 0,
     papersPage: 0,
     paperSelectedIndex: 0,
+    paperSelectionActive: false,
     paperDetailIndex: null,
     paperDetailScrollY: 0,
     paperDetailMaxScrollY: 0,
@@ -6436,6 +6439,7 @@ function openShipInfoMenu() {
   shipInfoMenu.ledgerPage = 0;
   shipInfoMenu.papersPage = 0;
   shipInfoMenu.paperSelectedIndex = 0;
+  shipInfoMenu.paperSelectionActive = false;
   shipInfoMenu.paperDetailIndex = null;
   shipInfoMenu.paperDetailScrollY = 0;
   shipInfoMenu.paperDetailMaxScrollY = 0;
@@ -6466,6 +6470,7 @@ function closeShipInfoMenu() {
   shipInfoMenu.ledgerTabRect = null;
   shipInfoMenu.papersTabRect = null;
   shipInfoMenu.paperRowRects = [];
+  shipInfoMenu.paperSelectionActive = false;
   shipInfoMenu.paperDetailBackRect = null;
   shipInfoMenu.paperDetailUpRect = null;
   shipInfoMenu.paperDetailDownRect = null;
@@ -6508,6 +6513,7 @@ function handleShipInfoKeyDown(event) {
       return;
     }
     if (event.key === "Enter" || event.key === " ") {
+      shipInfoMenu.paperSelectionActive = true;
       openSelectedShipPaperDetail();
       return;
     }
@@ -6559,6 +6565,7 @@ function shipPapersRowsPerPage() {
 function setShipInfoView(view) {
   if (!["vessel", "ledger", "papers"].includes(view)) throw new Error(`Unknown ship information view: ${view}`);
   shipInfoMenu.view = view;
+  shipInfoMenu.paperSelectionActive = false;
   if (view !== "papers") {
     shipInfoMenu.paperDetailIndex = null;
     shipInfoMenu.paperDetailScrollY = 0;
@@ -6574,13 +6581,22 @@ function stepShipPaperSelection(direction) {
   const view = createShipInfoView(ship, gameState);
   if (view.papers.length === 0) return;
   const rowsPerPage = shipPapersRowsPerPage();
+  const page = shipPapersPage(view, shipInfoMenu.papersPage, rowsPerPage);
+  const pageStart = page.page * rowsPerPage;
   const current = Math.min(
     view.papers.length - 1,
-    shipInfoMenu.papersPage * rowsPerPage + shipInfoMenu.paperSelectedIndex
+    pageStart + shipInfoMenu.paperSelectedIndex
   );
-  const next = clamp(current + Math.sign(direction), 0, view.papers.length - 1);
+  const next = stepShipPaperSelectionIndex({
+    currentIndex: current,
+    direction,
+    minIndex: shipInfoMenu.paperSelectionActive ? 0 : pageStart,
+    maxIndex: shipInfoMenu.paperSelectionActive ? view.papers.length - 1 : pageStart + page.rows.length - 1,
+    active: shipInfoMenu.paperSelectionActive
+  });
   shipInfoMenu.papersPage = Math.floor(next / rowsPerPage);
   shipInfoMenu.paperSelectedIndex = next % rowsPerPage;
+  shipInfoMenu.paperSelectionActive = true;
   dirty = true;
 }
 
@@ -9152,14 +9168,17 @@ function handleShipInfoPointerDown(point) {
     return;
   }
   if (pointInRect(point, shipInfoMenu.vesselTabRect)) {
+    shipInfoMenu.paperSelectionActive = false;
     setShipInfoView("vessel");
     return;
   }
   if (pointInRect(point, shipInfoMenu.ledgerTabRect)) {
+    shipInfoMenu.paperSelectionActive = false;
     setShipInfoView("ledger");
     return;
   }
   if (pointInRect(point, shipInfoMenu.papersTabRect)) {
+    shipInfoMenu.paperSelectionActive = false;
     setShipInfoView("papers");
     return;
   }
@@ -9178,14 +9197,19 @@ function handleShipInfoPointerDown(point) {
   for (let index = 0; index < shipInfoMenu.paperRowRects.length; index++) {
     if (!pointInRect(point, shipInfoMenu.paperRowRects[index])) continue;
     shipInfoMenu.paperSelectedIndex = index;
+    shipInfoMenu.paperSelectionActive = false;
     openSelectedShipPaperDetail();
     return;
   }
   if (pointInRect(point, shipInfoMenu.previousPageRect)) {
+    shipInfoMenu.paperSelectionActive = false;
     stepShipInfoPage(-1);
     return;
   }
-  if (pointInRect(point, shipInfoMenu.nextPageRect)) stepShipInfoPage(1);
+  if (pointInRect(point, shipInfoMenu.nextPageRect)) {
+    shipInfoMenu.paperSelectionActive = false;
+    stepShipInfoPage(1);
+  }
 }
 
 function stepDiscoveriesPage(direction) {
@@ -20876,6 +20900,7 @@ function drawCompactShipPapers(panel, view) {
     Math.max(0, page.rows.length - 1)
   );
   const left = panel.x + 12;
+  const rowLeft = panel.x + 10 + SHIP_PAPER_ROW_CONTENT_INSET;
   const right = panel.x + panel.w - 12;
   const top = panel.y + 43;
   drawOptionsText("ITEMS & DOCUMENTS", left, top, { color: PIRATE_MENU_INK });
@@ -20893,17 +20918,18 @@ function drawCompactShipPapers(panel, view) {
   page.rows.forEach((paper, index) => {
     const y = top + 16 + index * rowH;
     const rect = shipInfoMenu.paperRowRects[index];
-    const hovered = drawShipPaperRowBackground(rect, index, shipInfoMenu.paperSelectedIndex === index);
-    drawOptionsText(paper.kind.toUpperCase(), left, y, { color: paper.kind === "marque" ? "#91db69" : "#fbb954" });
+    const selected = shipInfoMenu.paperSelectionActive && shipInfoMenu.paperSelectedIndex === index;
+    const hovered = drawShipPaperRowBackground(rect, index, selected);
+    drawOptionsText(paper.kind.toUpperCase(), rowLeft, y, { color: paper.kind === "marque" ? "#91db69" : "#fbb954" });
     drawOptionsText(shipLedgerDateLabel(paper.simMinute), right - 10, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
     drawOptionsText(">", right + (hovered ? 1 : 0), y + detailOffset, {
       align: "right",
       color: hovered ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE
     });
-    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + detailOffset, {
+    drawOptionsText(fitPixelText(paper.title.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 28), rowLeft, y + detailOffset, {
       color: PIRATE_MENU_INK
     });
-    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24), left, y + detailOffset * 2, {
+    drawOptionsText(fitPixelText(paper.route.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 28), rowLeft, y + detailOffset * 2, {
       color: PIRATE_MENU_CHART_LINE
     });
   });
@@ -21060,7 +21086,7 @@ function drawShipPapers(panel, view) {
     color: view.papers.length > 0 ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED
   });
 
-  const typeX = panel.x + 12;
+  const typeX = panel.x + 10 + SHIP_PAPER_ROW_CONTENT_INSET;
   const entryX = panel.x + 78;
   const detailX = panel.x + 218;
   const dateX = panel.x + panel.w - 23;
@@ -21088,7 +21114,8 @@ function drawShipPapers(panel, view) {
     const detailOffset = localizedLineHeight(9);
     const y = panel.y + SHIP_INFO_DESKTOP_FIRST_ROW_Y + index * rowHeight;
     const rect = shipInfoMenu.paperRowRects[index];
-    const hovered = drawShipPaperRowBackground(rect, index, shipInfoMenu.paperSelectedIndex === index);
+    const selected = shipInfoMenu.paperSelectionActive && shipInfoMenu.paperSelectedIndex === index;
+    const hovered = drawShipPaperRowBackground(rect, index, selected);
     const typeColor = paper.kind === "marque"
       ? PIRATE_MENU_SUCCESS
       : paper.kind === "delivery"

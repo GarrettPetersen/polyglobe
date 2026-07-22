@@ -3,6 +3,14 @@
 ## Created by
 - Garrett Petersen
 
+## Playtesting
+- Municipal Orrery (@MunicipleOrrery)
+- Alexander Popemobile (@J_K_Chesterton)
+- Fr Victor Feltes (@StuffForSisters)
+- Dan Gant (@dgant)
+- Zachariah Schwab (@ZachariahSchwab)
+- QuantumObserver (@QuantumWitness)
+
 ## Music
 - YouFulca
 

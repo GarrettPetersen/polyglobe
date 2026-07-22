@@ -26,6 +26,7 @@ import { effectivePlayerShipStats } from "./playerPerks.js";
 export const SHIP_INFO_CARGO_ROWS_PER_PAGE = 8;
 export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
 export const SHIP_PAPERS_ROWS_PER_PAGE = 7;
+export const SHIP_PAPER_ROW_CONTENT_INSET = 6;
 
 const LEDGER_START_YEAR = 1522;
 const LEDGER_MONTHS = Object.freeze(["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]);
@@ -237,6 +238,22 @@ export function shipPapersPage(view, page, rowsPerPage = SHIP_PAPERS_ROWS_PER_PA
     pageCount,
     rows: view.papers.slice(start, start + rowsPerPage)
   };
+}
+
+export function stepShipPaperSelectionIndex({ currentIndex, direction, minIndex, maxIndex, active }) {
+  if (!Number.isInteger(currentIndex)) throw new Error(`Invalid ship paper selection index: ${currentIndex}`);
+  if (!Number.isInteger(direction) || direction === 0) {
+    throw new Error(`Invalid ship paper selection direction: ${direction}`);
+  }
+  if (!Number.isInteger(minIndex) || !Number.isInteger(maxIndex) || minIndex < 0 || maxIndex < minIndex) {
+    throw new Error(`Invalid ship paper selection bounds: ${minIndex}-${maxIndex}`);
+  }
+  if (typeof active !== "boolean") throw new Error(`Invalid ship paper selection state: ${active}`);
+  if (!active) return direction > 0 ? minIndex : maxIndex;
+  if (currentIndex < minIndex || currentIndex > maxIndex) {
+    throw new Error(`Ship paper selection ${currentIndex} is outside ${minIndex}-${maxIndex}`);
+  }
+  return Math.max(minIndex, Math.min(maxIndex, currentIndex + Math.sign(direction)));
 }
 
 function assertRowsPerPage(value, label) {
