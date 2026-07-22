@@ -70,6 +70,16 @@ test("capsule art documents and preserves its authored layer order", async () =>
   );
 });
 
+test("loading screen layers are exact public copies of the authored capsule layers", async () => {
+  for (const filename of ["background.png", "reflection.png", "upper_text.png", "ship.png", "lower_text.png"]) {
+    const [source, runtime] = await Promise.all([
+      readFile(new URL(`../capsule_art/source/${filename}`, import.meta.url)),
+      readFile(new URL(`../public/assets/loading/${filename}`, import.meta.url))
+    ]);
+    assert.deepEqual(runtime, source, filename);
+  }
+});
+
 test("main capsule is the exact authored five-layer composition", async () => {
   const sourceNames = ["background", "reflection", "upper_text", "ship", "lower_text"];
   const sourceImages = await Promise.all(sourceNames.map((name) => loadImage(

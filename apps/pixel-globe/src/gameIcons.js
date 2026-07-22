@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-28";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-29";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -56,13 +56,6 @@ export const GAME_ICON_PACKS = Object.freeze({
     license: "KeifooPX itch.io asset license",
     archive: "99_ingredients.zip"
   }),
-  hollow: iconPack({
-    creator: "Hollow Dolphin",
-    title: "Fishing Icon Pack 16x16",
-    sourceUrl: "https://hollowdolphin.itch.io/fishing-icon-pack",
-    license: "Hollow Dolphin itch.io asset license",
-    archive: "Hollow Dolphin Fishing Icon Pack.zip"
-  }),
   nikoichu: iconPack({
     creator: "Nikoichu",
     title: "1-bit Pixel Icons",
@@ -89,7 +82,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:fresh-water": projectAsset("public/assets/misc/fresh-water-cask.png"),
   "good:foraged-food": alex("fruit_apple.png"),
   "good:grain": paperOutlined(keifoo("grains_png/wheat.png")),
-  "good:fish": hollow(4),
+  "good:fish": generatedIcon("herring"),
   "good:whale-blubber": pirate(9),
   "good:beaver-pelts": generatedIcon("beaver-pelt"),
   "good:cheese": alex("cheese_gouda.png"),
@@ -481,10 +474,6 @@ function alex(filename) {
 
 function keifoo(path) {
   return iconSource("keifoo", `99_ingredients/ingredients_png/${path}`);
-}
-
-function hollow(number) {
-  return iconSource("hollow", `Separated Sprites/16x16/fishing_icons_16x16_${number}.png`);
 }
 
 function nikoichu(filename, color) {

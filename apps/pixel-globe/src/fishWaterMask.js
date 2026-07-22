@@ -1,3 +1,23 @@
+export function fisheryTileCallsNearestFirst(tileCalls, viewX, viewY) {
+  if (!Array.isArray(tileCalls)) throw new Error("Fishery tile ordering requires tile calls");
+  if (!Number.isFinite(viewX) || !Number.isFinite(viewY)) {
+    throw new Error("Fishery tile ordering requires a finite view position");
+  }
+  return tileCalls
+    .map((call, index) => {
+      if (!Number.isFinite(call?.drawSurfaceX) || !Number.isFinite(call?.drawSurfaceY)) {
+        throw new Error(`Fishery tile call has no finite draw position: ${call?.id ?? "unknown"}`);
+      }
+      return {
+        call,
+        index,
+        distanceSquared: (call.drawSurfaceX - viewX) ** 2 + (call.drawSurfaceY - viewY) ** 2
+      };
+    })
+    .sort((a, b) => a.distanceSquared - b.distanceSquared || a.index - b.index)
+    .map((entry) => entry.call);
+}
+
 export function nearestWaterMaskedPoint({ x, y, isWater, fallback = null, maxRadius = 12 }) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Fish water-mask point must be finite");
   if (typeof isWater !== "function") throw new Error("Fish water-mask point requires an isWater callback");

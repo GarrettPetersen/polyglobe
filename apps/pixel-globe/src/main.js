@@ -996,7 +996,11 @@ import {
   splitRiverTerrainBanks,
   terrainOccludersForScreenBounds
 } from "./terrainShipOcclusion.js";
-import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
+import {
+  fisheryTileCallsNearestFirst,
+  nearestWaterMaskedPoint,
+  waterMaskedSpritePixels
+} from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 import { gamepadControlFrame, gamepadMenuNavigationFrame } from "./controllerInput.js";
 import {
@@ -1125,7 +1129,9 @@ import {
   shoreScavengeNoticeLabel,
   shoreScavengeNarrative
 } from "./shoreScavenge.js";
+import { startCapsuleLoadingScreen } from "./loadingScreen.js";
 
+const capsuleLoadingScreen = startCapsuleLoadingScreen();
 const BASE_SCREEN_W = 455;
 const BASE_SCREEN_H = 256;
 let SCREEN_W = BASE_SCREEN_W;
@@ -1853,7 +1859,6 @@ const FISH_VISIBLE_MAX_INDIVIDUALS = 42;
 const FISH_NPC_HARVEST_RADIUS_PX = 24;
 const FISH_NPC_HARVEST_INTERVAL_MINUTES = 8 * 60;
 const FISH_NOTICE_MS = 2400;
-const FISH_SWIM_SEARCH_MARGIN_PX = 18;
 const FISH_SWIM_PERIOD_MIN_MS = 4200;
 const FISH_SWIM_PERIOD_SPREAD_MS = 5200;
 const FISH_SCATTER_RADIUS_PX = 30;
@@ -2331,11 +2336,12 @@ window.addEventListener("pointercancel", handlePointerUp);
 
 main().catch((err) => {
   console.error(err);
+  capsuleLoadingScreen.fail(err);
   drawFatalError(err);
 });
 
 async function main() {
-  await loadPixelFonts();
+  await Promise.all([loadPixelFonts(), capsuleLoadingScreen.ready]);
   drawLoading();
   const shipSpriteKey = vehicleSpriteKeyForShipSlug(START_SHIP_SLUG);
   const [
@@ -2732,7 +2738,14 @@ async function main() {
   setupSoundEffects();
   if (PERFORMANCE_BENCHMARK) setupPerformanceBenchmark();
   else if (CAPTURE_SCENARIO) setupCaptureMode();
-  if (!CAPTURE_FRAME_PASS) requestAnimationFrame(loop);
+  if (!CAPTURE_FRAME_PASS) {
+    requestAnimationFrame((nowMs) => {
+      loop(nowMs);
+      capsuleLoadingScreen.finish();
+    });
+  } else {
+    capsuleLoadingScreen.finish();
+  }
   ensureGameAudioStarted();
 }
 
@@ -4956,13 +4969,18 @@ function applyThemeAudioSettings() {
 }
 
 function playSoundEffect(pool, volume, playbackRate = 1) {
-  if (!pool || pool.length === 0 || optionsMenu.muted || optionsMenu.sfxVolume <= 0) return;
+  if (!pool || pool.length === 0) return;
+  if (CAPTURE_FRAME_PASS && (
+    CAPTURE_SCENARIO?.sequence?.kind === "sail" || pool === soundEffects?.sailDeploy
+  )) return;
+  if (!CAPTURE_FRAME_PASS && (optionsMenu.muted || optionsMenu.sfxVolume <= 0)) return;
   const audio = pool.find((item) => item.paused || item.ended) || pool[0];
   audio.pause();
   audio.currentTime = 0;
   audio.playbackRate = clamp(randomizedSfxPlaybackRate(playbackRate), 0.75, 1.25);
-  audio.volume = clamp(optionsMenu.sfxVolume * volume, 0, 1);
-  audio.muted = optionsMenu.muted;
+  const outputVolume = CAPTURE_FRAME_PASS ? volume : optionsMenu.sfxVolume * volume;
+  audio.volume = clamp(outputVolume, 0, 1);
+  audio.muted = CAPTURE_FRAME_PASS ? false : optionsMenu.muted;
   if (CAPTURE_FRAME_PASS) {
     emitCaptureEvent("capture-sfx", {
       assetPath: captureSfxAssetPath(audio),
@@ -5758,8 +5776,10 @@ function stageCaptureSequence() {
     gameState.doubloons = 12_000;
     if (sequence.variant === "sell") {
       const good = tradeGoodById(sequence.goodId);
-      const quantity = Math.min(4, Math.floor(cargoFree(gameState) / good.unitSize));
-      if (quantity < 1) throw new Error(`Capture ship has no room for ${good.label}`);
+      const quantity = sequence.transactionCount;
+      if (quantity * good.unitSize > cargoFree(gameState)) {
+        throw new Error(`Capture ship has no room for ${quantity} ${good.label} transactions`);
+      }
       gameState.cargo[good.id] = quantity;
       gameState.accounts.cargoCostBasis[good.id] = quantity * Math.max(1, Math.round(good.basePrice * 0.2));
     }
@@ -5862,8 +5882,10 @@ function updateCaptureTrade(sequence) {
     emitCaptureEvent("capture-beat", { action: `market-${sequence.variant}`, city: sequence.cityName });
     dirty = true;
   }
-  if (captureCue("trade-once", 2.2)) captureChooseTradeGood(sequence);
-  if (captureCue("trade-twice", 4.4)) captureChooseTradeGood(sequence);
+  for (let index = 0; index < sequence.transactionCount; index += 1) {
+    const atSeconds = 1.45 + index * 0.36;
+    if (captureCue(`trade-${index + 1}`, atSeconds)) captureChooseTradeGood(sequence);
+  }
 }
 
 function updateCaptureFishing(sequence) {
@@ -5909,7 +5931,6 @@ function updateCaptureWhale(sequence) {
 function updateCaptureSailing(sequence) {
   if (!captureCue("beam-reach", 0.1)) return;
   const performance = captureBeamReachPerformance();
-  playSoundEffect(soundEffects?.sailDeploy, 0.52, 1.04);
   emitCaptureEvent("capture-beat", {
     action: "beam-reach",
     shipSlug: ship.typeSlug,
@@ -6255,7 +6276,41 @@ function stageCaptureColonization(sequence) {
   }
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   placeCapturePlayerNearTile(memory.targetTileId);
+  steerCapturePlayerIntoClearWater(memory.targetTileId);
   syncShipCargoFromGameState();
+}
+
+function steerCapturePlayerIntoClearWater(tileId) {
+  const shore = tileCenterVector(tileId);
+  const preferredHeading = normalizeOrNull(projectTangentVector([
+    ship.position[0] - shore[0],
+    ship.position[1] - shore[1],
+    ship.position[2] - shore[2]
+  ], ship.position));
+  if (!preferredHeading) throw new Error(`Capture could not resolve a departure heading from ${tileId}`);
+  const originalHeading = ship.heading;
+  let clearHeading = null;
+  for (const degrees of [0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180]) {
+    const candidate = rotateTangentDirection(preferredHeading, ship.position, degrees * Math.PI / 180);
+    ship.heading = candidate;
+    const step = scaleVector(candidate, 36 / PIXELS_PER_RADIAN);
+    if (attemptShipStep(ship.position, ship.tileId, step).ok) {
+      clearHeading = candidate;
+      break;
+    }
+  }
+  if (!clearHeading) {
+    ship.heading = originalHeading;
+    throw new Error(`Capture could not find 36px of clear departure water from ${tileId}`);
+  }
+  ship.heading = clearHeading;
+  ship.targetHeading = clearHeading.slice();
+  ship.velocity = [0, 0, 0];
+  captureDirector.steeringTarget = normalize3([
+    ship.position[0] + clearHeading[0] * 0.25,
+    ship.position[1] + clearHeading[1] * 0.25,
+    ship.position[2] + clearHeading[2] * 0.25
+  ]);
 }
 
 function stageCaptureSurvival(sequence) {
@@ -11746,19 +11801,11 @@ function nearestFishCallNearPoint(x, y, radiusPx) {
   let best = null;
   let bestDistance = Infinity;
   const maxDistance = radiusPx * radiusPx;
-  const tileSearchRadius = radiusPx + FISH_SWIM_SEARCH_MARGIN_PX;
-  const tileSearchDistance = tileSearchRadius * tileSearchRadius;
-  for (const tileCall of chart.tileCalls) {
-    const tileDistance = distance2(x, y, tileCall.drawSurfaceX, tileCall.drawSurfaceY);
-    if (tileDistance > tileSearchDistance) continue;
-    const fishery = fisheryForTileCall(tileCall);
-    if (!fishery) continue;
-    for (const call of fishIndividualCallsForFishery(tileCall, fishery, lastFrameMs)) {
-      const distance = distance2(x, y, call.centerX, call.centerY);
-      if (distance > maxDistance || distance >= bestDistance) continue;
-      best = fishInteractionCall(call);
-      bestDistance = distance;
-    }
+  for (const call of fishIndividualDrawCalls(chart, lastFrameMs)) {
+    const distance = distance2(x, y, call.centerX, call.centerY);
+    if (distance > maxDistance || distance >= bestDistance) continue;
+    best = fishInteractionCall(call);
+    bestDistance = distance;
   }
   return best;
 }
@@ -26205,7 +26252,12 @@ function drawFishIndividuals(activeChart, nowMs) {
 function fishIndividualDrawCalls(activeChart, nowMs) {
   const calls = [];
   const offset = chartOffsetPixels(activeChart);
-  for (const tileCall of activeChart.tileCalls) {
+  const nearestFirstTileCalls = fisheryTileCallsNearestFirst(
+    activeChart.tileCalls,
+    localLayout.viewX,
+    localLayout.viewY
+  );
+  for (const tileCall of nearestFirstTileCalls) {
     if (calls.length >= FISH_VISIBLE_MAX_INDIVIDUALS) break;
     if (!pointNearScreen({
       x: tileCall.drawSurfaceX + offset.x,

@@ -1,7 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { nearestWaterMaskedPoint, waterMaskedSpritePixels } from "./fishWaterMask.js";
+import {
+  fisheryTileCallsNearestFirst,
+  nearestWaterMaskedPoint,
+  waterMaskedSpritePixels
+} from "./fishWaterMask.js";
+
+test("nearby fisheries receive the visual fish budget before distant ones", () => {
+  const distant = { id: 1, drawSurfaceX: 90, drawSurfaceY: 70 };
+  const nearest = { id: 2, drawSurfaceX: 12, drawSurfaceY: 9 };
+  const middle = { id: 3, drawSurfaceX: 40, drawSurfaceY: 35 };
+  const original = [distant, nearest, middle];
+
+  assert.deepEqual(
+    fisheryTileCallsNearestFirst(original, 10, 10).map((call) => call.id),
+    [2, 3, 1]
+  );
+  assert.deepEqual(original, [distant, nearest, middle]);
+});
 
 test("dry fish positions snap to the nearest water-mask pixel", () => {
   const point = nearestWaterMaskedPoint({

@@ -11,6 +11,13 @@ import { captureScenarioIds } from "../src/captureScenarios.js";
 
 const require = createRequire(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const FEATURED_SFX = Object.freeze({
+  cannon: "assets/sfx/universfield-cannon-shot-352459.ogg",
+  coin: "assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3",
+  fishingNet: "assets/sfx/alex_jauk-water-splash-147014.mp3",
+  whaleHarpoon: "assets/sfx/arrow-hit.ogg",
+  whaleKill: "assets/sfx/universfield-wet-squelch-impact-352302.ogg"
+});
 const CAPTURE_FORMATS = Object.freeze({
   shorts: Object.freeze({
     queryValue: "shorts",
@@ -102,7 +109,11 @@ async function recordScenario(browser, scenarioId) {
   const durationSeconds = frameCount / AUTOMATIC_CAPTURE_FRAME_RATE;
   await writeFile(eventsPath, `${JSON.stringify(sidecar, null, 2)}\n`);
   renderCaptureSfx(sidecar, sfxPath, scenarioId);
-  const audioPeakDb = audibleAudioPeakDb(sfxPath, scenarioId);
+  const audioPeakDb = audibleAudioPeakDb(
+    sfxPath,
+    scenarioId,
+    sidecar.scenario.sequence.kind === "sail"
+  );
   encodeNativeTrailerWebm(frameDir, sfxPath, videoPath, durationSeconds);
   encodeTrailerMp4(frameDir, sfxPath, mp4Path, captureFormat, durationSeconds);
   await rm(frameDir, { recursive: true, force: true });
@@ -162,7 +173,11 @@ async function loadExistingTrailerManifest() {
       videoPath,
       nativeVideoPath,
       sfxPath,
-      audioPeakDb: audibleAudioPeakDb(sfxPath, scenarioId),
+      audioPeakDb: audibleAudioPeakDb(
+        sfxPath,
+        scenarioId,
+        sidecar.scenario.sequence.kind === "sail"
+      ),
       eventsPath
     });
   }));
@@ -321,7 +336,15 @@ function encodeNativeTrailerWebm(frameDir, sfxInput, output, durationSeconds) {
 
 function renderCaptureSfx(sidecar, output, scenarioId) {
   const events = sidecar.events.filter((event) => event.type === "capture-sfx");
-  if (events.length === 0) throw new Error(`${scenarioId} emitted no deterministic SFX events`);
+  const expectsSilence = sidecar.scenario.sequence.kind === "sail";
+  if (expectsSilence && events.length > 0) {
+    throw new Error(`${scenarioId} must be silent but emitted ${events.length} SFX events`);
+  }
+  if (events.length === 0) {
+    if (!expectsSilence) throw new Error(`${scenarioId} emitted no deterministic SFX events`);
+    renderSilentCaptureSfx(output, sidecar.durationMs / 1000);
+    return;
+  }
   const publicRoot = path.resolve(APP_ROOT, "public");
   const inputs = [];
   const filters = [];
@@ -342,7 +365,7 @@ function renderCaptureSfx(sidecar, output, scenarioId) {
     const label = `fx${index}`;
     filters.push(
       `[${index}:a]aresample=48000,atempo=${playbackRate},volume=${volume},` +
-      `asetpts=PTS+${event.t / 1000}/TB[${label}]`
+      `asetpts=PTS-STARTPTS,adelay=delays=${Math.round(event.t)}:all=1[${label}]`
     );
     labels.push(`[${label}]`);
   }
@@ -350,13 +373,24 @@ function renderCaptureSfx(sidecar, output, scenarioId) {
   filters.push(`aevalsrc=0:d=${durationSeconds}:s=48000:c=stereo[silence]`);
   filters.push(
     `[silence]${labels.join("")}amix=inputs=${labels.length + 1}:duration=first:normalize=0,` +
-    `atrim=duration=${durationSeconds}[audio]`
+    `alimiter=limit=0.92,atrim=duration=${durationSeconds}[audio]`
   );
   execFileSync("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
     ...inputs,
     "-filter_complex", filters.join(";"),
     "-map", "[audio]", "-t", String(durationSeconds),
+    "-c:a", "libopus", "-b:a", "160k", "-ar", "48000", "-ac", "2",
+    output
+  ], { stdio: "inherit" });
+  verifyFeaturedSfxAudio(sidecar, output, scenarioId);
+}
+
+function renderSilentCaptureSfx(output, durationSeconds) {
+  execFileSync("ffmpeg", [
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+    "-t", String(durationSeconds),
     "-c:a", "libopus", "-b:a", "160k", "-ar", "48000", "-ac", "2",
     output
   ], { stdio: "inherit" });
@@ -398,7 +432,7 @@ function probeVideo(videoPath) {
   };
 }
 
-function audibleAudioPeakDb(audioPath, scenarioId) {
+function audibleAudioPeakDb(audioPath, scenarioId, allowSilence = false) {
   const result = spawnSync("ffmpeg", [
     "-hide_banner", "-nostats", "-i", audioPath,
     "-af", "volumedetect", "-f", "null", "-"
@@ -406,12 +440,59 @@ function audibleAudioPeakDb(audioPath, scenarioId) {
   if (result.status !== 0) {
     throw new Error(`${scenarioId} SFX analysis failed: ${result.stderr.trim()}`);
   }
-  const match = result.stderr.match(/max_volume:\s*(-?[\d.]+) dB/);
-  const peakDb = match ? Number(match[1]) : Number.NaN;
-  if (!Number.isFinite(peakDb) || peakDb <= -70) {
+  const match = result.stderr.match(/max_volume:\s*(-inf|-?[\d.]+) dB/);
+  const peakDb = match?.[1] === "-inf" ? -100 : match ? Number(match[1]) : Number.NaN;
+  if (!Number.isFinite(peakDb) || (!allowSilence && peakDb <= -70)) {
     throw new Error(`${scenarioId} captured a silent SFX track`);
   }
   return peakDb;
+}
+
+function verifyFeaturedSfxAudio(sidecar, audioPath, scenarioId) {
+  const sequence = sidecar.scenario.sequence;
+  const featuredEvents = [];
+  if (sequence.kind === "trade") {
+    featuredEvents.push(...sidecar.events.filter((event) => (
+      event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.coin
+    )));
+  } else if (sequence.kind === "fish") {
+    featuredEvents.push(...sidecar.events.filter((event) => (
+      event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.fishingNet
+    )));
+  } else if (sequence.kind === "whale" && sequence.variant === "harpoon") {
+    featuredEvents.push(...sidecar.events.filter((event) => (
+      event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.whaleHarpoon
+    )));
+  } else if (sequence.kind === "whale" && sequence.variant === "finish") {
+    featuredEvents.push(...sidecar.events.filter((event) => (
+      event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.whaleKill
+    )));
+  } else if (sequence.kind === "fight" ||
+      (sequence.kind === "pillage" && sequence.variant === "bombard")) {
+    const playerCannonTimes = new Set(sidecar.events.filter((event) => (
+      event.type === "weapon-fired" && event.data?.ownerId === "player" && event.data?.weapon === "cannon"
+    )).map((event) => event.t));
+    featuredEvents.push(...sidecar.events.filter((event) => (
+      event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.cannon &&
+      playerCannonTimes.has(event.t)
+    )));
+  }
+  for (const cueTime of new Set(featuredEvents.map((event) => event.t))) {
+    const startSeconds = cueTime / 1000;
+    const durationSeconds = Math.min(0.3, sidecar.durationMs / 1000 - startSeconds);
+    const result = spawnSync("ffmpeg", [
+      "-hide_banner", "-nostats", "-ss", String(startSeconds), "-t", String(durationSeconds),
+      "-i", audioPath, "-af", "volumedetect", "-f", "null", "-"
+    ], { encoding: "utf8" });
+    if (result.status !== 0) {
+      throw new Error(`${scenarioId} could not inspect its SFX cue at ${cueTime}ms`);
+    }
+    const match = result.stderr.match(/max_volume:\s*(-inf|-?[\d.]+) dB/);
+    const peakDb = match?.[1] === "-inf" ? -100 : match ? Number(match[1]) : Number.NaN;
+    if (!Number.isFinite(peakDb) || peakDb <= -70) {
+      throw new Error(`${scenarioId} has a silent featured SFX window at ${cueTime}ms`);
+    }
+  }
 }
 
 function verifySidecar(sidecar, scenarioId, format) {
@@ -426,6 +507,7 @@ function verifySidecar(sidecar, scenarioId, format) {
     if (!types.has(required)) throw new Error(`${scenarioId} sidecar is missing ${required}`);
   }
   if (!types.has("capture-beat")) throw new Error(`${scenarioId} sidecar has no capture beats`);
+  verifyFeaturedSfx(sidecar, scenarioId);
   if (sidecar.scenario.sequence.kind === "sail") {
     const beamReach = sidecar.events.find((event) => (
       event.type === "capture-beat" && event.data?.action === "beam-reach"
@@ -450,6 +532,74 @@ function verifySidecar(sidecar, scenarioId, format) {
       `${scenarioId} frame pass reports ${captureStart.data.frameRate} fps; expected ` +
       `${AUTOMATIC_CAPTURE_FRAME_RATE}`
     );
+  }
+}
+
+function verifyFeaturedSfx(sidecar, scenarioId) {
+  const sequence = sidecar.scenario.sequence;
+  const sfxEvents = sidecar.events.filter((event) => event.type === "capture-sfx");
+  if (sequence.kind === "sail") {
+    if (sfxEvents.length !== 0) {
+      throw new Error(`${scenarioId} sailing montage emitted unwanted SFX`);
+    }
+    return;
+  }
+  if (sequence.kind === "trade") {
+    const actions = sidecar.events.filter((event) => (
+      event.type === "capture-beat" && event.data?.action === sequence.variant
+    ));
+    const coins = sfxEvents.filter((event) => event.data?.assetPath === FEATURED_SFX.coin);
+    if (actions.length !== sequence.transactionCount || coins.length !== sequence.transactionCount) {
+      throw new Error(
+        `${scenarioId} expected ${sequence.transactionCount} ${sequence.variant} actions and coin cues, ` +
+        `got ${actions.length} actions and ${coins.length} cues`
+      );
+    }
+  }
+  if (sequence.kind === "fish") {
+    const netSounds = sfxEvents.filter((event) => event.data?.assetPath === FEATURED_SFX.fishingNet);
+    if (netSounds.length === 0) {
+      throw new Error(`${scenarioId} emitted no fishing-net SFX`);
+    }
+  }
+  if (sequence.kind === "whale" && sequence.variant === "harpoon") {
+    const harpoonBeat = sidecar.events.find((event) => (
+      event.type === "capture-beat" && event.data?.action === "harpoon-whale"
+    ));
+    const harpoonSound = sfxEvents.find((event) => (
+      event.data?.assetPath === FEATURED_SFX.whaleHarpoon && event.t >= (harpoonBeat?.t ?? Infinity)
+    ));
+    if (!harpoonBeat || !harpoonSound) {
+      throw new Error(`${scenarioId} did not pair its whale harpoon with an impact SFX`);
+    }
+  }
+  if (sequence.kind === "whale" && sequence.variant === "finish") {
+    const killingBlow = sidecar.events.find((event) => (
+      event.type === "capture-beat" && event.data?.action === "land-whale-killing-blow"
+    ));
+    const killSound = sfxEvents.find((event) => (
+      event.t === killingBlow?.t && event.data?.assetPath === FEATURED_SFX.whaleKill
+    ));
+    if (!killingBlow || !killSound) {
+      throw new Error(`${scenarioId} did not pair the whale killing blow with its SFX`);
+    }
+  }
+  const requiresPlayerCannons = sequence.kind === "fight" ||
+    (sequence.kind === "pillage" && sequence.variant === "bombard");
+  if (requiresPlayerCannons) {
+    const cannonEvents = sidecar.events.filter((event) => (
+      event.type === "weapon-fired" && event.data?.ownerId === "player" && event.data?.weapon === "cannon"
+    ));
+    if (cannonEvents.length === 0) throw new Error(`${scenarioId} fired no player cannons`);
+    for (const event of cannonEvents) {
+      const cueCount = sfxEvents.filter((cue) => (
+        cue.t === event.t && cue.data?.assetPath === FEATURED_SFX.cannon
+      )).length;
+      const volleyCount = cannonEvents.filter((volley) => volley.t === event.t).length;
+      if (cueCount < volleyCount) {
+        throw new Error(`${scenarioId} has a silent cannon volley at ${event.t}ms`);
+      }
+    }
   }
 }
 

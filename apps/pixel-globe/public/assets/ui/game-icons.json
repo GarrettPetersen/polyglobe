@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-28",
+  "version": "resurrect-icons-29",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 176,
@@ -58,7 +58,7 @@
         "w": 16,
         "h": 16
       },
-      "packId": "hollow",
+      "packId": null,
       "assetPath": null
     },
     {
@@ -1937,13 +1937,6 @@
       "sourceUrl": "https://keifoopx.itch.io/99-various-ingredients",
       "license": "KeifooPX itch.io asset license",
       "archive": "99_ingredients.zip"
-    },
-    "hollow": {
-      "creator": "Hollow Dolphin",
-      "title": "Fishing Icon Pack 16x16",
-      "sourceUrl": "https://hollowdolphin.itch.io/fishing-icon-pack",
-      "license": "Hollow Dolphin itch.io asset license",
-      "archive": "Hollow Dolphin Fishing Icon Pack.zip"
     },
     "nikoichu": {
       "creator": "Nikoichu",

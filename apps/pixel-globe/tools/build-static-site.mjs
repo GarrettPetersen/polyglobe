@@ -24,7 +24,9 @@ const maxPagesFileBytes = 24 * 1024 * 1024;
 const appEntries = edition === BUILD_EDITION_DEMO
   ? [
       ["index.html", "index.html"],
-      ["src/styles.css", "src/styles.css"]
+      ["src/styles.css", "src/styles.css"],
+      ["src/loadingScreenWorker.js", "src/loadingScreenWorker.js"],
+      ["src/loadingScreenMotion.js", "src/loadingScreenMotion.js"]
     ]
   : [
       ["index.html", "index.html"],

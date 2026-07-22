@@ -167,7 +167,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-trade-ternate-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 0.79, 127.38, 180),
     world: captureWorld(196, 13, 10),
-    sequence: trailerSequence("trade", "buy", { cityName: "Ternate", goodId: "cloves" })
+    sequence: trailerSequence("trade", "buy", {
+      cityName: "Ternate",
+      goodId: "cloves",
+      transactionCount: 6
+    })
   }),
   "trailer-trade-lisbon": trailerScenario({
     id: "trailer-trade-lisbon",
@@ -175,7 +179,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-trade-lisbon-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 90),
     world: captureWorld(196, 15, 20),
-    sequence: trailerSequence("trade", "sell", { cityName: "Lisbon", goodId: "cinnamon" })
+    sequence: trailerSequence("trade", "sell", {
+      cityName: "Lisbon",
+      goodId: "cinnamon",
+      transactionCount: 6
+    })
   }),
   "trailer-fish-cod": trailerScenario({
     id: "trailer-fish-cod",
@@ -473,6 +481,9 @@ function validateCaptureSequence(value) {
     survive: []
   };
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
+  if (value.kind === "trade") {
+    integerInRange(value.transactionCount, 2, 12, "capture trade transaction count");
+  }
   if (value.kind === "sail" && !["port", "starboard"].includes(value.beamSide)) {
     throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
   }

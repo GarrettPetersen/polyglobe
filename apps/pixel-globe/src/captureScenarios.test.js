@@ -81,6 +81,17 @@ test("fast sailing trailer shots stage distinct ships on validated beam reaches"
   assert.throws(() => validateCaptureScenario(malformed), /beam side/);
 });
 
+test("trading trailer shots perform a rapid run of repeated transactions", () => {
+  for (const id of ["trailer-trade-ternate", "trailer-trade-lisbon"]) {
+    const capture = captureScenarioFromSearch(`?capture=${id}`);
+    assert.equal(capture.sequence.transactionCount, 6);
+  }
+
+  const malformed = structuredClone(captureScenarioFromSearch("?capture=trailer-trade-ternate"));
+  malformed.sequence.transactionCount = 1;
+  assert.throws(() => validateCaptureScenario(malformed), /trade transaction count/);
+});
+
 test("the Nubian pyramid trailer shot follows the Nile south instead of steering onto land", () => {
   const scenario = captureScenarioFromSearch("?capture=trailer-explore-pyramid");
   assert.equal(scenario.title, "Discover the Pyramids of Meroe");

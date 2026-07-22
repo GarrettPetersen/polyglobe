@@ -4,13 +4,13 @@
   "music": {
     "shipBpm": 108,
     "combatBpm": 85,
-    "fightStartFrame": 725,
+    "fightStartFrame": 692,
     "crossfadeFrames": 54,
     "combatSyncAttackFrame": 27,
     "syncCutFrames": [
       67, 133, 217, 300, 350, 400, 433, 467,
-      483, 500, 517, 533, 633, 725, 784, 867,
-      910, 952, 963, 973, 984, 994, 1069, 1111
+      483, 500, 517, 533, 616, 692, 751, 834,
+      877, 919, 930, 940, 951, 961, 1036, 1078
     ]
   },
   "chapters": [
@@ -24,42 +24,102 @@
     {
       "heading": "Trade",
       "clips": [
-        { "source": "trade/trailer-trade-ternate.mp4", "startFrame": 39, "durationFrames": 84 },
-        { "source": "trade/trailer-trade-lisbon.mp4", "startFrame": 39, "durationFrames": 83 }
+        {
+          "source": "trade/trailer-trade-ternate.mp4",
+          "startFrame": 39,
+          "durationFrames": 84,
+          "audioGain": 1.2,
+          "requiredSfx": { "kind": "coin", "minimum": 6 }
+        },
+        {
+          "source": "trade/trailer-trade-lisbon.mp4",
+          "startFrame": 39,
+          "durationFrames": 83,
+          "audioGain": 1.2,
+          "requiredSfx": { "kind": "coin", "minimum": 6 }
+        }
       ]
     },
     {
       "heading": "Fish",
       "clips": [
-        { "source": "fish/trailer-fish-cod.mp4", "startFrame": 81, "durationFrames": 50 },
-        { "source": "fish/trailer-fish-reef.mp4", "startFrame": 81, "durationFrames": 50 }
+        {
+          "source": "fish/trailer-fish-cod.mp4",
+          "startFrame": 81,
+          "durationFrames": 50,
+          "audioGain": 1.45,
+          "muteSourceAudio": true,
+          "requiredSfx": { "kind": "fishingNet", "minimum": 1 },
+          "carrySfx": { "kind": "fishingNet" }
+        },
+        {
+          "source": "fish/trailer-fish-reef.mp4",
+          "startFrame": 81,
+          "durationFrames": 50,
+          "audioGain": 1.45,
+          "muteSourceAudio": true,
+          "requiredSfx": { "kind": "fishingNet", "minimum": 1 },
+          "carrySfx": { "kind": "fishingNet" }
+        }
       ]
     },
     {
       "heading": "Whale",
       "clips": [
-        { "source": "whale/trailer-whale-right.mp4", "startFrame": 24, "durationFrames": 33 },
-        { "source": "whale/trailer-whale-sperm.mp4", "startFrame": 96, "durationFrames": 34 }
+        {
+          "source": "whale/trailer-whale-right.mp4",
+          "startFrame": 24,
+          "durationFrames": 33,
+          "audioGain": 1.45,
+          "muteSourceAudio": true,
+          "requiredSfx": { "kind": "whaleHarpoon", "minimum": 1 },
+          "carrySfx": { "kind": "whaleHarpoon" }
+        },
+        {
+          "source": "whale/trailer-whale-sperm.mp4",
+          "startFrame": 96,
+          "durationFrames": 34,
+          "audioGain": 1.15,
+          "muteSourceAudio": true,
+          "requiredSfx": { "kind": "whaleKill", "minimum": 1 },
+          "carrySfx": { "kind": "whaleKill" }
+        }
       ]
     },
     {
       "heading": "Colonize",
       "clips": [
-        { "source": "colonize/trailer-colonize-found.mp4", "startFrame": 129, "durationFrames": 100 },
-        { "source": "colonize/trailer-colonize-establish.mp4", "startFrame": 129, "durationFrames": 92 }
+        { "source": "colonize/trailer-colonize-found.mp4", "startFrame": 129, "durationFrames": 83 },
+        { "source": "colonize/trailer-colonize-establish.mp4", "startFrame": 129, "durationFrames": 76 }
       ]
     },
     {
       "heading": "Fight",
       "clips": [
-        { "source": "fight/trailer-fight-turtle.mp4", "startFrame": 30, "durationFrames": 59 },
-        { "source": "fight/trailer-fight-atlantic.mp4", "startFrame": 30, "durationFrames": 83 }
+        {
+          "source": "fight/trailer-fight-turtle.mp4",
+          "startFrame": 30,
+          "durationFrames": 59,
+          "requiredSfx": { "kind": "cannon", "minimum": 2 }
+        },
+        {
+          "source": "fight/trailer-fight-atlantic.mp4",
+          "startFrame": 30,
+          "durationFrames": 83,
+          "requiredSfx": { "kind": "cannon", "minimum": 2 }
+        }
       ]
     },
     {
       "heading": "Pillage",
       "clips": [
-        { "source": "pillage/trailer-pillage-havana.mp4", "startFrame": 15, "durationFrames": 43 },
+        {
+          "source": "pillage/trailer-pillage-havana.mp4",
+          "startFrame": 15,
+          "durationFrames": 43,
+          "audioGain": 1.1,
+          "requiredSfx": { "kind": "cannon", "minimum": 2 }
+        },
         { "source": "pillage/trailer-pillage-alexandria.mp4", "startFrame": 129, "durationFrames": 42 }
       ]
     },

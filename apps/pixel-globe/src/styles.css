@@ -72,6 +72,85 @@ canvas {
   font-family: "Silkscreen", monospace;
 }
 
+.loading-screen {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  overflow: hidden;
+  color: #fff;
+  background: #ea4f36;
+  opacity: 1;
+  isolation: isolate;
+  transition: opacity 420ms ease-out;
+}
+
+.loading-screen[hidden] {
+  display: none;
+}
+
+.loading-screen[data-state="leaving"] {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.loading-screen[data-state="failed"] {
+  background: #1d1513;
+}
+
+.loading-screen[data-state="failed"] .loading-screen__art {
+  opacity: 0.18;
+}
+
+.loading-screen__art {
+  width: 100%;
+  height: 100%;
+  background: #ea4f36;
+}
+
+.loading-screen__status {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #f4f0eb;
+  font: 8px/1 "Silkscreen", monospace;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 #201b2a;
+}
+
+.loading-screen__wake {
+  display: inline-block;
+  color: #f3aa57;
+  animation: loading-wake 900ms ease-in-out infinite;
+}
+
+.loading-screen[data-state="failed"] .loading-screen__status {
+  right: max(14px, env(safe-area-inset-right));
+  left: max(14px, env(safe-area-inset-left));
+  display: block;
+  color: #f0d2be;
+  line-height: 1.5;
+}
+
+@keyframes loading-wake {
+  0% { opacity: 0.35; }
+  50% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-screen {
+    transition: none;
+  }
+
+  .loading-screen__wake {
+    animation: none;
+  }
+}
+
 .capture-controls {
   position: fixed;
   z-index: 10;

@@ -194,6 +194,7 @@ function generateIcon(generatedId) {
   if (generatedId === "gray-waypoint-arrow") return generateGrayWaypointArrow();
   if (generatedId === "cinnamon-sticks") return generateCinnamonSticks();
   if (generatedId === "beaver-pelt") return generateBeaverPelt();
+  if (generatedId === "herring") return generateHerring();
   if (generatedId === "back-arrow") return generateBackArrow();
   if (generatedId === "play-arrow") return generatePlayArrow();
   if (generatedId === "restart-arrow") return generateRestartArrow();
@@ -373,6 +374,57 @@ function generateBeaverPelt() {
   ctx.fillRect(5, 6, 2, 2);
   ctx.fillRect(8, 9, 3, 2);
   ctx.fillRect(7, 12, 2, 1);
+  return canvas;
+}
+
+function generateHerring() {
+  const { canvas, ctx } = generatedIconCanvas();
+  const palette = Object.freeze({
+    "1": "#3e404f",
+    "2": "#4d5162",
+    "3": "#555c6f",
+    "4": "#5f6d85",
+    "5": "#2c3536",
+    "6": "#695748",
+    "7": "#7b8696",
+    "8": "#4c5063",
+    "9": "#9a855a",
+    A: "#7e86a6",
+    B: "#8c7b56",
+    C: "#575c6e",
+    D: "#858ea1",
+    E: "#787c96",
+    F: "#939cad",
+    G: "#a18a5c"
+  });
+  const rows = Object.freeze([
+    "..111...........",
+    ".21331..........",
+    ".243531..66.....",
+    ".2743831696.....",
+    "..288A431B96....",
+    "..CDDEE431B6....",
+    "...CFDEA431.....",
+    "....CDDEE41.....",
+    ".....CFDE431....",
+    ".....6CCDA41....",
+    ".....6BBCCD4666.",
+    "......66..C4BG6.",
+    "..........6B66..",
+    "..........6G6...",
+    "..........66....",
+    "................"
+  ]);
+  for (let y = 0; y < rows.length; y++) {
+    for (let x = 0; x < rows[y].length; x++) {
+      const symbol = rows[y][x];
+      if (symbol === ".") continue;
+      const color = palette[symbol];
+      if (!color) throw new Error(`Unknown herring palette symbol: ${symbol}`);
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
   return canvas;
 }
 

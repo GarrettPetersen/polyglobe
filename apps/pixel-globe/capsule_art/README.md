@@ -16,6 +16,11 @@ The generator combines the five aligned 1232x706 source layers in this order:
 
 Generated files are written to `capsule_art/generated/`.
 
+The game also keeps copies of the five source layers in `public/assets/loading/`
+so every development and production server can animate the authored capsule
+composition directly. The sea and reflection ripple row by row, the ship bobs
+independently, and the two title layers enter once before settling.
+
 All resizing uses nearest-neighbor sampling to keep the pixel art crisp. Standard
 formats crop the aligned source canvas as one composition. Tall and exceptionally
 wide formats fit the foreground lockup over a separately cropped background so

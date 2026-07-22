@@ -120,6 +120,13 @@ test("fishing actions use a legible native-size fishing rod", () => {
   assert.equal(source.lightMonotone, "#484a77");
 });
 
+test("generic fish cargo uses the native-size herring art", () => {
+  assert.deepEqual(GAME_ICON_SOURCES["good:fish"], {
+    packId: null,
+    generatedId: "herring"
+  });
+});
+
 test("interface controls use varied dark Resurrect colors without outlines", () => {
   const palette = new Set(RESURRECT_64_HEX.map((hex) => `#${hex}`));
   const iconColors = new Set();
