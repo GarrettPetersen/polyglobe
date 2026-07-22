@@ -218,6 +218,7 @@ export const ENVOY_TARGET_HOSTILE_REPUTATION = -8;
 export const ENVOY_HOME_REPUTATION = 8;
 
 const MINUTES_PER_DAY = 24 * 60;
+const WINE_EMERGENCY_RECOVERY_WATER_UNITS = 1;
 export const SURVIVAL_DEHYDRATION_INTERVAL_MINUTES = 12 * 60;
 export const SURVIVAL_STARVATION_INTERVAL_MINUTES = 5 * MINUTES_PER_DAY;
 const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
@@ -375,11 +376,12 @@ export function validateGameState(state) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   assertGameState(state);
+  assertPlayerCargoWithinCapacity(state);
   return state;
 }
 
 export function migrateGameState(state, shipStats) {
-  if (state?.version === GAME_STATE_VERSION) return validateGameState(state);
+  if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state);
   if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
@@ -494,7 +496,19 @@ export function migrateGameState(state, shipStats) {
   };
   if (migrated.ship) migrated.cargoCapacity = effectivePlayerShipStats(migrated, shipStats).cargoCapacity;
   delete migrated.survival.foodDebt;
-  return validateGameState(migrated);
+  return restoreLoadedGameState(migrated);
+}
+
+function restoreLoadedGameState(state) {
+  if (state?.version !== GAME_STATE_VERSION) {
+    throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
+  }
+  assertGameState(state);
+  const repair = repairPlayerCargoOverflow(state);
+  if (repair) {
+    console.warn("Player cargo exceeded capacity; excess cargo was jettisoned while restoring the voyage", repair);
+  }
+  return validateGameState(state);
 }
 
 function migrateFactionReputationTable(reputation) {
@@ -965,6 +979,87 @@ export function cargoUsedTicks(state) {
 
 export function cargoUsed(state) {
   return cargoUnitsFromTicks(cargoUsedTicks(state));
+}
+
+export function repairPlayerCargoOverflow(state) {
+  assertGameState(state);
+  const capacityTicks = state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT;
+  const beforeTicks = cargoUsedTicks(state);
+  let excessTicks = beforeTicks - capacityTicks;
+  if (excessTicks <= 0) return null;
+
+  const removed = {};
+  for (const goodId of cargoOverflowRepairOrder(state)) {
+    if (excessTicks <= 0) break;
+    const good = goodById(goodId);
+    const held = state.cargo[goodId] || 0;
+    const heldTicks = occupiedCargoTicks(good.unitSize * held, `cargo.${goodId} space`);
+    const targetTicks = Math.max(0, heldTicks - excessTicks);
+    const maximumQuantity = cargoQuantityForRepairTarget(good, held, targetTicks);
+    const removedQuantity = trimCargoQuantity(state, goodId, maximumQuantity);
+    if (removedQuantity <= 0) continue;
+    const remaining = state.cargo[goodId] || 0;
+    const remainingTicks = remaining > 0
+      ? occupiedCargoTicks(good.unitSize * remaining, `cargo.${goodId} repaired space`)
+      : 0;
+    excessTicks -= heldTicks - remainingTicks;
+    removed[goodId] = removedQuantity;
+  }
+
+  const afterTicks = cargoUsedTicks(state);
+  if (afterTicks > capacityTicks) {
+    throw new Error(
+      `Cannot repair player cargo overflow: fixed ship occupancy uses ` +
+      `${cargoUnitsFromTicks(afterTicks)}/${state.cargoCapacity}`
+    );
+  }
+  return {
+    capacity: state.cargoCapacity,
+    beforeUsed: cargoUnitsFromTicks(beforeTicks),
+    afterUsed: cargoUnitsFromTicks(afterTicks),
+    removed
+  };
+}
+
+function cargoOverflowRepairOrder(state) {
+  const heldGoodIds = new Set(Object.keys(state.cargo));
+  const ordered = [];
+  const append = (goodId) => {
+    if (!heldGoodIds.has(goodId) || ordered.includes(goodId)) return;
+    ordered.push(goodId);
+  };
+  const acquisitionKinds = new Set(["buy", "catch", "discovery", "prize", "provision"]);
+  for (let index = state.accounts.ledger.length - 1; index >= 0; index -= 1) {
+    const entry = state.accounts.ledger[index];
+    if (acquisitionKinds.has(entry?.kind) && typeof entry.goodId === "string") append(entry.goodId);
+  }
+  [...heldGoodIds].reverse().forEach(append);
+  return ordered;
+}
+
+function cargoQuantityForRepairTarget(good, held, targetTicks) {
+  if (!Number.isInteger(targetTicks) || targetTicks < 0) {
+    throw new Error(`Invalid ${good.id} cargo repair target: ${targetTicks}`);
+  }
+  if (good.category === "food") {
+    const rationCount = Math.floor(targetTicks / good.unitSize);
+    return Math.min(held, rationCount / FOOD_RATIONS_PER_HOLD_UNIT);
+  }
+  if (good.category === "drink") {
+    return Math.min(held, targetTicks / (good.unitSize * CARGO_SPACE_TICKS_PER_UNIT));
+  }
+  const ticksPerUnit = good.unitSize * CARGO_SPACE_TICKS_PER_UNIT;
+  return Math.min(held, Math.floor(targetTicks / ticksPerUnit));
+}
+
+function assertPlayerCargoWithinCapacity(state) {
+  const usedTicks = cargoUsedTicks(state);
+  const capacityTicks = state.cargoCapacity * CARGO_SPACE_TICKS_PER_UNIT;
+  if (usedTicks > capacityTicks) {
+    throw new Error(
+      `Player cargo exceeds hold capacity: ${cargoUnitsFromTicks(usedTicks)}/${state.cargoCapacity}`
+    );
+  }
 }
 
 export function reserveCargoSpace(state, reservationId, units) {
@@ -1634,7 +1729,7 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   };
   result.changed = clearMissedFoodRationDebt(state) || result.changed;
   if (options.safePort) {
-    resetWineOnlySurvivalState(state);
+    result.changed = resetWineOnlySurvivalState(state) || result.changed;
     state.survival.lastMinute = currentMinute;
     return result;
   }
@@ -1663,6 +1758,7 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   const elapsedDays = elapsedMinutes / MINUTES_PER_DAY;
   const consumption = shipConsumption(state);
   if (!options.freshwater) {
+    const wineEmergencyRecovered = state.survival.freshWater >= WINE_EMERGENCY_RECOVERY_WATER_UNITS;
     const waterUse = state.ship
       ? elapsedDays * consumption.waterConsumers / WATER_PERSON_DAYS_PER_UNIT
       : elapsedDays * FRESH_WATER_USE_PER_DAY;
@@ -1692,13 +1788,12 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
     const wineOnlyMinutes = waterUse > 0
       ? elapsedMinutes * water.wineConsumed / waterUse
       : 0;
-    const wineInterrupted = water.waterConsumed > 0 || rainWaterUsed > 0;
-    const wineState = updateWineOnlySurvivalState(state, wineOnlyMinutes, wineInterrupted);
+    const wineState = updateWineOnlySurvivalState(state, wineOnlyMinutes, wineEmergencyRecovered);
     result.wineDrinkingStarted = wineState.started;
     result.wineOnlyMinutes = wineOnlyMinutes;
     result.wineOnlyDaysElapsed = wineState.daysElapsed;
   } else {
-    resetWineOnlySurvivalState(state);
+    result.changed = resetWineOnlySurvivalState(state) || result.changed;
   }
 
   state.survival.foodRationDebt += elapsedDays * consumption.foodConsumers / foodDurationMultiplier;
@@ -2695,13 +2790,13 @@ function assertPlayerTradeAccess(state, city, context) {
 export function receiveFishCatch(state, catchResult, context = {}) {
   assertGameState(state);
   if (!catchResult || typeof catchResult !== "object") throw new Error("Fish catch requires a catch result");
-  const quantity = catchResult.quantity;
-  assertQuantity(quantity, "fish catch quantity");
+  const requestedQuantity = catchResult.quantity;
+  assertQuantity(requestedQuantity, "fish catch quantity");
   const good = tradeGoodById(FISH_CARGO_GOOD_ID);
-  if (fishCatchCargoCapacity(state) < quantity) {
-    throw new Error(`Not enough cargo space to stow ${quantity} ${good.label}`);
-  }
+  const quantity = Math.min(requestedQuantity, fishCatchCargoCapacity(state));
+  if (quantity <= 0) throw new Error(`Not enough cargo space to stow ${requestedQuantity} ${good.label}`);
   state.cargo[good.id] = (state.cargo[good.id] || 0) + quantity;
+  assertPlayerCargoWithinCapacity(state);
   state.accounts.cargoCostBasis[good.id] = state.accounts.cargoCostBasis[good.id] || 0;
   const speciesLabel = typeof catchResult.speciesLabel === "string" && catchResult.speciesLabel.trim() !== ""
     ? catchResult.speciesLabel
@@ -3028,6 +3123,7 @@ function createSurvivalState(startMinute, freshWaterCapacity = FRESH_WATER_CAPAC
     freshWaterCapacity,
     foodRationDebt: 0,
     wineOnlyMinutes: 0,
+    wineEmergencyActive: false,
     lastMinute: startMinute
   };
 }
@@ -3401,25 +3497,31 @@ function consumeDrinkQuantity(state, goodId, quantity) {
   return { goodId, quantity, costBasis: consumedCost };
 }
 
-function updateWineOnlySurvivalState(state, elapsedMinutes, interrupted) {
+function updateWineOnlySurvivalState(state, elapsedMinutes, recovered) {
   if (!Number.isFinite(elapsedMinutes) || elapsedMinutes < 0) {
     throw new Error(`Invalid wine-only survival time: ${elapsedMinutes}`);
   }
+  if (typeof recovered !== "boolean") throw new Error(`Invalid wine emergency recovery state: ${recovered}`);
+  if (recovered) resetWineOnlySurvivalState(state);
   if (elapsedMinutes <= 1e-8) {
-    resetWineOnlySurvivalState(state);
     return { started: false, daysElapsed: 0 };
   }
-  const previous = interrupted ? 0 : state.survival.wineOnlyMinutes;
+  const previous = state.survival.wineOnlyMinutes;
   const current = previous + elapsedMinutes;
+  const started = !state.survival.wineEmergencyActive;
+  state.survival.wineEmergencyActive = true;
   state.survival.wineOnlyMinutes = current;
   return {
-    started: previous <= 1e-8,
+    started,
     daysElapsed: Math.floor(current / MINUTES_PER_DAY) - Math.floor(previous / MINUTES_PER_DAY)
   };
 }
 
 function resetWineOnlySurvivalState(state) {
+  const changed = state.survival.wineOnlyMinutes !== 0 || state.survival.wineEmergencyActive;
   state.survival.wineOnlyMinutes = 0;
+  state.survival.wineEmergencyActive = false;
+  return changed;
 }
 
 function consumeCargoUnit(state, goodId) {
@@ -4072,6 +4174,14 @@ function ensureSurvivalState(state) {
   if (state.survival.wineOnlyMinutes === undefined) state.survival.wineOnlyMinutes = 0;
   if (!Number.isFinite(state.survival.wineOnlyMinutes) || state.survival.wineOnlyMinutes < 0) {
     throw new Error(`Invalid wine-only survival time: ${state.survival.wineOnlyMinutes}`);
+  }
+  if (state.survival.wineEmergencyActive === undefined) {
+    state.survival.wineEmergencyActive = state.survival.wineOnlyMinutes > 0 || Boolean(
+      state.ship && state.survival.freshWater <= 1e-8 && (state.cargo?.[WINE_GOOD_ID] || 0) > 0
+    );
+  }
+  if (typeof state.survival.wineEmergencyActive !== "boolean") {
+    throw new Error(`Invalid wine emergency state: ${state.survival.wineEmergencyActive}`);
   }
   if (!Number.isFinite(state.survival.lastMinute)) {
     state.survival.lastMinute = 0;

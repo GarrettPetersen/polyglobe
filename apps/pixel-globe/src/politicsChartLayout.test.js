@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { politicsChartHeaderLayout } from "./politicsChartLayout.js";
+import {
+  politicsChartHeaderLayout,
+  politicsChartRowsPerPage
+} from "./politicsChartLayout.js";
 
 test("politics chart gives every English header band its own row", () => {
   const layout = politicsChartHeaderLayout({ panelY: 8, fontSize: 8 });
@@ -31,5 +34,31 @@ test("politics chart rejects malformed font geometry", () => {
   assert.throws(
     () => politicsChartHeaderLayout({ panelY: 0, fontSize: 0 }),
     /font size must be a positive integer/
+  );
+});
+
+test("politics chart pagination matches the rows that fit beneath its header", () => {
+  assert.equal(politicsChartRowsPerPage({
+    panelHeight: 240,
+    matrixTopOffset: 66,
+    pagerHeight: 24,
+    newsHeight: 12,
+    rowHeight: 11,
+    minRows: 6,
+    maxRows: 18
+  }), 11);
+});
+
+test("politics chart row pagination rejects impossible limits", () => {
+  assert.throws(
+    () => politicsChartRowsPerPage({
+      panelHeight: 240,
+      matrixTopOffset: 66,
+      pagerHeight: 24,
+      rowHeight: 11,
+      minRows: 6,
+      maxRows: 5
+    }),
+    /maxRows cannot be smaller/
   );
 });

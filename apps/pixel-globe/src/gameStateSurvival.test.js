@@ -252,6 +252,7 @@ test("a ship drinks wine only after water runs out and tracks full wine-only day
   assert.equal(firstHalfDay.wineOnlyDaysElapsed, 0);
   assert.equal(firstHalfDay.wineConsumed, 0.0625);
   assert.equal(state.survival.wineOnlyMinutes, 12 * 60);
+  assert.equal(state.survival.wineEmergencyActive, true);
   assert.equal(state.cargo[WINE_GOOD_ID], 0.9375);
 
   const secondHalfDay = updateSurvival(state, 12 * 60, 24 * 60, { freshwater: false });
@@ -263,6 +264,44 @@ test("a ship drinks wine only after water runs out and tracks full wine-only day
   state.survival.freshWater = 1;
   updateSurvival(state, 24 * 60, 25 * 60, { freshwater: false });
   assert.equal(state.survival.wineOnlyMinutes, 0);
+  assert.equal(state.survival.wineEmergencyActive, false);
+});
+
+test("brief rain does not repeat the dry-casks emergency", () => {
+  const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.ship.crew = 1;
+  state.survival.freshWater = 0;
+  state.cargo = { hardtack: 1, [WINE_GOOD_ID]: 1 };
+  state.accounts.cargoCostBasis = { hardtack: 2, [WINE_GOOD_ID]: 18 };
+
+  const first = updateSurvival(state, 0, 60, { freshwater: false, rainfall: 0 });
+  const rainy = updateSurvival(state, 60, 120, { freshwater: false, rainfall: 1 });
+  const afterRain = updateSurvival(state, 120, 180, { freshwater: false, rainfall: 0 });
+
+  assert.equal(first.wineDrinkingStarted, true);
+  assert.equal(rainy.wineDrinkingStarted, false);
+  assert.equal(afterRain.wineDrinkingStarted, false);
+  assert.equal(state.survival.wineEmergencyActive, true);
+});
+
+test("old dry-cask saves resume inside their existing wine emergency", () => {
+  const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.ship.crew = 1;
+  state.survival.freshWater = 0;
+  state.survival.wineOnlyMinutes = 0;
+  state.cargo = { hardtack: 1, [WINE_GOOD_ID]: 1 };
+  state.accounts.cargoCostBasis = { hardtack: 2, [WINE_GOOD_ID]: 18 };
+  delete state.survival.wineEmergencyActive;
+
+  validateGameState(state);
+  const resumed = updateSurvival(state, 0, 60, { freshwater: false, rainfall: 0 });
+
+  assert.equal(state.survival.wineEmergencyActive, true);
+  assert.equal(resumed.wineDrinkingStarted, false);
 });
 
 test("freshwater refills casks while food still ticks down", () => {

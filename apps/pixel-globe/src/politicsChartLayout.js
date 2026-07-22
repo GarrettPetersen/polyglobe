@@ -26,3 +26,37 @@ export function politicsChartHeaderLayout({ panelY, fontSize }) {
     matrixTopOffset: matrixY - panelY
   });
 }
+
+export function politicsChartRowsPerPage({
+  panelHeight,
+  matrixTopOffset,
+  pagerHeight,
+  newsHeight = 0,
+  rowHeight,
+  minRows,
+  maxRows
+}) {
+  for (const [label, value] of Object.entries({
+    panelHeight,
+    matrixTopOffset,
+    pagerHeight,
+    newsHeight,
+    rowHeight,
+    minRows,
+    maxRows
+  })) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`Politics chart ${label} must be a non-negative integer: ${value}`);
+    }
+  }
+  if (rowHeight === 0) throw new Error("Politics chart rowHeight must be positive");
+  if (minRows === 0) throw new Error("Politics chart minRows must be positive");
+  if (maxRows < minRows) {
+    throw new Error(`Politics chart maxRows cannot be smaller than minRows: ${maxRows} < ${minRows}`);
+  }
+
+  const availableRows = Math.floor(
+    (panelHeight - matrixTopOffset - pagerHeight - 8 - newsHeight) / rowHeight
+  );
+  return Math.max(minRows, Math.min(maxRows, availableRows));
+}

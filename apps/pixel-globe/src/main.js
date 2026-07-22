@@ -596,7 +596,10 @@ import {
   captainChartPannedViewport,
   captainChartSettlementMarkerSize
 } from "./captainChartMap.js";
-import { politicsChartHeaderLayout } from "./politicsChartLayout.js";
+import {
+  politicsChartHeaderLayout,
+  politicsChartRowsPerPage
+} from "./politicsChartLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
 import {
   globeWaterHexWaveFrame,
@@ -2014,6 +2017,7 @@ const npcVisualShips = new Map();
 const shipCombatState = createShipCombatState();
 const shipCollisionCooldowns = new Map();
 const shipCombatEntryCollisionGrace = new Map();
+let pendingNpcCombatHailId = null;
 const shoreBatteryStates = new Map();
 let npcCombatProjectiles = [];
 let npcCombatSplashes = [];
@@ -7128,6 +7132,7 @@ async function restoreSavedVoyage(payload) {
   shoreBatteryUpdateAccumulator = 0;
   npcCombatProjectiles = [];
   npcCombatSplashes = [];
+  pendingNpcCombatHailId = null;
   shipCombatState.engagements.clear();
   shipCollisionCooldowns.clear();
   shipCombatEntryCollisionGrace.clear();
@@ -8940,7 +8945,8 @@ function stepPoliticsPage(direction) {
     dirty = true;
     return;
   }
-  const page = politicsRowsPage(view, politicsMenu.page + direction, POLITICS_ROWS_PER_PAGE);
+  const pagination = widePoliticsPagination(view);
+  const page = politicsRowsPage(view, politicsMenu.page + direction, pagination.rowsPerPage);
   politicsMenu.page = page.page;
   dirty = true;
 }
@@ -11841,14 +11847,14 @@ function resolveFishingAction(action) {
     showFishCatchNotice("FISHERY DEPLETED", "warn");
     return;
   }
-  receiveFishCatch(gameState, result, {
+  const received = receiveFishCatch(gameState, result, {
     simMinute: Math.floor(weatherClockMinutes),
     location: "Fishing grounds"
   });
   playFishingSuccessSound();
   syncShipCargoFromGameState();
   const depletedText = result.overfished ? " - OVERFISHED" : "";
-  showFishCatchNotice(`CAUGHT ${result.speciesLabel.toUpperCase()} x${result.quantity}${depletedText}`, "good");
+  showFishCatchNotice(`CAUGHT ${result.speciesLabel.toUpperCase()} x${received.quantity}${depletedText}`, "good");
   saveVoyageNow("fishing catch");
   dirty = true;
 }
@@ -14158,7 +14164,8 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
 
 function queueWineCaptainDialogues(result) {
   if (result.wineDrinkingStarted) {
-    pendingWineCaptainDialogues.push({
+    queueWineCaptainDialogue({
+      id: "wine-emergency",
       message: wineEmergencyDialogue(),
       expressionId: "concerned"
     });
@@ -14167,11 +14174,19 @@ function queueWineCaptainDialogues(result) {
   const endingDay = Math.floor(gameState.survival.wineOnlyMinutes / WEATHER_MINUTES_PER_DAY);
   const startingDay = endingDay - result.wineOnlyDaysElapsed + 1;
   for (let day = startingDay; day <= endingDay; day++) {
-    pendingWineCaptainDialogues.push({
+    queueWineCaptainDialogue({
+      id: `wine-day-${day}`,
       message: drunkenWineDialogue(day),
       expressionId: "happy"
     });
   }
+}
+
+function queueWineCaptainDialogue(dialogue) {
+  if (!dialogue?.id) throw new Error("Wine survival dialogue requires an id");
+  if (pendingWineCaptainDialogues.some((entry) => entry.id === dialogue.id)) return false;
+  pendingWineCaptainDialogues.push(dialogue);
+  return true;
 }
 
 function initializeFetchQuestReadiness() {
@@ -14238,6 +14253,7 @@ function presentPendingWineCaptainDialogue() {
   const next = pendingWineCaptainDialogues[0];
   if (!openCrewAlertModal(next.message, next.expressionId)) return false;
   pendingWineCaptainDialogues.shift();
+  saveVoyageNow(`reported ${next.id}`);
   return true;
 }
 
@@ -14470,6 +14486,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   portWaitButtonRect = null;
   dialogueState = null;
   dialogueLayout = createDialogueLayoutState();
+  pendingNpcCombatHailId = null;
   closeMenusForGameOver();
   ship.velocity = [0, 0, 0];
   ship.wakeParticles = [];
@@ -14927,10 +14944,21 @@ function updateNpcCombat(dt) {
   const initiatingNpcId = colonizationDefenseInitiator || (firstPlayerEngagement
     ? (firstPlayerEngagement.aId === PLAYER_COMBAT_ID ? firstPlayerEngagement.bId : firstPlayerEngagement.aId)
     : null);
+  if (initiatingNpcId && !pendingNpcCombatHailId) pendingNpcCombatHailId = initiatingNpcId;
   const suppressCaptureHails = captureSuppressesCombatHails();
-  const combatHailOpened = initiatingNpcId && !suppressCaptureHails
-    ? openNpcCombatHail(initiatingNpcId)
-    : false;
+  let combatHailOpened = false;
+  if (pendingNpcCombatHailId) {
+    const engagementActive = shipCombatState.engagements.has(
+      engagementKey(PLAYER_COMBAT_ID, pendingNpcCombatHailId)
+    );
+    if (suppressCaptureHails || !engagementActive || !npcVisualShips.has(pendingNpcCombatHailId)) {
+      pendingNpcCombatHailId = null;
+    } else if (!combatHailIsBlockedByOverlay()) {
+      combatHailOpened = openNpcCombatHail(pendingNpcCombatHailId);
+      if (combatHailOpened) pendingNpcCombatHailId = null;
+    }
+  }
+  const combatHailPending = Boolean(pendingNpcCombatHailId);
   shoreBatteryUpdateAccumulator = Math.min(
     SHORE_BATTERY_UPDATE_INTERVAL_SECONDS * 2,
     shoreBatteryUpdateAccumulator + dt
@@ -14943,7 +14971,7 @@ function updateNpcCombat(dt) {
           shoreBatteryUpdateAccumulator = 0;
           return updateShoreBatteryCombat(
             elapsed,
-            combatHailOpened || suppressCaptureHails,
+            combatHailOpened || combatHailPending || suppressCaptureHails,
             portEntryContext
           );
         }
@@ -14970,7 +14998,8 @@ function updateNpcCombat(dt) {
     state.combatMode = nextMode;
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
-    if (!combatHailOpened && !batteryCombat.hailOpened && intent?.mode === COMBAT_MODE_ATTACK && fireNpcWeaponAtTarget(state, intent.targetId)) {
+    if (!combatHailOpened && !combatHailPending && !batteryCombat.hailOpened &&
+        intent?.mode === COMBAT_MODE_ATTACK && fireNpcWeaponAtTarget(state, intent.targetId)) {
       changed = true;
     }
   }
@@ -14989,6 +15018,10 @@ function updateNpcCombat(dt) {
     startCombatMusicForThreat(hostileCannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   }
   return changed;
+}
+
+function combatHailIsBlockedByOverlay() {
+  return Boolean(gameOverReason || playerIntroModal || dialogueState || menusAreOpen());
 }
 
 function forceColonizationDefenseEngagements(playerWasInCombat) {
@@ -15038,6 +15071,7 @@ function combatParticipantIds() {
 }
 
 function openNpcCombatHail(npcShipId) {
+  if (combatHailIsBlockedByOverlay()) return false;
   const state = npcVisualShips.get(npcShipId);
   if (!state) throw new Error(`Cannot open combat hail without a visual NPC ship: ${npcShipId}`);
   const character = ensureNpcShipCaptain(npcShipId);
@@ -21437,18 +21471,12 @@ function drawPoliticsMenu() {
     h: POLITICS_PANEL_H
   };
   const view = createPoliticsView(gameState);
-  const newsHeight = view.recentEvents.length > 0 ? 12 : 0;
-  const header = politicsChartHeaderLayout({
-    panelY: panel.y,
-    fontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
-  });
-  const availableRows = Math.floor(
-    (panel.h - header.matrixTopOffset - UI_PAGER_BUTTON_H - 8 - newsHeight) / POLITICS_MATRIX_ROW_H
-  );
+  const pagination = widePoliticsPagination(view);
+  const header = pagination.header;
   const page = politicsRowsPage(
     view,
     politicsMenu.page,
-    Math.max(6, Math.min(POLITICS_ROWS_PER_PAGE, availableRows))
+    pagination.rowsPerPage
   );
   politicsMenu.page = page.page;
 
@@ -21546,6 +21574,23 @@ function drawPoliticsMenu() {
   });
   drawPoliticsLatestNews(view, panel, pagerY);
   ctx.restore();
+}
+
+function widePoliticsPagination(view) {
+  const header = politicsChartHeaderLayout({
+    panelY: POLITICS_PANEL_Y,
+    fontSize: pixelFontSizePx(PIXEL_FONT_SMALL_8)
+  });
+  const rowsPerPage = politicsChartRowsPerPage({
+    panelHeight: POLITICS_PANEL_H,
+    matrixTopOffset: header.matrixTopOffset,
+    pagerHeight: UI_PAGER_BUTTON_H,
+    newsHeight: view.recentEvents.length > 0 ? 12 : 0,
+    rowHeight: POLITICS_MATRIX_ROW_H,
+    minRows: 6,
+    maxRows: POLITICS_ROWS_PER_PAGE
+  });
+  return { header, rowsPerPage };
 }
 
 function compactPoliticsPagination(view) {

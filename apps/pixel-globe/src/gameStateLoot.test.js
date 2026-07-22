@@ -9,6 +9,7 @@ import {
   createGameState,
   fishCatchCargoCapacity,
   initializeProvisionalShipLoadout,
+  migrateGameState,
   recordDiscovery,
   receiveDiscoveryCargo,
   receiveFishCatch,
@@ -108,6 +109,47 @@ test("fractional ration space cannot be harvested as a fractional fish lot", () 
     speciesLabel: "Cod",
     quantity: 1
   }), /Not enough cargo space/);
+});
+
+test("restoring an overfilled save jettisons only the most recently caught excess cargo", () => {
+  const state = createGameState({ cargoCapacity: 4, startMinute: 100 });
+  state.cargo.gold = 3;
+  state.cargo.fish = 1 + 2 / 12;
+  state.accounts.cargoCostBasis.gold = 240;
+  state.accounts.cargoCostBasis.fish = 0;
+  state.accounts.ledger.push({ kind: "catch", goodId: "fish" });
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  let restored;
+  try {
+    restored = migrateGameState(state);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(restored.cargo.gold, 3);
+  assert.equal(restored.cargo.fish, 1);
+  assert.equal(cargoUsed(restored), restored.cargoCapacity);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0][0], /excess cargo was jettisoned/);
+  assert.ok(Math.abs(warnings[0][1].removed.fish - 2 / 12) < 1e-8);
+});
+
+test("fish catches are capped again at the mutation boundary when requested capacity is stale", () => {
+  const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
+  state.cargo.gold = 2;
+  state.accounts.cargoCostBasis.gold = 0;
+
+  const received = receiveFishCatch(state, {
+    stockKey: "10:cod",
+    speciesLabel: "Cod",
+    quantity: 4
+  });
+
+  assert.equal(received.quantity, 1);
+  assert.equal(state.cargo.fish, 1);
+  assert.equal(cargoUsed(state), state.cargoCapacity);
 });
 
 test("cargo capacity uses integer ration-sized ticks for arbitrary fractional goods", () => {
