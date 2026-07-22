@@ -17,18 +17,35 @@ export const MANUAL_SEASONAL_SEA_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
   ])
 });
 
+// Restore small, historically recognizable landforms that disappear at the
+// globe bake's resolution. This tile extends Salento east from the connected
+// Italian landmass, giving the peninsula its characteristic heel.
+export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
+  7: Object.freeze([
+    Object.freeze({
+      tileId: 98761,
+      sourceTerrain: "beach",
+      terrainType: "mediterranean_hot",
+      elevation: -0.03629907425729602,
+      landmassId: 57
+    })
+  ])
+});
+
 export function applyManualTerrainOverrides(earthRows, subdivisions) {
   if (!Array.isArray(earthRows)) throw new Error("Manual terrain overrides require Earth tile rows");
   const shallowWaterTileIds = MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS[subdivisions] || [];
   const seasonalSeaTileIds = MANUAL_SEASONAL_SEA_TILE_IDS_BY_SUBDIVISIONS[subdivisions] || [];
-  if (shallowWaterTileIds.length === 0 && seasonalSeaTileIds.length === 0) return earthRows;
+  const landOverrides = MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[subdivisions] || [];
+  if (
+    shallowWaterTileIds.length === 0 &&
+    seasonalSeaTileIds.length === 0 &&
+    landOverrides.length === 0
+  ) return earthRows;
 
   const correctedRows = earthRows.slice();
   for (const tileId of shallowWaterTileIds) {
-    const source = earthRows[tileId];
-    if (!source || source.id !== tileId) {
-      throw new Error(`Manual terrain override tile ${tileId} does not match the Earth cache`);
-    }
+    const source = manualTerrainSource(earthRows, tileId, "terrain override");
     const { h: _hill, l: _lake, m: _landmass, ...shared } = source;
     correctedRows[tileId] = {
       ...shared,
@@ -38,17 +55,37 @@ export function applyManualTerrainOverrides(earthRows, subdivisions) {
     };
   }
   for (const tileId of seasonalSeaTileIds) {
-    const source = earthRows[tileId];
-    if (!source || source.id !== tileId) {
-      throw new Error(`Manual seasonal-sea tile ${tileId} does not match the Earth cache`);
-    }
+    const source = manualTerrainSource(earthRows, tileId, "seasonal-sea");
     if (source.t !== "ice") {
       throw new Error(`Manual seasonal-sea tile ${tileId} is ${source.t}, expected permanent ice`);
     }
     const { h: _hill, l: _lake, m: _landmass, ...shared } = source;
     correctedRows[tileId] = { ...shared, t: "water", o: 1 };
   }
+  for (const override of landOverrides) {
+    const source = manualTerrainSource(earthRows, override.tileId, "land");
+    if (source.t !== override.sourceTerrain) {
+      throw new Error(
+        `Manual land tile ${override.tileId} is ${source.t}, expected ${override.sourceTerrain}`
+      );
+    }
+    const { h: _hill, l: _lake, m: _landmass, o: _ocean, ...shared } = source;
+    correctedRows[override.tileId] = {
+      ...shared,
+      t: override.terrainType,
+      e: override.elevation,
+      m: override.landmassId
+    };
+  }
   return correctedRows;
+}
+
+function manualTerrainSource(earthRows, tileId, kind) {
+  const source = earthRows[tileId];
+  if (!source || source.id !== tileId) {
+    throw new Error(`Manual ${kind} tile ${tileId} does not match the Earth cache`);
+  }
+  return source;
 }
 
 export function assertManualShallowWaterReachesOcean(reachableNavigationMask, subdivisions) {

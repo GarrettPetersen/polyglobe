@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { buildGeodesicGraph } from "./geodesic.js";
 import {
+  MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS,
   MANUAL_SEASONAL_SEA_TILE_IDS_BY_SUBDIVISIONS,
   MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS,
   applyManualTerrainOverrides,
@@ -19,7 +20,38 @@ import {
 const SUBDIVISIONS = 7;
 const GULF_OF_KHAMBHAT_TILE_ID = 38891;
 const GULF_OF_KHAMBHAT_OUTLET_TILE_ID = 38903;
+const ITALY_SALENTO_TILE_ID = 98761;
+const ITALY_ADJOINING_LAND_TILE_ID = 98762;
 const repoRoot = new URL("../../../", import.meta.url);
+
+test("Italy's Salento heel is restored as connected Mediterranean land", async () => {
+  const earth = JSON.parse(await readFile(
+    new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
+    "utf8"
+  ));
+  const correctedRows = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
+  const graph = buildGeodesicGraph(SUBDIVISIONS);
+
+  assert.deepEqual(MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[SUBDIVISIONS], [{
+    tileId: ITALY_SALENTO_TILE_ID,
+    sourceTerrain: "beach",
+    terrainType: "mediterranean_hot",
+    elevation: -0.03629907425729602,
+    landmassId: 57
+  }]);
+  assert.equal(earth.tiles[ITALY_SALENTO_TILE_ID].t, "beach");
+  assert.deepEqual(correctedRows[ITALY_SALENTO_TILE_ID], {
+    id: ITALY_SALENTO_TILE_ID,
+    t: "mediterranean_hot",
+    e: -0.03629907425729602,
+    m: 57
+  });
+  assert.equal(isWaterSurfaceRow(correctedRows[ITALY_SALENTO_TILE_ID]), false);
+  assert.equal(graph.neighbors[ITALY_SALENTO_TILE_ID].includes(ITALY_ADJOINING_LAND_TILE_ID), true);
+  assert.equal(correctedRows[ITALY_ADJOINING_LAND_TILE_ID].m, 57);
+  assert.ok(Math.abs(graph.latDeg[ITALY_SALENTO_TILE_ID] - 40.586) < 0.01);
+  assert.ok(Math.abs(graph.lonDeg[ITALY_SALENTO_TILE_ID] - 17.61) < 0.01);
+});
 
 test("Cambay's Gulf of Khambhat hex is corrected to shallow navigable water", async () => {
   const earth = JSON.parse(await readFile(
