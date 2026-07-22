@@ -12,6 +12,7 @@ const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
 const codeAssetVersion = "2026-07-22";
+const trailerAssetVersion = "0e47753cd4d8";
 
 export function homePage() {
   const featureRows = features.map((feature) => [
@@ -73,7 +74,7 @@ export function homePage() {
     "</div>",
     "<div class='trailer-frame reveal'>",
     "<video controls playsinline preload='metadata' poster='/assets/press/screenshots/06-fight-off-iberia.png'>",
-    "<source src='/assets/video/gameplay-trailer.mp4' type='video/mp4'>",
+    "<source src='/assets/video/gameplay-trailer.mp4?v=" + trailerAssetVersion + "' type='video/mp4'>",
     "Your browser does not support embedded video.",
     "</video>",
     "</div>",

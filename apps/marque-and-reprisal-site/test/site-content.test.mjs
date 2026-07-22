@@ -137,3 +137,8 @@ test("code assets bypass stale browser caches", async () => {
     /\/assets\/scripts\/\*[\s\S]*?Cache-Control: public, max-age=0, must-revalidate/
   );
 });
+
+test("the gameplay trailer bypasses stale browser caches", () => {
+  const page = homePage();
+  assert.match(page, /src='\/assets\/video\/gameplay-trailer\.mp4\?v=[0-9a-f]{12}'/);
+});
