@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
 import json
 import math
 import shutil
@@ -20,10 +19,9 @@ PLAN_PATH = TOOL / "steam-trailer-plan.json"
 TEMP = WORK / "render"
 OVERLAYS = TEMP / "overlays"
 SEGMENTS = TEMP / "segments"
-OUTPUT_WITH_CHAPTER_TEXT = WORK / "marque-and-reprisal-steam-trailer-v6.mp4"
-OUTPUT_WITHOUT_CHAPTER_TEXT = WORK / "marque-and-reprisal-steam-trailer-v6-no-chapter-text.mp4"
+OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v7.mp4"
 FONT_PATH = TOOL / "assets" / "PirataOne-Regular.ttf"
-TITLE_PATH = APP / "public" / "assets" / "capsule" / "detailed_title.png"
+TITLE_PATH = APP / "capsule_art" / "generated" / "capsule_title_with_ship_en.png"
 SAILING_MUSIC_INTRO = APP / "public" / "assets" / "music" / "ship-theme-intro.ogg"
 SAILING_MUSIC_LOOP = APP / "public" / "assets" / "music" / "ship-theme-loop.ogg"
 COMBAT_MUSIC_INTRO = APP / "public" / "assets" / "music" / "combat-theme-intro.ogg"
@@ -31,35 +29,12 @@ COMBAT_MUSIC_LOOP = APP / "public" / "assets" / "music" / "combat-theme-loop.ogg
 WIDTH = 1920
 HEIGHT = 1080
 FPS = 30
-NATIVE_CAPTURE_HEIGHT = 270
-NATIVE_ACTION_BUTTON_TOP = 237
-HEADING_BOTTOM_Y = round(HEIGHT * NATIVE_ACTION_BUTTON_TOP / NATIVE_CAPTURE_HEIGHT)
-HEADING_ENTER_SECONDS = 0.8
-HEADING_EXIT_SECONDS = 0.8
-HEADING_CRUISE_SPEED_PX_PER_SECOND = 28
-MUSIC_CROSSFADE_SECONDS = 1.6
 OUTRO_BLUR_SECONDS = 1.1
 OUTRO_TITLE_START_SECONDS = 0.25
+OUTRO_TITLE_SETTLE_SECONDS = 7 * math.pi / 18
 OUTRO_SOURCE_MAX_SECONDS = 5.0
-
-
-def make_heading_sprite(heading):
-    overlay = Image.new("RGBA", (WIDTH, 360), (0, 0, 0, 0))
-    font = ImageFont.truetype(str(FONT_PATH), 220)
-    draw_shadowed_text(overlay, heading, font, (WIDTH // 2, overlay.height // 2))
-    bounds = overlay.getchannel("A").getbbox()
-    if not bounds:
-        raise RuntimeError(f"Trailer heading has no opaque pixels: {heading}")
-    overlay = overlay.crop(bounds)
-    path = OVERLAYS / f"heading-{heading.lower()}.png"
-    overlay.save(path)
-    return path
-
-
-def make_transparent_heading_sprite():
-    path = OVERLAYS / "heading-transparent.png"
-    Image.new("RGBA", (2, 2), (0, 0, 0, 0)).save(path)
-    return path
+MINIMUM_FEATURE_CLIP_FRAMES = 30
+MINIMUM_MONTAGE_CLIP_FRAMES = 10
 
 
 def shadowed_image(image):
@@ -80,7 +55,7 @@ def make_outro_sprite():
     title = title.crop(bounds)
     target_width = 1200
     target_height = round(title.height * target_width / title.width)
-    title = title.resize((target_width, target_height), Image.Resampling.LANCZOS)
+    title = title.resize((target_width, target_height), Image.Resampling.NEAREST)
 
     subtitle_font = ImageFont.truetype(str(FONT_PATH), 136)
     subtitle = "Wishlist on Steam"
@@ -115,74 +90,12 @@ def render_segment(
     source,
     start,
     duration,
-    overlay,
     output,
-    heading_timeline=None,
 ):
     require_file(source)
-    require_file(overlay)
-    overlay_filter = "[1:v]format=rgba"
-    overlay_options = "x=0:y=0"
-    if heading_timeline is not None:
-        chapter_seconds, chapter_offset = heading_timeline
-        if chapter_seconds <= HEADING_ENTER_SECONDS + HEADING_EXIT_SECONDS:
-            raise RuntimeError(f"Chapter is too short for heading motion: {chapter_seconds}")
-        global_time = f"(t+{chapter_offset})"
-        exit_start = chapter_seconds - HEADING_EXIT_SECONDS
-        middle_seconds = chapter_seconds - HEADING_ENTER_SECONDS - HEADING_EXIT_SECONDS
-        middle_drift = HEADING_CRUISE_SPEED_PX_PER_SECOND * middle_seconds
-        scale = (
-            f"if(lt({global_time},{HEADING_ENTER_SECONDS}),"
-            f"0.65+0.35*(0.08*({global_time}/{HEADING_ENTER_SECONDS})+"
-            f"0.92*(1-pow(1-{global_time}/{HEADING_ENTER_SECONDS},3))),"
-            f"if(gt({global_time},{exit_start}),"
-            f"1+0.35*(0.08*(({global_time}-{exit_start})/{HEADING_EXIT_SECONDS})+"
-            f"0.92*pow(({global_time}-{exit_start})/{HEADING_EXIT_SECONDS},3)),1))"
-        )
-        scale_width = f"max(2,trunc(iw*({scale})/2)*2)"
-        scale_height = f"max(2,trunc(ih*({scale})/2)*2)"
-        overlay_filter += (
-            f",scale=w='{escape_filter_expression(scale_width)}':"
-            f"h='{escape_filter_expression(scale_height)}':eval=frame"
-        )
-        centered_x = "(main_w-overlay_w)/2"
-        middle_start_x = f"({centered_x}-{middle_drift / 2})"
-        middle_end_x = f"({centered_x}+{middle_drift / 2})"
-        enter_u = f"({global_time}/{HEADING_ENTER_SECONDS})"
-        enter_distance = f"({middle_start_x}+overlay_w)"
-        enter_min_rate = (
-            f"({HEADING_CRUISE_SPEED_PX_PER_SECOND}*{HEADING_ENTER_SECONDS}/{enter_distance})"
-        )
-        enter_ease = (
-            f"({enter_min_rate}*{enter_u}+(1-{enter_min_rate})*(1-pow(1-{enter_u},3)))"
-        )
-        middle_u = f"(({global_time}-{HEADING_ENTER_SECONDS})/{middle_seconds})"
-        exit_u = f"(({global_time}-{exit_start})/{HEADING_EXIT_SECONDS})"
-        exit_distance = f"(main_w-{middle_end_x})"
-        exit_min_rate = (
-            f"({HEADING_CRUISE_SPEED_PX_PER_SECOND}*{HEADING_EXIT_SECONDS}/{exit_distance})"
-        )
-        exit_ease = f"({exit_min_rate}*{exit_u}+(1-{exit_min_rate})*pow({exit_u},3))"
-        x_position = (
-            f"if(lt({global_time},{HEADING_ENTER_SECONDS}),"
-            f"-overlay_w+{enter_distance}*{enter_ease},"
-            f"if(gt({global_time},{exit_start}),"
-            f"{middle_end_x}+(main_w-{middle_end_x})*{exit_ease},"
-            f"{middle_start_x}+{middle_drift}*{middle_u}))"
-        )
-        overlay_options = (
-            f"x='{escape_filter_expression(x_position)}':"
-            f"y='{HEADING_BOTTOM_Y}-overlay_h'"
-        )
-    overlay_filter += "[overlay]"
-    trim_filter = (
-        f"[0:v]trim=start={start}:duration={duration},setpts=PTS-STARTPTS,"
-        f"fps={FPS},scale={WIDTH}:{HEIGHT}:flags=neighbor,setsar=1[base]"
-    )
     filters = (
-        f"{trim_filter};"
-        f"{overlay_filter};"
-        f"[base][overlay]overlay={overlay_options}:shortest=1:format=auto,"
+        f"[0:v]trim=start={start}:duration={duration},setpts=PTS-STARTPTS,"
+        f"fps={FPS},scale={WIDTH}:{HEIGHT}:flags=neighbor,setsar=1,"
         "format=yuv420p[video];"
         f"[0:a]atrim=start={start}:duration={duration},asetpts=PTS-STARTPTS,"
         "aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[audio]"
@@ -190,7 +103,6 @@ def render_segment(
     run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-i", source,
-        "-loop", "1", "-framerate", str(FPS), "-i", overlay,
         "-filter_complex", filters,
         "-map", "[video]", "-map", "[audio]",
         "-t", str(duration),
@@ -212,7 +124,8 @@ def render_outro_motion(source, source_start, source_duration, duration, overlay
     pop_time = f"(t-{OUTRO_TITLE_START_SECONDS})"
     title_scale = (
         f"if(lt(t,{OUTRO_TITLE_START_SECONDS}),0.2,"
-        f"1-0.8*exp(-4*{pop_time})*cos(9*{pop_time}))"
+        f"if(lt({pop_time},{OUTRO_TITLE_SETTLE_SECONDS}),"
+        f"1-0.8*exp(-4*{pop_time})*cos(9*{pop_time}),1))"
     )
     scale_width = f"max(2,trunc(iw*({title_scale})/2)*2)"
     scale_height = f"max(2,trunc(ih*({title_scale})/2)*2)"
@@ -250,19 +163,124 @@ def escape_filter_expression(value):
     return value.replace(",", "\\,")
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Build the Marque & Reprisal Steam trailer")
-    parser.add_argument(
-        "--no-chapter-text",
-        action="store_true",
-        help="omit the animated feature headings while preserving the title outro",
+def required_frame_count(value, label, minimum=1):
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+        raise RuntimeError(f"{label} must be an integer of at least {minimum} frames")
+    return value
+
+
+def required_positive_number(value, label):
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise RuntimeError(f"{label} must be positive")
+    return number
+
+
+def montage_boundary_frames(montage, music):
+    track = montage.get("track")
+    bpm_key = "shipBpm" if track == "ship" else "combatBpm" if track == "combat" else None
+    if bpm_key is None:
+        raise RuntimeError(f"Unknown montage music track: {track}")
+    bpm = required_positive_number(music.get(bpm_key), bpm_key)
+    subdivisions = required_frame_count(
+        montage.get("subdivisionsPerBeat"),
+        f"{montage.get('id', 'montage')} subdivisions per beat",
     )
-    return parser.parse_args()
+    start_subdivision = required_frame_count(
+        montage.get("startSubdivision"),
+        f"{montage.get('id', 'montage')} start subdivision",
+        minimum=0,
+    )
+    clips = montage.get("clips")
+    if not isinstance(clips, list) or len(clips) != 4:
+        raise RuntimeError(f"{montage.get('id', 'montage')} must contain exactly four beat cuts")
+    origin_frame = 0
+    if track == "combat":
+        origin_frame = music["fightStartFrame"] - music["crossfadeFrames"] // 2
+    frames_per_subdivision = FPS * 60 / bpm / subdivisions
+    return [
+        origin_frame + round((start_subdivision + index) * frames_per_subdivision)
+        for index in range(len(clips) + 1)
+    ]
+
+
+def build_timeline(plan):
+    chapters = plan["chapters"]
+    music = plan["music"]
+    montages = plan.get("montages")
+    if not isinstance(montages, list) or len(montages) != 2:
+        raise RuntimeError("Trailer plan must define exactly two beat-cut montages")
+    montages_by_chapter = {}
+    for montage in montages:
+        montage_id = montage.get("id")
+        if not isinstance(montage_id, str) or not montage_id:
+            raise RuntimeError("Every montage needs an id")
+        after_chapter = montage.get("afterChapter")
+        if after_chapter in montages_by_chapter:
+            raise RuntimeError(f"Multiple montages follow {after_chapter}")
+        montages_by_chapter[after_chapter] = montage
+
+    sections = []
+    cursor_frame = 0
+    cut_frames = []
+    seen_montages = set()
+    for chapter in chapters:
+        heading = chapter["heading"]
+        section_start_frame = cursor_frame
+        planned_clips = []
+        for clip in chapter["clips"]:
+            duration_frames = required_frame_count(
+                clip.get("durationFrames"),
+                f"{heading} clip duration",
+                MINIMUM_FEATURE_CLIP_FRAMES,
+            )
+            planned_clips.append({**clip, "durationFrames": duration_frames})
+            cursor_frame += duration_frames
+            cut_frames.append(cursor_frame)
+        sections.append({
+            "kind": "chapter",
+            "heading": heading,
+            "timelineStartFrame": section_start_frame,
+            "clips": planned_clips,
+        })
+
+        montage = montages_by_chapter.get(heading)
+        if not montage:
+            continue
+        boundaries = montage_boundary_frames(montage, music)
+        if boundaries[0] != cursor_frame:
+            raise RuntimeError(
+                f"{montage['id']} begins at frame {boundaries[0]}, but the edit is at frame {cursor_frame}"
+            )
+        planned_clips = []
+        for index, clip in enumerate(montage["clips"]):
+            duration_frames = boundaries[index + 1] - boundaries[index]
+            required_frame_count(
+                duration_frames,
+                f"{montage['id']} beat-cut duration",
+                MINIMUM_MONTAGE_CLIP_FRAMES,
+            )
+            planned_clips.append({**clip, "durationFrames": duration_frames})
+            cursor_frame += duration_frames
+            cut_frames.append(cursor_frame)
+        sections.append({
+            "kind": "montage",
+            "id": montage["id"],
+            "track": montage["track"],
+            "timelineStartFrame": boundaries[0],
+            "clips": planned_clips,
+            "beatBoundariesFrames": boundaries,
+        })
+        seen_montages.add(montage["id"])
+
+    if seen_montages != {montage.get("id") for montage in montages}:
+        raise RuntimeError("Every montage must follow a named trailer chapter")
+    if cut_frames != music.get("syncCutFrames"):
+        raise RuntimeError(f"Trailer cut frames do not match the reviewed music sync: {cut_frames}")
+    return sections, cursor_frame, cut_frames
 
 
 def main():
-    args = parse_args()
-    output = OUTPUT_WITHOUT_CHAPTER_TEXT if args.no_chapter_text else OUTPUT_WITH_CHAPTER_TEXT
     for required in (
         PLAN_PATH,
         FONT_PATH,
@@ -286,72 +304,104 @@ def main():
     fight_index = fight_indices[0]
     if fight_index == 0 or chapters[fight_index - 1].get("heading") != "Colonize":
         raise RuntimeError("Colonize must immediately precede Fight")
-    chapter_durations = [
-        sum(float(clip["duration"]) for clip in chapter["clips"])
-        for chapter in chapters
-    ]
-    fight_start_seconds = sum(chapter_durations[:fight_index])
+    music = plan.get("music")
+    if not isinstance(music, dict):
+        raise RuntimeError("Trailer plan must define music synchronization")
+    fight_start_frame = required_frame_count(music.get("fightStartFrame"), "fight start frame")
+    crossfade_frames = required_frame_count(music.get("crossfadeFrames"), "crossfade frames")
+    if crossfade_frames % 2 != 0:
+        raise RuntimeError("Music crossfade must have an even frame count")
+    if music.get("combatSyncAttackFrame") != crossfade_frames // 2:
+        raise RuntimeError("The combat sync attack must land at the crossfade midpoint")
+    sections, gameplay_frames, cut_frames = build_timeline(plan)
+    fight_section = next(section for section in sections if section.get("heading") == "Fight")
+    if fight_section["timelineStartFrame"] != fight_start_frame:
+        raise RuntimeError(
+            f"Fight begins at frame {fight_section['timelineStartFrame']}, expected {fight_start_frame}"
+        )
+    fight_start_seconds = fight_start_frame / FPS
+    crossfade_seconds = crossfade_frames / FPS
 
     shutil.rmtree(TEMP, ignore_errors=True)
     OVERLAYS.mkdir(parents=True)
     SEGMENTS.mkdir(parents=True)
-    outro_seconds = float(plan["outroSeconds"])
+    outro_frames = required_frame_count(plan.get("outroFrames"), "outro frames")
+    outro_seconds = outro_frames / FPS
     segment_paths = []
     edit = {
         "chapters": [],
+        "montages": [],
+        "timeline": [],
         "outro": {},
         "music": {
             "beforeFight": "ship-theme",
             "fromFight": "combat-theme",
-            "crossfadeSeconds": MUSIC_CROSSFADE_SECONDS,
+            "crossfadeSeconds": crossfade_seconds,
             "fightStartSeconds": fight_start_seconds,
+            "crossfadeStartFrame": fight_start_frame - crossfade_frames // 2,
+            "combatSyncAttackFrame": music["combatSyncAttackFrame"],
+            "shipBpm": music["shipBpm"],
+            "combatBpm": music["combatBpm"],
+            "syncCutFrames": cut_frames,
         },
-        "chapterText": not args.no_chapter_text,
-        "output": str(output),
+        "output": str(OUTPUT),
     }
 
     segment_index = 0
     final_source = None
     final_source_end = None
-    transparent_heading = make_transparent_heading_sprite() if args.no_chapter_text else None
-    for chapter in chapters:
-        heading = chapter["heading"]
-        heading_overlay = transparent_heading or make_heading_sprite(heading)
-        chapter_seconds = sum(float(clip["duration"]) for clip in chapter["clips"])
-        chapter_offset = 0.0
-        edit_chapter = {"heading": heading, "clips": []}
-        for clip in chapter["clips"]:
+    for section in sections:
+        is_chapter = section["kind"] == "chapter"
+        heading = section.get("heading")
+        edit_section = {
+            "kind": section["kind"],
+            "timelineStartFrame": section["timelineStartFrame"],
+            "clips": [],
+        }
+        if is_chapter:
+            edit_section["heading"] = heading
+        else:
+            edit_section.update({
+                "id": section["id"],
+                "track": section["track"],
+                "beatBoundariesFrames": section["beatBoundariesFrames"],
+            })
+        for clip in section["clips"]:
             source = CAPTURES / clip["source"]
-            start = float(clip["start"])
-            duration = float(clip["duration"])
-            if duration < 2:
-                raise RuntimeError(f"Trailer clips must remain readable for at least 2 seconds: {source}")
+            start_frame = required_frame_count(clip.get("startFrame"), f"{source} start frame", minimum=0)
+            duration_frames = clip["durationFrames"]
+            start = start_frame / FPS
+            duration = duration_frames / FPS
             source_duration = probe_duration(source)
             if start < 0 or start + duration > source_duration + 0.04:
                 raise RuntimeError(
                     f"Clip window exceeds source: {source} starts {start}s for {duration}s "
                     f"but source is {source_duration}s"
                 )
-            segment_path = SEGMENTS / f"{segment_index:02d}-{heading.lower()}.mkv"
+            label = heading.lower() if is_chapter else section["id"]
+            segment_path = SEGMENTS / f"{segment_index:02d}-{label}.mkv"
             render_segment(
                 source,
                 start,
                 duration,
-                heading_overlay,
                 segment_path,
-                heading_timeline=None if args.no_chapter_text else (chapter_seconds, chapter_offset),
             )
             segment_paths.append(segment_path)
             final_source = source
             final_source_end = start + duration
-            edit_chapter["clips"].append({
+            edit_section["clips"].append({
                 "source": str(source),
                 "start": start,
                 "duration": duration,
+                "startFrame": start_frame,
+                "durationFrames": duration_frames,
             })
             segment_index += 1
-            chapter_offset += duration
-        edit["chapters"].append(edit_chapter)
+        edit["timeline"].append(edit_section)
+        if is_chapter:
+            edit["chapters"].append(edit_section)
+        else:
+            edit["montages"].append(edit_section)
 
     if final_source is None or final_source_end is None:
         raise RuntimeError("Trailer has no final frame for its outro")
@@ -382,7 +432,9 @@ def main():
         "playbackRate": outro_source_duration / outro_seconds,
         "duration": outro_seconds,
         "blurSeconds": OUTRO_BLUR_SECONDS,
-        "titleAnimation": "damped-pop",
+        "titleAnimation": "two-rebound-pop",
+        "titleSettlesAfterSeconds": OUTRO_TITLE_START_SECONDS + OUTRO_TITLE_SETTLE_SECONDS,
+        "titleSource": str(TITLE_PATH),
     }
 
     concat_path = TEMP / "segments.txt"
@@ -394,10 +446,8 @@ def main():
         "-c", "copy", gameplay_path,
     ])
 
-    expected_duration = sum(
-        sum(float(clip["duration"]) for clip in chapter["clips"])
-        for chapter in chapters
-    ) + outro_seconds
+    expected_frames = gameplay_frames + outro_frames
+    expected_duration = expected_frames / FPS
     actual_duration = probe_duration(gameplay_path)
     if not math.isclose(actual_duration, expected_duration, abs_tol=0.2):
         raise RuntimeError(
@@ -406,8 +456,8 @@ def main():
 
     music_path = TEMP / "music.wav"
     music_fade_start = max(0.0, expected_duration - 4.0)
-    sailing_music_duration = fight_start_seconds + MUSIC_CROSSFADE_SECONDS / 2
-    combat_music_duration = expected_duration - fight_start_seconds + MUSIC_CROSSFADE_SECONDS / 2
+    sailing_music_duration = fight_start_seconds + crossfade_seconds / 2
+    combat_music_duration = expected_duration - fight_start_seconds + crossfade_seconds / 2
     music_filters = (
         "[0:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[sailing-intro];"
         "[1:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[sailing-loop];"
@@ -418,7 +468,7 @@ def main():
         "afade=t=in:st=0:d=0.3[sailing];"
         f"[combat-intro][combat-loop]concat=n=2:v=0:a=1,"
         f"atrim=duration={combat_music_duration},asetpts=PTS-STARTPTS[combat];"
-        f"[sailing][combat]acrossfade=d={MUSIC_CROSSFADE_SECONDS}:c1=tri:c2=tri,"
+        f"[sailing][combat]acrossfade=d={crossfade_seconds}:c1=tri:c2=tri,"
         f"afade=t=out:st={music_fade_start}:d=4,volume=0.52[music]"
     )
     run([
@@ -449,19 +499,19 @@ def main():
         "-x264-params", "nal-hrd=cbr:force-cfr=1",
         "-pix_fmt", "yuv420p", "-r", str(FPS),
         "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2",
-        "-movflags", "+faststart", "-t", str(expected_duration), output,
+        "-movflags", "+faststart", "-t", str(expected_duration), OUTPUT,
     ])
 
-    final_duration = probe_duration(output)
+    final_duration = probe_duration(OUTPUT)
     if not math.isclose(final_duration, expected_duration, abs_tol=0.08):
         raise RuntimeError(
             f"Final trailer is {final_duration:.3f}s; expected {expected_duration:.3f}s"
         )
     edit["durationSeconds"] = final_duration
-    output.with_suffix(".edit.json").write_text(
+    OUTPUT.with_suffix(".edit.json").write_text(
         json.dumps(edit, indent=2) + "\n"
     )
-    print(f"Rendered {output} ({final_duration:.2f}s)")
+    print(f"Rendered {OUTPUT} ({final_duration:.2f}s)")
 
 
 if __name__ == "__main__":

@@ -45,9 +45,9 @@ test("combat benchmark stages a damaged merchant amid eastern Mediterranean figh
   assert.ok(scenario.encounters.some((encounter) => encounter.role === "pirate"));
 });
 
-test("the trailer roster has exactly two scripted shots for every requested feature", () => {
+test("the trailer roster includes feature pairs and eight fast sailing shots", () => {
   const trailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-"));
-  assert.equal(trailerIds.length, 16);
+  assert.equal(trailerIds.length, 24);
   const counts = new Map();
   for (const id of trailerIds) {
     const capture = captureScenarioFromSearch(`?capture=${id}`);
@@ -59,11 +59,26 @@ test("the trailer roster has exactly two scripted shots for every requested feat
     trade: 2,
     fish: 2,
     whale: 2,
+    sail: 8,
     fight: 2,
     pillage: 2,
     colonize: 2,
     survive: 2
   });
+});
+
+test("fast sailing trailer shots stage distinct ships on validated beam reaches", () => {
+  const sailing = captureScenarioIds()
+    .map((id) => captureScenarioFromSearch(`?capture=${id}`))
+    .filter((capture) => capture.sequence?.kind === "sail");
+  assert.equal(sailing.length, 8);
+  assert.equal(new Set(sailing.map((capture) => capture.player.shipSlug)).size, 8);
+  assert.deepEqual(new Set(sailing.map((capture) => capture.sequence.beamSide)), new Set(["port", "starboard"]));
+  assert.ok(sailing.every((capture) => capture.sequence.durationSeconds === 6));
+
+  const malformed = structuredClone(sailing[0]);
+  malformed.sequence.beamSide = "downwind";
+  assert.throws(() => validateCaptureScenario(malformed), /beam side/);
 });
 
 test("the Nubian pyramid trailer shot follows the Nile south instead of steering onto land", () => {

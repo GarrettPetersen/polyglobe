@@ -65,6 +65,9 @@ try {
   await browser.close();
 }
 
+const finalManifest = args.includeExisting
+  ? await loadExistingTrailerManifest()
+  : manifest;
 const manifestPath = path.join(outputRoot, "manifest.json");
 await writeFile(manifestPath, `${JSON.stringify({
   version: 1,
@@ -78,7 +81,7 @@ await writeFile(manifestPath, `${JSON.stringify({
     width: captureFormat.outputWidth,
     height: captureFormat.outputHeight
   },
-  clips: manifest
+  clips: finalManifest
 }, null, 2)}\n`);
 process.stdout.write(`Trailer clips: ${outputRoot}\nManifest: ${manifestPath}\n`);
 
@@ -96,14 +99,14 @@ async function recordScenario(browser, scenarioId) {
   const sfxPath = path.join(categoryDir, `${scenarioId}.sfx.ogg`);
   const videoPath = path.join(categoryDir, `${scenarioId}.webm`);
   const mp4Path = path.join(categoryDir, `${scenarioId}.mp4`);
+  const durationSeconds = frameCount / AUTOMATIC_CAPTURE_FRAME_RATE;
   await writeFile(eventsPath, `${JSON.stringify(sidecar, null, 2)}\n`);
   renderCaptureSfx(sidecar, sfxPath, scenarioId);
   const audioPeakDb = audibleAudioPeakDb(sfxPath, scenarioId);
-  encodeNativeTrailerWebm(frameDir, sfxPath, videoPath);
-  encodeTrailerMp4(frameDir, sfxPath, mp4Path, captureFormat);
+  encodeNativeTrailerWebm(frameDir, sfxPath, videoPath, durationSeconds);
+  encodeTrailerMp4(frameDir, sfxPath, mp4Path, captureFormat, durationSeconds);
   await rm(frameDir, { recursive: true, force: true });
   const probe = probeVideo(mp4Path);
-  const durationSeconds = frameCount / AUTOMATIC_CAPTURE_FRAME_RATE;
   if (probe.width !== captureFormat.outputWidth || probe.height !== captureFormat.outputHeight ||
       probe.frameRate !== AUTOMATIC_CAPTURE_FRAME_RATE || !probe.hasAudio ||
       Math.abs(probe.durationSeconds - durationSeconds) > 0.04) {
@@ -112,6 +115,71 @@ async function recordScenario(browser, scenarioId) {
       `duration=${probe.durationSeconds}, audio=${probe.hasAudio}`
     );
   }
+  return manifestEntry({
+    sidecar,
+    scenarioId,
+    category,
+    durationSeconds,
+    frameCount,
+    videoPath,
+    nativeVideoPath: videoPath,
+    sfxPath,
+    audioPeakDb,
+    eventsPath
+  });
+}
+
+async function loadExistingTrailerManifest() {
+  const allTrailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-"));
+  return Promise.all(allTrailerIds.map(async (scenarioId) => {
+    const category = scenarioId.split("-")[1];
+    const categoryDir = path.join(outputRoot, category);
+    const eventsPath = path.join(categoryDir, `${scenarioId}.json`);
+    const sfxPath = path.join(categoryDir, `${scenarioId}.sfx.ogg`);
+    const nativeVideoPath = path.join(categoryDir, `${scenarioId}.webm`);
+    const videoPath = path.join(categoryDir, `${scenarioId}.mp4`);
+    for (const required of [eventsPath, sfxPath, nativeVideoPath, videoPath]) {
+      if (!existsSync(required)) {
+        throw new Error(`Cannot include incomplete trailer capture: ${required}`);
+      }
+    }
+    const sidecar = JSON.parse(await readFile(eventsPath, "utf8"));
+    verifySidecar(sidecar, scenarioId, captureFormat);
+    const frameCount = captureFrameCount(sidecar, scenarioId);
+    const durationSeconds = frameCount / AUTOMATIC_CAPTURE_FRAME_RATE;
+    const probe = probeVideo(videoPath);
+    if (probe.width !== captureFormat.outputWidth || probe.height !== captureFormat.outputHeight ||
+        probe.frameRate !== AUTOMATIC_CAPTURE_FRAME_RATE || !probe.hasAudio ||
+        Math.abs(probe.durationSeconds - durationSeconds) > 0.04) {
+      throw new Error(`${scenarioId} existing capture failed delivery validation`);
+    }
+    return manifestEntry({
+      sidecar,
+      scenarioId,
+      category,
+      durationSeconds,
+      frameCount,
+      videoPath,
+      nativeVideoPath,
+      sfxPath,
+      audioPeakDb: audibleAudioPeakDb(sfxPath, scenarioId),
+      eventsPath
+    });
+  }));
+}
+
+function manifestEntry({
+  sidecar,
+  scenarioId,
+  category,
+  durationSeconds,
+  frameCount,
+  videoPath,
+  nativeVideoPath,
+  sfxPath,
+  audioPeakDb,
+  eventsPath
+}) {
   return {
     scenarioId,
     category,
@@ -119,8 +187,8 @@ async function recordScenario(browser, scenarioId) {
     captureMethod: "deterministic-frame-step",
     durationSeconds,
     frameCount,
-    video: path.relative(outputRoot, mp4Path),
-    nativeVideo: path.relative(outputRoot, videoPath),
+    video: path.relative(outputRoot, videoPath),
+    nativeVideo: path.relative(outputRoot, nativeVideoPath),
     sfxAudio: path.relative(outputRoot, sfxPath),
     audioPeakDb,
     events: path.relative(outputRoot, eventsPath),
@@ -237,7 +305,7 @@ function canvasFramePath(frameDir, index) {
   return path.join(frameDir, `frame-${String(index).padStart(5, "0")}.png`);
 }
 
-function encodeNativeTrailerWebm(frameDir, sfxInput, output) {
+function encodeNativeTrailerWebm(frameDir, sfxInput, output, durationSeconds) {
   execFileSync("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
     "-framerate", String(AUTOMATIC_CAPTURE_FRAME_RATE),
@@ -246,7 +314,7 @@ function encodeNativeTrailerWebm(frameDir, sfxInput, output) {
     "-vf", `fps=${AUTOMATIC_CAPTURE_FRAME_RATE}`,
     "-map", "0:v:0", "-map", "1:a:0",
     "-c:v", "libvpx-vp9", "-lossless", "1", "-pix_fmt", "yuv420p",
-    "-c:a", "libopus", "-b:a", "160k", "-af", "apad", "-shortest",
+    "-c:a", "libopus", "-b:a", "160k", "-af", "apad", "-t", String(durationSeconds),
     output
   ], { stdio: "inherit" });
 }
@@ -294,7 +362,7 @@ function renderCaptureSfx(sidecar, output, scenarioId) {
   ], { stdio: "inherit" });
 }
 
-function encodeTrailerMp4(frameDir, sfxInput, output, format) {
+function encodeTrailerMp4(frameDir, sfxInput, output, format, durationSeconds) {
   execFileSync("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
     "-framerate", String(AUTOMATIC_CAPTURE_FRAME_RATE),
@@ -303,7 +371,7 @@ function encodeTrailerMp4(frameDir, sfxInput, output, format) {
     "-map", "0:v:0", "-map", "1:a:0",
     "-vf", `fps=30,scale=${format.outputWidth}:${format.outputHeight}:flags=neighbor`,
     "-c:v", "libx264", "-preset", "slow", "-crf", "12",
-    "-c:a", "aac", "-b:a", "160k", "-af", "apad", "-shortest",
+    "-c:a", "aac", "-b:a", "160k", "-af", "apad", "-t", String(durationSeconds),
     "-pix_fmt", "yuv420p", "-movflags", "+faststart",
     output
   ], { stdio: "inherit" });
@@ -358,6 +426,17 @@ function verifySidecar(sidecar, scenarioId, format) {
     if (!types.has(required)) throw new Error(`${scenarioId} sidecar is missing ${required}`);
   }
   if (!types.has("capture-beat")) throw new Error(`${scenarioId} sidecar has no capture beats`);
+  if (sidecar.scenario.sequence.kind === "sail") {
+    const beamReach = sidecar.events.find((event) => (
+      event.type === "capture-beat" && event.data?.action === "beam-reach"
+    ));
+    if (!beamReach || Math.abs(beamReach.data.angleFromWindDeg - 90) > 2 ||
+        beamReach.data.attainableSpeedRatio < 0.9) {
+      throw new Error(
+        `${scenarioId} did not hold a fast beam reach: ${JSON.stringify(beamReach?.data || null)}`
+      );
+    }
+  }
   const captureStart = sidecar.events.find((event) => event.type === "capture-start");
   const viewport = captureStart?.data?.viewport;
   if (viewport?.width !== format.logicalWidth || viewport?.height !== format.logicalHeight) {
@@ -425,6 +504,7 @@ function parseArgs(argv) {
     format: "shorts",
     ids: [],
     headless: true,
+    includeExisting: false,
     jobs: 2,
     loadTimeoutMs: 120_000,
     captureTimeoutMs: 120_000
@@ -436,6 +516,7 @@ function parseArgs(argv) {
     else if (arg === "--ids") parsed.ids = requiredValue(argv, ++index, arg).split(",").filter(Boolean);
     else if (arg === "--format") parsed.format = requiredValue(argv, ++index, arg);
     else if (arg === "--jobs") parsed.jobs = Number(requiredValue(argv, ++index, arg));
+    else if (arg === "--include-existing") parsed.includeExisting = true;
     else if (arg === "--headed") parsed.headless = false;
     else throw new Error(`Unknown trailer capture argument: ${arg}`);
   }

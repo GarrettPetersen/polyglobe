@@ -209,6 +209,110 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(250, 17, 25),
     sequence: trailerSequence("whale", "finish", { speciesId: "sperm-whale" })
   }),
+  "trailer-sail-caravel": sailingTrailerScenario({
+    id: "trailer-sail-caravel",
+    title: "Caravel on a Beam Reach",
+    seed: "trailer-sail-caravel-v1",
+    factionId: "portugal",
+    shipSlug: "caravel",
+    lat: 18,
+    lon: -42,
+    day: 72,
+    hour: 8,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "trailer-sail-large-junk": sailingTrailerScenario({
+    id: "trailer-sail-large-junk",
+    title: "Large Junk on a Beam Reach",
+    seed: "trailer-sail-large-junk-v1",
+    factionId: "ming",
+    shipSlug: "large-junk",
+    lat: 24,
+    lon: 137,
+    day: 126,
+    hour: 6,
+    minute: 35,
+    beamSide: "port"
+  }),
+  "trailer-sail-xebec": sailingTrailerScenario({
+    id: "trailer-sail-xebec",
+    title: "Xebec on a Beam Reach",
+    seed: "trailer-sail-xebec-v1",
+    factionId: "ottoman",
+    shipSlug: "xebec",
+    lat: 32,
+    lon: 20,
+    day: 184,
+    hour: 12,
+    minute: 5,
+    beamSide: "starboard"
+  }),
+  "trailer-sail-brigantine": sailingTrailerScenario({
+    id: "trailer-sail-brigantine",
+    title: "Brigantine on a Beam Reach",
+    seed: "trailer-sail-brigantine-v1",
+    factionId: "england",
+    shipSlug: "brigantine",
+    lat: 43,
+    lon: -32,
+    day: 218,
+    hour: 15,
+    minute: 40,
+    beamSide: "port"
+  }),
+  "trailer-sail-portuguese-carrack": sailingTrailerScenario({
+    id: "trailer-sail-portuguese-carrack",
+    title: "Portuguese Carrack on a Beam Reach",
+    seed: "trailer-sail-portuguese-carrack-v1",
+    factionId: "portugal",
+    shipSlug: "portuguese-carrack",
+    lat: -22,
+    lon: -18,
+    day: 258,
+    hour: 17,
+    minute: 15,
+    beamSide: "starboard"
+  }),
+  "trailer-sail-dhow": sailingTrailerScenario({
+    id: "trailer-sail-dhow",
+    title: "Dhow on a Beam Reach",
+    seed: "trailer-sail-dhow-v1",
+    factionId: "ottoman",
+    shipSlug: "dhow",
+    lat: 4,
+    lon: 66,
+    day: 302,
+    hour: 7,
+    minute: 10,
+    beamSide: "port"
+  }),
+  "trailer-sail-galleon": sailingTrailerScenario({
+    id: "trailer-sail-galleon",
+    title: "Galleon on a Beam Reach",
+    seed: "trailer-sail-galleon-v1",
+    factionId: "spain",
+    shipSlug: "galleon",
+    lat: -12,
+    lon: -112,
+    day: 336,
+    hour: 18,
+    minute: 5,
+    beamSide: "starboard"
+  }),
+  "trailer-sail-felucca": sailingTrailerScenario({
+    id: "trailer-sail-felucca",
+    title: "Felucca on a Beam Reach",
+    seed: "trailer-sail-felucca-v1",
+    factionId: "ottoman",
+    shipSlug: "felucca",
+    lat: 16,
+    lon: 62,
+    day: 24,
+    hour: 10,
+    minute: 45,
+    beamSide: "port"
+  }),
   "trailer-fight-turtle": trailerScenario({
     id: "trailer-fight-turtle",
     title: "Turtle Ship Battle",
@@ -352,7 +456,7 @@ export function validateCaptureScenario(value) {
 
 function validateCaptureSequence(value) {
   if (!value || typeof value !== "object") throw new Error("Capture sequence must be an object");
-  if (!["explore", "trade", "fish", "whale", "fight", "pillage", "colonize", "survive"].includes(value.kind)) {
+  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive"].includes(value.kind)) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
@@ -362,12 +466,16 @@ function validateCaptureSequence(value) {
     trade: ["cityName", "goodId"],
     fish: [],
     whale: ["speciesId"],
+    sail: [],
     fight: ["encounterId"],
     pillage: ["cityName"],
     colonize: ["cityName"],
     survive: []
   };
   for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
+  if (value.kind === "sail" && !["port", "starboard"].includes(value.beamSide)) {
+    throw new Error(`Invalid capture sequence beam side: ${value.beamSide}`);
+  }
   if (value.sailingTarget !== undefined) {
     if (!value.sailingTarget || typeof value.sailingTarget !== "object") {
       throw new Error("Capture sequence sailing target must be an object");
@@ -385,11 +493,25 @@ function validateCaptureSequence(value) {
 }
 
 function trailerScenario(value) {
-  return {
+  return scenario({
     ...value,
     diplomacy: value.diplomacy || [],
     encounters: value.encounters || []
-  };
+  });
+}
+
+function sailingTrailerScenario(value) {
+  return trailerScenario({
+    id: value.id,
+    title: value.title,
+    seed: value.seed,
+    player: capturePlayer(value.factionId, value.shipSlug, value.lat, value.lon, 0),
+    world: captureWorld(value.day, value.hour, value.minute),
+    sequence: trailerSequence("sail", "beam-reach", {
+      durationSeconds: 6,
+      beamSide: value.beamSide
+    })
+  });
 }
 
 function capturePlayer(factionId, shipSlug, lat, lon, headingDeg) {

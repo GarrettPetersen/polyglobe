@@ -15,7 +15,6 @@
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",
     "capture:trailer": "node tools/capture-trailer-clips.mjs",
     "build:steam-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py",
-    "build:steam-trailer:no-chapter-text": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py --no-chapter-text",
     "build:steam-inline-videos": "node tools/trailer/run-python-tool.mjs build-steam-inline-videos.py",
     "normalize:sfx": "node tools/normalize-sfx.mjs",
     "render:ship": "node tools/render-sail-ship-sprites.mjs",

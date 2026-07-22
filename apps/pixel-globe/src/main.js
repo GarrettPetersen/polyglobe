@@ -5737,6 +5737,8 @@ function stageCaptureSequence() {
     stageCaptureFishingGround();
   } else if (sequence.kind === "whale") {
     stageCaptureWhale(sequence);
+  } else if (sequence.kind === "sail") {
+    stageCaptureSailing(sequence);
   } else if (sequence.kind === "fight") {
     maximizeCaptureCombatLoadout();
   } else if (sequence.kind === "pillage") {
@@ -5778,6 +5780,7 @@ function updateCaptureDirectorFrame(nowMs) {
   else if (sequence.kind === "trade") updateCaptureTrade(sequence);
   else if (sequence.kind === "fish") updateCaptureFishing(sequence);
   else if (sequence.kind === "whale") updateCaptureWhale(sequence);
+  else if (sequence.kind === "sail") updateCaptureSailing(sequence);
   else if (sequence.kind === "fight") updateCaptureFight(sequence);
   else if (sequence.kind === "pillage") updateCapturePillage(sequence);
   else if (sequence.kind === "colonize") updateCaptureColonization(sequence);
@@ -5870,6 +5873,20 @@ function updateCaptureWhale(sequence) {
     emitCaptureEvent("capture-beat", { action: "land-whale-killing-blow", speciesId: sequence.speciesId });
   }
   if (captureCue("dismiss-kill", 7.0) && captainAlertModal) closeCaptainAlertModal();
+}
+
+function updateCaptureSailing(sequence) {
+  if (!captureCue("beam-reach", 0.1)) return;
+  const performance = captureBeamReachPerformance();
+  playSoundEffect(soundEffects?.sailDeploy, 0.52, 1.04);
+  emitCaptureEvent("capture-beat", {
+    action: "beam-reach",
+    shipSlug: ship.typeSlug,
+    beamSide: sequence.beamSide,
+    angleFromWindDeg: Math.round(performance.angleFromWindDeg * 10) / 10,
+    attainableSpeedRatio: Math.round(performance.attainableSpeedRatio * 1000) / 1000,
+    hullTopSpeedRatio: Math.round(performance.hullTopSpeedRatio * 1000) / 1000
+  });
 }
 
 function updateCaptureFight(sequence) {
@@ -6095,6 +6112,44 @@ function stageCaptureWhale(sequence) {
     tetherWhale(gameState.memory.whales, whale.id, harpoon);
     gameState.memory.whales.activeHunt.remainingSeconds = 8;
   }
+}
+
+function stageCaptureSailing(sequence) {
+  const windFlow = windFlowVectorAtShip(windForShip());
+  const starboardBeam = normalizeOrNull(cross3(ship.position, windFlow));
+  if (!starboardBeam) throw new Error("Capture beam reach could not resolve a sailing heading");
+  const beamHeading = sequence.beamSide === "starboard"
+    ? starboardBeam
+    : scaleVector(starboardBeam, -1);
+  ship.heading = beamHeading;
+  ship.targetHeading = beamHeading.slice();
+  const performance = captureBeamReachPerformance();
+  ship.velocity = scaleVector(beamHeading, performance.attainableSpeedRad * 0.96);
+  captureDirector.steeringTarget = normalize3([
+    ship.position[0] + beamHeading[0] * 0.4,
+    ship.position[1] + beamHeading[1] * 0.4,
+    ship.position[2] + beamHeading[2] * 0.4
+  ]);
+}
+
+function captureBeamReachPerformance() {
+  const stats = currentPlayerEffectiveShipStats();
+  const wind = windForShip();
+  const windFlow = windFlowVectorAtShip(wind);
+  const alignment = clamp(dot3(ship.heading, windFlow), -1, 1);
+  const propulsion = shipPropulsionPerformance(stats, {
+    windStrength: wind.strength,
+    sailEfficiency: sailingEfficiencyForStats(stats, ship.heading, windFlow),
+    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
+    rowerRatio: playerRowerRatio()
+  });
+  const speedRad = vectorLength(ship.velocity);
+  return {
+    angleFromWindDeg: Math.acos(clamp(-alignment, -1, 1)) * 180 / Math.PI,
+    attainableSpeedRad: propulsion.maxSpeedRad,
+    attainableSpeedRatio: speedRad / propulsion.maxSpeedRad,
+    hullTopSpeedRatio: speedRad / stats.topSpeedRad
+  };
 }
 
 function captureWhalePlacement() {
