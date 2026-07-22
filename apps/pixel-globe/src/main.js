@@ -698,7 +698,9 @@ import {
 import { controlTextLayout } from "./controlTextLayout.js";
 import {
   INTERACTION_INPUT,
-  interactionInputOwner
+  WORLD_POINTER_ACTION,
+  interactionInputOwner,
+  worldPointerAction
 } from "./interactionInput.js";
 import {
   DEBUG_WEATHER_CONTROL,
@@ -8319,22 +8321,28 @@ function handlePointerDown(event) {
     return;
   }
   const clickedWorldTarget = worldInteractionTargetAtPoint(point);
-  if (clickedWorldTarget?.exact) {
-    activatePointerWorldInteraction(event, clickedWorldTarget.target);
+  const combatShipBroadside = clickedWorldTarget?.target.kind === "ship"
+    ? navalBroadsideSideForCombatShip(clickedWorldTarget.target.call.id)
+    : null;
+  const pointerAction = worldPointerAction({
+    interactionCandidate: clickedWorldTarget,
+    combatShipBroadside,
+    pointBroadside: navalBroadsideSideAtPoint(point)
+  });
+  if (pointerAction.type === WORLD_POINTER_ACTION.INTERACTION) {
+    activatePointerWorldInteraction(event, pointerAction.target);
     return;
   }
-  const broadside = navalBroadsideSideAtPoint(point);
-  if (broadside) {
+  if (pointerAction.type === WORLD_POINTER_ACTION.BROADSIDE) {
     event.preventDefault();
     beginPointerSteering(event.pointerId, point, {
       type: "world-broadside",
-      sideName: broadside
+      sideName: pointerAction.sideName
     });
     return;
   }
-  if (clickedWorldTarget) {
-    activatePointerWorldInteraction(event, clickedWorldTarget.target);
-    return;
+  if (pointerAction.type !== WORLD_POINTER_ACTION.STEER) {
+    throw new Error(`Unknown world pointer action: ${pointerAction.type}`);
   }
   event.preventDefault();
   if (signalBlockedDepartureControl()) return;
@@ -13565,8 +13573,29 @@ function navalBroadsideSideAtPoint(point) {
   if (!point || !ship || !localLayout || !playerHasCombatEngagement() || dialogueState || menusAreOpen()) return null;
   const weapon = playerNavalWeapon();
   if (!navalWeaponUsesBroadside(weapon)) return null;
+  return navalBroadsideSideForPoint(point, weapon, 5);
+}
+
+function navalBroadsideSideForCombatShip(npcShipId) {
+  if (typeof npcShipId !== "string" || npcShipId === "") {
+    throw new Error(`Invalid combat ship pointer target: ${npcShipId}`);
+  }
+  if (!ship || !localLayout || dialogueState || menusAreOpen()) return null;
+  if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, npcShipId))) return null;
+  const target = npcVisualShips.get(npcShipId);
+  if (!target) throw new Error(`Clicked combat ship has no visual state: ${npcShipId}`);
+  const weapon = playerNavalWeapon();
+  if (!navalWeaponUsesBroadside(weapon)) return null;
+  const offset = chartOffsetPixels(chart);
+  return navalBroadsideSideForPoint({
+    x: target.x + offset.x,
+    y: target.y + offset.y
+  }, weapon, 7);
+}
+
+function navalBroadsideSideForPoint(point, weapon, padding) {
   for (const sideName of ["port", "starboard"]) {
-    if (pointInBroadsideArc(point, navalBroadsideArc(sideName, weapon), 5)) return sideName;
+    if (pointInBroadsideArc(point, navalBroadsideArc(sideName, weapon), padding)) return sideName;
   }
   return null;
 }

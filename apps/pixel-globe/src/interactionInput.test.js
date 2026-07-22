@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { INTERACTION_INPUT, interactionInputOwner } from "./interactionInput.js";
+import {
+  INTERACTION_INPUT,
+  WORLD_POINTER_ACTION,
+  interactionInputOwner,
+  worldPointerAction
+} from "./interactionInput.js";
 
 const inactive = Object.freeze({
   optionsActive: false,
@@ -66,4 +71,46 @@ test("world input is restored when no overlay or action owns it", () => {
 
 test("interaction input state fails loudly when incomplete", () => {
   assert.throws(() => interactionInputOwner({ dialogueActive: true }), /optionsActive must be boolean/);
+});
+
+test("clicking an engaged ship inside a cannon arc fires before its exact hail interaction", () => {
+  const target = { kind: "ship", call: { id: "enemy-ship" } };
+  assert.deepEqual(worldPointerAction({
+    interactionCandidate: { target, exact: true },
+    combatShipBroadside: "starboard",
+    pointBroadside: "starboard"
+  }), {
+    type: WORLD_POINTER_ACTION.BROADSIDE,
+    sideName: "starboard"
+  });
+});
+
+test("exact noncombat interactions still beat a broadside sector beneath them", () => {
+  const target = { kind: "port", call: { tileId: 42 } };
+  assert.deepEqual(worldPointerAction({
+    interactionCandidate: { target, exact: true },
+    pointBroadside: "port"
+  }), {
+    type: WORLD_POINTER_ACTION.INTERACTION,
+    target
+  });
+});
+
+test("ordinary broadside controls and padded world interactions retain their priority", () => {
+  assert.deepEqual(worldPointerAction({ pointBroadside: "port" }), {
+    type: WORLD_POINTER_ACTION.BROADSIDE,
+    sideName: "port"
+  });
+  const target = { kind: "ship", call: { id: "friendly-ship" } };
+  assert.deepEqual(worldPointerAction({ interactionCandidate: { target, exact: false } }), {
+    type: WORLD_POINTER_ACTION.INTERACTION,
+    target
+  });
+});
+
+test("world pointer priority rejects a broadside assigned to a non-ship target", () => {
+  assert.throws(() => worldPointerAction({
+    interactionCandidate: { target: { kind: "port" }, exact: true },
+    combatShipBroadside: "port"
+  }), /requires a clicked ship/);
 });

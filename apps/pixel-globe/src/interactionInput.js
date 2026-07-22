@@ -19,6 +19,12 @@ export const INTERACTION_INPUT = Object.freeze({
   WORLD: "world"
 });
 
+export const WORLD_POINTER_ACTION = Object.freeze({
+  BROADSIDE: "broadside",
+  INTERACTION: "interaction",
+  STEER: "steer"
+});
+
 const INPUT_PRIORITY = Object.freeze([
   ["optionsActive", INTERACTION_INPUT.OPTIONS],
   ["creditsActive", INTERACTION_INPUT.CREDITS],
@@ -46,4 +52,43 @@ export function interactionInputOwner(state) {
     if (state[key]) return owner;
   }
   return INTERACTION_INPUT.WORLD;
+}
+
+export function worldPointerAction({
+  interactionCandidate = null,
+  combatShipBroadside = null,
+  pointBroadside = null
+} = {}) {
+  assertBroadsideSide(combatShipBroadside, "combat ship");
+  assertBroadsideSide(pointBroadside, "pointer");
+  if (interactionCandidate !== null && (
+    typeof interactionCandidate !== "object" ||
+    typeof interactionCandidate.exact !== "boolean" ||
+    !interactionCandidate.target ||
+    typeof interactionCandidate.target.kind !== "string"
+  )) {
+    throw new Error("World pointer interaction candidate is malformed");
+  }
+  if (combatShipBroadside && interactionCandidate?.target.kind !== "ship") {
+    throw new Error("Combat ship broadside requires a clicked ship target");
+  }
+  if (combatShipBroadside) {
+    return { type: WORLD_POINTER_ACTION.BROADSIDE, sideName: combatShipBroadside };
+  }
+  if (interactionCandidate?.exact) {
+    return { type: WORLD_POINTER_ACTION.INTERACTION, target: interactionCandidate.target };
+  }
+  if (pointBroadside) {
+    return { type: WORLD_POINTER_ACTION.BROADSIDE, sideName: pointBroadside };
+  }
+  if (interactionCandidate) {
+    return { type: WORLD_POINTER_ACTION.INTERACTION, target: interactionCandidate.target };
+  }
+  return { type: WORLD_POINTER_ACTION.STEER };
+}
+
+function assertBroadsideSide(sideName, label) {
+  if (sideName !== null && sideName !== "port" && sideName !== "starboard") {
+    throw new Error(`Unknown ${label} broadside: ${sideName}`);
+  }
 }
