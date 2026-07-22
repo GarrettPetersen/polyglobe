@@ -28,6 +28,11 @@ none of the title is lost, while anchoring the ship to its original waterline.
 - Artwork-only files use `background.png`, `reflection.png`, and `ship.png`.
 - Fitted capsules transform `reflection.png` with the ship so the two remain aligned.
 - `library_logo_en.png` is transparent and uses only the two text layers.
+- `capsule_title_en.png` preserves the full source canvas and combines the two
+  transparent text layers for editorial use.
+- `capsule_title_with_ship_en.png` preserves the full source canvas and uses the
+  authored `upper_text.png`, `ship.png`, `lower_text.png` interleaving without
+  the background or reflection.
 - `client_icon_32.png` remains the purpose-built in-game ship icon.
 
 Use `--only=filename.png` to render one registered output, or `--source-dir`
@@ -40,6 +45,8 @@ and `--output-dir` to work from alternate directories.
 | `capsule_header_en.png` | 920x430 |
 | `capsule_small_en.png` | 462x174 |
 | `capsule_main_en.png` | 1232x706 |
+| `capsule_title_en.png` | 1232x706 |
+| `capsule_title_with_ship_en.png` | 1232x706 |
 | `capsule_vertical_en.png` | 748x896 |
 | `capsule_background.png` | 1438x810 |
 | `library_capsule_en.png` | 600x900 |

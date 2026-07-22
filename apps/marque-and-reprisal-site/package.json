@@ -1,0 +1,14 @@
+{
+  "name": "marque-and-reprisal-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "check": "node --test test/*.test.mjs && npm run build",
+    "dev": "node tools/serve.mjs",
+    "deploy": "npm run check && node tools/deploy.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.113.0"
+  }
+}

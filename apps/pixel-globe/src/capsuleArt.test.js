@@ -13,6 +13,8 @@ const expectedOutputs = Object.freeze(new Map([
   ["capsule_header_en.png", [920, 430]],
   ["capsule_small_en.png", [462, 174]],
   ["capsule_main_en.png", [1232, 706]],
+  ["capsule_title_en.png", [1232, 706]],
+  ["capsule_title_with_ship_en.png", [1232, 706]],
   ["capsule_vertical_en.png", [748, 896]],
   ["capsule_background.png", [1438, 810]],
   ["library_capsule_en.png", [600, 900]],
@@ -90,6 +92,31 @@ test("main capsule is the exact authored five-layer composition", async () => {
     expectedCanvas.toBuffer("image/png"),
     generatedCanvas.toBuffer("image/png")
   );
+});
+
+test("press title exports preserve the authored transparent layer order", async () => {
+  const cases = Object.freeze([
+    ["capsule_title_en.png", ["upper_text", "lower_text"]],
+    ["capsule_title_with_ship_en.png", ["upper_text", "ship", "lower_text"]]
+  ]);
+  for (const [filename, sourceNames] of cases) {
+    const [generated, ...sourceImages] = await Promise.all([
+      loadImage(fileURLToPath(new URL(filename, generatedRoot))),
+      ...sourceNames.map((name) => loadImage(
+        fileURLToPath(new URL(`../capsule_art/source/${name}.png`, import.meta.url))
+      ))
+    ]);
+    const expectedCanvas = createCanvas(generated.width, generated.height);
+    const expectedContext = expectedCanvas.getContext("2d");
+    for (const source of sourceImages) expectedContext.drawImage(source, 0, 0);
+    const generatedCanvas = createCanvas(generated.width, generated.height);
+    generatedCanvas.getContext("2d").drawImage(generated, 0, 0);
+    assert.deepEqual(
+      expectedCanvas.toBuffer("image/png"),
+      generatedCanvas.toBuffer("image/png"),
+      filename
+    );
+  }
 });
 
 test("library logo is transparent text while artwork files contain no title", async () => {

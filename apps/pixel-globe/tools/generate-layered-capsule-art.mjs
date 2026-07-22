@@ -40,6 +40,8 @@ const OUTPUTS = Object.freeze([
   capsule("capsule_header_en.png", 920, 430),
   capsule("capsule_small_en.png", 462, 174, { focalY: 0.47 }),
   capsule("capsule_main_en.png", 1232, 706),
+  sourceComposition("capsule_title_en.png", TEXT_LAYER_ORDER),
+  sourceComposition("capsule_title_with_ship_en.png", LOCKUP_LAYER_ORDER),
   capsule("capsule_vertical_en.png", 748, 896, {
     layout: "fitted-lockup",
     lockupWidth: 0.92,
@@ -139,6 +141,14 @@ function artwork(name, width, height, options = {}) {
   });
 }
 
+function sourceComposition(name, layerOrder) {
+  return Object.freeze({
+    name,
+    kind: "source-composition",
+    layerOrder
+  });
+}
+
 async function main() {
   const selectedOutputs = generatorOptions.onlyName === null
     ? OUTPUTS
@@ -195,11 +205,15 @@ async function main() {
   await mkdir(outputDir, { recursive: true });
   const rendered = [];
   for (const output of selectedOutputs) {
-    const canvas = createCanvas(output.width, output.height);
+    const width = output.width ?? sourceSize.width;
+    const height = output.height ?? sourceSize.height;
+    const canvas = createCanvas(width, height);
     const context = canvas.getContext("2d");
     context.imageSmoothingEnabled = false;
 
-    if (output.kind === "text-only") {
+    if (output.kind === "source-composition") {
+      context.drawImage(composeLayers(sourceSize, layers, output.layerOrder), 0, 0);
+    } else if (output.kind === "text-only") {
       drawContained(context, canvas, composites.text, {
         widthRatio: 0.9,
         heightRatio: 0.86
@@ -244,7 +258,7 @@ async function main() {
     const path = join(outputDir, output.name);
     await writeFile(path, canvas.toBuffer("image/png"));
     rendered.push({ output, canvas });
-    console.log(`Generated ${output.name} (${output.width}x${output.height})`);
+    console.log(`Generated ${output.name} (${width}x${height})`);
   }
   if (generatorOptions.onlyName === null) {
     await writeContactSheet(rendered);

@@ -30,7 +30,11 @@
     "pixel-globe:build": "npm --prefix apps/pixel-globe run build",
     "pixel-globe:build-demo": "npm --prefix apps/pixel-globe run build:demo",
     "pixel-globe:package-demo:itch": "npm --prefix apps/pixel-globe run package:demo:itch",
-    "pixel-globe:check": "npm --prefix apps/pixel-globe run check"
+    "pixel-globe:check": "npm --prefix apps/pixel-globe run check",
+    "marque-site:dev": "npm --prefix apps/marque-and-reprisal-site run dev",
+    "marque-site:build": "npm --prefix apps/marque-and-reprisal-site run build",
+    "marque-site:check": "npm --prefix apps/marque-and-reprisal-site run check",
+    "marque-site:deploy": "npm --prefix apps/marque-and-reprisal-site run deploy"
   },
   "keywords": [
     "three",
