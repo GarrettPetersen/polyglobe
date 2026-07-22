@@ -25,7 +25,9 @@ import {
   routeBetweenPorts,
   npcShipHasCombatGrace,
   npcShipSnapshots,
+  releaseNpcShipVisualNavigation,
   restoreNpcSeaRouteSystem,
+  setNpcShipVisualNavigation,
   sinkNpcShip,
   snapshotNpcSeaRouteSystem,
   storeNpcCargo,
@@ -335,6 +337,19 @@ test("NPC route snapshots restore ships, plans, and replacement queues without c
   assert.equal(routes.pirateHideoutDangerUntil.get(PORTS[0].tileId), 5555);
   assert.equal(routes.routeCache.size, 0);
   assert.equal(routes.shipById.size, routes.ships.length);
+});
+
+test("visual navigation cleanup tolerates a ship sunk earlier in the same frame", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const lost = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT);
+  const position = [1, 0, 0];
+  const heading = [0, 1, 0];
+  setNpcShipVisualNavigation(routes, lost.id, position, heading);
+
+  sinkNpcShip(routes, lost.id, 1000);
+
+  assert.equal(releaseNpcShipVisualNavigation(routes, lost.id, 1000, position), false);
 });
 
 test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {

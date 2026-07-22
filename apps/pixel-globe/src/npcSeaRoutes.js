@@ -969,11 +969,12 @@ export function setNpcShipVisualNavigation(system, shipId, vector, heading) {
 }
 
 export function releaseNpcShipVisualNavigation(system, shipId, clockMinutes, vector) {
-  const ship = requiredNpcShip(system, shipId);
-  if (!ship.visualNavigation) return;
+  const ship = system.shipById?.get(shipId);
+  if (!ship || !ship.visualNavigation) return false;
   const position = normalizedVector(vector, `NPC ship ${shipId} released position`);
   synchronizeNpcRouteClock(ship, clockMinutes, position);
   ship.visualNavigation = null;
+  return true;
 }
 
 function createNpcFleet(system, startMinute) {

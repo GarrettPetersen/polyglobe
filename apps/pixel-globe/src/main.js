@@ -14885,6 +14885,14 @@ function updateNpcVisualShips(dt) {
 
   const movementStartedAtMs = performanceBenchmarkState ? performance.now() : 0;
   for (const snapshot of snapshots) {
+    if (!npcSeaRoutes.shipById.has(snapshot.id)) {
+      const staleState = npcVisualShips.get(snapshot.id);
+      if (staleState) {
+        releaseNpcVisualState(staleState);
+        changed = true;
+      }
+      continue;
+    }
     snapshotIds.add(snapshot.id);
     if (snapshot.hidden) continue;
     const routePoint = localPointForGlobeVector(snapshot.routeVector);
@@ -15779,6 +15787,12 @@ function updateNpcCombatProjectiles(dt) {
     ? npcCannonShipCollisionTargets()
     : [];
   for (const ball of npcCombatProjectiles) {
+    if (ball.ownerId !== PLAYER_COMBAT_ID &&
+        !shoreBatteryStates.has(ball.ownerId) &&
+        !npcSeaRoutes.shipById.has(ball.ownerId)) {
+      changed = true;
+      continue;
+    }
     const previousAge = ball.age;
     ball.age = Math.min(ball.duration, ball.age + dt);
     if (ball.kind === NAVAL_WEAPON_CANNON &&
@@ -15832,7 +15846,9 @@ function npcCannonShipCollisionTargets() {
 function resolveNpcCannonPathHit(ball, previousAge, cannonShipTargets) {
   const targets = [];
   for (const target of cannonShipTargets) {
-    if (target.id !== ball.ownerId) targets.push(target);
+    if (target.id === ball.ownerId) continue;
+    if (target.id !== PLAYER_COMBAT_ID && !npcSeaRoutes.shipById.has(target.id)) continue;
+    targets.push(target);
   }
   for (const battery of activeVisibleShoreBatteries()) {
     if (battery.id === ball.ownerId) continue;
@@ -15886,6 +15902,11 @@ function combatShipFootprint(id) {
 
 function applyNpcCombatHit(ball, targetId, point) {
   if (targetId === PLAYER_COMBAT_ID && playerShipIsInvulnerable()) return;
+  const battery = shoreBatteryStates.get(targetId);
+  if (targetId !== PLAYER_COMBAT_ID && !battery && !npcSeaRoutes.shipById.has(targetId)) {
+    if (ball.kind === NAVAL_WEAPON_CANNON) addNpcCombatSplash(ball);
+    return;
+  }
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   if (targetId === PLAYER_COMBAT_ID) {
     if (ball.kind === NAVAL_WEAPON_CANNON && playerHullDamageWasResisted("CANNONBALL")) return;
@@ -15903,7 +15924,6 @@ function applyNpcCombatHit(ball, targetId, point) {
     return;
   }
 
-  const battery = shoreBatteryStates.get(targetId);
   if (battery) {
     applyShoreBatteryHit(ball, battery, point, false);
     return;
@@ -17154,7 +17174,9 @@ function npcVisualStateIsOutside(state, offset, margin) {
 function releaseNpcVisualState(state) {
   clearCombatForShip(state.id);
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== state.id && ball.targetId !== state.id);
-  releaseNpcShipVisualNavigation(npcSeaRoutes, state.id, weatherClockMinutes, state.vector);
+  if (npcSeaRoutes?.shipById?.has(state.id)) {
+    releaseNpcShipVisualNavigation(npcSeaRoutes, state.id, weatherClockMinutes, state.vector);
+  }
   npcVisualShips.delete(state.id);
 }
 
