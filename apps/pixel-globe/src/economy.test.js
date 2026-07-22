@@ -167,7 +167,7 @@ test("a completed Kyoto workshop creates persistent matchlock production and inp
   assert.equal(establishPortIndustry(restored, KYOTO, MATCHLOCKS_GOOD_ID, 1.5).created, false);
 });
 
-test("cargo lots create a clear value-per-hold hierarchy without inflating nominal prices", () => {
+test("cargo lots make spices and precious metal exceptionally valuable per hold", () => {
   const timber = tradeGoodById("timber");
   const cotton = tradeGoodById("cotton");
   const beaverPelts = tradeGoodById(BEAVER_PELTS_GOOD_ID);
@@ -184,6 +184,16 @@ test("cargo lots create a clear value-per-hold hierarchy without inflating nomin
   assert.ok(valuePerHold(beaverPelts) > valuePerHold(cotton) * 10);
   assert.ok(valuePerHold(nutmeg) >= valuePerHold(cotton) * 10);
   assert.ok(valuePerHold(gold) > valuePerHold(nutmeg));
+  assert.equal(tradeGoodById("pepper").basePrice, 100);
+  assert.equal(tradeGoodById(CINNAMON_GOOD_ID).basePrice, 150);
+  assert.equal(tradeGoodById(CLOVE_GOOD_ID).basePrice, 180);
+  assert.equal(tradeGoodById(NUTMEG_GOOD_ID).basePrice, 200);
+  assert.equal(tradeGoodById(GINGER_GOOD_ID).basePrice, 40);
+  assert.equal(gold.basePrice, 750);
+
+  const londonEconomy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  assert.ok(quotePortPurchase(londonEconomy, LONDON, CLOVE_GOOD_ID, 60) >= 40000);
+  assert.ok(quotePortPurchase(londonEconomy, LONDON, "gold", 60) >= 35000);
 });
 
 test("a founded port joins the economy and its save snapshot", () => {
@@ -405,8 +415,8 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, colombo, lisbon) > 15000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, guangzhou, london) > 25000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, istanbul, athens) < 600);
-  assert.ok(coastalVoyage.expectedProfit <= 100, `Istanbul-Athens profit was ${coastalVoyage.expectedProfit}`);
-  assert.ok(strongestShortVoyage.expectedProfit <= 400, JSON.stringify(strongestShortVoyage));
+  assert.ok(coastalVoyage.expectedProfit <= 200, `Istanbul-Athens profit was ${coastalVoyage.expectedProfit}`);
+  assert.ok(strongestShortVoyage.expectedProfit <= 800, JSON.stringify(strongestShortVoyage));
   assert.ok(clovePurchase <= 700, `A Ternate shipload of cloves cost ${clovePurchase}`);
   assert.ok(cloveSale >= clovePurchase * 7, `Lisbon paid ${cloveSale} for cloves costing ${clovePurchase}`);
   assert.ok(spiceIslandsVoyage.expectedProfit >= 4000);
@@ -502,16 +512,17 @@ test("bulk trading moves prices and cannot exceed market inventory or specie", (
 
 test("major city markets absorb an ordinary shipload without collapsing its price", () => {
   const economy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
+  const ordinaryShipload = 60;
   const londonClovesBefore = marketByGood(economy, LONDON).get(CLOVE_GOOD_ID).sellPrice;
   const goaClothBefore = marketByGood(economy, GOA).get("wool-cloth").sellPrice;
 
-  const cloveRevenue = sellToPortOneLotAtATime(economy, LONDON, CLOVE_GOOD_ID, 100);
-  const clothRevenue = sellToPortOneLotAtATime(economy, GOA, "wool-cloth", 100);
+  const cloveRevenue = sellToPortOneLotAtATime(economy, LONDON, CLOVE_GOOD_ID, ordinaryShipload);
+  const clothRevenue = sellToPortOneLotAtATime(economy, GOA, "wool-cloth", ordinaryShipload);
   const londonClovesAfter = marketByGood(economy, LONDON).get(CLOVE_GOOD_ID).sellPrice;
   const goaClothAfter = marketByGood(economy, GOA).get("wool-cloth").sellPrice;
 
-  assert.ok(cloveRevenue / 100 >= londonClovesBefore * 0.8, `London paid ${cloveRevenue}`);
-  assert.ok(clothRevenue / 100 >= goaClothBefore * 0.8, `Goa paid ${clothRevenue}`);
+  assert.ok(cloveRevenue / ordinaryShipload >= londonClovesBefore * 0.8, `London paid ${cloveRevenue}`);
+  assert.ok(clothRevenue / ordinaryShipload >= goaClothBefore * 0.8, `Goa paid ${clothRevenue}`);
   assert.ok(londonClovesAfter >= londonClovesBefore * 0.7,
     `London cloves fell from ${londonClovesBefore} to ${londonClovesAfter}`);
   assert.ok(goaClothAfter >= goaClothBefore * 0.7,

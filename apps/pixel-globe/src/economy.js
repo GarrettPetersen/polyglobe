@@ -96,11 +96,11 @@ export const TRADE_GOODS = Object.freeze([
   good("cotton-cloth", "Cotton Cloth", 40, "textile", { unitSize: 2 }),
   good("silk", "Silk", 60, "luxury"),
   good("silk-cloth", "Silk Cloth", 85, "luxury"),
-  good("pepper", "Pepper", 55, "spice"),
-  good(CINNAMON_GOOD_ID, "Cinnamon", 80, "spice"),
-  good(CLOVE_GOOD_ID, "Cloves", 90, "spice"),
-  good(NUTMEG_GOOD_ID, "Nutmeg", 100, "spice"),
-  good(GINGER_GOOD_ID, "Ginger", 20, "spice"),
+  good("pepper", "Pepper", 100, "spice"),
+  good(CINNAMON_GOOD_ID, "Cinnamon", 150, "spice"),
+  good(CLOVE_GOOD_ID, "Cloves", 180, "spice"),
+  good(NUTMEG_GOOD_ID, "Nutmeg", 200, "spice"),
+  good(GINGER_GOOD_ID, "Ginger", 40, "spice"),
   good("tea", "Tea", 60, "luxury"),
   good("coffee", "Coffee", 40, "luxury"),
   good("cacao", "Cacao", 35, "luxury"),
@@ -113,7 +113,7 @@ export const TRADE_GOODS = Object.freeze([
   good("perfume", "Perfume", 58, "luxury"),
   good("ivory", "Ivory", 95, "luxury", { unitSize: 2 }),
   good("silver", "Silver", 110, "precious"),
-  good("gold", "Gold", 180, "precious")
+  good("gold", "Gold", 750, "precious")
 ]);
 
 const TRADE_GOODS_BY_ID = new Map(TRADE_GOODS.map((item) => [item.id, item]));
