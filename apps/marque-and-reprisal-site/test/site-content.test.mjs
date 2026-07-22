@@ -29,6 +29,19 @@ test("every feature points at tracked video and screenshot assets", async () => 
     await access(path.join(appRoot, "src", feature.poster));
   }
   assert.equal(screenshots.length, features.length);
+  for (const screenshot of screenshots) {
+    const image = await readFile(path.join(
+      appRoot,
+      "src/assets/press/screenshots",
+      screenshot.file
+    ));
+    assert.deepEqual(
+      [...image.subarray(0, 8)],
+      [137, 80, 78, 71, 13, 10, 26, 10]
+    );
+    assert.equal(image.readUInt32BE(16), 1920);
+    assert.equal(image.readUInt32BE(20), 1080);
+  }
 });
 
 test("published links and localization claims are explicit", () => {
@@ -104,6 +117,20 @@ test("Steam inline videos retain their full banner aspect ratio on every viewpor
   const featureVideoBlocks = [...css.matchAll(/\.feature-window video\s*\{([^}]*)\}/g)];
   assert.equal(featureVideoBlocks.length, 1);
   assert.match(featureVideoBlocks[0][1], /aspect-ratio:\s*1170\s*\/\s*270/);
+});
+
+test("gameplay screenshots retain their full landscape frame", async () => {
+  const css = await readFile(
+    path.join(appRoot, "src/assets/styles/site.css"),
+    "utf8"
+  );
+  for (const selector of ["voyage-frame", "asset-preview"]) {
+    const block = css.match(new RegExp(`\\.${selector} img\\s*\\{([^}]*)\\}`));
+    assert.ok(block, `Missing ${selector} screenshot rule`);
+    assert.match(block[1], /width:\s*100%/);
+    assert.match(block[1], /height:\s*auto/);
+    assert.match(block[1], /aspect-ratio:\s*16\s*\/\s*9/);
+  }
 });
 
 test("feature videos serve as the visible section headings", () => {
