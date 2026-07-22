@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
   dialogueOptionGroups,
@@ -12,6 +13,44 @@ import {
   dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
+
+test("character alerts use the same standing portrait composition as dialogue", () => {
+  const layout = characterAlertGeometry({
+    screenWidth: 455,
+    screenHeight: 256,
+    panelWidth: 286,
+    panelHeight: 110,
+    portraitSize: 64
+  });
+
+  assert.deepEqual(layout.panel, { x: 84, y: 73, w: 286, h: 110 });
+  assert.deepEqual(layout.portrait, { x: 98, y: 17 });
+  assert.equal(layout.portrait.y + 64, layout.panel.y + 8);
+});
+
+test("standing alert portraits remain above responsive portrait panels", () => {
+  const layout = characterAlertGeometry({
+    screenWidth: 256,
+    screenHeight: 455,
+    panelWidth: 286,
+    panelHeight: 110,
+    portraitSize: 64
+  });
+
+  assert.deepEqual(layout.panel, { x: 6, y: 172, w: 244, h: 110 });
+  assert.deepEqual(layout.portrait, { x: 20, y: 116 });
+  assert.ok(layout.portrait.y < layout.panel.y);
+});
+
+test("character alerts reject viewports that cannot hold their composition", () => {
+  assert.throws(() => characterAlertGeometry({
+    screenWidth: 100,
+    screenHeight: 100,
+    panelWidth: 88,
+    panelHeight: 88,
+    portraitSize: 64
+  }), /cannot fit/);
+});
 
 test("reserved feedback slots keep action positions stable as messages appear", () => {
   assert.equal(dialogueFeedbackSlotCount({ visibleLineCount: 0, reservedLineCount: 2 }), 2);

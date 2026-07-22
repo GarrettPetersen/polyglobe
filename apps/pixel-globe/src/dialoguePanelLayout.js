@@ -1,5 +1,57 @@
 import { wrapMeasuredText } from "./measuredTextLayout.js";
 
+export function characterAlertGeometry({
+  screenWidth,
+  screenHeight,
+  panelWidth,
+  panelHeight,
+  portraitSize,
+  portraitOverlap = 8,
+  margin = 6,
+  portraitInset = 14
+}) {
+  for (const [label, value] of Object.entries({
+    screenWidth,
+    screenHeight,
+    panelWidth,
+    panelHeight,
+    portraitSize,
+    portraitOverlap,
+    margin,
+    portraitInset
+  })) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Invalid character alert ${label}: ${value}`);
+    }
+  }
+  if (screenWidth <= 0 || screenHeight <= 0 || panelWidth <= 0 || panelHeight <= 0 || portraitSize <= 0) {
+    throw new Error("Character alert dimensions must be positive");
+  }
+  if (portraitOverlap >= portraitSize) {
+    throw new Error("Character alert portrait overlap must leave the portrait above the panel");
+  }
+
+  const w = Math.min(panelWidth, screenWidth - margin * 2);
+  const h = Math.min(panelHeight, screenHeight - margin * 2);
+  const x = Math.floor((screenWidth - w) / 2);
+  const minimumPanelY = margin + portraitSize - portraitOverlap;
+  const maximumPanelY = screenHeight - margin - h;
+  if (maximumPanelY < minimumPanelY) {
+    throw new Error("Character alert viewport cannot fit a standing portrait above its panel");
+  }
+  const y = Math.min(maximumPanelY, Math.max(minimumPanelY, Math.floor((screenHeight - h) / 2)));
+  if (portraitInset + portraitSize > w) {
+    throw new Error("Character alert portrait does not fit its panel width");
+  }
+  return Object.freeze({
+    panel: Object.freeze({ x, y, w, h }),
+    portrait: Object.freeze({
+      x: x + portraitInset,
+      y: y - portraitSize + portraitOverlap
+    })
+  });
+}
+
 export function dialoguePanelGeometry({
   screenWidth,
   screenHeight,

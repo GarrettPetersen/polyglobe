@@ -682,6 +682,7 @@ import {
   zoomedMinimapViewport
 } from "./minimapViewport.js";
 import {
+  characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
   dialogueOptionGroups,
@@ -1461,8 +1462,6 @@ const PLAYER_INTRO_BUTTON_W = 150;
 const PLAYER_INTRO_BUTTON_H = 28;
 let CAPTAIN_ALERT_PANEL_W = 286;
 const CAPTAIN_ALERT_PANEL_H = 110;
-let CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
-let CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
 const CAPTAIN_ALERT_BUTTON_W = 104;
 const CAPTAIN_ALERT_BUTTON_H = 28;
 const SAILING_HELP_PANEL_MAX_W = 344;
@@ -3942,12 +3941,23 @@ function sailingHelpButtonRect() {
 }
 
 function captainAlertButtonRect() {
+  const panel = captainAlertGeometry().panel;
   return {
-    x: CAPTAIN_ALERT_PANEL_X + CAPTAIN_ALERT_PANEL_W - CAPTAIN_ALERT_BUTTON_W - 14,
-    y: CAPTAIN_ALERT_PANEL_Y + CAPTAIN_ALERT_PANEL_H - CAPTAIN_ALERT_BUTTON_H - 11,
+    x: panel.x + panel.w - CAPTAIN_ALERT_BUTTON_W - 14,
+    y: panel.y + panel.h - CAPTAIN_ALERT_BUTTON_H - 11,
     w: CAPTAIN_ALERT_BUTTON_W,
     h: CAPTAIN_ALERT_BUTTON_H
   };
+}
+
+function captainAlertGeometry() {
+  return characterAlertGeometry({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    panelWidth: CAPTAIN_ALERT_PANEL_W,
+    panelHeight: CAPTAIN_ALERT_PANEL_H,
+    portraitSize: DIALOGUE_PORTRAIT_SIZE
+  });
 }
 
 function openCaptainAlertModal(message, expressionId = "neutral") {
@@ -17160,8 +17170,6 @@ function applyResponsiveViewport(width, height) {
   PLAYER_INTRO_PANEL_X = Math.floor((SCREEN_W - PLAYER_INTRO_PANEL_W) / 2);
   PLAYER_INTRO_PANEL_Y = Math.floor((SCREEN_H - PLAYER_INTRO_PANEL_H) / 2);
   CAPTAIN_ALERT_PANEL_W = Math.min(286, SCREEN_W - 12);
-  CAPTAIN_ALERT_PANEL_X = Math.floor((SCREEN_W - CAPTAIN_ALERT_PANEL_W) / 2);
-  CAPTAIN_ALERT_PANEL_Y = Math.floor((SCREEN_H - CAPTAIN_ALERT_PANEL_H) / 2);
   START_MENU_PANEL_W = Math.min(244, SCREEN_W - 12);
   START_MENU_PANEL_X = Math.floor((SCREEN_W - START_MENU_PANEL_W) / 2);
   START_MENU_PANEL_Y = Math.floor((SCREEN_H - START_MENU_PANEL_H) / 2);
@@ -28425,31 +28433,25 @@ function drawCaptainAlertModal() {
     drawSailingHelpModal(modal);
     return;
   }
-  const panel = {
-    x: CAPTAIN_ALERT_PANEL_X,
-    y: CAPTAIN_ALERT_PANEL_Y,
-    w: CAPTAIN_ALERT_PANEL_W,
-    h: CAPTAIN_ALERT_PANEL_H
-  };
+  const geometry = captainAlertGeometry();
+  const panel = geometry.panel;
 
+  drawDialoguePortrait(
+    modal.character,
+    modal.expressionId,
+    geometry.portrait.x,
+    geometry.portrait.y
+  );
   drawPiratePaperModal(panel, 0.72);
 
-  const portraitX = panel.x + 14;
-  const portraitY = panel.y + 18;
-  ctx.fillStyle = "#191f24";
-  ctx.fillRect(portraitX - 3, portraitY - 3, DIALOGUE_PORTRAIT_SIZE + 6, DIALOGUE_PORTRAIT_SIZE + 6);
-  ctx.strokeStyle = "#8ac0b4";
-  ctx.strokeRect(portraitX - 2.5, portraitY - 2.5, DIALOGUE_PORTRAIT_SIZE + 5, DIALOGUE_PORTRAIT_SIZE + 5);
-  drawDialoguePortrait(modal.character, modal.expressionId, portraitX, portraitY);
-
-  const textX = panel.x + 93;
-  const textW = panel.w - 110;
+  const textX = panel.x + 12;
+  const textW = panel.w - 24;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText(fitPixelText((modal.character?.name || "Captain").toUpperCase(), PIXEL_FONT_SMALL_8, textW), textX, panel.y + 15, {
+  drawPixelText(fitPixelText((modal.character?.name || "Captain").toUpperCase(), PIXEL_FONT_SMALL_8, textW), textX, panel.y + 9, {
     font: PIXEL_FONT_SMALL_8
   });
   ctx.fillStyle = PIRATE_MENU_INK;
-  let y = panel.y + 31;
+  let y = panel.y + 25;
   const pages = captainAlertPages(modal, textW);
   if (!Number.isInteger(modal.page) || modal.page < 0 || modal.page >= pages.length) {
     throw new Error(`Character alert page is invalid: ${modal.page}`);
@@ -28469,7 +28471,7 @@ function drawCaptainAlertModal() {
   });
 }
 
-function captainAlertPages(modal, textWidth = CAPTAIN_ALERT_PANEL_W - 110) {
+function captainAlertPages(modal, textWidth = CAPTAIN_ALERT_PANEL_W - 24) {
   if (!modal || typeof modal.message !== "string") throw new Error("Character alert has no message");
   const lines = wrapPixelTextAll(modal.message.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
   const pages = [];
