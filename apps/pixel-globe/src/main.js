@@ -902,6 +902,7 @@ import {
 } from "./shipyards.js";
 import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
 import { migrateSavedVoyageCore } from "./saveCompatibility.js";
+import { restoreOrRecreateDerivedSaveState } from "./derivedSaveRecovery.js";
 import {
   appendVoyageRecord,
   grossDoubloonsEarned,
@@ -7566,11 +7567,14 @@ async function continueSavedVoyage() {
   menu.message = "";
   dirty = true;
   try {
-    await restoreSavedVoyage(localSaveResult.save.payload);
+    const restoration = await restoreSavedVoyage(localSaveResult.save.payload);
     hasStartedVoyage = true;
     closeStartMenu();
     revealMinimapFromChart(chart, chartOffsetPixels(chart));
     saveVoyageNow("continued voyage");
+    if (restoration.recoveredDerivedSystems.length > 0) {
+      showSurvivalNotice("OLD SAVE UPDATED", "good");
+    }
   } catch (error) {
     console.warn("[pixel-globe] could not continue the local save", error);
     localSaveResult = { status: "invalid", save: null, error };
@@ -7600,35 +7604,12 @@ async function restoreSavedVoyage(payload) {
   if (!Number.isInteger(savedShip.tileId) || !isShipBaseNavigableTile(savedShip.tileId)) {
     throw new Error(`Saved ship tile is not navigable: ${savedShip.tileId}`);
   }
-  syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
-  const assets = await loadShipAssetSet(savedShip.typeSlug);
-  restoreWorldEconomy(worldEconomy, payload.economy, { seedKey: restoredGameState.voyageSeed });
-  syncJapaneseMatchlockIndustry(restoredGameState);
-  syncCaribbeanGingerIndustry(restoredGameState);
-  if (payload.landTrade) {
-    restoreLandTradeSystem(landTradeSystem, payload.landTrade, {
-      seedKey: restoredGameState.voyageSeed
-    });
-  } else {
-    console.info("[pixel-globe] migrating voyage save: seeding land carts at the saved economy minute");
-    landTradeSystem = createLandTradeSystem({
-      roads: landRoadNetwork,
-      economy: worldEconomy,
-      cities: [...cityByTileId.values()],
-      startMinute: payload.economy.lastMinute,
-      seedKey: restoredGameState.voyageSeed
-    });
-  }
-  restoreNpcSeaRouteSystem(npcSeaRoutes, payload.npcRoutes, {
-    economy: worldEconomy,
-    fishState: restoredGameState,
-    whaleMemory: restoredGameState.memory.whales,
-    seedKey: restoredGameState.voyageSeed,
-    relationBetween: currentDiplomacyBetween,
-    mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId)
-  });
-
   gameState = restoredGameState;
+  syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
+  applyCurrentPortConquestOwnership();
+  const assets = await loadShipAssetSet(savedShip.typeSlug);
+  const recoveredDerivedSystems = restoreSavedDerivedWorld(payload, restoredGameState);
+
   ensureColonizationDefenseEncounter({ assignCaptains: false });
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
@@ -7753,6 +7734,100 @@ async function restoreSavedVoyage(payload) {
   setBackgroundMusicTrack("ship", { force: true });
   lastAutosaveMs = performance.now();
   dirty = true;
+  return { recoveredDerivedSystems };
+}
+
+function restoreSavedDerivedWorld(payload, restoredGameState) {
+  const recovered = [];
+  const simulationMinute = Number.isFinite(payload.economy?.lastMinute)
+    ? payload.economy.lastMinute
+    : payload.worldClock.currentMinute;
+  const seedKey = restoredGameState.voyageSeed;
+
+  const economyResult = restoreOrRecreateDerivedSaveState({
+    label: "world economy",
+    current: worldEconomy,
+    recreate: () => createSavedVoyageEconomy(simulationMinute, seedKey),
+    restore: (candidate) => restoreWorldEconomy(candidate, payload.economy, { seedKey })
+  });
+  worldEconomy = economyResult.value;
+  recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
+  syncJapaneseMatchlockIndustry(restoredGameState);
+  syncCaribbeanGingerIndustry(restoredGameState);
+
+  const createLandTrade = () => createLandTradeSystem({
+    roads: landRoadNetwork,
+    economy: worldEconomy,
+    cities: [...cityByTileId.values()],
+    startMinute: simulationMinute,
+    seedKey
+  });
+  landTradeSystem.economy = worldEconomy;
+  if (payload.landTrade) {
+    const landTradeResult = restoreOrRecreateDerivedSaveState({
+      label: "land trade",
+      current: landTradeSystem,
+      recreate: createLandTrade,
+      restore: (candidate) => restoreLandTradeSystem(candidate, payload.landTrade, { seedKey })
+    });
+    landTradeSystem = landTradeResult.value;
+    recordDerivedSaveRecovery(recovered, "land trade", landTradeResult.error);
+  } else {
+    console.info("[pixel-globe] migrating voyage save: seeding land carts at the saved economy minute");
+    landTradeSystem = createLandTrade();
+  }
+
+  const economyBeforeNpcRestore = snapshotWorldEconomy(worldEconomy);
+  const npcRoutesResult = restoreOrRecreateDerivedSaveState({
+    label: "NPC sea routes",
+    current: npcSeaRoutes,
+    recreate: () => {
+      restoreWorldEconomy(worldEconomy, economyBeforeNpcRestore, { seedKey });
+      return createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
+    },
+    restore: (candidate) => restoreNpcSeaRouteSystem(candidate, payload.npcRoutes, {
+      economy: worldEconomy,
+      fishState: restoredGameState,
+      whaleMemory: restoredGameState.memory.whales,
+      seedKey,
+      relationBetween: currentDiplomacyBetween,
+      mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId)
+    })
+  });
+  npcSeaRoutes = npcRoutesResult.value;
+  recordDerivedSaveRecovery(recovered, "NPC sea routes", npcRoutesResult.error);
+  return Object.freeze(recovered);
+}
+
+function createSavedVoyageEconomy(simulationMinute, seedKey) {
+  const economy = createWorldEconomy({
+    ports: [...cityByTileId.values()],
+    shipyardPorts: portCities,
+    startMinute: simulationMinute,
+    seedKey
+  });
+  connectNearbyPortMarkets(economy, portCities, sailingDistanceBetweenPorts);
+  return economy;
+}
+
+function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
+  return createNpcSeaRouteSystem({
+    ports: portCities,
+    startMinute: simulationMinute,
+    economy: worldEconomy,
+    fishState: restoredGameState,
+    whaleMemory: restoredGameState.memory.whales,
+    seedKey: restoredGameState.voyageSeed,
+    relationBetween: currentDiplomacyBetween,
+    mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId),
+    onForeignPortCall: recordNpcDiplomaticPortCall
+  });
+}
+
+function recordDerivedSaveRecovery(recovered, label, error) {
+  if (!error) return;
+  console.error(`[pixel-globe] ${label} snapshot was incompatible; regenerated current state`, error);
+  recovered.push(label);
 }
 
 function reconcileRestoredShipDrawnNavigation(initialReason = null) {

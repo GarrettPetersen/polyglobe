@@ -33,6 +33,15 @@ test("missing, malformed, and incompatible saves never crash loading", () => {
   assert.match(incompatible.error.message, /Unsupported local save version/);
 });
 
+test("failed save reads preserve the serialized voyage for a later recovery", () => {
+  const storage = memoryStorage();
+  const serialized = JSON.stringify({ version: 999, savedAt: 1, payload: { voyage: "recover me" } });
+  storage.setItem(LOCAL_SAVE_STORAGE_KEY, serialized);
+
+  assert.equal(readLocalSave({ storage }).status, "invalid");
+  assert.equal(storage.getItem(LOCAL_SAVE_STORAGE_KEY), serialized);
+});
+
 test("clearing a save leaves the slot empty", () => {
   const storage = memoryStorage();
   writeLocalSave(savePayload(), { storage, savedAt: 1 });
