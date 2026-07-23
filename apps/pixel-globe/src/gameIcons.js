@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-29";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-30";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -97,12 +97,21 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:iron": glionox(562),
   "good:copper": glionox(564),
   "good:tin": glionox(566),
+  "good:amber": glionox(559),
+  "good:furs": glionox(233),
+  "good:beeswax": glionox(678),
+  "good:naval-stores": glionox(680),
+  "good:sulfur": glionox(721),
   "good:arms": pirate(34),
   "good:linen-cloth": paperOutlined(glionox(785)),
   "good:wool-cloth": glionox(581),
   "good:cotton-cloth": glionox(582),
+  "good:paper": lethe(5, 14),
+  "good:printed-books": lethe(9, 14),
   "good:silk": glionox(580),
   "good:silk-cloth": glionox(592),
+  "good:lacquerware": glionox(806),
+  "good:ginseng": glionox(819),
   "good:pepper": keifoo("spices_png/pepper.png"),
   "good:cinnamon": generatedIcon("cinnamon-sticks"),
   "good:cloves": keifoo("spices_png/cloves.png"),

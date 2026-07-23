@@ -52,6 +52,15 @@ export const GINGER_GOOD_ID = "ginger";
 export const INDIGO_GOOD_ID = "indigo";
 export const GUNPOWDER_GOOD_ID = "gunpowder";
 export const MATCHLOCKS_GOOD_ID = "matchlocks";
+export const AMBER_GOOD_ID = "amber";
+export const FURS_GOOD_ID = "furs";
+export const BEESWAX_GOOD_ID = "beeswax";
+export const NAVAL_STORES_GOOD_ID = "naval-stores";
+export const PAPER_GOOD_ID = "paper";
+export const LACQUERWARE_GOOD_ID = "lacquerware";
+export const GINSENG_GOOD_ID = "ginseng";
+export const SULFUR_GOOD_ID = "sulfur";
+export const PRINTED_BOOKS_GOOD_ID = "printed-books";
 
 export const TRADE_GOODS = Object.freeze([
   good(HARDTACK_GOOD_ID, "Hardtack", 2, "food", {
@@ -86,6 +95,14 @@ export const TRADE_GOODS = Object.freeze([
   good("iron", "Iron", 26, "material", { unitSize: 3 }),
   good("copper", "Copper", 30, "material", { unitSize: 3 }),
   good("tin", "Tin", 32, "material", { unitSize: 3 }),
+  good(AMBER_GOOD_ID, "Amber", 52, "luxury", { initialImportStockRatio: 0.08 }),
+  good(FURS_GOOD_ID, "Furs", 46, "luxury", { unitSize: 2, initialImportStockRatio: 0.08 }),
+  good(BEESWAX_GOOD_ID, "Beeswax", 22, "material", { unitSize: 2, initialImportStockRatio: 0.08 }),
+  good(NAVAL_STORES_GOOD_ID, "Naval Stores", 18, "material", {
+    unitSize: 3,
+    initialImportStockRatio: 0.08
+  }),
+  good(SULFUR_GOOD_ID, "Sulfur", 30, "material", { unitSize: 2, initialImportStockRatio: 0.08 }),
   good("arms", "Arms", 50, "manufactured", { unitSize: 2 }),
   good(GUNPOWDER_GOOD_ID, "Gunpowder", 44, "manufactured", {
     unitSize: 2,
@@ -99,8 +116,18 @@ export const TRADE_GOODS = Object.freeze([
   good("linen-cloth", "Linen Cloth", 34, "textile", { unitSize: 2 }),
   good("wool-cloth", "Wool Cloth", 38, "textile", { unitSize: 2 }),
   good("cotton-cloth", "Cotton Cloth", 40, "textile", { unitSize: 2 }),
+  good(PAPER_GOOD_ID, "Paper", 28, "manufactured", { unitSize: 2, initialImportStockRatio: 0.08 }),
+  good(PRINTED_BOOKS_GOOD_ID, "Printed Books", 52, "manufactured", {
+    unitSize: 2,
+    initialImportStockRatio: 0.08
+  }),
   good("silk", "Silk", 60, "luxury"),
   good("silk-cloth", "Silk Cloth", 85, "luxury"),
+  good(LACQUERWARE_GOOD_ID, "Lacquerware", 60, "luxury", {
+    unitSize: 2,
+    initialImportStockRatio: 0.08
+  }),
+  good(GINSENG_GOOD_ID, "Ginseng", 72, "luxury", { initialImportStockRatio: 0.08 }),
   good("pepper", "Pepper", 100, "spice"),
   good(CINNAMON_GOOD_ID, "Cinnamon", 150, "spice"),
   good(CLOVE_GOOD_ID, "Cloves", 180, "spice"),
@@ -125,12 +152,12 @@ const TRADE_GOODS_BY_ID = new Map(TRADE_GOODS.map((item) => [item.id, item]));
 if (TRADE_GOODS_BY_ID.size !== TRADE_GOODS.length) throw new Error("Trade goods contain duplicate ids");
 
 const REGION_PRODUCTION = Object.freeze({
-  "northern-european": rates({ hardtack: 0.75, fish: 1.1, timber: 1.1, wool: 1.2, flax: 0.8, iron: 0.55, "wool-cloth": 0.5, "linen-cloth": 0.45, arms: 0.22, gunpowder: 0.18, matchlocks: 0.12 }),
-  mediterranean: rates({ hardtack: 0.7, grain: 0.65, fish: 0.7, wine: 1.2, "olive-oil": 1.1, salt: 0.75, "wool-cloth": 0.4, glassware: 0.25, artwork: 0.12, gunpowder: 0.14, matchlocks: 0.08 }),
-  "islamic-desert": rates({ hardtack: 0.55, cotton: 1.0, "cotton-cloth": 0.65, carpets: 0.65, perfume: 0.35, coffee: 0.25, artwork: 0.12, gunpowder: 0.12 }),
-  "east-asian": rates({ hardtack: 0.55, grain: 0.7, tea: 1.1, silk: 0.9, "silk-cloth": 0.6, porcelain: 0.8, copper: 0.22, gunpowder: 0.16 }),
-  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, ginger: 0.4, dyes: 0.55, sugar: 0.35, gunpowder: 0.08 }),
-  "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, sugar: 0.65, ginger: 0.7, dyes: 0.25, indigo: 0.2, gunpowder: 0.05 }),
+  "northern-european": rates({ hardtack: 0.75, fish: 0.38, timber: 0.42, wool: 0.3, flax: 0.22, iron: 0.12, gunpowder: 0.04 }),
+  mediterranean: rates({ hardtack: 0.7, grain: 0.32, fish: 0.35, wine: 0.34, "olive-oil": 0.28, salt: 0.2, gunpowder: 0.06 }),
+  "islamic-desert": rates({ hardtack: 0.55, cotton: 0.38, "cotton-cloth": 0.16, carpets: 0.14, perfume: 0.1, gunpowder: 0.05 }),
+  "east-asian": rates({ hardtack: 0.55, grain: 0.7 }),
+  "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 0.48, "cotton-cloth": 0.2, ginger: 0.12, dyes: 0.16, sugar: 0.12, gunpowder: 0.03 }),
+  "southeast-asian": rates({ hardtack: 0.55, fish: 0.5, timber: 0.4, sugar: 0.22, ginger: 0.18, dyes: 0.1, indigo: 0.08, gunpowder: 0.02 }),
   polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
   mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55 }),
   andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, dyes: 0.2 }),
@@ -205,10 +232,31 @@ const REGION_TRADE_PRICE_MULTIPLIER = Object.freeze({
 
 const CITY_SPECIALTIES = uniqueMap([
   specialty("Lisbon", ["salt", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
-  specialty("London", ["wool", "wool-cloth"]),
-  specialty("Venice", ["glassware", GUNPOWDER_GOOD_ID]),
+  specialty("London", ["wool", "wool-cloth", "arms"]),
+  specialty("Brugge", ["wool-cloth"]),
+  specialty("Gent", ["wool-cloth", "linen-cloth"]),
+  specialty("Norwich", ["wool-cloth"]),
+  specialty("Exeter", ["tin", "wool"]),
+  specialty("Gdansk", ["grain", AMBER_GOOD_ID]),
+  specialty("Szczecin", ["grain", "timber", NAVAL_STORES_GOOD_ID]),
+  specialty("Riga", ["flax", BEESWAX_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  specialty("Stockholm", ["iron", "copper", NAVAL_STORES_GOOD_ID]),
+  specialty("Novgorod", [FURS_GOOD_ID, BEESWAX_GOOD_ID]),
+  specialty("Pskov", [FURS_GOOD_ID, BEESWAX_GOOD_ID]),
+  specialty("Kholmogory", ["fish", FURS_GOOD_ID, BEESWAX_GOOD_ID]),
+  specialty("Lubeck", ["salt", "fish"]),
+  specialty("Copenhagen", ["fish", "salt"]),
+  specialty("Krakow", ["salt"]),
+  specialty("Venice", ["glassware", PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Genova", ["silver"]),
   specialty("Genoa", ["silver"]),
+  specialty("Bologna", [PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID]),
+  specialty("Milan", ["arms", "silk-cloth"]),
+  specialty("Rome", ["artwork", PRINTED_BOOKS_GOOD_ID]),
+  specialty("Nurnberg", ["arms", PRINTED_BOOKS_GOOD_ID]),
+  specialty("Mainz", [PRINTED_BOOKS_GOOD_ID]),
+  specialty("Leipzig", [PRINTED_BOOKS_GOOD_ID]),
+  specialty("Paris", [PRINTED_BOOKS_GOOD_ID, "artwork"]),
   specialty("Alexandria", ["cotton-cloth"]),
   specialty("Istanbul", ["carpets", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
   specialty("Tabriz", ["carpets", GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID]),
@@ -237,11 +285,26 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Veracruz", ["cacao", "gold"]),
   specialty("Nombre de Dios", ["gold"]),
   specialty("Panama City", ["gold"]),
-  specialty("Beijing", ["porcelain", GUNPOWDER_GOOD_ID]),
+  specialty("Beijing", [PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
   specialty("Hangzhou", ["silk", "silk-cloth"]),
-  specialty("Guangzhou", ["porcelain", "tea", GINGER_GOOD_ID, GUNPOWDER_GOOD_ID]),
-  specialty("Nanjing", ["silk-cloth", "porcelain", GUNPOWDER_GOOD_ID]),
-  specialty("Kyoto", ["silk-cloth"]),
+  specialty("Suzhou", ["silk", "silk-cloth"]),
+  specialty("Jingdezhen", ["porcelain"]),
+  specialty("Guangzhou", ["porcelain", "silk", "tea", GINGER_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Fuzhou", ["tea", PAPER_GOOD_ID, "porcelain"]),
+  specialty("Tsinkiang", ["tea", "porcelain"]),
+  specialty("Nanjing", ["silk-cloth", PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Chengdu", ["silk", PAPER_GOOD_ID]),
+  specialty("Kaifeng", [PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID]),
+  specialty("Xian", [PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID]),
+  specialty("Changsha", ["tea"]),
+  specialty("Kaesong", [GINSENG_GOOD_ID, PAPER_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Seoul", [GINSENG_GOOD_ID, PAPER_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Gyeongju", [PAPER_GOOD_ID, LACQUERWARE_GOOD_ID]),
+  specialty("Kyoto", ["silk-cloth", LACQUERWARE_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Sakai", ["arms", LACQUERWARE_GOOD_ID, GUNPOWDER_GOOD_ID]),
+  specialty("Yamaguchi", ["silver", SULFUR_GOOD_ID]),
+  specialty("Fukuoka", [SULFUR_GOOD_ID]),
+  specialty("Kagoshima", [SULFUR_GOOD_ID]),
   specialty("Nagasaki", ["silver"]),
   specialty("Mexico City", ["cacao", "gold"]),
   specialty("Cuzco", ["silver", "gold"]),
@@ -253,6 +316,39 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Florence", ["wool-cloth", "artwork"]),
   specialty("Seville", ["olive-oil", "wine"])
 ], "city specialties");
+
+const CITY_DEMANDS = uniqueMap([
+  cityRates("London", { grain: 0.35, timber: 0.24, [AMBER_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.16 }),
+  cityRates("Brugge", { grain: 0.3, [AMBER_GOOD_ID]: 0.14, [BEESWAX_GOOD_ID]: 0.14 }),
+  cityRates("Gent", { grain: 0.28, flax: 0.22, [BEESWAX_GOOD_ID]: 0.12 }),
+  cityRates("Lubeck", { grain: 0.28, timber: 0.22, [AMBER_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.14, [BEESWAX_GOOD_ID]: 0.14 }),
+  cityRates("Hamburg", { grain: 0.28, timber: 0.2, [NAVAL_STORES_GOOD_ID]: 0.16, [FURS_GOOD_ID]: 0.12 }),
+  cityRates("Bremen", { grain: 0.24, timber: 0.2, [NAVAL_STORES_GOOD_ID]: 0.16 }),
+  cityRates("Gdansk", { "wool-cloth": 0.24, salt: 0.2, wine: 0.16, [PRINTED_BOOKS_GOOD_ID]: 0.1 }),
+  cityRates("Riga", { "wool-cloth": 0.22, salt: 0.2, wine: 0.14, arms: 0.12 }),
+  cityRates("Stockholm", { grain: 0.26, "wool-cloth": 0.2, salt: 0.16, wine: 0.14 }),
+  cityRates("Novgorod", { "wool-cloth": 0.25, salt: 0.22, wine: 0.15, [AMBER_GOOD_ID]: 0.1 }),
+  cityRates("Pskov", { "wool-cloth": 0.22, salt: 0.2, wine: 0.14 }),
+  cityRates("Beijing", { silver: 0.24, [GINSENG_GOOD_ID]: 0.18, [LACQUERWARE_GOOD_ID]: 0.12 }),
+  cityRates("Nanjing", { silver: 0.22, [GINSENG_GOOD_ID]: 0.14, [LACQUERWARE_GOOD_ID]: 0.12 }),
+  cityRates("Hangzhou", { silver: 0.22, [GINSENG_GOOD_ID]: 0.13, [LACQUERWARE_GOOD_ID]: 0.12 }),
+  cityRates("Guangzhou", { silver: 0.24, [GINSENG_GOOD_ID]: 0.12, [LACQUERWARE_GOOD_ID]: 0.1 }),
+  cityRates("Kaesong", {
+    silk: 0.2,
+    porcelain: 0.2,
+    [LACQUERWARE_GOOD_ID]: 0.22,
+    [SULFUR_GOOD_ID]: 0.12
+  }),
+  cityRates("Seoul", {
+    silk: 0.2,
+    porcelain: 0.2,
+    [LACQUERWARE_GOOD_ID]: 0.22,
+    [SULFUR_GOOD_ID]: 0.12
+  }),
+  cityRates("Kyoto", { silk: 0.22, porcelain: 0.18, [GINSENG_GOOD_ID]: 0.18, [SULFUR_GOOD_ID]: 0.1 }),
+  cityRates("Sakai", { silk: 0.18, porcelain: 0.18, [GINSENG_GOOD_ID]: 0.14, [SULFUR_GOOD_ID]: 0.12 }),
+  cityRates("Kagoshima", { silk: 0.16, porcelain: 0.16, [GINSENG_GOOD_ID]: 0.12 })
+], "city demands");
 
 // Major commercial mints operating in 1522. Later colonial mints are intentionally excluded.
 const MINT_CITY_NAMES_1522 = new Set([
@@ -275,6 +371,8 @@ const PRODUCTION_INPUTS = Object.freeze({
   "wool-cloth": rates({ wool: 0.8 }),
   "cotton-cloth": rates({ cotton: 0.8 }),
   "silk-cloth": rates({ silk: 0.75, dyes: 0.1 }),
+  "printed-books": rates({ paper: 0.8 }),
+  lacquerware: rates({ timber: 0.2, dyes: 0.08 }),
   carpets: rates({ wool: 0.4, cotton: 0.3, dyes: 0.1 })
 });
 
@@ -438,13 +536,13 @@ export function restoreWorldEconomy(economy, snapshot, { seedKey = economy?.seed
         (!Number.isFinite(saved.targetSpecie) || saved.targetSpecie <= 0)) {
       throw new Error(`Invalid saved target specie for port: ${saved.id}`);
     }
-    if (saved.stocks.length !== port.goods.size) {
-      throw new Error(`Saved economy goods do not match port: ${saved.id}`);
-    }
     validateSavedIndustries(saved.industries, saved.id);
+    const savedGoodIds = new Set();
     for (const [goodId, stock] of saved.stocks) {
       const good = port.goods.get(goodId);
       if (!good) throw new Error(`Saved economy good is missing: ${saved.id}/${goodId}`);
+      if (savedGoodIds.has(goodId)) throw new Error(`Duplicate saved stock: ${saved.id}/${goodId}`);
+      savedGoodIds.add(goodId);
       if (!Number.isFinite(stock) || stock < 0) {
         throw new Error(`Invalid saved stock: ${saved.id}/${goodId}=${stock}`);
       }
@@ -751,6 +849,7 @@ function createPortState(port, seedKey) {
   const demandProfile = REGION_DEMAND[port.cityType];
   if (!productionProfile || !demandProfile) throw new Error(`No economy profile for city type: ${port.cityType}`);
   const specialties = CITY_SPECIALTIES.get(normalizeName(port.city)) || [];
+  const cityDemandProfile = CITY_DEMANDS.get(normalizeName(port.city)) || {};
   const localSpiceSourceIds = new Set(TRADE_GOODS
     .filter((good) => good.category === "spice" && (
       specialties.includes(good.id) ||
@@ -769,7 +868,7 @@ function createPortState(port, seedKey) {
       (Math.max(regionalProduction, villageLocalProduction, localWildProduction) +
         (specialties.includes(good.id) ? 1.35 : 0));
     const householdConsumptionPerDay = populationScale * consumptionMultiplier *
-      (stapleDemand + (demandProfile[good.id] || 0));
+      (stapleDemand + (demandProfile[good.id] || 0) + (cityDemandProfile[good.id] || 0));
     goods.set(good.id, {
       productionPerDay: productionRate,
       industryProductionPerDay: 0,
@@ -1213,7 +1312,8 @@ function good(id, label, basePrice, category, options = {}) {
   if (!Number.isInteger(basePrice) || basePrice <= 0) throw new Error(`Invalid base price for ${id}`);
   const unitSize = options.unitSize ?? 1;
   if (!Number.isInteger(unitSize) || unitSize <= 0) throw new Error(`Invalid unit size for ${id}`);
-  const initialImportStockRatio = options.initialImportStockRatio ?? 1;
+  const specialtyCategory = ["luxury", "spice", "manufactured", "textile", "precious"].includes(category);
+  const initialImportStockRatio = options.initialImportStockRatio ?? (specialtyCategory ? 0.08 : 1);
   if (!Number.isFinite(initialImportStockRatio) || initialImportStockRatio < 0 || initialImportStockRatio > 1) {
     throw new Error(`Invalid initial import stock ratio for ${id}: ${initialImportStockRatio}`);
   }
@@ -1243,6 +1343,10 @@ function rates(values) {
 function specialty(city, goodIds) {
   for (const goodId of goodIds) tradeGoodById(goodId);
   return [normalizeName(city), Object.freeze(goodIds.slice())];
+}
+
+function cityRates(city, values) {
+  return [normalizeName(city), rates(values)];
 }
 
 function uniqueMap(entries, label) {

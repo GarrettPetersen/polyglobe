@@ -4,16 +4,25 @@ import test from "node:test";
 
 import { loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import {
+  AMBER_GOOD_ID,
   BEAVER_PELTS_GOOD_ID,
+  BEESWAX_GOOD_ID,
   CINNAMON_GOOD_ID,
   CLOVE_GOOD_ID,
   FRESH_WATER_GOOD_ID,
+  FURS_GOOD_ID,
+  GINSENG_GOOD_ID,
   GINGER_GOOD_ID,
   GUNPOWDER_GOOD_ID,
   HARDTACK_GOOD_ID,
+  LACQUERWARE_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
+  NAVAL_STORES_GOOD_ID,
   NUTMEG_GOOD_ID,
   INDIGO_GOOD_ID,
+  PAPER_GOOD_ID,
+  PRINTED_BOOKS_GOOD_ID,
+  SULFUR_GOOD_ID,
   TRADE_GOODS,
   WINE_GOOD_ID,
   addWorldEconomyPort,
@@ -102,6 +111,9 @@ test("trade catalog covers staples, manufactures, luxuries, spices, and specie m
     "hardtack", "grain", "fish", "timber", "arms", "wool-cloth", "silk-cloth", "pepper",
     BEAVER_PELTS_GOOD_ID, CINNAMON_GOOD_ID, CLOVE_GOOD_ID, NUTMEG_GOOD_ID,
     GINGER_GOOD_ID, INDIGO_GOOD_ID,
+    AMBER_GOOD_ID, FURS_GOOD_ID, BEESWAX_GOOD_ID, NAVAL_STORES_GOOD_ID,
+    PAPER_GOOD_ID, PRINTED_BOOKS_GOOD_ID, LACQUERWARE_GOOD_ID, GINSENG_GOOD_ID,
+    SULFUR_GOOD_ID,
     GUNPOWDER_GOOD_ID, MATCHLOCKS_GOOD_ID, "fresh-water", "tea", "porcelain", "ivory", "silver", "gold"
   ]) {
     assert.ok(ids.has(goodId), goodId);
@@ -369,6 +381,85 @@ test("regional production creates comparative advantage and profitable merchant 
   assert.ok(plan.expectedProfit > 0);
   assert.ok(plan.lines.some((line) => line.goodId === "wool-cloth"));
   assert.ok(plan.cargoUnits <= 100);
+});
+
+test("Baltic ports offer distinct, moderate-value regional trade loops", () => {
+  const gdansk = port(120, "Gdansk", "Poland", "northern-european", 50000);
+  const lubeck = port(121, "Lubeck", "Germany", "northern-european", 50000);
+  const stockholm = port(122, "Stockholm", "Sweden", "northern-european", 50000);
+  const novgorod = port(123, "Novgorod", "Russia", "northern-european", 50000);
+  const economy = createWorldEconomy({
+    ports: [gdansk, lubeck, stockholm, novgorod],
+    startMinute: 0,
+    seedKey: "baltic-specialties"
+  });
+  const gdanskMarket = marketByGood(economy, gdansk);
+  const lubeckMarket = marketByGood(economy, lubeck);
+  const stockholmMarket = marketByGood(economy, stockholm);
+  const novgorodMarket = marketByGood(economy, novgorod);
+
+  assert.ok(gdanskMarket.get(AMBER_GOOD_ID).productionPerDay > 1);
+  assert.equal(lubeckMarket.get(AMBER_GOOD_ID).productionPerDay, 0);
+  assert.ok(stockholmMarket.get("iron").productionPerDay > gdanskMarket.get("iron").productionPerDay);
+  assert.ok(stockholmMarket.get(NAVAL_STORES_GOOD_ID).productionPerDay > 1);
+  assert.ok(novgorodMarket.get(FURS_GOOD_ID).productionPerDay > 1);
+  assert.ok(novgorodMarket.get(BEESWAX_GOOD_ID).productionPerDay > 1);
+  assert.equal(gdanskMarket.get(FURS_GOOD_ID).listedForSale, false);
+  assert.equal(stockholmMarket.get(AMBER_GOOD_ID).listedForSale, false);
+
+  const amberRun = planNpcTrade(economy, gdansk, lubeck, { cargoCapacity: 20, specie: 5000 });
+  const furRun = planNpcTrade(economy, novgorod, lubeck, { cargoCapacity: 20, specie: 5000 });
+  assert.ok(amberRun.expectedProfit >= 100 && amberRun.expectedProfit <= 700);
+  assert.ok(amberRun.lines.some((line) => line.goodId === AMBER_GOOD_ID));
+  assert.ok(furRun.expectedProfit >= 75 && furRun.expectedProfit <= 700);
+  assert.ok(furRun.lines.some((line) => line.goodId === FURS_GOOD_ID));
+});
+
+test("Chinese, Korean, and Japanese ports have complementary specialties", () => {
+  const jingdezhen = port(130, "Jingdezhen", "Ming", "east-asian", 50000);
+  const hangzhou = port(131, "Hangzhou", "Ming", "east-asian", 50000);
+  const kaesong = port(132, "Kaesong", "Joseon", "east-asian", 50000);
+  const kyoto = port(133, "Kyoto", "Japan", "east-asian", 50000);
+  const kagoshima = port(134, "Kagoshima", "Japan", "east-asian", 50000);
+  const economy = createWorldEconomy({
+    ports: [jingdezhen, hangzhou, kaesong, kyoto, kagoshima],
+    startMinute: 0,
+    seedKey: "east-asian-specialties"
+  });
+  const jingdezhenMarket = marketByGood(economy, jingdezhen);
+  const hangzhouMarket = marketByGood(economy, hangzhou);
+  const kaesongMarket = marketByGood(economy, kaesong);
+  const kyotoMarket = marketByGood(economy, kyoto);
+  const kagoshimaMarket = marketByGood(economy, kagoshima);
+
+  assert.ok(jingdezhenMarket.get("porcelain").productionPerDay > 1);
+  assert.ok(hangzhouMarket.get("silk").productionPerDay > 1);
+  assert.ok(kaesongMarket.get(GINSENG_GOOD_ID).productionPerDay > 1);
+  assert.ok(kaesongMarket.get(PAPER_GOOD_ID).productionPerDay > 1);
+  assert.ok(kyotoMarket.get(LACQUERWARE_GOOD_ID).productionPerDay > 1);
+  assert.ok(kagoshimaMarket.get(SULFUR_GOOD_ID).productionPerDay > 1);
+  assert.equal(jingdezhenMarket.get(GINSENG_GOOD_ID).listedForSale, false);
+  assert.equal(kaesongMarket.get("porcelain").listedForSale, false);
+  assert.equal(kyotoMarket.get(GINSENG_GOOD_ID).listedForSale, false);
+
+  const porcelainRun = planNpcTrade(economy, jingdezhen, kyoto, {
+    cargoCapacity: 20,
+    specie: 5000
+  });
+  const ginsengRun = planNpcTrade(economy, kaesong, kyoto, {
+    cargoCapacity: 20,
+    specie: 5000
+  });
+  const lacquerRun = planNpcTrade(economy, kyoto, kaesong, {
+    cargoCapacity: 20,
+    specie: 5000
+  });
+  assert.ok(porcelainRun.expectedProfit >= 75 && porcelainRun.expectedProfit <= 1000);
+  assert.ok(porcelainRun.lines.some((line) => line.goodId === "porcelain"));
+  assert.ok(ginsengRun.expectedProfit >= 100 && ginsengRun.expectedProfit <= 1000);
+  assert.ok(ginsengRun.lines.some((line) => line.goodId === GINSENG_GOOD_ID));
+  assert.ok(lacquerRun.expectedProfit >= 100 && lacquerRun.expectedProfit <= 1000);
+  assert.ok(lacquerRun.lines.some((line) => line.goodId === LACQUERWARE_GOOD_ID));
 });
 
 test("Polynesian villages support a fish-rich island economy", () => {
@@ -753,6 +844,41 @@ test("older economy snapshots leave newly added ports at current defaults", () =
 
   assert.deepEqual(portEconomySummary(expanded, FIJI), fijiBefore);
   assert.ok(expanded.shipyards.yards.has(FIJI.tileId));
+});
+
+test("older economy snapshots initialize newly added trade goods without changing saved stocks", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
+  executePortSale(economy, LONDON, "wool", 2);
+  const snapshot = snapshotWorldEconomy(economy);
+  const newGoodIds = new Set([
+    AMBER_GOOD_ID,
+    FURS_GOOD_ID,
+    BEESWAX_GOOD_ID,
+    NAVAL_STORES_GOOD_ID,
+    PAPER_GOOD_ID,
+    PRINTED_BOOKS_GOOD_ID,
+    LACQUERWARE_GOOD_ID,
+    GINSENG_GOOD_ID,
+    SULFUR_GOOD_ID
+  ]);
+  for (const savedPort of snapshot.ports) {
+    savedPort.stocks = savedPort.stocks.filter(([goodId]) => !newGoodIds.has(goodId));
+  }
+  const savedWool = snapshot.ports
+    .find((savedPort) => savedPort.id === LONDON.tileId)
+    .stocks.find(([goodId]) => goodId === "wool")[1];
+  const freshNewGoodStocks = new Map(
+    [...economy.portStates.get(LONDON.tileId).goods.entries()]
+      .filter(([goodId]) => newGoodIds.has(goodId))
+      .map(([goodId, state]) => [goodId, state.stock])
+  );
+
+  restoreWorldEconomy(economy, snapshot);
+
+  assert.equal(economy.portStates.get(LONDON.tileId).goods.get("wool").stock, savedWool);
+  for (const [goodId, stock] of freshNewGoodStocks) {
+    assert.equal(economy.portStates.get(LONDON.tileId).goods.get(goodId).stock, stock);
+  }
 });
 
 function marketByGood(economy, city) {

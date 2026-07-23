@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-29",
+  "version": "resurrect-icons-30",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 176,
@@ -218,9 +218,64 @@
       "assetPath": null
     },
     {
-      "id": "good:arms",
+      "id": "good:amber",
       "rect": {
         "x": 48,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:furs",
+      "rect": {
+        "x": 64,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:beeswax",
+      "rect": {
+        "x": 80,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:naval-stores",
+      "rect": {
+        "x": 96,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:sulfur",
+      "rect": {
+        "x": 112,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:arms",
+      "rect": {
+        "x": 128,
         "y": 16,
         "w": 16,
         "h": 16
@@ -231,7 +286,7 @@
     {
       "id": "good:linen-cloth",
       "rect": {
-        "x": 64,
+        "x": 144,
         "y": 16,
         "w": 16,
         "h": 16
@@ -243,7 +298,7 @@
     {
       "id": "good:wool-cloth",
       "rect": {
-        "x": 80,
+        "x": 160,
         "y": 16,
         "w": 16,
         "h": 16
@@ -254,7 +309,7 @@
     {
       "id": "good:cotton-cloth",
       "rect": {
-        "x": 96,
+        "x": 176,
         "y": 16,
         "w": 16,
         "h": 16
@@ -263,9 +318,31 @@
       "assetPath": null
     },
     {
+      "id": "good:paper",
+      "rect": {
+        "x": 192,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:printed-books",
+      "rect": {
+        "x": 208,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
       "id": "good:silk",
       "rect": {
-        "x": 112,
+        "x": 224,
         "y": 16,
         "w": 16,
         "h": 16
@@ -276,7 +353,7 @@
     {
       "id": "good:silk-cloth",
       "rect": {
-        "x": 128,
+        "x": 240,
         "y": 16,
         "w": 16,
         "h": 16
@@ -285,84 +362,7 @@
       "assetPath": null
     },
     {
-      "id": "good:pepper",
-      "rect": {
-        "x": 144,
-        "y": 16,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "keifoo",
-      "assetPath": null
-    },
-    {
-      "id": "good:cinnamon",
-      "rect": {
-        "x": 160,
-        "y": 16,
-        "w": 16,
-        "h": 16
-      },
-      "packId": null,
-      "assetPath": null
-    },
-    {
-      "id": "good:cloves",
-      "rect": {
-        "x": 176,
-        "y": 16,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "keifoo",
-      "assetPath": null
-    },
-    {
-      "id": "good:nutmeg",
-      "rect": {
-        "x": 192,
-        "y": 16,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "keifoo",
-      "assetPath": null
-    },
-    {
-      "id": "good:ginger",
-      "rect": {
-        "x": 208,
-        "y": 16,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "alex",
-      "assetPath": null
-    },
-    {
-      "id": "good:tea",
-      "rect": {
-        "x": 224,
-        "y": 16,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "alex",
-      "assetPath": null
-    },
-    {
-      "id": "good:coffee",
-      "rect": {
-        "x": 240,
-        "y": 16,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "alex",
-      "assetPath": null
-    },
-    {
-      "id": "good:cacao",
+      "id": "good:lacquerware",
       "rect": {
         "x": 0,
         "y": 32,
@@ -373,31 +373,9 @@
       "assetPath": null
     },
     {
-      "id": "good:dyes",
+      "id": "good:ginseng",
       "rect": {
         "x": 16,
-        "y": 32,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "lethe",
-      "assetPath": null
-    },
-    {
-      "id": "good:indigo",
-      "rect": {
-        "x": 32,
-        "y": 32,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "lethe",
-      "assetPath": null
-    },
-    {
-      "id": "good:porcelain",
-      "rect": {
-        "x": 48,
         "y": 32,
         "w": 16,
         "h": 16
@@ -406,7 +384,29 @@
       "assetPath": null
     },
     {
-      "id": "good:glassware",
+      "id": "good:pepper",
+      "rect": {
+        "x": 32,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null
+    },
+    {
+      "id": "good:cinnamon",
+      "rect": {
+        "x": 48,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": null,
+      "assetPath": null
+    },
+    {
+      "id": "good:cloves",
       "rect": {
         "x": 64,
         "y": 32,
@@ -417,51 +417,51 @@
       "assetPath": null
     },
     {
-      "id": "good:carpets",
+      "id": "good:nutmeg",
       "rect": {
         "x": 80,
         "y": 32,
         "w": 16,
         "h": 16
       },
-      "packId": "glionox",
+      "packId": "keifoo",
       "assetPath": null
     },
     {
-      "id": "good:artwork",
+      "id": "good:ginger",
       "rect": {
         "x": 96,
         "y": 32,
         "w": 16,
         "h": 16
       },
-      "packId": "lethe",
+      "packId": "alex",
       "assetPath": null
     },
     {
-      "id": "good:perfume",
+      "id": "good:tea",
       "rect": {
         "x": 112,
         "y": 32,
         "w": 16,
         "h": 16
       },
-      "packId": "lethe",
+      "packId": "alex",
       "assetPath": null
     },
     {
-      "id": "good:ivory",
+      "id": "good:coffee",
       "rect": {
         "x": 128,
         "y": 32,
         "w": 16,
         "h": 16
       },
-      "packId": "glionox",
+      "packId": "alex",
       "assetPath": null
     },
     {
-      "id": "good:silver",
+      "id": "good:cacao",
       "rect": {
         "x": 144,
         "y": 32,
@@ -472,10 +472,109 @@
       "assetPath": null
     },
     {
-      "id": "good:gold",
+      "id": "good:dyes",
       "rect": {
         "x": 160,
         "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:indigo",
+      "rect": {
+        "x": 176,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:porcelain",
+      "rect": {
+        "x": 192,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:glassware",
+      "rect": {
+        "x": 208,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "keifoo",
+      "assetPath": null
+    },
+    {
+      "id": "good:carpets",
+      "rect": {
+        "x": 224,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:artwork",
+      "rect": {
+        "x": 240,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:perfume",
+      "rect": {
+        "x": 0,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "lethe",
+      "assetPath": null
+    },
+    {
+      "id": "good:ivory",
+      "rect": {
+        "x": 16,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:silver",
+      "rect": {
+        "x": 32,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "glionox",
+      "assetPath": null
+    },
+    {
+      "id": "good:gold",
+      "rect": {
+        "x": 48,
+        "y": 48,
         "w": 16,
         "h": 16
       },
@@ -485,8 +584,8 @@
     {
       "id": "menu:continue",
       "rect": {
-        "x": 176,
-        "y": 32,
+        "x": 64,
+        "y": 48,
         "w": 16,
         "h": 16
       },
@@ -497,8 +596,8 @@
     {
       "id": "menu:new-game",
       "rect": {
-        "x": 192,
-        "y": 32,
+        "x": 80,
+        "y": 48,
         "w": 16,
         "h": 16
       },
@@ -509,8 +608,8 @@
     {
       "id": "menu:lake-battle",
       "rect": {
-        "x": 208,
-        "y": 32,
+        "x": 96,
+        "y": 48,
         "w": 16,
         "h": 16
       },
@@ -521,8 +620,8 @@
     {
       "id": "menu:past-voyages",
       "rect": {
-        "x": 224,
-        "y": 32,
+        "x": 112,
+        "y": 48,
         "w": 16,
         "h": 16
       },
@@ -533,8 +632,8 @@
     {
       "id": "menu:achievements",
       "rect": {
-        "x": 240,
-        "y": 32,
+        "x": 128,
+        "y": 48,
         "w": 16,
         "h": 16
       },
@@ -545,7 +644,7 @@
     {
       "id": "menu:options",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 48,
         "w": 16,
         "h": 16
@@ -557,7 +656,7 @@
     {
       "id": "menu:credits",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 48,
         "w": 16,
         "h": 16
@@ -569,7 +668,7 @@
     {
       "id": "menu:captain",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 48,
         "w": 16,
         "h": 16
@@ -581,7 +680,7 @@
     {
       "id": "menu:ship",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 48,
         "w": 16,
         "h": 16
@@ -593,7 +692,7 @@
     {
       "id": "menu:politics",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 48,
         "w": 16,
         "h": 16
@@ -605,7 +704,7 @@
     {
       "id": "menu:discoveries",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 48,
         "w": 16,
         "h": 16
@@ -617,7 +716,7 @@
     {
       "id": "achievement:magellan",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 48,
         "w": 16,
         "h": 16
@@ -629,8 +728,8 @@
     {
       "id": "achievement:founder",
       "rect": {
-        "x": 112,
-        "y": 48,
+        "x": 0,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -641,8 +740,8 @@
     {
       "id": "achievement:expansionist",
       "rect": {
-        "x": 128,
-        "y": 48,
+        "x": 16,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -653,8 +752,8 @@
     {
       "id": "achievement:colonist",
       "rect": {
-        "x": 144,
-        "y": 48,
+        "x": 32,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -665,8 +764,8 @@
     {
       "id": "achievement:hawaii",
       "rect": {
-        "x": 160,
-        "y": 48,
+        "x": 48,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -677,8 +776,8 @@
     {
       "id": "achievement:married",
       "rect": {
-        "x": 176,
-        "y": 48,
+        "x": 64,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -689,8 +788,8 @@
     {
       "id": "achievement:lightning",
       "rect": {
-        "x": 192,
-        "y": 48,
+        "x": 80,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -701,8 +800,8 @@
     {
       "id": "status:achievement-locked",
       "rect": {
-        "x": 208,
-        "y": 48,
+        "x": 96,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -713,8 +812,8 @@
     {
       "id": "status:achievement-unlocked",
       "rect": {
-        "x": 224,
-        "y": 48,
+        "x": 112,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -725,8 +824,8 @@
     {
       "id": "ship:fishing-lugger",
       "rect": {
-        "x": 240,
-        "y": 48,
+        "x": 128,
+        "y": 64,
         "w": 16,
         "h": 16
       },
@@ -736,7 +835,7 @@
     {
       "id": "ship:small-cog",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 64,
         "w": 16,
         "h": 16
@@ -747,7 +846,7 @@
     {
       "id": "ship:dhow",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 64,
         "w": 16,
         "h": 16
@@ -758,7 +857,7 @@
     {
       "id": "ship:sampan",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 64,
         "w": 16,
         "h": 16
@@ -769,7 +868,7 @@
     {
       "id": "ship:large-junk",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 64,
         "w": 16,
         "h": 16
@@ -780,7 +879,7 @@
     {
       "id": "ship:pirate-brig",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 64,
         "w": 16,
         "h": 16
@@ -791,7 +890,7 @@
     {
       "id": "ship:galleon",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 64,
         "w": 16,
         "h": 16
@@ -802,7 +901,7 @@
     {
       "id": "ship:fluyt",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 64,
         "w": 16,
         "h": 16
@@ -813,8 +912,8 @@
     {
       "id": "ship:carrack",
       "rect": {
-        "x": 112,
-        "y": 64,
+        "x": 0,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -824,8 +923,8 @@
     {
       "id": "ship:ship-of-the-line",
       "rect": {
-        "x": 128,
-        "y": 64,
+        "x": 16,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -835,8 +934,8 @@
     {
       "id": "ship:medium-junk",
       "rect": {
-        "x": 144,
-        "y": 64,
+        "x": 32,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -846,8 +945,8 @@
     {
       "id": "ship:xebec",
       "rect": {
-        "x": 160,
-        "y": 64,
+        "x": 48,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -857,8 +956,8 @@
     {
       "id": "ship:caravel",
       "rect": {
-        "x": 176,
-        "y": 64,
+        "x": 64,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -868,8 +967,8 @@
     {
       "id": "ship:square-rigged-caravel",
       "rect": {
-        "x": 192,
-        "y": 64,
+        "x": 80,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -879,8 +978,8 @@
     {
       "id": "ship:brigantine",
       "rect": {
-        "x": 208,
-        "y": 64,
+        "x": 96,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -890,8 +989,8 @@
     {
       "id": "ship:small-junk",
       "rect": {
-        "x": 224,
-        "y": 64,
+        "x": 112,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -901,8 +1000,8 @@
     {
       "id": "ship:felucca",
       "rect": {
-        "x": 240,
-        "y": 64,
+        "x": 128,
+        "y": 80,
         "w": 16,
         "h": 16
       },
@@ -912,7 +1011,7 @@
     {
       "id": "ship:cutter",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 80,
         "w": 16,
         "h": 16
@@ -923,7 +1022,7 @@
     {
       "id": "ship:ketch",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 80,
         "w": 16,
         "h": 16
@@ -934,7 +1033,7 @@
     {
       "id": "ship:mediterranean-galley",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 80,
         "w": 16,
         "h": 16
@@ -945,7 +1044,7 @@
     {
       "id": "ship:joseon-turtle-ship",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 80,
         "w": 16,
         "h": 16
@@ -956,7 +1055,7 @@
     {
       "id": "ship:joseon-panokseon",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 80,
         "w": 16,
         "h": 16
@@ -967,7 +1066,7 @@
     {
       "id": "ship:japanese-atakebune",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 80,
         "w": 16,
         "h": 16
@@ -978,7 +1077,7 @@
     {
       "id": "ship:spanish-nao",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 80,
         "w": 16,
         "h": 16
@@ -989,8 +1088,8 @@
     {
       "id": "ship:portuguese-carrack",
       "rect": {
-        "x": 112,
-        "y": 80,
+        "x": 0,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1000,8 +1099,8 @@
     {
       "id": "ship:viking-longship",
       "rect": {
-        "x": 128,
-        "y": 80,
+        "x": 16,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1011,8 +1110,8 @@
     {
       "id": "ship:polynesian-voyaging-canoe",
       "rect": {
-        "x": 144,
-        "y": 80,
+        "x": 32,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1022,8 +1121,8 @@
     {
       "id": "ship:mesoamerican-dugout-canoe",
       "rect": {
-        "x": 160,
-        "y": 80,
+        "x": 48,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1033,8 +1132,8 @@
     {
       "id": "ship:nusantaran-outrigger",
       "rect": {
-        "x": 176,
-        "y": 80,
+        "x": 64,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1044,8 +1143,8 @@
     {
       "id": "ship:ottoman-coastal-trader",
       "rect": {
-        "x": 192,
-        "y": 80,
+        "x": 80,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1055,8 +1154,8 @@
     {
       "id": "action:dock",
       "rect": {
-        "x": 208,
-        "y": 80,
+        "x": 96,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1067,8 +1166,8 @@
     {
       "id": "action:anchor",
       "rect": {
-        "x": 224,
-        "y": 80,
+        "x": 112,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1079,8 +1178,8 @@
     {
       "id": "action:hail",
       "rect": {
-        "x": 240,
-        "y": 80,
+        "x": 128,
+        "y": 96,
         "w": 16,
         "h": 16
       },
@@ -1091,7 +1190,7 @@
     {
       "id": "action:fish",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1103,7 +1202,7 @@
     {
       "id": "action:harpoon",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1115,7 +1214,7 @@
     {
       "id": "action:scavenge",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1127,7 +1226,7 @@
     {
       "id": "action:buy",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1139,7 +1238,7 @@
     {
       "id": "action:sell",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1151,7 +1250,7 @@
     {
       "id": "action:back",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1163,7 +1262,7 @@
     {
       "id": "action:leave",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 96,
         "w": 16,
         "h": 16
@@ -1175,8 +1274,8 @@
     {
       "id": "action:quest",
       "rect": {
-        "x": 112,
-        "y": 96,
+        "x": 0,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1187,8 +1286,8 @@
     {
       "id": "action:talk",
       "rect": {
-        "x": 128,
-        "y": 96,
+        "x": 16,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1199,8 +1298,8 @@
     {
       "id": "action:wait",
       "rect": {
-        "x": 144,
-        "y": 96,
+        "x": 32,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1211,8 +1310,8 @@
     {
       "id": "action:attack",
       "rect": {
-        "x": 160,
-        "y": 96,
+        "x": 48,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1223,8 +1322,8 @@
     {
       "id": "action:loadout",
       "rect": {
-        "x": 176,
-        "y": 96,
+        "x": 64,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1235,8 +1334,8 @@
     {
       "id": "action:shipyard",
       "rect": {
-        "x": 192,
-        "y": 96,
+        "x": 80,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1247,8 +1346,8 @@
     {
       "id": "action:letter",
       "rect": {
-        "x": 208,
-        "y": 96,
+        "x": 96,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1259,8 +1358,8 @@
     {
       "id": "action:disguise",
       "rect": {
-        "x": 224,
-        "y": 96,
+        "x": 112,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1271,8 +1370,8 @@
     {
       "id": "action:surrender",
       "rect": {
-        "x": 240,
-        "y": 96,
+        "x": 128,
+        "y": 112,
         "w": 16,
         "h": 16
       },
@@ -1283,7 +1382,7 @@
     {
       "id": "action:passenger",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1295,7 +1394,7 @@
     {
       "id": "action:viking",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1307,7 +1406,7 @@
     {
       "id": "action:inventory",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1319,7 +1418,7 @@
     {
       "id": "action:resume",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1331,7 +1430,7 @@
     {
       "id": "action:restart",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1343,7 +1442,7 @@
     {
       "id": "action:choose-ships",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1355,7 +1454,7 @@
     {
       "id": "action:start-menu",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 112,
         "w": 16,
         "h": 16
@@ -1367,8 +1466,8 @@
     {
       "id": "action:navigation",
       "rect": {
-        "x": 112,
-        "y": 112,
+        "x": 0,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1379,8 +1478,8 @@
     {
       "id": "input:xbox:a",
       "rect": {
-        "x": 128,
-        "y": 112,
+        "x": 16,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1391,8 +1490,8 @@
     {
       "id": "input:xbox:b",
       "rect": {
-        "x": 144,
-        "y": 112,
+        "x": 32,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1403,8 +1502,8 @@
     {
       "id": "input:xbox:x",
       "rect": {
-        "x": 160,
-        "y": 112,
+        "x": 48,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1415,8 +1514,8 @@
     {
       "id": "input:xbox:y",
       "rect": {
-        "x": 176,
-        "y": 112,
+        "x": 64,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1427,8 +1526,8 @@
     {
       "id": "input:xbox:lt",
       "rect": {
-        "x": 192,
-        "y": 112,
+        "x": 80,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1439,8 +1538,8 @@
     {
       "id": "input:xbox:rt",
       "rect": {
-        "x": 208,
-        "y": 112,
+        "x": 96,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1451,8 +1550,8 @@
     {
       "id": "input:playstation:cross",
       "rect": {
-        "x": 224,
-        "y": 112,
+        "x": 112,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1463,8 +1562,8 @@
     {
       "id": "input:playstation:circle",
       "rect": {
-        "x": 240,
-        "y": 112,
+        "x": 128,
+        "y": 128,
         "w": 16,
         "h": 16
       },
@@ -1475,7 +1574,7 @@
     {
       "id": "input:playstation:square",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1487,7 +1586,7 @@
     {
       "id": "input:playstation:triangle",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1499,7 +1598,7 @@
     {
       "id": "input:playstation:l2",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1511,7 +1610,7 @@
     {
       "id": "input:playstation:r2",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1523,7 +1622,7 @@
     {
       "id": "input:nintendo:a",
       "rect": {
-        "x": 64,
+        "x": 208,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1535,7 +1634,7 @@
     {
       "id": "input:nintendo:b",
       "rect": {
-        "x": 80,
+        "x": 224,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1547,7 +1646,7 @@
     {
       "id": "input:nintendo:x",
       "rect": {
-        "x": 96,
+        "x": 240,
         "y": 128,
         "w": 16,
         "h": 16
@@ -1559,8 +1658,8 @@
     {
       "id": "input:nintendo:y",
       "rect": {
-        "x": 112,
-        "y": 128,
+        "x": 0,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1571,8 +1670,8 @@
     {
       "id": "input:nintendo:zl",
       "rect": {
-        "x": 128,
-        "y": 128,
+        "x": 16,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1582,8 +1681,8 @@
     {
       "id": "input:nintendo:zr",
       "rect": {
-        "x": 144,
-        "y": 128,
+        "x": 32,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1593,8 +1692,8 @@
     {
       "id": "input:generic:south",
       "rect": {
-        "x": 160,
-        "y": 128,
+        "x": 48,
+        "y": 144,
         "w": 16,
         "h": 16
       },
@@ -1604,114 +1703,6 @@
     },
     {
       "id": "input:generic:east",
-      "rect": {
-        "x": 176,
-        "y": 128,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#4c3e24"
-    },
-    {
-      "id": "input:generic:west",
-      "rect": {
-        "x": 192,
-        "y": 128,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#4c3e24"
-    },
-    {
-      "id": "input:generic:north",
-      "rect": {
-        "x": 208,
-        "y": 128,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#4c3e24"
-    },
-    {
-      "id": "input:generic:left-trigger",
-      "rect": {
-        "x": 224,
-        "y": 128,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#4c3e24"
-    },
-    {
-      "id": "input:generic:right-trigger",
-      "rect": {
-        "x": 240,
-        "y": 128,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#4c3e24"
-    },
-    {
-      "id": "input:common:view",
-      "rect": {
-        "x": 0,
-        "y": 144,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#625565"
-    },
-    {
-      "id": "input:common:menu",
-      "rect": {
-        "x": 16,
-        "y": 144,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#625565"
-    },
-    {
-      "id": "input:common:left-stick",
-      "rect": {
-        "x": 32,
-        "y": 144,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#625565"
-    },
-    {
-      "id": "input:common:right-stick",
-      "rect": {
-        "x": 48,
-        "y": 144,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#625565"
-    },
-    {
-      "id": "item:sturdy-barrels",
       "rect": {
         "x": 64,
         "y": 144,
@@ -1723,7 +1714,7 @@
       "lightMonotone": "#4c3e24"
     },
     {
-      "id": "item:shore-party-kit",
+      "id": "input:generic:west",
       "rect": {
         "x": 80,
         "y": 144,
@@ -1735,7 +1726,7 @@
       "lightMonotone": "#4c3e24"
     },
     {
-      "id": "item:tarred-hemp-rigging",
+      "id": "input:generic:north",
       "rect": {
         "x": 96,
         "y": 144,
@@ -1747,7 +1738,7 @@
       "lightMonotone": "#4c3e24"
     },
     {
-      "id": "item:coir-cordage",
+      "id": "input:generic:left-trigger",
       "rect": {
         "x": 112,
         "y": 144,
@@ -1756,10 +1747,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#694f62"
+      "lightMonotone": "#4c3e24"
     },
     {
-      "id": "item:flemish-sailcloth",
+      "id": "input:generic:right-trigger",
       "rect": {
         "x": 128,
         "y": 144,
@@ -1768,10 +1759,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#0b5e65"
+      "lightMonotone": "#4c3e24"
     },
     {
-      "id": "item:lateen-sailcloth",
+      "id": "input:common:view",
       "rect": {
         "x": 144,
         "y": 144,
@@ -1780,10 +1771,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#9e4539"
+      "lightMonotone": "#625565"
     },
     {
-      "id": "item:lead-sheathing",
+      "id": "input:common:menu",
       "rect": {
         "x": 160,
         "y": 144,
@@ -1795,10 +1786,118 @@
       "lightMonotone": "#625565"
     },
     {
-      "id": "item:surgeons-chest",
+      "id": "input:common:left-stick",
       "rect": {
         "x": 176,
         "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "input:common:right-stick",
+      "rect": {
+        "x": 192,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "item:sturdy-barrels",
+      "rect": {
+        "x": 208,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:shore-party-kit",
+      "rect": {
+        "x": 224,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:tarred-hemp-rigging",
+      "rect": {
+        "x": 240,
+        "y": 144,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:coir-cordage",
+      "rect": {
+        "x": 0,
+        "y": 160,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#694f62"
+    },
+    {
+      "id": "item:flemish-sailcloth",
+      "rect": {
+        "x": 16,
+        "y": 160,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#0b5e65"
+    },
+    {
+      "id": "item:lateen-sailcloth",
+      "rect": {
+        "x": 32,
+        "y": 160,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "item:lead-sheathing",
+      "rect": {
+        "x": 48,
+        "y": 160,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#625565"
+    },
+    {
+      "id": "item:surgeons-chest",
+      "rect": {
+        "x": 64,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1809,8 +1908,8 @@
     {
       "id": "item:pilots-instruments",
       "rect": {
-        "x": 192,
-        "y": 144,
+        "x": 80,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1821,8 +1920,8 @@
     {
       "id": "item:longsword",
       "rect": {
-        "x": 208,
-        "y": 144,
+        "x": 96,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1833,8 +1932,8 @@
     {
       "id": "item:tulwar",
       "rect": {
-        "x": 224,
-        "y": 144,
+        "x": 112,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1845,8 +1944,8 @@
     {
       "id": "item:katana",
       "rect": {
-        "x": 240,
-        "y": 144,
+        "x": 128,
+        "y": 160,
         "w": 16,
         "h": 16
       },
@@ -1857,7 +1956,7 @@
     {
       "id": "item:wheellock-pistol",
       "rect": {
-        "x": 0,
+        "x": 144,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1869,7 +1968,7 @@
     {
       "id": "item:bronze-fish-hooks",
       "rect": {
-        "x": 16,
+        "x": 160,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1881,7 +1980,7 @@
     {
       "id": "good:gunpowder",
       "rect": {
-        "x": 32,
+        "x": 176,
         "y": 160,
         "w": 16,
         "h": 16
@@ -1892,7 +1991,7 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 48,
+        "x": 192,
         "y": 160,
         "w": 16,
         "h": 16
