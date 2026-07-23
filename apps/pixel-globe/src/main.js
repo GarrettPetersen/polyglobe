@@ -837,7 +837,6 @@ import {
   factionById,
   factionHasFlag,
   factionNounPhrase,
-  migrateFactionIdTo1522,
   markFactionCapitalsOnPorts
 } from "./factions.js";
 import {
@@ -902,6 +901,7 @@ import {
   shipyardRumorForPort
 } from "./shipyards.js";
 import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
+import { migrateSavedVoyageCore } from "./saveCompatibility.js";
 import {
   appendVoyageRecord,
   grossDoubloonsEarned,
@@ -7540,8 +7540,7 @@ function archiveSavedVoyageBeforeStartingOver() {
   const payload = localSaveResult.status === "ready" ? localSaveResult.save?.payload : null;
   if (!payload) return false;
   try {
-    const savedStats = shipStatsForSlug(payload.playerShip.typeSlug);
-    const savedState = migrateGameState(payload.gameState, savedStats);
+    const { gameState: savedState } = migrateSavedVoyageCore(payload);
     const record = createPastVoyageRecord({
       state: savedState,
       playerShip: payload.playerShip,
@@ -7585,17 +7584,11 @@ async function continueSavedVoyage() {
 }
 
 async function restoreSavedVoyage(payload) {
-  const savedShip = {
-    ...payload.playerShip,
-    factionId: migrateFactionIdTo1522(payload.playerShip.factionId)
-  };
-  const stats = shipStatsForSlug(savedShip.typeSlug);
-  const restoredGameState = migrateGameState(payload.gameState, stats);
-  if (restoredGameState.ship?.slug !== savedShip.typeSlug) {
-    throw new Error(
-      `Saved vessel ${savedShip.typeSlug} does not match game-state hull ${restoredGameState.ship?.slug || "missing"}`
-    );
-  }
+  const {
+    savedShip,
+    shipStats: stats,
+    gameState: restoredGameState
+  } = migrateSavedVoyageCore(payload);
   const correctedPortraitSexCount = reconcileCharacterPortraitSexes(
     restoredGameState,
     characterPortraitManifest
@@ -7604,19 +7597,8 @@ async function restoreSavedVoyage(payload) {
     console.info("[pixel-globe] corrected portrait sex metadata for saved characters:", correctedPortraitSexCount);
   }
   ensureWhalePopulation(restoredGameState);
-  factionById(savedShip.factionId);
-  if (restoredGameState.ship.baseCargoCapacity !== stats.cargoCapacity) {
-    throw new Error("Saved ship capacity does not match its hull");
-  }
   if (!Number.isInteger(savedShip.tileId) || !isShipBaseNavigableTile(savedShip.tileId)) {
     throw new Error(`Saved ship tile is not navigable: ${savedShip.tileId}`);
-  }
-  if (!Number.isFinite(savedShip.hitPoints) || savedShip.hitPoints <= 0 ||
-      !Number.isFinite(savedShip.maxHitPoints) || savedShip.maxHitPoints < savedShip.hitPoints) {
-    throw new Error("Saved player hull is invalid");
-  }
-  if (Math.hypot(...savedShip.position) < 0.5 || Math.hypot(...savedShip.heading) < 0.5) {
-    throw new Error("Saved player navigation vectors are invalid");
   }
   syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
   const assets = await loadShipAssetSet(savedShip.typeSlug);

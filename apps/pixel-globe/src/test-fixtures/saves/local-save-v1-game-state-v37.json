@@ -1,0 +1,316 @@
+{
+  "version": 1,
+  "savedAt": 1784721600000,
+  "payload": {
+    "gameState": {
+      "version": 37,
+      "activePlaySeconds": 733,
+      "playerCharacter": {
+        "id": "compatibility-captain-ines",
+        "name": "Ines Ferreira",
+        "givenName": "Ines",
+        "gender": "female",
+        "nameCulture": "portuguese",
+        "nationalityId": "portugal",
+        "homePortTileId": 4242,
+        "homePortName": "Lisbon",
+        "expressions": ["neutral"],
+        "skillIds": ["skilled-fisher"]
+      },
+      "doubloons": 4872,
+      "cargoCapacity": 60,
+      "cargo": {},
+      "namedCrew": [],
+      "ship": {
+        "slug": "ketch",
+        "loadoutId": null,
+        "loadoutTargets": null,
+        "crew": 0,
+        "crewCapacity": 9,
+        "cannons": 0,
+        "cannonCapacity": 4,
+        "baseCargoCapacity": 60,
+        "mass": 75,
+        "navalWeaponKind": null
+      },
+      "survival": {
+        "freshWater": 0,
+        "freshWaterCapacity": 1,
+        "foodRationDebt": 0,
+        "wineOnlyMinutes": 0,
+        "wineEmergencyActive": false,
+        "lastMinute": 812340
+      },
+      "inventory": {
+        "items": {},
+        "fishingNetId": "basic-cast-net",
+        "cannonEquipmentId": "standard-ordnance",
+        "whaleHarpoonId": null
+      },
+      "accounts": {
+        "cargoCostBasis": {},
+        "realizedPnl": 0,
+        "nextEntryId": 2,
+        "ledger": [{
+          "id": 1,
+          "kind": "opening",
+          "simMinute": 812340,
+          "location": "Aboard",
+          "country": "",
+          "description": "Opening balance",
+          "goodId": null,
+          "quantity": 0,
+          "amount": 360,
+          "balance": 360,
+          "costBasis": null,
+          "pnl": null
+        }]
+      },
+      "relations": {
+        "factionReputation": {
+          "neutral": 0,
+          "pirate": -100,
+          "england": 0,
+          "scotland": 0,
+          "france": 0,
+          "spain": 0,
+          "portugal": 8,
+          "habsburg": 0,
+          "hungary": 0,
+          "ottoman": -8,
+          "venice": 0,
+          "genoa": 0,
+          "papal-states": 0,
+          "ming": -8,
+          "inca": 0,
+          "safavid": 0,
+          "muscovy": 0,
+          "poland-lithuania": 0,
+          "denmark-norway": 0,
+          "songhai": 0,
+          "morocco": -8,
+          "ethiopia": 0,
+          "vijayanagara": 0,
+          "gujarat": -8,
+          "bengal": 0,
+          "delhi": 0,
+          "ayutthaya": 0,
+          "japan": 0,
+          "joseon": 0
+        },
+        "lettersOfMarque": {},
+        "safePassageUntilMinute": {},
+        "safePassageRefusalUntilMinute": {},
+        "mingOpenTradeFactionIds": ["joseon"],
+        "diplomacy": {
+          "version": 4,
+          "seed": 368473706,
+          "sequence": 0,
+          "startMinute": 812340,
+          "lastUpdateMinute": 812340,
+          "nextEventMinute": 986285,
+          "overrides": {},
+          "pairLastChangedMinute": {},
+          "contacts": {},
+          "history": []
+        }
+      },
+      "memory": {
+        "visitedPorts": {},
+        "decisions": {},
+        "flags": {"sailingBasicsElapsedSeconds": 180},
+        "discoveries": {},
+        "discoveryOrder": [],
+        "animals": {
+          "version": 1,
+          "encountered": {},
+          "encounterOrder": [],
+          "nextRollMinute": 0
+        },
+        "panda": {
+          "version": 2,
+          "status": "unmet",
+          "joinedMinute": null,
+          "naturalistOffer": "unresolved",
+          "npcReactionKeys": []
+        },
+        "pendingDiscoveryPortDialogueIds": [],
+        "namedCrewDeathNotices": [],
+        "birthdays": {
+          "version": 1,
+          "lastObservedDateKey": null,
+          "pendingEvents": [],
+          "celebratedEventIds": []
+        },
+        "specialEquipmentOffers": {"version": 1, "byPort": {}},
+        "navigation": {
+          "lastLongitudeDeg": -9.14,
+          "cumulativeLongitudeDeg": 42.5,
+          "optionalWaypoints": [{
+            "id": "port:5151",
+            "destinationTileId": 5151,
+            "destinationName": "Porto",
+            "reason": "NEW SHIP FOR SALE"
+          }]
+        },
+        "quests": {
+          "active": null,
+          "completed": {},
+          "onboardingDeliveriesCompleted": 0,
+          "deliveryOffers": {},
+          "deliveryRolls": {},
+          "passengerOffers": {},
+          "passengerRolls": {},
+          "vikingLongshipRolls": {},
+          "japaneseMatchlocks": {
+            "version": 1,
+            "stage": "locked",
+            "fetchStageIndex": 0,
+            "workshopTileId": null,
+            "offerSeen": false,
+            "completedMinute": null,
+            "spawnRolls": {}
+          },
+          "caribbeanGinger": {
+            "version": 1,
+            "stage": "locked",
+            "cultivationTileId": null,
+            "cultivationCity": null,
+            "cultivationCountry": null,
+            "offerSeen": false,
+            "completedMinute": null,
+            "spawnRolls": {}
+          },
+          "chef": {
+            "version": 1,
+            "stage": "locked",
+            "portTileId": null,
+            "portCity": null,
+            "portCountry": null,
+            "ingredientGoodIds": [],
+            "eventProfileId": null,
+            "offerSeen": false,
+            "completedMinute": null,
+            "spawnRolls": {}
+          },
+          "pirateCaptive": {
+            "version": 1,
+            "active": null,
+            "completedCount": 0,
+            "declinedCount": 0
+          },
+          "castaway": {
+            "version": 1,
+            "active": null,
+            "completedCount": 0,
+            "declinedCount": 0
+          },
+          "naturalist": {
+            "version": 1,
+            "portTileId": null,
+            "met": false,
+            "reportedAnimalIds": [],
+            "completionRewarded": false
+          }
+        },
+        "cargoReservations": {},
+        "missionItemGifts": {},
+        "colonization": {
+          "version": 1,
+          "stage": "fetch",
+          "fetchStageIndex": 0,
+          "targetTileId": null,
+          "foundedMinute": null,
+          "resupplyDeadlineMinute": null,
+          "leftSinceFounding": false,
+          "failedMinute": null,
+          "establishedMinute": null,
+          "defenseStartedMinute": null,
+          "defenseCompletedMinute": null,
+          "defenseShipIds": [],
+          "defenseDefeatedShipIds": [],
+          "targetCity": null,
+          "targetCountry": null,
+          "originTileId": null,
+          "originCity": null,
+          "originCountry": null,
+          "approvalTileId": null,
+          "approvalCity": null,
+          "approvalCountry": null,
+          "approvalGranted": false,
+          "distanceKm": null,
+          "offerSeen": false,
+          "spawnRolls": {}
+        },
+        "conquest": {
+          "portFactionOverrides": {},
+          "collapsedFactionIds": [],
+          "events": []
+        },
+        "achievements": {
+          "version": 2,
+          "soldSpiceGoodIds": [],
+          "foundedCityIds": [],
+          "sailedShipSlugs": [],
+          "grossDoubloonsEarned": 0,
+          "whiteWhaleKilled": false,
+          "arrivedInPortDrunk": false,
+          "married": false,
+          "defeatedShipCount": 0,
+          "whalesKilled": 0,
+          "survivedLightningStrike": false
+        },
+        "whales": {
+          "version": 2,
+          "nextId": 1,
+          "individuals": [],
+          "activeHunt": null,
+          "lastEcologyMinute": null
+        },
+        "campaignGoal": {
+          "version": 1,
+          "type": "family-debt",
+          "status": "active",
+          "homePortTileId": 4242,
+          "introSeen": false,
+          "endingVariant": 2,
+          "debtBalance": 100000,
+          "annualInterestRate": 0.1,
+          "lastAccruedMinute": 812340,
+          "protectedPurse": 100,
+          "totalPaid": 0
+        },
+        "cartography": {"seenTilesBase64": "", "seenTileCount": 0}
+      }
+    },
+    "playerShip": {
+      "factionId": "portugal",
+      "typeSlug": "ketch",
+      "position": [0.657987, 0.739423, -0.143672],
+      "tileId": 4242,
+      "heading": [0.752165, -0.665403, 0.010735],
+      "targetHeading": [0.731422, -0.650991, 0.201844],
+      "velocity": [0.00042, -0.00037, 0.00001],
+      "hitPoints": 69,
+      "maxHitPoints": 75,
+      "wakeSeedCounter": 91,
+      "cannonSequence": 7
+    },
+    "worldClock": {"currentMinute": 824987, "voyageStartMinute": 812340},
+    "economy": {
+      "version": 1,
+      "lastMinute": 824987,
+      "ports": [],
+      "shipyards": {"version": 2, "lastMinute": 824987, "yards": []}
+    },
+    "landTrade": {"version": 1, "carts": []},
+    "npcRoutes": {
+      "version": 2,
+      "ships": [],
+      "replacementQueue": [],
+      "pirateHideoutDangerUntil": []
+    },
+    "anchored": false,
+    "survivalDamageTimers": {"waterNextMinute": null, "foodNextMinute": null}
+  }
+}
