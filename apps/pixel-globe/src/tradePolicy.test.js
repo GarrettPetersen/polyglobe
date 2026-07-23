@@ -12,6 +12,7 @@ import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_CROWN_SPICE_GOOD_IDS,
   TRADE_POLICY_REGIMES,
+  customsTerms,
   customsRateForRelation,
   evaluateTradeAccess,
   isPortugueseEstadoPort,
@@ -84,6 +85,18 @@ test("personal standing nudges customs without overriding diplomacy", () => {
   });
   assert.equal(admired.customsRate, 0.07);
   assert.equal(notorious.customsRate, 0.13);
+});
+
+test("customs status can be explained without inventing a commodity transaction", () => {
+  const terms = customsTerms({
+    port: LISBON,
+    traderFactionId: "england",
+    relation: DIPLOMACY_ALLY,
+    reputation: 100
+  });
+  assert.equal(terms.relation, DIPLOMACY_ALLY);
+  assert.equal(terms.customsRate, 0);
+  assert.equal(terms.domestic, false);
 });
 
 test("Portuguese Estado ports levy crown-controlled spices without taxing independent ports", () => {

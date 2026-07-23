@@ -3,10 +3,13 @@ import test from "node:test";
 
 import {
   GAME_STATE_VERSION,
+  acknowledgePlayerPortCustomsNotice,
+  adjustFactionReputation,
   buyPortugueseCartazFromInspector,
   createGameState,
   migrateGameState,
   payPortugueseCartazFine,
+  playerPortCustomsNotice,
   portugueseCartazInspectionStatus,
   portugueseCartazStatus,
   purchasePortugueseCartaz,
@@ -39,6 +42,20 @@ test("a Portuguese cartaz is purchased once and remains valid for ninety days", 
   assert.equal(purchased.untilMinute, 100 + 90 * 1440);
   assert.equal(portugueseCartazStatus(state, GOA, 101).valid, true);
   validateGameState(state);
+});
+
+test("factors remember a customs notice until its displayed rate changes", () => {
+  const state = createGameState({ cargoCapacity: 30, playerCharacter: PLAYER });
+  const initial = playerPortCustomsNotice(state, GOA);
+  assert.equal(initial.acknowledged, false);
+  assert.equal(
+    acknowledgePlayerPortCustomsNotice(state, GOA, initial.key).acknowledged,
+    true
+  );
+  adjustFactionReputation(state, "portugal", 100);
+  const improved = playerPortCustomsNotice(state, GOA);
+  assert.notEqual(improved.key, initial.key);
+  assert.equal(improved.acknowledged, false);
 });
 
 test("an unlicensed ship in Estado waters can settle or surrender an inspection", () => {

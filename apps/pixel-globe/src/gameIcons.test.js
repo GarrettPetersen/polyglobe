@@ -251,6 +251,11 @@ test("ship, politics, and wonders menus use consistent one-bit icons", () => {
   assert.equal(politics.packId, "nikoichu");
   assert.equal(politics.entry, "Sprites/Map_Markers_Flagpole_Triangle_Minesweeper.png");
   assert.equal(politics.lightMonotone, "#9e4539");
+
+  const shipyard = GAME_ICON_SOURCES["action:shipyard"];
+  assert.equal(shipyard.packId, "nikoichu");
+  assert.equal(shipyard.entry, "Sprites/Travel_Ship_Medieval_Galleon.png");
+  assert.equal(shipyard.lightMonotone, "#0b5e65");
 });
 
 test("frequently confused controls use distinct readable source art", () => {

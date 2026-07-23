@@ -1,4 +1,5 @@
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
+import { inferCharacterReligion, religionById } from "./characterReligion.js";
 
 export const CHARACTER_BIOGRAPHY_REFERENCE_YEAR = 1522;
 export const CHARACTER_BIOGRAPHY_REFERENCE_MONTH = 3;
@@ -43,7 +44,8 @@ export function characterWithBiography(character, {
   referenceDay = CHARACTER_BIOGRAPHY_REFERENCE_DAY,
   nationalityId = character?.nationalityId ?? null,
   nationalityName = character?.nationalityName ?? null,
-  nationalityAdjective = character?.nationalityAdjective ?? null
+  nationalityAdjective = character?.nationalityAdjective ?? null,
+  homePort = null
 } = {}) {
   if (!character || typeof character !== "object") throw new Error("Character biography requires a character");
   if (typeof identityKey !== "string" || identityKey.trim() === "") {
@@ -69,6 +71,14 @@ export function characterWithBiography(character, {
   if (age !== ageEstimate) {
     throw new Error(`Character birth date disagrees with portrait age estimate: ${age} != ${ageEstimate}`);
   }
+  const religion = inferCharacterReligion({
+    identityKey,
+    homePort,
+    character: {
+      ...character,
+      nationalityId
+    }
+  });
   return {
     ...character,
     sex,
@@ -77,7 +87,8 @@ export function characterWithBiography(character, {
     age,
     nationalityId,
     nationalityName,
-    nationalityAdjective
+    nationalityAdjective,
+    religionId: religion?.id ?? null
   };
 }
 
@@ -152,6 +163,7 @@ export function validateCharacterBiography(character) {
   if (typeof character.birthDateLabel !== "string" || character.birthDateLabel.trim() === "") {
     throw new Error("Character biography requires a birth date label");
   }
+  religionById(character.religionId);
   return character;
 }
 

@@ -1,4 +1,4 @@
-import { validateCharacterBiography } from "./characterBiography.js";
+import { characterWithBiography, validateCharacterBiography } from "./characterBiography.js";
 import { validateCharacterSkillIds } from "./characterSkills.js";
 
 export const RESCUED_TRAVELER_STAGE_OFFER = "offer";
@@ -51,9 +51,10 @@ export function createRescuedTravelerQuest(memory, {
     throw new Error("Rescued traveler quest requires a source id");
   }
   assertPort(homePort, "Rescued traveler home port");
-  assertCharacter(character, "Rescued traveler");
-  if (!Array.isArray(character.expressions) || character.expressions.length < 2) {
-    throw new Error(`${character.name} requires an expressive portrait for a rescued traveler quest`);
+  const traveler = rescuedTravelerWithBiography(character, homePort);
+  assertCharacter(traveler, "Rescued traveler");
+  if (!Array.isArray(traveler.expressions) || traveler.expressions.length < 2) {
+    throw new Error(`${traveler.name} requires an expressive portrait for a rescued traveler quest`);
   }
   if (!Number.isFinite(distanceKm) || distanceKm < 0) {
     throw new Error(`Invalid rescued traveler voyage distance: ${distanceKm}`);
@@ -62,9 +63,10 @@ export function createRescuedTravelerQuest(memory, {
     throw new Error(`Invalid rescued traveler family survival roll: ${familySurvivedRoll}`);
   }
   const familySurvived = familySurvivedRoll < 0.5;
+  const relative = familySurvived ? rescuedTravelerWithBiography(familyMember, homePort) : null;
   if (familySurvived) {
-    assertCharacter(familyMember, "Rescued traveler family member");
-    if (familyMember.familyName !== character.familyName) {
+    assertCharacter(relative, "Rescued traveler family member");
+    if (relative.familyName !== traveler.familyName) {
       throw new Error("Rescued traveler and family member must share a family name");
     }
   } else if (familyMember !== null) {
@@ -84,9 +86,9 @@ export function createRescuedTravelerQuest(memory, {
     homePortName: homePort.displayCity || homePort.city,
     homePortCountry: homePort.country,
     distanceKm: Math.round(distanceKm),
-    character,
+    character: traveler,
     familySurvived,
-    familyMember: familySurvived ? familyMember : null,
+    familyMember: relative,
     emergencyAid: normalizedAid,
     emergencyAidReceived: false,
     rewardDoubloons: roundedReward(distanceKm),
@@ -96,6 +98,29 @@ export function createRescuedTravelerQuest(memory, {
   validateRescuedTravelerQuest(active);
   memory.active = active;
   return active;
+}
+
+export function migrateRescuedTravelerQuestMemory(memory, expectedType = null) {
+  if (!memory) return createRescuedTravelerQuestMemory();
+  if (!memory.active) return validateRescuedTravelerQuestMemory(memory, expectedType);
+  const active = memory.active;
+  const homePort = {
+    tileId: active.homePortTileId,
+    city: active.homePortName,
+    displayCity: active.homePortName,
+    country: active.homePortCountry
+  };
+  const migrated = {
+    ...memory,
+    active: {
+      ...active,
+      character: rescuedTravelerWithBiography(active.character, homePort),
+      familyMember: active.familyMember
+        ? rescuedTravelerWithBiography(active.familyMember, homePort)
+        : null
+    }
+  };
+  return validateRescuedTravelerQuestMemory(migrated, expectedType);
 }
 
 export function acceptRescuedTravelerQuest(memory, questId) {
@@ -473,6 +498,13 @@ function assertCharacter(character, label) {
     throw new Error(`${label} needs portrait expressions`);
   }
   validateCharacterSkillIds(character.skillIds);
+}
+
+function rescuedTravelerWithBiography(character, homePort) {
+  return characterWithBiography(character, {
+    identityKey: character?.id || character?.name,
+    homePort
+  });
 }
 
 function assertPort(port, label) {

@@ -290,6 +290,7 @@ export default {
   "intro.papers": "PAPIERE DES KAPITÄNS",
   "intro.homePort": "HEIMATHAFEN",
   "intro.nationality": "NATIONALITÄT",
+  "intro.religion": "RELIGION",
   "intro.born": "GEBOREN",
   "intro.age": "ALTER",
   "intro.sex": "GESCHLECHT",

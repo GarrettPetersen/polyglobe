@@ -126,14 +126,7 @@ export function tradeTerms({
   reputation = 0,
   purchaseDiscountMultiplier = 1
 }) {
-  assertTradePolicyPort(port);
-  const traderId = assertFactionId(traderFactionId);
-  const portFactionId = assertFactionId(port.factionId || NEUTRAL_FACTION_ID);
-  assertDiplomaticRelation(relation);
   if (typeof goodId !== "string" || goodId === "") throw new Error(`Invalid trade-policy good: ${goodId}`);
-  if (!Number.isFinite(reputation) || reputation < -100 || reputation > 100) {
-    throw new Error(`Invalid trade-policy reputation: ${reputation}`);
-  }
   if (
     !Number.isFinite(purchaseDiscountMultiplier) ||
     purchaseDiscountMultiplier <= 0 ||
@@ -142,6 +135,43 @@ export function tradeTerms({
     throw new Error(`Invalid trade purchase discount: ${purchaseDiscountMultiplier}`);
   }
 
+  const customs = customsTerms({
+    port,
+    traderFactionId,
+    relation,
+    reputation
+  });
+  const crownMonopoly = isPortugueseEstadoPort(port) && isPortugueseCrownSpice(goodId);
+  const monopolyPurchaseRate = crownMonopoly ? 0.25 : 0;
+  const monopolySaleRate = crownMonopoly ? 0.1 : 0;
+  const purchaseMultiplier = purchaseDiscountMultiplier *
+    (1 + customs.customsRate + monopolyPurchaseRate);
+  const saleMultiplier = Math.max(0.5, 1 - customs.customsRate - monopolySaleRate);
+
+  return Object.freeze({
+    allowed: relation !== DIPLOMACY_WAR,
+    ...customs,
+    crownMonopoly,
+    monopolyPurchaseRate,
+    monopolySaleRate,
+    purchaseMultiplier,
+    saleMultiplier
+  });
+}
+
+export function customsTerms({
+  port,
+  traderFactionId,
+  relation,
+  reputation = 0
+}) {
+  assertTradePolicyPort(port);
+  const traderId = assertFactionId(traderFactionId);
+  const portFactionId = assertFactionId(port.factionId || NEUTRAL_FACTION_ID);
+  assertDiplomaticRelation(relation);
+  if (!Number.isFinite(reputation) || reputation < -100 || reputation > 100) {
+    throw new Error(`Invalid trade-policy reputation: ${reputation}`);
+  }
   const domestic = traderId === portFactionId &&
     portFactionId !== NEUTRAL_FACTION_ID &&
     portFactionId !== PIRATE_FACTION_ID;
@@ -151,23 +181,12 @@ export function tradeTerms({
     ? clamp(-reputation * 0.0003, -0.03, 0.03)
     : 0;
   const customsRate = clamp(baseCustomsRate + reputationAdjustment, 0, 0.25);
-  const crownMonopoly = isPortugueseEstadoPort(port) && isPortugueseCrownSpice(goodId);
-  const monopolyPurchaseRate = crownMonopoly ? 0.25 : 0;
-  const monopolySaleRate = crownMonopoly ? 0.1 : 0;
-  const purchaseMultiplier = purchaseDiscountMultiplier * (1 + customsRate + monopolyPurchaseRate);
-  const saleMultiplier = Math.max(0.5, 1 - customsRate - monopolySaleRate);
 
   return Object.freeze({
-    allowed: relation !== DIPLOMACY_WAR,
     domestic,
     relation,
     customsRate,
-    reputationAdjustment,
-    crownMonopoly,
-    monopolyPurchaseRate,
-    monopolySaleRate,
-    purchaseMultiplier,
-    saleMultiplier
+    reputationAdjustment
   });
 }
 

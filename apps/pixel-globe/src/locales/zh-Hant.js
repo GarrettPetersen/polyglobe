@@ -290,6 +290,7 @@ export default {
   "intro.papers": "船長文書",
   "intro.homePort": "故鄉港口",
   "intro.nationality": "國籍",
+  "intro.religion": "宗教",
   "intro.born": "出生",
   "intro.age": "年齡",
   "intro.sex": "性別",

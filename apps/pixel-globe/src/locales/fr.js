@@ -290,6 +290,7 @@ export default {
   "intro.papers": "PAPIERS DU CAPITAINE",
   "intro.homePort": "PORT D'ATTACHE",
   "intro.nationality": "NATIONALITÉ",
+  "intro.religion": "RELIGION",
   "intro.born": "NAISSANCE",
   "intro.age": "ÂGE",
   "intro.sex": "SEXE",

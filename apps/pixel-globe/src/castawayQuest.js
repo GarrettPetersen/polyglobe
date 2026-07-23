@@ -9,6 +9,7 @@ import {
   createRescuedTravelerQuest,
   createRescuedTravelerQuestMemory,
   markRescuedTravelerEmergencyAidReceived,
+  migrateRescuedTravelerQuestMemory,
   prepareRescuedTravelerHomecoming,
   rescuedTravelerDialogueCharacter,
   rescuedTravelerDialogueView,
@@ -26,6 +27,10 @@ export function createCastawayQuestMemory() {
 
 export function activeCastawayQuest(state) {
   return activeRescuedTravelerQuest(state, "castaway");
+}
+
+export function migrateCastawayQuestMemory(memory) {
+  return migrateRescuedTravelerQuestMemory(memory, RESCUED_TRAVELER_TYPE_CASTAWAY);
 }
 
 export function castawayRescueAppears(roll, completedCount = 0) {

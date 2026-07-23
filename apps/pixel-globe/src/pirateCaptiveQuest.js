@@ -9,6 +9,7 @@ import {
   createRescuedTravelerQuest,
   createRescuedTravelerQuestMemory,
   declineRescuedTravelerQuest,
+  migrateRescuedTravelerQuestMemory,
   prepareRescuedTravelerHomecoming,
   rescuedTravelerDialogueCharacter,
   rescuedTravelerDialogueView,
@@ -30,7 +31,7 @@ export function activePirateCaptiveQuest(state) {
 export function migratePirateCaptiveQuestMemory(memory) {
   if (!memory) return createPirateCaptiveQuestMemory();
   if (memory.active === null || memory.active?.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE) {
-    return validatePirateCaptiveQuestMemory(memory);
+    return migrateRescuedTravelerQuestMemory(memory, RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE);
   }
   const { pirateShipId, ...legacyActive } = memory.active;
   if (typeof pirateShipId !== "string" || pirateShipId.trim() === "") {
@@ -46,7 +47,7 @@ export function migratePirateCaptiveQuestMemory(memory) {
       emergencyAidReceived: false
     }
   };
-  return validatePirateCaptiveQuestMemory(migrated);
+  return migrateRescuedTravelerQuestMemory(migrated, RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE);
 }
 
 export function pirateCaptiveRescueAppears(roll, completedCount = 0) {

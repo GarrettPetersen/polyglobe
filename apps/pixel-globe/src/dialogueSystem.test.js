@@ -29,7 +29,8 @@ import {
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   createWorldEconomy,
-  portMarket
+  portMarket,
+  quotePortPurchase
 } from "./economy.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
 import {
@@ -43,12 +44,15 @@ import {
   deliveryOfferForCity,
   hasLetterOfMarqueFrom,
   initializeProvisionalShipLoadout,
+  playerTradeTerms,
   portMemory,
   portEntryStatus,
   purchasePerkItem,
   questStateForCity,
   visitPort
 } from "./gameState.js";
+import { DIPLOMACY_FRIENDLY, DIPLOMACY_NEUTRAL } from "./factions.js";
+import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
 import { colonizationTargetForCity } from "./colonialCities.js";
@@ -653,6 +657,40 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   ]);
 });
 
+test("a factor explains customs once and repeats the explanation only after the rate changes", () => {
+  const city = {
+    tileId: 91,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    factionId: "portugal",
+    character: { name: "Fernao da Cunha", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const session = createPortDialogueSession(city, { initialNodeId: "root" });
+  const first = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(first.text, /favored 5% customs rate/i);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0);
+  session.nodeId = "root";
+  const repeated = portDialogueView(session, city, gameState, economy, [city]);
+  assert.doesNotMatch(repeated.text, /customs rate/i);
+
+  adjustFactionReputation(gameState, "portugal", 100);
+  const changed = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(changed.text, /favored 2% customs rate/i);
+});
+
 test("buying the final unit disables its stable market row instead of moving later goods", () => {
   const city = {
     tileId: 109,
@@ -927,6 +965,73 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   assert.equal(session.nodeId, "root");
   assert.equal(session.tradeTip, null);
   assert.equal(session.feedback, "Heading set for London.");
+});
+
+test("trade advice scores net proceeds after customs and crown duties", () => {
+  const ternate = {
+    tileId: 114,
+    city: "Ternate",
+    country: "Ternate",
+    cityType: "southeast-asian",
+    lat: 0.79,
+    lon: 127.38,
+    population: 25000,
+    factionId: "neutral"
+  };
+  const goa = {
+    tileId: 115,
+    city: "Goa",
+    country: "India",
+    cityType: "south-asian",
+    lat: 15.49,
+    lon: 73.83,
+    population: 40000,
+    factionId: "portugal"
+  };
+  const economy = createWorldEconomy({ ports: [ternate, goa], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral"]
+    }
+  });
+  visitPort(gameState, goa, 0);
+  const pairKey = diplomacyPairKey("england", "portugal");
+  const purchases = {
+    cloves: { goodId: "cloves", quantity: 1, cost: 100 }
+  };
+  const sailingDistanceKm = testSailingDistances([[ternate, goa, 6800]]);
+  const route = () => bestPurchasedTradeRoute({
+    purchases,
+    originCity: ternate,
+    gameState,
+    economy,
+    portCities: [ternate, goa],
+    sailingDistanceKm
+  });
+
+  gameState.relations.diplomacy.overrides[pairKey] = DIPLOMACY_FRIENDLY;
+  const friendlyTerms = playerTradeTerms(gameState, goa, "cloves");
+  const friendly = route();
+  assert.equal(friendlyTerms.customsRate, 0.05);
+  assert.equal(friendlyTerms.crownMonopoly, true);
+  assert.equal(
+    friendly.expectedPnl,
+    quotePortPurchase(economy, goa, "cloves", 1, friendlyTerms.saleMultiplier) - 100
+  );
+
+  gameState.relations.diplomacy.overrides[pairKey] = DIPLOMACY_NEUTRAL;
+  const neutralTerms = playerTradeTerms(gameState, goa, "cloves");
+  const neutral = route();
+  assert.equal(neutralTerms.customsRate, 0.1);
+  assert.equal(
+    neutral.expectedPnl,
+    quotePortPurchase(economy, goa, "cloves", 1, neutralTerms.saleMultiplier) - 100
+  );
+  assert.ok(friendly.expectedPnl > neutral.expectedPnl);
+  assert.ok(friendly.recommendationScore > neutral.recommendationScore);
 });
 
 test("trade advice prefers a useful regional price over a better transcontinental price", () => {

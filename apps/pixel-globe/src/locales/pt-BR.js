@@ -290,6 +290,7 @@ export default {
   "intro.papers": "DOCUMENTOS DO CAPITÃO",
   "intro.homePort": "PORTO NATAL",
   "intro.nationality": "NACIONALIDADE",
+  "intro.religion": "RELIGIÃO",
   "intro.born": "NASCIMENTO",
   "intro.age": "IDADE",
   "intro.sex": "SEXO",

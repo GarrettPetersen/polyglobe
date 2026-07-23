@@ -290,6 +290,7 @@ export default {
   "intro.papers": "БУМАГИ КАПИТАНА",
   "intro.homePort": "РОДНОЙ ПОРТ",
   "intro.nationality": "ПОДДАНСТВО",
+  "intro.religion": "РЕЛИГИЯ",
   "intro.born": "РОЖДЕНИЕ",
   "intro.age": "ВОЗРАСТ",
   "intro.sex": "ПОЛ",

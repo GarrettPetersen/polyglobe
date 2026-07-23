@@ -52,6 +52,7 @@ import {
   characterWithBiography,
   gameCalendarDateAtMinute
 } from "./characterBiography.js";
+import { characterReligionProfile } from "./characterReligion.js";
 import {
   consumeBirthdayDialogueLine,
   observeAboardBirthdays,
@@ -23044,10 +23045,13 @@ function aboardCharacterWithBiography(character) {
     ...character,
     homePortCountry: character.homePortCountry || homePort?.country || null
   }, {
-    identityKey: character.id || character.name,
+    identityKey: character.role === "ship-panda"
+      ? `${character.id || character.name}|${gameState.voyageSeed}`
+      : character.id || character.name,
     nationalityId: character.nationalityId ?? nationality?.id ?? null,
     nationalityName: character.nationalityName ?? (sovereign ? nationality.name : null),
-    nationalityAdjective: character.nationalityAdjective ?? (sovereign ? nationality.adjective : null)
+    nationalityAdjective: character.nationalityAdjective ?? (sovereign ? nationality.adjective : null),
+    homePort
   });
 }
 
@@ -23299,6 +23303,7 @@ function drawAboardCharacterDetail(roster, panel) {
 
   const detailsX = portraitFrame.x + portraitFrame.w + 12;
   const detailsW = panel.x + panel.w - 14 - detailsX;
+  const religion = characterReligionProfile(character);
   const detailRows = [
     ["ROLE", aboardRoleLabel(entry.role)],
     ["NATIONALITY", characterNationalityLabel(character)],
@@ -23307,15 +23312,19 @@ function drawAboardCharacterDetail(roster, panel) {
     ["BORN", compact
       ? `${characterBirthdayLabel(character)} ${character.birthDate.year}`
       : character.birthDateLabel],
-    ["AGE", String(age)]
+    ["AGE", String(age)],
+    ...(religion ? [[uiText("intro.religion"), religion.label, religion.iconId]] : [])
   ];
-  const rowStep = compact ? 13 : 15;
-  detailRows.forEach(([label, value], index) => {
+  const rowStep = 16;
+  detailRows.forEach(([label, value, iconId], index) => {
     const y = contentY + index * rowStep;
     drawOptionsText(label, detailsX, y, { color: PIRATE_MENU_INK_MUTED });
+    const valueX = detailsX + 76;
+    if (iconId) drawGameIcon(iconId, valueX, y - 4, { alpha: 0.9 });
+    const textX = valueX + (iconId ? GAME_ICON_SIZE + 4 : 0);
     drawOptionsText(
-      fitPixelText(String(value).toUpperCase(), PIXEL_FONT_SMALL_8, Math.max(20, detailsW - 76)),
-      detailsX + 76,
+      fitPixelText(String(value).toUpperCase(), PIXEL_FONT_SMALL_8, Math.max(20, detailsW - (textX - detailsX))),
+      textX,
       y,
       { color: PIRATE_MENU_INK }
     );

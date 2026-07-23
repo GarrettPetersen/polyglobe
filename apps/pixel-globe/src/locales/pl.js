@@ -290,6 +290,7 @@ export default {
   "intro.papers": "DOKUMENTY KAPITANA",
   "intro.homePort": "PORT MACIERZYSTY",
   "intro.nationality": "NARODOWOŚĆ",
+  "intro.religion": "RELIGIA",
   "intro.born": "URODZONY",
   "intro.age": "WIEK",
   "intro.sex": "PŁEĆ",

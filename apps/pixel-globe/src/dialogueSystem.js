@@ -2,6 +2,7 @@ import {
   FACTION_SAFE_PASSAGE_DAYS,
   PORT_NAVIGATION_REASON_NEW_SHIP,
   PORT_NAVIGATION_REASON_TRADE_PRICE,
+  acknowledgePlayerPortCustomsNotice,
   acceptQuest,
   adjustFactionReputation,
   buyGood,
@@ -28,6 +29,7 @@ import {
   playerShipReplacementCargoUsed,
   playerCannonEquipment,
   playerFishingNet,
+  playerPortCustomsNotice,
   playerWhaleHarpoon,
   playerTradeAccess,
   playerTradeTerms,
@@ -62,6 +64,8 @@ import {
 import {
   DIPLOMACY_ALLY,
   DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
+  DIPLOMACY_NEUTRAL,
   factionById,
   factionNounPhrase
 } from "./factions.js";
@@ -244,6 +248,7 @@ export function createPortDialogueSession(city, options = {}) {
     vikingLongshipArrival: options.vikingLongshipArrival === true,
     colonizationApprovalStep: 0,
     marqueGrantedFactionId: null,
+    customsNoticeKey: null,
     selectedIndex: 0,
     feedback: null
   };
@@ -1023,6 +1028,10 @@ export function selectPortDialogueOption(
   }
 
   const action = option.action;
+  if (session.nodeId === "root" && session.customsNoticeKey !== null) {
+    acknowledgePlayerPortCustomsNotice(gameState, city, session.customsNoticeKey);
+    session.customsNoticeKey = null;
+  }
   if (action.type === "close") return { closed: true };
   if (action.type === "node") {
     if (action.nodeId === "buy") session.marketPurchases = {};
@@ -2051,21 +2060,63 @@ function rootView(session, city, gameState, economy, context) {
     option(pirateHideout ? "Lie low in the cove" : "Wait safely in port", { type: "wait-in-port" }),
     option(pirateHideout ? "Put to sea" : "Leave port", { type: "close" })
   );
+  const customsNotice = pendingCustomsNotice(session, city, gameState, tradeAccess);
+  const statusText = pirateHideout
+    ? `Powder, provisions, and silence are all for sale. Cove specie: ${market.specie} db.`
+    : session.disguisedEntry
+    ? `Keep your disguise intact. Market specie: ${market.specie} db.`
+    : tradeAccess.restricted && !tradeAccess.allowed
+    ? "The maritime prohibition closes this market to foreign trade. Harbor services remain available."
+    : tradeAccess.illicit
+    ? `Keep your market business discreet. Market specie: ${market.specie} db.`
+    : `What business brings you to port? Market specie: ${market.specie} db.`;
   return {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
-    text: pirateHideout
-      ? `Powder, provisions, and silence are all for sale. Cove specie: ${market.specie} db.`
-      : session.disguisedEntry
-      ? `Keep your disguise intact. Market specie: ${market.specie} db.`
-      : tradeAccess.restricted && !tradeAccess.allowed
-      ? "The maritime prohibition closes this market to foreign trade. Harbor services remain available."
-      : tradeAccess.illicit
-      ? `Keep your market business discreet. Market specie: ${market.specie} db.`
-      : `What business brings you to port? Market specie: ${market.specie} db.`,
+    text: customsNotice ? `${customsNotice} ${statusText}` : statusText,
     feedback: session.feedback,
     options
   };
+}
+
+function pendingCustomsNotice(session, city, gameState, tradeAccess) {
+  if (
+    city.isPirateHideout ||
+    session.disguisedEntry ||
+    tradeAccess.illicit ||
+    !tradeAccess.allowed
+  ) {
+    session.customsNoticeKey = null;
+    return null;
+  }
+  const notice = playerPortCustomsNotice(gameState, city);
+  if (notice.acknowledged) {
+    session.customsNoticeKey = null;
+    return null;
+  }
+  session.customsNoticeKey = notice.key;
+  const crownLevy = isPortugueseEstadoPort(city)
+    ? " Pepper, cinnamon, cloves, and nutmeg remain subject to the Crown levy."
+    : "";
+  if (notice.domestic) {
+    return `Your own flag is entered here without foreign customs.${crownLevy}`;
+  }
+  if (notice.displayedRate === 0) {
+    return `By special privilege, cargo under your flag is exempt from customs here.${crownLevy}`;
+  }
+  if (notice.relation === DIPLOMACY_ALLY) {
+    return `By treaty privilege, cargo under your flag pays only ${notice.displayedRate}% customs here.${crownLevy}`;
+  }
+  if (notice.relation === DIPLOMACY_FRIENDLY) {
+    return `Your nation's good standing earns a favored ${notice.displayedRate}% customs rate.${crownLevy}`;
+  }
+  if (notice.relation === DIPLOMACY_NEUTRAL) {
+    return `Foreign cargo pays the customary ${notice.displayedRate}% duty at this quay.${crownLevy}`;
+  }
+  if (notice.relation === DIPLOMACY_HOSTILE) {
+    return `Relations are sour. The customs house will take ${notice.displayedRate}% from your trade.${crownLevy}`;
+  }
+  throw new Error(`Customs notice cannot describe relation: ${notice.relation}`);
 }
 
 function playerPortTradeAccess(session, city, gameState, context) {

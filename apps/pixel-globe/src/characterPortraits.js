@@ -551,7 +551,8 @@ function portBiographyOptions(identityKey, port) {
     identityKey,
     nationalityId: faction?.id || null,
     nationalityName: sovereign ? faction.name : null,
-    nationalityAdjective: sovereign ? faction.adjective : null
+    nationalityAdjective: sovereign ? faction.adjective : null,
+    homePort: port
   };
 }
 

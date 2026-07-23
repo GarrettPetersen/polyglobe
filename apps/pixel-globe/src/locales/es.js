@@ -290,6 +290,7 @@ export default {
   "intro.papers": "PAPELES DEL CAPITÁN",
   "intro.homePort": "PUERTO NATAL",
   "intro.nationality": "NACIONALIDAD",
+  "intro.religion": "RELIGIÓN",
   "intro.born": "NACIMIENTO",
   "intro.age": "EDAD",
   "intro.sex": "SEXO",

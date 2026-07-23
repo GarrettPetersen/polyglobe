@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-30";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-34";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -153,6 +153,38 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "status:achievement-locked": nikoichu("Tools_Crafting_Padlock_Locked.png", ICON_COLOR.achievementStatus),
   "status:achievement-unlocked": nikoichu("Tools_Crafting_Padlock_Unlocked_1.png", ICON_COLOR.achievementStatus),
 
+  "religion:christian": nikoichu("Misc_Religion_Christianity_Cross.png", ICON_COLOR.danger),
+  "religion:orthodox": projectAsset("public/assets/misc/orthodox_cross.png", null, {
+    lightMonotone: ICON_COLOR.danger
+  }),
+  "religion:islam": nikoichu("Misc_Religion_Islam_Crescent_Star_1.png", ICON_COLOR.sea),
+  "religion:judaism": nikoichu("Misc_Religion_Judaism_Jewish_David_Star.png", ICON_COLOR.dialogue),
+  "religion:hindu": projectAsset("public/assets/misc/om.png", null, {
+    lightMonotone: ICON_COLOR.gold
+  }),
+  "religion:jain": projectAsset("public/assets/misc/jain.png", null, {
+    lightMonotone: ICON_COLOR.success
+  }),
+  "religion:sikh": projectAsset("public/assets/misc/ik_onkar.png", null, {
+    lightMonotone: ICON_COLOR.warm
+  }),
+  "religion:zoroastrian": projectAsset("public/assets/misc/faravahar.png", null, {
+    lightMonotone: ICON_COLOR.gold
+  }),
+  "religion:buddhist": nikoichu("Misc_Religion_Buddha_Buddhism_Meditation.png", ICON_COLOR.gold),
+  "religion:confucian": projectAsset("public/assets/misc/confucian.png", null, {
+    lightMonotone: ICON_COLOR.purple
+  }),
+  "religion:shinto": projectAsset("public/assets/misc/shinto.png", null, {
+    lightMonotone: ICON_COLOR.warm
+  }),
+  "religion:andean-traditional": nikoichu("Alchemy_Gold_Sol_Sun.png", ICON_COLOR.gold),
+  "religion:mesoamerican-traditional": nikoichu("Weather_Sun_Holy_Light_Rays_Summer_Season.png", ICON_COLOR.warm),
+  "religion:north-american-traditional": nikoichu("Tools_Crafting_Writing_Pen_Quill_Feather.png", ICON_COLOR.success),
+  "religion:african-traditional": nikoichu("Map_Markers_Tree_Forest_Decidous_1.png", ICON_COLOR.timber),
+  "religion:polynesian-traditional": nikoichu("Map_Markers_Tree_Forest_Palm_Beach.png", ICON_COLOR.sea),
+  "religion:austronesian-traditional": nikoichu("Weather_Nature_Leaf_Autumn_Fall_Element.png", ICON_COLOR.success),
+
   ...SHIP_MENU_ICON_SOURCES,
 
   "action:dock": nikoichu("Travel_Ship_Dock.png", ICON_COLOR.sea),
@@ -172,7 +204,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:wait": nikoichu("Software_Clock_Time_Wait_1.png", ICON_COLOR.steel),
   "action:attack": nikoichu("Warfare_Medieval_Siege_Engine_Cannon_Gunpowder.png", ICON_COLOR.danger),
   "action:loadout": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png", ICON_COLOR.navigation),
-  "action:shipyard": nikoichu("Tools_Crafting_Smithing_Anvil_Hammer.png", ICON_COLOR.timber),
+  "action:shipyard": nikoichu("Travel_Ship_Medieval_Galleon.png", ICON_COLOR.sea),
   "action:letter": nikoichu("Tools_Crafting_Writing_Parchment_Scroll_Document_Sealed.png", ICON_COLOR.parchment),
   "action:disguise": nikoichu("Hats_Domino_Mask_Incognito_Private_Privacy.png", ICON_COLOR.purple),
   "action:surrender": nikoichu("Map_Markers_Flagpole.png", ICON_COLOR.steel),

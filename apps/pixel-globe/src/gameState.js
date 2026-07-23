@@ -96,6 +96,7 @@ import {
   PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS,
   PORTUGUESE_CROWN_SPICE_GOOD_IDS,
   PORTUGUESE_FACTION_ID,
+  customsTerms,
   evaluateTradeAccess,
   isPortugueseEstadoPort,
   portugueseCartazFee,
@@ -156,6 +157,7 @@ import {
 } from "./pirateCaptiveQuest.js";
 import {
   createCastawayQuestMemory,
+  migrateCastawayQuestMemory,
   validateCastawayQuestMemory
 } from "./castawayQuest.js";
 import {
@@ -513,7 +515,7 @@ export function migrateGameState(state, shipStats) {
           createCaribbeanGingerQuestMemory(),
         chef: state.memory?.quests?.chef || createChefQuestMemory(),
         pirateCaptive: migratePirateCaptiveQuestMemory(state.memory?.quests?.pirateCaptive),
-        castaway: state.memory?.quests?.castaway || createCastawayQuestMemory(),
+        castaway: migrateCastawayQuestMemory(state.memory?.quests?.castaway),
         naturalist: state.memory?.quests?.naturalist || createNaturalistQuestMemory()
       },
       navigation: {
@@ -2923,6 +2925,42 @@ export function playerTradeTerms(state, city, goodId) {
     reputation,
     purchaseDiscountMultiplier: portPurchasePriceMultiplier(city)
   });
+}
+
+export function playerPortCustomsNotice(state, city) {
+  assertGameState(state);
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
+  const terms = customsTerms({
+    port: city,
+    traderFactionId,
+    relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
+    reputation: state.relations.factionReputation[portFactionId] || 0
+  });
+  const displayedRate = Math.round(terms.customsRate * 100);
+  const key = [
+    "trade.customs-notice",
+    cityKey(city),
+    terms.domestic ? "domestic" : terms.relation,
+    displayedRate
+  ].join(".");
+  return Object.freeze({
+    ...terms,
+    displayedRate,
+    key,
+    acknowledged: (state.memory.decisions[key] || 0) > 0
+  });
+}
+
+export function acknowledgePlayerPortCustomsNotice(state, city, key) {
+  assertGameState(state);
+  if (typeof key !== "string" || key === "") throw new Error("Customs notice requires a key");
+  const current = playerPortCustomsNotice(state, city);
+  if (current.key !== key) {
+    throw new Error(`Customs notice changed before acknowledgement: ${key} != ${current.key}`);
+  }
+  if (!current.acknowledged) recordDecision(state, key, 1);
+  return playerPortCustomsNotice(state, city);
 }
 
 export function portugueseCartazStatus(state, city, simMinute, cargoCapacity = state.cargoCapacity) {

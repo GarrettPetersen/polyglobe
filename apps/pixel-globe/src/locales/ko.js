@@ -290,6 +290,7 @@ export default {
   "intro.papers": "선장 신상 문서",
   "intro.homePort": "모항",
   "intro.nationality": "국적",
+  "intro.religion": "종교",
   "intro.born": "생년월일",
   "intro.age": "나이",
   "intro.sex": "성별",
