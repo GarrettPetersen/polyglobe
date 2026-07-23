@@ -129,6 +129,67 @@ test("Southeast Asia exports ginger and Caribbean colonies export indigo", () =>
   assert.ok(havana.get(INDIGO_GOOD_ID).listedForSale);
 });
 
+test("1522 bullion exports come from named American and African gateways", () => {
+  const mexicoCity = port(80, "Mexico City", "Mexico", "mesoamerican", 100000);
+  const tezcoco = port(81, "Tezcoco", "Mexico", "mesoamerican", 30000);
+  const cuzco = port(82, "Cuzco", "Peru", "andean", 90000);
+  const chanchan = port(83, "Chanchan", "Peru", "andean", 25000);
+  const sofala = port(84, "Sofala", "Mozambique", "sub-saharan", 12000);
+  const mombasa = port(85, "Mombasa", "Kenya", "sub-saharan", 20000);
+  const gao = port(86, "Gao", "Mali", "sub-saharan", 50000);
+  const economy = createWorldEconomy({
+    ports: [
+      SANTO_DOMINGO,
+      HAVANA,
+      VERACRUZ,
+      mexicoCity,
+      tezcoco,
+      cuzco,
+      chanchan,
+      sofala,
+      mombasa,
+      gao
+    ],
+    startMinute: 0
+  });
+
+  for (const city of [SANTO_DOMINGO, HAVANA, VERACRUZ, mexicoCity, cuzco, sofala, gao]) {
+    assert.ok(marketByGood(economy, city).get("gold").productionPerDay > 0, city.city);
+  }
+  assert.ok(marketByGood(economy, cuzco).get("silver").productionPerDay > 0);
+  for (const city of [tezcoco, chanchan, mombasa]) {
+    assert.equal(marketByGood(economy, city).get("gold").productionPerDay, 0, city.city);
+    assert.equal(marketByGood(economy, city).get("silver").productionPerDay, 0, city.city);
+  }
+});
+
+test("1522 mints turn delivered bullion into specie without needing port cash", () => {
+  const lisbon = port(87, "Lisbon", "Portugal", "mediterranean", 65000);
+  const economy = createWorldEconomy({ ports: [lisbon, SANTO_DOMINGO], startMinute: 0 });
+  const lisbonState = economy.portStates.get(lisbon.tileId);
+  const santoDomingoState = economy.portStates.get(SANTO_DOMINGO.tileId);
+  const lisbonGoldBefore = lisbonState.goods.get("gold").stock;
+  const santoDomingoGoldBefore = santoDomingoState.goods.get("gold").stock;
+  lisbonState.specie = 0;
+  santoDomingoState.specie = 0;
+
+  assert.equal(portEconomySummary(economy, lisbon).hasMint, true);
+  assert.equal(portEconomySummary(economy, SANTO_DOMINGO).hasMint, false);
+  assert.equal(maximumPortPurchaseQuantity(economy, lisbon, "gold", 4), 4);
+  assert.equal(maximumPortPurchaseQuantity(economy, SANTO_DOMINGO, "gold", 4), 0);
+
+  const transaction = executePortPurchase(economy, lisbon, "gold", 4);
+  assert.equal(transaction.mintingFee, Math.round(transaction.total * 0.05));
+  assert.equal(transaction.mintedSpecie, transaction.total + transaction.mintingFee);
+  assert.equal(lisbonState.specie, transaction.mintingFee);
+  assert.equal(lisbonState.goods.get("gold").stock, lisbonGoldBefore);
+  assert.equal(santoDomingoState.goods.get("gold").stock, santoDomingoGoldBefore);
+  assert.throws(
+    () => executePortPurchase(economy, SANTO_DOMINGO, "gold", 1),
+    /insufficient specie/
+  );
+});
+
 test("wine is a drink rather than edible cargo", () => {
   assert.equal(tradeGoodById(WINE_GOOD_ID).category, "drink");
   assert.notEqual(tradeGoodById(WINE_GOOD_ID).category, "food");
@@ -543,18 +604,18 @@ test("player trades transfer finite stock and specie between the player and port
 });
 
 test("bulk trading moves prices and cannot exceed market inventory or specie", () => {
-  const economy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0 });
+  const economy = createWorldEconomy({ ports: [LONDON, GOA, TERNATE], startMinute: 0 });
   const before = marketByGood(economy, LONDON).get("wool");
   executePortSale(economy, LONDON, "wool", 30);
   const after = marketByGood(economy, LONDON).get("wool");
   assert.ok(after.buyPrice > before.buyPrice);
   assert.throws(() => executePortSale(economy, LONDON, "wool", after.stock + 1), /only .* in stock/);
 
-  const goaSpecie = portEconomySummary(economy, GOA).specie;
-  const affordable = maximumPortPurchaseQuantity(economy, GOA, "gold", 1000);
+  const ternateSpecie = portEconomySummary(economy, TERNATE).specie;
+  const affordable = maximumPortPurchaseQuantity(economy, TERNATE, "gold", 1000);
   assert.ok(affordable < 1000);
-  if (affordable > 0) executePortPurchase(economy, GOA, "gold", affordable);
-  assert.ok(portEconomySummary(economy, GOA).specie <= goaSpecie);
+  if (affordable > 0) executePortPurchase(economy, TERNATE, "gold", affordable);
+  assert.ok(portEconomySummary(economy, TERNATE).specie <= ternateSpecie);
 });
 
 test("major city markets absorb an ordinary shipload without collapsing its price", () => {

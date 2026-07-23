@@ -36,6 +36,8 @@ const SOURCE_GINGER_ABUNDANCE_PRICE_MULTIPLIER = 0.4;
 const SOURCE_SPICE_MINIMUM_TARGET_STOCK = 80;
 const CRITICAL_STOCK_PRICE_THRESHOLD_RATIO = 0.75;
 const CRITICAL_STOCK_PRICE_EXPONENT = 1.25;
+const MINT_FEE_RATE = 0.05;
+const SPECIE_METAL_GOOD_IDS = new Set(["gold", "silver"]);
 
 export const HARDTACK_GOOD_ID = "hardtack";
 export const FRESH_WATER_GOOD_ID = "fresh-water";
@@ -130,9 +132,9 @@ const REGION_PRODUCTION = Object.freeze({
   "south-asian": rates({ hardtack: 0.6, grain: 0.65, cotton: 1.15, "cotton-cloth": 0.7, ginger: 0.4, dyes: 0.55, sugar: 0.35, gunpowder: 0.08 }),
   "southeast-asian": rates({ hardtack: 0.55, fish: 0.65, timber: 0.55, sugar: 0.65, ginger: 0.7, dyes: 0.25, indigo: 0.2, gunpowder: 0.05 }),
   polynesian: rates({ hardtack: 0.35, fish: 1.4, timber: 0.75, sugar: 0.55, dyes: 0.25, artwork: 0.3 }),
-  mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55, silver: 0.3, gold: 0.12 }),
-  andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, silver: 0.8, gold: 0.22, dyes: 0.2 }),
-  "sub-saharan": rates({ hardtack: 0.45, grain: 0.45, timber: 0.45, ivory: 0.8, gold: 0.5, dyes: 0.35, salt: 0.3 })
+  mesoamerican: rates({ hardtack: 0.45, grain: 0.8, cacao: 1.1, sugar: 0.25, dyes: 0.55 }),
+  andean: rates({ hardtack: 0.4, grain: 0.45, wool: 0.6, copper: 0.55, dyes: 0.2 }),
+  "sub-saharan": rates({ hardtack: 0.45, grain: 0.45, timber: 0.45, ivory: 0.8, dyes: 0.35, salt: 0.3 })
 });
 
 const REGION_DEMAND = Object.freeze({
@@ -230,8 +232,8 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Mozambique Island", ["gold", "ivory"]),
   specialty("Mombasa", ["ivory"]),
   specialty("Mogadishu", ["cotton-cloth", "ivory"]),
-  specialty("Santo Domingo", ["sugar", INDIGO_GOOD_ID]),
-  specialty("Havana", ["sugar", INDIGO_GOOD_ID]),
+  specialty("Santo Domingo", ["sugar", INDIGO_GOOD_ID, "gold"]),
+  specialty("Havana", ["sugar", INDIGO_GOOD_ID, "gold"]),
   specialty("Veracruz", ["cacao", "gold"]),
   specialty("Nombre de Dios", ["gold"]),
   specialty("Panama City", ["gold"]),
@@ -251,6 +253,20 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Florence", ["wool-cloth", "artwork"]),
   specialty("Seville", ["olive-oil", "wine"])
 ], "city specialties");
+
+// Major commercial mints operating in 1522. Later colonial mints are intentionally excluded.
+const MINT_CITY_NAMES_1522 = new Set([
+  "Cairo",
+  "Fez",
+  "Genova",
+  "Genoa",
+  "Goa",
+  "Istanbul",
+  "Lisbon",
+  "London",
+  "Seville",
+  "Venice"
+].map(normalizeName));
 
 const PRODUCTION_INPUTS = Object.freeze({
   arms: rates({ iron: 0.8, timber: 0.25 }),
@@ -488,7 +504,8 @@ export function portEconomySummary(economy, city) {
   return {
     specie: Math.floor(port.specie),
     targetSpecie: port.targetSpecie,
-    populationScale: port.populationScale
+    populationScale: port.populationScale,
+    hasMint: port.hasMint
   };
 }
 
@@ -584,12 +601,24 @@ export function executePortPurchase(economy, city, goodId, quantity) {
   const good = tradeGoodById(goodId);
   if (good.sellable === false) throw new Error(`${port.name} does not buy ${good.label}`);
   const total = quoteTransaction(port, good, quantity, 1, "sellPrice");
-  if (port.specie + 1e-6 < total) {
+  const minted = portMintsGood(port, good);
+  if (!minted && port.specie + 1e-6 < total) {
     throw new Error(`${port.name} market has insufficient specie for ${quantity} ${good.label}`);
   }
-  port.goods.get(goodId).stock += quantity;
-  port.specie -= total;
-  return { good, quantity, total, unitPrice: Math.max(1, Math.round(total / quantity)) };
+  if (!minted) {
+    port.goods.get(goodId).stock += quantity;
+    port.specie -= total;
+  }
+  const mintingFee = minted ? Math.max(1, Math.round(total * MINT_FEE_RATE)) : 0;
+  port.specie += mintingFee;
+  return {
+    good,
+    quantity,
+    total,
+    unitPrice: Math.max(1, Math.round(total / quantity)),
+    mintedSpecie: minted ? total + mintingFee : 0,
+    mintingFee
+  };
 }
 
 export function quotePortPurchase(economy, city, goodId, quantity) {
@@ -605,6 +634,7 @@ export function maximumPortPurchaseQuantity(economy, city, goodId, requestedQuan
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   if (good.sellable === false) return 0;
+  if (portMintsGood(port, good)) return requestedQuantity;
   return maximumAffordablePortPurchaseQuantity(port, good, requestedQuantity, port.specie);
 }
 
@@ -653,12 +683,14 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
       quantityCapacity,
       lineCapacity,
       Math.floor(specieLeft / candidate.originPrice),
-      Math.floor(destinationSpecieLeft / candidate.destinationPrice)
+      portMintsGood(destinationPort, candidate.good)
+        ? candidate.available
+        : Math.floor(destinationSpecieLeft / candidate.destinationPrice)
     );
     if (quantity > 0) {
       quantity = maximumPortSaleQuantity(economy, origin, candidate.good.id, quantity, specieLeft);
     }
-    if (quantity > 0) {
+    if (quantity > 0 && !portMintsGood(destinationPort, candidate.good)) {
       quantity = maximumAffordablePortPurchaseQuantity(
         destinationPort,
         candidate.good,
@@ -679,7 +711,9 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
     });
     capacityLeft -= quantity * candidate.good.unitSize;
     specieLeft -= purchaseTotal;
-    destinationSpecieLeft -= saleTotal;
+    if (!portMintsGood(destinationPort, candidate.good)) {
+      destinationSpecieLeft -= saleTotal;
+    }
   }
 
   return {
@@ -795,6 +829,7 @@ function createPortState(port, seedKey) {
     marketPriceDepth,
     targetSpecie,
     specie: targetSpecie * (0.85 + hashUnit(economySeedKey(seedKey, `${port.tileId}|specie`)) * 0.3),
+    hasMint: MINT_CITY_NAMES_1522.has(normalizeName(port.city)),
     marketGoodIds,
     marketIntegrationOffsets: new Map(TRADE_GOODS.map((good) => [good.id, 0])),
     goods
@@ -836,6 +871,10 @@ function assertPortOffersGood(port, good) {
 
 function portOffersGood(port, good) {
   return good.alwaysAvailable || !port.marketGoodIds || port.marketGoodIds.has(good.id);
+}
+
+function portMintsGood(port, good) {
+  return port.hasMint === true && SPECIE_METAL_GOOD_IDS.has(good.id);
 }
 
 function declaredPortMarketGoodIds(goodIds, portName) {
