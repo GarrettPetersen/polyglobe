@@ -268,15 +268,16 @@ export function tradeGoodById(goodId) {
   return good;
 }
 
-export function createWorldEconomy({ ports, shipyardPorts = ports, startMinute }) {
+export function createWorldEconomy({ ports, shipyardPorts = ports, startMinute, seedKey = null }) {
   if (!Array.isArray(ports) || ports.length === 0) throw new Error("World economy requires ports");
   if (!Array.isArray(shipyardPorts)) throw new Error("World economy shipyard ports must be an array");
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid economy start minute: ${startMinute}`);
+  validateOptionalSeedKey(seedKey, "economy");
   const portStates = new Map();
   for (const port of ports) {
     const portId = requiredPortId(port);
     if (portStates.has(portId)) throw new Error(`Duplicate economy port tile: ${portId}`);
-    portStates.set(portId, createPortState(port));
+    portStates.set(portId, createPortState(port, seedKey));
   }
   for (const shipyardPort of shipyardPorts) {
     const portId = requiredPortId(shipyardPort);
@@ -284,9 +285,10 @@ export function createWorldEconomy({ ports, shipyardPorts = ports, startMinute }
   }
   return {
     version: 1,
+    seedKey,
     lastMinute: startMinute,
     portStates,
-    shipyards: createWorldShipyards({ ports: shipyardPorts, startMinute })
+    shipyards: createWorldShipyards({ ports: shipyardPorts, startMinute, seedKey })
   };
 }
 
@@ -356,7 +358,7 @@ export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMi
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid economy port start minute: ${startMinute}`);
   const portId = requiredPortId(port);
   if (economy.portStates.has(portId)) throw new Error(`Economy port already exists: ${portId}`);
-  const state = createPortState(port);
+  const state = createPortState(port, economy.seedKey);
   const yard = addWorldShipyardPort(economy.shipyards, port, startMinute);
   economy.portStates.set(portId, state);
   return { port: state, shipyard: yard };
@@ -403,8 +405,9 @@ export function snapshotWorldEconomy(economy) {
   };
 }
 
-export function restoreWorldEconomy(economy, snapshot) {
+export function restoreWorldEconomy(economy, snapshot, { seedKey = economy?.seedKey } = {}) {
   assertEconomy(economy);
+  validateOptionalSeedKey(seedKey, "restored economy");
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ports)) {
     throw new Error("Unsupported world economy save data");
   }
@@ -431,7 +434,8 @@ export function restoreWorldEconomy(economy, snapshot) {
       }
     }
   }
-  restoreWorldShipyards(economy.shipyards, snapshot.shipyards);
+  economy.seedKey = seedKey;
+  restoreWorldShipyards(economy.shipyards, snapshot.shipyards, { seedKey });
   for (const saved of snapshot.ports) {
     const port = economy.portStates.get(saved.id);
     for (const [goodId, productionPerDay] of saved.industries || []) {
@@ -701,7 +705,7 @@ export function cargoSaleValue(economy, city, cargo) {
   return value;
 }
 
-function createPortState(port) {
+function createPortState(port, seedKey) {
   const populationScale = clamp(Math.sqrt(Math.max(1000, port.population || 10000) / 30000), 0.45, 4.2);
   const settlementType = port.settlementType === "village" ? "village" : "city";
   const productionMultiplier = settlementType === "village" ? VILLAGE_PRODUCTION_MULTIPLIER : 1;
@@ -757,7 +761,9 @@ function createPortState(port) {
   for (const good of TRADE_GOODS) {
     const state = goods.get(good.id);
     state.targetStock = targetStockForState(state);
-    const stockVariance = 0.82 + hashUnit(`${port.tileId}|${good.id}|stock`) * 0.36;
+    const stockVariance = 0.82 + hashUnit(
+      economySeedKey(seedKey, `${port.tileId}|${good.id}|stock`)
+    ) * 0.36;
     const initialStockRatio = state.productionPerDay > 0 ? 1 : good.initialImportStockRatio;
     state.stock = state.targetStock * stockVariance * initialStockRatio;
   }
@@ -788,7 +794,7 @@ function createPortState(port) {
     populationScale,
     marketPriceDepth,
     targetSpecie,
-    specie: targetSpecie * (0.85 + hashUnit(`${port.tileId}|specie`) * 0.3),
+    specie: targetSpecie * (0.85 + hashUnit(economySeedKey(seedKey, `${port.tileId}|specie`)) * 0.3),
     marketGoodIds,
     marketIntegrationOffsets: new Map(TRADE_GOODS.map((good) => [good.id, 0])),
     goods
@@ -1037,9 +1043,21 @@ function requiredPortId(port) {
 }
 
 function assertEconomy(economy) {
-  if (!economy || economy.version !== 1 || !(economy.portStates instanceof Map) || !economy.shipyards) {
+  if (!economy || economy.version !== 1 || !(economy.portStates instanceof Map) || !economy.shipyards ||
+      (economy.seedKey !== null && (typeof economy.seedKey !== "string" || economy.seedKey.trim() === ""))) {
     throw new Error("Invalid world economy");
   }
+}
+
+function economySeedKey(seedKey, value) {
+  return seedKey === null ? value : `${seedKey}|${value}`;
+}
+
+function validateOptionalSeedKey(value, label) {
+  if (value !== null && (typeof value !== "string" || value.trim() === "")) {
+    throw new Error(`${label} seed must be null or a non-empty string`);
+  }
+  return value;
 }
 
 function assertTradeQuantity(quantity) {

@@ -62,16 +62,19 @@ export function perkItemById(id) {
   return value;
 }
 
-export function perkItemOfferAtPort(economy, city, { ownedItemIds = [] } = {}) {
+export function perkItemOfferAtPort(economy, city, { ownedItemIds = [], seedKey = null } = {}) {
   if (!Array.isArray(ownedItemIds) || ownedItemIds.some((id) => typeof id !== "string")) {
     throw new Error("Perk item offer requires owned item ids");
+  }
+  if (seedKey !== null && (typeof seedKey !== "string" || seedKey.trim() === "")) {
+    throw new Error("Perk item offer seed must be null or a non-empty string");
   }
   const prosperity = portEquipmentProsperity(economy, city);
   const portId = requiredPortId(city);
   const spawnChance = 0.035 + prosperity * 0.065;
-  if (hashUnit(`${portId}|perk-item-offer|spawn`) >= spawnChance) return null;
+  if (hashUnit(perkOfferSeedKey(seedKey, `${portId}|perk-item-offer|spawn`)) >= spawnChance) return null;
 
-  const tierRoll = hashUnit(`${portId}|perk-item-offer|tier`);
+  const tierRoll = hashUnit(perkOfferSeedKey(seedKey, `${portId}|perk-item-offer|tier`));
   const maximumTier = prosperity >= 0.68 && tierRoll >= 0.9
     ? 3
     : prosperity >= 0.32 && tierRoll >= 0.48 ? 2 : 1;
@@ -80,7 +83,9 @@ export function perkItemOfferAtPort(economy, city, { ownedItemIds = [] } = {}) {
     entry.tier <= maximumTier && itemMatchesPortRegion(entry, city) && !owned.has(entry.id)
   ));
   if (candidates.length === 0) return null;
-  return candidates[hashString32(`${portId}|perk-item-offer|choice`) % candidates.length];
+  return candidates[
+    hashString32(perkOfferSeedKey(seedKey, `${portId}|perk-item-offer|choice`)) % candidates.length
+  ];
 }
 
 export function missionGiftItem({ city, identityKey, ownedItemIds = [] }) {
@@ -146,6 +151,10 @@ function requiredPortId(city) {
   const id = city?.portId || (Number.isInteger(city?.tileId) ? `city-${city.tileId}` : null);
   if (!id) throw new Error("Perk item offer requires a city tile or port id");
   return id;
+}
+
+function perkOfferSeedKey(seedKey, value) {
+  return seedKey === null ? value : `${seedKey}|${value}`;
 }
 
 function hashUnit(value) {

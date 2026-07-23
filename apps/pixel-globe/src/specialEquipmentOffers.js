@@ -9,7 +9,12 @@ export function createSpecialEquipmentOfferMemory() {
   };
 }
 
-export function openSpecialEquipmentOffer(memory, economy, city, { ownedItemIds = [] } = {}) {
+export function openSpecialEquipmentOffer(
+  memory,
+  economy,
+  city,
+  { ownedItemIds = [], seedKey = null } = {}
+) {
   validateSpecialEquipmentOfferMemory(memory);
   if (!Array.isArray(ownedItemIds) || ownedItemIds.some((id) => typeof id !== "string")) {
     throw new Error("Special equipment offer requires owned item ids");
@@ -17,7 +22,7 @@ export function openSpecialEquipmentOffer(memory, economy, city, { ownedItemIds 
   const key = portKey(city);
   let entry = memory.byPort[key] || null;
   if (!entry) {
-    const item = perkItemOfferAtPort(economy, city, { ownedItemIds });
+    const item = perkItemOfferAtPort(economy, city, { ownedItemIds, seedKey });
     if (!item) return null;
     entry = {
       itemId: item.id,

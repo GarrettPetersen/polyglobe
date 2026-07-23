@@ -43,6 +43,30 @@ const WONDERS = Object.freeze([
   Object.freeze({ id: "circumnavigation", kind: "achievement", displayName: "Around the world" })
 ]);
 
+test("voyage seeds persist and legacy saves gain a stable seed", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: PLAYER,
+    startMinute: 321,
+    voyageSeed: "test-voyage-seed"
+  });
+  assert.equal(state.voyageSeed, "test-voyage-seed");
+  validateGameState(state);
+
+  const legacy = structuredClone(state);
+  legacy.version = 37;
+  delete legacy.voyageSeed;
+  const restored = migrateGameState(legacy, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(typeof restored.voyageSeed, "string");
+  assert.ok(restored.voyageSeed.length > 0);
+  assert.equal(
+    migrateGameState(structuredClone(legacy), null).voyageSeed,
+    restored.voyageSeed
+  );
+});
+
 test("home-port patron settlement pays once and records campaign income", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.memory.campaignGoal = createCampaignGoal({

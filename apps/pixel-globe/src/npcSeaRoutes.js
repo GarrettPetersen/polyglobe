@@ -309,6 +309,7 @@ export function createNpcSeaRouteSystem({
   economy,
   fishState = null,
   whaleMemory = null,
+  seedKey = null,
   relationBetween = diplomacyBetween,
   mingTradeOpenToFaction = defaultMingTradeOpenToFaction,
   onForeignPortCall = null
@@ -318,6 +319,7 @@ export function createNpcSeaRouteSystem({
   }
   if (!economy) throw new Error("NPC sea routes require a world economy");
   if (whaleMemory !== null) validateWhaleMemory(whaleMemory);
+  validateOptionalSeedKey(seedKey, "NPC routes");
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
   if (typeof mingTradeOpenToFaction !== "function") {
     throw new Error("NPC sea routes require a Ming trade-access resolver");
@@ -337,6 +339,7 @@ export function createNpcSeaRouteSystem({
   const baseEdges = buildDirectedLaneEdges(laneNodes);
   const system = {
     ports: usablePorts,
+    seedKey,
     economy,
     laneNodes,
     baseEdges,
@@ -512,11 +515,13 @@ export function restoreNpcSeaRouteSystem(
     economy,
     fishState = null,
     whaleMemory = system?.whaleMemory || null,
+    seedKey = system?.seedKey ?? null,
     relationBetween = system?.relationBetween || diplomacyBetween,
     mingTradeOpenToFaction = system?.mingTradeOpenToFaction || defaultMingTradeOpenToFaction
   } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
+  validateOptionalSeedKey(seedKey, "restored NPC routes");
   if (!snapshot || ![1, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil)) {
     throw new Error("Unsupported NPC route save data");
@@ -547,6 +552,7 @@ export function restoreNpcSeaRouteSystem(
     danger.set(entry[0], entry[1]);
   }
   system.economy = economy || system.economy;
+  system.seedKey = seedKey;
   system.fishState = fishState;
   if (whaleMemory !== null) validateWhaleMemory(whaleMemory);
   system.whaleMemory = whaleMemory;
@@ -984,7 +990,7 @@ function createNpcFleet(system, startMinute) {
     if (pool.length < 2) continue;
     const count = Math.min(profileSpec.count, pool.length * 2);
     for (let i = 0; i < count; i++) {
-      const seed = hashString32(`${profileSpec.id}|${i}|npc`);
+      const seed = hashString32(npcSeedKey(system, `${profileSpec.id}|${i}|npc`));
       let origin = pool[seed % pool.length];
       const role = npcRoleForSeed(seed, origin.factionId, profileSpec);
       if (role === NPC_ROLE_PIRATE && npcPortHasMajorProtection(origin)) {
@@ -1043,7 +1049,7 @@ function synchronizeNpcWhalerFleet(system, startMinute) {
     for (let index = 0; index < profileSpec.count; index++) {
       const id = `${profileSpec.id}-${index}`;
       if (reservedIds.has(id)) continue;
-      const seed = hashString32(`${profileSpec.id}|${index}|npc`);
+      const seed = hashString32(npcSeedKey(system, `${profileSpec.id}|${index}|npc`));
       const origin = pool[seed % pool.length];
       const slugs = profileSlugsForRole(profileSpec, NPC_ROLE_WHALER, origin.factionId);
       const slug = npcShipSlugForRole(profileSpec, NPC_ROLE_WHALER, seed, origin.factionId);
@@ -1308,7 +1314,7 @@ function seedNpcShipOnRoute(system, ship, startMinute) {
   }
   const elapsedMinutes = Math.min(
     durationMinutes - 1,
-    Math.floor(durationMinutes * hashUnit(`${ship.id}|initial-route-progress`))
+    Math.floor(durationMinutes * hashUnit(npcSeedKey(system, `${ship.id}|initial-route-progress`)))
   );
   ship.plan.startMinute -= elapsedMinutes;
   ship.plan.endMinute -= elapsedMinutes;
@@ -1393,7 +1399,7 @@ function chooseNpcDestination(system, ship, origin) {
   if (ship.role === NPC_ROLE_FISHERMAN) return chooseFishermanDestination(system, ship, origin);
   if (ship.role === NPC_ROLE_WHALER) return chooseWhalerDestination(system, ship, origin);
   const profileSpec = fleetProfileForId(ship.profileId);
-  const seed = hashString32(`${ship.id}|${origin.tileId}|dest`);
+  const seed = hashString32(`${ship.seed}|${origin.tileId}|dest`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
@@ -1432,7 +1438,7 @@ function chooseWhalerDestination(system, ship, origin) {
   if (grounds.length !== profileSpec.groundIds.length) {
     throw new Error(`NPC whaler profile ${profileSpec.id} has missing hunting grounds`);
   }
-  const seed = hashString32(`${ship.id}|${origin.tileId}|whaling-ground`);
+  const seed = hashString32(`${ship.seed}|${origin.tileId}|whaling-ground`);
   return grounds.sort((a, b) => (
     distanceKm(origin, a) - distanceKm(origin, b) ||
     destinationRank(origin, a, seed) - destinationRank(origin, b, seed)
@@ -1442,7 +1448,7 @@ function chooseWhalerDestination(system, ship, origin) {
 function chooseWhalerSalePort(system, ship, origin) {
   const profileSpec = fleetProfileForId(ship.profileId);
   const quantity = Math.max(1, ship.cargo[WHALE_BLUBBER_GOOD_ID] || ship.cargoCapacity);
-  const seed = hashString32(`${ship.id}|${origin.tileId}|blubber-sale`);
+  const seed = hashString32(`${ship.seed}|${origin.tileId}|blubber-sale`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
     .filter(profileSpec.portPredicate)
@@ -1473,7 +1479,7 @@ function chooseFishermanDestination(system, ship, origin) {
 
 function chooseFishermanFishingGround(system, ship, origin) {
   if (!system.fishState || system.fishingGrounds.length === 0) return null;
-  const seed = hashString32(`${ship.id}|${origin.tileId}|fishery`);
+  const seed = hashString32(`${ship.seed}|${origin.tileId}|fishery`);
   const candidates = system.fishingGrounds
     .map((ground) => {
       const forecast = fishermanGroundForecast(system, ship, origin, ground);
@@ -1514,7 +1520,7 @@ function fishermanGroundForecast(system, ship, origin, ground) {
 
 function chooseFishermanSalePort(system, ship, origin, quantity) {
   const safeQuantity = Math.max(1, Math.min(ship.cargoCapacity, Math.floor(quantity)));
-  const seed = hashString32(`${ship.id}|${origin.tileId}|fish-sale`);
+  const seed = hashString32(`${ship.seed}|${origin.tileId}|fish-sale`);
   const candidates = system.ports
     .filter((port) => !samePort(port, origin))
     .filter((port) => npcMerchantCanTradeAtPort(system, ship, port))
@@ -2714,9 +2720,21 @@ function assertSaveableNpcRouteSystem(system) {
       !Array.isArray(system.replacementQueue) || !(system.pirateHideoutDangerUntil instanceof Map) ||
       !Array.isArray(system.whalingGrounds) ||
       !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map) ||
+      (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === "")) ||
       typeof system.relationBetween !== "function" || typeof system.mingTradeOpenToFaction !== "function") {
     throw new Error("Invalid NPC route system");
   }
+}
+
+function npcSeedKey(system, value) {
+  return system.seedKey === null ? value : `${system.seedKey}|${value}`;
+}
+
+function validateOptionalSeedKey(value, label) {
+  if (value !== null && (typeof value !== "string" || value.trim() === "")) {
+    throw new Error(`${label} seed must be null or a non-empty string`);
+  }
+  return value;
 }
 
 function cloneJsonData(value) {

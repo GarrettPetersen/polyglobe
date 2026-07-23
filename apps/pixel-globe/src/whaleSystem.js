@@ -91,21 +91,26 @@ export function createWhaleMemory() {
 
 export function seedWhalePopulation(memory, candidates, count = WHALE_POPULATION_TARGET, {
   startMinute = 0,
-  avoidPosition = null
+  avoidPosition = null,
+  seedKey = null
 } = {}) {
   validateWhaleMemory(memory);
   if (!Array.isArray(candidates)) throw new Error("Whale population seeding requires candidate waters");
   if (!Number.isInteger(count) || count < 2) throw new Error(`Invalid whale population size: ${count}`);
   assertSimulationMinute(startMinute);
   if (avoidPosition !== null) validateVector(avoidPosition, "white whale avoidance position");
+  if (seedKey !== null && (typeof seedKey !== "string" || seedKey.trim() === "")) {
+    throw new Error("Whale population seed must be null or a non-empty string");
+  }
   if (memory.individuals.length > 0) return memory.individuals;
 
   const waters = candidates.map(validateCandidate);
+  const seedSalt = seedKey === null ? 0 : hashString(seedKey);
   const allocation = populationAllocation(count - 1);
   for (const species of WHALE_SPECIES) {
-    seedSpeciesPopulation(memory, species, waters, allocation.get(species.id), startMinute);
+    seedSpeciesPopulation(memory, species, waters, allocation.get(species.id), startMinute, seedSalt);
   }
-  seedWhiteWhale(memory, waters, startMinute, avoidPosition);
+  seedWhiteWhale(memory, waters, startMinute, avoidPosition, seedSalt);
   if (memory.individuals.length !== count) {
     throw new Error(`Whale population seeded ${memory.individuals.length}, expected ${count}`);
   }
@@ -445,11 +450,14 @@ function populationAllocation(ordinaryCount) {
   return allocation;
 }
 
-function seedSpeciesPopulation(memory, species, waters, count, startMinute) {
+function seedSpeciesPopulation(memory, species, waters, count, startMinute, seedSalt) {
   if (count === 0) return;
   const eligible = waters
     .filter((candidate) => whaleRangeContainsCandidate(species.id, candidate))
-    .sort((a, b) => hashInt(a.tileId ^ hashString(species.id)) - hashInt(b.tileId ^ hashString(species.id)));
+    .sort((a, b) => (
+      hashInt(a.tileId ^ hashString(species.id) ^ seedSalt) -
+      hashInt(b.tileId ^ hashString(species.id) ^ seedSalt)
+    ));
   if (eligible.length < count) {
     throw new Error(`${species.label} population needs ${count} range-valid ocean tiles, got ${eligible.length}`);
   }
@@ -459,7 +467,7 @@ function seedSpeciesPopulation(memory, species, waters, count, startMinute) {
   for (let index = 0; index < adultCount; index++) {
     const candidate = eligible[Math.floor(index * stride)];
     const idNumber = memory.nextId++;
-    const seed = hashInt(candidate.tileId ^ Math.imul(idNumber, 0x9e3779b1));
+    const seed = hashInt(candidate.tileId ^ Math.imul(idNumber, 0x9e3779b1) ^ seedSalt);
     const sex = index % 2 === 0 ? "female" : "male";
     const startsPregnant = sex === "female" && unit(seed ^ 0x50524547) < 0.22;
     const ageDays = species.maturityDays + 365 + unit(seed ^ 0x414745) * 20 * 365;
@@ -510,18 +518,23 @@ function seedSpeciesPopulation(memory, species, waters, count, startMinute) {
   }
 }
 
-function seedWhiteWhale(memory, waters, startMinute, avoidPosition) {
+function seedWhiteWhale(memory, waters, startMinute, avoidPosition, seedSalt) {
   const eligible = waters.filter((candidate) => whaleRangeContainsCandidate(WHALE_SPECIES_SPERM, candidate));
   if (eligible.length === 0) throw new Error("White whale has no range-valid ocean tile");
-  const candidate = [...eligible].sort((a, b) => {
-    if (avoidPosition) {
+  const distantCandidates = avoidPosition && seedSalt !== 0
+    ? [...eligible]
+      .sort((a, b) => angularDistance(avoidPosition, b.position) - angularDistance(avoidPosition, a.position))
+      .slice(0, Math.max(8, Math.ceil(eligible.length * 0.08)))
+    : eligible;
+  const candidate = [...distantCandidates].sort((a, b) => {
+    if (avoidPosition && seedSalt === 0) {
       const distanceDifference = angularDistance(avoidPosition, b.position) - angularDistance(avoidPosition, a.position);
       if (Math.abs(distanceDifference) > 1e-9) return distanceDifference;
     }
-    return hashInt(a.tileId ^ 0x4d4f4259) - hashInt(b.tileId ^ 0x4d4f4259);
+    return hashInt(a.tileId ^ 0x4d4f4259 ^ seedSalt) - hashInt(b.tileId ^ 0x4d4f4259 ^ seedSalt);
   })[0];
   whaleSpeciesById(WHALE_SPECIES_SPERM);
-  const seed = hashInt(candidate.tileId ^ 0x57484954);
+  const seed = hashInt(candidate.tileId ^ 0x57484954 ^ seedSalt);
   memory.individuals.push(createWhaleIndividual({
     id: WHITE_WHALE_ID,
     speciesId: WHALE_SPECIES_SPERM,

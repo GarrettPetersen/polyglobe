@@ -76,6 +76,21 @@ test("every NPC route hull is included in the sprite preload roster", () => {
   for (const slug of NPC_SHIP_SLUGS) shipStatsForSlug(slug);
 });
 
+test("voyage seeds vary NPC traffic while remaining deterministic", () => {
+  const createSeededRoutes = (seedKey) => createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy: createWorldEconomy({ ports: PORTS, startMinute: 0, seedKey }),
+    seedKey
+  });
+  const first = createSeededRoutes("voyage-one");
+  const repeated = createSeededRoutes("voyage-one");
+  const second = createSeededRoutes("voyage-two");
+
+  assert.deepEqual(snapshotNpcSeaRouteSystem(first), snapshotNpcSeaRouteSystem(repeated));
+  assert.notDeepEqual(snapshotNpcSeaRouteSystem(first).ships, snapshotNpcSeaRouteSystem(second).ships);
+});
+
 test("initial fleet phasing never reports diplomatic contacts before the voyage begins", () => {
   const startMinute = 79 * 24 * 60 + 10 * 60;
   const economy = createWorldEconomy({ ports: PORTS, startMinute });

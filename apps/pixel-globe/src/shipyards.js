@@ -81,22 +81,23 @@ for (const pool of Object.values(REGION_SHIP_POOLS)) {
   for (const slug of pool) shipStatsForSlug(slug);
 }
 
-export function createWorldShipyards({ ports, startMinute }) {
+export function createWorldShipyards({ ports, startMinute, seedKey = null }) {
   if (!Array.isArray(ports) || ports.length === 0) throw new Error("World shipyards require ports");
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid shipyard start minute: ${startMinute}`);
+  validateOptionalSeedKey(seedKey, "shipyard");
   const yards = new Map();
   for (const port of ports) {
-    const yard = createShipyard(port, startMinute);
+    const yard = createShipyard(port, startMinute, seedKey);
     if (yards.has(yard.portId)) throw new Error(`Duplicate shipyard port tile: ${yard.portId}`);
     yards.set(yard.portId, yard);
   }
-  return { version: 1, lastMinute: startMinute, yards };
+  return { version: 1, seedKey, lastMinute: startMinute, yards };
 }
 
 export function addWorldShipyardPort(system, port, startMinute = system?.lastMinute) {
   assertShipyardSystem(system);
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid shipyard port start minute: ${startMinute}`);
-  const yard = createShipyard(port, startMinute);
+  const yard = createShipyard(port, startMinute, system.seedKey);
   if (system.yards.has(yard.portId)) throw new Error(`Shipyard port already exists: ${yard.portId}`);
   system.yards.set(yard.portId, yard);
   return yard;
@@ -116,8 +117,9 @@ export function snapshotWorldShipyards(system) {
   };
 }
 
-export function restoreWorldShipyards(system, snapshot) {
+export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seedKey } = {}) {
   assertShipyardSystem(system);
+  validateOptionalSeedKey(seedKey, "restored shipyard");
   if (
     !snapshot ||
     (snapshot.version !== 1 && snapshot.version !== SHIPYARD_SNAPSHOT_VERSION) ||
@@ -126,6 +128,8 @@ export function restoreWorldShipyards(system, snapshot) {
     throw new Error("Unsupported shipyard save data");
   }
   if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved shipyard minute");
+  system.seedKey = seedKey;
+  for (const yard of system.yards.values()) yard.seedKey = seedKey;
   for (const saved of snapshot.yards) {
     const yard = system.yards.get(saved.portId);
     if (!yard) throw new Error(`Saved shipyard port is missing: ${saved.portId}`);
@@ -291,7 +295,7 @@ function shipPoolForYard(yard) {
 }
 
 function shipyardListingSeed(yard, buildNumber) {
-  return hashString32(`${yard.portId}|${buildNumber}|hull`);
+  return hashString32(shipyardSeedKey(yard.seedKey, `${yard.portId}|${buildNumber}|hull`));
 }
 
 function shipyardListingPrice(slug, seed) {
@@ -334,7 +338,7 @@ export function shipyardQualityBudget(yard) {
   return 7000 + yard.wealthScale * 22000 + famousBonus;
 }
 
-function createShipyard(port, startMinute) {
+function createShipyard(port, startMinute, seedKey) {
   const portId = requiredPortId(port);
   const cityType = port.cityType;
   if (!REGION_SHIP_POOLS[cityType]) throw new Error(`No shipyard profile for city type: ${cityType}`);
@@ -343,6 +347,7 @@ function createShipyard(port, startMinute) {
   const famous = FAMOUS_TOWN_KEYS.has(normalizeName(port.city)) || FAMOUS_TOWN_KEYS.has(normalizeName(port.displayCity));
   const yard = {
     portId,
+    seedKey,
     portName: portName(port),
     cityType,
     factionId: port.factionId || "neutral",
@@ -356,7 +361,7 @@ function createShipyard(port, startMinute) {
   };
   const intervalDays = shipyardBuildIntervalDays(yard, 0);
   const listingDays = famous ? FAMOUS_LISTING_DAYS : NORMAL_LISTING_DAYS;
-  const ageDays = hashUnit(`${portId}|shipyard-phase`) * intervalDays;
+  const ageDays = hashUnit(shipyardSeedKey(seedKey, `${portId}|shipyard-phase`)) * intervalDays;
   const previousBuildMinute = startMinute - ageDays * MINUTES_PER_DAY;
   if (ageDays < listingDays) yard.listing = generateShipyardListing(yard, 0, previousBuildMinute);
   yard.nextBuildMinute = previousBuildMinute + intervalDays * MINUTES_PER_DAY;
@@ -366,7 +371,9 @@ function createShipyard(port, startMinute) {
 function shipyardBuildIntervalDays(yard, buildNumber) {
   const base = yard.famous ? FAMOUS_BUILD_INTERVAL_DAYS : NORMAL_BUILD_INTERVAL_DAYS;
   const wealthFactor = clamp(yard.wealthScale, 0.65, 2.8);
-  const variation = 0.78 + hashUnit(`${yard.portId}|${buildNumber}|interval`) * 0.44;
+  const variation = 0.78 + hashUnit(
+    shipyardSeedKey(yard.seedKey, `${yard.portId}|${buildNumber}|interval`)
+  ) * 0.44;
   return Math.max(240, Math.round(base / wealthFactor * variation));
 }
 
@@ -408,9 +415,21 @@ function hashString32(value) {
 }
 
 function assertShipyardSystem(system) {
-  if (!system || system.version !== 1 || !(system.yards instanceof Map)) {
+  if (!system || system.version !== 1 || !(system.yards instanceof Map) ||
+      (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === ""))) {
     throw new Error("Invalid world shipyards");
   }
+}
+
+function shipyardSeedKey(seedKey, value) {
+  return seedKey === null ? value : `${seedKey}|${value}`;
+}
+
+function validateOptionalSeedKey(value, label) {
+  if (value !== null && (typeof value !== "string" || value.trim() === "")) {
+    throw new Error(`${label} seed must be null or a non-empty string`);
+  }
+  return value;
 }
 
 function clamp(value, min, max) {

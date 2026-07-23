@@ -164,7 +164,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 37;
+export const GAME_STATE_VERSION = 38;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -266,7 +266,8 @@ export function createGameState({
   startMinute = 0,
   playerCharacter = null,
   shipStats = null,
-  campaignGoalType = null
+  campaignGoalType = null,
+  voyageSeed = null
 }) {
   assertCargoCapacity(cargoCapacity);
   assertSimulationMinute(startMinute);
@@ -281,11 +282,15 @@ export function createGameState({
     throw new Error(`Ship cargo capacity mismatch: state=${cargoCapacity} stats=${shipStats.cargoCapacity}`);
   }
   const playerFactionId = normalizedPlayerCharacter?.nationalityId || null;
+  const resolvedVoyageSeed = voyageSeed === null
+    ? worldDiplomacySeedKey(normalizedPlayerCharacter, startMinute)
+    : validateVoyageSeed(voyageSeed);
   const resolvedCampaignGoalType = playerCharacterSupportsCampaignGoal(normalizedPlayerCharacter)
     ? campaignGoalType || campaignGoalTypeForCharacter(normalizedPlayerCharacter)
     : null;
   const state = {
     version: GAME_STATE_VERSION,
+    voyageSeed: resolvedVoyageSeed,
     activePlaySeconds: 0,
     playerCharacter: normalizedPlayerCharacter,
     doubloons: STARTING_DOUBLOONS,
@@ -333,7 +338,7 @@ export function createGameState({
       mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
       diplomacy: createWorldDiplomacy({
         startMinute,
-        seedKey: worldDiplomacySeedKey(normalizedPlayerCharacter, startMinute)
+        seedKey: resolvedVoyageSeed
       })
     },
     memory: {
@@ -399,7 +404,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -424,11 +429,14 @@ export function migrateGameState(state, shipStats) {
     throw new Error("Game state migration requires relations");
   }
 
+  const migrationVoyageSeed = typeof state.voyageSeed === "string" && state.voyageSeed.trim() !== ""
+    ? state.voyageSeed
+    : worldDiplomacySeedKey(state.playerCharacter, savedGameStartMinute(state));
   const migratedDiplomacy = state.relations.diplomacy
     ? migrateWorldDiplomacy(state.relations.diplomacy)
     : createWorldDiplomacy({
         startMinute: savedGameStartMinute(state),
-        seedKey: worldDiplomacySeedKey(state.playerCharacter, savedGameStartMinute(state))
+        seedKey: migrationVoyageSeed
       });
   const legacyPortHeading = state.memory?.navigation?.portHeading || null;
   const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
@@ -442,6 +450,7 @@ export function migrateGameState(state, shipStats) {
   const migrated = {
     ...state,
     version: GAME_STATE_VERSION,
+    voyageSeed: migrationVoyageSeed,
     playerCharacter: migratedPlayerCharacter,
     namedCrew: state.namedCrew || createNamedCrewMemory(),
     survival: {
@@ -1960,7 +1969,8 @@ export function playerPerkItemRows(state) {
 export function enterSpecialEquipmentStore(state, economy, city) {
   assertGameState(state);
   return openSpecialEquipmentOffer(state.memory.specialEquipmentOffers, economy, city, {
-    ownedItemIds: Object.keys(state.inventory.items).filter((id) => state.inventory.items[id] === 1)
+    ownedItemIds: Object.keys(state.inventory.items).filter((id) => state.inventory.items[id] === 1),
+    seedKey: state.voyageSeed
   });
 }
 
@@ -3844,6 +3854,7 @@ function assertOptionalNavigationWaypoint(waypoint) {
 
 function assertGameState(state) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
+  validateVoyageSeed(state.voyageSeed);
   if (!Number.isFinite(state.activePlaySeconds) || state.activePlaySeconds < 0) {
     throw new Error(`Invalid active play time: ${state.activePlaySeconds}`);
   }
@@ -4198,6 +4209,13 @@ function worldDiplomacySeedKey(character, startMinute) {
     character.homePortName || "unknown-home",
     startMinute
   ].join("|");
+}
+
+function validateVoyageSeed(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error("Game state requires a non-empty voyage seed");
+  }
+  return value;
 }
 
 function assertFactionReputationTable(reputation) {

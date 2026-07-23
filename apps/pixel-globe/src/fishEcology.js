@@ -118,10 +118,11 @@ export function fisheryForHabitat(gameState, habitat, simMinute) {
   const memory = ensureFishMemory(gameState, simMinute);
   const normalHabitat = normalizeHabitat(habitat);
   const dayOfYear = fishDayOfYear(simMinute);
-  const speciesDef = chooseSpeciesForHabitat(normalHabitat, dayOfYear);
+  const voyageSeed = fishVoyageSeed(gameState);
+  const speciesDef = chooseSpeciesForHabitat(normalHabitat, dayOfYear, voyageSeed);
   if (!speciesDef) return null;
-  if (!fisheryExists(speciesDef, normalHabitat, dayOfYear)) return null;
-  const stock = fisheryStockForHabitat(memory, normalHabitat, speciesDef, simMinute);
+  if (!fisheryExists(speciesDef, normalHabitat, dayOfYear, voyageSeed)) return null;
+  const stock = fisheryStockForHabitat(memory, normalHabitat, speciesDef, simMinute, voyageSeed);
   const density = stock.population / stock.capacity;
   if (!fisheryStockIsVisible(stock, speciesDef)) return null;
   const catchablePopulation = Math.floor(stock.population);
@@ -215,10 +216,10 @@ function ensureFishMemory(gameState, simMinute) {
   return memory;
 }
 
-function fisheryStockForHabitat(memory, habitat, speciesDef, simMinute) {
+function fisheryStockForHabitat(memory, habitat, speciesDef, simMinute, voyageSeed) {
   const key = `${habitat.tileId}:${speciesDef.id}`;
   if (!memory.fisheries[key]) {
-    const seed = hashString32(`${key}|stock`);
+    const seed = hashString32(fishSeedKey(voyageSeed, `${key}|stock`));
     const capacity = Math.max(8, Math.round(
       speciesDef.baseCapacity * habitatCapacityMultiplier(speciesDef, habitat) * (0.74 + seededFraction(seed) * 0.52)
     ));
@@ -276,7 +277,7 @@ function fisheryStockIsVisible(stock, speciesDef) {
   return stock.population / stock.capacity >= speciesDef.minVisibleDensity;
 }
 
-function chooseSpeciesForHabitat(habitat, dayOfYear) {
+function chooseSpeciesForHabitat(habitat, dayOfYear, voyageSeed) {
   const scored = FISH_SPECIES
     .map((speciesDef) => ({
       speciesDef,
@@ -286,12 +287,16 @@ function chooseSpeciesForHabitat(habitat, dayOfYear) {
   if (scored.length === 0) return null;
   if (habitat.kind === "river" && salmonRunActive(habitat.lat, dayOfYear)) {
     const salmon = scored.find((item) => item.speciesDef.id === "salmon");
-    if (salmon && seededFraction(hashString32(`${habitat.tileId}|salmon-run`)) < 0.86) {
+    if (salmon && seededFraction(hashString32(
+      fishSeedKey(voyageSeed, `${habitat.tileId}|salmon-run`)
+    )) < 0.86) {
       return salmon.speciesDef;
     }
   }
   const total = scored.reduce((sum, item) => sum + item.score, 0);
-  let cursor = seededFraction(hashString32(`${habitat.tileId}|fish-species`)) * total;
+  let cursor = seededFraction(hashString32(
+    fishSeedKey(voyageSeed, `${habitat.tileId}|fish-species`)
+  )) * total;
   for (const item of scored) {
     cursor -= item.score;
     if (cursor <= 0) return item.speciesDef;
@@ -299,9 +304,21 @@ function chooseSpeciesForHabitat(habitat, dayOfYear) {
   return scored[scored.length - 1].speciesDef;
 }
 
-function fisheryExists(speciesDef, habitat, dayOfYear) {
+function fisheryExists(speciesDef, habitat, dayOfYear, voyageSeed) {
   const base = fisheryPresenceChance(speciesDef.id, habitat, dayOfYear);
-  return seededFraction(hashString32(`${habitat.tileId}|${speciesDef.id}|presence`)) < base;
+  return seededFraction(hashString32(
+    fishSeedKey(voyageSeed, `${habitat.tileId}|${speciesDef.id}|presence`)
+  )) < base;
+}
+
+function fishVoyageSeed(gameState) {
+  return typeof gameState?.voyageSeed === "string" && gameState.voyageSeed.trim() !== ""
+    ? gameState.voyageSeed
+    : null;
+}
+
+function fishSeedKey(voyageSeed, value) {
+  return voyageSeed === null ? value : `${voyageSeed}|${value}`;
 }
 
 function speciesHabitatScore(speciesId, habitat, dayOfYear) {

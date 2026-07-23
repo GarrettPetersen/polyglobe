@@ -50,6 +50,28 @@ test("land trade seeds three carts for every five-city group", () => {
   assert.throws(() => landCartCountForCityCount(0), /Invalid land-trade city count/);
 });
 
+test("voyage seeds vary cart phasing while remaining deterministic", () => {
+  const roads = syntheticRoads();
+  const createSeededSystem = (seedKey) => createLandTradeSystem({
+    roads,
+    economy: createWorldEconomy({
+      ports: [LONDON, ANTIOCH, ALEPPO],
+      shipyardPorts: [LONDON],
+      startMinute: 0,
+      seedKey
+    }),
+    cities: [LONDON, ANTIOCH, ALEPPO],
+    startMinute: 0,
+    seedKey
+  });
+  const first = createSeededSystem("voyage-one");
+  const repeated = createSeededSystem("voyage-one");
+  const second = createSeededSystem("voyage-two");
+
+  assert.deepEqual(snapshotLandTradeSystem(first), snapshotLandTradeSystem(repeated));
+  assert.notDeepEqual(snapshotLandTradeSystem(first), snapshotLandTradeSystem(second));
+});
+
 test("low-capacity carts trade, advance, and restore exactly", () => {
   const roads = syntheticRoads();
   const economy = createWorldEconomy({

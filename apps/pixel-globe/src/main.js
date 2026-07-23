@@ -2645,8 +2645,9 @@ async function main() {
   factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
   usedCharacterNames = new Set();
+  const voyageSeed = playerCharacterIdentityKey();
   const playerProfile = generatePlayerStartingProfile({
-    identityKey: playerCharacterIdentityKey(),
+    identityKey: voyageSeed,
     ports: portCities,
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
@@ -2676,14 +2677,16 @@ async function main() {
   worldEconomy = createWorldEconomy({
     ports: economyCities,
     shipyardPorts: portCities,
-    startMinute: weatherClockMinutes
+    startMinute: weatherClockMinutes,
+    seedKey: voyageSeed
   });
   connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
   landTradeSystem = createLandTradeSystem({
     roads: landRoadNetwork,
     economy: worldEconomy,
     cities: economyCities,
-    startMinute: weatherClockMinutes
+    startMinute: weatherClockMinutes,
+    seedKey: voyageSeed
   });
   console.info(
     `[pixel-globe] land trade: ${landTradeSystem.carts.length} carts serving ` +
@@ -2735,13 +2738,14 @@ async function main() {
     startMinute: weatherClockMinutes,
     playerCharacter,
     shipStats: ship.stats,
-    campaignGoalType
+    campaignGoalType,
+    voyageSeed
   });
   ensureNaturalistCharacter(gameState);
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
   consumedLandedSeagullIds.clear();
-  ensureWhalePopulation(gameState.memory.whales);
+  ensureWhalePopulation(gameState);
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   initializeFetchQuestReadiness();
   familyDebtReturnReminderDelivered = false;
@@ -2757,6 +2761,7 @@ async function main() {
     economy: worldEconomy,
     fishState: gameState,
     whaleMemory: gameState.memory.whales,
+    seedKey: gameState.voyageSeed,
     relationBetween: currentDiplomacyBetween,
     mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(gameState, factionId),
     onForeignPortCall: recordNpcDiplomaticPortCall
@@ -4600,7 +4605,7 @@ function ensureNaturalistCharacter(state) {
   const memory = state?.memory?.quests?.naturalist;
   if (!memory) throw new Error("Naturalist character requires quest memory");
   const startMinute = state.accounts?.ledger?.[0]?.simMinute ?? 0;
-  const tileId = assignNaturalistPort(memory, portCities, `${state.playerCharacter.id}|${startMinute}`);
+  const tileId = assignNaturalistPort(memory, portCities, `${state.voyageSeed}|${startMinute}`);
   const port = portCitiesByTileId.get(tileId);
   if (!port) throw new Error(`Naturalist quest points to a missing port: ${tileId}`);
   const factor = portCityCharacters.get(tileId);
@@ -7593,7 +7598,7 @@ async function restoreSavedVoyage(payload) {
   if (correctedPortraitSexCount > 0) {
     console.info("[pixel-globe] corrected portrait sex metadata for saved characters:", correctedPortraitSexCount);
   }
-  ensureWhalePopulation(restoredGameState.memory.whales);
+  ensureWhalePopulation(restoredGameState);
   factionById(savedShip.factionId);
   if (restoredGameState.ship.baseCargoCapacity !== stats.cargoCapacity) {
     throw new Error("Saved ship capacity does not match its hull");
@@ -7610,24 +7615,28 @@ async function restoreSavedVoyage(payload) {
   }
   syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
   const assets = await loadShipAssetSet(savedShip.typeSlug);
-  restoreWorldEconomy(worldEconomy, payload.economy);
+  restoreWorldEconomy(worldEconomy, payload.economy, { seedKey: restoredGameState.voyageSeed });
   syncJapaneseMatchlockIndustry(restoredGameState);
   syncCaribbeanGingerIndustry(restoredGameState);
   if (payload.landTrade) {
-    restoreLandTradeSystem(landTradeSystem, payload.landTrade);
+    restoreLandTradeSystem(landTradeSystem, payload.landTrade, {
+      seedKey: restoredGameState.voyageSeed
+    });
   } else {
     console.info("[pixel-globe] migrating voyage save: seeding land carts at the saved economy minute");
     landTradeSystem = createLandTradeSystem({
       roads: landRoadNetwork,
       economy: worldEconomy,
       cities: [...cityByTileId.values()],
-      startMinute: payload.economy.lastMinute
+      startMinute: payload.economy.lastMinute,
+      seedKey: restoredGameState.voyageSeed
     });
   }
   restoreNpcSeaRouteSystem(npcSeaRoutes, payload.npcRoutes, {
     economy: worldEconomy,
     fishState: restoredGameState,
     whaleMemory: restoredGameState.memory.whales,
+    seedKey: restoredGameState.voyageSeed,
     relationBetween: currentDiplomacyBetween,
     mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId)
   });
@@ -18646,7 +18655,9 @@ function tileCenterVector(tileId) {
   return [graph.centers[k], graph.centers[k + 1], graph.centers[k + 2]];
 }
 
-function ensureWhalePopulation(memory) {
+function ensureWhalePopulation(state) {
+  const memory = state?.memory?.whales;
+  if (!memory) throw new Error("Whale population requires voyage memory");
   if (memory.individuals.length > 0) return;
   const candidates = [];
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
@@ -18660,7 +18671,8 @@ function ensureWhalePopulation(memory) {
   }
   seedWhalePopulation(memory, candidates, undefined, {
     startMinute: weatherClockMinutes,
-    avoidPosition: ship?.position || null
+    avoidPosition: ship?.position || null,
+    seedKey: state.voyageSeed
   });
   console.info(`[pixel-globe] whales: ${memory.individuals.length} multi-species individuals seeded`);
 }

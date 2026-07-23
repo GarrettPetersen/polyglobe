@@ -75,6 +75,27 @@ const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync
   "utf8"
 )));
 
+test("voyage seeds vary initial markets while remaining deterministic", () => {
+  const first = createWorldEconomy({
+    ports: [LONDON, GOA, TERNATE],
+    startMinute: 0,
+    seedKey: "voyage-one"
+  });
+  const repeated = createWorldEconomy({
+    ports: [LONDON, GOA, TERNATE],
+    startMinute: 0,
+    seedKey: "voyage-one"
+  });
+  const second = createWorldEconomy({
+    ports: [LONDON, GOA, TERNATE],
+    startMinute: 0,
+    seedKey: "voyage-two"
+  });
+
+  assert.deepEqual(snapshotWorldEconomy(first), snapshotWorldEconomy(repeated));
+  assert.notDeepEqual(snapshotWorldEconomy(first), snapshotWorldEconomy(second));
+});
+
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [

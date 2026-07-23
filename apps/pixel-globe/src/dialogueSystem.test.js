@@ -1613,6 +1613,7 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
 });
 
 test("a rare equipment offer persists after declining and remembers the player", () => {
+  const voyageSeed = "dialogue-test-143";
   const city = {
     tileId: 17,
     city: "Porto Novo",
@@ -1623,9 +1624,13 @@ test("a rare equipment offer persists after declining and remembers the player",
     population: 70000,
     character: { name: "Fernao da Cunha" }
   };
-  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0, seedKey: voyageSeed });
   const stats = shipStatsForSlug("brigantine");
-  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    shipStats: stats,
+    voyageSeed
+  });
   gameState.doubloons = 5000;
   const session = createPortDialogueSession(city, { initialNodeId: "root" });
 

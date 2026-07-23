@@ -62,6 +62,19 @@ function whaleNavigation(tileId, canSurface = true) {
   return { ok: true, canSurface, tileId };
 }
 
+test("voyage seeds vary whale populations while remaining deterministic", () => {
+  const first = createWhaleMemory();
+  const repeated = createWhaleMemory();
+  const second = createWhaleMemory();
+
+  seedWhalePopulation(first, candidates(100), 20, { seedKey: "voyage-one" });
+  seedWhalePopulation(repeated, candidates(100), 20, { seedKey: "voyage-one" });
+  seedWhalePopulation(second, candidates(100), 20, { seedKey: "voyage-two" });
+
+  assert.deepEqual(first, repeated);
+  assert.notDeepEqual(first.individuals, second.individuals);
+});
+
 test("whales seed as stable individual entities and surface cyclically", () => {
   const memory = createWhaleMemory();
   seedWhalePopulation(memory, candidates(), 6);

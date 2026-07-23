@@ -24,8 +24,8 @@ export function landCartCountForCityCount(cityCount) {
   return Math.min(MAX_CARTS, Math.ceil(cityCount / CITY_GROUP_SIZE) * CARTS_PER_CITY_GROUP);
 }
 
-export function createLandTradeSystem({ roads, economy, cities, startMinute }) {
-  assertSystemInputs({ roads, economy, cities, startMinute });
+export function createLandTradeSystem({ roads, economy, cities, startMinute, seedKey = null }) {
+  assertSystemInputs({ roads, economy, cities, startMinute, seedKey });
   const cityByTileId = new Map(cities.map((city) => [city.tileId, city]));
   const activeRoutes = roads.routes.filter((route) => (
     cityByTileId.has(route.fromTileId) && cityByTileId.has(route.toTileId)
@@ -33,9 +33,13 @@ export function createLandTradeSystem({ roads, economy, cities, startMinute }) {
   if (activeRoutes.length === 0) throw new Error("Land trade has no active road routes");
   const cartCount = landCartCountForCityCount(cityByTileId.size);
   const seededRoutes = [...activeRoutes]
-    .sort((a, b) => hashString32(a.id) - hashString32(b.id) || a.id.localeCompare(b.id));
+    .sort((a, b) => (
+      hashString32(landTradeSeedKey(seedKey, a.id)) - hashString32(landTradeSeedKey(seedKey, b.id)) ||
+      a.id.localeCompare(b.id)
+    ));
   const system = {
     version: 1,
+    seedKey,
     roads,
     economy,
     cityByTileId,
@@ -44,11 +48,11 @@ export function createLandTradeSystem({ roads, economy, cities, startMinute }) {
   };
   for (let index = 0; index < cartCount; index++) {
     const route = seededRoutes[index % seededRoutes.length];
-    const reverse = (hashString32(`cart-${index}`) & 1) === 1;
+    const reverse = (hashString32(landTradeSeedKey(seedKey, `cart-${index}`)) & 1) === 1;
     const originTileId = reverse ? route.toTileId : route.fromTileId;
     const cart = createCart(system, index, originTileId, route, startMinute);
     const duration = cart.arrivalMinute - cart.departureMinute;
-    const phase = hashUnit(`${cart.id}|phase`);
+    const phase = hashUnit(landTradeSeedKey(seedKey, `${cart.id}|phase`));
     cart.departureMinute -= duration * phase;
     cart.arrivalMinute -= duration * phase;
     system.carts.push(cart);
@@ -175,11 +179,13 @@ export function snapshotLandTradeSystem(system) {
   };
 }
 
-export function restoreLandTradeSystem(system, snapshot) {
+export function restoreLandTradeSystem(system, snapshot, { seedKey = system?.seedKey } = {}) {
   assertLandTradeSystem(system);
+  validateOptionalSeedKey(seedKey);
   if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.carts)) {
     throw new Error("Unsupported land trade save data");
   }
+  system.seedKey = seedKey;
   const seededCarts = system.carts;
   const seededById = new Map(seededCarts.map((cart) => [cart.id, cart]));
   const ids = new Set();
@@ -251,7 +257,9 @@ function chooseNextRoute(system, cart, originTileId) {
     const retainedCargoValue = cargoSaleValue(system.economy, destination, cart.cargo);
     const traffic = routeTraffic.get(route.id) || 0;
     const congestionMultiplier = 1 / (traffic + 1);
-    const jitter = 0.96 + hashUnit(`${cart.id}|${cart.journeySerial}|${route.id}`) * 0.08;
+    const jitter = 0.96 + hashUnit(
+      landTradeSeedKey(system.seedKey, `${cart.id}|${cart.journeySerial}|${route.id}`)
+    ) * 0.08;
     return {
       route,
       traffic,
@@ -375,17 +383,29 @@ function validateSavedCart(system, cart) {
   assertCartCargo(cart);
 }
 
-function assertSystemInputs({ roads, economy, cities, startMinute }) {
+function assertSystemInputs({ roads, economy, cities, startMinute, seedKey }) {
   if (!roads?.routeById || !roads.neighborRoutesByCityTileId) throw new Error("Land trade requires parsed roads");
   if (!economy?.portStates) throw new Error("Land trade requires a world economy");
   if (!Array.isArray(cities) || cities.length === 0) throw new Error("Land trade requires cities");
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid land trade start minute: ${startMinute}`);
+  validateOptionalSeedKey(seedKey);
 }
 
 function assertLandTradeSystem(system) {
   if (!system || system.version !== 1 || !system.roads?.routeById || !system.economy?.portStates ||
-      !(system.cityByTileId instanceof Map) || !Array.isArray(system.carts)) {
+      !(system.cityByTileId instanceof Map) || !Array.isArray(system.carts) ||
+      (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === ""))) {
     throw new Error("Invalid land trade system");
+  }
+}
+
+function landTradeSeedKey(seedKey, value) {
+  return seedKey === null ? value : `${seedKey}|${value}`;
+}
+
+function validateOptionalSeedKey(value) {
+  if (value !== null && (typeof value !== "string" || value.trim() === "")) {
+    throw new Error("Land trade seed must be null or a non-empty string");
   }
 }
 
