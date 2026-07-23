@@ -114,7 +114,7 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.NEW_COMMAND, "New Command",
     "Sail two different ship types across any number of voyages.", "lifetime", "ship:brigantine", "NEW_COMMAND"),
   achievement(ACHIEVEMENT_IDS.SHIP_COLLECTOR, "Ship Collector",
-    "Sail five different ship types across any number of voyages.", "lifetime", "action:shipyard", "SHIP_COLLECTOR"),
+    "Sail five different ship types across any number of voyages.", "lifetime", "ship:fluyt", "SHIP_COLLECTOR"),
   achievement(ACHIEVEMENT_IDS.GONE_FISHING, "Gone Fishing",
     "Catch your first fish.", "voyage", "action:fish", "GONE_FISHING"),
   achievement(ACHIEVEMENT_IDS.GOOD_HAUL, "A Good Haul",
