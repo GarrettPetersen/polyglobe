@@ -136,7 +136,7 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   achievement(ACHIEVEMENT_IDS.ALOHA_SAILOR, "Aloha, Sailor",
     "Dock at the remote village of Hawaii.", "voyage", "achievement:hawaii", "ALOHA_SAILOR"),
   achievement(ACHIEVEMENT_IDS.NO_ONE_LEFT_IN_CHAINS, "No One Left in Chains",
-    "Bring a rescued pirate captive back to their home port.", "voyage", "action:hail",
+    "Bring a rescued pirate captive back to their home port.", "voyage", "status:achievement-unlocked",
     "NO_ONE_LEFT_IN_CHAINS", { hidden: true }),
   achievement(ACHIEVEMENT_IDS.NOT_FORGOTTEN, "Not Forgotten",
     "Bring a rescued castaway back to their home port.", "voyage", "action:anchor", "NOT_FORGOTTEN",

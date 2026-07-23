@@ -134,6 +134,7 @@ test("exploration and settlement achievements use distinct semantic icons", () =
   assert.equal(icons[ACHIEVEMENT_IDS.EXPANSIONIST], "achievement:expansionist");
   assert.equal(icons[ACHIEVEMENT_IDS.COLONIST], "achievement:colonist");
   assert.equal(icons[ACHIEVEMENT_IDS.SHIP_COLLECTOR], "ship:fluyt");
+  assert.equal(icons[ACHIEVEMENT_IDS.NO_ONE_LEFT_IN_CHAINS], "status:achievement-unlocked");
   assert.equal(new Set([
     icons[ACHIEVEMENT_IDS.FOUNDER],
     icons[ACHIEVEMENT_IDS.EXPANSIONIST],
