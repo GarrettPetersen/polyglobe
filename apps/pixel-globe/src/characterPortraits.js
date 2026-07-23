@@ -313,6 +313,7 @@ export function generateSpecialPortCharacter({
   port,
   excludedSourceIds = [],
   role,
+  religionId = null,
   manifest,
   usedNames
 }) {
@@ -340,6 +341,7 @@ export function generateSpecialPortCharacter({
     }),
     skillIds: characterSkillIdsForIdentity(identityKey, { traveler: true }),
     role,
+    religionId,
     homePortTileId: port.tileId
   }, portBiographyOptions(identityKey, port)));
 }

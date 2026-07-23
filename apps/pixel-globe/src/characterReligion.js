@@ -3,6 +3,8 @@ export const RELIGION_CATALOG = Object.freeze([
   religion("eastern-orthodox", "Eastern Orthodox", "religion:orthodox"),
   religion("ethiopian-orthodox", "Ethiopian Orthodox", "religion:orthodox"),
   religion("lutheran", "Lutheran", "religion:christian"),
+  religion("reformed-protestant", "Reformed Protestant", "religion:christian"),
+  religion("quaker", "Quaker", "religion:christian"),
   religion("sunni-islam", "Sunni Muslim", "religion:islam"),
   religion("shia-islam", "Twelver Shia", "religion:islam"),
   religion("ibadi-islam", "Ibadi Muslim", "religion:islam"),

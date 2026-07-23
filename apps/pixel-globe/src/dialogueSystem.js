@@ -73,6 +73,11 @@ import { adjustDiplomaticStance, worldDiplomacyBetween } from "./worldDiplomacy.
 import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import {
+  occasionalReligiousGreeting,
+  protestantColonistReception
+} from "./religiousDialogue.js";
+import { religionById } from "./characterReligion.js";
+import {
   CUSTOM_LOADOUT_FIELDS,
   CUSTOM_LOADOUT_ID,
   SHIP_LOADOUT_PRESETS,
@@ -376,7 +381,12 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
 
 export function createShipDialogueSession(
   ship,
-  { attackReason = null, rumorText = null, cartazInspection = null } = {}
+  {
+    attackReason = null,
+    rumorText = null,
+    cartazInspection = null,
+    listenerReligionId = null
+  } = {}
 ) {
   if (attackReason !== null && (typeof attackReason !== "string" || attackReason.trim() === "")) {
     throw new Error("Ship combat hail requires a reason");
@@ -391,6 +401,7 @@ export function createShipDialogueSession(
   )) {
     throw new Error("Ship cartaz inspection requires valid enforcement terms");
   }
+  if (listenerReligionId !== null) religionById(listenerReligionId);
   return {
     kind: "ship",
     npcShipId: ship.id,
@@ -400,7 +411,8 @@ export function createShipDialogueSession(
     piracyWarningAccepted: false,
     pendingPiracyAction: null,
     rumorText,
-    cartazInspection
+    cartazInspection,
+    listenerReligionId
   };
 }
 
@@ -662,7 +674,13 @@ export function shipDialogueView(session, ship) {
     ? "Heave to and keep your hands where I can see them."
     : role === "Warship"
       ? "Keep clear. We are on patrol."
-      : "Fair winds, captain.";
+      : ship.character?.religionId && session.listenerReligionId
+        ? occasionalReligiousGreeting({
+            speakerReligionId: ship.character.religionId,
+            listenerReligionId: session.listenerReligionId,
+            key: `ship:${ship.id}|${ship.character.id || ship.character.name}`
+          }) || "Fair winds, captain."
+        : "Fair winds, captain.";
   const expressionId = ship.stormStatus
     ? "concerned"
     : role === "Pirate"
@@ -1851,7 +1869,9 @@ function greetingView(session, city, gameState, context) {
     rivalTerms: context.rivalTerms || null,
     shipyardRumor: context.shipyardRumor || null,
     rulerRumor: context.rulerRumor || null,
-    historicalGossip: context.historicalGossip || null
+    historicalGossip: context.historicalGossip || null,
+    speakerReligionId: city.character?.religionId || null,
+    listenerReligionId: gameState.playerCharacter?.religionId || null
   });
   const drunkMemoryRemark = rememberedDrunkFactorLine(session, memory);
   return {
@@ -2499,7 +2519,17 @@ function colonizationView(session, city, gameState, context) {
     if (!atOrigin) throw new Error(`${targetName} site exists before its expedition departed`);
     const stage = quest.fetchStage;
     const introduction = session.colonizationArrival && quest.fetchStageIndex === 0
-      ? `Captain, a word before you see the factor. ${history.pitch} ${stage.lead}`
+      ? [
+          "Captain, a word before you see the factor.",
+          history.pitch,
+          history.organizerReligionId && gameState.playerCharacter?.religionId
+            ? protestantColonistReception({
+                organizerReligionId: history.organizerReligionId,
+                captainReligionId: gameState.playerCharacter.religionId
+              })
+            : null,
+          stage.lead
+        ].filter(Boolean).join(" ")
       : stage.lead;
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,

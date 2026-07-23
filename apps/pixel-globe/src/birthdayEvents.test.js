@@ -10,7 +10,7 @@ import {
 } from "./birthdayEvents.js";
 import { characterWithBiography } from "./characterBiography.js";
 
-function character(id, name, month, day) {
+function character(id, name, month, day, religionId = null) {
   const birthdayPassedAtVoyageStart = month < 3 || (month === 3 && day <= 21);
   return characterWithBiography({
     id,
@@ -19,6 +19,7 @@ function character(id, name, month, day) {
     sex: id === "captain" ? "female" : "male",
     age: birthdayPassedAtVoyageStart ? 31 : 30,
     nameCulture: "maritime",
+    religionId,
     birthDate: { year: 1491, month, day }
   });
 }
@@ -64,4 +65,20 @@ test("the captain alone does not throw a birthday party for themself", () => {
   const aboard = [character("captain", "Ana Costa", 7, 10)];
   observeAboardBirthdays(memory, aboard, { year: 1522, month: 7, day: 10 });
   assert.equal(pendingBirthdayDialogueLine(memory, aboard), null);
+});
+
+test("aboard birthday exchanges occasionally acknowledge differing faiths", () => {
+  const aboard = [
+    character("captain", "Ana Costa", 2, 2, "roman-catholic"),
+    character("mate", "Marta Rao", 7, 10, "hinduism")
+  ];
+  let religiousWish = null;
+  for (let year = 1522; year < 1560 && !religiousWish; year += 1) {
+    const memory = createBirthdayMemory();
+    observeAboardBirthdays(memory, aboard, { year, month: 7, day: 10 });
+    const line = pendingBirthdayDialogueLine(memory, aboard);
+    if (/Our prayers differ/.test(line?.message || "")) religiousWish = line;
+  }
+  assert.ok(religiousWish);
+  assert.equal(religiousWish.character.id, "captain");
 });

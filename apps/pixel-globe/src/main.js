@@ -10865,7 +10865,8 @@ function openShipDialogue(shipCall, options = {}) {
     : maybeWhiteWhaleRumor(`ship:${shipCall.id}`);
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
-    rumorText: options.attackReason || options.cartazInspection ? null : rumor?.text || null
+    rumorText: options.attackReason || options.cartazInspection ? null : rumor?.text || null,
+    listenerReligionId: gameState.playerCharacter?.religionId || null
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
@@ -13504,6 +13505,7 @@ function ensureColonizationOrganizer(state, origin = null) {
     port: organizerPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "colonial-organizer",
+    religionId: quest.history.organizerReligionId,
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });

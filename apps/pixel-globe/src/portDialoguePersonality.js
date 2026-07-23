@@ -1,3 +1,8 @@
+import {
+  dietOfWormsGossip,
+  occasionalReligiousGreeting
+} from "./religiousDialogue.js";
+
 export const PORT_PERSONALITY_IDS = Object.freeze([
   "cordial",
   "vigilant",
@@ -183,7 +188,9 @@ export function portGreetingPresentationForPersonality({
   rivalTerms = null,
   shipyardRumor = null,
   rulerRumor = null,
-  historicalGossip = null
+  historicalGossip = null,
+  speakerReligionId = null,
+  listenerReligionId = null
 }) {
   if (!PORT_PERSONALITY_IDS.includes(personalityId)) {
     throw new Error(`Unknown port personality: ${personalityId}`);
@@ -193,11 +200,24 @@ export function portGreetingPresentationForPersonality({
   const baseFactory = choose(BASE_LINES[personalityId][phase], `${seed}|base`);
   const base = baseFactory(cityName);
   const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalTerms, seed });
+  const religiousGreeting = topic !== "pirates" && topic !== "storm" &&
+    speakerReligionId && listenerReligionId
+    ? occasionalReligiousGreeting({
+        speakerReligionId,
+        listenerReligionId,
+        key: seed
+      })
+    : null;
   const rulerLine = shouldTellRulerRumor(topic, rulerRumor)
     ? rulerRumorLine(personalityId, rulerRumor)
     : null;
   const historyLine = !rulerLine && shouldTellHistoricalGossip(topic, historicalGossip)
-    ? historicalGossipLine(personalityId, historicalGossip)
+    ? historicalGossipLine(
+        personalityId,
+        historicalGossip,
+        speakerReligionId,
+        listenerReligionId
+      )
     : null;
   const shipyardLine = !rulerLine && !historyLine && shouldTellShipyardRumor(personalityId, topic, shipyardRumor, seed)
     ? shipyardRumorLine(personalityId, shipyardRumor)
@@ -205,7 +225,7 @@ export function portGreetingPresentationForPersonality({
   const rumorLine = rulerLine || historyLine || shipyardLine;
   const contextLine = rumorLine || (topic ? contextLineFor(topic, personalityId, rivalTerms) : localFlavor);
   return Object.freeze({
-    text: `${base} ${contextLine}`.trim(),
+    text: `${religiousGreeting || base} ${contextLine}`.trim(),
     expressionId: rulerLine
       ? "attentive"
       : historyLine
@@ -222,7 +242,15 @@ function shouldTellHistoricalGossip(topic, gossip) {
   return Boolean(gossip) && topic !== "pirates" && topic !== "storm";
 }
 
-function historicalGossipLine(personalityId, gossip) {
+function historicalGossipLine(
+  personalityId,
+  gossip,
+  speakerReligionId,
+  listenerReligionId
+) {
+  if (gossip.id === "diet-of-worms" && speakerReligionId && listenerReligionId) {
+    return dietOfWormsGossip({ speakerReligionId, listenerReligionId });
+  }
   const report = sentence(gossip.report);
   if (personalityId === "austere") return `News from ${gossip.place}: ${report}`;
   if (personalityId === "enterprising") return `${report} ${gossip.tradeImpact}`;

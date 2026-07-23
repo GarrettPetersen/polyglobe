@@ -1,4 +1,5 @@
 import { characterAgeOnDate, validateCharacterBiography } from "./characterBiography.js";
+import { occasionalReligiousBirthdayWish } from "./religiousDialogue.js";
 
 const BIRTHDAY_MEMORY_VERSION = 1;
 const CELEBRATED_EVENT_LIMIT = 128;
@@ -128,7 +129,14 @@ function singleBirthdayLines(eventId, celebrant, wisher, date) {
       "Caught me. Very well: tonight we toast the voyage, and the next year of it."
     ]
   ];
-  const pair = variants[hashString32(`${eventId}|variant`) % variants.length];
+  const pair = [...variants[hashString32(`${eventId}|variant`) % variants.length]];
+  const religiousWish = occasionalReligiousBirthdayWish({
+    speakerReligionId: wisher.religionId,
+    listenerReligionId: celebrant.religionId,
+    listenerName: celebrant.givenName || celebrant.name,
+    key: eventId
+  });
+  if (religiousWish) pair[0] = religiousWish;
   return [
     dialogueLine(wisher.id, pair[0], "happy"),
     dialogueLine(celebrant.id, pair[1], "happy")

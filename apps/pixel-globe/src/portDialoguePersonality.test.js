@@ -142,3 +142,32 @@ test("port personalities retell regional historical news in their own voice", ()
   assert.match(reflective.text, /spoken words can travel farther/);
   assert.equal(enterprising.expressionId, "attentive");
 });
+
+test("Catholic and Lutheran factors frame the Diet of Worms differently", () => {
+  const gossip = {
+    id: "diet-of-worms",
+    place: "Worms",
+    report: "Martin Luther refused to recant before Emperor Charles V at the Diet of Worms",
+    tradeImpact: "Printers and pamphlet sellers have never been busier.",
+    reflection: "A few spoken words can travel farther than an army."
+  };
+  const catholic = portGreetingPresentationForPersonality({
+    personalityId: "austere",
+    cityName: "Augsburg",
+    localFlavor: "The harbor is busy.",
+    historicalGossip: gossip,
+    speakerReligionId: "roman-catholic",
+    listenerReligionId: "roman-catholic"
+  });
+  const lutheran = portGreetingPresentationForPersonality({
+    personalityId: "reflective",
+    cityName: "Bremen",
+    localFlavor: "The harbor is busy.",
+    historicalGossip: gossip,
+    speakerReligionId: "lutheran",
+    listenerReligionId: "lutheran"
+  });
+
+  assert.match(catholic.text, /lawful recantation/);
+  assert.match(lutheran.text, /many here call him steadfast/);
+});

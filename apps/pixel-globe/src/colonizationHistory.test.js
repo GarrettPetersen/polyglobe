@@ -99,6 +99,24 @@ test("only documented waterborne colony attacks receive specific canoe-defense p
   ]);
 });
 
+test("religious refuge colonies give their organizers explicit historical affiliations", () => {
+  const organizerReligions = new Map(
+    colonizationHistoryEntries()
+      .filter(({ organizerReligionId }) => organizerReligionId)
+      .map(({ city, organizerReligionId }) => [city, organizerReligionId])
+  );
+  assert.deepEqual(Object.fromEntries(organizerReligions), {
+    "Fort Orange": "reformed-protestant",
+    Plymouth: "reformed-protestant",
+    "New Amsterdam": "reformed-protestant",
+    Boston: "reformed-protestant",
+    Hartford: "reformed-protestant",
+    Providence: "reformed-protestant",
+    "New Haven": "reformed-protestant",
+    Philadelphia: "quaker"
+  });
+});
+
 test("Nagasaki is a Japanese port sponsored from Portugal and Fort Orange starts in 1624", () => {
   const nagasaki = colonizationTargetForCity({ city: "Nagasaki", country: "Japan" });
   const fortOrange = colonizationTargetForCity({ city: "Fort Orange", country: "United States of America" });

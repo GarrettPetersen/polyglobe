@@ -94,6 +94,25 @@ test("hailing an NPC ship identifies the captain by name", () => {
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
 });
 
+test("two Zoroastrian captains recognize one another when they hail", () => {
+  const ship = {
+    id: "hormuz-merchant",
+    label: "Dhow",
+    character: {
+      id: "captain-ardashir",
+      name: "Ardashir Yazdi",
+      religionId: "zoroastrianism"
+    }
+  };
+  const session = createShipDialogueSession(ship, {
+    listenerReligionId: "zoroastrianism"
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.match(view.text, /^Hamazor bem/);
+  assert.match(view.text, /Running in ballast/);
+});
+
 test("a white-whale rumor is delivered through an ordinary ship hail", () => {
   const ship = { id: "malacca-merchant", label: "Dhow", character: { name: "Hamid Rahman" } };
   const session = createShipDialogueSession(ship, {

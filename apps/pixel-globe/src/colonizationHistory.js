@@ -1,4 +1,5 @@
 import { tradeGoodById } from "./economy.js";
+import { religionById } from "./characterReligion.js";
 
 const FETCH_REWARDS = Object.freeze([300, 220, 240]);
 const DEFAULT_RESUPPLY_REWARD = 1500;
@@ -322,6 +323,7 @@ const HISTORIES = Object.freeze([
     established: "St. George's has turned the Sea Venture's emergency refuge into England's permanent Bermuda capital."
   }),
   history("Fort Orange", "United States of America", {
+    organizerReligionId: "reformed-protestant",
     sponsorRole: "Dutch West India Company factor",
     settlementLeaderRole: "chief factor of Fort Orange",
     basis: "The Dutch West India Company built Fort Orange in 1624 at the head of Hudson navigation as a fur-trade post near Mahican and Mohawk exchange routes.",
@@ -339,6 +341,7 @@ const HISTORIES = Object.freeze([
     established: "Fort Orange now gathers pelts at the head of Hudson navigation, a Dutch company post whose survival depends on Indigenous trade networks."
   }),
   history("Plymouth", "United States of America", {
+    organizerReligionId: "reformed-protestant",
     sponsorRole: "representative of the Leiden congregation",
     settlementLeaderRole: "governor of Plymouth",
     basis: "The Mayflower passengers settled at Patuxet in 1620 after epidemic had devastated the Wampanoag village; survival depended on Wampanoag assistance.",
@@ -356,6 +359,7 @@ const HISTORIES = Object.freeze([
     established: "Plymouth has endured at Patuxet through Wampanoag assistance and an uneasy alliance, not through providence or English preparation alone."
   }),
   history("New Amsterdam", "United States of America", {
+    organizerReligionId: "reformed-protestant",
     sponsorRole: "Dutch West India Company director",
     settlementLeaderRole: "director of New Amsterdam",
     basis: "The Dutch West India Company formed New Amsterdam at Manhattan's southern tip to govern New Netherland and protect the Hudson fur trade.",
@@ -390,6 +394,7 @@ const HISTORIES = Object.freeze([
     established: "Bridgetown now anchors English Barbados at Carlisle Bay. Its port is prospering, while the plantation system around it is becoming harsher and more dependent on coerced labor."
   }),
   history("Boston", "United States of America", {
+    organizerReligionId: "reformed-protestant",
     sponsorRole: "Massachusetts Bay organizer",
     settlementLeaderRole: "governor of Boston",
     basis: "Winthrop's fleet moved from water-poor Charlestown to Shawmut in 1630 after William Blackstone pointed out its spring.",
@@ -424,6 +429,7 @@ const HISTORIES = Object.freeze([
     established: "Trois-Rivieres has become a permanent fortified fur post at the Saint-Maurice confluence, linking French shipping to Indigenous trade routes."
   }),
   history("Hartford", "United States of America", {
+    organizerReligionId: "reformed-protestant",
     sponsorRole: "Connecticut congregation organizer",
     settlementLeaderRole: "magistrate at Hartford",
     basis: "Thomas Hooker's congregation moved from crowded Massachusetts to Saukiog on the Connecticut River, near an earlier Dutch trading fort.",
@@ -441,6 +447,7 @@ const HISTORIES = Object.freeze([
     established: "Hartford has become an English farming town on the Connecticut, beside older Native routes and just beyond the Dutch post."
   }),
   history("Providence", "United States of America", {
+    organizerReligionId: "reformed-protestant",
     sponsorRole: "friend of Roger Williams",
     settlementLeaderRole: "steward of Providence",
     basis: "Roger Williams founded Providence in 1636 after banishment, negotiating land use with Narragansett sachems Canonicus and Miantonomi.",
@@ -458,6 +465,7 @@ const HISTORIES = Object.freeze([
     established: "Providence now offers a refuge for conscience under civil government, founded through negotiation with Narragansett leaders rather than a Massachusetts patent."
   }),
   history("New Haven", "United States of America", {
+    organizerReligionId: "reformed-protestant",
     sponsorRole: "agent of Davenport and Eaton",
     settlementLeaderRole: "magistrate of New Haven",
     basis: "Davenport and Eaton's Puritan merchant company settled at Quinnipiac in 1638, seeking a strict biblical commonwealth and Atlantic trading port.",
@@ -519,6 +527,7 @@ const HISTORIES = Object.freeze([
     established: "Charles Towne now anchors Carolina as a fortified port. Its prosperity is already tied to Barbados, plantation expansion, and enslaved labor."
   }),
   history("Philadelphia", "United States of America", {
+    organizerReligionId: "quaker",
     sponsorRole: "agent of William Penn",
     settlementLeaderRole: "steward of Philadelphia",
     basis: "William Penn planned Philadelphia in 1682 between the Delaware and Schuylkill as a Quaker capital and commercial port, negotiating land with Lenape leaders.",
@@ -567,9 +576,12 @@ function history(city, country, details) {
   if (!Array.isArray(details.fetch) || details.fetch.length !== 3) {
     throw new Error(`Colonization history requires three fetch stages: ${city}`);
   }
+  const organizerReligionId = details.organizerReligionId ?? null;
+  if (organizerReligionId !== null) religionById(organizerReligionId);
   return Object.freeze({
     city,
     country,
+    organizerReligionId,
     sponsorRole: details.sponsorRole,
     settlementLeaderRole: details.settlementLeaderRole,
     basis: details.basis,
