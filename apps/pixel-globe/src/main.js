@@ -908,7 +908,10 @@ import {
   shipyardRumorForPort
 } from "./shipyards.js";
 import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
-import { migrateSavedVoyageCore } from "./saveCompatibility.js";
+import {
+  migrateSavedVoyageCore,
+  recoverSavedVoyageWorldClock
+} from "./saveCompatibility.js";
 import { restoreOrRecreateDerivedSaveState } from "./derivedSaveRecovery.js";
 import {
   appendVoyageRecord,
@@ -7619,6 +7622,13 @@ async function restoreSavedVoyage(payload) {
     shipStats: stats,
     gameState: restoredGameState
   } = migrateSavedVoyageCore(payload);
+  const restoredWorldClock = recoverSavedVoyageWorldClock(payload, restoredGameState);
+  if (restoredWorldClock.recoveredDebtClockMinutes > 0) {
+    console.warn(
+      "[pixel-globe] repaired saved world clock behind family debt ledger:",
+      restoredWorldClock.recoveredDebtClockMinutes
+    );
+  }
   const correctedPortraitSexCount = reconcileCharacterPortraitSexes(
     restoredGameState,
     characterPortraitManifest
@@ -7657,8 +7667,8 @@ async function restoreSavedVoyage(payload) {
   shipSinkDepthImage = assets.sinkDepthImage;
   shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
   shipLighting = assets.lighting;
-  weatherClockMinutes = payload.worldClock.currentMinute;
-  voyageStartClockMinutes = payload.worldClock.voyageStartMinute;
+  weatherClockMinutes = restoredWorldClock.currentMinute;
+  voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
   weatherParts = weatherClockParts(weatherClockMinutes);
   refreshWeatherState(true);
 

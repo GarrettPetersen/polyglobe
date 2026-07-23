@@ -8,7 +8,10 @@ import {
   LOCAL_SAVE_VERSION,
   readLocalSave
 } from "./localSave.js";
-import { migrateSavedVoyageCore } from "./saveCompatibility.js";
+import {
+  migrateSavedVoyageCore,
+  recoverSavedVoyageWorldClock
+} from "./saveCompatibility.js";
 
 const FIXTURE_DIRECTORY = new URL("./test-fixtures/saves/", import.meta.url);
 const FIXTURE_FILES = readdirSync(FIXTURE_DIRECTORY)
@@ -27,8 +30,10 @@ for (const fixtureName of FIXTURE_FILES) {
     assert.equal(loaded.save.version, LOCAL_SAVE_VERSION);
 
     const payload = loaded.save.payload;
+    const originalPayload = structuredClone(payload);
     const expected = compatibilityFacts(payload);
     const restored = migrateSavedVoyageCore(payload);
+    assert.deepEqual(payload, originalPayload);
 
     assert.equal(restored.gameState.version, GAME_STATE_VERSION);
     assert.deepEqual(compatibilityFacts({
@@ -50,6 +55,43 @@ for (const fixtureName of FIXTURE_FILES) {
     assert.deepEqual(repeated.savedShip, restored.savedShip);
   });
 }
+
+test("a debt checkpoint ahead of a stale saved clock advances the restored voyage", () => {
+  const payload = {
+    worldClock: {
+      currentMinute: 113877.6,
+      voyageStartMinute: 100000
+    }
+  };
+  const gameState = {
+    memory: {
+      campaignGoal: {
+        type: "family-debt",
+        lastAccruedMinute: 113924.238384
+      }
+    }
+  };
+  const recovered = recoverSavedVoyageWorldClock(payload, gameState);
+  assert.equal(recovered.currentMinute, 113924.238384);
+  assert.equal(recovered.voyageStartMinute, 100000);
+  assert.ok(Math.abs(recovered.recoveredDebtClockMinutes - 46.638384) < 1e-9);
+});
+
+test("ordinary saves retain their exact world clock", () => {
+  const payload = {
+    worldClock: {
+      currentMinute: 1200,
+      voyageStartMinute: 1000
+    }
+  };
+  assert.deepEqual(recoverSavedVoyageWorldClock(payload, {
+    memory: { campaignGoal: { type: "explorer" } }
+  }), {
+    currentMinute: 1200,
+    voyageStartMinute: 1000,
+    recoveredDebtClockMinutes: 0
+  });
+});
 
 function compatibilityFacts(payload) {
   const state = payload.gameState;

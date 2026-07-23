@@ -1,6 +1,7 @@
 import { factionById, migrateFactionIdTo1522 } from "./factions.js";
 import { migrateGameState } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { CAMPAIGN_GOAL_FAMILY_DEBT } from "./campaignGoals.js";
 
 export function migrateSavedVoyageCore(payload) {
   if (!payload || typeof payload !== "object") {
@@ -11,11 +12,11 @@ export function migrateSavedVoyageCore(payload) {
   }
 
   const savedShip = {
-    ...payload.playerShip,
+    ...structuredClone(payload.playerShip),
     factionId: migrateFactionIdTo1522(payload.playerShip.factionId)
   };
   const shipStats = shipStatsForSlug(savedShip.typeSlug);
-  const gameState = migrateGameState(payload.gameState, shipStats);
+  const gameState = migrateGameState(structuredClone(payload.gameState), shipStats);
 
   factionById(savedShip.factionId);
   if (gameState.ship?.slug !== savedShip.typeSlug) {
@@ -38,4 +39,33 @@ export function migrateSavedVoyageCore(payload) {
   }
 
   return { savedShip, shipStats, gameState };
+}
+
+export function recoverSavedVoyageWorldClock(payload, gameState) {
+  if (!payload?.worldClock || !Number.isFinite(payload.worldClock.currentMinute) ||
+      !Number.isFinite(payload.worldClock.voyageStartMinute)) {
+    throw new Error("Saved voyage world clock is invalid");
+  }
+  if (payload.worldClock.currentMinute < payload.worldClock.voyageStartMinute) {
+    throw new Error(
+      `Saved voyage clock predates its start: ` +
+      `${payload.worldClock.currentMinute} < ${payload.worldClock.voyageStartMinute}`
+    );
+  }
+
+  const goal = gameState?.memory?.campaignGoal;
+  const debtCheckpointMinute = goal?.type === CAMPAIGN_GOAL_FAMILY_DEBT
+    ? goal.lastAccruedMinute
+    : null;
+  if (debtCheckpointMinute !== null && !Number.isFinite(debtCheckpointMinute)) {
+    throw new Error(`Saved family debt checkpoint is invalid: ${debtCheckpointMinute}`);
+  }
+  const currentMinute = debtCheckpointMinute !== null
+    ? Math.max(payload.worldClock.currentMinute, debtCheckpointMinute)
+    : payload.worldClock.currentMinute;
+  return Object.freeze({
+    currentMinute,
+    voyageStartMinute: payload.worldClock.voyageStartMinute,
+    recoveredDebtClockMinutes: currentMinute - payload.worldClock.currentMinute
+  });
 }

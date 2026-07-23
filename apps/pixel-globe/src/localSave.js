@@ -5,8 +5,11 @@ export const LOCAL_SAVE_VERSION = 1;
 
 export function writeLocalSave(payload, { storage = defaultStorage(), savedAt = Date.now() } = {}) {
   const save = createLocalSave(payload, savedAt);
-  storage.setItem(LOCAL_SAVE_STORAGE_KEY, JSON.stringify(save));
-  return save;
+  const serialized = JSON.stringify(save);
+  storage.setItem(LOCAL_SAVE_STORAGE_KEY, serialized);
+  const persisted = JSON.parse(serialized);
+  validateLocalSave(persisted);
+  return persisted;
 }
 
 export function readLocalSave({ storage = defaultStorage() } = {}) {

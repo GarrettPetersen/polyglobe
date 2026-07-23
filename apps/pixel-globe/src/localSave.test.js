@@ -20,6 +20,20 @@ test("local saves round trip through a single versioned slot", () => {
   assert.deepEqual(loaded.save.payload, payload);
 });
 
+test("the returned save and live payload cannot mutate each other or persisted storage", () => {
+  const storage = memoryStorage();
+  const payload = savePayload();
+  const written = writeLocalSave(payload, { storage, savedAt: 123456 });
+
+  payload.gameState.version = 99;
+  assert.equal(written.payload.gameState.version, 8);
+
+  written.payload.gameState.version = 77;
+  const loaded = readLocalSave({ storage });
+  assert.equal(loaded.status, "ready");
+  assert.equal(loaded.save.payload.gameState.version, 8);
+});
+
 test("missing, malformed, and incompatible saves never crash loading", () => {
   const storage = memoryStorage();
   assert.equal(readLocalSave({ storage }).status, "empty");
