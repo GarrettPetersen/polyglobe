@@ -118,6 +118,33 @@ test("explorer reports each wonder once and uses the dynamic catalog total", () 
   assert.equal(goal.status, CAMPAIGN_GOAL_COMPLETE);
 });
 
+test("adding a wonder preserves an existing patron lead from an older save", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
+  goal.currentLeadDiscoveryId = "lake-b";
+  goal.totalWonderCount = 1;
+
+  const outcome = settleExplorerHomecoming(goal, {
+    discoveredIds: new Set(),
+    wonderCatalog: [
+      ...WONDERS,
+      {
+        id: "landmark-great-barrier-reef",
+        kind: "landmark",
+        displayName: "Great Barrier Reef",
+        lat: -18.4,
+        lon: 147.2
+      }
+    ],
+    homePort: HOME,
+    nextLeadDiscoveryId: goal.currentLeadDiscoveryId
+  });
+
+  assert.equal(goal.currentLeadDiscoveryId, "lake-b");
+  assert.equal(goal.totalWonderCount, 3);
+  assert.equal(outcome.nextLeadDiscoveryId, "lake-b");
+  assert.equal(outcome.completed, false);
+});
+
 test("explorer rewards scale with distance and pay mountains half as much", () => {
   const antipode = { id: "far-wonder", kind: "landmark", lat: -HOME.lat, lon: HOME.lon - 180 };
   const farMountain = { ...antipode, id: "far-mountain", kind: "mountain" };

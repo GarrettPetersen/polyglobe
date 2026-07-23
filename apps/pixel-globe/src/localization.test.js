@@ -70,6 +70,29 @@ test("every translated catalog covers the complete English key set", () => {
   assert.equal(translate(LANGUAGE_KOREAN, "options.language"), "언어");
 });
 
+test("the Great Barrier Reef discovery and patron exchange are localized everywhere", () => {
+  const keys = [
+    "discovery.greatBarrierReef.name",
+    "discovery.greatBarrierReef.notice",
+    "discovery.greatBarrierReef.detail",
+    "discovery.greatBarrierReef.captain",
+    "discovery.greatBarrierReef.reportCaptain",
+    "discovery.greatBarrierReef.reportPatron"
+  ];
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    for (const key of keys) {
+      const value = translate(id, key);
+      assert.ok(value.length > 0, `${id} has an empty ${key}`);
+      if (id !== LANGUAGE_ENGLISH) {
+        assert.notEqual(value, translate(LANGUAGE_ENGLISH, key), `${id} retained English for ${key}`);
+      }
+    }
+  }
+  assert.equal(translate(LANGUAGE_CHINESE_SIMPLIFIED, keys[0]), "大堡礁");
+  assert.equal(translate(LANGUAGE_JAPANESE, keys[0]), "グレート・バリア・リーフ");
+  assert.equal(translate(LANGUAGE_KOREAN, keys[0]), "그레이트 배리어 리프");
+});
+
 test("controller icon preferences use localized mode and platform labels", () => {
   const expected = new Map([
     [LANGUAGE_ENGLISH, ["AUTOMATIC", "NINTENDO", "GENERIC"]],

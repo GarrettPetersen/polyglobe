@@ -12,6 +12,7 @@ import {
   EL_DORADO_DISCOVERY_LON,
   EL_DORADO_DISCOVERY_RADIUS_PX,
   GRAND_CANAL_DISCOVERY_ID,
+  GREAT_BARRIER_REEF_DISCOVERY_ID,
   GREAT_PYRAMID_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
@@ -57,7 +58,7 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
     navigationMask,
     pixelsPerRadian: 2450
   });
-  assert.equal(discoveries.length, 19);
+  assert.equal(discoveries.length, 20);
   assert.equal(discoveries[0].id, GREAT_PYRAMID_DISCOVERY_ID);
   assert.equal(discoveries[1].id, LAKE_VICTORIA_DISCOVERY_ID);
   assert.equal(discoveries[1].radiusPx, LAKE_VICTORIA_DISCOVERY_RADIUS_PX);
@@ -88,6 +89,12 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.equal(grandCanal.spriteKey, null);
   assert.equal(grandCanal.historicity, "historical");
   assert.equal(grandCanal.routeDirections.length, 8);
+  const reef = discoveries.find((item) => item.id === GREAT_BARRIER_REEF_DISCOVERY_ID);
+  assert.ok(reef);
+  assert.equal(reef.displayName, "Great Barrier Reef");
+  assert.equal(reef.spriteKey, "coral_01");
+  assert.equal(reef.underwater, true);
+  assert.equal(navigationMask[reef.spriteTileId], 1);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.kind, "achievement");
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.countsTowardExplorerGoal, true);
   assert.equal(CIRCUMNAVIGATION_DISCOVERY.explorerLeadAssignable, false);
@@ -181,6 +188,11 @@ test("world discovery registry is unique, complete, and explicit about historici
   const circumnavigationReport = explorerReportDialogueForDiscovery(CIRCUMNAVIGATION_DISCOVERY);
   assert.match(circumnavigationReport.player, /world joined behind us/i);
   assert.match(circumnavigationReport.patron, /scholar's conjecture/i);
+  const reefReport = explorerReportDialogueForDiscovery(
+    WORLD_DISCOVERY_SPECS.find((item) => item.id === GREAT_BARRIER_REEF_DISCOVERY_ID)
+  );
+  assert.match(reefReport.player, /coral gardens stretched beyond sight/i);
+  assert.match(reefReport.patron, /living rampart/i);
 });
 
 test("legendary discoveries are recorded alongside historical landmarks", () => {
@@ -206,6 +218,9 @@ test("captains react to discoveries outside their home region", () => {
   const lakeVictoria = WORLD_DISCOVERY_SPECS.find((item) => item.id === LAKE_VICTORIA_DISCOVERY_ID);
   const greatPyramid = WORLD_DISCOVERY_SPECS.find((item) => item.id === GREAT_PYRAMID_DISCOVERY_ID);
   const greatWall = WORLD_DISCOVERY_SPECS.find((item) => item.id === "landmark-great-wall");
+  const greatBarrierReef = WORLD_DISCOVERY_SPECS.find(
+    (item) => item.id === GREAT_BARRIER_REEF_DISCOVERY_ID
+  );
 
   assert.equal(
     captainDialogueForDiscovery(lakeVictoria, { startRegion: "europe" }),
@@ -215,6 +230,7 @@ test("captains react to discoveries outside their home region", () => {
   assert.match(captainDialogueForDiscovery(greatPyramid, { startRegion: "india" }), /Great Pyramid/);
   assert.equal(captainDialogueForDiscovery(greatWall, { startRegion: "east-asia" }), null);
   assert.match(captainDialogueForDiscovery(greatWall, { startRegion: "europe" }), /beyond the horizon/);
+  assert.match(captainDialogueForDiscovery(greatBarrierReef, { startRegion: "europe" }), /sea is alive/i);
   assert.equal(captainDialogueForDiscovery(CIRCUMNAVIGATION_DISCOVERY, { startRegion: "europe" }), null);
 });
 

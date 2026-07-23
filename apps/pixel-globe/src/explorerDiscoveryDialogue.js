@@ -71,6 +71,10 @@ const WORLD_REPORTS = new Map(Object.entries({
     "Lake Titicaca lies beneath snow-covered Andes, yet its water spreads like a sea among the high plains. Reed boats and floating reed islands move upon its deep blue surface.",
     "A maritime world raised into the mountains. Record how its people build with reeds where timber is scarce; ingenuity belongs in our book beside grandeur."
   ),
+  "landmark-great-barrier-reef": exchange(
+    "For days the sea off Australia changed color beneath us. Coral gardens stretched beyond sight, alive with fish, yet hidden just below the surface.",
+    "A living rampart longer than any wall built by kings. Mark every passage carefully; a wonder beneath the sea is also a navigator's peril."
+  ),
   "legend-el-dorado": exchange(
     "I followed the golden stories beyond every sensible chart, and there it was: El Dorado, bright enough to make seasoned sailors forget how to speak.",
     "For once, the wildest rumor was too modest. We shall record what you saw, though every reader will accuse us of invention. I confess I might have done the same."

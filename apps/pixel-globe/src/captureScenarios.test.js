@@ -29,10 +29,20 @@ test("capture scenario lookup is explicit and fails for unknown ids", () => {
   assert.ok(captureScenarioIds().includes("icosahedron-earth-cape-horn"));
   assert.ok(captureScenarioIds().includes("turtle-ship-war"));
   assert.ok(captureScenarioIds().includes("land-trade"));
+  assert.ok(captureScenarioIds().includes("great-barrier-reef"));
   assert.ok(captureScenarioIds().includes("benchmark-combat-hotspot"));
   assert.equal(captureScenarioFromSearch(""), null);
   assert.equal(captureScenarioFromSearch("?capture=turtle-ship-war").player.factionId, "joseon");
   assert.throws(() => captureScenarioFromSearch("?capture=missing"), /Unknown capture scenario/);
+});
+
+test("Great Barrier Reef capture stages a ship over the underwater discovery", () => {
+  const scenario = captureScenarioFromSearch("?capture=great-barrier-reef");
+  assert.equal(scenario.player.lat, -18.4);
+  assert.equal(scenario.player.lon, 147.2);
+  assert.equal(scenario.sequence.kind, "explore");
+  assert.equal(scenario.sequence.discoveryName, "Great Barrier Reef");
+  assert.deepEqual(scenario.encounters, []);
 });
 
 test("combat benchmark stages a damaged merchant amid eastern Mediterranean fighting", () => {

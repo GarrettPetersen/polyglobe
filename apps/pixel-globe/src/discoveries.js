@@ -1,6 +1,7 @@
 import { findNearestTileId } from "./geodesic.js";
 
 export const GREAT_PYRAMID_DISCOVERY_ID = "landmark-great-pyramid";
+export const GREAT_BARRIER_REEF_DISCOVERY_ID = "landmark-great-barrier-reef";
 export const LAKE_VICTORIA_DISCOVERY_ID = "landmark-lake-victoria";
 export const LAKE_VICTORIA_DISCOVERY_RADIUS_PX = 60;
 export const GRAND_CANAL_DISCOVERY_ID = "landmark-grand-canal";
@@ -120,6 +121,21 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     captainDialogue: "A vast lake beneath the Andes, higher than any sea I know."
   }),
   {
+    id: GREAT_BARRIER_REEF_DISCOVERY_ID,
+    kind: "landmark",
+    displayName: "Great Barrier Reef",
+    notice: "You have discovered the Great Barrier Reef",
+    detail: "Coral Sea, northeast Australia",
+    lat: -18.4,
+    lon: 147.2,
+    radiusPx: 68,
+    spriteKey: "coral_01",
+    underwater: true,
+    historicity: "historical",
+    region: "oceania",
+    captainDialogue: "The sea is alive beneath us—coral gardens stretching farther than the eye can follow!"
+  },
+  {
     id: EL_DORADO_DISCOVERY_ID,
     kind: "legend",
     displayName: "El Dorado",
@@ -194,7 +210,9 @@ export function buildWorldDiscoveries(graph, directionIndex, placement) {
   return navigationDistances.map(({ spec, direction, routeDirections, navigationDistancePx }) => {
     const tileId = findNearestTileId(graph, directionIndex, direction);
     const spriteTileId = spec.spriteKey
-      ? findDedicatedLandmarkTile(spec, tileId, graph, placement)
+      ? spec.underwater
+        ? findNearestNavigableTile(direction, graph, placement)
+        : findDedicatedLandmarkTile(spec, tileId, graph, placement)
       : null;
     return Object.freeze({
       ...spec,
@@ -275,17 +293,31 @@ function validateLandmarkPlacement(graph, placement) {
 
 function nearestNavigableDistancePx(direction, graph, placement) {
   validateLandmarkPlacement(graph, placement);
+  const tileId = findNearestNavigableTile(direction, graph, placement);
+  const offset = tileId * 3;
+  const dot = direction[0] * graph.centers[offset] +
+    direction[1] * graph.centers[offset + 1] +
+    direction[2] * graph.centers[offset + 2];
+  return Math.acos(Math.max(-1, Math.min(1, dot))) * placement.pixelsPerRadian;
+}
+
+function findNearestNavigableTile(direction, graph, placement) {
+  validateLandmarkPlacement(graph, placement);
   let bestDot = -1;
+  let bestTileId = -1;
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
     if (!placement.navigationMask[tileId]) continue;
     const offset = tileId * 3;
     const dot = direction[0] * graph.centers[offset] +
       direction[1] * graph.centers[offset + 1] +
       direction[2] * graph.centers[offset + 2];
-    if (dot > bestDot) bestDot = dot;
+    if (dot > bestDot) {
+      bestDot = dot;
+      bestTileId = tileId;
+    }
   }
-  if (bestDot < -0.5) throw new Error("World discoveries require at least one navigable globe tile");
-  return Math.acos(Math.max(-1, Math.min(1, bestDot))) * placement.pixelsPerRadian;
+  if (bestTileId < 0) throw new Error("World discoveries require at least one navigable globe tile");
+  return bestTileId;
 }
 
 function tileOrNeighborsIntersect(tileId, graph, blockedTileIds) {

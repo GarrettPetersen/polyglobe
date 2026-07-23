@@ -448,6 +448,7 @@ import {
 import {
   CIRCUMNAVIGATION_DISCOVERY,
   EL_DORADO_DISCOVERY_ID,
+  GREAT_BARRIER_REEF_DISCOVERY_ID,
   WORLD_DISCOVERY_SPRITE_KEYS,
   buildWorldDiscoveries,
   captainDialogueForDiscovery,
@@ -455,6 +456,11 @@ import {
   mountainDiscovery,
   restrictMountainsToNavigableView
 } from "./discoveries.js";
+import {
+  GREAT_BARRIER_REEF_ALPHA,
+  GREAT_BARRIER_REEF_SPRITE_KEYS,
+  buildGreatBarrierReef
+} from "./greatBarrierReef.js";
 import { validateExplorerReportDialogueCatalog } from "./explorerDiscoveryDialogue.js";
 import {
   beginShipHandoverDialogue,
@@ -1384,7 +1390,7 @@ const CLOUD_FADE_RATIO = 0.22;
 const CLOUD_ANCHOR_JITTER_PX = 3;
 const MAX_LOCAL_WEATHER_CLOUDS = 36;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
-const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-2";
+const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-3";
 const VEHICLE_ASSET_VERSION = "model-flag-anchors-1";
 const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_HULL_FOOTPRINTS_URL = `assets/vehicles/unity-ships/hull-footprints.json?v=${VEHICLE_ASSET_VERSION}`;
@@ -2066,6 +2072,7 @@ let earthRows;
 let earthById;
 let mountainLandmarks;
 let worldDiscoveries = [];
+let greatBarrierReef = [];
 let discoveryCatalog = [];
 let discoveryCatalogById = new Map();
 let discoveryNotice = null;
@@ -2621,6 +2628,15 @@ async function main() {
     navigationMask: oceanReachableNavigationMask,
     pixelsPerRadian: PIXELS_PER_RADIAN
   });
+  const greatBarrierReefDiscovery = worldDiscoveries.find(
+    (discovery) => discovery.id === GREAT_BARRIER_REEF_DISCOVERY_ID
+  );
+  if (!greatBarrierReefDiscovery) throw new Error("Great Barrier Reef discovery is missing");
+  greatBarrierReef = buildGreatBarrierReef({
+    graph,
+    navigationMask: oceanReachableNavigationMask,
+    discoveryTileId: greatBarrierReefDiscovery.spriteTileId
+  });
   discoveryCatalog = [
     ...mountainLandmarks.famous.map(mountainDiscovery),
     ...worldDiscoveries,
@@ -2981,7 +2997,11 @@ function loadTerrainImages() {
 }
 
 async function loadWorldDiscoveryImages() {
-  const entries = await Promise.all(WORLD_DISCOVERY_SPRITE_KEYS.map(async (spriteKey) => {
+  const spriteKeys = [...new Set([
+    ...WORLD_DISCOVERY_SPRITE_KEYS,
+    ...GREAT_BARRIER_REEF_SPRITE_KEYS
+  ])];
+  const entries = await Promise.all(spriteKeys.map(async (spriteKey) => {
     const image = await loadAssetImage(
       `assets/terrain/resurrect-64/${spriteKey}.png?v=${WORLD_DISCOVERY_ASSET_VERSION}`,
       `world discovery image: ${spriteKey}`
@@ -18975,6 +18995,7 @@ function render(nowMs) {
   });
   const shipLight = shipSunLightState();
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
+    drawGreatBarrierReef(chart, nowMs);
     const fishCalls = drawFishIndividuals(chart, nowMs);
     drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
     drawPrecipitation(chart, nowMs, offset);
@@ -19142,7 +19163,7 @@ function drawStormLightningFlash(nowMs) {
 
 function drawWorldDiscoverySprites(activeChart) {
   for (const discovery of worldDiscoveries) {
-    if (!discovery.spriteKey) continue;
+    if (!discovery.spriteKey || discovery.underwater) continue;
     const image = worldDiscoveryImages.get(discovery.spriteKey);
     if (!image) throw new Error(`Missing world discovery image: ${discovery.spriteKey}`);
     const point = worldDiscoveryLocalPoint(discovery, activeChart);
@@ -19153,6 +19174,44 @@ function drawWorldDiscoverySprites(activeChart) {
       Math.round(point.y - TILE_ART_HALF)
     );
   }
+}
+
+function drawGreatBarrierReef(activeChart, nowMs) {
+  const refractionTime = reducedMotionPreferred ? 0 : nowMs;
+  for (const coral of greatBarrierReef) {
+    const call = activeChart.tileById.get(coral.tileId);
+    if (!call) continue;
+    const image = worldDiscoveryImages.get(coral.spriteKey);
+    if (!image) throw new Error(`Missing Great Barrier Reef image: ${coral.spriteKey}`);
+    drawUnderwaterWorldSprite(
+      image,
+      Math.round(call.drawSurfaceX - TILE_ART_HALF),
+      Math.round(call.drawSurfaceY - TILE_ART_HALF),
+      refractionTime,
+      coral.seed
+    );
+  }
+}
+
+function drawUnderwaterWorldSprite(image, x, y, nowMs, seed) {
+  ctx.save();
+  ctx.globalAlpha = GREAT_BARRIER_REEF_ALPHA;
+  for (let sourceY = 0; sourceY < TILE_ART_SIZE; sourceY += SHIP_REFRACTION_BAND_HEIGHT) {
+    const bandHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, TILE_ART_SIZE - sourceY);
+    const offsetX = liveShipRefractionOffset(sourceY, nowMs, seed);
+    ctx.drawImage(
+      image,
+      0,
+      sourceY,
+      TILE_ART_SIZE,
+      bandHeight,
+      x + offsetX,
+      y + sourceY,
+      TILE_ART_SIZE,
+      bandHeight
+    );
+  }
+  ctx.restore();
 }
 
 function drawSelectableInteractionOutlines(nowMs) {
@@ -22516,13 +22575,14 @@ function drawDiscoveriesMenu() {
       }
       const textX = listX + 42;
       const textWidth = DISCOVERIES_PANEL_W - 67;
+      const localizedName = renderedUiText(entry.displayName).toUpperCase();
       drawOptionsText(
-        fitPixelText(entry.displayName.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth),
+        fitPixelText(localizedName, PIXEL_FONT_SMALL_8, textWidth),
         textX,
         y + 7,
         { color: PIRATE_MENU_INK }
       );
-      const detail = fitPixelText(entry.detail.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
+      const detail = fitPixelText(renderedUiText(entry.detail).toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
       ctx.fillStyle = PIRATE_MENU_INK_MUTED;
       drawPixelText(detail, textX, y + 20, { font: PIXEL_FONT_SMALL_8 });
     });

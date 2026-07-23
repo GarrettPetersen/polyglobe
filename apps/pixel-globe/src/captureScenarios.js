@@ -109,6 +109,25 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: []
   }),
+  "great-barrier-reef": scenario({
+    id: "great-barrier-reef",
+    title: "Great Barrier Reef Discovery",
+    seed: "great-barrier-reef-qa-v1",
+    player: {
+      factionId: "portugal",
+      shipSlug: "caravel",
+      lat: -18.4,
+      lon: 147.2,
+      headingDeg: 45,
+      activePlaySeconds: 60
+    },
+    world: { day: 196, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: [],
+    sequence: trailerSequence("explore", "reef", {
+      discoveryName: "Great Barrier Reef"
+    })
+  }),
   "benchmark-busy-world": scenario({
     id: "benchmark-busy-world",
     title: "Busy World Performance Benchmark",
