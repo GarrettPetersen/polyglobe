@@ -20,7 +20,9 @@
 
 @font-face {
   font-family: "zpix";
-  src: url("../assets/fonts/zpix.ttf") format("truetype");
+  src:
+    url("../assets/fonts/zpix.woff2?v=web-1") format("woff2"),
+    url("../assets/fonts/zpix.ttf?v=web-1") format("truetype");
   font-display: block;
 }
 
