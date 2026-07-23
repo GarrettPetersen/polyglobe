@@ -20,6 +20,7 @@ const contentTypes = new Map([
   [".png", "image/png"],
   [".ogg", "audio/ogg"],
   [".ttf", "font/ttf"],
+  [".woff2", "font/woff2"],
   [".ico", "image/x-icon"]
 ]);
 

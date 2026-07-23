@@ -133,15 +133,24 @@ test("the Latin, CJK, Cyrillic, Polish, and Korean pixel fonts ship at native sc
     "Silkscreen-Regular.ttf",
     "dogicapixel.ttf",
     "pixel_pirate.ttf",
+    "pixel_pirate.woff2",
     "zpix.ttf"
   ]);
 
-  const [mainSource, localizationSource, stylesSource, credits, pixelPirateFont] = await Promise.all([
+  const [
+    mainSource,
+    localizationSource,
+    stylesSource,
+    credits,
+    pixelPirateFont,
+    pixelPirateWoff2
+  ] = await Promise.all([
     readFile(new URL("./main.js", import.meta.url), "utf8"),
     readFile(new URL("./localization.js", import.meta.url), "utf8"),
     readFile(new URL("./styles.css", import.meta.url), "utf8"),
     readFile(new URL("../public/assets/CREDITS.md", import.meta.url), "utf8"),
-    readFile(new URL("../public/assets/fonts/pixel_pirate.ttf", import.meta.url))
+    readFile(new URL("../public/assets/fonts/pixel_pirate.ttf", import.meta.url)),
+    readFile(new URL("../public/assets/fonts/pixel_pirate.woff2", import.meta.url))
   ]);
   assert.equal(mainSource.includes("Tiny5"), false);
   assert.equal(stylesSource.includes("Tiny5"), false);
@@ -151,11 +160,15 @@ test("the Latin, CJK, Cyrillic, Polish, and Korean pixel fonts ship at native sc
   assert.match(localizationSource, /smallFont: '11px "Galmuri11", monospace'/);
   assert.match(mainSource, /8px \\"Pixel Pirate\\"/);
   assert.match(stylesSource, /font-family: "Pixel Pirate"/);
-  assert.match(stylesSource, /pixel_pirate\.ttf\?v=r-kern-1/);
+  assert.match(
+    stylesSource,
+    /pixel_pirate\.woff2\?v=r-kern-2[\s\S]*pixel_pirate\.ttf\?v=r-kern-2/
+  );
   assert.match(credits, /SparklyDest.*Pixel Pirate.*CC BY-SA 3\.0.*DaFont/);
   assert.match(credits, /Lee Minseo.*Galmuri11.*SIL Open Font License 1\.1/);
   assert.match(pixelPirateFont.toString("latin1"), /Copyright SparklyDest 2011/);
   assert.match(pixelPirateFont.toString("latin1"), /Creative Commons Attribution Share Alike/);
+  assert.equal(pixelPirateWoff2.toString("ascii", 0, 4), "wOF2");
   assert.equal(stylesSource.includes('font-family: "zpix"'), true);
   assert.equal(stylesSource.includes('font-family: "Galmuri11"'), true);
 });

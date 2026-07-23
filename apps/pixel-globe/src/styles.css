@@ -12,7 +12,9 @@
 
 @font-face {
   font-family: "Pixel Pirate";
-  src: url("../assets/fonts/pixel_pirate.ttf?v=r-kern-1") format("truetype");
+  src:
+    url("../assets/fonts/pixel_pirate.woff2?v=r-kern-2") format("woff2"),
+    url("../assets/fonts/pixel_pirate.ttf?v=r-kern-2") format("truetype");
   font-display: block;
 }
 
