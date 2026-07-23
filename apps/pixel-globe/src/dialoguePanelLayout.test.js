@@ -70,7 +70,10 @@ test("portrait greetings use a compact content-height panel", () => {
   });
 
   assert.deepEqual(layout.panel, { x: 6, y: 96, w: 244, h: 117 });
-  assert.deepEqual(layout.portrait, { x: 22, y: 40 });
+  assert.deepEqual(layout.portraits, {
+    left: { x: 22, y: 40 },
+    right: { x: 170, y: 40 }
+  });
   assert.ok(layout.panel.y + layout.panel.h < 455 * 0.5);
 });
 
@@ -92,7 +95,10 @@ test("long dialogue clamps to the available height for scrolling", () => {
   });
 
   assert.deepEqual(layout.panel, { x: 6, y: 6, w: 244, h: 442 });
-  assert.deepEqual(layout.portrait, { x: 22, y: 6 });
+  assert.deepEqual(layout.portraits, {
+    left: { x: 22, y: 6 },
+    right: { x: 170, y: 6 }
+  });
 });
 
 test("landscape greetings remain compact without moving the portrait down", () => {
@@ -103,7 +109,10 @@ test("landscape greetings remain compact without moving the portrait down", () =
   });
 
   assert.deepEqual(layout.panel, { x: 6, y: 78, w: 443, h: 127 });
-  assert.deepEqual(layout.portrait, { x: 22, y: 22 });
+  assert.deepEqual(layout.portraits, {
+    left: { x: 22, y: 22 },
+    right: { x: 369, y: 22 }
+  });
 });
 
 test("dialogue actions stay inside the panel when text requests too much height", () => {

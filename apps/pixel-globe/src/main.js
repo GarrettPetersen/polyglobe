@@ -753,6 +753,13 @@ import {
   dialogueOptionWindow,
   dialoguePanelGeometry
 } from "./dialoguePanelLayout.js";
+import {
+  DIALOGUE_PORTRAIT_TONE_ACTIVE,
+  createDialoguePortraitStageState,
+  dialoguePortraitStageFrames,
+  dialoguePortraitToneHex,
+  synchronizeDialoguePortraitStage
+} from "./dialoguePortraitStage.js";
 import { controlTextLayout } from "./controlTextLayout.js";
 import {
   INTERACTION_INPUT,
@@ -2277,6 +2284,7 @@ let worldShipSinkEffects = [];
 const portraitFrameStore = createPortraitFrameStore();
 const portraitPromiseCache = new Map();
 const grayscalePortraitCanvasCache = new WeakMap();
+const dialoguePortraitToneCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
 let playerWindState = null;
@@ -9888,7 +9896,8 @@ function createDialogueLayoutState() {
     previousRect: null,
     nextRect: null,
     customLoadoutSliderRects: [],
-    activeCustomLoadoutSliderKey: null
+    activeCustomLoadoutSliderKey: null,
+    portraitStage: createDialoguePortraitStageState()
   };
 }
 
@@ -12291,6 +12300,98 @@ function currentDialogueSubject() {
     };
   }
   return currentDialogueCity();
+}
+
+function currentDialoguePortraitParticipants(subject = currentDialogueSubject()) {
+  const speakerCharacter = subject?.character;
+  if (!speakerCharacter?.id) throw new Error("Dialogue speaker has no character identity");
+  const captain = gameState?.playerCharacter || null;
+
+  if (dialogueState.kind === "rescued-traveler") {
+    const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
+    const reunionExchange = dialogueState.phase === "homecoming" &&
+      quest.familySurvived &&
+      dialogueState.stepIndex <= 1;
+    if (reunionExchange) {
+      return dialoguePortraitPair(quest.character, quest.familyMember, speakerCharacter);
+    }
+    return dialoguePortraitPair(captain, speakerCharacter, speakerCharacter);
+  }
+
+  if (dialogueState.kind === "campaign-goal") {
+    const entryIndex = dialogueState.stepIndex;
+    const entry = dialogueState.steps[entryIndex];
+    const companion = dialogueState.companionCharacter || null;
+    const companionExchange = companion && (
+      entry.speaker === "companion" ||
+      dialogueState.steps[entryIndex - 1]?.speaker === "companion" ||
+      dialogueState.steps[entryIndex + 1]?.speaker === "companion"
+    );
+    const counterpart = companionExchange ? companion : campaignGoalContactCharacter();
+    return dialoguePortraitPair(captain, counterpart, speakerCharacter);
+  }
+
+  if (dialogueState.kind === "port") {
+    const portFactor = portCityCharacters?.get(dialogueState.cityTileId) ||
+      chartPortCallById(dialogueState.portId)?.character ||
+      null;
+    return dialoguePortraitPair(captain, speakerCharacter.id === captain?.id ? portFactor : speakerCharacter, speakerCharacter);
+  }
+
+  return dialoguePortraitPair(captain, speakerCharacter, speakerCharacter);
+}
+
+function dialoguePortraitPair(leftCharacter, rightCharacter, speakerCharacter) {
+  if (!speakerCharacter?.id) throw new Error("Dialogue portrait pair requires a speaker");
+  if (!leftCharacter?.id) {
+    return {
+      leftCharacter: speakerCharacter,
+      rightCharacter: null,
+      speakerCharacter
+    };
+  }
+  if (!rightCharacter?.id || rightCharacter.id === leftCharacter.id) {
+    if (speakerCharacter.id !== leftCharacter.id) {
+      throw new Error(`Dialogue speaker ${speakerCharacter.id} has no staged counterpart`);
+    }
+    return {
+      leftCharacter,
+      rightCharacter: null,
+      speakerCharacter
+    };
+  }
+  if (![leftCharacter.id, rightCharacter.id].includes(speakerCharacter.id)) {
+    throw new Error(`Dialogue speaker ${speakerCharacter.id} is outside the staged pair`);
+  }
+  return {
+    leftCharacter,
+    rightCharacter,
+    speakerCharacter
+  };
+}
+
+function synchronizeCurrentDialoguePortraitStage(nowMs, view = currentDialogueView()) {
+  const participants = currentDialoguePortraitParticipants();
+  synchronizeDialoguePortraitStage(dialogueLayout.portraitStage, {
+    leftCharacter: participants.leftCharacter,
+    rightCharacter: participants.rightCharacter,
+    speakerId: participants.speakerCharacter.id,
+    expressionId: view.expressionId || "neutral",
+    nowMs
+  });
+  const stage = dialoguePortraitStageFrames(dialogueLayout.portraitStage, nowMs);
+  const characterById = new Map([
+    [participants.leftCharacter.id, participants.leftCharacter],
+    ...(participants.rightCharacter ? [[participants.rightCharacter.id, participants.rightCharacter]] : [])
+  ]);
+  return {
+    ...stage,
+    frames: stage.frames.map((frame) => {
+      const character = characterById.get(frame.characterId);
+      if (!character) throw new Error(`Dialogue portrait stage lost character ${frame.characterId}`);
+      return { ...frame, character };
+    })
+  };
 }
 
 function currentDialoguePassenger() {
@@ -31302,12 +31403,24 @@ function drawDialogueOverlay(nowMs) {
       : [];
   }
 
-  drawDialoguePortrait(
-    subject.character,
-    view.expressionId,
-    geometry.portrait.x,
-    geometry.portrait.y
-  );
+  const portraitStage = synchronizeCurrentDialoguePortraitStage(nowMs, view);
+  const stagedPortraits = [...portraitStage.frames].sort((a, b) => (
+    Number(a.characterId === subject.character.id) - Number(b.characterId === subject.character.id)
+  ));
+  for (const frame of stagedPortraits) {
+    const anchor = geometry.portraits[frame.side];
+    drawDialoguePortrait(
+      frame.character,
+      frame.expressionId,
+      anchor.x,
+      anchor.y + frame.offsetY,
+      {
+        flipX: frame.side === "left",
+        tone: frame.tone
+      }
+    );
+  }
+  if (portraitStage.animating) dirty = true;
 
   drawPiratePaperPanel(panel);
   ctx.strokeStyle = PIRATE_MENU_INK;
@@ -31855,8 +31968,63 @@ function drawDialoguePortrait(character, expressionId, x, y, options = {}) {
   const expression = characterExpression(character, expressionId || "neutral");
   const image = dialoguePortraitImage(character, expression);
   if (!image) return;
-  const source = options.grayscale ? grayscalePortraitCanvas(image) : image;
-  ctx.drawImage(source, x, y);
+  const tone = options.tone ?? DIALOGUE_PORTRAIT_TONE_ACTIVE;
+  const source = options.grayscale
+    ? grayscalePortraitCanvas(image)
+    : tone === DIALOGUE_PORTRAIT_TONE_ACTIVE
+      ? image
+      : dialoguePortraitToneCanvas(image, tone);
+  const drawX = Math.round(x);
+  const drawY = Math.round(y);
+  if (options.flipX === true) {
+    ctx.save();
+    ctx.translate(drawX + source.width, drawY);
+    ctx.scale(-1, 1);
+    ctx.drawImage(source, 0, 0);
+    ctx.restore();
+    return;
+  }
+  ctx.drawImage(source, drawX, drawY);
+}
+
+function dialoguePortraitToneCanvas(source, tone) {
+  let cachedByTone = dialoguePortraitToneCanvasCache.get(source);
+  if (!cachedByTone) {
+    cachedByTone = new Map();
+    dialoguePortraitToneCanvasCache.set(source, cachedByTone);
+  }
+  const cached = cachedByTone.get(tone);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const toneContext = canvas.getContext("2d", { willReadFrequently: true });
+  if (!toneContext) throw new Error("Could not create dialogue portrait tone canvas");
+  toneContext.imageSmoothingEnabled = false;
+  toneContext.drawImage(source, 0, 0);
+  const imageData = toneContext.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  const colorCache = new Map();
+  for (let offset = 0; offset < data.length; offset += 4) {
+    if (data[offset + 3] === 0) continue;
+    const sourceKey = (data[offset] << 16) | (data[offset + 1] << 8) | data[offset + 2];
+    let target = colorCache.get(sourceKey);
+    if (!target) {
+      const hex = dialoguePortraitToneHex(data[offset], data[offset + 1], data[offset + 2], tone);
+      target = [
+        Number.parseInt(hex.slice(0, 2), 16),
+        Number.parseInt(hex.slice(2, 4), 16),
+        Number.parseInt(hex.slice(4, 6), 16)
+      ];
+      colorCache.set(sourceKey, target);
+    }
+    data[offset] = target[0];
+    data[offset + 1] = target[1];
+    data[offset + 2] = target[2];
+  }
+  toneContext.putImageData(imageData, 0, 0);
+  cachedByTone.set(tone, canvas);
+  return canvas;
 }
 
 function grayscalePortraitCanvas(source) {
@@ -32085,10 +32253,12 @@ function wrapPixelTextAll(text, font, maxWidth) {
 
 function ensureDialoguePortraitLoaded() {
   if (!dialogueState) return;
-  const subject = currentDialogueSubject();
   const view = currentDialogueView();
-  const expression = characterExpression(subject.character, view.expressionId || "neutral");
-  dialoguePortraitImage(subject.character, expression);
+  const stage = synchronizeCurrentDialoguePortraitStage(lastFrameMs, view);
+  for (const frame of stage.frames) {
+    const expression = characterExpression(frame.character, frame.expressionId);
+    dialoguePortraitImage(frame.character, expression);
+  }
 }
 
 async function ensureCharacterPortraitLoaded(character, expression) {

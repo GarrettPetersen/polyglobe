@@ -71,9 +71,15 @@ export function dialoguePanelGeometry({
   const y = Math.min(preferredY, Math.max(minimumY, screenHeight - 7 - requiredHeight));
   const maximumHeight = screenHeight - y - 7;
   const h = Math.min(maximumHeight, requiredHeight);
+  const portraitY = Math.max(minimumY, y - 56);
+  const portraitInset = 16;
+  const portraitSize = 64;
   return Object.freeze({
     panel: Object.freeze({ x, y, w, h }),
-    portrait: Object.freeze({ x: x + 16, y: Math.max(minimumY, y - 56) })
+    portraits: Object.freeze({
+      left: Object.freeze({ x: x + portraitInset, y: portraitY }),
+      right: Object.freeze({ x: x + w - portraitInset - portraitSize, y: portraitY })
+    })
   });
 }
 
