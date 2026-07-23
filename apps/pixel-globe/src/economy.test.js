@@ -184,6 +184,17 @@ test("1522 mints turn delivered bullion into specie without needing port cash", 
   assert.equal(lisbonState.specie, transaction.mintingFee);
   assert.equal(lisbonState.goods.get("gold").stock, lisbonGoldBefore);
   assert.equal(santoDomingoState.goods.get("gold").stock, santoDomingoGoldBefore);
+
+  const player = createGameState({ cargoCapacity: 20 });
+  player.cargo.gold = 1;
+  player.accounts.cargoCostBasis.gold = 100;
+  lisbonState.specie = 0;
+  const playerDoubloonsBefore = player.doubloons;
+  const playerSale = sellGood(player, economy, lisbon, "gold", 1);
+  assert.equal(player.doubloons, playerDoubloonsBefore + playerSale.price);
+  assert.equal(player.cargo.gold, undefined);
+  assert.equal(lisbonState.specie, Math.max(1, Math.round(playerSale.price * 0.05)));
+
   assert.throws(
     () => executePortPurchase(economy, SANTO_DOMINGO, "gold", 1),
     /insufficient specie/

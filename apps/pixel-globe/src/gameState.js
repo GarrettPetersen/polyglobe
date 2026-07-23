@@ -9,6 +9,7 @@ import {
   TRADE_GOODS,
   executePortPurchase,
   executePortSale,
+  maximumPortPurchaseQuantity,
   portMarket,
   quotePortPurchase,
   quotePortSale,
@@ -2812,7 +2813,9 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   }
   if (held < quantity) throw new Error(`Cannot sell ${quantity} ${row.good.label}; hold has ${held}`);
   const total = quotePortPurchase(economy, city, goodId, quantity);
-  if (row.portSpecie < total) throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
+  if (maximumPortPurchaseQuantity(economy, city, goodId, quantity) < quantity) {
+    throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
+  }
   const basis = cargoCostBasis(state, row.good.id);
   const soldCost = basis.known ? basis.total * quantity / held : 0;
   const pnl = basis.known ? total - soldCost : null;
