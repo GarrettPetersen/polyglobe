@@ -102,6 +102,38 @@ test("a white-whale rumor is delivered through an ordinary ship hail", () => {
   assert.deepEqual(selectShipDialogueOption(session, ship, 0), { closed: true, action: null });
 });
 
+test("Portuguese patrols present explicit cartaz enforcement choices", () => {
+  const ship = {
+    id: "portuguese-patrol-4",
+    roleLabel: "Warship",
+    faction: { adjective: "Portuguese" },
+    character: { name: "Ines Vaz" }
+  };
+  const session = createShipDialogueSession(ship, {
+    cartazInspection: {
+      permitFee: 140,
+      fine: 280,
+      canAffordPermit: true,
+      canAffordFine: true,
+      controlledCargo: { pepper: 2 },
+      controlledCargoQuantity: 2
+    }
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.match(view.text, /Estado da India/);
+  assert.deepEqual(view.options.map((entry) => entry.label), [
+    "Buy cartaz  140 db",
+    "Pay fine  280 db",
+    "Surrender controlled cargo",
+    "Run for it"
+  ]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 3), {
+    closed: true,
+    action: { type: "attack", cartazEvasion: true }
+  });
+});
+
 test("a non-enemy ship offers emergency provisions once the player is depleted", () => {
   const ship = {
     id: "relief-ship",

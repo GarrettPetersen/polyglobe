@@ -283,6 +283,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   "chef-quest": "action:talk",
   colonization: "action:quest",
   marque: "action:letter",
+  "portuguese-cartaz": "action:letter",
   cargo: "action:inventory"
 });
 
@@ -310,6 +311,11 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "select-loadout": "action:loadout",
   "request-marque": "action:letter",
   "purchase-safe-passage": "action:buy",
+  "purchase-portuguese-cartaz": "action:letter",
+  "buy-cartaz-at-sea": "action:letter",
+  "pay-cartaz-fine": "action:buy",
+  "surrender-cartaz-cargo": "action:surrender",
+  "evade-cartaz-inspection": "action:attack",
   "refuse-safe-passage": "action:leave",
   "purchase-viking-longship": "action:viking",
   "accept-viking-longship-reward": "action:viking",

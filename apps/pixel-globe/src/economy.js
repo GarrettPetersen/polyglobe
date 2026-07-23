@@ -656,7 +656,7 @@ export function executePortSale(economy, city, goodId, quantity, priceMultiplier
   if (available < quantity) {
     throw new Error(`${port.name} has only ${available} ${good.label} in stock`);
   }
-  const total = applySalePriceMultiplier(
+  const total = applyTransactionPriceMultiplier(
     quoteTransaction(port, good, quantity, -1, "buyPrice"),
     priceMultiplier
   );
@@ -670,13 +670,20 @@ export function quotePortSale(economy, city, goodId, quantity, priceMultiplier =
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   assertPortOffersGood(port, good);
-  return applySalePriceMultiplier(
+  return applyTransactionPriceMultiplier(
     quoteTransaction(port, good, quantity, -1, "buyPrice"),
     priceMultiplier
   );
 }
 
-export function maximumPortSaleQuantity(economy, city, goodId, requestedQuantity, traderSpecie) {
+export function maximumPortSaleQuantity(
+  economy,
+  city,
+  goodId,
+  requestedQuantity,
+  traderSpecie,
+  priceMultiplier = 1
+) {
   assertTradeQuantity(requestedQuantity);
   if (!Number.isFinite(traderSpecie) || traderSpecie < 0) throw new Error(`Invalid trader specie: ${traderSpecie}`);
   const port = requiredPortState(economy, city);
@@ -686,19 +693,23 @@ export function maximumPortSaleQuantity(economy, city, goodId, requestedQuantity
   let high = good.alwaysAvailable ? requestedQuantity : Math.min(requestedQuantity, Math.floor(port.goods.get(goodId).stock));
   while (low < high) {
     const middle = Math.ceil((low + high) / 2);
-    const total = quoteTransaction(port, good, middle, -1, "buyPrice");
+    const total = applyTransactionPriceMultiplier(
+      quoteTransaction(port, good, middle, -1, "buyPrice"),
+      priceMultiplier
+    );
     if (total <= traderSpecie + 1e-6) low = middle;
     else high = middle - 1;
   }
   return low;
 }
 
-export function executePortPurchase(economy, city, goodId, quantity) {
+export function executePortPurchase(economy, city, goodId, quantity, priceMultiplier = 1) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   if (good.sellable === false) throw new Error(`${port.name} does not buy ${good.label}`);
-  const total = quoteTransaction(port, good, quantity, 1, "sellPrice");
+  const grossTotal = quoteTransaction(port, good, quantity, 1, "sellPrice");
+  const total = applyTransactionPriceMultiplier(grossTotal, priceMultiplier);
   const minted = portMintsGood(port, good);
   if (!minted && port.specie + 1e-6 < total) {
     throw new Error(`${port.name} market has insufficient specie for ${quantity} ${good.label}`);
@@ -708,6 +719,7 @@ export function executePortPurchase(economy, city, goodId, quantity) {
     port.specie -= total;
   }
   const mintingFee = minted ? Math.max(1, Math.round(total * MINT_FEE_RATE)) : 0;
+  const retainedDuty = minted ? grossTotal - total : 0;
   port.specie += mintingFee;
   return {
     good,
@@ -715,28 +727,42 @@ export function executePortPurchase(economy, city, goodId, quantity) {
     total,
     unitPrice: Math.max(1, Math.round(total / quantity)),
     mintedSpecie: minted ? total + mintingFee : 0,
-    mintingFee
+    mintingFee,
+    retainedDuty
   };
 }
 
-export function quotePortPurchase(economy, city, goodId, quantity) {
+export function quotePortPurchase(economy, city, goodId, quantity, priceMultiplier = 1) {
   assertTradeQuantity(quantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   if (good.sellable === false) throw new Error(`${port.name} does not buy ${good.label}`);
-  return quoteTransaction(port, good, quantity, 1, "sellPrice");
+  return applyTransactionPriceMultiplier(
+    quoteTransaction(port, good, quantity, 1, "sellPrice"),
+    priceMultiplier
+  );
 }
 
-export function maximumPortPurchaseQuantity(economy, city, goodId, requestedQuantity) {
+export function maximumPortPurchaseQuantity(economy, city, goodId, requestedQuantity, priceMultiplier = 1) {
   assertTradeQuantity(requestedQuantity);
   const port = requiredPortState(economy, city);
   const good = tradeGoodById(goodId);
   if (good.sellable === false) return 0;
   if (portMintsGood(port, good)) return requestedQuantity;
-  return maximumAffordablePortPurchaseQuantity(port, good, requestedQuantity, port.specie);
+  return maximumAffordablePortPurchaseQuantity(port, good, requestedQuantity, port.specie, priceMultiplier);
 }
 
-export function planNpcTrade(economy, origin, destination, { cargoCapacity, specie }) {
+export function planNpcTrade(
+  economy,
+  origin,
+  destination,
+  {
+    cargoCapacity,
+    specie,
+    purchasePriceMultiplier = () => 1,
+    salePriceMultiplier = () => 1
+  }
+) {
   assertCargoCapacity(cargoCapacity);
   if (!Number.isFinite(specie) || specie < 0) throw new Error(`Invalid NPC specie: ${specie}`);
   const originPort = requiredPortState(economy, origin);
@@ -753,11 +779,27 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
     const reserve = Math.max(2, originState.targetStock * 0.12);
     const available = Math.max(0, Math.floor(originState.stock - reserve));
     if (available <= 0) continue;
-    const originPrice = marketPrice(originPort, good, originState.stock).buyPrice;
-    const destinationPrice = marketPrice(destinationPort, good, destinationPort.goods.get(good.id).stock).sellPrice;
+    const originMultiplier = purchasePriceMultiplier(good.id);
+    const destinationMultiplier = salePriceMultiplier(good.id);
+    const originPrice = applyTransactionPriceMultiplier(
+      marketPrice(originPort, good, originState.stock).buyPrice,
+      originMultiplier
+    );
+    const destinationPrice = applyTransactionPriceMultiplier(
+      marketPrice(destinationPort, good, destinationPort.goods.get(good.id).stock).sellPrice,
+      destinationMultiplier
+    );
     const margin = destinationPrice - originPrice;
     if (margin <= Math.max(1, good.basePrice * 0.04)) continue;
-    candidates.push({ good, originPrice, destinationPrice, margin, available });
+    candidates.push({
+      good,
+      originPrice,
+      destinationPrice,
+      margin,
+      available,
+      originMultiplier,
+      destinationMultiplier
+    });
   }
 
   candidates.sort((a, b) => (
@@ -786,18 +828,33 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
         : Math.floor(destinationSpecieLeft / candidate.destinationPrice)
     );
     if (quantity > 0) {
-      quantity = maximumPortSaleQuantity(economy, origin, candidate.good.id, quantity, specieLeft);
+      quantity = maximumPortSaleQuantity(
+        economy,
+        origin,
+        candidate.good.id,
+        quantity,
+        specieLeft,
+        candidate.originMultiplier
+      );
     }
     if (quantity > 0 && !portMintsGood(destinationPort, candidate.good)) {
       quantity = maximumAffordablePortPurchaseQuantity(
         destinationPort,
         candidate.good,
         quantity,
-        destinationSpecieLeft
+        destinationSpecieLeft,
+        candidate.destinationMultiplier
       );
     }
     if (quantity <= 0) continue;
-    const tradeLine = mostProfitableTradeLine(originPort, destinationPort, candidate.good, quantity);
+    const tradeLine = mostProfitableTradeLine(
+      originPort,
+      destinationPort,
+      candidate.good,
+      quantity,
+      candidate.originMultiplier,
+      candidate.destinationMultiplier
+    );
     if (!tradeLine) continue;
     quantity = tradeLine.quantity;
     const { purchaseTotal, saleTotal, expectedProfit } = tradeLine;
@@ -823,7 +880,7 @@ export function planNpcTrade(economy, origin, destination, { cargoCapacity, spec
   };
 }
 
-export function cargoSaleValue(economy, city, cargo) {
+export function cargoSaleValue(economy, city, cargo, salePriceMultiplier = () => 1) {
   const port = requiredPortState(economy, city);
   let value = 0;
   for (const [goodId, quantity] of Object.entries(cargo || {})) {
@@ -831,8 +888,14 @@ export function cargoSaleValue(economy, city, cargo) {
     if (quantity === 0) continue;
     const good = tradeGoodById(goodId);
     if (good.sellable === false) continue;
-    const affordable = maximumPortPurchaseQuantity(economy, city, goodId, quantity);
-    if (affordable > 0) value += quoteTransaction(port, good, affordable, 1, "sellPrice");
+    const multiplier = salePriceMultiplier(goodId);
+    const affordable = maximumPortPurchaseQuantity(economy, city, goodId, quantity, multiplier);
+    if (affordable > 0) {
+      value += applyTransactionPriceMultiplier(
+        quoteTransaction(port, good, affordable, 1, "sellPrice"),
+        multiplier
+      );
+    }
   }
   return value;
 }
@@ -1099,25 +1162,58 @@ function quoteTransaction(port, good, quantity, stockDirection, priceKey) {
   return Math.max(quantity, Math.round((startPrice + endPrice) * 0.5 * quantity));
 }
 
-function maximumAffordablePortPurchaseQuantity(port, good, requestedQuantity, specieBudget) {
+function maximumAffordablePortPurchaseQuantity(
+  port,
+  good,
+  requestedQuantity,
+  specieBudget,
+  priceMultiplier = 1
+) {
   let low = 0;
   let high = requestedQuantity;
   while (low < high) {
     const middle = Math.ceil((low + high) / 2);
-    const total = quoteTransaction(port, good, middle, 1, "sellPrice");
+    const total = applyTransactionPriceMultiplier(
+      quoteTransaction(port, good, middle, 1, "sellPrice"),
+      priceMultiplier
+    );
     if (total <= specieBudget + 1e-6) low = middle;
     else high = middle - 1;
   }
   return low;
 }
 
-function mostProfitableTradeLine(originPort, destinationPort, good, maximumQuantity) {
+function mostProfitableTradeLine(
+  originPort,
+  destinationPort,
+  good,
+  maximumQuantity,
+  purchasePriceMultiplier = 1,
+  salePriceMultiplier = 1
+) {
   let low = 1;
   let high = maximumQuantity;
   while (high - low > 6) {
     const left = Math.floor((low * 2 + high) / 3);
     const right = Math.ceil((low + high * 2) / 3);
-    if (tradeProfit(originPort, destinationPort, good, left) < tradeProfit(originPort, destinationPort, good, right)) {
+    if (
+      tradeProfit(
+        originPort,
+        destinationPort,
+        good,
+        left,
+        purchasePriceMultiplier,
+        salePriceMultiplier
+      ) <
+      tradeProfit(
+        originPort,
+        destinationPort,
+        good,
+        right,
+        purchasePriceMultiplier,
+        salePriceMultiplier
+      )
+    ) {
       low = left + 1;
     } else {
       high = right - 1;
@@ -1126,8 +1222,14 @@ function mostProfitableTradeLine(originPort, destinationPort, good, maximumQuant
 
   let best = null;
   for (let quantity = low; quantity <= high; quantity++) {
-    const purchaseTotal = quoteTransaction(originPort, good, quantity, -1, "buyPrice");
-    const saleTotal = quoteTransaction(destinationPort, good, quantity, 1, "sellPrice");
+    const purchaseTotal = applyTransactionPriceMultiplier(
+      quoteTransaction(originPort, good, quantity, -1, "buyPrice"),
+      purchasePriceMultiplier
+    );
+    const saleTotal = applyTransactionPriceMultiplier(
+      quoteTransaction(destinationPort, good, quantity, 1, "sellPrice"),
+      salePriceMultiplier
+    );
     const expectedProfit = saleTotal - purchaseTotal;
     if (!best || expectedProfit > best.expectedProfit) {
       best = { quantity, purchaseTotal, saleTotal, expectedProfit };
@@ -1136,9 +1238,21 @@ function mostProfitableTradeLine(originPort, destinationPort, good, maximumQuant
   return best?.expectedProfit > 0 ? best : null;
 }
 
-function tradeProfit(originPort, destinationPort, good, quantity) {
-  return quoteTransaction(destinationPort, good, quantity, 1, "sellPrice") -
-    quoteTransaction(originPort, good, quantity, -1, "buyPrice");
+function tradeProfit(
+  originPort,
+  destinationPort,
+  good,
+  quantity,
+  purchasePriceMultiplier = 1,
+  salePriceMultiplier = 1
+) {
+  return applyTransactionPriceMultiplier(
+    quoteTransaction(destinationPort, good, quantity, 1, "sellPrice"),
+    salePriceMultiplier
+  ) - applyTransactionPriceMultiplier(
+    quoteTransaction(originPort, good, quantity, -1, "buyPrice"),
+    purchasePriceMultiplier
+  );
 }
 
 function requiredPortState(economy, city) {
@@ -1202,9 +1316,9 @@ function assertTradeQuantity(quantity) {
   if (!Number.isInteger(quantity) || quantity <= 0) throw new Error(`Invalid trade quantity: ${quantity}`);
 }
 
-function applySalePriceMultiplier(total, multiplier) {
-  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 1) {
-    throw new Error(`Invalid port sale price multiplier: ${multiplier}`);
+function applyTransactionPriceMultiplier(total, multiplier) {
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 4) {
+    throw new Error(`Invalid transaction price multiplier: ${multiplier}`);
   }
   return Math.max(1, Math.round(total * multiplier));
 }

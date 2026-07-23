@@ -6,6 +6,8 @@ import {
   planNpcTrade,
   tradeGoodById
 } from "./economy.js";
+import { NEUTRAL_FACTION_ID, diplomacyBetween } from "./factions.js";
+import { tradeTerms } from "./tradePolicy.js";
 
 export const LAND_CART_CARGO_CAPACITY = 4;
 export const LAND_CART_SPEED_KM_PER_DAY = 120;
@@ -24,8 +26,15 @@ export function landCartCountForCityCount(cityCount) {
   return Math.min(MAX_CARTS, Math.ceil(cityCount / CITY_GROUP_SIZE) * CARTS_PER_CITY_GROUP);
 }
 
-export function createLandTradeSystem({ roads, economy, cities, startMinute, seedKey = null }) {
-  assertSystemInputs({ roads, economy, cities, startMinute, seedKey });
+export function createLandTradeSystem({
+  roads,
+  economy,
+  cities,
+  startMinute,
+  seedKey = null,
+  relationBetween = diplomacyBetween
+}) {
+  assertSystemInputs({ roads, economy, cities, startMinute, seedKey, relationBetween });
   const cityByTileId = new Map(cities.map((city) => [city.tileId, city]));
   const activeRoutes = roads.routes.filter((route) => (
     cityByTileId.has(route.fromTileId) && cityByTileId.has(route.toTileId)
@@ -42,6 +51,7 @@ export function createLandTradeSystem({ roads, economy, cities, startMinute, see
     seedKey,
     roads,
     economy,
+    relationBetween,
     cityByTileId,
     activeRoutes,
     carts: []
@@ -252,9 +262,16 @@ function chooseNextRoute(system, cart, originTileId) {
     const destination = system.cityByTileId.get(destinationTileId);
     const plan = planNpcTrade(system.economy, origin, destination, {
       cargoCapacity: Math.max(0, cart.cargoCapacity - cartCargoUse(cart)),
-      specie: cart.specie
+      specie: cart.specie,
+      purchasePriceMultiplier: cartPurchaseMultiplier(system, origin),
+      salePriceMultiplier: cartSaleMultiplier(system, origin, destination)
     });
-    const retainedCargoValue = cargoSaleValue(system.economy, destination, cart.cargo);
+    const retainedCargoValue = cargoSaleValue(
+      system.economy,
+      destination,
+      cart.cargo,
+      cartSaleMultiplier(system, origin, destination)
+    );
     const traffic = routeTraffic.get(route.id) || 0;
     const congestionMultiplier = 1 / (traffic + 1);
     const jitter = 0.96 + hashUnit(
@@ -291,14 +308,17 @@ function buyCartCargo(system, cart) {
   if (availableCapacity <= 0) return;
   const plan = planNpcTrade(system.economy, origin, destination, {
     cargoCapacity: availableCapacity,
-    specie: cart.specie
+    specie: cart.specie,
+    purchasePriceMultiplier: cartPurchaseMultiplier(system, origin),
+    salePriceMultiplier: cartSaleMultiplier(system, origin, destination)
   });
   for (const line of plan.lines) {
     const transaction = executePortSale(
       system.economy,
       origin,
       line.goodId,
-      line.quantity
+      line.quantity,
+      cartPurchaseMultiplier(system, origin)(line.goodId)
     );
     cart.specie -= transaction.total;
     cart.cargo[line.goodId] = (cart.cargo[line.goodId] || 0) + line.quantity;
@@ -309,10 +329,25 @@ function buyCartCargo(system, cart) {
 
 function sellCartCargo(system, cart, destination) {
   if (!destination) throw new Error(`Land cart ${cart.id} reached an unknown city`);
+  const origin = system.cityByTileId.get(cart.originTileId);
+  if (!origin) throw new Error(`Land cart ${cart.id} left an unknown city`);
   for (const [goodId, held] of Object.entries(cart.cargo)) {
-    const quantity = maximumPortPurchaseQuantity(system.economy, destination, goodId, held);
+    const saleMultiplier = cartSaleMultiplier(system, origin, destination)(goodId);
+    const quantity = maximumPortPurchaseQuantity(
+      system.economy,
+      destination,
+      goodId,
+      held,
+      saleMultiplier
+    );
     if (quantity <= 0) continue;
-    const transaction = executePortPurchase(system.economy, destination, goodId, quantity);
+    const transaction = executePortPurchase(
+      system.economy,
+      destination,
+      goodId,
+      quantity,
+      saleMultiplier
+    );
     cart.specie += transaction.total;
     const remaining = held - quantity;
     const remainingCost = (cart.cargoCost[goodId] || 0) * (remaining / held);
@@ -325,6 +360,25 @@ function sellCartCargo(system, cart, destination) {
     }
   }
   assertCartCargo(cart);
+}
+
+function cartPurchaseMultiplier(system, origin) {
+  return (goodId) => cartTradeTerms(system, origin, origin, goodId).purchaseMultiplier;
+}
+
+function cartSaleMultiplier(system, origin, destination) {
+  return (goodId) => cartTradeTerms(system, origin, destination, goodId).saleMultiplier;
+}
+
+function cartTradeTerms(system, origin, port, goodId) {
+  const traderFactionId = origin.factionId || NEUTRAL_FACTION_ID;
+  const portFactionId = port.factionId || NEUTRAL_FACTION_ID;
+  return tradeTerms({
+    port: { ...port, factionId: portFactionId },
+    traderFactionId,
+    relation: system.relationBetween(traderFactionId, portFactionId),
+    goodId
+  });
 }
 
 function assertCartCargo(cart) {
@@ -383,17 +437,19 @@ function validateSavedCart(system, cart) {
   assertCartCargo(cart);
 }
 
-function assertSystemInputs({ roads, economy, cities, startMinute, seedKey }) {
+function assertSystemInputs({ roads, economy, cities, startMinute, seedKey, relationBetween }) {
   if (!roads?.routeById || !roads.neighborRoutesByCityTileId) throw new Error("Land trade requires parsed roads");
   if (!economy?.portStates) throw new Error("Land trade requires a world economy");
   if (!Array.isArray(cities) || cities.length === 0) throw new Error("Land trade requires cities");
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid land trade start minute: ${startMinute}`);
+  if (typeof relationBetween !== "function") throw new Error("Land trade requires a diplomacy resolver");
   validateOptionalSeedKey(seedKey);
 }
 
 function assertLandTradeSystem(system) {
   if (!system || system.version !== 1 || !system.roads?.routeById || !system.economy?.portStates ||
       !(system.cityByTileId instanceof Map) || !Array.isArray(system.carts) ||
+      typeof system.relationBetween !== "function" ||
       (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === ""))) {
     throw new Error("Invalid land trade system");
   }

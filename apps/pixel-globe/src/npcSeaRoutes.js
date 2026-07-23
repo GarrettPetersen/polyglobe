@@ -11,7 +11,6 @@ import {
 } from "./shipStats.js";
 import { HYBRID_ROUTE_PROGRESS_FLOOR } from "./shipPropulsion.js";
 import {
-  DIPLOMACY_WAR,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   assertFactionId,
@@ -45,9 +44,16 @@ import {
   npcFishingNetForSeed
 } from "./fishingNets.js";
 import {
-  DEFAULT_MING_OPEN_TRADE_FACTION_IDS,
-  mingTradeAccess
+  DEFAULT_MING_OPEN_TRADE_FACTION_IDS
 } from "./mingTradeRestrictions.js";
+import {
+  PORTUGUESE_CARTAZ_DURATION_DAYS,
+  PORTUGUESE_FACTION_ID,
+  evaluateTradeAccess,
+  portugueseCartazFee,
+  portugueseCartazRequired,
+  tradeTerms
+} from "./tradePolicy.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -447,6 +453,7 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
       ? npcStartingSpecieForRole(spec.role, stats)
       : Math.max(0, Math.floor(spec.specie)),
     lifetimeProfit: 0,
+    cartazUntilMinute: 0,
     portVisits: 0,
     graceUntilPortVisit: 0,
     seekingHideout: false,
@@ -539,6 +546,10 @@ export function restoreNpcSeaRouteSystem(
       throw new Error(`Invalid saved NPC hull: ${ship.id}`);
     }
     ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;
+    ship.cartazUntilMinute = ship.cartazUntilMinute ?? 0;
+    if (!Number.isFinite(ship.cartazUntilMinute) || ship.cartazUntilMinute < 0) {
+      throw new Error(`Invalid saved NPC cartaz expiry: ${ship.id}`);
+    }
     assertFactionId(ship.factionId);
     shipStatsForSlug(ship.slug);
     reconcileNpcCargoCapacity(ship, "save restore");
@@ -1096,6 +1107,7 @@ function createNpcShipRecord({ id, factionId, role, profileSpec, slugs, slug, se
     cargoCost: {},
     specie: npcStartingSpecieForRole(role, stats),
     lifetimeProfit: 0,
+    cartazUntilMinute: 0,
     portVisits: 0,
     graceUntilPortVisit: 0,
     seekingHideout: false,
@@ -1640,12 +1652,13 @@ function enterPirateHideout(ship, arrivalMinute) {
 }
 
 function npcMerchantCanTradeAtPort(system, ship, port) {
-  if (system.relationBetween(ship.factionId, port.factionId) === DIPLOMACY_WAR) return false;
-  return mingTradeAccess({
-    portFactionId: port.factionId,
+  const relation = system.relationBetween(ship.factionId, port.factionId);
+  return evaluateTradeAccess({
+    port,
     traderFactionId: ship.factionId,
+    relation,
     simMinute: system.economy.lastMinute,
-    openTrade: system.mingTradeOpenToFaction(ship.factionId)
+    mingOpenTrade: system.mingTradeOpenToFaction(ship.factionId)
   }).allowed;
 }
 
@@ -1673,15 +1686,24 @@ function npcDestinationEconomicScore(system, ship, origin, destination) {
     return patrolFit * 1000 - variation * 0.05;
   }
   if (npcCargoUnits(ship) > 0) {
-    const saleValue = cargoSaleValue(system.economy, destination, ship.cargo);
+    const saleValue = cargoSaleValue(
+      system.economy,
+      destination,
+      ship.cargo,
+      npcSaleMultiplier(system, ship, destination)
+    );
     const cargoCost = Object.values(ship.cargoCost).reduce((sum, value) => sum + value, 0);
     return (saleValue - cargoCost + saleValue * 0.04) / distancePenalty;
   }
+  const cartazCost = npcCartazVoyageCost(system, ship, origin, destination);
+  if (!Number.isFinite(cartazCost) || cartazCost > ship.specie) return Number.NEGATIVE_INFINITY;
   const trade = planNpcTrade(system.economy, origin, destination, {
     cargoCapacity: ship.cargoCapacity,
-    specie: ship.specie
+    specie: ship.specie - cartazCost,
+    purchasePriceMultiplier: npcPurchaseMultiplier(system, ship, origin),
+    salePriceMultiplier: npcSaleMultiplier(system, ship, destination)
   });
-  return trade.expectedProfit / distancePenalty;
+  return (trade.expectedProfit - cartazCost) / distancePenalty;
 }
 
 function buyNpcCargo(system, ship, origin, destination) {
@@ -1690,10 +1712,22 @@ function buyNpcCargo(system, ship, origin, destination) {
       !npcMerchantCanTradeAtPort(system, ship, destination)) {
     throw new Error(`NPC merchant ${ship.id} cannot trade across a hostile port route`);
   }
+  const cartazCost = npcCartazVoyageCost(system, ship, origin, destination);
+  if (!Number.isFinite(cartazCost) || cartazCost > ship.specie) return;
+  const purchaseMultiplier = npcPurchaseMultiplier(system, ship, origin);
+  const saleMultiplier = npcSaleMultiplier(system, ship, destination);
   const plan = planNpcTrade(system.economy, origin, destination, {
     cargoCapacity: ship.cargoCapacity,
-    specie: ship.specie
+    specie: ship.specie - cartazCost,
+    purchasePriceMultiplier: purchaseMultiplier,
+    salePriceMultiplier: saleMultiplier
   });
+  if (plan.expectedProfit <= cartazCost) return;
+  if (cartazCost > 0) {
+    ship.specie -= cartazCost;
+    ship.cartazUntilMinute = system.economy.lastMinute +
+      PORTUGUESE_CARTAZ_DURATION_DAYS * WEATHER_MINUTES_PER_DAY;
+  }
   for (const line of plan.lines) {
     const holdQuantity = npcCargoAvailableQuantity(ship, line.goodId);
     if (holdQuantity <= 0) break;
@@ -1702,10 +1736,17 @@ function buyNpcCargo(system, ship, origin, destination) {
       origin,
       line.goodId,
       Math.min(line.quantity, holdQuantity),
-      ship.specie
+      ship.specie,
+      purchaseMultiplier(line.goodId)
     );
     if (quantity <= 0) continue;
-    const transaction = executePortSale(system.economy, origin, line.goodId, quantity);
+    const transaction = executePortSale(
+      system.economy,
+      origin,
+      line.goodId,
+      quantity,
+      purchaseMultiplier(line.goodId)
+    );
     ship.specie -= transaction.total;
     const stored = storeNpcCargo(ship, line.goodId, quantity, transaction.total, "port purchase");
     if (stored !== quantity) {
@@ -1721,9 +1762,10 @@ function sellNpcCargo(system, ship, port) {
   for (const [goodId, held] of Object.entries(ship.cargo)) {
     tradeGoodById(goodId);
     if (!Number.isInteger(held) || held <= 0) throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo: ${held}`);
-    const quantity = maximumPortPurchaseQuantity(system.economy, port, goodId, held);
+    const saleMultiplier = npcSaleMultiplier(system, ship, port)(goodId);
+    const quantity = maximumPortPurchaseQuantity(system.economy, port, goodId, held, saleMultiplier);
     if (quantity <= 0) continue;
-    const transaction = executePortPurchase(system.economy, port, goodId, quantity);
+    const transaction = executePortPurchase(system.economy, port, goodId, quantity, saleMultiplier);
     const totalCost = ship.cargoCost[goodId] || 0;
     const soldCost = totalCost * (quantity / held);
     ship.specie += transaction.total;
@@ -1737,6 +1779,40 @@ function sellNpcCargo(system, ship, port) {
       delete ship.cargoCost[goodId];
     }
   }
+}
+
+function npcPurchaseMultiplier(system, ship, port) {
+  return (goodId) => npcTradeTerms(system, ship, port, goodId).purchaseMultiplier;
+}
+
+function npcSaleMultiplier(system, ship, port) {
+  return (goodId) => npcTradeTerms(system, ship, port, goodId).saleMultiplier;
+}
+
+function npcTradeTerms(system, ship, port, goodId) {
+  return tradeTerms({
+    port,
+    traderFactionId: ship.factionId,
+    relation: system.relationBetween(ship.factionId, port.factionId),
+    goodId
+  });
+}
+
+function npcCartazVoyageCost(system, ship, origin, destination) {
+  if (ship.role !== NPC_ROLE_MERCHANT || ship.factionId === PORTUGUESE_FACTION_ID) return 0;
+  if (ship.cartazUntilMinute > system.economy.lastMinute) return 0;
+  const entersEnforcementZone = [origin, destination].some((port) => portugueseCartazRequired({
+    traderFactionId: ship.factionId,
+    latitudeDeg: port.lat,
+    longitudeDeg: port.lon
+  }));
+  if (!entersEnforcementZone) return 0;
+  const fee = portugueseCartazFee({
+    traderFactionId: ship.factionId,
+    relation: system.relationBetween(ship.factionId, PORTUGUESE_FACTION_ID),
+    cargoCapacity: ship.cargoCapacity
+  });
+  return fee === null ? Number.POSITIVE_INFINITY : fee;
 }
 
 function receiveNpcLoot(ship, loot) {

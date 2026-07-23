@@ -37,6 +37,7 @@ import {
 import { createBirthdayMemory, validateBirthdayMemory } from "./birthdayEvents.js";
 import {
   DIPLOMACY_HOSTILE,
+  DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
   NEUTRAL_FACTION_ID,
@@ -88,9 +89,21 @@ import {
 } from "./worldDiplomacy.js";
 import {
   DEFAULT_MING_OPEN_TRADE_FACTION_IDS,
-  MING_FACTION_ID,
-  mingTradeAccess
+  MING_FACTION_ID
 } from "./mingTradeRestrictions.js";
+import {
+  PORTUGUESE_CARTAZ_DURATION_DAYS,
+  PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS,
+  PORTUGUESE_CROWN_SPICE_GOOD_IDS,
+  PORTUGUESE_FACTION_ID,
+  evaluateTradeAccess,
+  isPortugueseEstadoPort,
+  portugueseCartazFee,
+  portugueseCartazFine,
+  portugueseCartazRequired,
+  portugueseControlledCargo,
+  tradeTerms
+} from "./tradePolicy.js";
 import { NAVAL_WEAPON_ARROW } from "./navalWeapons.js";
 import { createPortConquestMemory, validatePortConquestMemory } from "./portConquest.js";
 import {
@@ -165,7 +178,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 38;
+export const GAME_STATE_VERSION = 39;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -337,6 +350,7 @@ export function createGameState({
       safePassageUntilMinute: {},
       safePassageRefusalUntilMinute: {},
       mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
+      portugueseCartaz: createPortugueseCartazMemory(),
       diplomacy: createWorldDiplomacy({
         startMinute,
         seedKey: resolvedVoyageSeed
@@ -405,7 +419,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -480,6 +494,7 @@ export function migrateGameState(state, shipStats) {
         : migrateSafePassageTable(state.relations.safePassageUntilMinute),
       safePassageRefusalUntilMinute: {},
       mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
+      portugueseCartaz: migratePortugueseCartazMemory(state.relations.portugueseCartaz),
       diplomacy: migratedDiplomacy
     },
     memory: {
@@ -570,6 +585,29 @@ function migrateSafePassageTable(table) {
     migrated.spain = Math.max(migrated.spain || 0, table.aztec);
   }
   return migrated;
+}
+
+function createPortugueseCartazMemory() {
+  return {
+    issuedMinute: null,
+    untilMinute: 0,
+    issuedAtPortId: null,
+    graceUntilMinute: 0,
+    inspectedShipUntilMinute: {}
+  };
+}
+
+function migratePortugueseCartazMemory(memory) {
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    return createPortugueseCartazMemory();
+  }
+  return {
+    issuedMinute: memory.issuedMinute ?? null,
+    untilMinute: memory.untilMinute ?? 0,
+    issuedAtPortId: memory.issuedAtPortId ?? null,
+    graceUntilMinute: memory.graceUntilMinute ?? 0,
+    inspectedShipUntilMinute: memory.inspectedShipUntilMinute || {}
+  };
 }
 
 function migrateVisitedPortMemories(memories) {
@@ -2764,8 +2802,8 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
   if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
-  const purchaseMultiplier = portPurchasePriceMultiplier(city);
-  const total = quotePortSale(economy, city, goodId, quantity, purchaseMultiplier);
+  const terms = playerTradeTerms(state, city, goodId);
+  const total = quotePortSale(economy, city, goodId, quantity, terms.purchaseMultiplier);
   if (state.doubloons < total) {
     throw new Error(`Not enough doubloons to buy ${quantity} ${row.good.label}`);
   }
@@ -2773,7 +2811,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   if (availableCargo < row.good.unitSize * quantity) {
     throw new Error(`Not enough cargo space to buy ${quantity} ${row.good.label}`);
   }
-  executePortSale(economy, city, goodId, quantity, purchaseMultiplier);
+  executePortSale(economy, city, goodId, quantity, terms.purchaseMultiplier);
   state.doubloons -= total;
   state.cargo[row.good.id] = (state.cargo[row.good.id] || 0) + quantity;
   state.accounts.cargoCostBasis[row.good.id] = roundLedgerMoney(
@@ -2790,7 +2828,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
     pnl: null
   });
   if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
-  return { good: row.good, quantity, price: total, costBasis: total };
+  return { good: row.good, quantity, price: total, costBasis: total, tradeTerms: terms };
 }
 
 function portPurchasePriceMultiplier(city) {
@@ -2812,14 +2850,15 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
     throw new Error(`${row.good.label} is a ship supply and cannot be sold`);
   }
   if (held < quantity) throw new Error(`Cannot sell ${quantity} ${row.good.label}; hold has ${held}`);
-  const total = quotePortPurchase(economy, city, goodId, quantity);
-  if (maximumPortPurchaseQuantity(economy, city, goodId, quantity) < quantity) {
+  const terms = playerTradeTerms(state, city, goodId);
+  const total = quotePortPurchase(economy, city, goodId, quantity, terms.saleMultiplier);
+  if (maximumPortPurchaseQuantity(economy, city, goodId, quantity, terms.saleMultiplier) < quantity) {
     throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
   }
   const basis = cargoCostBasis(state, row.good.id);
   const soldCost = basis.known ? basis.total * quantity / held : 0;
   const pnl = basis.known ? total - soldCost : null;
-  executePortPurchase(economy, city, goodId, quantity);
+  executePortPurchase(economy, city, goodId, quantity, terms.saleMultiplier);
   state.doubloons += total;
   const remaining = held - quantity;
   if (remaining > 0) {
@@ -2841,25 +2880,195 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
     pnl
   });
   if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
-  return { good: row.good, quantity, price: total, costBasis: soldCost, pnl };
+  return { good: row.good, quantity, price: total, costBasis: soldCost, pnl, tradeTerms: terms };
 }
 
-function assertPlayerTradeAccess(state, city, context) {
-  const access = mingTradeAccess({
-    portFactionId: city?.factionId || NEUTRAL_FACTION_ID,
-    traderFactionId: state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID,
+export function playerTradeAccess(state, city, context = {}) {
+  assertGameState(state);
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
+  return evaluateTradeAccess({
+    port: city,
+    traderFactionId,
+    relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
     simMinute: context.simMinute ?? 0,
-    openTrade: mingTradeOpenToFaction(
-      state,
-      state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
-    ),
+    mingOpenTrade: mingTradeOpenToFaction(state, traderFactionId),
     illicitAccess: context.mingIllicitTradeAccess === true,
     disguisedEntry: context.disguisedEntry === true
   });
+}
+
+function assertPlayerTradeAccess(state, city, context) {
+  const access = playerTradeAccess(state, city, context);
   if (!access.allowed) {
+    if (access.reason === "war") {
+      throw new Error(`${cityLabel(city)} market is closed because wartime trade is blocked`);
+    }
     throw new Error(`${cityLabel(city)} market is closed to foreign trade under the Ming maritime prohibition`);
   }
   return access;
+}
+
+export function playerTradeTerms(state, city, goodId) {
+  assertGameState(state);
+  tradeGoodById(goodId);
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
+  const reputation = state.relations.factionReputation[portFactionId] || 0;
+  return tradeTerms({
+    port: city,
+    traderFactionId,
+    relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
+    goodId,
+    reputation,
+    purchaseDiscountMultiplier: portPurchasePriceMultiplier(city)
+  });
+}
+
+export function portugueseCartazStatus(state, city, simMinute, cargoCapacity = state.cargoCapacity) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (!isPortugueseEstadoPort(city)) {
+    throw new Error(`${cityLabel(city)} is not a Portuguese Estado da India port`);
+  }
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const relation = diplomacyBetweenForState(state, traderFactionId, PORTUGUESE_FACTION_ID);
+  const fee = portugueseCartazFee({ traderFactionId, relation, cargoCapacity });
+  const memory = state.relations.portugueseCartaz;
+  return Object.freeze({
+    exempt: traderFactionId === PORTUGUESE_FACTION_ID,
+    valid: traderFactionId === PORTUGUESE_FACTION_ID || memory.untilMinute > simMinute,
+    untilMinute: memory.untilMinute,
+    issuedAtPortId: memory.issuedAtPortId,
+    fee,
+    relation,
+    canPurchase: fee !== null && traderFactionId !== PORTUGUESE_FACTION_ID &&
+      state.doubloons >= fee
+  });
+}
+
+export function purchasePortugueseCartaz(state, city, simMinute) {
+  const status = portugueseCartazStatus(state, city, simMinute);
+  if (status.exempt) throw new Error("Portuguese captains do not need a cartaz");
+  if (status.fee === null) throw new Error("Portuguese authorities refuse to issue this captain a cartaz");
+  if (state.doubloons < status.fee) throw new Error(`Not enough doubloons for a ${status.fee} db cartaz`);
+  state.doubloons -= status.fee;
+  state.relations.portugueseCartaz.issuedMinute = simMinute;
+  state.relations.portugueseCartaz.untilMinute = simMinute +
+    PORTUGUESE_CARTAZ_DURATION_DAYS * 24 * 60;
+  state.relations.portugueseCartaz.issuedAtPortId = city.portId || `city-${city.tileId}`;
+  state.relations.portugueseCartaz.graceUntilMinute = 0;
+  recordDecision(state, "trade.portuguese-cartaz.purchased", 1);
+  recordLedgerEntry(state, city, { simMinute }, {
+    kind: "permit",
+    description: `Purchase ${PORTUGUESE_CARTAZ_DURATION_DAYS}-day Portuguese cartaz`,
+    goodId: null,
+    quantity: 1,
+    amount: -status.fee,
+    costBasis: status.fee,
+    pnl: null
+  });
+  return Object.freeze({ ...status, valid: true, untilMinute: state.relations.portugueseCartaz.untilMinute });
+}
+
+export function portugueseCartazInspectionStatus(
+  state,
+  { npcShipId, simMinute, latitudeDeg, longitudeDeg }
+) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (typeof npcShipId !== "string" || npcShipId === "") {
+    throw new Error("Cartaz inspection requires an NPC ship id");
+  }
+  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
+  const memory = state.relations.portugueseCartaz;
+  const relation = diplomacyBetweenForState(state, traderFactionId, PORTUGUESE_FACTION_ID);
+  const required = portugueseCartazRequired({ traderFactionId, latitudeDeg, longitudeDeg });
+  const valid = traderFactionId === PORTUGUESE_FACTION_ID || memory.untilMinute > simMinute ||
+    memory.graceUntilMinute > simMinute;
+  const recentlyInspected = (memory.inspectedShipUntilMinute[npcShipId] || 0) > simMinute;
+  const permitFee = portugueseCartazFee({
+    traderFactionId,
+    relation,
+    cargoCapacity: state.cargoCapacity
+  });
+  const neutralPermitFee = portugueseCartazFee({
+    traderFactionId,
+    relation: DIPLOMACY_NEUTRAL,
+    cargoCapacity: state.cargoCapacity
+  });
+  const controlledCargo = portugueseControlledCargo(state.cargo);
+  return Object.freeze({
+    required,
+    valid,
+    recentlyInspected,
+    relation,
+    permitFee,
+    fine: portugueseCartazFine(neutralPermitFee),
+    canAffordPermit: permitFee !== null && state.doubloons >= permitFee,
+    canAffordFine: state.doubloons >= portugueseCartazFine(neutralPermitFee),
+    controlledCargo: Object.freeze(controlledCargo),
+    controlledCargoQuantity: Object.values(controlledCargo).reduce((sum, value) => sum + value, 0)
+  });
+}
+
+export function recordPortugueseCartazInspection(state, npcShipId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (typeof npcShipId !== "string" || npcShipId === "") {
+    throw new Error("Cartaz inspection requires an NPC ship id");
+  }
+  state.relations.portugueseCartaz.inspectedShipUntilMinute[npcShipId] = simMinute +
+    PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS * 24 * 60;
+}
+
+export function buyPortugueseCartazFromInspector(state, npcShipId, simMinute, fee) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (!Number.isInteger(fee) || fee <= 0) throw new Error(`Invalid inspector cartaz fee: ${fee}`);
+  if (state.doubloons < fee) throw new Error(`Not enough doubloons for a ${fee} db cartaz`);
+  state.doubloons -= fee;
+  state.relations.portugueseCartaz.issuedMinute = simMinute;
+  state.relations.portugueseCartaz.untilMinute = simMinute +
+    PORTUGUESE_CARTAZ_DURATION_DAYS * 24 * 60;
+  state.relations.portugueseCartaz.issuedAtPortId = `inspection:${npcShipId}`;
+  state.relations.portugueseCartaz.graceUntilMinute = 0;
+  recordDecision(state, "trade.portuguese-cartaz.inspection-purchase", 1);
+  return Object.freeze({ fee, untilMinute: state.relations.portugueseCartaz.untilMinute });
+}
+
+export function payPortugueseCartazFine(state, npcShipId, simMinute, fine) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (!Number.isInteger(fine) || fine <= 0) throw new Error(`Invalid cartaz fine: ${fine}`);
+  if (state.doubloons < fine) throw new Error(`Not enough doubloons to pay a ${fine} db fine`);
+  state.doubloons -= fine;
+  state.relations.portugueseCartaz.graceUntilMinute = simMinute + 7 * 24 * 60;
+  recordDecision(state, "trade.portuguese-cartaz.fine", 1);
+  recordPortugueseCartazInspection(state, npcShipId, simMinute);
+  return Object.freeze({ fine, graceUntilMinute: state.relations.portugueseCartaz.graceUntilMinute });
+}
+
+export function surrenderPortugueseControlledCargo(state, npcShipId, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  const cargo = portugueseControlledCargo(state.cargo);
+  const removed = [];
+  for (const goodId of PORTUGUESE_CROWN_SPICE_GOOD_IDS) {
+    const quantity = cargo[goodId] || 0;
+    if (quantity <= 0) continue;
+    trimCargoQuantity(state, goodId, 0);
+    removed.push(Object.freeze({ goodId, quantity }));
+  }
+  if (removed.length === 0) throw new Error("No controlled spice cargo to surrender");
+  state.relations.portugueseCartaz.graceUntilMinute = simMinute + 7 * 24 * 60;
+  recordDecision(
+    state,
+    "trade.portuguese-cartaz.contraband-surrendered",
+    removed.reduce((sum, row) => sum + row.quantity, 0)
+  );
+  recordPortugueseCartazInspection(state, npcShipId, simMinute);
+  return Object.freeze(removed);
 }
 
 export function receiveFishCatch(state, catchResult, context = {}) {
@@ -3918,6 +4127,7 @@ function assertGameState(state) {
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);
   assertSafePassageTable(state.relations?.safePassageUntilMinute);
   assertSafePassageRefusalTable(state.relations?.safePassageRefusalUntilMinute);
+  assertPortugueseCartazMemory(state.relations?.portugueseCartaz);
   assertWorldDiplomacyState(state);
   if (!Number.isFinite(state.accounts.realizedPnl)) throw new Error("Invalid realized trade P/L");
   if (!Array.isArray(state.accounts.ledger)) throw new Error("Game state ledger must be an array");
@@ -4058,6 +4268,31 @@ function assertSafePassageRefusalTable(table) {
   }
   for (const [factionId, untilMinute] of Object.entries(table)) {
     assertFactionId(factionId);
+    assertSimulationMinute(untilMinute);
+  }
+}
+
+function assertPortugueseCartazMemory(memory) {
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    throw new Error("Game state Portuguese cartaz memory must be an object");
+  }
+  if (memory.issuedMinute !== null) assertSimulationMinute(memory.issuedMinute);
+  assertSimulationMinute(memory.untilMinute);
+  assertSimulationMinute(memory.graceUntilMinute);
+  if (memory.issuedAtPortId !== null && (
+    typeof memory.issuedAtPortId !== "string" || memory.issuedAtPortId === ""
+  )) {
+    throw new Error("Portuguese cartaz issuer must be null or a non-empty port id");
+  }
+  if (
+    !memory.inspectedShipUntilMinute ||
+    typeof memory.inspectedShipUntilMinute !== "object" ||
+    Array.isArray(memory.inspectedShipUntilMinute)
+  ) {
+    throw new Error("Portuguese cartaz inspections must be an object");
+  }
+  for (const [npcShipId, untilMinute] of Object.entries(memory.inspectedShipUntilMinute)) {
+    if (npcShipId === "") throw new Error("Portuguese cartaz inspection has an empty ship id");
     assertSimulationMinute(untilMinute);
   }
 }

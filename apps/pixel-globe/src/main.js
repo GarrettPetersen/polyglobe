@@ -172,6 +172,7 @@ import {
   advanceSmoothedWindState,
   createSmoothedWindState
 } from "./windSmoothing.js";
+import { PORTUGUESE_FACTION_ID } from "./tradePolicy.js";
 import {
   FISH_CARGO_GOOD_ID,
   portNavigationReasonLabel,
@@ -222,6 +223,11 @@ import {
   prepareHighValueMissionPerkItem,
   portMemory,
   portEntryStatus,
+  portugueseCartazInspectionStatus,
+  recordPortugueseCartazInspection,
+  buyPortugueseCartazFromInspector,
+  payPortugueseCartazFine,
+  surrenderPortugueseControlledCargo,
   refillFreshWaterFromShore,
   repairPlayerCargoOverflow,
   receiveDiscoveryCargo,
@@ -2726,7 +2732,8 @@ async function main() {
     economy: worldEconomy,
     cities: economyCities,
     startMinute: weatherClockMinutes,
-    seedKey: voyageSeed
+    seedKey: voyageSeed,
+    relationBetween: currentDiplomacyBetween
   });
   console.info(
     `[pixel-globe] land trade: ${landTradeSystem.carts.length} carts serving ` +
@@ -7840,7 +7847,8 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     economy: worldEconomy,
     cities: [...cityByTileId.values()],
     startMinute: simulationMinute,
-    seedKey
+    seedKey,
+    relationBetween: currentDiplomacyBetween
   });
   landTradeSystem.economy = worldEconomy;
   if (payload.landTrade) {
@@ -10851,15 +10859,19 @@ function continuePortDialogueAfterCampaign() {
 
 function openShipDialogue(shipCall, options = {}) {
   if (!shipCall.character) throw new Error(`Cannot hail NPC ship without a captain: ${shipCall.id}`);
-  const rumor = options.attackReason ? null : maybeWhiteWhaleRumor(`ship:${shipCall.id}`);
+  const rumor = options.attackReason || options.cartazInspection
+    ? null
+    : maybeWhiteWhaleRumor(`ship:${shipCall.id}`);
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
-    rumorText: options.attackReason ? null : rumor?.text || null
+    rumorText: options.attackReason || options.cartazInspection ? null : rumor?.text || null
   });
   dialogueLayout = createDialogueLayoutState();
   stopShipForDialogue();
   ensureDialoguePortraitLoaded();
-  if (!options.attackReason) maybeOpenPandaNpcReaction(`ship:${shipCall.id}`, shipCall.character);
+  if (!options.attackReason && !options.cartazInspection) {
+    maybeOpenPandaNpcReaction(`ship:${shipCall.id}`, shipCall.character);
+  }
   dirty = true;
 }
 
@@ -11917,6 +11929,31 @@ async function acquireVikingLongship(action) {
 }
 
 function applyShipDialogueAction(npcShipId, action) {
+  const simMinute = Math.floor(weatherClockMinutes);
+  if (action.type === "buy-cartaz-at-sea") {
+    const fee = dialogueState?.cartazInspection?.permitFee;
+    const result = buyPortugueseCartazFromInspector(gameState, npcShipId, simMinute, fee);
+    playCoinClinkSound();
+    showSurvivalNotice(`PORTUGUESE CARTAZ  ${result.fee} DB`, "good");
+    saveVoyageNow("purchased Portuguese cartaz at sea");
+    return;
+  }
+  if (action.type === "pay-cartaz-fine") {
+    const fine = dialogueState?.cartazInspection?.fine;
+    payPortugueseCartazFine(gameState, npcShipId, simMinute, fine);
+    playCoinClinkSound();
+    showSurvivalNotice(`CARTAZ FINE  ${fine} DB`, "warning");
+    saveVoyageNow("paid Portuguese cartaz fine");
+    return;
+  }
+  if (action.type === "surrender-cartaz-cargo") {
+    const removed = surrenderPortugueseControlledCargo(gameState, npcShipId, simMinute);
+    syncShipCargoFromGameState();
+    const quantity = removed.reduce((sum, row) => sum + row.quantity, 0);
+    showSurvivalNotice(`CONTROLLED SPICES SURRENDERED  ${quantity}`, "warning");
+    saveVoyageNow("surrendered cargo under Portuguese cartaz inspection");
+    return;
+  }
   if (action.type === "receive-aid") {
     const granted = receiveEmergencyShipAid(gameState, npcShipId);
     if (!dialogueState || dialogueState.kind !== "ship" || dialogueState.npcShipId !== npcShipId) {
@@ -16625,6 +16662,9 @@ function updateNpcCombat(dt) {
     }
   }
   const combatHailPending = Boolean(pendingNpcCombatHailId);
+  const cartazHailOpened = !combatHailOpened && !combatHailPending && !suppressCaptureHails
+    ? maybeOpenPortugueseCartazInspection(simMinute)
+    : false;
   shoreBatteryUpdateAccumulator = Math.min(
     SHORE_BATTERY_UPDATE_INTERVAL_SECONDS * 2,
     shoreBatteryUpdateAccumulator + dt
@@ -16637,7 +16677,7 @@ function updateNpcCombat(dt) {
           shoreBatteryUpdateAccumulator = 0;
           return updateShoreBatteryCombat(
             elapsed,
-            combatHailOpened || combatHailPending || suppressCaptureHails,
+            combatHailOpened || combatHailPending || cartazHailOpened || suppressCaptureHails,
             portEntryContext
           );
         }
@@ -16664,7 +16704,7 @@ function updateNpcCombat(dt) {
     state.combatMode = nextMode;
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
-    if (!combatHailOpened && !combatHailPending && !batteryCombat.hailOpened &&
+    if (!combatHailOpened && !combatHailPending && !cartazHailOpened && !batteryCombat.hailOpened &&
         intent?.mode === COMBAT_MODE_ATTACK && fireNpcWeaponAtTarget(state, intent.targetId)) {
       changed = true;
     }
@@ -16684,6 +16724,44 @@ function updateNpcCombat(dt) {
     startCombatMusicForThreat(hostileCannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
   }
   return changed;
+}
+
+function maybeOpenPortugueseCartazInspection(simMinute) {
+  if (
+    gameState.activePlaySeconds < 60 ||
+    combatHailIsBlockedByOverlay() ||
+    playerHasCombatEngagement()
+  ) {
+    return false;
+  }
+  const playerLocation = vectorLatLon(ship.position);
+  const inspectors = [...npcVisualShips.values()]
+    .filter((state) => (
+      state.factionId === PORTUGUESE_FACTION_ID &&
+      state.role === NPC_ROLE_WARSHIP &&
+      !state.combatGrace
+    ))
+    .map((state) => ({
+      state,
+      distance: Math.hypot(state.x - localLayout.viewX, state.y - localLayout.viewY)
+    }))
+    .filter((entry) => entry.distance <= NPC_HAIL_RADIUS_PX)
+    .sort((a, b) => a.distance - b.distance || a.state.id.localeCompare(b.state.id));
+  for (const { state } of inspectors) {
+    const inspection = portugueseCartazInspectionStatus(gameState, {
+      npcShipId: state.id,
+      simMinute,
+      latitudeDeg: playerLocation.latitudeDeg,
+      longitudeDeg: playerLocation.longitudeDeg
+    });
+    if (!inspection.required || inspection.valid || inspection.recentlyInspected) continue;
+    recordPortugueseCartazInspection(gameState, state.id, simMinute);
+    const character = ensureNpcShipCaptain(state.id);
+    openShipDialogue({ id: state.id, character }, { cartazInspection: inspection });
+    saveVoyageNow("Portuguese cartaz inspection");
+    return true;
+  }
+  return false;
 }
 
 function combatHailIsBlockedByOverlay() {
