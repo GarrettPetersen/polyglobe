@@ -28,6 +28,10 @@ does not force a relaunch through Steam.
 
 - **Achievements:** `marqueAchievementPlatform` activates the stable API names
   from `src/achievements.js` and immediately stores Steam user stats.
+- **Stats:** thirteen client-owned, increment-only integer stats report
+  best-in-voyage and lifetime progress for 29 fixed-threshold achievements.
+  The host only raises values and stores changed batches. Generate the exact
+  definitions and achievement bindings with `npm run render:steam-config`.
 - **Cloud:** `src/bootstrap.js` hydrates a single versioned
   `marque-profile-v1.json` before importing the game. Saves, achievement
   progress, voyage history, key bindings, language, controller glyphs, and
@@ -55,8 +59,8 @@ does not commit Valve SDK files or expose Node APIs to the renderer.
 
 ## Steamworks checklist
 
-1. Publish the achievement definitions and upload the generated icon pairs in
-   `steam/achievements/`.
+1. Publish the achievement definitions, generated icon pairs, stats, and
+   progress bindings in `steam/achievements/` and `steam/stats/`.
 2. Publish the Cloud quota and enable it for all users after testing a save on
    one machine and restore on another.
 3. Upload `steam/presence/steam_presence.vdf` and publish the official Steam

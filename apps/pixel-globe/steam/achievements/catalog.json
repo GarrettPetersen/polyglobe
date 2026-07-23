@@ -31,7 +31,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/SPICE_TRADER.jpg",
-      "unachievedIcon": "locked/SPICE_TRADER.jpg"
+      "unachievedIcon": "locked/SPICE_TRADER.jpg",
+      "progressStat": "MAX_VOYAGE_SPICES_SOLD",
+      "progressUnlockValue": 5
     },
     {
       "gameId": "millionaire",
@@ -41,7 +43,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/MILLIONAIRE.jpg",
-      "unachievedIcon": "locked/MILLIONAIRE.jpg"
+      "unachievedIcon": "locked/MILLIONAIRE.jpg",
+      "progressStat": "MAX_VOYAGE_EARNINGS",
+      "progressUnlockValue": 1000000
     },
     {
       "gameId": "colonist",
@@ -51,7 +55,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/COLONIST.jpg",
-      "unachievedIcon": "locked/COLONIST.jpg"
+      "unachievedIcon": "locked/COLONIST.jpg",
+      "progressStat": "MAX_VOYAGE_COLONIES_FOUNDED",
+      "progressUnlockValue": 5
     },
     {
       "gameId": "conqueror",
@@ -141,7 +147,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/NEW_HORIZONS.jpg",
-      "unachievedIcon": "locked/NEW_HORIZONS.jpg"
+      "unachievedIcon": "locked/NEW_HORIZONS.jpg",
+      "progressStat": "MAX_VOYAGE_DISCOVERIES",
+      "progressUnlockValue": 1
     },
     {
       "gameId": "chart-maker",
@@ -151,7 +159,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/CHART_MAKER.jpg",
-      "unachievedIcon": "locked/CHART_MAKER.jpg"
+      "unachievedIcon": "locked/CHART_MAKER.jpg",
+      "progressStat": "MAX_VOYAGE_DISCOVERIES",
+      "progressUnlockValue": 10
     },
     {
       "gameId": "fair-exchange",
@@ -161,7 +171,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/FAIR_EXCHANGE.jpg",
-      "unachievedIcon": "locked/FAIR_EXCHANGE.jpg"
+      "unachievedIcon": "locked/FAIR_EXCHANGE.jpg",
+      "progressStat": "MAX_VOYAGE_GOODS_SOLD",
+      "progressUnlockValue": 1
     },
     {
       "gameId": "general-merchant",
@@ -171,7 +183,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/GENERAL_MERCHANT.jpg",
-      "unachievedIcon": "locked/GENERAL_MERCHANT.jpg"
+      "unachievedIcon": "locked/GENERAL_MERCHANT.jpg",
+      "progressStat": "MAX_VOYAGE_GOODS_SOLD",
+      "progressUnlockValue": 5
     },
     {
       "gameId": "spice-of-life",
@@ -181,7 +195,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/SPICE_OF_LIFE.jpg",
-      "unachievedIcon": "locked/SPICE_OF_LIFE.jpg"
+      "unachievedIcon": "locked/SPICE_OF_LIFE.jpg",
+      "progressStat": "MAX_VOYAGE_SPICES_SOLD",
+      "progressUnlockValue": 1
     },
     {
       "gameId": "merchant-adventurer",
@@ -191,7 +207,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/MERCHANT_ADVENTURER.jpg",
-      "unachievedIcon": "locked/MERCHANT_ADVENTURER.jpg"
+      "unachievedIcon": "locked/MERCHANT_ADVENTURER.jpg",
+      "progressStat": "MAX_VOYAGE_EARNINGS",
+      "progressUnlockValue": 10000
     },
     {
       "gameId": "merchant-prince",
@@ -201,7 +219,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/MERCHANT_PRINCE.jpg",
-      "unachievedIcon": "locked/MERCHANT_PRINCE.jpg"
+      "unachievedIcon": "locked/MERCHANT_PRINCE.jpg",
+      "progressStat": "MAX_VOYAGE_EARNINGS",
+      "progressUnlockValue": 100000
     },
     {
       "gameId": "founder",
@@ -211,7 +231,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/FOUNDER.jpg",
-      "unachievedIcon": "locked/FOUNDER.jpg"
+      "unachievedIcon": "locked/FOUNDER.jpg",
+      "progressStat": "MAX_VOYAGE_COLONIES_FOUNDED",
+      "progressUnlockValue": 1
     },
     {
       "gameId": "expansionist",
@@ -221,7 +243,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/EXPANSIONIST.jpg",
-      "unachievedIcon": "locked/EXPANSIONIST.jpg"
+      "unachievedIcon": "locked/EXPANSIONIST.jpg",
+      "progressStat": "MAX_VOYAGE_COLONIES_FOUNDED",
+      "progressUnlockValue": 3
     },
     {
       "gameId": "new-command",
@@ -231,7 +255,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/NEW_COMMAND.jpg",
-      "unachievedIcon": "locked/NEW_COMMAND.jpg"
+      "unachievedIcon": "locked/NEW_COMMAND.jpg",
+      "progressStat": "LIFETIME_SHIPS_SAILED",
+      "progressUnlockValue": 2
     },
     {
       "gameId": "ship-collector",
@@ -241,7 +267,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/SHIP_COLLECTOR.jpg",
-      "unachievedIcon": "locked/SHIP_COLLECTOR.jpg"
+      "unachievedIcon": "locked/SHIP_COLLECTOR.jpg",
+      "progressStat": "LIFETIME_SHIPS_SAILED",
+      "progressUnlockValue": 5
     },
     {
       "gameId": "gone-fishing",
@@ -251,7 +279,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/GONE_FISHING.jpg",
-      "unachievedIcon": "locked/GONE_FISHING.jpg"
+      "unachievedIcon": "locked/GONE_FISHING.jpg",
+      "progressStat": "MAX_VOYAGE_FISH_CAUGHT",
+      "progressUnlockValue": 1
     },
     {
       "gameId": "good-haul",
@@ -261,7 +291,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/GOOD_HAUL.jpg",
-      "unachievedIcon": "locked/GOOD_HAUL.jpg"
+      "unachievedIcon": "locked/GOOD_HAUL.jpg",
+      "progressStat": "MAX_VOYAGE_FISH_CAUGHT",
+      "progressUnlockValue": 20
     },
     {
       "gameId": "passage-complete",
@@ -271,7 +303,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/PASSAGE_COMPLETE.jpg",
-      "unachievedIcon": "locked/PASSAGE_COMPLETE.jpg"
+      "unachievedIcon": "locked/PASSAGE_COMPLETE.jpg",
+      "progressStat": "MAX_VOYAGE_PASSENGERS_DELIVERED",
+      "progressUnlockValue": 1
     },
     {
       "gameId": "shore-leave",
@@ -301,7 +335,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/FIRST_VICTORY.jpg",
-      "unachievedIcon": "locked/FIRST_VICTORY.jpg"
+      "unachievedIcon": "locked/FIRST_VICTORY.jpg",
+      "progressStat": "MAX_VOYAGE_ENEMIES_DEFEATED",
+      "progressUnlockValue": 1
     },
     {
       "gameId": "coastal-surveyor",
@@ -311,7 +347,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/COASTAL_SURVEYOR.jpg",
-      "unachievedIcon": "locked/COASTAL_SURVEYOR.jpg"
+      "unachievedIcon": "locked/COASTAL_SURVEYOR.jpg",
+      "progressStat": "MAX_VOYAGE_MAP_PERCENT",
+      "progressUnlockValue": 30
     },
     {
       "gameId": "half-the-world",
@@ -321,7 +359,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/HALF_THE_WORLD.jpg",
-      "unachievedIcon": "locked/HALF_THE_WORLD.jpg"
+      "unachievedIcon": "locked/HALF_THE_WORLD.jpg",
+      "progressStat": "MAX_VOYAGE_MAP_PERCENT",
+      "progressUnlockValue": 50
     },
     {
       "gameId": "fewer-dragons",
@@ -331,7 +371,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/FEWER_DRAGONS.jpg",
-      "unachievedIcon": "locked/FEWER_DRAGONS.jpg"
+      "unachievedIcon": "locked/FEWER_DRAGONS.jpg",
+      "progressStat": "MAX_VOYAGE_MAP_PERCENT",
+      "progressUnlockValue": 70
     },
     {
       "gameId": "aloha-sailor",
@@ -381,7 +423,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/PORT_OF_CALL.jpg",
-      "unachievedIcon": "locked/PORT_OF_CALL.jpg"
+      "unachievedIcon": "locked/PORT_OF_CALL.jpg",
+      "progressStat": "MAX_VOYAGE_PORTS_VISITED",
+      "progressUnlockValue": 25
     },
     {
       "gameId": "seven-seas",
@@ -391,7 +435,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/SEVEN_SEAS.jpg",
-      "unachievedIcon": "locked/SEVEN_SEAS.jpg"
+      "unachievedIcon": "locked/SEVEN_SEAS.jpg",
+      "progressStat": "MAX_VOYAGE_PORTS_VISITED",
+      "progressUnlockValue": 50
     },
     {
       "gameId": "fisher-king",
@@ -401,7 +447,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/FISHER_KING.jpg",
-      "unachievedIcon": "locked/FISHER_KING.jpg"
+      "unachievedIcon": "locked/FISHER_KING.jpg",
+      "progressStat": "MAX_VOYAGE_FISH_CAUGHT",
+      "progressUnlockValue": 100
     },
     {
       "gameId": "cargo-of-every-kind",
@@ -411,7 +459,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/CARGO_OF_EVERY_KIND.jpg",
-      "unachievedIcon": "locked/CARGO_OF_EVERY_KIND.jpg"
+      "unachievedIcon": "locked/CARGO_OF_EVERY_KIND.jpg",
+      "progressStat": "MAX_VOYAGE_GOODS_SOLD",
+      "progressUnlockValue": 15
     },
     {
       "gameId": "packet-captain",
@@ -421,7 +471,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/PACKET_CAPTAIN.jpg",
-      "unachievedIcon": "locked/PACKET_CAPTAIN.jpg"
+      "unachievedIcon": "locked/PACKET_CAPTAIN.jpg",
+      "progressStat": "MAX_VOYAGE_PASSENGERS_DELIVERED",
+      "progressUnlockValue": 5
     },
     {
       "gameId": "terror-of-the-seas",
@@ -431,7 +483,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/TERROR_OF_THE_SEAS.jpg",
-      "unachievedIcon": "locked/TERROR_OF_THE_SEAS.jpg"
+      "unachievedIcon": "locked/TERROR_OF_THE_SEAS.jpg",
+      "progressStat": "MAX_VOYAGE_ENEMIES_DEFEATED",
+      "progressUnlockValue": 10
     },
     {
       "gameId": "there-she-blows",
@@ -471,7 +525,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/A_FINE_COMPANY.jpg",
-      "unachievedIcon": "locked/A_FINE_COMPANY.jpg"
+      "unachievedIcon": "locked/A_FINE_COMPANY.jpg",
+      "progressStat": "MAX_VOYAGE_NAMED_CREW",
+      "progressUnlockValue": 3
     },
     {
       "gameId": "shipshape",
@@ -481,7 +537,9 @@
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/SHIPSHAPE.jpg",
-      "unachievedIcon": "locked/SHIPSHAPE.jpg"
+      "unachievedIcon": "locked/SHIPSHAPE.jpg",
+      "progressStat": "MAX_VOYAGE_SPECIAL_EQUIPMENT",
+      "progressUnlockValue": 3
     },
     {
       "gameId": "all-hands",

@@ -702,7 +702,8 @@ import {
   addPlatformTimelineEvent,
   createPlatformActivityPublisher,
   platformServicesAdapter,
-  triggerPlatformScreenshot
+  triggerPlatformScreenshot,
+  updatePlatformStats
 } from "./platformServices.js";
 import {
   KEY_ACTION,
@@ -925,6 +926,7 @@ import {
   synchronizeAchievements,
   writeAchievementProfile
 } from "./achievements.js";
+import { steamStatValues } from "./steamStats.js";
 import {
   DEMO_LIMIT_MESSAGE,
   DEMO_VOYAGE_OUTCOME,
@@ -2516,7 +2518,11 @@ async function main() {
   if (achievementProfileResult.status === "invalid") {
     console.error("[pixel-globe] achievement profile is unavailable", achievementProfileResult.error);
   } else {
-    queueAchievementPlatformSync();
+    queueAchievementPlatformSync(steamStatValues(
+      achievementProfile,
+      createVoyageAchievementProgress(),
+      currentAchievementSnapshot()
+    ));
   }
   if (earth.subdivisions !== SUBDIVISIONS) {
     throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earth.subdivisions}`);
@@ -8027,28 +8033,30 @@ function syncAchievementsFromGameState(event = null) {
   if (!gameState || !achievementProfile) return [];
   const progress = gameState.memory.achievements;
   if (event) recordVoyageAchievementEvent(progress, event);
+  const snapshot = currentAchievementSnapshot();
   const result = synchronizeAchievements(
     achievementProfile,
     progress,
-    currentAchievementSnapshot()
+    snapshot
   );
-  if (!result.changed) return result.newlyUnlocked;
-  writeAchievementProfile(achievementProfile);
-  achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
-  if (result.newlyUnlocked.length > 0 && hasStartedVoyage && !startMenu) {
-    queueAchievementNotices(result.newlyUnlocked);
-    for (const entry of result.newlyUnlocked) {
-      publishPlatformTimelineEvent({
-        title: `Achievement unlocked: ${entry.title}`,
-        description: entry.description,
-        icon: "steam_achievement",
-        priority: 650,
-        durationSeconds: 0,
-        clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
-      });
+  if (result.changed) {
+    writeAchievementProfile(achievementProfile);
+    achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
+    if (result.newlyUnlocked.length > 0 && hasStartedVoyage && !startMenu) {
+      queueAchievementNotices(result.newlyUnlocked);
+      for (const entry of result.newlyUnlocked) {
+        publishPlatformTimelineEvent({
+          title: `Achievement unlocked: ${entry.title}`,
+          description: entry.description,
+          icon: "steam_achievement",
+          priority: 650,
+          durationSeconds: 0,
+          clipPriority: PLATFORM_CLIP_PRIORITY.STANDARD
+        });
+      }
     }
   }
-  queueAchievementPlatformSync();
+  queueAchievementPlatformSync(steamStatValues(achievementProfile, progress, snapshot));
   return result.newlyUnlocked;
 }
 
@@ -8087,7 +8095,7 @@ function updateAchievementNotice(nowMs) {
   return achievementNotice;
 }
 
-function queueAchievementPlatformSync() {
+function queueAchievementPlatformSync(statValues = null) {
   if (!achievementProfile) return;
   let adapter;
   try {
@@ -8096,14 +8104,18 @@ function queueAchievementPlatformSync() {
     console.error("[pixel-globe] invalid achievement platform adapter", error);
     return;
   }
-  if (!adapter) return;
+  if (!adapter && !steamPlatformBridge) return;
+  const platformId = adapter?.platformId || steamPlatformBridge?.platformId || "platform";
   achievementPlatformSyncPromise = achievementPlatformSyncPromise
     .then(async () => {
-      const result = await syncAchievementProfileToPlatform(achievementProfile, adapter);
-      if (result.changed) writeAchievementProfile(achievementProfile);
+      if (statValues) await updatePlatformStats(steamPlatformBridge, statValues);
+      if (adapter) {
+        const result = await syncAchievementProfileToPlatform(achievementProfile, adapter);
+        if (result.changed) writeAchievementProfile(achievementProfile);
+      }
     })
     .catch((error) => {
-      console.error(`[pixel-globe] ${adapter.platformId} achievement sync failed`, error);
+      console.error(`[pixel-globe] ${platformId} achievement/stat sync failed`, error);
     });
 }
 

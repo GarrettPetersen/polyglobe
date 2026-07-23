@@ -6,7 +6,7 @@
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.cjs && node --check preload.cjs && node --check steamNativeApi.cjs && node --check staticServer.cjs && node --test *.test.cjs"
+    "check": "node --check main.cjs && node --check preload.cjs && node --check steamNativeApi.cjs && node --check steamStats.cjs && node --check staticServer.cjs && node --test *.test.cjs"
   },
   "dependencies": {
     "electron": "43.2.0",

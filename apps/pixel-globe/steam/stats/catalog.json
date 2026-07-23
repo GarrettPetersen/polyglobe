@@ -1,0 +1,343 @@
+{
+  "appId": 4516500,
+  "generatedFrom": [
+    "src/steamStats.js",
+    "src/achievements.js"
+  ],
+  "statCount": 13,
+  "achievementProgressCount": 29,
+  "stats": [
+    {
+      "apiName": "MAX_VOYAGE_DISCOVERIES",
+      "displayName": "Most discoveries in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 10,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "chart-maker"
+    },
+    {
+      "apiName": "MAX_VOYAGE_SPICES_SOLD",
+      "displayName": "Most distinct spices sold in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 5,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "spice-trader"
+    },
+    {
+      "apiName": "MAX_VOYAGE_EARNINGS",
+      "displayName": "Most doubloons earned in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 1000000,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "millionaire"
+    },
+    {
+      "apiName": "MAX_VOYAGE_COLONIES_FOUNDED",
+      "displayName": "Most cities founded in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 5,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "colonist"
+    },
+    {
+      "apiName": "LIFETIME_SHIPS_SAILED",
+      "displayName": "Distinct ship types sailed",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 5,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "ship-collector"
+    },
+    {
+      "apiName": "MAX_VOYAGE_GOODS_SOLD",
+      "displayName": "Most distinct goods sold in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 15,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "cargo-of-every-kind"
+    },
+    {
+      "apiName": "MAX_VOYAGE_FISH_CAUGHT",
+      "displayName": "Most fish caught in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 100,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "fisher-king"
+    },
+    {
+      "apiName": "MAX_VOYAGE_MAP_PERCENT",
+      "displayName": "Most globe mapped in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 70,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "fewer-dragons"
+    },
+    {
+      "apiName": "MAX_VOYAGE_PASSENGERS_DELIVERED",
+      "displayName": "Most passengers delivered in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 5,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "packet-captain"
+    },
+    {
+      "apiName": "MAX_VOYAGE_PORTS_VISITED",
+      "displayName": "Most ports visited in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 50,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "seven-seas"
+    },
+    {
+      "apiName": "MAX_VOYAGE_ENEMIES_DEFEATED",
+      "displayName": "Most enemy ships defeated in one voyage",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 10,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "terror-of-the-seas"
+    },
+    {
+      "apiName": "MAX_VOYAGE_NAMED_CREW",
+      "displayName": "Most named crewmates aboard",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 3,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "a-fine-company"
+    },
+    {
+      "apiName": "MAX_VOYAGE_SPECIAL_EQUIPMENT",
+      "displayName": "Most special equipment owned",
+      "type": "INT",
+      "setBy": "Client",
+      "incrementOnly": true,
+      "minValue": 0,
+      "maxValue": 3,
+      "defaultValue": 0,
+      "aggregated": false,
+      "sourceAchievementId": "shipshape"
+    }
+  ],
+  "achievementProgress": [
+    {
+      "gameId": "spice-trader",
+      "achievementApiName": "SPICE_TRADER",
+      "progressStat": "MAX_VOYAGE_SPICES_SOLD",
+      "progressUnlockValue": 5
+    },
+    {
+      "gameId": "millionaire",
+      "achievementApiName": "MILLIONAIRE",
+      "progressStat": "MAX_VOYAGE_EARNINGS",
+      "progressUnlockValue": 1000000
+    },
+    {
+      "gameId": "colonist",
+      "achievementApiName": "COLONIST",
+      "progressStat": "MAX_VOYAGE_COLONIES_FOUNDED",
+      "progressUnlockValue": 5
+    },
+    {
+      "gameId": "new-horizons",
+      "achievementApiName": "NEW_HORIZONS",
+      "progressStat": "MAX_VOYAGE_DISCOVERIES",
+      "progressUnlockValue": 1
+    },
+    {
+      "gameId": "chart-maker",
+      "achievementApiName": "CHART_MAKER",
+      "progressStat": "MAX_VOYAGE_DISCOVERIES",
+      "progressUnlockValue": 10
+    },
+    {
+      "gameId": "fair-exchange",
+      "achievementApiName": "FAIR_EXCHANGE",
+      "progressStat": "MAX_VOYAGE_GOODS_SOLD",
+      "progressUnlockValue": 1
+    },
+    {
+      "gameId": "general-merchant",
+      "achievementApiName": "GENERAL_MERCHANT",
+      "progressStat": "MAX_VOYAGE_GOODS_SOLD",
+      "progressUnlockValue": 5
+    },
+    {
+      "gameId": "spice-of-life",
+      "achievementApiName": "SPICE_OF_LIFE",
+      "progressStat": "MAX_VOYAGE_SPICES_SOLD",
+      "progressUnlockValue": 1
+    },
+    {
+      "gameId": "merchant-adventurer",
+      "achievementApiName": "MERCHANT_ADVENTURER",
+      "progressStat": "MAX_VOYAGE_EARNINGS",
+      "progressUnlockValue": 10000
+    },
+    {
+      "gameId": "merchant-prince",
+      "achievementApiName": "MERCHANT_PRINCE",
+      "progressStat": "MAX_VOYAGE_EARNINGS",
+      "progressUnlockValue": 100000
+    },
+    {
+      "gameId": "founder",
+      "achievementApiName": "FOUNDER",
+      "progressStat": "MAX_VOYAGE_COLONIES_FOUNDED",
+      "progressUnlockValue": 1
+    },
+    {
+      "gameId": "expansionist",
+      "achievementApiName": "EXPANSIONIST",
+      "progressStat": "MAX_VOYAGE_COLONIES_FOUNDED",
+      "progressUnlockValue": 3
+    },
+    {
+      "gameId": "new-command",
+      "achievementApiName": "NEW_COMMAND",
+      "progressStat": "LIFETIME_SHIPS_SAILED",
+      "progressUnlockValue": 2
+    },
+    {
+      "gameId": "ship-collector",
+      "achievementApiName": "SHIP_COLLECTOR",
+      "progressStat": "LIFETIME_SHIPS_SAILED",
+      "progressUnlockValue": 5
+    },
+    {
+      "gameId": "gone-fishing",
+      "achievementApiName": "GONE_FISHING",
+      "progressStat": "MAX_VOYAGE_FISH_CAUGHT",
+      "progressUnlockValue": 1
+    },
+    {
+      "gameId": "good-haul",
+      "achievementApiName": "GOOD_HAUL",
+      "progressStat": "MAX_VOYAGE_FISH_CAUGHT",
+      "progressUnlockValue": 20
+    },
+    {
+      "gameId": "passage-complete",
+      "achievementApiName": "PASSAGE_COMPLETE",
+      "progressStat": "MAX_VOYAGE_PASSENGERS_DELIVERED",
+      "progressUnlockValue": 1
+    },
+    {
+      "gameId": "first-victory",
+      "achievementApiName": "FIRST_VICTORY",
+      "progressStat": "MAX_VOYAGE_ENEMIES_DEFEATED",
+      "progressUnlockValue": 1
+    },
+    {
+      "gameId": "coastal-surveyor",
+      "achievementApiName": "COASTAL_SURVEYOR",
+      "progressStat": "MAX_VOYAGE_MAP_PERCENT",
+      "progressUnlockValue": 30
+    },
+    {
+      "gameId": "half-the-world",
+      "achievementApiName": "HALF_THE_WORLD",
+      "progressStat": "MAX_VOYAGE_MAP_PERCENT",
+      "progressUnlockValue": 50
+    },
+    {
+      "gameId": "fewer-dragons",
+      "achievementApiName": "FEWER_DRAGONS",
+      "progressStat": "MAX_VOYAGE_MAP_PERCENT",
+      "progressUnlockValue": 70
+    },
+    {
+      "gameId": "port-of-call",
+      "achievementApiName": "PORT_OF_CALL",
+      "progressStat": "MAX_VOYAGE_PORTS_VISITED",
+      "progressUnlockValue": 25
+    },
+    {
+      "gameId": "seven-seas",
+      "achievementApiName": "SEVEN_SEAS",
+      "progressStat": "MAX_VOYAGE_PORTS_VISITED",
+      "progressUnlockValue": 50
+    },
+    {
+      "gameId": "fisher-king",
+      "achievementApiName": "FISHER_KING",
+      "progressStat": "MAX_VOYAGE_FISH_CAUGHT",
+      "progressUnlockValue": 100
+    },
+    {
+      "gameId": "cargo-of-every-kind",
+      "achievementApiName": "CARGO_OF_EVERY_KIND",
+      "progressStat": "MAX_VOYAGE_GOODS_SOLD",
+      "progressUnlockValue": 15
+    },
+    {
+      "gameId": "packet-captain",
+      "achievementApiName": "PACKET_CAPTAIN",
+      "progressStat": "MAX_VOYAGE_PASSENGERS_DELIVERED",
+      "progressUnlockValue": 5
+    },
+    {
+      "gameId": "terror-of-the-seas",
+      "achievementApiName": "TERROR_OF_THE_SEAS",
+      "progressStat": "MAX_VOYAGE_ENEMIES_DEFEATED",
+      "progressUnlockValue": 10
+    },
+    {
+      "gameId": "a-fine-company",
+      "achievementApiName": "A_FINE_COMPANY",
+      "progressStat": "MAX_VOYAGE_NAMED_CREW",
+      "progressUnlockValue": 3
+    },
+    {
+      "gameId": "shipshape",
+      "achievementApiName": "SHIPSHAPE",
+      "progressStat": "MAX_VOYAGE_SPECIAL_EQUIPMENT",
+      "progressUnlockValue": 3
+    }
+  ]
+}

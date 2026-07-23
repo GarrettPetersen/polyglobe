@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { ACHIEVEMENT_CATALOG } from "../src/achievements.js";
+import { steamAchievementProgressBinding } from "../src/steamStats.js";
 
 const appRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outputRoot = join(appRoot, "steam/achievements");
@@ -33,6 +34,7 @@ async function main() {
     if (!source) throw new Error(`Steam achievement icon is missing from the game atlas: ${achievement.iconId}`);
     const steamId = achievement.platformIds.steam;
     if (!steamId) throw new Error(`Achievement has no Steam API name: ${achievement.id}`);
+    const progressBinding = steamAchievementProgressBinding(achievement.id);
 
     const achievedPath = join(achievedRoot, `${steamId}.jpg`);
     const lockedPath = join(lockedRoot, `${steamId}.jpg`);
@@ -48,7 +50,11 @@ async function main() {
       hidden: achievement.hidden,
       setBy: "Client",
       achievedIcon: `achieved/${steamId}.jpg`,
-      unachievedIcon: `locked/${steamId}.jpg`
+      unachievedIcon: `locked/${steamId}.jpg`,
+      ...(progressBinding ? {
+        progressStat: progressBinding.statApiName,
+        progressUnlockValue: progressBinding.unlockValue
+      } : {})
     });
   }
 

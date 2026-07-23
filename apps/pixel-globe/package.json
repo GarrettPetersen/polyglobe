@@ -47,6 +47,8 @@
     "render:ship-menu-icons": "node tools/build-ship-menu-icons.mjs",
     "render:game-icons": "npm run render:ship-menu-icons && node tools/build-game-icon-atlas.mjs",
     "render:steam-achievements": "node tools/build-steam-achievement-assets.mjs",
+    "render:steam-stats": "node tools/build-steam-stat-catalog.mjs",
+    "render:steam-config": "npm run render:steam-achievements && npm run render:steam-stats",
     "render:port-sailing-distances": "node tools/build-port-sailing-distances.mjs",
     "render:fresh-water-cask": "node tools/build-fresh-water-cask-icon.mjs",
     "render:land-roads": "node tools/build-land-roads.mjs",

@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld("marqueSteamPlatform", Object.freeze({
   setRichPresence: (presence) => ipcRenderer.invoke("steam:set-rich-presence", presence),
   setTimelineState: (state) => ipcRenderer.invoke("steam:set-timeline-state", state),
   addTimelineEvent: (event) => ipcRenderer.invoke("steam:add-timeline-event", event),
-  triggerScreenshot: () => ipcRenderer.invoke("steam:trigger-screenshot")
+  triggerScreenshot: () => ipcRenderer.invoke("steam:trigger-screenshot"),
+  updateStats: (values) => ipcRenderer.invoke("steam:update-stats", values)
 }));
 
 contextBridge.exposeInMainWorld("marqueAchievementPlatform", Object.freeze({

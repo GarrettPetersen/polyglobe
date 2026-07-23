@@ -13,6 +13,7 @@ import {
   parseCloudEnvelope,
   platformServicesAdapter,
   serializeCloudEnvelope,
+  updatePlatformStats,
   validatePlatformCapabilities
 } from "./platformServices.js";
 
@@ -34,6 +35,7 @@ function bridge(overrides = {}) {
       input: true,
       richPresence: true,
       screenshots: true,
+      stats: true,
       timeline: true
     }),
     readCloudFile: async () => null,
@@ -42,6 +44,7 @@ function bridge(overrides = {}) {
     setTimelineState: async () => {},
     addTimelineEvent: async () => {},
     triggerScreenshot: async () => {},
+    updateStats: async () => {},
     ...overrides
   };
 }
@@ -141,4 +144,22 @@ test("failed activity updates remain retryable", async () => {
   await assert.rejects(publisher.publish(activity), /Steam unavailable/);
   assert.equal(await publisher.publish(activity), true);
   assert.equal(presenceAttempts, 2);
+});
+
+test("Steam stat updates are validated and browser builds remain inert", async () => {
+  const updates = [];
+  const installed = bridge({
+    updateStats: async (values) => updates.push(values)
+  });
+  assert.equal(await updatePlatformStats(installed, { MAX_VOYAGE_DISCOVERIES: 4 }), true);
+  assert.deepEqual(updates, [{ MAX_VOYAGE_DISCOVERIES: 4 }]);
+  assert.equal(await updatePlatformStats(null, { MAX_VOYAGE_DISCOVERIES: 4 }), false);
+  await assert.rejects(
+    updatePlatformStats(installed, { "bad stat": 4 }),
+    /Invalid Steam stat entry/
+  );
+  await assert.rejects(
+    updatePlatformStats(installed, { MAX_VOYAGE_DISCOVERIES: 1.5 }),
+    /Invalid Steam stat entry/
+  );
 });

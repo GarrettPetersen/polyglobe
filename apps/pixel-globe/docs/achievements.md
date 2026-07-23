@@ -33,11 +33,12 @@ hidden in Steamworks so the platform UI does not reveal quest spoilers.
 Generate the Steamworks catalog and its 256px achieved/locked icon pairs with:
 
 ```sh
-npm run render:steam-achievements
+npm run render:steam-config
 ```
 
-The generated catalog lives at `steam/achievements/catalog.json`. Steam App
-4516500 is the full game.
+The achievement catalog lives at `steam/achievements/catalog.json`. The stat
+definitions and achievement progress bindings live at
+`steam/stats/catalog.json`. Steam App 4516500 is the full game.
 
 ## Steamworks configuration
 
@@ -47,6 +48,24 @@ publishing the configuration, upload each entry's `achievedIcon` and
 `unachievedIcon` files from that directory. The generated files are 256x256 JPGs
 with colorful achieved art and grayscale locked art, matching Steam's current
 recommendation.
+
+Create every entry in `steam/stats/catalog.json` as an `INT` stat with the
+listed API name, display name, minimum, maximum, default, and aggregation
+settings. Set `Set By` to `Client` and enable `Increment Only`. The desktop host
+reads each current Steam value and only writes a larger value.
+
+For every entry under `achievementProgress`, edit the matching Steam
+achievement and set:
+
+- `Progress Stat` to the entry's `progressStat`.
+- `Progress Stat Unlock Value` to the entry's `progressUnlockValue`.
+
+These bindings let Steam display progress and unlock the achievement at its
+threshold. The game also sends an explicit, idempotent achievement unlock, so
+previous browser saves and profiles earned while offline still reconcile.
+`Great Explorer`, `Well Rounded`, and `Great Bestiary` deliberately remain
+explicit-only: their totals grow whenever the discovery, ship, or animal
+catalog grows, so they should not have a fixed Steam progress threshold.
 
 Steam Cloud for App 4516500 is configured for:
 
@@ -73,5 +92,6 @@ progress in the shared local profile, and the full game reports any already
 earned achievements to Steam when it first loads that profile. This avoids two
 independent platform achievements for the same accomplishment.
 
-Steam Stats and Leaderboards stay disabled until the game has a concrete,
-player-facing use for them. The achievement system does not need Steam Stats.
+Steam Stats back the fixed achievement progress counters in
+`steam/stats/catalog.json`. Steam Leaderboards remain disabled until the game
+has a versioned, cheat-resistant seeded challenge mode.

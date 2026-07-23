@@ -5,6 +5,7 @@ const steamworks = require("steamworks.js");
 const { startStaticServer } = require("./staticServer.cjs");
 const { createSteamNativeApi } = require("./steamNativeApi.cjs");
 const { createSteamInputService } = require("./steamInput.cjs");
+const { updateHighWaterStats } = require("./steamStats.cjs");
 
 const APP_ID = requiredAppId(process.env.MARQUE_STEAM_APP_ID || "4516500");
 const GAME_ROOT = resolve(__dirname, process.env.MARQUE_STEAM_GAME_ROOT || "../dist");
@@ -16,6 +17,7 @@ const CAPABILITIES = Object.freeze({
   input: true,
   richPresence: true,
   screenshots: true,
+  stats: true,
   timeline: true
 });
 
@@ -83,6 +85,7 @@ async function createGameWindow(url) {
 function installIpcHandlers() {
   ipcMain.handle("steam:get-capabilities", () => CAPABILITIES);
   ipcMain.handle("steam:unlock-achievement", (_event, id) => unlockAchievement(id));
+  ipcMain.handle("steam:update-stats", (_event, values) => updateHighWaterStats(client.stats, values));
   ipcMain.handle("steam:cloud-read", (_event, name) => readCloudFile(name));
   ipcMain.handle("steam:cloud-write", (_event, name, contents) => writeCloudFile(name, contents));
   ipcMain.handle("steam:set-rich-presence", (_event, presence) => setRichPresence(presence));

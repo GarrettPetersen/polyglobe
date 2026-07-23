@@ -19,7 +19,8 @@ const PLATFORM_METHODS = Object.freeze([
   "setRichPresence",
   "setTimelineState",
   "addTimelineEvent",
-  "triggerScreenshot"
+  "triggerScreenshot",
+  "updateStats"
 ]);
 
 export const PLATFORM_TIMELINE_MODE = Object.freeze({
@@ -55,7 +56,7 @@ export async function validatePlatformCapabilities(bridge) {
   if (!capabilities || typeof capabilities !== "object") {
     throw new Error("Steam platform bridge returned invalid capabilities");
   }
-  for (const capability of ["achievements", "cloud", "input", "richPresence", "screenshots", "timeline"]) {
+  for (const capability of ["achievements", "cloud", "input", "richPresence", "screenshots", "stats", "timeline"]) {
     if (capabilities[capability] !== true) {
       throw new Error(`Steam platform capability is unavailable: ${capability}`);
     }
@@ -166,6 +167,22 @@ export async function addPlatformTimelineEvent(bridge, event) {
 export async function triggerPlatformScreenshot(bridge) {
   if (!bridge) return false;
   await bridge.triggerScreenshot();
+  return true;
+}
+
+export async function updatePlatformStats(bridge, values) {
+  if (!bridge) return false;
+  if (!values || typeof values !== "object" || Array.isArray(values) ||
+      Object.keys(values).length === 0) {
+    throw new Error("Steam stat values must be a non-empty object");
+  }
+  for (const [name, value] of Object.entries(values)) {
+    if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(name) ||
+        !Number.isInteger(value) || value < 0 || value > 2_147_483_647) {
+      throw new Error(`Invalid Steam stat entry: ${name}=${value}`);
+    }
+  }
+  await bridge.updateStats(values);
   return true;
 }
 
