@@ -1034,6 +1034,10 @@ import {
   isWaterSurfaceRow,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
+import {
+  findNearestRestoredShipPlacement,
+  restoredShipPlacementPlan
+} from "./restoredShipNavigation.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
@@ -1252,6 +1256,7 @@ const SHIP_RIVER_HAUL_ACCEL_RAD = 0.009;
 const SHIP_RIVER_HAUL_MAX_SPEED_RAD = 0.0085;
 const SHIP_HAUL_RECOVERY_AFTER_SECONDS = 0.3;
 const SHIP_HAUL_RECOVERY_MAX_RADIUS_PX = 8;
+const SHIP_RESTORE_RECOVERY_MAX_RADIUS_PX = 8;
 const SHIP_HAUL_RECOVERY_SPEED_RAD = 0.0045;
 const SHIP_COLLISION_SAMPLE_STEP_PX = 2;
 const SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX = 48;
@@ -7663,15 +7668,34 @@ async function restoreSavedVoyage(payload) {
   shipSinkDepthImage = assets.sinkDepthImage;
   shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
   shipLighting = assets.lighting;
-  const position = normalize3(savedShip.position.slice());
+  weatherClockMinutes = payload.worldClock.currentMinute;
+  voyageStartClockMinutes = payload.worldClock.voyageStartMinute;
+  weatherParts = weatherClockParts(weatherClockMinutes);
+  refreshWeatherState(true);
+
+  const savedPosition = normalize3(savedShip.position.slice());
+  const positionTileId = findNearestTileId(graph, directionIndex, savedPosition);
+  const frozenSavedTile = isShipBlockedByIceTile(savedShip.tileId);
+  const nearestOpenWaterTileId = frozenSavedTile
+    ? nearestTileMatching(savedShip.tileId, isShipOpenWaterTile)
+    : undefined;
+  const restorePlacement = restoredShipPlacementPlan({
+    savedTileId: savedShip.tileId,
+    positionTileId,
+    frozen: frozenSavedTile,
+    nearestOpenWaterTileId
+  });
+  const position = restorePlacement.recenter
+    ? tileCenterVector(restorePlacement.tileId)
+    : savedPosition;
   const savedLat = latitudeDegForDirection(position);
   const savedLon = longitudeDegForDirection(position);
   ship = createShip(savedLat, savedLon, savedShip.typeSlug, savedShip.factionId);
   ship.position = position;
-  ship.tileId = savedShip.tileId;
+  ship.tileId = restorePlacement.tileId;
   ship.heading = normalizeTangentOrFallback(savedShip.heading, position, WORLD_NORTH);
   ship.targetHeading = normalizeTangentOrFallback(savedShip.targetHeading, position, ship.heading);
-  ship.velocity = savedShip.velocity.slice();
+  ship.velocity = restorePlacement.stop ? [0, 0, 0] : savedShip.velocity.slice();
   ship.hitPoints = savedShip.hitPoints;
   ship.maxHitPoints = savedShip.maxHitPoints;
   ship.wakeSeedCounter = savedShip.wakeSeedCounter || 0;
@@ -7685,9 +7709,6 @@ async function restoreSavedVoyage(payload) {
   cannonSmokeBursts = [];
   hullSplinterBursts = [];
 
-  weatherClockMinutes = payload.worldClock.currentMinute;
-  voyageStartClockMinutes = payload.worldClock.voyageStartMinute;
-  weatherParts = weatherClockParts(weatherClockMinutes);
   anchored = payload.anchored;
   survivalDeprivationTimers.waterNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.waterNextMinute);
   survivalDeprivationTimers.foodNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.foodNextMinute);
@@ -7744,12 +7765,88 @@ async function restoreSavedVoyage(payload) {
   centerTileId = ship.tileId;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
-  refreshWeatherState(true);
+  reconcileRestoredShipDrawnNavigation(restorePlacement.reason);
   resetPlayerWindState();
   windIndicatorState = null;
   setBackgroundMusicTrack("ship", { force: true });
   lastAutosaveMs = performance.now();
   dirty = true;
+}
+
+function reconcileRestoredShipDrawnNavigation(initialReason = null) {
+  let recovery = nearestValidRestoredShipPlacement();
+  let reason = initialReason;
+
+  if (!recovery) {
+    const previousTileId = ship.tileId;
+    const openWaterTileId = nearestTileMatching(
+      previousTileId,
+      (tileId) => tileId !== previousTileId && isShipOpenWaterTile(tileId)
+    );
+    if (openWaterTileId === undefined) {
+      throw new Error(`Could not recover restored ship from blocked navigation at tile ${previousTileId}`);
+    }
+    placeRestoredShipAtTileCenter(openWaterTileId);
+    reason = reason || "blocked rendered hull";
+    recovery = nearestValidRestoredShipPlacement();
+    if (!recovery) {
+      throw new Error(`Restored ship remained blocked after moving to open-water tile ${openWaterTileId}`);
+    }
+  }
+
+  const { x, y, candidate } = recovery;
+  if (x !== 0 || y !== 0 || candidate.tileId !== ship.tileId) {
+    localLayout.viewX += x;
+    localLayout.viewY += y;
+    ship.tileId = candidate.tileId;
+    ship.position = candidate.position;
+    ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
+    ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
+    ship.velocity = [0, 0, 0];
+    camera = northUpCamera(ship.position, camera.right);
+    centerTileId = ship.tileId;
+    reason = reason || "blocked rendered hull";
+  }
+
+  if (reason) {
+    console.info(
+      `[pixel-globe] recovered restored ship from ${reason}; placed on tile ${ship.tileId}`
+    );
+  }
+}
+
+function nearestValidRestoredShipPlacement() {
+  return findNearestRestoredShipPlacement(SHIP_RESTORE_RECOVERY_MAX_RADIUS_PX, (offsetX, offsetY) => {
+    const x = localLayout.viewX + offsetX;
+    const y = localLayout.viewY + offsetY;
+    const collisionTile = localCollisionTileAtPoint(x, y);
+    if (!collisionTile) return null;
+    const position = globePositionForLocalPoint(collisionTile.tileId, x, y);
+    const navigation = shipNavigabilityAtLocalPoint(x, y, collisionTile.tileId, position);
+    if (!navigation.ok) return null;
+    const heading = normalizeTangentOrFallback(ship.heading, position, WORLD_NORTH);
+    const occupancy = vesselOccupancyAtPosition(
+      position,
+      collisionTile.tileId,
+      { x, y },
+      navigation,
+      heading
+    );
+    if (!occupancy.ok) return null;
+    return { tileId: collisionTile.tileId, position };
+  });
+}
+
+function placeRestoredShipAtTileCenter(tileId) {
+  ship.tileId = tileId;
+  ship.position = tileCenterVector(tileId);
+  ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
+  ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
+  ship.velocity = [0, 0, 0];
+  camera = northUpCamera(ship.position, camera?.right || [1, 0, 0]);
+  centerTileId = tileId;
+  localLayout = createLocalLayout(tileId);
+  chart = buildChart(camera);
 }
 
 function saveVoyageNow(reason) {
