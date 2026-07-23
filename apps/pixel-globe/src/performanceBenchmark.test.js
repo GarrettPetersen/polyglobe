@@ -55,14 +55,15 @@ test("benchmark report includes frame percentiles and skipped frame estimates", 
     [20, 3, 2],
     [26, 3, 3],
     [43, 4, 4],
-    [77, 8, 5]
+    [77, 8, 5],
+    [90, 4, 6]
   ]) {
     recordPerformanceBenchmarkStage(state, "render", cpuMs / 2);
     result = recordPerformanceBenchmarkFrame(state, frameAtMs, cpuMs, renders, { ships: 12 }) || result;
   }
-  assert.equal(result.sampledFrames, 3);
-  assert.equal(result.renderedFrames, 3);
-  assert.equal(result.frameTimeMs.p50, 17);
+  assert.equal(result.sampledFrames, 4);
+  assert.equal(result.renderedFrames, 4);
+  assert.equal(result.frameTimeMs.p50, 13);
   assert.equal(result.frameTimeMs.p95, 34);
   assert.equal(result.cpuTimeMs.max, 8);
   assert.equal(result.stages.render.max, 4);
@@ -87,7 +88,9 @@ test("benchmark evaluates a lazy scene snapshot only when measurement completes"
   recordPerformanceBenchmarkFrame(state, 20, 2, 2, scene);
   recordPerformanceBenchmarkFrame(state, 30, 2, 3, scene);
   assert.equal(snapshotCalls, 0);
-  const result = recordPerformanceBenchmarkFrame(state, 40, 2, 4, scene);
+  recordPerformanceBenchmarkFrame(state, 40, 2, 4, scene);
+  recordPerformanceBenchmarkFrame(state, 50, 2, 5, scene);
+  const result = recordPerformanceBenchmarkFrame(state, 60, 2, 6, scene);
   assert.equal(snapshotCalls, 1);
   assert.deepEqual(result.scene, { ships: 4 });
 });
@@ -118,7 +121,29 @@ test("benchmark discards the cold first-frame interval before starting its warmu
   assert.deepEqual(state.frameIntervalsMs, []);
   recordPerformanceBenchmarkFrame(state, 5010, 4, 3, {});
   recordPerformanceBenchmarkFrame(state, 5020, 4, 4, {});
-  const result = recordPerformanceBenchmarkFrame(state, 5030, 4, 5, {});
-  assert.equal(result.sampledFrames, 2);
+  recordPerformanceBenchmarkFrame(state, 5030, 4, 5, {});
+  recordPerformanceBenchmarkFrame(state, 5040, 4, 6, {});
+  const result = recordPerformanceBenchmarkFrame(state, 5050, 4, 7, {});
+  assert.equal(result.sampledFrames, 4);
   assert.equal(result.frameTimeMs.max, 10);
+});
+
+test("benchmark extends a measurement until it has four catastrophic-frame samples", () => {
+  const state = createPerformanceBenchmarkState({
+    id: "busy-world",
+    warmupSeconds: 0.01,
+    durationSeconds: 0.02
+  }, 0);
+  recordPerformanceBenchmarkFrame(state, 0, 1, 0, {});
+  recordPerformanceBenchmarkFrame(state, 10, 1, 1, {});
+  recordPerformanceBenchmarkFrame(state, 20, 1, 2, {});
+
+  assert.equal(recordPerformanceBenchmarkFrame(state, 1000, 980, 3, {}), null);
+  assert.equal(recordPerformanceBenchmarkFrame(state, 2000, 980, 4, {}), null);
+  assert.equal(recordPerformanceBenchmarkFrame(state, 3000, 980, 5, {}), null);
+  const result = recordPerformanceBenchmarkFrame(state, 4000, 980, 6, {});
+
+  assert.equal(result.sampledFrames, 4);
+  assert.equal(result.frameTimeMs.p50, 1000);
+  assert.equal(result.frameTimeMs.max, 1000);
 });

@@ -1003,9 +1003,7 @@ function createNpcFleet(system, startMinute) {
         seed,
         origin
       });
-      const phaseDays = (seed >>> 12) % 96;
-      assignNpcPlan(system, ship, startMinute - phaseDays * WEATHER_MINUTES_PER_DAY);
-      settleNpcShipToClock(system, ship, startMinute, 96);
+      seedNpcShipOnRoute(system, ship, startMinute);
       ships.push(ship);
     }
   }
@@ -1059,9 +1057,7 @@ function synchronizeNpcWhalerFleet(system, startMinute) {
         seed,
         origin
       });
-      const phaseDays = (seed >>> 12) % 96;
-      assignNpcPlan(system, ship, startMinute - phaseDays * WEATHER_MINUTES_PER_DAY);
-      settleNpcShipToClock(system, ship, startMinute, 96);
+      seedNpcShipOnRoute(system, ship, startMinute);
       system.ships.push(ship);
       reservedIds.add(id);
       added++;
@@ -1302,6 +1298,24 @@ function assignNpcPlan(system, ship, startMinute) {
   }
 
   ship.plan = buildNpcPlan(origin, destination, route, startMinute);
+}
+
+function seedNpcShipOnRoute(system, ship, startMinute) {
+  assignNpcPlan(system, ship, startMinute);
+  const durationMinutes = ship.plan.endMinute - ship.plan.startMinute;
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+    throw new Error(`NPC ship ${ship.id} received an invalid initial route duration: ${durationMinutes}`);
+  }
+  const elapsedMinutes = Math.min(
+    durationMinutes - 1,
+    Math.floor(durationMinutes * hashUnit(`${ship.id}|initial-route-progress`))
+  );
+  ship.plan.startMinute -= elapsedMinutes;
+  ship.plan.endMinute -= elapsedMinutes;
+  for (const segment of ship.plan.segments) {
+    segment.startMinute -= elapsedMinutes;
+    segment.endMinute -= elapsedMinutes;
+  }
 }
 
 function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {

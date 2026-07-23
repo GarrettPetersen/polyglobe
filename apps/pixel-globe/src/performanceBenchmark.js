@@ -16,6 +16,7 @@ const BENCHMARKS = Object.freeze({
 });
 
 const FRAME_BUDGET_MS = 1000 / 60;
+const MIN_MEASURED_FRAMES = 4;
 const DEFAULT_WARMUP_SECONDS = 2;
 const DEFAULT_DURATION_SECONDS = 8;
 
@@ -90,8 +91,9 @@ export function recordPerformanceBenchmarkFrame(state, frameAtMs, cpuMs, renderC
   if (state.renderCountAtStart === null && frameAtMs >= measurementStartMs) {
     state.renderCountAtStart = renderCount;
   }
+  const needsMinimumSamples = state.frameIntervalsMs.length < MIN_MEASURED_FRAMES;
   if (state.previousFrameAtMs !== null && state.previousFrameAtMs >= measurementStartMs &&
-      state.previousFrameAtMs < measurementEndMs) {
+      (state.previousFrameAtMs < measurementEndMs || needsMinimumSamples)) {
     state.frameIntervalsMs.push(frameAtMs - state.previousFrameAtMs);
     state.frameCpuMs.push(cpuMs);
     for (const [name, durationMs] of Object.entries(state.currentFrameStageMs)) {
@@ -101,10 +103,7 @@ export function recordPerformanceBenchmarkFrame(state, frameAtMs, cpuMs, renderC
   }
   state.currentFrameStageMs = {};
   state.previousFrameAtMs = frameAtMs;
-  if (frameAtMs < measurementEndMs) return null;
-  if (state.frameIntervalsMs.length < 2) {
-    throw new Error(`Benchmark collected too few frames: ${state.frameIntervalsMs.length}`);
-  }
+  if (frameAtMs < measurementEndMs || state.frameIntervalsMs.length < MIN_MEASURED_FRAMES) return null;
 
   const resolvedScene = typeof scene === "function" ? scene() : scene;
   if (!resolvedScene || typeof resolvedScene !== "object" || Array.isArray(resolvedScene)) {

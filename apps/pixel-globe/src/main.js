@@ -1045,8 +1045,7 @@ import {
 } from "./terrainShipOcclusion.js";
 import {
   fisheryTileCallsNearestFirst,
-  nearestWaterMaskedPoint,
-  waterMaskedSpritePixels
+  nearestWaterMaskedPoint
 } from "./fishWaterMask.js";
 import { shipCanRefillFreshWater } from "./freshWaterAccess.js";
 import { gamepadControlFrame, gamepadMenuNavigationFrame } from "./controllerInput.js";
@@ -2026,6 +2025,7 @@ const shipWaterlineLayerCache = new WeakMap();
 const selectableOutlineCache = new WeakMap();
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
+const pixelTextWidthCache = new Map();
 let stormEdgeFogCanvas = null;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
@@ -2143,10 +2143,12 @@ const cityDamageOverlayCache = new WeakMap();
 const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
 const landRoadLayerCache = new WeakMap();
+const riverNavigationPathCache = new WeakMap();
 const npcOffshoreClearanceCache = new Map();
 let npcOffshoreClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
+const fishSpritePixelCache = new WeakMap();
 let spriteColors;
 let waterLatitudeImages;
 let waterLatitudeSpriteColors;
@@ -5789,6 +5791,7 @@ function setInterfaceLanguage(language, { persist = true } = {}) {
   document.documentElement.lang = normalized;
   if (persist) writeLocalStorage(LANGUAGE_STORAGE_KEY, normalized);
   pixelTextRasterCache.clear();
+  pixelTextWidthCache.clear();
   syncCanvasAriaLabel();
   dirty = true;
 }
@@ -24838,7 +24841,7 @@ function drawOptionsText(text, x, y, options = {}) {
 
 function fitPixelText(text, font, maxWidth) {
   const localized = renderedUiText(text);
-  return fitMeasuredText(localized, maxWidth, (entry) => measurePixelTextWidth(entry, font));
+  return fitMeasuredText(localized, maxWidth, (entry) => measureRenderedPixelTextWidth(entry, font));
 }
 
 function drawPixelText(text, x, y, options = {}) {
@@ -24849,7 +24852,7 @@ function drawPixelText(text, x, y, options = {}) {
   ctx.font = font;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  const textW = measurePixelTextWidth(renderedText, font);
+  const textW = measureRenderedPixelTextWidth(renderedText, font);
   const alignedOrigin = pixelTextOrigin({ x, y, width: textW, align });
   const origin = snapPointToTransformedPixelGrid(alignedOrigin, ctx.getTransform());
   if (typeof ctx.fillStyle !== "string") {
@@ -24921,12 +24924,29 @@ function pixelTextFontLayout(font) {
 }
 
 function measurePixelTextWidth(text, font = PIXEL_FONT_SMALL_8) {
-  const renderedText = renderedUiText(text);
+  return measureRenderedPixelTextWidth(renderedUiText(text), font);
+}
+
+function measureRenderedPixelTextWidth(renderedText, font = PIXEL_FONT_SMALL_8) {
   const resolvedFont = resolvedPixelFont(font, renderedText);
+  const key = `${resolvedFont}\u0000${renderedText}`;
+  const cached = pixelTextWidthCache.get(key);
+  if (cached !== undefined) {
+    pixelTextWidthCache.delete(key);
+    pixelTextWidthCache.set(key, cached);
+    return cached;
+  }
   ctx.font = resolvedFont;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  return Math.ceil(ctx.measureText(renderedText).width);
+  const width = Math.ceil(ctx.measureText(renderedText).width);
+  if (pixelTextWidthCache.size >= PIXEL_TEXT_RASTER_CACHE_LIMIT) {
+    const oldestKey = pixelTextWidthCache.keys().next().value;
+    if (oldestKey === undefined) throw new Error("Pixel text width cache eviction failed");
+    pixelTextWidthCache.delete(oldestKey);
+  }
+  pixelTextWidthCache.set(key, width);
+  return width;
 }
 
 function minimapPixelLandFraction(raster, pixel) {
@@ -26752,12 +26772,9 @@ function riverCenterlineInfosAtLocalPoint(x, y, activeChart) {
     if (mask === 0) continue;
     const px = x - (entry.call.drawSurfaceX - TILE_ART_HALF);
     const py = y - (entry.call.drawSurfaceY - TILE_ART_HALF);
-    const endpoints = riverEndpointsForTile(entry.call, activeChart, mask);
-    if (endpoints.length === 0) continue;
-    const variant = hashInt(entry.call.id) & 15;
-    const pathOffsetX = entry.call.drawSurfaceX - TILE_ART_HALF;
-    const pathOffsetY = entry.call.drawSurfaceY - TILE_ART_HALF;
-    const paths = riverBezierPaths(endpoints, variant);
+    const geometry = riverNavigationPathsForTile(entry.call, activeChart, mask);
+    if (geometry.paths.length === 0) continue;
+    const { paths, pathOffsetX, pathOffsetY } = geometry;
     for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
       const path = paths[pathIndex];
       const probe = riverPathWaterProbe(px, py, path, RIVER_BODY_RADIUS_PX, entry.call.id);
@@ -26825,10 +26842,9 @@ function riverTileWaterInfoAtLocalPoint(x, y, call, activeChart) {
   const margin = WAKE_RIVER_RADIUS_PX + 2;
   if (px < -margin || px > TILE_ART_SIZE + margin || py < -margin || py > TILE_ART_SIZE + margin) return null;
 
-  const endpoints = riverEndpointsForTile(call, activeChart, mask);
-  if (endpoints.length === 0) return null;
-  const variant = hashInt(call.id) & 15;
-  const paths = riverBezierPaths(endpoints, variant);
+  const geometry = riverNavigationPathsForTile(call, activeChart, mask);
+  const { endpoints, paths } = geometry;
+  if (paths.length === 0) return null;
   let best = null;
   for (const path of paths) {
     best = closerRiverProbe(best, riverPathWaterProbe(px, py, path, RIVER_BODY_RADIUS_PX, call.id));
@@ -26845,6 +26861,34 @@ function riverTileWaterInfoAtLocalPoint(x, y, call, activeChart) {
     best = closerRiverProbe(best, riverBrushWaterProbe(px, py, endpoint.x, endpoint.y, endpoint.mouth ? RIVER_MOUTH_RADIUS_PX : RIVER_CONNECTOR_RADIUS_PX, call.id));
   }
   return best;
+}
+
+function riverNavigationPathsForTile(call, activeChart, mask) {
+  if (!activeChart || !Number.isInteger(call?.id) || !Number.isInteger(mask) || mask <= 0) {
+    throw new Error(`River navigation path requires a chart tile and positive mask: ${call?.id}/${mask}`);
+  }
+  let chartCache = riverNavigationPathCache.get(activeChart);
+  if (!chartCache) {
+    chartCache = new Map();
+    riverNavigationPathCache.set(activeChart, chartCache);
+  }
+  const cached = chartCache.get(call.id);
+  if (cached) {
+    if (cached.mask !== mask) {
+      throw new Error(`River navigation mask changed within chart for tile ${call.id}`);
+    }
+    return cached;
+  }
+  const endpoints = riverEndpointsForTile(call, activeChart, mask);
+  const geometry = {
+    mask,
+    endpoints,
+    paths: endpoints.length === 0 ? [] : riverBezierPaths(endpoints, hashInt(call.id) & 15),
+    pathOffsetX: call.drawSurfaceX - TILE_ART_HALF,
+    pathOffsetY: call.drawSurfaceY - TILE_ART_HALF
+  };
+  chartCache.set(call.id, geometry);
+  return geometry;
 }
 
 function riverPathWaterProbe(px, py, path, radius, tileId) {
@@ -27161,24 +27205,24 @@ function drawNpcFishingNetAnimations(nowMs) {
 function drawFishIndividuals(activeChart, nowMs) {
   if (!animalImages?.fish || !gameState) return [];
   const calls = fishIndividualDrawCalls(activeChart, nowMs);
-  for (const call of calls) drawFishSprite(call);
+  drawFishSprites(calls);
   return calls;
 }
 
 function fishIndividualDrawCalls(activeChart, nowMs) {
   const calls = [];
   const offset = chartOffsetPixels(activeChart);
+  const visibleTileCalls = activeChart.tileCalls.filter((tileCall) => pointNearScreen({
+    x: tileCall.drawSurfaceX + offset.x,
+    y: tileCall.drawSurfaceY + offset.y
+  }, FISH_SPRITE_SIZE + 6));
   const nearestFirstTileCalls = fisheryTileCallsNearestFirst(
-    activeChart.tileCalls,
+    visibleTileCalls,
     localLayout.viewX,
     localLayout.viewY
   );
   for (const tileCall of nearestFirstTileCalls) {
     if (calls.length >= FISH_VISIBLE_MAX_INDIVIDUALS) break;
-    if (!pointNearScreen({
-      x: tileCall.drawSurfaceX + offset.x,
-      y: tileCall.drawSurfaceY + offset.y
-    }, FISH_SPRITE_SIZE + 6)) continue;
     const fishery = fisheryForTileCall(tileCall);
     if (!fishery) continue;
     calls.push(...fishIndividualCallsForFishery(tileCall, fishery, nowMs, FISH_VISIBLE_MAX_INDIVIDUALS - calls.length));
@@ -27329,32 +27373,71 @@ function fishHabitatForTileCall(tileCall) {
   };
 }
 
-function drawFishSprite(call) {
-  const sprite = tintedFishSprite(call.colors);
-  const alpha = spriteAlphaMask(sprite).alpha;
-  const visiblePixels = waterMaskedSpritePixels({
-    x: call.x,
-    y: call.y,
-    width: FISH_SPRITE_SIZE,
-    height: FISH_SPRITE_SIZE,
-    alpha,
-    flip: call.flip,
-    isWater: (x, y) => wakeMapPointIsWater(x, y, chart)
-  });
-  if (visiblePixels.length === 0) return;
+function drawFishSprites(calls) {
+  const batches = new Map();
+  for (const call of calls) {
+    const groups = tintedFishSpritePixelGroups(tintedFishSprite(call.colors));
+    for (const group of groups) {
+      const alpha = call.alpha * group.alpha;
+      const key = `${group.color}|${alpha}`;
+      let batch = batches.get(key);
+      if (!batch) {
+        batch = { color: group.color, alpha, points: [] };
+        batches.set(key, batch);
+      }
+      for (const point of group.points) {
+        const sourceX = point & 0xff;
+        const sourceY = point >> 8;
+        const mapX = call.x + (call.flip ? FISH_SPRITE_SIZE - 1 - sourceX : sourceX);
+        const mapY = call.y + sourceY;
+        if (wakeMapPointIsWater(mapX, mapY, chart)) {
+          batch.points.push(((mapX + 32768) & 0xffff) | ((mapY + 32768) << 16));
+        }
+      }
+    }
+  }
+
   ctx.save();
-  ctx.globalAlpha = call.alpha;
-  ctx.beginPath();
-  for (const pixel of visiblePixels) ctx.rect(pixel.x, pixel.y, 1, 1);
-  ctx.clip();
-  if (call.flip) {
-    ctx.translate(call.x + FISH_SPRITE_SIZE, call.y);
-    ctx.scale(-1, 1);
-    ctx.drawImage(sprite, 0, 0);
-  } else {
-    ctx.drawImage(sprite, call.x, call.y);
+  for (const batch of batches.values()) {
+    if (batch.points.length === 0) continue;
+    ctx.globalAlpha = batch.alpha;
+    ctx.fillStyle = batch.color;
+    ctx.beginPath();
+    for (const point of batch.points) {
+      ctx.rect((point & 0xffff) - 32768, ((point >>> 16) & 0xffff) - 32768, 1, 1);
+    }
+    ctx.fill();
   }
   ctx.restore();
+}
+
+function tintedFishSpritePixelGroups(sprite) {
+  const cached = fishSpritePixelCache.get(sprite);
+  if (cached) return cached;
+  if (!(sprite instanceof HTMLCanvasElement)) throw new Error("Tinted fish sprite must be a canvas");
+  const spriteCtx = sprite.getContext("2d", { willReadFrequently: true });
+  if (!spriteCtx) throw new Error("Could not read tinted fish sprite pixels");
+  const data = spriteCtx.getImageData(0, 0, FISH_SPRITE_SIZE, FISH_SPRITE_SIZE).data;
+  const groupsByKey = new Map();
+  for (let y = 0; y < FISH_SPRITE_SIZE; y++) {
+    for (let x = 0; x < FISH_SPRITE_SIZE; x++) {
+      const index = (x + y * FISH_SPRITE_SIZE) * 4;
+      const alphaByte = data[index + 3];
+      if (alphaByte === 0) continue;
+      const color = `rgb(${data[index]}, ${data[index + 1]}, ${data[index + 2]})`;
+      const key = `${color}|${alphaByte}`;
+      let group = groupsByKey.get(key);
+      if (!group) {
+        group = { color, alpha: alphaByte / 255, points: [] };
+        groupsByKey.set(key, group);
+      }
+      group.points.push(x | (y << 8));
+    }
+  }
+  const groups = [...groupsByKey.values()];
+  if (groups.length === 0) throw new Error("Tinted fish sprite contains no opaque pixels");
+  fishSpritePixelCache.set(sprite, groups);
+  return groups;
 }
 
 function tintedFishSprite(colors) {
