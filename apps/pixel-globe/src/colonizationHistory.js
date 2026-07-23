@@ -183,7 +183,9 @@ const HISTORIES = Object.freeze([
     landingAction: "Open Nagasaki harbor",
     approval: {
       speakerRole: "envoy of the court and Omura house",
-      text: "The Portuguese emissaries request a permanent trading harbor at Nagasaki. The court's license matters, but the site lies in Omura Sumitada's domain. His envoys support six streets around the anchorage for the Portuguese China ship. Japan already knows gunpowder; they want to inspect the portable matchlock mechanism and judge whether Portuguese merchants can supply it reliably.",
+      openingText: "We come under Portuguese seal to request a permanent trading harbor at Nagasaki, not to seize Japanese ground. Omura Sumitada's envoys propose six streets around the anchorage for the China ship, under Japanese authority and local law.",
+      responseText: "The court has heard the Portuguese emissaries. The site lies in Omura Sumitada's domain, and his envoys support the six streets. Japan already knows gunpowder; present the portable matchlock mechanism so our armorers may judge it, and the harbor terms may be sealed.",
+      closingText: "Then Nagasaki shall remain a Japanese port, and the annual China ship will have a lawful harbor. Captain, our course now lies to the Omura anchorage.",
       actionLabel: "Present arms and negotiate terms",
       grantedFeedback: "The court and Omura envoys have accepted terms for a Japanese trading port at Nagasaki."
     },
@@ -647,7 +649,8 @@ function defenseStage(entry) {
 
 function approval(entry) {
   if (entry === undefined) return null;
-  if (!entry || !nonEmpty(entry.speakerRole) || !nonEmpty(entry.text) ||
+  if (!entry || !nonEmpty(entry.speakerRole) || !nonEmpty(entry.openingText) ||
+      !nonEmpty(entry.responseText) || !nonEmpty(entry.closingText) ||
       !nonEmpty(entry.actionLabel) || !nonEmpty(entry.grantedFeedback)) {
     throw new Error("Invalid colonization approval history");
   }

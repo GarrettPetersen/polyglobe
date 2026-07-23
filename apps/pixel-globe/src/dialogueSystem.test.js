@@ -2168,7 +2168,13 @@ test("passenger dialogue can be declined and accepted later", () => {
 
 test("envoy dialogue advances from negotiations to a paid return voyage", () => {
   const origin = { tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
-  const target = { tileId: 2, city: "London", country: "United Kingdom", factionId: "england" };
+  const target = {
+    tileId: 2,
+    city: "London",
+    country: "United Kingdom",
+    factionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
   const otherPort = {
     tileId: 3,
     city: "Calais",
@@ -2201,6 +2207,7 @@ test("envoy dialogue advances from negotiations to a paid return voyage", () => 
     reward: 310,
     dialogue: {
       offer: "Carry me to London and home again.",
+      negotiationOpening: "I bring our court's proposal for the English council.",
       negotiation: "The English court has received our proposals.",
       returnUnderway: "Take me home with their answer.",
       homecoming: "The court awaits my report."
@@ -2219,6 +2226,7 @@ test("envoy dialogue advances from negotiations to a paid return voyage", () => 
   const negotiationSession = createPassengerDialogueSession(target, active);
   const negotiation = passengerDialogueView(negotiationSession, target, active, gameState);
   assert.equal(negotiation.options[0].label, "Begin negotiations");
+  assert.equal(negotiation.text, "I bring our court's proposal for the English council.");
   const result = selectPassengerDialogueOption(
     negotiationSession,
     target,
@@ -2228,7 +2236,24 @@ test("envoy dialogue advances from negotiations to a paid return voyage", () => 
     { simMinute: 240 }
   );
   assert.equal(result.action.type, "envoy-negotiated");
+  assert.equal(result.closed, false);
   assert.equal(gameState.memory.quests.active.stage, "return");
+  const answer = passengerDialogueView(
+    negotiationSession,
+    target,
+    gameState.memory.quests.active,
+    gameState
+  );
+  assert.equal(answer.speaker, "Thomas Cromwell, local official");
+  assert.equal(answer.text, "The English court has received our proposals.");
+  assert.equal(answer.options[0].label, "Receive the answer");
+  assert.deepEqual(selectPassengerDialogueOption(
+    negotiationSession,
+    target,
+    gameState.memory.quests.active,
+    gameState,
+    0
+  ), { closed: true, action: null });
 
   const otherPortSession = createPortDialogueSession(otherPort, { initialNodeId: "quest" });
   const otherPortEconomy = createWorldEconomy({ ports: [otherPort], startMinute: 0 });

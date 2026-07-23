@@ -43,12 +43,17 @@ export function characterAlertGeometry({
   if (portraitInset + portraitSize > w) {
     throw new Error("Character alert portrait does not fit its panel width");
   }
+  const left = Object.freeze({
+    x: x + portraitInset,
+    y: y - portraitSize + portraitOverlap
+  });
+  const right = Object.freeze({
+    x: x + w - portraitInset - portraitSize,
+    y: left.y
+  });
   return Object.freeze({
     panel: Object.freeze({ x, y, w, h }),
-    portrait: Object.freeze({
-      x: x + portraitInset,
-      y: y - portraitSize + portraitOverlap
-    })
+    portraits: Object.freeze({ left, right })
   });
 }
 

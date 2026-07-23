@@ -24,8 +24,11 @@ test("character alerts use the same standing portrait composition as dialogue", 
   });
 
   assert.deepEqual(layout.panel, { x: 84, y: 73, w: 286, h: 110 });
-  assert.deepEqual(layout.portrait, { x: 98, y: 17 });
-  assert.equal(layout.portrait.y + 64, layout.panel.y + 8);
+  assert.deepEqual(layout.portraits, {
+    left: { x: 98, y: 17 },
+    right: { x: 292, y: 17 }
+  });
+  assert.equal(layout.portraits.left.y + 64, layout.panel.y + 8);
 });
 
 test("standing alert portraits remain above responsive portrait panels", () => {
@@ -38,8 +41,11 @@ test("standing alert portraits remain above responsive portrait panels", () => {
   });
 
   assert.deepEqual(layout.panel, { x: 6, y: 172, w: 244, h: 110 });
-  assert.deepEqual(layout.portrait, { x: 20, y: 116 });
-  assert.ok(layout.portrait.y < layout.panel.y);
+  assert.deepEqual(layout.portraits, {
+    left: { x: 20, y: 116 },
+    right: { x: 172, y: 116 }
+  });
+  assert.ok(layout.portraits.left.y < layout.panel.y);
 });
 
 test("character alerts reject viewports that cannot hold their composition", () => {

@@ -236,6 +236,7 @@ export function createPortDialogueSession(city, options = {}) {
     caribbeanGingerArrival: options.caribbeanGingerArrival === true,
     chefQuestArrival: options.chefQuestArrival === true,
     vikingLongshipArrival: options.vikingLongshipArrival === true,
+    colonizationApprovalStep: 0,
     marqueGrantedFactionId: null,
     selectedIndex: 0,
     feedback: null
@@ -356,6 +357,7 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
     admittedToPort: options.admittedToPort === true,
     continueToPortOnClose: options.continueToPortOnClose === true,
     nextPortNodeId: options.nextPortNodeId || null,
+    envoyNegotiationResult: null,
     selectedIndex: 0,
     feedback: null
   };
@@ -1272,7 +1274,19 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, colonizationChanged: true, colonizationDelivery: delivery };
   }
+  if (action.type === "advance-colony-negotiation") {
+    if (session.colonizationApprovalStep !== 0) {
+      throw new Error(`Colonization negotiation cannot advance from step ${session.colonizationApprovalStep}`);
+    }
+    session.colonizationApprovalStep = 1;
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
   if (action.type === "grant-colony-permission") {
+    if (session.colonizationApprovalStep !== 1) {
+      throw new Error(`Colonization permission cannot be granted from step ${session.colonizationApprovalStep}`);
+    }
     const quest = colonizationQuestView(gameState, { currentMinute: context.simMinute ?? 0 });
     if (!quest.approvalCargoReady) {
       throw new Error(`Missing ${quest.approval.city} demonstration cargo: ${colonizationMissingApprovalCargo(quest.approvalCargo)}`);
@@ -1296,7 +1310,7 @@ export function selectPortDialogueOption(
     session.feedback = diplomacyEvents.length > 0
       ? `${approvalFeedback} ${diplomacyEvents[0].headline}`
       : approvalFeedback;
-    session.nodeId = session.nextPortNodeId || "greeting";
+    session.colonizationApprovalStep = 2;
     session.selectedIndex = 0;
     return {
       closed: false,
@@ -1305,6 +1319,17 @@ export function selectPortDialogueOption(
       colonizationApprovalDeliveries: deliveries,
       colonizationDiplomacyEvents: diplomacyEvents
     };
+  }
+  if (action.type === "finish-colony-negotiation") {
+    if (session.colonizationApprovalStep !== 2) {
+      throw new Error(`Colonization negotiation cannot finish from step ${session.colonizationApprovalStep}`);
+    }
+    session.nodeId = session.nextPortNodeId || "greeting";
+    session.nextPortNodeId = null;
+    session.colonizationApprovalStep = 0;
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
   }
   if (action.type === "embark-colonists") {
     const quest = colonizationQuestView(gameState, {
@@ -1555,11 +1580,27 @@ export function passengerDialogueView(session, city, quest, gameState) {
   const active = gameState?.memory?.quests?.active || null;
   const speaker = `${passengerName(quest)}, ${isEnvoyQuest(quest) ? "envoy" : "passenger"}`;
   const expressionId = questExpressionId(quest);
+  if (session.envoyNegotiationResult) {
+    if (!isEnvoyQuest(quest)) {
+      throw new Error("Passenger dialogue stored an envoy negotiation for a non-envoy quest");
+    }
+    return {
+      speaker: `${characterName(city.character)}, local official`,
+      expressionId: quest.kind === "friendly-envoy" ? "attentive" : "stern",
+      text: quest.dialogue?.negotiation ||
+        "Our court has heard the envoy's terms. The formal answer may now be carried home.",
+      feedback: session.feedback,
+      options: [
+        option("Receive the answer", { type: "finish-envoy-negotiation" })
+      ]
+    };
+  }
   if (active?.id === quest.id && isEnvoyQuest(quest) && quest.stage === "outbound" && quest.targetTileId === city.tileId) {
     return {
       speaker,
       expressionId: quest.kind === "friendly-envoy" ? "attentive" : "stern",
-      text: quest.dialogue?.negotiation || `The court of ${quest.targetName} is ready to receive me.`,
+      text: quest.dialogue?.negotiationOpening ||
+        `I come under ${quest.originRulerName || "my ruler"}'s seal to present our terms before this court.`,
       feedback: session.feedback,
       options: [
         option("Begin negotiations", { type: "negotiate-envoy" }),
@@ -1642,7 +1683,15 @@ export function selectPassengerDialogueOption(
   }
   if (action.type === "negotiate-envoy") {
     const negotiation = negotiateEnvoyQuest(gameState, city, context);
-    return { closed: true, action: { type: "envoy-negotiated", negotiation } };
+    session.envoyNegotiationResult = negotiation;
+    session.selectedIndex = 0;
+    return { closed: false, action: { type: "envoy-negotiated", negotiation } };
+  }
+  if (action.type === "finish-envoy-negotiation") {
+    if (!session.envoyNegotiationResult) {
+      throw new Error("Envoy negotiation cannot finish before the local court answers");
+    }
+    return { closed: true, action: null };
   }
   if (action.type === "complete-passenger") {
     const completed = completeQuest(gameState, city, context);
@@ -1668,7 +1717,8 @@ function assertPassengerDialogueSubject(session, city, quest) {
   if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest)) || session.questId !== quest.id) {
     throw new Error("Dialogue passenger quest does not match active session");
   }
-  if (quest.originTileId !== city.tileId && quest.destinationTileId !== city.tileId) {
+  const negotiationTarget = session.envoyNegotiationResult && quest.targetTileId === city.tileId;
+  if (quest.originTileId !== city.tileId && quest.destinationTileId !== city.tileId && !negotiationTarget) {
     throw new Error(`${cityLabel(city)} is not part of passenger quest ${quest.id}`);
   }
 }
@@ -2233,10 +2283,25 @@ function colonizationView(session, city, gameState, context) {
     if (!history.approval) throw new Error(`${targetName} has no approval dialogue`);
     const cargoSummary = colonizationApprovalCargoSummary(quest.approvalCargo);
     const missingCargo = colonizationMissingApprovalCargo(quest.approvalCargo);
+    if (session.colonizationApprovalStep === 0) {
+      return {
+        speaker: `${organizer}, ${history.sponsorRole}`,
+        expressionId: quest.approvalCargoReady ? "attentive" : "concerned",
+        text: `${history.approval.openingText} We have brought ${cargoSummary} for inspection alongside the proposed harbor rules, taxes, and protections for local authority.`,
+        feedback: session.feedback,
+        options: [
+          option("Address the Japanese envoys", { type: "advance-colony-negotiation" }),
+          back
+        ]
+      };
+    }
+    if (session.colonizationApprovalStep !== 1) {
+      throw new Error(`Invalid pending colonization approval step: ${session.colonizationApprovalStep}`);
+    }
     return {
       speaker: `${organizer}, ${history.approval.speakerRole}`,
       expressionId: quest.approvalCargoReady ? "attentive" : "concerned",
-      text: `${history.approval.text} Present ${cargoSummary} for inspection alongside the proposed harbor rules, taxes, and protections for local authority.`,
+      text: history.approval.responseText,
       feedback: session.feedback,
       options: [
         option(history.approval.actionLabel, { type: "grant-colony-permission" }, {
@@ -2244,6 +2309,18 @@ function colonizationView(session, city, gameState, context) {
           disabledReason: missingCargo ? `Still need ${missingCargo}.` : null
         }),
         back
+      ]
+    };
+  }
+  if (atApproval && quest.approvalGranted && session.colonizationApprovalStep === 2) {
+    if (!history.approval) throw new Error(`${targetName} has no approval dialogue`);
+    return {
+      speaker: `${organizer}, ${history.sponsorRole}`,
+      expressionId: "happy",
+      text: history.approval.closingText,
+      feedback: session.feedback,
+      options: [
+        option("Continue", { type: "finish-colony-negotiation" })
       ]
     };
   }

@@ -2249,6 +2249,7 @@ let captureFrameStepper = null;
 let deterministicCaptureEvents = null;
 let lastAutosaveMs = 0;
 let captainAlertModal = null;
+let characterAlertPortraitStage = createDialoguePortraitStageState();
 let familyDebtReturnReminderDelivered = false;
 const survivalDeprivationTimers = {
   waterNextMinute: null,
@@ -4110,7 +4111,9 @@ function createCaptainAlertModal(message, expressionId = "neutral") {
 function createCharacterAlertModal(character, message, expressionId = "neutral", {
   kind = "alert",
   buttonLabel = "CONTINUE",
-  choices = null
+  choices = null,
+  leftCharacter = null,
+  rightCharacter = null
 } = {}) {
   if (!character) throw new Error("Character alert requires a character");
   if (!["alert", "birthday", "demo-limit", "sequence", "choice"].includes(kind)) {
@@ -4128,9 +4131,14 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
   } else if (choices !== null) {
     throw new Error(`Character alert kind ${kind} cannot have choices`);
   }
+  const participants = leftCharacter
+    ? dialoguePortraitPair(leftCharacter, rightCharacter, character)
+    : dialoguePortraitPair(character, null, character);
   return {
     kind,
     character,
+    leftCharacter: participants.leftCharacter,
+    rightCharacter: participants.rightCharacter,
     message,
     expressionId,
     buttonLabel,
@@ -4233,18 +4241,31 @@ function presentPendingNamedCrewDeathNotice() {
 
 function openCharacterAlertModal(character, message, expressionId = "neutral", options = {}) {
   if (!character || captainAlertModal || gameOverReason) return false;
+  if (options.kind !== "sequence") characterAlertPortraitStage = createDialoguePortraitStageState();
   captainAlertModal = createCharacterAlertModal(character, message, expressionId, options);
   stopShipForDialogue();
-  const expression = characterExpression(character, expressionId);
-  void ensureCharacterPortraitLoaded(character, expression);
+  for (const participant of [captainAlertModal.leftCharacter, captainAlertModal.rightCharacter].filter(Boolean)) {
+    const participantExpression = characterExpression(
+      participant,
+      participant.id === character.id ? expressionId : "neutral"
+    );
+    void ensureCharacterPortraitLoaded(participant, participantExpression);
+  }
   dirty = true;
   return true;
 }
 
-function openCharacterChoiceAlertModal(character, message, choices, expressionId = "neutral") {
+function openCharacterChoiceAlertModal(
+  character,
+  message,
+  choices,
+  expressionId = "neutral",
+  portraitParticipants = null
+) {
   return openCharacterAlertModal(character, message, expressionId, {
     kind: "choice",
-    choices
+    choices,
+    ...(portraitParticipants || {})
   });
 }
 
@@ -4332,6 +4353,7 @@ function activateCaptainAlertChoice() {
   if (modal?.kind !== "choice") throw new Error("No character choice is available to activate");
   const choice = modal.choices[modal.selectedChoiceIndex];
   captainAlertModal = null;
+  characterAlertPortraitStage = createDialoguePortraitStageState();
   keys.clear();
   clearPointerSteering();
   choice.onSelect();
@@ -4700,7 +4722,10 @@ function closeCaptainAlertModal() {
     if (presentNextCharacterAlertSequenceStep()) return;
     const completion = characterAlertSequenceCompletion;
     characterAlertSequenceCompletion = null;
+    characterAlertPortraitStage = createDialoguePortraitStageState();
     if (completion) completion();
+  } else {
+    characterAlertPortraitStage = createDialoguePortraitStageState();
   }
   if (presentPendingNamedCrewDeathNotice()) return;
   if (presentPendingBirthdayDialogue()) return;
@@ -4716,8 +4741,14 @@ function startCharacterAlertSequence(steps, onComplete = null) {
     if (!step?.character || typeof step.message !== "string" || step.message.trim() === "") {
       throw new Error("Character alert sequence contains an invalid step");
     }
+    if (step.leftCharacter) {
+      dialoguePortraitPair(step.leftCharacter, step.rightCharacter || null, step.character);
+    } else if (step.rightCharacter) {
+      throw new Error("Character alert sequence cannot stage a right portrait without a left portrait");
+    }
     return { ...step };
   });
+  characterAlertPortraitStage = createDialoguePortraitStageState();
   characterAlertSequenceCompletion = onComplete;
   return presentNextCharacterAlertSequenceStep();
 }
@@ -4729,7 +4760,12 @@ function presentNextCharacterAlertSequenceStep() {
     step.character,
     step.message,
     step.expressionId || "neutral",
-    { kind: "sequence", buttonLabel: step.buttonLabel || "CONTINUE" }
+    {
+      kind: "sequence",
+      buttonLabel: step.buttonLabel || "CONTINUE",
+      leftCharacter: step.leftCharacter || null,
+      rightCharacter: step.rightCharacter || null
+    }
   );
   if (!opened) {
     queuedCharacterAlertSteps.unshift(step);
@@ -10402,17 +10438,23 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     steps.push(
       {
         character: naturalist,
+        leftCharacter: naturalist,
+        rightCharacter: panda,
         expressionId: "attentive",
         message: "And this is the panda from your account? Aristotle never prepared me for a bear that eats all day and refuses every useful occupation."
       },
       {
         character: panda,
+        leftCharacter: naturalist,
+        rightCharacter: panda,
         expressionId: "amused",
         message: "Hrrmph.",
         animalSoundKind: "bleat"
       },
       {
         character: naturalist,
+        leftCharacter: naturalist,
+        rightCharacter: panda,
         expressionId: "happy",
         message: `A decisive rebuttal! Leave the panda in my care and I shall pay you ${PANDA_NATURALIST_PAYMENT.toLocaleString("en-US")} doubloons. Imagine the observations!`
       }
@@ -10442,7 +10484,8 @@ function openPandaNaturalistOfferChoice(naturalist, cityCall) {
       { label: "LEAVE THE PANDA", onSelect: () => acceptPandaNaturalistOffer(naturalist, cityCall) },
       { label: "TOO ATTACHED", onSelect: () => rejectPandaNaturalistOffer(naturalist) }
     ],
-    "happy"
+    "happy",
+    { leftCharacter: naturalist, rightCharacter: pandaCompanionCharacter() }
   );
   if (!opened) throw new Error("Naturalist panda offer could not open its decision");
   return true;
@@ -10462,17 +10505,23 @@ function acceptPandaNaturalistOffer(naturalist, cityCall) {
   startCharacterAlertSequence([
     {
       character: naturalist,
+      leftCharacter: naturalist,
+      rightCharacter: pandaCompanionCharacter(),
       expressionId: "happy",
       message: "Splendid! I shall provide bamboo, patience, and absolutely no employment. It should feel perfectly at home."
     },
     {
       character: pandaCompanionCharacter(),
+      leftCharacter: naturalist,
+      rightCharacter: pandaCompanionCharacter(),
       expressionId: "happy",
       message: "Meee-eh!",
       animalSoundKind: "bleat"
     },
     {
       character: gameState.playerCharacter,
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: naturalist,
       expressionId: "neutral",
       message: "Take good care of it. It was a useless sailor, but a remarkably memorable one."
     }
@@ -10487,16 +10536,22 @@ function rejectPandaNaturalistOffer(naturalist) {
   startCharacterAlertSequence([
     {
       character: gameState.playerCharacter,
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: naturalist,
       expressionId: "amused",
       message: "No bargain. Against all reason, we have grown too attached to the creature."
     },
     {
       character: naturalist,
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: naturalist,
       expressionId: "attentive",
       message: "A lamentable failure of scholarly detachment. I confess I understand completely."
     },
     {
       character: pandaCompanionCharacter(),
+      leftCharacter: naturalist,
+      rightCharacter: pandaCompanionCharacter(),
       expressionId: "happy",
       message: "Hrrmph.",
       animalSoundKind: "bleat"
@@ -10520,11 +10575,15 @@ function maybeOpenPandaNpcReaction(interactionKey, npcCharacter) {
   const opened = startCharacterAlertSequence([
     {
       character: npcCharacter,
+      leftCharacter: npcCharacter,
+      rightCharacter: panda,
       expressionId: "neutral",
       message: reaction.npcText
     },
     {
       character: panda,
+      leftCharacter: npcCharacter,
+      rightCharacter: panda,
       expressionId: reaction.familiar ? "happy" : "amused",
       message: reaction.pandaText,
       animalSoundKind: "bleat"
@@ -11994,6 +12053,23 @@ function clampDialogueSelection() {
   dialogueState.selectedIndex = clamp(dialogueState.selectedIndex, 0, Math.max(0, view.options.length - 1));
 }
 
+function currentColonizationDialogueCharacter(city) {
+  if (city.colonizationQuestStage === COLONIZATION_STAGE_FAILED) {
+    if (!gameState.playerCharacter) throw new Error("Failed colony dialogue has no player captain");
+    return gameState.playerCharacter;
+  }
+  const approvalConversation = isColonizationQuestApproval(gameState.memory.colonization, city) &&
+    (gameState.memory.colonization.approvalGranted !== true ||
+      dialogueState.colonizationApprovalStep === 2);
+  if (!approvalConversation) return ensureColonizationOrganizer(gameState);
+  if (dialogueState.colonizationApprovalStep === 1) {
+    const official = portCityCharacters.get(city.tileId);
+    if (!official) throw new Error(`${cityLabelText(city)} has no official for the colony negotiation`);
+    return official;
+  }
+  return ensureColonizationOrganizer(gameState);
+}
+
 function currentDialogueCity() {
   if (!dialogueState) throw new Error("No active dialogue session");
   if (dialogueState.kind === "port") {
@@ -12033,13 +12109,7 @@ function currentDialogueCity() {
           portrait: characterExpression(character)
         };
       }
-      const approvalOfficial = isColonizationQuestApproval(gameState.memory.colonization, portCall) &&
-        gameState.memory.colonization.approvalGranted !== true;
-      const character = portCall.colonizationQuestStage === COLONIZATION_STAGE_FAILED
-        ? gameState.playerCharacter
-        : approvalOfficial
-          ? portCityCharacters.get(portCall.tileId)
-          : colonizationOrganizer;
+      const character = currentColonizationDialogueCharacter(portCall);
       if (!character) throw new Error("Colonization dialogue has no character");
       return {
         ...portCall,
@@ -12050,8 +12120,6 @@ function currentDialogueCity() {
   }
   const city = cityByTileId.get(dialogueState.cityTileId);
   if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
-  const approvalOfficial = isColonizationQuestApproval(gameState.memory.colonization, city) &&
-    gameState.memory.colonization.approvalGranted !== true;
   const questCharacter = dialogueState.kind !== "port"
     ? null
     : dialogueState.nodeId === "japanese-matchlocks"
@@ -12061,11 +12129,7 @@ function currentDialogueCity() {
       : dialogueState.nodeId === "chef-quest"
         ? ensureBanquetChef(gameState, city)
       : dialogueState.nodeId === "colonization"
-        ? city.colonizationQuestStage === COLONIZATION_STAGE_FAILED
-          ? gameState.playerCharacter
-          : approvalOfficial
-            ? portCityCharacters.get(city.tileId)
-            : colonizationOrganizer
+        ? currentColonizationDialogueCharacter(city)
         : null;
   const character = questCharacter || portCityCharacters?.get(city.tileId);
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
@@ -12277,7 +12341,11 @@ function dialogueShipForId(npcShipId) {
 
 function currentDialogueSubject() {
   if (dialogueState?.kind === "ship") return currentDialogueShip();
-  if (dialogueState?.kind === "passenger") return currentDialoguePassenger();
+  if (dialogueState?.kind === "passenger") {
+    return dialogueState.envoyNegotiationResult
+      ? currentDialogueCity()
+      : currentDialoguePassenger();
+  }
   if (dialogueState?.kind === "rescued-traveler") {
     const { quest } = activeRescuedTravelerForType(dialogueState.rescueType);
     const character = rescuedTravelerDialogueCharacter(dialogueState, quest);
@@ -12331,7 +12399,32 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
     return dialoguePortraitPair(captain, counterpart, speakerCharacter);
   }
 
+  if (dialogueState.kind === "passenger") {
+    const passenger = currentDialoguePassenger();
+    const activeQuest = activeTravelMissionQuest(gameState);
+    const envoyExchange = isEnvoyQuest(passenger) && (
+      dialogueState.envoyNegotiationResult ||
+      (activeQuest?.id === passenger.id &&
+        passenger.stage === "outbound" &&
+        passenger.targetTileId === dialogueState.cityTileId)
+    );
+    if (envoyExchange) {
+      const official = currentDialogueCity().character;
+      return dialoguePortraitPair(passenger.character, official, speakerCharacter);
+    }
+  }
+
   if (dialogueState.kind === "port") {
+    const colonyApprovalExchange = dialogueState.nodeId === "colonization" &&
+      isColonizationQuestApproval(gameState.memory.colonization, currentDialogueCity()) &&
+      (gameState.memory.colonization.approvalGranted !== true ||
+        dialogueState.colonizationApprovalStep === 2);
+    if (colonyApprovalExchange) {
+      const organizer = ensureColonizationOrganizer(gameState);
+      const official = portCityCharacters.get(dialogueState.cityTileId);
+      if (!official) throw new Error("Colonization approval dialogue has no local official");
+      return dialoguePortraitPair(organizer, official, speakerCharacter);
+    }
     const portFactor = portCityCharacters?.get(dialogueState.cityTileId) ||
       chartPortCallById(dialogueState.portId)?.character ||
       null;
@@ -19179,7 +19272,7 @@ function render(nowMs) {
   if (captainMenu.isOpen && !captainChildMenuIsOpen()) drawCaptainMenu(nowMs);
   if (gameOverReason) drawGameOverOverlay(nowMs);
   if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
-  if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal();
+  if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal(nowMs);
   if (startMenu) drawStartMenu(nowMs);
   if (pastVoyagesMenu.isOpen) drawPastVoyagesMenu();
   if (achievementsMenu.isOpen) drawAchievementsMenu();
@@ -30732,7 +30825,7 @@ function drawCharacterSkillBadge(character, x, y, width) {
   );
 }
 
-function drawCaptainAlertModal() {
+function drawCaptainAlertModal(nowMs) {
   const modal = captainAlertModal;
   if (!modal) return;
   if (modal.kind === "sailing-help") {
@@ -30743,12 +30836,37 @@ function drawCaptainAlertModal() {
   const panel = geometry.panel;
 
   drawModalDimmingVeil(0.72);
-  drawDialoguePortrait(
-    modal.character,
-    modal.expressionId,
-    geometry.portrait.x,
-    geometry.portrait.y
-  );
+  synchronizeDialoguePortraitStage(characterAlertPortraitStage, {
+    leftCharacter: modal.leftCharacter,
+    rightCharacter: modal.rightCharacter,
+    speakerId: modal.character.id,
+    expressionId: modal.expressionId,
+    nowMs
+  });
+  const portraitStage = dialoguePortraitStageFrames(characterAlertPortraitStage, nowMs);
+  const characterById = new Map([
+    [modal.leftCharacter.id, modal.leftCharacter],
+    ...(modal.rightCharacter ? [[modal.rightCharacter.id, modal.rightCharacter]] : [])
+  ]);
+  const stagedPortraits = [...portraitStage.frames].sort((a, b) => (
+    Number(a.characterId === modal.character.id) - Number(b.characterId === modal.character.id)
+  ));
+  for (const frame of stagedPortraits) {
+    const character = characterById.get(frame.characterId);
+    if (!character) throw new Error(`Character alert portrait stage lost ${frame.characterId}`);
+    const anchor = geometry.portraits[frame.side];
+    drawDialoguePortrait(
+      character,
+      frame.expressionId,
+      anchor.x,
+      anchor.y + frame.offsetY,
+      {
+        flipX: frame.side === "left",
+        tone: frame.tone
+      }
+    );
+  }
+  if (portraitStage.animating) dirty = true;
   drawPiratePaperModalPanel(panel);
 
   const textX = panel.x + 12;

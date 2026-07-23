@@ -194,12 +194,24 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before founding 
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 24);
 
   const session = createPortDialogueSession(KYOTO, { initialNodeId: "colonization" });
-  const view = portDialogueView(session, KYOTO, gameState, economy, ports, context);
+  const opening = portDialogueView(session, KYOTO, gameState, economy, ports, context);
 
-  assert.match(view.text, /Portuguese emissaries/);
-  assert.match(view.text, /permanent trading harbor at Nagasaki/);
-  assert.match(view.text, /Japan already knows gunpowder/);
-  assert.match(view.text, /Omura Sumitada/);
+  assert.match(opening.text, /Portuguese seal/);
+  assert.match(opening.text, /permanent trading harbor at Nagasaki/);
+  assert.match(opening.text, /Omura Sumitada/);
+  chooseAction(
+    session,
+    KYOTO,
+    gameState,
+    economy,
+    ports,
+    context,
+    "advance-colony-negotiation"
+  );
+  const reply = portDialogueView(session, KYOTO, gameState, economy, ports, context);
+  assert.match(reply.text, /Portuguese emissaries/);
+  assert.match(reply.text, /Japan already knows gunpowder/);
+  assert.match(reply.text, /Omura Sumitada/);
   assert.equal(diplomacyBetweenForState(gameState, "japan", "portugal"), "neutral");
   const result = chooseAction(
     session,
@@ -215,6 +227,19 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before founding 
   assert.equal(result.colonizationDiplomacyEvents.length, 1);
   assert.equal(result.colonizationDiplomacyEvents[0].reason, "colony-nagasaki-japan-agreement");
   assert.match(session.feedback, /improve relations/);
+  const closing = portDialogueView(session, KYOTO, gameState, economy, ports, context);
+  assert.match(closing.text, /Japanese port/);
+  assert.match(closing.text, /Omura anchorage/);
+  chooseAction(
+    session,
+    KYOTO,
+    gameState,
+    economy,
+    ports,
+    context,
+    "finish-colony-negotiation"
+  );
+  assert.equal(session.nodeId, "greeting");
   assert.equal(gameState.cargo.matchlocks, undefined);
   assert.equal(gameState.cargo.gunpowder, undefined);
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 24);

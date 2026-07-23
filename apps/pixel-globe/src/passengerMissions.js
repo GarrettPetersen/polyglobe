@@ -239,7 +239,8 @@ function mingTradeOpeningDialogueText(origin, target, reward, originRuler, targe
   return {
     offer: `${originRuler.displayName} seeks lawful trade with the Ming Empire. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
     underway: `My memorial asks ${targetRuler.displayName} to open Ming markets to our merchants. The wording has taken months.`,
-    negotiation: `${targetRuler.displayName}'s ministers have accepted our embassy. Ming ports are now open to our nation's lawful trade.`,
+    negotiationOpening: `I present ${originRuler.displayName}'s memorial in friendship. We ask leave for our merchants to enter Ming ports under lawful seal, customs, and the emperor's peace.`,
+    negotiation: `${targetRuler.displayName}'s ministers accept your embassy. Ming ports are now open to your nation's lawful trade; carry our sealed answer home.`,
     returnUnderway: `The trade seal is granted. Set our course back to ${home} so ${originRuler.displayName} can publish the accord.`,
     homecoming: `${originRuler.displayName} has received the Ming trade seal. Your ${reward} db is waiting at the treasury.`,
     intercession: "Hold your fire! This vessel carries an accredited trade embassy between our nations."
@@ -269,7 +270,7 @@ const FRIENDLY_ENVOY_DIALOGUE = Object.freeze([
   envoyDialogueVariant(
     ({ foreign, homeRuler, reward }) => `${homeRuler} believes our courts have more to gain from ink than iron. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
     ({ foreign, targetRuler }) => `My letters for ${foreign} are sealed for ${targetRuler}. Let us hope the ministers are ready.`,
-    ({ targetFaction, targetRuler }) => `${targetRuler} received our proposals warmly. The first accord with ${targetFaction} is made; now I must carry the answer home.`,
+    ({ targetFaction, targetRuler }) => `${targetRuler}'s court receives your proposals warmly. ${targetFaction} accepts this first accord; carry our sealed answer home.`,
     ({ home }) => `The agreement is signed. Set our course back to ${home}, captain.`,
     ({ homeRuler, reward }) => `${homeRuler} has accepted the accord. Your ${reward} db is waiting at the treasury.`,
     () => "Hold your fire! I travel under seal to improve relations between our nations. This ship has diplomatic protection."
@@ -277,7 +278,7 @@ const FRIENDLY_ENVOY_DIALOGUE = Object.freeze([
   envoyDialogueVariant(
     ({ foreign, homeRuler, reward }) => `${homeRuler} has ordered a marriage of interests discussed in ${foreign}. I need a discreet ship there and back. The fee is ${reward} db.`,
     ({ foreign, targetRuler }) => `At ${foreign}, courtesy before ${targetRuler} will matter as much as the terms. I have rehearsed both.`,
-    ({ homeFaction, targetFaction }) => `${homeFaction} and ${targetFaction} have found common ground. Their reply must reach my court unchanged.`,
+    ({ homeFaction, targetFaction }) => `${targetFaction} has found common ground with ${homeFaction}. Take our signed reply to your court unchanged.`,
     ({ home }) => `The difficult words are behind us. Take me back to ${home} with the answer.`,
     ({ homeRuler, reward }) => `${homeRuler} approves the agreement, and your service. Accept ${reward} db with our thanks.`,
     () => "Stand down! An envoy is aboard under diplomatic seal. An attack would insult both courts."
@@ -285,7 +286,7 @@ const FRIENDLY_ENVOY_DIALOGUE = Object.freeze([
   envoyDialogueVariant(
     ({ foreign, homeRuler, reward }) => `${homeRuler} wants trade and safe harbors put on the table in ${foreign}. Deliver me, wait for the talks, then return me for ${reward} db.`,
     ({ foreign, targetRuler }) => `If the winds favor us, perhaps ${targetRuler}'s ministers in ${foreign} will do the same.`,
-    ({ targetFaction, targetRuler }) => `${targetRuler} accepted the opening terms for ${targetFaction}. I carry enough goodwill home to build upon.`,
+    ({ targetFaction, targetRuler }) => `${targetRuler} accepts the opening terms for ${targetFaction}. Carry this goodwill home, and let our courts build upon it.`,
     ({ home }) => `Our work here is done. Home to ${home}, before cautious men reconsider.`,
     ({ homeRuler, reward }) => `The dispatches reached ${homeRuler}. The treasury releases your ${reward} db.`,
     () => "Cease your attack! This captain carries a peaceful embassy under the protection of both crowns."
@@ -296,7 +297,7 @@ const HOSTILE_ENVOY_DIALOGUE = Object.freeze([
   envoyDialogueVariant(
     ({ foreign, homeRuler, reward }) => `I bear ${homeRuler}'s protest to ${foreign}, face to face. Carry me there and back for ${reward} db.`,
     ({ foreign, targetRuler }) => `${targetRuler}'s court at ${foreign} will dislike every line. That is why it must be read aloud.`,
-    ({ targetFaction, targetRuler }) => `${targetRuler} rejected our demands on behalf of ${targetFaction}, as expected. The answer is colder than the sea outside.`,
+    ({ targetFaction, targetRuler }) => `${targetRuler} rejects your demands on behalf of ${targetFaction}. Carry that answer home, as cold as the sea outside.`,
     ({ home }) => `We have said what honor required. Return me to ${home} with their refusal.`,
     ({ homeRuler, reward }) => `${homeRuler} has heard their answer. Here is ${reward} db for your loyal service.`,
     () => "Hold! I am an accredited envoy bearing formal demands. You will grant this vessel diplomatic passage."
@@ -304,7 +305,7 @@ const HOSTILE_ENVOY_DIALOGUE = Object.freeze([
   envoyDialogueVariant(
     ({ foreign, homeRuler, reward }) => `${homeRuler}'s warning must reach ${foreign} before rumor does. I require passage there and home; payment is ${reward} db.`,
     ({ foreign, targetRuler }) => `No smiles will soften the warning I carry to ${targetRuler} in ${foreign}. Keep the ship ready for a quick departure.`,
-    ({ homeFaction, targetFaction }) => `${targetFaction} would not yield to ${homeFaction}. Their contempt will be remembered.`,
+    ({ homeFaction, targetFaction }) => `${targetFaction} will not yield to ${homeFaction}. Take that answer home, and remember how it was delivered.`,
     ({ home }) => `There is nothing more to discuss. Take me home to ${home}.`,
     ({ homeRuler, reward }) => `${homeRuler} finds your service beyond reproach. The promised ${reward} db is yours.`,
     () => "Do not fire! I carry an official warning under diplomatic privilege. Let this ship pass for seven days."
@@ -312,7 +313,7 @@ const HOSTILE_ENVOY_DIALOGUE = Object.freeze([
   envoyDialogueVariant(
     ({ foreign, homeRuler, reward }) => `${homeRuler}'s grievances have gone unanswered. Take me to ${foreign} with the final articles, then home for ${reward} db.`,
     ({ foreign, targetRuler }) => `At ${foreign}, keep the tide beneath us. Talks with ${targetRuler} may end quickly.`,
-    ({ targetFaction, targetRuler }) => `${targetRuler} answered pride with pride for ${targetFaction}. I have the words, and no reason to linger.`,
+    ({ targetFaction, targetRuler }) => `${targetRuler} answers pride with pride for ${targetFaction}. You have our words, and no reason to linger.`,
     ({ home }) => `Set every useful sail for ${home}. My report belongs before the council.`,
     ({ homeRuler, reward }) => `${homeRuler}'s council has your name in its record. Take ${reward} db for completing the mission.`,
     () => "By diplomatic law, stay your weapons! This vessel bears an envoy between our governments."
@@ -320,7 +321,16 @@ const HOSTILE_ENVOY_DIALOGUE = Object.freeze([
 ]);
 
 function envoyDialogueVariant(offer, underway, negotiation, returnUnderway, homecoming, intercession) {
-  return Object.freeze({ offer, underway, negotiation, returnUnderway, homecoming, intercession });
+  return Object.freeze({
+    offer,
+    underway,
+    negotiationOpening: ({ homeRuler, targetRuler, targetFaction }) =>
+      `I speak under ${homeRuler}'s seal. ${targetRuler}, I place our court's terms before you and await the answer of ${targetFaction}.`,
+    negotiation,
+    returnUnderway,
+    homecoming,
+    intercession
+  });
 }
 
 export function passengerName(quest) {
