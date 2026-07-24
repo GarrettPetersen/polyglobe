@@ -812,6 +812,7 @@ test("passenger provisions report the same trade capacity that the market enforc
 
   const before = cargoHoldStatus(state);
   assert.equal(before.physicalUsed, 1014 / 12);
+  assert.equal(before.physicalWholeUnits, 85);
   assert.equal(before.reservedForLoadout, 4);
   assert.equal(before.freeForTrade, 1.5);
   assert.equal(before.freeWholeUnits, 1);

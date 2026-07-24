@@ -1371,9 +1371,13 @@ export function cargoHoldStatus(state) {
   const freeForTradeTicks = Math.max(0, cargoFreeTicks(state));
   const committedUsedTicks = capacityTicks - freeForTradeTicks;
   const freeWholeUnits = Math.floor(freeForTradeTicks / CARGO_SPACE_TICKS_PER_UNIT);
+  const physicalWholeUnits = Math.ceil(
+    Math.max(0, physicalUsedTicks - 1e-8) / CARGO_SPACE_TICKS_PER_UNIT
+  );
   return Object.freeze({
     capacity: state.cargoCapacity,
     physicalUsed: cargoUnitsFromTicks(physicalUsedTicks),
+    physicalWholeUnits,
     reservedForLoadout: cargoUnitsFromTicks(Math.max(0, committedUsedTicks - physicalUsedTicks)),
     committedUsed: cargoUnitsFromTicks(committedUsedTicks),
     freeForTrade: cargoUnitsFromTicks(freeForTradeTicks),

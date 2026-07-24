@@ -3107,8 +3107,8 @@ function buyView(session, city, gameState, economy, context) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: city.isPirateHideout
-      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`
-      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`,
+      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`
+      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     optionHeight: 30,
     options: rows
@@ -3465,8 +3465,8 @@ function sellView(session, city, gameState, economy) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: city.isPirateHideout
-      ? `The fences care about value, not provenance. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`
-      : `Buyers here pay port rates. Cargo ${hold.committedWholeUnits}/${hold.capacity}.`,
+      ? `The fences care about value, not provenance. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`
+      : `Buyers here pay port rates. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     feedbackLineReserve: 2,
     optionHeight: 30,
@@ -3515,7 +3515,7 @@ function cargoView(session, city, gameState) {
   return {
     speaker: speakerName(city),
     expressionId: "neutral",
-    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${hold.committedWholeUnits}/${hold.capacity}.`,
+    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     options: [
       option("Back", { type: "node", nodeId: "root" }),

@@ -30998,7 +30998,7 @@ function survivalHudLayout() {
     Math.min(SURVIVAL_PANEL_MAX_W, OPTIONS_BUTTON_X - SURVIVAL_PANEL_X - 3)
   );
   return cargoCrateStatusLayout({
-    used: hold.committedUsed,
+    used: hold.physicalUsed,
     capacity,
     panelX: SURVIVAL_PANEL_X,
     panelY: SURVIVAL_PANEL_Y,
