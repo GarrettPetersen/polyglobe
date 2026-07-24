@@ -20,6 +20,7 @@ import {
   beginColonizationExpedition,
   colonizationObjective,
   colonizationOfferForCity,
+  colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
   colonizationShipEligibility,
@@ -33,6 +34,7 @@ import {
   grantColonizationApproval,
   landColonists,
   markColonizationOrganizerApproached,
+  relocateColonizationQuestOrigin,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -233,6 +235,56 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
   assert.deepEqual(colonizationObjective(offer), { tileId: nagasaki.tileId, kind: "found-colony" });
   landColonists(offer, 1000);
   assert.equal(offer.stage, COLONIZATION_STAGE_AWAITING_RESUPPLY);
+});
+
+test("Dutch West India Company expeditions originate in the Netherlands, not Lubeck", () => {
+  const newAmsterdam = {
+    ...colonizationTargetForCity({ city: "New Amsterdam", country: "United States of America" }),
+    tileId: 778
+  };
+  const fortOrange = {
+    ...colonizationTargetForCity({ city: "Fort Orange", country: "United States of America" }),
+    tileId: 779
+  };
+  const utrecht = {
+    tileId: 22,
+    city: "Utrecht",
+    country: "Netherlands",
+    factionId: "habsburg",
+    lat: 52.09,
+    lon: 5.12
+  };
+  const lubeck = {
+    tileId: 23,
+    city: "Lubeck",
+    country: "Germany",
+    factionId: "habsburg",
+    lat: 53.87,
+    lon: 10.69
+  };
+
+  assert.equal(newAmsterdam.originCountry, "Netherlands");
+  assert.equal(fortOrange.originCountry, "Netherlands");
+  assert.deepEqual(
+    eligibleColonizationTargetsForOrigin(utrecht, [newAmsterdam, fortOrange]).map((target) => target.city),
+    ["Fort Orange", "New Amsterdam"]
+  );
+  assert.deepEqual(eligibleColonizationTargetsForOrigin(lubeck, [newAmsterdam, fortOrange]), []);
+  assert.equal(colonizationOriginCanSponsorTarget(lubeck, newAmsterdam), false);
+
+  const savedQuest = createColonizationQuestMemory();
+  assignColonizationQuest(savedQuest, { target: newAmsterdam, origin: utrecht });
+  savedQuest.originTileId = lubeck.tileId;
+  savedQuest.originCity = lubeck.city;
+  savedQuest.originCountry = lubeck.country;
+  completeColonizationFetchStage(savedQuest, colonizationQuestView({
+    memory: { colonization: savedQuest },
+    cargo: {}
+  }).history.fetchStages[0].id);
+
+  relocateColonizationQuestOrigin(savedQuest, { target: newAmsterdam, origin: utrecht });
+  assert.equal(savedQuest.originCity, "Utrecht");
+  assert.equal(savedQuest.fetchStageIndex, 1);
 });
 
 test("only capacious ocean-going ships can carry the colonists", () => {

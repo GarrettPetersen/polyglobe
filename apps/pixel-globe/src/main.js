@@ -1028,6 +1028,7 @@ import {
   colonizationObjective,
   colonizationDefenseShipIds,
   colonizationOfferForCity,
+  colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
   colonizationWorldRecord,
@@ -1037,7 +1038,8 @@ import {
   isColonizationQuestApproval,
   isColonizationQuestTarget,
   landColonists,
-  markColonizationOrganizerApproached
+  markColonizationOrganizerApproached,
+  relocateColonizationQuestOrigin
 } from "./colonizationQuest.js";
 import { formatCompactNumber } from "./compactNumber.js";
 import { EARTH_RADIUS_KM } from "./worldDistance.js";
@@ -13863,12 +13865,26 @@ function bindColonizationQuestSelection(state) {
   if (!target) {
     throw new Error(`Saved colony is not a water-accessible sailing target: ${quest.target.city}`);
   }
-  const origin = portCities.find((candidate) => (
+  let origin = portCities.find((candidate) => (
     Number.isInteger(quest.origin?.tileId)
       ? candidate.tileId === quest.origin.tileId
       : candidate.city === quest.origin?.city && candidate.country === quest.origin?.country
   ));
   if (!origin) throw new Error(`Saved colony origin is not a dockable port: ${quest.origin?.city || "unknown"}`);
+  if (!colonizationOriginCanSponsorTarget(origin, target)) {
+    const replacement = portCities
+      .filter((candidate) => colonizationOriginCanSponsorTarget(candidate, target))
+      .sort((a, b) => (
+        a.city.localeCompare(b.city) ||
+        a.country.localeCompare(b.country) ||
+        a.tileId - b.tileId
+      ))[0];
+    if (!replacement) {
+      throw new Error(`Saved ${target.city} expedition has no eligible replacement origin`);
+    }
+    relocateColonizationQuestOrigin(state.memory.colonization, { target, origin: replacement });
+    origin = replacement;
+  }
   const approvalPort = quest.approval
     ? portCities.find((candidate) => candidate.tileId === quest.approval.tileId)
     : null;

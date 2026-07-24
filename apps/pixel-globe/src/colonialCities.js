@@ -331,6 +331,7 @@ export const COLONIZATION_TARGETS = Object.freeze([
   colonizationTarget("Fort Orange", "United States of America", 42.652578, -73.756233, COLONIAL_FOUNDING_NEGOTIATED, 1624, "habsburg", {
     label: "Dutch negotiated trade post",
     historicalPower: "Dutch/Low Countries",
+    originCountry: "Netherlands",
     region: "hudson-river",
     waterAccess: "river",
     datasetCity: "Albany",
@@ -349,6 +350,7 @@ export const COLONIZATION_TARGETS = Object.freeze([
   colonizationTarget("New Amsterdam", "United States of America", 40.714353, -74.005972, COLONIAL_FOUNDING_SETTLER, 1624, "habsburg", {
     label: "Dutch settler colony",
     historicalPower: "Dutch/Low Countries",
+    originCountry: "Netherlands",
     region: "new-netherland",
     waterAccess: "coastal",
     datasetCity: "New York",

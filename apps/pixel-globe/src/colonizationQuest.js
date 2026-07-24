@@ -224,12 +224,7 @@ export function assignColonizationQuest(memory, { target, origin, approvalPort =
   validateColonizationQuestMemory(memory);
   validateQuestTarget(target);
   validateQuestOrigin(origin);
-  if (target.originFactionId !== origin.factionId) {
-    throw new Error(`${origin.city} cannot sponsor a ${target.originFactionId} colony mission`);
-  }
-  if (target.originCountry && target.originCountry !== origin.country) {
-    throw new Error(`${target.city} expedition must leave from ${target.originCountry}`);
-  }
+  assertColonizationOriginCanSponsorTarget(origin, target);
   if (target.approvalFactionId) {
     validateQuestOrigin(approvalPort);
     if (approvalPort.factionId !== target.approvalFactionId) {
@@ -269,6 +264,34 @@ export function assignColonizationQuest(memory, { target, origin, approvalPort =
   return memory;
 }
 
+export function colonizationOriginCanSponsorTarget(origin, target) {
+  return Boolean(
+    origin?.factionId &&
+    target?.originFactionId === origin.factionId &&
+    (!target.originCountry || target.originCountry === origin.country) &&
+    target.waterAccess !== "inland" &&
+    Number.isInteger(target.tileId) &&
+    greatCircleDistanceKm(origin, target) >= COLONIZATION_MIN_VOYAGE_DISTANCE_KM
+  );
+}
+
+export function relocateColonizationQuestOrigin(memory, { target, origin }) {
+  validateColonizationQuestMemory(memory);
+  validateQuestTarget(target);
+  validateQuestOrigin(origin);
+  const selectedTarget = requiredSelectedTarget(memory);
+  if (selectedTarget.city !== target.city || selectedTarget.country !== target.country) {
+    throw new Error(`Cannot relocate ${selectedTarget.city} expedition as ${target.city}`);
+  }
+  assertColonizationOriginCanSponsorTarget(origin, target);
+  memory.originTileId = origin.tileId;
+  memory.originCity = origin.city;
+  memory.originCountry = origin.country;
+  memory.distanceKm = greatCircleDistanceKm(origin, target);
+  validateColonizationQuestMemory(memory);
+  return memory;
+}
+
 export function colonizationOfferForCity(state, city, portCities, targetPlacements, context = {}) {
   const memory = colonizationQuestMemory(state);
   if (!city || !Array.isArray(portCities) || !Array.isArray(targetPlacements)) return null;
@@ -300,13 +323,7 @@ export function colonizationOfferForCity(state, city, portCities, targetPlacemen
 export function eligibleColonizationTargetsForOrigin(city, targetPlacements) {
   if (!city?.factionId || !Array.isArray(targetPlacements)) return Object.freeze([]);
   return Object.freeze(targetPlacements
-    .filter((target) => (
-      target?.originFactionId === city.factionId &&
-      (!target.originCountry || target.originCountry === city.country) &&
-      target.waterAccess !== "inland" &&
-      Number.isInteger(target.tileId) &&
-      greatCircleDistanceKm(city, target) >= COLONIZATION_MIN_VOYAGE_DISTANCE_KM
-    ))
+    .filter((target) => colonizationOriginCanSponsorTarget(city, target))
     .sort((a, b) => colonizationTargetKey(a).localeCompare(colonizationTargetKey(b))));
 }
 
@@ -782,6 +799,18 @@ function validateQuestOrigin(origin) {
   if (!origin || !nonEmptyString(origin.city) || !nonEmptyString(origin.country) ||
       !nonEmptyString(origin.factionId) || !Number.isInteger(origin.tileId) || origin.tileId < 0) {
     throw new Error("Colonization quest requires a faction port origin");
+  }
+}
+
+function assertColonizationOriginCanSponsorTarget(origin, target) {
+  if (target.originFactionId !== origin.factionId) {
+    throw new Error(`${origin.city} cannot sponsor a ${target.originFactionId} colony mission`);
+  }
+  if (target.originCountry && target.originCountry !== origin.country) {
+    throw new Error(`${target.city} expedition must leave from ${target.originCountry}`);
+  }
+  if (!colonizationOriginCanSponsorTarget(origin, target)) {
+    throw new Error(`${origin.city} cannot reach the ${target.city} colonization target`);
   }
 }
 
