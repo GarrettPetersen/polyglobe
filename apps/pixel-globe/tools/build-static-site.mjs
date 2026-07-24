@@ -15,7 +15,6 @@ const DEMO_PREBUILT_ICON_SOURCES = new Set([
   "assets/ui/anchor.png",
   "assets/misc/confucian.png",
   "assets/misc/faravahar.png",
-  "assets/misc/fresh-water-cask.png",
   "assets/misc/ik_onkar.png",
   "assets/misc/jain.png",
   "assets/misc/om.png",

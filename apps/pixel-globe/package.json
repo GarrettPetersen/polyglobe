@@ -56,7 +56,6 @@
     "render:steam-stats": "node tools/build-steam-stat-catalog.mjs",
     "render:steam-config": "npm run render:steam-achievements && npm run render:steam-stats",
     "render:port-sailing-distances": "node tools/build-port-sailing-distances.mjs",
-    "render:fresh-water-cask": "node tools/build-fresh-water-cask-icon.mjs",
     "render:land-roads": "node tools/build-land-roads.mjs",
     "render:pixel-pirate-font": "node tools/fix-pixel-pirate-font-kerning.mjs",
     "render:capsules": "node tools/generate-layered-capsule-art.mjs",

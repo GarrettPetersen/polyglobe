@@ -140,7 +140,9 @@ test("interface controls use varied dark Resurrect colors without outlines", () 
       assert.ok(palette.has(source.lightMonotone), `${iconId} icon color`);
       iconColors.add(source.lightMonotone);
     }
-    if (iconId.startsWith("good:")) assert.notEqual(source.packId, "nikoichu", iconId);
+    if (iconId.startsWith("good:") && iconId !== "good:fresh-water") {
+      assert.notEqual(source.packId, "nikoichu", iconId);
+    }
   }
   assert.ok(iconColors.size >= 8, `only ${iconColors.size} interface colors`);
 });
@@ -202,14 +204,8 @@ test("rendered interface icons contain one semantic color and no outline color",
   }
 });
 
-test("fresh water uses the period cask instead of modern bottled-water artwork", () => {
+test("fresh water uses the native-size water droplet throughout the interface", () => {
   const source = GAME_ICON_SOURCES["good:fresh-water"];
-  assert.equal(source.packId, null);
-  assert.equal(source.assetPath, "public/assets/misc/fresh-water-cask.png");
-});
-
-test("the custom loadout uses a native-size water symbol instead of the tiny cargo cask", () => {
-  const source = GAME_ICON_SOURCES["action:water-stores"];
   assert.equal(source.packId, "nikoichu");
   assert.equal(source.entry, "Sprites/Weather_Water_Droplet_Liquid_Rain_Element_Big.png");
 });

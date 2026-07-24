@@ -1678,7 +1678,7 @@ const CUSTOM_LOADOUT_FIELD_ICONS = Object.freeze({
   crew: "action:passenger",
   cannons: "action:attack",
   foodUnits: "good:hardtack",
-  waterUnits: "action:water-stores"
+  waterUnits: "good:fresh-water"
 });
 const CUSTOM_LOADOUT_FIELD_COLORS = Object.freeze({
   crew: "#547e64",

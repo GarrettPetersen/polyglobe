@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-35",
+  "version": "resurrect-icons-36",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 208,
@@ -24,8 +24,9 @@
         "w": 16,
         "h": 16
       },
-      "packId": null,
-      "assetPath": "public/assets/misc/fresh-water-cask.png"
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4d65b4"
     },
     {
       "id": "good:foraged-food",
@@ -2246,18 +2247,6 @@
       },
       "packId": "pirate",
       "assetPath": null
-    },
-    {
-      "id": "action:water-stores",
-      "rect": {
-        "x": 32,
-        "y": 192,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#4d65b4"
     }
   ],
   "packs": {
