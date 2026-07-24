@@ -8,6 +8,7 @@ import {
   graphCenter,
   normalize3
 } from "./geodesic.js";
+import { admitProjectedTiles } from "./localLayoutAdmission.js";
 import {
   alphaMaskContainsMapPoint,
   forEachPixelBrushPoint,
@@ -1080,6 +1081,7 @@ import {
   isWhaleOpenSurfaceRow,
   isWhaleSwimmableOceanRow,
   isWaterSurfaceRow,
+  terrainRowsFormFrozenWaterBoundary,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
 import {
@@ -1688,7 +1690,6 @@ const CUSTOM_LOADOUT_FIELD_COLORS = Object.freeze({
   foodUnits: "#c9aa78",
   waterUnits: "#3b5dc9"
 });
-const LOCAL_LAYOUT_CULL_MARGIN = 520;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
 const MINIMAP_MAX_LAT_DEG = 72;
@@ -20553,75 +20554,18 @@ function syncLocalLayout(projectedVisible, chartCenterTileId) {
     pending.delete(chartCenterTileId);
   }
 
-  let progress = true;
-  while (pending.size > 0 && progress) {
-    progress = false;
-    for (const id of Array.from(pending)) {
-      const position = localPositionFromNeighbors(id, projectedById);
-      if (!position) continue;
-      localLayout.positions.set(id, position);
-      pending.delete(id);
-      progress = true;
-    }
-  }
-
-  if (pending.size > 0) {
-    seedDisconnectedVisibleTiles(pending, projectedById, chartCenterTileId);
-  }
-}
-
-function localPositionFromNeighbors(id, projectedById) {
-  const projected = projectedById.get(id);
-  if (!projected) return null;
-  let x = 0;
-  let y = 0;
-  let count = 0;
-
-  for (const neighborId of graph.neighbors[id]) {
-    const neighborLayout = localLayout.positions.get(neighborId);
-    const neighborProjected = projectedById.get(neighborId);
-    if (!neighborLayout || !neighborProjected) continue;
-    x += neighborLayout.x + projected.x - neighborProjected.x;
-    y += neighborLayout.y + projected.y - neighborProjected.y;
-    count++;
-  }
-
-  if (count === 0) return null;
-  return {
-    x: Math.round(x / count),
-    y: Math.round(y / count)
-  };
-}
-
-function seedDisconnectedVisibleTiles(pending, projectedById, chartCenterTileId) {
-  const centerLayout = localLayout.positions.get(chartCenterTileId);
-  const centerProjected = projectedById.get(chartCenterTileId);
-  if (!centerLayout || !centerProjected) {
-    throw new Error(`Cannot seed local layout for chart center tile: ${chartCenterTileId}`);
-  }
-
-  for (const id of pending) {
-    const projected = projectedById.get(id);
-    if (!projected) throw new Error(`Missing projected position for visible tile: ${id}`);
-    localLayout.positions.set(id, {
-      x: Math.round(centerLayout.x + projected.x - centerProjected.x),
-      y: Math.round(centerLayout.y + projected.y - centerProjected.y)
-    });
-  }
+  admitProjectedTiles({
+    positions: localLayout.positions,
+    projectedById,
+    pendingIds: pending,
+    anchorId: chartCenterTileId
+  });
 }
 
 function cullLocalLayout(projectedVisible) {
   const visibleIds = new Set(projectedVisible.map((item) => item.id));
-  const minX = localLayout.viewX - SCREEN_W / 2 - LOCAL_LAYOUT_CULL_MARGIN;
-  const maxX = localLayout.viewX + SCREEN_W / 2 + LOCAL_LAYOUT_CULL_MARGIN;
-  const minY = localLayout.viewY - SCREEN_H / 2 - LOCAL_LAYOUT_CULL_MARGIN;
-  const maxY = localLayout.viewY + SCREEN_H / 2 + LOCAL_LAYOUT_CULL_MARGIN;
-
-  for (const [id, position] of localLayout.positions.entries()) {
-    if (visibleIds.has(id)) continue;
-    if (position.x < minX || position.x > maxX || position.y < minY || position.y > maxY) {
-      localLayout.positions.delete(id);
-    }
+  for (const id of localLayout.positions.keys()) {
+    if (!visibleIds.has(id)) localLayout.positions.delete(id);
   }
 }
 
@@ -26345,7 +26289,10 @@ function drawTerrainConnectorDetails(entry, options) {
 
   if (isCoastFace(call)) {
     drawBeachFaceDetails(call, ax, ay, mx, my, bx, by, nx, ny, width, options.waveClockMs);
-  } else if (terrainConnectorNeedsSlopeDetail(call.level, call.nlevel)) {
+  } else if (
+    !terrainRowsFormFrozenWaterBoundary(call.row, call.nrow) &&
+    terrainConnectorNeedsSlopeDetail(call.level, call.nlevel)
+  ) {
     const slopeColor = call.nlevel > call.level ? "#28261f" : "#d3cab0";
     const startX = Math.round(ax + nx * width);
     const startY = Math.round(ay + ny * width);

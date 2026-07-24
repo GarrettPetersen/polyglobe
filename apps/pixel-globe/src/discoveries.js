@@ -5,6 +5,8 @@ export const GREAT_BARRIER_REEF_DISCOVERY_ID = "landmark-great-barrier-reef";
 export const LAKE_VICTORIA_DISCOVERY_ID = "landmark-lake-victoria";
 export const LAKE_VICTORIA_DISCOVERY_RADIUS_PX = 60;
 export const GRAND_CANAL_DISCOVERY_ID = "landmark-grand-canal";
+export const NIAGARA_FALLS_DISCOVERY_ID = "landmark-niagara-falls";
+export const NIAGARA_FALLS_DISCOVERY_RADIUS_PX = 60;
 export const VICTORIA_FALLS_DISCOVERY_ID = "landmark-victoria-falls";
 export const VICTORIA_FALLS_DISCOVERY_RADIUS_PX = 48;
 export const EL_DORADO_DISCOVERY_ID = "legend-el-dorado";
@@ -107,7 +109,8 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     region: "americas",
     captainDialogue: "A citadel among the clouds. How did they raise stone so high?"
   }),
-  waterFeature("niagara-falls", "Niagara Falls", "The thunder of the waters", 43.0828, -79.0742, 260, {
+  waterFeature("niagara-falls", "Niagara Falls", "The thunder of the waters", 43.0828, -79.0742,
+    NIAGARA_FALLS_DISCOVERY_RADIUS_PX, {
     region: "americas",
     captainDialogue: "The river falls away in thunder. I can feel it through the deck."
   }),

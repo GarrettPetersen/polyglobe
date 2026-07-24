@@ -9,6 +9,7 @@ import {
   isWhaleOpenSurfaceRow,
   isWhaleSwimmableOceanRow,
   isWaterSurfaceRow,
+  terrainRowsFormFrozenWaterBoundary,
   terrainRowsNeedBeach
 } from "./terrainSurface.js";
 
@@ -70,4 +71,11 @@ test("polar ice boundaries never create sandy beaches", () => {
   assert.equal(isFrozenShoreRow({ t: "ice_cap", m: 1185 }), true);
   assert.equal(terrainRowsNeedBeach({ t: "water" }, { t: "ice", o: 1 }), false);
   assert.equal(terrainRowsNeedBeach({ t: "ice_cap", m: 1185 }, { t: "water" }), false);
+});
+
+test("polar ice boundaries are recognized without treating ordinary shores as frozen", () => {
+  assert.equal(terrainRowsFormFrozenWaterBoundary({ t: "water" }, { t: "ice", o: 1 }), true);
+  assert.equal(terrainRowsFormFrozenWaterBoundary({ t: "ice_cap", m: 1185 }, { t: "water" }), true);
+  assert.equal(terrainRowsFormFrozenWaterBoundary({ t: "water" }, { t: "land" }), false);
+  assert.equal(terrainRowsFormFrozenWaterBoundary({ t: "ice" }, { t: "ice_cap" }), false);
 });

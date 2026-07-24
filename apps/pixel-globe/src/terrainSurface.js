@@ -41,6 +41,13 @@ export function terrainRowsNeedBeach(rowA, rowB) {
   return !isFrozenShoreRow(shoreRow);
 }
 
+export function terrainRowsFormFrozenWaterBoundary(rowA, rowB) {
+  const aIsWater = isWaterSurfaceRow(rowA);
+  const bIsWater = isWaterSurfaceRow(rowB);
+  if (aIsWater === bIsWater) return false;
+  return isFrozenShoreRow(aIsWater ? rowB : rowA);
+}
+
 export function compareTerrainConnectorDrawOrder(a, b) {
   const coastOrder = Number(terrainRowsNeedBeach(a.row, a.nrow)) -
     Number(terrainRowsNeedBeach(b.row, b.nrow));

@@ -17,6 +17,8 @@ import {
   LAKE_VICTORIA_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
   MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY,
+  NIAGARA_FALLS_DISCOVERY_ID,
+  NIAGARA_FALLS_DISCOVERY_RADIUS_PX,
   VICTORIA_FALLS_DISCOVERY_ID,
   VICTORIA_FALLS_DISCOVERY_RADIUS_PX,
   WATER_DISCOVERY_MENU_SPRITE_KEY,
@@ -114,7 +116,7 @@ test("El Dorado requires a close upper-Amazon approach", () => {
   );
 });
 
-test("Victoria Falls requires the Zambezi approach but remains reachable", async () => {
+test("waterfall discoveries require their inland approaches but remain forgiving there", async () => {
   const earth = JSON.parse(await readFile(
     new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot),
     "utf8"
@@ -145,6 +147,23 @@ test("Victoria Falls requires the Zambezi approach but remains reachable", async
   assert.equal(falls.radiusPx, VICTORIA_FALLS_DISCOVERY_RADIUS_PX);
   assert.ok(falls.navigationDistancePx < falls.radiusPx, "the navigable Zambezi must reach discovery range");
   assert.ok(sofalaDistancePx > falls.radiusPx * 7, "Victoria Falls must not be visible from Sofala");
+
+  const niagara = discoveries.find((item) => item.id === NIAGARA_FALLS_DISCOVERY_ID);
+  const atlanticCityDistancePx = greatCircleDistancePx(
+    { lat: 39.3643, lon: -74.4229 },
+    niagara,
+    PRODUCTION_PIXELS_PER_RADIAN
+  );
+
+  assert.equal(niagara.radiusPx, NIAGARA_FALLS_DISCOVERY_RADIUS_PX);
+  assert.ok(
+    niagara.navigationDistancePx < niagara.radiusPx / 3,
+    "the Great Lakes approach must provide a generous Niagara discovery margin"
+  );
+  assert.ok(
+    atlanticCityDistancePx > niagara.radiusPx * 3,
+    "Niagara Falls must not be discoverable from the Atlantic coast"
+  );
 });
 
 test("world discovery registry is unique, complete, and explicit about historicity", () => {
