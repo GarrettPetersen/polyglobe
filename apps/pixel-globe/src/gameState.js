@@ -1594,8 +1594,8 @@ export function receiveEmergencyShipAid(state, npcShipId) {
 
 export function initializeProvisionalShipLoadout(state, stats) {
   assertGameState(state);
-  requirePlayerShipState(state, stats);
-  const plan = shipLoadoutPlan(stats, "short-haul");
+  const loadoutStats = requirePlayerShipState(state, stats);
+  const plan = shipLoadoutPlan(loadoutStats, "short-haul");
   state.ship.loadoutId = null;
   state.ship.loadoutTargets = plan;
   state.ship.crew = plan.crew;
@@ -1610,15 +1610,15 @@ export function initializeProvisionalShipLoadout(state, stats) {
 
 export function restockShipLoadoutAtPort(state, city, stats, loadoutId, context = {}) {
   assertGameState(state);
-  requirePlayerShipState(state, stats);
-  const plan = shipLoadoutPlan(stats, loadoutId, { minimumCrew: permanentCrewFloor(state) });
+  const loadoutStats = requirePlayerShipState(state, stats);
+  const plan = shipLoadoutPlan(loadoutStats, loadoutId, { minimumCrew: permanentCrewFloor(state) });
   return restockShipLoadoutPlanAtPort(state, city, plan, context);
 }
 
 export function restockCustomShipLoadoutAtPort(state, city, stats, draft, context = {}) {
   assertGameState(state);
-  requirePlayerShipState(state, stats);
-  const plan = shipCustomLoadoutPlan(stats, draft, { minimumCrew: permanentCrewFloor(state) });
+  const loadoutStats = requirePlayerShipState(state, stats);
+  const plan = shipCustomLoadoutPlan(loadoutStats, draft, { minimumCrew: permanentCrewFloor(state) });
   return restockShipLoadoutPlanAtPort(state, city, plan, context);
 }
 
@@ -4006,13 +4006,21 @@ function foodRationDebtRemainder(debt) {
 
 function requirePlayerShipState(state, stats) {
   if (!state.ship) throw new Error("Ship loadouts require player ship state");
-  if (!stats || stats.slug !== state.ship.slug || stats.cargoCapacity !== state.ship.baseCargoCapacity ||
-      effectivePlayerShipStats(state, stats).cargoCapacity !== state.cargoCapacity) {
+  const baseStats = shipStatsForSlug(state.ship.slug);
+  const effectiveStats = effectivePlayerShipStats(state, baseStats);
+  const suppliedCapacityMatches =
+    stats?.cargoCapacity === baseStats.cargoCapacity ||
+    stats?.cargoCapacity === effectiveStats.cargoCapacity;
+  if (!stats || stats.slug !== baseStats.slug || !suppliedCapacityMatches ||
+      state.ship.baseCargoCapacity !== baseStats.cargoCapacity ||
+      effectiveStats.cargoCapacity !== state.cargoCapacity) {
     throw new Error("Ship loadout stats do not match game state");
   }
-  if (state.ship.crewCapacity !== stats.crewCapacity || state.ship.cannonCapacity !== stats.cannons) {
+  if (stats.crewCapacity !== baseStats.crewCapacity || stats.cannons !== baseStats.cannons ||
+      state.ship.crewCapacity !== baseStats.crewCapacity || state.ship.cannonCapacity !== baseStats.cannons) {
     throw new Error("Ship loadout capacities do not match game state");
   }
+  return effectiveStats;
 }
 
 function edibleCargoRows(state) {

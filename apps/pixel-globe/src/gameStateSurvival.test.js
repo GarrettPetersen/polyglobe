@@ -56,6 +56,7 @@ import {
   validateGameState
 } from "./gameState.js";
 import { crewHoldSpace, shipLoadoutPlan } from "./shipLoadouts.js";
+import { effectivePlayerShipStats } from "./playerPerks.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { colonizationTargetForCity } from "./colonialCities.js";
 import {
@@ -756,6 +757,48 @@ test("loadouts put crew, guns, food, and water into the hold", () => {
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
   assert.ok(result.spent > 0);
   assert.ok(state.accounts.ledger.some((entry) => entry.description === "Combat focused loadout restock"));
+});
+
+test("organized captains can apply preset and custom loadouts using effective ship stats", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    shipStats: stats,
+    playerCharacter: {
+      id: "organized-loadout-captain",
+      name: "Organized Captain",
+      nationalityId: "england",
+      expressions: [{ id: "neutral" }],
+      skillIds: ["organized"]
+    }
+  });
+  const effectiveStats = effectivePlayerShipStats(state, stats);
+
+  assert.equal(effectiveStats.cargoCapacity, stats.cargoCapacity + 4);
+  assert.doesNotThrow(() => initializeProvisionalShipLoadout(state, effectiveStats));
+  const preset = restockShipLoadoutAtPort(
+    state,
+    LONDON,
+    effectiveStats,
+    "balanced",
+    { simMinute: 120 }
+  );
+  assert.equal(preset.plan.totalSpace + preset.plan.reserveSpace, state.cargoCapacity);
+
+  const custom = restockCustomShipLoadoutAtPort(
+    state,
+    LONDON,
+    effectiveStats,
+    {
+      crew: preset.plan.crew,
+      cannons: preset.plan.cannons,
+      foodUnits: preset.plan.foodUnits,
+      waterUnits: preset.plan.waterUnits
+    },
+    { simMinute: 240 }
+  );
+  assert.equal(custom.plan.id, "custom");
+  assert.equal(custom.plan.totalSpace + custom.plan.reserveSpace, state.cargoCapacity);
 });
 
 test("consumed loadout provisions remain reserved against ordinary trade cargo", () => {
