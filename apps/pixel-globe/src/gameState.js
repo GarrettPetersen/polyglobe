@@ -60,6 +60,7 @@ import {
   shipLoadoutPlan
 } from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import { formatSignedReputation } from "./reputationDisplay.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import {
   BASIC_FISHING_NET_ID,
@@ -4913,10 +4914,6 @@ function clampReputation(value) {
 
 function roundReputation(value) {
   return Math.round(value * 1000) / 1000;
-}
-
-function formatSignedReputation(value) {
-  return `${value >= 0 ? "+" : ""}${value}`;
 }
 
 function assertDiscovery(discovery) {

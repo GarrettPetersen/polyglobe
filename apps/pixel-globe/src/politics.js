@@ -14,6 +14,7 @@ import {
   recentGameDiplomacyEvents
 } from "./gameState.js";
 import { clampMenuIndex } from "./menuNavigation.js";
+import { formatSignedReputation } from "./reputationDisplay.js";
 import { diplomaticContactBetween } from "./worldDiplomacy.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
@@ -91,15 +92,8 @@ function standing(reputation, label) {
   return {
     reputation,
     label,
-    scoreLabel: signedReputation(reputation)
+    scoreLabel: formatSignedReputation(reputation)
   };
-}
-
-function signedReputation(value) {
-  const rounded = Math.round(value);
-  if (Math.abs(value - rounded) < 0.001) return `${rounded >= 0 ? "+" : ""}${rounded}`;
-  const fixed = value.toFixed(1);
-  return `${value >= 0 ? "+" : ""}${fixed}`;
 }
 
 function factionCode(faction) {

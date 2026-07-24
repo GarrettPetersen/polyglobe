@@ -43,6 +43,7 @@ import {
   cargoUsed,
   createGameState,
   deliveryOfferForCity,
+  factionReputation,
   hasLetterOfMarqueFrom,
   hasPersonalTradePass,
   initializeProvisionalShipLoadout,
@@ -2838,6 +2839,48 @@ test("capital port dialogue can grant a letter of marque", () => {
   const alreadyHeld = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(alreadyHeld.text, /already carry King Henry VIII's authority/i);
   assert.equal(alreadyHeld.feedback, null);
+});
+
+test("letter of marque dialogue shows fractional standing until the requirement is truly met", () => {
+  const city = {
+    tileId: 1,
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 90000,
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  adjustFactionReputation(
+    gameState,
+    "england",
+    LETTER_OF_MARQUE_REPUTATION_REQUIRED - factionReputation(gameState, "england") - 0.4
+  );
+  const session = createPortDialogueSession(city, { initialNodeId: "marque" });
+  const context = { shipPower: LETTER_OF_MARQUE_POWER_REQUIRED, simMinute: 120 };
+
+  const short = portDialogueView(session, city, gameState, economy, [city], context);
+  const requestIndex = short.options.findIndex((entry) => entry.action.type === "request-marque");
+  assert.match(short.text, /Standing \+14\.6\/\+15\./);
+  assert.equal(short.options[requestIndex].disabled, true);
+  assert.equal(short.options[requestIndex].disabledReason, "Need standing +15.");
+
+  adjustFactionReputation(gameState, "england", 0.4);
+  const eligible = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(eligible.text, /Standing \+15\/\+15\./);
+  assert.equal(eligible.options[requestIndex].disabled, false);
 });
 
 test("a trusted captain can petition a capital for a historically named personal trade pass", () => {

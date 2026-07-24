@@ -97,6 +97,7 @@ import {
 import { cannonReloadWorkRate } from "./navalWeapons.js";
 import { crewWorkMultiplier } from "./crewEffectiveness.js";
 import { formatDisplayQuantity } from "./displayNumber.js";
+import { formatSignedReputation } from "./reputationDisplay.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import { shipyardPurchaseTerms } from "./shipyards.js";
@@ -3664,7 +3665,7 @@ function marqueView(session, city, gameState, context) {
     ? `${ruler.displayName} grants you authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
     : status.granted
     ? `You already carry ${ruler.displayName}'s authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
-    : `${ruler.displayName}'s court will issue a letter if your standing and fighting ship are sufficient. Standing ${signedReputation(status.reputation)}/${signedReputation(status.reputationRequired)}. Ship strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
+    : `${ruler.displayName}'s court will issue a letter if your standing and fighting ship are sufficient. Standing ${formatSignedReputation(status.reputation)}/${formatSignedReputation(status.reputationRequired)}. Ship strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
   const disabledReason = status.missing.length > 0
     ? `Need ${status.missing.join(" and ")}.`
     : null;
@@ -3707,7 +3708,7 @@ function tradePassView(session, city, gameState, context) {
     ? status.policy.permitGrant
     : status.granted
     ? `You already carry a ${status.policy.permitLabel} issued in your name by ${status.policy.permitAuthority}.`
-    : `${status.policy.permitPetition} Standing ${signedReputation(status.reputation)}/${signedReputation(status.reputationRequired)}.`;
+    : `${status.policy.permitPetition} Standing ${formatSignedReputation(status.reputation)}/${formatSignedReputation(status.reputationRequired)}.`;
   const disabledReason = status.missing.length > 0
     ? `Need ${status.missing.join(" and ")}.`
     : null;
@@ -3798,11 +3799,6 @@ export function worldPriceIndicator(comparison) {
 function formatDistanceKm(distanceKm) {
   if (!Number.isFinite(distanceKm) || distanceKm < 0) return "unknown distance";
   return `${Math.round(distanceKm).toLocaleString("en-US")} km`;
-}
-
-function signedReputation(value) {
-  const rounded = Math.round(value);
-  return `${rounded >= 0 ? "+" : ""}${rounded}`;
 }
 
 function feedbackExpressionId(feedback) {
