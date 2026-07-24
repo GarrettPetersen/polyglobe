@@ -2,14 +2,77 @@ import { gameStorage } from "./gameStorage.js";
 
 export const LOCAL_SAVE_STORAGE_KEY = "marque-and-reprisal.save";
 export const LOCAL_SAVE_VERSION = 1;
+export const LOCAL_SAVE_MODE_FULL = "full";
+export const LOCAL_SAVE_MODE_ECONOMY = "economy";
+export const LOCAL_SAVE_MODE_CORE = "core";
 
 export function writeLocalSave(payload, { storage = defaultStorage(), savedAt = Date.now() } = {}) {
   const save = createLocalSave(payload, savedAt);
   const serialized = JSON.stringify(save);
   storage.setItem(LOCAL_SAVE_STORAGE_KEY, serialized);
-  const persisted = JSON.parse(serialized);
+  const persistedSerialized = storage.getItem(LOCAL_SAVE_STORAGE_KEY);
+  if (persistedSerialized !== serialized) {
+    throw localSaveWriteError(
+      "Local save storage did not preserve the newly written voyage",
+      "write-verification",
+      serializedByteLength(serialized)
+    );
+  }
+  const persisted = JSON.parse(persistedSerialized);
   validateLocalSave(persisted);
   return persisted;
+}
+
+export function writeLocalSaveWithRecovery(
+  payload,
+  { storage = defaultStorage(), savedAt = Date.now() } = {}
+) {
+  const candidates = localSaveCandidates(payload);
+  const attempts = [];
+  let capacityError = null;
+
+  for (const candidate of candidates) {
+    try {
+      const save = writeLocalSave(candidate.payload, { storage, savedAt });
+      return {
+        save,
+        mode: candidate.mode,
+        byteLength: serializedByteLength(JSON.stringify(save)),
+        attempts: Object.freeze(attempts)
+      };
+    } catch (error) {
+      const normalized = asError(error);
+      attempts.push(Object.freeze({
+        mode: candidate.mode,
+        byteLength: localSaveByteLength(candidate.payload, savedAt),
+        error: normalized
+      }));
+      if (!isLocalSaveCapacityError(normalized)) throw normalized;
+      capacityError = normalized;
+    }
+  }
+
+  const error = localSaveWriteError(
+    "Local save exceeds available browser storage even after removing reconstructible world traffic",
+    "capacity",
+    attempts.at(-1)?.byteLength || 0
+  );
+  error.cause = capacityError;
+  error.attempts = Object.freeze(attempts);
+  throw error;
+}
+
+export function localSaveByteLength(payload, savedAt = Date.now()) {
+  return serializedByteLength(JSON.stringify(createLocalSave(payload, savedAt)));
+}
+
+export function isLocalSaveCapacityError(error) {
+  if (!error || typeof error !== "object") return false;
+  if (error.localSaveCode === "write-verification" || error.localSaveCode === "capacity") return true;
+  return [
+    "QuotaExceededError",
+    "NS_ERROR_DOM_QUOTA_REACHED"
+  ].includes(error.name) || error.code === 22 || error.code === 1014;
 }
 
 export function readLocalSave({ storage = defaultStorage() } = {}) {
@@ -56,7 +119,7 @@ function createLocalSave(payload, savedAt) {
 
 function validateSavePayload(payload) {
   if (!payload || typeof payload !== "object") throw new Error("Local save payload is missing");
-  for (const key of ["gameState", "playerShip", "worldClock", "economy", "npcRoutes"]) {
+  for (const key of ["gameState", "playerShip", "worldClock"]) {
     if (!payload[key] || typeof payload[key] !== "object") {
       throw new Error(`Local save payload is missing ${key}`);
     }
@@ -81,6 +144,61 @@ function isFiniteVector(value) {
 
 function defaultStorage() {
   return gameStorage;
+}
+
+function localSaveCandidates(payload) {
+  validateSavePayload(payload);
+  const {
+    economy,
+    landTrade: _landTrade,
+    npcRoutes: _npcRoutes,
+    ...core
+  } = payload;
+  const candidates = [{
+    mode: saveModeForPayload(payload),
+    payload
+  }];
+  if (economy) {
+    candidates.push({
+      mode: LOCAL_SAVE_MODE_ECONOMY,
+      payload: { ...core, economy }
+    });
+  }
+  candidates.push({
+    mode: LOCAL_SAVE_MODE_CORE,
+    payload: core
+  });
+
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    const signature = [
+      Boolean(candidate.payload.economy),
+      Boolean(candidate.payload.landTrade),
+      Boolean(candidate.payload.npcRoutes)
+    ].join("|");
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+}
+
+function saveModeForPayload(payload) {
+  if (payload.economy && payload.landTrade && payload.npcRoutes) return LOCAL_SAVE_MODE_FULL;
+  if (payload.economy) return LOCAL_SAVE_MODE_ECONOMY;
+  return LOCAL_SAVE_MODE_CORE;
+}
+
+function localSaveWriteError(message, code, byteLength) {
+  const error = new Error(message);
+  error.name = "LocalSaveWriteError";
+  error.localSaveCode = code;
+  error.byteLength = byteLength;
+  return error;
+}
+
+function serializedByteLength(serialized) {
+  if (typeof TextEncoder === "function") return new TextEncoder().encode(serialized).byteLength;
+  return Buffer.byteLength(serialized, "utf8");
 }
 
 function asError(value) {

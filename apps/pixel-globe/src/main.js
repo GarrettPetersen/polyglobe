@@ -247,6 +247,9 @@ import {
   receiveCastawayShoreAid,
   receiveRescuedTravelerReunionReward,
   receiveSurrenderedLoot,
+  compactPlayerLedger,
+  playerLedgerLifetimeMetrics,
+  playerLedgerTotalEntryCount,
   reconcileQuestPortTiles,
   recordAttackAgainstFaction,
   recordDiscovery,
@@ -933,7 +936,12 @@ import {
   shipyardPurchaseTerms,
   shipyardRumorForPort
 } from "./shipyards.js";
-import { clearLocalSave, readLocalSave, writeLocalSave } from "./localSave.js";
+import {
+  LOCAL_SAVE_MODE_FULL,
+  clearLocalSave,
+  readLocalSave,
+  writeLocalSaveWithRecovery
+} from "./localSave.js";
 import {
   migrateSavedVoyageCore,
   recoverSavedVoyageWorldClock
@@ -2126,6 +2134,8 @@ let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
 let elDoradoTreasureSequence = null;
 let survivalNotice = null;
+let savePersistenceWarning = null;
+let lastLocalSaveMode = LOCAL_SAVE_MODE_FULL;
 let achievementNotice = null;
 const achievementNoticeQueue = [];
 let images;
@@ -3910,6 +3920,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   } else if (!startMenu && !creditsMenu.isOpen && !playerIntroModal && nowMs - lastOverlayMs > 250) {
     if (minimapShouldBeVisible()) drawMinimap(nowMs);
     drawSurvivalMeters();
+    drawSavePersistenceWarning();
     drawSurvivalHudTooltip();
     drawStatusPersonParticles(nowMs);
     if (portWaitState) drawPortWaitControls(nowMs);
@@ -7749,7 +7760,11 @@ async function restoreSavedVoyage(payload) {
     throw new Error(`Saved ship tile is not navigable: ${savedShip.tileId}`);
   }
   gameState = restoredGameState;
-  syncColonizationWorldState(restoredGameState, { startMinute: payload.economy.lastMinute });
+  syncColonizationWorldState(restoredGameState, {
+    startMinute: Number.isFinite(payload.economy?.lastMinute)
+      ? payload.economy.lastMinute
+      : restoredWorldClock.currentMinute
+  });
   applyCurrentPortConquestOwnership();
   const assets = await loadShipAssetSet(savedShip.typeSlug);
   const recoveredDerivedSystems = restoreSavedDerivedWorld(payload, restoredGameState);
@@ -8069,31 +8084,76 @@ function saveVoyageNow(reason) {
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
   try {
     repairLivePlayerCargoOverflow(`before save: ${reason}`);
+    const ledgerCompaction = compactPlayerLedger(gameState);
+    if (ledgerCompaction) {
+      console.info("[pixel-globe] compacted captain ledger before saving", ledgerCompaction);
+    }
     syncCartographyToGameState();
     syncAchievementsFromGameState();
-    const save = writeLocalSave({
+    const payload = {
       gameState,
       playerShip: snapshotPlayerShip(),
       worldClock: {
         currentMinute: weatherClockMinutes,
         voyageStartMinute: voyageStartClockMinutes
       },
-      economy: snapshotWorldEconomy(worldEconomy),
-      landTrade: snapshotLandTradeSystem(landTradeSystem),
-      npcRoutes: snapshotNpcSeaRouteSystem(npcSeaRoutes),
       anchored,
       survivalDamageTimers: { ...survivalDeprivationTimers }
-    });
+    };
+    const snapshotErrors = [];
+    addOptionalSaveSnapshot(payload, snapshotErrors, "economy", "world economy", () => (
+      snapshotWorldEconomy(worldEconomy)
+    ));
+    addOptionalSaveSnapshot(payload, snapshotErrors, "landTrade", "land trade", () => (
+      snapshotLandTradeSystem(landTradeSystem)
+    ));
+    addOptionalSaveSnapshot(payload, snapshotErrors, "npcRoutes", "NPC sea routes", () => (
+      snapshotNpcSeaRouteSystem(npcSeaRoutes)
+    ));
+    const write = writeLocalSaveWithRecovery(payload);
+    const save = write.save;
     localSaveResult = { status: "ready", save, error: null };
+    const previousFailure = savePersistenceWarning;
+    savePersistenceWarning = null;
+    if (previousFailure) showSurvivalNotice("SAVE RESTORED", "good");
+    if (write.mode !== lastLocalSaveMode && write.mode !== LOCAL_SAVE_MODE_FULL) {
+      showSurvivalNotice("SAVE COMPACTED - TRAFFIC REBUILDS", "warn");
+    }
+    if (write.mode !== LOCAL_SAVE_MODE_FULL || snapshotErrors.length > 0) {
+      console.warn(
+        `[pixel-globe] saved voyage in ${write.mode} mode; reconstructible world traffic will rebuild on load`,
+        { snapshotErrors, attempts: write.attempts }
+      );
+    }
+    lastLocalSaveMode = write.mode;
     if (reason === "new voyage" || reason === "continued voyage") {
-      const bytes = new TextEncoder().encode(JSON.stringify(save)).byteLength;
-      console.info(`[pixel-globe] local save: ${Math.ceil(bytes / 1024)} KiB`);
+      console.info(
+        `[pixel-globe] local save: ${Math.ceil(write.byteLength / 1024)} KiB (${write.mode})`
+      );
     }
     lastAutosaveMs = performance.now();
     return true;
   } catch (error) {
     console.warn(`[pixel-globe] local save failed (${reason})`, error);
+    lastAutosaveMs = performance.now();
+    savePersistenceWarning = {
+      text: "SAVE FAILED - PROGRESS AT RISK",
+      reason,
+      error
+    };
+    showSurvivalNotice(savePersistenceWarning.text, "warn");
+    dirty = true;
     return false;
+  }
+}
+
+function addOptionalSaveSnapshot(payload, errors, key, label, snapshot) {
+  try {
+    payload[key] = snapshot();
+  } catch (error) {
+    const normalized = error instanceof Error ? error : new Error(String(error));
+    console.error(`[pixel-globe] could not snapshot ${label}; it will rebuild on load`, normalized);
+    errors.push(Object.freeze({ key, label, error: normalized }));
   }
 }
 
@@ -8109,15 +8169,12 @@ function repairLivePlayerCargoOverflow(reason) {
 function currentAchievementSnapshot() {
   const state = gameState && hasStartedVoyage ? gameState : null;
   const ledger = state?.accounts?.ledger || [];
+  const ledgerMetrics = state ? playerLedgerLifetimeMetrics(state) : null;
   const colony = state?.memory?.colonization;
   const foundedCityIds = colony?.stage === COLONIZATION_STAGE_ESTABLISHED && colony.targetCity
     ? [`${colony.targetCity}|${colony.targetCountry || ""}`]
     : [];
-  const soldGoodIds = state
-    ? [...new Set(ledger
-      .filter((entry) => entry.kind === "sell" && typeof entry.goodId === "string")
-      .map((entry) => entry.goodId))]
-    : [];
+  const soldGoodIds = ledgerMetrics?.soldGoodIds || [];
   const currentShipSlug = state ? ship?.stats?.slug || ship?.typeSlug || null : null;
   const visitedPortCount = state ? achievementVisitedPortCount(state) : 0;
   return {
@@ -8138,13 +8195,9 @@ function currentAchievementSnapshot() {
     arrivedInPortDrunk: state?.memory?.achievements?.arrivedInPortDrunk === true,
     japaneseMatchlockIndustryCreated: state ? japaneseMatchlockIndustryCompleted(state) : false,
     caribbeanGingerIndustryCreated: state ? caribbeanGingerIndustryCompleted(state) : false,
-    fishCaughtQuantity: ledger
-      .filter((entry) => entry.kind === "catch" && entry.goodId === FISH_CARGO_GOOD_ID)
-      .reduce((sum, entry) => sum + entry.quantity, 0),
-    passengerDeliveries: ledger.filter((entry) => (
-      entry.kind === "income" && entry.description === "Passenger fare"
-    )).length,
-    acquiredShips: ledger.filter((entry) => entry.kind === "ship").length,
+    fishCaughtQuantity: ledgerMetrics?.fishCaughtQuantity || 0,
+    passengerDeliveries: ledgerMetrics?.passengerDeliveries || 0,
+    acquiredShips: ledgerMetrics?.acquiredShips || 0,
     shoreScavengeCompleted: state?.memory?.flags?.achievementShoreScavengeCompleted === true,
     defeatedShip: state?.memory?.flags?.achievementDefeatedShip === true,
     mappedPercent: state ? Math.floor(mappedPercentForState(state)) : 0,
@@ -16603,7 +16656,7 @@ function createGameOverStats(endMinute) {
     endMinute,
     ship?.position
   );
-  const ledgerEntries = gameState.accounts.ledger.length;
+  const ledgerEntries = playerLedgerTotalEntryCount(gameState);
   const cargo = cargoUsed(gameState);
   const cargoCapacity = gameState?.cargoCapacity || ship?.cargoCapacity || 0;
   return {
@@ -19870,6 +19923,7 @@ function render(nowMs) {
   if (optionsMenu.isOpen) drawOptionsMenu();
   drawItemAcquisitionEffects(nowMs);
   drawAchievementNotice(nowMs);
+  drawSavePersistenceWarning();
   drawStormLightningFlash(nowMs);
 }
 
@@ -31254,6 +31308,23 @@ function drawSurvivalNotice(nowMs) {
   ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
   ctx.fillStyle = warn ? "#ffe6a6" : "#d6f2e8";
   drawPixelText(fitPixelText(survivalNotice.text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "center"
+  });
+}
+
+function drawSavePersistenceWarning() {
+  if (!savePersistenceWarning) return;
+  const text = savePersistenceWarning.text;
+  const width = Math.min(SCREEN_W - 12, measurePixelTextWidth(text, PIXEL_FONT_SMALL_8) + 12);
+  const x = Math.round((SCREEN_W - width) / 2);
+  const y = 5;
+  ctx.fillStyle = "rgba(103, 42, 38, 0.97)";
+  ctx.fillRect(x, y, width, 13);
+  ctx.strokeStyle = "#f68181";
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 12);
+  ctx.fillStyle = "#ffe6a6";
+  drawPixelText(fitPixelText(text, PIXEL_FONT_SMALL_8, width - 10), x + width / 2, y + 3, {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });

@@ -199,6 +199,7 @@ import {
 
 export const STARTING_DOUBLOONS = 360;
 export const GAME_STATE_VERSION = 44;
+export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -595,6 +596,10 @@ function restoreLoadedGameState(state, shipStats = null) {
   const repair = repairPlayerCargoOverflow(state);
   if (repair) {
     console.warn("Player cargo exceeded capacity; excess cargo was jettisoned while restoring the voyage", repair);
+  }
+  const ledgerCompaction = compactPlayerLedger(state);
+  if (ledgerCompaction) {
+    console.warn("Player ledger exceeded its retained history; older entries were summarized", ledgerCompaction);
   }
   return validateGameState(state);
 }
@@ -2374,6 +2379,74 @@ export function purchaseCannonEquipment(state, economy, city, equipmentId, conte
 export function ledgerEntries(state) {
   assertGameState(state);
   return state.accounts.ledger.slice();
+}
+
+export function compactPlayerLedger(state, { limit = PLAYER_LEDGER_ENTRY_LIMIT } = {}) {
+  if (!state?.accounts || !Array.isArray(state.accounts.ledger)) {
+    throw new Error("Player ledger compaction requires account entries");
+  }
+  if (!Number.isInteger(limit) || limit < 4) {
+    throw new Error(`Invalid player ledger retention limit: ${limit}`);
+  }
+  const ledger = state.accounts.ledger;
+  if (ledger.length <= limit) return null;
+  const openingEntries = ledger.filter((entry) => entry?.kind === "opening");
+  if (openingEntries.length !== 1) {
+    throw new Error(`Player ledger compaction requires one opening entry, got ${openingEntries.length}`);
+  }
+  const existingArchives = ledger.filter((entry) => entry?.kind === "archive");
+  if (existingArchives.length > 1) {
+    throw new Error(`Player ledger contains ${existingArchives.length} archive entries`);
+  }
+  const opening = openingEntries[0];
+  const existingArchive = existingArchives[0] || null;
+  const transactions = ledger.filter((entry) => entry !== opening && entry !== existingArchive);
+  const retainedTransactionCount = limit - 2;
+  const archiveTransactionCount = transactions.length - retainedTransactionCount;
+  if (archiveTransactionCount <= 0) return null;
+  const newlyArchived = transactions.slice(0, archiveTransactionCount);
+  const retained = transactions.slice(archiveTransactionCount);
+  const metrics = mergeLedgerMetrics(
+    existingArchive ? ledgerArchiveMetrics(existingArchive) : emptyLedgerMetrics(),
+    summarizeLedgerEntries(newlyArchived)
+  );
+  const latestArchived = newlyArchived.at(-1) || existingArchive;
+  const archive = {
+    id: existingArchive?.id ?? newlyArchived[0].id,
+    kind: "archive",
+    simMinute: latestArchived?.simMinute ?? opening.simMinute,
+    location: "Aboard",
+    country: "",
+    description: `Earlier ledger activity (${metrics.entryCount} entries)`,
+    goodId: null,
+    quantity: 0,
+    amount: metrics.grossDoubloonsEarned,
+    balance: latestArchived?.balance ?? opening.balance,
+    costBasis: null,
+    pnl: null,
+    archivedEntryCount: metrics.entryCount,
+    archivedSoldGoodIds: [...metrics.soldGoodIds].sort(),
+    archivedFishCaughtQuantity: metrics.fishCaughtQuantity,
+    archivedPassengerDeliveries: metrics.passengerDeliveries,
+    archivedAcquiredShips: metrics.acquiredShips
+  };
+  state.accounts.ledger = [opening, archive, ...retained];
+  return Object.freeze({
+    archivedEntryCount: metrics.entryCount,
+    retainedEntryCount: state.accounts.ledger.length
+  });
+}
+
+export function playerLedgerLifetimeMetrics(state) {
+  if (!state?.accounts || !Array.isArray(state.accounts.ledger)) {
+    throw new Error("Player ledger metrics require account entries");
+  }
+  return summarizeLedgerEntries(state.accounts.ledger);
+}
+
+export function playerLedgerTotalEntryCount(state) {
+  const metrics = playerLedgerLifetimeMetrics(state);
+  return 1 + metrics.entryCount;
 }
 
 export function realizedTradePnl(state) {
@@ -4250,6 +4323,85 @@ function recordLedgerEntry(state, city, context, entry) {
     balance: state.doubloons,
     costBasis: entry.costBasis === null ? null : roundLedgerMoney(entry.costBasis),
     pnl: entry.pnl === null ? null : roundLedgerMoney(entry.pnl)
+  });
+  compactPlayerLedger(state);
+}
+
+function summarizeLedgerEntries(entries) {
+  const metrics = entries.reduce((summary, entry) => {
+    if (entry?.kind === "archive") return mergeLedgerMetrics(summary, ledgerArchiveMetrics(entry));
+    if (!entry || entry.kind === "opening") return summary;
+    summary.entryCount += 1;
+    if (Number.isFinite(entry.amount) && entry.amount > 0) {
+      summary.grossDoubloonsEarned += entry.amount;
+    }
+    if (entry.kind === "sell" && typeof entry.goodId === "string") {
+      summary.soldGoodIds.add(entry.goodId);
+    }
+    if (entry.kind === "catch" && entry.goodId === FISH_CARGO_GOOD_ID && Number.isFinite(entry.quantity)) {
+      summary.fishCaughtQuantity += entry.quantity;
+    }
+    if (entry.kind === "income" && entry.description === "Passenger fare") {
+      summary.passengerDeliveries += 1;
+    }
+    if (entry.kind === "ship") summary.acquiredShips += 1;
+    return summary;
+  }, emptyLedgerMetrics());
+  return finalizeLedgerMetrics(metrics);
+}
+
+function ledgerArchiveMetrics(entry) {
+  if (!Number.isInteger(entry.archivedEntryCount) || entry.archivedEntryCount < 0) {
+    throw new Error(`Invalid archived ledger entry count: ${entry.archivedEntryCount}`);
+  }
+  if (!Array.isArray(entry.archivedSoldGoodIds) ||
+      entry.archivedSoldGoodIds.some((goodId) => typeof goodId !== "string" || goodId === "")) {
+    throw new Error("Invalid archived ledger sold goods");
+  }
+  for (const key of [
+    "archivedFishCaughtQuantity",
+    "archivedPassengerDeliveries",
+    "archivedAcquiredShips"
+  ]) {
+    if (!Number.isFinite(entry[key]) || entry[key] < 0) {
+      throw new Error(`Invalid archived ledger metric ${key}: ${entry[key]}`);
+    }
+  }
+  return {
+    entryCount: entry.archivedEntryCount,
+    grossDoubloonsEarned: Number.isFinite(entry.amount) && entry.amount > 0 ? entry.amount : 0,
+    soldGoodIds: new Set(entry.archivedSoldGoodIds),
+    fishCaughtQuantity: entry.archivedFishCaughtQuantity,
+    passengerDeliveries: entry.archivedPassengerDeliveries,
+    acquiredShips: entry.archivedAcquiredShips
+  };
+}
+
+function emptyLedgerMetrics() {
+  return {
+    entryCount: 0,
+    grossDoubloonsEarned: 0,
+    soldGoodIds: new Set(),
+    fishCaughtQuantity: 0,
+    passengerDeliveries: 0,
+    acquiredShips: 0
+  };
+}
+
+function mergeLedgerMetrics(target, source) {
+  target.entryCount += source.entryCount;
+  target.grossDoubloonsEarned += source.grossDoubloonsEarned;
+  for (const goodId of source.soldGoodIds) target.soldGoodIds.add(goodId);
+  target.fishCaughtQuantity += source.fishCaughtQuantity;
+  target.passengerDeliveries += source.passengerDeliveries;
+  target.acquiredShips += source.acquiredShips;
+  return target;
+}
+
+function finalizeLedgerMetrics(metrics) {
+  return Object.freeze({
+    ...metrics,
+    soldGoodIds: Object.freeze([...metrics.soldGoodIds].sort())
   });
 }
 

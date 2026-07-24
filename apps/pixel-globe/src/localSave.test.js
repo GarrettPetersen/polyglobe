@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   LOCAL_SAVE_STORAGE_KEY,
   clearLocalSave,
+  isLocalSaveCapacityError,
   readLocalSave,
-  writeLocalSave
+  writeLocalSave,
+  writeLocalSaveWithRecovery
 } from "./localSave.js";
 
 test("local saves round trip through a single versioned slot", () => {
@@ -72,6 +74,72 @@ test("clearing a save fails loudly when storage does not delete the slot", () =>
   assert.equal(readLocalSave({ storage }).status, "ready");
 });
 
+test("save writes fail loudly when storage silently keeps an older voyage", () => {
+  const storage = memoryStorage();
+  const previous = writeLocalSave(savePayload(), { storage, savedAt: 1 });
+  storage.setItem = () => {};
+
+  assert.throws(
+    () => writeLocalSave({
+      ...savePayload(),
+      worldClock: { currentMinute: 300, voyageStartMinute: 100 }
+    }, { storage, savedAt: 2 }),
+    /did not preserve/
+  );
+  assert.deepEqual(readLocalSave({ storage }).save, previous);
+});
+
+test("capacity recovery keeps voyage core and economy while dropping world traffic", () => {
+  const storage = capacityStorage(750);
+  const payload = {
+    ...savePayload(),
+    landTrade: { version: 1, carts: [{ route: "x".repeat(500) }] },
+    npcRoutes: { version: 2, ships: [{ plan: "y".repeat(500) }] }
+  };
+  const result = writeLocalSaveWithRecovery(payload, { storage, savedAt: 123456 });
+
+  assert.equal(result.mode, "economy");
+  assert.equal(result.save.payload.gameState.version, 8);
+  assert.deepEqual(result.save.payload.economy, payload.economy);
+  assert.equal(result.save.payload.landTrade, undefined);
+  assert.equal(result.save.payload.npcRoutes, undefined);
+  assert.equal(readLocalSave({ storage }).status, "ready");
+});
+
+test("capacity recovery can preserve the voyage when all derived state is too large", () => {
+  const storage = capacityStorage(520);
+  const payload = {
+    ...savePayload(),
+    economy: { version: 1, ports: ["e".repeat(500)] },
+    landTrade: { version: 1, carts: ["l".repeat(500)] },
+    npcRoutes: { version: 2, ships: ["n".repeat(500)] }
+  };
+  const result = writeLocalSaveWithRecovery(payload, { storage, savedAt: 123456 });
+
+  assert.equal(result.mode, "core");
+  assert.equal(result.save.payload.worldClock.currentMinute, 200);
+  assert.equal(result.save.payload.economy, undefined);
+  assert.equal(result.save.payload.landTrade, undefined);
+  assert.equal(result.save.payload.npcRoutes, undefined);
+});
+
+test("capacity recovery preserves the previous voyage when even core cannot fit", () => {
+  const storage = capacityStorage(600);
+  const previous = writeLocalSave(savePayload(), { storage, savedAt: 1 });
+  const oversized = {
+    ...savePayload(),
+    gameState: { version: 8, memory: "x".repeat(1000) },
+    economy: { version: 1, ports: ["e".repeat(1000)] },
+    npcRoutes: { version: 1, ships: ["n".repeat(1000)] }
+  };
+
+  assert.throws(
+    () => writeLocalSaveWithRecovery(oversized, { storage, savedAt: 2 }),
+    (error) => isLocalSaveCapacityError(error)
+  );
+  assert.deepEqual(readLocalSave({ storage }).save, previous);
+});
+
 function savePayload() {
   return {
     gameState: { version: 8 },
@@ -97,4 +165,19 @@ function memoryStorage() {
     setItem: (key, value) => values.set(key, String(value)),
     removeItem: (key) => values.delete(key)
   };
+}
+
+function capacityStorage(maxCharacters) {
+  const storage = memoryStorage();
+  const setItem = storage.setItem;
+  storage.setItem = (key, value) => {
+    const serialized = String(value);
+    if (serialized.length > maxCharacters) {
+      const error = new Error(`Storage quota exceeded: ${serialized.length}/${maxCharacters}`);
+      error.name = "QuotaExceededError";
+      throw error;
+    }
+    setItem(key, serialized);
+  };
+  return storage;
 }
