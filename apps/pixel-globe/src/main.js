@@ -55,6 +55,7 @@ import {
 } from "./characterBiography.js";
 import { characterReligionProfile } from "./characterReligion.js";
 import {
+  birthdayObservationNeeded,
   consumeBirthdayDialogueLine,
   observeAboardBirthdays,
   pendingBirthdayDialogueLine
@@ -12312,10 +12313,11 @@ function currentDialogueCity() {
 }
 
 function chartPortCallById(portId) {
-  if (!portId || !chart?.cityCalls) return null;
-  return chart.cityCalls.find((call) => (
-    (call.portId || `city-${call.tileId}`) === portId
-  )) || null;
+  if (!portId || !chart) return null;
+  if (!(chart.cityCallByPortId instanceof Map)) {
+    throw new Error("Chart has no indexed port calls");
+  }
+  return chart.cityCallByPortId.get(portId) || null;
 }
 
 function currentDialogueView() {
@@ -15008,17 +15010,30 @@ function localCollisionTileAtPoint(x, y) {
 
 function nearestLocalCollisionTileAtPoint(x, y) {
   if (!localLayout || !chart?.waterIndex) return null;
+  const tileRows = chart.waterIndex.tileRows;
+  if (!(tileRows instanceof Map)) {
+    throw new Error("Local collision requires a tile-only spatial index");
+  }
   let bestId;
   let bestD2 = Infinity;
-
-  for (const entry of wakeWaterCandidatesForPoint(x, y, chart.waterIndex)) {
-    if (entry.kind !== "tile") continue;
-    const dx = entry.call.x - x;
-    const dy = entry.call.y - y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 >= bestD2) continue;
-    bestD2 = d2;
-    bestId = entry.call.id;
+  const bx = Math.floor(x / WAKE_WATER_BUCKET_PX);
+  const by = Math.floor(y / WAKE_WATER_BUCKET_PX);
+  const range = Math.ceil(SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX / WAKE_WATER_BUCKET_PX);
+  for (let yy = by - range; yy <= by + range; yy++) {
+    const row = tileRows.get(yy);
+    if (!row) continue;
+    for (let xx = bx - range; xx <= bx + range; xx++) {
+      const calls = row.get(xx);
+      if (!calls) continue;
+      for (const call of calls) {
+        const dx = call.x - x;
+        const dy = call.y - y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= bestD2) continue;
+        bestD2 = d2;
+        bestId = call.id;
+      }
+    }
   }
 
   if (bestId === undefined) return null;
@@ -16170,15 +16185,17 @@ function updateWeather(dt, nowMs) {
 
 function updateAboardBirthdayEvents() {
   if (!gameState?.memory?.birthdays || !ship || !Number.isInteger(ship.tileId)) return false;
+  const localDate = gameCalendarDateAtMinute(weatherClockMinutes, graph.lonDeg[ship.tileId]);
+  if (!birthdayObservationNeeded(gameState.memory.birthdays, localDate)) return false;
   const characters = currentAboardRoster().named
     .filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
     .map((entry) => entry.character);
-  const localDate = gameCalendarDateAtMinute(weatherClockMinutes, graph.lonDeg[ship.tileId]);
   return observeAboardBirthdays(gameState.memory.birthdays, characters, localDate);
 }
 
 function presentPendingBirthdayDialogue() {
   if (!birthdayDialogueOpportunity()) return false;
+  if (gameState.memory.birthdays.pendingEvents.length === 0) return false;
   const characters = currentAboardRoster().named
     .filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
     .map((entry) => entry.character);
@@ -20671,6 +20688,13 @@ function buildChart(anchorCamera) {
   };
   for (const { city, tileCall } of citySpecs) cityCalls.push(makeCityCall(city, tileCall, placementChart));
   cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
+  const cityCallByPortId = new Map();
+  for (const call of cityCalls) {
+    if (cityCallByPortId.has(call.portId)) {
+      throw new Error(`Chart contains duplicate port id: ${call.portId}`);
+    }
+    cityCallByPortId.set(call.portId, call);
+  }
 
   return {
     ...chartCamera,
@@ -20681,7 +20705,8 @@ function buildChart(anchorCamera) {
     faceCalls,
     riverConnectorCalls,
     tileCalls,
-    cityCalls
+    cityCalls,
+    cityCallByPortId
   };
 }
 
@@ -20805,11 +20830,13 @@ function riverPixelsForCityPlacement(tileCall, activeChart) {
 
 function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
   const buckets = new Map();
+  const tileRows = new Map();
   for (const call of tileCalls) {
     addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
       kind: "tile",
       call
     });
+    addWakeWaterTileIndexCall(tileRows, call.drawSurfaceX, call.drawSurfaceY, call);
   }
 
   for (const call of riverConnectorCalls) {
@@ -20829,7 +20856,20 @@ function buildWakeWaterIndex(tileCalls, riverConnectorCalls, activeChart) {
       waterPixels: riverConnectorWaterPixels(call, geometry)
     });
   }
-  return { buckets };
+  return { buckets, tileRows };
+}
+
+function addWakeWaterTileIndexCall(tileRows, x, y, call) {
+  const bx = Math.floor(x / WAKE_WATER_BUCKET_PX);
+  const by = Math.floor(y / WAKE_WATER_BUCKET_PX);
+  let row = tileRows.get(by);
+  if (!row) {
+    row = new Map();
+    tileRows.set(by, row);
+  }
+  const bucket = row.get(bx);
+  if (bucket) bucket.push(call);
+  else row.set(bx, [call]);
 }
 
 function addWakeWaterIndexEntry(buckets, x, y, entry) {

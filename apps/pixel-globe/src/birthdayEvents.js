@@ -15,10 +15,10 @@ export function createBirthdayMemory() {
 
 export function observeAboardBirthdays(memory, characters, date) {
   validateBirthdayMemory(memory);
-  validateAboardCharacters(characters);
   assertDate(date);
   const dateKey = birthdayDateKey(date);
   if (memory.lastObservedDateKey === dateKey) return false;
+  validateAboardCharacters(characters);
   memory.lastObservedDateKey = dateKey;
   if (characters.length <= 1) return true;
 
@@ -32,6 +32,12 @@ export function observeAboardBirthdays(memory, characters, date) {
   }
   memory.pendingEvents.push(createBirthdayEvent(eventId, dateKey, characters, celebrants, date));
   return true;
+}
+
+export function birthdayObservationNeeded(memory, date) {
+  validateBirthdayMemory(memory);
+  assertDate(date);
+  return memory.lastObservedDateKey !== birthdayDateKey(date);
 }
 
 export function pendingBirthdayDialogueLine(memory, characters) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  birthdayObservationNeeded,
   consumeBirthdayDialogueLine,
   createBirthdayMemory,
   observeAboardBirthdays,
@@ -23,6 +24,16 @@ function character(id, name, month, day, religionId = null) {
     birthDate: { year: 1491, month, day }
   });
 }
+
+test("an observed local date skips aboard-character work", () => {
+  const memory = createBirthdayMemory();
+  const date = { year: 1522, month: 7, day: 24 };
+
+  assert.equal(birthdayObservationNeeded(memory, date), true);
+  assert.equal(observeAboardBirthdays(memory, [], date), true);
+  assert.equal(birthdayObservationNeeded(memory, date), false);
+  assert.equal(observeAboardBirthdays(memory, null, date), false);
+});
 
 test("a birthday queues one exchange and is not repeated when the date is observed again", () => {
   const memory = createBirthdayMemory();
