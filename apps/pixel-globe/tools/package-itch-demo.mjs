@@ -17,7 +17,7 @@ const ITCH_LIMITS = Object.freeze({
 });
 const REQUIRED_RUNTIME_FILES = Object.freeze([
   "index.html",
-  "src/main.js",
+  "src/bootstrap.js",
   "src/buildEdition.js",
   "assets/fonts/Silkscreen-Regular.ttf",
   "assets/ui/game-icons.png",

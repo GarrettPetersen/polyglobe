@@ -11,6 +11,17 @@ const DEMO_PORTRAIT_EXPRESSION_LIMIT = 4;
 const CHARACTER_MANIFEST_PATH = "assets/characters/generated/character-portraits.json";
 const SOURCE_ONLY_EXTENSIONS = new Set([".ase", ".aseprite"]);
 const DEMO_TERRAIN_VARIANT = "resurrect-64";
+const DEMO_PREBUILT_ICON_SOURCES = new Set([
+  "assets/ui/anchor.png",
+  "assets/misc/confucian.png",
+  "assets/misc/faravahar.png",
+  "assets/misc/fresh-water-cask.png",
+  "assets/misc/ik_onkar.png",
+  "assets/misc/jain.png",
+  "assets/misc/om.png",
+  "assets/misc/orthodox_cross.png",
+  "assets/misc/shinto.png"
+]);
 
 const toolsRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolsRoot, "..");
@@ -142,6 +153,14 @@ function shouldCopyPublicPath(path) {
   if (/-32-headings-(?:preview|lighting-preview)\.png$/.test(normalized)) return false;
 
   if (edition !== BUILD_EDITION_DEMO) return true;
+  if (
+    normalized === "assets/ui/ship-icons" ||
+    normalized.startsWith("assets/ui/ship-icons/") ||
+    normalized === "assets/buildings/city-types/README.md" ||
+    DEMO_PREBUILT_ICON_SOURCES.has(normalized)
+  ) {
+    return false;
+  }
   if (normalized.startsWith("assets/terrain/")) {
     const demoTerrainRoot = `assets/terrain/${DEMO_TERRAIN_VARIANT}`;
     return normalized === demoTerrainRoot || normalized.startsWith(`${demoTerrainRoot}/`);

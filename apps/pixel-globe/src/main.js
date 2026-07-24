@@ -23397,19 +23397,27 @@ function drawAboardCharacterDetail(roster, panel) {
   let skillY = skillsY + 12;
   const skillW = panel.w - 28;
   for (const skill of skills) {
+    const labelLines = wrapPixelTextAll(
+      skill.label.toUpperCase(),
+      PIXEL_FONT_SMALL_8,
+      skillW - 8
+    );
     const effectText = skill.effectLabels.join(" / ").toUpperCase();
     const effectLines = wrapPixelTextAll(effectText, PIXEL_FONT_SMALL_8, skillW - 8);
     const detailLines = compact
       ? []
       : wrapPixelTextAll(skill.detail.toUpperCase(), PIXEL_FONT_SMALL_8, skillW - 8).slice(0, 2);
-    const rowH = 8 + (1 + effectLines.length + detailLines.length) * localizedLineHeight(9);
+    const rowH = 8 + (labelLines.length + effectLines.length + detailLines.length) * localizedLineHeight(9);
     if (skillY + rowH > panel.y + panel.h - 8) break;
     ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
     ctx.fillRect(panel.x + 14, skillY, skillW, rowH);
     ctx.fillStyle = aboardRoleColor(entry.role);
     ctx.fillRect(panel.x + 14, skillY, 2, rowH);
-    drawOptionsText(skill.label.toUpperCase(), panel.x + 20, skillY + 4, { color: PIRATE_MENU_INK });
-    let textY = skillY + 4 + localizedLineHeight(9);
+    let textY = skillY + 4;
+    for (const line of labelLines) {
+      drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_INK });
+      textY += localizedLineHeight(9);
+    }
     for (const line of effectLines) {
       drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_SUCCESS });
       textY += localizedLineHeight(9);
@@ -30920,7 +30928,19 @@ function drawCompactPlayerIntroModal(panel, character, modal, nowMs) {
 function drawCharacterSkillBadge(character, x, y, width) {
   const skills = characterSkills(character);
   const skill = characterSkillSummary(skills[0].id);
-  const rect = { x: Math.round(x), y: Math.round(y), w: Math.round(width), h: 24 };
+  const rectWidth = Math.round(width);
+  const labelLines = wrapPixelTextAll(
+    skill.label.toUpperCase(),
+    PIXEL_FONT_SMALL_8,
+    rectWidth - 8
+  );
+  const lineHeight = localizedLineHeight(9);
+  const rect = {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: rectWidth,
+    h: 15 + labelLines.length * lineHeight
+  };
   ctx.fillStyle = "#f2d492";
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
@@ -30931,12 +30951,13 @@ function drawCharacterSkillBadge(character, x, y, width) {
     align: "center"
   });
   ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText(
-    fitPixelText(skill.label.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 6),
+  labelLines.forEach((line, index) => drawPixelText(
+    line,
     rect.x + rect.w / 2,
-    rect.y + 12,
+    rect.y + 12 + index * lineHeight,
     { font: PIXEL_FONT_SMALL_8, align: "center" }
-  );
+  ));
+  return rect;
 }
 
 function drawCaptainAlertModal(nowMs) {
