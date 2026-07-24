@@ -3,6 +3,8 @@ export const BUSY_WORLD_BENCHMARK_ID = "busy-world";
 export const BUSY_WORLD_CAPTURE_SCENARIO_ID = "benchmark-busy-world";
 export const COMBAT_HOTSPOT_BENCHMARK_ID = "combat-hotspot";
 export const COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-combat-hotspot";
+export const NANJING_HOTSPOT_BENCHMARK_ID = "nanjing-hotspot";
+export const NANJING_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-nanjing-hotspot";
 
 const BENCHMARKS = Object.freeze({
   [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
@@ -12,8 +14,14 @@ const BENCHMARKS = Object.freeze({
   [COMBAT_HOTSPOT_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2
+  }),
+  [NANJING_HOTSPOT_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 14
   })
 });
+
+export const PERFORMANCE_BENCHMARK_IDS = Object.freeze(Object.keys(BENCHMARKS));
 
 const FRAME_BUDGET_MS = 1000 / 60;
 const MIN_MEASURED_FRAMES = 4;

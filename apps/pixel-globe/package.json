@@ -15,6 +15,7 @@
     "preview:character-expressions": "node tools/render-character-expression-review.mjs",
     "benchmark:busy": "node tools/run-performance-benchmark.mjs",
     "benchmark:combat": "node tools/run-performance-benchmark.mjs --benchmark combat-hotspot",
+    "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
     "benchmark:busy:pi": "node tools/run-performance-benchmark.mjs --cpu-throttle 4",
     "capture:trailer": "node tools/capture-trailer-clips.mjs",
     "build:steam-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py",

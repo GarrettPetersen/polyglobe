@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   BUSY_WORLD_CAPTURE_SCENARIO_ID,
   COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
+  NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
   recordPerformanceBenchmarkFrame,
@@ -39,6 +40,16 @@ test("combat-hotspot benchmark selects the eastern Mediterranean combat scene", 
     warmupSeconds: 2,
     durationSeconds: 8,
     targetLandCarts: 2
+  });
+});
+
+test("nanjing-hotspot benchmark stages dense lower-Yangtze traffic", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=nanjing-hotspot"), {
+    id: "nanjing-hotspot",
+    captureScenarioId: NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 14
   });
 });
 

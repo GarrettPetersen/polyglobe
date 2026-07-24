@@ -6,6 +6,10 @@ import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import {
+  PERFORMANCE_BENCHMARK_IDS,
+  performanceBenchmarkFromSearch
+} from "../src/performanceBenchmark.js";
 
 const require = createRequire(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -26,7 +30,8 @@ try {
     args: [
       "--disable-background-timer-throttling",
       "--disable-backgrounding-occluded-windows",
-      "--disable-renderer-backgrounding"
+      "--disable-renderer-backgrounding",
+      "--mute-audio"
     ]
   });
   try {
@@ -34,7 +39,7 @@ try {
     let cdp = null;
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
-      if (message.type() === "error" && !message.text().startsWith("Failed to load resource:")) {
+      if (message.type() === "error" && benchmarkBrowserErrorIsActionable(message.text())) {
         errors.push(message.text());
       }
     });
@@ -96,16 +101,20 @@ try {
   if (server) server.kill("SIGTERM");
 }
 
+function benchmarkBrowserErrorIsActionable(message) {
+  return !message.startsWith("Failed to load resource:") &&
+    !message.startsWith("The AudioContext encountered an error from the audio device");
+}
+
 async function throwPageError(page) {
   const message = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_ERROR__ || null);
   if (message) throw new Error(`Benchmark runtime failure: ${message}`);
 }
 
 function benchmarkUrl(baseUrl, options) {
+  const benchmark = performanceBenchmarkFromSearch(`?benchmark=${encodeURIComponent(options.benchmark)}`);
   const params = new URLSearchParams({
-    capture: options.benchmark === "combat-hotspot"
-      ? "benchmark-combat-hotspot"
-      : "benchmark-busy-world",
+    capture: benchmark.captureScenarioId,
     captureFormat: "steam",
     benchmark: options.benchmark,
     benchmarkWarmup: String(options.warmupSeconds),
@@ -226,7 +235,7 @@ function parseArgs(argv) {
     else if (arg === "--output") parsed.output = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));
     else throw new Error(`Unknown benchmark argument: ${arg}`);
   }
-  if (!["busy-world", "combat-hotspot"].includes(parsed.benchmark)) {
+  if (!PERFORMANCE_BENCHMARK_IDS.includes(parsed.benchmark)) {
     throw new Error(`Unknown performance benchmark: ${parsed.benchmark}`);
   }
   if (!parsed.output) {

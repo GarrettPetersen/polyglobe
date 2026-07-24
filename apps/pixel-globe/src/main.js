@@ -2176,11 +2176,13 @@ const shipTerrainOcclusionIndexCache = new WeakMap();
 const shipTerrainRiverBankCache = new WeakMap();
 const landRoadLayerCache = new WeakMap();
 const riverNavigationPathCache = new WeakMap();
+const wakeWaterPointCache = new WeakMap();
 const npcOffshoreClearanceCache = new Map();
 let npcOffshoreClearanceCacheDay = -1;
 const cityVisualOffsets = new Map();
 const fishSpriteTintCache = new Map();
 const fishSpritePixelCache = new WeakMap();
+let fishIndividualFrameCache = null;
 let spriteColors;
 let waterLatitudeImages;
 let waterLatitudeSpriteColors;
@@ -4248,6 +4250,7 @@ function presentPendingNamedCrewDeathNotice() {
 }
 
 function openCharacterAlertModal(character, message, expressionId = "neutral", options = {}) {
+  if (PERFORMANCE_BENCHMARK) return false;
   if (!character || captainAlertModal || gameOverReason) return false;
   if (options.kind !== "sequence") characterAlertPortraitStage = createDialoguePortraitStageState();
   captainAlertModal = createCharacterAlertModal(character, message, expressionId, options);
@@ -4278,6 +4281,7 @@ function openCharacterChoiceAlertModal(
 }
 
 function openSailingHelpModal(inputMode) {
+  if (PERFORMANCE_BENCHMARK) return false;
   if (!gameState?.playerCharacter || captainAlertModal || gameOverReason) return false;
   captainAlertModal = createSailingHelpModal(inputMode);
   stopShipForDialogue();
@@ -5958,6 +5962,9 @@ function setupPerformanceBenchmark() {
     PERFORMANCE_BENCHMARK.targetLandCarts
   );
   ship.velocity = scaleVector(ship.heading, currentPlayerEffectiveShipStats().topSpeedRad * 0.62);
+  playerIntroModal = null;
+  captainAlertModal = null;
+  dialogueState = null;
   lastFrameMs = performance.now();
   performanceBenchmarkState = createPerformanceBenchmarkState(PERFORMANCE_BENCHMARK, lastFrameMs);
   performanceBenchmarkState.stagedCartCount = stagedCartCount;
@@ -13355,6 +13362,7 @@ function resolveFishingAction(action) {
     Math.floor(weatherClockMinutes),
     { actor: "player" }
   );
+  fishIndividualFrameCache = null;
   if (result.quantity <= 0) {
     playFishingFailureSound();
     showFishCatchNotice("FISHERY DEPLETED", "warn");
@@ -16590,6 +16598,7 @@ function updateNpcFishermenHarvest() {
         nowMinute,
         { actor: "npc" }
       );
+      fishIndividualFrameCache = null;
       if (result.quantity > 0) {
         const stored = storeNpcCargo(npcShip, FISH_CARGO_GOOD_ID, result.quantity, 0, "onscreen fishing");
         if (stored !== result.quantity) {
@@ -16815,6 +16824,7 @@ function forceColonizationDefenseEngagements(playerWasInCombat) {
 }
 
 function captureSuppressesCombatHails() {
+  if (PERFORMANCE_BENCHMARK) return true;
   const kind = captureDirector?.sequence.kind;
   return CAPTURE_AUTOMATIC && (kind === "fight" || kind === "pillage");
 }
@@ -19306,7 +19316,7 @@ function render(nowMs) {
   const shipLight = shipSunLightState();
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
     drawGreatBarrierReef(chart, nowMs);
-    const fishCalls = drawFishIndividuals(chart, nowMs);
+    const fishCalls = drawFishIndividuals(chart, nowMs, renderTileCalls);
     drawUnderwaterFishSelectionOutlines(nowMs, fishCalls);
     drawPrecipitation(chart, nowMs, offset);
     drawCloudLayer(chart);
@@ -27281,32 +27291,49 @@ function wakeFoamSideJitter(hash) {
 
 function wakeMapPointIsWater(x, y, activeChart) {
   if (!activeChart?.waterIndex) return false;
-  const candidates = wakeWaterCandidatesForPoint(x, y, activeChart.waterIndex);
-  const pixelKey = pixelMaskKey(Math.round(x), Math.round(y));
+  const roundedX = Math.round(x);
+  const roundedY = Math.round(y);
+  const pixelKey = pixelMaskKey(roundedX, roundedY);
+  let pointCache = wakeWaterPointCache.get(activeChart);
+  if (!pointCache) {
+    pointCache = new Map();
+    wakeWaterPointCache.set(activeChart, pointCache);
+  }
+  if (pointCache.has(pixelKey)) return pointCache.get(pixelKey);
+
+  const candidates = wakeWaterCandidatesForPoint(roundedX, roundedY, activeChart.waterIndex);
   for (const entry of candidates) {
     if (entry.kind === "riverConnector" && entry.waterPixels.has(pixelKey)) {
+      pointCache.set(pixelKey, true);
       return true;
     }
   }
 
-  if (wakePointIsOnAnyRiverTile(x, y, candidates, activeChart)) return true;
-  if (wakePointIsBlockedByDryTileSprite(x, y, candidates, activeChart)) return false;
+  if (wakePointIsOnAnyRiverTile(roundedX, roundedY, candidates, activeChart)) {
+    pointCache.set(pixelKey, true);
+    return true;
+  }
+  if (wakePointIsBlockedByDryTileSprite(roundedX, roundedY, candidates, activeChart)) {
+    pointCache.set(pixelKey, false);
+    return false;
+  }
 
   let nearestTile = null;
   let nearestD2 = WAKE_WATER_SEARCH_RADIUS_PX * WAKE_WATER_SEARCH_RADIUS_PX;
   for (const entry of candidates) {
     if (entry.kind !== "tile") continue;
     if (!isWaterSurfaceRow(entry.call.row)) continue;
-    const dx = entry.call.drawSurfaceX - x;
-    const dy = entry.call.drawSurfaceY - y;
+    const dx = entry.call.drawSurfaceX - roundedX;
+    const dy = entry.call.drawSurfaceY - roundedY;
     const d2 = dx * dx + dy * dy;
     if (d2 >= nearestD2) continue;
     nearestD2 = d2;
     nearestTile = entry.call;
   }
 
-  if (!nearestTile) return false;
-  return true;
+  const result = nearestTile !== null;
+  pointCache.set(pixelKey, result);
+  return result;
 }
 
 function nearestRiverCenterlineInfoAtLocalPoint(x, y, activeChart, preferredDirection = null) {
@@ -27766,17 +27793,24 @@ function drawNpcFishingNetAnimations(nowMs) {
   }
 }
 
-function drawFishIndividuals(activeChart, nowMs) {
+function drawFishIndividuals(activeChart, nowMs, renderTileCalls = null) {
   if (!animalImages?.fish || !gameState) return [];
-  const calls = fishIndividualDrawCalls(activeChart, nowMs);
+  const calls = fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls);
   drawFishSprites(calls);
   return calls;
 }
 
-function fishIndividualDrawCalls(activeChart, nowMs) {
+function fishIndividualDrawCalls(activeChart, nowMs, renderTileCalls = null) {
+  if (
+    fishIndividualFrameCache?.chart === activeChart &&
+    fishIndividualFrameCache.nowMs === nowMs
+  ) {
+    return fishIndividualFrameCache.calls;
+  }
   const calls = [];
   const offset = chartOffsetPixels(activeChart);
-  const visibleTileCalls = activeChart.tileCalls.filter((tileCall) => pointNearScreen({
+  const candidateTileCalls = renderTileCalls || activeChart.tileCalls;
+  const visibleTileCalls = candidateTileCalls.filter((tileCall) => pointNearScreen({
     x: tileCall.drawSurfaceX + offset.x,
     y: tileCall.drawSurfaceY + offset.y
   }, FISH_SPRITE_SIZE + 6));
@@ -27791,7 +27825,9 @@ function fishIndividualDrawCalls(activeChart, nowMs) {
     if (!fishery) continue;
     calls.push(...fishIndividualCallsForFishery(tileCall, fishery, nowMs, FISH_VISIBLE_MAX_INDIVIDUALS - calls.length));
   }
-  return calls.sort((a, b) => a.sortY - b.sortY || a.sortId - b.sortId);
+  const sortedCalls = calls.sort((a, b) => a.sortY - b.sortY || a.sortId - b.sortId);
+  fishIndividualFrameCache = { chart: activeChart, nowMs, calls: sortedCalls };
+  return sortedCalls;
 }
 
 function fishIndividualCallsForFishery(tileCall, fishery, nowMs, maxCount = Infinity) {

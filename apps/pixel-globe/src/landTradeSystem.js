@@ -89,23 +89,7 @@ export function updateLandTradeSystem(system, simMinute) {
 export function landCartSnapshots(system, simMinute) {
   assertLandTradeSystem(system);
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid land cart snapshot minute: ${simMinute}`);
-  return system.carts.map((cart) => {
-    const route = requiredCartRoute(system, cart.routeId);
-    const forward = cart.originTileId === route.fromTileId;
-    const tileIds = forward ? route.tileIds : [...route.tileIds].reverse();
-    const duration = cart.arrivalMinute - cart.departureMinute;
-    const progress = clamp((simMinute - cart.departureMinute) / duration, 0, 1);
-    const pathPosition = progress * (tileIds.length - 1);
-    const segmentIndex = Math.min(tileIds.length - 2, Math.floor(pathPosition));
-    return Object.freeze({
-      id: cart.id,
-      routeId: cart.routeId,
-      tileA: tileIds[segmentIndex],
-      tileB: tileIds[segmentIndex + 1],
-      segmentT: pathPosition - segmentIndex,
-      progress
-    });
-  });
+  return system.carts.map((cart) => landCartSnapshot(system, cart, simMinute));
 }
 
 export function visibleLandCartSnapshots(system, simMinute, visibleTileIds) {
@@ -126,6 +110,25 @@ export function visibleLandCartSnapshots(system, simMinute, visibleTileIds) {
     if (visible.length >= MAX_VISIBLE_LAND_CARTS) break;
   }
   return visible;
+}
+
+function landCartSnapshot(system, cart, simMinute) {
+  const route = requiredCartRoute(system, cart.routeId);
+  const duration = cart.arrivalMinute - cart.departureMinute;
+  const progress = clamp((simMinute - cart.departureMinute) / duration, 0, 1);
+  const segmentCount = route.tileIds.length - 1;
+  const pathPosition = progress * segmentCount;
+  const segmentIndex = Math.min(segmentCount - 1, Math.floor(pathPosition));
+  const forward = cart.originTileId === route.fromTileId;
+  const routeIndex = forward ? segmentIndex : segmentCount - segmentIndex;
+  return Object.freeze({
+    id: cart.id,
+    routeId: cart.routeId,
+    tileA: route.tileIds[routeIndex],
+    tileB: route.tileIds[routeIndex + (forward ? 1 : -1)],
+    segmentT: pathPosition - segmentIndex,
+    progress
+  });
 }
 
 export function stageVisibleLandCartTraffic(system, visibleTileIds, simMinute, targetCount) {

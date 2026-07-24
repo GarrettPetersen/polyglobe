@@ -160,6 +160,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: combatHotspotBenchmarkEncounters()
   }),
+  "benchmark-nanjing-hotspot": scenario({
+    id: "benchmark-nanjing-hotspot",
+    title: "Nanjing Performance Benchmark",
+    seed: "benchmark-nanjing-hotspot-v1",
+    player: {
+      factionId: "ming",
+      shipSlug: "medium-junk",
+      lat: 32.06,
+      lon: 118.8,
+      headingDeg: 90,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 11, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: nanjingHotspotBenchmarkEncounters()
+  }),
   "trailer-explore-fuji": trailerScenario({
     id: "trailer-explore-fuji",
     title: "Discover Mount Fuji",
@@ -636,6 +652,33 @@ function combatHotspotBenchmarkEncounters() {
       replaceOnSink: false
     }
   ];
+}
+
+function nanjingHotspotBenchmarkEncounters() {
+  const ships = [
+    ["small-junk", "merchant"],
+    ["medium-junk", "merchant"],
+    ["large-junk", "merchant"],
+    ["sampan", "fisherman"]
+  ];
+  const positions = [
+    [32.02, 118.56], [32.06, 118.66], [32.1, 118.76], [32.14, 118.86],
+    [31.98, 118.92], [32.03, 119.02], [32.08, 119.12], [32.13, 119.22],
+    [31.95, 118.72], [31.99, 118.82], [32.17, 118.96], [32.2, 119.08]
+  ];
+  return positions.map(([lat, lon], index) => {
+    const [shipSlug, role] = ships[index % ships.length];
+    return {
+      id: `benchmark-nanjing-ship-${String(index + 1).padStart(2, "0")}`,
+      factionId: "ming",
+      shipSlug,
+      role,
+      lat,
+      lon,
+      headingDeg: (index * 53) % 360,
+      replaceOnSink: false
+    };
+  });
 }
 
 function validateVessel(value, label) {
