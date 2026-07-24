@@ -32,13 +32,26 @@ test("the permanent polar cap blocks both poles without sealing western Arctic p
   const { earthRows, graph, topology } = await arcticFixture();
   let northernmostNavigableLatitude = -90;
   let southernmostNavigableLatitude = 90;
+  let northCapTileCount = 0;
+  let southCapTileCount = 0;
 
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    const latitude = graph.latDeg[tileId];
+    if (Math.abs(latitude) >= PERMANENT_POLAR_CAP_LATITUDE) {
+      assert.ok(
+        earthRows[tileId].t === "ice" || earthRows[tileId].t === "ice_cap",
+        `polar cap tile ${tileId} at ${latitude} degrees is ${earthRows[tileId].t}`
+      );
+      if (latitude > 0) northCapTileCount++;
+      else southCapTileCount++;
+    }
     if (!topology.reachableNavigationMask[tileId]) continue;
-    northernmostNavigableLatitude = Math.max(northernmostNavigableLatitude, graph.latDeg[tileId]);
-    southernmostNavigableLatitude = Math.min(southernmostNavigableLatitude, graph.latDeg[tileId]);
+    northernmostNavigableLatitude = Math.max(northernmostNavigableLatitude, latitude);
+    southernmostNavigableLatitude = Math.min(southernmostNavigableLatitude, latitude);
   }
 
+  assert.ok(northCapTileCount > 0);
+  assert.ok(southCapTileCount > 0);
   assert.ok(northernmostNavigableLatitude < PERMANENT_POLAR_CAP_LATITUDE);
   assert.ok(southernmostNavigableLatitude > -PERMANENT_POLAR_CAP_LATITUDE);
   assert.equal(earthRows[NORTH_POLE_TILE_ID].t, "ice");
