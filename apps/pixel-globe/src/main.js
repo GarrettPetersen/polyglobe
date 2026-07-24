@@ -8137,7 +8137,7 @@ function saveVoyageNow(reason) {
     console.warn(`[pixel-globe] local save failed (${reason})`, error);
     lastAutosaveMs = performance.now();
     savePersistenceWarning = {
-      text: "SAVE FAILED - PROGRESS AT RISK",
+      text: "SAVE FAILED - RETRYING",
       reason,
       error
     };
