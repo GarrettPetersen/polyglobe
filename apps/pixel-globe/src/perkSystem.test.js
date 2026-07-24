@@ -5,13 +5,49 @@ import { aggregatePerkSources, effectiveShipStats } from "./perkSystem.js";
 
 test("perk sources stack additive and multiplicative effects", () => {
   const totals = aggregatePerkSources([
-    { id: "captain", perks: { cargoCapacityFlat: 4, topSpeedMultiplier: 1.05 } },
-    { id: "passenger", perks: { topSpeedMultiplier: 1.03, fishingChanceMultiplier: 1.2 } },
+    {
+      id: "captain",
+      perks: {
+        cargoCapacityFlat: 4,
+        topSpeedMultiplier: 1.05,
+        tradePurchaseMultiplier: 0.97,
+        tradeSaleMultiplier: 1.03
+      }
+    },
+    {
+      id: "passenger",
+      perks: {
+        topSpeedMultiplier: 1.03,
+        fishingChanceMultiplier: 1.2,
+        tradePurchaseMultiplier: 0.985,
+        tradeSaleMultiplier: 1.015
+      }
+    },
     { id: "barrels", perks: { cargoCapacityFlat: 3 } }
   ]);
   assert.equal(totals.cargoCapacityFlat, 7);
   assert.equal(totals.topSpeedMultiplier, 1.05 * 1.03);
   assert.equal(totals.fishingChanceMultiplier, 1.2);
+  assert.equal(totals.tradePurchaseMultiplier, 0.97 * 0.985);
+  assert.equal(totals.tradeSaleMultiplier, 1.03 * 1.015);
+});
+
+test("stacking chance and bargain perks respects their balance caps", () => {
+  const totals = aggregatePerkSources(Array.from({ length: 10 }, (_, index) => ({
+    id: `specialist-${index}`,
+    perks: {
+      disguiseChanceBonus: 0.15,
+      tradePurchaseMultiplier: 0.97,
+      tradeSaleMultiplier: 1.03,
+      animalEncounterChanceMultiplier: 1.5,
+      cannonSpreadMultiplier: 0.8
+    }
+  })));
+  assert.equal(totals.disguiseChanceBonus, 0.3);
+  assert.equal(totals.tradePurchaseMultiplier, 0.9);
+  assert.equal(totals.tradeSaleMultiplier, 1.1);
+  assert.equal(totals.animalEncounterChanceMultiplier, 3);
+  assert.equal(totals.cannonSpreadMultiplier, 0.55);
 });
 
 test("effective ship stats apply movement, capacity, and windward perks", () => {

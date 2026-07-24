@@ -117,16 +117,26 @@ export function eligibleAnimalEncounters(memory, habitat) {
   return ANIMAL_CATALOG.filter((entry) => !memory.encountered[entry.id] && entry.matches(habitat));
 }
 
-export function rollAnchoredAnimalEncounter(memory, habitat, currentMinute, random = Math.random) {
+export function rollAnchoredAnimalEncounter(
+  memory,
+  habitat,
+  currentMinute,
+  random = Math.random,
+  chanceMultiplier = 1
+) {
   validateAnimalEncounterMemory(memory);
   validateHabitat(habitat);
   if (!Number.isFinite(currentMinute) || currentMinute < 0) {
     throw new Error(`Invalid animal encounter minute: ${currentMinute}`);
   }
+  if (!Number.isFinite(chanceMultiplier) || chanceMultiplier <= 0) {
+    throw new Error(`Invalid animal encounter chance multiplier: ${chanceMultiplier}`);
+  }
   if (currentMinute < memory.nextRollMinute) return null;
   memory.nextRollMinute = currentMinute + ANIMAL_ENCOUNTER_ROLL_INTERVAL_MINUTES;
   const chanceRoll = checkedRandom(random, "animal encounter chance");
-  if (chanceRoll >= ANIMAL_ENCOUNTER_CHANCE) return null;
+  const encounterChance = Math.min(0.95, ANIMAL_ENCOUNTER_CHANCE * chanceMultiplier);
+  if (chanceRoll >= encounterChance) return null;
   const eligible = eligibleAnimalEncounters(memory, habitat);
   if (eligible.length === 0) return null;
   const choiceRoll = checkedRandom(random, "animal encounter choice");

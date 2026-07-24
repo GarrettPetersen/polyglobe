@@ -40,6 +40,17 @@ export const CHARACTER_SKILLS = Object.freeze([
     fishingChanceMultiplier: 1.35,
     fishingHaulMultiplier: 1.45
   }),
+  skill("skilled-negotiator", "Skilled Negotiator", "Knows when to press a bargain and when to let a factor save face.", {
+    tradePurchaseMultiplier: 0.985,
+    tradeSaleMultiplier: 1.015
+  }),
+  skill("master-negotiator", "Master Negotiator", "Can improve a bargain without souring the next one.", {
+    tradePurchaseMultiplier: 0.97,
+    tradeSaleMultiplier: 1.03
+  }),
+  skill("master-of-disguise", "Master of Disguise", "Passes hostile harbor scrutiny with practiced confidence.", {
+    disguiseChanceBonus: 0.15
+  }),
   skill("able-seaman", "Able Seaman", "Keeps sail and hull working efficiently underway.", {
     topSpeedMultiplier: 1.05,
     accelerationMultiplier: 1.05
@@ -61,6 +72,9 @@ export const CHARACTER_SKILLS = Object.freeze([
   skill("gun-captain", "Gun Captain", "Runs a practiced and orderly gun deck.", {
     cannonReloadMultiplier: 0.88
   }),
+  skill("master-gunner", "Master Gunner", "Judges elevation and timing so a broadside scatters less.", {
+    cannonSpreadMultiplier: 0.8
+  }),
   skill("veteran-whaler", "Veteran Whaler", "Judges the instant to strike and holds a working line.", {
     whalingChanceMultiplier: 1.18
   }),
@@ -73,6 +87,9 @@ export const CHARACTER_SKILLS = Object.freeze([
   skill("navigator", "Navigator", "Turns observations and soundings into a cleaner passage.", {
     topSpeedMultiplier: 1.03,
     windwardAngleReductionDeg: 1
+  }),
+  skill("natural-philosopher", "Natural Philosopher", "Notices tracks, calls, and other signs of unfamiliar animals.", {
+    animalEncounterChanceMultiplier: 1.5
   }),
   skill("useless", "Useless", "Eats enthusiastically and contributes nothing to the work of the ship.", {
     cargoCapacityFlat: 0

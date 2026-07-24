@@ -124,7 +124,9 @@ export function tradeTerms({
   relation,
   goodId,
   reputation = 0,
-  purchaseDiscountMultiplier = 1
+  purchaseDiscountMultiplier = 1,
+  purchaseBargainMultiplier = 1,
+  saleBargainMultiplier = 1
 }) {
   if (typeof goodId !== "string" || goodId === "") throw new Error(`Invalid trade-policy good: ${goodId}`);
   if (
@@ -133,6 +135,19 @@ export function tradeTerms({
     purchaseDiscountMultiplier > 1
   ) {
     throw new Error(`Invalid trade purchase discount: ${purchaseDiscountMultiplier}`);
+  }
+  if (
+    !Number.isFinite(purchaseBargainMultiplier) ||
+    purchaseBargainMultiplier <= 0 ||
+    purchaseBargainMultiplier > 1
+  ) {
+    throw new Error(`Invalid trade purchase bargain: ${purchaseBargainMultiplier}`);
+  }
+  if (
+    !Number.isFinite(saleBargainMultiplier) ||
+    saleBargainMultiplier < 1
+  ) {
+    throw new Error(`Invalid trade sale bargain: ${saleBargainMultiplier}`);
   }
 
   const customs = customsTerms({
@@ -144,9 +159,12 @@ export function tradeTerms({
   const crownMonopoly = isPortugueseEstadoPort(port) && isPortugueseCrownSpice(goodId);
   const monopolyPurchaseRate = crownMonopoly ? 0.25 : 0;
   const monopolySaleRate = crownMonopoly ? 0.1 : 0;
-  const purchaseMultiplier = purchaseDiscountMultiplier *
+  const purchaseMultiplier = purchaseDiscountMultiplier * purchaseBargainMultiplier *
     (1 + customs.customsRate + monopolyPurchaseRate);
-  const saleMultiplier = Math.max(0.5, 1 - customs.customsRate - monopolySaleRate);
+  const saleMultiplier = Math.max(
+    0.5,
+    (1 - customs.customsRate - monopolySaleRate) * saleBargainMultiplier
+  );
 
   return Object.freeze({
     allowed: relation !== DIPLOMACY_WAR,
@@ -154,6 +172,8 @@ export function tradeTerms({
     crownMonopoly,
     monopolyPurchaseRate,
     monopolySaleRate,
+    purchaseBargainMultiplier,
+    saleBargainMultiplier,
     purchaseMultiplier,
     saleMultiplier
   });

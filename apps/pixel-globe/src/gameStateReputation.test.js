@@ -34,7 +34,9 @@ import {
   migrateGameState,
   mingTradeOpenToFaction,
   pirateHideoutsVisibleToPlayer,
+  playerPortDisguiseSuccessChance,
   playerShipIsWarship,
+  playerTradeTerms,
   portEntryStatus,
   purchaseFactionSafePassage,
   refuseFactionSafePassage,
@@ -375,6 +377,43 @@ test("failed port disguises impose a fixed fourteen-day lock", () => {
   const succeeded = attemptPortDisguise(state, CALAIS, expiryMinute, 0);
   assert.equal(succeeded.attempted, true);
   assert.equal(succeeded.success, true);
+});
+
+test("a master of disguise improves hostile-port entry without guaranteeing it", () => {
+  const state = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: {
+      ...PLAYER,
+      skillIds: ["master-of-disguise"]
+    }
+  });
+  assert.equal(playerPortDisguiseSuccessChance(state), 0.75);
+  const succeeded = attemptPortDisguise(state, CALAIS, 500, 0.7);
+  assert.equal(succeeded.success, true);
+  assert.equal(succeeded.successChance, 0.75);
+});
+
+test("a master negotiator receives the skill-adjusted prices used by markets", () => {
+  const ordinaryState = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: {
+      ...PLAYER,
+      skillIds: ["able-seaman"]
+    }
+  });
+  const state = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: {
+      ...PLAYER,
+      skillIds: ["master-negotiator"]
+    }
+  });
+  const ordinaryTerms = playerTradeTerms(ordinaryState, CALAIS, "wine");
+  const terms = playerTradeTerms(state, CALAIS, "wine");
+  assert.equal(terms.purchaseBargainMultiplier, 0.97);
+  assert.equal(terms.saleBargainMultiplier, 1.03);
+  assert.ok(Math.abs(terms.purchaseMultiplier / ordinaryTerms.purchaseMultiplier - 0.97) < 1e-12);
+  assert.ok(Math.abs(terms.saleMultiplier / ordinaryTerms.saleMultiplier - 1.03) < 1e-12);
 });
 
 test("civilian tolls grant one month of empire-wide safe passage", () => {

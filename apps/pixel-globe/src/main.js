@@ -11082,7 +11082,9 @@ function updateAnchoredAnimalEncounter() {
       isLake: terrain === "lake",
       isCoast: true
     },
-    weatherClockMinutes
+    weatherClockMinutes,
+    Math.random,
+    currentPlayerPerkTotals().animalEncounterChanceMultiplier
   );
   if (!animalEntry) return false;
   if (!recordAnimalEncounter(gameState.memory.animals, animalEntry.id)) {
@@ -14988,13 +14990,15 @@ function fireBroadside(sideName) {
   const sequenceBase = ++ship.cannonSequence;
   const sideSalt = sideName === "starboard" ? 0x51a7b04d : 0x704f1b23;
   const muzzleSpan = cannonMuzzleForeAftSpan(broadsideCount);
+  const aimSpreadRad = CANNON_AIM_SPREAD_RAD *
+    currentPlayerPerkTotals().cannonSpreadMultiplier;
 
   for (let i = 0; i < broadsideCount; i++) {
     const lineT = broadsideCount === 1
       ? 0
       : i / (broadsideCount - 1) - 0.5;
     const seed = cannonSeed(sequenceBase, i, sideSalt, origin);
-    const spread = (cannonUnit(seed, 1) * 2 - 1) * CANNON_AIM_SPREAD_RAD;
+    const spread = (cannonUnit(seed, 1) * 2 - 1) * aimSpreadRad;
     const range = (CANNON_RANGE_PX + (cannonUnit(seed, 2) * 2 - 1) * CANNON_RANGE_JITTER_PX) *
       weapon.rangeScale;
     const sideJitter = (cannonUnit(seed, 3) * 2 - 1) * 0.75;

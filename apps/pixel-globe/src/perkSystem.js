@@ -3,6 +3,7 @@ const ADDITIVE_PERKS = new Set([
   "windwardAngleReductionDeg",
   "seaworthinessFlat",
   "assaultChanceBonus",
+  "disguiseChanceBonus",
   "damageResistanceChance",
   "crewCasualtyResistanceChance"
 ]);
@@ -18,7 +19,11 @@ const MULTIPLICATIVE_PERKS = new Set([
   "scavengingYieldMultiplier",
   "foodDurationMultiplier",
   "cannonReloadMultiplier",
-  "whalingChanceMultiplier"
+  "cannonSpreadMultiplier",
+  "whalingChanceMultiplier",
+  "tradePurchaseMultiplier",
+  "tradeSaleMultiplier",
+  "animalEncounterChanceMultiplier"
 ]);
 
 export const PERK_KEYS = Object.freeze([
@@ -51,6 +56,11 @@ export function aggregatePerkSources(sources) {
   totals.damageResistanceChance = clamp(totals.damageResistanceChance, 0, 0.8);
   totals.crewCasualtyResistanceChance = clamp(totals.crewCasualtyResistanceChance, 0, 0.8);
   totals.assaultChanceBonus = clamp(totals.assaultChanceBonus, 0, 0.35);
+  totals.disguiseChanceBonus = clamp(totals.disguiseChanceBonus, 0, 0.3);
+  totals.tradePurchaseMultiplier = clamp(totals.tradePurchaseMultiplier, 0.9, 1);
+  totals.tradeSaleMultiplier = clamp(totals.tradeSaleMultiplier, 1, 1.1);
+  totals.animalEncounterChanceMultiplier = clamp(totals.animalEncounterChanceMultiplier, 1, 3);
+  totals.cannonSpreadMultiplier = clamp(totals.cannonSpreadMultiplier, 0.55, 1);
   return Object.freeze(totals);
 }
 
@@ -106,9 +116,18 @@ export function perkEffectLabels(perks) {
   if (perks.scavengingChanceMultiplier) labels.push(`Scavenging odds +${percent(perks.scavengingChanceMultiplier)}`);
   if (perks.scavengingYieldMultiplier) labels.push(`Scavenging haul +${percent(perks.scavengingYieldMultiplier)}`);
   if (perks.assaultChanceBonus) labels.push(`City assault +${Math.round(perks.assaultChanceBonus * 100)}%`);
+  if (perks.disguiseChanceBonus) {
+    labels.push(`Hostile-port disguise +${Math.round(perks.disguiseChanceBonus * 100)}%`);
+  }
   if (perks.foodDurationMultiplier) labels.push(`Food lasts ${percent(perks.foodDurationMultiplier)} longer`);
   if (perks.cannonReloadMultiplier) labels.push(`Cannon reload ${percent(perks.cannonReloadMultiplier)} faster`);
+  if (perks.cannonSpreadMultiplier) labels.push(`Cannon spread -${percent(perks.cannonSpreadMultiplier)}`);
   if (perks.whalingChanceMultiplier) labels.push(`Whaling odds +${percent(perks.whalingChanceMultiplier)}`);
+  if (perks.tradePurchaseMultiplier) labels.push(`Purchase prices -${percent(perks.tradePurchaseMultiplier)}`);
+  if (perks.tradeSaleMultiplier) labels.push(`Sale prices +${percent(perks.tradeSaleMultiplier)}`);
+  if (perks.animalEncounterChanceMultiplier) {
+    labels.push(`Animal encounter odds +${percent(perks.animalEncounterChanceMultiplier)}`);
+  }
   if (perks.damageResistanceChance) labels.push(`${Math.round(perks.damageResistanceChance * 100)}% hull-hit resistance`);
   if (perks.crewCasualtyResistanceChance) {
     labels.push(`${Math.round(perks.crewCasualtyResistanceChance * 100)}% casualty resistance`);

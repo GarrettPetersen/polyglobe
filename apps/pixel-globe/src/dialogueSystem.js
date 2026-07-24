@@ -3166,6 +3166,13 @@ function tradeTermsDetail(terms, side) {
     const rate = side === "buy" ? terms.monopolyPurchaseRate : terms.monopolySaleRate;
     parts.push(`CROWN ${side === "buy" ? "+" : "-"}${Math.round(rate * 100)}%`);
   }
+  const bargainMultiplier = side === "buy"
+    ? terms.purchaseBargainMultiplier
+    : terms.saleBargainMultiplier;
+  if (bargainMultiplier !== 1) {
+    const change = Math.round(Math.abs(bargainMultiplier - 1) * 100);
+    parts.push(`BARGAIN ${side === "buy" ? "-" : "+"}${change}%`);
+  }
   return parts.join("  ");
 }
 

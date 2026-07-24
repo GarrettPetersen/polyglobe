@@ -74,3 +74,17 @@ test("anchored encounter rolls are sparse and time-gated", () => {
   assert.equal(rollAnchoredAnimalEncounter(memory, habitat(), 101, () => 0), null);
   assert.ok(memory.nextRollMinute > 101);
 });
+
+test("natural-history skill multipliers improve encounter odds", () => {
+  const ordinaryMemory = createAnimalEncounterMemory();
+  const skilledMemory = createAnimalEncounterMemory();
+  const ordinaryRolls = [0.04];
+  const skilledRolls = [0.04, 0];
+  assert.equal(
+    rollAnchoredAnimalEncounter(ordinaryMemory, habitat(), 100, () => ordinaryRolls.shift()),
+    null
+  );
+  assert.ok(
+    rollAnchoredAnimalEncounter(skilledMemory, habitat(), 100, () => skilledRolls.shift(), 1.5)
+  );
+});

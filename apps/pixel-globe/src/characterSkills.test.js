@@ -37,3 +37,20 @@ test("the fishing skill ramp improves both odds and haul", () => {
   assert.ok(ramp[0].perks.fishingHaulMultiplier < ramp[1].perks.fishingHaulMultiplier);
   assert.ok(ramp[1].perks.fishingHaulMultiplier < ramp[2].perks.fishingHaulMultiplier);
 });
+
+test("negotiation has a modest two-step price ramp", () => {
+  const skilled = characterSkillById("skilled-negotiator");
+  const master = characterSkillById("master-negotiator");
+  assert.ok(skilled.perks.tradePurchaseMultiplier < 1);
+  assert.ok(master.perks.tradePurchaseMultiplier < skilled.perks.tradePurchaseMultiplier);
+  assert.ok(skilled.perks.tradeSaleMultiplier > 1);
+  assert.ok(master.perks.tradeSaleMultiplier > skilled.perks.tradeSaleMultiplier);
+  assert.ok(master.perks.tradePurchaseMultiplier >= 0.97);
+  assert.ok(master.perks.tradeSaleMultiplier <= 1.03);
+});
+
+test("the remaining player-facing chance specialties are represented", () => {
+  assert.equal(characterSkillById("master-of-disguise").perks.disguiseChanceBonus, 0.15);
+  assert.equal(characterSkillById("natural-philosopher").perks.animalEncounterChanceMultiplier, 1.5);
+  assert.equal(characterSkillById("master-gunner").perks.cannonSpreadMultiplier, 0.8);
+});

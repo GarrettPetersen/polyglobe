@@ -227,6 +227,7 @@ export const LETTER_OF_MARQUE_REPUTATION_REQUIRED = 15;
 export const LETTER_OF_MARQUE_POWER_REQUIRED = 20;
 export const HOSTILE_PORT_REPUTATION_THRESHOLD = -75;
 export const PORT_DISGUISE_SUCCESS_CHANCE = 0.6;
+export const PORT_DISGUISE_MAX_SUCCESS_CHANCE = 0.9;
 export const PORT_DISGUISE_LOCK_DAYS = 14;
 export const FACTION_SAFE_PASSAGE_DAYS = 30;
 export const FACTION_SAFE_PASSAGE_REFUSAL_DAYS = 2;
@@ -2644,18 +2645,20 @@ export function attemptPortDisguise(state, city, simMinute, roll) {
     throw new Error(`Invalid port disguise roll: ${roll}`);
   }
   const status = portEntryStatus(state, city, simMinute);
+  const successChance = playerPortDisguiseSuccessChance(state);
   if (!status.hostile) throw new Error(`${cityLabel(city)} is not barring the player`);
   if (status.locked) {
-    return { attempted: false, success: false, ...status };
+    return { attempted: false, success: false, successChance, ...status };
   }
 
   const memory = portMemory(state, city);
   memory.disguiseAttempts = (memory.disguiseAttempts || 0) + 1;
   memory.lastDisguiseAttemptMinute = simMinute;
-  if (roll < PORT_DISGUISE_SUCCESS_CHANCE) {
+  if (roll < successChance) {
     return {
       attempted: true,
       success: true,
+      successChance,
       locked: false,
       lockUntilMinute: null,
       lockDaysRemaining: 0
@@ -2667,10 +2670,19 @@ export function attemptPortDisguise(state, city, simMinute, roll) {
   return {
     attempted: true,
     success: false,
+    successChance,
     locked: true,
     lockUntilMinute,
     lockDaysRemaining: PORT_DISGUISE_LOCK_DAYS
   };
+}
+
+export function playerPortDisguiseSuccessChance(state) {
+  assertGameState(state);
+  return Math.min(
+    PORT_DISGUISE_MAX_SUCCESS_CHANCE,
+    PORT_DISGUISE_SUCCESS_CHANCE + gameStatePerkTotals(state).disguiseChanceBonus
+  );
 }
 
 export function recordTradeWithFaction(state, factionId) {
@@ -2917,13 +2929,16 @@ export function playerTradeTerms(state, city, goodId) {
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
   const reputation = state.relations.factionReputation[portFactionId] || 0;
+  const perks = gameStatePerkTotals(state);
   return tradeTerms({
     port: city,
     traderFactionId,
     relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
     goodId,
     reputation,
-    purchaseDiscountMultiplier: portPurchasePriceMultiplier(city)
+    purchaseDiscountMultiplier: portPurchasePriceMultiplier(city),
+    purchaseBargainMultiplier: perks.tradePurchaseMultiplier,
+    saleBargainMultiplier: perks.tradeSaleMultiplier
   });
 }
 

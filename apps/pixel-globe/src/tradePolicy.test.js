@@ -87,6 +87,25 @@ test("personal standing nudges customs without overriding diplomacy", () => {
   assert.equal(notorious.customsRate, 0.13);
 });
 
+test("negotiation perks make small improvements after duties and monopolies", () => {
+  const ordinary = tradeTerms({
+    port: GOA,
+    traderFactionId: "england",
+    relation: DIPLOMACY_NEUTRAL,
+    goodId: "pepper"
+  });
+  const negotiated = tradeTerms({
+    port: GOA,
+    traderFactionId: "england",
+    relation: DIPLOMACY_NEUTRAL,
+    goodId: "pepper",
+    purchaseBargainMultiplier: 0.97,
+    saleBargainMultiplier: 1.03
+  });
+  assert.equal(negotiated.purchaseMultiplier, ordinary.purchaseMultiplier * 0.97);
+  assert.equal(negotiated.saleMultiplier, ordinary.saleMultiplier * 1.03);
+});
+
 test("customs status can be explained without inventing a commodity transaction", () => {
   const terms = customsTerms({
     port: LISBON,
