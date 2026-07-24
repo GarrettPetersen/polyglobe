@@ -28,7 +28,13 @@ import {
   shipDragFactor,
   shipPropulsionPerformance
 } from "./shipPropulsion.js";
-import { SHIP_PROPULSION_SAIL, SHIP_STATS, shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import {
+  SHIP_PROPULSION_SAIL,
+  SHIP_STATS,
+  shipHullResistsDamage,
+  shipLabelForSlug,
+  shipStatsForSlug
+} from "./shipStats.js";
 import { shipTurnRate } from "./shipTurning.js";
 import {
   chooseNpcObstacleAvoidanceDirection,
@@ -801,8 +807,13 @@ function lakeBattleProjectileTarget(state, projectile) {
 }
 
 function applyLakeBattleProjectileHit(state, projectile, target, point) {
-  target.hitPoints = Math.max(0, target.hitPoints - projectile.damage);
-  if (target.hitPoints > 0) state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
+  const resisted = target.kind !== "city" &&
+    shipHullResistsDamage(target.stats, { roll: nextBattleRandom(state) });
+  const damage = resisted ? 0 : projectile.damage;
+  target.hitPoints = Math.max(0, target.hitPoints - damage);
+  if (!resisted && target.hitPoints > 0) {
+    state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
+  }
   state.impacts.push({
     x: Math.round(point.x),
     y: Math.round(point.y),
@@ -815,7 +826,8 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
     type: "hit",
     shipId: target.id,
     weaponKind: projectile.kind,
-    damage: projectile.damage
+    damage,
+    resisted
   });
 }
 
@@ -849,10 +861,22 @@ function resolveBattleShipCollision(state) {
   state.player.speedPx = Math.max(0, result.a.vx * Math.cos(state.player.headingRad) + result.a.vy * Math.sin(state.player.headingRad));
   state.enemy.speedPx = Math.max(0, result.b.vx * Math.cos(state.enemy.headingRad) + result.b.vy * Math.sin(state.enemy.headingRad));
   if (state.collisionCooldown <= 0 && (result.a.damage > 0 || result.b.damage > 0)) {
-    state.player.hitPoints = Math.max(0, state.player.hitPoints - result.a.damage);
-    state.enemy.hitPoints = Math.max(0, state.enemy.hitPoints - result.b.damage);
+    const playerResisted = result.a.damage > 0 &&
+      shipHullResistsDamage(state.player.stats, { roll: nextBattleRandom(state) });
+    const enemyResisted = result.b.damage > 0 &&
+      shipHullResistsDamage(state.enemy.stats, { roll: nextBattleRandom(state) });
+    const playerDamage = playerResisted ? 0 : result.a.damage;
+    const enemyDamage = enemyResisted ? 0 : result.b.damage;
+    state.player.hitPoints = Math.max(0, state.player.hitPoints - playerDamage);
+    state.enemy.hitPoints = Math.max(0, state.enemy.hitPoints - enemyDamage);
     state.collisionCooldown = 0.5;
-    state.events.push({ type: "collision", playerDamage: result.a.damage, enemyDamage: result.b.damage });
+    state.events.push({
+      type: "collision",
+      playerDamage,
+      enemyDamage,
+      playerResisted,
+      enemyResisted
+    });
   }
   return true;
 }

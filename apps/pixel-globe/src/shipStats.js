@@ -1,5 +1,6 @@
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
 import { NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
+import { damageResistanceRollSucceeds } from "./perkSystem.js";
 
 export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 export const SHIP_PROPULSION_SAIL = "sail";
@@ -74,7 +75,7 @@ const rawShipStats = [
   stats("cutter", 4, 0.028, 0.035, 32, 3.25, 60, 30, 4),
   stats("ketch", 4, 0.024, 0.035, 34, 2.85, 75, 60, 6),
   stats("mediterranean-galley", 12, 0.026, 0.040, 38, 2.55, 210, 90, 5, SHIP_PROPULSION_OAR_SAIL),
-  stats("joseon-turtle-ship", 30, 0.019, 0.036, 50, 2.10, 320, 110, 7, SHIP_PROPULSION_OAR_SAIL),
+  stats("joseon-turtle-ship", 30, 0.017, 0.034, 50, 1.85, 450, 90, 9, SHIP_PROPULSION_OAR_SAIL, null, 40),
   stats("joseon-panokseon", 20, 0.020, 0.035, 52, 2.20, 280, 150, 7, SHIP_PROPULSION_OAR_SAIL),
   stats("japanese-atakebune", 6, 0.015, 0.032, 54, 1.70, 380, 170, 5, SHIP_PROPULSION_OAR_SAIL),
   stats("spanish-nao", 8, 0.017, 0.034, 54, 1.90, 130, 180, 8),
@@ -107,10 +108,24 @@ const rawShipStats = [
     NAVAL_WEAPON_ARROW
   ),
   stats("nusantaran-outrigger", 0, 0.022, 0.035, 48, 2.50, 100, 130, 8, SHIP_PROPULSION_SAIL, NAVAL_WEAPON_ARROW),
-  stats("kelulus", 4, 0.027, 0.039, 46, 2.90, 95, 65, 6, SHIP_PROPULSION_OAR_SAIL),
-  stats("penjajap", 6, 0.028, 0.042, 44, 3.05, 115, 45, 6, SHIP_PROPULSION_OAR_SAIL),
-  stats("lancaran", 14, 0.024, 0.041, 48, 2.60, 195, 95, 7, SHIP_PROPULSION_OAR_SAIL),
-  stats("royal-lancaran", 24, 0.019, 0.040, 50, 2.20, 305, 160, 8, SHIP_PROPULSION_OAR_SAIL),
+  stats(
+    "kelulus",
+    0,
+    0.027,
+    0.039,
+    46,
+    2.90,
+    95,
+    65,
+    6,
+    SHIP_PROPULSION_OAR_SAIL,
+    NAVAL_WEAPON_ARROW,
+    0,
+    11
+  ),
+  stats("penjajap", 2, 0.028, 0.042, 44, 3.05, 115, 45, 6, SHIP_PROPULSION_OAR_SAIL, null, 0, 14),
+  stats("lancaran", 6, 0.024, 0.041, 48, 2.60, 195, 95, 7, SHIP_PROPULSION_OAR_SAIL, null, 0, 27),
+  stats("royal-lancaran", 10, 0.019, 0.040, 50, 2.20, 305, 160, 8, SHIP_PROPULSION_OAR_SAIL, null, 0, 43),
   stats("ottoman-coastal-trader", 8, 0.017, 0.035, 55, 1.90, 170, 240, 7)
 ];
 
@@ -141,6 +156,41 @@ export function validateShipStatsForSlugs(slugs) {
   }
 }
 
+export function shipHullResistsDamage(stats, {
+  bonusResistanceChance = 0,
+  includeIntrinsicArmor = true,
+  roll
+} = {}) {
+  if (!stats || typeof stats !== "object") throw new Error("Ship armor requires ship stats");
+  if (!Number.isInteger(stats.armor) || stats.armor < 0 || stats.armor > 75) {
+    throw new Error(`Invalid ship armor for ${stats.slug}: ${stats.armor}`);
+  }
+  if (typeof includeIntrinsicArmor !== "boolean") {
+    throw new Error(`Invalid intrinsic ship armor setting: ${includeIntrinsicArmor}`);
+  }
+  return damageResistanceRollSucceeds([
+    includeIntrinsicArmor ? stats.armor / 100 : 0,
+    bonusResistanceChance
+  ], roll);
+}
+
+export function reconcileShipHullForCurrentStats(stats, hitPoints, maxHitPoints) {
+  if (!stats || !Number.isInteger(stats.hitPoints) || stats.hitPoints <= 0) {
+    throw new Error("Ship hull reconciliation requires current ship stats");
+  }
+  if (!Number.isFinite(hitPoints) || hitPoints < 0) {
+    throw new Error(`Invalid saved ship hit points: ${hitPoints}`);
+  }
+  if (!Number.isFinite(maxHitPoints) || maxHitPoints <= 0) {
+    throw new Error(`Invalid saved ship maximum hit points: ${maxHitPoints}`);
+  }
+  const condition = Math.min(1, hitPoints / maxHitPoints);
+  return Object.freeze({
+    hitPoints: stats.hitPoints * condition,
+    maxHitPoints: stats.hitPoints
+  });
+}
+
 function stats(
   slug,
   cannons,
@@ -152,7 +202,9 @@ function stats(
   cargoCapacity,
   seaworthiness,
   propulsion = SHIP_PROPULSION_SAIL,
-  navalWeaponKind = null
+  navalWeaponKind = null,
+  armor = 0,
+  crewCapacityOverride = null
 ) {
   assertSlug(slug);
   assertInteger(`${slug}.cannons`, cannons, 0);
@@ -168,6 +220,11 @@ function stats(
   if (navalWeaponKind !== null && !NAVAL_WEAPON_KINDS.has(navalWeaponKind)) {
     throw new Error(`Invalid ${slug}.navalWeaponKind: ${navalWeaponKind}`);
   }
+  assertInteger(`${slug}.armor`, armor, 0);
+  if (armor > 75) throw new Error(`Invalid ${slug}.armor: ${armor}`);
+  if (crewCapacityOverride !== null) {
+    assertInteger(`${slug}.crewCapacityOverride`, crewCapacityOverride, 1);
+  }
   if (propulsion === SHIP_PROPULSION_OAR && baseUpwindStallAngleDeg !== 0) {
     throw new Error(`Oar-powered ship ${slug} must have a zero-degree wind dead zone`);
   }
@@ -176,7 +233,8 @@ function stats(
     : Math.max(0, baseUpwindStallAngleDeg - SHIP_UPWIND_FORGIVENESS_DEG);
 
   const hitPoints = Math.max(3, Math.round(mass / SHIP_MASS_PER_HIT_POINT));
-  const crewCapacity = Math.max(1, Math.round(mass / 12 + cannons * 0.75));
+  const crewCapacity = crewCapacityOverride ??
+    Math.max(1, Math.round(mass / 12 + cannons * 0.75));
   return Object.freeze({
     slug,
     cannons,
@@ -190,6 +248,7 @@ function stats(
     hitPoints,
     cargoCapacity,
     seaworthiness,
+    armor,
     propulsion,
     navalWeaponKind
   });

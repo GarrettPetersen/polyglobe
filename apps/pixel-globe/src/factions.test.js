@@ -39,12 +39,15 @@ test("every faction separates its noun and adjective forms", () => {
   const portugal = FACTIONS.find((faction) => faction.id === "portugal");
   const morocco = FACTIONS.find((faction) => faction.id === "morocco");
   const ternate = FACTIONS.find((faction) => faction.id === "ternate");
+  const tidore = FACTIONS.find((faction) => faction.id === "tidore");
   assert.equal(portugal.shortName, "Portugal");
   assert.equal(portugal.adjective, "Portuguese");
   assert.equal(morocco.shortName, "Morocco");
   assert.equal(morocco.adjective, "Moroccan");
   assert.equal(ternate.shortName, "Ternate");
   assert.equal(ternate.adjective, "Ternatan");
+  assert.equal(tidore.shortName, "Tidore");
+  assert.equal(tidore.adjective, "Tidorese");
   assert.equal(factionNounPhrase("portugal"), "Portugal");
   assert.equal(factionNounPhrase("morocco"), "Morocco");
   assert.equal(factionNounPhrase("ottoman"), "the Ottoman Empire");
@@ -85,6 +88,9 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("venice", "genoa"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ternate", "spain"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ternate", "portugal"), DIPLOMACY_NEUTRAL);
+  assert.equal(diplomacyBetween("ternate", "tidore"), DIPLOMACY_HOSTILE);
+  assert.equal(diplomacyBetween("tidore", "spain"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("tidore", "portugal"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ternate", "ayutthaya"), DIPLOMACY_NEUTRAL);
   assert.equal(diplomacyBetween("inca", "muscovy"), DIPLOMACY_NEUTRAL);
   for (const faction of FACTIONS) {
@@ -110,7 +116,10 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Hafnarfjordur", "Iceland", "denmark-norway"],
     ["Ternate", "Indonesia", "ternate"],
     ["Hitu Village", "Indonesia", "ternate"],
-    ["Makian Village", "Indonesia", "ternate"]
+    ["Buru Village", "Indonesia", "ternate"],
+    ["Tidore", "Indonesia", "tidore"],
+    ["Makian Village", "Indonesia", "tidore"],
+    ["Gane Village", "Indonesia", "tidore"]
   ];
   for (const [city, country, factionId] of cases) {
     assert.equal(factionIdForCity1522({ city, country }), factionId, `${city}, ${country}`);
@@ -154,6 +163,7 @@ test("every sovereign faction has one declared water-accessible capital", () => 
   }
   assert.equal(factionCapitalForId("ming").city, "Beijing");
   assert.equal(factionCapitalForId("ternate").city, "Ternate");
+  assert.equal(factionCapitalForId("tidore").city, "Tidore");
 });
 
 test("required capital port records cover factions missing a suitable catalog city", () => {

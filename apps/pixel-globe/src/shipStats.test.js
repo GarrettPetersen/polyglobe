@@ -7,6 +7,8 @@ import {
   SHIP_PROPULSION_SAIL,
   SHIP_STATS,
   SHIP_UPWIND_FORGIVENESS_DEG,
+  reconcileShipHullForCurrentStats,
+  shipHullResistsDamage,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
@@ -114,12 +116,53 @@ test("the Mediterranean galley is a period hybrid warship", () => {
 
 test("the Joseon turtle ship is a heavy cannon-armed oar-and-sail warship", () => {
   const turtleShip = shipStatsForSlug("joseon-turtle-ship");
+  const greatCarrack = shipStatsForSlug("ship-of-the-line");
+  const panokseon = shipStatsForSlug("joseon-panokseon");
 
   assert.equal(shipLabelForSlug(turtleShip.slug), "Turtle Ship");
   assert.equal(turtleShip.propulsion, SHIP_PROPULSION_OAR_SAIL);
   assert.equal(turtleShip.cannons, 30);
-  assert.ok(turtleShip.hitPoints > shipStatsForSlug("large-junk").hitPoints);
+  assert.equal(turtleShip.hitPoints, 45);
+  assert.equal(turtleShip.armor, 40);
+  assert.equal(turtleShip.seaworthiness, 9);
+  assert.equal(shipHullResistsDamage(turtleShip, { roll: 0.39 }), true);
+  assert.equal(shipHullResistsDamage(turtleShip, { roll: 0.4 }), false);
+  assert.ok(turtleShip.hitPoints / (1 - turtleShip.armor / 100) > greatCarrack.hitPoints);
+  assert.ok(turtleShip.accelerationRad < panokseon.accelerationRad);
+  assert.ok(turtleShip.topSpeedRad < panokseon.topSpeedRad);
+  assert.ok(turtleShip.turnRateRad < panokseon.turnRateRad);
   assert.ok(turtleShip.cargoCapacity < shipStatsForSlug("large-junk").cargoCapacity);
+});
+
+test("intrinsic turtle armor and perk resistance share one capped roll", () => {
+  const turtleShip = shipStatsForSlug("joseon-turtle-ship");
+
+  assert.equal(shipHullResistsDamage(turtleShip, {
+    bonusResistanceChance: 0.2,
+    roll: 0.599
+  }), true);
+  assert.equal(shipHullResistsDamage(turtleShip, {
+    bonusResistanceChance: 0.2,
+    roll: 0.6
+  }), false);
+  assert.equal(shipHullResistsDamage(turtleShip, {
+    bonusResistanceChance: 0.2,
+    includeIntrinsicArmor: false,
+    roll: 0.2
+  }), false);
+});
+
+test("old turtle ship saves preserve hull condition across its armor refit", () => {
+  const turtleShip = shipStatsForSlug("joseon-turtle-ship");
+
+  assert.deepEqual(reconcileShipHullForCurrentStats(turtleShip, 16, 32), {
+    hitPoints: 22.5,
+    maxHitPoints: 45
+  });
+  assert.deepEqual(reconcileShipHullForCurrentStats(turtleShip, 40, 32), {
+    hitPoints: 45,
+    maxHitPoints: 45
+  });
 });
 
 test("the Panokseon represents the Joseon decked oar-and-sail warship lineage", () => {
@@ -197,7 +240,9 @@ test("the Kelulus is a fast compact Malay oar-and-sail raider", () => {
 
   assert.equal(shipLabelForSlug(kelulus.slug), "Kelulus");
   assert.equal(kelulus.propulsion, SHIP_PROPULSION_OAR_SAIL);
-  assert.equal(kelulus.cannons, 4);
+  assert.equal(kelulus.cannons, 0);
+  assert.equal(kelulus.navalWeaponKind, NAVAL_WEAPON_ARROW);
+  assert.equal(kelulus.crewCapacity, 11);
   assert.ok(kelulus.topSpeedRad > smallJunk.topSpeedRad);
   assert.ok(kelulus.turnRateRad > smallJunk.turnRateRad);
   assert.ok(kelulus.cargoCapacity < smallJunk.cargoCapacity);
@@ -215,6 +260,13 @@ test("Malay warships form a distinct light-to-flagship progression", () => {
   for (const ship of [penjajap, lancaran, royal]) {
     assert.equal(ship.propulsion, SHIP_PROPULSION_OAR_SAIL);
   }
+  assert.equal(penjajap.cannons, 2);
+  assert.equal(lancaran.cannons, 6);
+  assert.equal(royal.cannons, 10);
+  assert.deepEqual(
+    [penjajap.crewCapacity, lancaran.crewCapacity, royal.crewCapacity],
+    [14, 27, 43]
+  );
   assert.ok(penjajap.topSpeedRad > lancaran.topSpeedRad);
   assert.ok(lancaran.topSpeedRad > royal.topSpeedRad);
   assert.ok(penjajap.turnRateRad > lancaran.turnRateRad);

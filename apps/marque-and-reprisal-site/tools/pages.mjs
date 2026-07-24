@@ -5,6 +5,7 @@ import {
   LOCALIZED_CAPSULE_ASSET_NAMES,
   pressCapsuleArt,
   pressLogos,
+  qAndA,
   screenshots,
   site,
   WORLD_MAP_CELL_COUNT
@@ -13,7 +14,7 @@ import {
 const description = site.shortDescription;
 const socialImage = site.domain + "/assets/art/social-share.png";
 const socialImageAlt = "Marque & Reprisal title and sailing ship against a pixel-art sunset over the sea.";
-const codeAssetVersion = "2026-07-22";
+const codeAssetVersion = "2026-07-24";
 
 export function homePage() {
   const featureRows = features.map((feature) => [
@@ -196,6 +197,41 @@ export function pressPage() {
   });
 }
 
+export function qAndAPage() {
+  const entries = qAndA.map((entry, index) => [
+    "<article class='qa-entry'>",
+    "<p class='qa-number' aria-hidden='true'>", String(index + 1).padStart(2, "0"), "</p>",
+    "<div class='qa-entry-copy'>",
+    "<h2>", escapeHtml(entry.question), "</h2>",
+    "<div class='qa-answer'>",
+    entry.answer.map((paragraph) => "<p>" + escapeHtml(paragraph) + "</p>").join(""),
+    "</div>",
+    "</div>",
+    "</article>"
+  ].join("")).join("\n");
+
+  const main = [
+    "<main class='qa-main'>",
+    "<header class='qa-hero'>",
+    "<p class='eyebrow'>Developer Q&amp;A</p>",
+    "<h1>Questions &amp; answers</h1>",
+    "<p>Garrett Petersen talks about the game, its history, and what happens when a voyage goes wrong.</p>",
+    "</header>",
+    "<section class='qa-list' aria-label='Questions and answers about Marque and Reprisal'>",
+    entries,
+    "</section>",
+    "</main>"
+  ].join("\n");
+
+  return layout({
+    title: "Q&A — " + site.title,
+    description: "Developer Garrett Petersen answers questions about Marque & Reprisal, its world, sailing, history, survival, and roguelike structure.",
+    canonicalPath: "/qa/",
+    bodyClass: "qa",
+    main
+  });
+}
+
 function graphicAssetCard(asset, folder, previewClass = "") {
   return [
     "<article class='logo-card'>",
@@ -296,6 +332,12 @@ export function factSheetText() {
     "FEATURES",
     ...features.map((feature) => feature.title.toUpperCase() + "\n" + feature.copy),
     "",
+    "DEVELOPER Q&A",
+    ...qAndA.flatMap((entry) => [
+      "Q: " + entry.question,
+      ...entry.answer.map((paragraph) => "A: " + paragraph),
+      ""
+    ]),
     "TEXT LANGUAGES",
     languages.join(", "),
     "",
@@ -320,6 +362,7 @@ export function sitemapXml() {
     "<?xml version='1.0' encoding='UTF-8'?>",
     "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>",
     "<url><loc>" + site.domain + "/</loc><priority>1.0</priority></url>",
+    "<url><loc>" + site.domain + "/qa/</loc><priority>0.8</priority></url>",
     "<url><loc>" + site.domain + "/press/</loc><priority>0.8</priority></url>",
     "<url><loc>" + site.domain + "/privacy/</loc><priority>0.3</priority></url>",
     "</urlset>",
@@ -383,6 +426,7 @@ function navigation() {
     "<a class='wordmark' href='/' aria-label='Marque and Reprisal home'><span>M</span><i>&amp;</i><span>R</span></a>",
     "<div class='nav-links'>",
     "<a href='/#voyage'>About</a>",
+    "<a href='/qa/'>Q&amp;A</a>",
     "<a href='/press/'>Press kit</a>",
     externalTextLink(site.itchUrl, "Demo"),
     externalTextLink(site.xUrl, "X"),

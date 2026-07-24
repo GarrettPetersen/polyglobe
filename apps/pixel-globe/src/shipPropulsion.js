@@ -83,9 +83,12 @@ export function shipPropulsionPerformance(stats, {
   }
 
   const windFactor = 0.28 + windStrength * 0.72;
+  const sailSpeedFloor = stats.propulsion === SHIP_PROPULSION_OAR_SAIL
+    ? 0
+    : minimumSailSpeed;
   const sailMaxSpeed = sailEfficiency <= 0
     ? 0
-    : minimumSailSpeed + (stats.topSpeedRad - minimumSailSpeed) * windFactor * sailEfficiency;
+    : sailSpeedFloor + (stats.topSpeedRad - sailSpeedFloor) * windFactor * sailEfficiency;
   const sailAcceleration = windStrength * sailEfficiency;
 
   if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) {

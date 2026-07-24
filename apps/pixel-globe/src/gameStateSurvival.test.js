@@ -218,6 +218,25 @@ test("a saved Xebec repairs a stale Lateen Barque crew target", () => {
   assert.equal(restored.doubloons, 55984);
 });
 
+test("current saves shed guns removed by a historical ship refit", () => {
+  const royalLancaran = shipStatsForSlug("royal-lancaran");
+  const saved = createGameState({
+    cargoCapacity: royalLancaran.cargoCapacity,
+    shipStats: royalLancaran
+  });
+  initializeProvisionalShipLoadout(saved, royalLancaran);
+  saved.ship.cannonCapacity = 24;
+  saved.ship.cannons = 24;
+
+  const restored = migrateGameState(saved, royalLancaran);
+
+  assert.equal(restored.ship.cannonCapacity, 10);
+  assert.equal(restored.ship.cannons, 10);
+  assert.equal(restored.ship.crewCapacity, 43);
+  assert.equal(restored.ship.loadoutTargets.cannons <= 10, true);
+  assert.equal(validateGameState(restored), restored);
+});
+
 test("version 27 ship saves migrate before named crew memory exists", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({

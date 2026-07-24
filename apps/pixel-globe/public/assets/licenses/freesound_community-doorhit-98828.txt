@@ -1,0 +1,11 @@
+Title: Door Hit
+Creator: freesound_community
+Source: https://pixabay.com/sound-effects/doorhit-98828/
+Creator page: https://pixabay.com/users/freesound_community-46691455/
+License: Pixabay Content License
+License summary: https://pixabay.com/service/license-summary/
+
+Production use:
+- Normalized to -18 LUFS with a -1.5 dB true-peak ceiling.
+- Encoded as 48 kHz stereo Ogg Vorbis.
+- Used when a cannonball glances off an armored hull without dealing damage.

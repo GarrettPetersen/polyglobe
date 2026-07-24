@@ -7,6 +7,7 @@ import {
   SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD,
   SAIL_CLOSE_HAULED_EFFICIENCY,
   SHIP_DRAG_PER_SECOND,
+  SHIP_MINIMUM_POWERED_SPEED_RAD,
   SHIP_STALLED_DRAG_MULTIPLIER,
   sailingEfficiencyForAlignment,
   shipDragFactor,
@@ -82,6 +83,45 @@ test("oar-sail ships row slowly when their sails cannot make progress", () => {
   assert.equal(rowing.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
   assert.equal(sailing.rowing, false);
   assert.ok(sailing.maxSpeedRad > rowing.maxSpeedRad * 2);
+});
+
+test("oar-sail ships row whenever weak wind would be slower than their oars", () => {
+  const galley = shipStatsForSlug("mediterranean-galley");
+  const performance = shipPropulsionPerformance(galley, {
+    windStrength: 0.025,
+    sailEfficiency: 1,
+    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD
+  });
+
+  assert.equal(performance.rowing, true);
+  assert.equal(performance.stalled, false);
+  assert.equal(performance.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
+});
+
+test("oar-sail ships row on inefficient non-stalled headings when rowing is faster", () => {
+  const galley = shipStatsForSlug("mediterranean-galley");
+  const performance = shipPropulsionPerformance(galley, {
+    windStrength: 0.8,
+    sailEfficiency: 0.4,
+    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD
+  });
+
+  assert.equal(performance.rowing, true);
+  assert.equal(performance.stalled, false);
+  assert.equal(performance.maxSpeedRad, galley.topSpeedRad * HYBRID_ROWING_SPEED_RATIO);
+});
+
+test("the minimum powered speed remains available to sail-only ships", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const performance = shipPropulsionPerformance(brigantine, {
+    windStrength: 0,
+    sailEfficiency: 0.01,
+    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD
+  });
+
+  assert.equal(performance.rowing, false);
+  assert.equal(performance.stalled, false);
+  assert.ok(performance.maxSpeedRad >= SHIP_MINIMUM_POWERED_SPEED_RAD);
 });
 
 test("rowing power falls gracefully as an oar crew is depleted", () => {

@@ -7,6 +7,7 @@ import {
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { tradeGoodById } from "./economy.js";
 import { colonizationHistoryForTarget } from "./colonizationHistory.js";
+import { foreignSettlementsByIds } from "./foreignSettlements.js";
 
 export const COLONIZATION_QUEST_VERSION = 1;
 export const COLONIZATION_ORIGIN_CITY = "Bordeaux";
@@ -639,7 +640,10 @@ export function colonizationWorldRecord(memory) {
     colonyBurning: failed,
     playerFoundedColony: upgraded,
     purchaseDiscountMultiplier: upgraded ? COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER : 1,
-    initialImports: upgraded ? target.initialImports : []
+    initialImports: upgraded ? target.initialImports : [],
+    foreignSettlements: established
+      ? foreignSettlementsByIds(target.foreignSettlementIds)
+      : []
   };
 }
 

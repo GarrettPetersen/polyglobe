@@ -5,7 +5,8 @@ const ADDITIVE_PERKS = new Set([
   "assaultChanceBonus",
   "disguiseChanceBonus",
   "damageResistanceChance",
-  "crewCasualtyResistanceChance"
+  "crewCasualtyResistanceChance",
+  "hullRepairFractionPerDay"
 ]);
 
 const MULTIPLICATIVE_PERKS = new Set([
@@ -25,6 +26,9 @@ const MULTIPLICATIVE_PERKS = new Set([
   "tradeSaleMultiplier",
   "animalEncounterChanceMultiplier"
 ]);
+
+export const MAX_DAMAGE_RESISTANCE_CHANCE = 0.8;
+export const MAX_HULL_REPAIR_FRACTION_PER_DAY = 0.015;
 
 export const PERK_KEYS = Object.freeze([
   ...ADDITIVE_PERKS,
@@ -53,7 +57,9 @@ export function aggregatePerkSources(sources) {
       else totals[key] *= value ** quantity;
     }
   }
-  totals.damageResistanceChance = clamp(totals.damageResistanceChance, 0, 0.8);
+  totals.damageResistanceChance = combinedDamageResistanceChance([
+    totals.damageResistanceChance
+  ]);
   totals.crewCasualtyResistanceChance = clamp(totals.crewCasualtyResistanceChance, 0, 0.8);
   totals.assaultChanceBonus = clamp(totals.assaultChanceBonus, 0, 0.35);
   totals.disguiseChanceBonus = clamp(totals.disguiseChanceBonus, 0, 0.3);
@@ -61,7 +67,34 @@ export function aggregatePerkSources(sources) {
   totals.tradeSaleMultiplier = clamp(totals.tradeSaleMultiplier, 1, 1.1);
   totals.animalEncounterChanceMultiplier = clamp(totals.animalEncounterChanceMultiplier, 1, 3);
   totals.cannonSpreadMultiplier = clamp(totals.cannonSpreadMultiplier, 0.55, 1);
+  totals.hullRepairFractionPerDay = clamp(
+    totals.hullRepairFractionPerDay,
+    0,
+    MAX_HULL_REPAIR_FRACTION_PER_DAY
+  );
   return Object.freeze(totals);
+}
+
+export function combinedDamageResistanceChance(chances) {
+  if (!Array.isArray(chances) || chances.length === 0) {
+    throw new Error("Damage resistance requires at least one chance");
+  }
+  let total = 0;
+  for (const chance of chances) {
+    if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
+      throw new Error(`Invalid damage resistance chance: ${chance}`);
+    }
+    total += chance;
+  }
+  const normalizedTotal = Math.round(total * 1e12) / 1e12;
+  return clamp(normalizedTotal, 0, MAX_DAMAGE_RESISTANCE_CHANCE);
+}
+
+export function damageResistanceRollSucceeds(chances, roll) {
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Invalid damage resistance roll: ${roll}`);
+  }
+  return roll < combinedDamageResistanceChance(chances);
 }
 
 export function validatePerkSource(source) {
@@ -131,6 +164,10 @@ export function perkEffectLabels(perks) {
   if (perks.damageResistanceChance) labels.push(`${Math.round(perks.damageResistanceChance * 100)}% hull-hit resistance`);
   if (perks.crewCasualtyResistanceChance) {
     labels.push(`${Math.round(perks.crewCasualtyResistanceChance * 100)}% casualty resistance`);
+  }
+  if (perks.hullRepairFractionPerDay) {
+    const dailyPercent = Math.round(perks.hullRepairFractionPerDay * 10000) / 100;
+    labels.push(`Repairs ${dailyPercent}% hull per day`);
   }
   return Object.freeze(labels);
 }

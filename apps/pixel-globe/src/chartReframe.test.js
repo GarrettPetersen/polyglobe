@@ -1,0 +1,93 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  chartNorthUpDriftExceedsThreshold,
+  measureChartNorthUpDrift,
+  northUpProjectionIsStable
+} from "./chartReframe.js";
+
+test("ordinary and very high latitudes retain a true north-up projection", () => {
+  assert.equal(northUpProjectionIsStable(directionAt(0, 0)), true);
+  assert.equal(northUpProjectionIsStable(directionAt(84, 20)), true);
+  assert.equal(northUpProjectionIsStable(directionAt(89.999, 20)), true);
+});
+
+test("only a position extremely close to the exact pole uses the numerical fallback", () => {
+  assert.equal(northUpProjectionIsStable(directionAt(89.99999, 20)), false);
+  assert.equal(northUpProjectionIsStable(directionAt(-89.99999, 20)), false);
+  assert.equal(northUpProjectionIsStable(directionAt(90, 20)), false);
+});
+
+test("chart drift separates rotation from residual distortion", () => {
+  const radians = 3 * Math.PI / 180;
+  const samples = [
+    rotatedSample(80, 0, radians),
+    rotatedSample(0, 60, radians),
+    rotatedSample(-70, 20, radians),
+    rotatedSample(30, -50, radians)
+  ];
+  const metrics = measureChartNorthUpDrift(samples);
+
+  assert.ok(Math.abs(metrics.rotationDeg - 3) < 1e-9);
+  assert.ok(metrics.rmsDistortionPx < 1e-9);
+  assert.ok(metrics.maxDistortionPx < 1e-9);
+  assert.equal(metrics.needsReframe, true);
+});
+
+test("organic local distortion marks a chart for reframing", () => {
+  const metrics = measureChartNorthUpDrift([
+    { localX: 80, localY: 0, northX: 80, northY: 0 },
+    { localX: 3, localY: 60, northX: 0, northY: 60 },
+    { localX: -70, localY: 26, northX: -70, northY: 20 },
+    { localX: 30, localY: -50, northX: 30, northY: -50 }
+  ]);
+
+  assert.equal(metrics.needsReframe, true);
+  assert.ok(metrics.rmsDistortionPx >= 1.5);
+});
+
+test("a fresh north-up chart remains below every correction threshold", () => {
+  const metrics = measureChartNorthUpDrift([
+    { localX: 80, localY: 0, northX: 80, northY: 0 },
+    { localX: 0, localY: 60, northX: 0, northY: 60 },
+    { localX: -70, localY: 20, northX: -70, northY: 20 }
+  ]);
+
+  assert.equal(metrics.needsReframe, false);
+  assert.equal(chartNorthUpDriftExceedsThreshold(metrics), false);
+});
+
+test("chart drift rejects malformed samples and metrics", () => {
+  assert.throws(
+    () => measureChartNorthUpDrift([{ localX: 0, localY: 0, northX: Number.NaN, northY: 0 }]),
+    /invalid northX/
+  );
+  assert.throws(
+    () => chartNorthUpDriftExceedsThreshold({ sampleCount: -1 }),
+    /non-negative sample count/
+  );
+  assert.throws(
+    () => northUpProjectionIsStable([0, 0, 0]),
+    /cannot be zero/
+  );
+});
+
+function rotatedSample(northX, northY, radians) {
+  return {
+    northX,
+    northY,
+    localX: northX * Math.cos(radians) - northY * Math.sin(radians),
+    localY: northX * Math.sin(radians) + northY * Math.cos(radians)
+  };
+}
+
+function directionAt(latitudeDeg, longitudeDeg) {
+  const latitude = latitudeDeg * Math.PI / 180;
+  const longitude = longitudeDeg * Math.PI / 180;
+  return [
+    Math.cos(latitude) * Math.cos(longitude),
+    Math.sin(latitude),
+    -Math.cos(latitude) * Math.sin(longitude)
+  ];
+}

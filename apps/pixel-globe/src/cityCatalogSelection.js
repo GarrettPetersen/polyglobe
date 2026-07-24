@@ -78,7 +78,13 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "south-china-sea"
   }),
   manualCity1522("Ternate", "Indonesia", 0.7893, 127.3844, 12000, {
+    cityType: "southeast-asian",
     manualRegion: "spice-islands"
+  }),
+  manualCity1522("Tidore", "Indonesia", 0.6739, 127.4502, 10000, {
+    cityType: "southeast-asian",
+    manualRegion: "spice-islands",
+    marketGoods: ["cloves", "fish", "timber"]
   }),
   manualCity1522("Colombo", "Sri Lanka", 6.9344, 79.8428, 12000, {
     cityType: "south-asian",
@@ -103,6 +109,16 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "southeast-asian",
     manualRegion: "spice-islands",
     marketGoods: ["cloves", "fish", "timber"]
+  }),
+  manualVillage1522("Gane Village", "Indonesia", -0.1213, 127.9028, 2000, {
+    cityType: "southeast-asian",
+    manualRegion: "spice-islands",
+    marketGoods: ["fish", "timber", "naval-stores"]
+  }),
+  manualVillage1522("Buru Village", "Indonesia", -3.2619, 127.0929, 2500, {
+    cityType: "southeast-asian",
+    manualRegion: "spice-islands",
+    marketGoods: ["fish", "timber", "beeswax"]
   }),
   manualCity1522("Aden", "Yemen", 12.7855, 45.0187, 35000, {
     manualRegion: "red-sea"

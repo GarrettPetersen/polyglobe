@@ -262,16 +262,24 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(encounterVillages.every((city) => city.settlementType === "village"));
   assert.deepEqual(
     spiceIslandVillages.map((city) => city.city).sort(),
-    ["Banda Village", "Hitu Village", "Makian Village"]
+    ["Banda Village", "Buru Village", "Gane Village", "Hitu Village", "Makian Village"]
   );
   assert.deepEqual(
     Object.fromEntries(spiceIslandVillages.map((city) => [city.city, city.marketGoods[0]])),
     {
       "Banda Village": "nutmeg",
+      "Buru Village": "fish",
+      "Gane Village": "fish",
       "Hitu Village": "sugar",
       "Makian Village": "cloves"
     }
   );
+  for (const factionId of ["ternate", "tidore"]) {
+    assert.ok(
+      ports.filter((city) => city.factionId === factionId).length >= 3,
+      `${factionId} should begin 1522 with at least three accessible ports`
+    );
+  }
   assert.deepEqual(
     northwestCoastVillages.map((city) => city.city).sort(),
     ["Ozette Village", "Yuquot Village"]

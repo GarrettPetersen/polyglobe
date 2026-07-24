@@ -908,6 +908,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "Cloves drew the Portuguese to your shore. Your family mistook their appetite for a guarantee.",
     "We provisioned the alliance my father welcomed, then borrowed again when its promises soured. The cloves sold; our account did not."
   ),
+  tidore: debtOrigin(
+    "Castilian sails brought Sultan al-Mansur promises. Your family accepted their drafts as though promises were silver.",
+    "We provisioned the strangers who swore friendship against Ternate and Portugal. Their ships departed lighter; our house kept the weight."
+  ),
   japan: debtOrigin(
     "The Hosokawa changed sides. The terms of this note did not.",
     "Our house backed the wrong side at Funaokayama. The survivors changed allegiance; our creditors changed the seal."
@@ -945,6 +949,7 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   delhi: "Caravans describe oceans beyond Gujarat and Bengal, each story altered by ten merchants. I want one witness.",
   ayutthaya: "The Portuguese arrived after taking Malacca and now speak of seas beyond Africa. I would hear the world without their interpreter.",
   ternate: "Portuguese stone rises beside our clove groves while Castilian sails favor Tidore. I want a Ternatan account of the world both crowns claim.",
+  tidore: "Castilian survivors reached our island with tales of an ocean beyond the Moluccas, while Portugal arms Ternate. I want a Tidorese account no foreign crown can keep from us.",
   japan: "Ming merchants and island pilots carry fragments of distant coasts. I want them joined before rumor distorts them further.",
   joseon: "Our old world maps reach far beyond Joseon, but copied names are not witnessed places. A captain can test what scholars inherited."
 });

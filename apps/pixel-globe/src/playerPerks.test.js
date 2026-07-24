@@ -8,7 +8,11 @@ import {
   refreshPlayerPerkCargoCapacity
 } from "./gameState.js";
 import { gameStatePerkTotals } from "./playerPerks.js";
-import { NAMED_CREW_ROLE_CHEF, addNamedCrewMember } from "./namedCrew.js";
+import {
+  NAMED_CREW_ROLE_CHEF,
+  NAMED_CREW_ROLE_HISTORIAN,
+  addNamedCrewMember
+} from "./namedCrew.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 function perkState() {
@@ -46,6 +50,21 @@ test("permanent named crew contribute their skills to ship work", () => {
     skillIds: ["master-chef"]
   }, NAMED_CREW_ROLE_CHEF);
   assert.equal(gameStatePerkTotals(state).foodDurationMultiplier, 1.92);
+});
+
+test("hull sheathing and a named shipwright share the resistance perk total", () => {
+  const state = perkState();
+  state.ship.crew = 2;
+  state.inventory.items["lead-sheathing"] = 1;
+  addNamedCrewMember(state, {
+    id: "crew-shipwright",
+    name: "Mateo Ruiz",
+    expressions: [{ id: "neutral" }],
+    skillIds: ["shipwright"]
+  }, NAMED_CREW_ROLE_HISTORIAN);
+
+  assert.equal(gameStatePerkTotals(state).damageResistanceChance, 0.2);
+  assert.equal(gameStatePerkTotals(state).hullRepairFractionPerDay, 0.005);
 });
 
 test("matchlocks and gunpowder aboard improve a marine assault together", () => {

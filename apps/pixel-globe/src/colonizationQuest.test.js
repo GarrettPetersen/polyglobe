@@ -286,6 +286,43 @@ test("timely resupply creates a discounted French city", () => {
   assert.equal(colonizationObjective(memory), null);
 });
 
+test("establishing Nagasaki creates a Japanese port with a Portuguese settlement", () => {
+  const target = {
+    ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
+    tileId: 789
+  };
+  const origin = {
+    tileId: 790,
+    city: "Lisbon",
+    country: "Portugal",
+    factionId: "portugal",
+    lat: 38.72,
+    lon: -9.14
+  };
+  const approvalPort = {
+    tileId: 791,
+    city: "Kyoto",
+    country: "Japan",
+    factionId: "japan",
+    lat: 35.01,
+    lon: 135.77
+  };
+  const memory = createColonizationQuestMemory();
+  assignColonizationQuest(memory, { target, origin, approvalPort });
+  for (const stage of colonizationQuestView({ memory: { colonization: memory }, cargo: {} }).history.fetchStages) {
+    completeColonizationFetchStage(memory, stage.id);
+  }
+  beginColonizationExpedition(memory);
+  grantColonizationApproval(memory, { approvalCargoDelivered: true });
+  landColonists(memory, 1000);
+  advanceColonizationQuest(memory, 1100, { awayFromColony: true });
+  establishColony(memory, 1200);
+
+  const city = colonizationWorldRecord(memory);
+  assert.equal(city.factionId, "japan");
+  assert.deepEqual(city.foreignSettlements.map((entry) => entry.id), ["portuguese-nagasaki"]);
+});
+
 test("historically attacked colonies upgrade, survive a canoe defense, and await a victory report", () => {
   const target = {
     ...colonizationTargetForCity({ city: "Jamestown", country: "United States of America" }),

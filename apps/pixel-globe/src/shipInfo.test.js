@@ -49,6 +49,7 @@ test("ship information uses live hull, currency, stats, and cargo", () => {
   assert.equal(view.maxHull, 16);
   assert.equal(view.cannons, 14);
   assert.equal(view.seaworthiness, 7);
+  assert.equal(view.armor, 0);
   assert.equal(view.cargoUsed, 3);
   assert.equal(view.cargoCapacity, 115);
   assert.equal(view.realizedPnl, 0);
@@ -83,6 +84,21 @@ test("ship comparisons expose signed differences from the current vessel", () =>
   assert.ok(metrics.cargo.difference > 0);
   assert.ok(metrics.speed.difference < 0);
   assert.equal(metrics.cargo.difference, 52);
+  assert.equal(metrics.armor.difference, 0);
+});
+
+test("ship comparisons expose the turtle ship's exceptional armor", () => {
+  const comparison = createShipComparisonView("joseon-panokseon", "joseon-turtle-ship");
+  const armor = comparison.metrics.find((metric) => metric.id === "armor");
+
+  assert.equal(comparison.candidate.armor, 40);
+  assert.deepEqual(armor, {
+    id: "armor",
+    label: "ARMOR",
+    current: 0,
+    candidate: 40,
+    difference: 40
+  });
 });
 
 test("ship specifications explain oar and combined propulsion", () => {
@@ -91,8 +107,8 @@ test("ship specifications explain oar and combined propulsion", () => {
   const longship = createShipyardShipView("viking-longship");
 
   assert.equal(canoe.propulsionSummary, "OAR / NO DEAD ZONE");
-  assert.equal(galley.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
-  assert.equal(longship.propulsionSummary, "OAR + SAIL / ROWS UPWIND");
+  assert.equal(galley.propulsionSummary, "OAR + SAIL / OARS WHEN FASTER");
+  assert.equal(longship.propulsionSummary, "OAR + SAIL / OARS WHEN FASTER");
   assert.equal(longship.armamentLabel, "ARROWS");
   assert.equal(longship.armamentSummary, "AT WILL");
 });

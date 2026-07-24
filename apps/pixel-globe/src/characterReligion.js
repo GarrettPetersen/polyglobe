@@ -110,7 +110,9 @@ const SOUTHEAST_ASIAN_MUSLIM_PORTS = new Set([
   "makian village",
   "malacca",
   "patani",
-  "ternate"
+  "ternate",
+  "tidore",
+  "gane village"
 ]);
 const SOUTHEAST_ASIAN_BUDDHIST_CITIES = new Set([
   "ayutthaya",

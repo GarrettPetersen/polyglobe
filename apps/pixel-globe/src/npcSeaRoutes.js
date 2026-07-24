@@ -7,6 +7,8 @@ import {
 import {
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_OAR_SAIL,
+  reconcileShipHullForCurrentStats,
+  shipHullResistsDamage,
   shipStatsForSlug
 } from "./shipStats.js";
 import { HYBRID_ROUTE_PROGRESS_FLOOR } from "./shipPropulsion.js";
@@ -43,9 +45,7 @@ import {
   npcFishingNetExpectedHaul,
   npcFishingNetForSeed
 } from "./fishingNets.js";
-import {
-  DEFAULT_MING_OPEN_TRADE_FACTION_IDS
-} from "./mingTradeRestrictions.js";
+import { defaultSovereignTradeGrantedToFaction } from "./sovereignTradeAccess.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_FACTION_ID,
@@ -54,6 +54,7 @@ import {
   portugueseCartazRequired,
   tradeTerms
 } from "./tradePolicy.js";
+import { validateForeignSettlementExpulsionMemory } from "./foreignSettlements.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -340,7 +341,8 @@ export function createNpcSeaRouteSystem({
   whaleMemory = null,
   seedKey = null,
   relationBetween = diplomacyBetween,
-  mingTradeOpenToFaction = defaultMingTradeOpenToFaction,
+  foreignSettlementExpulsions = null,
+  sovereignTradeOpenToFaction = defaultSovereignTradeOpenToFaction,
   onForeignPortCall = null
 }) {
   if (!Number.isFinite(startMinute) || startMinute < 0) {
@@ -350,8 +352,11 @@ export function createNpcSeaRouteSystem({
   if (whaleMemory !== null) validateWhaleMemory(whaleMemory);
   validateOptionalSeedKey(seedKey, "NPC routes");
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
-  if (typeof mingTradeOpenToFaction !== "function") {
-    throw new Error("NPC sea routes require a Ming trade-access resolver");
+  if (foreignSettlementExpulsions !== null) {
+    validateForeignSettlementExpulsionMemory(foreignSettlementExpulsions);
+  }
+  if (typeof sovereignTradeOpenToFaction !== "function") {
+    throw new Error("NPC sea routes require a sovereign trade-access resolver");
   }
   if (onForeignPortCall !== null && typeof onForeignPortCall !== "function") {
     throw new Error("NPC sea routes foreign port contact handler must be a function");
@@ -375,7 +380,8 @@ export function createNpcSeaRouteSystem({
     routeCache: new Map(),
     edgeCostCache: new Map(),
     relationBetween,
-    mingTradeOpenToFaction,
+    foreignSettlementExpulsions,
+    sovereignTradeOpenToFaction,
     onForeignPortCall,
     contactStartMinute: startMinute,
     fishState,
@@ -547,7 +553,9 @@ export function restoreNpcSeaRouteSystem(
     whaleMemory = system?.whaleMemory || null,
     seedKey = system?.seedKey ?? null,
     relationBetween = system?.relationBetween || diplomacyBetween,
-    mingTradeOpenToFaction = system?.mingTradeOpenToFaction || defaultMingTradeOpenToFaction
+    foreignSettlementExpulsions = system?.foreignSettlementExpulsions ?? null,
+    sovereignTradeOpenToFaction = system?.sovereignTradeOpenToFaction ||
+      defaultSovereignTradeOpenToFaction
   } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
@@ -574,7 +582,10 @@ export function restoreNpcSeaRouteSystem(
       throw new Error(`Invalid saved NPC cartaz expiry: ${ship.id}`);
     }
     assertFactionId(ship.factionId);
-    shipStatsForSlug(ship.slug);
+    const stats = shipStatsForSlug(ship.slug);
+    const reconciledHull = reconcileShipHullForCurrentStats(stats, ship.hitPoints, ship.maxHitPoints);
+    ship.hitPoints = reconciledHull.hitPoints;
+    ship.maxHitPoints = reconciledHull.maxHitPoints;
     reconcileNpcCargoCapacity(ship, "save restore");
     shipById.set(ship.id, ship);
   }
@@ -592,11 +603,15 @@ export function restoreNpcSeaRouteSystem(
   system.whaleMemory = whaleMemory;
   system.whalingGrounds = whaleMemory ? buildWhalingGrounds() : [];
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
-  if (typeof mingTradeOpenToFaction !== "function") {
-    throw new Error("NPC sea routes require a Ming trade-access resolver");
+  if (foreignSettlementExpulsions !== null) {
+    validateForeignSettlementExpulsionMemory(foreignSettlementExpulsions);
+  }
+  if (typeof sovereignTradeOpenToFaction !== "function") {
+    throw new Error("NPC sea routes require a sovereign trade-access resolver");
   }
   system.relationBetween = relationBetween;
-  system.mingTradeOpenToFaction = mingTradeOpenToFaction;
+  system.foreignSettlementExpulsions = foreignSettlementExpulsions;
+  system.sovereignTradeOpenToFaction = sovereignTradeOpenToFaction;
   canonicalizeSavedNpcRoutePorts(system, ships);
   const replannedRoutes = replanNpcRoutesWithRemovedLaneEdges(system, ships);
   if (replannedRoutes > 0) {
@@ -893,10 +908,17 @@ export function npcShipHasCombatGrace(system, shipId) {
   return shipHasCombatGrace(ship);
 }
 
-export function damageNpcShip(system, shipId, amount) {
+export function damageNpcShip(system, shipId, amount, options = {}) {
   const ship = requiredNpcShip(system, shipId);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error(`Invalid NPC ship damage: ${amount}`);
-  ship.hitPoints = Math.max(0, ship.hitPoints - amount);
+  if (!options || typeof options !== "object") throw new Error("NPC ship damage options must be an object");
+  const bypassArmor = options.bypassArmor === true;
+  const armorRoll = options.armorRoll ?? Math.random();
+  const resisted = !bypassArmor && shipHullResistsDamage(shipStatsForSlug(ship.slug), {
+    roll: armorRoll
+  });
+  const damage = resisted ? 0 : amount;
+  ship.hitPoints = Math.max(0, ship.hitPoints - damage);
   if (ship.role === NPC_ROLE_PIRATE && ship.hitPoints > 0 && ship.hitPoints / ship.maxHitPoints <= PIRATE_HIDEOUT_RETREAT_HULL_RATIO) {
     ship.seekingHideout = true;
   }
@@ -904,6 +926,8 @@ export function damageNpcShip(system, shipId, amount) {
   return {
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
+    damage,
+    resisted,
     sunk: ship.hitPoints <= 0,
     shouldSurrender: ship.hitPoints > 0 && ship.hitPoints <= surrenderHitPoints
   };
@@ -1680,14 +1704,17 @@ function npcMerchantCanTradeAtPort(system, ship, port) {
     port,
     traderFactionId: ship.factionId,
     relation,
+    relationToFaction: (factionId) => system.relationBetween(ship.factionId, factionId),
+    foreignSettlementExpulsions: system.foreignSettlementExpulsions,
     simMinute: system.economy.lastMinute,
-    mingOpenTrade: system.mingTradeOpenToFaction(ship.factionId)
+    tradeAccessGranted: (policyId, factionId) => (
+      system.sovereignTradeOpenToFaction(policyId, factionId)
+    )
   }).allowed;
 }
 
-function defaultMingTradeOpenToFaction(factionId) {
-  assertFactionId(factionId);
-  return DEFAULT_MING_OPEN_TRADE_FACTION_IDS.includes(factionId);
+function defaultSovereignTradeOpenToFaction(policyId, factionId) {
+  return defaultSovereignTradeGrantedToFaction(policyId, factionId);
 }
 
 function npcNeedsFriendlyTradePort(ship) {
@@ -1817,6 +1844,8 @@ function npcTradeTerms(system, ship, port, goodId) {
     port,
     traderFactionId: ship.factionId,
     relation: system.relationBetween(ship.factionId, port.factionId),
+    relationToFaction: (factionId) => system.relationBetween(ship.factionId, factionId),
+    foreignSettlementExpulsions: system.foreignSettlementExpulsions,
     goodId
   });
 }
@@ -2837,8 +2866,12 @@ function assertSaveableNpcRouteSystem(system) {
       !Array.isArray(system.whalingGrounds) ||
       !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map) ||
       (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === "")) ||
-      typeof system.relationBetween !== "function" || typeof system.mingTradeOpenToFaction !== "function") {
+      typeof system.relationBetween !== "function" ||
+      typeof system.sovereignTradeOpenToFaction !== "function") {
     throw new Error("Invalid NPC route system");
+  }
+  if (system.foreignSettlementExpulsions !== null) {
+    validateForeignSettlementExpulsionMemory(system.foreignSettlementExpulsions);
   }
 }
 

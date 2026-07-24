@@ -101,6 +101,7 @@ export function createShipInfoView(ship, gameState) {
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
     propulsion: stats.propulsion,
     propulsionSummary: shipPropulsionSummary(stats),
+    armor: stats.armor,
     seaworthiness: stats.seaworthiness,
     survival: survivalStatus(gameState),
     ratings: Object.freeze({
@@ -133,6 +134,7 @@ export function createShipyardShipView(slug) {
     upwindStallAngleDeg: stats.upwindStallAngleDeg,
     propulsion: stats.propulsion,
     propulsionSummary: shipPropulsionSummary(stats),
+    armor: stats.armor,
     seaworthiness: stats.seaworthiness,
     ratings: Object.freeze({
       speed: shipPerformanceRating(stats, "speed"),
@@ -151,6 +153,7 @@ export function createShipComparisonView(currentSlug, candidateSlug) {
     candidate,
     metrics: Object.freeze([
       comparisonMetric("hull", "HULL", current.maxHull, candidate.maxHull),
+      comparisonMetric("armor", "ARMOR", current.armor, candidate.armor),
       comparisonMetric("crew", "CREW", current.crewCapacity, candidate.crewCapacity),
       comparisonMetric("cargo", "CARGO", current.cargoCapacity, candidate.cargoCapacity),
       comparisonMetric("speed", "SPEED", current.ratings.speed, candidate.ratings.speed),
@@ -196,7 +199,7 @@ export function shipPerformanceRating(stats, ratingName) {
 export function shipPropulsionSummary(stats) {
   if (!stats || typeof stats !== "object") throw new Error("Ship propulsion summary requires ship stats");
   if (stats.propulsion === SHIP_PROPULSION_OAR) return "OAR / NO DEAD ZONE";
-  if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) return "OAR + SAIL / ROWS UPWIND";
+  if (stats.propulsion === SHIP_PROPULSION_OAR_SAIL) return "OAR + SAIL / OARS WHEN FASTER";
   return `SAIL / ${stats.upwindStallAngleDeg} DEG`;
 }
 

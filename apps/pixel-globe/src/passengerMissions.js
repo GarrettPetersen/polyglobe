@@ -2,7 +2,7 @@ import {
   cityKey,
   cityLabel,
   isEnvoyQuest,
-  mingTradeOpenToFaction
+  sovereignTradeOpenToFaction
 } from "./gameState.js";
 import {
   DIPLOMACY_ALLY,
@@ -11,7 +11,10 @@ import {
 } from "./factions.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { rulerAtMinute } from "./rulers.js";
-import { MING_FACTION_ID } from "./mingTradeRestrictions.js";
+import {
+  SOVEREIGN_TRADE_ACCESS_POLICIES,
+  sovereignTradePolicyById
+} from "./sovereignTradeAccess.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -88,19 +91,27 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
   const spawnChance = passengerSpawnChance(context.envoySpawnChance ?? ENVOY_SPAWN_CHANCE);
   if (spawnChance < 1 && seededFraction(`${rollKey}|spawn`) >= spawnChance) return null;
 
-  const mingTradeTarget = mingTradeOpeningTarget(state, city, portCities);
-  if (mingTradeTarget) {
-    const distanceKm = greatCircleDistanceKm(city, mingTradeTarget);
+  const tradeAccessTarget = tradeAccessOpeningTarget(
+    state,
+    city,
+    portCities,
+    context.simMinute ?? 0
+  );
+  if (tradeAccessTarget) {
+    const distanceKm = greatCircleDistanceKm(city, tradeAccessTarget.port);
     const quest = buildEnvoyQuest(
       city,
-      mingTradeTarget,
+      tradeAccessTarget.port,
       "friendly-envoy",
       distanceKm,
       period,
       context.simMinute ?? 0,
-      { mingTradeOpeningFactionId: state.playerCharacter.nationalityId }
+      {
+        tradeAccessPolicyId: tradeAccessTarget.policy.id,
+        tradeAccessOpeningFactionId: state.playerCharacter.nationalityId
+      }
     );
-    attachEnvoyCharacter(quest, city, mingTradeTarget, context);
+    attachEnvoyCharacter(quest, city, tradeAccessTarget.port, context);
     quests.passengerOffers[cityKey(city)] = quest;
     return quest;
   }
@@ -134,11 +145,15 @@ export function pendingPassengerOfferForCity(state, city) {
   const quests = questMemory(state);
   const offer = quests.passengerOffers[cityKey(city)];
   if (!offer || quests.completed[offer.id]) return null;
-  if (offer.mingTradeOpeningFactionId && mingTradeOpenToFaction(state, offer.mingTradeOpeningFactionId)) {
+  if (offer.tradeAccessPolicyId && sovereignTradeOpenToFaction(
+    state,
+    offer.tradeAccessPolicyId,
+    offer.tradeAccessOpeningFactionId
+  )) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
-  if (!offer.mingTradeOpeningFactionId && !passengerDistanceIsMedium(offer.distanceKm)) {
+  if (!offer.tradeAccessPolicyId && !passengerDistanceIsMedium(offer.distanceKm)) {
     delete quests.passengerOffers[cityKey(city)];
     return null;
   }
@@ -182,9 +197,19 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
   const originRuler = rulerAtMinute(origin.factionId, simMinute);
   const targetRuler = rulerAtMinute(target.factionId, simMinute);
   if (!originRuler || !targetRuler) throw new Error("Envoy missions require sovereign origin and destination factions");
-  const mingTradeOpeningFactionId = options.mingTradeOpeningFactionId || null;
-  if (mingTradeOpeningFactionId !== null && kind !== "friendly-envoy") {
-    throw new Error("Ming trade opening requires a friendly envoy");
+  const tradeAccessPolicyId = options.tradeAccessPolicyId || null;
+  const tradeAccessOpeningFactionId = options.tradeAccessOpeningFactionId || null;
+  if ((tradeAccessPolicyId === null) !== (tradeAccessOpeningFactionId === null)) {
+    throw new Error("Trade-opening envoy requires both a policy and beneficiary faction");
+  }
+  if (tradeAccessPolicyId !== null && kind !== "friendly-envoy") {
+    throw new Error("Trade opening requires a friendly envoy");
+  }
+  const tradeAccessPolicy = tradeAccessPolicyId
+    ? sovereignTradePolicyById(tradeAccessPolicyId)
+    : null;
+  if (tradeAccessPolicy && target.factionId !== tradeAccessPolicy.hostFactionId) {
+    throw new Error(`Trade-opening envoy target does not host ${tradeAccessPolicy.id}`);
   }
   return {
     id: `${kind}-${origin.tileId}-${target.tileId}-${hashString32(seed).toString(36)}`,
@@ -211,38 +236,63 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
     passengerName: "Envoy",
     seen: false,
     envoySafePassageUntilMinute: {},
-    ...(mingTradeOpeningFactionId ? { mingTradeOpeningFactionId } : {}),
-    dialogue: mingTradeOpeningFactionId
-      ? mingTradeOpeningDialogueText(origin, target, reward, originRuler, targetRuler)
+    ...(tradeAccessPolicy ? {
+      tradeAccessPolicyId: tradeAccessPolicy.id,
+      tradeAccessOpeningFactionId
+    } : {}),
+    dialogue: tradeAccessPolicy
+      ? tradeAccessOpeningDialogueText(
+          origin,
+          target,
+          reward,
+          originRuler,
+          targetRuler,
+          tradeAccessPolicy
+        )
       : envoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler)
   };
 }
 
-function mingTradeOpeningTarget(state, origin, portCities) {
+function tradeAccessOpeningTarget(state, origin, portCities, simMinute) {
   const playerFactionId = state.playerCharacter?.nationalityId || null;
-  if (!playerFactionId || playerFactionId === MING_FACTION_ID ||
-      origin.factionId !== playerFactionId || mingTradeOpenToFaction(state, playerFactionId)) {
-    return null;
-  }
-  return portCities.find((port) => (
-    port.factionId === MING_FACTION_ID &&
-    port.isFactionCapital === true &&
-    port.capitalOfFactionId === MING_FACTION_ID &&
-    Number.isFinite(port.lat) &&
-    Number.isFinite(port.lon)
-  )) || null;
+  if (!playerFactionId || origin.factionId !== playerFactionId) return null;
+  const candidates = SOVEREIGN_TRADE_ACCESS_POLICIES
+    .filter((policy) => (
+      policy.hostFactionId !== playerFactionId &&
+      (policy.endMinute === null || simMinute < policy.endMinute) &&
+      !sovereignTradeOpenToFaction(state, policy.id, playerFactionId)
+    ))
+    .map((policy) => ({
+      policy,
+      port: portCities.find((port) => (
+        port.factionId === policy.hostFactionId &&
+        port.isFactionCapital === true &&
+        port.capitalOfFactionId === policy.hostFactionId &&
+        Number.isFinite(port.lat) &&
+        Number.isFinite(port.lon)
+      )) || null
+    }))
+    .filter((candidate) => candidate.port)
+    .map((candidate) => ({
+      ...candidate,
+      distanceKm: greatCircleDistanceKm(origin, candidate.port)
+    }))
+    .sort((left, right) => (
+      left.distanceKm - right.distanceKm || left.policy.id.localeCompare(right.policy.id)
+    ));
+  return candidates[0] || null;
 }
 
-function mingTradeOpeningDialogueText(origin, target, reward, originRuler, targetRuler) {
+function tradeAccessOpeningDialogueText(origin, target, reward, originRuler, targetRuler, policy) {
   const home = cityLabel(origin);
   const foreign = cityLabel(target);
   return {
-    offer: `${originRuler.displayName} seeks lawful trade with the Ming Empire. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
-    underway: `My memorial asks ${targetRuler.displayName} to open Ming markets to our merchants. The wording has taken months.`,
-    negotiationOpening: `I present ${originRuler.displayName}'s memorial in friendship. We ask leave for our merchants to enter Ming ports under lawful seal, customs, and the emperor's peace.`,
-    negotiation: `${targetRuler.displayName}'s ministers accept your embassy. Ming ports are now open to your nation's lawful trade; carry our sealed answer home.`,
-    returnUnderway: `The trade seal is granted. Set our course back to ${home} so ${originRuler.displayName} can publish the accord.`,
-    homecoming: `${originRuler.displayName} has received the Ming trade seal. Your ${reward} db is waiting at the treasury.`,
+    offer: `${originRuler.displayName} seeks ${policy.envoyPurpose}. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
+    underway: `My memorial asks ${targetRuler.displayName} to ${policy.envoyMemorial}. The wording has taken months.`,
+    negotiationOpening: `I present ${originRuler.displayName}'s memorial in friendship. We ask ${policy.envoyRequest}.`,
+    negotiation: `${targetRuler.displayName}'s ministers accept your embassy. ${policy.envoyGrant}; carry our sealed answer home.`,
+    returnUnderway: `The ${policy.permitLabel} is granted. Set our course back to ${home} so ${originRuler.displayName} can publish the accord.`,
+    homecoming: `${originRuler.displayName} has received the ${policy.permitLabel}. Your ${reward} db is waiting at the treasury.`,
     intercession: "Hold your fire! This vessel carries an accredited trade embassy between our nations."
   };
 }

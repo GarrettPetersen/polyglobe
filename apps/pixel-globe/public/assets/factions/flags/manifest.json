@@ -458,6 +458,26 @@
       ]
     },
     {
+      "id": "tidore",
+      "factionName": "Sultanate of Tidore",
+      "width": 32,
+      "height": 20,
+      "file": "tidore.png",
+      "evidence": "reconstruction",
+      "representation": "Traditional yellow Tidore sun standard",
+      "accuracyNote": "No secure state flag survives from 1522. This reconstruction follows the later documented royal-yellow Tidore standard with white corner suns and a central Jawi-inscribed sun, simplified for a 32x20 raster.",
+      "sources": [
+        {
+          "label": "Flags of the Princely States of the Dutch East Indies",
+          "url": "https://www.fiav.org/wp-content/uploads/2021/06/ICV2514-Marcel-van-Westerhoven-The-Flags-of-Princely-States-of-the-Dutch-East-Indies.pdf"
+        },
+        {
+          "label": "Al-Mansur and the Spanish alliance at Tidore",
+          "url": "https://repositori.kemendikdasmen.go.id/9902/1/Tidore.pdf"
+        }
+      ]
+    },
+    {
       "id": "japan",
       "factionName": "Ashikaga Japan",
       "width": 32,

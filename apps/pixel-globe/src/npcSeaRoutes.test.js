@@ -509,7 +509,7 @@ test("saved routes using removed Malacca crossings are replanned on restore", (t
   assert.match(messages[0][0], /Replanned 1 saved NPC routes/);
 });
 
-test("NPC traders obey diplomacy and the Ming maritime prohibition", () => {
+test("NPC traders obey diplomacy and sovereign market permissions", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
 
@@ -530,9 +530,8 @@ test("NPC traders obey diplomacy and the Ming maritime prohibition", () => {
           `${ship.id} planned a hostile call at ${plannedPort.city}`
         );
         if (plannedPort.factionId === "ming") {
-          assert.equal(
-            ship.factionId,
-            "ming",
+          assert.ok(
+            ship.factionId === "ming" || ship.factionId === "joseon",
             `${ship.id} planned unauthorized foreign trade at ${plannedPort.city}`
           );
         }
@@ -763,6 +762,33 @@ test("NPC hull damage preserves half-point arrow hits", () => {
 
   assert.equal(damage.hitPoints, before - 0.5);
   assert.equal(target.hitPoints, before - 0.5);
+});
+
+test("NPC turtle ships can reject damage with their intrinsic armor", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const turtleShip = configureNpcEncounter(routes, {
+    id: "armored-turtle-test",
+    factionId: "joseon",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "joseon-turtle-ship",
+    lat: 34,
+    lon: 128,
+    headingDeg: 90,
+    cultureType: "east-asian",
+    routeRegion: "east-asia",
+    specie: 0,
+    replaceOnSink: false
+  }, 1000);
+
+  const resisted = damageNpcShip(routes, turtleShip.id, 1, { armorRoll: 0.2 });
+  const penetrated = damageNpcShip(routes, turtleShip.id, 1, { armorRoll: 0.8 });
+
+  assert.equal(resisted.resisted, true);
+  assert.equal(resisted.damage, 0);
+  assert.equal(penetrated.resisted, false);
+  assert.equal(penetrated.damage, 1);
+  assert.equal(turtleShip.hitPoints, turtleShip.maxHitPoints - 1);
 });
 
 test("sunk NPC ships are replaced after a rare shipyard delay", () => {

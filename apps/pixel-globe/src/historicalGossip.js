@@ -49,6 +49,17 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     reflection: "A closed harbor often creates a hundred hidden anchorages."
   }),
   historicalEvent({
+    id: "moluccan-rival-alliances",
+    date: [1521, 11, 8],
+    gossipUntil: [1524, 1, 1],
+    countries: ["Indonesia"],
+    factionIds: ["ternate", "tidore", "spain", "portugal"],
+    place: "the Moluccas",
+    report: "Castilian survivors have sworn friendship with Sultan al-Mansur of Tidore while Portugal fortifies its position beside rival Ternate",
+    tradeImpact: "Clove merchants now weigh every cargo against two sultans and two foreign crowns.",
+    reflection: "On small islands, distant empires have found an old rivalry large enough to enter."
+  }),
+  historicalEvent({
     id: "elcano-returns",
     date: [1522, 9, 6],
     gossipUntil: [1524, 1, 1],

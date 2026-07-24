@@ -32,7 +32,7 @@ import {
   hasPrivateeringAuthorityAgainst,
   letterOfMarqueStatus,
   migrateGameState,
-  mingTradeOpenToFaction,
+  sovereignTradeOpenToFaction,
   pirateHideoutsVisibleToPlayer,
   playerPortDisguiseSuccessChance,
   playerShipIsWarship,
@@ -46,6 +46,11 @@ import {
 } from "./gameState.js";
 import { WORLD_DIPLOMACY_VERSION, makeDiplomaticPeace } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import {
+  JOSEON_TRADE_POLICY_ID,
+  MING_TRADE_POLICY_ID,
+  SPANISH_INDIES_TRADE_POLICY_ID
+} from "./sovereignTradeAccess.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -102,13 +107,34 @@ test("version 8 game states migrate diplomacy and ship classification without lo
   const restored = migrateGameState(saved, stats);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
-  assert.equal(mingTradeOpenToFaction(restored, "joseon"), true);
-  assert.equal(mingTradeOpenToFaction(restored, "england"), false);
+  assert.equal(sovereignTradeOpenToFaction(restored, MING_TRADE_POLICY_ID, "joseon"), true);
+  assert.equal(sovereignTradeOpenToFaction(restored, MING_TRADE_POLICY_ID, "england"), false);
   assert.ok(restored.relations.diplomacy);
   assert.deepEqual(restored.relations.safePassageUntilMinute, {});
   assert.equal(restored.ship.mass, stats.mass);
   assert.equal(restored.ship.navalWeaponKind, stats.navalWeaponKind);
   assert.equal(diplomacyBetweenForState(restored, "england", "france"), "war");
+});
+
+test("version 42 game states gain persistent foreign-settlement expulsion memory", () => {
+  const stats = shipStatsForSlug("fishing-lugger");
+  const saved = JSON.parse(JSON.stringify(createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    startMinute: 500,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  })));
+  saved.version = 42;
+  delete saved.relations.foreignSettlementExpulsions;
+
+  const restored = migrateGameState(saved, stats);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.deepEqual(restored.relations.foreignSettlementExpulsions, {
+    version: 1,
+    revision: 0,
+    byId: {}
+  });
 });
 
 test("version 8 game states retain version 1 diplomacy history during migration", () => {
@@ -154,7 +180,7 @@ test("version 9 game states preserve passage and gain diplomatic contacts", () =
   assert.deepEqual(restored.relations.diplomacy.contacts, {});
 });
 
-test("version 10 game states gain the initial Joseon Ming trade agreement", () => {
+test("version 10 game states gain the historically licensed trade defaults", () => {
   const stats = shipStatsForSlug("brigantine");
   const saved = JSON.parse(JSON.stringify(createGameState({
     cargoCapacity: stats.cargoCapacity,
@@ -163,12 +189,15 @@ test("version 10 game states gain the initial Joseon Ming trade agreement", () =
     shipStats: stats
   })));
   saved.version = 10;
+  delete saved.relations.tradeAccessGrants;
   delete saved.relations.mingOpenTradeFactionIds;
 
   const restored = migrateGameState(saved, stats);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
-  assert.deepEqual(restored.relations.mingOpenTradeFactionIds, ["joseon"]);
+  assert.deepEqual(restored.relations.tradeAccessGrants[MING_TRADE_POLICY_ID], ["joseon"]);
+  assert.deepEqual(restored.relations.tradeAccessGrants[JOSEON_TRADE_POLICY_ID], ["japan", "ming"]);
+  assert.deepEqual(restored.relations.tradeAccessGrants[SPANISH_INDIES_TRADE_POLICY_ID], []);
 });
 
 test("version 11 voyages gain empty persistent port conquest state", () => {
@@ -219,19 +248,25 @@ test("version 21 voyages retire Aztec faction references into Spanish Mexico", (
   assert.equal(JSON.stringify(restored).includes("aztec"), false);
 });
 
-test("version 39 voyages gain neutral standing with the new Ternate Sultanate", () => {
+test("older voyages gain neutral standing with newly added sultanates", () => {
   const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  saved.version = 39;
+  saved.version = 40;
   delete saved.relations.factionReputation.ternate;
+  delete saved.relations.factionReputation.tidore;
   saved.relations.safePassageRefusalUntilMinute.portugal = 12345;
-  saved.relations.mingOpenTradeFactionIds.push("england");
+  delete saved.relations.tradeAccessGrants;
+  saved.relations.mingOpenTradeFactionIds = ["joseon", "england"];
 
   const restored = migrateGameState(saved, null);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.equal(restored.relations.factionReputation.ternate, 0);
+  assert.equal(restored.relations.factionReputation.tidore, 0);
   assert.equal(restored.relations.safePassageRefusalUntilMinute.portugal, 12345);
-  assert.deepEqual(restored.relations.mingOpenTradeFactionIds, ["joseon", "england"]);
+  assert.deepEqual(
+    restored.relations.tradeAccessGrants[MING_TRADE_POLICY_ID],
+    ["england", "joseon"]
+  );
   validateGameState(restored);
 });
 

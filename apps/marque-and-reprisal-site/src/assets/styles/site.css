@@ -646,15 +646,91 @@ textarea {
   transform: translateY(0);
 }
 
-/* Press kit */
-
 .press .site-nav,
+.qa .site-nav,
 .legal .site-nav,
 .not-found .site-nav {
   position: relative;
   border-bottom: 1px solid rgba(226, 173, 79, 0.22);
   background: var(--night-soft);
 }
+
+/* Q&A */
+
+.qa-main {
+  padding: clamp(82px, 10vw, 150px) var(--gutter) clamp(110px, 13vw, 190px);
+  background: var(--foam);
+  color: var(--ink);
+}
+
+.qa-hero,
+.qa-list {
+  max-width: 980px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.qa-hero {
+  padding-bottom: clamp(65px, 8vw, 100px);
+  border-bottom: 2px solid var(--ink);
+}
+
+.qa-hero h1 {
+  max-width: 860px;
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(64px, 10vw, 126px);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.9;
+}
+
+.qa-hero > p:last-child {
+  max-width: 700px;
+  margin: 32px 0 0;
+  color: rgba(36, 28, 41, 0.72);
+  font-size: clamp(18px, 2vw, 22px);
+}
+
+.qa-entry {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: clamp(20px, 4vw, 50px);
+  padding: clamp(58px, 8vw, 92px) 0;
+  border-bottom: 1px solid rgba(36, 28, 41, 0.28);
+}
+
+.qa-number {
+  margin: 9px 0 0;
+  color: var(--wine);
+  font-family: var(--utility);
+  font-size: 11px;
+}
+
+.qa-entry h2 {
+  max-width: 820px;
+  margin: 0 0 32px;
+  font-family: var(--display);
+  font-size: clamp(34px, 4.6vw, 54px);
+  font-weight: 400;
+  line-height: 1.08;
+}
+
+.qa-answer {
+  max-width: 790px;
+  color: rgba(36, 28, 41, 0.8);
+  font-size: 18px;
+}
+
+.qa-answer p {
+  margin: 0;
+}
+
+.qa-answer p + p {
+  margin-top: 1.25em;
+}
+
+/* Press kit */
 
 .press-main {
   background: var(--foam);
@@ -1314,6 +1390,19 @@ textarea {
   .manifest-ledger div {
     grid-template-columns: 1fr;
     gap: 5px;
+  }
+
+  .qa-entry {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .qa-number {
+    margin-top: 0;
+  }
+
+  .qa-answer {
+    font-size: 17px;
   }
 
   .feature-course {

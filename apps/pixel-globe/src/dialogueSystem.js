@@ -78,6 +78,10 @@ import {
 } from "./religiousDialogue.js";
 import { religionById } from "./characterReligion.js";
 import {
+  activeForeignSettlements,
+  expelledForeignSettlements
+} from "./foreignSettlements.js";
+import {
   CUSTOM_LOADOUT_FIELDS,
   CUSTOM_LOADOUT_ID,
   SHIP_LOADOUT_PRESETS,
@@ -170,10 +174,9 @@ import {
   markCaribbeanGingerOfferSeen
 } from "./caribbeanGingerQuest.js";
 import {
-  MING_FACTION_ID,
-  MING_ILLICIT_MARKET_REPUTATION_PENALTY,
-  resolveMingIllicitMarketAttempt
-} from "./mingTradeRestrictions.js";
+  resolveSovereignIllicitMarketAttempt,
+  sovereignTradePolicyById
+} from "./sovereignTradeAccess.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   isPortugueseEstadoPort
@@ -234,8 +237,8 @@ export function createPortDialogueSession(city, options = {}) {
     nodeId: options.initialNodeId || "greeting",
     admittedToPort: options.admittedToPort === true,
     disguisedEntry: options.disguisedEntry === true,
-    mingIllicitTradeAccess: options.mingIllicitTradeAccess === true,
-    mingIllicitTradeAttempted: options.mingIllicitTradeAttempted === true,
+    illicitTradeAccessPolicyId: options.illicitTradeAccessPolicyId || null,
+    illicitTradeAttemptedPolicyId: options.illicitTradeAttemptedPolicyId || null,
     nextPortNodeId: options.nextPortNodeId || null,
     postDrunkNodeId: options.postDrunkNodeId || null,
     drunkVariant: options.drunkVariant || 0,
@@ -1180,23 +1183,36 @@ export function selectPortDialogueOption(
   if (action.type === "land-marines") {
     return { closed: false, action: { type: "land-marines" } };
   }
-  if (action.type === "attempt-ming-illicit-trade") {
+  if (action.type === "attempt-restricted-illicit-trade") {
     if (typeof context.random !== "function") {
-      throw new Error("Ming illicit market attempt requires a random source");
+      throw new Error("Restricted illicit market attempt requires a random source");
     }
-    if (session.mingIllicitTradeAttempted) {
-      throw new Error("Ming illicit market may only be approached once per port visit");
+    const policy = sovereignTradePolicyById(action.policyId);
+    const currentAccess = playerPortTradeAccess(session, city, gameState, context);
+    if (currentAccess.policyId !== policy.id || currentAccess.allowed) {
+      throw new Error(`Illicit market action does not match the closed port policy: ${policy.id}`);
     }
-    session.mingIllicitTradeAttempted = true;
-    if (resolveMingIllicitMarketAttempt(context.random())) {
-      session.mingIllicitTradeAccess = true;
+    if (session.illicitTradeAttemptedPolicyId === policy.id) {
+      throw new Error(`${policy.label} illicit market may only be approached once per port visit`);
+    }
+    session.illicitTradeAttemptedPolicyId = policy.id;
+    if (resolveSovereignIllicitMarketAttempt(policy.id, context.random())) {
+      session.illicitTradeAccessPolicyId = policy.id;
       session.feedback = "A discreet broker agrees to handle your cargo until you leave port.";
     } else {
-      adjustFactionReputation(gameState, MING_FACTION_ID, -MING_ILLICIT_MARKET_REPUTATION_PENALTY);
-      session.feedback = "The broker reports you to the harbor watch. Ming standing fell.";
+      adjustFactionReputation(
+        gameState,
+        policy.hostFactionId,
+        -policy.illicitMarketReputationPenalty
+      );
+      const faction = factionById(policy.hostFactionId);
+      session.feedback = `The broker reports you to the harbor watch. ${faction.adjective} standing fell.`;
     }
     session.selectedIndex = 0;
-    return { closed: false, mingIllicitMarketAccess: session.mingIllicitTradeAccess };
+    return {
+      closed: false,
+      illicitMarketAccessPolicyId: session.illicitTradeAccessPolicyId
+    };
   }
   if (action.type === "purchase-ship") {
     return { closed: false, action };
@@ -1875,13 +1891,26 @@ function greetingView(session, city, gameState, context) {
     listenerReligionId: gameState.playerCharacter?.religionId || null
   });
   const drunkMemoryRemark = rememberedDrunkFactorLine(session, memory);
+  const settlementRemark = foreignSettlementFactorLine(city, gameState);
+  const remarks = [drunkMemoryRemark, settlementRemark, greeting.text].filter(Boolean);
   return {
     speaker: speakerName(city),
     expressionId: greeting.expressionId,
-    text: drunkMemoryRemark ? `${drunkMemoryRemark} ${greeting.text}` : greeting.text,
+    text: remarks.join(" "),
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: "root" })]
   };
+}
+
+function foreignSettlementFactorLine(city, gameState) {
+  const memory = gameState.relations.foreignSettlementExpulsions;
+  const active = activeForeignSettlements(city, memory).map((entry) => entry.factorText);
+  const expelled = expelledForeignSettlements(city, memory).map((entry) => {
+    const resident = factionById(entry.factionId);
+    return `The ${entry.label.toLowerCase()} has been closed and its ${resident.adjective} residents expelled after relations turned hostile.`;
+  });
+  const remarks = [...active, ...expelled];
+  return remarks.length > 0 ? remarks.join(" ") : null;
 }
 
 function rememberedDrunkFactorLine(session, memory) {
@@ -1999,15 +2028,25 @@ function rootView(session, city, gameState, economy, context) {
         type: "node",
         nodeId: "buy"
       })]
-      : !session.mingIllicitTradeAttempted
-        ? [option("Seek illicit market", { type: "attempt-ming-illicit-trade" })]
+      : tradeAccess.policy && session.illicitTradeAttemptedPolicyId !== tradeAccess.policyId
+        ? [option("Seek illicit market", {
+          type: "attempt-restricted-illicit-trade",
+          policyId: tradeAccess.policyId
+        })]
         : []),
-    option("Equipment", { type: "node", nodeId: "equipment" }),
+    ...(tradeAccess.allowed
+      ? [option("Equipment", { type: "node", nodeId: "equipment" })]
+      : []),
     ...(context.shipStats ? [option(pirateHideout ? "Refit and provision" : "Ship loadout", {
       type: "node",
       nodeId: "loadout"
     })] : []),
-    option(pirateHideout ? "Visit the hidden yard" : "Visit shipyard", { type: "node", nodeId: "shipyard" }),
+    ...(tradeAccess.allowed
+      ? [option(pirateHideout ? "Visit the hidden yard" : "Visit shipyard", {
+        type: "node",
+        nodeId: "shipyard"
+      })]
+      : []),
     ...(tradeAccess.allowed
       ? [option(pirateHideout ? "Fence cargo" : tradeAccess.illicit ? "Sell cargo illicitly" : "Sell cargo", {
         type: "node",
@@ -2087,7 +2126,9 @@ function rootView(session, city, gameState, economy, context) {
     : session.disguisedEntry
     ? `Keep your disguise intact. Market specie: ${market.specie} db.`
     : tradeAccess.restricted && !tradeAccess.allowed
-    ? "The maritime prohibition closes this market to foreign trade. Harbor services remain available."
+    ? tradeAccess.policy
+      ? `${tradeAccess.policy.closedMarketText} Water, provisions, and ordinary harbor services remain available.`
+      : "Wartime orders close this market and its harbor services."
     : tradeAccess.illicit
     ? `Keep your market business discreet. Market specie: ${market.specie} db.`
     : `What business brings you to port? Market specie: ${market.specie} db.`;
@@ -2119,6 +2160,14 @@ function pendingCustomsNotice(session, city, gameState, tradeAccess) {
   const crownLevy = isPortugueseEstadoPort(city)
     ? " Pepper, cinnamon, cloves, and nutmeg remain subject to the Crown levy."
     : "";
+  if (notice.foreignSettlementPrivilege) {
+    const resident = factionById(notice.jurisdictionFactionId);
+    const settlement = notice.foreignSettlement;
+    if (notice.domestic) {
+      return `The ${settlement.label.toLowerCase()} enters ${resident.adjective} cargo under its own privileges, without foreign customs.${crownLevy}`;
+    }
+    return `Through the ${settlement.label.toLowerCase()}, cargo under your flag receives the more favorable ${notice.displayedRate}% customs rate.${crownLevy}`;
+  }
   if (notice.domestic) {
     return `Your own flag is entered here without foreign customs.${crownLevy}`;
   }
@@ -2143,7 +2192,7 @@ function pendingCustomsNotice(session, city, gameState, tradeAccess) {
 function playerPortTradeAccess(session, city, gameState, context) {
   return playerTradeAccess(gameState, city, {
     simMinute: context.simMinute ?? 0,
-    mingIllicitTradeAccess: session.mingIllicitTradeAccess === true,
+    illicitTradeAccessPolicyId: session.illicitTradeAccessPolicyId,
     disguisedEntry: session.disguisedEntry === true
   });
 }
@@ -2151,7 +2200,7 @@ function playerPortTradeAccess(session, city, gameState, context) {
 function tradeContext(session, context) {
   return {
     ...context,
-    mingIllicitTradeAccess: session.mingIllicitTradeAccess === true,
+    illicitTradeAccessPolicyId: session.illicitTradeAccessPolicyId,
     disguisedEntry: session.disguisedEntry === true
   };
 }

@@ -125,6 +125,8 @@ import {
   SHIP_PROPULSION_SAIL,
   SHIP_STATS,
   SHIP_STATS_BY_SLUG,
+  reconcileShipHullForCurrentStats,
+  shipHullResistsDamage,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
@@ -214,7 +216,7 @@ import {
   hasPrivateeringAuthorityAgainst,
   hasDiscovery,
   initializeProvisionalShipLoadout,
-  mingTradeOpenToFaction,
+  sovereignTradeOpenToFaction,
   isEnvoyQuest,
   loseFoodRations,
   loseCrew,
@@ -304,6 +306,7 @@ import {
 } from "./characterSkills.js";
 import { gameStatePerkTotals } from "./playerPerks.js";
 import { effectiveShipStats } from "./perkSystem.js";
+import { repairShipHullOverTime } from "./shipRepair.js";
 import {
   NAMED_CREW_ROLE_CHEF,
   NAMED_CREW_ROLE_HISTORIAN,
@@ -866,6 +869,10 @@ import {
   markFactionCapitalsOnPorts
 } from "./factions.js";
 import {
+  cityFlagFactionIds,
+  expelHostileForeignSettlements
+} from "./foreignSettlements.js";
+import {
   PORT_CONQUEST_MIN_CREW,
   PORT_CONQUEST_NPC_LANDING_RANGE_PX,
   applyPortConquestOwnership,
@@ -1070,9 +1077,9 @@ import {
   restoredShipPlacementPlan
 } from "./restoredShipNavigation.js";
 import {
-  polarNavigationCollision,
-  shipPositionWithinPolarNavigationLimit
-} from "./polarNavigation.js";
+  measureChartNorthUpDrift,
+  northUpProjectionIsStable
+} from "./chartReframe.js";
 import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
@@ -1446,7 +1453,7 @@ const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
 const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
 const STATUS_PERSON_PARTICLE_LIMIT = 320;
 const COLONY_DEPARTURE_DISTANCE_PX = 90;
-const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-1";
+const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-2";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
 const CITY_FLAG_W = 14;
@@ -1835,6 +1842,7 @@ const SFX_BOW_FIRE_URL = "assets/sfx/bow-fire.ogg";
 const SFX_ARROW_HIT_URL = "assets/sfx/arrow-hit.ogg";
 const SFX_HARBOUR_URL = "assets/sfx/freesound_community-harboursoundsanno1811-24015.ogg";
 const SFX_IMPACT_URL = "assets/sfx/dragon-studio-boulder-impact-487673.ogg";
+const SFX_ARMOR_GLANCE_URL = "assets/sfx/freesound_community-doorhit-98828.ogg";
 const SFX_SEAGULLS_URL = "assets/sfx/dragon-studio-seagull-calls-339723.ogg";
 const SFX_SHORE_WAVES_URL = "assets/sfx/soundsforyou-ocean-sea-soft-waves-121349.ogg";
 const SFX_HARSH_WIND_URL = "assets/sfx/dragon-studio-harsh-wind-515272.ogg";
@@ -1866,6 +1874,7 @@ const SFX_CANNON_POOL_SIZE = 8;
 const SFX_BOW_FIRE_POOL_SIZE = 6;
 const SFX_ARROW_HIT_POOL_SIZE = 6;
 const SFX_IMPACT_POOL_SIZE = 6;
+const SFX_ARMOR_GLANCE_POOL_SIZE = 6;
 const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
 const SFX_COIN_CLINK_POOL_SIZE = 8;
@@ -1884,6 +1893,7 @@ const SFX_CANNON_VOLUME = 0.76;
 const SFX_BOW_FIRE_VOLUME = 0.68;
 const SFX_ARROW_HIT_VOLUME = 0.54;
 const SFX_IMPACT_VOLUME = 0.64;
+const SFX_ARMOR_GLANCE_VOLUME = 0.72;
 const SFX_SAIL_DEPLOY_VOLUME = 0.22;
 const SFX_DISCOVERY_SUCCESS_VOLUME = 0.72;
 const SFX_COIN_CLINK_VOLUME = 0.58;
@@ -2312,6 +2322,9 @@ const grayscalePortraitCanvasCache = new WeakMap();
 const dialoguePortraitToneCanvasCache = new WeakMap();
 const cityShadowSpriteCache = new Map();
 let centerTileId = 0;
+let chartNorthUpDrift = measureChartNorthUpDrift([]);
+let chartReframeCoverWasActive = false;
+let chartDriftMeasuredAtMs = -Infinity;
 let playerWindState = null;
 let windIndicatorState = null;
 let shipyardPurchaseListingId = null;
@@ -2806,6 +2819,8 @@ async function main() {
     campaignGoalType,
     voyageSeed
   });
+  landTradeSystem.foreignSettlementExpulsions =
+    gameState.relations.foreignSettlementExpulsions;
   ensureNaturalistCharacter(gameState);
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
@@ -2820,6 +2835,7 @@ async function main() {
   sailingTutorialState = createSailingTutorialState();
   initializeProvisionalShipLoadout(gameState, ship.stats);
   if (CAPTURE_SCENARIO) applyCaptureDiplomacy(gameState, CAPTURE_SCENARIO.diplomacy);
+  reconcileForeignSettlementPolitics();
   npcSeaRoutes = createNpcSeaRouteSystem({
     ports: portCities,
     startMinute: weatherClockMinutes,
@@ -2828,7 +2844,10 @@ async function main() {
     whaleMemory: gameState.memory.whales,
     seedKey: gameState.voyageSeed,
     relationBetween: currentDiplomacyBetween,
-    mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(gameState, factionId),
+    foreignSettlementExpulsions: gameState.relations.foreignSettlementExpulsions,
+    sovereignTradeOpenToFaction: (policyId, factionId) => (
+      sovereignTradeOpenToFaction(gameState, policyId, factionId)
+    ),
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
   if (CAPTURE_SCENARIO) {
@@ -2868,6 +2887,7 @@ async function main() {
   centerTileId = ship.tileId;
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
+  reframeWorldNorthUp("new game setup");
   setupThemeMusic();
   setupSoundEffects();
   if (PERFORMANCE_BENCHMARK) setupPerformanceBenchmark();
@@ -3857,6 +3877,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     measurePerformanceBenchmarkStage("chart", () => ensureChart());
+    measureChartDriftAtInterval(nowMs);
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
     if (updateDiscoveries(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
@@ -5076,6 +5097,11 @@ function setupSoundEffects() {
     bowFire: createSoundPool(SFX_BOW_FIRE_URL, SFX_BOW_FIRE_POOL_SIZE, "bow fire"),
     arrowHit: createSoundPool(SFX_ARROW_HIT_URL, SFX_ARROW_HIT_POOL_SIZE, "arrow hit"),
     impact: createSoundPool(SFX_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "impact thud"),
+    armorGlance: createSoundPool(
+      SFX_ARMOR_GLANCE_URL,
+      SFX_ARMOR_GLANCE_POOL_SIZE,
+      "armor glance"
+    ),
     sailDeploy: createSoundPool(SFX_SAIL_DEPLOY_URL, SFX_SAIL_DEPLOY_POOL_SIZE, "sail deployment"),
     discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
     coinClink: createSoundPool(SFX_COIN_CLINK_URL, SFX_COIN_CLINK_POOL_SIZE, "coin clink"),
@@ -5345,6 +5371,7 @@ function applyThemeAudioSettings() {
       ...soundEffects.bowFire,
       ...soundEffects.arrowHit,
       ...soundEffects.impact,
+      ...soundEffects.armorGlance,
       ...soundEffects.sailDeploy,
       ...soundEffects.discoverySuccess,
       ...soundEffects.coinClink,
@@ -5476,6 +5503,11 @@ function playNavalImpactSound(projectile) {
 function playCannonImpactSound(distancePx = 0) {
   const distanceGain = clamp(1 - distancePx / CANNON_RANGE_PX, 0.35, 1);
   playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * distanceGain, 0.96);
+}
+
+function playArmorGlanceSound(distancePx = 0) {
+  const distanceGain = clamp(1 - distancePx / CANNON_RANGE_PX, 0.35, 1);
+  playSoundEffect(soundEffects?.armorGlance, SFX_ARMOR_GLANCE_VOLUME * distanceGain, 1.02);
 }
 
 function playSailDeploySound() {
@@ -7379,6 +7411,7 @@ function processLakeBattleEvents(battle) {
       playNavalAttackSound({ kind: event.weaponKind }, event.count, distanceFromPlayer);
     } else if (event.type === "hit") {
       if (event.weaponKind === NAVAL_WEAPON_ARROW) playArrowHitSound();
+      else if (event.resisted) playArmorGlanceSound(18);
       else playCannonImpactSound(18);
     } else if (event.type === "collision") {
       playCannonImpactSound(8);
@@ -7634,6 +7667,7 @@ function startNewVoyage() {
   sailingTutorialState = createSailingTutorialState();
   playerBoundaryAssistContact = null;
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
+  reframeWorldNorthUp("new voyage");
   hasStartedVoyage = true;
   closeStartMenu();
   revealMinimapFromChart(chart, chartOffsetPixels(chart));
@@ -7749,15 +7783,13 @@ async function restoreSavedVoyage(payload) {
   const savedPosition = normalize3(savedShip.position.slice());
   const positionTileId = findNearestTileId(graph, directionIndex, savedPosition);
   const frozenSavedTile = isShipBlockedByIceTile(savedShip.tileId);
-  const polarOutOfBounds = !shipPositionWithinPolarNavigationLimit(savedPosition);
-  const nearestOpenWaterTileId = frozenSavedTile || polarOutOfBounds
-    ? nearestTileMatching(savedShip.tileId, isPoleSafeShipOpenWaterTile)
+  const nearestOpenWaterTileId = frozenSavedTile
+    ? nearestTileMatching(savedShip.tileId, isShipOpenWaterTile)
     : undefined;
   const restorePlacement = restoredShipPlacementPlan({
     savedTileId: savedShip.tileId,
     positionTileId,
     frozen: frozenSavedTile,
-    polarOutOfBounds,
     nearestOpenWaterTileId
   });
   const position = restorePlacement.recenter
@@ -7771,8 +7803,13 @@ async function restoreSavedVoyage(payload) {
   ship.heading = normalizeTangentOrFallback(savedShip.heading, position, WORLD_NORTH);
   ship.targetHeading = normalizeTangentOrFallback(savedShip.targetHeading, position, ship.heading);
   ship.velocity = restorePlacement.stop ? [0, 0, 0] : savedShip.velocity.slice();
-  ship.hitPoints = savedShip.hitPoints;
-  ship.maxHitPoints = savedShip.maxHitPoints;
+  const restoredHull = reconcileShipHullForCurrentStats(
+    ship.stats,
+    savedShip.hitPoints,
+    savedShip.maxHitPoints
+  );
+  ship.hitPoints = restoredHull.hitPoints;
+  ship.maxHitPoints = restoredHull.maxHitPoints;
   ship.wakeSeedCounter = savedShip.wakeSeedCounter || 0;
   ship.cannonSequence = savedShip.cannonSequence || 0;
   ship.cannonCooldowns = { port: 0, starboard: 0 };
@@ -7841,6 +7878,7 @@ async function restoreSavedVoyage(payload) {
   localLayout = createLocalLayout(centerTileId);
   chart = buildChart(camera);
   reconcileRestoredShipDrawnNavigation(restorePlacement.reason);
+  reframeWorldNorthUp("continued voyage");
   resetPlayerWindState();
   windIndicatorState = null;
   setBackgroundMusicTrack("ship", { force: true });
@@ -7873,7 +7911,8 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     cities: [...cityByTileId.values()],
     startMinute: simulationMinute,
     seedKey,
-    relationBetween: currentDiplomacyBetween
+    relationBetween: currentDiplomacyBetween,
+    foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions
   });
   landTradeSystem.economy = worldEconomy;
   if (payload.landTrade) {
@@ -7904,7 +7943,10 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
       whaleMemory: restoredGameState.memory.whales,
       seedKey,
       relationBetween: currentDiplomacyBetween,
-      mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId)
+      foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+      sovereignTradeOpenToFaction: (policyId, factionId) => (
+        sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+      )
     })
   });
   npcSeaRoutes = npcRoutesResult.value;
@@ -7932,7 +7974,10 @@ function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
     whaleMemory: restoredGameState.memory.whales,
     seedKey: restoredGameState.voyageSeed,
     relationBetween: currentDiplomacyBetween,
-    mingTradeOpenToFaction: (factionId) => mingTradeOpenToFaction(restoredGameState, factionId),
+    foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+    sovereignTradeOpenToFaction: (policyId, factionId) => (
+      sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+    ),
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
 }
@@ -8226,7 +8271,7 @@ function queueAchievementPlatformSync(statValues = null) {
     });
 }
 
-function applyCurrentPortConquestOwnership() {
+function applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions = false } = {}) {
   if (!gameState?.memory?.conquest) throw new Error("Cannot apply port ownership without conquest state");
   applyPortConquestOwnership(gameState.memory.conquest, portCities);
   const factionByTileId = new Map(portCities.map((city) => [city.tileId, city.factionId]));
@@ -8251,6 +8296,7 @@ function applyCurrentPortConquestOwnership() {
   }
   shoreBatteryStates.clear();
   shoreBatteryUpdateAccumulator = 0;
+  reconcileForeignSettlementPolitics({ notify: notifyForeignSettlementExpulsions });
   return factionByTileId;
 }
 
@@ -10782,7 +10828,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     "player"
   );
   clearPlayerPortAssault(gameState.memory.flags, cityCall);
-  applyCurrentPortConquestOwnership();
+  applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
   clearCombatForShip(PLAYER_COMBAT_ID);
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
   const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
@@ -11415,8 +11461,8 @@ function startWaitingInPort(city) {
     portId: city.portId || `city-${city.tileId}`,
     startedAtMinute: weatherClockMinutes,
     disguisedEntry: dialogueState?.disguisedEntry === true,
-    mingIllicitTradeAccess: dialogueState?.mingIllicitTradeAccess === true,
-    mingIllicitTradeAttempted: dialogueState?.mingIllicitTradeAttempted === true
+    illicitTradeAccessPolicyId: dialogueState?.illicitTradeAccessPolicyId || null,
+    illicitTradeAttemptedPolicyId: dialogueState?.illicitTradeAttemptedPolicyId || null
   };
   departureControlFeedback = null;
   resetSurvivalDamageTimers();
@@ -11444,8 +11490,8 @@ function stopWaitingInPort() {
   const city = chartPortCallById(portWaitState.portId) || cityByTileId.get(portWaitState.cityTileId);
   const character = city?.character || (city ? portCityCharacters?.get(city.tileId) : null);
   const disguisedEntry = portWaitState.disguisedEntry === true;
-  const mingIllicitTradeAccess = portWaitState.mingIllicitTradeAccess === true;
-  const mingIllicitTradeAttempted = portWaitState.mingIllicitTradeAttempted === true;
+  const illicitTradeAccessPolicyId = portWaitState.illicitTradeAccessPolicyId || null;
+  const illicitTradeAttemptedPolicyId = portWaitState.illicitTradeAttemptedPolicyId || null;
   portWaitState = null;
   portWaitButtonRect = null;
   departureControlFeedback = null;
@@ -11462,8 +11508,8 @@ function stopWaitingInPort() {
     initialNodeId: "root",
     admittedToPort: true,
     disguisedEntry,
-    mingIllicitTradeAccess,
-    mingIllicitTradeAttempted
+    illicitTradeAccessPolicyId,
+    illicitTradeAttemptedPolicyId
   });
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
@@ -11523,6 +11569,7 @@ function chooseDialogueOption(optionIndex) {
     if (result.colonizationChanged) {
       syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
     }
+    reconcileForeignSettlementPolitics({ notify: true });
     if (result.colonizationDefenseStarted) ensureColonizationDefenseEncounter();
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
@@ -11595,6 +11642,7 @@ function chooseDialogueOption(optionIndex) {
       optionIndex,
       portDialogueContext()
     );
+    reconcileForeignSettlementPolitics({ notify: true });
     syncShipCargoFromGameState();
     if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
     saveVoyageNow("quest decision");
@@ -11606,9 +11654,11 @@ function chooseDialogueOption(optionIndex) {
       const negotiation = result.action.negotiation;
       const event = negotiation.events[0] || null;
       showSurvivalNotice(
-        negotiation.mingTradeOpened ? "MING TRADE OPENED" :
+        negotiation.foreignSettlementExpulsions.length > 0
+          ? foreignSettlementExpulsionNotice(negotiation.foreignSettlementExpulsions)
+          : negotiation.tradeAccessOpened ? "FOREIGN MARKET OPENED" :
           event ? diplomacyEventNotice(event) : "DIPLOMATIC MISSION ADVANCES",
-        "good"
+        negotiation.foreignSettlementExpulsions.length > 0 ? "warn" : "good"
       );
       saveVoyageNow("envoy negotiations");
     }
@@ -12250,6 +12300,7 @@ function portDialogueContext() {
   return {
     random: Math.random,
     missionGiftRandom: Math.random,
+    portCities,
     simMinute,
     dayIndex: weatherParts.dayIndex,
     shipPower: playerShipPrivateeringPower(),
@@ -13450,6 +13501,261 @@ function createLocalLayout(centerId) {
   };
 }
 
+function measureChartDriftAtInterval(nowMs) {
+  if (nowMs - chartDriftMeasuredAtMs < 1000) return chartNorthUpDrift;
+  chartDriftMeasuredAtMs = nowMs;
+  return measureCurrentChartNorthUpDrift();
+}
+
+function measureCurrentChartNorthUpDrift() {
+  if (!ship || !camera || !chart || !localLayout) {
+    chartNorthUpDrift = measureChartNorthUpDrift([]);
+    return chartNorthUpDrift;
+  }
+  const northUp = northUpCamera(ship.position, camera.right);
+  const halfWidth = SCREEN_W / 2 + VIEW_MARGIN;
+  const halfHeight = SCREEN_H / 2 + VIEW_MARGIN;
+  const samples = [];
+  for (const call of chart.tileCalls) {
+    const localX = call.x - localLayout.viewX;
+    const localY = call.y - localLayout.viewY;
+    if (Math.abs(localX) > halfWidth || Math.abs(localY) > halfHeight) continue;
+    const projected = projectDirectionFor(tileCenterVector(call.id), northUp, false);
+    if (!projected) continue;
+    samples.push({
+      localX,
+      localY,
+      northX: projected.x - SCREEN_W / 2,
+      northY: projected.y - SCREEN_H / 2
+    });
+  }
+  chartNorthUpDrift = measureChartNorthUpDrift(samples);
+  window.__PIXEL_GLOBE_CHART_DRIFT__ = chartNorthUpDrift;
+  return chartNorthUpDrift;
+}
+
+function prepareNorthUpWorldBehindCover() {
+  const coverIsActive = opaqueWorldCoverIsActive();
+  if (coverIsActive && !chartReframeCoverWasActive && ship && camera && chart && localLayout) {
+    reframeWorldNorthUp("opaque screen opened");
+  }
+  chartReframeCoverWasActive = coverIsActive;
+}
+
+function opaqueWorldCoverIsActive() {
+  return Boolean(
+    startMenu ||
+    gameOverReason ||
+    dialogueState ||
+    playerIntroModal ||
+    captainAlertModal ||
+    captainMenu.isOpen ||
+    optionsMenu.isOpen ||
+    creditsMenu.isOpen ||
+    pastVoyagesMenu.isOpen ||
+    discoveriesMenu.isOpen ||
+    achievementsMenu.isOpen ||
+    shipInfoMenu.isOpen ||
+    politicsMenu.isOpen ||
+    navigationMenu.isOpen ||
+    aboardMenu.isOpen
+  );
+}
+
+function reframeWorldNorthUp(reason) {
+  if (lakeBattleMode || !ship || !camera || !chart || !localLayout) return false;
+  if (typeof reason !== "string" || reason.length === 0) {
+    throw new Error("North-up chart reframe requires a reason");
+  }
+
+  const driftBefore = measureCurrentChartNorthUpDrift();
+  commitPlayerVisualPositionToGlobe();
+  const npcStates = commitNpcVisualPositionsToGlobe();
+  const playerProjectilePositions = captureProjectileGlobePositions(ship.navalProjectiles);
+  const npcProjectilePositions = captureProjectileGlobePositions(npcCombatProjectiles);
+
+  camera = northUpCamera(ship.position, camera.right);
+  centerTileId = ship.tileId;
+  localLayout = createNorthUpLocalLayout(centerTileId, ship.position, camera);
+  chart = buildChart(camera);
+  commitPlayerPositionFromReframedChart();
+  reprojectNpcVisualPositions(npcStates);
+  reprojectProjectileGlobePositions(playerProjectilePositions);
+  reprojectProjectileGlobePositions(npcProjectilePositions);
+  clearLocalChartTransientEffects();
+
+  chartNorthUpDrift = measureCurrentChartNorthUpDrift();
+  chartDriftMeasuredAtMs = lastFrameMs;
+  console.info(
+    `[pixel-globe] north-up chart reframe (${reason}): ` +
+      `${driftBefore.rotationDeg.toFixed(2)}deg rotation, ` +
+      `${driftBefore.rmsDistortionPx.toFixed(2)}px RMS, ` +
+      `${npcStates.length} NPC ships, ` +
+      `${gameState?.memory?.whales?.individuals?.length || 0} whales, ` +
+      `${landTradeSystem?.carts?.length || 0} carts`
+  );
+  dirty = true;
+  return true;
+}
+
+function commitPlayerVisualPositionToGlobe() {
+  const visualTile = localCollisionTileAtPoint(localLayout.viewX, localLayout.viewY);
+  if (!visualTile) throw new Error("Cannot commit player visual position during chart reframe");
+  ship.tileId = visualTile.tileId;
+  ship.position = globePositionForLocalPoint(
+    ship.tileId,
+    localLayout.viewX,
+    localLayout.viewY
+  );
+  ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
+  ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
+  ship.velocity = projectTangentVector(ship.velocity, ship.position);
+}
+
+function commitNpcVisualPositionsToGlobe() {
+  const states = [...npcVisualShips.values()];
+  for (const state of states) {
+    state.vector = globePositionForLocalPoint(state.tileId, state.x, state.y);
+    state.heading = normalizeTangentOrFallback(state.heading, state.vector, WORLD_NORTH);
+    setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
+  }
+  return states;
+}
+
+function createNorthUpLocalLayout(tileId, focusPosition, frame) {
+  const tileCenter = tileCenterVector(tileId);
+  const alignment = dot3(focusPosition, tileCenter);
+  if (alignment <= 0) {
+    throw new Error(`Cannot anchor north-up layout to tile ${tileId}; focus is beyond its tangent plane`);
+  }
+  const tangent = [
+    focusPosition[0] / alignment - tileCenter[0],
+    focusPosition[1] / alignment - tileCenter[1],
+    focusPosition[2] / alignment - tileCenter[2]
+  ];
+  return {
+    viewX: 0,
+    viewY: 0,
+    positions: new Map([[
+      tileId,
+      {
+        x: Math.round(-dot3(tangent, frame.right) * PIXELS_PER_RADIAN),
+        y: Math.round(dot3(tangent, frame.up) * PIXELS_PER_RADIAN)
+      }
+    ]])
+  };
+}
+
+function commitPlayerPositionFromReframedChart() {
+  const visualTile = localCollisionTileAtPoint(localLayout.viewX, localLayout.viewY);
+  if (!visualTile) throw new Error("North-up chart has no tile under the player");
+  ship.tileId = visualTile.tileId;
+  ship.position = globePositionForLocalPoint(
+    ship.tileId,
+    localLayout.viewX,
+    localLayout.viewY
+  );
+  ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
+  ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
+  ship.velocity = projectTangentVector(ship.velocity, ship.position);
+  camera = northUpCamera(ship.position, camera.right);
+  centerTileId = ship.tileId;
+}
+
+function reprojectNpcVisualPositions(states) {
+  for (const state of states) {
+    const point = localPointForGlobeVector(state.vector);
+    if (!point) {
+      throw new Error(`North-up chart could not reproject visual NPC ship ${state.id}`);
+    }
+    state.x = point.x;
+    state.y = point.y;
+    state.tileId = point.tileId;
+    state.vector = globePositionForLocalPoint(state.tileId, state.x, state.y);
+    state.heading = normalizeTangentOrFallback(state.heading, state.vector, WORLD_NORTH);
+    state.collisionVelocityX = 0;
+    state.collisionVelocityY = 0;
+    clearNpcEscapeManeuver(state, true);
+    clearNpcTackManeuver(state);
+    clearNpcRiverRail(state);
+    setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
+  }
+}
+
+function captureProjectileGlobePositions(projectiles) {
+  return projectiles.map((projectile) => ({
+    projectile,
+    start: chartPointToGlobeDirection(projectile.startX, projectile.startY),
+    target: chartPointToGlobeDirection(projectile.targetX, projectile.targetY)
+  }));
+}
+
+function chartPointToGlobeDirection(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error(`Cannot unproject invalid chart point: ${x},${y}`);
+  }
+  const tangentX = (x - localLayout.viewX) / PIXELS_PER_RADIAN;
+  const tangentY = -(y - localLayout.viewY) / PIXELS_PER_RADIAN;
+  const angle = Math.hypot(tangentX, tangentY);
+  if (angle <= 1e-12) return camera.center.slice();
+  const tangent = [
+    (camera.right[0] * tangentX + camera.up[0] * tangentY) / angle,
+    (camera.right[1] * tangentX + camera.up[1] * tangentY) / angle,
+    (camera.right[2] * tangentX + camera.up[2] * tangentY) / angle
+  ];
+  return normalize3([
+    camera.center[0] * Math.cos(angle) + tangent[0] * Math.sin(angle),
+    camera.center[1] * Math.cos(angle) + tangent[1] * Math.sin(angle),
+    camera.center[2] * Math.cos(angle) + tangent[2] * Math.sin(angle)
+  ]);
+}
+
+function reprojectProjectileGlobePositions(entries) {
+  for (const entry of entries) {
+    const start = globeDirectionToChartPoint(entry.start);
+    const target = globeDirectionToChartPoint(entry.target);
+    entry.projectile.startX = start.x;
+    entry.projectile.startY = start.y;
+    entry.projectile.targetX = target.x;
+    entry.projectile.targetY = target.y;
+  }
+}
+
+function globeDirectionToChartPoint(direction) {
+  const projected = projectDirectionFor(direction, camera, false);
+  if (!projected) throw new Error("North-up chart could not reproject an active projectile");
+  return {
+    x: projected.x - SCREEN_W / 2 + localLayout.viewX,
+    y: projected.y - SCREEN_H / 2 + localLayout.viewY
+  };
+}
+
+function clearLocalChartTransientEffects() {
+  ship.wakeParticles = [];
+  ship.lastWakeEmit = null;
+  ship.cannonSplashes = [];
+  npcCombatSplashes = [];
+  cannonSmokeBursts = [];
+  hullSplinterBursts = [];
+  precipParticles = [];
+  visiblePrecipitationLastRender = false;
+  seagulls = [];
+  seagullNextSpawnMs = lastFrameMs + SEAGULL_SPAWN_CHECK_MS;
+  worldShipSinkEffects = [];
+  whaleKillEffects = [];
+  fishIndividualFrameCache = null;
+  if (whaleHarpoonProjectile) {
+    whaleHarpoonProjectile.startX = SCREEN_W / 2;
+    whaleHarpoonProjectile.startY = SCREEN_H / 2;
+    const whale = whaleById(gameState.memory.whales, whaleHarpoonProjectile.whaleId);
+    const call = whaleInteractionCall(whale);
+    if (call) {
+      whaleHarpoonProjectile.targetX = call.x;
+      whaleHarpoonProjectile.targetY = call.y;
+    }
+  }
+}
+
 function syncColonizationWorldState(state, { startMinute = weatherClockMinutes } = {}) {
   if (!state?.memory?.colonization) throw new Error("Cannot sync colonization without quest state");
   const binding = bindColonizationQuestSelection(state);
@@ -13681,12 +13987,12 @@ function createShip(latDeg, lonDeg, shipSlug, factionId) {
 
 function nearestShipStartTile(direction) {
   const startId = findNearestTileId(graph, directionIndex, direction);
-  if (isPoleSafeShipNavigableTile(startId)) return startId;
-  const oceanId = nearestTileMatching(startId, isPoleSafeShipOceanTile);
+  if (isShipNavigableTile(startId)) return startId;
+  const oceanId = nearestTileMatching(startId, isShipOceanTile);
   if (oceanId !== undefined) return oceanId;
-  const openWaterId = nearestTileMatching(startId, isPoleSafeShipOpenWaterTile);
+  const openWaterId = nearestTileMatching(startId, isShipOpenWaterTile);
   if (openWaterId !== undefined) return openWaterId;
-  const navigableId = nearestTileMatching(startId, isPoleSafeShipNavigableTile);
+  const navigableId = nearestTileMatching(startId, isShipNavigableTile);
   if (navigableId !== undefined) return navigableId;
   throw new Error("Could not find a navigable start tile for the ship");
 }
@@ -14519,13 +14825,6 @@ function attemptShipStep(fromPosition, fromTileId, step) {
       fromPosition[1] + step[1] * (i / segments),
       fromPosition[2] + step[2] * (i / segments)
     ]);
-    const polarCollision = polarNavigationCollision(fromPosition, position);
-    if (polarCollision) {
-      return {
-        ok: false,
-        normal: polarCollision.normal
-      };
-    }
     const localPoint = localCollisionPointForPosition(fromPosition, position);
     const collisionTile = localCollisionTileAtPoint(localPoint.x, localPoint.y);
     if (!collisionTile) return { ok: false };
@@ -14814,10 +15113,6 @@ function isShipNavigableTile(tileId) {
   return isShipOpenWaterTile(tileId) || shipTileHasRiver(tileId);
 }
 
-function isPoleSafeShipNavigableTile(tileId) {
-  return isShipNavigableTile(tileId) && shipPositionWithinPolarNavigationLimit(tileCenterVector(tileId));
-}
-
 function isShipBaseNavigableTile(tileId) {
   return isWaterSurfaceRow(earthById[tileId]) || shipTileHasRiver(tileId);
 }
@@ -14826,16 +15121,8 @@ function isShipOpenWaterTile(tileId) {
   return isWaterSurfaceRow(earthById[tileId]) && !isShipBlockedByIceTile(tileId);
 }
 
-function isPoleSafeShipOpenWaterTile(tileId) {
-  return isShipOpenWaterTile(tileId) && shipPositionWithinPolarNavigationLimit(tileCenterVector(tileId));
-}
-
 function isShipOceanTile(tileId) {
   return earthById[tileId]?.t === "water" && !isShipBlockedByIceTile(tileId);
-}
-
-function isPoleSafeShipOceanTile(tileId) {
-  return isShipOceanTile(tileId) && shipPositionWithinPolarNavigationLimit(tileCenterVector(tileId));
 }
 
 function isShipBlockedByIceTile(tileId) {
@@ -15531,7 +15818,7 @@ function attemptNpcPortConquest(battery, npcShipId) {
   clearPlayerPortAssault(gameState.memory.flags, city);
   const conqueringFaction = factionById(strategic.factionId);
   const defeatedFaction = factionById(event.previousFactionId);
-  applyCurrentPortConquestOwnership();
+  applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
   const collapseText = event.collapsedFactionId ? `; ${defeatedFaction.name.toUpperCase()} COLLAPSES` : "";
   showSurvivalNotice(
     `${event.cityName.toUpperCase()} TAKEN BY ${conqueringFaction.adjective.toUpperCase()} FORCES${collapseText}`,
@@ -15559,16 +15846,23 @@ function applyPlayerNavalHit(ball, target, point) {
   if (!shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, target.id))) {
     beginPlayerInitiatedCombat(target.id);
   }
-  playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   const damage = damageNpcShip(npcSeaRoutes, target.id, ball.damage);
+  const impact = { ...ball, targetX: point.x, targetY: point.y };
+  if (damage.resisted && ball.kind === NAVAL_WEAPON_CANNON) {
+    playArmorGlanceSound(Math.hypot(point.x - ball.startX, point.y - ball.startY));
+  } else {
+    playNavalImpactSound(impact);
+  }
   emitCaptureEvent("projectile-hit", {
     ownerId: PLAYER_COMBAT_ID,
     targetId: target.id,
     weapon: ball.kind,
-    damage: ball.damage,
+    damage: damage.damage,
+    resisted: damage.resisted,
     remainingHitPoints: damage.hitPoints
   });
   target.hitPoints = damage.hitPoints;
+  if (damage.resisted) return;
   if (damage.sunk) handleNpcSinking(target.id, PLAYER_COMBAT_ID);
   else {
     addHullSplinterBurst(ball, point);
@@ -15835,10 +16129,39 @@ function updateWorldDiplomacy() {
   const diplomacy = gameState?.relations?.diplomacy;
   if (!diplomacy || weatherClockMinutes < diplomacy.nextEventMinute) return false;
   const events = advanceGameDiplomacy(gameState, weatherClockMinutes);
-  if (events.length === 0) return false;
+  const expulsions = reconcileForeignSettlementPolitics();
+  if (events.length === 0 && expulsions.length === 0) return false;
+  if (expulsions.length > 0) {
+    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn");
+    return true;
+  }
   const latest = events[events.length - 1];
   showSurvivalNotice(diplomacyEventNotice(latest), latest.kind === "peace" ? "good" : "warn");
   return true;
+}
+
+function reconcileForeignSettlementPolitics({ notify = false } = {}) {
+  if (!gameState?.relations?.foreignSettlementExpulsions) return Object.freeze([]);
+  const events = expelHostileForeignSettlements({
+    memory: gameState.relations.foreignSettlementExpulsions,
+    ports: portCities,
+    relationBetween: currentDiplomacyBetween,
+    simMinute: Math.max(0, Math.floor(weatherClockMinutes))
+  });
+  if (events.length === 0) return events;
+  if (notify) showSurvivalNotice(foreignSettlementExpulsionNotice(events), "warn");
+  dirty = true;
+  return events;
+}
+
+function foreignSettlementExpulsionNotice(events) {
+  if (!Array.isArray(events) || events.length === 0) {
+    throw new Error("Foreign settlement expulsion notice requires an event");
+  }
+  const event = events[0];
+  const resident = factionById(event.residentFactionId);
+  const suffix = events.length > 1 ? ` +${events.length - 1} OTHERS` : "";
+  return `${resident.adjective.toUpperCase()} SETTLEMENT EXPELLED FROM ${event.city.toUpperCase()}${suffix}`;
 }
 
 function recordNpcDiplomaticPortCall(visitingFactionId, portFactionId, simMinute) {
@@ -15854,16 +16177,24 @@ function recordNpcDiplomaticPortCall(visitingFactionId, portFactionId, simMinute
 function updatePlayerSurvival(previousMinute, currentMinute) {
   if (!gameState || !ship || gameOverReason || currentMinute <= previousMinute) return false;
   const safePort = playerShipIsInvulnerable();
+  const perks = currentPlayerPerkTotals();
   const result = updateSurvival(gameState, previousMinute, currentMinute, {
     freshwater: shipIsInFreshWater(),
     rainfall: playerRainfallStrength(),
     safePort,
-    foodDurationMultiplier: currentPlayerPerkTotals().foodDurationMultiplier
+    foodDurationMultiplier: perks.foodDurationMultiplier
   });
   if (safePort) {
     resetSurvivalDamageTimers();
     return result.changed;
   }
+  const hullRepaired = playerHasCombatEngagement()
+    ? 0
+    : repairShipHullOverTime(
+        ship,
+        currentMinute - previousMinute,
+        perks.hullRepairFractionPerDay
+      );
   if (result.freshWaterRefilled) showSurvivalNotice("FRESH WATER REFILLED", "good");
   if (result.changed) syncShipCargoFromGameState();
   queueWineCaptainDialogues(result);
@@ -15876,7 +16207,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   if (status.foodRations > 0 && status.foodDays <= 3) {
     showSurvivalNotice("FOOD LOW", "warn");
   }
-  return result.changed || deprivationChanged;
+  return result.changed || deprivationChanged || hullRepaired > 0;
 }
 
 function queueWineCaptainDialogues(result) {
@@ -16129,7 +16460,7 @@ function updateStormDamage(previousMinute, currentMinute) {
     durationSeconds: 0,
     clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
   });
-  if (playerHullDamageWasResisted("LIGHTNING")) {
+  if (playerHullDamageWasResisted("LIGHTNING", { includeHullArmor: false })) {
     syncAchievementsFromGameState({ type: "survived-lightning-strike" });
     return true;
   }
@@ -17595,38 +17926,69 @@ function applyNpcCombatHit(ball, targetId, point) {
     if (ball.kind === NAVAL_WEAPON_CANNON) addNpcCombatSplash(ball);
     return;
   }
-  playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   if (targetId === PLAYER_COMBAT_ID) {
-    if (ball.kind === NAVAL_WEAPON_CANNON && playerHullDamageWasResisted("CANNONBALL")) return;
-    ship.hitPoints = Math.max(0, ship.hitPoints - ball.damage);
+    const resisted = playerHullDamageWasResisted(
+      ball.kind === NAVAL_WEAPON_CANNON ? "CANNONBALL" : "ARROWS",
+      {
+        notify: ball.kind !== NAVAL_WEAPON_CANNON
+      }
+    );
+    if (resisted) {
+      if (ball.kind === NAVAL_WEAPON_CANNON) {
+        playArmorGlanceSound(Math.hypot(point.x - ball.startX, point.y - ball.startY));
+      } else {
+        playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
+      }
+      emitCaptureEvent("projectile-hit", {
+        ownerId: ball.ownerId,
+        targetId,
+        weapon: ball.kind,
+        damage: 0,
+        resisted: true,
+        remainingHitPoints: ship.hitPoints
+      });
+      return;
+    }
+    playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
+    const damage = ball.damage;
+    ship.hitPoints = Math.max(0, ship.hitPoints - damage);
     emitCaptureEvent("projectile-hit", {
       ownerId: ball.ownerId,
       targetId,
       weapon: ball.kind,
-      damage: ball.damage,
+      damage,
+      resisted: false,
       remainingHitPoints: ship.hitPoints
     });
-    applyCrewCasualtiesFromHullDamage(ball.damage, "The last of the crew fell in battle.");
+    applyCrewCasualtiesFromHullDamage(damage, "The last of the crew fell in battle.");
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in battle.");
     else addHullSplinterBurst(ball, point);
     return;
   }
 
   if (battery) {
+    playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
     applyShoreBatteryHit(ball, battery, point, false);
     return;
   }
 
   const damage = damageNpcShip(npcSeaRoutes, targetId, ball.damage);
+  if (damage.resisted && ball.kind === NAVAL_WEAPON_CANNON) {
+    playArmorGlanceSound(Math.hypot(point.x - ball.startX, point.y - ball.startY));
+  } else {
+    playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
+  }
   emitCaptureEvent("projectile-hit", {
     ownerId: ball.ownerId,
     targetId,
     weapon: ball.kind,
-    damage: ball.damage,
+    damage: damage.damage,
+    resisted: damage.resisted,
     remainingHitPoints: damage.hitPoints
   });
   const state = npcVisualShips.get(targetId);
   if (state) state.hitPoints = damage.hitPoints;
+  if (damage.resisted) return;
   if (damage.sunk) handleNpcSinking(targetId, ball.ownerId);
   else {
     addHullSplinterBurst(ball, point);
@@ -18154,10 +18516,11 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   if (id === PLAYER_COMBAT_ID) {
     if (playerShipIsInvulnerable()) return;
     if (playerHullDamageWasResisted("COLLISION")) return;
-    ship.hitPoints = Math.max(0, ship.hitPoints - amount);
-    applyCrewCasualtiesFromHullDamage(amount, "The last of the crew died after a collision.");
+    const damage = amount;
+    ship.hitPoints = Math.max(0, ship.hitPoints - damage);
+    applyCrewCasualtiesFromHullDamage(damage, "The last of the crew died after a collision.");
     combatNotice = {
-      text: `COLLISION  -${amount} HULL`,
+      text: `COLLISION  -${formatCombatDamage(damage)} HULL`,
       expiresAtMs: lastFrameMs + COMBAT_NOTICE_MS
     };
     if (ship.hitPoints <= 0) sinkPlayerShip("Your ship was sunk in a collision.");
@@ -18176,6 +18539,11 @@ function applyCombatCollisionDamage(id, amount, otherId) {
   if (winnerId) handleNpcSurrender(id, winnerId);
 }
 
+function formatCombatDamage(damage) {
+  if (!Number.isFinite(damage) || damage <= 0) throw new Error(`Invalid combat damage display: ${damage}`);
+  return Number.isInteger(damage) ? String(damage) : damage.toFixed(1);
+}
+
 function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of the crew was lost at sea.") {
   if (!gameState || damage <= 0 || playerShipIsInvulnerable()) return 0;
   if (Math.random() < currentPlayerPerkTotals().crewCasualtyResistanceChance) {
@@ -18192,10 +18560,17 @@ function applyCrewCasualtiesFromHullDamage(damage, crewLossReason = "The last of
   return lost;
 }
 
-function playerHullDamageWasResisted(sourceLabel) {
-  const chance = currentPlayerPerkTotals().damageResistanceChance;
-  if (chance <= 0 || Math.random() >= chance) return false;
-  showSurvivalNotice(`${sourceLabel} GLANCED OFF`, "good");
+function playerHullDamageWasResisted(
+  sourceLabel,
+  { includeHullArmor = true, notify = true } = {}
+) {
+  const resisted = shipHullResistsDamage(ship.stats, {
+    bonusResistanceChance: currentPlayerPerkTotals().damageResistanceChance,
+    includeIntrinsicArmor: includeHullArmor,
+    roll: Math.random()
+  });
+  if (!resisted) return false;
+  if (notify) showSurvivalNotice(`${sourceLabel} GLANCED OFF`, "good");
   return true;
 }
 
@@ -19147,6 +19522,9 @@ function applyResponsiveViewport(width, height) {
       : captainAlertButtonRect();
     if (captainAlertModal.kind === "choice") captainAlertModal.choiceRects = captainAlertChoiceRects();
   }
+  if (ship && camera && chart && localLayout && !lakeBattleMode) {
+    reframeWorldNorthUp("viewport resize");
+  }
   dirty = true;
 }
 
@@ -19196,7 +19574,7 @@ function handleFullscreenVisibilityChange() {
 
 function northUpCamera(center, fallbackRight = [1, 0, 0]) {
   let up = projectToTangent(WORLD_NORTH, center);
-  if (Math.hypot(up[0], up[1], up[2]) >= 1e-6) {
+  if (northUpProjectionIsStable(center)) {
     up = normalize3(up);
     const right = normalize3(cross3(up, center));
     return { center, right, up };
@@ -19375,6 +19753,7 @@ function render(nowMs) {
     if (optionsMenu.isOpen) drawOptionsMenu();
     return;
   }
+  prepareNorthUpWorldBehindCover();
   ctx.fillStyle = "#1f3650";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
@@ -22282,7 +22661,13 @@ function drawShipInfoMenu() {
 
   const statsX = panel.x + 218;
   const valueX = panel.x + panel.w - 12;
-  drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, statsX, valueX, panel.y + 31);
+  drawShipInfoValueRow(
+    `${renderedUiText("HULL")} / ${renderedUiText("ARMOR")}`,
+    `${view.hull}/${view.maxHull}  ${view.armor}%`,
+    statsX,
+    valueX,
+    panel.y + 31
+  );
   drawShipInfoBar(statsX, panel.y + 43, valueX - statsX, view.hull / view.maxHull, "#91db69");
   drawShipInfoValueRow(
     `${renderedUiText("CREW")} / ${renderedUiText(view.armamentLabel)}`,
@@ -22385,7 +22770,13 @@ function drawCompactShipVessel(panel, view, cargoPage) {
   const labelX = panel.x + 12;
   const valueX = panel.x + panel.w - 12;
   let y = artY + SHIP_INFO_SIDE_VIEW_H + 10;
-  drawShipInfoValueRow("HULL", `${view.hull}/${view.maxHull}`, labelX, valueX, y);
+  drawShipInfoValueRow(
+    `${renderedUiText("HULL")} / ${renderedUiText("ARMOR")}`,
+    `${view.hull}/${view.maxHull}  ${view.armor}%`,
+    labelX,
+    valueX,
+    y
+  );
   drawShipInfoBar(labelX + 62, y + 1, Math.max(30, panel.w - 112), view.hull / view.maxHull, "#91db69");
   y += 13;
   drawShipInfoValueRow(
@@ -24350,9 +24741,10 @@ function drawLakeBattleShipSelector(rect, headingLabel, side, row) {
   const gunCount = stats.batteryGuns || stats.cannons;
   const armament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARROWS" : `${gunCount} GUNS`;
   const compactArmament = stats.navalWeaponKind === NAVAL_WEAPON_ARROW ? "ARR" : `${gunCount}G`;
+  const armor = stats.armor || 0;
   const summary = rect.w < 300
-    ? `H${stats.hitPoints} ${compactArmament} C${stats.crewCapacity}`
-    : `HULL ${stats.hitPoints}  ${armament}  CREW ${stats.crewCapacity}`;
+    ? `H${stats.hitPoints} A${armor} ${compactArmament} C${stats.crewCapacity}`
+    : `HULL ${stats.hitPoints}  ARMOR ${armor}%  ${armament}  CREW ${stats.crewCapacity}`;
   drawOptionsText(
     fitPixelText(summary, PIXEL_FONT_SMALL_8, textWidth),
     textLeft,
@@ -29048,7 +29440,7 @@ function playerShipIsRowing() {
   if (!ship || anchored || portWaitState) return false;
   if (vectorLength(ship.velocity) <= SHIP_MIN_SLIDE_SPEED_RAD) return false;
   return shipUsesOars(
-    ship.stats,
+    currentPlayerEffectiveShipStats(),
     ship.heading,
     ship.position,
     ship.tileId,
@@ -29913,23 +30305,31 @@ function drawCitySprite(call, nowMs) {
   }
   const poleX = call.spriteX + 29;
   const poleTop = call.spriteY + 2;
-  const hasFlag = factionHasFlag(call.factionId);
-  if (hasFlag) {
+  const flagFactionIds = cityFlagFactionIds(
+    call,
+    gameState?.relations?.foreignSettlementExpulsions || null
+  );
+  if (flagFactionIds.length > 0) {
     ctx.fillStyle = "#4c3e24";
-    ctx.fillRect(poleX, poleTop, 1, 18);
+    ctx.fillRect(
+      poleX,
+      poleTop,
+      1,
+      Math.max(18, 2 + flagFactionIds.length * (CITY_FLAG_H + 1))
+    );
   }
   ctx.drawImage(img, call.spriteX, call.spriteY);
   if (batteryDisabled) {
     ctx.drawImage(cityDamageOverlay(img, call.tileId), call.spriteX, call.spriteY);
   }
-  if (hasFlag) {
+  for (let flagIndex = 0; flagIndex < flagFactionIds.length; flagIndex++) {
     drawWavingFactionFlag(
-      call.factionId,
+      flagFactionIds[flagIndex],
       poleX + 1,
-      poleTop + 1,
+      poleTop + 1 + flagIndex * (CITY_FLAG_H + 1),
       CITY_FLAG_W,
       CITY_FLAG_H,
-      flagWavePhase(nowMs, call.tileId)
+      flagWavePhase(nowMs, call.tileId + flagIndex * 997)
     );
   }
   if (fireSource) drawOnFire(fireSource, nowMs);
@@ -32202,14 +32602,15 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
 }
 
 function drawLandscapeShipyardStats(panel, comparison, purchaseTerms) {
+  const comparisonY = panel.y + 40;
   drawShipComparison(
     comparison,
     shipyardComparisonColumns(comparison),
     panel.x + 214,
     panel.x + panel.w - 12,
-    panel.y + 40
+    comparisonY
   );
-  drawShipyardPriceRow(panel, purchaseTerms, panel.y + 160);
+  drawShipyardPriceRow(panel, purchaseTerms, comparisonY + shipComparisonHeight(comparison));
 }
 
 function drawCompactShipyardStats(panel, comparison, purchaseTerms, artY) {
@@ -32221,7 +32622,7 @@ function drawCompactShipyardStats(panel, comparison, purchaseTerms, artY) {
     panel.x + panel.w - 12,
     comparisonY
   );
-  drawShipyardPriceRow(panel, purchaseTerms, comparisonY + 120);
+  drawShipyardPriceRow(panel, purchaseTerms, comparisonY + shipComparisonHeight(comparison));
 }
 
 function shipyardComparisonColumns(comparison) {
@@ -32354,6 +32755,13 @@ function drawShipComparison(comparison, columns, x, valueX, y) {
     );
     y += 12;
   }
+}
+
+function shipComparisonHeight(comparison) {
+  if (!comparison || !Array.isArray(comparison.metrics) || comparison.metrics.length === 0) {
+    throw new Error("Ship comparison height requires metrics");
+  }
+  return (comparison.metrics.length + 2) * 12;
 }
 
 function drawShipComparisonRow(label, candidate, current, difference, x, candidateX, currentX, y) {

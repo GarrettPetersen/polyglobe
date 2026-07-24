@@ -38,6 +38,14 @@ test("the fishing skill ramp improves both odds and haul", () => {
   assert.ok(ramp[1].perks.fishingHaulMultiplier < ramp[2].perks.fishingHaulMultiplier);
 });
 
+test("the shipwright skill ramp steadily improves passive hull repair", () => {
+  const ramp = ["carpenter", "shipwright", "master-shipwright"].map(characterSkillById);
+  assert.ok(ramp[0].perks.hullRepairFractionPerDay < ramp[1].perks.hullRepairFractionPerDay);
+  assert.ok(ramp[1].perks.hullRepairFractionPerDay < ramp[2].perks.hullRepairFractionPerDay);
+  assert.equal(ramp[0].perks.damageResistanceChance, undefined);
+  assert.ok(ramp[1].perks.damageResistanceChance < ramp[2].perks.damageResistanceChance);
+});
+
 test("negotiation has a modest two-step price ramp", () => {
   const skilled = characterSkillById("skilled-negotiator");
   const master = characterSkillById("master-negotiator");
@@ -53,4 +61,5 @@ test("the remaining player-facing chance specialties are represented", () => {
   assert.equal(characterSkillById("master-of-disguise").perks.disguiseChanceBonus, 0.15);
   assert.equal(characterSkillById("natural-philosopher").perks.animalEncounterChanceMultiplier, 1.5);
   assert.equal(characterSkillById("master-gunner").perks.cannonSpreadMultiplier, 0.8);
+  assert.equal(characterSkillById("shipwright").perks.damageResistanceChance, 0.06);
 });

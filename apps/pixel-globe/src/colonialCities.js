@@ -258,6 +258,7 @@ export const COLONIZATION_TARGETS = Object.freeze([
     initialImports: [
       { goodId: "matchlocks", quantity: 8 }
     ],
+    foreignSettlementIds: ["portuguese-nagasaki"],
     region: "japan",
     waterAccess: "coastal",
     datasetFirstYear: 1583,
@@ -504,6 +505,7 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     approvalFactionId: details.approvalFactionId || null,
     approvalCargo: colonizationApprovalCargo(details.approvalCargo),
     initialImports: colonizationInitialImports(details.initialImports),
+    foreignSettlementIds: colonizationForeignSettlementIds(details.foreignSettlementIds),
     historicalPower: details.historicalPower || null,
     label: details.label || type,
     region: details.region || null,
@@ -517,6 +519,21 @@ function colonizationTarget(city, country, lat, lon, type, year, factionId, deta
     datasetSource: details.datasetSource || null,
     note: details.note || ""
   });
+}
+
+function colonizationForeignSettlementIds(value) {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value)) throw new Error("Colonization foreign settlement ids must be an array");
+  const ids = value.map((entry) => {
+    if (typeof entry !== "string" || entry === "") {
+      throw new Error(`Invalid colonization foreign settlement id: ${entry}`);
+    }
+    return entry;
+  });
+  if (new Set(ids).size !== ids.length) {
+    throw new Error("Colonization foreign settlement ids must be unique");
+  }
+  return Object.freeze(ids);
 }
 
 function colonizationApprovalCargo(value) {

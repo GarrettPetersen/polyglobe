@@ -9,7 +9,8 @@ import {
   factionReputation,
   grantEnvoySafePassage,
   ledgerEntries,
-  mingTradeOpenToFaction,
+  openSovereignTradeToFaction,
+  sovereignTradeOpenToFaction,
   negotiateEnvoyQuest
 } from "./gameState.js";
 import { diplomacyBetween } from "./factions.js";
@@ -21,6 +22,15 @@ import {
   passengerOfferForCity,
   pendingPassengerOfferForCity
 } from "./passengerMissions.js";
+import {
+  JOSEON_TRADE_POLICY_ID,
+  MING_TRADE_POLICY_ID,
+  SPANISH_INDIES_TRADE_POLICY_ID
+} from "./sovereignTradeAccess.js";
+import {
+  activeForeignSettlements,
+  withForeignSettlements1522
+} from "./foreignSettlements.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -36,8 +46,23 @@ const LONDON = port(5, "London", "United Kingdom", "northern-european", "england
 const ISTANBUL = port(6, "Istanbul", "Turkey", "islamic-desert", "ottoman", 41.01, 28.98);
 const BEIJING = port(7, "Beijing", "China", "east-asian", "ming", 39.9, 116.4);
 const HAVANA = port(8, "Havana", "Cuba", "mediterranean", "spain", 23.11, -82.37);
+const SEOUL = port(9, "Seoul", "South Korea", "east-asian", "joseon", 37.57, 126.98);
+const SEVILLE = port(10, "Seville", "Spain", "mediterranean", "spain", 37.39, -5.99);
+const VENICE = port(11, "Venice", "Italy", "mediterranean", "venice", 45.44, 12.32);
+const VENETIAN_ISTANBUL = withForeignSettlements1522(
+  port(12, "Istanbul", "Turkey", "islamic-desert", "ottoman", 41.01, 28.98)
+);
 
-for (const capital of [LISBON, LONDON, ISTANBUL, BEIJING]) {
+for (const capital of [
+  LISBON,
+  LONDON,
+  ISTANBUL,
+  BEIJING,
+  SEOUL,
+  SEVILLE,
+  VENICE,
+  VENETIAN_ISTANBUL
+]) {
   capital.isFactionCapital = true;
   capital.capitalOfFactionId = capital.factionId;
 }
@@ -147,7 +172,10 @@ test("a friendly envoy negotiates abroad and is paid only after returning home",
   assert.match(offer.dialogue.negotiation, /King Henry VIII/);
   assert.match(offer.dialogue.offer, /there and back|home again|return me/i);
   acceptQuest(state, offer);
-  const negotiation = negotiateEnvoyQuest(state, LONDON, { simMinute: 240 });
+  const negotiation = negotiateEnvoyQuest(state, LONDON, {
+    simMinute: 240,
+    portCities: [LISBON, LONDON, ISTANBUL]
+  });
 
   assert.equal(negotiation.quest.stage, "return");
   assert.equal(negotiation.quest.destinationTileId, LISBON.tileId);
@@ -162,7 +190,7 @@ test("a friendly envoy negotiates abroad and is paid only after returning home",
   assert.equal(ledgerEntries(state).at(-1).description, "Diplomatic mission");
 });
 
-test("a special envoy from the player capital opens Ming trade during negotiations", () => {
+test("a special envoy from the player capital opens a sovereign market during negotiations", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const startingDoubloons = state.doubloons;
   const offer = envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], {
@@ -173,24 +201,29 @@ test("a special envoy from the player capital opens Ming trade during negotiatio
   });
 
   assert.equal(offer.kind, "friendly-envoy");
-  assert.equal(offer.mingTradeOpeningFactionId, "england");
+  assert.equal(offer.tradeAccessPolicyId, MING_TRADE_POLICY_ID);
+  assert.equal(offer.tradeAccessOpeningFactionId, "england");
   assert.equal(offer.targetFactionId, "ming");
   assert.ok(offer.distanceKm > PASSENGER_MAX_DISTANCE_KM);
   assert.match(offer.dialogue.offer, /lawful trade with the Ming Empire/);
   assert.equal(pendingPassengerOfferForCity(state, LONDON), offer);
-  assert.equal(mingTradeOpenToFaction(state, "england"), false);
+  assert.equal(sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, "england"), false);
 
   acceptQuest(state, offer);
-  const negotiation = negotiateEnvoyQuest(state, BEIJING, { simMinute: 1000 });
+  const negotiation = negotiateEnvoyQuest(state, BEIJING, {
+    simMinute: 1000,
+    portCities: [LONDON, BEIJING]
+  });
 
-  assert.equal(negotiation.mingTradeOpened, true);
-  assert.equal(negotiation.mingTradeOpenedFactionId, "england");
-  assert.equal(mingTradeOpenToFaction(state, "england"), true);
+  assert.equal(negotiation.tradeAccessOpened, true);
+  assert.equal(negotiation.tradeAccessPolicyId, MING_TRADE_POLICY_ID);
+  assert.equal(negotiation.tradeAccessOpenedFactionId, "england");
+  assert.equal(sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, "england"), true);
   assert.equal(state.doubloons, startingDoubloons);
 
   completeQuest(state, LONDON, { simMinute: 2000 });
   assert.equal(state.doubloons, startingDoubloons + offer.reward);
-  assert.equal(mingTradeOpenToFaction(state, "england"), true);
+  assert.equal(sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, "england"), true);
 });
 
 test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => {
@@ -209,6 +242,39 @@ test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => 
   }), null);
 });
 
+test("trade-opening envoys cover Joseon licenses and the Spanish Indies monopoly", () => {
+  const englishState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const joseonOffer = envoyOfferForCapital(englishState, LONDON, [LONDON, SEOUL], {
+    envoySpawnChance: 1,
+    relationBetween: diplomacyBetween,
+    simMinute: 0
+  });
+  assert.equal(joseonOffer.tradeAccessPolicyId, JOSEON_TRADE_POLICY_ID);
+  assert.match(joseonOffer.dialogue.offer, /licensed trade with Joseon/);
+
+  const portugueseState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { ...PLAYER, nationalityId: "portugal" }
+  });
+  openSovereignTradeToFaction(
+    portugueseState,
+    JOSEON_TRADE_POLICY_ID,
+    "portugal"
+  );
+  openSovereignTradeToFaction(
+    portugueseState,
+    MING_TRADE_POLICY_ID,
+    "portugal"
+  );
+  const indiesOffer = envoyOfferForCapital(portugueseState, LISBON, [LISBON, SEVILLE], {
+    envoySpawnChance: 1,
+    relationBetween: diplomacyBetween,
+    simMinute: 0
+  });
+  assert.equal(indiesOffer.tradeAccessPolicyId, SPANISH_INDIES_TRADE_POLICY_ID);
+  assert.match(indiesOffer.dialogue.offer, /license to trade in the Spanish Indies/);
+});
+
 test("a hostile envoy worsens relations and the player's standing with the foreign court", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const targetStanding = factionReputation(state, "england");
@@ -222,11 +288,48 @@ test("a hostile envoy worsens relations and the player's standing with the forei
   });
 
   acceptQuest(state, offer);
-  const negotiation = negotiateEnvoyQuest(state, LONDON, { simMinute: 360 });
+  const negotiation = negotiateEnvoyQuest(state, LONDON, {
+    simMinute: 360,
+    portCities: [LISBON, LONDON]
+  });
 
   assert.equal(negotiation.events[0].relation, "neutral");
   assert.equal(factionReputation(state, "england"), targetStanding - 8);
   assert.equal(factionReputation(state, "portugal"), 0);
+});
+
+test("a hostile envoy expels a resident settlement when its host turns hostile", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { ...PLAYER, nationalityId: "venice" }
+  });
+  const offer = envoyOfferForCapital(state, VENICE, [VENICE, VENETIAN_ISTANBUL], {
+    envoySpawnChance: 1,
+    envoyKind: "hostile-envoy",
+    destinationTileId: VENETIAN_ISTANBUL.tileId,
+    relationBetween: diplomacyBetween,
+    simMinute: 0,
+    createCharacter: () => ({ name: "Rui de Sousa" })
+  });
+
+  acceptQuest(state, offer);
+  const negotiation = negotiateEnvoyQuest(state, VENETIAN_ISTANBUL, {
+    simMinute: 360,
+    portCities: [VENICE, VENETIAN_ISTANBUL]
+  });
+
+  assert.equal(negotiation.events[0].relation, "hostile");
+  assert.deepEqual(
+    negotiation.foreignSettlementExpulsions.map((entry) => entry.settlementId),
+    ["venetian-constantinople"]
+  );
+  assert.deepEqual(
+    activeForeignSettlements(
+      VENETIAN_ISTANBUL,
+      state.relations.foreignSettlementExpulsions
+    ),
+    []
+  );
 });
 
 test("an envoy can claim seven days of passage from either participating nation", () => {

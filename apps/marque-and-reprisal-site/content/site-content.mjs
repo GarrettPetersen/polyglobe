@@ -118,6 +118,74 @@ export const features = Object.freeze([
   })
 ]);
 
+export const qAndA = Object.freeze([
+  Object.freeze({
+    question: "What kind of game is Marque & Reprisal?",
+    answer: Object.freeze([
+      `Marque & Reprisal is a roguelike sandbox game about being a sea captain in 1522. The player starts with a small ship and an overarching goal, like paying off a family debt or hunting a white whale to the ends of the earth. You win the run if you can complete your goal and return home without dying. While working up to that goal, you will need money. And you can get money in various ways. My favourite way is to sail to the Spice Islands, load up my ship with cloves and nutmeg, and then sail around the Cape of Good Hope to sell the spices in Europe for a massive profit. Alternatively, you can try harpooning a whale to sell its valuable blubber. If you can earn enough money, you can buy a bigger, better ship. More hold space means your trade runs will be more profitable. More cannons let you become a pirate or privateer, exchanging broadsides with other ships for glory and plunder.`
+    ])
+  }),
+  Object.freeze({
+    question: "Why 1522?",
+    answer: Object.freeze([
+      `Because that's when my favourite SNES game, Uncharted Waters II: New Horizons was set. I wanted to make a modern homage to that game, so I borrowed its start date. 1522 comes right after a bunch of world-changing events in 1521: Martin Luther escalated the Protestant Reformation by refusing to recant at the Diet of Worms, and a Spanish-led coalition under Hernán Cortés captured the Aztec capital at the Siege of Tenochtitlan. The Portuguese have established bases around the Indian Ocean, but the global colonial order that follows is still taking shape.`
+    ])
+  }),
+  Object.freeze({
+    question: "What happens when your captain dies? Does anything carry over into the next run?",
+    answer: Object.freeze([
+      `Your run stats are recorded, and count towards achievements. But currently there is no carry-over. You just start with a new sea captain, potentially in another part of the world.`
+    ])
+  }),
+  Object.freeze({
+    question: "How historically accurate is Marque & Reprisal, and where do you deliberately depart from history?",
+    answer: Object.freeze([
+      `I try to model as much history as possible in the starting conditions. I have a huge matrix of the political relationships between all of the 30+ factions in the game. The Ming dynasty's maritime trade restrictions are in it, for instance.`,
+      `I depart from history in a few places: First, it's a game about sailing, so waterways are more navigable than they are in real life. You can sail straight up the Nile to Lake Victoria and discover it, because that's more fun than blocking you at the First Cataract. Second, player actions are free to depart from history, including through side quests that bring later historical events to the 1520s. For instance, the Portuguese didn't establish a trade presence in Nagasaki until the 1570s, but the player can do a side quest where they make that happen right away. A lot of colonization side quests establish colonial settlements that were historically created later than the dates in the game (though there's no time cap on games, so you could theoretically play for a very long time and do each of the quests when they are historically supposed to happen). If the player wants to do other ahistorical things like conquer Istanbul and topple the Ottoman Empire 400 years early, they can do it.`
+    ])
+  }),
+  Object.freeze({
+    question: "Do you have to return home to win a run?",
+    answer: Object.freeze([
+      `Yes, you currently have to return home to complete the run. I might add quest lines that have the captain end somewhere besides home, but currently you need to go home. You need a place to retire after your adventure.`
+    ])
+  }),
+  Object.freeze({
+    question: "How large is the game's world, and how closely does its geography match the real Earth?",
+    answer: Object.freeze([
+      `The world is a Goldberg polyhedron with 163,830 hexes and 12 pentagons. You can think of it like a big soccer ball: the 12 pentagons allow the mostly hexagonal tiling to loop around and connect back with itself, rather than tiling the plane.`,
+      `The world geography is based on real geography from public mapping datasets, including coastlines, rivers, biomes, and human settlements. Precipitation, wind, and seasonal polar sea ice are all pre-baked into an annual loop based on real climate data and procedural simulation.`,
+      `To make the geography work, I had to make some manual tweaks. For instance, the Gibraltar hex is mostly land, and some hexes in Panama are mostly sea, but making Gibraltar closed and Panama open would have dramatic implications for navigation, so those are manually adjusted to keep the topology of the world's landmasses accurate. Many small Pacific islands are expanded to hex size rather than being absorbed into the ocean, even if they ought to be too small to appear. Some coastal ports ended up falling one hex away from the coast and needing to be rescued, either by bumping the city or adjusting the coastline.`
+    ])
+  }),
+  Object.freeze({
+    question: "How do wind and weather affect sailing, and can the player predict them?",
+    answer: Object.freeze([
+      `Your sailing ship works like a real sailing ship. It will stall if you try to go directly upwind. You have to do what's called "tacking," which is zig-zagging across the wind to get somewhere upwind of you. The fastest way to sail is on a beam reach, with the wind coming in sideways. Hit that perfect beam reach and your ship glides in an extremely satisfying way. Trying to get to a port directly upwind is slightly frustrating, even anxiety-inducing if you're low on supplies and need to get there fast. Some ships, like Mediterranean galleys and Joseon turtle ships, have oars, and those let you travel directly upwind.`,
+      `I think the sailing is a really strong micro-loop that adds a tiny bit of challenge to the moment-to-moment play.`,
+      `Wind directions and speeds are procedurally simulated based on real-world wind patterns, so with a bit of knowledge of prevailing wind patterns, you can perfectly time that slingshot around Africa to get to the Indian Ocean, just like the real Vasco da Gama did.`
+    ])
+  }),
+  Object.freeze({
+    question: "How do food, water, storms, and other dangers turn a voyage into a survival game?",
+    answer: Object.freeze([
+      `Just like in real life, you die if you go too long without food and water, or if your ship gets struck by lightning in a storm and blows apart, leaving you floating stranded in the middle of the Atlantic. No savescumming. You have choices about how to provision your ship: play it safe and bring extra food and water, or leave extra space in the hold to fill with trade goods or fish or whale blubber.`
+    ])
+  }),
+  Object.freeze({
+    question: "Do you have to fight and become a pirate, or can you complete a run through peaceful activities like trading, fishing, and exploration?",
+    answer: Object.freeze([
+      `Fighting is optional! You can be a trader, fisherman, or explorer if you like. If you see a hostile ship on the horizon, you can try to sail the other way.`
+    ])
+  }),
+  Object.freeze({
+    question: "What changes from one run to the next?",
+    answer: Object.freeze([
+      `Every run randomly spawns you into the world as a new procedurally generated character. You could be a Polish-Lithuanian fisherman trying to pay off a large family debt, or a Japanese whaler seeking revenge against a white whale (my original concept; nobody has ever written a story about revenge against a white whale before), or an Ottoman explorer trying to find all the wonders of the world.`
+    ])
+  })
+]);
+
 export const screenshots = Object.freeze([
   Object.freeze({ file: "01-explore-the-pyramids.png", title: "Explore the Pyramids", alt: "A captain discovers the Nubian pyramids on the world map." }),
   Object.freeze({ file: "02-trade-in-ternate.png", title: "Trade in Ternate", alt: "The trading interface at Ternate shows goods, prices, cargo space, and local supply." }),

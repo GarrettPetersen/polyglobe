@@ -8,7 +8,12 @@ import {
   PIRATE_FACTION_ID,
   assertFactionId
 } from "./factions.js";
-import { mingTradeAccess } from "./mingTradeRestrictions.js";
+import {
+  SOVEREIGN_TRADE_ACCESS_POLICIES,
+  evaluateSovereignTradeAccess,
+  sovereignTradePolicyForPort
+} from "./sovereignTradeAccess.js";
+import { activeForeignSettlements } from "./foreignSettlements.js";
 
 export const PORTUGUESE_FACTION_ID = "portugal";
 export const PORTUGUESE_CARTAZ_DURATION_DAYS = 90;
@@ -58,11 +63,12 @@ export const TRADE_POLICY_REGIMES = Object.freeze([
     appliesTo: "all-foreign-trade"
   }),
   Object.freeze({
-    id: "ming-maritime-prohibition",
-    label: "Ming maritime prohibition",
-    kind: "access",
-    appliesTo: "ming-ports"
+    id: "foreign-settlements",
+    label: "Resident foreign settlements",
+    kind: "port-jurisdiction",
+    appliesTo: "ports-with-foreign-settlements"
   }),
+  ...SOVEREIGN_TRADE_ACCESS_POLICIES,
   Object.freeze({
     id: "portuguese-cartaz",
     label: "Portuguese cartaz",
@@ -81,40 +87,65 @@ export function evaluateTradeAccess({
   port,
   traderFactionId,
   relation,
+  relationToFaction = null,
+  foreignSettlementExpulsions = null,
   simMinute = 0,
-  mingOpenTrade = false,
-  illicitAccess = false,
+  tradeAccessGranted = () => false,
+  illicitAccessPolicyId = null,
   disguisedEntry = false
 }) {
   assertTradePolicyPort(port);
   const traderId = assertFactionId(traderFactionId);
   assertDiplomaticRelation(relation);
+  if (typeof tradeAccessGranted !== "function") {
+    throw new Error("Trade access evaluation requires a sovereign permission resolver");
+  }
   const wartimeBlocked = relation === DIPLOMACY_WAR &&
     port.isPirateHideout !== true &&
-    illicitAccess !== true &&
+    illicitAccessPolicyId === null &&
     disguisedEntry !== true;
   if (wartimeBlocked) {
     return Object.freeze({
       allowed: false,
+      provisioningAllowed: false,
       restricted: true,
       illicit: false,
       reason: "war"
     });
   }
-  const ming = mingTradeAccess({
-    portFactionId: port.factionId || NEUTRAL_FACTION_ID,
+  const policy = sovereignTradePolicyForPort(port, simMinute);
+  const sovereign = evaluateSovereignTradeAccess({
+    port,
     traderFactionId: traderId,
     simMinute,
-    openTrade: mingOpenTrade,
-    illicitAccess,
+    granted: policy ? tradeAccessGranted(policy.id, traderId) : false,
+    illicitAccessPolicyId,
     disguisedEntry
   });
-  if (!ming.allowed) return ming;
+  const settlementAccess = bestForeignSettlementAccess({
+    port,
+    relationToFaction,
+    foreignSettlementExpulsions
+  });
+  if (!sovereign.allowed && !settlementAccess) return sovereign;
+  if (!sovereign.allowed) {
+    return Object.freeze({
+      ...sovereign,
+      allowed: true,
+      restricted: true,
+      illicit: false,
+      reason: "foreign-settlement",
+      foreignSettlement: settlementAccess,
+      foreignSettlementFactionId: settlementAccess.factionId
+    });
+  }
   return Object.freeze({
-    ...ming,
+    ...sovereign,
     allowed: true,
-    restricted: ming.restricted,
-    illicit: ming.illicit
+    restricted: sovereign.restricted,
+    illicit: sovereign.illicit,
+    foreignSettlement: settlementAccess,
+    foreignSettlementFactionId: settlementAccess?.factionId || null
   });
 }
 
@@ -122,8 +153,11 @@ export function tradeTerms({
   port,
   traderFactionId,
   relation,
+  relationToFaction = null,
+  foreignSettlementExpulsions = null,
   goodId,
   reputation = 0,
+  reputationForFaction = null,
   purchaseDiscountMultiplier = 1,
   purchaseBargainMultiplier = 1,
   saleBargainMultiplier = 1
@@ -154,7 +188,10 @@ export function tradeTerms({
     port,
     traderFactionId,
     relation,
-    reputation
+    relationToFaction,
+    foreignSettlementExpulsions,
+    reputation,
+    reputationForFaction
   });
   const crownMonopoly = isPortugueseEstadoPort(port) && isPortugueseCrownSpice(goodId);
   const monopolyPurchaseRate = crownMonopoly ? 0.25 : 0;
@@ -183,31 +220,103 @@ export function customsTerms({
   port,
   traderFactionId,
   relation,
-  reputation = 0
+  relationToFaction = null,
+  foreignSettlementExpulsions = null,
+  reputation = 0,
+  reputationForFaction = null
 }) {
   assertTradePolicyPort(port);
   const traderId = assertFactionId(traderFactionId);
   const portFactionId = assertFactionId(port.factionId || NEUTRAL_FACTION_ID);
   assertDiplomaticRelation(relation);
-  if (!Number.isFinite(reputation) || reputation < -100 || reputation > 100) {
-    throw new Error(`Invalid trade-policy reputation: ${reputation}`);
+  assertTradeReputation(reputation);
+  const sovereign = customsCandidate({
+    traderId,
+    jurisdictionFactionId: portFactionId,
+    relation,
+    reputation,
+    foreignSettlement: null
+  });
+  const settlementCandidates = activeForeignSettlements(
+    port,
+    foreignSettlementExpulsions
+  ).map((foreignSettlement) => {
+    if (typeof relationToFaction !== "function") {
+      throw new Error("Foreign settlement customs require a diplomacy resolver");
+    }
+    const foreignRelation = relationToFaction(foreignSettlement.factionId);
+    assertDiplomaticRelation(foreignRelation);
+    const foreignReputation = reputationForFaction === null
+      ? 0
+      : reputationForFaction(foreignSettlement.factionId);
+    assertTradeReputation(foreignReputation);
+    return customsCandidate({
+      traderId,
+      jurisdictionFactionId: foreignSettlement.factionId,
+      relation: foreignRelation,
+      reputation: foreignReputation,
+      foreignSettlement
+    });
+  }).filter((candidate) => candidate.relation !== DIPLOMACY_WAR);
+  const selected = [sovereign, ...settlementCandidates].reduce((best, candidate) => (
+    candidate.customsRate < best.customsRate ? candidate : best
+  ));
+
+  return Object.freeze({
+    ...selected,
+    sovereignRelation: relation,
+    sovereignFactionId: portFactionId,
+    foreignSettlementPrivilege: selected.foreignSettlement !== null
+  });
+}
+
+function bestForeignSettlementAccess({
+  port,
+  relationToFaction,
+  foreignSettlementExpulsions
+}) {
+  const settlements = activeForeignSettlements(port, foreignSettlementExpulsions);
+  if (settlements.length === 0) return null;
+  if (typeof relationToFaction !== "function") {
+    throw new Error("Foreign settlement trade access requires a diplomacy resolver");
   }
-  const domestic = traderId === portFactionId &&
-    portFactionId !== NEUTRAL_FACTION_ID &&
-    portFactionId !== PIRATE_FACTION_ID;
-  const pirateHome = traderId === PIRATE_FACTION_ID && portFactionId === PIRATE_FACTION_ID;
+  return settlements.find((entry) => {
+    const relation = relationToFaction(entry.factionId);
+    assertDiplomaticRelation(relation);
+    return relation !== DIPLOMACY_WAR;
+  }) || null;
+}
+
+function customsCandidate({
+  traderId,
+  jurisdictionFactionId,
+  relation,
+  reputation,
+  foreignSettlement
+}) {
+  const domestic = traderId === jurisdictionFactionId &&
+    jurisdictionFactionId !== NEUTRAL_FACTION_ID &&
+    jurisdictionFactionId !== PIRATE_FACTION_ID;
+  const pirateHome = traderId === PIRATE_FACTION_ID &&
+    jurisdictionFactionId === PIRATE_FACTION_ID;
   const baseCustomsRate = domestic || pirateHome ? 0 : customsRateForRelation(relation);
   const reputationAdjustment = baseCustomsRate > 0
     ? clamp(-reputation * 0.0003, -0.03, 0.03)
     : 0;
-  const customsRate = clamp(baseCustomsRate + reputationAdjustment, 0, 0.25);
-
   return Object.freeze({
     domestic,
     relation,
-    customsRate,
-    reputationAdjustment
+    customsRate: clamp(baseCustomsRate + reputationAdjustment, 0, 0.25),
+    reputationAdjustment,
+    jurisdictionFactionId,
+    foreignSettlement
   });
+}
+
+function assertTradeReputation(reputation) {
+  if (!Number.isFinite(reputation) || reputation < -100 || reputation > 100) {
+    throw new Error(`Invalid trade-policy reputation: ${reputation}`);
+  }
 }
 
 export function customsRateForRelation(relation) {

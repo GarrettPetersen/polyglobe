@@ -121,6 +121,10 @@ const RESEARCH = Object.freeze([
     source("Flags of the Princely States of the Dutch East Indies", "https://www.fiav.org/wp-content/uploads/2021/06/ICV2514-Marcel-van-Westerhoven-The-Flags-of-Princely-States-of-the-Dutch-East-Indies.pdf"),
     source("Portuguese fort at Ternate, 1522", "https://www.defesa.gov.pt/pt/defesa/organizacao/comissoes/cphm/rphm/edicoes/ano3/n.5/5")
   ]),
+  research("tidore", "reconstruction", "Traditional yellow Tidore sun standard", "No secure state flag survives from 1522. This reconstruction follows the later documented royal-yellow Tidore standard with white corner suns and a central Jawi-inscribed sun, simplified for a 32x20 raster.", [
+    source("Flags of the Princely States of the Dutch East Indies", "https://www.fiav.org/wp-content/uploads/2021/06/ICV2514-Marcel-van-Westerhoven-The-Flags-of-Princely-States-of-the-Dutch-East-Indies.pdf"),
+    source("Al-Mansur and the Spanish alliance at Tidore", "https://repositori.kemendikdasmen.go.id/9902/1/Tidore.pdf")
+  ]),
   research("japan", "period-clan-heraldry", "Ashikaga futatsuhikiryo mon", "The two-bar roundel is the Ashikaga clan crest, used here as shogunal heraldry rather than a Japanese national flag.", [
     source("Ashikaga clan futatsuhikiryo", "https://www.paxhistoria.co/flags/6a77b848-9ef3-444f-b1be-7f3166b633e4")
   ]),
@@ -454,6 +458,25 @@ const DRAWERS = Object.freeze({
     s.rect(18, 9, 2, 3, C.purple);
     s.pixel(11, 13, C.purple);
     s.pixel(21, 12, C.purple);
+    return s;
+  },
+  tidore: () => {
+    const s = base(C.gold);
+    for (const [x, y] of [[0, 0], [31, 0], [0, 19], [31, 19]]) {
+      s.circle(x, y, 5, C.white);
+    }
+    for (const [x, y] of [
+      [16, 3], [16, 17], [9, 10], [23, 10],
+      [11, 5], [21, 5], [11, 15], [21, 15]
+    ]) {
+      s.pixel(x, y, C.ink);
+    }
+    s.circle(16, 10, 5, C.white);
+    s.line(13, 8, 19, 8, C.purple);
+    s.line(12, 10, 18, 10, C.purple);
+    s.line(14, 12, 20, 12, C.purple);
+    s.pixel(13, 7, C.purple);
+    s.pixel(19, 11, C.purple);
     return s;
   },
   japan: () => {

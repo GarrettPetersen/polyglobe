@@ -21,6 +21,11 @@ import {
   portugueseCartazRequired,
   tradeTerms
 } from "./tradePolicy.js";
+import {
+  createForeignSettlementExpulsionMemory,
+  expelHostileForeignSettlements,
+  foreignSettlementById
+} from "./foreignSettlements.js";
 
 const LISBON = Object.freeze({
   tileId: 1,
@@ -162,6 +167,91 @@ test("war blocks ordinary commerce while a successful disguise remains an explic
   assert.equal(disguised.allowed, true);
 });
 
+test("foreign settlements provide the more favorable lawful customs jurisdiction", () => {
+  const ternate = {
+    tileId: 4,
+    city: "Ternate",
+    country: "Indonesia",
+    factionId: "ternate",
+    foreignSettlements: [foreignSettlementById("portuguese-ternate")]
+  };
+  const portuguese = customsTerms({
+    port: ternate,
+    traderFactionId: "portugal",
+    relation: DIPLOMACY_NEUTRAL,
+    relationToFaction: () => DIPLOMACY_NEUTRAL
+  });
+  assert.equal(portuguese.customsRate, 0);
+  assert.equal(portuguese.domestic, true);
+  assert.equal(portuguese.jurisdictionFactionId, "portugal");
+  assert.equal(portuguese.foreignSettlementPrivilege, true);
+
+  const english = customsTerms({
+    port: ternate,
+    traderFactionId: "england",
+    relation: DIPLOMACY_NEUTRAL,
+    relationToFaction: (factionId) => (
+      factionId === "portugal" ? DIPLOMACY_ALLY : DIPLOMACY_NEUTRAL
+    )
+  });
+  assert.equal(english.customsRate, 0.02);
+  assert.equal(english.jurisdictionFactionId, "portugal");
+  assert.equal(english.foreignSettlementPrivilege, true);
+
+  const expulsions = createForeignSettlementExpulsionMemory();
+  expelHostileForeignSettlements({
+    memory: expulsions,
+    ports: [ternate],
+    relationBetween: () => DIPLOMACY_HOSTILE,
+    simMinute: 100
+  });
+  const afterExpulsion = customsTerms({
+    port: ternate,
+    traderFactionId: "portugal",
+    relation: DIPLOMACY_NEUTRAL,
+    relationToFaction: () => DIPLOMACY_NEUTRAL,
+    foreignSettlementExpulsions: expulsions
+  });
+  assert.equal(afterExpulsion.customsRate, 0.1);
+  assert.equal(afterExpulsion.jurisdictionFactionId, "ternate");
+  assert.equal(afterExpulsion.foreignSettlementPrivilege, false);
+});
+
+test("a resident settlement can open a closed sovereign market but cannot override war", () => {
+  const mingPortWithPortugueseSettlement = {
+    tileId: 5,
+    city: "Guangzhou",
+    country: "China",
+    factionId: "ming",
+    lat: 23.13,
+    lon: 113.26,
+    foreignSettlements: [{
+      ...foreignSettlementById("portuguese-ternate"),
+      id: "portuguese-guangzhou-test",
+      city: "Guangzhou",
+      country: "China"
+    }]
+  };
+  const residentAccess = evaluateTradeAccess({
+    port: mingPortWithPortugueseSettlement,
+    traderFactionId: "england",
+    relation: DIPLOMACY_NEUTRAL,
+    relationToFaction: () => DIPLOMACY_NEUTRAL
+  });
+  assert.equal(residentAccess.allowed, true);
+  assert.equal(residentAccess.reason, "foreign-settlement");
+  assert.equal(residentAccess.foreignSettlementFactionId, "portugal");
+
+  const wartime = evaluateTradeAccess({
+    port: mingPortWithPortugueseSettlement,
+    traderFactionId: "england",
+    relation: DIPLOMACY_WAR,
+    relationToFaction: () => DIPLOMACY_ALLY
+  });
+  assert.equal(wartime.allowed, false);
+  assert.equal(wartime.reason, "war");
+});
+
 test("cartaz rules cover guarded Estado routes and reward good relations", () => {
   assert.equal(PORTUGUESE_CARTAZ_DURATION_DAYS, 90);
   assert.equal(portugueseCartazRequired({
@@ -204,7 +294,10 @@ test("special trade restrictions live in one explicit policy registry", () => {
     TRADE_POLICY_REGIMES.map((regime) => regime.id),
     [
       "relation-customs",
+      "foreign-settlements",
       "ming-maritime-prohibition",
+      "joseon-licensed-trade",
+      "spanish-indies-monopoly",
       "portuguese-cartaz",
       "portuguese-crown-spices"
     ]

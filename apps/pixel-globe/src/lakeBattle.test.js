@@ -346,6 +346,48 @@ test("a cannonball damages the first ship crossed before its endpoint", () => {
   )));
 });
 
+test("the turtle ship shell can reject a cannon hit in lake combat", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: "joseon-turtle-ship"
+  });
+  const initialHitPoints = battle.enemy.hitPoints;
+  battle.randomSeed = 1;
+  const targetCenter = shipFootprintCenter(shipFootprintFrame(
+    TEST_SHIP_FOOTPRINTS.get(battle.enemy.slug),
+    lakeBattleHeadingVector(battle.enemy)
+  ));
+  battle.enemy.cooldowns.port = 100;
+  battle.enemy.cooldowns.starboard = 100;
+  battle.projectiles = [{
+    id: 1000,
+    ownerId: LAKE_BATTLE_PLAYER_ID,
+    targetId: null,
+    kind: "cannon",
+    startX: battle.enemy.x - 30,
+    startY: battle.enemy.y + targetCenter.y,
+    targetX: battle.enemy.x + 30,
+    targetY: battle.enemy.y + targetCenter.y,
+    age: 0,
+    duration: 0.6,
+    arcHeight: 3,
+    damage: 1,
+    seed: 2
+  }];
+
+  for (let frame = 0; frame < 6 && battle.enemy.hitPoints === initialHitPoints; frame++) {
+    updateLakeBattle(battle, 0.1, {});
+  }
+
+  assert.equal(battle.enemy.hitPoints, initialHitPoints);
+  assert.equal(battle.hullSplinterBursts.length, 0);
+  assert.ok(drainLakeBattleEvents(battle).some((event) => (
+    event.type === "hit" && event.damage === 0 && event.resisted === true
+  )));
+});
+
 test("lake battle cannon tiers alter cooldown, damage, and range without save data", () => {
   const standard = createLakeBattle({
     width: 455,

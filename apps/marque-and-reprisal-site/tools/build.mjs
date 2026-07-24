@@ -23,6 +23,7 @@ import {
   notFoundPage,
   pressPage,
   privacyPage,
+  qAndAPage,
   robotsText,
   sitemapXml
 } from "./pages.mjs";
@@ -39,6 +40,7 @@ await rm(distRoot, { recursive: true, force: true });
 await cp(sourceRoot, distRoot, { recursive: true });
 
 await writePage("index.html", homePage());
+await writePage("qa/index.html", qAndAPage());
 await writePage("press/index.html", pressPage());
 await writePage("privacy/index.html", privacyPage());
 await writePage("404.html", notFoundPage());
@@ -181,6 +183,7 @@ function createZip(outputPath, cwd, entries) {
 async function validateBuild() {
   const requiredPaths = [
     "index.html",
+    "qa/index.html",
     "press/index.html",
     "privacy/index.html",
     "404.html",

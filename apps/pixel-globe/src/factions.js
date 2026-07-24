@@ -44,6 +44,7 @@ export const FACTIONS = Object.freeze([
   faction("delhi", "Delhi Sultanate", "Delhi", "Delhi", "sultanate"),
   faction("ayutthaya", "Ayutthaya Kingdom", "Ayutthaya", "Ayutthayan", "kingdom"),
   faction("ternate", "Sultanate of Ternate", "Ternate", "Ternatan", "sultanate"),
+  faction("tidore", "Sultanate of Tidore", "Tidore", "Tidorese", "sultanate"),
   faction("japan", "Ashikaga Japan", "Japan", "Japanese", "shogunate"),
   faction("joseon", "Joseon", "Joseon", "Joseon", "kingdom")
 ]);
@@ -90,6 +91,7 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("delhi", "Delhi", "India"),
   capital("ayutthaya", "Ayutthaya", "Thailand"),
   capital("ternate", "Ternate", "Indonesia"),
+  capital("tidore", "Tidore", "Indonesia"),
   capital("japan", "Kyoto", "Japan"),
   capital("joseon", "Seoul", "Republic of Korea")
 ]);
@@ -129,6 +131,7 @@ const FRIENDSHIPS_1522 = Object.freeze([
   ["portugal", "ayutthaya"],
   ["ottoman", "gujarat"],
   ["ming", "ayutthaya"],
+  ["spain", "tidore"],
   ["japan", "joseon"],
   ["bengal", "ayutthaya"]
 ]);
@@ -141,7 +144,9 @@ const HOSTILITIES_1522 = Object.freeze([
   ["spain", "morocco"],
   ["ming", "japan"],
   ["bengal", "delhi"],
-  ["ternate", "spain"]
+  ["ternate", "spain"],
+  ["ternate", "tidore"],
+  ["portugal", "tidore"]
 ]);
 
 const WARS_1522 = Object.freeze([
@@ -242,7 +247,10 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
 
   cityRule("Ternate", "Indonesia", "ternate"),
   cityRule("Hitu Village", "Indonesia", "ternate"),
-  cityRule("Makian Village", "Indonesia", "ternate")
+  cityRule("Buru Village", "Indonesia", "ternate"),
+  cityRule("Tidore", "Indonesia", "tidore"),
+  cityRule("Makian Village", "Indonesia", "tidore"),
+  cityRule("Gane Village", "Indonesia", "tidore")
 ], "city faction overrides");
 
 const COUNTRY_FACTIONS = uniqueMap([

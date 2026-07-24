@@ -330,7 +330,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "complete-quest": "action:quest",
   "attempt-disguise": "action:disguise",
   "land-marines": "action:attack",
-  "attempt-ming-illicit-trade": "action:disguise",
+  "attempt-restricted-illicit-trade": "action:disguise",
   attack: "action:attack",
   threaten: "action:attack",
   surrender: "action:surrender",

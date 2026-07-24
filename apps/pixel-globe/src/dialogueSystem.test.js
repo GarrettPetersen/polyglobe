@@ -57,6 +57,10 @@ import { shipStatsForSlug } from "./shipStats.js";
 import { maybeSpawnVikingLongshipQuest } from "./vikingLongshipQuest.js";
 import { colonizationTargetForCity } from "./colonialCities.js";
 import {
+  expelHostileForeignSettlements,
+  withForeignSettlements1522
+} from "./foreignSettlements.js";
+import {
   advanceColonizationQuest,
   assignColonizationQuest,
   beginColonizationExpedition,
@@ -708,6 +712,56 @@ test("a factor explains customs once and repeats the explanation only after the 
   adjustFactionReputation(gameState, "portugal", 100);
   const changed = portDialogueView(session, city, gameState, economy, [city]);
   assert.match(changed.text, /favored 2% customs rate/i);
+});
+
+test("a foreign settlement is explained by the factor and supplies its resident customs privilege", () => {
+  const city = withForeignSettlements1522({
+    tileId: 92,
+    city: "Ternate",
+    displayCity: "Ternate",
+    country: "Indonesia",
+    cityType: "southeast-asian",
+    population: 12000,
+    factionId: "ternate",
+    character: { name: "Hamza Darwis", personalityId: "vigilant" }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joao Carvalho",
+      nationalityId: "portugal",
+      expressions: ["neutral", "happy"]
+    }
+  });
+
+  const greetingSession = createPortDialogueSession(city);
+  const greeting = portDialogueView(greetingSession, city, gameState, economy, [city]);
+  assert.match(greeting.text, /Portuguese masons are raising a fort and factory/i);
+
+  const rootSession = createPortDialogueSession(city, { initialNodeId: "root" });
+  const root = portDialogueView(rootSession, city, gameState, economy, [city]);
+  assert.match(root.text, /enters Portuguese cargo under its own privileges/i);
+  assert.equal(playerTradeTerms(gameState, city, "cloves").customsRate, 0);
+
+  expelHostileForeignSettlements({
+    memory: gameState.relations.foreignSettlementExpulsions,
+    ports: [city],
+    relationBetween: () => "hostile",
+    simMinute: 100
+  });
+  const expelledSession = createPortDialogueSession(city);
+  const expelledGreeting = portDialogueView(
+    expelledSession,
+    city,
+    gameState,
+    economy,
+    [city]
+  );
+  assert.match(expelledGreeting.text, /fort and factory has been closed/i);
+  assert.match(expelledGreeting.text, /Portuguese residents expelled/i);
+  assert.doesNotMatch(expelledGreeting.text, /Portuguese masons are raising/i);
+  assert.equal(playerTradeTerms(gameState, city, "cloves").customsRate, 0.1);
 });
 
 test("buying the final unit disables its stable market row instead of moving later goods", () => {
@@ -1621,15 +1675,22 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
   const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
-  const context = { simMinute: 0, random: () => 0.1 };
+  const context = {
+    simMinute: 0,
+    random: () => 0.1,
+    shipStats: shipStatsForSlug("brigantine")
+  };
 
   let root = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(root.text, /maritime prohibition/);
+  assert.match(root.text, /Water, provisions, and ordinary harbor services remain available/);
   assert.ok(root.options.every((entry) => entry.label !== "Buy goods" && entry.label !== "Sell cargo"));
+  assert.ok(root.options.some((entry) => entry.label === "Ship loadout"));
+  assert.ok(root.options.every((entry) => entry.label !== "Equipment" && entry.label !== "Visit shipyard"));
   const illicitIndex = root.options.findIndex((entry) => entry.label === "Seek illicit market");
   assert.ok(illicitIndex >= 0);
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
-  assert.equal(result.mingIllicitMarketAccess, true);
+  assert.equal(result.illicitMarketAccessPolicyId, "ming-maritime-prohibition");
 
   root = portDialogueView(session, city, gameState, economy, [city], context);
   assert.ok(root.options.some((entry) => entry.label === "Buy illicit goods"));
@@ -1661,7 +1722,7 @@ test("a failed Ming illicit-market approach costs standing and cannot be repeate
   const illicitIndex = root.options.findIndex((entry) => entry.label === "Seek illicit market");
 
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
-  assert.equal(result.mingIllicitMarketAccess, false);
+  assert.equal(result.illicitMarketAccessPolicyId, null);
   assert.equal(gameState.relations.factionReputation.ming, before - 8);
   assert.match(session.feedback, /Ming standing fell/);
   const after = portDialogueView(session, city, gameState, economy, [city], context);
@@ -2419,7 +2480,7 @@ test("envoy dialogue advances from negotiations to a paid return voyage", () => 
     active,
     gameState,
     0,
-    { simMinute: 240 }
+    { simMinute: 240, portCities: [origin, target, otherPort] }
   );
   assert.equal(result.action.type, "envoy-negotiated");
   assert.equal(result.closed, false);

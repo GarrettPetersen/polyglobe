@@ -9,11 +9,12 @@ import {
   localizedCapsules,
   LOCALIZED_CAPSULE_ASSET_NAMES,
   pressCapsuleArt,
+  qAndA,
   screenshots,
   site,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
-import { homePage, pressPage } from "../tools/pages.mjs";
+import { homePage, pressPage, qAndAPage } from "../tools/pages.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -54,6 +55,22 @@ test("published links and localization claims are explicit", () => {
   assert.equal(site.steamStatus, "Page coming soon");
   assert.equal(languages.length, 11);
   assert.equal(new Set(languages).size, languages.length);
+});
+
+test("developer Q&A publishes the approved interview with factual wording fixes", () => {
+  assert.equal(qAndA.length, 10);
+  const copy = qAndA.flatMap((entry) => [entry.question, ...entry.answer]).join("\n");
+  const page = qAndAPage();
+
+  assert.match(copy, /Vasco da Gama/);
+  assert.match(copy, /Hernán Cortés/);
+  assert.match(copy, /Ming dynasty's maritime trade restrictions/);
+  assert.match(copy, /mostly hexagonal tiling/);
+  assert.match(copy, /you can try to sail the other way/);
+  assert.match(copy, /nobody has ever written a story about revenge against a white whale before/);
+  assert.doesNotMatch(copy, /Vasco de Gama|away form|a-historical|30\+ powers|export controls/);
+  assert.equal((page.match(/class='qa-entry'/g) || []).length, qAndA.length);
+  assert.match(homePage(), /href='\/qa\/'>Q&amp;A<\/a>/);
 });
 
 test("press kit publishes every localized capsule set and download", async () => {

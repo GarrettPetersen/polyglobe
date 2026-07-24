@@ -50,6 +50,8 @@ For development, `?startShip={slug}` starts a new voyage with any roster ship. T
 
 The source of truth for gameplay tuning is `apps/pixel-globe/src/shipStats.js`. Acceleration and top speed are globe-radian units used by the sailing simulation. Top speed is tuned as a waterline-length and rig-efficiency value, so long warships can outrun smaller craft in steady wind even though they accelerate and turn slowly. Upwind stall is the angle off the wind where the ship starts moving again; below it, the ship stalls. Cannons are total mounted cannons, split across left and right broadsides at runtime.
 
+The Turtle Ship has 40% intrinsic combat armor. Each projectile or ramming impact has a 40% chance to glance off without hull damage; a penetrating hit deals its normal damage.
+
 | Ship | Slug | Cannons | Accel | Top Speed | Upwind Stall | Turn Rate | HP | Cargo |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | Fishing Barque | `fishing-lugger` | 0 | 0.021 | 0.028 | 48deg | 2.90 | 35 | 18 |
@@ -71,16 +73,16 @@ The source of truth for gameplay tuning is `apps/pixel-globe/src/shipStats.js`. 
 | Felucca | `felucca` | 0 | 0.029 | 0.031 | 30deg | 3.35 | 35 | 20 |
 | Coastal Pinnace | `cutter` | 4 | 0.028 | 0.035 | 32deg | 3.25 | 60 | 30 |
 | Lateen Barque | `ketch` | 4 | 0.024 | 0.035 | 34deg | 2.85 | 75 | 60 |
-| Turtle Ship | `joseon-turtle-ship` | 30 | 0.019 | 0.036 | 50deg | 2.10 | 32 | 110 |
+| Turtle Ship | `joseon-turtle-ship` | 30 | 0.017 | 0.034 | 50deg | 1.85 | 45 | 90 |
 | Panokseon | `joseon-panokseon` | 20 | 0.020 | 0.035 | 52deg | 2.20 | 28 | 150 |
 | Atakebune | `japanese-atakebune` | 6 | 0.015 | 0.032 | 54deg | 1.70 | 38 | 170 |
 | Spanish Nao | `spanish-nao` | 8 | 0.017 | 0.034 | 54deg | 1.90 | 13 | 180 |
 | Portuguese Carrack | `portuguese-carrack` | 22 | 0.013 | 0.036 | 58deg | 1.45 | 31 | 440 |
 | Nusantaran Outrigger | `nusantaran-outrigger` | 0 (arrows) | 0.022 | 0.035 | 48deg | 2.50 | 10 | 130 |
-| Kelulus | `kelulus` | 4 | 0.027 | 0.039 | 46deg | 2.90 | 10 | 65 |
-| Penjajap | `penjajap` | 6 | 0.028 | 0.042 | 44deg | 3.05 | 12 | 45 |
-| Lancaran | `lancaran` | 14 | 0.024 | 0.041 | 48deg | 2.60 | 20 | 95 |
-| Royal Lancaran | `royal-lancaran` | 24 | 0.019 | 0.040 | 50deg | 2.20 | 31 | 160 |
+| Kelulus | `kelulus` | 0 (arrows) | 0.027 | 0.039 | 46deg | 2.90 | 10 | 65 |
+| Penjajap | `penjajap` | 2 | 0.028 | 0.042 | 44deg | 3.05 | 12 | 45 |
+| Lancaran | `lancaran` | 6 | 0.024 | 0.041 | 48deg | 2.60 | 20 | 95 |
+| Royal Lancaran | `royal-lancaran` | 10 | 0.019 | 0.040 | 50deg | 2.20 | 31 | 160 |
 | Ottoman Coastal Trader | `ottoman-coastal-trader` | 8 | 0.017 | 0.035 | 55deg | 1.90 | 17 | 240 |
 | Viking Longship | `viking-longship` | 0 (arrows) | 0.030 | 0.043 | 55deg | 2.75 | 18 | 90 |
 

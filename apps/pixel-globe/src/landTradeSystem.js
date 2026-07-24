@@ -8,6 +8,7 @@ import {
 } from "./economy.js";
 import { NEUTRAL_FACTION_ID, diplomacyBetween } from "./factions.js";
 import { tradeTerms } from "./tradePolicy.js";
+import { validateForeignSettlementExpulsionMemory } from "./foreignSettlements.js";
 
 export const LAND_CART_CARGO_CAPACITY = 4;
 export const LAND_CART_SPEED_KM_PER_DAY = 120;
@@ -32,9 +33,18 @@ export function createLandTradeSystem({
   cities,
   startMinute,
   seedKey = null,
-  relationBetween = diplomacyBetween
+  relationBetween = diplomacyBetween,
+  foreignSettlementExpulsions = null
 }) {
-  assertSystemInputs({ roads, economy, cities, startMinute, seedKey, relationBetween });
+  assertSystemInputs({
+    roads,
+    economy,
+    cities,
+    startMinute,
+    seedKey,
+    relationBetween,
+    foreignSettlementExpulsions
+  });
   const cityByTileId = new Map(cities.map((city) => [city.tileId, city]));
   const activeRoutes = roads.routes.filter((route) => (
     cityByTileId.has(route.fromTileId) && cityByTileId.has(route.toTileId)
@@ -52,6 +62,7 @@ export function createLandTradeSystem({
     roads,
     economy,
     relationBetween,
+    foreignSettlementExpulsions,
     cityByTileId,
     activeRoutes,
     carts: []
@@ -380,6 +391,8 @@ function cartTradeTerms(system, origin, port, goodId) {
     port: { ...port, factionId: portFactionId },
     traderFactionId,
     relation: system.relationBetween(traderFactionId, portFactionId),
+    relationToFaction: (factionId) => system.relationBetween(traderFactionId, factionId),
+    foreignSettlementExpulsions: system.foreignSettlementExpulsions,
     goodId
   });
 }
@@ -440,12 +453,23 @@ function validateSavedCart(system, cart) {
   assertCartCargo(cart);
 }
 
-function assertSystemInputs({ roads, economy, cities, startMinute, seedKey, relationBetween }) {
+function assertSystemInputs({
+  roads,
+  economy,
+  cities,
+  startMinute,
+  seedKey,
+  relationBetween,
+  foreignSettlementExpulsions
+}) {
   if (!roads?.routeById || !roads.neighborRoutesByCityTileId) throw new Error("Land trade requires parsed roads");
   if (!economy?.portStates) throw new Error("Land trade requires a world economy");
   if (!Array.isArray(cities) || cities.length === 0) throw new Error("Land trade requires cities");
   if (!Number.isFinite(startMinute)) throw new Error(`Invalid land trade start minute: ${startMinute}`);
   if (typeof relationBetween !== "function") throw new Error("Land trade requires a diplomacy resolver");
+  if (foreignSettlementExpulsions !== null) {
+    validateForeignSettlementExpulsionMemory(foreignSettlementExpulsions);
+  }
   validateOptionalSeedKey(seedKey);
 }
 
@@ -455,6 +479,9 @@ function assertLandTradeSystem(system) {
       typeof system.relationBetween !== "function" ||
       (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === ""))) {
     throw new Error("Invalid land trade system");
+  }
+  if (system.foreignSettlementExpulsions !== null) {
+    validateForeignSettlementExpulsionMemory(system.foreignSettlementExpulsions);
   }
 }
 

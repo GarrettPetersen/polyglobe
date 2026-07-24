@@ -88,9 +88,19 @@ import {
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
 import {
-  DEFAULT_MING_OPEN_TRADE_FACTION_IDS,
-  MING_FACTION_ID
-} from "./mingTradeRestrictions.js";
+  createForeignSettlementExpulsionMemory,
+  expelHostileForeignSettlements,
+  migrateForeignSettlementExpulsionMemory,
+  validateForeignSettlementExpulsionMemory
+} from "./foreignSettlements.js";
+import {
+  MING_TRADE_POLICY_ID,
+  createSovereignTradeGrantMemory,
+  grantSovereignTradeToFaction,
+  migrateSovereignTradeGrantMemory,
+  sovereignTradeGrantedToFaction,
+  validateSovereignTradeGrantMemory
+} from "./sovereignTradeAccess.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_CARTAZ_INSPECTION_COOLDOWN_DAYS,
@@ -181,7 +191,7 @@ import {
 } from "./namedCrew.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 40;
+export const GAME_STATE_VERSION = 43;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
@@ -353,8 +363,9 @@ export function createGameState({
       lettersOfMarque: {},
       safePassageUntilMinute: {},
       safePassageRefusalUntilMinute: {},
-      mingOpenTradeFactionIds: [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS],
+      tradeAccessGrants: createSovereignTradeGrantMemory(),
       portugueseCartaz: createPortugueseCartazMemory(),
+      foreignSettlementExpulsions: createForeignSettlementExpulsionMemory(),
       diplomacy: createWorldDiplomacy({
         startMinute,
         seedKey: resolvedVoyageSeed
@@ -423,7 +434,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -459,6 +470,10 @@ export function migrateGameState(state, shipStats) {
       });
   const legacyPortHeading = state.memory?.navigation?.portHeading || null;
   const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
+  const {
+    mingOpenTradeFactionIds: legacyMingOpenTradeFactionIds,
+    ...migratedRelationBase
+  } = state.relations;
   const migratedPlayerCharacter = state.playerCharacter ? {
     ...state.playerCharacter,
     nationalityId: migrateFactionIdTo1522(state.playerCharacter.nationalityId),
@@ -490,7 +505,7 @@ export function migrateGameState(state, shipStats) {
       whaleHarpoonId: state.inventory?.whaleHarpoonId ?? null
     },
     relations: {
-      ...state.relations,
+      ...migratedRelationBase,
       factionReputation: migrateFactionReputationTable(state.relations.factionReputation),
       lettersOfMarque: removeRetiredFactionKeys(state.relations.lettersOfMarque),
       safePassageUntilMinute: state.version === 8
@@ -499,10 +514,14 @@ export function migrateGameState(state, shipStats) {
       safePassageRefusalUntilMinute: migrateSafePassageTable(
         state.relations.safePassageRefusalUntilMinute || {}
       ),
-      mingOpenTradeFactionIds: migrateMingOpenTradeFactionIds(
-        state.relations.mingOpenTradeFactionIds
+      tradeAccessGrants: migrateSovereignTradeGrantMemory(
+        state.relations.tradeAccessGrants,
+        legacyMingOpenTradeFactionIds
       ),
       portugueseCartaz: migratePortugueseCartazMemory(state.relations.portugueseCartaz),
+      foreignSettlementExpulsions: migrateForeignSettlementExpulsionMemory(
+        state.relations.foreignSettlementExpulsions
+      ),
       diplomacy: migratedDiplomacy
     },
     memory: {
@@ -514,7 +533,9 @@ export function migrateGameState(state, shipStats) {
       animals: state.memory?.animals || createAnimalEncounterMemory(),
       panda: migratePandaCompanionMemory(state.memory?.panda),
       quests: {
-        ...migrateQuestCharacterSkills(migrateRetiredFactionReferences(state.memory?.quests)),
+        ...migrateQuestCharacterSkills(migrateSovereignTradeQuestReferences(
+          migrateRetiredFactionReferences(state.memory?.quests)
+        )),
         japaneseMatchlocks: state.memory?.quests?.japaneseMatchlocks ||
           createJapaneseMatchlockQuestMemory(),
         caribbeanGinger: state.memory?.quests?.caribbeanGinger ||
@@ -571,6 +592,13 @@ function reconcileLoadedShipLoadout(state, shipStats) {
   if (!shipStats || shipStats.slug !== state.ship.slug) {
     throw new Error(`Saved loadout hull does not match canonical stats: ${state.ship.slug}`);
   }
+  state.ship.crewCapacity = shipStats.crewCapacity;
+  state.ship.cannonCapacity = shipStats.cannons;
+  state.ship.cannons = Math.min(state.ship.cannons, shipStats.cannons);
+  state.ship.baseCargoCapacity = shipStats.cargoCapacity;
+  state.ship.mass = shipStats.mass;
+  state.ship.navalWeaponKind = shipStats.navalWeaponKind;
+  state.cargoCapacity = effectivePlayerShipStats(state, shipStats).cargoCapacity;
   const plan = selectedShipLoadoutPlan(state, shipStats);
   state.ship.loadoutTargets = plan;
   return plan;
@@ -593,15 +621,6 @@ function migrateSafePassageTable(table) {
     migrated.spain = Math.max(migrated.spain || 0, table.aztec);
   }
   return migrated;
-}
-
-function migrateMingOpenTradeFactionIds(factionIds) {
-  if (!Array.isArray(factionIds)) return [...DEFAULT_MING_OPEN_TRADE_FACTION_IDS];
-  return [...new Set(factionIds.map(migrateFactionIdTo1522))].filter((factionId) => (
-    factionId !== MING_FACTION_ID &&
-    factionId !== NEUTRAL_FACTION_ID &&
-    factionId !== PIRATE_FACTION_ID
-  ));
 }
 
 function createPortugueseCartazMemory() {
@@ -642,6 +661,28 @@ function migrateRetiredFactionReferences(value) {
   if (Array.isArray(value)) return value.map(migrateRetiredFactionReferences);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, migrateRetiredFactionReferences(entry)]));
+}
+
+function migrateSovereignTradeQuestReferences(quests) {
+  if (!quests || typeof quests !== "object") return quests;
+  const migrateQuest = (quest) => {
+    if (!quest?.mingTradeOpeningFactionId) return quest;
+    const {
+      mingTradeOpeningFactionId,
+      ...rest
+    } = quest;
+    return {
+      ...rest,
+      tradeAccessPolicyId: MING_TRADE_POLICY_ID,
+      tradeAccessOpeningFactionId: mingTradeOpeningFactionId
+    };
+  };
+  return {
+    ...quests,
+    active: migrateQuest(quests.active),
+    passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
+      .map(([key, quest]) => [key, migrateQuest(quest)]))
+  };
 }
 
 function migrateQuestCharacterSkills(quests) {
@@ -2334,25 +2375,17 @@ export function factionReputation(state, factionId) {
   return state.relations.factionReputation[id];
 }
 
-export function mingTradeOpenToFaction(state, factionId) {
+export function sovereignTradeOpenToFaction(state, policyId, factionId) {
   if (!state || typeof state !== "object") throw new Error("Missing game state");
-  assertMingOpenTradeFactionIds(state.relations?.mingOpenTradeFactionIds);
-  const id = assertFactionId(factionId);
-  if (id === MING_FACTION_ID) return true;
-  return state.relations.mingOpenTradeFactionIds.includes(id);
+  return sovereignTradeGrantedToFaction(state.relations?.tradeAccessGrants, policyId, factionId);
 }
 
-export function openMingTradeToFaction(state, factionId) {
+export function openSovereignTradeToFaction(state, policyId, factionId) {
   assertGameState(state);
   const id = assertFactionId(factionId);
-  if (id === MING_FACTION_ID || id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
-    throw new Error(`Ming foreign trade cannot be opened to faction: ${id}`);
-  }
-  if (state.relations.mingOpenTradeFactionIds.includes(id)) return false;
-  state.relations.mingOpenTradeFactionIds.push(id);
-  state.relations.mingOpenTradeFactionIds.sort();
-  recordDecision(state, `diplomacy.ming-open-trade.${id}`, 1);
-  return true;
+  const opened = grantSovereignTradeToFaction(state.relations.tradeAccessGrants, policyId, id);
+  if (opened) recordDecision(state, `diplomacy.trade-access.${policyId}.${id}`, 1);
+  return opened;
 }
 
 export function isEnvoyQuest(quest) {
@@ -2378,15 +2411,30 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     context.simMinute,
     { homeFactionId: state.playerCharacter?.nationalityId || null }
   );
+  if (!Array.isArray(context.portCities)) {
+    throw new Error("Envoy negotiations require the current port list");
+  }
+  const foreignSettlementExpulsions = expelHostileForeignSettlements({
+    memory: state.relations.foreignSettlementExpulsions,
+    ports: context.portCities,
+    relationBetween: (factionAId, factionBId) => (
+      diplomacyBetweenForState(state, factionAId, factionBId)
+    ),
+    simMinute: context.simMinute
+  });
   const targetReputationDelta = active.kind === "friendly-envoy"
     ? ENVOY_TARGET_FRIENDLY_REPUTATION
     : ENVOY_TARGET_HOSTILE_REPUTATION;
   adjustFactionReputation(state, active.targetFactionId, targetReputationDelta);
-  const mingTradeOpenedFactionId = active.kind === "friendly-envoy"
-    ? mingTradeOpeningFactionId(state, active)
+  const tradeAccessOpenedFactionId = active.kind === "friendly-envoy"
+    ? tradeAccessOpeningFactionId(state, active)
     : null;
-  const mingTradeOpened = mingTradeOpenedFactionId
-    ? openMingTradeToFaction(state, mingTradeOpenedFactionId)
+  const tradeAccessOpened = tradeAccessOpenedFactionId
+    ? openSovereignTradeToFaction(
+        state,
+        active.tradeAccessPolicyId,
+        tradeAccessOpenedFactionId
+      )
     : false;
   recordDecision(state, `quest.envoy.negotiate.${active.id}`, 1);
   active.stage = "return";
@@ -2395,14 +2443,25 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
   active.destinationTileId = active.originTileId;
   active.destinationName = active.originName;
   active.destinationCountry = active.originCountry;
-  return { quest: active, events, targetReputationDelta, mingTradeOpened, mingTradeOpenedFactionId };
+  return {
+    quest: active,
+    events,
+    foreignSettlementExpulsions,
+    targetReputationDelta,
+    tradeAccessOpened,
+    tradeAccessPolicyId: tradeAccessOpened ? active.tradeAccessPolicyId : null,
+    tradeAccessOpenedFactionId
+  };
 }
 
-function mingTradeOpeningFactionId(state, quest) {
+function tradeAccessOpeningFactionId(state, quest) {
+  if (!quest.tradeAccessPolicyId) return null;
   const playerFactionId = state.playerCharacter?.nationalityId || null;
-  if (!playerFactionId || mingTradeOpenToFaction(state, playerFactionId)) return null;
-  const pair = new Set([quest.originFactionId, quest.targetFactionId]);
-  return pair.has(MING_FACTION_ID) && pair.has(playerFactionId) ? playerFactionId : null;
+  if (!playerFactionId ||
+      sovereignTradeOpenToFaction(state, quest.tradeAccessPolicyId, playerFactionId)) {
+    return null;
+  }
+  return quest.originFactionId === playerFactionId ? playerFactionId : null;
 }
 
 export function grantEnvoySafePassage(state, factionId, simMinute) {
@@ -2919,9 +2978,15 @@ export function playerTradeAccess(state, city, context = {}) {
     port: city,
     traderFactionId,
     relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
+    relationToFaction: (factionId) => (
+      diplomacyBetweenForState(state, traderFactionId, factionId)
+    ),
+    foreignSettlementExpulsions: state.relations.foreignSettlementExpulsions,
     simMinute: context.simMinute ?? 0,
-    mingOpenTrade: mingTradeOpenToFaction(state, traderFactionId),
-    illicitAccess: context.mingIllicitTradeAccess === true,
+    tradeAccessGranted: (policyId, factionId) => (
+      sovereignTradeOpenToFaction(state, policyId, factionId)
+    ),
+    illicitAccessPolicyId: context.illicitTradeAccessPolicyId ?? null,
     disguisedEntry: context.disguisedEntry === true
   });
 }
@@ -2932,7 +2997,7 @@ function assertPlayerTradeAccess(state, city, context) {
     if (access.reason === "war") {
       throw new Error(`${cityLabel(city)} market is closed because wartime trade is blocked`);
     }
-    throw new Error(`${cityLabel(city)} market is closed to foreign trade under the Ming maritime prohibition`);
+    throw new Error(`${cityLabel(city)} market is closed to foreign trade under ${access.policy.label}`);
   }
   return access;
 }
@@ -2948,8 +3013,13 @@ export function playerTradeTerms(state, city, goodId) {
     port: city,
     traderFactionId,
     relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
+    relationToFaction: (factionId) => (
+      diplomacyBetweenForState(state, traderFactionId, factionId)
+    ),
+    foreignSettlementExpulsions: state.relations.foreignSettlementExpulsions,
     goodId,
     reputation,
+    reputationForFaction: (factionId) => state.relations.factionReputation[factionId] || 0,
     purchaseDiscountMultiplier: portPurchasePriceMultiplier(city),
     purchaseBargainMultiplier: perks.tradePurchaseMultiplier,
     saleBargainMultiplier: perks.tradeSaleMultiplier
@@ -2964,12 +3034,18 @@ export function playerPortCustomsNotice(state, city) {
     port: city,
     traderFactionId,
     relation: diplomacyBetweenForState(state, traderFactionId, portFactionId),
-    reputation: state.relations.factionReputation[portFactionId] || 0
+    relationToFaction: (factionId) => (
+      diplomacyBetweenForState(state, traderFactionId, factionId)
+    ),
+    foreignSettlementExpulsions: state.relations.foreignSettlementExpulsions,
+    reputation: state.relations.factionReputation[portFactionId] || 0,
+    reputationForFaction: (factionId) => state.relations.factionReputation[factionId] || 0
   });
   const displayedRate = Math.round(terms.customsRate * 100);
   const key = [
     "trade.customs-notice",
     cityKey(city),
+    terms.jurisdictionFactionId,
     terms.domestic ? "domestic" : terms.relation,
     displayedRate
   ].join(".");
@@ -4190,11 +4266,12 @@ function assertGameState(state) {
     throw new Error("Game state cargo cost basis must be an object");
   }
   assertFactionReputationTable(state.relations?.factionReputation);
-  assertMingOpenTradeFactionIds(state.relations?.mingOpenTradeFactionIds);
+  validateSovereignTradeGrantMemory(state.relations?.tradeAccessGrants);
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);
   assertSafePassageTable(state.relations?.safePassageUntilMinute);
   assertSafePassageRefusalTable(state.relations?.safePassageRefusalUntilMinute);
   assertPortugueseCartazMemory(state.relations?.portugueseCartaz);
+  validateForeignSettlementExpulsionMemory(state.relations?.foreignSettlementExpulsions);
   assertWorldDiplomacyState(state);
   if (!Number.isFinite(state.accounts.realizedPnl)) throw new Error("Invalid realized trade P/L");
   if (!Array.isArray(state.accounts.ledger)) throw new Error("Game state ledger must be an array");
@@ -4532,21 +4609,6 @@ function assertFactionReputationTable(reputation) {
       throw new Error(`Missing faction reputation: ${faction.id}`);
     }
     assertReputationValue(reputation[faction.id], `reputation.${faction.id}`);
-  }
-}
-
-function assertMingOpenTradeFactionIds(factionIds) {
-  if (!Array.isArray(factionIds)) {
-    throw new Error("Game state Ming open-trade factions must be an array");
-  }
-  const unique = new Set();
-  for (const factionId of factionIds) {
-    const id = assertFactionId(factionId);
-    if (id === MING_FACTION_ID || id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
-      throw new Error(`Invalid Ming open-trade faction: ${id}`);
-    }
-    if (unique.has(id)) throw new Error(`Duplicate Ming open-trade faction: ${id}`);
-    unique.add(id);
   }
 }
 

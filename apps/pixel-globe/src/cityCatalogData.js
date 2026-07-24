@@ -10,6 +10,7 @@ import {
   factionCapitalForCity,
   factionIdForCity1522
 } from "./factions.js";
+import { withForeignSettlements1522 } from "./foreignSettlements.js";
 
 export const CITY_DATA_YEAR = 1522;
 export const CITY_MAX_COUNT = 480;
@@ -121,11 +122,11 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
       displayCity: cityDisplayName(observation.city, observation.country, targetYear),
       cityType: cityTypeForCity(observation.country, observation.lat, observation.lon)
     });
-    bestByCity.set(cityId, {
+    bestByCity.set(cityId, withForeignSettlements1522({
       ...cityRecord,
       factionId: factionIdForCity1522(cityRecord),
       declaredCapitalFactionId: capitalSpec?.factionId || null
-    });
+    }));
   }
 
   ensureManualCityRecords(bestByCity, targetYear);
@@ -161,11 +162,11 @@ function ensureManualCityRecords(bestByCity, targetYear) {
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
     });
     const capitalSpec = factionCapitalForCity(cityRecord);
-    bestByCity.set(cityId, {
+    bestByCity.set(cityId, withForeignSettlements1522({
       ...cityRecord,
       factionId: factionIdForCity1522(cityRecord),
       declaredCapitalFactionId: capitalSpec?.factionId || null
-    });
+    }));
   }
 }
 
@@ -186,12 +187,12 @@ function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
       coastalIntent: true,
       lakeIntent: false
     });
-    bestByCity.set(cityId, {
+    bestByCity.set(cityId, withForeignSettlements1522({
       ...cityRecord,
       factionId: factionIdForCity1522(cityRecord),
       declaredCapitalFactionId: capitalSpec.factionId,
       requiredFactionCapital: true
-    });
+    }));
   }
 }
 
