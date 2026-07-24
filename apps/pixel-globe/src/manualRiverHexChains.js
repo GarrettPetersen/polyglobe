@@ -14,6 +14,7 @@ export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
       98473,
     ]),
     Bremen: Object.freeze([98128, 98127, 98140]),
+    Glasgow: Object.freeze([71858, 71857, 71934]),
   }),
 });
 

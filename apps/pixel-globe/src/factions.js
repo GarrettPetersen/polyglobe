@@ -171,6 +171,7 @@ export const DIPLOMACY_MATRIX_1522 = buildDiplomacyMatrix();
 const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("London", "United Kingdom", "england"),
   cityRule("Edinburgh", "United Kingdom", "scotland"),
+  cityRule("Glasgow", "United Kingdom", "scotland"),
   cityRule("Avignon", "France", NEUTRAL_FACTION_ID),
   cityRule("Metz", "France", NEUTRAL_FACTION_ID),
 

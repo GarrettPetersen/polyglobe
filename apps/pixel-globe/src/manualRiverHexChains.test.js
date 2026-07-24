@@ -25,7 +25,8 @@ const MANUAL_CITY_RIVER_CONNECTIONS = Object.freeze([
   { city: "Verona", lat: 45.43419, lon: 10.99779, tileId: 161032 },
   { city: "Changsha", lat: 28.196111, lon: 112.972222, tileId: 15508 },
   { city: "Wroclaw", lat: 51.116667, lon: 17.033333, tileId: 98257 },
-  { city: "Bremen", lat: 53.07516, lon: 8.80777, tileId: 98128 }
+  { city: "Bremen", lat: 53.07516, lon: 8.80777, tileId: 98128 },
+  { city: "Glasgow", lat: 55.86515, lon: -4.25763, tileId: 71858 }
 ]);
 
 test("Grand Canal gives Ming Beijing water access", async () => {

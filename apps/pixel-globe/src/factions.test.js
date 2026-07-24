@@ -162,6 +162,7 @@ test("every sovereign faction has one declared water-accessible capital", () => 
     assert.equal(factionIdForCity1522(capital), capital.factionId, `${capital.city}, ${capital.country}`);
   }
   assert.equal(factionCapitalForId("ming").city, "Beijing");
+  assert.equal(factionCapitalForId("scotland").city, "Edinburgh");
   assert.equal(factionCapitalForId("ternate").city, "Ternate");
   assert.equal(factionCapitalForId("tidore").city, "Tidore");
 });

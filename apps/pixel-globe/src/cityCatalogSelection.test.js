@@ -156,6 +156,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const britishIslesPorts = ports.filter((city) =>
     city.country === "United Kingdom" || city.country === "Ireland"
   );
+  const glasgow = ports.find((city) => city.city === "Glasgow" && city.country === "United Kingdom");
   const incaPorts = ports.filter((city) => city.factionId === "inca");
   const cambay = ports.find((city) => city.city === "Cambay" && city.country === "India");
   const edo = ports.find((city) => city.city === "Edo" && city.country === "Japan");
@@ -190,6 +191,8 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     "expected every named manual river city to remain a dockable port on its mapped tile"
   );
   assert.ok(britishIslesPorts.some((city) => city.city === "Exeter"));
+  assert.ok(glasgow, "Glasgow should reach the Irish Sea through the Clyde");
+  assert.equal(glasgow.factionId, "scotland");
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
   assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
   assert.ok(sakai, "Sakai should replace nearby landlocked Nara as the Osaka Bay port");
